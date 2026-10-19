@@ -14,20 +14,20 @@ import (
 
 // maxNavigableHops bounds how many objects ReadingOf reads through to the one
 // each stands for (jsonpointer.NavigableNoder). The library follows them
-// unbounded; none in v1.25.2 stands for another past two hops. Past the bound
-// ReadingOf places nothing, and the library reads the token itself.
+// unbounded. Past the bound ReadingOf places nothing, and the library reads the
+// token itself, so the bound costs only the shortcut.
 const maxNavigableHops = 16
 
 // model is what the library navigates by its core's keys: jsonpointer's own
-// unexported model interface (v1.25.2).
+// unexported model interface.
 type model interface {
 	GetCoreAny() any
 	SetCoreAny(core any)
 }
 
-// sequencedMap is the library's internal interfaces.SequencedMapInterface
-// (v1.25.2). The library asks a map a model embeds by value for a key only when
-// the map's address has these methods.
+// sequencedMap is the library's internal interfaces.SequencedMapInterface. The
+// library asks a map a model embeds by value for a key only when the map's
+// address has these methods.
 type sequencedMap interface {
 	Init()
 	IsInitialized() bool
@@ -136,7 +136,7 @@ const (
 
 // ReadingOf returns how the library's read of token from node goes on, and the
 // raw YAML it is read in where it leaves the model (see Leaves). It follows the
-// library's dispatch for one token (getStructTarget, navigateModel, v1.25.2),
+// library's dispatch for one token (getStructTarget, navigateModel),
 // asking each map the library asks through the map's own method.
 func ReadingOf(node any, token string) (Reading, *yaml.Node) {
 	for range maxNavigableHops {
@@ -183,7 +183,7 @@ func objectReading(v reflect.Value, token string) (Reading, *yaml.Node) {
 		return Retried, nil
 	}
 	if _, ok := reflect.TypeAssert[jsonpointer.KeyNavigable](v); ok {
-		return Answering, nil // it answers token or fails; none in v1.25.2 defers to its fields
+		return Answering, nil // it answers token or fails, never deferring to its fields (see the package doc)
 	}
 	if keyed(reflect.Indirect(v).Type(), token, true) {
 		return Answering, nil

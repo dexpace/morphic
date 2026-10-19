@@ -59,9 +59,9 @@ func occupiedEntryDiag(entry string, at ir.Provenance, held jsontext.Pointer) ir
 const MaxUnknownKeys = 64
 
 // DecidedKeywords are the JSON Schema keywords the schema model names no field
-// for and this compiler has already decided about, so the census must not claim
-// them as unread. The schema walk's 2020-12 vocabulary test fails if one starts
-// being carried:
+// for (docs/parser-library.md#unmodeled-keywords) and this compiler has already
+// decided about, so the census must not claim them as unread. The schema walk's
+// 2020-12 vocabulary test fails if one starts being carried:
 //
 //   - $comment: 2020-12 §8.3 forbids presenting it to end users, so it is
 //     dropped on purpose.
@@ -77,12 +77,13 @@ var DecidedKeywords = []string{"$comment", "$dynamicAnchor", "$dynamicRef"}
 //
 // OpenAPI 3.1 schemas are JSON Schema 2020-12, where an unrecognized keyword is
 // legal input that an implementation must ignore. So this reports a decision,
-// not a fault (see diag.UnknownSchemaKeyword for the grading).
+// not a fault (diag.UnknownSchemaKeyword grades it). The model keeps only its
+// name, so the value is read from the raw node
+// (docs/parser-library.md#unmodeled-keywords).
 //
 // It keeps only what no other reader kept, so it runs after all of them:
-// `$vocabulary` and `dependentRequired` have no model field and are read off
-// the raw node by readers with more to say. A keyword no reader leaves a trace
-// of needs naming in DecidedKeywords.
+// readers with more to say take `$vocabulary` and `dependentRequired`. A
+// keyword no reader leaves a trace of needs naming in DecidedKeywords.
 func UnknownKeywordsIn(p *ir.Unmodeled, s *oas3.Schema, pointer jsontext.Pointer, locate Locator) []ir.Diagnostic {
 	keys, root := undeclaredKeys(s)
 	return census(p, keys, root, locate, pointer, "", keyClass{
@@ -127,8 +128,8 @@ func UnknownKeysUnder(p *ir.Unmodeled, model any, locate Locator, owner jsontext
 // One object needs it: a Path Item Object, whose core model embeds the map of
 // its operations. The unmarshaller folds an unrecognized key into that map
 // rather than recording it as undeclared, so the object's census is empty
-// however much the document wrote (speakeasy-api/openapi v1.24.1). Its
-// leftovers are graded as any undeclared key is, because UnknownKeysUnder
+// however much the document wrote (docs/parser-library.md#embedded-map-keys).
+// Its leftovers are graded as any undeclared key is, because UnknownKeysUnder
 // delegates here.
 func UnknownKeysNamed(p *ir.Unmodeled, keys []string, root *yaml.Node,
 	locate Locator, owner jsontext.Pointer, scope string, taken ...string,
@@ -210,8 +211,10 @@ type keyClass struct {
 // census records on p every key in keys, read off the mapping node root they
 // were written on, each under its own key beneath scope.
 //
-// It sorts a copy: neither source of keys yields document order, and sorting in
-// place would reorder the slice under its owner (invariant 7).
+// It sorts a copy: neither source of keys yields document order, the model's
+// census following the goroutines that decoded it
+// (docs/parser-library.md#goroutine-per-node), and sorting in place would
+// reorder the slice under its owner (invariant 7).
 //
 // A key p already holds for this very construct is left alone and unannounced,
 // since the reader that recorded it said it better (see unrecorded). That

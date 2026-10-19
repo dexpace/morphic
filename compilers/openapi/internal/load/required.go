@@ -98,10 +98,12 @@ func (r requiredArtifacts) faults(at func(jsontext.Pointer) ir.Provenance) []ir.
 }
 
 // findRequiredArtifacts returns the artifacts among found, the findings about
-// the models items reaches, in a document declaring version; opts are what its
-// validation hands each object (documentOptions). Where found holds no finding
-// of the rule, items is not walked: an empty default's URL echo never comes
-// alone, since the default draws the rule's finding beside it.
+// the models items reaches at version, under opts (documentOptions): those
+// requiring a field the version does not, or one written empty
+// (docs/parser-library.md#validation-version,
+// docs/parser-library.md#empty-is-missing). Without a finding of the rule,
+// items is not walked: an empty default's URL echo never comes alone, since
+// the default draws the rule's finding beside it.
 //
 // A node, or a URL check finding, is excused only where no model the walk
 // reads may hold a finding of its own there (requiredClaims), and a walk that
@@ -241,7 +243,8 @@ func relaxed(m any, version string) bool {
 }
 
 // emptyValues returns where m writes as the empty string, or an empty map, a
-// field the library then reads as missing, as it anchors that finding: the
+// field the library then reads as missing
+// (docs/parser-library.md#empty-is-missing), as it anchors that finding: the
 // ones the declared version admits, and the rest.
 //
 // A field every minor's schema types as a bare string or map is admitted

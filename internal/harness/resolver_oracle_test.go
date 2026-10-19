@@ -2,11 +2,14 @@ package harness_test
 
 // The differential oracle for the compiler's reference refusals.
 //
-// compilers/openapi/internal/scan refuses documents that would hang or crash
-// speakeasy's resolver. That refusal is a *model* of one version's behavior, and
-// a model can be wrong in two directions: too narrow lets a hang through, too
-// wide refuses a document that compiles. Neither shows up in a test that only
-// asserts what the scan says, because the scan is the thing under test.
+// compilers/openapi/internal/scan refuses documents that would crash
+// speakeasy's resolver, or once hung it
+// (docs/parser-library.md#schema-cycle-overflow,
+// docs/parser-library.md#reference-object-cycle). That refusal is a *model* of
+// one version's behavior, and a model can be wrong in two directions: too
+// narrow lets a hang through, too wide refuses a document that compiles.
+// Neither shows up in a test that only asserts what the scan says, because the
+// scan is the thing under test.
 //
 // So this asks the resolver instead. For each generated shape it compares what
 // the compiler does against what the resolver actually does, both measured in a
@@ -43,7 +46,8 @@ const probeEnv = "MORPHIC_RESOLVER_PROBE"
 
 // probeTimeout is how long a shape gets before it counts as hanging. A shape
 // that resolves at all resolves in milliseconds, so this only ever bounds a
-// deadlock, and only the shapes that deadlock pay it. Subtests run in parallel,
+// hang, and only a shape that hangs pays it; none does at the pinned version
+// (docs/parser-library.md#reference-object-cycle). Subtests run in parallel,
 // so it is the wall-clock cost of the slowest shape, not their sum.
 const probeTimeout = 10 * time.Second
 

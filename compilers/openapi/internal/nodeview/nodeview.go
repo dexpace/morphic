@@ -1,6 +1,6 @@
 // Package nodeview reads a YAML mapping the way the resolver will: through
 // aliases, through `<<` merge keys, and with duplicate keys resolved the way the
-// parser resolves them.
+// parser's model resolves them (docs/parser-library.md#duplicate-key).
 //
 // It is separate from the scans that first needed it because the schema lowering
 // needs the same view — a `$dynamicAnchor` lookup and an anchor walk both read
@@ -267,9 +267,9 @@ func KeyOf(raw *yaml.Node) (string, bool) {
 }
 
 // dedupeLastWins keeps the last pair for each key, at that last occurrence's
-// position, matching speakeasy: a mapping that repeats a key is ill-formed, but
-// speakeasy neither refuses it nor keeps the first one — it unmarshals every
-// occurrence in turn, so the final value is what the resolver then works from.
+// position: a mapping that repeats a key is ill-formed, and the parser's model
+// decodes its last occurrence, with only a warning
+// (docs/parser-library.md#duplicate-key).
 func dedupeLastWins(pairs []Pair) []Pair {
 	last := make(map[string]int, len(pairs))
 	for i, p := range pairs {
@@ -413,9 +413,9 @@ func InternalPointer(ref string) (jsontext.Pointer, bool) {
 // complete reports whether every token was followed; if not, the path ends at
 // the last node reached.
 //
-// It returns the whole path because speakeasy resolves a reference holding its
-// own lock and read-locks each reference the walk passes through, so a pointer
-// through one already being resolved deadlocks before arriving (v1.24.0).
+// It returns the whole path because a pointer through a reference already being
+// resolved is a re-entry, which the scan refuses: the resolver deadlocked on it
+// at an earlier version (docs/parser-library.md#reference-object-cycle).
 //
 // '/a/' has tokens "a" and "" (RFC 6901 §3). Dropping the empty token would
 // make a node the walk passes through its destination, which the caller's
@@ -464,13 +464,14 @@ func (v *View) walkPointer(root *yaml.Node, pointer jsontext.Pointer, atRoot boo
 }
 
 // tokenless reports whether a pointer carries no reference tokens at all, so it
-// names the root. Two spellings do, and the resolver lands on the root for both
-// (v1.24.0): the empty pointer, which is how a bare '#' reaches here and which
+// names the root. Two spellings do, and the resolver lands on the root for
+// both: the empty pointer, which is how a bare '#' reaches here and which
 // references/resolution.go resolveAgainstDocument short-circuits to the root
 // document, and a lone '/'. The second is a deliberate departure from RFC 6901,
 // which reads '/' as one empty token — getNavigationStack special-cases it to an
-// empty navigation stack, and this walk models what the resolver walks rather
-// than what the grammar admits.
+// empty navigation stack, as navigation's TestTokens_DecodesAsTheLibraryReads
+// holds it to, and this walk models what the resolver walks rather than what
+// the grammar admits.
 func tokenless(pointer jsontext.Pointer) bool {
 	return pointer == "" || pointer == "/"
 }

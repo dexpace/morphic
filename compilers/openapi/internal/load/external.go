@@ -36,10 +36,10 @@ import (
 // releaseAnchors.
 //
 // The tree is stored where the resolver looks for a parsed document, so the
-// model builds from it, not from the resolver's own parse, which silently skips
-// anchored entries the model folds into a map (GitHub #501). Anchors are
-// released only behind the refusals: they reject the recursive anchor that
-// would loop the model build (GitHub #536).
+// model builds from it, not from the resolver's own parse, which drops anchored
+// entries (docs/parser-library.md#anchored-entry-dropped, GitHub #501). Anchors
+// are released only behind the refusals, which reject a recursive one
+// (docs/parser-library.md#alias-cycle, GitHub #536).
 type external struct {
 	doc  *soa.OpenAPI
 	opts Options
@@ -124,8 +124,9 @@ func (e external) hold(ctx context.Context, sibs Siblings) {
 //
 // No schema is held: the resolver follows a schema's chain through a hop it
 // finds resolved without tracking where the chain has been, so a chain reaching
-// a held schema it resolved already loops until the stack runs out. One closing
-// through the source's file name is not refused (GitHub #768).
+// a held schema it resolved already loops until the stack runs out
+// (docs/parser-library.md#schema-cycle-overflow). One closing through the
+// source's file name is not refused (GitHub #768).
 func (e external) holdWalked(items iter.Seq[soa.WalkItem]) {
 	keys := e.read.self.keys()
 	if len(keys) == 0 {

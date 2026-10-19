@@ -31,15 +31,16 @@ const (
 	// item $ref, which the resolver reads in the item that $ref names (GitHub
 	// #824).
 	UnresolvedRef = "openapi/unresolved-ref"
-	// CyclicRef reports a degenerate reference cycle, caught before it crashes
-	// the parser with a stack overflow or deadlocks the resolver on a lock its
-	// own goroutine holds. A pre-parse scan finds a recursive YAML anchor or a
-	// chain of $ref-only nodes joined by same-document pointers; load's reach,
-	// one closing through $anchor, $id or $defs-relative resolution, which it
-	// over-approximates bar a $defs reference load holds (GitHub #557). Either
-	// names a reference on the cycle, or one a pointer passes back through,
-	// never one only leading in, and of several the least by pointer (GitHub
-	// #912).
+	// CyclicRef reports a degenerate reference cycle, refused before the parser
+	// sees it: one it would overflow its stack on
+	// (docs/parser-library.md#schema-cycle-overflow,
+	// docs/parser-library.md#alias-cycle), or a chain of reference objects it
+	// reports itself (docs/parser-library.md#reference-object-cycle). A
+	// pre-parse scan finds a recursive YAML anchor or a chain of $ref-only nodes
+	// joined by same-document pointers; load's reach, one closing through
+	// $anchor, $id or $defs-relative resolution (GitHub #557). Either names a
+	// reference on the cycle, or one a pointer passes back through, never one
+	// only leading in, and of several the least by pointer (GitHub #912).
 	CyclicRef = "openapi/cyclic-ref"
 	// CycleScanFailed reports that a cycle check did not run to completion,
 	// leaving its stack-overflow protection incomplete for the source: the
@@ -67,7 +68,8 @@ const (
 	// OpenAPI forbids: its YAML form limits tags to YAML 1.2's JSON schema
 	// ruleset. At a reference position whose model is a struct (a request body,
 	// response, parameter and the like) the parser leaves the model unbuilt and
-	// dereferences it, on a goroutine no recover here reaches (GitHub #474).
+	// dereferences it, on a goroutine no recover here reaches
+	// (docs/parser-library.md#tagged-mapping-panic, GitHub #474).
 	//
 	// The document is refused before parsing whatever the position, since telling
 	// the faulting ones apart would mean copying the parser's object model, at
@@ -235,9 +237,10 @@ const (
 	// AliasAmplification reports a document whose YAML aliases expand it past a
 	// fixed multiple of its own size (scan's maxAliasAmplification, with a floor
 	// for small documents) — a billion-laughs shape that would exhaust memory
-	// inside soa.Unmarshal before any reference is resolved (GitHub #27). A
-	// positive, measured finding, unlike CycleScanFailed, it refuses the document
-	// outright, at the least pointer of the smallest structures past the ratio.
+	// inside soa.Unmarshal (docs/parser-library.md#alias-expansion, GitHub #27).
+	// A positive, measured finding, unlike CycleScanFailed, it refuses the
+	// document outright, at the least pointer of the smallest structures past
+	// the ratio.
 	//
 	// It is a ratio and no caller's budget, so no setting admits a document it
 	// names. A document inside the ratio whose aliases still add more nodes than

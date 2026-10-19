@@ -6,6 +6,9 @@
 // calls back into it, and it knows nothing about lowering. Spec problems leave
 // as ir.Diagnostic values; the Go error return is reserved for I/O and
 // programmer errors.
+//
+// Much of it answers how the parser library behaves, which
+// docs/parser-library.md records; each declaration that does cites its entry.
 package load
 
 import (
@@ -123,8 +126,8 @@ func OverByteBudget(prov ir.Provenance, data []byte, limit int) (ir.Diagnostic, 
 // nil.
 //
 // The parser skips an anchored mapping entry where the model folds entries into
-// a map, and drops it silently (GitHub #459; speakeasy-api/openapi v1.25.2,
-// marshaller/unmarshaller.go). That skip is the only read of an anchor's name;
+// a map, and drops it silently (docs/parser-library.md#anchored-entry-dropped,
+// GitHub #459). That skip is the only read of an anchor's name;
 // an alias reaches its target by a kept pointer. Run it after the pre-parse
 // refusals, which do read names. A document read through external is released
 // too (GitHub #501), and replaces the resolver's own parse on a second
@@ -455,12 +458,12 @@ func pointerAt(srcIndex int, origin overlay.Origin) func(jsontext.Pointer) ir.Pr
 	}
 }
 
-// refusals indexes a decoded tree once and reports its pre-parse refusals: a
-// document nested too deeply to build (scan.Nesting), the degenerate reference
-// and alias structures scan finds, a mapping carrying a tag the parser faults
-// on (see diag.TaggedMapping), and a refusal of its own when the document is
-// too large to index in full. Each refusal is reported alongside the others,
-// not instead of them.
+// refusals indexes a decoded tree once and reports its pre-parse refusals, each
+// alongside the others: a document nested too deeply to build (scan.Nesting),
+// the degenerate reference and alias structures scan finds
+// (docs/parser-library.md#alias-cycle), a mapping carrying a tag the parser
+// faults on (diag.TaggedMapping), and a refusal of its own when the document is
+// too large to index in full.
 //
 // The size refusal is here, not in scan, because a truncated index answers only
 // in part, and an alias-expansion allowance derived from a partial node count
@@ -490,7 +493,9 @@ func refusals(locate scan.Locator, root *yaml.Node, opts Options) []ir.Diagnosti
 }
 
 // taggedMappingRefusal builds the diag.TaggedMapping refusal, anchored where
-// locate puts the mapping — the way the cycle refusals are anchored.
+// locate puts the mapping — the way the cycle refusals are anchored. The parser
+// panics on such a mapping at a reference object, where no recover reaches
+// (docs/parser-library.md#tagged-mapping-panic).
 func taggedMappingRefusal(locate scan.Locator, n *yaml.Node) ir.Diagnostic {
 	return diag.Newf(ir.SeverityError, diag.TaggedMapping, locate(n),
 		"mapping is tagged %q; an OpenAPI document limits YAML tags to YAML 1.2's JSON schema ruleset, which tags a mapping %s",
@@ -536,8 +541,9 @@ func applyOverlay(srcIndex int, root *yaml.Node, opts Options, pre []ir.Diagnost
 // overlayRefusals holds an overlay to the source's refusals, under the same
 // limits, before the library is handed it. The library clones each update by
 // following aliases, into every node its target selects: an anchor naming its
-// own ancestor overflows the stack, an alias bomb exhausts memory (GitHub
-// #489), and a deep update costs more per node than a shallow one.
+// own ancestor overflows the stack, an alias bomb exhausts memory
+// (docs/parser-library.md#overlay-alias-clone, GitHub #489), and a deep update
+// costs more per node than a shallow one.
 //
 // The whole overlay is decoded, since a scan of each update alone would miss a
 // cycle whose anchor sits outside it. Undecodable bytes are left to the
@@ -591,13 +597,13 @@ const metaSchemaReconciledMinor = "3.2"
 // only by checking against a meta-schema older than 3.2's, or nil when there is
 // nothing to reconcile.
 //
-// JSONSchema[T].Validate discards its options (jsonschema/oas3/jsonschema.go),
-// so every schema is checked against the 3.1 meta-schema. Validating every
-// schema twice, at 3.2 and as the library does, isolates where the two
-// disagree, each a false finding in a 3.2 document. In an older one, where
-// later says versionCheck reported a keyword 3.2 added, only the refusal of
-// a keyword is taken over: a propertyName 3.2 stopped requiring is a missing
-// field, and binds the declared version.
+// JSONSchema[T].Validate discards its options, so every schema is checked
+// against the 3.1 meta-schema (docs/parser-library.md#validation-version).
+// Validating every schema twice, at 3.2 and as the library does, isolates
+// where the two disagree, each a false finding in a 3.2 document. In an older
+// one, where later says versionCheck reported a keyword 3.2 added, only the
+// refusal of a keyword is taken over: a propertyName 3.2 stopped requiring is a
+// missing field, and binds the declared version.
 func metaSchemaVersionArtifacts(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, minor string, later bool,
 ) map[findingSite]bool {
 	walk := func() iter.Seq[soa.WalkItem] { return walkSource(ctx, doc, sibs) }
@@ -1023,10 +1029,10 @@ func (t tail) describe() string {
 //
 // A panic from the third-party parser, which faults on degenerate input such as
 // a whitespace-only document, becomes an ErrParse error. The recover reaches
-// only this goroutine, and the parser fans a model's fields out over an
-// errgroup, so a fault in one of those goroutines ends the process: a shape
-// known to fault, a tagged mapping at a reference position (GitHub #474), is
-// refused beforehand (see refusals).
+// only this goroutine, and the parser decodes on goroutines of its own, where a
+// fault ends the process: a shape known to fault, a tagged mapping at a
+// reference position (docs/parser-library.md#tagged-mapping-panic), is refused
+// beforehand (see refusals).
 func unmarshal(ctx context.Context, data []byte, root *yaml.Node) (doc *soa.OpenAPI, valErrs []error, err error) {
 	defer func() {
 		if r := recover(); r != nil {

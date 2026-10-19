@@ -37,24 +37,26 @@ var cycleReproducers = []struct{ name, file string }{
 	{"alias-dual-position", "cycle_alias_dual_position"},
 	{"duplicate-key", "cycle_duplicate_key"},
 	// Reference-object cycles spelled by document position rather than through
-	// components. speakeasy guards the components spelling and faults on these.
+	// components, which the scan refuses at the reference although the resolver
+	// reports them itself (docs/parser-library.md#reference-object-cycle).
 	{"path-item-mutual", "cycle_path_item_mutual"},
 	{"path-item-self", "cycle_path_item_self"},
 	{"webhook-mutual", "cycle_webhook_mutual"},
 	{"response-via-path", "cycle_response_via_path"},
 	{"path-item-via-component", "cycle_path_item_via_component"},
 	// A reference whose pointer passes through a reference already being
-	// resolved. Distinct from the cycles above: the hop never completes, so
-	// speakeasy's own guard cannot see it and it deadlocks rather than faulting.
+	// resolved. Distinct from the cycles above: the hop never completes. The
+	// resolver deadlocked on these at an earlier version, and reports each
+	// unresolved now (docs/parser-library.md#reference-object-cycle).
 	{"path-item-prefix-self", "cycle_path_item_prefix_self"},
 	{"path-item-prefix-sibling", "cycle_path_item_prefix_sibling"},
 	{"path-item-prefix-chain", "cycle_path_item_prefix_chain"},
 	{"component-path-item-prefix", "cycle_component_path_item_prefix"},
 	{"webhook-prefix-self", "cycle_webhook_prefix_self"},
 	{"path-item-empty-segment", "cycle_path_item_empty_segment"},
-	// A self-reference only the resolver's pointer normalization reveals, which
-	// overflows the stack rather than deadlocking: the resolution cache ends up
-	// pointing at its own reference and GetObject's delegation recurses.
+	// A path item's self-reference only the resolver's pointer normalization
+	// reveals, which it reports as a cycle
+	// (docs/parser-library.md#reference-object-cycle).
 	{"pointer-whitespace-self", "cycle_pointer_whitespace_self"},
 	// A self-reference only a plus read as a plus reveals (GitHub #911).
 	{"pointer-plus-self", "cycle_pointer_plus_self"},
@@ -196,16 +198,14 @@ components:
 	// The cases below are the negative controls for the re-entrant-prefix
 	// refusal, and they are what keeps it from widening into an over-refusal.
 	// Each carries a pointer whose prefix names a reference — the shape the rule
-	// keys on — without being the shape that hangs:
+	// keys on — without being the shape it refuses:
 	//
 	//   - the first two pass through a reference that is not on the chain
-	//     reading it, so no lock is re-entered;
+	//     reading it, so none on the chain is re-entered;
 	//   - the last two re-enter from a schema position, which resolves through
-	//     jsonschema rather than the openapi Reference wrapper and so never takes
-	//     the lock at all.
+	//     jsonschema rather than the openapi Reference wrapper.
 	//
-	// Each was measured against speakeasy v1.24.0 before being written down:
-	// refusing any of them would be refusing a document that compiles today.
+	// Refusing any of them would be refusing a document that compiles.
 	{"legal-prefix-both-hops-dangle", `openapi: 3.1.0
 info: {title: t, version: '1'}
 paths:
@@ -751,9 +751,10 @@ paths:
 // past the refusal above: a trailing separator. '#/components/pathItems/A/' ends
 // in an empty reference token, which RFC 6901 and the resolver's parser both
 // read as naming the key "" under A. The resolver therefore descends *through*
-// A — the reference it is already resolving — and deadlocks, while a scan that
-// dropped the empty token read the pointer as stopping at A and reported a
-// components-only cycle it left to the resolver.
+// A — the reference it is already resolving — which deadlocked it at an
+// earlier version (docs/parser-library.md#reference-object-cycle), while a scan
+// that dropped the empty token read the pointer as stopping at A and reported
+// a components-only cycle it left to the resolver.
 func TestDetectCycles_EmptyPointerSegmentIsRefused(t *testing.T) {
 	t.Parallel()
 	const src = `openapi: 3.1.0

@@ -511,8 +511,8 @@ func TestDocumentPath_SeparatesTheLoneSlashFromTheRoot(t *testing.T) {
 
 // TestPointerPath_EmptyTokenIsARealToken pins the one token a walk must not
 // normalize away. RFC 6901 makes "" a reference token naming the key "", and the
-// resolver's own parser agrees (jsonpointer/navigation.go getNavigationStack,
-// v1.24.0). A walk that skips it reports '/a/' as arriving at a, turning a node
+// resolver's own parser agrees (jsonpointer/navigation.go getNavigationStack).
+// A walk that skips it reports '/a/' as arriving at a, turning a node
 // the pointer only passes through into its destination — which is exactly the
 // node the re-entrancy check excludes, so the check never sees it.
 func TestPointerPath_EmptyTokenIsARealToken(t *testing.T) {

@@ -191,23 +191,24 @@ type Limits struct {
 	// document still lowers.
 	MaxEnumMembers int `json:"maxEnumMembers,omitzero"`
 	// MaxAliasSurplus bounds the nodes YAML aliases may add to a source
-	// document or its overlay: its cost with every alias expanded, less its
-	// cost as written. A source past it is refused before the model is built,
-	// an overlay before it is applied, an external document before the
-	// resolver builds from it.
+	// document or its overlay: its cost with every alias expanded
+	// (docs/parser-library.md#alias-expansion), less its cost as written. A
+	// source past it is refused before the model is built, an overlay before it
+	// is applied, an external document before the resolver builds from it.
 	//
 	// Turning it off leaves alias refusal on: a document expanding past both
 	// 128 times its own size and 32,768 nodes is refused anyway, as
 	// openapi/alias-amplification, not openapi/budget-exceeded, so only
 	// expansion up to the larger of the two goes unchecked. A document without
-	// aliases adds nothing, so this never refuses it.
+	// aliases adds nothing.
 	MaxAliasSurplus int `json:"maxAliasSurplus,omitzero"`
 	// MaxExternalDocuments bounds the documents external references read in one
 	// compile: each file and each URL, read once however many references name
 	// it. A document past it is not read, each reference into it is reported
 	// unresolved, and the compile reports openapi/budget-exceeded once. It
 	// bounds how many documents are read, not their size, which MaxSourceBytes
-	// and MaxSourceNodes bound one at a time.
+	// and MaxSourceNodes bound one at a time. The parser's resolver bounds
+	// neither (docs/parser-library.md#resolution-unbounded).
 	MaxExternalDocuments int `json:"maxExternalDocuments,omitzero"`
 }
 

@@ -13,8 +13,8 @@ import (
 // chainGraph settles how the chain from every pure-$ref node ends, reading
 // each hop once and settling outward from each chain's end, so no chain is
 // walked again per start (GitHub #903, #923, #924). The verdict is a walk's
-// however long the chain: the resolver recurses once per hop of a loop, so any
-// loop runs it out of stack (GitHub #922).
+// however long the chain: the resolver overflows its stack on any loop
+// (docs/parser-library.md#schema-cycle-overflow, GitHub #922).
 //
 // A pointer passing through a node the walk followed always comes before the
 // chain's end, so a node re-enters when a hop on its own chain passes through
@@ -41,7 +41,7 @@ type chainGraph struct {
 
 // pass is one hop's pointer passing through a reference: the node whose hop it
 // is, and where along that pointer's path the reference lies, which is the
-// order the resolver locks the references one hop passes.
+// order the resolver reaches the references one hop passes.
 type pass struct {
 	by *yaml.Node
 	at int
@@ -75,7 +75,8 @@ type reentry struct {
 }
 
 // before reports whether r comes before o on one walk: at an earlier hop, or
-// earlier along one hop's pointer, where the resolver locks a reference sooner.
+// earlier along one hop's pointer, where the resolver reaches a reference
+// sooner.
 func (r reentry) before(o reentry) bool {
 	return r.hop < o.hop || (r.hop == o.hop && r.at < o.at)
 }
@@ -102,8 +103,8 @@ func (g *chainGraph) outcome(n *yaml.Node) chainOutcome {
 
 // failsOn is what the chain from n, a node the starts reach, fails on: the
 // loop it cycles in, by number, and that loop's nodes; or, when it re-enters,
-// no loop and the node it first passes through again, the one whose lock the
-// resolver blocks on. A chain that ends fails on nothing.
+// no loop and the node it first passes through again, where the resolver
+// re-enters the chain. A chain that ends fails on nothing.
 func (g *chainGraph) failsOn(n *yaml.Node) (int, []*yaml.Node) {
 	h := g.hops[n]
 	switch h.out.verdict {
@@ -149,7 +150,8 @@ func (g *chainGraph) read(starts []*yaml.Node) {
 // reference it passes through on the way. The destination is not passed
 // through: arriving at a node on the chain is a cycle, which speakeasy reports
 // itself. A pointer that names nothing has no destination, so every node it
-// reached is passed through, which is the case that hangs.
+// reached is passed through, which is the re-entry the scan refuses
+// (docs/parser-library.md#reference-object-cycle).
 func (g *chainGraph) readHop(n *yaml.Node, ref jsontext.Pointer) *chainHop {
 	g.work++
 	h := &chainHop{left: !componentsRef(ref)}

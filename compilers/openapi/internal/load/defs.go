@@ -68,9 +68,10 @@ func heldRefs(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, rule *defs.R
 // The resolver caches the first definition it finds for a pointer and hands it
 // to every later reference spelling it, and resolves a reference it reached
 // through another against that other's definitions, so one schema's property
-// could be typed with another's definition, in an order-dependent way (GitHub
-// #557). Held out, they are resolved afterwards by resolveHeld, each to the
-// definition the rule names in its own place.
+// could be typed with another's definition, in an order-dependent way
+// (docs/parser-library.md#defs-order, GitHub #557). Held out, they are resolved
+// afterwards by resolveHeld, each to the definition the rule names in its own
+// place.
 func withDefsHeld(refs []heldRef, f func()) {
 	for _, r := range refs {
 		r.hold()
@@ -102,7 +103,8 @@ func (r heldRef) retarget() {
 }
 
 // resolveHeld resolves each held reference the rule answers for by handing the
-// resolver the pointer of the definition itself, reports each as the walk's
+// resolver the pointer of the definition itself, an answer no declaration
+// order moves (docs/parser-library.md#defs-order), reports each as the walk's
 // references are (see visit), and puts every reference back as held. One the
 // rule has no answer for stays out of reach meanwhile, so a chain that meets it
 // ends there rather than reading the resolver's order-dependent lookup, and is

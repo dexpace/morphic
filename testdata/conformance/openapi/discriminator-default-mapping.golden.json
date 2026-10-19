@@ -246,7 +246,7 @@
     {
       "format": "openapi@3.2",
       "path": "discriminator-default-mapping.yaml",
-      "hash": "b11fc09b3bf6c9f01c6852b69dd7e235bea5072b6e0c695c79e24a7c736dc02c"
+      "hash": "1e2d175deb638ac99a984849c235959b205b69f4f8072d278e2098926d0cde69"
     }
   ]
 }
