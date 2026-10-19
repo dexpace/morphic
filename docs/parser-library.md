@@ -235,9 +235,10 @@ components:
 
 ### `alias-expansion`
 
-Decoding builds the model afresh for every path to a node through aliases: two aliases of one
-anchor decode into two separate copies, and nothing is shared. So aliases that double at each level
-cost the doubling, and a document of a few hundred bytes can decode into billions of nodes.
+Decoding builds the model afresh for every path to a node through aliases: two aliases of one anchor
+decode into two separate copies, in the core model it decodes and again in the model it populates
+from that, and nothing is shared. So aliases that double at each level cost the doubling, and a
+document of a few hundred bytes can decode into billions of nodes.
 
 ```yaml
 components:
