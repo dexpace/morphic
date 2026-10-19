@@ -119,19 +119,37 @@ func (g *Merger) reconcileProperty(dst *ir.Property, src ir.Property, source fun
 	}
 }
 
-// foldDocs adopts src's description where dst has none, and reports whether
-// the two declarations describe the field differently — in which case dst's
-// stands and src's is lost.
+// foldDocs adopts src's summary, description and external links where dst has
+// none, and reports whether the two declarations gave any of them differently
+// — in which case dst's stands and src's is lost. Every field is judged, so
+// each disagreement is reported.
 func (g *Merger) foldDocs(dst, src *ir.Property) bool {
-	if dst.Docs.Description == "" {
-		dst.Docs.Description = src.Docs.Description
+	lost := false
+	if foldString(&dst.Docs.Summary, src.Docs.Summary) {
+		g.detailDiffersDiag(dst, src.Provenance.Pointer, "summary")
+		lost = true
+	}
+	if foldString(&dst.Docs.Description, src.Docs.Description) {
+		g.detailDiffersDiag(dst, src.Provenance.Pointer, "description")
+		lost = true
+	}
+	if len(dst.Docs.ExternalDocs) == 0 {
+		dst.Docs.ExternalDocs = src.Docs.ExternalDocs
+	} else if len(src.Docs.ExternalDocs) > 0 && !slices.Equal(dst.Docs.ExternalDocs, src.Docs.ExternalDocs) {
+		g.detailDiffersDiag(dst, src.Provenance.Pointer, "external docs")
+		lost = true
+	}
+	return lost
+}
+
+// foldString adopts src into an empty dst and reports whether both are set and
+// differ, in which case dst's stands.
+func foldString(dst *string, src string) bool {
+	if *dst == "" {
+		*dst = src
 		return false
 	}
-	if src.Docs.Description == "" || src.Docs.Description == dst.Docs.Description {
-		return false
-	}
-	g.detailDiffersDiag(dst, src.Provenance.Pointer, "description")
-	return true
+	return src != "" && src != *dst
 }
 
 // foldShapeDetail adopts src's default, constraints and examples where dst
