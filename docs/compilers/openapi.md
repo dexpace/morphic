@@ -331,8 +331,8 @@ writes `{a: string} & (X | Y)` directly. Where the conjunction *distributes* it 
 at all: §4.3 gives the rule, and the result is an ordinary `Union` of composed `Model`s. What
 lands here is the residue — the five shapes distribution cannot reach:
 1. the structural body is not a `Model` (a `const`, an `enum`, a scalar, or a bare
-   `required`/`additionalProperties`/`patternProperties` with neither `properties` nor a
-   `type`), so there are no composition fields for the variants to carry;
+   `required`/`items`/`prefixItems`/`additionalProperties`/`patternProperties` with neither
+   `properties` nor a `type`), so there are no composition fields for the variants to carry;
 2. a branch is written inline rather than as a `$ref`, so it names no node for `Base`/`Mixins`
    to point at — a `type: null` branch included;
 3. a branch *is* a `$ref` but names no referent the compilation resolves — a cross-document
@@ -403,26 +403,27 @@ IR models both — lower as the elected keyword with every passed-over one verba
 Union rather than collapsing to a nullable ref
 
 **Competing keywords at one position, where only one can be the value** — keywords conjoin, so
-`{allOf: [{$ref: Base}], enum: [a, b]}` is a narrowing of `Base` rather than a malformed
-document and `{oneOf: […], anyOf: […]}` demands both, yet a position lowers to one node. Two
-families compete: the value keywords `const`, `enum` and `allOf`, elected in that order, and the
-two union combinators, where `oneOf` wins. **The IR** has no intersection combinator (§15, as for
-[`union-beside-structure`](#union-beside-structure)), so the position lowers as the elected keyword — the most it can express there — and each
-keyword the election passed over is kept verbatim in `Unmodeled["openapi:<keyword>"]` under
-`ReasonDegradedLowering` at that keyword's own pointer, plus one `openapi/degraded-construct`
-`info` naming what was elected and what was kept. A position reports only what it actually
-stored, so a payload that fails to convert is reported unpreservable rather than announced as
-kept. Two consequences are deliberate: the elected combinator still becomes a `Union` rather
-than degrading to the top type, because that `Union` is a shape the IR *can* express and
+`{allOf: [{$ref: Base}], enum: [a, b]}` is a narrowing of `Base` rather than a malformed document
+and `{oneOf: […], anyOf: […]}` demands both, yet a position lowers to one node. Two families
+compete: the value keywords `const`, `enum` and `allOf`, elected in that order, and the two union
+combinators, where `oneOf` wins. **The IR** has no intersection combinator (§15, as for
+[`union-beside-structure`](#union-beside-structure)), so the position lowers as the elected keyword
+— the most it can express there — and each keyword the election passed over is kept verbatim in
+`Unmodeled["openapi:<keyword>"]` under `ReasonDegradedLowering` at that keyword's own pointer, plus
+one `openapi/degraded-construct` `info` naming what was elected and what was kept — a `warning`
+where a parameter's or header's `schema` is passed over for its `content`. A position reports only
+what it actually stored, so a payload that fails to convert is reported unpreservable rather than
+announced as kept. Two consequences are deliberate: the elected combinator still becomes a `Union`
+rather than degrading to the top type, because that `Union` is a shape the IR *can* express and
 discarding it as well would model nothing at all; and a `{X, null}` `oneOf` written beside an
-`anyOf` does **not** collapse to nullable `X` (§3.3), because the collapse asserts the position
-*is* nullable `X` while the co-declared `anyOf` conjoins with it, and collapsing would resolve
-the position to a shared primitive — which must never carry one declaration's keywords. Where a
-*structural* sibling is written as well, [`union-beside-structure`](#union-beside-structure) applies instead and both branch sets
-are kept. A keyword the *elected* lowering never reads — `type: string` beside an `allOf`,
-`format` beside a `const` — is a separate question this document has not settled: `allOf` beside
-`type: object` is the common case and loses nothing, so it wants a per-winner rule rather than a
-keyword list.
+`anyOf` does **not** collapse to nullable `X` (§3.3), because the collapse asserts the position *is*
+nullable `X` while the co-declared `anyOf` conjoins with it, and collapsing would resolve the
+position to a shared primitive — which must never carry one declaration's keywords. Where a
+*structural* sibling is written as well, [`union-beside-structure`](#union-beside-structure) applies
+instead and both branch sets are kept. A keyword the *elected* lowering never reads — `type: string`
+beside an `allOf`, `format` beside a `const` — is kept by the census
+[`shape-applicator`](#shape-applicator) runs, which asks the node that was built: `type: object`
+beside an `allOf` is one the composed `Model` already asserts, and keeps nothing (GitHub #268).
 
 ### `discriminator`
 
@@ -442,7 +443,9 @@ normalization — not in the compiler — so per-variant `Docs` survive until th
 ### `enum-const`
 
 `enum` → Enum at any member count, or a Union of Literals where an Enum cannot hold its members, and
-`const` → Literal (§4.5)
+`const` → Literal (§4.5); `enum: []` → a closed Enum with no members + `empty-enum` warning, a
+member or `const` value that cannot convert → `any` + `degraded-construct` warning, and an `enum`
+past the member budget → `any` + `budget-exceeded` error
 
 ## 4. Schemas: objects, arrays and scalars
 
@@ -491,34 +494,35 @@ a shape applicator
 verbatim Unmodeled (`degraded_lowering`) per §4.8
 
 **A shape applicator the lowered node cannot carry** — `properties`, `patternProperties`,
-`additionalProperties`, `required`, `items` and `prefixItems` each constrain an instance whether
-or not a `type` is written beside them, and each has exactly one IR home: a `Model`'s property
-set, openness and pattern bindings, or a `List`'s element and a `Tuple`'s positions and rest. A
-`MapT` homes an object's catch-all and the empty `properties`, `patternProperties` and `required`
-lists that left it a map (§4.6), but not a `required` that names a key. A position whose lowering
-produced none of these — an `Enum`, a `Literal`, a `Scalar`, or the top type — has nowhere to put
-them, and so does a position whose lowering produced the other of the two shapes
-(`{type: object, properties: {…}, items: {…}}` lowers to a `Model`, which holds no element
-type). This covers both a contradictory schema, where one half is taken and the other must stay
-recoverable (`{type: string, enum: [a, b], properties: {f: …}}` is not satisfiable, so lowering
-to the enum is a reasonable degradation), and an applicator written with no type at all, where
-the position lowers to the top type — which says strictly less than the applicator does
-(`{items: {type: string}}` constrains every array instance). **The IR** could model the untyped
-case by reading the applicator as the shape it implies — an untyped `items` as a list — but
-that is a lowering decision this document has not taken, and keeping the source leaves it open.
-Each unhomed keyword is kept verbatim in
-`Unmodeled["openapi:<keyword>"]` under `ReasonDegradedLowering`, plus one
+`additionalProperties`, `required`, `items` and `prefixItems` each constrain an instance whether or
+not a `type` is written beside them, and each has exactly one IR home: a `Model`'s property set,
+openness and pattern bindings, or a `List`'s element and a `Tuple`'s positions and rest. A `MapT`
+homes an object's catch-all and the empty `properties`, `patternProperties` and `required` lists
+that left it a map (§4.6), but not a `required` that names a key. A position whose lowering produced
+none of these — an `Enum`, a `Literal`, a `Scalar`, or the top type — has nowhere to put them, and
+so does a position whose lowering produced the other of the two shapes
+(`{type: object, properties: {…}, items: {…}}` lowers to a `Model`, which holds no element type).
+This covers both a contradictory schema, where one half is taken and the other must stay recoverable
+(`{type: string, enum: [a, b], properties: {f: …}}` is not satisfiable, so lowering to the enum is a
+reasonable degradation), and an applicator written with no type at all, where the position lowers to
+the top type — which says strictly less than the applicator does (`{items: {type: string}}`
+constrains every array instance). **The IR** could model the untyped case by reading the applicator
+as the shape it implies — an untyped `items` as a list — but that is a lowering decision this
+document has not taken, and keeping the source leaves it open. Each unhomed keyword is kept verbatim
+in `Unmodeled["openapi:<keyword>"]` under `ReasonDegradedLowering`, plus one
 `openapi/degraded-construct` `info` naming the kind the position lowered to and the keywords it
-cannot hold. Which keyword has a home is asked of the node the lowering produced, never
-re-derived from the dispatch that produced it. A position that reduced to a shared node gets an
-alias of its own first: a shared primitive must never carry one declaration's keywords. The
-`format` keyword joins the list only where no `type` is declared, since it is homed by pairing
-with a type rather than by a node kind. `discriminator` joins the list too, homed by a `Model`
-or `Union` that routes by it and by nothing else. Two limits are deliberate: a multi-typed schema
-(`type: [string, object]`) is exempt, because it lowers one variant per declared type from the
-same schema and the homes are the variants' — though a keyword no variant holds is then dropped
-(#852); and a `$ref` position is not covered, since its siblings bind the position rather than
-the referent and are handled at §4.3's use-site rule.
+cannot hold. Which keyword has a home is asked of the node the lowering produced, never re-derived
+from the dispatch that produced it. A position that reduced to a shared node gets an alias of its
+own first: a shared primitive must never carry one declaration's keywords. The `format` keyword
+joins the list wherever the lowered node does not pair it with a primitive — no `type` declared, or
+an object, an array or an enum — since it is homed by pairing with a type rather than by a node
+kind. The census reads `type`, `const`, `enum`, `minItems`, `maxItems` and `uniqueItems` beside
+these, so a collection bound on an object is kept the same way (GitHub #268). `discriminator` joins
+the list too, homed by a `Model` or `Union` that routes by it and by nothing else. One limit is
+deliberate: a multi-typed schema (`type: [string, object]`) is exempt, because it lowers one variant
+per declared type from the same schema and the homes are the variants' — though a keyword no variant
+holds is then dropped (#852). At a `$ref` position the census runs on the alias §4.3's use-site rule
+hoists, since the siblings bind the position rather than the referent.
 
 ### `numeric-formats`
 
@@ -675,7 +679,10 @@ path-item `servers`, under `paths`, `webhooks` and a callback expression alike �
 list yet), with an operation's own `servers` — which OpenAPI says override the path item's — kept
 beside them under `openapi:operationServers`, the one key here not named for the keyword it holds,
 since two declarations at two pointers cannot share one map key without the survivor depending on
-lowering order
+lowering order. A path item that mounts no operation keeps its `servers` and `x-*` names on the
+service instead, or on the declaring operation's HTTP binding for a callback expression, under
+`openapi:pathItem/<item pointer>/<key>`, the item's pointer in the key since one carrier holds every
+such item, + one `degraded-construct` warning at the mount
 
 ### `path-item-docs`
 
@@ -747,9 +754,9 @@ content is an emitter's call, not a compiler's)
 
 ### `querystring`
 
-3.2 `in: querystring` → querystring location; a declared `style` there is refused by the parser,
-while `explode` or `allowReserved` (which it does not check; GitHub #408) lowers as declared +
-`invalid-location-keyword` warning at the keyword's own pointer
+3.2 `in: querystring` → querystring location; a declared `style` there lowers as declared, reported
+as an error by the parser's validation, while `explode` or `allowReserved` (which it does not check;
+GitHub #408) lowers as declared + `invalid-location-keyword` warning at the keyword's own pointer
 
 ### `allow-reserved-locations`
 
@@ -763,7 +770,8 @@ document holds is not judged; GitHub #839)
 ### `parameter-schema-keywords`
 
 a parameter schema's `xml` and its `readOnly`/`writeOnly` → Parameter.Unmodeled (`no_ir_home`:
-Parameter has no field for either)
+Parameter has no field for either), except the `xml` of a schema that owns a node of its own, which
+stays on that node's XMLHints
 
 ## 8. Request bodies and content
 
@@ -782,8 +790,9 @@ Payload with no Contents that keeps all three, + `empty-request-content` warning
 ### `item-schema`
 
 3.2 `itemSchema` → Content.Item and `itemEncoding` → Content.ItemEncoding — except beside a
-positional `prefixEncoding`, where both go to Content.Unmodeled (`no_ir_home`) because a single
-every-item encoding cannot state ordinals
+positional `prefixEncoding`, where `itemEncoding` and `prefixEncoding` go to Content.Unmodeled
+(`no_ir_home`), because a single every-item encoding cannot state ordinals, and `itemSchema` still
+lowers to Content.Item
 
 ### `encoding-allow-reserved`
 
@@ -799,7 +808,8 @@ lowers to
 
 per-status responses/default → Conditions + ranges, with the responses-map key as declared and then
 neutralized → Response.Name.Hint and ErrorCase.Name.Hint alike (`404`, `5_xx`, `default`), which
-records the spelling a range cannot state though only `default` survives neutralization unchanged
+records the spelling a range cannot state, though neutralizing a range key folds its case (`5XX` and
+`5xx` both → `5_xx`)
 
 ### `duplicate-status-key`
 
@@ -862,7 +872,8 @@ Unmodeled (`degraded_lowering`) + info, never lowered into a field the flow lack
 
 servers+variables (3.2 named) → Servers, with a name one servers list repeats — the document's, a
 path item's or an operation's, compared as written on every version, since the parser reads `name`
-on each — kept as declared on both entries + `duplicate-server-name` warning
+on each — kept as declared on both entries — the document's in Servers, the others in the lists
+[`path-item-servers`](#path-item-servers) keeps — + `duplicate-server-name` warning
 
 ## 13. Vendor extensions and policy
 
@@ -880,7 +891,10 @@ HTTP binding, `openapi:callbacks/<name>/x-*`; on the content, `openapi:encoding/
 name stays one segment (§12); on the schema's type, `openapi:xml/x-*`, `openapi:discriminator/x-*`,
 `openapi:externalDocs/x-*`; on the scheme, `openapi:flows/x-*` — since several such objects reach
 one map and an unscoped key would leave the survivor to lowering order (§12); a Link Object's own
-ride inside the verbatim `links` entry rather than taking a key beside it
+ride inside the verbatim `links` entry rather than taking a key beside it; a path item that mounts
+no operation keeps its own under `openapi:pathItem/<item pointer>/x-*`, as
+[`path-item-servers`](#path-item-servers) says; an extension whose value cannot be serialized is
+reported (`degraded-construct`, warning) and reaches the IR in no form
 
 ### `extension-promotion`
 
