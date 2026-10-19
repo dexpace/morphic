@@ -3,6 +3,7 @@ package schema_test
 import (
 	"encoding/json/jsontext"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 
@@ -3755,4 +3756,344 @@ func TestDiscriminatorMapping_HoistedTargetKeepsItsDiagnostics(t *testing.T) {
 		assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, pointer),
 			"the format beside the model hoisted at %s is reported", pointer)
 	}
+}
+
+// nestedOrders compiles first and last in both declaration orders and requires
+// each to validate, report no error, and the two to agree on their types and on
+// what they report. Flattening reads a nested branch's $refs, so a decision
+// taken off the registry while M lowers would see only the targets declared
+// before it.
+func nestedOrders(t *testing.T, first, last string) []*ir.Document {
+	t.Helper()
+	docs := make([]*ir.Document, 0, 2)
+	for _, src := range []string{first + last, last + first} {
+		doc, diags := parseFull(t, openapitest.ComponentSpec(src))
+		openapitest.RequireNoErrorDiags(t, diags)
+		assert.Empty(t, pass.Validate(doc), "the document must validate")
+		docs = append(docs, doc)
+	}
+	assert.Empty(t, cmp.Diff(docs[0].Types, docs[1].Types, orderInvariantIR()...),
+		"declaration order must not change the types")
+	assert.Equal(t, reported(docs[0].Diagnostics), reported(docs[1].Diagnostics),
+		"declaration order must not change what is reported")
+	return docs
+}
+
+const nestedAB = `    A: {type: object, properties: {a: {type: string}}}
+    B: {type: object, properties: {b: {type: string}}}
+`
+
+// refTargets renders the targets of refs as component names.
+func refTargets(refs []ir.TypeRef) []ir.TypeID {
+	out := make([]ir.TypeID, 0, len(refs))
+	for _, r := range refs {
+		out = append(out, r.Target)
+	}
+	return out
+}
+
+// TestAllOf_NestedInlineWrapperFlattens pins allOf's associativity: a branch
+// that only wraps another allOf classifies like the flat spelling, with every
+// property keeping the pointer it was written at (GitHub #599).
+func TestAllOf_NestedInlineWrapperFlattens(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name   string
+		m      string
+		base   ir.TypeID
+		mixins []ir.TypeID
+		props  map[string]string // wire name -> provenance pointer
+	}{
+		{
+			name: "the issue: a wrapper around two refs",
+			m: `    M:
+      allOf:
+        - allOf:
+            - {$ref: '#/components/schemas/A'}
+            - {$ref: '#/components/schemas/B'}
+`,
+			mixins: []ir.TypeID{componentID("A"), componentID("B")},
+		},
+		{
+			name: "two levels of wrapper",
+			m: `    M:
+      allOf:
+        - allOf:
+            - allOf:
+                - {$ref: '#/components/schemas/A'}
+            - {$ref: '#/components/schemas/B'}
+`,
+			mixins: []ir.TypeID{componentID("A"), componentID("B")},
+		},
+		{
+			name: "a ref with an inline branch beside it carries the nested pointer",
+			m: `    M:
+      allOf:
+        - allOf:
+            - {$ref: '#/components/schemas/A'}
+            - type: object
+              properties: {c: {type: string}}
+`,
+			base:  componentID("A"),
+			props: map[string]string{"c": "/components/schemas/M/allOf/0/allOf/1/properties/c"},
+		},
+		{
+			name: "a wrapper with its own properties and type object",
+			m: `    M:
+      allOf:
+        - type: object
+          properties: {w: {type: string}}
+          allOf:
+            - {$ref: '#/components/schemas/A'}
+`,
+			base:  componentID("A"),
+			props: map[string]string{"w": "/components/schemas/M/allOf/0/properties/w"},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			for _, doc := range nestedOrders(t, tc.m, nestedAB) {
+				m, ok := typeByName(doc, "M").(*ir.Model)
+				require.True(t, ok, "M should be a model")
+				if tc.base == "" {
+					assert.Nil(t, m.Base)
+				} else if assert.NotNil(t, m.Base) {
+					assert.Equal(t, tc.base, m.Base.Target)
+				}
+				assert.Equal(t, append([]ir.TypeID{}, tc.mixins...), refTargets(m.Mixins))
+				assert.Empty(t, m.Unmodeled, "a flattened wrapper is not kept verbatim")
+				assert.False(t, slices.ContainsFunc(doc.Diagnostics, func(d ir.Diagnostic) bool {
+					return strings.HasPrefix(string(d.Provenance.Pointer), "/components/schemas/M")
+				}), "flattening is exact, so nothing is reported under M: %+v", doc.Diagnostics)
+				got := map[string]string{}
+				for _, p := range m.Properties {
+					got[p.WireName] = string(p.Provenance.Pointer)
+				}
+				want := tc.props
+				if want == nil {
+					want = map[string]string{}
+				}
+				assert.Equal(t, want, got)
+			}
+		})
+	}
+}
+
+// TestAllOf_NestedWrapperRequiredAttaches pins that a required list inside a
+// wrapper is read at the wrapper's own pointer: it attaches to a property a
+// flattened branch declares, and is diagnosed there when none does.
+func TestAllOf_NestedWrapperRequiredAttaches(t *testing.T) {
+	t.Parallel()
+	t.Run("wrapper required and nested-nested required attach", func(t *testing.T) {
+		t.Parallel()
+		m := `    M:
+      allOf:
+        - required: [x]
+          allOf:
+            - type: object
+              properties: {x: {type: integer}, y: {type: integer}}
+            - allOf:
+                - required: [y]
+`
+		for _, doc := range nestedOrders(t, m, "") {
+			model, ok := typeByName(doc, "M").(*ir.Model)
+			require.True(t, ok, "M should be a model")
+			props := openapitest.PropsByWire(model.Properties)
+			assert.True(t, props["x"].Required, "the wrapper's required reaches the property it names")
+			assert.True(t, props["y"].Required, "so does a required two wrappers deep")
+			assert.False(t, openapitest.HasDiag(doc.Diagnostics, diag.UnattachableRequired))
+		}
+	})
+	t.Run("an unattachable name is diagnosed at the wrapper", func(t *testing.T) {
+		t.Parallel()
+		m := `    M:
+      allOf:
+        - required: [ghost]
+          allOf:
+            - {$ref: '#/components/schemas/A'}
+`
+		for _, doc := range nestedOrders(t, m, nestedAB) {
+			msg := openapitest.DiagMessageAt(t, doc.Diagnostics, diag.UnattachableRequired,
+				ir.SeverityWarning, "/components/schemas/M/allOf/0")
+			assert.Contains(t, msg, `"ghost"`)
+		}
+	})
+}
+
+// TestAllOf_NestedWrapperBaseSelection pins that §4.3's classification runs
+// over the flattened list: a discriminated ref inside a wrapper is the Base,
+// whichever nested order it is written in, and still answers from its mapping.
+func TestAllOf_NestedWrapperBaseSelection(t *testing.T) {
+	t.Parallel()
+	const pet = `    Pet:
+      type: object
+      required: [kind]
+      properties: {kind: {type: string}}
+      discriminator:
+        propertyName: kind
+        mapping: {dog: '#/components/schemas/Dog'}
+    Named: {type: object, properties: {name: {type: string}}}
+`
+	tests := []struct {
+		name string
+		dog  string
+	}{
+		{"pet first inside the wrapper", `    Dog:
+      allOf:
+        - allOf:
+            - {$ref: '#/components/schemas/Pet'}
+            - {$ref: '#/components/schemas/Named'}
+`},
+		{"pet last inside the wrapper", `    Dog:
+      allOf:
+        - allOf:
+            - {$ref: '#/components/schemas/Named'}
+            - {$ref: '#/components/schemas/Pet'}
+`},
+		{"pet inside a wrapper beside a top-level ref", `    Dog:
+      allOf:
+        - {$ref: '#/components/schemas/Named'}
+        - allOf:
+            - {$ref: '#/components/schemas/Pet'}
+`},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			for _, doc := range nestedOrders(t, tc.dog, pet) {
+				dog, ok := typeByName(doc, "Dog").(*ir.Model)
+				require.True(t, ok, "Dog should be a model")
+				require.NotNil(t, dog.Base)
+				assert.Equal(t, componentID("Pet"), dog.Base.Target)
+				assert.Equal(t, []ir.TypeID{componentID("Named")}, refTargets(dog.Mixins))
+				assert.Equal(t, "dog", dog.DiscriminatorValue, "the mapping key, not the schema name")
+			}
+		})
+	}
+}
+
+// TestAllOf_NestedFalseBranchClosesModel pins that a `false` inside a wrapper
+// still closes the composition, and is kept at the pointer it was written at.
+func TestAllOf_NestedFalseBranchClosesModel(t *testing.T) {
+	t.Parallel()
+	m := `    M:
+      allOf:
+        - allOf: [false]
+`
+	for _, doc := range nestedOrders(t, m, "") {
+		model, ok := typeByName(doc, "M").(*ir.Model)
+		require.True(t, ok, "M should be a model")
+		assert.Equal(t, ir.AdditionalClosed, model.Additional)
+		entry, ok := model.Unmodeled["openapi:allOf/0/allOf/0"]
+		require.True(t, ok, "the false is kept under its nested key; got %+v", model.Unmodeled)
+		assert.Equal(t, "false", string(entry.Value))
+		assert.Equal(t, jsontext.Pointer("/components/schemas/M/allOf/0/allOf/0"), entry.Provenance.Pointer)
+		assert.NotContains(t, model.Unmodeled, "openapi:allOf/0", "the wrapper itself is not kept")
+		assert.True(t, openapitest.HasDiagCodeAt(doc.Diagnostics, diag.FalseSchema,
+			"/components/schemas/M/allOf/0/allOf/0"))
+	}
+}
+
+// TestAllOf_NestedWrapperWithResidueKeptVerbatim pins that a wrapper writing
+// anything the merge does not consume is not flattened: its properties merge,
+// the whole branch is kept under its key, and the diagnostic names the residue.
+func TestAllOf_NestedWrapperWithResidueKeptVerbatim(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		sibling string
+		residue string
+	}{
+		{"description", "description: Doc", "allOf, description"},
+		{"vendor extension", "x-vendor: keepme", "allOf, x-vendor"},
+		{"discriminator", "discriminator: {propertyName: kind}", "allOf, discriminator"},
+		{"oneOf", "oneOf: [{type: string}]", "allOf, oneOf"},
+		{"additionalProperties false", "additionalProperties: false", "allOf, additionalProperties"},
+		{"type set with null", `type: [object, "null"]`, "allOf, type"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			m := `    M:
+      allOf:
+        - allOf:
+            - {$ref: '#/components/schemas/A'}
+          ` + tc.sibling + `
+          properties: {w: {type: string}}
+`
+			for _, doc := range nestedOrders(t, m, nestedAB) {
+				model, ok := typeByName(doc, "M").(*ir.Model)
+				require.True(t, ok, "M should be a model")
+				assert.Nil(t, model.Base, "the wrapper's ref is not classified")
+				assert.Empty(t, model.Mixins)
+				_, hasW := openapitest.PropsByWire(model.Properties)["w"]
+				assert.True(t, hasW, "the wrapper's properties still merge")
+				entry, ok := model.Unmodeled["openapi:allOf/0"]
+				require.True(t, ok, "the wrapper is kept verbatim; got %+v", model.Unmodeled)
+				assert.Contains(t, string(entry.Value), `"allOf"`)
+				assert.Contains(t,
+					openapitest.DiagMessageAt(t, doc.Diagnostics, diag.DegradedConstruct,
+						ir.SeverityInfo, "/components/schemas/M/allOf/0"),
+					"("+tc.residue)
+			}
+		})
+	}
+}
+
+// TestAllOf_NestedInlineBranchKeyedByPointer pins that an inline branch inside
+// a wrapper is kept under a key spelling its path, so it can collide with
+// neither a sibling nor a top-level branch of the same index.
+func TestAllOf_NestedInlineBranchKeyedByPointer(t *testing.T) {
+	t.Parallel()
+	m := `    M:
+      allOf:
+        - type: object
+          properties: {a: {type: string}}
+          description: Top
+        - allOf:
+            - type: object
+              properties: {b: {type: string}}
+              description: First
+            - type: object
+              properties: {c: {type: string}}
+              minProperties: 1
+`
+	for _, doc := range nestedOrders(t, m, "") {
+		model, ok := typeByName(doc, "M").(*ir.Model)
+		require.True(t, ok, "M should be a model")
+		require.Len(t, model.Unmodeled, 3, "got %+v", model.Unmodeled)
+		for key, want := range map[string]string{
+			"openapi:allOf/0":         `"description":"Top"`,
+			"openapi:allOf/1/allOf/0": `"description":"First"`,
+			"openapi:allOf/1/allOf/1": `"minProperties":1`,
+		} {
+			entry, ok := model.Unmodeled[key]
+			require.True(t, ok, "missing %s in %+v", key, model.Unmodeled)
+			assert.Contains(t, string(entry.Value), want)
+			assert.Equal(t, "/components/schemas/M/"+strings.TrimPrefix(key, "openapi:"),
+				string(entry.Provenance.Pointer))
+			assert.Contains(t,
+				openapitest.DiagMessageAt(t, doc.Diagnostics, diag.DegradedConstruct, ir.SeverityInfo,
+					"/components/schemas/M/"+strings.TrimPrefix(key, "openapi:")), "inline allOf branch")
+		}
+	}
+}
+
+// TestAllOf_NestedBranchHintAgreesWithThePointerWalk pins that a $ref branch
+// inside a wrapper is named by its innermost index, as subSchemaHint names the
+// same pointer: an outside $ref to that pointer lowers it from the other side,
+// and the two must agree in either declaration order.
+func TestAllOf_NestedBranchHintAgreesWithThePointerWalk(t *testing.T) {
+	t.Parallel()
+	m := `    M:
+      allOf:
+        - allOf:
+            - {$ref: '#/components/schemas/A'}
+            - {$ref: '#/components/schemas/B', description: Narrowed}
+`
+	outsider := `    Outsider: {$ref: '#/components/schemas/M/allOf/0/allOf/1'}
+`
+	nestedOrders(t, m+outsider, nestedAB)
+	nestedOrders(t, outsider+m, nestedAB)
 }

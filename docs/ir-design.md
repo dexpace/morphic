@@ -714,7 +714,11 @@ target language allows at most one base class.
 How compilers classify `allOf`: an entry that is a `$ref` to a schema participating in a
 discriminator hierarchy, or the sole `$ref` entry, becomes `Base`; other `$ref` entries become
 `Mixins`; inline entries merge into `Properties` (with provenance). This mirrors Kiota's
-decision table but keeps every branch reconstructible.
+decision table but keeps every branch reconstructible. `allOf` is associative, so an inline entry
+whose only keywords are a non-empty `allOf` (plus the `properties`, `required` and `type: object`
+the merge already consumes) is flattened into the enclosing list before this classification, with
+each property keeping the pointer it was written at: `allOf: [{allOf: [A, B]}]` classifies like
+`allOf: [A, B]`.
 
 A `$ref` entry that also writes keywords beside the `$ref` composes the *branch*, not the schema
 the branch names: those keywords bind this use of the target and cannot go on the shared node, so
@@ -1194,10 +1198,13 @@ from it is exact and nothing is reported.
   `Model.Additional`, `Model.Constraints` and `Unmodeled` — but attributing them to the composition
   means either giving the branch a node (changing the composition shape) or merging them upward
   with a precedence rule for branches that disagree. So a branch declaring anything the merge does
-  not consume is kept verbatim in `Unmodeled["openapi:allOf/<index>"]` under
+  not consume is kept verbatim in `Unmodeled["openapi:allOf/<path>"]` under
   `ReasonDegradedLowering` — the *whole* branch, consumed keywords included, so the source stays
-  reconstructable rather than having to be reassembled from two places — keyed by branch index so
-  siblings cannot overwrite each other, plus an `openapi/degraded-construct` diagnostic naming the
+  reconstructable rather than having to be reassembled from two places — keyed by its path from
+  the composed schema (`allOf/1`, or `allOf/1/allOf/0` inside a flattened wrapper) so siblings
+  cannot overwrite each other. A branch that only wraps another `allOf` has no residue to keep: it
+  is flattened into the enclosing list (§4.3), up to a depth cap past which the wrapper is kept
+  like any other branch, plus an `openapi/degraded-construct` diagnostic naming the
   keywords that made it residue. Which keywords those are is derived from the branch's own declared
   key set rather than from a fixed list, so a keyword the dialect gains later is residue without
   anyone maintaining an enumeration. The key set is read through YAML aliases and merge keys, so a

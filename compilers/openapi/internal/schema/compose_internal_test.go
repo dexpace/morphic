@@ -802,3 +802,79 @@ func TestResolveMappingTarget_DefsValueNothingInternedIsHoistedAtItsOwnPosition(
 		})
 	}
 }
+
+// TestAllOfBranches_DepthCapKeepsWrapperVerbatim pins the bound on flattening: a
+// chain of wrappers as deep as the cap is flattened whole, and one level more
+// leaves the wrapper at the cap verbatim under a key spelling its path, with the
+// ref inside it unclassified and everything above it flattened.
+func TestAllOfBranches_DepthCapKeepsWrapperVerbatim(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name     string
+		wrappers int
+		flat     bool
+	}{
+		{"at the cap", maxAllOfFlattenDepth, true},
+		{"one past the cap", maxAllOfFlattenDepth + 1, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var b strings.Builder
+			b.WriteString("    A: {type: object, properties: {a: {type: string}}}\n    M:\n      allOf:\n")
+			for i := range tc.wrappers {
+				b.WriteString(strings.Repeat("  ", i) + "        - allOf:\n")
+			}
+			b.WriteString(strings.Repeat("  ", tc.wrappers) + "        - {$ref: '#/components/schemas/A'}\n")
+
+			doc, diags := lowerSpec(t, openapitest.ComponentSpec(b.String()))
+			openapitest.RequireNoErrorDiags(t, diags)
+			m, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/M")].(*ir.Model)
+			require.True(t, ok, "M should be a model")
+			if tc.flat {
+				require.NotNil(t, m.Base, "the ref at the bottom is classified")
+				assert.Equal(t, ir.TypeID("t/openapi/components/schemas/A"), m.Base.Target)
+				assert.Empty(t, m.Unmodeled)
+				return
+			}
+			assert.Nil(t, m.Base, "the ref sits inside the wrapper kept verbatim")
+			path := strings.TrimSuffix(strings.Repeat("allOf/0/", maxAllOfFlattenDepth+1), "/")
+			entry, ok := m.Unmodeled["openapi:"+path]
+			require.True(t, ok, "the wrapper at the cap is kept under its path; got %v", m.Unmodeled)
+			assert.Equal(t, jsontext.Pointer("/components/schemas/M/"+path), entry.Provenance.Pointer)
+			assert.Len(t, m.Unmodeled, 1)
+		})
+	}
+}
+
+// TestAllOfBranches_EntriesAgreeWithThePointerWalk pins the halt condition the
+// flattening was written against: for every inline branch of a nested
+// composition, the hint branchHint derives from the entry's index is what
+// subSchemaHint derives from its pointer, so whichever lowering interns the
+// node first names it the same. The index is the innermost one.
+func TestAllOfBranches_EntriesAgreeWithThePointerWalk(t *testing.T) {
+	t.Parallel()
+	l, _ := loweredFor(t, openapitest.ComponentSpec(`    M:
+      allOf:
+        - {type: object}
+        - allOf:
+            - {type: object}
+            - allOf:
+                - {type: object}
+                - {type: object}
+`))
+	decl, ok := l.ctx.Doc.Components.Schemas.Get("M")
+	require.True(t, ok)
+	entries := allOfBranches(decl.GetSchema(), "/components/schemas/M")
+	require.Len(t, entries, 6, "four inline branches and two wrappers")
+	var inline int
+	for _, e := range entries {
+		if e.wrapper {
+			continue
+		}
+		inline++
+		assert.Equal(t, subSchemaHint(e.schema, e.pointer), branchHint(e.schema, e.index), e.pointer)
+		assert.Equal(t, "/components/schemas/M/"+strings.TrimPrefix(e.key, "openapi:"), string(e.pointer))
+	}
+	assert.Equal(t, 4, inline)
+	assert.True(t, entries[len(entries)-1].wrapper, "a wrapper follows its own branches")
+}

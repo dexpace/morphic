@@ -155,6 +155,7 @@ func conformanceCases() []conformanceCase {
 		{"allof-required-only", assertAllOfRequiredOnly, []string{"intersection"}},
 		{"allof-oneof-cooccurrence", assertAllOfOneOfCooccurrence, []string{"intersection", "untagged-unions"}},
 		{"allof-inline-residue", assertAllOfInlineResidue, []string{"intersection"}},
+		{"allof-nested-inline", assertAllOfNestedInline, []string{"intersection"}},
 		{"allof-ref-branch-siblings", assertAllOfRefBranchSiblings, []string{"intersection", "untagged-unions"}},
 		{"allof-boolean-branch", assertAllOfBooleanBranch, []string{"intersection"}},
 		{"allof-conflicting-type", assertAllOfConflictingType, nil},
@@ -777,6 +778,46 @@ func assertAllOfInlineMerge(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.Equal(t, namedID("Base"), m.Base.Target)
 	_, ok = propByWire(m, "name")
 	assert.True(t, ok, "inline allOf branch contributes its properties")
+}
+
+// assertAllOfNestedInline pins that a branch which only wraps another allOf is
+// flattened into the enclosing list: it classifies as the flat spelling does,
+// keeps each property's own pointer, and is itself kept nowhere.
+func assertAllOfNestedInline(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	m, ok := doc.Types[namedID("M")].(*ir.Model)
+	require.True(t, ok)
+	assert.Nil(t, m.Base, "two refs and no hierarchy: none is Base")
+	require.Len(t, m.Mixins, 2)
+	assert.Equal(t, namedID("A"), m.Mixins[0].Target)
+	assert.Equal(t, namedID("B"), m.Mixins[1].Target)
+	assert.Empty(t, m.Unmodeled, "the wrapper is flattened, not kept verbatim")
+
+	n, ok := doc.Types[namedID("Nested2")].(*ir.Model)
+	require.True(t, ok)
+	require.NotNil(t, n.Base, "the sole ref two wrappers down is the Base")
+	assert.Equal(t, namedID("A"), n.Base.Target)
+	c, ok := propByWire(n, "c")
+	require.True(t, ok)
+	assert.Equal(t, jsontext.Pointer("/components/schemas/Nested2/allOf/0/allOf/1/properties/c"),
+		c.Provenance.Pointer)
+
+	mixed, ok := doc.Types[namedID("Mixed")].(*ir.Model)
+	require.True(t, ok)
+	mc, ok := propByWire(mixed, "c")
+	require.True(t, ok)
+	assert.True(t, mc.Required, "the wrapper's required list reaches the property inside it")
+	_, ok = propByWire(mixed, "w")
+	assert.True(t, ok, "the wrapper's own property merges")
+
+	closed, ok := doc.Types[namedID("Closed")].(*ir.Model)
+	require.True(t, ok)
+	assert.Equal(t, ir.AdditionalClosed, closed.Additional, "a false inside a wrapper still closes")
+	assert.Contains(t, closed.Unmodeled, "openapi:allOf/0/allOf/0")
+	assert.NotContains(t, closed.Unmodeled, "openapi:allOf/0")
+
+	for _, d := range diags {
+		assert.NotEqual(t, diag.DegradedConstruct, d.Code, "flattening is exact: %+v", d)
+	}
 }
 
 func assertAllOfRequiredOnly(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {

@@ -28,14 +28,14 @@ import (
 
 // lowerAllOf hoists an allOf schema as a Model, classifying each branch per
 // ir-design §4.3: the sole $ref (or a $ref whose target anchors a discriminator
-// hierarchy) becomes Base; other $refs become Mixins in source order; inline
-// branches contribute their properties, each carrying provenance into the
-// allOf branch it came from.
+// hierarchy) becomes Base; other $refs become Mixins in source order; a branch
+// only wrapping another allOf is flattened first; inline branches contribute
+// their properties, with provenance into the branch each came from.
 //
-// Value constraints written beside the allOf (minProperties, maxProperties,
-// ...) are read as lowerModel reads a plain object's, so they land on the same
-// field instead of falling to Unmodeled (GitHub #407). A composition that
-// leaves only a catch-all is a map, as a plain object's is (objectNode).
+// Value constraints written beside the allOf (minProperties, ...) are read as
+// lowerModel reads a plain object's, so they land on the same field instead of
+// falling to Unmodeled (GitHub #407). A composition that leaves only a
+// catch-all is a map, as a plain object's is (objectNode).
 func lowerAllOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer jsontext.Pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
@@ -66,6 +66,95 @@ func lowerAllOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 // onto the composed model and reports each name it cannot attach.
 var compositionCensusHandled = []string{"required"}
 
+// maxAllOfFlattenDepth bounds how many levels of nested inline allOf wrappers
+// allOfBranches flattens (styleguide bounded-everything rule). A wrapper at
+// this depth is kept verbatim like any other branch with residue, so a source
+// nesting deeper than any author writes still lowers, with nothing dropped.
+const maxAllOfFlattenDepth = 32
+
+// allOfBranch is one inline-or-ref branch of an allOf composition after nested
+// wrappers are flattened into the list (GitHub #599).
+type allOfBranch struct {
+	schema *oas3.JSONSchema[oas3.Referenceable]
+	// pointer is where the branch was written, never rewritten to a flat index:
+	// property IDs, provenance and diagnostics all derive from it.
+	pointer jsontext.Pointer
+	// key is the Unmodeled key the branch is kept under: "openapi:" and its
+	// pointer relative to the composed schema.
+	key string
+	// index is the branch's position within its own allOf, which is what
+	// branchHint needs to agree with subSchemaHint.
+	index int
+	// wrapper marks a flattened wrapper, which contributes its properties and
+	// required list but is never kept verbatim.
+	wrapper bool
+}
+
+// allOfFrame is one allOf list allOfBranches is walking.
+type allOfFrame struct {
+	list    []*oas3.JSONSchema[oas3.Referenceable]
+	next    int
+	pointer jsontext.Pointer // of the schema owning list
+	rel     string           // path of that schema from the composed one, "" or ending in "/"
+	depth   int
+	pending *allOfBranch // the wrapper owning list, emitted once list is done
+}
+
+// allOfBranches returns the branches of s's allOf in source order, depth first,
+// with every nested wrapper flattensInto accepts replaced by its own branches
+// followed by the wrapper itself. allOf is associative, so the list classifies
+// exactly as its flat spelling would. The walk is iterative, over an explicit
+// stack, so it adds no recursion cycle to this package.
+func allOfBranches(s *oas3.Schema, pointer jsontext.Pointer) []allOfBranch {
+	var out []allOfBranch
+	stack := []allOfFrame{{list: s.GetAllOf(), pointer: pointer}}
+	for len(stack) > 0 {
+		f := &stack[len(stack)-1]
+		if f.next == len(f.list) {
+			if f.pending != nil {
+				out = append(out, *f.pending)
+			}
+			stack = stack[:len(stack)-1]
+			continue
+		}
+		idx := f.next
+		f.next++
+		rel := f.rel + "allOf/" + strconv.Itoa(idx)
+		e := allOfBranch{
+			schema:  f.list[idx],
+			pointer: f.pointer + ids.Ptr("allOf", strconv.Itoa(idx)),
+			key:     "openapi:" + rel,
+			index:   idx,
+		}
+		if !flattensInto(e.schema, f.depth) {
+			out = append(out, e)
+			continue
+		}
+		e.wrapper = true
+		stack = append(stack, allOfFrame{
+			list: e.schema.GetSchema().GetAllOf(), pointer: e.pointer,
+			rel: rel + "/", depth: f.depth + 1, pending: &e,
+		})
+	}
+	return out
+}
+
+// flattensInto reports whether the allOf branch b, at nesting depth depth, is a
+// wrapper allOfBranches flattens: inline, declaring a non-empty allOf, writing
+// no keyword the in-place merge does not already consume, and above the depth
+// cap. Anything else stays one branch, kept verbatim when it has residue.
+func flattensInto(b *oas3.JSONSchema[oas3.Referenceable], depth int) bool {
+	if depth >= maxAllOfFlattenDepth || isRefBranch(b) {
+		return false
+	}
+	bs := b.GetSchema()
+	if bs == nil || len(bs.GetAllOf()) == 0 {
+		return false
+	}
+	residue := unmergedBranchKeys(bs)
+	return len(residue) == 1 && residue[0] == "allOf"
+}
+
 // requiredEntry is one `required` name declared somewhere in an allOf
 // composition, paired with the pointer of the schema that declared it (an
 // allOf branch, or the composed schema itself) so a diagnostic can point the
@@ -76,20 +165,19 @@ type requiredEntry struct {
 }
 
 // compositionRequired collects every required-property name declared across an
-// allOf composition, in source order: each branch's required list, then the
-// composed schema's own. A branch is read from its local schema, never its
+// allOf composition, in source order: each branch's required list (a flattened
+// wrapper's included, at the wrapper's pointer), then the composed schema's own. A branch is read from its local schema, never its
 // resolved $ref target — that required list belongs to the target's own
 // model (issue #29).
 func compositionRequired(s *oas3.Schema, pointer jsontext.Pointer) []requiredEntry {
 	var out []requiredEntry
-	for i, b := range s.GetAllOf() {
-		bs := b.GetSchema() // the branch's own local schema; nil for a bare `false`
+	for _, e := range allOfBranches(s, pointer) {
+		bs := e.schema.GetSchema() // the branch's own local schema; nil for a bare `false`
 		if bs == nil {
 			continue
 		}
-		bptr := pointer + ids.Ptr("allOf", strconv.Itoa(i))
 		for _, name := range bs.GetRequired() {
-			out = append(out, requiredEntry{name: name, pointer: bptr})
+			out = append(out, requiredEntry{name: name, pointer: e.pointer})
 		}
 	}
 	for _, name := range s.GetRequired() {
@@ -133,52 +221,58 @@ func diagUnattachableRequired(c lowering.Ctx, m *ir.Model, e requiredEntry) ir.D
 		"required %q matches no property declared here", e.name)
 }
 
-// fillAllOf classifies and lowers the allOf branches into m.
+// fillAllOf classifies and lowers the allOf branches into m, over the list
+// allOfBranches builds (GitHub #599).
 //
 // An inline branch merges in place: only its `properties` and `required`
 // (applyCompositionRequired) merge, the rest staying verbatim beside the model
 // (preserveUnmergedBranch, GitHub #123). Merging more would need a precedence
-// rule between branches, and Model.Constraints has no home for a scalar
-// branch's maxLength.
+// rule between branches.
 //
 // A $ref branch owns a node: keywords beside its $ref, if any, go on an alias
-// that homeDeclaration hoists there, and the composition points at it (GitHub
-// #143). The census every $ref site runs keeps what the alias cannot model,
-// except `required` (compositionCensusHandled); a co-declared oneOf/anyOf is kept
-// too (GitHub #406).
+// that homeDeclaration hoists there (GitHub #143). The census every $ref site
+// runs keeps what the alias cannot model, except `required`
+// (compositionCensusHandled); a co-declared oneOf/anyOf is kept too (GitHub #406).
 func fillAllOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, m *ir.Model, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	branches := s.GetAllOf()
+	branches := allOfBranches(s, pointer)
 	baseIdx := selectAllOfBase(branches)
-	for i, b := range branches {
-		bptr := pointer + ids.Ptr("allOf", strconv.Itoa(i))
-		if !isRefBranch(b) {
-			diags = append(diags, fillModelProperties(c, ts, anchors, depth, m, b.GetSchema(), bptr)...)
-			diags = append(diags, preserveUnmergedBranch(c, m, b.GetSchema(), i, bptr)...)
+	for i, e := range branches {
+		if !isRefBranch(e.schema) {
+			diags = append(diags, fillModelProperties(c, ts, anchors, depth, m, e.schema.GetSchema(), e.pointer)...)
+			if !e.wrapper {
+				diags = append(diags, preserveUnmergedBranch(c, m, e.schema.GetSchema(), e.key, e.pointer)...)
+			}
 			continue
 		}
-		id, ok, refDiags := resolveSchemaRef(c, ts, anchors, depth, b, b.GetRef().String())
-		diags = append(diags, refDiags...)
-		if !ok {
-			ref := b.GetRef().String()
-			diags = append(diags, c.DiagAt(ir.SeverityError, diag.UnresolvedRef, bptr,
-				"unresolved allOf $ref %q%s", ref, unresolvedWhy(c, ref, bptr)))
-			continue
-		}
-		bs := b.GetSchema()
-		unhomed := refSiteUnhomedKeywords(bs, compositionCensusHandled)
-		hasUnion := declaresUnion(bs)
-		ref, homeDiags := homeDeclaration(c, ts, anchors, bs, ir.TypeRef{Target: id}, bptr, branchHint(b, i), annotation.HomeOwnNode, len(unhomed) > 0 || hasUnion)
-		diags = append(diags, homeDiags...)
-		diags = append(diags, recordUnhomedKeywords(c, ts, ref.Target, bs, unhomed, refSiteShape, bptr)...)
-		if hasUnion {
-			diags = append(diags, preserveUnionSiblings(c, ts, ref.Target, bs, bptr, ir.ReasonDegradedLowering, refSiteUnionWhy)...)
-		}
-		if i == baseIdx {
-			m.Base = &ref
-		} else {
-			m.Mixins = append(m.Mixins, ref)
-		}
+		diags = append(diags, fillRefBranch(c, ts, anchors, depth, m, e, i == baseIdx)...)
+	}
+	return diags
+}
+
+// fillRefBranch lowers one $ref allOf branch and adds it to m as its Base, when
+// isBase, or as a Mixin. A $ref it cannot resolve is reported and adds nothing.
+func fillRefBranch(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, m *ir.Model, e allOfBranch, isBase bool) []ir.Diagnostic {
+	b := e.schema
+	id, ok, diags := resolveSchemaRef(c, ts, anchors, depth, b, b.GetRef().String())
+	if !ok {
+		ref := b.GetRef().String()
+		return append(diags, c.DiagAt(ir.SeverityError, diag.UnresolvedRef, e.pointer,
+			"unresolved allOf $ref %q%s", ref, unresolvedWhy(c, ref, e.pointer)))
+	}
+	bs := b.GetSchema()
+	unhomed := refSiteUnhomedKeywords(bs, compositionCensusHandled)
+	hasUnion := declaresUnion(bs)
+	ref, homeDiags := homeDeclaration(c, ts, anchors, bs, ir.TypeRef{Target: id}, e.pointer, branchHint(b, e.index), annotation.HomeOwnNode, len(unhomed) > 0 || hasUnion)
+	diags = append(diags, homeDiags...)
+	diags = append(diags, recordUnhomedKeywords(c, ts, ref.Target, bs, unhomed, refSiteShape, e.pointer)...)
+	if hasUnion {
+		diags = append(diags, preserveUnionSiblings(c, ts, ref.Target, bs, e.pointer, ir.ReasonDegradedLowering, refSiteUnionWhy)...)
+	}
+	if isBase {
+		m.Base = &ref
+	} else {
+		m.Mixins = append(m.Mixins, ref)
 	}
 	return diags
 }
@@ -195,19 +289,19 @@ func fillAllOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth in
 // constrains nothing and is skipped.
 func applyFalseBranches(c lowering.Ctx, m *ir.Model, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	for i, b := range s.GetAllOf() {
+	for _, e := range allOfBranches(s, pointer) {
+		b := e.schema
 		if b == nil || !b.IsBool() {
 			continue
 		}
 		if v := b.GetBool(); v == nil || *v {
 			continue // `true` constrains nothing.
 		}
-		bptr := pointer + ids.Ptr("allOf", strconv.Itoa(i))
 		m.Additional = ir.AdditionalClosed
-		preserve(c, &m.Unmodeled, "openapi:allOf/"+strconv.Itoa(i),
-			ir.RawValue("false"), ir.ReasonDegradedLowering, bptr)
+		preserve(c, &m.Unmodeled, e.key,
+			ir.RawValue("false"), ir.ReasonDegradedLowering, e.pointer)
 
-		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.FalseSchema, bptr,
+		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.FalseSchema, e.pointer,
 			"boolean false allOf branch matches nothing, so the composition matches nothing; "+
 				"composed model closed and the branch kept verbatim under Unmodeled"))
 	}
@@ -216,13 +310,13 @@ func applyFalseBranches(c lowering.Ctx, m *ir.Model, s *oas3.Schema, pointer jso
 
 // preserveUnmergedBranch keeps an inline allOf branch verbatim beside the
 // composed model when it declares more than the merge consumes, under
-// ReasonDegradedLowering and located at the branch (ir-design §4.8). branchIdx
-// keys the entry, so sibling branches never overwrite one another.
+// ReasonDegradedLowering and located at the branch (ir-design §4.8). key names
+// the entry, so sibling branches never overwrite one another.
 //
 // A boolean branch has no keywords to leave a residue; applyFalseBranches
 // handles it. A $ref branch takes neither path: fillAllOf homes its siblings on
 // an alias over the target.
-func preserveUnmergedBranch(c lowering.Ctx, m *ir.Model, bs *oas3.Schema, branchIdx int, bptr jsontext.Pointer) []ir.Diagnostic {
+func preserveUnmergedBranch(c lowering.Ctx, m *ir.Model, bs *oas3.Schema, key string, bptr jsontext.Pointer) []ir.Diagnostic {
 	if bs == nil {
 		return nil // boolean branch; applyFalseBranches handles it.
 	}
@@ -230,7 +324,7 @@ func preserveUnmergedBranch(c lowering.Ctx, m *ir.Model, bs *oas3.Schema, branch
 	if len(residue) == 0 {
 		return nil
 	}
-	kept, keptDiags := PreserveNode(c, &m.Unmodeled, "openapi:allOf/"+strconv.Itoa(branchIdx),
+	kept, keptDiags := PreserveNode(c, &m.Unmodeled, key,
 		bs.GetRootNode(), ir.ReasonDegradedLowering, bptr)
 	if !kept {
 		return keptDiags
@@ -279,7 +373,9 @@ func unmergedBranchKeys(bs *oas3.Schema) []string {
 
 // mergeConsumes reports whether fillAllOf's in-place merge reads branch keyword
 // key. It is the complete statement of what the merge keeps; everything else the
-// branch wrote is residue.
+// branch wrote is residue. `allOf` is not consumed here: a branch writing only it
+// is flattened by allOfBranches before the merge sees it (flattensInto), and
+// beside anything else it is residue like the rest.
 func mergeConsumes(bs *oas3.Schema, key string) bool {
 	switch key {
 	case "properties":
@@ -350,12 +446,13 @@ func rawMapping(root *yaml.Node) *yaml.Node {
 	return root
 }
 
-// selectAllOfBase returns the branch index that becomes Model.Base, or -1 when
-// none qualifies (multiple non-hierarchy refs stay Mixins).
-func selectAllOfBase(branches []*oas3.JSONSchema[oas3.Referenceable]) int {
+// selectAllOfBase returns the index into branches of the one that becomes
+// Model.Base, or -1 when none qualifies (multiple non-hierarchy refs stay
+// Mixins).
+func selectAllOfBase(branches []allOfBranch) int {
 	refIdxs := make([]int, 0, len(branches))
-	for i, b := range branches {
-		if isRefBranch(b) {
+	for i, e := range branches {
+		if isRefBranch(e.schema) {
 			refIdxs = append(refIdxs, i)
 		}
 	}
@@ -363,7 +460,7 @@ func selectAllOfBase(branches []*oas3.JSONSchema[oas3.Referenceable]) int {
 		return refIdxs[0]
 	}
 	for _, i := range refIdxs {
-		if refTargetHasDiscriminator(branches[i]) {
+		if refTargetHasDiscriminator(branches[i].schema) {
 			return i
 		}
 	}
@@ -519,8 +616,8 @@ func ancestorDiscriminators(s *oas3.Schema) []*oas3.Discriminator {
 // schema two branches both name from being queued, and walked, twice.
 func unvisitedRefTargets(s *oas3.Schema, visited map[*oas3.Schema]bool) []*oas3.Schema {
 	var out []*oas3.Schema
-	for _, b := range s.GetAllOf() {
-		target := refBranchTarget(b)
+	for _, e := range allOfBranches(s, "") {
+		target := refBranchTarget(e.schema)
 		if target == nil || visited[target] {
 			continue
 		}
