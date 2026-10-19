@@ -1,7 +1,7 @@
 package keydoc_test
 
 import (
-	"net"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
@@ -62,9 +62,9 @@ func TestCitations_ReadsEachKindOfFile(t *testing.T) {
 // list, for a Go file that does not parse and for a Markdown or YAML file that
 // cannot be read, and for a root that does not exist.
 //
-// The unreadable files are unix sockets rather than files with no permission,
-// since permission bits are advisory to root, and a socket refuses to be read
-// whoever asks.
+// The unreadable files are symbolic links to nothing rather than files with no
+// permission, since permission bits are advisory to root, and a link with no
+// target fails to read whoever asks.
 func TestCitations_FailsOnAFileItCannotRead(t *testing.T) {
 	t.Parallel()
 	_, err := keydoc.Citations(filepath.Join(t.TempDir(), "absent"), "d.md", "d.md")
@@ -78,16 +78,10 @@ func TestCitations_FailsOnAFileItCannotRead(t *testing.T) {
 	for _, name := range []string{"a.md", "a.yaml"} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			// A short prefix rather than t.TempDir: a unix socket path is capped
-			// near 104 bytes, and t.TempDir spells the test's whole name into it.
-			dir, err := os.MkdirTemp("", "keydoc")
-			require.NoError(t, err)
-			t.Cleanup(func() { assert.NoError(t, os.RemoveAll(dir)) })
-			ln, err := net.Listen("unix", filepath.Join(dir, name))
-			require.NoError(t, err)
-			t.Cleanup(func() { assert.NoError(t, ln.Close()) })
-			_, err = keydoc.Citations(dir, "d.md", "d.md")
-			require.Error(t, err)
+			dir := t.TempDir()
+			require.NoError(t, os.Symlink(filepath.Join(dir, "absent"), filepath.Join(dir, name)))
+			_, err := keydoc.Citations(dir, "d.md", "d.md")
+			require.ErrorIs(t, err, fs.ErrNotExist)
 		})
 	}
 }

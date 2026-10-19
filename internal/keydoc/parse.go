@@ -66,8 +66,9 @@ var (
 
 // Spans returns the text of each span of code s writes, in order.
 func Spans(s string) []string {
-	var out []string
-	for _, m := range codeSpan.FindAllStringSubmatch(s, -1) {
+	matches := codeSpan.FindAllStringSubmatch(s, -1)
+	out := make([]string, 0, len(matches))
+	for _, m := range matches {
 		out = append(out, m[1])
 	}
 	return out
