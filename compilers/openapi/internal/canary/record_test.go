@@ -5,10 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"go/ast"
-	"go/parser"
 	"go/token"
 	"go/types"
-	"io/fs"
 	"maps"
 	"os"
 	"path/filepath"
@@ -22,6 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/internal/decls"
+	"github.com/dexpace/morphic/internal/keydoc"
 )
 
 // repoRoot is the repository root, from this package's directory.
@@ -29,6 +28,9 @@ const repoRoot = "../../../.."
 
 // recordPath is the page this package pins, relative to repoRoot.
 const recordPath = "docs/parser-library.md"
+
+// citedAs is how a citation spells the record, before the "#" and the key.
+const citedAs = "parser-library.md"
 
 // libraryModule is the parser library's module path.
 const libraryModule = "github.com/speakeasy-api/openapi"
@@ -40,25 +42,18 @@ const module = "github.com/dexpace/morphic"
 // TestLibraryBehaviour named for its key.
 const pinPrefix = "TestLibraryBehaviour/"
 
-// The fields an entry writes, each a bullet of its own.
+// The fields an entry writes, each a bullet of its own, and the bullet that
+// opens each item of the Code list below its field.
 const (
-	verifiedField = "- Verified at: "
-	pinnedField   = "- Pinned by: "
-	codeField     = "- Code:"
+	verifiedField = "Verified at"
+	pinnedField   = "Pinned by"
+	codeField     = "Code"
 	codeItem      = "  - "
 )
 
 var (
-	// keyHeading is an entry's heading: its key, a lowercase slug, in code.
-	keyHeading = regexp.MustCompile("^### `([a-z0-9]+(?:-[a-z0-9]+)*)`$")
-	// heading is any Markdown heading.
-	heading = regexp.MustCompile(`^#{1,6} `)
-	// codeSpan is the first span of code on a line.
-	codeSpan = regexp.MustCompile("`([^`]+)`")
 	// citation is a reference to an entry of the record, anywhere it is written.
-	citation = regexp.MustCompile(`parser-library\.md#([A-Za-z0-9_-]+)`)
-	// anchorLink is a link from the record to one of its own entries.
-	anchorLink = regexp.MustCompile(`\]\(#([A-Za-z0-9_-]+)\)`)
+	citation = regexp.MustCompile(regexp.QuoteMeta(citedAs) + `#([A-Za-z0-9_-]+)`)
 	// version is a release version, written as a v and two or three numbers.
 	version = regexp.MustCompile(`\bv\d+\.\d+(?:\.\d+)?\b`)
 )
@@ -74,7 +69,7 @@ type entry struct {
 }
 
 // readRecord returns the record's entries, failing the test on any problem
-// with its shape.
+// with their shape.
 func readRecord(t *testing.T) []entry {
 	t.Helper()
 	text, err := os.ReadFile(filepath.Join(repoRoot, recordPath))
@@ -85,103 +80,73 @@ func readRecord(t *testing.T) []entry {
 	return entries
 }
 
-// parseRecord reads the entries of a record, and reports each problem with
-// its shape: a third-level heading that is not a key, or an entry whose
-// fields are missing, repeated or empty. Fenced code is not read.
+// parseRecord reads the entries of a record through keydoc, and reports each
+// problem with their shape: keydoc's, and an entry whose fields are missing,
+// or whose Code field lists something that is no item naming a declaration.
 func parseRecord(text string) ([]entry, []string) {
-	var entries []entry
-	var problems []string
-	var cur *entry
-	fenced, inCode := false, false
-	for i, line := range strings.Split(text, "\n") {
-		n := i + 1
-		if strings.HasPrefix(line, "```") {
-			fenced = !fenced
+	read, problems := keydoc.Parse(text, verifiedField, pinnedField, codeField)
+	entries := make([]entry, 0, len(read))
+	for _, e := range read {
+		got := entry{key: e.Key, line: e.Line}
+		if f, ok := e.Field(verifiedField); ok {
+			got.verified = f.Text()
 		}
-		switch {
-		case fenced || strings.HasPrefix(line, "```"):
-		case strings.HasPrefix(line, "### "):
-			m := keyHeading.FindStringSubmatch(line)
-			if m == nil {
-				problems = append(problems, fmt.Sprintf("line %d: a third-level heading is not a key: %q", n, line))
-				cur = nil
-				continue
-			}
-			entries = append(entries, entry{key: m[1], line: n})
-			cur, inCode = &entries[len(entries)-1], false
-		case heading.MatchString(line):
-			cur = nil
-		case cur != nil:
-			inCode, problems = readField(cur, line, n, inCode, problems)
+		if f, ok := e.Field(pinnedField); ok {
+			got.pinnedBy = firstSpan(f.Text())
 		}
-	}
-	for _, e := range entries {
-		problems = append(problems, fieldProblems(e)...)
+		if f, ok := e.Field(codeField); ok {
+			var bad []string
+			got.code, bad = codeItems(e.Key, f)
+			problems = append(problems, bad...)
+		}
+		problems = append(problems, fieldProblems(e, got)...)
+		entries = append(entries, got)
 	}
 	return entries, problems
 }
 
-// readField reads one line of an entry into e, returning whether the line
-// leaves the reader in the Code list, and problems with what it found.
-func readField(e *entry, line string, n int, inCode bool, problems []string) (bool, []string) {
-	repeated := func(field string) []string {
-		return append(problems, fmt.Sprintf("line %d: %s writes %q twice", n, e.key, field))
+// codeItems returns the declaration each item of a Code field names, and a
+// problem for each line of the field that neither opens an item naming one
+// nor continues one.
+func codeItems(key string, f keydoc.Field) ([]string, []string) {
+	code := []string{}
+	var problems []string
+	if f.Value != "" {
+		problems = append(problems, fmt.Sprintf("line %d: %s writes its Code items on the bullet's own line", f.Line, key))
 	}
-	switch {
-	case strings.HasPrefix(line, verifiedField):
-		if e.verified != "" {
-			return false, repeated(verifiedField)
+	for i, line := range f.Lines {
+		switch {
+		case strings.HasPrefix(line, codeItem) && firstSpan(line) != "":
+			code = append(code, firstSpan(line))
+		case strings.HasPrefix(line, codeItem):
+			problems = append(problems, fmt.Sprintf("line %d: a Code item of %s names no declaration", f.Line+i+1, key))
+		case !strings.HasPrefix(line, "    ") || i == 0:
+			problems = append(problems, fmt.Sprintf("line %d: %s writes a Code line that is no item: %q", f.Line+i+1, key, line))
 		}
-		e.verified = strings.TrimSpace(strings.TrimPrefix(line, verifiedField))
-		return false, problems
-	case strings.HasPrefix(line, pinnedField):
-		if e.pinnedBy != "" {
-			return false, repeated(pinnedField)
-		}
-		e.pinnedBy = firstSpan(line)
-		return false, problems
-	case line == codeField:
-		if e.code != nil {
-			return true, repeated(codeField)
-		}
-		e.code = []string{}
-		return true, problems
-	case inCode && strings.HasPrefix(line, codeItem):
-		symbol := firstSpan(line)
-		if symbol == "" {
-			return true, append(problems, fmt.Sprintf("line %d: a Code item of %s names no declaration", n, e.key))
-		}
-		e.code = append(e.code, symbol)
-		return true, problems
-	case strings.HasPrefix(line, "- "):
-		return false, append(problems, fmt.Sprintf("line %d: %s writes a field no reader knows: %q", n, e.key, line))
 	}
-	return inCode && (line == "" || strings.HasPrefix(line, "    ")), problems
+	return code, problems
 }
 
-// firstSpan returns the text of the first span of code on line, or "".
-func firstSpan(line string) string {
-	if m := codeSpan.FindStringSubmatch(line); m != nil {
-		return m[1]
+// firstSpan returns the text of the first span of code s writes, or "".
+func firstSpan(s string) string {
+	if spans := keydoc.Spans(s); len(spans) > 0 {
+		return spans[0]
 	}
 	return ""
 }
 
 // fieldProblems reports each field e leaves unwritten, and a Code field that
 // names no declaration.
-func fieldProblems(e entry) []string {
+func fieldProblems(e keydoc.Entry, got entry) []string {
 	var problems []string
-	for field, written := range map[string]bool{
-		verifiedField: e.verified != "", pinnedField: e.pinnedBy != "", codeField: e.code != nil,
-	} {
-		if !written {
-			problems = append(problems, fmt.Sprintf("line %d: %s does not write %q", e.line, e.key, field))
+	for _, field := range []string{verifiedField, pinnedField, codeField} {
+		if _, ok := e.Field(field); !ok {
+			problems = append(problems, fmt.Sprintf("line %d: %s does not write the field %q", e.Line, e.Key, field))
 		}
 	}
-	if e.code != nil && len(e.code) == 0 {
-		problems = append(problems, fmt.Sprintf("line %d: %s names no declaration under %q", e.line, e.key, codeField))
+	if _, ok := e.Field(codeField); ok && len(got.code) == 0 {
+		problems = append(problems, fmt.Sprintf("line %d: %s names no declaration under %q", e.Line, e.Key, codeField))
 	}
-	slices.Sort(problems)
 	return problems
 }
 
@@ -395,72 +360,15 @@ func TestRecord_CitationsNameAnEntry(t *testing.T) {
 // citationProblems reports each citation under root of a key keys lacks, and
 // counts the citations it read.
 func citationProblems(root string, keys map[string]bool) ([]string, int, error) {
+	found, err := keydoc.Citations(root, recordPath, citedAs)
 	var problems []string
-	count := 0
-	record := filepath.Join(root, recordPath)
-	err := walkFiles(root, ".", func(path string) error {
-		found, err := citations(path, path == record)
-		if err != nil {
-			return err
-		}
-		for _, c := range found {
-			count++
-			if !keys[c.text] {
-				problems = append(problems, fmt.Sprintf("%s:%d cites %q, which is no entry of %s",
-					rel(root, path), c.line, c.text, recordPath))
-			}
-		}
-		return nil
-	})
-	return problems, count, err
-}
-
-// citations returns the key each citation in the file at path names, and its
-// line: in a comment of a Go or YAML file, anywhere in a Markdown one, and for
-// the record itself in each link it makes to its own entries too.
-func citations(path string, record bool) ([]comment, error) {
-	texts, err := commentsOf(path)
-	if filepath.Ext(path) == ".md" {
-		texts, err = lines(path)
-	}
-	patterns := []*regexp.Regexp{citation}
-	if record {
-		patterns = append(patterns, anchorLink)
-	}
-	var out []comment
-	for _, c := range texts {
-		for _, p := range patterns {
-			for _, m := range p.FindAllStringSubmatch(c.text, -1) {
-				out = append(out, comment{text: m[1], line: c.line})
-			}
+	for _, c := range found {
+		if !keys[c.Key] {
+			problems = append(problems, fmt.Sprintf("%s:%d cites %q, which is no entry of %s",
+				c.Path, c.Line, c.Key, recordPath))
 		}
 	}
-	return out, err
-}
-
-// walkFiles calls visit with each file under root/tree, leaving out every
-// directory below it whose name starts with a dot.
-func walkFiles(root, tree string, visit func(path string) error) error {
-	start := filepath.Join(root, tree)
-	return filepath.WalkDir(start, func(path string, d fs.DirEntry, err error) error {
-		switch {
-		case err != nil:
-			return err
-		case d.IsDir() && path != start && strings.HasPrefix(d.Name(), "."):
-			return fs.SkipDir
-		case d.IsDir():
-			return nil
-		}
-		return visit(path)
-	})
-}
-
-// rel returns path relative to root, for a message.
-func rel(root, path string) string {
-	if r, err := filepath.Rel(root, path); err == nil {
-		return filepath.ToSlash(r)
-	}
-	return path
+	return problems, len(found), err
 }
 
 // versionedTrees are the trees whose comments may not name a version of the
@@ -492,105 +400,18 @@ func TestRecord_NoCommentNamesALibraryVersion(t *testing.T) {
 func versionProblems(root, tree string) ([]string, int, error) {
 	var problems []string
 	read := 0
-	err := walkFiles(root, tree, func(path string) error {
-		comments, err := commentsOf(path)
+	err := keydoc.Walk(root, tree, func(path string) error {
+		comments, err := keydoc.Comments(path)
 		if err != nil {
 			return err
 		}
 		read += len(comments)
 		for _, c := range comments {
-			if v := version.FindString(c.text); v != "" {
-				problems = append(problems, fmt.Sprintf("%s:%d names %s", rel(root, path), c.line, v))
+			if v := version.FindString(c.Text); v != "" {
+				problems = append(problems, fmt.Sprintf("%s:%d names %s", keydoc.Rel(root, path), c.Line, v))
 			}
 		}
 		return nil
 	})
 	return problems, read, err
-}
-
-// commentsOf returns the comments of the Go or YAML file at path, and none for
-// any other file.
-func commentsOf(path string) ([]comment, error) {
-	switch filepath.Ext(path) {
-	case ".go":
-		return goComments(path)
-	case ".yaml", ".yml":
-		return yamlComments(path)
-	}
-	return nil, nil
-}
-
-// comment is a comment's text and the line it starts on.
-type comment struct {
-	text string
-	line int
-}
-
-// goComments returns every comment in the Go file at path.
-func goComments(path string) ([]comment, error) {
-	fset := token.NewFileSet()
-	f, err := parser.ParseFile(fset, path, nil, parser.ParseComments|parser.SkipObjectResolution)
-	if err != nil {
-		return nil, err
-	}
-	out := make([]comment, 0, len(f.Comments))
-	for _, g := range f.Comments {
-		out = append(out, comment{text: g.Text(), line: fset.Position(g.Pos()).Line})
-	}
-	return out, nil
-}
-
-// lines returns each line of the file at path, as a comment of its own.
-func lines(path string) ([]comment, error) {
-	text, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-	split := strings.Split(string(text), "\n")
-	out := make([]comment, 0, len(split))
-	for i, line := range split {
-		out = append(out, comment{text: line, line: i + 1})
-	}
-	return out, nil
-}
-
-// yamlComments returns every comment in the YAML file at path, a line each.
-// It reads them by line rather than by parsing, since a fixture may be YAML
-// the parser refuses.
-func yamlComments(path string) ([]comment, error) {
-	text, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-	var out []comment
-	for i, line := range strings.Split(string(text), "\n") {
-		if c, ok := yamlComment(line); ok {
-			out = append(out, comment{text: c, line: i + 1})
-		}
-	}
-	return out, nil
-}
-
-// yamlComment returns the comment line ends with: from a '#' that opens the
-// line or follows a space, outside quotes. A quote opens a quoted scalar only
-// where a scalar starts, so an apostrophe inside a plain one opens nothing,
-// and a backslash in a double-quoted one escapes the byte after it.
-func yamlComment(line string) (string, bool) {
-	var quote byte
-	for i := 0; i < len(line); i++ {
-		c := line[i]
-		switch {
-		case quote == '"' && c == '\\':
-			i++
-		case quote != 0:
-			if c == quote {
-				quote = 0
-			}
-		case (c == '\'' || c == '"') && (i == 0 || strings.IndexByte(" \t[{,", line[i-1]) >= 0):
-			quote = c
-		case c == '#' && (i == 0 || line[i-1] == ' ' || line[i-1] == '\t'):
-			return line[i+1:], true
-		}
-	}
-	return "", false
 }

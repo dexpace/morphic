@@ -294,6 +294,10 @@ var rules = map[string][]string{
 		module + "/internal/decls/testdata/good/fixture",
 		module + "/internal/decls/testdata/good/uses",
 	},
+	// Test infrastructure as well: the one reader of the repository's keyed
+	// documents and of the citations made of them, which the tests holding each
+	// document to the code share. Standard library only.
+	"internal/keydoc": {},
 }
 
 // exempt names the production packages deliberately outside the layering rules,
