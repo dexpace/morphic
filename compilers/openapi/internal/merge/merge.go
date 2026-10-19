@@ -185,12 +185,12 @@ func (g *Merger) foldAnnotations(dst, src *ir.Property) bool {
 }
 
 // detailDiffersDiag reports a detail both declarations of a field write and
-// write differently. Info, not warning: the merged field is complete and
-// consistent, and what a reader is told is only that the first declaration's
+// write differently. Info, not warning: the merged field is complete, and
+// what a reader is told is only that the first declaration's
 // spelling was the one kept, with the other beside it under Unmodeled.
 func (g *Merger) detailDiffersDiag(dst *ir.Property, pointer jsontext.Pointer, detail string) {
 	g.Report(ir.SeverityInfo, diag.DegradedConstruct, pointer,
-		"declarations of field %q give its %s differently; kept the first declaration, "+
+		"declarations of field %q give its %s differently; kept the first declaration's, "+
 			"with the redeclaration verbatim under Unmodeled", dst.WireName, detail)
 }
 
@@ -294,7 +294,7 @@ const maxTypeResolveDepth = 64
 // contradictory constraint keyword. At most one diagnostic fires, a type
 // conflict subsuming a constraint one.
 //
-// dropped reports that the targets differ and neither is a primitive
+// dropped reports that the targets differ and neither is a bare-primitive
 // refinement of the other, so src's type is lost. lost reports that src's type
 // or a constraint keyword was lost, so the redeclaration is kept whole (GitHub
 // #424). dropped is wider than the reported conflicts, since typesConflict does
@@ -385,7 +385,7 @@ func (g *Merger) keepLosingDeclaration(dst, src *ir.Property, source func() (ir.
 // winner (keepLosingDeclaration), so a reader knows where to look.
 func (g *Merger) redeclarationConflictDiag(dst *ir.Property, pointer jsontext.Pointer, detail string) {
 	g.Report(ir.SeverityWarning, diag.ConflictingRedecl, pointer,
-		"declarations of field %q disagree: %s; kept the first declaration (%s) over the redeclaration (%s), "+
+		"declarations of field %q disagree: %s; kept what the first declaration (%s) says over the redeclaration (%s), "+
 			"which is kept verbatim under Unmodeled",
 		dst.WireName, detail, dst.Provenance.Pointer, pointer)
 }

@@ -822,31 +822,62 @@ func TestReconcileProperty_ANarrowerPrimitiveWinsInEitherOrder(t *testing.T) {
 }
 
 // TestReconcileProperty_ANarrowingIntersectsNullability pins that the swap
-// keeps the conjunction the equal-target case already states.
+// keeps the conjunction the equal-target case already states: over every pair
+// of null admissions, in both orders, the merged field admits null only where
+// both branches do.
 func TestReconcileProperty_ANarrowingIntersectsNullability(t *testing.T) {
 	t.Parallel()
 	for _, broadFirst := range []bool{true, false} {
 		for _, broadNull := range []bool{true, false} {
-			t.Run(fmt.Sprintf("broadFirst=%v/broadNullable=%v", broadFirst, broadNull), func(t *testing.T) {
-				t.Parallel()
-				g, recorded := stubMerger(narrowingRegistry())
-				broad := primRef(ir.PrimNumber)
-				broad.Nullable = broadNull
-				narrow := primRef(ir.PrimInteger)
-				narrow.Nullable = !broadNull
-				dst, src := broad, narrow
-				if !broadFirst {
-					dst, src = narrow, broad
-				}
-				p := ir.Property{WireName: "x", Type: dst}
+			for _, narrowNull := range []bool{true, false} {
+				name := fmt.Sprintf("broadFirst=%v/broadNullable=%v/narrowNullable=%v", broadFirst, broadNull, narrowNull)
+				t.Run(name, func(t *testing.T) {
+					t.Parallel()
+					g, recorded := stubMerger(narrowingRegistry())
+					broad := primRef(ir.PrimNumber)
+					broad.Nullable = broadNull
+					narrow := primRef(ir.PrimInteger)
+					narrow.Nullable = narrowNull
+					dst, src := broad, narrow
+					if !broadFirst {
+						dst, src = narrow, broad
+					}
+					p := ir.Property{WireName: "x", Type: dst}
 
-				g.reconcileProperty(&p, ir.Property{WireName: "x", Type: src, Provenance: ptrAt("/p")}, unread(t))
+					g.reconcileProperty(&p, ir.Property{WireName: "x", Type: src, Provenance: ptrAt("/p")}, unread(t))
 
-				assert.Equal(t, narrow.Target, p.Type.Target)
-				assert.False(t, p.Type.Nullable, "null is admitted only where both branches admit it")
-				assert.Empty(t, *recorded)
-			})
+					assert.Equal(t, narrow.Target, p.Type.Target)
+					assert.Equal(t, broadNull && narrowNull, p.Type.Nullable,
+						"null is admitted only where both branches admit it")
+					assert.Empty(t, *recorded)
+				})
+			}
 		}
+	}
+}
+
+// TestReconcileProperty_ADroppedTargetKeepsTheFirstNullAdmission pins the drop
+// arm of foldTypeTargets: an unrelated redeclaration's type is lost whole, so
+// the merged field keeps the first declaration's null admission, not the
+// conjunction a same-referent or narrowing pair takes.
+func TestReconcileProperty_ADroppedTargetKeepsTheFirstNullAdmission(t *testing.T) {
+	t.Parallel()
+	for _, firstNull := range []bool{true, false} {
+		t.Run(fmt.Sprintf("firstNullable=%v", firstNull), func(t *testing.T) {
+			t.Parallel()
+			g, recorded := stubMerger(narrowingRegistry())
+			dst := ir.Property{WireName: "x", Type: primRef(ir.PrimString)}
+			dst.Type.Nullable = firstNull
+			src := ir.Property{WireName: "x", Type: primRef(ir.PrimInteger), Provenance: ptrAt("/allOf/1/properties/x")}
+			src.Type.Nullable = !firstNull
+
+			g.reconcileProperty(&dst, src, written(`{"type":"integer"}`))
+
+			assert.Equal(t, primRef(ir.PrimString).Target, dst.Type.Target, "the first declaration keeps the shape")
+			assert.Equal(t, firstNull, dst.Type.Nullable, "a dropped type takes its null admission with it")
+			require.Len(t, *recorded, 1)
+			assert.Equal(t, diag.ConflictingRedecl, (*recorded)[0].Code)
+		})
 	}
 }
 

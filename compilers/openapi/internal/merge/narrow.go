@@ -44,7 +44,9 @@ var primParent = map[ir.PrimKind]ir.PrimKind{
 // Narrows reports whether narrow is a strict refinement of broad under
 // primParent: broad is reached by walking up from narrow, and the kinds
 // differ. Under allOf the pair intersects as narrow, so a redeclaration
-// naming both keeps narrow.
+// naming both keeps narrow. It is exported for schema's
+// TestFormatTable_EveryRowNarrowsItsBareType, which holds formatTable to it; no
+// production caller outside this package uses it.
 func Narrows(narrow, broad ir.PrimKind) bool {
 	kind, ok := narrow, true
 	for depth := 0; depth < maxNarrowDepth && ok; depth++ {
