@@ -14,6 +14,7 @@ import (
 
 	"github.com/speakeasy-api/openapi/jsonpointer"
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
+	oas3core "github.com/speakeasy-api/openapi/jsonschema/oas3/core"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -118,30 +119,49 @@ const doublings = 8
 
 // aliasExpansion pins alias-expansion: decoding builds the model afresh for
 // every path through an alias, sharing nothing between two aliases of one
-// node, so aliases doubling at each level cost the doubling.
+// node, so aliases doubling at each level cost the doubling. The last level
+// holds a schema for every path beneath it, and so does the core model
+// decoding builds before the schemas are populated from it.
 func aliasExpansion(t *testing.T) {
-	t.Run("two aliases of one node", func(t *testing.T) {
-		t.Parallel()
-		doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(schemas("S: &s {type: string}", "A: {allOf: [*s, *s]}")))
-		require.NoError(t, err)
-		a, ok := doc.Components.Schemas.Get("A")
-		require.True(t, ok)
-		both := a.GetSchema().GetAllOf()
-		require.Len(t, both, 2)
-		assert.NotSame(t, both[0].GetSchema(), both[1].GetSchema(), revisit(t, result{}))
-	})
-	t.Run("aliases doubling", func(t *testing.T) {
-		t.Parallel()
-		entries := []string{"L0: &l0 {type: string}"}
-		for i := 1; i <= doublings; i++ {
-			entries = append(entries, fmt.Sprintf("L%d: &l%d {allOf: [*l%d, *l%d]}", i, i, i-1, i-1))
+	entries := []string{"L0: &l0 {type: string}"}
+	for i := 1; i <= doublings; i++ {
+		entries = append(entries, fmt.Sprintf("L%d: &l%d {allOf: [*l%d, *l%d]}", i, i, i-1, i-1))
+	}
+	doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(schemas(entries...)))
+	require.NoError(t, err)
+	last, ok := doc.Components.Schemas.Get(fmt.Sprintf("L%d", doublings))
+	require.True(t, ok)
+
+	paths := 1<<(doublings+1) - 1
+	models := distinct(last.GetSchema(), func(s *oas3.Schema) []*oas3.Schema {
+		branches := make([]*oas3.Schema, 0, len(s.GetAllOf()))
+		for _, js := range s.GetAllOf() {
+			branches = append(branches, js.GetSchema())
 		}
-		r := probe(t, "goroutines", schemas(entries...))
-		require.Equal(t, returned, r.outcome, revisit(t, r))
-		started, err := strconv.Atoi(r.report)
-		require.NoError(t, err)
-		assert.GreaterOrEqual(t, started, 1<<doublings, revisit(t, r))
+		return branches
 	})
+	assert.Equal(t, paths, models, "schemas: %s", revisit(t, result{}))
+	cores := distinct(last.GetCore(), func(c oas3core.JSONSchema) []oas3core.JSONSchema {
+		return c.Left.Value.AllOf.Value
+	})
+	assert.Equal(t, paths, cores, "core models: %s", revisit(t, result{}))
+}
+
+// distinct counts the distinct nodes reachable from root, itself included,
+// through children.
+func distinct[T comparable](root T, children func(T) []T) int {
+	seen := map[T]bool{}
+	stack := []T{root}
+	for len(stack) > 0 {
+		top := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		if seen[top] {
+			continue
+		}
+		seen[top] = true
+		stack = append(stack, children(top)...)
+	}
+	return len(seen)
 }
 
 // nodeCount is how many entries and elements the documents measuring
