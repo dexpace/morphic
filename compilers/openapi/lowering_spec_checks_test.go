@@ -88,8 +88,14 @@ func TestSpecChecks_ReportEachPlantedDefect(t *testing.T) {
 		want  string
 	}{
 		{"a shape keydoc refuses", replace("### `second-rule`", "### Second rule"), "is not a key"},
-		{"a field naming nothing", replace("- Tests: `openapi.TestA`\n- Status", "- Tests: none\n- Status"),
+		{"a field naming nothing", replace("- Tests: `openapi.TestA`\n- Status", "- Tests:\n- Status"),
 			`second-rule writes "Tests" naming nothing`},
+		{"a Status naming nothing", replace("- Status: not built (#12).", "- Status:"),
+			`second-rule writes "Status" naming nothing`},
+		{"prose in an evidence field", replace("- Cases: `case-a`", "- Cases: `case-a`, which shows it"),
+			`first-rule writes prose in "Cases"`},
+		{"an evidence field of prose alone", replace("- Tests: `openapi.TestA`\n- Status", "- Tests: none\n- Status"),
+			`second-rule writes prose in "Tests"`},
 		{"a repeated key", replace("### `second-rule`", "### `first-rule`"), "repeats the key of line 5"},
 		{"a rule with no evidence", replace("- Tests: `openapi.TestA`\n- Status: not built (#12).\n", ""),
 			"second-rule names no case or test"},

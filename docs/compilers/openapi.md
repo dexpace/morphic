@@ -2025,8 +2025,9 @@ others in the lists [`path-item-servers`](#path-item-servers) keeps, and reporte
   `load.TestServerRepeats_ReportsEveryListTheSourceWrites`,
   `load.TestServerRepeats_ReportsOnlyANameOneListRepeatsExactly`
 - Status: partly built: the default server the parser injects for a document writing none is lowered
-  as if declared, and a server has no provenance (#672), and a variable's `default` cannot tell an
-  empty default from none (#883).
+  as if declared, and a server has no provenance (#672); a variable's `default` cannot tell an empty
+  default from none (#883); and a servers list only a `$ref` reaches is never checked for a repeated
+  name (#880).
 
 ## 15. Vendor extensions and policy
 

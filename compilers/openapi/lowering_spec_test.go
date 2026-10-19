@@ -82,28 +82,34 @@ func readSpec(t *testing.T) []rule {
 }
 
 // parseSpec reads the rules of a specification through keydoc, and reports
-// each problem with their shape: keydoc's, and a Cases, Codes or Tests field
-// naming nothing.
+// each problem with their shape: keydoc's, a field naming nothing, and prose in
+// a Cases, Codes or Tests field, which lists spans of code alone.
 func parseSpec(text string) ([]rule, []string) {
 	entries, problems := keydoc.Parse(text, casesField, codesField, testsField, statusField)
 	rules := make([]rule, 0, len(entries))
 	for _, e := range entries {
 		r := rule{key: e.Key, line: e.Line, text: e.Text}
 		for _, f := range e.Fields {
+			if f.Text() == "" {
+				problems = append(problems, fmt.Sprintf("line %d: %s writes %q naming nothing", f.Line, r.key, f.Name))
+				continue
+			}
+			if f.Name == statusField {
+				r.status = f.Text()
+				continue
+			}
 			spans := keydoc.Spans(f.Text())
 			switch f.Name {
 			case casesField:
 				r.cases = spans
 			case codesField:
 				r.codes = spans
-			case testsField:
-				r.tests = spans
 			default:
-				r.status = f.Text()
-				continue
+				r.tests = spans
 			}
-			if len(spans) == 0 {
-				problems = append(problems, fmt.Sprintf("line %d: %s writes %q naming nothing", f.Line, r.key, f.Name))
+			if strings.Trim(codeSpanText.ReplaceAllString(f.Text(), ""), ", ") != "" {
+				problems = append(problems, fmt.Sprintf("line %d: %s writes prose in %q, which lists spans of code "+
+					"alone", f.Line, r.key, f.Name))
 			}
 		}
 		rules = append(rules, r)
