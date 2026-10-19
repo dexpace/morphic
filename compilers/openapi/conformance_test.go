@@ -525,9 +525,9 @@ var composedHints = []struct {
 // reaches (#743). The sequential media type's itemSchema cannot need one: both
 // callers of lowerPayload pass a non-empty hint, since ids.ComponentEntry
 // refuses a component keyed "" and the fallbacks are "response" and "request".
-// A composed variant of an inline branch is absent too: ir-design §4.8 keeps
-// that union verbatim, so only the $ref form the Host case uses reaches
-// composedVariant.
+// A composed variant of an inline branch is absent too:
+// docs/compilers/openapi.md#union-beside-structure keeps that union verbatim,
+// so only the $ref form the Host case uses reaches composedVariant.
 func assertEmptyDerivedHints(t *testing.T, doc *ir.Document) {
 	t.Helper()
 	mixed, ok := doc.Types[namedID("Mixed")].(*ir.Model)
@@ -790,13 +790,14 @@ func assertAllOfRequiredOnly(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) 
 }
 
 // assertAllOfOneOfCooccurrence pins both halves of the co-declared composition
-// rule: §4.3 distributes a union whose branches all name referents, and §4.8
-// keeps one with an inline branch verbatim rather than distributing it halfway.
-// The verbatim half is covered over a model body, which owns a node already, and
-// over a scalar one, which does not — there the alias hoisted for the union
-// carries what the position wrote beside it too.
-// The outside reference to a branch pointer pins the third thing: a composed
-// variant is Morphic's own node, so it cannot be taken by, or take from, a $ref.
+// rule: §4.3 distributes a union whose branches all name referents, and the
+// rule docs/compilers/openapi.md#union-beside-structure keeps one with an
+// inline branch verbatim rather than distributing it halfway. The verbatim half
+// is covered over a model body, which owns a node already, and over a scalar
+// one, which does not — there the alias hoisted for the union carries what the
+// position wrote beside it too. The outside reference to a branch pointer pins
+// the third thing: a composed variant is Morphic's own node, so it cannot be
+// taken by, or take from, a $ref.
 func assertAllOfOneOfCooccurrence(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	combo, ok := doc.Types[namedID("Combo")].(*ir.Union)
 	require.True(t, ok, "the union is the value, not a preserved sibling")
@@ -2708,13 +2709,14 @@ func assertParamAllowReservedLocations(t *testing.T, doc *ir.Document, diags []i
 	assert.Equal(t, want, got)
 }
 
-// assertParamRefInheritance pins ir-design §14 at a parameter whose schema is a
-// $ref: docs, deprecation and default come from the referent when the use site
-// is silent, and from the use site when it is not. Constraints inherit at
-// neither carrier, so the identical property is asserted beside it (GitHub
-// #131). The bound the use site declares beside the $ref is asserted at both
-// carriers against the referent's own: use-site precedence would publish 100 as
-// the whole truth while the document enforces 64 (§12.2, GitHub #428).
+// assertParamRefInheritance pins the rule
+// docs/compilers/openapi.md#ref-use-site at a parameter whose schema is a $ref:
+// docs, deprecation and default come from the referent when the use site is
+// silent, and from the use site when it is not. Constraints inherit at neither
+// carrier, so the identical property is asserted beside it (GitHub #131). The
+// bound the use site declares beside the $ref is asserted at both carriers
+// against the referent's own: use-site precedence would publish 100 as the
+// whole truth while the document enforces 64 (§12.2, GitHub #428).
 func assertParamRefInheritance(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	op, ok := opByName(doc, "listItems")
 	require.True(t, ok)

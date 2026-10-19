@@ -16,9 +16,10 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// TestAnnotations_SiteOverridesReferent pins the §14 precedence rule at the one
-// place it is now decided. An annotation written beside a $ref describes the
-// position; the target's is the fallback, not the winner.
+// TestAnnotations_SiteOverridesReferent pins the precedence rule of
+// docs/compilers/openapi.md#ref-use-site at the one place it is now decided. An
+// annotation written beside a $ref describes the position; the target's is the
+// fallback, not the winner.
 func TestAnnotations_SiteOverridesReferent(t *testing.T) {
 	t.Parallel()
 	ref := &oas3.Schema{Description: new("SiteDesc")}

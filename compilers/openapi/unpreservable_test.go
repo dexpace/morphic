@@ -267,7 +267,8 @@ paths:
 		}
 	}
 	// The no_ir_home witness is the query parameter's allowEmptyValue, which
-	// ir.HTTPParamBinding holds no field for (§14). It replaced the requestBody
+	// ir.HTTPParamBinding holds no field for
+	// (docs/compilers/openapi.md#allow-empty-value). It replaced the requestBody
 	// one when Payload.Required landed, so this reason now rides on a lowering
 	// that still has no typed home rather than on one that just grew one.
 	params := openapitest.FirstOp(t, svc).Params

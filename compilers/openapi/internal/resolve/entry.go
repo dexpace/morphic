@@ -63,7 +63,8 @@ type siblingDocs interface {
 // alias's beat what it names, and a field a hop omits leaves the one beneath it
 // standing (GitHub #610). OpenAPI gives such a sibling "no effect" where the
 // object type allows none, but the IR has a docs field at each position this
-// serves, so it is kept rather than dropped (ir-design §12.2).
+// serves, so it is kept rather than dropped
+// (docs/compilers/openapi.md#reference-object-siblings).
 func UseDocs[T, S any, R interface {
 	*S
 	Referenced[T, S]

@@ -3540,9 +3540,10 @@ func propertyOf(t *testing.T, doc *ir.Document, model, wire string) ir.Property 
 // TestPropertyDocs_RefTargetReachesTheCarrier pins the referent half of the
 // documentation merge, keyword by keyword: a property that declares nothing but
 // a $ref still carries what its referent documents, and the referent's own node
-// keeps its copy. ir-design §14 asks for that merge uniformly, so the three
-// keywords stand or fall together — a fix that inherited only the description
-// would leave the other two behind at every carrier.
+// keeps its copy. The rule docs/compilers/openapi.md#ref-use-site asks for that
+// merge uniformly, so the three keywords stand or fall together — a fix that
+// inherited only the description would leave the other two behind at every
+// carrier.
 func TestPropertyDocs_RefTargetReachesTheCarrier(t *testing.T) {
 	t.Parallel()
 	for _, kw := range carrierDocKeywords() {
@@ -4262,8 +4263,8 @@ func TestContentVocabulary_KeptOnACarrierWithNoNode(t *testing.T) {
 }
 
 // TestDynamicRef_ExpandsAgainstTheOneMatchingAnchor pins the resolvable half of
-// ir-design §4.7's $dynamicRef promise, including the recursive shape that makes
-// the keyword worth having.
+// the $dynamicRef promise of docs/compilers/openapi.md#dynamic-ref, including
+// the recursive shape that makes the keyword worth having.
 func TestDynamicRef_ExpandsAgainstTheOneMatchingAnchor(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpec(
@@ -4612,10 +4613,11 @@ func TestDynamicRef_ChainEndsAtAnAnchorItCannotFollow(t *testing.T) {
 	}
 }
 
-// TestDialectKeywords_KeptOutOfScope pins the exclusion §4.7 records: the IR has
-// no resource or dialect axis, so these are kept verbatim under the reason that
-// says no IR node is coming for them — never dropped in silence, and never read
-// as a base URI for reference resolution.
+// TestDialectKeywords_KeptOutOfScope pins the exclusion the rule
+// docs/compilers/openapi.md#dialect-keywords records: the IR has no resource or
+// dialect axis, so these are kept verbatim under the reason that says no IR
+// node is coming for them — never dropped in silence, and never read as a base
+// URI for reference resolution.
 //
 // The keyword list is written out here rather than read from
 // annotation.DialectKeywords: ranging over the production slice would let a
@@ -4895,7 +4897,8 @@ func TestResidueKeywords_HandsBackACopy(t *testing.T) {
 // `format` is homed by a declared type: scalarTypeID pairs the two to select a
 // primitive or hoist a Scalar carrying the encoding. Written with no type beside
 // it there is no pairing to make, so nothing reads it — and it is kept verbatim
-// rather than dropped, which is the whole of §4.8 for this keyword.
+// rather than dropped, which is the whole of the rule
+// docs/compilers/openapi.md#shape-applicator for this keyword.
 func TestUnhomedApplicator_FormatWithNoTypeIsKept(t *testing.T) {
 	t.Parallel()
 	doc, diags := lowerSpec(t, openapitest.ComponentSpec("    Odd: {format: date-time}\n"))
@@ -5596,8 +5599,8 @@ func TestRedactionFormat_APropertyOwningNoNodeIsSecret(t *testing.T) {
 
 // TestFillPropertyDetail_SecretFollowsTheReferent pins both sides of the $ref
 // read: a property referencing a redaction schema is secret at the use, as it
-// is deprecated when its referent is (ir-design §14), and one referencing a
-// plain string component stays not secret.
+// is deprecated when its referent is (docs/compilers/openapi.md#password), and
+// one referencing a plain string component stays not secret.
 func TestFillPropertyDetail_SecretFollowsTheReferent(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpec(

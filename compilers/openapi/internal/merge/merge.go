@@ -354,8 +354,9 @@ func (g *Merger) keepLosingDeclaration(dst, src *ir.Property, source func() (ir.
 				"in no form at all: %s", key, err.Error())
 		return
 	}
-	// Degraded lowering (ir-design §4.8): the IR has no combinator for two
-	// shapes or two defaults at one position.
+	// Degraded lowering (ir-design §4.8,
+	// docs/compilers/openapi.md#allof-redeclared-property): the IR has no
+	// combinator for two shapes or two defaults at one position.
 	annotation.PreserveInto(&dst.Unmodeled, key, raw,
 		ir.ReasonDegradedLowering, src.Provenance)
 }

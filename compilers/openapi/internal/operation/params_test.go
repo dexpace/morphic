@@ -809,9 +809,10 @@ paths:
 `
 
 // TestParams_SchemaVisibilityKeptUnderUnmodeled covers the residue keywords a
-// parameter has no field for. ir-design §14 lowers readOnly/writeOnly to a
-// Visibility, which only ir.Property carries, so at a parameter both reached no
-// field and were dropped with no diagnostic at all — the silent loss this
+// parameter has no field for. The rule
+// docs/compilers/openapi.md#use-bound-annotations lowers readOnly/writeOnly to
+// a Visibility, which only ir.Property carries, so at a parameter both reached
+// no field and were dropped with no diagnostic at all — the silent loss this
 // compiler exists to make impossible.
 func TestParams_SchemaVisibilityKeptUnderUnmodeled(t *testing.T) {
 	t.Parallel()

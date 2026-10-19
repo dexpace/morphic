@@ -2969,10 +2969,11 @@ func TestOneOf_CoDeclaredUnresolvableBranchIsNotDistributed(t *testing.T) {
 
 // TestOneOf_CoDeclaredNotDistributedReasons pins the five shapes distribution
 // declines, each kept verbatim under ReasonDegradedLowering with its own reason
-// in the diagnostic (ir-design §4.8). Half-distributing any of them would leave
-// a Union whose variants disagree about whether they carry the body. The
-// messages are asserted, not just the code: the reasons are the only thing
-// telling four otherwise identical diagnostics apart.
+// in the diagnostic (docs/compilers/openapi.md#union-beside-structure).
+// Half-distributing any of them would leave a Union whose variants disagree
+// about whether they carry the body. The messages are asserted, not just the
+// code: the reasons are the only thing telling four otherwise identical
+// diagnostics apart.
 func TestOneOf_CoDeclaredNotDistributedReasons(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    A: {type: object, properties: {a: {type: string}}}

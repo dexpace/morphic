@@ -248,7 +248,7 @@
     {
       "format": "openapi@3.1",
       "path": "allof-boolean-branch.yaml",
-      "hash": "36740dfe66d0792d6a325af84d776552173f3d1f3e2cba97a40b361f01d372f5"
+      "hash": "4a23b98c56cb663284e5941352be78cd6f9841a22aec725b66889130d56cfd32"
     }
   ]
 }
