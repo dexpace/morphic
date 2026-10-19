@@ -3,9 +3,12 @@ package openapi
 import (
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -135,14 +138,17 @@ components:
 	}
 }
 
-// TestUnreferencedComponents_ReadAsTheParserReadsThem pins how a section's
-// entries are read: through `<<` merge keys, as the parser reads them, so a
-// merged-in entry is kept under its own name and no entry is named `<<`; under
-// the reference's own reading, so a $ref spelling a name another way still
-// reaches the entry it names; and with no name left out, the empty one included.
+// TestUnreferencedComponents_ReadAsTheParserReadsThem holds how a section's
+// entries are read to the parser's own reading of the same document: the names
+// its model gives a section, which come through `<<` merge keys under their own
+// name with no entry named `<<`, and include the empty one; and the entry a
+// $ref resolves to, however it spells the name. Every entry the parser reads
+// that no resolved reference reaches is kept. The literals pin today's parser,
+// so a release that reads otherwise fails here even while the compiler still
+// agrees with it.
 func TestUnreferencedComponents_ReadAsTheParserReadsThem(t *testing.T) {
 	t.Parallel()
-	doc, _ := parseFull(t, `openapi: 3.1.0
+	const src = `openapi: 3.1.0
 info: {title: T, version: "1"}
 paths:
   /a:
@@ -156,12 +162,55 @@ components:
   responses:
     <<: {Merged: {description: merged in}}
     "": {description: nameless}
-`)
-	assert.NotContains(t, doc.Unmodeled, "openapi:components/parameters/Abc",
-		"a percent-encoded name reaches the entry, which is lowered and not also kept")
-	assert.Contains(t, doc.Unmodeled, "openapi:components/responses/Merged")
-	assert.NotContains(t, doc.Unmodeled, "openapi:components/responses/<<")
-	assert.Contains(t, doc.Unmodeled, "openapi:components/responses/")
+`
+	parsed, _, err := soa.Unmarshal(t.Context(), strings.NewReader(src))
+	require.NoError(t, err)
+	require.NotNil(t, parsed.Components, "the parser reads the components")
+	responses := slices.Collect(parsed.Components.Responses.Keys())
+	parameters := slices.Collect(parsed.Components.Parameters.Keys())
+	reached := parserReached(t, parsed)
+	assert.Equal(t, []string{"Merged", ""}, responses, "the parser's names for the responses section")
+	assert.Equal(t, []string{"Abc"}, reached, "the parameters the parser resolves the reference to")
+
+	doc, _ := parseFull(t, src)
+	assert.Equal(t, slices.Sorted(slices.Values(responses)), keptUnder(doc, "responses"),
+		"every response the parser reads, none reached, is kept under the name the parser gives it")
+	assert.Equal(t, slices.DeleteFunc(slices.Clone(parameters), func(name string) bool {
+		return slices.Contains(reached, name)
+	}), keptUnder(doc, "parameters"), "a parameter the parser resolves a reference to is lowered, not kept")
+}
+
+// parserReached returns the names of the parameters entries the parser resolves
+// the operation parameters of /a to, by the identity of the object it finds.
+func parserReached(t *testing.T, parsed *soa.OpenAPI) []string {
+	t.Helper()
+	var reached []string
+	for _, ref := range parsed.Paths.GetOrZero("/a").GetObject().Get().Parameters {
+		_, err := ref.Resolve(t.Context(), soa.ResolveOptions{RootDocument: parsed,
+			TargetLocation: "spec.yaml", DisableExternalRefs: true})
+		require.NoError(t, err, "the parser resolves the reference")
+		target := ref.GetReferenceResolutionInfo().Object.GetObject()
+		for name, entry := range parsed.Components.Parameters.All() {
+			if entry.GetObject() == target {
+				reached = append(reached, name)
+			}
+		}
+	}
+	return reached
+}
+
+// keptUnder returns the sorted names of the entries of section that doc keeps
+// verbatim as unreferenced components.
+func keptUnder(doc *ir.Document, section string) []string {
+	prefix := "openapi:components/" + section + "/"
+	names := []string{}
+	for key := range doc.Unmodeled {
+		if name, ok := strings.CutPrefix(key, prefix); ok {
+			names = append(names, name)
+		}
+	}
+	slices.Sort(names)
+	return names
 }
 
 // TestUnreferencedComponents_SelfReferenceByFileNameReaches pins a reference

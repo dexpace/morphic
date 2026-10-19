@@ -2,10 +2,13 @@ package annotation
 
 import (
 	"encoding/json/jsontext"
+	"errors"
 	"strconv"
 	"strings"
 	"testing"
 
+	soa "github.com/speakeasy-api/openapi/openapi"
+	soavalidation "github.com/speakeasy-api/openapi/validation"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
@@ -354,12 +357,87 @@ func TestTakeString_UnkeepableValueIsReportedAndRead(t *testing.T) {
 	assert.Equal(t, diag.UnpreservableConstruct, diags[0].Code)
 }
 
-// TestTakeString_DecodesAsTheParserDoes pins TakeString to the parser's own
-// reading of a string field: every scalar tag it accepts there, null as empty,
-// an alias followed. Anything else is kept verbatim at the census's own entry
-// with a warning, a non-empty value valid refuses likewise, and a key the
-// mapping does not present directly is left unread for the census.
+// parserString returns what the parser makes of value written as the optional
+// string field info.summary, which the model names where TakeString reads one it
+// does not: the string it decodes, empty where the field is null or unset, and
+// whether it decodes the value as a string at all. The anchor x stands behind an
+// alias.
+func parserString(t *testing.T, value string) (string, bool) {
+	t.Helper()
+	src := "openapi: 3.1.0\nx-a: &x hello\ninfo:\n  title: T\n  version: '1'\n  summary: " + value + "\npaths: {}\n"
+	parsed, findings, err := soa.Unmarshal(t.Context(), strings.NewReader(src))
+	require.NoError(t, err)
+	for _, e := range findings {
+		var ve *soavalidation.Error
+		if errors.As(e, &ve) && ve.Rule == soavalidation.RuleValidationTypeMismatch {
+			return "", false
+		}
+	}
+	return parsed.Info.GetSummary(), true
+}
+
+// TestTakeString_DecodesAsTheParserDoes holds TakeString to the parser's own
+// decoding of a string field: each value is written as a field the model names
+// and the parser decodes it, or reports it a type mismatch, and TakeString reads
+// the same node as the parser does, the string where the parser decodes one
+// and the value verbatim at the census's own entry, with a warning, where it
+// does not. The want and decodes columns pin today's parser.
 func TestTakeString_DecodesAsTheParserDoes(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, value string
+		want        string
+		decodes     bool
+		kept        string // the verbatim value kept, "" for none
+	}{
+		{"a string", "plain", "plain", true, ""},
+		{"an int", "5", "5", true, ""},
+		{"a float", "1.5", "1.5", true, ""},
+		{"a bool", "true", "true", true, ""},
+		{"an empty string", `""`, "", true, ""},
+		{"null", "~", "", true, ""},
+		{"an alias", "*x", "hello", true, ""},
+		{"an explicit int tag", "!!int 5", "5", true, ""},
+		{"a sequence", "[a, b]", "", false, `["a","b"]`},
+		{"a mapping", "{a: b}", "", false, `{"a":"b"}`},
+		{"a timestamp", "2001-12-14", "", false, `"2001-12-14"`},
+		{"a local tag", "!local v", "", false, `"v"`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			parsed, decodes := parserString(t, tc.value)
+			assert.Equal(t, tc.want, parsed, "what the parser decodes")
+			assert.Equal(t, tc.decodes, decodes, "whether the parser decodes it as a string")
+
+			var root yaml.Node
+			require.NoError(t, yaml.Unmarshal([]byte("a: &x hello\nk: "+tc.value), &root))
+			var p ir.Unmodeled
+			got, read, diags := TakeString(&p, &root, "k", nil, sourced(0), "/o", "s")
+			assert.Equal(t, parsed, got)
+			assert.True(t, read)
+			if decodes {
+				assert.Empty(t, p)
+				assert.Empty(t, diags)
+				return
+			}
+			entry, ok := p["openapi:s/k"]
+			require.True(t, ok)
+			assert.JSONEq(t, tc.kept, string(entry.Value))
+			assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
+			assert.Equal(t, jsontext.Pointer("/o/k"), entry.Provenance.Pointer)
+			require.Len(t, diags, 1)
+			assert.Equal(t, diag.DegradedConstruct, diags[0].Code)
+			assert.Equal(t, ir.SeverityWarning, diags[0].Severity)
+		})
+	}
+}
+
+// TestTakeString_AppliesValidAndReadsOnlyDirectKeys pins what TakeString decides
+// itself, whatever the parser decodes: a non-empty value valid refuses is kept
+// verbatim as a value that does not decode is, an empty or null one is not put to
+// valid, and a key the mapping does not present directly, absent or merged in
+// through `<<`, is left unread for the census.
+func TestTakeString_AppliesValidAndReadsOnlyDirectKeys(t *testing.T) {
 	t.Parallel()
 	only := func(v string) bool { return v == "ok" }
 	for _, tc := range []struct {
@@ -370,14 +448,6 @@ func TestTakeString_DecodesAsTheParserDoes(t *testing.T) {
 		read  bool
 		kept  string // the verbatim value kept, "" for none
 	}{
-		{"a string", "k: plain", nil, "plain", true, ""},
-		{"an int", "k: 5", nil, "5", true, ""},
-		{"a float", "k: 1.5", nil, "1.5", true, ""},
-		{"a bool", "k: true", nil, "true", true, ""},
-		{"null", "k: ~", nil, "", true, ""},
-		{"an alias", "a: &x hello\nk: *x", nil, "hello", true, ""},
-		{"a sequence", "k: [a, b]", nil, "", true, `["a","b"]`},
-		{"a timestamp", "k: 2001-12-14", nil, "", true, `"2001-12-14"`},
 		{"a value valid accepts", "k: ok", only, "ok", true, ""},
 		{"a value valid refuses", "k: no", only, "", true, `"no"`},
 		{"an empty string valid would refuse", `k: ""`, only, "", true, ""},
