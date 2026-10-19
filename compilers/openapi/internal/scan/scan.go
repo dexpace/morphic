@@ -391,7 +391,9 @@ const (
 // false where the resolver reads no schema there or below: under an extension
 // or data key outside a schema, and under any key of a schema that names no
 // sub-schema. It is the one reading of positions, so the collection walk and a
-// hop's pointer walk (emptyTokenRead) cannot part company.
+// hop's pointer walk (emptyTokenRead) cannot part company. Outside a schema it
+// reads a key by name alone, where the library's model also asks which object
+// holds the key (GitHub #949).
 func (r walkRole) child(key string) (walkRole, bool) {
 	switch r {
 	case roleOutside:

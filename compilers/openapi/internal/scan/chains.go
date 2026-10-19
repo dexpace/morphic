@@ -136,9 +136,10 @@ const (
 	// readKey: as the member keyed "", where the library looks the token up as
 	// a key: in a map of schemas, a link's parameters, any map. A list has no
 	// such member, nor does the library find one. It is also the reading where
-	// the scan does not know a position's kind: at an object the model holds,
-	// the library fails the pointer, so a landing the scan takes there only
-	// ever adds a loop through a reference the resolver reports anyway.
+	// the scan does not know a position's kind (GitHub #949): at an object the
+	// model holds, the library fails the pointer, so a landing the scan takes
+	// there only ever adds a loop through a reference the resolver reports
+	// anyway.
 	readKey emptyRead = iota
 	// readNowhere: at a schema, as a field no schema has, so the pointer lands
 	// nowhere.
