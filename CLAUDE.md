@@ -39,6 +39,11 @@ lowering rule, a pass and a compiler name the check each step answers to.
 - `docs/reference-learnings.md` — the same evidence base widened to every shipped generator it
   surveys (its header names them), each finding carrying a verdict on a Morphic decision and
   citing the repo it came from.
+- `docs/parser-library.md` — what the OpenAPI compiler depends on its parser library doing, defects
+  included: one keyed entry per behaviour, naming the code that exists because of it and the canary
+  in `compilers/openapi/internal/canary` that goes red when a library change alters it. Read it
+  before working in the load phase or bumping the library, and cite an entry rather than restating
+  a behaviour or naming a library version, which a test refuses.
 - `docs/micro-compiler-design.md` and `docs/micro-compiler-plan.md` — the restructuring that
   produced today's `compilers/openapi`. Both record work that has landed; read them for why the
   package boundaries fall where they do, not as a proposal or a backlog.

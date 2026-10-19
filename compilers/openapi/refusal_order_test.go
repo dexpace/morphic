@@ -18,9 +18,10 @@ import (
 
 // refGraphDoc is a document of schemas, path items and parameters whose
 // references form loops, tails into loops, pointers passing through other
-// references, and $defs and $anchor chains, drawn from r.
+// references or back through their own, with a trailing empty token or
+// without, and $defs and $anchor chains, drawn from r.
 func refGraphDoc(r *rand.Rand) string {
-	schemas, paths, params := 1+r.IntN(5), r.IntN(4), r.IntN(3)
+	schemas, paths, params := 2+r.IntN(4), r.IntN(4), r.IntN(3)
 	var b strings.Builder
 	b.WriteString("openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {")
 	for i := range paths {
@@ -37,13 +38,18 @@ func refGraphDoc(r *rand.Rand) string {
 		j := r.IntN(schemas)
 		fmt.Fprintf(&b, "S%d: %s, ", i, []string{
 			fmt.Sprintf("{$ref: '#/components/schemas/S%d'}", j),
+			fmt.Sprintf("{$ref: '#/components/schemas/S%d'}", r.IntN(schemas)),
 			fmt.Sprintf("{$ref: '#/components/schemas/S%d/properties/p'}", j),
 			fmt.Sprintf("{$ref: '#/components/schemas/S%d/properties/p/items'}", j),
 			fmt.Sprintf("{type: object, properties: {p: {$ref: '#/components/schemas/S%d'}}}", j),
 			fmt.Sprintf("{$anchor: a%d, $ref: '#a%d'}", i, j),
 			fmt.Sprintf("{$defs: {d: {$ref: '#/components/schemas/S%d'}}, $ref: '#/$defs/d'}", j),
+			fmt.Sprintf("{$ref: '#/components/schemas/S%d/properties/p', properties: {p: {$ref: '#/components/schemas/S%d'}}}",
+				i, j),
+			fmt.Sprintf("{$ref: '#/components/schemas/S%d/properties/', properties: {'': {$ref: '#/components/schemas/S%d'}}}",
+				i, j),
 			"{type: string}",
-		}[r.IntN(7)])
+		}[r.IntN(10)])
 	}
 	b.WriteString("}\n  pathItems: {")
 	for i := range paths {
@@ -106,8 +112,9 @@ func cycleRefusals(t *testing.T, data []byte) []string {
 // TestCompile_ACycleRefusalIgnoresDeclarationOrder is GitHub #912 across both
 // checks that refuse a cycle, the pre-parse scan and reach: generated
 // reference graphs compile to the same refusals, at the same sites, with
-// every mapping's entries reversed. The harness's order oracle stops at a
-// spec's first error (GitHub #685), so it cannot see this.
+// every mapping's entries reversed. Only a schema cycle is refused; one of path
+// items or parameters is the resolver's to report. The harness's order oracle
+// stops at a spec's first error (GitHub #685), so it cannot see this.
 func TestCompile_ACycleRefusalIgnoresDeclarationOrder(t *testing.T) {
 	t.Parallel()
 	const docs = 1500
@@ -121,5 +128,5 @@ func TestCompile_ACycleRefusalIgnoresDeclarationOrder(t *testing.T) {
 			refused++
 		}
 	}
-	assert.Greater(t, refused, docs/2, "most generated graphs hold a cycle, so the sites are compared")
+	assert.Greater(t, refused, docs/3, "a third of generated graphs hold a schema cycle, so the sites are compared")
 }

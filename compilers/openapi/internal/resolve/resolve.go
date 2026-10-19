@@ -374,10 +374,12 @@ func (s Scope) reader() *defs.Reader {
 // in this document: InternalPointer's answer, except that a "#/$defs/..."
 // pointer names the definition the resolver's rule finds relative to js
 // (defs.Reader.Target), never the document-rooted /$defs/... it spells, which
-// the document does not have (GitHub #557). ok is false for a reference into
-// another document, for a $defs pointer the rule finds nothing for, and for any
-// other pointer Beside refuses. A $defs pointer written beside a path item's
-// $ref is held unresolved by load, so no schema it could name reaches here.
+// the OpenAPI object does not define (docs/parser-library.md#root-defs, GitHub
+// #557).
+// ok is false for a reference into another document, for a $defs pointer the
+// rule finds nothing for, and for any other pointer Beside refuses. A $defs
+// pointer written beside a path item's $ref is held unresolved by load, so no
+// schema it could name reaches here.
 func (s Scope) TargetPointer(js *oas3.JSONSchema[oas3.Referenceable], ref string) (jsontext.Pointer, bool) {
 	pointer, ok := s.InternalPointer(ref)
 	if !ok || !defs.IsPointer(pointer) {
@@ -412,8 +414,9 @@ func (s Scope) MappingPointer(d *oas3.Discriminator, value string) (jsontext.Poi
 // way the resolver finds a $ref's target, or nil where there is none, like
 // annotation.DeclaredSchema for a followed $ref.
 //
-// It is for a mapping value, which the resolver never follows, so it carries no
-// declaration of its own (GitHub #530). The model's schema answers first: the
+// It is for a mapping value, which the resolver never follows
+// (docs/parser-library.md#mapping-unresolved), so it carries no declaration of
+// its own (GitHub #530). The model's schema answers first: the
 // load phase's may be a copy a $ref by the source's file name built, whose own
 // $refs nothing resolved. Mapped answers where the model holds raw YAML, such
 // as an extension's value or an enum member (GitHub #757).

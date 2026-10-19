@@ -95,11 +95,11 @@ func UseDocs[T, S any, R interface {
 
 // maxRefChain bounds how many $ref hops ObjectAt and UseDocs follow, and how
 // many a chain's end (endOf) and a pointer's scope (Scope.reached) are followed
-// through. A $ref cycle among the non-schema components is refused before
-// lowering by speakeasy's resolver, not by internal/scan, and a refused chain
-// resolves to nothing, so the bound only fires on an absurd alias chain. Past
-// it, ObjectAt keeps the use site, and what the chain reaches is read in no
-// document's scope.
+// through. A $ref cycle among the non-schema components is reported by the
+// resolver (docs/parser-library.md#reference-object-cycle), not refused by
+// internal/scan, and a failed chain resolves to nothing, so the bound only
+// fires on an absurd alias chain. Past it, ObjectAt keeps the use site, and
+// what the chain reaches is read in no document's scope.
 //
 // It stays unexported: only the test that holds the walk to the bound needs it,
 // and reaches it through export_test.go.

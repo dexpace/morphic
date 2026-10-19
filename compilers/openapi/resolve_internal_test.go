@@ -264,9 +264,9 @@ func TestLowerComponentSchemas_PercentEncodedDiscriminatorMapping(t *testing.T) 
 		"the encoded mapping target names the declared component, and the entry is kept")
 }
 
-// TestCompile_APointerTokenPastUFFFFIsRefusedUpstream pins GitHub #516.
-// speakeasy-api/openapi v1.25.2 caps its reference-token character class at
-// U+FFFF (jsonpointer/navigation.go, tokenRegex), though RFC 6901 admits up to
+// TestCompile_APointerTokenPastUFFFFIsRefusedUpstream pins GitHub #516. The
+// library caps its reference-token character class at U+FFFF
+// (jsonpointer/navigation.go, tokenRegex), though RFC 6901 admits up to
 // U+10FFFF, so a $ref through an emoji key is refused and one through a Basic
 // Multilingual Plane key resolves.
 //

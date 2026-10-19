@@ -26,11 +26,10 @@ import (
 const maxLoopWork = 1 << 28
 
 // loops finds the schema references in the source whose chain never ends
-// (GitHub #768). The resolver follows a hop it resolved before without
-// tracking where the chain has been, so a chain closing on such hops recurses
-// until the stack runs out, which nothing recovers from. The pre-parse scan
-// reads a $ref that names the source by its file name as a reference to
-// another document, so it never sees such a chain close.
+// (GitHub #768). The resolver overflows its stack on such a chain, which
+// nothing recovers from (docs/parser-library.md#schema-cycle-overflow). The
+// pre-parse scan reads a $ref that names the source by its file name as a
+// reference to another document, so it never sees such a chain close.
 //
 // Each hop is read as the resolver reads it (see readAt) and settled once, so
 // the references of a long chain cost the chain once between them.

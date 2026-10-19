@@ -28,19 +28,19 @@ func componentsDoc(n int) *yaml.Node {
 	}}
 }
 
-// BenchmarkPointerPath_IntoAWideMapping resolves one pointer per component of a
+// BenchmarkPointerTarget_IntoAWideMapping resolves one pointer per component of a
 // components mapping, as the reference scan does when every schema is
 // referenced once.
 //
 // It guards a shape rather than a number. Each width does n times one
 // resolution's work, so read the per-component cost: it should stay flat across
 // widths, and growth with n means the index is no longer reached
-// (TestPointerPath_ReachesTheIndexOnAWideMapping asserts that without a
+// (TestPointerTarget_ReachesTheIndexOnAWideMapping asserts that without a
 // stopwatch). Without keyIndex the cost is quadratic.
 //
 // The narrow widths show where an index loses: below minIndexedPairs the walk
 // scans, and a regression there means the gate has stopped paying for itself.
-func BenchmarkPointerPath_IntoAWideMapping(b *testing.B) {
+func BenchmarkPointerTarget_IntoAWideMapping(b *testing.B) {
 	for _, n := range []int{2, 8, 64, 256, 1024} {
 		root := componentsDoc(n)
 		pointers := make([]jsontext.Pointer, n)
@@ -53,7 +53,7 @@ func BenchmarkPointerPath_IntoAWideMapping(b *testing.B) {
 			for b.Loop() {
 				v := New() // one view per pass: a view never outlives its compile
 				for _, p := range pointers {
-					if _, complete := v.PointerPath(root, p); !complete {
+					if _, landed := v.PointerTarget(root, p); !landed {
 						b.Fatalf("pointer %s must resolve", p)
 					}
 				}

@@ -17,7 +17,7 @@ import (
 type schemaRef = oas3.JSONSchema[oas3.Referenceable]
 
 // defsPrefix opens every pointer the resolver reads relative to the schema that
-// spells it rather than to the document (oas3 resolveDefsReference, v1.25.2).
+// spells it rather than to the document (oas3 resolveDefsReference).
 // defsRoot is the position it opens.
 const (
 	defsRoot   = "/$defs"
@@ -105,11 +105,12 @@ func (r *Reader) Doc() Navigable {
 // resolver applies to a reference it meets on its own walk: the definitions of
 // js itself when it is a schema resource of its own ($id), else those of the
 // nearest ancestor holding the path (oas3 tryResolveLocalDefs, then
-// tryResolveDefsUsingJSONPointerNavigation, v1.25.2).
+// tryResolveDefsUsingJSONPointerNavigation). The position is where the
+// definition is written (GitHub #557).
 //
-// The resolver also hands the first definition found for a pointer to every
-// later reference spelling it, so its answer depends on declaration order. The
-// position is where the definition is written (GitHub #557).
+// Unlike the resolver's, the answer does not depend on declaration order
+// (docs/parser-library.md#defs-order), and a "$defs" written at an OpenAPI
+// document's root holds no definition (docs/parser-library.md#root-defs).
 func (r *Reader) Target(js *schemaRef, pointer jsontext.Pointer) (*schemaRef, jsontext.Pointer, bool) {
 	if js == nil || !IsPointer(pointer) {
 		return nil, "", false
@@ -126,7 +127,8 @@ func (r *Reader) Target(js *schemaRef, pointer jsontext.Pointer) (*schemaRef, js
 
 // MappingTarget is Target for a "#/$defs/..." value of the mapping of d, read
 // from the discriminator's own position. The resolver never reads a mapping
-// value, so it is read as a $ref written in the same schema would be.
+// value (docs/parser-library.md#mapping-unresolved), so it is read as a $ref
+// written in the same schema would be.
 func (r *Reader) MappingTarget(d *oas3.Discriminator, pointer jsontext.Pointer) (*schemaRef, jsontext.Pointer, bool) {
 	if d == nil || !IsPointer(pointer) {
 		return nil, "", false

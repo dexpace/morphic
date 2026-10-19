@@ -1922,8 +1922,8 @@ func (a *AnchorIndex) sites(c lowering.Ctx, name string) ([]jsontext.Pointer, []
 // dynamicAnchors indexes every $dynamicAnchor in the raw source by name, mapping
 // it to the JSON pointers that declare it, in document order, and reports
 // whether the walk ran to completion. It reads the raw tree because oas3.Schema
-// has no field for the keyword at v1.24.0 — the reason nothing expanded a
-// $dynamicRef before.
+// has no field for the keyword (docs/parser-library.md#unmodeled-keywords),
+// which is why nothing once expanded a $dynamicRef.
 func dynamicAnchors(root *yaml.Node) (map[string][]jsontext.Pointer, bool) {
 	w := newAnchorWalk(maxDynamicAnchorNodes)
 	w.walk(root, "", 0)

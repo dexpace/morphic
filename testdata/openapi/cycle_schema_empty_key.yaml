@@ -1,0 +1,11 @@
+# A schema loop through the member of components.schemas keyed "". A's pointer
+# ends in an empty token, which the resolver reads in a map of schemas as the
+# key "", so A lands on that member, whose $ref leads back to A, and the
+# resolver recurses until the stack runs out.
+openapi: 3.1.0
+info: {title: Schema Empty Key, version: "1"}
+paths: {}
+components:
+  schemas:
+    A: {$ref: '#/components/schemas/'}
+    '': {$ref: '#/components/schemas/A'}
