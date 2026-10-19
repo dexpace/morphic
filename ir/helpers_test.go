@@ -59,7 +59,8 @@ type semver [3]int
 func (v semver) String() string { return fmt.Sprintf("%d.%d.%d", v[0], v[1], v[2]) }
 
 // parseVersion reads s as MAJOR.MINOR.PATCH: three decimal numbers with no sign
-// and no leading zero (semver 2.0.0 §2), and nothing more.
+// and no leading zero (semver 2.0.0 §2), and nothing more. Each has at most
+// nine digits, so a successor computed from one cannot overflow an int.
 func parseVersion(s string) (semver, bool) {
 	parts := strings.Split(s, ".")
 	if len(parts) != len(semver{}) {

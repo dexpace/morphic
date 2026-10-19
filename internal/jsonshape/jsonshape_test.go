@@ -111,9 +111,9 @@ func TestDescribe_SpellsEveryInput(t *testing.T) {
 
 // TestDescribe_IgnoresWhatTheJSONDoesNotCarry holds a description to the
 // shape alone. Package reordered redeclares package good in another order,
-// with every tagged field, string and boolean constant, parameter and receiver
-// renamed, one alias spelled out and another dropped, and describes alike but
-// for the package it names.
+// renaming every field and every string or boolean constant the JSON does not
+// name, naming parameters and receivers differently, spelling one alias out and
+// dropping another. It describes alike but for the package it names.
 func TestDescribe_IgnoresWhatTheJSONDoesNotCarry(t *testing.T) {
 	t.Parallel()
 	good, err := jsonshape.Describe(load(t, "good"), "Root")

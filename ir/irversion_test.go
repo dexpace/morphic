@@ -241,6 +241,10 @@ func historyFindings(history []string, rows []generation, version string) []stri
 			"add an entry saying what %s changed", last, version, version))
 	}
 	for _, r := range rows {
+		// IRVersion's entry is either the last one or the one asked for above.
+		if r.version == version {
+			continue
+		}
 		if !slices.Contains(history, r.version) {
 			out = append(out, fmt.Sprintf("generation %s has no entry in the ir-design §2.1 version history", r.version))
 		}
@@ -396,6 +400,8 @@ func TestHistoryFindings(t *testing.T) {
 			[]string{"the version history lists 0.3.0 after 0.3.0, but its entries ascend"}},
 		{"a bump the history does not record", []string{"0.3.0", "0.4.0"}, "0.5.0",
 			[]string{"the ir-design §2.1 version history ends at 0.4.0, but IRVersion is 0.5.0: add an entry saying what 0.5.0 changed"}},
+		{"a bump the table records and the history does not", []string{"0.2.0", "0.3.0"}, "0.4.0",
+			[]string{"the ir-design §2.1 version history ends at 0.3.0, but IRVersion is 0.4.0: add an entry saying what 0.4.0 changed"}},
 		{"a generation the history skips", []string{"0.2.0", "0.4.0"}, "0.4.0",
 			[]string{"generation 0.3.0 has no entry in the ir-design §2.1 version history"}},
 	} {

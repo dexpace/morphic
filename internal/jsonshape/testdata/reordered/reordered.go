@@ -1,7 +1,7 @@
 // Package reordered declares the types of package good again, changing only
-// what the JSON does not carry: declaration order, the Go names of tagged
-// fields, string and boolean constants and parameters, and how a type is
-// spelled.
+// what the JSON does not carry: declaration order, how a type is spelled, the
+// name of every field and every string or boolean constant the JSON does not
+// name, and the names of parameters and receivers.
 package reordered
 
 import "encoding/json/jsontext"
@@ -112,14 +112,14 @@ func (b Base) IsZero() bool { return false }
 type Root struct {
 	Size    Scale               `json:"scale"`
 	Flip    Toggle              `json:"toggle"`
-	Levels  map[Level][]float64 `json:"levels"`
-	Reg     Registry            `json:"reg"`
-	Self    []Root              `json:"self"`
-	Sum     Sum                 `json:"sum"`
-	Pointer jsontext.Pointer    `json:"pointer"`
+	Tiers   map[Level][]float64 `json:"levels"`
+	Table   Registry            `json:"reg"`
+	Nested  []Root              `json:"self"`
+	Choice  Sum                 `json:"sum"`
+	Where   jsontext.Pointer    `json:"pointer"`
 	Direct  Spread              `json:"aliased"`
-	Index   map[Color]*Spread   `json:"index"`
-	Grid    [2][]uint8          `json:"grid"`
+	ByColor map[Color]*Spread   `json:"index"`
+	Matrix  [2][]uint8          `json:"grid"`
 
 	Different Spread `json:",embed"`
 	Tagged    `json:"tagged"`
