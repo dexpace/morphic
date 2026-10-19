@@ -13,8 +13,8 @@ import (
 // chainGraph settles how the chain from every pure-$ref node ends, reading
 // each hop once and settling outward from each chain's end, so no chain is
 // walked again per start (GitHub #903, #923, #924). The verdict is a walk's
-// however long the chain: the resolver overflows its stack on any loop
-// (docs/parser-library.md#schema-cycle-overflow, GitHub #922).
+// however long the chain: the resolver overflows its stack on a schema loop of
+// any length (docs/parser-library.md#schema-cycle-overflow, GitHub #922).
 //
 // A pointer passing through a node the walk followed always comes before the
 // chain's end, so a node re-enters when a hop on its own chain passes through
@@ -148,8 +148,8 @@ func (g *chainGraph) read(starts []*yaml.Node) {
 
 // readHop walks n's pointer ref as the resolver does and records each
 // reference it passes through on the way. The destination is not passed
-// through: arriving at a node on the chain is a cycle, which speakeasy reports
-// itself. A pointer that names nothing has no destination, so every node it
+// through: arriving at a node on the chain is a cycle (chainCycles), not a
+// re-entry. A pointer that names nothing has no destination, so every node it
 // reached is passed through, which is the re-entry the scan refuses
 // (docs/parser-library.md#reference-object-cycle).
 func (g *chainGraph) readHop(n *yaml.Node, ref jsontext.Pointer) *chainHop {
