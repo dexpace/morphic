@@ -67,9 +67,10 @@ const probeTimeout = 10 * time.Second
 // references deep, so nothing short of a runaway recursion comes near 64 MB.
 const probeMaxStack = 64 << 20
 
-// The helper's own -test.timeout is twice probeTimeout, so the parent's kill
-// always comes first and a hang is read as one, never as the panic the testing
-// package's timeout would print.
+// helperTimeout is the helper's own -test.timeout. It is twice probeTimeout, so
+// the parent's kill always comes first and a hang is read as one, never as the
+// panic the testing package's timeout would print.
+const helperTimeout = 2 * probeTimeout
 
 // The helper reports each half of its work on stdout as it finishes, so a shape
 // that never returns is still attributable: losing both markers means the
@@ -338,7 +339,7 @@ func probe(t *testing.T, spec string) (refused bool, outcome string) {
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, os.Args[0],
-		"-test.run=^TestResolverOracle_ProbeHelper$", "-test.timeout="+(2*probeTimeout).String())
+		"-test.run=^TestResolverOracle_ProbeHelper$", "-test.timeout="+helperTimeout.String())
 	cmd.Env = append(os.Environ(), probeEnv+"="+spec)
 
 	out, err := cmd.CombinedOutput()
