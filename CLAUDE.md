@@ -20,10 +20,15 @@ Pipeline: **compilers** (spec → IR) → **IR passes** (IR → IR) → **emitte
 
 ## The documents are the spec — read them first
 
-`ls docs/*.md` is the set; what follows is why each one matters, not how many there are.
+`ls docs/*.md docs/compilers/*.md` is the set; what follows is why each one matters, not how many
+there are. A first change starts from [`CONTRIBUTING.md`](CONTRIBUTING.md), whose recipes for a
+lowering rule, a pass and a compiler name the check each step answers to.
 
 - **`docs/ir-design.md` is normative.** Field names and struct shapes in it are the contract;
   receiver methods and helpers are not. When implementing the IR, match its shapes exactly.
+- **`docs/compilers/openapi.md` is normative for the OpenAPI compiler**: its lowering rules, one
+  keyed entry each, with the cases, codes and tests that pin it. Read it for work on that compiler
+  only; every other layer needs ir-design and not this.
 - **`docs/emitter-design.md` is normative for the emitter half**, the way `ir-design.md` is for the
   IR. Nothing under `emitters/` exists yet, so read it before writing the first one.
 - `docs/architecture.md` — pipeline stages, package layout, layering rules, milestones.

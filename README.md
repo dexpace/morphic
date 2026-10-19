@@ -313,12 +313,15 @@ Run a single test with `go test ./ir -run TestName`. Beyond that:
 
 ## Design docs
 
-The design documents are normative. Read them before proposing changes to the IR or the pipeline.
+The design documents are normative. Read them before proposing changes to the IR or the pipeline,
+and start a first contribution from [CONTRIBUTING.md](CONTRIBUTING.md), which says which of them a
+change needs.
 
 | Document | Description |
 |---|---|
 | [Architecture](docs/architecture.md) | Pipeline stages, package layout, layering rules, milestones. |
-| [IR design](docs/ir-design.md) | The intermediate representation: node catalog, semantics, per-format lowering. Its field shapes are the contract. |
+| [IR design](docs/ir-design.md) | The intermediate representation: node catalog and semantics, and how each format without a lowering specification of its own is planned to lower. Its field shapes are the contract. |
+| [OpenAPI lowering](docs/compilers/openapi.md) | How the OpenAPI compiler lowers each construct, one keyed rule each, with the cases, codes and tests that pin it. |
 | [Spec capability matrix](docs/ir-spec-matrix.md) | What each source format can express: the union the IR is designed against. |
 | [Emitter design](docs/emitter-design.md) | The emitter contract and the plan / refine / emit boundary. |
 

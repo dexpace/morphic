@@ -21,7 +21,7 @@ A rule closes with the evidence that pins it, one bullet per field:
 A rule names a case or a test, or says in its Status why it has neither. The `TestLoweringSpec`
 tests in `compilers/openapi` hold every field to the code and read it both ways: each conformance
 case is named by a rule, and each code by a rule or by `codesOutsideTheRules`, which gives the
-reason a code has no rule.
+reason a code has no rule. [`CONTRIBUTING.md`](../../CONTRIBUTING.md) walks adding a rule.
 
 ## 1. Documents and versions
 
