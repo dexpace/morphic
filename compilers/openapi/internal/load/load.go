@@ -460,7 +460,7 @@ func pointerAt(srcIndex int, origin overlay.Origin) func(jsontext.Pointer) ir.Pr
 
 // refusals indexes a decoded tree once and reports its pre-parse refusals, each
 // alongside the others: a document nested too deeply to build (scan.Nesting),
-// the degenerate reference and alias structures scan finds
+// the degenerate reference structures scan finds and its alias ones
 // (docs/parser-library.md#alias-cycle), a mapping carrying a tag the parser
 // faults on (diag.TaggedMapping), and a refusal of its own when the document is
 // too large to index in full.

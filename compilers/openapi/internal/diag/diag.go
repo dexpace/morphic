@@ -32,7 +32,7 @@ const (
 	// #824).
 	UnresolvedRef = "openapi/unresolved-ref"
 	// CyclicRef reports a degenerate reference cycle, refused before the parser
-	// sees it: one it would overflow its stack on
+	// library reaches it: one it would overflow its stack on
 	// (docs/parser-library.md#schema-cycle-overflow,
 	// docs/parser-library.md#alias-cycle), or a chain of reference objects it
 	// reports itself (docs/parser-library.md#reference-object-cycle). A
