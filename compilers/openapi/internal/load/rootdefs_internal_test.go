@@ -52,8 +52,7 @@ func TestReach_DefsEdgeLandsOnARootDefinition(t *testing.T) {
 // TestLoad_ARootDefinitionResolvesAsTheResolverReadsIt pins GitHub #910: a
 // "#/$defs/..." reference into a "$defs" written at the document's root
 // resolves to the definition there, before an ancestor's of the same name, and
-// a chain through it goes on from there. The root's key is still unknown to
-// the OpenAPI object, which is a warning.
+// a chain through it goes on from there, with no error reported.
 func TestLoad_ARootDefinitionResolvesAsTheResolverReadsIt(t *testing.T) {
 	t.Parallel()
 	const spec = "openapi: 3.1.0\ninfo: {title: t, version: \"1\"}\npaths: {}\n" +

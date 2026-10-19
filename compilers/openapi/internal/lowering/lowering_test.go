@@ -519,9 +519,8 @@ func TestWithLoaded_CarriesTheSiblingsOnACopy(t *testing.T) {
 
 // TestWithLoaded_ReadsDefinitionsThroughTheLoadIndex pins that a context
 // carrying the load phase's results reads raw YAML under its "#/$defs/..."
-// pointers through the index those results were read through, where the one it
-// was made from asks the library, which scans a mapping on every read
-// (GitHub #778).
+// pointers through an index, where the one it was made from asks the library,
+// which scans a mapping on every read (GitHub #778).
 func TestWithLoaded_ReadsDefinitionsThroughTheLoadIndex(t *testing.T) {
 	t.Parallel()
 	doc, diags, err := load.Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(openapitest.ComponentSpec("    A: {type: string}\n"))}, load.Options{})

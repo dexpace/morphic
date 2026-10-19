@@ -143,9 +143,9 @@ func (r *Reader) Doc() Navigable {
 
 // Target returns the definition a same-document "#/$defs/..." pointer written
 // at js names, by the resolver's rule for a reference it meets on its own walk:
-// js's own definitions when it is a schema resource ($id), else the position
-// the pointer names from the document's root, else the definitions of the
-// nearest ancestor holding the path (oas3 tryResolveLocalDefs, then
+// js's own definitions when it is a resource of its own (localDef), else the
+// position the pointer names from the document's root, else the definitions
+// of the nearest ancestor holding the path (oas3 tryResolveLocalDefs, then
 // references.Resolve, then tryResolveDefsUsingJSONPointerNavigation). The
 // position is where the definition is written (GitHub #557).
 //
