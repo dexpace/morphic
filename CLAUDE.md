@@ -387,3 +387,123 @@ context-switch between repos.
 - Write self-contained, human-framed titles/descriptions. No LLM/session artifacts, no internal
   audit/finding IDs, no "remediation"/"audit sweep" framing. State problem, change, and rationale
   on their own terms.
+
+## Filing issues
+
+An issue is read later by someone who was not in this session. File it so the problem can be
+reproduced, ranked and fixed from its text alone. Labels are set by hand (nothing syncs them), so
+the filer sets them.
+
+### Before filing
+
+- **Search the tracker.** `gh issue list --state all --search "<symbol, file or construct>"`. A
+  duplicate gets a comment on the existing issue. A recorded decision is followed, or the new issue
+  says why it departs from it.
+- **Probe, don't read.** Reproduce the problem before writing it up: compile the spec, then quote
+  the emitted IR and the full diagnostic list. The reproduction is a minimal spec, not a description
+  of one. A negative claim ("X is never checked") names the probe that shows it.
+- **One mechanism per issue, every site of it in that issue.** Sweep the sites before filing and
+  list them, so a fix scoped to where the bug was noticed shows as incomplete. Unrelated findings
+  are separate issues, each ranked, scheduled and closed on its own. An issue that spans tiers is
+  split so each part carries its own.
+- **File an adjacent bug; don't fix it inline.** The PR stays one logical change.
+
+### Title and body
+
+The title is `area: statement`. `area` is the package or document (`openapi`, `ir`, `pass`, `cli`,
+`engine`, `test`, `docs/emitter-design`); `gh issue list --state open --json title` shows the
+prefixes in use, so reuse one. After the colon: lowercase, no trailing period. A defect states what
+happens (`a nested inline allOf lowers to an empty model`), a proposal is an imperative, and an open
+question starts `decide whether`.
+
+```markdown
+## Problem
+<what happens, on its own terms: a minimal spec, the observed IR or diagnostic, the expected result>
+
+## Cause
+<symbol or file at the named revision; omit when unknown>
+
+## Direction
+<a proposal, labelled as one; the alternatives weighed when there is a real choice>
+
+## Out of scope
+<what this issue deliberately leaves, stated where the next reader will reach it>
+
+Related: #N
+
+Priority: P<n>, <rule>. <command> → <result> (spec @<sha>, morphic @<sha>).
+```
+
+- **Name the revision** each observation came from and the command behind every number. A count in
+  prose is a claim about one revision.
+- **Self-contained and human-framed**, as for a commit message or PR: no session artifacts (probe
+  labels, "the brief"), no internal finding IDs, no "audit" or "remediation" framing, no assistant
+  attribution.
+- **No third-party tool, repo or vendor extension key as the reason or origin.** State the problem
+  itself. Standards (RFCs, OpenAPI, JSON Schema, Overlay) may be cited. The one external artifact
+  an issue may name is the golden spec below, as the thing measured and never as why a change is
+  wanted. Grep the draft for what it must not say before filing.
+- **Direction is a draft.** The implementer reasons about it and improves it before building it as
+  written.
+
+### Priority
+
+Exactly one `priority:` label; the rules below define the tiers, and a label's one-line description
+is shorthand. Specs are assumed valid, so impact is measured, not argued, against the **golden
+spec**: the milestone's reference input, the Cloudflare API schema
+(<https://github.com/cloudflare/api-schemas>, `openapi.json`), itself treated as valid. Read it in
+place; it is large and not ours to commit.
+
+```bash
+D=$(mktemp -d)   # outside the repo
+gh api -H "Accept: application/vnd.github.raw" \
+  repos/cloudflare/api-schemas/contents/openapi.json > "$D/openapi.json"
+gh api repos/cloudflare/api-schemas/commits/HEAD --jq .sha   # the spec revision measured
+go run ./cmd/morphic validate "$D/openapi.json"              # what the compiler already reports
+```
+
+Count a construct with `jq` or a short script over the file and quote the command. The first rule
+that applies sets the tier:
+
+1. **Housekeeping**: a refactor, cleanup, test, CI or docs task that changes no lowering,
+   validation, IR or emit-contract behaviour. **P4**, unless it states which higher-tier work it
+   unblocks.
+2. **Corrupt-spec guard**: guards, validates or warns against a corrupt spec, or hardens against
+   hostile input (crashes, exhaustion or private-address requests on adversarial documents).
+   **P4**. A valid construct wrongly refused or mis-lowered is a defect and continues below.
+3. **Off the golden spec**: it does not touch it (a construct it never uses, another source
+   format, a later OpenAPI version, webhooks, external references, overlays). **P3** if it is
+   valid-spec functionality or design that a later emitter, format or version needs, **P4** if it is
+   cosmetic, tooling or docs polish. Never higher, however architectural.
+4. **Blocks the first emitter**: **P0**. Without it no usable emitter can be built or run on the
+   golden spec: the compiler crashes on or refuses a construct the spec uses, the IR has no home
+   for a fact a model, operation, request or response needs, or the emitter contract leaves
+   undefined something every emitter implements on its first model or operation. The emitter need
+   not be perfect, so a gap whose workaround costs only polish (naming, ergonomics, detail) is P1.
+5. **Direct impact**: it changes what the golden spec compiles or emits. **P1**. Examples: wrong,
+   lossy or missing IR for a valid construct it uses (a fact a consumer needs, kept verbatim in
+   `Unmodeled` instead of typed); a valid construct it uses refused; an architecture or design
+   decision its output depends on (IR shape, pipeline and package boundaries, the emitter-plan
+   contract).
+6. **Indirect impact**: it touches the golden spec only indirectly (diagnostic volume or wording on
+   it, internal cost, an effect reached only through emitter policy). **P2**.
+
+- **Name the rule and show the probe** in the Priority line. A tier above P4 with no command behind
+  it is a guess.
+- **Re-rank on new evidence.** When a fix part-addresses an issue, or a new golden-spec revision
+  changes what a probe returns, re-run the probe and edit the label in place with a comment saying
+  what changed.
+- **A tracking issue** states the end goal and the ordered plan. Each step is its own issue with the
+  blocked-by relations set on the issues, and the tracker takes the tier of its highest open step.
+
+### Labels
+
+One `type:` label (`gh label list` gives the vocabulary and what each means), plus `performance`,
+`security` or `dependencies` when they apply. Read the body from a file so quoting cannot alter it:
+
+```bash
+gh issue create --title "<title>" --body-file draft.md --label type:bug --label priority:P1
+```
+
+To audit a tier, read each issue's own `labels`: filtering the REST issues endpoint by label
+returns stale matches after a label is recreated.
