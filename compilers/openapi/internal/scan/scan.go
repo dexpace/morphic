@@ -1,11 +1,14 @@
-// Package scan refuses a source document before any of it is lowered.
-//
-// Three shapes would otherwise crash or exhaust the resolver or parser: a
-// schema $ref chain that never reaches a concrete schema, which the resolver
-// recurses round until the stack runs out; a YAML alias fan-out past the
-// document's own size; and nesting so deep that the parser's cost per node,
-// growing with depth, adds up past use. Each is read from the raw text, through
-// the sourceindex.Index the caller supplies.
+// Package scan refuses a source document before any of it is lowered, for
+// shapes the parser library cannot survive. A schema $ref chain that never
+// reaches a concrete schema overflows its stack
+// (docs/parser-library.md#schema-cycle-overflow); a chain of reference objects
+// is left to the resolver, which reports one
+// (docs/parser-library.md#reference-object-cycle). A YAML alias cycle or
+// fan-out overflows it or exhausts memory (docs/parser-library.md#alias-cycle,
+// docs/parser-library.md#alias-expansion). And nesting so deep that its cost
+// per node, growing with depth, adds up past use
+// (docs/parser-library.md#nesting-cost). Each is read from the raw text,
+// through the sourceindex.Index the caller supplies.
 package scan
 
 import (
@@ -228,11 +231,10 @@ func pointerOf(steps map[*yaml.Node]step, n *yaml.Node) jsontext.Pointer {
 	return p
 }
 
-// Cycles refuses, before parsing, structures that crash or exhaust memory in
-// the parser or resolver (GitHub #12, #27, speakeasy-api/openapi#231): a
-// recursive anchor, a schema $ref chain that loops, and alias amplification
-// past the ratio or the surplus budget (zero for none). An incomplete scan
-// yields a diag.CycleScanFailed warning.
+// Cycles refuses, before parsing, the structures the package doc names (GitHub
+// #12, #27, speakeasy-api/openapi#231): a recursive anchor, a schema $ref chain
+// that loops, and alias amplification past the ratio or the surplus budget
+// (zero for none). An incomplete scan yields a diag.CycleScanFailed warning.
 //
 // The index must cover the tree that will reach the parser, since an overlay
 // can graft a cycle onto a clean document, and must not be truncated: a partial
@@ -262,11 +264,10 @@ func recoverCycleScan(locate Locator, scan func() []ir.Diagnostic) (diags []ir.D
 
 // Aliases refuses a YAML document whose aliases expand without end or far past
 // its own size, the two refusals Cycles makes that concern YAML rather than
-// OpenAPI. It serves overlays, whose applier follows aliases while cloning an
-// update: an anchor naming its own ancestor would recurse until the stack ran
-// out, which no recover converts, and an alias bomb would expand until memory
-// did (GitHub #489). $ref chains are skipped; nothing resolves them in an
-// overlay.
+// OpenAPI. It serves overlays, whose applier clones an update through its
+// aliases: an anchor naming its own ancestor overflows the stack, and an alias
+// bomb exhausts memory (docs/parser-library.md#overlay-alias-clone, GitHub
+// #489). $ref chains are skipped; nothing resolves them in an overlay.
 //
 // The index must cover the whole document: an alias to an ancestor is visible
 // only from the root. surplus is the alias budget.
@@ -283,7 +284,8 @@ func Aliases(locate Locator, idx sourceindex.Index, surplus int64) []ir.Diagnost
 }
 
 // anchorCycle reports a recursive anchor the index found, if any, at the alias
-// with the least pointer (Least). It is read before anything weighs the
+// with the least pointer (Least): the parser cannot decode one
+// (docs/parser-library.md#alias-cycle). It is read before anything weighs the
 // document's aliases: a recursive anchor makes the expanded weight infinite,
 // and having refused those is what makes the alias graph a DAG and the weigh
 // walk provably terminating.
@@ -334,9 +336,10 @@ func anchorName(alias *yaml.Node) string {
 }
 
 // refCycles reports the schema chains that never reach a node without a
-// top-level $ref, which the resolver recurses round until the stack runs out,
-// at one site (see refusal). A chain of reference objects is left to the
-// resolver, which follows one in a loop and reports it unresolved.
+// top-level $ref, which the resolver recurses round until the stack runs out
+// (docs/parser-library.md#schema-cycle-overflow), at one site (see refusal). A
+// chain of reference objects is left to the resolver, which reports it
+// (docs/parser-library.md#reference-object-cycle).
 //
 // If the mapping view hit nodeview.MergeDepthLimit it returns a
 // diag.CycleScanFailed warning rather than a clean nil. Truncation only drops
@@ -593,9 +596,10 @@ const maxAliasAmplification = 128
 // carry surpluses in the low hundreds, nowhere near this floor.
 const minExpandedNodes = 1 << 15 // 32768
 
-// aliasAmplification reports whether root's alias-substituted form exceeds what
-// the document may expand to, with an error at the innermost node that crossed,
-// the least by pointer of several. raw is the document's own node count.
+// aliasAmplification reports whether root's alias-substituted form, what the
+// parser decodes (docs/parser-library.md#alias-expansion), exceeds what the
+// document may expand to, with an error at the innermost node that crossed,
+// least by pointer. raw is the document's own node count.
 //
 // Two bounds apply. The ratio (maxAliasAmplification, floored at
 // minExpandedNodes) catches compounding aliasing, as diag.AliasAmplification
@@ -676,11 +680,10 @@ type weighFrame struct {
 // weighs 0, an alias weighs what its target weighs, and any other node weighs 1
 // plus the weight of its Content.
 //
-// That is what soa.Unmarshal pays: speakeasy v1.24.0 memoizes nothing on the
-// shared *yaml.Node an alias resolves to, so it builds a model subtree per path
-// reaching a node. The count is exact for aliases and an over-count, the safe
-// side, for `<<` merge keys, whose pairs are deduplicated. Re-check it on a
-// dependency bump.
+// That is what soa.Unmarshal pays: it builds a model subtree for every path
+// reaching a node (docs/parser-library.md#alias-expansion). The count is exact
+// for aliases and an over-count, the safe side, for `<<` merge keys, whose
+// pairs are deduplicated.
 type aliasWeigher struct {
 	allowance int64
 	ceiling   int64

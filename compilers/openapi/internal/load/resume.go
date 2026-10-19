@@ -61,10 +61,11 @@ func (e external) resumable(r resolvable, c chain, err error) (bool, error) {
 // node, within maxResolutionHops. A cycle never ends.
 //
 // The library restarts its cycle check at each schema hop it resolved before,
-// so a resumed chain leading back through one recurses until the stack
-// overflows, which nothing recovers from. A hop this walk cannot read as the
-// library does is no answer (see withinDocument): a chain leaving the document
-// is not resumed, and fails as it would without settle.
+// so a resumed chain leading back through one overflows the stack, which
+// nothing recovers from (docs/parser-library.md#schema-cycle-overflow). A hop
+// this walk cannot read as the library does is no answer (see withinDocument):
+// a chain leaving the document is not resumed, and fails as it would without
+// settle.
 func ends(tree *yaml.Node, ref references.Reference) bool {
 	view := nodeview.New()
 	return endsWithin(ref, func(ref references.Reference) (references.Reference, hopKind) {

@@ -1,5 +1,5 @@
 # The components spelling of the prefix, which the resolver reports at both
-# the use and the component.
+# the use and the component (docs/parser-library.md#reference-object-cycle).
 openapi: 3.1.0
 info: {title: Component Path Item Prefix, version: "1"}
 paths:

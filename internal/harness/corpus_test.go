@@ -68,7 +68,7 @@ func knownInvalid() map[string]bool {
 		// ('#/paths/~1a', '#/webhooks/onA') rather than through components, or
 		// whose pointer passes through a reference on the chain. The resolver
 		// follows each in a loop and reports it as an unresolved reference
-		// (#574).
+		// (docs/parser-library.md#reference-object-cycle, #574).
 		filepath.FromSlash("../../testdata/openapi/cycle_path_item_mutual.yaml"):           true,
 		filepath.FromSlash("../../testdata/openapi/cycle_path_item_self.yaml"):             true,
 		filepath.FromSlash("../../testdata/openapi/cycle_webhook_mutual.yaml"):             true,

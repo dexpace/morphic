@@ -383,7 +383,8 @@ func scanIndex(t *testing.T, src string) sourceindex.Index {
 // TestCompile_SchemaEmptyPointerSegmentIsUnresolved pins where reading the
 // empty token changes a verdict. Reading '/A/' as stopping at A made this shape
 // a cycle. The resolver lands it nowhere: in the schema model it reads the
-// empty token as a field no schema has, and reports the reference unresolved.
+// empty token as a field no schema has, and reports the reference unresolved
+// (docs/parser-library.md#schema-cycle-overflow).
 func TestCompile_SchemaEmptyPointerSegmentIsUnresolved(t *testing.T) {
 	t.Parallel()
 	const src = `openapi: 3.1.0

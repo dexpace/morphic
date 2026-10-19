@@ -222,10 +222,9 @@ func eachModel[T any](items iter.Seq[soa.WalkItem], what string,
 // eachSighting is eachModel handing visit the location of each model as well.
 //
 // A panic in the walk or under visit becomes an error naming what was running,
-// as a parser panic does in unmarshal: the library faults on shapes the parser
-// accepts, such as a $ref with no value. It stops the walk at site, the model
-// being visited, or the root when the walk panicked. An error from visit stops
-// it too.
+// as a parser panic does in unmarshal (see recovered). It stops the walk at
+// site, the model being visited, or the root when the walk panicked. An error
+// from visit stops it too.
 func eachSighting[T any](items iter.Seq[soa.WalkItem], what string,
 	visit func(jsontext.Pointer, soa.Locations, T) error,
 ) (site jsontext.Pointer, err error) {
@@ -254,7 +253,9 @@ func eachSighting[T any](items iter.Seq[soa.WalkItem], what string,
 const resolverPanics = "reference resolver"
 
 // recovered turns a panic in the deferring function into *err, naming what was
-// running.
+// running. The library panics on the caller's goroutine on some shapes its
+// parser accepts, such as a $ref with no value
+// (docs/parser-library.md#recoverable-panic).
 func recovered(err *error, what string) {
 	if r := recover(); r != nil {
 		*err = fmt.Errorf("%s panicked: %v", what, r)

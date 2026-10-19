@@ -1,6 +1,7 @@
 # A path item whose $ref names a position inside itself, through the reference
-# being resolved. speakeasy v1.24.0 deadlocked on its own lock walking that
-# prefix; from v1.24.1 the walk reports the reference unresolved (GitHub #574).
+# being resolved. The resolver deadlocked on that walk once, and now reports
+# the reference unresolved (docs/parser-library.md#reference-object-cycle,
+# GitHub #574).
 openapi: 3.1.0
 info: {title: Path Item Prefix Self, version: "1"}
 paths:

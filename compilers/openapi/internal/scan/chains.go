@@ -13,8 +13,9 @@ import (
 
 // chainGraph settles how the chain from every pure-$ref node ends, reading
 // each hop once, so no chain is walked again per start (GitHub #903, #923).
-// A loop is found however long: the resolver recurses once per hop of one, so
-// any loop runs it out of stack (GitHub #922).
+// A loop is found however long: the resolver overflows its stack on a schema
+// loop of any length (docs/parser-library.md#schema-cycle-overflow, GitHub
+// #922).
 //
 // A hop goes where its pointer lands (landing), so every chain ends or runs
 // into one loop. A schema $ref the pointer passes is read by its own keys, as

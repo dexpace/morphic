@@ -1,6 +1,7 @@
 # The prefix through a reference reached on the second hop rather than the
 # first: /b's pointer passes through /a, which is on /a's chain by then. Both
-# references are reported unresolved.
+# references are reported unresolved
+# (docs/parser-library.md#reference-object-cycle).
 openapi: 3.1.0
 info: {title: Path Item Prefix Chain, version: "1"}
 paths:

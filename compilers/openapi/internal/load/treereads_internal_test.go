@@ -18,8 +18,8 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/ynode"
 )
 
-// libraryRead is jsonpointer.GetTarget's walk of a YAML tree (yamlnode.go in
-// speakeasy-api/openapi v1.25.2) transcribed with a counter: a step for each
+// libraryRead is jsonpointer.GetTarget's walk of a YAML tree (the library's
+// yamlnode.go) transcribed with a counter: a step for each
 // node the walk navigates to and each time a loop over a mapping's pairs runs.
 // It is what treeReads' count is checked against, and GetTarget is what this
 // transcription is checked against.

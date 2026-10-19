@@ -1,6 +1,7 @@
 # A response object that references its own position: a reference object
 # rather than a path item, spelled through /paths, and reported by the resolver
-# as an unresolved reference all the same.
+# as an unresolved reference all the same
+# (docs/parser-library.md#reference-object-cycle).
 openapi: 3.1.0
 info: {title: Response Via Path, version: "1"}
 paths:

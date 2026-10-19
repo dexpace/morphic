@@ -60,8 +60,9 @@ var cycleReproducers = []struct{ name, file string }{
 
 // referenceObjectCycles are chains of reference objects outside any schema
 // that cycle, or whose pointer passes back through a reference on the chain.
-// The resolver follows such a chain in a loop and reports it, so the scan
-// leaves every one to it (GitHub #574).
+// The resolver follows such a chain in a loop and reports it
+// (docs/parser-library.md#reference-object-cycle), so the scan leaves every one
+// to it (GitHub #574).
 var referenceObjectCycles = []struct{ name, file string }{
 	{"path-item-mutual", "cycle_path_item_mutual"},
 	{"path-item-self", "cycle_path_item_self"},

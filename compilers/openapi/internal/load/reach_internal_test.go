@@ -63,12 +63,12 @@ func assertNotRefusedByReach(t *testing.T, spec string) {
 	assert.False(t, found, "must not be refused as a reference cycle")
 }
 
-// The fixtures below were probed directly against speakeasy-api/openapi
-// v1.25.2's own resolver: every one crashes it with a stack overflow before
-// this package's reference-chain refusal can run ahead of the parser. They exercise $defs-relative resolution, which depends on
-// the chain that reaches a $defs entry and on registry re-registration
-// mid-resolution (GitHub #546), and are additional to the $anchor/$id shapes
-// #526 was filed against.
+// The fixtures below were each measured against the library's own resolver,
+// and each crashed it with a stack overflow
+// (docs/parser-library.md#schema-cycle-overflow). They exercise
+// $defs-relative resolution, which depends on the chain that reaches a $defs
+// entry and on registry re-registration mid-resolution (GitHub #546), and are
+// additional to the $anchor/$id shapes #526 was filed against.
 const (
 	// A $defs entry's own $ref names itself by a /$defs/ pointer.
 	defsPointerSelfReference = `openapi: 3.1.0
@@ -321,9 +321,9 @@ var craftedCrashFixtures = []struct{ name, spec string }{
 	{"a relative $id names itself through a leading ./", relativeIDSelfReferenceDotSlash},
 
 	// The fixtures below are GitHub #526's own $anchor/$id shapes. Each was
-	// run through speakeasy-api/openapi v1.25.2's own resolver directly, not
-	// through this package, so the comment on each records what the resolver
-	// does rather than what this package's model predicts.
+	// run through the library's own resolver directly, not through this
+	// package, so the comment on each records what the resolver did rather
+	// than what this package's model predicts.
 	{"top-level anchor names itself", anchorSelfTop},
 	{"nested property anchor names itself", anchorSelfNested},
 	{"two nested anchors name each other", anchorMutualNested},
@@ -586,10 +586,10 @@ func TestReachCycle_LeavesALegitimateChain(t *testing.T) {
 	}
 }
 
-// The $anchor/$id fixtures below (GitHub #526) were each run through
-// speakeasy-api/openapi v1.25.2's own resolver directly, not through this
-// package; the comment on each records what the resolver does.
-// Every one crashes the raw library with a stack overflow.
+// The $anchor/$id fixtures below (GitHub #526) were each run through the
+// library's own resolver directly, not through this package; the comment on
+// each records what the resolver did. Every one crashed it with a stack
+// overflow (docs/parser-library.md#schema-cycle-overflow).
 const (
 	// A top-level schema's $ref names the $anchor it declares itself.
 	anchorSelfTop = `openapi: 3.1.0
