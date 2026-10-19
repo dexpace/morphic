@@ -20,8 +20,8 @@ A rule closes with the evidence that pins it, one bullet per field:
 
 A rule names a case or a test, or says in its Status why it has neither. The `TestLoweringSpec`
 tests in `compilers/openapi` hold every field to the code and read it both ways: each conformance
-case is named by a rule, and each code by a rule or by `codesOutsideTheRules`, which gives the reason
-a code has no rule.
+case is named by a rule, and each code by a rule or by `codesOutsideTheRules`, which gives the
+reason a code has no rule.
 
 ## 1. Documents and versions
 
@@ -55,12 +55,12 @@ lowering asserts nothing the document does not write. It is a warning, as `unkno
 an OpenAPI object's key set is closed, so the document is invalid for the version it declares, but
 it still lowers — and a consumer that wants it refused has `--fail-on warning`. The rule covers
 constructs a minor *added*, including the Reference Object's `summary` and `description`, which 3.1
-added and which [`reference-object-siblings`](#reference-object-siblings) folds at every version. That is the one case: 3.0 admits no key beside a
-`$ref` and says one SHALL be ignored, so a 3.0 document writing one is warned that it was read as
-3.1 reads it. Beside a schema's `$ref` 3.1 admits any keyword, which no row of the table expresses,
-so a 3.0 schema's `$ref` siblings are GitHub #871's question. A keyword whose meaning differs
-between minors, such as `exclusiveMinimum`, follows the declared one, and a keyword a later minor
-removed is another question (GitHub #632).
+added and which [`reference-object-siblings`](#reference-object-siblings) folds at every version.
+That is the one case: 3.0 admits no key beside a `$ref` and says one SHALL be ignored, so a 3.0
+document writing one is warned that it was read as 3.1 reads it. Beside a schema's `$ref` 3.1 admits
+any keyword, which no row of the table expresses, so a 3.0 schema's `$ref` siblings are GitHub
+#871's question. A keyword whose meaning differs between minors, such as `exclusiveMinimum`, follows
+the declared one, and a keyword a later minor removed is another question (GitHub #632).
 
 Whether a construct is a later minor's is asked in one place: the load phase holds every object the
 source's model holds to one table of what each minor added, and no lowering asks it, so no field's
@@ -77,7 +77,8 @@ such as under an `x-` key, is held to the table and the takeover as one the mode
 reported at the pointers it is written at (GitHub #872). The fields beside a Path Item's `$ref` are
 modelled and walked with the source, so they are held to both as the source's own objects are
 (#577). The same pass, with the same reach, judges a Parameter Object's `allowReserved` against
-where the declared minor applies it ([`allow-reserved-locations`](#allow-reserved-locations)). A JSON Schema 2020-12 keyword in a 3.0 schema is GitHub
+where the declared minor applies it ([`allow-reserved-locations`](#allow-reserved-locations)). A
+JSON Schema 2020-12 keyword in a 3.0 schema is GitHub
 #820's.
 
 - Cases: `later-version-constructs`, `reached-outside-model`
@@ -120,7 +121,8 @@ Encoding fields, a Media Type Object's `description` and `components/mediaTypes`
 Such a field is read off the raw node by a reader of its own, and the object census is *told* which
 keys that reader took: the census grades a key by the parser's model, so left alone it reports a
 field the document defines as an undefined key. The reader runs whatever version the document
-declares, as [`later-version-construct`](#later-version-construct) requires, so the census never calls such a field undefined.
+declares, as [`later-version-construct`](#later-version-construct) requires, so the census never
+calls such a field undefined.
 
 The census is told what the reader actually took, never a key list by version. A value the parser
 would decode as a string goes to its home — `summary` into `Docs.Summary`, `nodeType` into
@@ -430,14 +432,15 @@ siblings cannot overwrite each other, plus an `openapi/degraded-construct` diagn
 keywords that made it residue. Which keywords those are is derived from the branch's own declared
 key set rather than from a fixed list, so a keyword the dialect gains later is residue without
 anyone maintaining an enumeration. The key set is read through YAML aliases and merge keys, so a
-branch written `[*shared]` or `[{<<: *shared}]` derives the same residue as one written out. The diagnostic is a `warning` rather than an `info` where the branch declares a
-`type` that excludes `object`, because the composing `Model` then asserts a shape the source
-contradicts — `allOf: [{type: string, maxLength: 3}]` composes an empty model of kind `model`
-over a source that says `string`. Two branch kinds are outside this rule rather than limits of
-it: a `$ref` branch owns a node, so what is written beside the `$ref` is *modeled* on the branch
-alias §4.3 describes rather than kept as residue, and a boolean branch declares no keywords at
-all, so there is no residue to derive — it is a decision about the composed node instead, stated
-with the `false`-schema rule [`allof-false-branch`](#allof-false-branch).
+branch written `[*shared]` or `[{<<: *shared}]` derives the same residue as one written out. The
+diagnostic is a `warning` rather than an `info` where the branch declares a `type` that excludes
+`object`, because the composing `Model` then asserts a shape the source contradicts — `allOf:
+[{type: string, maxLength: 3}]` composes an empty model of kind `model` over a source that says
+`string`. Two branch kinds are outside this rule rather than limits of it: a `$ref` branch owns a
+node, so what is written beside the `$ref` is *modeled* on the branch alias §4.3 describes rather
+than kept as residue, and a boolean branch declares no keywords at all, so there is no residue to
+derive — it is a decision about the composed node instead, stated with the `false`-schema rule
+[`allof-false-branch`](#allof-false-branch).
 
 - Cases: `allof-inline-residue`
 - Codes: `openapi/degraded-construct`, `openapi/unpreservable-construct`
@@ -519,13 +522,13 @@ composes none.
 a boolean `false` `allOf` branch → the composed Model closed, branch verbatim Unmodeled
 (`degraded_lowering`) per §4.8, a `true` branch a silent no-op
 
-The `false` rule ([`whole-schema-fallbacks`](#whole-schema-fallbacks)) holds wherever the schema appears, composition included. A `false` conjunct
-(`allOf: [false, …]`) admits nothing, so the composition admits nothing: the composed `Model` is
-closed and the branch is kept verbatim under `ReasonDegradedLowering` beside it, which is what
-distinguishes it from a model that merely wrote `additionalProperties: false`. What the other
-branches contributed stays — closing is the nearest shape the IR has, and emptying the model would
-trade one silent loss for another. A `true` conjunct admits everything, so contributing nothing
-from it is exact and nothing is reported.
+The `false` rule ([`whole-schema-fallbacks`](#whole-schema-fallbacks)) holds wherever the schema
+appears, composition included. A `false` conjunct (`allOf: [false, …]`) admits nothing, so the
+composition admits nothing: the composed `Model` is closed and the branch is kept verbatim under
+`ReasonDegradedLowering` beside it, which is what distinguishes it from a model that merely wrote
+`additionalProperties: false`. What the other branches contributed stays — closing is the nearest
+shape the IR has, and emptying the model would trade one silent loss for another. A `true` conjunct
+admits everything, so contributing nothing from it is exact and nothing is reported.
 
 - Cases: `allof-boolean-branch`
 - Codes: `openapi/false-schema`
@@ -610,13 +613,12 @@ In all five, whatever structural body the schema declares is lowered — `proper
 declared `type` yields a Model or typed node — and the union branches are kept verbatim in
 `Unmodeled["openapi:oneOf"]` / `["openapi:anyOf"]` + `info` diagnostic naming which of the five
 applied. Case 1's body-less sibling leaves nothing to build: it reduces to `any`, and the
-sibling itself is kept by [`shape-applicator`](#shape-applicator) rather than dropped, so the union's diagnostic and the
-sibling's are both reported. A `null` branch in this shape is **not** lifted to `Nullable`: the
-union it
-belongs to is no longer structural, so lifting one branch out of it would assert something the
-lowered type does not say. The degradation is that the generated SDK is *under-constrained* —
-it admits values the union would reject — which is why the branches must survive for a
-validating emitter to reach.
+sibling itself is kept by [`shape-applicator`](#shape-applicator) rather than dropped, so the
+union's diagnostic and the sibling's are both reported. A `null` branch in this shape is **not**
+lifted to `Nullable`: the union it belongs to is no longer structural, so lifting one branch out of
+it would assert something the lowered type does not say. The degradation is that the generated SDK
+is *under-constrained* — it admits values the union would reject — which is why the branches must
+survive for a validating emitter to reach.
 
 Where a union's lowering leaves no `Model` or `Union` to route by it — a union beside a
 `const`, `enum` or single-typed scalar body, a null-only branch set, a `$ref` site (alias or
@@ -903,10 +905,10 @@ having no redaction field (GitHub #578)
 
 ### `whole-schema-fallbacks`
 
-Two whole-schema fallbacks sit outside §4.8's list, because they answer to a compiler's own limits rather than
-to anything about the construct: a schema nested past the compiler's lowering depth cap becomes
-`any` with an `error` diagnostic, and a boolean `false` schema becomes a closed empty `Model` with
-an `info` one and the schema itself kept verbatim under `ReasonDegradedLowering` at
+Two whole-schema fallbacks sit outside §4.8's list, because they answer to a compiler's own limits
+rather than to anything about the construct: a schema nested past the compiler's lowering depth cap
+becomes `any` with an `error` diagnostic, and a boolean `false` schema becomes a closed empty
+`Model` with an `info` one and the schema itself kept verbatim under `ReasonDegradedLowering` at
 `Unmodeled["openapi:schema"]` — the key names the position because a boolean schema writes no
 keyword to name it by, and nothing can collide with it, since such a schema has nothing else to
 preserve.
@@ -922,10 +924,11 @@ the IR does have one. A closed `Enum` with no members is an exactly empty value 
 `Enum.ValueType` is a `PrimKind` and a `false` schema declares no type, so lowering to one means
 inventing a value type the source never wrote — an exact-looking node resting on a fabricated
 field, which is not more faithful than an approximate one with the source beside it. It would also
-split the rule: the composition case ([`allof-false-branch`](#allof-false-branch)) must stay a `Model`, because it keeps what the other
-branches contributed, so one source construct would lower to two different kinds depending on where
-it appeared. The overstatement is bounded, recorded, and recoverable from the `Unmodeled` entry;
-an emitter that wants the exact reading has everything it needs to produce it.
+split the rule: the composition case ([`allof-false-branch`](#allof-false-branch)) must stay a
+`Model`, because it keeps what the other branches contributed, so one source construct would lower
+to two different kinds depending on where it appeared. The overstatement is bounded, recorded, and
+recoverable from the `Unmodeled` entry; an emitter that wants the exact reading has everything it
+needs to produce it.
 
 - Cases: `allof-boolean-branch`
 - Codes: `openapi/degraded-construct`, `openapi/false-schema`
@@ -1042,13 +1045,13 @@ identifies every type by a synthetic ID derived from its source pointer rather t
 (§3), and describes one API surface rather than a resource graph, so it has no dialect axis and
 none is coming: they are kept verbatim under `ReasonOutOfScope`, and `$id` is explicitly *not*
 honoured as a base URI for reference resolution. An OpenAPI document's `jsonSchemaDialect`, the
-default `$schema` of its schemas, is kept on the document the same way. `$comment` is dropped outright — 2020-12 §8.3
-forbids presenting it to end users, so no emitter may see it. `$dynamicAnchor` is consumed as a
-reference target rather than carried as content — it is what lets a `$dynamicRef` expand.
-`$anchor` is currently neither: Milestone 1 resolves same-document JSON pointers only, so a
-`$ref` naming an anchor is reported unresolved rather than resolving through it (GitHub #141).
-It is excluded here because the compiler does nothing with it today, not because dropping it is
-settled.
+default `$schema` of its schemas, is kept on the document the same way. `$comment` is dropped
+outright — 2020-12 §8.3 forbids presenting it to end users, so no emitter may see it.
+`$dynamicAnchor` is consumed as a reference target rather than carried as content — it is what lets
+a `$dynamicRef` expand. `$anchor` is currently neither: Milestone 1 resolves same-document JSON
+pointers only, so a `$ref` naming an anchor is reported unresolved rather than resolving through it
+(GitHub #141). It is excluded here because the compiler does nothing with it today, not because
+dropping it is settled.
 
 - Cases: `dialect-keywords`
 - Codes: `openapi/degraded-construct`, `openapi/unresolved-ref`
@@ -1056,13 +1059,13 @@ settled.
 
 ### `vocabulary-coverage`
 
-The keyword lists of §4.7 and of this section are held to the compiler rather than merely asserted. The OpenAPI compiler's
-`TestVocabulary2020_12_EveryKeywordIsLoweredOrKept` enumerates the 2020-12 vocabularies keyword by
-keyword and, for each, compiles three documents — the keyword absent, written with one value,
-written with a second — requiring that the absent form differs from the first and the first from
-the second. So it holds both the keyword's *presence* and its *value* to reaching the compiled IR,
-by lowering or by verbatim preservation; a keyword that stops being carried fails there rather than
-waiting for a reader to notice.
+The keyword lists of §4.7 and of this section are held to the compiler rather than merely asserted.
+The OpenAPI compiler's `TestVocabulary2020_12_EveryKeywordIsLoweredOrKept` enumerates the 2020-12
+vocabularies keyword by keyword and, for each, compiles three documents — the keyword absent,
+written with one value, written with a second — requiring that the absent form differs from the
+first and the first from the second. So it holds both the keyword's *presence* and its *value* to
+reaching the compiled IR, by lowering or by verbatim preservation; a keyword that stops being
+carried fails there rather than waiting for a reader to notice.
 
 Two limits are worth stating, because the guarantee is a floor rather than an inventory. It
 compares one pair of values per keyword, so a lowering that carried one spelling and dropped
