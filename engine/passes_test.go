@@ -119,13 +119,13 @@ func (c cancelCompiler) Compile(
 	return c.splitDiagCompiler.Compile(ctx, sources, opts)
 }
 
-// runWith compiles the tiny spec with front, runs each of passes that disabled
+// runWith compiles the tiny spec with comp, runs each of passes that disabled
 // does not name, and returns the result with its diagnostics' codes in order.
 func runWith(
-	t *testing.T, front compilers.Compiler, passes []pass.Pass, disabled ...string,
+	t *testing.T, comp compilers.Compiler, passes []pass.Pass, disabled ...string,
 ) (*engine.Result, []string) {
 	t.Helper()
-	eng, err := engine.NewWithPasses(passes, front)
+	eng, err := engine.NewWithPasses(passes, comp)
 	require.NoError(t, err)
 
 	res, err := eng.Run(t.Context(), writeSpec(t, testspec.Tiny), engine.RunOptions{DisablePasses: disabled})
@@ -287,18 +287,18 @@ func TestEngine_RunRefusesAPassReturningNoDocument(t *testing.T) {
 func TestEngine_RunKeepsTheCompilersDiagnosticsThroughATransform(t *testing.T) {
 	t.Parallel()
 	want := ir.Diagnostic{Severity: ir.SeverityError, Code: "stub/spec-problem"}
-	fronts := []struct {
-		name  string
-		front splitDiagCompiler
+	cases := []struct {
+		name string
+		comp splitDiagCompiler
 	}{
 		{"mirrored", splitDiagCompiler{stored: []ir.Diagnostic{want}, returned: []ir.Diagnostic{want}}},
 		{"returned only", splitDiagCompiler{returned: []ir.Diagnostic{want}}},
 		{"stored only", splitDiagCompiler{stored: []ir.Diagnostic{want}}},
 	}
-	for _, tt := range fronts {
+	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			_, got := runWith(t, tt.front, []pass.Pass{rebuildPass{}, notePass("after")})
+			_, got := runWith(t, tt.comp, []pass.Pass{rebuildPass{}, notePass("after")})
 			assert.Empty(t, cmp.Diff([]string{want.Code, "test/rebuild", "test/after"}, got))
 		})
 	}
@@ -310,18 +310,18 @@ func TestEngine_RunKeepsTheCompilersDiagnosticsThroughATransform(t *testing.T) {
 func TestEngine_RunKeepsOneCopyOfAFindingAPassRepeats(t *testing.T) {
 	t.Parallel()
 	echo := ir.Diagnostic{Severity: ir.SeverityInfo, Code: "test/echo"}
-	fronts := []struct {
-		name  string
-		front splitDiagCompiler
+	cases := []struct {
+		name string
+		comp splitDiagCompiler
 	}{
 		{"mirrored", splitDiagCompiler{stored: []ir.Diagnostic{echo}, returned: []ir.Diagnostic{echo}}},
 		{"returned only", splitDiagCompiler{returned: []ir.Diagnostic{echo}}},
 		{"stored only", splitDiagCompiler{stored: []ir.Diagnostic{echo}}},
 	}
-	for _, tt := range fronts {
+	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			_, got := runWith(t, tt.front, []pass.Pass{notePass("echo")})
+			_, got := runWith(t, tt.comp, []pass.Pass{notePass("echo")})
 			assert.Empty(t, cmp.Diff([]string{echo.Code}, got))
 		})
 	}
@@ -396,8 +396,8 @@ func TestEngine_RunStopsBeforeTheNextPassOnceCancelled(t *testing.T) {
 			t.Parallel()
 			ctx, cancel := context.WithCancel(t.Context())
 			t.Cleanup(cancel)
-			front, passes := tt.setup(t, cancel)
-			eng, err := engine.NewWithPasses(passes, front)
+			comp, passes := tt.setup(t, cancel)
+			eng, err := engine.NewWithPasses(passes, comp)
 			require.NoError(t, err)
 
 			res, err := eng.Run(ctx, writeSpec(t, testspec.Tiny), engine.RunOptions{})

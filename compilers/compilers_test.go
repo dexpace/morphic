@@ -177,13 +177,13 @@ func TestRegistry_DetectAsksEachCompilerInRegistrationOrder(t *testing.T) {
 // would report a known spec dialect as an unreadable file.
 func TestRegistry_DetectReportsRecognizedButUnregistered(t *testing.T) {
 	t.Parallel()
-	front := &stubCompiler{
+	comp := &stubCompiler{
 		formats: []compilers.SourceFormat{{Name: "alpha", Version: "1"}},
 		marker:  "alpha",
 		detects: compilers.SourceFormat{Name: "alpha", Version: "9"},
 	}
 	reg := compilers.NewRegistry()
-	require.NoError(t, reg.Register(front))
+	require.NoError(t, reg.Register(comp))
 
 	got, rec, _, ok := detect(t, reg, compilers.Source{Path: "s.txt", Data: []byte("alpha")})
 	assert.False(t, ok, "no compiler is registered for alpha@9")
