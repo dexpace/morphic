@@ -65,6 +65,8 @@ to is [`values`](#values)'.
 - Tests: `openapi.TestDetect_ABrokenDocumentIsReportedAtAnySize`,
   `load.TestLoad_AStreamLowersItsFirstDocumentAndReportsTheRest`,
   `load.TestLoad_ATaggedMappingIsRefusedBeforeParsing`
+- Status: partly built: a JSON source holding a surrogate-pair escape is refused as undecodable
+  (#900), and detection reads any `!!merge`-tagged key as a merge key (#845).
 
 ### `source-budgets`
 
@@ -91,6 +93,9 @@ member budget of an enum is [`enum-const`](#enum-const)'s.
   `load.TestLoad_RefusesANestingPastTheBoundBeforeBuildingTheModel`,
   `load.TestLoad_ADocumentTooLargeToIndexIsRefused`,
   `openapi.TestCompile_TheDocumentBudgetIsTheCallersToSet`
+- Status: partly built: an external object reached after its contents is charged against the
+  document budget twice (#571), and long keys nested a few hundred levels deep cost gigabytes within
+  every bound (#931).
 
 ### `overlays`
 
@@ -119,6 +124,10 @@ the overlay is applied and every position names the source, as with no overlay, 
   `overlay.TestApply_StrictReportsAnActionThatChangesNothingWithoutRefusing`,
   `overlay.TestApplyWithin_DegradesToTheSourceAtTheNodeBudget`,
   `openapi.TestCompile_OverlayIsRecordedAsASource`
+- Status: partly built: an Overlay 1.0.0 document's RFC 9535 filter selector fails to apply (#651).
+  Open: whether lax application should report an action that matches nothing (#652), how an update
+  merges a nested array (#653), and whether an overlay that replaces a value the source declares is
+  reported (#588).
 
 ### `parser-validation`
 
@@ -134,6 +143,10 @@ instead: [`minor-required-fields`](#minor-required-fields),
 - Codes: `openapi/validation`
 - Tests: `load.TestLoad_ValidationErrorsBecomeDiagnostics`, `load.TestMapSeverity`,
   `openapi.TestCompile_AFindingInAnExternalDocumentKeepsItsRule`
+- Status: partly built: a finding about a declaration in another document is reported once per
+  `$ref` that reaches it (#874), and one in an object an alias mounts twice is reported twice
+  (#889); a null written in some validated fields faults the parser, and the whole document is
+  refused as undecodable rather than the field reported (#891).
 
 ### `minor-required-fields`
 
@@ -161,8 +174,9 @@ other.
 - Tests: `load.TestRequired_AnEmptyValueNoMinorAdmitsIsStillRefused`,
   `load.TestRequired_AnEmptyServerURLFollowsTheDeclaredVersion`,
   `load.TestRequired_ARelaxedFieldFollowsTheDeclaredVersion`
-- Status: open: which minor governs a document a reference reaches, held to the source's until it is
-  settled (#839).
+- Status: partly built: the root fields each minor requires are never checked (#894), and a 3.0
+  server variable is held to 3.1's `enum` rules (#890). Open: which minor governs a document a
+  reference reaches, held to the source's until it is settled (#839).
 
 ### `later-version-construct`
 
@@ -228,7 +242,18 @@ A chain of references that closes on itself is [`reference-cycles`](#reference-c
   `openapi.TestExternalContent_ASchemaRefPastARefNamesItsContent`,
   `openapi.TestCompile_SchemaEmptyPointerSegmentIsUnresolved`
 - Status: partly built: no schema another document holds is lowered, so a schema `$ref` naming one
-  is reported unresolved (#74), and an `$anchor` is not honoured as a reference target (#914).
+  is reported unresolved (#74), and an `$anchor` is not honoured as a reference target (#914). A
+  reference inside an object another document holds is never resolved, and nothing reports it
+  (#751); an absolute-path `$ref` in a remote document is read as a local path (#936); a remote
+  document can make the compiler request a private address (#937); an external document that does
+  not parse is handed on rather than refused (#939); and a remote document reaching a local file is
+  refused naming only its last such `$ref` (#940). A `$defs` reference inside a schema under an
+  extension is reported unresolved (#570); a `$ref` whose pointer holds a character above U+FFFF is
+  refused as malformed (#516), and one ending in `/` resolves to the parent (#770); a `$ref` to a
+  position that holds no schema reports two diagnostics (#769); an unresolved reference's message
+  ends in the resolver's own wording (#809); and what a reference into another document's content
+  names can follow declaration order (#765, #766). Open: whether a `$ref` into a root-level `$defs`
+  resolves (#910).
 
 ### `reference-cycles`
 
@@ -251,6 +276,13 @@ not read is left unresolved where the source is held.
   `openapi.TestCompile_ReentrantPrefixReportsAlikeInBothDeclarationOrders`,
   `load.TestLoad_DegenerateCycleIsRefusedBeforeParsing`,
   `openapi.TestCompile_MergeChainPastBoundStillCompiles`
+- Status: partly built: a cycle inside a document an external reference names (#547), a source cycle
+  entered twice from another document (#771), and a schema `$ref` through a Reference Object that
+  leads back to it (#945) each overflow the stack; a cycle of component Reference Objects is
+  reported at the root rather than at a reference of the cycle (#580); a reference on a failing
+  chain is reported only where the walk reaches it first (#767); and the scan reads pointer
+  spellings the resolver refuses (#843) and, outside a schema, a position by its key's name alone,
+  refusing a loop the resolver never reads (#949).
 
 ## 2. The document and what it keeps
 
@@ -276,6 +308,7 @@ and is reported, as for every construct a later minor added, with an
 - Cases: `self-uri`
 - Codes: `openapi/later-version-construct`
 - Tests: `openapi.TestCompile_RecordsSelfURI`
+- Status: partly built: `$self` is the base URI for some references and not others (#863).
 
 ### `verbatim-preservation`
 
@@ -297,7 +330,11 @@ extension that converts to no JSON is [`vendor-extensions`](#vendor-extensions)'
 - Tests: `schema.TestAllOf_UnpreservableBranchIsNotAnnounced`,
   `schema.TestCoDeclaredFamily_UnpreservableIsNotAnnounced`,
   `annotation.TestValidationOnlyAt_AnUnconvertibleKeywordIsReportedNotKept`
-- Status: partly built: a number past float64's range is kept as a JSON string (#783).
+- Status: partly built: a number past float64's range is kept as a JSON string (#783), and a field
+  supplied through a merge key or an alias is found by no reader that keeps it, reaching the IR in
+  no form (#384). Open: whether a scalar its own tag does not admit is refused or kept as its text
+  (#245), and whether an extension mapping with non-string keys is kept with its keys stringified
+  (#617).
 
 ### `unmodeled-dialect-fields`
 
@@ -370,7 +407,8 @@ that decision lives (§12), which is what keeps a promotion pass from mistaking 
   `openapi.TestUnreferencedComponents_ReadAsTheParserReadsThem`,
   `openapi.TestUnreferencedComponents_SelfReferenceByFileNameReaches`
 - Status: partly built: no reference into `components/mediaTypes` is followed, so the section is
-  kept whole however much of it a document uses (#856).
+  kept whole however much of it a document uses (#856), and a section entry whose key is no scalar
+  is dropped without a diagnostic (#947).
 
 ## 3. Names and values
 
@@ -396,7 +434,10 @@ neutralized first so an empty parent gives `empty_item`, never `_item`. `Aliases
   `schema.TestEnumMemberIDs_NamesThatCanonicalizeToNothingStillGetIDs`,
   `schema.TestInlinePosition_HintIsTheSameInBothOrders`
 - Status: partly built: a name with no letter or digit reaches an emitter with neither `Canonical`
-  nor `Hint`, which #956 tracks for an enum member.
+  nor `Hint`, which #956 tracks for an enum member; union variants and inline schemas ignore their
+  `title` as a hint (#662); a union variant naming a position in a path's body takes the pointer's
+  name (#729); and a `$ref` into a component request body or header names the subtree beneath its
+  target by the reference (#747).
 
 ### `values`
 
@@ -520,6 +561,8 @@ component nothing references would otherwise lose in silence.
 - Codes: `openapi/degraded-construct`
 - Tests: `openapi.TestAnnotationRetention_OtherDeclarationShapes`,
   `schema.TestPropertyPosition_ResidueStaysOutOfTheTypeNode`
+- Status: partly built: a `$ref` to a property's schema reports `readOnly` as kept on a node that
+  lacks it (#750).
 
 ### `docs-and-deprecation`
 
@@ -543,6 +586,7 @@ neither one's `false` clearing the other. A request body's `description` lands o
 - Tests: `operation.TestOperation_DeprecatedIsCarried`,
   `operation.TestHeaders_DeprecationUnionsWithTheSchema`,
   `operation.TestContent_RequestBodyDocsReachThePayload`
+- Status: open: a deprecation cannot name its replacement, for want of an IR field (#670).
 
 ### `disjoint-visibility`
 
@@ -613,6 +657,7 @@ of a parameter's schema, which `ir.Parameter` has no field for, are
 - Cases: `xml-hints`, `xml-nodetype-32`
 - Codes: `openapi/degraded-construct`
 - Tests: `annotation.TestXMLHints_ReadsEveryFieldDirectly`, `schema.TestModel_PropertyXML`
+- Status: open: whether a property's hints override its type's field by field or whole (#465).
 
 ## 5. Schemas: composition, unions and enumerations
 
@@ -675,6 +720,9 @@ about the composed node instead, stated with the `false`-schema rule
 - Tests: `schema.TestAllOf_BranchWrittenByReferenceStillDerivesResidue`,
   `schema.TestAllOf_MergedBranchKeywordsAreNotResidue`,
   `schema.TestAllOf_UnpreservableBranchIsNotAnnounced`
+- Status: partly built: a nested inline `allOf` is kept as residue rather than flattened into the
+  composition, so the composed model has no base, mixins or properties (#599), and an `allOf` of one
+  `$ref` and an annotation-only branch keeps none of the branch's annotations typed (#660).
 
 ### `allof-redeclared-property`
 
@@ -714,7 +762,11 @@ under ([`nullable`](#nullable)).
   `merge.TestReconcileProperty_ADroppedTypeIsKeptEvenWhenItDoesNotConflict`,
   `merge.TestReconcileProperty_ALosingDetailIsKeptAndReported`
 - Status: partly built: a primitive a `format` narrows is reported as conflicting with the bare
-  primitive, which it does not contradict (#446).
+  primitive, which it does not contradict (#446); an `allOf` that narrows a property's type is
+  reported as a conflict and resolved by branch order (#598), as is a redeclaration with an unknown
+  format (#782); a property redeclared as a list and as a tuple is reported as a conflict (#899);
+  and a conflict goes unreported when the other type lowers later (#898). Open: intersecting the
+  redeclared bounds and defaults rather than keeping one (#10).
 
 ### `allof-required`
 
@@ -736,7 +788,8 @@ composes none.
   `schema.TestAllOf_RequiredOnlyBranchNamingBaseOwnedPropertyDiagnosed`,
   `schema.TestAllOf_RequiredOnlyBranchNoBaseOrMixinDiagnosedInfo`
 - Status: partly built: the unattached name is reported and kept nowhere, where a map keeps its
-  `required` verbatim (#896).
+  `required` verbatim (#896), and an inherited property a composing schema makes required has no IR
+  home (#663).
 
 ### `allof-false-branch`
 
@@ -766,6 +819,26 @@ combinator ([`union-beside-structure`](#union-beside-structure),
 otherwise.
 
 - Cases: `oneof-discriminated`, `anyof-untagged`
+- Status: open: a discriminated union lowers with `WireTagged` false, a combination the IR's tag
+  modes do not define (#954).
+
+### `type-arrays`
+
+A schema whose `type` lists more than one type lowers to an exclusive `Union` with one variant per
+listed type other than `null`, in order, each lowered from the same schema as that type alone and
+named by it: a shared primitive for a scalar type, and for `object` or `array` a node hoisted at
+`<pointer>/type/<index>`. A `null` among them makes the position nullable instead
+([`nullable`](#nullable)), so one type and `null` lower as that type alone, nullable. The bounds a
+carried schema writes land on its property or parameter ([`constraints`](#constraints)). No keyword
+census runs over the union, since each variant is built from the whole schema and holds what its own
+type admits ([`shape-applicator`](#shape-applicator)).
+
+- Tests: `schema.TestLower_MultiTypeUnion`,
+  `schema.TestDiscriminatorBesideUnion_MultiTypedBodyIsSettled`
+- Status: partly built: a keyword or bound that no variant holds, as at a component, where no
+  carrier takes a bound, is dropped in silence (#852); a list naming `integer` and `number` lowers
+  to an exclusive union that no integer satisfies, since every integer is a number (#868); and a
+  multi-typed base's discriminator routes to no subtype (#853).
 
 ### `union-null-variant`
 
@@ -858,6 +931,10 @@ an info `openapi/validation-only-keyword` at the schema ([`validation-only`](#va
 - Tests: `schema.TestOneOf_CoDeclaredNotDistributedReasons`,
   `schema.TestOneOf_CoDeclaredUnresolvableBranchIsNotDistributed`,
   `schema.TestDiscriminatorBesideUnion_LeavesAMapWhenItMoves`
+- Status: partly built: restating a property's type inside xor-of-required branches degrades the
+  union (#620), and a multi-typed base's discriminator routes to no subtype (#853). Open: keeping a
+  discriminated `oneOf` a union when structural keywords sit beside it (#594), and distributing a
+  union's inline branches when properties sit beside it (#661).
 
 ### `union-beside-ref`
 
@@ -923,6 +1000,12 @@ written with structure is [`union-beside-structure`](#union-beside-structure)'s.
 - Codes: `openapi/degraded-construct`, `openapi/unresolved-ref`
 - Tests: `schema.TestHomelessDiscriminator_IsKeptBesideEveryOtherNode`,
   `schema.TestUnplacedDiscriminator_IsKeptAtEveryUnionSite`
+- Status: partly built: an empty `propertyName` lowers to IR that `irverify` refuses (#882); a
+  mapping to a component that is a `$ref` to a subtype fails validation (#844), a keyword beside a
+  union branch's `$ref` breaks a mapping to its component (#847), and a mapping to a property whose
+  `$ref` has a sibling names an unused alias (#764); and a discriminator inside a reached path item
+  is recorded at a pointer with an empty segment (#886). Open: inferring a discriminator from pinned
+  tag values, as an injectable policy (#659).
 
 ### `discriminator-value`
 
@@ -976,6 +1059,11 @@ that cannot convert to the top type, with an `openapi/degraded-construct` warnin
 - Tests: `schema.TestEnum_HeterogeneousBecomesUnionWithBadValue`,
   `schema.TestEnum_NonScalarAndMidListMismatch`,
   `schema.TestEnumAsUnion_UnconvertibleMemberBecomesAny`
+- Status: partly built: an `enum` ignores its `format`, though `Enum.ValueType` can carry it (#607);
+  an enum whose members do not match its declared type lowers to a union with only an info
+  diagnostic (#619); a `Literal` carries no value type or format (#668); and a `$ref` into an enum
+  member lowers it as a schema in one declaration order (#730). Open: whether a mixed-type enum's
+  `null` lifts out of its union (#618).
 
 ## 6. Schemas: objects, arrays and scalars
 
@@ -1090,7 +1178,7 @@ schema and the homes are the variants'.
   `schema.TestUnhomedApplicator_KeptOnAListAndAnnounced`,
   `schema.TestUnhomedApplicator_FormatWithNoTypeIsKept`
 - Status: partly built: a keyword beside a multi-typed schema that no variant holds is dropped in
-  silence (#852).
+  silence (#852). Open: whether `format: set` on an array reads as `uniqueItems` (#638).
 
 ### `string-formats`
 
@@ -1111,6 +1199,9 @@ pairing of `format` with another `type` is [`numeric-formats`](#numeric-formats)
 - Tests: `schema.TestScalar_UnknownFormatPerBaseType`,
   `schema.TestLower_NamedScalarComponentResolves`,
   `schema.TestFormatTable_EveryRowDistinguishesTheBareType`
+- Status: partly built: `date-time-local` and `time-local` hoist over `string`, and `time`'s offset
+  has no home (#869), and a `byte` string and a string-carried number put the logical and the wire
+  type on opposite fields (#637).
 
 ### `numeric-formats`
 
@@ -1174,6 +1265,9 @@ needs to produce it.
 - Codes: `openapi/degraded-construct`, `openapi/false-schema`
 - Tests: `schema.TestLower_DepthCapExceeded`,
   `openapi.TestMaxNesting_AdmitsWhatTheLoweringLowersInFull`
+- Status: partly built: a `$ref` and the declaration it targets reach the depth cap at different
+  coordinates (#748), and a `$ref` to an inline `false` schema resolves only after its owner lowers
+  (#861).
 
 ## 7. Schemas: keywords beyond the shape
 
@@ -1207,7 +1301,8 @@ on an object.
   `openapi.TestConstraints_ExclusiveWrongDialectForm`,
   `openapi.TestConstraints_LosslessNumericLiterals`
 - Status: partly built: a bound beside a `oneOf` or `anyOf` that lowers to a `Union` is dropped in
-  silence (#848).
+  silence (#848), and so is one beside a multi-typed schema that no carrier holds
+  ([`type-arrays`](#type-arrays), #852).
 
 ### `validation-only`
 
@@ -1262,6 +1357,9 @@ expansion.
 - Tests: `schema.TestDynamicRef_IrreducibleIsKeptAndSaysWhy`,
   `schema.TestDynamicAnchors_CountsWhatAnAliasBringsIn`,
   `schema.TestDynamicAnchorIndex_ReportsATruncatedWalk`
+- Status: partly built: a merge chain past the view's merge bound hides an `$id`, so a `$dynamicRef`
+  can expand across a resource boundary (#401), and the truncation warning names the walk's own
+  bounds when the merge bound stopped it (#454).
 
 ### `content-vocabulary`
 
@@ -1392,6 +1490,7 @@ the item's pointer in the key since one carrier holds every such item, reported 
 - Tests: `operation.TestOperations_PathItemServersKeptOnEveryRoute`,
   `operation.TestOperations_OwnServersKeptBesideThePathItems`,
   `operation.TestOperations_ServersKeysAreIndependent`
+- Status: open: whether an operation gets a field for the servers a path item declares (#285).
 
 ### `path-item-docs`
 
@@ -1436,7 +1535,9 @@ reference that reaches them.
   `operation.TestPathItemRefSiblings_AReferenceIntoTheFieldsBesideARefIsRefused`,
   `operation.TestPathItemRefSiblings_FieldsAnotherDocumentWritesAreReported`
 - Status: partly built: a reference into the fields beside a path item `$ref` is left unresolved,
-  rather than lowered as the field written there (#824).
+  rather than lowered as the field written there (#824); the fields beside a `$ref` the load phase's
+  walk does not reach are not lowered (#823); and a pointer through a path item `$ref` resolves only
+  if that `$ref` resolved first (#876).
 
 ### `tag-groups`
 
@@ -1464,6 +1565,8 @@ would were parents never read.
 - Tests: `operation.TestGrouping_ParentCycleNestsNoMemberUnderAnother`,
   `operation.TestGrouping_DanglingParentStaysTopLevel`,
   `operation.TestGrouping_BadgeOnlyOperationFallsToDefault`
+- Status: partly built: two tags with one name compile clean (#881), and a tag an operation repeats
+  passes into the IR undeduplicated (#738). Open: grouping operations by a vendor extension (#582).
 
 ## 9. Parameters
 
@@ -1484,6 +1587,10 @@ which sees only inline entries, is dropped for this one ([`parser-validation`](#
 - Cases: `param-styles`, `param-style-matrix`, `param-identity`
 - Codes: `openapi/duplicate-parameter`
 - Tests: `operation.TestParams_RepeatedNameAndLocationKeepsEveryParameter`
+- Status: partly built: an undeclared `explode` is written out as the location's default, which
+  erases whether the document declared it (#627); header parameters whose names differ only in case
+  are two parameters, unreported (#635); the 3.2 cookie `style` is refused as invalid (#389); and a
+  list only a `$ref` reaches is never checked for repeats (#880).
 
 ### `content-parameters`
 
@@ -1508,6 +1615,9 @@ is [`competing-keywords`](#competing-keywords)'.
 - Tests: `operation.TestParams_ContentStyleParameter`,
   `operation.TestSingleContentEntry_ReportsExtraMediaTypes`,
   `operation.TestParamContent_OwnAndMediaExamplesAreBothKept`
+- Status: partly built: a parameter or header with several `content` entries takes its type from
+  whichever comes first (#606), and a `style`, `explode` or `allowReserved` beside a parameter's
+  `content` lowers in silence (#887).
 
 ### `allow-empty-value`
 
@@ -1518,6 +1628,7 @@ holds its neighbours but not this one.
 - Cases: `param-styles`
 - Codes: `openapi/degraded-construct`
 - Tests: `operation.TestParams_AllowEmptyValueKept`
+- Status: open: whether the HTTP binding gets a field for it (#285).
 
 ### `reserved-header-names`
 
@@ -1540,6 +1651,8 @@ lowers as declared and is reported by the parser as an `openapi/validation` erro
 - Cases: `param-querystring`, `querystring-forbidden-keywords`
 - Codes: `openapi/invalid-location-keyword`, `openapi/validation`
 - Tests: `operation.TestParams_QueryStringDeclaredStyleIsKeptAndReported`
+- Status: partly built: `explode` and `allowReserved` there are judged only where the parameter is
+  lowered (#885).
 
 ### `allow-reserved-locations`
 
@@ -1592,6 +1705,8 @@ copy ([`streaming-media`](#streaming-media)). No other key is classified, so `ap
 - Tests: `operation.TestContent_AllMediaTypesKeptInOrder`,
   `operation.TestContent_MixedCaseFormContentKeepsEncoding`,
   `lowering.TestNormalizeMediaType_CollapsesTheSpellingsOneMediaTypeHas`
+- Status: partly built: a malformed media-type key, a multipart body that is not an object, and a
+  body on a GET pass in silence (#649).
 
 ### `request-body`
 
@@ -1677,7 +1792,10 @@ same element elect it. Error responses are not read. The policy is the Go option
   `operation.TestStreaming_SeveralStreamingContentsLeaveTheElementUnnamed`,
   `operation.TestStreaming_ItemSchemaDeclaresTheStream`
 - Status: partly built: an operation that does not stream carries an empty `Streaming`, where §7.2
-  declares `none` (#978).
+  declares `none` (#978); the default policy misses `application/json-seq` (#629); sequential media
+  types derive the wrong item type (#630); a response offering a plain body and an event stream does
+  not record which content streams (#601); and an event stream's terminator, and a response that
+  streams only when a request field asks it to, have no IR home (#666, #667).
 
 ### `multipart-encoding`
 
@@ -1700,8 +1818,9 @@ Encoding Object writes beyond those fields is
   `operation.TestPartEncodings_MixinPartIsKeyedOnTheMixin`
 - Status: partly built: an `encoding` key that names no property, or one declared only inside a
   `oneOf` or `anyOf` branch, is dropped with no diagnostic (#604); on a multi-typed body the entry
-  is keyed by a property no node holds, which validation then refuses (#744); and an array of files
-  is not marked as files (#605).
+  is keyed by a property no node holds, which validation then refuses (#744); an array of files is
+  not marked as files (#605); and an encoding on a form body whose media type carries parameters is
+  refused by the parser's validation (#623).
 
 ### `encoding-allow-reserved`
 
@@ -1735,6 +1854,8 @@ an `openapi/invalid-status-key` warning at the operation's entry for it.
 - Codes: `openapi/invalid-status-key`
 - Tests: `operation.TestResponses_NamedByStatusKey`,
   `operation.TestResponses_InvalidStatusKeyIsReported`
+- Status: partly built: an operation whose only response is `default` has no success response
+  (#608).
 
 ### `duplicate-status-key`
 
@@ -1790,6 +1911,8 @@ as an `openapi/reserved-header-name` warning at the entry, as a parameter is
 - Tests: `operation.TestHeaders_SerializationKeywordsKept`,
   `operation.TestHeaders_ReservedContentTypeEntryIsReported`,
   `operation.TestHeaders_ReservedContentTypeInEncodingIsReported`
+- Status: partly built: response headers whose names differ only in case are two headers, unreported
+  (#635). Open: whether a header gets fields for `style` and `explode` (#285).
 
 ### `links`
 
@@ -1799,6 +1922,7 @@ construct kept on only the success one would make a declaration survive or vanis
 status code. The gap is one the IR can close, so a promotion pass may read the entry later.
 
 - Cases: `response-links`
+- Status: not built: no IR field holds a link yet (#669).
 
 ## 12. Webhooks and callbacks
 
@@ -1809,6 +1933,7 @@ pointer, in the synthesized `webhooks` group, its HTTP binding marked `IsWebhook
 key as `WebhookName` and no `URITemplate`, since the key names an event rather than a path.
 
 - Cases: `webhooks`
+- Status: open: whether a webhook operation inherits the service's auth (#626).
 
 ### `callbacks`
 
@@ -1822,7 +1947,9 @@ escaped as one token), grouped as any other operation is, with the expression as
 - Cases: `callbacks`
 - Tests: `operation.TestCallbacks_NameWithSlashKeepsItsOwnKey`
 - Status: partly built: callbacks declared on an operation inside a callback are dropped in silence
-  (#858).
+  (#858); a callback operation is not marked inbound, and a callback has no name (#625); and a
+  callback key that embeds runtime expressions in a URL, as OpenAPI's own example does, draws a
+  validation warning (#621). Open: whether a callback operation inherits the service's auth (#626).
 
 ## 13. Security
 
@@ -1848,6 +1975,10 @@ instead ([`minor-required-fields`](#minor-required-fields)).
 - Tests: `auth.TestLowerSecuritySchemes_AnAbsentFlowsIsReportedAtTheDeclaration`,
   `auth.TestLowerSecuritySchemes_AnEntryNamingNoMechanismIsRefused`,
   `auth.TestAuth_RequirementsOrOfAnds`
+- Status: partly built: a requirement naming an unknown scheme is dropped, so an operation whose
+  every requirement names one lowers as inheriting the service's security (#633); an unresolved
+  scheme name gets no near-miss hint (#694); and a scope a requirement repeats passes into the IR
+  undeduplicated (#738).
 
 ### `security-scheme-fields`
 
@@ -1892,6 +2023,9 @@ others in the lists [`path-item-servers`](#path-item-servers) keeps, and reporte
 - Tests: `openapi.TestDuplicateServerName_BothServersLower`,
   `load.TestServerRepeats_ReportsEveryListTheSourceWrites`,
   `load.TestServerRepeats_ReportsOnlyANameOneListRepeatsExactly`
+- Status: partly built: the default server the parser injects for a document writing none is lowered
+  as if declared, and a server has no provenance (#672), and a variable's `default` cannot tell an
+  empty default from none (#883).
 
 ## 15. Vendor extensions and policy
 
@@ -1920,6 +2054,7 @@ extension whose value converts to no JSON reaches the IR in no form, reported as
 - Codes: `openapi/degraded-construct`
 - Tests: `operation.TestOperation_UnserializableExtensionStillWarns`,
   `operation.TestEncoding_PartNameWithSlashKeepsItsOwnKey`
+- Status: partly built: an object kept verbatim also keeps its extensions under a scoped key (#849).
 
 ### `unknown-keys`
 
@@ -1986,6 +2121,10 @@ list out of an extension, not a promotion, so the entry is left for a consumer t
 - Tests: `lowering.TestPromoteDeprecation_ValueThatIsNotTextIsReported`,
   `lowering.TestPromoteEnumOpenness_WritesNothing`,
   `openapi.TestPromotion_RemovalDateAndVersionAreSeparateFacts`
+- Status: partly built: the default mapping covers only deprecation and extensible enums (#656); two
+  keys mapped to one field resolve by sort order in silence (#655); a mapping cannot say which
+  extension values state the fact (#654); and an unknown key under a prefix the policy owns is kept
+  in silence (#657).
 
 ### `mutually-exclusive-parameters`
 
@@ -2001,7 +2140,8 @@ field bound through `HTTPParamBinding.ParamPath`.
 Pagination is set only by an injectable policy, and what it sets is marked `Inferred` (invariant 6):
 the compiler reads no pagination out of a document's parameter or response names by itself.
 
-- Status: not built: no policy infers pagination yet, so the compiler sets no `Pagination` (#989).
+- Status: not built: no policy infers pagination yet, so the compiler sets no `Pagination` (#989),
+  and the IR cannot address a request-body input, a page count or a stop condition (#665).
 
 ## 16. Swagger 2.0
 
@@ -2012,4 +2152,5 @@ parameters to a `Payload`, `host`, `basePath` and `schemes` to `Servers`, `consu
 to content types — and then lowered by the rules above.
 
 - Status: not built: a Swagger 2.0 document is recognized and refused with
-  `engine/no-compiler-for-format` until milestone 2.
+  `engine/no-compiler-for-format` until milestone 2, and the lift is to keep provenance pointing
+  into the 2.0 source (#681).
