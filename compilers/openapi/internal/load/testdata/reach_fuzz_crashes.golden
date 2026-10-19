@@ -4,7 +4,7 @@
 # One index per line: which of reachFuzzN documents genReachFuzzDocs
 # generates, in order, from rand.New(rand.NewSource(reachFuzzSeed)), crash this
 # package's own load pipeline with an unrecoverable stack overflow when its
-# reference-chain check is turned off (runReachFuzzOracle). math/rand's v1
+# reference-chain check is turned off (TestReachFuzz_Oracle). math/rand's v1
 # source (used here, not math/rand/v2) is documented to produce the same
 # sequence for a given seed across Go versions, so genReachFuzzDocs reproduces
 # these exact documents on every run without this file needing to store them

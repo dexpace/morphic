@@ -2,16 +2,20 @@ package scan
 
 import (
 	"encoding/json/jsontext"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/speakeasy-api/openapi/jsonpointer"
+	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
@@ -771,30 +775,101 @@ components:
 	assert.Equal(t, ir.SeverityError, diags[0].Severity)
 }
 
-// TestDetectCycles_PointerIsNormalizedLikeTheResolver pins the scan's pointer
-// reading to speakeasy's. It splits a $ref on '#', trims whitespace from both
-// halves and percent-decodes the pointer (references/reference.go GetURI and
-// GetJSONPointer), so '#/paths/~1a ' names /a there. A scan that reads the raw
-// value instead calls that pointer dangling and lets a self-reference through —
-// one trailing space was enough to walk past the refusal. A '+' is the one
-// byte it reads otherwise (see TestDetectCycles_PlusInAPointerIsAPlus).
+// TestDetectCycles_PointerIsNormalizedLikeTheResolver holds the scan's pointer
+// reading to the resolver's: each spelling is resolved by the library too, and
+// the scan refuses exactly those whose first step lands back on /a. The resolver
+// trims a $ref and percent-decodes its pointer (references.Reference), so a scan
+// reading the raw value called '#/paths/~1a ' dangling and let a self-reference
+// through. The self column pins today's library, so a bump that reads a spelling
+// otherwise fails here even while the two still agree. A '+' is the one byte
+// read otherwise (see TestDetectCycles_PlusInAPointerIsAPlus).
 func TestDetectCycles_PointerIsNormalizedLikeTheResolver(t *testing.T) {
 	t.Parallel()
 	const head = "openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths:\n  /a:\n    $ref: "
-	const tail = "\n    get: {operationId: a, responses: {\"200\": {description: ok}}}\n"
+	const tail = "\n    get: {operationId: a, responses: {\"200\": {description: ok}}}\n" +
+		"  /b: {get: {operationId: b, responses: {\"200\": {description: ok}}}}\n"
 
-	refs := map[string]string{
-		"trailing space":  "'#/paths/~1a '",
-		"leading space":   "' #/paths/~1a'",
-		"percent-encoded": "'#/paths/%7E1a'",
+	tests := []struct {
+		name, ref string
+		self      bool
+	}{
+		{"trailing space", "'#/paths/~1a '", true},
+		{"leading space", "' #/paths/~1a'", true},
+		{"percent-encoded", "'#/paths/%7E1a'", true},
+		{"lower-case escape", "'#/paths/%7e1a'", true},
+		{"an escaped space outlives the trim", "'#/paths/~1a%20'", false},
+		{"another item", "'#/paths/~1b'", false},
 	}
-	for name, ref := range refs {
-		t.Run(name, func(t *testing.T) {
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			diags := scanBytes(t, []byte(head+ref+tail))
-			require.NotEmpty(t, diags, "the resolver reads this pointer as naming /a")
-			assert.Equal(t, diag.CyclicRef, diags[0].Code)
+			src := head + tc.ref + tail
+			library := resolverLandsOnItself(t, src)
+			assert.Equal(t, tc.self, library, "the resolver's reading of this spelling")
+
+			refused := slices.ContainsFunc(scanBytes(t, []byte(src)), func(d ir.Diagnostic) bool {
+				return d.Code == diag.CyclicRef
+			})
+			assert.Equal(t, library, refused, "the scan refuses what the resolver reads as /a itself")
 		})
+	}
+}
+
+// resolveFirstItem resolves the path item /a in src with the library and
+// returns it with the error of the resolution, which is the cycle or the
+// pointer that led nowhere: what the resolver reached is read from the item.
+func resolveFirstItem(t *testing.T, src string) (*soa.ReferencedPathItem, error) {
+	t.Helper()
+	doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(src))
+	require.NoError(t, err)
+	item, ok := doc.Paths.Get("/a")
+	require.True(t, ok)
+	require.True(t, item.IsReference())
+
+	_, err = item.Resolve(t.Context(), soa.ResolveOptions{RootDocument: doc, TargetLocation: "spec.yaml", DisableExternalRefs: true})
+	return item, err
+}
+
+// resolverLandsOnItself resolves the path item /a in src with the library and
+// reports whether the node its first step reaches is the item's own, which is
+// how the resolver reads a $ref naming the reference that spells it. Its error
+// is the cycle or the dangling pointer; the landing is the answer either way.
+func resolverLandsOnItself(t *testing.T, src string) bool {
+	t.Helper()
+	item, _ := resolveFirstItem(t, src)
+	info := item.GetReferenceResolutionInfo()
+	if info == nil || info.Object == nil {
+		return false
+	}
+	return info.Object.GetCore().GetRootNode() == item.GetCore().GetRootNode()
+}
+
+// walkEnd is how the library's resolution of a path item's $ref ended. The first
+// three are told apart by the library's own errors; a step through a reference
+// still being resolved fails with none of them, which is the fourth.
+type walkEnd string
+
+const (
+	endReached walkEnd = "reached a node"
+	endMissing walkEnd = "ran out of document"
+	endRefused walkEnd = "refused the pointer"
+	endBlocked walkEnd = "stopped at a reference it was resolving"
+)
+
+// resolverWalk reports how the library's resolution of the path item /a in src
+// ended.
+func resolverWalk(t *testing.T, src string) walkEnd {
+	t.Helper()
+	_, err := resolveFirstItem(t, src)
+	switch {
+	case err == nil:
+		return endReached
+	case errors.Is(err, jsonpointer.ErrNotFound):
+		return endMissing
+	case errors.Is(err, jsonpointer.ErrValidation), errors.Is(err, jsonpointer.ErrInvalidPath):
+		return endRefused
+	default:
+		return endBlocked
 	}
 }
 
@@ -887,20 +962,35 @@ components:
 
 // TestDetectCycles_NonUTF8PointerIsWalkedLikeTheResolver pins why the scan reads
 // a fragment that is not UTF-8 as a pointer, although lowering refuses it
-// (GitHub #520). The resolver walks '#/paths/~1a/%FF' through /a before failing
-// on the last token, exactly as it walks '#/paths/~1a/t', so both re-enter the
-// reference being resolved and are refused alike. Refusing the fragment in the
-// scan's reader too would make the verdict turn on whether that token is UTF-8.
+// (GitHub #520). The library walks '#/paths/~1a/%FF' through /a exactly as it
+// walks '#/paths/~1a/t', and the scan refuses a pointer exactly when the
+// reference being resolved stops the library's walk. Refusing the fragment in
+// the scan's reader too would make the verdict turn on whether the token is
+// UTF-8. The end column pins today's library; the pointers below /b are the
+// control, where the token is a key to look up.
 func TestDetectCycles_NonUTF8PointerIsWalkedLikeTheResolver(t *testing.T) {
 	t.Parallel()
-	for _, token := range []string{"t", "%FF"} {
-		t.Run(token, func(t *testing.T) {
+	tests := []struct {
+		name, ref string
+		end       walkEnd
+	}{
+		{"through the reference being resolved", "'#/paths/~1a/t'", endBlocked},
+		{"a token that is not UTF-8, through it", "'#/paths/~1a/%FF'", endBlocked},
+		{"below another item", "'#/paths/~1b/t'", endMissing},
+		{"a token that is not UTF-8, below another item", "'#/paths/~1b/%FF'", endMissing},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			src := "openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths:\n  /a: {$ref: '#/paths/~1a/" + token + "'}\n"
-			diags := scanBytes(t, []byte(src))
-			require.NotEmpty(t, diags, "the pointer passes through /a, the reference being resolved")
-			assert.Equal(t, diag.CyclicRef, diags[0].Code)
-			assert.Equal(t, ir.SeverityError, diags[0].Severity)
+			src := "openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths:\n  /a: {$ref: " + tc.ref + "}\n" +
+				"  /b: {get: {operationId: b, responses: {\"200\": {description: ok}}}}\n"
+			library := resolverWalk(t, src)
+			assert.Equal(t, tc.end, library, "how the library's walk of this pointer ends")
+
+			refused := slices.ContainsFunc(scanBytes(t, []byte(src)), func(d ir.Diagnostic) bool {
+				return d.Code == diag.CyclicRef && d.Severity == ir.SeverityError
+			})
+			assert.Equal(t, library == endBlocked, refused, "the scan refuses what the reference being resolved stops")
 		})
 	}
 }
