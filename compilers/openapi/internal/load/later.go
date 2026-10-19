@@ -115,8 +115,10 @@ type versionReport struct {
 // versionCheck judges each object items holds against the declared version:
 // a construct a later minor added (diag.LaterVersionConstruct), and a
 // Parameter Object's allowReserved that version gives no effect
-// (reservedFinding). The lowering reads both alike at every version, so only
-// this asks. A version Load refuses is held to nothing.
+// (reservedFinding). Neither the lowering nor, additionalOperations aside, the
+// library's validation gates by version
+// (docs/parser-library.md#validation-version). A version Load refuses is held
+// to nothing.
 //
 // items visits each object once where it is written, never through a $ref:
 // walkSource's walk, lowered or not, or the walk over an object a $ref reaches

@@ -65,20 +65,18 @@ func knownInvalid() map[string]bool {
 		// must read the mapping last-key-wins too.
 		filepath.FromSlash("../../testdata/openapi/cycle_duplicate_key.yaml"): true,
 		// Reference-object cycles spelled by document position ('#/paths/~1a',
-		// '#/webhooks/onA') rather than through components. Speakeasy guards
-		// the components spelling and faults on these, so the pre-parse scan
-		// refuses them too.
+		// '#/webhooks/onA') rather than through components, which the pre-parse
+		// scan refuses at the reference though the resolver reports them too
+		// (docs/parser-library.md#reference-object-cycle).
 		filepath.FromSlash("../../testdata/openapi/cycle_path_item_mutual.yaml"):        true,
 		filepath.FromSlash("../../testdata/openapi/cycle_path_item_self.yaml"):          true,
 		filepath.FromSlash("../../testdata/openapi/cycle_webhook_mutual.yaml"):          true,
 		filepath.FromSlash("../../testdata/openapi/cycle_response_via_path.yaml"):       true,
 		filepath.FromSlash("../../testdata/openapi/cycle_path_item_via_component.yaml"): true,
 		// A $ref whose pointer passes *through* a reference already being
-		// resolved. Speakeasy resolves a reference holding its own write lock
-		// and read-locks every reference the pointer walk traverses, so
-		// re-entering one deadlocks on a non-reentrant RWMutex before the hop
-		// completes and its own cycle guard can run. Unlike the cycles above,
-		// the components spelling deadlocks too, so all spellings are refused.
+		// resolved, which deadlocked the resolver at an earlier version and is
+		// reported unresolved now (docs/parser-library.md#reference-object-cycle).
+		// Unlike the cycles above, every spelling is refused, components too.
 		filepath.FromSlash("../../testdata/openapi/cycle_path_item_prefix_self.yaml"):      true,
 		filepath.FromSlash("../../testdata/openapi/cycle_path_item_prefix_sibling.yaml"):   true,
 		filepath.FromSlash("../../testdata/openapi/cycle_path_item_prefix_chain.yaml"):     true,

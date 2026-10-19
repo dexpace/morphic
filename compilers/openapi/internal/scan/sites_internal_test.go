@@ -75,8 +75,8 @@ func TestRefusal_NamesTheCycleNotWhatLeadsIntoIt(t *testing.T) {
 }
 
 // TestRefusal_NamesTheReferenceAReentryPasses pins the site of a re-entry: the
-// reference whose own lock the walk blocks on, /b here, whose pointer passes
-// through itself, and not /a, which only leads there.
+// reference the walk re-enters, /b here, whose pointer passes through itself,
+// and not /a, which only leads there.
 func TestRefusal_NamesTheReferenceAReentryPasses(t *testing.T) {
 	t.Parallel()
 	header := "openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths:\n"

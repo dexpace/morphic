@@ -377,10 +377,9 @@ func validateObject(ctx context.Context, obj any, opts []validation.Option) []er
 // reachedWalk returns the walk over obj, for the reconciliation of its findings
 // and the later version's constructs it writes.
 //
-// Each kind is walked through a Reference wrapper holding it inline. The
-// library's Walk dispatches on the started type, and its registry has no entry
-// for a bare PathItem, Parameter, Header, RequestBody, Response or Callback, so
-// a walk started from one panics (v1.25.2). A wrapper with no Reference walks
+// Each kind is walked through a Reference wrapper holding it inline, since a
+// walk started from a bare one panics
+// (docs/parser-library.md#bare-walk-panic). A wrapper with no Reference walks
 // straight through to the Object's fields, so what the walk finds is unchanged.
 func reachedWalk(ctx context.Context, obj any) iter.Seq[soa.WalkItem] {
 	switch o := obj.(type) {

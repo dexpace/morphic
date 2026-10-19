@@ -713,7 +713,8 @@ func preserveUnmountedPathItem(c lowering.Ctx, into carrier, pi *soa.PathItem, m
 // Object does not define. The library presents no one place that holds them
 // all, so it reads two. The first is the item's operations map less every key
 // naming a standard method: the unmarshaller folds a key it does not recognize
-// into that map. The second is the raw mapping less every key pathItemDeclares.
+// into that map (docs/parser-library.md#embedded-map-keys). The second is the
+// raw mapping less every key pathItemDeclares.
 //
 // A method spelled in any case but lowercase is undeclared, since OpenAPI fixes
 // the field names.

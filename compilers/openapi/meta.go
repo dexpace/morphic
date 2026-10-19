@@ -173,8 +173,9 @@ type unknownSite struct {
 //
 // The components object is one of them, unlike the maps beneath it: `paths`,
 // `responses` and a callback each embed a sequenced map, so every key they hold
-// is a valid entry, while the Components Object is a fixed-field struct and a
-// key it does not define is as undeclared as one on any other object here.
+// is an entry of it (docs/parser-library.md#embedded-map-keys), while the
+// Components Object is a fixed-field struct and a key it does not define is as
+// undeclared as one on any other object here.
 func rootUnknownSites(c lowering.Ctx) []unknownSite {
 	info := c.Doc.GetInfo()
 	infoPtr := ids.Ptr("info")

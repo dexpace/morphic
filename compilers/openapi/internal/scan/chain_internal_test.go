@@ -211,8 +211,9 @@ func TestOutsideRefused_LeavesALoopInsideComponents(t *testing.T) {
 }
 
 // TestCycles_LongLoopOutsideComponentsIsRefused is the loop of reference
-// objects spelled by document position, which speakeasy's resolver has no guard
-// for, at a length past the 10,000 hops a walk once stopped at. Declared either
+// objects spelled by document position, which the scan refuses rather than
+// leaving to the resolver (see outsideRefused), at a length past the 10,000
+// hops a walk once stopped at. Declared either
 // way, /p0, the member with the least pointer, reports it.
 func TestCycles_LongLoopOutsideComponentsIsRefused(t *testing.T) {
 	t.Parallel()
@@ -575,8 +576,8 @@ func failsFrom(t *testing.T, data []byte, start jsontext.Pointer, at []jsontext.
 
 // TestSettleChains_AReentryFollowsThePointersOrder pins which of two nodes one
 // hop passes again is the one re-entered: the one its pointer reaches first,
-// where the resolver locks sooner. T's member k is E, which W aliases; T lands
-// on it there, and E's pointer passes T and then E itself. A walk from E
+// where the resolver reaches it sooner. T's member k is E, which W aliases; T
+// lands on it there, and E's pointer passes T and then E itself. A walk from E
 // re-enters E; one from T meets T first along that same pointer.
 func TestSettleChains_AReentryFollowsThePointersOrder(t *testing.T) {
 	t.Parallel()

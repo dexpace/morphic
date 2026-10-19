@@ -34,24 +34,26 @@ var cycleReproducers = []struct{ name, file string }{
 	{"alias-dual-position", "cycle_alias_dual_position"},
 	{"duplicate-key", "cycle_duplicate_key"},
 	// Reference-object cycles spelled by document position rather than through
-	// components. speakeasy guards the components spelling and faults on these.
+	// components, which the scan refuses at the reference although the resolver
+	// reports them itself (docs/parser-library.md#reference-object-cycle).
 	{"path-item-mutual", "cycle_path_item_mutual"},
 	{"path-item-self", "cycle_path_item_self"},
 	{"webhook-mutual", "cycle_webhook_mutual"},
 	{"response-via-path", "cycle_response_via_path"},
 	{"path-item-via-component", "cycle_path_item_via_component"},
 	// A reference whose pointer passes through a reference already being
-	// resolved. Distinct from the cycles above: the hop never completes, so
-	// speakeasy's own guard cannot see it and it deadlocks rather than faulting.
+	// resolved. Distinct from the cycles above: the hop never completes. The
+	// resolver deadlocked on these at an earlier version, and reports each
+	// unresolved now (docs/parser-library.md#reference-object-cycle).
 	{"path-item-prefix-self", "cycle_path_item_prefix_self"},
 	{"path-item-prefix-sibling", "cycle_path_item_prefix_sibling"},
 	{"path-item-prefix-chain", "cycle_path_item_prefix_chain"},
 	{"component-path-item-prefix", "cycle_component_path_item_prefix"},
 	{"webhook-prefix-self", "cycle_webhook_prefix_self"},
 	{"path-item-empty-segment", "cycle_path_item_empty_segment"},
-	// A self-reference only the resolver's pointer normalization reveals, which
-	// overflows the stack rather than deadlocking: the resolution cache ends up
-	// pointing at its own reference and GetObject's delegation recurses.
+	// A path item's self-reference only the resolver's pointer normalization
+	// reveals, which it reports as a cycle
+	// (docs/parser-library.md#reference-object-cycle).
 	{"pointer-whitespace-self", "cycle_pointer_whitespace_self"},
 	// A self-reference only a plus read as a plus reveals (GitHub #911).
 	{"pointer-plus-self", "cycle_pointer_plus_self"},
@@ -348,8 +350,9 @@ func scanIndex(t *testing.T, src string) sourceindex.Index {
 // chainCycles to chainReenters, and refCycles refuses a schema chain on the
 // first alone, so the document now reaches the resolver.
 //
-// It reports rather than blocks there: speakeasy resolves a schema $ref as an
-// oas3.JSONSchema, which carries no per-reference lock.
+// There the resolver fails it as naming nothing
+// (docs/parser-library.md#schema-cycle-overflow), and the compile reports it
+// unresolved, not cyclic.
 func TestCompile_SchemaEmptyPointerSegmentIsUnresolved(t *testing.T) {
 	t.Parallel()
 	const src = `openapi: 3.1.0
@@ -422,7 +425,8 @@ func FuzzCycleDetector(f *testing.F) {
 // re-enters on /b's hop, which passes through /a. A scan that let /a take /b's
 // outcome, or judged whichever came first and reused the answer, would miss it
 // with /b declared first, so a single order proves nothing. Both orders
-// deadlock in the resolver, so both must be refused.
+// re-enter a reference, which the scan refuses whatever the order
+// (docs/parser-library.md#reference-object-cycle).
 func TestCompile_ReentrantPrefixRefusedInBothDeclarationOrders(t *testing.T) {
 	t.Parallel()
 	const head = "openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths:\n"

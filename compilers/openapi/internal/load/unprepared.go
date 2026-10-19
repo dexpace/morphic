@@ -116,8 +116,9 @@ type reading struct {
 
 // once returns the answer the document under key got when it was read. The
 // first ask of the compile reads it with read while limit allows one more
-// document (see exceeds), and refuses it unread past that. Every later ask,
-// from either resolution, gets the same answer: the resolver asks again on
+// document (see exceeds), and refuses it unread past that: the resolver sets no
+// bound of its own (docs/parser-library.md#resolution-unbounded). Every later
+// ask, from either resolution, gets the same answer: the resolver asks again on
 // each reference until it has built something from a document, and a second
 // read could answer otherwise.
 func (r *externalReads) once(key string, limit int, read func() answer) answer {
@@ -379,15 +380,15 @@ func (r *externalReads) handOver(doc *soa.OpenAPI, used []usedDocument) {
 }
 
 // resolveExternal resolves doc's references through a preparing reader (see
-// external), and recovers the entries of a document the resolver parsed itself
-// (GitHub #538).
+// external), and recovers what the resolver's own parse of a document loses
+// (docs/parser-library.md#anchored-entry-dropped, GitHub #538).
 //
 // net/url respells a URL many-to-one, so a stored tree can miss the resolver's
 // key. Each resolved reference records the document it read; when one the
 // resolver parsed holds an anchor, or a $ref the prepared tree respells (see
 // escapes), doc is rebuilt and resolved again, handed every prepared tree (see
 // handOver) and answered from the first pass's reads. That reaches no new
-// document, since the walk never descends into those trees; one found
+// document: the walk never descends into those trees; one found
 // unprepared is an internal fault.
 func resolveExternal(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI, sibs Siblings,
 	self sourceDocument, opts Options, rebuild func() (*soa.OpenAPI, error),

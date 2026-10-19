@@ -1,6 +1,6 @@
 # Two paths whose only key is a $ref to each other. Every hop names a node by
-# document position, so speakeasy's resolver has no cycle guard for it and
-# resolving one recurses until the stack overflows.
+# document position; the resolver reports the cycle, and the scan refuses it at
+# the reference (docs/parser-library.md#reference-object-cycle).
 openapi: 3.1.0
 info: {title: Path Item Mutual, version: "1"}
 paths:

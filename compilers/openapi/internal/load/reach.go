@@ -23,14 +23,16 @@ import (
 const maxReachWork = 1 << 24
 
 // reach over-approximates where the resolver can send each schema reference,
-// and finds a cycle through any choice of targets (GitHub #526, #546).
+// each $anchor and $id scoped as the resolver scopes it
+// (docs/parser-library.md#anchor-id-scope), and finds a cycle through any
+// choice of targets (GitHub #526, #546).
 //
 // What the resolver keeps between references decides where a pointer lands, so
-// whether a document crashes it can turn on declaration order. No reading of
-// the model predicts that. Where a lookup can land does not move, so every
-// target is taken, and a cycle is refused in every order. A document the
-// resolver survives can be refused. A "#/$defs/..." reference load holds out of
-// the resolver resolves to one definition, and is exact (GitHub #557).
+// whether a document crashes it can turn on declaration order, which no
+// reading of the model predicts. Where a lookup can land does not move, so
+// every target is taken, and a cycle is refused in every order. A
+// "#/$defs/..." reference load holds out of the resolver resolves to one
+// definition, and is exact (GitHub #557).
 type reach struct {
 	tree   *tree
 	budget *budget
@@ -77,11 +79,13 @@ type reach struct {
 }
 
 // reachCycle refuses a document when some choice of targets closes a chain from
-// one of its schema references, and names, of the references a cycle runs
-// through, the one with the least pointer (scan.Least): never one that only
-// leads into a cycle, and none a declaration order moves (GitHub #912). A
-// document the model could not finish is not refused, as for every bound in
-// this stage: it is reported as diag.CycleScanFailed and the compile goes on.
+// one of its schema references, which the resolver would overflow its stack on
+// (docs/parser-library.md#schema-cycle-overflow), and names, of the references
+// a cycle runs through, the one with the least pointer (scan.Least): never one
+// that only leads into a cycle, and none a declaration order moves (GitHub
+// #912). A document the model could not finish is not refused, as for every
+// bound in this stage: it is reported as diag.CycleScanFailed and the compile
+// goes on.
 func reachCycle(ctx context.Context, locate scan.Locator, root *yaml.Node, doc *soa.OpenAPI, sibs Siblings,
 ) (ir.Diagnostic, bool) {
 	return reachWithin(ctx, maxReachWork, locate, root, doc, sibs)

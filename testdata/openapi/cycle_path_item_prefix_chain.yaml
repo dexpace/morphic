@@ -4,8 +4,8 @@
 # The declaration order is load-bearing. /b's own chain ends without a
 # re-entry, and /b is declared first, so a scan that judged it first and let
 # /a -> /b reuse that answer would short-circuit past the re-entrant hop. Both
-# orders deadlock in the resolver, so both must be refused; this is the order
-# that hides it.
+# orders re-enter a reference (docs/parser-library.md#reference-object-cycle),
+# so both must be refused; this is the order that hides it.
 openapi: 3.1.0
 info: {title: Path Item Prefix Chain, version: "1"}
 paths:

@@ -104,12 +104,12 @@ func (x Index) AnchorCycles() []*yaml.Node { return slices.Clone(x.anchorCycles)
 const MapTag = "!!map"
 
 // TaggedMappings lists, in document order, every mapping whose tag is not
-// MapTag. The parser degrades one at a plain object position to a
-// type-mismatch finding, but at a reference position whose model is a struct
-// (a request body, a response, a parameter) it leaves the model unbuilt and
-// dereferences it, on a goroutine of its own where no recover in this compiler
-// reaches (GitHub #474). The caller refuses the document on this answer before
-// the parser sees it.
+// MapTag. The parser degrades one at a plain object position to a type-mismatch
+// finding, but at a reference position whose model is a struct (a request body,
+// a response, a parameter) it leaves the model unbuilt and dereferences it, on
+// a goroutine of its own where no recover in this compiler reaches
+// (docs/parser-library.md#tagged-mapping-panic, GitHub #474). The caller
+// refuses the document on this answer before the parser sees it.
 //
 // A tag on a scalar or sequence is not this question: neither faults the
 // parser (what a tagged scalar keeps is GitHub #245).

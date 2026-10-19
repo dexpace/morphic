@@ -244,6 +244,10 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/schema",
 		module + "/compilers/openapi/internal/value",
 		"github.com/speakeasy-api/openapi" + subtreeSuffix, "gopkg.in/yaml.v3"},
+	// The canaries that pin docs/parser-library.md. Its one production file is
+	// the package doc: the tests call the library directly, and test files are
+	// outside these rules.
+	"compilers/openapi/internal/canary": {},
 	// The scaffolding the compiler's test packages share. It is a production
 	// package only in the sense that it holds non-test files; what governs it is
 	// that every test package under compilers/openapi must be able to import it,
