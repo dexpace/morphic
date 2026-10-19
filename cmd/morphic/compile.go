@@ -458,7 +458,8 @@ func (d *destWriter) Write(p []byte) (int, error) {
 // straight to w rather than building them in a slice first; indenting is just
 // an encode option on that same call, not a separate route. MarshalWrite ends
 // no value with a newline, so this writes one, which makes the indented form
-// byte-for-byte what irtest.WriteGolden writes.
+// byte-for-byte what irtest.WriteGolden writes, but for the irVersion member a
+// golden leaves out.
 func encodeDocument(w io.Writer, doc *ir.Document, indent bool) error {
 	dest := &destWriter{w: w}
 
