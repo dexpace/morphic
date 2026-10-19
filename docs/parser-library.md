@@ -466,7 +466,7 @@ actions:
 
 ### `validation-version`
 
-Validation does not read the declared version, with one exception: it refuses
+Validation does not gate a construct by the declared version, with one exception: it refuses
 `additionalOperations` before 3.2. A construct a later minor version added passes at an earlier
 one, such as `webhooks` at 3.0.3. A field a later minor stopped requiring is required even where
 it is optional: an operation's `responses` (optional from 3.1) and a response's `description`

@@ -116,7 +116,7 @@ type versionReport struct {
 // a construct a later minor added (diag.LaterVersionConstruct), and a
 // Parameter Object's allowReserved that version gives no effect
 // (reservedFinding). Neither the lowering nor, additionalOperations aside, the
-// library's validation reads the version
+// library's validation gates by version
 // (docs/parser-library.md#validation-version). A version Load refuses is held
 // to nothing.
 //

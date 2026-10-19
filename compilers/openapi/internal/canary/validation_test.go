@@ -24,8 +24,8 @@ func findings(t *testing.T, source string) []string {
 	return text
 }
 
-// validationVersion pins validation-version: validation does not read the
-// declared version, except where noted.
+// validationVersion pins validation-version: validation does not gate a
+// construct by the declared version, except where noted.
 func validationVersion(t *testing.T) {
 	t.Run("a document", documentValidationVersion)
 	t.Run("a schema", schemaValidationVersion)
