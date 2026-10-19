@@ -100,15 +100,22 @@ func TestReachCycle_LeavesWhatHoldingDefsOutOfTheResolverSurvives(t *testing.T) 
 			t.Parallel()
 			spec := schemasDoc(tc.schemas)
 			assertNotRefusedByReach(t, spec)
-
-			path := filepath.Join(t.TempDir(), "spec.yaml")
-			require.NoError(t, os.WriteFile(path, []byte(spec), 0o600))
-			ctx, cancel := context.WithTimeout(t.Context(), time.Minute)
-			defer cancel()
-			assert.False(t, reachFuzzSubprocessCrashed(ctx, t, path),
+			assert.False(t, pipelineOverflows(t, spec),
 				"the pipeline overflowed, so the reference the resolver reads for itself is not held out")
 		})
 	}
+}
+
+// pipelineOverflows reports whether load's pipeline, with the reference-chain
+// check off, overflows its stack on spec, asked in a subprocess the test can
+// afford to lose.
+func pipelineOverflows(t *testing.T, spec string) bool {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "spec.yaml")
+	require.NoError(t, os.WriteFile(path, []byte(spec), 0o600))
+	ctx, cancel := context.WithTimeout(t.Context(), time.Minute)
+	defer cancel()
+	return reachFuzzSubprocessCrashed(ctx, t, path)
 }
 
 // parityFixtures are references the library reads as naming something else than
@@ -124,12 +131,19 @@ var parityFixtures = []struct{ name, schemas string }{
 	{"a sequence index with a sign names no element", `    A: {$defs: {n: {allOf: [{$ref: "#/$defs/n/allOf/+0"}]}}}`},
 }
 
+// TestReachCycle_LeavesWhatTheLibraryReadsAsAnotherName asks the pipeline,
+// with the check off, whether it survives each of parityFixtures, and requires
+// reach to leave each alone. A library that came to read one of them as the
+// cycle it looks like would overflow here rather than leave the check refusing
+// less than it should.
 func TestReachCycle_LeavesWhatTheLibraryReadsAsAnotherName(t *testing.T) {
 	t.Parallel()
 	for _, tc := range parityFixtures {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			assertNotRefusedByReach(t, schemasDoc(tc.schemas))
+			spec := schemasDoc(tc.schemas)
+			require.False(t, pipelineOverflows(t, spec), "the resolver survives this, as the check assumes")
+			assertNotRefusedByReach(t, spec)
 		})
 	}
 }
