@@ -118,9 +118,10 @@ components:
 
 // TestSettle_AChainResolvesInTheSecondPassToo pins GitHub #761 through GitHub
 // #538's second resolution, which a respelled anchored URL forces. That pass
-// prepares each file it reads again, so a document named by its $id, which
-// only its digest identifies, must still be found by it: the chain resolves,
-// with nothing reported, as it does when no second pass runs.
+// reads no file again but is handed the trees the first prepared, so a
+// document named by its $id, which only its digest identifies, must still be
+// found by it: the chain resolves, with nothing reported, as it does when no
+// second pass runs.
 func TestSettle_AChainResolvesInTheSecondPassToo(t *testing.T) {
 	t.Parallel()
 	trigger, _ := countingServer(t, anchoredExternalDoc)

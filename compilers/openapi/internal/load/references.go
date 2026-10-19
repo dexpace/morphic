@@ -61,6 +61,7 @@ func (p *resolution) run(doc *soa.OpenAPI) (MappingTargets, []ir.Diagnostic) {
 	p.failures = append(p.failures, p.loops.incomplete(p.at)...)
 	if p.reader != nil {
 		p.failures = append(p.failures, p.reader.work.exhausted(p.at)...)
+		p.failures = append(p.failures, p.reader.read.exhausted(p.at, p.reader.opts.MaxExternalDocuments)...)
 	}
 	return p.targets.targets(), append(p.failures, p.found.diags(p.at)...)
 }

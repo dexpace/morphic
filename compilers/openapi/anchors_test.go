@@ -280,13 +280,14 @@ func TestCompile_ARefusedExternalDocumentIsFetchedOnce(t *testing.T) {
 	assert.Equal(t, int32(1), fetches.Load(), "and the document fetched once, for three references")
 }
 
-// TestCompile_AnExternalDocumentChangedBetweenReadsIsJudgedAgain pins that no
-// bytes reach the parser unjudged. A reference naming nothing in a document
-// leaves it uncached, so the next reference into it reads it again; and, under
-// a $ref URL that net/url respells, the resolver misses the prepared tree and
-// parses those bytes itself (GitHub #538). Here the second read serves a
-// document past the node budget, which must be refused rather than lowered.
-func TestCompile_AnExternalDocumentChangedBetweenReadsIsJudgedAgain(t *testing.T) {
+// TestCompile_AnExternalDocumentIsParsedAsItWasJudged pins that no bytes reach
+// the parser unjudged. A reference naming nothing in a document leaves it
+// uncached, so the next reference into it asks for it again; and, under a $ref
+// URL that net/url respells, the resolver misses the prepared tree and parses
+// what it is handed itself (GitHub #538). It is handed the bytes the one read
+// got and judged: a second request would have served a document past the node
+// budget, from which nothing must be lowered.
+func TestCompile_AnExternalDocumentIsParsedAsItWasJudged(t *testing.T) {
 	t.Parallel()
 	const budget = 100
 	small := "openapi: 3.1.0\ninfo: {title: O, version: \"1\"}\npaths:\n" +
@@ -313,14 +314,14 @@ func TestCompile_AnExternalDocumentChangedBetweenReadsIsJudgedAgain(t *testing.T
 
 	require.NoError(t, err)
 	require.NotNil(t, doc)
-	require.Equal(t, int32(2), fetches.Load(), "sanity: the document is read once per reference")
-	refused := false
+	assert.Equal(t, int32(1), fetches.Load(), "one read answers both references")
 	for _, d := range diags {
-		refused = refused || strings.Contains(d.Message, fmt.Sprintf("past the %d-node budget", budget))
+		assert.NotContains(t, d.Message, "node budget", "the document read was within it")
 	}
-	assert.True(t, refused, "the changed document is refused: %+v", diags)
 	_, lowered := operationNamed(doc, "SECOND")
-	assert.False(t, lowered, "and nothing is lowered from it")
+	assert.False(t, lowered, "nothing is lowered from bytes never judged")
+	_, lowered = operationNamed(doc, "FIRST")
+	assert.True(t, lowered, "what was judged is what /b mounts")
 }
 
 // TestCompile_AnAliasStillStandsForAReleasedAnchorInAnExternalDocument is the
