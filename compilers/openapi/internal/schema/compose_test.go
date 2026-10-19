@@ -4041,6 +4041,40 @@ func TestAllOf_NestedWrapperWithResidueKeptVerbatim(t *testing.T) {
 	}
 }
 
+// TestAllOf_NestedEmptyAllOfKeptVerbatim pins that a branch wrapping an empty
+// allOf is not flattened: it is kept verbatim and reported, never dropped. The
+// source breaks the schema's minItems, so the one error the load reports for it
+// is expected and nothing else.
+func TestAllOf_NestedEmptyAllOfKeptVerbatim(t *testing.T) {
+	t.Parallel()
+	m := `    M:
+      allOf:
+        - allOf: []
+        - {$ref: '#/components/schemas/A'}
+`
+	for _, src := range []string{m + nestedAB, nestedAB + m} {
+		doc, diags := parseFull(t, openapitest.ComponentSpec(src))
+		errs := slices.DeleteFunc(slices.Clone(diags), func(d ir.Diagnostic) bool {
+			return d.Severity != ir.SeverityError
+		})
+		require.Len(t, errs, 1, "only the minItems finding is an error")
+		assert.Equal(t, jsontext.Pointer("/components/schemas/M/allOf/0/allOf"), errs[0].Provenance.Pointer)
+
+		model, ok := typeByName(doc, "M").(*ir.Model)
+		require.True(t, ok, "M should be a model")
+		require.NotNil(t, model.Base, "the sibling $ref is the sole classified ref")
+		assert.Equal(t, componentID("A"), model.Base.Target)
+		assert.Empty(t, model.Mixins)
+		entry, ok := model.Unmodeled["openapi:allOf/0"]
+		require.True(t, ok, "the empty wrapper is kept verbatim; got %+v", model.Unmodeled)
+		assert.JSONEq(t, `{"allOf":[]}`, string(entry.Value))
+		assert.Contains(t,
+			openapitest.DiagMessageAt(t, doc.Diagnostics, diag.DegradedConstruct,
+				ir.SeverityInfo, "/components/schemas/M/allOf/0"),
+			"(allOf")
+	}
+}
+
 // TestAllOf_NestedInlineBranchKeyedByPointer pins that an inline branch inside
 // a wrapper is kept under a key spelling its path, so it can collide with
 // neither a sibling nor a top-level branch of the same index.

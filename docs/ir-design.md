@@ -1202,16 +1202,16 @@ from it is exact and nothing is reported.
   `ReasonDegradedLowering` — the *whole* branch, consumed keywords included, so the source stays
   reconstructable rather than having to be reassembled from two places — keyed by its path from
   the composed schema (`allOf/1`, or `allOf/1/allOf/0` inside a flattened wrapper) so siblings
-  cannot overwrite each other. A branch that only wraps another `allOf` has no residue to keep: it
-  is flattened into the enclosing list (§4.3), up to a depth cap past which the wrapper is kept
-  like any other branch, plus an `openapi/degraded-construct` diagnostic naming the
+  cannot overwrite each other, plus an `openapi/degraded-construct` diagnostic naming the
   keywords that made it residue. Which keywords those are is derived from the branch's own declared
   key set rather than from a fixed list, so a keyword the dialect gains later is residue without
   anyone maintaining an enumeration. The key set is read through YAML aliases and merge keys, so a
   branch written `[*shared]` or `[{<<: *shared}]` derives the same residue as one written out. The diagnostic is a `warning` rather than an `info` where the branch declares a
   `type` that excludes `object`, because the composing `Model` then asserts a shape the source
   contradicts — `allOf: [{type: string, maxLength: 3}]` composes an empty model of kind `model`
-  over a source that says `string`. Two branch kinds are outside this rule rather than limits of
+  over a source that says `string`. A branch whose only unconsumed keyword is a non-empty `allOf`
+  has no residue to keep: it is flattened into the enclosing list (§4.3), up to a depth cap past
+  which the wrapper is kept and reported like any other branch. Two branch kinds are outside this rule rather than limits of
   it: a `$ref` branch owns a node, so what is written beside the `$ref` is *modeled* on the branch
   alias §4.3 describes rather than kept as residue, and a boolean branch declares no keywords at
   all, so there is no residue to derive — it is a decision about the composed node instead, stated

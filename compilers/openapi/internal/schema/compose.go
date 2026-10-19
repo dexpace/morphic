@@ -29,12 +29,13 @@ import (
 // lowerAllOf hoists an allOf schema as a Model, classifying each branch per
 // ir-design §4.3: the sole $ref (or a $ref whose target anchors a discriminator
 // hierarchy) becomes Base; other $refs become Mixins in source order; a branch
-// only wrapping another allOf is flattened first; inline branches contribute
-// their properties, with provenance into the branch each came from.
+// whose only unconsumed keyword is a non-empty allOf is flattened first; inline
+// branches contribute their properties, with provenance into their source
+// branch.
 //
 // Value constraints written beside the allOf (minProperties, ...) are read as
-// lowerModel reads a plain object's, so they land on the same field instead of
-// falling to Unmodeled (GitHub #407). A composition that leaves only a
+// lowerModel reads a plain object's, so they land on the same field, not
+// Unmodeled (GitHub #407). A composition that leaves only a
 // catch-all is a map, as a plain object's is (objectNode).
 func lowerAllOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer jsontext.Pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
@@ -141,8 +142,9 @@ func allOfBranches(s *oas3.Schema, pointer jsontext.Pointer) []allOfBranch {
 
 // flattensInto reports whether the allOf branch b, at nesting depth depth, is a
 // wrapper allOfBranches flattens: inline, declaring a non-empty allOf, writing
-// no keyword the in-place merge does not already consume, and above the depth
-// cap. Anything else stays one branch, kept verbatim when it has residue.
+// no keyword the in-place merge does not already consume, and shallower than
+// maxAllOfFlattenDepth. Anything else stays one branch, kept verbatim when it
+// has residue.
 func flattensInto(b *oas3.JSONSchema[oas3.Referenceable], depth int) bool {
 	if depth >= maxAllOfFlattenDepth || isRefBranch(b) {
 		return false
@@ -166,9 +168,9 @@ type requiredEntry struct {
 
 // compositionRequired collects every required-property name declared across an
 // allOf composition, in source order: each branch's required list (a flattened
-// wrapper's included, at the wrapper's pointer), then the composed schema's own. A branch is read from its local schema, never its
-// resolved $ref target — that required list belongs to the target's own
-// model (issue #29).
+// wrapper's included, at the wrapper's pointer), then the composed schema's
+// own. A branch is read from its local schema, never its resolved $ref target —
+// that required list belongs to the target's own model (issue #29).
 func compositionRequired(s *oas3.Schema, pointer jsontext.Pointer) []requiredEntry {
 	var out []requiredEntry
 	for _, e := range allOfBranches(s, pointer) {
