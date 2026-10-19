@@ -1,8 +1,9 @@
 // Package scan refuses a source document before any of it is lowered, for
 // shapes the parser library cannot survive, or once could not. A schema
 // reference cycle overflows its stack
-// (docs/parser-library.md#schema-cycle-overflow). A reference whose pointer
-// passes through one being resolved deadlocked it at an earlier version
+// (docs/parser-library.md#schema-cycle-overflow). A chain of reference objects
+// re-entering a reference, or cycling by document position, deadlocked it or
+// overflowed its stack at an earlier version
 // (docs/parser-library.md#reference-object-cycle). A YAML alias cycle or
 // fan-out overflows it or exhausts memory (docs/parser-library.md#alias-cycle,
 // docs/parser-library.md#alias-expansion). And nesting so deep that its cost
@@ -410,11 +411,11 @@ func (f *failures) add(start *yaml.Node) {
 // reference on it (chainReenters), whatever the pointer names, and a cycle
 // once the chain has left components.
 //
-// The resolver returns an error on both, so neither refusal protects the
-// process any longer: both were written against a resolver that deadlocked on
-// the first, and they report at the reference itself
-// (docs/parser-library.md#reference-object-cycle). GitHub #574 decides whether
-// they stay.
+// Both were written against an earlier resolver, which deadlocked on the first
+// and overflowed its stack on the second. It now returns an error on both
+// (docs/parser-library.md#reference-object-cycle), so neither refusal protects
+// the process; each still reports at the reference itself. GitHub #574 decides
+// whether they stay.
 func outsideRefused(chain chainOutcome) bool {
 	return chain.verdict == chainReenters || (chain.verdict == chainCycles && chain.leftComponents)
 }
@@ -424,16 +425,18 @@ func outsideRefused(chain chainOutcome) bool {
 const componentsSection jsontext.Pointer = "/components"
 
 // componentsRef reports whether a same-document $ref names a node in the
-// components section, the only shape speakeasy's resolver refuses on its own.
-// The pointer is the normalized one nodeview.InternalPointer returns, so it
-// carries no leading '#'.
+// components section: a reference-object cycle every hop of which does is left
+// to the resolver, and one that leaves components is refused (see
+// outsideRefused). The pointer is the normalized one nodeview.InternalPointer
+// returns, so it carries no leading '#'.
 func componentsRef(pointer jsontext.Pointer) bool {
 	return pointer != componentsSection && componentsSection.Contains(pointer)
 }
 
 // chainVerdict is how following a pure-$ref chain ends. The two failing cases
-// are kept apart because the resolver treats them differently, not for
-// description's sake: only one of them is a shape speakeasy can report itself.
+// are kept apart because a reference object's chain is refused on them
+// differently, not for description's sake: a re-entry wherever it is written, a
+// cycle only once it has left components (see outsideRefused).
 type chainVerdict int
 
 const (

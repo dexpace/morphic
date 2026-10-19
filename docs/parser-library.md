@@ -164,8 +164,9 @@ parameters, responses, request bodies, headers, path items, callbacks, examples,
 security schemes, in cycles of one to three components, and for a path item, webhook or response
 naming itself by position. A `$ref` into the reference object it is reached through, such as a path
 item naming a key beneath itself, returns `unresolved reference`. Neither hangs nor overflows. The
-pre-parse refusals of these shapes were written when the resolver held a reference's lock while
-following it, so a chain re-entering one deadlocked; #574 decides whether they stay.
+pre-parse refusals of these shapes were written against an earlier resolver, which held a
+reference's lock while following it, so a chain re-entering one deadlocked, and which overflowed its
+stack on a cycle spelled by position. #574 decides whether they stay.
 
 ```yaml
 components:
