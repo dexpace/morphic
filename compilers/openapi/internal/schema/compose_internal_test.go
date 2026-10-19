@@ -775,9 +775,9 @@ const (
 // TestResolveMappingTarget_DefsValueNothingInternedIsHoistedAtItsOwnPosition
 // pins how a "#/$defs/..." mapping value resolves when its definition is not
 // interned yet: hoisted where it is written, as any mapping to a sub-schema is
-// (GitHub #530), never at the document-rooted /$defs/cat the value spells
-// (GitHub #557). Each component's tag names its own definition, in either
-// declaration order.
+// (GitHub #530), not at the document-rooted /$defs/cat the value spells, which
+// this document does not hold (GitHub #557, #910). Each component's tag names
+// its own definition, in either declaration order.
 func TestResolveMappingTarget_DefsValueNothingInternedIsHoistedAtItsOwnPosition(t *testing.T) {
 	t.Parallel()
 	for name, blocks := range map[string]string{

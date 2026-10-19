@@ -1,7 +1,7 @@
 // Package defs reads a "#/$defs/..." pointer the way the resolver reads one for
-// a reference it meets on its own walk: relative to the schema that spells it,
-// not to the document (GitHub #557). The resolver's own answer depends on
-// declaration order (docs/parser-library.md#defs-order); this one does not.
+// a reference it meets on its own walk (Reader.Target; GitHub #557, #910). The
+// resolver's answer depends on declaration order
+// (docs/parser-library.md#defs-order); this one does not.
 //
 // It is its own package because both sides of the compiler need the one rule:
 // load, which hands the resolver the definition the rule names so every reader

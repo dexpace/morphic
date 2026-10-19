@@ -1,0 +1,26 @@
+# A "$defs" written at the document's root, which the OpenAPI object leaves as
+# raw YAML: each reference into it resolves there, before an ancestor's
+# definition of the same name, and a chain through it goes on (GitHub #910).
+openapi: 3.1.0
+info: {title: t, version: "1"}
+paths: {}
+$defs:
+  n: {type: string}
+  deep: {type: object, properties: {x: {type: boolean}}}
+  hop: {$ref: "#/components/schemas/Leaf"}
+  pet: {type: object, properties: {kind: {type: string}}}
+components:
+  schemas:
+    Holder:
+      type: object
+      $defs: {n: {type: integer}}
+      properties:
+        p: {$ref: "#/$defs/n"}
+        q: {$ref: "#/$defs/deep/properties/x"}
+        r: {$ref: "#/$defs/hop"}
+    Alias: {$ref: "#/$defs/n"}
+    Leaf: {type: number}
+    Pet:
+      type: object
+      properties: {kind: {type: string}}
+      discriminator: {propertyName: kind, mapping: {pet: "#/$defs/pet"}}
