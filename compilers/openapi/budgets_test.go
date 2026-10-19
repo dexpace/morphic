@@ -319,7 +319,7 @@ func TestCompile_TheDocumentBudgetIsTheCallersToSet(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, int32(3), requests.Load())
-	assert.Contains(t, messageOf(t, diags, diag.BudgetExceeded), "more than 3 documents")
+	assert.Contains(t, messageOf(t, diags, diag.BudgetExceeded), "more documents than the 3-document budget")
 }
 
 func TestCompile_CanceledContextStopsTheCompile(t *testing.T) {

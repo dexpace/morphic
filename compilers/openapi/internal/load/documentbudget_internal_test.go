@@ -86,7 +86,7 @@ func TestLoad_AnEndlessChainIsReadToTheDocumentBudget(t *testing.T) {
 	require.Len(t, budget, 1, "%+v", diags)
 	assert.Equal(t, ir.SeverityError, budget[0].Severity)
 	assert.Equal(t, ir.Provenance{Source: 0}, budget[0].Provenance, "at the source, not a position in it")
-	assert.Contains(t, budget[0].Message, "more than 5 documents")
+	assert.Contains(t, budget[0].Message, "more documents than the 5-document budget")
 	require.Len(t, unresolved, 1, "%+v", diags)
 	assert.Contains(t, unresolved[0], "external document "+srv.URL+"/5.yaml refused: it is past the 5-document budget")
 }

@@ -1488,7 +1488,7 @@ func TestExternalReads_ExhaustedReportsOnceAtTheSource(t *testing.T) {
 	assert.Equal(t, diag.BudgetExceeded, got[0].Code)
 	assert.Equal(t, ir.SeverityError, got[0].Severity)
 	assert.Equal(t, at(""), got[0].Provenance)
-	assert.Equal(t, "external references name more than 1 documents; "+
+	assert.Equal(t, "external references name more documents than the 1-document budget; "+
 		"the $refs into the rest are reported unresolved", got[0].Message)
 	assert.Empty(t, r.exhausted(at, 0), "an unbounded budget is never crossed")
 }

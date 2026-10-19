@@ -157,7 +157,8 @@ func (r *externalReads) exhausted(at func(jsontext.Pointer) ir.Provenance, limit
 		return nil
 	}
 	return []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.BudgetExceeded, at(""),
-		"external references name more than %d documents; the $refs into the rest are reported unresolved", limit)}
+		"external references name more documents than the %d-document budget; "+
+			"the $refs into the rest are reported unresolved", limit)}
 }
 
 // recordTree notes a document prepared under key from data. A digest names the
