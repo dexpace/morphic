@@ -312,6 +312,10 @@ var rules = map[string][]string{
 	// root reaches, which it reads type-checked through decls, for the test in
 	// package ir that pins that shape to IRVersion.
 	"internal/jsonshape": {module + "/internal/decls"},
+	// Test infrastructure as well: the one reader of the repository's keyed
+	// documents and of the citations made of them, which the tests holding each
+	// document to the code share. Standard library only.
+	"internal/keydoc": {},
 }
 
 // exempt names the production packages deliberately outside the layering rules,

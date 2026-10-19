@@ -57,13 +57,23 @@ func TestParseRecord_ReportsEachShapeProblem(t *testing.T) {
 		{"a heading that is no key", "### `second-entry`", "### Second entry", "is not a key"},
 		{"a key that is no slug", "### `second-entry`", "### `Second_entry`", "is not a key"},
 		{"no version", "- Verified at: v1.2.3\n- Pinned by: `TestLibraryBehaviour/second-entry`",
-			"- Pinned by: `TestLibraryBehaviour/second-entry`", `second-entry does not write "- Verified at: "`},
+			"- Pinned by: `TestLibraryBehaviour/second-entry`", `second-entry does not write the field "Verified at"`},
+		{"an empty version", "- Verified at: v1.2.3\n- Pinned by: `TestLibraryBehaviour/second-entry`",
+			"- Verified at:\n- Pinned by: `TestLibraryBehaviour/second-entry`", `writes the field "Verified at" naming nothing`},
+		{"a pin naming no test", "- Pinned by: `TestLibraryBehaviour/second-entry`\n",
+			"- Pinned by: second-entry\n", `writes the field "Pinned by" naming nothing`},
 		{"a repeated pin", "- Pinned by: `TestLibraryBehaviour/second-entry`\n",
-			"- Pinned by: `TestLibraryBehaviour/second-entry`\n- Pinned by: `x`\n", `writes "- Pinned by: " twice`},
+			"- Pinned by: `TestLibraryBehaviour/second-entry`\n- Pinned by: `x`\n", `writes the field "Pinned by" twice`},
 		{"no Code item", "- Code:\n  - `openapi.Limits.Field` is a field.\n", "- Code:\n",
 			"second-entry names no declaration under"},
 		{"a Code item naming nothing", "  - `scan.Type.Method` does another.", "  - another.", "names no declaration"},
 		{"a field no reader knows", "- Code:\n  - `openapi", "- Owner: me\n- Code:\n  - `openapi", "a field no reader knows"},
+		{"a Code item on the bullet's line", "- Code:\n  - `openapi", "- Code: `scan.X`\n  - `openapi",
+			"on the bullet's own line"},
+		{"a Code line that is no item", "  - `scan.Type.Method` does another.",
+			"  - `scan.Type.Method` does another.\n  stray", "a Code line that is no item"},
+		{"a continuation before any item", "- Code:\n  - `openapi", "- Code:\n    orphan\n  - `openapi",
+			"a Code line that is no item"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -222,34 +232,6 @@ func TestVersionProblems_ReportsAVersionInAComment(t *testing.T) {
 	assert.Equal(t, 3, read, "each comment in the files read")
 	assert.Equal(t, []string{"tree/a.go:3 names v1.2.3", "tree/a.go:4 names v1.2", "tree/a.yaml:2 names v1.0.0"},
 		problems)
-}
-
-// TestYAMLComment_StartsAtAHashOutsideQuotes reads where a YAML line's comment
-// starts, if it has one.
-func TestYAMLComment_StartsAtAHashOutsideQuotes(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		line, want string
-		has        bool
-	}{
-		{"# a whole line", " a whole line", true},
-		{"  # indented", " indented", true},
-		{"key: value # after", " after", true},
-		{"key: value\t# after a tab", " after a tab", true},
-		{"$ref: '#/components'", "", false},
-		{`key: "a # b"`, "", false},
-		{"key: a#b", "", false},
-		{"key: 'it''s' # after a doubled quote", " after a doubled quote", true},
-		{"key: it's # after an apostrophe", " after an apostrophe", true},
-		{`key: "a \" # b"`, "", false},
-		{`key: "a \\" # after an escaped backslash`, " after an escaped backslash", true},
-		{"[a, 'b # c'] # after a flow sequence", " after a flow sequence", true},
-	}
-	for _, tc := range tests {
-		got, has := yamlComment(tc.line)
-		assert.Equal(t, tc.has, has, tc.line)
-		assert.Equal(t, tc.want, got, tc.line)
-	}
 }
 
 // TestClassify_ReadsEachEnding holds classify to each way a child can end: the

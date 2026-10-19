@@ -73,8 +73,8 @@ func EffectiveDeprecated(ref, tgt *oas3.Schema) bool {
 // in force, which no lifecycle satisfies. It is not a diagnostic because this
 // reader has no provenance of its own.
 //
-// Each flag resolves on its own, use-site over referent (the uniform §14
-// merge).
+// Each flag resolves on its own, use-site over referent (the uniform merge of
+// docs/compilers/openapi.md#ref-use-site).
 //
 // Both in force is contradictory but legal: JSON Schema forbids neither beside
 // the other. Read as sets they leave nothing, which Visibility{None: true}
@@ -136,9 +136,10 @@ func FillTypeDocs(d *ir.Docs, s *oas3.Schema) {
 //
 // Both halves are deliberate. The use-site half is the only home a keyword
 // written at the position has once the body reduced to a shared node (GitHub
-// #116). The referent half is ir-design §14: ref-target annotations merge onto
-// the referencing Property/Parameter with use-site precedence, uniformly,
-// constraints excepted, while the referent keeps its own copy on its node.
+// #116). The referent half is the rule docs/compilers/openapi.md#ref-use-site:
+// ref-target annotations merge onto the referencing Property/Parameter with
+// use-site precedence, uniformly, constraints excepted, while the referent
+// keeps its own copy on its node.
 func FillCarrierDocs(d *ir.Docs, ref, tgt *oas3.Schema) {
 	if tgt != nil {
 		FillTypeDocs(d, tgt)

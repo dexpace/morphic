@@ -81,9 +81,10 @@ func lowerComponentSchema(c lowering.Ctx, ts *compile.Types, anchors *AnchorInde
 }
 
 // recordDeclarationResidue keeps, on the node pointer owns, every keyword the
-// declaration wrote that only a use site can hold. ir-design §14 applies them
-// to referencing properties, which the property path already does; this covers
-// a declaration nothing references (GitHub #138).
+// declaration wrote that only a use site can hold. The rule
+// docs/compilers/openapi.md#use-bound-annotations applies them to referencing
+// properties, which the property path already does; this covers a declaration
+// nothing references (GitHub #138).
 //
 // It runs only at an annotation.HomeOwnNode position, which has no carrier.
 // Every annotation.HomeCarrier position already keeps them in its own field:
@@ -629,10 +630,11 @@ func dispatchOf(s *oas3.Schema) dispatch {
 // is otherwise dispatched on the effective (null-stripped) type set.
 //
 // The families are conjoined where a schema writes more than one, so electing
-// a winner is a §4.8 degradation: the ones passed over are kept verbatim beside
-// it (recordSkippedFamilies). A keyword the elected lowering never reads, such
-// as `type: string` beside an allOf, goes through preserveUnhomedKeywords, which
-// asks the built node whether it has a field for it.
+// a winner is a degradation (docs/compilers/openapi.md#competing-keywords): the
+// ones passed over are kept verbatim beside it (recordSkippedFamilies). A
+// keyword the elected lowering never reads, such as `type: string` beside an
+// allOf, goes through preserveUnhomedKeywords, which asks the built node
+// whether it has a field for it.
 func lower(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer jsontext.Pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
 	d := dispatchOf(s)
 	unhomed := func(id ir.TypeID, diags []ir.Diagnostic) (ir.TypeID, []ir.Diagnostic) {
@@ -920,9 +922,9 @@ func collapsedUnhomedKeywords(s *oas3.Schema) []string {
 
 // preserveUnhomedKeywords keeps verbatim the census keywords and value
 // constraints a position declared that its lowered node cannot carry, and the
-// families lower()'s election skipped, returning the position's resulting ID
-// (§4.8). That covers a contradictory schema's dropped half and an untyped
-// applicator such as `items`.
+// families lower()'s election skipped, returning the position's resulting ID.
+// docs/compilers/openapi.md#shape-applicator covers a contradictory schema's
+// dropped half and an untyped applicator such as `items`.
 //
 // A lowering that reduced to a shared node gets an alias first, with the
 // position's constraints, so a shared node never carries one declaration's
@@ -974,7 +976,8 @@ func censusHandled(d dispatch) []string {
 // JSON Schema conjoins keywords, so `{allOf: [{$ref: Base}], enum: [a, b]}` is a
 // narrowing of Base, not a malformed document. The IR has no intersection
 // combinator (ir-design §15), so only one family can be the value; keeping the
-// loser beside it is what §4.8 asks of an unrepresentable conjunction.
+// loser beside it is what the rule docs/compilers/openapi.md#competing-keywords
+// asks of an unrepresentable conjunction.
 //
 // It reports the keywords it stored, never the ones it was handed, so the
 // message cannot claim one that failed to convert.
@@ -1194,7 +1197,7 @@ func redeclarationSource(js *oas3.JSONSchema[oas3.Referenceable]) func() (ir.Raw
 // FillPropertyDetail enriches a property from its schema: the property-scoped
 // facts a type node has no field for (default, visibility, constraints), then
 // the declaration's annotations, secrecy among them. Annotations present at a
-// $ref use-site override the target's (ir-design §14).
+// $ref use-site override the target's (docs/compilers/openapi.md#ref-use-site).
 //
 // Constraints stay unconditional: ir.Property is the only home every property
 // has, while the node its schema hoists may carry none (a byte or unknown-format
@@ -1630,10 +1633,10 @@ const maxDynamicAnchorNodes = 1 << 20
 // names, or reports why it is irreducible. Expansion and preservation both
 // decide through it.
 //
-// Dynamic scope is static per document (ir-design §4.7), so a $dynamicAnchor
-// declared once is the only match, provided the document is one schema
-// resource: an $id on the path to either end makes the reference irreducible
-// (dynamicChainVerdict).
+// Dynamic scope is static per document (docs/compilers/openapi.md#dynamic-ref),
+// so a $dynamicAnchor declared once is the only match, provided the document is
+// one schema resource: an $id on the path to either end makes the reference
+// irreducible (dynamicChainVerdict).
 //
 // Only an anchor on a top-level component schema resolves, since only its
 // TypeID is stable whatever lowers first (ir-design §4.3). A $dynamicRef
@@ -1716,7 +1719,7 @@ func dynamicRefSiblings(s *oas3.Schema) bool {
 // soleAnchorSite returns the one pointer declaring the named $dynamicAnchor, or
 // the reason no single declaration answers for it. Two declarations put the
 // target back under the evaluation path's control, which no static lowering can
-// resolve (ir-design §4.7).
+// resolve (docs/compilers/openapi.md#dynamic-ref).
 //
 // The index is a parameter because the memo is state the caller owns. Its
 // diagnostics come back on every path, including the two answering "no single
@@ -1857,9 +1860,9 @@ func dynamicFragment(ref string) (name, why string, ok bool) {
 
 // recordUnexpandedDynamicRef keeps a $dynamicRef verbatim on p when it was not
 // expanded, so the reference survives the position lowering without it
-// (ir-design §4.7's irreducible half). An expanded one is already the position's
-// type and must not also be preserved — that would tell a consumer the compiler
-// ignored it.
+// (the irreducible half of docs/compilers/openapi.md#dynamic-ref). An expanded
+// one is already the position's type and must not also be preserved — that
+// would tell a consumer the compiler ignored it.
 func recordUnexpandedDynamicRef(c lowering.Ctx, anchors *AnchorIndex, p *ir.Unmodeled, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	_, why, expanded, diags := dynamicExpansion(c, anchors, s, pointer)
 	if expanded {

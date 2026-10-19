@@ -17,7 +17,7 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-func TestParse_UnsupportedVersion(t *testing.T) {
+func TestCompile_UnsupportedVersion(t *testing.T) {
 	t.Parallel()
 	spec := "openapi: 2.0.0\ninfo: {title: T, version: \"1\"}\npaths: {}\n"
 	doc, diags, err := New().Compile(context.Background(), []compilers.Source{openapitest.SourceOf(spec)}, compilers.Options{})
@@ -26,11 +26,11 @@ func TestParse_UnsupportedVersion(t *testing.T) {
 	assert.True(t, openapitest.HasDiag(diags, diag.UnsupportedVersion))
 }
 
-// TestParse_UnmarshalError pins where a document that will not parse is
+// TestCompile_UnmarshalError pins where a document that will not parse is
 // reported. It is a finding about the source, not a failure of the compiler:
 // engine.Run turns a compiler's Go error into one of its own, and the CLI reads
 // that as having been invoked wrong rather than as a spec it could not read.
-func TestParse_UnmarshalError(t *testing.T) {
+func TestCompile_UnmarshalError(t *testing.T) {
 	t.Parallel()
 	doc, diags, err := New().Compile(context.Background(),
 		[]compilers.Source{openapitest.SourceOf("\t\t: : : not valid : yaml\n\x00")}, compilers.Options{})
@@ -42,10 +42,10 @@ func TestParse_UnmarshalError(t *testing.T) {
 		"no document comes back, but SourceTable names the source a refusal indexes")
 }
 
-// TestParse_KeyThatIsNotUTF8IsRefused pins what ids.Ptr relies on: a source with
+// TestCompile_KeyThatIsNotUTF8IsRefused pins what ids.Ptr relies on: a source with
 // a mapping key that is not UTF-8 is refused before anything lowers, so no such
 // key becomes a pointer token.
-func TestParse_KeyThatIsNotUTF8IsRefused(t *testing.T) {
+func TestCompile_KeyThatIsNotUTF8IsRefused(t *testing.T) {
 	t.Parallel()
 	spec := "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\n\xff: x\n"
 	doc, diags, err := New().Compile(context.Background(),

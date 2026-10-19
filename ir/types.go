@@ -112,7 +112,7 @@ type Scalar struct {
 	TypeCommon
 	// Base is what this scalar extends: a primitive or another scalar in a
 	// restriction chain, or — where the scalar is the alias a declaring position
-	// hoisted over a shared target (ir-design §14) — a node of any kind, which a
+	// hoisted over a shared target (ir-design §12.1) — a node of any kind, which a
 	// consumer following the chain must expect and stop at. nil = opaque scalar
 	// with implementation-defined representation (GraphQL custom scalars).
 	Base *TypeRef `json:"base,omitzero"`

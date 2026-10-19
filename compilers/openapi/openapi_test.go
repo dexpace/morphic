@@ -33,7 +33,7 @@ func parsePetstore(t *testing.T) (*ir.Document, []ir.Diagnostic) {
 	return doc, diags
 }
 
-func TestParse_EndToEnd(t *testing.T) {
+func TestCompile_EndToEnd(t *testing.T) {
 	t.Parallel()
 	doc, diags := parsePetstore(t)
 	for _, d := range diags {
@@ -94,12 +94,12 @@ func TestParse_EndToEnd(t *testing.T) {
 	assert.True(t, sawUnion, "the oneOf survived as a Union node")
 }
 
-// TestParse_RecordsSelfURI pins that a declared `$self` reaches the source's
+// TestCompile_RecordsSelfURI pins that a declared `$self` reaches the source's
 // entry as written, at every minor, and is reported below 3.2 as a construct a
 // later version added, as every 3.2 field is. A relative URI is not resolved
 // against the source's path, and an empty or null `$self` records nothing,
 // which is what declaring none records.
-func TestParse_RecordsSelfURI(t *testing.T) {
+func TestCompile_RecordsSelfURI(t *testing.T) {
 	t.Parallel()
 	const uri = "https://example.com/api/openapi.yaml"
 	tests := []struct {
@@ -135,7 +135,7 @@ func TestParse_RecordsSelfURI(t *testing.T) {
 	}
 }
 
-func TestParse_RegistersInRegistry(t *testing.T) {
+func TestCompile_RegistersInRegistry(t *testing.T) {
 	t.Parallel()
 	reg := compilers.NewRegistry()
 	require.NoError(t, reg.Register(openapi.New()))
@@ -144,7 +144,7 @@ func TestParse_RegistersInRegistry(t *testing.T) {
 	assert.NotNil(t, got)
 }
 
-func TestParse_JSONRoundTrip(t *testing.T) {
+func TestCompile_JSONRoundTrip(t *testing.T) {
 	t.Parallel()
 	doc, _ := parsePetstore(t)
 	raw, err := json.Marshal(doc)
@@ -159,7 +159,7 @@ func TestParse_JSONRoundTrip(t *testing.T) {
 	assert.Equal(t, string(raw), string(again), "marshal must be deterministic")
 }
 
-func TestParse_RejectsMultipleSources(t *testing.T) {
+func TestCompile_RejectsMultipleSources(t *testing.T) {
 	t.Parallel()
 	data, err := os.ReadFile(goldenPetstore)
 	require.NoError(t, err)

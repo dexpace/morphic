@@ -29,12 +29,13 @@ compiler (spec → IR)  →  passes (IR → IR)  →  emitter (IR → artifacts)
                     └────────────────────────────────────────────────────────────┘
 ```
 
-The engine (Layer 3) runs the compiler, then the passes (`link · dedup · filter · version-slice ·
-overlay · validate`), then — **once per document** — the shared plan, and finally each
-requested emitter. A emitter never sees a source spec, a compiler, another emitter, or the engine
-(INV1). Its only structural input is an `ir.Document`; everything else it needs is either derived
-from the IR in the plan/refine stages or supplied as a separate, non-IR input (runtime policy,
-naming policy, shaping hints).
+The engine (Layer 3) runs the compiler, then the passes, then — **once per document** — the shared
+plan, and finally each requested emitter. The passes designed are
+`link · dedup · filter · version-slice · overlay · validate`, and only `validate` is built
+(architecture.md §2.2). An emitter never sees a source spec, a compiler, another emitter, or the
+engine (INV1). Its only structural input is an `ir.Document`; everything else it needs is either
+derived from the IR in the plan/refine stages or supplied as a separate, non-IR input (runtime
+policy, naming policy, shaping hints).
 
 ### 1.2 The architecture, and why this synthesis
 
@@ -117,12 +118,13 @@ genuinely wants templates for structure can implement `Emit` differently while r
 
 ## 2. The emitter contract
 
-Package `emitter` is the Layer-2 contract. It imports **only** `ir` (Layer 0) plus its own shared
-sub-packages (`plan`, `policy`, `naming`, `manifest`, `verify`) — never `compiler`, never `engine`,
-never a sibling target package (INV1; architecture.md §3). Enforced by the import-graph test (§7).
+Package `emitters` is the Layer-2 contract, as package `compilers` is the compilers'. It imports
+**only** `ir` (Layer 0) plus its own shared sub-packages (`plan`, `policy`, `naming`, `manifest`,
+`verify`) — never a compiler, never `engine`, never a sibling target package (INV1; architecture.md
+§3). Enforced by the import-graph test (§7).
 
 ```go
-package emitter
+package emitters
 
 // TargetKey identifies a emitter in the registry: "go", "python", "docs", "mock/go", …
 type TargetKey string
@@ -179,18 +181,23 @@ the contract pure and total.
 
 ### 2.1 The registry
 
-Keyed by `TargetKey`, populated by each target's `init()` — mirroring the compiler registry
-(architecture.md §2.1):
+Keyed by `TargetKey`, and composed by the engine exactly as the compiler registry is
+(`compilers.Registry`, architecture.md §2.1): a plain value, with no package-level default and no
+`init()`-time self-registration, either of which would be the mutable global INV5 rules out. The
+engine's default constructor registers every built-in target in one place, beside the built-in
+compilers, and a test or an embedder composes a set of its own, as `engine.NewWith` does for
+compilers. Registration finishes before the engine exists, so concurrent runs only read it.
 
 ```go
-var registry = map[TargetKey]func() Emitter{}
+type Registry struct{ /* by target, and registration order */ }
 
-func Register(t TargetKey, ctor func() Emitter) { registry[t] = ctor }
-func New(t TargetKey) (Emitter, bool)           { c, ok := registry[t]; if !ok { return nil, false }; return c(), true }
-func Targets() []TargetKey                        // sorted — determinism (INV7)
+func NewRegistry() *Registry
+func (r *Registry) Register(e Emitter) error           // refuses nil and a repeated TargetKey
+func (r *Registry) Lookup(t TargetKey) (Emitter, bool)
+func (r *Registry) Targets() []TargetKey               // sorted — determinism (INV7)
 ```
 
-The engine is the only caller of `New`, the only thing that runs `Generate`, and the only thing
+The engine is the only caller of `Lookup`, the only thing that runs `Generate`, and the only thing
 that touches the filesystem, prunes, and renders diagnostics. Emitters are I/O-free.
 
 ### 2.2 Who computes the plan
@@ -229,7 +236,9 @@ type Capabilities struct {
   are computed over the whole document so a scoped run is byte-identical to the corresponding slice
   of a full run. Scope is never a filtered `Document`.
 - **Snapshots only.** The engine runs `version-slice` before any emitter; the emitter receives a
-  single version snapshot and never interprets `Availability`.
+  single version snapshot and never interprets `Availability`. The pass is designed, not built
+  (architecture.md §2.2), and needs a way for a pass to replace types (#966); until it lands, no
+  pass slices a document.
 
 ---
 
@@ -342,7 +351,7 @@ negotiation` default (`json > form > multipart > binary`) is a shared, overridab
 
 ```go
 type TypePlan struct {
-    Usage      ir.UsageFlags        // Input|Output|Error|Multipart|Json|Xml — drives serializers
+    Usage      ir.UsageFlags        // Input|Output|Error|Multipart — drives serializers
     Flattened  []ir.PropID          // FlattenedProperties() over Base+Implements+Mixins+own — COMPUTED
     Relations  Relations            // {Base, Implements, Mixins} kept DISTINCT for refine
     Union      *UnionClass          // tag-mode classification (untagged/discriminated/key-tagged)
@@ -350,7 +359,9 @@ type TypePlan struct {
     Discrim    *DiscrimFacts        // discriminator resolved to variant IDs, not names
     ScalarBase ir.TypeID            // nearest representable base after chain walk + constraint merge
     NeedShapes []ir.Lifecycle       // which visibility projections this type actually needs
-    Alias      ir.TypeID            // dedup alias target — follow to the single emitted type (architecture.md §2.2)
+    Alias      ir.TypeID            // dedup alias target — follow to the single emitted type;
+                                    // empty until the dedup pass (architecture.md §2.2) and its
+                                    // alias record (ir-design §16, question 2) exist
     Inferred   map[string]ir.Provenance
 }
 
@@ -410,9 +421,10 @@ type ModelShape struct {
 }
 ```
 
-`readOnly → Only:[read]`; `writeOnly → Only:[create,update]`; `Visibility.None` → excluded from
-every projection (distinct from the zero value); PATCH flips properties optional unless
-`HTTPBinding.PatchImplicitOptionality == false`; operation-level `ParameterVisibility` /
+`readOnly → Only:[read, delete, query]`; `writeOnly → Only:[create, update]` (ir-design §5.2);
+`Visibility.None` → excluded from every projection (distinct from the zero value); PATCH flips
+properties optional unless `HTTPBinding.PatchImplicitOptionality` points at `false` (nil is the
+protocol default, which flips them); operation-level `ParameterVisibility` /
 `ReturnTypeVisibility` override which filter applies. Unknown visibility classes are opaque
 filters evaluated per class (`ir-design.md §5.2`).
 
@@ -434,7 +446,8 @@ type BindingView struct {
 type ProtoBinding struct {
     Protocol string          // "http" | "grpc" | "message" | "graphql" | "otp"
     Params   []ParamBind     // neutralized param placement (one per bound param, per location)
-    BodyPath *ir.PropPath    // sub-field of the payload the wire body maps to; nil = whole payload
+    ResponseBodyPath *ir.PropPath // HTTPBinding.ResponseBodyPath: the response body is this
+                                  // sub-field of the payload; nil = the whole payload
     // Protocol-specific handles kept by ID/reference, not restructured:
     HTTP     *ir.HTTPBinding // method/URITemplate/status map, when Protocol == http
     RPC      *ir.RPCBinding
@@ -442,10 +455,12 @@ type ProtoBinding struct {
     Raw      ir.RawConfig    // GraphQL entry point / OTP call-cast tag / deployment bindings, verbatim
 }
 type ParamBind struct {
-    Param    string          // Operation.Params name
-    Where    string          // path | query | header | cookie | body | body_property | host
+    Param    ir.ParamID      // the bound Operation.Params entry; one name may be two params
+    Where    string          // path | query | querystring | header | cookie | body |
+                             // body_property | host
     WireName string          // never a rendered identifier (INV4)
     Style    string; Explode *bool; Prefix string   // form/label/matrix/deepObject serialization
+    BodyPath []ir.PropID     // body_property: where in the body model the param lands
 }
 type MsgView struct { Channel ir.ChannelID; Direction ir.MsgDirection; Reply *ir.Reply; Messages []ir.MessageID }
 ```
@@ -782,17 +797,19 @@ type Policy interface {
 ```
 
 The `Ident` on every AST node starts as the neutral `Naming.Canonical` word sequence — a *word
-sequence, not an identifier*. `RenderCasing` is the only step that cases it; because the IR stores
-the pre-split neutral words, there is no lossy runtime re-splitting of a cased string (oagen's
-`splitWords` counterexample). `EscapeReservedWords` runs after casing and **never touches
-`WireName`/`WireID`** — struct tags are built from the wire channel, so wire correctness never
-depends on the rendered identifier (§13 test T-4). Collisions are resolved deterministically in
-`Ctx.Syms`, which is keyed by IR ID: adding one endpoint never renames an existing method (the oagen
-collision-cascade counterexample; INV3). Anonymous hoisted types get a emitter-chosen name from
-`Naming.Hint`. Per-service presentation renames (`Service.Renames`) change how a shape is presented
-in a service without changing its `TypeID` or its own `Naming`. Enum members are keyed by
-`EnumMember.ID`, which is derived from the value a member holds, so two members whose names render
-alike are two entries to disambiguate, and reordering members of distinct values renames none.
+sequence, not an identifier*. `Canonical` holds those words as one lower_snake string, and `Case`
+takes them split on `_`, the one separator its grammar admits (ir-design §3.2). `RenderCasing` is
+the only step that cases it; because the IR stores the pre-split neutral words, there is no lossy
+runtime re-splitting of a cased string (oagen's `splitWords` counterexample). `EscapeReservedWords`
+runs after casing and **never touches `WireName`/`WireID`** — struct tags are built from the wire
+channel, so wire correctness never depends on the rendered identifier (§13 test T-4). Collisions are
+resolved deterministically in `Ctx.Syms`, which is keyed by IR ID: adding one endpoint never renames
+an existing method (the oagen collision-cascade counterexample; INV3). Anonymous hoisted types get
+an emitter-chosen name from `Naming.Hint`. Per-service presentation renames (`Service.Renames`)
+change how a shape is presented in a service without changing its `TypeID` or its own `Naming`. Enum
+members are keyed by `EnumMember.ID`, which is derived from the value a member holds, so two members
+whose names render alike are two entries to disambiguate, and reordering members of distinct values
+renames none.
 
 ### 4.13 Interface extraction & request shaping
 
@@ -970,7 +987,7 @@ emitters/
 ├── manifest/          # generation manifest (ID-keyed), header provenance, additive-merge driver (§11)
 ├── verify/            # neutral Surface projection, differ, injectable per-language severity (§12)
 ├── golang/            # ◀ FIRST TARGET (TargetKey "go")
-│   ├── emitter.go     #   init() Register("go", …); wires plan→refine→emit
+│   ├── emitter.go     #   New() returns the target the engine registers; plan→refine→emit
 │   ├── goast/         #   typed target AST (sealed sum) + printer
 │   ├── refine/        #   IR+Plan → goast — the ordered lowering pipeline (§4)
 │   ├── emit/          #   goast → []byte via printer + go/format; templates/ (boilerplate only)
@@ -985,7 +1002,7 @@ per-language by definition. `plan`, `policy`, `naming`, `refine` (the contract +
 `manifest`, and `verify` are shared because they are language-neutral.
 
 **Architecture test.** The import-graph assertion (written alongside the first emitter packages, not
-after) asserts: `emitters/golang` may import `emitter`, `emitters/plan`, `emitters/policy`,
+after) asserts: `emitters/golang` may import `emitters`, `emitters/plan`, `emitters/policy`,
 `emitters/naming`, `emitters/refine`, `emitters/manifest`, `emitters/verify`, `ir`; it may **not** import
 `compilers/*`, `engine`, or any other `emitters/<target>`. **Switch-completeness tests** live beside
 `goast` (over its `NodeKind`) and beside every refiner (over `ir.TypeKind`'s eleven kinds): adding an
@@ -1426,5 +1443,5 @@ Extends architecture.md §6 milestone 3 (the first emitter) and beyond.
 | 6 Heuristics are policy | `plan.Policy`, `naming.Policy`, `verify.Severity`, method-name derivation, and shaping hints are injectable and disable-able; inferred outputs marked `Inferred` (§3.5, §6.4, §12) |
 | 7 Serializable/deterministic | `Plan` + manifest are JSON-serializable; maps walked sorted, slices source order; identical input ⇒ identical bytes (§3, §5.5, §13) |
 | 8 Optionality ≠ nullability | `LowerOptionality` renders all four states plus protobuf `Presence` as a third axis; collapses are diagnosed (§4.7) |
-| 9 Capability surface complete | every `ir.TypeKind` and every operation facet (pagination/streaming/LRO/one-way/messaging) has a lowering path or diagnosed degrade (§4.2, §9); docs/mock/validation are registry entries over the same `Doc + Plan`; a new language forces no IR or plan change (§10, §14 M5–M6) |
+| 9 Capability surface designed against every format | every `ir.TypeKind` and every operation facet (pagination/streaming/LRO/one-way/messaging) has a lowering path or diagnosed degrade (§4.2, §9); docs/mock/validation are registry entries over the same `Doc + Plan`; a new language forces no IR or plan change (§10, §14 M5–M6) |
 | 10 Runtime policy separate | `policy.Policy` tree in `EmitterInput.Policy`, never on `ir.Document`; it parameterises only boilerplate; declared IR facts win over its defaults (§6) |
