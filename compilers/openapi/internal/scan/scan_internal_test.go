@@ -685,7 +685,8 @@ func TestDetectCycles_MergeChainPastBoundWarns(t *testing.T) {
 
 // scanWithin runs Cycles over src and returns its diagnostics. The minute is a
 // hang guard, not a cost bound: a hang cannot be counted, so only a clock can
-// end it. TestCycles_AllocatesLinearlyInItsInput bounds what Cycles allocates on these shapes.
+// end it. TestCycles_AllocatesLinearlyInItsInput bounds what Cycles
+// allocates on these shapes.
 func scanWithin(t *testing.T, src, blowup string) []ir.Diagnostic {
 	t.Helper()
 	const bound = time.Minute
