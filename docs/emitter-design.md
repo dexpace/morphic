@@ -32,7 +32,7 @@ compiler (spec → IR)  →  passes (IR → IR)  →  emitter (IR → artifacts)
 The engine (Layer 3) runs the compiler, then the passes, then — **once per document** — the shared
 plan, and finally each requested emitter. The passes designed are
 `link · dedup · filter · version-slice · overlay · validate`, and only `validate` is built
-(architecture.md §2.2). A emitter never sees a source spec, a compiler, another emitter, or the
+(architecture.md §2.2). An emitter never sees a source spec, a compiler, another emitter, or the
 engine (INV1). Its only structural input is an `ir.Document`; everything else it needs is either
 derived from the IR in the plan/refine stages or supplied as a separate, non-IR input (runtime
 policy, naming policy, shaping hints).
@@ -361,7 +361,7 @@ type TypePlan struct {
     NeedShapes []ir.Lifecycle       // which visibility projections this type actually needs
     Alias      ir.TypeID            // dedup alias target — follow to the single emitted type;
                                     // empty until the dedup pass (architecture.md §2.2) and its
-                                    // alias record (ir-design §16 Q2) exist
+                                    // alias record (ir-design §16, question 2) exist
     Inferred   map[string]ir.Provenance
 }
 
@@ -804,9 +804,9 @@ runtime re-splitting of a cased string (oagen's `splitWords` counterexample). `E
 runs after casing and **never touches `WireName`/`WireID`** — struct tags are built from the wire
 channel, so wire correctness never depends on the rendered identifier (§13 test T-4). Collisions are
 resolved deterministically in `Ctx.Syms`, which is keyed by IR ID: adding one endpoint never renames
-an existing method (the oagen collision-cascade counterexample; INV3). Anonymous hoisted types get a
-emitter-chosen name from `Naming.Hint`. Per-service presentation renames (`Service.Renames`) change
-how a shape is presented in a service without changing its `TypeID` or its own `Naming`. Enum
+an existing method (the oagen collision-cascade counterexample; INV3). Anonymous hoisted types get
+an emitter-chosen name from `Naming.Hint`. Per-service presentation renames (`Service.Renames`)
+change how a shape is presented in a service without changing its `TypeID` or its own `Naming`. Enum
 members are keyed by `EnumMember.ID`, which is derived from the value a member holds, so two members
 whose names render alike are two entries to disambiguate, and reordering members of distinct values
 renames none.

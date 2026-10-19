@@ -322,6 +322,9 @@ func testDir(pkg string) string {
 }
 
 // testFuncs returns the name of every function the test files of pkg declare.
+// It parses them rather than loading pkg through internal/decls, which reads no
+// test files: a test function is a top-level declaration, so a parse sees it
+// exactly as the compiler does.
 func testFuncs(t *testing.T, pkg string) map[string]bool {
 	t.Helper()
 	paths, err := filepath.Glob(filepath.Join(testDir(pkg), "*_test.go"))

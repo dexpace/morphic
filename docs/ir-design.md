@@ -14,7 +14,7 @@ spec — field names and shapes here are normative, receiver methods and helpers
 ## 1. Design rules
 
 1. **Union of capabilities.** The IR is designed against everything any supported spec can express
-   (`ir-spec-matrix.md`). A emitter may ignore a capability; a compiler must never drop one, so a
+   (`ir-spec-matrix.md`). An emitter may ignore a capability; a compiler must never drop one, so a
    construct the IR has no place for yet is kept verbatim under `no_ir_home` (§12). Only compilers
    are staged over time, and the surface they are designed against is a goal rather than a finished
    state: a later compiler is meant to fill fields rather than add them, and where one meets a gap,

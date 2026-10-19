@@ -92,7 +92,7 @@ in the docs.
    fields rather than inventing them. That is a goal, not a finished state: a compiler that meets a
    construct with no home keeps it verbatim under `no_ir_home`, and the field that homes it lands as
    a change of the IR's shape, which bumps `IRVersion` (ir-design §2.1). Once an emitter reads a
-   field, a change to it lands with the emitter's own (architecture.md §2.5).
+   field, a change to it lands together with every emitter update it forces (architecture.md §2.5).
 10. **SDK runtime policy is not IR.** Retry/timeout/telemetry/error-class taxonomy is a separate
     emitter input. The IR describes the API; policy describes the SDK.
 

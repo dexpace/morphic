@@ -19,6 +19,9 @@ A rule closes with the evidence that pins it, one bullet per field:
 - **Status** — where the compiler does not yet do all the rule says, naming the issue that tracks
   it, or the milestone that schedules work not yet begun.
 
+The fields are the only bullets a rule writes at the margin, since each is read as one; a list in a
+rule's text is numbered.
+
 A rule names a case or a test, or says in its Status why it has neither. The `TestLoweringSpec`
 tests in `compilers/openapi` hold every field to the code and read it both ways: each conformance
 case is named by a rule, and each code by a rule or by `codesOutsideTheRules`, which gives the
