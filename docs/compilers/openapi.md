@@ -10,17 +10,32 @@ its key, a stable slug that code, tests and the other documents cite as
 `docs/compilers/openapi.md#<key>`. A rule keeps its key when its text changes, and a rule that is
 renamed takes every citation of it along.
 
+A rule closes with the evidence that pins it, one bullet per field:
+
+- **Cases** — the conformance cases (`testdata/conformance/openapi`) that exercise it.
+- **Codes** — the diagnostic codes it reports, as `compilers/openapi/internal/diag` declares them.
+- **Tests** — Go tests that pin what no case reaches, as `package.TestName`: `openapi` for the
+  compiler's own package, an internal package's name otherwise.
+- **Status** — where the compiler does not yet do all the rule says, and the issue tracking it.
+
 ## 1. Documents and versions
 
 ### `document-metadata`
 
 info contact/license → Document
 
+- Cases: `docs-summary-desc`
+- Tests: `openapi.TestMeta_FullDocumentMetadata`, `openapi.TestParse_EndToEnd`
+
 ### `self-uri`
 
 `$self` → that source's `SourceInfo.SelfURI` as written, a relative one unresolved, and at every
 minor, with a 3.0 or 3.1 document writing one warned `later-version-construct` as for every
 construct a later minor added ([`later-version-construct`](#later-version-construct))
+
+- Cases: `self-uri`
+- Codes: `openapi/later-version-construct`
+- Tests: `openapi.TestParse_RecordsSelfURI`
 
 ### `later-version-construct`
 
@@ -60,6 +75,12 @@ modelled and walked with the source, so they are held to both as the source's ow
 where the declared minor applies it ([`allow-reserved-locations`](#allow-reserved-locations)). A JSON Schema 2020-12 keyword in a 3.0 schema is GitHub
 #820's.
 
+- Cases: `later-version-constructs`, `reached-outside-model`
+- Codes: `openapi/later-version-construct`, `openapi/validation`
+- Tests: `openapi.TestLaterVersionConstructs_LowerAsInTheVersionThatAddedThem`,
+  `load.TestAdditions_EachIsReportedBelowItsMinorOnly`,
+  `load.TestMetaSchemaVersionArtifacts_OlderMinorsOnlyWhenLater`
+
 ### `minor-required-fields`
 
 **What a minor requires.** The parser's REQUIRED-field rule is held to the declared version as well.
@@ -79,6 +100,12 @@ parameter or an API key, and an HTTP `scheme`, each a token of RFC 9110 or RFC 6
 relaxed it stands too, as does a `null`, and so does every finding at a node two reads share through
 a YAML alias or merge key, unless every read there draws one of those dropped there. The objects a
 later minor's construct holds are held to the declared minor like any other (GitHub #622).
+
+- Cases: `empty-required-values`, `relaxed-required-fields`
+- Codes: `openapi/validation`
+- Tests: `load.TestRequired_AnEmptyValueNoMinorAdmitsIsStillRefused`,
+  `load.TestRequired_AnEmptyServerURLFollowsTheDeclaredVersion`,
+  `load.TestRequired_ARelaxedFieldFollowsTheDeclaredVersion`
 
 ### `unmodeled-dialect-fields`
 
@@ -103,6 +130,12 @@ no IR home is kept the same way under `ReasonNoIRHome`: the nested Encoding fiel
 content entry written as such a `$ref` keeps it under `degraded_lowering` instead, since the entry
 lowers without what it names. A Media Type Object's `description` is kept the same way under
 `ReasonNoIRHome`, since `ir.Content` has no docs.
+
+- Cases: `response-summary-32`, `xml-nodetype-32`, `nested-encoding-32`, `component-media-types-32`
+- Codes: `openapi/degraded-construct`, `openapi/unknown-key-unreachable`
+- Tests: `operation.TestResponses_SummaryNoReaderTakesIsStillReported`,
+  `annotation.TestRead_NodeTypeOnlyADefinedValueIsPlaced`,
+  `operation.TestContent_MediaTypeDescriptionIsKept`
 
 ### `unreferenced-components`
 
@@ -140,15 +173,26 @@ gap is one the IR can close by finding a use for the entry, so a promotion pass 
 a document that declares a component is not making a mistake a warning could name. `Reason` is where
 that decision lives (§12), which is what keeps a promotion pass from mistaking one for an oversight.
 
+- Cases: `unreferenced-components`, `component-media-types-32`
+- Codes: `openapi/degraded-construct`
+- Tests: `openapi.TestUnreferencedComponents_ReferenceNothingFollowsKeepsItsTarget`,
+  `openapi.TestUnreferencedComponents_ReadAsTheParserReadsThem`,
+  `openapi.TestUnreferencedComponents_SelfReferenceByFileNameReaches`
+
 ## 2. Schemas: identity, references and annotations
 
 ### `schema-registry`
 
 components/schemas → registry (IDs from pointers)
 
+- Cases: `named-types`, `component-reuse`
+- Tests: `ids.TestForPointer_ChoosesTheNamespace`
+
 ### `inline-hoisting`
 
 inline schemas hoisted with hints
+
+- Cases: `inline-types`, `inline-hoist-positions`, `inline-annotations`
 
 ### `ref-use-site`
 
@@ -158,6 +202,11 @@ is the counterexample), and at a position carrying no Property/Parameter — an
 `allOf`/`oneOf`/`anyOf` branch, `items`, a component — bind an alias hoisted at that position
 instead, per §4.3 — constraints excepted, since bounds conjoin rather than override: each position
 keeps the ones it declared and none is copied to a use site (§12.2)
+
+- Cases: `param-ref-inheritance`, `allof-ref-branch-siblings`, `readonly-writeonly`
+- Codes: `openapi/degraded-construct`
+- Tests: `openapi.TestAnnotationRetention`, `schema.TestModel_RefSiblingDescriptionWins`,
+  `schema.TestSchemaExamples_ComponentRefSiblingKeepsThem`
 
 ### `reference-object-siblings`
 
@@ -178,6 +227,9 @@ permitted. OpenAPI 3.0 goes further, admitting no key beside a `$ref` and saying
 ignored; there the fold is the 3.1 reading, and each sibling it reads is reported as a construct a
 later minor added ([`later-version-construct`](#later-version-construct)).
 
+- Cases: `ref-site-docs`, `later-version-constructs`
+- Codes: `openapi/later-version-construct`
+
 ### `use-bound-annotations`
 
 readOnly/writeOnly → Visibility and schema-level `default` → the referencing Property/Parameter's
@@ -186,17 +238,34 @@ down to referencing properties with use-site precedence and the declaration keep
 verbatim (`no_ir_home` Unmodeled + diagnostic) — which is what a component nothing references would
 otherwise lose silently
 
+- Cases: `defaults`, `readonly-writeonly`, `inline-residue`
+- Codes: `openapi/degraded-construct`
+- Tests: `openapi.TestAnnotationRetention_OtherDeclarationShapes`,
+  `schema.TestPropertyPosition_ResidueStaysOutOfTheTypeNode`
+
 ### `nullable`
 
 `nullable`/type-arrays → Nullable
+
+- Cases: `nullable-30`, `nullable-31-ref`, `nullable-enum-31`, `nullability-four-states`,
+  `nullability-conjunction`
+- Tests: `schema.TestSchemaRef_NullableNormalization`
 
 ### `schema-examples`
 
 schema `example(s)` → Examples
 
+- Cases: `examples`
+- Codes: `openapi/degraded-construct`
+- Tests: `annotation.TestSchemaExamplesAt_ReadsBothKeywordsInOrder`
+
 ### `xml-hints`
 
 `xml` object (incl. 3.2 nodeType) → XMLHints at type and property level
+
+- Cases: `xml-hints`, `xml-nodetype-32`
+- Codes: `openapi/degraded-construct`
+- Tests: `annotation.TestXMLHints_ReadsEveryFieldDirectly`, `schema.TestModel_PropertyXML`
 
 ## 3. Schemas: composition, unions and enumerations
 
@@ -209,10 +278,17 @@ discriminator hierarchy, or the sole `$ref` entry, becomes `Base`; other `$ref` 
 `Mixins`; inline entries merge into `Properties` (with provenance). This mirrors Kiota's
 decision table but keeps every branch reconstructible.
 
+- Cases: `allof-inheritance`, `allof-mixins`, `allof-inline-merge`
+- Tests: `schema.TestAllOf_DiscriminatorHierarchy`, `schema.TestAllOf_SoleRefBecomesBase`
+
 ### `allof-beside-ref`
 
 an `allOf` beside a `$ref` at the same level joins the alias's unhomed-keyword census the same way
 (`degraded_lowering`), since a `$ref` site elects no composition family for it to lose or win
+
+- Cases: `allof-ref-branch-siblings`
+- Codes: `openapi/degraded-construct`
+- Tests: `schema.TestRefSiteKeywords_KeptAtEveryPosition`
 
 ### `allof-inline-residue`
 
@@ -243,6 +319,12 @@ it: a `$ref` branch owns a node, so what is written beside the `$ref` is *modele
 alias §4.3 describes rather than kept as residue, and a boolean branch declares no keywords at
 all, so there is no residue to derive — it is a decision about the composed node instead, stated
 with the `false`-schema rule [`allof-false-branch`](#allof-false-branch).
+
+- Cases: `allof-inline-residue`
+- Codes: `openapi/degraded-construct`, `openapi/unpreservable-construct`
+- Tests: `schema.TestAllOf_BranchWrittenByReferenceStillDerivesResidue`,
+  `schema.TestAllOf_MergedBranchKeywordsAreNotResidue`,
+  `schema.TestAllOf_UnpreservableBranchIsNotAnnounced`
 
 ### `allof-redeclared-property`
 
@@ -282,6 +364,15 @@ conflict. Two declarations naming the same target and differing only in nullabil
 drop and take no entry: the merged field admits null only where both branches do, which is the
 same conjunction a single schema's null verdicts fold under.
 
+- Cases: `allof-conflicting-type`
+- Codes: `openapi/conflicting-redeclaration`, `openapi/degraded-construct`,
+  `openapi/unpreservable-construct`
+- Tests: `merge.TestReconcileProperty_NullabilityIntersectsWhenTargetsAgree`,
+  `merge.TestReconcileProperty_ADroppedTypeIsKeptEvenWhenItDoesNotConflict`,
+  `merge.TestReconcileProperty_ALosingDetailIsKeptAndReported`
+- Status: partly built: a primitive a `format` narrows is reported as conflicting with the bare
+  primitive, which it does not contradict (#446).
+
 ### `allof-false-branch`
 
 a boolean `false` `allOf` branch → the composed Model closed, branch verbatim Unmodeled
@@ -295,9 +386,14 @@ branches contributed stays — closing is the nearest shape the IR has, and empt
 trade one silent loss for another. A `true` conjunct admits everything, so contributing nothing
 from it is exact and nothing is reported.
 
+- Cases: `allof-boolean-branch`
+- Codes: `openapi/false-schema`
+
 ### `union`
 
 `oneOf`/`anyOf` → Union (Exclusive bit)
+
+- Cases: `oneof-discriminated`, `anyof-untagged`
 
 ### `union-null-variant`
 
@@ -305,11 +401,19 @@ null-variant → Nullable ref (a keyword beside the collapsed union that no refe
 `discriminator`, a `format` other than `password`, a collection bound — kept verbatim Unmodeled,
 `degraded_lowering`, on the node or carrier owning the position, as at a `$ref` site)
 
+- Cases: `nullable-union-discriminator`, `nullable-31-ref`
+- Codes: `openapi/degraded-construct`
+- Tests: `schema.TestCollapsedUnion_KeepsEveryCensusKeywordItCannotHold`,
+  `schema.TestCollapsedUnion_KeepsItsDiscriminatorAtEveryPosition`
+
 ### `union-null-only`
 
 a null-only branch set (every branch a bare `type: null`) → the same nullable `any` a bare
 `{type: null}` schema at that position lowers to, with the oneOf/anyOf itself kept verbatim
 Unmodeled (`degraded_lowering`) since no node built for it carries a branch set
+
+- Cases: `null-only-union`
+- Codes: `openapi/degraded-construct`
 
 ### `union-beside-structure`
 
@@ -386,12 +490,22 @@ A union whose branches declare no shape at all (`oneOf: [{required: [a]}, {requi
 is not a degradation and is not listed here: it narrows the body without reshaping it, which
 is validation logic, so it is preserved under `ReasonValidationOnly` with §4.7's keyword family.
 
+- Cases: `allof-oneof-cooccurrence`, `discriminated-union-beside-model`, `unhomed-keywords`
+- Codes: `openapi/composition-lowering`, `openapi/degraded-construct`, `openapi/unresolved-ref`,
+  `openapi/validation-only-keyword`, `openapi/unpreservable-construct`
+- Tests: `schema.TestOneOf_CoDeclaredNotDistributedReasons`,
+  `schema.TestOneOf_CoDeclaredUnresolvableBranchIsNotDistributed`,
+  `schema.TestDiscriminatorBesideUnion_LeavesAMapWhenItMoves`
+
 ### `union-beside-ref`
 
 the same co-declared `oneOf`/`anyOf` beside a `$ref` at the same level, rather than a structural
 body, has nothing at that position to distribute the union across either, so it lowers to the alias
 over the `$ref` target with the union kept verbatim beside it (`degraded_lowering`), through the
 same keeper as the structural-body case
+
+- Cases: `union-beside-ref`
+- Codes: `openapi/degraded-construct`
 
 ### `competing-keywords`
 
@@ -425,6 +539,12 @@ beside an `allOf`, `format` beside a `const` — is kept by the census
 [`shape-applicator`](#shape-applicator) runs, which asks the node that was built: `type: object`
 beside an `allOf` is one the composed `Model` already asserts, and keeps nothing (GitHub #268).
 
+- Cases: `codeclared-keywords`, `codeclared-schema-content`
+- Codes: `openapi/degraded-construct`, `openapi/unpreservable-construct`
+- Tests: `schema.TestCoDeclaredFamily_EveryPassedOverKeywordIsKept`,
+  `schema.TestCoDeclaredFamily_UnpreservableIsNotAnnounced`,
+  `schema.TestUnionCombinators_UnpreservableIsNotAnnounced`
+
 ### `discriminator`
 
 `discriminator` → Discriminator (3.2 `defaultMapping` → Discriminator.Default), beside a node that
@@ -435,10 +555,19 @@ DiscriminatorValue, since the field holds one and a mapping's key order is not a
 document, with every key kept in the base's Mapping and the election reported (`degraded-construct`,
 info)
 
+- Cases: `oneof-discriminated`, `discriminator-inheritance`, `discriminator-default-mapping`,
+  `discriminator-alias-mapping`, `nullable-union-discriminator`
+- Codes: `openapi/degraded-construct`, `openapi/unresolved-ref`
+- Tests: `schema.TestHomelessDiscriminator_IsKeptBesideEveryOtherNode`,
+  `schema.TestUnplacedDiscriminator_IsKeptAtEveryUnionSite`
+
 ### `string-const-union`
 
 a oneOf/anyOf whose variants are all string consts normalizes to a closed `Enum` in a `pass/`
 normalization — not in the compiler — so per-variant `Docs` survive until the collapse is chosen
+
+- Status: partly built: the compiler keeps such a union a Union of Literals with per-variant docs,
+  and no pass normalizes it to an Enum yet.
 
 ### `enum-const`
 
@@ -446,6 +575,14 @@ normalization — not in the compiler — so per-variant `Docs` survive until th
 `const` → Literal (§4.5); `enum: []` → a closed Enum with no members + `empty-enum` warning, a
 member or `const` value that cannot convert → `any` + `degraded-construct` warning, and an `enum`
 past the member budget → `any` + `budget-exceeded` error
+
+- Cases: `enum-string`, `enum-numeric`, `empty-enum`, `enum-member-identity`, `nullable-enum-31`,
+  `literal-const`
+- Codes: `openapi/empty-enum`, `openapi/duplicate-enum-value`, `openapi/degraded-construct`,
+  `openapi/budget-exceeded`
+- Tests: `schema.TestEnum_HeterogeneousBecomesUnionWithBadValue`,
+  `schema.TestEnum_NonScalarAndMidListMismatch`,
+  `schema.TestEnumAsUnion_UnconvertibleMemberBecomesAny`
 
 ## 4. Schemas: objects, arrays and scalars
 
@@ -469,9 +606,16 @@ unconstrained, so it is the top type, and beside patterns the IR does not tell a
 pattern-scoped value. An `unevaluatedProperties: false` beside a catch-all is inert in JSON Schema
 but still lowers to a closure, which keeps the object a `Model` until #862 is resolved.
 
+- Cases: `maps`, `constraints`, `allof-position-constraints`
+- Tests: `schema.TestObject_CatchAllBesideAnotherFactStaysModel`,
+  `schema.TestObject_MapAndNothingElseLowersToMapT`
+
 ### `pattern-properties`
 
 `patternProperties` → AdditionalProps.Patterns
+
+- Cases: `maps`
+- Tests: `schema.TestModel_PatternPropertiesOrder`
 
 ### `tuples`
 
@@ -485,6 +629,10 @@ either of those or a schema lowers exactly as a `List`'s `items` would, at the s
 under the same hint. An `unevaluatedItems` beside them stays the §4.7 keeper's verbatim entry, as it
 does beside a `List`. As there, `items: true` and an absent `items` lower alike, though only the
 first makes that `unevaluatedItems` inert; recording the difference is #862.
+
+- Cases: `tuples-prefixitems`
+- Codes: `openapi/validation-only-keyword`
+- Tests: `schema.TestLower_TupleRest`
 
 ### `shape-applicator`
 
@@ -524,6 +672,12 @@ per declared type from the same schema and the homes are the variants' — thoug
 holds is then dropped (#852). At a `$ref` position the census runs on the alias §4.3's use-site rule
 hoists, since the siblings bind the position rather than the referent.
 
+- Cases: `unhomed-keywords`, `empty-enum`
+- Codes: `openapi/degraded-construct`, `openapi/unpreservable-construct`
+- Tests: `schema.TestObject_MapKeepsARequiredListVerbatim`,
+  `schema.TestUnhomedApplicator_KeptOnAListAndAnnounced`,
+  `schema.TestUnhomedApplicator_FormatWithNoTypeIsKept`
+
 ### `numeric-formats`
 
 a numeric `type`+`format` → the primitive the format names — an integer width under `integer` and
@@ -533,6 +687,11 @@ integral values, which no primitive narrower than `integer` holds — and a pair
 → a `Scalar` over the type's primitive that keeps the format, as `Encoding.Name` or, where a
 `contentEncoding` beside it takes that field, verbatim Unmodeled
 
+- Cases: `scalar-format`
+- Codes: `openapi/degraded-construct`
+- Tests: `schema.TestScalar_NumericFormatPairings`,
+  `schema.TestContentVocabulary_KeptWhereNoEncodingHolds`
+
 ### `password`
 
 `format: password` → a redaction request rather than a (type, format) pairing, so the shape lowers
@@ -541,6 +700,9 @@ owns, whatever its kind (an alias hoisted where the shape alone would own none),
 or header that owns none, `Property.Secret`, inherited from a `$ref` target as `deprecated` is; at a
 parameter that owns none it is kept verbatim in Parameter.Unmodeled (`no_ir_home`), ir.Parameter
 having no redaction field (GitHub #578)
+
+- Cases: `secret-format`, `scalar-format`
+- Codes: `openapi/degraded-construct`
 
 ### `whole-schema-fallbacks`
 
@@ -568,12 +730,23 @@ branches contributed, so one source construct would lower to two different kinds
 it appeared. The overstatement is bounded, recorded, and recoverable from the `Unmodeled` entry;
 an emitter that wants the exact reading has everything it needs to produce it.
 
+- Cases: `allof-boolean-branch`
+- Codes: `openapi/degraded-construct`, `openapi/false-schema`
+- Tests: `schema.TestLower_DepthCapExceeded`,
+  `openapi.TestMaxNesting_AdmitsWhatTheLoweringLowersInFull`
+
 ## 5. Schemas: keywords beyond the shape
 
 ### `validation-only`
 
 `not`/`if-then-else`/`dependentSchemas`/`dependentRequired`/`contains`/`propertyNames`/`unevaluated*`
 → verbatim Unmodeled per §4.7
+
+- Cases: `negation-not`, `dependent-required`
+- Codes: `openapi/validation-only-keyword`, `openapi/unpreservable-construct`
+- Tests: `annotation.TestValidationOnlyAt_KeepsEveryKeywordItClaims`,
+  `schema.TestLower_ValidationOnlyKeywords`,
+  `annotation.TestValidationOnlyAt_AnUnconvertibleKeywordIsReportedNotKept`
 
 ### `dynamic-ref`
 
@@ -606,6 +779,12 @@ still makes its name a duplicate. The walk is bounded by depth and by node count
 a `warning` when it truncates, since a truncated index undercounts declarations and an undercount
 is what turns "irreducible" into a confident expansion.
 
+- Cases: `dynamic-ref`
+- Codes: `openapi/dynamic-ref-expanded`, `openapi/degraded-construct`
+- Tests: `schema.TestDynamicRef_IrreducibleIsKeptAndSaysWhy`,
+  `schema.TestDynamicAnchors_CountsWhatAnAliasBringsIn`,
+  `schema.TestDynamicAnchorIndex_ReportsATruncatedWalk`
+
 ### `content-vocabulary`
 
 `contentEncoding`/`contentMediaType`/`contentSchema` → `Encoding` on the scalar the position lowers
@@ -619,6 +798,10 @@ the scalar the position lowers to. `contentSchema`'s value is a schema and lower
 hoisted at its own source pointer and referenced by ID — rather than riding along as a payload
 a consumer would have to re-parse. Where the position lowers to a shape with no `Encoding`
 field, all three stay verbatim under `ReasonNoIRHome`.
+
+- Cases: `content-vocabulary`
+- Codes: `openapi/degraded-construct`
+- Tests: `schema.TestContentVocabulary_LowersToEncoding`
 
 ### `dialect-keywords`
 
@@ -639,6 +822,10 @@ reference target rather than carried as content — it is what lets a `$dynamicR
 It is excluded here because the compiler does nothing with it today, not because dropping it is
 settled.
 
+- Cases: `dialect-keywords`
+- Codes: `openapi/degraded-construct`, `openapi/unresolved-ref`
+- Tests: `schema.TestDialectKeywords_KeptOutOfScope`, `openapi.TestMeta_JSONSchemaDialectIsKept`
+
 ### `vocabulary-coverage`
 
 The keyword lists of §4.7 and of this section are held to the compiler rather than merely asserted. The OpenAPI compiler's
@@ -656,6 +843,8 @@ a written justification — `$comment`, which the spec forbids surfacing; `$defs
 lower on demand through a `$ref`; `$dynamicAnchor`, read as a reference target; and `$anchor`,
 which the compiler does not yet honour.
 
+- Tests: `schema.TestVocabulary2020_12_EveryKeywordIsLoweredOrKept`
+
 ## 6. Paths and operations
 
 ### `path-keys`
@@ -664,6 +853,12 @@ a Paths Object key → HTTPBinding.URITemplate as written, and one that breaks O
 templating rules (3.2.0 §4.8.2, read at every version) lowered as declared + `invalid-path-key`
 warning naming every rule it breaks, a `#` and what follows it left to GitHub #602
 
+- Cases: `http-binding`
+- Codes: `openapi/invalid-path-key`
+- Tests: `operation.TestPathKeys_MalformedKeyIsReportedOnce`,
+  `operation.TestPathKeys_RulesAreNotVersionGated`,
+  `operation.TestPathKeys_FragmentIsLeftToGitHub602`
+
 ### `path-item-operations`
 
 every operation a path item declares — the fixed method fields, 3.2 `query`, and 3.2
@@ -671,6 +866,12 @@ every operation a path item declares — the fixed method fields, 3.2 `query`, a
 `additionalOperations` key used verbatim as HTTPBinding.Method since OpenAPI reads a method name
 case-sensitively, and a key naming no method at all lowered as declared + `invalid-method-key`
 warning (the binding is unusable, but dropping the entry would lose every operation it declares)
+
+- Cases: `path-item-operations`, `later-version-constructs`
+- Codes: `openapi/invalid-method-key`
+- Tests: `operation.TestPathItem_EmptyAdditionalOperationsKeyReported`,
+  `operation.TestPathItem_AdditionalOperationsLowerOnEveryRoute`,
+  `operation.TestPathItem_AdditionalOperationsBindCallbacks`
 
 ### `path-item-servers`
 
@@ -684,6 +885,12 @@ service instead, or on the declaring operation's HTTP binding for a callback exp
 `openapi:pathItem/<item pointer>/<key>`, the item's pointer in the key since one carrier holds every
 such item, + one `degraded-construct` warning at the mount
 
+- Cases: `webhooks`, `callbacks`, `path-item-ref-siblings`
+- Codes: `openapi/degraded-construct`
+- Tests: `operation.TestOperations_PathItemServersKeptOnEveryRoute`,
+  `operation.TestOperations_OwnServersKeptBesideThePathItems`,
+  `operation.TestOperations_ServersKeysAreIndependent`
+
 ### `path-item-docs`
 
 a path item's own `summary`/`description`, at the same three mounts → Operation.Unmodeled under
@@ -691,6 +898,11 @@ a path item's own `summary`/`description`, at the same three mounts → Operatio
 ir.Docs holds the operation's own pair and a path item's documents the path, so merging would need a
 precedence rule and would attach documentation the operation's author never wrote — an inference,
 which invariant 6 places in policy rather than in a lowering
+
+- Cases: `path-item-docs`, `path-item-ref-siblings`
+- Codes: `openapi/degraded-construct`
+- Status: partly built: a path item that mounts no operation drops its own summary and description
+  in silence (#383).
 
 ### `path-item-ref-fields`
 
@@ -711,6 +923,12 @@ an item another document holds, mounted where the use site writes fields too, is
 use site's `$ref` (`…/$ref/…`), a position the source cannot name, and the fields beside a `$ref`
 the load phase's walk does not reach, in another document or under an `x-*` key, are reported
 (`degraded-construct`) rather than lowered
+
+- Cases: `path-item-ref-siblings`
+- Codes: `openapi/path-item-ref-collision`, `openapi/unresolved-ref`, `openapi/degraded-construct`
+- Tests: `operation.TestPathItemRefSiblings_CollisionIsLoudAndUseSiteWins`,
+  `operation.TestPathItemRefSiblings_AReferenceIntoTheFieldsBesideARefIsRefused`,
+  `operation.TestPathItemRefSiblings_FieldsAnotherDocumentWritesAreReported`
 
 ### `tag-groups`
 
@@ -735,16 +953,29 @@ stand. Group and sibling order stay first-seen from the operations, with a missi
 immediately before its first descendant, so a document that declares no parents groups exactly as it
 did before.
 
+- Cases: `tags-grouping`, `tags-grouping-32`, `group-identity`
+- Tests: `operation.TestGrouping_ParentCycleNestsNoMemberUnderAnother`,
+  `operation.TestGrouping_DanglingParentStaysTopLevel`,
+  `operation.TestGrouping_BadgeOnlyOperationFallsToDefault`
+
 ## 7. Parameters
 
 ### `parameters`
 
 parameters → Params + HTTPBinding locations w/ style/explode
 
+- Cases: `param-styles`, `param-style-matrix`, `param-identity`
+- Codes: `openapi/duplicate-parameter`
+- Tests: `operation.TestParams_RepeatedNameAndLocationKeepsEveryParameter`
+
 ### `allow-empty-value`
 
 `allowEmptyValue` → Parameter.Unmodeled (`no_ir_home`: HTTPParamBinding holds its neighbours but not
 this one)
+
+- Cases: `param-styles`
+- Codes: `openapi/degraded-construct`
+- Tests: `operation.TestParams_AllowEmptyValueKept`
 
 ### `reserved-header-names`
 
@@ -752,11 +983,18 @@ a header parameter named Accept/Content-Type/Authorization lowered as declared +
 `reserved-header-name` warning (OpenAPI says such a definition SHALL be ignored; dropping declared
 content is an emitter's call, not a compiler's)
 
+- Codes: `openapi/reserved-header-name`
+- Tests: `operation.TestParams_ReservedHeaderNamesAreReported`
+
 ### `querystring`
 
 3.2 `in: querystring` → querystring location; a declared `style` there lowers as declared, reported
 as an error by the parser's validation, while `explode` or `allowReserved` (which it does not check;
 GitHub #408) lowers as declared + `invalid-location-keyword` warning at the keyword's own pointer
+
+- Cases: `param-querystring`, `querystring-forbidden-keywords`
+- Codes: `openapi/invalid-location-keyword`, `openapi/validation`
+- Tests: `operation.TestParams_QueryStringDeclaredStyleIsKeptAndReported`
 
 ### `allow-reserved-locations`
 
@@ -767,11 +1005,23 @@ which applies it wherever the value is percent-encoded — lowers as declared + 
 reported once where the parameter is written, whether anything lowers it or not (a parameter another
 document holds is not judged; GitHub #839)
 
+- Cases: `param-allowreserved-locations`
+- Codes: `openapi/inapplicable-location-keyword`
+- Tests: `load.TestReservedIgnored_FollowsEachMinorsText`,
+  `load.TestReservedFinding_ReportsWhereTheVersionGivesNoEffect`,
+  `load.TestReservedFinding_AnotherDocumentIsNotJudgedByTheRoots`
+
 ### `parameter-schema-keywords`
 
 a parameter schema's `xml` and its `readOnly`/`writeOnly` → Parameter.Unmodeled (`no_ir_home`:
 Parameter has no field for either), except the `xml` of a schema that owns a node of its own, which
 stays on that node's XMLHints
+
+- Cases: `param-xml-residue`
+- Codes: `openapi/degraded-construct`
+- Tests: `operation.TestParams_SchemaVisibilityKeptUnderUnmodeled`,
+  `operation.TestParams_SchemaVisibilityKeptWhenTheSchemaOwnsANode`,
+  `operation.TestParams_SchemaXMLHintsStayOnAnOwnedNode`
 
 ## 8. Request bodies and content
 
@@ -783,9 +1033,17 @@ rather than unstated, and `requestBody.description` → Payload.Docs, a request 
 map is empty — which every minor's schema admits and 3.2 says SHOULD hold an entry — lowering to a
 Payload with no Contents that keeps all three, + `empty-request-content` warning at the map
 
+- Cases: `empty-request-content`, `request-body-docs`
+- Codes: `openapi/empty-request-content`
+- Tests: `operation.TestContent_NonRequiredRequestBody`,
+  `operation.TestLowerRequestBody_AnEmptyContentKeepsTheBody`
+
 ### `example-values`
 
 3.2 example `dataValue` → Example.Value and `serializedValue` → Example.Unmodeled (`no_ir_home`)
+
+- Cases: `examples-32`
+- Codes: `openapi/degraded-construct`
 
 ### `item-schema`
 
@@ -794,6 +1052,9 @@ positional `prefixEncoding`, where `itemEncoding` and `prefixEncoding` go to Con
 (`no_ir_home`), because a single every-item encoding cannot state ordinals, and `itemSchema` still
 lowers to Content.Item
 
+- Cases: `sequential-media`
+- Codes: `openapi/degraded-construct`, `openapi/unpreservable-construct`
+
 ### `encoding-allow-reserved`
 
 an Encoding Object's `allowReserved` → Content.Unmodeled (`no_ir_home`) under
@@ -801,6 +1062,11 @@ an Encoding Object's `allowReserved` → Content.Unmodeled (`no_ir_home`) under
 holding `style` and `explode` beside it but no field for this one, and read before the entry's
 emptiness is judged so an entry declaring nothing else is not dropped with the empty PartEncoding it
 lowers to
+
+- Cases: `multipart-encoding`
+- Codes: `openapi/degraded-construct`
+- Tests: `operation.TestEncoding_OnlyUnhomedFieldsOutliveTheEmptyPartEncoding`,
+  `operation.TestEncoding_ItemEncodingKeepsItsOwnUnderItsOwnKey`
 
 ## 9. Responses and errors
 
@@ -811,10 +1077,20 @@ neutralized → Response.Name.Hint and ErrorCase.Name.Hint alike (`404`, `5_xx`,
 records the spelling a range cannot state, though neutralizing a range key folds its case (`5XX` and
 `5xx` both → `5_xx`)
 
+- Cases: `per-status-errors`
+- Codes: `openapi/invalid-status-key`
+- Tests: `operation.TestResponses_NamedByStatusKey`,
+  `operation.TestResponses_InvalidStatusKeyIsReported`
+
 ### `duplicate-status-key`
 
 two keys resolving to one range — `4XX` beside `4xx` — are both kept and reported
 `openapi/duplicate-status-key`, since they reach the IR with one name and one condition
+
+- Codes: `openapi/duplicate-status-key`
+- Tests: `operation.TestResponses_TwoKeysForOneRangeAreReported`,
+  `operation.TestResponses_ACollisionIsReportedTheSameInEitherOrder`,
+  `operation.TestResponses_StatusKeyDiagsAreSitedAtTheOperation`
 
 ### `error-responses`
 
@@ -824,9 +1100,17 @@ Unmodeled, and the payload's naming hint derived from the declaration pointer on
 one `components/responses` entry mounted at a success and an error status interns one type whichever
 side reaches it first
 
+- Cases: `per-status-errors`, `shared-response-across-status`
+
 ### `response-summary`
 
 3.2 Response `summary` → Docs.Summary
+
+- Cases: `response-summary-32`
+- Codes: `openapi/later-version-construct`, `openapi/degraded-construct`,
+  `openapi/unknown-key-unreachable`
+- Tests: `operation.TestResponses_SummaryIsReadAtEveryVersion`,
+  `operation.TestResponses_SummaryNoReaderTakesIsStillReported`
 
 ### `header-style`
 
@@ -834,11 +1118,19 @@ response/encoding header `style` and `explode` → Property.Unmodeled (`no_ir_ho
 neither field), and a `Content-Type` entry in either headers map lowered as declared + the same
 `reserved-header-name` warning the parameter position gets
 
+- Cases: `header-content-schema`
+- Codes: `openapi/degraded-construct`, `openapi/reserved-header-name`
+- Tests: `operation.TestHeaders_SerializationKeywordsKept`,
+  `operation.TestHeaders_ReservedContentTypeEntryIsReported`,
+  `operation.TestHeaders_ReservedContentTypeInEncodingIsReported`
+
 ### `links`
 
 links → Response.Unmodeled and ErrorCase.Unmodeled alike (`no_ir_home`, promotable later): the two
 are lowerings of one Response Object, so a construct kept on only the success one makes a
 declaration survive or vanish on nothing but its status code
+
+- Cases: `response-links`
 
 ## 10. Webhooks and callbacks
 
@@ -847,9 +1139,16 @@ declaration survive or vanish on nothing but its status code
 webhooks → HTTPBinding.IsWebhook, the map key → HTTPBinding.WebhookName with URITemplate left empty,
 since the key names an event rather than a path
 
+- Cases: `webhooks`
+
 ### `callbacks`
 
 callbacks → Callbacks
+
+- Cases: `callbacks`
+- Tests: `operation.TestCallbacks_NameWithSlashKeepsItsOwnKey`
+- Status: partly built: callbacks declared on an operation inside a callback are dropped in silence
+  (#858).
 
 ## 11. Security
 
@@ -860,11 +1159,20 @@ Flows/OAuth2MetadataURL, and an oauth2 scheme whose `flows` declares no flow and
 `oauth2MetadataUrl` lowered as declared + `oauth2-no-flow` warning, a `flows` the parser's
 REQUIRED-field rule finds missing being that rule's to report instead
 
+- Cases: `security-schemes`, `security-or-and`, `oauth2-no-flow`
+- Codes: `openapi/oauth2-no-flow`, `openapi/incomplete-security-scheme`, `openapi/unresolved-ref`
+- Tests: `auth.TestLowerSecuritySchemes_AnAbsentFlowsIsReportedAtTheDeclaration`,
+  `auth.TestLowerSecuritySchemes_AnEntryNamingNoMechanismIsRefused`,
+  `auth.TestAuth_RequirementsOrOfAnds`
+
 ### `oauth-flow-fields`
 
 a flow field the flow's kind does not define (`authorizationUrl` beside a token-only flow,
 `tokenUrl` on `implicit`, `deviceAuthorizationUrl` off the device flow) kept verbatim in that flow's
 Unmodeled (`degraded_lowering`) + info, never lowered into a field the flow lacks
+
+- Cases: `oauth-flow-fields`
+- Codes: `openapi/degraded-construct`
 
 ## 12. Servers
 
@@ -874,6 +1182,12 @@ servers+variables (3.2 named) → Servers, with a name one servers list repeats 
 path item's or an operation's, compared as written on every version, since the parser reads `name`
 on each — kept as declared on both entries — the document's in Servers, the others in the lists
 [`path-item-servers`](#path-item-servers) keeps — + `duplicate-server-name` warning
+
+- Cases: `servers-variables`
+- Codes: `openapi/duplicate-server-name`
+- Tests: `openapi.TestDuplicateServerName_BothServersLower`,
+  `load.TestServerRepeats_ReportsEveryListTheSourceWrites`,
+  `load.TestServerRepeats_ReportsOnlyANameOneListRepeatsExactly`
 
 ## 13. Vendor extensions and policy
 
@@ -895,6 +1209,11 @@ ride inside the verbatim `links` entry rather than taking a key beside it; a pat
 no operation keeps its own under `openapi:pathItem/<item pointer>/x-*`, as
 [`path-item-servers`](#path-item-servers) says; an extension whose value cannot be serialized is
 reported (`degraded-construct`, warning) and reaches the IR in no form
+
+- Cases: `extensions-x`, `inline-annotations`
+- Codes: `openapi/degraded-construct`
+- Tests: `operation.TestOperation_UnserializableExtensionStillWarns`,
+  `operation.TestEncoding_PartNameWithSlashKeepsItsOwnKey`
 
 ### `extension-promotion`
 
@@ -918,6 +1237,12 @@ rather than the field's own polarity. A document that writes `x-extensible-enum`
 would be a compiler reading a member list out of an extension, not a promotion, so the entry is
 left for a consumer that wants to.
 
+- Cases: `extension-promotion`
+- Codes: `openapi/degraded-construct`
+- Tests: `lowering.TestPromoteDeprecation_ValueThatIsNotTextIsReported`,
+  `lowering.TestPromoteEnumOpenness_WritesNothing`,
+  `openapi.TestPromotion_RemovalDateAndVersionAreSeparateFacts`
+
 ### `mutually-exclusive-parameters`
 
 mutually-exclusive parameter groups (`x-mutually-exclusive-parameter-groups`) stay as namespaced
@@ -925,9 +1250,13 @@ Unmodeled entries, and their documented *promotion* (no dedicated node needed) i
 synthesizes one logical `Parameter` typed by a `Union` of variant models, bound via
 `HTTPParamBinding.ParamPath` per field
 
+- Status: partly built: the groups are kept as any extension is, and no pass promotes them yet.
+
 ### `pagination-policy`
 
 pagination only via injectable policy, marked Inferred
+
+- Status: not built: no policy infers pagination yet, so the compiler sets no Pagination.
 
 ## 14. Swagger 2.0
 
@@ -935,3 +1264,6 @@ pagination only via injectable policy, marked Inferred
 
 lifted to OpenAPI 3.x shape first (body/formData → Payload; host/basePath/schemes → Servers;
 consumes/produces → content types), then the OpenAPI lowering runs
+
+- Status: not built: a Swagger 2.0 document is recognized and refused with
+  engine/no-compiler-for-format until milestone 2.
