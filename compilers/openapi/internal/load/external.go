@@ -527,10 +527,11 @@ func (e external) admit(key string, root *yaml.Node) error {
 // be read, when a $ref or $id in it takes the resolver to the local file
 // system, and whether one does (GitHub #929). base keys the document.
 //
-// A $ref reaching a local file against base is one (localTarget). A relative
-// $ref stays on the host, unless a $id above it rebased the base off the
-// network (offNetworkID), which base alone would miss; refusing an off-network
-// $id keeps every base on the network. The walk reads a value through an alias.
+// A $ref naming a local file against base is one (localTarget). So is a $id
+// naming a local location, which would rebase a relative $ref under it onto
+// the disk; refusing it keeps every base off the disk without following the
+// resolver's $id scopes. A urn: $id names no file. The walk reads a value
+// through an alias.
 func reachesLocal(root *yaml.Node, base string) (reason string, refuse bool) {
 	if !overNetwork(base) {
 		return "", false
@@ -542,18 +543,15 @@ func reachesLocal(root *yaml.Node, base string) (reason string, refuse bool) {
 		stack = append(stack, n.Content...)
 		for i := 0; n.Kind == yaml.MappingNode && i+1 < len(n.Content); i += 2 {
 			key, value := nodeview.Deref(n.Content[i]), nodeview.Deref(n.Content[i+1])
-			if value.Kind != yaml.ScalarNode {
+			if value.Kind != yaml.ScalarNode || (key.Value != "$ref" && key.Value != "$id") {
 				continue
 			}
-			switch key.Value {
-			case "$ref":
-				if t, ok := localTarget(value.Value, base); ok {
-					return fmt.Sprintf("its $ref %q reaches the local file %s", value.Value, t), true
-				}
-			case "$id":
-				if t, ok := offNetworkID(value.Value, base); ok {
-					return fmt.Sprintf("its $id %q rebases references to %s, off the network", value.Value, t), true
-				}
+			t, local := localTarget(value.Value, base)
+			if local && key.Value == "$ref" {
+				return fmt.Sprintf("its $ref %q reaches the local file %s", value.Value, t), true
+			}
+			if local {
+				return fmt.Sprintf("its $id %q rebases references onto the local %s", value.Value, t), true
 			}
 		}
 	}
@@ -567,10 +565,10 @@ func overNetwork(key string) bool {
 	return err == nil && (strings.EqualFold(u.Scheme, "http") || strings.EqualFold(u.Scheme, "https"))
 }
 
-// localTarget returns the document the reference ref, read against base, names,
-// and whether that is a local file rather than a URL — a file: URI among them,
-// which the resolver reads from disk (readFileURI). A reference the resolver
-// cannot place reaches nothing, and is left for it to report.
+// localTarget returns the location the $ref or $id value ref, read against
+// base, names, and whether that is local rather than a URL — a file: URI among
+// them, which the resolver reads from disk (readFileURI). A value the resolver
+// cannot place names nothing, and is left for it to report.
 func localTarget(ref, base string) (string, bool) {
 	abs, err := references.ResolveAbsoluteReference(references.Reference(ref), base)
 	if err != nil {
@@ -578,18 +576,6 @@ func localTarget(ref, base string) (string, bool) {
 	}
 	target := abs.AbsoluteReference
 	return target, !refscope.IsURL(target) || isFileURI(target)
-}
-
-// offNetworkID returns the base the $id id, read against base, rebases to, and
-// whether that base has left the network. A relative id stays on the host; one
-// that resolves to a file: URI or a path has left it, and a $ref under it the
-// resolver would read locally.
-func offNetworkID(id, base string) (string, bool) {
-	abs, err := references.ResolveAbsoluteReference(references.Reference(id), base)
-	if err != nil {
-		return "", false
-	}
-	return abs.AbsoluteReference, !overNetwork(abs.AbsoluteReference)
 }
 
 // isFileURI reports whether s is a file: URI.

@@ -28,10 +28,11 @@ func TestOverNetwork(t *testing.T) {
 	}
 }
 
-// TestLocalTarget pins which references, read against a network base, reach a
-// local file: an absolute path, a protocol-relative //host path the resolver
-// reads as a file, and a file: URI; and which do not: a relative path and an
-// absolute reference, both of which stay on the host, and an internal pointer.
+// TestLocalTarget pins which $ref and $id values, read against a network base,
+// name a local location: an absolute path, a protocol-relative //host path the
+// resolver reads as a file, and a file: URI; and which do not: a relative path
+// and an absolute URL, which stay on the network, an internal pointer, and a
+// URI on another scheme, under which a relative $ref names no file either.
 func TestLocalTarget(t *testing.T) {
 	t.Parallel()
 	const base = "http://host/dir/a.yaml"
@@ -47,8 +48,11 @@ func TestLocalTarget(t *testing.T) {
 		{"../c.yaml", false},
 		{"https://other/d.yaml", false},
 		{"#/components/schemas/S", false},
+		{"/x/", true},
+		{"./v2/", false},
+		{"urn:example:pets", false},
+		{"tag:example.com,2026:pets", false},
 		{"://bad", false}, // the resolver cannot place it, and reports it itself
-
 	}
 	for _, tc := range tests {
 		t.Run(tc.ref, func(t *testing.T) {
@@ -73,10 +77,10 @@ func remoteDoc(ref string) string {
 func TestExternal_DoRefusesANetworkDocumentReachingALocalFile(t *testing.T) {
 	t.Parallel()
 	tests := map[string]struct{ body, reason string }{
-		"an absolute path $ref":   {remoteDoc("/etc/passwd"), `its $ref "/etc/passwd" reaches the local file`},
-		"a //host $ref":           {remoteDoc("//evil/etc/passwd"), `its $ref "//evil/etc/passwd" reaches the local file`},
-		"a file: $ref":            {remoteDoc("file:///etc/passwd"), `its $ref "file:///etc/passwd" reaches the local file`},
-		"a file: $id above a ref": {"components:\n  schemas:\n    S:\n      $id: 'file:///x/'\n      $ref: './secret.yaml#/x'\n", `its $id "file:///x/" rebases references to file:///x/, off the network`},
+		"an absolute path $ref":   {remoteDoc("/etc/passwd"), `its $ref "/etc/passwd" reaches the local file /etc/passwd`},
+		"a //host $ref":           {remoteDoc("//evil/etc/passwd"), `its $ref "//evil/etc/passwd" reaches the local file //evil/etc/passwd`},
+		"a file: $ref":            {remoteDoc("file:///etc/passwd"), `its $ref "file:///etc/passwd" reaches the local file file:///etc/passwd`},
+		"a file: $id above a ref": {"components:\n  schemas:\n    S:\n      $id: 'file:///x/'\n      $ref: './secret.yaml#/x'\n", `its $id "file:///x/" rebases references onto the local file:///x/`},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -100,30 +104,12 @@ func TestExternal_DoRefusesANetworkDocumentReachingALocalFile(t *testing.T) {
 	}
 }
 
-// TestOffNetworkID pins which $id values leave the network, read against a
-// network base: a file: URI and an absolute path do, a relative or absolute
-// http(s) $id does not.
-func TestOffNetworkID(t *testing.T) {
-	t.Parallel()
-	const base = "http://host/dir/a.yaml"
-	for id, off := range map[string]bool{
-		"file:///x/":      true,
-		"/x/":             true,
-		"//evil/x/":       true,
-		"./v2/":           false,
-		"https://other/":  false,
-		"http://host/v3/": false,
-		"://bad":          false, // the resolver cannot place it, and reports it itself
-	} {
-		_, got := offNetworkID(id, base)
-		assert.Equal(t, off, got, id)
-	}
-}
-
 // TestReachesLocal_PassesALocalDocumentAndANetworkOne pins what reachesLocal
 // leaves alone: a local document (its base is not a network one) is never
 // scanned, however its $refs spell a file, and a network document whose $refs
-// and $ids stay on the host reaches no local file.
+// and $ids name no local location reaches no local file, a urn: $id above a
+// relative $ref included, and another key's value spelling a path is not read
+// as a reference.
 func TestReachesLocal_PassesALocalDocumentAndANetworkOne(t *testing.T) {
 	t.Parallel()
 	local := mustParse(t, remoteDoc("/etc/passwd"))
@@ -133,7 +119,9 @@ func TestReachesLocal_PassesALocalDocumentAndANetworkOne(t *testing.T) {
 	onHost := "components:\n  schemas:\n" +
 		"    A: {$ref: './b.yaml#/x'}\n" +
 		"    B: {$ref: 'https://other/c.yaml#/x'}\n" +
-		"    C: {$id: './v2/', $ref: '#/components/schemas/A'}\n"
+		"    C: {$id: './v2/', $ref: '#/components/schemas/A'}\n" +
+		"    D: {$id: 'urn:example:d', $ref: './d.yaml#/x'}\n" +
+		"    E: {description: '/etc/passwd', default: 'file:///etc/passwd'}\n"
 	_, refuse = reachesLocal(mustParse(t, onHost), "http://host/dir/a.yaml")
 	assert.False(t, refuse, "a network document staying on the host reaches no local file")
 }
