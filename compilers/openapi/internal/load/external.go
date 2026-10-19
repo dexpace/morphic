@@ -415,9 +415,10 @@ func (e external) readFileURI(u *url.URL, key string) answer {
 // 8089), percent-decoded, with a Windows drive letter's leading slash removed
 // where windows says paths are read as Windows reads them. It refuses a URI
 // naming a user, a file on another host, no absolute path or a query, a path
-// opening with two slashes, which Windows reads as another host's share, and
-// a separator that would decode into another segmentation: an escaped slash,
-// or on Windows a backslash.
+// opening with two slashes, which Windows reads as another host's share, a
+// drive no slash follows, which Windows reads against that drive's working
+// directory, and a separator that would decode into another segmentation: an
+// escaped slash, or on Windows a backslash.
 func filePathOf(u *url.URL, windows bool) (string, error) {
 	switch {
 	case u.Path == "": // an opaque URI, file:a.yaml, has none
@@ -439,6 +440,9 @@ func filePathOf(u *url.URL, windows bool) (string, error) {
 	}
 	path := u.Path
 	if windows && len(path) >= 3 && path[0] == '/' && path[2] == ':' && isDriveLetter(path[1]) {
+		if !strings.HasPrefix(path[3:], "/") {
+			return "", errors.New("a file URI's drive is followed by no slash, so it names no absolute path")
+		}
 		path = path[1:]
 	}
 	if strings.HasPrefix(path, "//") {

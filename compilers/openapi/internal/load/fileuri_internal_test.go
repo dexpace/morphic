@@ -4,7 +4,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -36,6 +35,9 @@ func TestFilePathOf(t *testing.T) {
 		{name: "a drive elsewhere is a directory", uri: "file:///C:/a/b.yaml", want: "/C:/a/b.yaml"},
 		{name: "no drive on Windows", uri: "file:///a/b.yaml", windows: true, want: "/a/b.yaml"},
 		{name: "a digit is no drive", uri: "file:///1:/a", windows: true, want: "/1:/a"},
+		{name: "a drive-relative path on Windows", uri: "file:///C:a.yaml", windows: true, wantErr: "drive is followed by no slash"},
+		{name: "a bare drive on Windows", uri: "file:///C:", windows: true, wantErr: "drive is followed by no slash"},
+		{name: "a drive-relative path elsewhere is a name", uri: "file:///C:a.yaml", want: "/C:a.yaml"},
 		{name: "an escaped backslash elsewhere", uri: "file:///a%5Cb.yaml", want: `/a\b.yaml`},
 		{name: "a relative path", uri: "file:a.yaml", wantErr: "names no absolute path"},
 		{name: "no path", uri: "file://", wantErr: "names no absolute path"},
@@ -161,6 +163,6 @@ func TestLoad_AFileURIAndAPathAreTwoDocuments(t *testing.T) {
 	budget, unresolved := budgetFindings(past)
 	assert.Len(t, budget, 1)
 	require.Len(t, unresolved, 1, "%+v", past)
-	assert.True(t, strings.Contains(unresolved[0], "past the 1-document budget"), unresolved[0])
+	assert.Contains(t, unresolved[0], "past the 1-document budget")
 	assert.Equal(t, diag.BudgetExceeded, budget[0].Code)
 }
