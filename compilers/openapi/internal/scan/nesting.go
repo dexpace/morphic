@@ -41,7 +41,7 @@ func nestingWithin(locate Locator, idx sourceindex.Index, limit int64) (ir.Diagn
 	}
 	root := idx.Root()
 	return diag.Newf(ir.SeverityError, diag.SourceTooDeep, locate(Least(root, deepSites(root, limit))),
-		"document nests %d levels deep, past the %d-level bound", idx.Nesting(), limit), true
+		"document nests %d levels deep with its aliases expanded, past the %d-level bound", idx.Nesting(), limit), true
 }
 
 // placed is one node of the walk deepSites takes, and the levels from the top

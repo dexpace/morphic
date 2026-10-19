@@ -34,18 +34,17 @@ func Least(root *yaml.Node, nodes []*yaml.Node) *yaml.Node {
 			want[n] = i
 		}
 	}
-	if len(want) == 0 {
-		return nodes[0]
-	}
 
 	under := pathsTo(steps, nodes, want)
 	// The nodes sharing the least pointer so far, a level further down each
-	// turn; a repeated key gives one level more than one.
-	for level := []*yaml.Node{top}; ; level = leastSteps(steps, level, under, want) {
+	// turn; a repeated key gives one level more than one. Every path under
+	// leads to a wanted node, so only a set holding none runs out of levels.
+	for level := []*yaml.Node{top}; len(level) > 0; level = leastSteps(steps, level, under, want) {
 		if at, found := firstWanted(level, want); found {
 			return at
 		}
 	}
+	return nodes[0]
 }
 
 // firstWanted returns, of level's nodes, which share one pointer that is then

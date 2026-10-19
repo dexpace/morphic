@@ -17,13 +17,14 @@ import (
 // counts 0. What it measures it keeps, for the one tree it belongs to.
 type Measure struct {
 	memo map[*yaml.Node]int64
-	// inFlight holds the nodes Of has expanded and not yet measured. It is empty
-	// between calls, so every call shares it.
+	// inFlight holds the nodes Of has expanded and not yet measured. A call that
+	// finishes leaves it empty, so every call shares it.
 	inFlight map[*yaml.Node]bool
-	// limit bounds the steps every Of together takes. A step pushes or pops one
-	// frame and a frame is pushed once per edge, and a tree of n nodes holds
-	// fewer than n children and n alias targets, so a tree within the caller's
-	// node bound never reaches 4n.
+	// limit bounds the steps every Of together takes. A step expands a node,
+	// once per node, or drops a frame, and a frame is pushed once per call and
+	// once per child or alias target an expansion reaches. A tree of n nodes
+	// has fewer than n of each, so a tree within the caller's node bound,
+	// measured with at most one call per node, takes fewer than 4n steps.
 	limit, steps int64
 	truncated    bool
 }

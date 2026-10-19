@@ -107,6 +107,6 @@ func TestCompile_RefusesADocumentNestedPastTheBound(t *testing.T) {
 	require.Len(t, diags, 1)
 	assert.Equal(t, "openapi/source-too-deep", diags[0].Code)
 	assert.Equal(t, ir.SeverityError, diags[0].Severity)
-	assert.Equal(t, fmt.Sprintf("document nests %d levels deep, past the %d-level bound", n+4, scan.MaxNesting),
+	assert.Equal(t, fmt.Sprintf("document nests %d levels deep with its aliases expanded, past the %d-level bound", n+4, scan.MaxNesting),
 		diags[0].Message, "the root, components, schemas and A, and the levels below")
 }

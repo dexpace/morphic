@@ -121,7 +121,7 @@ func TestExternal_AdmitRefusesANestingPastTheBound(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "refused")
 	assert.Contains(t, err.Error(),
-		fmt.Sprintf("document nests %d levels deep, past the %d-level bound", scan.MaxNesting+2, scan.MaxNesting))
+		fmt.Sprintf("document nests %d levels deep with its aliases expanded, past the %d-level bound", scan.MaxNesting+2, scan.MaxNesting))
 }
 
 // placedRefusals runs the pre-parse refusals over src, each finding placed by

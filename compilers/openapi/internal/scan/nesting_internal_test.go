@@ -44,7 +44,7 @@ func TestNesting_RefusesPastTheBoundAndNotAtIt(t *testing.T) {
 	require.True(t, refused)
 	assert.Equal(t, diag.SourceTooDeep, d.Code)
 	assert.Equal(t, ir.SeverityError, d.Severity)
-	assert.Equal(t, fmt.Sprintf("document nests %d levels deep, past the %d-level bound", MaxNesting+1, MaxNesting), d.Message)
+	assert.Equal(t, fmt.Sprintf("document nests %d levels deep with its aliases expanded, past the %d-level bound", MaxNesting+1, MaxNesting), d.Message)
 }
 
 // TestNesting_SiteIsTheLeastPointerPastTheBound pins where the refusal falls
