@@ -13,7 +13,8 @@ renamed takes every citation of it along.
 A rule closes with the evidence that pins it, one bullet per field:
 
 - **Cases** — the conformance cases (`testdata/conformance/openapi`) that exercise it.
-- **Codes** — the diagnostic codes it reports, as `compilers/openapi/internal/diag` declares them.
+- **Codes** — every diagnostic code it reports, as `compilers/openapi/internal/diag` declares them.
+  The text names a code where it says when the code fires or at which severity.
 - **Tests** — Go tests that pin what no case reaches, as `package.TestName`: `openapi` for the
   compiler's own package, an internal package's name otherwise.
 - **Status** — where the compiler does not yet do all the rule says, naming the issue that tracks

@@ -2067,12 +2067,13 @@ this from `Unmodeled` and no two derive it differently:
    provenance of its own, so no key maps into either until one of them gains one.
 
 What the OpenAPI compiler's default mapping reads, and what it does with a value the field cannot
-hold, is its rule [`extension-promotion`](./compilers/openapi.md#extension-promotion). Four more of
-its rules decide what reaches the IR from a document of a given minor:
+hold, is its rule [`extension-promotion`](./compilers/openapi.md#extension-promotion). Three more
+of its rules decide what reaches the IR from a document of a given minor —
 [`unmodeled-dialect-fields`](./compilers/openapi.md#unmodeled-dialect-fields),
-[`later-version-construct`](./compilers/openapi.md#later-version-construct),
-[`minor-required-fields`](./compilers/openapi.md#minor-required-fields) and
-[`unreferenced-components`](./compilers/openapi.md#unreferenced-components).
+[`later-version-construct`](./compilers/openapi.md#later-version-construct) and
+[`minor-required-fields`](./compilers/openapi.md#minor-required-fields) — and
+[`unreferenced-components`](./compilers/openapi.md#unreferenced-components) keeps the component
+entries no reference reaches.
 
 ### 12.1 One structural home per declaration
 
