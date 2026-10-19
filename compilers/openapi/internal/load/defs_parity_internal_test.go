@@ -70,13 +70,18 @@ func (g *parityGrammar) keyed(depth int, inDefs bool, keys ...string) string {
 	return "{" + strings.Join(entries, ", ") + "}"
 }
 
-// document returns an OpenAPI document of up to three such component schemas.
+// document returns an OpenAPI document of up to three such component schemas,
+// and at random a "$defs" at its root, which the OpenAPI object leaves as raw
+// YAML (docs/parser-library.md#root-defs).
 func (g *parityGrammar) document() string {
 	names := []string{"A", "B", "C"}[:1+g.rng.Intn(3)]
 	var sb strings.Builder
 	sb.WriteString("openapi: 3.1.0\ninfo: {title: t, version: \"1\"}\npaths: {}\ncomponents:\n  schemas:\n")
 	for _, name := range names {
 		sb.WriteString("    " + name + ": " + g.schema(parityDepth, false) + "\n")
+	}
+	if g.rng.Intn(2) == 0 {
+		sb.WriteString("$defs: " + g.keyed(parityDepth, true, "m", "n") + "\n")
 	}
 	return sb.String()
 }
@@ -113,26 +118,39 @@ func resolverTarget(t *testing.T, spec string, idx int) (jsontext.Pointer, bool)
 // the definition the resolver reads, and none exactly where it reads none. What the
 // resolver does with a later reference to the same pointer is order-dependent,
 // which is why load holds these references out; this is the one reading that is
-// not. A change to the library that moves the resolver's reading fails here
-// rather than leaving the rule silently describing a resolver that is gone.
+// not. A shadowed reference (defs.Reader.Shadowed) is the exception: refused,
+// though met first the resolver reads the root's. A change to the library that
+// moves the resolver's reading fails here rather than leaving the rule silently
+// describing a resolver that is gone.
 func TestHeldRefs_AgreeWithTheResolverOnTheFirstReferenceItMeets(t *testing.T) {
 	t.Parallel()
 	g := &parityGrammar{rng: rand.New(rand.NewSource(1))}
-	var resolved, unresolved int
+	var resolved, unresolved, rooted, shadowed int
 	for range parityDocs {
 		spec := g.document()
 		doc, _ := buildDoc(t, spec)
 		for i, r := range heldRefs(t.Context(), doc, Siblings{}, defs.NewReader(doc)) {
 			want, found := resolverTarget(t, spec, i)
-			assert.Equal(t, found, r.target != nil, "%s: whether %s finds a definition\n%s", r.site, *r.modelled, spec)
+			if r.refused != "" {
+				shadowed++
+				assert.True(t, found && strings.HasPrefix(string(want), "/$defs/"),
+					"%s: %s is refused only where the resolver reads the root's first\n%s", r.site, *r.modelled, spec)
+				continue
+			}
+			assert.Equal(t, found, r.found, "%s: whether %s finds a definition\n%s", r.site, *r.modelled, spec)
 			if !found {
 				unresolved++
 				continue
 			}
 			resolved++
-			assert.Equal(t, want, r.at, "%s: where %s finds it\n%s", r.site, *r.modelled, spec)
+			if strings.HasPrefix(string(want), "/$defs/") {
+				rooted++
+			}
+			assert.Equal(t, want, r.def.At, "%s: where %s finds it\n%s", r.site, *r.modelled, spec)
 		}
 	}
 	assert.Greater(t, resolved, 100, "references the sample resolves")
 	assert.Greater(t, unresolved, 100, "references the sample leaves unresolved")
+	assert.Greater(t, rooted, 100, "references the root's $defs answers")
+	assert.Greater(t, shadowed, 10, "references the rule refuses as shadowed")
 }

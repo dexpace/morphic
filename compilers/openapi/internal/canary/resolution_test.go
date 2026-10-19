@@ -348,17 +348,45 @@ func referenceObjectCycle(t *testing.T) {
 
 // rootDefs pins root-defs: a $ref to a "$defs" written at the document's
 // root, which the OpenAPI object does not define, resolves to the schema
-// there.
+// there, before an ancestor of the reference holding an X of its own.
 func rootDefs(t *testing.T) {
-	doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(
-		head+"$defs:\n  X: {type: string}\ncomponents:\n  schemas:\n    A: {$ref: '#/$defs/X'}\n"))
+	doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(head+"$defs:\n  X: {type: string}\ncomponents:\n  schemas:\n"+
+		"    A: {$ref: '#/$defs/X'}\n    B: {$defs: {X: {type: integer}}, properties: {p: {$ref: '#/$defs/X'}}}\n"))
 	require.NoError(t, err)
 	_, err = doc.ResolveAllReferences(t.Context(), soa.ResolveAllOptions{OpenAPILocation: location, DisableExternalRefs: true})
 	require.NoError(t, err, revisit(t, result{}))
 
-	a, ok := doc.Components.Schemas.Get("A")
+	b, ok := doc.Components.Schemas.Get("B")
 	require.True(t, ok)
-	target := a.GetResolvedSchema()
-	require.NotNil(t, target, revisit(t, result{}))
-	assert.Equal(t, []oas3.SchemaType{oas3.SchemaTypeString}, target.GetSchema().GetType(), revisit(t, result{}))
+	p, ok := b.GetSchema().GetProperties().Get("p")
+	require.True(t, ok)
+	for name, js := range map[string]*oas3.JSONSchema[oas3.Referenceable]{"A": doc.Components.Schemas.GetOrZero("A"), "B/p": p} {
+		target := js.GetResolvedSchema()
+		require.NotNil(t, target, "%s\n%s", name, revisit(t, result{}))
+		assert.Equal(t, []oas3.SchemaType{oas3.SchemaTypeString}, target.GetSchema().GetType(), "%s\n%s", name, revisit(t, result{}))
+	}
+	shadowedRootDefs(t)
+}
+
+// shadowedRootDefs pins the reading root-defs records for B, a schema with no
+// $id that spells "#/$defs/X" and defines an X of its own: the root's when B is
+// resolved first, its own once a chain has reached B, here from C.
+func shadowedRootDefs(t *testing.T) {
+	t.Helper()
+	const body = "$defs:\n  X: {type: string}\ncomponents:\n  schemas:\n" +
+		"    B: {$ref: '#/$defs/X', $defs: {X: {type: integer}}}\n    C: {$ref: '#/components/schemas/B'}\n"
+	opts := references.ResolveOptions{TargetLocation: location, DisableExternalRefs: true}
+	for name, want := range map[string]oas3.SchemaType{"first": oas3.SchemaTypeString, "after a chain": oas3.SchemaTypeInteger} {
+		doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(head+body))
+		require.NoError(t, err)
+		opts.RootDocument = doc
+		b, first := doc.Components.Schemas.GetOrZero("B"), doc.Components.Schemas.GetOrZero("C")
+		if name == "first" {
+			first = b
+		}
+		_, err = first.Resolve(t.Context(), opts)
+		require.NoError(t, err, "%s\n%s", name, revisit(t, result{}))
+		require.NotNil(t, b.GetResolvedSchema(), "%s\n%s", name, revisit(t, result{}))
+		assert.Equal(t, []oas3.SchemaType{want}, b.GetResolvedSchema().GetSchema().GetType(), "%s\n%s", name, revisit(t, result{}))
+	}
 }

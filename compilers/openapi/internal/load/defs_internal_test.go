@@ -52,7 +52,7 @@ func TestHeldRefs_CollectsEveryHeldReferenceWithTheRulesAnswer(t *testing.T) {
 	refs := heldRefs(t.Context(), doc, Siblings{}, defs.NewReader(doc))
 	require.Len(t, refs, 2, "one held reference per schema")
 	for _, r := range refs {
-		assert.NotNil(t, r.target, "the rule finds each schema's own definition")
+		assert.True(t, r.found, "the rule finds each schema's own definition")
 		assert.Equal(t, "#/$defs/n", r.modelled.String())
 	}
 }
@@ -95,7 +95,7 @@ func TestHeldRefs_ShareOneReader(t *testing.T) {
 
 	require.Len(t, refs, depth)
 	for _, r := range refs {
-		require.NotNil(t, r.target, r.site)
+		require.True(t, r.found, r.site)
 	}
 	assert.GreaterOrEqual(t, rule.Reads(), depth, "every level was read, through the reader it was given")
 	assert.LessOrEqual(t, rule.Reads(), 9*depth, "a constant number of navigations per level")
@@ -199,11 +199,11 @@ func TestResolveHeld_ResolvesToTheRulesTarget(t *testing.T) {
 	assert.Empty(t, pass.failures)
 
 	for _, r := range refs {
-		require.NotNil(t, r.target)
+		require.True(t, r.found)
 		info := r.js.GetReferenceResolutionInfo()
 		require.NotNil(t, info, "resolved during resolveHeld")
-		assert.Same(t, r.target, info.Object, "resolves to the rule's own target, not any other node")
-		assert.Equal(t, r.at, jsontext.Pointer(info.AbsoluteReference.GetJSONPointer()),
+		assert.Same(t, r.def.Node, info.Object.GetCore().GetRootNode(), "resolves to the rule's own target, not any other node")
+		assert.Equal(t, r.def.At, jsontext.Pointer(info.AbsoluteReference.GetJSONPointer()),
 			"the raw fragment of the absolute reference is exactly the rule's own position")
 		require.NotNil(t, r.js.GetSchema().Ref, "restored as written")
 		assert.Equal(t, "#/$defs/n", r.js.GetSchema().Ref.String())
@@ -231,7 +231,7 @@ components:
 	doc, _ := buildDoc(t, spec)
 	refs := heldRefs(t.Context(), doc, Siblings{}, defs.NewReader(doc))
 	require.Len(t, refs, 1)
-	require.Nil(t, refs[0].target, "no $defs exists anywhere for the rule to find")
+	require.False(t, refs[0].found, "no $defs exists anywhere for the rule to find")
 
 	pass := heldPass(t, doc)
 	_, err := pass.resolveHeld(refs)
@@ -286,7 +286,7 @@ func TestResolveHeld_ConcretePointerMismatchIsReportedAsWritten(t *testing.T) {
 	doc, _ := buildDoc(t, twoDefsSpec)
 	refs := heldRefs(t.Context(), doc, Siblings{}, defs.NewReader(doc))
 	require.Len(t, refs, 2)
-	refs[0].at = "/does/not/exist"
+	refs[0].def.At = "/does/not/exist"
 
 	pass := heldPass(t, doc)
 	_, err := pass.resolveHeld(refs)
@@ -310,7 +310,7 @@ func TestResolveHeld_RecoversFromAPanicAndReportsWhere(t *testing.T) {
 	doc, _ := buildDoc(t, twoDefsSpec)
 	pass := heldPass(t, doc)
 
-	site, err := pass.resolveHeld([]heldRef{{js: nil, target: &oas3.JSONSchema[oas3.Referenceable]{}, at: "/$defs/n"}})
+	site, err := pass.resolveHeld([]heldRef{{js: nil, found: true, def: defs.Definition{At: "/$defs/n"}}})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "reference resolver panicked")
 	assert.Empty(t, site, "stopped before reaching any reference")

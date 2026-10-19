@@ -372,10 +372,10 @@ func (s Scope) reader() *defs.Reader {
 
 // TargetPointer returns the pointer of the position the $ref at js resolves to
 // in this document: InternalPointer's answer, except that a "#/$defs/..."
-// pointer names the definition the resolver's rule finds relative to js
-// (defs.Reader.Target), never the document-rooted /$defs/... it spells, which
-// the OpenAPI object does not define (docs/parser-library.md#root-defs, GitHub
-// #557).
+// pointer names the definition the resolver's rule finds for js
+// (defs.Reader.Target): the document-rooted /$defs/... it spells only where the
+// document's root holds it (docs/parser-library.md#root-defs), else one
+// relative to js (GitHub #557).
 // ok is false for a reference into another document, for a $defs pointer the
 // rule finds nothing for, and for any other pointer Beside refuses. A $defs
 // pointer written beside a path item's $ref is held unresolved by load, so no
@@ -388,8 +388,8 @@ func (s Scope) TargetPointer(js *oas3.JSONSchema[oas3.Referenceable], ref string
 	if _, held := defs.PointerOf(references.Reference(ref)); !held {
 		return "", false // left to the resolver, as load leaves it: see load.heldRefs
 	}
-	_, at, found := s.reader().Target(js, pointer)
-	return at, found
+	def, found := s.reader().Target(js, pointer)
+	return def.At, found
 }
 
 // MappingPointer is TargetPointer for a discriminator mapping value: the
@@ -406,8 +406,8 @@ func (s Scope) MappingPointer(d *oas3.Discriminator, value string) (jsontext.Poi
 	if _, held := defs.PointerOf(references.Reference(value)); !held {
 		return "", false
 	}
-	_, at, found := s.reader().MappingTarget(d, pointer)
-	return at, found && !s.beside(at)
+	def, found := s.reader().MappingTarget(d, pointer)
+	return def.At, found && !s.beside(def.At)
 }
 
 // DeclaredAt returns the schema declared at a same-document pointer, found the

@@ -122,7 +122,7 @@ func (r *reach) incomplete() bool {
 // references a search starts from.
 func newReach(ctx context.Context, limit int, root *yaml.Node, doc *soa.OpenAPI, sibs Siblings) (*reach, []*yaml.Node) {
 	r := emptyReach(root, &budget{limit: limit})
-	r.rule = defs.NewReader(doc)
+	r.rule = defs.NewIndexedReader(doc, newTreeReads().target)
 	declared, defsRefs := r.tree.index()
 	starts := r.collect(walkSource(ctx, doc, sibs))
 	r.group(declared)
@@ -189,9 +189,9 @@ func (r *reach) hold(js *schemaRef, n *yaml.Node) {
 		set = &posSet{}
 		r.held[n] = set
 	}
-	if t, _, found := r.rule.Target(js, pointer); found && t.GetSchema() != nil {
+	if def, found := r.rule.Target(js, pointer); found && def.Node != nil {
 		r.budget.spend(1)
-		set.members = append(set.members, nodeview.Deref(t.GetSchema().GetRootNode()))
+		set.members = append(set.members, nodeview.Deref(def.Node))
 	}
 }
 

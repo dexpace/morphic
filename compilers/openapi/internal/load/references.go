@@ -44,7 +44,7 @@ func resolveWith(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, d
 
 // run is resolveWith's work over doc, the document p was made for.
 func (p *resolution) run(doc *soa.OpenAPI) (MappingTargets, []ir.Diagnostic) {
-	held := heldRefs(p.ctx, doc, p.sibs, defs.NewReader(doc))
+	held := heldRefs(p.ctx, doc, p.sibs, defs.NewIndexedReader(doc, newTreeReads().target))
 	withDefsHeld(held, func() {
 		p.fail(eachSighting(walkSource(p.ctx, doc, p.sibs), resolverPanics,
 			func(site jsontext.Pointer, loc soa.Locations, model any) error {

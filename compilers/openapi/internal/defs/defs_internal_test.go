@@ -39,6 +39,24 @@ func prop(t *testing.T, js *oas3.JSONSchema[oas3.Referenceable], name string) *o
 	return p
 }
 
+// read is Target's answer, as the node the definition is written as, its
+// position, and whether there is one.
+func read(r *Reader, js *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer) (*yaml.Node, jsontext.Pointer, bool) {
+	def, ok := r.Target(js, pointer)
+	return def.Node, def.At, ok
+}
+
+// readMapping is read for MappingTarget.
+func readMapping(r *Reader, d *oas3.Discriminator, pointer jsontext.Pointer) (*yaml.Node, jsontext.Pointer, bool) {
+	def, ok := r.MappingTarget(d, pointer)
+	return def.Node, def.At, ok
+}
+
+// nodeOf is the node js is written as.
+func nodeOf(js *oas3.JSONSchema[oas3.Referenceable]) *yaml.Node {
+	return js.GetCore().GetRootNode()
+}
+
 // defEntry returns js's own $defs entry named key.
 func defEntry(t *testing.T, js *oas3.JSONSchema[oas3.Referenceable], key string) *oas3.JSONSchema[oas3.Referenceable] {
 	t.Helper()
@@ -106,19 +124,19 @@ properties:
 	root := schemaFromYAML(t, src)
 	p := prop(t, root, "p")
 
-	got, at, ok := NewReader(root).Target(p, "/$defs/n")
+	got, at, ok := read(NewReader(root), p, "/$defs/n")
 	require.True(t, ok)
-	assert.Same(t, defEntry(t, p, "n"), got)
+	assert.Same(t, nodeOf(defEntry(t, p, "n")), got)
 	assert.Equal(t, jsontext.Pointer("/properties/p/$defs/n"), at,
 		"the position is where p's own $defs is written, not the root-relative pointer it spelled")
 
-	got, _, ok = NewReader(root).Target(p, "/$defs/a~1b")
+	got, _, ok = read(NewReader(root), p, "/$defs/a~1b")
 	require.True(t, ok, "~1 decodes to a literal slash in the key")
-	assert.Same(t, defEntry(t, p, "a/b"), got)
+	assert.Same(t, nodeOf(defEntry(t, p, "a/b")), got)
 
-	got, _, ok = NewReader(root).Target(p, "/$defs/x~0y")
+	got, _, ok = read(NewReader(root), p, "/$defs/x~0y")
 	require.True(t, ok, "~0 decodes to a literal tilde in the key")
-	assert.Same(t, defEntry(t, p, "x~y"), got)
+	assert.Same(t, nodeOf(defEntry(t, p, "x~y")), got)
 }
 
 // TestTarget_DocumentItselfStep pins the step standard resolution takes
@@ -136,9 +154,9 @@ properties:
 	root := schemaFromYAML(t, src)
 	p := prop(t, root, "p")
 
-	got, at, ok := NewReader(root).Target(p, "/$defs/k")
+	got, at, ok := read(NewReader(root), p, "/$defs/k")
 	require.True(t, ok)
-	assert.Same(t, defEntry(t, root, "k"), got)
+	assert.Same(t, nodeOf(defEntry(t, root, "k")), got)
 	assert.Equal(t, jsontext.Pointer("/$defs/k"), at, "found at the document's own position, no ancestor prefix")
 }
 
@@ -163,9 +181,9 @@ properties:
 	outer := prop(t, root, "outer")
 	inner := prop(t, outer, "inner")
 
-	got, at, ok := NewReader(root).Target(inner, "/$defs/k")
+	got, at, ok := read(NewReader(root), inner, "/$defs/k")
 	require.True(t, ok)
-	assert.Same(t, defEntry(t, outer, "k"), got)
+	assert.Same(t, nodeOf(defEntry(t, outer, "k")), got)
 	assert.Equal(t, jsontext.Pointer("/properties/outer/$defs/k"), at)
 }
 
@@ -185,12 +203,13 @@ properties:
 	outer := prop(t, root, "outer")
 	not := outer.GetSchema().Not
 
-	got, at, ok := NewReader(root).Target(not, "/$defs/k")
+	got, at, ok := read(NewReader(root), not, "/$defs/k")
 	require.True(t, ok)
-	assert.Same(t, defEntry(t, outer, "k"), got)
+	assert.Same(t, nodeOf(defEntry(t, outer, "k")), got)
 	assert.Equal(t, jsontext.Pointer("/properties/outer/$defs/k"), at)
 
-	_, at, ok = NewReader(root).targetFrom("/properties/outer/not", "/$defs/k")
+	def, ok := NewReader(root).targetFrom("/properties/outer/not", "/$defs/k")
+	at = def.At
 	require.True(t, ok)
 	assert.Equal(t, jsontext.Pointer("/properties/outer/$defs/k"), at, "read from the position alone")
 }
@@ -216,10 +235,9 @@ properties:
 	outer := prop(t, root, "outer")
 	p := prop(t, outer, "p")
 
-	got, at, ok := NewReader(root).Target(p, "/$defs/k/properties/x")
+	got, at, ok := read(NewReader(root), p, "/$defs/k/properties/x")
 	require.True(t, ok)
-	require.NotNil(t, got.GetSchema())
-	assert.Equal(t, "uuid", got.GetSchema().GetFormat())
+	assert.Same(t, nodeOf(prop(t, defEntry(t, outer, "k"), "x")), got)
 	assert.Equal(t, jsontext.Pointer("/properties/outer/$defs/k/properties/x"), at)
 }
 
@@ -230,8 +248,23 @@ func TestTarget_NoMatch(t *testing.T) {
 	root := schemaFromYAML(t, "properties:\n  p: {type: string}\n")
 	p := prop(t, root, "p")
 
-	_, _, ok := NewReader(root).Target(p, "/$defs/missing")
+	_, _, ok := read(NewReader(root), p, "/$defs/missing")
 	assert.False(t, ok)
+}
+
+// TestTarget_ANonSchemaAtTheRootNamesNothing pins that a pointer the root's
+// model answers with something other than a schema, here a schema's properties
+// map, names no definition, though the walk there succeeds.
+func TestTarget_ANonSchemaAtTheRootNamesNothing(t *testing.T) {
+	t.Parallel()
+	root := schemaFromYAML(t, "$defs:\n  k: {properties: {a: {type: string}}}\nproperties:\n  p: {type: string}\n")
+	p := prop(t, root, "p")
+
+	_, _, ok := read(NewReader(root), p, "/$defs/k/properties")
+	assert.False(t, ok, "a properties map is no schema")
+	_, at, ok := read(NewReader(root), p, "/$defs/k/properties/a")
+	require.True(t, ok, "the schema below it is one")
+	assert.Equal(t, jsontext.Pointer("/$defs/k/properties/a"), at)
 }
 
 // TestTarget_GuardClauses drives Target's own early returns directly, each
@@ -243,18 +276,18 @@ func TestTarget_GuardClauses(t *testing.T) {
 	root := schemaFromYAML(t, "properties:\n  p: {type: string}\n")
 	p := prop(t, root, "p")
 
-	_, _, ok := NewReader(nil).Target(p, "/$defs/n")
+	_, _, ok := read(NewReader(nil), p, "/$defs/n")
 	assert.False(t, ok, "no document to navigate")
 
-	_, _, ok = NewReader(root).Target(nil, "/$defs/n")
+	_, _, ok = read(NewReader(root), nil, "/$defs/n")
 	assert.False(t, ok, "no reference site")
 
-	_, _, ok = NewReader(root).Target(p, "/properties/p")
+	_, _, ok = read(NewReader(root), p, "/properties/p")
 	assert.False(t, ok, "not a $defs pointer")
 
 	other := schemaFromYAML(t, "properties:\n  q: {type: string}\n")
 	otherQ := prop(t, other, "q")
-	_, _, ok = NewReader(root).Target(otherQ, "/$defs/n")
+	_, _, ok = read(NewReader(root), otherQ, "/$defs/n")
 	assert.False(t, ok, "a schema this document's tree does not contain has no position to read the pointer from")
 }
 
@@ -273,9 +306,9 @@ properties:
 	root := schemaFromYAML(t, src)
 	pet := prop(t, root, "pet")
 
-	got, at, ok := NewReader(root).MappingTarget(pet.GetSchema().Discriminator, "/$defs/cat")
+	got, at, ok := readMapping(NewReader(root), pet.GetSchema().Discriminator, "/$defs/cat")
 	require.True(t, ok)
-	assert.Same(t, defEntry(t, pet, "cat"), got)
+	assert.Same(t, nodeOf(defEntry(t, pet, "cat")), got)
 	assert.Equal(t, jsontext.Pointer("/properties/pet/$defs/cat"), at)
 }
 
@@ -288,17 +321,17 @@ func TestMappingTarget_GuardClauses(t *testing.T) {
 	root := schemaFromYAML(t, src)
 	d := prop(t, root, "pet").GetSchema().Discriminator
 
-	_, _, ok := NewReader(root).MappingTarget(nil, "/$defs/cat")
+	_, _, ok := readMapping(NewReader(root), nil, "/$defs/cat")
 	assert.False(t, ok, "no discriminator")
 
-	_, _, ok = NewReader(nil).MappingTarget(d, "/$defs/cat")
+	_, _, ok = readMapping(NewReader(nil), d, "/$defs/cat")
 	assert.False(t, ok, "no document to navigate")
 
-	_, _, ok = NewReader(root).MappingTarget(d, "/properties/pet")
+	_, _, ok = readMapping(NewReader(root), d, "/properties/pet")
 	assert.False(t, ok, "not a $defs pointer")
 
 	other := schemaFromYAML(t, src)
-	_, _, ok = NewReader(root).MappingTarget(prop(t, other, "pet").GetSchema().Discriminator, "/$defs/cat")
+	_, _, ok = readMapping(NewReader(root), prop(t, other, "pet").GetSchema().Discriminator, "/$defs/cat")
 	assert.False(t, ok, "a discriminator this document's tree does not contain has no position to read from")
 }
 
@@ -402,13 +435,12 @@ func TestReader_AnswersDoNotDependOnWhatItReadBefore(t *testing.T) {
 	root := schemaFromYAML(t, readerDoc)
 	queries := readerQueries()
 	type result struct {
-		def *oas3.JSONSchema[oas3.Referenceable]
-		at  jsontext.Pointer
+		def Definition
 		ok  bool
 	}
 	ask := func(r *Reader, q [2]jsontext.Pointer) result {
-		def, at, ok := r.targetFrom(q[0], q[1])
-		return result{def, at, ok}
+		def, ok := r.targetFrom(q[0], q[1])
+		return result{def, ok}
 	}
 
 	fresh := make([]result, 0, len(queries))
@@ -443,9 +475,9 @@ func TestReader_NilReaderFindsNothing(t *testing.T) {
 	for name, r := range map[string]*Reader{"nil": nil, "no document": NewReader(nil)} {
 		assert.Nil(t, r.Doc(), name)
 		assert.Zero(t, r.Reads(), name)
-		_, _, ok := r.Target(p, "/$defs/top")
+		_, _, ok := read(r, p, "/$defs/top")
 		assert.False(t, ok, name)
-		_, _, ok = r.MappingTarget(root.GetSchema().Discriminator, "/$defs/top")
+		_, _, ok = readMapping(r, root.GetSchema().Discriminator, "/$defs/top")
 		assert.False(t, ok, name)
 	}
 }
@@ -541,9 +573,9 @@ func TestReader_WorkAndMemoryGrowLinearlyWithDepth(t *testing.T) {
 				body, levels := deepChain(depth, definitions)
 				r := NewReader(schemaFromYAML(t, body))
 				for i, at := range levels {
-					_, found, ok := r.targetFrom(at, jsontext.Pointer("/$defs/m"+strconv.Itoa(i%definitions)))
+					def, ok := r.targetFrom(at, jsontext.Pointer("/$defs/m"+strconv.Itoa(i%definitions)))
 					require.True(t, ok, at)
-					require.Equal(t, jsontext.Pointer("/properties/top/$defs/m"+strconv.Itoa(i%definitions)), found)
+					require.Equal(t, jsontext.Pointer("/properties/top/$defs/m"+strconv.Itoa(i%definitions)), def.At)
 				}
 				return r.reads, len(r.places)
 			}
@@ -586,10 +618,10 @@ components:
 	q, ok := target.(*oas3.JSONSchema[oas3.Referenceable])
 	require.True(t, ok)
 
-	got, at, ok := NewReader(doc).Target(q, "/$defs/n")
+	got, at, ok := read(NewReader(doc), q, "/$defs/n")
 	require.True(t, ok)
 	assert.Equal(t, jsontext.Pointer(site+"/$defs/n"), at, "q's own definition, not A's")
-	assert.Same(t, defEntry(t, q, "n"), got)
+	assert.Same(t, nodeOf(defEntry(t, q, "n")), got)
 }
 
 func TestOwnResource(t *testing.T) {
@@ -641,7 +673,6 @@ paths:
         default: {description: d, content: {application/json: {schema: &s {$defs: {foo: {type: string}}, type: object, properties: {x: {$ref: '#/$defs/foo'}}, discriminator: {propertyName: k, mapping: {foo: '#/$defs/foo'}}}}}}
         "200": {description: ok, content: {application/json: {schema: {$defs: {foo: {type: string}}, type: object, properties: {x: {$ref: '#/$defs/foo'}}, discriminator: {propertyName: k, mapping: {foo: '#/$defs/foo'}}}}}}
 x-lib: {A: {$defs: {foo: {type: string}}}}
-$defs: {foo: {type: string}}
 `
 
 // responseSchema returns the schema of the code response of responsesDoc's
@@ -675,43 +706,229 @@ func TestTarget_ReadsPastResponsesTheOperationHoldsByValue(t *testing.T) {
 		s := responseSchema(t, doc, code)
 		want := jsontext.Pointer("/paths/~1a/get/responses/" + code + "/content/application~1json/schema/$defs/foo")
 
-		got, at, ok := NewReader(doc).Target(prop(t, s, "x"), "/$defs/foo")
+		got, at, ok := read(NewReader(doc), prop(t, s, "x"), "/$defs/foo")
 		require.True(t, ok, code)
-		assert.Same(t, defEntry(t, s, "foo"), got, code)
+		assert.Same(t, nodeOf(defEntry(t, s, "foo")), got, code)
 		assert.Equal(t, want, at, code)
 
-		got, at, ok = NewReader(doc).MappingTarget(s.GetSchema().GetDiscriminator(), "/$defs/foo")
+		got, at, ok = readMapping(NewReader(doc), s.GetSchema().GetDiscriminator(), "/$defs/foo")
 		require.True(t, ok, code)
-		assert.Same(t, defEntry(t, s, "foo"), got, code)
+		assert.Same(t, nodeOf(defEntry(t, s, "foo")), got, code)
 		assert.Equal(t, want, at, code)
 
-		_, _, ok = NewReader(doc).Target(prop(t, s, "x"), "/$defs/~2")
+		_, _, ok = read(NewReader(doc), prop(t, s, "x"), "/$defs/~2")
 		assert.False(t, ok, "%s: a pointer the library refuses names nothing", code)
 	}
 }
 
-// TestTarget_ReadsNoMappingTheModelLeavesFor pins that the reader asks the
-// library about no raw YAML: an OpenAPI document's "$defs", even one written,
-// is raw YAML, which holds no schema, so its read stops where the token leaves
-// the model rather than scanning the document's mapping, once per reference
-// (GitHub #778); and so does the read of a position in an extension. The
-// mapping is given a first key that is no node, which a scan of it faults on,
-// as the library's own read shows.
+// TestTarget_ReadsNoMappingTheModelLeavesFor pins that the ancestor search asks
+// the library about no raw YAML: a position in an extension, and an OpenAPI
+// document's "$defs", hold no schema to read a definition from, so the read
+// stops where the token leaves the model rather than scanning the mapping once
+// per reference (GitHub #778). The extension's mapping is given a first key
+// that is no node, which a scan of it faults on, as the library's own read
+// shows. The root's own reading of the pointer goes to the RawRead the reader
+// is given, which finds nothing here.
 func TestTarget_ReadsNoMappingTheModelLeavesFor(t *testing.T) {
 	t.Parallel()
 	doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(responsesDoc))
 	require.NoError(t, err)
-	root := doc.GetRootNode()
-	root.Content = append([]*yaml.Node{nil, {Kind: yaml.ScalarNode, Value: "v"}}, root.Content...)
+	lib := doc.GetRootNode().Content
+	xlib := lib[slices.IndexFunc(lib, func(n *yaml.Node) bool { return n.Value == "x-lib" })+1]
+	xlib.Content = append([]*yaml.Node{nil, {Kind: yaml.ScalarNode, Value: "v"}}, xlib.Content...)
 	s := responseSchema(t, doc, "200")
 
-	assert.Panics(t, func() { _, _ = jsonpointer.GetTarget(doc, "/$defs/foo", jsonpointer.WithStructTags("key")) },
-		"the library scans the document's mapping")
+	assert.Panics(t, func() { _, _ = jsonpointer.GetTarget(doc, "/x-lib/A", jsonpointer.WithStructTags("key")) },
+		"the library scans the extension's mapping")
+	var raws int
+	r := NewIndexedReader(doc, func(*yaml.Node, []string) (*yaml.Node, bool) {
+		raws++
+		return nil, false
+	})
 	assert.NotPanics(t, func() {
-		r := NewReader(doc)
-		_, _, ok := r.Target(prop(t, s, "x"), "/$defs/foo")
+		_, _, ok := read(r, prop(t, s, "x"), "/$defs/foo")
 		assert.True(t, ok)
 		assert.False(t, r.placeAt("/x-lib/A").held, "a position in raw YAML holds no schema to read from")
 		assert.False(t, definesDefs(doc), "nor does a $defs in raw YAML")
 	})
+	assert.Equal(t, 1, raws, "the root read the pointer through the RawRead it was given")
+}
+
+// rootDefsDoc writes "$defs" at an OpenAPI document's root, which the model
+// leaves as raw YAML, one entry through a `<<` merge key. A has an n of its
+// own, B has none, C is a resource of its own whose $ref names its own n, and
+// P's discriminator maps to the root's n.
+const rootDefsDoc = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+$defs:
+  n: {type: string}
+  deep: {type: object, properties: {x: {type: integer}}}
+  flag: true
+  <<: {merged: {type: boolean}}
+components:
+  schemas:
+    A: {$defs: {n: {type: integer}}, properties: {p: {$ref: '#/$defs/n'}}}
+    B: {properties: {p: {$ref: '#/$defs/n'}}}
+    C: {$id: 'https://x.test/c', $defs: {n: {type: object}}, $ref: '#/$defs/n'}
+    P: {properties: {k: {type: string}}, discriminator: {propertyName: k, mapping: {n: '#/$defs/n'}}}
+`
+
+// schemaAt returns the schema doc's model holds at pointer.
+func schemaAt(t *testing.T, doc *soa.OpenAPI, pointer string) *oas3.JSONSchema[oas3.Referenceable] {
+	t.Helper()
+	target, err := jsonpointer.GetTarget(doc, jsonpointer.JSONPointer(pointer), jsonpointer.WithStructTags("key"))
+	require.NoError(t, err, pointer)
+	js, ok := target.(*oas3.JSONSchema[oas3.Referenceable])
+	require.True(t, ok, pointer)
+	return js
+}
+
+// rawAt returns the node the library's read of pointer finds from doc's root.
+func rawAt(t *testing.T, doc *soa.OpenAPI, pointer string) *yaml.Node {
+	t.Helper()
+	target, err := jsonpointer.GetTarget(doc.GetRootNode(), jsonpointer.JSONPointer(pointer), jsonpointer.WithStructTags("key"))
+	require.NoError(t, err, pointer)
+	n, ok := target.(*yaml.Node)
+	require.True(t, ok, pointer)
+	return resolveAlias(n)
+}
+
+// TestTarget_TheRootAnswersBeforeAnyAncestor pins the reading GitHub #910
+// settled: the pointer is read from the document's root before any ancestor,
+// as the resolver reads it, and a definition the OpenAPI object leaves as raw
+// YAML answers there as one the model holds would. Only a schema that is a
+// resource of its own reads its own definitions first.
+func TestTarget_TheRootAnswersBeforeAnyAncestor(t *testing.T) {
+	t.Parallel()
+	doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(rootDefsDoc))
+	require.NoError(t, err)
+	tests := []struct {
+		name, site string
+		pointer    jsontext.Pointer
+		want       jsontext.Pointer
+	}{
+		{"before the schema's own", "/components/schemas/A/properties/p", "/$defs/n", "/$defs/n"},
+		{"with no definition of its own", "/components/schemas/B/properties/p", "/$defs/n", "/$defs/n"},
+		{"a path into a definition", "/components/schemas/B/properties/p", "/$defs/deep/properties/x", "/$defs/deep/properties/x"},
+		{"a boolean definition", "/components/schemas/B/properties/p", "/$defs/flag", "/$defs/flag"},
+		{"a definition through a merge key", "/components/schemas/B/properties/p", "/$defs/merged", "/$defs/merged"},
+		{"a resource of its own reads its own", "/components/schemas/C", "/$defs/n", "/components/schemas/C/$defs/n"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, at, ok := read(NewReader(doc), schemaAt(t, doc, tc.site), tc.pointer)
+			require.True(t, ok)
+			assert.Equal(t, tc.want, at)
+			assert.Same(t, rawAt(t, doc, string(tc.want)), got, "the node written at %s", tc.want)
+		})
+	}
+
+	_, _, ok := read(NewReader(doc), schemaAt(t, doc, "/components/schemas/B/properties/p"), "/$defs/missing")
+	assert.False(t, ok, "a pointer neither the root nor an ancestor holds names nothing")
+	_, at, ok := readMapping(NewReader(doc), schemaAt(t, doc, "/components/schemas/P").GetSchema().GetDiscriminator(), "/$defs/n")
+	require.True(t, ok)
+	assert.Equal(t, jsontext.Pointer("/$defs/n"), at, "a mapping value reads the root first too")
+}
+
+// shadowDoc holds schemas that spell "#/$defs/..." pointers the document's root
+// answers while defining a name of their own. S has no $id and defines n, so it
+// shadows the root's; R is a resource of its own; T names a path into its own;
+// U defines only another name; V's own n is the root's through an alias; and
+// Y/properties/q defines a k the root lacks, which Y answers.
+const shadowDoc = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+$defs:
+  n: &n {type: string, properties: {x: {type: integer}}}
+  m: {type: boolean}
+components:
+  schemas:
+    S: {$defs: {n: {type: integer}}, $ref: '#/$defs/n'}
+    R: {$id: 'https://x.test/r', $defs: {n: {type: object}}, $ref: '#/$defs/n'}
+    T: {$defs: {n: {properties: {x: {type: boolean}}}}, $ref: '#/$defs/n/properties/x'}
+    U: {$defs: {o: {type: integer}}, $ref: '#/$defs/n'}
+    V: {$defs: {n: *n}, $ref: '#/$defs/n'}
+    W: {$defs: {m: {type: integer}}, properties: {p: {$ref: '#/$defs/m'}}}
+    Y: {$defs: {k: {type: integer}}, properties: {q: {$defs: {k: {type: string}}, $ref: '#/$defs/k'}}}
+`
+
+// TestTarget_AnOwnDefinitionShadowingTheRootsNamesNone pins Shadowed: a schema
+// that is no resource of its own, and holds a definition of its own under the
+// name the root answers, is answered with none. Every other reading the root
+// answers stands: a resource reads its own, a path past the name reads the
+// root's, as does a schema defining only other names, one whose own is the
+// root's node, a reference in a property of the schema defining it, and one an
+// ancestor answers.
+func TestTarget_AnOwnDefinitionShadowingTheRootsNamesNone(t *testing.T) {
+	t.Parallel()
+	doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(shadowDoc))
+	require.NoError(t, err)
+	tests := []struct {
+		site     string
+		pointer  jsontext.Pointer
+		want     jsontext.Pointer
+		shadowed bool
+	}{
+		{"/components/schemas/S", "/$defs/n", "", true},
+		{"/components/schemas/R", "/$defs/n", "/components/schemas/R/$defs/n", false},
+		{"/components/schemas/T", "/$defs/n/properties/x", "/$defs/n/properties/x", false},
+		{"/components/schemas/U", "/$defs/n", "/$defs/n", false},
+		{"/components/schemas/V", "/$defs/n", "/$defs/n", false},
+		{"/components/schemas/W/properties/p", "/$defs/m", "/$defs/m", false},
+		{"/components/schemas/Y/properties/q", "/$defs/k", "/components/schemas/Y/$defs/k", false},
+	}
+	for _, tc := range tests {
+		r := NewReader(doc)
+		js := schemaAt(t, doc, tc.site)
+		_, at, ok := read(r, js, tc.pointer)
+		assert.Equal(t, tc.want != "", ok, tc.site)
+		assert.Equal(t, tc.want, at, tc.site)
+		assert.Equal(t, tc.shadowed, r.Shadowed(js, tc.pointer), tc.site)
+	}
+
+	r := NewReader(doc)
+	assert.False(t, r.Shadowed(nil, "/$defs/n"), "no reference site")
+	assert.False(t, r.Shadowed(schemaAt(t, doc, "/components/schemas/S"), "/components/schemas/S"), "not a $defs pointer")
+	assert.False(t, NewReader(nil).Shadowed(schemaAt(t, doc, "/components/schemas/S"), "/$defs/n"), "no document")
+}
+
+// TestTarget_AStandaloneSchemaShadowsNothingOfItsOwn pins that a schema
+// document's root, read for a pointer its own $ref spells, finds the very
+// definition it holds, which shadows nothing.
+func TestTarget_AStandaloneSchemaShadowsNothingOfItsOwn(t *testing.T) {
+	t.Parallel()
+	root := schemaFromYAML(t, "$defs:\n  k: {type: string}\n$ref: '#/$defs/k'\n")
+
+	r := NewReader(root)
+	got, at, ok := read(r, root, "/$defs/k")
+	require.True(t, ok)
+	assert.Equal(t, jsontext.Pointer("/$defs/k"), at)
+	assert.Same(t, nodeOf(defEntry(t, root, "k")), got)
+	assert.False(t, r.Shadowed(root, "/$defs/k"))
+}
+
+// TestTarget_TheRootIsReadOncePerPointer pins that the reader remembers what
+// the root holds at a pointer, so every reference spelling it costs one read
+// of the root however many there are, and reads raw YAML only through the
+// RawRead it is given.
+func TestTarget_TheRootIsReadOncePerPointer(t *testing.T) {
+	t.Parallel()
+	doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(rootDefsDoc))
+	require.NoError(t, err)
+	var raws int
+	r := NewIndexedReader(doc, func(raw *yaml.Node, tokens []string) (*yaml.Node, bool) {
+		raws++
+		return libraryRead(raw, tokens)
+	})
+	for range 3 {
+		for _, site := range []string{"/components/schemas/A/properties/p", "/components/schemas/B/properties/p"} {
+			_, at, ok := read(r, schemaAt(t, doc, site), "/$defs/n")
+			require.True(t, ok)
+			assert.Equal(t, jsontext.Pointer("/$defs/n"), at)
+		}
+	}
+	assert.Equal(t, 1, raws, "one read of the root for one pointer")
+	assert.Equal(t, 1, r.Reads(), "and no other navigation")
 }
