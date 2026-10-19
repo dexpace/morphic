@@ -45,8 +45,9 @@ func Citations(root, doc, citedAs string) ([]Citation, error) {
 		}
 		for _, c := range texts {
 			for _, p := range patterns {
-				for _, m := range p.FindAllStringSubmatch(c.Text, -1) {
-					out = append(out, Citation{Path: rel, Line: c.Line, Key: m[1]})
+				for _, m := range p.FindAllStringSubmatchIndex(c.Text, -1) {
+					line := c.Line + strings.Count(c.Text[:m[0]], "\n")
+					out = append(out, Citation{Path: rel, Line: line, Key: c.Text[m[2]:m[3]]})
 				}
 			}
 		}

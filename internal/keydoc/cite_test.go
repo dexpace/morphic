@@ -24,15 +24,15 @@ func writeTree(t *testing.T, root string, files map[string]string) {
 }
 
 // TestCitations_ReadsEachKindOfFile plants citations in each kind of file
-// read and in what is not read: a Go string, a YAML value, a text file, a
-// directory whose name starts with a dot, and a link another document makes to
-// its own entries.
+// read, one on a later line of a block comment, and in what is not read: a Go
+// string, a YAML value, a text file, a directory whose name starts with a dot,
+// and a link another document makes to its own entries.
 func TestCitations_ReadsEachKindOfFile(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	writeTree(t, root, map[string]string{
 		"a/a.go": "package a\n\n// docs/d.md#one and d.md#two\n" +
-			"const s = \"d.md#unread-string\" /* d.md#three */\n",
+			"const s = \"d.md#unread-string\" /* d.md#three */\n\n/* A block,\n   citing d.md#seven. */\nvar t = 1\n",
 		"a/a.yaml":      "x: 'd.md#unread-value' # d.md#four\n",
 		"a/a.md":        "First line.\nSee [it](../d.md#five).\n",
 		"a/a.txt":       "d.md#unread-text\n",
@@ -48,6 +48,7 @@ func TestCitations_ReadsEachKindOfFile(t *testing.T) {
 		{Path: "a/a.go", Line: 3, Key: "one"},
 		{Path: "a/a.go", Line: 3, Key: "two"},
 		{Path: "a/a.go", Line: 4, Key: "three"},
+		{Path: "a/a.go", Line: 7, Key: "seven"},
 		{Path: "a/a.md", Line: 2, Key: "five"},
 		{Path: "a/a.yaml", Line: 1, Key: "four"},
 		{Path: "d.md", Line: 3, Key: "one"},
