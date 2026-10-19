@@ -108,7 +108,7 @@ func fragmentBypasses(path string, info *types.Info, fset *token.FileSet) []frag
 // on the first '+', and derives an ID from a key the source does not spell.
 func TestFragmentReading_OnlyInPackageFragment(t *testing.T) {
 	t.Parallel()
-	pkgs, err := decls.LoadEach(module + "/compilers/...")
+	pkgs, err := productionLoad()
 	require.NoError(t, err)
 	require.Greater(t, len(pkgs), 1, "the sweep loaded no compiler package, so a clean result proves nothing")
 
@@ -153,13 +153,21 @@ func plantedBypass(r references.Reference) {
 // fragmentBypasses finds there.
 func loadPlanted(t *testing.T, dir, name string) []fragmentBypass {
 	t.Helper()
+	p := loadOverlaid(t, dir, "zz_planted.go", fmt.Sprintf(plantedBypass, name))
+	return fragmentBypasses(p.Types.Path(), p.Info, p.Fset)
+}
+
+// loadOverlaid type-checks the package at dir, a directory of the repository,
+// with src added to it as the file named file, and returns it.
+func loadOverlaid(t *testing.T, dir, file, src string) *decls.Package {
+	t.Helper()
 	root := repoRoot(t)
-	planted := filepath.Join(root, filepath.FromSlash(dir), "zz_planted.go")
+	planted := filepath.Join(root, filepath.FromSlash(dir), file)
 	cfg := &packages.Config{
 		Mode:    packages.NeedName | packages.NeedFiles | packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo,
 		Dir:     root,
 		Env:     append(os.Environ(), "GOPACKAGESDRIVER=off"),
-		Overlay: map[string][]byte{planted: fmt.Appendf(nil, plantedBypass, name)},
+		Overlay: map[string][]byte{planted: []byte(src)},
 	}
 	loaded, err := packages.Load(cfg, module+"/"+dir)
 	require.NoError(t, err)
@@ -169,7 +177,7 @@ func loadPlanted(t *testing.T, dir, name string) []fragmentBypass {
 		return loaded[0].Fset.Position(f.Pos()).Filename == planted
 	})
 	require.True(t, hasPlant, "the plant was not part of the package")
-	return fragmentBypasses(loaded[0].PkgPath, loaded[0].TypesInfo, loaded[0].Fset)
+	return &decls.Package{Types: loaded[0].Types, Info: loaded[0].TypesInfo, Syntax: loaded[0].Syntax, Fset: loaded[0].Fset}
 }
 
 // TestFragmentBypasses_PlantedUsesAreFound plants the uses the sweep above

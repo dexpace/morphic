@@ -601,10 +601,13 @@ func TestOwnResource(t *testing.T) {
 	assert.False(t, ownResource(plain), "no $id and no registered base on a freshly parsed schema")
 }
 
-// TestPointerParent_MatchesTheResolversBound pins that Pointer.Parent has
-// getParentJSONPointer's bound, on which the $defs walk relies: everything before
-// the last '/', and "" once none is left, so the root is never an answer.
-func TestPointerParent_MatchesTheResolversBound(t *testing.T) {
+// TestPointerParent_StopsShortOfTheRoot pins the reading of Pointer.Parent the
+// $defs walk relies on: everything before the last '/', and "" once none is
+// left, so the root is never an answer. The resolver's own bound,
+// getParentJSONPointer, is unexported and cannot be asked;
+// TestHeldRefs_AgreeWithTheResolverOnTheFirstReferenceItMeets in load asks the
+// resolver where each reference lands, which is where a different bound shows.
+func TestPointerParent_StopsShortOfTheRoot(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name string

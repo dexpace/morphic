@@ -6,12 +6,14 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
@@ -770,31 +772,64 @@ components:
 	assert.Equal(t, ir.SeverityError, diags[0].Severity)
 }
 
-// TestDetectCycles_PointerIsNormalizedLikeTheResolver pins the scan's pointer
-// reading to speakeasy's. It splits a $ref on '#', trims whitespace from both
-// halves and percent-decodes the pointer (references/reference.go GetURI and
-// GetJSONPointer), so '#/paths/~1a ' names /a there. A scan that reads the raw
-// value instead calls that pointer dangling and lets a self-reference through —
-// one trailing space was enough to walk past the refusal. A '+' is the one
-// byte it reads otherwise (see TestDetectCycles_PlusInAPointerIsAPlus).
+// TestDetectCycles_PointerIsNormalizedLikeTheResolver holds the scan's pointer
+// reading to the resolver's: each spelling is resolved by the library too, and
+// the scan refuses exactly those whose first step lands back on /a. The resolver
+// trims a $ref and percent-decodes its pointer (references.Reference), so a scan
+// reading the raw value called '#/paths/~1a ' dangling and let a self-reference
+// through. The self column pins today's library, so a bump that reads a spelling
+// otherwise fails here even while the two still agree. A '+' is the one byte
+// read otherwise (see TestDetectCycles_PlusInAPointerIsAPlus).
 func TestDetectCycles_PointerIsNormalizedLikeTheResolver(t *testing.T) {
 	t.Parallel()
 	const head = "openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths:\n  /a:\n    $ref: "
-	const tail = "\n    get: {operationId: a, responses: {\"200\": {description: ok}}}\n"
+	const tail = "\n    get: {operationId: a, responses: {\"200\": {description: ok}}}\n" +
+		"  /b: {get: {operationId: b, responses: {\"200\": {description: ok}}}}\n"
 
-	refs := map[string]string{
-		"trailing space":  "'#/paths/~1a '",
-		"leading space":   "' #/paths/~1a'",
-		"percent-encoded": "'#/paths/%7E1a'",
+	tests := []struct {
+		name, ref string
+		self      bool
+	}{
+		{"trailing space", "'#/paths/~1a '", true},
+		{"leading space", "' #/paths/~1a'", true},
+		{"percent-encoded", "'#/paths/%7E1a'", true},
+		{"lower-case escape", "'#/paths/%7e1a'", true},
+		{"an escaped space outlives the trim", "'#/paths/~1a%20'", false},
+		{"another item", "'#/paths/~1b'", false},
 	}
-	for name, ref := range refs {
-		t.Run(name, func(t *testing.T) {
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			diags := scanBytes(t, []byte(head+ref+tail))
-			require.NotEmpty(t, diags, "the resolver reads this pointer as naming /a")
-			assert.Equal(t, diag.CyclicRef, diags[0].Code)
+			src := head + tc.ref + tail
+			library := resolverLandsOnItself(t, src)
+			assert.Equal(t, tc.self, library, "the resolver's reading of this spelling")
+
+			refused := slices.ContainsFunc(scanBytes(t, []byte(src)), func(d ir.Diagnostic) bool {
+				return d.Code == diag.CyclicRef
+			})
+			assert.Equal(t, library, refused, "the scan refuses what the resolver reads as /a itself")
 		})
 	}
+}
+
+// resolverLandsOnItself resolves the path item /a in src with the library and
+// reports whether the node its first step reaches is the item's own, which is
+// how the resolver reads a $ref naming the reference that spells it. Its error
+// is the cycle or the dangling pointer; the landing is the answer either way.
+func resolverLandsOnItself(t *testing.T, src string) bool {
+	t.Helper()
+	doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(src))
+	require.NoError(t, err)
+	item, ok := doc.Paths.Get("/a")
+	require.True(t, ok)
+	require.True(t, item.IsReference())
+
+	_, _ = item.Resolve(t.Context(), soa.ResolveOptions{RootDocument: doc, TargetLocation: "spec.yaml", DisableExternalRefs: true})
+	info := item.GetReferenceResolutionInfo()
+	if info == nil || info.Object == nil {
+		return false
+	}
+	return info.Object.GetCore().GetRootNode() == item.GetCore().GetRootNode()
 }
 
 // TestDetectCycles_PlusInAPointerIsAPlus pins that the scan reads '+' in a $ref
