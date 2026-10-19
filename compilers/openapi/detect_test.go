@@ -2,10 +2,8 @@ package openapi
 
 import (
 	"fmt"
-	"math"
 	"strings"
 	"testing"
-	"time"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
@@ -688,41 +686,27 @@ func TestProbeFromMapping_EntersEachNodeOnce(t *testing.T) {
 // TestProbeFromMapping_CostIsLinearInMergeBreadth pins the bound GitHub #487
 // was about: maxMergeDepth limits how deep a merge chain is followed, not how
 // wide, and the walk used to enter an anchored mapping once per merge key
-// naming it.
-//
-// It times the walk, not a compile, because parsing costs many times as much
-// and would bury the walk's defect. The assertion is a ratio: four times the
-// merge keys cost a linear walk four times as much and a quadratic one
-// sixteen, so the allowance is eight. Each size is the fastest of several
-// alternated walks, so a burst of load cannot hit one size.
+// naming it. It counts allocations, not time, so load cannot move it, and
+// runs serially because AllocsPerRun measures the whole process.
 func TestProbeFromMapping_CostIsLinearInMergeBreadth(t *testing.T) {
-	tree := func(k int) *yaml.Node {
+	for _, k := range []int{2000, 4000} {
 		var root yaml.Node
 		require.NoError(t, yaml.Unmarshal(breadthMergeDoc(k), &root))
-		return documentRoot(&root)
-	}
-	walk := func(content *yaml.Node) time.Duration {
-		start := time.Now()
+		content := documentRoot(&root)
+
 		probe, err := probeFromMapping(content, maxMergeDepth, map[*yaml.Node]bool{})
-		elapsed := time.Since(start)
 		require.NoError(t, err)
 		require.Equal(t, "3.1.0", probe.OpenAPI,
-			"the version sits at the innermost anchor, so a walk that stops early fails here rather than merely looking fast")
-		return elapsed
-	}
-	small, large := tree(4000), tree(16000)
+			"the version sits at the innermost anchor, so a walk that stops early fails here rather than looking cheap")
 
-	// One walk of each first, so neither minimum is the cold one.
-	walk(small)
-	walk(large)
-	bestSmall, bestLarge := time.Duration(math.MaxInt64), time.Duration(math.MaxInt64)
-	for range 9 {
-		bestSmall = min(bestSmall, walk(small))
-		bestLarge = min(bestLarge, walk(large))
+		var walkErr error
+		allocs := testing.AllocsPerRun(1, func() {
+			_, walkErr = probeFromMapping(content, maxMergeDepth, map[*yaml.Node]bool{})
+		})
+		require.NoError(t, walkErr)
+		assert.Less(t, allocs, float64(k),
+			"a walk of %d merge keys made %.0f allocations, not fewer than the keys", k, allocs)
 	}
-
-	assert.Less(t, bestLarge, 8*bestSmall,
-		"four times the merge keys must not cost eight times the walk (small=%v large=%v)", bestSmall, bestLarge)
 }
 
 // TestDeclaresBlockKey_ReadsABoundedNumberOfLines pins maxVersionLines. The

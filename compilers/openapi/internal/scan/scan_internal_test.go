@@ -644,10 +644,9 @@ func TestRefScanCollect_DeepNestingIsNotTruncated(t *testing.T) {
 	assert.Contains(t, s.out, ref, "a ref nested past the old depth cap is still collected")
 }
 
-func TestDetectCycles_ChainedAliasFanOutIsRefusedFast(t *testing.T) {
-	t.Parallel()
-	const levels = 40
-
+// chainedAliasSpec writes a document whose Root schema is the top of a chain
+// of levels anchors, each an allOf naming the one below it twice.
+func chainedAliasSpec(levels int) string {
 	var b strings.Builder
 	b.WriteString("openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\nx-anchors:\n")
 	b.WriteString("  a0: &a0 {type: string}\n")
@@ -655,8 +654,12 @@ func TestDetectCycles_ChainedAliasFanOutIsRefusedFast(t *testing.T) {
 		fmt.Fprintf(&b, "  a%d: &a%d {allOf: [*a%d, *a%d]}\n", i, i, i-1, i-1)
 	}
 	fmt.Fprintf(&b, "components:\n  schemas:\n    Root: *a%d\n", levels)
+	return b.String()
+}
 
-	diags := scanWithin(t, b.String(), "exponential blowup on chained aliases")
+func TestDetectCycles_ChainedAliasFanOutIsRefused(t *testing.T) {
+	t.Parallel()
+	diags := scanWithin(t, chainedAliasSpec(40), "exponential blowup on chained aliases")
 	require.Len(t, diags, 1, "a fan-out this deep is refused, not silently accepted")
 	assert.Equal(t, diag.AliasAmplification, diags[0].Code)
 	assert.Equal(t, ir.SeverityError, diags[0].Severity)
@@ -668,7 +671,7 @@ func TestDetectCycles_MergeChainWithinBoundIsClean(t *testing.T) {
 	assert.Empty(t, diags, "a merge chain the scan can expand in full is clean")
 }
 
-func TestDetectCycles_MergeChainPastBoundStaysFastAndWarns(t *testing.T) {
+func TestDetectCycles_MergeChainPastBoundWarns(t *testing.T) {
 	t.Parallel()
 	diags := scanWithin(t, ynode.MergeChainSpec(1600), "super-linear blowup on a long merge chain")
 	require.Len(t, diags, 2, "both the truncation warning and the amplification refusal are reported")
@@ -680,9 +683,12 @@ func TestDetectCycles_MergeChainPastBoundStaysFastAndWarns(t *testing.T) {
 		"the document's alias expansion is also refused outright")
 }
 
+// scanWithin runs Cycles over src and returns its diagnostics. The minute is a
+// hang guard, not a cost bound: a hang cannot be counted, so only a clock can
+// end it. What Cycles costs is bounded by TestCycles_AllocatesLinearlyInItsInput.
 func scanWithin(t *testing.T, src, blowup string) []ir.Diagnostic {
 	t.Helper()
-	const bound = 10 * time.Second
+	const bound = time.Minute
 	// Indexed on this goroutine: the walk is linear in the tree, and require
 	// must not be called from the one below.
 	idx := indexOf(t, []byte(src))
@@ -694,8 +700,40 @@ func scanWithin(t *testing.T, src, blowup string) []ir.Diagnostic {
 	case diags := <-done:
 		return diags
 	case <-time.After(bound):
-		t.Fatalf("Cycles did not return within %v — likely %s", bound, blowup)
+		t.Fatalf("Cycles hung past %v — likely %s", bound, blowup)
 		return nil
+	}
+}
+
+// TestCycles_AllocatesLinearlyInItsInput bounds the allocations Cycles makes
+// per level of input, at n and at 2n, so a walk that re-enters a node fails
+// by count rather than by a clock (#979). The bounds are twice the most seen
+// on go1.27.2, with and without -race. It runs serially: AllocsPerRun measures
+// the whole process. A collect walk re-entering a node allocates nothing, so
+// TestRefScanCollect_VisitsEachNodeOncePerRole pins that one.
+func TestCycles_AllocatesLinearlyInItsInput(t *testing.T) {
+	rows := []struct {
+		name    string
+		spec    func(n int) string
+		n       int
+		perUnit float64
+	}{
+		{"chained aliases", chainedAliasSpec, 10, 34},
+		{"merge chain within the bound", ynode.MergeChainSpec, nodeview.MergeDepthLimit / 2, 59},
+		{"merge chain past the bound", ynode.MergeChainSpec, 800, 1400},
+	}
+	for _, row := range rows {
+		t.Run(row.name, func(t *testing.T) {
+			for _, size := range []int{row.n, 2 * row.n} {
+				idx := indexOf(t, []byte(row.spec(size)))
+				allocs := testing.AllocsPerRun(1, func() {
+					Cycles(InSource(0), idx, defaultSurplus)
+				})
+				require.Positive(t, allocs, "a measurement of nothing bounds nothing")
+				assert.LessOrEqual(t, allocs/float64(size), row.perUnit,
+					"size %d took %.0f allocations, over %.2f a level", size, allocs, row.perUnit)
+			}
+		})
 	}
 }
 
