@@ -13,11 +13,12 @@ spec — field names and shapes here are normative, receiver methods and helpers
 
 ## 1. Design rules
 
-1. **Union of capabilities.** The IR represents everything any supported spec can express
-   (`ir-spec-matrix.md`). A emitter may ignore a capability; a compiler must never drop one.
-   Only compilers are staged over time — the IR's capability surface is complete from day one,
-   so shipping the OpenAPI 3.x compiler first never forces an IR schema change when TypeSpec,
-   Smithy, GraphQL, AsyncAPI, Protobuf, or Erlang/OTP compilers land.
+1. **Union of capabilities.** The IR is designed against everything any supported spec can express
+   (`ir-spec-matrix.md`). A emitter may ignore a capability; a compiler must never drop one, so a
+   construct the IR has no place for yet is kept verbatim under `no_ir_home` (§12). Only compilers
+   are staged over time, and the surface they are designed against is a goal rather than a finished
+   state: a later compiler is meant to fill fields rather than add them, and where one meets a gap,
+   closing it is a change of the schema, versioned as §2.1 says (architecture.md §2.5).
 2. **Un-lowered.** Composition, unions, visibility, discriminators, encodings, and streaming stay
    in source-semantic form. Flattening and language fitting happen in emitters.
 3. **Stable IDs, flat registries.** All named entities live in flat, ID-keyed registries and

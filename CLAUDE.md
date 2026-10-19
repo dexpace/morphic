@@ -75,8 +75,13 @@ in the docs.
    sorted-key order, slices in source order). This underpins golden snapshots, IR diffing, caching.
 8. **Optionality ≠ nullability.** `Property.Required` (wire presence) is orthogonal to
    `TypeRef.Nullable` (this usage admits null). Both are needed for the four distinct states.
-9. **The IR capability surface is complete from day one.** Only compilers are staged over time;
-   shipping OpenAPI first must never force an IR schema change when later compilers land.
+9. **The IR's capability surface is designed against every format; a gap closes as a versioned
+   change.** Every construct a supported format can express is meant to have a planned home in the
+   IR, or a reasoned `Unmodeled` entry where the IR declines to model it, so a later compiler fills
+   fields rather than inventing them. That is a goal, not a finished state: a compiler that meets a
+   construct with no home keeps it verbatim under `no_ir_home`, and the field that homes it lands as
+   a change of the IR's shape, which bumps `IRVersion` (ir-design §2.1). Once an emitter reads a
+   field, a change to it lands with the emitter's own (architecture.md §2.5).
 10. **SDK runtime policy is not IR.** Retry/timeout/telemetry/error-class taxonomy is a separate
     emitter input. The IR describes the API; policy describes the SDK.
 

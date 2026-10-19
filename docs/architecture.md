@@ -123,8 +123,8 @@ the engine dispatches to the one that does. Each is asked under the options it w
 because recognizing a source is a read of it, and the bounds a caller set on reading the source
 hold there as they do in the compile. A compiler also decodes its own textual options, so
 registering one is the whole of adding a format — no layer above names any of them. Milestone 1
-ships the OpenAPI 3.x compiler only; the compiler registry, provenance model, and IR are built for
-all eight from day one.
+ships the OpenAPI 3.x compiler only. The compiler registry and the provenance model take any format,
+and the IR is designed against all eight; §2.5 says how it changes where a compiler finds it short.
 
 ### 2.2 IR passes (IR → IR)
 
@@ -266,6 +266,29 @@ keys that must not appear as params — misuse detection). Delivery model: canon
 deep-partial per-emitters/per-project overrides. Precedence rule: *declared IR facts win over
 policy defaults* — `ErrorCase.Retryable/Fault` and `Operation.Idempotency` come from the spec;
 policy fills in where the spec is silent, never the reverse.
+
+### 2.5 Changing the IR
+
+The IR is the one contract between the stages, so a change to its shape is a change to every stage
+that reads it. Its capability surface is designed against every format the matrix covers
+(`ir-spec-matrix.md`), but that is a goal rather than a finished state: a compiler can meet a
+construct the IR has no place for, and the surface grows when one does. Two rules say how.
+
+**A gap closes as a versioned change.** Until the IR has a home for a construct, the compiler keeps
+it verbatim under `ReasonNoIRHome` rather than lowering it to a weaker shape, so nothing is lost
+while the gap is open, and the gap is an issue of its own, where the shape of its home is decided.
+The change that closes it adds the field, moves the construct out of `Unmodeled` and bumps
+`IRVersion`, as any change to the JSON shape does (ir-design §2.1).
+
+**Once an emitter reads a field, a change to it lands whole.** A change to a field the plan layer
+or an emitter reads — renamed, removed, or given another meaning — lands in the same change as the
+plan, refiner and golden updates it forces, for every target, under one `IRVersion` bump. None of
+it is left to a follow-up: an emitter is built against exactly one generation and has no mode for
+reading another (ir-design §2.1), so a `main` whose compiler writes one generation while an emitter
+reads the last would drop constructs without a word. Several changes made on one line of work are
+batched under one bump where they land, as §2.1 of ir-design already has it. A field no emitter
+reads yet is added by the compiler change that fills it, and the emitter that first reads it adopts
+it in its own change.
 
 ## 3. Go package layout
 

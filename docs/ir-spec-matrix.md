@@ -127,5 +127,5 @@ the ones the next compiler will be first to bind to.
 10. **Formats beyond this matrix already shape the IR.** Thrift/WSDL/Cap'n Proto service
     inheritance (services carry IDs and an extends list), Avro/XSD/OData decimal
     precision+scale, Avro aliases and enum fallback members, JSON-RPC positional params, and
-    per-type namespaces (proto packages, Avro fullnames) are all held by the IR so those
-    compilers never force a schema change.
+    per-type namespaces (proto packages, Avro fullnames) are all held by the IR, so those
+    compilers find a home for them already there.

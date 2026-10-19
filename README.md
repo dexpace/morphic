@@ -91,9 +91,10 @@ spec ──▶ compiler ──▶ IR ──▶ passes ──▶ IR ──▶ emi
 | 4 | Second family compiler (TypeSpec or Smithy), proving the spec-agnostic claim | Planned |
 | 5 | Event-shaped compiler (AsyncAPI), then GraphQL, Protobuf, Erlang/OTP | Planned |
 
-The IR's capability surface covers every format above from the start, so the later compilers land
-without reshaping it. Until milestone 2, a Swagger 2.0 document is recognized and refused with
-`engine/no-compiler-for-format`.
+The IR is designed against every format above, so a later compiler fills fields rather than adding
+them. Where one meets a construct the IR has no place for yet, it keeps the construct verbatim, and
+the IR grows by a versioned change ([Architecture](docs/architecture.md) §2.5). Until milestone 2, a
+Swagger 2.0 document is recognized and refused with `engine/no-compiler-for-format`.
 
 ## Install
 
