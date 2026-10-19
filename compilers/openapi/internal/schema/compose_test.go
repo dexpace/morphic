@@ -4126,19 +4126,22 @@ func TestAllOf_NestedInlineBranchKeyedByPointer(t *testing.T) {
 // and the two must agree in either declaration order. The target is the
 // empty-named component because branchHint returns a target's own name before it
 // reads the index, so only a target with an empty hint lets the index reach the IR.
+// The B before the wrapper puts the branch at flat position 2 but innermost
+// index 1, so only the innermost index yields variant_1.
 func TestAllOf_NestedBranchHintAgreesWithThePointerWalk(t *testing.T) {
 	t.Parallel()
 	m := `    M:
       allOf:
+        - {$ref: '#/components/schemas/B'}
         - allOf:
             - {$ref: '#/components/schemas/A'}
             - {$ref: '#/components/schemas/', description: Narrowed}
 `
-	outsider := `    Outsider: {$ref: '#/components/schemas/M/allOf/0/allOf/1'}
+	outsider := `    Outsider: {$ref: '#/components/schemas/M/allOf/1/allOf/1'}
 `
 	unnamed := "    \"\": {type: object, properties: {e: {type: string}}}\n"
 	for _, doc := range nestedOrders(t, m, outsider+unnamed+nestedAB) {
-		narrowed, ok := doc.Types["t/anon/components/schemas/M/allOf/0/allOf/1"]
+		narrowed, ok := doc.Types["t/anon/components/schemas/M/allOf/1/allOf/1"]
 		require.True(t, ok, "the narrowed branch is hoisted at its pointer")
 		assert.Equal(t, "variant_1", narrowed.Common().Name.Hint)
 	}

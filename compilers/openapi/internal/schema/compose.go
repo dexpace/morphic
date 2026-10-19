@@ -35,8 +35,8 @@ import (
 //
 // Value constraints written beside the allOf (minProperties, ...) are read as
 // lowerModel reads a plain object's, so they land on the same field, not
-// Unmodeled (GitHub #407). A composition that leaves only a
-// catch-all is a map, as a plain object's is (objectNode).
+// Unmodeled (GitHub #407). A composition that leaves only a catch-all is a map,
+// as a plain object's is (objectNode).
 func lowerAllOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer jsontext.Pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {

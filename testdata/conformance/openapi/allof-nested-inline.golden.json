@@ -49,6 +49,140 @@
     }
   ],
   "types": {
+    "t/composed/components/schemas/U/oneOf/0": {
+      "kind": "model",
+      "id": "t/composed/components/schemas/U/oneOf/0",
+      "name": {
+        "hint": "u_p"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:allOf/0/allOf/2/allOf/0": {
+          "reason": "degraded_lowering",
+          "value": false,
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/U/allOf/0/allOf/2/allOf/0"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/U/oneOf/0"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/U/allOf/0/allOf/1/properties/a",
+          "name": {
+            "source": "a",
+            "canonical": "a"
+          },
+          "wireName": "a",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/U/allOf/0/allOf/1/properties/a"
+          }
+        }
+      ],
+      "base": {
+        "target": "t/openapi/components/schemas/A",
+        "nullable": false
+      },
+      "mixins": [
+        {
+          "target": "t/openapi/components/schemas/P",
+          "nullable": false
+        }
+      ],
+      "additional": "closed",
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/composed/components/schemas/U/oneOf/1": {
+      "kind": "model",
+      "id": "t/composed/components/schemas/U/oneOf/1",
+      "name": {
+        "hint": "u_q"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:allOf/0/allOf/2/allOf/0": {
+          "reason": "degraded_lowering",
+          "value": false,
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/U/allOf/0/allOf/2/allOf/0"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/U/oneOf/1"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/U/allOf/0/allOf/1/properties/a",
+          "name": {
+            "source": "a",
+            "canonical": "a"
+          },
+          "wireName": "a",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/U/allOf/0/allOf/1/properties/a"
+          }
+        }
+      ],
+      "base": {
+        "target": "t/openapi/components/schemas/A",
+        "nullable": false
+      },
+      "mixins": [
+        {
+          "target": "t/openapi/components/schemas/Q",
+          "nullable": false
+        }
+      ],
+      "additional": "closed",
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/openapi/components/schemas/A": {
       "kind": "model",
       "id": "t/openapi/components/schemas/A",
@@ -335,6 +469,139 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/openapi/components/schemas/P": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/P",
+      "name": {
+        "source": "P",
+        "canonical": "p"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/P"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/P/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/P/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Q": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Q",
+      "name": {
+        "source": "Q",
+        "canonical": "q"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Q"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Q/properties/q",
+          "name": {
+            "source": "q",
+            "canonical": "q"
+          },
+          "wireName": "q",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Q/properties/q"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/U": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/U",
+      "name": {
+        "source": "U",
+        "canonical": "u"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/U"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "p"
+          },
+          "type": {
+            "target": "t/composed/components/schemas/U/oneOf/0",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "q"
+          },
+          "type": {
+            "target": "t/composed/components/schemas/U/oneOf/1",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false
+    },
     "t/prim/string": {
       "kind": "primitive",
       "id": "t/prim/string",
@@ -366,13 +633,31 @@
         "source": 0,
         "pointer": "/components/schemas/Closed/allOf/0/allOf/0"
       }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/false-schema",
+      "message": "boolean false allOf branch matches nothing, so the composition matches nothing; composed model closed and the branch kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/U/allOf/0/allOf/2/allOf/0"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/composition-lowering",
+      "message": "oneOf/anyOf co-declared with structural keywords; the composition is distributed across the union variants",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/U"
+      }
     }
   ],
   "sources": [
     {
       "format": "openapi@3.1",
       "path": "allof-nested-inline.yaml",
-      "hash": "aeccef214f48ac6453b4fb2ea48a170f6a310566cb6cf89d5329c9c618a030bd"
+      "hash": "122538eb6f5d99663167a84b50f330d959c74a5bfe4fc0713907dc158e92b975"
     }
   ]
 }
