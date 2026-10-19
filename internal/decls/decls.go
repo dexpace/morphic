@@ -248,6 +248,24 @@ func (p *Package) StringConsts(typeName string) ([]Const, error) {
 	return out, nil
 }
 
+// IntConst returns the value of the package-level constant name. It fails if
+// the package declares no such constant, or if its value is not an integer an
+// int64 holds.
+func (p *Package) IntConst(name string) (int64, error) {
+	c, isConst := p.Types.Scope().Lookup(name).(*types.Const)
+	if !isConst {
+		return 0, fmt.Errorf("%s declares no constant %s", p.Types.Path(), name)
+	}
+	if c.Val().Kind() != constant.Int {
+		return 0, fmt.Errorf("%s.%s has kind %s, not Int", p.Types.Path(), name, c.Val().Kind())
+	}
+	v, exact := constant.Int64Val(c.Val())
+	if !exact {
+		return 0, fmt.Errorf("%s.%s is %s, past what an int64 holds", p.Types.Path(), name, c.Val())
+	}
+	return v, nil
+}
+
 // declarationOrder compares two constants by where the package declares them: by
 // file name, then by offset in the file. A token.Pos would not do, because the
 // loader parses files concurrently and a position orders files by whichever

@@ -5,8 +5,6 @@ import (
 	"context"
 	"encoding/json/jsontext"
 	"errors"
-	"go/constant"
-	"go/types"
 	"os"
 	"path/filepath"
 	"slices"
@@ -665,15 +663,9 @@ func TestMaxReverseDepth_ReachesEveryAdmittedDocument(t *testing.T) {
 	t.Parallel()
 	pkg, err := decls.Load("github.com/dexpace/morphic/compilers/openapi/internal/scan")
 	require.NoError(t, err)
-	admitted := -1
-	for c := range pkg.Objects[*types.Const]() {
-		if c.Name() == "MaxNesting" {
-			v, exact := constant.Int64Val(c.Val())
-			require.True(t, exact)
-			admitted = int(v)
-		}
-	}
-	require.Positive(t, admitted, "the scan declares MaxNesting")
+	bound, err := pkg.IntConst("MaxNesting")
+	require.NoError(t, err)
+	admitted := int(bound)
 	nested := func(n int) []byte {
 		return []byte(strings.Repeat("{k: ", n) + "1" + strings.Repeat("}", n) + "\n")
 	}

@@ -2,8 +2,6 @@ package openapi_test // external test package — exercises only the public API
 
 import (
 	"fmt"
-	"go/constant"
-	"go/types"
 	"strings"
 	"testing"
 
@@ -23,15 +21,9 @@ func intConst(t *testing.T, pkgPath, name string) int {
 	t.Helper()
 	pkg, err := decls.Load(pkgPath)
 	require.NoError(t, err)
-	for c := range pkg.Objects[*types.Const]() {
-		if c.Name() == name {
-			v, exact := constant.Int64Val(c.Val())
-			require.True(t, exact, "%s.%s is an integer", pkgPath, name)
-			return int(v)
-		}
-	}
-	t.Fatalf("%s declares no constant %s", pkgPath, name)
-	return 0
+	v, err := pkg.IntConst(name)
+	require.NoError(t, err)
+	return int(v)
 }
 
 // deepestLowered is a document holding a schema frames levels deep through
