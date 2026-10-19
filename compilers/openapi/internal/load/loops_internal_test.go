@@ -52,6 +52,9 @@ components:
     ThroughElsewhere: {$ref: '#/components/schemas/Elsewhere'}
     Anchored: {$anchor: a, $ref: '#a'}
     Defined: {$ref: '#/$defs/D'}
+    Twice: {type: object}
+    Twice: {$ref: '#/components/schemas/Twice'}
+    ToTwice: {$ref: '#/components/schemas/Twice'}
 x-lib:
   first: {$ref: './root.yaml#/x-lib/second'}
   second: {$ref: '#/x-lib/first'}
@@ -178,11 +181,12 @@ func loopsRead(t *testing.T, spec, path string) *loops {
 
 // TestLoops_ReadsAChainAsTheResolverDoes pins which schema references loops
 // finds never to end (GitHub #768) by asking the resolver. Each row's chain is
-// resolved with loops left out, in a child. Where the library stops today is
+// resolved with loops left out, in a child. The library's answer today is
 // written beside the row, so a bump that changes it fails here even while loops
-// agrees, and loops must answer true exactly where it stops at a hop it had
-// taken. A chain it follows to a schema, or cannot read, is no answer, and so
-// is one through an anchor, which the reach check reads.
+// agrees, and loops must answer true exactly where the library closes on a hop
+// it had taken. A schema written twice tells the readings apart: the model
+// holds its last, the tree its first, and a chain reads the tree from the
+// first hop naming the file. The reach check owns anchors.
 func TestLoops_ReadsAChainAsTheResolverDoes(t *testing.T) {
 	if body := os.Getenv(loopsChildEnv); body != "" {
 		answerAsk(t, body)
@@ -218,6 +222,10 @@ func TestLoops_ReadsAChainAsTheResolverDoes(t *testing.T) {
 		{name: "an anchor", ref: "#/components/schemas/Anchored", end: runsOut},
 		{name: "a definition", ref: "#/components/schemas/Defined", end: cannotRead},
 		{name: "a position nothing is at", ref: "#/components/schemas/Missing", end: cannotRead},
+		{name: "a schema written twice, read in the model", ref: "#/components/schemas/Twice", end: closesAgain},
+		{name: "a schema written twice, read in the tree", ref: "root.yaml#/components/schemas/Twice", end: endsAtSchema},
+		{name: "a hop past the file's name, to a schema written twice",
+			ref: "root.yaml#/components/schemas/ToTwice", end: endsAtSchema},
 		{name: "a source whose $self rebases its references, by the file's name",
 			ref: "root.yaml#/components/schemas/ByName", spec: rebased, end: closesAgain},
 		{name: "a source whose $self rebases its references, within the document",
