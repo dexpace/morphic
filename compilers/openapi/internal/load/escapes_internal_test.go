@@ -5,8 +5,10 @@ import (
 	"errors"
 	"iter"
 	"maps"
+	"net/url"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
 
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
@@ -76,6 +78,30 @@ func assertSameTree(t *testing.T, want, got *yaml.Node) {
 	}
 }
 
+// resolverReads is the pointer the library's resolver reads from ref's
+// fragment, the decode it resolves an internal reference from.
+func resolverReads(ref string) string {
+	return string(references.Reference(ref).GetJSONPointer())
+}
+
+// fragmentNames is the pointer ref's fragment names as RFC 3986 reads it:
+// percent escapes decoded and nothing else, so a '+' names itself. A fragment
+// with an escape that cannot be decoded names itself. A ref here spells at
+// most one '#', and no whitespace around it.
+func fragmentNames(ref string) string {
+	_, fragment, _ := strings.Cut(ref, "#")
+	if pointer, err := url.PathUnescape(fragment); err == nil {
+		return pointer
+	}
+	return fragment
+}
+
+// TestEscapes_RewritesOnlyWhatTheResolverMisreads holds escape to the library's
+// reading of each $ref value a row writes. The resolver's decode of a value is
+// compared with the pointer the source names, and a row's count of rewrites
+// must be the number of values it reads otherwise. escape must then rewrite
+// those and no others, and the resolver must read from each value that
+// pointer. Which positions hold a $ref value is pinned by the rows alone.
 func TestEscapes_RewritesOnlyWhatTheResolverMisreads(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -103,12 +129,25 @@ func TestEscapes_RewritesOnlyWhatTheResolverMisreads(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			root := decodeRoot(t, tc.src)
+			written := refValues(root)
+			misread := 0
+			for _, ref := range written {
+				if resolverReads(ref) != fragmentNames(ref) {
+					misread++
+				}
+			}
+			require.Equal(t, tc.recorded, misread, "the values the resolver misreads in %q", written)
 			esc := newEscapes()
 
 			esc.escape(root)
 
-			assert.Equal(t, tc.want, refValues(root))
-			assert.Len(t, esc.written, tc.recorded, "exactly what was rewritten is recorded")
+			got := refValues(root)
+			require.Len(t, got, len(written), "escape rewrites values and adds none")
+			assert.Equal(t, tc.want, got)
+			assert.Len(t, esc.written, misread, "exactly what the resolver misreads is recorded")
+			for i, ref := range written {
+				assert.Equal(t, fragmentNames(ref), resolverReads(got[i]), "the resolver reads what the source names from %q", got[i])
+			}
 		})
 	}
 }
@@ -174,14 +213,36 @@ func TestEscapes_RewritesAValueAMergeKeySupplies(t *testing.T) {
 	assert.Len(t, esc.written, 1, "the merged mapping is the anchored one, so its scalar is rewritten once")
 }
 
+// TestEscapes_ReadsAKeyAsTheParserReadsIt pins that a key written as an alias
+// is the key it stands for. The parser is asked first: it reads an object whose
+// aliased key stands for $ref as a reference, and one whose aliased key stands
+// for another keyword as that keyword's object. escape must then rewrite the
+// value of the first and leave the second's alone.
 func TestEscapes_ReadsAKeyAsTheParserReadsIt(t *testing.T) {
 	t.Parallel()
-	const src = "k: &k $ref\nuse: {*k : '#/x+y'}\n"
-	root := decodeRoot(t, src)
+	const src = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+x-ref: &ref $ref
+x-description: &description description
+components:
+  parameters:
+    Aliased: {*ref : '#/paths/~1a+b'}
+    Other: {name: q, in: query, *description : '#/paths/~1a+b', schema: {type: string}}
+`
+	parsed, _, err := soa.Unmarshal(t.Context(), strings.NewReader(src))
+	require.NoError(t, err)
+	read := maps.Collect(parsed.Components.GetParameters().All())
+	require.True(t, read["Aliased"].IsReference(), "the parser reads an alias standing for $ref as $ref")
+	require.False(t, read["Other"].IsReference(), "and one standing for another keyword as that keyword")
+	require.Equal(t, references.Reference("#/paths/~1a+b"), read["Aliased"].GetReference())
+	require.Equal(t, "#/paths/~1a+b", read["Other"].GetObject().GetDescription())
 
-	newEscapes().escape(root)
+	escaped, esc := escapedParameters(t, src)
 
-	assert.Equal(t, "#/x%2By", root.Content[0].Content[3].Content[1].Value, "an alias standing for $ref is $ref")
+	assert.Equal(t, references.Reference("#/paths/~1a%2Bb"), escaped["Aliased"].GetReference(), "the $ref is rewritten")
+	assert.Equal(t, "#/paths/~1a+b", escaped["Other"].GetObject().GetDescription(), "the description is not")
+	assert.Len(t, esc.written, 1)
 }
 
 func TestEscapes_RestoreTreesPutsTheSourceBack(t *testing.T) {
@@ -317,17 +378,36 @@ func TestJSONQuoted_ReportsOnlyAnEscapedSpelling(t *testing.T) {
 	assert.False(t, ok)
 }
 
-// escapedDoc builds the model of src from a tree rewritten as load rewrites it,
-// and returns it with the registry that rewrote the tree.
-func escapedDoc(t *testing.T, src string) (*soa.OpenAPI, *escapes) {
+// escapedSource is a source as load holds it once it has rewritten the tree:
+// the tree, its anchors released and its $refs respelled for the resolver, the
+// model built from it with the library's findings, and the registry that
+// rewrote it.
+type escapedSource struct {
+	root    *yaml.Node
+	doc     *soa.OpenAPI
+	valErrs []error
+	esc     *escapes
+}
+
+// escapeSource decodes src and rewrites its tree as load does, then builds the
+// model from it.
+func escapeSource(t *testing.T, src string) escapedSource {
 	t.Helper()
 	root := decodeRoot(t, src)
 	releaseAnchors(root)
 	esc := newEscapes()
 	esc.escape(root)
-	doc, _, err := unmarshal(t.Context(), []byte(src), root)
+	doc, valErrs, err := unmarshal(t.Context(), []byte(src), root)
 	require.NoError(t, err)
-	return doc, esc
+	return escapedSource{root: root, doc: doc, valErrs: valErrs, esc: esc}
+}
+
+// escapedDoc builds the model of src from a tree rewritten as load rewrites it,
+// and returns it with the registry that rewrote the tree.
+func escapedDoc(t *testing.T, src string) (*soa.OpenAPI, *escapes) {
+	t.Helper()
+	s := escapeSource(t, src)
+	return s.doc, s.esc
 }
 
 // escapedParameters is escapedDoc for a document whose components hold

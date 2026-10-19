@@ -1,13 +1,9 @@
 package load
 
 import (
-	"context"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -64,11 +60,7 @@ func TestReachCycle_RefusesCrashesOnlyReachCanSee(t *testing.T) {
 			spec := schemasDoc(tc.schemas)
 			assertRefusedByReach(t, spec)
 
-			path := filepath.Join(t.TempDir(), "spec.yaml")
-			require.NoError(t, os.WriteFile(path, []byte(spec), 0o600))
-			ctx, cancel := context.WithTimeout(t.Context(), time.Minute)
-			defer cancel()
-			assert.True(t, reachFuzzSubprocessCrashed(ctx, t, path),
+			assert.True(t, pipelineOverflows(t, spec),
 				"the fixture no longer crashes the pipeline without the check, so refusing it protects nothing")
 		})
 	}
@@ -100,12 +92,7 @@ func TestReachCycle_LeavesWhatHoldingDefsOutOfTheResolverSurvives(t *testing.T) 
 			t.Parallel()
 			spec := schemasDoc(tc.schemas)
 			assertNotRefusedByReach(t, spec)
-
-			path := filepath.Join(t.TempDir(), "spec.yaml")
-			require.NoError(t, os.WriteFile(path, []byte(spec), 0o600))
-			ctx, cancel := context.WithTimeout(t.Context(), time.Minute)
-			defer cancel()
-			assert.False(t, reachFuzzSubprocessCrashed(ctx, t, path),
+			assert.False(t, pipelineOverflows(t, spec),
 				"the pipeline overflowed, so the reference the resolver reads for itself is not held out")
 		})
 	}
@@ -124,12 +111,19 @@ var parityFixtures = []struct{ name, schemas string }{
 	{"a sequence index with a sign names no element", `    A: {$defs: {n: {allOf: [{$ref: "#/$defs/n/allOf/+0"}]}}}`},
 }
 
+// TestReachCycle_LeavesWhatTheLibraryReadsAsAnotherName asks the pipeline,
+// with the check off, whether it survives each of parityFixtures, and requires
+// reach to leave each alone. A library that came to read one of them as the
+// cycle it looks like would overflow here rather than leave the check refusing
+// less than it should.
 func TestReachCycle_LeavesWhatTheLibraryReadsAsAnotherName(t *testing.T) {
 	t.Parallel()
 	for _, tc := range parityFixtures {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			assertNotRefusedByReach(t, schemasDoc(tc.schemas))
+			spec := schemasDoc(tc.schemas)
+			require.False(t, pipelineOverflows(t, spec), "the resolver survives this, as the check assumes")
+			assertNotRefusedByReach(t, spec)
 		})
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/speakeasy-api/openapi/references"
 	"github.com/speakeasy-api/openapi/yml"
 	"github.com/stretchr/testify/assert"
@@ -851,37 +852,102 @@ func linksAbove(n *yaml.Node, links int) *yaml.Node {
 	return n
 }
 
-// TestKeyOf_KeysAPairAsTheParserDoes pins the key KeyOf gives a raw pair key:
-// a `<<` merge key, the library's own predicate, names none; a scalar tagged
-// !!merge with any other value, and an alias standing in for `<<`, are
-// ordinary keys; an alias key names the scalar it stands for; and a key that is
-// no scalar, aliased or not, or no node at all, names none.
+// pairSource is a document whose components/responses section holds the one
+// mapping pair written as pair. Its anchors stand behind the aliases the pairs
+// use, each named differently from what it anchors so that an alias left
+// unfollowed reads differently from one followed.
+func pairSource(pair string) string {
+	return "openapi: 3.1.0\ninfo: {title: T, version: '1'}\n" +
+		"x-anchors: {&scalar named: 1, &merge <<: {}, &mapping {k: v}: 1}\n" +
+		"paths: {}\ncomponents:\n  responses:\n    " + pair + "\n"
+}
+
+// pairRead parses the document pairSource builds for pair and returns the keys
+// the parser gives the section's entries, and the raw key node of the one pair
+// as the view reads it.
+func pairRead(t *testing.T, pair string) ([]string, *yaml.Node) {
+	t.Helper()
+	src := pairSource(pair)
+	parsed, _, err := soa.Unmarshal(t.Context(), strings.NewReader(src))
+	require.NoError(t, err)
+	require.NotNil(t, parsed.Components.Responses, "the parser reads the section")
+
+	v := New()
+	section := v.ChildByToken(v.ChildByToken(yamlDoc(t, src), "components"), "responses")
+	require.NotNil(t, section, "the fixture declares the section")
+	require.Len(t, section.Content, 2, "the section holds the one pair")
+	return slices.Collect(parsed.Components.Responses.Keys()), section.Content[0]
+}
+
+// TestKeyOf_KeysAPairAsTheParserDoes holds the key KeyOf gives a raw pair key to
+// the parser's: each pair is written into a section the parser reads, and the
+// keys it gives that section's entries are the one KeyOf names, or none where
+// KeyOf says the pair names none. A `<<` merge key names none, here a merge
+// of nothing; a scalar tagged !!merge with any other value, a quoted `<<` and
+// an alias standing in for `<<` are ordinary keys; an alias key names the
+// scalar it stands for. The key and own columns pin today's parser.
 func TestKeyOf_KeysAPairAsTheParserDoes(t *testing.T) {
 	t.Parallel()
-	tagged := ynode.Scalar("tagged")
-	tagged.Tag = "!!merge"
 	tests := []struct {
-		name string
-		raw  *yaml.Node
-		key  string
-		own  bool
+		name, pair string
+		key        string
+		own        bool
 	}{
-		{"a plain key", ynode.Scalar("a"), "a", true},
-		{"a merge key", ynode.Merge(), "", false},
-		{"a key tagged !!merge that is not <<", tagged, "tagged", true},
-		{"an alias key", ynode.Alias(ynode.Scalar("named")), "named", true},
-		{"an alias standing in for <<", ynode.Alias(ynode.Merge()), "<<", true},
-		{"a mapping key", ynode.Map(ynode.Scalar("k"), ynode.Scalar("v")), "", false},
-		{"an alias to a mapping", ynode.Alias(ynode.Map()), "", false},
-		{"no node", nil, "", false},
+		{"a plain key", "a: {description: x}", "a", true},
+		{"a merge key", "<<: {}", "", false},
+		{"a quoted <<", "'<<': {description: x}", "<<", true},
+		{"a key tagged !!merge that is not <<", "!!merge tagged: {description: x}", "tagged", true},
+		{"an alias key", "*scalar : {description: x}", "named", true},
+		{"an alias standing in for <<", "*merge : {description: x}", "<<", true},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			key, own := KeyOf(tc.raw)
+			parser, raw := pairRead(t, tc.pair)
+			want := []string{}
+			if tc.own {
+				want = append(want, tc.key)
+			}
+			assert.ElementsMatch(t, want, parser, "the keys the parser gives the section's entries")
+
+			key, own := KeyOf(raw)
 
 			assert.Equal(t, tc.key, key)
 			assert.Equal(t, tc.own, own)
 		})
 	}
+}
+
+// TestKeyOf_NamesNoKeyForAKeyThatIsNoScalar pins a departure from the parser,
+// which keys a pair whose key is no scalar, aliased or not, with the empty
+// string. KeyOf names none, so the view does not see the entry the parser reads
+// under that key. The parser assertion pins its reading, so a release that stops
+// giving those pairs the empty key is noticed. No node at all is the one row the
+// parser cannot be asked, since it never hands one back.
+func TestKeyOf_NamesNoKeyForAKeyThatIsNoScalar(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name, pair string
+	}{
+		{"a mapping key", "? {k: v}\n    : {description: x}"},
+		{"a sequence key", "? [k]\n    : {description: x}"},
+		{"an alias to a mapping", "*mapping : {description: x}"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			parser, raw := pairRead(t, tc.pair)
+			assert.Equal(t, []string{""}, parser, "the parser keys the pair with the empty string")
+
+			key, own := KeyOf(raw)
+
+			assert.Empty(t, key)
+			assert.False(t, own)
+		})
+	}
+
+	key, own := KeyOf(nil)
+
+	assert.Empty(t, key)
+	assert.False(t, own)
 }

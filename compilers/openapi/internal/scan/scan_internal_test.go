@@ -1,7 +1,9 @@
 package scan
 
 import (
+	"bytes"
 	"encoding/json/jsontext"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -13,6 +15,8 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/speakeasy-api/openapi/jsonpointer"
+	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
@@ -924,27 +928,101 @@ func TestRefScanCollect_ReadsNoSchemaUnderAKeyTheModelLacks(t *testing.T) {
 	}
 }
 
-// TestDetectCycles_PointerIsNormalizedLikeTheResolver pins the scan's pointer
-// reading to speakeasy's. It splits a $ref on '#', trims whitespace from both
-// halves and percent-decodes the pointer (references/reference.go GetURI and
-// GetJSONPointer), so '#/components/schemas/A ' names A there. A scan that
-// reads the raw value instead calls that pointer dangling and lets a
-// self-reference through. A '+' is the one byte it reads otherwise (see
-// TestDetectCycles_PlusInAPointerIsAPlus).
+// TestDetectCycles_PointerIsNormalizedLikeTheResolver holds the scan's pointer
+// reading to the resolver's: each spelling is read by the library too, and the
+// scan refuses exactly those it lands back on the schema spelling them. The
+// resolver trims a $ref and percent-decodes its pointer (references.Reference),
+// so a scan reading the raw value called '#/components/schemas/~0A ' dangling
+// and let a self-reference through. The self column pins today's library. A '+'
+// is the one byte read otherwise (see TestDetectCycles_PlusInAPointerIsAPlus).
 func TestDetectCycles_PointerIsNormalizedLikeTheResolver(t *testing.T) {
 	t.Parallel()
-	refs := map[string]string{
-		"trailing space":  "'#/components/schemas/A '",
-		"leading space":   "' #/components/schemas/A'",
-		"percent-encoded": "'#/components/schemas/%41'",
+	tests := []struct {
+		name, ref string
+		self      bool
+	}{
+		{"trailing space", "'#/components/schemas/~0A '", true},
+		{"leading space", "' #/components/schemas/~0A'", true},
+		{"percent-encoded", "'#/components/schemas/%7E0A'", true},
+		{"lower-case escape", "'#/components/schemas/%7e0A'", true},
+		{"an escaped space outlives the trim", "'#/components/schemas/~0A%20'", false},
+		{"another schema", "'#/components/schemas/B'", false},
 	}
-	for name, ref := range refs {
-		t.Run(name, func(t *testing.T) {
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			diags := scanBytes(t, schemasDoc([]string{"    A: {$ref: " + ref + "}\n"}))
-			require.NotEmpty(t, diags, "the resolver reads this pointer as naming A")
-			assert.Equal(t, diag.CyclicRef, diags[0].Code)
+			src := schemasDoc([]string{"    ~A: {$ref: " + tc.ref + "}\n", "    B: {type: string}\n"})
+			library := schemaLandsOnItself(t, src, "~A")
+			assert.Equal(t, tc.self, library, "the resolver's reading of this spelling")
+
+			refused := slices.ContainsFunc(scanBytes(t, src), func(d ir.Diagnostic) bool {
+				return d.Code == diag.CyclicRef
+			})
+			assert.Equal(t, library, refused, "the scan refuses what the resolver reads as the schema itself")
 		})
+	}
+}
+
+// schemaLandsOnItself reports whether the library reads the $ref of the schema
+// named name in src as naming that schema: normalized by references.Reference
+// and walked by jsonpointer.GetTarget on the parsed model, which is the read
+// the schema resolver makes. Resolving the schema itself would recurse round the
+// self-reference until the stack ran out.
+func schemaLandsOnItself(t *testing.T, src []byte, name string) bool {
+	t.Helper()
+	doc, _, err := soa.Unmarshal(t.Context(), bytes.NewReader(src))
+	require.NoError(t, err)
+	schema, ok := doc.Components.Schemas.Get(name)
+	require.True(t, ok)
+	ref := schema.GetRef()
+	if ref.GetURI() != "" {
+		return false
+	}
+	landed, ok := libraryLanding(t, doc, jsontext.Pointer(ref.GetJSONPointer()))
+	return ok && landed == schema.GetRootNode()
+}
+
+// resolveFirstItem resolves the path item /a in src with the library and
+// returns it with the error of the resolution, which is the cycle or the
+// pointer that led nowhere: what the resolver reached is read from the item.
+func resolveFirstItem(t *testing.T, src string) (*soa.ReferencedPathItem, error) {
+	t.Helper()
+	doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(src))
+	require.NoError(t, err)
+	item, ok := doc.Paths.Get("/a")
+	require.True(t, ok)
+	require.True(t, item.IsReference())
+
+	_, err = item.Resolve(t.Context(), soa.ResolveOptions{RootDocument: doc, TargetLocation: "spec.yaml", DisableExternalRefs: true})
+	return item, err
+}
+
+// walkEnd is how the library's resolution of a path item's $ref ended. The first
+// three are told apart by the library's own errors; a step through a reference
+// still being resolved fails with none of them, which is the fourth.
+type walkEnd string
+
+const (
+	endReached walkEnd = "reached a node"
+	endMissing walkEnd = "ran out of document"
+	endRefused walkEnd = "refused the pointer"
+	endBlocked walkEnd = "stopped at a reference it was resolving"
+)
+
+// resolverWalk reports how the library's resolution of the path item /a in src
+// ended.
+func resolverWalk(t *testing.T, src string) walkEnd {
+	t.Helper()
+	_, err := resolveFirstItem(t, src)
+	switch {
+	case err == nil:
+		return endReached
+	case errors.Is(err, jsonpointer.ErrNotFound):
+		return endMissing
+	case errors.Is(err, jsonpointer.ErrValidation), errors.Is(err, jsonpointer.ErrInvalidPath):
+		return endRefused
+	default:
+		return endBlocked
 	}
 }
 
@@ -1031,6 +1109,34 @@ components:
 			require.NotEmpty(t, diags, "'#/x-s' is a real pointer cycle through the document root")
 			assert.Equal(t, diag.CyclicRef, diags[0].Code)
 			assert.Equal(t, ir.SeverityError, diags[0].Severity)
+		})
+	}
+}
+
+// TestDetectCycles_TheResolverEndsAWalkThroughAReferenceObject pins the
+// premise the scan leaves reference objects on (GitHub #574): the library ends
+// its walk of a path item's pointer through the reference it is resolving,
+// stopped there, as it ends one below another item for want of a key, whether
+// or not the last token is UTF-8. The end column pins today's library; the scan
+// refuses none of them, and the resolver reports each.
+func TestDetectCycles_TheResolverEndsAWalkThroughAReferenceObject(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name, ref string
+		end       walkEnd
+	}{
+		{"through the reference being resolved", "'#/paths/~1a/t'", endBlocked},
+		{"a token that is not UTF-8, through it", "'#/paths/~1a/%FF'", endBlocked},
+		{"below another item", "'#/paths/~1b/t'", endMissing},
+		{"a token that is not UTF-8, below another item", "'#/paths/~1b/%FF'", endMissing},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			src := "openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths:\n  /a: {$ref: " + tc.ref + "}\n" +
+				"  /b: {get: {operationId: b, responses: {\"200\": {description: ok}}}}\n"
+			assert.Equal(t, tc.end, resolverWalk(t, src), "how the library's walk of this pointer ends")
+			assert.Empty(t, scanBytes(t, []byte(src)), "a chain of reference objects is the resolver's to report")
 		})
 	}
 }

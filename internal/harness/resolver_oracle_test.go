@@ -20,22 +20,36 @@ package harness_test
 // neither is affected by a harness that talks to the dependency directly.
 
 import (
+	"bufio"
 	"context"
+	"flag"
 	"fmt"
+	"maps"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"runtime/debug"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/ir"
 )
+
+// update rewrites outcomesGolden from what the resolver does now instead of
+// comparing against it, the flag name and meaning ir/irtest gives its goldens.
+var update = flag.Bool("update", false, "rewrite "+outcomesGolden+" instead of comparing against it")
+
+// outcomesGolden pins what the resolver does with every generated shape.
+const outcomesGolden = "testdata/resolver_outcomes.golden"
 
 // probeEnv carries the spec to the helper process. Its presence is also what
 // tells the helper it is the helper.
@@ -47,21 +61,41 @@ const probeEnv = "MORPHIC_RESOLVER_PROBE"
 // so it is the wall-clock cost of the slowest shape, not their sum.
 const probeTimeout = 10 * time.Second
 
+// probeMaxStack bounds the helper's goroutine stacks, as load's crash oracle
+// bounds its own. At the runtime's default of 1 GB a stack overflow under -race
+// can take longer than probeTimeout and read as a hang; these shapes are a few
+// references deep, so nothing short of a runaway recursion comes near 64 MB.
+const probeMaxStack = 64 << 20
+
+// helperTimeout is the helper's own -test.timeout. It is twice probeTimeout, so
+// the parent's kill always comes first and a hang is read as one, never as the
+// panic the testing package's timeout would print.
+const helperTimeout = 2 * probeTimeout
+
 // The helper reports each half of its work on stdout as it finishes, so a shape
 // that never returns is still attributable: losing both markers means the
 // compiler did not survive, losing only the second means the resolver did not.
 const (
 	refusedMarker = "MORPHIC_COMPILER_REFUSED="
-	errorMarker   = "MORPHIC_RESOLVE_ERRORS="
+	outcomeMarker = "MORPHIC_RESOLVER_OUTCOME="
 )
 
-// What the resolver did with a shape.
+// What the resolver did with a shape. The helper reports the first two itself;
+// the parent reads the other three from how the helper stopped.
 const (
-	resolverClean  = "resolved-clean"  // returned, reporting nothing
-	resolverErrors = "resolved-errors" // returned, reporting a problem with the spec
-	resolverHung   = "hung"            // still running at probeTimeout
-	resolverDied   = "died"            // exited non-zero: a runtime fatal error
+	resolverClean      = "clean"      // returned, reporting nothing
+	resolverErrors     = "errors"     // returned, reporting a problem with the spec
+	resolverHung       = "hung"       // still running at probeTimeout
+	resolverOverflowed = "overflowed" // the runtime's fatal stack overflow
+	resolverPanicked   = "panicked"   // a panic nothing recovered
 )
+
+// unparsed is what the helper reports when the library could not parse the
+// spec, so the resolver never ran and there is nothing to measure.
+const unparsed = "unparsed"
+
+// outcomes are the classes a golden line may hold.
+var outcomes = []string{resolverClean, resolverErrors, resolverHung, resolverOverflowed, resolverPanicked}
 
 const specHead = "openapi: 3.1.0\ninfo: {title: t, version: '1'}\n"
 
@@ -139,6 +173,28 @@ func pointerForms() []pointerForm {
 	}
 }
 
+// referenceShape is one generated document, named position/form.
+type referenceShape struct {
+	name string
+	spec string
+}
+
+// referenceShapes applies every form at every position, in that order, which is
+// the order the golden lists them in.
+func referenceShapes() []referenceShape {
+	positions, forms := referencePositions(), pointerForms()
+	shapes := make([]referenceShape, 0, len(positions)*len(forms))
+	for _, pos := range positions {
+		for _, form := range forms {
+			shapes = append(shapes, referenceShape{
+				name: pos.name + "/" + form.name,
+				spec: fmt.Sprintf(pos.tmpl, form.body(pos.pointer)),
+			})
+		}
+	}
+	return shapes
+}
+
 // TestResolverOracle_RefusalMatchesResolverBehavior is the oracle. Across every
 // generated shape it holds the compiler to two things:
 //
@@ -146,42 +202,148 @@ func pointerForms() []pointerForm {
 //   - A shape the resolver resolves cleanly must not be refused.
 //
 // A shape the resolver survives but reports an error on binds neither way: the
-// document fails on either path, so refusing it early is the scan's call. Hence
-// probe reports what the resolver said, not just that it returned: an exact
-// self-reference at a document position resolves with a circular-reference
-// error, and reading that as clean would demand an over-refusal.
+// document fails on either path, so refusing it early is the scan's call. Most
+// shapes are such, so each one's outcome is also pinned in outcomesGolden: a
+// bump turning a crash into an error makes a guard obsolete, not wrong, and only
+// the pin sees it (GitHub #574).
 func TestResolverOracle_RefusalMatchesResolverBehavior(t *testing.T) {
 	t.Parallel()
 	if os.Getenv(probeEnv) != "" {
 		t.Skip("helper process")
 	}
 
-	for _, pos := range referencePositions() {
-		for _, form := range pointerForms() {
-			name, spec := pos.name+"/"+form.name, fmt.Sprintf(pos.tmpl, form.body(pos.pointer))
-			t.Run(name, func(t *testing.T) {
-				t.Parallel()
+	shapes := referenceShapes()
+	pinned := pinnedOutcomes(t, shapes)
+	measured := measuredOutcomes(t, shapes)
+	for _, shape := range shapes {
+		t.Run(shape.name, func(t *testing.T) {
+			t.Parallel()
 
-				refused, outcome := probe(t, spec)
-				switch outcome {
-				case resolverHung, resolverDied:
-					assert.True(t, refused,
-						"the resolver cannot survive this, so the compiler must refuse it before "+
-							"reaching it\nresolver outcome: %s\nspec:\n%s", outcome, spec)
-				case resolverClean:
-					assert.False(t, refused,
-						"the resolver resolves this cleanly, so refusing it is an over-refusal"+
-							"\nspec:\n%s", spec)
-				default:
-					t.Logf("resolver reported an error; refusing is the scan's call (refused=%v)", refused)
-				}
-			})
-		}
+			refused, outcome := probe(t, shape.spec)
+			measured.record(shape.name, outcome)
+			switch outcome {
+			case resolverHung, resolverOverflowed, resolverPanicked:
+				assert.True(t, refused,
+					"the resolver cannot survive this, so the compiler must refuse it before "+
+						"reaching it\nresolver outcome: %s\nspec:\n%s", outcome, shape.spec)
+			case resolverClean:
+				assert.False(t, refused,
+					"the resolver resolves this cleanly, so refusing it is an over-refusal"+
+						"\nspec:\n%s", shape.spec)
+			}
+			if !*update {
+				assert.Equal(t, pinned[shape.name], outcome,
+					"the resolver's outcome for this shape changed, so a guard the compiler keeps "+
+						"against it may be obsolete or missing: decide which, then record it with "+
+						"-update\nspec:\n%s", shape.spec)
+			}
+		})
 	}
 }
 
+// pinnedOutcomes reads outcomesGolden, which must name every shape exactly once
+// and nothing else. Under -update there is nothing to compare, so it reads none.
+func pinnedOutcomes(t *testing.T, shapes []referenceShape) map[string]string {
+	t.Helper()
+	if *update {
+		return nil
+	}
+	pinned := readOutcomes(t, outcomesGolden)
+	names := make([]string, len(shapes))
+	for i, s := range shapes {
+		names[i] = s.name
+	}
+	require.ElementsMatch(t, names, slices.Collect(maps.Keys(pinned)),
+		"%s must pin every generated shape and nothing else; regenerate it with -update", outcomesGolden)
+	return pinned
+}
+
+// readOutcomes parses a golden of "shape outcome" lines, skipping blank lines
+// and "#" comments. A malformed line, a duplicate shape or an outcome no probe
+// reports fails rather than being read past.
+func readOutcomes(t *testing.T, path string) map[string]string {
+	t.Helper()
+	f, err := os.Open(path)
+	require.NoError(t, err, "read %s (run with -update to create it)", path)
+	t.Cleanup(func() { require.NoError(t, f.Close()) })
+
+	pinned := map[string]string{}
+	lines := bufio.NewScanner(f)
+	for lines.Scan() {
+		line := strings.TrimSpace(lines.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		fields := strings.Fields(line)
+		require.Len(t, fields, 2, "%s: %q is not a shape and an outcome", path, line)
+		name, outcome := fields[0], fields[1]
+		require.Contains(t, outcomes, outcome, "%s: %q is no outcome a probe reports", path, line)
+		_, dup := pinned[name]
+		require.False(t, dup, "%s pins %s twice", path, name)
+		pinned[name] = outcome
+	}
+	require.NoError(t, lines.Err())
+	return pinned
+}
+
+// outcomeRecord collects what the parallel subtests measured, so -update can
+// write the golden once every one of them is done.
+type outcomeRecord struct {
+	mu   sync.Mutex
+	seen map[string]string
+}
+
+func (r *outcomeRecord) record(name, outcome string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.seen[name] = outcome
+}
+
+// measuredOutcomes returns the record the subtests fill. Under -update it also
+// writes the golden from it, in a cleanup, which runs after the parallel
+// subtests finish; a shape left unmeasured fails instead of being dropped.
+func measuredOutcomes(t *testing.T, shapes []referenceShape) *outcomeRecord {
+	t.Helper()
+	r := &outcomeRecord{seen: map[string]string{}}
+	if !*update {
+		return r
+	}
+	t.Cleanup(func() {
+		r.mu.Lock()
+		defer r.mu.Unlock()
+		require.Len(t, r.seen, len(shapes), "not every shape was measured, so %s was not written", outcomesGolden)
+		writeOutcomes(t, outcomesGolden, shapes, r.seen)
+	})
+	return r
+}
+
+const outcomesHeader = `# Generated by:
+#   go test ./internal/harness -run TestResolverOracle_RefusalMatchesResolverBehavior -update
+#
+# What the parser library's resolver does with each reference shape
+# referenceShapes generates, measured in a subprocess with nothing in its way:
+# clean, errors, hung, overflowed or panicked. The compiler refuses some shapes
+# because of these outcomes, so a line that changes is a library change that
+# makes a guard obsolete or calls for a new one. Decide which before
+# regenerating; the regeneration is not the decision.
+`
+
+// writeOutcomes writes the golden, one shape per line in generation order.
+func writeOutcomes(t *testing.T, path string, shapes []referenceShape, seen map[string]string) {
+	t.Helper()
+	var sb strings.Builder
+	sb.WriteString(outcomesHeader)
+	for _, s := range shapes {
+		fmt.Fprintf(&sb, "%s %s\n", s.name, seen[s.name])
+	}
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+	require.NoError(t, os.WriteFile(path, []byte(sb.String()), 0o644))
+}
+
 // probe runs one shape in a subprocess and reports the compiler's verdict and
-// what the resolver did.
+// what the resolver did. A helper that stops in a way none of the outcomes
+// describes, or a shape the library cannot parse, fails the shape rather than
+// being filed under the nearest outcome.
 func probe(t *testing.T, spec string) (refused bool, outcome string) {
 	t.Helper()
 
@@ -189,7 +351,7 @@ func probe(t *testing.T, spec string) (refused bool, outcome string) {
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, os.Args[0],
-		"-test.run=^TestResolverOracle_ProbeHelper$", "-test.timeout="+probeTimeout.String())
+		"-test.run=^TestResolverOracle_ProbeHelper$", "-test.timeout="+helperTimeout.String())
 	cmd.Env = append(os.Environ(), probeEnv+"="+spec)
 
 	out, err := cmd.CombinedOutput()
@@ -202,18 +364,24 @@ func probe(t *testing.T, spec string) (refused bool, outcome string) {
 	}
 	refused = verdict == "true"
 
-	errCount, sawResolver := markerValue(text, errorMarker)
+	returned, sawResolver := markerValue(text, outcomeMarker)
 	switch {
-	case !sawResolver && ctx.Err() != nil:
+	case sawResolver && returned == unparsed:
+		t.Fatalf("the library could not parse this shape, so the resolver never ran\nspec:\n%s", spec)
+	case sawResolver && (returned == resolverClean || returned == resolverErrors):
+		return refused, returned
+	case sawResolver:
+		t.Fatalf("the helper reported an outcome the oracle does not know: %q", returned)
+	case ctx.Err() != nil:
 		return refused, resolverHung
-	case !sawResolver:
-		t.Logf("resolver process exited non-zero (%v):\n%s", err, truncate(out))
-		return refused, resolverDied
-	case errCount == "0":
-		return refused, resolverClean
-	default:
-		return refused, resolverErrors
+	case strings.Contains(text, "fatal error: stack overflow"):
+		return refused, resolverOverflowed
+	case strings.Contains(text, "panic: "):
+		return refused, resolverPanicked
 	}
+	t.Fatalf("the resolver process stopped in a way the oracle does not recognize (%v)\nspec:\n%s\n%s",
+		err, spec, truncate(out))
+	return false, ""
 }
 
 // TestResolverOracle_ProbeHelper is the subprocess body. It compiles the spec in
@@ -226,6 +394,7 @@ func TestResolverOracle_ProbeHelper(t *testing.T) {
 		t.Skip("not the helper process")
 	}
 	ctx := context.Background()
+	debug.SetMaxStack(probeMaxStack)
 
 	// The compiler first, its verdict printed before anything else runs: if this
 	// call is what hangs, the missing marker is the finding.
@@ -237,18 +406,18 @@ func TestResolverOracle_ProbeHelper(t *testing.T) {
 	// compiler's refusal is a model of.
 	doc, _, err := soa.Unmarshal(ctx, strings.NewReader(spec))
 	if err != nil || doc == nil {
-		fmt.Printf("%s1\n", errorMarker) // never reached the resolver: a parse problem
+		fmt.Printf("%s%s\n", outcomeMarker, unparsed)
 		return
 	}
 	resolveErrs, err := doc.ResolveAllReferences(ctx, soa.ResolveAllOptions{
 		OpenAPILocation:     "probe.yaml",
 		DisableExternalRefs: true,
 	})
-	count := len(resolveErrs)
-	if err != nil {
-		count++
+	outcome := resolverClean
+	if err != nil || len(resolveErrs) > 0 {
+		outcome = resolverErrors
 	}
-	fmt.Printf("%s%d\n", errorMarker, count)
+	fmt.Printf("%s%s\n", outcomeMarker, outcome)
 }
 
 // hasCyclicRef reports whether the compiler refused a spec as a degenerate
@@ -283,9 +452,9 @@ func stopReason(ctx context.Context, err error) string {
 // truncate bounds a failing subprocess's output so a stack dump does not bury
 // the assertion that reported it.
 func truncate(out []byte) string {
-	const max = 400
-	if len(out) <= max {
+	const limit = 400
+	if len(out) <= limit {
 		return string(out)
 	}
-	return string(out[:max]) + "\n... (truncated)"
+	return string(out[:limit]) + "\n... (truncated)"
 }

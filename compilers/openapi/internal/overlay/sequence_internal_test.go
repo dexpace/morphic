@@ -379,20 +379,63 @@ func TestCountNodes_SkipsWhatAParseNeverProduces(t *testing.T) {
 	assert.Equal(t, int64(2), countNodes(root), "the mapping and its one real child")
 }
 
-// TestActionType_NamesByTheLibrarysPrecedence pins the names the renumbering
-// matches on and the order they are decided in, which is the library's: an
-// action that sets more than one kind is the first of remove, update, copy. A
-// name that disagreed with the library's would leave that action's warnings
-// numbered as if it were the only one, since the prefix would never match.
+// TestActionType_NamesByTheLibrarysPrecedence holds the names the renumbering
+// matches on, and the order they are decided in, to the library's: an action that
+// sets more than one kind is the first of remove, update, copy. The library
+// reports the name only as the prefix of the warnings it files for an action, so
+// each action here makes it file one, and the name is read off that prefix. A
+// name that disagreed would leave the action's warnings numbered as if it were
+// the only one, since the prefix would never match. The want column pins today's
+// library.
 func TestActionType_NamesByTheLibrarysPrecedence(t *testing.T) {
 	t.Parallel()
-	update := yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
-	for want, action := range map[string]soaoverlay.Action{
-		"remove":  {Remove: true, Update: update, Copy: "$.x"},
-		"update":  {Update: update, Copy: "$.x"},
-		"copy":    {Copy: "$.x"},
-		"unknown": {Target: "$.x"},
-	} {
-		assert.Equal(t, want, actionType(action))
+	const v100 = "overlay: 1.0.0\ninfo: {title: o, version: \"1\"}\nactions:\n"
+	tests := []struct {
+		name, action, want string
+	}{
+		// $.paths./a is no RFC 9535 selector, which the library warns of for a remove.
+		{"every kind at once", "  - target: $.paths./a\n    remove: true\n    update: {title: T}\n    copy: $.nowhere\n", "remove"},
+		{"remove and copy", "  - target: $.paths./a\n    remove: true\n    copy: $.components.schemas.One\n", "remove"},
+		{"update and copy", "  - target: $.info\n    update: {title: T}\n    copy: $.nowhere\n", "update"},
+		{"update alone", "  - target: $.info\n    update: {title: T}\n", "update"},
+		{"copy alone", "  - target: $.components.schemas.Two\n    copy: $.components.schemas.One\n", "copy"},
 	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var root yaml.Node
+			require.NoError(t, yaml.Unmarshal([]byte(sequenceSpec), &root))
+			doc, err := soaoverlay.ParseReader(strings.NewReader(v100 + tc.action))
+			require.NoError(t, err)
+			require.Len(t, doc.Actions, 1)
+
+			warnings, err := doc.ApplyToStrict(&root)
+			require.NoError(t, err)
+			require.Len(t, warnings, 1, "the one warning the action files")
+			name, _, found := strings.Cut(warnings[0], " action (1 / 1) target=")
+			require.True(t, found, "the warning opens with the action's name: %q", warnings[0])
+
+			assert.Equal(t, tc.want, name, "the library's name for the action")
+			assert.Equal(t, name, actionType(doc.Actions[0]))
+		})
+	}
+}
+
+// TestActionType_NamesAnActionOfNoKindUnknown pins the name for an action that
+// sets no kind. The library fails the overlay on it and files no warning, so it
+// never reports a name for one and this is the compiler's own.
+func TestActionType_NamesAnActionOfNoKindUnknown(t *testing.T) {
+	t.Parallel()
+	var root yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte(sequenceSpec), &root))
+	doc, err := soaoverlay.ParseReader(strings.NewReader(
+		"overlay: 1.0.0\ninfo: {title: o, version: \"1\"}\nactions:\n  - target: $.info\n"))
+	require.NoError(t, err)
+	require.Len(t, doc.Actions, 1)
+
+	warnings, err := doc.ApplyToStrict(&root)
+
+	require.Error(t, err, "the library fails the overlay on an action of no kind")
+	assert.Empty(t, warnings, "and files no warning to carry a name")
+	assert.Equal(t, "unknown", actionType(doc.Actions[0]))
 }
