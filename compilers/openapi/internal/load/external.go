@@ -336,7 +336,10 @@ func (e external) readFile(key, path string) answer {
 
 // readOpened reads f, opened as the file under key, prepares it, and closes it
 // before its bytes are served. It judges f again, since the path can name
-// another file by the time it is opened.
+// another file by the time it is opened. A FIFO swapped in before the open
+// still blocks it: only a process racing the compile can do that, never a
+// spec, and the non-blocking open that would not wait is missing on the wasm
+// ports.
 func (e external) readOpened(key string, f *os.File) answer {
 	if info, err := f.Stat(); err != nil || !info.Mode().IsRegular() {
 		return answer{err: errors.Join(refused(key, "it is not a regular file"), err, f.Close())}
