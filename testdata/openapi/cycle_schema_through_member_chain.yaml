@@ -1,0 +1,13 @@
+# A loop of three schema references, one of which passes back through its own
+# $ref on the way: A lands on B's member u, whose pointer passes u to land on
+# its member v, which refers back to A (GitHub #932).
+openapi: 3.1.0
+info: {title: Schema Through Member Chain, version: "1"}
+paths: {}
+components:
+  schemas:
+    A: {$ref: '#/components/schemas/B/u'}
+    B:
+      u:
+        $ref: '#/components/schemas/B/u/v'
+        v: {$ref: '#/components/schemas/A'}

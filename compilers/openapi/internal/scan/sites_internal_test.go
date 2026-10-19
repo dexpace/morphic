@@ -9,7 +9,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
@@ -74,52 +73,6 @@ func TestRefusal_NamesTheCycleNotWhatLeadsIntoIt(t *testing.T) {
 	}
 }
 
-// TestRefusal_NamesTheReferenceAReentryPasses pins the site of a re-entry: the
-// reference whose own lock the walk blocks on, /b here, whose pointer passes
-// through itself, and not /a, which only leads there.
-func TestRefusal_NamesTheReferenceAReentryPasses(t *testing.T) {
-	t.Parallel()
-	header := "openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths:\n"
-	members := []string{
-		"  /a: {$ref: '#/paths/~1b'}\n",
-		"  /b: {$ref: '#/paths/~1b/x', x: {get: {responses: {}}}}\n",
-	}
-	for order, data := range bothOrders(header, members) {
-		t.Run(order, func(t *testing.T) {
-			t.Parallel()
-			d := onlyRefusal(t, data)
-			assert.Equal(t, diag.CyclicRef, d.Code)
-			assert.Equal(t, jsontext.Pointer("/paths/~1b"), d.Provenance.Pointer)
-			assert.Equal(t, "cyclic $ref: reference resolves through itself", d.Message)
-		})
-	}
-}
-
-// TestRefusal_ASiteOnARefusedLoopReadsAsTheCycle pins the one choice between
-// the two messages: L0 is both a member of the loop L1's chain cycles in and
-// the reference /x's chain first re-enters, and reads as the cycle.
-func TestRefusal_ASiteOnARefusedLoopReadsAsTheCycle(t *testing.T) {
-	t.Parallel()
-	data := []byte(`openapi: 3.1.0
-info: {title: t, version: '1'}
-paths:
-  /x: {$ref: '#/components/schemas/L0'}
-components:
-  schemas:
-    L0: {$ref: '#/components/schemas/L1', t: {$ref: '#/components/schemas/L0'}}
-    L1: {$ref: '#/components/schemas/L0/t'}
-`)
-	s, chains := settled(t, data)
-	x := s.outside[0]
-	require.Equal(t, chainReenters, chains.outcome(x).verdict, "the path item re-enters")
-	_, reentered := chains.failsOn(x)
-	require.Equal(t, 7, reentered[0].Line, "at L0")
-
-	d := onlyRefusal(t, data)
-	assert.Equal(t, jsontext.Pointer("/components/schemas/L0"), d.Provenance.Pointer)
-	assert.Equal(t, "cyclic $ref: reference chain never reaches a node without a $ref", d.Message)
-}
-
 // TestCycles_NamesTheLeastRecursiveAlias pins the site of a recursive anchor
 // when a document holds several: the alias with the least pointer, in either
 // order. Each anchor stays above its own alias, so both orders parse.
@@ -166,42 +119,15 @@ func TestAliasAmplification_NamesTheLeastInnermostAmplifier(t *testing.T) {
 	}
 }
 
-// TestRefusal_AReentryOnALoopLeftToTheResolverReadsAsAReentry is the control
-// for the test above: L0 is on a loop again, but one inside components that
-// the resolver reports itself, so only the re-entry is refused, and reads as
-// one.
-func TestRefusal_AReentryOnALoopLeftToTheResolverReadsAsAReentry(t *testing.T) {
-	t.Parallel()
-	data := []byte(`openapi: 3.1.0
-info: {title: t, version: '1'}
-paths: {}
-components:
-  pathItems:
-    L0: {$ref: '#/components/pathItems/L1', t: {$ref: '#/components/pathItems/L0'}}
-    L1: {$ref: '#/components/pathItems/L0/t'}
-`)
-	_, chains := settled(t, data)
-	l1 := chains.order[slices.IndexFunc(chains.order, func(n *yaml.Node) bool { return n.Line == 7 })]
-	require.NotZero(t, chains.hops[l1].loop, "L1 is on the loop")
-	require.Equal(t, chainOutcome{verdict: chainCycles}, chains.outcome(l1), "inside components, the resolver's")
-
-	d := onlyRefusal(t, data)
-	assert.Equal(t, jsontext.Pointer("/components/pathItems/L0"), d.Provenance.Pointer)
-	assert.Equal(t, "cyclic $ref: reference resolves through itself", d.Message)
-}
-
-// TestFailures_RecordsALoopOnce pins that a loop is gathered once however many
-// refused chains cycle in it: every member of a loop of n is a start, so a
-// record per start would hold n² sites.
-func TestFailures_RecordsALoopOnce(t *testing.T) {
+// TestLoopsReached_GathersALoopOnce pins that a loop is gathered once however
+// many refused chains run into it: every member of a loop of n is a start, so
+// a gathering per start would hold n² sites.
+func TestLoopsReached_GathersALoopOnce(t *testing.T) {
 	t.Parallel()
 	const n = 300
 	s, chains := settled(t, schemasDoc(slices.Concat(chainTo("S", n, "C0"), loopOf(n))))
-	failed := failures{chains: chains, loops: map[int]bool{}}
-	for _, start := range s.out {
-		failed.add(start)
-	}
-	assert.Len(t, failed.sites, n)
+
+	assert.Len(t, chains.loopsReached(s.out), n)
 }
 
 // fanned is an anchor of ten scalars under name, aliased twenty times in a

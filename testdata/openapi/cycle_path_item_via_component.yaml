@@ -1,5 +1,5 @@
-# A chain that starts and ends in components but leaves it in between: the
-# component hop alone would be guarded, the /paths hop is not.
+# A chain that starts and ends in components but leaves it in between, which
+# the resolver reports as it does a chain that never leaves.
 openapi: 3.1.0
 info: {title: Path Item Via Component, version: "1"}
 paths:

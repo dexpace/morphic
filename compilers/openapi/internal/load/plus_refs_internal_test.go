@@ -138,7 +138,7 @@ func (l loadedPlus) refAt(t *testing.T, site jsontext.Pointer) resolvable {
 // nodeAt returns the node the source's tree holds at pointer.
 func (l loadedPlus) nodeAt(t *testing.T, pointer jsontext.Pointer) *yaml.Node {
 	t.Helper()
-	path, complete := nodeview.New().PointerPath(nodeview.DocumentRoot(l.root), pointer)
+	path, complete := nodeview.New().DocumentPath(nodeview.DocumentRoot(l.root), pointer)
 	require.True(t, complete, "the tree holds %s", pointer)
 	return path[len(path)-1]
 }

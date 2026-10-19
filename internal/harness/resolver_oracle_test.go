@@ -10,7 +10,7 @@ package harness_test
 //
 // So this asks the resolver instead. For each generated shape it compares what
 // the compiler does against what the resolver actually does, both measured in a
-// subprocess — because a deadlock and a stack overflow cannot be observed from
+// subprocess — because a hang and a stack overflow cannot be observed from
 // inside the process they happen to, and because the compiler is subject to both
 // if its refusal ever regresses. An oracle that hangs instead of failing on the
 // regression it exists for would be no oracle at all.
@@ -43,7 +43,7 @@ const probeEnv = "MORPHIC_RESOLVER_PROBE"
 
 // probeTimeout is how long a shape gets before it counts as hanging. A shape
 // that resolves at all resolves in milliseconds, so this only ever bounds a
-// deadlock, and only the shapes that deadlock pay it. Subtests run in parallel,
+// hang, and only a shape that hangs pays it. Subtests run in parallel,
 // so it is the wall-clock cost of the slowest shape, not their sum.
 const probeTimeout = 10 * time.Second
 
@@ -121,6 +121,12 @@ func pointerForms() []pointerForm {
 		}},
 		{"prefix-self-resolving-sibling", func(p string) string {
 			return fmt.Sprintf("{$ref: '%s/description', description: d}", p)
+		}},
+		{"prefix-self-sibling-back", func(p string) string {
+			return fmt.Sprintf("{$ref: '%s/x', x: {$ref: '%s'}}", p, p)
+		}},
+		{"prefix-self-property-back", func(p string) string {
+			return fmt.Sprintf("{$ref: '%s/properties/p', properties: {p: {$ref: '%s'}}}", p, p)
 		}},
 		{"dangling-elsewhere", func(string) string { return "{$ref: '#/nope/nope'}" }},
 		{"external-document", func(string) string { return "{$ref: 'other.yaml#/x'}" }},

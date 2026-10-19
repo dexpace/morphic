@@ -1,7 +1,6 @@
-# A path item whose $ref names a position *inside itself*. The pointer does not
-# resolve — there is no `t` key — so the chain looks dangling, but the resolver
-# never evaluates the last segment: it deadlocks walking the prefix
-# '#/paths/~1a', which is the reference it is already resolving.
+# A path item whose $ref names a position inside itself, through the reference
+# being resolved. speakeasy v1.24.0 deadlocked on its own lock walking that
+# prefix; from v1.24.1 the walk reports the reference unresolved (GitHub #574).
 openapi: 3.1.0
 info: {title: Path Item Prefix Self, version: "1"}
 paths:

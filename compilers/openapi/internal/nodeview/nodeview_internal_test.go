@@ -49,7 +49,7 @@ func TestChildByToken_NilNode(t *testing.T) {
 	assert.Nil(t, New().ChildByToken(nil, "anything"))
 }
 
-func TestPointerPath_Cases(t *testing.T) {
+func TestPointerTarget_Cases(t *testing.T) {
 	t.Parallel()
 	leaf := ynode.Scalar("leaf")
 	target := ynode.Map(ynode.Scalar("b"), leaf)
@@ -75,13 +75,14 @@ func TestPointerPath_Cases(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			path, complete := New().PointerPath(root, tc.pointer)
+			got, landed := New().PointerTarget(root, tc.pointer)
 			if tc.want == nil {
-				assert.False(t, complete, "the pointer names nothing")
+				assert.False(t, landed, "the pointer names nothing")
+				assert.Nil(t, got)
 				return
 			}
-			require.True(t, complete)
-			assert.Same(t, tc.want, path[len(path)-1], "the last element is the destination")
+			require.True(t, landed)
+			assert.Same(t, tc.want, got)
 		})
 	}
 }
@@ -445,47 +446,33 @@ func yamlDoc(t *testing.T, src string) *yaml.Node {
 	return DocumentRoot(&doc)
 }
 
-func TestPointerPath_KeepsTheNodesTheWalkPassesThrough(t *testing.T) {
+func TestPointerTarget_LandsNowherePastAMissingToken(t *testing.T) {
 	t.Parallel()
-	leaf := ynode.Scalar("leaf")
-	inner := ynode.Map(ynode.Scalar("b"), leaf)
-	root := ynode.Map(ynode.Scalar("a"), inner)
+	root := ynode.Map(ynode.Scalar("a"), ynode.Map(ynode.Scalar("b"), ynode.Scalar("leaf")))
 
-	path, complete := New().PointerPath(root, "/a/b")
-	require.True(t, complete, "every token resolves")
-	assert.Equal(t, []*yaml.Node{root, inner, leaf}, path,
-		"element 0 is the root and each later element is one more token")
+	got, landed := New().PointerTarget(root, "/a/missing/deeper")
+	assert.False(t, landed, "a token that names nothing stops the walk")
+	assert.Nil(t, got)
 }
 
-func TestPointerPath_IncompleteStopsAtTheLastNodeReached(t *testing.T) {
-	t.Parallel()
-	inner := ynode.Map(ynode.Scalar("b"), ynode.Scalar("leaf"))
-	root := ynode.Map(ynode.Scalar("a"), inner)
-
-	path, complete := New().PointerPath(root, "/a/missing/deeper")
-	assert.False(t, complete, "a token that names nothing stops the walk")
-	assert.Equal(t, []*yaml.Node{root, inner}, path,
-		"an unresolvable pointer has no destination, so every node it reached is one it passed through")
-}
-
-func TestPointerPath_RootTokenlessAndNil(t *testing.T) {
+func TestPointerTarget_RootTokenlessAndNil(t *testing.T) {
 	t.Parallel()
 	root := ynode.Map(ynode.Scalar("a"), ynode.Scalar("v"))
 
-	path, complete := New().PointerPath(root, "")
-	assert.True(t, complete, "a pointer with no tokens names the root")
-	assert.Equal(t, []*yaml.Node{root}, path)
+	got, landed := New().PointerTarget(root, "")
+	assert.True(t, landed, "a pointer with no tokens names the root")
+	assert.Same(t, root, got)
 
-	path, complete = New().PointerPath(nil, "/a")
-	assert.False(t, complete)
-	assert.Nil(t, path, "a nil root reaches nothing")
+	got, landed = New().PointerTarget(nil, "/a")
+	assert.False(t, landed)
+	assert.Nil(t, got, "a nil root reaches nothing")
 }
 
 // TestDocumentPath_SeparatesTheLoneSlashFromTheRoot pins the one question the
 // two readings answer differently.
 //
-// PointerPath lands '/' on the root because that is where the resolver lands a
-// reference spelled that way. A pointer naming a position in this document
+// PointerTarget lands '/' on the root because that is where the resolver lands
+// a reference spelled that way. A pointer naming a position in this document
 // carries no such departure: ids.Ptr("") spells the root member keyed "" exactly
 // '/', so reading it as the root walks past the member the pointer names — and a
 // caller reading $id down the path would miss one written there.
@@ -499,70 +486,62 @@ func TestDocumentPath_SeparatesTheLoneSlashFromTheRoot(t *testing.T) {
 	assert.Equal(t, []*yaml.Node{root, member}, path,
 		`ids.Ptr("") spells the root member keyed "" as "/", so the walk descends into it`)
 
-	path, complete = New().PointerPath(root, "/")
-	assert.True(t, complete)
-	assert.Equal(t, []*yaml.Node{root}, path,
-		"the reference reading stops at the root, which is what tokenless records")
+	got, landed := New().PointerTarget(root, "/")
+	assert.True(t, landed)
+	assert.Same(t, root, got, "the reference reading stops at the root, which is what tokenless records")
 
 	path, complete = New().DocumentPath(root, "")
 	assert.True(t, complete, "only the empty pointer names the root here")
 	assert.Equal(t, []*yaml.Node{root}, path)
 }
 
-// TestPointerPath_EmptyTokenIsARealToken pins the one token a walk must not
-// normalize away. RFC 6901 makes "" a reference token naming the key "", and the
-// resolver's own parser agrees (jsonpointer/navigation.go getNavigationStack,
-// v1.24.0). A walk that skips it reports '/a/' as arriving at a, turning a node
-// the pointer only passes through into its destination — which is exactly the
-// node the re-entrancy check excludes, so the check never sees it.
-func TestPointerPath_EmptyTokenIsARealToken(t *testing.T) {
+// TestPointerTarget_ATrailingEmptyTokenLandsNowhere pins the one token read
+// otherwise than RFC 6901 reads it: '/a/' lands nowhere though a key "" is
+// declared under a, because the library lands such a pointer on no member. An
+// empty token before the last still names the key "".
+func TestPointerTarget_ATrailingEmptyTokenLandsNowhere(t *testing.T) {
 	t.Parallel()
-	inner := ynode.Map(ynode.Scalar("b"), ynode.Scalar("leaf"))
+	leaf := ynode.Scalar("leaf")
+	inner := ynode.Map(ynode.Scalar(""), ynode.Map(ynode.Scalar("b"), leaf))
 	root := ynode.Map(ynode.Scalar("a"), inner)
 
-	path, complete := New().PointerPath(root, "/a/")
-	assert.False(t, complete, `no key "" is declared under a, so the last token resolves to nothing`)
-	assert.Equal(t, []*yaml.Node{root, inner}, path,
-		"the walk passed through a rather than stopping at it")
+	got, landed := New().PointerTarget(root, "/a/")
+	assert.False(t, landed, `the trailing token is not read as the key ""`)
+	assert.Nil(t, got)
+
+	got, landed = New().PointerTarget(root, "/a//b")
+	require.True(t, landed, `an empty token before the last names the key ""`)
+	assert.Same(t, leaf, got)
 }
 
-func TestPointerPath_EmptyTokenNamesTheEmptyKey(t *testing.T) {
-	t.Parallel()
-	empty := ynode.Scalar("under the empty key")
-	inner := ynode.Map(ynode.Scalar(""), empty)
-	root := ynode.Map(ynode.Scalar("a"), inner)
-
-	path, complete := New().PointerPath(root, "/a/")
-	require.True(t, complete, `the empty token names the key ""`)
-	assert.Same(t, empty, path[len(path)-1], "the last element is the destination")
-}
-
-// TestPointerPath_LoneSeparatorNamesTheRoot records where the resolver departs
-// from RFC 6901, which reads '/' as one empty token: getNavigationStack special-
-// cases it to an empty stack, so speakeasy lands on the document root. This
-// package models what the resolver walks, so it follows the resolver.
-func TestPointerPath_LoneSeparatorNamesTheRoot(t *testing.T) {
+// TestPointerTarget_LoneSeparatorNamesTheRoot records where the resolver
+// departs from RFC 6901, which reads '/' as one empty token: getNavigationStack
+// special-cases it to an empty stack, so speakeasy lands on the document root.
+// This package models what the resolver walks, so it follows the resolver.
+func TestPointerTarget_LoneSeparatorNamesTheRoot(t *testing.T) {
 	t.Parallel()
 	root := ynode.Map(ynode.Scalar("a"), ynode.Scalar("v"))
 
-	path, complete := New().PointerPath(root, "/")
-	assert.True(t, complete, "the resolver reads a lone separator as naming the root")
-	assert.Equal(t, []*yaml.Node{root}, path)
+	got, landed := New().PointerTarget(root, "/")
+	assert.True(t, landed, "the resolver reads a lone separator as naming the root")
+	assert.Same(t, root, got)
 }
 
-func TestPointerPath_SegmentCapStopsTheWalk(t *testing.T) {
+// TestPointerTarget_SegmentCapStopsTheWalk pins the cap at its edge. A mapping
+// whose only key is "a" and whose value is itself cannot be built from parsed
+// YAML, but an alias can stand in: the walk follows "a" as long as tokens last,
+// so only the cap can end it.
+func TestPointerTarget_SegmentCapStopsTheWalk(t *testing.T) {
 	t.Parallel()
-	// A mapping whose only key is "a" and whose value is itself cannot be built
-	// from parsed YAML, but an alias can stand in: the walk follows "a" as long
-	// as tokens last, so only the cap can end it.
 	root := ynode.Map(ynode.Scalar("a"), nil)
 	root.Content[1] = root
 
-	ref := strings.Repeat("/a", maxPointerSegments+1)
-	path, complete := New().PointerPath(root, jsontext.Pointer(ref))
-	assert.False(t, complete, "a pointer past the segment cap does not resolve")
-	assert.Len(t, path, maxPointerSegments+1,
-		"the walk stops at the cap: the root plus one node per followed token")
+	got, landed := New().PointerTarget(root, jsontext.Pointer(strings.Repeat("/a", maxPointerSegments)))
+	require.True(t, landed, "a pointer at the segment cap resolves")
+	assert.Same(t, root, got)
+
+	_, landed = New().PointerTarget(root, jsontext.Pointer(strings.Repeat("/a", maxPointerSegments+1)))
+	assert.False(t, landed, "one past it does not")
 }
 
 // wideMap builds a mapping of minIndexedPairs pairs named k0..kN-1, plus any
@@ -699,8 +678,8 @@ func TestKeyIndex_DeclinesWhatThePairsMemoDidNotKeep(t *testing.T) {
 	})
 }
 
-// TestPointerPath_ReachesTheIndexOnAWideMapping settles by assertion what
-// BenchmarkPointerPath_IntoAWideMapping can only show with a stopwatch, and
+// TestPointerTarget_ReachesTheIndexOnAWideMapping settles by assertion what
+// BenchmarkPointerTarget_IntoAWideMapping can only show with a stopwatch, and
 // nothing runs that in CI: a walk resolving many pointers through one view must
 // leave an index on the mapping every one of them descends. If a gate stopped
 // admitting it, through a raised width or a reuse marker never promoted, the
@@ -708,15 +687,15 @@ func TestKeyIndex_DeclinesWhatThePairsMemoDidNotKeep(t *testing.T) {
 //
 // The pointers name distinct components because it is the shared mapping that
 // must be indexed, not the entries they end at.
-func TestPointerPath_ReachesTheIndexOnAWideMapping(t *testing.T) {
+func TestPointerTarget_ReachesTheIndexOnAWideMapping(t *testing.T) {
 	t.Parallel()
 	const width = minIndexedPairs
 	root := componentsDoc(width)
 	v := New()
 
 	for i := range width {
-		_, complete := v.PointerPath(root, jsontext.Pointer(fmt.Sprintf("/components/schemas/S%d", i)))
-		require.True(t, complete, "every pointer resolves")
+		_, landed := v.PointerTarget(root, jsontext.Pointer(fmt.Sprintf("/components/schemas/S%d", i)))
+		require.True(t, landed, "every pointer resolves")
 	}
 
 	schemas := v.ChildByToken(v.ChildByToken(root, "components"), "schemas")

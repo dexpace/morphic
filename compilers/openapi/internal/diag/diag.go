@@ -31,15 +31,16 @@ const (
 	// item $ref, which the resolver reads in the item that $ref names (GitHub
 	// #824).
 	UnresolvedRef = "openapi/unresolved-ref"
-	// CyclicRef reports a degenerate reference cycle, caught before it crashes
-	// the parser with a stack overflow or deadlocks the resolver on a lock its
-	// own goroutine holds. A pre-parse scan finds a recursive YAML anchor or a
-	// chain of $ref-only nodes joined by same-document pointers; load's reach,
-	// one closing through $anchor, $id or $defs-relative resolution, which it
-	// over-approximates bar a $defs reference load holds (GitHub #557). Either
-	// names a reference on the cycle, or one a pointer passes back through,
-	// never one only leading in, and of several the least by pointer (GitHub
-	// #912).
+	// CyclicRef reports a degenerate reference cycle, caught before it overflows
+	// the parser's or resolver's stack. A pre-parse scan finds a recursive YAML
+	// anchor or a loop of schema $refs joined by same-document pointers; load's
+	// reach, one closing through $anchor, $id or $defs-relative resolution,
+	// over-approximating bar a $defs reference load holds (GitHub #557). Each
+	// names the cycle's reference with the least pointer, never one only leading
+	// in (GitHub #912). Load's chain read, for one closing through the source's
+	// file name, names every reference whose chain loops (GitHub #768). The
+	// resolver reports a chain of reference objects itself, as UnresolvedRef
+	// (GitHub #574).
 	CyclicRef = "openapi/cyclic-ref"
 	// CycleScanFailed reports that a cycle check did not run to completion,
 	// leaving its stack-overflow protection incomplete for the source: the
