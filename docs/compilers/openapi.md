@@ -1617,13 +1617,14 @@ is the media type that serializes the value: `HTTPParamBinding.ContentType` on a
 `Property.Encoding.MediaType` on a header, neither set by the `schema` spelling. Further entries
 lower nothing, reported as an `openapi/degraded-construct` warning at the `content` map naming them.
 What else the entry writes is kept: its `example` and `examples` follow the parameter's or header's
-own in `Examples`, and its `x-*` extensions, `description`, undeclared keys and the fields only a
-body Content models — `itemSchema`, `itemEncoding`, `prefixEncoding` and `encoding`, each reported
-as an info `openapi/degraded-construct` — go verbatim under `openapi:content/<key>/<field>`, the key
-escaped as a pointer segment, as `vendor_extension` or `no_ir_home`. A `content` map with no entry
-elects nothing: a `schema` beside it stands, and the empty map is kept under `degraded_lowering`
-with an `openapi/degraded-construct` warning. The converse, `schema` beside a non-empty `content`,
-is [`competing-keywords`](#competing-keywords)'.
+own in `Examples`, and the rest goes verbatim under `openapi:content/<key>/<field>`, the key escaped
+as a pointer segment — its `x-*` extensions under `vendor_extension`; an undeclared key under
+`out_of_scope`, with the `openapi/unknown-object-key` warning [`unknown-keys`](#unknown-keys) gives
+it; and its `description` and the fields only a body Content models, `itemSchema`, `itemEncoding`,
+`prefixEncoding` and `encoding`, under `no_ir_home`, each with an info `openapi/degraded-construct`
+at it. A `content` map with no entry elects nothing: a `schema` beside it stands, and the empty map
+is kept under `degraded_lowering` with an `openapi/degraded-construct` warning. The converse,
+`schema` beside a non-empty `content`, is [`competing-keywords`](#competing-keywords)'.
 
 - Cases: `param-content-fields`, `header-content-schema`
 - Codes: `openapi/degraded-construct`
