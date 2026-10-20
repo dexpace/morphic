@@ -375,7 +375,8 @@ func assertAllOfConflictingType(t *testing.T, doc *ir.Document, diags []ir.Diagn
 // primitive is lossless (GitHub #598, #446): each pair, in both branch orders,
 // merges to the narrower target with no warning and nothing kept under
 // Unmodeled, and the two orders agree on the type. NullableBroadFirst adds the
-// nullability intersection and the broad branch's adopted minimum.
+// nullability intersection and the broad branch's adopted minimum, and the
+// InadmissibleDefault pair the broad default the narrow kind refuses.
 func assertAllOfNarrowingRedeclaration(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	pairs := []struct {
 		name   string
@@ -415,6 +416,25 @@ func assertAllOfNarrowingRedeclaration(t *testing.T, doc *ir.Document, diags []i
 	require.NotNil(t, p.Constraints.Min, "the broad branch's minimum is adopted")
 	assert.Equal(t, ir.BigVal("0"), *p.Constraints.Min)
 	assert.Empty(t, p.Unmodeled)
+
+	assertInadmissibleDefault(t, doc, diags)
+}
+
+// assertInadmissibleDefault pins that a broad branch's default the narrow kind
+// refuses lands nowhere on the merged field: the narrow type wins in either
+// order, and the broad branch is kept whole at its own pointer with one info.
+func assertInadmissibleDefault(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	for model, broadBranch := range map[string]string{"InadmissibleDefaultBroadFirst": "0", "InadmissibleDefaultNarrowFirst": "1"} {
+		p := narrowedProp(t, doc, model)
+		ptr := "/components/schemas/" + model + "/allOf/" + broadBranch + "/properties/p"
+		assert.Equal(t, ir.TypeID("t/prim/integer"), p.Type.Target, "%s: the narrow type wins", model)
+		assert.Nil(t, p.Default, "%s: the refused default does not land", model)
+		assertKeptRaw(t, p.Unmodeled, "openapi:conflicting-redeclaration"+ptr, `{"type":"number","default":1.5}`)
+		assert.Len(t, p.Unmodeled, 1, "%s: only the broad branch is kept", model)
+		assert.Equal(t, []ir.Severity{ir.SeverityInfo}, diagsAt(diags, "openapi/degraded-construct", ptr),
+			"%s: one info at the broad branch", model)
+		assert.Empty(t, diagsAt(diags, "openapi/conflicting-redeclaration", ptr), "%s: no warning", model)
+	}
 }
 
 // narrowedProp returns property p of the named component model.

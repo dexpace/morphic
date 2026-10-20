@@ -10,9 +10,11 @@ package merge
 import (
 	"cmp"
 	"encoding/json/jsontext"
+	"errors"
 	"fmt"
 	"reflect"
 	"slices"
+	"strings"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
@@ -46,22 +48,46 @@ func WireNameIndex(props []ir.Property) map[string]int {
 	return idx
 }
 
-// MergeProperty appends p to m and records it in byWire, or folds it into the
+// Source renders the construct a declaration was written as, verbatim. It is a
+// function because nearly every property is declared once, and rendering a node
+// nobody will keep is a cost the merge asks for only when it has something to
+// keep.
+type Source func() (ir.RawValue, error)
+
+// PropIndex finds, for each wire name of one Model, the position of the
+// property that holds it and the Source of that property's first declaration.
+// The Source is what lets a first declaration that turns out to be the broader
+// of a narrowing be kept verbatim beside the merged field, as a redeclaration
+// is (keepLosingDeclaration).
+type PropIndex struct {
+	pos map[string]int
+	src map[string]Source
+}
+
+// NewPropIndex indexes props, which carry no Source: a declaration of one of
+// them that must be kept reports it unkeepable (ErrNoSource). A Model fills
+// from empty, so it passes none.
+func NewPropIndex(props []ir.Property) *PropIndex {
+	return &PropIndex{pos: WireNameIndex(props), src: make(map[string]Source, len(props))}
+}
+
+// MergeProperty appends p to m and records it in idx, or folds it into the
 // property that already carries the same wire name — overlapping allOf branches
 // (and properties co-declared alongside allOf) redeclare one logical field under
 // allOf's intersection semantics (ir-design §4.3). Callers must set p.WireName
-// (fillModelProperties always does); it keys byWire directly.
+// (fillModelProperties always does); it keys idx directly.
 //
 // p.Provenance locates the declaration, and is the only source of that fact
 // here. It used to arrive twice — as a parameter and on p — equal by
 // construction at the one call site, which left nothing able to catch them
 // disagreeing.
-func (g *Merger) MergeProperty(m *ir.Model, byWire map[string]int, p ir.Property, source func() (ir.RawValue, error)) {
-	if i, ok := byWire[p.WireName]; ok {
-		g.reconcileProperty(&m.Properties[i], p, source)
+func (g *Merger) MergeProperty(m *ir.Model, idx *PropIndex, p ir.Property, source Source) {
+	if i, ok := idx.pos[p.WireName]; ok {
+		g.reconcileProperty(&m.Properties[i], idx.src[p.WireName], p, source)
 		return
 	}
-	byWire[p.WireName] = len(m.Properties)
+	idx.pos[p.WireName] = len(m.Properties)
+	idx.src[p.WireName] = source
 	m.Properties = append(m.Properties, p)
 }
 
@@ -69,17 +95,17 @@ func (g *Merger) MergeProperty(m *ir.Model, byWire map[string]int, p ir.Property
 // holds, under allOf intersection semantics: required and secret are OR-ed,
 // visibility narrows to what both branches admit (mergeVisibility), and
 // optional details dst lacks are adopted from src. dst, the first declaration,
-// keeps its identity, and its type shape unless the redeclaration narrows it.
-//
-// Unmodeled is the exception: its keys are namespaced, so entries union and a
-// later branch wins a shared key.
+// keeps its identity, and its type unless src narrows it. Unmodeled unions.
 //
 // What the fold cannot carry is reported where it is dropped, and the
-// redeclaration is kept whole beside the winner (keepLosingDeclaration, the
-// only place source is rendered).
-func (g *Merger) reconcileProperty(dst *ir.Property, src ir.Property, source func() (ir.RawValue, error)) {
+// redeclaration is kept whole beside the winner (keepLosingDeclaration). So is
+// the broader side of a narrowing whose default or examples the narrower type
+// refuses (judgeAdopted): dst's, through dstSource, or src's.
+func (g *Merger) reconcileProperty(dst *ir.Property, dstSource Source, src ir.Property, source Source) {
 	pointer := src.Provenance.Pointer
-	dropped, lost := g.recordRedeclarationConflict(dst, &src)
+	dropped, lost, narrowed := g.recordRedeclarationConflict(dst, &src)
+	srcLost, keepDst := g.judgeAdopted(dst, &src, narrowed)
+	lost = lost || srcLost
 
 	dst.Required = dst.Required || src.Required
 	dst.Secret = dst.Secret || src.Secret
@@ -97,9 +123,7 @@ func (g *Merger) reconcileProperty(dst *ir.Property, src ir.Property, source fun
 	dst.Visibility = visibility
 
 	lost = g.foldDocs(dst, &src) || lost
-	// Skipped when src's type was dropped (a narrowing is no drop, so the
-	// broader side's default is folded unjudged; see foldTypeTargets):
-	// default, constraints and examples describe the shape that lost, so
+	// Skipped when src's type was dropped: default, constraints and examples describe the shape that lost, so
 	// folding them onto the winner makes the document assert two
 	// contradictory things about one field — an integer carrying a string
 	// default, beside an Unmodeled entry saying the string declaration was
@@ -116,7 +140,10 @@ func (g *Merger) reconcileProperty(dst *ir.Property, src ir.Property, source fun
 	dst.Unmodeled = annotation.MergeUnmodeled(dst.Unmodeled, src.Unmodeled)
 
 	if lost {
-		g.keepLosingDeclaration(dst, &src, source)
+		g.keepLosingDeclaration(dst, src.Provenance, source)
+	}
+	if keepDst {
+		g.keepLosingDeclaration(dst, dst.Provenance, dstSource)
 	}
 }
 
@@ -204,8 +231,8 @@ func (g *Merger) foldAnnotations(dst, src *ir.Property) bool {
 }
 
 // detailDiffersDiag reports a detail both declarations of a field write and
-// write differently. Info, not warning: the merged field is complete, and
-// what a reader is told is only that the first declaration's
+// write differently. Info, not warning: the merged field is complete and
+// consistent, and what a reader is told is only that the first declaration's
 // spelling was the one kept, with the other beside it under Unmodeled.
 func (g *Merger) detailDiffersDiag(dst *ir.Property, pointer jsontext.Pointer, detail string) {
 	g.Report(ir.SeverityInfo, diag.DegradedConstruct, pointer,
@@ -315,48 +342,112 @@ const maxTypeResolveDepth = 64
 //
 // dropped reports that src's type was lost; only a drop is classified
 // (typesConflict). lost reports that src's type or a constraint keyword was
-// lost, so the redeclaration is kept whole (GitHub #424).
-func (g *Merger) recordRedeclarationConflict(dst, src *ir.Property) (dropped, lost bool) {
+// lost, so the redeclaration is kept whole (GitHub #424). narrowed says which
+// declaration a narrowing left broader, for judgeAdopted.
+func (g *Merger) recordRedeclarationConflict(dst, src *ir.Property) (dropped, lost bool, narrowed narrowing) {
 	pointer := src.Provenance.Pointer
-	dropped = g.foldTypeTargets(dst, src)
+	dropped, narrowed = g.foldTypeTargets(dst, src)
 	if dropped {
 		switch g.typesConflict(dst.Type, src.Type) {
 		case verdictConflict:
 			g.redeclarationConflictDiag(dst, pointer,
 				fmt.Sprintf("incompatible types %s and %s", dst.Type.Target, src.Type.Target))
-			return true, true
+			return true, true, narrowed
 		case verdictOverlap:
 			g.overlappingTypesDiag(dst, pointer, src.Type)
-			return true, true
+			return true, true, narrowed
 		case verdictSilent:
 		}
 	}
 	if detail, ok := constraintsConflict(dst.Constraints, src.Constraints); ok {
 		g.redeclarationConflictDiag(dst, pointer, detail)
-		return dropped, true
+		return dropped, true, narrowed
 	}
-	return dropped, dropped
+	return dropped, dropped, narrowed
+}
+
+// narrowing says what a fold that settled on the narrower of two bare
+// primitives left behind. The zero value is no narrowing.
+type narrowing struct {
+	// broad is the declaration whose type lost to the narrower one; its
+	// default and examples ride onto a type that may not admit them.
+	broad *ir.Property
+	// winner is the narrower kind.
+	winner ir.PrimKind
 }
 
 // foldTypeTargets settles which target dst keeps and reports whether src's was
 // dropped. A bare primitive that strictly narrows the other wins in either
-// order. Broad first, the swap leaves dst's default and examples riding
-// onto the narrower target unjudged. Narrow first, foldShapeDetail adopts
-// src's broad default and examples, unjudged: a number default 1.5
-// lands on integer, unreported, in both orders. Any other differing target is
-// a drop, and dst keeps its own null admission. Where the referent is the
-// same or one narrows the other, null is admitted only where both branches
-// admit it, as foldNullVerdicts states for a single schema.
-func (g *Merger) foldTypeTargets(dst, src *ir.Property) (dropped bool) {
-	if aNarrower, related := g.bareNarrowing(dst.Type, src.Type); related {
-		if !aNarrower {
+// order, and the narrowing it returns names the broader declaration. Any other
+// differing target is a drop, and dst keeps its own null admission. Where the
+// referent is the same or one narrows the other, null is admitted only where
+// both branches admit it, as foldNullVerdicts states for a single schema.
+func (g *Merger) foldTypeTargets(dst, src *ir.Property) (dropped bool, nw narrowing) {
+	if aNarrower, winner, related := g.bareNarrowing(dst.Type, src.Type); related {
+		nw = narrowing{broad: dst, winner: winner}
+		if aNarrower {
+			nw.broad = src
+		} else {
 			dst.Type.Target = src.Type.Target
 		}
 	} else if dst.Type.Target != src.Type.Target {
-		return true
+		return true, nw
 	}
 	dst.Type.Nullable = dst.Type.Nullable && src.Type.Nullable
-	return false
+	return false, nw
+}
+
+// judgeAdopted holds the broader declaration of a narrowing to the narrower
+// type: a default or example the winner does not admit is removed from that
+// declaration and reported once at its pointer, so it never lands on the merged
+// field. Examples are judged as one keyword. A null is admitted where the
+// merged field is.
+//
+// srcLost says src is the declaration to keep verbatim; dstKept says dst's is.
+// Both land the same entry at the same key, so the orders agree.
+func (g *Merger) judgeAdopted(dst, src *ir.Property, nw narrowing) (srcLost, dstKept bool) {
+	broad := nw.broad
+	if broad == nil {
+		return false, false
+	}
+	var refused []string
+	if d := broad.Default; d != nil && !admitted(nw.winner, dst.Type.Nullable, *d) {
+		broad.Default = nil
+		refused = append(refused, "default")
+	}
+	if !examplesAdmitted(nw.winner, dst.Type.Nullable, broad.Examples) {
+		broad.Examples = nil
+		refused = append(refused, "examples")
+	}
+	if len(refused) == 0 {
+		return false, false
+	}
+	g.Report(ir.SeverityInfo, diag.DegradedConstruct, broad.Provenance.Pointer,
+		"the narrower type %s that the declarations of field %q settle on does not admit the %s one declaration gives; "+
+			"not adopted, with that declaration verbatim under Unmodeled",
+		nw.winner, dst.WireName, strings.Join(refused, " and "))
+	return broad == src, broad == dst
+}
+
+// admitted reports whether v is a value of a field of kind k that admits null
+// as nullable says: null is judged against that, any other value against the
+// kind (admits).
+func admitted(k ir.PrimKind, nullable bool, v ir.Value) bool {
+	if v.Kind == ir.ValueNull {
+		return nullable
+	}
+	return admits(k, v)
+}
+
+// examplesAdmitted reports whether every example's value is admitted. An
+// example with no Value says nothing a type could refuse.
+func examplesAdmitted(k ir.PrimKind, nullable bool, examples []ir.Example) bool {
+	for i := range examples {
+		if v := examples[i].Value; v != nil && !admitted(k, nullable, *v) {
+			return false
+		}
+	}
+	return true
 }
 
 // losingDeclarationKey prefixes the Unmodeled entry a redeclaration the merge could not
@@ -366,25 +457,29 @@ func (g *Merger) foldTypeTargets(dst, src *ir.Property) (dropped bool) {
 // composition's keys.
 const losingDeclarationKey = "openapi:conflicting-redeclaration"
 
-// keepLosingDeclaration keeps the redeclaration verbatim under Unmodeled beside
-// the merged property, so a document consumer sees what the loser said (GitHub
-// #424).
+// ErrNoSource is why a declaration that must be kept verbatim cannot be: no
+// Source was recorded for it.
+var ErrNoSource = errors.New("no source was recorded for the declaration")
+
+// keepLosingDeclaration keeps the declaration at loser verbatim under
+// Unmodeled beside the merged property, so a document consumer sees what the
+// merge did not carry (GitHub #424).
 //
 // The value is the construct source renders, not the dropped IR values (GitHub
 // #445): Unmodeled holds what the document wrote (ir-design §12), and a TypeID
-// in a byte slice is invisible to irverify. The key ends in src's pointer, so
-// each loser keeps its own entry.
+// in a byte slice is invisible to irverify. The key ends in loser's pointer, so
+// each declaration keeps its own entry.
 //
-// A loser with no pointer is skipped, since PreserveInto overwrites a collapsed
-// key; no production path produces one. A source that will not render is
-// reported as an error (GitHub #144).
-func (g *Merger) keepLosingDeclaration(dst, src *ir.Property, source func() (ir.RawValue, error)) {
-	pointer := src.Provenance.Pointer
+// A declaration with no pointer is skipped, since PreserveInto overwrites a
+// collapsed key; no production path produces one. A source that will not
+// render is reported as an error (GitHub #144).
+func (g *Merger) keepLosingDeclaration(dst *ir.Property, loser ir.Provenance, source Source) {
+	pointer := loser.Pointer
 	if pointer == "" {
 		return
 	}
 	key := losingDeclarationKey + string(pointer)
-	raw, err := source()
+	raw, err := render(source)
 	if err != nil {
 		g.Report(ir.SeverityError, diag.UnpreservableConstruct, pointer,
 			"%s could not be kept verbatim under Unmodeled and is represented in the IR "+
@@ -395,7 +490,15 @@ func (g *Merger) keepLosingDeclaration(dst, src *ir.Property, source func() (ir.
 	// docs/compilers/openapi.md#allof-redeclared-property): the IR has no
 	// combinator for two shapes or two defaults at one position.
 	annotation.PreserveInto(&dst.Unmodeled, key, raw,
-		ir.ReasonDegradedLowering, src.Provenance)
+		ir.ReasonDegradedLowering, loser)
+}
+
+// render calls source, or fails with ErrNoSource when there is none.
+func render(source Source) (ir.RawValue, error) {
+	if source == nil {
+		return nil, ErrNoSource
+	}
+	return source()
 }
 
 // redeclarationConflictDiag emits the shared conflicting-redeclaration warning,

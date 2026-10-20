@@ -132,3 +132,22 @@ components:
         - type: object
           properties:
             p: {type: integer}
+    # The broad branch's default is a value the narrow kind refuses: a fractional
+    # number is no integer. It is not adopted onto the merged field; the broad
+    # branch is kept whole at its own pointer, with one info, in either order.
+    InadmissibleDefaultBroadFirst:
+      allOf:
+        - type: object
+          properties:
+            p: {type: number, default: 1.5}
+        - type: object
+          properties:
+            p: {type: integer}
+    InadmissibleDefaultNarrowFirst:
+      allOf:
+        - type: object
+          properties:
+            p: {type: integer}
+        - type: object
+          properties:
+            p: {type: number, default: 1.5}

@@ -189,3 +189,52 @@ func isDigits(s string) bool {
 	}
 	return true
 }
+
+// DecimalReading is what a numeric literal denotes, read without
+// materializing it: enough to judge it against a range, an integrality or a
+// digit budget however large its exponent.
+type DecimalReading struct {
+	// Negative reports a value below zero; zero is never negative.
+	Negative bool
+	// Zero reports the value zero.
+	Zero bool
+	// Integral reports a value with no fractional part; zero is integral.
+	Integral bool
+	// Digits is the count of significant digits, trailing zeros excluded.
+	Digits int
+	// MsdExp is the power of ten the leading significant digit carries. It is
+	// zero for the value zero.
+	MsdExp *big.Int
+}
+
+// ReadDecimal reads v as BigValEqual does, never materializing the exponent,
+// so 1e1000001 reads in constant space. ok is false outside the decimal
+// grammar.
+func ReadDecimal(v ir.BigVal) (DecimalReading, bool) {
+	d, ok := parseDecimalBound(v)
+	if !ok {
+		return DecimalReading{}, false
+	}
+	if d.digits == "" {
+		return DecimalReading{Zero: true, Integral: true, MsdExp: new(big.Int)}, true
+	}
+	digits := len(strings.TrimRight(d.digits, "0"))
+	return DecimalReading{
+		Negative: d.neg,
+		Integral: d.msdExp.Cmp(big.NewInt(int64(digits-1))) >= 0,
+		Digits:   digits,
+		MsdExp:   d.msdExp,
+	}, true
+}
+
+// CompareBigVal orders two numeric literals by value, returning -1, 0 or +1
+// as a is less than, equal to, or greater than b. ok is false when either is
+// outside the decimal grammar, where no order is claimed.
+func CompareBigVal(a, b ir.BigVal) (order int, ok bool) {
+	aDec, aOK := parseDecimalBound(a)
+	bDec, bOK := parseDecimalBound(b)
+	if !aOK || !bOK {
+		return 0, false
+	}
+	return compareDecimalBounds(aDec, bDec), true
+}

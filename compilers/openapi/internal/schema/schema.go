@@ -1120,7 +1120,7 @@ func lowerModel(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 		cons, consDiags := ConstraintsOf(c, &common.Unmodeled, s, pointer)
 		diags = append(diags, consDiags...)
 		m := &ir.Model{TypeCommon: common, Constraints: cons}
-		diags = append(diags, fillModelProperties(c, ts, anchors, depth, m, s, pointer)...)
+		diags = append(diags, fillModelProperties(c, ts, anchors, depth, m, merge.NewPropIndex(nil), s, pointer)...)
 		diags = append(diags, fillAdditional(c, ts, anchors, depth, m, s, pointer, hint)...)
 		d, discDiags := lowerDiscriminator(c, ts, anchors, depth, s, m, nil, pointer)
 		diags = append(diags, discDiags...)
@@ -1148,14 +1148,13 @@ func objectNode(m *ir.Model) ir.TypeDef {
 
 // fillModelProperties lowers a model's own properties in source order, each with
 // its full property-level detail (constraints, visibility, defaults, docs, ...).
-func fillModelProperties(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, m *ir.Model, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
+func fillModelProperties(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, m *ir.Model, idx *merge.PropIndex, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	props := s.GetProperties()
 	if props == nil {
 		return nil
 	}
 	var diags []ir.Diagnostic
 	required := requiredSet(s.GetRequired())
-	byWire := merge.WireNameIndex(m.Properties)
 	for name, js := range props.All() {
 		ppointer := pointer + ids.Ptr("properties", name)
 		ref, refDiags := CarriedRef(c, ts, anchors, depth, js, ppointer, name)
@@ -1171,7 +1170,7 @@ func fillModelProperties(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex
 		diags = append(diags, FillPropertyDetail(c, ts, anchors, &p, js, ppointer)...)
 		var mergeDiags []ir.Diagnostic
 		mg := merger(c, ts, &mergeDiags)
-		mg.MergeProperty(m, byWire, p, redeclarationSource(js))
+		mg.MergeProperty(m, idx, p, redeclarationSource(js))
 		diags = append(diags, mergeDiags...)
 	}
 	return diags
@@ -1186,7 +1185,7 @@ func fillModelProperties(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex
 //
 // A boolean schema has no node of its own to render, so its value is spelled
 // out; a `$ref` is rendered as the `$ref` the position wrote, not the target.
-func redeclarationSource(js *oas3.JSONSchema[oas3.Referenceable]) func() (ir.RawValue, error) {
+func redeclarationSource(js *oas3.JSONSchema[oas3.Referenceable]) merge.Source {
 	return func() (ir.RawValue, error) {
 		if b := js.GetBool(); b != nil {
 			return ir.RawValue(strconv.FormatBool(*b)), nil

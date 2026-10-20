@@ -247,3 +247,62 @@ func FuzzCanonicalDecimal_AgreesWithBigValEqual(f *testing.F) {
 		require.Equal(t, BigValEqual(va, vb), ca == cb, "%q (%s) and %q (%s)", va, ca, vb, cb)
 	})
 }
+
+// TestReadDecimal_ReadsWithoutMaterializing pins the reading admits judges a
+// value by: integrality, significant digits and the leading power of ten, for
+// literals no machine type holds.
+func TestReadDecimal_ReadsWithoutMaterializing(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		in       ir.BigVal
+		neg      bool
+		zero     bool
+		integral bool
+		digits   int
+		msd      string
+	}{
+		{"0", false, true, true, 0, "0"},
+		{"-0.0", false, true, true, 0, "0"},
+		{"1500", false, false, true, 2, "3"},
+		{"-1.5", true, false, false, 2, "0"},
+		{"5.0", false, false, true, 1, "0"},
+		{"0.05", false, false, false, 1, "-2"},
+		{"1e1000001", false, false, true, 1, "1000001"},
+		{"1e-1000001", false, false, false, 1, "-1000001"},
+	} {
+		got, ok := ReadDecimal(tc.in)
+		require.True(t, ok, "%s", tc.in)
+		assert.Equal(t, tc.neg, got.Negative, "%s", tc.in)
+		assert.Equal(t, tc.zero, got.Zero, "%s", tc.in)
+		assert.Equal(t, tc.integral, got.Integral, "%s", tc.in)
+		assert.Equal(t, tc.digits, got.Digits, "%s", tc.in)
+		assert.Equal(t, tc.msd, got.MsdExp.String(), "%s", tc.in)
+	}
+
+	_, ok := ReadDecimal("1p4")
+	assert.False(t, ok, "a literal outside the decimal grammar is not read")
+}
+
+// TestCompareBigVal_OrdersByValue pins the order admits bounds a value by.
+func TestCompareBigVal_OrdersByValue(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		a, b ir.BigVal
+		want int
+	}{
+		{"1", "2", -1},
+		{"2.0", "2", 0},
+		{"-5", "-6", 1},
+		{"1e1000001", "9223372036854775807", 1},
+		{"-1e1000001", "-9223372036854775808", -1},
+	} {
+		got, ok := CompareBigVal(tc.a, tc.b)
+		require.True(t, ok)
+		assert.Equal(t, tc.want, got, "%s against %s", tc.a, tc.b)
+	}
+
+	_, ok := CompareBigVal("1p4", "1")
+	assert.False(t, ok, "no order is claimed outside the grammar")
+	_, ok = CompareBigVal("1", "1p4")
+	assert.False(t, ok)
+}

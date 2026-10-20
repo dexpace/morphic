@@ -80,7 +80,7 @@ func TestMerger_ReconcileReportsDisagreementAndKeepsAWinner(t *testing.T) {
 	src := ir.Property{Name: ir.Naming{Source: "id"}, WireName: "id", Type: ir.TypeRef{Target: "t/int"},
 		Provenance: ptrAt("/components/schemas/S/properties/id")}
 
-	g.reconcileProperty(&dst, src, written(`{"type":"integer"}`))
+	g.reconcileProperty(&dst, nil, src, written(`{"type":"integer"}`))
 
 	require.Len(t, *recorded, 1, "one disagreement, one diagnostic")
 	d := (*recorded)[0]
@@ -134,12 +134,14 @@ func TestBareNarrowing_NeedsTwoBarePrimitives(t *testing.T) {
 	})
 	ref := func(id ir.TypeID) ir.TypeRef { return ir.TypeRef{Target: id} }
 
-	aNarrower, related := g.bareNarrowing(ref("t/int"), ref("t/num"))
+	aNarrower, winner, related := g.bareNarrowing(ref("t/int"), ref("t/num"))
 	assert.True(t, aNarrower)
+	assert.Equal(t, ir.PrimInteger, winner)
 	assert.True(t, related)
 
-	aNarrower, related = g.bareNarrowing(ref("t/num"), ref("t/int"))
+	aNarrower, winner, related = g.bareNarrowing(ref("t/num"), ref("t/int"))
 	assert.False(t, aNarrower)
+	assert.Equal(t, ir.PrimInteger, winner)
 	assert.True(t, related)
 
 	for name, pair := range map[string][2]ir.TypeID{
@@ -153,8 +155,9 @@ func TestBareNarrowing_NeedsTwoBarePrimitives(t *testing.T) {
 		"the top first":     {"t/any", "t/num"},
 		"the top second":    {"t/num", "t/any"},
 	} {
-		aNarrower, related = g.bareNarrowing(ref(pair[0]), ref(pair[1]))
+		aNarrower, winner, related = g.bareNarrowing(ref(pair[0]), ref(pair[1]))
 		assert.False(t, aNarrower, name)
+		assert.Empty(t, winner, name)
 		assert.False(t, related, name)
 	}
 }

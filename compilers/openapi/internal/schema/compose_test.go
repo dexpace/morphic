@@ -3839,3 +3839,41 @@ func TestDiscriminatorMapping_HoistedTargetKeepsItsDiagnostics(t *testing.T) {
 			"the format beside the model hoisted at %s is reported", pointer)
 	}
 }
+
+// TestAllOf_AnInadmissibleBroadValueIsKeptInEitherOrder pins that the broader
+// branch of a narrowing, whichever comes first, never lands a default the
+// narrower kind refuses on the merged field: it is kept verbatim at its own
+// branch with one info, so the two orders give the same field and the same
+// diagnostics.
+func TestAllOf_AnInadmissibleBroadValueIsKeptInEitherOrder(t *testing.T) {
+	t.Parallel()
+	const broad = "            p: {type: number, default: 1.5}\n"
+	const narrow = "            p: {type: integer}\n"
+	branch := "        - type: object\n          properties:\n"
+	for _, tc := range []struct{ name, first, second, broadPtr string }{
+		{"broad first", broad, narrow, "/components/schemas/Ranged/allOf/0/properties/p"},
+		{"narrow first", narrow, broad, "/components/schemas/Ranged/allOf/1/properties/p"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := lowerSpec(t, openapitest.ComponentSpec("    Ranged:\n      allOf:\n"+
+				branch+tc.first+branch+tc.second))
+			openapitest.RequireNoErrorDiags(t, diags)
+			m, ok := doc.Types[componentID("Ranged")].(*ir.Model)
+			require.True(t, ok, "Ranged should be a model")
+			require.Len(t, m.Properties, 1)
+
+			p := m.Properties[0]
+			assert.Equal(t, ir.TypeID("t/prim/integer"), p.Type.Target)
+			assert.Nil(t, p.Default, "the refused default does not land")
+			require.Len(t, diags, 1, "one info and nothing else")
+			assert.Equal(t, ir.SeverityInfo, diags[0].Severity)
+			assert.Equal(t, diag.DegradedConstruct, diags[0].Code)
+			assert.Equal(t, jsontext.Pointer(tc.broadPtr), diags[0].Provenance.Pointer)
+			entry, ok := p.Unmodeled["openapi:conflicting-redeclaration"+tc.broadPtr]
+			require.True(t, ok, "the broad branch is kept at its own pointer; got %v", p.Unmodeled)
+			assert.JSONEq(t, `{"type":"number","default":1.5}`, string(entry.Value))
+			assert.Len(t, p.Unmodeled, 1)
+		})
+	}
+}

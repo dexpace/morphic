@@ -142,6 +142,126 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/openapi/components/schemas/InadmissibleDefaultBroadFirst": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/InadmissibleDefaultBroadFirst",
+      "name": {
+        "source": "InadmissibleDefaultBroadFirst",
+        "canonical": "inadmissible_default_broad_first"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/InadmissibleDefaultBroadFirst"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/InadmissibleDefaultBroadFirst/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/prim/integer",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "unmodeled": {
+            "openapi:conflicting-redeclaration/components/schemas/InadmissibleDefaultBroadFirst/allOf/0/properties/p": {
+              "reason": "degraded_lowering",
+              "value": {
+                "default": 1.5,
+                "type": "number"
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/components/schemas/InadmissibleDefaultBroadFirst/allOf/0/properties/p"
+              }
+            }
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/InadmissibleDefaultBroadFirst/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/InadmissibleDefaultNarrowFirst": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/InadmissibleDefaultNarrowFirst",
+      "name": {
+        "source": "InadmissibleDefaultNarrowFirst",
+        "canonical": "inadmissible_default_narrow_first"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/InadmissibleDefaultNarrowFirst"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/InadmissibleDefaultNarrowFirst/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/prim/integer",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "unmodeled": {
+            "openapi:conflicting-redeclaration/components/schemas/InadmissibleDefaultNarrowFirst/allOf/1/properties/p": {
+              "reason": "degraded_lowering",
+              "value": {
+                "default": 1.5,
+                "type": "number"
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/components/schemas/InadmissibleDefaultNarrowFirst/allOf/1/properties/p"
+              }
+            }
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/InadmissibleDefaultNarrowFirst/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/openapi/components/schemas/Int32Int64BroadFirst": {
       "kind": "model",
       "id": "t/openapi/components/schemas/Int32Int64BroadFirst",
@@ -875,11 +995,31 @@
       "description": {}
     }
   ],
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "the narrower type integer that the declarations of field \"p\" settle on does not admit the default one declaration gives; not adopted, with that declaration verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/InadmissibleDefaultBroadFirst/allOf/0/properties/p"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "the narrower type integer that the declarations of field \"p\" settle on does not admit the default one declaration gives; not adopted, with that declaration verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/InadmissibleDefaultNarrowFirst/allOf/1/properties/p"
+      }
+    }
+  ],
   "sources": [
     {
       "format": "openapi@3.1",
       "path": "allof-narrowing-redeclaration.yaml",
-      "hash": "a5465e601159303a392fdc60fd988470ee590de786ad6ad94c75c87697f9d735"
+      "hash": "8eb97d000ba4eab76bf26df085ab40eccddcc4c766d4f45b4c4c144154fa9729"
     }
   ]
 }
