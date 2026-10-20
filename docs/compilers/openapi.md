@@ -692,7 +692,10 @@ B]}]` classifies as `allOf: [A, B]`, and nothing is reported. Whatever else the 
 the merge does not consume is kept beside the composition as residue
 ([`allof-inline-residue`](#allof-inline-residue)), so `{description: d, allOf: [A, B]}` composes `A`
 and `B` and is also kept whole. An entry nested past `maxAllOfFlattenDepth` flattened entries is not
-flattened, is kept as residue, and is reported as nested past the flattening depth.
+flattened, is kept as residue, and is reported as nested past the flattening depth. This is not the
+flattening ir-design §1 leaves to emitters: every `$ref` entry still composes as a `Base` or
+`Mixin`, and all that goes is a grouping no instance can observe, which an inline entry owns no node
+to keep ([`allof-inline-residue`](#allof-inline-residue)).
 
 - Cases: `allof-inheritance`, `allof-mixins`, `allof-inline-merge`, `allof-nested-inline`
 - Tests: `schema.TestAllOf_DiscriminatorHierarchy`, `schema.TestAllOf_SoleRefBecomesBase`,
@@ -842,6 +845,8 @@ variant is closed and keeps the branch, and the branch is reported once.
 
 - Cases: `allof-boolean-branch`, `allof-nested-inline`
 - Codes: `openapi/false-schema`
+- Tests: `schema.TestAllOf_NestedFalseBranchClosesModel`,
+  `schema.TestAllOf_FalseBranchBesideUnionClosesEveryVariant`
 
 ### `union`
 
@@ -1848,16 +1853,14 @@ declaration of a name winning, or on a `Base` or `Mixin` it composes. The `allOf
 [`allof-classification`](#allof-classification) flattens it, with the same cap, and a `$ref`
 entry is followed up to a bound of its own, and entered again only by a shorter path. A bound that
 cuts a target no path enters is reported as a warning `openapi/degraded-construct` at the body
-schema, since a part reached only past it has no entry.
-`contentType` lowers to
-`ContentTypes`, split on `,` and trimmed with empty items dropped; `headers` to `Headers`, lowered
-as a response's are; and `style` and `explode` to `Style` and `Explode` as declared, nothing
-defaulted. `Multi` and `Filename` come from the part's own schema and never from the `encoding` map:
-`Multi` where it is an array, `Filename` where it is a `string` with `format` `binary` or `byte`. A
-part is entered only when its `PartEncoding` holds something, so a body that declares no encoding
-still gets entries for its array and file parts, and an entry declaring nothing leaves none. What an
-Encoding Object writes beyond those fields is
-[`encoding-allow-reserved`](#encoding-allow-reserved)'.
+schema, since a part reached only past it has no entry. `contentType` lowers to `ContentTypes`,
+split on `,` and trimmed with empty items dropped; `headers` to `Headers`, lowered as a response's
+are; and `style` and `explode` to `Style` and `Explode` as declared, nothing defaulted. `Multi` and
+`Filename` come from the part's own schema and never from the `encoding` map: `Multi` where it is an
+array, `Filename` where it is a `string` with `format` `binary` or `byte`. A part is entered only
+when its `PartEncoding` holds something, so a body that declares no encoding still gets entries for
+its array and file parts, and an entry declaring nothing leaves none. What an Encoding Object writes
+beyond those fields is [`encoding-allow-reserved`](#encoding-allow-reserved)'.
 
 - Cases: `multipart-encoding`
 - Codes: `openapi/degraded-construct`
