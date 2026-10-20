@@ -1,11 +1,12 @@
 # Contributing to Morphic
 
 This guide is the way in. It says what to read for the change you are making, then walks the three
-changes most contributions are: a lowering rule in the OpenAPI compiler, a pass, and a compiler.
-Each step names the check that fails when the step is missed, so a red test points back to the
-step, and says so where nothing checks it, so a green run is not read as more than it proves. The
-rules themselves live in the root guidance, [`CLAUDE.md`](CLAUDE.md), and in the design documents
-under [`docs/`](docs/); this guide links them rather than restating them.
+changes most contributions are: a lowering rule in the OpenAPI compiler, a pass, and a compiler,
+and ends with merging a dependency update. Each step names the check that fails when the step is
+missed, so a red test points back to the step, and says so where nothing checks it, so a green run
+is not read as more than it proves. The rules themselves live in the root guidance,
+[`CLAUDE.md`](CLAUDE.md), and in the design documents under [`docs/`](docs/); this guide links them
+rather than restating them.
 
 ## Before you start
 
@@ -190,3 +191,31 @@ A compiler lowers one source format into an IR document ([`architecture.md`](doc
    give the new specification tests of its own, reading it through `internal/keydoc` as they do.
    Nothing fails if this step is missed.
 7. **Run the gate:** `make gate`.
+
+## Merge a dependency update
+
+Dependabot opens the pull requests [`.github/dependabot.yml`](.github/dependabot.yml) asks for each
+week: the Go modules' minor and patch updates together, the parser library and any major update
+each on its own, and the workflow's actions together. It proposes direct modules only, so an
+indirect one such as go-yit, which `go.mod` holds back (#798), moves only when a direct module
+requires it. Every proposal waits a week after its release. A security update opens when an
+advisory names a module in `go.mod`, direct or indirect, and does not wait. Nothing proposes a Go or
+golangci-lint release: the `Makefile` comment above `GO_VERSION` says what moves with them, by hand.
+
+1. **Re-read [`docs/parser-library.md`](docs/parser-library.md)** when the update is to the parser
+   library, following its steps to bump the library, and push the result onto Dependabot's branch.
+   *Fails if missed:* `TestRecord_EntriesAreVerifiedAtTheLinkedVersion`, for each entry verified at
+   the previous version.
+2. **Finish the toolchain move** when an update raises the `go` directive, which `go get` does for a
+   module that needs a newer Go: the pins the `Makefile` lists above `GO_VERSION` move on the same
+   branch. Nothing is sure to fail if this step is missed; an old pin fails the gate only when it
+   cannot read the new toolchain.
+3. **Keep what you push.** Pushing to a Dependabot branch stops Dependabot rebasing it, so bring
+   `main` in by merging it, as on any branch. `@dependabot recreate` overwrites what was pushed.
+   Nothing checks this.
+4. **Set the squash subject when merging.** A Dependabot pull request has one commit, and this
+   repository squashes a one-commit pull request under that commit's subject rather than the pull
+   request's title, so retitling the pull request changes nothing. A subject naming one module
+   often passes the 72-character cap once the number is appended; shorten it in the merge dialog,
+   or with `gh pr merge <n> --squash --subject "build: bump <module> to <version>"`. Nothing checks
+   this.

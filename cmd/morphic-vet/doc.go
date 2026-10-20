@@ -3,7 +3,5 @@
 //
 //	go vet -vettool=<binary> ./...
 //
-// on the host and on every port make build covers, so a file one port alone
-// builds is read by that port's run. It is not run on its own: go vet hands it
-// one package at a time.
+// It is not run on its own: go vet hands it one package at a time.
 package main

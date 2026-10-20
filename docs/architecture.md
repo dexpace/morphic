@@ -443,7 +443,7 @@ something a caller asks for with `none`, never a default.
   hold — which packages may build or write an `ir.TypeRegistry`, derive a name or build an ID, that
   no pipeline stage prints or logs, and that a switch over an IR enum names every member. Each rule
   is held to findings planted for it, since a clean tree cannot tell a rule from one that matches
-  nothing, and runs on every port the build covers.
+  nothing.
 - **Wire-conformance harness** (from milestone 3): expected request shapes (method, path,
   query, body keys) are derived *from the IR alone* — offline, deterministic, shared across
   every language emitter; generated SDKs run under HTTP interception and the requests are

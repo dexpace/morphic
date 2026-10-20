@@ -332,10 +332,10 @@ var rules = map[string][]string{
 	// Beside that tree, so no rule holds it.
 	"internal/lintrules/testdata/outside": {module + "/ir"},
 	// What the rules .golangci.yml configures refuse, planted for
-	// scripts/lint-planted.sh, and the files only one port builds, planted for
-	// it and scripts/vet-rules.sh.
+	// scripts/lint-planted.sh, and what cmd/morphic-vet refuses, planted for
+	// scripts/vet-rules.sh.
 	"internal/lintrules/testdata/planted": {module + "/ir"},
-	"internal/lintrules/testdata/ports":   {module + "/ir"},
+	"internal/lintrules/testdata/reach":   {module + "/ir"},
 }
 
 // exempt names the production packages deliberately outside the layering rules,
