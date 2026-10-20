@@ -126,8 +126,8 @@ Package `emitters` is the Layer-2 contract, as package `compilers` is the compil
 ```go
 package emitters
 
-// TargetKey identifies a emitter in the registry: "go", "kotlin-jvm", "kotlin-kmp", "docs",
-// "mock/go", …
+// TargetKey identifies a emitter in the registry: "go", "kotlin-jvm", "kotlin-multiplatform",
+// "docs", "mock/go", …
 type TargetKey string
 
 // Emitter is one target — a language SDK, a docs site, a mock server, a validator.
@@ -1158,13 +1158,13 @@ emitters/
 │   ├── emit/          #   goast → []byte via printer + go/format; templates/ (boilerplate only)
 │   ├── naming/        #   Go reserved words + default acronym table (naming.Policy impl)
 │   └── mergeadapter.go#   go/ast additive-merge adapter (registers into manifest driver)
-├── kotlin/            # ◀ FIRST TARGETS (TargetKeys "kotlin-jvm" and "kotlin-kmp")
+├── kotlin/            # ◀ FIRST TARGETS (TargetKeys "kotlin-jvm" and "kotlin-multiplatform")
 │   ├── emitter.go     #   NewJVM() and NewMultiplatform(): one pipeline, two Platform profiles
 │   ├── platform.go    #   Platform: the per-platform type mapping, identifier rules, transport
 │   ├── ktast/         #   typed Kotlin AST (sealed sum) + printer
 │   ├── refine/        #   IR+Plan+Platform → ktast — the ordered lowering pipeline (§4)
 │   ├── emit/          #   ktast → []byte via a printer laying out canonical code; templates/
-│   └── naming/        #   Kotlin hard keywords, the Objective-C/Swift export rules (KMP)
+│   └── naming/        #   Kotlin hard keywords, the Objective-C/Swift export rules (Multiplatform)
 ├── docs/              # docs emitter: reuses plan + refine step library; docast + Markdown/HTML printer (§10)
 └── mock/              # mock-server emitter: reuses plan; server-routing AST + printer (§10)
 ```
@@ -1176,10 +1176,11 @@ per-language by definition. `plan`, `policy`, `naming`, `refine` (the contract +
 Kotlin/JVM and Kotlin Multiplatform are two targets and one package. They share a language, so
 one AST, printer and refine pipeline serve both; they differ in a runtime, and that difference is
 data: a `Platform` value carrying the type each runtime-dependent primitive maps to, the identifier
-rules the Objective-C/Swift export adds on Multiplatform, and the default transport. A lowering
-that branches on the platform reads that value, never the target key. They are two targets rather
-than one with an option because their artifacts, surfaces and toolchains differ: a JVM SDK exposes
-`java.time` and `BigDecimal`, which Multiplatform common code does not have (§8.8).
+rules the Objective-C/Swift export adds on Multiplatform, and the HTTP engine each platform's
+transport defaults to. A lowering that branches on the platform reads that value, never the target
+key. They are two targets rather than one with an option because their artifacts, surfaces and
+toolchains differ: a JVM SDK exposes `java.time` and `BigDecimal`, which Multiplatform common code
+does not have (§8.8).
 
 **Architecture test.** The import-graph assertion (written alongside the first emitter packages, not
 after) asserts: `emitters/golang` and `emitters/kotlin` may each import `emitters`, `emitters/plan`,
@@ -1194,10 +1195,10 @@ beside `goast` and `ktast` (over each one's `NodeKind`) and beside every refiner
 ## 8. First-target walkthrough — a Go SDK emitter, and the Kotlin targets
 
 The first milestone ships three targets from one plan: Go (`"go"`), Kotlin/JVM (`"kotlin-jvm"`) and
-Kotlin Multiplatform (`"kotlin-kmp"`, JVM, Native/iOS and JS/Wasm from common code). §8.1–§8.7
-trace IR constructs through `plan → refine → emit` for Go, one per subsection, with IR field names
-per `ir-design.md`. The Kotlin targets read the same plan and lower the same facts; §8.8 gives what
-they decide differently, and §9 every construct per target.
+Kotlin Multiplatform (`"kotlin-multiplatform"`: JVM, Native/iOS and JS/Wasm from common code).
+§8.1–§8.7 trace IR constructs through `plan → refine → emit` for Go, one per subsection, with IR
+field names per `ir-design.md`. The Kotlin targets read the same plan and lower the same facts;
+§8.8 gives what they decide differently, and §9 every construct per target.
 
 **Generated SDKs require Go 1.27 or newer.** Their `go.mod` declares `go 1.27`, and the lowerings
 below use what that release provides:
@@ -1367,6 +1368,30 @@ declared poll op `GetExport` is `HTTPBinding{GET /exports/{id}}` returning an `E
 Both Kotlin targets build the walkthrough's constructs from the same plan facts; what differs is
 the runtime they target and the language's own rules.
 
+**Generated Kotlin SDKs require Kotlin 2.4 or newer**, on both targets, and their build files say
+so. 2.4 is the first release whose standard library's `kotlin.uuid.Uuid` is stable, and
+`kotlin.time.Instant` became stable in 2.3, so no type an SDK exposes needs an opt-in. That is the
+rule the floor serves: an opt-in API in a public signature makes every caller opt in too. The floor,
+and the `kotlinx.serialization` and `kotlinx-datetime` releases beside it, move only with an options
+version (§2.5).
+
+**Models and request types are classes, not data classes.** A data class's constructor and `copy`
+change signature with every property it gains, so a property the spec adds would break every JVM
+binary compiled against the SDK, and Swift, which sees no default arguments, would make every
+caller pass it. Kotlin's guidance for library authors keeps data classes out of a public API for
+the first reason. A model is a final class instead:
+
+1. Its properties are public `val`s and its constructor is not public. A nested `Builder` takes the
+   required properties in its constructor and the optional ones through setters. A Kotlin caller
+   writes `User(name = "Ada") { email = "ada@example.com" }` over it; a Swift caller uses the
+   builder itself.
+2. `equals`, `hashCode` and `toString` are generated, and `toString` redacts a `Secret` property or
+   a `Sensitive` type (§8.1), which a data class's would print.
+3. An operation's request type (§4.13) is built the same way, so an optional input the spec adds is
+   a new setter on both platforms.
+
+A required property the spec adds changes the builder's constructor, as it changes the API.
+
 **Serialization and calls.**
 
 - Serialization is `kotlinx.serialization` on both. Multiplatform has no reflection, which rules
@@ -1379,8 +1404,6 @@ the runtime they target and the language's own rules.
 - Operations are `suspend` functions, pages and server streams are `Flow`s, and the transport sits
   behind the runtime's `Transport` (§5.4), a Ktor client by default on both. Java callers are not a
   goal of the JVM target at M3: its surface is Kotlin's.
-- The generated build files record the Kotlin and `kotlinx.serialization` releases the SDK needs.
-  The floor moves only with an options version (§2.5).
 - A discriminator's tag is the wire string the mapping names, a numeric-looking one included
   (`"10016"`): a `KSerializer`, like Go's `UnmarshalJSONFrom`, compares it as a string and never
   parses it as a number.
@@ -1391,15 +1414,12 @@ the runtime they target and the language's own rules.
 
 **Multiplatform common code** has no `java.time`, no `BigDecimal`, no reflection and no `java.io`.
 
-- No opt-in API appears in a public signature, since every caller would then have to opt in too.
-  Where the standard library's type for a primitive is still experimental at the floor
-  (`kotlin.uuid.Uuid`, `kotlin.time.Instant`), the runtime supplies a value class that keeps the
-  wire text, with conversions to the standard type.
 - An exact number — `decimal`, `decimal128`, or an `integer` or `number` the numeric policy keeps
   exact — is the runtime's `Decimal`, a value class over the decimal text: every digit round-trips,
-  it does no arithmetic, and a JVM caller converts it to `BigDecimal`.
-- A `datetime_offset` keeps its instant and not the offset it was written in, so re-encoding writes
-  UTC. The JVM target keeps the offset (`OffsetDateTime`), as Go's `time.Time` does.
+  it does no arithmetic, and a caller on the JVM converts it to `BigDecimal`.
+- A `datetime_offset` is the runtime's `OffsetDateTime`, a `kotlinx-datetime` `LocalDateTime`
+  beside the `UtcOffset` it was written with, which converts to an `Instant`. The offset survives,
+  as it does in Go's `time.Time` and the JVM's `OffsetDateTime`, and re-encoding writes it back.
 
 **Swift.** A Multiplatform SDK reaches iOS through the Objective-C export, which shapes three rules.
 
@@ -1409,7 +1429,8 @@ the runtime they target and the language's own rules.
   `init`, `new`, `copy` or `alloc` method families, a Swift keyword — gets an explicit Objective-C
   and Swift name from the naming policy (`@ObjCName`), so the Swift name is the policy's choice
   rather than the exporter's.
-- Default arguments do not reach Swift, which is why Multiplatform's parameter shape differs (§4.13).
+- Default arguments do not reach Swift, which is one reason models and request types are built
+  through a builder rather than a constructor with defaults.
 
 **Formatting.** Go formats in process with `go/format` (§5.1). Go can call no Kotlin formatter, and
 `Generate` does no I/O, so the Kotlin printer lays out canonical code itself, and the Kotlin
@@ -1422,19 +1443,21 @@ keyword (`type`, `default`), or a predeclared identifier a parameter would shado
 `error`), takes a trailing underscore. Names that collide once cased are `Ctx.Syms`'s on every
 target (§4.12).
 
-**Inheritance.** A Kotlin data class cannot extend a data class, and Go has only embedding, so on all
-three targets a model's `Base` and `Mixins` are flattened into it (`TypePlan.Flattened`). Subtyping
-survives as interfaces: `Implements` becomes an interface, and a discriminated or abstract base a
-sealed interface its subtypes implement.
+**Inheritance.** Go has only embedding, and Kotlin's single class inheritance can hold neither
+`Mixins` nor a base without making it an open class the SDK must then keep compatible for every
+subclass, so on all three targets a model's `Base` and `Mixins` are flattened into it
+(`TypePlan.Flattened`). Subtyping survives as interfaces: `Implements` becomes an interface, and a
+discriminated or abstract base a sealed interface its subtypes implement.
 
 **Scale.** The JVM caps a method at 255 parameter slots and 64 KiB of bytecode, and a class at
 65,535 constant-pool entries. A refiner checks each declaration against its target's limits and
-lowers past them to a shape that stays inside, or diagnoses what it cannot: a model whose
-constructor would pass the parameter cap becomes a class built through a builder instead of a data
-class. Go has no such caps, but one package of tens of thousands of types compiles slowly, which is
-#718's to partition. On Multiplatform, Kotlin/Native compile time and the size of the iOS framework
-grow with every declaration the SDK exports, so the runtime's helpers are `internal`, and the same
-partitioning bounds what one module exports.
+lowers past them to a shape that stays inside, or diagnoses what it cannot: the decoder of a model
+with hundreds of properties is split across methods, and a builder whose constructor would pass the
+parameter cap is a diagnostic. Since every model is built through a builder, none changes shape
+when a property it gains crosses a limit. Go has no such caps, but one package of tens of thousands
+of types compiles slowly, which is #718's to partition. On Multiplatform, Kotlin/Native compile time
+and the size of the iOS framework grow with every declaration the SDK exports, so the runtime's
+helpers are `internal`, and the same partitioning bounds what one module exports.
 
 ---
 
@@ -1451,8 +1474,8 @@ for both Kotlin targets, and "KMP:" marks where Multiplatform differs from the J
 | unbounded `Primitive` (`integer`, `number`, `float`) | `int64`, `float64` by the target's numeric policy (§2.5, marked `Inferred`); exact on request: `*big.Int`, the runtime decimal | `Long`, `Double` by the same policy; exact on request: JVM `BigInteger`/`BigDecimal`, KMP the runtime `Decimal` | every digit, when exact |
 | `decimal`, `decimal128` | the runtime decimal type, over `math/big` | JVM `BigDecimal`; KMP the runtime `Decimal` | every digit |
 | `bool`, `string`, `bytes`, `url` | `bool`, `string`, `[]byte`, `string` | `Boolean`, `String`, `ByteArray`, `String` | a URL's text, never re-serialized from a parsed form |
-| `uuid` | the standard library's `uuid.UUID` | JVM `java.util.UUID`; KMP the runtime `Uuid` (§8.8) | canonical text |
-| `date`, `time`, `datetime`, `datetime_offset`, `duration` | runtime `Date`, `TimeOfDay`, `DateTime`; `time.Time`; a runtime ISO 8601 `Duration` | JVM `LocalDate`, `LocalTime`, `LocalDateTime`, `OffsetDateTime`; KMP `kotlinx.datetime` local types, the runtime `Instant`; a runtime ISO 8601 `Duration` on both | KMP keeps an instant, not its offset (§8.8) |
+| `uuid` | the standard library's `uuid.UUID` | the standard library's `kotlin.uuid.Uuid` on both (§8.8) | canonical text |
+| `date`, `time`, `datetime`, `datetime_offset`, `duration` | runtime `Date`, `TimeOfDay`, `DateTime`; `time.Time`; a runtime ISO 8601 `Duration` | JVM `LocalDate`, `LocalTime`, `LocalDateTime`, `OffsetDateTime`; KMP `kotlinx-datetime`'s `LocalDate`, `LocalTime`, `LocalDateTime`, the runtime `OffsetDateTime` (§8.8); a runtime ISO 8601 `Duration` on both | the offset a timestamp was written with; a duration's years and months, which neither language's own duration holds |
 | `any`, `Any` | `jsontext.Value`, which keeps the bytes, distinct from a diagnosed unknown | `JsonElement` | every byte; decoding into Go's `any` would turn each number into a `float64` |
 | nil `*TypeRef` | void | `Unit` | — |
 | `Scalar{Base}` chain | named type over the chain's root (`TypePlan.Scalar`), merged constraints; nil base → newtype | `@JvmInline value class` over the chain's root; nil base → value class over the wire form | encoding triple |
@@ -1460,12 +1483,12 @@ for both Kotlin targets, and "KMP:" marks where Multiplatform differs from the J
 | `Model` whose `Base` is no model | with no property, catch-all or discriminator of its own, lowered as the `Scalar` row lowers an alias over that base, its constraints, docs and examples binding the position (ir-design §4.2); a union base beside properties distributed over the variants as ir-design §4.3 distributes a union co-declared with a composition; anything else a diagnosed degrade | the same | — |
 | `AdditionalProps` / `Additional` | catch-all `map` as the embedded fallback; `closed`→`RejectUnknownMembers(true)`, pinned per model (§8.1) | catch-all `Map` folded in by the model's serializer; strict `Json`, `@JsonIgnoreUnknownKeys` on each open model | pattern channel |
 | `Union` (four wire shapes, §4.4) | sealed interface + marker + concrete variants + tag-dispatch (de)serializer | sealed interface + one wrapper class per variant + a `KSerializer` per wire shape; KMP: not exhaustive in Swift | `WireName`/`WireID` per variant |
-| `Enum` open/closed/flags | closed→typed consts; open→string+consts+`Unknown`; flags→bitset; `FallbackMember` on decode | closed → `enum class` with `@SerialName` members; open → value class over the value type with a constant per member, which keeps an unknown value; flags → value class over an integer | member `WireName` |
-| `List`/`MapT`/`Tuple` | `[]T`/`map[K]V`/positional struct (optional past `MinItems`, `Rest`→trailing slice); `List.Encoding`→serializer mode | `List<T>`/`Map<K, V>`/data class with a positional serializer (nullable past `MinItems`, `Rest` → trailing `List`) | packed/expanded |
+| `Enum` open/closed/flags | closed→typed consts; open→string+consts+`Unknown`; flags→bitset; `FallbackMember` on decode | closed → `enum class` with `@SerialName` members, `FallbackMember` on decode; open → value class over the value type with a constant per member, which keeps an unknown value; flags → value class over an integer | member `WireName` |
+| `List`/`MapT`/`Tuple` | `[]T`/`map[K]V`/positional struct (optional past `MinItems`, `Rest`→trailing slice); `List.Encoding`→serializer mode | `List<T>`/`Map<K, V>`/a class with a positional serializer (nullable past `MinItems`, `Rest` → trailing `List`) | packed/expanded |
 | `Literal` | typed constant (incl. `symbol`) | `const val`, or an `object` for a non-primitive value | — |
 | `External` | imported library type at `MinVersion` + dep-manifest; opaque handle→passthrough/diagnostic | the platform's mapping table, JVM and KMP each; unmappable → diagnostic | — |
 | `Visibility` sets | N structs from `ModelShape`; PATCH → optional | N classes from `ModelShape`; PATCH → optional | — |
-| `Required` ⊥ `Nullable` ⊥ `Presence` | `T`/`Opt[T]`/`Nil[T]`/`OptNil[T]`/`omitzero`+presence; collapse→diagnostic | `T` / `T? = null`, left out when null / `T?`, written as null / runtime `Optional<T?>`, absent or null or a value; collapse → diagnostic | — |
+| `Required` ⊥ `Nullable` ⊥ `Presence` | `T`/`Opt[T]`/`Nil[T]`/`OptNil[T]`/`omitzero`+presence; collapse→diagnostic | `T` / `T?`, left out when null / `T?`, written as null / runtime `Optional<T?>`, absent or null or a value; collapse → diagnostic | — |
 | `Constraints` | field `validate` tags + refine-built `Validate()`; unrepresentable regex→diagnostic | a generated `validate()`, never an `init` check, which would refuse a response; unrepresentable regex → diagnostic | numeric bounds as decimal |
 | `Discriminator{Mapping→ID}` | tag-dispatch `UnmarshalJSONFrom` + factories | tag-dispatch `KSerializer` that reads the wire key first | discriminator wire key |
 | `Pagination` (PropPaths) | `iter.Seq2[T, error]` auto-pager; item unwrap from plan; pacing from policy | `Flow<T>`; item unwrap from plan; pacing from policy | path-based item/cursor read |
@@ -1533,10 +1556,11 @@ seams; the `Origin`-tagged AST makes the manifest a byproduct of the emit walk.
   structural merge is **language-parameterised** by an adapter registered into the manifest driver;
   the Go adapter (`emitters/golang/mergeadapter.go`) uses `go/ast` to parse existing files and append
   only new top-level symbols, never delete. No adapter ⇒ skip, never clobber. Case-only renames go
-  via a temp name (APFS/NTFS hazard). Go has no parser for Kotlin, so the Kotlin targets' adapter is
-  a JVM helper parsing with the Kotlin compiler's own front end, run by the engine, which owns all
-  I/O. Until it exists the Kotlin targets merge nothing: pruning stays header-gated and no
-  hand-written file is touched.
+  via a temp name (APFS/NTFS hazard). The parser Kotlin's own tools rely on is the compiler's front
+  end, which runs on the JVM, so the Kotlin targets' adapter is a JVM helper the engine runs, since
+  the engine owns all I/O. Until it exists the Kotlin targets merge nothing and report
+  `Capabilities.WriteIntegrate` false: pruning stays header-gated and no hand-written file is
+  touched.
 - **Staleness check.** `(prior-manifest entities − current entities) ∩ files-on-disk` surfaces
   dead code additive writers cannot prune — cheap because both manifests are ID-keyed and the prior
   IR/plan snapshot is serializable (INV7).
@@ -1660,10 +1684,10 @@ Extends architecture.md §6 milestone 3 (the first emitters) and beyond.
    and that docs/mock agree with the SDK by construction.
 5. **M4 — write/integrate + surface verification.** Manifest, header-gated pruning, ignore regions,
    additive `go/ast` merge, staleness; neutral surface diff with injectable per-language severity.
-6. **M5 — a further language family (TS or Python).** Proves the plan holds beyond the first targets'
-   statically typed languages: a new target is a new target AST + printer + refine pipeline reusing
-   the shared plan and step contract, forcing **no** IR or plan change. The shared plan first pays
-   back at M3, where three targets read it.
+6. **M5 — a further language family (TS or Python).** Proves the plan holds beyond the first
+   targets' statically typed languages: a new target is a new target AST + printer + refine pipeline
+   reusing the shared plan and step contract, forcing **no** IR or plan change. The shared plan
+   first pays back at M3, where three targets read it.
 
 ---
 
