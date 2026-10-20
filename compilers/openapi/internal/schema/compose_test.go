@@ -4015,6 +4015,10 @@ func TestAllOf_NestedWrapperWithResidueKeptVerbatim(t *testing.T) {
 		{"title", "title: Grouped", "title"},
 		{"vendor extension", "x-vendor: keepme", "x-vendor"},
 		{"readOnly", "readOnly: true", "readOnly"},
+		{"discriminator", "discriminator: {propertyName: kind}", "discriminator"},
+		{"oneOf", "oneOf: [{type: string}]", "oneOf"},
+		{"additionalProperties false", "additionalProperties: false", "additionalProperties"},
+		{"type set with null", `type: [object, "null"]`, "type"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
