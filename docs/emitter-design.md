@@ -535,12 +535,12 @@ the type in a second channel. The first rule that applies decides:
 
 `ReturnType` is the primary content's type, lowered through `TypePlan.Alias` as any reference is
 (§3, §4.15), so an anonymous `allOf` decorator around a model returns the model. Its `Nullable` is
-the content's, and a nullable
-return takes the target's nullable form (§4.7). Unwrapping an envelope, which `plan.Policy` may
-enable (§3.5), would return a value found inside the content instead; what it records and where is
-#695's. Which codec reads a media type is the target's, and a media type it has none for is a coded
-degrade of that target's that reads the body as `raw`. Every operation of every document takes one
-of the four, since the rules end in a default; §8.9 traces each through the first targets.
+the content's, and a nullable return takes the target's nullable form (§4.7). Unwrapping an
+envelope, which `plan.Policy` may enable (§3.5), would return a value found inside the content
+instead; what it records and where is #695's. Which codec reads a media type is the target's, and a
+media type it has none for is a coded degrade of that target's that reads the body as `raw`. Every
+operation of every document takes one of the four, since the rules end in a default; §8.9 traces
+each through the first targets.
 
 Some facts oagen's plan carries are not here, by §3.6. Whether there is a body, whether the
 operation is one-way and its idempotency are stated by the IR, so a refiner reads them there:
@@ -1650,12 +1650,11 @@ a generated SDK divides into packages of its own, by source document or by group
 Kotlin/JVM and Kotlin Multiplatform are two targets and one package. They share a language, so
 one AST, printer and refine pipeline serve both; they differ in a runtime, and that difference is
 data: a `Platform` value carrying its built-in type table (§2.6), whose rows for the
-runtime-dependent primitives differ between the two, the identifier
-rules the Objective-C/Swift export adds on Multiplatform, and the HTTP engine each platform's
-transport defaults to. A lowering that branches on the platform reads that value, never the target
-key. They are two targets rather than one with an option because their artifacts, surfaces and
-toolchains differ: a JVM SDK exposes `java.time` and `BigDecimal`, which Multiplatform common code
-does not have (§8.8).
+runtime-dependent primitives differ between the two, the identifier rules the Objective-C/Swift
+export adds on Multiplatform, and the HTTP engine each platform's transport defaults to. A lowering
+that branches on the platform reads that value, never the target key. They are two targets rather
+than one with an option because their artifacts, surfaces and toolchains differ: a JVM SDK exposes
+`java.time` and `BigDecimal`, which Multiplatform common code does not have (§8.8).
 
 **Architecture test.** The import-graph assertion (written alongside the first emitter packages, not
 after) asserts: `emitters/golang` and `emitters/kotlin` may each import `emitters`, `emitters/plan`,
@@ -2367,10 +2366,10 @@ compiler writes as `""` (#978); and facts no OpenAPI construct sets, such as `Mo
 |---|---|
 | 1 IR is the ABI | `EmitterInput.Doc` is the only structural input; `emitters/*` imports `ir`, `ir/irfacts` + shared contract, never `compiler`/`engine`/a sibling target (§2, §7) |
 | 2 Lossless, lowered late | all lowering is in `refine` steps building a fresh target AST; the IR is never mutated; unions/enums/discriminators/visibility/pagination/streaming/LRO arrive un-lowered and the step list is the acceptance test (§4, §8) |
-| 3 Stable IDs, names presentation | plan, AST `Origin`, manifest, surface, hints, and the collision table are all keyed by IR stable ID; renames are lookups; collisions never touch identity; a name with no words is named from its value alone, and placement reads no count, so neither moves when something else changes (§3, §4.12, §4.17, §11) |
+| 3 Stable IDs, names presentation | plan, AST `Origin`, manifest, surface, hints, and the collision table are all keyed by IR stable ID; renames are lookups; collisions never touch identity; a name with no words is named from its own characters alone, and placement reads no count, so neither moves when something else changes (§3, §4.12, §4.17, §11) |
 | 4 Names neutral, emitter cases | `Ident` starts as the `Naming.Canonical` word sequence, the source spelling beside each word for its letter case only; `RenderCasing`/`EscapeReservedWords` are the only casing steps; struct tags come from `WireName`/`WireID`, a separate channel (§4.12, §5) |
 | 5 Pure, typed diagnostics | `Generate` is pure/reentrant/no-stderr/no-I/O; every un-lowerable construct → coded `ir.Diagnostic`; the engine decides fatality (§2, §2.4) |
-| 6 Heuristics are policy | `plan.Policy`, each target's versioned options — its type table and naming tables among them —, `verify.Severity`, method-name derivation, and shaping hints are injectable and disable-able; the type table's width-picking rows, the acronyms, the character names and the leading words are defaults a configuration replaces; inferred outputs marked `Inferred` (§2.5, §2.6, §3.5, §4.12, §6.4, §12) |
+| 6 Heuristics are policy | `plan.Policy`, each target's versioned options (its type table and naming tables among them), `verify.Severity`, method-name derivation, and shaping hints are injectable and disable-able; the type table's width-picking rows, the acronyms, the character names and the leading words are defaults a configuration replaces; inferred outputs marked `Inferred` (§2.5, §2.6, §3.5, §4.12, §6.4, §12) |
 | 7 Serializable/deterministic | `Plan` + manifest are JSON-serializable, and `Facts` is rebuilt from the document; maps walked sorted, slices source order; identical input ⇒ identical bytes (§2.2, §3, §5.5, §13) |
 | 8 Optionality ≠ nullability | `LowerOptionality` renders all four states plus protobuf `Presence` as a third axis; collapses are diagnosed (§4.7) |
 | 9 Capability surface designed against every format | every `ir.TypeKind` and every operation facet (pagination/streaming/LRO/one-way/messaging) has a lowering path or diagnosed degrade (§4.2, §9); docs/mock/validation are registry entries over the same `Doc + Plan`; a new language forces no IR or plan change (§10, §14 M5) |
