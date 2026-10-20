@@ -872,9 +872,10 @@ checks depend on the spec) nor free-form template logic: refine decides the set 
 individual check primitives (`checkMinLength`, `checkMultipleOf` on `big.Rat`) are runtime helpers.
 This is ogen's `oas_validators_gen.go` split, relocated to honor the structure-vs-boilerplate line
 (§5.2). Numeric bounds flow through `BigVal`/`big.Rat`, **never float64** — ogen itself gets storage
-right yet leaks `Float64()` in its `minNum`/`maxNum` merge path, so any constraint intersection a
-refiner performs (e.g. when flattening `allOf` bounds) must stay on decimal. A `Pattern` a target's
-regex engine cannot honor is dropped with a `warning` diagnostic, never silently mistranslated.
+right yet leaks `Float64()` in its `minNum`/`maxNum` merge path, so any constraint intersection the
+plan or a refiner performs (a scalar chain's bounds, `allOf` bounds) must stay on decimal. A
+`Pattern` a target's regex engine cannot honor is dropped with a `warning` diagnostic, never
+silently mistranslated.
 
 ### 4.12 Naming, casing, reserved words, collisions (INV4)
 
