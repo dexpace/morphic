@@ -225,12 +225,13 @@ except for the boundary they impose on the IR; the internal shape mirrors what K
 converged on independently:
 
 1. **Plan** — compute language-*neutral* per-operation and per-type decisions once
-   (is-paginated, body presence, idempotency, error taxonomy, primary-content/response
-   selection, return-shape classification (model / void / list-of-models with elementwise
-   deserialization), pagination item-type unwrap) so templates contain no policy. This list is
-   the decision set oagen's emitters demonstrably needed, computed once and shared across all
-   languages, less what varies by language: oagen's parameter-passing shape (positional vs
-   options-bag) is each target's (emitter-design.md §3.6).
+   (is-paginated, error taxonomy, primary-content/response selection, return-shape
+   classification (model / void / list-of-models with elementwise deserialization), pagination
+   item-type unwrap) so templates contain no policy. This list is the decision set oagen's
+   emitters demonstrably needed, computed once and shared across all languages, less two kinds of
+   entry (emitter-design.md §3.6): what the IR already states, such as body presence and
+   idempotency, which a refiner reads there; and what varies by language, such as oagen's
+   parameter-passing shape (positional vs inside an options object), which is each target's.
 2. **Refine** — per-language lowering: reserved words, casing, union representation strategy
    (native union vs sealed interface vs wrapper class), enum strategy for open enums, interface
    extraction. Everything a refiner needs must exist un-lowered in the IR — this is the IR's
