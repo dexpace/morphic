@@ -58,10 +58,10 @@ func TestLoad_ARootDefinitionResolvesAsTheResolverReadsIt(t *testing.T) {
 // schema with no $id that spells "#/$defs/e" and defines an e of its own, where
 // the root defines one too: the root's definition answers, as the rule for a
 // definition states, however the two are ordered in the source and whether the
-// $ref is reached first directly or by a chain through the schema. The
-// compiler once left such a $ref unresolved, because the parser's resolver
-// read one definition or the other by what it had resolved first; the binder
-// reads neither by order, so the refusal is lifted.
+// $ref is reached first directly or by a chain through the schema. The binder
+// reads neither definition by order, so the $ref resolves, where the parser's
+// resolver reads one or the other by what it resolved first
+// (docs/parser-library.md#root-defs).
 func TestLoad_ARootDefinitionAnswersBeforeASchemasOwn(t *testing.T) {
 	t.Parallel()
 	const head = "openapi: 3.1.0\ninfo: {title: t, version: \"1\"}\npaths: {}\n"

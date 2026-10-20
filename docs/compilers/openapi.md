@@ -558,7 +558,7 @@ in the type graph by ID (§1), whichever declaration lowers first, with no diagn
 a cycle with no schema in it, which [`reference-cycles`](#reference-cycles) reports.
 
 - Cases: `recursive`
-- Tests: `schema.TestLower_RecursiveSchemaTerminates`, `scan.TestDetectCycles_LegalRecursionClean`,
+- Tests: `schema.TestLower_RecursiveSchemaTerminates`, `scan.TestAliases_LegalRecursionClean`,
   `openapi.TestCompile_SchemaRefCycleIsReportedAndStillCompiles`
 - Status: partly built: an `allOf` that names its own schema, or two schemas that are each other's
   `Base`, lowers to a base chain that returns to where it started with no diagnostic, and a cycle of

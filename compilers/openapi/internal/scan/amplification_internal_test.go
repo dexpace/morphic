@@ -41,7 +41,7 @@ func bigAliasFreeSpec(n int) string {
 	return b.String()
 }
 
-func TestDetectCycles_LargeAliasFreeDocumentIsClean(t *testing.T) {
+func TestAliases_LargeAliasFreeDocumentIsClean(t *testing.T) {
 	t.Parallel()
 	src := bigAliasFreeSpec(bigDocSchemaCount)
 
@@ -53,7 +53,7 @@ func TestDetectCycles_LargeAliasFreeDocumentIsClean(t *testing.T) {
 		"a large alias-free document must never be refused: what it costs is what its own bytes already bought")
 }
 
-func TestDetectCycles_AnchorReuseWithinBudgetIsClean(t *testing.T) {
+func TestAliases_AnchorReuseWithinBudgetIsClean(t *testing.T) {
 	t.Parallel()
 	var b strings.Builder
 	b.WriteString("openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\n")
@@ -92,7 +92,7 @@ func wideBaseReuseSpec(props, siblings int) string {
 	return b.String()
 }
 
-func TestDetectCycles_RealWorldAnchorReuseIsClean(t *testing.T) {
+func TestAliases_RealWorldAnchorReuseIsClean(t *testing.T) {
 	t.Parallel()
 	const props = 20
 	const siblings = 900
@@ -117,7 +117,7 @@ func TestDetectCycles_RealWorldAnchorReuseIsClean(t *testing.T) {
 		"ordinary DRY reuse of one shared base across many sibling schemas, at least as demanding as the worst real spec measured, is not amplification")
 }
 
-func TestDetectCycles_SyntheticWideBaseReuseIsNowRefused(t *testing.T) {
+func TestAliases_SyntheticWideBaseReuseIsNowRefused(t *testing.T) {
 	t.Parallel()
 	const props = 200
 	const siblings = 500
@@ -171,7 +171,7 @@ func flatFanOutSpec(n int) string {
 	return b.String()
 }
 
-func TestDetectCycles_FlatFanOutOfModestAnchorIsEventuallyRefused(t *testing.T) {
+func TestAliases_FlatFanOutOfModestAnchorIsEventuallyRefused(t *testing.T) {
 	t.Parallel()
 	const under = 9_000
 	assert.Empty(t, scanBytes(t, []byte(flatFanOutSpec(under))),

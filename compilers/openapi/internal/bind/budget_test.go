@@ -100,8 +100,8 @@ func deepMerge() string {
 // reading that followed each chain from every start that enters it (GitHub
 // #903, #923), matched each schema's own definitions against the others'
 // (GitHub #753), or answered a site again in each later round of the walk,
-// grew with the square. A loop longer than the cap a hop count
-// once had (GitHub #922) is found whole, at its least member.
+// grew with the square. A loop is found whole, at its least member, however
+// many hops it has (GitHub #922).
 func TestBind_CountsWorkLinearInTheDocument(t *testing.T) {
 	t.Parallel()
 	ref := func(name string, i int) string {

@@ -235,7 +235,8 @@ func isIndex(token string) bool {
 // parser's resolver ended its chain (Config.Through), read at the same state:
 // a pointer through a response reads on in the response it names. The end is
 // read as any pointer is, through the reference objects it lies past, up to
-// the node the chain reached (ReferenceEnd). An object writing no $ref is read
+// the node the chain reached (ReferenceEnd, and
+// docs/parser-library.md#trailing-empty-token). An object writing no $ref is read
 // where it is. Only the source's reference objects are resolved; one in
 // another document is not (GitHub #751).
 func (d *docs) through(r reading, passes int) (reading, Reason) {

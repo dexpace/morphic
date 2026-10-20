@@ -3563,7 +3563,7 @@ func TestDiscriminatorMapping_StopsAtAPureRefItCannotFollow(t *testing.T) {
 // pure $ref position whose $ref names the source by its file name, with
 // external references off: a same-document reference, read as the source, so
 // the mapping reaches the schema it names in either order of its entries. Read
-// as another document, it was refused, and the mapping named whatever had
+// as another document, it would be refused, and the mapping would name whatever
 // interned the next position first.
 func TestDiscriminatorMapping_ThroughARefNamingTheSourceByItsFileName(t *testing.T) {
 	t.Parallel()

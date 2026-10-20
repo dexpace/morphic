@@ -158,8 +158,7 @@ const (
 )
 
 // TestBindings_BesideHopsNameTheFieldWrittenBesideTheRef pins how the binder
-// leaves a pointer through the fields beside a path item $ref unresolved, which
-// the scope refused itself before the compiler resolved schema $refs: a $ref
+// leaves a pointer through the fields beside a path item $ref unresolved: a $ref
 // reaching the field is a BesideRef, a "#/$defs/..." one written in the field is
 // a BesideDefs, each naming the path item and the key, and a mapping value is
 // read as a $ref is. One landing elsewhere resolves. The reason is the binder's,

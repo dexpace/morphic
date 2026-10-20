@@ -7,5 +7,5 @@
 // A reference is read as docs/compilers/openapi.md#references states:
 // a JSON pointer trimmed and percent-decoded, nothing else, the $defs rule, a
 // role for each position from the OpenAPI grammar, and neither $anchor nor
-// $id as a target (ir-design §4.7).
+// $id as a target.
 package bind

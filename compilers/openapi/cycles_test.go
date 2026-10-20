@@ -170,8 +170,7 @@ func TestCompile_AliasCycleIsRefused(t *testing.T) {
 // TestCompile_SchemaRefCycleIsReportedAndStillCompiles pins what a loop of
 // schema $refs does under the compiler's own resolution, in every spelling the
 // corpus holds. The loop is reported once, as an error at its member with the
-// least pointer, and the document is still returned: a cycle used to refuse the
-// source before it was parsed, and nothing now needs it to.
+// least pointer, and the document is still returned.
 func TestCompile_SchemaRefCycleIsReportedAndStillCompiles(t *testing.T) {
 	t.Parallel()
 	for _, tc := range schemaRefCycles {
@@ -578,8 +577,8 @@ components:
 
 // TestCompile_RefShapedDataNotRefused pins that a structure shaped like a $ref
 // outside a schema position, or a loop-free use of aliases, compiles and is not
-// reported as a cycle. A cycle no longer refuses the document, so the
-// diagnostic is what shows a $ref read where no resolver reads one.
+// reported as a cycle. A cycle is reported and refuses nothing, so a $ref read
+// where no resolver reads one shows as that diagnostic.
 func TestCompile_RefShapedDataNotRefused(t *testing.T) {
 	t.Parallel()
 	for _, tc := range refShapedDataSpecs {
@@ -644,8 +643,8 @@ func readReproducer(t *testing.T, file string) []byte {
 // TestCompile_MergeChainPastBoundStillCompiles pins that a legal document whose
 // `<<` merge chain runs past the mapping view's depth bound is compiled. The
 // alias scan weighs aliases rather than expanding merges through that view, so
-// the chain no longer leaves its protection incomplete, and no diagnostic
-// refuses the source or reports an incomplete scan.
+// the chain leaves its protection complete, and no diagnostic refuses the
+// source or reports an incomplete scan.
 func TestCompile_MergeChainPastBoundStillCompiles(t *testing.T) {
 	t.Parallel()
 	doc, diags, err := New().Compile(t.Context(),
@@ -664,7 +663,7 @@ func TestCompile_MergeChainPastBoundStillCompiles(t *testing.T) {
 // hang, and must come back with a document or with a refusal: an error
 // diagnostic saying why no document came back, or a Go error alone, which an
 // empty source raises. A cycle of schema $refs refuses nothing, so a corpus
-// seed no longer ends in a refusal and the invariant is no longer that one.
+// seed comes back with a document.
 func FuzzCycleDetector(f *testing.F) {
 	for _, file := range cycleFixtureFiles() {
 		if data, err := os.ReadFile(filepath.Join(reproducerDir, file+".yaml")); err == nil {

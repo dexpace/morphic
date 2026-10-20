@@ -2,10 +2,11 @@ package canary_test
 
 // The binding oracle (GitHub #914): the compiler binds schema $refs itself
 // (compilers/openapi/internal/bind), and this holds what it binds to what the
-// parser library's resolver, which it no longer asks, resolves the same $ref
-// to. The two agree except where the library is wrong, or where the compiler
-// reads a reference by a rule of its own; each such disagreement is listed in
-// oracleDisagreements with the reason, and one the list does not hold fails.
+// parser library's resolver, which the compiler never asks, resolves the same
+// $ref to. The two agree except where the library is wrong, or where the
+// compiler reads a reference by a rule of its own; each such disagreement is
+// listed in oracleDisagreements with the reason, and one the list does not
+// hold fails.
 //
 // The library runs in children, since it overflows its stack on a loop of
 // $refs (docs/parser-library.md#schema-cycle-overflow). A child that dies at a
@@ -109,7 +110,7 @@ var oracleReasons = map[string]string{
 		"it reads past one for a reference object's own $ref; the compiler reads both alike " +
 		"(docs/compilers/openapi.md#references)",
 	"anchor-id": "the compiler reads no $anchor or $id as a reference target, and no $id as a base URI, so a " +
-		"fragment names a position from the document's root (docs/ir-design.md §4.7)",
+		"fragment names a position from the document's root (docs/compilers/openapi.md#references)",
 	"alias-position": "the compiler reads a YAML alias where it is written, as the document's JSON places it; " +
 		"the library, where its anchor is",
 	"duplicate-key": "the compiler reads a key written twice in a mapping as its last occurrence wherever the " +
@@ -601,8 +602,8 @@ func writeDisagreements(t *testing.T, found []disagreement, listed map[string]st
 
 // oracleDocs returns every document the oracle compiles: each shape in each
 // order it is declared in, each Test Suite group writing a reference, each
-// fixture of the repository's corpus, and the generated documents the load
-// phase's reach check was measured over (GitHub #916).
+// fixture of the repository's corpus, and the documents the grammar of
+// reachdocs_test.go generates (GitHub #916).
 func oracleDocs(t *testing.T) []oracleDoc {
 	t.Helper()
 	var docs []oracleDoc

@@ -345,9 +345,9 @@ func writeOutcomes(t *testing.T, path string, shapes []referenceShape, seen map[
 }
 
 // probe runs one shape in a subprocess and reports the compiler's verdict,
-// whether it reported an error, and what the resolver did. A helper that stops in a way none of the outcomes
-// describes, or a shape the library cannot parse, fails the shape rather than
-// being filed under the nearest outcome.
+// whether it reported an error, and what the resolver did. A helper that stops
+// in a way none of the outcomes describes, or a shape the library cannot
+// parse, fails the shape rather than being filed under the nearest outcome.
 func probe(t *testing.T, spec string) (failed bool, outcome string) {
 	t.Helper()
 

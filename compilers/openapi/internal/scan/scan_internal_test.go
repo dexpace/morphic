@@ -123,10 +123,10 @@ func TestAliases_RefusesARecursiveAnchor(t *testing.T) {
 }
 
 // TestAliases_LeavesASchemaRefCycleToTheBinder pins that no loop of schema
-// $refs is refused here, in any spelling the corpus holds. The scan once
-// refused them all; the compiler now resolves schema $refs itself and reports a
-// loop once, at its least member, while the document still compiles. A scan
-// that grew a $ref reading again would refuse a document the compile admits.
+// $refs is refused here, in any spelling the corpus holds. The compiler
+// resolves schema $refs itself and reports a loop once, at its least member,
+// while the document still compiles. A scan that read $refs would refuse a
+// document the compile admits.
 func TestAliases_LeavesASchemaRefCycleToTheBinder(t *testing.T) {
 	t.Parallel()
 	for _, tc := range refCycleReproducers {
@@ -137,9 +137,9 @@ func TestAliases_LeavesASchemaRefCycleToTheBinder(t *testing.T) {
 	}
 }
 
-// TestDetectCycles_ReferenceObjectCyclesAreLeftToTheResolver pins that the scan
+// TestAliases_ReferenceObjectCyclesAreLeftToTheResolver pins that the scan
 // reports nothing on a chain of reference objects, however it fails.
-func TestDetectCycles_ReferenceObjectCyclesAreLeftToTheResolver(t *testing.T) {
+func TestAliases_ReferenceObjectCyclesAreLeftToTheResolver(t *testing.T) {
 	t.Parallel()
 	for _, tc := range referenceObjectCycles {
 		t.Run(tc.name, func(t *testing.T) {
@@ -149,9 +149,9 @@ func TestDetectCycles_ReferenceObjectCyclesAreLeftToTheResolver(t *testing.T) {
 	}
 }
 
-// TestDetectCycles_LegalRecursionClean pins that a schema recursing through $refs,
+// TestAliases_LegalRecursionClean pins that a schema recursing through $refs,
 // which is legal, is not a cycle to the scan.
-func TestDetectCycles_LegalRecursionClean(t *testing.T) {
+func TestAliases_LegalRecursionClean(t *testing.T) {
 	t.Parallel()
 	data, err := os.ReadFile("../../../../testdata/conformance/openapi/recursive.yaml")
 	require.NoError(t, err)
@@ -206,11 +206,11 @@ func TestAliases_LegalAliasAndMergeUseIsClean(t *testing.T) {
 	}
 }
 
-// TestDetectCycles_EmptyDocumentIsNoCycle covers the index a source with nothing
+// TestAliases_EmptyDocumentIsNoCycle covers the index a source with nothing
 // in it produces. A source that does not decode at all no longer reaches here —
 // load refuses it as a parse error before it indexes anything — so the empty
 // document is the only sourceless index the scan can be handed.
-func TestDetectCycles_EmptyDocumentIsNoCycle(t *testing.T) {
+func TestAliases_EmptyDocumentIsNoCycle(t *testing.T) {
 	t.Parallel()
 	assert.Empty(t, Aliases(InSource(0), sourceindex.Build(nil, sourceindex.MaxIndexedNodes), defaultSurplus))
 	assert.Empty(t, scanBytes(t, nil))
@@ -288,13 +288,13 @@ func TestRecoverCycleScan_PassesThroughResult(t *testing.T) {
 	assert.Equal(t, want, got)
 }
 
-func TestDetectCycles_WhitespaceOnlyIsNoCycle(t *testing.T) {
+func TestAliases_WhitespaceOnlyIsNoCycle(t *testing.T) {
 	t.Parallel()
 	assert.Empty(t, scanBytes(t, []byte("\n\n\n")))
 	assert.Empty(t, scanBytes(t, []byte("# only a comment\n")))
 }
 
-func TestDetectCycles_LegalAliasReuseClean(t *testing.T) {
+func TestAliases_LegalAliasReuseClean(t *testing.T) {
 	t.Parallel()
 	src := "a: &x {p: 1}\nb: *x\n"
 	assert.Empty(t, scanBytes(t, []byte(src)),
@@ -478,10 +478,10 @@ func chainedAliasSpec(levels int) string {
 	return b.String()
 }
 
-// TestDetectCycles_ChainedAliasFanOutIsRefused refuses a millionfold
+// TestAliases_ChainedAliasFanOutIsRefused refuses a millionfold
 // expansion. Twenty levels keep this test finite even for a walk that lost its
 // memo, a defect TestAliases_AllocatesLinearlyInItsInput reports.
-func TestDetectCycles_ChainedAliasFanOutIsRefused(t *testing.T) {
+func TestAliases_ChainedAliasFanOutIsRefused(t *testing.T) {
 	t.Parallel()
 	diags := scanBytes(t, []byte(chainedAliasSpec(20)))
 	require.Len(t, diags, 1, "a fan-out this deep is refused, not silently accepted")
@@ -489,18 +489,18 @@ func TestDetectCycles_ChainedAliasFanOutIsRefused(t *testing.T) {
 	assert.Equal(t, ir.SeverityError, diags[0].Severity)
 }
 
-func TestDetectCycles_MergeChainWithinBoundIsClean(t *testing.T) {
+func TestAliases_MergeChainWithinBoundIsClean(t *testing.T) {
 	t.Parallel()
 	diags := scanBytes(t, []byte(ynode.MergeChainSpec(nodeview.MergeDepthLimit)))
 	assert.Empty(t, diags, "a merge chain of this depth is clean")
 }
 
-// TestDetectCycles_MergeChainPastBoundIsRefused pins a merge chain longer than
+// TestAliases_MergeChainPastBoundIsRefused pins a merge chain longer than
 // nodeview.MergeDepthLimit and past the alias allowance with room to spare. The
 // scan does not read merge keys through the mapping view, whose depth bound
-// once made it report an incomplete scan beside the refusal, so the refusal
+// would make it report an incomplete scan beside the refusal, so the refusal
 // stands alone.
-func TestDetectCycles_MergeChainPastBoundIsRefused(t *testing.T) {
+func TestAliases_MergeChainPastBoundIsRefused(t *testing.T) {
 	t.Parallel()
 	diags := scanBytes(t, []byte(ynode.MergeChainSpec(500)))
 	require.Len(t, diags, 1, "the amplification refusal, and no incomplete-scan warning beside it")
@@ -597,13 +597,13 @@ func resolverWalk(t *testing.T, src string) walkEnd {
 	}
 }
 
-// TestDetectCycles_TheResolverEndsAWalkThroughAReferenceObject pins the premise the
+// TestAliases_TheResolverEndsAWalkThroughAReferenceObject pins the premise the
 // scan leaves reference objects on (GitHub #574): the library ends its walk of
 // a path item's pointer through the reference it is resolving, stopped there,
 // as it ends one below another item for want of a key, whether or not the last
 // token is UTF-8. The end column pins today's library; the scan refuses none of
 // them, and the resolver reports each.
-func TestDetectCycles_TheResolverEndsAWalkThroughAReferenceObject(t *testing.T) {
+func TestAliases_TheResolverEndsAWalkThroughAReferenceObject(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name, ref string
@@ -625,10 +625,10 @@ func TestDetectCycles_TheResolverEndsAWalkThroughAReferenceObject(t *testing.T) 
 	}
 }
 
-// TestDetectCycles_AcceptsATreeWithNoCycle is the control the refusal cases need:
+// TestAliases_AcceptsATreeWithNoCycle is the control the refusal cases need:
 // without it, a suite made only of refusals would pass on a scan that refused
 // everything handed to it.
-func TestDetectCycles_AcceptsATreeWithNoCycle(t *testing.T) {
+func TestAliases_AcceptsATreeWithNoCycle(t *testing.T) {
 	t.Parallel()
 	assert.Empty(t, scanBytes(t, []byte(
 		"openapi: 3.1.0\ncomponents: {schemas: {A: {$ref: '#/components/schemas/B'}, B: {type: string}}}\n")))

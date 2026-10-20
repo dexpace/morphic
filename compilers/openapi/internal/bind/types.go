@@ -103,7 +103,7 @@ const (
 	// grammar, or a value that is neither a mapping nor a boolean.
 	NotSchema
 	// AnchorTarget is a fragment naming a $anchor, which is not read as a
-	// target (ir-design §4.7).
+	// target (docs/compilers/openapi.md#references).
 	AnchorTarget
 	// BadPointer is a fragment that is no JSON pointer and no $anchor name: an
 	// invalid escape, bytes that are not UTF-8, or a second '#', which RFC

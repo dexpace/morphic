@@ -187,10 +187,10 @@ func genFuzzDoc(rng *rand.Rand) string {
 }
 
 // reachFuzzSeed and reachFuzzN fix the grammar's sample, the documents the
-// load phase's reach check was once measured over (GitHub #916). math/rand's
-// v1 source, not math/rand/v2's, is documented to produce the same sequence
-// for a seed across Go versions, so the same documents are generated on every
-// run without being stored.
+// oracle compiles from it (GitHub #916). math/rand's v1 source, not
+// math/rand/v2's, is documented to produce the same sequence for a seed across
+// Go versions, so the same documents are generated on every run without being
+// stored.
 const (
 	reachFuzzSeed = 1
 	reachFuzzN    = 200

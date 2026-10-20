@@ -188,7 +188,8 @@ x-params:
 - Verified at: v1.25.5
 - Pinned by: `TestLibraryBehaviour/trailing-empty-token`
 - Code:
-  - `bind.ReferenceEnd` places an end at the position on its pointer's read holding that node.
+  - `bind.docs.through` places a reference object's end at the first position on its pointer's read
+    that holds the node the chain reached, which `bind.ReferenceEnd` carries.
   - `load.referenceEnds` hands the binder the node each chain reached.
 
 ### `root-defs`

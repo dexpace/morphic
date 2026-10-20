@@ -213,25 +213,25 @@ func Load(ctx context.Context, srcIndex int, src compilers.Source, opts Options)
 
 // build turns the decoded tree of a source's first document into a Document:
 // the pre-parse refusals, the overlay, the node budget, the model build, the
-// version check, the reference-chain cycle refusal, then validation findings
-// and reference resolution as diagnostics. A nil document with error
-// diagnostics is a refusal to lower.
+// version check, then validation findings, reference resolution and the source
+// checks as diagnostics. A nil document with error diagnostics is a refusal to
+// lower.
 //
 // It is what Load does after the decode, split from it so that what the decode
 // found past the first document is reported on every return path — a refusal
 // included — without being read as a refusal itself.
 func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Parsed, opts Options) (*Document, []ir.Diagnostic, error) {
 	root := parsed.root
-	cyc := refusals(scan.InTree(srcIndex, scan.Pointers(root)), root, opts)
-	if diag.HasError(cyc) {
-		return nil, cyc, nil // degenerate cycle: refuse to lower, do not crash the parser
+	early := refusals(scan.InTree(srcIndex, scan.Pointers(root)), root, opts)
+	if diag.HasError(early) {
+		return nil, early, nil // a pre-parse refusal: the parser is never handed a tree it faults on
 	}
-	// cyc may still hold a non-fatal scan-incomplete warning; carry it forward.
+	// early may still hold a non-fatal scan-incomplete warning; carry it forward.
 
 	origin, patchDiags := patch(srcIndex, root, opts)
-	cyc = append(cyc, patchDiags...)
-	if diag.HasError(cyc) {
-		return nil, cyc, nil // an overlay that did not apply: refuse to lower a half-patched tree
+	early = append(early, patchDiags...)
+	if diag.HasError(early) {
+		return nil, early, nil // an overlay that did not apply: refuse to lower a half-patched tree
 	}
 
 	// The node budget is checked after the overlay for the reason patch re-runs
@@ -240,7 +240,7 @@ func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Pars
 	// it. Building that model and resolving its references is what the budget
 	// exists to bound, and both are still ahead.
 	if nodes := nodeCount(root); exceeds(nodes, opts.MaxSourceNodes) {
-		return nil, append(cyc, budgetRefusal(srcIndex,
+		return nil, append(early, budgetRefusal(srcIndex,
 			"source document parses to %d nodes, past the %d-node budget",
 			nodes, opts.MaxSourceNodes)), nil
 	}
@@ -258,7 +258,7 @@ func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Pars
 
 	minor, ok := SupportedMinor(doc.OpenAPI)
 	if !ok {
-		return nil, append(cyc, diag.Newf(ir.SeverityError, diag.UnsupportedVersion,
+		return nil, append(early, diag.Newf(ir.SeverityError, diag.UnsupportedVersion,
 			ir.Provenance{Source: srcIndex},
 			"unsupported OpenAPI version %q; want 3.0, 3.1, or 3.2", doc.OpenAPI)), nil
 	}
@@ -268,7 +268,7 @@ func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Pars
 	valErrs = append(valErrs, unreported(sibErrs, valErrs)...)
 	validation.SortValidationErrors(valErrs)
 	valErrs, validDiags := validated(ctx, pointerAt(srcIndex, origin), tree.locate, doc, sibs, valErrs, minor)
-	diags := cyc
+	diags := early
 	diags = append(diags, sibFaults...)
 	diags = append(diags, validDiags...)
 	self := newSourceDocument(src.Path, src.Data, root, valErrs, tree, esc)
