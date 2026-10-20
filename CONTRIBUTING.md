@@ -105,8 +105,8 @@ A lowering rule says how one OpenAPI construct reaches the IR: the field it fill
    misspelt key, or a rule renamed without its citations. Nothing requires a citation.
 7. **Run the gate:** `make gate`. A statement only a fault-injection seam reaches still needs a test
    that reaches it; `make coverage` names the file and line it misses. On a loaded machine
-   `TestDetectCycles_MergeChainPastBoundStaysFastAndWarns` can fail its wall-clock bound under
-   `make coverage` (#979); rerun before reading that failure as yours.
+   `TestLibraryBehaviour` can read a slow child as hung under `make coverage` (#1010); rerun before
+   reading that failure as yours.
 
 ## Add a pass
 
