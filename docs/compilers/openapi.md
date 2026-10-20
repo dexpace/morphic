@@ -1863,7 +1863,8 @@ Encoding Object writes beyond those fields is
 - Tests: `operation.TestContent_MultipartPartEncoding`,
   `operation.TestContent_ArrayMultipartPartMulti`,
   `operation.TestPartEncodings_MixinPartIsKeyedOnTheMixin`,
-  `operation.TestPartEncodings_ReadsTheFlattenedComposition`
+  `operation.TestPartEncodings_ReadsTheFlattenedComposition`,
+  `operation.TestPartEncodings_RefHopBoundIsReported`
 - Status: partly built: an `encoding` key that names no property, or one declared only inside a
   `oneOf` or `anyOf` branch, is dropped with no diagnostic (#604); on a multi-typed body the entry
   is keyed by a property no node holds, which validation then refuses (#744); an array of files is

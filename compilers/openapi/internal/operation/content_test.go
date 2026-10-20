@@ -2725,3 +2725,50 @@ components:
 	assert.Contains(t, diagMessages(diags), "follows $refs past 16 hops", "the bound is named")
 	assert.Empty(t, openapitest.FirstOp(t, svc).Request.Contents[0].Encoding, "the part beyond it has no entry")
 }
+
+// TestPartEncodings_CycleEntersEachTargetOnce spells an allOf cycle back to the
+// body's own schema. Every part is declared once, so every part is keyed at the
+// target's properties and no bound is reported: a cycle costs one visit.
+func TestPartEncodings_CycleEntersEachTargetOnce(t *testing.T) {
+	t.Parallel()
+	const bodyPtr = "/paths/~1u/post/requestBody/content/multipart~1form-data/schema"
+	cases := []struct{ name, allOf string }{
+		{"direct", "[{$ref: '#/components/schemas/A'}]"},
+		{"wrapper", "[{allOf: [{$ref: '#/components/schemas/A'}]}]"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			spec := openapitest.PathsSpec(`  /u:
+    post:
+      operationId: up
+      requestBody:
+        content:
+          multipart/form-data:
+            schema: {$ref: '#/components/schemas/A'}
+            encoding:
+              file: {contentType: image/png}
+              meta: {contentType: application/json}
+      responses: {"200": {description: ok}}
+components:
+  schemas:
+    A:
+      type: object
+      properties: {file: {type: string, format: binary}, meta: {type: string}}
+      allOf: ` + tc.allOf + "\n")
+			_, svc, diags := lowerServiceSpec(t, spec)
+			openapitest.RequireNoErrorDiags(t, diags)
+			got := openapitest.FirstOp(t, svc).Request.Contents[0].Encoding
+			for _, part := range []string{"file", "meta"} {
+				id := ir.PropID("p/openapi/components/schemas/A" + ids.Ptr("properties", part))
+				assert.Contains(t, got, id, "the %s part is keyed at the target's own property", part)
+			}
+			for _, d := range diags {
+				if d.Code == diag.DegradedConstruct && d.Severity == ir.SeverityWarning {
+					assert.NotEqual(t, jsontext.Pointer(bodyPtr), d.Provenance.Pointer,
+						"a cycle spends no bound, so nothing is reported at the body schema: %s", d.Message)
+				}
+			}
+		})
+	}
+}

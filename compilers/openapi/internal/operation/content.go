@@ -207,7 +207,7 @@ func positionalEncoding(c lowering.Ctx, content *ir.Content, media *soa.MediaTyp
 // encoding entry or is itself a repeated (array) or file (binary) part. body is
 // the TypeID the content's own schema position lowered to.
 func partEncodings(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, media *soa.MediaType, mediaPtr jsontext.Pointer, body ir.TypeID) (map[ir.PropID]ir.PartEncoding, ir.Unmodeled, []ir.Diagnostic) {
-	walk := bodyParts(media.GetSchema(), 0)
+	walk := bodyParts(media.GetSchema(), 0, map[*oas3.Schema]bool{})
 	parts := walk.parts
 	cutDiags := diagPartWalkCut(c, walk, mediaPtr+ids.Ptr("schema"))
 	if len(parts) == 0 {
@@ -252,8 +252,9 @@ type bodyPart struct {
 
 // maxPartRefHops bounds how many $ref targets bodyParts follows down a
 // composition. Inline wrappers are not counted: schema.FlattenedAllOf reads them,
-// with the cap the lowering uses. A $ref cycle is refused at load, so the bound
-// is what keeps the walk terminating without relying on that.
+// with the cap the lowering uses. A target already entered is not entered again,
+// so an allOf cycle (GitHub #642) costs one visit; the bound caps an acyclic
+// chain, which a valid document can spell.
 const maxPartRefHops = 16
 
 // partWalk is what bodyParts found, and which bound cut it short.
@@ -271,22 +272,25 @@ type partWalk struct {
 // contributes, with the first declaration of a name winning. The branches are
 // the lowering's own (schema.FlattenedAllOf); a $ref branch is followed here, up
 // to maxPartRefHops. A bound that cut the walk is reported on the result.
+// entered holds the schemas the walk has already entered; one met again yields
+// no parts, so a cycle ends there.
 //
 // A body that composes rather than declares — `allOf: [{$ref: Form}]` — has no
 // properties of its own, yet describes the same wire format, so it must
 // enumerate the same parts (GitHub #140).
-func bodyParts(js *oas3.JSONSchema[oas3.Referenceable], hops int) partWalk {
+func bodyParts(js *oas3.JSONSchema[oas3.Referenceable], hops int, entered map[*oas3.Schema]bool) partWalk {
 	if hops > maxPartRefHops {
 		return partWalk{hopsSpent: true}
 	}
 	s := schemaOf(js)
-	if s == nil {
+	if s == nil || entered[s] {
 		return partWalk{}
 	}
+	entered[s] = true
 	w := partWalk{parts: propertyParts(s)}
 	for _, br := range schema.FlattenedAllOf(s) {
 		if br.Ref {
-			sub := bodyParts(br.Schema, hops+1)
+			sub := bodyParts(br.Schema, hops+1, entered)
 			w.parts = append(w.parts, sub.parts...)
 			w.capped = w.capped || sub.capped
 			w.hopsSpent = w.hopsSpent || sub.hopsSpent
