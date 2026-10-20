@@ -35,18 +35,28 @@ fi
 cache="$(mktemp -d)"
 trap 'rm -rf "$cache"' EXIT
 
-# A finding prints as "<file>:<line>:<column>: <message> (<linter>)"; the column
-# goes. A golangci-lint that cannot run, a rules file ruleguard cannot load
-# included, exits non-zero whatever --issues-exit-code says, and ends the script.
+# A finding prints as "<file>:<line>:<column>: <message> (<linter>)", the column
+# only when it is known; it goes. A golangci-lint that cannot run, a rules file
+# ruleguard cannot load included, exits non-zero whatever --issues-exit-code
+# says, and ends the script.
 out="$(GOLANGCI_LINT_CACHE="$cache" golangci-lint run --enable-only depguard,gocritic \
 	--issues-exit-code 0 --max-issues-per-linter 0 --max-same-issues 0 \
 	--output.text.path stdout --output.text.print-issued-lines=false \
 	--output.text.colors=false ./... "./$dir")"
-findings="$(printf '%s\n' "$out" | sed -nE 's|^([^ :]+\.go:[0-9]+):[0-9]+: |\1: |p' | sort)"
+findings="$(printf '%s\n' "$out" | sed -nE 's|^([^ :]+\.go:[0-9]+)(:[0-9]+)?: |\1: |p' | sort)"
 got="$(printf '%s\n' "$findings" | awk -v d="$dir/" 'index($0, d) == 1')"
 stray="$(printf '%s\n' "$findings" | awk -v d="$dir/" 'NF && index($0, d) != 1')"
 
+# golangci-lint ends with "<n> issues" whatever it found, so a finding this
+# script could not read is a count that does not match, not a silent pass.
 status=0
+reported="$(printf '%s\n' "$out" | sed -nE 's/^([0-9]+) issues[:.]$/\1/p')"
+read_count="$(printf '%s\n' "$findings" | awk 'NF' | wc -l | tr -d ' ')"
+if [[ "$reported" != "$read_count" ]]; then
+	echo "lint-planted: golangci-lint reported ${reported:-an unknown number of} issues; $read_count were read:" >&2
+	printf '%s\n' "$out" >&2
+	status=1
+fi
 if [[ -n "$stray" ]]; then
 	echo "lint-planted: the module draws findings:" >&2
 	printf '%s\n' "$stray" >&2
