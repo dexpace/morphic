@@ -33,6 +33,7 @@ const (
 	writtenMessage = "writes a type registry outside ir and compilers/compile; go through compile.Types, or rewrite a node in a compile.Settlement"
 	genericMessage = "instantiates a generic with a type registry or ir.TypeDef, whose registry writes this rule cannot read; keep registry writes in ir and compilers/compile"
 	closureMessage = "writes the registry Settle is handed from a function literal, which can run after Settle returns; write it in Settle itself"
+	reboundMessage = "writes through the registry parameter Settle rebinds, which may name a registry it was not handed; leave the parameter bound"
 )
 
 func (l layout) runRegistryWrites(pass *analysis.Pass) (any, error) {
@@ -111,10 +112,13 @@ func (c registryCheck) target(e ast.Expr) {
 	if !ok || !c.isRegistry(c.pass.TypesInfo.TypeOf(ix.X)) {
 		return
 	}
-	id, isIdent := ast.Unparen(ix.X).(*ast.Ident)
+	id, _ := ast.Unparen(ix.X).(*ast.Ident) // nil, and so no parameter, unless it is one
+	bound, settled := c.settled.params[c.pass.TypesInfo.Uses[id]]
 	switch {
-	case !isIdent || !c.settled.params[c.pass.TypesInfo.Uses[id]]:
+	case !settled:
 		c.pass.Reportf(ix.Pos(), writtenMessage)
+	case !bound:
+		c.pass.Reportf(ix.Pos(), reboundMessage)
 	case c.settled.inClosure(ix.Pos()):
 		c.pass.Reportf(ix.Pos(), closureMessage)
 	default:
@@ -192,10 +196,11 @@ func (c registryCheck) registryArgs(args *types.TypeList) bool {
 }
 
 // settlement is what the Settle methods of the package's compile.Settlements
-// may write: each one's registry parameter, outside the function literals in
-// its body, which can run after Settle returns and so past the node count
-// compile.Types checks.
+// may write: each one's registry parameter, while Settle leaves it bound to
+// the registry it was handed, outside the function literals in its body, which
+// can run after Settle returns and so past the node count compile.Types checks.
 type settlement struct {
+	// params maps each registry parameter to whether Settle leaves it bound.
 	params   map[types.Object]bool
 	closures []*ast.FuncLit
 }
@@ -226,7 +231,8 @@ func settlements(pass *analysis.Pass) settlement {
 			if !isFunc || iface == nil || !types.Implements(fn.Signature().Recv().Type(), iface) {
 				continue
 			}
-			s.params[fn.Signature().Params().At(0)] = true
+			param := fn.Signature().Params().At(0)
+			s.params[param] = !rebinds(pass.TypesInfo, fd.Body, param)
 			for n := range ast.Preorder(fd.Body) {
 				if lit, isLit := n.(*ast.FuncLit); isLit {
 					s.closures = append(s.closures, lit)
@@ -235,4 +241,31 @@ func settlements(pass *analysis.Pass) settlement {
 		}
 	}
 	return s
+}
+
+// rebinds reports whether body assigns param, ranges into it or takes its
+// address: after any of those, what param names may be another registry.
+func rebinds(info *types.Info, body *ast.BlockStmt, param types.Object) bool {
+	names := func(e ast.Expr) bool {
+		id, _ := ast.Unparen(e).(*ast.Ident)
+		return info.Uses[id] == param
+	}
+	for n := range ast.Preorder(body) {
+		switch n := n.(type) {
+		case *ast.AssignStmt:
+			if slices.ContainsFunc(n.Lhs, names) {
+				return true
+			}
+		case *ast.RangeStmt:
+			if names(n.Key) || names(n.Value) {
+				return true
+			}
+		case *ast.UnaryExpr: // & is the one unary operator a map takes
+			if names(n.X) {
+				return true
+			}
+		default:
+		}
+	}
+	return false
 }
