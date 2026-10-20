@@ -685,11 +685,11 @@ own `Properties`, each property keeping its own provenance
 from the composition.
 
 `allOf` is associative, so an inline entry writing a non-empty `allOf` is flattened into the
-enclosing list before the entries are classified: its own entries take its place, in source order and
-depth first, each keeping the pointer it was written at, and its `properties` and `required` merge
-after them, as a composing schema's own merge after its entries'. So `allOf: [{allOf: [A, B]}]`
-classifies as `allOf: [A, B]`, and nothing is reported. Whatever else the entry writes that the merge
-does not consume is kept beside the composition as residue
+enclosing list before the entries are classified: its own entries take its place, in source order
+and depth first, each keeping the pointer it was written at, and its `properties` and `required`
+merge after them, as a composing schema's own merge after its entries'. So `allOf: [{allOf: [A,
+B]}]` classifies as `allOf: [A, B]`, and nothing is reported. Whatever else the entry writes that
+the merge does not consume is kept beside the composition as residue
 ([`allof-inline-residue`](#allof-inline-residue)), so `{description: d, allOf: [A, B]}` composes `A`
 and `B` and is also kept whole. An entry nested past `maxAllOfFlattenDepth` flattened entries is not
 flattened, is kept as residue, and is reported as nested past the flattening depth.
@@ -719,29 +719,29 @@ the `allOf` verbatim under `openapi:allOf` (`degraded_lowering`), with an info
 
 A branch written inline rather than as a `$ref` owns no node, so §4.3's composition has nowhere to
 point and the branch is merged into the composing model in place. That merge consumes the branch's
-`properties`, its `required` list, and a `type` that is exactly `object` — which the composed
-`Model` already restates — and nothing else. The IR could hold every other keyword a branch writes,
-and does hold them one level up — the same keywords on the composing schema lower to `Docs`,
-`Model.Additional`, `Model.Constraints` and `Unmodeled` — but attributing them to the composition
-means either giving the branch a node (changing the composition shape) or merging them upward with a
-precedence rule for branches that disagree. So a branch declaring anything the merge does not
-consume is kept verbatim in `Unmodeled["openapi:<path>"]` under `degraded_lowering` — the
-*whole* branch, consumed keywords included, so the source stays reconstructable rather than having
-to be reassembled from two places — keyed by its path from the composed schema (`allOf/1`, or
-`allOf/1/allOf/0` for an entry of a flattened one) so siblings cannot overwrite each other,
-and reported by an `openapi/degraded-construct` at the branch naming the keywords that made it
-residue. A flattened entry's `allOf` is consumed ([`allof-classification`](#allof-classification)),
-so only its other keywords make it residue. Which keywords those are is derived from the branch's own declared key set rather than from
-a fixed list, so a keyword the dialect gains later is residue without anyone maintaining an
-enumeration. The key set is read through YAML aliases and merge keys, so a branch written
-`[*shared]` or `[{<<: *shared}]` derives the same residue as one written out. The diagnostic is an
-info, and a warning where the branch declares a `type` that excludes `object`, because the composing
-`Model` then asserts a shape the source contradicts — `allOf: [{type: string, maxLength: 3}]`
-composes an empty model of kind `model` over a source that says `string`. Two branch kinds are
-outside this rule rather than limits of it: a `$ref` branch owns a node, so what is written beside
-the `$ref` is *modeled* on the branch alias §4.3 describes rather than kept as residue, and a
-boolean branch declares no keywords at all, so there is no residue to derive — it is a decision
-about the composed node instead, stated with the `false`-schema rule
+`properties`, its `required` list, a `type` that is exactly `object` — which the composed `Model`
+already restates — and, for an entry flattened under
+[`allof-classification`](#allof-classification), its `allOf` — and nothing else. The IR could hold
+every other keyword a branch writes, and does hold them one level up — the same keywords on the
+composing schema lower to `Docs`, `Model.Additional`, `Model.Constraints` and `Unmodeled` — but
+attributing them to the composition means either giving the branch a node (changing the composition
+shape) or merging them upward with a precedence rule for branches that disagree. So a branch
+declaring anything the merge does not consume is kept verbatim in `Unmodeled["openapi:<path>"]`
+under `degraded_lowering` — the *whole* branch, consumed keywords included, so the source stays
+reconstructable rather than having to be reassembled from two places — keyed by its path from the
+composed schema (`allOf/1`, or `allOf/1/allOf/0` for an entry of a flattened one) so siblings cannot
+overwrite each other, and reported by an `openapi/degraded-construct` at the branch naming the
+keywords that made it residue. Which keywords those are is derived from the branch's own declared
+key set rather than from a fixed list, so a keyword the dialect gains later is residue without
+anyone maintaining an enumeration. The key set is read through YAML aliases and merge keys, so a
+branch written `[*shared]` or `[{<<: *shared}]` derives the same residue as one written out. The
+diagnostic is an info, and a warning where the branch declares a `type` that excludes `object`,
+because the composing `Model` then asserts a shape the source contradicts — `allOf: [{type: string,
+maxLength: 3}]` composes an empty model of kind `model` over a source that says `string`. Two branch
+kinds are outside this rule rather than limits of it: a `$ref` branch owns a node, so what is
+written beside the `$ref` is *modeled* on the branch alias §4.3 describes rather than kept as
+residue, and a boolean branch declares no keywords at all, so there is no residue to derive — it is
+a decision about the composed node instead, stated with the `false`-schema rule
 [`allof-false-branch`](#allof-false-branch).
 
 - Cases: `allof-inline-residue`
