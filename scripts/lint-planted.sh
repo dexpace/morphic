@@ -46,11 +46,8 @@ done
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 
-# The plant packages, named one by one: ./... does not reach into testdata.
-pkgs=()
-while IFS= read -r pkg; do
-	pkgs+=("./$pkg")
-done < <(find "$testdata/planted" "$testdata/ports" -name '*.go' -exec dirname {} \; | sort -u)
+# The plant packages, named apart: ./... does not reach into testdata.
+pkgs=("./$testdata/planted/..." "./$testdata/ports/...")
 
 # markers prints each finding marked in the files under $1 named like $2, as
 # "<file>:<line>: <message>"; `// want "` is nine bytes.

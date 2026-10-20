@@ -3,9 +3,7 @@ package archtest_test
 import (
 	"fmt"
 	"go/ast"
-	"go/parser"
 	"go/token"
-	"io/fs"
 	"maps"
 	"os"
 	"path/filepath"
@@ -91,27 +89,16 @@ func TestMethodCounts_CountsOneTypePerPackage(t *testing.T) {
 func methodCounts(t *testing.T, root string) map[string]int {
 	t.Helper()
 	counts := map[string]int{}
-	err := filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
+	err := walkGoFiles(root, func(rel string, _ *token.FileSet, f *ast.File) {
+		if !isProductionGoFile(rel) {
+			return
 		}
-		if d.IsDir() {
-			return skipUninterestingDir(root, p, d)
-		}
-		if !isProductionGoFile(d.Name()) {
-			return nil
-		}
-		f, parseErr := parser.ParseFile(token.NewFileSet(), p, nil, parser.SkipObjectResolution)
-		if parseErr != nil {
-			return parseErr
-		}
-		dir := filepath.Base(filepath.Dir(p))
+		dir := filepath.Base(filepath.Dir(filepath.Join(root, rel)))
 		for _, decl := range f.Decls {
 			if name, ok := receiverType(decl); ok {
 				counts[dir+"."+name]++
 			}
 		}
-		return nil
 	})
 	require.NoError(t, err)
 	return counts
@@ -153,16 +140,4 @@ func writeMethods(t *testing.T, file, pkg, typ string, n int) {
 		src += fmt.Sprintf("\nfunc (x %s) m%d() {}\n", typ, i)
 	}
 	require.NoError(t, os.WriteFile(file, []byte(src), 0o600))
-}
-
-// skipUninterestingDir prunes directories that carry no production Go code.
-func skipUninterestingDir(root, path string, d fs.DirEntry) error {
-	if path == root {
-		return nil
-	}
-	switch d.Name() {
-	case ".git", "testdata", "docs", "scripts", ".claude", ".github":
-		return fs.SkipDir
-	}
-	return nil
 }

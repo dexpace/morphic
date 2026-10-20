@@ -214,9 +214,12 @@ func corpusSpecs(t *testing.T) []string {
 // the sum.
 func sealedTypeKinds(t *testing.T) []ir.TypeKind {
 	t.Helper()
-	consts := irConstsOfType(t, "TypeKind")
+	p, err := irPackage()
+	require.NoError(t, err)
+	consts, err := p.StringConsts("TypeKind")
+	require.NoError(t, err)
 	require.NotEmpty(t, consts, "the ir sources must declare TypeKind constants")
-	require.Len(t, consts, len(irDecls(t).TypesDeclaring("typeDef")), "the sum holds one concrete "+
+	require.Len(t, consts, len(p.TypesDeclaring("typeDef")), "the sum holds one concrete "+
 		"type per kind, so a count that disagrees means a variant is sealed without a TypeKind or a "+
 		"kind has no variant")
 	out := make([]ir.TypeKind, 0, len(consts))
@@ -231,20 +234,3 @@ func sealedTypeKinds(t *testing.T) []ir.TypeKind {
 var irPackage = sync.OnceValues(func() (*decls.Package, error) {
 	return decls.Load("github.com/dexpace/morphic/ir")
 })
-
-// irDecls returns the ir package, type-checked.
-func irDecls(t *testing.T) *decls.Package {
-	t.Helper()
-	p, err := irPackage()
-	require.NoError(t, err)
-	return p
-}
-
-// irConstsOfType returns every constant the ir package declares with the named
-// string type, in declaration order.
-func irConstsOfType(t *testing.T, typeName string) []decls.Const {
-	t.Helper()
-	consts, err := irDecls(t).StringConsts(typeName)
-	require.NoError(t, err)
-	return consts
-}
