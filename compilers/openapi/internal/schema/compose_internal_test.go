@@ -852,11 +852,12 @@ func TestAllOfBranches_DepthCapKeepsWrapperVerbatim(t *testing.T) {
 	}
 }
 
-// TestAllOfBranches_EntriesAgreeWithThePointerWalk pins the halt condition the
-// flattening was written against: for every inline branch of a nested
-// composition, the hint branchHint derives from the entry's index is what
-// subSchemaHint derives from its pointer, so whichever lowering interns the
-// node first names it the same. The index is the innermost one.
+// TestAllOfBranches_EntriesAgreeWithThePointerWalk pins, for the inline entries
+// of a nested composition, the key each is kept under, which spells its path
+// from the composed schema, and the positional hint from its innermost index,
+// which is subSchemaHint's for its pointer. The fixture has no $ref entry, whose
+// hint reads the target's name first:
+// TestAllOf_NestedBranchHintAgreesWithThePointerWalk pins that case.
 func TestAllOfBranches_EntriesAgreeWithThePointerWalk(t *testing.T) {
 	t.Parallel()
 	l, _ := loweredFor(t, openapitest.ComponentSpec(`    M:
