@@ -36,12 +36,12 @@ const multipartPrefix = "multipart/"
 
 // Usage returns how the type id is used across the API surface (ir-design
 // §4.9): 0 for a type no root reaches and for an id the document does not
-// declare. The roots are the places an operation, a service's common errors,
-// a message, a channel or an auth scheme name a type. A request is written and
-// a response read, and an operation the API itself starts, a webhook or a
-// callback, swaps the two. A flag spreads along the type graph, and a field
-// argument makes the type it names Input. Operations nested past
-// ir.MaxGroupDepth are not read.
+// declare. The roots are the places an operation, the messages its binding
+// names, a service's common errors, a channel or an auth scheme name a type. A
+// request is written and a response read, and an operation the API itself
+// starts, a webhook or a callback, swaps the two. A flag spreads along the type
+// graph, and a field argument makes the type it names Input. Operations nested
+// past ir.MaxGroupDepth are not read.
 func (x *Index) Usage(id ir.TypeID) UsageFlags {
 	return x.usageIndex()[id]
 }

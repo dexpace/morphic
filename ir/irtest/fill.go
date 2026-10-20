@@ -14,8 +14,9 @@ const fillDepth = 3
 
 // Fill populates the value v points to, for a test that must reach every field
 // the IR declares: each ir.TypeID gets an ID no other has, every pointer is
-// allocated, and every slice and map gets one element. Numbers, bools and other
-// strings are left zero. It fails the test unless v is a non-nil pointer.
+// allocated, and every slice and string-keyed map gets one element. Numbers,
+// bools, byte slices, other maps and other strings are left zero. It fails the
+// test unless v is a non-nil pointer.
 func Fill(t *testing.T, v any) {
 	t.Helper()
 	fill(t, v)

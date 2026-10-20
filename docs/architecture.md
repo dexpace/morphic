@@ -360,10 +360,10 @@ Dependency rules, enforced by an architecture test as in oagen:
 
 - `ir` imports only the standard library. It contains no parsing, no generation, no I/O.
 - `compilers/compile` imports only `ir`: it is below every compiler, not beside them.
-- `compilers/*` and `pass` import `ir` (and their own format libraries) — never each other,
-  never `emitters` or `engine`. A compiler also names the contract package and
-  `compilers/compile`; each is allowed in its own right, so no sibling compiler rides in beside
-  them.
+- `compilers/*` and `pass` import `ir` (and their own format libraries), and `pass` also
+  `ir/irfacts` — never each other, never `emitters` or `engine`. A compiler also names the
+  contract package and `compilers/compile`; each is allowed in its own right, so no sibling
+  compiler rides in beside them.
 - A compiler's own `internal/` packages each carry their own allowlist rather than inheriting the
   compiler's. That is what keeps the ordering among them real: `diag` reaches nothing but `ir`,
   and no lowering package may reach the compiler that calls it.
