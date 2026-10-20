@@ -207,7 +207,6 @@ TypeCommon.Namespace
 TypeCommon.Tags
 TypeCommon.Usage
 TypeCommon.WireNameByFormat
-Union.WireTagged
 Value.Ctor
 Value.Ref
 ValueRef.Member

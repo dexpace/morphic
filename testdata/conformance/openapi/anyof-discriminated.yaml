@@ -1,0 +1,28 @@
+openapi: 3.1.0
+info: {title: AnyOfDiscriminated, version: "1.0.0"}
+paths: {}
+components:
+  schemas:
+    Named:
+      type: object
+      required: [kind, name]
+      properties:
+        kind: {type: string}
+        name: {type: string}
+    Labelled:
+      type: object
+      required: [kind, labels]
+      properties:
+        kind: {type: string}
+        labels: {type: array, items: {type: string}}
+    # A payload carrying both name and labels satisfies both branches, which
+    # anyOf admits; the tag still names the one variant to decode it as.
+    Resource:
+      anyOf:
+        - {$ref: '#/components/schemas/Named'}
+        - {$ref: '#/components/schemas/Labelled'}
+      discriminator:
+        propertyName: kind
+        mapping:
+          named: '#/components/schemas/Named'
+          labelled: '#/components/schemas/Labelled'

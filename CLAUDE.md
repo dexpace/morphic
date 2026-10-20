@@ -78,7 +78,7 @@ in the docs.
    PascalCase — emitters own all identifier rendering, casing, and reserved-word escaping.
 5. **Pure, reentrant stages.** Every stage is `f(input, options) → (output, diagnostics)` with no
    package-level mutable state. No stage writes to stderr; each emits typed `Diagnostic` values
-   (severity, stable string code, message, provenance). The engine/CLI decides what is fatal.
+   (severity, stable string code, message, provenance). The engine decides what is fatal.
 6. **Heuristics are policy, not semantics.** Anything inferred rather than declared (pagination
    from param names, envelope detection, acronym casing) lives in injectable per-compiler/emitter
    policy, is marked `Inferred` in provenance, and can be disabled.
