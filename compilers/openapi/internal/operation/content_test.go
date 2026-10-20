@@ -4,6 +4,7 @@ import (
 	"encoding/json/jsontext"
 	"maps"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -2690,4 +2691,37 @@ func diagMessages(diags []ir.Diagnostic) string {
 		out = append(out, d.Message)
 	}
 	return strings.Join(out, "\n")
+}
+
+// TestPartEncodings_RefHopBoundIsReported chains a multipart body through more
+// $ref targets than bodyParts follows. The part declared at the end of the chain
+// has no entry, and a warning at the body schema says why.
+func TestPartEncodings_RefHopBoundIsReported(t *testing.T) {
+	t.Parallel()
+	var comps strings.Builder
+	const links = 20
+	for i := range links {
+		next := "{type: object, properties: {file: {type: string, format: binary}}}"
+		if i < links-1 {
+			next = "{allOf: [{$ref: '#/components/schemas/L" + strconv.Itoa(i+1) + "'}]}"
+		}
+		comps.WriteString("    L" + strconv.Itoa(i) + ": " + next + "\n")
+	}
+	spec := openapitest.PathsSpec(`  /u:
+    post:
+      operationId: up
+      requestBody:
+        content:
+          multipart/form-data:
+            schema: {$ref: '#/components/schemas/L0'}
+            encoding:
+              file: {contentType: image/png}
+      responses: {"200": {description: ok}}
+components:
+  schemas:
+` + comps.String())
+	_, svc, diags := lowerServiceSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	assert.Contains(t, diagMessages(diags), "follows $refs past 16 hops", "the bound is named")
+	assert.Empty(t, openapitest.FirstOp(t, svc).Request.Contents[0].Encoding, "the part beyond it has no entry")
 }
