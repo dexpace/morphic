@@ -177,6 +177,19 @@ func TestBind_ReadsADefinitionByTheDefsRule(t *testing.T) {
 			"/components/schemas/B", "", bind.NoDefinition},
 		{"an ancestor that is a map holding $defs", "components:\n  schemas:\n    H: {properties: {$defs: {properties: {x: {}}}, p: {$ref: '#/$defs/properties/x'}}}\n",
 			"/components/schemas/H/properties/p", "/components/schemas/H/properties/$defs/properties/x", 0},
+		{"the schemas map holding $defs", "components:\n  schemas:\n    $defs: {K: {type: integer}}\n    B: {properties: {y: {$ref: '#/$defs/K'}}}\n",
+			"/components/schemas/B/properties/y", "/components/schemas/$defs/K", 0},
+		{"a null $id makes no resource", "components:\n  schemas:\n    B: {$id: null, $ref: '#/$defs/A', $defs: {A: {}}}\n",
+			"/components/schemas/B", "", bind.OwnDefinition},
+		{"a relative $id repeated below its own base moves none", "$defs:\n  K: {}\ncomponents:\n  schemas:\n" +
+			"    B: {$id: a.json, properties: {p: {$id: a.json, properties: {q: {$ref: '#/$defs/K', $defs: {K: {}}}}}}}\n",
+			"/components/schemas/B/properties/p/properties/q", "/$defs/K", 0},
+		{"a relative $id resolved against a relative base moves none", "$defs:\n  K: {}\ncomponents:\n  schemas:\n" +
+			"    B: {$id: dir/c.json, properties: {p: {$id: c.json, properties: {q: {$ref: '#/$defs/K', $defs: {K: {}}}}}}}\n",
+			"/components/schemas/B/properties/p/properties/q", "/$defs/K", 0},
+		{"a relative $id naming another resource", "components:\n  schemas:\n" +
+			"    B: {$id: a.json, properties: {p: {$id: b.json, properties: {q: {$ref: '#/$defs/K', $defs: {K: {}}}}}}}\n",
+			"/components/schemas/B/properties/p/properties/q", "/components/schemas/B/properties/p/properties/q/$defs/K", 0},
 		{"no ancestor in raw YAML", "x-lib:\n  $defs: {n: {}}\n  S: {$ref: '#/$defs/n'}\ncomponents:\n  schemas:\n    U: {$ref: '#/x-lib/S'}\n",
 			"/x-lib/S", "", bind.RawDefinition},
 		{"no definition of a schema under an extension", "x-lib:\n  S: {properties: {p: {$ref: '#/$defs/n'}}, $defs: {n: {}}}\n" +

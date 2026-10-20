@@ -193,13 +193,17 @@ func singleKey(pointer jsontext.Pointer) (string, bool) {
 // ownResource reports whether the schema at site, reached along path, is a
 // schema resource of its own: it writes an $id, or sits in a resource whose
 // base differs from that of the outermost schema holding it. A base is each
-// $id above it, read as a URI reference resolved against the one before; a
-// fragment-only $id moves none, and an $id that is no URI reference leaves the
-// base as it was. Its second result is false where a schema on the path
-// writes no $id and merges past the view's bound, which may hide one.
+// $id above it, resolved as RFC 3986 resolves a reference against the one
+// before, the first against the document's own; neither a fragment-only $id
+// nor one that is no URI reference moves it. Its second result is false where
+// a schema on the path writes no $id and merges past the view's bound, which
+// may hide one.
 func (d definitions) ownResource(site Position, path []*yaml.Node) (bool, bool) {
 	view := d.docs.list[site.Doc].view
-	var base, top *url.URL
+	// The document's own URI is unknown here and the same for every base, so
+	// any absolute one serves.
+	base := &url.URL{Scheme: "document", Path: "/"}
+	var top *url.URL
 	outermost, written, known := true, false, true
 	state, tokens := d.docs.rootState(site.Doc), slices.Collect(site.Pointer.Tokens())
 	for i, n := range path {
@@ -219,35 +223,25 @@ func (d definitions) ownResource(site Position, path []*yaml.Node) (bool, bool) 
 			top, outermost = base, false
 		}
 	}
-	return written || spell(base) != spell(top), known
+	return written || base.String() != top.String(), known
 }
 
-// idOf is the $id n writes, and whether it writes a non-empty string one.
+// idOf is the $id n writes, and whether it writes a non-empty string one: a
+// null $id is none, as refOf reads a null $ref.
 func (d definitions) idOf(id DocID, n *yaml.Node) (string, bool) {
 	v := nodeview.Deref(d.docs.list[id].view.ChildByToken(nodeview.Deref(n), "$id"))
-	if v == nil || v.Kind != yaml.ScalarNode || v.Value == "" {
+	if v == nil || v.Kind != yaml.ScalarNode || v.Tag == "!!null" || v.Value == "" {
 		return "", false
 	}
 	return v.Value, true
 }
 
 // rebase is the base an $id of id makes of base, resolved as RFC 3986
-// resolves a reference: id itself where no base is written above it.
+// resolves a reference.
 func rebase(base *url.URL, id string) *url.URL {
 	ref, err := url.Parse(id)
-	switch {
-	case err != nil:
+	if err != nil {
 		return base
-	case base == nil:
-		return ref
 	}
 	return base.ResolveReference(ref)
-}
-
-// spell is u written out, or "" for none.
-func spell(u *url.URL) string {
-	if u == nil {
-		return ""
-	}
-	return u.String()
 }
