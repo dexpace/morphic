@@ -654,6 +654,27 @@ primitives — they lower to `Encoding` (§5.3). There is no `void` type: absenc
 is a `nil *TypeRef`. TypeSpec `safeint` is not a primitive either — its canonical lowering is
 `Scalar{Base: integer, Constraints: ±(2^53−1)}`.
 
+**Containment.** `PrimKind.StrictlyWithin` relates two kinds by the values they hold: `a` is
+strictly within `b` when every value of `a` is a value of `b` and the kinds differ. The edges
+(`DomainParents`) are TypeSpec's declared scalar hierarchy where it has one — `float extends numeric`,
+`decimal extends numeric`, `decimal128 extends decimal`, `float32` and `float64` `extends float`,
+and the fixed integer widths `extends integer` — which is why `PrimNumber` is TypeSpec's
+`numeric`, plus the containments between kinds that hold of every value: each integer width within
+the wider widths that hold its range (`uint8` within `int16`, `uint32` within `int64`), `float32`
+within `float64`, `int64` and `uint64` within `decimal128`, and `integer` within `decimal` and `float`. `PrimAny` is the top: every other kind is strictly within it,
+which is a rule of the walk and not an edge. The relation is therefore the same over the values of
+a kind and over the JSON instances a spelling of it admits.
+
+Only exact containments are edges. OpenAPI floats round, so `format: float` admits every finite
+number in its range and every integer width sits inside both float widths by rounding; that
+holds of JSON instances and not of the kinds' values. Only the containments that hold both ways
+are taken: `int16` and `uint16` within `float32`, `int32` and `uint32` within `float64`, and
+`integer` within `float`. `int32`, `uint32` or `int64` against `float32`, and `int64` or `uint64`
+against `float64`, are not edges, and neither is `float32` against `decimal`. The string-spelled
+kinds (`date`, `time`, `datetime_offset`, `duration`, `url`, `uuid`, `bytes`) are **not** within
+`string` here: they are distinct kinds in this domain, and a format's refinement of `string` is a
+fact about an OpenAPI spelling, which a compiler holds.
+
 ### 4.2 Scalars (named restricted/extended primitives)
 
 ```go

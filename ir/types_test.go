@@ -420,6 +420,124 @@ func TestPrimKind_UnknownIsInvalid(t *testing.T) {
 	assert.False(t, ir.PrimKind("datetimeOffset").Valid())
 }
 
+// domainEdges is every immediate containment, written out once so the edge
+// test holds DomainParents to it in both directions.
+var domainEdges = map[ir.PrimKind][]ir.PrimKind{
+	ir.PrimInt8:       {ir.PrimInt16},
+	ir.PrimInt16:      {ir.PrimInt32, ir.PrimFloat32},
+	ir.PrimInt32:      {ir.PrimInt64, ir.PrimFloat64},
+	ir.PrimInt64:      {ir.PrimInteger, ir.PrimDecimal128},
+	ir.PrimUint8:      {ir.PrimUint16, ir.PrimInt16},
+	ir.PrimUint16:     {ir.PrimUint32, ir.PrimInt32, ir.PrimFloat32},
+	ir.PrimUint32:     {ir.PrimUint64, ir.PrimInt64, ir.PrimFloat64},
+	ir.PrimUint64:     {ir.PrimInteger, ir.PrimDecimal128},
+	ir.PrimInteger:    {ir.PrimDecimal, ir.PrimFloat},
+	ir.PrimFloat32:    {ir.PrimFloat64},
+	ir.PrimFloat64:    {ir.PrimFloat},
+	ir.PrimFloat:      {ir.PrimNumber},
+	ir.PrimDecimal128: {ir.PrimDecimal},
+	ir.PrimDecimal:    {ir.PrimNumber},
+}
+
+// domainRoots are the kinds with no immediate supertype: they sit directly
+// under PrimAny, which is a rule of StrictlyWithin and not an edge.
+var domainRoots = []ir.PrimKind{
+	ir.PrimBool, ir.PrimString, ir.PrimBytes, ir.PrimNumber,
+	ir.PrimDate, ir.PrimTime, ir.PrimDatetime, ir.PrimDatetimeOffset, ir.PrimDuration,
+	ir.PrimURL, ir.PrimUUID, ir.PrimAny,
+}
+
+// declaredPrimKinds returns every PrimKind the ir sources declare.
+func declaredPrimKinds(t *testing.T) []ir.PrimKind {
+	t.Helper()
+	consts := declaredConstsOfType(t, "PrimKind")
+	kinds := make([]ir.PrimKind, 0, len(consts))
+	for _, c := range consts {
+		kinds = append(kinds, ir.PrimKind(c.Value))
+	}
+	require.NotEmpty(t, kinds)
+	return kinds
+}
+
+// TestPrimKind_DomainParentsAreTheContainmentEdges holds the whole edge table,
+// strictly in both directions: every edge listed is returned, and nothing else.
+func TestPrimKind_DomainParentsAreTheContainmentEdges(t *testing.T) {
+	t.Parallel()
+	for _, k := range declaredPrimKinds(t) {
+		assert.ElementsMatch(t, domainEdges[k], k.DomainParents(), "parents of %s", k)
+	}
+	assert.Empty(t, ir.PrimKind("flt").DomainParents())
+	got := ir.PrimInt16.DomainParents()
+	got[0] = ir.PrimBool
+	assert.Equal(t, ir.PrimInt32, ir.PrimInt16.DomainParents()[0], "the result must be fresh")
+}
+
+// TestPrimKind_StrictlyWithinIsAStrictOrder checks irreflexivity,
+// antisymmetry and transitivity over every pair of declared kinds, and that
+// any is the top.
+func TestPrimKind_StrictlyWithinIsAStrictOrder(t *testing.T) {
+	t.Parallel()
+	kinds := declaredPrimKinds(t)
+	for _, a := range kinds {
+		assert.False(t, a.StrictlyWithin(a), "%s within itself", a)
+		assert.Equal(t, a != ir.PrimAny, a.StrictlyWithin(ir.PrimAny), "%s within any", a)
+		assert.False(t, ir.PrimAny.StrictlyWithin(a), "any within %s", a)
+		for _, b := range kinds {
+			if a.StrictlyWithin(b) {
+				assert.False(t, b.StrictlyWithin(a), "%s and %s within each other", a, b)
+			}
+			for _, c := range kinds {
+				if a.StrictlyWithin(b) && b.StrictlyWithin(c) {
+					assert.True(t, a.StrictlyWithin(c), "%s within %s within %s", a, b, c)
+				}
+			}
+		}
+	}
+	assert.True(t, ir.PrimInt8.StrictlyWithin(ir.PrimNumber))
+	assert.True(t, ir.PrimUint8.StrictlyWithin(ir.PrimInt16))
+	assert.False(t, ir.PrimInt32.StrictlyWithin(ir.PrimUint32))
+	assert.False(t, ir.PrimUUID.StrictlyWithin(ir.PrimString))
+	assert.False(t, ir.PrimKind("flt").StrictlyWithin(ir.PrimAny))
+	assert.False(t, ir.PrimInt8.StrictlyWithin(ir.PrimKind("flt")))
+}
+
+// TestPrimKind_EveryDeclaredKindHasADomainParentOrIsARoot holds domainRoots to
+// the declared set, so a kind added without an edge reddens here.
+func TestPrimKind_EveryDeclaredKindHasADomainParentOrIsARoot(t *testing.T) {
+	t.Parallel()
+	for _, k := range declaredPrimKinds(t) {
+		isRoot := slices.Contains(domainRoots, k)
+		assert.Equal(t, !isRoot, len(k.DomainParents()) > 0, "%s must be a root or have a parent, not both", k)
+	}
+	for _, r := range domainRoots {
+		assert.True(t, r.Valid(), "root %q must be a declared kind", r)
+	}
+}
+
+// TestPrimKind_LongestDomainChainFitsTheCap reads the walk's cap from the
+// source and holds the longest chain DomainParents makes to it.
+func TestPrimKind_LongestDomainChainFitsTheCap(t *testing.T) {
+	t.Parallel()
+	limit, err := irDecls(t).IntConst("maxDomainDepth")
+	require.NoError(t, err)
+
+	var longest func(k ir.PrimKind, depth int) int
+	longest = func(k ir.PrimKind, depth int) int {
+		require.Less(t, depth, 64, "a chain this long is a cycle")
+		best := 0
+		for _, p := range k.DomainParents() {
+			best = max(best, 1+longest(p, depth+1))
+		}
+		return best
+	}
+	chain := 0
+	for _, k := range declaredPrimKinds(t) {
+		chain = max(chain, longest(k, 0))
+	}
+	assert.LessOrEqual(t, int64(chain), limit)
+	assert.Equal(t, 6, chain, "int8 up to number")
+}
+
 // TestAdditionalMode_Constants pins the on-disk spelling of every
 // AdditionalMode value, including the empty-string "unspecified" state.
 func TestAdditionalMode_Constants(t *testing.T) {
