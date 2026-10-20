@@ -6,6 +6,8 @@ import (
 	"log"
 	"log/slog"
 	"os"
+	"runtime/debug"
+	"syscall"
 )
 
 func plantOutput(w io.Writer, logger *slog.Logger) {
@@ -13,6 +15,8 @@ func plantOutput(w io.Writer, logger *slog.Logger) {
 	fmt.Printf("%s", "x")             // want "use of `fmt.Printf` forbidden by pattern `^fmt\.Print(f|ln)?$` (forbidigo)"
 	fmt.Fprintln(os.Stderr, "x")      // want "use of `os.Stderr` forbidden by pattern `^os\.(Stdout|Stderr)$` (forbidigo)"
 	_, _ = os.Stdout.WriteString("x") // want "use of `os.Stdout` forbidden by pattern `^os\.(Stdout|Stderr)$` (forbidigo)"
+	_ = syscall.Stderr                // want "use of `syscall.Stderr` forbidden by pattern `^syscall\.(Stdout|Stderr)$` (forbidigo)"
+	debug.PrintStack()                // want "use of `debug.PrintStack` forbidden by pattern `^debug\.PrintStack$` (forbidigo)"
 	println("x")                      // want "use of `println` forbidden by pattern `^print(ln)?$` (forbidigo)"
 	log.Printf("%s", "x")             // want "use of `log.Printf` forbidden by pattern `^log\.` (forbidigo)"
 	slog.Info("x")                    // want "use of `slog.Info` forbidden by pattern `^slog\.(Default|SetDefault|Debug|DebugContext|Info|InfoContext|Warn|WarnContext|Error|ErrorContext|Log|LogAttrs)$` (forbidigo)"

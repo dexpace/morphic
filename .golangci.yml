@@ -64,12 +64,19 @@ linters:
       # Invariant 5: a pipeline stage writes nothing to stdout or stderr and
       # logs nothing. It returns diagnostics, and the engine or the CLI decides
       # what is shown. An exclusion below confines these to the pipeline's
-      # packages. An injected *slog.Logger stays allowed: only the package-level
-      # functions writing through the default logger are refused.
+      # packages. Named here is every standard-library way to reach stdout or
+      # stderr without being handed a writer, and the default loggers. An
+      # injected *slog.Logger stays allowed: only the package-level functions
+      # writing through the default logger are refused. log/syslog is not
+      # named: it builds on unix alone, so no plant could hold it on every port.
       analyze-types: true
       forbid:
         - pattern: ^os\.(Stdout|Stderr)$
           pkg: ^os$
+        - pattern: ^syscall\.(Stdout|Stderr)$
+          pkg: ^syscall$
+        - pattern: ^debug\.PrintStack$
+          pkg: ^runtime/debug$
         - pattern: ^fmt\.Print(f|ln)?$
           pkg: ^fmt$
         - pattern: ^print(ln)?$
