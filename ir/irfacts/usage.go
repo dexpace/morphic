@@ -247,11 +247,15 @@ func (r usageRoots) params(ps []ir.Parameter, flags UsageFlags) {
 	}
 }
 
-// headers records the type of each header in hs. A header holds no field
-// arguments, so a header's Args are not read.
+// headers records the type of each header in hs, and the type its encoding
+// says its value holds once decoded. A header holds no field arguments, so a
+// header's Args are not read.
 func (r usageRoots) headers(hs []ir.Property, flags UsageFlags) {
 	for i := range hs {
 		r.ref(&hs[i].Type, flags)
+		if e := hs[i].Encoding; e != nil {
+			r.ref(e.Schema, flags)
+		}
 	}
 }
 

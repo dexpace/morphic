@@ -1116,16 +1116,16 @@ its shape.
 
 | From | To | Through |
 |---|---|---|
-| a shape | the target's range when it is polymorphic, its shape otherwise | what a value holds: a model's properties and catch-all (value, key, patterns), a union's variants, a list's element, a map's key and value, a tuple's elements and rest |
+| a shape | the target's range when it is polymorphic, its shape otherwise | what a value holds: a model's properties and catch-all (value, key, patterns), a union's variants, a list's element, a map's key and value, a tuple's elements and rest, and what an encoded value holds once decoded (`Encoding.Schema` on a property, a scalar or a list, §5.3) |
 | a shape | the target's shape | what a model composes: `Base`, `Implements`, `Mixins` |
 | a shape, a range | the target's shape, its range | what a scalar stands for: its `Base` |
 | a range | its own shape, and each direct subtype's range | the shapes a declared value may take |
 
 Composition reaches a shape and never a range, so a subtype that includes its discriminated base's
 members does not thereby reach the base's other subtypes, and a base routing to its own subtype is
-no cycle. A discriminator's mapping and default, a default or example value, an encoding, a
-template argument and an availability record name types too, but none puts a value of one type in
-a value of another, so none is an edge.
+no cycle. A discriminator's mapping and default, a default or example value, an encoding's wire
+type, a template argument and an availability record name types too, but none puts a value of one
+type in a value of another, so none is an edge.
 
 **Usage.** `Usage(id)` flags a type as the client's side of the wire sees it. `Input` and `Output`
 say which way a value travels — the client writes it, or reads it — and `Error` and `Multipart` in
@@ -1140,12 +1140,13 @@ what role, so a type in an error payload carries the side it travels on beside `
 | each channel's parameters, each auth scheme's credentials | `Input` |
 
 A payload names its contents' types, stream items and file contents, and the headers of their
-parts. An operation the API starts — a webhook, or an operation an HTTP binding names among its
-callbacks — swaps `Input` and `Output`, its errors included. A flag spreads from a root's vertex
-along every edge, and a property's field arguments (`Property.Args`) make the types they name
-`Input`, since a client writes them to select the field whatever it reads back. `Multipart` marks
-only a multipart body's own type and the types its alias scalars stand for, not the types nested in
-it. An operation nested past `ir.MaxGroupDepth` is not read, and a type no root reaches has usage 0.
+parts; a header names its type and what its encoding decodes to. An operation the API starts — a
+webhook, or an operation an HTTP binding names among its callbacks — swaps `Input` and `Output`,
+its errors included. A flag spreads from a root's vertex along every edge, and a property's field
+arguments (`Property.Args`) make the types they name `Input`, since a client writes them to select
+the field whatever it reads back. `Multipart` marks only a multipart body's own type and the types
+its alias scalars stand for, not the types nested in it. An operation nested past
+`ir.MaxGroupDepth` is not read, and a type no root reaches has usage 0.
 
 **Recursion.** `Recursive(id)` reports whether a type's shape lies on a cycle of the graph — a
 value of exactly that type can hold, at any depth, one of the same shape — and `Component(id)` lists

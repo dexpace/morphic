@@ -22,20 +22,23 @@ import (
 // someone saying what it is to the type graph.
 var partRoles = map[string]string{
 	"Model.Properties/Property.Type":                                    "held",
+	"Model.Properties/Property.Encoding/Encoding.Schema":                "held",
 	"Model.Properties/Property.Args/Parameter.Type":                     "args",
 	"Model.AdditionalProps/AdditionalProps.Value":                       "held",
 	"Model.AdditionalProps/AdditionalProps.Key":                         "held",
 	"Model.AdditionalProps/AdditionalProps.Patterns/PatternProps.Value": "held",
-	"Model.Base":                  "composed",
-	"Model.Implements":            "composed",
-	"Model.Mixins":                "composed",
-	"Union.Variants/Variant.Type": "held",
-	"List.Elem":                   "held",
-	"MapT.Key":                    "held",
-	"MapT.Value":                  "held",
-	"Tuple.Elems":                 "held",
-	"Tuple.Rest":                  "held",
-	"Scalar.Base":                 "alias",
+	"Model.Base":                      "composed",
+	"Model.Implements":                "composed",
+	"Model.Mixins":                    "composed",
+	"Union.Variants/Variant.Type":     "held",
+	"List.Elem":                       "held",
+	"List.Encoding/Encoding.Schema":   "held",
+	"MapT.Key":                        "held",
+	"MapT.Value":                      "held",
+	"Tuple.Elems":                     "held",
+	"Tuple.Rest":                      "held",
+	"Scalar.Base":                     "alias",
+	"Scalar.Encoding/Encoding.Schema": "held",
 }
 
 // notParts are the types under which a type a type names is none of its parts,
@@ -44,10 +47,15 @@ var notParts = map[reflect.Type]string{
 	reflect.TypeFor[ir.Value]():                 "a value names the type it was written against",
 	reflect.TypeFor[ir.Example]():               "an example illustrates a value; it holds none",
 	reflect.TypeFor[ir.Availability]():          "a type changed from is one an older version used",
-	reflect.TypeFor[ir.Encoding]():              "an encoding says how a value is written, not a value of another type",
 	reflect.TypeFor[ir.PropPath]():              "a path locates a member inside a value another position carries",
 	reflect.TypeFor[ir.Discriminator]():         "a discriminator routes to a type; only a subtype is one a value may be",
 	reflect.TypeFor[ir.TemplateInstantiation](): "a template argument made the type; a value of it holds none",
+}
+
+// notPartFields are fields that name a type that is none of the parts, with the
+// reason, where their type alone does not say so.
+var notPartFields = map[string]string{
+	"Encoding.WireType": "a wire type says how a value is written, not a value it holds",
 }
 
 // TestIndex_EveryKindNamesItsPartsByRole fills every field of each kind and
@@ -61,7 +69,7 @@ func TestIndex_EveryKindNamesItsPartsByRole(t *testing.T) {
 			td, ok := ir.NewTypeDef(k)
 			require.True(t, ok, "no concrete type for kind %q", k)
 			irtest.Fill(t, td)
-			w := &positionWalk{types: notParts, out: map[ir.TypeID]position{}}
+			w := &positionWalk{types: notParts, fields: notPartFields, out: map[ir.TypeID]position{}}
 			w.walk(reflect.ValueOf(td).Elem(), nil, "")
 			delete(w.out, td.Common().ID)
 
@@ -112,12 +120,12 @@ func TestIndex_ReferencesThatAreNoPartAreNotRecursive(t *testing.T) {
 		}),
 		"union discriminator mapping": &ir.Union{ID: "x", Discriminator: &ir.Discriminator{Mapping: map[string]ir.TypeID{"a": "x"}}},
 		"property default":            compModel("x", func(m *ir.Model) { m.Properties = []ir.Property{{Default: selfValue}} }),
-		"property encoding": compModel("x", func(m *ir.Model) {
-			m.Properties = []ir.Property{{Encoding: &ir.Encoding{WireType: &self, Schema: &self}}}
+		"property wire type": compModel("x", func(m *ir.Model) {
+			m.Properties = []ir.Property{{Encoding: &ir.Encoding{WireType: &self}}}
 		}),
 		"field argument":       compModel("x", func(m *ir.Model) { m.Properties = []ir.Property{{Args: []ir.Parameter{{Type: self}}}} }),
-		"scalar encoding":      &ir.Scalar{ID: "x", Encoding: &ir.Encoding{WireType: &self}},
-		"list encoding":        &ir.List{ID: "x", Encoding: &ir.Encoding{WireType: &self}},
+		"scalar wire type":     &ir.Scalar{ID: "x", Encoding: &ir.Encoding{WireType: &self}},
+		"list wire type":       &ir.List{ID: "x", Encoding: &ir.Encoding{WireType: &self}},
 		"literal value":        &ir.Literal{ID: "x", Value: *selfValue},
 		"example value":        &ir.Any{ID: "x", Examples: []ir.Example{{Value: selfValue}}},
 		"template argument":    &ir.Any{ID: "x", Instantiation: &ir.TemplateInstantiation{Args: []ir.TemplateArg{{Type: &self}}}},

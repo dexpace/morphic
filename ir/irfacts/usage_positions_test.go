@@ -21,7 +21,6 @@ var usageNotRoots = map[reflect.Type]string{
 	reflect.TypeFor[ir.Value]():        "a value names the type it was written against",
 	reflect.TypeFor[ir.Example]():      "an example illustrates a value; it carries none",
 	reflect.TypeFor[ir.Availability](): "a type changed from is one an older version used",
-	reflect.TypeFor[ir.Encoding]():     "an encoding says how a value is written, not a value of another type",
 	reflect.TypeFor[ir.PropPath]():     "a path locates a member inside a value another position carries",
 	reflect.TypeFor[ir.ResourceInfo](): "a resource's identifiers and properties restate what its operations carry",
 }
@@ -29,8 +28,9 @@ var usageNotRoots = map[reflect.Type]string{
 // usageNotRootFields are fields that name types and are no usage root, with the
 // reason, where their type alone does not say so.
 var usageNotRootFields = map[string]string{
-	"Property.Args":   "field arguments belong to a model's properties, which the type graph reads; a header holds none",
-	"Service.Renames": "a rename presents a type; it carries no value of it",
+	"Property.Args":     "field arguments belong to a model's properties, which the type graph reads; a header holds none",
+	"Service.Renames":   "a rename presents a type; it carries no value of it",
+	"Encoding.WireType": "a wire type says how a value is written, not a value it holds",
 }
 
 // usageRootPositions are the positions outside the registry that name a usage
@@ -55,6 +55,13 @@ func usageRootPositions() map[string]irfacts.UsageFlags {
 		"Document.Channels/Channel.Params/Parameter.Type":        in,
 		"Document.Auth/AuthScheme.Credentials":                   in,
 	}
+	for header, flags := range map[string]irfacts.UsageFlags{
+		"Operation.Responses/Response.Headers":   out,
+		"Operation.Errors/ErrorCase.Headers":     failure,
+		"Service.CommonErrors/ErrorCase.Headers": failure,
+	} {
+		positions[header+"/Property.Encoding/Encoding.Schema"] = flags
+	}
 	for payload, flags := range map[string]irfacts.UsageFlags{
 		"Operation.Request":                      in,
 		"Operation.Responses/Response.Payload":   out,
@@ -67,7 +74,9 @@ func usageRootPositions() map[string]irfacts.UsageFlags {
 			"Content.Item",
 			"Content.File/FileInfo.Contents",
 			"Content.ItemEncoding/PartEncoding.Headers/Property.Type",
+			"Content.ItemEncoding/PartEncoding.Headers/Property.Encoding/Encoding.Schema",
 			"Content.Encoding/PartEncoding.Headers/Property.Type",
+			"Content.Encoding/PartEncoding.Headers/Property.Encoding/Encoding.Schema",
 		} {
 			positions[payload+"/Payload.Contents/"+content] = flags
 		}

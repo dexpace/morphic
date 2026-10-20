@@ -63,7 +63,8 @@ const (
 )
 
 // usageRoot is a document naming "t" in one place, the flags it expects, and
-// the other types that carry them: the content type beside a part header.
+// the other types that carry them: the content type beside a part header, or
+// a header's own type beside what its encoding decodes to.
 type usageRoot struct {
 	doc  *ir.Document
 	want irfacts.UsageFlags
@@ -102,6 +103,11 @@ func usageRootCases() map[string]usageRoot {
 		},
 		"response header": {
 			useDoc(ir.Operation{Responses: []ir.Response{{Headers: []ir.Property{useProp("t")}}}}, useType("t")), useOut, nil,
+		},
+		"response header encoding schema": {
+			useDoc(ir.Operation{Responses: []ir.Response{{Headers: []ir.Property{
+				{Type: useRef("u"), Encoding: &ir.Encoding{Schema: &ir.TypeRef{Target: "t"}}},
+			}}}}, useType("t"), useType("u")), useOut, []ir.TypeID{"u"},
 		},
 		"response stream events": {
 			useDoc(ir.Operation{ResponseStream: &ir.StreamDetail{Events: &ir.TypeRef{Target: "t"}}}, useType("t")), useOut, nil,
@@ -276,6 +282,17 @@ func usageEdgeCases() map[string]usageEdge {
 			return &ir.Tuple{ID: root, Rest: &ir.TypeRef{Target: "x"}}
 		}},
 		"scalar base": {build: func(root ir.TypeID) ir.TypeDef { return compScalar(root, "x") }},
+		"property encoding schema": {also: []ir.TypeID{"v"}, build: func(root ir.TypeID) ir.TypeDef {
+			return compModel(root, func(m *ir.Model) {
+				m.Properties = []ir.Property{{Type: useRef("v"), Encoding: &ir.Encoding{Schema: &ir.TypeRef{Target: "x"}}}}
+			})
+		}},
+		"scalar encoding schema": {build: func(root ir.TypeID) ir.TypeDef {
+			return &ir.Scalar{ID: root, Encoding: &ir.Encoding{Schema: &ir.TypeRef{Target: "x"}}}
+		}},
+		"list encoding schema": {also: []ir.TypeID{"v"}, build: func(root ir.TypeID) ir.TypeDef {
+			return &ir.List{ID: root, Elem: useRef("v"), Encoding: &ir.Encoding{Schema: &ir.TypeRef{Target: "x"}}}
+		}},
 	}
 }
 
@@ -536,7 +553,7 @@ func TestIndex_UsageIgnoresPositionsThatNameNoType(t *testing.T) {
 		Request:        &ir.Payload{Contents: []ir.Content{{Type: ir.TypeRef{}, Item: &ir.TypeRef{}, File: &ir.FileInfo{}}}},
 		RequestStream:  &ir.StreamDetail{},
 		ResponseStream: &ir.StreamDetail{Events: &ir.TypeRef{}},
-		Responses:      []ir.Response{{Payload: &ir.Payload{}}, {}},
+		Responses:      []ir.Response{{Payload: &ir.Payload{}}, {Headers: []ir.Property{{Encoding: &ir.Encoding{}}}}},
 		LongRunning:    &ir.LongRunning{},
 		Bindings:       ir.OpBindings{RPC: &ir.RPCBinding{}, Message: &ir.MessageBinding{Reply: &ir.Reply{}}},
 	}, useType("t"))
