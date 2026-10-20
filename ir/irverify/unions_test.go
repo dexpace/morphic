@@ -29,13 +29,19 @@ func unionOf(targets ...ir.TypeID) *ir.Document {
 	return &ir.Document{Types: types}
 }
 
-// unionViolations returns the ir/union-no-variants violations in doc, so a test
+// The two codes checkUnions reports.
+const (
+	codeNoVariants = "ir/union-no-variants"
+	codeUntagged   = "ir/union-discriminator-untagged"
+)
+
+// unionViolations returns the violations in doc reported under code, so a test
 // asserting none is not satisfied by an unrelated violation being absent.
-func unionViolations(t *testing.T, doc *ir.Document) []irverify.Violation {
+func unionViolations(t *testing.T, doc *ir.Document, code string) []irverify.Violation {
 	t.Helper()
 	var out []irverify.Violation
 	for _, v := range verifyDeclared(doc) {
-		if v.Code == "ir/union-no-variants" {
+		if v.Code == code {
 			out = append(out, v)
 		}
 	}
@@ -44,9 +50,8 @@ func unionViolations(t *testing.T, doc *ir.Document) []irverify.Violation {
 
 func TestVerify_UnionWithNoVariantsIsAViolation(t *testing.T) {
 	t.Parallel()
-	got := unionViolations(t, unionOf())
+	got := unionViolations(t, unionOf(), codeNoVariants)
 	require.Len(t, got, 1, "a union of nothing is reported exactly once")
-	assert.Equal(t, "ir/union-no-variants", got[0].Code)
 	assert.Equal(t, "types[t/x/U]", got[0].Path, "the violation locates the union")
 	assert.Contains(t, got[0].Message, "no variants")
 }
@@ -58,7 +63,7 @@ func TestVerify_UnionWithNoVariantsIsAViolation(t *testing.T) {
 // Invariant #2 is what forbids the compiler collapsing it in the first place.
 func TestVerify_SingleVariantUnionIsClean(t *testing.T) {
 	t.Parallel()
-	assert.Empty(t, unionViolations(t, unionOf("t/x/Leaf")))
+	assert.Empty(t, unionViolations(t, unionOf("t/x/Leaf"), codeNoVariants))
 }
 
 // TestVerify_RepeatedVariantTargetIsClean pins the second. `oneOf: [{$ref: X},
@@ -68,7 +73,7 @@ func TestVerify_SingleVariantUnionIsClean(t *testing.T) {
 // elsewhere.
 func TestVerify_RepeatedVariantTargetIsClean(t *testing.T) {
 	t.Parallel()
-	assert.Empty(t, unionViolations(t, unionOf("t/x/Leaf", "t/x/Leaf")))
+	assert.Empty(t, unionViolations(t, unionOf("t/x/Leaf", "t/x/Leaf"), codeNoVariants))
 }
 
 // TestVerify_NilTypeBesideAUnionDoesNotPanic holds the report-only guarantee at
@@ -97,7 +102,7 @@ func TestVerify_NilTypeBesideAUnionDoesNotPanic(t *testing.T) {
 
 			var got []irverify.Violation
 			require.NotPanics(t, func() { got = verifyDeclared(doc) })
-			assert.Len(t, unionViolations(t, doc), 1, "the empty union is still reported")
+			assert.Len(t, unionViolations(t, doc, codeNoVariants), 1, "the empty union is still reported")
 			assert.Contains(t, codes(got), "ir/nil-type", "the nil entry is reported by its own check")
 		})
 	}
@@ -111,4 +116,60 @@ func codes(vs []irverify.Violation) []string {
 		out = append(out, v.Code)
 	}
 	return out
+}
+
+// TestVerify_UnionTagModes holds unions to the tag modes ir-design §4.4 defines:
+// a discriminator routes only a WireTagged union, whether it locates its tag by
+// property name or by tuple position. Each other combination of the two fields
+// is a mode of its own and passes: untagged, key-tagged (WireTagged with no
+// discriminator), and payload-tagged (both).
+func TestVerify_UnionTagModes(t *testing.T) {
+	t.Parallel()
+	head := 0
+	byName := &ir.Discriminator{PropertyName: "type", Mapping: map[string]ir.TypeID{"leaf": "t/x/Leaf"}}
+	byIndex := &ir.Discriminator{Index: &head, Mapping: map[string]ir.TypeID{"leaf": "t/x/Leaf"}}
+	for _, tc := range []struct {
+		name       string
+		wireTagged bool
+		disc       *ir.Discriminator
+		reported   bool
+	}{
+		{name: "untagged", wireTagged: false, disc: nil},
+		{name: "key-tagged", wireTagged: true, disc: nil},
+		{name: "payload-tagged by property", wireTagged: true, disc: byName},
+		{name: "payload-tagged by position", wireTagged: true, disc: byIndex},
+		{name: "a property tag on an untagged union", wireTagged: false, disc: byName, reported: true},
+		{name: "a positional tag on an untagged union", wireTagged: false, disc: byIndex, reported: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc := unionOf("t/x/Leaf")
+			u, ok := doc.Types["t/x/U"].(*ir.Union)
+			require.True(t, ok)
+			u.WireTagged, u.Discriminator = tc.wireTagged, tc.disc
+
+			got := unionViolations(t, doc, codeUntagged)
+			if !tc.reported {
+				assert.Empty(t, got)
+				return
+			}
+			require.Len(t, got, 1, "the union is reported exactly once")
+			assert.Equal(t, "types[t/x/U]", got[0].Path, "the violation locates the union")
+			assert.Contains(t, got[0].Message, "not WireTagged")
+		})
+	}
+}
+
+// TestVerify_EmptyUntaggedDiscriminatedUnionReportsBoth pins that the two union
+// checks are independent: a union failing both is reported under both codes,
+// rather than the first defect hiding the second.
+func TestVerify_EmptyUntaggedDiscriminatedUnionReportsBoth(t *testing.T) {
+	t.Parallel()
+	doc := unionOf()
+	u, ok := doc.Types["t/x/U"].(*ir.Union)
+	require.True(t, ok)
+	u.Discriminator = &ir.Discriminator{PropertyName: "type"}
+
+	assert.Len(t, unionViolations(t, doc, codeNoVariants), 1)
+	assert.Len(t, unionViolations(t, doc, codeUntagged), 1)
 }
