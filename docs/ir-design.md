@@ -655,25 +655,28 @@ is a `nil *TypeRef`. TypeSpec `safeint` is not a primitive either — its canoni
 `Scalar{Base: integer, Constraints: ±(2^53−1)}`.
 
 **Containment.** `PrimKind.StrictlyWithin` relates two kinds by the values they hold: `a` is
-strictly within `b` when every value of `a` is a value of `b` and the kinds differ. The edges
-(`DomainParents`) are TypeSpec's declared scalar hierarchy where it has one — `float extends numeric`,
-`decimal extends numeric`, `decimal128 extends decimal`, `float32` and `float64` `extends float`,
-and the fixed integer widths `extends integer` — which is why `PrimNumber` is TypeSpec's
-`numeric`, plus the containments between kinds that hold of every value: each integer width within
-the wider widths that hold its range (`uint8` within `int16`, `uint32` within `int64`), `float32`
-within `float64`, `int64` and `uint64` within `decimal128`, and `integer` within `decimal` and `float`. `PrimAny` is the top: every other kind is strictly within it,
-which is a rule of the walk and not an edge. The relation is therefore the same over the values of
-a kind and over the JSON instances a spelling of it admits.
+strictly within `b` when every finite value of `a` is a value of `b` and `b` lies above `a` in the
+edges below. NaN and the infinities, which only the IEEE-754 kinds hold and no JSON instance
+carries, are outside the domain; that is what puts `float` below `number` and `decimal128` below
+`decimal`. The edges (`DomainParents`) follow TypeSpec's declared numeric hierarchy — each integer
+width extends the next (`int8` up to `int64`, `uint8` up to `uint64`), `int64` and `uint64` extend
+`integer`, `float32` extends `float64` extends `float`, `decimal128` extends `decimal`, and
+`numeric` (`PrimNumber`) is their top — with two of its edges refined to exact containments it does
+not declare: `integer` lies within `float` and `float` within `decimal`, since every finite binary
+float is a finite decimal. To these they add the cross-signed widths (`uint8` within `int16`,
+`uint16` within `int32`, `uint32` within `int64`), the widths a float holds exactly (`int16` and
+`uint16` within `float32`, `int32` and `uint32` within `float64`), and `int64` and `uint64` within
+`decimal128`. `PrimAny` is the top: every other kind is strictly within it, which is a rule of the
+walk and not an edge.
 
-Only exact containments are edges. OpenAPI floats round, so `format: float` admits every finite
-number in its range and every integer width sits inside both float widths by rounding; that
-holds of JSON instances and not of the kinds' values. Only the containments that hold both ways
-are taken: `int16` and `uint16` within `float32`, `int32` and `uint32` within `float64`, and
-`integer` within `float`. `int32`, `uint32` or `int64` against `float32`, and `int64` or `uint64`
-against `float64`, are not edges, and neither is `float32` against `decimal`. The string-spelled
-kinds (`date`, `time`, `datetime_offset`, `duration`, `url`, `uuid`, `bytes`) are **not** within
-`string` here: they are distinct kinds in this domain, and a format's refinement of `string` is a
-fact about an OpenAPI spelling, which a compiler holds.
+Every edge holds both of a kind's finite values and of the JSON instances its spellings admit.
+OpenAPI floats round, so `format: float` admits every finite number in its range, and every integer
+width sits inside both float widths by rounding. That holds of JSON instances and not of values, so
+`int32`, `uint32` and `int64` against `float32`, and `int64` and `uint64` against `float64`, are not
+edges. The string-spelled kinds (`date`, `time`, `datetime_offset`, `duration`, `url`, `uuid`,
+`bytes`) are **not** within `string` here, although TypeSpec declares `url extends string`: they are
+distinct kinds in this domain, and a format's refinement of `string` is a fact about an OpenAPI
+spelling, which a compiler holds.
 
 ### 4.2 Scalars (named restricted/extended primitives)
 

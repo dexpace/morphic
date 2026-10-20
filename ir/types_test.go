@@ -431,10 +431,10 @@ var domainEdges = map[ir.PrimKind][]ir.PrimKind{
 	ir.PrimUint16:     {ir.PrimUint32, ir.PrimInt32, ir.PrimFloat32},
 	ir.PrimUint32:     {ir.PrimUint64, ir.PrimInt64, ir.PrimFloat64},
 	ir.PrimUint64:     {ir.PrimInteger, ir.PrimDecimal128},
-	ir.PrimInteger:    {ir.PrimDecimal, ir.PrimFloat},
+	ir.PrimInteger:    {ir.PrimFloat},
 	ir.PrimFloat32:    {ir.PrimFloat64},
 	ir.PrimFloat64:    {ir.PrimFloat},
-	ir.PrimFloat:      {ir.PrimNumber},
+	ir.PrimFloat:      {ir.PrimDecimal},
 	ir.PrimDecimal128: {ir.PrimDecimal},
 	ir.PrimDecimal:    {ir.PrimNumber},
 }
@@ -495,6 +495,13 @@ func TestPrimKind_StrictlyWithinIsAStrictOrder(t *testing.T) {
 	}
 	assert.True(t, ir.PrimInt8.StrictlyWithin(ir.PrimNumber))
 	assert.True(t, ir.PrimUint8.StrictlyWithin(ir.PrimInt16))
+	for _, k := range []ir.PrimKind{ir.PrimFloat32, ir.PrimFloat64, ir.PrimFloat, ir.PrimInteger} {
+		assert.True(t, k.StrictlyWithin(ir.PrimDecimal), "%s within decimal", k)
+	}
+	assert.True(t, ir.PrimFloat.StrictlyWithin(ir.PrimNumber))
+	assert.False(t, ir.PrimNumber.StrictlyWithin(ir.PrimFloat32))
+	assert.False(t, ir.PrimInt64.StrictlyWithin(ir.PrimFloat64))
+	assert.False(t, ir.PrimInt32.StrictlyWithin(ir.PrimFloat32))
 	assert.False(t, ir.PrimInt32.StrictlyWithin(ir.PrimUint32))
 	assert.False(t, ir.PrimUUID.StrictlyWithin(ir.PrimString))
 	assert.False(t, ir.PrimKind("flt").StrictlyWithin(ir.PrimAny))
@@ -523,7 +530,7 @@ func TestPrimKind_LongestDomainChainFitsTheCap(t *testing.T) {
 
 	var longest func(k ir.PrimKind, depth int) int
 	longest = func(k ir.PrimKind, depth int) int {
-		require.Less(t, depth, 64, "a chain this long is a cycle")
+		require.LessOrEqual(t, int64(depth), limit, "a chain past maxDomainDepth: a cycle or a cap too low")
 		best := 0
 		for _, p := range k.DomainParents() {
 			best = max(best, 1+longest(p, depth+1))
@@ -535,7 +542,7 @@ func TestPrimKind_LongestDomainChainFitsTheCap(t *testing.T) {
 		chain = max(chain, longest(k, 0))
 	}
 	assert.LessOrEqual(t, int64(chain), limit)
-	assert.Equal(t, 6, chain, "int8 up to number")
+	assert.Equal(t, 7, chain, "int8 up to number through float and decimal")
 }
 
 // TestAdditionalMode_Constants pins the on-disk spelling of every

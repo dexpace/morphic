@@ -87,9 +87,9 @@ func (k PrimKind) Valid() bool {
 const maxDomainDepth = 8
 
 // DomainParents returns the immediate supertypes of k by value domain: the
-// kinds whose every value k's values are also values of (ir-design §4.1). A
-// kind with none is a root. PrimAny is the top of every kind without being an
-// edge; see StrictlyWithin. The result is fresh, so a caller may keep it.
+// kinds that hold every finite value of k, with no kind between (ir-design
+// §4.1). A kind with none is a root. PrimAny is the top of every kind without
+// being an edge; see StrictlyWithin. The result is fresh, so a caller may keep it.
 func (k PrimKind) DomainParents() []PrimKind {
 	switch k {
 	case PrimInt8:
@@ -107,12 +107,14 @@ func (k PrimKind) DomainParents() []PrimKind {
 	case PrimUint32:
 		return []PrimKind{PrimUint64, PrimInt64, PrimFloat64}
 	case PrimInteger:
-		return []PrimKind{PrimDecimal, PrimFloat}
+		return []PrimKind{PrimFloat}
 	case PrimFloat32:
 		return []PrimKind{PrimFloat64}
 	case PrimFloat64:
 		return []PrimKind{PrimFloat}
-	case PrimFloat, PrimDecimal:
+	case PrimFloat:
+		return []PrimKind{PrimDecimal}
+	case PrimDecimal:
 		return []PrimKind{PrimNumber}
 	case PrimDecimal128:
 		return []PrimKind{PrimDecimal}
@@ -125,7 +127,7 @@ func (k PrimKind) DomainParents() []PrimKind {
 	}
 }
 
-// StrictlyWithin reports whether every value of k is a value of broad and the
+// StrictlyWithin reports whether every finite value of k is a value of broad and the
 // kinds differ: broad is reached by walking DomainParents up from k, or is
 // PrimAny and k is another valid kind. It is a strict partial order, and the
 // walk is bounded by maxDomainDepth.
