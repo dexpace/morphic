@@ -297,6 +297,11 @@ it sees. Changes made together in one bump are listed together under it.
   - `additionalProperties: true` became a catch-all typed by the top type, as `{}` already was,
     where it had lowered to nothing, like an absent keyword. A consumer pinned to 0.13.0 reads a
     model writing `true` beside its properties as stating nothing about the rest.
+- **0.15.0** — a union a discriminator routes is `WireTagged` (§4.4). The shape is unchanged, but
+  the OpenAPI compiler had lowered every discriminated `oneOf` and `anyOf` with `wireTagged` false
+  beside its `discriminator`, a combination the tag modes did not define: a consumer following them
+  read each as untagged and ignored the tag. `irverify` now refuses the combination
+  (`ir/union-discriminator-untagged`).
 
 ---
 
@@ -799,10 +804,10 @@ instead, enumerated by the OpenAPI compiler's rule
 type Union struct {
     TypeCommon
     Variants      []Variant
-    Exclusive     bool           // oneOf/tagged: exactly one variant matches; anyOf: one-or-more
-    WireTagged    bool           // the wire format itself encodes the variant (protobuf oneof,
-                                 // Smithy union, GraphQL __typename) vs untagged JSON oneOf
-    Discriminator *Discriminator // internal tag property, when one exists
+    Exclusive     bool           // exactly one variant matches (oneOf, key-tagged); anyOf: one-or-more
+    WireTagged    bool           // the payload names its variant: a tag property (Discriminator) or
+                                 // a single key (protobuf oneof, Smithy union); false = untagged
+    Discriminator *Discriminator // the tag property inside the payload; set only when WireTagged
 }
 
 type Variant struct {
@@ -828,17 +833,29 @@ type EventInfo struct {
 ```
 
 One node covers the whole design space from the capability matrix: untagged `anyOf`
-(`Exclusive=false`), untagged `oneOf` (`Exclusive=true`), discriminated `oneOf`
-(`+Discriminator`), natively tagged unions (`WireTagged=true`). Variant identity survives so
+(`Exclusive=false`), untagged `oneOf` (`Exclusive=true`), unions a tag property in the payload
+routes (`WireTagged=true` with a `Discriminator`), and key-tagged unions (`WireTagged=true`
+alone). Variant identity survives so
 emitters can generate named accessors, sealed interfaces, or wrapper types per their refiner
 strategy. Unions never degrade to optional-field merges in the IR — that includes GraphQL
 `@oneOf` input objects, which are spec-level tagged input unions and lower here, not to models.
 
 **Tag-mode conventions** (normative): `WireTagged=true` with a `Discriminator` means the tag is
-a property inside the variant payload (GraphQL `__typename`). `WireTagged=true` with **nil**
+a property inside the variant payload (an OpenAPI `discriminator`, GraphQL `__typename`), at the
+top level or inside the `Envelope` the discriminator names. `WireTagged=true` with **nil**
 `Discriminator` means the union is *key-tagged*: the wire shape is a single-key object whose key
 is the variant's wire name (Smithy unions, proto3-JSON oneof, GraphQL `@oneOf` inputs).
-`WireTagged=false` means the variant is inferred by validation (JSON oneOf/anyOf).
+`WireTagged=false` means the variant is inferred by validation (JSON oneOf/anyOf), and such a
+union carries no `Discriminator`; `irverify` refuses one that does
+(`ir/union-discriminator-untagged`). `Exclusive` is independent of the mode: it records what
+validation admits, exactly one variant or one or more.
+
+An OpenAPI discriminator is the payload-tagged mode and not a fourth one. OpenAPI calls it a hint
+that must not change the validation outcome, but a value no mapping names selects no schema and
+validation fails, so for a valid payload the tag names exactly the variant validation would find.
+A mode for "tag plus validation" would describe the same wire shape twice. OpenAPI leaves one case
+undefined, a payload without the tag property: `Discriminator.Default` decides it where 3.2's
+`defaultMapping` declares one, and a refiner's policy where none does.
 
 ### 4.5 Enums
 

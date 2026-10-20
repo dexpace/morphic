@@ -112,3 +112,67 @@ func codes(vs []irverify.Violation) []string {
 	}
 	return out
 }
+
+// untaggedViolations returns the ir/union-discriminator-untagged violations in
+// doc, for the same reason unionViolations filters by code.
+func untaggedViolations(t *testing.T, doc *ir.Document) []irverify.Violation {
+	t.Helper()
+	var out []irverify.Violation
+	for _, v := range verifyDeclared(doc) {
+		if v.Code == "ir/union-discriminator-untagged" {
+			out = append(out, v)
+		}
+	}
+	return out
+}
+
+// TestVerify_UnionTagModes holds unions to the tag modes ir-design §4.4 defines:
+// a discriminator routes only a WireTagged union. Each other combination of the
+// two fields is a mode of its own and passes: untagged, key-tagged (WireTagged
+// with no discriminator), and payload-tagged (both).
+func TestVerify_UnionTagModes(t *testing.T) {
+	t.Parallel()
+	disc := &ir.Discriminator{PropertyName: "type", Mapping: map[string]ir.TypeID{"leaf": "t/x/Leaf"}}
+	for _, tc := range []struct {
+		name       string
+		wireTagged bool
+		disc       *ir.Discriminator
+		wantPath   string
+	}{
+		{name: "untagged", wireTagged: false, disc: nil},
+		{name: "key-tagged", wireTagged: true, disc: nil},
+		{name: "payload-tagged", wireTagged: true, disc: disc},
+		{name: "a discriminator on an untagged union", wireTagged: false, disc: disc, wantPath: "types[t/x/U]"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc := unionOf("t/x/Leaf")
+			u, ok := doc.Types["t/x/U"].(*ir.Union)
+			require.True(t, ok)
+			u.WireTagged, u.Discriminator = tc.wireTagged, tc.disc
+
+			got := untaggedViolations(t, doc)
+			if tc.wantPath == "" {
+				assert.Empty(t, got)
+				return
+			}
+			require.Len(t, got, 1, "the union is reported exactly once")
+			assert.Equal(t, tc.wantPath, got[0].Path, "the violation locates the union")
+			assert.Contains(t, got[0].Message, "not WireTagged")
+		})
+	}
+}
+
+// TestVerify_EmptyUntaggedDiscriminatedUnionReportsBoth pins that the two union
+// checks are independent: a union failing both is reported under both codes,
+// rather than the first defect hiding the second.
+func TestVerify_EmptyUntaggedDiscriminatedUnionReportsBoth(t *testing.T) {
+	t.Parallel()
+	doc := unionOf()
+	u, ok := doc.Types["t/x/U"].(*ir.Union)
+	require.True(t, ok)
+	u.Discriminator = &ir.Discriminator{PropertyName: "type"}
+
+	assert.Len(t, unionViolations(t, doc), 1)
+	assert.Len(t, untaggedViolations(t, doc), 1)
+}

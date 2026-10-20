@@ -1412,7 +1412,7 @@ func TestOneOf_WithDiscriminator(t *testing.T) {
 	pet, ok := doc.Types[componentID("Pet")].(*ir.Union)
 	require.True(t, ok, "Pet should be a union")
 	assert.True(t, pet.Exclusive, "oneOf is exclusive")
-	assert.False(t, pet.WireTagged, "OpenAPI oneOf is not wire-tagged")
+	assert.True(t, pet.WireTagged, "the discriminator's tag property names the variant (ir-design §4.4)")
 	require.Len(t, pet.Variants, 2, "both variants present")
 	require.NotNil(t, pet.Discriminator)
 	assert.Equal(t, "petType", pet.Discriminator.PropertyName)
@@ -1432,6 +1432,7 @@ func TestAnyOf_IsNonExclusiveUnion(t *testing.T) {
 	u, ok := doc.Types[componentID("U")].(*ir.Union)
 	require.True(t, ok, "U should be a union")
 	assert.False(t, u.Exclusive, "anyOf is non-exclusive")
+	assert.False(t, u.WireTagged, "with no discriminator, validation infers the variant")
 	require.Len(t, u.Variants, 2)
 }
 
