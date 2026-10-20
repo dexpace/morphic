@@ -275,12 +275,13 @@ such pointer from its own `$defs` unless it writes an `$id` itself, and an `$id`
 above it makes it no resource of its own: as OAS 3.1 reads a schema with no `$id`, the document is
 its base, and its root holds none.
 
-Binding is held to one work budget, reported as an `openapi/budget-exceeded` error once it runs
-out, the `$ref`s past it left unresolved. A `<<` merge chain deeper than the levels a mapping's
-merges are expanded to (`nodeview.MergeDepthLimit`) is reported as an `openapi/degraded-construct` warning, and a `$ref` past it
-is left unresolved, as is one that reads a key past it: a key its pointer names, or, for a
-`#/$defs/...` pointer, an `$id` or a definition the rule reads before the one that would answer. A
-chain of references that closes on itself is [`reference-cycles`](#reference-cycles)'.
+Binding is held to one work budget, reported as an `openapi/budget-exceeded` error once it runs out,
+the `$ref`s past it left unresolved. A `<<` merge chain deeper than the levels a mapping's merges
+are expanded to (`nodeview.MergeDepthLimit`) is reported as an `openapi/degraded-construct` warning,
+and a `$ref` past it is left unresolved, as is one that reads a key past it: a key its pointer
+names, or, for a `#/$defs/...` pointer, an `$id` or a definition the rule reads before the one that
+would answer. A chain of references that closes on itself is
+[`reference-cycles`](#reference-cycles)'.
 
 - Codes: `openapi/unresolved-ref`, `openapi/budget-exceeded`, `openapi/degraded-construct`
 - Tests: `openapi.TestCompile_ExternalFileRefIsNotReadByDefault`,
@@ -304,8 +305,8 @@ chain of references that closes on itself is [`reference-cycles`](#reference-cyc
   `canary.TestBindingOracle_AgreesWithTheLibrary`
 - Status: partly built: no schema another document holds is lowered, so a schema `$ref` naming one
   is reported unresolved (#74), and an `$anchor` or an `$id` is not honoured as a reference target
-  (#1015). A reference object inside an object another document holds is never resolved,
-  and nothing reports it (#751); an absolute-path `$ref` in a remote document is read as a local path
+  (#1015). A reference object inside an object another document holds is never resolved, and
+  nothing reports it (#751); an absolute-path `$ref` in a remote document is read as a local path
   (#936); a remote document can make the compiler request a private address (#937); an external
   document that does not parse is handed on rather than refused (#939); and a remote document
   reaching a local file is refused naming only its last such `$ref` (#940). A reference object's

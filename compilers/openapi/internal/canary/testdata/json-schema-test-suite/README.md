@@ -1,8 +1,9 @@
 # Vendored JSON Schema Test Suite
 
-A copy of part of the [JSON Schema Test Suite](https://github.com/json-schema-org/JSON-Schema-Test-Suite),
-kept with its `LICENSE` (MIT). The binding oracle in `oracle_test.go` compiles each schema of these
-files and compares what the compiler binds a `$ref` to with what the parser library resolves it to.
+A copy of part of the
+[JSON Schema Test Suite](https://github.com/json-schema-org/JSON-Schema-Test-Suite), kept with its
+`LICENSE` (MIT). The binding oracle in `oracle_test.go` compiles each schema of these files and
+compares what the compiler binds a `$ref` to with what the parser library resolves it to.
 
 ## Revision
 
@@ -21,9 +22,14 @@ each file only the groups whose schema contains `"$ref"`.
 
 ## Refreshing
 
-1. Copy the files from `tests/draft2020-12` at the new upstream commit over these, keeping the paths,
-   and replace `LICENSE` if it changed. Update the revision above.
-2. Run `go test ./compilers/openapi/internal/canary -run TestBindingOracle_AgreesWithTheLibrary -update`.
+1. Copy the files from `tests/draft2020-12` at the new upstream commit over these, keeping the
+   paths, and replace `LICENSE` if it changed. Update the revision above.
+2. Run the oracle with `-update`:
+
+   ```bash
+   go test ./compilers/openapi/internal/canary -run TestBindingOracle_AgreesWithTheLibrary -update
+   ```
+
    It rewrites `../binding_disagreements.txt`, keeping the reason of each disagreement that is still
    found and marking a new one `unclassified`.
 3. Write a reason for each `unclassified` line, one of the keys of `oracleReasons`, then run the
