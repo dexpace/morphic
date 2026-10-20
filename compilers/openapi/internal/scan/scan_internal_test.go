@@ -706,40 +706,50 @@ func scanWithin(t *testing.T, src, blowup string) []ir.Diagnostic {
 	}
 }
 
-// TestCycles_AllocatesLinearlyInItsInput bounds the allocations Cycles makes
-// per level of input, at n and at 2n, and holds the count at 2n under 2.5
-// times the count at n, so a walk that re-enters a node fails by count rather
-// than by a clock (#979). The per-level bounds are twice the most seen on
-// go1.27.2, with and without -race. It runs serially: AllocsPerRun measures
-// the whole process. A collect walk re-entering a node allocates nothing, so
-// TestRefScanCollect_VisitsEachNodeOncePerRole pins that one.
+// TestCycles_AllocatesLinearlyInItsInput holds Cycles to a cost linear in its
+// input, on each shape a walk without its memo or its bound blows up on. A row
+// is measured at n, 2n and 4n, which must take one path through the scan, and
+// the second doubling may add at most 2.5 times what the first did: a linear
+// walk adds twice as much, a quadratic one four times, and the fixed cost
+// cancels. Allocations do not move with load. It runs serially, since
+// AllocsPerRun counts the whole process. A collect walk re-entering a node
+// allocates nothing, so TestRefScanCollect_VisitsEachNodeOncePerRole pins that.
 func TestCycles_AllocatesLinearlyInItsInput(t *testing.T) {
 	rows := []struct {
-		name    string
-		spec    func(n int) string
-		n       int
-		perUnit float64
+		name string
+		spec func(n int) string
+		n    int
 	}{
-		{"chained aliases", chainedAliasSpec, 10, 34},
-		{"merge chain within the bound", ynode.MergeChainSpec, nodeview.MergeDepthLimit / 2, 59},
-		{"merge chain past the bound", ynode.MergeChainSpec, 800, 1400},
+		// The alias weigher's memo. Sizes the expansion ratio admits keep one
+		// path, and a walk that lost its memo finite.
+		{"chained aliases", chainedAliasSpec, 2},
+		// The merge view's memo, up to the depth bound.
+		{"merge chain within the bound", ynode.MergeChainSpec, nodeview.MergeDepthLimit / 4},
+		// The depth bound, which holds each level's re-expansion to a constant.
+		{"merge chain past the bound", ynode.MergeChainSpec, 80},
 	}
 	for _, row := range rows {
 		t.Run(row.name, func(t *testing.T) {
-			var counts []float64
-			for _, size := range []int{row.n, 2 * row.n} {
+			sizes := []int{row.n, 2 * row.n, 4 * row.n}
+			allocs := make([]float64, len(sizes))
+			paths := make([][]string, len(sizes))
+			for i, size := range sizes {
 				idx := indexOf(t, []byte(row.spec(size)))
-				allocs := testing.AllocsPerRun(1, func() {
-					Cycles(InSource(0), idx, defaultSurplus)
-				})
-				require.Positive(t, allocs, "a measurement of nothing bounds nothing")
-				counts = append(counts, allocs)
-				assert.LessOrEqual(t, allocs/float64(size), row.perUnit,
-					"size %d took %.0f allocations, over %.2f a level", size, allocs, row.perUnit)
+				var diags []ir.Diagnostic
+				// No alias budget, so only the expansion ratio refuses, and it
+				// refuses none of these sizes.
+				allocs[i] = testing.AllocsPerRun(1, func() { diags = Cycles(InSource(0), idx, 0) })
+				for _, d := range diags {
+					paths[i] = append(paths[i], d.Code)
+				}
 			}
-			require.Len(t, counts, 2)
-			assert.Less(t, counts[1], 2.5*counts[0],
-				"doubling the input took %.0f allocations to %.0f, more than 2.5 times", counts[0], counts[1])
+			require.Equal(t, paths[0], paths[1], "sizes %v must take one path through the scan", sizes)
+			require.Equal(t, paths[0], paths[2], "sizes %v must take one path through the scan", sizes)
+
+			first, second := allocs[1]-allocs[0], allocs[2]-allocs[1]
+			require.Positive(t, first, "a doubling that adds nothing measures nothing")
+			assert.LessOrEqual(t, second, 2.5*first,
+				"sizes %v took %v allocations: the second doubling added over 2.5 times the first", sizes, allocs)
 		})
 	}
 }
