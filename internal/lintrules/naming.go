@@ -13,10 +13,10 @@ import (
 // declares. Those fields are ABI, so a compiler's own segmentation would make
 // one mean two things (GitHub #163, #54).
 //
-// The call must be the value itself: a framework call wrapped in a local one, a
-// name carried in a variable, a field extended in place, filled by a range
-// clause or through its address, is refused. A multiple assignment is paired
-// value by value; one from a call returning several values is refused.
+// A struct that converts to ir.Naming carries the channels too, whatever its
+// type is named. The call must be the value itself: a framework call wrapped in
+// a local one, a name carried in a variable, a field extended in place, filled
+// by a range clause or through its address, is refused.
 func (l layout) nameChannels() *analysis.Analyzer {
 	return &analysis.Analyzer{
 		Name: "namechannels",
@@ -43,12 +43,8 @@ func (l layout) runNameChannels(pass *analysis.Pass) (any, error) {
 	if naming == nil {
 		return nil, nil
 	}
-	c := nameCheck{pass: pass, channels: map[types.Object]string{}}
-	for _, name := range []string{"Canonical", "Hint"} {
-		if field, _, _ := types.LookupFieldOrMethod(naming.Type(), false, naming.Pkg(), name); field != nil {
-			c.channels[field] = name
-		}
-	}
+	shape, _ := naming.Type().Underlying().(*types.Struct) // ir declares it a struct
+	c := nameCheck{pass: pass, shape: shape}
 	for _, f := range productionFiles(pass) {
 		for n := range ast.Preorder(f) {
 			c.node(n)
@@ -57,11 +53,18 @@ func (l layout) runNameChannels(pass *analysis.Pass) (any, error) {
 	return nil, nil
 }
 
-// nameCheck finds the name channels one package fills.
+// nameCheck finds the name channels one package fills. One filled through
+// reflect, by a decoder writing an ir.Naming say, is out of its sight.
 type nameCheck struct {
 	pass *analysis.Pass
-	// channels names each of ir.Naming's name-channel fields.
-	channels map[types.Object]string
+	// shape is ir.Naming's underlying struct.
+	shape *types.Struct
+}
+
+// isChannel reports whether the field called name of the struct s is a name
+// channel: Canonical or Hint of a struct that converts to ir.Naming.
+func (c nameCheck) isChannel(s *types.Struct, name string) bool {
+	return (name == "Canonical" || name == "Hint") && types.IdenticalIgnoreTags(s, c.shape)
 }
 
 func (c nameCheck) node(n ast.Node) {
@@ -81,9 +84,8 @@ func (c nameCheck) node(n ast.Node) {
 }
 
 // literal reports each name channel a struct literal fills, keyed or by
-// position, with anything but a framework call. Only ir.Naming's literals have
-// those fields, an element of a slice or map of them, its type elided, among
-// them.
+// position, with anything but a framework call, an element of a slice or map
+// of them, its type elided, among them.
 func (c nameCheck) literal(lit *ast.CompositeLit) {
 	t := c.pass.TypesInfo.TypeOf(lit)
 	if ptr, ok := t.(*types.Pointer); ok {
@@ -94,20 +96,20 @@ func (c nameCheck) literal(lit *ast.CompositeLit) {
 		return
 	}
 	for i, elt := range lit.Elts {
-		var field types.Object = fields.Field(i)
-		value := elt
+		name, value := fields.Field(i).Name(), elt
 		if kv, keyed := elt.(*ast.KeyValueExpr); keyed {
-			key, _ := kv.Key.(*ast.Ident)
-			field, value = c.pass.TypesInfo.ObjectOf(key), kv.Value
+			key, _ := kv.Key.(*ast.Ident) // a struct literal's keys are its fields' names
+			name, value = key.Name, kv.Value
 		}
-		if name, ok := c.channels[field]; ok && !frameworkCall(c.pass.TypesInfo, value) {
+		if c.isChannel(fields, name) && !frameworkCall(c.pass.TypesInfo, value) {
 			c.pass.Reportf(value.Pos(), notFramework, name)
 		}
 	}
 }
 
 // assign reports each name channel an assignment fills otherwise than whole,
-// from a framework call paired with it.
+// from a framework call paired with it: a multiple assignment is paired value
+// by value, and one from a call returning several values is refused.
 func (c nameCheck) assign(stmt *ast.AssignStmt) {
 	for i, lhs := range stmt.Lhs {
 		name, ok := c.channel(lhs)
@@ -141,6 +143,30 @@ func (c nameCheck) channel(e ast.Expr) (string, bool) {
 	if !ok {
 		return "", false
 	}
-	name, ok := c.channels[c.pass.TypesInfo.ObjectOf(sel.Sel)]
-	return name, ok
+	selection, isSelection := c.pass.TypesInfo.Selections[sel]
+	if !isSelection {
+		return "", false // a qualified identifier, not a field
+	}
+	return sel.Sel.Name, c.isChannel(declaring(selection), sel.Sel.Name)
+}
+
+// declaring returns the struct that declares the field selection selects,
+// stepping through the embedded fields on its path. Only a field is assigned
+// or has its address taken, so every step is a struct or a pointer to one.
+func declaring(selection *types.Selection) *types.Struct {
+	t := selection.Recv()
+	path := selection.Index()
+	for _, i := range path[:len(path)-1] {
+		t = structOf(t).Field(i).Type()
+	}
+	return structOf(t)
+}
+
+// structOf returns the struct t is, or points to.
+func structOf(t types.Type) *types.Struct {
+	if ptr, ok := t.Underlying().(*types.Pointer); ok {
+		t = ptr.Elem()
+	}
+	s, _ := t.Underlying().(*types.Struct)
+	return s
 }

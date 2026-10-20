@@ -1,6 +1,7 @@
 package graphql
 
 import (
+	"os"
 	"strings"
 
 	"github.com/dexpace/morphic/compilers/compile"
@@ -19,6 +20,35 @@ type named struct{ ir.Naming }
 
 // common holds one as a field, as an ir.TypeCommon does.
 type common struct{ Name ir.Naming }
+
+// mirror has ir.Naming's fields without its tags, so it converts to one.
+type mirror struct {
+	Source    string
+	Canonical string
+	Hint      string
+	Aliases   []string
+}
+
+// short lacks Aliases, so no ir.Naming converts from it.
+type short struct{ Source, Canonical, Hint string }
+
+// pointer points to a Naming under a name of its own.
+type pointer *ir.Naming
+
+// embedsPointer promotes a Naming's fields through a pointer.
+type embedsPointer struct{ *ir.Naming }
+
+func plantMirrors(name string, p pointer, e embedsPointer) (ir.Naming, ir.Naming) {
+	keyed := mirror{Source: name, Canonical: localWords(name)}                 // want "namechannels: ir.Naming.Canonical is filled by something other than a call into ir or compilers/compile; use compile.NamingFor, compile.NamingHint or ir.CanonicalWords"
+	keyed.Hint = localWords(name)                                              // want "namechannels: ir.Naming.Hint is filled by something other than a call into ir or compilers/compile; use compile.NamingFor, compile.NamingHint or ir.CanonicalWords"
+	unkeyed := mirror{name, localWords(name), compile.SubHint(name, "x"), nil} // want "namechannels: ir.Naming.Canonical is filled by something other than a call into ir or compilers/compile; use compile.NamingFor, compile.NamingHint or ir.CanonicalWords"
+	p.Hint = name                                                              // want "namechannels: ir.Naming.Hint is filled by something other than a call into ir or compilers/compile; use compile.NamingFor, compile.NamingHint or ir.CanonicalWords"
+	e.Canonical = name                                                         // want "namechannels: ir.Naming.Canonical is filled by something other than a call into ir or compilers/compile; use compile.NamingFor, compile.NamingHint or ir.CanonicalWords"
+	near := short{Canonical: name}
+	near.Hint = name
+	_, _ = near, &os.Args // a package's variable is no struct's field
+	return ir.Naming(keyed), ir.Naming(unkeyed)
+}
 
 func plantNaming(name string, words []string, n *named, c *common, big ir.BigVal) []ir.Naming {
 	declared := ir.Naming{Source: name, Canonical: localWords(name)}                  // want "namechannels: ir.Naming.Canonical is filled by something other than a call into ir or compilers/compile; use compile.NamingFor, compile.NamingHint or ir.CanonicalWords"

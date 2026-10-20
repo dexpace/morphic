@@ -2,7 +2,9 @@ package lintrules
 
 import (
 	"go/ast"
+	"go/token"
 	"go/types"
+	"slices"
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/types/typeutil"
@@ -16,8 +18,8 @@ import (
 // A registry is any map from ir.TypeID to ir.TypeDef, whatever its type is
 // named: an unnamed one converts to ir.TypeRegistry without a conversion to see,
 // so it is caught where it is made, and a generic by its type arguments. A
-// compile.Settlement may rewrite the registry Settle hands it, which
-// compile.Types checks for a changed node count.
+// compile.Settlement's Settle may rewrite the registry it is handed, in its own
+// body, which compile.Types checks for a changed node count.
 func (l layout) registryWrites() *analysis.Analyzer {
 	return &analysis.Analyzer{
 		Name: "registrywrites",
@@ -30,6 +32,7 @@ const (
 	builtMessage   = "builds a type registry (a map from ir.TypeID to ir.TypeDef) outside ir and compilers/compile; go through compile.Types"
 	writtenMessage = "writes a type registry outside ir and compilers/compile; go through compile.Types, or rewrite a node in a compile.Settlement"
 	genericMessage = "instantiates a generic with a type registry or ir.TypeDef, whose registry writes this rule cannot read; keep registry writes in ir and compilers/compile"
+	closureMessage = "writes the registry Settle is handed from a function literal, which can run after Settle returns; write it in Settle itself"
 )
 
 func (l layout) runRegistryWrites(pass *analysis.Pass) (any, error) {
@@ -41,7 +44,7 @@ func (l layout) runRegistryWrites(pass *analysis.Pass) (any, error) {
 		return nil, nil // a package that reaches no ir holds none of its registries
 	}
 	core, _ := reg.Type().Underlying().(*types.Map) // ir declares it a map
-	c := registryCheck{l: l, pass: pass, core: core, settled: settledRegistries(pass)}
+	c := registryCheck{l: l, pass: pass, core: core, settled: settlements(pass)}
 	for _, f := range productionFiles(pass) {
 		for n := range ast.Preorder(f) {
 			c.node(n)
@@ -50,15 +53,16 @@ func (l layout) runRegistryWrites(pass *analysis.Pass) (any, error) {
 	return nil, nil
 }
 
-// registryCheck finds the registry builds and writes in one package.
+// registryCheck finds the registry builds and writes in one package. One made
+// through reflect, or inside a generic declared outside the module other than
+// the maps functions, is out of its sight.
 type registryCheck struct {
 	l    layout
 	pass *analysis.Pass
 	// core is ir.TypeRegistry's underlying map type.
 	core *types.Map
-	// settled holds the registry parameter of each Settle method of a
-	// compile.Settlement the package declares.
-	settled map[types.Object]bool
+	// settled is what the package's Settle methods may write.
+	settled settlement
 }
 
 // isRegistry reports whether t is a map from ir.TypeID to ir.TypeDef, or a
@@ -100,17 +104,21 @@ func (c registryCheck) node(n ast.Node) {
 	}
 }
 
-// target reports e when it is an element of a registry, other than one of a
-// registry a Settle method is handed.
+// target reports e when it is an element of a registry, other than one of the
+// registry a Settle method is handed, written in its own body.
 func (c registryCheck) target(e ast.Expr) {
 	ix, ok := ast.Unparen(e).(*ast.IndexExpr)
 	if !ok || !c.isRegistry(c.pass.TypesInfo.TypeOf(ix.X)) {
 		return
 	}
-	if id, isIdent := ast.Unparen(ix.X).(*ast.Ident); isIdent && c.settled[c.pass.TypesInfo.Uses[id]] {
-		return
+	id, isIdent := ast.Unparen(ix.X).(*ast.Ident)
+	switch {
+	case !isIdent || !c.settled.params[c.pass.TypesInfo.Uses[id]]:
+		c.pass.Reportf(ix.Pos(), writtenMessage)
+	case c.settled.inClosure(ix.Pos()):
+		c.pass.Reportf(ix.Pos(), closureMessage)
+	default:
 	}
-	c.pass.Reportf(ix.Pos(), writtenMessage)
 }
 
 func (c registryCheck) builtin(call *ast.CallExpr, name string) {
@@ -183,13 +191,29 @@ func (c registryCheck) registryArgs(args *types.TypeList) bool {
 	return false
 }
 
-// settledRegistries returns the registry parameter of each Settle method the
-// package declares on a type that is a compile.Settlement.
-func settledRegistries(pass *analysis.Pass) map[types.Object]bool {
-	settled := map[types.Object]bool{}
+// settlement is what the Settle methods of the package's compile.Settlements
+// may write: each one's registry parameter, outside the function literals in
+// its body, which can run after Settle returns and so past the node count
+// compile.Types checks.
+type settlement struct {
+	params   map[types.Object]bool
+	closures []*ast.FuncLit
+}
+
+// inClosure reports whether pos is inside one of the function literals.
+func (s settlement) inClosure(pos token.Pos) bool {
+	return slices.ContainsFunc(s.closures, func(lit *ast.FuncLit) bool {
+		return lit.Pos() <= pos && pos < lit.End()
+	})
+}
+
+// settlements returns what the Settle methods the package declares, on types
+// that are compile.Settlements, may write.
+func settlements(pass *analysis.Pass) settlement {
+	s := settlement{params: map[types.Object]bool{}}
 	tn := typeNamed(pass.Pkg, compilePath, "Settlement")
 	if tn == nil {
-		return settled
+		return s
 	}
 	iface, _ := tn.Type().Underlying().(*types.Interface)
 	for _, f := range productionFiles(pass) {
@@ -199,10 +223,16 @@ func settledRegistries(pass *analysis.Pass) map[types.Object]bool {
 				continue
 			}
 			fn, isFunc := pass.TypesInfo.Defs[fd.Name].(*types.Func)
-			if isFunc && iface != nil && types.Implements(fn.Signature().Recv().Type(), iface) {
-				settled[fn.Signature().Params().At(0)] = true
+			if !isFunc || iface == nil || !types.Implements(fn.Signature().Recv().Type(), iface) {
+				continue
+			}
+			s.params[fn.Signature().Params().At(0)] = true
+			for n := range ast.Preorder(fd.Body) {
+				if lit, isLit := n.(*ast.FuncLit); isLit {
+					s.closures = append(s.closures, lit)
+				}
 			}
 		}
 	}
-	return settled
+	return s
 }

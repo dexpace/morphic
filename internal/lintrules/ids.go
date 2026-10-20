@@ -68,7 +68,9 @@ func idTypes(ir *types.Package) map[types.Type]string {
 	return ids
 }
 
-// idCheck finds the IDs and namespaces one compiler package builds itself.
+// idCheck finds the IDs and namespaces one compiler package builds itself. One
+// filled through reflect, by a decoder writing an ID-typed field say, is out of
+// its sight.
 type idCheck struct {
 	pass *analysis.Pass
 	// ids names each of ir's ID types.
