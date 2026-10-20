@@ -865,15 +865,77 @@ func TestAllOfBranches_EntriesAgreeWithThePointerWalk(t *testing.T) {
 	require.True(t, ok)
 	entries := allOfBranches(decl.GetSchema(), "/components/schemas/M")
 	require.Len(t, entries, 6, "four inline branches and two wrappers")
+	wantKeys := []string{
+		"openapi:allOf/0",
+		"openapi:allOf/1/allOf/0",
+		"openapi:allOf/1/allOf/1/allOf/0",
+		"openapi:allOf/1/allOf/1/allOf/1",
+		"openapi:allOf/1/allOf/1",
+		"openapi:allOf/1",
+	}
 	var inline int
-	for _, e := range entries {
+	for i, e := range entries {
+		assert.Equal(t, wantKeys[i], branchKey("/components/schemas/M", e.pointer))
 		if e.wrapper {
 			continue
 		}
 		inline++
-		assert.Equal(t, subSchemaHint(e.schema, e.pointer), branchHint(e.schema, e.index), e.pointer)
-		assert.Equal(t, "/components/schemas/M/"+strings.TrimPrefix(e.key, "openapi:"), string(e.pointer))
+		assert.Equal(t, subSchemaHint(e.schema, e.pointer), branchHintAt(e.schema, pointerIndex(e.pointer)), e.pointer)
 	}
 	assert.Equal(t, 4, inline)
 	assert.True(t, entries[len(entries)-1].wrapper, "a wrapper follows its own branches")
+}
+
+// TestWalkAllOf_StopsWhenTheConsumerDoes pins that the walk and the schema view
+// end when the loop reading them breaks: at a leaf, at a wrapper that follows
+// its entries, and at a $ref branch the view yields.
+func TestWalkAllOf_StopsWhenTheConsumerDoes(t *testing.T) {
+	t.Parallel()
+	l, _ := loweredFor(t, openapitest.ComponentSpec(`    A: {type: object}
+    M:
+      allOf:
+        - allOf:
+            - {$ref: '#/components/schemas/A'}
+        - {type: object}
+`))
+	decl, ok := l.ctx.Doc.Components.Schemas.Get("M")
+	require.True(t, ok)
+	m := decl.GetSchema()
+
+	var all []bool // wrapper flag of every step, in order
+	for st := range walkAllOf(m) {
+		all = append(all, st.wrapper)
+	}
+	assert.Equal(t, []bool{false, true, false}, all, "the ref, its wrapper, then the inline branch")
+
+	for stop := range all {
+		var seen int
+		for range walkAllOf(m) {
+			seen++
+			if seen > stop {
+				break
+			}
+		}
+		assert.Equal(t, stop+1, seen, "the walk yields nothing after the loop breaks")
+	}
+
+	var refs int
+	for range allOfRefBranches(m) {
+		refs++
+		break
+	}
+	assert.Equal(t, 1, refs)
+}
+
+// TestRefBranchTarget_InlineBranchNamesNothing pins that an inline branch has
+// no target, which is the answer a caller that did not filter to $refs gets.
+func TestRefBranchTarget_InlineBranchNamesNothing(t *testing.T) {
+	t.Parallel()
+	l, _ := loweredFor(t, openapitest.ComponentSpec(`    M:
+      allOf:
+        - {type: object}
+`))
+	decl, ok := l.ctx.Doc.Components.Schemas.Get("M")
+	require.True(t, ok)
+	assert.Nil(t, refBranchTarget(decl.GetSchema().GetAllOf()[0]))
 }
