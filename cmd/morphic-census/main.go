@@ -72,7 +72,8 @@ func sweep(ctx context.Context, paths []string) (*census.Census, error) {
 }
 
 // count compiles the spec at path and adds its document to c, or counts that
-// there was none.
+// there was none. A run the engine fails counts its document too, since an
+// emitter builds on one at the none threshold.
 func count(ctx context.Context, e *engine.Engine, c *census.Census, path string) error {
 	res, err := e.Run(ctx, path, engine.RunOptions{})
 	if err != nil {

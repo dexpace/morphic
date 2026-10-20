@@ -163,13 +163,18 @@ func TestRun_HoldsTheFactsNoCommittedSpecSets(t *testing.T) {
 	require.Equal(t, 0, run(context.Background(), []string{"../../testdata"}, &stdout, &stderr), stderr.String())
 
 	var unset strings.Builder
+	set := 0
 	for _, line := range lines(stdout.String()) {
-		if f := strings.Fields(line); len(f) > 3 && f[1] == "0" && f[2] == "0" {
+		switch f := strings.Fields(line); {
+		case len(f) < 4: // the counts of runs
+		case f[1] == "0" && f[2] == "0":
 			unset.WriteString(line + "\n")
+		default:
+			set++
 		}
 	}
 	require.NotZero(t, unset.Len(), "the census lists the facts it found unset")
-	require.Contains(t, stdout.String(), "member 1", "and found some set")
+	require.NotZero(t, set, "and found some set")
 
 	if irtest.Update() {
 		require.NoError(t, os.WriteFile(unwitnessedGolden, []byte(unset.String()), 0o644))
