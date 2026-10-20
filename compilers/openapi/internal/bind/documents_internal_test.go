@@ -2,6 +2,7 @@ package bind
 
 import (
 	"encoding/json/jsontext"
+	"math"
 	"runtime"
 	"strings"
 	"testing"
@@ -28,7 +29,8 @@ func TestDocs_NodeIsNilWhereTheDocumentHoldsNone(t *testing.T) {
 // TestDocs_ReadCostsItsPointersLength pins that a read spells the position it
 // reaches once: a pointer twice as deep allocates about twice the bytes, where
 // extending the position a token at a time copied it at each token and cost
-// four times. It is not parallel, as the count is the process's.
+// four times. It is not parallel, as the count is the process's, and takes the
+// least of three counts, since anything else allocating only adds to one.
 func TestDocs_ReadCostsItsPointersLength(t *testing.T) {
 	spine := func(levels int) (*docs, jsontext.Pointer) {
 		var root yaml.Node
@@ -43,13 +45,17 @@ func TestDocs_ReadCostsItsPointersLength(t *testing.T) {
 		require.Equal(t, NoReason, reason)
 		require.Equal(t, pointer, r.at.Pointer)
 		var stats runtime.MemStats
-		runtime.ReadMemStats(&stats)
-		before := stats.TotalAlloc
-		for range 10 {
-			_, _ = d.read(Source, pointer)
+		least := uint64(math.MaxUint64)
+		for range 3 {
+			runtime.ReadMemStats(&stats)
+			before := stats.TotalAlloc
+			for range 10 {
+				_, _ = d.read(Source, pointer)
+			}
+			runtime.ReadMemStats(&stats)
+			least = min(least, stats.TotalAlloc-before)
 		}
-		runtime.ReadMemStats(&stats)
-		return stats.TotalAlloc - before
+		return least
 	}
 	assert.Less(t, cost(800), 3*cost(400), "twice the depth, about twice the bytes")
 }

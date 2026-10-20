@@ -3,6 +3,7 @@ package typed_test
 import (
 	"encoding/json/jsontext"
 	"fmt"
+	"math"
 	"runtime"
 	"strings"
 	"testing"
@@ -211,14 +212,20 @@ func TestBuild_CostsLinearInItsLandings(t *testing.T) {
 	assert.Less(t, cost(2_000), 3*cost(1_000), "twice the landings, about twice the bytes")
 }
 
-// allocated is the bytes ten runs of f allocate on the heap.
+// allocated is the fewest bytes five runs of f allocate on the heap, over
+// three tries: whatever else the process allocates meanwhile only adds to a
+// count, so the least is the one f alone accounts for.
 func allocated(f func()) uint64 {
 	var stats runtime.MemStats
-	runtime.ReadMemStats(&stats)
-	before := stats.TotalAlloc
-	for range 10 {
-		f()
+	least := uint64(math.MaxUint64)
+	for range 3 {
+		runtime.ReadMemStats(&stats)
+		before := stats.TotalAlloc
+		for range 5 {
+			f()
+		}
+		runtime.ReadMemStats(&stats)
+		least = min(least, stats.TotalAlloc-before)
 	}
-	runtime.ReadMemStats(&stats)
-	return stats.TotalAlloc - before
+	return least
 }
