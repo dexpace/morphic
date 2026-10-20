@@ -86,8 +86,9 @@ func externalDocument(t *testing.T) string {
 
 // TestScope_TargetSchema_TheEndOfTheChainOrNothing pins the fallback readers
 // rely on: a $ref has the schema its chain ends on, however many hops that
-// takes; a non-reference, an unresolved reference and a loop have none, so a
-// use-site annotation never falls back to a referent that was never found. A
+// takes; a non-reference, an unresolved reference, a loop and a $ref into
+// another document, which the lowering lowers nothing of, have none, so a
+// use-site annotation never falls back to a referent its type does not name. A
 // scope that holds no bindings finds none either.
 func TestScope_TargetSchema_TheEndOfTheChainOrNothing(t *testing.T) {
 	t.Parallel()
@@ -111,9 +112,10 @@ func TestScope_TargetSchema_TheEndOfTheChainOrNothing(t *testing.T) {
 	}
 
 	other := b.component(t, "Other")
-	got := b.scope.TargetSchema(other, other.GetSchema())
-	require.NotNil(t, got, "a $ref into another document ends on the schema built there")
-	assert.Equal(t, "external", got.GetTitle())
+	e, ok := b.scope.Bindings.Entry(other)
+	require.True(t, ok)
+	require.Equal(t, "external", b.scope.Bindings.At(e.Chain.End).GetSchema().GetTitle(), "the chain ends there")
+	assert.Nil(t, b.scope.TargetSchema(other, other.GetSchema()), "a $ref into another document")
 
 	via := b.component(t, "Via")
 	assert.Nil(t, resolve.Scope{}.TargetSchema(via, via.GetSchema()), "no bindings, no referent")

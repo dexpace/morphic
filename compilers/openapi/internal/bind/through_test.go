@@ -389,10 +389,12 @@ x-lib:
 `, self)
 	disc := at("/components/schemas/P/discriminator")
 	for value, want := range map[string]bind.Chain{
-		"#/x-lib/a":       {Status: bind.Resolved, End: at("/x-lib/b"), Role: bind.Raw, Hops: 2},
-		"#/$defs/D":       {Status: bind.Resolved, End: at("/components/schemas/P/$defs/D"), Role: bind.Schema, Hops: 1},
-		"#/x-lib/h":       {Status: bind.Resolved, End: at("/components/schemas/Holder/$defs/X"), Role: bind.Schema, Hops: 3},
-		"#/x-lib/b":       {Status: bind.Resolved, End: at("/x-lib/b"), Role: bind.Raw, Hops: 1},
+		"#/x-lib/a": {Status: bind.Resolved, End: at("/x-lib/b"), Role: bind.Raw, Hops: 2, Named: true},
+		"#/$defs/D": {Status: bind.Resolved, End: at("/components/schemas/P/$defs/D"), Role: bind.Schema, Hops: 1,
+			Named: true},
+		"#/x-lib/h": {Status: bind.Resolved, End: at("/components/schemas/Holder/$defs/X"), Role: bind.Schema, Hops: 3,
+			Named: true},
+		"#/x-lib/b":       {Status: bind.Resolved, End: at("/x-lib/b"), Role: bind.Raw, Hops: 1, Named: true},
 		"#/x-lib/missing": {Status: bind.Unresolved, Failed: disc},
 	} {
 		m, ok := table.Mapping(disc, value)

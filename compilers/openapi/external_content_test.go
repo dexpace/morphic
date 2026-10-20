@@ -6,6 +6,7 @@ package openapi_test // external test package — exercises only the public API
 import (
 	"encoding/json/jsontext"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -682,14 +683,15 @@ paths:
 	}
 }
 
-// TestExternalContent_ARefWrittenInItLendsItsUseSiteNothing pins that a schema
-// $ref written in another document's content lends the use site holding it
-// nothing, as the parser's resolver resolved no $ref there (GitHub #751): no
-// default or description to a parameter or a header, no parts to a form body's
-// encoding, no file type to a binary body, and no discriminator to a schema
-// composing through it. A $ref the source writes still lends its target's
-// default (GitHub #1023).
-func TestExternalContent_ARefWrittenInItLendsItsUseSiteNothing(t *testing.T) {
+// TestExternalContent_ARefLendsItsUseSiteWhatItsTypeReaches pins that a use
+// site borrows what its schema $ref ends on, a default, a description, a form
+// body's parts, a file body or a discriminator, only where every $ref of the
+// chain names the source, as only then does its type reach that schema. One
+// naming another document, which is not lowered (GitHub #74), lends nothing,
+// the source's own included, so no part is keyed to a property the IR lacks
+// (GitHub #1023). One another document writes naming the source lends as the
+// source's own does.
+func TestExternalContent_ARefLendsItsUseSiteWhatItsTypeReaches(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "lib.yaml"), []byte(`RB:
@@ -697,12 +699,22 @@ func TestExternalContent_ARefWrittenInItLendsItsUseSiteNothing(t *testing.T) {
     multipart/form-data:
       schema: {$ref: '#/Form'}
       encoding: {file: {contentType: image/png}}
+RBHome:
+  content:
+    multipart/form-data:
+      schema: {$ref: './root.yaml#/components/schemas/Form'}
+      encoding: {file: {contentType: image/png}}
 RBBin:
   content: {application/x-custom: {schema: {$ref: '#/Bin'}}}
+RBBinHome:
+  content: {application/x-custom: {schema: {$ref: './root.yaml#/components/schemas/Bin'}}}
 Param: {name: lent, in: query, schema: {$ref: '#/Fmt'}}
+ParamHome: {name: home, in: query, schema: {$ref: './root.yaml#/components/schemas/Fmt'}}
 Resp:
   description: ok
-  headers: {X-Lent: {schema: {$ref: '#/Fmt'}}}
+  headers:
+    X-Lent: {schema: {$ref: '#/Fmt'}}
+    X-Home: {schema: {$ref: './root.yaml#/components/schemas/Fmt'}}
 Kid: {allOf: [{$ref: '#/Pet'}]}
 Form: {type: object, properties: {file: {type: string, format: binary}}}
 Bin: {type: string, format: binary}
@@ -716,16 +728,37 @@ paths:
     post:
       parameters:
         - {$ref: './lib.yaml#/Param'}
+        - {$ref: './lib.yaml#/ParamHome'}
         - {name: own, in: query, schema: {$ref: './lib.yaml#/Fmt'}}
       requestBody: {$ref: './lib.yaml#/RB'}
       responses: {"200": {$ref: './lib.yaml#/Resp'}}
+  /home:
+    post:
+      requestBody: {$ref: './lib.yaml#/RBHome'}
+      responses: {"204": {description: ok}}
+  /own:
+    post:
+      requestBody:
+        content:
+          multipart/form-data:
+            schema: {$ref: './lib.yaml#/Form'}
+            encoding: {file: {contentType: image/png}}
+      responses: {"204": {description: ok}}
   /file:
     post:
       requestBody: {$ref: './lib.yaml#/RBBin'}
       responses: {"204": {description: ok}}
+  /file-home:
+    post:
+      requestBody: {$ref: './lib.yaml#/RBBinHome'}
+      responses: {"204": {description: ok}}
 components:
   schemas:
     Local: {allOf: [{$ref: './lib.yaml#/Kid'}], properties: {z: {type: string}}}
+    Mine: {allOf: [{$ref: './lib.yaml#/Pet'}], properties: {z: {type: string}}}
+    Form: {type: object, properties: {file: {type: string, format: binary}}}
+    Bin: {type: string, format: binary}
+    Fmt: {type: string, default: json, description: fmt}
 `
 	doc, _, err := openapi.New().Compile(t.Context(),
 		[]compilers.Source{{Path: filepath.Join(dir, "root.yaml"), Data: []byte(root)}},
@@ -734,28 +767,45 @@ components:
 	require.NotNil(t, doc)
 	ops := map[ir.OpID]ir.Operation{}
 	require.False(t, ir.ForEachOperation(doc, func(op ir.Operation) { ops[op.ID] = op }))
-	form, file := ops["op/openapi/paths/~1form/post"], ops["op/openapi/paths/~1file/post"]
+	op := func(path string) ir.Operation { return ops[ir.OpID("op/openapi/paths/~1"+path+"/post")] }
 
 	params := map[string]ir.Parameter{}
-	for _, p := range form.Params {
+	for _, p := range op("form").Params {
 		params[p.Name.Source] = p
 	}
-	assert.Nil(t, params["lent"].Default, "a parameter's default")
-	assert.Empty(t, params["lent"].Docs.Description, "a parameter's description")
-	require.NotNil(t, params["own"].Default)
-	assert.Equal(t, "json", params["own"].Default.Str, "the source's own $ref")
-	require.Len(t, form.Responses, 1)
-	require.Len(t, form.Responses[0].Headers, 1)
-	assert.Nil(t, form.Responses[0].Headers[0].Default, "a header's default")
-	assert.Empty(t, form.Responses[0].Headers[0].Docs.Description, "a header's description")
-	require.NotNil(t, form.Request)
-	require.Len(t, form.Request.Contents, 1)
-	assert.Empty(t, form.Request.Contents[0].Encoding, "a form body's parts")
-	require.NotNil(t, file.Request)
-	require.Len(t, file.Request.Contents, 1)
-	assert.Equal(t, ir.TypeID("t/prim/any"), file.Request.Contents[0].Type.Target, "a binary body's type")
-	assert.Nil(t, file.Request.Contents[0].File)
-	local, ok := doc.Types["t/openapi/components/schemas/Local"].(*ir.Model)
-	require.True(t, ok)
-	assert.Empty(t, local.DiscriminatorValue, "a discriminator through a composed schema")
+	for name, lends := range map[string]bool{"lent": false, "own": false, "home": true} {
+		assert.Equal(t, lends, params[name].Default != nil, "%s: a parameter's default", name)
+		assert.Equal(t, lends, params[name].Docs.Description == "fmt", "%s: a parameter's description", name)
+	}
+	require.Len(t, op("form").Responses, 1)
+	headers := map[string]ir.Property{}
+	for _, h := range op("form").Responses[0].Headers {
+		headers[h.Name.Source] = h
+	}
+	assert.Nil(t, headers["X-Lent"].Default, "a header's default")
+	assert.Empty(t, headers["X-Lent"].Docs.Description, "a header's description")
+	require.NotNil(t, headers["X-Home"].Default)
+	assert.Equal(t, "json", headers["X-Home"].Default.Str)
+
+	for path, keys := range map[string][]ir.PropID{
+		"form": nil,
+		"own":  nil,
+		"home": {"p/openapi/components/schemas/Form/properties/file"},
+	} {
+		require.NotNil(t, op(path).Request, path)
+		require.Len(t, op(path).Request.Contents, 1, path)
+		assert.Equal(t, keys, slices.Sorted(maps.Keys(op(path).Request.Contents[0].Encoding)), "%s: a form body's parts", path)
+	}
+	for path, want := range map[string]ir.TypeID{"file": "t/prim/any", "file-home": "t/prim/bytes"} {
+		require.NotNil(t, op(path).Request, path)
+		require.Len(t, op(path).Request.Contents, 1, path)
+		body := op(path).Request.Contents[0]
+		assert.Equal(t, want, body.Type.Target, "%s: a binary body's type", path)
+		assert.Equal(t, want == "t/prim/bytes", body.File != nil, path)
+	}
+	for _, name := range []string{"Local", "Mine"} {
+		model, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/"+name)].(*ir.Model)
+		require.True(t, ok, name)
+		assert.Empty(t, model.DiscriminatorValue, "%s: a discriminator through a composed schema", name)
+	}
 }

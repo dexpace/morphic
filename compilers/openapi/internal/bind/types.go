@@ -176,6 +176,10 @@ type Chain struct {
 	End  Position
 	Role Role
 	Hops int
+	// Named reports, when Resolved, whether every $ref of the chain names the
+	// source (Hop.Named): only then does the lowering, which lowers no schema
+	// another document holds (GitHub #74), reach End.
+	Named bool
 	// Failed is the position whose own $ref failed, when Unresolved.
 	Failed Position
 	// Loop indexes Table.Loops when Cyclic, and Member reports whether the

@@ -198,12 +198,13 @@ func (b *binder) mapping(k mappingKey) Mapping {
 	}
 	b.find.landed(m.Hop)
 	if !b.holdsRef(m.Hop.Target) {
-		m.Chain = Chain{Status: Resolved, End: m.Hop.Target, Role: m.Hop.Role, Hops: 1}
+		m.Chain = Chain{Status: Resolved, End: m.Hop.Target, Role: m.Hop.Role, Hops: 1, Named: m.Hop.Named}
 		return m
 	}
 	m.Chain = b.chain(m.Hop.Target)
 	if m.Chain.Status == Resolved {
 		m.Chain.Hops++
+		m.Chain.Named = m.Chain.Named && m.Hop.Named
 	}
 	return m
 }

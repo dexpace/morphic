@@ -197,7 +197,8 @@ func TestTargetOf(t *testing.T) {
 // TestBindSchemas_AChainEndsInTheDocumentItEndsIn is TestTargetOf for schema
 // $refs, which the bindings read: each chain ends in the document its last
 // hop lands in, not the one it first leaves for, and a schema the model does
-// not hold there is built for the landing, a boolean one included.
+// not hold there is built for the landing, a boolean one included. Only the
+// chain naming no other document on the way lends its use site that schema.
 func TestBindSchemas_AChainEndsInTheDocumentItEndsIn(t *testing.T) {
 	t.Parallel()
 	dir := externalDir(t, map[string]string{"other.yaml": reachedFixtureOther, "third.yaml": reachedFixtureThird})
@@ -221,7 +222,13 @@ func TestBindSchemas_AChainEndsInTheDocumentItEndsIn(t *testing.T) {
 		require.Equal(t, bind.Resolved, e.Chain.Status, name)
 		assert.Equal(t, want.doc, table.Document(e.Chain.End.Doc).Name, name)
 		assert.Equal(t, want.pointer, e.Chain.End.Pointer, name)
-		assert.NotNil(t, bindings.End(js), "%s ends on a schema held for it", name)
+		held := bindings.At(e.Chain.End)
+		assert.NotNil(t, held, "%s ends on a schema held for it", name)
+		if assert.Equal(t, name == "ToLocal", e.Chain.Named, name) && e.Chain.Named {
+			assert.Same(t, held, bindings.End(js), name)
+		} else {
+			assert.Nil(t, bindings.End(js), name)
+		}
 	}
 }
 

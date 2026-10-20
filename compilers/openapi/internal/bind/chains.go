@@ -17,6 +17,7 @@ func (b *binder) chain(site Position) Chain {
 	for _, p := range slices.Backward(path) {
 		if end.Status == Resolved {
 			end.Hops++
+			end.Named = end.Named && b.hops[p].Named
 		}
 		b.chains[p] = end
 	}
@@ -46,7 +47,7 @@ func (b *binder) follow(p Position, path *[]Position, on map[Position]int) Chain
 		case h.Status != Resolved:
 			return Chain{Status: Unresolved, Failed: p}
 		case !b.holdsRef(h.Target):
-			return Chain{Status: Resolved, End: h.Target, Role: h.Role}
+			return Chain{Status: Resolved, End: h.Target, Role: h.Role, Named: true}
 		}
 		p = h.Target
 	}

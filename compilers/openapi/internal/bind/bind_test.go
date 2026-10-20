@@ -302,10 +302,10 @@ x-lib:
   S: {$ref: '#/components/schemas/Missing'}
   S: {type: string}
 `, self)
-	assert.Equal(t, bind.Chain{Status: bind.Resolved, End: at("/x-lib/S"), Role: bind.Raw, Hops: 1},
+	assert.Equal(t, bind.Chain{Status: bind.Resolved, End: at("/x-lib/S"), Role: bind.Raw, Hops: 1, Named: true},
 		entryAt(t, table, "/components/schemas/A").Chain, "in raw YAML")
-	assert.Equal(t, bind.Chain{Status: bind.Resolved, End: at("/components/schemas/M"), Role: bind.Schema, Hops: 1},
-		entryAt(t, table, "/components/schemas/B").Chain, "in the model")
+	assert.Equal(t, bind.Chain{Status: bind.Resolved, End: at("/components/schemas/M"), Role: bind.Schema, Hops: 1,
+		Named: true}, entryAt(t, table, "/components/schemas/B").Chain, "in the model")
 }
 
 // TestBind_ReadsEachRefAsTheSourceWritesIt pins that a $ref is read as Written
@@ -351,7 +351,8 @@ x-lib:
   C: {type: string}
 `, self)
 	a := entryAt(t, table, "/components/schemas/A")
-	assert.Equal(t, bind.Chain{Status: bind.Resolved, End: at("/x-lib/C"), Role: bind.Raw, Hops: 2}, a.Chain)
+	assert.Equal(t, bind.Chain{Status: bind.Resolved, End: at("/x-lib/C"), Role: bind.Raw, Hops: 2, Named: true},
+		a.Chain)
 	d := entryAt(t, table, "/components/schemas/D")
 	assert.Equal(t, bind.Resolved, d.Hop.Status, "D's own hop lands")
 	assert.Equal(t, bind.Chain{Status: bind.Unresolved, Failed: at("/components/schemas/E")}, d.Chain)
@@ -476,6 +477,10 @@ func TestBind_ReadsOtherDocuments(t *testing.T) {
     MissingToo: {$ref: 'gone.yaml#/Y'}
     Empty: {$ref: 'empty.yaml#/X'}
     Nowhere: {$ref: 'nowhere#/X'}
+    Pick:
+      discriminator:
+        propertyName: k
+        mapping: {s: 'other.yaml#/S', t: 'other.yaml#/T', l: '#/components/schemas/Leaf'}
 `, cfg)
 
 	whole := entryAt(t, table, "/components/schemas/Whole")
@@ -485,7 +490,17 @@ func TestBind_ReadsOtherDocuments(t *testing.T) {
 	assert.False(t, whole.Hop.Named)
 	back := entryAt(t, table, "/components/schemas/Back")
 	assert.Equal(t, bind.Chain{Status: bind.Resolved, End: at("/components/schemas/Leaf"), Role: bind.Schema, Hops: 2},
-		back.Chain, "a chain back into the source ends there")
+		back.Chain, "a chain back into the source ends there, past a $ref naming another document")
+	there, ok := table.Entry(bind.Position{Doc: back.Hop.Target.Doc, Pointer: "/S"})
+	require.True(t, ok)
+	assert.Equal(t, bind.Chain{Status: bind.Resolved, End: at("/components/schemas/Leaf"), Role: bind.Schema, Hops: 1,
+		Named: true}, there.Chain, "another document's $ref naming the source")
+	for value, named := range map[string]bool{"other.yaml#/S": false, "other.yaml#/T": false, "#/components/schemas/Leaf": true} {
+		m, ok := table.Mapping(at("/components/schemas/Pick/discriminator"), value)
+		require.True(t, ok, value)
+		require.Equal(t, bind.Resolved, m.Chain.Status, value)
+		assert.Equal(t, named, m.Chain.Named, value)
+	}
 	assert.Equal(t, 1, opened["other.yaml"], "read once however many name it")
 	assert.Equal(t, 1, opened["gone.yaml"], "a document that could not be read is not asked for again")
 	assert.Equal(t, bind.Unreadable, entryAt(t, table, "/components/schemas/Missing").Hop.Reason)
