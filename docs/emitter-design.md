@@ -93,7 +93,7 @@ The definitive design is a **strict three-stage pipeline** with these decisions:
 The trade this accepts, honestly: a new language costs a target-AST node set + a printer + a refine
 pipeline before it emits a line — heavier than dropping in a template pack. The payoff (compiler-
 enforced correctness, a free surface model, cross-language uniformity, identity-based merge) is
-real but back-loaded onto the first target, which is precisely milestone 3's charter. §5.5 and §14
+real but back-loaded onto the first targets, which is precisely milestone 3's charter. §5.5 and §14
 address the velocity cost directly, and the `Emit` seam is per-emitter, so a future target that
 genuinely wants templates for structure can implement `Emit` differently while reusing the same
 `plan` and refine step library.
@@ -126,7 +126,8 @@ Package `emitters` is the Layer-2 contract, as package `compilers` is the compil
 ```go
 package emitters
 
-// TargetKey identifies a emitter in the registry: "go", "python", "docs", "mock/go", …
+// TargetKey identifies a emitter in the registry: "go", "kotlin-jvm", "kotlin-kmp", "docs",
+// "mock/go", …
 type TargetKey string
 
 // Emitter is one target — a language SDK, a docs site, a mock server, a validator.
@@ -135,6 +136,7 @@ type TargetKey string
 type Emitter interface {
     Target() TargetKey
     Capabilities() Capabilities          // lets the engine reason without running (§2.3)
+    DecodeOptions(raw []byte) (TargetOptions, []ir.Diagnostic, error) // strict, versioned (§2.5)
     Generate(EmitterInput) EmitterOutput // the whole emitter, as one pure function
 }
 
@@ -147,7 +149,8 @@ type EmitterInput struct {
     Scope   *Scope                // nil = whole document; else "emit only these" — full Doc still
                                   // consumed so global decisions stay byte-identical
     Prior   *PriorState           // prior manifest + prior surface for write/integrate; nil first run
-    Options TargetOptions         // module path, root package, output layout — free-form per target
+    Options TargetOptions         // the target's own typed options, decoded and validated before
+                                  // Generate runs (§2.5)
 }
 
 type EmitterOutput struct {
@@ -221,8 +224,17 @@ type Capabilities struct {
     WriteIntegrate  bool          // supports additive merge into a live repo (§11)
     SurfaceVerify   bool          // produces a verify.Surface (§12)
     Protocols       []string      // "http", "grpc", "message", "graphql", "otp"
+    Lifecycle       Lifecycle     // "stable" | "experimental" | "hidden" | "sunset"; required
+    Successor       TargetKey     // the target replacing a sunset one; "" otherwise
 }
 ```
+
+`Lifecycle` is the one field the engine acts on, and only to tell the user, never to change an
+artifact. An `experimental` target runs with a warning diagnostic saying its output may change in
+any release. A `hidden` target is left out of every listing — help, completion, the list of targets
+a misspelt name is answered with — but runs when named, so a target under construction can be
+tried without being offered. A `sunset` target runs with a warning naming its `Successor`. The
+registry refuses a target that states no lifecycle, so none is stable by omission.
 
 ### 2.4 Contract rules the type system and tests enforce
 
@@ -239,6 +251,39 @@ type Capabilities struct {
   single version snapshot and never interprets `Availability`. The pass is designed, not built
   (architecture.md §2.2), and needs a way for a pass to replace types (#966); until it lands, no
   pass slices a document.
+
+### 2.5 Target options
+
+A target's options are a typed Go struct of its own, read by its `DecodeOptions` before `Generate`
+runs, so a mistake in a configuration is reported before anything is generated rather than
+discovered in the output. `TargetOptions` is the interface every target's options type meets, and
+`Generate` asserts the value back to its own type.
+
+```go
+type TargetOptions interface {
+    OptionsVersion() int // the options generation the value is in: always the target's current one
+}
+```
+
+- **Strict.** An unknown key, a missing required field and an invalid value are an error, as a
+  compiler's unknown setting is (`compilers.Compiler.DecodeOptions`): a setting silently ignored
+  leaves its author believing they configured something. Every optional field has a default.
+- **Versioned.** A configuration states the options `version` it was written against, and one that
+  states none is refused: which defaults apply is the one thing that must not be guessed. A target
+  keeps one pure migration per version step, applied in order to the raw form, so `Generate` only
+  ever sees the current version. A version newer than the target knows is refused, since the
+  configuration was written for a later Morphic.
+- **Defaults belong to a version.** A change that would alter the SDKs existing configurations
+  generate is a new version whose defaults differ; a configuration keeps its own version's defaults
+  until its owner moves it. New configurations start at the current version.
+- **The upgrade report.** Decoding a configuration behind the current version reports, as info
+  diagnostics coded `emitters/<target>/options-behind`, each setting whose value under the
+  configuration's version differs from the current default, so an owner sees exactly what moving
+  changes. The manifest (§11) records the version an SDK was generated with.
+
+Per-target heuristics live here too, beside the target's other choices, rather than in the plan:
+the parameter-passing shape (§4.13) and the numeric policy for unbounded numbers (§9). Each default
+is marked `Inferred` where it shapes output (INV6).
 
 ---
 
@@ -280,7 +325,6 @@ demonstrably needed:
 type OpPlan struct {
     HasBody         bool             // Operation.Request != nil; its Contents may be empty
     Idempotency     IdempotencyKind  // from Operation.Idempotency — a declared fact
-    ParamShape      ParamShape       // positional | options-bag — Inferred, injectable (§3.5)
     Return          ReturnShape      // model | void | list-of-models(elementwise) | stream
     ReturnType      *ir.TypeRef      // unwrapped primary return type
     PrimaryResponse *ir.Response     // SDK-ergonomic pick; IR keeps ALL responses
@@ -335,11 +379,16 @@ type AuthOption struct {              // one option in the OR-of-ANDs; slice ord
     Schemes []ir.SchemeUse            // ALL must be satisfied together; empty = "no auth is acceptable"
 }
 
-// IdempotencyKind / ParamShape / ReturnShape are small closed enums:
+// IdempotencyKind / ReturnShape are small closed enums:
 type IdempotencyKind string          // "unknown" | "safe" | "idempotent" | "idempotency_token"
-type ParamShape      string          // "positional" | "options_bag"
 type ReturnShape     string          // "model" | "void" | "list_elementwise" | "stream"
 ```
+
+Whether an operation's inputs are passed positionally or as an options bag is not here: what reads
+naturally differs by language (§3.6), so it is each target's decision (§4.13). The neutral facts
+it is decided from are already in the plan — `BindingView` says where each input binds, and
+`Parameter.Required` and `Payload.Required` which are required — so moving the decision out added
+no field.
 
 `PrimaryResponse` / `PrimaryContent` are the *one legitimate home* for the collapse oagen performs
 destructively in its compiler and Morphic forbids there (INV2): the IR keeps every response and
@@ -498,7 +547,6 @@ Everything the plan *infers* rather than reads is a knob here; every inferred ou
 
 ```go
 type Policy struct {
-    ParamShapeThreshold func(*ir.Operation) ParamShape // default: pathParams>1 || (pathParams>0 && (body||query)) → bag
     ContentRanking      []string                        // default: json > form > multipart > binary
     PrimaryResponse     func([]ir.Response) *ir.Response // default: lowest 2xx
     EnvelopeDetect      EnvelopePolicy                   // off unless explicitly enabled
@@ -507,6 +555,37 @@ type Policy struct {
 
 A test asserts that disabling a heuristic removes the corresponding `Inferred` plan field — the
 guard against a heuristic silently defaulting on and quietly making the plan non-neutral.
+
+### 3.6 Plan fact or refine fact
+
+The plan classifies and refine decides (§3), and three first targets (§14) test that line from the
+first model. A candidate field belongs in the plan only when all three of these hold:
+
+1. **Neutral.** Its value is the same for every target. Ask it concretely: would Go, Kotlin/JVM
+   and Kotlin Multiplatform ever want different values, or would a class-based or dynamic target?
+   If any would, it is a refine decision, made by each target with its default injectable through
+   the target's options (§2.5).
+2. **Derived from the document and plan policy alone.** It is a function of the IR and
+   `plan.Policy`, and reads no naming policy, runtime policy, hint or target option. Needing one of
+   those is the clearest sign the fact is per-target.
+3. **Shared.** Something depends on every consumer reaching the same value: an SDK, its docs and
+   its mock agreeing on the primary response or a page's items, or a classification every target
+   would otherwise derive for itself.
+
+A fact that meets the first two and not the third is a shared refine helper in `emitters/refine`:
+reused code, not a plan field. A fact about the IR itself — subtypes, usage, recursion — is
+`ir.Facts`'s (ir-design §4), which the plan copies where a serialized consumer needs it.
+
+The procedure decided the existing fields. `PrimaryResponse`, `PrimaryContent`, `Return` and
+`PagePlan` pass all three, since docs and mocks must agree with the SDK on them. `UnionClass` and
+`EnumFacts` pass as classifications of declared facts. The parameter-passing shape fails the first:
+a language with named arguments takes many parameters comfortably, one without reaches for an
+options struct much sooner, and Kotlin Multiplatform splits further because default arguments do not
+reach Swift. It moved to refine (§4.13).
+
+What holds the line beyond review: `emitters/plan` imports only `ir`, so it cannot read a naming or
+runtime policy or a target (§7); the plan is golden-tested once, with no target in the loop; and a
+plan field's doc comment names the agreement it serves, which a reviewer can check against rule 3.
 
 ---
 
@@ -578,7 +657,7 @@ snapshot pins the whole lowering deterministically.
 | `ExtractInterfaces` | `Model.Abstract`, `Implements`, union membership | Go interfaces / client interfaces for testability | §4.3 |
 | `MapExternalTypes` | `External{Identity, Package, MinVersion}` | imported library type + dependency-manifest entry; unmappable → diagnostic | §4.6 |
 | `MaterializeValues` | `Value{Kind, Num BigVal, Ref, Ctor}` | literals; `Num` → bignum/decimal, never float64; `Ctor` → call; `symbol` → string explicitly | §6 |
-| `BuildRequestShaping` | `plan.BindingView`, `plan.ParamShape` | request builders, per-protocol param binding, options-bag structs | §8 |
+| `BuildRequestShaping` | `plan.BindingView`, the target's parameter shape (§4.13) | request builders, per-protocol param binding, options-bag structs | §8 |
 | `LowerPagination` | `plan.PagePlan` (item unwrap, cursor paths) | auto-pager yielding `iter.Seq2[T, error]`; pacing left to policy | §7.3 |
 | `LowerStreaming` | `plan.StreamPlan` (direction, event union) | `EventStream.Recv()`/`Send()` over the event union; terminal ends | §7.3 |
 | `LowerLRO` | `plan.LROPlan` (final-state-via, poll/final ops, result path) | poller type + `Poll()/PollUntilDone()` returning the final type | §7.3 |
@@ -595,10 +674,11 @@ concrete lowering strategies for the load-bearing axes follow.
 
 ### 4.3 The target AST substrate
 
-The target AST (`emitters/golang/goast` for the first target) is a small, purpose-built,
-sealed-sum syntax layer — the exact Go the SDK needs, at declaration/signature granularity — modelled
-with the same discipline the IR uses (INV Go-conventions): an unexported marker method, one
-struct per node kind, a `Kind()` accessor, a generated switch-completeness test over the node enum.
+The target AST (`emitters/golang/goast` for Go, `emitters/kotlin/ktast` for both Kotlin targets) is
+a small, purpose-built, sealed-sum syntax layer — the exact code the SDK needs, at
+declaration/signature granularity — modelled with the same discipline the IR uses (INV
+Go-conventions): an unexported marker method, one struct per node kind, a `Kind()` accessor, a
+generated switch-completeness test over the node enum.
 
 ```go
 package goast
@@ -790,10 +870,17 @@ Identifier rendering is owned **exclusively** by refine, via an injectable `nami
 package naming
 
 type Policy interface {
-    Case(words []string, role Role) string  // Role: TypeName | Field | Method | Const | Param | Package
+    Case(words []Word, role Role) string  // Role: TypeName | Field | Method | Const | Param | Package
     Acronyms() AcronymTable
     Reserved() ReservedSet
 }
+
+type Word struct {
+    Canonical string // one word of Naming.Canonical: the boundaries, never re-derived
+    Source    string // that word as Naming.Source spells it, letter case kept; "" when not recovered
+}
+
+func Words(n ir.Naming) []Word // the one alignment every target uses
 ```
 
 The `Ident` on every AST node starts as the neutral `Naming.Canonical` word sequence — a *word
@@ -811,13 +898,60 @@ members are keyed by `EnumMember.ID`, which is derived from the value a member h
 whose names render alike are two entries to disambiguate, and reordering members of distinct values
 renames none.
 
+**The source spelling, for letter case only.** `Case` receives each canonical word beside the
+spelling the source gave it. `naming.Words` recovers the spellings by segmenting `Naming.Source`
+with the IR's own grammar (ir-design §3.2), keeping each word's letters as written. When those
+words, lowercased as the grammar lowercases them, are not exactly `Canonical`'s, no word gets a
+spelling, since a `Source` the words were not derived from — a name built from a hint, or a rename —
+says nothing about them. A policy may read a spelling to recover the letter case of a word whose
+boundaries the canonical form already fixes:
+`iOSVersion` is `i_os_version`, and the spellings `i`, `OS`, `Version` let a policy render
+`IOSVersion` where the acronym table alone gives `IOsVersion`, and `HTTPServer2FA` keep `HTTP` and
+`FA`. It never reads one to find a boundary — the words are fixed before any spelling is read — so
+the rule against re-splitting a cased string holds. Ignoring the spellings is conforming, and the
+acronym table applies either way.
+
 ### 4.13 Interface extraction & request shaping
 
 `ExtractInterfaces` derives per-language interfaces from `Abstract` / `Implements` / union
 membership, plus client interfaces for testability from the `OperationGroup` structure.
-`BuildRequestShaping` turns the plan's `BindingView` into request builders and the `ParamShape` into
-positional params or an options-bag struct — RequestBuilder-style constructs are generator-side, out
-of the IR (prior-art §2). `OperationGroup` nesting becomes sub-clients / fluent navigation.
+`BuildRequestShaping` turns the plan's `BindingView` into request builders, and passes an
+operation's inputs positionally or as an options-bag struct — RequestBuilder-style constructs are
+generator-side, out of the IR (prior-art §2). `OperationGroup` nesting becomes sub-clients / fluent
+navigation.
+
+The parameter shape is each target's, because what reads naturally differs by language (§3.6).
+Each target has a default rule, marked `Inferred` and overridable through its options (§2.5). Go's
+default bags an operation with more than one path parameter, or with a path parameter beside a body
+or query parameters. The Kotlin targets take required inputs positionally and optional ones as
+named parameters with defaults, except that Kotlin Multiplatform gathers the optional ones into a
+request class, since default arguments do not reach Swift.
+
+### 4.14 Unmodeled entries
+
+An `Unmodeled` entry is a construct the IR keeps verbatim rather than modeling it (ir-design §12).
+Its `Reason` decides what an SDK emitter does with it, and no reason leads the emitter to report
+it:
+
+| Reason | What an SDK emitter does | Who reports it |
+|---|---|---|
+| `vendor_extension` | nothing, unless a policy names the key (§6) | nobody |
+| `out_of_scope` | nothing, unless a policy names the key: emitter policy is the consumer these are kept for | nobody |
+| `validation_only` | nothing; a validation emitter reads them (§10) | the compiler, as an info |
+| `degraded_lowering` | lowers the weaker shape the IR holds beside the entry, never reading the entry | the compiler, where it degraded |
+| `no_ir_home` | nothing: the construct has no field yet, so the SDK cannot honour it | the compiler, where it kept it, or nobody where the lowering rule records why |
+
+The emitter does not report again because the compiler already did, at the construct's own
+position, and `Document.Diagnostics` carries that report to every consumer of the document. A
+second report per entry from each emitter would repeat it once per target with nothing added. Only
+`vendor_extension` and `out_of_scope` keys are ever read by name, and only by a policy (INV6), so the
+stability of key names (#429) matters for those and for no other reason.
+
+The copies of `readOnly` and `default` that the OpenAPI compiler keeps where they were declared,
+after applying them at every use
+([`use-bound-annotations`](./compilers/openapi.md#use-bound-annotations)), need no rule of their
+own: every use site already carries the fact, and an SDK reads no `no_ir_home` entry. T-15 (§13)
+holds the table.
 
 ---
 
@@ -831,7 +965,9 @@ then the language's native formatter canonicalises the result.
 The Stainless model, adapted to Go: the printer emits syntactically complete text and hands it to
 `go/format.Source` (Python `black`, TS `prettier`), which is the canonical authority on formatting.
 Indentation, spacing, and import ordering stop being the emitter's problem — an entire class of
-whitespace/import-order bugs is eliminated by delegation.
+whitespace/import-order bugs is eliminated by delegation. A language whose formatter Go cannot call
+in process, as Kotlin's, takes the other route: its printer lays out canonical code itself, and the
+formatter runs as a check in the verify stage, outside `Generate` (§8.8).
 
 **Why a domain AST → text → `go/format`, not `go/ast` directly.** `go/ast` is awkward to *synthesize*
 (it wants a `token.FileSet` and real positions and cannot carry generator intent like a field's
@@ -993,6 +1129,13 @@ emitters/
 │   ├── emit/          #   goast → []byte via printer + go/format; templates/ (boilerplate only)
 │   ├── naming/        #   Go reserved words + default acronym table (naming.Policy impl)
 │   └── mergeadapter.go#   go/ast additive-merge adapter (registers into manifest driver)
+├── kotlin/            # ◀ FIRST TARGETS (TargetKeys "kotlin-jvm" and "kotlin-kmp")
+│   ├── emitter.go     #   NewJVM() and NewMultiplatform(): one pipeline, two Platform profiles
+│   ├── platform.go    #   Platform: the per-platform type mapping, identifier rules, transport
+│   ├── ktast/         #   typed Kotlin AST (sealed sum) + printer
+│   ├── refine/        #   IR+Plan+Platform → ktast — the ordered lowering pipeline (§4)
+│   ├── emit/          #   ktast → []byte via a printer laying out canonical code; templates/
+│   └── naming/        #   Kotlin hard keywords, the Objective-C/Swift export rules (KMP)
 ├── docs/              # docs emitter: reuses plan + refine step library; docast + Markdown/HTML printer (§10)
 └── mock/              # mock-server emitter: reuses plan; server-routing AST + printer (§10)
 ```
@@ -1001,19 +1144,31 @@ emitters/
 per-language by definition. `plan`, `policy`, `naming`, `refine` (the contract + shared helpers),
 `manifest`, and `verify` are shared because they are language-neutral.
 
+Kotlin/JVM and Kotlin Multiplatform are two targets and one package. They share a language, so
+one AST, printer and refine pipeline serve both; they differ in a runtime, and that difference is
+data: a `Platform` value carrying the type each runtime-dependent primitive maps to, the identifier
+rules the Objective-C/Swift export adds on Multiplatform, and the default transport. A lowering
+that branches on the platform reads that value, never the target key. They are two targets rather
+than one with an option because their artifacts, surfaces and toolchains differ: a JVM SDK exposes
+`java.time` and `BigDecimal`, which Multiplatform common code does not have (§8.8).
+
 **Architecture test.** The import-graph assertion (written alongside the first emitter packages, not
-after) asserts: `emitters/golang` may import `emitters`, `emitters/plan`, `emitters/policy`,
-`emitters/naming`, `emitters/refine`, `emitters/manifest`, `emitters/verify`, `ir`; it may **not** import
-`compilers/*`, `engine`, or any other `emitters/<target>`. **Switch-completeness tests** live beside
-`goast` (over its `NodeKind`) and beside every refiner (over `ir.TypeKind`'s eleven kinds): adding an
-IR kind breaks compilation of every dispatch that must handle it (the `assertNever` obligation).
+after) asserts: `emitters/golang` and `emitters/kotlin` may each import `emitters`, `emitters/plan`,
+`emitters/policy`, `emitters/naming`, `emitters/refine`, `emitters/manifest`, `emitters/verify`,
+`ir`; neither may import `compilers/*`, `engine`, or the other. **Switch-completeness tests** live
+beside `goast` and `ktast` (over each one's `NodeKind`) and beside every refiner (over
+`ir.TypeKind`'s eleven kinds): adding an IR kind breaks compilation of every dispatch that must
+handle it (the `assertNever` obligation).
 
 ---
 
-## 8. First-target walkthrough — a Go SDK emitter
+## 8. First-target walkthrough — a Go SDK emitter, and the Kotlin targets
 
-`TargetKey("go")`. IR constructs traced through `plan → refine → emit`, one per subsection. IR field
-names per `ir-design.md`.
+The first milestone ships three targets from one plan: Go (`"go"`), Kotlin/JVM (`"kotlin-jvm"`) and
+Kotlin Multiplatform (`"kotlin-kmp"`, JVM, Native/iOS and JS/Wasm from common code). §8.1–§8.7
+trace IR constructs through `plan → refine → emit` for Go, one per subsection, with IR field names
+per `ir-design.md`. The Kotlin targets read the same plan and lower the same facts; §8.8 gives what
+they decide differently, and §9 every construct per target.
 
 **Generated SDKs require Go 1.27 or newer.** Their `go.mod` declares `go 1.27`, and the lowerings
 below use what that release provides:
@@ -1077,10 +1232,11 @@ Pagination{Strategy:cursor, InputCursor:{cursor}, Items:{body→items}, NextCurs
 bound `HTTPBinding{GET /users, query limit+cursor}`.
 
 - **plan.** `OpPlan{ HasBody:false, Return:list-of-models(elementwise), ReturnType:[]User,
-  ParamShape:options-bag (Inferred), Page:&PagePlan{Strategy:cursor, ItemType:User,
-  ItemPath:body→items, CursorIn:cursor, CursorOut:next_cursor} }`. Item-type unwrap is a plan
-  decision. Pacing delay is **not** here — it is runtime policy.
-- **refine.** `BuildRequestShaping` builds the request from the query bindings.
+  Page:&PagePlan{Strategy:cursor, ItemType:User, ItemPath:body→items, CursorIn:cursor,
+  CursorOut:next_cursor} }`. Item-type unwrap is a plan decision. Pacing delay is **not** here — it
+  is runtime policy.
+- **refine.** `BuildRequestShaping` builds the request from the query bindings, as an options bag
+  by the Go target's default parameter shape (§4.13), marked `Inferred`.
   `func (c *Client) ListUsers(ctx, *ListUsersParams) iter.Seq2[User, error]` is a range-over-func
   auto-pager: it walks pages using `CursorOut` to read `next_cursor` and `CursorIn` to feed it back,
   yields each item deserialized elementwise over `ItemPath`, yields one non-nil error and stops when
@@ -1174,39 +1330,112 @@ declared poll op `GetExport` is `HTTPBinding{GET /exports/{id}}` returning an `E
   `Poll()/PollUntilDone()`. `OneWay` operations take the opposite path — no poller, no response
   binding, a fire-and-forget method — read straight from `OpPlan.OneWay`.
 
+### 8.8 The Kotlin targets
+
+Both Kotlin targets build the walkthrough's constructs from the same plan facts; what differs is
+the runtime they target and the language's own rules.
+
+**Serialization and calls.**
+
+- Serialization is `kotlinx.serialization` on both. Multiplatform has no reflection, which rules
+  out a reflective JSON library, and the JVM target sharing it is what lets one refine pipeline
+  serve both. Codecs are generated `KSerializer`s, the counterpart of §4.8's
+  `MarshalJSONTo`/`UnmarshalJSONFrom`.
+- Unknown members follow §8.1's per-model rule: the SDK's `Json` is strict, and each model the spec
+  leaves open carries `@JsonIgnoreUnknownKeys`, so a closed model nested in an open one stays strict
+  and the reverse stays open.
+- Operations are `suspend` functions, pages and server streams are `Flow`s, and the transport sits
+  behind the runtime's `Transport` (§5.4), a Ktor client by default on both. Java callers are not a
+  goal of the JVM target at M3: its surface is Kotlin's.
+- The generated build files record the Kotlin and `kotlinx.serialization` releases the SDK needs.
+  The floor moves only with an options version (§2.5).
+
+**Multiplatform common code** has no `java.time`, no `BigDecimal`, no reflection and no `java.io`.
+
+- No opt-in API appears in a public signature, since every caller would then have to opt in too.
+  Where the standard library's type for a primitive is still experimental at the floor
+  (`kotlin.uuid.Uuid`, `kotlin.time.Instant`), the runtime supplies a value class that keeps the
+  wire text, with conversions to the standard type.
+- An exact number — `decimal`, `decimal128`, or an `integer` or `number` the numeric policy keeps
+  exact — is the runtime's `Decimal`, a value class over the decimal text: every digit round-trips,
+  it does no arithmetic, and a JVM caller converts it to `BigDecimal`.
+- A `datetime_offset` keeps its instant and not the offset it was written in, so re-encoding writes
+  UTC. The JVM target keeps the offset (`OffsetDateTime`), as Go's `time.Time` does.
+
+**Swift.** A Multiplatform SDK reaches iOS through the Objective-C export, which shapes three rules.
+
+- A sealed interface is not exhaustive in a Swift `switch`, so Swift callers need a `default` arm,
+  and the generated docs say so.
+- A name the export would mangle — `description` and `hash` (`NSObject` members), a name in the
+  `init`, `new`, `copy` or `alloc` method families, a Swift keyword — gets an explicit Objective-C
+  and Swift name from the naming policy (`@ObjCName`), so the Swift name is the policy's choice
+  rather than the exporter's.
+- Default arguments do not reach Swift, which is why Multiplatform's parameter shape differs (§4.13).
+
+**Formatting.** Go formats in process with `go/format` (§5.1). Go can call no Kotlin formatter, and
+`Generate` does no I/O, so the Kotlin printer lays out canonical code itself, and the Kotlin
+formatter runs as a check in the verify stage (#704) rather than inside the emitter.
+
+**Identifiers.** A Kotlin hard keyword used as a name (`class`, `object`, `true`) is escaped with
+backticks, which Kotlin allows on both platforms and which leaves the wire name alone. Go's casing
+lifts exported names clear of its keywords, so only locals and parameters can collide there: a
+keyword (`type`, `default`), or a predeclared identifier a parameter would shadow (`string`,
+`error`), takes a trailing underscore. Names that collide once cased are `Ctx.Syms`'s on every
+target (§4.12).
+
+**Inheritance.** A Kotlin data class cannot extend a data class, and Go has only embedding, so on all
+three targets a model's `Base` and `Mixins` are flattened into it (`TypePlan.Flattened`). Subtyping
+survives as interfaces: `Implements` becomes an interface, and a discriminated or abstract base a
+sealed interface its subtypes implement.
+
+**Scale.** The JVM caps a method at 255 parameter slots and 64 KiB of bytecode, and a class at
+65,535 constant-pool entries. A refiner checks each declaration against its target's limits and
+lowers past them to a shape that stays inside, or diagnoses what it cannot: a model whose
+constructor would pass the parameter cap becomes a class built through a builder instead of a data
+class. Go has no such caps, but one package of tens of thousands of types compiles slowly, which is
+#718's to partition.
+
 ---
 
-## 9. The lowering table (normative IR → Go)
+## 9. The lowering table (normative, per first target)
 
-The complete emitter acceptance surface is `ir-design.md §4–§9`; this table is the
-condensed normative mapping for the first target. Every row must have a Go emit path or a diagnosed
-degrade; a missing row is an IR bug (INV9), not a compiler change.
+The complete emitter acceptance surface is `ir-design.md §4–§9`; this table is the condensed
+normative mapping for the three first targets. Every row must have an emit path or a diagnosed
+degrade on each; a missing row is an IR bug (INV9), not a compiler change. The Kotlin column holds
+for both Kotlin targets, and "KMP:" marks where Multiplatform differs from the JVM (§8.8).
 
-| IR construct | Refine decision (Go) | Wire truth preserved |
-|---|---|---|
-| `Primitive` (incl. `integer`/`number`/`decimal`) | native type; arbitrary-precision → `math/big`/decimal lib or diagnostic; `uuid`→standard-library `uuid.UUID`; `any`→`any`; nil `*TypeRef`→void | — |
-| `Scalar{Base}` chain | resolve to nearest base + merged constraints; nil-base → newtype | encoding triple |
-| `Model` (Base/Implements/Mixins) | struct; embed base+mixins, interfaces for `Implements`; `Abstract`→interface; `Positional`→index-ordered struct | `WireID` order |
-| `AdditionalProps` / `Additional` | catch-all `map` as the embedded fallback; `closed`→`RejectUnknownMembers(true)`, pinned per model (§8.1) | pattern channel |
-| `Union` (4 tag modes) | sealed interface + marker + concrete variants + tag-dispatch (de)serializer | `WireName`/`WireID` per variant |
-| `Enum` open/closed/flags | closed→typed consts; open→string+consts+`Unknown`; flags→bitset; `FallbackMember` on decode | member `WireName` |
-| `List`/`MapT`/`Tuple` | `[]T`/`map[K]V`/positional struct (optional past `MinItems`, `Rest`→trailing slice); `List.Encoding`→serializer mode | packed/expanded |
-| `Literal` | typed constant (incl. `symbol`) | — |
-| `External` | imported library type at `MinVersion` + dep-manifest; opaque handle→passthrough/diagnostic | — |
-| `Any` | `any` (distinct from a diagnosed unknown) | — |
-| `Visibility` sets | N structs from `ModelShape`; PATCH → optional | — |
-| `Required` ⊥ `Nullable` ⊥ `Presence` | `T`/`Opt[T]`/`Nil[T]`/`OptNil[T]`/`omitzero`+presence; collapse→diagnostic | — |
-| `Constraints` | field `validate` tags + refine-built `Validate()`; unrepresentable regex→diagnostic | numeric bounds as decimal |
-| `Discriminator{Mapping→ID}` | tag-dispatch `UnmarshalJSONFrom` + factories | discriminator wire key |
-| `Pagination` (PropPaths) | `iter.Seq2[T, error]` auto-pager; item unwrap from plan; pacing from policy | path-based item/cursor read |
-| `Streaming` + `StreamDetail` | `EventStream.Recv()`/`Send()` over event union; terminal ends; direction from core, framing from binding | per-event content-type |
-| `LongRunning` | poller type + `Poll()`/`PollUntilDone()`; result from `ResultPath`; pacing from policy | monitor/final-state channel |
-| `OneWay` | fire-and-forget method, no response binding | — |
-| `Channel`/`Message`/`MessageBinding` | `MsgView` → channel client + send/receive + reply routing (messaging target) | address/correlation paths |
-| `ErrorCase{Fault, Retryable}` | error tree; declared facts win over policy | status→error map |
-| `Auth` OR-of-ANDs | `Authenticator` + per-scheme options; priority order | — |
-| `Value{Num BigVal, Ctor, Ref, symbol}` | literals via decimal (never float64); `Ctor`→call; `symbol`→string explicitly | — |
-| `Naming{Canonical}` | cased via `naming.Policy`; reserved-escaped; collisions ID-keyed | `WireName`/`WireID` never cased |
+| IR construct | Go | Kotlin (JVM and KMP) | Wire truth preserved |
+|---|---|---|---|
+| fixed-width `Primitive` (`int8`…`uint64`, `float32`, `float64`) | the same-named Go type | `Byte`…`Long`, `UByte`…`ULong`, `Float`, `Double` | — |
+| unbounded `Primitive` (`integer`, `number`, `float`) | `int64`, `float64` by the target's numeric policy (§2.5, marked `Inferred`); exact on request: `*big.Int`, the runtime decimal | `Long`, `Double` by the same policy; exact on request: JVM `BigInteger`/`BigDecimal`, KMP the runtime `Decimal` | every digit, when exact |
+| `decimal`, `decimal128` | the runtime decimal type, over `math/big` | JVM `BigDecimal`; KMP the runtime `Decimal` | every digit |
+| `bool`, `string`, `bytes`, `url` | `bool`, `string`, `[]byte`, `string` | `Boolean`, `String`, `ByteArray`, `String` | a URL's text, never re-serialized from a parsed form |
+| `uuid` | the standard library's `uuid.UUID` | JVM `java.util.UUID`; KMP the runtime `Uuid` (§8.8) | canonical text |
+| `date`, `time`, `datetime`, `datetime_offset`, `duration` | runtime `Date`, `TimeOfDay`, `DateTime`; `time.Time`; a runtime ISO 8601 `Duration` | JVM `LocalDate`, `LocalTime`, `LocalDateTime`, `OffsetDateTime`; KMP `kotlinx.datetime` local types, the runtime `Instant`; a runtime ISO 8601 `Duration` on both | KMP keeps an instant, not its offset (§8.8) |
+| `any`, `Any` | `jsontext.Value`, which keeps the bytes, distinct from a diagnosed unknown | `JsonElement` | every byte; decoding into Go's `any` would turn each number into a `float64` |
+| nil `*TypeRef` | void | `Unit` | — |
+| `Scalar{Base}` chain | named type over the resolved base, merged constraints; nil base → newtype | `@JvmInline value class` over the resolved base; nil base → value class over the wire form | encoding triple |
+| `Model` (Base/Implements/Mixins) | struct with `Base` and `Mixins` flattened in; `Implements` → interfaces; `Abstract` → interface; `Positional` → index-ordered struct | `data class` with `Base` and `Mixins` flattened in; `Implements` → interface; discriminated or abstract base → sealed interface; past the JVM parameter cap → builder-backed class (§8.8) | `WireID` order |
+| `Model` whose `Base` is no model | the base's own lowering, as an alias, when the model adds nothing beside it; a union base beside properties distributed over the variants as ir-design §4.3 distributes a union co-declared with a composition; anything else a diagnosed degrade | the same | — |
+| `AdditionalProps` / `Additional` | catch-all `map` as the embedded fallback; `closed`→`RejectUnknownMembers(true)`, pinned per model (§8.1) | catch-all `Map` folded in by the model's serializer; strict `Json`, `@JsonIgnoreUnknownKeys` on each open model | pattern channel |
+| `Union` (four wire shapes, §4.4) | sealed interface + marker + concrete variants + tag-dispatch (de)serializer | sealed interface + one wrapper class per variant + a `KSerializer` per wire shape; KMP: not exhaustive in Swift | `WireName`/`WireID` per variant |
+| `Enum` open/closed/flags | closed→typed consts; open→string+consts+`Unknown`; flags→bitset; `FallbackMember` on decode | closed → `enum class` with `@SerialName` members; open → value class over the value type with a constant per member, which keeps an unknown value; flags → value class over an integer | member `WireName` |
+| `List`/`MapT`/`Tuple` | `[]T`/`map[K]V`/positional struct (optional past `MinItems`, `Rest`→trailing slice); `List.Encoding`→serializer mode | `List<T>`/`Map<K, V>`/data class with a positional serializer (nullable past `MinItems`, `Rest` → trailing `List`) | packed/expanded |
+| `Literal` | typed constant (incl. `symbol`) | `const val`, or an `object` for a non-primitive value | — |
+| `External` | imported library type at `MinVersion` + dep-manifest; opaque handle→passthrough/diagnostic | the platform's mapping table, JVM and KMP each; unmappable → diagnostic | — |
+| `Visibility` sets | N structs from `ModelShape`; PATCH → optional | N classes from `ModelShape`; PATCH → optional | — |
+| `Required` ⊥ `Nullable` ⊥ `Presence` | `T`/`Opt[T]`/`Nil[T]`/`OptNil[T]`/`omitzero`+presence; collapse→diagnostic | `T` / `T? = null`, left out when null / `T?`, written as null / runtime `Optional<T?>`, absent or null or a value; collapse → diagnostic | — |
+| `Constraints` | field `validate` tags + refine-built `Validate()`; unrepresentable regex→diagnostic | a generated `validate()`, never an `init` check, which would refuse a response; unrepresentable regex → diagnostic | numeric bounds as decimal |
+| `Discriminator{Mapping→ID}` | tag-dispatch `UnmarshalJSONFrom` + factories | tag-dispatch `KSerializer` that reads the wire key first | discriminator wire key |
+| `Pagination` (PropPaths) | `iter.Seq2[T, error]` auto-pager; item unwrap from plan; pacing from policy | `Flow<T>`; item unwrap from plan; pacing from policy | path-based item/cursor read |
+| `Streaming` + `StreamDetail` | `EventStream.Recv()`/`Send()` over event union; terminal ends; direction from core, framing from binding | `Flow` of events received, a send channel for a client stream; the same sources | per-event content-type |
+| `LongRunning` | poller type + `Poll()`/`PollUntilDone()`; result from `ResultPath`; pacing from policy | poller with `suspend` `poll()`/`pollUntilDone()`; the same sources | monitor/final-state channel |
+| `OneWay` | fire-and-forget method, no response binding | `suspend` function returning `Unit`, no response binding | — |
+| `Channel`/`Message`/`MessageBinding` | `MsgView` → channel client + send/receive + reply routing (messaging target) | the same, over `Flow` | address/correlation paths |
+| `ErrorCase{Fault, Retryable}` | error tree; declared facts win over policy | exception hierarchy (`ApiException` → client/server → concrete); declared facts win over policy | status→error map |
+| `Auth` OR-of-ANDs | `Authenticator` + per-scheme options; priority order | `Authenticator` + per-scheme configuration; priority order | — |
+| `Value{Num BigVal, Ctor, Ref, symbol}` | literals via decimal (never float64); `Ctor`→call; `symbol`→string explicitly | literals built from the decimal text, never a `Double` literal; `Ctor` → call; `symbol` → string explicitly | — |
+| `Naming{Canonical}` | cased via `naming.Policy`; reserved-escaped with a trailing underscore; collisions ID-keyed | cased via `naming.Policy`; hard keywords in backticks; KMP: explicit Objective-C/Swift names where the export would mangle; collisions ID-keyed | `WireName`/`WireID` never cased |
 
 ---
 
@@ -1263,7 +1492,10 @@ seams; the `Origin`-tagged AST makes the manifest a byproduct of the emit walk.
   structural merge is **language-parameterised** by an adapter registered into the manifest driver;
   the Go adapter (`emitters/golang/mergeadapter.go`) uses `go/ast` to parse existing files and append
   only new top-level symbols, never delete. No adapter ⇒ skip, never clobber. Case-only renames go
-  via a temp name (APFS/NTFS hazard).
+  via a temp name (APFS/NTFS hazard). Go has no parser for Kotlin, so the Kotlin targets' adapter is
+  a JVM helper parsing with the Kotlin compiler's own front end, run by the engine, which owns all
+  I/O. Until it exists the Kotlin targets merge nothing: pruning stays header-gated and no
+  hand-written file is touched.
 - **Staleness check.** `(prior-manifest entities − current entities) ∩ files-on-disk` surfaces
   dead code additive writers cannot prune — cheap because both manifests are ID-keyed and the prior
   IR/plan snapshot is serializable (INV7).
@@ -1284,6 +1516,13 @@ that emit performs.
 - **Injectable per-language severity.** The differ emits **neutral change records**; a
   per-target `verify.Severity` function decides breaking/additive (parameter names are public API in
   PHP, arity in Go, ~nothing in JS) — heuristics-as-policy (INV6).
+- **Extractors for the first targets.** Go's reads the existing package's exported API, as
+  `apidiff` does. The Kotlin targets read the ABI dumps the Kotlin Gradle plugin's ABI validation
+  writes: the JVM's class-file signatures, and for Multiplatform the KLib ABI plus the generated
+  Objective-C header, since a change Swift sees can break callers the Kotlin ABI does not show.
+  Kotlin's severity differs from Go's in two places: a parameter added with a default leaves
+  Kotlin callers compiling but changes the JVM signature, which is binary-breaking, and on
+  Multiplatform a rename only the Swift header shows still breaks Swift callers.
 - **Behavioral channel separate from structural.** A default-value change is behavioral,
   tracked in a distinct channel from a signature change — detectable without re-parsing because the
   plan already carries defaults as typed `Value`s. Every finding carries drift provenance (which
@@ -1324,6 +1563,9 @@ throughout this document.
 14. **T-14 · Runtime behavior against a shared server, with a coverage gate (milestone 3)** — every
     target's generated SDK runs one hand-written suite of behaviors against one behavior server,
     and a gate fails a target that silently skips one (§13.1).
+15. **T-15 · Unmodeled routing** — a document carrying an `Unmodeled` entry of each reason, on a
+    type an operation reaches and on the operation, generates byte-identical artifacts and the same
+    diagnostics as the document without them, unless a policy names an entry's key (§4.14).
 
 ### 13.1 The behavior server (T-14)
 
@@ -1357,14 +1599,17 @@ tests once per target does not scale, and nothing would notice a target that lef
 
 ## 14. Per-target milestone plan
 
-Extends architecture.md §6 milestone 3 (the first emitter) and beyond.
+Extends architecture.md §6 milestone 3 (the first emitters) and beyond.
 
-1. **M3a — plan layer + Go target skeleton.** `emitters/plan` with its language-independent golden
-   corpus; `emitters/golang` emitting models, enums, and one service client end-to-end. Proves the
+1. **M3a — plan layer + the three first targets' skeletons.** `emitters/plan` with its
+   language-independent golden corpus; `emitters/golang` and both Kotlin targets
+   (`emitters/kotlin`) emitting models, enums, and one service client end-to-end. Proves the
    plan/refine/emit boundary and that the IR retains what a refiner needs (architecture.md §6 M3).
-2. **M3b — the hard axes.** Unions (all four tag modes), discriminators, visibility projections, the
-   four optionality states, containers, external types, values. Each is a refine step tied to a
-   specific un-lowered IR fact — the acceptance test cashed.
+   Three targets at once make the plan's neutrality a test from the first model: a plan field only
+   one of them can use fails §3.6 at M3a, not when a later language lands.
+2. **M3b — the hard axes.** Unions (all four wire shapes), discriminators, visibility projections,
+   the four optionality states, containers, external types, values, on each first target. Each is a
+   refine step tied to a specific un-lowered IR fact — the acceptance test cashed.
 3. **M3c — operations & runtime.** Pagination, streaming, LRO, error taxonomy, auth; the runtime
    policy tree and the boilerplate templates; the wire-conformance harness; the behavior server, its
    workflows and its coverage gate (T-14).
@@ -1372,9 +1617,10 @@ Extends architecture.md §6 milestone 3 (the first emitter) and beyond.
    and that docs/mock agree with the SDK by construction.
 5. **M4 — write/integrate + surface verification.** Manifest, header-gated pruning, ignore regions,
    additive `go/ast` merge, staleness; neutral surface diff with injectable per-language severity.
-6. **M5 — second language (TS or Python).** Proves cross-language uniformity: a new target is a new
-   target AST + printer + refine pipeline reusing the shared plan and step contract, forcing **no**
-   IR or plan change. This is where the shared-plan investment visibly pays back.
+6. **M5 — a further language family (TS or Python).** Proves the plan holds beyond the first targets'
+   statically typed languages: a new target is a new target AST + printer + refine pipeline reusing
+   the shared plan and step contract, forcing **no** IR or plan change. The shared plan first pays
+   back at M3, where three targets read it.
 
 ---
 
@@ -1400,11 +1646,8 @@ Extends architecture.md §6 milestone 3 (the first emitter) and beyond.
 
 ## 16. Open questions (tracked for implementation)
 
-1. **Plan-fact vs refine-fact boundary.** The plan classifies; refine decides. The rule is stated
-   and golden-tested (a plan decision must not assume a target's capabilities) but not
-   compiler-enforced. Needs a documented decision procedure for "is this a plan fact or a refine
-   fact?" before the second language lands, so the plan does not bloat with speculative,
-   target-shaped fields.
+1. **Plan-fact vs refine-fact boundary.** Settled in §3.6, before the plan layer is built, since
+   three first targets test it from M3a. It moved the parameter-passing shape out of the plan.
 2. **Target-AST granularity.** The line is "declarations and signatures = typed AST; behavior and
    boilerplate = template". Method *bodies* that are pure boilerplate (the pager's fetch loop, the
    retry loop) stay templated; an over-fine AST that models statement-level Go grammar is a
@@ -1426,8 +1669,8 @@ Extends architecture.md §6 milestone 3 (the first emitter) and beyond.
 
 7. **Behavior server distribution.** The server T-14 runs against is Go in this repository, and a
    target in another language needs it running beside its own test suite. Whether that is a
-   released binary, a container image or a build at a pinned revision is decided when the second
-   language (M5) lands.
+   released binary, a container image or a build at a pinned revision is decided when the Kotlin
+   targets' T-14 suite is built (M3c).
 
 ---
 
@@ -1443,5 +1686,5 @@ Extends architecture.md §6 milestone 3 (the first emitter) and beyond.
 | 6 Heuristics are policy | `plan.Policy`, `naming.Policy`, `verify.Severity`, method-name derivation, and shaping hints are injectable and disable-able; inferred outputs marked `Inferred` (§3.5, §6.4, §12) |
 | 7 Serializable/deterministic | `Plan` + manifest are JSON-serializable; maps walked sorted, slices source order; identical input ⇒ identical bytes (§3, §5.5, §13) |
 | 8 Optionality ≠ nullability | `LowerOptionality` renders all four states plus protobuf `Presence` as a third axis; collapses are diagnosed (§4.7) |
-| 9 Capability surface designed against every format | every `ir.TypeKind` and every operation facet (pagination/streaming/LRO/one-way/messaging) has a lowering path or diagnosed degrade (§4.2, §9); docs/mock/validation are registry entries over the same `Doc + Plan`; a new language forces no IR or plan change (§10, §14 M5–M6) |
+| 9 Capability surface designed against every format | every `ir.TypeKind` and every operation facet (pagination/streaming/LRO/one-way/messaging) has a lowering path or diagnosed degrade (§4.2, §9); docs/mock/validation are registry entries over the same `Doc + Plan`; a new language forces no IR or plan change (§10, §14 M5) |
 | 10 Runtime policy separate | `policy.Policy` tree in `EmitterInput.Policy`, never on `ir.Document`; it parameterises only boilerplate; declared IR facts win over its defaults (§6) |
