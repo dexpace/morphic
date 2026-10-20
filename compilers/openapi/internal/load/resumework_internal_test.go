@@ -35,7 +35,7 @@ func resumedOver(t *testing.T, dir, root string, limit int) (*resumeWork, []ir.D
 	reader := newExternal(doc, opts, newExternalReads(self))
 	reader.work.limit = limit
 	at := pointerAt(0, overlay.Origin{})
-	diags := newResolution(t.Context(), at, doc, Siblings{}, self, opts, &reader).run(doc)
+	diags := newResolution(t.Context(), at, doc, Siblings{}, self, opts, &reader).run(t.Context(), doc)
 	return reader.work, append(diags, crossed(at, &reader)...)
 }
 

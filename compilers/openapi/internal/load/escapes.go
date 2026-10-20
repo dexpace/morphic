@@ -340,7 +340,7 @@ func (e *escapes) restoreFrom(ctx context.Context, items iter.Seq[soa.WalkItem],
 		return "", nil // no model holds a rewritten value, so nothing is walked
 	}
 	defer e.restoreTrees()
-	r := &restorer{ctx: ctx, esc: e, seen: map[any]bool{}, walked: map[any]bool{}}
+	r := &restorer{esc: e, seen: map[any]bool{}, walked: map[any]bool{}}
 	site, err := eachSighting(items, restoring, func(_ jsontext.Pointer, _ soa.Locations, model any) error {
 		r.add(model)
 		return nil
@@ -348,7 +348,7 @@ func (e *escapes) restoreFrom(ctx context.Context, items iter.Seq[soa.WalkItem],
 	if err != nil {
 		return site, err
 	}
-	return "", r.finish(built)
+	return "", r.finish(ctx, built)
 }
 
 // restorer puts the model copies of rewritten values back, starting from the
@@ -358,7 +358,6 @@ func (e *escapes) restoreFrom(ctx context.Context, items iter.Seq[soa.WalkItem],
 // source shows them. Each reference is visited once, and each object walked
 // once.
 type restorer struct {
-	ctx    context.Context
 	esc    *escapes
 	seen   map[any]bool
 	walked map[any]bool
@@ -384,36 +383,36 @@ func (r *restorer) add(model any) bool {
 // finish adds the schemas built for the bindings' landings, which no walk of
 // the source shows, and then what everything added reaches, behind the
 // barrier the walks have: the library faults on shapes it did not expect.
-func (r *restorer) finish(built []typed.Built) (err error) {
+func (r *restorer) finish(ctx context.Context, built []typed.Built) (err error) {
 	defer recovered(&err, restoring)
 	for _, b := range built {
 		if b.Schema != nil {
-			r.addObject(record{object: b.Schema, walk: walkOf(b.Schema)})
+			r.addObject(ctx, record{object: b.Schema, walk: walkOf(b.Schema)})
 		}
 	}
-	r.drain()
+	r.drain(ctx)
 	return nil
 }
 
 // drain adds the object of each queued hop and what it holds, until the queue
 // is empty.
-func (r *restorer) drain() {
+func (r *restorer) drain(ctx context.Context) {
 	for len(r.queue) > 0 {
 		rec := r.queue[0]
 		r.queue = r.queue[1:]
-		r.addObject(rec)
+		r.addObject(ctx, rec)
 	}
 }
 
 // addObject adds the object rec reached, which need be no reference itself,
 // and every model its walk yields.
-func (r *restorer) addObject(rec record) {
+func (r *restorer) addObject(ctx context.Context, rec record) {
 	if r.walked[rec.object] {
 		return
 	}
 	r.walked[rec.object] = true
 	r.add(rec.object)
-	eachWithin(r.ctx, rec, func(model any) { r.add(model) })
+	eachWithin(ctx, rec, func(model any) { r.add(model) })
 }
 
 // eachWithin calls visit with each model the walk of rec's object yields.

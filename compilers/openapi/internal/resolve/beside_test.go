@@ -104,11 +104,12 @@ components:
 
 // TestFound_HandsOnNoTypedNil pins the answer ObjectAt hands Scope.refuses for
 // a hop: a nil interface for a nil object, since a typed nil panics in the read
-// of the mapping a reference is written as. It is compared with ==, which a
-// typed nil fails and assert.Nil would let through.
+// of the mapping a reference is written as. It is compared by Equal against nil,
+// which compares the interface itself: a typed nil fails it, and assert.Nil
+// would let one through.
 func TestFound_HandsOnNoTypedNil(t *testing.T) {
 	t.Parallel()
-	assert.True(t, resolve.Found[soa.ReferencedRequestBody](nil) == nil)
+	assert.Equal(t, nil, resolve.Found[soa.ReferencedRequestBody](nil))
 	body := &soa.ReferencedRequestBody{}
 	assert.Equal(t, any(body), resolve.Found(body))
 }

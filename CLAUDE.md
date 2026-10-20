@@ -137,8 +137,10 @@ cmd/morphic-harness/
              Layer 4 — sweeps a spec or directory through the oracles; imports internal/harness.
 cmd/morphic-covergate/
              Layer 4 — judges a coverage profile for `make coverage`; imports x/tools/cover.
+cmd/morphic-vet/
+             Layer 4 — runs internal/lintrules under go vet; imports it + x/tools unitchecker.
 internal/    Test/tooling infrastructure, outside the pipeline (harness, archtest, decls, jsonshape,
-             keydoc, leakcheck, testspec).
+             keydoc, leakcheck, lintrules, testspec).
 ```
 
 The layering is enforced by `internal/archtest`, and **its `rules` map is the source of truth** —
@@ -161,9 +163,9 @@ methods (`internal/archtest`), and no function may exceed 70 lines or a cognitiv
 structure replaced reached 159 methods without ever writing a long function, so every rule then in
 force stayed green while it grew. A failure is a prompt to ask what the type has started doing.
 
-No lint suppression stands in the source: `internal/archtest` refuses a `//nolint`, `revive:` or
-`lint:ignore` comment. A suppression is a rule under `exclusions` in `.golangci.yml`, kept as narrow
-as the finding it excuses, with its reason beside it.
+No lint suppression stands in the source: `internal/archtest` refuses a `//nolint`, `revive:`,
+`lint:ignore` or `exhaustive:ignore` comment. A suppression is a rule under `exclusions` in
+`.golangci.yml`, kept as narrow as the finding it excuses, with its reason beside it.
 
 ## Testing strategy
 
@@ -201,6 +203,15 @@ These all exist already — extend them rather than building a parallel mechanis
   production package's uses of the parser library's reference-resolution API, which it derives
   from the library's sources, to `resolutionBaseline`. The baseline only shrinks: removing a use
   means lowering it (#558).
+- **Lint rules and their plants**: a rule an off-the-shelf linter expresses lives in
+  `.golangci.yml`; one about which package may build or spell a part of the IR is a go/analysis
+  analyzer in `internal/lintrules`, which `make vet` runs through `cmd/morphic-vet`. Neither lives
+  in archtest. Each is held to findings planted for it, since a rule that recognizes nothing
+  leaves a clean tree clean: `make lint-planted` holds the linters to
+  `internal/lintrules/testdata/planted`, and `internal/lintrules`' own test holds the analyzers to
+  `testdata/mod`, a tree laid out like the module. Lines there carry the findings they must draw.
+  A new rule gets its plants beside the others, and a new linter a place in the script's list.
+  Both run on every port `make build` covers, which `testdata/ports` proves they reach.
 - **Declaration pins**: a test that holds a hand-written list (an enum's members, a sealed sum's
   kinds, the fields of a shape) to what a package declares reads the package through
   `internal/decls`, which type-checks it with `go/packages`. It does not parse the sources: parsed
@@ -287,7 +298,7 @@ below are the ones most likely to bite in this codebase — the full guide gover
   `internal/archtest` enforces the cap, and `go test ./internal/archtest -run TestDocComments`
   lists every comment over it; an exception is a `longDocComments` entry there, with its reason.
 - **Serialization:** JSON goes through `encoding/json/v2` and `encoding/json/jsontext` only;
-  `encoding/json` (v1) is banned by `internal/archtest`, tests included. Explicit struct tags on
+  `encoding/json` (v1) is banned by the depguard lint, tests included. Explicit struct tags on
   every field: `omitempty` only on strings, slices and maps whose empty and absent forms mean the
   same; `omitzero` on every other optional field (pointers, bools, numbers), because v2's
   `omitempty` keeps a zero number or bool and drops a pointer to an empty struct, and on a

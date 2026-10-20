@@ -237,7 +237,7 @@ func TestRefScope_NoDocumentResolvesNoRef(t *testing.T) {
 	t.Parallel()
 	scope := lowering.Ctx{}.RefScope()
 
-	assert.True(t, scope.Doc == nil, "a nil interface, not one holding a nil pointer")
+	assert.Equal(t, nil, scope.Doc, "a nil interface, not one holding a nil pointer")
 	assert.Nil(t, scope.ModelAt("/components/schemas/n"), "no document to read a schema from")
 	assert.Nil(t, scope.Bindings)
 	_, ok := scope.TargetPointer(&oas3.JSONSchema[oas3.Referenceable]{})

@@ -1536,10 +1536,9 @@ func enumValueType(s *oas3.Schema, memberPrim ir.PrimKind) ir.PrimKind {
 // the kind has no place in an Enum, and the caller degrades the whole enum to a
 // Union of Literals with a diagnostic.
 //
-// Its switch has one arm per ir.ValueKind, as enumMemberKey's does;
-// TestValueKindSwitches_NameEveryValueKind reddens when ir adds a kind either
-// lacks. The default arm refuses a kind rather than assert a type the source
-// never wrote.
+// Its switch has one arm per ir.ValueKind, as enumMemberKey's does; the
+// exhaustive linter fails when ir adds a kind either lacks. The default arm
+// refuses a kind rather than assert a type the source never wrote.
 func enumMemberForm(v ir.Value) (ir.PrimKind, string, bool) {
 	switch v.Kind {
 	case ir.ValueString:

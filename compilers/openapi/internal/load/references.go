@@ -41,13 +41,13 @@ type resolvable interface {
 func resolveWith(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI, sibs Siblings,
 	self sourceDocument, opts Options, reader *external,
 ) []ir.Diagnostic {
-	return newResolution(ctx, at, doc, sibs, self, opts, reader).run(doc)
+	return newResolution(ctx, at, doc, sibs, self, opts, reader).run(ctx, doc)
 }
 
 // run is resolveWith's work over doc, the document p was made for.
-func (p *resolution) run(doc *soa.OpenAPI) []ir.Diagnostic {
-	p.fail(eachReference(walkSource(p.ctx, doc, p.sibs), resolverPanics, func(site jsontext.Pointer, r resolvable) error {
-		p.visit(site, r)
+func (p *resolution) run(ctx context.Context, doc *soa.OpenAPI) []ir.Diagnostic {
+	p.fail(eachReference(walkSource(ctx, doc, p.sibs), resolverPanics, func(site jsontext.Pointer, r resolvable) error {
+		p.visit(ctx, site, r)
 		return nil
 	}))
 	return append(p.failures, p.found.diags(p.at)...)
@@ -56,7 +56,6 @@ func (p *resolution) run(doc *soa.OpenAPI) []ir.Diagnostic {
 // resolution is one resolver pass over a document: how each reference is
 // resolved, and what the pass has found so far.
 type resolution struct {
-	ctx      context.Context
 	at       func(jsontext.Pointer) ir.Provenance
 	opts     references.ResolveOptions
 	reader   *external
@@ -91,7 +90,7 @@ func newResolution(ctx context.Context, at func(jsontext.Pointer) ir.Provenance,
 		resolveOpts.HTTPClient = *reader
 		reader.hold(ctx, sibs)
 	}
-	return &resolution{ctx: ctx, at: at, opts: resolveOpts, reader: reader, sibs: sibs, esc: self.escapes,
+	return &resolution{at: at, opts: resolveOpts, reader: reader, sibs: sibs, esc: self.escapes,
 		version: doc.OpenAPI, validateOpts: documentOptions(doc),
 		found: reachedFindings{sites: map[references.Reference]jsontext.Pointer{}, known: self.found,
 			tree: self.tree}}
@@ -102,18 +101,18 @@ func newResolution(ctx context.Context, at func(jsontext.Pointer) ir.Provenance,
 // The library counts one resolved once a chain that failed passed through it,
 // so which members of a failing chain are reported follows the walk's order
 // (GitHub #767). A message quotes the $ref as the source writes it.
-func (p *resolution) visit(site jsontext.Pointer, r resolvable) {
+func (p *resolution) visit(ctx context.Context, site jsontext.Pointer, r resolvable) {
 	var vErrs []error
 	var err error
 	if !r.IsResolved() {
-		vErrs, err = r.Resolve(p.ctx, p.opts)
+		vErrs, err = r.Resolve(ctx, p.opts)
 	}
 	if p.reader != nil {
-		vErrs, err = p.reader.settle(p.ctx, r, p.opts, vErrs, err)
+		vErrs, err = p.reader.settle(ctx, r, p.opts, vErrs, err)
 	}
 	c := resolutionChain(r)
 	t := p.esc.trailOf(c)
-	p.found.note(site, t, p.unrequired(site, r, vErrs))
+	p.found.note(site, t, p.unrequired(ctx, site, r, vErrs))
 	if err != nil {
 		p.failures = append(p.failures, failureDiag(p.at(site), p.esc.writtenOf(r), t, err))
 	}
@@ -123,12 +122,12 @@ func (p *resolution) visit(site jsontext.Pointer, r resolvable) {
 // REQUIRED-field rule's artifacts in the object r reached (requiredArtifacts),
 // and reports a panic finding them at site. A schema's resolution draws no
 // artifact of the rule, but is judged alike rather than told apart.
-func (p *resolution) unrequired(site jsontext.Pointer, r resolvable, vErrs []error) []error {
+func (p *resolution) unrequired(ctx context.Context, site jsontext.Pointer, r resolvable, vErrs []error) []error {
 	obj, _, ok := reachedObject(r)
 	if !ok {
 		return vErrs
 	}
-	required := findRequiredArtifacts(p.ctx, vErrs, reachedWalk(p.ctx, obj), p.version, p.validateOpts).reportedAt(site)
+	required := findRequiredArtifacts(ctx, vErrs, reachedWalk(ctx, obj), p.version, p.validateOpts).reportedAt(site)
 	p.failures = append(p.failures, required.faults(p.at)...)
 	return required.without(vErrs)
 }

@@ -843,3 +843,26 @@ func TestBaselineFindings_EveryDifferenceFails(t *testing.T) {
 		"held": {"lib.A": at(1, 2, 5)}, "new": {"lib.C": at(7)},
 	}, root))
 }
+
+// loadOverlaid type-checks the package at dir, a directory of the repository,
+// with src added to it as the file named file, and returns it.
+func loadOverlaid(t *testing.T, dir, file, src string) *decls.Package {
+	t.Helper()
+	root := repoRoot(t)
+	planted := filepath.Join(root, filepath.FromSlash(dir), file)
+	cfg := &packages.Config{
+		Mode:    packages.NeedName | packages.NeedFiles | packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo,
+		Dir:     root,
+		Env:     append(os.Environ(), "GOPACKAGESDRIVER=off"),
+		Overlay: map[string][]byte{planted: []byte(src)},
+	}
+	loaded, err := packages.Load(cfg, module+"/"+dir)
+	require.NoError(t, err)
+	require.Len(t, loaded, 1)
+	require.Empty(t, loaded[0].Errors, "the plant must type-check, or it proves nothing")
+	hasPlant := slices.ContainsFunc(loaded[0].Syntax, func(f *ast.File) bool {
+		return loaded[0].Fset.Position(f.Pos()).Filename == planted
+	})
+	require.True(t, hasPlant, "the plant was not part of the package")
+	return &decls.Package{Types: loaded[0].Types, Info: loaded[0].TypesInfo, Syntax: loaded[0].Syntax, Fset: loaded[0].Fset}
+}

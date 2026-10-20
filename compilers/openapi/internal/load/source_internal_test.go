@@ -646,7 +646,7 @@ func TestHold_AReferenceNamingTheSourceCopiesNoBytesOfIt(t *testing.T) {
 		"components:\n  responses:\n    B: {description: ok}\n", path)
 	a := response200(t, doc, "/a")
 
-	pass.visit("/paths/~1a/get/responses/200", a)
+	pass.visit(t.Context(), "/paths/~1a/get/responses/200", a)
 
 	require.Empty(t, pass.failures)
 	assert.Equal(t, "ok", a.GetObject().Description)

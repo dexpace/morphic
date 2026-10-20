@@ -579,7 +579,7 @@ components:
   parameters:
     P: {$ref: '#/paths/~1a+b'}
 `)
-	r := &restorer{ctx: t.Context(), esc: esc, seen: map[any]bool{}, walked: map[any]bool{}}
+	r := &restorer{esc: esc, seen: map[any]bool{}, walked: map[any]bool{}}
 
 	assert.True(t, r.add(models["P"]))
 	assert.False(t, r.add(models["P"]), "a model is visited once")
@@ -642,10 +642,10 @@ func TestRestorer_FinishReportsAWalkOfAnObjectThatFaults(t *testing.T) {
 	// faults, and the barrier turns that into the error.
 	hop := &soa.ReferencedParameter{}
 	hop.GetCore().Reference.ValueNode = &yaml.Node{Kind: yaml.ScalarNode, Value: "#/x"}
-	r := &restorer{ctx: t.Context(), esc: newEscapes(), seen: map[any]bool{}, walked: map[any]bool{},
+	r := &restorer{esc: newEscapes(), seen: map[any]bool{}, walked: map[any]bool{},
 		queue: []record{{object: hop}}}
 
-	err := r.finish(nil)
+	err := r.finish(t.Context(), nil)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "restoring $refs as written panicked")

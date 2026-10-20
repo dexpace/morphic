@@ -105,9 +105,9 @@ registry is the one handle a lowering holds (micro-compiler-design §4). What st
 compiler is what only it can compute: the path an ID derives from, since a JSON Pointer, a GraphQL
 structural path and a protobuf fully-qualified name are different things.
 
-The split is enforced rather than documented: architecture tests fail a package outside the
-framework that writes the type registry, derives a canonical name, builds an ID out of a string, or
-builds a namespace out of anything but a literal.
+The split is enforced rather than documented: lint rules (`internal/lintrules`, run by `make vet`)
+fail a package outside the framework that builds or writes the type registry, derives a canonical
+name, builds an ID out of a string, or builds a namespace out of anything but a literal.
 Promoting something into the framework later is additive, while demoting it breaks every compiler,
 so borderline machinery starts outside and moves in on evidence from more than one format.
 
@@ -333,16 +333,18 @@ morphic/
 ├── pass/                   # Layer 1 — IR → IR passes (validate, dedup, filter, slice, overlay).
 ├── emitters/               # Layer 2 — emitter contract, plan layer, registry (future).
 ├── engine/                 # Layer 3 — orchestration: detect format, run compiler, passes, emitters.
-├── internal/archtest/      #           Layering, grammar, recursion and method-cap rules (tooling).
+├── internal/archtest/      #           Import layering, the recursion pin and the caps (tooling).
 ├── internal/decls/         #           Type-checked reads of declarations, for tests (tooling).
 ├── internal/harness/       #           Bug-catching oracle sweep over a spec corpus (tooling).
 ├── internal/jsonshape/     #           The IR's JSON shape, which IRVersion is pinned to (tooling).
 ├── internal/keydoc/        #           Reader of the keyed documents and their citations (tooling).
 ├── internal/leakcheck/     #           Goroutine leak check for test binaries (tooling).
+├── internal/lintrules/     #           The repository's go/analysis lint rules (tooling).
 ├── internal/testspec/      #           Spec fixtures shared by the tooling (tooling).
 ├── cmd/morphic/            # Layer 4 — CLI.
 ├── cmd/morphic-harness/    #           CLI over internal/harness (tooling, not the pipeline).
-└── cmd/morphic-covergate/  #           Judges the coverage profile (tooling, not the pipeline).
+├── cmd/morphic-covergate/  #           Judges the coverage profile (tooling, not the pipeline).
+└── cmd/morphic-vet/        #           Runs internal/lintrules under go vet (tooling, not the pipeline).
 ```
 
 Swagger 2.0 gets no directory of its own: the lift normalizes it to the OpenAPI 3.x shape and
@@ -433,9 +435,13 @@ something a caller asks for with `none`, never a default.
   only if neither is the one that got there first. Both pointer collisions the compiler has had
   were invisible to a single-order suite.
 - **Architecture test** (`internal/archtest`): import-graph assertions for the layering rules
-  above, plus the rules the graph cannot express — which packages may write an `ir.TypeRegistry`,
-  which lowerings are mutually recursive (so a set that grows is noticed rather than measured),
-  and the method-per-type cap.
+  above, plus the rules the graph cannot express — which lowerings are mutually recursive (so a
+  set that grows is noticed rather than measured), and the method-per-type cap.
+- **Lint rules** (`.golangci.yml`; `internal/lintrules`, under `make vet`): what a linter can
+  hold — which packages may build or write an `ir.TypeRegistry`, derive a name or build an ID, that
+  no pipeline stage prints or logs, and that a switch over an IR enum names every member. Each rule
+  is held to findings planted for it, since a clean tree cannot tell a rule from one that matches
+  nothing, and runs on every port the build covers.
 - **Wire-conformance harness** (from milestone 3): expected request shapes (method, path,
   query, body keys) are derived *from the IR alone* — offline, deterministic, shared across
   every language emitter; generated SDKs run under HTTP interception and the requests are
