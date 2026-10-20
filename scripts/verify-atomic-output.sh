@@ -3,15 +3,16 @@
 # verify-atomic-output.sh checks, against a real filesystem, that `morphic
 # compile -o` publishes its output atomically.
 #
-# The unit tests in cmd/morphic cover these paths by injecting failures through
-# package vars. This script is the end-to-end counterpart: it drives the built
-# binary, fails the write for real, and inspects what is left on disk. The two
-# answer different questions — the unit tests ask whether the code takes the
-# right branch, this asks whether the destination actually survives.
+# The unit tests in engine/internal/atomicfile cover these paths by injecting
+# failures through a Replacer's fields. This script is the end-to-end
+# counterpart: it drives the built binary, fails the write for real, and inspects
+# what is left on disk. The two answer different questions — the unit tests ask
+# whether the code takes the right branch, this asks whether the destination
+# actually survives.
 #
 # It also pins the four limitations that publishing-by-rename brings, so a later
-# change cannot alter them without a test going red. See replaceFile in
-# cmd/morphic/compile.go, where the same four are recorded.
+# change cannot alter them without a test going red. See Replacer.Replace in
+# engine/internal/atomicfile/atomicfile.go, where the same four are recorded.
 #
 # Usage:
 #   scripts/verify-atomic-output.sh                     # check the working tree
@@ -151,7 +152,7 @@ fi
 
 # The four checks below pin the limitations publishing by rename brings. They
 # assert the documented outcome, so a change to any of them is a change to the
-# contract recorded on replaceFile, not a silent drift.
+# contract recorded on Replacer.Replace, not a silent drift.
 printf '\n3. documented limitations of publishing by rename\n'
 
 ro_dir="$work/readonly"

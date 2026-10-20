@@ -1,21 +1,43 @@
-package main
+// Package report renders what a pipeline run produced for a person to read:
+// its diagnostics, one per line, and what it produced at one source
+// coordinate. It is the one renderer, so a driver shows a finding exactly as
+// the CLI does; every stage below the engine emits typed ir.Diagnostic values
+// and renders nothing.
+package report
 
 import (
+	"fmt"
 	"io"
 	"strconv"
 
-	"github.com/dexpace/morphic/engine"
 	"github.com/dexpace/morphic/ir"
 )
 
-// renderDiagnostics writes each diagnostic to w, one per line, as
-// "<severity> <code> <location>: <message>". This is the sole place in the
-// pipeline where diagnostics are rendered for a human.
-func renderDiagnostics(w io.Writer, res *engine.Result) {
-	for _, d := range res.Diagnostics {
-		emitf(w, "%s %s%s: %s\n",
-			d.Severity, d.Code, location(res.Sources, d.Provenance), d.Message)
+// lineWriter writes formatted lines to w until one write fails, and keeps that
+// failure, so a renderer writing many lines reports the first and stops.
+type lineWriter struct {
+	w   io.Writer
+	err error
+}
+
+// printf writes one formatted line unless an earlier write failed.
+func (lw *lineWriter) printf(format string, args ...any) {
+	if lw.err != nil {
+		return
 	}
+	_, lw.err = fmt.Fprintf(lw.w, format, args...)
+}
+
+// WriteDiagnostics writes each of diags to w, one per line, as
+// "<severity> <code><location>: <message>". sources is the table each
+// Provenance.Source indexes, a run's engine.Result.Sources. It stops at the
+// first write that fails and returns that write's error.
+func WriteDiagnostics(w io.Writer, diags []ir.Diagnostic, sources []ir.SourceInfo) error {
+	lw := &lineWriter{w: w}
+	for _, d := range diags {
+		lw.printf("%s %s%s: %s\n", d.Severity, d.Code, location(sources, d.Provenance), d.Message)
+	}
+	return lw.err
 }
 
 // location renders the "where" of a diagnostic line, leading space included,
@@ -24,9 +46,9 @@ func renderDiagnostics(w io.Writer, res *engine.Result) {
 // " <path>#<pointer>" for a pointer; " <path>:<line>:<column>" for a position;
 // " <path>" for the source as a whole; and the bare node for an IR-space node.
 //
-// sources is the run's table, which a refused compile has too. A locator whose
-// index names no entry in it is spelled without a path, and a finding naming
-// neither a source nor a node prints nothing rather than a guess.
+// A locator whose index names no entry of sources is spelled without a path,
+// and a finding naming neither a source nor a node prints nothing rather than
+// a guess.
 func location(sources []ir.SourceInfo, prov ir.Provenance) string {
 	path := sourcePath(sources, prov.Source)
 	switch {
