@@ -13,10 +13,11 @@ import (
 // declares. Those fields are ABI, so a compiler's own segmentation would make
 // one mean two things (GitHub #163, #54).
 //
-// A struct that converts to ir.Naming carries the channels too, whatever its
-// type is named. The call must be the value itself: a framework call wrapped in
-// a local one, a name carried in a variable, a field extended in place, filled
-// by a range clause or through its address, is refused.
+// A struct that converts to ir.Naming, or would once instantiated, carries the
+// channels too, whatever its type is named. The call must be the value itself:
+// a framework call wrapped in a local one, a name carried in a variable, a
+// field extended in place, filled by a range clause or through its address, is
+// refused.
 func (l layout) nameChannels() *analysis.Analyzer {
 	return &analysis.Analyzer{
 		Name: "namechannels",
@@ -64,7 +65,38 @@ type nameCheck struct {
 // isChannel reports whether the field called name of the struct s is a name
 // channel: Canonical or Hint of a struct that converts to ir.Naming.
 func (c nameCheck) isChannel(s *types.Struct, name string) bool {
-	return (name == "Canonical" || name == "Hint") && types.IdenticalIgnoreTags(s, c.shape)
+	return (name == "Canonical" || name == "Hint") && c.converts(s)
+}
+
+// converts reports whether s converts to ir.Naming, its tags aside, or would
+// once its type parameters are instantiated: field by field, the same name and
+// the same type, or a type parameter, or a slice of one, that can stand for it.
+// ir.Naming's fields are exported, so their names compare across packages.
+func (c nameCheck) converts(s *types.Struct) bool {
+	if s.NumFields() != c.shape.NumFields() {
+		return false
+	}
+	for i := range s.NumFields() {
+		f, want := s.Field(i), c.shape.Field(i)
+		if f.Name() != want.Name() || !standsFor(f.Type(), want.Type()) {
+			return false
+		}
+	}
+	return true
+}
+
+// standsFor reports whether t is u, or a type parameter an instantiation can
+// make u, alone or as a slice's element.
+func standsFor(t, u types.Type) bool {
+	ts, isSlice := t.(*types.Slice)
+	us, wantSlice := u.(*types.Slice)
+	if isSlice && wantSlice {
+		t, u = ts.Elem(), us.Elem()
+	}
+	if p, isParam := t.(*types.TypeParam); isParam {
+		return satisfies(u, p)
+	}
+	return types.Identical(t, u)
 }
 
 func (c nameCheck) node(n ast.Node) {

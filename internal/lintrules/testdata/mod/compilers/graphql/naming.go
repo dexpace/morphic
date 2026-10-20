@@ -32,11 +32,65 @@ type mirror struct {
 // short lacks Aliases, so no ir.Naming converts from it.
 type short struct{ Source, Canonical, Hint string }
 
+// others names its last field otherwise, sliced makes Canonical a slice and
+// flat makes Aliases a string, so none converts to ir.Naming either.
+type (
+	others struct {
+		Source, Canonical, Hint string
+		Others                  []string
+	}
+	sliced struct {
+		Source    string
+		Canonical []string
+		Hint      string
+		Aliases   []string
+	}
+	flat struct{ Source, Canonical, Hint, Aliases string }
+)
+
 // pointer points to a Naming under a name of its own.
 type pointer *ir.Naming
 
 // embedsPointer promotes a Naming's fields through a pointer.
 type embedsPointer struct{ *ir.Naming }
+
+// genericMirror is ir.Naming's shape once T is a string.
+type genericMirror[T ~string] struct {
+	Source    T
+	Canonical T
+	Hint      T
+	Aliases   []T
+}
+
+// fill writes the channels an instantiation makes ir.Naming's.
+func (g *genericMirror[T]) fill(s T) {
+	g.Canonical = s // want "namechannels: ir.Naming.Canonical is filled by something other than a call into ir or compilers/compile; use compile.NamingFor, compile.NamingHint or ir.CanonicalWords"
+	g.Hint = s      // want "namechannels: ir.Naming.Hint is filled by something other than a call into ir or compilers/compile; use compile.NamingFor, compile.NamingHint or ir.CanonicalWords"
+}
+
+// hinted builds one in generic code.
+func hinted[T ~string](s T) genericMirror[T] {
+	return genericMirror[T]{Hint: s} // want "namechannels: ir.Naming.Hint is filled by something other than a call into ir or compilers/compile; use compile.NamingFor, compile.NamingHint or ir.CanonicalWords"
+}
+
+// fillUnnamed writes the channels of an unnamed struct of that shape.
+func fillUnnamed[T ~string](n *struct {
+	Source, Canonical, Hint T
+	Aliases                 []T
+}, s T) {
+	n.Canonical = s // want "namechannels: ir.Naming.Canonical is filled by something other than a call into ir or compilers/compile; use compile.NamingFor, compile.NamingHint or ir.CanonicalWords"
+}
+
+// numbered has a type parameter no string satisfies where ir.Naming has
+// Canonical, so no instantiation makes it one.
+type numbered[N ~int] struct {
+	Source    string
+	Canonical N
+	Hint      string
+	Aliases   []string
+}
+
+func (n *numbered[N]) set(v N) { n.Canonical = v }
 
 func plantMirrors(name string, p pointer, e embedsPointer) (ir.Naming, ir.Naming) {
 	keyed := mirror{Source: name, Canonical: localWords(name)}                 // want "namechannels: ir.Naming.Canonical is filled by something other than a call into ir or compilers/compile; use compile.NamingFor, compile.NamingHint or ir.CanonicalWords"
@@ -46,8 +100,12 @@ func plantMirrors(name string, p pointer, e embedsPointer) (ir.Naming, ir.Naming
 	e.Canonical = name                                                         // want "namechannels: ir.Naming.Canonical is filled by something other than a call into ir or compilers/compile; use compile.NamingFor, compile.NamingHint or ir.CanonicalWords"
 	near := short{Canonical: name}
 	near.Hint = name
+	_, _, _ = others{Canonical: name}, sliced{Hint: name}, flat{Hint: name}
 	_, _ = near, &os.Args // a package's variable is no struct's field
-	return ir.Naming(keyed), ir.Naming(unkeyed)
+	var g genericMirror[string]
+	g.fill(name)
+	_, _ = hinted(name), ir.Naming(unkeyed)
+	return ir.Naming(keyed), ir.Naming(g)
 }
 
 func plantNaming(name string, words []string, n *named, c *common, big ir.BigVal) []ir.Naming {
