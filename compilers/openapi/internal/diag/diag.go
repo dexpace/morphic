@@ -215,11 +215,12 @@ const (
 	// rather than left to evaluation.
 	DynamicRefExpanded = "openapi/dynamic-ref-expanded"
 	// ConflictingRedecl reports that inline allOf branches redeclare one field
-	// with disagreeing values. An incompatible target type (string vs. integer) is
-	// unsatisfiable; a conflicting constraint keyword (minimum: 10 vs.
-	// exclusiveMinimum: 10) is usually satisfiable but not representable by a
-	// simple merge, so the merge keeps an arbitrary source-order winner, possibly
-	// the looser bound.
+	// with disagreeing values. A target type is unsatisfiable only when the kinds
+	// are disjoint (string against integer) or a scalar meets a structure;
+	// overlapping kinds, like int32 against uint32, are DegradedConstruct. A
+	// conflicting constraint keyword (minimum: 10 vs. exclusiveMinimum: 10) is
+	// usually satisfiable but not representable by a simple merge, so the merge
+	// keeps an arbitrary source-order winner, possibly the looser bound.
 	//
 	// Either way the losing declaration is kept whole under the merged property's
 	// Unmodeled (merge.keepLosingDeclaration), so a consumer reading the document

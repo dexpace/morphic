@@ -761,10 +761,12 @@ cannot see dangle inside a byte slice, and one node keeps everything the redecla
 
 Preservation is owed wherever something is dropped, which is wider than the disagreements worth a
 warning. The two declarations are reported as an `openapi/conflicting-redeclaration` warning where
-their types are incompatible — primitive kinds the narrowing does not relate, a scalar against a
-structure, or two different kinds of structure — or where one constraint keyword is pinned to two
-values; a detail the first declaration already holds differently is named in an info
-`openapi/degraded-construct`; and two composites of one kind, an unresolvable target, and the top
+their types are incompatible — disjoint primitive kinds (`string` against `integer`, `uuid` against
+`date-time`), a scalar against a structure, or two different kinds of structure — or where one
+constraint keyword is pinned to two values; primitive kinds that overlap without either holding the
+other (`int32` against `uint32`) are named in an info `openapi/degraded-construct`, since a value
+satisfies both and only the first declaration's kind is kept; a detail the first declaration
+already holds differently is named in an info `openapi/degraded-construct`; and two composites of one kind, an unresolvable target, and the top
 type against anything are dropped without any diagnostic and kept all the same. The loser's
 `default`, constraints and examples go with its type rather than folding onto the winner — they
 describe the shape that lost, and adopting them would leave one field asserting two contradictory
@@ -782,7 +784,10 @@ single schema's null verdicts fold under ([`nullable`](#nullable)).
   `merge.TestReconcileProperty_TitleAndExternalDocsFoldLikeDescription`,
   `merge.TestReconcileProperty_ANarrowingIntersectsNullability`,
   `merge.TestReconcileProperty_ADroppedTargetKeepsTheFirstNullAdmission`,
-  `merge.TestReconcileProperty_ARelatedKindThroughAScalarStillWarns`,
+  `merge.TestFoldTypeTargets_ANarrowingIsNoDrop`,
+  `merge.TestReconcileProperty_OverlappingKindsAreKeptAndReportedAsInfo`,
+  `merge.TestReconcileProperty_DisjointKindsStillWarn`,
+  `schema.TestAllOf_OverlappingPrimitivesAreReportedNotConflicting`,
   `merge.TestReconcileProperty_AUint8NarrowsInt16InEitherOrder`,
   `spelling.TestNarrows_HoldsEveryContainment`,
   `spelling.TestNarrows_OmitsRoundingContainments`,

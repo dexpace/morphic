@@ -483,7 +483,7 @@ func TestDifferentTypeKind_ComparesResolvedKinds(t *testing.T) {
 		"two models are the same kind, so not provably contradictory")
 	assert.True(t, g.differentTypeKind(ir.TypeRef{Target: "t/model"}, ir.TypeRef{Target: "t/union"}),
 		"a model and a union are different kinds")
-	assert.True(t, g.typesConflict(ir.TypeRef{Target: "t/opaque"}, ir.TypeRef{Target: "t/union"}),
+	assert.Equal(t, verdictConflict, g.typesConflict(ir.TypeRef{Target: "t/opaque"}, ir.TypeRef{Target: "t/union"}),
 		"and typesConflict reaches that comparison when neither side is a primitive")
 }
 
@@ -858,7 +858,7 @@ func narrowingRegistry() map[ir.TypeID]ir.TypeDef {
 	for _, k := range []ir.PrimKind{
 		ir.PrimNumber, ir.PrimInteger, ir.PrimInt32, ir.PrimInt64, ir.PrimString, ir.PrimDatetimeOffset,
 		ir.PrimURL, ir.PrimFloat64, ir.PrimUUID, ir.PrimUint32, ir.PrimBytes,
-		ir.PrimUint8, ir.PrimInt16, ir.PrimAny,
+		ir.PrimUint8, ir.PrimInt16, ir.PrimAny, ir.PrimBool, ir.PrimFloat32,
 	} {
 		id := ir.TypeID("t/prim/" + string(k))
 		reg[id] = &ir.Primitive{ID: id, Prim: k}
@@ -1022,44 +1022,109 @@ func TestReconcileProperty_ANarrowingAdoptsTheBroaderDeclarationsDetail(t *testi
 	}
 }
 
-// TestReconcileProperty_ARelatedKindThroughAScalarStillWarns pins the #782
-// boundary: a Scalar over bytes against string is related by kind but not by
-// bare primitives, so it is still a conflict resolved by branch order.
-func TestReconcileProperty_ARelatedKindThroughAScalarStillWarns(t *testing.T) {
-	t.Parallel()
-	reg := narrowingRegistry()
-	reg["t/sca"] = &ir.Scalar{ID: "t/sca", Base: &ir.TypeRef{Target: "t/prim/bytes"}}
-	for _, scalarFirst := range []bool{true, false} {
-		t.Run(fmt.Sprintf("scalarFirst=%v", scalarFirst), func(t *testing.T) {
-			t.Parallel()
-			g, recorded := stubMerger(reg)
-			first, second := ir.TypeRef{Target: "t/sca"}, primRef(ir.PrimString)
-			if !scalarFirst {
-				first, second = second, first
-			}
-			dst := ir.Property{WireName: "x", Type: first}
-			src := ir.Property{WireName: "x", Type: second, Provenance: ptrAt("/allOf/1/properties/x")}
-
-			g.reconcileProperty(&dst, src, written(`{"type":"string"}`))
-
-			assert.Equal(t, first.Target, dst.Type.Target, "the first declaration still wins")
-			require.Len(t, *recorded, 1)
-			assert.Equal(t, diag.ConflictingRedecl, (*recorded)[0].Code)
-			assert.Contains(t, dst.Unmodeled, losingDeclarationKey+"/allOf/1/properties/x")
-		})
-	}
-}
-
 // TestTypesConflict_UnrelatedPrimitivesStillConflict pins the pairs the
-// relation leaves alone, with integer against number as the narrowing control.
+// relation calls disjoint, and the enum against a bare kind of another family.
 func TestTypesConflict_UnrelatedPrimitivesStillConflict(t *testing.T) {
 	t.Parallel()
 	reg := narrowingRegistry()
 	reg["t/enm"] = &ir.Enum{ID: "t/enm", ValueType: ir.PrimString}
 	g, _ := stubMerger(reg)
 
-	assert.True(t, g.typesConflict(primRef(ir.PrimUUID), primRef(ir.PrimDatetimeOffset)))
-	assert.True(t, g.typesConflict(primRef(ir.PrimInt32), primRef(ir.PrimUint32)))
-	assert.True(t, g.typesConflict(ir.TypeRef{Target: "t/enm"}, primRef(ir.PrimInteger)))
-	assert.False(t, g.typesConflict(primRef(ir.PrimInteger), primRef(ir.PrimNumber)), "a narrowing is not a conflict")
+	assert.Equal(t, verdictConflict, g.typesConflict(primRef(ir.PrimUUID), primRef(ir.PrimDatetimeOffset)))
+	assert.Equal(t, verdictConflict, g.typesConflict(ir.TypeRef{Target: "t/enm"}, primRef(ir.PrimInteger)))
+	assert.Equal(t, verdictOverlap, g.typesConflict(primRef(ir.PrimInt32), primRef(ir.PrimUint32)),
+		"overlapping kinds are no conflict")
+}
+
+// TestFoldTypeTargets_ANarrowingIsNoDrop pins that a bare narrowing settles on
+// one target in either order and is no drop, so the redeclaration is neither
+// classified nor reported nor kept.
+func TestFoldTypeTargets_ANarrowingIsNoDrop(t *testing.T) {
+	t.Parallel()
+	for i, order := range [][2]ir.PrimKind{{ir.PrimInteger, ir.PrimNumber}, {ir.PrimNumber, ir.PrimInteger}} {
+		g, recorded := stubMerger(narrowingRegistry())
+		dst := ir.Property{WireName: "x", Type: primRef(order[0])}
+		src := ir.Property{WireName: "x", Type: primRef(order[1]), Provenance: ptrAt("/allOf/1/properties/x")}
+
+		assert.False(t, g.foldTypeTargets(&dst, &src), "a narrowing is no drop (order %d)", i)
+		assert.Equal(t, primRef(ir.PrimInteger).Target, dst.Type.Target, "the narrower target wins (order %d)", i)
+
+		dropped, lost := g.recordRedeclarationConflict(&dst, &src)
+
+		assert.False(t, dropped, "order %d", i)
+		assert.False(t, lost, "order %d", i)
+		assert.Empty(t, *recorded, "nothing is classified once targets agree (order %d)", i)
+	}
+}
+
+// reconcileBothOrders reconciles kinds a and b in both declaration orders and
+// returns what each order recorded and merged.
+func reconcileBothOrders(t *testing.T, a, b ir.PrimKind) (dsts [2]ir.Property, diags [2][]ir.Diagnostic) {
+	t.Helper()
+	for i, order := range [][2]ir.PrimKind{{a, b}, {b, a}} {
+		g, recorded := stubMerger(narrowingRegistry())
+		dst := ir.Property{WireName: "x", Type: primRef(order[0]), Provenance: ptrAt("/allOf/0/properties/x")}
+		src := ir.Property{WireName: "x", Type: primRef(order[1]), Provenance: ptrAt("/allOf/1/properties/x")}
+
+		g.reconcileProperty(&dst, src, written(`{"type":"x"}`))
+
+		dsts[i], diags[i] = dst, *recorded
+	}
+	return dsts, diags
+}
+
+// TestReconcileProperty_OverlappingKindsAreKeptAndReportedAsInfo pins that
+// kinds sharing values with neither holding the other keep the first
+// declaration's kind, draw an info, and keep the redeclaration, in both orders.
+func TestReconcileProperty_OverlappingKindsAreKeptAndReportedAsInfo(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name string
+		a, b ir.PrimKind
+	}{
+		{"int32 and uint32", ir.PrimInt32, ir.PrimUint32},
+		{"float32 and integer", ir.PrimFloat32, ir.PrimInteger},
+		{"int64 and float64", ir.PrimInt64, ir.PrimFloat64},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			dsts, diags := reconcileBothOrders(t, tc.a, tc.b)
+			for i, first := range []ir.PrimKind{tc.a, tc.b} {
+				assert.Equal(t, primRef(first).Target, dsts[i].Type.Target, "the first declaration's kind stays (order %d)", i)
+				require.Len(t, diags[i], 1, "exactly one diagnostic (order %d)", i)
+				assert.Equal(t, diag.DegradedConstruct, diags[i][0].Code, "order %d", i)
+				assert.Equal(t, ir.SeverityInfo, diags[i][0].Severity, "order %d", i)
+				assert.Contains(t, dsts[i].Unmodeled, losingDeclarationKey+"/allOf/1/properties/x",
+					"the redeclaration is kept (order %d)", i)
+			}
+		})
+	}
+}
+
+// TestReconcileProperty_DisjointKindsStillWarn pins that kinds no value shares
+// keep the conflicting-redeclaration warning, in both orders.
+func TestReconcileProperty_DisjointKindsStillWarn(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name string
+		a, b ir.PrimKind
+	}{
+		{"string and integer", ir.PrimString, ir.PrimInteger},
+		{"bool and number", ir.PrimBool, ir.PrimNumber},
+		{"uuid and date-time", ir.PrimUUID, ir.PrimDatetimeOffset},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			dsts, diags := reconcileBothOrders(t, tc.a, tc.b)
+			for i, first := range []ir.PrimKind{tc.a, tc.b} {
+				assert.Equal(t, primRef(first).Target, dsts[i].Type.Target, "the first declaration still wins (order %d)", i)
+				require.Len(t, diags[i], 1, "exactly one diagnostic (order %d)", i)
+				assert.Equal(t, diag.ConflictingRedecl, diags[i][0].Code, "order %d", i)
+				assert.Equal(t, ir.SeverityWarning, diags[i][0].Severity, "order %d", i)
+				assert.Contains(t, dsts[i].Unmodeled, losingDeclarationKey+"/allOf/1/properties/x", "order %d", i)
+			}
+		})
+	}
 }

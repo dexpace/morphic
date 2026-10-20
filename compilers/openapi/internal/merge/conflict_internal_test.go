@@ -147,9 +147,9 @@ func TestTypesConflict_OpaqueScalarVsPrimitiveIsNotConflict(t *testing.T) {
 		"t/string": &ir.Primitive{ID: "t/string", Prim: ir.PrimString},
 	})
 
-	assert.False(t, g.typesConflict(ir.TypeRef{Target: "t/opaque"}, ir.TypeRef{Target: "t/string"}),
+	assert.Equal(t, verdictSilent, g.typesConflict(ir.TypeRef{Target: "t/opaque"}, ir.TypeRef{Target: "t/string"}),
 		"opaque scalar vs primitive is not flagged (never guess)")
-	assert.False(t, g.typesConflict(ir.TypeRef{Target: "t/string"}, ir.TypeRef{Target: "t/opaque"}),
+	assert.Equal(t, verdictSilent, g.typesConflict(ir.TypeRef{Target: "t/string"}, ir.TypeRef{Target: "t/opaque"}),
 		"primitive vs opaque scalar is not flagged (never guess)")
 }
 
@@ -160,9 +160,9 @@ func TestTypesConflict_StructuralVsPrimitiveIsConflict(t *testing.T) {
 		"t/string": &ir.Primitive{ID: "t/string", Prim: ir.PrimString},
 	})
 
-	assert.True(t, g.typesConflict(ir.TypeRef{Target: "t/model"}, ir.TypeRef{Target: "t/string"}),
+	assert.Equal(t, verdictConflict, g.typesConflict(ir.TypeRef{Target: "t/model"}, ir.TypeRef{Target: "t/string"}),
 		"model vs primitive is a provable conflict")
-	assert.True(t, g.typesConflict(ir.TypeRef{Target: "t/string"}, ir.TypeRef{Target: "t/model"}),
+	assert.Equal(t, verdictConflict, g.typesConflict(ir.TypeRef{Target: "t/string"}, ir.TypeRef{Target: "t/model"}),
 		"primitive vs model is a provable conflict")
 }
 

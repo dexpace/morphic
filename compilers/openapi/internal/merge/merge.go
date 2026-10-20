@@ -16,6 +16,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/spelling"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -308,22 +309,27 @@ func intersectLifecycles(a, b []ir.Lifecycle) []ir.Lifecycle {
 const maxTypeResolveDepth = 64
 
 // recordRedeclarationConflict folds src's type into dst (foldTypeTargets) and
-// diagnoses what the fold could not represent: an incompatible target type or a
-// contradictory constraint keyword. At most one diagnostic fires, a type
-// conflict subsuming a constraint one.
+// diagnoses what the fold could not represent: a conflicting or overlapping
+// target type, or a contradictory constraint keyword. At most one diagnostic
+// fires, a type verdict subsuming a constraint one.
 //
-// dropped reports that the targets differ and neither is a bare-primitive
-// refinement of the other, so src's type is lost. lost reports that src's type
-// or a constraint keyword was lost, so the redeclaration is kept whole (GitHub
-// #424). dropped is wider than the reported conflicts, since typesConflict does
-// not guess about composites of one kind, unresolvable targets or the top type.
+// dropped reports that src's type was lost; only a drop is classified
+// (typesConflict). lost reports that src's type or a constraint keyword was
+// lost, so the redeclaration is kept whole (GitHub #424).
 func (g *Merger) recordRedeclarationConflict(dst, src *ir.Property) (dropped, lost bool) {
 	pointer := src.Provenance.Pointer
 	dropped = g.foldTypeTargets(dst, src)
-	if g.typesConflict(dst.Type, src.Type) {
-		g.redeclarationConflictDiag(dst, pointer,
-			fmt.Sprintf("incompatible types %s and %s", dst.Type.Target, src.Type.Target))
-		return true, true
+	if dropped {
+		switch g.typesConflict(dst.Type, src.Type) {
+		case verdictConflict:
+			g.redeclarationConflictDiag(dst, pointer,
+				fmt.Sprintf("incompatible types %s and %s", dst.Type.Target, src.Type.Target))
+			return true, true
+		case verdictOverlap:
+			g.overlappingTypesDiag(dst, pointer, src.Type)
+			return true, true
+		case verdictSilent:
+		}
 	}
 	if detail, ok := constraintsConflict(dst.Constraints, src.Constraints); ok {
 		g.redeclarationConflictDiag(dst, pointer, detail)
@@ -409,33 +415,68 @@ func (g *Merger) redeclarationConflictDiag(dst *ir.Property, pointer jsontext.Po
 		dst.WireName, detail, dst.Provenance.Pointer, pointer)
 }
 
-// typesConflict reports whether two reconciled property types describe an
-// unsatisfiable intersection. Identical targets and the schemaless top type
-// never conflict. Different underlying primitives conflict, as does a scalar
-// against a structural type, unless both are bare primitives and one narrows
-// the other (bareNarrowing, through spelling.Relate). Two distinct composites
-// of one kind are not provably contradictory, so they are never reported.
-//
-// Kinds spelling.Relate calls an overlap, like int32 and uint32, still
-// conflict, and so do related kinds reached through a Scalar or Enum, until
-// GitHub #782 settles them.
-func (g *Merger) typesConflict(a, b ir.TypeRef) bool {
+// redeclVerdict classifies two differing property types that foldTypeTargets
+// could not narrow.
+type redeclVerdict int
+
+const (
+	// verdictSilent is a pair the merge does not guess about: composites of one
+	// kind, an unresolvable target or the top type.
+	verdictSilent redeclVerdict = iota
+	// verdictConflict is a pair no value satisfies: a scalar against a
+	// structure, two structure kinds or disjoint primitive kinds.
+	verdictConflict
+	// verdictOverlap is a pair of primitive kinds that share values with
+	// neither holding the other, or that the fold left unrelated although they
+	// resolve to related kinds.
+	verdictOverlap
+)
+
+// overlappingTypesDiag reports that two declarations of a field give types
+// that share values without either holding the other, so no single kind states
+// their intersection. Info, not warning: a value exists that satisfies both,
+// and the first declaration's kind stays, with the redeclaration kept verbatim
+// under Unmodeled.
+func (g *Merger) overlappingTypesDiag(dst *ir.Property, pointer jsontext.Pointer, other ir.TypeRef) {
+	g.Report(ir.SeverityInfo, diag.DegradedConstruct, pointer,
+		"declarations of field %q give types %s and %s that overlap without either holding the other; "+
+			"kept the first declaration's (%s), with the redeclaration verbatim under Unmodeled",
+		dst.WireName, dst.Type.Target, other.Target, dst.Provenance.Pointer)
+}
+
+// typesConflict classifies the drop of two reconciled property types. Identical
+// targets and the schemaless top type are silent. Two targets that resolve to
+// primitive kinds go through spelling.Relate: disjoint kinds conflict and
+// anything else overlaps. A scalar against a structural type conflicts, and so
+// do two structure kinds. Two distinct composites of one kind are not provably
+// contradictory, so they are silent.
+func (g *Merger) typesConflict(a, b ir.TypeRef) redeclVerdict {
 	if a.Target == b.Target || g.isAnyType(a) || g.isAnyType(b) {
-		return false
+		return verdictSilent
 	}
 	ak, aok := g.resolvePrimKind(a)
 	bk, bok := g.resolvePrimKind(b)
 	switch {
 	case aok && bok:
-		_, narrowing := g.bareNarrowing(a, b)
-		return ak != bk && !narrowing
+		if spelling.Relate(ak, bk) == spelling.Disjoint {
+			return verdictConflict
+		}
+		return verdictOverlap
 	case aok && !bok:
-		return g.isStructuralType(b)
+		return conflictIf(g.isStructuralType(b))
 	case !aok && bok:
-		return g.isStructuralType(a)
+		return conflictIf(g.isStructuralType(a))
 	default:
-		return g.differentTypeKind(a, b)
+		return conflictIf(g.differentTypeKind(a, b))
 	}
+}
+
+// conflictIf maps a provable contradiction to verdictConflict.
+func conflictIf(contradiction bool) redeclVerdict {
+	if contradiction {
+		return verdictConflict
+	}
+	return verdictSilent
 }
 
 // isAnyType reports whether ref targets the schemaless top type (a PrimAny

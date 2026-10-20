@@ -231,6 +231,40 @@ func TestAllOf_ConflictingRedeclaredTypeDiagnosedAndKept(t *testing.T) {
 	assert.Equal(t, jsontext.Pointer("/components/schemas/Conflictish/allOf/1/properties/id"), lost.Provenance.Pointer)
 }
 
+// TestAllOf_OverlappingPrimitivesAreReportedNotConflicting pins that two
+// formats sharing values, neither holding the other, draw an info instead of
+// the unsatisfiable-type warning, keep the first declaration's kind and keep the
+// redeclaration, in either branch order.
+func TestAllOf_OverlappingPrimitivesAreReportedNotConflicting(t *testing.T) {
+	t.Parallel()
+	for _, order := range [][2]string{{"int32", "uint32"}, {"uint32", "int32"}} {
+		t.Run(order[0]+" first", func(t *testing.T) {
+			t.Parallel()
+			spec := openapitest.ComponentSpec(fmt.Sprintf(`    Overlapish:
+      allOf:
+        - type: object
+          properties:
+            n: {type: integer, format: %s}
+        - type: object
+          properties:
+            n: {type: integer, format: %s}
+`, order[0], order[1]))
+			doc, diags := lowerSpec(t, spec)
+			openapitest.RequireNoErrorDiags(t, diags)
+			m, ok := doc.Types[componentID("Overlapish")].(*ir.Model)
+			require.True(t, ok, "Overlapish should be a model")
+			require.Len(t, m.Properties, 1)
+			assert.Equal(t, ir.TypeID("t/prim/"+order[0]), m.Properties[0].Type.Target, "the first declaration's kind stays")
+
+			assert.Empty(t, conflictDiags(diags), "overlapping kinds are not an unsatisfiable type")
+			assert.True(t, openapitest.HasDiagAt(diags, diag.DegradedConstruct, ir.SeverityInfo), "the overlap is reported as info")
+			assert.Contains(t, m.Properties[0].Unmodeled,
+				"openapi:conflicting-redeclaration/components/schemas/Overlapish/allOf/1/properties/n",
+				"and the redeclaration is kept")
+		})
+	}
+}
+
 // TestAllOf_ALosingRedeclarationIsKeptAsWritten pins what the entry holds at
 // the two property shapes that have no schema node of their own to speak of: a
 // `$ref` is kept as the `$ref` the position wrote, not as the target it names,

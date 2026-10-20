@@ -57,13 +57,13 @@ func TestMerger_TypesConflictComparesReferentsNotReferences(t *testing.T) {
 	})
 	ref := func(id ir.TypeID) ir.TypeRef { return ir.TypeRef{Target: id} }
 
-	assert.False(t, g.typesConflict(ref("t/a"), ref("t/b")),
-		"two references to the same primitive kind agree, however they are named")
-	assert.True(t, g.typesConflict(ref("t/a"), ref("t/i")),
+	assert.Equal(t, verdictOverlap, g.typesConflict(ref("t/a"), ref("t/b")),
+		"two distinct nodes of one primitive kind are compared by kind, and the fold left them apart")
+	assert.Equal(t, verdictConflict, g.typesConflict(ref("t/a"), ref("t/i")),
 		"string and integer cannot both be satisfied")
-	assert.False(t, g.typesConflict(ref("t/any"), ref("t/i")),
+	assert.Equal(t, verdictSilent, g.typesConflict(ref("t/any"), ref("t/i")),
 		"the top type absorbs anything, so it conflicts with nothing")
-	assert.True(t, g.typesConflict(ref("t/m"), ref("t/a")),
+	assert.Equal(t, verdictConflict, g.typesConflict(ref("t/m"), ref("t/a")),
 		"a structural type and a primitive are different kinds")
 }
 
