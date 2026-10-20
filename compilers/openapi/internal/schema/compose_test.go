@@ -3795,10 +3795,10 @@ func refTargets(refs []ir.TypeRef) []ir.TypeID {
 	return out
 }
 
-// TestAllOf_NestedInlineWrapperFlattens pins allOf's associativity: a branch
-// whose only unconsumed keyword is a non-empty allOf classifies like the flat
-// spelling, with every property keeping the pointer it was written at (GitHub
-// #599).
+// TestAllOf_NestedInlineWrapperFlattens pins the flattening of
+// docs/compilers/openapi.md#allof-classification: a nested spelling classifies
+// like the flat one, with every property keeping the pointer it was written at
+// (GitHub #599).
 func TestAllOf_NestedInlineWrapperFlattens(t *testing.T) {
 	t.Parallel()
 	tests := []struct {

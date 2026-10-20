@@ -28,11 +28,9 @@ import (
 )
 
 // lowerAllOf hoists an allOf schema as a Model, classifying each branch per
-// ir-design §4.3: the sole $ref (or a $ref whose target anchors a discriminator
-// hierarchy) becomes Base; other $refs become Mixins in source order; an inline
-// branch writing a non-empty allOf is flattened first; inline
-// branches contribute their properties, with provenance into their source
-// branch.
+// docs/compilers/openapi.md#allof-classification, which also says which
+// branches are flattened first. Inline branches contribute their properties,
+// with provenance into their source branch.
 //
 // Value constraints written beside the allOf (minProperties, ...) are read as
 // lowerModel reads a plain object's, so they land on the same field, not
@@ -238,9 +236,10 @@ func pointerIndex(bptr jsontext.Pointer) string {
 }
 
 // flattensInto reports whether the allOf branch b, at nesting depth depth, is a
-// wrapper walkAllOf flattens: inline, declaring a non-empty allOf, and
-// shallower than maxAllOfFlattenDepth. What else it writes is no concern of
-// this predicate: the merge keeps that as residue (preserveUnmergedBranch).
+// wrapper walkAllOf flattens, as
+// docs/compilers/openapi.md#allof-classification states it. What else b writes
+// is no concern of this predicate: the merge keeps that as residue
+// (preserveUnmergedBranch).
 func flattensInto(b *oas3.JSONSchema[oas3.Referenceable], depth int) bool {
 	return depth < maxAllOfFlattenDepth && wrapsAllOf(b)
 }
@@ -504,9 +503,9 @@ func unmergedBranchKeys(bs *oas3.Schema, flattened bool) []string {
 
 // mergeConsumes reports whether fillAllOf's in-place merge reads branch keyword
 // key. It is the complete statement of what the merge keeps; everything else the
-// branch wrote is residue. `allOf` is consumed exactly when flattened: the
-// branch's entries took its place (flattensInto), so nothing of it is left.
-// Unflattened (empty, or past maxAllOfFlattenDepth) it is residue like the rest.
+// branch wrote is residue. `allOf` is consumed exactly when flattened
+// (docs/compilers/openapi.md#allof-classification); otherwise it is residue like
+// the rest.
 func mergeConsumes(bs *oas3.Schema, key string, flattened bool) bool {
 	switch key {
 	case "allOf":
