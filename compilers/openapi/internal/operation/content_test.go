@@ -2599,7 +2599,7 @@ func TestEncoding_NestedEncodingsAreKeptAtEveryVersion(t *testing.T) {
 // nestedPartSpec spells a multipart body whose parts sit wrapped deep inside n
 // inline allOf wrappers, each optionally carrying a description, with the
 // encoding map and the two parts written in the order given.
-func nestedPartSpec(n int, residue bool, parts, encoding []string) string {
+func nestedPartSpec(n int, residue bool, shape string, parts, encoding []string) string {
 	partLine := map[string]string{
 		"file": "file: {type: string, format: binary}",
 		"meta": "meta: {type: string}",
@@ -2624,6 +2624,15 @@ func nestedPartSpec(n int, residue bool, parts, encoding []string) string {
 		}
 		schemaSrc = wrapper
 	}
+	var components string
+	switch shape {
+	case shapeViaRef:
+		components = "components:\n  schemas:\n    Deep: " + schemaSrc + "\n"
+		schemaSrc = "{allOf: [{$ref: '#/components/schemas/Deep'}]}"
+	case shapeBesideNote:
+		schemaSrc = "{type: object, properties: {note: {type: string}}, allOf: [" + schemaSrc + "]}"
+		encs = append(encs, "note: {contentType: text/plain}")
+	}
 	return openapitest.PathsSpec(`  /u:
     post:
       operationId: up
@@ -2633,8 +2642,16 @@ func nestedPartSpec(n int, residue bool, parts, encoding []string) string {
             schema: ` + schemaSrc + `
             encoding: {` + strings.Join(encs, ", ") + `}
       responses: {"200": {description: ok}}
-`)
+` + components)
 }
+
+// How nestedPartSpec places the wrappers: inline at the body, behind an allOf
+// $ref branch, or beside a part the body declares itself.
+const (
+	shapeInline     = ""
+	shapeViaRef     = "ref"
+	shapeBesideNote = "note"
+)
 
 // TestPartEncodings_ReadsTheFlattenedComposition holds bodyParts to the
 // composition the schema lowering flattens (docs/compilers/openapi.md#allof-classification),
@@ -2649,20 +2666,23 @@ func TestPartEncodings_ReadsTheFlattenedComposition(t *testing.T) {
 		name    string
 		n       int
 		residue bool
+		shape   string
 		capped  bool
 	}{
-		{"15 wrappers", 15, false, false},
-		{"16 wrappers", 16, false, false},
-		{"17 wrappers", 17, false, false},
-		{"20 wrappers", 20, false, false},
-		{"past the flattening depth", schema.AllOfFlattenDepth + 2, false, true},
-		{"residue wrapper", 1, true, false},
+		{"15 wrappers", 15, false, shapeInline, false},
+		{"16 wrappers", 16, false, shapeInline, false},
+		{"17 wrappers", 17, false, shapeInline, false},
+		{"20 wrappers", 20, false, shapeInline, false},
+		{"past the flattening depth", schema.AllOfFlattenDepth + 2, false, shapeInline, true},
+		{"past the flattening depth behind a $ref", schema.AllOfFlattenDepth + 2, false, shapeViaRef, true},
+		{"a part beside the cut", schema.AllOfFlattenDepth + 2, false, shapeBesideNote, true},
+		{"residue wrapper", 1, true, shapeInline, false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			forward := nestedPartSpec(tc.n, tc.residue, []string{"file", "meta"}, []string{"file", "meta"})
-			reversed := nestedPartSpec(tc.n, tc.residue, []string{"meta", "file"}, []string{"meta", "file"})
+			forward := nestedPartSpec(tc.n, tc.residue, tc.shape, []string{"file", "meta"}, []string{"file", "meta"})
+			reversed := nestedPartSpec(tc.n, tc.residue, tc.shape, []string{"meta", "file"}, []string{"meta", "file"})
 			var got [2]map[ir.PropID]ir.PartEncoding
 			for i, src := range []string{forward, reversed} {
 				_, svc, diags := lowerServiceSpec(t, src)
@@ -2671,6 +2691,10 @@ func TestPartEncodings_ReadsTheFlattenedComposition(t *testing.T) {
 				if tc.capped {
 					assert.Contains(t, diagMessages(diags), "multipart body composition is nested past the flattening depth of 32",
 						"a walk cut short by the bound says so")
+					if tc.shape == shapeBesideNote {
+						note := ir.PropID("p/openapi" + jsontext.Pointer(bodyPtr) + ids.Ptr("properties", "note"))
+						assert.Contains(t, got[i], note, "the part the body declares is keyed beside the cut")
+					}
 					continue
 				}
 				prefix := bodyPtr + strings.Repeat("/allOf/0", tc.n)
