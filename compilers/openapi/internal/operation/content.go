@@ -207,7 +207,7 @@ func positionalEncoding(c lowering.Ctx, content *ir.Content, media *soa.MediaTyp
 // encoding entry or is itself a repeated (array) or file (binary) part. body is
 // the TypeID the content's own schema position lowered to.
 func partEncodings(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, media *soa.MediaType, mediaPtr jsontext.Pointer, body ir.TypeID) (map[ir.PropID]ir.PartEncoding, ir.Unmodeled, []ir.Diagnostic) {
-	walk := bodyParts(media.GetSchema(), 0, map[*oas3.Schema]bool{})
+	walk := walkBodyParts(media.GetSchema())
 	parts := walk.parts
 	cutDiags := diagPartWalkCut(c, walk, mediaPtr+ids.Ptr("schema"))
 	if len(parts) == 0 {
@@ -252,9 +252,9 @@ type bodyPart struct {
 
 // maxPartRefHops bounds how many $ref targets bodyParts follows down a
 // composition. Inline wrappers are not counted: schema.FlattenedAllOf reads them,
-// with the cap the lowering uses. A target already entered is not entered again,
-// so an allOf cycle (GitHub #642) costs one visit; the bound caps an acyclic
-// chain, which a valid document can spell.
+// with the cap the lowering uses. A target is entered again only when a shorter
+// path reaches it, so an allOf cycle (GitHub #642) costs one visit, and the
+// bound is reported only for a target no path reaches within it.
 const maxPartRefHops = 16
 
 // partWalk is what bodyParts found, and which bound cut it short.
@@ -263,35 +263,59 @@ type partWalk struct {
 	// capped marks an inline branch nested past schema.AllOfFlattenDepth, whose
 	// own allOf was not followed.
 	capped bool
-	// hopsSpent marks a $ref target past maxPartRefHops, which was not entered.
+	// hopsSpent marks a $ref target past maxPartRefHops that no path entered.
 	hopsSpent bool
+}
+
+// partVisits is what one body's part walk has met: the fewest hops each target
+// was entered at, and the targets met past maxPartRefHops.
+type partVisits struct {
+	entered map[*oas3.Schema]int
+	cut     map[*oas3.Schema]bool
+}
+
+// walkBodyParts runs bodyParts over one body and reports the hop bound only for
+// a cut target that no path entered.
+func walkBodyParts(js *oas3.JSONSchema[oas3.Referenceable]) partWalk {
+	v := partVisits{entered: map[*oas3.Schema]int{}, cut: map[*oas3.Schema]bool{}}
+	w := bodyParts(js, 0, v)
+	for s := range v.cut {
+		if _, ok := v.entered[s]; !ok {
+			w.hopsSpent = true
+		}
+	}
+	return w
 }
 
 // bodyParts returns the parts a multipart body declares, in source order: the
 // properties written on the schema itself, then those each allOf branch
 // contributes, with the first declaration of a name winning. The branches are
 // the lowering's own (schema.FlattenedAllOf); a $ref branch is followed here, up
-// to maxPartRefHops. entered holds the schemas already entered: one met again
-// yields no parts. A bound that cut the walk is reported on the result.
+// to maxPartRefHops. v records the fewest hops each target was entered at: one
+// met again by no shorter path yields no parts. A bound that cut the walk is
+// recorded on v.
 //
 // A body that composes rather than declares — `allOf: [{$ref: Form}]` — still
 // enumerates the same parts (GitHub #140).
-func bodyParts(js *oas3.JSONSchema[oas3.Referenceable], hops int, entered map[*oas3.Schema]bool) partWalk {
-	if hops > maxPartRefHops {
-		return partWalk{hopsSpent: true}
-	}
+func bodyParts(js *oas3.JSONSchema[oas3.Referenceable], hops int, v partVisits) partWalk {
 	s := schemaOf(js)
-	if s == nil || entered[s] {
+	if s == nil {
 		return partWalk{}
 	}
-	entered[s] = true
+	if hops > maxPartRefHops {
+		v.cut[s] = true
+		return partWalk{}
+	}
+	if prev, ok := v.entered[s]; ok && prev <= hops {
+		return partWalk{}
+	}
+	v.entered[s] = hops
 	w := partWalk{parts: propertyParts(s)}
 	for _, br := range schema.FlattenedAllOf(s) {
 		if br.Ref {
-			sub := bodyParts(br.Schema, hops+1, entered)
+			sub := bodyParts(br.Schema, hops+1, v)
 			w.parts = append(w.parts, sub.parts...)
 			w.capped = w.capped || sub.capped
-			w.hopsSpent = w.hopsSpent || sub.hopsSpent
 			continue
 		}
 		w.parts = append(w.parts, propertyParts(schemaOf(br.Schema))...)

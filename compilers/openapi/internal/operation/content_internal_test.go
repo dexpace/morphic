@@ -209,8 +209,9 @@ func TestPropIDByWire_DeadEnds(t *testing.T) {
 func TestBodyParts_RefHopBound(t *testing.T) {
 	t.Parallel()
 	js := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{})
-	w := bodyParts(js, maxPartRefHops+1, map[*oas3.Schema]bool{})
+	v := partVisits{entered: map[*oas3.Schema]int{}, cut: map[*oas3.Schema]bool{}}
+	w := bodyParts(js, maxPartRefHops+1, v)
 	assert.Nil(t, w.parts,
 		"past the bound the walk stops rather than descending further")
-	assert.True(t, w.hopsSpent, "and says that it stopped")
+	assert.Len(t, v.cut, 1, "and records the target it stopped at")
 }

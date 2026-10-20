@@ -2750,6 +2750,51 @@ components:
 	assert.Empty(t, openapitest.FirstOp(t, svc).Request.Contents[0].Encoding, "the part beyond it has no entry")
 }
 
+// TestPartEncodings_ShorterPathReentersTarget spells a 16-link allOf chain the
+// body reaches twice: from its head and from its last link. Whichever the body
+// names first, the target at the end is two hops from the body by the short
+// path, so both parts are keyed and no bound is reported.
+func TestPartEncodings_ShorterPathReentersTarget(t *testing.T) {
+	t.Parallel()
+	cases := []struct{ name, allOf string }{
+		{"L1, L16", "[{$ref: '#/components/schemas/L1'}, {$ref: '#/components/schemas/L16'}]"},
+		{"L16, L1", "[{$ref: '#/components/schemas/L16'}, {$ref: '#/components/schemas/L1'}]"},
+	}
+	var comps strings.Builder
+	for i := 1; i <= 16; i++ {
+		comps.WriteString("    L" + strconv.Itoa(i) + ": {allOf: [{$ref: '#/components/schemas/L" + strconv.Itoa(i+1) + "'}]}\n")
+	}
+	comps.WriteString("    L17: {type: object, properties: {file: {type: string, format: binary}, meta: {type: string}}}\n")
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			spec := openapitest.PathsSpec(`  /u:
+    post:
+      operationId: up
+      requestBody:
+        content:
+          multipart/form-data:
+            schema: {allOf: ` + tc.allOf + `}
+            encoding:
+              file: {contentType: image/png}
+              meta: {contentType: application/json}
+      responses: {"200": {description: ok}}
+components:
+  schemas:
+` + comps.String())
+			_, svc, diags := lowerServiceSpec(t, spec)
+			openapitest.RequireNoErrorDiags(t, diags)
+			got := openapitest.FirstOp(t, svc).Request.Contents[0].Encoding
+			for _, part := range []string{"file", "meta"} {
+				id := ir.PropID("p/openapi/components/schemas/L17" + ids.Ptr("properties", part))
+				assert.Contains(t, got, id, "the %s part is keyed at the target both paths reach", part)
+			}
+			assert.NotContains(t, diagMessages(diags), "follows $refs past",
+				"a path within the bound reaches the target, so no bound is reported")
+		})
+	}
+}
+
 // TestPartEncodings_CycleEntersEachTargetOnce spells an allOf cycle back to the
 // body's own schema. Every part is declared once, so every part is keyed at the
 // target's properties and no bound is reported: a cycle costs one visit.
