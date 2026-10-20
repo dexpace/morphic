@@ -696,16 +696,14 @@ func TestProbeFromMapping_CostIsLinearInMergeBreadth(t *testing.T) {
 		require.NoError(t, yaml.Unmarshal(breadthMergeDoc(k), &root))
 		content := documentRoot(&root)
 
-		probe, err := probeFromMapping(content, maxMergeDepth, map[*yaml.Node]bool{})
+		var probe sniffProbe
+		var err error
+		allocs := testing.AllocsPerRun(1, func() {
+			probe, err = probeFromMapping(content, maxMergeDepth, map[*yaml.Node]bool{})
+		})
 		require.NoError(t, err)
 		require.Equal(t, "3.1.0", probe.OpenAPI,
 			"the version sits at the innermost anchor, so a walk that stops early fails here rather than looking cheap")
-
-		var walkErr error
-		allocs := testing.AllocsPerRun(1, func() {
-			_, walkErr = probeFromMapping(content, maxMergeDepth, map[*yaml.Node]bool{})
-		})
-		require.NoError(t, walkErr)
 		assert.Less(t, allocs, float64(k),
 			"a walk of %d merge keys made %.0f allocations, not fewer than the keys", k, allocs)
 	}
