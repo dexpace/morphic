@@ -342,14 +342,6 @@ func TestCheckFile_ReadErrorOnDirectory(t *testing.T) {
 	assert.Contains(t, err.Error(), "harness: read")
 }
 
-func TestCheckDir_WalkErrorPropagates(t *testing.T) {
-	// A directory that does not exist makes WalkDir invoke the callback with a
-	// non-nil error, which checkDir wraps and returns.
-	_, err := checkDir(context.Background(), filepath.Join(t.TempDir(), "absent"))
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "harness: walk")
-}
-
 func TestListDir_WalkErrorPropagates(t *testing.T) {
 	// SpecFiles stats its path first, so a walk that fails is reached here, with
 	// a directory that does not exist: WalkDir invokes the callback with a
@@ -360,15 +352,16 @@ func TestListDir_WalkErrorPropagates(t *testing.T) {
 	assert.Contains(t, err.Error(), "harness: walk")
 }
 
-func TestCheckDir_UnreadableSpecFileErrors(t *testing.T) {
-	// A broken symlink named like a spec is visited as a non-directory spec file,
-	// but reading it fails when the link target is followed. The walk aborts with
-	// that error rather than a silent skip.
+func TestCheckPath_UnreadableSpecInADirectoryErrors(t *testing.T) {
+	// A broken symlink named like a spec is listed as a non-directory spec file,
+	// but reading it fails when the link target is followed. The sweep aborts
+	// with that error rather than a silent skip.
 	dir := t.TempDir()
 	link := filepath.Join(dir, "spec.yaml")
 	require.NoError(t, os.Symlink(filepath.Join(dir, "no-such-target"), link))
 
-	_, err := checkDir(context.Background(), dir)
+	results, err := CheckPath(context.Background(), dir)
 	require.Error(t, err)
+	assert.Nil(t, results)
 	assert.Contains(t, err.Error(), "harness: read")
 }

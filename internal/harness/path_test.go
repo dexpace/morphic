@@ -113,10 +113,11 @@ func TestCheckPath_UnreadableFileIsError(t *testing.T) {
 func TestSpecFiles_ListsADirectorysSpecsInWalkOrder(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	require.NoError(t, os.Mkdir(filepath.Join(dir, "nested"), 0o750))
+	// A directory named like a spec is walked into, not listed.
+	require.NoError(t, os.Mkdir(filepath.Join(dir, "nested.yaml"), 0o750))
 	b := writeSpec(t, dir, "b.yaml", testspec.Minimal)
 	a := writeSpec(t, dir, "a.json", "{}")
-	c := writeSpec(t, filepath.Join(dir, "nested"), "c.yml", testspec.Minimal)
+	c := writeSpec(t, filepath.Join(dir, "nested.yaml"), "c.yml", testspec.Minimal)
 	// A golden snapshot and a file of another kind are not specs.
 	writeSpec(t, dir, "a.golden.json", "{}")
 	writeSpec(t, dir, "notes.txt", "x")
