@@ -58,8 +58,12 @@ func TestAnalyzers_ReadTheModulesLayout(t *testing.T) {
 	assert.NotContains(t, got, "idderivations: ")
 }
 
-// wantMarker is a line's marker: one or more quoted findings after "// want".
-var wantMarker = regexp.MustCompile(`// want ((?:"(?:[^"\\]|\\.)*"\s*)+)$`)
+// wantMarker is a line's marker: one or more quoted findings after "// want",
+// each matched alone by quotedFinding.
+var (
+	wantMarker    = regexp.MustCompile(`// want ((?:"(?:[^"\\]|\\.)*"\s*)+)$`)
+	quotedFinding = regexp.MustCompile(`"(?:[^"\\]|\\.)*"`)
+)
 
 // wantedFindings returns every marked finding under dir, as
 // "<file>:<line>: <analyzer>: <message>" with file relative to dir, sorted.
@@ -83,7 +87,7 @@ func wantedFindings(t *testing.T, dir string) []string {
 			if m == nil {
 				continue
 			}
-			for _, q := range regexp.MustCompile(`"(?:[^"\\]|\\.)*"`).FindAllString(m[1], -1) {
+			for _, q := range quotedFinding.FindAllString(m[1], -1) {
 				msg, err := strconv.Unquote(q)
 				if err != nil {
 					return fmt.Errorf("%s:%d: %w", rel, i+1, err)

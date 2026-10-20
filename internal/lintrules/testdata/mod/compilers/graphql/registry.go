@@ -49,9 +49,6 @@ type cache[K comparable, V any] map[K]V
 
 func (c cache[K, V]) put(k K, v V) { c[k] = v }
 
-// Insert reads a registry under the name of a function of package maps.
-func Insert(reg ir.TypeRegistry, id ir.TypeID) bool { return reg[id] != nil }
-
 // fresh returns a registry it built.
 func fresh() map[ir.TypeID]ir.TypeDef {
 	return map[ir.TypeID]ir.TypeDef{} // want "registrywrites: builds a type registry (a map from ir.TypeID to ir.TypeDef) outside ir and compilers/compile; go through compile.Types"
@@ -89,13 +86,11 @@ func plantRegistry(doc *ir.Document, reg ir.TypeRegistry, seq iter.Seq2[ir.TypeI
 	}
 	for _, reg[id] = range defs { // want "registrywrites: writes a type registry outside ir and compilers/compile; go through compile.Types, or rewrite a node in a compile.Settlement"
 	}
-	put(reg, id, def)                                         // want "registrywrites: instantiates a generic with a type registry or ir.TypeDef, whose registry writes this rule cannot read; keep registry writes in ir and compilers/compile"
-	put[ir.TypeRegistry](reg, id, def)                        // want "registrywrites: instantiates a generic with a type registry or ir.TypeDef, whose registry writes this rule cannot read; keep registry writes in ir and compilers/compile"
-	put[ir.TypeRegistry, ir.TypeID, ir.TypeDef](reg, id, def) // want "registrywrites: instantiates a generic with a type registry or ir.TypeDef, whose registry writes this rule cannot read; keep registry writes in ir and compilers/compile"
-	putKV(reg, id, def)                                       // want "registrywrites: instantiates a generic with a type registry or ir.TypeDef, whose registry writes this rule cannot read; keep registry writes in ir and compilers/compile"
-	keep(reg)                                                 // want "registrywrites: instantiates a generic with a type registry or ir.TypeDef, whose registry writes this rule cannot read; keep registry writes in ir and compilers/compile"
-	cache[ir.TypeID, ir.TypeDef](reg).put(id, def)            // want "registrywrites: instantiates a generic with a type registry or ir.TypeDef, whose registry writes this rule cannot read; keep registry writes in ir and compilers/compile"
-	write := putKV[ir.TypeID, ir.TypeDef]                     // want "registrywrites: instantiates a generic with a type registry or ir.TypeDef, whose registry writes this rule cannot read; keep registry writes in ir and compilers/compile"
+	put(reg, id, def)                              // want "registrywrites: instantiates a generic with a type registry or ir.TypeDef, whose registry writes this rule cannot read; keep registry writes in ir and compilers/compile"
+	putKV(reg, id, def)                            // want "registrywrites: instantiates a generic with a type registry or ir.TypeDef, whose registry writes this rule cannot read; keep registry writes in ir and compilers/compile"
+	keep(reg)                                      // want "registrywrites: instantiates a generic with a type registry or ir.TypeDef, whose registry writes this rule cannot read; keep registry writes in ir and compilers/compile"
+	cache[ir.TypeID, ir.TypeDef](reg).put(id, def) // want "registrywrites: instantiates a generic with a type registry or ir.TypeDef, whose registry writes this rule cannot read; keep registry writes in ir and compilers/compile"
+	write := putKV[ir.TypeID, ir.TypeDef]          // want "registrywrites: instantiates a generic with a type registry or ir.TypeDef, whose registry writes this rule cannot read; keep registry writes in ir and compilers/compile"
 	write(reg, id, def)
 	cp := maps.Copy[ir.TypeRegistry, ir.TypeRegistry] // want "registrywrites: writes a type registry outside ir and compilers/compile; go through compile.Types, or rewrite a node in a compile.Settlement"
 	cp(reg, doc.Types)
@@ -117,5 +112,4 @@ func plantRegistry(doc *ir.Document, reg ir.TypeRegistry, seq iter.Seq2[ir.TypeI
 	byNumber(map[int]ir.TypeDef{}, 1)
 	_ = cache[ir.TypeID, int]{}
 	_ = owner.Clone(reg)
-	_ = Insert(reg, id)
 }

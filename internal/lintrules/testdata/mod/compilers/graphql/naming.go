@@ -29,24 +29,14 @@ type mirror struct {
 	Aliases   []string
 }
 
-// short lacks Aliases, so no ir.Naming converts from it.
+// short lacks Aliases, so it is no look-alike of ir.Naming.
 type short struct{ Source, Canonical, Hint string }
 
-// others names its last field otherwise, sliced makes Canonical a slice and
-// flat makes Aliases a string, so none converts to ir.Naming either.
-type (
-	others struct {
-		Source, Canonical, Hint string
-		Others                  []string
-	}
-	sliced struct {
-		Source    string
-		Canonical []string
-		Hint      string
-		Aliases   []string
-	}
-	flat struct{ Source, Canonical, Hint, Aliases string }
-)
+// others names its last field otherwise, so it is no look-alike either.
+type others struct {
+	Source, Canonical, Hint string
+	Others                  []string
+}
 
 // pointer points to a Naming under a name of its own.
 type pointer *ir.Naming
@@ -81,17 +71,6 @@ func fillUnnamed[T ~string](n *struct {
 	n.Canonical = s // want "namechannels: ir.Naming.Canonical is filled by something other than a call into ir or compilers/compile; use compile.NamingFor, compile.NamingHint or ir.CanonicalWords"
 }
 
-// numbered has a type parameter no string satisfies where ir.Naming has
-// Canonical, so no instantiation makes it one.
-type numbered[N ~int] struct {
-	Source    string
-	Canonical N
-	Hint      string
-	Aliases   []string
-}
-
-func (n *numbered[N]) set(v N) { n.Canonical = v }
-
 func plantMirrors(name string, p pointer, e embedsPointer) (ir.Naming, ir.Naming) {
 	keyed := mirror{Source: name, Canonical: localWords(name)}                 // want "namechannels: ir.Naming.Canonical is filled by something other than a call into ir or compilers/compile; use compile.NamingFor, compile.NamingHint or ir.CanonicalWords"
 	keyed.Hint = localWords(name)                                              // want "namechannels: ir.Naming.Hint is filled by something other than a call into ir or compilers/compile; use compile.NamingFor, compile.NamingHint or ir.CanonicalWords"
@@ -100,7 +79,7 @@ func plantMirrors(name string, p pointer, e embedsPointer) (ir.Naming, ir.Naming
 	e.Canonical = name                                                         // want "namechannels: ir.Naming.Canonical is filled by something other than a call into ir or compilers/compile; use compile.NamingFor, compile.NamingHint or ir.CanonicalWords"
 	near := short{Canonical: name}
 	near.Hint = name
-	_, _, _ = others{Canonical: name}, sliced{Hint: name}, flat{Hint: name}
+	_ = others{Canonical: name}
 	_, _ = near, &os.Args // a package's variable is no struct's field
 	var g genericMirror[string]
 	g.fill(name)

@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"golang.org/x/tools/go/analysis"
-	"golang.org/x/tools/go/types/typeutil"
 )
 
 // Module is the import path of the module the rules are written against.
@@ -100,18 +99,4 @@ func imported(pkg *types.Package, path string) *types.Package {
 func satisfies(t types.Type, p *types.TypeParam) bool {
 	iface, _ := p.Underlying().(*types.Interface) // a type parameter's always is
 	return types.Satisfies(t, iface)
-}
-
-// frameworkCall reports whether e is a call of a function, not a method, that
-// ir or compilers/compile declares.
-func frameworkCall(info *types.Info, e ast.Expr) bool {
-	call, ok := ast.Unparen(e).(*ast.CallExpr)
-	if !ok {
-		return false
-	}
-	fn, ok := typeutil.Callee(info, call).(*types.Func)
-	if !ok || fn.Pkg() == nil || fn.Signature().Recv() != nil {
-		return false
-	}
-	return fn.Pkg().Path() == irPath || fn.Pkg().Path() == compilePath
 }
