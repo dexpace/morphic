@@ -17,9 +17,9 @@ const (
 	defsPrefix                  = string(defsRoot) + "/"
 )
 
-// IsDefs reports whether pointer is one the $defs rule reads, from where the
+// isDefs reports whether pointer is one the $defs rule reads, from where the
 // $ref spelling it is written rather than from its document's root alone.
-func IsDefs(pointer jsontext.Pointer) bool {
+func isDefs(pointer jsontext.Pointer) bool {
 	return strings.HasPrefix(string(pointer), defsPrefix)
 }
 

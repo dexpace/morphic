@@ -143,7 +143,7 @@ func (b *binder) table(t *Table) *Table {
 		}
 	}
 	t.loops, t.steps, t.limit, t.exhausted = b.loops, b.work.spent, b.work.limit, b.work.over()
-	t.byName, t.ends = b.docs.byName, b.find.ends
+	t.ends = b.find.ends
 	for _, d := range b.docs.list {
 		t.docs = append(t.docs, Document{Name: d.name, Root: d.root})
 		t.truncated = t.truncated || d.view.Exhausted()
@@ -215,7 +215,6 @@ type Table struct {
 	loops     []Loop
 	landings  []Landing
 	docs      []Document
-	byName    map[string]DocID
 	ends      map[jsontext.Pointer]Position
 	steps     int
 	limit     int
@@ -257,13 +256,6 @@ func (t *Table) Document(id DocID) Document { return t.docs[id] }
 
 // Documents reports how many documents the table read, the source included.
 func (t *Table) Documents() int { return len(t.docs) }
-
-// Find returns the document the table read under name, and false for a name
-// it read none under.
-func (t *Table) Find(name string) (DocID, bool) {
-	id, ok := t.byName[name]
-	return id, ok
-}
 
 // Through returns where the source's reference object at pointer resolves
 // to: where the parser's resolver ended its chain (Config.Through), read on

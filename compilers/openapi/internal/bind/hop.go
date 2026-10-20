@@ -79,7 +79,7 @@ func (b *binder) document(site Position, ref string) (DocID, Reason, string) {
 func (b *binder) land(site Position, doc DocID, ref string, pointer jsontext.Pointer, own bool, h *Hop,
 ) (reading, Reason) {
 	uri, _, _ := strings.Cut(ref, "#")
-	if strings.TrimSpace(uri) == "" && IsDefs(pointer) {
+	if strings.TrimSpace(uri) == "" && isDefs(pointer) {
 		if site.Doc == Source && b.beside(site.Pointer, h) {
 			return reading{}, BesideDefs
 		}
