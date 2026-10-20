@@ -94,6 +94,10 @@ func TestBind_ReadsEachHop(t *testing.T) {
 		{"a key the model lacks, read as raw YAML", "    A: {$ref: '#/components/mediaTypes/M/schema'}\n" +
 			"  mediaTypes:\n    M: {schema: {type: string}}\n", bind.NoReason, "/components/mediaTypes/M/schema", bind.Raw},
 		{"raw YAML that is no schema", "    A: {$ref: '#/x-lib/n'}\nx-lib: {n: 5}\n", bind.NotSchema, "", bind.NoRole},
+		{"a component the YAML writes as no schema, which the parser builds one at", "    A: {$ref: '#/components/schemas/B'}\n    B: 5\n",
+			bind.NoReason, "/components/schemas/B", bind.Schema},
+		{"a property the YAML writes as no schema", "    A: {$ref: '#/components/schemas/B/properties/p'}\n    B: {properties: {p: just text}}\n",
+			bind.NoReason, "/components/schemas/B/properties/p", bind.Schema},
 		{"nothing there", "    A: {$ref: '#/components/schemas/Z'}\n", bind.NoTarget, "", bind.NoRole},
 		{"a trailing slash, an empty key", "    A: {$ref: '#/components/schemas/B/'}\n    B: {}\n",
 			bind.NoTarget, "", bind.NoRole},

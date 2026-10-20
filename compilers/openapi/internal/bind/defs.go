@@ -157,10 +157,17 @@ func (d definitions) holds(id DocID, n *yaml.Node, tokens []string) bool {
 }
 
 // answers reports whether a definition read at r answers its pointer: a
-// schema of the model, or raw YAML read as one.
+// schema of the model, which the parser builds whatever the YAML there holds,
+// or raw YAML shaped as one.
 func answers(r reading) bool {
-	role := roleOf(r.state)
-	return (role == Schema || role == Raw) && schemaShaped(r.node)
+	switch roleOf(r.state) {
+	case Schema:
+		return r.node != nil
+	case Raw:
+		return schemaShaped(r.node)
+	default:
+		return false
+	}
 }
 
 // prefix is the pointer to pointer's first n tokens: pointer up to the '/'

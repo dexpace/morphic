@@ -244,9 +244,10 @@ that document. What such a `$ref` names lends the use site holding it nothing �
 part, file body or discriminator — as the parser's resolver resolved no `$ref` there. A YAML alias
 or merge key is a copy written where it is placed, so what it holds is read at that position, as the
 document's JSON places it, and raw YAML a schema `$ref` lands on, under an extension or in another
-document, is read as a schema. A key written twice in one mapping is read as its last occurrence,
-raw YAML included, as the parser's model reads one
-([`duplicate-key`](../parser-library.md#duplicate-key)).
+document, is read as a schema. A schema position of the model holds the schema the parser built
+there, whatever its YAML, so a `$ref` to a component written as a string names that component, as it
+lowers. A key written twice in one mapping is read as its last occurrence, raw YAML included, as the
+parser's model reads one ([`duplicate-key`](../parser-library.md#duplicate-key)).
 
 A reference that resolves to nothing — a pointer naming no node, a position holding no schema, a
 component its section does not hold, another document while external references are off, an
