@@ -60,15 +60,16 @@ func (h *hierarchy) supertypeEdges(types ir.TypeRegistry) [][]int {
 		for _, super := range supers {
 			v, named := h.vertex[super]
 			if !named {
-				v = len(edges)
+				v = len(h.vertex)
 				h.vertex[super] = v
-				edges = append(edges, nil)
 			}
 			edges[i] = append(edges[i], v)
 			h.children[super] = append(h.children[super], id)
 		}
 	}
-	return edges
+	// A supertype the registry lacks declares nothing, so its vertex has no
+	// edges.
+	return slices.Concat(edges, make([][]int, len(h.vertex)-len(edges)))
 }
 
 // subtype answers [Index.IsSubtype] from the intervals, with settled false where
