@@ -63,7 +63,7 @@ type nameCheck struct {
 }
 
 // isChannel reports whether the field called name of the struct s is a name
-// channel: Canonical or Hint of a struct that converts to ir.Naming.
+// channel: Canonical or Hint of a struct that converts to ir.Naming, or would.
 func (c nameCheck) isChannel(s *types.Struct, name string) bool {
 	return (name == "Canonical" || name == "Hint") && c.converts(s)
 }
@@ -107,8 +107,8 @@ func (c nameCheck) node(n ast.Node) {
 		c.assign(n)
 	case *ast.RangeStmt:
 		c.rangeClause(n)
-	case *ast.UnaryExpr:
-		if name, ok := c.channel(n.X); ok && n.Op == token.AND {
+	case *ast.UnaryExpr: // & is the one unary operator a string takes
+		if name, ok := c.channel(n.X); ok {
 			c.pass.Reportf(n.Pos(), addressed, name)
 		}
 	default:
