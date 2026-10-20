@@ -349,7 +349,7 @@ func TestTokens_DecodesAsTheLibraryReads(t *testing.T) {
 	} {
 		got, ok := navigation.Tokens(pointer)
 		require.True(t, ok, "%q", pointer)
-		assert.Equal(t, len(want), len(got), "%q", pointer)
+		assert.Len(t, got, len(want), "%q", pointer)
 		assert.Equal(t, want, append([]string{}, got...), "%q", pointer)
 		lib, err := libraryTokens(pointer)
 		require.NoError(t, err, "%q", pointer)

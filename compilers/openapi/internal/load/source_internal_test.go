@@ -648,7 +648,7 @@ func TestHold_ASchemaRefNamingTheSourceCopiesNoBytesOfIt(t *testing.T) {
 	a, ok := doc.Components.Schemas.Get("A")
 	require.True(t, ok)
 
-	pass.visit("/components/schemas/A", a)
+	pass.visit(t.Context(), "/components/schemas/A", a)
 
 	require.Empty(t, pass.failures)
 	assert.Equal(t, "string", string(a.GetResolvedSchema().GetSchema().GetType()[0]))

@@ -379,7 +379,7 @@ func TestMappings_APointerEndingInSlashNamesNoWalkedObject(t *testing.T) {
 			"x-lib:\n  S: {type: object, properties: {a: {$ref: '#/x-lib/T/'}}}\n  T: {type: object}\n"), false)
 		require.Empty(t, diags)
 
-		assert.True(t, got.Targets.Built("/x-lib/T/") == nil, "no object is held at a pointer ending in '/': %s", schema)
+		assert.Nil(t, got.Targets.Built("/x-lib/T/"), "no object is held at a pointer ending in '/': %s", schema)
 	}
 }
 
@@ -428,7 +428,7 @@ func resolverOver(t *testing.T, spec string, limit int) (*mappings, []ir.Diagnos
 	self := newSourceDocument("spec.yaml", []byte(spec), root, valErrs, newSourceTree(0, overlay.Origin{}, root), nil)
 	pass := newResolution(t.Context(), pointerAt(0, overlay.Origin{}), doc, Siblings{}, self, Options{}, nil)
 	pass.targets.limit = limit
-	_, diags := pass.run(doc)
+	_, diags := pass.run(t.Context(), doc)
 	return pass.targets, diags
 }
 
@@ -1510,7 +1510,7 @@ func externalResolverOver(t *testing.T, spec string) (*mappings, []ir.Diagnostic
 	opts := Options{AllowExternalRefs: true}
 	reader := newExternal(doc, opts, newExternalReads(self))
 	pass := newResolution(t.Context(), pointerAt(0, overlay.Origin{}), doc, Siblings{}, self, opts, &reader)
-	_, diags := pass.run(doc)
+	_, diags := pass.run(t.Context(), doc)
 	return pass.targets, diags
 }
 

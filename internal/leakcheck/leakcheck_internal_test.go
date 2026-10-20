@@ -110,9 +110,10 @@ func TestPprofLookup_RegisteredProfileIsNonNil(t *testing.T) {
 func TestPprofLookup_UnregisteredNameIsGenuinelyNilInterface(t *testing.T) {
 	t.Parallel()
 	got := pprofLookup("leakcheck-test-name-nothing-registers")
-	// A plain == nil, not assert.Nil: testify's Nil reflects through the
-	// interface and would report this as nil even if pprofLookup regressed to
-	// "return pprof.Lookup(name)" — a *pprof.Profile(nil) wrapped in a non-nil
-	// profile interface, which is exactly the trap this test exists to catch.
-	assert.True(t, got == nil, "an unregistered name must yield a nil interface, not a nil *pprof.Profile in one")
+	// Equal against nil compares the interface itself, not assert.Nil: testify's
+	// Nil reflects through the interface and would report this as nil even if
+	// pprofLookup regressed to "return pprof.Lookup(name)" — a *pprof.Profile(nil)
+	// wrapped in a non-nil profile interface, which is exactly the trap this test
+	// exists to catch.
+	assert.Equal(t, nil, got, "an unregistered name must yield a nil interface, not a nil *pprof.Profile in one")
 }

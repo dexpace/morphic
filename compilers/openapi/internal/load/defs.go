@@ -125,7 +125,7 @@ func (r heldRef) retarget() {
 // ends there rather than reading the resolver's order-dependent lookup, and is
 // reported as a definition the resolver cannot find: the lowering reports only
 // the positions it models. It returns where a panic stopped it.
-func (p *resolution) resolveHeld(refs []heldRef) (site jsontext.Pointer, err error) {
+func (p *resolution) resolveHeld(ctx context.Context, refs []heldRef) (site jsontext.Pointer, err error) {
 	defer recovered(&err, resolverPanics)
 	defer restoreDefs(refs)
 	for _, r := range refs {
@@ -143,7 +143,7 @@ func (p *resolution) resolveHeld(refs []heldRef) (site jsontext.Pointer, err err
 			p.missing(site, p.esc.writtenOf(r.js))
 			continue
 		}
-		p.visit(site, r.js)
+		p.visit(ctx, site, r.js)
 	}
 	return "", nil
 }

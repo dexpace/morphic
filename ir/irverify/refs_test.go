@@ -41,7 +41,7 @@ func TestCollectRefs_SkipsEmptyIDs(t *testing.T) {
 	doc := docWithRef("") // empty target must not be collected
 	sites, _ := collectRefs(doc, ir.DocumentRegistries(doc))
 	for _, s := range sites {
-		assert.NotEqual(t, "", s.id)
+		assert.NotEmpty(t, s.id)
 	}
 }
 

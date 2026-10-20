@@ -44,7 +44,7 @@ func TestGitAttributes_PinsLineEndings(t *testing.T) {
 		}
 	}
 	require.NotEmpty(t, pins, ".gitattributes carries only comments")
-	assert.True(t, strings.Contains(strings.Join(pins, "\n"), "eol=lf"),
+	assert.Contains(t, strings.Join(pins, "\n"), "eol=lf",
 		".gitattributes must pin line endings to LF, got rules %q", pins)
 }
 

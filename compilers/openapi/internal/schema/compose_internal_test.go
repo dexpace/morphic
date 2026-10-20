@@ -364,11 +364,10 @@ func TestRawMappingKeys_OnlyEnumeratesAMapping(t *testing.T) {
 	}
 }
 
-// TestEnumMemberForm_ClassifiesEveryValueKind pins the classification arm by arm,
-// including the kinds OpenAPI cannot produce. ValueKind is IR-wide, and
-// TestValueKindSwitches_NameEveryValueKind requires every member of it to be
-// named here — this is what says the naming is a decision rather than a
-// formality.
+// TestEnumMemberForm_ClassifiesEveryValueKind pins the classification arm by
+// arm, including the kinds OpenAPI cannot produce. ValueKind is IR-wide, and
+// the exhaustive linter requires every member of it to be named here — this is
+// what says the naming is a decision rather than a formality.
 func TestEnumMemberForm_ClassifiesEveryValueKind(t *testing.T) {
 	t.Parallel()
 	admissible := []struct {

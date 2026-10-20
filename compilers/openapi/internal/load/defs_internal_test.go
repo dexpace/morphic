@@ -193,7 +193,7 @@ func TestResolveHeld_ResolvesToTheRulesTarget(t *testing.T) {
 	require.Len(t, refs, 2)
 
 	pass := heldPass(t, doc)
-	site, err := pass.resolveHeld(refs)
+	site, err := pass.resolveHeld(t.Context(), refs)
 	require.NoError(t, err)
 	assert.Empty(t, site)
 	assert.Empty(t, pass.failures)
@@ -234,7 +234,7 @@ components:
 	require.False(t, refs[0].found, "no $defs exists anywhere for the rule to find")
 
 	pass := heldPass(t, doc)
-	_, err := pass.resolveHeld(refs)
+	_, err := pass.resolveHeld(t.Context(), refs)
 	require.NoError(t, err)
 	require.Len(t, pass.failures, 1)
 	got := pass.failures[0]
@@ -289,7 +289,7 @@ func TestResolveHeld_ConcretePointerMismatchIsReportedAsWritten(t *testing.T) {
 	refs[0].def.At = "/does/not/exist"
 
 	pass := heldPass(t, doc)
-	_, err := pass.resolveHeld(refs)
+	_, err := pass.resolveHeld(t.Context(), refs)
 	require.NoError(t, err)
 	require.Len(t, pass.failures, 1)
 	got := pass.failures[0]
@@ -310,7 +310,7 @@ func TestResolveHeld_RecoversFromAPanicAndReportsWhere(t *testing.T) {
 	doc, _ := buildDoc(t, twoDefsSpec)
 	pass := heldPass(t, doc)
 
-	site, err := pass.resolveHeld([]heldRef{{js: nil, found: true, def: defs.Definition{At: "/$defs/n"}}})
+	site, err := pass.resolveHeld(t.Context(), []heldRef{{js: nil, found: true, def: defs.Definition{At: "/$defs/n"}}})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "reference resolver panicked")
 	assert.Empty(t, site, "stopped before reaching any reference")
@@ -319,7 +319,7 @@ func TestResolveHeld_RecoversFromAPanicAndReportsWhere(t *testing.T) {
 	require.Len(t, held, 2)
 	held[1].refused = "beside a path item $ref"
 	pass.at = nil // reporting the second then calls a locator that is not there
-	site, err = pass.resolveHeld(held)
+	site, err = pass.resolveHeld(t.Context(), held)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "reference resolver panicked")
 	assert.Equal(t, held[1].site, site, "stopped at the reference being resolved")

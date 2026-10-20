@@ -60,7 +60,7 @@ func TestEngine_ConcurrentRunSharesOneEngine(t *testing.T) {
 	for _, doc := range want {
 		distinct[doc] = struct{}{}
 	}
-	require.Equal(t, len(specs), len(distinct), "baseline documents must all differ")
+	require.Len(t, specs, len(distinct), "baseline documents must all differ")
 
 	eng, err := engine.New()
 	require.NoError(t, err)
