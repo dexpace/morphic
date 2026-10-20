@@ -61,11 +61,11 @@ export GOFLAGS
 # upstream release reddens main with no change to this repo.
 GOLANGCI_LINT_VERSION ?= v2.14.0
 
-# The ports CI never runs on, as GOOS/GOARCH, which make build and make vet
-# cover beside the host: an API one port lacks fails only that port's build,
-# and a file one port alone builds is read by that port's vet only. Windows, and
-# the two wasm ports, whose syscall package is the narrowest the module builds
-# against.
+# The ports CI never runs on, as GOOS/GOARCH, which make build, make vet and
+# make lint-planted cover beside the host: an API one port lacks fails only that
+# port's build, and a file one port alone builds is read by that port's vet and
+# lint only. Windows, and the two wasm ports, whose syscall package is the
+# narrowest the module builds against.
 PORTS := windows/amd64 js/wasm wasip1/wasm
 
 # Per-target fuzz budget, bounded on purpose. The gate's job is to keep every
@@ -95,8 +95,8 @@ fmt:
 	fi
 
 # go vet's own analyzers, then the repository's: internal/lintrules, through
-# cmd/morphic-vet, on the host and on each of the PORTS, which
-# scripts/vet-rules.sh says why.
+# cmd/morphic-vet, on the host and on each of the PORTS. scripts/vet-rules.sh
+# says how.
 vet:
 	$(GO) vet ./...
 	./scripts/vet-rules.sh $(PORTS)
