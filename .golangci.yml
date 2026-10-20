@@ -46,10 +46,6 @@ linters:
         # whatever it touches, and a test reaching v1 checks the IR against a codec
         # it no longer uses, so tests are covered too. The trailing $ makes the
         # match exact: a prefix would refuse v2 and jsontext with it.
-        #
-        # Lint reads the files one port's build includes, so make lint-planted
-        # runs this, with the other rules it holds, on every port make build
-        # covers.
         json-v1:
           list-mode: lax
           files: [$all]
@@ -77,8 +73,8 @@ linters:
       # packages. Named here is every standard-library way to reach stdout or
       # stderr without being handed a writer, and the default loggers. An
       # injected *slog.Logger stays allowed: only the package-level functions
-      # writing through the default logger are refused. log/syslog is not
-      # named: it builds on unix alone, so no plant could hold it on every port.
+      # writing through the default logger are refused, as is opening a
+      # connection to the system log.
       analyze-types: true
       forbid:
         - pattern: ^os\.(Stdout|Stderr)$
@@ -94,6 +90,8 @@ linters:
           pkg: ^log$
         - pattern: ^slog\.(Default|SetDefault|Debug|DebugContext|Info|InfoContext|Warn|WarnContext|Error|ErrorContext|Log|LogAttrs)$
           pkg: ^log/slog$
+        - pattern: ^syslog\.(New|Dial|NewLogger)$
+          pkg: ^log/syslog$
     funlen:
       # The styleguide's hard cap. Statements are not capped as well: a function
       # is long because of what it does, and two limits on the same axis only
