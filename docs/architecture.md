@@ -55,8 +55,13 @@ between stages. The IR itself is specified in [`ir-design.md`](./ir-design.md).
 
 ### 2.1 Compilers (spec → IR)
 
-One compiler per source format. Each owns its format completely: file loading, reference
-resolution, format-version normalization, and lowering into IR nodes.
+One compiler per source format. Each owns its format: which documents a source's references name,
+reference resolution, format-version normalization, and lowering into IR nodes. Reading those
+documents is not a compiler's. It does no I/O, and reads every document beyond its sources through
+the `compilers.DocumentReader` the engine hands it in `compilers.Options.Reader`. The compiler says
+how far a read may go, as a directory it must stay inside, and the reader enforces it, symbolic
+links included: the OpenAPI compiler keeps every read inside the spec's directory unless
+`allow-external-refs` lifts that.
 
 Contract, abridged from `compilers.Compiler`, whose doc comments state each method's duties:
 
@@ -76,9 +81,9 @@ type Compiler interface {
 
 Internal phases every compiler follows (each format implements them its own way):
 
-1. **Load & bundle** — read all source files, resolve external references, produce one in-memory
-   source document. Original pointers (file + JSON pointer / line-col) are preserved for
-   provenance.
+1. **Load & bundle** — read every document the source's references name, through the caller's
+   reader, resolve external references, produce one in-memory source document. Original pointers
+   (file + JSON pointer / line-col) are preserved for provenance.
 2. **Normalize within the format** — collapse format-version differences before IR construction:
    Swagger 2.0 is lifted to the OpenAPI 3.x shape (`body`/`formData` params → request body,
    `host`+`basePath` → servers); OpenAPI 3.0 `nullable` and 3.1 `type: [T, "null"]` both become
@@ -330,6 +335,9 @@ morphic/
 ├── pass/                   # Layer 1 — IR → IR passes (validate, dedup, filter, slice, overlay).
 ├── emitters/               # Layer 2 — emitter contract, plan layer, registry (future).
 ├── engine/                 # Layer 3 — orchestration: detect format, run compiler, passes, emitters.
+│   ├── reader/             #           Reads what a run's references name: disk, network or memory.
+│   ├── report/             #           Renders diagnostics and --explain for a person.
+│   └── output/             #           Writes the IR document, through internal/atomicfile.
 ├── internal/archtest/      #           Layering, grammar, recursion and method-cap rules (tooling).
 ├── internal/decls/         #           Type-checked reads of declarations, for tests (tooling).
 ├── internal/harness/       #           Bug-catching oracle sweep over a spec corpus (tooling).
@@ -368,6 +376,15 @@ Dependency rules, enforced by an architecture test as in oagen:
 - `emitters/*` imports `ir` and the contract package `emitters` — never a compiler.
 - `engine` imports everything below it; `cmd` imports `engine`.
 
+The engine owns every read, every write and every rendering for a person, so a second driver — an
+editor integration, an emitter driver, a test harness — reads, writes and reports exactly as the CLI
+does without importing it. It takes its input three ways: a spec file (`Run`), sources already in
+memory (`RunSources`, which reads nothing else), and a document already compiled (`RunDocument`,
+which runs the passes alone). `engine/reader` reads what a source's references name, `engine/output`
+writes the document to a stream or replaces a file atomically, and `engine/report` renders
+diagnostics and `--explain`. The CLI parses flags, picks the streams and turns a run into an exit
+code.
+
 Two caps guard the shape rather than the graph, both in `internal/archtest` and `.golangci.yml`:
 no type under `compilers/` may carry more than 20 methods, and no function may exceed 70 lines or
 a cognitive complexity of 20. The method cap exists because the god object that
@@ -390,7 +407,8 @@ IR-space `Node` instead. Every stage returns
 can allowlist. A mature allowlist entry is keyed by (diagnostic code × entity ID), requires a
 human rationale, supports expiry tied to a release, and rejects wildcards — narrowness is
 validated, so approvals cannot rot into blanket suppressions. Nothing in the pipeline writes to
-stderr; the CLI renders diagnostics.
+stderr. The engine renders diagnostics (`engine/report`), and a driver such as the CLI chooses the
+stream they go to.
 
 ## 5. Testing strategy
 

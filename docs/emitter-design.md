@@ -198,7 +198,11 @@ func (r *Registry) Targets() []TargetKey               // sorted — determinism
 ```
 
 The engine is the only caller of `Lookup`, the only thing that runs `Generate`, and the only thing
-that touches the filesystem, prunes, and renders diagnostics. Emitters are I/O-free.
+that touches the filesystem, prunes, and renders diagnostics. Emitters are I/O-free. Three of those
+duties have homes already: `engine/reader` reads what a run's references name, `engine/report`
+renders, and `engine/output` writes, every file through the atomic replace in
+`engine/internal/atomicfile`, which §11's writer is to publish each artifact through. Pruning lands
+with §11.
 
 ### 2.2 Who computes the plan
 
