@@ -83,10 +83,11 @@ func unknownKeyOrders(ctx context.Context, input []byte) string {
 
 // goroutinesStarted decodes input and reports how many goroutines the process
 // started meanwhile, with no collection running: a collection starts mark
-// workers until there is one per processor, so a process's first starts one
-// for each, and the count would include them. Collection is off, by percentage
-// and by memory limit, and one runs first, so that a collection another
-// goroutine began has started its workers before the count is read.
+// workers until there is one per processor, for every processor at a
+// process's first and for any added since at a later one, and the count would
+// include them. Collection is off, by percentage and by memory limit, and one
+// runs first, so that a collection another goroutine began has started its
+// workers before the count is read.
 func goroutinesStarted(ctx context.Context, input []byte) string {
 	defer debug.SetGCPercent(debug.SetGCPercent(-1))
 	defer debug.SetMemoryLimit(debug.SetMemoryLimit(math.MaxInt64))
