@@ -202,7 +202,7 @@ func bindingDiags(at func(jsontext.Pointer) ir.Provenance, table *bind.Table) []
 	if table.Exhausted() {
 		diags = append(diags, diag.Newf(ir.SeverityError, diag.BudgetExceeded, at(""),
 			"resolving the schema $refs takes more than %d steps; the $refs past them are left unresolved",
-			bind.DefaultLimit))
+			table.Limit()))
 	}
 	if table.Truncated() {
 		diags = append(diags, diag.Newf(ir.SeverityWarning, diag.DegradedConstruct, at(""),

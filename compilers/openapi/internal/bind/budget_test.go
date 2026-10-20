@@ -57,6 +57,7 @@ func TestBind_StopsAtItsBudget(t *testing.T) {
 	full := bound(t, budgetSpec, budgetConfig(0))
 	require.False(t, full.Exhausted())
 	require.Len(t, full.Loops(), 1)
+	assert.Equal(t, bind.DefaultLimit, full.Limit(), "a zero limit is the default")
 	want := map[bind.Position]bind.Entry{}
 	for _, e := range full.Entries() {
 		want[e.Site] = e
@@ -66,6 +67,7 @@ func TestBind_StopsAtItsBudget(t *testing.T) {
 	for limit := 1; limit < full.Steps(); limit++ {
 		cut := bound(t, budgetSpec, budgetConfig(limit))
 		require.True(t, cut.Exhausted(), "limit %d", limit)
+		assert.Equal(t, limit, cut.Limit())
 		assert.Equal(t, cut.Entries(), bound(t, budgetSpec, budgetConfig(limit)).Entries(), "limit %d", limit)
 		missing += len(want) - len(cut.Entries())
 		for _, e := range cut.Entries() {

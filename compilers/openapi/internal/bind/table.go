@@ -133,10 +133,16 @@ func (b *binder) settle(t *Table) {
 	}
 }
 
-// table finishes t: the loops, the landings, and the verdicts of the budget
-// and of the merge bound.
+// table finishes t: an entry for each position a chain passed that no walk
+// found, which only a budget cutting the walks leaves, the loops, the
+// landings, and the verdicts of the budget and of the merge bound.
 func (b *binder) table(t *Table) *Table {
-	t.loops, t.steps, t.exhausted = b.loops, b.work.spent, b.work.over()
+	for p, c := range b.chains {
+		if _, found := t.entries[p]; !found {
+			t.entries[p] = Entry{Site: p, Hop: b.hops[p], Chain: c}
+		}
+	}
+	t.loops, t.steps, t.limit, t.exhausted = b.loops, b.work.spent, b.work.limit, b.work.over()
 	t.byName, t.ends = b.docs.byName, b.find.ends
 	for _, d := range b.docs.list {
 		t.docs = append(t.docs, Document{Name: d.name, Root: d.root})
@@ -211,12 +217,14 @@ type Table struct {
 	byName    map[string]DocID
 	ends      map[jsontext.Pointer]Position
 	steps     int
+	limit     int
 	exhausted bool
 	truncated bool
 }
 
 // Entry returns the entry of the $ref written at site, and false for a
-// position the table read no $ref at.
+// position the table read no $ref at: one writing none, or one the budget
+// left unread.
 func (t *Table) Entry(site Position) (Entry, bool) {
 	e, ok := t.entries[site]
 	return e, ok
@@ -267,6 +275,9 @@ func (t *Table) Through(pointer jsontext.Pointer) (Position, bool) {
 
 // Steps reports the work the table cost.
 func (t *Table) Steps() int { return t.steps }
+
+// Limit reports the work the table was allowed (Config.Limit).
+func (t *Table) Limit() int { return t.limit }
 
 // Exhausted reports whether the budget ran out, so that a site may be missing
 // or answered OverBudget.

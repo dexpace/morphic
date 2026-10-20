@@ -53,8 +53,8 @@ func TestBound_ABuildAfterTheFirstChangesNothing(t *testing.T) {
 func TestBindingDiags_ReportsTheBudgetOnce(t *testing.T) {
 	t.Parallel()
 	_, root := buildDoc(t, schemaRoot("#/components/schemas/B")+"    B: {type: string}\n")
-	table := bind.Bind(root, bind.Config{Self: "spec.yaml", Limit: 1})
-	require.True(t, table.Exhausted(), "sanity: one step is not enough to bind the document")
+	table := bind.Bind(root, bind.Config{Self: "spec.yaml", Limit: 2})
+	require.True(t, table.Exhausted(), "sanity: two steps are not enough to bind the document")
 
 	diags := bindingDiags(pointerAt(0, overlay.Origin{}), table)
 
@@ -62,7 +62,7 @@ func TestBindingDiags_ReportsTheBudgetOnce(t *testing.T) {
 	assert.Equal(t, diag.BudgetExceeded, diags[0].Code)
 	assert.Equal(t, ir.SeverityError, diags[0].Severity)
 	assert.Empty(t, diags[0].Provenance.Pointer, "at the document")
-	assert.Contains(t, diags[0].Message, "takes more than 67108864 steps", "the bound crossed is the default")
+	assert.Contains(t, diags[0].Message, "takes more than 2 steps", "the bound the table crossed")
 }
 
 // TestBindSchemas_RecordsWhatAnUnplacedEndHolds pins the models in an end the
@@ -90,6 +90,32 @@ x-params:
 		assert.True(t, ok, "%T", model)
 		assert.Equal(t, jsontext.Pointer("/paths/~1a/get/parameters/0"), site, "%T", model)
 	}
+}
+
+// TestBindingDiags_NamesWhereAChainFailsAtEveryBudget pins the report of a
+// source $ref whose chain fails in another document's content: at every
+// limit the budget cuts the table at, it names the $ref that fails there and
+// why, though the walk that would have found that $ref as a site never ran.
+func TestBindingDiags_NamesWhereAChainFailsAtEveryBudget(t *testing.T) {
+	t.Parallel()
+	_, root := buildDoc(t, schemaRoot("other.yaml#/X")+"    B: {$ref: 'other.yaml#/P'}\n")
+	var other yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte("X: {$ref: '#/Y'}\nY: {$ref: '#/Missing'}\nP: {$ref: '#/X'}\n"), &other))
+	cfg := bind.Config{Self: "spec.yaml", Open: func(string) (*yaml.Node, error) { return &other, nil }}
+	full := bind.Bind(root, cfg)
+	reported := 0
+	for limit := 1; limit <= full.Steps(); limit++ {
+		cfg.Limit = limit
+		for _, d := range bindingDiags(pointerAt(0, overlay.Origin{}), bind.Bind(root, cfg)) {
+			if d.Code != diag.UnresolvedRef {
+				continue
+			}
+			reported++
+			assert.Contains(t, d.Message, `its chain reaches #/Y in other.yaml, whose $ref "#/Missing" is unresolved: `+
+				"it names nothing in the document it points into", "limit %d", limit)
+		}
+	}
+	assert.Positive(t, reported, "some limit cut short of the full table reports the chain")
 }
 
 // TestBindingDiags_NamesALoopsMembersByTheirDocument pins how a loop's report
