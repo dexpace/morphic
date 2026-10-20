@@ -181,8 +181,8 @@ Built, and in the default list:
   service tree declares, and so on for every ID class), discriminator mappings point at actual
   variants, wire-name uniqueness within a model, and binding completeness: a parameter an HTTP
   binding places twice at one non-host location is an error, one it places nowhere is a warning,
-  and a `host` binding is additive (ir-design §8.1). Structural errors here are fatal; style issues
-  are warnings.
+  and a `host` binding is additive (ir-design §8.1). Structural problems are errors, which fail the
+  run at the default threshold (§4); style issues are warnings.
 
 Designed, not yet built:
 
@@ -391,6 +391,21 @@ can allowlist. A mature allowlist entry is keyed by (diagnostic code × entity I
 human rationale, supports expiry tied to a release, and rejects wildcards — narrowness is
 validated, so approvals cannot rot into blanket suppressions. Nothing in the pipeline writes to
 stderr; the CLI renders diagnostics.
+
+**What fails a run.** A stage reports severities; whether the run fails is the engine's verdict,
+taken once the passes have reported, and recorded as `Result.Failed`, so the CLI's exit status
+(`--fail-on`) and any other driver read one rule rather than each reading the diagnostics its own
+way. `RunOptions.FailOn` sets the threshold. At `error`, the default, an error diagnostic fails the
+run; `warning` and `info` are stricter gates, each failing it on a diagnostic at or above that
+severity; `none` fails only a run that produced no document, which fails at every threshold. A
+diagnostic of a severity the IR does not declare is a stage breaking its contract and fails the run
+with a Go error: no threshold can rank it, and ranking it below them all would let a misspelt error
+through every gate. Failing withholds nothing: a failed run still returns its document and every
+diagnostic, to inspect or persist. What it stops is the emitters, which the engine starts only on a
+run that has not failed. The passes are not gated, since they run on every compiled document, errors
+reported or not (§2.2), and the verdict reads their findings too. Error is the default threshold
+because an error means the document may say something the spec does not: an SDK built on it is
+something a caller asks for with `none`, never a default.
 
 ## 5. Testing strategy
 
