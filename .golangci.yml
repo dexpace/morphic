@@ -3,25 +3,35 @@ version: "2"
 linters:
   default: standard # errcheck, govet, ineffassign, staticcheck, unused
   enable:
+    - bidichk # no bidirectional Unicode control, which makes source read otherwise than it compiles
     - containedctx # a context is a parameter, never a struct field
     - copyloopvar
     - depguard # encoding/json v1, refused in every file
+    - durationcheck # no time.Duration multiplied by another
     - errname # Err… sentinels and …Error types
     - errorlint # %w discipline: errors.Is/As over == and type assertions
     - exhaustive # a switch over an IR enum names every member
+    - fatcontext # no context wrapped again on each turn of a loop
     - forbidigo # no stdout, stderr or logging from a pipeline stage
     - forcetypeassert # comma-ok on every type assertion outside tests
     - funlen # the styleguide's 70-line cap, enforced rather than declared
+    - gocheckcompilerdirectives # a //go: directive the compiler knows, not one it silently ignores
+    - gochecknoinits # no init: package state set at load time is what invariant 5 rules out
     - gocognit # nesting-weighted complexity: the reason the cap is 70 and not 200
     - gocritic
     - godot # a doc comment is sentences, so it ends with a period
     - intrange # for i := range n, where a counted loop only counts
+    - makezero # no append to a slice made with a non-zero length
     - misspell
     - modernize # the standard library and language forms go fix and the modernize analyzers propose
     - nilerr
+    - nilnesserr # no nil error returned where a checked one was meant
     - prealloc
     - predeclared # no declaration shadows a builtin
+    - reassign # no assignment to another package's variable
     - revive
+    - tagliatelle # JSON and YAML field names in the IR's Go-style camel case
+    - testifylint # testify assertions in the forms that say most when they fail
     - unconvert
     - unparam
     - usestdlibvars # http.MethodGet over "GET", and the like
@@ -96,6 +106,12 @@ linters:
       # Raising this is how a function that should have been split stays whole,
       # so a failure is a prompt to name the inner step, not to move the number.
       min-complexity: 20
+    reassign:
+      # Invariant 5 from the other side: a stage that sets another package's
+      # variable shares state with everything else that reads it. Every name is
+      # held, not only the Err… and EOF ones held by default. Tests, which swap
+      # os.Args to drive a main, are excused below.
+      patterns: [".*"]
     revive:
       rules:
         - name: exported # GoDoc on every exported symbol
@@ -103,6 +119,50 @@ linters:
         # A local that shadows an imported package compiles until someone adds a
         # call to that package below it. compilers/openapi had one live instance.
         - name: import-shadowing
+        # The styleguide's own rules that revive can state: the context first,
+        # no else after a returning if, initialisms and receivers named alike,
+        # no dot import, any over interface{}, the error last, and no exported
+        # function returning an unexported type. Listing rules turns revive's
+        # defaults off, so each is named.
+        - name: context-as-argument
+        - name: indent-error-flow
+        - name: superfluous-else
+        - name: early-return
+        - name: var-naming
+        - name: receiver-naming
+        - name: dot-imports
+        - name: use-any
+        - name: error-return
+        - name: unexported-return
+        # Mistakes no test is sure to reach: a call that always recurses, an if
+        # whose branches match, a named result a goroutine writes, and a
+        # sync.WaitGroup passed by value.
+        - name: unconditional-recursion
+        - name: identical-branches
+        - name: datarace
+        - name: waitgroup-by-value
+    tagliatelle:
+      # The IR's JSON is its ABI, spelled as Go spells identifiers: wireID,
+      # tokenURL. The shape pin catches a renamed field, not a field added in
+      # another case. goCamel keeps initialisms whole where camel asks for wireId.
+      case:
+        rules:
+          json: goCamel
+          yaml: goCamel
+    testifylint:
+      # These checkers ask for what this repository does otherwise: require for
+      # an error that is the value under test, where the styleguide asserts
+      # values; JSONEq where the exact bytes are the point (invariant 7); a
+      # delta for testing.AllocsPerRun's counts, whole numbers compared exactly;
+      # the literal as the expected value, where a test compares what it read
+      # before a step with the same composite read after; and assert.Nil, which
+      # passes a typed nil in an interface that a test of one exists to refuse.
+      disable:
+        - require-error
+        - encoded-compare
+        - float-compare
+        - expected-actual
+        - nil-compare
   exclusions:
     # A suppression is a rule here, with its reason beside it, and never a comment
     # in the source: internal/archtest refuses those. Keep each rule as narrow as
@@ -134,11 +194,13 @@ linters:
           - forbidigo
       # A test may print, and a forced type assertion in one fails the test by
       # panicking, which is what an assertion is for there. The comma-ok rule
-      # keeps a panic from escaping a package to its callers.
+      # keeps a panic from escaping a package to its callers. A test may also
+      # swap a process global, such as os.Args to drive a main, and put it back.
       - path: _test\.go
         linters:
           - forbidigo
           - forcetypeassert
+          - reassign
       # liveForCalls is a context.Context: it embeds the one it wraps to answer Err
       # on a schedule, which is how a context decorator is written, not a context
       # held for later.
