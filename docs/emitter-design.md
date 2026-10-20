@@ -351,7 +351,7 @@ negotiation` default (`json > form > multipart > binary`) is a shared, overridab
 
 ```go
 type TypePlan struct {
-    Usage      ir.UsageFlags        // Input|Output|Error|Multipart — drives serializers
+    Usage      ir.UsageFlags        // copied from ir.Facts.Usage, the one derivation — drives serializers
     Flattened  []ir.PropID          // FlattenedProperties() over Base+Implements+Mixins+own — COMPUTED
     Relations  Relations            // {Base, Implements, Mixins} kept DISTINCT for refine
     Union      *UnionClass          // tag-mode classification (untagged/discriminated/key-tagged)
@@ -1113,8 +1113,8 @@ binding.
 ### 8.5 An error taxonomy (`RateLimited`, 429, retryable-throttling)
 
 IR: `ErrorCase{ Name:{Hint:"429"}, Conditions:{429}, Payload:{Contents:[{application/json →
-RateLimited (Model, Usage.Error)}]}, Headers:[Retry-After], Fault:"client", Retryable:&true,
-Throttling:&true }`; policy default maps `429 → "TooManyRequests"`.
+RateLimited (Model, reached from this error case)}]}, Headers:[Retry-After], Fault:"client",
+Retryable:&true, Throttling:&true }`; policy default maps `429 → "TooManyRequests"`.
 
 - **plan.** `OpPlan.Errors` = `[PlannedError{ Conditions:{429}, Type:RateLimited, Fault:"client",
   Retryable:true, Throttling:true }]` — declared IR facts, carried as such. **Known gap (#447):**

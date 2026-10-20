@@ -157,7 +157,7 @@ describes every type a `Document` reaches through `internal/jsonshape`: each mem
 type and tag options, the methods the encoder calls in place of reading fields, the constants each
 type declares, and each sealed sum's variants with their tags. A name is in the description where
 it gives a value its meaning: a member's Go type, so retyping a string member to an ID type moves
-the description, and a numeric constant's name, since nothing else says what a `usage` of 2
+the description, and a numeric constant's name, since nothing else says what its number
 means. A field's Go name and a string constant's are left out, because the JSON name and the
 string say it themselves. The test requires the description's SHA-256 to be the one its
 `generations` table records for `IRVersion`, so a shape change at an unmoved version fails. So
@@ -297,6 +297,10 @@ it sees. Changes made together in one bump are listed together under it.
   - `additionalProperties: true` became a catch-all typed by the top type, as `{}` already was,
     where it had lowered to nothing, like an absent keyword. A consumer pinned to 0.13.0 reads a
     model writing `true` beside its properties as stating nothing about the rest.
+- **0.15.0** — usage is derived, not stored (§4): `TypeCommon` lost `Usage`. No compiler or pass
+  ever wrote it, so every document carried none; `ir.Facts.Usage` derives it from the operations.
+  A consumer pinned to 0.14.0 that decodes a 0.15.0 document is refused by the version check, and
+  nothing it read is lost, since the member was never written.
 
 ---
 
@@ -589,7 +593,6 @@ type TypeCommon struct {
                             // (protobuf editions export/local, TCGC @access(internal), Smithy @internal via policy)
     Deprecation *Deprecation
     Availability *Availability
-    Usage      UsageFlags   // computed by a pass: Input | Output | Error | Multipart | …
     WireNameByFormat map[string]string // type-level serialized-name overrides per mime
                                        // (TypeSpec @encodedName on models/enums/scalars)
     MediaTypeHint string    // declared default content type when the type is a body
@@ -618,6 +621,23 @@ type TemplateArg struct {
 empty level, so a source that spells one has written an invalid name, which its compiler reports
 rather than carries. A null or global namespace is the empty list, not one blank segment. A segment
 may repeat — `com.acme.acme` has three levels — so a path is not held to unique entries.
+
+**Derived facts.** What a document implies and does not state is derived by one per-document index,
+`ir.Facts` (`ir.NewFacts(doc)`), and never stored, so no pass orders the derivations and none goes
+stale after a transform. Each fact is built the first time it is asked for. `IsSubtype` and
+`Subtypes` read the relation above. `Usage(id)` flags a type `Input`, `Output`, `Error` or
+`Multipart` as the client's side of the wire sees it. The roots are each operation's parameters,
+request, responses, streams and errors, and each service's common errors; a webhook swaps its
+request and response sides, since the client reads the request and writes the response. A flag
+spreads from a root to every type it contains, and a reached model with a discriminator, or an
+abstract one, reaches its subtypes too, while a plain base does not. `Multipart` marks only the
+type of a multipart body, not the types nested in it. Channels and messages are not roots, since
+no compiler produces them yet. `Recursive(id)` and `Component(id)` read the strongly connected
+components of the same containment graph. A type contains the types of a model's properties,
+catch-all (value, key and patterns), `Base`, `Implements` and `Mixins`; of a union's variants; of a
+list's element; of a map's key and value; of a tuple's elements and rest; and of a scalar's `Base`.
+A discriminator's mapping, a default, an example, an encoding and a template argument name types
+too, but none makes a value of one type hold a value of another, so none is containment.
 
 ### 4.1 Primitives
 
@@ -1493,8 +1513,8 @@ Design notes:
   per-protocol view.
 - **All responses and all content types survive** (oagen's "primary response" collapse is the
   counterexample). The plan layer picks a primary for SDK ergonomics; the IR doesn't.
-- **Errors reference error models** (`Model` with `UsageFlags.Error`), with status conditions and
-  range collapsing exactly as Kiota's error mappings (`404`, `4XX`, catch-all).
+- **Errors reference error models**, which `ir.Facts.Usage` marks `UsageError` (§4), with status
+  conditions and range collapsing exactly as Kiota's error mappings (`404`, `4XX`, catch-all).
 - **`OneWay` is on the neutral core**, like `Streaming` and `Idempotency`, because
   fire-and-forget is protocol-independent — an SDK that blocks awaiting a reply on a cast is
   wrong regardless of transport. The AsyncAPI compiler sets it for send-operations without a
@@ -2268,7 +2288,7 @@ list moves to a specification of its own when the compiler lands.
 - multipart w/ parts → Content.Encoding/PartEncoding, `Http.File` → FileInfo (content-type set,
   contents chain, filename location)
 - streams/SSE → StreamDetail + Variant.Event (contentType, terminal)
-- `@error` → UsageFlags.Error
+- `@error` → the response becomes an `ErrorCase`, whose payload `Facts.Usage` marks `UsageError`
 - `@example`/`@opExample` → Examples (Input/Output pairs)
 - `@pattern` message → Constraints.PatternMessage
 - `@mediaTypeHint` → TypeCommon.MediaTypeHint
@@ -2433,8 +2453,10 @@ the IR and preserve nothing.
 3. **Content negotiation in the plan layer** — the IR keeps all media types; the default
    primary-selection policy (json > form > multipart > binary?) belongs to emitters but should be
    shared as a standard plan helper.
-4. **Whether `UsageFlags` is stored or always recomputed** — leaning: computed by a standard pass
-   and stored, since emitters all need it and it's expensive to derive.
+4. **Whether `UsageFlags` is stored or always recomputed** — settled: derived by `ir.Facts`, not
+   stored (§4). Deriving it on the largest real spec measured costs about 0.5% of its compile
+   (about 35 ms against about 7 s, measured at morphic `c387e25c`), so storing it bought nothing,
+   and a stored copy goes stale after any transform that changes what an operation reaches.
 5. **Dual identity for cross-revision correlation** — pointer-derived `TypeID`s are stable across
    runs but churn when a schema moves within its source file. TCGC solves cross-version
    correlation with name-based `crossLanguageDefinitionId`s. Likely resolution: keep pointer IDs

@@ -24,6 +24,9 @@ func Validate(doc *ir.Document) []ir.Diagnostic {
 	// Read once: the dangling walk resolves against these, and checkParams
 	// leaves to it exactly what it reports.
 	decls, declTruncated := ir.DeclaredIDs(doc)
+	// One index for the run, so each discriminator route is a lookup in a
+	// hierarchy walked once, not a walk of its own (#850).
+	facts := ir.NewFacts(doc)
 	diags := make([]ir.Diagnostic, 0, 8)
 	diags = append(diags, checkNilTypes(doc)...)
 	diags = append(diags, checkDanglingRefs(doc, decls, declTruncated)...)
@@ -33,7 +36,7 @@ func Validate(doc *ir.Document) []ir.Diagnostic {
 	diags = append(diags, checkEncodingKeys(doc)...)
 	diags = append(diags, checkPayloadRequired(doc)...)
 	diags = append(diags, checkPropIDRefs(doc)...)
-	diags = append(diags, checkDiscriminators(doc)...)
+	diags = append(diags, checkDiscriminators(doc, facts)...)
 	diags = append(diags, checkDuplicateWireNames(doc)...)
 	diags = append(diags, checkAmbiguousAliases(doc)...)
 	diags = append(diags, checkDuplicateMemberIDs(doc)...)
@@ -356,15 +359,15 @@ func checkNilTypes(doc *ir.Document) []ir.Diagnostic {
 }
 
 // checkDiscriminators reports discriminator mappings whose target either does
-// not exist or is not a legal variant/subtype.
-func checkDiscriminators(doc *ir.Document) []ir.Diagnostic {
+// not exist or is not a legal variant/subtype. facts is ir.NewFacts(doc).
+func checkDiscriminators(doc *ir.Document, facts *ir.Facts) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for _, id := range liveTypeIDs(doc) {
 		switch t := doc.Types[id].(type) {
 		case *ir.Union:
 			diags = append(diags, checkUnionDiscriminator(doc, t)...)
 		case *ir.Model:
-			diags = append(diags, checkModelDiscriminator(doc, t)...)
+			diags = append(diags, checkModelDiscriminator(doc, facts, t)...)
 		default:
 			// Only Union and Model can declare a discriminator; every other
 			// TypeDef kind has nothing to check. A new discriminator-bearing
@@ -391,14 +394,15 @@ func checkUnionDiscriminator(doc *ir.Document, u *ir.Union) []ir.Diagnostic {
 
 // checkModelDiscriminator requires each mapping target to be a declared subtype
 // of the discriminated base model, and the tag property to be one this model
-// exposes.
-func checkModelDiscriminator(doc *ir.Document, m *ir.Model) []ir.Diagnostic {
+// exposes. Every model asks the one facts, which walks the hierarchy above a
+// target once however many bases map to it.
+func checkModelDiscriminator(doc *ir.Document, facts *ir.Facts, m *ir.Model) []ir.Diagnostic {
 	if m.Discriminator == nil {
 		return nil
 	}
 	diags := checkDiscriminatorProperty(doc, m)
 	return append(diags, checkMapping(doc, m.Discriminator, string(m.ID), func(target ir.TypeID) bool {
-		return ir.IsSubtype(doc, target, m.ID)
+		return facts.IsSubtype(target, m.ID)
 	})...)
 }
 

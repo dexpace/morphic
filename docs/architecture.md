@@ -168,11 +168,10 @@ naming it.
 
 A caller turns a pass off by name (`RunOptions.DisablePasses`, `--disable-pass`); a name no pass
 carries is a Go error (`engine.ErrUnknownPass`), not a diagnostic, because it names no defect in the
-spec. A pass whose output a consumer relies on, such as one filling `TypeCommon.Usage` (ir-design.md
-§16, question 4), is not a caller's to turn off: from the first such pass, the engine refuses its
-name as it refuses an unknown one. Turning a pass *on* by name is for one that has no settings and
-is off by default, as the convenience simplifications of reference-learnings.md §B0 are to be, and
-it lands with the first of them.
+spec. A pass whose output a consumer relies on is not a caller's to turn off: from the first such
+pass, the engine refuses its name as it refuses an unknown one. Turning a pass *on* by name is for
+one that has no settings and is off by default, as the convenience simplifications of
+reference-learnings.md §B0 are to be, and it lands with the first of them.
 
 Built, and in the default list:
 

@@ -65,6 +65,15 @@ var idPositions = map[string]idRule{
 	"Document.Auth":     idElsewhere,
 	"TypeRef.Target":    idElsewhere,
 
+	// The memos of ir.Facts and of its component search. A Document never holds
+	// them, so no walk reaches the rule; idElsewhere says no check of the
+	// document owes them an empty-reference decision.
+	"Facts.closures":      idElsewhere,
+	"Facts.children":      idElsewhere,
+	"Facts.usage":         idElsewhere,
+	"components.of":       idElsewhere,
+	"components.selfLoop": idElsewhere,
+
 	"Idempotency.TokenParam": idOptional,
 	"Discriminator.Default":  idOptional,
 	"Discriminator.Property": idLocator,

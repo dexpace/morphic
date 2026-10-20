@@ -1,7 +1,5 @@
 package ir
 
-import "slices"
-
 // Supertypes returns the immediate supertypes of the model id names: its Base,
 // then each Implements entry, each read through the alias scalars standing in
 // for it, since a $ref carrying siblings composes the branch's own alias node,
@@ -56,23 +54,12 @@ func aliasTarget(doc *Document, id TypeID) TypeID {
 // The relation is not reflexive unless a cycle leads back, and target itself is
 // not read through an alias (#844). A visited set ends the walk on a cyclic
 // hierarchy.
+//
+// It builds a [Facts] for the one question, so a caller with several asks one
+// Facts instead: the hierarchy above a target is then walked once, not per
+// question (#850).
 func IsSubtype(doc *Document, target, base TypeID) bool {
-	seen := map[TypeID]bool{}
-	queue := []TypeID{target}
-	for len(queue) > 0 {
-		id := queue[len(queue)-1]
-		queue = queue[:len(queue)-1]
-		if seen[id] {
-			continue
-		}
-		seen[id] = true
-		supers := Supertypes(doc, id)
-		if slices.Contains(supers, base) {
-			return true
-		}
-		queue = append(queue, supers...)
-	}
-	return false
+	return NewFacts(doc).IsSubtype(target, base)
 }
 
 // ExposedProps returns the property IDs the type root names exposes: its own
