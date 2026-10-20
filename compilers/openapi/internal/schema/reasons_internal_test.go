@@ -85,6 +85,29 @@ func TestMappingWhy_GivesAComponentNameNoReasonOfTheTable(t *testing.T) {
 	assert.Empty(t, mappingWhy(l.ctx, d, "Undeclared"))
 }
 
+// TestMappingWhy_GivesAnUnreadReferenceTheTablesReason pins that a mapping
+// value spelling a reference, which the table reads, takes the table's reason
+// where it went unread: P's discriminator sits past a merge chain deeper than
+// the compiler expands, so the binder never read its mapping.
+func TestMappingWhy_GivesAnUnreadReferenceTheTablesReason(t *testing.T) {
+	t.Parallel()
+	var deep strings.Builder
+	deep.WriteString("openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\n" +
+		"x-c0: &c0 {oneOf: [{$ref: '#/components/schemas/T'}], " +
+		"discriminator: {propertyName: k, mapping: {t: '#/components/schemas/T'}}}\n")
+	for i := 1; i <= 70; i++ {
+		fmt.Fprintf(&deep, "x-c%d: &c%d {<<: *c%d}\n", i, i, i-1)
+	}
+	deep.WriteString("components:\n  schemas:\n    T: {properties: {k: {type: string}}}\n    P: {<<: *c70}\n")
+	l, _ := loweredFor(t, deep.String())
+	p, ok := l.ctx.Doc.Components.GetSchemas().Get("P")
+	require.True(t, ok)
+	d := p.GetSchema().GetDiscriminator()
+	require.NotNil(t, d, "the parser expands the whole chain")
+	assert.Equal(t, ": it is past a `<<` merge chain deeper than the 64 levels the compiler expands",
+		mappingWhy(l.ctx, d, "#/components/schemas/T"))
+}
+
 // unheldLowerer is a lowerer over bindings that know where A's $ref lands but
 // hold no schema there: only A was recorded.
 func unheldLowerer(t *testing.T) *lowerer {
