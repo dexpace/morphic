@@ -314,12 +314,12 @@ var rules = map[string][]string{
 	},
 	// Test infrastructure as well: it describes the JSON shape of the types one
 	// root reaches, which it reads type-checked through decls, for the test in
-	// package ir that pins that shape to IRVersion.
+	// package ir that pins that shape to IRVersion and for the census.
 	"internal/jsonshape": {module + "/internal/decls"},
-	// Tooling as well: it counts which facts of the IR a set of documents sets. The
-	// universe of facts is derived from ir by reflection and, for the constants
-	// reflection cannot see, type-checked through decls.
-	"internal/census": {module + "/ir", module + "/internal/decls"},
+	// Tooling as well: it counts which facts of the IR a set of documents sets.
+	// The facts are the JSON shape jsonshape reads from ir's declarations, and
+	// ir's own walk reaches what each document holds.
+	"internal/census": {module + "/ir", module + "/internal/decls", module + "/internal/jsonshape"},
 	// Test infrastructure as well: the one reader of the repository's keyed
 	// documents and of the citations made of them, which the tests holding each
 	// document to the code share. Standard library only.

@@ -2,75 +2,59 @@ package census
 
 import (
 	"maps"
-	"reflect"
 	"slices"
 
 	"github.com/dexpace/morphic/internal/decls"
 )
 
-// MaxTypes is the bound on the types one derivation visits.
-const MaxTypes = maxTypes
+// ErrNoDeclaration is the error a census returns for a value its universe's
+// declarations do not describe.
+var ErrNoDeclaration = errNoDeclaration
 
-// Expand is the signature of the hook that says how to cross an interface.
-type Expand = expandFunc
-
-// Derive exposes derive, with the hook it is handed.
-func Derive(roots []reflect.Type, p *decls.Package, expand Expand) (Universe, error) {
-	return derive(roots, p, expand)
+// UniverseOf derives the universe of the named type root, which p declares.
+func UniverseOf(p *decls.Package, root string) (Universe, error) {
+	return universeOf(p, root)
 }
 
-// Reach returns, sorted, the members of the structs the roots reach.
-func Reach(roots []reflect.Type, concrete map[reflect.Type][]reflect.Type) ([]string, error) {
-	r, err := reachable(roots, concrete)
-	if err != nil {
-		return nil, err
-	}
-	var names []string
-	for _, ms := range r.structs {
-		for _, m := range ms {
-			names = append(names, m.name)
-		}
-	}
-	slices.Sort(names)
-	return names, nil
+// NewUniverseOfVersion derives the IR's universe from declarations that must
+// be of the IRVersion version.
+func NewUniverseOfVersion(version string) (Universe, error) {
+	return newUniverse(version)
 }
 
-// Enumerations returns the enumerations the package declares, as lines of the
-// type's name and its declared values, each in the order a report lists them.
-func Enumerations(p *decls.Package) ([]string, error) {
-	enums, err := enumerations(p)
-	if err != nil {
-		return nil, err
-	}
-	var lines []string
-	for _, e := range enums {
-		for _, s := range slices.SortedFunc(maps.Keys(e.declared), e.compareSpellings) {
-			lines = append(lines, e.name+" "+e.render(s))
-		}
-	}
-	return lines, nil
-}
-
-// ExpandTypeDef runs expandTypeDef over one enumeration named name that
-// declares the given values.
-func ExpandTypeDef(name string, values ...string) error {
-	_, err := expandTypeDef(map[string][]string{name: values})
-	return err
-}
-
-// Held returns what a value of the numeric enumeration declaring the values
-// counts as.
-func Held(spelling string, values ...string) []string {
-	declared := map[string]bool{}
-	for _, v := range values {
-		declared[v] = true
-	}
-	e := &enumeration{name: "E", numeric: true, declared: declared}
-	e.readFlags()
-	return e.held(spelling)
+// CheckVersion refuses p unless its IRVersion constant is want.
+func CheckVersion(p *decls.Package, want string) error {
+	return checkVersion(p, want)
 }
 
 // AddAny counts the facts root holds, whatever its type.
-func (c *Census) AddAny(root any) {
-	c.add(root)
+func (c *Census) AddAny(root any) error {
+	return c.add(root)
+}
+
+// WithoutStruct returns u as declarations would that have no struct named
+// name.
+func (u Universe) WithoutStruct(name string) Universe {
+	u.structs = maps.Clone(u.structs)
+	delete(u.structs, name)
+	return u
+}
+
+// WithFields returns u as declarations would that give the struct name the
+// fields named.
+func (u Universe) WithFields(name string, fields ...string) Universe {
+	u.structs = maps.Clone(u.structs)
+	sf := *u.structs[name]
+	sf.fields = slices.Clone(fields)
+	u.structs[name] = &sf
+	return u
+}
+
+// WithoutVariant returns u as declarations would in which the sum holds no
+// variant named variant.
+func (u Universe) WithoutVariant(sum, variant string, byPointer bool) Universe {
+	u.sums = maps.Clone(u.sums)
+	u.sums[sum] = maps.Clone(u.sums[sum])
+	delete(u.sums[sum], variantKey{name: variant, byPointer: byPointer})
+	return u
 }

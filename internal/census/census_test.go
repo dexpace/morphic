@@ -2,6 +2,7 @@ package census_test
 
 import (
 	"fmt"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -11,33 +12,20 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/internal/census"
+	"github.com/dexpace/morphic/internal/census/testdata/fixture"
 	"github.com/dexpace/morphic/ir"
 )
 
-// newCensus returns an empty census of the IR's universe.
-func newCensus(t *testing.T) *census.Census {
-	t.Helper()
-	u, err := universe()
-	require.NoError(t, err)
-	return census.New(u)
-}
-
-// add counts doc, failing the test if the census refuses it.
-func add(t *testing.T, c *census.Census, doc *ir.Document) {
-	t.Helper()
-	require.NoError(t, c.Add(doc))
-}
-
-// facts reads a report into what it says of each fact: its docs and instance
-// counts, as "docs instances", keyed by the rest of its line. The two header
-// lines are keyed by their first word.
+// facts reads a report into what it says of each fact, its docs and instance
+// counts as "docs instances", keyed by the rest of its line. The three counts
+// of runs are keyed by their word.
 func facts(t *testing.T, report string) map[string]string {
 	t.Helper()
 	out := map[string]string{}
-	for line := range strings.Lines(strings.TrimSuffix(report, "\n")) {
+	for line := range strings.Lines(report) {
 		kind, rest, found := strings.Cut(strings.TrimSuffix(line, "\n"), " ")
 		require.True(t, found, "line %q", line)
-		if kind == "documents" || kind == "no-document" {
+		if kind == "documents" || kind == "no-document" || kind == "truncated" {
 			out[kind] = rest
 			continue
 		}
@@ -50,83 +38,294 @@ func facts(t *testing.T, report string) map[string]string {
 	return out
 }
 
-// docOf returns a document holding the given type nodes, each filed under the
-// ID it carries or, if it has none, one made from its kind and position.
+// counted returns what a census of the fixture's universe reports after
+// counting each root.
+func counted(t *testing.T, roots ...*fixture.Root) map[string]string {
+	t.Helper()
+	c := census.New(fixtureUniverse(t))
+	for _, r := range roots {
+		require.NoError(t, c.AddAny(r))
+	}
+	return facts(t, c.Report())
+}
+
+func TestCensus_CountsAMemberOnlyWhenSet(t *testing.T) {
+	t.Parallel()
+	level := fixture.Zero
+	for _, tc := range []struct {
+		name   string
+		root   fixture.Root
+		member string
+		want   string
+	}{
+		{"a zero string", fixture.Root{}, "Root.name", "0 0"},
+		{"a string", fixture.Root{Name: "n"}, "Root.name", "1 1"},
+		{"false", fixture.Root{}, "Root.flag", "0 0"},
+		{"true", fixture.Root{Flag: true}, "Root.flag", "1 1"},
+		{"a nil pointer", fixture.Root{}, "Root.level", "0 0"},
+		{"a pointer to a zero value", fixture.Root{Level: &level}, "Root.level", "1 1"},
+		{"a pointer to an empty struct", fixture.Root{Leaf: &fixture.Leaf{}}, "Root.leaf", "1 1"},
+		{"an empty struct held by value", fixture.Root{Inline: fixture.Leaf{}}, "Root.inline", "0 0"},
+		{"a struct held by value", fixture.Root{Inline: fixture.Leaf{Label: "x"}}, "Root.inline", "1 1"},
+		{"a nil sum", fixture.Root{}, "Root.sum", "0 0"},
+		{"a sum", fixture.Root{Sum: fixture.Square{}}, "Root.sum", "1 1"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, counted(t, &tc.root)["member "+tc.member])
+		})
+	}
+}
+
+func TestCensus_CountsAnEmptyCollectionOnlyWhereEmptinessIsAFact(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name       string
+		root       fixture.Root
+		member     string
+		set, empty string
+		emptiable  bool
+	}{
+		{"a nil omitempty slice", fixture.Root{}, "Root.leaves", "0 0", "", false},
+		{"an empty omitempty slice", fixture.Root{Leaves: []fixture.Leaf{}}, "Root.leaves", "0 0", "", false},
+		{"an omitempty slice", fixture.Root{Leaves: []fixture.Leaf{{}}}, "Root.leaves", "1 1", "", false},
+		{"an empty omitempty map", fixture.Root{Labels: map[string]fixture.Level{}}, "Root.labels", "0 0", "", false},
+		{"a nil omitzero slice", fixture.Root{}, "Root.grants", "0 0", "0 0", true},
+		{"an empty omitzero slice", fixture.Root{Grants: []string{}}, "Root.grants", "1 1", "1 1", true},
+		{"an omitzero slice", fixture.Root{Grants: []string{"g"}}, "Root.grants", "1 1", "0 0", true},
+		{"a nil omitzero map", fixture.Root{}, "Root.index", "0 0", "0 0", true},
+		{"an empty omitzero map", fixture.Root{Index: map[fixture.Color]fixture.Leaf{}}, "Root.index", "1 1", "1 1", true},
+		{"an omitzero map", fixture.Root{Index: map[fixture.Color]fixture.Leaf{fixture.Red: {}}}, "Root.index", "1 1", "0 0", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := counted(t, &tc.root)
+			assert.Equal(t, tc.set, got["member "+tc.member])
+			if !tc.emptiable {
+				assert.NotContains(t, got, "empty "+tc.member)
+				return
+			}
+			assert.Equal(t, tc.empty, got["empty "+tc.member])
+		})
+	}
+}
+
+func TestCensus_CountsAnEmbeddingsMembersAsItsOwn(t *testing.T) {
+	t.Parallel()
+	got := counted(t, &fixture.Root{ID: "x", Spread: &fixture.Leaf{Label: "l"}})
+
+	assert.Equal(t, "1 1", got["member Common.id"])
+	assert.Equal(t, "1 1", got["member Leaf.label"], "an embedding by the embed option is crossed too")
+	assert.NotContains(t, got, "member Root.id")
+	assert.NotContains(t, got, "member Root.label")
+}
+
+func TestCensus_CountsEveryValueAnEnumerationHolds(t *testing.T) {
+	t.Parallel()
+	level := fixture.High
+	got := counted(t, &fixture.Root{
+		Color:  fixture.Blue,
+		Level:  &level,
+		Index:  map[fixture.Color]fixture.Leaf{fixture.Red: {}, "green": {}},
+		Labels: map[string]fixture.Level{"a": fixture.High, "b": 5},
+	})
+
+	assert.Equal(t, "1 1", got[`value Color "blue"`])
+	assert.Equal(t, "1 1", got[`value Color "red"`], "a map key is a value")
+	assert.Equal(t, "1 2", got[`value Level 10`], "a pointer's target and a map's value")
+	assert.Equal(t, "1 1", got[`value Level 5 undeclared`])
+	assert.Equal(t, "1 1", got[`value Color "green" undeclared`])
+	assert.Equal(t, "0 0", got[`value Level -20`])
+	assert.NotContains(t, got, `value Color "blue" undeclared`, "a declared value is not marked")
+}
+
+func TestCensus_CountsTheZeroValueOfAnEnumerationThatDeclaresNoneAsUndeclared(t *testing.T) {
+	t.Parallel()
+	got := counted(t, &fixture.Root{})
+
+	assert.Equal(t, "1 1", got[`value Color "" undeclared`], "the value is held though the member is unset")
+	assert.Equal(t, "0 0", got["member Root.color"])
+}
+
+func TestCensus_CountsTheTagOfEachVariantASumHolds(t *testing.T) {
+	t.Parallel()
+	got := counted(t, &fixture.Root{
+		Sum:    &fixture.Circle{Radius: 1},
+		Shapes: []fixture.Shape{fixture.Square{}, &fixture.Circle{}, nil, (*fixture.Circle)(nil)},
+	})
+
+	assert.Equal(t, "1 2", got[`value Kind "circle"`], "through a pointer; a nil sum and a nil pointer hold none")
+	assert.Equal(t, "1 1", got[`value Kind "square"`], "by value")
+	assert.Equal(t, "0 0", got[`value Kind "hexagon"`], "a tag no variant returns")
+	assert.Equal(t, "1 1", got["member Circle.radius"])
+}
+
+func TestCensus_CountsATypeOfAnotherPackageAsNoFact(t *testing.T) {
+	t.Parallel()
+	got := counted(t, &fixture.Root{Timeout: 5, Reflect: reflect.String})
+
+	assert.Equal(t, "1 1", got["member Root.timeout"])
+	assert.Equal(t, "1 1", got["member Root.reflect"])
+	for fact := range got {
+		assert.NotContains(t, fact, "Duration", "time.Duration is no enumeration of the fixture")
+		assert.NotRegexp(t, `^value Kind \d`, fact, "nor is reflect.Kind, which shares the name of one")
+	}
+}
+
+func TestCensus_RefusesAValueItsDeclarationsDoNotDescribe(t *testing.T) {
+	t.Parallel()
+	u := fixtureUniverse(t)
+	for _, tc := range []struct {
+		name     string
+		universe census.Universe
+		root     fixture.Root
+		want     string
+	}{
+		{"a struct with no declaration", u.WithoutStruct("Leaf"), fixture.Root{}, "struct fixture.Leaf"},
+		{"a struct with another number of fields", u.WithFields("Leaf", "Label", "Extra"), fixture.Root{},
+			"struct fixture.Leaf"},
+		{"a field under another name", u.WithFields("Leaf", "Text"), fixture.Root{},
+			"field 0 of fixture.Leaf is Label, declared as Text"},
+		{"a variant the sum does not declare", u.WithoutVariant("Shape", "Circle", true),
+			fixture.Root{Sum: &fixture.Circle{}}, "fixture.Shape holds *fixture.Circle"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			c := census.New(tc.universe)
+			err := c.AddAny(&tc.root)
+			require.ErrorIs(t, err, census.ErrNoDeclaration)
+			assert.Contains(t, err.Error(), tc.want)
+
+			got := facts(t, c.Report())
+			assert.Equal(t, "0", got["documents"], "a refused document is not counted")
+			assert.Equal(t, "0 0", got["member Root.name"])
+		})
+	}
+}
+
+func TestCensus_StopsAtTheFirstValueItCannotCount(t *testing.T) {
+	t.Parallel()
+	// The variant check fails at Sum, before the walk reaches Shapes, whose
+	// Square would otherwise be counted.
+	c := census.New(fixtureUniverse(t).WithoutVariant("Shape", "Circle", true))
+	err := c.AddAny(&fixture.Root{Sum: &fixture.Circle{}, Shapes: []fixture.Shape{&fixture.Circle{}}})
+	require.ErrorIs(t, err, census.ErrNoDeclaration)
+	assert.Equal(t, 1, strings.Count(err.Error(), "holds"), "one error, the first: %v", err)
+}
+
+func TestCensus_CountsDocumentsAndInstancesApart(t *testing.T) {
+	t.Parallel()
+	got := counted(t,
+		&fixture.Root{Leaves: []fixture.Leaf{{Label: "a"}, {Label: "b"}}},
+		&fixture.Root{Leaf: &fixture.Leaf{Label: "c"}},
+		&fixture.Root{},
+	)
+
+	assert.Equal(t, "2 3", got["member Leaf.label"], "two documents set it, three times between them")
+	assert.Equal(t, "3", got["documents"])
+}
+
+func TestCensus_CountsRunsThatLoweredToNoDocument(t *testing.T) {
+	t.Parallel()
+	c := census.New(fixtureUniverse(t))
+	c.NoDocument()
+	c.NoDocument()
+	require.NoError(t, c.AddAny(&fixture.Root{}))
+
+	got := facts(t, c.Report())
+	assert.Equal(t, "2", got["no-document"])
+	assert.Equal(t, "1", got["documents"], "a run with no document is not a document")
+}
+
+func TestCensus_RefusesANilDocument(t *testing.T) {
+	t.Parallel()
+	u, err := universe()
+	require.NoError(t, err)
+	c := census.New(u)
+	require.ErrorIs(t, c.Add(nil), census.ErrNilDocument)
+	assert.Equal(t, "0", facts(t, c.Report())["documents"], "a refused document is not counted")
+}
+
+func TestCensus_OfTheZeroUniverseCountsNoFact(t *testing.T) {
+	t.Parallel()
+	c := census.New(census.Universe{})
+	require.NoError(t, c.AddAny(&fixture.Root{Name: "n", Sum: &fixture.Circle{}}))
+	require.NoError(t, c.AddAny(&struct{ V any }{V: struct{ W string }{W: "w"}}),
+		"a value of no package is no fact of the zero universe either")
+
+	assert.Equal(t, "documents 2\nno-document 0\ntruncated 0\n", c.Report())
+}
+
+func TestReport_ListsEveryFactOfTheUniverseWhateverIsCounted(t *testing.T) {
+	t.Parallel()
+	empty := facts(t, census.New(fixtureUniverse(t)).Report())
+	got := counted(t, &fixture.Root{Name: "n", Color: "green"})
+
+	for fact, n := range empty {
+		switch fact {
+		case "documents", "no-document", "truncated":
+			continue
+		}
+		assert.Equal(t, "0 0", n, fact)
+		assert.Contains(t, got, fact, "counting a document removes no fact from the report")
+	}
+	assert.Contains(t, got, `value Color "green" undeclared`)
+}
+
+func TestReport_IsDeterministicAndOrdersValuesByValue(t *testing.T) {
+	t.Parallel()
+	build := func() string {
+		c := census.New(fixtureUniverse(t))
+		require.NoError(t, c.AddAny(&fixture.Root{
+			Color:  "green",
+			Labels: map[string]fixture.Level{"a": 5, "b": -5, "c": 1000},
+		}))
+		return c.Report()
+	}
+	first, second := build(), build()
+	if diff := cmp.Diff(first, second); diff != "" {
+		t.Errorf("two runs differ (-first +second):\n%s", diff)
+	}
+
+	var values []string
+	for line := range strings.Lines(first) {
+		if fields := strings.Fields(line); fields[0] == "value" {
+			values = append(values, strings.Join(fields[3:5], " "))
+		}
+	}
+	want := []string{
+		`Color "blue"`, `Color "green"`, `Color "red"`,
+		`Kind "circle"`, `Kind "hexagon"`, `Kind "square"`,
+		`Level -20`, `Level -5`, `Level -1`, `Level 0`, `Level 5`, `Level 10`, `Level 100`, `Level 1000`,
+	}
+	if diff := cmp.Diff(want, values); diff != "" {
+		t.Errorf("values (-want +got):\n%s", diff)
+	}
+}
+
+// docOf returns a document holding the given type nodes, each filed under an
+// ID made from its kind and position.
 func docOf(nodes ...ir.TypeDef) *ir.Document {
 	reg := ir.TypeRegistry{}
 	for i, n := range nodes {
-		id := n.Common().ID
-		if id == "" {
-			id = ir.TypeID(fmt.Sprintf("t/%s%d", n.Kind(), i))
-			n.Common().ID = id
-		}
+		id := ir.TypeID(fmt.Sprintf("t/%s%d", n.Kind(), i))
+		n.Common().ID = id
 		reg[id] = n
 	}
 	return &ir.Document{Types: reg}
 }
 
-// nestedList returns a value nested depth lists deep.
-func nestedList(depth int) ir.Value {
-	v := ir.Value{Kind: ir.ValueNull}
-	for range depth {
-		v = ir.Value{Kind: ir.ValueList, List: []ir.Value{v}}
-	}
-	return v
+// irCensus returns an empty census of the IR's universe.
+func irCensus(t *testing.T) *census.Census {
+	t.Helper()
+	u, err := universe()
+	require.NoError(t, err)
+	return census.New(u)
 }
 
-func TestCensus_CountsAMemberOnlyWhenSet(t *testing.T) {
+func TestCensus_CountsTheKindOfEveryTypeDefTheIRDeclares(t *testing.T) {
 	t.Parallel()
-	c := newCensus(t)
-	add(t, c, docOf(&ir.Model{Abstract: true}))
-
-	got := facts(t, c.Report())
-	assert.Equal(t, "1 1", got["member Model.abstract"])
-	assert.Equal(t, "0 0", got["member Model.positional"], "false is the zero value")
-	assert.Equal(t, "1 1", got["member Document.types"])
-}
-
-func TestCensus_CountsASliceOrMapOnlyWhenNotEmpty(t *testing.T) {
-	t.Parallel()
-	for _, tc := range []struct {
-		name  string
-		model *ir.Model
-		want  string
-	}{
-		{"a nil slice", &ir.Model{}, "0 0"},
-		{"an empty slice that is not nil", &ir.Model{Properties: []ir.Property{}}, "0 0"},
-		{"a slice with an element", &ir.Model{Properties: []ir.Property{{}}}, "1 1"},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			c := newCensus(t)
-			add(t, c, docOf(tc.model))
-			assert.Equal(t, tc.want, facts(t, c.Report())["member Model.properties"])
-		})
-	}
-
-	t.Run("a map", func(t *testing.T) {
-		t.Parallel()
-		c := newCensus(t)
-		add(t, c, &ir.Document{Auth: map[ir.AuthID]ir.AuthScheme{}})
-		add(t, c, &ir.Document{Auth: map[ir.AuthID]ir.AuthScheme{"a/x": {}}})
-		assert.Equal(t, "1 1", facts(t, c.Report())["member Document.auth"], "only the document with an entry sets it")
-	})
-}
-
-func TestCensus_CountsAPointerToAnEmptyStructAsSet(t *testing.T) {
-	t.Parallel()
-	c := newCensus(t)
-	add(t, c, docOf(&ir.Model{AdditionalProps: &ir.AdditionalProps{}}))
-
-	got := facts(t, c.Report())
-	assert.Equal(t, "1 1", got["member Model.additionalProps"])
-	assert.Equal(t, "0 0", got["member AdditionalProps.value"], "the empty struct's own members are not set")
-	assert.Equal(t, "0 0", got["member AdditionalProps.key"])
-}
-
-func TestCensus_CountsTheKindOfEveryTypeDefTheRegistryHolds(t *testing.T) {
-	t.Parallel()
-	c := newCensus(t)
+	c := irCensus(t)
 
 	var nodes []ir.TypeDef
 	for fact := range facts(t, c.Report()) {
@@ -138,206 +337,67 @@ func TestCensus_CountsTheKindOfEveryTypeDefTheRegistryHolds(t *testing.T) {
 		require.True(t, registered, fact)
 		nodes = append(nodes, node)
 	}
-	require.Len(t, nodes, 11, "the universe declares the kinds the IR registers")
-	add(t, c, docOf(nodes...))
+	require.NotEmpty(t, nodes)
+	require.NoError(t, c.Add(docOf(nodes...)))
 
 	got := facts(t, c.Report())
 	for _, node := range nodes {
 		key := fmt.Sprintf("value TypeKind %q", node.Kind())
 		assert.Equal(t, "1 1", got[key], key)
 	}
-	assert.Equal(t, "1 11", got["member TypeCommon.id"], "every node carries one, wherever it is embedded")
+	assert.Equal(t, fmt.Sprintf("1 %d", len(nodes)), got["member TypeCommon.id"],
+		"every node carries one, wherever it is embedded")
 }
 
-func TestCensus_ReportsAnEmbeddedStructOnceUnderItsOwnName(t *testing.T) {
+func TestCensus_TellsAnExplicitlyEmptyAuthFromAnAbsentOne(t *testing.T) {
 	t.Parallel()
-	c := newCensus(t)
-	add(t, c, docOf(&ir.Model{}, &ir.Model{}, &ir.Union{}))
+	c := irCensus(t)
+	ops := []ir.Operation{
+		{},
+		{Auth: []ir.AuthRequirement{}},
+		{Auth: []ir.AuthRequirement{{}}},
+	}
+	require.NoError(t, c.Add(&ir.Document{Services: []ir.Service{{Groups: []ir.OperationGroup{{Operations: ops}}}}}))
 
 	got := facts(t, c.Report())
-	assert.Equal(t, "1 3", got["member TypeCommon.id"])
-	assert.NotContains(t, got, "member Model.id")
-	assert.NotContains(t, got, "member Union.id")
-}
-
-func TestCensus_CountsEnumValues(t *testing.T) {
-	t.Parallel()
-	c := newCensus(t)
-	add(t, c, docOf(&ir.Primitive{Prim: ir.PrimString}, &ir.Primitive{Prim: ir.PrimString}, &ir.Primitive{Prim: ir.PrimBool}))
-
-	got := facts(t, c.Report())
-	assert.Equal(t, "1 2", got[`value PrimKind "string"`])
-	assert.Equal(t, "1 1", got[`value PrimKind "bool"`])
-	assert.Equal(t, "0 0", got[`value PrimKind "uuid"`])
-}
-
-func TestCensus_ReportsAValueTheTypeDeclaresNoConstantForAsUndeclared(t *testing.T) {
-	t.Parallel()
-	c := newCensus(t)
-	doc := docOf(&ir.Primitive{Prim: "hologram"})
-	doc.Services = []ir.Service{{Groups: []ir.OperationGroup{{Operations: []ir.Operation{{}}}}}}
-	add(t, c, doc)
-
-	got := facts(t, c.Report())
-	assert.Equal(t, "1 1", got[`value PrimKind "hologram" undeclared`])
-	assert.Equal(t, "1 1", got[`value StreamingMode "" undeclared`], "an absence no constant names is undeclared")
-	assert.NotContains(t, got, `value PrimKind "hologram"`)
-	assert.NotContains(t, got, `value PrimKind "string" undeclared`, "a declared value is not marked")
-}
-
-func TestCensus_CountsABitSetByTheBitsItHolds(t *testing.T) {
-	t.Parallel()
-	c := newCensus(t)
-	add(t, c, docOf(
-		&ir.Model{Usage: ir.UsageInput | ir.UsageOutput},
-		&ir.Model{Usage: ir.UsageInput | ir.UsageFlags(16)},
-		&ir.Model{},
-	))
-
-	got := facts(t, c.Report())
-	assert.Equal(t, "1 2", got["value UsageFlags 1"])
-	assert.Equal(t, "1 1", got["value UsageFlags 2"])
-	assert.Equal(t, "0 0", got["value UsageFlags 4"])
-	assert.Equal(t, "1 1", got["value UsageFlags 16 undeclared"])
-	assert.NotContains(t, got, "value UsageFlags 0 undeclared", "no bit set is no value")
-	assert.Equal(t, "1 2", got["member TypeCommon.usage"])
-}
-
-func TestCensus_CountsDocumentsAndInstancesApart(t *testing.T) {
-	t.Parallel()
-	c := newCensus(t)
-	add(t, c, docOf(&ir.Model{Abstract: true}, &ir.Model{Abstract: true}))
-	add(t, c, docOf(&ir.Model{Abstract: true}))
-	add(t, c, docOf(&ir.Model{}))
-
-	got := facts(t, c.Report())
-	assert.Equal(t, "2 3", got["member Model.abstract"], "two documents set it, three times between them")
-	assert.Equal(t, "3 truncated 0", got["documents"])
+	assert.Equal(t, "1 2", got["member Operation.auth"], "public and secured, not inherited")
+	assert.Equal(t, "1 1", got["empty Operation.auth"], "explicitly public")
+	assert.Equal(t, "1 3", got[`value StreamingMode "" undeclared`], "no constant names a non-streaming operation")
 }
 
 func TestCensus_CountsATruncatedWalkAndKeepsWhatItReached(t *testing.T) {
 	t.Parallel()
-	deep, shallow := nestedList(ir.MaxWalkDepth), nestedList(3)
-	c := newCensus(t)
-	add(t, c, docOf(&ir.Model{Examples: []ir.Example{{Value: &deep}}}))
-	add(t, c, docOf(&ir.Model{Examples: []ir.Example{{Value: &shallow}}}))
+	nested := func(depth int) *ir.Value {
+		v := ir.Value{Kind: ir.ValueNull}
+		for range depth {
+			v = ir.Value{Kind: ir.ValueList, List: []ir.Value{v}}
+		}
+		return &v
+	}
+	c := irCensus(t)
+	require.NoError(t, c.Add(docOf(&ir.Model{Examples: []ir.Example{{Value: nested(ir.MaxWalkDepth)}}})))
+	require.NoError(t, c.Add(docOf(&ir.Model{Examples: []ir.Example{{Value: nested(3)}}})))
 
 	got := facts(t, c.Report())
-	assert.Equal(t, "2 truncated 1", got["documents"])
+	assert.Equal(t, "2", got["documents"])
+	assert.Equal(t, "1", got["truncated"])
 	assert.Equal(t, "2 2", got["member TypeCommon.examples"], "the truncated document still counts what the walk reached")
 
-	docs, instances := counts(t, got[`value ValueKind "list"`])
+	var docs, instances int
+	_, err := fmt.Sscanf(got[`value ValueKind "list"`], "%d %d", &docs, &instances)
+	require.NoError(t, err)
 	assert.Equal(t, 2, docs)
-	assert.Greater(t, instances, 3+1000, "the walk got deep into the one, and all the way into the other")
+	assert.Greater(t, instances, ir.MaxWalkDepth/4, "the walk got deep into the one, and all the way into the other")
+	assert.Less(t, instances, ir.MaxWalkDepth+3, "but not to the bottom of the one it cut")
 }
 
-// counts splits a fact's "docs instances" into its numbers.
-func counts(t *testing.T, fact string) (docs, instances int) {
-	t.Helper()
-	_, err := fmt.Sscanf(fact, "%d %d", &docs, &instances)
-	require.NoError(t, err, fact)
-	return docs, instances
-}
-
-func TestCensus_CountsRunsThatLoweredToNoDocument(t *testing.T) {
+func TestReport_ListsMembersByName(t *testing.T) {
 	t.Parallel()
-	c := newCensus(t)
-	c.NoDocument()
-	c.NoDocument()
-	add(t, c, &ir.Document{})
-
-	got := facts(t, c.Report())
-	assert.Equal(t, "2", got["no-document"])
-	assert.Equal(t, "1 truncated 0", got["documents"], "a run with no document is not a document")
-}
-
-func TestCensus_RefusesWhatItCannotCount(t *testing.T) {
-	t.Parallel()
-	c := newCensus(t)
-	require.ErrorIs(t, c.Add(nil), census.ErrNilDocument)
-	assert.Equal(t, "0 truncated 0", facts(t, c.Report())["documents"], "a refused document is not counted")
-}
-
-func TestCensus_OfTheZeroUniverseCountsNoFact(t *testing.T) {
-	t.Parallel()
-	c := census.New(census.Universe{})
-	add(t, c, docOf(&ir.Model{Abstract: true}, &ir.Primitive{Prim: ir.PrimString}))
-
-	assert.Equal(t, "documents 1 truncated 0\nno-document 0\n", c.Report())
-}
-
-func TestReport_ListsEveryFactOfTheUniverseWhateverIsCounted(t *testing.T) {
-	t.Parallel()
-	empty := facts(t, newCensus(t).Report())
-
-	c := newCensus(t)
-	add(t, c, docOf(&ir.Model{Abstract: true}, &ir.Primitive{Prim: "hologram"}))
-	counted := facts(t, c.Report())
-
-	var zeros int
-	for fact, n := range empty {
-		if fact == "documents" || fact == "no-document" {
-			continue
-		}
-		assert.Equal(t, "0 0", n, fact)
-		zeros++
-		assert.Contains(t, counted, fact, "counting a document removes no fact from the report")
-	}
-	assert.Greater(t, zeros, 500)
-	assert.Contains(t, counted, `value PrimKind "hologram" undeclared`)
-}
-
-func TestReport_IsDeterministicAndSorted(t *testing.T) {
-	t.Parallel()
-	build := func() *census.Census {
-		c := newCensus(t)
-		add(t, c, docOf(&ir.Model{Abstract: true}, &ir.Primitive{Prim: "zzz"}, &ir.Primitive{Prim: "aaa"}))
-		add(t, c, docOf(&ir.Union{}, &ir.Primitive{Prim: ir.PrimString}))
-		return c
-	}
-	first, second := build().Report(), build().Report()
-	if diff := cmp.Diff(first, second); diff != "" {
-		t.Errorf("two runs differ (-first +second):\n%s", diff)
-	}
-
-	var members, values []string
-	for line := range strings.Lines(first) {
-		fields := strings.Fields(line)
-		switch fields[0] {
-		case "member":
-			members = append(members, fields[3])
-		case "value":
-			values = append(values, fields[3]+" "+fields[4])
+	var names []string
+	for line := range strings.Lines(irCensus(t).Report()) {
+		if fields := strings.Fields(line); fields[0] == "member" {
+			names = append(names, fields[3])
 		}
 	}
-	assert.True(t, slices.IsSorted(members), "members are in name order")
-	assert.True(t, slices.IsSorted(values), "values are in type order, then value order")
-	assert.Contains(t, values, `PrimKind "aaa"`)
-	assert.Less(t, slices.Index(values, `PrimKind "aaa"`), slices.Index(values, `PrimKind "bool"`),
-		"an undeclared value sorts among the declared ones")
-	assert.Less(t, slices.Index(values, `PrimKind "string"`), slices.Index(values, `PrimKind "zzz"`))
-}
-
-func TestCensus_ReadsOnlyWhatTheWalkMayRead(t *testing.T) {
-	t.Parallel()
-	type holder struct {
-		Open   any
-		Kinded ir.TypeDef
-		hidden map[string]ir.TypeDef
-	}
-	c := newCensus(t)
-	c.AddAny(&holder{
-		Open:   &ir.Model{},
-		Kinded: (*ir.Model)(nil),
-		hidden: map[string]ir.TypeDef{"a": &ir.Model{}},
-	})
-	c.AddAny(&holder{})
-
-	got := facts(t, c.Report())
-	assert.Equal(t, "2 truncated 0", got["documents"])
-	for fact, n := range got {
-		if strings.HasPrefix(fact, "value TypeKind ") {
-			assert.Equal(t, "0 0", n, "no TypeDef was both present and readable: %s", fact)
-		}
-	}
+	assert.True(t, slices.IsSorted(names))
 }

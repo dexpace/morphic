@@ -30,8 +30,7 @@ func TestRun_ReportsTheFactsOfADirectoryOfSpecs(t *testing.T) {
 	got := lines(stdout.String())
 	// Three specs: the golden snapshot and the text file beside them are not
 	// specs, and a snapshot read as one would be a run with no document.
-	assert.Equal(t, "documents 3 truncated 0", got[0])
-	assert.Equal(t, "no-document 0", got[1])
+	assert.Equal(t, []string{"documents 3", "no-document 0", "truncated 0"}, got[:3])
 	assert.Contains(t, got, "member 1 1 Model.properties", "one spec declares a model")
 	assert.Contains(t, got, `value 1 1 TypeKind "model"`)
 	assert.Contains(t, got, `value 1 1 TypeKind "enum"`, "the JSON spec declares an enum")
@@ -46,8 +45,7 @@ func TestRun_CountsASpecThatLowersToNoDocument(t *testing.T) {
 
 	require.Equal(t, 0, code, "stderr: %s", stderr.String())
 	got := lines(stdout.String())
-	assert.Equal(t, "documents 0 truncated 0", got[0])
-	assert.Equal(t, "no-document 1", got[1])
+	assert.Equal(t, []string{"documents 0", "no-document 1", "truncated 0"}, got[:3])
 	assert.Contains(t, got, "member 0 0 Document.name", "the report still lists every fact")
 }
 
@@ -59,8 +57,7 @@ func TestRun_TakesFilesAndDirectoriesTogether(t *testing.T) {
 
 	require.Equal(t, 0, code, "stderr: %s", stderr.String())
 	got := lines(stdout.String())
-	assert.Equal(t, "documents 1 truncated 0", got[0])
-	assert.Equal(t, "no-document 1", got[1])
+	assert.Equal(t, []string{"documents 1", "no-document 1", "truncated 0"}, got[:3])
 }
 
 func TestRun_IsDeterministic(t *testing.T) {

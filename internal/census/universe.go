@@ -1,218 +1,240 @@
 package census
 
 import (
-	"errors"
 	"fmt"
-	"maps"
+	"go/constant"
+	"go/token"
+	"go/types"
 	"reflect"
 	"slices"
 	"strings"
 
 	"github.com/dexpace/morphic/internal/decls"
+	"github.com/dexpace/morphic/internal/jsonshape"
 	"github.com/dexpace/morphic/ir"
 )
 
-// maxTypes bounds the types one derivation visits. A package declares finitely
-// many, so reaching it means the walk went wrong, not that the schema is large.
-const maxTypes = 4096
+// Universe is every fact a census counts, read from one package's
+// declarations through the JSON shape its root reaches, never listed by hand:
+// each member of its structs, the emptiness of each member whose empty value
+// differs from its absence, and each value of its enumerations. The zero value
+// holds none.
+type Universe struct {
+	pkgPath string
+	// facts are the member facts in the order a report lists them.
+	facts   []memberFact
+	structs map[string]*structFacts
+	sums    map[string]map[variantKey]valueKey
+	enums   map[string]*enumeration
+	// all lists the enumerations by name.
+	all []*enumeration
+}
+
+// memberFact names one member, "<Struct>.<json>", and says whether its
+// emptiness is a fact of its own.
+type memberFact struct {
+	name      string
+	emptiable bool
+}
+
+// structFacts is what a census reads of one struct type: the Go name of each
+// of its fields, by index, and the members among them.
+type structFacts struct {
+	fields  []string
+	members []member
+}
 
 // member is one struct member the census counts.
 type member struct {
 	// index is the member's position among its struct's fields.
 	index int
-	// name is "<GoStructName>.<jsonName>".
-	name string
+	memberFact
 }
 
-// Universe is every fact a census counts, derived from the declarations of
-// the IR and never listed by hand: the members of its structs and the values
-// of its enumerations. The zero value holds none.
-type Universe struct {
-	structs map[reflect.Type][]member
-	members []string
-	enums   map[reflect.Type]*enumeration
-	all     []*enumeration
+// variantKey names a type a sealed sum holds, and whether through a pointer.
+type variantKey struct {
+	name      string
+	byPointer bool
 }
 
-// NewUniverse derives the universe from package ir. It reads the package's
-// constants through go/packages, which resolves the import path from the
-// working directory, so it fails when run outside the module.
+// enumeration is a named type that declares constants: its values, each by
+// its spelling as a Go literal, so a string quoted and an integer in decimal.
+type enumeration struct {
+	name     string
+	declared map[string]constant.Value
+}
+
+// NewUniverse derives the universe of ir.Document. It reads package ir's
+// declarations through go/packages, which resolves the import path from the
+// working directory, so it fails outside the module, and it refuses
+// declarations of another IRVersion than this build's, which would describe a
+// different IR.
 func NewUniverse() (Universe, error) {
+	return newUniverse(ir.IRVersion)
+}
+
+// newUniverse derives the universe of ir.Document from declarations that must
+// be of the IRVersion version.
+func newUniverse(version string) (Universe, error) {
 	root := reflect.TypeFor[ir.Document]()
 	p, err := decls.Load(root.PkgPath())
 	if err != nil {
 		return Universe{}, fmt.Errorf("census: %w", err)
 	}
-	// TypeKind is reached through TypeDef.Kind rather than through a field, so
-	// it is a root of its own.
-	return derive([]reflect.Type{root, reflect.TypeFor[ir.TypeKind]()}, p, expandTypeDef)
+	if err := checkVersion(p, version); err != nil {
+		return Universe{}, err
+	}
+	return universeOf(p, root.Name())
 }
 
-// expandFunc names the concrete types each interface the roots reach may hold,
-// given the values every enumeration of the package declares, sorted.
-type expandFunc func(declared map[string][]string) (map[reflect.Type][]reflect.Type, error)
+// checkVersion refuses the package p unless its IRVersion constant is want.
+func checkVersion(p *decls.Package, want string) error {
+	c, isConst := p.Types.Scope().Lookup("IRVersion").(*types.Const)
+	if !isConst || c.Val().Kind() != constant.String {
+		return fmt.Errorf("census: %s declares no IRVersion string constant", p.Types.Path())
+	}
+	if got := constant.StringVal(c.Val()); got != want {
+		return fmt.Errorf("census: this build reads IRVersion %s, but the declarations it read are of %s: "+
+			"run it from the checkout it was built in", want, got)
+	}
+	return nil
+}
 
-// derive builds the universe of the types the roots reach in the package p
-// declares, which is the package of the first root. The interfaces expand
-// names are the only ones it will cross. An enumeration no root reaches is no
-// part of what a document holds, so it is left out.
-func derive(roots []reflect.Type, p *decls.Package, expand expandFunc) (Universe, error) {
-	if len(roots) == 0 {
-		return Universe{}, errors.New("census: no root type to derive a universe from")
-	}
-	enums, err := enumerations(p)
+// universeOf derives the universe of the named type root, which p declares.
+// A type of another package that the root reaches is no fact of this one.
+func universeOf(p *decls.Package, root string) (Universe, error) {
+	shape, err := jsonshape.Read(p, root)
 	if err != nil {
-		return Universe{}, err
+		return Universe{}, fmt.Errorf("census: %w", err)
 	}
-	declared := make(map[string][]string, len(enums))
-	for _, e := range enums {
-		declared[e.name] = slices.Sorted(maps.Keys(e.declared))
+	u := Universe{
+		pkgPath: p.Types.Path(),
+		structs: map[string]*structFacts{},
+		sums:    map[string]map[variantKey]valueKey{},
+		enums:   map[string]*enumeration{},
 	}
-	concrete, err := expand(declared)
-	if err != nil {
-		return Universe{}, err
-	}
-	r, err := reachable(roots, concrete)
-	if err != nil {
-		return Universe{}, err
-	}
-
-	u := Universe{structs: r.structs, enums: map[reflect.Type]*enumeration{}}
-	for _, e := range enums {
-		if t, reached := r.named[e.name]; reached {
-			u.enums[t] = e
-			u.all = append(u.all, e)
+	var sums []jsonshape.Type
+	for _, t := range shape.Types {
+		if t.Named.Obj().Pkg() != p.Types {
+			continue
+		}
+		if err := u.add(t); err != nil {
+			return Universe{}, err
+		}
+		if t.Tag != nil {
+			sums = append(sums, t)
 		}
 	}
-	for _, fields := range r.structs {
-		for _, f := range fields {
-			u.members = append(u.members, f.name)
+	// A tag names its enumeration, which may sort after the sum.
+	for _, t := range sums {
+		if err := u.addSum(t); err != nil {
+			return Universe{}, err
 		}
 	}
-	slices.Sort(u.members)
+	slices.SortFunc(u.facts, func(a, b memberFact) int { return strings.Compare(a.name, b.name) })
 	return u, nil
 }
 
-// expandTypeDef maps the TypeDef interface to the type of every kind the IR
-// declares, which is how a sealed sum is crossed: through the registry that
-// decoding dispatches on.
-func expandTypeDef(declared map[string][]string) (map[reflect.Type][]reflect.Type, error) {
-	spellings, found := declared["TypeKind"]
-	if !found {
-		return nil, errors.New("census: the IR declares no TypeKind constants")
+// add records the facts the type t declares: a struct's members and an
+// enumeration's values.
+func (u *Universe) add(t jsonshape.Type) error {
+	if s, isStruct := t.Named.Underlying().(*types.Struct); isStruct {
+		return u.addStruct(t, s)
 	}
-
-	var kinds []reflect.Type
-	for _, kind := range spellings {
-		td, registered := ir.NewTypeDef(ir.TypeKind(kind))
-		if !registered {
-			return nil, fmt.Errorf("census: TypeKind %q has no registered TypeDef", kind)
-		}
-		kinds = append(kinds, reflect.TypeOf(td))
+	if len(t.Constants) > 0 {
+		return u.addEnum(t)
 	}
-	return map[reflect.Type][]reflect.Type{reflect.TypeFor[ir.TypeDef](): kinds}, nil
+	return nil
 }
 
-// reaching is the part of the type graph a walk from the roots found.
-type reaching struct {
-	pkgPath  string
-	concrete map[reflect.Type][]reflect.Type
-	structs  map[reflect.Type][]member
-	// named holds the package's named types that are not structs, by name.
-	named map[string]reflect.Type
-}
-
-// reachable walks the types the roots reach through pointers, slices, arrays,
-// maps and struct fields, crossing an interface through concrete. The walk is a
-// queue, and the number of types it visits is bounded. The package it describes
-// is the first root's.
-func reachable(roots []reflect.Type, concrete map[reflect.Type][]reflect.Type) (*reaching, error) {
-	r := &reaching{
-		pkgPath:  roots[0].PkgPath(),
-		concrete: concrete,
-		structs:  map[reflect.Type][]member{},
-		named:    map[string]reflect.Type{},
-	}
-	seen := map[reflect.Type]bool{}
-	for _, root := range roots {
-		seen[root] = true
-	}
-	queue := slices.Clone(roots)
-	for len(queue) > 0 {
-		t := queue[0]
-		queue = queue[1:]
-		next, err := r.visit(t)
-		if err != nil {
-			return nil, err
-		}
-		for _, n := range next {
-			if seen[n] {
-				continue
-			}
-			if len(seen) == maxTypes {
-				return nil, fmt.Errorf("census: %s reaches more than %d types", roots[0], maxTypes)
-			}
-			seen[n] = true
-			queue = append(queue, n)
-		}
-	}
-	return r, nil
-}
-
-// visit records t and returns the types it leads to.
-func (r *reaching) visit(t reflect.Type) ([]reflect.Type, error) {
-	switch t.Kind() {
-	case reflect.Pointer, reflect.Slice, reflect.Array:
-		return []reflect.Type{t.Elem()}, nil
-	case reflect.Map:
-		return []reflect.Type{t.Key(), t.Elem()}, nil
-	case reflect.Interface:
-		impls, expands := r.concrete[t]
-		if !expands {
-			return nil, fmt.Errorf("census: interface %s has no known implementations", t)
-		}
-		return impls, nil
-	case reflect.Struct:
-		return r.structure(t), nil
-	default:
-		if t.PkgPath() == r.pkgPath {
-			r.named[t.Name()] = t
-		}
-		return nil, nil
-	}
-}
-
-// structure records a struct of the package with its members and returns the
-// types of its fields. A struct the package does not declare, a time.Time or
-// an unnamed struct, is not part of the surface it describes.
-//
-// A field is a member when the encoder writes it under a name of its own: an
-// exported field not tagged "-". An embedded struct is crossed but is no
-// member of the struct that embeds it; its fields are its own.
-func (r *reaching) structure(t reflect.Type) []reflect.Type {
-	if t.PkgPath() != r.pkgPath {
-		return nil
-	}
-	members := []member{}
-	var next []reflect.Type
-	for i := range t.NumField() {
-		f := t.Field(i)
-		tag := f.Tag.Get("json")
-		if tag == "-" {
+// addStruct records the members of the struct t, each under its JSON name,
+// leaving out an embedding, whose members are its own. Every field must be
+// one the encoder reads, since the walk a census counts by reads every field.
+func (u *Universe) addStruct(t jsonshape.Type, s *types.Struct) error {
+	name := t.Named.Obj().Name()
+	sf := &structFacts{fields: make([]string, s.NumFields())}
+	read := make([]bool, s.NumFields())
+	for _, m := range t.Members {
+		read[m.Index] = true
+		if m.Embedded {
 			continue
 		}
-		name, _, _ := strings.Cut(tag, ",")
-		switch {
-		case f.Anonymous && name == "":
-			next = append(next, f.Type)
-		case f.IsExported():
-			if name == "" {
-				name = f.Name
-			}
-			members = append(members, member{index: i, name: t.Name() + "." + name})
-			next = append(next, f.Type)
+		f := memberFact{name: name + "." + m.Name, emptiable: emptiable(m)}
+		sf.members = append(sf.members, member{index: m.Index, memberFact: f})
+		u.facts = append(u.facts, f)
+	}
+	for i := range s.NumFields() {
+		sf.fields[i] = s.Field(i).Name()
+		if !read[i] {
+			return fmt.Errorf("census: the encoder does not write %s.%s, so a census would count what it holds",
+				name, sf.fields[i])
 		}
 	}
-	r.structs[t] = members
-	return next
+	u.structs[name] = sf
+	return nil
+}
+
+// emptiable reports whether an empty value of the member m means something its
+// absence does not: m is a slice or a map tagged omitzero, which the encoder
+// writes as [] or {} when it is empty and leaves out only when it is nil.
+func emptiable(m jsonshape.Member) bool {
+	switch m.Field.Type().Underlying().(type) {
+	case *types.Slice, *types.Map:
+		return slices.Contains(m.Options, "omitzero")
+	default:
+		return false
+	}
+}
+
+// addEnum records the values the constants of t give it. It refuses a
+// constant that is neither a string nor an integer, since no value of it could
+// be counted.
+func (u *Universe) addEnum(t jsonshape.Type) error {
+	e := &enumeration{name: t.Named.Obj().Name(), declared: map[string]constant.Value{}}
+	for _, c := range t.Constants {
+		if k := c.Val().Kind(); k != constant.String && k != constant.Int {
+			return fmt.Errorf("census: constant %s has kind %s, want String or Int", c.Name(), k)
+		}
+		e.declared[c.Val().ExactString()] = c.Val()
+	}
+	u.enums[e.name] = e
+	u.all = append(u.all, e)
+	return nil
+}
+
+// addSum records the variants of the sealed sum t, each with the value of its
+// tag, which no field holds. The tag must be one of the package's
+// enumerations, which is where a report lists its values.
+func (u *Universe) addSum(t jsonshape.Type) error {
+	pkg := t.Named.Obj().Pkg()
+	spelled := types.TypeString(t.Tag, types.RelativeTo(pkg))
+	tag, isNamed := types.Unalias(t.Tag).(*types.Named)
+	if !isNamed || tag.Obj().Pkg() != pkg {
+		return fmt.Errorf("census: %s is tagged by %s, which is no type of its package", t.Named.Obj().Name(), spelled)
+	}
+	if _, isEnum := u.enums[tag.Obj().Name()]; !isEnum {
+		return fmt.Errorf("census: %s is tagged by %s, which declares no constants", t.Named.Obj().Name(), spelled)
+	}
+	variants := map[variantKey]valueKey{}
+	for _, v := range t.Variants {
+		key := variantKey{name: v.Named.Obj().Name(), byPointer: v.ByPointer}
+		variants[key] = valueKey{enum: tag.Obj().Name(), spelling: v.Tag.ExactString()}
+	}
+	u.sums[t.Named.Obj().Name()] = variants
+	return nil
+}
+
+// declares reports whether the universe's package declares t, a named type,
+// so that its values hold facts. The zero universe declares none.
+func (u *Universe) declares(t reflect.Type) bool {
+	return u.pkgPath != "" && t.PkgPath() == u.pkgPath
+}
+
+// compareValues orders two values of one enumeration: integers by magnitude,
+// strings by their text.
+func compareValues(a, b constant.Value) int {
+	if a.Kind() == constant.String {
+		return strings.Compare(constant.StringVal(a), constant.StringVal(b))
+	}
+	return constant.Sign(constant.BinaryOp(a, token.SUB, b))
 }

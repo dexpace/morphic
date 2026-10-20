@@ -95,11 +95,12 @@ const usage = `usage:
   morphic-census <path>...
 
 Each path is a spec file or a directory of specs (*.yaml, *.yml, *.json,
-excluding *.golden.json). Every spec is compiled with the default options and
-the facts its document sets are counted: the members of the IR's structs and
-the values of its enumerations. The report lists every fact with the number of
-documents that set it and the number of instances, zeros included, and starts
-with "documents <n> truncated <n>", then "no-document <n>" for specs that
-lowered to nothing. It reads the IR's declarations through the go command, so
-run it from inside the module. Exit status is 0 on a report, 2 on a usage
-error or an unreadable spec.`
+excluding *.golden.json). Every spec is compiled with the default options, and
+the facts its document sets are counted: the members of the IR's structs, the
+emptiness of each member whose empty value differs from its absence, and the
+values of its enumerations. The report counts the documents, the specs that
+lowered to none and the walks cut at the depth bound, then lists every fact
+with the number of documents that set it and the number of instances, zeros
+included. It reads the IR's declarations through the go command, so run it with
+go run from inside the module. Exit status is 0 on a report, 2 on a usage error,
+an unreadable spec, or declarations it cannot read.`
