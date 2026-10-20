@@ -1730,7 +1730,8 @@ enumerations, a `TypeKind` among them. `go test ./cmd/morphic-census` holds the 
   until a compiler produces them.
 - **A fact enters when a compiler first produces it.** The change that makes a compiler produce one
   adds the conformance case that witnesses it, which takes its line out of the file in that change,
-  and its lowering lands tested against that compiler's output.
+  and its lowering lands tested against that compiler's output. A fact only a non-default compiler
+  option produces stays listed, since the census compiles every spec with the defaults.
 - **Real specs check the corpus.** A fact a compiler produces belongs in `testdata/`, so a census of
   a real spec that sets a listed fact names a conformance case to add. The golden spec's come first:
   M3 must lower every fact it sets, and lowers none the corpus does not witness.

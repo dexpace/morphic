@@ -156,7 +156,8 @@ func TestMain_ExitCode(t *testing.T) {
 // holds the facts none sets to a golden, which -update rewrites. A case that
 // sets a fact removes its line, and a new IR fact, or a compiler that stops
 // setting one, adds a line. A fact a compiler sets only to its zero value
-// stays listed, since a census cannot see the assignment.
+// stays listed, since a census cannot see the assignment, and so does one only
+// a non-default option produces, since every spec compiles with the defaults.
 func TestRun_HoldsTheFactsNoCommittedSpecSets(t *testing.T) {
 	t.Parallel()
 	var stdout, stderr bytes.Buffer
