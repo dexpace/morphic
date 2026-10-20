@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 #
-# lint-planted.sh holds the depguard and ruleguard rules in .golangci.yml to the
-# tree and to the findings planted for them. It runs golangci-lint, with the
-# repository's configuration and those two linters only, over the module and
-# over internal/lintrules/testdata/planted, where each line ending in
+# lint-planted.sh holds the lint rules a clean tree cannot prove to the tree and
+# to the findings planted for them. It runs golangci-lint, with the repository's
+# configuration and the linters in $linters only, over the module and over each
+# package under internal/lintrules/testdata/planted, where each line ending in
 # `// want "<message>"` holds something a rule exists to refuse. It fails unless
 # the plants draw exactly the marked findings and the module draws none.
 #
@@ -22,11 +22,19 @@ export LC_ALL=C # one byte order for both sorted lists
 repo_root="$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)"
 cd "$repo_root"
 dir=internal/lintrules/testdata/planted
+linters=depguard,gocritic
+
+# The packages under $dir, look-alikes included. ./... does not reach into a
+# testdata directory, so each is named.
+pkgs=()
+while IFS= read -r pkg; do
+	pkgs+=("./$pkg")
+done < <(find "$dir" -name '*.go' -exec dirname {} \; | sort -u)
 
 # Each marker becomes "<file>:<line>: <message>"; `// want "` is nine bytes.
-want="$(awk 'match($0, /\/\/ want "[^"]*"$/) {
+want="$(find "$dir" -name '*.go' -exec awk 'match($0, /\/\/ want "[^"]*"$/) {
 	print FILENAME ":" FNR ": " substr($0, RSTART + 9, RLENGTH - 10)
-}' "$dir"/*.go | sort)"
+}' {} + | sort)"
 if [[ -z "$want" ]]; then
 	echo "lint-planted: no // want markers under $dir" >&2
 	exit 1
@@ -39,10 +47,10 @@ trap 'rm -rf "$cache"' EXIT
 # only when it is known; it goes. A golangci-lint that cannot run, a rules file
 # ruleguard cannot load included, exits non-zero whatever --issues-exit-code
 # says, and ends the script.
-out="$(GOLANGCI_LINT_CACHE="$cache" golangci-lint run --enable-only depguard,gocritic \
+out="$(GOLANGCI_LINT_CACHE="$cache" golangci-lint run --enable-only "$linters" \
 	--issues-exit-code 0 --max-issues-per-linter 0 --max-same-issues 0 \
 	--output.text.path stdout --output.text.print-issued-lines=false \
-	--output.text.colors=false ./... "./$dir")"
+	--output.text.colors=false ./... "${pkgs[@]}")"
 findings="$(printf '%s\n' "$out" | sed -nE 's|^([^ :]+\.go:[0-9]+)(:[0-9]+)?: |\1: |p' | sort)"
 got="$(printf '%s\n' "$findings" | awk -v d="$dir/" 'index($0, d) == 1')"
 stray="$(printf '%s\n' "$findings" | awk -v d="$dir/" 'NF && index($0, d) != 1')"

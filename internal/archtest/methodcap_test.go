@@ -154,3 +154,15 @@ func writeMethods(t *testing.T, file, pkg, typ string, n int) {
 	}
 	require.NoError(t, os.WriteFile(file, []byte(src), 0o600))
 }
+
+// skipUninterestingDir prunes directories that carry no production Go code.
+func skipUninterestingDir(root, path string, d fs.DirEntry) error {
+	if path == root {
+		return nil
+	}
+	switch d.Name() {
+	case ".git", "testdata", "docs", "scripts", ".claude", ".github":
+		return fs.SkipDir
+	}
+	return nil
+}

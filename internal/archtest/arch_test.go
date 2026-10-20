@@ -317,11 +317,14 @@ var rules = map[string][]string{
 	// document to the code share. Standard library only.
 	"internal/keydoc": {},
 	// The ruleguard rules golangci-lint runs. Its one file builds under a tag no
-	// build sets, and reaches the rules DSL and nothing else.
-	"internal/lintrules": {"github.com/quasilyte/go-ruleguard/dsl"},
-	// What those rules refuse, planted for scripts/lint-planted.sh. It reaches
-	// ir because the rules are about ir's types.
-	"internal/lintrules/testdata/planted": {module + "/ir"},
+	// build sets, and reaches the rules DSL and its types and nothing else.
+	"internal/lintrules": {"github.com/quasilyte/go-ruleguard/dsl", "github.com/quasilyte/go-ruleguard/dsl/types"},
+	// What the lint rules refuse, planted for scripts/lint-planted.sh. It reaches
+	// what the rules are about: ir's types, the framework, the parser library's
+	// reference readings, and look-alike packages named like ir and compile.
+	"internal/lintrules/testdata/planted": {module + "/ir", module + "/compilers/compile",
+		module + "/internal/lintrules/testdata/planted/lookalike" + subtreeSuffix,
+		"github.com/speakeasy-api/openapi/expression", "github.com/speakeasy-api/openapi/references"},
 }
 
 // exempt names the production packages deliberately outside the layering rules,

@@ -168,11 +168,10 @@ A compiler lowers one source format into an IR document ([`architecture.md`](doc
    `ir.IRVersion`. Call `compile.Types.Violations()` after interning and report what it returns, as
    the OpenAPI compiler does; take the `*compile.Types` as a parameter, as that compiler's `run`
    does, so a test can drive the refusal no source provokes.
-   *Fails if missed:* `TestNamingGrammar_NameChannelsAreFilledByTheFrameworkOnly`,
-   `TestIDGrammar_CompilersDeriveIDsThroughTheFramework` and the `registryWrites` lint rule
-   (`make lint-planted`) for the framework. Nothing in the repository checks the namespaces, the
-   version or the violations (#967): step 5's `irverify` tests do, and `irtest.SpacesUsed` holds
-   `IDSpaces` to what the output uses.
+   *Fails if missed:* the `nameChannels`, `idDerivations` and `registryWrites` lint rules in
+   `internal/lintrules` (`make lint-planted`) for the framework. Nothing in the repository checks
+   the namespaces, the version or the violations (#967): step 5's `irverify` tests do, and
+   `irtest.SpacesUsed` holds `IDSpaces` to what the output uses.
 4. **Register it** in `engine.New` (`engine/engine.go`), the one place built-in compilers are
    listed, and add the package to the `engine` entry of the `rules` map.
    *Fails if missed:* `TestImportGraph_LayeringHolds/engine` for the allowlist. Nothing fails if the

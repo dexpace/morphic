@@ -105,9 +105,9 @@ registry is the one handle a lowering holds (micro-compiler-design §4). What st
 compiler is what only it can compute: the path an ID derives from, since a JSON Pointer, a GraphQL
 structural path and a protobuf fully-qualified name are different things.
 
-The split is enforced rather than documented. A lint rule fails a package outside the framework
-that writes the type registry, and architecture tests fail one that derives a canonical name,
-builds an ID out of a string, or builds a namespace out of anything but a literal.
+The split is enforced rather than documented: lint rules (`internal/lintrules`) fail a package
+outside the framework that writes the type registry, derives a canonical name, builds an ID out of
+a string, or builds a namespace out of anything but a literal.
 Promoting something into the framework later is additive, while demoting it breaks every compiler,
 so borderline machinery starts outside and moves in on evidence from more than one format.
 
@@ -330,7 +330,7 @@ morphic/
 ├── pass/                   # Layer 1 — IR → IR passes (validate, dedup, filter, slice, overlay).
 ├── emitters/               # Layer 2 — emitter contract, plan layer, registry (future).
 ├── engine/                 # Layer 3 — orchestration: detect format, run compiler, passes, emitters.
-├── internal/archtest/      #           Layering, grammar, recursion and method-cap rules (tooling).
+├── internal/archtest/      #           Import layering, the recursion pin and the caps (tooling).
 ├── internal/decls/         #           Type-checked reads of declarations, for tests (tooling).
 ├── internal/harness/       #           Bug-catching oracle sweep over a spec corpus (tooling).
 ├── internal/jsonshape/     #           The IR's JSON shape, which IRVersion is pinned to (tooling).
