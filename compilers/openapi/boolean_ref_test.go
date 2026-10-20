@@ -21,28 +21,25 @@ import (
 // `false` resolve too, as do a union branch and a mapping value.
 func TestCompile_ARefToABooleanSchemaResolvesInEitherOrder(t *testing.T) {
 	t.Parallel()
+	const items = "'#/components/schemas/L/items'"
+	const prop = "'#/components/schemas/L/properties/p'"
 	for _, tc := range []struct {
-		name, owner string
-		// base is what O, a $ref to /components/schemas/L/<at>, aliases.
-		at   string
+		name, user, owner string
+		// base is what O aliases, or empty where O is no alias.
 		base ir.TypeID
 	}{
-		{"items false", "{type: array, items: false}", "items", "t/anon/components/schemas/L/items"},
-		{"a closed tuple's items", "{type: array, prefixItems: [{type: string}], items: false}", "items",
+		{"items false", "{$ref: " + items + "}", "{type: array, items: false}", "t/anon/components/schemas/L/items"},
+		{"a closed tuple's items", "{$ref: " + items + "}", "{type: array, prefixItems: [{type: string}], items: false}",
 			"t/anon/components/schemas/L/items"},
-		{"a true property", "{type: object, properties: {p: true}}", "properties/p",
+		{"a true property", "{$ref: " + prop + "}", "{type: object, properties: {p: true}}",
 			"t/anon/components/schemas/L/properties/p"},
-		{"a property the parser reads as false", "{type: object, properties: {p: just text}}", "properties/p",
+		{"a property the parser reads as false", "{$ref: " + prop + "}", "{type: object, properties: {p: just text}}",
 			"t/anon/components/schemas/L/properties/p"},
-		{"a union branch and a mapping value", "{type: array, items: false}", "", ""},
+		{"a union branch and a mapping value", "{type: object, properties: {k: {type: string}}, " +
+			"discriminator: {propertyName: k, mapping: {f: " + items + "}}, oneOf: [{$ref: " + items + "}]}",
+			"{type: array, items: false}", ""},
 	} {
-		ref := "#/components/schemas/L/items"
-		user := "    O:\n      type: object\n      properties: {k: {type: string}}\n" +
-			"      discriminator: {propertyName: k, mapping: {f: '" + ref + "'}}\n      oneOf: [{$ref: '" + ref + "'}]\n"
-		if tc.at != "" {
-			user = "    O: {$ref: '#/components/schemas/L/" + tc.at + "'}\n"
-		}
-		components := []string{user, "    L: " + tc.owner + "\n"}
+		components := []string{"    O: " + tc.user + "\n", "    L: " + tc.owner + "\n"}
 		types := make([]ir.TypeRegistry, 0, 2)
 		for _, order := range [][]string{components, {components[1], components[0]}} {
 			src := "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\ncomponents:\n  schemas:\n" +
