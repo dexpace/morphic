@@ -945,7 +945,9 @@ Go refiner that finds no strategy emits a coded diagnostic and falls back to `js
 variant, which keeps the variant's bytes as they arrived — a degrade, never a whole-document failure
 (§13 test T-7). That graceful-degradation margin is exactly what the ABI seam buys and the
 fused-pipeline generator cannot have. Whatever the strategy, the union's codec is a
-`MarshalJSONTo`/`UnmarshalJSONFrom` pair, for the reason §4.8 gives.
+`MarshalJSONTo`/`UnmarshalJSONFrom` pair, for the reason §4.8 gives. Which Go type declares the
+pair is open: an interface type cannot declare a method, so the sealed interface itself cannot
+(#1022).
 
 ### 4.5 Open enums
 
@@ -1993,8 +1995,9 @@ Variables:[{Name:region, Default:"us", Enum:[us, eu]}]} ]`, and a service whose 
   scheme and host — the `/` the compiler lowers for a document that declares no server (#672)
   among them — cannot be the default: the document's location, which OpenAPI resolves a relative
   URL against, is not something an SDK knows. The default is the first server that has both, so a
-  relative server listed first passes the default to the next. A client none of whose servers has
-  both refuses to be built without a base URL, and refine reports that once per client as an info
+  relative server listed first passes the default to the next. A client refuses to be built while
+  the server it would use has neither and no base URL replaces it, as when a caller names a
+  relative server, and refine reports a client none of whose servers has both once, as an info
   `emitters/<target>/no-default-server`.
 - **An operation's own servers.** OpenAPI lets a path item or an operation name servers of its own,
   which the IR keeps under `no_ir_home` until an operation gets a field for them (#285), so an SDK
@@ -2190,7 +2193,9 @@ throughout this document.
 17. **T-17 · Type table** — each target's built-in table has, at every options version, a row for
     every `PrimKind` `ir` declares, read through `internal/decls`; a user row replaces the built-in
     row under its key whole; an encoding with no row falls back to its primitive's and is reported
-    once (§2.6).
+    once; a row naming an import `Imports` does not bind, an `Imports` key it does not use, or a Go
+    `Codec` is an options error; and two rows that spell one name for two packages generate code
+    that compiles in a file using both (§2.6).
 18. **T-18 · Placement** — adding a type no operation reaches, an operation that reaches no existing
     type, or declarations past a unit's size limit moves no existing declaration to another unit,
     while an operation in another group moves to the shared unit exactly the types it makes a second
