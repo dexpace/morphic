@@ -117,8 +117,8 @@ in the docs.
 
 ```
 ir/          Layer 0 — IR nodes, IDs, traversal, JSON round-trip. Imports ONLY the stdlib.
-  irfacts/   Layer 0 — what a Document implies and does not state (subtypes, usage, recursion),
-             derived on demand and never stored. Imports ir only.
+  irfacts/   Layer 0 — what a Document implies and does not state (subtypes, exposed properties,
+             usage, recursion), derived on demand and never stored. Imports ir only.
   irverify/  Layer 0 — structural-invariant checks over a compiled Document. Imports ir only.
   irtest/    Layer 0 — golden-file helper (`-update` rewrites) and fixture helpers. Imports ir + go-cmp.
 compilers/   Layer 1 — the Compiler contract and the format-keyed registry. Imports ir only.

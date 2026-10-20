@@ -94,6 +94,9 @@ func IsSubtype(doc *Document, target, base TypeID) bool {
 // §4.3), the flat set an emitter renders. A root naming an alias scalar exposes
 // the parts of the model the alias stands for, and one naming neither that nor
 // a live model exposes none. A visited set ends the walk on a cyclic hierarchy.
+//
+// It is the relation's definition, walked afresh for one root. A caller asking
+// many of one document asks irfacts.Index, which is held to it.
 func ExposedProps(doc *Document, root TypeID) map[PropID]bool {
 	props := map[PropID]bool{}
 	if doc == nil {

@@ -630,8 +630,9 @@ empty level, so a source that spells one has written an invalid name, which its 
 rather than carries. A null or global namespace is the empty list, not one blank segment. A segment
 may repeat — `com.acme.acme` has three levels — so a path is not held to unique entries.
 
-**Derived facts** — the subtypes of a model, how each type is used, which types can hold
-themselves — are not stored on a type; `ir/irfacts` derives them from the document (§4.9).
+**Derived facts** — the subtypes of a model, the properties a type exposes, how each type is used,
+which types can hold themselves — are not stored on a type; `ir/irfacts` derives them from the
+document (§4.9).
 
 ### 4.1 Primitives
 
@@ -750,7 +751,7 @@ type Discriminator struct {
 **Composition semantics.** `Properties` contains only the model's *own* properties. Consumers walk
 `Base`, `Implements`, and `Mixins` for the full shape; the flattening is computed, never stored.
 `ir.ExposedProps` computes the flat set of property IDs, and `ir.Supertypes` and `ir.IsSubtype` the
-subtype relation, which excludes mixins; `irfacts.Index` answers it for many questions at once
+subtype relation, which excludes mixins; `irfacts.Index` answers both for many questions at once
 (§4.9). The ordered, override-aware `FlattenedProperties()` that
 emitter-design §3.2 computes `TypePlan.Flattened` with is not provided so far (#812). This preserves
 what oagen and Kiota lose: the difference between "inherits from", "conforms to", "mixes in", and
@@ -1096,7 +1097,7 @@ What a document implies and does not state is derived by one per-document index,
 goes stale after a transform. Each of its indexes is built whole the first time one of its facts is
 asked for and never written again, so an `Index` is safe for concurrent use; a caller that changes
 the document builds a new one. The package imports only `ir`, which keeps the definitions it
-indexes: `Supertypes`, `IsSubtype` and `AliasBase`.
+indexes: `Supertypes`, `IsSubtype`, `ExposedProps` and `AliasBase`.
 
 **Subtypes.** `IsSubtype(t, b)` answers exactly what `ir.IsSubtype` answers (§4.3), and
 `Subtypes(b)` lists every declared type it holds below `b`. The index condenses the relation into
@@ -1107,6 +1108,13 @@ before `b` itself, is below `b`. Any other pair is confirmed by `ir.IsSubtype`'s
 only when a subtype of `b` has a supertype that is neither `b` nor below it, so a model naming two
 supertypes leaves open only pairs whose base lies above it, and in a forest every question is a few
 comparisons.
+
+**Exposed properties.** `Exposes(t, p)` answers exactly what `ir.ExposedProps(t)` answers about `p`
+(§4.3). The relation `ExposedProps` walks, a model leading to its `Base`, `Implements` and `Mixins`
+and an alias scalar to its `Base`, is numbered the way the subtype relation is, and a property
+declared by one model is exposed by that model and every type that reaches it. A pair the numbering
+leaves open, and a property several models declare, are confirmed by the walk. A mixin is a second
+parent, so this relation leaves pairs open more often than the subtype relation does.
 
 **The type graph.** Usage and recursion read one graph with two vertices per declared type: its
 *shape*, what a value of exactly that type holds, and its *range*, every shape a value declared as

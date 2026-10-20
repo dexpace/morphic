@@ -3,6 +3,7 @@ package irfacts_test
 import (
 	"fmt"
 	"math/rand/v2"
+	"runtime"
 	"slices"
 	"sync"
 	"testing"
@@ -219,6 +220,7 @@ func TestIndex_NoDocumentMeansNoFacts(t *testing.T) {
 			t.Parallel()
 			assert.False(t, facts.IsSubtype("a", "b"))
 			assert.Nil(t, facts.Subtypes("a"))
+			assert.False(t, facts.Exposes("a", "p"))
 			assert.Zero(t, facts.Usage("a"))
 			assert.False(t, facts.Recursive("a"))
 			assert.Nil(t, facts.Component("a"))
@@ -253,11 +255,12 @@ type factsWorkShape struct {
 	ask func(f *irfacts.Index, n int) int
 }
 
-// factsWorkShapes are the documents whose subtype or usage questions have cost
-// more than linear time or memory: GitHub #850's, a chain each of whose models
-// routes to the next (a closure per target is quadratic there), a base routing
-// to every model below it, alone and beside an unrelated model naming two
-// supertypes, and usage on a chain of discriminated bases.
+// factsWorkShapes are the documents whose subtype, exposure or usage questions
+// have cost more than linear time or memory: GitHub #850's, a chain each of
+// whose models routes to the next (a closure per target is quadratic there), a
+// base routing to every model below it, alone and beside an unrelated model
+// naming two supertypes, a chain's properties asked of the models below them,
+// and usage on a chain of discriminated bases.
 func factsWorkShapes() map[string]factsWorkShape {
 	return map[string]factsWorkShape{
 		"many bases routing to the bottom of one chain": {
@@ -291,6 +294,32 @@ func factsWorkShapes() map[string]factsWorkShape {
 		"the same beside an unrelated model naming two supertypes": {
 			doc: func(n int) *ir.Document { return compDoc(append(factsChain(n, nil), factsDiamond("x")...)...) },
 			ask: factsAskTopOfChain,
+		},
+		"the top's tag asked of every model of a chain": {
+			doc: func(n int) *ir.Document {
+				return compDoc(factsChain(n, func(i int, m *ir.Model) {
+					if i == 0 {
+						m.Properties = []ir.Property{{ID: factsPropID(0)}}
+					}
+				})...)
+			},
+			ask: func(f *irfacts.Index, n int) (yes int) {
+				for i := 1; i <= n; i++ {
+					yes += factsCount(f.Exposes(factsChainID(i), factsPropID(0)))
+				}
+				return yes
+			},
+		},
+		"every model's property asked of the bottom of a chain": {
+			doc: func(n int) *ir.Document {
+				return compDoc(factsChain(n, func(i int, m *ir.Model) { m.Properties = []ir.Property{{ID: factsPropID(i)}} })...)
+			},
+			ask: func(f *irfacts.Index, n int) (yes int) {
+				for i := range n {
+					yes += factsCount(f.Exposes(factsChainID(n), factsPropID(i)))
+				}
+				return yes
+			},
 		},
 		"usage of a chain of discriminated bases": {
 			doc: func(n int) *ir.Document {
@@ -335,25 +364,42 @@ func factsCount(b bool) int {
 	return 0
 }
 
-// TestIndex_WorkGrowsLinearly counts the allocations of building a Facts and
-// asking a shape's questions at three sizes, and holds the growth from 2n to 4n
-// to at most 2.5 times the growth from n to 2n: fixed costs cancel, linear work
-// gives 2 and quadratic 4. It does not run in parallel, since the count is
-// process-wide.
+// TestIndex_WorkGrowsLinearly counts the allocations and the bytes of building
+// an Index and asking a shape's questions at three sizes, and holds the growth
+// of each from 2n to 4n to at most 2.5 times its growth from n to 2n: fixed
+// costs cancel, linear work gives 2 and quadratic 4. Bytes catch a walk whose
+// maps grow by doubling, which allocates few times for much work. It does not
+// run in parallel, since both counts are process-wide.
 func TestIndex_WorkGrowsLinearly(t *testing.T) {
 	for name, shape := range factsWorkShapes() {
 		t.Run(name, func(t *testing.T) {
-			var allocs [3]float64
+			var allocs, bytes [3]float64
 			for k, n := range []int{400, 800, 1600} {
 				doc := shape.doc(n)
 				var yes int
-				allocs[k] = testing.AllocsPerRun(1, func() { yes = shape.ask(irfacts.New(doc), n) })
+				ask := func() { yes = shape.ask(irfacts.New(doc), n) }
+				allocs[k] = testing.AllocsPerRun(1, ask)
+				bytes[k] = factsBytes(ask)
 				require.Contains(t, []int{0, n}, yes, "the questions must all have one answer, or the sizes compare different work")
 			}
 			assert.LessOrEqual(t, allocs[2]-allocs[1], 2.5*(allocs[1]-allocs[0]),
 				"allocations at 400, 800, 1600: %v", allocs)
+			assert.LessOrEqual(t, bytes[2]-bytes[1], 2.5*(bytes[1]-bytes[0]),
+				"bytes at 400, 800, 1600: %v", bytes)
 		})
 	}
+}
+
+// factsBytes returns how many bytes one call of f allocates, on one processor
+// as testing.AllocsPerRun counts, after a call that warms it up.
+func factsBytes(f func()) float64 {
+	defer runtime.GOMAXPROCS(runtime.GOMAXPROCS(1))
+	f()
+	var before, after runtime.MemStats
+	runtime.ReadMemStats(&before)
+	f()
+	runtime.ReadMemStats(&after)
+	return float64(after.TotalAlloc - before.TotalAlloc)
 }
 
 func TestIndex_AForestNeedsNoWalk(t *testing.T) {
@@ -427,10 +473,15 @@ type factsAnswers struct {
 	component []ir.TypeID
 	subtypes  []ir.TypeID
 	supers    map[ir.TypeID]bool
+	exposes   map[ir.PropID]bool
 }
 
+// factsConcurrentProps are the properties the concurrency test asks each type
+// about.
+var factsConcurrentProps = []ir.PropID{"p/kind", "p/side", "p/ghost"}
+
 // factsAsk collects everything facts says about id, asking IsSubtype of each
-// base in universe.
+// base in universe and Exposes of each of factsConcurrentProps.
 func factsAsk(facts *irfacts.Index, id ir.TypeID, universe []ir.TypeID) factsAnswers {
 	got := factsAnswers{
 		usage:     facts.Usage(id),
@@ -438,9 +489,13 @@ func factsAsk(facts *irfacts.Index, id ir.TypeID, universe []ir.TypeID) factsAns
 		component: facts.Component(id),
 		subtypes:  facts.Subtypes(id),
 		supers:    map[ir.TypeID]bool{},
+		exposes:   map[ir.PropID]bool{},
 	}
 	for _, base := range universe {
 		got.supers[base] = facts.IsSubtype(id, base)
+	}
+	for _, prop := range factsConcurrentProps {
+		got.exposes[prop] = facts.Exposes(id, prop)
 	}
 	return got
 }
@@ -470,28 +525,39 @@ func TestIndex_EveryMethodIsSafeForConcurrentUse(t *testing.T) {
 	assert.True(t, want["loopA"].recursive, "the document gives the index a cycle to find")
 	assert.True(t, want["deep"].supers["mid"] && want["deep"].supers["side"] && !want["deep"].supers["orphan"],
 		"the document gives the index a hierarchy")
-	walked := 0
+	assert.True(t, want["deep"].exposes["p/kind"] && want["deep"].exposes["p/side"] && !want["base"].exposes["p/side"],
+		"the document gives the index properties to expose")
+	walked, walkedExposure := 0, 0
 	for _, target := range universe {
 		for _, base := range universe {
 			if _, settled := sequential.SubtypeIndexAnswer(target, base); !settled {
 				walked++
 			}
 		}
+		for _, prop := range factsConcurrentProps {
+			if _, settled := sequential.ExposesIndexAnswer(target, prop); !settled {
+				walkedExposure++
+			}
+		}
 	}
-	assert.Positive(t, walked, "the document leaves the index some question to walk")
+	assert.Positive(t, walked, "the document leaves the index some subtype question to walk")
+	assert.Positive(t, walkedExposure, "the document leaves the index some exposure question to walk")
 }
 
 // factsConcurrentDocument builds a document in which every fact has something
 // to derive: a discriminated hierarchy used by an operation, with a diamond,
-// which leaves some question to the walk whichever side is searched first; a
-// cycle; an alias; and a type nothing reaches.
+// which leaves some subtype and exposure question to the walk whichever side is
+// searched first; a cycle; an alias; and a type nothing reaches.
 func factsConcurrentDocument() (*ir.Document, []ir.TypeID) {
 	doc := compDoc(
-		compModel("base", func(m *ir.Model) { m.Discriminator = &ir.Discriminator{} }),
+		compModel("base", func(m *ir.Model) {
+			m.Discriminator = &ir.Discriminator{}
+			m.Properties = []ir.Property{{ID: "p/kind"}}
+		}),
 		compModel("sub", func(m *ir.Model) { m.Base = &ir.TypeRef{Target: "alias"} }),
 		compScalar("alias", "base"),
 		compModel("mid", func(m *ir.Model) { m.Base = &ir.TypeRef{Target: "sub"} }),
-		compModel("side", func(m *ir.Model) { m.Base = &ir.TypeRef{Target: "sub"} }),
+		compModel("side", func(m *ir.Model) { m.Base = &ir.TypeRef{Target: "sub"}; m.Properties = []ir.Property{{ID: "p/side"}} }),
 		compModel("deep", func(m *ir.Model) { m.Base = &ir.TypeRef{Target: "mid"}; m.Implements = refs("side") }),
 		compModel("loopA", func(m *ir.Model) { m.Properties = []ir.Property{{Type: ir.TypeRef{Target: "loopB"}}} }),
 		compModel("loopB", func(m *ir.Model) { m.Properties = []ir.Property{{Type: ir.TypeRef{Target: "loopA"}}} }),

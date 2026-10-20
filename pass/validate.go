@@ -25,9 +25,9 @@ func Validate(doc *ir.Document) []ir.Diagnostic {
 	// Read once: the dangling walk resolves against these, and checkParams
 	// leaves to it exactly what it reports.
 	decls, declTruncated := ir.DeclaredIDs(doc)
-	// One index for the run: a discriminator route is answered from a hierarchy
-	// indexed once, and walked only where a model naming two supertypes leaves
-	// it open (#850).
+	// One index for the run: a discriminator's routes and tag, and a part's
+	// encoding key, are answered from the document indexed once, and walked only
+	// where a type with two parents leaves the answer open (#850).
 	facts := irfacts.New(doc)
 	diags := make([]ir.Diagnostic, 0, 8)
 	diags = append(diags, checkNilTypes(doc)...)
@@ -35,7 +35,7 @@ func Validate(doc *ir.Document) []ir.Diagnostic {
 	diags = append(diags, checkGroupWalkTruncated(doc)...)
 	diags = append(diags, checkServerIndices(doc)...)
 	diags = append(diags, checkResponseIndices(doc)...)
-	diags = append(diags, checkEncodingKeys(doc)...)
+	diags = append(diags, checkEncodingKeys(doc, facts)...)
 	diags = append(diags, checkPayloadRequired(doc)...)
 	diags = append(diags, checkPropIDRefs(doc)...)
 	diags = append(diags, checkDiscriminators(doc, facts)...)
@@ -206,11 +206,11 @@ func checkPropIDRefs(doc *ir.Document) []ir.Diagnostic {
 //
 // The code carries the ir/ namespace because it names the defect, not the
 // finder (see the package doc), so a second checker growing this check adopts
-// it. Only this pass reports it today.
-func checkEncodingKeys(doc *ir.Document) []ir.Diagnostic {
+// it. Only this pass reports it today. facts indexes doc.
+func checkEncodingKeys(doc *ir.Document, facts *irfacts.Index) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	forEachPayload(doc, func(site payloadSite) {
-		diags = appendEncodingKeyDiags(diags, doc, site.payload, site.where)
+		diags = appendEncodingKeyDiags(diags, facts, site.payload, site.where)
 	})
 	return diags
 }
@@ -295,23 +295,23 @@ func forEachErrorPayload(errs []ir.ErrorCase, where string, fn func(payloadSite)
 // A content whose type no entry declares exposes no part, so each of its keys
 // is reported beside checkDanglingRefs's finding on the type. The claims
 // differ, as with checkMapping.
-func appendEncodingKeyDiags(dst []ir.Diagnostic, doc *ir.Document, payload *ir.Payload, where string) []ir.Diagnostic {
+func appendEncodingKeyDiags(dst []ir.Diagnostic, facts *irfacts.Index, payload *ir.Payload, where string) []ir.Diagnostic {
 	for i, c := range payload.Contents {
 		if len(c.Encoding) == 0 {
 			continue
 		}
 		at := fmt.Sprintf("%s/contents/%d", where, i)
-		dst = appendUnknownPartDiags(dst, c, ir.ExposedProps(doc, c.Type.Target), at)
+		dst = appendUnknownPartDiags(dst, facts, c, at)
 	}
 	return dst
 }
 
 // appendUnknownPartDiags appends to dst a diagnostic per encoding key of one
-// content that names no property in parts, in ascending key order so map
-// iteration cannot reach the output.
-func appendUnknownPartDiags(dst []ir.Diagnostic, c ir.Content, parts map[ir.PropID]bool, where string) []ir.Diagnostic {
+// content that names no property the content's type exposes, in ascending key
+// order so map iteration cannot reach the output.
+func appendUnknownPartDiags(dst []ir.Diagnostic, facts *irfacts.Index, c ir.Content, where string) []ir.Diagnostic {
 	for _, key := range slices.Sorted(maps.Keys(c.Encoding)) {
-		if parts[key] {
+		if facts.Exposes(c.Type.Target, key) {
 			continue
 		}
 		at := where + "/encoding/" + string(key)
@@ -396,12 +396,12 @@ func checkUnionDiscriminator(doc *ir.Document, u *ir.Union) []ir.Diagnostic {
 
 // checkModelDiscriminator requires each mapping target to be a declared subtype
 // of the discriminated base model, and the tag property to be one this model
-// exposes. Its routes are asked of facts, the one index of the run.
+// exposes. Its routes and tag are asked of facts, the one index of the run.
 func checkModelDiscriminator(doc *ir.Document, facts *irfacts.Index, m *ir.Model) []ir.Diagnostic {
 	if m.Discriminator == nil {
 		return nil
 	}
-	diags := checkDiscriminatorProperty(doc, m)
+	diags := checkDiscriminatorProperty(facts, m)
 	return append(diags, checkMapping(doc, m.Discriminator, string(m.ID), func(target ir.TypeID) bool {
 		return facts.IsSubtype(target, m.ID)
 	})...)
@@ -414,9 +414,9 @@ func checkModelDiscriminator(doc *ir.Document, facts *irfacts.Index, m *ir.Model
 // declares somewhere. This is the tighter claim available where the root is
 // written down: a tag on a property of some unrelated model routes nothing, and
 // an emitter building a decoder reads the tag off *this* model's instance.
-func checkDiscriminatorProperty(doc *ir.Document, m *ir.Model) []ir.Diagnostic {
+func checkDiscriminatorProperty(facts *irfacts.Index, m *ir.Model) []ir.Diagnostic {
 	prop := m.Discriminator.Property
-	if prop == "" || ir.ExposedProps(doc, m.ID)[prop] {
+	if prop == "" || facts.Exposes(m.ID, prop) {
 		return nil
 	}
 	where := string(m.ID)

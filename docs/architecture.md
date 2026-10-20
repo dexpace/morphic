@@ -305,7 +305,7 @@ it in its own change.
 ```
 morphic/
 ├── ir/                     # Layer 0 — IR node types, IDs, shared traversals, JSON round-trip.
-│   ├── irfacts/            #           Derived facts: subtypes, usage, recursion (never stored).
+│   ├── irfacts/            #           Derived facts of a document, never stored (ir-design §4.9).
 │   ├── irtest/             #           Golden-snapshot and fixture helpers for IR documents.
 │   └── irverify/           #           Structural-invariant oracle (dangling refs, IDs, naming).
 ├── compilers/              # Layer 1 — compiler contract + registry.

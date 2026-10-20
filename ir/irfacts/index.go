@@ -17,6 +17,8 @@ type Index struct {
 
 	hierarchyOnce  sync.Once
 	hierarchy      *hierarchy
+	exposureOnce   sync.Once
+	exposure       *exposure
 	graphOnce      sync.Once
 	graph          *typeGraph
 	usageOnce      sync.Once
@@ -63,6 +65,12 @@ func (x *Index) registry() ir.TypeRegistry {
 func (x *Index) hierarchyIndex() *hierarchy {
 	x.hierarchyOnce.Do(func() { x.hierarchy = newHierarchy(x.registry()) })
 	return x.hierarchy
+}
+
+// exposureIndex returns the index of what each type exposes, built once.
+func (x *Index) exposureIndex() *exposure {
+	x.exposureOnce.Do(func() { x.exposure = newExposure(x.registry()) })
+	return x.exposure
 }
 
 // typeGraph returns the type graph, built once.

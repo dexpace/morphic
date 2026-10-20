@@ -9,6 +9,13 @@ func (x *Index) SubtypeIndexAnswer(target, base ir.TypeID) (sub, settled bool) {
 	return x.hierarchyIndex().subtype(target, base)
 }
 
+// ExposesIndexAnswer answers Exposes from x's exposure index alone, with
+// settled false where only a walk can, as SubtypeIndexAnswer does for
+// IsSubtype.
+func (x *Index) ExposesIndexAnswer(id ir.TypeID, prop ir.PropID) (exposed, settled bool) {
+	return x.exposureIndex().exposes(id, prop)
+}
+
 // AliasTargetsOf exposes the registry-wide alias index to the external tests:
 // what each alias scalar of types stands for.
 func AliasTargetsOf(types ir.TypeRegistry) map[ir.TypeID]ir.TypeID { return newAliasTargets(types) }
