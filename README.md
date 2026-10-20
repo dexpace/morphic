@@ -138,7 +138,7 @@ completes commands, flags, and spec files by extension.
 
 | Flag | Commands | Meaning |
 |---|---|---|
-| `--fail-on error\|warning` | both | Exit non-zero when a diagnostic at or above this severity is emitted (default `error`). |
+| `--fail-on error\|warning\|none` | both | Exit non-zero when a diagnostic at or above this severity is emitted (default `error`). `none` exits non-zero only when the spec lowered to no document. |
 | `--disable-pass <name>` | both | Turn off the IR pass with this name, such as `validate`. Repeatable; a name no pass carries is refused with exit `2` and a message naming the passes there are. |
 | `--skip-validate` | both | Alias for `--disable-pass validate`. |
 | `--opt <key>=<value>` | both | Set one option on the compiler the spec selects. Repeatable; a repeated key is refused. |

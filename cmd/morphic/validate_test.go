@@ -58,6 +58,8 @@ func TestRun_ValidateExitCodes(t *testing.T) {
 		{"error diagnostics", errSpec, nil, 1, "openapi/unresolved-ref"},
 		{"error diagnostics with --skip-validate", errSpec,
 			[]string{"--skip-validate"}, 1, "openapi/unresolved-ref"},
+		{"error diagnostics below --fail-on none", errSpec,
+			[]string{"--fail-on", "none"}, 0, "openapi/unresolved-ref"},
 	}
 
 	for _, tt := range tests {

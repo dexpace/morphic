@@ -181,8 +181,8 @@ Built, and in the default list:
   service tree declares, and so on for every ID class), discriminator mappings point at actual
   variants, wire-name uniqueness within a model, and binding completeness: a parameter an HTTP
   binding places twice at one non-host location is an error, one it places nowhere is a warning,
-  and a `host` binding is additive (ir-design §8.1). Structural errors here are fatal; style issues
-  are warnings.
+  and a `host` binding is additive (ir-design §8.1). Structural problems are errors, which fail the
+  run at the default threshold (§4); style issues are warnings.
 
 Designed, not yet built:
 
@@ -391,6 +391,18 @@ can allowlist. A mature allowlist entry is keyed by (diagnostic code × entity I
 human rationale, supports expiry tied to a release, and rejects wildcards — narrowness is
 validated, so approvals cannot rot into blanket suppressions. Nothing in the pipeline writes to
 stderr; the CLI renders diagnostics.
+
+**What fails a run.** A stage reports severities; whether the run fails is the engine's decision,
+taken once every stage has reported. `RunOptions.FailOn` names the lowest severity that fails it:
+`error` by default, `warning` for a stricter gate, and `none` to fail only a run that produced no
+document. `Result.Failed` records the verdict, so the CLI's exit status (`--fail-on`) and any other
+driver read one rule rather than each reading the diagnostics its own way. Failing withholds
+nothing: a failed run still returns its document and every diagnostic, to inspect or persist. What
+it stops is the next stage. The passes are not that stage, since they run on every compiled
+document, errors reported or not (§2.2). The emitters are: the engine runs none on a failed run.
+Error is the default threshold because an error means the document may say something the spec does
+not, and building an SDK on it is a choice a caller makes by lowering the threshold, never a
+default.
 
 ## 5. Testing strategy
 

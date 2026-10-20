@@ -30,6 +30,10 @@ type RunOptions struct {
 	// passes carries fails the run with ErrUnknownPass before the spec is read,
 	// since ignoring a misspelt one would leave its pass running unseen.
 	DisablePasses []string `json:"disablePasses,omitempty"`
+	// FailOn is the lowest severity that fails the run; empty means
+	// FailOnError. Result.Failed carries the verdict. A value naming no
+	// threshold fails the run with ErrUnknownFailOn before the spec is read.
+	FailOn FailOn `json:"failOn,omitempty"`
 }
 
 // errOptionChannels reports both option channels set at once. Which one wins
@@ -40,7 +44,7 @@ var errOptionChannels = errors.New(
 
 // Result is the outcome of a pipeline run. A nil Document alongside diagnostics
 // is a legal outcome and the shape every refusal takes — a source no compiler
-// claims, or one a compiler declined to lower; the caller decides what is fatal.
+// claims, or one a compiler declined to lower.
 //
 // Diagnostics is the whole list for the run. When Document is non-nil it holds
 // the same values, so a caller reading either channel sees every finding.
@@ -53,6 +57,11 @@ type Result struct {
 	Diagnostics []ir.Diagnostic        `json:"diagnostics,omitempty"`
 	Sources     []ir.SourceInfo        `json:"sources,omitempty"`
 	Format      compilers.SourceFormat `json:"format"`
+	// Failed is the engine's verdict: the run produced no document, or one
+	// with a diagnostic at or above RunOptions.FailOn. A failed run still
+	// returns what it produced, to inspect or persist; failing stops the next
+	// stage, so no emitter runs on it.
+	Failed bool `json:"failed,omitzero"`
 }
 
 // Engine orchestrates the detect → compiler → passes pipeline.
@@ -107,7 +116,7 @@ func NewWith(cs ...compilers.Compiler) (*Engine, error) {
 //
 // A Go error is reserved for I/O, cancellation and programmer errors: an
 // unreadable file, a cancelled ctx, a compiler or pass breaking its contract,
-// or a name ErrUnknownPass refuses. Everything wrong with the spec itself, a
+// or an option ErrUnknownPass or ErrUnknownFailOn refuses. Everything wrong with the spec itself, a
 // source no compiler can lower included, is a diagnostic in the Result, so a Go
 // error never blames the spec. Calls may overlap; each owns the document it
 // returns.
@@ -129,6 +138,10 @@ func (e *Engine) Run(ctx context.Context, specPath string, opts RunOptions) (*Re
 	}
 
 	passes, err := e.enabledPasses(opts.DisablePasses)
+	if err != nil {
+		return nil, err
+	}
+	failOn, err := opts.FailOn.threshold()
 	if err != nil {
 		return nil, err
 	}
@@ -154,7 +167,7 @@ func (e *Engine) Run(ctx context.Context, specPath string, opts RunOptions) (*Re
 		// Detection is handed the one source, which is the whole table its
 		// findings and the engine's own can index.
 		return &Result{Format: format, Diagnostics: e.undetected(format, det.Declined),
-			Sources: []ir.SourceInfo{{Path: specPath}}}, nil
+			Sources: []ir.SourceInfo{{Path: specPath}}, Failed: true}, nil
 	}
 	// What detection parsed to recognize the source is what the compile lowers,
 	// so the source carries it forward rather than being read twice. The
@@ -168,7 +181,7 @@ func (e *Engine) Run(ctx context.Context, specPath string, opts RunOptions) (*Re
 	}
 	if doc == nil {
 		return &Result{Diagnostics: diags, Format: format,
-			Sources: det.Compiler.SourceTable(sources, det.Options)}, nil
+			Sources: det.Compiler.SourceTable(sources, det.Options), Failed: true}, nil
 	}
 	// Both channels end up carrying the whole list: the Result is what a caller
 	// gates on, and the document is what gets persisted (golden snapshots, IR
@@ -183,7 +196,8 @@ func (e *Engine) Run(ctx context.Context, specPath string, opts RunOptions) (*Re
 		return nil, err
 	}
 	doc.Diagnostics = mergeDiagnostics(compiled, found)
-	return &Result{Document: doc, Diagnostics: doc.Diagnostics, Sources: doc.Sources, Format: format}, nil
+	return &Result{Document: doc, Diagnostics: doc.Diagnostics, Sources: doc.Sources, Format: format,
+		Failed: failOn.fails(doc.Diagnostics)}, nil
 }
 
 // undetected reports a source no registered compiler will take. None of the

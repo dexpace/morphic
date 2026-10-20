@@ -78,6 +78,11 @@ func TestRun_SpecProblemsExitOne(t *testing.T) {
 			assert.Empty(t, stdout.String(), "no IR JSON for a spec that produced no document")
 			assert.NotContains(t, stderr.String(), "Try ",
 				"a bad spec is not a misuse of the CLI, so no pointer to help")
+
+			stdout.Reset()
+			stderr.Reset()
+			assert.Equal(t, 1, run([]string{"compile", spec, "--fail-on", "none"}, &stdout, &stderr),
+				"--fail-on none still fails a spec that lowered to no document")
 		})
 	}
 }
@@ -97,14 +102,6 @@ components:
 	require.Equal(t, 0, run([]string{"compile", spec}, &stdout, &stderr),
 		"info diagnostics must not fail the default gate")
 	assert.Contains(t, stderr.String(), "openapi/validation-only-keyword")
-
-	stdout.Reset()
-	stderr.Reset()
-	// Not every diagnostic severity is easy to synthesize; the gate logic is
-	// also unit-tested directly:
-	assert.Equal(t, 1, exitCodeFor([]ir.Diagnostic{{Severity: ir.SeverityWarning}}, "warning"))
-	assert.Equal(t, 0, exitCodeFor([]ir.Diagnostic{{Severity: ir.SeverityWarning}}, "error"))
-	assert.Equal(t, 1, exitCodeFor([]ir.Diagnostic{{Severity: ir.SeverityError}}, "error"))
 }
 
 func TestRun_UsageErrors(t *testing.T) {
