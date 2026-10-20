@@ -98,8 +98,9 @@ func deepMerge() string {
 // TestBind_CountsWorkLinearInTheDocument pins what binding costs, counted in
 // steps rather than time: twice a shape's $refs cost about twice the work. A
 // reading that followed each chain from every start that enters it (GitHub
-// #903, #923), or matched each schema's own definitions against the others'
-// (GitHub #753), grew with the square. A loop longer than the cap a hop count
+// #903, #923), matched each schema's own definitions against the others'
+// (GitHub #753), or answered a site again in each later round of the walk,
+// grew with the square. A loop longer than the cap a hop count
 // once had (GitHub #922) is found whole, at its least member.
 func TestBind_CountsWorkLinearInTheDocument(t *testing.T) {
 	t.Parallel()
@@ -123,6 +124,15 @@ func TestBind_CountsWorkLinearInTheDocument(t *testing.T) {
 			for i := range n {
 				fmt.Fprintf(b, "    C%d: %s\n", i, ref("C", (i+1)%n))
 			}
+		},
+		"sites only what earlier $refs land on hold": func(b *strings.Builder, n int) {
+			b.WriteString("    A: {$ref: '#/components/schemas/X/x-l/L0'}\n    X:\n      x-l:\n")
+			for i := range n {
+				next := fmt.Sprintf("'#/components/schemas/X/x-l/L%d'", i+1)
+				fmt.Fprintf(b, "        L%d: {properties: {p: {$ref: %s}}, discriminator: {propertyName: k, mapping: {m: %s}}}\n",
+					i, next, next)
+			}
+			fmt.Fprintf(b, "        L%d: {type: string}\n", n)
 		},
 		"definitions of their own": func(b *strings.Builder, n int) {
 			for i := range n {
@@ -151,7 +161,7 @@ func TestBind_CountsWorkLinearInTheDocument(t *testing.T) {
 // TestTable_SaysWhyARefWentUnread pins Unread: none for a table that read
 // everything, the budget for one it stopped, and the merge bound for one a
 // merge past it hid a $ref from, whose site is missing while the shallow
-// merge's is read.
+// merge's is read, whatever documents it read after the source.
 func TestTable_SaysWhyARefWentUnread(t *testing.T) {
 	t.Parallel()
 	full := bound(t, budgetSpec, budgetConfig(0))

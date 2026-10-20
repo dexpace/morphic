@@ -111,17 +111,17 @@ func rootOf(id DocID, s state) root {
 
 // settle answers every site and mapping value noted since it last ran, in
 // order, so that where the budget runs out does not depend on what was
-// noted first. Each is sorted once, in the round that noted it.
+// noted first. Each is sorted once, in the round that noted it, and costs a
+// step, so a round that answered one again would show in the work.
 func (b *binder) settle(t *Table) {
-	sites := b.find.fresh
-	b.find.fresh = nil
+	sites, keys := b.find.fresh, b.find.freshMappings
+	b.find.fresh, b.find.freshMappings = nil, nil
+	b.work.spend(len(sites) + len(keys))
 	slices.SortFunc(sites, comparePositions)
 	for _, site := range sites {
 		c := b.chain(site)
 		t.entries[site] = Entry{Site: site, Hop: b.hops[site], Chain: c}
 	}
-	keys := b.find.freshMappings
-	b.find.freshMappings = nil
 	slices.SortFunc(keys, func(x, y mappingKey) int {
 		if c := comparePositions(x.at, y.at); c != 0 {
 			return c
