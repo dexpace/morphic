@@ -175,6 +175,8 @@ func TestBind_ReadsADefinitionByTheDefsRule(t *testing.T) {
 			"/x-lib/S", "", bind.RawDefinition},
 		{"no definition of a schema under an extension", "x-lib:\n  S: {properties: {p: {$ref: '#/$defs/n'}}, $defs: {n: {}}}\n" +
 			"components:\n  schemas:\n    U: {$ref: '#/x-lib/S'}\n", "/x-lib/S/properties/p", "", bind.RawDefinition},
+		{"a raw schema's own before its raw ancestor's", "x-lib:\n  $defs: {n: {}}\n  S: {$ref: '#/$defs/n', $defs: {n: {}}}\n" +
+			"components:\n  schemas:\n    U: {$ref: '#/x-lib/S'}\n", "/x-lib/S", "", bind.OwnDefinition},
 		{"raw YAML at the root", "$defs:\n  A: {type: string}\ncomponents:\n  schemas:\n    H: {properties: {p: {$ref: '#/$defs/A'}}}\n",
 			"/components/schemas/H/properties/p", "/$defs/A", 0},
 	}

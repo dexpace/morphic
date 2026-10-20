@@ -59,8 +59,8 @@ func (d definitions) definition(site Position, pointer jsontext.Pointer, own boo
 		return reading{}, MergeBound
 	}
 	r, why := d.ancestorDefinition(site, pointer)
-	if why == NoDefinition && unowned {
-		why = OwnDefinition
+	if unowned && (why == NoDefinition || why == RawDefinition) {
+		why = OwnDefinition // the nearer definition left unread
 	}
 	return r, why
 }

@@ -314,12 +314,12 @@ func TestSpellings(t *testing.T) {
 		"its fragment is no JSON pointer":                                            {Reason: bind.BadPointer},
 		"no definition answers it: neither the document's root nor a schema of the model above it holds one " +
 			"by that name": {Reason: bind.NoDefinition},
-		"only the schema writing it defines that name, and a schema's own definitions answer a " +
-			"\"#/$defs/...\" pointer only where it declares an $id; the document's root defines none": {
-			Reason: bind.OwnDefinition},
-		"only raw YAML above it, such as an extension's value, defines that name, and raw YAML holds no " +
-			"schema of the model whose definitions answer it; the document's root defines none": {
-			Reason: bind.RawDefinition},
+		"the schema writing it defines that name, but a schema's own definitions answer a \"#/$defs/...\" " +
+			"pointer only where it declares an $id, and neither the document's root nor a schema of the model " +
+			"above it holds one": {Reason: bind.OwnDefinition},
+		"raw YAML above it, such as an extension's value, defines that name, but raw YAML holds no schema of " +
+			"the model whose definitions answer it, and neither the document's root nor a schema of the model " +
+			"above it holds one": {Reason: bind.RawDefinition},
 		"it names another document, and external references are not read":                    {Reason: bind.ExternalOff},
 		"the document it names could not be read: gone":                                      {Reason: bind.Unreadable, Detail: "gone"},
 		"its pointer passes through a reference that resolves to nothing the compiler reads": {Reason: bind.Unpassable},
