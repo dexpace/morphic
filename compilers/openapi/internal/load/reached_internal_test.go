@@ -3,6 +3,7 @@ package load
 import (
 	"context"
 	"encoding/json/jsontext"
+	"errors"
 	"fmt"
 	"iter"
 	"net/http"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
+	"github.com/speakeasy-api/openapi/marshaller"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/speakeasy-api/openapi/validation"
 	"github.com/stretchr/testify/assert"
@@ -21,6 +23,8 @@ import (
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/ir"
@@ -169,73 +173,105 @@ func reachedFixtureDoc(t *testing.T) (*soa.OpenAPI, string) {
 	return got.Doc, dir
 }
 
-// TestTargetOf covers which references reach an object, and the document each
-// names: the one its chain ends in, not the one it first leaves for. A chain
-// that stays in the source reaches an object there too, which dropDeclared
-// drops when the source's own validation checked it (GitHub #872); one that
-// ends on no object reaches nothing.
+// TestTargetOf covers which reference objects reach an object, and the
+// document each names: the one its chain ends in, not the one it first leaves
+// for. One whose chain ends on no object reaches nothing.
 func TestTargetOf(t *testing.T) {
 	t.Parallel()
 	doc, dir := reachedFixtureDoc(t)
-	schema := func(name string) resolvable {
-		ref, ok := doc.Components.Schemas.Get(name)
-		require.True(t, ok, name)
-		return ref
-	}
+	x, ok := doc.Paths.Get("/x")
+	require.True(t, ok)
 	stops, ok := doc.Paths.Get("/stops")
 	require.True(t, ok)
 
-	for name, want := range map[string]struct {
-		doc      string
-		inSource bool
-	}{
-		"S":       {filepath.Join(dir, "other.yaml"), false},
-		"Chained": {filepath.Join(dir, "third.yaml"), false},
-		"ToS":     {filepath.Join(dir, "other.yaml"), false},
-		"ToLocal": {filepath.Join(dir, "root.yaml"), true},
-	} {
-		got, ok := targetOf("/site", schema(name), nil)
-		require.True(t, ok, name)
-		assert.Equal(t, want.doc, got.doc, name)
-		assert.Equal(t, want.inSource, got.inSource, name)
-		assert.Equal(t, jsontext.Pointer("/site"), got.site, name)
-		assert.NotNil(t, got.node, name)
-	}
+	got, ok := targetOf("/site", x, nil)
+	require.True(t, ok)
+	assert.Equal(t, filepath.Join(dir, "other.yaml"), got.doc)
+	assert.False(t, got.inSource)
+	assert.Equal(t, jsontext.Pointer("/site"), got.site)
+	assert.NotNil(t, got.node)
 	_, ok = targetOf("/site", stops, nil)
 	assert.False(t, ok, "/stops reaches no object")
 }
 
-// TestReachedObject covers every outcome of reachedObject: a schema reference
-// resolving to an object, one resolving to a boolean (nothing to validate), the
-// default arm's success path for a plain reference, a chain that ends on no
-// object, and a resolvable that cannot say what it names, which no real
-// document produces, so a fake drives it.
+// TestBindSchemas_AChainEndsInTheDocumentItEndsIn is TestTargetOf for schema
+// $refs, which the bindings read: each chain ends in the document its last
+// hop lands in, not the one it first leaves for, and a schema the model does
+// not hold there is built for the landing, a boolean one included.
+func TestBindSchemas_AChainEndsInTheDocumentItEndsIn(t *testing.T) {
+	t.Parallel()
+	dir := externalDir(t, map[string]string{"other.yaml": reachedFixtureOther, "third.yaml": reachedFixtureThird})
+	got, _ := loadExternal(t, dir, reachedFixtureRoot, Options{})
+	doc, bindings := got.Doc, got.Bindings
+	table := bindings.Table()
+	for name, want := range map[string]struct {
+		doc     string
+		pointer jsontext.Pointer
+	}{
+		"S":       {filepath.Join(dir, "other.yaml"), "/components/schemas/Obj"},
+		"Bool":    {filepath.Join(dir, "other.yaml"), "/components/schemas/AnyBool"},
+		"Chained": {filepath.Join(dir, "third.yaml"), "/components/schemas/Leaf"},
+		"ToS":     {filepath.Join(dir, "other.yaml"), "/components/schemas/Obj"},
+		"ToLocal": {filepath.Join(dir, "root.yaml"), "/components/schemas/Local"},
+	} {
+		js, ok := doc.Components.Schemas.Get(name)
+		require.True(t, ok, name)
+		e, ok := bindings.Entry(js)
+		require.True(t, ok, name)
+		require.Equal(t, bind.Resolved, e.Chain.Status, name)
+		assert.Equal(t, want.doc, table.Document(e.Chain.End.Doc).Name, name)
+		assert.Equal(t, want.pointer, e.Chain.End.Pointer, name)
+		assert.NotNil(t, bindings.End(js), "%s ends on a schema held for it", name)
+	}
+}
+
+// TestBuiltTargets covers which schemas built for the bindings' landings are
+// validated, and where: one a source $ref's chain reaches, placed at the least
+// such $ref and named by its document, in the source or not. One only another
+// document's content reaches, one that failed to build and a boolean schema
+// are none.
+func TestBuiltTargets(t *testing.T) {
+	t.Parallel()
+	built := buildRaw(t, "{type: object}")
+	found := []error{errors.New("decoding found this")}
+	got := builtTargets([]typed.Built{
+		{Landing: bind.Landing{At: bind.Position{Pointer: "/x-lib/A"}, Name: "spec.yaml",
+			Site: bind.Position{Pointer: "/s"}, Reached: true}, Schema: built, Findings: found},
+		{Landing: bind.Landing{At: bind.Position{Doc: 1, Pointer: "/B"}, Name: "other.yaml",
+			Site: bind.Position{Pointer: "/t"}, Reached: true}, Schema: built},
+		{Landing: bind.Landing{At: bind.Position{Doc: 1, Pointer: "/C"}, Name: "other.yaml"}, Schema: built},
+		{Landing: bind.Landing{At: bind.Position{Pointer: "/x-lib/D"}, Reached: true}, Err: errors.New("no")},
+		{Landing: bind.Landing{At: bind.Position{Pointer: "/x-lib/E"}, Reached: true}, Schema: buildRaw(t, "true")},
+	})
+
+	require.Len(t, got, 2)
+	assert.Equal(t, reachedTarget{site: "/s", obj: built, node: built.GetSchema().GetRootNode(), doc: "spec.yaml",
+		inSource: true, found: found}, got[0])
+	assert.Equal(t, jsontext.Pointer("/t"), got[1].site)
+	assert.Equal(t, "other.yaml", got[1].doc)
+	assert.False(t, got[1].inSource)
+}
+
+// buildRaw decodes src, YAML, as the bindings build a schema for a landing.
+func buildRaw(t *testing.T, src string) *schemaRef {
+	t.Helper()
+	var n yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte(src), &n))
+	js := &schemaRef{}
+	_, err := marshaller.UnmarshalNode(t.Context(), "", n.Content[0], js)
+	require.NoError(t, err)
+	return js
+}
+
+// TestReachedObject covers every outcome of reachedObject: a reference object
+// resolving to an object, a chain that ends on no object, and a resolvable
+// that cannot say what it names, which no real document produces, so a fake
+// drives it.
 func TestReachedObject(t *testing.T) {
 	t.Parallel()
 	doc, _ := reachedFixtureDoc(t)
 
-	t.Run("a schema reference to an object", func(t *testing.T) {
-		t.Parallel()
-		ref, ok := doc.Components.Schemas.Get("S")
-		require.True(t, ok)
-		obj, node, ok := reachedObject(ref)
-		assert.True(t, ok)
-		assert.NotNil(t, obj)
-		require.NotNil(t, node)
-		assert.Equal(t, yaml.MappingNode, node.Kind)
-	})
-
-	t.Run("a schema reference to a boolean has nothing but its value", func(t *testing.T) {
-		t.Parallel()
-		ref, ok := doc.Components.Schemas.Get("Bool")
-		require.True(t, ok)
-		obj, node, ok := reachedObject(ref)
-		assert.False(t, ok)
-		assert.Nil(t, obj)
-		assert.Nil(t, node)
-	})
-
-	t.Run("the default arm succeeds for a plain reference", func(t *testing.T) {
+	t.Run("a reference object resolving to an object", func(t *testing.T) {
 		t.Parallel()
 		ref, ok := doc.Paths.Get("/x")
 		require.True(t, ok)
@@ -349,13 +385,9 @@ func TestReachedWalk(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 
-	t.Run("a schema walks through ConcreteToReferenceable", func(t *testing.T) {
+	t.Run("a schema walks as one", func(t *testing.T) {
 		t.Parallel()
-		doc, _ := reachedFixtureDoc(t)
-		ref, ok := doc.Components.Schemas.Get("S")
-		require.True(t, ok)
-		obj, _, ok := reachedObject(ref)
-		require.True(t, ok)
+		obj := buildRaw(t, "{type: object, properties: {inner: {type: string}}}")
 		assert.GreaterOrEqual(t, countSchemas(ctx, obj), 2, "the schema itself and its inner property")
 	})
 
@@ -674,13 +706,12 @@ func TestResolve_ValidatesWhatAnExternalReferenceReaches(t *testing.T) {
 
 // TestResolve_WhatTheSourcesValidationNeverCheckedIsValidated pins what a $ref
 // naming the source's file reaches that the source's own validation never
-// checked: raw YAML, such as an extension's value, and a node read as another
-// kind than it is declared as. Each is validated as an object in another
-// document is, whether the $ref is the source's own or comes back into it from
-// another document (GitHub #759), and its finding is placed at the node it is
-// about, as the source's own are (GitHub #879). What the source declares,
-// reached as its kind, is not validated again
-// (TestHold_AFindingOnlyValidationMakesIsTheSourcesOwn).
+// checked: raw YAML, such as an extension's value. It is validated as an object
+// in another document is, whether the $ref is the source's own or comes back
+// into it from another document (GitHub #759), and its finding is placed at the
+// node it is about (GitHub #879). A node of the grammar a schema $ref names is
+// not read as a schema, so it is reported unresolved and nothing in it is
+// validated as one.
 func TestResolve_WhatTheSourcesValidationNeverCheckedIsValidated(t *testing.T) {
 	t.Parallel()
 	const header = "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\n"
@@ -712,13 +743,13 @@ x-responses:
       L: {operationId: a, operationRef: '#/paths/~1a/get'}
 `, []string{"/x-responses/R/links/L/operationId openapi/validation/validation-mutually-exclusive-fields"},
 		},
-		{"a response read as a schema", nil, header + `paths: {}
+		{"a response named as a schema", nil, header + `paths: {}
 components:
   schemas:
     S: {$ref: 'root.yaml#/components/responses/R'}
   responses:
     R: {description: ok, minLength: -1}
-`, []string{"/components/responses/R/minLength openapi/validation/validation-invalid-schema"}},
+`, []string{"/components/schemas/S openapi/unresolved-ref"}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
@@ -762,10 +793,10 @@ func TestCheckReached_APanicDroppingWhatTheSourceDeclaresIsReported(t *testing.T
 info: {title: T, version: "1"}
 paths: {}
 components:
-  schemas:
-    A: {$ref: 'root.yaml#/x-defs/S'}
+  responses:
+    A: {$ref: 'root.yaml#/x-defs/R'}
 x-defs:
-  S: {type: string, minLength: -1}
+  R: {description: ok, links: {L: {operationId: a, operationRef: '#/paths/~1a/get'}}}
 `, Options{})
 	reads := 0
 	items := func(yield func(soa.WalkItem) bool) {
@@ -1612,61 +1643,6 @@ func TestResolve_InSourceReachedSitesDoNotDependOnDeclarationOrder(t *testing.T)
 			assert.Empty(t, cmp.Diff(want, reversed), "reversed")
 		})
 	}
-}
-
-// recordingObject is an object whose Validate counts the validations it sees.
-type recordingObject struct{ validated *int }
-
-func (o recordingObject) Validate(context.Context, ...validation.Option) []error {
-	*o.validated++
-	return nil
-}
-
-// recordingRef is a fakeResolvable naming a recordingObject, so reachedObject
-// succeeds and the object is validated when checkAll reaches it.
-type recordingRef struct {
-	fakeResolvable
-	object recordingObject
-}
-
-func (r recordingRef) GetObjectAny() any { return r.object }
-
-func (recordingRef) GetRootNode() *yaml.Node { return &yaml.Node{Kind: yaml.MappingNode} }
-
-// unreadableRef is a fakeResolvable whose node cannot be read: reading it
-// panics, as a model's own GetRootNode does when asked of a missing object.
-type unreadableRef struct{ fakeResolvable }
-
-func (unreadableRef) GetObjectAny() any { return nil }
-
-func (unreadableRef) GetRootNode() *yaml.Node { panic("node boom") }
-
-// TestCheckReached_APanicInAResolvedReferenceIsReported pins the barrier around
-// reading the references the load phase resolved: a panic reading one is
-// reported as an error at that reference's own site, and nothing is validated,
-// the references read before it included. No real document builds a reference
-// that faults here, so the references are fabricated.
-func TestCheckReached_APanicInAResolvedReferenceIsReported(t *testing.T) {
-	t.Parallel()
-	doc, valErrs := parseSpec(t, minimal31)
-	require.Empty(t, valErrs)
-	validated := 0
-	readable := recordingRef{fakeResolvable{ref: "#/x-lib/A", resolved: true}, recordingObject{&validated}}
-	resolved := []siteRef{
-		{site: "/a", ref: readable},
-		{site: "/b", ref: unreadableRef{fakeResolvable{ref: "#/x-lib/B", resolved: true}}},
-		{site: "/c", ref: readable},
-	}
-
-	diags := checkReached(t.Context(), pointerAt(0, overlay.Origin{}), slices.Values([]soa.WalkItem(nil)),
-		resolved, newReached(doc, Options{}, sourceTree{}))
-
-	require.Len(t, diags, 1, "%+v", diags)
-	assert.Equal(t, diag.Validation, diags[0].Code)
-	assert.Equal(t, ir.SeverityError, diags[0].Severity)
-	assert.Equal(t, "validation panicked: node boom", diags[0].Message)
-	assert.Equal(t, jsontext.Pointer("/b"), diags[0].Provenance.Pointer)
-	assert.Zero(t, validated, "nothing read before the panic is validated")
 }
 
 // TestResolve_AnObjectTheSourceDeclaresIsNotChargedToTheBudget pins that what a

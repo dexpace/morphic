@@ -29,39 +29,29 @@ func jsonSchemaFromYAML(t *testing.T, body string) *oas3.JSONSchema[oas3.Referen
 	return js
 }
 
-// resolvedProperty parses body as a schema and resolves property p against it,
-// which is what gives the position a Referent to read through.
-func resolvedProperty(t *testing.T, body, p string) *oas3.JSONSchema[oas3.Referenceable] {
-	t.Helper()
-	root := jsonSchemaFromYAML(t, body)
-	prop, ok := root.GetSchema().GetProperties().Get(p)
-	require.True(t, ok, "the fixture declares property %q", p)
-	valErrs, err := prop.Resolve(t.Context(), oas3.ResolveOptions{
-		RootDocument: root, TargetLocation: "spec.yaml", DisableExternalRefs: true,
-	})
-	require.NoError(t, err)
-	require.Empty(t, valErrs)
-	return prop
-}
-
 // TestAt_ClassifiesEveryPositionShape pins the classification every annotation
 // read starts from. A declaration misread as a reference would fall back to a
 // referent that does not describe it, and a reference misread as a declaration
-// would lose the fallback entirely.
+// would lose the fallback entirely. At classifies the position alone and asks
+// nothing of where a $ref lands, so no site it builds holds a Referent: that is
+// the readers that inherit, which build their own from the end of the chain.
 func TestAt_ClassifiesEveryPositionShape(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name         string
-		body         string
-		wantKind     Kind
-		wantNode     bool
-		wantReferent bool
+		name     string
+		body     string
+		wantKind Kind
+		wantNode bool
 	}{
 		{name: "a written body is a declaration", body: "type: string\n", wantKind: Declaration, wantNode: true},
 		{name: "a boolean schema has no body", body: "true\n", wantKind: Declaration},
 		{
-			name: "an unresolved $ref is a reference with no referent",
+			name: "a $ref is a reference, whether or not it lands",
 			body: "{$ref: '#/$defs/Missing'}\n", wantKind: Reference, wantNode: true,
+		},
+		{
+			name: "a $ref with a body beside it is still a reference",
+			body: "{$ref: '#/$defs/T', description: d}\n", wantKind: Reference, wantNode: true,
 		},
 		{
 			name: "an empty $ref resolves nowhere, so it is a declaration",
@@ -74,7 +64,7 @@ func TestAt_ClassifiesEveryPositionShape(t *testing.T) {
 			got := At(jsonSchemaFromYAML(t, tc.body))
 			assert.Equal(t, tc.wantKind, got.Kind)
 			assert.Equal(t, tc.wantNode, got.Node != nil, "Node presence")
-			assert.Equal(t, tc.wantReferent, got.Referent != nil, "Referent presence")
+			assert.Nil(t, got.Referent, "At fills no Referent")
 		})
 	}
 
@@ -87,32 +77,18 @@ func TestAt_ClassifiesEveryPositionShape(t *testing.T) {
 	})
 }
 
-// TestAt_ResolvedReferenceCarriesOneHop pins the half of At that needs real
-// resolution: a resolved $ref exposes the declaration it points at, and the
-// body written beside the $ref stays on Node rather than being replaced by it.
-func TestAt_ResolvedReferenceCarriesOneHop(t *testing.T) {
+// TestAt_ReferenceSiteKeepsTheBodyWrittenBesideTheRef pins that a reference
+// site's Node is the body written at the position, the $ref and what sits
+// beside it, and not what the $ref names. The referent is no part of the site
+// At builds (see TestAt_ClassifiesEveryPositionShape).
+func TestAt_ReferenceSiteKeepsTheBodyWrittenBesideTheRef(t *testing.T) {
 	t.Parallel()
-	prop := resolvedProperty(t,
-		"$defs:\n  Target: {type: string, title: fromTarget}\n"+
-			"properties:\n  p: {$ref: '#/$defs/Target', description: fromSite}\n", "p")
-
-	got := At(prop)
+	got := At(jsonSchemaFromYAML(t, "{$ref: '#/$defs/Target', description: fromSite}\n"))
 
 	require.Equal(t, Reference, got.Kind)
-	require.NotNil(t, got.Referent, "a resolved $ref exposes its one-hop declaration")
-	assert.Equal(t, "fromTarget", got.Referent.GetTitle())
 	require.NotNil(t, got.Node, "the body written beside the $ref is the site's own")
 	assert.Equal(t, "fromSite", got.Node.GetDescription())
-}
-
-// TestDeclaredSchema_NilWithoutResolution pins that an unresolved $ref yields no
-// declaration rather than a zero one. A non-nil answer here would have At report
-// a Referent that carries nothing, which is indistinguishable from a target that
-// genuinely declares nothing.
-func TestDeclaredSchema_NilWithoutResolution(t *testing.T) {
-	t.Parallel()
-	assert.Nil(t, DeclaredSchema(jsonSchemaFromYAML(t, "{$ref: '#/$defs/Missing'}\n")))
-	assert.Nil(t, DeclaredSchema(jsonSchemaFromYAML(t, "type: string\n")))
+	assert.Nil(t, got.Referent, "and the schema the $ref names is not read here")
 }
 
 // TestSchemaOf_ReturnsOnlyAWrittenBody pins the one nil-safe reader every site

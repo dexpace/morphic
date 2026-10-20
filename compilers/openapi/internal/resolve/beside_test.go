@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 )
@@ -112,55 +113,134 @@ func TestFound_HandsOnNoTypedNil(t *testing.T) {
 	assert.Equal(t, any(body), resolve.Found(body))
 }
 
-// TestScope_PointerReadersRefuseAPointerBesideAPathItemRef pins the two other
-// routes, a schema's $ref and a mapping value, each refusing the same pointer
-// and passing one nothing writes beside the $ref.
-func TestScope_PointerReadersRefuseAPointerBesideAPathItemRef(t *testing.T) {
-	t.Parallel()
-	_, bare, carrying := loadBeside(t)
-	const beside = "#/paths/~1a/get/requestBody/content/application~1json/schema"
-	const elsewhere = "#/paths/~1b/get/requestBody/content/application~1json/schema"
-	js := oas3.NewJSONSchemaFromReference(beside)
-	d := &oas3.Discriminator{}
+// besideSchemasSpec writes get beside /a's $ref to /b, which declares one too,
+// and reaches the schema each declares by a schema $ref and by a mapping value.
+// The resolver reads both as /b's. The schema /a's get declares holds a
+// definition, a $ref to it and a discriminator mapping to it, all of them
+// written beside the $ref.
+const besideSchemasSpec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    $ref: '#/paths/~1b'
+    get:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              $defs: {k: {type: string}}
+              properties: {viaDefs: {$ref: '#/$defs/k'}}
+              discriminator:
+                propertyName: kind
+                mapping: {viaDefs: '#/$defs/k'}
+      responses: {"200": {description: ok}}
+  /b:
+    get:
+      requestBody: {content: {application/json: {schema: {type: string}}}}
+      responses: {"200": {description: ok}}
+components:
+  schemas:
+    Beside: {$ref: '#/paths/~1a/get/requestBody/content/application~1json/schema'}
+    Elsewhere: {$ref: '#/paths/~1b/get/requestBody/content/application~1json/schema'}
+    Pet:
+      discriminator:
+        propertyName: kind
+        mapping:
+          beside: '#/paths/~1a/get/requestBody/content/application~1json/schema'
+          elsewhere: '#/paths/~1b/get/requestBody/content/application~1json/schema'
+`
 
-	for _, ref := range []string{beside, elsewhere} {
-		_, ok := bare.TargetPointer(js, ref)
-		assert.True(t, ok, "%s without the models", ref)
-		_, ok = bare.MappingPointer(d, ref)
-		assert.True(t, ok, "%s without the models", ref)
+const (
+	besideSchema    = "/paths/~1a/get/requestBody/content/application~1json/schema"
+	elsewhereSchema = "/paths/~1b/get/requestBody/content/application~1json/schema"
+)
+
+// TestBindings_BesideHopsNameTheFieldWrittenBesideTheRef pins how the binder
+// leaves a pointer through the fields beside a path item $ref unresolved, which
+// the scope refused itself before the compiler resolved schema $refs: a $ref
+// reaching the field is a BesideRef, a "#/$defs/..." one written in the field is
+// a BesideDefs, each naming the path item and the key, and a mapping value is
+// read as a $ref is. One landing elsewhere resolves. The reason is the binder's,
+// so the report reads the same wherever the hop is reported.
+func TestBindings_BesideHopsNameTheFieldWrittenBesideTheRef(t *testing.T) {
+	t.Parallel()
+	b := loadBound(t, "spec.yaml", besideSchemasSpec, load.Options{})
+	pet := b.component(t, "Pet").GetSchema().GetDiscriminator()
+	inside := b.at(t, besideSchema).GetSchema().GetDiscriminator()
+	const viaDefs = "/paths/~1a/get/requestBody/content/application~1json/schema/properties/viaDefs"
+
+	for name, tc := range map[string]struct {
+		hop    bind.Hop
+		status bind.Status
+		reason bind.Reason
+		why    string
+	}{
+		"$ref beside": {entryOf(t, b, b.component(t, "Beside")).Hop, bind.Unresolved, bind.BesideRef,
+			"it reaches " + besideSchema + "; " + bind.BesideReason("/paths/~1a", "get")},
+		"$defs beside": {entryOf(t, b, b.at(t, viaDefs)).Hop, bind.Unresolved, bind.BesideDefs,
+			"it is written in the fields beside a path item $ref, as is any definition it can name; " + bind.BesideReason("/paths/~1a", "get")},
+		"mapping beside": {mappingOf(t, b, pet, "#"+besideSchema).Hop, bind.Unresolved, bind.BesideRef,
+			"it reaches " + besideSchema + "; " + bind.BesideReason("/paths/~1a", "get")},
+		"mapping $defs beside": {mappingOf(t, b, inside, "#/$defs/k").Hop, bind.Unresolved, bind.BesideDefs,
+			"it is written in the fields beside a path item $ref, as is any definition it can name; " + bind.BesideReason("/paths/~1a", "get")},
+		"$ref elsewhere":    {entryOf(t, b, b.component(t, "Elsewhere")).Hop, bind.Resolved, bind.NoReason, ""},
+		"mapping elsewhere": {mappingOf(t, b, pet, "#"+elsewhereSchema).Hop, bind.Resolved, bind.NoReason, ""},
+	} {
+		assert.Equal(t, tc.status, tc.hop.Status, name)
+		assert.Equal(t, tc.reason, tc.hop.Reason, name)
+		if tc.reason == bind.NoReason {
+			continue
+		}
+		assert.Equal(t, jsontext.Pointer("/paths/~1a"), tc.hop.Use, name)
+		assert.Equal(t, "get", tc.hop.Key, name)
+		assert.Equal(t, tc.why, tc.hop.Why(), name)
 	}
-	_, ok := carrying.TargetPointer(js, beside)
-	assert.False(t, ok, "a schema's $ref beside the $ref is refused")
-	_, ok = carrying.MappingPointer(d, beside)
-	assert.False(t, ok, "and a mapping value")
-	_, ok = carrying.TargetPointer(js, elsewhere)
-	assert.True(t, ok, "one elsewhere is not")
-	_, ok = carrying.MappingPointer(d, elsewhere)
-	assert.True(t, ok)
 }
 
-// TestScope_BesideWhySaysWhyAReferenceIsRefused pins the reason a lowering's own
-// unresolved report gives: a pointer landing beside the $ref names where; a
-// "#/$defs/..." pointer is refused by where it is written; and anything else,
-// or a scope without the models, has no reason to give.
-func TestScope_BesideWhySaysWhyAReferenceIsRefused(t *testing.T) {
-	t.Parallel()
-	_, bare, carrying := loadBeside(t)
-	const inA = jsontext.Pointer("/paths/~1a/get/requestBody/content/application~1json/schema")
-	const inB = jsontext.Pointer("/paths/~1b/get/requestBody/content/application~1json/schema")
+// entryOf returns the table's entry for the $ref js writes.
+func entryOf(t *testing.T, b bound, js *schemaRef) bind.Entry {
+	t.Helper()
+	e, ok := b.doc.Bindings.Entry(js)
+	require.True(t, ok, "the table read a $ref there")
+	return e
+}
 
-	assert.Equal(t, ": it reaches "+string(inA)+"; "+resolve.BesideReason("/paths/~1a", "get"),
-		carrying.BesideWhy("/paths/~1c", inA))
-	assert.Equal(t, ": "+resolve.DefsBesideReason("/paths/~1a", "get"), carrying.BesideWhy(inA, "/$defs/X"))
-	assert.Contains(t, resolve.DefsBesideReason("/paths/~1a", "get"), resolve.BesideReason("/paths/~1a", "get"))
-	assert.Contains(t, resolve.BesideReason("/paths/~1a", "get"), `"get"`)
-	for _, why := range []string{
-		carrying.BesideWhy("/paths/~1c", inB),
-		carrying.BesideWhy(inB, "/$defs/X"),
-		bare.BesideWhy("/paths/~1c", inA),
-	} {
-		assert.Empty(t, why)
-	}
+// mappingOf returns the table's reading of value, written by the discriminator d.
+func mappingOf(t *testing.T, b bound, d *oas3.Discriminator, value string) bind.Mapping {
+	t.Helper()
+	m, ok := b.doc.Bindings.Mapping(d, value)
+	require.True(t, ok, "the table read the mapping value %q", value)
+	return m
+}
+
+// TestScope_PointerReadersRefuseAPointerBesideAPathItemRef pins the two routes a
+// schema's pointer takes, a $ref and a mapping value, each refused where it
+// reaches, or is written in, the fields beside a path item $ref, and passing one
+// elsewhere. The refusal is the binder's (see the test of its hops), and the
+// scope reads it as it reads any $ref that lands nowhere, with no Beside of its
+// own to consult.
+func TestScope_PointerReadersRefuseAPointerBesideAPathItemRef(t *testing.T) {
+	t.Parallel()
+	b := loadBound(t, "spec.yaml", besideSchemasSpec, load.Options{})
+	pet := b.component(t, "Pet").GetSchema().GetDiscriminator()
+	inside := b.at(t, besideSchema).GetSchema().GetDiscriminator()
+
+	got, ok := b.scope.TargetPointer(b.component(t, "Elsewhere"))
+	assert.True(t, ok, "a schema's $ref elsewhere is not refused")
+	assert.Equal(t, jsontext.Pointer(elsewhereSchema), got)
+	_, ok = b.scope.TargetPointer(b.component(t, "Beside"))
+	assert.False(t, ok, "a schema's $ref beside the $ref is refused")
+	_, ok = b.scope.TargetPointer(b.at(t, besideSchema+"/properties/viaDefs"))
+	assert.False(t, ok, "and a $defs one written there")
+
+	got, _, ok = b.scope.MappingTarget(pet, "#"+elsewhereSchema)
+	assert.True(t, ok, "a mapping value elsewhere is not refused")
+	assert.Equal(t, jsontext.Pointer(elsewhereSchema), got)
+	_, _, ok = b.scope.MappingTarget(pet, "#"+besideSchema)
+	assert.False(t, ok, "a mapping value beside the $ref is refused")
+	_, _, ok = b.scope.MappingTarget(inside, "#/$defs/k")
+	assert.False(t, ok, "and a $defs one written there")
 }
 
 // TestChained_SaysWhetherHopsHasOneToList pins Chained against Hops: a chain

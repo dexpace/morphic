@@ -56,12 +56,12 @@ func TestCompiler_SourceTableAgreesWithDocumentSourcesOnSuccess(t *testing.T) {
 func TestCompiler_SourceTableOnARefusal(t *testing.T) {
 	t.Parallel()
 
-	t.Run("cyclic spec", func(t *testing.T) {
+	t.Run("a source with a recursive anchor", func(t *testing.T) {
 		t.Parallel()
 		const cyclic = `openapi: 3.1.0
 info: {title: t, version: '1'}
 paths: {}
-components: {schemas: {A: {$ref: '#/components/schemas/A'}}}
+x-a: &a [*a]
 `
 		sources := []compilers.Source{{Path: "spec.yaml", Data: []byte(cyclic)}}
 		opts := compilers.Options{}

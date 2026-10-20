@@ -16,7 +16,6 @@ import (
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/compile"
-	"github.com/dexpace/morphic/compilers/openapi/internal/defs"
 	"github.com/dexpace/morphic/compilers/openapi/internal/fragment"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/navigation"
@@ -555,13 +554,13 @@ func TestInternedID_Miss(t *testing.T) {
 // rule could classify it as a top-level declaration.
 const deepPointer = "/components/schemas/Obj/properties/inner"
 
-// TestScope_DeclaredAt pins which positions resolve: a schema position to the
-// very schema the document holds there, and every position holding no schema
-// to nil. That covers a non-schema object, an undeclared name, a keyword the
-// schema leaves unset (which the pointer walk reaches as a typed nil), raw YAML
-// under an extension key or in an enum, which only a $ref makes the resolver
-// parse, and a Scope with no Doc.
-func TestScope_DeclaredAt(t *testing.T) {
+// TestScope_ModelAt_ResolvesOnlyASchemaPosition pins which positions hold a
+// schema: a schema position holds the very schema the document holds there, and
+// every position holding none holds nil. That covers a non-schema object, an
+// undeclared name, a keyword the schema leaves unset (which the pointer walk
+// reaches as a typed nil), raw YAML under an extension key or in an enum, which
+// the model keeps as written, and a Scope with no Doc.
+func TestScope_ModelAt_ResolvesOnlyASchemaPosition(t *testing.T) {
 	t.Parallel()
 	doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(`openapi: 3.1.0
 info: {title: T, version: "1"}
@@ -578,20 +577,20 @@ components:
 
 	pet, ok := doc.Components.Schemas.Get("Pet")
 	require.True(t, ok)
-	assert.Same(t, pet, sc.DeclaredAt("/components/schemas/Pet"),
-		"a schema position resolves to the declaration the document holds")
+	assert.Same(t, pet, sc.ModelAt("/components/schemas/Pet"),
+		"a schema position holds the declaration the document holds")
 
 	for pointer, why := range map[jsontext.Pointer]string{
-		"/info":                          "a non-schema position does not resolve",
-		"/components/schemas/Ghost":      "a position the document does not declare does not resolve",
-		"/components/schemas/Pet/not":    "a keyword the schema leaves unset does not resolve",
-		"/components/schemas/Pet/x-dog":  "raw YAML under an extension does not resolve",
-		"/components/schemas/Pet/enum/0": "raw YAML in an enum does not resolve",
+		"/info":                          "a non-schema position holds none",
+		"/components/schemas/Ghost":      "a position the document does not declare holds none",
+		"/components/schemas/Pet/not":    "a keyword the schema leaves unset holds none",
+		"/components/schemas/Pet/x-dog":  "raw YAML under an extension holds none",
+		"/components/schemas/Pet/enum/0": "raw YAML in an enum holds none",
 	} {
-		assert.Nil(t, sc.DeclaredAt(pointer), why)
+		assert.Nil(t, sc.ModelAt(pointer), why)
 	}
 
-	assert.Nil(t, Scope{}.DeclaredAt("/components/schemas/Pet"), "a nil Doc resolves nothing")
+	assert.Nil(t, Scope{}.ModelAt("/components/schemas/Pet"), "a nil Doc holds nothing")
 }
 
 // modelDoc is a document whose pointers ModelAt is asked about: schemas the
@@ -632,7 +631,7 @@ x-lib:
 
 // wholeModelAt reads the whole pointer in one library call: the answer ModelAt
 // must give though it reads the pointer a token at a time.
-func wholeModelAt(doc defs.Navigable, pointer jsontext.Pointer) *oas3.JSONSchema[oas3.Referenceable] {
+func wholeModelAt(doc any, pointer jsontext.Pointer) *oas3.JSONSchema[oas3.Referenceable] {
 	target, err := jsonpointer.GetTarget(doc, jsonpointer.JSONPointer(pointer), jsonpointer.WithStructTags("key"))
 	if js, ok := target.(*oas3.JSONSchema[oas3.Referenceable]); ok && err == nil && js != nil {
 		return js
@@ -871,110 +870,6 @@ func walkTo(doc *soa.OpenAPI, pointer jsontext.Pointer) any {
 		node, _ = navigation.Step(node, token)
 	}
 	return node
-}
-
-// TestScope_DeclaredAt_TheModelAnswersFirst pins the order of DeclaredAt's two
-// sources: a schema the model declares at a pointer wins, even over one Mapped
-// holds there, which a $ref by the source's file name may have left a copy of,
-// whose own $refs nothing resolved. Mapped answers where the model declares no
-// schema, such as a position it holds as raw YAML (GitHub #757), and only
-// there is it asked.
-func TestScope_DeclaredAt_TheModelAnswersFirst(t *testing.T) {
-	t.Parallel()
-	doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(`openapi: 3.1.0
-info: {title: T, version: "1"}
-paths: {}
-components:
-  schemas:
-    Pet: {type: object}
-`))
-	require.NoError(t, err)
-	pet, ok := doc.Components.Schemas.Get("Pet")
-	require.True(t, ok)
-
-	mapped := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{})
-	require.NotSame(t, pet, mapped, "the two sources must be told apart")
-
-	const raw = jsontext.Pointer("/x-lib/Cat")
-	var asked []jsontext.Pointer
-	answering := func(at jsontext.Pointer, js *oas3.JSONSchema[oas3.Referenceable]) func(jsontext.Pointer) *oas3.JSONSchema[oas3.Referenceable] {
-		return func(pointer jsontext.Pointer) *oas3.JSONSchema[oas3.Referenceable] {
-			asked = append(asked, pointer)
-			if pointer == at {
-				return js
-			}
-			return nil
-		}
-	}
-
-	sc := Scope{Doc: doc, Mapped: answering(raw, mapped)}
-	assert.Same(t, mapped, sc.DeclaredAt(raw), "a position only Mapped holds resolves to its answer")
-	assert.Same(t, pet, sc.DeclaredAt("/components/schemas/Pet"), "the model answers for its own declaration")
-	assert.Equal(t, []jsontext.Pointer{raw}, asked, "Mapped is asked only where the model declares no schema")
-
-	shadowed := Scope{Doc: doc, Mapped: answering("/components/schemas/Pet", mapped)}
-	assert.Same(t, pet, shadowed.DeclaredAt("/components/schemas/Pet"), "the model's own declaration wins over Mapped")
-
-	assert.Same(t, pet, Scope{Doc: doc}.DeclaredAt("/components/schemas/Pet"), "no Mapped leaves the model to answer")
-	assert.Nil(t, Scope{Doc: doc}.DeclaredAt(raw), "no Mapped and no declaration resolves nothing")
-}
-
-// TestScope_MappingPointer pins what a mapping value names. A pointer or a
-// declared component is InternalPointer's answer; a "#/$defs/..." value is the
-// definition read from its discriminator; and every value that cannot be read
-// so is refused: one with a document part, which load leaves to the resolver,
-// one into another document, one in a Scope with no Doc, one with no
-// discriminator, one whose discriminator this document's tree does not contain,
-// and one the rule finds nothing for.
-func TestScope_MappingPointer(t *testing.T) {
-	t.Parallel()
-	doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(`openapi: 3.1.0
-info: {title: T, version: "1"}
-paths: {}
-components:
-  schemas:
-    Pet:
-      oneOf: [{$ref: "#/$defs/cat"}]
-      discriminator: {propertyName: kind, mapping: {cat: "#/$defs/cat"}}
-      $defs:
-        cat: {type: object}
-`))
-	require.NoError(t, err)
-	pet, ok := doc.Components.Schemas.Get("Pet")
-	require.True(t, ok)
-	d := pet.GetSchema().GetDiscriminator()
-	require.NotNil(t, d)
-	sc := Scope{SelfPath: "spec.yaml", Doc: doc}
-
-	for value, want := range map[string]jsontext.Pointer{
-		"#/components/schemas/Pet": "/components/schemas/Pet",
-		"#/$defs/cat":              "/components/schemas/Pet/$defs/cat",
-	} {
-		got, ok := sc.MappingPointer(d, value)
-		assert.True(t, ok, value)
-		assert.Equal(t, want, got, value)
-	}
-
-	for value, why := range map[string]string{
-		"other.yaml#/A":        "a value into another document is refused",
-		"spec.yaml#/$defs/cat": "a document part is left to the resolver, as load leaves a $ref spelled so",
-		"#/$defs/missing":      "the rule finds no such definition",
-		"Pet":                  "a bare name names no pointer",
-	} {
-		_, ok := sc.MappingPointer(d, value)
-		assert.False(t, ok, why)
-	}
-
-	_, ok = (Scope{SelfPath: "spec.yaml"}).MappingPointer(d, "#/$defs/cat")
-	assert.False(t, ok, "no document to read from")
-	_, ok = sc.MappingPointer(nil, "#/$defs/cat")
-	assert.False(t, ok, "no discriminator to read a position from")
-	// A discriminator this document's tree does not contain has no position to
-	// read from. The document is a standalone schema with its own $defs, the one
-	// kind a missing position could still read a definition from.
-	standalone := Scope{SelfPath: "spec.yaml", Doc: schemaFromYAML(t, "$defs:\n  cat: {type: object}\n")}
-	_, ok = standalone.MappingPointer(&oas3.Discriminator{}, "#/$defs/cat")
-	assert.False(t, ok, "no position to read the pointer from")
 }
 
 // walkDoc is a document whose positions a walk reaches past a path item and an

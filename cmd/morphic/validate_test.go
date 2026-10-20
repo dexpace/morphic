@@ -300,13 +300,13 @@ func TestRun_ValidateReportsACyclicRefWithItsFile(t *testing.T) {
 	const cyclic = `openapi: 3.1.0
 info: {title: t, version: '1'}
 paths: {}
-components: {schemas: {A: {$ref: '#/components/schemas/A'}}}
+x-a: &a [*a]
 `
 	spec := writeFile(t, "cyclic.yaml", cyclic)
 	line := strings.Split(cyclic, "\n")[3]
-	col := strings.Index(line, "{$ref") + 1
-	require.Greater(t, col, 0, "the fixture must hold the schema object the cycle is reported at")
-	want := fmt.Sprintf("%s:4:%d (#/components/schemas/A):", spec, col)
+	col := strings.Index(line, "*a") + 1
+	require.Greater(t, col, 0, "the fixture must hold the alias the cycle is reported at")
+	want := fmt.Sprintf("%s:4:%d (#/x-a/0):", spec, col)
 
 	var stdout, stderr bytes.Buffer
 	code := run([]string{"validate", spec}, &stdout, &stderr)

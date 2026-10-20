@@ -10,7 +10,9 @@ that shows it, the compiler code that exists because of it, and the test that pi
 Not every reading the compiler shares with the library is an entry. Where the compiler reproduces
 one, such as how the resolver reads a JSON pointer, a test beside the reproduction asks the library
 the same question. The resolver oracle in `internal/harness` pins, in a golden of its own, what the
-resolver does with each reference shape the scan judges.
+resolver does with each reference shape it generates. The binding oracle in
+`compilers/openapi/internal/canary` holds what the compiler binds each schema `$ref` to against what
+the resolver resolves it to, and lists every disagreement with its reason.
 
 Code that depends on a behaviour cites its entry, as `docs/parser-library.md#<key>`, instead of
 restating it. It never names a library version: the entry says what holds at the version it was
@@ -60,11 +62,9 @@ passes through a schema's `$ref` reads that schema's own members, so it lands wh
 ends: `#/components/schemas/A/properties/p` in `A` lands on `p`, and a `p` leading back to `A`
 closes a cycle that overflows like any other. One ending in an empty token, such as
 `#/components/schemas/A/` in `A`, names no member of a schema, and fails as naming nothing
-(`not found`). So the scan refuses a schema chain only when the hops it lands on loop. In Go a stack
-overflow ends the process whatever recovers, cancels or times out around it, so a cycle has to be
-refused before the resolver sees the document. Refusing one in every declaration order
-takes a model of how the resolver reads `$defs`, `$anchor` and `$id`, which is what most of the code
-below is.
+(`not found`). In Go a stack overflow ends the process whatever recovers, cancels or times out
+around it, so no schema `$ref` reaches the resolver: the compiler binds each one itself, reads a
+loop of them as a loop, reports it once and compiles the document (#558).
 
 ```yaml
 components:
@@ -76,13 +76,8 @@ components:
 - Verified at: v1.25.5
 - Pinned by: `TestLibraryBehaviour/schema-cycle-overflow`
 - Code:
-  - `scan.refCycles` refuses a cycle of root pointers before the document is decoded.
-  - `load.reachCycle` refuses a cycle a `$anchor`, an `$id` or a nested `$defs` could close.
-  - `load.loops` refuses a chain closing through the source's own file name, when external
-    references are read.
-  - `load.ends` keeps a chain that failed from being resumed into a loop.
-
-#558 proposes resolving schema references in the compiler, which would retire these guards.
+  - `load.bindSchemas` binds every schema `$ref` in the compiler, never through the resolver.
+  - `load.resolvable` hands the resolver reference objects alone, never a schema.
 
 ### `resolution-unbounded`
 
@@ -111,7 +106,8 @@ x: {$ref: 'd1.yaml#/x'}
 Whether a `#/$defs/...` reference resolves can depend on declaration order. The resolver looks for
 the definition from the schema the current chain carried it to. Below, with `H` declared first,
 every reference resolves. With `R` first, the walk reaches `H/properties/p` through `R`, and the
-resolver fails with `definition not found: #/$defs/A`.
+resolver fails with `definition not found: #/$defs/A`. The compiler finds a definition from the
+position the reference is written at, so no order changes the answer.
 
 ```yaml
 components:
@@ -123,39 +119,16 @@ components:
 - Verified at: v1.25.5
 - Pinned by: `TestLibraryBehaviour/defs-order`
 - Code:
-  - `load.withDefsHeld` takes every `#/$defs/...` reference out of the resolver's walk.
-  - `load.resolution.resolveHeld` then resolves each to the definition `defs.Reader.Target`
-    names.
-  - `defs.Reader.Target` finds it from the reference's own position, whatever the order.
-
-### `anchor-id-scope`
-
-A `$anchor` or `$id` is found only by a reference inside the top-level schema that declares it.
-From another component, a `#name` fragment is read as a JSON pointer, and fails with `jsonpointer
-must start with /`. A reference to the `$id` is read as another document: refused with `external
-reference not allowed` when external references are off, and fetched when they are on.
-
-```yaml
-components:
-  schemas:
-    A: {properties: {p: {$ref: '#x'}}}
-    B: {$anchor: x, type: string}
-```
-
-- Verified at: v1.25.5
-- Pinned by: `TestLibraryBehaviour/anchor-id-scope`
-- Code:
-  - `load.reach` scopes each `$anchor` and `$id` to the schema documents a node belongs to.
+  - `bind.definitions.definition` finds the definition from the reference's own position.
 
 ### `mapping-unresolved`
 
 The library never reads a discriminator's mapping values: neither resolution nor validation reports
-a value that names nothing. The load phase resolves each value itself, as a `$ref` to it would be
-resolved, and that resolution recurses like any schema chain. One value into a loop of `$ref`s
-returns `circular reference detected`, and a second into the same loop overflows the stack, as a
-second reference from outside does in [`schema-cycle-overflow`](#schema-cycle-overflow). The
-pre-parse scan does not see a loop written where the model keeps raw YAML, such as under an
-extension.
+a value that names nothing. A value resolved as a `$ref` to it would be recurses like any schema
+chain: one value into a loop of `$ref`s returns `circular reference detected`, and a second into
+the same loop overflows the stack, as a second reference from outside does in
+[`schema-cycle-overflow`](#schema-cycle-overflow). So the compiler reads each value itself, as a
+`$ref` written at the discriminator, and binds it as it binds any other.
 
 ```yaml
 components:
@@ -169,8 +142,7 @@ x-lib:
 - Verified at: v1.25.5
 - Pinned by: `TestLibraryBehaviour/mapping-unresolved`
 - Code:
-  - `load.mappings.resolveTarget` resolves each mapping value as a `$ref` to it would be.
-  - `load.mappings.chainEnds` leaves out a value whose chain does not provably end.
+  - `bind.finder.mappingsOf` notes each mapping value that can name a position, to be bound.
 
 ### `reference-object-cycle`
 
@@ -179,10 +151,10 @@ parameters, responses, request bodies, headers, path items, callbacks, examples,
 security schemes, in cycles of one to three components, and for a path item, webhook or response
 naming itself by position. A `$ref` into the reference object it is reached through, such as a path
 item naming a key beneath itself, returns `unresolved reference`. Neither hangs nor overflows, so
-the compile leaves these shapes to the resolver and reports each at the reference, as an unresolved
-reference. An earlier resolver held a reference's lock while following it, so a chain re-entering
-one deadlocked, and it overflowed its stack on a cycle spelled by position. The pre-parse refusals
-written against that resolver are retired (#574).
+the compile leaves reference objects to the resolver and reports each failure at the reference, as
+an unresolved reference. An earlier resolver held a reference's lock while following it, so a chain
+re-entering one deadlocked, and it overflowed its stack on a cycle spelled by position; the
+pre-parse refusals written against it are retired (#574).
 
 ```yaml
 components:
@@ -194,8 +166,7 @@ components:
 - Verified at: v1.25.5
 - Pinned by: `TestLibraryBehaviour/reference-object-cycle`
 - Code:
-  - `scan.refCycles` leaves a chain of reference objects to the resolver, judging only the chains
-    that start at a schema.
+  - `load.resolvable` hands the resolver every reference object, cycles included.
 
 ### `root-defs`
 
@@ -204,12 +175,13 @@ schema there, though the OpenAPI object defines no `$defs`. The resolver reads t
 document's root before it tries any ancestor of the reference, so a root `$defs` answers even where
 an ancestor of the reference holds an `X`. The compiler reads it the same way (#910), as it reads a
 pointer to any other position the OpenAPI object leaves as raw YAML, and still warns that the key
-is unknown. #570 asks the same of a schema under an extension.
+is unknown.
 
-The schema spelling the reference is the exception when it has no `$id` and holds an `X` in its own
-`$defs`. Resolved first, it reads the root's `X`. Once a chain has reached it, as `C` does below, it
-reads its own, so the answer turns on what was resolved before. The compiler leaves that reference
-unresolved, since the root's `X` is the reading it can name but not hand the resolver.
+The schema spelling the reference is the exception in the resolver when it has no `$id` and holds
+an `X` in its own `$defs`. Resolved first, it reads the root's `X`. Once a chain has reached it, as
+`C` does below, it reads its own, so the answer turns on what was resolved before. The compiler
+reads the root's in every order, which OAS 3.1.1 gives a reference in a schema no parent of which
+holds an `$id`: it is resolved against the referring document's base URI.
 
 ```yaml
 $defs:
@@ -224,8 +196,8 @@ components:
 - Verified at: v1.25.5
 - Pinned by: `TestLibraryBehaviour/root-defs`
 - Code:
-  - `defs.Reader.Target` reads the pointer from the document's root first, raw YAML included.
-  - `defs.Reader.Shadowed` names the reference whose own `X` the resolver can read instead.
+  - `bind.definitions.definition` reads the pointer from the document's root first, raw YAML
+    included, in every order.
 
 ## Decoding
 
@@ -362,6 +334,8 @@ B: {$ref}
   - `load.recovered` turns a panic in resolution, a walk or validation into an error naming what
     was running.
   - `load.unmarshal` turns a panic in decoding into an `ErrParse` error.
+  - `bind/typed.Builder.decodeRecovered` turns a panic in decoding raw YAML as a schema into a
+    failure to build it.
 
 ### `anchored-entry-dropped`
 

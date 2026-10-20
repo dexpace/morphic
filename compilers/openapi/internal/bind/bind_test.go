@@ -2,6 +2,8 @@ package bind_test
 
 import (
 	"encoding/json/jsontext"
+	"errors"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -21,82 +23,109 @@ func tree(t *testing.T, src string) *yaml.Node {
 	return &n
 }
 
-// entryAt binds src and returns the entry at site.
-func entryAt(t *testing.T, src string, cfg bind.Config, site jsontext.Pointer) bind.Entry {
+// self names the source "spec.yaml".
+var self = bind.Config{Self: "spec.yaml"}
+
+// bound binds src under cfg.
+func bound(t *testing.T, src string, cfg bind.Config) *bind.Table {
 	t.Helper()
-	for _, e := range bind.Bind(bind.New(tree(t, src), cfg)).Entries() {
-		if e.Site == site {
-			return e
-		}
-	}
-	require.Failf(t, "no entry", "at %s", site)
-	return bind.Entry{}
+	return bind.Bind(tree(t, src), cfg)
 }
 
-// TestResolve_ReadsEachReferenceAsTheCompilerDoes pins one row per reading:
-// where each chain ends, the role of what it ends at, the position its first
-// $ref names, and how a chain that ends nowhere is reported.
-func TestResolve_ReadsEachReferenceAsTheCompilerDoes(t *testing.T) {
+// entryAt returns the entry the table holds at the source pointer site.
+func entryAt(t *testing.T, table *bind.Table, site jsontext.Pointer) bind.Entry {
+	t.Helper()
+	e, ok := table.Entry(bind.Position{Pointer: site})
+	require.True(t, ok, "an entry at %s", site)
+	return e
+}
+
+// at is the source position pointer names.
+func at(pointer jsontext.Pointer) bind.Position { return bind.Position{Pointer: pointer} }
+
+// TestBind_ReadsEachHop pins one row per way a $ref's own hop lands: where,
+// what the reading finds there, whether it names the source and the pointer it
+// spells, and why one that lands on no schema does not.
+func TestBind_ReadsEachHop(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name, body    string
-		status        bind.Status
-		first, target jsontext.Pointer
-		role          bind.Role
-		hops          int
+		name, body string
+		reason     bind.Reason
+		target     jsontext.Pointer
+		role       bind.Role
 	}{
 		{"a component", "    A: {$ref: '#/components/schemas/B'}\n    B: {type: string}\n",
-			bind.Resolved, "/components/schemas/B", "/components/schemas/B", bind.Schema, 1},
-		{"a chain", "    A: {$ref: '#/components/schemas/B'}\n    B: {$ref: '#/components/schemas/C'}\n    C: {}\n",
-			bind.Resolved, "/components/schemas/B", "/components/schemas/C", bind.Schema, 2},
+			bind.NoReason, "/components/schemas/B", bind.Schema},
 		{"raw YAML under an extension", "    A: {$ref: '#/x-lib/S'}\nx-lib:\n  S: {type: string}\n",
-			bind.Resolved, "/x-lib/S", "/x-lib/S", bind.Raw, 1},
-		{"a literal", "    A: {$ref: '#/components/schemas/B/example'}\n    B: {example: {type: string}}\n",
-			bind.Resolved, "/components/schemas/B/example", "/components/schemas/B/example", bind.Raw, 1},
+			bind.NoReason, "/x-lib/S", bind.Raw},
+		{"a link parameter, raw YAML in the model", "    A: {$ref: '#/components/links/L/parameters/p'}\n" +
+			"  links:\n    L: {parameters: {p: {type: string}}}\n", bind.NoReason, "/components/links/L/parameters/p", bind.Raw},
+		{"a literal read as a schema", "    A: {$ref: '#/components/schemas/B/example'}\n    B: {example: {type: string}}\n",
+			bind.NoReason, "/components/schemas/B/example", bind.Raw},
 		{"a boolean schema", "    A: {$ref: '#/components/schemas/B/properties/p'}\n    B: {properties: {p: true}}\n",
-			bind.Resolved, "/components/schemas/B/properties/p", "/components/schemas/B/properties/p", bind.Schema, 1},
-		{"an object no schema reference names", "    A: {$ref: '#/info'}\n", bind.Unresolved, "", "", bind.NoRole, 0},
-		{"the document", "    A: {$ref: '#'}\n", bind.Unresolved, "", "", bind.NoRole, 0},
-		{"a lone slash, read as the document", "    A: {$ref: '#/'}\n'': {type: string}\n", bind.Unresolved, "", "", bind.NoRole, 0},
-		{"a document part only", "    A: {$ref: ''}\n", bind.Unresolved, "", "", bind.NoRole, 0},
-		{"nothing there", "    A: {$ref: '#/components/schemas/Z'}\n", bind.Unresolved, "", "", bind.NoRole, 0},
-		{"another document", "    A: {$ref: 'other.yaml#/X'}\n", bind.External, "", "", bind.NoRole, 0},
-		{"an anchor", "    A: {$ref: '#a'}\n    B: {$anchor: a}\n", bind.Anchor, "", "", bind.NoRole, 0},
-		{"a self reference", "    A: {$ref: '#/components/schemas/A'}\n", bind.Cyclic,
-			"/components/schemas/A", "", bind.NoRole, 1},
-		{"a loop it runs into", "    R: {$ref: '#/components/schemas/A'}\n    A: {$ref: '#/components/schemas/B'}\n" +
-			"    B: {$ref: '#/components/schemas/A'}\n", bind.Cyclic, "/components/schemas/A", "", bind.NoRole, 3},
-		{"a chain that ends nowhere", "    A: {$ref: '#/components/schemas/B'}\n    B: {$ref: '#/components/schemas/Z'}\n",
-			bind.Unresolved, "/components/schemas/B", "", bind.NoRole, 1},
+			bind.NoReason, "/components/schemas/B/properties/p", bind.Schema},
 		{"a percent escape, and '+' as itself", "    A: {$ref: '#/components/schemas/a%20b+c'}\n    'a b+c': {}\n",
-			bind.Resolved, "/components/schemas/a b+c", "/components/schemas/a b+c", bind.Schema, 1},
+			bind.NoReason, "/components/schemas/a b+c", bind.Schema},
+		{"the source by its own name", "    A: {$ref: 'spec.yaml#/components/schemas/B'}\n    B: {}\n",
+			bind.NoReason, "/components/schemas/B", bind.Schema},
+		{"an object no schema reference may name", "    A: {$ref: '#/info'}\n", bind.NotSchema, "", bind.NoRole},
+		{"the document", "    A: {$ref: '#'}\n", bind.NotSchema, "", bind.NoRole},
+		{"a lone slash, read as the document", "    A: {$ref: '#/'}\n'': {type: string}\n", bind.NotSchema, "", bind.NoRole},
+		{"a document part only", "    A: {$ref: ''}\n", bind.NotSchema, "", bind.NoRole},
+		{"a list of schemas", "    A: {$ref: '#/components/schemas/B/allOf'}\n    B: {allOf: [{}]}\n",
+			bind.NotSchema, "", bind.NoRole},
+		{"the map of a link's parameters", "    A: {$ref: '#/components/links/L/parameters'}\n" +
+			"  links:\n    L: {parameters: {p: {type: string}}}\n", bind.NotSchema, "", bind.NoRole},
+		{"a key the model lacks, read as raw YAML", "    A: {$ref: '#/components/mediaTypes/M/schema'}\n" +
+			"  mediaTypes:\n    M: {schema: {type: string}}\n", bind.NoReason, "/components/mediaTypes/M/schema", bind.Raw},
+		{"raw YAML that is no schema", "    A: {$ref: '#/x-lib/n'}\nx-lib: {n: 5}\n", bind.NotSchema, "", bind.NoRole},
+		{"nothing there", "    A: {$ref: '#/components/schemas/Z'}\n", bind.NoTarget, "", bind.NoRole},
+		{"a trailing slash, an empty key", "    A: {$ref: '#/components/schemas/B/'}\n    B: {}\n",
+			bind.NoTarget, "", bind.NoRole},
+		{"an index with a leading zero", "    A: {$ref: '#/components/schemas/B/allOf/00'}\n    B: {allOf: [{}]}\n",
+			bind.NoTarget, "", bind.NoRole},
+		{"an index with a sign", "    A: {$ref: '#/components/schemas/B/allOf/-0'}\n    B: {allOf: [{}]}\n",
+			bind.NoTarget, "", bind.NoRole},
+		{"an index with a plus", "    A: {$ref: '#/components/schemas/B/allOf/+0'}\n    B: {allOf: [{}]}\n",
+			bind.NoTarget, "", bind.NoRole},
+		{"an index", "    A: {$ref: '#/components/schemas/B/allOf/10'}\n    B: {allOf: [{}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}]}\n",
+			bind.NoReason, "/components/schemas/B/allOf/10", bind.Schema},
+		{"an anchor", "    A: {$ref: '#a'}\n    B: {$anchor: a}\n", bind.AnchorTarget, "", bind.NoRole},
+		{"an invalid escape", "    A: {$ref: '#/components/schemas/A~B'}\n    'A~B': {}\n", bind.BadPointer, "", bind.NoRole},
+		{"bytes that are not UTF-8", "    A: {$ref: '#/components/schemas/%FF'}\n", bind.BadPointer, "", bind.NoRole},
+		{"a second '#'", "    A: {$ref: '#/components/schemas/B#x'}\n    B: {}\n", bind.BadPointer, "", bind.NoRole},
+		{"a second '#' after an anchor", "    A: {$ref: '#a#x'}\n    B: {$anchor: a}\n", bind.BadPointer, "", bind.NoRole},
+		{"another document, none read", "    A: {$ref: 'other.yaml#/X'}\n", bind.ExternalOff, "", bind.NoRole},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			src := head + "components:\n  schemas:\n" + tc.body
-			e := entryAt(t, src, bind.Config{}, "/components/schemas/"+jsontext.Pointer(firstKey(t, tc.body)))
-			assert.Equal(t, tc.status, e.Status, e.Status.String())
-			assert.Equal(t, tc.first, e.First)
-			assert.Equal(t, tc.target, e.Target)
-			assert.Equal(t, tc.role, e.Role)
-			assert.Equal(t, tc.hops, e.Hops)
+			e := entryAt(t, bound(t, head+"components:\n  schemas:\n"+tc.body, self), "/components/schemas/A")
+			assert.Equal(t, tc.reason, e.Hop.Reason, e.Hop.Why())
+			if tc.reason == bind.NoReason {
+				assert.Equal(t, bind.Resolved, e.Hop.Status)
+				assert.Equal(t, at(tc.target), e.Hop.Target)
+				assert.True(t, e.Hop.Named)
+				assert.Equal(t, tc.target, e.Hop.Spelled)
+			} else {
+				assert.Equal(t, bind.Unresolved, e.Hop.Status)
+				assert.Equal(t, bind.Unresolved, e.Chain.Status)
+				assert.Equal(t, at("/components/schemas/A"), e.Chain.Failed)
+			}
+			assert.Equal(t, tc.role, e.Hop.Role)
 		})
 	}
 }
 
-// firstKey is the first schema name body declares.
-func firstKey(t *testing.T, body string) string {
-	t.Helper()
-	var m yaml.Node
-	require.NoError(t, yaml.Unmarshal([]byte(body), &m))
-	return m.Content[0].Content[0].Value
-}
-
-// TestResolve_ReadsADefinitionByTheDefsRule pins the rule internal/defs
-// documents: a resource's own definitions, then the document's root, then the
-// nearest schema above holding a schema there, whatever was resolved before.
-func TestResolve_ReadsADefinitionByTheDefsRule(t *testing.T) {
+// TestBind_ReadsADefinitionByTheDefsRule pins the $defs rule: a resource's own
+// definitions, then the document's root, then the nearest object above holding
+// "$defs" in the model, whatever was resolved before. An ancestor answers raw
+// YAML at the path too (GitHub #997), and the root answers before the schema
+// spelling the pointer, which needs no $id to be shadowed (GitHub #995). Raw
+// YAML holds no object of the model, so a schema under an extension answers
+// nothing from its own definitions, as OAS 3.1 reads one with no $id (GitHub
+// #570).
+func TestBind_ReadsADefinitionByTheDefsRule(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name, body string
@@ -110,12 +139,10 @@ func TestResolve_ReadsADefinitionByTheDefsRule(t *testing.T) {
 			"/components/schemas/B", "/$defs/A"},
 		{"a resource's own first", "$defs:\n  A: {}\ncomponents:\n  schemas:\n    B: {$id: 'https://x.test/b', $ref: '#/$defs/A', $defs: {A: {}}}\n",
 			"/components/schemas/B", "/components/schemas/B/$defs/A"},
-		{"a resource's own, a trailing slash read as none", "components:\n  schemas:\n    B: {$id: 'https://x.test/b', $ref: '#/$defs/A/', $defs: {A: {}}}\n",
-			"/components/schemas/B", "/components/schemas/B/$defs/A"},
 		{"a resource with none of its own", "$defs:\n  A: {}\ncomponents:\n  schemas:\n    B: {$id: 'https://x.test/b', $ref: '#/$defs/A'}\n",
 			"/components/schemas/B", "/$defs/A"},
 		{"one sitting in a nested resource", "components:\n  schemas:\n    B: {$id: 'https://x.test/b', $defs: {A: {}}, properties: {p: {$id: 'p', " +
-			"properties: {q: {$ref: '#/$defs/A', $defs: {A: {}}}, r: {$ref: '#/$defs/A', $defs: {A: {}}}}}}}\n",
+			"properties: {q: {$ref: '#/$defs/A', $defs: {A: {}}}}}}}\n",
 			"/components/schemas/B/properties/p/properties/q", "/components/schemas/B/properties/p/properties/q/$defs/A"},
 		{"one in the outermost resource, which is none of its own", "components:\n  schemas:\n    B: {$id: 'https://x.test/b', $defs: {A: {}}, " +
 			"properties: {p: {$ref: '#/$defs/A', $defs: {A: {}}}}}\n",
@@ -130,127 +157,226 @@ func TestResolve_ReadsADefinitionByTheDefsRule(t *testing.T) {
 			"/components/schemas/B/properties/p/properties/q", "/components/schemas/B/$defs/A"},
 		{"a path into a definition", "components:\n  schemas:\n    H: {$defs: {A: {properties: {x: {}}}}, properties: {p: {$ref: '#/$defs/A/properties/x'}}}\n",
 			"/components/schemas/H/properties/p", "/components/schemas/H/$defs/A/properties/x"},
+		{"raw YAML an ancestor holds", "components:\n  schemas:\n    H: {$defs: {A: {example: {type: string}}}, properties: {p: {$ref: '#/$defs/A/example'}}}\n",
+			"/components/schemas/H/properties/p", "/components/schemas/H/$defs/A/example"},
 		{"past an ancestor holding no schema there", "components:\n  schemas:\n    H: {$defs: {A: {type: [string]}}, properties: {p: {$ref: '#/$defs/A/type'}}}\n",
 			"/components/schemas/H/properties/p", ""},
-		{"past an ancestor holding raw YAML there", "components:\n  schemas:\n    H: {$defs: {A: {example: {}}}, properties: {p: {$ref: '#/$defs/A/example'}}}\n",
-			"/components/schemas/H/properties/p", ""},
+		{"a trailing slash names no single key", "components:\n  schemas:\n    B: {$id: 'https://x.test/b', $ref: '#/$defs/A/', $defs: {A: {}}}\n",
+			"/components/schemas/B", ""},
 		{"an ancestor that is a map holding $defs", "components:\n  schemas:\n    H: {properties: {$defs: {properties: {x: {}}}, p: {$ref: '#/$defs/properties/x'}}}\n",
 			"/components/schemas/H/properties/p", "/components/schemas/H/properties/$defs/properties/x"},
 		{"no ancestor in raw YAML", "x-lib:\n  $defs: {n: {}}\n  S: {$ref: '#/$defs/n'}\ncomponents:\n  schemas:\n    U: {$ref: '#/x-lib/S'}\n",
-			"/components/schemas/U", ""},
+			"/x-lib/S", ""},
+		{"no definition of a schema under an extension", "x-lib:\n  S: {properties: {p: {$ref: '#/$defs/n'}}, $defs: {n: {}}}\n" +
+			"components:\n  schemas:\n    U: {$ref: '#/x-lib/S'}\n", "/x-lib/S/properties/p", ""},
 		{"raw YAML at the root", "$defs:\n  A: {type: string}\ncomponents:\n  schemas:\n    H: {properties: {p: {$ref: '#/$defs/A'}}}\n",
 			"/components/schemas/H/properties/p", "/$defs/A"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			e := entryAt(t, head+tc.body, bind.Config{}, tc.site)
-			assert.Equal(t, tc.want, e.Target, e.Status.String())
+			e := entryAt(t, bound(t, head+tc.body, self), tc.site)
+			if tc.want == "" {
+				assert.Equal(t, bind.NoDefinition, e.Hop.Reason, e.Hop.Why())
+				return
+			}
+			require.Equal(t, bind.Resolved, e.Hop.Status, e.Hop.Why())
+			assert.Equal(t, at(tc.want), e.Hop.Target)
+			assert.Equal(t, tc.want, e.Hop.Spelled, "a definition is spelled where it is written")
 		})
 	}
 }
 
-// TestResolve_ReadsADefinitionInRawYAMLByTheSameRule pins a chain through raw
-// YAML: a "#/$defs/..." pointer written there is read by the rule from where
-// it is written, a raw ancestor answering for nothing and the schema above it
-// for its own definitions.
-func TestResolve_ReadsADefinitionInRawYAMLByTheSameRule(t *testing.T) {
+// TestBind_ReadsEachPositionAsTheJSONItSpells pins what an alias or a merge
+// key means: the content is written at each position it is placed at, so a
+// $ref inside B, an alias of A, reads B's own definitions, and one Child
+// merges from Base reads Child's.
+func TestBind_ReadsEachPositionAsTheJSONItSpells(t *testing.T) {
 	t.Parallel()
-	src := head + "x-lib:\n  S: {$ref: '#/$defs/n', $defs: {n: {}}}\n" +
-		"components:\n  schemas:\n    U: {$ref: '#/x-lib/S'}\n    H: {$defs: {n: {}}, example: {$ref: '#/$defs/n'}}\n" +
-		"    V: {$ref: '#/components/schemas/H/example'}\n"
-	assert.Equal(t, bind.Unresolved, entryAt(t, src, bind.Config{}, "/components/schemas/U").Status, "raw YAML holds no definitions")
-	v := entryAt(t, src, bind.Config{}, "/components/schemas/V")
-	assert.Equal(t, jsontext.Pointer("/components/schemas/H/$defs/n"), v.Target, v.Status.String())
-}
-
-// TestResolve_NamesTheDocumentAsItIsTold pins Config.Names: a document part it
-// accepts is read as this document, any other names another.
-func TestResolve_NamesTheDocumentAsItIsTold(t *testing.T) {
-	t.Parallel()
-	src := head + "components:\n  schemas:\n    A: {$ref: 'spec.yaml#/components/schemas/B'}\n    B: {}\n"
-	named := bind.Config{Names: func(uri string) bool { return uri == "spec.yaml" }}
-	assert.Equal(t, jsontext.Pointer("/components/schemas/B"), entryAt(t, src, named, "/components/schemas/A").Target)
-	assert.Equal(t, bind.External, entryAt(t, src, bind.Config{}, "/components/schemas/A").Status)
-}
-
-// TestResolve_ASiteWithNoReferenceResolvesNothing pins Resolve's guard: a
-// position writing no $ref, or none of the document's, reads no hop.
-func TestResolve_ASiteWithNoReferenceResolvesNothing(t *testing.T) {
-	t.Parallel()
-	b := bind.New(tree(t, head+"components:\n  schemas:\n    A: {type: string}\n    B: [1]\n"), bind.Config{})
-	for _, site := range []jsontext.Pointer{"/components/schemas/A", "/components/schemas/B", "/components/schemas/Z"} {
-		e := b.Resolve(site)
-		assert.Equal(t, bind.Unresolved, e.Status, site)
-		assert.Zero(t, e.Hops, site)
-		assert.Empty(t, e.Ref, site)
+	table := bound(t, head+`components:
+  schemas:
+    A: &a {$defs: {n: {}}, properties: {p: {$ref: '#/$defs/n'}}}
+    B: *a
+    Base: &b {$defs: {m: {}}, properties: {r: {$ref: '#/$defs/m'}}}
+    Child: {<<: *b, type: object}
+`, self)
+	for site, want := range map[jsontext.Pointer]jsontext.Pointer{
+		"/components/schemas/A/properties/p":     "/components/schemas/A/$defs/n",
+		"/components/schemas/B/properties/p":     "/components/schemas/B/$defs/n",
+		"/components/schemas/Base/properties/r":  "/components/schemas/Base/$defs/m",
+		"/components/schemas/Child/properties/r": "/components/schemas/Child/$defs/m",
+	} {
+		assert.Equal(t, at(want), entryAt(t, table, site).Hop.Target, site)
 	}
 }
 
-// TestBind_ReadsEverySchemaSiteOnce pins the sites a table holds: every schema
-// position writing a $ref, each pointer once and in order, an aliased one at
-// every position it is placed at, and none outside a schema position, a null
-// $ref none either.
-func TestBind_ReadsEverySchemaSiteOnce(t *testing.T) {
+// TestBind_ReadsEachRefAsTheSourceWritesIt pins that a $ref is read as Written
+// spells it where it answers, and as the tree holds it elsewhere: a tree may
+// hold a spelling the parser was handed in place of the source's.
+func TestBind_ReadsEachRefAsTheSourceWritesIt(t *testing.T) {
 	t.Parallel()
-	src := "openapi: 3.1.0\ninfo: {title: t, version: '1'}\n" +
-		"paths:\n  x-p: {get: {parameters: [{schema: {$ref: '#/x'}}]}}\n  /a:\n    get:\n" +
-		"      parameters: [{name: q, in: query, schema: {$ref: '#/components/schemas/A'}}]\n" +
-		"      responses:\n        x-r: {content: {a/b: {schema: {$ref: '#/x'}}}}\n" +
-		"        '200': {description: d, content: {a/b: {schema: {items: {$ref: '#/components/schemas/A'}}}}}\n" +
-		"x-lib: {S: {$ref: '#/components/schemas/B'}}\n" +
-		"components:\n  schemas:\n    A: &a {$ref: '#/components/schemas/B'}\n    B: {properties: {x-p: *a, q: {$ref: null}}, allOf: [*a]}\n" +
-		"  parameters:\n    P: {$ref: '#/components/parameters/Q'}\n" +
-		"  responses:\n    R:\n      description: r\n      headers: {x-h: {schema: {$ref: '#/components/schemas/A'}}}\n"
-	table := bind.Bind(bind.New(tree(t, src), bind.Config{}))
-	sites := make([]jsontext.Pointer, 0, len(table.Entries()))
-	for _, e := range table.Entries() {
-		sites = append(sites, e.Site)
-	}
-	assert.Equal(t, []jsontext.Pointer{"/components/responses/R/headers/x-h/schema", "/components/schemas/A",
-		"/components/schemas/B/allOf/0", "/components/schemas/B/properties/x-p",
-		"/paths/~1a/get/parameters/0/schema", "/paths/~1a/get/responses/200/content/a~1b/schema/items"}, sites)
-	assert.Positive(t, table.Steps())
-	assert.False(t, table.Incomplete())
-}
-
-// TestBind_StopsAtItsBudget pins the budget: a table the limit cuts says so,
-// and a chain it stops is reported over budget rather than resolved.
-func TestBind_StopsAtItsBudget(t *testing.T) {
-	t.Parallel()
-	src := head + "components:\n  schemas:\n    A: {$ref: '#/components/schemas/B'}\n    B: {$ref: '#/components/schemas/C'}\n" +
-		"    C: {$defs: {D: {}}, properties: {p: {$ref: '#/$defs/D'}}}\n"
-	full := bind.Bind(bind.New(tree(t, src), bind.Config{}))
-	require.False(t, full.Incomplete())
-
-	want := map[jsontext.Pointer]bind.Entry{}
-	for _, e := range full.Entries() {
-		want[e.Site] = e
-	}
-	var stopped int
-	for limit := 1; limit < full.Steps(); limit++ {
-		cut := bind.Bind(bind.New(tree(t, src), bind.Config{Limit: limit}))
-		require.True(t, cut.Incomplete(), limit)
-		for _, e := range cut.Entries() {
-			if e.Status == bind.OverBudget {
-				stopped++
-				assert.Empty(t, e.Target, "limit %d: %s", limit, e.Site)
-				continue
-			}
-			assert.Equal(t, want[e.Site], e, "limit %d: an answer read within the budget is the full one", limit)
+	cfg := self
+	cfg.Written = func(n *yaml.Node) (string, bool) {
+		if n.Value == "#/x-lib/handed" {
+			return "#/x-lib/a+b", true
 		}
+		return "", false
 	}
-	assert.Positive(t, stopped, "some limit stops a chain partway")
+	table := bound(t, head+`components:
+  schemas:
+    A: {$ref: '#/x-lib/handed'}
+    B: {$ref: '#/x-lib/handed2'}
+x-lib:
+  a+b: {type: string}
+  handed2: {type: string}
+`, cfg)
+	a := entryAt(t, table, "/components/schemas/A")
+	assert.Equal(t, "#/x-lib/a+b", a.Hop.Ref)
+	assert.Equal(t, at("/x-lib/a+b"), a.Hop.Target, "the written spelling is the one read")
+	b := entryAt(t, table, "/components/schemas/B")
+	assert.Equal(t, "#/x-lib/handed2", b.Hop.Ref)
+	assert.Equal(t, at("/x-lib/handed2"), b.Hop.Target)
 }
 
-// TestStatus_String spells every status, and an invalid one as such.
-func TestStatus_String(t *testing.T) {
+// TestBind_FollowsEachChainToItsEnd pins where a chain ends: at the first
+// position holding no $ref, counting the hops it read, or, where a hop past the
+// first fails, at that hop, which is the one its own $ref reports.
+func TestBind_FollowsEachChainToItsEnd(t *testing.T) {
 	t.Parallel()
-	for s, want := range map[bind.Status]string{0: "invalid", bind.Resolved: "resolved", bind.Unresolved: "unresolved",
-		bind.External: "external", bind.Anchor: "anchor", bind.Cyclic: "cyclic", bind.OverBudget: "over-budget", 7: "invalid"} {
-		assert.Equal(t, want, s.String())
+	table := bound(t, head+`components:
+  schemas:
+    A: {$ref: '#/components/schemas/B'}
+    B: {$ref: '#/x-lib/C'}
+    D: {$ref: '#/components/schemas/E'}
+    E: {$ref: '#/components/schemas/Missing'}
+x-lib:
+  C: {type: string}
+`, self)
+	a := entryAt(t, table, "/components/schemas/A")
+	assert.Equal(t, bind.Chain{Status: bind.Resolved, End: at("/x-lib/C"), Role: bind.Raw, Hops: 2}, a.Chain)
+	d := entryAt(t, table, "/components/schemas/D")
+	assert.Equal(t, bind.Resolved, d.Hop.Status, "D's own hop lands")
+	assert.Equal(t, bind.Chain{Status: bind.Unresolved, Failed: at("/components/schemas/E")}, d.Chain)
+	assert.Equal(t, bind.NoTarget, entryAt(t, table, "/components/schemas/E").Hop.Reason)
+}
+
+// TestBind_ReportsEachLoopOnceAtItsLeastMember pins the loops a table finds:
+// one per cycle, its members in order, reported at the least of them in the
+// source whatever the declaration order (GitHub #912), each member marked as on
+// it and a position leading in as not. A schema reaching itself through what
+// it declares is recursion, not a loop.
+func TestBind_ReportsEachLoopOnceAtItsLeastMember(t *testing.T) {
+	t.Parallel()
+	loop := []string{"    B: {$ref: '#/components/schemas/C'}\n", "    C: {$ref: '#/components/schemas/B'}\n",
+		"    A: {$ref: '#/components/schemas/C'}\n", "    P: {$ref: '#/components/schemas/P/properties/q'}\n" +
+			"    R: {properties: {self: {$ref: '#/components/schemas/R'}}}\n"}
+	for _, order := range [][]int{{0, 1, 2, 3}, {3, 2, 1, 0}} {
+		var b strings.Builder
+		for _, i := range order {
+			b.WriteString(loop[i])
+		}
+		table := bound(t, head+"components:\n  schemas:\n"+b.String(), self)
+		loops := table.Loops()
+		require.Len(t, loops, 1, "%v", order)
+		assert.Equal(t, bind.Loop{Members: []bind.Position{at("/components/schemas/B"), at("/components/schemas/C")},
+			Site: at("/components/schemas/B"), Reported: true}, loops[0], "%v", order)
+		for site, member := range map[jsontext.Pointer]bool{"/components/schemas/B": true,
+			"/components/schemas/C": true, "/components/schemas/A": false} {
+			e := entryAt(t, table, site)
+			assert.Equal(t, bind.Cyclic, e.Chain.Status, site)
+			assert.Equal(t, member, e.Chain.Member, site)
+			assert.Zero(t, e.Chain.Loop, site)
+		}
+		assert.Equal(t, bind.NoTarget, entryAt(t, table, "/components/schemas/P").Hop.Reason,
+			"a pointer into what P only refers to names nothing")
+		assert.Equal(t, bind.Resolved, entryAt(t, table, "/components/schemas/R/properties/self").Chain.Status)
 	}
-	for r, want := range map[bind.Role]string{bind.NoRole: "none", bind.Schema: "schema", bind.Raw: "raw", bind.Object: "object", 9: "none"} {
-		assert.Equal(t, want, r.String())
+}
+
+// TestBind_ReportsALoopOutsideTheSourceWhereTheSourceEntersIt pins a loop with
+// no member in the source: reported at the least source position leading into
+// it, and not at all when only another document's content leads there.
+func TestBind_ReportsALoopOutsideTheSourceWhereTheSourceEntersIt(t *testing.T) {
+	t.Parallel()
+	docs := map[string]string{"other.yaml": "X: {$ref: '#/Y'}\nY: {$ref: '#/X'}\nZ: {$ref: '#/Z'}\n"}
+	table := bound(t, head+`components:
+  schemas:
+    B: {$ref: 'other.yaml#/X'}
+    A: {$ref: 'other.yaml#/Y'}
+`, withDocuments(docs))
+	loops := table.Loops()
+	require.Len(t, loops, 1)
+	assert.Equal(t, at("/components/schemas/A"), loops[0].Site)
+	assert.True(t, loops[0].Reported)
+	assert.Equal(t, bind.DocID(1), loops[0].Members[0].Doc)
+}
+
+// withDocuments is self reading other documents from docs, by name.
+func withDocuments(docs map[string]string) bind.Config {
+	cfg := self
+	cfg.Open = func(name string) (*yaml.Node, error) {
+		src, ok := docs[name]
+		if !ok {
+			return nil, errors.New("no such document")
+		}
+		var n yaml.Node
+		if err := yaml.Unmarshal([]byte(src), &n); err != nil {
+			return nil, err
+		}
+		return &n, nil
 	}
+	return cfg
+}
+
+// TestBind_ReadsOtherDocuments pins a reference to another document: read once
+// however many name it, as raw YAML, the whole of it named by a reference with
+// no fragment; a chain followed across documents and back; a document that
+// cannot be read or names nothing reported as such; and a reference naming no
+// document at all.
+func TestBind_ReadsOtherDocuments(t *testing.T) {
+	t.Parallel()
+	docs := map[string]string{
+		"pet.yaml": "type: object\n",
+		"other.yaml": "S: {$ref: 'spec.yaml#/components/schemas/Leaf'}\nT: {type: string, $defs: {X: {}}, " +
+			"properties: {d: {$ref: '#/$defs/X'}}}\n",
+		"empty.yaml": "",
+	}
+	cfg := withDocuments(docs)
+	opened := map[string]int{}
+	open := cfg.Open
+	cfg.Open = func(name string) (*yaml.Node, error) { opened[name]++; return open(name) }
+	cfg.Locate = func(uri, base string) (string, bool) { return uri, uri != "nowhere" }
+	table := bound(t, head+`components:
+  schemas:
+    Whole: {$ref: 'pet.yaml'}
+    Back: {$ref: 'other.yaml#/S'}
+    Again: {$ref: 'other.yaml#/T'}
+    Leaf: {type: integer}
+    Missing: {$ref: 'gone.yaml#/X'}
+    Empty: {$ref: 'empty.yaml#/X'}
+    Nowhere: {$ref: 'nowhere#/X'}
+`, cfg)
+
+	whole := entryAt(t, table, "/components/schemas/Whole")
+	require.Equal(t, bind.Resolved, whole.Hop.Status, whole.Hop.Why())
+	assert.Equal(t, "pet.yaml", table.Document(whole.Hop.Target.Doc).Name)
+	assert.Equal(t, bind.Raw, whole.Hop.Role)
+	assert.False(t, whole.Hop.Named)
+	back := entryAt(t, table, "/components/schemas/Back")
+	assert.Equal(t, bind.Chain{Status: bind.Resolved, End: at("/components/schemas/Leaf"), Role: bind.Schema, Hops: 2},
+		back.Chain, "a chain back into the source ends there")
+	assert.Equal(t, 1, opened["other.yaml"], "read once however many name it")
+	assert.Equal(t, bind.Unreadable, entryAt(t, table, "/components/schemas/Missing").Hop.Reason)
+	assert.Equal(t, "the document it names could not be read: no such document",
+		entryAt(t, table, "/components/schemas/Missing").Hop.Why())
+	assert.Equal(t, bind.Unreadable, entryAt(t, table, "/components/schemas/Empty").Hop.Reason)
+	assert.Equal(t, bind.Unreadable, entryAt(t, table, "/components/schemas/Nowhere").Hop.Reason)
+	id, ok := table.Find("other.yaml")
+	require.True(t, ok)
+	assert.Equal(t, "other.yaml", table.Document(id).Name)
+	defs, ok := table.Entry(bind.Position{Doc: id, Pointer: "/T/properties/d"})
+	require.True(t, ok, "a site in raw YAML another document holds")
+	assert.Equal(t, bind.NoDefinition, defs.Hop.Reason, "raw YAML holds no ancestor's definitions")
+	_, ok = table.Find("gone.yaml")
+	assert.False(t, ok, "a document that could not be read is none the table read")
 }

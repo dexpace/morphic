@@ -9,13 +9,11 @@ import (
 	"testing"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
-	"github.com/speakeasy-api/openapi/references"
 	"github.com/speakeasy-api/openapi/yml"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/fragment"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ynode"
 )
 
@@ -50,7 +48,9 @@ func TestChildByToken_NilNode(t *testing.T) {
 	assert.Nil(t, New().ChildByToken(nil, "anything"))
 }
 
-func TestPointerTarget_Cases(t *testing.T) {
+// TestDocumentPath_Cases pins how a pointer is walked: an index, an alias
+// dereferenced on the way, each escape, and a token naming nothing.
+func TestDocumentPath_Cases(t *testing.T) {
 	t.Parallel()
 	leaf := ynode.Scalar("leaf")
 	target := ynode.Map(ynode.Scalar("b"), leaf)
@@ -76,63 +76,13 @@ func TestPointerTarget_Cases(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, landed := New().PointerTarget(root, tc.pointer)
+			path, complete := New().DocumentPath(root, tc.pointer)
 			if tc.want == nil {
-				assert.False(t, landed, "the pointer names nothing")
-				assert.Nil(t, got)
+				assert.False(t, complete, "the pointer names nothing")
 				return
 			}
-			require.True(t, landed)
-			assert.Same(t, tc.want, got)
-		})
-	}
-}
-
-// TestInternalPointer_AgreesWithTheResolverOnWhatItIsHanded pins that the
-// fragment is read the way the resolver reads the spelling it is handed
-// (fragment.ForResolver), which is '+' as itself and otherwise as the resolver
-// reads it. Each pointer is asked of the library as well, so a dependency bump
-// that reads a fragment otherwise reddens it here.
-func TestInternalPointer_AgreesWithTheResolverOnWhatItIsHanded(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name, ref string
-		want      jsontext.Pointer
-		internal  bool
-	}{
-		{name: "plain", ref: "#/components/schemas/A", want: "/components/schemas/A", internal: true},
-		{name: "trailing space", ref: "#/paths/~1a ", want: "/paths/~1a", internal: true},
-		{name: "leading space", ref: " #/paths/~1a", want: "/paths/~1a", internal: true},
-		{name: "percent-decoded", ref: "#/paths/%7E1a", want: "/paths/~1a", internal: true},
-		{name: "plus is a plus", ref: "#/a+b", want: "/a+b", internal: true},
-		{name: "escaped plus is a plus", ref: "#/a%2Bb", want: "/a+b", internal: true},
-		{name: "plus in an undecodable fragment is a plus", ref: "#/a+b%zz", want: "/a+b%zz", internal: true},
-		{name: "second hash ends the pointer", ref: "#/a#b", want: "/a", internal: true},
-		{name: "bare hash names the root", ref: "#", want: "", internal: true},
-		{name: "undecodable escape kept raw", ref: "#/a%zz", want: "/a%zz", internal: true},
-		// A fragment with no leading '/' is a $anchor name or other non-pointer
-		// text, not a pointer: the resolver never walks it as one (GitHub #523).
-		{name: "anchor name is not a pointer", ref: "#x-s", want: "", internal: false},
-		{name: "undecodable escape without a slash stays no pointer", ref: "#%ZZ", want: "", internal: false},
-		{name: "a slash spelled as an escape still introduces a pointer", ref: "#%2F", want: "/", internal: true},
-		{name: "lone slash", ref: "#/", want: "/", internal: true},
-		// No document key spells bytes that are not UTF-8, but the resolver walks
-		// the pointer up to the token it cannot find, so the scan must too
-		// (GitHub #520).
-		{name: "non-UTF-8 byte is walked like any pointer", ref: "#/a%FF", want: "/a\xff", internal: true},
-		{name: "no fragment", ref: "other.yaml", internal: false},
-		{name: "another document", ref: "other.yaml#/components/schemas/A", internal: false},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			got, internal := InternalPointer(tc.ref)
-			assert.Equal(t, tc.internal, internal)
-			assert.Equal(t, tc.want, got)
-			if internal {
-				assert.Equal(t, jsontext.Pointer(references.Reference(fragment.ForResolver(tc.ref)).GetJSONPointer()), got,
-					"the resolver's reading of the spelling it is handed")
-			}
+			require.True(t, complete)
+			assert.Same(t, tc.want, path[len(path)-1])
 		})
 	}
 }
@@ -150,37 +100,6 @@ func pairMap(pairs []Pair) map[string]string {
 		out[p.Key] = p.Val.Value
 	}
 	return out
-}
-
-func TestPureRefTarget_Cases(t *testing.T) {
-	t.Parallel()
-
-	t.Run("non-mapping node has no target", func(t *testing.T) {
-		t.Parallel()
-		_, ok := New().PureRefTarget(ynode.Scalar("x"))
-		assert.False(t, ok)
-	})
-
-	tests := []struct {
-		name string
-		n    *yaml.Node
-		want jsontext.Pointer
-	}{
-		{"sibling key before the ref", ynode.Map(ynode.Scalar("type"), ynode.Scalar("object"),
-			ynode.Scalar("$ref"), ynode.Scalar("#/components/schemas/A")), "/components/schemas/A"},
-		{"external ref is not internal", ynode.Map(ynode.Scalar("$ref"), ynode.Scalar("other.yaml#/A")), ""},
-		{"non-scalar ref value", ynode.Map(ynode.Scalar("$ref"), ynode.Map(ynode.Scalar("a"), ynode.Scalar("b"))), ""},
-		{"nil ref value via broken alias", ynode.Map(ynode.Scalar("$ref"), ynode.Alias(nil)), ""},
-		{"no ref key at all", ynode.Map(ynode.Scalar("type"), ynode.Scalar("object")), ""},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			got, ok := New().PureRefTarget(tc.n)
-			assert.Equal(t, tc.want != "", ok)
-			assert.Equal(t, tc.want, got)
-		})
-	}
 }
 
 func TestChildByToken_MappingResolvesThroughAliasKey(t *testing.T) {
@@ -439,6 +358,21 @@ func TestExhausted_ReportsAnIncompleteExpansion(t *testing.T) {
 	assert.False(t, shallow.Exhausted(), "within the bound it does not")
 }
 
+// TestExpanded_ReportsAMappingWhoseMergesRunPastTheBound pins Expanded on each
+// side of the bound, for the mapping that hit it alone, and for a node that is
+// no mapping.
+func TestExpanded_ReportsAMappingWhoseMergesRunPastTheBound(t *testing.T) {
+	t.Parallel()
+	v := New()
+	deep := ynode.MergeChain(MergeDepthLimit + 2)
+	assert.Nil(t, v.ChildByToken(deep, "leaf"), "the key lies past the bound")
+	assert.False(t, v.Expanded(deep), "so its mapping is not expanded in full")
+	assert.True(t, v.Expanded(ynode.MergeChain(MergeDepthLimit)), "a chain within the bound is")
+	assert.True(t, v.Expanded(ynode.Alias(ynode.MergeChain(2))), "read through an alias")
+	assert.True(t, v.Expanded(ynode.Scalar("x")), "a scalar has nothing to expand")
+	assert.True(t, v.Expanded(nil))
+}
+
 // yamlDoc parses src and returns its document root as the view sees it.
 func yamlDoc(t *testing.T, src string) *yaml.Node {
 	t.Helper()
@@ -447,35 +381,36 @@ func yamlDoc(t *testing.T, src string) *yaml.Node {
 	return DocumentRoot(&doc)
 }
 
-func TestPointerTarget_LandsNowherePastAMissingToken(t *testing.T) {
+// TestDocumentPath_StopsAtAMissingToken pins a walk a token stops: incomplete,
+// its path ending at the last node reached.
+func TestDocumentPath_StopsAtAMissingToken(t *testing.T) {
 	t.Parallel()
-	root := ynode.Map(ynode.Scalar("a"), ynode.Map(ynode.Scalar("b"), ynode.Scalar("leaf")))
+	inner := ynode.Map(ynode.Scalar("b"), ynode.Scalar("leaf"))
+	root := ynode.Map(ynode.Scalar("a"), inner)
 
-	got, landed := New().PointerTarget(root, "/a/missing/deeper")
-	assert.False(t, landed, "a token that names nothing stops the walk")
-	assert.Nil(t, got)
+	path, complete := New().DocumentPath(root, "/a/missing/deeper")
+	assert.False(t, complete, "a token that names nothing stops the walk")
+	assert.Equal(t, []*yaml.Node{root, inner}, path)
 }
 
-func TestPointerTarget_RootTokenlessAndNil(t *testing.T) {
+// TestDocumentPath_RootAndNil pins the walk's two ends: the empty pointer names
+// the root, and a nil root reaches nothing.
+func TestDocumentPath_RootAndNil(t *testing.T) {
 	t.Parallel()
 	root := ynode.Map(ynode.Scalar("a"), ynode.Scalar("v"))
 
-	got, landed := New().PointerTarget(root, "")
-	assert.True(t, landed, "a pointer with no tokens names the root")
-	assert.Same(t, root, got)
+	path, complete := New().DocumentPath(root, "")
+	assert.True(t, complete, "a pointer with no tokens names the root")
+	assert.Equal(t, []*yaml.Node{root}, path)
 
-	got, landed = New().PointerTarget(nil, "/a")
-	assert.False(t, landed)
-	assert.Nil(t, got, "a nil root reaches nothing")
+	path, complete = New().DocumentPath(nil, "/a")
+	assert.False(t, complete)
+	assert.Nil(t, path, "a nil root reaches nothing")
 }
 
-// TestDocumentPath_SeparatesTheLoneSlashFromTheRoot pins the one question the
-// two readings answer differently.
-//
-// PointerTarget lands '/' on the root because that is where the resolver lands
-// a reference spelled that way. A pointer naming a position in this document
-// carries no such departure: ids.Ptr("") spells the root member keyed "" exactly
-// '/', so reading it as the root walks past the member the pointer names — and a
+// TestDocumentPath_SeparatesTheLoneSlashFromTheRoot pins '/' as RFC 6901 reads
+// it, one empty token: ids.Ptr("") spells the root member keyed "" exactly '/',
+// so reading it as the root walks past the member the pointer names, and a
 // caller reading $id down the path would miss one written there.
 func TestDocumentPath_SeparatesTheLoneSlashFromTheRoot(t *testing.T) {
 	t.Parallel()
@@ -487,68 +422,48 @@ func TestDocumentPath_SeparatesTheLoneSlashFromTheRoot(t *testing.T) {
 	assert.Equal(t, []*yaml.Node{root, member}, path,
 		`ids.Ptr("") spells the root member keyed "" as "/", so the walk descends into it`)
 
-	got, landed := New().PointerTarget(root, "/")
-	assert.True(t, landed)
-	assert.Same(t, root, got, "the reference reading stops at the root, which is what tokenless records")
-
 	path, complete = New().DocumentPath(root, "")
 	assert.True(t, complete, "only the empty pointer names the root here")
 	assert.Equal(t, []*yaml.Node{root}, path)
 }
 
-// TestPointerTarget_AnEmptyTokenNamesTheEmptyKey pins that an empty token names
+// TestDocumentPath_AnEmptyTokenNamesTheEmptyKey pins that an empty token names
 // the key "", trailing or not, as RFC 6901 reads it. A walk that dropped or
-// stayed on a trailing one would land '/a/' on a. How the resolver reads a
-// trailing one turns on where its walk is, which is the scan's to say; a lone
-// '/' is TestPointerTarget_LoneSeparatorNamesTheRoot's.
-func TestPointerTarget_AnEmptyTokenNamesTheEmptyKey(t *testing.T) {
+// stayed on a trailing one would land '/a/' on a.
+func TestDocumentPath_AnEmptyTokenNamesTheEmptyKey(t *testing.T) {
 	t.Parallel()
 	leaf := ynode.Scalar("leaf")
 	member := ynode.Map(ynode.Scalar("b"), leaf)
 	inner := ynode.Map(ynode.Scalar(""), member)
 	root := ynode.Map(ynode.Scalar("a"), inner, ynode.Scalar("c"), ynode.Map(ynode.Scalar("b"), leaf))
 
-	got, landed := New().PointerTarget(root, "/a/")
-	require.True(t, landed, `the trailing token names the key ""`)
-	assert.Same(t, member, got)
+	path, complete := New().DocumentPath(root, "/a/")
+	require.True(t, complete, `the trailing token names the key ""`)
+	assert.Same(t, member, path[len(path)-1])
 
-	got, landed = New().PointerTarget(root, "/a//b")
-	require.True(t, landed, `so does one before the last`)
-	assert.Same(t, leaf, got)
+	path, complete = New().DocumentPath(root, "/a//b")
+	require.True(t, complete, `so does one before the last`)
+	assert.Same(t, leaf, path[len(path)-1])
 
-	got, landed = New().PointerTarget(root, "/c/")
-	assert.False(t, landed, `c declares no key "", so the pointer lands nowhere rather than on c`)
-	assert.Nil(t, got)
+	_, complete = New().DocumentPath(root, "/c/")
+	assert.False(t, complete, `c declares no key "", so the pointer lands nowhere rather than on c`)
 }
 
-// TestPointerTarget_LoneSeparatorNamesTheRoot records where the resolver
-// departs from RFC 6901, which reads '/' as one empty token: getNavigationStack
-// special-cases it to an empty stack, so speakeasy lands on the document root.
-// This package models what the resolver walks, so it follows the resolver.
-func TestPointerTarget_LoneSeparatorNamesTheRoot(t *testing.T) {
-	t.Parallel()
-	root := ynode.Map(ynode.Scalar("a"), ynode.Scalar("v"))
-
-	got, landed := New().PointerTarget(root, "/")
-	assert.True(t, landed, "the resolver reads a lone separator as naming the root")
-	assert.Same(t, root, got)
-}
-
-// TestPointerTarget_SegmentCapStopsTheWalk pins the cap at its edge. A mapping
+// TestDocumentPath_SegmentCapStopsTheWalk pins the cap at its edge. A mapping
 // whose only key is "a" and whose value is itself cannot be built from parsed
 // YAML, but an alias can stand in: the walk follows "a" as long as tokens last,
 // so only the cap can end it.
-func TestPointerTarget_SegmentCapStopsTheWalk(t *testing.T) {
+func TestDocumentPath_SegmentCapStopsTheWalk(t *testing.T) {
 	t.Parallel()
 	root := ynode.Map(ynode.Scalar("a"), nil)
 	root.Content[1] = root
 
-	got, landed := New().PointerTarget(root, jsontext.Pointer(strings.Repeat("/a", maxPointerSegments)))
-	require.True(t, landed, "a pointer at the segment cap resolves")
-	assert.Same(t, root, got)
+	path, complete := New().DocumentPath(root, jsontext.Pointer(strings.Repeat("/a", maxPointerSegments)))
+	require.True(t, complete, "a pointer at the segment cap resolves")
+	assert.Same(t, root, path[len(path)-1])
 
-	_, landed = New().PointerTarget(root, jsontext.Pointer(strings.Repeat("/a", maxPointerSegments+1)))
-	assert.False(t, landed, "one past it does not")
+	_, complete = New().DocumentPath(root, jsontext.Pointer(strings.Repeat("/a", maxPointerSegments+1)))
+	assert.False(t, complete, "one past it does not")
 }
 
 // wideMap builds a mapping of minIndexedPairs pairs named k0..kN-1, plus any
@@ -685,8 +600,8 @@ func TestKeyIndex_DeclinesWhatThePairsMemoDidNotKeep(t *testing.T) {
 	})
 }
 
-// TestPointerTarget_ReachesTheIndexOnAWideMapping settles by assertion what
-// BenchmarkPointerTarget_IntoAWideMapping can only show with a stopwatch, and
+// TestDocumentPath_ReachesTheIndexOnAWideMapping settles by assertion what
+// BenchmarkDocumentPath_IntoAWideMapping can only show with a stopwatch, and
 // nothing runs that in CI: a walk resolving many pointers through one view must
 // leave an index on the mapping every one of them descends. If a gate stopped
 // admitting it, through a raised width or a reuse marker never promoted, the
@@ -694,15 +609,15 @@ func TestKeyIndex_DeclinesWhatThePairsMemoDidNotKeep(t *testing.T) {
 //
 // The pointers name distinct components because it is the shared mapping that
 // must be indexed, not the entries they end at.
-func TestPointerTarget_ReachesTheIndexOnAWideMapping(t *testing.T) {
+func TestDocumentPath_ReachesTheIndexOnAWideMapping(t *testing.T) {
 	t.Parallel()
 	const width = minIndexedPairs
 	root := componentsDoc(width)
 	v := New()
 
 	for i := range width {
-		_, landed := v.PointerTarget(root, jsontext.Pointer(fmt.Sprintf("/components/schemas/S%d", i)))
-		require.True(t, landed, "every pointer resolves")
+		_, complete := v.DocumentPath(root, jsontext.Pointer(fmt.Sprintf("/components/schemas/S%d", i)))
+		require.True(t, complete, "every pointer resolves")
 	}
 
 	schemas := v.ChildByToken(v.ChildByToken(root, "components"), "schemas")
@@ -710,47 +625,6 @@ func TestPointerTarget_ReachesTheIndexOnAWideMapping(t *testing.T) {
 	require.NotNil(t, v.keys[schemas],
 		"the mapping every pointer descends is indexed, which a flat per-component cost rests on")
 	assert.Len(t, v.keys[schemas], width, "one entry per component")
-}
-
-// TestPureRefTarget_ReadsTheIndexWhereTheWalkBuiltOne pins the sibling half of
-// the walk to the same index.
-//
-// refScan.traverse calls this on every node a pointer descended, immediately
-// after descending it, so a scan here re-reads exactly the mappings ChildByToken
-// stopped scanning — which left the quadratic standing in the sibling of the
-// call that removed it. Both answers are asserted through one view: the mapping
-// that carries a $ref and the wide one that does not.
-func TestPureRefTarget_ReadsTheIndexWhereTheWalkBuiltOne(t *testing.T) {
-	t.Parallel()
-	withRef := wideMap(ynode.Scalar("$ref"), ynode.Scalar("#/components/schemas/S"))
-	without := wideMap()
-	v := New()
-
-	for _, n := range []*yaml.Node{withRef, without} {
-		require.NotNil(t, v.ChildByToken(n, "k0"), "the walk descends it")
-		require.Nil(t, v.keys[n], "one descent only marks it")
-		require.NotNil(t, v.ChildByToken(n, "k1"), "and the walk comes back")
-		require.NotNil(t, v.keys[n], "which is what earns the index")
-	}
-
-	target, ok := v.PureRefTarget(withRef)
-	assert.True(t, ok)
-	assert.Equal(t, jsontext.Pointer("/components/schemas/S"), target)
-
-	_, ok = v.PureRefTarget(without)
-	assert.False(t, ok, "a mapping with no $ref names no target, index or not")
-
-	// Which side answered, rather than only what it answered. Both readings agree
-	// on every real document — that is the point of the index — so asserting the
-	// answer alone passes whether or not the index is consulted, which is how a
-	// test named for reading it can fail to notice it being bypassed. Planting a
-	// divergence is what makes the two distinguishable: only a read through the
-	// index can see this, and only a read through the pairs can miss it.
-	v.keys[withRef]["$ref"] = ynode.Scalar("#/components/schemas/Planted")
-	target, ok = v.PureRefTarget(withRef)
-	require.True(t, ok)
-	assert.Equal(t, jsontext.Pointer("/components/schemas/Planted"), target,
-		"the index is what answered, not a rescan of the pairs beneath it")
 }
 
 // TestNodeView_SharedViewAnswersAsAFreshOne pins that a memo hit never changes
@@ -950,4 +824,12 @@ func TestKeyOf_NamesNoKeyForAKeyThatIsNoScalar(t *testing.T) {
 
 	assert.Empty(t, key)
 	assert.False(t, own)
+}
+
+// TestMappingPairs_ANonMappingHasNone pins that a node that is no mapping, or
+// none at all, expands to no pairs.
+func TestMappingPairs_ANonMappingHasNone(t *testing.T) {
+	t.Parallel()
+	assert.Empty(t, New().MappingPairs(ynode.Scalar("x")))
+	assert.Empty(t, New().MappingPairs(nil))
 }

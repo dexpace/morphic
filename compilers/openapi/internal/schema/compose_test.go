@@ -2948,7 +2948,12 @@ func TestOneOf_CoDeclaredUnresolvableBranchIsNotDistributed(t *testing.T) {
 `)
 	doc, diags := lowerSpecOnly(t, spec)
 
-	for _, name := range []string{"Undeclared", "CrossDocument", "EmptyRef", "NoSuchPointer"} {
+	for name, why := range map[string]string{
+		"Undeclared":    `"#/components/schemas/Ghost" is unresolved: it names nothing in the document it points into`,
+		"CrossDocument": `"other.yaml#/components/schemas/A" is unresolved: it names another document, and external references are not read`,
+		"EmptyRef":      `"" is unresolved: it names a position that holds no schema`,
+		"NoSuchPointer": `"#/components/schemas/A/properties/missing" is unresolved: it names nothing in the document it points into`,
+	} {
 		m, ok := typeByName(doc, name).(*ir.Model)
 		require.True(t, ok, "%s keeps its structural body rather than becoming a union", name)
 		entry, ok := m.Unmodeled["openapi:oneOf"]
@@ -2958,9 +2963,9 @@ func TestOneOf_CoDeclaredUnresolvableBranchIsNotDistributed(t *testing.T) {
 			openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/"+name),
 			"names no referent this compilation resolves", name)
 		// One error per offending branch, at the branch itself.
-		assert.Contains(t,
+		assert.Equal(t, "union branch $ref "+why+"; the branch is kept verbatim",
 			openapitest.DiagMessageAt(t, diags, diag.UnresolvedRef, ir.SeverityError, "/components/schemas/"+name+"/oneOf/0"),
-			"resolves to nothing this document declares", name)
+			name)
 	}
 	for _, d := range diags {
 		assert.NotEqual(t, jsontext.Pointer("/components/schemas/Undeclared/oneOf/1"), d.Provenance.Pointer,
@@ -3532,24 +3537,35 @@ func TestDiscriminatorMapping_ChainOfPositionsDeeperThanCap(t *testing.T) {
 }
 
 // TestDiscriminatorMapping_StopsAtAPureRefItCannotFollow pins where the
-// read-through stops short of a target: a $ref into another document names no
-// position here, so the mapping keeps naming the position that $ref sits at,
-// and the $ref is reported unresolved.
+// read-through stops short of a target: a $ref into another document, one to
+// nothing, and one on a loop name no position a type is read at, so the
+// mapping keeps naming the position that $ref sits at, in either order of the
+// entries, and the $ref is reported where it is written.
 func TestDiscriminatorMapping_StopsAtAPureRefItCannotFollow(t *testing.T) {
 	t.Parallel()
-	doc, diags := parseFull(t, openapitest.ComponentSpec("    Pet:\n      oneOf: [{$ref: 'other.yaml#/X'}]\n"+
-		"      discriminator: {propertyName: kind, mapping: {c: '#/components/schemas/Pet/oneOf/0'}}\n"))
+	const branches = "      oneOf: [{$ref: 'other.yaml#/X'}, {$ref: '#/x-lib/Missing'}, {$ref: '#/components/schemas/Pet/oneOf/2'}]\n"
+	for _, mapping := range []string{"{e: '#/components/schemas/Pet/oneOf/0', m: '#/components/schemas/Pet/oneOf/1', " +
+		"l: '#/components/schemas/Pet/oneOf/2'}", "{l: '#/components/schemas/Pet/oneOf/2', " +
+		"m: '#/components/schemas/Pet/oneOf/1', e: '#/components/schemas/Pet/oneOf/0'}"} {
+		doc, diags := parseFull(t, openapitest.ComponentSpec("    Pet:\n"+branches+
+			"      discriminator: {propertyName: kind, mapping: "+mapping+"}\n")+"x-lib: {}\n")
 
-	assert.Equal(t, ir.TypeID("t/anon/components/schemas/Pet/oneOf/0"), discriminatorOf(t, doc, componentID("Pet")).Mapping["c"])
-	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.UnresolvedRef, "/components/schemas/Pet/oneOf/0"))
+		branch := func(i string) ir.TypeID { return ir.TypeID("t/anon/components/schemas/Pet/oneOf/" + i) }
+		assert.Equal(t, map[string]ir.TypeID{"e": branch("0"), "m": branch("1"), "l": branch("2")},
+			discriminatorOf(t, doc, componentID("Pet")).Mapping, mapping)
+		assert.True(t, openapitest.HasDiagCodeAt(diags, diag.UnresolvedRef, "/components/schemas/Pet/oneOf/0"), mapping)
+		assert.True(t, openapitest.HasDiagCodeAt(diags, diag.UnresolvedRef, "/components/schemas/Pet/oneOf/1"), mapping)
+		assert.True(t, openapitest.HasDiagCodeAt(diags, diag.CyclicRef, "/components/schemas/Pet/oneOf/2"), mapping)
+	}
 }
 
-// TestDiscriminatorMapping_ThroughARefTheLoaderDidNotFollowIsUnresolved pins a
-// pure $ref position whose $ref the loader refused: with external references
-// off, one spelled with the source's file name. The mapping reads through it to
-// no schema, so it is unresolved in either order of its entries. Read through
-// all the same, it named whatever had interned the next position first.
-func TestDiscriminatorMapping_ThroughARefTheLoaderDidNotFollowIsUnresolved(t *testing.T) {
+// TestDiscriminatorMapping_ThroughARefNamingTheSourceByItsFileName pins a
+// pure $ref position whose $ref names the source by its file name, with
+// external references off: a same-document reference, read as the source, so
+// the mapping reaches the schema it names in either order of its entries. Read
+// as another document, it was refused, and the mapping named whatever had
+// interned the next position first.
+func TestDiscriminatorMapping_ThroughARefNamingTheSourceByItsFileName(t *testing.T) {
 	t.Parallel()
 	pet := func(mapping string) string {
 		return "    Pet:\n      type: object\n      required: [kind]\n      properties: {kind: {type: string}}\n" +
@@ -3560,10 +3576,9 @@ func TestDiscriminatorMapping_ThroughARefTheLoaderDidNotFollowIsUnresolved(t *te
 	for _, mapping := range []string{"cat: '#/x-lib/Cat', alias: '#/x-lib/CatAlias'",
 		"alias: '#/x-lib/CatAlias', cat: '#/x-lib/Cat'"} {
 		doc, diags := parseFull(t, openapitest.ComponentSpec(pet(mapping))+lib)
+		openapitest.RequireNoErrorDiags(t, diags)
 		got := discriminatorOf(t, doc, componentID("Pet")).Mapping
-		assert.Equal(t, map[string]ir.TypeID{"cat": "t/anon/x-lib/Cat"}, got, mapping)
-		assert.True(t, openapitest.HasDiagCodeAt(diags, diag.UnresolvedRef, "/components/schemas/Pet/discriminator/mapping/alias"),
-			mapping)
+		assert.Equal(t, map[string]ir.TypeID{"cat": "t/anon/x-lib/Cat", "alias": "t/anon/x-lib/Cat"}, got, mapping)
 	}
 }
 

@@ -2,8 +2,11 @@ package openapi
 
 import (
 	"encoding/json/v2"
+	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -20,34 +23,49 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-var cycleReproducers = []struct{ name, file string }{
-	{"self-ref", "cycle_self_ref"},
-	{"two-node-ref", "cycle_two_node_ref"},
-	{"yaml-anchor", "cycle_yaml_anchor"},
-	{"self-ref-sibling", "cycle_self_ref_sibling"},
-	{"two-node-ref-sibling", "cycle_two_node_ref_sibling"},
-	{"alias-ref-value", "cycle_alias_ref_value"},
-	{"content-schema", "cycle_content_schema"},
-	{"alias-ref-key", "cycle_alias_ref_key"},
-	{"merge-key-ref", "cycle_merge_key_ref"},
-	{"alias-schema-node", "cycle_alias_schema_node"},
-	{"alias-dual-position", "cycle_alias_dual_position"},
-	{"duplicate-key", "cycle_duplicate_key"},
-	// A self-reference only the resolver's pointer normalization reveals.
-	{"pointer-whitespace-self", "cycle_pointer_whitespace_self"},
+// aliasCycleReproducers are the cycle fixtures whose loop is a YAML anchor
+// naming its own ancestor, with the alias the compile refuses it at. The parser
+// cannot decode one, so the source is refused and no document comes back.
+var aliasCycleReproducers = []struct{ name, file, at string }{
+	{"yaml-anchor", "cycle_yaml_anchor", "/x-a/0"},
+}
+
+// schemaRefCycles are the cycle fixtures whose loop is made of schema $refs,
+// with the one site each loop is reported at: its member with the least pointer
+// in the source. The compiler resolves schema $refs itself, so the loop is
+// reported without refusing the document, and its members lower to any.
+var schemaRefCycles = []struct{ name, file, at string }{
+	{"self-ref", "cycle_self_ref", "/components/schemas/A"},
+	{"two-node-ref", "cycle_two_node_ref", "/components/schemas/A"},
+	{"self-ref-sibling", "cycle_self_ref_sibling", "/components/schemas/A"},
+	{"two-node-ref-sibling", "cycle_two_node_ref_sibling", "/components/schemas/A"},
+	{"alias-ref-value", "cycle_alias_ref_value", "/components/schemas/A"},
+	{"content-schema", "cycle_content_schema", "/components/schemas/B/contentSchema"},
+	{"alias-ref-key", "cycle_alias_ref_key", "/components/schemas/A"},
+	{"merge-key-ref", "cycle_merge_key_ref", "/components/schemas/A"},
+	{"alias-schema-node", "cycle_alias_schema_node", "/components/schemas/A"},
+	{"alias-dual-position", "cycle_alias_dual_position", "/components/schemas/B"},
+	{"duplicate-key", "cycle_duplicate_key", "/components/schemas/B/contentSchema"},
+	// A self-reference only the pointer's whitespace trim reveals.
+	{"pointer-whitespace-self", "cycle_pointer_whitespace_self", "/components/schemas/A"},
 	// A self-reference only a plus read as a plus reveals (GitHub #911).
-	{"pointer-plus-self", "cycle_pointer_plus_self"},
+	{"pointer-plus-self", "cycle_pointer_plus_self", "/x-a+b"},
 	// A loop closed by a pointer passing back through a schema $ref on it
 	// (GitHub #932).
-	{"schema-through-own-member", "cycle_schema_through_own_member"},
-	{"schema-through-member-chain", "cycle_schema_through_member_chain"},
-	// Loops through a trailing empty token, which the resolver reads by where
-	// its walk is: in a map of schemas as the key "", in raw YAML as the node
-	// reached (GitHub #944).
-	{"schema-empty-key", "cycle_schema_empty_key"},
-	{"schema-empty-token-stays", "cycle_schema_empty_token_stays"},
+	{"schema-through-own-member", "cycle_schema_through_own_member", "/components/schemas/A"},
+	{"schema-through-member-chain", "cycle_schema_through_member_chain", "/components/schemas/A"},
+	// A loop through the member of a map of schemas keyed "".
+	{"schema-empty-key", "cycle_schema_empty_key", "/components/schemas/"},
 	// A loop under a default response, a schema position (GitHub #949).
-	{"schema-default-response", "cycle_schema_default_response"},
+	{"schema-default-response", "cycle_schema_default_response", "/paths/~1a/get/responses/default/content/application~1json/schema"},
+}
+
+// unreadSchemaRefs are cycle fixtures whose $ref names nothing, so there is no
+// loop to report: the $ref is reported unresolved at the site given instead.
+// A pointer ending in an empty token names the key "" of what it passes, and a
+// schema's member u has none.
+var unreadSchemaRefs = []struct{ name, file, at string }{
+	{"schema-empty-token-stays", "cycle_schema_empty_token_stays", "/components/schemas/A"},
 }
 
 // referenceObjectCycles are chains of reference objects that cycle, or whose
@@ -71,10 +89,10 @@ var referenceObjectCycles = []struct {
 	{"path-item-empty-segment", "cycle_path_item_empty_segment", "/components/pathItems/A"},
 }
 
-// TestCycleReproducers_EveryFixtureIsExercised holds cycleReproducers and
-// referenceObjectCycles to the fixtures on disk, the way
+// TestCycleReproducers_EveryFixtureIsExercised holds the four fixture tables
+// above to the fixtures on disk, the way
 // TestDanglingRefs_EveryReproducerIsExercised holds its own table: a
-// cycle_*.yaml added to the corpus and left out of both is compiled by nothing
+// cycle_*.yaml added to the corpus and left out of all is compiled by nothing
 // here, and the suite stays green while the corpus grows past it.
 //
 // The scan package keeps tables of the same fixtures for its own assertion and
@@ -87,33 +105,169 @@ func TestCycleReproducers_EveryFixtureIsExercised(t *testing.T) {
 	require.NoError(t, err, "globbing the reproducer corpus")
 	require.NotEmpty(t, onDisk, "the corpus holds cycle reproducers")
 
-	listed := make(map[string]bool, len(cycleReproducers)+len(referenceObjectCycles))
-	for _, tc := range cycleReproducers {
-		listed[tc.file+".yaml"] = true
-	}
-	for _, tc := range referenceObjectCycles {
-		require.False(t, listed[tc.file+".yaml"], "%s is in both tables", tc.file)
-		listed[tc.file+".yaml"] = true
+	listed := make(map[string]bool, len(onDisk))
+	for _, file := range cycleFixtureFiles() {
+		require.False(t, listed[file+".yaml"], "%s is in more than one table", file)
+		listed[file+".yaml"] = true
 	}
 	for _, path := range onDisk {
 		assert.True(t, listed[filepath.Base(path)],
-			"%s is in %s but in neither table", filepath.Base(path), reproducerDir)
+			"%s is in %s but in none of the tables", filepath.Base(path), reproducerDir)
 	}
 	assert.Len(t, listed, len(onDisk), "the tables and %s hold different numbers of fixtures", reproducerDir)
 }
 
-func TestCompile_CyclicSpecDoesNotCrash(t *testing.T) {
+// cycleFixtureFiles is every fixture the tables above name, for the guard
+// against the corpus growing past them and for the fuzzer's seeds.
+func cycleFixtureFiles() []string {
+	files := make([]string, 0, len(aliasCycleReproducers)+len(schemaRefCycles)+len(unreadSchemaRefs)+
+		len(referenceObjectCycles))
+	for _, tc := range aliasCycleReproducers {
+		files = append(files, tc.file)
+	}
+	for _, tc := range schemaRefCycles {
+		files = append(files, tc.file)
+	}
+	for _, tc := range unreadSchemaRefs {
+		files = append(files, tc.file)
+	}
+	for _, tc := range referenceObjectCycles {
+		files = append(files, tc.file)
+	}
+	return files
+}
+
+// cyclicRefSites returns the pointers diags report a cyclic $ref at, in order.
+func cyclicRefSites(diags []ir.Diagnostic) []string {
+	var sites []string
+	for _, d := range diags {
+		if d.Code == diag.CyclicRef {
+			sites = append(sites, string(d.Provenance.Pointer))
+		}
+	}
+	return sites
+}
+
+// TestCompile_AliasCycleIsRefused pins what still refuses a source: a YAML
+// anchor naming its own ancestor, which the parser cannot decode. The compile
+// returns no document, one cyclic-ref error at the alias, and no Go error, since
+// a hostile spec is a spec problem.
+func TestCompile_AliasCycleIsRefused(t *testing.T) {
 	t.Parallel()
-	for _, tc := range cycleReproducers {
+	for _, tc := range aliasCycleReproducers {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			data := readReproducer(t, tc.file)
 			doc, diags, err := New().Compile(t.Context(),
-				[]compilers.Source{{Path: tc.file + ".yaml", Data: data}}, compilers.Options{})
-			require.NoError(t, err, "cyclic spec is a spec problem, not a Go error")
-			assert.Nil(t, doc, "the compiler refuses to lower a cyclic spec")
+				[]compilers.Source{{Path: tc.file + ".yaml", Data: readReproducer(t, tc.file)}}, compilers.Options{})
+			require.NoError(t, err, "a recursive anchor is a spec problem, not a Go error")
+			assert.Nil(t, doc, "the compiler refuses to read a source whose aliases never end")
 			assertHasErrorCode(t, diags, diag.CyclicRef)
+			assert.Equal(t, []string{tc.at}, cyclicRefSites(diags), "the alias is named once")
 		})
+	}
+}
+
+// TestCompile_SchemaRefCycleIsReportedAndStillCompiles pins what a loop of
+// schema $refs does under the compiler's own resolution, in every spelling the
+// corpus holds. The loop is reported once, as an error at its member with the
+// least pointer, and the document is still returned: a cycle used to refuse the
+// source before it was parsed, and nothing now needs it to.
+func TestCompile_SchemaRefCycleIsReportedAndStillCompiles(t *testing.T) {
+	t.Parallel()
+	for _, tc := range schemaRefCycles {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags, err := New().Compile(t.Context(),
+				[]compilers.Source{{Path: tc.file + ".yaml", Data: readReproducer(t, tc.file)}}, compilers.Options{})
+			require.NoError(t, err, "a cyclic spec is a spec problem, not a Go error")
+			assert.NotNil(t, doc, "a loop of schema $refs does not refuse the document")
+			assert.True(t, openapitest.HasDiagAt(diags, diag.CyclicRef, ir.SeverityError),
+				"the loop is an error; got %+v", diags)
+			assert.Equal(t, []string{tc.at}, cyclicRefSites(diags), "the loop is reported once, at its least member")
+		})
+	}
+}
+
+// TestCompile_SchemaRefNamingNothingIsUnresolvedNotCyclic pins the fixtures
+// that look like loops and are not: the $ref names a member the document does
+// not hold, so it is reported unresolved where it is written and no cycle is
+// reported at all.
+func TestCompile_SchemaRefNamingNothingIsUnresolvedNotCyclic(t *testing.T) {
+	t.Parallel()
+	for _, tc := range unreadSchemaRefs {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags, err := New().Compile(t.Context(),
+				[]compilers.Source{{Path: tc.file + ".yaml", Data: readReproducer(t, tc.file)}}, compilers.Options{})
+			require.NoError(t, err)
+			assert.NotNil(t, doc)
+			assert.Empty(t, cyclicRefSites(diags), "there is no loop to report")
+			assert.True(t, openapitest.HasDiagCodeAt(diags, diag.UnresolvedRef, tc.at),
+				"the reference is reported unresolved at %s; got %+v", tc.at, diags)
+		})
+	}
+}
+
+// TestCompile_CycleIsReportedAtItsLeastMemberInEitherOrder pins where a loop is
+// reported: once per loop, at the loop's member with the least pointer, never
+// at a $ref that only leads into it, and wherever the members are declared
+// (GitHub #912). A member of a loop lowers to any, and what only leads into
+// one stays an alias to it.
+func TestCompile_CycleIsReportedAtItsLeastMemberInEitherOrder(t *testing.T) {
+	t.Parallel()
+	const head = "openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\ncomponents:\n  schemas:\n"
+	tests := []struct {
+		name    string
+		members []string
+		sites   []string
+		anys    []string // the members that lower to any
+		alias   string   // a member that only leads in, and what it aliases
+		target  string
+	}{
+		{"a reference into a self-loop", []string{
+			"    R: {$ref: '#/components/schemas/A'}\n",
+			"    A: {$ref: '#/components/schemas/A'}\n",
+		}, []string{"/components/schemas/A"}, []string{"A"}, "R", "A"},
+		{"two self-loops", []string{
+			"    Z: {$ref: '#/components/schemas/Z'}\n",
+			"    Y: {$ref: '#/components/schemas/Y'}\n",
+		}, []string{"/components/schemas/Y", "/components/schemas/Z"}, []string{"Y", "Z"}, "", ""},
+		{"a loop of three", []string{
+			"    C: {$ref: '#/components/schemas/A'}\n",
+			"    B: {$ref: '#/components/schemas/C'}\n",
+			"    A: {$ref: '#/components/schemas/B'}\n",
+		}, []string{"/components/schemas/A"}, []string{"A", "B", "C"}, "", ""},
+	}
+	for _, tc := range tests {
+		for _, reversed := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/reversed=%t", tc.name, reversed), func(t *testing.T) {
+				t.Parallel()
+				members := slices.Clone(tc.members)
+				if reversed {
+					slices.Reverse(members)
+				}
+
+				doc, diags, err := New().Compile(t.Context(),
+					[]compilers.Source{{Path: "loop.yaml", Data: []byte(head + strings.Join(members, ""))}},
+					compilers.Options{})
+
+				require.NoError(t, err)
+				require.NotNil(t, doc)
+				assert.Equal(t, tc.sites, slices.Sorted(slices.Values(cyclicRefSites(diags))), "got %+v", diags)
+				for _, name := range tc.anys {
+					scalar, ok := typeByName(doc, name).(*ir.Scalar)
+					require.True(t, ok, "%s is a scalar, got %T", name, typeByName(doc, name))
+					require.NotNil(t, scalar.Base)
+					assert.Equal(t, ir.PrimTypeID(ir.PrimAny), scalar.Base.Target, "%s lowers to any", name)
+				}
+				if tc.alias != "" {
+					scalar, ok := typeByName(doc, tc.alias).(*ir.Scalar)
+					require.True(t, ok, "%s is a scalar, got %T", tc.alias, typeByName(doc, tc.alias))
+					require.NotNil(t, scalar.Base)
+					assert.Equal(t, componentID(tc.target), scalar.Base.Target, "%s stays an alias to %s", tc.alias, tc.target)
+				}
+			})
+		}
 	}
 }
 
@@ -140,12 +294,11 @@ func TestCompile_ReferenceObjectCycleIsReportedUnresolved(t *testing.T) {
 }
 
 // TestCompile_AnchorFragmentIsLeftToTheResolver is the compiler-level half of
-// the GitHub #523 fix. '#x-s' names a $anchor, not a pointer, so the
-// pre-lowering cycle scan must no longer read it as the pointer 'x-s' and walk
-// it from the document root as a key — which used to refuse this document as a
-// cycle the resolver itself never enters. Milestone 1 resolves no anchors, so
-// the reference still does not resolve; it is now reported unresolved where it
-// is written instead of refusing the whole document.
+// the GitHub #523 fix. '#x-s' names a $anchor, not a pointer, so it must not
+// be read as the pointer '/x-s' and walked from the document root as a key,
+// which would close a loop on x-s that no resolver enters. Milestone 1
+// resolves no anchors, so the reference still does not resolve; it is reported
+// unresolved where it is written, and no cycle is reported.
 func TestCompile_AnchorFragmentIsLeftToTheResolver(t *testing.T) {
 	t.Parallel()
 	const src = `openapi: 3.1.0
@@ -253,12 +406,16 @@ components:
 `},
 }
 
+// TestDetectCycles_ComponentOnlyCyclesLeftToResolver pins that a cycle of
+// reference objects held in components is no cycle to the alias scan, and is
+// reported unresolved by the parser's resolver, where a loop of schema $refs
+// is the compiler's own to report.
 func TestDetectCycles_ComponentOnlyCyclesLeftToResolver(t *testing.T) {
 	t.Parallel()
 	for _, tc := range componentOnlyCycles {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Empty(t, scan.Cycles(scan.InSource(0), scanIndex(t, tc.data), DefaultMaxAliasSurplus),
+			assert.Empty(t, scan.Aliases(scan.InSource(0), scanIndex(t, tc.data), DefaultMaxAliasSurplus),
 				"a components-only cycle is the resolver's to report")
 
 			_, diags, err := New().Compile(t.Context(),
@@ -318,8 +475,8 @@ components:
 `},
 	// The four cases below are the negative controls for GitHub #26: each uses
 	// the same alias/merge/contentSchema shapes as the crashing reproducers, but
-	// legally (no degenerate cycle), so the alias- and merge-aware scan must not
-	// start refusing valid documents it previously accepted.
+	// legally (no degenerate cycle), so neither the alias scan nor the binder may
+	// start reporting valid documents it previously accepted.
 	{"legal-anchor-reuse", `openapi: 3.1.0
 info: {title: t, version: '1'}
 paths: {}
@@ -355,6 +512,10 @@ components:
 `},
 }
 
+// TestCompile_RefShapedDataNotRefused pins that a structure shaped like a $ref
+// outside a schema position, or a loop-free use of aliases, compiles and is not
+// reported as a cycle. A cycle no longer refuses the document, so the
+// diagnostic is what shows a $ref read where no resolver reads one.
 func TestCompile_RefShapedDataNotRefused(t *testing.T) {
 	t.Parallel()
 	for _, tc := range refShapedDataSpecs {
@@ -382,9 +543,8 @@ func scanIndex(t *testing.T, src string) sourceindex.Index {
 
 // TestCompile_SchemaEmptyPointerSegmentIsUnresolved pins where reading the
 // empty token changes a verdict. Reading '/A/' as stopping at A made this shape
-// a cycle. The resolver lands it nowhere: in the schema model it reads the
-// empty token as a field no schema has, and reports the reference unresolved
-// (docs/parser-library.md#schema-cycle-overflow).
+// a cycle. The token names the key "" of A, which A does not hold, so the
+// reference is reported unresolved where it is written and no cycle is.
 func TestCompile_SchemaEmptyPointerSegmentIsUnresolved(t *testing.T) {
 	t.Parallel()
 	const src = `openapi: 3.1.0
@@ -394,14 +554,13 @@ components:
   schemas:
     A: {$ref: '#/components/schemas/A/'}
 `
-	_, diags, err := New().Compile(t.Context(),
+	doc, diags, err := New().Compile(t.Context(),
 		[]compilers.Source{{Path: "schema_empty_segment.yaml", Data: []byte(src)}}, compilers.Options{})
 	require.NoError(t, err)
-	assertHasErrorCode(t, diags, diag.UnresolvedRef)
-	for _, d := range diags {
-		assert.NotEqualf(t, diag.CyclicRef, d.Code,
-			"a pointer that names an undeclared key is unresolved, not cyclic: %+v", d)
-	}
+	assert.NotNil(t, doc)
+	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.UnresolvedRef, "/components/schemas/A"),
+		"the reference is reported unresolved where it is written; got %+v", diags)
+	assert.Empty(t, cyclicRefSites(diags), "a pointer that names an undeclared key is unresolved, not cyclic")
 }
 
 // reproducerDir is where the cycle fixtures live. The reader below, the table
@@ -418,6 +577,11 @@ func readReproducer(t *testing.T, file string) []byte {
 	return data
 }
 
+// TestCompile_MergeChainPastBoundStillCompiles pins that a legal document whose
+// `<<` merge chain runs past the mapping view's depth bound is compiled. The
+// alias scan weighs aliases rather than expanding merges through that view, so
+// the chain no longer leaves its protection incomplete, and no diagnostic
+// refuses the source or reports an incomplete scan.
 func TestCompile_MergeChainPastBoundStillCompiles(t *testing.T) {
 	t.Parallel()
 	doc, diags, err := New().Compile(t.Context(),
@@ -425,21 +589,20 @@ func TestCompile_MergeChainPastBoundStillCompiles(t *testing.T) {
 		compilers.Options{})
 	require.NoError(t, err)
 	require.NotNil(t, doc, "a legal document is still compiled")
-	openapitest.AssertHasCode(t, diags, diag.CycleScanFailed, ir.SeverityWarning)
 	for _, d := range diags {
-		assert.NotEqual(t, ir.SeverityError, d.Severity, "no diagnostic refuses the source")
+		assert.NotEqual(t, ir.SeverityError, d.Severity, "no diagnostic refuses the source: %+v", d)
+		assert.NotEqual(t, diag.CycleScanFailed, d.Code, "the alias scan completes: %+v", d)
 	}
 }
 
+// FuzzCycleDetector compiles arbitrary bytes seeded from the cycle corpus.
+// Whatever a source holds, the compile must not panic, overflow the stack or
+// hang, and must come back with a document or with a refusal: an error
+// diagnostic saying why no document came back, or a Go error alone, which an
+// empty source raises. A cycle of schema $refs refuses nothing, so a corpus
+// seed no longer ends in a refusal and the invariant is no longer that one.
 func FuzzCycleDetector(f *testing.F) {
-	files := make([]string, 0, len(cycleReproducers)+len(referenceObjectCycles))
-	for _, tc := range cycleReproducers {
-		files = append(files, tc.file)
-	}
-	for _, tc := range referenceObjectCycles {
-		files = append(files, tc.file)
-	}
-	for _, file := range files {
+	for _, file := range cycleFixtureFiles() {
 		if data, err := os.ReadFile(filepath.Join(reproducerDir, file+".yaml")); err == nil {
 			f.Add(data)
 		}
@@ -454,8 +617,15 @@ func FuzzCycleDetector(f *testing.F) {
 	f.Add([]byte("\t\x00: [")) // undecodable: reported as a parse error, not a fault
 
 	f.Fuzz(func(t *testing.T, data []byte) {
-		_, _, _ = New().Compile(t.Context(),
+		doc, diags, err := New().Compile(t.Context(),
 			[]compilers.Source{{Path: "fuzz.yaml", Data: data}}, compilers.Options{})
+		if err != nil {
+			assert.Nil(t, doc, "a Go error returns no document")
+			return
+		}
+		if doc == nil {
+			assert.True(t, ir.HasError(diags), "no document came back, and no error says why: %+v", diags)
+		}
 	})
 }
 

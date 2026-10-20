@@ -162,12 +162,14 @@ func TestLoad_RefusesATaggedMappingAnOverlayIntroduced(t *testing.T) {
 }
 
 // TestLoad_ACycleAndATaggedMappingAreBothReported pins that the tag refusal is
-// added to the cycle scan's answer rather than replacing it, so an author with
-// both problems is told about both from one compile.
+// added to the alias scan's answer rather than replacing it, so an author with
+// both problems is told about both from one compile. A loop of schema $refs is
+// no refusal: it loads and is reported by the binding
+// (TestLoad_ADegenerateCycleLoadsAndIsReportedOnce).
 func TestLoad_ACycleAndATaggedMappingAreBothReported(t *testing.T) {
 	t.Parallel()
 	const spec = "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n  /b:\n    get:\n" +
-		"      responses: {\"200\": !x {description: ok}}\ncomponents:\n  schemas:\n    A: {$ref: '#/components/schemas/A'}\n"
+		"      responses: {\"200\": !x {description: ok}}\ncomponents:\n  schemas:\n    A: &a {properties: {self: *a}}\n"
 
 	doc, diags, err := Load(t.Context(), 0, openapitest.SourceOf(spec), Options{})
 

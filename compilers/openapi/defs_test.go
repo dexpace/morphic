@@ -132,34 +132,23 @@ func TestCompile_DefsPointerInOperationsRelativeToItsOwnSchema(t *testing.T) {
 	}
 }
 
-// TestCompile_DefsInAnAliasedOrMergedSchemaAreTheAnchorsDefinitions pins what a
-// YAML alias or merge key means for the rule. The aliased schema is the anchor's
-// own YAML, so the library places it where the anchor is written, and a
-// reference in it reads the anchor's $defs: B, an alias of A, reads A's, and
-// Child, which merges Base, reads Base's. A schema that only resembles another
-// keeps its own, as C does.
-func TestCompile_DefsInAnAliasedOrMergedSchemaAreTheAnchorsDefinitions(t *testing.T) {
+// TestCompile_DefsInAnAliasedOrMergedSchemaAreItsOwn pins what a YAML alias or
+// merge key means for the rule: nothing. Either is a copy of the anchor's
+// content where it is written, as the document's JSON reads, so a reference in
+// it reads the $defs of where it sits: B, an alias of A, reads its own copy of
+// A's, and Child reads the one it merges from Base. A YAML document compiles
+// as its JSON equivalent does. A schema that only resembles another keeps its
+// own, as C does.
+func TestCompile_DefsInAnAliasedOrMergedSchemaAreItsOwn(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, string(readReproducer(t, "defs_alias_and_merge")))
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	assertOwnDefsProperty(t, doc, componentID("A"), ids.Ptr("components", "schemas", "A"), "p", "n", "x")
+	assertOwnDefsProperty(t, doc, componentID("B"), ids.Ptr("components", "schemas", "B"), "p", "n", "x")
 	assertOwnDefsProperty(t, doc, componentID("C"), ids.Ptr("components", "schemas", "C"), "q", "n", "y")
 	assertOwnDefsProperty(t, doc, componentID("Base"), ids.Ptr("components", "schemas", "Base"), "r", "m", "z")
-
-	for _, tc := range []struct {
-		name, owner, prop string
-		anchor            jsontext.Pointer
-	}{
-		{"an alias", "B", "p", ids.Ptr("components", "schemas", "A", "$defs", "n")},
-		{"a merge key", "Child", "r", ids.Ptr("components", "schemas", "Base", "$defs", "m")},
-	} {
-		m, ok := doc.Types[componentID(tc.owner)].(*ir.Model)
-		require.True(t, ok, tc.name)
-		p, ok := propByWire(m, tc.prop)
-		require.True(t, ok, "%s declares %q", tc.owner, tc.prop)
-		assert.Equal(t, ids.ForPointer(tc.anchor), p.Type.Target, "%s reads the anchor's definition", tc.name)
-	}
+	assertOwnDefsProperty(t, doc, componentID("Child"), ids.Ptr("components", "schemas", "Child"), "r", "m", "z")
 }
 
 // defsNullabilityAndDescriptionSpec has two sibling components that each $ref
@@ -414,8 +403,8 @@ func TestCompile_DefsPointerWithNoSiblingDefsIsUnresolvedNotBorrowed(t *testing.
 
 // TestCompile_DefsPointerNoDefinitionAnswersForIsReportedOnceWhereverItSits pins
 // that a "#/$defs/..." reference no definition answers for is one error at the
-// reference, with the resolver's reason, at a position the lowering models (a
-// property) and at one it keeps verbatim ("not"), where only load reports it.
+// reference, with its reason, at a position the lowering models (a property)
+// and at one it keeps verbatim ("not"), where only load reports it.
 func TestCompile_DefsPointerNoDefinitionAnswersForIsReportedOnceWhereverItSits(t *testing.T) {
 	t.Parallel()
 	const spec = `openapi: 3.1.0
@@ -431,7 +420,7 @@ components:
 `
 	_, diags := parseFull(t, spec)
 
-	const want = `unresolved $ref "#/$defs/missing": definition not found: #/$defs/missing`
+	const want = `unresolved $ref "#/$defs/missing": no definition answers it: neither the document's root nor a schema of the model above it holds one by that name`
 	for _, site := range []string{"/components/schemas/A/not", "/components/schemas/A/properties/p"} {
 		assert.Equal(t, want, openapitest.DiagMessageAt(t, diags, diag.UnresolvedRef, ir.SeverityError, site), site)
 	}

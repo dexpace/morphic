@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	"github.com/speakeasy-api/openapi/marshaller"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/speakeasy-api/openapi/references"
@@ -369,6 +370,7 @@ func TestObject_UnresolvedReferenceHasNoObject(t *testing.T) {
 type brittleEntry struct{ obj int }
 
 func (b *brittleEntry) GetObject() *int         { return &b.obj }
+func (b *brittleEntry) GetObjectAny() any       { return &b.obj }
 func (b *brittleEntry) GetResolvedObject() *int { return &b.obj }
 func (b *brittleEntry) GetReference() references.Reference {
 	return references.Reference("#/components/schemas/" + strconv.Itoa(b.obj))
@@ -567,10 +569,12 @@ func TestObjectAt_AHopIntoTheSourceReadsOnAsTheSources(t *testing.T) {
 }
 
 // TestReferenceEnd_NamesWhereEachKindOfReferenceEnds pins ReferenceEnd for a
-// resolved reference of each kind the library has, reached as a walk meets one,
-// as a value of any type: each ends at the component it names, in the source,
-// and nothing else is a reference. Driving the compiler is what makes the
-// resolution info real (see parseFull).
+// resolved reference of each kind the library resolves, reached as a walk meets
+// one, as a value of any type: each ends at the component it names, in the
+// source, and nothing else is a reference. A schema's $ref is no such kind any
+// more: the compiler resolves it (internal/bind) and the library never does, so
+// the one the document writes ends nowhere the library read. Driving the
+// compiler is what makes the resolution info real (see parseFull).
 func TestReferenceEnd_NamesWhereEachKindOfReferenceEnds(t *testing.T) {
 	t.Parallel()
 	got, diags, err := load.Load(t.Context(), 0, openapitest.SourceOf(openapitest.EveryKindOfReference), load.Options{})
@@ -578,8 +582,15 @@ func TestReferenceEnd_NamesWhereEachKindOfReferenceEnds(t *testing.T) {
 	require.NotNil(t, got, "%+v", diags)
 
 	ends := map[jsontext.Pointer]bool{}
+	schemaRefs := 0
 	for item := range soa.Walk(t.Context(), got.Doc) {
 		_ = item.Match(soa.Matcher{Any: func(model any) error {
+			if js, ok := model.(*oas3.JSONSchema[oas3.Referenceable]); ok && js.IsReference() {
+				schemaRefs++
+				_, ended := resolve.ReferenceEnd(js)
+				assert.False(t, ended, "the library resolved no schema $ref")
+				return nil
+			}
 			if end, ok := resolve.ReferenceEnd(model); ok {
 				assert.Same(t, got.Doc, end.Document, "%T ends in the source's model", model)
 				ends[end.Pointer] = true
@@ -591,9 +602,9 @@ func TestReferenceEnd_NamesWhereEachKindOfReferenceEnds(t *testing.T) {
 	assert.Equal(t, map[jsontext.Pointer]bool{
 		"/components/pathItems/P": true, "/components/parameters/Q": true, "/components/requestBodies/B": true,
 		"/components/callbacks/C": true, "/components/headers/H": true, "/components/links/L": true,
-		"/components/schemas/S": true, "/components/examples/E": true, "/components/responses/R": true,
-		"/components/securitySchemes/K": true,
+		"/components/examples/E": true, "/components/responses/R": true, "/components/securitySchemes/K": true,
 	}, ends)
+	assert.Positive(t, schemaRefs, "the document writes a schema $ref")
 	_, ok := resolve.ReferenceEnd(got.Doc)
 	assert.False(t, ok, "a document is no reference")
 }

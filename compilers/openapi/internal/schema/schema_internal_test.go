@@ -231,25 +231,25 @@ func TestStampConstraintDiags_RelocatesEveryDiagnosticToTheReadingPointer(t *tes
 	assert.Equal(t, diag.NumericPrecision, got[1].Code, "only the provenance changes")
 }
 
-func TestResolveSchemaRef_ReusesInternedSubSchema(t *testing.T) {
+func TestResolvePointer_ReusesInternedSubSchema(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
 	l.types.Intern(deepPointer, "t/anon/prev", func() ir.TypeDef { return &ir.Any{} })
 
-	id, ok, diags := resolveSchemaRef(l.ctx, l.types, &l.anchors, TopLevelDepth, openapitest.EmptyEitherSchema(), "#"+deepPointer)
+	id, ok, diags := resolvePointer(l.ctx, l.types, &l.anchors, TopLevelDepth, deepPointer, nil)
 	require.True(t, ok, "a $ref to an already-hoisted sub-schema reuses its ID")
 	assert.Equal(t, ir.TypeID("t/anon/prev"), id)
 	assert.Empty(t, diags, "reusing an interned node reports nothing")
 }
 
-func TestResolveSchemaRef_UnresolvedDeepRefDropped(t *testing.T) {
+func TestResolveSchemaRef_UnboundDeepRefDropped(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
-	// A same-file $ref to a deep pointer the library never resolved: no interned
-	// node, GetResolvedSchema is nil, so the reference is dropped (ok=false).
+	// A same-file $ref to a deep pointer no binding read: no interned node and
+	// nothing the bindings know it lands on, so the reference is dropped.
 	js := oas3.NewJSONSchemaFromReference("#" + deepPointer)
 
-	_, ok, diags := resolveSchemaRef(l.ctx, l.types, &l.anchors, TopLevelDepth, js, "#"+deepPointer)
+	_, ok, diags := resolveSchemaRef(l.ctx, l.types, &l.anchors, TopLevelDepth, js)
 	assert.False(t, ok, "an unresolved deep sub-schema $ref is dropped, not synthesized")
 	assert.Empty(t, diags, "the drop is reported by refTypeRef, which owns the pointer to report it at")
 }
@@ -611,8 +611,8 @@ func TestDeclaresFamily_AnUnknownNameDeclaresNothing(t *testing.T) {
 
 // TestRefNullable_AnUnresolvedRefIsNotNullable pins the guard on the second half
 // of the question. A $ref site admits null when its own spelling says so or when
-// its target does; a reference the loader never resolved has no target to ask,
-// and must read as not-nullable rather than dereference nothing.
+// its target does; a reference no binding resolved has no target to ask, and
+// must read as not-nullable rather than dereference nothing.
 func TestRefNullable_AnUnresolvedRefIsNotNullable(t *testing.T) {
 	t.Parallel()
 	js := &oas3.JSONSchema[oas3.Referenceable]{}
@@ -620,12 +620,11 @@ func TestRefNullable_AnUnresolvedRefIsNotNullable(t *testing.T) {
 		strings.NewReader("$ref: '#/components/schemas/Missing'"), js)
 	require.NoError(t, err)
 	require.Empty(t, valErrs, "the fixture parses cleanly")
-	require.Nil(t, js.GetResolvedSchema(), "nothing resolved it, which is the state under test")
 
-	assert.False(t, refNullable(js))
+	assert.False(t, refNullable(newRawLowerer(&soa.OpenAPI{}).ctx, js))
 }
 
-// TestSchemaNullVerdict_TheConjunctWalkIsBounded pins the budget the conjunct
+// TestNulls_TheConjunctWalkIsBounded pins the budget the conjunct
 // walk runs on. Whether a schema admits null is decided partly by its allOf
 // conjuncts, each reached through a $ref whose target is asked the same
 // question, so a schema conjoining itself would otherwise not terminate.
@@ -633,30 +632,29 @@ func TestRefNullable_AnUnresolvedRefIsNotNullable(t *testing.T) {
 // A budget spent per schema visited caps depth as well as breadth, and an
 // exhausted walk answers "silent" — the verdict that claims the least, so a
 // spec too deep to read is never reported as admitting a null it does not.
-func TestSchemaNullVerdict_TheConjunctWalkIsBounded(t *testing.T) {
+func TestNulls_TheConjunctWalkIsBounded(t *testing.T) {
 	t.Parallel()
 	nullable := &oas3.Schema{
 		Type: oas3.NewTypeFromArray([]oas3.SchemaType{oas3.SchemaTypeString, oas3.SchemaTypeNull}),
 	}
 
-	require.Equal(t, nullAdmitted, schemaNullVerdict(nullable, new(1)),
+	require.Equal(t, nullAdmitted, (&nulls{budget: 1}).schemaVerdict(nullable),
 		"the fixture admits null while there is budget to read it")
 
-	assert.Equal(t, nullSilent, schemaNullVerdict(nullable, new(0)),
+	assert.Equal(t, nullSilent, (&nulls{budget: 0}).schemaVerdict(nullable),
 		"an exhausted budget stops the walk without claiming anything")
 	assert.Positive(t, maxNullConjuncts, "the cap is a real bound, not zero")
 }
 
-// TestConjunctNullVerdict_ABranchWithNoSchemaSaysNothing pins the guard on an
+// TestNulls_ABranchWithNoSchemaSaysNothing pins the guard on an
 // absent allOf entry. The parser never produces a nil branch, so nothing in the
 // corpus reaches it; a conjunct that is not there constrains nothing, which is
 // silence rather than a refusal — reading it as forbidding would let one
 // missing entry strip a sibling's null.
-func TestConjunctNullVerdict_ABranchWithNoSchemaSaysNothing(t *testing.T) {
+func TestNulls_ABranchWithNoSchemaSaysNothing(t *testing.T) {
 	t.Parallel()
-	budget := maxNullConjuncts
-	assert.Equal(t, nullSilent, conjunctNullVerdict(nil, &budget))
-	assert.Equal(t, nullSilent, conjunctNullVerdict(openapitest.EmptyEitherSchema(), &budget),
+	assert.Equal(t, nullSilent, newNulls(nil).conjunctVerdict(nil))
+	assert.Equal(t, nullSilent, newNulls(nil).conjunctVerdict(openapitest.EmptyEitherSchema()),
 		"a branch whose either-value holds neither schema nor bool says nothing either")
 }
 

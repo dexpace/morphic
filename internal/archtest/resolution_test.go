@@ -43,34 +43,12 @@ const (
 // TestResolutionCalls_HeldToTheBaseline fails when a count rises, since each new
 // use deepens the dependence on the library's resolution, and when one falls
 // until the count here is lowered to match, so the map only shrinks (GitHub
-// #920). A call through an interface both kinds of reference satisfy counts
-// toward each, so its schema count reaches zero only once the interface is
-// split.
+// #920). No member of the schema package appears: the compiler resolves schema
+// $refs itself (internal/bind), so any use of the library's schema resolution
+// is a new one. What stays is the resolution of reference objects.
 var resolutionBaseline = map[string]map[string]int{
-	"compilers/openapi/internal/annotation": {
-		"oas3.JSONSchema.GetReferenceResolutionInfo": 1,
-	},
-	"compilers/openapi/internal/defs": {
-		"oas3.Schema.GetEffectiveBaseURI": 1,
-		"oas3.Schema.GetSchemaRegistry":   1,
-	},
 	"compilers/openapi/internal/load": {
-		"oas3.JSONSchema.GetReferenceResolutionInfo": 2,
-		"oas3.JSONSchema.GetResolvedSchema":          1,
-		"oas3.JSONSchema.IsResolved":                 3,
-		"oas3.JSONSchema.Resolve":                    4,
-		"oas3.Schema.GetOwningDocument":              1,
-		"openapi.Reference.Resolve":                  2,
-	},
-	"compilers/openapi/internal/operation": {
-		"oas3.JSONSchema.GetResolvedSchema": 1,
-	},
-	"compilers/openapi/internal/resolve": {
-		"oas3.JSONSchema.GetReferenceResolutionInfo": 2,
-		"oas3.JSONSchema.GetResolvedSchema":          1,
-	},
-	"compilers/openapi/internal/schema": {
-		"oas3.JSONSchema.GetResolvedSchema": 2,
+		"openapi.Reference.Resolve": 2,
 	},
 }
 

@@ -35,48 +35,10 @@ func onlyRefusal(t *testing.T, data []byte) ir.Diagnostic {
 	return diags[0]
 }
 
-// TestRefusal_NamesTheCycleNotWhatLeadsIntoIt is GitHub #912. A reference
-// that only leads into a cycle is not named, and of a cycle's members, or of
-// several cycles', the one with the least pointer is, whichever is declared
-// first.
-func TestRefusal_NamesTheCycleNotWhatLeadsIntoIt(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name    string
-		members []string
-		want    jsontext.Pointer
-	}{
-		{"a reference into a self-loop", []string{
-			"    R: {$ref: '#/components/schemas/A'}\n",
-			"    A: {$ref: '#/components/schemas/A'}\n",
-		}, "/components/schemas/A"},
-		{"two self-loops", []string{
-			"    Z: {$ref: '#/components/schemas/Z'}\n",
-			"    Y: {$ref: '#/components/schemas/Y'}\n",
-		}, "/components/schemas/Y"},
-		{"a loop of three", []string{
-			"    C: {$ref: '#/components/schemas/A'}\n",
-			"    B: {$ref: '#/components/schemas/C'}\n",
-			"    A: {$ref: '#/components/schemas/B'}\n",
-		}, "/components/schemas/A"},
-	}
-	for _, tc := range tests {
-		for order, data := range bothOrders(schemasHeader, tc.members) {
-			t.Run(tc.name+"/"+order, func(t *testing.T) {
-				t.Parallel()
-				d := onlyRefusal(t, data)
-				assert.Equal(t, diag.CyclicRef, d.Code)
-				assert.Equal(t, tc.want, d.Provenance.Pointer)
-				assert.Equal(t, "cyclic $ref: reference chain never reaches a node without a $ref", d.Message)
-			})
-		}
-	}
-}
-
-// TestCycles_NamesTheLeastRecursiveAlias pins the site of a recursive anchor
+// TestAliases_NamesTheLeastRecursiveAlias pins the site of a recursive anchor
 // when a document holds several: the alias with the least pointer, in either
 // order. Each anchor stays above its own alias, so both orders parse.
-func TestCycles_NamesTheLeastRecursiveAlias(t *testing.T) {
+func TestAliases_NamesTheLeastRecursiveAlias(t *testing.T) {
 	t.Parallel()
 	members := []string{"b: &x {k: [*x]}\n", "a: &y {k: [*y]}\n"}
 	for order, data := range bothOrders("", members) {
@@ -117,17 +79,6 @@ func TestAliasAmplification_NamesTheLeastInnermostAmplifier(t *testing.T) {
 			assert.Equal(t, jsontext.Pointer("/a/l4"), d.Provenance.Pointer)
 		})
 	}
-}
-
-// TestLoopsReached_GathersALoopOnce pins that a loop is gathered once however
-// many refused chains run into it: every member of a loop of n is a start, so
-// a gathering per start would hold n² sites.
-func TestLoopsReached_GathersALoopOnce(t *testing.T) {
-	t.Parallel()
-	const n = 300
-	s, chains := settled(t, schemasDoc(slices.Concat(chainTo("S", n, "C0"), loopOf(n))))
-
-	assert.Len(t, chains.loopsReached(s.out), n)
 }
 
 // fanned is an anchor of ten scalars under name, aliased twenty times in a

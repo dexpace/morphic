@@ -133,7 +133,7 @@ func TestDetectCycles_SyntheticWideBaseReuseIsNowRefused(t *testing.T) {
 	assert.Equal(t, diag.AliasAmplification, diags[0].Code)
 	assert.Equal(t, ir.SeverityError, diags[0].Severity)
 
-	unbounded := Cycles(InSource(0), indexOf(t, []byte(src)), 0)
+	unbounded := Aliases(InSource(0), indexOf(t, []byte(src)), 0)
 	require.NotEmpty(t, unbounded, "turning the alias budget off leaves the ratio rule standing")
 	assert.Equal(t, diag.AliasAmplification, unbounded[0].Code)
 }
@@ -196,9 +196,9 @@ func TestDetectCycles_FlatFanOutOfModestAnchorIsEventuallyRefused(t *testing.T) 
 	assert.Equal(t, ir.SeverityError, diags[0].Severity)
 	assert.Contains(t, diags[0].Message, fmt.Sprintf("past the %d-node alias budget", defaultSurplus))
 
-	assert.Empty(t, Cycles(InSource(0), indexOf(t, []byte(src)), 2*defaultSurplus),
+	assert.Empty(t, Aliases(InSource(0), indexOf(t, []byte(src)), 2*defaultSurplus),
 		"a caller who raised the budget has the document admitted")
-	assert.Empty(t, Cycles(InSource(0), indexOf(t, []byte(src)), 0),
+	assert.Empty(t, Aliases(InSource(0), indexOf(t, []byte(src)), 0),
 		"a caller who turned the budget off has the document admitted")
 }
 
@@ -236,7 +236,7 @@ func TestAliasAmplification_ABombIsNamedForItsShapeWhateverTheBudget(t *testing.
 	require.NoError(t, err)
 
 	for _, surplus := range []int64{1, defaultSurplus, 0} {
-		diags := Cycles(InSource(0), indexOf(t, data), surplus)
+		diags := Aliases(InSource(0), indexOf(t, data), surplus)
 		require.Len(t, diags, 1, "surplus %d", surplus)
 		assert.Equal(t, diag.AliasAmplification, diags[0].Code, "surplus %d", surplus)
 	}
@@ -436,7 +436,7 @@ func TestAliasWeigher_InFlightCycleSaturates(t *testing.T) {
 }
 
 // TestYAMLUnmarshal_IntoANodeSpendsNoAliasBudget pins the yaml.v3 fact the alias
-// weigher's reason for existing rests on, and that Cycles's comment states: the
+// weigher's reason for existing rests on, and that Aliases's comment states: the
 // library's excessive-aliasing guard counts expansions, and decoding into a
 // yaml.Node performs none, so the bomb this package refuses decodes into a tree
 // without a word from the library. The Go-value decode beside it is the control

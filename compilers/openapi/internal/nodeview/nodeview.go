@@ -11,12 +11,9 @@ package nodeview
 import (
 	"encoding/json/jsontext"
 	"strconv"
-	"strings"
 
 	"github.com/speakeasy-api/openapi/yml"
 	yaml "gopkg.in/yaml.v3"
-
-	"github.com/dexpace/morphic/compilers/openapi/internal/fragment"
 )
 
 // maxAliasChain bounds how many alias hops Deref follows. yaml.v3 resolves an
@@ -24,9 +21,8 @@ import (
 // the bound is what keeps the walk terminating without relying on that, per the
 // bounded-recursion rule.
 //
-// It is this package's own rather than the cycle scan's, which happens to use
-// the same number for its descents: the scan sits above this package and a bound
-// borrowed upward would invert the dependency.
+// It is this package's own: a bound borrowed from a package above this one
+// would invert the dependency.
 const maxAliasChain = 10000
 
 // maxPointerSegments bounds how many tokens one JSON pointer walk follows. A
@@ -39,8 +35,8 @@ const maxPointerSegments = 1024
 // expands. It is far tighter than maxAliasChain: each merge level
 // re-materializes every pair beneath it, so expanding a chain of depth d costs
 // O(d²), and real specs nest merge keys one or two levels deep. A chain that
-// hits the bound is reported via a diag.CycleScanFailed warning (see
-// View.expand and refCycles), not silently truncated.
+// hits the bound is not silently truncated: View.Exhausted says so, and each
+// reader the bound stops reports it.
 const MergeDepthLimit = 64
 
 // maxCachedPairs bounds the total expanded pairs one View retains, about 50 MB
@@ -102,6 +98,14 @@ type View struct {
 // bound must not be allowed to hide.
 func (v *View) Exhausted() bool { return v.exhausted }
 
+// Expanded reports whether n's pairs are all its `<<` merges supply, read as a
+// pointer walk reads them: false for a mapping whose merges run past
+// MergeDepthLimit, where a key it lacks may lie past the bound. A node that is
+// no mapping has nothing to expand.
+func (v *View) Expanded(n *yaml.Node) bool {
+	return v.expand(Deref(n), 0).complete
+}
+
 // New returns an empty view; a view must not outlive the node tree whose
 // expansions it caches.
 func New() *View {
@@ -147,8 +151,8 @@ func (v *View) MappingPairs(n *yaml.Node) []Pair {
 //
 // Truncation is not contagious: only the node that hit the bound is refused,
 // since truncation only drops pairs and never invents an edge. Letting one
-// over-deep chain disable the view would let a document disable the scan by
-// opening with one; refCycles records it through the exhausted flag instead.
+// over-deep chain disable the view would let a document disable every reader
+// by opening with one; the exhausted flag records it instead (Exhausted).
 func (v *View) expand(n *yaml.Node, depth int) expansion {
 	if n == nil || n.Kind != yaml.MappingNode {
 		return expansion{complete: true}
@@ -157,7 +161,7 @@ func (v *View) expand(n *yaml.Node, depth int) expansion {
 		return cached
 	}
 	// A merge cycle needs no bound of its own: it requires an alias to an
-	// ancestor, which anchorCycle refuses before refCycles runs.
+	// ancestor, which the alias pre-scan refuses before any view reads the tree.
 	if v.inFlight[n] {
 		return expansion{}
 	}
@@ -335,116 +339,18 @@ func dedupeFirstWins(pairs []Pair) []Pair {
 	return appendUnseen(nil, pairs)
 }
 
-// PureRefTarget reports the internal $ref target of a node that carries a
-// top-level internal ('#/...') $ref. Sibling keys do not disqualify it:
-// speakeasy follows a node's top-level $ref before any concrete sibling, so a
-// $ref node with a type or properties sibling still drives the crash. The chain
-// terminates only at a node with no top-level $ref at all.
-func (v *View) PureRefTarget(n *yaml.Node) (jsontext.Pointer, bool) {
-	// Through the index where the walk already built one. This runs on every node
-	// a pointer descended, immediately after the walk that descended it, so a
-	// scan here re-reads exactly the mappings ChildByToken just stopped scanning
-	// — leaving the quadratic the index removes standing in its sibling.
-	if index := v.keys[n]; index != nil {
-		return pureRefFrom(index["$ref"])
-	}
-	return PureRefTargetOf(v.MappingPairs(n))
-}
-
-// PureRefTargetOf is PureRefTarget over an already-expanded pair list, so a
-// caller that needs both the pairs and the target expands the mapping once. The
-// target is normalized by InternalPointer, so it is a bare pointer ('/a/b'),
-// not the '#/a/b' the source spells.
-func PureRefTargetOf(pairs []Pair) (jsontext.Pointer, bool) {
-	for _, p := range pairs {
-		if p.Key != "$ref" {
-			continue
-		}
-		return pureRefFrom(p.Val)
-	}
-	return "", false
-}
-
-// pureRefFrom is the decision both readings share, once the value written at
-// `$ref` is in hand: a key that is absent and one whose value is not a scalar
-// are the same answer, so reading the index cannot part company with the scan.
-func pureRefFrom(val *yaml.Node) (jsontext.Pointer, bool) {
-	if val == nil || val.Kind != yaml.ScalarNode {
-		return "", false
-	}
-	return InternalPointer(val.Value)
-}
-
-// InternalPointer reports the JSON pointer a $ref value names inside this
-// document, and whether the resolver walks it as a pointer into this
-// document.
-//
-// It reads the fragment as fragment.Pointer does, and the document half as the
-// resolver does (references/reference.go GetURI): split on '#', trim, and an
-// empty half names this document. A raw read would hide a resolvable pointer
-// from the cycle scan, such as '#/components/schemas/A ' with a trailing space.
-//
-// A fragment not starting with '/' is refused: `#name` is a $anchor (GitHub
-// #523, #526). A bare '#' names the root. One decoding to non-UTF-8 bytes is
-// kept, unlike resolve.FragmentPointer's refusal (GitHub #520).
-func InternalPointer(ref string) (jsontext.Pointer, bool) {
-	parts := strings.Split(ref, "#")
-	if len(parts) < 2 || strings.TrimSpace(parts[0]) != "" {
-		return "", false // no fragment, or a fragment in another document
-	}
-	pointer := string(fragment.Pointer(ref))
-	// A `#name` fragment is a $anchor the resolver looks up by name, not a
-	// pointer it walks. Walking the name from the root as a key refused a
-	// document as a cycle the resolver never enters (GitHub #523), and a chain
-	// the resolver does follow through the lookup is one the scan cannot see
-	// (GitHub #526). A bare '#' stays: it names the root.
-	if pointer != "" && !strings.HasPrefix(pointer, "/") {
-		return "", false // a $anchor name or other non-pointer fragment
-	}
-	// Kept for non-UTF-8 bytes too: no key of a parsed document spells them, so
-	// a walk lands nowhere, the answer refusing the pointer here would give.
-	return jsontext.Pointer(pointer), true
-}
-
-// PointerTarget walks a normalized JSON pointer (as InternalPointer returns it)
-// against root, aliases dereferenced, and returns the node it lands on, or
-// false when it lands nowhere. A lone '/' lands on the root (see tokenless),
-// and every other token is read as RFC 6901 reads it: '/a/' names the key ""
-// under a. The resolver reads a trailing empty token by where its walk has got
-// to, which only a caller knowing the document's roles can say (GitHub #944).
-func (v *View) PointerTarget(root *yaml.Node, pointer jsontext.Pointer) (*yaml.Node, bool) {
-	path, complete := v.walkPointer(root, pointer, tokenless(pointer))
-	if !complete {
-		return nil, false
-	}
-	return path[len(path)-1], true
-}
-
-// DocumentPath walks a pointer that names a position in this document rather
-// than a reference some source wrote, returning the root and each node reached,
-// aliases dereferenced. complete reports whether every token was followed; if
-// not, the path ends at the last node reached.
-//
-// It differs from PointerTarget only on '/', which it reads as RFC 6901 does.
-// ids.Ptr("") spells the root member keyed "" as '/', so taking '/' for the
-// root here would hide an $id written on that member from a caller reading $id
-// down a path.
+// DocumentPath walks pointer, a position in this document, from root as RFC
+// 6901 reads it, returning the root and each node reached, aliases
+// dereferenced. complete reports whether every token was followed; if not, the
+// path ends at the last node reached. A lone '/' names the root's member keyed
+// "", as ids.Ptr("") spells it, so a caller reading $id down a path sees one
+// written there.
 func (v *View) DocumentPath(root *yaml.Node, pointer jsontext.Pointer) (path []*yaml.Node, complete bool) {
-	return v.walkPointer(root, pointer, pointer == "")
-}
-
-// walkPointer is the shared walk; atRoot says whether pointer carries no tokens
-// at all, which is the one question the two readings answer differently.
-func (v *View) walkPointer(root *yaml.Node, pointer jsontext.Pointer, atRoot bool) (path []*yaml.Node, complete bool) {
 	cur := Deref(root)
 	if cur == nil {
 		return nil, false
 	}
 	path = append(path, cur)
-	if atRoot {
-		return path, true
-	}
-
 	segments := 0
 	for token := range pointer.Tokens() {
 		segments++
@@ -460,28 +366,15 @@ func (v *View) walkPointer(root *yaml.Node, pointer jsontext.Pointer, atRoot boo
 	return path, true
 }
 
-// tokenless reports whether a pointer carries no reference tokens at all, so it
-// names the root. Two spellings do, and the resolver lands on the root for
-// both: the empty pointer, which is how a bare '#' reaches here and which
-// references/resolution.go resolveAgainstDocument short-circuits to the root
-// document, and a lone '/'. The second is a deliberate departure from RFC 6901,
-// which reads '/' as one empty token — getNavigationStack special-cases it to an
-// empty navigation stack, as navigation's TestTokens_DecodesAsTheLibraryReads
-// holds it to, and this walk models what the resolver walks rather than what
-// the grammar admits.
-func tokenless(pointer jsontext.Pointer) bool {
-	return pointer == "" || pointer == "/"
-}
-
 // ChildByToken returns the child of a mapping (by key) or sequence (by index)
 // node named by one JSON pointer token, or nil when absent. The mapping arm
 // reads through the view, so pointer navigation resolves an alias key and an
-// aliased or merged value exactly as PureRefTarget does.
+// aliased or merged value as MappingPairs reads them.
 //
-// n itself is not dereferenced, unlike MappingPairs and PureRefTarget: an alias
-// handed here matches neither arm and answers nil. Every caller walks with a
-// dereference at each hop, as walkPointer does, so the difference is
-// unreachable; it is written down because those siblings promise the opposite.
+// n itself is not dereferenced, unlike MappingPairs: an alias handed here
+// matches neither arm and answers nil. Every caller walks with a dereference at
+// each hop, as DocumentPath does, so the difference is unreachable; it is
+// written down because that sibling promises the opposite.
 func (v *View) ChildByToken(n *yaml.Node, token string) *yaml.Node {
 	if n == nil {
 		return nil
@@ -533,7 +426,7 @@ func (v *View) mappingChild(n *yaml.Node, token string) *yaml.Node {
 // An index costs a map allocation and an insert per pair to save a comparison
 // per pair per later read, so a narrow or rarely read mapping never repays it.
 // The wide ones a walk revisits are the few a components block holds. 16 is
-// where the costs roughly meet; BenchmarkPointerTarget_IntoAWideMapping carries
+// where the costs roughly meet; BenchmarkDocumentPath_IntoAWideMapping carries
 // the widths that show it.
 //
 // Width says nothing about reuse: declaresResourceIDAbove builds a view per

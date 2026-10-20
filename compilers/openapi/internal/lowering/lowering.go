@@ -15,7 +15,7 @@ import (
 
 	soa "github.com/speakeasy-api/openapi/openapi"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/defs"
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
@@ -117,13 +117,6 @@ type Ctx struct {
 	// as of the pointer.
 	overlay overlay.Origin
 
-	// defsReader reads the document's "#/$defs/..." pointers and remembers what
-	// it has read. Copies of the context share it on purpose: it only caches
-	// reads of a document lowering never writes, so what one copy remembers
-	// cannot change another's answer, and it keeps a reference's cost from
-	// growing with how deep its schema sits. Nil when there is no document.
-	defsReader *defs.Reader
-
 	// loaded is what the load phase resolved with the document, set only by
 	// WithLoaded and nil in a context given none. It sits behind one pointer
 	// because RefScope copies the whole context into a closure for every
@@ -131,10 +124,10 @@ type Ctx struct {
 	loaded *loadResult
 
 	// typePositions remembers each answer TypePosition read. Copies share it on
-	// purpose, as they share defsReader: an answer reads only the document and
-	// targets, which no lowering changes, so what one copy remembers is what
-	// another would read. Nil in a zero context.
-	typePositions map[typePositionKey]typePositionAt
+	// purpose: an answer reads only the document and its bindings, which no
+	// lowering changes, so what one copy remembers is what another would read.
+	// Nil in a zero context.
+	typePositions map[typePositionKey]jsontext.Pointer
 
 	// reached records where each reference a lowering resolved landed in the
 	// source. Copies share it on purpose: no lowering reads it, so it cannot
@@ -145,13 +138,14 @@ type Ctx struct {
 
 // loadResult holds what a context reads of the load phase (see WithLoaded): the
 // fields the path items write beside their $refs, and the readings RefScope
-// hands every scope over them and over the schemas the document's
-// discriminator mapping targets name. The readings are bound once, here:
-// binding them in RefScope would allocate each time.
+// hands every scope over them, over the raw YAML the model reads on in, and
+// over the schema bindings. The readings are bound once, here: binding them
+// in RefScope would allocate each time.
 type loadResult struct {
 	siblings load.Siblings
-	// reads holds those readings in the scope fields they fill: Mapped, Built
-	// and Holds over the mapping targets, Beside and Writes over siblings.
+	// reads holds those readings in the scope fields they fill: Holds over the
+	// raw YAML, Beside and Writes over siblings, Bindings over the schema
+	// $refs.
 	reads resolve.Scope
 }
 
@@ -161,13 +155,6 @@ type typePositionKey struct {
 	foreign bool
 	holder  string
 	pointer jsontext.Pointer
-}
-
-// typePositionAt is a TypePosition answer: the position, and whether it names
-// one.
-type typePositionAt struct {
-	pointer jsontext.Pointer
-	ok      bool
 }
 
 // New derives the immutable context for one loaded source.
@@ -181,10 +168,6 @@ type typePositionAt struct {
 // The $dynamicAnchor index is built on first use instead (GitHub #172): its
 // bounds diagnostic would warn about documents that never write $dynamicRef.
 func New(srcIndex int, doc *soa.OpenAPI, src ir.SourceInfo, grouping GroupingStrategy, limits Limits, streaming StreamingMedia, promotions ExtensionPromotions, origin overlay.Origin) Ctx {
-	var reader *defs.Reader
-	if doc != nil {
-		reader = defs.NewReader(doc)
-	}
 	return Ctx{
 		Doc:        doc,
 		Source:     src,
@@ -195,9 +178,8 @@ func New(srcIndex int, doc *soa.OpenAPI, src ir.SourceInfo, grouping GroupingStr
 		streaming:  streamingSet(streaming),
 		promotions: promotionSet(promotions),
 		overlay:    origin,
-		defsReader: reader,
 
-		typePositions: map[typePositionKey]typePositionAt{},
+		typePositions: map[typePositionKey]jsontext.Pointer{},
 		reached:       resolve.NewReached(),
 	}
 }
@@ -241,21 +223,26 @@ func (c Ctx) WithAuth(auth map[ir.AuthID]ir.AuthScheme) Ctx {
 }
 
 // WithLoaded returns a copy of c carrying what the load phase resolved with
-// doc: the schemas its discriminator mapping targets name, and the fields its
-// path items write beside their $refs. They come with the document rather than
-// being derived from it, since resolving either runs the resolver, which only
-// the load phase may (GitHub #757). One call sets both, so no context carries
-// one without the other. The copy remembers no TypePosition answer of c's,
-// which read c's targets, and reads raw YAML under its "#/$defs/..." pointers
-// through the index those targets were read through.
+// doc: where each schema $ref lands (its bindings), and the fields its path
+// items write beside their $refs. They come with the document rather than
+// being derived from it, since resolving either reads every document the
+// source names, which only the load phase may (GitHub #757). One call sets
+// both, so no context carries one without the other. The copy remembers no
+// TypePosition answer of c's, which read c's bindings.
 func (c Ctx) WithLoaded(doc *load.Document) Ctx {
-	c.loaded = &loadResult{siblings: doc.Siblings, reads: resolve.Scope{Mapped: doc.Targets.At, Built: doc.Targets.Built,
-		Holds: doc.Targets.Holds, Beside: doc.Siblings.Beside, Writes: doc.Siblings.Writes}}
-	if c.Doc != nil {
-		c.defsReader = defs.NewIndexedReader(c.Doc, doc.Targets.RawTarget)
-	}
-	c.typePositions = map[typePositionKey]typePositionAt{}
+	c.loaded = &loadResult{siblings: doc.Siblings, reads: resolve.Scope{Holds: doc.Holds,
+		Beside: doc.Siblings.Beside, Writes: doc.Siblings.Writes, Bindings: doc.Bindings}}
+	c.typePositions = map[typePositionKey]jsontext.Pointer{}
 	return c
+}
+
+// Bindings returns where the document's schema $refs land, as the load phase
+// resolved them, or nil in a context given none (see WithLoaded).
+func (c Ctx) Bindings() *typed.Bindings {
+	if c.loaded == nil {
+		return nil
+	}
+	return c.loaded.reads.Bindings
 }
 
 // TypePosition returns read's answer for pointer in c's scope, read once and
@@ -263,17 +250,17 @@ func (c Ctx) WithLoaded(doc *load.Document) Ctx {
 // naming pointer names a type, which must follow from the document and the
 // mapping targets alone. Each subtype asks it of every entry of its base's
 // mapping, so n subtypes read each n times. A zero context reads it every time.
-func (c Ctx) TypePosition(pointer jsontext.Pointer, read func() (jsontext.Pointer, bool)) (jsontext.Pointer, bool) {
+func (c Ctx) TypePosition(pointer jsontext.Pointer, read func() jsontext.Pointer) jsontext.Pointer {
 	if c.typePositions == nil {
 		return read()
 	}
 	key := typePositionKey{foreign: c.foreign, holder: c.holder, pointer: pointer}
 	if at, seen := c.typePositions[key]; seen {
-		return at.pointer, at.ok
+		return at
 	}
-	at, ok := read()
-	c.typePositions[key] = typePositionAt{pointer: at, ok: ok}
-	return at, ok
+	at := read()
+	c.typePositions[key] = at
+	return at
 }
 
 // NamingByReference returns a copy of c marking everything lowered under it as
@@ -405,10 +392,10 @@ func (c Ctx) RefScope() resolve.Scope {
 		Ends: resolve.ReferenceEnd, Reached: c.reached}
 	if l := c.loaded; l != nil {
 		r := l.reads
-		scope.Mapped, scope.Built, scope.Holds, scope.Beside, scope.Writes = r.Mapped, r.Built, r.Holds, r.Beside, r.Writes
+		scope.Holds, scope.Beside, scope.Writes, scope.Bindings = r.Holds, r.Beside, r.Writes, r.Bindings
 	}
 	if c.Doc != nil { // keep Doc a nil interface, not one holding a nil pointer
-		scope.Doc, scope.Defs = c.Doc, c.defsReader
+		scope.Doc = c.Doc
 	}
 	return scope
 }

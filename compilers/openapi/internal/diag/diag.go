@@ -31,25 +31,20 @@ const (
 	// item $ref, which the resolver reads in the item that $ref names (GitHub
 	// #824).
 	UnresolvedRef = "openapi/unresolved-ref"
-	// CyclicRef reports a degenerate reference cycle, refused before the parser
-	// library overflows its stack on it (docs/parser-library.md#schema-cycle-overflow,
-	// docs/parser-library.md#alias-cycle). A pre-parse scan finds a recursive
-	// YAML anchor or a loop of schema $refs joined by same-document pointers;
-	// load's reach, one closing through $anchor, $id or $defs-relative
-	// resolution (GitHub #557). Each names the cycle's reference with the least
-	// pointer, never one only leading in (GitHub #912). Load's chain read, for
-	// one closing through the source's file name, names every reference whose
-	// chain loops (GitHub #768). The resolver reports a chain of reference
-	// objects itself, as UnresolvedRef (docs/parser-library.md#reference-object-cycle).
+	// CyclicRef reports a degenerate cycle. A recursive YAML anchor is refused
+	// before the parser library overflows its stack on it
+	// (docs/parser-library.md#alias-cycle). A loop of schema $refs that never
+	// reaches a schema is reported once, at its least member the source writes,
+	// else at the least source $ref leading into it (GitHub #912), and the
+	// document still compiles: the compiler binds schema $refs itself
+	// (docs/parser-library.md#schema-cycle-overflow). The resolver reports a
+	// chain of reference objects itself, as UnresolvedRef
+	// (docs/parser-library.md#reference-object-cycle).
 	CyclicRef = "openapi/cyclic-ref"
-	// CycleScanFailed reports that a cycle check did not run to completion,
-	// leaving its stack-overflow protection incomplete for the source: the
-	// pre-parse scan, load's reach, or load's reading of schema chains for one
-	// closing through the source's file name either aborted (a detector bug) or
-	// hit one of its bounds. It is a warning: the compile still proceeds, and
-	// every cycle the check did classify is still caught. Past the chain read's
-	// bound, a $ref it did not read is left unresolved where the source is held,
-	// since its chain could close through the held file and run the stack out.
+	// CycleScanFailed reports that the pre-parse alias scan aborted on a fault
+	// of its own (scan.Aliases), leaving its protection against a recursive
+	// anchor incomplete for the source. It is a warning: the compile still
+	// proceeds.
 	CycleScanFailed = "openapi/cycle-scan-failed"
 	// SourceTooLarge reports a document with more YAML nodes than the pre-parse
 	// scan indexes (sourceindex.MaxIndexedNodes). Every answer the index gives

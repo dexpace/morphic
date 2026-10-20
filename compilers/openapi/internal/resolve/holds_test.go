@@ -68,7 +68,7 @@ func TestScope_Locate_HoldsAnswersAsTheLibraryAtEveryReferenceKind(t *testing.T)
 	indexed := library
 	indexed.Holds = func(raw *yaml.Node, token string) bool {
 		asked++
-		answer := loaded.Targets.Holds(raw, token)
+		answer := loaded.Holds(raw, token)
 		if answer {
 			held++
 		}

@@ -288,17 +288,19 @@ paths:
 // pointer in the source that passes /a's $ref into ext.yaml, which the resolver
 // reports resolved against the source. What it names is ext.yaml's content, as
 // /a's own lowering reads it, so each $ref written there is unresolved, with
-// the reason, in both orders. Read as the source's, the entry's and the hoist's
-// rows followed declaration order, and the mapping named the source's Pet. Each
-// row is declared first in the order that went wrong.
+// the reason, in both orders: Pet is ext.yaml's, which is not lowered, and Toy
+// names nothing there. Read as the source's, the entry's and the hoist's rows
+// followed declaration order, and the mapping named the source's Pet. Each row
+// is declared first in the order that went wrong.
 func TestExternalContent_APointerPastItsRefNamesItsContent(t *testing.T) {
 	t.Parallel()
 	const (
 		object = "/paths/~1a/get/responses/200/content/application~1json/schema"
 		alias  = "/paths/~1a/get/responses/201/content/application~1json/schema"
-		why    = `": it names a position in the other document holding it, which is not lowered`
-		pet    = `unresolved $ref "#/components/schemas/Pet` + why
-		toy    = `unresolved $ref "#/components/schemas/Toy` + why
+		pet    = `unresolved $ref "#/components/schemas/Pet": it names a position in the other document holding it, ` +
+			"which is not lowered"
+		toy = `unresolved $ref "#/components/schemas/Toy": in <dir>/ext.yaml, it names nothing in the document it ` +
+			"points into"
 	)
 	copies := []string{"/paths/~10", "/paths/~1a"}
 	want := make([]string, 0, 3*len(copies))
@@ -341,9 +343,11 @@ func TestExternalContent_APointerPastItsRefNamesItsContent(t *testing.T) {
 			t.Parallel()
 			const a = "  /a: {$ref: './ext.yaml#/paths/~1a'}\n"
 			compiled := make([][]string, 0, 2)
+			// One directory for both orders, so that the reports naming ext.yaml
+			// compare alike.
+			dir := t.TempDir()
+			require.NoError(t, os.WriteFile(filepath.Join(dir, "ext.yaml"), []byte(passedContent), 0o600))
 			for _, paths := range []string{c.item + a, a + c.item} {
-				dir := t.TempDir()
-				require.NoError(t, os.WriteFile(filepath.Join(dir, "ext.yaml"), []byte(passedContent), 0o600))
 				root := passingRoot(paths)
 				doc, diags, err := openapi.New().Compile(t.Context(),
 					[]compilers.Source{{Path: filepath.Join(dir, "root.yaml"), Data: []byte(root)}},
@@ -352,7 +356,8 @@ func TestExternalContent_APointerPastItsRefNamesItsContent(t *testing.T) {
 				require.NotNil(t, doc)
 				got := make([]string, 0, len(diags))
 				for _, d := range diags {
-					got = append(got, fmt.Sprintf("%s %s %s %s", d.Severity, d.Code, d.Provenance.Pointer, d.Message))
+					got = append(got, fmt.Sprintf("%s %s %s %s", d.Severity, d.Code, d.Provenance.Pointer,
+						strings.ReplaceAll(d.Message, dir, "<dir>")))
 				}
 				slices.Sort(got)
 				assert.Equal(t, want, got, root)
@@ -368,7 +373,8 @@ func TestExternalContent_APointerPastItsRefNamesItsContent(t *testing.T) {
 // the source whose pointer passes the $ref of the response R into ext.yaml,
 // which the resolver reports resolved against the source. What it names is
 // ext.yaml's schema (GitHub #762), so the $ref written there names ext.yaml's
-// Pet and is unresolved, with the reason, as where /x's own response lowers it.
+// Pet, which ext.yaml does not declare, and is unresolved, naming that
+// document, as where /x's own response lowers it.
 // Read as the source's, it named the source's Pet without a word, and no
 // declaration lowers the position to correct it.
 func TestExternalContent_ASchemaRefPastARefNamesItsContent(t *testing.T) {
@@ -399,8 +405,8 @@ components:
 	const named = "/components/responses/R/content/application~1json/schema"
 	unresolved := func(at string) ir.Diagnostic {
 		return ir.Diagnostic{Severity: ir.SeverityError, Code: "openapi/unresolved-ref",
-			Message: `unresolved $ref "#/components/schemas/Pet": it names a position in the other document ` +
-				"holding it, which is not lowered",
+			Message: `unresolved $ref "#/components/schemas/Pet": in ` + filepath.Join(dir, "ext.yaml") +
+				", it names nothing in the document it points into",
 			Provenance: ir.Provenance{Pointer: jsontext.Pointer(at + "/properties/pet")}}
 	}
 	assert.ElementsMatch(t, []ir.Diagnostic{
@@ -462,7 +468,8 @@ func TestExternalContent_ASourcePathThroughASchemeLikeDirectoryIsAFile(t *testin
 // document sits, as the resolver reads it. One whose document part names the
 // source, however spelled from there, names the source's own Thing. One that
 // names a file beside a document in a subdirectory names that file, not the
-// source, so it is unresolved as any other cross-document $ref is.
+// source, so it is unresolved as any other $ref to a missing file is, naming
+// the document it is written in.
 func TestExternalContent_ARefNamingTheSourceNamesIt(t *testing.T) {
 	t.Parallel()
 	item := func(ref string) string {
@@ -492,7 +499,9 @@ func TestExternalContent_ARefNamingTheSourceNamesIt(t *testing.T) {
 
 			if !c.names {
 				want := ir.Diagnostic{Severity: ir.SeverityError, Code: "openapi/unresolved-ref",
-					Message:    `unresolved $ref "` + c.ref + `#/components/schemas/Thing"`,
+					Message: `unresolved $ref "` + c.ref + `#/components/schemas/Thing": in ` + filepath.Join(dir, c.file) +
+						", the document it names could not be read: open " + filepath.Join(dir, "sub", c.ref) +
+						": no such file or directory",
 					Provenance: ir.Provenance{Pointer: "/paths/~1p/get/responses/200/content/application~1json/schema"}}
 				assert.Contains(t, diags, want, "the $ref names another file, not a position in ext.yaml")
 				return

@@ -70,43 +70,31 @@ var rules = map[string][]string{
 	"compilers/openapi/internal/fragment": {"github.com/speakeasy-api/openapi/references"},
 	// A view over the raw source: mappings read the way the resolver reads them,
 	// through aliases and `<<` merge keys. It reaches the library's yml package
-	// for the merge-key predicate the unmarshaller itself uses, and is below both
-	// the scans that first wanted it and the schema lowering that wants the same
-	// view.
-	"compilers/openapi/internal/nodeview": {module + "/compilers/openapi/internal/fragment",
-		"github.com/speakeasy-api/openapi/yml", "gopkg.in/yaml.v3"},
+	// for the merge-key predicate the unmarshaller itself uses, and is below the
+	// scan, the schema bindings and the schema lowering, which read alike through
+	// it.
+	"compilers/openapi/internal/nodeview": {"github.com/speakeasy-api/openapi/yml", "gopkg.in/yaml.v3"},
 	// How the library's walk reads a pointer through the parsed model, a token at
 	// a time, and where it leaves the model for raw YAML. It reaches the library's
 	// navigation and the root node a model was built from, and nothing of the
-	// compiler, so the $defs rule, the reference scope and the loader all read a
-	// pointer as the resolver does, without the key scan its read of raw YAML
-	// costs.
+	// compiler, so the reference scope and the loader read a pointer as the
+	// resolver does, without the key scan its read of raw YAML costs.
 	"compilers/openapi/internal/navigation": {"github.com/speakeasy-api/openapi/jsonpointer",
 		"github.com/speakeasy-api/openapi/marshaller", "gopkg.in/yaml.v3"},
-	// How the resolver reads a "#/$defs/..." pointer: relative to the schema that
-	// spells it. It reads the parsed model as the library's walk does, through
-	// navigation, and nothing of the compiler, so the loader that hands the
-	// resolver its answer and the lowering that names the target can both reach
-	// the one rule.
-	"compilers/openapi/internal/defs": {module + "/compilers/openapi/internal/fragment",
-		module + "/compilers/openapi/internal/navigation",
-		"github.com/speakeasy-api/openapi/jsonpointer",
-		"github.com/speakeasy-api/openapi/jsonschema/oas3",
-		"github.com/speakeasy-api/openapi/references", "gopkg.in/yaml.v3"},
-	// Every schema $ref of the source resolved into a table over its decoded
-	// tree, without the library's resolver (GitHub #913). It reads the tree
+	// Every schema $ref of the source resolved into a table over the decoded
+	// trees, never through the library's resolver (GitHub #558). It reads a tree
 	// through nodeview and a fragment through fragment, and nothing of the
-	// library's model or of the compiler, so it can stand where the resolver's
-	// reading of a schema reference does.
+	// library's model or of the compiler: what the library resolved of a
+	// reference object reaches it as data, through its Config.
 	"compilers/openapi/internal/bind": {module + "/compilers/openapi/internal/fragment",
 		module + "/compilers/openapi/internal/nodeview", "gopkg.in/yaml.v3"},
-	// The typed side of a bind table: the schema the parsed model holds at a
-	// position, read as the library's walk reads it, or one the library's decoder
-	// builds from raw YAML there.
+	// The typed side of a bind table: each schema of the parsed model known by
+	// the position it was read at, located through the library's walk, and one
+	// the library's decoder builds from raw YAML where the model holds none.
 	"compilers/openapi/internal/bind/typed": {module + "/compilers/openapi/internal/bind",
-		module + "/compilers/openapi/internal/navigation", module + "/compilers/openapi/internal/nodeview",
+		module + "/compilers/openapi/internal/nodeview",
 		"github.com/speakeasy-api/openapi/jsonschema/oas3", "github.com/speakeasy-api/openapi/marshaller",
-		"gopkg.in/yaml.v3"},
+		"github.com/speakeasy-api/openapi/walk", "gopkg.in/yaml.v3"},
 	// One walk over the decoded source tree, answering what the pre-lowering
 	// refusals would otherwise each walk it to ask. It reaches nodeview for the
 	// document root and nothing else: an index of what the source says is not
@@ -155,7 +143,8 @@ var rules = map[string][]string{
 	// again over copies of its variables. It reaches nothing that lowers — at
 	// this point there is no document to lower.
 	"compilers/openapi/internal/load": {module + "/ir", module + "/compilers",
-		module + "/compilers/openapi/internal/defs",
+		module + "/compilers/openapi/internal/bind",
+		module + "/compilers/openapi/internal/bind/typed",
 		module + "/compilers/openapi/internal/diag",
 		module + "/compilers/openapi/internal/fragment",
 		module + "/compilers/openapi/internal/navigation",
@@ -174,17 +163,18 @@ var rules = map[string][]string{
 		"github.com/speakeasy-api/openapi/validation",
 		"github.com/speakeasy-api/openapi/yml", "gopkg.in/yaml.v3"},
 	// What a $ref names: the pointer it addresses, the schema declared there and
-	// the type already interned there. It reaches annotation to ask whether a
-	// referenced position declares a body at all, navigation to find that schema
-	// as the resolver does, compile for the registry it looks IDs up in, the
-	// library's openapi package to name each kind of reference once
-	// (ReferenceEnd), and yaml to stop a walk at raw YAML, which holds none. It
-	// reaches nothing that lowers — following a reference far enough to lower
-	// its target recurses back into the schema walk, so that stays with the
-	// walk.
+	// the type already interned there. It reaches bind for where a schema $ref
+	// lands, annotation to ask whether a referenced position declares a body at
+	// all, navigation to walk a pointer through the model as the resolver does,
+	// compile for the registry it looks IDs up in, the library's openapi package
+	// to name each kind of reference once (ReferenceEnd), and yaml to stop a walk
+	// at raw YAML, which holds none. It reaches nothing that lowers — following a
+	// reference far enough to lower its target recurses back into the schema
+	// walk, so that stays with the walk.
 	"compilers/openapi/internal/resolve": {module + "/ir", module + "/compilers/compile",
 		module + "/compilers/openapi/internal/annotation",
-		module + "/compilers/openapi/internal/defs",
+		module + "/compilers/openapi/internal/bind",
+		module + "/compilers/openapi/internal/bind/typed",
 		module + "/compilers/openapi/internal/fragment",
 		module + "/compilers/openapi/internal/ids",
 		module + "/compilers/openapi/internal/navigation",
@@ -204,10 +194,9 @@ var rules = map[string][]string{
 	// and so must reach neither, which is why it sits here rather than with either
 	// one. It reaches load for the version grammar — the dialect question is asked
 	// of the document, and the grammar that answers it is the loader's — and for
-	// the mapping targets the load phase resolved, which its scope reads; and defs
-	// for the reader its scope reads "#/$defs/..." pointers through.
+	// the schema bindings the load phase built, which its scope reads.
 	"compilers/openapi/internal/lowering": {module + "/ir",
-		module + "/compilers/openapi/internal/defs",
+		module + "/compilers/openapi/internal/bind/typed",
 		module + "/compilers/openapi/internal/diag",
 		module + "/compilers/openapi/internal/load",
 		module + "/compilers/openapi/internal/overlay",
@@ -231,7 +220,8 @@ var rules = map[string][]string{
 	// of the compiler package from here is the cycle the extraction removed.
 	"compilers/openapi/internal/schema": {module + "/ir", module + "/compilers/compile",
 		module + "/compilers/openapi/internal/annotation",
-		module + "/compilers/openapi/internal/defs",
+		module + "/compilers/openapi/internal/bind",
+		module + "/compilers/openapi/internal/bind/typed",
 		module + "/compilers/openapi/internal/diag",
 		module + "/compilers/openapi/internal/ids",
 		module + "/compilers/openapi/internal/lowering",
@@ -241,7 +231,6 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/value",
 		"github.com/speakeasy-api/openapi/extensions",
 		"github.com/speakeasy-api/openapi/jsonschema/oas3",
-		"github.com/speakeasy-api/openapi/references",
 		"github.com/speakeasy-api/openapi/values", "gopkg.in/yaml.v3"},
 	// The operation walk: path items, webhooks and callbacks, the parameters
 	// merged onto them, and the content of every body, response and header. It
@@ -251,6 +240,7 @@ var rules = map[string][]string{
 	"compilers/openapi/internal/operation": {module + "/ir", module + "/compilers/compile",
 		module + "/compilers/openapi/internal/annotation",
 		module + "/compilers/openapi/internal/auth",
+		module + "/compilers/openapi/internal/bind/typed",
 		module + "/compilers/openapi/internal/diag",
 		module + "/compilers/openapi/internal/ids",
 		module + "/compilers/openapi/internal/lowering",

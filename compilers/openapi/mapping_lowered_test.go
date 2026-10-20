@@ -233,13 +233,13 @@ func TestMappingTargets_ARawReferenceResolvesInEitherOrder(t *testing.T) {
 	assert.Contains(t, types[0], ir.TypeID("t/anon/x-defs/Dog"))
 }
 
-// TestMappingTargets_AReferenceTheLoadPhaseRefusedIsReportedInEitherOrder pins
-// that the schema walked at a raw position answers only a $ref that reached a
-// copy of it: C's $ref, spelled with the file's name and external references
-// off, is refused, and whether the load phase reports it follows whether M's
-// chain passed it first. Answered by the walked schema, C resolved in the
-// order where the load phase reported nothing, so its report followed order.
-func TestMappingTargets_AReferenceTheLoadPhaseRefusedIsReportedInEitherOrder(t *testing.T) {
+// TestMappingTargets_ALoopThroughARawPositionIsReportedInEitherOrder pins a
+// loop of $refs through raw YAML: C's $ref, spelled with the file's name,
+// names the source, and H's default, a position the model reads no schema at,
+// names C back. The loop is reported once, at C, in either order of the
+// components, wherever M's chain enters it. When the load phase refused C's
+// spelling, whether it reported C followed whether M's chain passed it first.
+func TestMappingTargets_ALoopThroughARawPositionIsReportedInEitherOrder(t *testing.T) {
 	t.Parallel()
 	schemas := []string{"    C: {$ref: 'spec.yaml#/components/schemas/H/default'}\n",
 		"    H: {default: {$ref: '#/components/schemas/C', description: d}}\n",
@@ -263,7 +263,7 @@ func TestMappingTargets_AReferenceTheLoadPhaseRefusedIsReportedInEitherOrder(t *
 		reports = append(reports, errs)
 	}
 	assert.Empty(t, cmp.Diff(reports[0], reports[1]), "declaration order changed the report")
-	assert.Contains(t, reports[1], "/components/schemas/C openapi/unresolved-ref")
+	assert.Equal(t, []string{"/components/schemas/C openapi/cyclic-ref"}, reports[1])
 }
 
 // TestMappingTargets_AReferenceInACopyResolvesInEitherOrder pins a $ref inside
