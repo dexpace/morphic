@@ -1344,10 +1344,11 @@ it stands for does:
   type `Alias` names stay on it, since an example beside a `$ref` describes the position and never
   the target ([`schema-examples`](./compilers/openapi.md#schema-examples)).
 - **Anywhere else** — a list element, a map value, a content, a `Base` — nothing holds them. They
-  stay in the IR, where the docs emitter reads them, and the plan reports each decorator whose
-  `Docs` or `Deprecation` reach no carrier, once rather than once per target, as an info
-  `emitters/plan/decorator-annotations-unplaced` at the decorator. An unplaced example is not
-  reported: no SDK renders a schema example.
+  stay in the IR, where the docs emitter reads them, and the plan reports each decorator some
+  reference reaches whose `Docs` or `Deprecation` reach no carrier, once rather than once per
+  target, as an info `emitters/plan/decorator-annotations-unplaced` at the decorator. A decorator
+  nothing references generates nothing and is not reported, and neither is an unplaced example: no
+  SDK renders a schema example.
 
 The fold is a shared refine helper in `emitters/refine`, reading only the IR facts `Alias` points
 along. T-16 holds it to the compiler's merge: a 3.0 decorator and the 3.1 `$ref` carrying the same
