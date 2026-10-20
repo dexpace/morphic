@@ -15,8 +15,9 @@ import (
 //
 // A registry is any map from ir.TypeID to ir.TypeDef, whatever its type is
 // named: an unnamed one converts to ir.TypeRegistry without a conversion to see,
-// so it is caught where it is made. A compile.Settlement may rewrite the
-// registry Settle hands it, which compile.Types checks for a changed node count.
+// so it is caught where it is made, and a generic by its type arguments. A
+// compile.Settlement may rewrite the registry Settle hands it, which
+// compile.Types checks for a changed node count.
 func (l layout) registryWrites() *analysis.Analyzer {
 	return &analysis.Analyzer{
 		Name: "registrywrites",
@@ -28,7 +29,7 @@ func (l layout) registryWrites() *analysis.Analyzer {
 const (
 	builtMessage   = "builds a type registry (a map from ir.TypeID to ir.TypeDef) outside ir and compilers/compile; go through compile.Types"
 	writtenMessage = "writes a type registry outside ir and compilers/compile; go through compile.Types, or rewrite a node in a compile.Settlement"
-	genericMessage = "passes a type registry to a generic function, whose writes this rule cannot read; keep registry writes in ir and compilers/compile"
+	genericMessage = "instantiates a generic with a type registry or ir.TypeDef, whose registry writes this rule cannot read; keep registry writes in ir and compilers/compile"
 )
 
 func (l layout) runRegistryWrites(pass *analysis.Pass) (any, error) {
@@ -39,7 +40,8 @@ func (l layout) runRegistryWrites(pass *analysis.Pass) (any, error) {
 	if reg == nil {
 		return nil, nil // a package that reaches no ir holds none of its registries
 	}
-	c := registryCheck{l: l, pass: pass, core: reg.Type().Underlying(), settled: settledRegistries(pass)}
+	core, _ := reg.Type().Underlying().(*types.Map) // ir declares it a map
+	c := registryCheck{l: l, pass: pass, core: core, settled: settledRegistries(pass)}
 	for _, f := range productionFiles(pass) {
 		for n := range ast.Preorder(f) {
 			c.node(n)
@@ -53,15 +55,26 @@ type registryCheck struct {
 	l    layout
 	pass *analysis.Pass
 	// core is ir.TypeRegistry's underlying map type.
-	core types.Type
+	core *types.Map
 	// settled holds the registry parameter of each Settle method of a
 	// compile.Settlement the package declares.
 	settled map[types.Object]bool
 }
 
-// isRegistry reports whether t is a map from ir.TypeID to ir.TypeDef.
+// isRegistry reports whether t is a map from ir.TypeID to ir.TypeDef, or a
+// generic's map to ir.TypeDef keyed by a type parameter ir.TypeID satisfies.
+// That one is caught where it is written: ir.TypeID alone, which makes it a
+// registry, draws nothing as a type argument.
 func (c registryCheck) isRegistry(t types.Type) bool {
-	return t != nil && types.Identical(t.Underlying(), c.core)
+	m, isMap := t.Underlying().(*types.Map)
+	if !isMap {
+		return false
+	}
+	key, generic := m.Key().(*types.TypeParam)
+	if !generic {
+		return types.Identical(m, c.core)
+	}
+	return types.Identical(m.Elem(), c.core.Elem()) && satisfies(c.core.Key(), key)
 }
 
 func (c registryCheck) node(n ast.Node) {
@@ -71,7 +84,11 @@ func (c registryCheck) node(n ast.Node) {
 			c.pass.Reportf(n.Pos(), builtMessage)
 		}
 	case *ast.CallExpr:
-		c.call(n)
+		if fn, isBuiltin := typeutil.Callee(c.pass.TypesInfo, n).(*types.Builtin); isBuiltin {
+			c.builtin(n, fn.Name())
+		}
+	case *ast.Ident:
+		c.instance(n)
 	case *ast.AssignStmt:
 		for _, lhs := range n.Lhs {
 			c.target(lhs)
@@ -96,18 +113,6 @@ func (c registryCheck) target(e ast.Expr) {
 	c.pass.Reportf(ix.Pos(), writtenMessage)
 }
 
-// call reports a call that builds a registry, writes one, or hands one to a
-// generic function of the module's that this rule cannot read into.
-func (c registryCheck) call(call *ast.CallExpr) {
-	switch fn := typeutil.Callee(c.pass.TypesInfo, call).(type) {
-	case *types.Builtin:
-		c.builtin(call, fn.Name())
-	case *types.Func:
-		c.function(call, fn)
-	default:
-	}
-}
-
 func (c registryCheck) builtin(call *ast.CallExpr, name string) {
 	if len(call.Args) == 0 || !c.isRegistry(c.pass.TypesInfo.TypeOf(call.Args[0])) {
 		return
@@ -121,26 +126,28 @@ func (c registryCheck) builtin(call *ast.CallExpr, name string) {
 	}
 }
 
-// function reports a call of a maps function that writes a registry, a generic
-// call returning one, and a registry handed to a generic function the module
-// declares outside the framework. A write inside a generic function from
-// elsewhere, or one made through reflect, is out of its sight.
-func (c registryCheck) function(call *ast.CallExpr, fn *types.Func) {
-	if fn.Pkg() != nil && fn.Pkg().Path() == "maps" && mapsWriter(fn.Name()) &&
-		len(call.Args) > 0 && c.isRegistry(c.pass.TypesInfo.TypeOf(call.Args[0])) {
-		c.pass.Reportf(call.Pos(), writtenMessage)
+// instance reports an instantiation, called or not, that writes or builds a
+// registry: a maps function writing one, and a generic returning one. It also
+// reports a generic the module declares outside the framework instantiated
+// with a registry or ir.TypeDef, from which it can make a registry whose
+// writes this rule cannot see, whether it writes one or not. ir.TypeID alone
+// draws nothing, so a generic set of IDs stays clean.
+func (c registryCheck) instance(id *ast.Ident) {
+	inst, ok := c.pass.TypesInfo.Instances[id]
+	if !ok {
 		return
 	}
-	// A generic function always has a package, so fn.Pkg is set past here.
-	inst, generic := c.pass.TypesInfo.Instances[calleeIdent(call.Fun)]
-	if !generic {
-		return
-	}
+	generic := c.pass.TypesInfo.Uses[id]
+	path := generic.Pkg().Path() // a generic is always declared in a package
+	sig, isFunc := inst.Type.(*types.Signature)
 	switch {
-	case c.isRegistry(c.pass.TypesInfo.TypeOf(call)):
-		c.pass.Reportf(call.Pos(), builtMessage) // maps.Clone and maps.Collect among them
-	case c.l.inModule(fn.Pkg().Path()) && !c.l.framework(fn.Pkg().Path()) && c.anyRegistry(inst.TypeArgs):
-		c.pass.Reportf(call.Pos(), genericMessage)
+	case path == "maps" && mapsWriter(generic.Name()) && c.isRegistry(inst.TypeArgs.At(0)):
+		c.pass.Reportf(id.Pos(), writtenMessage) // each writes the map its first type argument is
+	case c.l.framework(path): // trusted, as its functions are
+	case isFunc && c.anyRegistry(sig.Results()):
+		c.pass.Reportf(id.Pos(), builtMessage) // maps.Clone and maps.Collect among them
+	case c.l.inModule(path) && c.registryArgs(inst.TypeArgs):
+		c.pass.Reportf(id.Pos(), genericMessage)
 	default:
 	}
 }
@@ -156,31 +163,24 @@ func mapsWriter(name string) bool {
 	}
 }
 
-func (c registryCheck) anyRegistry(args *types.TypeList) bool {
-	for t := range args.Types() {
-		if c.isRegistry(t) {
+// anyRegistry reports whether one of vars is a registry.
+func (c registryCheck) anyRegistry(vars *types.Tuple) bool {
+	for v := range vars.Variables() {
+		if c.isRegistry(v.Type()) {
 			return true
 		}
 	}
 	return false
 }
 
-// calleeIdent returns the identifier naming the function fun calls, through an
-// explicit instantiation or a qualifier: the one Instances records.
-func calleeIdent(fun ast.Expr) *ast.Ident {
-	e := ast.Unparen(fun)
-	switch ix := e.(type) {
-	case *ast.IndexExpr:
-		e = ast.Unparen(ix.X)
-	case *ast.IndexListExpr:
-		e = ast.Unparen(ix.X)
-	default:
+// registryArgs reports whether one of args is a registry or ir.TypeDef.
+func (c registryCheck) registryArgs(args *types.TypeList) bool {
+	for t := range args.Types() {
+		if c.isRegistry(t) || types.Identical(t, c.core.Elem()) {
+			return true
+		}
 	}
-	if sel, ok := e.(*ast.SelectorExpr); ok {
-		return sel.Sel
-	}
-	id, _ := e.(*ast.Ident)
-	return id
+	return false
 }
 
 // settledRegistries returns the registry parameter of each Settle method the

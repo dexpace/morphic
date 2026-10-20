@@ -10,15 +10,16 @@ import (
 	"golang.org/x/tools/go/analysis"
 )
 
-// idDerivations refuses, in a compiler other than compilers/compile, an ir ID
-// built otherwise than by the framework, and a compile.Space built from
-// anything but one string literal. The derivation stays with the compiler, but
-// the grammar around it does not: the kind prefix, the namespace, and a minted
-// node's namespace of its own (GitHub #162). A namespace assembled from data
-// can lose the separator before the path (GitHub #141).
+// idDerivations refuses a compiler other than compilers/compile building an ir
+// ID itself, or a compile.Space from anything but one string literal. The
+// derivation stays with the compiler, but the grammar around it does not: the
+// kind prefix, the namespace, and a minted node's own namespace (GitHub #162).
+// A namespace assembled from data can lose the separator before the path
+// (GitHub #141).
 //
-// An ID type is one ir declares with a name ending in ID. pass and irverify
-// convert an ID back to look a node up, so only compilers are held.
+// An ID type is one ir declares with a name ending in ID, and generic code is
+// held through its type parameters. pass and irverify convert an ID back to
+// look a node up, so only compilers are held.
 func (l layout) idDerivations() *analysis.Analyzer {
 	return &analysis.Analyzer{
 		Name: "idderivations",
@@ -32,6 +33,7 @@ const (
 	spelledID    = "spells an ir.%s as a constant outside compilers/compile; derive the ID through the framework"
 	gluedID      = "glues an ir.%s together outside compilers/compile; derive the ID through the framework"
 	spaceMessage = "builds a compile.Space from something other than one string literal; a namespace is a literal, or the path glued onto it loses its separator"
+	paramMessage = "builds a value of the type parameter %s, which an ir ID or a compile.Space satisfies, outside compilers/compile; derive the ID through the framework"
 )
 
 func (l layout) runIDDerivations(pass *analysis.Pass) (any, error) {
@@ -92,11 +94,12 @@ func (c idCheck) reported(n ast.Node) bool {
 	}
 }
 
-// conversion reports a conversion to an ID type, and one to compile.Space of
-// anything but a string literal.
+// conversion reports a conversion to an ID type, one to compile.Space of
+// anything but a string literal, and one to a type parameter either satisfies
+// of a value not already of it.
 func (c idCheck) conversion(call *ast.CallExpr) bool {
 	// A call that converts nothing has a function's type in Fun, never an ID's
-	// or a namespace's.
+	// or a namespace's, nor a type parameter's that a string type satisfies.
 	tv := c.pass.TypesInfo.Types[call.Fun]
 	if name, isID := c.idType(tv.Type); isID {
 		c.pass.Reportf(call.Pos(), convertedID, name)
@@ -106,11 +109,16 @@ func (c idCheck) conversion(call *ast.CallExpr) bool {
 		c.pass.Reportf(call.Pos(), spaceMessage)
 		return true
 	}
+	if name, isParam := c.param(tv.Type); isParam && !types.Identical(c.pass.TypesInfo.TypeOf(call.Args[0]), tv.Type) {
+		c.pass.Reportf(call.Pos(), paramMessage, name)
+		return true
+	}
 	return false
 }
 
-// glued reports an ID or a namespace of type t that a + or a += builds: the
-// only operators that yield a string.
+// glued reports an ID, a namespace or a value of a type parameter either
+// satisfies, of type t, that a + or a += builds: the only operators that yield
+// a string.
 func (c idCheck) glued(pos token.Pos, t types.Type) bool {
 	if name, isID := c.idType(t); isID {
 		c.pass.Reportf(pos, gluedID, name)
@@ -120,13 +128,18 @@ func (c idCheck) glued(pos token.Pos, t types.Type) bool {
 		c.pass.Reportf(pos, spaceMessage)
 		return true
 	}
+	if name, isParam := c.param(t); isParam {
+		c.pass.Reportf(pos, paramMessage, name)
+		return true
+	}
 	return false
 }
 
 // constant reports a string constant that becomes an ID, unless it is empty
-// or names an ID constant, whose declaration is where its literal is read; and
-// one that becomes a compile.Space, unless it is a string literal or names a
-// compile.Space constant.
+// or names an ID constant, whose declaration is where its literal is read; one
+// that becomes a compile.Space, unless it is a string literal or names a
+// compile.Space constant; and a non-empty one that becomes a value of a type
+// parameter either satisfies.
 func (c idCheck) constant(e ast.Expr) bool {
 	tv := c.pass.TypesInfo.Types[e]
 	if tv.Value == nil || c.namesConstant(e, tv.Type) {
@@ -138,6 +151,11 @@ func (c idCheck) constant(e ast.Expr) bool {
 	}
 	if c.isSpace(tv.Type) && !stringLiteral(e) {
 		c.pass.Reportf(e.Pos(), spaceMessage)
+		return true
+	}
+	// Such a constant is a string: it is one of every type the parameter admits.
+	if name, isParam := c.param(tv.Type); isParam && constant.StringVal(tv.Value) != "" {
+		c.pass.Reportf(e.Pos(), paramMessage, name)
 		return true
 	}
 	return false
@@ -162,6 +180,25 @@ func (c idCheck) namesConstant(e ast.Expr, t types.Type) bool {
 func (c idCheck) idType(t types.Type) (string, bool) {
 	name, ok := c.ids[types.Unalias(t)]
 	return name, ok
+}
+
+// param names the type parameter t is when an ID type or compile.Space
+// satisfies it, so an instantiation can make t either. No alias denotes a type
+// parameter. A generic declared outside the compilers is out of sight.
+func (c idCheck) param(t types.Type) (string, bool) {
+	p, ok := t.(*types.TypeParam)
+	if !ok {
+		return "", false
+	}
+	for id := range c.ids {
+		if satisfies(id, p) {
+			return p.Obj().Name(), true
+		}
+	}
+	if c.space != nil && satisfies(c.space, p) {
+		return p.Obj().Name(), true
+	}
+	return "", false
 }
 
 // isSpace reports whether t is compile.Space.

@@ -30,6 +30,43 @@ type typeID = ir.TypeID
 
 func lookupType(ir.TypeID) {}
 
+// as converts to its type parameter, which an ID or compile.Space satisfies.
+func as[T ~string](s string) T {
+	return T(s) // want "idderivations: builds a value of the type parameter T, which an ir ID or a compile.Space satisfies, outside compilers/compile; derive the ID through the framework"
+}
+
+// glue joins two values of its type parameter.
+func glue[T ~string](a, b T) T {
+	return a + b // want "idderivations: builds a value of the type parameter T, which an ir ID or a compile.Space satisfies, outside compilers/compile; derive the ID through the framework"
+}
+
+// extend glues onto a value of its type parameter in place.
+func extend[T ~string](t T) T {
+	t += "/x" // want "idderivations: builds a value of the type parameter T, which an ir ID or a compile.Space satisfies, outside compilers/compile; derive the ID through the framework"
+	return t
+}
+
+// spell spells a value of its type parameter as a constant.
+func spell[T ~string]() T {
+	return "t/graphql/generic" // want "idderivations: builds a value of the type parameter T, which an ir ID or a compile.Space satisfies, outside compilers/compile; derive the ID through the framework"
+}
+
+// opID converts to a type parameter only an ID satisfies.
+func opID[T interface{ ir.OpID }](s string) T {
+	return T(s) // want "idderivations: builds a value of the type parameter T, which an ir ID or a compile.Space satisfies, outside compilers/compile; derive the ID through the framework"
+}
+
+// namespace converts to a type parameter only compile.Space satisfies.
+func namespace[S interface{ compile.Space }](s string) S {
+	return S(s) // want "idderivations: builds a value of the type parameter S, which an ir ID or a compile.Space satisfies, outside compilers/compile; derive the ID through the framework"
+}
+
+// blank, same and number build nothing an ID can be: an empty constant, a
+// value already of the type parameter, and one no ID satisfies.
+func blank[T ~string]() T    { return "" }
+func same[T ~string](t T) T  { return T(t) }
+func number[N ~int](i int) N { return N(i) }
+
 func plantIDs(doc *ir.Document, pointer string, existing ir.OpID, s compile.Space) ir.TypeID {
 	_ = ir.TypeID("t/graphql" + pointer)        // want "idderivations: converts a value to ir.TypeID outside compilers/compile; derive the ID through the framework"
 	_ = ir.PropID(pointer)                      // want "idderivations: converts a value to ir.PropID outside compilers/compile; derive the ID through the framework"
@@ -61,6 +98,7 @@ func plantIDs(doc *ir.Document, pointer string, existing ir.OpID, s compile.Spac
 	_ = compile.OpID(("graphql"), pointer)
 	_ = compile.Space(("graphql"))
 	_ = compile.OpID(s, pointer)
+	_ = as[ir.TypeID](pointer)
 	if existing == "" || doc.Types[anyTypeID] == nil || doc.Types[frame.AnyID] == nil {
 		return ""
 	}

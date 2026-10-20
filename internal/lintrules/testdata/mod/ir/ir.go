@@ -3,11 +3,19 @@
 // draws nothing either.
 package ir
 
-import "github.com/dexpace/morphic/ir"
+import (
+	"maps"
 
-// Count is generic, and the framework's, so a registry passed to it draws
+	"github.com/dexpace/morphic/ir"
+)
+
+// Copy is generic, the framework's, and named like a function of package maps
+// that writes, so a registry passed to it draws nothing at the call.
+func Copy[M ~map[K]V, K comparable, V any](dst, src M) { maps.Copy(dst, src) }
+
+// Clone is generic, and the framework's, so a registry it returns draws
 // nothing at the call.
-func Count[M ~map[K]V, K comparable, V any](m M) int { return len(m) }
+func Clone[M ~map[K]V, K comparable, V any](m M) M { return m }
 
 // Owner builds and names.
 func Owner(name string) (ir.TypeRegistry, ir.Naming) {

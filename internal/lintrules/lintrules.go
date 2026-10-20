@@ -95,6 +95,13 @@ func imported(pkg *types.Package, path string) *types.Package {
 	return nil
 }
 
+// satisfies reports whether t satisfies the constraint of the type parameter
+// p, so that an instantiation can make p stand for t.
+func satisfies(t types.Type, p *types.TypeParam) bool {
+	iface, _ := p.Underlying().(*types.Interface) // a type parameter's always is
+	return types.Satisfies(t, iface)
+}
+
 // frameworkCall reports whether e is a call of a function, not a method, that
 // ir or compilers/compile declares.
 func frameworkCall(info *types.Info, e ast.Expr) bool {
