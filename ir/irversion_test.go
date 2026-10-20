@@ -42,6 +42,8 @@ type generation struct {
 // the next version.
 var generations = []generation{
 	{version: "0.14.0", format: 1, shape: "9dabe5d1adf8d55ac0b06a72a113424ff063034fa92f1f35f2e6955bcc5a14b9"},
+	{version: "0.15.0", format: 1, shape: "9dabe5d1adf8d55ac0b06a72a113424ff063034fa92f1f35f2e6955bcc5a14b9",
+		meaning: "a union a discriminator routes is WireTagged"},
 }
 
 // shapeGolden holds the description the newest row's shape hashes, so a change

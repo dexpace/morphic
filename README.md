@@ -56,7 +56,8 @@ and [IR design](docs/ir-design.md) give the reasoning.
   gives the same bytes, and reordering a spec's declarations changes nothing beyond source order.
 - **Diagnostics, not logs.** Every stage is a pure function `f(input, options) → (output,
   diagnostics)` with no package-level state. Problems in a spec come back as typed `ir.Diagnostic`
-  values, and the caller decides which are fatal.
+  values, and the engine decides whether they fail the run, at a severity threshold the caller
+  sets.
 - **Heuristics are policy.** Anything inferred rather than declared, such as which media types
   imply a stream or which vendor extensions fill typed fields, is an injectable policy the caller
   can change or switch off, and what it produces is marked as inferred in the IR's provenance.
@@ -87,7 +88,7 @@ spec ──▶ compiler ──▶ IR ──▶ passes ──▶ IR ──▶ emi
 |---|---|---|
 | 1 | IR package + OpenAPI 3.x compiler, `validate` pass, golden corpus, JSON round-trip | **Implemented** |
 | 2 | Swagger 2.0 lift into the OpenAPI compiler (format-version-normalization seam) | Planned |
-| 3 | First emitter: one language end to end (plan / refine / emit boundary) | Planned |
+| 3 | First emitters: Go, Kotlin/JVM and Kotlin Multiplatform end to end from one plan (plan / refine / emit boundary) | Planned |
 | 4 | Second family compiler (TypeSpec or Smithy), proving the spec-agnostic claim | Planned |
 | 5 | Event-shaped compiler (AsyncAPI), then GraphQL, Protobuf, Erlang/OTP | Planned |
 
@@ -138,7 +139,7 @@ completes commands, flags, and spec files by extension.
 
 | Flag | Commands | Meaning |
 |---|---|---|
-| `--fail-on error\|warning` | both | Exit non-zero when a diagnostic at or above this severity is emitted (default `error`). |
+| `--fail-on error\|warning\|info\|none` | both | Exit non-zero when a diagnostic at or above this severity is emitted (default `error`). `none` exits non-zero only when the spec lowered to no document. |
 | `--disable-pass <name>` | both | Turn off the IR pass with this name, such as `validate`. Repeatable; a name no pass carries is refused with exit `2` and a message naming the passes there are. |
 | `--skip-validate` | both | Alias for `--disable-pass validate`. |
 | `--opt <key>=<value>` | both | Set one option on the compiler the spec selects. Repeatable; a repeated key is refused. |
@@ -232,8 +233,8 @@ if err != nil {
 for _, d := range res.Diagnostics {
     fmt.Println(d.Severity, d.Code, d.Message)
 }
-if res.Document == nil {
-    return errors.New("the spec could not be lowered")
+if res.Failed {
+    return errors.New("the spec has problems") // no document, or a diagnostic at FailOn
 }
 
 data, err := json.Marshal(res.Document) // encoding/json/v2; canonical, deterministic bytes
@@ -244,6 +245,10 @@ no compiler can lower, is a diagnostic in the result, with a nil `Document` when
 lowered. Options go in either as text through `RunOptions.CompilerOptions`, the CLI's `--opt`
 vocabulary, or as a typed value such as an `openapi.Options` through `RunOptions.FormatOptions`;
 set one or the other, not both.
+
+`Result.Failed` is the engine's verdict, the one the CLI's exit status reads: a run fails when it
+lowered no document, or when a diagnostic reaches `RunOptions.FailOn`, which is `error` unless set
+to `warning`, `info` or `none`. A failed run still carries its document and every diagnostic.
 
 ## Package layout
 

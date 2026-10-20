@@ -181,8 +181,8 @@ Built, and in the default list:
   service tree declares, and so on for every ID class), discriminator mappings point at actual
   variants, wire-name uniqueness within a model, and binding completeness: a parameter an HTTP
   binding places twice at one non-host location is an error, one it places nowhere is a warning,
-  and a `host` binding is additive (ir-design §8.1). Structural errors here are fatal; style issues
-  are warnings.
+  and a `host` binding is additive (ir-design §8.1). Structural problems are errors, which fail the
+  run at the default threshold (§4); style issues are warnings.
 
 Designed, not yet built:
 
@@ -225,11 +225,13 @@ except for the boundary they impose on the IR; the internal shape mirrors what K
 converged on independently:
 
 1. **Plan** — compute language-*neutral* per-operation and per-type decisions once
-   (is-paginated, body presence, idempotency, error taxonomy, primary-content/response
-   selection, return-shape classification (model / void / list-of-models with elementwise
-   deserialization), pagination item-type unwrap, parameter-passing shape (positional vs
-   options-bag)) so templates contain no policy. This list is the decision set oagen's
-   emitters demonstrably needed, computed once and shared across all languages.
+   (is-paginated, error taxonomy, primary-content/response selection, return-shape
+   classification (model / void / list-of-models with elementwise deserialization), pagination
+   item-type unwrap) so templates contain no policy. This list is the decision set oagen's
+   emitters demonstrably needed, computed once and shared across all languages, less two kinds of
+   entry (emitter-design.md §3.6): what the IR already states, such as body presence and
+   idempotency, which a refiner reads there; and what varies by language, such as oagen's
+   parameter-passing shape (positional vs inside an options object), which is each target's.
 2. **Refine** — per-language lowering: reserved words, casing, union representation strategy
    (native union vs sealed interface vs wrapper class), enum strategy for open enums, interface
    extraction. Everything a refiner needs must exist un-lowered in the IR — this is the IR's
@@ -394,6 +396,21 @@ human rationale, supports expiry tied to a release, and rejects wildcards — na
 validated, so approvals cannot rot into blanket suppressions. Nothing in the pipeline writes to
 stderr; the CLI renders diagnostics.
 
+**What fails a run.** A stage reports severities; whether the run fails is the engine's verdict,
+taken once the passes have reported, and recorded as `Result.Failed`, so the CLI's exit status
+(`--fail-on`) and any other driver read one rule rather than each reading the diagnostics its own
+way. `RunOptions.FailOn` sets the threshold. At `error`, the default, an error diagnostic fails the
+run; `warning` and `info` are stricter gates, each failing it on a diagnostic at or above that
+severity; `none` fails only a run that produced no document, which fails at every threshold. A
+diagnostic of a severity the IR does not declare is a stage breaking its contract and fails the run
+with a Go error: no threshold can rank it, and ranking it below them all would let a misspelt error
+through every gate. Failing withholds nothing: a failed run still returns its document and every
+diagnostic, to inspect or persist. What it stops is the emitters, which the engine starts only on a
+run that has not failed. The passes are not gated, since they run on every compiled document, errors
+reported or not (§2.2), and the verdict reads their findings too. Error is the default threshold
+because an error means the document may say something the spec does not: an SDK built on it is
+something a caller asks for with `none`, never a default.
+
 ## 5. Testing strategy
 
 - **Golden IR snapshots**: each compiler has a corpus of specs; `spec → IR → JSON` is
@@ -431,8 +448,9 @@ stderr; the CLI renders diagnostics.
 1. **IR + OpenAPI 3.x compiler** — `ir` package, validate pass, golden corpus, JSON round-trip.
 2. **Swagger 2.0 lift** — normalization into the OpenAPI compiler; proves the
    format-version-normalization seam.
-3. **First emitter** — one language end-to-end; proves the plan/refine/emit boundary and that the
-   IR retains everything a refiner needs.
+3. **First emitters** — Go, Kotlin/JVM and Kotlin Multiplatform end-to-end from one plan; proves the
+   plan/refine/emit boundary, the plan's neutrality across three targets, and that the IR retains
+   everything a refiner needs (emitter-design.md §14).
 4. **Second family compiler (TypeSpec or Smithy)** — proves the spec-agnostic claim: richer-than-
    OpenAPI concepts (interfaces, custom scalars, lifecycle visibility, declared pagination) flow
    through untouched IR code.
