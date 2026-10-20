@@ -416,9 +416,12 @@ stderr; the CLI renders diagnostics.
   only if neither is the one that got there first. Both pointer collisions the compiler has had
   were invisible to a single-order suite.
 - **Architecture test** (`internal/archtest`): import-graph assertions for the layering rules
-  above, plus the rules the graph cannot express — which packages may write an `ir.TypeRegistry`,
-  which lowerings are mutually recursive (so a set that grows is noticed rather than measured),
-  and the method-per-type cap.
+  above, plus the rules the graph cannot express — which lowerings are mutually recursive (so a
+  set that grows is noticed rather than measured), and the method-per-type cap.
+- **Lint rules** (`.golangci.yml`, `internal/lintrules`): what a linter can hold — which packages
+  may write an `ir.TypeRegistry`, derive a name or build an ID, that no pipeline stage prints or
+  logs, and that a switch over an IR enum names every member. `make lint-planted` holds each rule
+  to findings planted for it, since a clean tree cannot tell a rule from one that matches nothing.
 - **Wire-conformance harness** (from milestone 3): expected request shapes (method, path,
   query, body keys) are derived *from the IR alone* — offline, deterministic, shared across
   every language emitter; generated SDKs run under HTTP interception and the requests are

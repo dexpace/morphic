@@ -202,12 +202,12 @@ These all exist already — extend them rather than building a parallel mechanis
   from the library's sources, to `resolutionBaseline`. The baseline only shrinks: removing a use
   means lowering it (#558).
 - **Lint rule plants**: a rule a linter already expresses lives in `.golangci.yml` or, for
-  ruleguard, in `internal/lintrules`, rather than in archtest: the json v1 ban, the registry, name
-  and ID rules, fragment reading, exhaustive switches over IR enums, invariant 5's output ban.
-  `make lint-planted` holds each one to a clean module and to `internal/lintrules/testdata/planted`,
-  whose lines carry the findings they must draw, so a rule that recognizes nothing fails. A new rule
-  gets its plants there. It runs from an empty cache, since golangci-lint's cache does not key on
-  the ruleguard rules file.
+  ruleguard, in `internal/lintrules`, rather than in archtest; the comments there say what each one
+  holds. `make lint-planted` holds each one to a clean module and to
+  `internal/lintrules/testdata/planted`, whose lines carry the findings they must draw, so a rule
+  that recognizes nothing fails. A new rule gets its plants there, and its linter a place in the
+  script's list. It runs from an empty cache, since golangci-lint's cache does not key on the
+  ruleguard rules file.
 - **Declaration pins**: a test that holds a hand-written list (an enum's members, a sealed sum's
   kinds, the fields of a shape) to what a package declares reads the package through
   `internal/decls`, which type-checks it with `go/packages`. It does not parse the sources: parsed
