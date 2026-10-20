@@ -376,15 +376,16 @@ type Dependency struct {
   means nothing to Kotlin, and options already give a per-target setting a strict decode, a version
   and defaults per version, which a separate input would need all over again.
 - **What a mapped type must do.** A type some built-in row names is one the target knows: it writes
-  that type's literals, checks its constraints and codes it itself. Any other type is known only
+  that type's literals, checks its constraints and knows whether it has methods. Any other type is
+  known only
   through its row. Its values reach the wire through `Codec` — Go's `""` is the type's own
   `MarshalJSONTo`/`UnmarshalJSONFrom`, or `MarshalText`/`UnmarshalText` where the wire holds a
   string, and a Kotlin row names a `KSerializer` unless the type is `@Serializable`. A literal of it
   (a default, a constant, an enum value) is built by decoding the value's wire form through that
   codec, and a constraint on it is not checked by the SDK, which the server still checks, reported
   once per key as an info `emitters/<target>/unchecked-constraint`. A row's codec is the type's own,
-  so it survives only where the SDK uses that type: a Go type defined over it, as §9 has a named
-  scalar declare, has none of its methods, and how such a declaration keeps them is #1021's.
+  so a declaration standing over the type keeps it by naming that type again rather than defining a
+  new one (§4.9), and a type only a user's row names is taken to have methods.
 - **Imports and dependencies.** `ComputeImports` adds a row's `Imports` to every file that spells
   its type, and the dependency-manifest artifact requires each `Dependency.Module` a row in use
   names, at the highest `MinVersion` those rows name, compared as the target's build tool compares
@@ -803,7 +804,7 @@ imports (§4.12); collision resolution runs last. Because each step is idempoten
 | Step | Reads (un-lowered IR fact) | Lowers to (Go example) | IR ref |
 |---|---|---|---|
 | `CollapseAliases` | `TypePlan.Alias`; the decorator chain's `Docs`, `Deprecation`, `Examples` | no declaration for an aliased type; each reference to it lowered as one to its `Alias`, its annotations folded onto the carrier (§4.15) | §4.3; §12.2 |
-| `ResolveScalarChains` | `plan.ScalarChain` (the `Base` chain walked once, constraints merged), `Ctx.Types` | named type over the chain's root, typed by the type table (§2.6), + merged constraints; nil-base → newtype (opaque-scalar strategy) | §4.2 |
+| `ResolveScalarChains` | `plan.ScalarChain` (the `Base` chain walked once, constraints merged), `Ctx.Types` | a defined type over a root with no methods, an alias over any other (§4.9), the root typed by the type table (§2.6), + merged constraints; nil-base → newtype (opaque-scalar strategy) | §4.2 |
 | `LowerContainers` | `List/MapT/Tuple` nodes (with IDs) | `[]T` / `map[K]V` / positional struct, its positions past `MinItems` optional and a `Rest` as a trailing slice; a nil `MapT.Key` is `string`, and a non-string key → custom-key map or diagnostic | §4.6 |
 | `LowerLiterals` | `Literal{Value}` | typed constant / single-value newtype (incl. `symbol`) | §4.6 |
 | `LowerModels` | `TypePlan.Flattened`, `Base`/`Implements`/`Mixins`, `AdditionalProps`, `Additional`, `Positional` | struct over the flattened properties, catch-all map as the embedded fallback, unknown members rejected on `closed` (§8.1) | §4.3 |
@@ -1009,6 +1010,20 @@ tag by token scan, and `decodeTypeDef` decodes the concrete kind under the decod
   `ResolveScalarChains` lowers what it found, the root typed by the type table (§2.6). Nil-base
   scalars (GraphQL custom) go to the opaque-scalar strategy (a Go newtype), never a fabricated
   chain.
+- **A declaration over a root keeps the root's codec.** A named scalar, an anonymous one that is no
+  decorator (§4.15), and a `Model` whose `Base` is no model (§9) each declare a type standing over
+  their chain's root. Go defines a new type, `type Name string`, only where the root's type has no
+  methods of its own — a predeclared type, a slice, a map — so the new type codes as the root does
+  and can carry a `Validate` of its own. Over any other root it declares an alias,
+  `type Created = time.Time` or `type Owner = User`. A defined type has none of its root's methods:
+  json/v2 refuses `type Created time.Time` outright, writes `type Key uuid.UUID` and
+  `type Blob jsontext.Value` as base64, and never runs a closed model's strict decoder or an open
+  enum's keeper of unknown values for one. An alias declares no method, so its constraints are
+  checked where it is used, as a field's are (§4.11), and a projection of it (§4.6) is its root's.
+  The target knows which of its built-in types have methods, and takes a type only a user's row
+  names (§2.6) to have some. Kotlin draws the same line at its own types: a value class over
+  `Boolean`, a number, `String` or `ByteArray`, and a `typealias` over any other root, which leaves
+  the root's type, and its serializer, in every signature.
 - **External** (R4 §2.8): `External{Identity, Package, MinVersion}` becomes the type its type-table
   row names for `Identity` (§2.6), imported with the row's `Imports` and required at its
   `Dependency` — imported, not generated. `Package` and `MinVersion` name what the source format
@@ -1958,7 +1973,7 @@ for both Kotlin targets, and "KMP:" marks where Multiplatform differs from the J
 | `date`, `time`, `datetime`, `datetime_offset`, `duration` | runtime `Date`, `TimeOfDay`, `DateTime`; `time.Time`; a runtime ISO 8601 `Duration` | JVM `LocalDate`, `LocalTime`, `LocalDateTime`, `OffsetDateTime`; KMP `kotlinx-datetime`'s `LocalDate`, `LocalTime`, `LocalDateTime`, the runtime `OffsetDateTime` (§8.8); a runtime ISO 8601 `Duration` on both | the offset a timestamp was written with; a duration's years and months, which neither language's own duration holds |
 | `any`, `Any` | `jsontext.Value`, which keeps the bytes, distinct from a diagnosed unknown | `JsonElement` | every byte; decoding into Go's `any` would turn each number into a `float64` |
 | nil `*TypeRef` | void | `Unit` | — |
-| `Scalar{Base}` chain | named type over the chain's root (`TypePlan.Scalar`), typed by the type table's row for the root and the chain's encoding (§2.6), merged constraints; nil base → newtype | `@JvmInline value class` over the chain's root; nil base → value class over the wire form | encoding triple |
+| `Scalar{Base}` chain | over the chain's root (`TypePlan.Scalar`), typed by the type table's row for the root and the chain's encoding (§2.6): a defined type with a `Validate` for merged constraints where the root's type has no methods (a predeclared type, a slice, a map), an alias (`type X = Root`) over any other, its constraints checked where it is used (§4.9); nil base → newtype | `@JvmInline value class` over a `Boolean`, number, `String` or `ByteArray` root, a `typealias` over any other (§4.9); nil base → value class over the wire form | encoding triple; the root's codec |
 | `Model` (Base/Implements/Mixins) | struct with `Base` and `Mixins` flattened in; `Implements` → interfaces; `Abstract` → interface; `Positional` → index-ordered struct | final class with `Base` and `Mixins` flattened in, built through a builder, never a `data class` (§8.8); `Implements` → interface; discriminated or abstract base → sealed interface | `WireID` order |
 | anonymous decorator: a `Model` with only a `Base`, or a `Scalar` with neither `Constraints` nor `Encoding`, beside annotations (§4.15) | no declaration: each reference lowered as one to the first type along its `Base` that is not a decorator, its docs, deprecation and examples folded onto the carrier | the same | — |
 | `Model` whose `Base` is no model, not a decorator | with no property, catch-all or discriminator of its own, lowered as the `Scalar` row lowers an alias over that base, its constraints, docs and examples binding the position (ir-design §4.2); a union base beside properties distributed over the variants as ir-design §4.3 distributes a union co-declared with a composition; anything else a diagnosed degrade | the same | — |
@@ -2135,6 +2150,9 @@ throughout this document.
 20. **T-20 · Recursive types** — a model that holds itself directly, through a base, through a
     union, through a tuple and through another model generates code that compiles on every target,
     and only the references §4.16 names are held through a pointer.
+21. **T-21 · Declarations keep their root's codec** — a named scalar over every primitive, and over
+    a model, an enum and a union, encodes and decodes each value byte for byte as its root does on
+    every target, and a constraint the scalar declares is still checked (§4.9).
 
 ### 13.1 The behavior server (T-14)
 
