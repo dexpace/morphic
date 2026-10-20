@@ -168,6 +168,29 @@ components:
 - Code:
   - `load.resolvable` hands the resolver every reference object, cycles included.
 
+### `trailing-empty-token`
+
+Through raw YAML, a pointer whose last token is empty names the node the walk has reached, not a
+member keyed `""` as RFC 6901 reads it: `jsonpointer.GetTarget` on a `*yaml.Node` returns the node
+before the token, and for a lone `/` the root. The resolver reads raw YAML that way wherever the
+model holds none, an extension's value or another document, so a reference object spelling
+`#/x-params/q/` resolves to `q`. The compiler reads every pointer as RFC 6901 does, so it places
+what a reference object resolved to by the node the chain reached rather than by its pointer.
+
+```yaml
+components:
+  parameters:
+    P: {$ref: '#/x-params/q/'}   # resolves to q
+x-params:
+  q: {name: q, in: query}
+```
+
+- Verified at: v1.25.5
+- Pinned by: `TestLibraryBehaviour/trailing-empty-token`
+- Code:
+  - `bind.ReferenceEnd` places an end at the position on its pointer's read holding that node.
+  - `load.referenceEnds` hands the binder the node each chain reached.
+
 ### `root-defs`
 
 A schema `$ref` to `#/$defs/X`, where `$defs` is written at the document's root, resolves to the

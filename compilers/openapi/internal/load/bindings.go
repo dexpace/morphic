@@ -55,9 +55,9 @@ func bindSchemas(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, d
 ) bound {
 	ends := referenceEnds(ctx, doc, sibs, self)
 	cfg := bind.Config{Self: self.path, Locate: self.locate, Beside: sibs.Beside, Written: self.escapes.original,
-		Through: func(p jsontext.Pointer) (string, jsontext.Pointer, bool) {
+		Through: func(p jsontext.Pointer) (bind.ReferenceEnd, bool) {
 			e, ok := ends[p]
-			return e.name, e.pointer, ok
+			return bind.ReferenceEnd{Name: e.name, Pointer: e.pointer, Node: e.node}, ok
 		}}
 	if reader != nil {
 		cfg.Open = func(name string) (*yaml.Node, error) { return reader.document(ctx, name) }
@@ -71,17 +71,20 @@ func bindSchemas(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, d
 
 // referenceEnd is where the chain of one of the source's reference objects
 // ended, as the parser resolved it: the document, by the name bind reads it
-// under, and the pointer there, and the object built there with its walk.
+// under, and the pointer there, and the object built there, with its node and
+// its walk.
 type referenceEnd struct {
 	name    string
 	pointer jsontext.Pointer
 	object  any
+	node    *yaml.Node
 	walk    func(context.Context) iter.Seq[soa.WalkItem]
 }
 
 // referenceEnds returns where each of the source's reference objects ended,
 // by the pointer writing it, and holds none for one whose chain stopped, or
-// was cut.
+// was cut. Each carries the node its chain reached, by which the binder places
+// it (docs/parser-library.md#trailing-empty-token).
 func referenceEnds(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, self sourceDocument,
 ) map[jsontext.Pointer]referenceEnd {
 	ends := map[jsontext.Pointer]referenceEnd{}
@@ -94,7 +97,7 @@ func referenceEnds(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, self so
 		}
 		last := c.records[len(c.records)-1]
 		ends[site] = referenceEnd{name: self.nameOf(last.path), pointer: last.pointer, object: last.object,
-			walk: last.walk}
+			node: last.node, walk: last.walk}
 		return nil
 	})
 	return ends

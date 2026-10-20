@@ -33,6 +33,7 @@ func canaries() map[string]func(t *testing.T) {
 		"validation-version":     validationVersion,
 		"empty-is-missing":       emptyIsMissing,
 		"overlay-alias-clone":    overlayAliasClone,
+		"trailing-empty-token":   trailingEmptyToken,
 	}
 }
 

@@ -14,11 +14,13 @@ import (
 	"testing"
 	"testing/fstest"
 
+	"github.com/speakeasy-api/openapi/jsonpointer"
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/speakeasy-api/openapi/references"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	yaml "gopkg.in/yaml.v3"
 )
 
 // resolved is what resolveAll reports for a document it resolves cleanly.
@@ -363,4 +365,30 @@ func shadowedRootDefs(t *testing.T) {
 		require.NotNil(t, b.GetResolvedSchema(), "%s\n%s", name, revisit(t, result{}))
 		assert.Equal(t, []oas3.SchemaType{want}, b.GetResolvedSchema().GetSchema().GetType(), "%s\n%s", name, revisit(t, result{}))
 	}
+}
+
+// trailingEmptyToken pins trailing-empty-token: through raw YAML, a pointer
+// whose last token is empty names the node before it, a lone '/' the root,
+// and a reference object spelling one resolves to that node.
+func trailingEmptyToken(t *testing.T) {
+	src := head + "components:\n  parameters:\n    P: {$ref: '#/x-params/q/'}\nx-params:\n  q: {name: q, in: query}\n"
+	var tree yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte(src), &tree))
+	q, err := jsonpointer.GetTarget(&tree, "/x-params/q")
+	require.NoError(t, err)
+	for pointer, want := range map[jsonpointer.JSONPointer]any{"/x-params/q/": q, "/": tree.Content[0]} {
+		got, err := jsonpointer.GetTarget(&tree, pointer)
+		require.NoError(t, err, "%s\n%s", pointer, revisit(t, result{}))
+		assert.Same(t, want, got, "%s\n%s", pointer, revisit(t, result{}))
+	}
+
+	doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(src))
+	require.NoError(t, err)
+	_, err = doc.ResolveAllReferences(t.Context(), soa.ResolveAllOptions{OpenAPILocation: location, DisableExternalRefs: true})
+	require.NoError(t, err, revisit(t, result{}))
+	p := doc.Components.Parameters.GetOrZero("P")
+	require.NotNil(t, p.GetObject(), revisit(t, result{}))
+	own, err := jsonpointer.GetTarget(doc.GetRootNode(), "/x-params/q")
+	require.NoError(t, err)
+	assert.Same(t, own, p.GetObject().GetRootNode(), "it resolves to q itself: %s", revisit(t, result{}))
 }

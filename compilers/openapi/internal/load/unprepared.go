@@ -557,10 +557,13 @@ type chain struct {
 // pointer is read off the reference, decoded once as fragment.Pointer decodes
 // it, not cut from the absolute one: a document's path may hold a '#'.
 type record struct {
-	path         string
-	target       references.Reference
-	pointer      jsontext.Pointer
-	object       any
+	path    string
+	target  references.Reference
+	pointer jsontext.Pointer
+	object  any
+	// node is the node the object the chain reaches from this hop was built
+	// from, read off the object's reference.
+	node         *yaml.Node
 	walk         func(context.Context) iter.Seq[soa.WalkItem]
 	document     *any
 	documentPath *string
@@ -620,6 +623,7 @@ func recordsOf[S any, R interface {
 	GetReference() references.Reference
 	GetReferenceResolutionInfo() *references.ResolveResult[S]
 	GetObjectAny() any
+	GetRootNode() *yaml.Node
 }](ref R) chain {
 	var c chain
 	hop := ref
@@ -633,7 +637,8 @@ func recordsOf[S any, R interface {
 			return c
 		}
 		c.records = append(c.records, record{path: info.AbsoluteDocumentPath, target: info.AbsoluteReference,
-			pointer: fragment.Pointer(string(hop.GetReference())), object: info.Object, walk: walkOf(info.Object),
+			pointer: fragment.Pointer(string(hop.GetReference())), object: info.Object,
+			node: R(info.Object).GetRootNode(), walk: walkOf(info.Object),
 			document: &info.ResolvedDocument, documentPath: &info.AbsoluteDocumentPath, replace: replacing(info)})
 		hop = info.Object
 	}

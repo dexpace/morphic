@@ -10,6 +10,7 @@ import (
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 )
 
 // throughSpec writes a schema $ref whose pointer passes through the response
@@ -51,14 +52,14 @@ func throughConfig() bind.Config {
           n: {$ref: '#/Elsewhere'}
 Elsewhere: {type: string}
 `})
-	cfg.Through = func(p jsontext.Pointer) (string, jsontext.Pointer, bool) {
+	cfg.Through = func(p jsontext.Pointer) (bind.ReferenceEnd, bool) {
 		switch p {
 		case "/paths/~1a":
-			return "spec.yaml", "/components/pathItems/P", true
+			return bind.ReferenceEnd{Name: "spec.yaml", Pointer: "/components/pathItems/P"}, true
 		case "/components/responses/R":
-			return "other.yaml", "/R", true
+			return bind.ReferenceEnd{Name: "other.yaml", Pointer: "/R"}, true
 		default:
-			return "", "", false
+			return bind.ReferenceEnd{}, false
 		}
 	}
 	return cfg
@@ -124,18 +125,18 @@ func TestTable_ThroughReadsAnEndPastAnotherReferenceObject(t *testing.T) {
 	t.Parallel()
 	cfg := withDocuments(map[string]string{"other.yaml": "paths:\n  /a:\n    get:\n      responses:\n        '200':\n" +
 		"          description: ok\n          content: {application/json: {schema: {$ref: '#/S'}}}\nS: {type: string}\n"})
-	cfg.Through = func(p jsontext.Pointer) (string, jsontext.Pointer, bool) {
+	cfg.Through = func(p jsontext.Pointer) (bind.ReferenceEnd, bool) {
 		switch p {
 		case "/paths/~1a":
-			return "other.yaml", "/paths/~1a", true
+			return bind.ReferenceEnd{Name: "other.yaml", Pointer: "/paths/~1a"}, true
 		case "/paths/~1b/get/responses/200":
-			return "spec.yaml", "/paths/~1a/get/responses/200", true
+			return bind.ReferenceEnd{Name: "spec.yaml", Pointer: "/paths/~1a/get/responses/200"}, true
 		case "/paths/~1x":
-			return "spec.yaml", "/paths/~1y/get", true
+			return bind.ReferenceEnd{Name: "spec.yaml", Pointer: "/paths/~1y/get"}, true
 		case "/paths/~1y":
-			return "spec.yaml", "/paths/~1x/get", true
+			return bind.ReferenceEnd{Name: "spec.yaml", Pointer: "/paths/~1x/get"}, true
 		default:
-			return "", "", false
+			return bind.ReferenceEnd{}, false
 		}
 	}
 	table := bound(t, strings.TrimSuffix(head, "paths: {}\n")+`paths:
@@ -218,12 +219,78 @@ func TestBind_LeavesAReferenceObjectWithoutAnEnd(t *testing.T) {
 	table := bound(t, throughSpec, self)
 	assert.Equal(t, bind.Unpassable, entryAt(t, table, "/components/schemas/Body").Hop.Reason)
 	cfg := throughConfig()
-	cfg.Through = func(jsontext.Pointer) (string, jsontext.Pointer, bool) { return "gone.yaml", "/R", true }
+	cfg.Through = func(jsontext.Pointer) (bind.ReferenceEnd, bool) {
+		return bind.ReferenceEnd{Name: "gone.yaml", Pointer: "/R"}, true
+	}
 	assert.Equal(t, bind.Unpassable, entryAt(t, bound(t, throughSpec, cfg), "/components/schemas/Body").Hop.Reason,
 		"an end in a document that cannot be read")
-	cfg.Through = func(jsontext.Pointer) (string, jsontext.Pointer, bool) { return "other.yaml", "/Missing", true }
+	cfg.Through = func(jsontext.Pointer) (bind.ReferenceEnd, bool) {
+		return bind.ReferenceEnd{Name: "other.yaml", Pointer: "/Missing"}, true
+	}
 	assert.Equal(t, bind.Unpassable, entryAt(t, bound(t, throughSpec, cfg), "/components/schemas/Body").Hop.Reason,
 		"an end the document holds nothing at")
+}
+
+// TestBind_PlacesAnEndAtTheNodeItsChainReached pins ReferenceEnd.Node: the
+// parser reads a trailing '/' in raw YAML as the node before it, so an end
+// whose pointer spells one is placed where the chain reached, a lone '/' at
+// the root, and a node the pointer's read never holds places none.
+func TestBind_PlacesAnEndAtTheNodeItsChainReached(t *testing.T) {
+	t.Parallel()
+	const spec = head + `components:
+  parameters:
+    P: {$ref: '#/x-params/q/'}
+  schemas:
+    S: {$ref: '#/components/parameters/P/schema'}
+x-params:
+  q: {name: q, in: query, schema: {$ref: '#/components/schemas/Int'}}
+  r: {name: r, in: query}
+`
+	src := tree(t, spec)
+	view := nodeview.New()
+	nodeAt := func(pointer jsontext.Pointer) *yaml.Node {
+		path, ok := view.DocumentPath(nodeview.DocumentRoot(src), pointer)
+		require.True(t, ok, pointer)
+		return path[len(path)-1]
+	}
+	tests := []struct {
+		name    string
+		pointer jsontext.Pointer
+		node    *yaml.Node
+		end     jsontext.Pointer
+		placed  bool
+	}{
+		{"a trailing '/', at the node before it", "/x-params/q/", nodeAt("/x-params/q"), "/x-params/q", true},
+		{"a lone '/', at the root", "/", nodeAt(""), "", true},
+		{"a node the read holds nowhere", "/x-params/q", nodeAt("/x-params/r"), "", false},
+		{"no node, where the pointer reads", "/x-params/q", nil, "/x-params/q", true},
+		{"no node, a trailing '/' read as RFC 6901 does", "/x-params/q/", nil, "", false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			cfg := self
+			cfg.Through = func(p jsontext.Pointer) (bind.ReferenceEnd, bool) {
+				return bind.ReferenceEnd{Name: "spec.yaml", Pointer: tc.pointer, Node: tc.node},
+					p == "/components/parameters/P"
+			}
+			table := bind.Bind(src, cfg)
+			end, ok := table.Through("/components/parameters/P")
+			s := entryAt(t, table, "/components/schemas/S")
+			if !tc.placed {
+				assert.False(t, ok)
+				assert.Equal(t, bind.Unpassable, s.Hop.Reason)
+				return
+			}
+			require.True(t, ok)
+			assert.Equal(t, at(tc.end), end)
+			if tc.end == "/x-params/q" {
+				assert.Equal(t, at("/x-params/q/schema"), s.Hop.Target)
+				_, read := table.Entry(at("/x-params/q/schema"))
+				assert.True(t, read, "the end's schema site is read")
+			}
+		})
+	}
 }
 
 // TestBind_ReadsEverySchemaSiteOnce pins the sites a table holds: every schema
@@ -312,8 +379,8 @@ x-lib:
 func TestBind_PlacesEachLandingAtTheLeastSourcePositionReachingIt(t *testing.T) {
 	t.Parallel()
 	cfg := withDocuments(map[string]string{"other.yaml": "A: {$ref: '#/B'}\nB: {type: string}\nC: {$ref: '#/D'}\nD: {}\n"})
-	cfg.Through = func(p jsontext.Pointer) (string, jsontext.Pointer, bool) {
-		return "other.yaml", "/R", p == "/components/responses/R"
+	cfg.Through = func(p jsontext.Pointer) (bind.ReferenceEnd, bool) {
+		return bind.ReferenceEnd{Name: "other.yaml", Pointer: "/R"}, p == "/components/responses/R"
 	}
 	cfg.Open = withRaw(cfg.Open, "other.yaml", "A: {$ref: '#/B'}\nB: {type: string}\nC: {$ref: '#/D'}\nD: {}\n"+
 		"R: {description: ok, content: {a/b: {schema: {$ref: '#/C'}}}}\n")

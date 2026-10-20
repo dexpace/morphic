@@ -147,22 +147,19 @@ type reading struct {
 	state state
 }
 
-// read reads pointer from the root of document id, as the parser's model
-// reads it: through each reference object it passes, into what that names
-// (through). A lone '/' names the root, as the parser reads it.
+// read reads pointer from the root of document id, as RFC 6901 reads it, and
+// through each reference object it passes, into what that names (through).
 func (d *docs) read(id DocID, pointer jsontext.Pointer) (reading, Reason) {
-	return d.readFrom(id, pointer, 0)
+	return d.readFrom(id, pointer, 0, nil)
 }
 
-// readFrom is read, having passed passes reference objects already. The
-// pointer read so far is kept as bytes and spelled into the reading only where
-// one is passed on or returned, so a read costs its pointer's length rather
-// than its square.
-func (d *docs) readFrom(id DocID, pointer jsontext.Pointer, passes int) (reading, Reason) {
+// readFrom is read, having passed passes reference objects already. Given a
+// node to reach, it stops at the first position holding it, and names nothing
+// where none does. The pointer read so far is kept as bytes and spelled into
+// the reading only where one is passed on or returned, so a read costs its
+// pointer's length rather than its square.
+func (d *docs) readFrom(id DocID, pointer jsontext.Pointer, passes int, want *yaml.Node) (reading, Reason) {
 	r := reading{at: Position{Doc: id}, node: d.list[id].root, state: d.rootState(id)}
-	if pointer == "/" {
-		return r, NoReason
-	}
 	var soFar []byte
 	tokens := 0
 	for token := range pointer.Tokens() {
@@ -176,12 +173,18 @@ func (d *docs) readFrom(id DocID, pointer jsontext.Pointer, passes int) (reading
 			}
 			soFar = append(soFar[:0], r.at.Pointer...)
 		}
+		if want != nil && nodeview.Deref(r.node) == want {
+			return r.spelledAs(soFar), NoReason
+		}
 		child := d.child(r.at.Doc, r.node, token)
 		if child == nil {
 			return r.spelledAs(soFar), d.absent(r.at.Doc, r.node)
 		}
 		soFar = append(soFar, jsontext.Pointer("").AppendToken(token)...)
 		r = reading{at: Position{Doc: r.at.Doc}, node: child, state: step(r.state, token)}
+	}
+	if want != nil && nodeview.Deref(r.node) != want {
+		return r.spelledAs(soFar), NoTarget
 	}
 	return r.spelledAs(soFar), NoReason
 }
@@ -231,9 +234,10 @@ func isIndex(token string) bool {
 // through carries r on to what the reference object at r names, where the
 // parser's resolver ended its chain (Config.Through), read at the same state:
 // a pointer through a response reads on in the response it names. The end is
-// read as any pointer is, through the reference objects it lies past. An
-// object writing no $ref is read where it is. Only the source's reference
-// objects are resolved; one in another document is not (GitHub #751).
+// read as any pointer is, through the reference objects it lies past, up to
+// the node the chain reached (ReferenceEnd). An object writing no $ref is read
+// where it is. Only the source's reference objects are resolved; one in
+// another document is not (GitHub #751).
 func (d *docs) through(r reading, passes int) (reading, Reason) {
 	if !d.writesRef(r) {
 		return r, NoReason
@@ -241,15 +245,15 @@ func (d *docs) through(r reading, passes int) (reading, Reason) {
 	if r.at.Doc != Source || d.cfg.Through == nil || passes >= maxPasses {
 		return r, Unpassable
 	}
-	name, pointer, ok := d.cfg.Through(r.at.Pointer)
+	e, ok := d.cfg.Through(r.at.Pointer)
 	if !ok {
 		return r, Unpassable
 	}
-	id, err := d.open(name)
+	id, err := d.open(e.Name)
 	if err != nil {
 		return r, Unpassable
 	}
-	end, reason := d.readFrom(id, pointer, passes+1)
+	end, reason := d.readFrom(id, e.Pointer, passes+1, nodeview.Deref(e.Node))
 	if reason != NoReason {
 		return r, Unpassable
 	}

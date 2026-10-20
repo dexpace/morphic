@@ -31,10 +31,9 @@ type Config struct {
 	// compile's budgets. Nil reads no other document.
 	Open func(name string) (*yaml.Node, error)
 	// Through returns where the chain of the source's reference object at a
-	// pointer ends, as the parser's resolver followed it: the document's name
-	// and the pointer there. Nil, or false, is a reference that resolved to
-	// nothing.
-	Through func(pointer jsontext.Pointer) (name string, at jsontext.Pointer, ok bool)
+	// pointer ends, as the parser's resolver followed it. Nil, or false, is a
+	// reference that resolved to nothing.
+	Through func(pointer jsontext.Pointer) (ReferenceEnd, bool)
 	// Beside returns the path item $ref, and the key written beside it, whose
 	// fields a pointer passes through. Nil passes none.
 	Beside func(pointer jsontext.Pointer) (use jsontext.Pointer, key string, ok bool)
@@ -45,6 +44,19 @@ type Config struct {
 	Written func(n *yaml.Node) (string, bool)
 	// Limit bounds the work; zero is DefaultLimit.
 	Limit int
+}
+
+// ReferenceEnd is where the parser's resolver ended a reference object's
+// chain: the name of the document, the pointer its last $ref writes there, and
+// the node the chain reached, a node of the tree Config.Open or Bind is handed
+// for that document. The end is the position on the pointer's read that holds
+// Node, since the resolver reads some pointers otherwise than RFC 6901 does
+// (docs/parser-library.md#trailing-empty-token). A nil Node places the end
+// where the pointer reads.
+type ReferenceEnd struct {
+	Name    string
+	Pointer jsontext.Pointer
+	Node    *yaml.Node
 }
 
 // budget is the work a table may spend, and what it has.

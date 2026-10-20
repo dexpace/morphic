@@ -251,7 +251,8 @@ and the position lowers without it: a schema position to the top type, any other
 at all, so the parameter, response or body it would have named is absent. A schema `$ref` whose
 chain ends on another failing `$ref` of the source is not reported for it, as that one is; one whose
 chain leaves the source and fails in another document's content is reported where it leaves, naming
-the `$ref` that fails.
+the `$ref` that fails. What a reference object resolved to is read at the node the resolver's chain
+reached ([`trailing-empty-token`](../parser-library.md#trailing-empty-token)).
 
 A same-document `#/$defs/...` pointer is read by a rule of its own, in an order no declaration
 changes: the `$defs` of the schema writing the `$ref` where that schema declares an `$id`, else the
@@ -280,7 +281,8 @@ chain of references that closes on itself is [`reference-cycles`](#reference-cyc
   `bind.TestBind_ReadsEachHop`, `bind.TestBind_ReadsADefinitionByTheDefsRule`,
   `bind.TestBind_ReadsEachPositionAsTheJSONItSpells`, `bind.TestBind_ReadsARepeatedKeyAsItsLast`,
   `bind.TestBind_StopsAtItsBudget`, `bind.TestBind_CountsWorkLinearInTheDocument`,
-  `bind.TestBind_ReadsEveryWebhookAsAPathItem`,
+  `bind.TestBind_ReadsEveryWebhookAsAPathItem`, `bind.TestBind_PlacesAnEndAtTheNodeItsChainReached`,
+  `openapi.TestReferenceEnds_AnEndingSlashIsReadWhereTheParserResolvedIt`,
   `bind.TestTable_SaysWhyARefWentUnread`,
   `bind.TestBind_SaysAKeyMayLiePastTheMergeBound`,
   `bind.TestBind_TakesNoDefinitionPastAReadTheMergeBoundStopped`,
