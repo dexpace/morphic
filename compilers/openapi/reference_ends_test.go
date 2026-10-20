@@ -58,3 +58,31 @@ x-params:
 		})
 	}
 }
+
+// TestReferenceEnds_AnEndInTheSourceIsReadThereUnderSelf pins a response
+// reference in a document declaring $self, which the parser resolves against
+// the $self URL and names its end by that (GitHub #863): it ends in the
+// source, so a schema $ref through it resolves there.
+func TestReferenceEnds_AnEndInTheSourceIsReadThereUnderSelf(t *testing.T) {
+	t.Parallel()
+	const src = `openapi: 3.2.0
+$self: https://example.com/api/openapi.yaml
+info: {title: T, version: "1"}
+paths:
+  /a: {get: {responses: {"404": {$ref: '#/components/responses/NotFound'}}}}
+components:
+  responses:
+    NotFound: {description: nf, content: {application/json: {schema: {$ref: '#/components/schemas/X'}}}}
+  schemas:
+    X: {type: integer}
+    S: {$ref: '#/paths/~1a/get/responses/404/content/application~1json/schema'}
+`
+	doc, diags, err := openapi.New().Compile(t.Context(), []compilers.Source{{Path: "spec.yaml", Data: []byte(src)}},
+		compilers.Options{})
+	require.NoError(t, err)
+	assert.Empty(t, diags)
+	require.NotNil(t, doc)
+	s, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Scalar)
+	require.True(t, ok)
+	assert.Equal(t, ir.TypeID("t/anon/paths/~1a/get/responses/404/content/application~1json/schema"), s.Base.Target)
+}

@@ -283,6 +283,8 @@ chain of references that closes on itself is [`reference-cycles`](#reference-cyc
   `bind.TestBind_StopsAtItsBudget`, `bind.TestBind_CountsWorkLinearInTheDocument`,
   `bind.TestBind_ReadsEveryWebhookAsAPathItem`, `bind.TestBind_PlacesAnEndAtTheNodeItsChainReached`,
   `openapi.TestReferenceEnds_AnEndingSlashIsReadWhereTheParserResolvedIt`,
+  `openapi.TestReferenceEnds_AnEndInTheSourceIsReadThereUnderSelf`,
+  `load.TestBindSchemas_PlacesEveryEndAndBindsEveryRefInTheCorpus`,
   `bind.TestTable_SaysWhyARefWentUnread`,
   `bind.TestBind_SaysAKeyMayLiePastTheMergeBound`,
   `bind.TestBind_TakesNoDefinitionPastAReadTheMergeBoundStopped`,

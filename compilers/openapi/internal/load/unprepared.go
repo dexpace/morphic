@@ -570,13 +570,21 @@ type record struct {
 	replace      func(obj any) bool
 }
 
+// inSource reports whether r's hop resolved against the source, which the
+// resolver reads as the model rather than as a parsed tree, whatever name its
+// path gives it: a document's $self is one (GitHub #863).
+func (r record) inSource() bool {
+	_, ok := (*r.document).(*soa.OpenAPI)
+	return ok
+}
+
 // trail reads what c's records say about where the resolution went.
 func (c chain) trail() trail {
 	t := trail{stopped: c.stopped, cut: c.cut}
 	var last references.Reference
 	for _, r := range c.records {
 		t.docs = append(t.docs, r.path)
-		_, t.endsInSource = (*r.document).(*soa.OpenAPI)
+		t.endsInSource = r.inSource()
 		last = r.target
 	}
 	if !c.cut && t.stopped == "" {

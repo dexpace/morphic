@@ -96,8 +96,12 @@ func referenceEnds(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, self so
 			return nil
 		}
 		last := c.records[len(c.records)-1]
-		ends[site] = referenceEnd{name: self.nameOf(last.path), pointer: last.pointer, object: last.object,
-			node: last.node, walk: last.walk}
+		name := self.nameOf(last.path)
+		if last.inSource() {
+			name = self.path
+		}
+		ends[site] = referenceEnd{name: name, pointer: last.pointer, object: last.object, node: last.node,
+			walk: last.walk}
 		return nil
 	})
 	return ends
