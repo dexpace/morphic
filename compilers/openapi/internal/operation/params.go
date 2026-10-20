@@ -136,7 +136,7 @@ func reservedHeaderParamDiag(c lowering.Ctx, name string, in soa.ParameterIn, pp
 // elects — its schema, or the single media-type entry of a content-style
 // parameter, whose media type goes on the binding. Constraints come from that
 // same schema position; the default comes from it too, falling back to its $ref
-// target (§14).
+// target (docs/compilers/openapi.md#ref-use-site).
 func fillParamType(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, param *ir.Parameter, binding *ir.HTTPParamBinding, p *soa.Parameter, pptr jsontext.Pointer, name string) ([]ir.Example, []ir.Diagnostic) {
 	elected, diags := electTypeSpelling(c, p.GetSchema(), p.GetContent(), p.GetRootNode(), pptr,
 		"parameter", "ir.Parameter")
@@ -153,11 +153,12 @@ func fillParamType(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInde
 // schema.ConstraintsOf), so the two carriers cannot read one schema apart.
 //
 // A schema spelled {$ref: …} resolves its target so the annotations that
-// inherit from it still reach the parameter (ir-design §14, GitHub #131).
-// Constraints stay use-site-only, as fillPropertyConstraints keeps them: the
-// referent's bounds are left where declared, since bounds conjoin rather than
-// override and copying one down under use-site precedence would publish the
-// wider bound as the whole truth (ir-design §12.2).
+// inherit from it still reach the parameter
+// (docs/compilers/openapi.md#ref-use-site, GitHub #131). Constraints stay
+// use-site-only, as fillPropertyConstraints keeps them: the referent's bounds
+// are left where declared, since bounds conjoin rather than override and
+// copying one down under use-site precedence would publish the wider bound as
+// the whole truth (ir-design §12.2).
 func fillParamSchema(c lowering.Ctx, ts *compile.Types, param *ir.Parameter, js *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer) []ir.Diagnostic {
 	if js == nil || !js.IsSchema() {
 		return nil
@@ -191,9 +192,9 @@ func fillParamSchema(c lowering.Ctx, ts *compile.Types, param *ir.Parameter, js 
 //
 // fillParamDetail writes the parameter's own annotations afterwards, and they
 // win where both are set. tgt is the schema the use-site $ref resolves to,
-// which docs and deprecation fall back to (ir-design §14); examples, xml and
-// the visibility keywords stay site-only, since they describe the position, not
-// the type.
+// which docs and deprecation fall back to
+// (docs/compilers/openapi.md#ref-use-site); examples, xml and the visibility
+// keywords stay site-only, since they describe the position, not the type.
 func fillParamSchemaAnnotations(c lowering.Ctx, ts *compile.Types, param *ir.Parameter, s, tgt *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	// Visibility is kept before the own-node guard, not after it. The guard exists
 	// so an annotation with a home on the node is not also copied to the carrier,
@@ -264,11 +265,12 @@ func preserveParamRedaction(c lowering.Ctx, param *ir.Parameter, s *oas3.Schema,
 }
 
 // preserveParamVisibility keeps the residue keywords a parameter schema writes
-// that ir.Parameter has no field for. §14 lowers readOnly/writeOnly to a
-// Visibility, which only ir.Property has (ir/operation.go) — so at a parameter
-// they reach no field, and nothing else on this path reads them. ReasonNoIRHome,
-// since the IR can close the gap by adding the field, exactly as the xml hints
-// beside them are kept.
+// that ir.Parameter has no field for. The rule
+// docs/compilers/openapi.md#use-bound-annotations lowers readOnly/writeOnly to
+// a Visibility, which only ir.Property has (ir/operation.go) — so at a
+// parameter they reach no field, and nothing else on this path reads them.
+// ReasonNoIRHome, since the IR can close the gap by adding the field, exactly
+// as the xml hints beside them are kept.
 //
 // The list is asked of the schema package rather than restated here, so a
 // keyword added there is preserved here too instead of being dropped at this one

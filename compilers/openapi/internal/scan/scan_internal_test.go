@@ -12,7 +12,6 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/speakeasy-api/openapi/jsonpointer"
@@ -644,10 +643,10 @@ func TestRefScanCollect_DeepNestingIsNotTruncated(t *testing.T) {
 	assert.Contains(t, s.out, ref, "a ref nested past the old depth cap is still collected")
 }
 
-func TestDetectCycles_ChainedAliasFanOutIsRefusedFast(t *testing.T) {
-	t.Parallel()
-	const levels = 40
-
+// chainedAliasSpec writes a document whose Root schema is the top of a chain
+// of levels anchors, each an allOf naming the one below it twice, so its alias
+// expansion doubles with each level.
+func chainedAliasSpec(levels int) string {
 	var b strings.Builder
 	b.WriteString("openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\nx-anchors:\n")
 	b.WriteString("  a0: &a0 {type: string}\n")
@@ -655,8 +654,15 @@ func TestDetectCycles_ChainedAliasFanOutIsRefusedFast(t *testing.T) {
 		fmt.Fprintf(&b, "  a%d: &a%d {allOf: [*a%d, *a%d]}\n", i, i, i-1, i-1)
 	}
 	fmt.Fprintf(&b, "components:\n  schemas:\n    Root: *a%d\n", levels)
+	return b.String()
+}
 
-	diags := scanWithin(t, b.String(), "exponential blowup on chained aliases")
+// TestDetectCycles_ChainedAliasFanOutIsRefused refuses a millionfold
+// expansion. Twenty levels keep this test finite even for a walk that lost its
+// memo, a defect TestCycles_AllocatesLinearlyInItsInput reports.
+func TestDetectCycles_ChainedAliasFanOutIsRefused(t *testing.T) {
+	t.Parallel()
+	diags := scanBytes(t, []byte(chainedAliasSpec(20)))
 	require.Len(t, diags, 1, "a fan-out this deep is refused, not silently accepted")
 	assert.Equal(t, diag.AliasAmplification, diags[0].Code)
 	assert.Equal(t, ir.SeverityError, diags[0].Severity)
@@ -664,13 +670,16 @@ func TestDetectCycles_ChainedAliasFanOutIsRefusedFast(t *testing.T) {
 
 func TestDetectCycles_MergeChainWithinBoundIsClean(t *testing.T) {
 	t.Parallel()
-	diags := scanWithin(t, ynode.MergeChainSpec(nodeview.MergeDepthLimit), "blowup on an in-bound merge chain")
+	diags := scanBytes(t, []byte(ynode.MergeChainSpec(nodeview.MergeDepthLimit)))
 	assert.Empty(t, diags, "a merge chain the scan can expand in full is clean")
 }
 
-func TestDetectCycles_MergeChainPastBoundStaysFastAndWarns(t *testing.T) {
+// TestDetectCycles_MergeChainPastBoundWarns reads a chain past both the depth
+// bound and the alias allowance, with room to spare, yet short enough that a
+// bound which stopped binding fails here in seconds.
+func TestDetectCycles_MergeChainPastBoundWarns(t *testing.T) {
 	t.Parallel()
-	diags := scanWithin(t, ynode.MergeChainSpec(1600), "super-linear blowup on a long merge chain")
+	diags := scanBytes(t, []byte(ynode.MergeChainSpec(500)))
 	require.Len(t, diags, 2, "both the truncation warning and the amplification refusal are reported")
 	assert.Equal(t, diag.CycleScanFailed, diags[0].Code)
 	assert.Equal(t, ir.SeverityWarning, diags[0].Severity,
@@ -680,22 +689,51 @@ func TestDetectCycles_MergeChainPastBoundStaysFastAndWarns(t *testing.T) {
 		"the document's alias expansion is also refused outright")
 }
 
-func scanWithin(t *testing.T, src, blowup string) []ir.Diagnostic {
-	t.Helper()
-	const bound = 10 * time.Second
-	// Indexed on this goroutine: the walk is linear in the tree, and require
-	// must not be called from the one below.
-	idx := indexOf(t, []byte(src))
-	done := make(chan []ir.Diagnostic, 1)
-	go func() {
-		done <- Cycles(InSource(0), idx, defaultSurplus)
-	}()
-	select {
-	case diags := <-done:
-		return diags
-	case <-time.After(bound):
-		t.Fatalf("Cycles did not return within %v — likely %s", bound, blowup)
-		return nil
+// TestCycles_AllocatesLinearlyInItsInput holds Cycles to a cost linear in its
+// input, on each shape a walk without its memo or its bound blows up on. A row
+// is measured at n, 2n and 4n, which must take one path through the scan, and
+// the second doubling may add at most 2.5 times what the first did: a linear
+// walk adds twice as much, a quadratic one four times, and the fixed cost
+// cancels. Allocations do not move with load. It runs serially, since
+// AllocsPerRun counts the whole process. A collect walk re-entering a node
+// allocates nothing, so TestRefScanCollect_VisitsEachNodeOncePerRole pins that.
+func TestCycles_AllocatesLinearlyInItsInput(t *testing.T) {
+	rows := []struct {
+		name string
+		spec func(n int) string
+		n    int
+	}{
+		// The alias weigher's memo. Sizes the expansion ratio admits keep one
+		// path, and a walk that lost its memo finite.
+		{"chained aliases", chainedAliasSpec, 2},
+		// The merge view's memo, up to the depth bound.
+		{"merge chain within the bound", ynode.MergeChainSpec, nodeview.MergeDepthLimit / 4},
+		// The depth bound, which holds each level's re-expansion to a constant.
+		{"merge chain past the bound", ynode.MergeChainSpec, 80},
+	}
+	for _, row := range rows {
+		t.Run(row.name, func(t *testing.T) {
+			sizes := []int{row.n, 2 * row.n, 4 * row.n}
+			allocs := make([]float64, len(sizes))
+			paths := make([][]string, len(sizes))
+			for i, size := range sizes {
+				idx := indexOf(t, []byte(row.spec(size)))
+				var diags []ir.Diagnostic
+				// No alias budget, so only the expansion ratio refuses, and it
+				// refuses none of these sizes.
+				allocs[i] = testing.AllocsPerRun(1, func() { diags = Cycles(InSource(0), idx, 0) })
+				for _, d := range diags {
+					paths[i] = append(paths[i], d.Code)
+				}
+			}
+			require.Equal(t, paths[0], paths[1], "sizes %v must take one path through the scan", sizes)
+			require.Equal(t, paths[0], paths[2], "sizes %v must take one path through the scan", sizes)
+
+			first, second := allocs[1]-allocs[0], allocs[2]-allocs[1]
+			require.Positive(t, first, "a doubling that adds nothing measures nothing")
+			assert.LessOrEqual(t, second, 2.5*first,
+				"sizes %v took %v allocations: the second doubling added over 2.5 times the first", sizes, allocs)
+		})
 	}
 }
 
@@ -1641,7 +1679,10 @@ func TestInTree_AllocatesInTheTreesSizeNotItsPointers(t *testing.T) {
 	runtime.ReadMemStats(&after)
 	runtime.KeepAlive(root)
 
-	assert.True(t, got.Pointer == want, "the pointer asked for is %d bytes, want %d", len(got.Pointer), len(want))
+	// Compared as a bool, so a failure reports the lengths rather than printing
+	// two pointers of tens of kilobytes each.
+	same := got.Pointer == want
+	assert.True(t, same, "the pointer asked for is %d bytes, want %d", len(got.Pointer), len(want))
 	alloc := after.TotalAlloc - before.TotalAlloc
 	assert.Less(t, alloc, uint64(bound), "indexing the tree and asking for one pointer allocated %d bytes", alloc)
 }

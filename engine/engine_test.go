@@ -337,31 +337,37 @@ func (errCompiler) Compile(context.Context, []compilers.Source, compilers.Option
 	return nil, nil, assert.AnError
 }
 
-func TestEngine_RunParseError(t *testing.T) {
+func TestEngine_RunCompileError(t *testing.T) {
 	t.Parallel()
 	eng, err := engine.NewWith(errCompiler{})
 	require.NoError(t, err)
 	_, err = eng.Run(t.Context(), writeSpec(t, testspec.Tiny), engine.RunOptions{})
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "engine: parse")
+	assert.Contains(t, err.Error(), "engine: compile")
 }
 
-// nilDocCompiler claims openapi 3.1 and returns a nil Document with no error —
-// a legal outcome that must skip the validate pass and surface a nil Document.
+// nilDocCompiler claims openapi 3.1 and returns a nil Document with no error,
+// reporting what reported holds — a legal outcome that must skip the validate
+// pass and surface a nil Document.
 //
 // It is not a stand-in for a compiler whose two diagnostic channels disagree:
 // a nil Document short-circuits the validate step entirely, so this stub never
 // reaches the code that folds the two together. splitDiagCompiler is what
 // covers that.
-type nilDocCompiler struct{ stubFront }
+type nilDocCompiler struct {
+	stubFront
+	reported []ir.Diagnostic
+}
 
-func (nilDocCompiler) Compile(context.Context, []compilers.Source, compilers.Options) (*ir.Document, []ir.Diagnostic, error) {
-	return nil, []ir.Diagnostic{{Code: "x/none"}}, nil
+func (c nilDocCompiler) Compile(context.Context, []compilers.Source, compilers.Options) (*ir.Document, []ir.Diagnostic, error) {
+	return nil, slices.Clone(c.reported), nil
 }
 
 func TestEngine_RunNilDocument(t *testing.T) {
 	t.Parallel()
-	eng, err := engine.NewWith(nilDocCompiler{})
+	eng, err := engine.NewWith(nilDocCompiler{
+		reported: []ir.Diagnostic{{Severity: ir.SeverityError, Code: "x/none"}},
+	})
 	require.NoError(t, err)
 	// No pass is disabled, but a nil Document must still short-circuit the passes.
 	res, err := eng.Run(t.Context(), writeSpec(t, testspec.Tiny), engine.RunOptions{})
@@ -410,19 +416,19 @@ func TestEngine_RunKeepsDiagnosticsFromEitherChannel(t *testing.T) {
 		Code:     "stub/spec-problem",
 		Message:  "the compiler reported this",
 	}
-	fronts := []struct {
-		name  string
-		front splitDiagCompiler
+	cases := []struct {
+		name string
+		comp splitDiagCompiler
 	}{
 		{"mirrored", splitDiagCompiler{stored: []ir.Diagnostic{want}, returned: []ir.Diagnostic{want}}},
 		{"returned only", splitDiagCompiler{returned: []ir.Diagnostic{want}}},
 		{"stored only", splitDiagCompiler{stored: []ir.Diagnostic{want}}},
 	}
-	for _, tt := range fronts {
+	for _, tt := range cases {
 		for _, disable := range [][]string{nil, {engine.ValidatePass}} {
 			t.Run(fmt.Sprintf("%s/disable=%v", tt.name, disable), func(t *testing.T) {
 				t.Parallel()
-				eng, err := engine.NewWith(tt.front)
+				eng, err := engine.NewWith(tt.comp)
 				require.NoError(t, err)
 
 				res, err := eng.Run(t.Context(), writeSpec(t, testspec.Tiny),
@@ -576,8 +582,8 @@ func TestEngine_RunNewFormatNeedsNoEngineEdit(t *testing.T) {
 // read through the reader the engine supplies.
 func TestEngine_RunCompilerOptionsAreLoadedByTheEngine(t *testing.T) {
 	t.Parallel()
-	front := &smithyCompiler{}
-	eng, err := engine.NewWith(front)
+	comp := &smithyCompiler{}
+	eng, err := engine.NewWith(comp)
 	require.NoError(t, err)
 	spec := writeNamed(t, "model.smithy", "$version: \"2\"\n")
 
@@ -585,9 +591,9 @@ func TestEngine_RunCompilerOptionsAreLoadedByTheEngine(t *testing.T) {
 		CompilerOptions: map[string]string{"shape": "Widget"},
 	})
 	require.NoError(t, err)
-	require.NotNil(t, front.options.ReadFile, "a compiler must be handed a reader it can use")
+	require.NotNil(t, comp.options.ReadFile, "a compiler must be handed a reader it can use")
 
-	got, err := front.options.ReadFile(spec)
+	got, err := comp.options.ReadFile(spec)
 	require.NoError(t, err)
 	assert.Contains(t, string(got), "$version")
 }

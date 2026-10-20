@@ -133,11 +133,11 @@ func TestSchemaOf_ReturnsOnlyAWrittenBody(t *testing.T) {
 // mapping of ir-design §5.2, the precedence a site holds over its referent, and
 // the answer for the pairing that admits nothing.
 //
-// Precedence is per flag (the uniform §14 merge): a site's readOnly settles
-// readOnly only, so it does not cancel a referent's writeOnly. Both are in
-// force, admit disjoint lifecycle sets, and leave the position visible in none.
-// Until GitHub #276 that case read as plain readOnly, dropping the flag
-// arriving second.
+// Precedence is per flag (the uniform merge of
+// docs/compilers/openapi.md#ref-use-site): a site's readOnly settles readOnly
+// only, so it does not cancel a referent's writeOnly. Both are in force, admit
+// disjoint lifecycle sets, and leave the position visible in none. Until GitHub
+// #276 that case read as plain readOnly, dropping the flag arriving second.
 func TestEffectiveVisibility_MapsTheFlagsToLifecycles(t *testing.T) {
 	t.Parallel()
 	read := ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleRead, ir.LifecycleDelete, ir.LifecycleQuery}}
@@ -240,10 +240,11 @@ func TestFillTypeDocs_AnAbsentFieldOverwritesNothing(t *testing.T) {
 	assert.Equal(t, ir.Docs{Summary: "kept", Description: "kept", ExternalDocs: []ir.Link{{URL: "kept"}}}, d)
 }
 
-// TestFillCarrierDocs_MergesFieldByField pins ir-design §14 at the carrier: the
-// referent's documentation arrives first and the site's overrides it one field
-// at a time, so a site that writes only a description still inherits the
-// referent's title rather than replacing the whole set.
+// TestFillCarrierDocs_MergesFieldByField pins the rule
+// docs/compilers/openapi.md#ref-use-site at the carrier: the referent's
+// documentation arrives first and the site's overrides it one field at a time,
+// so a site that writes only a description still inherits the referent's title
+// rather than replacing the whole set.
 func TestFillCarrierDocs_MergesFieldByField(t *testing.T) {
 	t.Parallel()
 	var d ir.Docs
@@ -769,7 +770,7 @@ func TestRawChildNodes_AgreesWithRawChildNode(t *testing.T) {
 			keys := append([]string{"title", "absent"}, RawMappingKeys(&doc)...)
 			keys = slices.AppendSeq(keys, maps.Keys(children))
 			for _, key := range keys {
-				assert.True(t, RawChildNode(&doc, key) == children[key], "the two readers disagree on %q", key)
+				assert.Same(t, RawChildNode(&doc, key), children[key], "the two readers disagree on %q", key)
 			}
 		})
 	}

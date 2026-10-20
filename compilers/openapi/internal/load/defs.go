@@ -16,16 +16,30 @@ import (
 )
 
 // heldRef is one "#/$defs/..." reference and the definition the resolver's own
-// rule names for it (defs.Reader.Target); target is nil when the rule names none.
+// rule names for it (defs.Reader.Target); found is false when the rule names
+// none.
 type heldRef struct {
 	js       *schemaRef
 	modelled *references.Reference // the $ref as the model holds it, which is put back
-	target   *schemaRef            // the definition the rule names
-	at       jsontext.Pointer      // where that definition is written
+	def      defs.Definition       // the definition the rule names
+	found    bool                  // whether it names one
 	site     jsontext.Pointer      // where the reference is written
 	// refused is why a reference written in the fields beside a path item's
-	// $ref is left unresolved, or empty for any other (see heldRefs).
+	// $ref, or one the rule finds shadowed, is left unresolved, or empty for
+	// any other (see heldRefs).
 	refused string
+}
+
+// shadowedReason is why a reference defs.Reader.Shadowed reports is left
+// unresolved.
+const shadowedReason = "the document's root and the $defs of the schema spelling it, which has no $id, " +
+	"both define it, and the resolver reads one or the other depending on what it resolved first"
+
+// defsRule is the $defs rule over doc, reading raw YAML through reads, an
+// index, so a wide mapping costs its width once however many references read
+// through it (defs.Reader.Indexed).
+func defsRule(doc *soa.OpenAPI, reads *treeReads) *defs.Reader {
+	return defs.NewIndexedReader(doc, reads.target)
 }
 
 // heldRefs collects every schema reference whose pointer the resolver reads
@@ -37,6 +51,7 @@ type heldRef struct {
 //
 // One written beside a path item's $ref is held with no target: its definition
 // is beside the $ref too, where the resolver reads through it (Siblings.Beside).
+// So is one defs.Reader.Shadowed reports.
 func heldRefs(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, rule *defs.Reader) []heldRef {
 	if !anyScalar(doc.GetRootNode(), isDefsRef) {
 		return nil
@@ -52,8 +67,8 @@ func heldRefs(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, rule *defs.R
 			r := heldRef{js: js, modelled: js.GetSchema().Ref, site: jsontext.Pointer(item.Location.ToJSONPointer())}
 			if use, key, beside := sibs.Beside(r.site); beside {
 				r.refused = refscope.DefsBesideReason(use, key)
-			} else {
-				r.target, r.at, _ = rule.Target(js, pointer)
+			} else if r.def, r.found = rule.Target(js, pointer); !r.found && rule.Shadowed(js, pointer) {
+				r.refused = shadowedReason
 			}
 			out = append(out, r)
 			return nil
@@ -97,8 +112,8 @@ func (r heldRef) restore() { r.js.GetSchema().Ref = r.modelled }
 // to read, or leaves it out of reach when the rule names none.
 func (r heldRef) retarget() {
 	r.hold()
-	if r.target != nil {
-		r.js.GetSchema().Ref = new(references.Reference("#" + fragment.Of(r.at)))
+	if r.found {
+		r.js.GetSchema().Ref = new(references.Reference("#" + fragment.Of(r.def.At)))
 	}
 }
 
@@ -110,7 +125,7 @@ func (r heldRef) retarget() {
 // ends there rather than reading the resolver's order-dependent lookup, and is
 // reported as a definition the resolver cannot find: the lowering reports only
 // the positions it models. It returns where a panic stopped it.
-func (p *resolution) resolveHeld(refs []heldRef) (site jsontext.Pointer, err error) {
+func (p *resolution) resolveHeld(ctx context.Context, refs []heldRef) (site jsontext.Pointer, err error) {
 	defer recovered(&err, resolverPanics)
 	defer restoreDefs(refs)
 	for _, r := range refs {
@@ -124,11 +139,11 @@ func (p *resolution) resolveHeld(refs []heldRef) (site jsontext.Pointer, err err
 				"unresolved $ref %q: %s", p.esc.writtenOf(r.js), r.refused))
 			continue
 		}
-		if r.target == nil {
+		if !r.found {
 			p.missing(site, p.esc.writtenOf(r.js))
 			continue
 		}
-		p.visit(site, r.js)
+		p.visit(ctx, site, r.js)
 	}
 	return "", nil
 }

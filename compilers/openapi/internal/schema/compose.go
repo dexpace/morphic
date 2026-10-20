@@ -187,12 +187,12 @@ func fillAllOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth in
 // the branch verbatim under Unmodeled. It runs after fillAdditional, whose
 // result it overrides.
 //
-// A `false` branch admits nothing, so m must not stay open; ir-design §4.8
-// closes a bare `false` schema the same way. m keeps the other branches'
-// contributions, because emptying it would trade one silent loss for another.
-// The verbatim branch tells this from a plain `additionalProperties: false`; a
-// diagnostic does not, being no part of the document. A `true` branch
-// constrains nothing and is skipped.
+// A `false` branch admits nothing, so m must not stay open; the rule
+// docs/compilers/openapi.md#whole-schema-fallbacks closes a bare `false` schema
+// the same way. m keeps the other branches' contributions, because emptying it
+// would trade one silent loss for another. The verbatim branch tells this from
+// a plain `additionalProperties: false`; a diagnostic does not, being no part
+// of the document. A `true` branch constrains nothing and is skipped.
 func applyFalseBranches(c lowering.Ctx, m *ir.Model, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for i, b := range s.GetAllOf() {
@@ -216,8 +216,9 @@ func applyFalseBranches(c lowering.Ctx, m *ir.Model, s *oas3.Schema, pointer jso
 
 // preserveUnmergedBranch keeps an inline allOf branch verbatim beside the
 // composed model when it declares more than the merge consumes, under
-// ReasonDegradedLowering and located at the branch (ir-design §4.8). branchIdx
-// keys the entry, so sibling branches never overwrite one another.
+// ReasonDegradedLowering and located at the branch
+// (docs/compilers/openapi.md#allof-inline-residue). branchIdx keys the entry,
+// so sibling branches never overwrite one another.
 //
 // A boolean branch has no keywords to leave a residue; applyFalseBranches
 // handles it. A $ref branch takes neither path: fillAllOf homes its siblings on
@@ -246,8 +247,8 @@ func preserveUnmergedBranch(c lowering.Ctx, m *ir.Model, bs *oas3.Schema, branch
 // info: the composed node is an ir.Model, which asserts the value *is* an object,
 // so the IR states something the branch contradicts — `allOf: [{type: string,
 // maxLength: 3}]` lowers to an empty model. Any other residue leaves a model the
-// IR describes correctly and only narrows it further, which is §4.8's
-// under-constrained case.
+// IR describes correctly and only narrows it further, which is the
+// under-constrained case (docs/compilers/openapi.md#allof-inline-residue).
 func diagUnmergedBranch(c lowering.Ctx, bs *oas3.Schema, residue []string, bptr jsontext.Pointer) ir.Diagnostic {
 	kept := strings.Join(residue, ", ")
 	if branchExcludesObject(bs) {
@@ -530,12 +531,13 @@ func unvisitedRefTargets(s *oas3.Schema, visited map[*oas3.Schema]bool) []*oas3.
 	return out
 }
 
-// lowerOneOfAnyOf lowers a oneOf/anyOf schema. A two-variant {X, null} set
-// collapses to nullable X (ir-design §3.3); a set with no non-null branch at
-// all (every branch a bare `type: null`) has no X for that collapse to name,
-// so it lowers to nullable `any` instead (lowerNullOnlyUnion, GitHub #416);
-// everything else becomes a Union with one Variant per branch (oneOf
-// exclusive, anyOf not), never collapsing a union into optional fields.
+// lowerOneOfAnyOf lowers a oneOf/anyOf schema. A set of one non-null branch X
+// beside any number of bare null branches collapses to nullable X (ir-design
+// §3.3); a set with no non-null branch at all (every branch a bare `type:
+// null`) has no X for that collapse to name, so it lowers to nullable `any`
+// instead (lowerNullOnlyUnion, GitHub #416); everything else becomes a Union
+// with one Variant per branch (oneOf exclusive, anyOf not), never collapsing a
+// union into optional fields.
 func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer jsontext.Pointer, hint string) (ir.TypeRef, []ir.Diagnostic) {
 	if inner, ip, ih, ok := nullUnionCollapse(s, pointer); ok {
 		ref, diags := Ref(c, ts, anchors, depth, inner, ip, ih)
@@ -566,7 +568,7 @@ func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, de
 // the shared `any` primitive with Nullable set. The combinator that produced
 // it, and the other one too when both are declared, carries no shape a Union
 // or a Scalar's fields could hold, so it is kept verbatim under Unmodeled
-// instead of dropped (GitHub #416; ir-design §4.8).
+// instead of dropped (GitHub #416; docs/compilers/openapi.md#union-null-only).
 func lowerNullOnlyUnion(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsontext.Pointer, hint string) (ir.TypeRef, []ir.Diagnostic) {
 	// inner is the shared `any` primitive: no schema pointer ever interns at
 	// its ID, so this position never already owns it. Hoist an alias
@@ -649,8 +651,9 @@ const (
 //
 // A declared discriminator rules distribution out: its mapping names the branch
 // schemas, which distribution replaces with synthesized composed models
-// (pass/validate's discriminator-missing-variant rule is the mirror). ir-design
-// §4.8 enumerates this and the other residual shapes.
+// (pass/validate's discriminator-missing-variant rule is the mirror). The rule
+// docs/compilers/openapi.md#union-beside-structure enumerates this and the
+// other residual shapes.
 func classifyUnionSiblings(c lowering.Ctx, s *oas3.Schema) unionLowering {
 	if !unionBranchesDeclareShape(s) {
 		return unionValidationOnly
@@ -839,7 +842,9 @@ type variantTypeFunc func(b *oas3.JSONSchema[oas3.Referenceable], vptr jsontext.
 // (internNode), so buildUnion needs no hint of its own to build one.
 //
 // The variants are lowered before the discriminator, so its mapping resolves
-// knowing what each variant names (readsThrough).
+// knowing what each variant names (readsThrough). A union the discriminator
+// routes is WireTagged, an anyOf as much as a oneOf: the tag property's value
+// names its variant (ir-design §4.4).
 func buildUnion(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, common ir.TypeCommon, pointer jsontext.Pointer, variantType variantTypeFunc) (ir.TypeDef, []ir.Diagnostic) {
 	branches, key, exclusive := unionBranches(s)
 	diags := preserveUnusedCombinator(c, &common.Unmodeled, s, key, pointer)
@@ -859,10 +864,10 @@ func buildUnion(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 		TypeCommon: common,
 		Variants:   variants,
 		Exclusive:  exclusive,
-		WireTagged: false,
 	}
 	disc, discDiags := lowerDiscriminator(c, ts, anchors, depth, s, nil, variants, pointer)
 	u.Discriminator = disc
+	u.WireTagged = disc != nil
 	return u, append(diags, discDiags...)
 }
 
@@ -892,7 +897,7 @@ var otherCombinator = map[string]string{"oneOf": "anyOf", "anyOf": "oneOf"}
 // A schema writing both conjoins them, but one ir.Union carries one branch set.
 // The position still lowers to the elected set, a shape the IR can express, and
 // the other stays recoverable beside it, as recordSkippedFamilies does for
-// keyword families (ir-design §4.8).
+// keyword families (docs/compilers/openapi.md#competing-keywords).
 //
 // Where a structural sibling is written as well, classifyUnionSiblings reaches
 // unionBothCombinators first and neither set is elected
@@ -1538,10 +1543,9 @@ func enumValueType(s *oas3.Schema, memberPrim ir.PrimKind) ir.PrimKind {
 // the kind has no place in an Enum, and the caller degrades the whole enum to a
 // Union of Literals with a diagnostic.
 //
-// Its switch has one arm per ir.ValueKind, as enumMemberKey's does;
-// TestValueKindSwitches_NameEveryValueKind reddens when ir adds a kind either
-// lacks. The default arm refuses a kind rather than assert a type the source
-// never wrote.
+// Its switch has one arm per ir.ValueKind, as enumMemberKey's does; the
+// exhaustive linter fails when ir adds a kind either lacks. The default arm
+// refuses a kind rather than assert a type the source never wrote.
 func enumMemberForm(v ir.Value) (ir.PrimKind, string, bool) {
 	switch v.Kind {
 	case ir.ValueString:

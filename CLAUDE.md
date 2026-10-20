@@ -20,10 +20,16 @@ Pipeline: **compilers** (spec → IR) → **IR passes** (IR → IR) → **emitte
 
 ## The documents are the spec — read them first
 
-`ls docs/*.md` is the set; what follows is why each one matters, not how many there are.
+`ls docs/*.md docs/compilers/*.md` is the set; what follows is why each one matters, not how many
+there are. A first change starts from [`CONTRIBUTING.md`](CONTRIBUTING.md), whose recipes for a
+lowering rule, a pass and a compiler say which check each step answers to, and which steps no check
+covers.
 
 - **`docs/ir-design.md` is normative.** Field names and struct shapes in it are the contract;
   receiver methods and helpers are not. When implementing the IR, match its shapes exactly.
+- **`docs/compilers/openapi.md` is normative for the OpenAPI compiler**: its lowering rules, one
+  keyed entry each, with the cases, codes and tests that pin it. Read it for work on that compiler
+  only; every other layer needs ir-design and not this.
 - **`docs/emitter-design.md` is normative for the emitter half**, the way `ir-design.md` is for the
   IR. Nothing under `emitters/` exists yet, so read it before writing the first one.
 - `docs/architecture.md` — pipeline stages, package layout, layering rules, milestones.
@@ -72,7 +78,7 @@ in the docs.
    PascalCase — emitters own all identifier rendering, casing, and reserved-word escaping.
 5. **Pure, reentrant stages.** Every stage is `f(input, options) → (output, diagnostics)` with no
    package-level mutable state. No stage writes to stderr; each emits typed `Diagnostic` values
-   (severity, stable string code, message, provenance). The engine/CLI decides what is fatal.
+   (severity, stable string code, message, provenance). The engine decides what is fatal.
 6. **Heuristics are policy, not semantics.** Anything inferred rather than declared (pagination
    from param names, envelope detection, acronym casing) lives in injectable per-compiler/emitter
    policy, is marked `Inferred` in provenance, and can be disabled.
@@ -80,8 +86,13 @@ in the docs.
    sorted-key order, slices in source order). This underpins golden snapshots, IR diffing, caching.
 8. **Optionality ≠ nullability.** `Property.Required` (wire presence) is orthogonal to
    `TypeRef.Nullable` (this usage admits null). Both are needed for the four distinct states.
-9. **The IR capability surface is complete from day one.** Only compilers are staged over time;
-   shipping OpenAPI first must never force an IR schema change when later compilers land.
+9. **The IR's capability surface is designed against every format; a gap closes as a versioned
+   change.** Every construct a supported format can express is meant to have a planned home in the
+   IR, or a reasoned `Unmodeled` entry where the IR declines to model it, so a later compiler fills
+   fields rather than inventing them. That is a goal, not a finished state: a compiler that meets a
+   construct with no home keeps it verbatim under `no_ir_home`, and the field that homes it lands as
+   a change of the IR's shape, which bumps `IRVersion` (ir-design §2.1). Once an emitter reads a
+   field, a change to it lands together with every emitter update it forces (architecture.md §2.5).
 10. **SDK runtime policy is not IR.** Retry/timeout/telemetry/error-class taxonomy is a separate
     emitter input. The IR describes the API; policy describes the SDK.
 
@@ -124,10 +135,15 @@ engine/      Layer 3 — orchestration; imports everything below.
 cmd/morphic/ Layer 4 — CLI; imports ir + engine + its command framework (cobra, pflag).
 cmd/morphic-harness/
              Layer 4 — sweeps a spec or directory through the oracles; imports internal/harness.
+cmd/morphic-census/
+             Layer 4 — counts which IR facts the documents compiled from specs set; imports
+             engine + internal/census + internal/harness.
 cmd/morphic-covergate/
              Layer 4 — judges a coverage profile for `make coverage`; imports x/tools/cover.
-internal/    Test/tooling infrastructure, outside the pipeline (harness, archtest, decls, jsonshape,
-             leakcheck, testspec).
+cmd/morphic-vet/
+             Layer 4 — runs internal/lintrules under go vet; imports it + x/tools unitchecker.
+internal/    Test/tooling infrastructure, outside the pipeline (harness, archtest, census, decls,
+             jsonshape, keydoc, leakcheck, lintrules, testspec).
 ```
 
 The layering is enforced by `internal/archtest`, and **its `rules` map is the source of truth** —
@@ -150,9 +166,9 @@ methods (`internal/archtest`), and no function may exceed 70 lines or a cognitiv
 structure replaced reached 159 methods without ever writing a long function, so every rule then in
 force stayed green while it grew. A failure is a prompt to ask what the type has started doing.
 
-No lint suppression stands in the source: `internal/archtest` refuses a `//nolint`, `revive:` or
-`lint:ignore` comment. A suppression is a rule under `exclusions` in `.golangci.yml`, kept as narrow
-as the finding it excuses, with its reason beside it.
+No lint suppression stands in the source: `internal/archtest` refuses a `//nolint`, `revive:`,
+`lint:ignore` or `exhaustive:ignore` comment. A suppression is a rule under `exclusions` in
+`.golangci.yml`, kept as narrow as the finding it excuses, with its reason beside it.
 
 ## Testing strategy
 
@@ -173,6 +189,17 @@ These all exist already — extend them rather than building a parallel mechanis
   `compilers/openapi/conformance_matrix_test.go` requires every expressible row to be witnessed or
   listed with a reason. What it cannot check is whether a spec that *names* a row exercises that
   capability — that claim is read by a reviewer, so weigh it like any other.
+- **IR census** (`testdata/unwitnessed.golden.txt`): every IR fact no committed spec sets, which is
+  what the first emitters degrade rather than lower (`docs/emitter-design.md` §14.1). A fact is a
+  struct member, the emptiness of an `omitzero` collection, or an enumeration value, read off
+  `internal/jsonshape` by `internal/census`; `go test ./cmd/morphic-census` holds the file to a
+  census of `testdata/`. A case that sets a fact takes its line out, so its change runs `-update`.
+- **Lowering specification**: `docs/compilers/openapi.md` is machine-read like the matrix. Each rule
+  names its evidence, and the `TestLoweringSpec` tests in `compilers/openapi` hold the names to the
+  code both ways, each listed code to the rule's text, and every `docs/compilers/openapi.md#<key>`
+  citation to a rule. It and `docs/parser-library.md` are read through `internal/keydoc`, the one
+  reader of the repository's keyed documents, and a test a Markdown document names must exist
+  (`internal/archtest`).
 - **Oracles**: `internal/harness` drives a spec through no-panic → no error diagnostic →
   `irverify` invariants → JSON round-trip → determinism → order-invariance, stopping at the first
   one that fires. `harness.Check` is the list — read it there rather than trusting this sentence;
@@ -184,6 +211,15 @@ These all exist already — extend them rather than building a parallel mechanis
   production package's uses of the parser library's reference-resolution API, which it derives
   from the library's sources, to `resolutionBaseline`. The baseline only shrinks: removing a use
   means lowering it (#558).
+- **Lint rules and their plants**: a rule an off-the-shelf linter expresses lives in
+  `.golangci.yml`; one about which package may build or spell a part of the IR is a go/analysis
+  analyzer in `internal/lintrules`, which `make vet` runs through `cmd/morphic-vet`. Neither lives
+  in archtest. Each is held to findings planted for it, since a rule that recognizes nothing
+  leaves a clean tree clean: `make lint-planted` holds the linters to
+  `internal/lintrules/testdata/planted`, and `internal/lintrules`' own test holds the analyzers to
+  `testdata/mod`, a tree laid out like the module. Lines there carry the findings they must draw.
+  A new rule gets its plants beside the others, and a new linter a place in the script's list.
+  Both run on every port `make build` covers, which `testdata/ports` proves they reach.
 - **Declaration pins**: a test that holds a hand-written list (an enum's members, a sealed sum's
   kinds, the fields of a shape) to what a package declares reads the package through
   `internal/decls`, which type-checks it with `go/packages`. It does not parse the sources: parsed
@@ -270,7 +306,7 @@ below are the ones most likely to bite in this codebase — the full guide gover
   `internal/archtest` enforces the cap, and `go test ./internal/archtest -run TestDocComments`
   lists every comment over it; an exception is a `longDocComments` entry there, with its reason.
 - **Serialization:** JSON goes through `encoding/json/v2` and `encoding/json/jsontext` only;
-  `encoding/json` (v1) is banned by `internal/archtest`, tests included. Explicit struct tags on
+  `encoding/json` (v1) is banned by the depguard lint, tests included. Explicit struct tags on
   every field: `omitempty` only on strings, slices and maps whose empty and absent forms mean the
   same; `omitzero` on every other optional field (pointers, bools, numbers), because v2's
   `omitempty` keeps a zero number or bool and drops a pointer to an empty struct, and on a

@@ -56,7 +56,8 @@ and [IR design](docs/ir-design.md) give the reasoning.
   gives the same bytes, and reordering a spec's declarations changes nothing beyond source order.
 - **Diagnostics, not logs.** Every stage is a pure function `f(input, options) → (output,
   diagnostics)` with no package-level state. Problems in a spec come back as typed `ir.Diagnostic`
-  values, and the caller decides which are fatal.
+  values, and the engine decides whether they fail the run, at a severity threshold the caller
+  sets.
 - **Heuristics are policy.** Anything inferred rather than declared, such as which media types
   imply a stream or which vendor extensions fill typed fields, is an injectable policy the caller
   can change or switch off, and what it produces is marked as inferred in the IR's provenance.
@@ -87,13 +88,14 @@ spec ──▶ compiler ──▶ IR ──▶ passes ──▶ IR ──▶ emi
 |---|---|---|
 | 1 | IR package + OpenAPI 3.x compiler, `validate` pass, golden corpus, JSON round-trip | **Implemented** |
 | 2 | Swagger 2.0 lift into the OpenAPI compiler (format-version-normalization seam) | Planned |
-| 3 | First emitter: one language end to end (plan / refine / emit boundary) | Planned |
+| 3 | First emitters: Go, Kotlin/JVM and Kotlin Multiplatform end to end from one plan (plan / refine / emit boundary) | Planned |
 | 4 | Second family compiler (TypeSpec or Smithy), proving the spec-agnostic claim | Planned |
 | 5 | Event-shaped compiler (AsyncAPI), then GraphQL, Protobuf, Erlang/OTP | Planned |
 
-The IR's capability surface covers every format above from the start, so the later compilers land
-without reshaping it. Until milestone 2, a Swagger 2.0 document is recognized and refused with
-`engine/no-compiler-for-format`.
+The IR is designed against every format above, so a later compiler fills fields rather than adding
+them. Where one meets a construct the IR has no place for yet, it keeps the construct verbatim, and
+the IR grows by a versioned change ([Architecture](docs/architecture.md) §2.5). Until milestone 2, a
+Swagger 2.0 document is recognized and refused with `engine/no-compiler-for-format`.
 
 ## Install
 
@@ -137,7 +139,7 @@ completes commands, flags, and spec files by extension.
 
 | Flag | Commands | Meaning |
 |---|---|---|
-| `--fail-on error\|warning` | both | Exit non-zero when a diagnostic at or above this severity is emitted (default `error`). |
+| `--fail-on error\|warning\|info\|none` | both | Exit non-zero when a diagnostic at or above this severity is emitted (default `error`). `none` exits non-zero only when the spec lowered to no document. |
 | `--disable-pass <name>` | both | Turn off the IR pass with this name, such as `validate`. Repeatable; a name no pass carries is refused with exit `2` and a message naming the passes there are. |
 | `--skip-validate` | both | Alias for `--disable-pass validate`. |
 | `--opt <key>=<value>` | both | Set one option on the compiler the spec selects. Repeatable; a repeated key is refused. |
@@ -231,8 +233,8 @@ if err != nil {
 for _, d := range res.Diagnostics {
     fmt.Println(d.Severity, d.Code, d.Message)
 }
-if res.Document == nil {
-    return errors.New("the spec could not be lowered")
+if res.Failed {
+    return errors.New("the spec has problems") // no document, or a diagnostic at FailOn
 }
 
 data, err := json.Marshal(res.Document) // encoding/json/v2; canonical, deterministic bytes
@@ -243,6 +245,10 @@ no compiler can lower, is a diagnostic in the result, with a nil `Document` when
 lowered. Options go in either as text through `RunOptions.CompilerOptions`, the CLI's `--opt`
 vocabulary, or as a typed value such as an `openapi.Options` through `RunOptions.FormatOptions`;
 set one or the other, not both.
+
+`Result.Failed` is the engine's verdict, the one the CLI's exit status reads: a run fails when it
+lowered no document, or when a diagnostic reaches `RunOptions.FailOn`, which is `error` unless set
+to `warning`, `info` or `none`. A failed run still carries its document and every diagnostic.
 
 ## Package layout
 
@@ -260,7 +266,7 @@ entry in that test allows, and nothing from a layer above its own.
 | `emitters/*` | 2: IR → artifacts (not built yet) | `ir` + emitter contract |
 | `engine/` | 3: orchestration | everything below |
 | `cmd/morphic/` | 4: CLI | `engine` + `ir` + its command framework (`cobra`, `pflag`) |
-| `cmd/morphic-harness/`, `cmd/morphic-covergate/`, `internal/*` | tooling outside the pipeline: the oracle sweep, the coverage gate's judge, the architecture rules, the goroutine leak check, type-checked reads of declarations for tests, shared fixtures | as their entries allow; `internal/harness` is exempt |
+| `cmd/morphic-harness/`, `cmd/morphic-census/`, `cmd/morphic-covergate/`, `cmd/morphic-vet/`, `internal/*` | tooling outside the pipeline: the oracle sweep, the census of IR facts, the coverage gate's judge, the go vet tool and the lint rules it runs, the architecture rules, the goroutine leak check, type-checked reads of declarations for tests, the IR's JSON shape that the IRVersion pin and the census read, the reader of the keyed documents, shared fixtures | as their entries allow; `internal/harness` is exempt |
 
 Compilers and emitters never import each other. A compiler's own `internal/` packages each carry
 their own entry rather than inheriting the compiler's, so the order among them is enforced too,
@@ -299,26 +305,37 @@ Run a single test with `go test ./ir -run TestName`. Beyond that:
   witnesses one or more rows of the [spec capability matrix](docs/ir-spec-matrix.md). To add one,
   write `<name>.yaml`, add an entry to `conformanceCases()` in
   `compilers/openapi/conformance_test.go` naming its assertion and the matrix row keys it
-  witnesses, then run the command above to write `<name>.golden.json`. The suite fails on a spec
-  with no entry, and on a matrix row OpenAPI can express that no case witnesses, unless the row
-  is listed as uncovered with a reason.
+  witnesses, then run the command above to write `<name>.golden.json`, and name the case in the
+  rule of the [OpenAPI lowering specification](docs/compilers/openapi.md) it pins. The suite fails
+  on a spec with no entry, on a case no rule names, and on a matrix row OpenAPI can express that no
+  case witnesses, unless the row is listed as uncovered with a reason.
 - **Oracle harness.** `go run ./cmd/morphic-harness <file|dir>` sweeps specs through the
   bug-catching oracles, stopping at the first that fires for each: no panic, no error diagnostic,
   the `ir/irverify` structural invariants, JSON round-trip, determinism, and order-invariance. It
   exits `1` if any spec fails. `testdata/` holds negative fixtures that fail on purpose, so sweep
   it with `go test ./internal/harness`, which knows which ones are expected to.
+- **IR census.** `go run ./cmd/morphic-census <file|dir>...` compiles the specs and lists every
+  fact of the IR with the number of documents that set it and the number of instances, zeros
+  included: each member of its structs, the emptiness of a member whose empty value differs from
+  its absence, and each value of its enumerations. The facts no committed spec sets are held to
+  `testdata/unwitnessed.golden.txt`, which `go test ./cmd/morphic-census -update` rewrites and
+  which scopes the first emitters (`docs/emitter-design.md` §14.1). Run it from inside the module:
+  it reads the IR's declarations through the go command.
 - **Fuzzing.** `make fuzz` runs every fuzz target for 10s each (`make fuzz FUZZTIME=5m` for a
   longer search). One target runs on its own with, for example,
   `go test ./compilers/openapi -run '^$' -fuzz '^FuzzCompile$' -fuzztime 1m`.
 
 ## Design docs
 
-The design documents are normative. Read them before proposing changes to the IR or the pipeline.
+The design documents are normative. Read them before proposing changes to the IR or the pipeline,
+and start a first contribution from [CONTRIBUTING.md](CONTRIBUTING.md), which says which of them a
+change needs.
 
 | Document | Description |
 |---|---|
 | [Architecture](docs/architecture.md) | Pipeline stages, package layout, layering rules, milestones. |
-| [IR design](docs/ir-design.md) | The intermediate representation: node catalog, semantics, per-format lowering. Its field shapes are the contract. |
+| [IR design](docs/ir-design.md) | The intermediate representation: node catalog and semantics, and how each format without a lowering specification of its own is planned to lower. Its field shapes are the contract. |
+| [OpenAPI lowering](docs/compilers/openapi.md) | How the OpenAPI compiler lowers each construct, one keyed rule each, with the cases, codes and tests that pin it. |
 | [Spec capability matrix](docs/ir-spec-matrix.md) | What each source format can express: the union the IR is designed against. |
 | [Emitter design](docs/emitter-design.md) | The emitter contract and the plan / refine / emit boundary. |
 

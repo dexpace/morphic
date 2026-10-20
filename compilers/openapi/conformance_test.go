@@ -63,9 +63,10 @@ func TestConformance(t *testing.T) {
 // TestConformance_TableNamesEveryCorpusSpec requires the table and the corpus
 // directory to name the same specs. Both directions matter: a spec with no row
 // gets neither a capability assertion nor a golden while the corpus-wide sweeps
-// (dangling references, the fuzz seed, the unwitnessed walk) still read it, so
-// it looks covered; a row naming a deleted spec fails the other way. Comparing
-// sorted lists rather than sets also catches a spec named by two rows.
+// (dangling references, the fuzz seed, the census of unwitnessed facts) still
+// read it, so it looks covered; a row naming a deleted spec fails the other
+// way. Comparing sorted lists rather than sets also catches a spec named by two
+// rows.
 func TestConformance_TableNamesEveryCorpusSpec(t *testing.T) {
 	t.Parallel()
 	onDisk := corpusSpecNames(t)
@@ -86,9 +87,9 @@ func TestConformance_TableNamesEveryCorpusSpec(t *testing.T) {
 //
 // The .yaml-only restriction is asserted rather than left to a narrower glob.
 // parseCorpus reads only "<name>.yaml", so a spec committed as .yml or .json
-// could not be named by a table row, yet the corpus-wide walk in
-// conformance_unwitnessed_test.go reads all three extensions and would count its
-// fields as witnessed, leaving it with neither assertion nor golden.
+// could not be named by a table row, yet the census of the corpus that
+// cmd/morphic-census holds to its golden reads all three extensions and would
+// count its facts as witnessed, leaving it with neither assertion nor golden.
 func corpusSpecNames(t *testing.T) []string {
 	t.Helper()
 	entries, err := os.ReadDir(conformanceDir)
@@ -100,9 +101,6 @@ func corpusSpecNames(t *testing.T) []string {
 		name := e.Name()
 		require.False(t, e.IsDir(), "corpus directory holds a subdirectory %q; no sweep descends into one", name)
 		switch {
-		case name == filepath.Base(unwitnessedGolden):
-			// The derived never-witnessed snapshot: a corpus-wide artifact, not
-			// a spec's golden, so it pairs with nothing.
 		case strings.HasSuffix(name, ".golden.json"):
 			goldens = append(goldens, strings.TrimSuffix(name, ".golden.json"))
 		case strings.HasSuffix(name, ".yaml"):
@@ -161,6 +159,7 @@ func conformanceCases() []conformanceCase {
 		{"allof-narrowing-redeclaration", assertAllOfNarrowingRedeclaration, []string{"intersection"}},
 		{"allof-position-constraints", assertAllOfPositionConstraints, []string{"intersection"}},
 		{"oneof-discriminated", assertOneOfDiscriminated, []string{"tagged-unions"}},
+		{"anyof-discriminated", assertAnyOfDiscriminated, []string{"tagged-unions"}},
 		{"discriminator-inheritance", assertDiscriminatorInheritance, []string{"tagged-unions", "inheritance"}},
 		{"discriminator-inline-subtype", assertDiscriminatorInlineSubtype, []string{"tagged-unions", "inheritance"}},
 		{"discriminator-default-mapping", assertDiscriminatorDefaultMapping, []string{"tagged-unions"}},
@@ -526,9 +525,9 @@ var composedHints = []struct {
 // reaches (#743). The sequential media type's itemSchema cannot need one: both
 // callers of lowerPayload pass a non-empty hint, since ids.ComponentEntry
 // refuses a component keyed "" and the fallbacks are "response" and "request".
-// A composed variant of an inline branch is absent too: ir-design §4.8 keeps
-// that union verbatim, so only the $ref form the Host case uses reaches
-// composedVariant.
+// A composed variant of an inline branch is absent too:
+// docs/compilers/openapi.md#union-beside-structure keeps that union verbatim,
+// so only the $ref form the Host case uses reaches composedVariant.
 func assertEmptyDerivedHints(t *testing.T, doc *ir.Document) {
 	t.Helper()
 	mixed, ok := doc.Types[namedID("Mixed")].(*ir.Model)
@@ -791,13 +790,14 @@ func assertAllOfRequiredOnly(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) 
 }
 
 // assertAllOfOneOfCooccurrence pins both halves of the co-declared composition
-// rule: §4.3 distributes a union whose branches all name referents, and §4.8
-// keeps one with an inline branch verbatim rather than distributing it halfway.
-// The verbatim half is covered over a model body, which owns a node already, and
-// over a scalar one, which does not — there the alias hoisted for the union
-// carries what the position wrote beside it too.
-// The outside reference to a branch pointer pins the third thing: a composed
-// variant is Morphic's own node, so it cannot be taken by, or take from, a $ref.
+// rule: §4.3 distributes a union whose branches all name referents, and the
+// rule docs/compilers/openapi.md#union-beside-structure keeps one with an
+// inline branch verbatim rather than distributing it halfway. The verbatim half
+// is covered over a model body, which owns a node already, and over a scalar
+// one, which does not — there the alias hoisted for the union carries what the
+// position wrote beside it too. The outside reference to a branch pointer pins
+// the third thing: a composed variant is Morphic's own node, so it cannot be
+// taken by, or take from, a $ref.
 func assertAllOfOneOfCooccurrence(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	combo, ok := doc.Types[namedID("Combo")].(*ir.Union)
 	require.True(t, ok, "the union is the value, not a preserved sibling")
@@ -900,11 +900,27 @@ func assertOneOfDiscriminated(t *testing.T, doc *ir.Document, _ []ir.Diagnostic)
 	pet, ok := doc.Types[namedID("Pet")].(*ir.Union)
 	require.True(t, ok, "oneOf survives as a Union node, never collapsed")
 	assert.True(t, pet.Exclusive)
+	assert.True(t, pet.WireTagged, "the discriminator's tag names the variant")
 	require.Len(t, pet.Variants, 2)
 	require.NotNil(t, pet.Discriminator)
 	assert.Equal(t, "petType", pet.Discriminator.PropertyName)
 	assert.Equal(t, namedID("Cat"), pet.Discriminator.Mapping["cat"])
 	assert.Equal(t, namedID("Dog"), pet.Discriminator.Mapping["dog"])
+}
+
+// assertAnyOfDiscriminated pins that the tag mode and Exclusive are independent
+// (ir-design §4.4): a discriminator on an anyOf tags the union without making
+// it exclusive, since a payload may still satisfy both branches.
+func assertAnyOfDiscriminated(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	u, ok := doc.Types[namedID("Resource")].(*ir.Union)
+	require.True(t, ok, "anyOf survives as a Union node, never collapsed")
+	assert.False(t, u.Exclusive, "anyOf admits a payload both branches satisfy")
+	assert.True(t, u.WireTagged, "the discriminator's tag names the variant")
+	require.Len(t, u.Variants, 2)
+	require.NotNil(t, u.Discriminator)
+	assert.Equal(t, "kind", u.Discriminator.PropertyName)
+	assert.Equal(t, namedID("Named"), u.Discriminator.Mapping["named"])
+	assert.Equal(t, namedID("Labelled"), u.Discriminator.Mapping["labelled"])
 }
 
 // assertDiscriminatorInheritance covers the model-hierarchy form of a
@@ -1106,6 +1122,7 @@ func assertAnyOfUntagged(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	u, ok := doc.Types[namedID("StringOrNumber")].(*ir.Union)
 	require.True(t, ok)
 	assert.False(t, u.Exclusive, "anyOf is a non-exclusive union")
+	assert.False(t, u.WireTagged, "with no discriminator, validation infers the variant")
 	assert.Nil(t, u.Discriminator)
 	assert.Len(t, u.Variants, 2)
 }
@@ -2709,13 +2726,14 @@ func assertParamAllowReservedLocations(t *testing.T, doc *ir.Document, diags []i
 	assert.Equal(t, want, got)
 }
 
-// assertParamRefInheritance pins ir-design §14 at a parameter whose schema is a
-// $ref: docs, deprecation and default come from the referent when the use site
-// is silent, and from the use site when it is not. Constraints inherit at
-// neither carrier, so the identical property is asserted beside it (GitHub
-// #131). The bound the use site declares beside the $ref is asserted at both
-// carriers against the referent's own: use-site precedence would publish 100 as
-// the whole truth while the document enforces 64 (§12.2, GitHub #428).
+// assertParamRefInheritance pins the rule
+// docs/compilers/openapi.md#ref-use-site at a parameter whose schema is a $ref:
+// docs, deprecation and default come from the referent when the use site is
+// silent, and from the use site when it is not. Constraints inherit at neither
+// carrier, so the identical property is asserted beside it (GitHub #131). The
+// bound the use site declares beside the $ref is asserted at both carriers
+// against the referent's own: use-site precedence would publish 100 as the
+// whole truth while the document enforces 64 (§12.2, GitHub #428).
 func assertParamRefInheritance(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	op, ok := opByName(doc, "listItems")
 	require.True(t, ok)

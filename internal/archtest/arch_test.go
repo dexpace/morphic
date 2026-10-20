@@ -93,6 +93,20 @@ var rules = map[string][]string{
 		"github.com/speakeasy-api/openapi/jsonpointer",
 		"github.com/speakeasy-api/openapi/jsonschema/oas3",
 		"github.com/speakeasy-api/openapi/references", "gopkg.in/yaml.v3"},
+	// Every schema $ref of the source resolved into a table over its decoded
+	// tree, without the library's resolver (GitHub #913). It reads the tree
+	// through nodeview and a fragment through fragment, and nothing of the
+	// library's model or of the compiler, so it can stand where the resolver's
+	// reading of a schema reference does.
+	"compilers/openapi/internal/bind": {module + "/compilers/openapi/internal/fragment",
+		module + "/compilers/openapi/internal/nodeview", "gopkg.in/yaml.v3"},
+	// The typed side of a bind table: the schema the parsed model holds at a
+	// position, read as the library's walk reads it, or one the library's decoder
+	// builds from raw YAML there.
+	"compilers/openapi/internal/bind/typed": {module + "/compilers/openapi/internal/bind",
+		module + "/compilers/openapi/internal/navigation", module + "/compilers/openapi/internal/nodeview",
+		"github.com/speakeasy-api/openapi/jsonschema/oas3", "github.com/speakeasy-api/openapi/marshaller",
+		"gopkg.in/yaml.v3"},
 	// One walk over the decoded source tree, answering what the pre-lowering
 	// refusals would otherwise each walk it to ask. It reaches nodeview for the
 	// document root and nothing else: an index of what the source says is not
@@ -277,10 +291,17 @@ var rules = map[string][]string{
 	"cmd/morphic": {module + "/ir", module + "/engine",
 		"github.com/spf13/cobra", "github.com/spf13/pflag"},
 	"cmd/morphic-harness": {module + "/internal/harness"},
+	// The census command: tooling outside the pipeline, like the harness command
+	// above. It compiles specs through the engine, lists them as the harness does,
+	// and counts what their documents set.
+	"cmd/morphic-census": {module + "/engine", module + "/internal/census", module + "/internal/harness"},
 	// The coverage gate's judge: tooling outside the pipeline, like the harness
 	// command above. x/tools/cover parses and merges the profile it judges.
 	"cmd/morphic-covergate": {"golang.org/x/tools/cover"},
-	"internal/testspec":     {},
+	// The go vet tool that runs internal/lintrules: tooling outside the pipeline,
+	// on unitchecker, the driver go vet speaks to.
+	"cmd/morphic-vet":   {module + "/internal/lintrules", "golang.org/x/tools/go/analysis/unitchecker"},
+	"internal/testspec": {},
 	// Test infrastructure outside the pipeline, like internal/harness above —
 	// but stdlib-only, which is what lets a package that starts a goroutine in
 	// its tests call it without pulling anything else in.
@@ -296,8 +317,34 @@ var rules = map[string][]string{
 	},
 	// Test infrastructure as well: it describes the JSON shape of the types one
 	// root reaches, which it reads type-checked through decls, for the test in
-	// package ir that pins that shape to IRVersion.
+	// package ir that pins that shape to IRVersion, for the census, and for the
+	// tests that read the IR's types.
 	"internal/jsonshape": {module + "/internal/decls"},
+	// Tooling as well: it counts which facts of the IR a set of documents sets.
+	// The facts are the JSON shape jsonshape reads from ir's declarations, and
+	// ir's own walk reaches what each document holds.
+	"internal/census": {module + "/ir", module + "/internal/decls", module + "/internal/jsonshape"},
+	// Test infrastructure as well: the one reader of the repository's keyed
+	// documents and of the citations made of them, which the tests holding each
+	// document to the code share. Standard library only.
+	"internal/keydoc": {},
+	// The repository's own lint rules: go/analysis analyzers, which read the
+	// packages they hold through types and nothing of the module's own.
+	"internal/lintrules": {"golang.org/x/tools/go/analysis", "golang.org/x/tools/go/types/typeutil"},
+	// What the analyzers refuse, planted in a tree laid out like the module. It
+	// reaches what the rules are about: ir's types, the framework, the parser
+	// library's reference readings, and its own packages, look-alikes of ir and
+	// compile among them.
+	"internal/lintrules/testdata/mod": {module + "/ir", module + "/compilers/compile",
+		module + "/internal/lintrules/testdata/mod" + subtreeSuffix,
+		"github.com/speakeasy-api/openapi/expression", "github.com/speakeasy-api/openapi/references"},
+	// Beside that tree, so no rule holds it.
+	"internal/lintrules/testdata/outside": {module + "/ir"},
+	// What the rules .golangci.yml configures refuse, planted for
+	// scripts/lint-planted.sh, and the files only one port builds, planted for
+	// it and scripts/vet-rules.sh.
+	"internal/lintrules/testdata/planted": {module + "/ir"},
+	"internal/lintrules/testdata/ports":   {module + "/ir"},
 }
 
 // exempt names the production packages deliberately outside the layering rules,
@@ -315,6 +362,11 @@ var exempt = map[string]string{
 // TestImportGraph_LayeringHolds parses every non-test Go file under each ruled
 // directory (imports only) and fails on any import whose path is neither stdlib
 // nor covered by that directory's allowlist.
+//
+// It stays a test rather than linter configuration (#796): depguard matches raw
+// string prefixes and applies every list a file matches at once, so
+// nearest-ancestor inheritance cannot be written, and go-arch-lint allows
+// components where these entries name packages.
 func TestImportGraph_LayeringHolds(t *testing.T) {
 	t.Parallel()
 	root := repoRoot(t)

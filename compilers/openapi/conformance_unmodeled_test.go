@@ -42,10 +42,11 @@ func diagsAt(diags []ir.Diagnostic, code, pointer string) []ir.Severity {
 // lowering produced has nowhere to carry (GitHub #148, #151).
 //
 // Two source shapes reach it. A contradictory schema takes one half and keeps the
-// other beside it, which is ir-design §4.8's rule about a degraded lowering. And
-// an applicator with no `type` beside it still constrains an instance —
-// {items: {type: string}} constrains every array — where the position lowers to
-// the top type, which understates it entirely.
+// other beside it, which is ir-design §4.8's rule about a degraded lowering
+// (docs/compilers/openapi.md#shape-applicator). And an applicator with no
+// `type` beside it still constrains an instance — {items: {type: string}}
+// constrains every array — where the position lowers to the top type, which
+// understates it entirely.
 func assertUnhomedKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	untyped := map[string]struct{ keyword, raw string }{
 		"UntypedItems":         {"items", `{"type":"string"}`},
@@ -231,11 +232,11 @@ func assertElectedLoweringKeywords(t *testing.T, doc *ir.Document, diags []ir.Di
 // assertAllOfBooleanBranch pins the lowering of a boolean allOf branch, which
 // declares no keywords and so has no residue to rescue (GitHub #154).
 //
-// The claim is that `false` lowers the same way wherever it appears. ir-design
-// §4.8 fixes a bare `false` schema as a closed empty Model with an info
-// diagnostic; before this, the same construct as a branch composed an *open*
-// empty model — the most permissive shape the IR has, for a source that admits
-// nothing.
+// The claim is that `false` lowers the same way wherever it appears. The rule
+// docs/compilers/openapi.md#whole-schema-fallbacks fixes a bare `false` schema
+// as a closed empty Model with an info diagnostic; before this, the same
+// construct as a branch composed an *open* empty model — the most permissive
+// shape the IR has, for a source that admits nothing.
 func assertAllOfBooleanBranch(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	never, ok := doc.Types[namedID("Never")].(*ir.Model)
 	require.True(t, ok)
@@ -318,10 +319,10 @@ func assertAllOfInlineResidue(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 // assertAllOfConflictingType pins what an unsatisfiable redeclaration leaves in
 // the document. A field one allOf branch types `uri` and another `integer` has
 // no IR combinator, so the merge keeps the first declaration and, under
-// ir-design §4.8, the loser verbatim (GitHub #424). The entry holds the
-// declaration as written, not the dropped IR value, because ir-design §12
-// defines an Unmodeled value as the source construct; that keeps the nullable
-// bit a target ID would lose (GitHub #445).
+// docs/compilers/openapi.md#allof-redeclared-property, the loser verbatim
+// (GitHub #424). The entry holds the declaration as written, not the dropped IR
+// value, because ir-design §12 defines an Unmodeled value as the source
+// construct; that keeps the nullable bit a target ID would lose (GitHub #445).
 //
 // Described is the same event where the types agree but both branches fill the
 // fold's one default slot: the second declaration is kept whole and the
@@ -696,10 +697,11 @@ func assertDynamicRefAcrossAnEmptyName(t *testing.T, doc *ir.Document, diags []i
 		"/components/schemas//$dynamicRef"))
 }
 
-// assertInlineResidue pins the other half of ir-design §14's OpenAPI row: a
-// keyword that binds a *use* of a type reaches referencing properties, and an
-// inline position that owns a node has no referencing property at all, so what a
-// declaration there wrote would otherwise be lost (GitHub #138).
+// assertInlineResidue pins the other half of the rule
+// docs/compilers/openapi.md#use-bound-annotations: a keyword that binds a *use*
+// of a type reaches referencing properties, and an inline position that owns a
+// node has no referencing property at all, so what a declaration there wrote
+// would otherwise be lost (GitHub #138).
 //
 // The carrier case is asserted too, because it is what stops the fix from
 // double-recording: a property lands all three in its own fields, so neither it

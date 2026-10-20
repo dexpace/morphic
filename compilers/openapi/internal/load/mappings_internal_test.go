@@ -379,7 +379,7 @@ func TestMappings_APointerEndingInSlashNamesNoWalkedObject(t *testing.T) {
 			"x-lib:\n  S: {type: object, properties: {a: {$ref: '#/x-lib/T/'}}}\n  T: {type: object}\n"), false)
 		require.Empty(t, diags)
 
-		assert.True(t, got.Targets.Built("/x-lib/T/") == nil, "no object is held at a pointer ending in '/': %s", schema)
+		assert.Nil(t, got.Targets.Built("/x-lib/T/"), "no object is held at a pointer ending in '/': %s", schema)
 	}
 }
 
@@ -428,7 +428,7 @@ func resolverOver(t *testing.T, spec string, limit int) (*mappings, []ir.Diagnos
 	self := newSourceDocument("spec.yaml", []byte(spec), root, valErrs, newSourceTree(0, overlay.Origin{}, root), nil)
 	pass := newResolution(t.Context(), pointerAt(0, overlay.Origin{}), doc, Siblings{}, self, Options{}, nil)
 	pass.targets.limit = limit
-	_, diags := pass.run(doc)
+	_, diags := pass.run(t.Context(), doc)
 	return pass.targets, diags
 }
 
@@ -807,19 +807,27 @@ func TestMappings_OnlyATargetInTheSourceIsResolved(t *testing.T) {
 		})
 	}
 
-	t.Run("a definition, however spelled", func(t *testing.T) {
+	t.Run("a definition", func(t *testing.T) {
 		t.Parallel()
-		// The document-rooted $defs is no definition the mapping names: the
-		// lowering reads a $defs value relative to the discriminator. Resolving
-		// it here reported the finding in it at the mapping entry.
-		for _, target := range []string{"#/$defs/X", "root.yaml#/$defs/X"} {
-			spec := mappingSpec("    Pet:\n      type: object\n"+
-				"      discriminator: {propertyName: k, mapping: {x: '"+target+"'}}\n"+
-				"      $defs: {X: {allOf: [{$ref: '#/components/schemas/Pet'}], type: object}}\n",
-				"$defs:\n  X: {type: object, minLength: abc}\n")
-			got, diags := loadTargets(t, path, spec, true)
-			assert.Empty(t, diags, target)
-			assert.Nil(t, got.Targets.At("/$defs/X"), target)
+		// A $defs value is read as a $ref in the discriminator's schema reads
+		// one, the document's root first (GitHub #557, #910). The root's X is
+		// raw YAML no position of the model answers for, so it is resolved here
+		// and its finding reported. Pet's own X is read in the model, and one
+		// spelled with the file name names no definition.
+		const pet = "    Pet:\n      type: object\n      discriminator: {propertyName: k, mapping: {x: '%s'}}\n" +
+			"      $defs: {X: {allOf: [{$ref: '#/components/schemas/Pet'}], type: object}}\n"
+		const root = "$defs:\n  X: {type: object, minLength: abc}\n"
+		for _, c := range []struct {
+			name, target, rest string
+			drawn              []string
+		}{
+			{"the root's", "#/$defs/X", root, drawnAt("/$defs/X", "minLength")},
+			{"by the file name", "root.yaml#/$defs/X", root, nil},
+			{"the discriminator's own", "#/$defs/X", "", nil},
+		} {
+			got, diags := loadTargets(t, path, mappingSpec(fmt.Sprintf(pet, c.target), c.rest), true)
+			assert.ElementsMatch(t, c.drawn, diagLines(diags), c.name)
+			assert.Equal(t, c.drawn != nil, got.Targets.At("/$defs/X") != nil, c.name)
 		}
 	})
 
@@ -1135,6 +1143,32 @@ func chainResolver(t *testing.T, spec string, external bool) *mappings {
 	}
 	reader := newExternal(doc, Options{AllowExternalRefs: true}, newExternalReads(self))
 	return newMappings(self, doc, oas3.ResolveOptions{}, &reader)
+}
+
+// TestMappings_PointerOfReadsADefinitionAsTheRuleDoes pins which "#/$defs/..."
+// entries pointerOf names a position for: one the document's root answers, read
+// as a $ref to it is, and none the discriminator's own schema answers, which
+// the lowering reads in the model, nor one spelled with the file name.
+func TestMappings_PointerOfReadsADefinitionAsTheRuleDoes(t *testing.T) {
+	t.Parallel()
+	m := chainResolver(t, mappingSpec("    Pet:\n      type: object\n      $defs: {X: {type: object}, Y: {type: object}}\n"+
+		"      discriminator: {propertyName: k}\n", "$defs:\n  X: {type: string}\nx-lib:\n  Cat: {type: object}\n"), false)
+	pet, ok := m.doc.GetComponents().GetSchemas().Get("Pet")
+	require.True(t, ok)
+	d := pet.GetSchema().GetDiscriminator()
+	for target, want := range map[string]jsontext.Pointer{
+		"#/$defs/X":          "/$defs/X",
+		"#/$defs/Y":          "",
+		"root.yaml#/$defs/X": "",
+		"#/x-lib/Cat":        "/x-lib/Cat",
+		"Pet":                "",
+	} {
+		got, ok := m.pointerOf(d, target)
+		assert.Equal(t, want != "", ok, target)
+		if ok {
+			assert.Equal(t, want, got, target)
+		}
+	}
 }
 
 // TestMappings_ChainEnds pins what the source can show of a chain, read as the
@@ -1476,7 +1510,7 @@ func externalResolverOver(t *testing.T, spec string) (*mappings, []ir.Diagnostic
 	opts := Options{AllowExternalRefs: true}
 	reader := newExternal(doc, opts, newExternalReads(self))
 	pass := newResolution(t.Context(), pointerAt(0, overlay.Origin{}), doc, Siblings{}, self, opts, &reader)
-	_, diags := pass.run(doc)
+	_, diags := pass.run(t.Context(), doc)
 	return pass.targets, diags
 }
 
@@ -1541,6 +1575,33 @@ func TestMappingTargets_HoldsReadsThroughTheTargetsIndex(t *testing.T) {
 		assert.Equal(t, c.holds, MappingTargets{}.Holds(tree, c.token), "%q", c.token)
 	}
 	assert.Equal(t, 3+1, reads.drain(), "the mapping's pairs and the merged one's, each indexed once")
+}
+
+// TestMappingTargets_RawTargetReadsThroughTheTargetsIndex pins RawTarget: the
+// node the library's read of the tokens finds, through the index the targets
+// were read with, which builds each mapping's index once however often it is
+// asked. The zero value answers the same through an index of its own.
+func TestMappingTargets_RawTargetReadsThroughTheTargetsIndex(t *testing.T) {
+	t.Parallel()
+	tree, parsed := parseTree([]byte("{a: {b: 1}, <<: {c: 3}}"))
+	require.True(t, parsed)
+	reads := newTreeReads()
+	targets := (&mappings{reads: reads}).targets()
+	for _, c := range []struct {
+		tokens []string
+		want   string
+	}{{[]string{"a", "b"}, "1"}, {[]string{"c"}, "3"}, {[]string{"a", "z"}, ""}, {[]string{"z"}, ""}} {
+		for name, read := range map[string]func(*yaml.Node, []string) (*yaml.Node, bool){
+			"targets": targets.RawTarget, "zero": MappingTargets{}.RawTarget,
+		} {
+			n, found := read(tree, c.tokens)
+			require.Equal(t, c.want != "", found, "%s: %q", name, c.tokens)
+			if found {
+				assert.Equal(t, c.want, n.Value, "%s: %q", name, c.tokens)
+			}
+		}
+	}
+	assert.Equal(t, 2+1+1, reads.drain(), "the mapping's pairs, a's and the merged one's, each indexed once")
 }
 
 // TestPositionScope_ReadsThroughTheGivenIndex pins the scope arrive reads a

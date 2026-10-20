@@ -120,8 +120,8 @@ func newRawLowerer(doc *soa.OpenAPI) *lowerer {
 // sub-schema beneath one ("Holder/properties/inner").
 //
 // This one stays a per-package copy where the rest of the vocabulary moved to
-// openapitest: internal/archtest's ID-grammar sweep permits a spelled-out ID in
-// a test file and refuses one in a production file, and openapitest's files are
+// openapitest: the idderivations rule permits a spelled-out ID in a test
+// file and refuses one in a production file, and openapitest's files are
 // production files. Restating the grammar independently of the compiler is what
 // makes these lookups an oracle rather than a tautology, so deriving it through
 // compile to satisfy the sweep would be the wrong way out.

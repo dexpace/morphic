@@ -1,0 +1,277 @@
+member 0 0 AdditionalProps.key
+member 0 0 AuthScheme.credentials
+member 0 0 Availability.added
+member 0 0 Availability.deprecated
+member 0 0 Availability.removed
+member 0 0 Availability.renamedFrom
+member 0 0 Availability.requiredChanged
+member 0 0 Availability.typeChangedFrom
+member 0 0 Channel.address
+member 0 0 Channel.bindings
+member 0 0 Channel.docs
+member 0 0 Channel.id
+member 0 0 Channel.messages
+member 0 0 Channel.name
+member 0 0 Channel.params
+member 0 0 Channel.provenance
+member 0 0 Channel.servers
+member 0 0 Channel.tags
+member 0 0 Channel.unmodeled
+member 0 0 Constraints.patternMessage
+member 0 0 Constraints.precision
+member 0 0 Constraints.scale
+member 0 0 Content.schemaFormat
+member 0 0 CtorValue.args
+member 0 0 CtorValue.name
+member 0 0 CtorValue.scalar
+member 0 0 Deprecation.removalVersion
+member 0 0 Discriminator.envelope
+member 0 0 Discriminator.envelopeValueName
+member 0 0 Discriminator.index
+member 0 0 Discriminator.inferred
+member 0 0 Document.channels
+member 0 0 Document.messages
+member 0 0 Document.versions
+member 0 0 Enum.fallbackMember
+member 0 0 Enum.flags
+member 0 0 EnumMember.availability
+member 0 0 EnumMember.deprecation
+member 0 0 EnumMember.docs
+member 0 0 EnumMember.examples
+member 0 0 EnumMember.unmodeled
+member 0 0 EnumMember.wireName
+member 0 0 ErrorCase.retryable
+member 0 0 ErrorCase.throttling
+member 0 0 ErrorExample.content
+member 0 0 ErrorExample.type
+member 0 0 EventInfo.contentType
+member 0 0 EventInfo.terminal
+member 0 0 Example.error
+member 0 0 Example.headers
+member 0 0 Example.input
+member 0 0 Example.output
+member 0 0 External.identity
+member 0 0 External.minVersion
+member 0 0 External.package
+member 0 0 FileInfo.contentTypeDefault
+member 0 0 FileInfo.contents
+member 0 0 FileInfo.filenameLocation
+member 0 0 FileInfo.filenameWireName
+member 0 0 FileInfo.isText
+member 0 0 GraphQLBinding.fieldPath
+member 0 0 GraphQLBinding.kind
+member 0 0 GraphQLBinding.unmodeled
+member 0 0 HTTPBinding.checksumRequired
+member 0 0 HTTPBinding.compression
+member 0 0 HTTPBinding.hostPrefix
+member 0 0 HTTPBinding.patchImplicitOptionality
+member 0 0 HTTPBinding.responseBodyPath
+member 0 0 HTTPBinding.sharedRoute
+member 0 0 HTTPBinding.successStatus
+member 0 0 HTTPParamBinding.bodyPath
+member 0 0 HTTPParamBinding.paramPath
+member 0 0 HTTPParamBinding.pathPattern
+member 0 0 HTTPParamBinding.prefix
+member 0 0 Idempotency.kind
+member 0 0 Idempotency.tokenParam
+member 0 0 List.encoding
+member 0 0 LongRunning.finalOperation
+member 0 0 LongRunning.finalStateVia
+member 0 0 LongRunning.finalType
+member 0 0 LongRunning.pollingOperation
+member 0 0 LongRunning.pollingType
+member 0 0 LongRunning.resultPath
+member 0 0 MapT.key
+member 0 0 Message.bindings
+member 0 0 Message.contentType
+member 0 0 Message.correlationID
+member 0 0 Message.deprecation
+member 0 0 Message.docs
+member 0 0 Message.examples
+member 0 0 Message.headers
+member 0 0 Message.id
+member 0 0 Message.name
+member 0 0 Message.payload
+member 0 0 Message.provenance
+member 0 0 Message.tags
+member 0 0 Message.unmodeled
+member 0 0 MessageBinding.bindings
+member 0 0 MessageBinding.channel
+member 0 0 MessageBinding.direction
+member 0 0 MessageBinding.messages
+member 0 0 MessageBinding.reply
+member 0 0 MessageBinding.unmodeled
+member 0 0 Model.abstract
+member 0 0 Model.extensionRanges
+member 0 0 Model.implements
+member 0 0 Model.inputOnly
+member 0 0 Model.positional
+member 0 0 Naming.aliases
+member 0 0 OAuthFlow.tokenEndpointAuthMethods
+member 0 0 OTPBinding.behaviour
+member 0 0 OTPBinding.kind
+member 0 0 OTPBinding.process
+member 0 0 OTPBinding.requestTag
+member 0 0 OTPBinding.unmodeled
+member 0 0 OpBindings.graphql
+member 0 0 OpBindings.message
+member 0 0 OpBindings.otp
+member 0 0 OpBindings.rpc
+member 0 0 Operation.availability
+member 0 0 Operation.examples
+member 0 0 Operation.idempotency
+member 0 0 Operation.longRunning
+member 0 0 Operation.oneWay
+member 0 0 Operation.overloadOf
+member 0 0 Operation.pagination
+member 0 0 Operation.parameterVisibility
+member 0 0 Operation.returnTypeVisibility
+member 0 0 OperationGroup.availability
+member 0 0 OperationGroup.resource
+member 0 0 OperationGroup.unmodeled
+member 0 0 Pagination.firstLink
+member 0 0 Pagination.inferred
+member 0 0 Pagination.inputCursor
+member 0 0 Pagination.inputLimit
+member 0 0 Pagination.items
+member 0 0 Pagination.lastLink
+member 0 0 Pagination.nextCursor
+member 0 0 Pagination.nextLink
+member 0 0 Pagination.prevLink
+member 0 0 Pagination.strategy
+member 0 0 Pagination.totalCount
+member 0 0 ParamPath.param
+member 0 0 ParamPath.segments
+member 0 0 Parameter.availability
+member 0 0 Parameter.valueFrom
+member 0 0 PropPath.in
+member 0 0 PropPath.root
+member 0 0 PropPath.segments
+member 0 0 Property.args
+member 0 0 Property.availability
+member 0 0 Property.clientOptional
+member 0 0 Property.defaultAdded
+member 0 0 Property.eventHeader
+member 0 0 Property.eventPayload
+member 0 0 Property.extensionOf
+member 0 0 Property.flatten
+member 0 0 Property.presence
+member 0 0 Property.wireID
+member 0 0 Property.wireNameByFormat
+member 0 0 ProtocolDecl.name
+member 0 0 ProtocolDecl.options
+member 0 0 RPCBinding.fullMethod
+member 0 0 RPCBinding.idempotencyLevel
+member 0 0 RPCBinding.inputType
+member 0 0 RPCBinding.paramStructure
+member 0 0 RPCBinding.system
+member 0 0 RPCBinding.unmodeled
+member 0 0 Reply.address
+member 0 0 Reply.channel
+member 0 0 Reply.docs
+member 0 0 Reply.messages
+member 0 0 RequestCompression.encodings
+member 0 0 ResourceInfo.collectionOps
+member 0 0 ResourceInfo.identifiers
+member 0 0 ResourceInfo.instanceOps
+member 0 0 ResourceInfo.lifecycle
+member 0 0 ResourceInfo.noReplace
+member 0 0 ResourceInfo.properties
+member 0 0 Response.statusCodeProp
+member 0 0 Server.auth
+empty 0 0 Server.auth
+member 0 0 Server.bindings
+member 0 0 Server.protocol
+member 0 0 Server.protocolVersion
+member 0 0 Server.tags
+empty 0 0 Service.auth
+member 0 0 Service.commonErrors
+member 0 0 Service.extends
+member 0 0 Service.namespace
+member 0 0 Service.protocols
+member 0 0 Service.provenance
+member 0 0 Service.renames
+member 0 0 Service.servers
+member 0 0 Service.version
+member 0 0 StreamDetail.initial
+member 0 0 StreamDetail.requiresLength
+member 0 0 TemplateArg.type
+member 0 0 TemplateArg.value
+member 0 0 TemplateInstantiation.args
+member 0 0 TemplateInstantiation.template
+member 0 0 TypeCommon.access
+member 0 0 TypeCommon.availability
+member 0 0 TypeCommon.instantiation
+member 0 0 TypeCommon.mediaTypeHint
+member 0 0 TypeCommon.namespace
+member 0 0 TypeCommon.tags
+member 0 0 TypeCommon.usage
+member 0 0 TypeCommon.wireNameByFormat
+member 0 0 Value.ctor
+member 0 0 Value.ref
+member 0 0 ValueRef.member
+member 0 0 ValueRef.type
+member 0 0 Variant.availability
+member 0 0 Variant.deprecation
+member 0 0 Variant.docs
+member 0 0 Variant.event
+member 0 0 Variant.examples
+member 0 0 Variant.unmodeled
+member 0 0 Variant.wireID
+member 0 0 Variant.wireName
+member 0 0 Variant.xml
+member 0 0 VersionedBool.version
+member 0 0 VersionedBool.wasRequired
+member 0 0 VersionedName.name
+member 0 0 VersionedName.version
+member 0 0 VersionedType.type
+member 0 0 VersionedType.version
+member 0 0 WireIDRange.from
+member 0 0 WireIDRange.to
+value 0 0 AuthKind "asymmetric_encryption"
+value 0 0 AuthKind "sasl_gssapi"
+value 0 0 AuthKind "sasl_plain"
+value 0 0 AuthKind "sasl_scram_sha256"
+value 0 0 AuthKind "sasl_scram_sha512"
+value 0 0 AuthKind "symmetric_encryption"
+value 0 0 AuthKind "user_password"
+value 0 0 AuthKind "x509"
+value 0 0 HTTPLocation "body"
+value 0 0 HTTPLocation "body_property"
+value 0 0 HTTPLocation "host"
+value 0 0 IdempotencyKind "idempotency_token"
+value 0 0 IdempotencyKind "idempotent"
+value 0 0 IdempotencyKind "safe"
+value 0 0 MsgDirection "receive"
+value 0 0 MsgDirection "send"
+value 0 0 PageStrategy "cursor"
+value 0 0 PageStrategy "link_header"
+value 0 0 PageStrategy "next_link"
+value 0 0 PageStrategy "offset"
+value 0 0 PageStrategy "page"
+value 0 0 PageStrategy "token"
+value 0 0 PresenceKind "explicit"
+value 0 0 PresenceKind "implicit"
+value 0 0 PresenceKind "required"
+value 0 0 PrimKind "datetime"
+value 0 0 PrimKind "decimal"
+value 0 0 PrimKind "decimal128"
+value 0 0 PrimKind "duration"
+value 0 0 PrimKind "float"
+value 0 0 PrimKind "float32"
+value 0 0 PrimKind "int16"
+value 0 0 PrimKind "time"
+value 0 0 PrimKind "uint16"
+value 0 0 PrimKind "uint64"
+value 0 0 PrimKind "uint8"
+value 0 0 StreamingMode "client"
+value 0 0 StreamingMode "none"
+value 0 0 TypeKind "external"
+value 0 0 UsageFlags 1
+value 0 0 UsageFlags 2
+value 0 0 UsageFlags 4
+value 0 0 UsageFlags 8
+value 0 0 ValueKind "ctor"
+value 0 0 ValueKind "null"
+value 0 0 ValueKind "ref"
+value 0 0 ValueKind "symbol"

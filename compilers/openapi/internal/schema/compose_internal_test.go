@@ -364,11 +364,10 @@ func TestRawMappingKeys_OnlyEnumeratesAMapping(t *testing.T) {
 	}
 }
 
-// TestEnumMemberForm_ClassifiesEveryValueKind pins the classification arm by arm,
-// including the kinds OpenAPI cannot produce. ValueKind is IR-wide, and
-// TestValueKindSwitches_NameEveryValueKind requires every member of it to be
-// named here — this is what says the naming is a decision rather than a
-// formality.
+// TestEnumMemberForm_ClassifiesEveryValueKind pins the classification arm by
+// arm, including the kinds OpenAPI cannot produce. ValueKind is IR-wide, and
+// the exhaustive linter requires every member of it to be named here — this is
+// what says the naming is a decision rather than a formality.
 func TestEnumMemberForm_ClassifiesEveryValueKind(t *testing.T) {
 	t.Parallel()
 	admissible := []struct {
@@ -775,9 +774,9 @@ const (
 // TestResolveMappingTarget_DefsValueNothingInternedIsHoistedAtItsOwnPosition
 // pins how a "#/$defs/..." mapping value resolves when its definition is not
 // interned yet: hoisted where it is written, as any mapping to a sub-schema is
-// (GitHub #530), never at the document-rooted /$defs/cat the value spells
-// (GitHub #557). Each component's tag names its own definition, in either
-// declaration order.
+// (GitHub #530), not at the document-rooted /$defs/cat the value spells, which
+// this document does not hold (GitHub #557, #910). Each component's tag names
+// its own definition, in either declaration order.
 func TestResolveMappingTarget_DefsValueNothingInternedIsHoistedAtItsOwnPosition(t *testing.T) {
 	t.Parallel()
 	for name, blocks := range map[string]string{

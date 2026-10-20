@@ -10,10 +10,8 @@ import (
 	"strings"
 )
 
-// CheckPath applies Check to the spec(s) at path: a directory is walked
-// recursively for *.yaml, *.yml, and *.json files (excluding *.golden.json IR
-// snapshots) in filepath.WalkDir's lexical order; a regular file is read and
-// checked directly, whatever its extension.
+// CheckPath applies Check to each spec file SpecFiles lists at path, in the
+// order it lists them.
 //
 // It returns a Go error only for a caller or filesystem fault (nil context,
 // bad path, unreadable file) — an oracle failure is a non-OK Result, never a
@@ -22,46 +20,58 @@ func CheckPath(ctx context.Context, path string) ([]Result, error) {
 	if ctx == nil {
 		return nil, errors.New("harness: nil context")
 	}
-	if path == "" {
-		return nil, errors.New("harness: empty path")
+	specs, err := SpecFiles(path)
+	if err != nil {
+		return nil, err
 	}
 
-	info, err := os.Stat(path)
-	if err != nil {
-		return nil, fmt.Errorf("harness: stat %s: %w", path, err)
-	}
-	if !info.IsDir() {
-		r, err := checkFile(ctx, path)
+	results := make([]Result, 0, len(specs))
+	for _, spec := range specs {
+		r, err := checkFile(ctx, spec)
 		if err != nil {
 			return nil, err
 		}
-		return []Result{r}, nil
+		results = append(results, r)
 	}
-	return checkDir(ctx, path)
+	return results, nil
 }
 
-// checkDir walks dir recursively and runs Check on every spec file it finds,
-// returning results in WalkDir's lexical visit order.
-func checkDir(ctx context.Context, dir string) ([]Result, error) {
-	var results []Result
+// SpecFiles lists the spec files at path without reading any: a directory is
+// walked recursively for *.yaml, *.yml, and *.json files (excluding
+// *.golden.json IR snapshots) in filepath.WalkDir's lexical order; a regular
+// file is listed itself, whatever its extension. It returns a Go error for an
+// empty path, one that cannot be stat'ed, and a walk that fails.
+func SpecFiles(path string) ([]string, error) {
+	if path == "" {
+		return nil, errors.New("harness: empty path")
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil, fmt.Errorf("harness: %w", err) // a *fs.PathError names the stat and the path
+	}
+	if !info.IsDir() {
+		return []string{path}, nil
+	}
+	return listDir(path)
+}
+
+// listDir walks dir recursively and returns every spec file it finds, in
+// WalkDir's lexical visit order.
+func listDir(dir string) ([]string, error) {
+	var files []string
 	err := filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		if d.IsDir() || !isSpecFile(p) {
-			return nil
+		if !d.IsDir() && isSpecFile(p) {
+			files = append(files, p)
 		}
-		r, cerr := checkFile(ctx, p)
-		if cerr != nil {
-			return cerr
-		}
-		results = append(results, r)
 		return nil
 	})
 	if err != nil {
 		return nil, fmt.Errorf("harness: walk %s: %w", dir, err)
 	}
-	return results, nil
+	return files, nil
 }
 
 // checkFile reads one spec file and runs Check on its bytes, keying the Result

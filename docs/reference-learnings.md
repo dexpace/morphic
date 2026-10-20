@@ -135,7 +135,9 @@ in IR. Add oagen's two plan predicates Morphic's §2.3 list omits: **`pathParams
 (positional-vs-options-bag: `pathParams>1 || (pathParams>0 && (hasBody||hasQuery))`) and
 **`isArrayResponse`** (unpaginated array→`Model[]` + elementwise decode, distinct from the pagination
 wrapper). Streaming stays on the operation core (`StreamDetail`/`Variant.Event`) — Kiota's lack of any
-streaming concept is the counterexample.
+streaming concept is the counterexample. *Superseded in part:* `pathParamsInOptions` is not a plan
+predicate — how a target passes its inputs varies by language, so emitter-design §3.6 makes the shape
+each target's (§4.13) — and `isArrayResponse` is the plan's `ReturnShape`.
 
 ## A6. Naming / casing / reserved words: neutral in IR, rendered in refine — STRONGLY CONFIRMS #3/#4
 
@@ -284,7 +286,8 @@ merged `allVars`; datamodel has **~6 allOf strategies × a dozen interacting fla
 turns `SIMPLIFY_ONEOF_ANYOF`, `REFACTOR_ALLOF_WITH_PROPERTIES_ONLY` **on** before any language is
 chosen). This is the single sharpest contrast with invariant #2.
 
-**Recommendation (unchanged, now overwhelmingly evidenced):** classify allOf per §4.3 (sole-$ref/
+**Recommendation (unchanged, now overwhelmingly evidenced):** classify allOf per the OpenAPI
+compiler's rule [`allof-classification`](compilers/openapi.md#allof-classification) (sole-$ref/
 discriminator-participant → `Base`; other $refs → `Mixins`; inline → `Properties` with provenance),
 **never merge**; keep `FlattenedProperties()` computed, never stored (openapi-generator's
 `allVars`-beside-`vars` is the storage smell). TypeSpec independently validates the split with distinct
@@ -436,9 +439,11 @@ for parameters only and loses target defaults on $ref-typed fields — the bug).
   overrides, **use-site wins** — preserve both ref identity and overrides losslessly, don't merge-copy).
 - **`$recursiveRef`/`$dynamicRef`**: datamodel's `_resolve_recursive_ref`/`_resolve_dynamic_ref` +
   anchor-index (nearest enclosing `$recursiveAnchor`, outermost `$dynamicAnchor`) is a working
-  reference implementation of ir-design §4.7's "resolve per site by compiler expansion (dynamic scope
-  is static per document)". Port the anchor-index logic; add Morphic's promised "irreducible cases
-  preserved verbatim + diagnostic" fallback (datamodel just best-effort resolves).
+  reference implementation of the OpenAPI compiler's rule
+  [`dynamic-ref`](compilers/openapi.md#dynamic-ref), which resolves a reference per site by compiler
+  expansion because a document's dynamic scope is static. Port the anchor-index logic; add Morphic's
+  promised "irreducible cases preserved verbatim + diagnostic" fallback (datamodel just best-effort
+  resolves).
 - **Validation-only (`not`/`if-then-else`/`dependentSchemas`)**: §4.7 carve-out — keep **verbatim
   in `Unmodeled`** under `ReasonValidationOnly` + one `info` diagnostic; do **not** model
   structurally. datamodel's
@@ -508,9 +513,10 @@ process **both** — never return early on the combinator. Two lossless represen
 order:
 1. **Distribute the allOf composition across the Union variants** (datamodel's semantics, kept
    lossless not merged): emit a `Union` whose each `Variant.Type` references a `Model` carrying the
-   allOf classification (`Base`/`Mixins`/inline-`Properties` per §4.3) composed with that variant. The
-   `Union` is the value; the composition rides on every variant. This is the most faithful to the
-   `∧`-of-`∨` semantics.
+   allOf classification (`Base`/`Mixins`/inline-`Properties` per
+   [`allof-classification`](compilers/openapi.md#allof-classification)) composed with that variant.
+   The `Union` is the value; the composition rides on every variant. This is the most faithful to
+   the `∧`-of-`∨` semantics.
 2. If the allOf is pure inheritance and the oneOf is the *discriminated subtype set* of that base
    (the common `allOf:[base] + oneOf:[subtypes]` idiom), classify allOf → `Base` on the enclosing
    `Model` and attach the `Discriminator` + subtype mapping (§4.3), so it's one polymorphic model, not
@@ -526,7 +532,8 @@ union variants survive in the IR; a second case with a discriminator to exercise
 > never states — the mapping names branch schemas, not subtypes of the enclosing model. Compiled, the
 > result is rejected by `pass/validate` with `discriminator-missing-variant`, and that error is
 > pre-existing rather than introduced. A declared `discriminator` beside a union therefore preserves
-> verbatim with a reason instead. See `ir-design.md` §4.8.
+> verbatim with a reason instead. See the OpenAPI compiler's rule
+> [`union-beside-structure`](compilers/openapi.md#union-beside-structure).
 >
 > Shape #1 also needed a constraint this section does not mention: distribute **only when every
 > branch is a `$ref`**. `Base`/`Mixins` conjoin by reference, so a conjunct needs a node with an ID.
