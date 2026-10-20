@@ -308,9 +308,9 @@ type TargetOptions interface {
   differs between its version and the current one, so an owner sees exactly what moving changes.
   The manifest (§11) records the stated version, `OptionsVersion()`.
 
-Per-target heuristics live here too, beside the target's other choices, rather than in the plan:
-the parameter-passing shape (§4.13), the type-table rows that give an unbounded number a width
-(§2.6), and the symbol spellings that name what has no words (§4.12). The target-AST nodes a default
+Per-target heuristics live here too, beside the target's other choices, rather than in the plan: the
+parameter-passing shape (§4.13), the type-table rows that give an unbounded number a width (§2.6),
+and the character names that give words to a name with none (§4.12). The target-AST nodes a default
 shapes carry `Inferred` provenance (§4.3), as INV6 requires.
 
 ### 2.6 The type table
@@ -381,7 +381,9 @@ type Dependency struct {
   string, and a Kotlin row names a `KSerializer` unless the type is `@Serializable`. A literal of it
   (a default, a constant, an enum value) is built by decoding the value's wire form through that
   codec, and a constraint on it is not checked by the SDK, which the server still checks, reported
-  once per key as an info `emitters/<target>/unchecked-constraint`.
+  once per key as an info `emitters/<target>/unchecked-constraint`. A row's codec is the type's own,
+  so it survives only where the SDK uses that type: a Go type defined over it, as §9 has a named
+  scalar declare, has none of its methods, and how such a declaration keeps them is #1021's.
 - **Imports and dependencies.** `ComputeImports` adds a row's `Imports` to every file that spells
   its type, and the dependency-manifest artifact requires each `Dependency.Module` a row in use
   names, at the highest `MinVersion` those rows name, compared as the target's build tool compares
@@ -420,7 +422,8 @@ type Plan struct {
 Every key is an IR stable ID — never `"METHOD /path"`, never a rendered name (INV3; the oagen
 fragility, prior-art §1). A spec rename never orphans a plan entry: it is "same ID, new symbol",
 a lookup. Every inferred field carries `Inferred` provenance, propagated into diagnostics so it is
-auditable and disable-able (INV6).
+auditable and disable-able (INV6). The plan's own diagnostics are coded `emitters/plan/…`, reported
+once for every target rather than once by each.
 
 The plan **classifies; it does not pick target types and it never cases anything.** It records what
 it derives from the IR ("this union is discriminated, and its tag values select the variants with
@@ -511,8 +514,11 @@ the type in a second channel. The first rule that applies decides:
 
 `ReturnType` is the primary content's type, read through `TypePlan.Alias` (§4.15), so an anonymous
 `allOf` decorator around a model returns the model. Its `Nullable` is the content's, and a nullable
-return takes the target's nullable form (§4.7). Every operation of every document takes one of the
-four, since the rules end in a default; §8.9 traces each through the first targets.
+return takes the target's nullable form (§4.7). Unwrapping an envelope, which `plan.Policy` may
+enable (§3.5), would return a value found inside the content instead; what it records and where is
+#695's. Which codec reads a media type is the target's, and a media type it has none for is a coded
+degrade of that target's that reads the body as `raw`. Every operation of every document takes one
+of the four, since the rules end in a default; §8.9 traces each through the first targets.
 
 Some facts oagen's plan carries are not here, by §3.6. Whether there is a body, whether the
 operation is one-way and its idempotency are stated by the IR, so a refiner reads them there:
@@ -598,7 +604,8 @@ type ModelShape struct {
 `readOnly → Only:[read, delete, query]`; `writeOnly → Only:[create, update]` (ir-design §5.2);
 `Visibility.None` → excluded from every projection (distinct from the zero value); PATCH flips
 properties optional unless `HTTPBinding.PatchImplicitOptionality` points at `false` (nil is the
-protocol default, which flips them); operation-level `ParameterVisibility` /
+protocol default, which flips them), and a patch shape never carries a property's default onto the
+wire (§4.10); operation-level `ParameterVisibility` /
 `ReturnTypeVisibility` override which filter applies. Unknown visibility classes are opaque
 filters evaluated per class (`ir-design.md §5.2`).
 
@@ -814,7 +821,7 @@ imports (§4.12); collision resolution runs last. Because each step is idempoten
 | `LowerLRO` | `plan.LROPlan` (final-state-via, poll/final ops, result path) | poller type + `Poll()/PollUntilDone()` returning the final type | §7.3 |
 | `LowerErrors` | `plan.PlannedError`, `irfacts.UsageError`, `Fault` | error type tree (`APIError` → client/server → concrete) | §7.2 |
 | `PlaceDeclarations` | `Provenance.Source`, `TypePlan.Reach`, the target's placement options | the output unit each declaration lands in: one package unless a partition or a group split moves it (§4.17) | §13 |
-| `RenderCasing` | neutral `Ident` (= `naming.Words`: the canonical words beside their source spellings; a name with none spelled from its symbols) + the acronym table | cased identifiers — the ONLY place names get cased (§4.12) | §3.2; INV4 |
+| `RenderCasing` | neutral `Ident` (= `naming.Words`: the canonical words beside their source spellings; a name with none named by its characters) + the acronym table | cased identifiers — the ONLY place names get cased (§4.12) | §3.2; INV4 |
 | `ComputeImports` | referenced symbols in each file, each type-table row's `Imports` | per-file import sets, each import named; a reference written qualified where a declaration of its file takes the imported name (§4.12) | — |
 | `EscapeReservedWords` | cased `Ident` + each scope's reserved set: keywords, what the generated code binds there, what its file imports (§4.12) | keyword-safe identifiers; NEVER touches `WireName`/`WireID` | §3.2; INV4 |
 | `ResolveCollisions` | `Ctx.Syms` (ID-keyed symbol table) | deterministic disambiguation; never mutates IR identity | §3.1; INV3 |
@@ -1049,7 +1056,7 @@ type Policy interface {
     Case(words []Word, role Role) string  // Role: TypeName | Field | Method | Const | Param | Package
     Acronyms() AcronymTable
     Reserved() ReservedSet                // the language's keywords and predeclared names
-    Spellings() SpellingTable             // symbol sequences → words, for a name with none (below)
+    CharacterNames() CharacterNameTable   // character sequences → words, for a name with none
 }
 
 type Word struct {
@@ -1091,20 +1098,20 @@ would have to capitalize `os` and `fa` in every name. It never reads one to find
 words are fixed before any spelling is read — so the rule against re-splitting a cased string holds.
 Ignoring the spellings is conforming, and the acronym table applies either way.
 
-**A name with no words is spelled from its symbols.** A `Source` with no letter or digit in it — an
+**A name with no words takes its characters' names.** A `Source` with no letter or digit in it — an
 enum value `>=`, an `operationId` `***`, a property `<` — has neither `Canonical` nor `Hint`
-(ir-design §3.2), and still needs an identifier, wherever it is written. `RenderCasing` spells it:
-from each position, the longest sequence the spelling table names becomes that entry's words, and a
-character it does not name becomes one word, `u` and its code point in lowercase hex (`u2192` for
-`→`). The words have no source spelling, so they are cased as a hint's are, and the node they name
-carries `Inferred` provenance, `symbol-spelling` (INV6). The spelling reads nothing but the name, as
-`EnumMember.ID` reads nothing but the value, so reordering an enum renames none of its members. Two
-spellings that meet — `=` and `==` are both `equal` — are `Ctx.Syms`'s, like any other collision.
+(ir-design §3.2), and still needs an identifier, wherever it is written. `RenderCasing` names it:
+from each position, the longest sequence the character-name table holds becomes that entry's words,
+and a character it does not hold becomes one word, `u` and its code point in lowercase hex (`u2192`
+for `→`). The words have no source spelling, so they are cased as a hint's are, and the node they
+name carries `Inferred` provenance, `character-names` (INV6). The words read nothing but the name,
+as `EnumMember.ID` reads nothing but the value, so reordering an enum renames none of its members.
+Two names that meet — `=` and `==` are both `equal` — are `Ctx.Syms`'s, like any other collision.
 
 The table is a heuristic, so it is the naming policy's to replace, and since a change to it renames
 identifiers, a target's table is a default of its options version (§2.5). The first targets share
-version 1's, in which a sequence is spelled by what it means where it has one meaning, and each
-other character by its name:
+version 1's, in which a sequence is named by what it means where it has one meaning, and each other
+character by its own name:
 
 ```text
 <=  less_than_or_equal      >=  greater_than_or_equal   !=  not_equal       ==  equal
@@ -1141,6 +1148,7 @@ caller names never yields to an import: where a Kotlin type takes the simple nam
 file imports, `ComputeImports` writes that reference qualified instead, and Go's exported names
 cannot meet its lowercase package names. So only a parameter or a local yields to an import, and no
 caller depends on its name. That is why `ComputeImports` runs before `EscapeReservedWords` (§4.1).
+T-19 holds every scope's set, and the names with none, to code that compiles.
 
 ### 4.13 Interface extraction & request shaping
 
@@ -1211,8 +1219,9 @@ that losslessly, as an anonymous `Model` whose `Base` is `Status` and which carr
 anonymous `Scalar` alias over `Status` wherever no property or parameter holds the annotations
 (ir-design §12.1), and so does an annotation alone on a non-carrier position, `items: {type: string,
 example: x}`. None of these nodes says anything about a value that its `Base` does not. Lowered as
-written, each would be a type of its own — a struct embedding `Status`, or a Go type defined over
-it, which has none of `Status`'s methods — where every user expects `Status`.
+written, each would be a type of its own — a struct repeating a wrapped model's fields, or a Go type
+defined over a wrapped enum, which has none of the enum's methods — where every user expects the
+type it wraps.
 
 **What a decorator is.** An anonymous type whose `Base` is set, and which is
 
@@ -1237,8 +1246,9 @@ decorator it passed collapses nowhere, and each of its nodes lowers as it would 
 alias, once that pass exists, is followed the same way.
 
 **What refine does.** `CollapseAliases` runs before every other step. An aliased type emits no
-declaration, and each reference to it is lowered as a reference to its `Alias`, keeping the
-referring reference's `Nullable`, which answers for the whole decorator (ir-design §3.3). The
+declaration, and each reference to it — a `TypeRef`, or a `TypeID` a discriminator's mapping or
+default names — is lowered as a reference to its `Alias`, keeping the referring reference's
+`Nullable`, which answers for the whole decorator (ir-design §3.3). The
 decorators' annotations fold onto the carrier holding the reference — a property, a parameter, a
 header or a union variant, each of which has a field for all three — so the reference documents its
 input exactly as the 3.1 `$ref` it stands for does:
@@ -1284,7 +1294,7 @@ property of its type system (§3.6).
 Go breaks every such reference rather than the fewest that would do. The fewest depend on the whole
 graph — one type added elsewhere can change which reference is picked — and each pick that moves
 changes a field's type for every caller. A reference is a pointer here exactly when its two ends
-share a component, which only a change to that cycle moves.
+share a component, which only a change to that cycle moves. T-20 holds the rule.
 
 ### 4.17 Output units
 
@@ -1305,7 +1315,9 @@ applies decides.
    becoming a cross-package reference. A type declaration goes to the unit its own
    `Provenance.Source` maps to, and one an overlay introduced or rewrote belongs to the document the
    overlay patched, the entry document ([`overlays`](./compilers/openapi.md#overlays)). Operations,
-   sub-clients, the client and request types stay with the entry document. What the document cannot
+   sub-clients, the client and request types stay where rule 2 or the root puts them, whichever
+   file declared them: an operation is a method of its group's client type, and Go declares a
+   method in its receiver's package. What the document cannot
    honour is reported:
    - a key with a `#fragment` is an options error, since a partition is a whole document;
    - a key naming the entry document, `Sources[0]`, or an overlay is an error diagnostic: the root
@@ -1329,7 +1341,10 @@ applies decides.
 The root unit's name is the options'. A group's unit is the group's name rendered for a package
 under the root (`<root>/<group>` in Go, `<root>.<group>` in Kotlin), the shared unit is `shared`
 under the root, and a partition's unit is the name its key maps to. A group named `shared` meets a
-reserved name (§4.12).
+reserved name (§4.12). A declaration a target derives from another lands in that one's unit — a
+visibility shape (§4.6) or a Kotlin variant class in its type's, an operation's request type in the
+operation's — and a unit is a namespace of its own, so two declarations collide only within one
+(§4.12). T-18 holds placement to these rules.
 
 **The size check.** Each target states a limit on the declarations one unit holds, a default of its
 options version (§2.5), and reports each unit over it once, as a warning
@@ -1507,7 +1522,7 @@ emitters/
 ├── plan/              # SHARED, language-neutral — imports ir, ir/irfacts. Build(), Plan, OpPlan, TypePlan, ModelShape
 │   └── plantest/      #   golden snapshots of Plan (language-independent corpus)
 ├── policy/            # runtime SDK-policy vocabulary + Defaults() + Merge(DeepPartial) (INV10)
-├── naming/            # SHARED naming engine: acronym/compound tables, the symbol-spelling table,
+├── naming/            # SHARED naming engine: acronym/compound tables, the character-name table,
 │                      #   reserved-word set type, ID-keyed collision resolver. Casing FUNCTIONS are
 │                      #   per-target (naming.Policy impl)
 ├── typemap/           # SHARED type table: Table, Row, lookup, merge, strict decoding (§2.6)
@@ -1537,7 +1552,8 @@ emitters/
 `goast` lives *under* `emitters/golang`, not in the shared contract, because a target AST is
 per-language by definition. `plan`, `policy`, `naming`, `typemap`, `refine` (the contract + shared
 helpers), `manifest`, and `verify` are shared because they are language-neutral: `typemap` holds a
-table's shape and rules, and each target its rows.
+table's shape and rules, and each target its rows. This section lays out Morphic's own packages; how
+a generated SDK divides into packages of its own, by source document or by group, is §4.17's.
 
 Kotlin/JVM and Kotlin Multiplatform are two targets and one package. They share a language, so
 one AST, printer and refine pipeline serve both; they differ in a runtime, and that difference is
@@ -1714,11 +1730,11 @@ FinalType:&TypeRef→Export, ResultPath:body→result }, Request:{ExportRequest}
 `HTTPBinding{POST /exports}`; the
 declared poll op `GetExport` is `HTTPBinding{GET /exports/{id}}` returning an `ExportStatus` monitor.
 
-- **plan.** `OpPlan{ Return:model, LRO:&LROPlan{ FinalStateVia:"status-monitor", PollOp:GetExport.ID,
-  FinalType:Export, PollType:ExportStatus, ResultPath:body→result } }`. Which response signals
-  terminal state, and where the result lives, are plan facts unwrapped from the monitor type — the
-  same "classify, don't decide" split pagination uses. Poll *pacing* is **not** here; it is runtime
-  policy, exactly like `Pagination` pacing (§8.3).
+- **plan.** `OpPlan{ Return:value, LRO:&LROPlan{ FinalStateVia:"status-monitor",
+  PollOp:GetExport.ID, FinalType:Export, PollType:ExportStatus, ResultPath:body→result } }`. Which
+  response signals terminal state, and where the result lives, are plan facts unwrapped from the
+  monitor type — the same "classify, don't decide" split pagination uses. Poll *pacing* is **not**
+  here; it is runtime policy, exactly like `Pagination` pacing (§8.3).
 - **refine.** `LowerLRO` emits a poller:
   `func (c *Client) StartExport(ctx, *StartExportParams) (*ExportPoller, error)`, where
   `ExportPoller.Poll(ctx) (bool, error)` performs one poll via the `PollOp` binding and
@@ -1891,6 +1907,9 @@ Variables:[{Name:region, Default:"us", Enum:[us, eu]}]} ]`, and a service whose 
   reads none of them (§4.14) and sends those operations to the client's base URL; the compiler
   reports each. Once the field exists, an operation's servers replace its service's for that
   operation, by the same rules.
+- **Auth.** An HTTP target authenticates as §8.6 says, from the operation and the service.
+  `Server.Auth` is the placement the messaging formats use, where a broker connection authenticates
+  per server, and a messaging target reads it.
 - **emit.** The URL template is expanded at request time from the chosen values; the template and
   each variable's constants are typed AST, the expansion a runtime helper.
 
@@ -1935,7 +1954,7 @@ for both Kotlin targets, and "KMP:" marks where Multiplatform differs from the J
 | `ErrorCase{Fault, Retryable}` | error tree; declared facts win over policy | exception hierarchy (`ApiException` → client/server → concrete); declared facts win over policy | status→error map |
 | `Auth` OR-of-ANDs | `Authenticator` + per-scheme options; priority order | `Authenticator` + per-scheme configuration; priority order | — |
 | `Value{Num BigVal, Ctor, Ref, symbol}` | literals via decimal (never float64); `Ctor`→call; `symbol`→string explicitly; a `Default` documented, never written onto a request (§4.10) | literals built from the decimal text, never a `Double` literal; `Ctor` → call; `symbol` → string explicitly; a `Default` documented, never sent | — |
-| `Naming{Canonical}` | cased via `naming.Policy`; a name with no words spelled from its symbols (§4.12); a name a scope reserves escaped with a trailing underscore; collisions ID-keyed | cased via `naming.Policy`, symbols spelled the same; hard keywords in backticks, other reserved names a trailing underscore; KMP: explicit Objective-C/Swift names where the export would mangle; collisions ID-keyed | `WireName`/`WireID` never cased |
+| `Naming{Canonical}` | cased via `naming.Policy`; a name with no words named by its characters (§4.12); a name a scope reserves escaped with a trailing underscore; collisions ID-keyed | cased via `naming.Policy`, characters named the same; hard keywords in backticks, other reserved names a trailing underscore; KMP: explicit Objective-C/Swift names where the export would mangle; collisions ID-keyed | `WireName`/`WireID` never cased |
 
 ---
 
@@ -2084,8 +2103,9 @@ throughout this document.
     `SplitByGroup` the units' imports form no cycle; and every partition error and warning of §4.17
     has a fixture that draws it.
 19. **T-19 · Reserved scopes** — a fixture naming its properties, parameters, path parameters and
-    enum members after every name each scope of §4.12 reserves, and after symbols alone, generates
-    code that compiles on every target, with every template's declared names held to what it binds.
+    enum members after every name each scope of §4.12 reserves, and after characters alone,
+    generates code that compiles on every target, with every template's declared names held to what
+    it binds.
 20. **T-20 · Recursive types** — a model that holds itself directly, through a base, through a
     union, through a tuple and through another model generates code that compiles on every target,
     and only the references §4.16 names are held through a pointer.
@@ -2242,10 +2262,10 @@ compiler writes as `""` (#978); and facts no OpenAPI construct sets, such as `Mo
 |---|---|
 | 1 IR is the ABI | `EmitterInput.Doc` is the only structural input; `emitters/*` imports `ir`, `ir/irfacts` + shared contract, never `compiler`/`engine`/a sibling target (§2, §7) |
 | 2 Lossless, lowered late | all lowering is in `refine` steps building a fresh target AST; the IR is never mutated; unions/enums/discriminators/visibility/pagination/streaming/LRO arrive un-lowered and the step list is the acceptance test (§4, §8) |
-| 3 Stable IDs, names presentation | plan, AST `Origin`, manifest, surface, hints, and the collision table are all keyed by IR stable ID; renames are lookups; collisions never touch identity; a name with no words is spelled from its value alone, and placement reads no count, so neither moves when something else changes (§3, §4.12, §4.17, §11) |
+| 3 Stable IDs, names presentation | plan, AST `Origin`, manifest, surface, hints, and the collision table are all keyed by IR stable ID; renames are lookups; collisions never touch identity; a name with no words is named from its value alone, and placement reads no count, so neither moves when something else changes (§3, §4.12, §4.17, §11) |
 | 4 Names neutral, emitter cases | `Ident` starts as the `Naming.Canonical` word sequence, the source spelling beside each word for its letter case only; `RenderCasing`/`EscapeReservedWords` are the only casing steps; struct tags come from `WireName`/`WireID`, a separate channel (§4.12, §5) |
 | 5 Pure, typed diagnostics | `Generate` is pure/reentrant/no-stderr/no-I/O; every un-lowerable construct → coded `ir.Diagnostic`; the engine decides fatality (§2, §2.4) |
-| 6 Heuristics are policy | `plan.Policy`, each target's versioned options, `naming.Policy`, `verify.Severity`, method-name derivation, and shaping hints are injectable and disable-able; the type table's width-picking rows and the symbol spellings are defaults a configuration replaces; inferred outputs marked `Inferred` (§2.5, §2.6, §3.5, §4.12, §6.4, §12) |
+| 6 Heuristics are policy | `plan.Policy`, each target's versioned options, `naming.Policy`, `verify.Severity`, method-name derivation, and shaping hints are injectable and disable-able; the type table's width-picking rows and the character names are defaults a configuration replaces; inferred outputs marked `Inferred` (§2.5, §2.6, §3.5, §4.12, §6.4, §12) |
 | 7 Serializable/deterministic | `Plan` + manifest are JSON-serializable, and `Facts` is rebuilt from the document; maps walked sorted, slices source order; identical input ⇒ identical bytes (§2.2, §3, §5.5, §13) |
 | 8 Optionality ≠ nullability | `LowerOptionality` renders all four states plus protobuf `Presence` as a third axis; collapses are diagnosed (§4.7) |
 | 9 Capability surface designed against every format | every `ir.TypeKind` and every operation facet (pagination/streaming/LRO/one-way/messaging) has a lowering path or diagnosed degrade (§4.2, §9); docs/mock/validation are registry entries over the same `Doc + Plan`; a new language forces no IR or plan change (§10, §14 M5) |

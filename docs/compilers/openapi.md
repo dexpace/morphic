@@ -431,7 +431,7 @@ the word sequence §3.2 derives from it, at every position that spells one — `
 `operationId`, a parameter, response-header or property name, a component schema or security scheme
 key, an enum member's value as text, a 3.2 server `name`, and under `grouping=path-prefix` a first
 path segment. A name with no letter or digit (`***`, `>=`) keeps its `Source` and has no
-`Canonical`; an emitter spells it from its symbols (emitter-design §4.12). A name spelled as the
+`Canonical`; an emitter names it by its characters (emitter-design §4.12). A name spelled as the
 empty string is minted `Hint: "empty"` and no `Source` rather than passed through (an `operationId`
 of `""` is read as absent instead,
 [`operation-ids`](#operation-ids)), and a property's wire name stays `""`. A component schema keyed
