@@ -24,6 +24,7 @@ import (
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
+	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -45,7 +46,7 @@ func resolveSpec(t *testing.T, spec, path string) (*soa.OpenAPI, []ir.Diagnostic
 	}
 	resolved, _, _, diags, err := resolveExternal(t.Context(), pointerAt(0, overlay.Origin{}), doc, Siblings{},
 		newSourceDocument(path, data, root, nil, newSourceTree(0, overlay.Origin{}, root), nil),
-		Options{AllowExternalRefs: true}, rebuild)
+		Options{Reader: reader.Disk{}}, rebuild)
 	return resolved, diags, err
 }
 
@@ -54,7 +55,7 @@ func resolveSpec(t *testing.T, spec, path string) (*soa.OpenAPI, []ir.Diagnostic
 func resolveSpecWith(t *testing.T, spec string, rebuild func() (*soa.OpenAPI, error)) (*soa.OpenAPI, []ir.Diagnostic, error) {
 	t.Helper()
 	resolved, _, _, diags, err := resolveExternal(t.Context(), pointerAt(0, overlay.Origin{}), modelOf(t, spec),
-		Siblings{}, sourceDocument{path: "root.yaml"}, Options{AllowExternalRefs: true}, rebuild)
+		Siblings{}, sourceDocument{path: "root.yaml"}, Options{Reader: reader.Disk{}}, rebuild)
 	return resolved, diags, err
 }
 
@@ -486,7 +487,7 @@ func TestResolveExternal_ASecondPassReportsWhatOnePassWould(t *testing.T) {
 	run := func(url string) (*Document, []ir.Diagnostic) {
 		requests.Store(0)
 		src := compilers.Source{Path: "root.yaml", Data: []byte(combinedRootSpec(url))}
-		got, diags, err := Load(t.Context(), 0, src, Options{AllowExternalRefs: true})
+		got, diags, err := Load(t.Context(), 0, src, Options{Reader: reader.Disk{}})
 		require.NoError(t, err)
 		require.NotNil(t, got)
 		assert.Equal(t, int32(1), requests.Load(), "one request per compile")
@@ -551,7 +552,7 @@ func TestResolveExternal_TwoRefsToOneTargetReportItsFindingOnce(t *testing.T) {
 			rebuilds.Add(1)
 			return unmarshal(ctx, data, root)
 		}
-		_, diags, err := Load(t.Context(), 0, src, Options{AllowExternalRefs: true, rebuildDoc: rebuild})
+		_, diags, err := Load(t.Context(), 0, src, Options{Reader: reader.Disk{}, rebuildDoc: rebuild})
 		require.NoError(t, err)
 		require.Equal(t, wantRebuilds, rebuilds.Load(), "%s takes the path this case names", base)
 		return diags
@@ -596,7 +597,7 @@ func TestLoad_RecoversARespelledExternalReference(t *testing.T) {
 	url := "HTTP://" + strings.TrimPrefix(srv.URL, "http://") + "/ext.yaml"
 	src := compilers.Source{Path: "root.yaml", Data: []byte(rootReferencing(url))}
 
-	got, diags, err := Load(t.Context(), 0, src, Options{AllowExternalRefs: true})
+	got, diags, err := Load(t.Context(), 0, src, Options{Reader: reader.Disk{}})
 
 	require.NoError(t, err)
 	require.NotNil(t, got)
@@ -629,7 +630,7 @@ paths:
     get: {responses: {"200": {description: ok}}}
 `)}
 
-	got, diags, err := Load(t.Context(), 0, src, Options{AllowExternalRefs: true})
+	got, diags, err := Load(t.Context(), 0, src, Options{Reader: reader.Disk{}})
 
 	require.NoError(t, err)
 	require.NotNil(t, got)
@@ -659,7 +660,7 @@ func TestLoad_ARebuildFailureIsWrappedAsRebuildSource(t *testing.T) {
 	src := compilers.Source{Path: "root.yaml", Data: []byte(rootReferencing(url))}
 	boom := errors.New("rebuild boom")
 	opts := Options{
-		AllowExternalRefs: true,
+		Reader: reader.Disk{},
 		rebuildDoc: func(context.Context, []byte, *yaml.Node) (*soa.OpenAPI, []error, error) {
 			return nil, nil, boom
 		},

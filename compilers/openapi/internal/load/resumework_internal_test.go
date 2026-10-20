@@ -18,6 +18,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
+	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -32,11 +33,11 @@ func resumedOver(t *testing.T, dir, root string, limit int) (*soa.OpenAPI, *resu
 	doc, valErrs, err := unmarshal(t.Context(), []byte(root), tree)
 	require.NoError(t, err)
 	self := newSourceDocument(filepath.Join(dir, "root.yaml"), []byte(root), tree, valErrs, newSourceTree(0, overlay.Origin{}, tree), nil)
-	opts := Options{AllowExternalRefs: true}
-	reader := newExternal(doc, opts, newExternalReads(self))
-	reader.work.limit = limit
-	_, diags := newResolution(t.Context(), pointerAt(0, overlay.Origin{}), doc, Siblings{}, self, opts, &reader).run(doc)
-	return doc, reader.work, diags
+	opts := Options{Reader: reader.Disk{}}
+	ext := newExternal(t.Context(), doc, opts, newExternalReads(self))
+	ext.work.limit = limit
+	_, diags := newResolution(t.Context(), pointerAt(0, overlay.Origin{}), doc, Siblings{}, self, opts, &ext).run(doc)
+	return doc, ext.work, diags
 }
 
 // TestSettle_TheResumedWorkIsBounded pins maxResumeWork's bound. Two chains
@@ -250,24 +251,24 @@ func TestResumable_TheBudgetStopsWhatItWouldResume(t *testing.T) {
 		{"a stand-in reached", other, chain{records: []record{hop(slices.Clone(data), true, stand)}}, 1},
 	}
 	for _, c := range stalls {
-		reader := newExternal(&soa.OpenAPI{}, Options{}, read)
-		resume, refused := reader.resumable(c.r, c.c, walked)
+		ext := newExternal(t.Context(), &soa.OpenAPI{}, Options{}, read)
+		resume, refused := ext.resumable(c.r, c.c, walked)
 		require.True(t, resume, "%s: resumed within the budget", c.name)
 		require.NoError(t, refused)
-		assert.Equal(t, c.spent, reader.work.spent, c.name)
+		assert.Equal(t, c.spent, ext.work.spent, c.name)
 
-		reader.work.limit = reader.work.spent
-		resume, refused = reader.resumable(c.r, c.c, walked)
+		ext.work.limit = ext.work.spent
+		resume, refused = ext.resumable(c.r, c.c, walked)
 		assert.False(t, resume, c.name)
 		require.Error(t, refused, c.name)
 		assert.Equal(t, fmt.Sprintf("resolving it further takes more than the %d steps budgeted "+
-			"for chains through referenced documents", reader.work.limit), refused.Error())
+			"for chains through referenced documents", ext.work.limit), refused.Error())
 	}
 
-	reader := newExternal(&soa.OpenAPI{}, Options{}, read)
-	reader.work.limit = 0
-	reader.work.spend(1)
-	resume, refused := reader.resumable(schema, stalls[0].c, errors.New("circular reference detected"))
+	ext := newExternal(t.Context(), &soa.OpenAPI{}, Options{}, read)
+	ext.work.limit = 0
+	ext.work.spend(1)
+	resume, refused := ext.resumable(schema, stalls[0].c, errors.New("circular reference detected"))
 	assert.False(t, resume)
 	assert.NoError(t, refused, "a failure settle would not resume keeps its own error")
 }

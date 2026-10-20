@@ -394,7 +394,7 @@ func resolveExternal(ctx context.Context, at func(jsontext.Pointer) ir.Provenanc
 	self sourceDocument, opts Options, rebuild func() (*soa.OpenAPI, error),
 ) (*soa.OpenAPI, Siblings, MappingTargets, []ir.Diagnostic, error) {
 	read := newExternalReads(self)
-	reader := newExternal(doc, opts, read)
+	reader := newExternal(ctx, doc, opts, read)
 	targets, diags := resolveWith(ctx, at, doc, sibs, self, opts, &reader)
 	used := documentsUsed(ctx, doc, sibs)
 	first := unprepared(doc, read, used)
@@ -411,7 +411,7 @@ func resolveExternal(ctx context.Context, at func(jsontext.Pointer) ir.Provenanc
 	// Their findings are the first models', reported already.
 	sibs, _, _ = modelSiblings(ctx, again, nowhere)
 	read.handOver(again, used)
-	reader = newExternal(again, opts, read)
+	reader = newExternal(ctx, again, opts, read)
 	targets, diags = resolveWith(ctx, at, again, sibs, self, opts, &reader)
 	missed := unprepared(again, read, documentsUsed(ctx, again, sibs))
 	return again, sibs, targets, append(diags, stillUnprepared(at, missed)...), nil

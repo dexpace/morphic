@@ -9,6 +9,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
+	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/pass"
 )
@@ -38,6 +39,12 @@ type RunOptions struct {
 var errOptionChannels = errors.New(
 	"engine: set FormatOptions or CompilerOptions, not both")
 
+// errCompilerOptionsUnused reports compiler options given to a run no compiler
+// takes part in. Ignoring them would leave the caller believing they shaped the
+// result.
+var errCompilerOptionsUnused = errors.New(
+	"engine: RunDocument compiles nothing, so it takes no FormatOptions or CompilerOptions")
+
 // Result is the outcome of a pipeline run. A nil Document alongside diagnostics
 // is a legal outcome and the shape every refusal takes — a source no compiler
 // claims, or one a compiler declined to lower; the caller decides what is fatal.
@@ -58,11 +65,11 @@ type Result struct {
 // Engine orchestrates the detect → compiler → passes pipeline.
 //
 // An Engine is safe for concurrent use, and concurrent runs over one spec yield
-// identical documents, not merely uncorrupted ones. Run builds a fresh
-// compilers.Source per call, so the state a compiler leaves on one
-// (Source.Parsed) is never shared between runs. NewWith finishes the registry
-// and the pass list before the Engine exists, and Run only reads them. The rest
-// is the purity of compilers and passes: one holding mutable state breaks both.
+// identical documents, not merely uncorrupted ones. Each run builds a fresh
+// compilers.Source, so the state a compiler leaves on one (Source.Parsed) is
+// never shared between runs. NewWith finishes the registry and the pass list
+// before the Engine exists, and a run only reads them. The rest is the purity
+// of compilers and passes: one holding mutable state breaks both.
 //
 // TestEngine_ConcurrentRunSharesOneEngine pins both properties: the second on
 // every run, the first only under -race, which the coverage gate uses.
@@ -102,59 +109,124 @@ func NewWith(cs ...compilers.Compiler) (*Engine, error) {
 }
 
 // Run executes the pipeline for the spec at specPath: read it, compile it with
-// the compiler that recognizes it, then run the passes not named in
-// opts.DisablePasses, in order.
+// the compiler that recognizes it, then run the passes opts.DisablePasses does
+// not name, in order. Its references are read through reader.Disk, as far from
+// the spec's directory as the compiler's options let a read go.
 //
-// A Go error is reserved for I/O, cancellation and programmer errors: an
-// unreadable file, a cancelled ctx, a compiler or pass breaking its contract,
-// or a name ErrUnknownPass refuses. Everything wrong with the spec itself, a
-// source no compiler can lower included, is a diagnostic in the Result, so a Go
-// error never blames the spec. Calls may overlap; each owns the document it
-// returns.
+// A Go error is reserved for I/O, cancellation and programmer errors, such as
+// a compiler or pass breaking its contract or a name ErrUnknownPass refuses.
+// Everything wrong with the spec, a source no compiler can lower included, is
+// a diagnostic in the Result. Calls may overlap; each owns its document.
 func (e *Engine) Run(ctx context.Context, specPath string, opts RunOptions) (*Result, error) {
-	// Ahead of the read, because an engine that never went through a constructor
-	// is the caller's mistake whatever the path turns out to say, and reporting
-	// the path first would send them to look at the file. Without this the nil
-	// registry is dereferenced during detection and the package panics, which is
-	// no way to report a misuse of it.
-	if e == nil || e.registry == nil {
-		return nil, errors.New("engine: uninitialized; build one with New or NewWith")
-	}
-
-	// Also ahead of the read: a run configured two ways is wrong whatever the
-	// source turns out to be, and every compiler would otherwise be asked to
-	// resolve options that no compiler could.
-	if opts.FormatOptions != nil && len(opts.CompilerOptions) > 0 {
-		return nil, errOptionChannels
-	}
-
-	passes, err := e.enabledPasses(opts.DisablePasses)
+	passes, err := e.prepare(opts)
 	if err != nil {
 		return nil, err
 	}
-
 	data, err := os.ReadFile(specPath)
 	if err != nil {
 		return nil, fmt.Errorf("engine: read spec %q: %w", specPath, err)
 	}
-	source := compilers.Source{Path: specPath, Data: data}
+	return e.compile(ctx, compilers.Source{Path: specPath, Data: data}, reader.Disk{}, os.ReadFile, opts, passes)
+}
 
+// RunSources executes Run's pipeline over sources held in memory, and reads
+// nothing else. The first source is the spec; every source is a document the
+// spec's references, or a file a setting such as an overlay names, may name by
+// its Path (reader.Memory), so a spec split across files compiles with no file
+// written. Source.Parsed is not read, and the bytes must not change while the
+// run reads them.
+//
+// An empty list and two sources naming one document are Go errors: the run is
+// misconfigured. It shares Run's other contracts.
+func (e *Engine) RunSources(ctx context.Context, sources []compilers.Source, opts RunOptions) (*Result, error) {
+	passes, err := e.prepare(opts)
+	if err != nil {
+		return nil, err
+	}
+	if len(sources) == 0 {
+		return nil, errors.New("engine: no sources; the first is the spec to compile")
+	}
+	docs, err := reader.NewMemory(sources)
+	if err != nil {
+		return nil, fmt.Errorf("engine: %w", err)
+	}
+	readFile := func(name string) ([]byte, error) {
+		return docs.ReadDocument(ctx, compilers.DocumentRequest{Location: name})
+	}
+	spec := compilers.Source{Path: sources[0].Path, Data: sources[0].Data}
+	return e.compile(ctx, spec, docs, readFile, opts, passes)
+}
+
+// RunDocument runs the passes not named in opts.DisablePasses over doc, an IR
+// document already compiled, such as one decoded from a file. No compiler
+// runs, so opts may name no compiler option and Result.Format is the zero
+// format; Result.Diagnostics holds doc's own findings and the passes'.
+//
+// doc is not modified, and must not be while the run reads it. A nil doc, one
+// whose IRVersion this build cannot read, and compiler options are Go errors.
+func (e *Engine) RunDocument(ctx context.Context, doc *ir.Document, opts RunOptions) (*Result, error) {
+	passes, err := e.prepare(opts)
+	if err != nil {
+		return nil, err
+	}
+	if doc == nil {
+		return nil, errors.New("engine: no document to run the passes over")
+	}
+	if opts.FormatOptions != nil || len(opts.CompilerOptions) > 0 {
+		return nil, errCompilerOptionsUnused
+	}
+	if !ir.CompatibleVersion(doc.IRVersion) {
+		return nil, fmt.Errorf("engine: document IR version %q is not %q, the one this build reads",
+			doc.IRVersion, ir.IRVersion)
+	}
+	// A shallow copy is all the passes need: none mutates the document it is
+	// handed, and the engine writes only Diagnostics, onto the copy.
+	own := *doc
+	out, found, err := runPasses(ctx, &own, passes)
+	if err != nil {
+		return nil, err
+	}
+	out.Diagnostics = mergeDiagnostics(doc.Diagnostics, found)
+	return &Result{Document: out, Diagnostics: out.Diagnostics, Sources: out.Sources}, nil
+}
+
+// prepare checks what every entry point checks before it reads anything, and
+// returns the passes opts leaves on. An engine no constructor built is the
+// caller's mistake whatever the input says, and reporting the input first would
+// send them to look at it; unchecked, the nil registry panics during detection.
+// A run configured two ways is wrong whatever the source, and every compiler
+// would otherwise be asked to resolve options no compiler could.
+func (e *Engine) prepare(opts RunOptions) ([]pass.Pass, error) {
+	if e == nil || e.registry == nil {
+		return nil, errors.New("engine: uninitialized; build one with New or NewWith")
+	}
+	if opts.FormatOptions != nil && len(opts.CompilerOptions) > 0 {
+		return nil, errOptionChannels
+	}
+	return e.enabledPasses(opts.DisablePasses)
+}
+
+// compile runs the pipeline over source: detect, compile, then passes. docs
+// reads what source's references name, and readFile what its settings name.
+func (e *Engine) compile(ctx context.Context, source compilers.Source, docs compilers.DocumentReader,
+	readFile func(string) ([]byte, error), opts RunOptions, passes []pass.Pass,
+) (*Result, error) {
 	// Each compiler is asked under the options it would compile with, because
 	// recognizing a source is a read of it that the caller's budgets bound as
 	// much as the compile's reads.
 	det, ok, err := e.registry.Detect(ctx, source, func(c compilers.Compiler) (compilers.Options, error) {
-		formatOpts, err := formatOptions(c, opts)
-		return compilers.Options{FormatOptions: formatOpts}, err
+		formatOpts, err := formatOptions(c, opts, readFile)
+		return compilers.Options{FormatOptions: formatOpts, Reader: docs}, err
 	})
 	if err != nil {
-		return nil, fmt.Errorf("engine: detect %q: %w", specPath, err)
+		return nil, fmt.Errorf("engine: detect %q: %w", source.Path, err)
 	}
 	format := det.Recognition.Format
 	if !ok {
 		// Detection is handed the one source, which is the whole table its
 		// findings and the engine's own can index.
 		return &Result{Format: format, Diagnostics: e.undetected(format, det.Declined),
-			Sources: []ir.SourceInfo{{Path: specPath}}}, nil
+			Sources: []ir.SourceInfo{{Path: source.Path}}}, nil
 	}
 	// What detection parsed to recognize the source is what the compile lowers,
 	// so the source carries it forward rather than being read twice. The
@@ -164,7 +236,7 @@ func (e *Engine) Run(ctx context.Context, specPath string, opts RunOptions) (*Re
 	sources := []compilers.Source{source}
 	doc, diags, err := det.Compiler.Compile(ctx, sources, det.Options)
 	if err != nil {
-		return nil, fmt.Errorf("engine: compile %q: %w", specPath, err)
+		return nil, fmt.Errorf("engine: compile %q: %w", source.Path, err)
 	}
 	if doc == nil {
 		return &Result{Diagnostics: diags, Format: format,
@@ -223,17 +295,16 @@ func (e *Engine) served() string {
 }
 
 // formatOptions resolves the options c would compile with, decoding the
-// textual channel through c itself. os.ReadFile is what makes a
-// path-valued setting work: the engine already reads the spec, so loading a file
-// a setting names keeps the I/O on this side of the contract and the compiler
-// pure.
-func formatOptions(c compilers.Compiler, opts RunOptions) (any, error) {
+// textual channel through c itself. readFile is what makes a path-valued
+// setting work: the engine reads the spec, so loading a file a setting names
+// keeps the I/O on this side of the contract and the compiler pure.
+func formatOptions(c compilers.Compiler, opts RunOptions, readFile func(string) ([]byte, error)) (any, error) {
 	if len(opts.CompilerOptions) == 0 {
 		return opts.FormatOptions, nil
 	}
 	decoded, err := c.DecodeOptions(compilers.OptionSet{
 		Settings: opts.CompilerOptions,
-		ReadFile: os.ReadFile,
+		ReadFile: readFile,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("decode: %w", err)

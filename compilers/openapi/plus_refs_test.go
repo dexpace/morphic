@@ -16,6 +16,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -334,7 +335,7 @@ components:
 
 		doc, diags, err := New().Compile(t.Context(),
 			[]compilers.Source{{Path: filepath.Join(dir, "root.yaml"), Data: []byte(root)}},
-			compilers.Options{FormatOptions: Options{AllowExternalRefs: true}})
+			compilers.Options{Reader: reader.Disk{}, FormatOptions: Options{AllowExternalRefs: true}})
 
 		require.NoError(t, err)
 		require.NotNil(t, doc)
@@ -383,7 +384,7 @@ paths:
 
 	doc, diags, err := New().Compile(t.Context(),
 		[]compilers.Source{{Path: filepath.Join(dir, "root.yaml"), Data: []byte(root)}},
-		compilers.Options{FormatOptions: Options{AllowExternalRefs: true}})
+		compilers.Options{Reader: reader.Disk{}, FormatOptions: Options{AllowExternalRefs: true}})
 
 	require.NoError(t, err)
 	require.NotNil(t, doc)

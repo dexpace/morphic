@@ -16,6 +16,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/ir/irverify"
 )
@@ -199,9 +200,12 @@ func TestPathItemRefSiblings_ExternalRefFollowsTheCompilesPolicy(t *testing.T) {
 
 	compiled := func(allow bool) (*ir.Document, []ir.Diagnostic) {
 		t.Helper()
+		opts := compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: allow}}
+		if allow {
+			opts.Reader = reader.Disk{}
+		}
 		doc, diags, err := openapi.New().Compile(t.Context(),
-			[]compilers.Source{{Path: pathItemRefSiblingsExternalFixture, Data: append([]byte(nil), data...)}},
-			compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: allow}})
+			[]compilers.Source{{Path: pathItemRefSiblingsExternalFixture, Data: append([]byte(nil), data...)}}, opts)
 		require.NoError(t, err)
 		require.NotNil(t, doc)
 		return doc, diags
@@ -272,7 +276,7 @@ func TestPathItemRefSiblings_EachSideReadsInItsOwnDocument(t *testing.T) {
 	use := filepath.Join(dir, "main.yaml")
 	doc, _, err := openapi.New().Compile(t.Context(),
 		[]compilers.Source{{Path: use, Data: []byte(crossDocumentUse)}},
-		compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: true}})
+		compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 
@@ -1062,7 +1066,7 @@ components:
 info: {title: T, version: "1"}
 paths:
   /a: {$ref: './other.yaml#/paths/~1x'}
-`)}}, compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: true}})
+`)}}, compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 
@@ -1142,7 +1146,7 @@ func TestPathItemRefSiblings_AnExpressionBesideACallbackRefIsIgnored(t *testing.
 	for _, at := range []string{"", "./other.yaml"} {
 		doc, _, err := openapi.New().Compile(t.Context(),
 			[]compilers.Source{{Path: filepath.Join(dir, "main.yaml"), Data: []byte(strings.Replace(pathItemRefCallbackSiblingSpec, "%s", at, 1))}},
-			compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: true}})
+			compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
 		require.NoError(t, err)
 		require.NotNil(t, doc)
 		openapitest.FindOp(t, doc, "cbPost")
@@ -1186,7 +1190,7 @@ paths:
     get:
       operationId: useGet
       responses: {"200": {description: OK}}
-`)}}, compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: true}})
+`)}}, compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 	assert.Empty(t, irverify.Verify(doc))
@@ -1232,7 +1236,7 @@ paths:
     get:
       operationId: useGet
       responses: {"200": {description: OK}}
-`)}}, compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: true}})
+`)}}, compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 

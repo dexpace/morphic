@@ -13,6 +13,7 @@ import (
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -41,7 +42,7 @@ components:
 `
 	doc, diags, err := openapi.New().Compile(t.Context(),
 		[]compilers.Source{{Path: filepath.Join(dir, "root.yaml"), Data: []byte(root)}},
-		compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: true}})
+		compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
 	require.NoError(t, err)
 
 	want := ir.Diagnostic{Severity: ir.SeverityError, Code: "openapi/unresolved-ref",
@@ -86,7 +87,7 @@ components:
 `
 	doc, diags, err := openapi.New().Compile(t.Context(),
 		[]compilers.Source{{Path: filepath.Join(dir, "root.yaml"), Data: []byte(root)}},
-		compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: true}})
+		compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
 	require.NoError(t, err)
 
 	want := ir.Diagnostic{Severity: ir.SeverityInfo, Code: "openapi/degraded-construct",
@@ -173,7 +174,7 @@ components:
 `
 			_, diags, err := openapi.New().Compile(t.Context(),
 				[]compilers.Source{{Path: filepath.Join(dir, "root.yaml"), Data: []byte(root)}},
-				compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: true}})
+				compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
 			require.NoError(t, err)
 
 			var reported []ir.Diagnostic

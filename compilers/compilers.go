@@ -23,7 +23,8 @@ type SourceFormat struct {
 func (f SourceFormat) String() string { return f.Name + "@" + f.Version }
 
 // Source is one pre-read input document. Compilers perform no file I/O; the
-// caller loads bytes so compilation stays pure and reentrant.
+// caller loads bytes so compilation stays pure and reentrant, and a document a
+// reference names reaches the compiler through Options.Reader.
 type Source struct {
 	Path string
 	Data []byte
@@ -56,8 +57,13 @@ type Recognition struct {
 // Options carries per-compile configuration. FormatOptions is the
 // compiler-specific options value; each compiler documents the concrete type
 // it accepts and treats nil as defaults.
+//
+// Reader reads the documents a source's references name. Nil reads none, so a
+// reference leaving the sources is a spec problem the compiler reports, never
+// a read it makes itself.
 type Options struct {
 	FormatOptions any
+	Reader        DocumentReader
 }
 
 // OptionSet is one compile's configuration as text: settings named in the

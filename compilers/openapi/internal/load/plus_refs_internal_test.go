@@ -19,6 +19,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
+	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -544,7 +545,7 @@ components:
 	require.NoError(t, err)
 
 	_, diags, err := Load(t.Context(), 0, compilers.Source{Path: filepath.Join(dir, "root.yaml"), Data: []byte(spec), Parsed: parsed},
-		Options{AllowExternalRefs: true})
+		Options{Reader: reader.Disk{}})
 
 	require.NoError(t, err)
 	errs := errorsOf(diags)
@@ -573,7 +574,7 @@ components:
 	require.NoError(t, err)
 
 	got, diags, err := Load(t.Context(), 0, compilers.Source{Path: filepath.Join(dir, "root.yaml"), Data: []byte(spec), Parsed: parsed},
-		Options{AllowExternalRefs: true})
+		Options{Reader: reader.Disk{}})
 
 	require.NoError(t, err)
 	require.NotNil(t, got)
@@ -586,9 +587,9 @@ func TestExternal_PrepareRewritesTheTreeItStoresAndRestoreTreesPutsItBack(t *tes
 	const body = "a: &x '#/p+q'\nb: {$ref: *x}\nc: {$ref: 'o.yaml#/r+s'}\n"
 	esc := newEscapes()
 	doc := &soa.OpenAPI{}
-	reader := newExternal(doc, Options{}, newExternalReads(sourceDocument{escapes: esc}))
+	ext := newExternal(t.Context(), doc, Options{}, newExternalReads(sourceDocument{escapes: esc}))
 
-	_, err := reader.prepare("k", strings.NewReader(body))
+	_, err := ext.prepare("k", []byte(body))
 
 	require.NoError(t, err)
 	cached, ok := doc.GetCachedExternalDocument("k")
@@ -714,7 +715,7 @@ func TestLoad_ARespelledURLHoldingAPlusReferenceIsReadAsTheTreeIs(t *testing.T) 
 				"    A: {$ref: '" + tc.spell(srv.URL+"/ext.yaml") + "#/x-start'}\n"
 
 			got, diags, err := Load(t.Context(), 0, compilers.Source{Path: "root.yaml", Data: []byte(spec)},
-				Options{AllowExternalRefs: true})
+				Options{Reader: reader.Disk{}})
 
 			require.NoError(t, err)
 			require.NotNil(t, got)

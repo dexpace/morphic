@@ -78,8 +78,8 @@ components:
 - Code:
   - `scan.refCycles` refuses a cycle of root pointers before the document is decoded.
   - `load.reachCycle` refuses a cycle a `$anchor`, an `$id` or a nested `$defs` could close.
-  - `load.loops` refuses a chain closing through the source's own file name, when external
-    references are read.
+  - `load.loops` refuses a chain closing through the source's own file name, when the compile reads
+    other documents.
   - `load.ends` keeps a chain that failed from being resumed into a loop.
 
 #558 proposes resolving schema references in the compiler, which would retire these guards.
@@ -133,7 +133,8 @@ components:
 A `$anchor` or `$id` is found only by a reference inside the top-level schema that declares it.
 From another component, a `#name` fragment is read as a JSON pointer, and fails with `jsonpointer
 must start with /`. A reference to the `$id` is read as another document: refused with `external
-reference not allowed` when external references are off, and fetched when they are on.
+reference not allowed` when the compile has no reader, refused as outside the spec's directory when
+reads are confined to it, and fetched when they are not.
 
 ```yaml
 components:

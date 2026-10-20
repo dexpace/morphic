@@ -17,6 +17,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
+	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -172,7 +173,7 @@ func resolveCounting(t *testing.T, spec, path string, opts Options) ([]ir.Diagno
 		again, _, err := unmarshal(t.Context(), data, root)
 		return again, err
 	}
-	opts.AllowExternalRefs = true
+	opts.Reader = reader.Disk{}
 	_, _, _, diags, err := resolveExternal(t.Context(), pointerAt(0, overlay.Origin{}), doc, Siblings{},
 		newSourceDocument(path, data, root, nil, newSourceTree(0, overlay.Origin{}, root), nil), opts, rebuild)
 	require.NoError(t, err)

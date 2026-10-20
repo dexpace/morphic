@@ -19,6 +19,7 @@ import (
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -121,7 +122,7 @@ func TestExternalContent_ARefInItNamesItsOwnDocument(t *testing.T) {
 			root := foreignRoot(c.paths)
 			_, diags, err := openapi.New().Compile(t.Context(),
 				[]compilers.Source{{Path: filepath.Join(dir, "root.yaml"), Data: []byte(root)}},
-				compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: true}})
+				compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
 			require.NoError(t, err)
 
 			var foreign []ir.Diagnostic
@@ -154,7 +155,7 @@ func TestExternalContent_AMappingNamesAsTheSpecificationSays(t *testing.T) {
 	root := foreignRoot("  /op:\n    get:\n      responses: {\"200\": {$ref: './ext.yaml#/components/responses/D'}}\n")
 	doc, diags, err := openapi.New().Compile(t.Context(),
 		[]compilers.Source{{Path: filepath.Join(dir, "root.yaml"), Data: []byte(root)}},
-		compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: true}})
+		compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 
@@ -225,7 +226,7 @@ func TestExternalContent_ASourcePositionItNamesIsTheSources(t *testing.T) {
 		root := foreignRoot(paths.String())
 		doc, diags, err := openapi.New().Compile(t.Context(),
 			[]compilers.Source{{Path: filepath.Join(dir, "root.yaml"), Data: []byte(root)}},
-			compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: true}})
+			compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
 		require.NoError(t, err)
 		openapitest.RequireNoErrorDiags(t, diags)
 
@@ -347,7 +348,7 @@ func TestExternalContent_APointerPastItsRefNamesItsContent(t *testing.T) {
 				root := passingRoot(paths)
 				doc, diags, err := openapi.New().Compile(t.Context(),
 					[]compilers.Source{{Path: filepath.Join(dir, "root.yaml"), Data: []byte(root)}},
-					compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: true}})
+					compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
 				require.NoError(t, err)
 				require.NotNil(t, doc)
 				got := make([]string, 0, len(diags))
@@ -393,7 +394,7 @@ components:
 `
 	doc, diags, err := openapi.New().Compile(t.Context(),
 		[]compilers.Source{{Path: filepath.Join(dir, "root.yaml"), Data: []byte(root)}},
-		compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: true}})
+		compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
 	require.NoError(t, err)
 
 	const named = "/components/responses/R/content/application~1json/schema"
@@ -444,7 +445,7 @@ func TestExternalContent_ASourcePathThroughASchemeLikeDirectoryIsAFile(t *testin
 
 	doc, diags, err := openapi.New().Compile(t.Context(),
 		[]compilers.Source{{Path: dir + "//root.yaml", Data: []byte(root)}},
-		compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: true}})
+		compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
 	require.NoError(t, err)
 	openapitest.RequireNoErrorDiags(t, diags)
 	require.NotNil(t, doc)
@@ -487,7 +488,7 @@ func TestExternalContent_ARefNamingTheSourceNamesIt(t *testing.T) {
 			root := foreignRoot("  /p: {$ref: './" + c.file + "#/paths/~1x'}\n")
 			doc, diags, err := openapi.New().Compile(t.Context(),
 				[]compilers.Source{{Path: filepath.Join(dir, "root.yaml"), Data: []byte(root)}},
-				compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: true}})
+				compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
 			require.NoError(t, err)
 
 			if !c.names {
@@ -537,7 +538,7 @@ func TestExternalContent_ARefInTheSourceNamingItNamesIt(t *testing.T) {
 				"          content: {application/json: {schema: {$ref: '" + c.ref + "#/components/schemas/Thing'}}}\n")
 			doc, diags, err := openapi.New().Compile(t.Context(),
 				[]compilers.Source{{Path: filepath.Join(dir, "root.yaml"), Data: []byte(root)}},
-				compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: true}})
+				compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
 			require.NoError(t, err)
 
 			if !c.names {
@@ -578,7 +579,7 @@ func TestExternalContent_AnAliasedRefNamingTheSourceKeepsWhatItNames(t *testing.
 				"  responses:\n    R: {description: ok}\n"
 			doc, diags, err := openapi.New().Compile(t.Context(),
 				[]compilers.Source{{Path: filepath.Join(dir, "root.yaml"), Data: []byte(root)}},
-				compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: true}})
+				compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
 			require.NoError(t, err)
 
 			openapitest.RequireNoErrorDiags(t, diags)

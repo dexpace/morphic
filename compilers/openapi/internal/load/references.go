@@ -118,7 +118,7 @@ func newResolution(ctx context.Context, at func(jsontext.Pointer) ir.Provenance,
 	resolveOpts := references.ResolveOptions{
 		TargetLocation:      self.path,
 		RootDocument:        doc,
-		DisableExternalRefs: !opts.AllowExternalRefs,
+		DisableExternalRefs: opts.Reader == nil,
 	}
 	if reader != nil {
 		resolveOpts.VirtualFS = *reader

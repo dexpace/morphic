@@ -23,6 +23,7 @@ import (
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
+	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -41,7 +42,7 @@ func externalDir(t *testing.T, files map[string]string) string {
 // allowed, and requires it to load.
 func loadExternal(t *testing.T, dir, root string, opts Options) (*Document, []ir.Diagnostic) {
 	t.Helper()
-	opts.AllowExternalRefs = true
+	opts.Reader = reader.Disk{}
 	got, diags, err := Load(t.Context(), 0, compilers.Source{Path: filepath.Join(dir, "root.yaml"), Data: []byte(root)}, opts)
 	require.NoError(t, err)
 	require.NotNil(t, got, "%+v", diags)
@@ -1372,7 +1373,7 @@ func TestResolve_ValidatesOnceAfterARebuild(t *testing.T) {
 
 	run := func(scheme string) []ir.Diagnostic {
 		src := compilers.Source{Path: "root.yaml", Data: []byte(respelledRoot(scheme, host))}
-		_, diags, err := Load(t.Context(), 0, src, Options{AllowExternalRefs: true})
+		_, diags, err := Load(t.Context(), 0, src, Options{Reader: reader.Disk{}})
 		require.NoError(t, err)
 		return diags
 	}

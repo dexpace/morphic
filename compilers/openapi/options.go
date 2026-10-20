@@ -89,15 +89,14 @@ type Options struct {
 	// The zero value is the default mapping, on; a caller who wants extensions
 	// kept verbatim and nothing more disables it.
 	Promotions ExtensionPromotions `json:"promotions"`
-	// AllowExternalRefs lets resolution leave the source document, reading
-	// files and fetching http(s) URLs. Off by default, since a spec is
-	// untrusted and its $refs could name any file or host, a $ref leaving the
-	// document is reported unresolved.
+	// AllowExternalRefs lets a read of another document leave the directory of
+	// Source.Path, against which references resolve (the working directory when
+	// Path is empty), for any file and http(s) URLs. Off by default, since a
+	// spec is untrusted and its $refs could name any file or host: reads stay
+	// inside that directory, symbolic links included.
 	//
-	// Turning it on makes output depend on the filesystem and network:
-	// references resolve against Source.Path's directory (the working
-	// directory when Path is empty). Resolved content is validated as the
-	// source is but not lowered (GitHub #74).
+	// Reads go through compilers.Options.Reader; with none, nothing is read.
+	// A schema another document holds is not lowered yet (GitHub #74).
 	//
 	// A referenced document fails the reference naming it when it crosses the
 	// source's budgets or pre-parse refusals, or its scan cannot finish, where

@@ -18,6 +18,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
+	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -287,7 +288,7 @@ func TestMappingTargets_AReferenceInACopyResolvesInEitherOrder(t *testing.T) {
 			"components:\n  schemas:\n" + strings.Join(order, "") + rest
 		_, diags, err := openapi.New().Compile(t.Context(),
 			[]compilers.Source{{Path: filepath.Join(dir, "root.yaml"), Data: []byte(src)}},
-			compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: true}})
+			compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
 		require.NoError(t, err)
 		for _, d := range diags {
 			assert.NotEqual(t, "/x-lib/Y/properties/q", string(d.Provenance.Pointer), "%s: %s", d.Code, d.Message)
@@ -329,7 +330,7 @@ func TestMappingTargets_ARawPositionACopyReachesResolvesInEitherOrder(t *testing
 					strings.Join(order, "") + lib
 				doc, diags, err := openapi.New().Compile(t.Context(),
 					[]compilers.Source{{Path: filepath.Join(dir, "spec.yaml"), Data: []byte(src)}},
-					compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: true}})
+					compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
 				require.NoError(t, err)
 				for _, d := range diags {
 					if strings.HasSuffix(string(d.Provenance.Pointer), "/properties/friend") {

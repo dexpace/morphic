@@ -13,6 +13,7 @@ import (
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -85,7 +86,7 @@ func TestCompile_AResolutionFailureIsReportedOnceAtItsRef(t *testing.T) {
 
 		doc, diags, err := New().Compile(t.Context(),
 			[]compilers.Source{{Path: rootPath, Data: []byte(root)}},
-			compilers.Options{FormatOptions: Options{AllowExternalRefs: true}})
+			compilers.Options{Reader: reader.Disk{}, FormatOptions: Options{AllowExternalRefs: true}})
 		require.NoError(t, err)
 		require.NotNil(t, doc)
 
@@ -101,7 +102,7 @@ func TestCompile_AResolutionFailureIsReportedOnceAtItsRef(t *testing.T) {
 
 		_, diags, err := New().Compile(t.Context(),
 			[]compilers.Source{{Path: filepath.Join(t.TempDir(), "root.yaml"), Data: []byte(root)}},
-			compilers.Options{FormatOptions: Options{AllowExternalRefs: true}})
+			compilers.Options{Reader: reader.Disk{}, FormatOptions: Options{AllowExternalRefs: true}})
 		require.NoError(t, err)
 
 		var at []string
@@ -133,7 +134,7 @@ func TestCompile_AFindingInAnExternalDocumentKeepsItsRule(t *testing.T) {
 
 	doc, diags, err := New().Compile(t.Context(),
 		[]compilers.Source{{Path: rootPath, Data: []byte(root)}},
-		compilers.Options{FormatOptions: Options{AllowExternalRefs: true}})
+		compilers.Options{Reader: reader.Disk{}, FormatOptions: Options{AllowExternalRefs: true}})
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 

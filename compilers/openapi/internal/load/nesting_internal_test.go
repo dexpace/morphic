@@ -116,7 +116,7 @@ func TestExternal_AdmitRefusesANestingPastTheBound(t *testing.T) {
 	root, parsed := parseTree([]byte("a: " + itemsDeep(scan.MaxNesting) + "\n"))
 	require.True(t, parsed)
 
-	err := newExternal(&soa.OpenAPI{}, Options{}, newExternalReads(sourceDocument{})).admit("k", root)
+	err := newExternal(t.Context(), &soa.OpenAPI{}, Options{}, newExternalReads(sourceDocument{})).admit("k", root)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "refused")

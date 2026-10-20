@@ -26,6 +26,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
+	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -68,8 +69,11 @@ func resolvedSites(targets MappingTargets) []string {
 // requires it to load.
 func loadTargets(t *testing.T, path, spec string, external bool) (*Document, []ir.Diagnostic) {
 	t.Helper()
-	got, diags, err := Load(t.Context(), 0, compilers.Source{Path: path, Data: []byte(spec)},
-		Options{AllowExternalRefs: external})
+	var opts Options
+	if external {
+		opts.Reader = reader.Disk{}
+	}
+	got, diags, err := Load(t.Context(), 0, compilers.Source{Path: path, Data: []byte(spec)}, opts)
 	require.NoError(t, err)
 	require.NotNil(t, got, "%+v", diags)
 	return got, diags
@@ -1141,8 +1145,8 @@ func chainResolver(t *testing.T, spec string, external bool) *mappings {
 	if !external {
 		return newMappings(self, doc, oas3.ResolveOptions{}, nil)
 	}
-	reader := newExternal(doc, Options{AllowExternalRefs: true}, newExternalReads(self))
-	return newMappings(self, doc, oas3.ResolveOptions{}, &reader)
+	ext := newExternal(t.Context(), doc, Options{Reader: reader.Disk{}}, newExternalReads(self))
+	return newMappings(self, doc, oas3.ResolveOptions{}, &ext)
 }
 
 // TestMappings_PointerOfReadsADefinitionAsTheRuleDoes pins which "#/$defs/..."
@@ -1408,7 +1412,7 @@ func TestMappings_TheTargetsAreTheLastResolutions(t *testing.T) {
 
 	resolved, _, targets, _, err := resolveExternal(t.Context(), pointerAt(0, overlay.Origin{}), doc, Siblings{},
 		newSourceDocument("root.yaml", data, root, nil, newSourceTree(0, overlay.Origin{}, root), nil),
-		Options{AllowExternalRefs: true}, rebuild)
+		Options{Reader: reader.Disk{}}, rebuild)
 
 	require.NoError(t, err)
 	require.True(t, rebuilt, "the fixture is resolved twice")
@@ -1507,9 +1511,9 @@ func externalResolverOver(t *testing.T, spec string) (*mappings, []ir.Diagnostic
 	doc, valErrs, err := unmarshal(t.Context(), []byte(spec), root)
 	require.NoError(t, err)
 	self := newSourceDocument(filepath.Join(t.TempDir(), "spec.yaml"), []byte(spec), root, valErrs, newSourceTree(0, overlay.Origin{}, root), nil)
-	opts := Options{AllowExternalRefs: true}
-	reader := newExternal(doc, opts, newExternalReads(self))
-	pass := newResolution(t.Context(), pointerAt(0, overlay.Origin{}), doc, Siblings{}, self, opts, &reader)
+	opts := Options{Reader: reader.Disk{}}
+	ext := newExternal(t.Context(), doc, opts, newExternalReads(self))
+	pass := newResolution(t.Context(), pointerAt(0, overlay.Origin{}), doc, Siblings{}, self, opts, &ext)
 	_, diags := pass.run(doc)
 	return pass.targets, diags
 }

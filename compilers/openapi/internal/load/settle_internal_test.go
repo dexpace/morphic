@@ -328,7 +328,7 @@ func TestSettle_AFailureMendingCannotTouchIsNotResumed(t *testing.T) {
 		resumed++
 		return nil, errors.New("again")
 	}}
-	reader := newExternal(&soa.OpenAPI{}, Options{}, newExternalReads(sourceDocument{}))
+	reader := newExternal(t.Context(), &soa.OpenAPI{}, Options{}, newExternalReads(sourceDocument{}))
 	failed := errors.New("failed")
 
 	vErrs, err := reader.settle(t.Context(), r, references.ResolveOptions{}, []error{assert.AnError}, failed)
@@ -491,7 +491,7 @@ func TestResumable(t *testing.T) {
 	require.True(t, parsed)
 	read := newExternalReads(sourceDocument{})
 	read.recordTree("other.yaml", tree, data)
-	reader := newExternal(&soa.OpenAPI{}, Options{}, read)
+	reader := newExternal(t.Context(), &soa.OpenAPI{}, Options{}, read)
 	walked := jsonpointer.ErrInvalidPath.Wrap(errors.New("expected index, got key at /components"))
 	cycle := errors.New("circular reference detected: other.yaml#/A -> other.yaml#/A")
 	hop := func(document any, reached bool) record {

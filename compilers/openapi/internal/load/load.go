@@ -46,10 +46,14 @@ import (
 // shape is a published contract (its own doc comment says why) and most of it
 // describes lowering, which nothing here can see.
 type Options struct {
-	// AllowExternalRefs lets reference resolution reach outside the document —
-	// off the filesystem or over the network. Off is the default, so the zero
-	// value performs no I/O.
-	AllowExternalRefs bool
+	// Reader reads the documents references name beyond the source, or nil to
+	// read none, so the zero value reads nothing: a reference leaving the source
+	// is reported unresolved. Every read goes through it; the load phase makes
+	// none of its own.
+	Reader compilers.DocumentReader
+	// Within confines Reader's reads to one directory, or "" to confine them
+	// nowhere. It is read only when Reader is set.
+	Within string
 	// Overlay is the OpenAPI Overlay document to apply to the source before the
 	// model is built, or nil for none. Its bytes are the caller's to read, like
 	// the source's.
@@ -412,7 +416,7 @@ func resolve(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *
 func resolveRefs(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI, sibs Siblings,
 	self sourceDocument, opts Options, rebuild func() (*soa.OpenAPI, error),
 ) (*soa.OpenAPI, Siblings, MappingTargets, []ir.Diagnostic, error) {
-	if !opts.AllowExternalRefs {
+	if opts.Reader == nil {
 		targets, diags := resolveWith(ctx, at, doc, sibs, self, opts, nil)
 		return doc, sibs, targets, append(diags, validateReached(ctx, at, doc, sibs, targets, opts, self)...), nil
 	}

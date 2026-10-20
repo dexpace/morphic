@@ -26,9 +26,9 @@ func knownInvalid() map[string]bool {
 		// refused by default, so it is an unresolved-ref error.
 		filepath.FromSlash("../../testdata/openapi/resolve_main_external.yaml"): true,
 		// Well-formed, unlike every other entry here. Both $ref a sibling
-		// document, which the compiler opens only under AllowExternalRefs; the
-		// sweep leaves it off (#31). Tests of their cross-document lowering opt
-		// in. They compile clean, and come off this list, once external targets
+		// document, which the compiler reads only through a Reader; the sweep
+		// supplies none (#31). Tests of their cross-document lowering opt in.
+		// They compile clean, and come off this list, once external targets
 		// load as sources (#74).
 		filepath.FromSlash("../../testdata/openapi/resolve_main_external_valid.yaml"):       true,
 		filepath.FromSlash("../../testdata/openapi/resolve_main_alias_external_valid.yaml"): true,

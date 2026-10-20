@@ -53,8 +53,8 @@ func assertRefused(t *testing.T, spec string) {
 // assertNotRefusedByReach drives chainCycle directly rather than through Load,
 // isolating the one claim this file makes for a "left alone" fixture: the
 // cycle refusal itself did not fire. Several of the suite-derived fixtures
-// below carry an external $ref that AllowExternalRefs leaves unresolved by
-// design (a separate, unrelated diagnostic); routing through Load would
+// below carry an external $ref that a compile with no reader leaves unresolved
+// by design (a separate, unrelated diagnostic); routing through Load would
 // conflate that with what this helper checks.
 func assertNotRefusedByReach(t *testing.T, spec string) {
 	t.Helper()

@@ -21,6 +21,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
+	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -183,7 +184,7 @@ func TestLoad_ExternalRefResolutionErrors(t *testing.T) {
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
 	ld, diags, loadErr := Load(t.Context(), 0, compilers.Source{Path: path, Data: data},
-		Options{AllowExternalRefs: true})
+		Options{Reader: reader.Disk{}})
 	require.NoError(t, loadErr)
 	require.NotNil(t, ld)
 

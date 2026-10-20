@@ -20,6 +20,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
+	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -228,7 +229,7 @@ paths:
   /b: {$ref: '#/paths/~1c'}
   /c: {get: {responses: {"200": {description: OK}}}}
 `)}
-	doc, _, err := load.Load(t.Context(), 0, src, load.Options{AllowExternalRefs: true})
+	doc, _, err := load.Load(t.Context(), 0, src, load.Options{Reader: reader.Disk{}})
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 	item, ok := doc.Doc.Paths.Get("/a")
@@ -314,7 +315,7 @@ func compileFixture(t *testing.T, path string) *ir.Document {
 
 	doc, diags, err := openapi.New().Compile(t.Context(),
 		[]compilers.Source{{Path: path, Data: data}},
-		compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: true}})
+		compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 	openapitest.RequireNoErrorDiags(t, diags)
@@ -473,7 +474,7 @@ func loadElsewhere(t *testing.T) (*load.Document, string) {
   /hop: {$ref: 'root.yaml#/components/pathItems/Q'}
 `), 0o600))
 	doc, _, err := load.Load(t.Context(), 0, compilers.Source{Path: filepath.Join(dir, "root.yaml"),
-		Data: []byte(elsewhereRoot)}, load.Options{AllowExternalRefs: true})
+		Data: []byte(elsewhereRoot)}, load.Options{Reader: reader.Disk{}})
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 	return doc, ext

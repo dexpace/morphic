@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/engine/reader"
 )
 
 // responsesSource is a source with count component responses, R0 to R<count-1>.
@@ -188,8 +189,8 @@ func TestHold_ASecondResolutionHoldsWhatTheFirstDid(t *testing.T) {
 	}
 
 	again, _ := heldResolution(t, responsesSource(4), path)
-	reader := newExternal(again, Options{}, pass.reader.read)
-	reader.hold(t.Context(), Siblings{})
+	ext := newExternal(t.Context(), again, Options{}, pass.reader.read)
+	ext.hold(t.Context(), Siblings{})
 
 	held := func(key, response string) bool {
 		_, ok := again.GetCachedReferencedObject(key + "#/components/responses/" + response)
@@ -227,7 +228,7 @@ func TestHold_EachBackReferenceReachesTheObjectItNamesThroughItsOwnSpelling(t *t
 	}
 
 	got, diags, err := Load(t.Context(), 0,
-		compilers.Source{Path: filepath.Join(dir, "root.yaml"), Data: []byte(spec.String())}, Options{AllowExternalRefs: true})
+		compilers.Source{Path: filepath.Join(dir, "root.yaml"), Data: []byte(spec.String())}, Options{Reader: reader.Disk{}})
 
 	require.NoError(t, err)
 	require.NotNil(t, got, "%+v", diags)

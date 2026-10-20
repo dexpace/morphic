@@ -16,7 +16,8 @@ import (
 //
 // Purity makes concurrent calls safe, including several over one document — but
 // Validate takes no lock, so nothing may be mutating that document meanwhile.
-// engine.Run satisfies this by validating a document no other run can reach.
+// engine.Run and RunSources satisfy this by validating a document no other run
+// can reach; RunDocument leaves it to its caller.
 func Validate(doc *ir.Document) []ir.Diagnostic {
 	if doc == nil {
 		return nil

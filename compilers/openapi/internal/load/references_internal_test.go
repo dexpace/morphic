@@ -24,6 +24,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
+	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -187,7 +188,7 @@ components:
     Missing: {description: the source has one by this name}
 `)}
 
-		_, diags, err := Load(t.Context(), 0, src, Options{AllowExternalRefs: true})
+		_, diags, err := Load(t.Context(), 0, src, Options{Reader: reader.Disk{}})
 		require.NoError(t, err)
 
 		assertFailures(t, diags, map[jsontext.Pointer]string{
@@ -220,7 +221,7 @@ func TestResolve_AMappingChainStopsAtADefinitionTheRuleCannotFind(t *testing.T) 
 		src := openapitest.ComponentSpec(schemas) +
 			"x-lib:\n  S: {$defs: {X: " + x + "}, $ref: '#/components/schemas/Holder/properties/p'}\n"
 		_, diags, err := Load(t.Context(), 0, compilers.Source{Path: filepath.Join(dir, "root.yaml"), Data: []byte(src)},
-			Options{AllowExternalRefs: true})
+			Options{Reader: reader.Disk{}})
 		require.NoError(t, err, name)
 
 		assert.Equal(t, []string{"/components/schemas/Holder/properties/p error " + diag.UnresolvedRef},
@@ -291,7 +292,7 @@ paths:
         "202": {$ref: 'ext.yaml#/components/responses/Broken'}
 `)}
 
-	_, diags, err := Load(t.Context(), 0, src, Options{AllowExternalRefs: true})
+	_, diags, err := Load(t.Context(), 0, src, Options{Reader: reader.Disk{}})
 	require.NoError(t, err)
 
 	ext, ext2 := filepath.Join(dir, "ext.yaml"), filepath.Join(dir, "sub", "ext2.yaml")
@@ -354,7 +355,7 @@ func TestResolve_ReachedFindingsDoNotDependOnDeclarationOrder(t *testing.T) {
 		}
 		src += "components:\n  responses:\n    Alias: {$ref: 'ext.yaml#/components/responses/R'}\n"
 		_, diags, err := Load(t.Context(), 0,
-			compilers.Source{Path: filepath.Join(dir, "root.yaml"), Data: []byte(src)}, Options{AllowExternalRefs: true})
+			compilers.Source{Path: filepath.Join(dir, "root.yaml"), Data: []byte(src)}, Options{Reader: reader.Disk{}})
 		require.NoError(t, err)
 		out := make([]string, 0, len(diags))
 		for _, d := range diags {
@@ -411,7 +412,7 @@ paths:
         "200": {$ref: 'ext.yaml#/components/responses/R'}
 `)}
 
-	doc, diags, err := Load(t.Context(), 0, src, Options{AllowExternalRefs: true})
+	doc, diags, err := Load(t.Context(), 0, src, Options{Reader: reader.Disk{}})
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 	assert.Empty(t, diags)

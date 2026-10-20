@@ -11,6 +11,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
+	"github.com/dexpace/morphic/engine/reader"
 )
 
 // TestScope_ModelAt_AnswersAsTheWholeReadDoesAcrossTheCorpus holds ModelAt,
@@ -53,7 +54,7 @@ func TestScope_Locate_AnswersAsAtDoesAcrossTheCorpus(t *testing.T) {
 		data, err := os.ReadFile(file)
 		require.NoError(t, err)
 		got, _, err := load.Load(t.Context(), 0, compilers.Source{Path: file, Data: data},
-			load.Options{AllowExternalRefs: true})
+			load.Options{Reader: reader.Disk{}})
 		if err != nil || got == nil {
 			continue // not a document the loader builds a model of
 		}

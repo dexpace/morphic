@@ -20,6 +20,7 @@ import (
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -178,7 +179,7 @@ func compileReferring(t *testing.T, path, uri string) *ir.Document {
 	src := anchorFixtureHead + "paths:\n  /x: {$ref: \"" + uri + "#/paths/~1x\"}\n"
 	doc, diags, err := New().Compile(t.Context(),
 		[]compilers.Source{{Path: path, Data: []byte(src)}},
-		compilers.Options{FormatOptions: Options{AllowExternalRefs: true}})
+		compilers.Options{Reader: reader.Disk{}, FormatOptions: Options{AllowExternalRefs: true}})
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 	openapitest.RequireNoErrorDiags(t, diags)
@@ -199,7 +200,7 @@ func compileBesideExpectingErrors(t *testing.T, ext, root string) []ir.Diagnosti
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "other.yaml"), []byte(ext), 0o600))
 	_, diags, err := New().Compile(t.Context(),
 		[]compilers.Source{{Path: filepath.Join(dir, "root.yaml"), Data: []byte(root)}},
-		compilers.Options{FormatOptions: Options{AllowExternalRefs: true}})
+		compilers.Options{Reader: reader.Disk{}, FormatOptions: Options{AllowExternalRefs: true}})
 	require.NoError(t, err, "a refused external document is a diagnostic, not a Go error")
 	return diags
 }
@@ -266,7 +267,7 @@ func TestCompile_ARefusedExternalDocumentIsFetchedOnce(t *testing.T) {
 		"    R1: " + ref + "\n    R2: " + ref + "\n    R3: " + ref + "\n"
 
 	_, diags, err := New().Compile(t.Context(), []compilers.Source{{Path: "root.yaml", Data: []byte(src)}},
-		compilers.Options{FormatOptions: Options{AllowExternalRefs: true, Limits: Limits{MaxSourceBytes: budget}}})
+		compilers.Options{Reader: reader.Disk{}, FormatOptions: Options{AllowExternalRefs: true, Limits: Limits{MaxSourceBytes: budget}}})
 
 	require.NoError(t, err)
 	var refusedAt []jsontext.Pointer
@@ -310,7 +311,7 @@ func TestCompile_AnExternalDocumentIsParsedAsItWasJudged(t *testing.T) {
 		"  /b: {$ref: \"" + respelled + "/doc.yaml#/paths/~1x\"}\n"
 
 	doc, diags, err := New().Compile(t.Context(), []compilers.Source{{Path: "root.yaml", Data: []byte(src)}},
-		compilers.Options{FormatOptions: Options{AllowExternalRefs: true, Limits: Limits{MaxSourceNodes: budget}}})
+		compilers.Options{Reader: reader.Disk{}, FormatOptions: Options{AllowExternalRefs: true, Limits: Limits{MaxSourceNodes: budget}}})
 
 	require.NoError(t, err)
 	require.NotNil(t, doc)

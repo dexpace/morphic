@@ -225,14 +225,17 @@ where the declared minor applies it ([`allow-reserved-locations`](#allow-reserve
 
 ### `references`
 
-A `$ref` resolves within the source, as a JSON pointer. One naming another document is followed only
-when `Options.AllowExternalRefs` is set, against the directory of the source's path, each file or
-URL read once however many references name it, and held to the source's budgets and refusals
-([`source-budgets`](#source-budgets)), where a document past one fails each reference naming it.
+A `$ref` resolves within the source, as a JSON pointer. One naming another document is read through
+the reader the caller supplies (`compilers.Options.Reader`), against the directory of the source's
+path, each file or URL read once however many references name it, and held to the source's budgets
+and refusals ([`source-budgets`](#source-budgets)), where a document past one fails each reference
+naming it. The read stays inside the directory of the source's path, symbolic links included,
+unless `Options.AllowExternalRefs` lets it reach any file and http(s) URLs; a document outside fails
+each reference naming it, and with no reader no document is read.
 What a reference to another document's parameter, request body, response, header, example, callback
 or path item brings in lowers at the use site as the source's own would. A reference that resolves
-to nothing — a pointer naming no node, a component its section does not hold, another document while
-external references are off, an `$anchor` — is reported as an `openapi/unresolved-ref` error at the
+to nothing — a pointer naming no node, a component its section does not hold, another document the
+compile may not read, an `$anchor` — is reported as an `openapi/unresolved-ref` error at the
 referencing position, and the position lowers without it: a schema position to the top type, any
 other position to nothing at all, so the parameter, response or body it would have named is absent.
 A same-document `#/$defs/...` pointer is read by the rule the resolver follows for a reference it
@@ -248,6 +251,10 @@ error, since the resolver reads one or the other depending on what it resolved f
 
 - Codes: `openapi/unresolved-ref`
 - Tests: `openapi.TestCompile_ExternalFileRefIsNotReadByDefault`,
+  `openapi.TestCompile_ASiblingRefResolvesWithinTheSourcesDirectory`,
+  `openapi.TestCompile_ARefOutsideTheSourcesDirectoryIsRefused`,
+  `openapi.TestCompile_ASymlinkOutOfTheSourcesDirectoryIsRefused`,
+  `openapi.TestCompile_ARefOutsideTheSourcesDirectoryResolvesWhenAllowed`,
   `openapi.TestExternalContent_ASchemaRefPastARefNamesItsContent`,
   `openapi.TestCompile_SchemaEmptyPointerSegmentIsUnresolved`,
   `load.TestLoad_ARootDefinitionResolvesAsTheResolverReadsIt`,
@@ -1537,7 +1544,7 @@ into the item it names while the mount declares the field written there at that 
 left unresolved and reported as an `openapi/unresolved-ref` error rather than lowered as either; so
 is a `#/$defs/...` pointer written in them, since its definition is read the same way. The exception
 is a reference whose target the resolver finds to be the field written there, as it can for a
-reference other than a schema's `$ref` or a mapping value when external references are allowed,
+reference other than a schema's `$ref` or a mapping value when the compile reads other documents,
 which lowers as that field. An item another document holds, mounted where the use site writes fields
 too, is declared under the use site's `$ref` (`…/$ref/…`), a position the source cannot name. The
 fields beside a `$ref` the load phase's walk does not reach, in another document or under an `x-*`

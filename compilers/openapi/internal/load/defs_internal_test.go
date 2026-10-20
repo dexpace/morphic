@@ -21,6 +21,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
+	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -379,7 +380,7 @@ func TestLoad_TheRebuiltDocumentHoldsDefsReferencesOutToo(t *testing.T) {
       $defs: {n: {type: object, properties: {y: {type: integer}}}}
 `
 	var rebuilds atomic.Int32
-	opts := Options{AllowExternalRefs: true, rebuildDoc: func(ctx context.Context, data []byte, root *yaml.Node) (*soa.OpenAPI, []error, error) {
+	opts := Options{Reader: reader.Disk{}, rebuildDoc: func(ctx context.Context, data []byte, root *yaml.Node) (*soa.OpenAPI, []error, error) {
 		rebuilds.Add(1)
 		return unmarshal(ctx, data, root)
 	}}
@@ -433,7 +434,7 @@ func TestLoad_AHeldReferenceResolvesThroughADefinitionIntoAnotherDocument(t *tes
 	srv, requests := countingServer(t, externalSchemaDoc)
 	src := compilers.Source{Path: "root.yaml", Data: []byte(defsToExternalSpec(srv.URL + "/ext.yaml"))}
 
-	got, diags, err := Load(t.Context(), 0, src, Options{AllowExternalRefs: true})
+	got, diags, err := Load(t.Context(), 0, src, Options{Reader: reader.Disk{}})
 
 	require.NoError(t, err)
 	require.NotNil(t, got)

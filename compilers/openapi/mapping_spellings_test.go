@@ -17,6 +17,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
+	"github.com/dexpace/morphic/engine/reader"
 )
 
 // spellingsBase is the discriminated schema whose one mapping entry is target.
@@ -111,9 +112,12 @@ func TestMappingTargets_EverySpellingAndPositionIsOrderFree(t *testing.T) {
 // "severity code pointer", sorted.
 func mappingDiags(t *testing.T, dir, src string, external bool) []string {
 	t.Helper()
+	opts := compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: external}}
+	if external {
+		opts.Reader = reader.Disk{}
+	}
 	_, diags, err := openapi.New().Compile(t.Context(),
-		[]compilers.Source{{Path: filepath.Join(dir, "root.yaml"), Data: []byte(src)}},
-		compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: external}})
+		[]compilers.Source{{Path: filepath.Join(dir, "root.yaml"), Data: []byte(src)}}, opts)
 	require.NoError(t, err)
 	out := make([]string, 0, len(diags))
 	for _, d := range diags {

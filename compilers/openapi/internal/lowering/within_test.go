@@ -14,6 +14,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
+	"github.com/dexpace/morphic/engine/reader"
 )
 
 // TestWithin pins the copy Within returns for lowering what an entry names:
@@ -37,7 +38,7 @@ paths:
   /through: {get: {responses: {"200": {$ref: '#/paths/~1ext/get/responses/200'}}}}
 `
 	doc, _, err := load.Load(t.Context(), 0, compilers.Source{Path: filepath.Join(dir, "root.yaml"),
-		Data: []byte(root)}, load.Options{AllowExternalRefs: true})
+		Data: []byte(root)}, load.Options{Reader: reader.Disk{}})
 	require.NoError(t, err)
 	c := lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{}, lowering.StreamingMedia{},
 		lowering.ExtensionPromotions{}, overlay.Origin{})
@@ -88,7 +89,7 @@ paths:
   /ext: {$ref: './ext.yaml#/paths/~1x'}
 `
 	doc, _, err := load.Load(t.Context(), 0, compilers.Source{Path: filepath.Join(dir, "root.yaml"),
-		Data: []byte(root)}, load.Options{AllowExternalRefs: true})
+		Data: []byte(root)}, load.Options{Reader: reader.Disk{}})
 	require.NoError(t, err)
 	c := lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{}, lowering.StreamingMedia{},
 		lowering.ExtensionPromotions{}, overlay.Origin{})

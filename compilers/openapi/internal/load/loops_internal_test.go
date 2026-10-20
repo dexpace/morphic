@@ -21,6 +21,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/fragment"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
+	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -97,9 +98,9 @@ func answerAsk(t *testing.T, body string) {
 	src := escapeSource(t, ask.Spec)
 	tree := newSourceTree(0, overlay.Origin{}, src.root)
 	self := newSourceDocument(ask.Path, []byte(ask.Spec), src.root, src.valErrs, tree, src.esc)
-	opts := Options{AllowExternalRefs: true}
-	reader := newExternal(src.doc, opts, newExternalReads(self))
-	pass := newResolution(t.Context(), pointerAt(0, overlay.Origin{}), src.doc, Siblings{}, self, opts, &reader)
+	opts := Options{Reader: reader.Disk{}}
+	ext := newExternal(t.Context(), src.doc, opts, newExternalReads(self))
+	pass := newResolution(t.Context(), pointerAt(0, overlay.Origin{}), src.doc, Siblings{}, self, opts, &ext)
 
 	js := oas3.NewJSONSchemaFromReference(references.Reference(fragment.ForResolver(ask.Ref)))
 	_, err := js.Resolve(t.Context(), pass.opts)
@@ -422,14 +423,15 @@ func TestNewResolution_ReadsChainsWhereExternalReferencesAreRead(t *testing.T) {
 		doc, _, err := unmarshal(t.Context(), []byte(spec), root)
 		require.NoError(t, err)
 		self := newSourceDocument(path, []byte(spec), root, nil, newSourceTree(0, overlay.Origin{}, root), nil)
-		opts := Options{AllowExternalRefs: allow}
-		var reader *external
+		var opts Options
+		var ext *external
 		if allow {
-			r := newExternal(doc, opts, newExternalReads(self))
-			reader = &r
+			opts.Reader = reader.Disk{}
+			e := newExternal(t.Context(), doc, opts, newExternalReads(self))
+			ext = &e
 		}
 
-		got := newResolution(t.Context(), pointerAt(0, overlay.Origin{}), doc, Siblings{}, self, opts, reader)
+		got := newResolution(t.Context(), pointerAt(0, overlay.Origin{}), doc, Siblings{}, self, opts, ext)
 
 		assert.Equal(t, allow, got.loops != nil, "external references %t", allow)
 	}
@@ -752,9 +754,9 @@ func TestHold_ASourceThatSpellsIDIsNotHeld(t *testing.T) {
 		require.NoError(t, err)
 		doc, _, err := unmarshal(t.Context(), []byte(spec), root)
 		require.NoError(t, err)
-		reader := newExternal(doc, Options{}, newExternalReads(newSourceDocument("root.yaml", []byte(spec), root, nil, newSourceTree(0, overlay.Origin{}, root), nil)))
+		ext := newExternal(t.Context(), doc, Options{}, newExternalReads(newSourceDocument("root.yaml", []byte(spec), root, nil, newSourceTree(0, overlay.Origin{}, root), nil)))
 
-		reader.hold(t.Context(), Siblings{})
+		ext.hold(t.Context(), Siblings{})
 
 		_, held := doc.GetCachedExternalDocument("root.yaml")
 		assert.Equal(t, c.held, held, "spelling $id: %t", !c.held)

@@ -6,15 +6,11 @@ import (
 	"encoding/json/jsontext"
 	"errors"
 	"fmt"
-	"io"
 	"io/fs"
 	"iter"
-	"math"
 	"net/http"
 	"net/url"
-	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"sync"
 
@@ -23,17 +19,18 @@ import (
 	"github.com/speakeasy-api/openapi/references"
 	yaml "gopkg.in/yaml.v3"
 
+	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/fragment"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
 )
 
-// external is what the resolver reads a document through when
-// Options.AllowExternalRefs lets a reference leave the source. It stands in for
-// the resolver's file system and HTTP client, and prepares each tree as Load
-// does the source's: the same budgets and pre-parse refusals, then
-// releaseAnchors.
+// external is what the resolver reads a document through when Options.Reader
+// lets a reference leave the source. It stands in for the resolver's file
+// system and HTTP client, reading every document through that reader, and
+// prepares each tree as Load does the source's: the same budgets and pre-parse
+// refusals, then releaseAnchors.
 //
 // The tree is stored where the resolver looks for a parsed document, so the
 // model builds from it, not from the resolver's own parse, which drops anchored
@@ -53,6 +50,10 @@ type external struct {
 	held *heldSource
 	// work is what settle has spent resuming resolutions in doc's pass.
 	work *resumeWork
+	// ctx bounds the reads Open makes. The resolver's file system takes no
+	// context, so the one its resolution runs under is held here, as the
+	// resolution holds it.
+	ctx context.Context
 }
 
 // maxOpenedSpellings is the most spellings Open holds every object of the
@@ -89,10 +90,11 @@ type heldObject struct {
 // read what it prepares and how each document's read was answered. The
 // document's caches are initialized here rather than trusted to be, because
 // storing into an uninitialized one faults inside the library.
-func newExternal(doc *soa.OpenAPI, opts Options, read *externalReads) external {
+func newExternal(ctx context.Context, doc *soa.OpenAPI, opts Options, read *externalReads) external {
 	doc.InitCache()
 	return external{doc: doc, opts: opts, read: read,
-		held: &heldSource{bySite: map[jsontext.Pointer]heldObject{}, keys: map[string]bool{}}, work: newResumeWork()}
+		held: &heldSource{bySite: map[jsontext.Pointer]heldObject{}, keys: map[string]bool{}}, work: newResumeWork(),
+		ctx: ctx}
 }
 
 // hold stores the source where the resolver looks for a document it has read:
@@ -300,7 +302,7 @@ func (e external) settle(ctx context.Context, r resolvable, opts references.Reso
 
 // Open serves the file name names as its one read in the compile answered it
 // (see externalReads.once), reading it the first time it is asked for (see
-// readFile).
+// fetch).
 //
 // The source, spelled as no key holds it, is held under name and served as
 // held, not read. That is a spelling no $ref the resolver met was found by
@@ -312,53 +314,19 @@ func (e external) Open(name string) (fs.File, error) {
 		e.holdOpened(name)
 		return servedFile{Reader: bytes.NewReader(nil)}, nil
 	}
-	a := e.read.once(name, e.opts.MaxExternalDocuments, func() answer { return e.readFile(name, name) })
+	a := e.read.once(name, e.opts.MaxExternalDocuments, func() answer { return e.fetch(e.ctx, name, fileNamed(name)) })
 	if a.err != nil {
 		return nil, a.err
 	}
 	return servedFile{Reader: bytes.NewReader(a.body)}, nil
 }
 
-// readFile reads the file path names (see fileNamed), and prepares it under
-// key. Only a regular file is read, and it is judged before it is opened:
-// opening a FIFO waits for a writer, which no context interrupts. A path Stat
-// cannot read is left to os.Open, whose error the caller sees as it is.
-func (e external) readFile(key, path string) answer {
-	name := fileNamed(path)
-	if info, err := os.Stat(name); err == nil && !info.Mode().IsRegular() {
-		return answer{err: refused(key, "it is not a regular file")}
-	}
-	// the file a $ref names: what AllowExternalRefs opts into
-	f, err := os.Open(name)
-	if err != nil {
-		return answer{err: err}
-	}
-	return e.readOpened(key, f)
-}
-
-// readOpened reads f, opened as the file under key, prepares it, and closes it
-// before its bytes are served. It judges f again, since the path can name
-// another file by the time it is opened. A FIFO swapped in before the open
-// still blocks it: only a process racing the compile can do that, never a
-// spec, and the non-blocking open that would not wait is missing on the wasm
-// ports.
-func (e external) readOpened(key string, f *os.File) answer {
-	if info, err := f.Stat(); err != nil || !info.Mode().IsRegular() {
-		return answer{err: errors.Join(refused(key, "it is not a regular file"), err, f.Close())}
-	}
-	data, err := e.prepare(key, f)
-	if err = errors.Join(err, f.Close()); err != nil {
-		return answer{err: err}
-	}
-	return answer{body: data}
-}
-
 // fileNamed returns the file the path name names: its dot segments removed, as
 // a URI reference's are before anything is read. The resolver cleans a relative
 // $ref this way and hands an absolute one over as written, so left to the
-// operating system, one through a directory that is not there failed, and one
-// through a link read another file (GitHub #780). An empty name names no file,
-// where cleaned it would name the current directory.
+// reader, one through a directory that is not there failed, and one through a
+// link read another file (GitHub #780). An empty name names no file, where
+// cleaned it would name the current directory.
 func fileNamed(name string) string {
 	if name == "" {
 		return name
@@ -368,118 +336,71 @@ func fileNamed(name string) string {
 
 // Do answers req as the one read in the compile of the document at its URL
 // answered it (see externalReads.once), fetching it the first time it is
-// asked for (see fetch).
+// asked for (see fetch). A document read is a successful response; a failed
+// read is the client's error, which the resolver reports as the reference's
+// reason. The resolver hands a file URI here too, for the reader to read as
+// the file it names.
 //
-// The resolver looks a document up by its URL as net/url spells it, and the
-// client sees only the request, so an absolute $ref spelled otherwise misses;
-// resolveExternal recovers that document (GitHub #538).
+// The resolver looks a document up by its URL as net/url spells it, so an
+// absolute $ref spelled otherwise misses; resolveExternal recovers that
+// document (GitHub #538).
 func (e external) Do(req *http.Request) (*http.Response, error) {
 	key := req.URL.String()
-	return e.read.once(key, e.opts.MaxExternalDocuments, func() answer { return e.fetch(req, key) }).response(req)
-}
-
-// fetch sends req as the resolver's default client would, and prepares the
-// body of a successful response under key. Any other status is answered
-// unread, for the resolver to report as it would have. A file URI is read as
-// the file it names (see readFileURI), which the client has no transport for.
-func (e external) fetch(req *http.Request, key string) answer {
-	if req.URL.Scheme == "file" {
-		return e.readFileURI(req.URL, key)
-	}
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return answer{err: err}
-	}
-	var data []byte
-	if resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices {
-		data, err = e.prepare(key, resp.Body)
-	}
-	if err = errors.Join(err, resp.Body.Close()); err != nil {
-		return answer{err: err}
-	}
-	return answer{status: resp.StatusCode, body: data}
-}
-
-// readFileURI reads the file the file URI u names (see filePathOf), and
-// prepares it under key, answering as a successful response would. The URI is
-// a document of its own, named only as spelled (refscope.SameDocument), so the
-// same file named by its path is another document.
-func (e external) readFileURI(u *url.URL, key string) answer {
-	path, err := filePathOf(u, runtime.GOOS == "windows")
-	if err != nil {
-		return answer{err: refused(key, err.Error())}
-	}
-	a := e.readFile(key, path)
-	if a.err == nil {
+	return e.read.once(key, e.opts.MaxExternalDocuments, func() answer {
+		a := e.fetch(req.Context(), key, key)
 		a.status = http.StatusOK
-	}
-	return a
+		return a
+	}).response(req)
 }
 
-// filePathOf returns the path of the local file the file URI u names (RFC
-// 8089), percent-decoded, with a Windows drive letter's leading slash removed
-// where windows says paths are read as Windows reads them. It refuses a URI
-// naming a user, a file on another host, no absolute path or a query, a path
-// opening with two slashes, which Windows reads as another host's share, a
-// drive no slash follows, which Windows reads against that drive's working
-// directory, and a separator that would decode into another segmentation: an
-// escaped slash, or on Windows a backslash.
-func filePathOf(u *url.URL, windows bool) (string, error) {
-	switch {
-	case u.Path == "": // an opaque URI, file:a.yaml, has none
-		return "", errors.New("a file URI names no absolute path")
-	case u.User != nil:
-		return "", errors.New("a file URI's user names no local file")
-	case u.Host != "" && !strings.EqualFold(u.Host, "localhost"):
-		return "", fmt.Errorf("a file URI names a file on host %q, not a local one", u.Host)
-	case u.RawQuery != "" || u.ForceQuery:
-		return "", errors.New("a file URI's query names nothing in a file")
+// fetch reads the document at location through Options.Reader, confined to
+// Options.Within and held to the byte budget, and prepares it under key.
+func (e external) fetch(ctx context.Context, key, location string) answer {
+	if e.opts.Reader == nil {
+		return answer{err: refused(key, "no reader was supplied to read it")}
 	}
-	escaped := strings.ToLower(u.EscapedPath())
-	if strings.Contains(escaped, "%2f") {
-		return "", errors.New("a file URI's escaped slash names no single path segment")
-	}
-	// EscapedPath escapes a backslash written as itself too.
-	if windows && strings.Contains(escaped, "%5c") {
-		return "", errors.New("a file URI's backslash is a separator on Windows, so it names no single path segment")
-	}
-	path := u.Path
-	if windows && len(path) >= 3 && path[0] == '/' && path[2] == ':' && isDriveLetter(path[1]) {
-		if !strings.HasPrefix(path[3:], "/") {
-			return "", errors.New("a file URI's drive is followed by no slash, so it names no absolute path")
-		}
-		path = path[1:]
-	}
-	if strings.HasPrefix(path, "//") {
-		return "", errors.New("a file URI's path opens with two slashes, naming a network share, not a local file")
-	}
-	return path, nil
-}
-
-// isDriveLetter reports whether c names a Windows drive.
-func isDriveLetter(c byte) bool {
-	return 'a' <= c && c <= 'z' || 'A' <= c && c <= 'Z'
-}
-
-// prepare reads an external document from r, no further than one byte past the
-// byte budget, and stores the tree it parses to under key once the source's
-// refusals have passed it, its $refs rewritten as the source's are (see
-// escapes). It returns the bytes read, which the resolver still reads and
-// caches as it would have. It runs once per document a compile reads (see
-// externalReads.once), so no tree it stored is ever replaced.
-//
-// Bytes that will not parse are handed over unprepared, and the resolver
-// refuses them with its own reason.
-func (e external) prepare(key string, r io.Reader) ([]byte, error) {
-	// One byte past the budget tells a document over it from one at it. At
-	// math.MaxInt no document can pass the budget, and that byte would overflow.
-	if limit := e.opts.MaxSourceBytes; limit > 0 && limit < math.MaxInt {
-		r = io.LimitReader(r, int64(limit)+1)
-	}
-	data, err := io.ReadAll(r)
+	data, err := e.opts.Reader.ReadDocument(ctx, compilers.DocumentRequest{
+		Location: location, Within: e.opts.Within, Limit: e.opts.MaxSourceBytes,
+	})
 	if err != nil {
-		return nil, err
+		return answer{err: e.readFailure(key, err)}
 	}
+	data, err = e.prepare(key, data)
+	if err != nil {
+		return answer{err: err}
+	}
+	return answer{body: data}
+}
+
+// readFailure returns the error a reference into the document under key fails
+// with when the reader refused it: a document past the byte budget, outside
+// Options.Within or on the network a confined read never reaches is refused
+// with the reason, and any other failure is the reader's own account of it,
+// passed through.
+func (e external) readFailure(key string, err error) error {
+	switch {
+	case errors.Is(err, compilers.ErrDocumentTooLarge):
+		return refused(key, fmt.Sprintf("it is past the %d-byte budget", e.opts.MaxSourceBytes))
+	case errors.Is(err, compilers.ErrOutsideWithin) && overNetwork(key):
+		return refused(key, "it is on the network, which a read reaches only when external references are allowed")
+	case errors.Is(err, compilers.ErrOutsideWithin):
+		return refused(key, fmt.Sprintf("it lies outside the source's directory %q, "+
+			"which a read leaves only when external references are allowed", e.opts.Within))
+	default:
+		return err
+	}
+}
+
+// prepare stores the tree an external document's bytes parse to under key, once
+// the source's refusals have passed it, its $refs rewritten as the source's are
+// (see escapes), and returns the bytes, which the resolver still reads and
+// caches. It runs once per document a compile reads (see externalReads.once).
+//
+// The byte budget is checked again, though the reader held the read to it:
+// admitting bytes past it would let a reader lift a budget the compile set.
+// Bytes that will not parse are handed over unprepared, for the resolver to
+// refuse with its own reason.
+func (e external) prepare(key string, data []byte) ([]byte, error) {
 	if exceeds(len(data), e.opts.MaxSourceBytes) {
 		return nil, refused(key, fmt.Sprintf("it is past the %d-byte budget", e.opts.MaxSourceBytes))
 	}
