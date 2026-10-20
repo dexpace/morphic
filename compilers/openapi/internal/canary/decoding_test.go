@@ -81,7 +81,13 @@ func unknownKeyOrders(ctx context.Context, input []byte) string {
 
 // goroutinesStarted decodes input and reports how many goroutines the process
 // started meanwhile.
+//
+// The count is the runtime's, and a process's first collection starts one mark
+// worker per processor. Collecting before the count is read keeps those out of
+// it: otherwise a first collection that falls inside the decode adds
+// GOMAXPROCS goroutines the library never started.
 func goroutinesStarted(ctx context.Context, input []byte) string {
+	runtime.GC()
 	sample := []metrics.Sample{{Name: "/sched/goroutines-created:goroutines"}}
 	metrics.Read(sample)
 	before := sample[0].Value.Uint64()
