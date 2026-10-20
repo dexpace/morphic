@@ -55,7 +55,9 @@ linters:
       # whose enums the module switches over, and every package of the module
       # but ir (its path after morphic/ is anything but exactly ir). A switch
       # over a library's enum names the few members it handles, so an enum of
-      # any other library is held until it is named here.
+      # any other library is held until it is named here. An arm whose value no
+      # member declares is not refused: it is dead, and a literal spelling a
+      # member's value does not count as naming that member.
       default-signifies-exhaustive: false
       ignore-enum-types: ^([^.]+|gopkg\.in/yaml\.v3|github\.com/speakeasy-api/openapi/.+|github\.com/dexpace/morphic/([^i.][^.]*|i[^r.][^.]*|ir[^.]+|i))\.\w+$
     forbidigo:
@@ -118,7 +120,8 @@ linters:
         text: os\.MkdirTemp
       # forbidigo's rules are invariant 5's, which binds the pipeline's stages:
       # ir, compilers, pass, emitters and engine, beside the plants that hold
-      # the rules.
+      # the rules. emitters is held before it has a package, so no plant can
+      # show it reaches there.
       - path-except: ^(ir|compilers|pass|emitters|engine|internal/lintrules/testdata)/
         linters:
           - forbidigo

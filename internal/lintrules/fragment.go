@@ -45,7 +45,8 @@ func (l layout) runFragmentReadings(pass *analysis.Pass) (any, error) {
 
 // fragmentReading names obj when it is one of the two readings, or returns ""
 // for anything else. Each is the one function or method of its name its
-// package declares, so the package and the name tell it.
+// package declares, so the package and the name tell it. A call through an
+// interface resolves to the interface's method, which is out of sight.
 func fragmentReading(obj types.Object) string {
 	fn, ok := obj.(*types.Func)
 	if !ok || fn.Pkg() == nil {

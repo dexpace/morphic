@@ -126,13 +126,17 @@ func (c registryCheck) builtin(call *ast.CallExpr, name string) {
 	}
 }
 
+// function reports a call of a maps function that writes a registry, a generic
+// call returning one, and a registry handed to a generic function the module
+// declares outside the framework. A write inside a generic function from
+// elsewhere, or one made through reflect, is out of its sight.
 func (c registryCheck) function(call *ast.CallExpr, fn *types.Func) {
 	if fn.Pkg() != nil && fn.Pkg().Path() == "maps" && slices.Contains(mapsWriters, fn.Name()) &&
 		len(call.Args) > 0 && c.isRegistry(c.pass.TypesInfo.TypeOf(call.Args[0])) {
 		c.pass.Reportf(call.Pos(), writtenMessage)
 		return
 	}
-	// Only a package's function is generic, so one of these has a package.
+	// A generic function always has a package, so fn.Pkg is set past here.
 	inst, generic := c.pass.TypesInfo.Instances[calleeIdent(call.Fun)]
 	if !generic {
 		return
