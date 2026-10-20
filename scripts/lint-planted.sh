@@ -8,24 +8,19 @@
 # the plants draw exactly the marked findings and the module draws none.
 #
 # The module alone cannot prove a rule: one that recognizes nothing leaves it as
-# clean as one that works. The plants also pin what must draw nothing, such as a
-# look-alike type or a test file building a registry, so a rule cannot pass by
+# clean as one that works. The plants also pin what must draw nothing, such as
+# encoding/json/v2 or a test file's forced assertion, so a rule cannot pass by
 # matching everything either.
-#
-# The run starts from an empty cache. golangci-lint keys a package's findings on
-# its files and the configuration, not on the rules file ruleguard reads, so a
-# warm cache replays findings from before a rules change, and a rules file that
-# no longer loads passes.
 set -euo pipefail
 export LC_ALL=C # one byte order for both sorted lists
 
 repo_root="$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)"
 cd "$repo_root"
 dir=internal/lintrules/testdata/planted
-linters=containedctx,depguard,errname,exhaustive,forbidigo,forcetypeassert,gocritic,godot,predeclared
+linters=containedctx,depguard,errname,exhaustive,forbidigo,forcetypeassert,godot,predeclared
 
-# The packages under $dir, look-alikes included. ./... does not reach into a
-# testdata directory, so each is named.
+# The packages under $dir. ./... does not reach into a testdata directory, so
+# each is named.
 pkgs=()
 while IFS= read -r pkg; do
 	pkgs+=("./$pkg")
@@ -55,14 +50,11 @@ for linter in ${linters//,/ }; do
 	fi
 done
 
-cache="$(mktemp -d)"
-trap 'rm -rf "$cache"' EXIT
-
 # A finding prints as "<file>:<line>:<column>: <message> (<linter>)", the column
-# only when it is known; it goes. A golangci-lint that cannot run, a rules file
-# ruleguard cannot load included, exits non-zero whatever --issues-exit-code
-# says, and ends the script.
-out="$(GOLANGCI_LINT_CACHE="$cache" golangci-lint run --enable-only "$linters" \
+# only when it is known; it goes. A golangci-lint that cannot run, a
+# configuration that does not load included, exits non-zero whatever
+# --issues-exit-code says, and ends the script.
+out="$(golangci-lint run --enable-only "$linters" \
 	--issues-exit-code 0 --max-issues-per-linter 0 --max-same-issues 0 \
 	--output.text.path stdout --output.text.print-issued-lines=false \
 	--output.text.colors=false ./... "${pkgs[@]}")"

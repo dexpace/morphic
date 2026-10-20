@@ -108,7 +108,7 @@ func newRawLowerer(doc *soa.OpenAPI) *lowerer {
 // componentID is the stable TypeID of a components-named schema, or of a
 // sub-schema beneath one ("Holder/properties/inner"). It stays a per-package
 // copy for the reason openapitest's doc comment gives: a spelled-out ID belongs
-// in a test file, which the idDerivations lint rule does not hold.
+// in a test file, which the idderivations rule does not hold.
 func componentID(name string) ir.TypeID {
 	return ir.TypeID("t/openapi/components/schemas/" + name)
 }

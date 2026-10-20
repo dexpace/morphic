@@ -4,9 +4,6 @@ go 1.27.2
 
 require (
 	github.com/google/go-cmp v0.7.0
-	// The DSL internal/lintrules is written in. golangci-lint loads that file
-	// through it; its build tag keeps it out of every build.
-	github.com/quasilyte/go-ruleguard/dsl v0.3.23
 	github.com/speakeasy-api/openapi v1.25.5
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.9

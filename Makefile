@@ -61,6 +61,13 @@ export GOFLAGS
 # upstream release reddens main with no change to this repo.
 GOLANGCI_LINT_VERSION ?= v2.14.0
 
+# The ports CI never runs on, as GOOS/GOARCH, which make build and make vet
+# cover beside the host: an API one port lacks fails only that port's build,
+# and a file one port alone builds is read by that port's vet only. Windows, and
+# the two wasm ports, whose syscall package is the narrowest the module builds
+# against.
+PORTS := windows/amd64 js/wasm wasip1/wasm
+
 # Per-target fuzz budget, bounded on purpose. The gate's job is to keep every
 # target executable and to search a little on every change; a campaign is what
 # `make fuzz FUZZTIME=5m` is for.
@@ -87,8 +94,12 @@ fmt:
 		exit 1; \
 	fi
 
+# go vet's own analyzers, then the repository's: internal/lintrules, through
+# cmd/morphic-vet, on the host and on each of the PORTS, which
+# scripts/vet-rules.sh says why.
 vet:
 	$(GO) vet ./...
+	./scripts/vet-rules.sh $(PORTS)
 
 lint: check-lint-version
 	golangci-lint run
@@ -111,14 +122,13 @@ check-lint-version:
 		echo "warning:   go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$$want" >&2; \
 	fi
 
-# The build runs for the host and again for ports CI never runs on, since an
-# API one port lacks fails only that port's build: Windows, and the two wasm
-# ports, whose syscall package is the narrowest the module builds against.
+# The build runs for the host and again for each of the PORTS.
 build:
 	$(GO) build ./...
-	GOOS=windows GOARCH=amd64 $(GO) build ./...
-	GOOS=js GOARCH=wasm $(GO) build ./...
-	GOOS=wasip1 GOARCH=wasm $(GO) build ./...
+	@for port in $(PORTS); do \
+		echo "GOOS=$${port%/*} GOARCH=$${port#*/} $(GO) build ./..."; \
+		GOOS="$${port%/*}" GOARCH="$${port#*/}" $(GO) build ./... || exit 1; \
+	done
 
 # The suite runs once, under the race detector, and cmd/morphic-covergate judges
 # its profile statement by statement; its doc says why go test's percentage is

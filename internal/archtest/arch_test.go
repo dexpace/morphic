@@ -294,7 +294,10 @@ var rules = map[string][]string{
 	// The coverage gate's judge: tooling outside the pipeline, like the harness
 	// command above. x/tools/cover parses and merges the profile it judges.
 	"cmd/morphic-covergate": {"golang.org/x/tools/cover"},
-	"internal/testspec":     {},
+	// The go vet tool that runs internal/lintrules: tooling outside the pipeline,
+	// on unitchecker, the driver go vet speaks to.
+	"cmd/morphic-vet":   {module + "/internal/lintrules", "golang.org/x/tools/go/analysis/unitchecker"},
+	"internal/testspec": {},
 	// Test infrastructure outside the pipeline, like internal/harness above —
 	// but stdlib-only, which is what lets a package that starts a goroutine in
 	// its tests call it without pulling anything else in.
@@ -316,15 +319,23 @@ var rules = map[string][]string{
 	// documents and of the citations made of them, which the tests holding each
 	// document to the code share. Standard library only.
 	"internal/keydoc": {},
-	// The ruleguard rules golangci-lint runs. Its one file builds under a tag no
-	// build sets, and reaches the rules DSL and its types and nothing else.
-	"internal/lintrules": {"github.com/quasilyte/go-ruleguard/dsl", "github.com/quasilyte/go-ruleguard/dsl/types"},
-	// What the lint rules refuse, planted for scripts/lint-planted.sh. It reaches
-	// what the rules are about: ir's types, the framework, the parser library's
-	// reference readings, and look-alike packages named like ir and compile.
-	"internal/lintrules/testdata/planted": {module + "/ir", module + "/compilers/compile",
-		module + "/internal/lintrules/testdata/planted/lookalike" + subtreeSuffix,
+	// The repository's own lint rules: go/analysis analyzers, which read the
+	// packages they hold through types and nothing of the module's own.
+	"internal/lintrules": {"golang.org/x/tools/go/analysis", "golang.org/x/tools/go/types/typeutil"},
+	// What the analyzers refuse, planted in a tree laid out like the module. It
+	// reaches what the rules are about: ir's types, the framework, the parser
+	// library's reference readings, and its own packages, look-alikes of ir and
+	// compile among them.
+	"internal/lintrules/testdata/mod": {module + "/ir", module + "/compilers/compile",
+		module + "/internal/lintrules/testdata/mod" + subtreeSuffix,
 		"github.com/speakeasy-api/openapi/expression", "github.com/speakeasy-api/openapi/references"},
+	// Beside that tree, so no rule holds it.
+	"internal/lintrules/testdata/outside": {module + "/ir"},
+	// What the rules .golangci.yml configures refuse, planted for
+	// scripts/lint-planted.sh, and the files only one port builds, planted for
+	// it and scripts/vet-rules.sh.
+	"internal/lintrules/testdata/planted": {module + "/ir"},
+	"internal/lintrules/testdata/ports":   {module + "/ir"},
 }
 
 // exempt names the production packages deliberately outside the layering rules,

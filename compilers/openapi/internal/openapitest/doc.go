@@ -7,7 +7,7 @@
 // make this package unimportable from the internal tests of what it reached.
 // That keeps parseFull and the lowerer fixture with their drivers.
 //
-// componentID and typeByName stay in test files: the idDerivations lint rule
+// componentID and typeByName stay in test files: the idderivations rule
 // refuses a spelled-out ID in production code, and deriving one through compile
 // would make the lookup a tautology.
 package openapitest

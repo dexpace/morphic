@@ -13,7 +13,7 @@ linters:
     - forcetypeassert # comma-ok on every type assertion outside tests
     - funlen # the styleguide's 70-line cap, enforced rather than declared
     - gocognit # nesting-weighted complexity: the reason the cap is 70 and not 200
-    - gocritic # its default checks, and the ruleguard rules in internal/lintrules
+    - gocritic
     - godot # a doc comment is sentences, so it ends with a period
     - intrange # for i := range n, where a counted loop only counts
     - misspell
@@ -86,16 +86,6 @@ linters:
       # Raising this is how a function that should have been split stays whole,
       # so a failure is a prompt to name the inner step, not to move the number.
       min-complexity: 20
-    gocritic:
-      enabled-checks:
-        - ruleguard
-      settings:
-        ruleguard:
-          # Without failOn, ruleguard skips a rules file it cannot load and runs
-          # whatever else it has; with it, the load error fails the run and names
-          # the line.
-          failOn: all
-          rules: ${base-path}/internal/lintrules/rules.go
     revive:
       rules:
         - name: exported # GoDoc on every exported symbol
@@ -151,15 +141,6 @@ linters:
         linters:
           - modernize
         text: stditerators
-      # A compile.Settlement may rewrite a node the walk interned, through the
-      # registry compile.Types.Settle hands it, which refuses one that changes the
-      # node count (compilers/compile/settle.go). This line is that rewrite: the
-      # framework's way in, not a way around it.
-      - path: compilers/openapi/internal/schema/discriminated\.go
-        linters:
-          - gocritic
-        text: writes an ir\.TypeRegistry
-        source: reg\[d\.model\] = mt
 
 formatters:
   enable:

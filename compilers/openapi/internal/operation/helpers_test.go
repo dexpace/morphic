@@ -46,7 +46,7 @@ func lowerServiceSpec(t *testing.T, src string) (*ir.Document, ir.Service, []ir.
 
 // typeByName returns the named component schema's lowered TypeDef. It stays a
 // per-package copy for the reason openapitest's doc comment gives: a
-// spelled-out ID belongs in a test file, which the idDerivations lint rule
+// spelled-out ID belongs in a test file, which the idderivations rule
 // does not hold.
 func typeByName(doc *ir.Document, name string) ir.TypeDef {
 	return doc.Types[ir.TypeID("t/openapi/components/schemas/"+name)]
