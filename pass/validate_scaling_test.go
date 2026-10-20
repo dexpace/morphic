@@ -31,35 +31,40 @@ func chainedDiscriminators(n int) *ir.Document {
 	return &ir.Document{IRVersion: ir.IRVersion, Name: "t", Version: "1", Types: types}
 }
 
-// validateAllocations returns how many allocations one Validate of the chained
-// document of size n makes, and how many routes it reported as not subtypes.
-func validateAllocations(t *testing.T, n int) (allocs float64, rejected int) {
+// validateWork returns how many allocations and bytes one Validate of the
+// chained document of size n makes, and how many routes it reported as not
+// subtypes.
+func validateWork(t *testing.T, n int) (allocs, bytes float64, rejected int) {
 	t.Helper()
 	doc := chainedDiscriminators(n)
 	allocs = testing.AllocsPerRun(2, func() { _ = pass.Validate(doc) })
+	bytes = validateBytes(doc)
 	for _, d := range pass.Validate(doc) {
 		if d.Code == "pass/discriminator-missing-variant" {
 			rejected++
 		}
 	}
-	return allocs, rejected
+	return allocs, bytes, rejected
 }
 
-// TestValidate_DiscriminatorRoutesCostLinearAllocations holds the work of
-// validating #850's document to linear growth, counted in allocations rather
-// than timed, at three sizes: the growth from 2n to 4n is at most 2.5 times the
-// growth from n to 2n, so fixed costs cancel, linear work gives 2 and a walk of
-// the chain per route 4. It does not run in parallel, since the count is
-// process-wide.
-func TestValidate_DiscriminatorRoutesCostLinearAllocations(t *testing.T) {
-	var allocs [3]float64
+// TestValidate_DiscriminatorRoutesCostLinearWork holds the work of validating
+// #850's document to linear growth, counted in allocations and in bytes rather
+// than timed, at three sizes: the growth of each from 2n to 4n is at most 2.5
+// times its growth from n to 2n, so fixed costs cancel, linear work gives 2
+// and a walk of the chain per route 4. Bytes catch a walk that reuses its
+// buffers, which allocates few times for much work. It does not run in
+// parallel, since both counts are process-wide.
+func TestValidate_DiscriminatorRoutesCostLinearWork(t *testing.T) {
+	var allocs, bytes [3]float64
 	for k, n := range []int{500, 1000, 2000} {
 		var rejected int
-		allocs[k], rejected = validateAllocations(t, n)
+		allocs[k], bytes[k], rejected = validateWork(t, n)
 		require.Equal(t, n, rejected, "every base's route must reach the subtype question, or the count compares nothing")
 	}
 	assert.LessOrEqual(t, allocs[2]-allocs[1], 2.5*(allocs[1]-allocs[0]),
 		"allocations at 500, 1000, 2000: %v", allocs)
+	assert.LessOrEqual(t, bytes[2]-bytes[1], 2.5*(bytes[1]-bytes[0]),
+		"bytes at 500, 1000, 2000: %v", bytes)
 }
 
 // chainedProperties is n+1 models chained by Base, the top declaring property
@@ -121,8 +126,8 @@ func validateBytes(doc *ir.Document) float64 {
 }
 
 // TestValidate_ExposedPropertiesCostLinearBytes holds the bytes validating each
-// exposure shape allocates to linear growth at three sizes, as the allocation
-// test above does for routes. Bytes, not allocations: a walk per question
+// exposure shape allocates to linear growth at three sizes, as the test above
+// does for routes. Bytes, not allocations: a walk per question
 // collects into maps that grow by doubling, which allocates few times for
 // work that grows with the chain. It does not run in parallel, since the count
 // is process-wide.

@@ -2,18 +2,25 @@ package irfacts
 
 import (
 	"sync"
+	"sync/atomic"
 
 	"github.com/dexpace/morphic/ir"
 )
 
 // Index holds the facts of one [ir.Document]. Each of its indexes is built in
-// full the first time one of its facts is asked for, and never written again.
+// full the first time one of its facts needs it, and never written again. A
+// relation [ir] walks, subtypes and exposed properties, is walked as ir walks
+// it while the walks cost less than indexing would: until they have taken as
+// many steps as the registry holds types.
 //
 // An Index never writes its document. Its answers do not follow later changes,
 // so a caller that changes the document builds a new Index. It is safe for
 // concurrent use. Its zero value indexes no document.
 type Index struct {
 	doc *ir.Document
+
+	subtypeWalks  atomic.Int64 // steps left to walk subtype questions before indexing the hierarchy
+	exposureWalks atomic.Int64 // steps left to walk exposure questions before indexing them
 
 	hierarchyOnce  sync.Once
 	hierarchy      *hierarchy
@@ -28,18 +35,30 @@ type Index struct {
 }
 
 // New returns the index of doc's facts. It builds nothing: each index is built
-// when one of its facts is first asked for. A nil doc is allowed and has no
-// facts.
+// when one of its facts first needs it. A nil doc is allowed and has no facts.
 func New(doc *ir.Document) *Index {
-	return &Index{doc: doc}
+	x := &Index{doc: doc}
+	steps := int64(len(x.registry()))
+	x.subtypeWalks.Store(steps)
+	x.exposureWalks.Store(steps)
+	return x
 }
 
-// IsSubtype answers ir.IsSubtype for the index's document. The first question
-// indexes the whole hierarchy. After that a question is a few comparisons,
-// unless one of base's subtypes has a supertype that is neither base nor below
-// it, as only a model naming two supertypes can bring about; then a pair the
-// comparisons leave open is walked as ir.IsSubtype walks it.
+// IsSubtype answers ir.IsSubtype for the index's document. Its first questions
+// are walked as ir.IsSubtype walks them, until the walks have taken as many
+// steps as the registry holds types. After that, or once another fact has
+// indexed the hierarchy, a question is a few comparisons, unless one of base's
+// subtypes has a supertype that is neither base nor below it, as only a model
+// naming two supertypes can bring about; a pair the comparisons leave open is
+// walked.
 func (x *Index) IsSubtype(target, base ir.TypeID) bool {
+	if limit := x.subtypeWalks.Load(); limit > 0 {
+		sub, spent, ok := ir.IsSubtypeWithin(x.doc, target, base, int(limit))
+		x.subtypeWalks.Add(-int64(spent))
+		if ok {
+			return sub
+		}
+	}
 	if sub, settled := x.hierarchyIndex().subtype(target, base); settled {
 		return sub
 	}
@@ -61,15 +80,23 @@ func (x *Index) registry() ir.TypeRegistry {
 	return x.doc.Types
 }
 
-// hierarchyIndex returns the subtype index, built once.
+// hierarchyIndex returns the subtype index, built once, after which subtype
+// questions stop walking.
 func (x *Index) hierarchyIndex() *hierarchy {
-	x.hierarchyOnce.Do(func() { x.hierarchy = newHierarchy(x.registry()) })
+	x.hierarchyOnce.Do(func() {
+		x.hierarchy = newHierarchy(x.registry())
+		x.subtypeWalks.Store(0)
+	})
 	return x.hierarchy
 }
 
-// exposureIndex returns the index of what each type exposes, built once.
+// exposureIndex returns the index of what each type exposes, built once, after
+// which exposure questions stop walking.
 func (x *Index) exposureIndex() *exposure {
-	x.exposureOnce.Do(func() { x.exposure = newExposure(x.registry()) })
+	x.exposureOnce.Do(func() {
+		x.exposure = newExposure(x.registry())
+		x.exposureWalks.Store(0)
+	})
 	return x.exposure
 }
 

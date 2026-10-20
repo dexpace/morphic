@@ -16,6 +16,17 @@ func (x *Index) ExposesIndexAnswer(id ir.TypeID, prop ir.PropID) (exposed, settl
 	return x.exposureIndex().exposes(id, prop)
 }
 
+// Indexed reports which of the walked relations x has indexed so far.
+func (x *Index) Indexed() (hierarchy, exposure bool) {
+	return x.hierarchy != nil, x.exposure != nil
+}
+
+// WalkStepsLeft returns the steps x may still walk for each relation before it
+// indexes that relation instead.
+func (x *Index) WalkStepsLeft() (subtype, exposure int64) {
+	return x.subtypeWalks.Load(), x.exposureWalks.Load()
+}
+
 // AliasTargetsOf exposes the registry-wide alias index to the external tests:
 // what each alias scalar of types stands for.
 func AliasTargetsOf(types ir.TypeRegistry) map[ir.TypeID]ir.TypeID { return newAliasTargets(types) }

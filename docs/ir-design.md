@@ -1094,10 +1094,17 @@ are ([`whole-schema-fallbacks`](./compilers/openapi.md#whole-schema-fallbacks), 
 
 What a document implies and does not state is derived by one per-document index,
 `irfacts.Index` (`irfacts.New(doc)`), and never stored: nothing orders the derivations, and none
-goes stale after a transform. Each of its indexes is built whole the first time one of its facts is
-asked for and never written again, so an `Index` is safe for concurrent use; a caller that changes
+goes stale after a transform. Each of its indexes is built whole the first time one of its facts
+needs it and never written again, so an `Index` is safe for concurrent use; a caller that changes
 the document builds a new one. The package imports only `ir`, which keeps the definitions it
 indexes: `Supertypes`, `IsSubtype`, `ExposedProps` and `AliasBase`.
+
+The two relations `ir` walks, subtypes and exposed properties, are walked rather than indexed while
+that is cheaper. An `Index` answers a relation's first questions by `ir`'s own walk, limited in
+steps (`ir.IsSubtypeWithin`, `ir.ExposesWithin`), until its walks have taken as many steps as the
+registry holds types, and indexes the relation then, or once another fact has. A caller asking a
+few cheap questions, as `pass.Validate` does of the golden spec, pays only for the walks, and one
+asking many pays for one index.
 
 **Subtypes.** `IsSubtype(t, b)` answers exactly what `ir.IsSubtype` answers (§4.3), and
 `Subtypes(b)` lists every declared type it holds below `b`. The index condenses the relation into

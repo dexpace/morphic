@@ -2,6 +2,7 @@ package irfacts
 
 import (
 	"maps"
+	"math"
 	"slices"
 
 	"github.com/dexpace/morphic/ir"
@@ -9,16 +10,24 @@ import (
 
 // Exposes reports whether the type id names exposes the property prop, as
 // ir.ExposedProps answers it: id, or a type its composition or its alias
-// scalars lead to, declares prop. The first question indexes the document.
-// After that a question is a few comparisons when one model declares prop,
-// unless the comparisons leave the pair open as [Index.IsSubtype]'s may be. A
-// property several models declare and an open pair are walked as
-// ir.ExposedProps walks them.
+// scalars lead to, declares prop. Its first questions are walked, as
+// [Index.IsSubtype]'s are. After that a question is a few comparisons when one
+// model declares prop, unless the comparisons leave the pair open as
+// IsSubtype's may be. A property several models declare and an open pair are
+// walked.
 func (x *Index) Exposes(id ir.TypeID, prop ir.PropID) bool {
+	if limit := x.exposureWalks.Load(); limit > 0 {
+		exposed, spent, ok := ir.ExposesWithin(x.doc, id, prop, int(limit))
+		x.exposureWalks.Add(-int64(spent))
+		if ok {
+			return exposed
+		}
+	}
 	if exposed, settled := x.exposureIndex().exposes(id, prop); settled {
 		return exposed
 	}
-	return ir.ExposedProps(x.doc, id)[prop]
+	exposed, _, _ := ir.ExposesWithin(x.doc, id, prop, math.MaxInt)
+	return exposed
 }
 
 // sharedProp is the owner of a property more than one model declares.

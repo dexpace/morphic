@@ -26,8 +26,8 @@ func Validate(doc *ir.Document) []ir.Diagnostic {
 	// leaves to it exactly what it reports.
 	decls, declTruncated := ir.DeclaredIDs(doc)
 	// One index for the run: a discriminator's routes and tag, and a part's
-	// encoding key, are answered from the document indexed once, and walked only
-	// where a type with two parents leaves the answer open (#850).
+	// encoding key, are walked while that is cheap and answered from the document
+	// indexed once after that (#850).
 	facts := irfacts.New(doc)
 	diags := make([]ir.Diagnostic, 0, 8)
 	diags = append(diags, checkNilTypes(doc)...)
