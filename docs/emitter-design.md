@@ -915,18 +915,18 @@ alike are two entries to disambiguate, and reordering members of distinct values
 **The source spelling, for letter case only.** `Case` receives each canonical word beside the
 spelling the source gave it. ir-design §3.2 derives `Canonical` from `Source` by one grammar, which
 lives in `ir` (`ir.CanonicalWords`), and `irverify` holds every `Naming` that has a `Source` to it
-(`ir/naming-not-derived`). `naming.Words` takes the spellings from that same grammar, which exposes
-its segmentation as written and lowercases it to give `Canonical`, so the words align one to one
-and no emitter carries a second copy of the grammar. A name with no `Source` — one built from a
-hint — has no spellings, and neither has a `Naming` the grammar does not derive, which `Words`
-leaves unspelled rather than guess. A policy may read a spelling to recover the letter case of a
-word whose boundaries the canonical form already fixes: `iOSVersion` is `i_os_version` and
-`HTTPServer2FA` is `http_server_2_fa`, and the spellings `i`, `OS`, `Version` and `HTTP`, `Server`,
-`2`, `FA` let a policy render `IOSVersion` and `HTTPServer2FA`, where casing the words gives
-`IOsVersion` and `HttpServer2Fa` and an acronym table would have to capitalize `os` and `fa` in
-every name. It never reads one to find a boundary — the words are fixed before any spelling is
-read — so the rule against re-splitting a cased string holds. Ignoring the spellings is conforming,
-and the acronym table applies either way.
+(`ir/naming-not-derived`). `naming.Words` takes the spellings from that same grammar: `ir` gains a
+sibling of `CanonicalWords` that returns the words as written, and `CanonicalWords` becomes their
+lowercased join, so the words align one to one and no emitter carries a second copy of the grammar.
+A name with no `Source` — one built from a hint — has no spellings, and neither has a `Naming` the
+grammar does not derive, which `Words` leaves unspelled rather than guess. A policy may read a
+spelling to recover the letter case of a word whose boundaries the canonical form already fixes:
+`iOSVersion` is `i_os_version` and `HTTPServer2FA` is `http_server_2_fa`, and the spellings `i`,
+`OS`, `Version` and `HTTP`, `Server`, `2`, `FA` let a policy render `IOSVersion` and
+`HTTPServer2FA`, where casing the words gives `IOsVersion` and `HttpServer2Fa` and an acronym table
+would have to capitalize `os` and `fa` in every name. It never reads one to find a boundary — the
+words are fixed before any spelling is read — so the rule against re-splitting a cased string holds.
+Ignoring the spellings is conforming, and the acronym table applies either way.
 
 ### 4.13 Interface extraction & request shaping
 
