@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"math"
 	"reflect"
 	"runtime"
+	"runtime/debug"
 	"runtime/metrics"
 	"strconv"
 	"strings"
@@ -80,13 +82,14 @@ func unknownKeyOrders(ctx context.Context, input []byte) string {
 }
 
 // goroutinesStarted decodes input and reports how many goroutines the process
-// started meanwhile.
-//
-// The count is the runtime's, and a process's first collection starts one mark
-// worker per processor. Collecting before the count is read keeps those out of
-// it: otherwise a first collection that falls inside the decode adds
-// GOMAXPROCS goroutines the library never started.
+// started meanwhile, with no collection running: a collection starts mark
+// workers until there is one per processor, so a process's first starts one
+// for each, and the count would include them. Collection is off, by percentage
+// and by memory limit, and one runs first, so that a collection another
+// goroutine began has started its workers before the count is read.
 func goroutinesStarted(ctx context.Context, input []byte) string {
+	defer debug.SetGCPercent(debug.SetGCPercent(-1))
+	defer debug.SetMemoryLimit(debug.SetMemoryLimit(math.MaxInt64))
 	runtime.GC()
 	sample := []metrics.Sample{{Name: "/sched/goroutines-created:goroutines"}}
 	metrics.Read(sample)
