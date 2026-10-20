@@ -1100,11 +1100,13 @@ indexes: `Supertypes`, `IsSubtype` and `AliasBase`.
 
 **Subtypes.** `IsSubtype(t, b)` answers exactly what `ir.IsSubtype` answers (§4.3), and
 `Subtypes(b)` lists every declared type it holds below `b`. The index condenses the relation into
-its strongly connected components and numbers them in post-order down the condensation; each
-component's interval runs from the least number below it to its own. A pair whose intervals do not
-nest is unrelated. When no component has two parents, as when no model names two supertypes, a
-nested pair is related, so every question is two comparisons. Otherwise only a nested pair is
-confirmed by `ir.IsSubtype`'s walk.
+its strongly connected components and numbers them in post-order, searching depth-first down the
+condensation; each component's interval runs from the least number below it to its own. A pair
+whose intervals do not nest is unrelated, and a type numbered after the search reached `b`, and
+before `b` itself, is below `b`. Any other pair is confirmed by `ir.IsSubtype`'s walk. There is one
+only when a subtype of `b` has a supertype that is neither `b` nor below it, so a model naming two
+supertypes leaves open only pairs whose base lies above it, and in a forest every question is a few
+comparisons.
 
 **The type graph.** Usage and recursion read one graph with two vertices per declared type: its
 *shape*, what a value of exactly that type holds, and its *range*, every shape a value declared as

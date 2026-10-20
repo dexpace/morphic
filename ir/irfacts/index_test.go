@@ -256,7 +256,8 @@ type factsWorkShape struct {
 // factsWorkShapes are the documents whose subtype or usage questions have cost
 // more than linear time or memory: GitHub #850's, a chain each of whose models
 // routes to the next (a closure per target is quadratic there), a base routing
-// to every model below it, and usage on a chain of discriminated bases.
+// to every model below it, alone and beside an unrelated model naming two
+// supertypes, and usage on a chain of discriminated bases.
 func factsWorkShapes() map[string]factsWorkShape {
 	return map[string]factsWorkShape{
 		"many bases routing to the bottom of one chain": {
@@ -285,12 +286,11 @@ func factsWorkShapes() map[string]factsWorkShape {
 		},
 		"the top of a chain routing to every model below it": {
 			doc: func(n int) *ir.Document { return compDoc(factsChain(n, nil)...) },
-			ask: func(f *irfacts.Index, n int) (yes int) {
-				for i := 1; i <= n; i++ {
-					yes += factsCount(f.IsSubtype(factsChainID(i), factsChainID(0)))
-				}
-				return yes
-			},
+			ask: factsAskTopOfChain,
+		},
+		"the same beside an unrelated model naming two supertypes": {
+			doc: func(n int) *ir.Document { return compDoc(append(factsChain(n, nil), factsDiamond("x")...)...) },
+			ask: factsAskTopOfChain,
 		},
 		"usage of a chain of discriminated bases": {
 			doc: func(n int) *ir.Document {
@@ -304,6 +304,27 @@ func factsWorkShapes() map[string]factsWorkShape {
 				return yes - 1
 			},
 		},
+	}
+}
+
+// factsAskTopOfChain asks whether each model of a chain of n below its top is
+// a subtype of the top.
+func factsAskTopOfChain(f *irfacts.Index, n int) (yes int) {
+	for i := 1; i <= n; i++ {
+		yes += factsCount(f.IsSubtype(factsChainID(i), factsChainID(0)))
+	}
+	return yes
+}
+
+// factsDiamond returns four models whose IDs start with prefix: a top, two
+// models below it, and a bottom naming both of those as supertypes.
+func factsDiamond(prefix ir.TypeID) []ir.TypeDef {
+	top, left, right, bottom := prefix+"/top", prefix+"/left", prefix+"/right", prefix+"/bottom"
+	return []ir.TypeDef{
+		compModel(top, nil),
+		compModel(left, func(m *ir.Model) { m.Base = &ir.TypeRef{Target: top} }),
+		compModel(right, func(m *ir.Model) { m.Base = &ir.TypeRef{Target: top} }),
+		compModel(bottom, func(m *ir.Model) { m.Base = &ir.TypeRef{Target: left}; m.Implements = refs(right) }),
 	}
 }
 
@@ -349,30 +370,51 @@ func TestIndex_AForestNeedsNoWalk(t *testing.T) {
 	}
 }
 
-func TestIndex_ASupertypeNamedTwiceIsOneParent(t *testing.T) {
+// TestIndex_SettlesATargetReachedOnlyThroughItsBase asks pairs whose every path
+// up from the target passes the base, beside and across models naming two
+// supertypes, and requires the index to settle each alone.
+func TestIndex_SettlesATargetReachedOnlyThroughItsBase(t *testing.T) {
 	t.Parallel()
-	for name, doc := range map[string]*ir.Document{
-		"by Base and Implements": compDoc(compModel("top", nil), compModel("both", func(m *ir.Model) {
-			m.Base = &ir.TypeRef{Target: "top"}
-			m.Implements = refs("top")
-		})),
-		"directly and through an alias": compDoc(compModel("top", nil), compScalar("topAlias", "top"), compModel("both", func(m *ir.Model) {
-			m.Base = &ir.TypeRef{Target: "topAlias"}
-			m.Implements = refs("top")
-		})),
-		"by two members of one cycle": compDoc(compModel("top", nil),
-			compModel("a", func(m *ir.Model) { m.Base = &ir.TypeRef{Target: "b"}; m.Implements = refs("top") }),
-			compModel("b", func(m *ir.Model) { m.Base = &ir.TypeRef{Target: "a"}; m.Implements = refs("top") })),
+	chain := append(factsChain(5, nil), factsDiamond("x")...)
+	for name, tc := range map[string]struct {
+		doc   *ir.Document
+		pairs [][2]ir.TypeID // target, then a base every path up from it passes
+	}{
+		"a supertype named by Base and Implements": {
+			doc: compDoc(compModel("top", nil), compModel("both", func(m *ir.Model) {
+				m.Base = &ir.TypeRef{Target: "top"}
+				m.Implements = refs("top")
+			})),
+			pairs: [][2]ir.TypeID{{"both", "top"}},
+		},
+		"a supertype named directly and through an alias": {
+			doc: compDoc(compModel("top", nil), compScalar("topAlias", "top"), compModel("both", func(m *ir.Model) {
+				m.Base = &ir.TypeRef{Target: "topAlias"}
+				m.Implements = refs("top")
+			})),
+			pairs: [][2]ir.TypeID{{"both", "top"}},
+		},
+		"a supertype named by two members of one cycle": {
+			doc: compDoc(compModel("top", nil),
+				compModel("a", func(m *ir.Model) { m.Base = &ir.TypeRef{Target: "b"}; m.Implements = refs("top") }),
+				compModel("b", func(m *ir.Model) { m.Base = &ir.TypeRef{Target: "a"}; m.Implements = refs("top") })),
+			pairs: [][2]ir.TypeID{{"a", "top"}, {"b", "top"}},
+		},
+		"a diamond, asked from its top": {
+			doc:   compDoc(factsDiamond("x")...),
+			pairs: [][2]ir.TypeID{{"x/left", "x/top"}, {"x/right", "x/top"}, {"x/bottom", "x/top"}},
+		},
+		"a chain beside an unrelated diamond": {
+			doc:   compDoc(chain...),
+			pairs: [][2]ir.TypeID{{factsChainID(1), factsChainID(0)}, {factsChainID(5), factsChainID(0)}, {factsChainID(5), factsChainID(3)}},
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			facts := irfacts.New(doc)
-			for _, sub := range []ir.TypeID{"both", "a", "b"} {
-				if _, declared := doc.Types[sub]; !declared {
-					continue
-				}
-				got, settled := facts.SubtypeIndexAnswer(sub, "top")
-				assert.True(t, got && settled, "%s has one parent, so the hierarchy is still a forest", sub)
+			facts := irfacts.New(tc.doc)
+			for _, pair := range tc.pairs {
+				got, settled := facts.SubtypeIndexAnswer(pair[0], pair[1])
+				assert.True(t, got && settled, "every path up from %s passes %s, so the index settles the pair alone", pair[0], pair[1])
 			}
 		})
 	}
@@ -426,20 +468,31 @@ func TestIndex_EveryMethodIsSafeForConcurrentUse(t *testing.T) {
 	wg.Wait()
 	assert.NotZero(t, want["base"].usage, "the document gives the index usage to derive")
 	assert.True(t, want["loopA"].recursive, "the document gives the index a cycle to find")
-	assert.True(t, want["deep"].supers["mid"] && !want["deep"].supers["orphan"], "the document gives the index a hierarchy to walk")
+	assert.True(t, want["deep"].supers["mid"] && want["deep"].supers["side"] && !want["deep"].supers["orphan"],
+		"the document gives the index a hierarchy")
+	walked := 0
+	for _, target := range universe {
+		for _, base := range universe {
+			if _, settled := sequential.SubtypeIndexAnswer(target, base); !settled {
+				walked++
+			}
+		}
+	}
+	assert.Positive(t, walked, "the document leaves the index some question to walk")
 }
 
 // factsConcurrentDocument builds a document in which every fact has something
-// to derive: a discriminated hierarchy used by an operation, with a model of
-// two supertypes so that some questions walk; a cycle; an alias; and a type
-// nothing reaches.
+// to derive: a discriminated hierarchy used by an operation, with a diamond,
+// which leaves some question to the walk whichever side is searched first; a
+// cycle; an alias; and a type nothing reaches.
 func factsConcurrentDocument() (*ir.Document, []ir.TypeID) {
 	doc := compDoc(
 		compModel("base", func(m *ir.Model) { m.Discriminator = &ir.Discriminator{} }),
 		compModel("sub", func(m *ir.Model) { m.Base = &ir.TypeRef{Target: "alias"} }),
 		compScalar("alias", "base"),
 		compModel("mid", func(m *ir.Model) { m.Base = &ir.TypeRef{Target: "sub"} }),
-		compModel("deep", func(m *ir.Model) { m.Base = &ir.TypeRef{Target: "mid"}; m.Implements = refs("sub") }),
+		compModel("side", func(m *ir.Model) { m.Base = &ir.TypeRef{Target: "sub"} }),
+		compModel("deep", func(m *ir.Model) { m.Base = &ir.TypeRef{Target: "mid"}; m.Implements = refs("side") }),
 		compModel("loopA", func(m *ir.Model) { m.Properties = []ir.Property{{Type: ir.TypeRef{Target: "loopB"}}} }),
 		compModel("loopB", func(m *ir.Model) { m.Properties = []ir.Property{{Type: ir.TypeRef{Target: "loopA"}}} }),
 		compModel("orphan", nil),
@@ -448,5 +501,5 @@ func factsConcurrentDocument() (*ir.Document, []ir.TypeID) {
 		Params:    []ir.Parameter{{Type: ir.TypeRef{Target: "loopA"}}},
 		Responses: []ir.Response{{Payload: &ir.Payload{Contents: []ir.Content{{Type: ir.TypeRef{Target: "base"}}}}}},
 	}}}}}}
-	return doc, []ir.TypeID{"base", "sub", "alias", "mid", "deep", "loopA", "loopB", "orphan", "ghost"}
+	return doc, []ir.TypeID{"base", "sub", "alias", "mid", "side", "deep", "loopA", "loopB", "orphan", "ghost"}
 }

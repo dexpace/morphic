@@ -25,8 +25,9 @@ func Validate(doc *ir.Document) []ir.Diagnostic {
 	// Read once: the dangling walk resolves against these, and checkParams
 	// leaves to it exactly what it reports.
 	decls, declTruncated := ir.DeclaredIDs(doc)
-	// One index for the run, so each discriminator route is a lookup in a
-	// hierarchy indexed once, not a walk of its own (#850).
+	// One index for the run: a discriminator route is answered from a hierarchy
+	// indexed once, and walked only where a model naming two supertypes leaves
+	// it open (#850).
 	facts := irfacts.New(doc)
 	diags := make([]ir.Diagnostic, 0, 8)
 	diags = append(diags, checkNilTypes(doc)...)
@@ -395,8 +396,7 @@ func checkUnionDiscriminator(doc *ir.Document, u *ir.Union) []ir.Diagnostic {
 
 // checkModelDiscriminator requires each mapping target to be a declared subtype
 // of the discriminated base model, and the tag property to be one this model
-// exposes. Every model asks the one index, so no route walks the hierarchy
-// above its target again.
+// exposes. Its routes are asked of facts, the one index of the run.
 func checkModelDiscriminator(doc *ir.Document, facts *irfacts.Index, m *ir.Model) []ir.Diagnostic {
 	if m.Discriminator == nil {
 		return nil
