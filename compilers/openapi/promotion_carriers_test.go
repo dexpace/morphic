@@ -126,13 +126,14 @@ func deprecationCarrierTypes(t *testing.T) []*types.Named {
 	return found
 }
 
-// pointsToDeprecation reports whether m is a field of type *ir.Deprecation.
+// pointsToDeprecation reports whether m is a field of type *ir.Deprecation,
+// however many aliases spell it.
 func pointsToDeprecation(m jsonshape.Member) bool {
-	ptr, isPointer := m.Field.Type().(*types.Pointer)
+	ptr, isPointer := types.Unalias(m.Field.Type()).(*types.Pointer)
 	if !isPointer {
 		return false
 	}
-	named, isNamed := ptr.Elem().(*types.Named)
+	named, isNamed := types.Unalias(ptr.Elem()).(*types.Named)
 	return isNamed && named.Obj().Name() == deprecationType.Name() &&
 		named.Obj().Pkg().Path() == deprecationType.PkgPath()
 }
