@@ -15,8 +15,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/dexpace/morphic/ir/irtest"
 )
 
 // matrixPath is the capability matrix, addressed relative to this test file.
@@ -373,4 +376,20 @@ func splitMatrixCells(line string) []string {
 		}
 	}
 	return append(cells, strings.TrimSpace(cell.String()))
+}
+
+// compareTextGolden compares got against the golden file at path, or rewrites it
+// when -update is set — irtest.CompareGolden's contract for a non-document
+// artifact, sharing its flag so one -update run refreshes every golden.
+func compareTextGolden(t *testing.T, path, got string) {
+	t.Helper()
+	if irtest.Update() {
+		require.NoError(t, os.WriteFile(path, []byte(got), 0o644))
+		return
+	}
+	want, err := os.ReadFile(path)
+	require.NoError(t, err, "read golden %s (run with -update to create)", path)
+	if diff := cmp.Diff(string(want), got); diff != "" {
+		t.Errorf("golden mismatch for %s (-golden +got):\n%s", path, diff)
+	}
 }

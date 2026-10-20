@@ -266,7 +266,7 @@ entry in that test allows, and nothing from a layer above its own.
 | `emitters/*` | 2: IR → artifacts (not built yet) | `ir` + emitter contract |
 | `engine/` | 3: orchestration | everything below |
 | `cmd/morphic/` | 4: CLI | `engine` + `ir` + its command framework (`cobra`, `pflag`) |
-| `cmd/morphic-harness/`, `cmd/morphic-covergate/`, `cmd/morphic-vet/`, `internal/*` | tooling outside the pipeline: the oracle sweep, the coverage gate's judge, the go vet tool and the lint rules it runs, the architecture rules, the goroutine leak check, type-checked reads of declarations for tests, the IR's JSON shape that IRVersion is pinned to, the reader of the keyed documents, shared fixtures | as their entries allow; `internal/harness` is exempt |
+| `cmd/morphic-harness/`, `cmd/morphic-census/`, `cmd/morphic-covergate/`, `cmd/morphic-vet/`, `internal/*` | tooling outside the pipeline: the oracle sweep, the census of IR facts, the coverage gate's judge, the go vet tool and the lint rules it runs, the architecture rules, the goroutine leak check, type-checked reads of declarations for tests, the IR's JSON shape that the IRVersion pin and the census read, the reader of the keyed documents, shared fixtures | as their entries allow; `internal/harness` is exempt |
 
 Compilers and emitters never import each other. A compiler's own `internal/` packages each carry
 their own entry rather than inheriting the compiler's, so the order among them is enforced too,
@@ -314,6 +314,13 @@ Run a single test with `go test ./ir -run TestName`. Beyond that:
   the `ir/irverify` structural invariants, JSON round-trip, determinism, and order-invariance. It
   exits `1` if any spec fails. `testdata/` holds negative fixtures that fail on purpose, so sweep
   it with `go test ./internal/harness`, which knows which ones are expected to.
+- **IR census.** `go run ./cmd/morphic-census <file|dir>...` compiles the specs and lists every
+  fact of the IR with the number of documents that set it and the number of instances, zeros
+  included: each member of its structs, the emptiness of a member whose empty value differs from
+  its absence, and each value of its enumerations. The facts no committed spec sets are held to
+  `testdata/unwitnessed.golden.txt`, which `go test ./cmd/morphic-census -update` rewrites and
+  which scopes the first emitters (`docs/emitter-design.md` §14.1). Run it from inside the module:
+  it reads the IR's declarations through the go command.
 - **Fuzzing.** `make fuzz` runs every fuzz target for 10s each (`make fuzz FUZZTIME=5m` for a
   longer search). One target runs on its own with, for example,
   `go test ./compilers/openapi -run '^$' -fuzz '^FuzzCompile$' -fuzztime 1m`.
