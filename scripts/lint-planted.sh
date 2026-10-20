@@ -17,6 +17,9 @@
 # port given as GOOS/GOARCH. The plants under testdata/ports that a port alone
 # builds are marked for that port's run, which shows each run reads its port.
 #
+# It reads golangci-lint's JSON output with jq, which CI's runner and recent
+# macOS ship.
+#
 # Usage: lint-planted.sh [GOOS/GOARCH ...]        (make lint-planted passes $(PORTS))
 set -euo pipefail
 export LC_ALL=C # one byte order for both sorted lists
