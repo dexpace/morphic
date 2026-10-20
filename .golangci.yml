@@ -51,11 +51,11 @@ linters:
       # a guessing default absorbs a new kind as whatever it asserts, and
       # ir.ValueKind is a bare string enum with no marker method to hold it
       # otherwise. Only package ir's enums are held. The rest are ignored by
-      # pattern: the standard library (no dot in its path), the libraries the
-      # module reads, and every package of the module but ir (its path after
-      # morphic/ is anything but exactly ir). A switch over a library's enum
-      # reads the few members it handles, so an enum from a library newly
-      # imported is held until it is named here.
+      # pattern: the standard library (no dot in its path), the two libraries
+      # whose enums the module switches over, and every package of the module
+      # but ir (its path after morphic/ is anything but exactly ir). A switch
+      # over a library's enum names the few members it handles, so an enum of
+      # any other library is held until it is named here.
       default-signifies-exhaustive: false
       ignore-enum-types: ^([^.]+|gopkg\.in/yaml\.v3|github\.com/speakeasy-api/openapi/.+|github\.com/dexpace/morphic/([^i.][^.]*|i[^r.][^.]*|ir[^.]+|i))\.\w+$
     forbidigo:
@@ -116,9 +116,10 @@ linters:
         linters:
           - usetesting
         text: os\.MkdirTemp
-      # forbidigo's rules are invariant 5's, which binds the pipeline: ir,
-      # compilers, pass and engine, beside the plants that hold the rules.
-      - path-except: ^(ir|compilers|pass|engine|internal/lintrules/testdata)/
+      # forbidigo's rules are invariant 5's, which binds the pipeline's stages:
+      # ir, compilers, pass, emitters and engine, beside the plants that hold
+      # the rules.
+      - path-except: ^(ir|compilers|pass|emitters|engine|internal/lintrules/testdata)/
         linters:
           - forbidigo
       # A test may print, and a forced type assertion in one fails the test by
