@@ -125,7 +125,7 @@ func TestScope_TargetSchema_TheEndOfTheChainOrNothing(t *testing.T) {
 // naming something this compilation can intern. A component the lowering
 // declares counts; one it does not, one the document lacks, another document
 // and a bare name do not; and a pointer deeper than a component counts only
-// when it landed on a schema with a body.
+// when it landed on a schema with a body or a boolean one.
 func TestScope_NamesReferent_ADeclaredTargetOrAResolvedOne(t *testing.T) {
 	t.Parallel()
 	const schemas = `
@@ -157,7 +157,7 @@ func TestScope_NamesReferent_ADeclaredTargetOrAResolvedOne(t *testing.T) {
 		"other":      {b.component(t, "ToOther"), false, "another document is not this compilation's to intern"},
 		"bare":       {b.component(t, "ToBare"), false, "a bare name addresses no pointer at all"},
 		"sub-schema": {b.at(t, outer+"sub"), true, "a sub-schema pointer counts once it landed on a body"},
-		"boolean":    {b.at(t, outer+"boolean"), false, "a boolean schema has no body to intern"},
+		"boolean":    {b.at(t, outer+"boolean"), true, "a boolean schema lowers as at its own position"},
 		"no rule":    {b.at(t, outer+"gone"), false, "a sub-schema pointer that landed nowhere does not"},
 	} {
 		assert.Equal(t, tc.want, b.scope.NamesReferent(tc.js), "%s: %s", name, tc.why)

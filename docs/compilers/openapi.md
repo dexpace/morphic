@@ -1310,7 +1310,10 @@ A boolean `false` schema becomes a closed empty `Model`, with the schema itself 
 `degraded_lowering` at `Unmodeled["openapi:schema"]` and an info `openapi/false-schema` at it — the
 key names the position because a boolean schema writes no keyword to name it by, and nothing can
 collide with it, since such a schema has nothing else to preserve. A boolean `true` schema is the
-top type, as `{}` is, and reports nothing.
+top type, as `{}` is, and reports nothing. A `$ref` naming a boolean schema below a component takes
+what that position lowers to, whichever is declared first: the closed `Model` at its pointer, or an
+alias there of the top type. A position nothing else lowers, such as a closed tuple's
+`items: false`, is lowered for the `$ref` alone.
 
 That preservation is load-bearing, not decorative: a closed empty `Model` admits `{}`, and the
 source admits nothing, so the lowered type is one value wider than what was written. Without the
@@ -1332,10 +1335,10 @@ needs to produce it.
 - Cases: `allof-boolean-branch`
 - Codes: `openapi/degraded-construct`, `openapi/false-schema`
 - Tests: `schema.TestLower_DepthCapExceeded`,
-  `openapi.TestMaxNesting_AdmitsWhatTheLoweringLowersInFull`
+  `openapi.TestMaxNesting_AdmitsWhatTheLoweringLowersInFull`,
+  `openapi.TestCompile_ARefToABooleanSchemaResolvesInEitherOrder`
 - Status: partly built: a `$ref` and the declaration it targets reach the depth cap at different
-  coordinates (#748), and a `$ref` to an inline `false` schema resolves only after its owner lowers
-  (#861).
+  coordinates (#748).
 
 ## 7. Schemas: keywords beyond the shape
 

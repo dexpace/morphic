@@ -266,10 +266,10 @@ func settledDecl(at resolve.Location, decl *oas3.JSONSchema[oas3.Referenceable])
 
 // hoistSubSchema lowers the internal sub-schema declared at pointer and
 // guarantees a node exists at its pointer-derived ID, aliasing when the body
-// reduces to a shared target so a $ref to the sub-schema always resolves
-// (invariants 1, 2). The annotations written at that position, value
-// constraints and examples, are carried onto the alias as for a named scalar
-// component, so a $ref to {type: number, minimum: 5} does not drop them.
+// reduces to a shared target, so a $ref to the sub-schema always resolves
+// (invariants 1, 2), a boolean one included (GitHub #861). The alias carries
+// the position's value constraints and examples, as a named scalar component
+// does, so a $ref to {type: number, minimum: 5} keeps them.
 //
 // decl is the declaration itself, not its resolved form, so a sub-schema that
 // is a $ref carrying siblings aliases its target while keeping them. at is the
@@ -277,7 +277,7 @@ func settledDecl(at resolve.Location, decl *oas3.JSONSchema[oas3.Referenceable])
 func hoistSubSchema(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, decl *oas3.JSONSchema[oas3.Referenceable], at resolve.Location) (ir.TypeID, bool, []ir.Diagnostic) {
 	pointer := at.Pointer()
 	s := annotation.At(decl)
-	if s.Node == nil {
+	if s.Node == nil && !decl.IsBool() {
 		return "", false, nil
 	}
 	// Everything lowered from here is reached through a $ref that named this
