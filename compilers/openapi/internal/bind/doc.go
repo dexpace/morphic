@@ -5,7 +5,7 @@
 // whatever was asked before, and one work budget bounds the whole table.
 //
 // A reference is read as docs/compilers/openapi.md#references states:
-// a JSON pointer decoded percent-only, the $defs rule, a role for each
-// position from the OpenAPI grammar, and neither $anchor nor $id as a target
-// (ir-design §4.7).
+// a JSON pointer trimmed and percent-decoded, nothing else, the $defs rule, a
+// role for each position from the OpenAPI grammar, and neither $anchor nor
+// $id as a target (ir-design §4.7).
 package bind

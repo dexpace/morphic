@@ -233,16 +233,18 @@ What a reference to another document's parameter, request body, response, header
 or path item brings in lowers at the use site as the source's own would.
 
 A schema `$ref`, and a discriminator mapping value spelled as one, is bound by the compiler itself,
-never by the parser's resolver ([`schema-cycle-overflow`](../parser-library.md#schema-cycle-overflow)),
-and the answer depends on nothing read before it. Its fragment is percent-decoded and nothing else,
-and read as RFC 6901 reads a pointer: an index is a decimal with no leading zero, a pointer ending in
-`/` names a member whose key is empty, and a fragment holding a second `#` names nothing. A pointer
-passing a reference object reads on where the resolver resolved that, in whichever document, and a
-`$ref` written in another document's content is read in that document. A YAML alias or merge key is
-a copy written where it is placed, so what it holds is read at that position, as the document's JSON
-places it, and raw YAML a schema `$ref` lands on, under an extension or in another document, is read
-as a schema. A key written twice in one mapping is read as its last occurrence, raw YAML included,
-as the parser's model reads one ([`duplicate-key`](../parser-library.md#duplicate-key)).
+never by the parser's resolver
+([`schema-cycle-overflow`](../parser-library.md#schema-cycle-overflow)), and the answer depends on
+nothing read before it. Its fragment is trimmed of the white space around it and percent-decoded,
+nothing else, so a `+` names itself, and read as RFC 6901 reads a pointer: an index is a decimal
+with no leading zero, a pointer ending in `/` names a member whose key is empty, and a fragment
+holding a second `#` names nothing. A pointer passing a reference object reads on where the resolver
+resolved that, in whichever document, and a `$ref` written in another document's content is read in
+that document. A YAML alias or merge key is a copy written where it is placed, so what it holds is
+read at that position, as the document's JSON places it, and raw YAML a schema `$ref` lands on,
+under an extension or in another document, is read as a schema. A key written twice in one mapping
+is read as its last occurrence, raw YAML included, as the parser's model reads one
+([`duplicate-key`](../parser-library.md#duplicate-key)).
 
 A reference that resolves to nothing — a pointer naming no node, a position holding no schema, a
 component its section does not hold, another document while external references are off, an
@@ -258,14 +260,15 @@ holds that node, as for the first of a key written twice in raw YAML
 is reported unresolved, saying so.
 
 A same-document `#/$defs/...` pointer is read by a rule of its own, in an order no declaration
-changes: the `$defs` of the schema writing the `$ref` where that schema declares an `$id`, else the
-position the pointer names from the document's root, raw YAML included, so a root `$defs` answers
-though the OpenAPI Object does not define the key ([`unknown-keys`](#unknown-keys) still reports it)
-and before any schema's own ([`root-defs`](../parser-library.md#root-defs)), else the definitions of
-the nearest schema of the model above it holding the path, where raw YAML answers too. Raw YAML
-holds no schema of the model, so a schema under an extension answers no such pointer from its own
-`$defs`, as OAS 3.1 reads a schema with no `$id`: the document is its base, and its root holds
-none.
+changes: the `$defs` of the schema writing the `$ref` where an `$id` makes that schema a resource of
+its own, as its own `$id` does, or one between it and the outermost schema holding it that gives it
+another base, else the position the pointer names from the document's root, raw YAML included, so a
+root `$defs` answers though the OpenAPI Object does not define the key
+([`unknown-keys`](#unknown-keys) still reports it) and before any schema's own
+([`root-defs`](../parser-library.md#root-defs)), else the definitions of the nearest schema of the
+model above it holding the path, where raw YAML answers too. Raw YAML holds no schema of the model,
+so a schema under an extension answers no such pointer from its own `$defs`, as OAS 3.1 reads a
+schema with no `$id`: the document is its base, and its root holds none.
 
 Binding is held to one work budget, reported as an `openapi/budget-exceeded` error once it runs
 out, the `$ref`s past it left unresolved. A `<<` merge chain deeper than the 64 levels a mapping's
@@ -1430,9 +1433,10 @@ identifies every type by a synthetic ID derived from its source pointer rather t
 and describes one API surface rather than a resource graph, so it has no dialect axis and none is
 coming: each is kept verbatim under `openapi:<keyword>` (`out_of_scope`), with an info
 `openapi/degraded-construct` at it, and `$id` is explicitly *not* honoured as a base URI for
-reference resolution: it counts only as the boundary of a schema resource, which makes a schema's
-own `$defs` answer a `#/$defs/...` pointer it writes ([`references`](#references)) and stops a
-`$dynamicRef` expanding across it ([`dynamic-ref`](#dynamic-ref)). A document's `jsonSchemaDialect`,
+reference resolution: a `$ref` under one reads against the document. It is read only for where a
+schema resource begins, which decides whether a schema's own `$defs` answer a `#/$defs/...` pointer
+it writes ([`references`](#references)), and stops a `$dynamicRef` expanding across it
+([`dynamic-ref`](#dynamic-ref)). A document's `jsonSchemaDialect`,
 the default `$schema` of its schemas, is kept on the Document the same way, every schema read in the
 OpenAPI dialect whatever it names. `$comment` is dropped outright — 2020-12 §8.3 forbids presenting
 it to end users, so no emitter may see it. `$dynamicAnchor` is consumed as a reference target rather

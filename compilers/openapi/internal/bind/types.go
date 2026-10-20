@@ -114,8 +114,8 @@ const (
 	NoDefinition
 	// OwnDefinition is a "#/$defs/..." pointer the $defs rule finds nothing
 	// for, which the schema writing it defines: its own definitions answer
-	// only where it declares an $id, as OAS 3.1 reads one with none against
-	// the document.
+	// only where an $id makes it a resource of its own (definitions.ownResource),
+	// as OAS 3.1 reads one with none against the document.
 	OwnDefinition
 	// RawDefinition is a "#/$defs/..." pointer the $defs rule finds nothing
 	// for, which raw YAML above it defines: raw YAML holds no schema of the
@@ -243,8 +243,8 @@ func (h Hop) Why() string {
 			"holds one by that name"
 	case OwnDefinition:
 		return "the schema writing it defines that name, but a schema's own definitions answer a " +
-			"\"#/$defs/...\" pointer only where it declares an $id, and neither the document's root nor a " +
-			"schema of the model above it holds one"
+			"\"#/$defs/...\" pointer only where an $id makes it a resource of its own, and neither the " +
+			"document's root nor a schema of the model above it holds one"
 	case RawDefinition:
 		return "raw YAML above it, such as an extension's value, defines that name, but raw YAML holds no " +
 			"schema of the model whose definitions answer it, and neither the document's root nor a schema of " +

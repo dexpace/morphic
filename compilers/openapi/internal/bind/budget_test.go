@@ -317,8 +317,8 @@ func TestSpellings(t *testing.T) {
 		"no definition answers it: neither the document's root nor a schema of the model above it holds one " +
 			"by that name": {Reason: bind.NoDefinition},
 		"the schema writing it defines that name, but a schema's own definitions answer a \"#/$defs/...\" " +
-			"pointer only where it declares an $id, and neither the document's root nor a schema of the model " +
-			"above it holds one": {Reason: bind.OwnDefinition},
+			"pointer only where an $id makes it a resource of its own, and neither the document's root nor a " +
+			"schema of the model above it holds one": {Reason: bind.OwnDefinition},
 		"raw YAML above it, such as an extension's value, defines that name, but raw YAML holds no schema of " +
 			"the model whose definitions answer it, and neither the document's root nor a schema of the model " +
 			"above it holds one": {Reason: bind.RawDefinition},

@@ -124,7 +124,7 @@ components:
 ### `mapping-unresolved`
 
 The library never reads a discriminator's mapping values: neither resolution nor validation reports
-a value that names nothing. A value resolved as a `$ref` to it would be recurses like any schema
+a value that names nothing. Resolved as a `$ref` to it would be, a value recurses like any schema
 chain: one value into a loop of `$ref`s returns `circular reference detected`, and a second into
 the same loop overflows the stack, as a second reference from outside does in
 [`schema-cycle-overflow`](#schema-cycle-overflow). So the compiler reads each value itself, as a
@@ -203,8 +203,8 @@ is unknown.
 The schema spelling the reference is the exception in the resolver when it has no `$id` and holds
 an `X` in its own `$defs`. Resolved first, it reads the root's `X`. Once a chain has reached it, as
 `C` does below, it reads its own, so the answer turns on what was resolved before. The compiler
-reads the root's in every order, which OAS 3.1.1 gives a reference in a schema no parent of which
-holds an `$id`: it is resolved against the referring document's base URI.
+reads the root's in every order, as OAS 3.1.1 reads a reference in a schema with no `$id` at or
+above it: against the referring document's base URI.
 
 ```yaml
 $defs:
