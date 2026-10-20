@@ -2138,10 +2138,11 @@ throughout this document.
     every `PrimKind` `ir` declares, read through `internal/decls`; a user row replaces the built-in
     row under its key whole; an encoding with no row falls back to its primitive's and is reported
     once (§2.6).
-18. **T-18 · Placement** — adding a type no operation reaches, an operation in a new group, or
-    declarations past a unit's size limit moves no existing declaration to another unit; under
-    `SplitByGroup` the units' imports form no cycle; and every partition error and warning of §4.17
-    has a fixture that draws it.
+18. **T-18 · Placement** — adding a type no operation reaches, an operation that reaches no existing
+    type, or declarations past a unit's size limit moves no existing declaration to another unit,
+    while an operation in another group moves to the shared unit exactly the types it makes a second
+    group reach; under `SplitByGroup` the units' imports form no cycle; and every partition error and
+    warning of §4.17 has a fixture that draws it.
 19. **T-19 · Reserved scopes** — a fixture naming its properties, parameters, path parameters and
     enum members after every name each scope of §4.12 reserves, after characters alone and after
     names that begin with a digit, generates code that compiles on every target, with every
