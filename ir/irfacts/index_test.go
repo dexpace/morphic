@@ -2,8 +2,10 @@ package irfacts_test
 
 import (
 	"fmt"
+	"math"
 	"math/rand/v2"
 	"runtime"
+	"runtime/debug"
 	"slices"
 	"sync"
 	"testing"
@@ -252,7 +254,29 @@ func factsChain(n int, mutate func(i int, m *ir.Model)) []ir.TypeDef {
 // return how many came out true.
 type factsWorkShape struct {
 	doc func(n int) *ir.Document
-	ask func(f *irfacts.Index, n int) int
+	ask func(f *irfacts.Index, ids factsIDs, n int) int
+}
+
+// factsIDs are the IDs a work shape's questions name at one size, made before
+// the questions are counted so that formatting them is not: under the race
+// detector sync.Pool drops a share of what it is handed, so fmt allocates a
+// random amount.
+type factsIDs struct {
+	chain []ir.TypeID // factsChainID of 0 to n
+	bases []ir.TypeID // factsBaseID of 0 to n-1
+	props []ir.PropID // factsPropID of 0 to n
+}
+
+// newFactsIDs makes the IDs of size n.
+func newFactsIDs(n int) factsIDs {
+	ids := factsIDs{chain: make([]ir.TypeID, n+1), bases: make([]ir.TypeID, n), props: make([]ir.PropID, n+1)}
+	for i := range n + 1 {
+		ids.chain[i], ids.props[i] = factsChainID(i), factsPropID(i)
+		if i < n {
+			ids.bases[i] = factsBaseID(i)
+		}
+	}
+	return ids
 }
 
 // factsWorkShapes are the documents whose subtype, exposure or usage questions
@@ -271,18 +295,18 @@ func factsWorkShapes() map[string]factsWorkShape {
 				}
 				return compDoc(defs...)
 			},
-			ask: func(f *irfacts.Index, n int) (yes int) {
+			ask: func(f *irfacts.Index, ids factsIDs, n int) (yes int) {
 				for k := range n {
-					yes += factsCount(f.IsSubtype(factsChainID(n), factsBaseID(k)))
+					yes += factsCount(f.IsSubtype(ids.chain[n], ids.bases[k]))
 				}
 				return yes
 			},
 		},
 		"each model of a chain routing to the next": {
 			doc: func(n int) *ir.Document { return compDoc(factsChain(n, nil)...) },
-			ask: func(f *irfacts.Index, n int) (yes int) {
+			ask: func(f *irfacts.Index, ids factsIDs, n int) (yes int) {
 				for i := range n {
-					yes += factsCount(f.IsSubtype(factsChainID(i+1), factsChainID(i)))
+					yes += factsCount(f.IsSubtype(ids.chain[i+1], ids.chain[i]))
 				}
 				return yes
 			},
@@ -303,9 +327,9 @@ func factsWorkShapes() map[string]factsWorkShape {
 					}
 				})...)
 			},
-			ask: func(f *irfacts.Index, n int) (yes int) {
+			ask: func(f *irfacts.Index, ids factsIDs, n int) (yes int) {
 				for i := 1; i <= n; i++ {
-					yes += factsCount(f.Exposes(factsChainID(i), factsPropID(0)))
+					yes += factsCount(f.Exposes(ids.chain[i], ids.props[0]))
 				}
 				return yes
 			},
@@ -314,9 +338,9 @@ func factsWorkShapes() map[string]factsWorkShape {
 			doc: func(n int) *ir.Document {
 				return compDoc(factsChain(n, func(i int, m *ir.Model) { m.Properties = []ir.Property{{ID: factsPropID(i)}} })...)
 			},
-			ask: func(f *irfacts.Index, n int) (yes int) {
+			ask: func(f *irfacts.Index, ids factsIDs, n int) (yes int) {
 				for i := range n {
-					yes += factsCount(f.Exposes(factsChainID(n), factsPropID(i)))
+					yes += factsCount(f.Exposes(ids.chain[n], ids.props[i]))
 				}
 				return yes
 			},
@@ -326,9 +350,9 @@ func factsWorkShapes() map[string]factsWorkShape {
 				defs := factsChain(n, func(_ int, m *ir.Model) { m.Discriminator = &ir.Discriminator{PropertyName: "k"} })
 				return useDoc(ir.Operation{Responses: []ir.Response{{Payload: useBody("application/json", factsChainID(0))}}}, defs...)
 			},
-			ask: func(f *irfacts.Index, n int) (yes int) {
+			ask: func(f *irfacts.Index, ids factsIDs, n int) (yes int) {
 				for i := 0; i <= n; i++ {
-					yes += factsCount(f.Usage(factsChainID(i)) == irfacts.UsageOutput)
+					yes += factsCount(f.Usage(ids.chain[i]) == irfacts.UsageOutput)
 				}
 				return yes - 1
 			},
@@ -338,9 +362,9 @@ func factsWorkShapes() map[string]factsWorkShape {
 
 // factsAskTopOfChain asks whether each model of a chain of n below its top is
 // a subtype of the top.
-func factsAskTopOfChain(f *irfacts.Index, n int) (yes int) {
+func factsAskTopOfChain(f *irfacts.Index, ids factsIDs, n int) (yes int) {
 	for i := 1; i <= n; i++ {
-		yes += factsCount(f.IsSubtype(factsChainID(i), factsChainID(0)))
+		yes += factsCount(f.IsSubtype(ids.chain[i], ids.chain[0]))
 	}
 	return yes
 }
@@ -375,11 +399,9 @@ func TestIndex_WorkGrowsLinearly(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			var allocs, bytes [3]float64
 			for k, n := range []int{400, 800, 1600} {
-				doc := shape.doc(n)
+				doc, ids := shape.doc(n), newFactsIDs(n)
 				var yes int
-				ask := func() { yes = shape.ask(irfacts.New(doc), n) }
-				allocs[k] = testing.AllocsPerRun(1, ask)
-				bytes[k] = factsBytes(ask)
+				allocs[k], bytes[k] = factsWork(func() { yes = shape.ask(irfacts.New(doc), ids, n) })
 				require.Contains(t, []int{0, n}, yes, "the questions must all have one answer, or the sizes compare different work")
 			}
 			assert.LessOrEqual(t, allocs[2]-allocs[1], 2.5*(allocs[1]-allocs[0]),
@@ -390,16 +412,23 @@ func TestIndex_WorkGrowsLinearly(t *testing.T) {
 	}
 }
 
-// factsBytes returns how many bytes one call of f allocates, on one processor
-// as testing.AllocsPerRun counts, after a call that warms it up.
-func factsBytes(f func()) float64 {
+// factsWork returns the fewest allocations and bytes a call of f made in three
+// calls after one that warms it up, on one processor and with the collector
+// off, so that neither a collection nor a scheduler's choice is counted.
+func factsWork(f func()) (allocs, bytes float64) {
 	defer runtime.GOMAXPROCS(runtime.GOMAXPROCS(1))
+	defer debug.SetGCPercent(debug.SetGCPercent(-1))
 	f()
-	var before, after runtime.MemStats
-	runtime.ReadMemStats(&before)
-	f()
-	runtime.ReadMemStats(&after)
-	return float64(after.TotalAlloc - before.TotalAlloc)
+	allocs, bytes = math.Inf(1), math.Inf(1)
+	for range 3 {
+		var before, after runtime.MemStats
+		runtime.ReadMemStats(&before)
+		f()
+		runtime.ReadMemStats(&after)
+		allocs = min(allocs, float64(after.Mallocs-before.Mallocs))
+		bytes = min(bytes, float64(after.TotalAlloc-before.TotalAlloc))
+	}
+	return allocs, bytes
 }
 
 func TestIndex_AForestNeedsNoWalk(t *testing.T) {

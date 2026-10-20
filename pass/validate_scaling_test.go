@@ -2,7 +2,9 @@ package pass_test
 
 import (
 	"fmt"
+	"math"
 	"runtime"
+	"runtime/debug"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -37,8 +39,7 @@ func chainedDiscriminators(n int) *ir.Document {
 func validateWork(t *testing.T, n int) (allocs, bytes float64, rejected int) {
 	t.Helper()
 	doc := chainedDiscriminators(n)
-	allocs = testing.AllocsPerRun(2, func() { _ = pass.Validate(doc) })
-	bytes = validateBytes(doc)
+	allocs, bytes = validateCost(doc)
 	for _, d := range pass.Validate(doc) {
 		if d.Code == "pass/discriminator-missing-variant" {
 			rejected++
@@ -113,16 +114,25 @@ func exposureShapes() map[string]func(n int) *ir.Document {
 	}
 }
 
-// validateBytes returns how many bytes one Validate of doc allocates, on one
-// processor as testing.AllocsPerRun counts, after a run that warms it up.
-func validateBytes(doc *ir.Document) float64 {
+// validateCost returns the fewest allocations and bytes a Validate of doc made
+// in three runs after one that warms it up, on one processor and with the
+// collector off. The fewest, because under the race detector sync.Pool drops a
+// share of what it is handed, so the fmt calls Validate makes allocate a random
+// amount more than they must, and never less.
+func validateCost(doc *ir.Document) (allocs, bytes float64) {
 	defer runtime.GOMAXPROCS(runtime.GOMAXPROCS(1))
+	defer debug.SetGCPercent(debug.SetGCPercent(-1))
 	_ = pass.Validate(doc)
-	var before, after runtime.MemStats
-	runtime.ReadMemStats(&before)
-	_ = pass.Validate(doc)
-	runtime.ReadMemStats(&after)
-	return float64(after.TotalAlloc - before.TotalAlloc)
+	allocs, bytes = math.Inf(1), math.Inf(1)
+	for range 3 {
+		var before, after runtime.MemStats
+		runtime.ReadMemStats(&before)
+		_ = pass.Validate(doc)
+		runtime.ReadMemStats(&after)
+		allocs = min(allocs, float64(after.Mallocs-before.Mallocs))
+		bytes = min(bytes, float64(after.TotalAlloc-before.TotalAlloc))
+	}
+	return allocs, bytes
 }
 
 // TestValidate_ExposedPropertiesCostLinearBytes holds the bytes validating each
@@ -141,7 +151,7 @@ func TestValidate_ExposedPropertiesCostLinearBytes(t *testing.T) {
 					require.NotContains(t, []string{"pass/discriminator-unknown-property", "ir/encoding-key-unknown-property"}, d.Code,
 						"every question must be answered yes, or the sizes compare different work")
 				}
-				bytes[k] = validateBytes(doc)
+				_, bytes[k] = validateCost(doc)
 			}
 			assert.LessOrEqual(t, bytes[2]-bytes[1], 2.5*(bytes[1]-bytes[0]),
 				"bytes at 500, 1000, 2000: %v", bytes)
