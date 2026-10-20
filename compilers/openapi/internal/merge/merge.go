@@ -421,7 +421,8 @@ type redeclVerdict int
 
 const (
 	// verdictSilent is a pair the merge does not guess about: composites of one
-	// kind, an unresolvable target or the top type.
+	// kind, an unresolvable target, the top type, or an Enum against a type of
+	// the same primitive kind.
 	verdictSilent redeclVerdict = iota
 	// verdictConflict is a pair reported as incompatible: a scalar against a
 	// structure, two structure kinds, disjoint primitive kinds, or an Enum
@@ -476,9 +477,10 @@ func (g *Merger) typesConflict(a, b ir.TypeRef) redeclVerdict {
 	}
 }
 
-// conflictIf maps a provable contradiction to verdictConflict.
-func conflictIf(contradiction bool) redeclVerdict {
-	if contradiction {
+// conflictIf maps a pair reported as incompatible to verdictConflict, and any
+// other pair to verdictSilent.
+func conflictIf(incompatible bool) redeclVerdict {
+	if incompatible {
 		return verdictConflict
 	}
 	return verdictSilent
