@@ -499,7 +499,8 @@ func TestDocuments_ADriftedReferenceCanLandOnAnyReferenceOrSearchedAncestor(t *t
 
 	assert.ElementsMatch(t, []*yaml.Node{node("A"), node("B")}, r.documents().members,
 		"A is searched without being a reference, B is a reference, m and C are neither")
-	assert.Same(t, r.documents(), r.documents(), "every drifted empty fragment shares one set")
+	first := r.documents()
+	assert.Same(t, first, r.documents(), "every drifted empty fragment shares one set")
 }
 
 // TestParentScopes_ChargesEveryOwnerItReads pins the union of a node's parents'

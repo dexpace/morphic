@@ -32,6 +32,11 @@ var suppressionDirectives = []struct {
 	// staticcheck's own directive. Its unused analyzer honours it for U1000, and
 	// golangci-lint did not for SA1012 (v2.14.0), so it may suppress or stand inert.
 	{"lint:ignore", regexp.MustCompile(`^//\s*lint:(?:file-)?ignore`)},
+	// exhaustive's own: an ignore on a switch, a map literal or an enum's
+	// declaration takes it out of the check. It wants "//exhaustive:" with no
+	// space (v0.13.0); the spellings it ignores are refused too. Its enforce
+	// directive only adds a check, so it stands.
+	{"exhaustive:ignore", regexp.MustCompile(`(?i)^(?://|/\*)\s*exhaustive:ignore`)},
 }
 
 // suppressionOf names the directive a comment's text spells, or false when it
@@ -87,6 +92,10 @@ func TestSuppressionViolations_PlantedSpellingsAreCaught(t *testing.T) {
 		{"staticcheck ignore", "//lint:ignore SA1012 reason", "lint:ignore"},
 		{"staticcheck ignore of unused", "//lint:ignore U1000 reason", "lint:ignore"},
 		{"staticcheck file-ignore", "//lint:file-ignore SA1012 reason", "lint:ignore"},
+		{"exhaustive ignore", "//exhaustive:ignore reason", "exhaustive:ignore"},
+		{"exhaustive ignore of a required default", "//exhaustive:ignore-default-case-required", "exhaustive:ignore"},
+		{"exhaustive ignore after a space", "// exhaustive:ignore", "exhaustive:ignore"},
+		{"exhaustive ignore in a block comment", "/*exhaustive:ignore*/", "exhaustive:ignore"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -137,7 +146,8 @@ func TestSuppressionViolations_PlantedPlacementsAreCaught(t *testing.T) {
 
 // TestSuppressionViolations_ProseAndStringsAreNotDirectives plants what must
 // pass: sentences that mention a directive mid-comment, words that only begin
-// like one, string literals that spell one, and the directives the go tool owns.
+// like one, string literals that spell one, the directives the go tool owns,
+// and exhaustive's enforce, which adds a check rather than removing one.
 func TestSuppressionViolations_ProseAndStringsAreNotDirectives(t *testing.T) {
 	t.Parallel()
 	const src = "package p\n\n" +
@@ -149,6 +159,7 @@ func TestSuppressionViolations_ProseAndStringsAreNotDirectives(t *testing.T) {
 		"const quoted = \"//nolint:errcheck\"\n" +
 		"const raw = `// revive:disable`\n" +
 		"//go:noinline\n" +
+		"//exhaustive:enforce\n" +
 		"func F() {}\n"
 	root := t.TempDir()
 	writeDocFile(t, filepath.Join(root, "p.go"), src)
