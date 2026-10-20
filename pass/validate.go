@@ -7,6 +7,7 @@ import (
 	"slices"
 
 	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/ir/irfacts"
 )
 
 // Validate checks a Document for referential-integrity violations and returns
@@ -25,8 +26,8 @@ func Validate(doc *ir.Document) []ir.Diagnostic {
 	// leaves to it exactly what it reports.
 	decls, declTruncated := ir.DeclaredIDs(doc)
 	// One index for the run, so each discriminator route is a lookup in a
-	// hierarchy walked once, not a walk of its own (#850).
-	facts := ir.NewFacts(doc)
+	// hierarchy indexed once, not a walk of its own (#850).
+	facts := irfacts.New(doc)
 	diags := make([]ir.Diagnostic, 0, 8)
 	diags = append(diags, checkNilTypes(doc)...)
 	diags = append(diags, checkDanglingRefs(doc, decls, declTruncated)...)
@@ -359,8 +360,8 @@ func checkNilTypes(doc *ir.Document) []ir.Diagnostic {
 }
 
 // checkDiscriminators reports discriminator mappings whose target either does
-// not exist or is not a legal variant/subtype. facts is ir.NewFacts(doc).
-func checkDiscriminators(doc *ir.Document, facts *ir.Facts) []ir.Diagnostic {
+// not exist or is not a legal variant/subtype. facts indexes doc.
+func checkDiscriminators(doc *ir.Document, facts *irfacts.Index) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for _, id := range liveTypeIDs(doc) {
 		switch t := doc.Types[id].(type) {
@@ -394,9 +395,9 @@ func checkUnionDiscriminator(doc *ir.Document, u *ir.Union) []ir.Diagnostic {
 
 // checkModelDiscriminator requires each mapping target to be a declared subtype
 // of the discriminated base model, and the tag property to be one this model
-// exposes. Every model asks the one facts, which walks the hierarchy above a
-// target once however many bases map to it.
-func checkModelDiscriminator(doc *ir.Document, facts *ir.Facts, m *ir.Model) []ir.Diagnostic {
+// exposes. Every model asks the one index, so no route walks the hierarchy
+// above its target again.
+func checkModelDiscriminator(doc *ir.Document, facts *irfacts.Index, m *ir.Model) []ir.Diagnostic {
 	if m.Discriminator == nil {
 		return nil
 	}

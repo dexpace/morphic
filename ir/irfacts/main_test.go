@@ -1,4 +1,4 @@
-package ir_test
+package irfacts_test
 
 import (
 	"testing"
@@ -7,7 +7,7 @@ import (
 )
 
 // TestMain runs this package's tests through leakcheck.Main.
-// TestFacts_EveryMethodIsSafeForConcurrentUse, in facts_test.go, starts
+// TestIndex_EveryMethodIsSafeForConcurrentUse, in index_test.go, starts
 // goroutines with sync.WaitGroup.Go.
 func TestMain(m *testing.M) {
 	leakcheck.Main(m)

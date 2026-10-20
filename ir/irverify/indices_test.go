@@ -181,20 +181,6 @@ var integerFields = map[string]string{
 	"refKey.n":     "slice length that identifies a reference the walk has met, not a position",
 	"descentRef.n": "slice length that identifies a reference a traversal is inside, not a position",
 
-	// Facts and the component search behind it. They index vertices of a graph the
-	// index builds for itself, or count work; none of them is decoded from, or
-	// written to, a document.
-	"Facts.steps":  "count of types the supertype walks expanded, a work counter",
-	"Facts.usage":  "usage bits of each type (UsageFlags), a bitset and not a position",
-	"tarjan.adj":   "edges of the containment graph as positions in its own vertex list",
-	"tarjan.order": "discovery number of each vertex of the search",
-	"tarjan.low":   "lowest discovery number a vertex's subtree reaches",
-	"tarjan.stack": "vertices of the search's open components",
-	"tarjan.found": "count of vertices the search has discovered",
-	"tarjan.out":   "vertices of each component the search has closed",
-	"frame.vertex": "vertex on the search's depth-first path",
-	"frame.next":   "position of the next edge to follow from that vertex",
-
 	"Property.WireID":       "protobuf field number / thrift id, not a position",
 	"Variant.WireID":        "protobuf oneof field number or ordinal, not a position",
 	"StatusRange.From":      "HTTP status code",

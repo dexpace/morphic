@@ -1,5 +1,7 @@
 package ir
 
+import "slices"
+
 // Supertypes returns the immediate supertypes of the model id names: its Base,
 // then each Implements entry, each read through the alias scalars standing in
 // for it, since a $ref carrying siblings composes the branch's own alias node,
@@ -34,18 +36,29 @@ func appendSupertype(dst []TypeID, doc *Document, target TypeID) []TypeID {
 	return dst
 }
 
-// aliasTarget follows a chain of alias scalars, each a Scalar whose Base names
-// another type, to the type it stands for, returning id unchanged when it names
-// no alias. The IR permits a cyclic chain, so a visited set ends the walk.
+// AliasBase returns the type the alias scalar id names, and false when id names
+// no alias scalar: no Scalar, a typed nil, or one with no Base. An alias stands
+// for its Base, and a chain of them for the type at its end (ir-design §4.2).
+func AliasBase(types TypeRegistry, id TypeID) (TypeID, bool) {
+	s, ok := types[id].(*Scalar)
+	if !ok || s == nil || s.Base == nil {
+		return "", false
+	}
+	return s.Base.Target, true
+}
+
+// aliasTarget follows a chain of alias scalars to the type it stands for,
+// returning id unchanged when it names no alias. The IR permits a cyclic chain,
+// so a visited set ends the walk, at the first type it meets twice.
 func aliasTarget(doc *Document, id TypeID) TypeID {
 	seen := make(map[TypeID]bool)
 	for {
-		s, ok := doc.Types[id].(*Scalar)
-		if !ok || s == nil || s.Base == nil || seen[id] {
+		base, alias := AliasBase(doc.Types, id)
+		if !alias || seen[id] {
 			return id
 		}
 		seen[id] = true
-		id = s.Base.Target
+		id = base
 	}
 }
 
@@ -55,11 +68,25 @@ func aliasTarget(doc *Document, id TypeID) TypeID {
 // not read through an alias (#844). A visited set ends the walk on a cyclic
 // hierarchy.
 //
-// It builds a [Facts] for the one question, so a caller with several asks one
-// Facts instead: the hierarchy above a target is then walked once, not per
-// question (#850).
+// It is the relation's definition, walked afresh for one question. A caller
+// asking many of one document asks irfacts.Index, which is held to it.
 func IsSubtype(doc *Document, target, base TypeID) bool {
-	return NewFacts(doc).IsSubtype(target, base)
+	seen := map[TypeID]bool{}
+	queue := []TypeID{target}
+	for len(queue) > 0 {
+		id := queue[len(queue)-1]
+		queue = queue[:len(queue)-1]
+		if seen[id] {
+			continue
+		}
+		seen[id] = true
+		supers := Supertypes(doc, id)
+		if slices.Contains(supers, base) {
+			return true
+		}
+		queue = append(queue, supers...)
+	}
+	return false
 }
 
 // ExposedProps returns the property IDs the type root names exposes: its own

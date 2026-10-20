@@ -46,16 +46,17 @@ func validateAllocations(t *testing.T, n int) (allocs float64, rejected int) {
 
 // TestValidate_DiscriminatorRoutesCostLinearAllocations holds the work of
 // validating #850's document to linear growth, counted in allocations rather
-// than timed. A walk of the chain per route allocates about four times as much
-// at double the size; one walk per target, however many bases route to it,
-// allocates about twice as much. It does not run in parallel, since the count
-// is process-wide.
+// than timed, at three sizes: the growth from 2n to 4n is at most 2.5 times the
+// growth from n to 2n, so fixed costs cancel, linear work gives 2 and a walk of
+// the chain per route 4. It does not run in parallel, since the count is
+// process-wide.
 func TestValidate_DiscriminatorRoutesCostLinearAllocations(t *testing.T) {
-	small, rejectedSmall := validateAllocations(t, 1000)
-	large, rejectedLarge := validateAllocations(t, 2000)
-
-	require.Equal(t, 1000, rejectedSmall, "every base's route must reach the subtype question, or the count compares nothing")
-	require.Equal(t, 2000, rejectedLarge)
-	assert.LessOrEqual(t, large, 2.5*small,
-		"doubling the document must roughly double the allocations: %.0f at 1000, %.0f at 2000", small, large)
+	var allocs [3]float64
+	for k, n := range []int{500, 1000, 2000} {
+		var rejected int
+		allocs[k], rejected = validateAllocations(t, n)
+		require.Equal(t, n, rejected, "every base's route must reach the subtype question, or the count compares nothing")
+	}
+	assert.LessOrEqual(t, allocs[2]-allocs[1], 2.5*(allocs[1]-allocs[0]),
+		"allocations at 500, 1000, 2000: %v", allocs)
 }

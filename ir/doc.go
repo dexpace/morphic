@@ -9,8 +9,8 @@
 // It also owns the shared traversals and helpers: [WalkValues], the bounded,
 // cycle-guarded, deterministically ordered reflection walk;
 // [DocumentRegistries], read off Document's shape; the typed
-// [ForEachOperation] and [TypeEdges]; [Supertypes], [IsSubtype] and
-// [ExposedProps] for composition; [AsMap]; and [Facts].
+// [ForEachOperation] and [TypeEdges]; [AliasBase], [Supertypes], [IsSubtype]
+// and [ExposedProps] for composition; and [AsMap].
 //
 // It imports only the standard library and does no I/O; its plain-data types
 // are safe for concurrent reads.

@@ -145,19 +145,19 @@ func (d besideUnionDiscriminator) rehome(m *ir.Model, mt *ir.MapT) []ir.Diagnost
 }
 
 // routesToSubtypes reports whether every type m's discriminator routes to is a
-// subtype of m: each mapping target, the default, and each of named. Every
-// route is asked of one ir.Facts, so a hierarchy above a target is walked once
-// however many of m's routes share it (GitHub #850). The index is built per
-// settlement, since settlements still rewrite the registry between calls, so a
-// hierarchy shared by several settlements is walked once for each (GitHub #1008).
+// subtype of m: each mapping target, the default, and each of named. Each is
+// one ir.IsSubtype walk rather than a question of an ir.Facts, which indexes
+// the whole registry: a settlement asks a few questions, of a registry the
+// settlements before it may have rewritten. Walks are not shared between
+// settlements (GitHub #1008).
 func routesToSubtypes(reg ir.TypeRegistry, m *ir.Model, named []ir.TypeID) bool {
-	facts := ir.NewFacts(&ir.Document{Types: reg})
+	doc := &ir.Document{Types: reg}
 	routes := slices.AppendSeq(slices.Clone(named), maps.Values(m.Discriminator.Mapping))
 	if m.Discriminator.Default != "" {
 		routes = append(routes, m.Discriminator.Default)
 	}
 	for _, target := range routes {
-		if !facts.IsSubtype(target, m.ID) {
+		if !ir.IsSubtype(doc, target, m.ID) {
 			return false
 		}
 	}
