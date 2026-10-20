@@ -2,6 +2,7 @@ package typed_test
 
 import (
 	"encoding/json/jsontext"
+	"fmt"
 	"runtime"
 	"strings"
 	"testing"
@@ -11,6 +12,7 @@ import (
 	"github.com/speakeasy-api/openapi/walk"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
@@ -182,6 +184,31 @@ func TestPointerOf_CostsItsLength(t *testing.T) {
 	shortBytes := allocated(func() { _ = typed.PointerOf(short) })
 	longBytes := allocated(func() { _ = typed.PointerOf(long) })
 	assert.Less(t, longBytes, 3*shortBytes, "twice the depth, about twice the bytes")
+}
+
+// TestBuild_CostsLinearInItsLandings pins that the landings of one wide mapping
+// read their paths through one view: twice the landings allocate about twice
+// the bytes, where a view built for each landing expanded the mapping again
+// each time and cost four times. It is not parallel, as the count is the
+// process's.
+func TestBuild_CostsLinearInItsLandings(t *testing.T) {
+	cost := func(n int) uint64 {
+		var b strings.Builder
+		b.WriteString("openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\ncomponents:\n  schemas:\n")
+		for i := range n {
+			fmt.Fprintf(&b, "    S%d: {$ref: '#/x-lib/T%d'}\n", i, i)
+		}
+		b.WriteString("x-lib:\n")
+		for i := range n {
+			fmt.Fprintf(&b, "  T%d: {type: string}\n", i)
+		}
+		var root yaml.Node
+		require.NoError(t, yaml.Unmarshal([]byte(b.String()), &root))
+		table := bind.Bind(&root, bind.Config{Self: "spec.yaml"})
+		require.Len(t, table.Landings(), n)
+		return allocated(func() { typed.NewBuilder(table).Build(t.Context()) })
+	}
+	assert.Less(t, cost(2_000), 3*cost(1_000), "twice the landings, about twice the bytes")
 }
 
 // allocated is the bytes ten runs of f allocate on the heap.

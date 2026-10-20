@@ -109,6 +109,9 @@ func (b *Bindings) Mapping(d *oas3.Discriminator, value string) (bind.Mapping, b
 // parser's model was read, it builds a schema for each landing.
 type Builder struct {
 	b *Bindings
+	// view reads every landing's path, so a mapping many landings sit in is
+	// expanded once rather than once a landing.
+	view *nodeview.View
 	// decode builds a schema from YAML: the parser's own decoder, which a test
 	// replaces to reach its failure.
 	decode func(ctx context.Context, n *yaml.Node, js *schemaRef) ([]error, error)
@@ -116,7 +119,7 @@ type Builder struct {
 
 // NewBuilder returns a Builder over table, knowing no schema yet.
 func NewBuilder(table *bind.Table) *Builder {
-	return &Builder{decode: decodeSchema, b: &Bindings{table: table, at: map[*schemaRef]bind.Position{},
+	return &Builder{decode: decodeSchema, view: nodeview.New(), b: &Bindings{table: table, at: map[*schemaRef]bind.Position{},
 		discs: map[*oas3.Discriminator]bind.Position{}, held: map[bind.Position]*schemaRef{}}}
 }
 
@@ -232,7 +235,7 @@ func (bd *Builder) build(ctx context.Context, l bind.Landing) Built {
 		return built
 	}
 	doc := bd.b.table.Document(l.At.Doc)
-	path, complete := nodeview.New().DocumentPath(doc.Root, l.At.Pointer)
+	path, complete := bd.view.DocumentPath(doc.Root, l.At.Pointer)
 	if !complete {
 		built.Err = errNothingThere
 		return built
