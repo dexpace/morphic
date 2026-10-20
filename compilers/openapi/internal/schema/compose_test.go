@@ -3925,9 +3925,10 @@ func TestAllOf_NestedWrapperRequiredAttaches(t *testing.T) {
 	})
 }
 
-// TestAllOf_NestedWrapperBaseSelection pins that §4.3's classification runs
-// over the flattened list: a discriminated ref inside a wrapper is the Base,
-// whichever nested order it is written in, and still answers from its mapping.
+// TestAllOf_NestedWrapperBaseSelection pins that the classification of
+// docs/compilers/openapi.md#allof-classification runs over the flattened list:
+// a discriminated ref inside a wrapper is the Base, whichever nested order it
+// is written in, and still answers from its mapping.
 func TestAllOf_NestedWrapperBaseSelection(t *testing.T) {
 	t.Parallel()
 	const pet = `    Pet:

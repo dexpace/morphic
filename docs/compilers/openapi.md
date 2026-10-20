@@ -684,18 +684,22 @@ own `Properties`, each property keeping its own provenance
 [`allof-redeclared-property`](#allof-redeclared-property)). So every branch stays reconstructible
 from the composition.
 
-`allOf` is associative, so an inline entry writing a non-empty `allOf` and nothing else the merge
-does not consume ([`allof-inline-residue`](#allof-inline-residue)) is flattened into the enclosing
-list before the entries are classified: its own entries take its place, in source order and depth
-first, each keeping the pointer it was written at, and its `properties` and `required` merge after
-them, as a composing schema's own merge after its entries'. So `allOf: [{allOf: [A, B]}]` classifies
-as `allOf: [A, B]`, and nothing is reported. An entry nested past `maxAllOfFlattenDepth` flattened
-entries is not flattened, and is kept as residue.
+`allOf` is associative, so an inline entry writing a non-empty `allOf` is flattened into the
+enclosing list before the entries are classified: its own entries take its place, in source order and
+depth first, each keeping the pointer it was written at, and its `properties` and `required` merge
+after them, as a composing schema's own merge after its entries'. So `allOf: [{allOf: [A, B]}]`
+classifies as `allOf: [A, B]`, and nothing is reported. Whatever else the entry writes that the merge
+does not consume is kept beside the composition as residue
+([`allof-inline-residue`](#allof-inline-residue)), so `{description: d, allOf: [A, B]}` composes `A`
+and `B` and is also kept whole. An entry nested past `maxAllOfFlattenDepth` flattened entries is not
+flattened, is kept as residue, and is reported as nested past the flattening depth.
 
 - Cases: `allof-inheritance`, `allof-mixins`, `allof-inline-merge`, `allof-nested-inline`
 - Tests: `schema.TestAllOf_DiscriminatorHierarchy`, `schema.TestAllOf_SoleRefBecomesBase`,
   `schema.TestAllOf_NestedInlineWrapperFlattens`, `schema.TestAllOf_NestedWrapperBaseSelection`,
-  `schema.TestAllOfBranches_DepthCapKeepsWrapperVerbatim`
+  `schema.TestAllOfBranches_DepthCapKeepsWrapperVerbatim`,
+  `schema.TestAllOfBranches_DepthCapNamesWhatElseTheWrapperWrites`,
+  `schema.TestAllOf_NestedWrapperWithResidueKeptVerbatim`
 - Status: partly built: a `$ref` to a subtype of a discriminated base, which declares no
   discriminator itself, is composed as a `Mixin` rather than the `Base` (#986).
 
@@ -726,7 +730,8 @@ consume is kept verbatim in `Unmodeled["openapi:<path>"]` under `degraded_loweri
 to be reassembled from two places — keyed by its path from the composed schema (`allOf/1`, or
 `allOf/1/allOf/0` for an entry of a flattened one) so siblings cannot overwrite each other,
 and reported by an `openapi/degraded-construct` at the branch naming the keywords that made it
-residue. Which keywords those are is derived from the branch's own declared key set rather than from
+residue. A flattened entry's `allOf` is consumed ([`allof-classification`](#allof-classification)),
+so only its other keywords make it residue. Which keywords those are is derived from the branch's own declared key set rather than from
 a fixed list, so a keyword the dialect gains later is residue without anyone maintaining an
 enumeration. The key set is read through YAML aliases and merge keys, so a branch written
 `[*shared]` or `[{<<: *shared}]` derives the same residue as one written out. The diagnostic is an
