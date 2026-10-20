@@ -21,6 +21,8 @@ const equivalenceDefs = `    A: {type: object, properties: {a: {type: string}}}
 
 // composedView is a composed model with what the nested and flat spellings may
 // differ in projected away: pointers, provenance and the IDs of hoisted nodes.
+// Kept counts the model's Unmodeled entries: their keys and values differ by
+// spelling, but how many the composition kept must not.
 type composedView struct {
 	Base       string
 	Mixins     []string
@@ -28,6 +30,7 @@ type composedView struct {
 	Additional ir.AdditionalMode
 	DiscValue  string
 	Variants   []composedView
+	Kept       int
 }
 
 // propView is one property of a composedView.
@@ -69,7 +72,7 @@ func viewOf(doc *ir.Document, id ir.TypeID, depth int) composedView {
 
 // modelView projects a model's composition, properties and openness.
 func modelView(doc *ir.Document, m *ir.Model) composedView {
-	v := composedView{Additional: m.Additional, DiscValue: m.DiscriminatorValue}
+	v := composedView{Additional: m.Additional, DiscValue: m.DiscriminatorValue, Kept: len(m.Unmodeled)}
 	if m.Base != nil {
 		v.Base = string(m.Base.Target)
 	}
@@ -253,7 +256,8 @@ func TestAllOf_NestedLowersAsFlat(t *testing.T) {
 // TestAllOf_NestedLowersAsFlat_ReachesWhatItCompares pins that the projection
 // sees the distinctions the pairs rely on, so a pair that agrees does so for a
 // reason: a distributed union has variants, the discriminated subtype has its
-// tag, and a false branch closes the model.
+// tag, and a false branch closes the model. The residue and the false branch
+// are also kept, which only a positive Kept shows.
 func TestAllOf_NestedLowersAsFlat_ReachesWhatItCompares(t *testing.T) {
 	t.Parallel()
 	byName := map[string]string{}
@@ -267,6 +271,10 @@ func TestAllOf_NestedLowersAsFlat_ReachesWhatItCompares(t *testing.T) {
 
 	closed, _ := compileView(t, byName["a false branch"])
 	assert.Equal(t, ir.AdditionalClosed, closed.Additional)
+	assert.Positive(t, closed.Kept, "the false branch is kept beside closing the model")
+
+	residue, _ := compileView(t, byName["a residue description"])
+	assert.Positive(t, residue.Kept, "the residue is kept")
 
 	subtype, _ := compileView(t, byName["a discriminated base inside a wrapper"])
 	assert.Equal(t, "dog", subtype.DiscValue)
