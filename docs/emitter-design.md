@@ -644,17 +644,17 @@ walk (§11, §12).
 
 ### 4.4 Unions (the hardest axis)
 
-`LowerUnions` reads the plan's tag-mode classification and the target's capability. The tag modes
-are normative (`ir-design.md §4.4`), and they give four wire shapes, each a distinct serializer:
+`LowerUnions` reads the plan's tag-mode classification and the target's capability. The tag-mode
+matrix (each a distinct serializer) is normative (`ir-design.md §4.4`):
 
 - `WireTagged=false` → untagged; variant inferred by validation (JSON oneOf/anyOf).
   `Exclusive=true` = exactly-one; `false` = one-or-more (anyOf, open). An untagged union carries
   no `Discriminator`.
 - `WireTagged=true` + `Discriminator` → the tag travels in the payload, where the discriminator
-  locates it: an OpenAPI `discriminator`, GraphQL `__typename`, an Erlang tagged tuple. Two wire
-  shapes: the tag inline among the variant's own members (the property `PropertyName` names, or
-  the tuple element at `Index`), or, with `Discriminator.Envelope == "object"`, a `{kind, value}`
-  wrapper around them.
+  locates it: an OpenAPI `discriminator`, GraphQL `__typename`, an Erlang tagged tuple. It sits
+  inline among the variant's own members (the property `PropertyName` names, or the tuple element
+  at `Index`), or, with `Discriminator.Envelope == "object"`, in a `{kind, value}` wrapper around
+  them.
 - `WireTagged=true` + nil `Discriminator` → key-tagged: a single-key object keyed by the variant's
   wire name (Smithy unions, proto3-JSON oneof, GraphQL `@oneOf`).
 
