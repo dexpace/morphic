@@ -4122,6 +4122,22 @@ func TestAllOf_NestedEmptyAllOfKeptVerbatim(t *testing.T) {
 		"declaration order must not change the types")
 }
 
+// TestAllOf_EmptyAllOfBesideNonObjectTypeNamesBoth pins that a branch whose
+// empty allOf was not flattened lists allOf among the kept keywords on the
+// warning arm too: only a capped branch leaves it out. The source breaks the
+// schema's minItems, an error the load reports and parseFull tolerates.
+func TestAllOf_EmptyAllOfBesideNonObjectTypeNamesBoth(t *testing.T) {
+	t.Parallel()
+	doc, _ := parseFull(t, openapitest.ComponentSpec(nestedAB+`    M:
+      allOf:
+        - {type: string, allOf: []}
+        - {$ref: '#/components/schemas/A'}
+`))
+	msg := openapitest.DiagMessageAt(t, doc.Diagnostics, diag.DegradedConstruct,
+		ir.SeverityWarning, "/components/schemas/M/allOf/0")
+	assert.Contains(t, msg, "the branch (type, allOf) is kept verbatim")
+}
+
 // TestAllOf_NestedInlineBranchKeyedByPointer pins that an inline branch inside
 // a wrapper is kept under a key spelling its path, so it can collide with
 // neither a sibling nor a top-level branch of the same index.

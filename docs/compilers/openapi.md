@@ -751,7 +751,8 @@ a decision about the composed node instead, stated with the `false`-schema rule
   `schema.TestAllOf_UnpreservableBranchIsNotAnnounced`,
   `schema.TestAllOf_NestedInlineBranchKeyedByPointer`,
   `schema.TestAllOf_NestedWrapperWithResidueKeptVerbatim`,
-  `schema.TestAllOf_NestedEmptyAllOfKeptVerbatim`
+  `schema.TestAllOf_NestedEmptyAllOfKeptVerbatim`,
+  `schema.TestAllOf_EmptyAllOfBesideNonObjectTypeNamesBoth`
 - Status: partly built: an `allOf` of one `$ref` and an annotation-only branch keeps none of the
   branch's annotations typed (#660).
 
