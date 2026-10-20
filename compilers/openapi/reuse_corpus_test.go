@@ -5,11 +5,9 @@ package openapi_test // external test package — exercises only the public API
 
 import (
 	"encoding/json/v2"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -17,6 +15,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
+	"github.com/dexpace/morphic/internal/harness"
 )
 
 // TestReuse_MatchesAFreshParseAcrossTheCorpus sweeps every committed spec
@@ -80,21 +79,11 @@ func encodeDoc(t *testing.T, doc any) string {
 // corpusRoot is every committed spec directory, addressed relative to this file.
 const corpusRoot = "../../testdata"
 
-// corpusSpecs lists every committed spec under testdata, excluding golden
-// snapshots, in WalkDir's lexical order.
+// corpusSpecs lists every committed spec under testdata, as harness.SpecFiles
+// lists a directory.
 func corpusSpecs(t *testing.T) []string {
 	t.Helper()
-	var out []string
-	err := filepath.WalkDir(filepath.FromSlash(corpusRoot), func(p string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() || strings.HasSuffix(p, ".golden.json") {
-			return err
-		}
-		switch strings.ToLower(filepath.Ext(p)) {
-		case ".yaml", ".yml", ".json":
-			out = append(out, p)
-		}
-		return nil
-	})
+	out, err := harness.SpecFiles(corpusRoot)
 	require.NoError(t, err)
 	require.NotEmpty(t, out, "corpus sweep found no specs")
 	return out
