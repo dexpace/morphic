@@ -1349,6 +1349,13 @@ the runtime they target and the language's own rules.
   goal of the JVM target at M3: its surface is Kotlin's.
 - The generated build files record the Kotlin and `kotlinx.serialization` releases the SDK needs.
   The floor moves only with an options version (§2.5).
+- A discriminator's tag is the wire string the mapping names, a numeric-looking one included
+  (`"10016"`): a `KSerializer`, like Go's `UnmarshalJSONFrom`, compares it as a string and never
+  parses it as a number.
+- A merge-patch body (`application/merge-patch+json`) is where all three of an optional field's
+  states change the request: absent leaves the member as it is and `null` removes it. Every target
+  sends both through the presence box (§9: `Optional<T?>` on Kotlin, `OptNil[T]` on Go), never
+  through a nullable alone.
 
 **Multiplatform common code** has no `java.time`, no `BigDecimal`, no reflection and no `java.io`.
 
@@ -1393,7 +1400,9 @@ sealed interface its subtypes implement.
 lowers past them to a shape that stays inside, or diagnoses what it cannot: a model whose
 constructor would pass the parameter cap becomes a class built through a builder instead of a data
 class. Go has no such caps, but one package of tens of thousands of types compiles slowly, which is
-#718's to partition.
+#718's to partition. On Multiplatform, Kotlin/Native compile time and the size of the iOS framework
+grow with every declaration the SDK exports, so the runtime's helpers are `internal`, and the same
+partitioning bounds what one module exports.
 
 ---
 
