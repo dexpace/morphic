@@ -1761,6 +1761,36 @@ func TestSchema_EmptyStringRefMirrorBranches(t *testing.T) {
 	assert.Contains(t, []string{u.Variants[0].Name.Hint, u.Variants[1].Name.Hint}, "variant_0")
 }
 
+// TestSchema_ARefThroughAnEmptyRefLendsNothing pins a use site whose $ref lands
+// on a schema writing an empty $ref beside its annotations. That $ref names the
+// document's root, which holds no schema, so the schema lowers to an alias over
+// the top type and the chain ends on no schema: the use site takes no
+// description, default or discriminator from it, as from one whose $ref names
+// nothing.
+func TestSchema_ARefThroughAnEmptyRefLendsNothing(t *testing.T) {
+	t.Parallel()
+	spec := openapitest.ComponentSpec(`    Empty: {$ref: '', description: from-empty, default: e}
+    Base: {$ref: '', type: object, properties: {kind: {type: string}}, discriminator: {propertyName: kind}}
+    Sub:
+      type: object
+      allOf: [{$ref: '#/components/schemas/Base'}]
+    Owner:
+      type: object
+      properties:
+        p: {$ref: '#/components/schemas/Empty'}
+`)
+	doc, _ := lowerSpec(t, spec)
+	require.NotNil(t, doc)
+	owner, ok := typeByName(doc, "Owner").(*ir.Model)
+	require.True(t, ok)
+	require.Len(t, owner.Properties, 1)
+	assert.Empty(t, owner.Properties[0].Docs.Description, "no description comes through the empty $ref")
+	assert.Nil(t, owner.Properties[0].Default, "nor a default")
+	sub, ok := typeByName(doc, "Sub").(*ir.Model)
+	require.True(t, ok)
+	assert.Empty(t, sub.DiscriminatorValue, "nor a discriminator Base's alias does not hold")
+}
+
 func TestAllOf_UntypedRedeclarationDoesNotConflict(t *testing.T) {
 	t.Parallel()
 	// One branch leaves the field schemaless (the top type), the other types it.

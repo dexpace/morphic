@@ -244,12 +244,14 @@ that document. A use site takes what its schema `$ref`'s chain ends on — an an
 body's parts, a file body or a discriminator — only where every `$ref` of the chain names the
 source, as only then does its type name that schema: one naming another document lends nothing,
 whichever document writes it, and one another document writes naming the source lends as the
-source's own does. A YAML alias or merge key is a copy written where it is placed, so what it holds
-is read at that position, as the document's JSON places it, and raw YAML a schema `$ref` lands on,
-under an extension or in another document, is read as a schema. A schema position of the model holds
-the schema the parser built there, whatever its YAML, so a `$ref` to a component written as a string
-names that component, as it lowers. A key written twice in one mapping is read as its last
-occurrence, raw YAML included, as the parser's model reads one
+source's own does. An empty `$ref` names the document's root, which holds no schema, so a chain
+reaching one ends on none and lends nothing, as any chain that fails does, though the schema writing
+it keeps what it declares beside it. A YAML alias or merge key is a copy written where it is placed,
+so what it holds is read at that position, as the document's JSON places it, and raw YAML a schema
+`$ref` lands on, under an extension or in another document, is read as a schema. A schema position
+of the model holds the schema the parser built there, whatever its YAML, so a `$ref` to a component
+written as a string names that component, as it lowers. A key written twice in one mapping is read
+as its last occurrence, raw YAML included, as the parser's model reads one
 ([`duplicate-key`](../parser-library.md#duplicate-key)).
 
 A reference that resolves to nothing — a pointer naming no node, a position holding no schema, a
@@ -299,6 +301,7 @@ would answer. A chain of references that closes on itself is
   `bind.TestBind_ReadsEachHop`, `bind.TestBind_ReadsADefinitionByTheDefsRule`,
   `openapi.TestCompile_DefsPointerUnderANestedIDReadsTheBaseItNames`,
   `openapi.TestExternalContent_ARefLendsItsUseSiteWhatItsTypeReaches`,
+  `schema.TestSchema_ARefThroughAnEmptyRefLendsNothing`,
   `bind.TestBind_ReadsEachPositionAsTheJSONItSpells`, `bind.TestBind_ReadsARepeatedKeyAsItsLast`,
   `bind.TestBind_StopsAtItsBudget`, `bind.TestBind_CountsWorkLinearInTheDocument`,
   `bind.TestBind_ReadsEveryWebhookAsAPathItem`, `bind.TestBind_PlacesAnEndAtTheNodeItsChainReached`,
