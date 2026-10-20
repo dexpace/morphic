@@ -2795,6 +2795,54 @@ components:
 	}
 }
 
+// TestPartEncodings_CappedEntryReachedByAnotherPath nests an object under more
+// inline allOf wrappers than the lowering flattens, and reaches that object a
+// second time by a JSON Pointer $ref. Whichever the body names first, both
+// parts are keyed on the object, so no cap is reported.
+func TestPartEncodings_CappedEntryReachedByAnotherPath(t *testing.T) {
+	t.Parallel()
+	const n = schema.AllOfFlattenDepth + 2
+	deep := "{type: object, properties: {file: {type: string, format: binary}, meta: {type: string}}}"
+	for range n {
+		deep = "{allOf: [" + deep + "]}"
+	}
+	direct := "{$ref: '#/components/schemas/Deep" + strings.Repeat("/allOf/0", n) + "'}"
+	viaDeep := "{$ref: '#/components/schemas/Deep'}"
+	cases := []struct{ name, allOf string }{
+		{"Deep first", "[" + viaDeep + ", " + direct + "]"},
+		{"pointer first", "[" + direct + ", " + viaDeep + "]"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			spec := openapitest.PathsSpec(`  /u:
+    post:
+      operationId: up
+      requestBody:
+        content:
+          multipart/form-data:
+            schema: {allOf: ` + tc.allOf + `}
+            encoding:
+              file: {contentType: image/png}
+              meta: {contentType: application/json}
+      responses: {"200": {description: ok}}
+components:
+  schemas:
+    Deep: ` + deep + `
+`)
+			_, svc, diags := lowerServiceSpec(t, spec)
+			openapitest.RequireNoErrorDiags(t, diags)
+			got := openapitest.FirstOp(t, svc).Request.Contents[0].Encoding
+			for _, part := range []string{"file", "meta"} {
+				id := ir.PropID("p/openapi/components/schemas/Deep" + strings.Repeat("/allOf/0", n) + string(ids.Ptr("properties", part)))
+				assert.Contains(t, got, id, "the %s part is keyed at the object both paths reach", part)
+			}
+			assert.NotContains(t, diagMessages(diags), "multipart body composition is nested past",
+				"a path enters the capped branch's entry, so no cap is reported")
+		})
+	}
+}
+
 // TestPartEncodings_CycleEntersEachTargetOnce spells an allOf cycle back to the
 // body's own schema. Every part is declared once, so every part is keyed at the
 // target's properties and no bound is reported: a cycle costs one visit.

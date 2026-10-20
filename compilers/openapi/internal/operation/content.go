@@ -260,28 +260,50 @@ const maxPartRefHops = 16
 // partWalk is what bodyParts found, and which bound cut it short.
 type partWalk struct {
 	parts []bodyPart
-	// capped marks an inline branch nested past schema.AllOfFlattenDepth, whose
-	// own allOf was not followed.
+	// capped marks an inline branch nested past schema.AllOfFlattenDepth whose
+	// own allOf entries no path entered.
 	capped bool
 	// hopsSpent marks a $ref target past maxPartRefHops that no path entered.
 	hopsSpent bool
 }
 
 // partVisits is what one body's part walk has met: the fewest hops each target
-// was entered at, and the targets met past maxPartRefHops.
+// was entered at, and the targets met past a bound.
 type partVisits struct {
 	entered map[*oas3.Schema]int
 	cut     map[*oas3.Schema]bool
+	// capped holds the allOf entries of an inline branch past the flattening
+	// depth, which the walk did not follow.
+	capped map[*oas3.Schema]bool
 }
 
-// walkBodyParts runs bodyParts over one body and reports the hop bound only for
-// a cut target that no path entered.
+// markCapped records the allOf entries of b, an inline branch past the
+// flattening depth, as targets the walk did not follow.
+func (v partVisits) markCapped(b *oas3.Schema) {
+	for _, c := range b.GetAllOf() {
+		if cs := schemaOf(c); cs != nil {
+			v.capped[cs] = true
+		}
+	}
+}
+
+// walkBodyParts runs bodyParts over one body and reports a bound only for a
+// target that no path entered.
 func walkBodyParts(js *oas3.JSONSchema[oas3.Referenceable]) partWalk {
-	v := partVisits{entered: map[*oas3.Schema]int{}, cut: map[*oas3.Schema]bool{}}
+	v := partVisits{
+		entered: map[*oas3.Schema]int{},
+		cut:     map[*oas3.Schema]bool{},
+		capped:  map[*oas3.Schema]bool{},
+	}
 	w := bodyParts(js, 0, v)
 	for s := range v.cut {
 		if _, ok := v.entered[s]; !ok {
 			w.hopsSpent = true
+		}
+	}
+	for s := range v.capped {
+		if _, ok := v.entered[s]; !ok {
+			w.capped = true
 		}
 	}
 	return w
@@ -292,7 +314,7 @@ func walkBodyParts(js *oas3.JSONSchema[oas3.Referenceable]) partWalk {
 // contributes, with the first declaration of a name winning. The branches are
 // the lowering's own (schema.FlattenedAllOf); a $ref branch is followed here, up
 // to maxPartRefHops. v records the fewest hops each target was entered at: one
-// met again by no shorter path yields no parts. A bound that cut the walk is
+// met again by no shorter path yields no parts. The bounds that cut the walk are
 // recorded on v.
 //
 // A body that composes rather than declares — `allOf: [{$ref: Form}]` — still
@@ -315,11 +337,12 @@ func bodyParts(js *oas3.JSONSchema[oas3.Referenceable], hops int, v partVisits) 
 		if br.Ref {
 			sub := bodyParts(br.Schema, hops+1, v)
 			w.parts = append(w.parts, sub.parts...)
-			w.capped = w.capped || sub.capped
 			continue
 		}
 		w.parts = append(w.parts, propertyParts(schemaOf(br.Schema))...)
-		w.capped = w.capped || br.Capped
+		if br.Capped {
+			v.markCapped(schemaOf(br.Schema))
+		}
 	}
 	w.parts = dedupeParts(w.parts)
 	return w
