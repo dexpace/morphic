@@ -268,10 +268,12 @@ root `$defs` answers though the OpenAPI Object does not define the key
 ([`root-defs`](../parser-library.md#root-defs)), else the definitions of the nearest schema of the
 model above it holding the path, where raw YAML answers too. That object may be a map of schemas,
 such as `properties` or `components.schemas`, whose entry keyed `$defs` holds the path, as the
-parser's resolver reads one. Raw YAML holds no schema of the model, so a schema under an extension
-answers no such pointer from its own `$defs` unless it writes an `$id` itself, and an `$id` raw YAML
-writes above it makes it no resource of its own: as OAS 3.1 reads a schema with no `$id`, the
-document is its base, and its root holds none.
+parser's resolver reads one. The base an `$id` gives is the document its part before any `#` names,
+placed as a `$ref`'s document is: a fragment alone moves no base, and any spelling of the source
+keeps the source's. Raw YAML holds no schema of the model, so a schema under an extension answers no
+such pointer from its own `$defs` unless it writes an `$id` itself, and an `$id` raw YAML writes
+above it makes it no resource of its own: as OAS 3.1 reads a schema with no `$id`, the document is
+its base, and its root holds none.
 
 Binding is held to one work budget, reported as an `openapi/budget-exceeded` error once it runs
 out, the `$ref`s past it left unresolved. A `<<` merge chain deeper than the levels a mapping's
@@ -288,6 +290,7 @@ chain of references that closes on itself is [`reference-cycles`](#reference-cyc
   `load.TestLoad_ARootDefinitionResolvesAsTheResolverReadsIt`,
   `load.TestLoad_ARootDefinitionAnswersBeforeASchemasOwn`,
   `bind.TestBind_ReadsEachHop`, `bind.TestBind_ReadsADefinitionByTheDefsRule`,
+  `openapi.TestCompile_DefsPointerUnderANestedIDReadsTheBaseItNames`,
   `bind.TestBind_ReadsEachPositionAsTheJSONItSpells`, `bind.TestBind_ReadsARepeatedKeyAsItsLast`,
   `bind.TestBind_StopsAtItsBudget`, `bind.TestBind_CountsWorkLinearInTheDocument`,
   `bind.TestBind_ReadsEveryWebhookAsAPathItem`, `bind.TestBind_PlacesAnEndAtTheNodeItsChainReached`,

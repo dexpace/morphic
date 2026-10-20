@@ -425,3 +425,32 @@ components:
 		assert.Equal(t, want, openapitest.DiagMessageAt(t, diags, diag.UnresolvedRef, ir.SeverityError, site), site)
 	}
 }
+
+// TestCompile_DefsPointerUnderANestedIDReadsTheBaseItNames pins the base a
+// nested $id gives, placed as the load phase places a $ref's document: a dot
+// segment, the root path or a document with an empty fragment is another base,
+// so the schema below it reads its own $defs, and the source itself, however
+// spelled, is none, so the outer schema's definition answers.
+func TestCompile_DefsPointerUnderANestedIDReadsTheBaseItNames(t *testing.T) {
+	t.Parallel()
+	b := ids.Ptr("components", "schemas", "A", "properties", "b")
+	for id, own := range map[string]bool{".": true, "./": true, "/": true, "x.json#": true,
+		"spec.yaml": false, "./spec.yaml#": false, "sub/../spec.yaml": false} {
+		t.Run(id, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := parseFull(t, openapitest.ComponentSpec("    A:\n      $defs: {K: {type: string}}\n"+
+				"      properties:\n        b:\n          $id: '"+id+"'\n          properties:\n"+
+				"            q: {$ref: '#/$defs/K', $defs: {K: {type: integer}}}\n"))
+			openapitest.RequireNoErrorDiags(t, diags)
+			m, ok := doc.Types[ids.ForPointer(b)].(*ir.Model)
+			require.True(t, ok, "b is a Model")
+			q, ok := propByWire(m, "q")
+			require.True(t, ok, "b declares q")
+			want := ids.Ptr("components", "schemas", "A", "$defs", "K")
+			if own {
+				want = b + ids.Ptr("properties", "q", "$defs", "K")
+			}
+			assert.Equal(t, ids.ForPointer(want), q.Type.Target)
+		})
+	}
+}

@@ -3,6 +3,7 @@ package bind_test
 import (
 	"encoding/json/jsontext"
 	"errors"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -25,6 +26,18 @@ func tree(t *testing.T, src string) *yaml.Node {
 
 // self names the source "spec.yaml".
 var self = bind.Config{Self: "spec.yaml"}
+
+// resolving names the source by an absolute path and places a document as
+// RFC 3986 resolves a reference, so every spelling of the source names it, as
+// with the load phase's Locate.
+var resolving = bind.Config{Self: "/spec.yaml", Locate: func(uri, base string) (string, bool) {
+	b, errBase := url.Parse(base)
+	r, errRef := url.Parse(uri)
+	if errBase != nil || errRef != nil {
+		return "", false
+	}
+	return b.ResolveReference(r).String(), true
+}}
 
 // bound binds src under cfg.
 func bound(t *testing.T, src string, cfg bind.Config) *bind.Table {
@@ -164,7 +177,7 @@ func TestBind_ReadsADefinitionByTheDefsRule(t *testing.T) {
 		{"a nested $id of a fragment alone moves no base", "components:\n  schemas:\n    B: {$id: 'https://x.test/b', $defs: {A: {}}, properties: {p: {$id: '#f', " +
 			"properties: {q: {$ref: '#/$defs/A', $defs: {A: {}}}}}}}\n",
 			"/components/schemas/B/properties/p/properties/q", "/components/schemas/B/$defs/A", 0},
-		{"an $id that is no URI reference keeps the base", "components:\n  schemas:\n    B: {$defs: {A: {}}, properties: {p: {$id: '%zz', " +
+		{"an $id naming no document keeps the base", "components:\n  schemas:\n    B: {$defs: {A: {}}, properties: {p: {$id: '%zz', " +
 			"properties: {q: {$ref: '#/$defs/A', $defs: {A: {}}}}}}}\n",
 			"/components/schemas/B/properties/p/properties/q", "/components/schemas/B/$defs/A", 0},
 		{"a path into a definition", "components:\n  schemas:\n    H: {$defs: {A: {properties: {x: {}}}}, properties: {p: {$ref: '#/$defs/A/properties/x'}}}\n",
@@ -191,6 +204,18 @@ func TestBind_ReadsADefinitionByTheDefsRule(t *testing.T) {
 		{"a relative $id resolved against a relative base moves none", "$defs:\n  K: {}\ncomponents:\n  schemas:\n" +
 			"    B: {$id: dir/c.json, properties: {p: {$id: c.json, properties: {q: {$ref: '#/$defs/K', $defs: {K: {}}}}}}}\n",
 			"/components/schemas/B/properties/p/properties/q", "/$defs/K", 0},
+		{"a nested $id of a dot segment names another base", "components:\n  schemas:\n    B: {$defs: {A: {}}, properties: {p: {$id: '.', " +
+			"properties: {q: {$ref: '#/$defs/A', $defs: {A: {}}}}}}}\n",
+			"/components/schemas/B/properties/p/properties/q", "/components/schemas/B/properties/p/properties/q/$defs/A", 0},
+		{"a nested $id of the root path names another base", "components:\n  schemas:\n    B: {$defs: {A: {}}, properties: {p: {$id: '/', " +
+			"properties: {q: {$ref: '#/$defs/A', $defs: {A: {}}}}}}}\n",
+			"/components/schemas/B/properties/p/properties/q", "/components/schemas/B/properties/p/properties/q/$defs/A", 0},
+		{"a nested $id with an empty fragment moves the base", "components:\n  schemas:\n    B: {$defs: {A: {}}, properties: {p: {$id: 'x.json#', " +
+			"properties: {q: {$ref: '#/$defs/A', $defs: {A: {}}}}}}}\n",
+			"/components/schemas/B/properties/p/properties/q", "/components/schemas/B/properties/p/properties/q/$defs/A", 0},
+		{"a nested $id naming the document itself moves none", "components:\n  schemas:\n    B: {$defs: {A: {}}, properties: {p: {$id: './spec.yaml#', " +
+			"properties: {q: {$ref: '#/$defs/A', $defs: {A: {}}}}}}}\n",
+			"/components/schemas/B/properties/p/properties/q", "/components/schemas/B/$defs/A", 0},
 		{"a relative $id naming another resource", "components:\n  schemas:\n" +
 			"    B: {$id: a.json, properties: {p: {$id: b.json, properties: {q: {$ref: '#/$defs/K', $defs: {K: {}}}}}}}\n",
 			"/components/schemas/B/properties/p/properties/q", "/components/schemas/B/properties/p/properties/q/$defs/K", 0},
@@ -206,7 +231,7 @@ func TestBind_ReadsADefinitionByTheDefsRule(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			e := entryAt(t, bound(t, head+tc.body, self), tc.site)
+			e := entryAt(t, bound(t, head+tc.body, resolving), tc.site)
 			if tc.want == "" {
 				assert.Equal(t, tc.why, e.Hop.Reason, e.Hop.Why())
 				return

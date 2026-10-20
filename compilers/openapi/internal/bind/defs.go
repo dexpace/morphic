@@ -2,7 +2,6 @@ package bind
 
 import (
 	"encoding/json/jsontext"
-	"net/url"
 	"slices"
 	"strings"
 
@@ -192,18 +191,13 @@ func singleKey(pointer jsontext.Pointer) (string, bool) {
 
 // ownResource reports whether the schema at site, reached along path, is a
 // schema resource of its own: it writes an $id, or sits in a resource whose
-// base differs from that of the outermost schema holding it. A base is each
-// $id above it, resolved as RFC 3986 resolves a reference against the one
-// before, the first against the document's own; neither a fragment-only $id
-// nor one that is no URI reference moves it. Its second result is false where
-// a schema on the path writes no $id and merges past the view's bound, which
-// may hide one.
+// base differs from that of the outermost schema holding it. A base starts at
+// site's document and moves with each $id above it (rebase). Its second result
+// is false where a schema on the path writes no $id and merges past the view's
+// bound, which may hide one.
 func (d definitions) ownResource(site Position, path []*yaml.Node) (bool, bool) {
 	view := d.docs.list[site.Doc].view
-	// The document's own URI is unknown here and the same for every base, so
-	// any absolute one serves.
-	base := &url.URL{Scheme: "document", Path: "/"}
-	var top *url.URL
+	base, top := d.docs.list[site.Doc].name, ""
 	outermost, written, known := true, false, true
 	state, tokens := d.docs.rootState(site.Doc), slices.Collect(site.Pointer.Tokens())
 	for i, n := range path {
@@ -216,14 +210,14 @@ func (d definitions) ownResource(site Position, path []*yaml.Node) (bool, bool) 
 		var id string
 		id, written = d.idOf(site.Doc, n)
 		known = known && (written || view.Expanded(n))
-		if written && !strings.Contains(id, "#") {
-			base = rebase(base, id)
+		if written {
+			base = d.rebase(base, id)
 		}
 		if outermost {
 			top, outermost = base, false
 		}
 	}
-	return written || base.String() != top.String(), known
+	return written || base != top, known
 }
 
 // idOf is the $id n writes, and whether it writes a non-empty string one: a
@@ -236,12 +230,17 @@ func (d definitions) idOf(id DocID, n *yaml.Node) (string, bool) {
 	return v.Value, true
 }
 
-// rebase is the base an $id of id makes of base, resolved as RFC 3986
-// resolves a reference.
-func rebase(base *url.URL, id string) *url.URL {
-	ref, err := url.Parse(id)
-	if err != nil {
+// rebase is the base an $id of id makes of base, the document named base:
+// the document its part before any '#' names there, read as a $ref's document
+// part is (binder.document). A fragment-only $id, or one naming no document,
+// leaves base.
+func (d definitions) rebase(base, id string) string {
+	uri, _, _ := strings.Cut(id, "#")
+	if uri = strings.TrimSpace(uri); uri == "" {
 		return base
 	}
-	return base.ResolveReference(ref)
+	if name, ok := d.docs.locate(uri, base); ok {
+		return name
+	}
+	return base
 }
