@@ -274,8 +274,8 @@ writes above it makes it no resource of its own: as OAS 3.1 reads a schema with 
 document is its base, and its root holds none.
 
 Binding is held to one work budget, reported as an `openapi/budget-exceeded` error once it runs
-out, the `$ref`s past it left unresolved. A `<<` merge chain deeper than the 64 levels a mapping's
-merges are expanded to is reported as an `openapi/degraded-construct` warning, and a `$ref` past it
+out, the `$ref`s past it left unresolved. A `<<` merge chain deeper than the levels a mapping's
+merges are expanded to (`nodeview.MergeDepthLimit`) is reported as an `openapi/degraded-construct` warning, and a `$ref` past it
 is left unresolved, as is one that reads a key past it: a key its pointer names, or, for a
 `#/$defs/...` pointer, an `$id` or a definition the rule reads before the one that would answer. A
 chain of references that closes on itself is [`reference-cycles`](#reference-cycles)'.
@@ -319,7 +319,10 @@ when the source writes none, at the least source `$ref` leading into it, so the 
 with declaration order. Each member lowers to the top type with no report of its own, and the
 document compiles. A YAML anchor recursive in itself would run the parser out of stack, so a source
 holding one is refused before the parser reads it, as an `openapi/cyclic-ref` error, and compiles to
-no Document; so is an overlay's patched tree and every document an external reference reads. A cycle
+no Document; so is an overlay's patched tree. A document an external reference reads that holds one
+fails each reference naming it instead, as it fails the source's other refusals
+([`source-budgets`](#source-budgets)): each is an `openapi/unresolved-ref` error saying why, and the
+rest of the document lowers. A cycle
 of Reference Objects the resolver reports itself, as an unresolved reference
 ([`references`](#references)). A schema reaching itself through what it declares is recursion, not a
 cycle ([`recursion`](#recursion)). An alias scan that aborts on a fault of its own is reported as an
