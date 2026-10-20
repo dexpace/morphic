@@ -246,9 +246,11 @@ func (s *reachFuzzSchema) writeChildren(sb *bytes.Buffer, first *bool, key strin
 }
 
 // genFuzzDoc generates one random document: an OpenAPI 3.1 skeleton, an
-// optional "x-s" extension schema, and one to three components named from
-// {A, B, C}, each an independently generated reachFuzzSchema. Sometimes the
-// first is a YAML anchor that a later one merges.
+// optional "x-s" extension schema, one to three components named from
+// {A, B, C}, each an independently generated reachFuzzSchema, and sometimes a
+// "$defs" at the document's root, which the grammar's "#/$defs/..." pointers
+// read first (GitHub #910). Sometimes the first component is a YAML anchor
+// that a later one merges.
 func genFuzzDoc(rng *rand.Rand) string {
 	var sb bytes.Buffer
 	sb.WriteString("openapi: 3.1.0\ninfo: {title: t, version: \"1\"}\npaths: {}\n")
@@ -271,6 +273,14 @@ func genFuzzDoc(rng *rand.Rand) string {
 		sb.WriteString("    " + k + ": ")
 		schemas[i].writeJSON(&sb)
 		sb.WriteByte('\n')
+	}
+	if rng.Float64() < 0.3 {
+		sb.WriteString("$defs:\n")
+		for _, k := range fuzzSample(rng, []string{"m", "n"}) {
+			sb.WriteString("  " + k + ": ")
+			genFuzzSchema(rng, 1).writeJSON(&sb)
+			sb.WriteByte('\n')
+		}
 	}
 	return sb.String()
 }

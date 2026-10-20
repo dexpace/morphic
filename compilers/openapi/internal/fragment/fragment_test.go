@@ -164,7 +164,7 @@ func FuzzForResolver(f *testing.F) {
 		// outside the part the resolver decodes is touched.
 		added := strings.Count(ref, "+") - strings.Count(out, "+")
 		require.GreaterOrEqual(t, added, 0)
-		require.Equal(t, len(ref)+2*added, len(out))
+		require.Len(t, out, len(ref)+2*added)
 		uri, _, _ := strings.Cut(ref, "#")
 		require.True(t, strings.HasPrefix(out, uri), "the document part")
 		if parts := strings.Split(ref, "#"); len(parts) > 2 {

@@ -14,7 +14,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 )
 
-func TestParse_WrongFormatOptions(t *testing.T) {
+func TestCompile_WrongFormatOptions(t *testing.T) {
 	t.Parallel()
 	_, _, err := New().Compile(context.Background(),
 		[]compilers.Source{openapitest.SourceOf("openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\n")},
@@ -22,7 +22,7 @@ func TestParse_WrongFormatOptions(t *testing.T) {
 	require.Error(t, err, "wrong FormatOptions type is a programmer error")
 }
 
-func TestParse_ExplicitOptions(t *testing.T) {
+func TestCompile_ExplicitOptions(t *testing.T) {
 	t.Parallel()
 	spec := "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n  /a/b:\n    get: {operationId: ab, responses: {\"200\": {description: ok}}}\n"
 	doc, _, err := New().Compile(context.Background(), []compilers.Source{openapitest.SourceOf(spec)},
@@ -88,7 +88,7 @@ func TestLimitOptions_NameEveryBudget(t *testing.T) {
 		fields[field] = name
 	}
 	limits := reflect.ValueOf(&l).Elem()
-	require.Equal(t, limits.NumField(), len(fields), "an option for each field, and no other")
+	require.Len(t, fields, limits.NumField(), "an option for each field, and no other")
 	for i := range limits.NumField() {
 		field, ok := reflect.TypeAssert[*int](limits.Field(i).Addr())
 		require.True(t, ok, "%s is an int budget", limits.Type().Field(i).Name)

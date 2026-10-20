@@ -150,7 +150,7 @@ func TestMain_ExitCode(t *testing.T) {
 	assert.Equal(t, 2, got)
 }
 
-func TestRunParse_EngineConstructFails(t *testing.T) {
+func TestRun_CompileEngineConstructFails(t *testing.T) {
 	orig := newEngine
 	t.Cleanup(func() { newEngine = orig })
 	newEngine = func() (*engine.Engine, error) { return nil, errors.New("boom") }
@@ -164,7 +164,7 @@ func TestRunParse_EngineConstructFails(t *testing.T) {
 	assert.Contains(t, stderr.String(), "morphic: boom")
 }
 
-func TestRunParse_NilDocumentReturnsOne(t *testing.T) {
+func TestRun_CompileNilDocumentReturnsOne(t *testing.T) {
 	orig := newEngine
 	t.Cleanup(func() { newEngine = orig })
 	newEngine = func() (*engine.Engine, error) {
@@ -182,7 +182,7 @@ func TestRunParse_NilDocumentReturnsOne(t *testing.T) {
 		"nilDocCompiler's SourceTable names the spec even without a Document")
 }
 
-func TestRunParse_SkipValidateToStdout(t *testing.T) {
+func TestRun_CompileSkipValidateToStdout(t *testing.T) {
 	t.Parallel()
 	spec := writeFile(t, "spec.yaml", testspec.Tiny)
 	var stdout, stderr bytes.Buffer
@@ -195,7 +195,7 @@ func TestRunParse_SkipValidateToStdout(t *testing.T) {
 	assert.Equal(t, "Tiny", doc.Name)
 }
 
-func TestRunParse_MissingSpecFile(t *testing.T) {
+func TestRun_CompileMissingSpecFile(t *testing.T) {
 	t.Parallel()
 	var stdout, stderr bytes.Buffer
 
@@ -205,7 +205,7 @@ func TestRunParse_MissingSpecFile(t *testing.T) {
 	assert.Contains(t, stderr.String(), "morphic:")
 }
 
-func TestRunParse_OutputCreateError(t *testing.T) {
+func TestRun_CompileOutputCreateError(t *testing.T) {
 	t.Parallel()
 	spec := writeFile(t, "spec.yaml", testspec.Tiny)
 	// A path whose parent directory does not exist makes os.Create fail.
@@ -243,7 +243,7 @@ func missingParentDest(t *testing.T) string {
 }
 
 // readOnlyDirDest returns a writable file inside a read-only directory — the
-// shape TestWriteParsed_ReadOnlyDirFails pins, where the destination itself
+// shape TestWriteCompiled_ReadOnlyDirFails pins, where the destination itself
 // could be rewritten but its directory will not take the temp file.
 func readOnlyDirDest(t *testing.T) string {
 	t.Helper()
@@ -259,7 +259,7 @@ func readOnlyDirDest(t *testing.T) string {
 	return out
 }
 
-// TestRunParse_WriteFailureDoesNotMaskDiagnostics pins that a destination which
+// TestRun_CompileWriteFailureDoesNotMaskDiagnostics pins that a destination which
 // refuses the write does not decide the exit code. A spec that reached the
 // --fail-on threshold exits 1 wherever -o pointed; only a run with nothing to
 // report at the threshold exits 2 for the write. Both destinations here are
@@ -267,7 +267,7 @@ func readOnlyDirDest(t *testing.T) string {
 // directories will not take a temp file — which is also why -o /dev/null fails,
 // untestable here because a root /dev would take the temp file and the rename
 // would then replace /dev/null itself.
-func TestRunParse_WriteFailureDoesNotMaskDiagnostics(t *testing.T) {
+func TestRun_CompileWriteFailureDoesNotMaskDiagnostics(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name     string
@@ -304,38 +304,6 @@ func TestRunParse_WriteFailureDoesNotMaskDiagnostics(t *testing.T) {
 				"a failed write must not swallow the diagnostics it was reported alongside")
 		})
 	}
-}
-
-func TestExitCodeFor_SeverityMatrix(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name   string
-		diags  []ir.Diagnostic
-		failOn string
-		want   int
-	}{
-		{"info below error", []ir.Diagnostic{{Severity: ir.SeverityInfo}}, "error", 0},
-		{"info below warning", []ir.Diagnostic{{Severity: ir.SeverityInfo}}, "warning", 0},
-		{"warning meets warning", []ir.Diagnostic{{Severity: ir.SeverityWarning}}, "warning", 1},
-		{"warning below error", []ir.Diagnostic{{Severity: ir.SeverityWarning}}, "error", 0},
-		{"error meets error", []ir.Diagnostic{{Severity: ir.SeverityError}}, "error", 1},
-		{"unknown severity ranks lowest", []ir.Diagnostic{{Severity: ir.Severity("weird")}}, "error", 0},
-		{"no diagnostics", nil, "error", 0},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			assert.Equal(t, tt.want, exitCodeFor(tt.diags, tt.failOn))
-		})
-	}
-}
-
-func TestSeverityRank_AllLevels(t *testing.T) {
-	t.Parallel()
-	assert.Equal(t, 3, severityRank(ir.SeverityError))
-	assert.Equal(t, 2, severityRank(ir.SeverityWarning))
-	assert.Equal(t, 1, severityRank(ir.SeverityInfo))
-	assert.Equal(t, 0, severityRank(ir.Severity("nonsense")))
 }
 
 func TestSourcePath_Cases(t *testing.T) {
@@ -500,7 +468,7 @@ func TestEncodeDocument_ErrorPaths(t *testing.T) {
 	}
 }
 
-func TestWriteParsed_CreateError(t *testing.T) {
+func TestWriteCompiled_CreateError(t *testing.T) {
 	t.Parallel()
 	badOut := filepath.Join(t.TempDir(), "no-such-dir", "ir.json")
 	err := writeCompiled(compileOptions{outPath: badOut}, io.Discard, &ir.Document{Name: "ok"})
@@ -516,7 +484,7 @@ func swapCreateOutput(t *testing.T, fn func(string, os.FileMode) (outputFile, er
 	createOutput = fn
 }
 
-func TestWriteParsed_WriteErrorClosesFile(t *testing.T) {
+func TestWriteCompiled_WriteErrorClosesFile(t *testing.T) {
 	wc := &writeFailWriteCloser{writeErr: errors.New("disk gone")}
 	swapCreateOutput(t, func(string, os.FileMode) (outputFile, error) { return wc, nil })
 
@@ -530,10 +498,10 @@ func TestWriteParsed_WriteErrorClosesFile(t *testing.T) {
 	assert.True(t, wc.closed, "file must still be closed after a write error")
 }
 
-// TestWriteParsed_WriteErrorPreservesDestination is the regression guard for a
+// TestWriteCompiled_WriteErrorPreservesDestination is the regression guard for a
 // failed run destroying the previous output: the bytes must go to a temp file, so
 // a mid-write failure leaves the existing destination byte-for-byte intact.
-func TestWriteParsed_WriteErrorPreservesDestination(t *testing.T) {
+func TestWriteCompiled_WriteErrorPreservesDestination(t *testing.T) {
 	out := filepath.Join(t.TempDir(), "ir.json")
 	const existing = `{"name":"Existing"}` + "\n"
 	require.NoError(t, os.WriteFile(out, []byte(existing), 0o644))
@@ -562,12 +530,12 @@ func TestWriteParsed_WriteErrorPreservesDestination(t *testing.T) {
 	assert.Equal(t, existing, string(got), "a failed write must not disturb the previous output")
 }
 
-// TestWriteParsed_MarshalErrorLeavesFileUntouched pins both halves of encoding
+// TestWriteCompiled_MarshalErrorLeavesFileUntouched pins both halves of encoding
 // into the temp file instead of marshalling ahead of it: the temp file is
 // created before the document is known to marshal, and a document that does not
 // marshal must still leave nothing behind and leave the destination alone —
 // outPath is only ever reached by the rename.
-func TestWriteParsed_MarshalErrorLeavesFileUntouched(t *testing.T) {
+func TestWriteCompiled_MarshalErrorLeavesFileUntouched(t *testing.T) {
 	dir := t.TempDir()
 	out := filepath.Join(dir, "ir.json")
 	const existing = `{"name":"Existing"}` + "\n"
@@ -594,7 +562,7 @@ func TestWriteParsed_MarshalErrorLeavesFileUntouched(t *testing.T) {
 	assert.Len(t, entries, 1, "a failed encode must leave no temp file beside the destination")
 }
 
-func TestWriteParsed_CloseError(t *testing.T) {
+func TestWriteCompiled_CloseError(t *testing.T) {
 	wc := &closeFailWriteCloser{closeErr: errors.New("close failed")}
 	swapCreateOutput(t, func(string, os.FileMode) (outputFile, error) { return wc, nil })
 
@@ -606,10 +574,10 @@ func TestWriteParsed_CloseError(t *testing.T) {
 	assert.NotEmpty(t, wc.buf.Bytes(), "document should have been written before close")
 }
 
-// TestWriteParsed_ReplacesAtomically pins the success path end to end: the
+// TestWriteCompiled_ReplacesAtomically pins the success path end to end: the
 // destination gains the new bytes, keeps the mode it already had, and no temp
 // file is left beside it.
-func TestWriteParsed_ReplacesAtomically(t *testing.T) {
+func TestWriteCompiled_ReplacesAtomically(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	out := filepath.Join(dir, "ir.json")
@@ -638,10 +606,10 @@ func TestWriteParsed_ReplacesAtomically(t *testing.T) {
 // They are pinned so that changing one is a change to a stated contract rather
 // than silent drift.
 
-// TestWriteParsed_ReadOnlyDirFails pins that writing needs permission on the
+// TestWriteCompiled_ReadOnlyDirFails pins that writing needs permission on the
 // destination's directory, not merely on the destination. Truncating an existing
 // writable file in a read-only directory used to succeed.
-func TestWriteParsed_ReadOnlyDirFails(t *testing.T) {
+func TestWriteCompiled_ReadOnlyDirFails(t *testing.T) {
 	t.Parallel()
 	if os.Geteuid() == 0 {
 		t.Skip("root bypasses directory permission checks, so the write would succeed")
@@ -663,10 +631,10 @@ func TestWriteParsed_ReadOnlyDirFails(t *testing.T) {
 		"a destination that cannot be replaced must keep its previous content")
 }
 
-// TestWriteParsed_SymlinkIsReplaced pins that a symlink destination is replaced
+// TestWriteCompiled_SymlinkIsReplaced pins that a symlink destination is replaced
 // by a regular file rather than followed and written through, so its target
 // keeps its old content.
-func TestWriteParsed_SymlinkIsReplaced(t *testing.T) {
+func TestWriteCompiled_SymlinkIsReplaced(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	target := filepath.Join(dir, "target.json")
@@ -690,10 +658,10 @@ func TestWriteParsed_SymlinkIsReplaced(t *testing.T) {
 		"the symlink's former target must be left untouched")
 }
 
-// TestWriteParsed_HardLinkIsBroken pins that other hard links to the destination
+// TestWriteCompiled_HardLinkIsBroken pins that other hard links to the destination
 // keep pointing at the old inode, and so keep the old content, instead of
 // observing the new bytes.
-func TestWriteParsed_HardLinkIsBroken(t *testing.T) {
+func TestWriteCompiled_HardLinkIsBroken(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	out := filepath.Join(dir, "a.json")
@@ -713,13 +681,13 @@ func TestWriteParsed_HardLinkIsBroken(t *testing.T) {
 		"the other hard link must keep the old inode's content")
 }
 
-// TestWriteParsed_NearLimitNameFails pins the one limitation that is a new
+// TestWriteCompiled_NearLimitNameFails pins the one limitation that is a new
 // failure rather than a lost capability: the temp name is 21 characters longer
 // than the destination's own, so a basename within 21 of the filesystem's limit
 // cannot be written at all. A truncating write to the same path succeeded, which
 // the first half of this test establishes before the second half shows the
 // destination one character too long failing.
-func TestWriteParsed_NearLimitNameFails(t *testing.T) {
+func TestWriteCompiled_NearLimitNameFails(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 
@@ -748,7 +716,7 @@ func TestWriteParsed_NearLimitNameFails(t *testing.T) {
 		"the destination must keep its previous content when the temp name will not fit")
 }
 
-func TestWriteParsed_StatError(t *testing.T) {
+func TestWriteCompiled_StatError(t *testing.T) {
 	t.Parallel()
 	// A regular file used as a parent directory makes Stat fail with ENOTDIR,
 	// which is an error but not "does not exist".
@@ -762,7 +730,7 @@ func TestWriteParsed_StatError(t *testing.T) {
 	assert.Contains(t, err.Error(), "stat output")
 }
 
-func TestWriteParsed_TempNameCollisionRetries(t *testing.T) {
+func TestWriteCompiled_TempNameCollisionRetries(t *testing.T) {
 	var names []string
 	swapCreateOutput(t, func(path string, perm os.FileMode) (outputFile, error) {
 		names = append(names, path)
@@ -779,7 +747,7 @@ func TestWriteParsed_TempNameCollisionRetries(t *testing.T) {
 	assert.NotEqual(t, names[0], names[1], "each attempt must draw a fresh name")
 }
 
-func TestWriteParsed_TempNamesExhausted(t *testing.T) {
+func TestWriteCompiled_TempNamesExhausted(t *testing.T) {
 	attempts := 0
 	swapCreateOutput(t, func(string, os.FileMode) (outputFile, error) {
 		attempts++
@@ -794,12 +762,12 @@ func TestWriteParsed_TempNamesExhausted(t *testing.T) {
 	assert.Equal(t, maxTempAttempts, attempts, "the name search must be bounded")
 }
 
-// TestWriteParsed_SyncErrorPreservesDestination drives the branch that makes the
+// TestWriteCompiled_SyncErrorPreservesDestination drives the branch that makes the
 // rename safe to trust: a filesystem that accepts the bytes but cannot flush
 // them must abort before publishing, leaving the old destination whole. A sync
 // failure that fell through to the rename would publish a file whose contents a
 // crash could still lose, which is the loss this whole path exists to prevent.
-func TestWriteParsed_SyncErrorPreservesDestination(t *testing.T) {
+func TestWriteCompiled_SyncErrorPreservesDestination(t *testing.T) {
 	dir := t.TempDir()
 	out := filepath.Join(dir, "ir.json")
 	require.NoError(t, os.WriteFile(out, []byte("old\n"), 0o644))
@@ -820,7 +788,7 @@ func TestWriteParsed_SyncErrorPreservesDestination(t *testing.T) {
 	assert.Len(t, entries, 1, "a failed sync must leave no temp file beside the destination")
 }
 
-func TestWriteParsed_ChmodError(t *testing.T) {
+func TestWriteCompiled_ChmodError(t *testing.T) {
 	out := filepath.Join(t.TempDir(), "ir.json")
 	require.NoError(t, os.WriteFile(out, []byte("old\n"), 0o644))
 
@@ -837,7 +805,7 @@ func TestWriteParsed_ChmodError(t *testing.T) {
 	assert.Equal(t, "old\n", string(got), "a failed chmod must not disturb the destination")
 }
 
-func TestWriteParsed_RenameError(t *testing.T) {
+func TestWriteCompiled_RenameError(t *testing.T) {
 	dir := t.TempDir()
 	out := filepath.Join(dir, "ir.json")
 
@@ -854,18 +822,18 @@ func TestWriteParsed_RenameError(t *testing.T) {
 	assert.Empty(t, entries, "a failed rename must remove the temp file it left behind")
 }
 
-func TestWriteParsed_ToStdoutSuccess(t *testing.T) {
+func TestWriteCompiled_ToStdoutSuccess(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	require.NoError(t, writeCompiled(compileOptions{}, &buf, &ir.Document{Name: "ok"}))
 	assert.True(t, bytes.HasSuffix(buf.Bytes(), []byte("\n")))
 }
 
-// TestWriteParsed_ToStdoutWritesNothingForABadDocument pins that stdout gets a
+// TestWriteCompiled_ToStdoutWritesNothingForABadDocument pins that stdout gets a
 // whole document or nothing. The description runs past the encoder's internal
 // buffer, so an encoder writing straight to stdout would already have flushed
 // part of the document there by the time it reaches the malformed payload.
-func TestWriteParsed_ToStdoutWritesNothingForABadDocument(t *testing.T) {
+func TestWriteCompiled_ToStdoutWritesNothingForABadDocument(t *testing.T) {
 	t.Parallel()
 	doc := badDoc()
 	doc.Docs.Description = strings.Repeat("x", 64<<10)

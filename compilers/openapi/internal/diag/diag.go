@@ -201,16 +201,18 @@ const (
 	DegradedConstruct = "openapi/degraded-construct"
 	// CompositionLowering reports that a schema conjoining a structural body with
 	// a oneOf/anyOf was lowered by distributing the body across the union
-	// variants (ir-design §4.3, §4.8). Nothing is lost, so this records a
-	// decision rather than a degradation: the IR's shape no longer mirrors the
-	// source's, which is what a reader comparing the two needs told.
+	// variants (ir-design §4.3, docs/compilers/openapi.md#union-beside-structure).
+	// Nothing is lost, so this records a decision rather than a degradation: the
+	// IR's shape no longer mirrors the source's, which is what a reader comparing
+	// the two needs told.
 	CompositionLowering = "openapi/composition-lowering"
 	// DynamicRefExpanded reports that a $dynamicRef was resolved to the one
-	// $dynamicAnchor matching it in this document (ir-design §4.7). Like
-	// CompositionLowering this records a decision rather than a loss: the
-	// reference resolved, but what the source wrote as dynamic is now a fixed
-	// target, so a reader comparing IR to source needs telling that the
-	// indirection was collapsed at compile time rather than left to evaluation.
+	// $dynamicAnchor matching it in this document
+	// (docs/compilers/openapi.md#dynamic-ref). Like CompositionLowering this
+	// records a decision rather than a loss: the reference resolved, but what the
+	// source wrote as dynamic is now a fixed target, so a reader comparing IR to
+	// source needs telling that the indirection was collapsed at compile time
+	// rather than left to evaluation.
 	DynamicRefExpanded = "openapi/dynamic-ref-expanded"
 	// ConflictingRedecl reports that inline allOf branches redeclare one field
 	// with disagreeing values. An incompatible target type (string vs. integer) is
@@ -432,7 +434,7 @@ const (
 	// on. It is lowered as in a document declaring that minor, the reading that
 	// loses the least: from the lowering and this diagnostic a consumer can still
 	// set it aside, while from a verbatim copy it could not recover the lowering
-	// (ir-design §12).
+	// (docs/compilers/openapi.md#later-version-construct).
 	//
 	// Warning, as UnknownObjectKey is: an object's key set is closed, so the
 	// document is invalid for the version it declares, but it still lowers.

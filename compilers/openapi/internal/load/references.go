@@ -39,24 +39,24 @@ type resolvable interface {
 func resolveWith(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI, sibs Siblings,
 	self sourceDocument, opts Options, reader *external,
 ) (MappingTargets, []ir.Diagnostic) {
-	return newResolution(ctx, at, doc, sibs, self, opts, reader).run(doc)
+	return newResolution(ctx, at, doc, sibs, self, opts, reader).run(ctx, doc)
 }
 
 // run is resolveWith's work over doc, the document p was made for.
-func (p *resolution) run(doc *soa.OpenAPI) (MappingTargets, []ir.Diagnostic) {
-	held := heldRefs(p.ctx, doc, p.sibs, defs.NewReader(doc))
+func (p *resolution) run(ctx context.Context, doc *soa.OpenAPI) (MappingTargets, []ir.Diagnostic) {
+	held := heldRefs(ctx, doc, p.sibs, p.rule)
 	withDefsHeld(held, func() {
-		p.fail(eachSighting(walkSource(p.ctx, doc, p.sibs), resolverPanics,
+		p.fail(eachSighting(walkSource(ctx, doc, p.sibs), resolverPanics,
 			func(site jsontext.Pointer, loc soa.Locations, model any) error {
 				p.targets.see(site, model)
 				if r, ok := model.(resolvable); ok && r.IsReference() {
-					p.visit(site, r)
+					p.visit(ctx, site, r)
 				}
 				return nil
 			}))
 	})
-	p.fail(p.resolveHeld(held))
-	p.fail(p.resolveTargets(held))
+	p.fail(p.resolveHeld(ctx, held))
+	p.fail(p.resolveTargets(ctx, held))
 	p.failures = append(p.failures, p.targets.exhausted(p.at)...)
 	p.failures = append(p.failures, p.loops.incomplete(p.at)...)
 	if p.reader != nil {
@@ -71,19 +71,18 @@ func (p *resolution) run(doc *soa.OpenAPI) (MappingTargets, []ir.Diagnostic) {
 // chain meets a "#/$defs/..." reference as a $ref's did: at its definition, or,
 // where the rule names none, ending there. Put back as held, it sent the
 // chain to the resolver's own lookup, which resolveHeld keeps out of play.
-func (p *resolution) resolveTargets(held []heldRef) (jsontext.Pointer, error) {
+func (p *resolution) resolveTargets(ctx context.Context, held []heldRef) (jsontext.Pointer, error) {
 	for _, r := range held {
 		r.retarget()
 	}
 	defer restoreDefs(held)
-	return p.targets.resolve(p.ctx, &p.found)
+	return p.targets.resolve(ctx, &p.found)
 }
 
 // resolution is one resolver pass over a document: how each reference is
 // resolved, what the pass has found so far, and the mapping targets it
 // collects.
 type resolution struct {
-	ctx     context.Context
 	at      func(jsontext.Pointer) ir.Provenance
 	opts    references.ResolveOptions
 	reader  *external
@@ -100,6 +99,8 @@ type resolution struct {
 	// esc holds the $refs rewritten for the resolver to read, which a message
 	// quotes as the source writes them (GitHub #911).
 	esc *escapes
+	// rule names the definition each "#/$defs/..." reference is held to.
+	rule *defs.Reader
 	// version and validateOpts are the source's declared version and what its
 	// validation hands each object, which a resolution's findings are judged by
 	// (unrequired), in another document as well, as a reached schema's are
@@ -123,8 +124,8 @@ func newResolution(ctx context.Context, at func(jsontext.Pointer) ir.Provenance,
 		resolveOpts.HTTPClient = *reader
 		reader.hold(ctx, sibs)
 	}
-	p := &resolution{ctx: ctx, at: at, opts: resolveOpts, reader: reader, sibs: sibs, esc: self.escapes,
-		version: doc.OpenAPI, validateOpts: documentOptions(doc),
+	p := &resolution{at: at, opts: resolveOpts, reader: reader, sibs: sibs, esc: self.escapes,
+		rule: defsRule(doc, newTreeReads()), version: doc.OpenAPI, validateOpts: documentOptions(doc),
 		targets: newMappings(self, doc, resolveOpts, reader),
 		found: reachedFindings{sites: map[references.Reference]jsontext.Pointer{}, known: self.found,
 			tree: self.tree}}
@@ -141,7 +142,7 @@ func newResolution(ctx context.Context, at func(jsontext.Pointer) ir.Provenance,
 // (GitHub #767). A schema's chain is read for a loop from the $ref r carries
 // now, which for a held "#/$defs/..." reference is its definition's pointer
 // (see retarget); a message quotes the $ref as the source writes it.
-func (p *resolution) visit(site jsontext.Pointer, r resolvable) {
+func (p *resolution) visit(ctx context.Context, site jsontext.Pointer, r resolvable) {
 	if js, schema := r.(*schemaRef); schema && p.loops != nil && !js.IsResolved() {
 		looped, cut := p.loops.read(js.GetRef())
 		if looped {
@@ -159,15 +160,15 @@ func (p *resolution) visit(site jsontext.Pointer, r resolvable) {
 	var vErrs []error
 	var err error
 	if !r.IsResolved() {
-		vErrs, err = r.Resolve(p.ctx, p.opts)
+		vErrs, err = r.Resolve(ctx, p.opts)
 	}
 	if p.reader != nil {
-		vErrs, err = p.reader.settle(p.ctx, r, p.opts, vErrs, err)
+		vErrs, err = p.reader.settle(ctx, r, p.opts, vErrs, err)
 	}
 	c := resolutionChain(r)
 	p.targets.enqueue(site, c)
 	t := p.esc.trailOf(c)
-	p.found.note(site, t, p.unrequired(site, r, vErrs))
+	p.found.note(site, t, p.unrequired(ctx, site, r, vErrs))
 	if err != nil {
 		p.failures = append(p.failures, failureDiag(p.at(site), p.esc.writtenOf(r), t, err))
 	}
@@ -177,12 +178,12 @@ func (p *resolution) visit(site jsontext.Pointer, r resolvable) {
 // REQUIRED-field rule's artifacts in the object r reached (requiredArtifacts),
 // and reports a panic finding them at site. A schema's resolution draws no
 // artifact of the rule, but is judged alike rather than told apart.
-func (p *resolution) unrequired(site jsontext.Pointer, r resolvable, vErrs []error) []error {
+func (p *resolution) unrequired(ctx context.Context, site jsontext.Pointer, r resolvable, vErrs []error) []error {
 	obj, _, ok := reachedObject(r)
 	if !ok {
 		return vErrs
 	}
-	required := findRequiredArtifacts(p.ctx, vErrs, reachedWalk(p.ctx, obj), p.version, p.validateOpts).reportedAt(site)
+	required := findRequiredArtifacts(ctx, vErrs, reachedWalk(ctx, obj), p.version, p.validateOpts).reportedAt(site)
 	p.failures = append(p.failures, required.faults(p.at)...)
 	return required.without(vErrs)
 }

@@ -1,6 +1,8 @@
 package jsonshape_test
 
 import (
+	"fmt"
+	"go/types"
 	"strings"
 	"testing"
 
@@ -107,6 +109,68 @@ func TestDescribe_SpellsEveryInput(t *testing.T) {
 	got, err := jsonshape.Describe(load(t, "good"), "Root")
 	require.NoError(t, err)
 	assert.Empty(t, cmp.Diff(goodShape, got))
+}
+
+// TestRead_HoldsTheShapeAsData holds the parts Read returns to the
+// declarations of package good: each member's field and its index among the
+// struct's fields, its JSON name or its embedding, and its options; a sealed
+// sum's tag type and variants; a type's constants, every name in value order.
+// What Describe spells is the same shape.
+func TestRead_HoldsTheShapeAsData(t *testing.T) {
+	t.Parallel()
+	p := load(t, "good")
+	s, err := jsonshape.Read(p, "Root")
+	require.NoError(t, err)
+	desc, err := jsonshape.Describe(p, "Root")
+	require.NoError(t, err)
+	assert.Equal(t, desc, s.String())
+
+	byName := map[string]jsonshape.Type{}
+	for _, typ := range s.Types {
+		byName[typ.Named.Obj().Name()] = typ
+	}
+
+	members := make([]string, 0, len(byName["Root"].Members))
+	for _, m := range byName["Root"].Members {
+		members = append(members, fmt.Sprintf("%d %s %q %t %v", m.Index, m.Field.Name(), m.Name, m.Embedded, m.Options))
+	}
+	assert.Empty(t, cmp.Diff([]string{
+		`0 Named "named" false []`,
+		`1 Options "options" false [omitzero string]`,
+		`2 Untagged "Untagged" false []`,
+		`3 Defaulted "Defaulted" false [omitempty]`,
+		`6 Base "" true []`,
+		`7 Extra "" true []`,
+		`8 inner "" true []`,
+		`9 Tagged "tagged" false []`,
+		`10 Explicit "" true []`,
+		`11 Grid "grid" false []`,
+		`12 Index "index" false []`,
+		`13 Aliased "aliased" false []`,
+		`14 Pointer "pointer" false []`,
+		`15 Sum "sum" false []`,
+		`16 Self "self" false []`,
+		`17 Reg "reg" false []`,
+		`18 Levels "levels" false []`,
+		`19 Toggle "toggle" false []`,
+		`20 Scale "scale" false []`,
+	}, members), "members in declaration order, the ignored fields left out")
+
+	sum := byName["Sum"]
+	assert.Equal(t, "Color", sum.Tag.(*types.Named).Obj().Name())
+	variants := make([]string, 0, len(sum.Variants))
+	for _, v := range sum.Variants {
+		variants = append(variants, fmt.Sprintf("%s %s %t", v.Tag.ExactString(), v.Named.Obj().Name(), v.ByPointer))
+	}
+	assert.Equal(t, []string{`"blue" ByPointer true`, `"red" ByValue false`}, variants)
+	assert.Nil(t, byName["Root"].Tag, "a struct is no sum")
+	assert.Nil(t, sum.Members, "an interface has no members")
+
+	levels := make([]string, 0, len(byName["Level"].Constants))
+	for _, c := range byName["Level"].Constants {
+		levels = append(levels, c.Name()+"="+c.Val().ExactString())
+	}
+	assert.Equal(t, []string{"Floor=2", "Low=2", "High=10"}, levels)
 }
 
 // TestDescribe_IgnoresWhatTheJSONDoesNotCarry holds a description to the

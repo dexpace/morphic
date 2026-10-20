@@ -293,9 +293,9 @@ components:
 // TestVersionCheck_AReferenceObjectIsJudgedOnItsOwnKeys pins the Reference
 // Object's summary and description, which 3.1 added: below 3.1 each is reported
 // at its own key at every position a Reference Object stands, though the
-// lowering folds it over the target's docs at every version (ir-design §12.2).
-// A Path Item's $ref is not a Reference Object, and a schema's is not judged
-// here (GitHub #871).
+// lowering folds it over the target's docs at every version
+// (docs/compilers/openapi.md#reference-object-siblings). A Path Item's $ref is
+// not a Reference Object, and a schema's is not judged here (GitHub #871).
 func TestVersionCheck_AReferenceObjectIsJudgedOnItsOwnKeys(t *testing.T) {
 	t.Parallel()
 	got := laterAt(t, "openapi: 3.0.3\n"+referenceSiblingsSpec)

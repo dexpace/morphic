@@ -71,6 +71,15 @@ func (t MappingTargets) Holds(raw *yaml.Node, token string) bool {
 	return reads.holds(raw, token)
 }
 
+// RawTarget is defs.RawRead, answered from the index Holds answers from.
+func (t MappingTargets) RawTarget(raw *yaml.Node, tokens []string) (*yaml.Node, bool) {
+	reads := t.reads
+	if reads == nil {
+		reads = newTreeReads()
+	}
+	return reads.target(raw, tokens)
+}
+
 // maxMappingWork bounds the steps resolving the mapping targets takes: each
 // entry it reads, object it reaches, walk item it reads, and hop of a chain it
 // reads and position it resolves, priced as the library's read of each (see
@@ -100,6 +109,9 @@ type mappings struct {
 	view *nodeview.View
 	// reads prices the reads of the source the work makes (see priced).
 	reads *treeReads
+	// rule names the definition an entry spelling "#/$defs/..." reads, through
+	// reads (see pointerOf).
+	rule *defs.Reader
 	// ends holds, for each hop chainEnds read, the reads from it to its chain's
 	// end, at most farHops.
 	ends map[hop]int
@@ -147,7 +159,9 @@ type target struct {
 // self, which resolves each with opts, through reader when external references
 // are allowed.
 func newMappings(self sourceDocument, doc *soa.OpenAPI, opts references.ResolveOptions, reader *external) *mappings {
-	return &mappings{self: self, doc: doc, opts: opts, reader: reader, view: nodeview.New(), reads: newTreeReads(),
+	reads := newTreeReads()
+	return &mappings{self: self, doc: doc, opts: opts, reader: reader, view: nodeview.New(), reads: reads,
+		rule: defsRule(doc, reads),
 		ends: map[hop]int{}, model: map[any]bool{}, modelAt: map[builtKey]bool{}, walked: map[builtKey]bool{},
 		built: map[jsontext.Pointer]*schemaRef{},
 		named: map[jsontext.Pointer]bool{}, byPointer: map[jsontext.Pointer]*target{},
@@ -327,22 +341,22 @@ func (m *mappings) read(ctx context.Context, found *reachedFindings, base jsonte
 // collect reads the entries of the discriminator d at site.
 func (m *mappings) collect(site jsontext.Pointer, d *oas3.Discriminator) {
 	for tag, value := range d.GetMapping().All() {
-		m.name(site.AppendToken("mapping").AppendToken(tag), value)
+		m.name(site.AppendToken("mapping").AppendToken(tag), d, value)
 	}
 	if value := d.GetDefaultMapping(); value != "" {
-		m.name(site.AppendToken("defaultMapping"), value)
+		m.name(site.AppendToken("defaultMapping"), d, value)
 	}
 }
 
-// name reads the entry at site, written as value: the position it names in
-// the source, unless it names none (see pointerOf), to be resolved once, and
-// placed at the least entry naming it.
-func (m *mappings) name(site jsontext.Pointer, value string) {
+// name reads the entry of d at site, written as value: the position it names
+// in the source, unless it names none (see pointerOf), to be resolved once,
+// and placed at the least entry naming it.
+func (m *mappings) name(site jsontext.Pointer, d *oas3.Discriminator, value string) {
 	if m.named[site] || !m.spend(1) {
 		return
 	}
 	m.named[site] = true
-	pointer, ok := m.pointerOf(value)
+	pointer, ok := m.pointerOf(d, value)
 	if !ok {
 		return
 	}
@@ -364,7 +378,7 @@ func (m *mappings) name(site jsontext.Pointer, value string) {
 // (see chainEnds).
 func (m *mappings) resolveTarget(ctx context.Context, pointer jsontext.Pointer) {
 	ref := oas3.NewJSONSchemaFromReference(references.Reference("#" + fragment.Of(pointer)))
-	if !m.chainEnds(ref.GetRef()) {
+	if !m.chainEndsAt(string(pointer), false) {
 		return
 	}
 	if !m.spend(m.priced(string(pointer), true, false)) {
@@ -483,19 +497,23 @@ func readInModel(js *schemaRef, doc *soa.OpenAPI, location string) {
 // hop is read as the resolver reads it (see hopOf, readAt), once, for a step,
 // and remembered. A walk the step bound cuts remembers nothing.
 func (m *mappings) chainEnds(ref references.Reference) bool {
+	pointer, ok := m.self.within(ref)
+	return ok && m.chainEndsAt(pointer, ref.GetURI() != "")
+}
+
+// chainEndsAt is chainEnds for a chain whose first hop reads pointer, written
+// with a document part or not (byName). A "#/$defs/..." entry the document's
+// root answers starts at the root's pointer (see pointerOf), which no later
+// hop spelling one does: the resolver reads that relative to the chain.
+func (m *mappings) chainEndsAt(pointer string, byName bool) bool {
 	if m.self.root == nil || m.doc == nil {
 		return false
 	}
 	var path []hop
 	onPath := map[hop]bool{}
-	toEnd, named := farHops, false
+	toEnd, named := farHops, byName
 	for {
-		pointer, ok := m.self.within(ref)
-		if !ok {
-			break
-		}
-		named = named || ref.GetURI() != ""
-		h := m.hopOf(pointer, ref.GetURI() != "", named)
+		h := m.hopOf(pointer, byName, named)
 		if known, seen := m.ends[h]; seen {
 			toEnd = known
 			break
@@ -516,7 +534,12 @@ func (m *mappings) chainEnds(ref references.Reference) bool {
 		if kind == hopUnread {
 			break
 		}
-		ref = next
+		var within bool
+		if pointer, within = m.self.within(next); !within {
+			break
+		}
+		byName = next.GetURI() != ""
+		named = named || byName
 	}
 	for _, p := range slices.Backward(path) {
 		toEnd = min(toEnd+1, farHops)
@@ -578,18 +601,29 @@ func (m *mappings) priced(pointer string, model, tree bool) int {
 	return steps + m.reads.drain()
 }
 
-// pointerOf returns the position target names in the source, and whether it
-// names one: as the lowering reads it (refscope.Scope.InternalPointer), so the
-// targets resolved here are exactly those it asks DeclaredAt about. A declared
-// component's name is the component, and a "#/$defs/..." pointer is the
-// definition the lowering reads relative to the discriminator (GitHub #557),
-// which no $ref to the pointer resolves.
-func (m *mappings) pointerOf(target string) (jsontext.Pointer, bool) {
+// pointerOf returns the position target, an entry of d, names in the source,
+// and whether it names one: as the lowering reads it (refscope.Scope.
+// MappingPointer), so the targets resolved here are exactly those it asks
+// DeclaredAt about. A declared component's name is the component. A
+// "#/$defs/..." pointer is the definition the lowering reads relative to d
+// (GitHub #557), resolved here only where the document's root holds it: raw
+// YAML, which no position of the model answers for (GitHub #910).
+func (m *mappings) pointerOf(d *oas3.Discriminator, target string) (jsontext.Pointer, bool) {
 	if _, declared := m.doc.GetComponents().GetSchemas().Get(target); declared {
 		return "", false
 	}
-	pointer, ok := sourcePointer(m.self.path, target)
-	return pointer, ok && !namesEmptyKey(pointer)
+	pointer, ok := refscope.Scope{SelfPath: m.self.path}.InternalPointer(target)
+	if !ok || namesEmptyKey(pointer) {
+		return "", false
+	}
+	if !defs.IsPointer(pointer) {
+		return pointer, true
+	}
+	if _, held := defs.PointerOf(references.Reference(target)); !held {
+		return "", false
+	}
+	def, found := m.rule.MappingTarget(d, pointer)
+	return pointer, found && def.At == pointer
 }
 
 // sourcePointer returns the position ref names in the source at self, as the

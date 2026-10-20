@@ -6,6 +6,7 @@
 package openapi_test // external test package — exercises only the public API
 
 import (
+	"go/types"
 	"maps"
 	"reflect"
 	"slices"
@@ -16,17 +17,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/internal/decls"
+	"github.com/dexpace/morphic/internal/jsonshape"
 	"github.com/dexpace/morphic/ir"
 )
 
-// deprecationPtrType is the field type that makes an IR struct a carrier.
-var deprecationPtrType = reflect.TypeFor[*ir.Deprecation]()
-
-// maxIRTypeGraphDepth bounds the walk over the IR's static type graph (the
-// bounded-recursion rule). Each distinct reflect.Type is visited once, so the
-// seen set already terminates it; reaching the cap means the walk stopped being
-// a walk over the IR, so it fails rather than truncating.
-const maxIRTypeGraphDepth = 512
+// deprecationType is what a carrier's *ir.Deprecation field points to, named by
+// the compiler rather than spelled as a string.
+var deprecationType = reflect.TypeFor[ir.Deprecation]()
 
 // promotedCarrierRows maps each IR struct the compiler promotes into to the
 // promotionCarriers rows that witness it. Property appears twice because the
@@ -42,8 +40,8 @@ var promotedCarrierRows = map[string][]string{
 
 // unpromotedCarriers names every IR struct carrying a Deprecation that no row
 // witnesses, against the reason. An entry is a claim a reviewer has to agree
-// with, which is why it is spelled here rather than dropped from the walk; each
-// reason is held to the IR below, so an entry cannot outlive it.
+// with, which is why it is spelled here rather than skipped when the IR is
+// read; each reason is held to the IR below, so an entry cannot outlive it.
 var unpromotedCarriers = map[string]string{
 	"EnumMember": "carries no Provenance, so rule 4 of ir-design §12 keeps promotion out until it gains one",
 	"Message":    "the OpenAPI compiler builds none: a Message is an AsyncAPI node",
@@ -57,29 +55,31 @@ var unpromotedCarriers = map[string]string{
 func TestPromotionCarriers_NameEveryDeprecationCarrierInTheIR(t *testing.T) {
 	t.Parallel()
 	found := deprecationCarrierTypes(t)
-	require.NotEmpty(t, found, "the walk found no *ir.Deprecation field at all, so it reached "+
+	require.NotEmpty(t, found, "the shape holds no *ir.Deprecation field at all, so the read reached "+
 		"nothing and proves nothing about the carriers the lists name")
 
 	listed := slices.Sorted(slices.Values(slices.Concat(
 		slices.Collect(maps.Keys(promotedCarrierRows)), slices.Collect(maps.Keys(unpromotedCarriers)))))
 	names := make([]string, 0, len(found))
-	for _, rt := range found {
-		names = append(names, rt.Name())
+	for _, n := range found {
+		names = append(names, n.Obj().Name())
 	}
 	assert.Empty(t, cmp.Diff(names, listed),
 		"every ir struct carrying a *Deprecation must be mapped to its promotion rows or "+
 			"exempted with a reason, once each (-declared +listed)")
 
-	for _, rt := range found {
-		_, hasProvenance := rt.FieldByName("Provenance")
-		if _, promoted := promotedCarrierRows[rt.Name()]; promoted {
-			assert.True(t, hasProvenance, "%s is promoted into, so rule 4 needs it to carry a Provenance", rt.Name())
+	for _, n := range found {
+		name := n.Obj().Name()
+		field, _, _ := types.LookupFieldOrMethod(n, false, n.Obj().Pkg(), "Provenance")
+		_, hasProvenance := field.(*types.Var)
+		if _, promoted := promotedCarrierRows[name]; promoted {
+			assert.True(t, hasProvenance, "%s is promoted into, so rule 4 needs it to carry a Provenance", name)
 			continue
 		}
-		reason := unpromotedCarriers[rt.Name()]
+		reason := unpromotedCarriers[name]
 		if strings.HasPrefix(reason, "carries no Provenance") {
 			assert.False(t, hasProvenance, "%s now carries a Provenance, so its exemption no longer holds: "+
-				"promote into it and move it to promotedCarrierRows", rt.Name())
+				"promote into it and move it to promotedCarrierRows", name)
 		}
 	}
 }
@@ -107,53 +107,33 @@ func TestPromotionCarriers_RowsAreTheOnesTheCorpusBuilds(t *testing.T) {
 }
 
 // deprecationCarrierTypes returns every struct type the IR declares with a field
-// of type *ir.Deprecation, sorted by name.
-//
-// The walk starts at ir.Document and visits each distinct reflect.Type once, so
-// recursive shapes terminate. The sealed TypeDef sum is reached only through an
-// interface, which a walk over the static type graph cannot descend into, so each
-// concrete kind is walked from its own root as well — seeded from the kinds the
-// ir sources declare rather than a list here, so a kind is covered the day it is
-// added (pass/validate_carriers_test.go walks the same two halves for the same
-// reason).
-func deprecationCarrierTypes(t *testing.T) []reflect.Type {
+// of type *ir.Deprecation, sorted by name. It reads them off the JSON shape
+// ir.Document reaches, which lists a sealed sum's variants from the ir sources,
+// so a carrier is covered the day it is declared.
+func deprecationCarrierTypes(t *testing.T) []*types.Named {
 	t.Helper()
-	var found []reflect.Type
-	seen := map[reflect.Type]bool{}
+	p, err := decls.Load(deprecationType.PkgPath())
+	require.NoError(t, err)
+	shape, err := jsonshape.Read(p, "Document")
+	require.NoError(t, err)
 
-	var walk func(rt reflect.Type, depth int)
-	walk = func(rt reflect.Type, depth int) {
-		require.Less(t, depth, maxIRTypeGraphDepth, "the IR type graph nests past %d", maxIRTypeGraphDepth)
-		if seen[rt] {
-			return
-		}
-		seen[rt] = true
-		switch rt.Kind() {
-		case reflect.Pointer, reflect.Slice, reflect.Array:
-			walk(rt.Elem(), depth+1)
-		case reflect.Map:
-			walk(rt.Key(), depth+1)
-			walk(rt.Elem(), depth+1)
-		case reflect.Struct:
-			for f := range rt.Fields() {
-				if f.Type == deprecationPtrType {
-					found = append(found, rt)
-				}
-				walk(f.Type, depth+1)
-			}
-		default:
-			// A leaf: no other kind has a component type to descend into.
+	var found []*types.Named
+	for _, typ := range shape.Types {
+		if slices.ContainsFunc(typ.Members, pointsToDeprecation) {
+			found = append(found, typ.Named)
 		}
 	}
-
-	walk(reflect.TypeFor[ir.Document](), 0)
-	for _, kind := range sealedTypeKinds(t) {
-		td, ok := ir.NewTypeDef(kind)
-		require.True(t, ok, "no concrete type is registered for kind %q", kind)
-		rt := reflect.TypeOf(td)
-		require.Equal(t, reflect.Pointer, rt.Kind(), "NewTypeDef must return a pointer for %q", kind)
-		walk(rt.Elem(), 0)
-	}
-	slices.SortFunc(found, func(a, b reflect.Type) int { return strings.Compare(a.Name(), b.Name()) })
 	return found
+}
+
+// pointsToDeprecation reports whether m is a field of type *ir.Deprecation,
+// however many aliases spell it.
+func pointsToDeprecation(m jsonshape.Member) bool {
+	ptr, isPointer := types.Unalias(m.Field.Type()).(*types.Pointer)
+	if !isPointer {
+		return false
+	}
+	named, isNamed := types.Unalias(ptr.Elem()).(*types.Named)
+	return isNamed && named.Obj().Name() == deprecationType.Name() &&
+		named.Obj().Pkg().Path() == deprecationType.PkgPath()
 }

@@ -111,6 +111,13 @@ func (t *treeReads) holds(raw *yaml.Node, token string) bool {
 	return target != nil
 }
 
+// target is defs.RawRead, answered from the index: the node the library's read
+// of tokens finds in raw, and false where it finds none.
+func (t *treeReads) target(raw *yaml.Node, tokens []string) (*yaml.Node, bool) {
+	_, n := t.read(raw, joinTokens(tokens), math.MaxInt)
+	return n, n != nil
+}
+
 // drain returns the pairs indexed since it last answered.
 func (t *treeReads) drain() int {
 	n := t.indexed

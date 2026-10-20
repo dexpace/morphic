@@ -61,6 +61,13 @@ export GOFLAGS
 # upstream release reddens main with no change to this repo.
 GOLANGCI_LINT_VERSION ?= v2.14.0
 
+# The ports CI never runs on, as GOOS/GOARCH, which make build, make vet and
+# make lint-planted cover beside the host: an API one port lacks fails only that
+# port's build, and a file one port alone builds is read by that port's vet and
+# lint only. Windows, and the two wasm ports, whose syscall package is the
+# narrowest the module builds against.
+PORTS := windows/amd64 js/wasm wasip1/wasm
+
 # Per-target fuzz budget, bounded on purpose. The gate's job is to keep every
 # target executable and to search a little on every change; a campaign is what
 # `make fuzz FUZZTIME=5m` is for.
@@ -74,10 +81,10 @@ FUZZTIME ?= 10s
 # testdata/ while `coverage` is running `go test ./...` over the same tree.
 .NOTPARALLEL:
 
-.PHONY: gate fmt vet lint build coverage \
-	fuzz bench bench-smoke print-lint-version
+.PHONY: gate fmt vet lint lint-planted check-lint-version build coverage \
+	fuzz bench bench-smoke print-lint-version print-go-version
 
-gate: fmt vet lint build coverage fuzz bench-smoke
+gate: fmt vet lint lint-planted build coverage fuzz bench-smoke
 
 fmt:
 	@unformatted="$$(gofmt -l $$(git ls-files '*.go'))"; \
@@ -87,30 +94,42 @@ fmt:
 		exit 1; \
 	fi
 
+# go vet's own analyzers, then the repository's: internal/lintrules, through
+# cmd/morphic-vet, on the host and on each of the PORTS. scripts/vet-rules.sh
+# says how.
 vet:
 	$(GO) vet ./...
+	./scripts/vet-rules.sh $(PORTS)
+
+lint: check-lint-version
+	golangci-lint run
+
+# The rules in .golangci.yml that a clean tree cannot prove, held to the findings
+# planted for them on the host and on each of the PORTS; scripts/lint-planted.sh
+# says how. In CI it runs after the lint action, which leaves its golangci-lint
+# on PATH for the steps after it.
+lint-planted: check-lint-version
+	./scripts/lint-planted.sh $(PORTS)
 
 # CI installs the pinned release through golangci-lint-action; here the binary
 # is whatever is on PATH. A mismatch is reported rather than fatal — a developer
 # on a newer release should know their finding set is not CI's, but a tool
 # version is not a reason to refuse to run the gate at all.
-lint:
+check-lint-version:
 	@have="$$(golangci-lint version --short 2>/dev/null || true)"; \
 	want="$(GOLANGCI_LINT_VERSION)"; \
 	if [ "$$have" != "$${want#v}" ]; then \
 		echo "warning: local golangci-lint is $${have:-absent}, CI pins $$want" >&2; \
 		echo "warning:   go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$$want" >&2; \
 	fi
-	golangci-lint run
 
-# The build runs for the host and again for ports CI never runs on, since an
-# API one port lacks fails only that port's build: Windows, and the two wasm
-# ports, whose syscall package is the narrowest the module builds against.
+# The build runs for the host and again for each of the PORTS.
 build:
 	$(GO) build ./...
-	GOOS=windows GOARCH=amd64 $(GO) build ./...
-	GOOS=js GOARCH=wasm $(GO) build ./...
-	GOOS=wasip1 GOARCH=wasm $(GO) build ./...
+	@for port in $(PORTS); do \
+		echo "GOOS=$${port%/*} GOARCH=$${port#*/} $(GO) build ./..."; \
+		GOOS="$${port%/*}" GOARCH="$${port#*/}" $(GO) build ./... || exit 1; \
+	done
 
 # The suite runs once, under the race detector, and cmd/morphic-covergate judges
 # its profile statement by statement; its doc says why go test's percentage is

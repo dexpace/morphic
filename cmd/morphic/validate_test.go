@@ -58,6 +58,10 @@ func TestRun_ValidateExitCodes(t *testing.T) {
 		{"error diagnostics", errSpec, nil, 1, "openapi/unresolved-ref"},
 		{"error diagnostics with --skip-validate", errSpec,
 			[]string{"--skip-validate"}, 1, "openapi/unresolved-ref"},
+		{"info diagnostics at --fail-on info", warnSpec,
+			[]string{"--fail-on", "info"}, 1, "openapi/validation-only-keyword"},
+		{"error diagnostics below --fail-on none", errSpec,
+			[]string{"--fail-on", "none"}, 0, "openapi/unresolved-ref"},
 	}
 
 	for _, tt := range tests {
@@ -96,6 +100,8 @@ func TestRun_ValidateAgreesWithCompile(t *testing.T) {
 		{"info diagnostics", warnSpec, nil},
 		{"error diagnostics", errSpec, nil},
 		{"--fail-on warning", warnSpec, []string{"--fail-on", "warning"}},
+		{"--fail-on info", warnSpec, []string{"--fail-on", "info"}},
+		{"--fail-on none", errSpec, []string{"--fail-on", "none"}},
 		{"--skip-validate", warnSpec, []string{"--skip-validate"}},
 		{"--disable-pass validate", warnSpec, []string{"--disable-pass", "validate"}},
 	}
@@ -158,7 +164,7 @@ func TestRun_ValidateUsageErrors(t *testing.T) {
 		{"two spec files", []string{"validate", spec, spec},
 			"validate requires exactly one spec file"},
 		{"bad fail-on", []string{"validate", spec, "--fail-on", "hint"},
-			`invalid --fail-on "hint"`},
+			`invalid argument "hint" for "--fail-on" flag: engine: fail-on "hint" (known: error, warning, info, none)`},
 		{"unknown flag", []string{"validate", spec, "--bogus"},
 			"unknown flag: --bogus"},
 		{"compile's -o is not validate's", []string{"validate", spec, "-o", "ir.json"},
@@ -299,7 +305,7 @@ components: {schemas: {A: {$ref: '#/components/schemas/A'}}}
 	spec := writeFile(t, "cyclic.yaml", cyclic)
 	line := strings.Split(cyclic, "\n")[3]
 	col := strings.Index(line, "{$ref") + 1
-	require.Greater(t, col, 0, "the fixture must hold the schema object the cycle is reported at")
+	require.Positive(t, col, "the fixture must hold the schema object the cycle is reported at")
 	want := fmt.Sprintf("%s:4:%d (#/components/schemas/A):", spec, col)
 
 	var stdout, stderr bytes.Buffer
@@ -324,7 +330,7 @@ func TestRun_ValidateReportsAnOverlayRefusalWithTheOverlaysFile(t *testing.T) {
 	overlay := writeFile(t, "bad-overlay.yaml", anchorCycle)
 	line := strings.Split(anchorCycle, "\n")[4]
 	col := strings.Index(line, "*a") + 1
-	require.Greater(t, col, 0, "the fixture must hold the alias that closes the cycle")
+	require.Positive(t, col, "the fixture must hold the alias that closes the cycle")
 	want := fmt.Sprintf("%s:5:%d (#/actions/0/update/p/0):", overlay, col)
 
 	var stdout, stderr bytes.Buffer
