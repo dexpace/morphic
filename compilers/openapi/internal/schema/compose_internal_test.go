@@ -905,6 +905,10 @@ func TestWalkAllOf_StopsWhenTheConsumerDoes(t *testing.T) {
         - allOf:
             - {$ref: '#/components/schemas/A'}
         - {type: object}
+    Flat:
+      allOf:
+        - {$ref: '#/components/schemas/A'}
+        - {$ref: '#/components/schemas/A'}
 `))
 	decl, ok := l.ctx.Doc.Components.Schemas.Get("M")
 	require.True(t, ok)
@@ -933,6 +937,15 @@ func TestWalkAllOf_StopsWhenTheConsumerDoes(t *testing.T) {
 		break
 	}
 	assert.Equal(t, 1, refs)
+
+	flatDecl, ok := l.ctx.Doc.Components.Schemas.Get("Flat")
+	require.True(t, ok)
+	var flatRefs int
+	for range allOfRefBranches(flatDecl.GetSchema()) {
+		flatRefs++
+		break
+	}
+	assert.Equal(t, 1, flatRefs, "a flat list stops at the first $ref when the loop breaks")
 }
 
 // TestRefBranchTarget_InlineBranchNamesNothing pins that an inline branch has

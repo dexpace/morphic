@@ -171,6 +171,14 @@ func allOfBranches(s *oas3.Schema, pointer jsontext.Pointer) []allOfBranch {
 // schemas only: the view an ancestor walk needs, which reads no pointer.
 func allOfRefBranches(s *oas3.Schema) iter.Seq[*oas3.JSONSchema[oas3.Referenceable]] {
 	return func(yield func(*oas3.JSONSchema[oas3.Referenceable]) bool) {
+		if list := s.GetAllOf(); !slices.ContainsFunc(list, wrapsAllOf) {
+			for _, b := range list { // nothing flattens: walkAllOf would yield the list itself
+				if isRefBranch(b) && !yield(b) {
+					return
+				}
+			}
+			return
+		}
 		for st := range walkAllOf(s) {
 			if isRefBranch(st.schema) && !yield(st.schema) {
 				return
