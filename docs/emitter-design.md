@@ -416,7 +416,6 @@ type TypePlan struct {
     Union      UnionShape           // a union's wire shape, one of four (§4.4); "" = not a union
     Discrim    *DiscrimFacts        // a union's or hierarchy's discriminator, as variant IDs
     Scalar     *ScalarChain         // a scalar's Base chain, walked once; nil = not a scalar
-    NeedShapes []ir.Lifecycle       // which visibility projections this type actually needs
     Alias      ir.TypeID            // dedup alias target — follow to the single emitted type;
                                     // empty until the dedup pass (architecture.md §2.2) and its
                                     // alias record (ir-design §16, question 2) exist
@@ -459,7 +458,7 @@ One logical model produces N wire shapes across the lifecycle. `ModelShape(model
 **computed traversal in the plan layer**; the IR stores only the single logical model plus visibility
 facts and never the projected variants (INV2; `ir-design.md §5.2`). The plan emits one `ModelShape`
 per `(TypeID, Lifecycle)` the document actually exercises, so a refiner knows exactly which shapes
-to build.
+to build: a type's keys in `Plan.Shapes` are the projections it needs, and nothing else lists them.
 
 ```go
 type ShapeKey struct { Type ir.TypeID; Lifecycle ir.Lifecycle }
@@ -568,24 +567,28 @@ first model. A candidate field belongs in the plan only when all three of these 
    the SDK's pager does not, an SDK sending a tag value the docs do not list.
 
 A fact the IR states outright fails the third test and gets no field: every consumer reads it from
-the IR, and a copy would be a second home for it. A fact meeting the first two and not the third
-shapes only the code of the artifact that uses it — how an untagged union's variant is recognized on
-decode (§4.4), which a target with native unions never asks; which symbols a file imports — and is
-a shared refine helper in `emitters/refine` when more than one target needs it: reused code, not a
-plan field.
+the IR, and a copy would be a second home for it. A record the plan derives as a whole is not such a
+copy, though it holds declared facts: a `PagePlan` the policy may infer has no IR field to read
+instead, `Errors` collapse several cases into one entry, and the stream and long-running plans
+gather facts spread over more than one node — the event union, the poll operation's monitor type —
+so each reads the same however its facet was written. What the test removes is a field or record
+that derives nothing. Any other fact that fails it shapes only the code of the artifact that uses it
+— how an untagged union's variant is recognized on decode (§4.4), which symbols a file imports — and
+is a shared refine helper in `emitters/refine` when more than one target needs it: reused code, not
+a plan field.
 
 The procedure decided every existing field:
 
 1. **Choices under `plan.Policy`** stay: `PrimaryResponse`, `PrimaryContent`, the unwrap behind
    `ReturnType`, and `PagePlan`, an inferred one included.
 2. **Derivations several artifacts expose** stay: `Return`, `Errors`, `Auth`, `Bindings`, `Stream`
-   and `LRO`; `Usage`, `Flattened`, `Union`, `Discrim`, `Scalar`, `NeedShapes` and `Alias`; and
-   `ModelShape`.
+   and `LRO`; `Usage`, `Flattened`, `Union`, `Discrim`, `Scalar` and `Alias`; and `ModelShape`.
 3. **Copies of what the IR states** are gone: whether there is a body, one-way-ness and idempotency
    (§3.1), a model's `Base`, `Implements` and `Mixins`, an enum's openness, value type, flags and
    fallback member, a union's variant list, and the operation-group tree (§3.4). `Union` replaces a
    classification that copied the variant list and a second discriminator beside the tag mode it
    derived, and `Scalar` replaces a bare root that left the constraints it merged nowhere.
+   `NeedShapes` is gone too: it listed again the lifecycles `Plan.Shapes` is keyed by (§3.3).
 4. **The parameter-passing shape** fails the first test and moved to refine (§4.13): a dynamic
    target's keyword arguments are additive as they stand, where a positional parameter added to a Go
    or Kotlin function breaks its callers, so the best default differs by language.
