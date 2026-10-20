@@ -9,17 +9,17 @@ import (
 // Recursive reports whether a value of exactly the type id names can hold, at
 // any depth, a value of the same shape (ir-design §4.9): its shape lies on a
 // cycle of the type graph. A reference to a polymorphic model counts every
-// subtype it may hold, so a subtype holding its own base is recursive, while a
-// subtype that only composes its base is not. A type the document does not
-// declare is not recursive.
+// subtype it may hold, so a subtype holding its own polymorphic base is
+// recursive, while a subtype that only composes its base is not. A type the
+// document does not declare is not recursive.
 func (x *Index) Recursive(id ir.TypeID) bool {
 	return x.componentIndex().recursive[id]
 }
 
 // Component returns the sorted types whose shapes share a strongly connected
 // component of the type graph with id's, as a slice the caller owns: id alone
-// for a type on no cycle, or one recursive only through itself. It is nil when
-// id is not in the document.
+// when no other type's shape lies on a cycle with it. It is nil when id is not
+// in the document.
 func (x *Index) Component(id ir.TypeID) []ir.TypeID {
 	return slices.Clone(x.componentIndex().of[id])
 }

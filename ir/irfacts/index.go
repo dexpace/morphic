@@ -33,9 +33,10 @@ func New(doc *ir.Document) *Index {
 }
 
 // IsSubtype answers ir.IsSubtype for the index's document. The first question
-// indexes the whole hierarchy. After that a question costs a lookup wherever no
-// type has two supertypes, and otherwise a walk no longer than ir.IsSubtype's,
-// run only when the index cannot rule the pair out.
+// indexes the whole hierarchy. After that a question is two comparisons when
+// the hierarchy is a forest, as it is when no model names two supertypes, and
+// otherwise a walk no longer than ir.IsSubtype's for a pair the index cannot
+// rule out.
 func (x *Index) IsSubtype(target, base ir.TypeID) bool {
 	if sub, settled := x.hierarchyIndex().subtype(target, base); settled {
 		return sub

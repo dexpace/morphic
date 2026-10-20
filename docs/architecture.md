@@ -305,6 +305,7 @@ it in its own change.
 ```
 morphic/
 ├── ir/                     # Layer 0 — IR node types, IDs, shared traversals, JSON round-trip.
+│   ├── irfacts/            #           Derived facts: subtypes, usage, recursion (never stored).
 │   ├── irtest/             #           Golden-snapshot and fixture helpers for IR documents.
 │   └── irverify/           #           Structural-invariant oracle (dangling refs, IDs, naming).
 ├── compilers/              # Layer 1 — compiler contract + registry.
@@ -366,7 +367,7 @@ Dependency rules, enforced by an architecture test as in oagen:
 - A compiler's own `internal/` packages each carry their own allowlist rather than inheriting the
   compiler's. That is what keeps the ordering among them real: `diag` reaches nothing but `ir`,
   and no lowering package may reach the compiler that calls it.
-- `emitters/*` imports `ir` and the contract package `emitters` — never a compiler.
+- `emitters/*` imports `ir`, `ir/irfacts` and the contract package `emitters` — never a compiler.
 - `engine` imports everything below it; `cmd` imports `engine`.
 
 Two caps guard the shape rather than the graph, both in `internal/archtest` and `.golangci.yml`:

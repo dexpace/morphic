@@ -254,7 +254,7 @@ lacks (the strongest validation the oagen audit produced).
   propagates across ref edges) — Morphic's plan hits this the moment one model is used under two
   lifecycles/media-types. Key visibility/shape projections on `(TypeID, lifecycle-set, options-hash)`
   and intern the option set (answers ir-design open-question #4: derive Usage once per document in
-  `ir.Facts`, do not store it, key by interned context). Support `manuallyTrack`-style usage
+  `ir/irfacts`, do not store it, key by interned context). Support `manuallyTrack`-style usage
   injection for emitter-synthesized types (envelopes, page wrappers) or you get mis-scoped
   duplicate declarations.
 
