@@ -105,9 +105,9 @@ const (
 	// AnchorTarget is a fragment naming a $anchor, which is not read as a
 	// target (ir-design §4.7).
 	AnchorTarget
-	// BadPointer is a fragment that is no JSON pointer: an invalid escape,
-	// bytes that are not UTF-8, or a second '#', which RFC 3986 admits in no
-	// fragment.
+	// BadPointer is a fragment that is no JSON pointer and no $anchor name: an
+	// invalid escape, bytes that are not UTF-8, or a second '#', which RFC
+	// 3986 admits in no fragment.
 	BadPointer
 	// NoDefinition is a "#/$defs/..." pointer the $defs rule finds nothing
 	// for.

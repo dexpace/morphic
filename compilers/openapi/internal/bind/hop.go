@@ -24,8 +24,11 @@ func (b *binder) resolve(site Position, ref string, own bool) Hop {
 		return h
 	}
 	pointer := fragment.Pointer(ref)
-	if _, frag, ok := strings.Cut(ref, "#"); ok && frag != "" && pointer != "" && !strings.HasPrefix(string(pointer), "/") {
-		h.Reason = AnchorTarget
+	if pointer != "" && !strings.HasPrefix(string(pointer), "/") {
+		h.Reason = BadPointer
+		if isAnchorName(string(pointer)) {
+			h.Reason = AnchorTarget
+		}
 		return h
 	}
 	if !pointer.IsValid() || !utf8.ValidString(string(pointer)) {
@@ -124,4 +127,19 @@ func (b *binder) hop(p Position) Hop {
 		b.find.landed(h)
 	}
 	return h
+}
+
+// isAnchorName reports whether s is a name a $anchor can declare, by JSON
+// Schema 2020-12 section 8.2.2: a letter or '_', then letters, digits, '-',
+// '_' and '.'.
+func isAnchorName(s string) bool {
+	for i, c := range s {
+		switch {
+		case c >= 'a' && c <= 'z', c >= 'A' && c <= 'Z', c == '_':
+		case i > 0 && (c >= '0' && c <= '9' || c == '-' || c == '.'):
+		default:
+			return false
+		}
+	}
+	return s != ""
 }
