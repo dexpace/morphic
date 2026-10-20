@@ -675,8 +675,8 @@ func TestDetectCycles_MergeChainWithinBoundIsClean(t *testing.T) {
 }
 
 // TestDetectCycles_MergeChainPastBoundWarns reads a chain past both the depth
-// bound and the alias allowance. It is no longer than that takes, so a bound
-// that stopped binding fails here in seconds.
+// bound and the alias allowance, with room to spare, yet short enough that a
+// bound which stopped binding fails here in seconds.
 func TestDetectCycles_MergeChainPastBoundWarns(t *testing.T) {
 	t.Parallel()
 	diags := scanBytes(t, []byte(ynode.MergeChainSpec(500)))
