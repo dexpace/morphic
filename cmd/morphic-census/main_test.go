@@ -9,11 +9,17 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/engine"
+	"github.com/dexpace/morphic/ir/irtest"
 )
+
+// unwitnessedGolden holds the facts no spec under the repository's testdata
+// sets: the lines of a census of it counted 0 0.
+const unwitnessedGolden = "../../testdata/unwitnessed.golden.txt"
 
 // lines returns the lines of a report.
 func lines(report string) []string {
@@ -144,4 +150,34 @@ func TestMain_ExitCode(t *testing.T) {
 	main()
 
 	assert.Equal(t, 2, got)
+}
+
+// TestRun_HoldsTheFactsNoCommittedSpecSets compiles every committed spec and
+// holds the facts none sets to a golden, which -update rewrites. A case that
+// sets a fact removes its line, and a new IR fact, or a compiler that stops
+// setting one, adds a line. A fact a compiler sets only to its zero value
+// stays listed, since a census cannot see the assignment.
+func TestRun_HoldsTheFactsNoCommittedSpecSets(t *testing.T) {
+	t.Parallel()
+	var stdout, stderr bytes.Buffer
+	require.Equal(t, 0, run(context.Background(), []string{"../../testdata"}, &stdout, &stderr), stderr.String())
+
+	var unset strings.Builder
+	for _, line := range lines(stdout.String()) {
+		if f := strings.Fields(line); len(f) > 3 && f[1] == "0" && f[2] == "0" {
+			unset.WriteString(line + "\n")
+		}
+	}
+	require.NotZero(t, unset.Len(), "the census lists the facts it found unset")
+	require.Contains(t, stdout.String(), "member 1", "and found some set")
+
+	if irtest.Update() {
+		require.NoError(t, os.WriteFile(unwitnessedGolden, []byte(unset.String()), 0o644))
+		return
+	}
+	want, err := os.ReadFile(unwitnessedGolden)
+	require.NoError(t, err, "read %s (run with -update to create it)", unwitnessedGolden)
+	if diff := cmp.Diff(string(want), unset.String()); diff != "" {
+		t.Errorf("facts no committed spec sets (-golden +got):\n%s", diff)
+	}
 }

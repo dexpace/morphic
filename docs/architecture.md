@@ -336,7 +336,7 @@ morphic/
 ├── internal/census/        #           Counts which IR facts a set of documents sets (tooling).
 ├── internal/decls/         #           Type-checked reads of declarations, for tests (tooling).
 ├── internal/harness/       #           Bug-catching oracle sweep over a spec corpus (tooling).
-├── internal/jsonshape/     #           The IR's JSON shape, which IRVersion is pinned to (tooling).
+├── internal/jsonshape/     #           The IR's JSON shape: IRVersion's pin and the census read it (tooling).
 ├── internal/keydoc/        #           Reader of the keyed documents and their citations (tooling).
 ├── internal/leakcheck/     #           Goroutine leak check for test binaries (tooling).
 ├── internal/testspec/      #           Spec fixtures shared by the tooling (tooling).

@@ -187,6 +187,11 @@ These all exist already — extend them rather than building a parallel mechanis
   `compilers/openapi/conformance_matrix_test.go` requires every expressible row to be witnessed or
   listed with a reason. What it cannot check is whether a spec that *names* a row exercises that
   capability — that claim is read by a reviewer, so weigh it like any other.
+- **IR census** (`testdata/unwitnessed.golden.txt`): every IR fact no committed spec sets, which is
+  what the first emitters degrade rather than lower (`docs/emitter-design.md` §14.1). A fact is a
+  struct member, the emptiness of an `omitzero` collection, or an enumeration value, read off
+  `internal/jsonshape` by `internal/census`; `go test ./cmd/morphic-census` holds the file to a
+  census of `testdata/`. A case that sets a fact takes its line out, so `-update` in that change.
 - **Lowering specification**: `docs/compilers/openapi.md` is machine-read like the matrix. Each rule
   names its evidence, and the `TestLoweringSpec` tests in `compilers/openapi` hold the names to the
   code both ways, each listed code to the rule's text, and every `docs/compilers/openapi.md#<key>`

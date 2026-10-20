@@ -1715,49 +1715,34 @@ Extends architecture.md §6 milestone 3 (the first emitters) and beyond.
 
 ### 14.1 What M3 lowers
 
-M3a to M3c lower the IR facts a compiler produces, and degrade the rest. The IR stays as designed
-(INV9): this scopes what the first emitters implement, not what the IR models. The set is measured
-rather than kept by hand:
+M3a to M3c lower the IR facts the compilers produce, and degrade the rest with a code. This scopes
+what the first emitters implement, not what the IR models, which stays as designed (INV9). The
+scope is derived, never kept by hand: `testdata/unwitnessed.golden.txt` lists every fact no
+committed spec sets. A fact is a member of one of the IR's structs, the emptiness of a member whose
+empty value differs from its absence (`Operation.auth`'s `[]`), or a value of one of its
+enumerations, a `TypeKind` among them. `go test ./cmd/morphic-census` holds the file to a census of
+`testdata/`, and `-update` rewrites it; `go run ./cmd/morphic-census <path>...` counts any specs.
 
-```bash
-go run ./cmd/morphic-census testdata/ <golden spec> <more specs>...
-```
-
-lists every member of the IR's structs and every value of its enumerations with the number of
-compiled documents that set it, zeros included. `testdata/` brings the conformance corpus, which
-witnesses each construct the compilers lower, and the golden spec and any other real specs bring
-what documents in use contain. A fact at `0 0` is outside M3.
-
-- **Outside M3, a fact degrades with a code.** Its dispatch reports
-  `emitters/<target>/unsupported-<fact>` and takes the nearest lowering it can (T-7), never a silent
-  fallback, so T-1's dispatch over every kind stays complete.
+- **A listed fact degrades with a code.** Its dispatch reports a coded
+  `emitters/<target>/unsupported-…` diagnostic and takes the nearest lowering it can (T-7), never a
+  silent fallback, so T-1's dispatch over every kind stays complete. Where an item of M3b or M3c above names listed facts, such as external
+  types, pagination or LRO, the item is that degrade until a compiler produces them.
 - **A fact enters when a compiler first produces it.** The change that makes a compiler produce one
-  adds the conformance case that witnesses it, so the census over `testdata/` reports it in that
-  change, and its lowering lands tested against that compiler's output.
+  adds the conformance case that witnesses it, which takes its line out of the file in that change,
+  and its lowering lands tested against that compiler's output.
+- **Real specs check the corpus.** A fact a compiler produces belongs in `testdata/`, so a census of
+  a real spec that sets a listed fact names a conformance case to add. The golden spec's come first:
+  M3 must lower every fact it sets, and lowers none the corpus does not witness.
 
-At morphic `c4e0c239`, over `testdata/`, the golden spec (`cloudflare/api-schemas` `openapi.json`
-@ `843eae2f`) and 1,838 other OpenAPI 3 specs, these were outside M3:
-
-- **Kinds and values:** the `external` type kind; the `datetime`, `float` and `decimal128`
-  primitives; constructor, reference and `symbol` values.
-- **Protocols:** channels, messages, message bindings and replies; RPC, GraphQL and OTP bindings;
-  protocol declarations; server protocols and bindings; SASL, X.509, user-password and encryption
-  auth schemes.
-- **Operation facets:** pagination, long-running and one-way operations, overloads, declared
-  idempotency, operation-level visibility, operation scenario examples, a response body at a path,
-  declared success statuses, request compression, host prefixes, checksums, shared routes, a
-  response's status-code property, an error case's `retryable` and `throttling`; parameters bound
-  to the body, a body property or the host.
-- **Versioning:** every `Availability`, and `Document.versions`.
-- **Models and properties:** abstract models, `implements`, positional models, extension ranges,
-  input-only models; property presence, wire IDs, `flatten`, event headers and payloads,
-  `clientOptional`, `defaultAdded`, arguments, `extensionOf`, per-format wire names; discriminator
-  envelopes, indexes and inference; union variants' wire names, wire IDs and events; enum fallback
-  members and flags, and member wire names; list encodings; a key type on a map or a catch-all.
-- **Elsewhere:** service namespaces, versions, inheritance, renames and common errors; template
-  instantiations; constraint precision, scale and pattern messages; file details on a content;
-  a scheme's declared credential type; name aliases; a parameter's `valueFrom`; type-level access,
-  namespaces, tags, media-type hints and per-format wire names.
+Compiled at morphic `af283ea1`, the golden spec (`cloudflare/api-schemas` `openapi.json` @
+`843eae2f`) set eight listed facts: the `datetime_offset`, `float32`, `float64`, `int32`, `int64`
+and `uint64` primitives, the `client` streaming mode and the `null` value. In outline, and the file
+is the list, the rest were: the `external` kind; the `datetime`, `decimal`, `decimal128`,
+`duration`, `float`, `int16`, `time`, `uint16` and `uint8` primitives; constructor, reference and
+symbol values; every protocol but HTTP, and the auth schemes only those use; pagination,
+long-running, one-way and overloaded operations, idempotency, resources and stream details;
+versioning, from `Availability` to `Document.versions`; and members no OpenAPI construct sets, such
+as `Model.abstract`, `Property.presence` and `Enum.flags`.
 
 ---
 

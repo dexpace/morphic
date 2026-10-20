@@ -315,10 +315,12 @@ Run a single test with `go test ./ir -run TestName`. Beyond that:
   exits `1` if any spec fails. `testdata/` holds negative fixtures that fail on purpose, so sweep
   it with `go test ./internal/harness`, which knows which ones are expected to.
 - **IR census.** `go run ./cmd/morphic-census <file|dir>...` compiles the specs and lists every
-  member of the IR's structs and every value of its enumerations with the number of documents
-  that set it and the number of instances, zeros included, so `grep ' 0 0 '` shows what no
-  spec produces. Run it from inside the module: it reads the IR's constants through the go
-  command.
+  fact of the IR with the number of documents that set it and the number of instances, zeros
+  included: each member of its structs, the emptiness of a member whose empty value differs from
+  its absence, and each value of its enumerations. The facts no committed spec sets are held to
+  `testdata/unwitnessed.golden.txt`, which `go test ./cmd/morphic-census -update` rewrites and
+  which scopes the first emitters (`docs/emitter-design.md` §14.1). Run it from inside the module:
+  it reads the IR's declarations through the go command.
 - **Fuzzing.** `make fuzz` runs every fuzz target for 10s each (`make fuzz FUZZTIME=5m` for a
   longer search). One target runs on its own with, for example,
   `go test ./compilers/openapi -run '^$' -fuzz '^FuzzCompile$' -fuzztime 1m`.
