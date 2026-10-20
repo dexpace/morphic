@@ -108,6 +108,7 @@ func drawnFindings(t *testing.T, analyzers []*analysis.Analyzer, patterns ...str
 	t.Helper()
 	dir, err := filepath.Abs(plantDir)
 	require.NoError(t, err)
+	readDeclarers(t)
 
 	seen := map[string]bool{}
 	for _, path := range listPackages(t, patterns) {
@@ -140,6 +141,25 @@ func drawnFindings(t *testing.T, analyzers []*analysis.Analyzer, patterns ...str
 	}
 	slices.Sort(got)
 	return got
+}
+
+// readDeclarers reads the sources of the packages declaring what the rules key
+// on. go list reads them in a process go test's cache does not see, and the
+// cache keys a result on the files a test opens, so without this an edit to
+// one, such as a renamed field the plants spell, replays a stale pass.
+func readDeclarers(t *testing.T) {
+	t.Helper()
+	cfg := &packages.Config{Mode: packages.NeedName | packages.NeedFiles, Env: append(os.Environ(), "GOPACKAGESDRIVER=off")}
+	pkgs, err := packages.Load(cfg, irPath, compilePath, referencesPath, "github.com/speakeasy-api/openapi/expression")
+	require.NoError(t, err)
+	require.Len(t, pkgs, 4)
+	for _, p := range pkgs {
+		require.NotEmpty(t, p.GoFiles, "%s lists no file to read", p.PkgPath)
+		for _, f := range p.GoFiles {
+			_, err := os.ReadFile(f)
+			require.NoError(t, err)
+		}
+	}
 }
 
 // listPackages returns the import paths the patterns, relative to this
