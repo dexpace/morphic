@@ -272,7 +272,9 @@ func TestReadDecimal_ReadsWithoutMaterializing(t *testing.T) {
 	} {
 		got, ok := ReadDecimal(tc.in)
 		require.True(t, ok, "%s", tc.in)
-		assert.Equal(t, tc.neg, got.Negative, "%s", tc.in)
+		order, ordered := CompareBigVal(tc.in, "0")
+		require.True(t, ordered, "%s", tc.in)
+		assert.Equal(t, tc.neg, order < 0, "%s", tc.in)
 		assert.Equal(t, tc.zero, got.Zero, "%s", tc.in)
 		assert.Equal(t, tc.integral, got.Integral, "%s", tc.in)
 		assert.Equal(t, tc.digits, got.Digits, "%s", tc.in)

@@ -80,7 +80,7 @@ func TestMerger_ReconcileReportsDisagreementAndKeepsAWinner(t *testing.T) {
 	src := ir.Property{Name: ir.Naming{Source: "id"}, WireName: "id", Type: ir.TypeRef{Target: "t/int"},
 		Provenance: ptrAt("/components/schemas/S/properties/id")}
 
-	g.reconcileProperty(&dst, nil, src, written(`{"type":"integer"}`))
+	g.reconcileProperty(&dst, new(origins), src, written(`{"type":"integer"}`))
 
 	require.Len(t, *recorded, 1, "one disagreement, one diagnostic")
 	d := (*recorded)[0]

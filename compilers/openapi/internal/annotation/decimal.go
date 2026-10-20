@@ -194,8 +194,6 @@ func isDigits(s string) bool {
 // materializing it: enough to judge it against a range, an integrality or a
 // digit budget however large its exponent.
 type DecimalReading struct {
-	// Negative reports a value below zero; zero is never negative.
-	Negative bool
 	// Zero reports the value zero.
 	Zero bool
 	// Integral reports a value with no fractional part; zero is integral.
@@ -220,7 +218,6 @@ func ReadDecimal(v ir.BigVal) (DecimalReading, bool) {
 	}
 	digits := len(strings.TrimRight(d.digits, "0"))
 	return DecimalReading{
-		Negative: d.neg,
 		Integral: d.msdExp.Cmp(big.NewInt(int64(digits-1))) >= 0,
 		Digits:   digits,
 		MsdExp:   d.msdExp,

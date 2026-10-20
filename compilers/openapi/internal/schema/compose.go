@@ -42,7 +42,7 @@ func lowerAllOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 		cons, consDiags := ConstraintsOf(c, &common.Unmodeled, s, pointer)
 		diags = append(diags, consDiags...)
 		m := &ir.Model{TypeCommon: common, Constraints: cons}
-		idx := merge.NewPropIndex(nil)
+		idx := merge.NewPropIndex()
 		diags = append(diags, fillAllOf(c, ts, anchors, depth, m, idx, s, pointer)...)
 		diags = append(diags, fillModelProperties(c, ts, anchors, depth, m, idx, s, pointer)...)
 		diags = append(diags, applyCompositionRequired(c, m, s, pointer)...)
@@ -1002,7 +1002,7 @@ func composedVariantNullable(body *oas3.Schema, branch ir.TypeRef) bool {
 func buildComposedVariant(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, body composedBody, branch ir.TypeID, common ir.TypeCommon) (ir.TypeDef, []ir.Diagnostic) {
 	cons, diags := ConstraintsOf(c, &common.Unmodeled, body.schema, body.pointer)
 	m := &ir.Model{TypeCommon: common, Constraints: cons}
-	idx := merge.NewPropIndex(nil)
+	idx := merge.NewPropIndex()
 	diags = append(diags, fillAllOf(c, ts, anchors, depth, m, idx, body.schema, body.pointer)...)
 	diags = append(diags, fillModelProperties(c, ts, anchors, depth, m, idx, body.schema, body.pointer)...)
 	diags = append(diags, applyCompositionRequired(c, m, body.schema, body.pointer)...)

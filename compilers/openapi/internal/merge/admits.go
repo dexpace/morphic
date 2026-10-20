@@ -85,9 +85,9 @@ func admits(k ir.PrimKind, v ir.Value) bool {
 	case ir.PrimDate:
 		return v.Kind == ir.ValueString && parses("2006-01-02", v.Str)
 	case ir.PrimTime:
-		return v.Kind == ir.ValueString && parses("15:04:05Z07:00", v.Str)
+		return v.Kind == ir.ValueString && parsesRFC3339(v.Str, false)
 	case ir.PrimDatetimeOffset:
-		return v.Kind == ir.ValueString && parses(time.RFC3339, v.Str)
+		return v.Kind == ir.ValueString && parsesRFC3339(v.Str, true)
 	case ir.PrimUUID:
 		return v.Kind == ir.ValueString && isUUID(v.Str)
 	case ir.PrimURL:
@@ -153,11 +153,50 @@ func admitsFloat(v ir.Value, mantissa, maxExp uint) bool {
 	return upOK && downOK && below < 0 && above > 0
 }
 
-// isAbsoluteURI reports whether s is an RFC 3986 URI with a scheme.
+// isAbsoluteURI reports whether s is an RFC 3986 URI with a scheme. The bytes
+// are scanned first, since url.Parse accepts what the grammar does not (a
+// space, a brace, a non-ASCII byte); url.Parse then checks the structure.
 func isAbsoluteURI(s string) bool {
+	if !uriBytesValid(s) {
+		return false
+	}
 	u, err := url.Parse(s)
 	return err == nil && u.Scheme != ""
 }
+
+// uriBytesValid reports whether s is a scheme, a colon and then only bytes
+// RFC 3986 allows in a URI: unreserved, a gen-delim, a sub-delim, or a
+// percent-encoded octet.
+func uriBytesValid(s string) bool {
+	if s == "" || !isLetter(s[0]) {
+		return false
+	}
+	i := 1
+	for i < len(s) && (isLetter(s[i]) || isDigit(s[i]) || strings.IndexByte("+-.", s[i]) >= 0) {
+		i++
+	}
+	if i == len(s) || s[i] != ':' {
+		return false
+	}
+	for i++; i < len(s); i++ {
+		switch {
+		case s[i] == '%':
+			if i+2 >= len(s) || !isHex(s[i+1]) || !isHex(s[i+2]) {
+				return false
+			}
+			i += 2
+		case !isLetter(s[i]) && !isDigit(s[i]) && strings.IndexByte("-._~:/?#[]@!$&'()*+,;=", s[i]) < 0:
+			return false
+		}
+	}
+	return true
+}
+
+// isLetter reports whether c is an ASCII letter.
+func isLetter(c byte) bool { return c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' }
+
+// isDigit reports whether c is an ASCII decimal digit.
+func isDigit(c byte) bool { return c >= '0' && c <= '9' }
 
 // parses reports whether s is a time in layout. Calendar fields are checked, so
 // 2024-02-30 is refused; a leap second is refused too, which errs toward
@@ -165,6 +204,75 @@ func isAbsoluteURI(s string) bool {
 func parses(layout, s string) bool {
 	_, err := time.Parse(layout, s)
 	return err == nil
+}
+
+// parsesRFC3339 reports whether s is an RFC 3339 §5.6 full-time, or with date
+// a date-time: the grammar's shape first, since time.Parse accepts a comma
+// fraction and an offset hour above 23, then time.Parse for the calendar and
+// range. The T separator and the Z offset may be lower case, which time.Parse
+// refuses, so both are upper-cased once the shape is known.
+func parsesRFC3339(s string, date bool) bool {
+	layout, clock := "15:04:05Z07:00", s
+	if date {
+		if len(s) < len("2006-01-02T") || s[10] != 'T' && s[10] != 't' {
+			return false
+		}
+		layout, clock = time.RFC3339, s[11:]
+		s = s[:10] + "T" + clock
+	}
+	if !fullTimeShape(clock) {
+		return false
+	}
+	if last := len(s) - 1; s[last] == 'z' {
+		s = s[:last] + "Z"
+	}
+	return parses(layout, s)
+}
+
+// fullTimeShape reports whether s is hh:mm:ss, an optional fraction of a dot
+// and at least one digit, and an offset.
+func fullTimeShape(s string) bool {
+	const clockLength = len("15:04:05")
+	if len(s) < clockLength || s[2] != ':' || s[5] != ':' {
+		return false
+	}
+	for _, i := range []int{0, 1, 3, 4, 6, 7} {
+		if !isDigit(s[i]) {
+			return false
+		}
+	}
+	rest := s[clockLength:]
+	if strings.HasPrefix(rest, ".") {
+		end := 1
+		for end < len(rest) && isDigit(rest[end]) {
+			end++
+		}
+		if end == 1 {
+			return false
+		}
+		rest = rest[end:]
+	}
+	return isOffset(rest)
+}
+
+// isOffset reports whether s is Z, z or ±hh:mm with hh 00-23 and mm 00-59.
+func isOffset(s string) bool {
+	if s == "Z" || s == "z" {
+		return true
+	}
+	if len(s) != len("+05:30") || s[0] != '+' && s[0] != '-' || s[3] != ':' {
+		return false
+	}
+	hour, minute := twoDigits(s[1:3]), twoDigits(s[4:6])
+	return hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59
+}
+
+// twoDigits reads s, two bytes, as a number, or -1 when either is not a digit.
+func twoDigits(s string) int {
+	if !isDigit(s[0]) || !isDigit(s[1]) {
+		return -1
+	}
+	return int(s[0]-'0')*10 + int(s[1]-'0')
 }
 
 // isUUID reports whether s is the 8-4-4-4-12 hexadecimal form.
@@ -189,7 +297,7 @@ func isUUID(s string) bool {
 
 // isHex reports whether c is a hexadecimal digit.
 func isHex(c byte) bool {
-	return c >= '0' && c <= '9' || c >= 'a' && c <= 'f' || c >= 'A' && c <= 'F'
+	return isDigit(c) || c >= 'a' && c <= 'f' || c >= 'A' && c <= 'F'
 }
 
 // isDuration reports whether s is an ISO 8601 duration as RFC 3339 Appendix A

@@ -55,20 +55,31 @@ func WireNameIndex(props []ir.Property) map[string]int {
 type Source func() (ir.RawValue, error)
 
 // PropIndex finds, for each wire name of one Model, the position of the
-// property that holds it and the Source of that property's first declaration.
-// The Source is what lets a first declaration that turns out to be the broader
-// of a narrowing be kept verbatim beside the merged field, as a redeclaration
-// is (keepLosingDeclaration).
+// property that holds it and the declarations its default and examples came
+// from. An origin's Source is what lets a declaration whose value the merge
+// refuses be kept verbatim beside the merged field, as a redeclaration is
+// (keepLosingDeclaration).
 type PropIndex struct {
-	pos map[string]int
-	src map[string]Source
+	pos     map[string]int
+	origins map[string]*origins
 }
 
-// NewPropIndex indexes props, which carry no Source: a declaration of one of
-// them that must be kept reports it unkeepable (ErrNoSource). A Model fills
-// from empty, so it passes none.
-func NewPropIndex(props []ir.Property) *PropIndex {
-	return &PropIndex{pos: WireNameIndex(props), src: make(map[string]Source, len(props))}
+// origin is one declaration: where it was written and how to render it.
+type origin struct {
+	prov   ir.Provenance
+	source Source
+}
+
+// origins are the declarations a property's current default and examples came
+// from. They differ once a later declaration supplied what the first lacked.
+type origins struct {
+	def, examples origin
+}
+
+// NewPropIndex returns an empty index. A Model fills from empty, so every
+// property reaches it through MergeProperty.
+func NewPropIndex() *PropIndex {
+	return &PropIndex{pos: map[string]int{}, origins: map[string]*origins{}}
 }
 
 // MergeProperty appends p to m and records it in idx, or folds it into the
@@ -83,12 +94,29 @@ func NewPropIndex(props []ir.Property) *PropIndex {
 // disagreeing.
 func (g *Merger) MergeProperty(m *ir.Model, idx *PropIndex, p ir.Property, source Source) {
 	if i, ok := idx.pos[p.WireName]; ok {
-		g.reconcileProperty(&m.Properties[i], idx.src[p.WireName], p, source)
+		org := idx.origins[p.WireName]
+		if org == nil {
+			org = &origins{}
+			idx.origins[p.WireName] = org
+		}
+		g.reconcileProperty(&m.Properties[i], org, p, source)
 		return
 	}
+	at := origin{prov: p.Provenance, source: source}
 	idx.pos[p.WireName] = len(m.Properties)
-	idx.src[p.WireName] = source
+	idx.origins[p.WireName] = &origins{def: at, examples: at}
 	m.Properties = append(m.Properties, p)
+}
+
+// adopted moves an origin to at for each of the default and examples that dst
+// holds now and did not before the fold.
+func (o *origins) adopted(dst *ir.Property, hadDefault, hadExamples bool, at origin) {
+	if !hadDefault && dst.Default != nil {
+		o.def = at
+	}
+	if !hadExamples && len(dst.Examples) != 0 {
+		o.examples = at
+	}
 }
 
 // reconcileProperty folds a redeclaration src into the property dst already
@@ -99,12 +127,12 @@ func (g *Merger) MergeProperty(m *ir.Model, idx *PropIndex, p ir.Property, sourc
 //
 // What the fold cannot carry is reported where it is dropped, and the
 // redeclaration is kept whole beside the winner (keepLosingDeclaration). So is
-// the broader side of a narrowing whose default or examples the narrower type
-// refuses (judgeAdopted): dst's, through dstSource, or src's.
-func (g *Merger) reconcileProperty(dst *ir.Property, dstSource Source, src ir.Property, source Source) {
+// a default or examples the narrower type refuses (judgeAdopted), at the
+// declaration that wrote it.
+func (g *Merger) reconcileProperty(dst *ir.Property, org *origins, src ir.Property, source Source) {
 	pointer := src.Provenance.Pointer
 	dropped, lost, narrowed := g.recordRedeclarationConflict(dst, &src)
-	srcLost, keepDst := g.judgeAdopted(dst, &src, narrowed)
+	srcLost, keptDst := g.judgeAdopted(dst, &src, narrowed, org)
 	lost = lost || srcLost
 
 	dst.Required = dst.Required || src.Required
@@ -123,18 +151,20 @@ func (g *Merger) reconcileProperty(dst *ir.Property, dstSource Source, src ir.Pr
 	dst.Visibility = visibility
 
 	lost = g.foldDocs(dst, &src) || lost
-	// Skipped when src's type was dropped: default, constraints and examples describe the shape that lost, so
-	// folding them onto the winner makes the document assert two
-	// contradictory things about one field — an integer carrying a string
-	// default, beside an Unmodeled entry saying the string declaration was
-	// dropped. Nothing downstream compares a Value's kind to its property's
-	// type, so an emitter renders that pair into code that does not compile.
-	// Keyed on the drop, not on the conflict diagnostic: two Models are
+	// Skipped when src's type was dropped: default, constraints and examples
+	// describe the shape that lost, so folding them onto the winner makes the
+	// document assert two contradictory things about one field — an integer
+	// carrying a string default, beside an Unmodeled entry saying the string
+	// declaration was dropped. Nothing downstream compares a Value's kind to its
+	// property's type, so an emitter renders that pair into code that does not
+	// compile. Keyed on the drop, not on the conflict diagnostic: two Models are
 	// dropped without being called a conflict, and folded the loser's default
 	// onto the winner all the same. Deprecation and XML are not shape bound
 	// and are adopted either way.
 	if !dropped {
+		hadDefault, hadExamples := dst.Default != nil, len(dst.Examples) != 0
 		lost = g.foldShapeDetail(dst, &src) || lost
+		org.adopted(dst, hadDefault, hadExamples, origin{prov: src.Provenance, source: source})
 	}
 	lost = g.foldAnnotations(dst, &src) || lost
 	dst.Unmodeled = annotation.MergeUnmodeled(dst.Unmodeled, src.Unmodeled)
@@ -142,8 +172,8 @@ func (g *Merger) reconcileProperty(dst *ir.Property, dstSource Source, src ir.Pr
 	if lost {
 		g.keepLosingDeclaration(dst, src.Provenance, source)
 	}
-	if keepDst {
-		g.keepLosingDeclaration(dst, dst.Provenance, dstSource)
+	for _, at := range keptDst {
+		g.keepLosingDeclaration(dst, at.prov, at.source)
 	}
 }
 
@@ -398,35 +428,70 @@ func (g *Merger) foldTypeTargets(dst, src *ir.Property) (dropped bool, nw narrow
 }
 
 // judgeAdopted holds the broader declaration of a narrowing to the narrower
-// type: a default or example the winner does not admit is removed from that
-// declaration and reported once at its pointer, so it never lands on the merged
-// field. Examples are judged as one keyword. A null is admitted where the
-// merged field is.
+// type: a default or example the winner does not admit is removed and reported
+// once per declaration that wrote it, at its pointer, so it never lands on the
+// merged field. Examples are judged as one keyword. A null is admitted where
+// the merged field is.
 //
-// srcLost says src is the declaration to keep verbatim; dstKept says dst's is.
-// Both land the same entry at the same key, so the orders agree.
-func (g *Merger) judgeAdopted(dst, src *ir.Property, nw narrowing) (srcLost, dstKept bool) {
+// srcLost says src is the declaration to keep verbatim. keptDst lists those to
+// keep when dst is the broader side: org says which declaration wrote each of
+// dst's values, since one adopted from a later declaration is not dst's own.
+func (g *Merger) judgeAdopted(dst, src *ir.Property, nw narrowing, org *origins) (srcLost bool, keptDst []origin) {
 	broad := nw.broad
 	if broad == nil {
-		return false, false
+		return false, nil
 	}
-	var refused []string
+	own := origins{def: origin{prov: broad.Provenance}, examples: origin{prov: broad.Provenance}}
+	if broad == dst {
+		own = *org
+	}
+	var refused []refusal
 	if d := broad.Default; d != nil && !admitted(nw.winner, dst.Type.Nullable, *d) {
 		broad.Default = nil
-		refused = append(refused, "default")
+		refused = append(refused, refusal{"default", own.def})
 	}
 	if !examplesAdmitted(nw.winner, dst.Type.Nullable, broad.Examples) {
 		broad.Examples = nil
-		refused = append(refused, "examples")
+		refused = append(refused, refusal{"examples", own.examples})
 	}
-	if len(refused) == 0 {
-		return false, false
+	for _, grp := range groupRefusals(refused) {
+		g.Report(ir.SeverityInfo, diag.DegradedConstruct, grp.at.prov.Pointer,
+			"the narrower type %s that the declarations of field %q settle on does not admit the %s one declaration gives; "+
+				"not adopted, with that declaration verbatim under Unmodeled",
+			nw.winner, dst.WireName, strings.Join(grp.keywords, " and "))
+		keptDst = append(keptDst, grp.at)
 	}
-	g.Report(ir.SeverityInfo, diag.DegradedConstruct, broad.Provenance.Pointer,
-		"the narrower type %s that the declarations of field %q settle on does not admit the %s one declaration gives; "+
-			"not adopted, with that declaration verbatim under Unmodeled",
-		nw.winner, dst.WireName, strings.Join(refused, " and "))
-	return broad == src, broad == dst
+	if broad == src {
+		return len(keptDst) > 0, nil
+	}
+	return false, keptDst
+}
+
+// refusal is a keyword the narrower type refused and the declaration that wrote it.
+type refusal struct {
+	keyword string
+	at      origin
+}
+
+// refusalGroup is the keywords one declaration wrote that were refused.
+type refusalGroup struct {
+	keywords []string
+	at       origin
+}
+
+// groupRefusals gathers refusals by the pointer of the declaration that wrote
+// them, in order of first appearance.
+func groupRefusals(refused []refusal) []refusalGroup {
+	var groups []refusalGroup
+	for _, r := range refused {
+		i := slices.IndexFunc(groups, func(g refusalGroup) bool { return g.at.prov.Pointer == r.at.prov.Pointer })
+		if i < 0 {
+			groups = append(groups, refusalGroup{keywords: []string{r.keyword}, at: r.at})
+			continue
+		}
+		groups[i].keywords = append(groups[i].keywords, r.keyword)
+	}
+	return groups
 }
 
 // admitted reports whether v is a value of a field of kind k that admits null
@@ -457,9 +522,9 @@ func examplesAdmitted(k ir.PrimKind, nullable bool, examples []ir.Example) bool 
 // composition's keys.
 const losingDeclarationKey = "openapi:conflicting-redeclaration"
 
-// ErrNoSource is why a declaration that must be kept verbatim cannot be: no
+// errNoSource is why a declaration that must be kept verbatim cannot be: no
 // Source was recorded for it.
-var ErrNoSource = errors.New("no source was recorded for the declaration")
+var errNoSource = errors.New("no source was recorded for the declaration")
 
 // keepLosingDeclaration keeps the declaration at loser verbatim under
 // Unmodeled beside the merged property, so a document consumer sees what the
@@ -493,10 +558,10 @@ func (g *Merger) keepLosingDeclaration(dst *ir.Property, loser ir.Provenance, so
 		ir.ReasonDegradedLowering, loser)
 }
 
-// render calls source, or fails with ErrNoSource when there is none.
+// render calls source, or fails with errNoSource when there is none.
 func render(source Source) (ir.RawValue, error) {
 	if source == nil {
-		return nil, ErrNoSource
+		return nil, errNoSource
 	}
 	return source()
 }

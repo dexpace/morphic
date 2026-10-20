@@ -7,7 +7,8 @@ import (
 
 // bareNarrowing reports whether a and b both target a bare *ir.Primitive and
 // one kind strictly narrows the other (spelling.Relate). aNarrower says it is
-// a that does, and winner is the narrower kind. A Scalar or Enum target is never related here: such a pair
+// a that does, and winner is the narrower kind.
+// A Scalar or Enum target is never related here: such a pair
 // resolves by branch order and keeps its warning until GitHub #782 settles it,
 // and so does the top type, which keeps its null admission.
 func (g *Merger) bareNarrowing(a, b ir.TypeRef) (aNarrower bool, winner ir.PrimKind, related bool) {
