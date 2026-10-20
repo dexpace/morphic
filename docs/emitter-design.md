@@ -670,7 +670,7 @@ snapshot pins the whole lowering deterministically.
 | `LowerStreaming` | `plan.StreamPlan` (direction, event union) | `EventStream.Recv()`/`Send()` over the event union; terminal ends | §7.3 |
 | `LowerLRO` | `plan.LROPlan` (final-state-via, poll/final ops, result path) | poller type + `Poll()/PollUntilDone()` returning the final type | §7.3 |
 | `LowerErrors` | `plan.PlannedError`, `UsageFlags.Error`, `Fault` | error type tree (`APIError` → client/server → concrete) | §7.2 |
-| `RenderCasing` | neutral `Ident` (= `Naming.Canonical`) + `Naming` acronyms | cased identifiers — the ONLY place names get cased | §3.2; INV4 |
+| `RenderCasing` | neutral `Ident` (= `naming.Words`: the canonical words beside their source spellings) + the acronym table | cased identifiers — the ONLY place names get cased | §3.2; INV4 |
 | `EscapeReservedWords` | cased `Ident` + reserved set | keyword-safe identifiers; NEVER touches `WireName`/`WireID` | §3.2; INV4 |
 | `ResolveCollisions` | `Ctx.Syms` (ID-keyed symbol table) | deterministic disambiguation; never mutates IR identity | §3.1; INV3 |
 | `ComputeImports` | referenced symbols in the module | per-file import sets | — |
@@ -713,7 +713,7 @@ type ErrorType struct { Common; Fault string; Retryable *bool; Throttling *bool 
 type Common struct {
     origin emitter.EntityID   // ← the IR ID this node came from (manifest / surface / prune; INV3)
     prov   ir.Provenance      // passthrough for diagnostics + Inferred marking
-    ident  Ident              // NEUTRAL until RenderCasing runs — holds Naming.Canonical, not a cased string
+    ident  Ident              // NEUTRAL until RenderCasing runs: naming.Words(Naming), never cased
 }
 
 type Expr interface{ isExpr() }
@@ -886,39 +886,42 @@ type Policy interface {
 
 type Word struct {
     Canonical string // one word of Naming.Canonical: the boundaries, never re-derived
-    Source    string // that word as Naming.Source spells it, letter case kept; "" when not recovered
+    Source    string // that word as Naming.Source spells it, letter case kept; "" when it has none
 }
 
 func Words(n ir.Naming) []Word // the one alignment every target uses
 ```
 
 The `Ident` on every AST node starts as the neutral `Naming.Canonical` word sequence — a *word
-sequence, not an identifier*. `Canonical` holds those words as one lower_snake string, and `Case`
-takes them split on `_`, the one separator its grammar admits (ir-design §3.2). `RenderCasing` is
-the only step that cases it; because the IR stores the pre-split neutral words, there is no lossy
-runtime re-splitting of a cased string (oagen's `splitWords` counterexample). `EscapeReservedWords`
-runs after casing and **never touches `WireName`/`WireID`** — struct tags are built from the wire
-channel, so wire correctness never depends on the rendered identifier (§13 test T-4). Collisions are
-resolved deterministically in `Ctx.Syms`, which is keyed by IR ID: adding one endpoint never renames
-an existing method (the oagen collision-cascade counterexample; INV3). Anonymous hoisted types get
-an emitter-chosen name from `Naming.Hint`. Per-service presentation renames (`Service.Renames`)
-change how a shape is presented in a service without changing its `TypeID` or its own `Naming`. Enum
-members are keyed by `EnumMember.ID`, which is derived from the value a member holds, so two members
-whose names render alike are two entries to disambiguate, and reordering members of distinct values
-renames none.
+sequence, not an identifier*. `Canonical` holds those words as one lower_snake string, and
+`naming.Words` splits them on `_`, the one separator its grammar admits (ir-design §3.2), for `Case`
+to take each beside its source spelling (below). `RenderCasing` is the only step that cases it;
+because the IR stores the pre-split neutral words, there is no lossy runtime re-splitting of a cased
+string (oagen's `splitWords` counterexample). `EscapeReservedWords` runs after casing and **never
+touches `WireName`/`WireID`** — struct tags are built from the wire channel, so wire correctness
+never depends on the rendered identifier (§13 test T-4). Collisions are resolved deterministically
+in `Ctx.Syms`, which is keyed by IR ID: adding one endpoint never renames an existing method (the
+oagen collision-cascade counterexample; INV3). Anonymous hoisted types get an emitter-chosen name
+from `Naming.Hint`. Per-service presentation renames (`Service.Renames`) change how a shape is
+presented in a service without changing its `TypeID` or its own `Naming`. Enum members are keyed by
+`EnumMember.ID`, which is derived from the value a member holds, so two members whose names render
+alike are two entries to disambiguate, and reordering members of distinct values renames none.
 
 **The source spelling, for letter case only.** `Case` receives each canonical word beside the
-spelling the source gave it. `naming.Words` recovers the spellings by segmenting `Naming.Source`
-with the IR's own grammar (ir-design §3.2), keeping each word's letters as written. When those
-words, lowercased as the grammar lowercases them, are not exactly `Canonical`'s, no word gets a
-spelling, since a `Source` the words were not derived from — a name built from a hint, or a rename —
-says nothing about them. A policy may read a spelling to recover the letter case of a word whose
-boundaries the canonical form already fixes:
-`iOSVersion` is `i_os_version`, and the spellings `i`, `OS`, `Version` let a policy render
-`IOSVersion` where the acronym table alone gives `IOsVersion`, and `HTTPServer2FA` keep `HTTP` and
-`FA`. It never reads one to find a boundary — the words are fixed before any spelling is read — so
-the rule against re-splitting a cased string holds. Ignoring the spellings is conforming, and the
-acronym table applies either way.
+spelling the source gave it. ir-design §3.2 derives `Canonical` from `Source` by one grammar, which
+lives in `ir` (`ir.CanonicalWords`), and `irverify` holds every `Naming` that has a `Source` to it
+(`ir/naming-not-derived`). `naming.Words` takes the spellings from that same grammar, which exposes
+its segmentation as written and lowercases it to give `Canonical`, so the words align one to one
+and no emitter carries a second copy of the grammar. A name with no `Source` — one built from a
+hint — has no spellings, and neither has a `Naming` the grammar does not derive, which `Words`
+leaves unspelled rather than guess. A policy may read a spelling to recover the letter case of a
+word whose boundaries the canonical form already fixes: `iOSVersion` is `i_os_version` and
+`HTTPServer2FA` is `http_server_2_fa`, and the spellings `i`, `OS`, `Version` and `HTTP`, `Server`,
+`2`, `FA` let a policy render `IOSVersion` and `HTTPServer2FA`, where casing the words gives
+`IOsVersion` and `HttpServer2Fa` and an acronym table would have to capitalize `os` and `fa` in
+every name. It never reads one to find a boundary — the words are fixed before any spelling is
+read — so the rule against re-splitting a cased string holds. Ignoring the spellings is conforming,
+and the acronym table applies either way.
 
 ### 4.13 Interface extraction & request shaping
 
@@ -1714,7 +1717,7 @@ Extends architecture.md §6 milestone 3 (the first emitters) and beyond.
 | 1 IR is the ABI | `EmitterInput.Doc` is the only structural input; `emitters/*` imports `ir` + shared contract, never `compiler`/`engine`/a sibling target (§2, §7) |
 | 2 Lossless, lowered late | all lowering is in `refine` steps building a fresh target AST; the IR is never mutated; unions/enums/discriminators/visibility/pagination/streaming/LRO arrive un-lowered and the step list is the acceptance test (§4, §8) |
 | 3 Stable IDs, names presentation | plan, AST `Origin`, manifest, surface, hints, and the collision table are all keyed by IR stable ID; renames are lookups; collisions never touch identity (§3, §4.12, §11) |
-| 4 Names neutral, emitter cases | `Ident` starts as `Naming.Canonical` word sequence; `RenderCasing`/`EscapeReservedWords` are the only casing steps; struct tags come from `WireName`/`WireID`, a separate channel (§4.12, §5) |
+| 4 Names neutral, emitter cases | `Ident` starts as the `Naming.Canonical` word sequence, the source spelling beside each word for its letter case only; `RenderCasing`/`EscapeReservedWords` are the only casing steps; struct tags come from `WireName`/`WireID`, a separate channel (§4.12, §5) |
 | 5 Pure, typed diagnostics | `Generate` is pure/reentrant/no-stderr/no-I/O; every un-lowerable construct → coded `ir.Diagnostic`; the engine decides fatality (§2, §2.4) |
 | 6 Heuristics are policy | `plan.Policy`, each target's versioned options, `naming.Policy`, `verify.Severity`, method-name derivation, and shaping hints are injectable and disable-able; inferred outputs marked `Inferred` (§2.5, §3.5, §6.4, §12) |
 | 7 Serializable/deterministic | `Plan` + manifest are JSON-serializable; maps walked sorted, slices source order; identical input ⇒ identical bytes (§3, §5.5, §13) |

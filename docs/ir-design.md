@@ -441,9 +441,10 @@ type Naming struct {
 
 `Canonical` is a cleaned word sequence, not a cased identifier — emitters apply casing, acronym
 policy, and reserved-word escaping. An emitter may read `Source` to recover the letter case of the
-words `Canonical` fixes (`iOS` in `iOSVersion`), and never to find where a word ends
-(emitter-design §4.12). Anonymous (hoisted) types have empty `Source` and a `Hint`;
-whether a emitter inlines them or names them is its choice.
+words `Canonical` fixes (`iOS` in `iOSVersion`), segmenting it with this section's grammar rather
+than one of its own, and never to find where a word ends (emitter-design §4.12). Anonymous
+(hoisted) types have empty `Source` and a `Hint`; whether a emitter inlines them or names them is
+its choice.
 
 **`Hint` is the same word sequence in the same grammar.** It is not a presentation affordance
 sitting outside the neutrality rule: a hoisted type has no other name, so `Hint` is exactly what an
