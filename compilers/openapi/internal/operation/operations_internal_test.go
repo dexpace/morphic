@@ -305,7 +305,7 @@ func TestFaultFor(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t, "client", faultFor(ir.StatusRange{From: 404, To: 404}))
 	assert.Equal(t, "server", faultFor(ir.StatusRange{From: 503, To: 503}))
-	assert.Equal(t, "", faultFor(ir.StatusRange{}))
+	assert.Empty(t, faultFor(ir.StatusRange{}))
 }
 
 func TestLowerResponses_NoResponses(t *testing.T) {
@@ -319,7 +319,7 @@ func TestLowerResponses_NoResponses(t *testing.T) {
 
 func TestFirstPathSegment_Empty(t *testing.T) {
 	t.Parallel()
-	assert.Equal(t, "", firstPathSegment("/"))
+	assert.Empty(t, firstPathSegment("/"))
 	assert.Equal(t, "users", firstPathSegment("/users/{id}"))
 }
 

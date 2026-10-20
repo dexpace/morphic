@@ -379,7 +379,7 @@ func TestMappings_APointerEndingInSlashNamesNoWalkedObject(t *testing.T) {
 			"x-lib:\n  S: {type: object, properties: {a: {$ref: '#/x-lib/T/'}}}\n  T: {type: object}\n"), false)
 		require.Empty(t, diags)
 
-		assert.True(t, got.Targets.Built("/x-lib/T/") == nil, "no object is held at a pointer ending in '/': %s", schema)
+		assert.Nil(t, got.Targets.Built("/x-lib/T/"), "no object is held at a pointer ending in '/': %s", schema)
 	}
 }
 
