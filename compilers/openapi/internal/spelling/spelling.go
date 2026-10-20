@@ -78,9 +78,9 @@ const (
 
 // Relate classifies a against b. any is the top: every other kind is
 // narrower. Two distinct unrelated kinds overlap when both are numeric (each
-// admits 0), or when one is bytes and the other a string-spelled format;
-// otherwise they are disjoint, since no string satisfies the grammar of two
-// different formats.
+// admits 0), or when one is bytes and the other a string-spelled format.
+// Otherwise they are disjoint: different families, or two different string
+// formats, since no string satisfies the grammar of two.
 func Relate(a, b ir.PrimKind) Relation {
 	switch {
 	case a == b:

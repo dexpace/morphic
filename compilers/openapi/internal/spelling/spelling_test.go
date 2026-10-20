@@ -14,7 +14,7 @@ import (
 // hopOnly are the kinds the domain edges pass through that no table row
 // spells. Every other kind on an edge is a row's kind.
 var hopOnly = map[ir.PrimKind]string{
-	ir.PrimFloat: "the arbitrary-width float, which only number/float and number/double narrow",
+	ir.PrimFloat: "the arbitrary-precision binary float, which no (type, format) pairing selects",
 }
 
 // relationRoots are the declared kinds that narrow nothing but any.

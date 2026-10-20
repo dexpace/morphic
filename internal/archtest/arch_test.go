@@ -202,8 +202,9 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/spelling"},
 	// The table that maps a (type, format) pair to a primitive kind, and the
 	// relation between two kinds that table and ir's value domains give. It is its
-	// own package because the schema walk reads the table and merge reads the
-	// relation, and neither may reach the other for it. It reaches ir alone.
+	// own package because merge reads the relation and may not import schema,
+	// whose walk reads the table, and the table is no part of merge's fold. It
+	// reaches ir alone.
 	"compilers/openapi/internal/spelling": {module + "/ir"},
 	// What is being lowered: the parsed document, the identity of the source, and
 	// the indexes derived from them at entry. It is the substrate both walks share

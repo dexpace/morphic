@@ -413,12 +413,12 @@ func (g *Merger) redeclarationConflictDiag(dst *ir.Property, pointer jsontext.Po
 // unsatisfiable intersection. Identical targets and the schemaless top type
 // never conflict. Different underlying primitives conflict, as does a scalar
 // against a structural type, unless both are bare primitives and one narrows
-// the other (Narrows). Two distinct composites of one kind are not provably
+// the other (bareNarrowing, through spelling.Relate). Two distinct composites of one kind are not provably
 // contradictory, so they are never reported.
 //
-// Narrows is incomplete: true containments it omits, and overlaps like
-// int32 and uint32, still conflict. Related kinds reached through a Scalar or
-// Enum conflict too, until GitHub #782 settles them.
+// Kinds spelling.Relate calls an overlap, like int32 and uint32, still
+// conflict, and so do related kinds reached through a Scalar or Enum, until
+// GitHub #782 settles them.
 func (g *Merger) typesConflict(a, b ir.TypeRef) bool {
 	if a.Target == b.Target || g.isAnyType(a) || g.isAnyType(b) {
 		return false
