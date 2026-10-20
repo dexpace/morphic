@@ -12,7 +12,6 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/speakeasy-api/openapi/jsonpointer"
@@ -645,7 +644,8 @@ func TestRefScanCollect_DeepNestingIsNotTruncated(t *testing.T) {
 }
 
 // chainedAliasSpec writes a document whose Root schema is the top of a chain
-// of levels anchors, each an allOf naming the one below it twice.
+// of levels anchors, each an allOf naming the one below it twice, so its alias
+// expansion doubles with each level.
 func chainedAliasSpec(levels int) string {
 	var b strings.Builder
 	b.WriteString("openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\nx-anchors:\n")
@@ -657,9 +657,12 @@ func chainedAliasSpec(levels int) string {
 	return b.String()
 }
 
+// TestDetectCycles_ChainedAliasFanOutIsRefused refuses a millionfold
+// expansion. Twenty levels keep this test finite even for a walk that lost its
+// memo, a defect TestCycles_AllocatesLinearlyInItsInput reports.
 func TestDetectCycles_ChainedAliasFanOutIsRefused(t *testing.T) {
 	t.Parallel()
-	diags := scanWithin(t, chainedAliasSpec(40), "exponential blowup on chained aliases")
+	diags := scanBytes(t, []byte(chainedAliasSpec(20)))
 	require.Len(t, diags, 1, "a fan-out this deep is refused, not silently accepted")
 	assert.Equal(t, diag.AliasAmplification, diags[0].Code)
 	assert.Equal(t, ir.SeverityError, diags[0].Severity)
@@ -667,13 +670,16 @@ func TestDetectCycles_ChainedAliasFanOutIsRefused(t *testing.T) {
 
 func TestDetectCycles_MergeChainWithinBoundIsClean(t *testing.T) {
 	t.Parallel()
-	diags := scanWithin(t, ynode.MergeChainSpec(nodeview.MergeDepthLimit), "blowup on an in-bound merge chain")
+	diags := scanBytes(t, []byte(ynode.MergeChainSpec(nodeview.MergeDepthLimit)))
 	assert.Empty(t, diags, "a merge chain the scan can expand in full is clean")
 }
 
+// TestDetectCycles_MergeChainPastBoundWarns reads a chain past both the depth
+// bound and the alias allowance. It is no longer than that takes, so a bound
+// that stopped binding fails here in seconds.
 func TestDetectCycles_MergeChainPastBoundWarns(t *testing.T) {
 	t.Parallel()
-	diags := scanWithin(t, ynode.MergeChainSpec(1600), "super-linear blowup on a long merge chain")
+	diags := scanBytes(t, []byte(ynode.MergeChainSpec(500)))
 	require.Len(t, diags, 2, "both the truncation warning and the amplification refusal are reported")
 	assert.Equal(t, diag.CycleScanFailed, diags[0].Code)
 	assert.Equal(t, ir.SeverityWarning, diags[0].Severity,
@@ -681,29 +687,6 @@ func TestDetectCycles_MergeChainPastBoundWarns(t *testing.T) {
 	assert.Equal(t, diag.AliasAmplification, diags[1].Code)
 	assert.Equal(t, ir.SeverityError, diags[1].Severity,
 		"the document's alias expansion is also refused outright")
-}
-
-// scanWithin runs Cycles over src and returns its diagnostics. The minute is a
-// hang guard, not a cost bound: a hang cannot be counted, so only a clock can
-// end it. TestCycles_AllocatesLinearlyInItsInput bounds what Cycles
-// allocates on these shapes.
-func scanWithin(t *testing.T, src, blowup string) []ir.Diagnostic {
-	t.Helper()
-	const bound = time.Minute
-	// Indexed on this goroutine: the walk is linear in the tree, and require
-	// must not be called from the one below.
-	idx := indexOf(t, []byte(src))
-	done := make(chan []ir.Diagnostic, 1)
-	go func() {
-		done <- Cycles(InSource(0), idx, defaultSurplus)
-	}()
-	select {
-	case diags := <-done:
-		return diags
-	case <-time.After(bound):
-		t.Fatalf("Cycles hung past %v — likely %s", bound, blowup)
-		return nil
-	}
 }
 
 // TestCycles_AllocatesLinearlyInItsInput holds Cycles to a cost linear in its
