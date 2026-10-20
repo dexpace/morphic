@@ -43,10 +43,13 @@ type definitions struct {
 // A read the merge bound stopped answers MergeBound: what it missed may
 // overrule a later answer.
 func (d definitions) definition(site Position, pointer jsontext.Pointer, own bool) (reading, Reason) {
+	unowned := false
 	if key, single := singleKey(pointer); own && single {
-		if r, reason, settled := d.ownDefinition(site, key); settled {
+		r, reason, settled := d.ownDefinition(site, key)
+		if settled {
 			return r, reason
 		}
+		unowned = reason == OwnDefinition
 	}
 	r, reason := d.docs.read(site.Doc, pointer)
 	switch {
@@ -55,13 +58,19 @@ func (d definitions) definition(site Position, pointer jsontext.Pointer, own boo
 	case reason == MergeBound:
 		return reading{}, MergeBound
 	}
-	return d.ancestorDefinition(site, pointer)
+	r, why := d.ancestorDefinition(site, pointer)
+	if why == NoDefinition && unowned {
+		why = OwnDefinition
+	}
+	return r, why
 }
 
 // ownDefinition is the definition site's own definitions give key, and whether
 // that settles the answer: it does where site is a schema resource of its own
 // whose definitions hold key, and where the merge bound hides either key from
-// them or an $id that decides whether site is a resource of its own.
+// them or an $id that decides whether site is a resource of its own. Where
+// they hold key and site is no resource of its own, the reason is
+// OwnDefinition, and the answer is left to the rest of the rule.
 func (d definitions) ownDefinition(site Position, key string) (reading, Reason, bool) {
 	// A site is a position its document holds, so the path reaches it.
 	path, _ := d.docs.path(site)
@@ -73,6 +82,8 @@ func (d definitions) ownDefinition(site Position, key string) (reading, Reason, 
 	case resource && schemaShaped(n):
 		at := Position{Doc: site.Doc, Pointer: site.Pointer + defsRoot.AppendToken(key)}
 		return reading{at: at, node: n, state: d.docs.stateAt(at)}, NoReason, true
+	case schemaShaped(n):
+		return reading{}, OwnDefinition, false
 	}
 	return reading{}, NoReason, false
 }
@@ -82,7 +93,8 @@ func (d definitions) ownDefinition(site Position, key string) (reading, Reason, 
 // model leaves it, as the parser's resolver reads it (GitHub #997). The root
 // is not such an object: definition has read it already. A read the merge
 // bound stops makes it MergeBound, as a farther object would answer only
-// where that one holds nothing.
+// where that one holds nothing. Where none answers and raw YAML above site
+// holds the path, the reason is RawDefinition.
 func (d definitions) ancestorDefinition(site Position, pointer jsontext.Pointer) (reading, Reason) {
 	if !d.docs.list[site.Doc].grammar {
 		return reading{}, NoDefinition
@@ -96,11 +108,18 @@ func (d definitions) ancestorDefinition(site Position, pointer jsontext.Pointer)
 		states[i+1] = step(states[i], t)
 	}
 	rest := slices.Collect(pointer.Tokens())
+	why := NoDefinition
 	for i := len(tokens) - 1; i >= 1; i-- {
 		if !d.work.spend(1) {
 			break
 		}
-		if !modelled(states[i]) || !modelled(step(states[i], "$defs")) {
+		if !modelled(states[i]) {
+			if why == NoDefinition && d.holds(site.Doc, path[i], rest) {
+				why = RawDefinition
+			}
+			continue
+		}
+		if !modelled(step(states[i], "$defs")) {
 			continue
 		}
 		n, past := d.below(site.Doc, path[i], rest)
@@ -112,7 +131,7 @@ func (d definitions) ancestorDefinition(site Position, pointer jsontext.Pointer)
 			return reading{}, MergeBound
 		}
 	}
-	return reading{}, NoDefinition
+	return reading{}, why
 }
 
 // below is the node tokens name from n in document id, or nil, and whether the
@@ -129,6 +148,13 @@ func (d definitions) below(id DocID, n *yaml.Node, tokens []string) (*yaml.Node,
 		n = next
 	}
 	return n, false
+}
+
+// holds reports whether tokens name a node read as a schema below n in
+// document id.
+func (d definitions) holds(id DocID, n *yaml.Node, tokens []string) bool {
+	held, _ := d.below(id, n, tokens)
+	return schemaShaped(held)
 }
 
 // answers reports whether a definition read at r answers its pointer: a

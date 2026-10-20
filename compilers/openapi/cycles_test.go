@@ -271,6 +271,70 @@ func TestCompile_CycleIsReportedAtItsLeastMemberInEitherOrder(t *testing.T) {
 	}
 }
 
+// TestCompile_ALoopThroughAnotherDocumentIsReportedOnce pins a loop of schema
+// $refs that another document's content closes, with external references on:
+// one wholly in that document (GitHub #547), one closing through it and back
+// (GitHub #768), and one a source loop that two $refs enter through it (GitHub
+// #771). None overflows the stack, each is reported once, at its least source
+// member or else at the least source $ref leading in, in either declaration
+// order, and its message names the other document's members by that
+// document's name.
+func TestCompile_ALoopThroughAnotherDocumentIsReportedOnce(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name          string
+		source, other []string
+		site          string
+		names         bool
+	}{
+		{"wholly in the other document",
+			[]string{"    R: {$ref: './other.yaml#/components/schemas/X'}\n"},
+			[]string{"    X: {$ref: '#/components/schemas/Y'}\n", "    Y: {$ref: '#/components/schemas/X'}\n"},
+			"/components/schemas/R", true},
+		{"through the other document and back",
+			[]string{"    P: {$ref: 'other.yaml#/components/schemas/A'}\n", "    W: {$ref: '#/components/schemas/P'}\n"},
+			[]string{"    A: {$ref: 'root.yaml#/components/schemas/W'}\n"},
+			"/components/schemas/P", true},
+		{"a source loop entered through the other document",
+			[]string{"    E1: {$ref: 'other.yaml#/components/schemas/O'}\n", "    E2: {$ref: 'other.yaml#/components/schemas/O'}\n",
+				"    L1: {$ref: '#/components/schemas/L2'}\n", "    L2: {$ref: 'root.yaml#/components/schemas/L1'}\n"},
+			[]string{"    O: {$ref: './root.yaml#/components/schemas/L1'}\n"},
+			"/components/schemas/L1", false},
+	}
+	for _, tc := range tests {
+		dir := t.TempDir()
+		compiled := make([][]string, 0, 2)
+		for _, reversed := range []bool{false, true} {
+			source, other := slices.Clone(tc.source), slices.Clone(tc.other)
+			if reversed {
+				slices.Reverse(source)
+				slices.Reverse(other)
+			}
+			require.NoError(t, os.WriteFile(filepath.Join(dir, "other.yaml"),
+				[]byte("components:\n  schemas:\n"+strings.Join(other, "")), 0o600))
+			root := "openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\ncomponents:\n  schemas:\n" +
+				strings.Join(source, "")
+			doc, diags, err := New().Compile(t.Context(),
+				[]compilers.Source{{Path: filepath.Join(dir, "root.yaml"), Data: []byte(root)}},
+				compilers.Options{FormatOptions: Options{AllowExternalRefs: true}})
+			require.NoError(t, err, tc.name)
+			require.NotNil(t, doc, "%s: the rest of the document lowers", tc.name)
+			assert.Equal(t, []string{tc.site}, cyclicRefSites(diags), "%s, reversed=%t: %+v", tc.name, reversed, diags)
+			var seen []string
+			for _, d := range diags {
+				if d.Code == diag.CyclicRef {
+					assert.Equal(t, tc.names, strings.Contains(d.Message, " in "+filepath.Join(dir, "other.yaml")),
+						"%s: a member of the other document is named by its name: %s", tc.name, d.Message)
+				}
+				seen = append(seen, d.Code+" "+string(d.Provenance.Pointer)+" "+d.Message)
+			}
+			slices.Sort(seen)
+			compiled = append(compiled, seen)
+		}
+		assert.Equal(t, compiled[0], compiled[1], "%s: declaration order decided a report", tc.name)
+	}
+}
+
 // TestCompile_ReferenceObjectCycleIsReportedUnresolved pins what the compile
 // does with a chain of reference objects that fails: it reaches the lowering,
 // and the resolver's failure is reported unresolved at the reference, never as

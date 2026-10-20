@@ -169,7 +169,7 @@ func (d *docs) readFrom(id DocID, pointer jsontext.Pointer, passes int) (reading
 		if tokens++; tokens > maxPointerTokens || !d.work.spend(1) {
 			return r.spelledAs(soFar), NoTarget
 		}
-		if referenceKinds[r.state] && d.passes(r) {
+		if referenceKinds[r.state] && d.writesRef(r) {
 			var reason Reason
 			if r, reason = d.through(r.spelledAs(soFar), passes); reason != NoReason {
 				return r, reason
@@ -186,8 +186,8 @@ func (d *docs) readFrom(id DocID, pointer jsontext.Pointer, passes int) (reading
 	return r.spelledAs(soFar), NoReason
 }
 
-// passes reports whether r holds a $ref through would read on through.
-func (d *docs) passes(r reading) bool {
+// writesRef reports whether r holds a $ref through would read on through.
+func (d *docs) writesRef(r reading) bool {
 	ref, ok := d.refOf(r.at.Doc, r.node)
 	return ok && ref != ""
 }
@@ -235,7 +235,7 @@ func isIndex(token string) bool {
 // object writing no $ref is read where it is. Only the source's reference
 // objects are resolved; one in another document is not (GitHub #751).
 func (d *docs) through(r reading, passes int) (reading, Reason) {
-	if !d.passes(r) {
+	if !d.writesRef(r) {
 		return r, NoReason
 	}
 	if r.at.Doc != Source || d.cfg.Through == nil || passes >= maxPasses {

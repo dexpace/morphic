@@ -243,7 +243,7 @@ func TestBind_AnswersAlikeInEitherOrder(t *testing.T) {
 }
 
 // TestSpellings pins how each value of the table's types reads: a status, a
-// role, a position, and why each kind of hop lands on no schema.
+// role, and why each kind of hop lands on no schema.
 func TestSpellings(t *testing.T) {
 	t.Parallel()
 	for s, want := range map[bind.Status]string{0: "invalid", bind.Resolved: "resolved", bind.Unresolved: "unresolved",
@@ -254,8 +254,6 @@ func TestSpellings(t *testing.T) {
 		bind.Object: "object", 9: "none"} {
 		assert.Equal(t, want, r.String())
 	}
-	assert.Equal(t, "#/a", bind.Position{Pointer: "/a"}.String())
-	assert.Equal(t, "doc2#/a", bind.Position{Doc: 2, Pointer: "/a"}.String())
 	for text, hop := range map[string]bind.Hop{
 		"it names nothing in the document it points into":                            {Reason: bind.NoTarget},
 		"it names a position that holds no schema":                                   {Reason: bind.NotSchema},
@@ -263,6 +261,12 @@ func TestSpellings(t *testing.T) {
 		"its fragment is no JSON pointer":                                            {Reason: bind.BadPointer},
 		"no definition answers it: neither the document's root nor a schema of the model above it holds one " +
 			"by that name": {Reason: bind.NoDefinition},
+		"only the schema writing it defines that name, and a schema's own definitions answer a " +
+			"\"#/$defs/...\" pointer only where it declares an $id; the document's root defines none": {
+			Reason: bind.OwnDefinition},
+		"only raw YAML above it, such as an extension's value, defines that name, and raw YAML holds no " +
+			"schema of the model whose definitions answer it; the document's root defines none": {
+			Reason: bind.RawDefinition},
 		"it names another document, and external references are not read":                    {Reason: bind.ExternalOff},
 		"the document it names could not be read: gone":                                      {Reason: bind.Unreadable, Detail: "gone"},
 		"its pointer passes through a reference that resolves to nothing the compiler reads": {Reason: bind.Unpassable},

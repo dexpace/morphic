@@ -168,7 +168,7 @@ func bindingDiags(at func(jsontext.Pointer) ir.Provenance, table *bind.Table) []
 		if l.Reported {
 			diags = append(diags, diag.Newf(ir.SeverityError, diag.CyclicRef, at(l.Site.Pointer),
 				"cyclic $ref: the chain of $refs through %s comes back to where it started and never reaches a schema",
-				spellLoop(l)))
+				spellLoop(l, table)))
 		}
 	}
 	if table.Exhausted() {
@@ -225,11 +225,16 @@ func buildFailures(at func(jsontext.Pointer) ir.Provenance, built []typed.Built)
 	return diags
 }
 
-// spellLoop names l's members, in order.
-func spellLoop(l bind.Loop) string {
+// spellLoop names l's members, in order: a source position by its pointer,
+// and another document's by its pointer in that document's name, as refDiags
+// names one.
+func spellLoop(l bind.Loop, table *bind.Table) string {
 	parts := make([]string, len(l.Members))
 	for i, m := range l.Members {
-		parts[i] = m.String()
+		parts[i] = "#" + string(m.Pointer)
+		if m.Doc != bind.Source {
+			parts[i] += " in " + table.Document(m.Doc).Name
+		}
 	}
 	return strings.Join(parts, ", ")
 }

@@ -63,6 +63,32 @@ func TestBindingDiags_ReportsTheBudgetOnce(t *testing.T) {
 	assert.Contains(t, diags[0].Message, "takes more than 67108864 steps", "the bound crossed is the default")
 }
 
+// TestBindingDiags_NamesALoopsMembersByTheirDocument pins how a loop's report
+// names its members: a source position by its pointer, and another document's
+// by its pointer in that document's name, as an unresolved $ref names one,
+// never by the number the table reads that document under.
+func TestBindingDiags_NamesALoopsMembersByTheirDocument(t *testing.T) {
+	t.Parallel()
+	_, root := buildDoc(t, schemaRoot("other.yaml#/X")+"    B: {$ref: '#/components/schemas/B'}\n")
+	var other yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte("X: {$ref: '#/Y'}\nY: {$ref: '#/X'}\n"), &other))
+	table := bind.Bind(root, bind.Config{Self: "spec.yaml",
+		Open: func(string) (*yaml.Node, error) { return &other, nil }})
+
+	diags := bindingDiags(pointerAt(0, overlay.Origin{}), table)
+	got := make([]string, 0, len(diags))
+	for _, d := range diags {
+		got = append(got, string(d.Provenance.Pointer)+": "+d.Message)
+	}
+
+	assert.Empty(t, cmp.Diff([]string{
+		"/components/schemas/A: cyclic $ref: the chain of $refs through #/X in other.yaml, #/Y in other.yaml " +
+			"comes back to where it started and never reaches a schema",
+		"/components/schemas/B: cyclic $ref: the chain of $refs through #/components/schemas/B " +
+			"comes back to where it started and never reaches a schema",
+	}, got))
+}
+
 // TestLoad_ASchemaRefIsUnresolvedWhereItsDocumentCannotBeRead pins what a
 // schema $ref reports when the document it names cannot be read, by the reason
 // the read gave: a URL that answers an error, a document that is no YAML, and a

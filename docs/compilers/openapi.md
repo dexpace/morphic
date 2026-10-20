@@ -313,6 +313,8 @@ cycle ([`recursion`](#recursion)). An alias scan that aborts on a fault of its o
   `openapi.TestCompile_CycleIsReportedAtItsLeastMemberInEitherOrder`,
   `openapi.TestCompile_ReentrantPrefixReportsAlikeInBothDeclarationOrders`,
   `openapi.TestCompile_AliasCycleIsRefused`, `load.TestLoad_ADegenerateCycleLoadsAndIsReportedOnce`,
+  `openapi.TestCompile_ALoopThroughAnotherDocumentIsReportedOnce`,
+  `load.TestBindingDiags_NamesALoopsMembersByTheirDocument`,
   `openapi.TestCompile_MergeChainPastBoundStillCompiles`, `bind.TestBind_AnswersAlikeInEitherOrder`
 - Status: partly built: a cycle of component Reference Objects is reported at the root rather than at
   a reference of the cycle (#580), and a reference object on a failing chain is reported only where

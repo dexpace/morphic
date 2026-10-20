@@ -206,7 +206,7 @@ func binderEnds(t *testing.T, spec string) (map[jsontext.Pointer]string, bool) {
 	out := map[jsontext.Pointer]string{}
 	for _, e := range table.Entries() {
 		if e.Site.Doc == bind.Source {
-			out[e.Site.Pointer] = e.Chain.Status.String() + " " + e.Chain.End.String()
+			out[e.Site.Pointer] = fmt.Sprintf("%s %d#%s", e.Chain.Status, e.Chain.End.Doc, e.Chain.End.Pointer)
 		}
 	}
 	return out, true

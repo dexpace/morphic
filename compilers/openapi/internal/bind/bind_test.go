@@ -124,60 +124,66 @@ func TestBind_ReadsEachHop(t *testing.T) {
 // spelling the pointer, which needs no $id to be shadowed (GitHub #995). Raw
 // YAML holds no object of the model, so a schema under an extension answers
 // nothing from its own definitions, as OAS 3.1 reads one with no $id (GitHub
-// #570).
+// #570). Where none answers, the reason says which definition went unread.
 func TestBind_ReadsADefinitionByTheDefsRule(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name, body string
 		site, want jsontext.Pointer
+		why        bind.Reason
 	}{
 		{"the nearest ancestor", "components:\n  schemas:\n    H: {$defs: {A: {}}, properties: {p: {$ref: '#/$defs/A'}}}\n",
-			"/components/schemas/H/properties/p", "/components/schemas/H/$defs/A"},
+			"/components/schemas/H/properties/p", "/components/schemas/H/$defs/A", 0},
 		{"the root before an ancestor", "$defs:\n  A: {}\ncomponents:\n  schemas:\n    H: {$defs: {A: {}}, properties: {p: {$ref: '#/$defs/A'}}}\n",
-			"/components/schemas/H/properties/p", "/$defs/A"},
+			"/components/schemas/H/properties/p", "/$defs/A", 0},
 		{"the root before the schema's own", "$defs:\n  A: {}\ncomponents:\n  schemas:\n    B: {$ref: '#/$defs/A', $defs: {A: {}}}\n",
-			"/components/schemas/B", "/$defs/A"},
+			"/components/schemas/B", "/$defs/A", 0},
 		{"a resource's own first", "$defs:\n  A: {}\ncomponents:\n  schemas:\n    B: {$id: 'https://x.test/b', $ref: '#/$defs/A', $defs: {A: {}}}\n",
-			"/components/schemas/B", "/components/schemas/B/$defs/A"},
+			"/components/schemas/B", "/components/schemas/B/$defs/A", 0},
 		{"a resource with none of its own", "$defs:\n  A: {}\ncomponents:\n  schemas:\n    B: {$id: 'https://x.test/b', $ref: '#/$defs/A'}\n",
-			"/components/schemas/B", "/$defs/A"},
+			"/components/schemas/B", "/$defs/A", 0},
+		{"a resource's own under an escaped name", "components:\n  schemas:\n    B: {$id: 'https://x.test/b', " +
+			"allOf: [{$ref: '#/$defs/a~1b'}, {$ref: '#/$defs/x~0y'}], $defs: {a/b: {}, x~y: {}}}\n",
+			"/components/schemas/B/allOf/0", "/components/schemas/B/$defs/a~1b", 0},
+		{"no schema's own without an $id", "components:\n  schemas:\n    B: {$ref: '#/$defs/A', $defs: {A: {}}}\n",
+			"/components/schemas/B", "", bind.OwnDefinition},
 		{"one sitting in a nested resource", "components:\n  schemas:\n    B: {$id: 'https://x.test/b', $defs: {A: {}}, properties: {p: {$id: 'p', " +
 			"properties: {q: {$ref: '#/$defs/A', $defs: {A: {}}}}}}}\n",
-			"/components/schemas/B/properties/p/properties/q", "/components/schemas/B/properties/p/properties/q/$defs/A"},
+			"/components/schemas/B/properties/p/properties/q", "/components/schemas/B/properties/p/properties/q/$defs/A", 0},
 		{"one in the outermost resource, which is none of its own", "components:\n  schemas:\n    B: {$id: 'https://x.test/b', $defs: {A: {}}, " +
 			"properties: {p: {$ref: '#/$defs/A', $defs: {A: {}}}}}\n",
-			"/components/schemas/B/properties/p", "/components/schemas/B/$defs/A"},
+			"/components/schemas/B/properties/p", "/components/schemas/B/$defs/A", 0},
 		{"an $id of a fragment alone still makes a resource", "components:\n  schemas:\n    B: {$id: '#f', $ref: '#/$defs/A', $defs: {A: {}}}\n",
-			"/components/schemas/B", "/components/schemas/B/$defs/A"},
+			"/components/schemas/B", "/components/schemas/B/$defs/A", 0},
 		{"a nested $id of a fragment alone moves no base", "components:\n  schemas:\n    B: {$id: 'https://x.test/b', $defs: {A: {}}, properties: {p: {$id: '#f', " +
 			"properties: {q: {$ref: '#/$defs/A', $defs: {A: {}}}}}}}\n",
-			"/components/schemas/B/properties/p/properties/q", "/components/schemas/B/$defs/A"},
+			"/components/schemas/B/properties/p/properties/q", "/components/schemas/B/$defs/A", 0},
 		{"an $id that is no URI reference keeps the base", "components:\n  schemas:\n    B: {$defs: {A: {}}, properties: {p: {$id: '%zz', " +
 			"properties: {q: {$ref: '#/$defs/A', $defs: {A: {}}}}}}}\n",
-			"/components/schemas/B/properties/p/properties/q", "/components/schemas/B/$defs/A"},
+			"/components/schemas/B/properties/p/properties/q", "/components/schemas/B/$defs/A", 0},
 		{"a path into a definition", "components:\n  schemas:\n    H: {$defs: {A: {properties: {x: {}}}}, properties: {p: {$ref: '#/$defs/A/properties/x'}}}\n",
-			"/components/schemas/H/properties/p", "/components/schemas/H/$defs/A/properties/x"},
+			"/components/schemas/H/properties/p", "/components/schemas/H/$defs/A/properties/x", 0},
 		{"raw YAML an ancestor holds", "components:\n  schemas:\n    H: {$defs: {A: {example: {type: string}}}, properties: {p: {$ref: '#/$defs/A/example'}}}\n",
-			"/components/schemas/H/properties/p", "/components/schemas/H/$defs/A/example"},
+			"/components/schemas/H/properties/p", "/components/schemas/H/$defs/A/example", 0},
 		{"past an ancestor holding no schema there", "components:\n  schemas:\n    H: {$defs: {A: {type: [string]}}, properties: {p: {$ref: '#/$defs/A/type'}}}\n",
-			"/components/schemas/H/properties/p", ""},
+			"/components/schemas/H/properties/p", "", bind.NoDefinition},
 		{"a trailing slash names no single key", "components:\n  schemas:\n    B: {$id: 'https://x.test/b', $ref: '#/$defs/A/', $defs: {A: {}}}\n",
-			"/components/schemas/B", ""},
+			"/components/schemas/B", "", bind.NoDefinition},
 		{"an ancestor that is a map holding $defs", "components:\n  schemas:\n    H: {properties: {$defs: {properties: {x: {}}}, p: {$ref: '#/$defs/properties/x'}}}\n",
-			"/components/schemas/H/properties/p", "/components/schemas/H/properties/$defs/properties/x"},
+			"/components/schemas/H/properties/p", "/components/schemas/H/properties/$defs/properties/x", 0},
 		{"no ancestor in raw YAML", "x-lib:\n  $defs: {n: {}}\n  S: {$ref: '#/$defs/n'}\ncomponents:\n  schemas:\n    U: {$ref: '#/x-lib/S'}\n",
-			"/x-lib/S", ""},
+			"/x-lib/S", "", bind.RawDefinition},
 		{"no definition of a schema under an extension", "x-lib:\n  S: {properties: {p: {$ref: '#/$defs/n'}}, $defs: {n: {}}}\n" +
-			"components:\n  schemas:\n    U: {$ref: '#/x-lib/S'}\n", "/x-lib/S/properties/p", ""},
+			"components:\n  schemas:\n    U: {$ref: '#/x-lib/S'}\n", "/x-lib/S/properties/p", "", bind.RawDefinition},
 		{"raw YAML at the root", "$defs:\n  A: {type: string}\ncomponents:\n  schemas:\n    H: {properties: {p: {$ref: '#/$defs/A'}}}\n",
-			"/components/schemas/H/properties/p", "/$defs/A"},
+			"/components/schemas/H/properties/p", "/$defs/A", 0},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			e := entryAt(t, bound(t, head+tc.body, self), tc.site)
 			if tc.want == "" {
-				assert.Equal(t, bind.NoDefinition, e.Hop.Reason, e.Hop.Why())
+				assert.Equal(t, tc.why, e.Hop.Reason, e.Hop.Why())
 				return
 			}
 			require.Equal(t, bind.Resolved, e.Hop.Status, e.Hop.Why())

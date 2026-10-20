@@ -22,15 +22,6 @@ type Position struct {
 	Pointer jsontext.Pointer
 }
 
-// String spells p as a fragment of its document, numbered when that is not
-// the source.
-func (p Position) String() string {
-	if p.Doc == Source {
-		return "#" + string(p.Pointer)
-	}
-	return "doc" + strconv.Itoa(int(p.Doc)) + "#" + string(p.Pointer)
-}
-
 // less reports whether p orders before q (comparePositions).
 func (p Position) less(q Position) bool { return comparePositions(p, q) < 0 }
 
@@ -119,10 +110,17 @@ const (
 	// fragment.
 	BadPointer
 	// NoDefinition is a "#/$defs/..." pointer the $defs rule finds nothing
-	// for. Raw YAML holds no schema of the model, so a schema under an
-	// extension answers none from its own $defs, as OAS 3.1 reads a schema
-	// with no $id (GitHub #570).
+	// for.
 	NoDefinition
+	// OwnDefinition is a "#/$defs/..." pointer the $defs rule finds nothing
+	// for, which the schema writing it defines: its own definitions answer
+	// only where it declares an $id, as OAS 3.1 reads one with none against
+	// the document.
+	OwnDefinition
+	// RawDefinition is a "#/$defs/..." pointer the $defs rule finds nothing
+	// for, which raw YAML above it defines: raw YAML holds no schema of the
+	// model, so a schema under an extension answers none (GitHub #570).
+	RawDefinition
 	// ExternalOff is a reference to another document while none is read.
 	ExternalOff
 	// Unreadable is a reference to another document that could not be read;
@@ -243,6 +241,12 @@ func (h Hop) Why() string {
 	case NoDefinition:
 		return "no definition answers it: neither the document's root nor a schema of the model above it " +
 			"holds one by that name"
+	case OwnDefinition:
+		return "only the schema writing it defines that name, and a schema's own definitions answer a " +
+			"\"#/$defs/...\" pointer only where it declares an $id; the document's root defines none"
+	case RawDefinition:
+		return "only raw YAML above it, such as an extension's value, defines that name, and raw YAML holds " +
+			"no schema of the model whose definitions answer it; the document's root defines none"
 	case ExternalOff:
 		return "it names another document, and external references are not read"
 	case Unreadable:
