@@ -205,7 +205,6 @@ member 0 0 TypeCommon.instantiation
 member 0 0 TypeCommon.mediaTypeHint
 member 0 0 TypeCommon.namespace
 member 0 0 TypeCommon.tags
-member 0 0 TypeCommon.usage
 member 0 0 TypeCommon.wireNameByFormat
 member 0 0 Value.ctor
 member 0 0 Value.ref
@@ -271,10 +270,6 @@ value 0 0 PrimKind "uint8"
 value 0 0 StreamingMode "client"
 value 0 0 StreamingMode "none"
 value 0 0 TypeKind "external"
-value 0 0 UsageFlags 1
-value 0 0 UsageFlags 2
-value 0 0 UsageFlags 4
-value 0 0 UsageFlags 8
 value 0 0 ValueKind "ctor"
 value 0 0 ValueKind "null"
 value 0 0 ValueKind "ref"

@@ -304,7 +304,7 @@ target-AST nodes a default shapes carry `Inferred` provenance (§4.3), as INV6 r
 
 ## 3. The plan layer
 
-`emitters/plan` (Layer 2, imports `ir` only). `Build` is pure, deterministic, and JSON-serializable
+`emitters/plan` (Layer 2, imports `ir` and `ir/irfacts` only). `Build` is pure, deterministic, and JSON-serializable
 (INV7) so it can be cached, shared out-of-process, and golden-tested independently of any language.
 Every map in the plan is keyed by a string type, since JSON names an object's members by strings
 alone. `encoding/json/v2` refuses a key that does not encode as a string, as a plain struct does, so
@@ -417,7 +417,7 @@ negotiation` default (`json > form > multipart > binary`) is a shared, overridab
 
 ```go
 type TypePlan struct {
-    Usage      ir.UsageFlags        // Input|Output|Error|Multipart — drives serializers
+    Usage      irfacts.UsageFlags   // irfacts.Index.Usage (ir-design §4.9) — drives serializers
     Flattened  []ir.PropID          // FlattenedProperties() over Base+Implements+Mixins+own — COMPUTED
     Union      UnionShape           // a union's wire shape, one of four (§4.4); "" = not a union
     Discrim    *DiscrimFacts        // a union's or hierarchy's discriminator, as variant IDs
@@ -600,10 +600,10 @@ The procedure decided every existing field:
    target's keyword arguments are additive as they stand, where a positional parameter added to a Go
    or Kotlin function breaks its callers, so the best default differs by language.
 
-What holds the line beyond review: `emitters/plan` imports only `ir`, so it cannot read a naming or
-runtime policy or a target (§7); the plan is golden-tested once, with no target in the loop; and a
-plan field's doc comment names what it derives and which artifacts expose it, which a reviewer
-checks against the third test.
+What holds the line beyond review: `emitters/plan` imports only `ir` and `ir/irfacts`, so it cannot
+read a naming or runtime policy or a target (§7); the plan is golden-tested once, with no target in
+the loop; and a plan field's doc comment names what it derives and which artifacts expose it, which
+a reviewer checks against the third test.
 
 ---
 
@@ -680,7 +680,7 @@ snapshot pins the whole lowering deterministically.
 | `LowerPagination` | `plan.PagePlan` (item unwrap, cursor paths) | auto-pager yielding `iter.Seq2[T, error]`; pacing left to policy | §7.3 |
 | `LowerStreaming` | `plan.StreamPlan` (direction, event union) | `EventStream.Recv()`/`Send()` over the event union; terminal ends | §7.3 |
 | `LowerLRO` | `plan.LROPlan` (final-state-via, poll/final ops, result path) | poller type + `Poll()/PollUntilDone()` returning the final type | §7.3 |
-| `LowerErrors` | `plan.PlannedError`, `UsageFlags.Error`, `Fault` | error type tree (`APIError` → client/server → concrete) | §7.2 |
+| `LowerErrors` | `plan.PlannedError`, `irfacts.UsageError`, `Fault` | error type tree (`APIError` → client/server → concrete) | §7.2 |
 | `RenderCasing` | neutral `Ident` (= `naming.Words`: the canonical words beside their source spellings) + the acronym table | cased identifiers — the ONLY place names get cased | §3.2; INV4 |
 | `EscapeReservedWords` | cased `Ident` + reserved set | keyword-safe identifiers; NEVER touches `WireName`/`WireID` | §3.2; INV4 |
 | `ResolveCollisions` | `Ctx.Syms` (ID-keyed symbol table) | deterministic disambiguation; never mutates IR identity | §3.1; INV3 |
@@ -1155,13 +1155,13 @@ so one IR document drives different compat baselines per language.
 
 ## 7. Package layout & layering
 
-Consistent with architecture.md §3 (`emitters/*` is Layer 2: imports `ir` + the emitter contract,
+Consistent with architecture.md §3 (`emitters/*` is Layer 2: imports `ir`, `ir/irfacts` + the emitter contract,
 never `compiler`, never `engine`, never a sibling target):
 
 ```
 emitters/
 ├── contract.go        # Emitter, EmitterInput/Output, Artifact, Capabilities, TargetKey, registry
-├── plan/              # SHARED, language-neutral — imports ir only. Build(), Plan, OpPlan, TypePlan, ModelShape
+├── plan/              # SHARED, language-neutral — imports ir, ir/irfacts. Build(), Plan, OpPlan, TypePlan, ModelShape
 │   └── plantest/      #   golden snapshots of Plan (language-independent corpus)
 ├── policy/            # runtime SDK-policy vocabulary + Defaults() + Merge(DeepPartial) (INV10)
 ├── naming/            # SHARED naming engine: acronym/compound tables, reserved-word set type,
@@ -1322,8 +1322,8 @@ binding.
 ### 8.5 An error taxonomy (`RateLimited`, 429, retryable-throttling)
 
 IR: `ErrorCase{ Name:{Hint:"429"}, Conditions:{429}, Payload:{Contents:[{application/json →
-RateLimited (Model, Usage.Error)}]}, Headers:[Retry-After], Fault:"client", Retryable:&true,
-Throttling:&true }`; policy default maps `429 → "TooManyRequests"`.
+RateLimited (Model, reached from this error case)}]}, Headers:[Retry-After], Fault:"client",
+Retryable:&true, Throttling:&true }`; policy default maps `429 → "TooManyRequests"`.
 
 - **plan.** `OpPlan.Errors` = `[PlannedError{ Conditions:{429}, Type:RateLimited, Fault:"client",
   Retryable:true, Throttling:true }]` — declared IR facts, carried as such. **Known gap (#447):**
@@ -1804,7 +1804,7 @@ compiler writes as `""` (#978); and facts no OpenAPI construct sets, such as `Mo
 
 | INV | Where satisfied |
 |---|---|
-| 1 IR is the ABI | `EmitterInput.Doc` is the only structural input; `emitters/*` imports `ir` + shared contract, never `compiler`/`engine`/a sibling target (§2, §7) |
+| 1 IR is the ABI | `EmitterInput.Doc` is the only structural input; `emitters/*` imports `ir`, `ir/irfacts` + shared contract, never `compiler`/`engine`/a sibling target (§2, §7) |
 | 2 Lossless, lowered late | all lowering is in `refine` steps building a fresh target AST; the IR is never mutated; unions/enums/discriminators/visibility/pagination/streaming/LRO arrive un-lowered and the step list is the acceptance test (§4, §8) |
 | 3 Stable IDs, names presentation | plan, AST `Origin`, manifest, surface, hints, and the collision table are all keyed by IR stable ID; renames are lookups; collisions never touch identity (§3, §4.12, §11) |
 | 4 Names neutral, emitter cases | `Ident` starts as the `Naming.Canonical` word sequence, the source spelling beside each word for its letter case only; `RenderCasing`/`EscapeReservedWords` are the only casing steps; struct tags come from `WireName`/`WireID`, a separate channel (§4.12, §5) |

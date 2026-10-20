@@ -395,7 +395,6 @@ func populatedTypeCommon(id ir.TypeID) ir.TypeCommon {
 		Access:           "internal",
 		Deprecation:      populatedDeprecation(),
 		Availability:     populatedAvailability(),
-		Usage:            ir.UsageInput | ir.UsageOutput,
 		WireNameByFormat: map[string]string{"xml": "Name", "json": "name"},
 		MediaTypeHint:    "application/json",
 		XML:              populatedXMLHints(),
