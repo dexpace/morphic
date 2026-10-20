@@ -37,8 +37,9 @@ linters:
         # it no longer uses, so tests are covered too. The trailing $ makes the
         # match exact: a prefix would refuse v2 and jsontext with it.
         #
-        # Lint reads the files the host's build includes, so a file built only for
-        # another port, such as one tagged windows, is not checked.
+        # Lint reads the files one port's build includes, so make lint-planted
+        # runs this, with the other rules it holds, on every port make build
+        # covers.
         json-v1:
           list-mode: lax
           files: [$all]

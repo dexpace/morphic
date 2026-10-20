@@ -105,10 +105,11 @@ lint: check-lint-version
 	golangci-lint run
 
 # The rules in .golangci.yml that a clean tree cannot prove, held to the findings
-# planted for them; scripts/lint-planted.sh says how. In CI it runs after the
-# lint action, which leaves its golangci-lint on PATH for the steps after it.
+# planted for them on the host and on each of the PORTS; scripts/lint-planted.sh
+# says how. In CI it runs after the lint action, which leaves its golangci-lint
+# on PATH for the steps after it.
 lint-planted: check-lint-version
-	./scripts/lint-planted.sh
+	./scripts/lint-planted.sh $(PORTS)
 
 # CI installs the pinned release through golangci-lint-action; here the binary
 # is whatever is on PATH. A mismatch is reported rather than fatal — a developer
