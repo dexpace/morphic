@@ -271,13 +271,11 @@ type partWalk struct {
 // properties written on the schema itself, then those each allOf branch
 // contributes, with the first declaration of a name winning. The branches are
 // the lowering's own (schema.FlattenedAllOf); a $ref branch is followed here, up
-// to maxPartRefHops. A bound that cut the walk is reported on the result.
-// entered holds the schemas the walk has already entered; one met again yields
-// no parts, so a cycle ends there.
+// to maxPartRefHops. entered holds the schemas already entered: one met again
+// yields no parts. A bound that cut the walk is reported on the result.
 //
-// A body that composes rather than declares — `allOf: [{$ref: Form}]` — has no
-// properties of its own, yet describes the same wire format, so it must
-// enumerate the same parts (GitHub #140).
+// A body that composes rather than declares — `allOf: [{$ref: Form}]` — still
+// enumerates the same parts (GitHub #140).
 func bodyParts(js *oas3.JSONSchema[oas3.Referenceable], hops int, entered map[*oas3.Schema]bool) partWalk {
 	if hops > maxPartRefHops {
 		return partWalk{hopsSpent: true}
