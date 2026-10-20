@@ -37,7 +37,14 @@ func registryWrites(m dsl.Matcher) {
 	// cannot find a registry at any position of a multiple assignment: it would
 	// settle on the first index expression and never try the next. Each position
 	// gets its own, to the third.
+	//
+	// Two writes stay out of reach of a rule that reads types at the site: one
+	// inside a generic helper, which sees only its type parameter (the maps
+	// functions are named for that reason), and an unnamed
+	// map[ir.TypeID]ir.TypeDef assigned where a registry is expected.
 	m.Match(`$r[$_], $*_ = $*_`, `$_, $r[$_], $*_ = $*_`, `$_, $_, $r[$_], $*_ = $*_`,
+		`for $r[$_] = range $_ { $*_ }`, `for $r[$_], $_ = range $_ { $*_ }`,
+		`for $_, $r[$_] = range $_ { $*_ }`,
 		`delete($r, $_)`, `clear($r)`,
 		`maps.Copy($r, $_)`, `maps.Insert($r, $_)`, `maps.DeleteFunc($r, $_)`).
 		Where(m["r"].Type.Is(`ir.TypeRegistry`) &&

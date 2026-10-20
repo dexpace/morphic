@@ -7,6 +7,7 @@ import (
 	"encoding/json" // want "import 'encoding/json' is not allowed from list 'json-v1': use encoding/json/v2 and encoding/json/jsontext (depguard)"
 	"encoding/json/jsontext"
 	jsonv2 "encoding/json/v2"
+	"iter"
 	"maps"
 
 	"github.com/dexpace/morphic/ir"
@@ -23,7 +24,7 @@ var (
 // writing it draws nothing.
 type lookalike map[ir.TypeID]ir.TypeDef
 
-func plant(doc *ir.Document, reg ir.TypeRegistry, other lookalike) {
+func plant(doc *ir.Document, reg ir.TypeRegistry, other lookalike, defs []ir.TypeDef, seq iter.Seq[ir.TypeDef], byDef map[ir.TypeDef]int) {
 	built := ir.TypeRegistry{}          // want "ruleguard: builds an ir.TypeRegistry outside ir and compilers/compile; go through compile.Types (gocritic)"
 	aliased := irx.TypeRegistry{}       // want "ruleguard: builds an ir.TypeRegistry outside ir and compilers/compile; go through compile.Types (gocritic)"
 	made := make(ir.TypeRegistry)       // want "ruleguard: builds an ir.TypeRegistry outside ir and compilers/compile; go through compile.Types (gocritic)"
@@ -41,6 +42,14 @@ func plant(doc *ir.Document, reg ir.TypeRegistry, other lookalike) {
 	maps.Copy(reg, built)                                                  // want "ruleguard: writes an ir.TypeRegistry outside ir and compilers/compile; go through compile.Types (gocritic)"
 	maps.Insert(reg, maps.All(built))                                      // want "ruleguard: writes an ir.TypeRegistry outside ir and compilers/compile; go through compile.Types (gocritic)"
 	maps.DeleteFunc(reg, func(ir.TypeID, ir.TypeDef) bool { return true }) // want "ruleguard: writes an ir.TypeRegistry outside ir and compilers/compile; go through compile.Types (gocritic)"
+	for reg["h"] = range seq {                                             // want "ruleguard: writes an ir.TypeRegistry outside ir and compilers/compile; go through compile.Types (gocritic)"
+	}
+	for reg["i"], _ = range byDef { // want "ruleguard: writes an ir.TypeRegistry outside ir and compilers/compile; go through compile.Types (gocritic)"
+	}
+	for _, reg["j"] = range defs { // want "ruleguard: writes an ir.TypeRegistry outside ir and compilers/compile; go through compile.Types (gocritic)"
+	}
+	for _, other["k"] = range defs {
+	}
 
 	other["e"] = nil
 	delete(other, "f")
