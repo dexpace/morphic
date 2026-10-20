@@ -684,8 +684,18 @@ own `Properties`, each property keeping its own provenance
 [`allof-redeclared-property`](#allof-redeclared-property)). So every branch stays reconstructible
 from the composition.
 
-- Cases: `allof-inheritance`, `allof-mixins`, `allof-inline-merge`
-- Tests: `schema.TestAllOf_DiscriminatorHierarchy`, `schema.TestAllOf_SoleRefBecomesBase`
+`allOf` is associative, so an inline entry writing a non-empty `allOf` and nothing else the merge
+does not consume ([`allof-inline-residue`](#allof-inline-residue)) is flattened into the enclosing
+list before the entries are classified: its own entries take its place, in source order and depth
+first, each keeping the pointer it was written at, and its `properties` and `required` merge after
+them, as a composing schema's own merge after its entries'. So `allOf: [{allOf: [A, B]}]` classifies
+as `allOf: [A, B]`, and nothing is reported. An entry nested past `maxAllOfFlattenDepth` flattened
+entries is not flattened, and is kept as residue.
+
+- Cases: `allof-inheritance`, `allof-mixins`, `allof-inline-merge`, `allof-nested-inline`
+- Tests: `schema.TestAllOf_DiscriminatorHierarchy`, `schema.TestAllOf_SoleRefBecomesBase`,
+  `schema.TestAllOf_NestedInlineWrapperFlattens`, `schema.TestAllOf_NestedWrapperBaseSelection`,
+  `schema.TestAllOfBranches_DepthCapKeepsWrapperVerbatim`
 - Status: partly built: a `$ref` to a subtype of a discriminated base, which declares no
   discriminator itself, is composed as a `Mixin` rather than the `Base` (#986).
 
@@ -711,9 +721,10 @@ and does hold them one level up — the same keywords on the composing schema lo
 `Model.Additional`, `Model.Constraints` and `Unmodeled` — but attributing them to the composition
 means either giving the branch a node (changing the composition shape) or merging them upward with a
 precedence rule for branches that disagree. So a branch declaring anything the merge does not
-consume is kept verbatim in `Unmodeled["openapi:allOf/<index>"]` under `degraded_lowering` — the
+consume is kept verbatim in `Unmodeled["openapi:<path>"]` under `degraded_lowering` — the
 *whole* branch, consumed keywords included, so the source stays reconstructable rather than having
-to be reassembled from two places — keyed by branch index so siblings cannot overwrite each other,
+to be reassembled from two places — keyed by its path from the composed schema (`allOf/1`, or
+`allOf/1/allOf/0` for an entry of a flattened one) so siblings cannot overwrite each other,
 and reported by an `openapi/degraded-construct` at the branch naming the keywords that made it
 residue. Which keywords those are is derived from the branch's own declared key set rather than from
 a fixed list, so a keyword the dialect gains later is residue without anyone maintaining an
@@ -732,10 +743,12 @@ about the composed node instead, stated with the `false`-schema rule
 - Codes: `openapi/degraded-construct`
 - Tests: `schema.TestAllOf_BranchWrittenByReferenceStillDerivesResidue`,
   `schema.TestAllOf_MergedBranchKeywordsAreNotResidue`,
-  `schema.TestAllOf_UnpreservableBranchIsNotAnnounced`
-- Status: partly built: a nested inline `allOf` is kept as residue rather than flattened into the
-  composition, so the composed model has no base, mixins or properties (#599), and an `allOf` of one
-  `$ref` and an annotation-only branch keeps none of the branch's annotations typed (#660).
+  `schema.TestAllOf_UnpreservableBranchIsNotAnnounced`,
+  `schema.TestAllOf_NestedInlineBranchKeyedByPointer`,
+  `schema.TestAllOf_NestedWrapperWithResidueKeptVerbatim`,
+  `schema.TestAllOf_NestedEmptyAllOfKeptVerbatim`
+- Status: partly built: an `allOf` of one `$ref` and an annotation-only branch keeps none of the
+  branch's annotations typed (#660).
 
 ### `allof-redeclared-property`
 
@@ -783,7 +796,8 @@ under ([`nullable`](#nullable)).
 
 ### `allof-required`
 
-A `required` name written on an `allOf` branch, inline or beside a branch's `$ref`, or beside the
+A `required` name written on an `allOf` branch, inline or beside a branch's `$ref` (a flattened
+entry's own and its entries' included, each at the pointer it was written at), or beside the
 `allOf` itself lowers to `Property.Required` (§5.1) on the composed `Model`'s own property of that
 wire name, whichever branch declares the property: a branch holding nothing but `required` attaches
 across the whole composition, not only its own `properties`, and an attachment never clears a
@@ -799,7 +813,8 @@ composes none.
 - Codes: `openapi/unattachable-required`
 - Tests: `schema.TestAllOf_CompositionRequiredAttaches`,
   `schema.TestAllOf_RequiredOnlyBranchNamingBaseOwnedPropertyDiagnosed`,
-  `schema.TestAllOf_RequiredOnlyBranchNoBaseOrMixinDiagnosedInfo`
+  `schema.TestAllOf_RequiredOnlyBranchNoBaseOrMixinDiagnosedInfo`,
+  `schema.TestAllOf_NestedWrapperRequiredAttaches`
 - Status: partly built: the unattached name is reported and kept nowhere, where a map keeps its
   `required` verbatim (#896), and an inherited property a composing schema makes required has no IR
   home (#663).
@@ -809,13 +824,16 @@ composes none.
 The `false` rule ([`whole-schema-fallbacks`](#whole-schema-fallbacks)) holds wherever the schema
 appears, composition included. A `false` conjunct (`allOf: [false, …]`) admits nothing, so the
 composition admits nothing: the composed `Model` is closed and the branch is kept verbatim beside
-it, under `openapi:allOf/<index>` (`degraded_lowering`), which is what distinguishes it from a model
+it, under `openapi:<path>` as [`allof-inline-residue`](#allof-inline-residue) keys a branch
+(`degraded_lowering`), which is what distinguishes it from a model
 that merely wrote `additionalProperties: false`, and reported as an info `openapi/false-schema` at
 the branch. What the other branches contributed stays — closing is the nearest shape the IR has, and
 emptying the model would trade one silent loss for another. A `true` conjunct admits everything, so
-contributing nothing from it is exact and nothing is reported.
+contributing nothing from it is exact and nothing is reported. Where a `oneOf` or `anyOf` beside the
+`allOf` is distributed ([`union-beside-structure`](#union-beside-structure)), every composed
+variant is closed and keeps the branch, and the branch is reported once.
 
-- Cases: `allof-boolean-branch`
+- Cases: `allof-boolean-branch`, `allof-nested-inline`
 - Codes: `openapi/false-schema`
 
 ### `union`
