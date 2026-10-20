@@ -681,3 +681,81 @@ paths:
 		assert.Empty(t, cmp.Diff(compiled[0], compiled[1]), "%s: declaration order decided what it names", tc.name)
 	}
 }
+
+// TestExternalContent_ARefWrittenInItLendsItsUseSiteNothing pins that a schema
+// $ref written in another document's content lends the use site holding it
+// nothing, as the parser's resolver resolved no $ref there (GitHub #751): no
+// default or description to a parameter or a header, no parts to a form body's
+// encoding, no file type to a binary body, and no discriminator to a schema
+// composing through it. A $ref the source writes still lends its target's
+// default (GitHub #1023).
+func TestExternalContent_ARefWrittenInItLendsItsUseSiteNothing(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "lib.yaml"), []byte(`RB:
+  content:
+    multipart/form-data:
+      schema: {$ref: '#/Form'}
+      encoding: {file: {contentType: image/png}}
+RBBin:
+  content: {application/x-custom: {schema: {$ref: '#/Bin'}}}
+Param: {name: lent, in: query, schema: {$ref: '#/Fmt'}}
+Resp:
+  description: ok
+  headers: {X-Lent: {schema: {$ref: '#/Fmt'}}}
+Kid: {allOf: [{$ref: '#/Pet'}]}
+Form: {type: object, properties: {file: {type: string, format: binary}}}
+Bin: {type: string, format: binary}
+Fmt: {type: string, default: json, description: fmt}
+Pet: {type: object, discriminator: {propertyName: k}, properties: {k: {type: string}}}
+`), 0o600))
+	const root = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /form:
+    post:
+      parameters:
+        - {$ref: './lib.yaml#/Param'}
+        - {name: own, in: query, schema: {$ref: './lib.yaml#/Fmt'}}
+      requestBody: {$ref: './lib.yaml#/RB'}
+      responses: {"200": {$ref: './lib.yaml#/Resp'}}
+  /file:
+    post:
+      requestBody: {$ref: './lib.yaml#/RBBin'}
+      responses: {"204": {description: ok}}
+components:
+  schemas:
+    Local: {allOf: [{$ref: './lib.yaml#/Kid'}], properties: {z: {type: string}}}
+`
+	doc, _, err := openapi.New().Compile(t.Context(),
+		[]compilers.Source{{Path: filepath.Join(dir, "root.yaml"), Data: []byte(root)}},
+		compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: true}})
+	require.NoError(t, err)
+	require.NotNil(t, doc)
+	ops := map[ir.OpID]ir.Operation{}
+	require.False(t, ir.ForEachOperation(doc, func(op ir.Operation) { ops[op.ID] = op }))
+	form, file := ops["op/openapi/paths/~1form/post"], ops["op/openapi/paths/~1file/post"]
+
+	params := map[string]ir.Parameter{}
+	for _, p := range form.Params {
+		params[p.Name.Source] = p
+	}
+	assert.Nil(t, params["lent"].Default, "a parameter's default")
+	assert.Empty(t, params["lent"].Docs.Description, "a parameter's description")
+	require.NotNil(t, params["own"].Default)
+	assert.Equal(t, "json", params["own"].Default.Str, "the source's own $ref")
+	require.Len(t, form.Responses, 1)
+	require.Len(t, form.Responses[0].Headers, 1)
+	assert.Nil(t, form.Responses[0].Headers[0].Default, "a header's default")
+	assert.Empty(t, form.Responses[0].Headers[0].Docs.Description, "a header's description")
+	require.NotNil(t, form.Request)
+	require.Len(t, form.Request.Contents, 1)
+	assert.Empty(t, form.Request.Contents[0].Encoding, "a form body's parts")
+	require.NotNil(t, file.Request)
+	require.Len(t, file.Request.Contents, 1)
+	assert.Equal(t, ir.TypeID("t/prim/any"), file.Request.Contents[0].Type.Target, "a binary body's type")
+	assert.Nil(t, file.Request.Contents[0].File)
+	local, ok := doc.Types["t/openapi/components/schemas/Local"].(*ir.Model)
+	require.True(t, ok)
+	assert.Empty(t, local.DiscriminatorValue, "a discriminator through a composed schema")
+}

@@ -77,10 +77,13 @@ func (b *Bindings) Declared(js *schemaRef) *schemaRef {
 }
 
 // End returns the schema the chain of $refs from js ends on, or nil where it
-// does not end on one.
+// does not end on one or js's $ref is written in another document. The
+// parser's resolver resolved no $ref there (GitHub #751), so what one names
+// lends the use site holding it nothing: no annotation, form part, file body
+// or discriminator.
 func (b *Bindings) End(js *schemaRef) *schemaRef {
 	e, ok := b.Entry(js)
-	if !ok || e.Chain.Status != bind.Resolved {
+	if !ok || e.Chain.Status != bind.Resolved || e.Site.Doc != bind.Source {
 		return nil
 	}
 	return b.held[e.Chain.End]

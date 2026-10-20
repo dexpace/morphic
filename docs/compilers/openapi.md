@@ -240,10 +240,12 @@ nothing else, so a `+` names itself, and read as RFC 6901 reads a pointer: an in
 with no leading zero, a pointer ending in `/` names a member whose key is empty, and a fragment
 holding a second `#` names nothing. A pointer passing a reference object reads on where the resolver
 resolved that, in whichever document, and a `$ref` written in another document's content is read in
-that document. A YAML alias or merge key is a copy written where it is placed, so what it holds is
-read at that position, as the document's JSON places it, and raw YAML a schema `$ref` lands on,
-under an extension or in another document, is read as a schema. A key written twice in one mapping
-is read as its last occurrence, raw YAML included, as the parser's model reads one
+that document. What such a `$ref` names lends the use site holding it nothing — no annotation, form
+part, file body or discriminator — as the parser's resolver resolved no `$ref` there. A YAML alias
+or merge key is a copy written where it is placed, so what it holds is read at that position, as the
+document's JSON places it, and raw YAML a schema `$ref` lands on, under an extension or in another
+document, is read as a schema. A key written twice in one mapping is read as its last occurrence,
+raw YAML included, as the parser's model reads one
 ([`duplicate-key`](../parser-library.md#duplicate-key)).
 
 A reference that resolves to nothing — a pointer naming no node, a position holding no schema, a
@@ -292,6 +294,7 @@ would answer. A chain of references that closes on itself is
   `load.TestLoad_ARootDefinitionAnswersBeforeASchemasOwn`,
   `bind.TestBind_ReadsEachHop`, `bind.TestBind_ReadsADefinitionByTheDefsRule`,
   `openapi.TestCompile_DefsPointerUnderANestedIDReadsTheBaseItNames`,
+  `openapi.TestExternalContent_ARefWrittenInItLendsItsUseSiteNothing`,
   `bind.TestBind_ReadsEachPositionAsTheJSONItSpells`, `bind.TestBind_ReadsARepeatedKeyAsItsLast`,
   `bind.TestBind_StopsAtItsBudget`, `bind.TestBind_CountsWorkLinearInTheDocument`,
   `bind.TestBind_ReadsEveryWebhookAsAPathItem`, `bind.TestBind_PlacesAnEndAtTheNodeItsChainReached`,
@@ -304,14 +307,16 @@ would answer. A chain of references that closes on itself is
   `bind.TestBind_TakesNoDefinitionPastAReadTheMergeBoundStopped`,
   `canary.TestBindingOracle_AgreesWithTheLibrary`
 - Status: partly built: no schema another document holds is lowered, so a schema `$ref` naming one
-  is reported unresolved (#74), and an `$anchor` or an `$id` is not honoured as a reference target
-  (#1015). A reference object inside an object another document holds is never resolved, and
-  nothing reports it (#751); an absolute-path `$ref` in a remote document is read as a local path
-  (#936); a remote document can make the compiler request a private address (#937); an external
-  document that does not parse is handed on rather than refused (#939); and a remote document
-  reaching a local file is refused naming only its last such `$ref` (#940). A reference object's
-  pointer holding a character above U+FFFF is refused as malformed (#516), and an unresolved
-  reference object's message ends in the resolver's own wording (#809).
+  is reported unresolved (#74). A schema `$ref` written in another document's content lends its use
+  site nothing, as the parser's resolver never resolved one there (#751), while one the source
+  writes there still lends what it names (#1023). An `$anchor` or an `$id` is not honoured as a
+  reference target (#1015). A reference object inside an object another document holds is never
+  resolved, and nothing reports it (#751); an absolute-path `$ref` in a remote document is read as a
+  local path (#936); a remote document can make the compiler request a private address (#937); an
+  external document that does not parse is handed on rather than refused (#939); and a remote
+  document reaching a local file is refused naming only its last such `$ref` (#940). A reference
+  object's pointer holding a character above U+FFFF is refused as malformed (#516), and an
+  unresolved reference object's message ends in the resolver's own wording (#809).
 
 ### `reference-cycles`
 
