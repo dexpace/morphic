@@ -832,7 +832,7 @@ combinator ([`union-beside-structure`](#union-beside-structure),
 [`union-beside-ref`](#union-beside-ref), [`competing-keywords`](#competing-keywords)) lower
 otherwise.
 
-- Cases: `oneof-discriminated`, `anyof-untagged`
+- Cases: `oneof-discriminated`, `anyof-discriminated`, `anyof-untagged`
 
 ### `type-arrays`
 

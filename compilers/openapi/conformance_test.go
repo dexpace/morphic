@@ -160,6 +160,7 @@ func conformanceCases() []conformanceCase {
 		{"allof-conflicting-type", assertAllOfConflictingType, nil},
 		{"allof-position-constraints", assertAllOfPositionConstraints, []string{"intersection"}},
 		{"oneof-discriminated", assertOneOfDiscriminated, []string{"tagged-unions"}},
+		{"anyof-discriminated", assertAnyOfDiscriminated, []string{"tagged-unions"}},
 		{"discriminator-inheritance", assertDiscriminatorInheritance, []string{"tagged-unions", "inheritance"}},
 		{"discriminator-inline-subtype", assertDiscriminatorInlineSubtype, []string{"tagged-unions", "inheritance"}},
 		{"discriminator-default-mapping", assertDiscriminatorDefaultMapping, []string{"tagged-unions"}},
@@ -900,11 +901,27 @@ func assertOneOfDiscriminated(t *testing.T, doc *ir.Document, _ []ir.Diagnostic)
 	pet, ok := doc.Types[namedID("Pet")].(*ir.Union)
 	require.True(t, ok, "oneOf survives as a Union node, never collapsed")
 	assert.True(t, pet.Exclusive)
+	assert.True(t, pet.WireTagged, "the discriminator's tag names the variant")
 	require.Len(t, pet.Variants, 2)
 	require.NotNil(t, pet.Discriminator)
 	assert.Equal(t, "petType", pet.Discriminator.PropertyName)
 	assert.Equal(t, namedID("Cat"), pet.Discriminator.Mapping["cat"])
 	assert.Equal(t, namedID("Dog"), pet.Discriminator.Mapping["dog"])
+}
+
+// assertAnyOfDiscriminated pins that the tag mode and Exclusive are independent
+// (ir-design §4.4): a discriminator on an anyOf tags the union without making
+// it exclusive, since a payload may still satisfy both branches.
+func assertAnyOfDiscriminated(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	u, ok := doc.Types[namedID("Resource")].(*ir.Union)
+	require.True(t, ok, "anyOf survives as a Union node, never collapsed")
+	assert.False(t, u.Exclusive, "anyOf admits a payload both branches satisfy")
+	assert.True(t, u.WireTagged, "the discriminator's tag names the variant")
+	require.Len(t, u.Variants, 2)
+	require.NotNil(t, u.Discriminator)
+	assert.Equal(t, "kind", u.Discriminator.PropertyName)
+	assert.Equal(t, namedID("Named"), u.Discriminator.Mapping["named"])
+	assert.Equal(t, namedID("Labelled"), u.Discriminator.Mapping["labelled"])
 }
 
 // assertDiscriminatorInheritance covers the model-hierarchy form of a
@@ -1106,6 +1123,7 @@ func assertAnyOfUntagged(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	u, ok := doc.Types[namedID("StringOrNumber")].(*ir.Union)
 	require.True(t, ok)
 	assert.False(t, u.Exclusive, "anyOf is a non-exclusive union")
+	assert.False(t, u.WireTagged, "with no discriminator, validation infers the variant")
 	assert.Nil(t, u.Discriminator)
 	assert.Len(t, u.Variants, 2)
 }
