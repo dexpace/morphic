@@ -3,18 +3,55 @@ on:
   push:
     branches: [main]
   pull_request:
+
+# A push to a pull request supersedes the run its previous push started. Runs on
+# main are never cancelled: each saves the caches the pull requests after it use.
+concurrency:
+  group: gate-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# The gate runs as two jobs side by side, split so each takes about half its
+# wall time. Every check is a Makefile target, and `make gate` runs them all.
+#
+# A run on main starts from empty Go build and module caches and saves what it
+# built. A pull request's run restores what the latest run of the same job on
+# main saved, so it rebuilds only what the change touches. Main never restores,
+# so each save holds one run's builds and the cache cannot grow from one commit
+# to the next.
 jobs:
-  gate:
+  checks:
+    name: lint, build, fuzz, bench
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
+      - &checkout
+        uses: actions/checkout@v7
+      - &setup-go
+        uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
-      - name: toolchain pin
+          cache: false
+      - &toolchain
+        name: toolchain pin
+        id: toolchain
         run: |
           version="$(env -u GOTOOLCHAIN make -s print-go-version)"
           echo "GOTOOLCHAIN=go$version" >>"$GITHUB_ENV"
+          {
+            echo "version=$version"
+            echo "gocache=$(go env GOCACHE)"
+            echo "gomodcache=$(go env GOMODCACHE)"
+          } >>"$GITHUB_OUTPUT"
+      - &restore
+        name: restore main's caches
+        if: github.event_name == 'pull_request'
+        uses: actions/cache/restore@v6
+        with:
+          path: |
+            ${{ steps.toolchain.outputs.gocache }}
+            ${{ steps.toolchain.outputs.gomodcache }}
+          key: go-${{ github.job }}-${{ runner.os }}-go${{ steps.toolchain.outputs.version }}-${{ github.sha }}
+          restore-keys: go-${{ github.job }}-${{ runner.os }}-go${{ steps.toolchain.outputs.version }}-
       - name: gofmt
         run: make fmt
       - name: vet
@@ -30,8 +67,6 @@ jobs:
         run: make lint-planted
       - name: build
         run: make build
-      - name: test (race detector, exactly 100% coverage)
-        run: make coverage
       - name: fuzz
         id: fuzz
         run: make fuzz
@@ -44,3 +79,25 @@ jobs:
           name: fuzz-findings
           path: "**/testdata/fuzz/**"
           if-no-files-found: ignore
+      - &save
+        name: save caches
+        if: github.event_name == 'push'
+        uses: actions/cache/save@v6
+        with:
+          path: |
+            ${{ steps.toolchain.outputs.gocache }}
+            ${{ steps.toolchain.outputs.gomodcache }}
+          key: go-${{ github.job }}-${{ runner.os }}-go${{ steps.toolchain.outputs.version }}-${{ github.sha }}
+
+  suite:
+    name: test (race detector, exactly 100% coverage)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - *checkout
+      - *setup-go
+      - *toolchain
+      - *restore
+      - name: test
+        run: make coverage
+      - *save

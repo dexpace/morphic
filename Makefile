@@ -1,11 +1,11 @@
 # The gate, defined once.
 #
-# .github/workflows/gate.yml runs these targets, so `make gate` and the CI job
-# are the same commands by construction rather than by two lists that agree until
-# somebody edits one. Add a check here and the workflow gains a step that calls
-# it; there is no second place to keep in step.
+# .github/workflows/gate.yml runs these targets, split across two jobs that run
+# side by side, so `make gate` and CI are the same commands by construction
+# rather than by two lists that agree until somebody edits one. Add a check here,
+# then a step that calls it to one of the jobs.
 #
-#   make            the whole gate, in CI order
+#   make            the whole gate, one check at a time
 #   make coverage   the suite once, under -race, at exactly 100% coverage
 #   make bench      benchmark timings (the gate only smoke-runs them)
 #   make fuzz FUZZTIME=5m    a longer search than the gate's
@@ -69,9 +69,9 @@ FUZZTIME ?= 10s
 .DEFAULT_GOAL := gate
 
 # The gate runs one check at a time even under `make -j`. Prerequisites of a
-# single target are otherwise eligible to run concurrently, which would both lose
-# the CI order this file exists to mirror and let `fuzz` write a reproducer into
-# testdata/ while `coverage` is running `go test ./...` over the same tree.
+# single target are otherwise eligible to run concurrently, which would let
+# `fuzz` write a reproducer into testdata/ while `coverage` is running
+# `go test ./...` over the same tree. CI runs them on two machines instead.
 .NOTPARALLEL:
 
 .PHONY: gate fmt vet lint lint-planted check-lint-version build coverage \
