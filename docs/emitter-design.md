@@ -178,9 +178,10 @@ type Artifact struct {
 ```
 
 `error` is not part of the `Generate` signature: a emitter has no failure mode that is not either a
-`Diagnostic` (something about the input it cannot lower) or a programmer bug (a `TypeKind` with no
-dispatch — caught by the switch-completeness test at build time, §13, not at runtime). This keeps
-the contract pure and total.
+`Diagnostic` (something about the input it cannot lower) or a programmer bug: a `TypeKind` with no
+dispatch, caught by the switch-completeness test in the suite (§13) rather than at runtime, or an
+options value of another target's type, reported as an error diagnostic (§2.5). This keeps the
+contract pure and total.
 
 ### 2.1 The registry
 
@@ -195,7 +196,7 @@ compilers. Registration finishes before the engine exists, so concurrent runs on
 type Registry struct{ /* by target, and registration order */ }
 
 func NewRegistry() *Registry
-func (r *Registry) Register(e Emitter) error           // refuses nil and a repeated TargetKey
+func (r *Registry) Register(e Emitter) error           // refuses nil, a repeated key, no Lifecycle
 func (r *Registry) Lookup(t TargetKey) (Emitter, bool)
 func (r *Registry) Targets() []TargetKey               // sorted — determinism (INV7)
 ```
@@ -224,17 +225,18 @@ type Capabilities struct {
     WriteIntegrate  bool          // supports additive merge into a live repo (§11)
     SurfaceVerify   bool          // produces a verify.Surface (§12)
     Protocols       []string      // "http", "grpc", "message", "graphql", "otp"
-    Lifecycle       Lifecycle     // "stable" | "experimental" | "hidden" | "sunset"; required
-    Successor       TargetKey     // the target replacing a sunset one; "" otherwise
+    Lifecycle       Lifecycle     // "hidden" | "experimental" | "stable" | "sunset"; required
+    Successor       TargetKey     // the target replacing a sunset one; "" when none does
 }
 ```
 
 `Lifecycle` is the one field the engine acts on, and only to tell the user, never to change an
-artifact. An `experimental` target runs with a warning diagnostic saying its output may change in
-any release. A `hidden` target is left out of every listing — help, completion, the list of targets
-a misspelt name is answered with — but runs when named, so a target under construction can be
-tried without being offered. A `sunset` target runs with a warning naming its `Successor`. The
-registry refuses a target that states no lifecycle, so none is stable by omission.
+artifact. The states are a target's life in order. A `hidden` target is under construction: it is
+left out of every listing — help, completion, the targets a misspelt name is answered with — and
+runs only when named, with the `experimental` warning. An `experimental` target runs with a warning
+diagnostic saying its output may change in any release. A `sunset` target runs with a warning that
+names its `Successor` when it has one. The registry refuses a target that states no lifecycle, so
+none is stable by omission.
 
 ### 2.4 Contract rules the type system and tests enforce
 
@@ -256,34 +258,44 @@ registry refuses a target that states no lifecycle, so none is stable by omissio
 
 A target's options are a typed Go struct of its own, read by its `DecodeOptions` before `Generate`
 runs, so a mistake in a configuration is reported before anything is generated rather than
-discovered in the output. `TargetOptions` is the interface every target's options type meets, and
-`Generate` asserts the value back to its own type.
+discovered in the output. `raw` is the target's configuration as one JSON object; the engine reads
+it from wherever the user wrote it. `TargetOptions` is the interface every target's options type
+meets. The engine hands `Generate` only the value the same target's `DecodeOptions` returned, and
+`Generate` asserts it back to its own type; a value of another type is a programmer error, which
+`Generate` reports as an error diagnostic rather than a panic.
 
 ```go
 type TargetOptions interface {
-    OptionsVersion() int // the options generation the value is in: always the target's current one
+    OptionsVersion() int // the version the configuration stated; the value is in the current shape
 }
 ```
 
 - **Strict.** An unknown key, a missing required field and an invalid value are an error, as a
   compiler's unknown setting is (`compilers.Compiler.DecodeOptions`): a setting silently ignored
-  leaves its author believing they configured something. Every optional field has a default.
-- **Versioned.** A configuration states the options `version` it was written against, and one that
-  states none is refused: which defaults apply is the one thing that must not be guessed. A target
-  keeps one pure migration per version step, applied in order to the raw form, so `Generate` only
-  ever sees the current version. A version newer than the target knows is refused, since the
-  configuration was written for a later Morphic.
-- **Defaults belong to a version.** A change that would alter the SDKs existing configurations
-  generate is a new version whose defaults differ; a configuration keeps its own version's defaults
-  until its owner moves it. New configurations start at the current version.
+  leaves its author believing they configured something.
+- **Versioned.** A configuration states the options `version` it was written against. One that
+  states none is refused, and so is an absent configuration, because the version decides which
+  defaults apply and that must not be guessed. A version newer than the target knows is refused: it
+  was written for a later Morphic.
+- **Defaults belong to a version.** A target declares each optional setting's default per version,
+  and fills what a configuration leaves unset with the defaults of the version it states. A change
+  that would alter what existing configurations generate is a new version whose defaults differ, so
+  an existing configuration keeps generating what it did until its owner moves it. New
+  configurations start at the current version. A golden test per version decodes a configuration
+  that states only that version and pins every default it fills, so a default changed in place
+  fails a test rather than reaching existing SDKs.
+- **Migrations change the shape, never a default.** A setting renamed, retyped or removed between
+  versions has one pure migration per version step, applied in order to the raw configuration, so
+  `Generate` sees only the current shape. A migration writes no default: those come from the stated
+  version, so no migration can carry the wrong ones forward.
 - **The upgrade report.** Decoding a configuration behind the current version reports, as info
-  diagnostics coded `emitters/<target>/options-behind`, each setting whose value under the
-  configuration's version differs from the current default, so an owner sees exactly what moving
-  changes. The manifest (§11) records the version an SDK was generated with.
+  diagnostics coded `emitters/<target>/options-behind`, each setting it leaves unset whose default
+  differs between its version and the current one, so an owner sees exactly what moving changes.
+  The manifest (§11) records the stated version, `OptionsVersion()`.
 
 Per-target heuristics live here too, beside the target's other choices, rather than in the plan:
-the parameter-passing shape (§4.13) and the numeric policy for unbounded numbers (§9). Each default
-is marked `Inferred` where it shapes output (INV6).
+the parameter-passing shape (§4.13) and the numeric policy for unbounded numbers (§9). What each
+default shapes is marked `Inferred` on the target-AST nodes it produced (§4.3), as INV6 requires.
 
 ---
 
@@ -1692,7 +1704,7 @@ Extends architecture.md §6 milestone 3 (the first emitters) and beyond.
 | 3 Stable IDs, names presentation | plan, AST `Origin`, manifest, surface, hints, and the collision table are all keyed by IR stable ID; renames are lookups; collisions never touch identity (§3, §4.12, §11) |
 | 4 Names neutral, emitter cases | `Ident` starts as `Naming.Canonical` word sequence; `RenderCasing`/`EscapeReservedWords` are the only casing steps; struct tags come from `WireName`/`WireID`, a separate channel (§4.12, §5) |
 | 5 Pure, typed diagnostics | `Generate` is pure/reentrant/no-stderr/no-I/O; every un-lowerable construct → coded `ir.Diagnostic`; the engine decides fatality (§2, §2.4) |
-| 6 Heuristics are policy | `plan.Policy`, `naming.Policy`, `verify.Severity`, method-name derivation, and shaping hints are injectable and disable-able; inferred outputs marked `Inferred` (§3.5, §6.4, §12) |
+| 6 Heuristics are policy | `plan.Policy`, each target's versioned options, `naming.Policy`, `verify.Severity`, method-name derivation, and shaping hints are injectable and disable-able; inferred outputs marked `Inferred` (§2.5, §3.5, §6.4, §12) |
 | 7 Serializable/deterministic | `Plan` + manifest are JSON-serializable; maps walked sorted, slices source order; identical input ⇒ identical bytes (§3, §5.5, §13) |
 | 8 Optionality ≠ nullability | `LowerOptionality` renders all four states plus protobuf `Presence` as a third axis; collapses are diagnosed (§4.7) |
 | 9 Capability surface designed against every format | every `ir.TypeKind` and every operation facet (pagination/streaming/LRO/one-way/messaging) has a lowering path or diagnosed degrade (§4.2, §9); docs/mock/validation are registry entries over the same `Doc + Plan`; a new language forces no IR or plan change (§10, §14 M5) |
