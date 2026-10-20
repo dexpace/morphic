@@ -100,6 +100,43 @@ func TestBind_ReadsAPointerThroughAReferenceObject(t *testing.T) {
 		"a schema is read for its own keywords, not through its $ref")
 }
 
+// TestBind_PassesNoReferenceObjectOfAnotherDocument pins that only the source's
+// reference objects are read through (GitHub #751). The pointer passes the
+// source's /paths/~1x response into other.yaml's R, whose header H writes a
+// $ref; the source writes one at the same pointer, so asking where that
+// pointer's end lies would answer the source's header, not other.yaml's.
+func TestBind_PassesNoReferenceObjectOfAnotherDocument(t *testing.T) {
+	t.Parallel()
+	cfg := withDocuments(map[string]string{"other.yaml": "components:\n  responses:\n" +
+		"    R: {description: o, headers: {H: {$ref: '#/components/headers/HO'}}}\n" +
+		"  headers:\n    HO: {schema: {maxLength: 9}}\n"})
+	cfg.Through = func(p jsontext.Pointer) (bind.ReferenceEnd, bool) {
+		switch p {
+		case "/paths/~1x/get/responses/200":
+			return bind.ReferenceEnd{Name: "other.yaml", Pointer: "/components/responses/R"}, true
+		case "/components/responses/R/headers/H":
+			return bind.ReferenceEnd{Name: "spec.yaml", Pointer: "/components/headers/HS"}, true
+		default:
+			return bind.ReferenceEnd{}, false
+		}
+	}
+	table := bound(t, `openapi: 3.1.0
+info: {title: t, version: '1'}
+paths:
+  /x: {get: {responses: {'200': {$ref: 'other.yaml#/components/responses/R'}}}}
+components:
+  responses:
+    R: {description: s, headers: {H: {$ref: '#/components/headers/HS'}}}
+  headers:
+    HS: {schema: {maxLength: 1}}
+  schemas:
+    S: {$ref: '#/paths/~1x/get/responses/200/headers/H/schema'}
+`, cfg)
+	s := entryAt(t, table, "/components/schemas/S")
+	assert.Equal(t, bind.Unresolved, s.Hop.Status)
+	assert.Equal(t, bind.Unpassable, s.Hop.Reason, s.Hop.Why())
+}
+
 // TestBind_ReadsWhatAReferenceObjectResolvedTo pins the sites the table reads
 // in content a reference object resolved to: other.yaml's response, whose
 // schema writes a $ref read against that document.

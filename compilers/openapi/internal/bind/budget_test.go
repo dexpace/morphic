@@ -173,6 +173,10 @@ func TestTable_SaysWhyARefWentUnread(t *testing.T) {
 	deep := bound(t, deepMerge(), self)
 	require.False(t, deep.Exhausted())
 	assert.True(t, deep.Truncated())
+	other := bound(t, deepMerge()+"    O: {$ref: 'other.yaml#/S'}\n",
+		withDocuments(map[string]string{"other.yaml": "S: {type: string}\n"}))
+	require.Equal(t, 2, other.Documents())
+	assert.True(t, other.Truncated(), "a document read cleanly after the source keeps its verdict")
 	assert.Equal(t, "it is past a `<<` merge chain deeper than the 64 levels the compiler expands", deep.Unread())
 	_, ok := deep.Entry(at("/components/schemas/A"))
 	assert.False(t, ok, "A's $ref is past the bound")

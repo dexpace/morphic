@@ -407,10 +407,10 @@ func withDocuments(docs map[string]string) bind.Config {
 }
 
 // TestBind_ReadsOtherDocuments pins a reference to another document: read once
-// however many name it, as raw YAML, the whole of it named by a reference with
-// no fragment; a chain followed across documents and back; a document that
-// cannot be read or names nothing reported as such; and a reference naming no
-// document at all.
+// however many name it, as one that failed is, as raw YAML, the whole of it
+// named by a reference with no fragment; a chain followed across documents and
+// back; a document that cannot be read or names nothing reported as such; and
+// a reference naming no document at all.
 func TestBind_ReadsOtherDocuments(t *testing.T) {
 	t.Parallel()
 	docs := map[string]string{
@@ -431,6 +431,7 @@ func TestBind_ReadsOtherDocuments(t *testing.T) {
     Again: {$ref: 'other.yaml#/T'}
     Leaf: {type: integer}
     Missing: {$ref: 'gone.yaml#/X'}
+    MissingToo: {$ref: 'gone.yaml#/Y'}
     Empty: {$ref: 'empty.yaml#/X'}
     Nowhere: {$ref: 'nowhere#/X'}
 `, cfg)
@@ -444,6 +445,7 @@ func TestBind_ReadsOtherDocuments(t *testing.T) {
 	assert.Equal(t, bind.Chain{Status: bind.Resolved, End: at("/components/schemas/Leaf"), Role: bind.Schema, Hops: 2},
 		back.Chain, "a chain back into the source ends there")
 	assert.Equal(t, 1, opened["other.yaml"], "read once however many name it")
+	assert.Equal(t, 1, opened["gone.yaml"], "a document that could not be read is not asked for again")
 	assert.Equal(t, bind.Unreadable, entryAt(t, table, "/components/schemas/Missing").Hop.Reason)
 	assert.Equal(t, "the document it names could not be read: no such document",
 		entryAt(t, table, "/components/schemas/Missing").Hop.Why())
