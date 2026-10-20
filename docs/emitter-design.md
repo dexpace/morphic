@@ -143,7 +143,7 @@ type Emitter interface {
 type EmitterInput struct {
     Doc     *ir.Document          // the ABI — the ONLY structural input (INV1)
     Facts   *irfacts.Index        // what Doc implies: subtypes, usage, recursion (ir-design
-                                  // §4.9), indexed ONCE by the engine and shared with the plan (§2.2)
+                                  // §4.9), indexed ONCE by the engine, shared with the plan (§2.2)
     Plan    *plan.Plan            // language-neutral decisions, computed ONCE by the engine (§3)
     Policy  policy.Policy         // runtime/SDK behavior — a SEPARATE tree, never in the IR (INV10; §6)
     Naming  naming.Policy         // per-target casing/acronym/reserved-word engine (INV4; §4.12)
@@ -2141,8 +2141,8 @@ throughout this document.
 18. **T-18 · Placement** — adding a type no operation reaches, an operation that reaches no existing
     type, or declarations past a unit's size limit moves no existing declaration to another unit,
     while an operation in another group moves to the shared unit exactly the types it makes a second
-    group reach; under `SplitByGroup` the units' imports form no cycle; and every partition error and
-    warning of §4.17 has a fixture that draws it.
+    group reach; under `SplitByGroup` the units' imports form no cycle; and every partition error
+    and warning of §4.17 has a fixture that draws it.
 19. **T-19 · Reserved scopes** — a fixture naming its properties, parameters, path parameters and
     enum members after every name each scope of §4.12 reserves, after characters alone and after
     names that begin with a digit, generates code that compiles on every target, with every
