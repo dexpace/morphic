@@ -306,6 +306,10 @@ target-AST nodes a default shapes carry `Inferred` provenance (§4.3), as INV6 r
 
 `emitters/plan` (Layer 2, imports `ir` only). `Build` is pure, deterministic, and JSON-serializable
 (INV7) so it can be cached, shared out-of-process, and golden-tested independently of any language.
+Every map in the plan is keyed by a string type, since JSON names an object's members by strings
+alone. `encoding/json/v2` refuses a key that does not encode as a string, as a plain struct does, so
+a composite key is a map nested in a map: a struct given a text form would need an escaping of its
+own, since a `TypeID` may hold any separator the text form could choose.
 
 ```go
 package plan
@@ -315,7 +319,6 @@ func Build(doc *ir.Document, pp Policy) (*Plan, []ir.Diagnostic)
 type Plan struct {
     Ops     map[ir.OpID]OpPlan          // one entry per operation
     Types   map[ir.TypeID]TypePlan      // one entry per registry type
-    Shapes  map[ShapeKey]ModelShape     // (TypeID × Lifecycle) → projected wire shape
     Version string                      // hash(doc content-hash + PlanPolicy); feeds the manifest
 }
 ```
@@ -419,6 +422,7 @@ type TypePlan struct {
     Union      UnionShape           // a union's wire shape, one of four (§4.4); "" = not a union
     Discrim    *DiscrimFacts        // a union's or hierarchy's discriminator, as variant IDs
     Scalar     *ScalarChain         // a scalar's Base chain, walked once; nil = not a scalar
+    Shapes     map[ir.Lifecycle]ModelShape // the wire shapes the document exercises (§3.3)
     Alias      ir.TypeID            // dedup alias target — follow to the single emitted type;
                                     // empty until the dedup pass (architecture.md §2.2) and its
                                     // alias record (ir-design §16, question 2) exist
@@ -455,16 +459,16 @@ distinct beside it, so a class-based target can map `Base→extends` / `Implemen
 `Mixins→inline` where the three first targets flatten (§8.8). The plan does not decide which — that
 is per-language (§4).
 
-### 3.3 ShapePlan — visibility projection
+### 3.3 ModelShape — visibility projection
 
 One logical model produces N wire shapes across the lifecycle. `ModelShape(model, lifecycle)` is a
 **computed traversal in the plan layer**; the IR stores only the single logical model plus visibility
 facts and never the projected variants (INV2; `ir-design.md §5.2`). The plan emits one `ModelShape`
-per `(TypeID, Lifecycle)` the document actually exercises, so a refiner knows exactly which shapes
-to build: a type's keys in `Plan.Shapes` are the projections it needs, and nothing else lists them.
+per lifecycle the document actually exercises, in the type's `TypePlan.Shapes`, so a refiner knows
+exactly which shapes to build: those keys are the projections the type needs, and nothing else
+lists them.
 
 ```go
-type ShapeKey struct { Type ir.TypeID; Lifecycle ir.Lifecycle }
 type ModelShape struct {
     Props   []ir.PropID  // properties visible in this lifecycle
     Patch   bool         // PATCH shape: properties are implicitly optional unless the binding disables it
@@ -585,13 +589,13 @@ The procedure decided every existing field:
 1. **Choices under `plan.Policy`** stay: `PrimaryResponse`, `PrimaryContent`, the unwrap behind
    `ReturnType`, and `PagePlan`, an inferred one included.
 2. **Derivations several artifacts expose** stay: `Return`, `Errors`, `Auth`, `Bindings`, `Stream`
-   and `LRO`; `Usage`, `Flattened`, `Union`, `Discrim`, `Scalar` and `Alias`; and `ModelShape`.
+   and `LRO`; and `Usage`, `Flattened`, `Union`, `Discrim`, `Scalar`, `Shapes` and `Alias`.
 3. **Copies of what the IR states** are gone: whether there is a body, one-way-ness and idempotency
    (§3.1), a model's `Base`, `Implements` and `Mixins`, an enum's openness, value type, flags and
    fallback member, a union's variant list, and the operation-group tree (§3.4). `Union` replaces a
    classification that copied the variant list and a second discriminator beside the tag mode it
    derived, and `Scalar` replaces a bare root that left the constraints it merged nowhere.
-   `NeedShapes` is gone too: it listed again the lifecycles `Plan.Shapes` is keyed by (§3.3).
+   `NeedShapes` is gone too: it listed again the lifecycles `Shapes` is keyed by (§3.3).
 4. **The parameter-passing shape** fails the first test and moved to refine (§4.13): a dynamic
    target's keyword arguments are additive as they stand, where a positional parameter added to a Go
    or Kotlin function breaks its callers, so the best default differs by language.
@@ -1239,16 +1243,18 @@ Additional:"closed" }`.
   {name,email,password}. `Usage` = Input|Output. `Flattened` walks `Base`, `Implements` and
   `Mixins` (none here).
 - **refine.** `ProjectVisibilityShapes` emits `StructType{Name:"User"}` (read) and
-  `StructType{Name:"UserCreate"}` (create). `LowerOptionality`: required-nonnull → value fields,
-  optional → `Pointer`. `RenderCasing` turns `["email"]`→`Email`, keeping `Tag:json:"email"` from
-  `WireName`. `password` (`Secret`) gets a redacting `String()` and is excluded from the read shape.
-  `Additional:"closed"` → the model's `UnmarshalJSONFrom` decodes its members under
-  `json.RejectUnknownMembers(true)`. Every model pins that option for itself, `false` unless
-  closed: a v2 option reaches every value below the call that sets it, so a closed model would
-  otherwise make an open model nested in it strict, and a strict caller would reach a model the
-  spec leaves open. A catch-all (`AdditionalProps`) is the struct's one embedded fallback, a
-  `map[string]T` tagged `json:",embed"`, which receives the undeclared members whatever the options
-  say.
+  `StructType{Name:"UserCreate"}` (create). `LowerOptionality`: `name`, required and non-null, is a
+  bare `string`, and the optional `id`, `email` and `password` are `Opt[T]` boxes (§4.7), so an
+  absent email stays apart from an empty one. `RenderCasing` turns `["email"]`→`Email`, and the tag
+  is `Tag:json:"email,omitzero"`: the name from `WireName`, never the identifier, and `omitzero`
+  because an unset box written without it would send `"email":null`. `password` (`Secret`) gets a
+  redacting `String()` and is excluded from the read shape. `Additional:"closed"` → the model's
+  `UnmarshalJSONFrom` decodes its members under `json.RejectUnknownMembers(true)`. Every model pins
+  that option for itself, `false` unless closed: a v2 option reaches every value below the call that
+  sets it, so a closed model would otherwise make an open model nested in it strict, and a strict
+  caller would reach a model the spec leaves open. A catch-all (`AdditionalProps`) is the struct's
+  one embedded fallback, a `map[string]T` tagged `json:",embed"`, which receives the undeclared
+  members whatever the options say.
 - **emit.** Printer folds the two structs, prints through `go/format`. File `models/user.go`.
   Manifest records `User.ID → "User"` and `User.ID#create → "UserCreate"`.
 
