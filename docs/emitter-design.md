@@ -1401,7 +1401,10 @@ A required property the spec adds changes the builder's constructor, as it chang
   `MarshalJSONTo`/`UnmarshalJSONFrom`.
 - Unknown members follow §8.1's per-model rule: the SDK's `Json` is strict, and each model the spec
   leaves open carries `@JsonIgnoreUnknownKeys`, so a closed model nested in an open one stays strict
-  and the reverse stays open.
+  and the reverse stays open. A model with a catch-all (`AdditionalProps`) is the exception: the
+  annotation would drop the undeclared members before its serializer saw them, so its serializer
+  reads the object whole through `JsonDecoder.decodeJsonElement` and folds them into the map, as
+  Go's embedded fallback receives them whatever the options say.
 - Operations are `suspend` functions, pages and server streams are `Flow`s, and the transport sits
   behind the runtime's `Transport` (§5.4), a Ktor client by default on both. Java callers are not a
   goal of the JVM target at M3: its surface is Kotlin's.
@@ -1482,7 +1485,7 @@ for both Kotlin targets, and "KMP:" marks where Multiplatform differs from the J
 | `Scalar{Base}` chain | named type over the chain's root (`TypePlan.Scalar`), merged constraints; nil base → newtype | `@JvmInline value class` over the chain's root; nil base → value class over the wire form | encoding triple |
 | `Model` (Base/Implements/Mixins) | struct with `Base` and `Mixins` flattened in; `Implements` → interfaces; `Abstract` → interface; `Positional` → index-ordered struct | final class with `Base` and `Mixins` flattened in, built through a builder, never a `data class` (§8.8); `Implements` → interface; discriminated or abstract base → sealed interface | `WireID` order |
 | `Model` whose `Base` is no model | with no property, catch-all or discriminator of its own, lowered as the `Scalar` row lowers an alias over that base, its constraints, docs and examples binding the position (ir-design §4.2); a union base beside properties distributed over the variants as ir-design §4.3 distributes a union co-declared with a composition; anything else a diagnosed degrade | the same | — |
-| `AdditionalProps` / `Additional` | catch-all `map` as the embedded fallback; `closed`→`RejectUnknownMembers(true)`, pinned per model (§8.1) | catch-all `Map` folded in by the model's serializer; strict `Json`, `@JsonIgnoreUnknownKeys` on each open model | pattern channel |
+| `AdditionalProps` / `Additional` | catch-all `map` as the embedded fallback; `closed`→`RejectUnknownMembers(true)`, pinned per model (§8.1) | catch-all `Map` filled by a serializer that reads the whole object (§8.8); strict `Json`, `@JsonIgnoreUnknownKeys` on each other open model | pattern channel |
 | `Union` (four wire shapes, §4.4) | sealed interface + marker + concrete variants + tag-dispatch (de)serializer | sealed interface + one wrapper class per variant + a `KSerializer` per wire shape; KMP: not exhaustive in Swift | `WireName`/`WireID` per variant |
 | `Enum` open/closed/flags | closed→typed consts; open→string+consts+`Unknown`; flags→bitset; `FallbackMember` on decode | closed → `enum class` with `@SerialName` members, `FallbackMember` on decode; open → value class over the value type with a constant per member, which keeps an unknown value; flags → value class over an integer | member `WireName` |
 | `List`/`MapT`/`Tuple` | `[]T`/`map[K]V`/positional struct (optional past `MinItems`, `Rest`→trailing slice); `List.Encoding`→serializer mode | `List<T>`/`Map<K, V>`/a class with a positional serializer (nullable past `MinItems`, `Rest` → trailing `List`) | packed/expanded |
