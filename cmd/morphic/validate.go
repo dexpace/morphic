@@ -38,7 +38,7 @@ func newValidateCmd() *cobra.Command {
 		Short:   "check an API spec and report its diagnostics, writing no IR",
 		Long:    validateLong,
 		Example: validateExample,
-		Args:    specArgs(&opts),
+		Args:    specArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return validateSpec(cmd, args[0], opts)
 		},

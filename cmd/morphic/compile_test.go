@@ -78,6 +78,11 @@ func TestRun_SpecProblemsExitOne(t *testing.T) {
 			assert.Empty(t, stdout.String(), "no IR JSON for a spec that produced no document")
 			assert.NotContains(t, stderr.String(), "Try ",
 				"a bad spec is not a misuse of the CLI, so no pointer to help")
+
+			stdout.Reset()
+			stderr.Reset()
+			assert.Equal(t, 1, run([]string{"compile", spec, "--fail-on", "none"}, &stdout, &stderr),
+				"--fail-on none still fails a spec that lowered to no document")
 		})
 	}
 }
@@ -97,14 +102,6 @@ components:
 	require.Equal(t, 0, run([]string{"compile", spec}, &stdout, &stderr),
 		"info diagnostics must not fail the default gate")
 	assert.Contains(t, stderr.String(), "openapi/validation-only-keyword")
-
-	stdout.Reset()
-	stderr.Reset()
-	// Not every diagnostic severity is easy to synthesize; the gate logic is
-	// also unit-tested directly:
-	assert.Equal(t, 1, exitCodeFor([]ir.Diagnostic{{Severity: ir.SeverityWarning}}, "warning"))
-	assert.Equal(t, 0, exitCodeFor([]ir.Diagnostic{{Severity: ir.SeverityWarning}}, "error"))
-	assert.Equal(t, 1, exitCodeFor([]ir.Diagnostic{{Severity: ir.SeverityError}}, "error"))
 }
 
 func TestRun_UsageErrors(t *testing.T) {
@@ -127,7 +124,11 @@ func TestRun_UsageErrors(t *testing.T) {
 			"flag needs an argument: --fail-on", "morphic compile"},
 		{"no spec file", []string{"compile"}, "compile requires exactly one spec file", "morphic compile"},
 		{"two spec files", []string{"compile", spec, spec}, "compile requires exactly one spec file", "morphic compile"},
-		{"bad fail-on", []string{"compile", spec, "--fail-on", "hint"}, `invalid --fail-on "hint"`, "morphic compile"},
+		{"bad fail-on", []string{"compile", spec, "--fail-on", "hint"},
+			`invalid argument "hint" for "--fail-on" flag: engine: fail-on "hint" (known: error, warning, info, none)`,
+			"morphic compile"},
+		{"empty fail-on", []string{"compile", spec, "--fail-on="},
+			`invalid argument "" for "--fail-on" flag`, "morphic compile"},
 		{"explain with output", []string{"compile", spec, "--explain", "", "-o", "ir.json"},
 			"--explain writes no document, so --output has nothing to write", "morphic compile"},
 		{"repeated option", []string{"compile", spec, "--opt", "a=1", "--opt", "a=2"},

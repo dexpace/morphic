@@ -297,10 +297,15 @@ it sees. Changes made together in one bump are listed together under it.
   - `additionalProperties: true` became a catch-all typed by the top type, as `{}` already was,
     where it had lowered to nothing, like an absent keyword. A consumer pinned to 0.13.0 reads a
     model writing `true` beside its properties as stating nothing about the rest.
-- **0.15.0** — usage is derived, not stored (§4): `TypeCommon` lost `Usage`. No compiler or pass
-  ever wrote it, so every document carried none; `ir.Facts.Usage` derives it from the operations.
-  A consumer pinned to 0.14.0 that decodes a 0.15.0 document is refused by the version check, and
-  nothing it read is lost, since the member was never written.
+- **0.15.0** — a union a discriminator routes is `WireTagged` (§4.4). The shape is unchanged, but
+  the OpenAPI compiler had lowered every discriminated `oneOf` and `anyOf` with `wireTagged` false
+  beside its `discriminator`, a combination the tag modes do not define. A consumer pinned to
+  0.14.0 that follows them reads each such union as untagged and ignores its tag. `irverify` now
+  refuses the combination (`ir/union-discriminator-untagged`).
+- **0.16.0** — usage is derived, not stored (§4.9): `TypeCommon` lost `Usage`, and `UsageFlags`
+  moved to `ir/irfacts`, whose `Index.Usage` derives it. No compiler or pass ever wrote the member,
+  so every document carried none, and a consumer pinned to 0.15.0 loses nothing it read; the
+  version check refuses it a 0.16.0 document all the same.
 
 ---
 
@@ -444,8 +449,11 @@ type Naming struct {
 ```
 
 `Canonical` is a cleaned word sequence, not a cased identifier — emitters apply casing, acronym
-policy, and reserved-word escaping. Anonymous (hoisted) types have empty `Source` and a `Hint`;
-whether a emitter inlines them or names them is its choice.
+policy, and reserved-word escaping. An emitter may read `Source` to recover the letter case of the
+words `Canonical` fixes (`iOS` in `iOSVersion`), segmenting it with this section's grammar rather
+than one of its own, and never to find where a word ends (emitter-design §4.12). Anonymous
+(hoisted) types have empty `Source` and a `Hint`; whether a emitter inlines them or names them is
+its choice.
 
 **`Hint` is the same word sequence in the same grammar.** It is not a presentation affordance
 sitting outside the neutrality rule: a hoisted type has no other name, so `Hint` is exactly what an
@@ -819,10 +827,10 @@ instead, enumerated by the OpenAPI compiler's rule
 type Union struct {
     TypeCommon
     Variants      []Variant
-    Exclusive     bool           // oneOf/tagged: exactly one variant matches; anyOf: one-or-more
-    WireTagged    bool           // the wire format itself encodes the variant (protobuf oneof,
-                                 // Smithy union, GraphQL __typename) vs untagged JSON oneOf
-    Discriminator *Discriminator // internal tag property, when one exists
+    Exclusive     bool           // exactly one variant matches (oneOf); false = one or more (anyOf)
+    WireTagged    bool           // the payload names its variant: by the Discriminator's tag, or by
+                                 // a single key (Smithy union, protobuf oneof); false = untagged
+    Discriminator *Discriminator // where the tag sits in the payload; set only when WireTagged
 }
 
 type Variant struct {
@@ -848,17 +856,32 @@ type EventInfo struct {
 ```
 
 One node covers the whole design space from the capability matrix: untagged `anyOf`
-(`Exclusive=false`), untagged `oneOf` (`Exclusive=true`), discriminated `oneOf`
-(`+Discriminator`), natively tagged unions (`WireTagged=true`). Variant identity survives so
-emitters can generate named accessors, sealed interfaces, or wrapper types per their refiner
-strategy. Unions never degrade to optional-field merges in the IR — that includes GraphQL
-`@oneOf` input objects, which are spec-level tagged input unions and lower here, not to models.
+(`Exclusive=false`), untagged `oneOf` (`Exclusive=true`), unions a tag in the payload routes
+(`WireTagged=true` with a `Discriminator`), and key-tagged unions (`WireTagged=true` alone).
+Variant identity survives so emitters can generate named accessors, sealed interfaces, or wrapper
+types per their refiner strategy. Unions never degrade to optional-field merges in the IR — that
+includes GraphQL `@oneOf` input objects, which are spec-level tagged input unions and lower here,
+not to models.
 
-**Tag-mode conventions** (normative): `WireTagged=true` with a `Discriminator` means the tag is
-a property inside the variant payload (GraphQL `__typename`). `WireTagged=true` with **nil**
-`Discriminator` means the union is *key-tagged*: the wire shape is a single-key object whose key
-is the variant's wire name (Smithy unions, proto3-JSON oneof, GraphQL `@oneOf` inputs).
-`WireTagged=false` means the variant is inferred by validation (JSON oneOf/anyOf).
+**Tag-mode conventions** (normative): `WireTagged=true` with a `Discriminator` means the tag
+travels in the payload, where the discriminator locates it: inline among the variant's own
+members, as a property (an OpenAPI `discriminator`, GraphQL `__typename`) or a tuple element
+(`Index`, an Erlang tagged tuple), or in the `{kind, value}` `Envelope` around them.
+`WireTagged=true` with **nil** `Discriminator` means the union is *key-tagged*: the wire shape is
+a single-key object whose key is the variant's wire name (Smithy unions, proto3-JSON oneof,
+GraphQL `@oneOf` inputs). `WireTagged=false` means the variant is inferred by validation (JSON
+oneOf/anyOf), and such a union carries no `Discriminator`; `irverify` refuses one that does
+(`ir/union-discriminator-untagged`). `Exclusive` is independent of the mode: it records what
+validation admits, exactly one variant or one or more.
+
+An OpenAPI discriminator is the payload-tagged mode, not a fourth one. The tag property's value
+names the schema the payload is expected to validate against. A value no mapping names selects
+none, and OpenAPI says validation should then fail, unless 3.2's `defaultMapping` names one, which
+`Discriminator.Default` holds and which also answers for a payload carrying no tag. OpenAPI also
+says the discriminator must not change the validation outcome, but that binds validators, not the
+wire: what validation admits stays in `Exclusive`, and on an `anyOf` the tag picks one of the
+several schemas a payload may satisfy. A mode for "tag plus validation" would spell the same wire
+shape twice.
 
 ### 4.5 Enums
 
@@ -1809,9 +1832,9 @@ An OTP compiler consumes module type information (`-spec`/`-type` on behaviour c
 API functions). Lowering conventions: a gen_server ≈ one `Channel`; `handle_call`/`handle_cast`
 APIs are `Operation`s with an `OTPBinding`; unsolicited `handle_info` messages are channel
 `Messages` consumed via `MessageBinding{Direction: receive}`; a gen_event manager is a Channel
-with one message shape per event. Tagged-tuple protocols (`{ok, V} | {error, R}`) are Unions of
-Tuples discriminated by `Discriminator.Index`; records are `Model{Positional: true}` with the
-record tag as an index-1 `Literal`-typed property. Splitting a tagged reply union into
+with one message shape per event. Tagged-tuple protocols (`{ok, V} | {error, R}`) are `WireTagged`
+Unions of Tuples discriminated by `Discriminator.Index`; records are `Model{Positional: true}`
+with the record tag as an index-1 `Literal`-typed property. Splitting a tagged reply union into
 `Responses` vs `Errors` (`{error, Reason}` is in-band data, not transport failure) is injectable
 compiler policy, marked `Inferred`. Erlang `string()` is `[char()]` and must lower as a List of
 a char-ranged scalar — never as PrimKind `string`. Delayed replies (`noreply` +
@@ -2067,6 +2090,12 @@ oversights). A promotion pass mining the IR for its next typed node reads `no_ir
 skip `out_of_scope`; nothing about the key or the value distinguishes them, which is the whole
 reason `Reason` is data rather than a comment.
 
+**Reporting a kept construct is the compiler's.** It is the stage that chose to keep the construct
+rather than model it, so its specification (§14) states, for every construct it keeps under a reason
+other than `vendor_extension`, the diagnostic the construct draws, or that it draws none.
+`Document.Diagnostics` carries those reports to every consumer, and an emitter acts on an entry's
+`Reason` without reporting it again (emitter-design §4.14).
+
 Sorting entries into *typed* buckets instead was considered and rejected: the defining property
 of an entry is that it is unmodeled, so anything with enough known semantics to be sorted into a
 bucket has enough to be modeled properly, and sorting would make the compiler guess — a
@@ -2270,7 +2299,7 @@ list moves to a specification of its own when the compiler lands.
 - scalars → Scalar chains, constructors in values → Value.Ctor
 - `@encode`/`@format` → Encoding triple
 - `@encodedName` → WireNameByFormat at property AND type level
-- unions w/ named variants → Union, `@discriminated` →
+- unions w/ named variants → Union, `@discriminated` → WireTagged +
   Discriminator.PropertyName/Envelope/EnvelopeValueName
 - `| null` → Nullable
 - visibility classes (incl. custom, `@invisible` → Visibility.None) → Visibility, op overrides →
@@ -2388,7 +2417,7 @@ list moves to a specification of its own when the compiler lands.
 - §8.5
 - `-type`/`-spec` type language → type graph: tuples → Tuple with
   `Constraints.MinItems = len(Elems)` and no Rest, `tuple()` of any arity → Tuple with no Elems and
-  a Rest of the top type, tagged-tuple unions → Union + Discriminator.Index, records →
+  a Rest of the top type, tagged-tuple unions → WireTagged Union + Discriminator.Index, records →
   Model{Positional} w/ 1-based WireIDs, atoms → symbol Values / Literal types /
   `Scalar{Base: string, Encoding: "erlang:atom"}`, integer ranges → integer Scalar + Min/Max, maps
   `:=`/`=>` → Properties(Required)/AdditionalProps w/ typed keys, a map of `=>` associations alone →

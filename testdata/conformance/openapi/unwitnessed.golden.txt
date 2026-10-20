@@ -206,7 +206,6 @@ TypeCommon.MediaTypeHint
 TypeCommon.Namespace
 TypeCommon.Tags
 TypeCommon.WireNameByFormat
-Union.WireTagged
 Value.Ctor
 Value.Ref
 ValueRef.Member

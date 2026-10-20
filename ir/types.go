@@ -226,18 +226,25 @@ type Discriminator struct {
 }
 
 // Union is a sum over variant types (ir-design §4.4). One node covers untagged
-// anyOf/oneOf, discriminated oneOf, and natively tagged unions.
+// anyOf/oneOf, unions a tag in the payload routes, and key-tagged unions.
 type Union struct {
 	TypeCommon
 	// Variants are the union's members, in source order.
 	Variants []Variant `json:"variants,omitempty"`
-	// Exclusive is true for oneOf/tagged (exactly one variant matches) and false
-	// for anyOf (one-or-more).
+	// Exclusive is true when exactly one variant may match (oneOf) and false
+	// when one or more may (anyOf). It records what validation admits, which a
+	// tag does not change: a discriminator on an anyOf picks one of the
+	// variants a payload satisfies.
 	Exclusive bool `json:"exclusive"`
-	// WireTagged reports that the wire format itself encodes the variant (protobuf
-	// oneof, Smithy union, GraphQL __typename) rather than untagged JSON oneOf.
+	// WireTagged reports that the payload names its variant: by the tag
+	// Discriminator locates (an OpenAPI discriminator, GraphQL __typename, an
+	// Erlang tagged tuple), or, with no Discriminator, by the one key of a
+	// single-key object (Smithy union, protobuf oneof). False means validation
+	// infers the variant (untagged JSON oneOf/anyOf).
 	WireTagged bool `json:"wireTagged"`
-	// Discriminator is the internal tag property, when one exists.
+	// Discriminator locates the tag in the payload, by property name or tuple
+	// position; nil for an untagged or key-tagged union. A union carrying one
+	// is WireTagged.
 	Discriminator *Discriminator `json:"discriminator,omitzero"`
 }
 
