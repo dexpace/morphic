@@ -137,6 +137,8 @@ cmd/morphic-harness/
              Layer 4 — sweeps a spec or directory through the oracles; imports internal/harness.
 cmd/morphic-covergate/
              Layer 4 — judges a coverage profile for `make coverage`; imports x/tools/cover.
+cmd/morphic-vet/
+             Layer 4 — runs internal/lintrules under go vet; imports it + x/tools unitchecker.
 internal/    Test/tooling infrastructure, outside the pipeline (harness, archtest, decls, jsonshape,
              keydoc, leakcheck, lintrules, testspec).
 ```
@@ -201,13 +203,15 @@ These all exist already — extend them rather than building a parallel mechanis
   production package's uses of the parser library's reference-resolution API, which it derives
   from the library's sources, to `resolutionBaseline`. The baseline only shrinks: removing a use
   means lowering it (#558).
-- **Lint rule plants**: a rule a linter already expresses lives in `.golangci.yml` or, for
-  ruleguard, in `internal/lintrules`, rather than in archtest; the comments there say what each one
-  holds. `make lint-planted` holds each one to a clean module and to
-  `internal/lintrules/testdata/planted`, whose lines carry the findings they must draw, so a rule
-  that recognizes nothing fails. A new rule gets its plants there, and its linter a place in the
-  script's list. It runs from an empty cache, since golangci-lint's cache does not key on the
-  ruleguard rules file.
+- **Lint rules and their plants**: a rule an off-the-shelf linter expresses lives in
+  `.golangci.yml`; one about which package may build or spell a part of the IR is a go/analysis
+  analyzer in `internal/lintrules`, which `make vet` runs through `cmd/morphic-vet`. Neither lives
+  in archtest. Each is held to findings planted for it, since a rule that recognizes nothing
+  leaves a clean tree clean: `make lint-planted` holds the linters to
+  `internal/lintrules/testdata/planted`, and `internal/lintrules`' own test holds the analyzers to
+  `testdata/mod`, a tree laid out like the module. Lines there carry the findings they must draw.
+  A new rule gets its plants beside the others, and a new linter a place in the script's list.
+  Both run on every port `make build` covers, which `testdata/ports` proves they reach.
 - **Declaration pins**: a test that holds a hand-written list (an enum's members, a sealed sum's
   kinds, the fields of a shape) to what a package declares reads the package through
   `internal/decls`, which type-checks it with `go/packages`. It does not parse the sources: parsed

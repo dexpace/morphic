@@ -113,8 +113,8 @@ A lowering rule says how one OpenAPI construct reaches the IR: the field it fill
 A pass is an IR-to-IR step the engine runs after a compile
 ([`architecture.md`](docs/architecture.md) §2.2). Today a pass can analyse a document and report on
 it, or return a new document built from it, but it cannot replace or remove a type: writing the type
-registry outside `compilers/compile` and `ir` fails the `registryWrites` lint rule
-(`internal/lintrules`), and the sanctioned way for a pass to do it is #966's.
+registry outside `compilers/compile` and `ir` fails the `registrywrites` rule
+(`internal/lintrules`, run by `make vet`), and the sanctioned way for a pass to do it is #966's.
 
 1. **Implement `pass.Pass`** in a file of its own under `pass/`, shaped as `Validator` and
    `ValidateName` are in `pass/pass.go`: an exported type, and a constant holding its stable
@@ -168,8 +168,8 @@ A compiler lowers one source format into an IR document ([`architecture.md`](doc
    `ir.IRVersion`. Call `compile.Types.Violations()` after interning and report what it returns, as
    the OpenAPI compiler does; take the `*compile.Types` as a parameter, as that compiler's `run`
    does, so a test can drive the refusal no source provokes.
-   *Fails if missed:* the `nameChannels`, `idDerivations` and `registryWrites` lint rules in
-   `internal/lintrules` (`make lint-planted`) for the framework. Nothing in the repository checks
+   *Fails if missed:* the `namechannels`, `idderivations` and `registrywrites` rules in
+   `internal/lintrules` (`make vet`) for the framework. Nothing in the repository checks
    the namespaces, the version or the violations (#967): step 5's `irverify` tests do, and
    `irtest.SpacesUsed` holds `IDSpaces` to what the output uses.
 4. **Register it** in `engine.New` (`engine/engine.go`), the one place built-in compilers are
