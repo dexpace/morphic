@@ -1196,7 +1196,7 @@ beside `goast` and `ktast` (over each one's `NodeKind`) and beside every refiner
 
 ---
 
-## 8. First-target walkthrough — a Go SDK emitter, and the Kotlin targets
+## 8. The first targets — a Go walkthrough, and what the Kotlin targets change
 
 The first milestone ships three targets from one plan: Go (`"go"`), Kotlin/JVM (`"kotlin-jvm"`) and
 Kotlin Multiplatform (`"kotlin-multiplatform"`: JVM, Native/iOS and JS/Wasm from common code).
@@ -1450,9 +1450,9 @@ keyword (`type`, `default`), or a predeclared identifier a parameter would shado
 `error`), takes a trailing underscore. Names that collide once cased are `Ctx.Syms`'s on every
 target (§4.12).
 
-**Inheritance.** Go has only embedding, and Kotlin's single class inheritance can hold neither
-`Mixins` nor a base without making it an open class the SDK must then keep compatible for every
-subclass, so on all three targets a model's `Base` and `Mixins` are flattened into it
+**Inheritance.** Go has only embedding. Kotlin's single class inheritance cannot hold several
+`Mixins`, and extending a base would make it an open class the SDK must keep compatible for every
+subclass. So on all three targets a model's `Base` and `Mixins` are flattened into it
 (`TypePlan.Flattened`). Subtyping survives as interfaces: `Implements` becomes an interface, and a
 discriminated or abstract base a sealed interface its subtypes implement.
 
