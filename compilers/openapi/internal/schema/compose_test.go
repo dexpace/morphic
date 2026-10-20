@@ -232,23 +232,28 @@ func TestAllOf_ConflictingRedeclaredTypeDiagnosedAndKept(t *testing.T) {
 }
 
 // TestAllOf_OverlappingPrimitivesAreReportedNotConflicting pins that two
-// formats sharing values, neither holding the other, draw an info instead of
-// the unsatisfiable-type warning, keep the first declaration's kind and keep the
-// redeclaration, in either branch order.
+// formats whose kinds share values draw one info at the redeclaration, instead
+// of the unsatisfiable-type warning, keep the first declaration's kind and keep
+// the redeclaration, in either branch order.
 func TestAllOf_OverlappingPrimitivesAreReportedNotConflicting(t *testing.T) {
 	t.Parallel()
+	const at = "/components/schemas/Overlapish/allOf/1/properties/n"
 	for _, order := range [][2]string{{"int32", "uint32"}, {"uint32", "int32"}} {
 		t.Run(order[0]+" first", func(t *testing.T) {
 			t.Parallel()
+			bounds := [2]int{10, 20}
+			if order[0] == "uint32" {
+				bounds = [2]int{20, 10}
+			}
 			spec := openapitest.ComponentSpec(fmt.Sprintf(`    Overlapish:
       allOf:
         - type: object
           properties:
-            n: {type: integer, format: %s}
+            n: {type: integer, format: %s, minimum: %d}
         - type: object
           properties:
-            n: {type: integer, format: %s}
-`, order[0], order[1]))
+            n: {type: integer, format: %s, minimum: %d}
+`, order[0], bounds[0], order[1], bounds[1]))
 			doc, diags := lowerSpec(t, spec)
 			openapitest.RequireNoErrorDiags(t, diags)
 			m, ok := doc.Types[componentID("Overlapish")].(*ir.Model)
@@ -257,11 +262,53 @@ func TestAllOf_OverlappingPrimitivesAreReportedNotConflicting(t *testing.T) {
 			assert.Equal(t, ir.TypeID("t/prim/"+order[0]), m.Properties[0].Type.Target, "the first declaration's kind stays")
 
 			assert.Empty(t, conflictDiags(diags), "overlapping kinds are not an unsatisfiable type")
-			assert.True(t, openapitest.HasDiagAt(diags, diag.DegradedConstruct, ir.SeverityInfo), "the overlap is reported as info")
+			assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, at),
+				"the overlap is reported at the redeclaration")
+			var atProperty []ir.Diagnostic
+			for _, d := range diags {
+				if d.Provenance.Pointer == at {
+					atProperty = append(atProperty, d)
+				}
+			}
+			assert.Len(t, atProperty, 1, "exactly one diagnostic at the property; got %v", atProperty)
 			assert.Contains(t, m.Properties[0].Unmodeled,
-				"openapi:conflicting-redeclaration/components/schemas/Overlapish/allOf/1/properties/n",
-				"and the redeclaration is kept")
+				"openapi:conflicting-redeclaration"+at, "and the redeclaration is kept")
 		})
+	}
+}
+
+// TestAllOf_EnumPairsKeepTheKindVerdict pins that a pair with an enum side
+// keeps the kind comparison at the schema level, in either order: differing
+// kinds warn, equal kinds stay silent, and none draws the overlap info.
+func TestAllOf_EnumPairsKeepTheKindVerdict(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name, a, b string
+		warn       bool
+	}{
+		{"enum against uuid", "{type: string, enum: [a]}", "{type: string, format: uuid}", true},
+		{"enum against int32", "{type: integer, enum: [3000000000]}", "{type: integer, format: int32}", true},
+		{"enum against enum", "{type: string, enum: [a]}", "{type: string, enum: [b]}", false},
+	}
+	for _, tc := range cases {
+		for _, swap := range []bool{false, true} {
+			a, b := tc.a, tc.b
+			if swap {
+				a, b = b, a
+			}
+			t.Run(fmt.Sprintf("%s swapped=%t", tc.name, swap), func(t *testing.T) {
+				t.Parallel()
+				_, diags := lowerSpec(t, allOfConflictSpec(a, b))
+				openapitest.RequireNoErrorDiags(t, diags)
+				assert.False(t, openapitest.HasDiagAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
+					"an enum pair never draws the overlap info")
+				if tc.warn {
+					assert.Len(t, conflictDiags(diags), 1, "one conflict warning")
+					return
+				}
+				assert.Empty(t, conflictDiags(diags), "no conflict")
+			})
+		}
 	}
 }
 

@@ -215,17 +215,16 @@ const (
 	// rather than left to evaluation.
 	DynamicRefExpanded = "openapi/dynamic-ref-expanded"
 	// ConflictingRedecl reports that inline allOf branches redeclare one field
-	// with disagreeing values. A target type is unsatisfiable only when the kinds
-	// are disjoint (string against integer) or a scalar meets a structure;
-	// overlapping kinds, like int32 against uint32, are DegradedConstruct. A
-	// conflicting constraint keyword (minimum: 10 vs. exclusiveMinimum: 10) is
-	// usually satisfiable but not representable by a simple merge, so the merge
-	// keeps an arbitrary source-order winner, possibly the looser bound.
+	// with disagreeing values. A target type is reported unsatisfiable when the
+	// kinds are disjoint (string against integer), a scalar meets a structure, or
+	// two structure kinds meet; types whose kinds share values are
+	// DegradedConstruct. A conflicting constraint keyword (minimum: 10 vs.
+	// exclusiveMinimum: 10) is usually satisfiable but not representable by a
+	// simple merge, so the merge keeps an arbitrary source-order winner.
 	//
 	// Either way the losing declaration is kept whole under the merged property's
-	// Unmodeled (merge.keepLosingDeclaration), so a consumer reading the document
-	// finds it. Intersecting the bounds instead is the recorded direction (GitHub
-	// #10).
+	// Unmodeled (merge.keepLosingDeclaration). Intersecting the bounds instead is
+	// the recorded direction (GitHub #10).
 	ConflictingRedecl = "openapi/conflicting-redeclaration"
 	// DisjointVisibility reports one field restricted to lifecycle sets that
 	// share nothing — readOnly against writeOnly — so no lifecycle admits it at

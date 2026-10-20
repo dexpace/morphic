@@ -1049,7 +1049,13 @@ func TestFoldTypeTargets_ANarrowingIsNoDrop(t *testing.T) {
 		assert.False(t, g.foldTypeTargets(&dst, &src), "a narrowing is no drop (order %d)", i)
 		assert.Equal(t, primRef(ir.PrimInteger).Target, dst.Type.Target, "the narrower target wins (order %d)", i)
 
-		dropped, lost := g.recordRedeclarationConflict(&dst, &src)
+		// The classifier gets a freshly built narrowing pair, two different
+		// targets, rather than the pair the fold just made equal.
+		dst2 := ir.Property{WireName: "x", Type: primRef(order[0])}
+		src2 := ir.Property{WireName: "x", Type: primRef(order[1]), Provenance: ptrAt("/allOf/1/properties/x")}
+		require.NotEqual(t, dst2.Type.Target, src2.Type.Target, "the pair is a narrowing (order %d)", i)
+
+		dropped, lost := g.recordRedeclarationConflict(&dst2, &src2)
 
 		assert.False(t, dropped, "order %d", i)
 		assert.False(t, lost, "order %d", i)
@@ -1126,5 +1132,81 @@ func TestReconcileProperty_DisjointKindsStillWarn(t *testing.T) {
 				assert.Contains(t, dsts[i].Unmodeled, losingDeclarationKey+"/allOf/1/properties/x", "order %d", i)
 			}
 		})
+	}
+}
+
+// enumRegistry adds an integer enum and two string enums to narrowingRegistry.
+func enumRegistry() map[ir.TypeID]ir.TypeDef {
+	reg := narrowingRegistry()
+	reg["t/enum/a"] = &ir.Enum{ID: "t/enum/a", ValueType: ir.PrimString}
+	reg["t/enum/b"] = &ir.Enum{ID: "t/enum/b", ValueType: ir.PrimString}
+	reg["t/enum/big"] = &ir.Enum{ID: "t/enum/big", ValueType: ir.PrimInteger}
+	return reg
+}
+
+// TestReconcileProperty_EnumPairsKeepTheKindVerdict pins that a pair with an
+// enum side keeps the kind comparison, in both orders: differing kinds warn,
+// equal kinds are silent, and no pair draws the overlap info.
+func TestReconcileProperty_EnumPairsKeepTheKindVerdict(t *testing.T) {
+	t.Parallel()
+	enum := func(id ir.TypeID) ir.TypeRef { return ir.TypeRef{Target: id} }
+	cases := []struct {
+		name string
+		a, b ir.TypeRef
+		warn bool
+	}{
+		{"enum of string and uuid", enum("t/enum/a"), primRef(ir.PrimUUID), true},
+		{"enum of integer and int32", enum("t/enum/big"), primRef(ir.PrimInt32), true},
+		{"enum of string and another enum", enum("t/enum/a"), enum("t/enum/b"), false},
+		{"enum of string and bare string", enum("t/enum/a"), primRef(ir.PrimString), false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			for i, order := range [][2]ir.TypeRef{{tc.a, tc.b}, {tc.b, tc.a}} {
+				g, recorded := stubMerger(enumRegistry())
+				dst := ir.Property{WireName: "x", Type: order[0], Provenance: ptrAt("/allOf/0/properties/x")}
+				src := ir.Property{WireName: "x", Type: order[1], Provenance: ptrAt("/allOf/1/properties/x")}
+
+				g.reconcileProperty(&dst, src, written(`{"type":"x"}`))
+
+				assert.Equal(t, order[0].Target, dst.Type.Target, "the first declaration's target stays (order %d)", i)
+				if !tc.warn {
+					assert.Empty(t, *recorded, "no diagnostic (order %d)", i)
+					continue
+				}
+				require.Len(t, *recorded, 1, "exactly one diagnostic (order %d)", i)
+				assert.Equal(t, diag.ConflictingRedecl, (*recorded)[0].Code, "order %d", i)
+				assert.Equal(t, ir.SeverityWarning, (*recorded)[0].Severity, "order %d", i)
+				assert.Contains(t, dst.Unmodeled, losingDeclarationKey+"/allOf/1/properties/x",
+					"the redeclaration is kept (order %d)", i)
+			}
+		})
+	}
+}
+
+// TestMerger_IsEnumFollowsTheBaseChain pins that a target counts as an enum
+// when it is one or is a scalar chain ending in one, and for nothing else,
+// including a chain that never ends.
+func TestMerger_IsEnumFollowsTheBaseChain(t *testing.T) {
+	t.Parallel()
+	reg := enumRegistry()
+	reg["t/scalar/over-enum"] = &ir.Scalar{ID: "t/scalar/over-enum", Base: &ir.TypeRef{Target: "t/enum/a"}}
+	reg["t/scalar/over-prim"] = &ir.Scalar{ID: "t/scalar/over-prim", Base: &ir.TypeRef{Target: "t/prim/string"}}
+	reg["t/scalar/opaque"] = &ir.Scalar{ID: "t/scalar/opaque"}
+	reg["t/scalar/loop"] = &ir.Scalar{ID: "t/scalar/loop", Base: &ir.TypeRef{Target: "t/scalar/loop"}}
+	reg["t/model"] = &ir.Model{ID: "t/model"}
+	g, _ := stubMerger(reg)
+
+	for target, want := range map[ir.TypeID]bool{
+		"t/enum/a":           true,
+		"t/scalar/over-enum": true,
+		"t/scalar/over-prim": false,
+		"t/scalar/opaque":    false,
+		"t/scalar/loop":      false,
+		"t/model":            false,
+		"t/missing":          false,
+	} {
+		assert.Equal(t, want, g.isEnum(ir.TypeRef{Target: target}), string(target))
 	}
 }

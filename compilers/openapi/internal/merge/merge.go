@@ -426,28 +426,29 @@ const (
 	// verdictConflict is a pair no value satisfies: a scalar against a
 	// structure, two structure kinds or disjoint primitive kinds.
 	verdictConflict
-	// verdictOverlap is a pair of primitive kinds that share values with
-	// neither holding the other, or that the fold left unrelated although they
-	// resolve to related kinds.
+	// verdictOverlap is a pair of primitive kinds that share values but which
+	// the merge does not narrow to one, or that the fold left unrelated
+	// although they resolve to related kinds.
 	verdictOverlap
 )
 
 // overlappingTypesDiag reports that two declarations of a field give types
-// that share values without either holding the other, so no single kind states
-// their intersection. Info, not warning: a value exists that satisfies both,
-// and the first declaration's kind stays, with the redeclaration kept verbatim
-// under Unmodeled.
+// whose kinds share values but which the merge does not narrow to one. Info,
+// not warning: their kinds share values, and the first declaration's kind
+// stays, with the redeclaration kept verbatim under Unmodeled.
 func (g *Merger) overlappingTypesDiag(dst *ir.Property, pointer jsontext.Pointer, other ir.TypeRef) {
 	g.Report(ir.SeverityInfo, diag.DegradedConstruct, pointer,
-		"declarations of field %q give types %s and %s that overlap without either holding the other; "+
-			"kept the first declaration's (%s), with the redeclaration verbatim under Unmodeled",
+		"declarations of field %q give types %s and %s whose kinds share values but that the merge "+
+			"does not narrow to one; kept the first declaration's type (%s), with the redeclaration "+
+			"verbatim under Unmodeled",
 		dst.WireName, dst.Type.Target, other.Target, dst.Provenance.Pointer)
 }
 
 // typesConflict classifies the drop of two reconciled property types. Identical
 // targets and the schemaless top type are silent. Two targets that resolve to
 // primitive kinds go through spelling.Relate: disjoint kinds conflict and
-// anything else overlaps. A scalar against a structural type conflicts, and so
+// anything else overlaps. An Enum side keeps the kind comparison, since kind
+// alone cannot tell whether its members meet the other side. A scalar against a structural type conflicts, and so
 // do two structure kinds. Two distinct composites of one kind are not provably
 // contradictory, so they are silent.
 func (g *Merger) typesConflict(a, b ir.TypeRef) redeclVerdict {
@@ -458,6 +459,9 @@ func (g *Merger) typesConflict(a, b ir.TypeRef) redeclVerdict {
 	bk, bok := g.resolvePrimKind(b)
 	switch {
 	case aok && bok:
+		if g.isEnum(a) || g.isEnum(b) {
+			return conflictIf(ak != bk)
+		}
 		if spelling.Relate(ak, bk) == spelling.Disjoint {
 			return verdictConflict
 		}
@@ -477,6 +481,30 @@ func conflictIf(contradiction bool) redeclVerdict {
 		return verdictConflict
 	}
 	return verdictSilent
+}
+
+// isEnum reports whether ref resolves, through the same bounded Base chain
+// resolvePrimKind walks, to an Enum node.
+func (g *Merger) isEnum(ref ir.TypeRef) bool {
+	id := ref.Target
+	for range maxTypeResolveDepth {
+		td, ok := g.Resolve(id)
+		if !ok {
+			return false
+		}
+		switch t := td.(type) {
+		case *ir.Enum:
+			return true
+		case *ir.Scalar:
+			if t.Base == nil {
+				return false
+			}
+			id = t.Base.Target
+		default:
+			return false
+		}
+	}
+	return false
 }
 
 // isAnyType reports whether ref targets the schemaless top type (a PrimAny

@@ -763,10 +763,12 @@ Preservation is owed wherever something is dropped, which is wider than the disa
 warning. The two declarations are reported as an `openapi/conflicting-redeclaration` warning where
 their types are incompatible — disjoint primitive kinds (`string` against `integer`, `uuid` against
 `date-time`), a scalar against a structure, or two different kinds of structure — or where one
-constraint keyword is pinned to two values; primitive kinds that overlap without either holding the
-other (`int32` against `uint32`) are named in an info `openapi/degraded-construct`, since a value
-satisfies both and only the first declaration's kind is kept; a detail the first declaration
-already holds differently is named in an info `openapi/degraded-construct`; and two composites of one kind, an unresolvable target, and the top
+constraint keyword is pinned to two values; types whose primitive kinds share values but that the
+merge does not narrow to one (`int32` against `uint32`, an unknown `format` against bare `string`)
+are named in an info `openapi/degraded-construct`, and only the first declaration's type is kept; a
+pair with an enum keeps the kind comparison, since kind alone cannot tell whether its members meet
+the other side; a detail the first declaration already holds differently is named in an info
+`openapi/degraded-construct`; and two composites of one kind, an unresolvable target, and the top
 type against anything are dropped without any diagnostic and kept all the same. The loser's
 `default`, constraints and examples go with its type rather than folding onto the winner — they
 describe the shape that lost, and adopting them would leave one field asserting two contradictory
@@ -788,6 +790,8 @@ single schema's null verdicts fold under ([`nullable`](#nullable)).
   `merge.TestReconcileProperty_OverlappingKindsAreKeptAndReportedAsInfo`,
   `merge.TestReconcileProperty_DisjointKindsStillWarn`,
   `schema.TestAllOf_OverlappingPrimitivesAreReportedNotConflicting`,
+  `merge.TestReconcileProperty_EnumPairsKeepTheKindVerdict`,
+  `schema.TestAllOf_EnumPairsKeepTheKindVerdict`,
   `merge.TestReconcileProperty_AUint8NarrowsInt16InEitherOrder`,
   `spelling.TestNarrows_HoldsEveryContainment`,
   `spelling.TestNarrows_OmitsRoundingContainments`,

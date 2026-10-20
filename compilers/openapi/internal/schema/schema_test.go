@@ -2078,6 +2078,8 @@ func TestAllOf_CompatibleConstraintRedeclarationsStaySilent(t *testing.T) {
 			a:    "{type: number, multipleOf: 1e1000001}",
 			b:    "{type: number, multipleOf: 10e1000000}",
 		},
+		// Transitional: draws the overlap info until the bare/scalar narrowing
+		// lands; only the absence of a conflict is asserted here.
 		{name: "custom format over base", a: "{type: string, format: weird}", b: "{type: string}"},
 	}
 	for _, tc := range cases {
