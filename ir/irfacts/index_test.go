@@ -414,13 +414,16 @@ func TestIndex_WorkGrowsLinearly(t *testing.T) {
 
 // factsWork returns the fewest allocations and bytes a call of f made in three
 // calls after one that warms it up, on one processor and with the collector
-// off, so that neither a collection nor a scheduler's choice is counted.
+// off, so that neither a collection nor a scheduler's choice is counted. Each
+// call starts from a collection run by hand, so the calls' garbage is never
+// held at once.
 func factsWork(f func()) (allocs, bytes float64) {
 	defer runtime.GOMAXPROCS(runtime.GOMAXPROCS(1))
 	defer debug.SetGCPercent(debug.SetGCPercent(-1))
 	f()
 	allocs, bytes = math.Inf(1), math.Inf(1)
 	for range 3 {
+		runtime.GC()
 		var before, after runtime.MemStats
 		runtime.ReadMemStats(&before)
 		f()

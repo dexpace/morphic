@@ -116,15 +116,17 @@ func exposureShapes() map[string]func(n int) *ir.Document {
 
 // validateCost returns the fewest allocations and bytes a Validate of doc made
 // in three runs after one that warms it up, on one processor and with the
-// collector off. The fewest, because under the race detector sync.Pool drops a
-// share of what it is handed, so the fmt calls Validate makes allocate a random
-// amount more than they must, and never less.
+// collector off, each run starting from a collection run by hand so that the
+// runs' garbage is never held at once. The fewest, because under the race
+// detector sync.Pool drops a share of what it is handed, so the fmt calls
+// Validate makes allocate a random amount more than they must, and never less.
 func validateCost(doc *ir.Document) (allocs, bytes float64) {
 	defer runtime.GOMAXPROCS(runtime.GOMAXPROCS(1))
 	defer debug.SetGCPercent(debug.SetGCPercent(-1))
 	_ = pass.Validate(doc)
 	allocs, bytes = math.Inf(1), math.Inf(1)
 	for range 3 {
+		runtime.GC()
 		var before, after runtime.MemStats
 		runtime.ReadMemStats(&before)
 		_ = pass.Validate(doc)
