@@ -201,6 +201,11 @@ These all exist already — extend them rather than building a parallel mechanis
   production package's uses of the parser library's reference-resolution API, which it derives
   from the library's sources, to `resolutionBaseline`. The baseline only shrinks: removing a use
   means lowering it (#558).
+- **Lint rule plants**: a rule a linter already expresses lives in `.golangci.yml` (depguard) or
+  `internal/lintrules` (ruleguard) rather than in archtest. `make lint-planted` holds each one to a
+  clean module and to `internal/lintrules/testdata/planted`, whose lines carry the findings they
+  must draw, so a rule that recognizes nothing fails. A new rule gets its plants there. It runs
+  from an empty cache, since golangci-lint's cache does not key on the ruleguard rules file.
 - **Declaration pins**: a test that holds a hand-written list (an enum's members, a sealed sum's
   kinds, the fields of a shape) to what a package declares reads the package through
   `internal/decls`, which type-checks it with `go/packages`. It does not parse the sources: parsed
