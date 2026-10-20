@@ -310,8 +310,9 @@ type TargetOptions interface {
 
 Per-target heuristics live here too, beside the target's other choices, rather than in the plan: the
 parameter-passing shape (§4.13), the type-table rows that give an unbounded number a width (§2.6),
-and the character names that give words to a name with none (§4.12). The target-AST nodes a default
-shapes carry `Inferred` provenance (§4.3), as INV6 requires.
+the character names that give words to a name with none, and the leading words an identifier that
+would begin with a digit takes (§4.12). The target-AST nodes a default shapes carry `Inferred`
+provenance (§4.3), as INV6 requires.
 
 ### 2.6 The type table
 
@@ -932,6 +933,11 @@ serialization. The open/closed bit, value type, member values, and flags bit all
 IR to this point — Kiota's string-only-closed-enum mistake is designed out because the fact reached
 refine.
 
+A Go constant is declared at package level, where every enum's constants meet, so Go names a
+member's constant by its enum's identifier, as rendered, followed by the member's name
+(`StatusActive`); a Kotlin entry lives in its enum class and takes the member's name alone
+(`ACTIVE`, as the naming policy cases it).
+
 ### 4.6 Visibility projections → N wire shapes
 
 `ProjectVisibilityShapes` consumes the precomputed `ModelShape` map and emits the concrete
@@ -1057,6 +1063,8 @@ type Policy interface {
     Acronyms() AcronymTable
     Reserved() ReservedSet                // the language's keywords and predeclared names
     CharacterNames() CharacterNameTable   // character sequences → words, for a name with none
+    LeadingWord(role Role) string         // the word before an identifier that would begin with a
+                                          // digit, one per role (below)
 }
 
 type Word struct {
@@ -1125,6 +1133,24 @@ $   dollar                  ?   question_mark           .   period          ,   
 )   right_parenthesis       [   left_bracket            ]   right_bracket
 {   left_brace              }   right_brace             U+0020   space
 ```
+
+**An identifier that would begin with a digit takes a leading word.** Canonical words may begin
+with a digit — a property `1000`, a schema `10_gbps_to_100_gbps`, an enum value `10002` — and no
+first target accepts an identifier that does. Go takes one only from a letter, and exports one only
+from an upper-case letter, so `1000` cannot be a field at all; Kotlin takes one in backticks, which
+the Objective-C export a Multiplatform SDK reaches iOS through cannot carry (§8.8). Where the
+identifier a role composes would begin with a digit, `RenderCasing` puts the policy's leading word
+for that role before its words, and the node it names carries `Inferred` provenance, `leading-word`
+(INV6). The test reads the composed identifier, not the name: a Go enum constant begins with its
+enum's name (§4.5), so `Code` and `1000` make `Code1000` and need no word, where a Kotlin entry is
+the member's name alone and takes one. A hint is held to the same test.
+
+The words are the naming policy's, one per role, and like the character names a default of the
+target's options version (§2.5), since changing one renames identifiers. Version 1's are `type` for
+a type, `field` for a field, `call` for a method, `value` for a constant, `arg` for a parameter and
+`pkg` for a package, so the examples render `Field1000`, `Type10GbpsTo100Gbps` and Kotlin's
+`VALUE_10002`. A word that makes one name meet another — `Field1000` beside a property spelled
+`field_1000` — is `Ctx.Syms`'s, like any collision.
 
 **Reserved names belong to a scope.** `Reserved()` holds the language's keywords and predeclared
 names, reserved everywhere. Generated code binds names of its own too, and a spec name rendered
@@ -1938,7 +1964,7 @@ for both Kotlin targets, and "KMP:" marks where Multiplatform differs from the J
 | `Model` whose `Base` is no model, not a decorator | with no property, catch-all or discriminator of its own, lowered as the `Scalar` row lowers an alias over that base, its constraints, docs and examples binding the position (ir-design §4.2); a union base beside properties distributed over the variants as ir-design §4.3 distributes a union co-declared with a composition; anything else a diagnosed degrade | the same | — |
 | `AdditionalProps` / `Additional` | catch-all `map` as the embedded fallback; `closed`→`RejectUnknownMembers(true)`, pinned per model (§8.1) | catch-all `Map` filled by a serializer that reads the whole object (§8.8); strict `Json`, `@JsonIgnoreUnknownKeys` on each other open model | pattern channel |
 | `Union` (four wire shapes, §4.4) | sealed interface + marker + concrete variants + tag-dispatch (de)serializer | sealed interface + one wrapper class per variant + a `KSerializer` per wire shape; KMP: not exhaustive in Swift | `WireName`/`WireID` per variant |
-| `Enum` open/closed/flags | closed→typed consts; open→string+consts+`Unknown`; flags→bitset; `FallbackMember` on decode | closed → `enum class` with `@SerialName` members, `FallbackMember` on decode; open → value class over the value type with a constant per member, which keeps an unknown value; flags → value class over an integer | member `WireName` |
+| `Enum` open/closed/flags | closed→typed consts, each named by its enum then its member (`StatusActive`); open→string+consts+`Unknown`; flags→bitset; `FallbackMember` on decode | closed → `enum class` with `@SerialName` members, `FallbackMember` on decode; open → value class over the value type with a constant per member, which keeps an unknown value; flags → value class over an integer | member `WireName` |
 | `List`/`MapT`/`Tuple` | `[]T`/`map[K]V`/positional struct (optional past `MinItems`, `Rest`→trailing slice); `List.Encoding`→serializer mode | `List<T>`/`Map<K, V>`/a class with a positional serializer (nullable past `MinItems`, `Rest` → trailing `List`) | packed/expanded |
 | `Literal` | typed constant (incl. `symbol`) | `const val`, or an `object` for a non-primitive value | — |
 | `External` | the type-table row for its `Identity` (§2.6): imported library type + dep-manifest; no row → opaque handle, passthrough + diagnostic | the type-table row for its `Identity`, each platform's own; no row → diagnostic | — |
@@ -1954,7 +1980,7 @@ for both Kotlin targets, and "KMP:" marks where Multiplatform differs from the J
 | `ErrorCase{Fault, Retryable}` | error tree; declared facts win over policy | exception hierarchy (`ApiException` → client/server → concrete); declared facts win over policy | status→error map |
 | `Auth` OR-of-ANDs | `Authenticator` + per-scheme options; priority order | `Authenticator` + per-scheme configuration; priority order | — |
 | `Value{Num BigVal, Ctor, Ref, symbol}` | literals via decimal (never float64); `Ctor`→call; `symbol`→string explicitly; a `Default` documented, never written onto a request (§4.10) | literals built from the decimal text, never a `Double` literal; `Ctor` → call; `symbol` → string explicitly; a `Default` documented, never sent | — |
-| `Naming{Canonical}` | cased via `naming.Policy`; a name with no words named by its characters (§4.12); a name a scope reserves escaped with a trailing underscore; collisions ID-keyed | cased via `naming.Policy`, characters named the same; hard keywords in backticks, other reserved names a trailing underscore; KMP: explicit Objective-C/Swift names where the export would mangle; collisions ID-keyed | `WireName`/`WireID` never cased |
+| `Naming{Canonical}` | cased via `naming.Policy`; a name with no words named by its characters, and one that would begin with a digit led by its role's word (§4.12); a name a scope reserves escaped with a trailing underscore; collisions ID-keyed | cased via `naming.Policy`, characters named and leading digits led the same; hard keywords in backticks, other reserved names a trailing underscore; KMP: explicit Objective-C/Swift names where the export would mangle; collisions ID-keyed | `WireName`/`WireID` never cased |
 
 ---
 
@@ -2103,9 +2129,9 @@ throughout this document.
     `SplitByGroup` the units' imports form no cycle; and every partition error and warning of §4.17
     has a fixture that draws it.
 19. **T-19 · Reserved scopes** — a fixture naming its properties, parameters, path parameters and
-    enum members after every name each scope of §4.12 reserves, and after characters alone,
-    generates code that compiles on every target, with every template's declared names held to what
-    it binds.
+    enum members after every name each scope of §4.12 reserves, after characters alone and after
+    names that begin with a digit, generates code that compiles on every target, with every
+    template's declared names held to what it binds.
 20. **T-20 · Recursive types** — a model that holds itself directly, through a base, through a
     union, through a tuple and through another model generates code that compiles on every target,
     and only the references §4.16 names are held through a pointer.
@@ -2265,7 +2291,7 @@ compiler writes as `""` (#978); and facts no OpenAPI construct sets, such as `Mo
 | 3 Stable IDs, names presentation | plan, AST `Origin`, manifest, surface, hints, and the collision table are all keyed by IR stable ID; renames are lookups; collisions never touch identity; a name with no words is named from its value alone, and placement reads no count, so neither moves when something else changes (§3, §4.12, §4.17, §11) |
 | 4 Names neutral, emitter cases | `Ident` starts as the `Naming.Canonical` word sequence, the source spelling beside each word for its letter case only; `RenderCasing`/`EscapeReservedWords` are the only casing steps; struct tags come from `WireName`/`WireID`, a separate channel (§4.12, §5) |
 | 5 Pure, typed diagnostics | `Generate` is pure/reentrant/no-stderr/no-I/O; every un-lowerable construct → coded `ir.Diagnostic`; the engine decides fatality (§2, §2.4) |
-| 6 Heuristics are policy | `plan.Policy`, each target's versioned options, `naming.Policy`, `verify.Severity`, method-name derivation, and shaping hints are injectable and disable-able; the type table's width-picking rows and the character names are defaults a configuration replaces; inferred outputs marked `Inferred` (§2.5, §2.6, §3.5, §4.12, §6.4, §12) |
+| 6 Heuristics are policy | `plan.Policy`, each target's versioned options, `naming.Policy`, `verify.Severity`, method-name derivation, and shaping hints are injectable and disable-able; the type table's width-picking rows, the character names and the leading words are defaults a configuration replaces; inferred outputs marked `Inferred` (§2.5, §2.6, §3.5, §4.12, §6.4, §12) |
 | 7 Serializable/deterministic | `Plan` + manifest are JSON-serializable, and `Facts` is rebuilt from the document; maps walked sorted, slices source order; identical input ⇒ identical bytes (§2.2, §3, §5.5, §13) |
 | 8 Optionality ≠ nullability | `LowerOptionality` renders all four states plus protobuf `Presence` as a third axis; collapses are diagnosed (§4.7) |
 | 9 Capability surface designed against every format | every `ir.TypeKind` and every operation facet (pagination/streaming/LRO/one-way/messaging) has a lowering path or diagnosed degrade (§4.2, §9); docs/mock/validation are registry entries over the same `Doc + Plan`; a new language forces no IR or plan change (§10, §14 M5) |
