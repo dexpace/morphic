@@ -398,7 +398,7 @@ taken once the passes have reported, and recorded as `Result.Failed`, so the CLI
 way. `RunOptions.FailOn` sets the threshold. At `error`, the default, an error diagnostic fails the
 run; `warning` and `info` are stricter gates, each failing it on a diagnostic at or above that
 severity; `none` fails only a run that produced no document, which fails at every threshold. A
-diagnostic of a severity outside the IR's three is a stage breaking its contract and fails the run
+diagnostic of a severity the IR does not declare is a stage breaking its contract and fails the run
 with a Go error: no threshold can rank it, and ranking it below them all would let a misspelt error
 through every gate. Failing withholds nothing: a failed run still returns its document and every
 diagnostic, to inspect or persist. What it stops is the emitters, which the engine starts only on a

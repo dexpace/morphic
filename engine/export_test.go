@@ -4,6 +4,7 @@ import (
 	"slices"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/pass"
 )
 
@@ -17,6 +18,10 @@ var ErrSourcesMoved = errSourcesMoved
 // ErrUnknownSeverity exposes the error a stage reporting a diagnostic of a
 // severity the IR does not define fails a run with.
 var ErrUnknownSeverity = errUnknownSeverity
+
+// Severities exposes the ranked severity list, which the external tests hold
+// to what package ir declares.
+func Severities() []ir.Severity { return severities() }
 
 // DefaultPasses exposes the default pass list to this package's external tests,
 // which pin its order without a production caller needing to read it.

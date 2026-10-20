@@ -57,7 +57,7 @@ type Position struct {
 	Column int `json:"column,omitzero"`
 }
 
-// Severity classifies a Diagnostic as one of the three below. The engine
+// Severity classifies a Diagnostic as one of the constants below. The engine
 // decides from it whether a run fails, and refuses a diagnostic carrying any
 // other value, which no threshold could rank.
 type Severity string

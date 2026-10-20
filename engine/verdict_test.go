@@ -6,18 +6,40 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/engine"
+	"github.com/dexpace/morphic/internal/decls"
 	"github.com/dexpace/morphic/internal/testspec"
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/pass"
 )
 
-// thresholds is every FailOn a run takes, the empty default included.
+// thresholds lists the FailOn constants and the empty default.
 var thresholds = []engine.FailOn{
 	"", engine.FailOnError, engine.FailOnWarning, engine.FailOnInfo, engine.FailOnNone,
+}
+
+// TestSeverities_AreTheOnesIRDeclares holds the engine's ranked list to the
+// severities package ir declares. One added to ir and missing here would be
+// refused as unknown on every run reporting it, and a compiler's own tests,
+// which run without the engine, would not notice.
+func TestSeverities_AreTheOnesIRDeclares(t *testing.T) {
+	t.Parallel()
+	pkg, err := decls.Load("github.com/dexpace/morphic/ir")
+	require.NoError(t, err)
+	consts, err := pkg.StringConsts("Severity")
+	require.NoError(t, err)
+	require.NotEmpty(t, consts, "a pin over no declarations holds nothing")
+
+	declared := make([]ir.Severity, 0, len(consts))
+	for _, c := range consts {
+		declared = append(declared, ir.Severity(c.Value))
+	}
+	assert.Empty(t, cmp.Diff(slices.Sorted(slices.Values(declared)),
+		slices.Sorted(slices.Values(engine.Severities()))))
 }
 
 // TestParseFailOn_ReadsEachThreshold pins each spelling as literal text: the
@@ -177,7 +199,7 @@ func (p reportPass) Run(doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
 // TestEngine_RunRefusesAnUnknownSeverity pins that a diagnostic of a severity
 // the IR does not define is a Go error at every threshold, whichever stage
 // reported it and whether or not there is a document. Ranked below every
-// severity, as the CLI once ranked it, a misspelt error would pass every gate.
+// severity, a misspelt error would pass every gate.
 // The second list puts it after an error, which has already failed the run,
 // so the verdict must still read on.
 func TestEngine_RunRefusesAnUnknownSeverity(t *testing.T) {
