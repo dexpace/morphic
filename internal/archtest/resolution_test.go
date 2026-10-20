@@ -23,8 +23,9 @@ import (
 )
 
 // libraryModule is the parser library whose reference resolution the compiler
-// is moving off (GitHub #558): its resolver overflows the stack on a
-// reference-only cycle, and its answer depends on declaration order.
+// keeps to reference objects: its schema resolver overflows the stack on a
+// reference-only cycle and answers by declaration order, so the compiler binds
+// schema $refs itself (GitHub #558).
 const libraryModule = "github.com/speakeasy-api/openapi"
 
 // The two anchors the library's resolution API is derived from: its resolver,
