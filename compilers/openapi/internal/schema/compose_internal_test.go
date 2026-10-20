@@ -844,10 +844,8 @@ func TestAllOfBranches_DepthCapKeepsWrapperVerbatim(t *testing.T) {
 			assert.Len(t, m.Unmodeled, 1)
 			msg := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct,
 				ir.SeverityInfo, "/components/schemas/M/"+path)
-			assert.Contains(t, msg, "nested past the flattening depth of "+strconv.Itoa(maxAllOfFlattenDepth))
-			assert.Contains(t, msg, "was not flattened")
-			assert.NotContains(t, msg, "(allOf", "allOf is not a keyword the merge declines")
-			assert.NotContains(t, msg, "nested allOf compose")
+			assert.Equal(t, "inline allOf branch is nested past the flattening depth of "+strconv.Itoa(maxAllOfFlattenDepth)+
+				", so its own allOf was not flattened; only its properties and required list compose, and the branch is kept verbatim under Unmodeled", msg)
 		})
 	}
 }
