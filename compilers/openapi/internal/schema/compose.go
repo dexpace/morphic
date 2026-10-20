@@ -1199,12 +1199,12 @@ func discriminatorDefault(c lowering.Ctx, ts *compile.Types, anchors *AnchorInde
 }
 
 // mappingWhy is the reason target, a value of d's mapping, reports when it
-// resolves to no type: why it lands on no schema, or that it lands in another
-// document, as unresolvedWhy says for a $ref.
+// resolves to no type: why it lands on no schema, that it lands in another
+// document, or why the table never read it, as unresolvedWhy says for a $ref.
 func mappingWhy(c lowering.Ctx, d *oas3.Discriminator, target string) string {
 	m, ok := c.Bindings().Mapping(d, target)
 	if !ok {
-		return ""
+		return unreadWhy(c.Bindings(), d)
 	}
 	return hopWhy(c.Bindings().Table(), m.Hop, m.At)
 }

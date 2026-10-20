@@ -172,15 +172,26 @@ func refTypeRef(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 // unresolvedWhy is the reason the $ref at js reports when it resolves to no
 // type here: why its own hop lands on no schema (bind.Hop.Why), that it lands
 // in another document, which is not lowered (GitHub #74), or why the table
-// never read it (bind.Table.Unread). It is empty for any other, a target
-// declaring nothing to lower. The position may well exist, so without it the
-// report reads as though it named nothing.
+// never read it (unreadWhy). It is empty for any other, a target declaring
+// nothing to lower. The position may well exist, so without it the report
+// reads as though it named nothing.
 func unresolvedWhy(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) string {
-	table := c.Bindings().Table()
 	if e, ok := c.Bindings().Entry(js); ok {
-		return hopWhy(table, e.Hop, e.Site)
+		return hopWhy(c.Bindings().Table(), e.Hop, e.Site)
 	}
-	if why := table.Unread(); why != "" {
+	return unreadWhy(c.Bindings(), js)
+}
+
+// unreadWhy is why the table holds nothing for model, a schema or a
+// discriminator: it lies in what a reference object resolved to where the
+// table could not place it (typed.Bindings.Unplaced), or the budget or the
+// merge bound stopped the reading (bind.Table.Unread).
+func unreadWhy(refs *typed.Bindings, model any) string {
+	if site, ok := refs.Unplaced(model); ok {
+		return ": it is in what the reference at " + string(site) + " resolved to, which the compiler " +
+			"cannot read where the parser placed it"
+	}
+	if why := refs.Table().Unread(); why != "" {
 		return ": " + why
 	}
 	return ""

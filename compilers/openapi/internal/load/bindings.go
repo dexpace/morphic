@@ -123,11 +123,13 @@ func indexSource(ctx context.Context, bd *typed.Builder, doc *soa.OpenAPI, sibs 
 // indexEnds tells bd where each schema and discriminator of what a reference
 // object resolved to was read: where the table reads its end (bind.Table.Through),
 // which the lowering reads through that reference. An object many references
-// resolved to is walked once, at the least of them, so that which it is held
-// at never follows the order of a map.
+// resolved to is walked once, at the least of them the table places, so that
+// which it is held at never follows the order of a map. One the table places
+// at none is recorded as unplaced, under the least of them.
 func indexEnds(ctx context.Context, bd *typed.Builder, table *bind.Table, ends map[jsontext.Pointer]referenceEnd) {
+	sites := slices.Sorted(maps.Keys(ends))
 	walked := map[any]bool{}
-	for _, site := range slices.Sorted(maps.Keys(ends)) {
+	for _, site := range sites {
 		e := ends[site]
 		end, ok := table.Through(site)
 		if !ok || walked[e.object] {
@@ -142,6 +144,25 @@ func indexEnds(ctx context.Context, bd *typed.Builder, table *bind.Table, ends m
 				Discriminator: func(d *oasDiscriminator) error { bd.Discriminator(d, at); return nil },
 			})
 		}
+	}
+	for _, site := range sites {
+		if e := ends[site]; !walked[e.object] {
+			walked[e.object] = true
+			unplaced(ctx, bd, e, site)
+		}
+	}
+}
+
+// unplaced records each schema and discriminator of e, the end of the source's
+// reference object at site, as unplaced: the table could not read where the
+// parser resolved it, so the lowering reports each $ref in it with why.
+func unplaced(ctx context.Context, bd *typed.Builder, e referenceEnd, site jsontext.Pointer) {
+	for item := range e.walk(ctx) {
+		// Match returns only what its matcher does, and this one never fails.
+		_ = item.Match(soa.Matcher{
+			Schema:        func(js *schemaRef) error { bd.Unplaced(js, site); return nil },
+			Discriminator: func(d *oasDiscriminator) error { bd.Unplaced(d, site); return nil },
+		})
 	}
 }
 

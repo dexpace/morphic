@@ -149,9 +149,30 @@ func TestBindings_ANilOneKnowsNothing(t *testing.T) {
 	assert.Nil(t, b.Table())
 	_, ok = b.Mapping(&oas3.Discriminator{}, "#/x")
 	assert.False(t, ok)
+	_, ok = b.Unplaced(js)
+	assert.False(t, ok)
 	bd := typed.NewBuilder(nil)
 	bd.Schema(nil, bind.Position{})
 	assert.Nil(t, bd.Bindings().At(bind.Position{}), "recording no schema holds none")
+}
+
+// TestBindings_AnswersWhereAnUnplacedModelWasRead pins Unplaced: the
+// reference object a schema or discriminator was recorded under, and nothing
+// for one never recorded.
+func TestBindings_AnswersWhereAnUnplacedModelWasRead(t *testing.T) {
+	t.Parallel()
+	bd := typed.NewBuilder(nil)
+	js, d := oas3.NewJSONSchemaFromReference("#/x"), &oas3.Discriminator{}
+	bd.Unplaced(js, "/paths/~1a/get/parameters/0")
+	bd.Unplaced(d, "/components/parameters/P")
+	b := bd.Bindings()
+	for model, want := range map[any]jsontext.Pointer{js: "/paths/~1a/get/parameters/0", d: "/components/parameters/P"} {
+		site, ok := b.Unplaced(model)
+		assert.True(t, ok)
+		assert.Equal(t, want, site)
+	}
+	_, ok := b.Unplaced(oas3.NewJSONSchemaFromReference("#/x"))
+	assert.False(t, ok, "another schema, though written alike")
 }
 
 // TestPointerOf pins the pointer a walk location spells: none for the walk's

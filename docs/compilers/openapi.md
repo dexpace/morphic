@@ -252,7 +252,10 @@ at all, so the parameter, response or body it would have named is absent. A sche
 chain ends on another failing `$ref` of the source is not reported for it, as that one is; one whose
 chain leaves the source and fails in another document's content is reported where it leaves, naming
 the `$ref` that fails. What a reference object resolved to is read at the node the resolver's chain
-reached ([`trailing-empty-token`](../parser-library.md#trailing-empty-token)).
+reached ([`trailing-empty-token`](../parser-library.md#trailing-empty-token)), and where no position
+holds that node, as for the first of a key written twice in raw YAML
+([`duplicate-key`](../parser-library.md#duplicate-key)), each schema `$ref` and mapping value in it
+is reported unresolved, saying so.
 
 A same-document `#/$defs/...` pointer is read by a rule of its own, in an order no declaration
 changes: the `$defs` of the schema writing the `$ref` where that schema declares an `$id`, else the
@@ -285,6 +288,7 @@ chain of references that closes on itself is [`reference-cycles`](#reference-cyc
   `openapi.TestReferenceEnds_AnEndingSlashIsReadWhereTheParserResolvedIt`,
   `openapi.TestReferenceEnds_AnEndInTheSourceIsReadThereUnderSelf`,
   `load.TestBindSchemas_PlacesEveryEndAndBindsEveryRefInTheCorpus`,
+  `openapi.TestReferenceEnds_AnEndTheBinderCannotPlaceSaysWhy`,
   `bind.TestTable_SaysWhyARefWentUnread`,
   `bind.TestBind_SaysAKeyMayLiePastTheMergeBound`,
   `bind.TestBind_TakesNoDefinitionPastAReadTheMergeBoundStopped`,

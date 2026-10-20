@@ -3,6 +3,7 @@
 package openapi_test
 
 import (
+	"encoding/json/jsontext"
 	"os"
 	"path/filepath"
 	"testing"
@@ -85,4 +86,48 @@ components:
 	s, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Scalar)
 	require.True(t, ok)
 	assert.Equal(t, ir.TypeID("t/anon/paths/~1a/get/responses/404/content/application~1json/schema"), s.Base.Target)
+}
+
+// TestReferenceEnds_AnEndTheBinderCannotPlaceSaysWhy pins a reference object
+// resolved to the first of a key written twice in raw YAML, which the binder
+// reads as its last (docs/parser-library.md#duplicate-key), so it cannot
+// place the end. A schema $ref through the reference, and a $ref and a
+// mapping value in the content it resolved to, are each reported with why.
+func TestReferenceEnds_AnEndTheBinderCannotPlaceSaysWhy(t *testing.T) {
+	t.Parallel()
+	const src = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a: {get: {parameters: [{$ref: '#/x-params/q'}], responses: {"200": {description: ok}}}}
+x-params:
+  q:
+    name: q
+    in: query
+    schema:
+      oneOf: [{$ref: '#/components/schemas/A'}]
+      discriminator: {propertyName: k, mapping: {a: '#/components/schemas/A'}}
+  q: {name: r, in: query, schema: {type: string}}
+components:
+  schemas:
+    A: {type: object, properties: {k: {type: string}}}
+    S: {$ref: '#/paths/~1a/get/parameters/0/schema'}
+`
+	_, diags, err := openapi.New().Compile(t.Context(), []compilers.Source{{Path: "spec.yaml", Data: []byte(src)}},
+		compilers.Options{})
+	require.NoError(t, err)
+	got := map[jsontext.Pointer]string{}
+	for _, d := range diags {
+		if d.Code == "openapi/unresolved-ref" {
+			got[d.Provenance.Pointer] = d.Message
+		}
+	}
+	const unplaced = ": it is in what the reference at /paths/~1a/get/parameters/0 resolved to, which the " +
+		"compiler cannot read where the parser placed it"
+	assert.Equal(t, map[jsontext.Pointer]string{
+		"/components/schemas/S": `unresolved $ref "#/paths/~1a/get/parameters/0/schema": its pointer passes ` +
+			"through a reference that resolves to nothing the compiler reads",
+		"/x-params/q/schema/oneOf/0": `unresolved $ref "#/components/schemas/A"` + unplaced,
+		"/x-params/q/schema/discriminator/mapping/a": `discriminator mapping "a" references unresolved schema ` +
+			`"#/components/schemas/A"` + unplaced,
+	}, got)
 }

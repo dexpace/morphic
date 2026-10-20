@@ -1,6 +1,7 @@
 package load
 
 import (
+	"encoding/json/jsontext"
 	"errors"
 	"fmt"
 	"net/http"
@@ -16,6 +17,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/ir"
 )
@@ -61,6 +63,33 @@ func TestBindingDiags_ReportsTheBudgetOnce(t *testing.T) {
 	assert.Equal(t, ir.SeverityError, diags[0].Severity)
 	assert.Empty(t, diags[0].Provenance.Pointer, "at the document")
 	assert.Contains(t, diags[0].Message, "takes more than 67108864 steps", "the bound crossed is the default")
+}
+
+// TestBindSchemas_RecordsWhatAnUnplacedEndHolds pins the models in an end the
+// table cannot place, here the first of a key written twice in raw YAML,
+// which the parser resolved to and the binder reads as its last: each schema
+// and discriminator is recorded as unplaced, under the reference whose end it
+// is.
+func TestBindSchemas_RecordsWhatAnUnplacedEndHolds(t *testing.T) {
+	t.Parallel()
+	doc, _, err := Load(t.Context(), 0, openapitest.SourceOf(`openapi: 3.1.0
+info: {title: t, version: '1'}
+paths:
+  /a: {get: {parameters: [{$ref: '#/x-params/q'}], responses: {'200': {description: ok}}}}
+x-params:
+  q: {name: q, in: query, schema: {oneOf: [{type: string}], discriminator: {propertyName: k}}}
+  q: {name: r, in: query}
+`), Options{})
+	require.NoError(t, err)
+	op := doc.Doc.Paths.GetOrZero("/a").GetObject().Get()
+	require.NotNil(t, op)
+	js := op.GetParameters()[0].GetObject().GetSchema()
+	require.NotNil(t, js)
+	for _, model := range []any{js, js.GetSchema().GetDiscriminator()} {
+		site, ok := doc.Bindings.Unplaced(model)
+		assert.True(t, ok, "%T", model)
+		assert.Equal(t, jsontext.Pointer("/paths/~1a/get/parameters/0"), site, "%T", model)
+	}
 }
 
 // TestBindingDiags_NamesALoopsMembersByTheirDocument pins how a loop's report

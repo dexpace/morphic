@@ -33,6 +33,9 @@ type Bindings struct {
 	discs map[*oas3.Discriminator]bind.Position
 	// held is the schema at each position: the model's own, or one built.
 	held map[bind.Position]*schemaRef
+	// unplaced is the source's reference object each schema and discriminator
+	// of an end the table could not place was read under (Builder.Unplaced).
+	unplaced map[any]jsontext.Pointer
 }
 
 // Table returns the table b answers from.
@@ -105,6 +108,18 @@ func (b *Bindings) Mapping(d *oas3.Discriminator, value string) (bind.Mapping, b
 	return b.table.Mapping(at, value)
 }
 
+// Unplaced returns the pointer of the source's reference object in whose
+// content model, a schema or a discriminator, was read, where the table could
+// not place what the parser resolved that object to (bind.Table.Through), so
+// no $ref in it is bound. It is false for any other model.
+func (b *Bindings) Unplaced(model any) (jsontext.Pointer, bool) {
+	if b == nil {
+		return "", false
+	}
+	site, ok := b.unplaced[model]
+	return site, ok
+}
+
 // Builder builds Bindings over a table: told where each schema of the
 // parser's model was read, it builds a schema for each landing.
 type Builder struct {
@@ -120,7 +135,8 @@ type Builder struct {
 // NewBuilder returns a Builder over table, knowing no schema yet.
 func NewBuilder(table *bind.Table) *Builder {
 	return &Builder{decode: decodeSchema, view: nodeview.New(), b: &Bindings{table: table, at: map[*schemaRef]bind.Position{},
-		discs: map[*oas3.Discriminator]bind.Position{}, held: map[bind.Position]*schemaRef{}}}
+		discs: map[*oas3.Discriminator]bind.Position{}, held: map[bind.Position]*schemaRef{},
+		unplaced: map[any]jsontext.Pointer{}}}
 }
 
 // decodeSchema decodes n into js as the parser decodes a schema of its model,
@@ -159,6 +175,13 @@ func (bd *Builder) Discriminator(d *oas3.Discriminator, p bind.Position) {
 	if d != nil {
 		bd.b.discs[d] = p
 	}
+}
+
+// Unplaced records that model, a schema or a discriminator, was read in what
+// the source's reference object at site resolved to, where the table could
+// not place it.
+func (bd *Builder) Unplaced(model any, site jsontext.Pointer) {
+	bd.b.unplaced[model] = site
 }
 
 // Walk records js, read at p, and every schema and discriminator below it, at

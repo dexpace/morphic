@@ -406,7 +406,9 @@ and warns (`validation-duplicate-key`). Through raw YAML it is read as its first
 `jsonpointer.GetTarget` on a `*yaml.Node`, and by the model's own fallback to raw YAML for what it
 does not hold, such as an extension's value. The compiler's schema binder reads every mapping as the
 model does, raw YAML included, so a schema `$ref` into raw YAML lands on the last copy where the
-resolver lands on the first (`duplicate-key` in the binding oracle's disagreements).
+resolver lands on the first (`duplicate-key` in the binding oracle's disagreements). A reference
+object the resolver resolves to a first copy has its content read at no position, so each schema
+`$ref` in it is reported unresolved, saying so.
 
 ```yaml
 components:

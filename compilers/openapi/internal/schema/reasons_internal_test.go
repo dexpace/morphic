@@ -52,6 +52,15 @@ func TestRefTypeRef_SaysWhyAnUnboundRefIsUnresolved(t *testing.T) {
 	a, ok = unheld.ctx.Doc.Components.GetSchemas().Get("A")
 	require.True(t, ok)
 	assert.Equal(t, `unresolved $ref "#/components/schemas/H/properties/p"`, message(t, unheld, a))
+
+	bd := typed.NewBuilder(bind.Bind(unheld.ctx.Doc.GetRootNode(), bind.Config{Self: "spec.yaml"}))
+	bd.Unplaced(a, "/paths/~1a/get/parameters/0")
+	unplaced := lowererOver(lowering.New(0, unheld.ctx.Doc, ir.SourceInfo{}, "", lowering.Limits{},
+		lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, overlay.Origin{}).WithLoaded(
+		&load.Document{Doc: unheld.ctx.Doc, Bindings: bd.Bindings()}))
+	assert.Equal(t, `unresolved $ref "#/components/schemas/H/properties/p": it is in what the reference at `+
+		"/paths/~1a/get/parameters/0 resolved to, which the compiler cannot read where the parser placed it",
+		message(t, unplaced, a))
 }
 
 // unheldLowerer is a lowerer over bindings that know where A's $ref lands but
