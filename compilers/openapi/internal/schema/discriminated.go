@@ -149,7 +149,7 @@ func (d besideUnionDiscriminator) rehome(m *ir.Model, mt *ir.MapT) []ir.Diagnost
 // route is asked of one ir.Facts, so a hierarchy above a target is walked once
 // however many of m's routes share it (GitHub #850). The index is built per
 // settlement, since settlements still rewrite the registry between calls, so a
-// hierarchy shared by several settlements is walked once for each.
+// hierarchy shared by several settlements is walked once for each (GitHub #1008).
 func routesToSubtypes(reg ir.TypeRegistry, m *ir.Model, named []ir.TypeID) bool {
 	facts := ir.NewFacts(&ir.Document{Types: reg})
 	routes := slices.AppendSeq(slices.Clone(named), maps.Values(m.Discriminator.Mapping))
