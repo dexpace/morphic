@@ -14,6 +14,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -2592,4 +2593,101 @@ func TestEncoding_NestedEncodingsAreKeptAtEveryVersion(t *testing.T) {
 				"only a document older than 3.2 is told the field is a later version's")
 		})
 	}
+}
+
+// nestedPartSpec spells a multipart body whose parts sit wrapped deep inside n
+// inline allOf wrappers, each optionally carrying a description, with the
+// encoding map and the two parts written in the order given.
+func nestedPartSpec(n int, residue bool, parts, encoding []string) string {
+	partLine := map[string]string{
+		"file": "file: {type: string, format: binary}",
+		"meta": "meta: {type: string}",
+	}
+	encLine := map[string]string{
+		"file": "file: {contentType: image/png}",
+		"meta": "meta: {contentType: application/json}",
+	}
+	props := make([]string, 0, len(parts))
+	encs := make([]string, 0, len(encoding))
+	for _, p := range parts {
+		props = append(props, partLine[p])
+	}
+	for _, e := range encoding {
+		encs = append(encs, encLine[e])
+	}
+	schemaSrc := "{type: object, properties: {" + strings.Join(props, ", ") + "}}"
+	for range n {
+		wrapper := "{allOf: [" + schemaSrc + "]}"
+		if residue {
+			wrapper = "{description: grouped, allOf: [" + schemaSrc + "]}"
+		}
+		schemaSrc = wrapper
+	}
+	return openapitest.PathsSpec(`  /u:
+    post:
+      operationId: up
+      requestBody:
+        content:
+          multipart/form-data:
+            schema: ` + schemaSrc + `
+            encoding: {` + strings.Join(encs, ", ") + `}
+      responses: {"200": {description: ok}}
+`)
+}
+
+// TestPartEncodings_ReadsTheFlattenedComposition holds bodyParts to the
+// composition the schema lowering flattens (docs/compilers/openapi.md#allof-classification),
+// in both declaration orders of the parts and of the encoding map. A part
+// nested n wrappers deep is keyed on the property the lowering models there, or
+// a diagnostic names the bound that cut the walk short; one that is neither
+// drops its encoding with no word.
+func TestPartEncodings_ReadsTheFlattenedComposition(t *testing.T) {
+	t.Parallel()
+	const bodyPtr = "/paths/~1u/post/requestBody/content/multipart~1form-data/schema"
+	cases := []struct {
+		name    string
+		n       int
+		residue bool
+		capped  bool
+	}{
+		{"15 wrappers", 15, false, false},
+		{"16 wrappers", 16, false, false},
+		{"17 wrappers", 17, false, false},
+		{"20 wrappers", 20, false, false},
+		{"past the flattening depth", schema.AllOfFlattenDepth + 2, false, true},
+		{"residue wrapper", 1, true, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			forward := nestedPartSpec(tc.n, tc.residue, []string{"file", "meta"}, []string{"file", "meta"})
+			reversed := nestedPartSpec(tc.n, tc.residue, []string{"meta", "file"}, []string{"meta", "file"})
+			var got [2]map[ir.PropID]ir.PartEncoding
+			for i, src := range []string{forward, reversed} {
+				_, svc, diags := lowerServiceSpec(t, src)
+				openapitest.RequireNoErrorDiags(t, diags)
+				got[i] = openapitest.FirstOp(t, svc).Request.Contents[0].Encoding
+				if tc.capped {
+					assert.Contains(t, diagMessages(diags), "multipart body composition is nested past the flattening depth of 32",
+						"a walk cut short by the bound says so")
+					continue
+				}
+				prefix := bodyPtr + strings.Repeat("/allOf/0", tc.n)
+				for _, part := range []string{"file", "meta"} {
+					id := ir.PropID("p/openapi" + jsontext.Pointer(prefix) + ids.Ptr("properties", part))
+					assert.Contains(t, got[i], id, "the %s part is keyed on the property nested %d wrappers down", part, tc.n)
+				}
+			}
+			assert.Empty(t, cmp.Diff(got[0], got[1]), "the declaration order of the parts changes nothing")
+		})
+	}
+}
+
+// diagMessages joins the messages of diags.
+func diagMessages(diags []ir.Diagnostic) string {
+	out := make([]string, 0, len(diags))
+	for _, d := range diags {
+		out = append(out, d.Message)
+	}
+	return strings.Join(out, "\n")
 }

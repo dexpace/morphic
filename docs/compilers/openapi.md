@@ -1842,7 +1842,11 @@ same element elect it. Error responses are not read. The policy is the Go option
 An Encoding Object of a `multipart/*` or `application/x-www-form-urlencoded` Content lowers to a
 `PartEncoding` in `Content.Encoding`, keyed by the `PropID` of the body property its key names,
 wherever the body declares that property: on the schema, in an `allOf` branch with the first
-declaration of a name winning, or on a `Base` or `Mixin` it composes. `contentType` lowers to
+declaration of a name winning, or on a `Base` or `Mixin` it composes. The `allOf` is read as
+[`allof-classification`](#allof-classification) flattens it, with the same cap, and a `$ref`
+entry is followed up to a bound of its own. A walk that a bound cut short is reported as a
+warning `openapi/degraded-construct` at the body schema, since a part past it has no entry.
+`contentType` lowers to
 `ContentTypes`, split on `,` and trimmed with empty items dropped; `headers` to `Headers`, lowered
 as a response's are; and `style` and `explode` to `Style` and `Explode` as declared, nothing
 defaulted. `Multi` and `Filename` come from the part's own schema and never from the `encoding` map:
@@ -1853,9 +1857,11 @@ Encoding Object writes beyond those fields is
 [`encoding-allow-reserved`](#encoding-allow-reserved)'.
 
 - Cases: `multipart-encoding`
+- Codes: `openapi/degraded-construct`
 - Tests: `operation.TestContent_MultipartPartEncoding`,
   `operation.TestContent_ArrayMultipartPartMulti`,
-  `operation.TestPartEncodings_MixinPartIsKeyedOnTheMixin`
+  `operation.TestPartEncodings_MixinPartIsKeyedOnTheMixin`,
+  `operation.TestPartEncodings_ReadsTheFlattenedComposition`
 - Status: partly built: an `encoding` key that names no property, or one declared only inside a
   `oneOf` or `anyOf` branch, is dropped with no diagnostic (#604); on a multi-typed body the entry
   is keyed by a property no node holds, which validation then refuses (#744); an array of files is

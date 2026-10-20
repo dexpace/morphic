@@ -207,9 +207,11 @@ func positionalEncoding(c lowering.Ctx, content *ir.Content, media *soa.MediaTyp
 // encoding entry or is itself a repeated (array) or file (binary) part. body is
 // the TypeID the content's own schema position lowered to.
 func partEncodings(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, media *soa.MediaType, mediaPtr jsontext.Pointer, body ir.TypeID) (map[ir.PropID]ir.PartEncoding, ir.Unmodeled, []ir.Diagnostic) {
-	parts := bodyParts(media.GetSchema(), 0)
+	walk := bodyParts(media.GetSchema(), 0)
+	parts := walk.parts
+	cutDiags := diagPartWalkCut(c, walk, mediaPtr+ids.Ptr("schema"))
 	if len(parts) == 0 {
-		return nil, nil, nil
+		return nil, nil, cutDiags
 	}
 	// Key by the pointer the body model was interned at, not by mediaPtr, so the
 	// keys align with that model's property IDs (invariant 2/3). Asking the IR is
@@ -219,7 +221,7 @@ func partEncodings(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInde
 	if !ok {
 		schemaPtr = bodySchemaPointer(c, media.GetSchema(), mediaPtr+ids.Ptr("schema"))
 	}
-	var diags []ir.Diagnostic
+	diags := cutDiags
 	var unmodeled ir.Unmodeled
 	encMap := media.GetEncoding()
 	out := map[ir.PropID]ir.PartEncoding{}
@@ -248,37 +250,82 @@ type bodyPart struct {
 	schema *oas3.JSONSchema[oas3.Referenceable]
 }
 
-// maxPartCompositionDepth bounds the allOf walk bodyParts makes. A $ref cycle is
-// refused at load, so no source document can spell a composition that deep; the
-// bound is what keeps the walk terminating without relying on that.
-const maxPartCompositionDepth = 16
+// maxPartRefHops bounds how many $ref targets bodyParts follows down a
+// composition. Inline wrappers are not counted: schema.FlattenedAllOf reads them,
+// with the cap the lowering uses. A $ref cycle is refused at load, so the bound
+// is what keeps the walk terminating without relying on that.
+const maxPartRefHops = 16
+
+// partWalk is what bodyParts found, and which bound cut it short.
+type partWalk struct {
+	parts []bodyPart
+	// capped marks an inline branch nested past schema.AllOfFlattenDepth, whose
+	// own allOf was not followed.
+	capped bool
+	// hopsSpent marks a $ref target past maxPartRefHops, which was not entered.
+	hopsSpent bool
+}
 
 // bodyParts returns the parts a multipart body declares, in source order: the
 // properties written on the schema itself, then those each allOf branch
-// contributes, with the first declaration of a name winning.
+// contributes, with the first declaration of a name winning. The branches are
+// the lowering's own (schema.FlattenedAllOf); a $ref branch is followed here, up
+// to maxPartRefHops. A bound that cut the walk is reported on the result.
 //
 // A body that composes rather than declares — `allOf: [{$ref: Form}]` — has no
-// properties of its own, so reading only those found nothing to key against and
-// discarded the whole encoding block without a word (GitHub #140). The two
-// spellings describe the same wire format, so they must enumerate the same parts.
-func bodyParts(js *oas3.JSONSchema[oas3.Referenceable], depth int) []bodyPart {
-	if depth > maxPartCompositionDepth {
-		return nil
+// properties of its own, yet describes the same wire format, so it must
+// enumerate the same parts (GitHub #140).
+func bodyParts(js *oas3.JSONSchema[oas3.Referenceable], hops int) partWalk {
+	if hops > maxPartRefHops {
+		return partWalk{hopsSpent: true}
 	}
 	s := schemaOf(js)
 	if s == nil {
+		return partWalk{}
+	}
+	w := partWalk{parts: propertyParts(s)}
+	for _, br := range schema.FlattenedAllOf(s) {
+		if br.Ref {
+			sub := bodyParts(br.Schema, hops+1)
+			w.parts = append(w.parts, sub.parts...)
+			w.capped = w.capped || sub.capped
+			w.hopsSpent = w.hopsSpent || sub.hopsSpent
+			continue
+		}
+		w.parts = append(w.parts, propertyParts(schemaOf(br.Schema))...)
+		w.capped = w.capped || br.Capped
+	}
+	w.parts = dedupeParts(w.parts)
+	return w
+}
+
+// propertyParts returns the properties s declares itself, in source order.
+func propertyParts(s *oas3.Schema) []bodyPart {
+	if s == nil || s.GetProperties() == nil {
 		return nil
 	}
 	var out []bodyPart
-	if props := s.GetProperties(); props != nil {
-		for name, pjs := range props.All() {
-			out = append(out, bodyPart{name: name, schema: pjs})
-		}
+	for name, pjs := range s.GetProperties().All() {
+		out = append(out, bodyPart{name: name, schema: pjs})
 	}
-	for _, branch := range s.GetAllOf() {
-		out = append(out, bodyParts(branch, depth+1)...)
+	return out
+}
+
+// diagPartWalkCut reports the bounds that cut a body's part walk short, so an
+// encoding entry for a part past one is not dropped without a word.
+func diagPartWalkCut(c lowering.Ctx, w partWalk, at jsontext.Pointer) []ir.Diagnostic {
+	var out []ir.Diagnostic
+	if w.capped {
+		out = append(out, c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, at,
+			"multipart body composition is nested past the flattening depth of %d, so the parts declared below it have no encoding entry",
+			schema.AllOfFlattenDepth))
 	}
-	return dedupeParts(out)
+	if w.hopsSpent {
+		out = append(out, c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, at,
+			"multipart body composition follows $refs past %d hops, so the parts declared beyond them have no encoding entry",
+			maxPartRefHops))
+	}
+	return out
 }
 
 // dedupeParts keeps the first declaration of each part name, in order. A name

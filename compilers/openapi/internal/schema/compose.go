@@ -195,6 +195,35 @@ func allOfRefBranches(s *oas3.Schema) iter.Seq[*oas3.JSONSchema[oas3.Referenceab
 	}
 }
 
+// AllOfFlattenDepth is the depth FlattenedAllOf flattens to, for a reader that
+// names the bound in a diagnostic.
+const AllOfFlattenDepth = maxAllOfFlattenDepth
+
+// FlatBranch is one branch of the allOf FlattenedAllOf reads.
+type FlatBranch struct {
+	// Schema is the branch as written, or the wrapper a run of its own entries
+	// ended with.
+	Schema *oas3.JSONSchema[oas3.Referenceable]
+	// Ref marks a branch that names its schema by $ref, which the reader follows
+	// itself and bounds on its own.
+	Ref bool
+	// Capped marks an inline branch whose own allOf sits past AllOfFlattenDepth
+	// and was not flattened, so the reader has not reached what it declares.
+	Capped bool
+}
+
+// FlattenedAllOf returns s's allOf as the lowering reads it, so a reader outside
+// this package takes the same flattening and the same cap, in the same order
+// (docs/compilers/openapi.md#allof-classification). It reads the one walk
+// allOfBranches does.
+func FlattenedAllOf(s *oas3.Schema) []FlatBranch {
+	var out []FlatBranch
+	for st := range walkAllOf(s) {
+		out = append(out, FlatBranch{Schema: st.schema, Ref: isRefBranch(st.schema), Capped: st.capped})
+	}
+	return out
+}
+
 // branchKey is the Unmodeled key an allOf branch at bptr is kept under: "openapi:"
 // and its path from the composed schema. The path's tokens are `allOf` and
 // decimal indices, so trimming the prefix is exact.

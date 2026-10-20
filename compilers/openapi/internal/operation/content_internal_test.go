@@ -204,12 +204,14 @@ func TestPropIDByWire_DeadEnds(t *testing.T) {
 	}
 }
 
-// TestBodyParts_DepthBound covers the composition walk's bound. A $ref cycle is
+// TestBodyParts_DepthBound covers the $ref bound of the composition walk. A $ref cycle is
 // refused at load, so no document can spell a composition this deep; the bound is
 // what keeps the walk terminating without relying on that.
 func TestBodyParts_DepthBound(t *testing.T) {
 	t.Parallel()
 	js := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{})
-	assert.Nil(t, bodyParts(js, maxPartCompositionDepth+1),
+	w := bodyParts(js, maxPartRefHops+1)
+	assert.Nil(t, w.parts,
 		"past the bound the walk stops rather than descending further")
+	assert.True(t, w.hopsSpent, "and says that it stopped")
 }

@@ -65,7 +65,7 @@ var loweringRecursions = [][]string{
 	{"propIDByWire", "propIDInComposition"},
 	// Multipart body parts. A body may compose with allOf instead of declaring
 	// properties, and each branch is a schema whose parts are read the same way.
-	// Bounded by maxPartCompositionDepth.
+	// Bounded by maxPartRefHops.
 	{"bodyParts"},
 }
 
