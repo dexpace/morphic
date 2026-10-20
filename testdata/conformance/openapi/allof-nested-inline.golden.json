@@ -713,7 +713,7 @@
     {
       "format": "openapi@3.1",
       "path": "allof-nested-inline.yaml",
-      "hash": "7d4d12cc5ebe09590bf8f6ed5ae72e2771742bdde6460ce307a1bdd5663194d7"
+      "hash": "0edb6fc49d06fddaa6a744411f868a411486db42fca56004e13aae29714c5da8"
     }
   ]
 }
