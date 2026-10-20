@@ -318,9 +318,8 @@ provenance (§4.3), as INV6 requires.
 
 Which target type a primitive becomes is the setting a generator's users override most, and every
 row of it carries an import and a dependency beside the type, which drift apart wherever they are
-written separately. So the table has one shape, one lookup and one merge, shared
-by every target in `emitters/typemap`, rather than a field of each target's options spelled its own
-way.
+written separately. So the table has one shape, one lookup and one merge, shared by every target in
+`emitters/typemap`, rather than a field of each target's options spelled its own way.
 
 ```go
 package typemap
@@ -352,7 +351,8 @@ type Dependency struct {
   recognizes a primitive of its own — OpenAPI's `date-time` is `datetime_offset` — so a key spells
   only what the IR does not, such as `{string, "email"}` or `{bytes, "base64"}`, compared exactly as
   written. An enum's `ValueType` and an `Any` node resolve to their primitive's default row, and an
-  `External` to its `Identity`.
+  `External` to its `Identity`. A property whose own encoding changes the key is typed by that key's
+  row, not by the declaration its reference names.
 - **Lookup.** `{prim, encoding}`, then `{prim, ""}`. An encoding with no row of its own falls back
   to its primitive's: the encoding stays in the IR and the SDK types it as the primitive, reported
   once per key as an info `emitters/<target>/unmapped-encoding` at the first type in ID order that
@@ -377,9 +377,8 @@ type Dependency struct {
   and defaults per version, which a separate input would need all over again.
 - **What a mapped type must do.** A type some built-in row names is one the target knows: it writes
   that type's literals, checks its constraints and knows whether it has methods. Any other type is
-  known only
-  through its row. Its values reach the wire through `Codec` — Go's `""` is the type's own
-  `MarshalJSONTo`/`UnmarshalJSONFrom`, or `MarshalText`/`UnmarshalText` where the wire holds a
+  known only through its row. Its values reach the wire through `Codec` — Go's `""` is the type's
+  own `MarshalJSONTo`/`UnmarshalJSONFrom`, or `MarshalText`/`UnmarshalText` where the wire holds a
   string, and a Kotlin row names a `KSerializer` unless the type is `@Serializable`. A literal of it
   (a default, a constant, an enum value) is built by decoding the value's wire form through that
   codec, and a constraint on it is not checked by the SDK, which the server still checks, reported
@@ -1023,7 +1022,9 @@ tag by token scan, and `decodeTypeDef` decodes the concrete kind under the decod
   The target knows which of its built-in types have methods, and takes a type only a user's row
   names (§2.6) to have some. Kotlin draws the same line at its own types: a value class over
   `Boolean`, a number, `String` or `ByteArray`, and a `typealias` over any other root, which leaves
-  the root's type, and its serializer, in every signature.
+  the root's type, and its serializer, in every signature. An enum is outside this line: it
+  declares its own codec (§4.5), which reads and writes its value type through that type's row, so
+  it is a defined type whatever its value type maps to.
 - **External** (R4 §2.8): `External{Identity, Package, MinVersion}` becomes the type its type-table
   row names for `Identity` (§2.6), imported with the row's `Imports` and required at its
   `Dependency` — imported, not generated. `Package` and `MinVersion` name what the source format
@@ -1149,10 +1150,10 @@ $   dollar                  ?   question_mark           .   period          ,   
 {   left_brace              }   right_brace             U+0020   space
 ```
 
-**An identifier that would begin with a digit takes a leading word.** Canonical words may begin
-with a digit — a property `1000`, a schema `10_gbps_to_100_gbps`, an enum value `10002` — and no
-first target accepts an identifier that does. Go takes one only from a letter, and exports one only
-from an upper-case letter, so `1000` cannot be a field at all; Kotlin takes one in backticks, which
+**An identifier that would begin with a digit takes a leading word.** Canonical words may begin with
+a digit — a property `1000`, a schema `10_gbps_to_100_gbps`, an enum value `10002` — and no first
+target accepts an identifier that does. Go takes one only from a letter, and exports one only from
+an upper-case letter, so `1000` cannot be a field at all; Kotlin takes one only in backticks, which
 the Objective-C export a Multiplatform SDK reaches iOS through cannot carry (§8.8). Where the
 identifier a role composes would begin with a digit, `RenderCasing` puts the policy's leading word
 for that role before its words, and the node it names carries `Inferred` provenance, `leading-word`
@@ -1173,7 +1174,7 @@ equal to one of them shadows it or fails to compile, so each scope reserves what
 into it binds as well:
 
 - **A unit** (§4.17): the names the target declares at its top level beside the spec's — Go's
-  `Client`, its option type and their constructors.
+  `Client`, its option type and their constructors, and a group unit's sub-client.
 - **A type**: the members the target gives every model — Go's `MarshalJSONTo`, `UnmarshalJSONFrom`,
   `Validate` and a redacting `String`, and the field holding the catch-all (§8.1); Kotlin's
   `equals`, `hashCode`, `toString`, `Builder` and `Companion`.
@@ -1189,7 +1190,8 @@ caller names never yields to an import: where a Kotlin type takes the simple nam
 file imports, `ComputeImports` writes that reference qualified instead, and Go's exported names
 cannot meet its lowercase package names. So only a parameter or a local yields to an import, and no
 caller depends on its name. That is why `ComputeImports` runs before `EscapeReservedWords` (§4.1).
-T-19 holds every scope's set, and the names with none, to code that compiles.
+T-19 holds every scope's set, the names with no words and the names that begin with a digit to code
+that compiles.
 
 ### 4.13 Interface extraction & request shaping
 
@@ -1288,10 +1290,10 @@ alias, once that pass exists, is followed the same way.
 **What refine does.** `CollapseAliases` runs before every other step. An aliased type emits no
 declaration, and each reference to it — a `TypeRef`, or a `TypeID` a discriminator's mapping or
 default names — is lowered as a reference to its `Alias`, keeping the referring reference's
-`Nullable`, which answers for the whole decorator (ir-design §3.3). The
-decorators' annotations fold onto the carrier holding the reference — a property, a parameter, a
-header or a union variant, each of which has a field for all three — so the reference documents its
-input exactly as the 3.1 `$ref` it stands for does:
+`Nullable`, which answers for the whole decorator (ir-design §3.3). The decorators' annotations fold
+onto the carrier holding the reference — a property, a parameter, a header or a union variant, each
+of which has a field for all three — so the reference documents its input exactly as the 3.1 `$ref`
+it stands for does:
 
 - **`Docs` and `Deprecation`**, each field from the first that sets it: the carrier's own, then each
   decorator's along the chain; a carrier is deprecated where any of them is. At a property,
@@ -1355,10 +1357,9 @@ applies decides.
    becoming a cross-package reference. A type declaration goes to the unit its own
    `Provenance.Source` maps to, and one an overlay introduced or rewrote belongs to the document the
    overlay patched, the entry document ([`overlays`](./compilers/openapi.md#overlays)). Operations,
-   sub-clients, the client and request types stay where rule 2 or the root puts them, whichever
-   file declared them: an operation is a method of its group's client type, and Go declares a
-   method in its receiver's package. What the document cannot
-   honour is reported:
+   sub-clients, the client and request types stay where rule 2 or the root puts them, whichever file
+   declared them: an operation is a method of its group's client type, and Go declares a method in
+   its receiver's package. What the document cannot honour is reported:
    - a key with a `#fragment` is an options error, since a partition is a whole document;
    - a key naming the entry document, `Sources[0]`, or an overlay is an error diagnostic: the root
      unit is the options' to name already, and an overlay's declarations are its document's;
@@ -1371,12 +1372,13 @@ applies decides.
 2. **Split by group.** With `SplitByGroup`, each top-level operation group is a unit, holding the
    group's operations, its sub-client and every type only its operations reach, as `TypePlan.Reach`
    says; `Reach` spreads from each operation's roots along the type graph as usage does (ir-design
-   §4.9). A type several groups reach goes to a shared unit, and a type none reaches stays in the
-   root with the client. No cycle can arise: whatever a reached type holds is reached by every group
-   that reaches it, so a group unit imports at most the shared unit, the shared unit imports none,
-   and only the root, which nothing imports, holds a type that may reach into a group. A type moves
-   between a group's unit and the shared unit only when the set of groups reaching it changes, which
-   takes a change to the operations that reach it.
+   §4.9), a service's `CommonErrors` counting as every one of its groups' roots, since each of its
+   operations can return them. A type several groups reach goes to a shared unit, and a type none
+   reaches stays in the root with the client. No cycle can arise: whatever a reached type holds is
+   reached by every group that reaches it, so a group unit imports at most the shared unit, the
+   shared unit imports none, and only the root, which nothing imports, holds a type that may reach
+   into a group. A type moves between a group's unit and the shared unit only when the set of groups
+   reaching it changes, which takes a change to the operations that reach it.
 
 The root unit's name is the options'. A group's unit is the group's name rendered for a package
 under the root (`<root>/<group>` in Go, `<root>.<group>` in Kotlin), the shared unit is `shared`
@@ -1893,8 +1895,9 @@ whose units are Gradle modules, bounds what one module exports.
 
 ### 8.9 Return shapes
 
-What a success body is read as is `OpPlan.Return` (§3.1). §8.1–§8.7 return models; the other three
-shapes, and the kinds a `value` holds besides a model, lower on the three targets as follows.
+What a success body is read as is `OpPlan.Return` (§3.1). §8.3 and §8.7 read a model as a `value`,
+behind a pager and a poller, and §8.4 a `stream`; the kinds a `value` holds besides a model, and the
+`raw` and `void` shapes, lower on the three targets as follows.
 
 - **A scalar, a list, a map or a union** (`GET /count` → `integer`, `GET /labels` → a map of
   strings, `GET /pet` → a `oneOf`). **plan.** `Return:value`, `ReturnType` the content's type.
@@ -1978,7 +1981,7 @@ for both Kotlin targets, and "KMP:" marks where Multiplatform differs from the J
 | `Model` whose `Base` is no model, not a decorator | with no property, catch-all or discriminator of its own, lowered as the `Scalar` row lowers an alias over that base, its constraints, docs and examples binding the position (ir-design §4.2); a union base beside properties distributed over the variants as ir-design §4.3 distributes a union co-declared with a composition; anything else a diagnosed degrade | the same | — |
 | `AdditionalProps` / `Additional` | catch-all `map` as the embedded fallback; `closed`→`RejectUnknownMembers(true)`, pinned per model (§8.1) | catch-all `Map` filled by a serializer that reads the whole object (§8.8); strict `Json`, `@JsonIgnoreUnknownKeys` on each other open model | pattern channel |
 | `Union` (four wire shapes, §4.4) | sealed interface + marker + concrete variants + tag-dispatch (de)serializer | sealed interface + one wrapper class per variant + a `KSerializer` per wire shape; KMP: not exhaustive in Swift | `WireName`/`WireID` per variant |
-| `Enum` open/closed/flags | closed→typed consts, each named by its enum then its member (`StatusActive`); open→string+consts+`Unknown`; flags→bitset; `FallbackMember` on decode | closed → `enum class` with `@SerialName` members, `FallbackMember` on decode; open → value class over the value type with a constant per member, which keeps an unknown value; flags → value class over an integer | member `WireName` |
+| `Enum` open/closed/flags | consts named by enum then member (`StatusActive`, §4.5): closed→typed consts; open→string+consts+`Unknown`; flags→bitset; `FallbackMember` on decode | closed → `enum class` with `@SerialName` members, `FallbackMember` on decode; open → value class over the value type with a constant per member, which keeps an unknown value; flags → value class over an integer | member `WireName` |
 | `List`/`MapT`/`Tuple` | `[]T`/`map[K]V`/positional struct (optional past `MinItems`, `Rest`→trailing slice); `List.Encoding`→serializer mode | `List<T>`/`Map<K, V>`/a class with a positional serializer (nullable past `MinItems`, `Rest` → trailing `List`) | packed/expanded |
 | `Literal` | typed constant (incl. `symbol`) | `const val`, or an `object` for a non-primitive value | — |
 | `External` | the type-table row for its `Identity` (§2.6): imported library type + dep-manifest; no row → opaque handle, passthrough + diagnostic | the type-table row for its `Identity`, each platform's own; no row → diagnostic | — |
@@ -2131,9 +2134,8 @@ throughout this document.
 16. **T-16 · Decorator spellings agree** — a 3.0 `allOf` decorator and the 3.1 `$ref` carrying the
     same annotations beside it, at a property, a parameter, a header, a union variant, a list
     element and a content, generate byte-identical artifacts (§4.15), a variant's name excepted
-    until #1018 lands. Beside it, the plan's test
-    enumerates the fields of `Model`, `Scalar` and `TypeCommon` by reflection and fails on one
-    §4.15 has not classified.
+    until #1018 lands. Beside it, the plan's test enumerates the fields of `Model`, `Scalar` and
+    `TypeCommon` by reflection and fails on one §4.15 has not classified.
 17. **T-17 · Type table** — each target's built-in table has, at every options version, a row for
     every `PrimKind` `ir` declares, read through `internal/decls`; a user row replaces the built-in
     row under its key whole; an encoding with no row falls back to its primitive's and is reported
