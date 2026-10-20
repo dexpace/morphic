@@ -86,6 +86,9 @@ type allOfBranch struct {
 	// wrapper marks a flattened wrapper, which contributes its properties and
 	// required list, and is kept verbatim only for what else it writes.
 	wrapper bool
+	// capped marks an inline branch whose allOf was not flattened because it sits
+	// past maxAllOfFlattenDepth, so the diagnostic can say why it was kept.
+	capped bool
 }
 
 // allOfStep is one branch walkAllOf reached.
@@ -95,6 +98,7 @@ type allOfStep struct {
 	// schema down. It is a buffer the walk reuses, valid until the next step.
 	path    []int
 	wrapper bool
+	capped  bool // see allOfBranch.capped
 }
 
 // allOfFrame is one allOf list walkAllOf is walking.
@@ -133,7 +137,7 @@ func walkAllOf(s *oas3.Schema) iter.Seq[allOfStep] {
 				continue
 			}
 			path = stackPath(path[:0], stack)
-			if !yield(allOfStep{schema: b, path: path}) {
+			if !yield(allOfStep{schema: b, path: path, capped: wrapsAllOf(b)}) {
 				return
 			}
 		}
@@ -158,7 +162,7 @@ func allOfBranches(s *oas3.Schema, pointer jsontext.Pointer) []allOfBranch {
 		for _, i := range st.path {
 			p += ids.Ptr("allOf", strconv.Itoa(i))
 		}
-		out = append(out, allOfBranch{schema: st.schema, pointer: p, wrapper: st.wrapper})
+		out = append(out, allOfBranch{schema: st.schema, pointer: p, wrapper: st.wrapper, capped: st.capped})
 	}
 	return out
 }
@@ -189,15 +193,18 @@ func pointerIndex(bptr jsontext.Pointer) string {
 }
 
 // flattensInto reports whether the allOf branch b, at nesting depth depth, is a
-// wrapper allOfBranches flattens: inline, declaring a non-empty allOf, and
+// wrapper walkAllOf flattens: inline, declaring a non-empty allOf, and
 // shallower than maxAllOfFlattenDepth. What else it writes is no concern of
 // this predicate: the merge keeps that as residue (preserveUnmergedBranch).
 func flattensInto(b *oas3.JSONSchema[oas3.Referenceable], depth int) bool {
-	if depth >= maxAllOfFlattenDepth || isRefBranch(b) {
-		return false
-	}
-	// An empty allOf, and a boolean branch (its schema is nil; GetAllOf is nil-safe), flatten nothing.
-	return len(b.GetSchema().GetAllOf()) > 0
+	return depth < maxAllOfFlattenDepth && wrapsAllOf(b)
+}
+
+// wrapsAllOf reports whether b is inline and declares a non-empty allOf. An empty
+// allOf, and a boolean branch (its schema is nil; GetAllOf is nil-safe), wrap
+// nothing.
+func wrapsAllOf(b *oas3.JSONSchema[oas3.Referenceable]) bool {
+	return !isRefBranch(b) && len(b.GetSchema().GetAllOf()) > 0
 }
 
 // requiredEntry is one `required` name declared somewhere in an allOf
@@ -284,7 +291,7 @@ func fillAllOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth in
 	for i, e := range branches {
 		if !isRefBranch(e.schema) {
 			diags = append(diags, fillModelProperties(c, ts, anchors, depth, m, e.schema.GetSchema(), e.pointer)...)
-			diags = append(diags, preserveUnmergedBranch(c, m, e.schema.GetSchema(), branchKey(pointer, e.pointer), e.pointer, e.wrapper)...)
+			diags = append(diags, preserveUnmergedBranch(c, m, e, branchKey(pointer, e.pointer))...)
 			continue
 		}
 		diags = append(diags, fillRefBranch(c, ts, anchors, depth, m, e, i == baseIdx)...)
@@ -354,27 +361,27 @@ func applyFalseBranches(c lowering.Ctx, m *ir.Model, branches []allOfBranch, com
 // composed model when it declares more than the merge consumes, under
 // ReasonDegradedLowering and located at the branch
 // (docs/compilers/openapi.md#allof-inline-residue). key names the entry, so
-// sibling branches never overwrite one another. flattened says
-// allOfBranches replaced the branch by its own entries, which consumes its
-// allOf.
+// sibling branches never overwrite one another. A flattened branch's allOf is
+// consumed: allOfBranches replaced it by its own entries.
 //
 // A boolean branch has no keywords to leave a residue; applyFalseBranches
 // handles it. A $ref branch takes neither path: fillAllOf homes its siblings on
 // an alias over the target.
-func preserveUnmergedBranch(c lowering.Ctx, m *ir.Model, bs *oas3.Schema, key string, bptr jsontext.Pointer, flattened bool) []ir.Diagnostic {
+func preserveUnmergedBranch(c lowering.Ctx, m *ir.Model, e allOfBranch, key string) []ir.Diagnostic {
+	bs := e.schema.GetSchema()
 	if bs == nil {
 		return nil // boolean branch; applyFalseBranches handles it.
 	}
-	residue := unmergedBranchKeys(bs, flattened)
+	residue := unmergedBranchKeys(bs, e.wrapper)
 	if len(residue) == 0 {
 		return nil
 	}
 	kept, keptDiags := PreserveNode(c, &m.Unmodeled, key,
-		bs.GetRootNode(), ir.ReasonDegradedLowering, bptr)
+		bs.GetRootNode(), ir.ReasonDegradedLowering, e.pointer)
 	if !kept {
 		return keptDiags
 	}
-	return append(keptDiags, diagUnmergedBranch(c, bs, residue, bptr, flattened))
+	return append(keptDiags, diagUnmergedBranch(c, bs, residue, e))
 }
 
 // diagUnmergedBranch builds the diagnostic announcing one merged branch's
@@ -386,20 +393,37 @@ func preserveUnmergedBranch(c lowering.Ctx, m *ir.Model, bs *oas3.Schema, key st
 // so the IR contradicts the branch — `allOf: [{type: string, maxLength: 3}]`
 // lowers to an empty model. Any other residue only narrows a model the IR
 // describes correctly, the under-constrained case
-// (docs/compilers/openapi.md#allof-inline-residue). A flattened branch's nested
-// allOf composes too, and the message says so.
-func diagUnmergedBranch(c lowering.Ctx, bs *oas3.Schema, residue []string, bptr jsontext.Pointer, flattened bool) ir.Diagnostic {
-	kept := strings.Join(residue, ", ")
+// (docs/compilers/openapi.md#allof-inline-residue).
+func diagUnmergedBranch(c lowering.Ctx, bs *oas3.Schema, residue []string, e allOfBranch) ir.Diagnostic {
 	if branchExcludesObject(bs) {
-		return c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, bptr,
-			"inline allOf branch declares a type that is not an object, which the composed model asserts it is; the branch (%s) is kept verbatim under Unmodeled", kept)
+		return c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, e.pointer,
+			"inline allOf branch declares a type that is not an object, which the composed model asserts it is; the branch (%s) is kept verbatim under Unmodeled", strings.Join(residue, ", "))
 	}
-	composes := "its properties and required list compose"
-	if flattened {
-		composes = "its properties, required list and nested allOf compose"
+	return c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, e.pointer, "%s", unmergedWhy(residue, e))
+}
+
+// unmergedWhy words why a branch with residue is kept. A flattened branch's
+// nested allOf composes too. A capped one is kept for its depth, not for allOf
+// being a keyword the merge declines, so allOf is left out of the keywords it
+// lists.
+func unmergedWhy(residue []string, e allOfBranch) string {
+	const keptTail = " is kept verbatim under Unmodeled"
+	switch {
+	case e.wrapper:
+		return "inline allOf branch is merged in place, so only its properties, required list and nested allOf compose; the branch (" +
+			strings.Join(residue, ", ") + ")" + keptTail
+	case e.capped:
+		rest := slices.DeleteFunc(slices.Clone(residue), func(k string) bool { return k == "allOf" })
+		why := "inline allOf branch is nested past the flattening depth of " + strconv.Itoa(maxAllOfFlattenDepth) +
+			", so its own allOf was not flattened; only its properties and required list compose, and the branch"
+		if len(rest) > 0 {
+			why += " (" + strings.Join(rest, ", ") + ")"
+		}
+		return why + keptTail
+	default:
+		return "inline allOf branch is merged in place, so only its properties and required list compose; the branch (" +
+			strings.Join(residue, ", ") + ")" + keptTail
 	}
-	return c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, bptr,
-		"inline allOf branch is merged in place, so only %s; the branch (%s) is kept verbatim under Unmodeled", composes, kept)
 }
 
 // unmergedBranchKeys returns the keywords the branch declares that the merge does

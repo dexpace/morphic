@@ -805,7 +805,8 @@ func TestResolveMappingTarget_DefsValueNothingInternedIsHoistedAtItsOwnPosition(
 // TestAllOfBranches_DepthCapKeepsWrapperVerbatim pins the bound on flattening: a
 // chain of wrappers as deep as the cap is flattened whole, and one level more
 // leaves the wrapper at the cap verbatim under a key spelling its path, with the
-// ref inside it unclassified and everything above it flattened.
+// ref inside it unclassified and everything above it flattened. The diagnostic
+// blames the depth, not allOf.
 func TestAllOfBranches_DepthCapKeepsWrapperVerbatim(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -841,6 +842,12 @@ func TestAllOfBranches_DepthCapKeepsWrapperVerbatim(t *testing.T) {
 			require.True(t, ok, "the wrapper at the cap is kept under its path; got %v", m.Unmodeled)
 			assert.Equal(t, jsontext.Pointer("/components/schemas/M/"+path), entry.Provenance.Pointer)
 			assert.Len(t, m.Unmodeled, 1)
+			msg := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct,
+				ir.SeverityInfo, "/components/schemas/M/"+path)
+			assert.Contains(t, msg, "nested past the flattening depth of "+strconv.Itoa(maxAllOfFlattenDepth))
+			assert.Contains(t, msg, "was not flattened")
+			assert.NotContains(t, msg, "(allOf", "allOf is not a keyword the merge declines")
+			assert.NotContains(t, msg, "nested allOf compose")
 		})
 	}
 }
@@ -938,4 +945,27 @@ func TestRefBranchTarget_InlineBranchNamesNothing(t *testing.T) {
 	decl, ok := l.ctx.Doc.Components.Schemas.Get("M")
 	require.True(t, ok)
 	assert.Nil(t, refBranchTarget(decl.GetSchema().GetAllOf()[0]))
+}
+
+// TestAllOfBranches_DepthCapNamesWhatElseTheWrapperWrites pins that a wrapper
+// kept at the cap lists the keywords it writes besides allOf, so the message
+// says both why it was kept and what rides along.
+func TestAllOfBranches_DepthCapNamesWhatElseTheWrapperWrites(t *testing.T) {
+	t.Parallel()
+	var b strings.Builder
+	b.WriteString("    A: {type: object, properties: {a: {type: string}}}\n    M:\n      allOf:\n")
+	for i := range maxAllOfFlattenDepth {
+		b.WriteString(strings.Repeat("  ", i) + "        - allOf:\n")
+	}
+	pad := strings.Repeat("  ", maxAllOfFlattenDepth)
+	b.WriteString(pad + "        - description: Capped\n" + pad + "          allOf:\n" +
+		pad + "            - {$ref: '#/components/schemas/A'}\n")
+
+	_, diags := lowerSpec(t, openapitest.ComponentSpec(b.String()))
+	openapitest.RequireNoErrorDiags(t, diags)
+	path := strings.TrimSuffix(strings.Repeat("allOf/0/", maxAllOfFlattenDepth+1), "/")
+	msg := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct,
+		ir.SeverityInfo, "/components/schemas/M/"+path)
+	assert.Contains(t, msg, "was not flattened")
+	assert.Contains(t, msg, "the branch (description) is kept verbatim")
 }
