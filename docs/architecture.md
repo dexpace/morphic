@@ -225,7 +225,7 @@ converged on independently:
 
 1. **Plan** — compute language-*neutral* per-operation and per-type decisions once
    (is-paginated, error taxonomy, primary-content/response selection, return-shape
-   classification (model / void / list-of-models with elementwise deserialization), pagination
+   classification (a success body read as a value / void / raw bytes / a stream), pagination
    item-type unwrap) so templates contain no policy. This list is the decision set oagen's
    emitters demonstrably needed, computed once and shared across all languages, less two kinds of
    entry (emitter-design.md §3.6): what the IR already states, such as body presence and

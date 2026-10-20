@@ -431,8 +431,9 @@ the word sequence §3.2 derives from it, at every position that spells one — `
 `operationId`, a parameter, response-header or property name, a component schema or security scheme
 key, an enum member's value as text, a 3.2 server `name`, and under `grouping=path-prefix` a first
 path segment. A name with no letter or digit (`***`, `>=`) keeps its `Source` and has no
-`Canonical`. A name spelled as the empty string is minted `Hint: "empty"` and no `Source` rather
-than passed through (an `operationId` of `""` is read as absent instead,
+`Canonical`; an emitter spells it from its symbols (emitter-design §4.12). A name spelled as the
+empty string is minted `Hint: "empty"` and no `Source` rather than passed through (an `operationId`
+of `""` is read as absent instead,
 [`operation-ids`](#operation-ids)), and a property's wire name stays `""`. A component schema keyed
 `""` earns no named `TypeID`: it hoists anonymously at its own pointer
 (`t/anon/components/schemas/`) with that hint. An entity the document gives no name — an inline
@@ -445,11 +446,10 @@ neutralized first so an empty parent gives `empty_item`, never `_item`. `Aliases
 - Tests: `ids.TestComponentSchemaNamedEmpty_SeparatesAnEmptyNameFromNoEntry`,
   `schema.TestEnumMemberIDs_NamesThatCanonicalizeToNothingStillGetIDs`,
   `schema.TestInlinePosition_HintIsTheSameInBothOrders`
-- Status: partly built: a name with no letter or digit reaches an emitter with neither `Canonical`
-  nor `Hint`, which #956 tracks for an enum member; union variants and inline schemas ignore their
-  `title` as a hint (#662); a union variant naming a position in a path's body takes the pointer's
-  name (#729); and a `$ref` into a component request body or header names the subtree beneath its
-  target by the reference (#747).
+- Status: partly built: union variants and inline schemas ignore their `title` as a hint (#662); a
+  union variant naming a position in a path's body takes the pointer's name (#729); and a `$ref`
+  into a component request body or header names the subtree beneath its target by the reference
+  (#747).
 
 ### `values`
 
