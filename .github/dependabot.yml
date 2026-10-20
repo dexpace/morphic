@@ -1,0 +1,54 @@
+# Weekly version updates for the Go modules and the gate workflow's actions.
+# The repository settings also turn on security updates, which open a pull
+# request for each vulnerable module, direct or indirect. They take the labels
+# and commit prefix below, but not the cooldown or the allow rule.
+#
+# Not covered, so moved by hand: the go directive in go.mod and the Makefile's
+# GOLANGCI_LINT_VERSION, which move together for the reasons the Makefile gives.
+# A module whose new release needs a newer Go raises the directive on its own,
+# and its pull request may need the rest of that move before the gate passes.
+#
+# Pull request titles are the squashed commit subjects. One naming a single
+# module often passes 72 characters once GitHub appends the number; shorten it
+# when merging.
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+    # A release waits a week before it is proposed, since a compromised one is
+    # usually caught and pulled within days. Security updates do not wait.
+    cooldown:
+      default-days: 7
+    # Dependabot's default, written down because a hold depends on it. An
+    # indirect module moves only when a direct one's go.mod requires it, and
+    # go-yit is held below the release that breaks the build (#798).
+    allow:
+      - dependency-type: direct
+    # Only this label, instead of the default pair: the per-ecosystem one would
+    # be added to the repository's hand-kept label set.
+    labels: [dependencies]
+    commit-message:
+      prefix: build
+    groups:
+      # The parser library stays out because its update is red until every
+      # entry in docs/parser-library.md is read again at the new version. A
+      # major update stays out too, so each arrives in a pull request of its own.
+      go:
+        patterns: ['*']
+        exclude-patterns: [github.com/speakeasy-api/openapi]
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    labels: [dependencies]
+    commit-message:
+      prefix: ci
+    groups:
+      actions:
+        patterns: ['*']
