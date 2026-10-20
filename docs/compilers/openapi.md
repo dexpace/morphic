@@ -911,8 +911,10 @@ cannot state "conjoined with a union", and §15 records why none was added. Targ
 the constraint here; TypeScript writes `{a: string} & (X | Y)` directly. Where the conjunction
 *distributes*, §4.3 gives the rule: the body is composed into each variant, and the result is an
 ordinary `Union` of composed `Model`s, reported as an info `openapi/composition-lowering` at the
-schema, since nothing is lost but the IR's shape no longer mirrors the source's. Five shapes
-distribution cannot reach:
+schema, since nothing is lost but the IR's shape no longer mirrors the source's, bar one thing: a
+`false` in the `allOf` states that the composition admits nothing, which every composed variant
+then holds only as the closed model [`allof-false-branch`](#allof-false-branch) gives it, with the
+branch kept on each. Five shapes distribution cannot reach:
 
 1. the structural body is not a `Model` (a `const`, an `enum`, a scalar, or a bare
    `required`/`items`/`prefixItems`/`additionalProperties`/`patternProperties` with neither
