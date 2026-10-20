@@ -179,7 +179,7 @@
         }
       ],
       "exclusive": true,
-      "wireTagged": false,
+      "wireTagged": true,
       "discriminator": {
         "propertyName": "petType",
         "mapping": {

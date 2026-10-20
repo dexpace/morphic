@@ -4,18 +4,16 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// checkUnions asserts every union in the type registry declares at least one
-// variant (ir-design §4.4). A union of none is a type no value inhabits and no
-// source format can express, so one in the IR came from a lowering that dropped
-// every variant it meant to add: a Violation, not an ir.Diagnostic.
+// checkUnions asserts every union in the type registry has a variant and is
+// in a tag mode ir-design §4.4 defines. A union of none is a type no value
+// inhabits, so a lowering dropped every variant it meant to add; one carrying a
+// Discriminator without WireTagged reads under §4.4 as untagged, so a consumer
+// ignores its tag. Both are a lowering's defects: a Violation, not an
+// ir.Diagnostic.
 //
-// Two shapes are not reported, since the compiler produces both from valid
-// documents:
-//
-//   - One variant: `oneOf: [{$ref: X}]` lowers to it, and invariant #2 forbids
-//     collapsing it.
-//   - Two variants naming one target: degenerate rather than impossible, a
-//     pass.Validate matter at most.
+// Two shapes pass, since valid documents produce them: one variant, which
+// `oneOf: [{$ref: X}]` lowers to and invariant #2 keeps; and two variants
+// naming one target, degenerate rather than impossible.
 func checkUnions(doc *ir.Document) []Violation {
 	var vs []Violation
 	for id, td := range doc.Types {
@@ -23,14 +21,24 @@ func checkUnions(doc *ir.Document) []Violation {
 			continue // checkRegistryKeys reports the nil entry itself
 		}
 		u, isUnion := td.(*ir.Union)
-		if !isUnion || len(u.Variants) > 0 {
+		if !isUnion {
 			continue
 		}
-		vs = append(vs, Violation{
-			Code:    "ir/union-no-variants",
-			Message: "union declares no variants, so no value inhabits it",
-			Path:    "types[" + string(id) + "]",
-		})
+		path := "types[" + string(id) + "]"
+		if len(u.Variants) == 0 {
+			vs = append(vs, Violation{
+				Code:    "ir/union-no-variants",
+				Message: "union declares no variants, so no value inhabits it",
+				Path:    path,
+			})
+		}
+		if u.Discriminator != nil && !u.WireTagged {
+			vs = append(vs, Violation{
+				Code:    "ir/union-discriminator-untagged",
+				Message: "union carries a discriminator but is not WireTagged, a tag mode ir-design §4.4 does not define",
+				Path:    path,
+			})
+		}
 	}
 	return vs
 }
