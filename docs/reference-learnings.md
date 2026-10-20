@@ -135,7 +135,9 @@ in IR. Add oagen's two plan predicates Morphic's §2.3 list omits: **`pathParams
 (positional-vs-options-bag: `pathParams>1 || (pathParams>0 && (hasBody||hasQuery))`) and
 **`isArrayResponse`** (unpaginated array→`Model[]` + elementwise decode, distinct from the pagination
 wrapper). Streaming stays on the operation core (`StreamDetail`/`Variant.Event`) — Kiota's lack of any
-streaming concept is the counterexample.
+streaming concept is the counterexample. *Superseded in part:* `pathParamsInOptions` is not a plan
+predicate — how a target passes its inputs varies by language, so emitter-design §3.6 makes the shape
+each target's (§4.13) — and `isArrayResponse` is the plan's `ReturnShape`.
 
 ## A6. Naming / casing / reserved words: neutral in IR, rendered in refine — STRONGLY CONFIRMS #3/#4
 

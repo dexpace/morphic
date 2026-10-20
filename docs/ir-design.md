@@ -440,8 +440,11 @@ type Naming struct {
 ```
 
 `Canonical` is a cleaned word sequence, not a cased identifier — emitters apply casing, acronym
-policy, and reserved-word escaping. Anonymous (hoisted) types have empty `Source` and a `Hint`;
-whether a emitter inlines them or names them is its choice.
+policy, and reserved-word escaping. An emitter may read `Source` to recover the letter case of the
+words `Canonical` fixes (`iOS` in `iOSVersion`), segmenting it with this section's grammar rather
+than one of its own, and never to find where a word ends (emitter-design §4.12). Anonymous
+(hoisted) types have empty `Source` and a `Hint`; whether a emitter inlines them or names them is
+its choice.
 
 **`Hint` is the same word sequence in the same grammar.** It is not a presentation affordance
 sitting outside the neutrality rule: a hoisted type has no other name, so `Hint` is exactly what an
@@ -2046,6 +2049,12 @@ is a decision (§15's list, which exists precisely so those constructs are never
 oversights). A promotion pass mining the IR for its next typed node reads `no_ir_home` and must
 skip `out_of_scope`; nothing about the key or the value distinguishes them, which is the whole
 reason `Reason` is data rather than a comment.
+
+**Reporting a kept construct is the compiler's.** It is the stage that chose to keep the construct
+rather than model it, so its specification (§14) states, for every construct it keeps under a reason
+other than `vendor_extension`, the diagnostic the construct draws, or that it draws none.
+`Document.Diagnostics` carries those reports to every consumer, and an emitter acts on an entry's
+`Reason` without reporting it again (emitter-design §4.14).
 
 Sorting entries into *typed* buckets instead was considered and rejected: the defining property
 of an entry is that it is unmodeled, so anything with enough known semantics to be sorted into a

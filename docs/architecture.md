@@ -225,11 +225,13 @@ except for the boundary they impose on the IR; the internal shape mirrors what K
 converged on independently:
 
 1. **Plan** — compute language-*neutral* per-operation and per-type decisions once
-   (is-paginated, body presence, idempotency, error taxonomy, primary-content/response
-   selection, return-shape classification (model / void / list-of-models with elementwise
-   deserialization), pagination item-type unwrap, parameter-passing shape (positional vs
-   options-bag)) so templates contain no policy. This list is the decision set oagen's
-   emitters demonstrably needed, computed once and shared across all languages.
+   (is-paginated, error taxonomy, primary-content/response selection, return-shape
+   classification (model / void / list-of-models with elementwise deserialization), pagination
+   item-type unwrap) so templates contain no policy. This list is the decision set oagen's
+   emitters demonstrably needed, computed once and shared across all languages, less two kinds of
+   entry (emitter-design.md §3.6): what the IR already states, such as body presence and
+   idempotency, which a refiner reads there; and what varies by language, such as oagen's
+   parameter-passing shape (positional vs inside an options object), which is each target's.
 2. **Refine** — per-language lowering: reserved words, casing, union representation strategy
    (native union vs sealed interface vs wrapper class), enum strategy for open enums, interface
    extraction. Everything a refiner needs must exist un-lowered in the IR — this is the IR's
@@ -444,8 +446,9 @@ something a caller asks for with `none`, never a default.
 1. **IR + OpenAPI 3.x compiler** — `ir` package, validate pass, golden corpus, JSON round-trip.
 2. **Swagger 2.0 lift** — normalization into the OpenAPI compiler; proves the
    format-version-normalization seam.
-3. **First emitter** — one language end-to-end; proves the plan/refine/emit boundary and that the
-   IR retains everything a refiner needs.
+3. **First emitters** — Go, Kotlin/JVM and Kotlin Multiplatform end-to-end from one plan; proves the
+   plan/refine/emit boundary, the plan's neutrality across three targets, and that the IR retains
+   everything a refiner needs (emitter-design.md §14).
 4. **Second family compiler (TypeSpec or Smithy)** — proves the spec-agnostic claim: richer-than-
    OpenAPI concepts (interfaces, custom scalars, lifecycle visibility, declared pagination) flow
    through untouched IR code.
