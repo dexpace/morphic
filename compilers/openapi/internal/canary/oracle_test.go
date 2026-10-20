@@ -90,8 +90,9 @@ const (
 // oracleReasons are the reasons a disagreement may give, each saying which
 // side reads the reference otherwise, and what decides it.
 var oracleReasons = map[string]string{
-	"loop": "the library overflows its stack on a loop of $refs, or answers a $ref into one with nothing " +
-		"and no error (docs/parser-library.md#schema-cycle-overflow); the compiler reports the loop",
+	"loop": "the library overflows its stack on a loop of $refs, reports a $ref into one unresolved, or " +
+		"answers it with nothing and no error (docs/parser-library.md#schema-cycle-overflow); the compiler " +
+		"reports the loop",
 	"defs-rule": `the library finds a "#/$defs/..." definition by a rule of its own, from the schema a ` +
 		"resolution before carried it to, and not from the ancestors of the position it is written at " +
 		"(docs/parser-library.md#defs-order); the compiler reads it by the $defs rule " +

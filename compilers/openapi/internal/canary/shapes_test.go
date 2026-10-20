@@ -78,6 +78,9 @@ func loopShapes() []oracleShape {
 			ref("B", component("A")+"/allOf/0")}},
 		{name: "loop/through-own-schema", schemas: []string{"A: {$ref: '" + component("A") + "/properties/p', " +
 			"properties: {p: {$ref: '" + component("A") + "'}}}"}},
+		{name: "loop/re-entering", schemas: []string{ref("S0", component("S1")+"/u"),
+			"S1: {$ref: '" + component("S1") + "/u', u: {$ref: '" + component("S1") + "/u/u/u', u: {$ref: '" +
+				component("S1") + "/u', u: {$ref: '" + component("S0") + "'}}}}"}},
 		{name: "loop/raw", schemas: []string{ref("A", "#/x-lib/S")},
 			tail: "x-lib:\n  S: {$ref: '#/x-lib/T'}\n  T: {$ref: '#/x-lib/S'}\n"},
 		{name: "loop/root-defs", schemas: []string{ref("A", "#/$defs/X")}, tail: "$defs:\n  X: {$ref: '" + component("A") + "'}\n"},
@@ -137,6 +140,8 @@ func spellingShapes() []oracleShape {
 		{name: "spelling/plus", schemas: []string{"'a+b': {type: string}", ref("A", component("a+b"))}},
 		{name: "spelling/trailing-slash", schemas: []string{ref("A", component("B")+"/"), "B: {type: string}"}},
 		{name: "spelling/empty-key", schemas: []string{ref("A", component("B")+"/"), "B: {'': {type: integer}, type: string}"}},
+		{name: "spelling/empty-property", schemas: []string{"A: {$ref: '" + component("A") + "/properties/', " +
+			"properties: {'': {$ref: '" + component("A") + "'}}}"}},
 		{name: "spelling/trailing-space", schemas: []string{ref("A", component("B")+" "), "B: {type: string}"}},
 		{name: "spelling/bad-escape", schemas: []string{ref("A", component("a~2b")), "'a~2b': {type: string}"}},
 		{name: "spelling/percent-encoded-defs", schemas: []string{ref("A", component("H")+"/%24defs/X"),

@@ -273,12 +273,15 @@ chain of references that closes on itself is [`reference-cycles`](#reference-cyc
 - Codes: `openapi/unresolved-ref`, `openapi/budget-exceeded`, `openapi/degraded-construct`
 - Tests: `openapi.TestCompile_ExternalFileRefIsNotReadByDefault`,
   `openapi.TestExternalContent_ASchemaRefPastARefNamesItsContent`,
+  `openapi.TestExternalContent_ASourcePositionItNamesByFileResolvesInEitherOrder`,
   `openapi.TestCompile_SchemaEmptyPointerSegmentIsUnresolved`,
   `load.TestLoad_ARootDefinitionResolvesAsTheResolverReadsIt`,
   `load.TestLoad_ARootDefinitionAnswersBeforeASchemasOwn`,
   `bind.TestBind_ReadsEachHop`, `bind.TestBind_ReadsADefinitionByTheDefsRule`,
   `bind.TestBind_ReadsEachPositionAsTheJSONItSpells`, `bind.TestBind_ReadsARepeatedKeyAsItsLast`,
-  `bind.TestBind_StopsAtItsBudget`, `bind.TestTable_SaysWhyARefWentUnread`,
+  `bind.TestBind_StopsAtItsBudget`, `bind.TestBind_CountsWorkLinearInTheDocument`,
+  `bind.TestBind_ReadsEveryWebhookAsAPathItem`,
+  `bind.TestTable_SaysWhyARefWentUnread`,
   `bind.TestBind_SaysAKeyMayLiePastTheMergeBound`,
   `bind.TestBind_TakesNoDefinitionPastAReadTheMergeBoundStopped`,
   `canary.TestBindingOracle_AgreesWithTheLibrary`
@@ -315,6 +318,7 @@ cycle ([`recursion`](#recursion)). An alias scan that aborts on a fault of its o
   `openapi.TestCompile_AliasCycleIsRefused`, `load.TestLoad_ADegenerateCycleLoadsAndIsReportedOnce`,
   `openapi.TestCompile_ALoopThroughAnotherDocumentIsReportedOnce`,
   `load.TestBindingDiags_NamesALoopsMembersByTheirDocument`,
+  `bind.TestBind_ReportsALoopOfDefinitionsAtItsLeastMember`,
   `openapi.TestCompile_MergeChainPastBoundStillCompiles`, `bind.TestBind_AnswersAlikeInEitherOrder`
 - Status: partly built: a cycle of component Reference Objects is reported at the root rather than at
   a reference of the cycle (#580), and a reference object on a failing chain is reported only where
@@ -1034,7 +1038,8 @@ written with structure is [`union-beside-structure`](#union-beside-structure)'s.
   `discriminator-alias-mapping`, `nullable-union-discriminator`
 - Codes: `openapi/degraded-construct`, `openapi/unresolved-ref`
 - Tests: `schema.TestHomelessDiscriminator_IsKeptBesideEveryOtherNode`,
-  `schema.TestUnplacedDiscriminator_IsKeptAtEveryUnionSite`
+  `schema.TestUnplacedDiscriminator_IsKeptAtEveryUnionSite`,
+  `openapi.TestMappingTargets_ADiscriminatorAReferenceReachesIsBoundWhereItSits`
 - Status: partly built: an empty `propertyName` lowers to IR that `irverify` refuses (#882); a
   mapping to a component that is a `$ref` to a subtype fails validation (#844), a keyword beside a
   union branch's `$ref` breaks a mapping to its component (#847), and a mapping to a property whose

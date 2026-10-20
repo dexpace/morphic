@@ -343,3 +343,35 @@ func TestMappingTargets_ARawPositionACopyReachesResolvesInEitherOrder(t *testing
 		})
 	}
 }
+
+// TestMappingTargets_ADiscriminatorAReferenceReachesIsBoundWhereItSits pins a
+// discriminator inside a path item or a callback that a reference reaches: its
+// mapping is bound at the discriminator's own position under the object the
+// reference names, where the lowering looks it up, so the entry names T and
+// nothing reports it unresolved. A position read with an empty segment before
+// the method or the expression matched no lookup (GitHub #886).
+func TestMappingTargets_ADiscriminatorAReferenceReachesIsBoundWhereItSits(t *testing.T) {
+	t.Parallel()
+	response := "{description: x, content: {application/json: {schema: " + namesT + "}}}"
+	for _, c := range []readCase{
+		{name: "a path item a path's $ref reaches", paths: "  /a: {$ref: '#/x-lib/I'}",
+			lib: "  I: {get: {responses: {'200': " + response + "}}}\n"},
+		{name: "a callback an operation's $ref reaches", paths: "  /a: {post: {responses: {'200': {description: ok}}, " +
+			"callbacks: {c: {$ref: '#/x-lib/C'}}}}", lib: "  C: {'{$url}': {post: {responses: {'200': " + response + "}}}}\n"},
+	} {
+		doc, diags, err := openapi.New().Compile(t.Context(),
+			[]compilers.Source{{Path: "spec.yaml", Data: []byte(c.doc())}}, compilers.Options{})
+		require.NoError(t, err, c.name)
+		require.NotNil(t, doc, c.name)
+		var mapped []ir.TypeID
+		for _, def := range doc.Types {
+			if m, ok := def.(*ir.Model); ok && m.Discriminator != nil {
+				mapped = append(mapped, m.Discriminator.Mapping["x"])
+			}
+		}
+		assert.Equal(t, []ir.TypeID{"t/anon/x-lib/T"}, mapped, c.name)
+		for _, d := range diags {
+			assert.NotEqual(t, "openapi/unresolved-ref", d.Code, "%s: %+v", c.name, d)
+		}
+	}
+}

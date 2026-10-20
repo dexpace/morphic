@@ -44,6 +44,8 @@ shape/loop/through-own-schema	/components/schemas/A	cyclic	overflowed	loop
 shape/loop/through-own-schema	/components/schemas/A/properties/p	cyclic	overflowed	loop
 shape/loop/through-own-schema/reversed	/components/schemas/A	cyclic	overflowed	loop
 shape/loop/through-own-schema/reversed	/components/schemas/A/properties/p	cyclic	overflowed	loop
+shape/loop/re-entering	/components/schemas/S0	cyclic	overflowed	loop
+shape/loop/re-entering/reversed	/components/schemas/S0	cyclic	unresolved	loop
 shape/loop/root-defs	/components/schemas/A	cyclic	overflowed	loop
 shape/loop/root-defs/reversed	/components/schemas/A	cyclic	overflowed	loop
 shape/loop/parameter-schema	/components/schemas/A	cyclic	overflowed	loop
@@ -64,6 +66,10 @@ shape/spelling/plus	/components/schemas/A	resolved	unresolved	plus
 shape/spelling/plus/reversed	/components/schemas/A	resolved	unresolved	plus
 shape/spelling/empty-key	/components/schemas/A	resolved	unresolved	empty-token
 shape/spelling/empty-key/reversed	/components/schemas/A	resolved	unresolved	empty-token
+shape/spelling/empty-property	/components/schemas/A	cyclic	overflowed	loop
+shape/spelling/empty-property	/components/schemas/A/properties/	cyclic	overflowed	loop
+shape/spelling/empty-property/reversed	/components/schemas/A	cyclic	overflowed	loop
+shape/spelling/empty-property/reversed	/components/schemas/A/properties/	cyclic	overflowed	loop
 shape/target/anchor-in-its-schema	/components/schemas/A/properties/p	unresolved	resolved	anchor-id
 shape/target/anchor-in-its-schema/reversed	/components/schemas/A/properties/p	unresolved	resolved	anchor-id
 shape/yaml/alias-loop	/components/schemas/B	cyclic	unresolved	loop

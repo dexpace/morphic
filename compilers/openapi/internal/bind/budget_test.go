@@ -93,6 +93,59 @@ func deepMerge() string {
 	return b.String()
 }
 
+// TestBind_CountsWorkLinearInTheDocument pins what binding costs, counted in
+// steps rather than time: twice a shape's $refs cost about twice the work. A
+// reading that followed each chain from every start that enters it (GitHub
+// #903, #923), or matched each schema's own definitions against the others'
+// (GitHub #753), grew with the square. A loop longer than the cap a hop count
+// once had (GitHub #922) is found whole, at its least member.
+func TestBind_CountsWorkLinearInTheDocument(t *testing.T) {
+	t.Parallel()
+	ref := func(name string, i int) string {
+		return fmt.Sprintf("{$ref: '#/components/schemas/%s%d'}", name, i)
+	}
+	shapes := map[string]func(b *strings.Builder, n int){
+		"a chain": func(b *strings.Builder, n int) {
+			for i := range n {
+				fmt.Fprintf(b, "    C%d: %s\n", i, ref("C", i+1))
+			}
+			fmt.Fprintf(b, "    C%d: {type: string}\n", n)
+		},
+		"one chain every other $ref enters": func(b *strings.Builder, n int) {
+			for i := range n / 2 {
+				fmt.Fprintf(b, "    C%d: %s\n    F%d: %s\n", i, ref("C", i+1), i, ref("C", 0))
+			}
+			fmt.Fprintf(b, "    C%d: {type: string}\n", n/2)
+		},
+		"a loop": func(b *strings.Builder, n int) {
+			for i := range n {
+				fmt.Fprintf(b, "    C%d: %s\n", i, ref("C", (i+1)%n))
+			}
+		},
+		"definitions of their own": func(b *strings.Builder, n int) {
+			for i := range n {
+				fmt.Fprintf(b, "    S%d: {$defs: {k%d: {}}, properties: {p: {$ref: '#/$defs/k%d'}}}\n", i, i, i)
+			}
+		},
+	}
+	for name, shape := range shapes {
+		steps := func(n int) int {
+			var b strings.Builder
+			b.WriteString(head + "components:\n  schemas:\n")
+			shape(&b, n)
+			table := bound(t, b.String(), self)
+			require.False(t, table.Exhausted(), name)
+			if name == "a loop" {
+				require.Len(t, table.Loops(), 1, "the loop is found whole")
+				assert.Equal(t, at("/components/schemas/C0"), table.Loops()[0].Site)
+			}
+			return table.Steps()
+		}
+		short, long := steps(6_000), steps(12_000)
+		assert.Less(t, long, 5*short/2, "%s: twice the $refs, about twice the work", name)
+	}
+}
+
 // TestTable_SaysWhyARefWentUnread pins Unread: none for a table that read
 // everything, the budget for one it stopped, and the merge bound for one a
 // merge past it hid a $ref from, whose site is missing while the shallow

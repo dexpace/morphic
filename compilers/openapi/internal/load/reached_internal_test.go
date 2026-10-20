@@ -709,9 +709,9 @@ func TestResolve_ValidatesWhatAnExternalReferenceReaches(t *testing.T) {
 // checked: raw YAML, such as an extension's value. It is validated as an object
 // in another document is, whether the $ref is the source's own or comes back
 // into it from another document (GitHub #759), and its finding is placed at the
-// node it is about (GitHub #879). A node of the grammar a schema $ref names is
-// not read as a schema, so it is reported unresolved and nothing in it is
-// validated as one.
+// node it is about (GitHub #879). A node of the grammar a schema $ref names, or
+// raw YAML that is no schema, is not read as a schema, so it is reported
+// unresolved, once (GitHub #769), and nothing in it is validated as one.
 func TestResolve_WhatTheSourcesValidationNeverCheckedIsValidated(t *testing.T) {
 	t.Parallel()
 	const header = "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\n"
@@ -750,6 +750,15 @@ components:
   responses:
     R: {description: ok, minLength: -1}
 `, []string{"/components/schemas/S openapi/unresolved-ref"}},
+		{"raw YAML holding no schema", nil, header + `paths: {}
+components:
+  schemas:
+    A: {$ref: '#/x-lib/S'}
+    B: {$ref: '#/x-lib/N'}
+x-lib:
+  S: just a string
+  N: null
+`, []string{"/components/schemas/A openapi/unresolved-ref", "/components/schemas/B openapi/unresolved-ref"}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()

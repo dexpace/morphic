@@ -520,8 +520,9 @@ func TestExternalContent_ARefNamingTheSourceNamesIt(t *testing.T) {
 // document's content does, its document part joined onto the source's
 // directory (see TestExternalContent_ARefNamingTheSourceNamesIt). Spelled
 // through the current directory, its parent, or a directory and back, or by
-// its absolute path however unclean, it names the source's own Thing. One in a
-// directory of its own names a file there, and so does a file beside it.
+// its absolute path however unclean, it names the source's own Thing, whether
+// or not external references are allowed, as it names no other document. One
+// in a directory of its own names a file there, and so does a file beside it.
 func TestExternalContent_ARefInTheSourceNamingItNamesIt(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
@@ -539,28 +540,30 @@ func TestExternalContent_ARefInTheSourceNamingItNamesIt(t *testing.T) {
 		{"in a directory of its own", "sub/root.yaml", false},
 		{"another file beside it", "other.yaml", false},
 	} {
-		t.Run(c.name, func(t *testing.T) {
-			t.Parallel()
-			root := foreignRoot("  /op:\n    get:\n      operationId: op\n      responses:\n        \"200\":\n" +
-				"          description: ok\n" +
-				"          content: {application/json: {schema: {$ref: '" + c.ref + "#/components/schemas/Thing'}}}\n")
-			doc, diags, err := openapi.New().Compile(t.Context(),
-				[]compilers.Source{{Path: filepath.Join(dir, "root.yaml"), Data: []byte(root)}},
-				compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: true}})
-			require.NoError(t, err)
+		for _, allow := range []bool{true, false} {
+			t.Run(fmt.Sprintf("%s/allow-external-refs=%t", c.name, allow), func(t *testing.T) {
+				t.Parallel()
+				root := foreignRoot("  /op:\n    get:\n      operationId: op\n      responses:\n        \"200\":\n" +
+					"          description: ok\n" +
+					"          content: {application/json: {schema: {$ref: '" + c.ref + "#/components/schemas/Thing'}}}\n")
+				doc, diags, err := openapi.New().Compile(t.Context(),
+					[]compilers.Source{{Path: filepath.Join(dir, "root.yaml"), Data: []byte(root)}},
+					compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: allow}})
+				require.NoError(t, err)
 
-			if !c.names {
-				assert.True(t, slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {
-					return d.Code == "openapi/unresolved-ref" && d.Provenance.Pointer == pointer
-				}), "the $ref names a file that is not the source: %v", diags)
-				return
-			}
-			openapitest.RequireNoErrorDiags(t, diags)
-			op, ok := opByName(doc, "op")
-			require.True(t, ok)
-			require.Len(t, op.Responses, 1)
-			assert.Equal(t, ir.TypeID("t/openapi/components/schemas/Thing"), openapitest.BodyTarget(t, op.Responses[0].Payload))
-		})
+				if !c.names {
+					assert.True(t, slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {
+						return d.Code == "openapi/unresolved-ref" && d.Provenance.Pointer == pointer
+					}), "the $ref names a file that is not the source: %v", diags)
+					return
+				}
+				openapitest.RequireNoErrorDiags(t, diags)
+				op, ok := opByName(doc, "op")
+				require.True(t, ok)
+				require.Len(t, op.Responses, 1)
+				assert.Equal(t, ir.TypeID("t/openapi/components/schemas/Thing"), openapitest.BodyTarget(t, op.Responses[0].Payload))
+			})
+		}
 	}
 }
 
@@ -595,5 +598,86 @@ func TestExternalContent_AnAliasedRefNamingTheSourceKeepsWhatItNames(t *testing.
 			require.True(t, ok)
 			assert.Len(t, op.Responses, 1, "the response the path item's $ref names")
 		})
+	}
+}
+
+// TestExternalContent_ASourcePositionItNamesByFileResolvesInEitherOrder pins
+// two positions in the source that another document's content names by the
+// source's file name: raw YAML a discriminator mapping value names (GitHub
+// #765), and a response schema under /paths a schema $ref names (GitHub #766).
+// Each resolved only where the source's own path item lowered it first, and
+// was reported unresolved otherwise; bound by position, each resolves in
+// either declaration order, to the same document.
+func TestExternalContent_ASourcePositionItNamesByFileResolvesInEitherOrder(t *testing.T) {
+	t.Parallel()
+	const schema = "/get/responses/200/content/application~1json/schema"
+	tests := []struct {
+		name, ext, tail string
+		paths           []string
+		check           func(t *testing.T, doc *ir.Document)
+	}{
+		{"a mapping value naming raw YAML", `paths:
+  /b:
+    get:
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: {kind: {type: string}}
+                discriminator: {propertyName: kind, mapping: {cat: 'root.yaml#/x-lib/Cat'}}
+`, "x-lib:\n  Cat: {type: object, properties: {meow: {type: string}}}\n", []string{
+			"  /b: {$ref: './ext.yaml#/paths/~1b'}\n",
+			"  /a:\n    get:\n      responses:\n        \"200\":\n          description: ok\n" +
+				"          content: {application/json: {schema: {$ref: '#/x-lib/Cat'}}}\n",
+		}, func(t *testing.T, doc *ir.Document) {
+			model, ok := doc.Types[ir.TypeID("t/anon/paths/~1b"+schema)].(*ir.Model)
+			require.True(t, ok, "the mapping's schema is lowered as a model")
+			require.NotNil(t, model.Discriminator)
+			assert.Equal(t, map[string]ir.TypeID{"cat": "t/anon/x-lib/Cat"}, model.Discriminator.Mapping)
+		}},
+		{"a schema $ref naming a response schema", `openapi: 3.1.0
+info: {title: E, version: "1"}
+paths:
+  /x:
+    get:
+      responses:
+        "200":
+          description: ok
+          content: {application/json: {schema: {$ref: 'root.yaml#/paths/~1b` + schema + `'}}}
+`, "components:\n  schemas:\n    Thing: {type: object}\n", []string{
+			"  /a: {$ref: './ext.yaml#/paths/~1x'}\n",
+			"  /b:\n    get:\n      responses:\n        \"200\":\n          description: ok\n" +
+				"          content: {application/json: {schema: {type: object, properties: {t: {$ref: '#/components/schemas/Thing'}}}}}\n",
+		}, func(t *testing.T, doc *ir.Document) {
+			got := operationAt(t, doc, "GET", "/a").Responses[0].Payload.Contents[0].Type.Target
+			assert.Equal(t, ir.TypeID("t/anon/paths/~1b"+schema), got, "/a responds with /b's schema")
+		}},
+	}
+	for _, tc := range tests {
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "ext.yaml"), []byte(tc.ext), 0o600))
+		compiled := make([][]string, 0, 2)
+		for _, reversed := range []bool{false, true} {
+			paths := slices.Clone(tc.paths)
+			if reversed {
+				slices.Reverse(paths)
+			}
+			root := "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n" + strings.Join(paths, "") + tc.tail
+			path := filepath.Join(dir, "root.yaml")
+			require.NoError(t, os.WriteFile(path, []byte(root), 0o600))
+			doc, diags, err := openapi.New().Compile(t.Context(), []compilers.Source{{Path: path, Data: []byte(root)}},
+				compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: true}})
+			require.NoError(t, err, tc.name)
+			require.NotNil(t, doc, tc.name)
+			for _, d := range diags {
+				assert.NotEqual(t, "openapi/unresolved-ref", d.Code, "%s, reversed=%t: %+v", tc.name, reversed, d)
+			}
+			tc.check(t, doc)
+			compiled = append(compiled, compiledThrough(t, dir, root))
+		}
+		assert.Empty(t, cmp.Diff(compiled[0], compiled[1]), "%s: declaration order decided what it names", tc.name)
 	}
 }

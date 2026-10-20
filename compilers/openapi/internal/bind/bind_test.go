@@ -216,6 +216,21 @@ func TestBind_ReadsEachPositionAsTheJSONItSpells(t *testing.T) {
 	}
 }
 
+// TestBind_ReadsEveryWebhookAsAPathItem pins that the webhooks map holds a path
+// item under any name, so a schema $ref in one is read: one named like an
+// extension or like a keyword holding raw YAML elsewhere too, since a map of
+// the model takes no extensions (GitHub #949).
+func TestBind_ReadsEveryWebhookAsAPathItem(t *testing.T) {
+	t.Parallel()
+	const op = "{post: {requestBody: {content: {a/b: {schema: {$ref: '#/components/schemas/T'}}}}}}\n"
+	table := bound(t, head+"webhooks:\n  x-h: "+op+"  example: "+op+"  plain: "+op+
+		"components:\n  schemas:\n    T: {type: string}\n", self)
+	for _, name := range []string{"x-h", "example", "plain"} {
+		e := entryAt(t, table, jsontext.Pointer("/webhooks/"+name+"/post/requestBody/content/a~1b/schema"))
+		assert.Equal(t, at("/components/schemas/T"), e.Hop.Target, name)
+	}
+}
+
 // TestBind_ReadsARepeatedKeyAsItsLast pins a key written twice in a mapping,
 // which YAML forbids and the parser reads anyway: it is read as its last
 // occurrence in raw YAML as in the model, so a pointer names one node
@@ -287,6 +302,19 @@ x-lib:
 	assert.Equal(t, bind.Resolved, d.Hop.Status, "D's own hop lands")
 	assert.Equal(t, bind.Chain{Status: bind.Unresolved, Failed: at("/components/schemas/E")}, d.Chain)
 	assert.Equal(t, bind.NoTarget, entryAt(t, table, "/components/schemas/E").Hop.Reason)
+}
+
+// TestBind_ReportsALoopOfDefinitionsAtItsLeastMember pins a loop among one
+// schema's definitions, each closed by the $defs rule: it is reported at its
+// least member whichever definition is written first (GitHub #912).
+func TestBind_ReportsALoopOfDefinitionsAtItsLeastMember(t *testing.T) {
+	t.Parallel()
+	for _, defs := range []string{"{B: {$ref: '#/$defs/A'}, A: {$ref: '#/$defs/B'}}",
+		"{A: {$ref: '#/$defs/B'}, B: {$ref: '#/$defs/A'}}"} {
+		table := bound(t, head+"components:\n  schemas:\n    H: {$defs: "+defs+"}\n", self)
+		require.Len(t, table.Loops(), 1, defs)
+		assert.Equal(t, at("/components/schemas/H/$defs/A"), table.Loops()[0].Site, defs)
+	}
 }
 
 // TestBind_ReportsEachLoopOnceAtItsLeastMember pins the loops a table finds:
