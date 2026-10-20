@@ -819,7 +819,8 @@ composes none.
 - Tests: `schema.TestAllOf_CompositionRequiredAttaches`,
   `schema.TestAllOf_RequiredOnlyBranchNamingBaseOwnedPropertyDiagnosed`,
   `schema.TestAllOf_RequiredOnlyBranchNoBaseOrMixinDiagnosedInfo`,
-  `schema.TestAllOf_NestedWrapperRequiredAttaches`
+  `schema.TestAllOf_NestedWrapperRequiredAttaches`,
+  `schema.TestAllOf_NestedWrapperRequiredAttachesBesideUnion`
 - Status: partly built: the unattached name is reported and kept nowhere, where a map keeps its
   `required` verbatim (#896), and an inherited property a composing schema makes required has no IR
   home (#663).

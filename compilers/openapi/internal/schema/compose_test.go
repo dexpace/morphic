@@ -3925,6 +3925,31 @@ func TestAllOf_NestedWrapperRequiredAttaches(t *testing.T) {
 	})
 }
 
+// TestAllOf_NestedWrapperRequiredAttachesBesideUnion pins that a required two
+// wrappers deep reaches its property in every distributed variant.
+func TestAllOf_NestedWrapperRequiredAttachesBesideUnion(t *testing.T) {
+	t.Parallel()
+	u := `    U:
+      oneOf: [{$ref: '#/components/schemas/P'}, {$ref: '#/components/schemas/Q'}]
+      allOf:
+        - allOf:
+            - type: object
+              properties: {x: {type: string}, y: {type: string}}
+            - allOf:
+                - required: [y]
+`
+	const pq = `    P: {type: object, properties: {p: {type: string}}}
+    Q: {type: object, properties: {q: {type: string}}}
+`
+	for _, doc := range nestedOrders(t, u, nestedAB+pq) {
+		for _, id := range []ir.TypeID{"t/composed/components/schemas/U/oneOf/0", "t/composed/components/schemas/U/oneOf/1"} {
+			model, ok := doc.Types[id].(*ir.Model)
+			require.True(t, ok, "%s should be a model", id)
+			assert.True(t, openapitest.PropsByWire(model.Properties)["y"].Required, id)
+		}
+	}
+}
+
 // TestAllOf_NestedWrapperBaseSelection pins that the classification of
 // docs/compilers/openapi.md#allof-classification runs over the flattened list:
 // a discriminated ref inside a wrapper is the Base, whichever nested order it
