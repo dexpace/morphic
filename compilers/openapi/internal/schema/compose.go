@@ -1201,12 +1201,17 @@ func discriminatorDefault(c lowering.Ctx, ts *compile.Types, anchors *AnchorInde
 // mappingWhy is the reason target, a value of d's mapping, reports when it
 // resolves to no type: why it lands on no schema, that it lands in another
 // document, or why the table never read it, as unresolvedWhy says for a $ref.
+// A value with no '#' names a component, which the table never reads
+// (bind.Table.Mapping), so neither its budget nor the merge bound is why.
 func mappingWhy(c lowering.Ctx, d *oas3.Discriminator, target string) string {
 	m, ok := c.Bindings().Mapping(d, target)
-	if !ok {
-		return unreadWhy(c.Bindings(), d)
+	switch {
+	case ok:
+		return hopWhy(c.Bindings().Table(), m.Hop, m.At)
+	case !strings.Contains(target, "#"):
+		return ""
 	}
-	return hopWhy(c.Bindings().Table(), m.Hop, m.At)
+	return unreadWhy(c.Bindings(), d)
 }
 
 // resolveMappingTarget resolves a mapping target, a mapping entry's or a

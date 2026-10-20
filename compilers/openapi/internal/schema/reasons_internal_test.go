@@ -63,6 +63,28 @@ func TestRefTypeRef_SaysWhyAnUnboundRefIsUnresolved(t *testing.T) {
 		message(t, unplaced, a))
 }
 
+// TestMappingWhy_GivesAComponentNameNoReasonOfTheTable pins that a mapping
+// value naming a component, which the table never reads, takes none of the
+// table's reasons: the merge bound cut a read elsewhere in the document, not
+// the lookup of the name.
+func TestMappingWhy_GivesAComponentNameNoReasonOfTheTable(t *testing.T) {
+	t.Parallel()
+	var deep strings.Builder
+	deep.WriteString("openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\nx-c0: &c0 {$ref: '#/components/schemas/T'}\n")
+	for i := 1; i <= 70; i++ {
+		fmt.Fprintf(&deep, "x-c%d: &c%d {<<: *c%d}\n", i, i, i-1)
+	}
+	deep.WriteString("components:\n  schemas:\n    T: {type: string}\n    A: {<<: *c70}\n" +
+		"    P: {oneOf: [{$ref: '#/components/schemas/T'}], discriminator: {propertyName: k, mapping: {u: Undeclared}}}\n")
+	l, _ := loweredFor(t, deep.String())
+	require.True(t, l.ctx.Bindings().Table().Truncated(), "the merge bound cut a read")
+	p, ok := l.ctx.Doc.Components.GetSchemas().Get("P")
+	require.True(t, ok)
+	d := p.GetSchema().GetDiscriminator()
+	require.NotNil(t, d)
+	assert.Empty(t, mappingWhy(l.ctx, d, "Undeclared"))
+}
+
 // unheldLowerer is a lowerer over bindings that know where A's $ref lands but
 // hold no schema there: only A was recorded.
 func unheldLowerer(t *testing.T) *lowerer {
