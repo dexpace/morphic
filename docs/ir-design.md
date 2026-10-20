@@ -2016,7 +2016,7 @@ type Server struct {
 nothing out: every server in `Document.Servers` serves that service or channel, in the document's
 order, which is how OpenAPI's root `servers` apply to every path and how AsyncAPI reads a channel
 that names none. Order is meaningful, since a consumer that needs one server, an SDK client's
-default among them, takes the first (emitter-design §8.10).
+default among them, takes the first it can use (emitter-design §8.10).
 
 ## 11. Versioning & availability
 
