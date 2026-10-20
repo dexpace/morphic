@@ -1236,14 +1236,15 @@ Additional:"closed" }`.
   {name,email,password}. `Usage` = Input|Output. `Flattened` walks `Base`, `Implements` and
   `Mixins` (none here).
 - **refine.** `ProjectVisibilityShapes` emits `StructType{Name:"User"}` (read) and
-  `StructType{Name:"UserCreate"}` (create). `LowerOptionality`: required-nonnull → value fields,
-  optional → `Pointer`. `RenderCasing` turns `["email"]`→`Email`, keeping `Tag:json:"email"` from
-  `WireName`. `password` (`Secret`) gets a redacting `String()` and is excluded from the read shape.
-  `Additional:"closed"` → the model's `UnmarshalJSONFrom` decodes its members under
-  `json.RejectUnknownMembers(true)`. Every model pins that option for itself, `false` unless
-  closed: a v2 option reaches every value below the call that sets it, so a closed model would
-  otherwise make an open model nested in it strict, and a strict caller would reach a model the
-  spec leaves open. A catch-all (`AdditionalProps`) is the struct's one embedded fallback, a
+  `StructType{Name:"UserCreate"}` (create). `LowerOptionality`: `name`, required and non-null, is a
+  bare `string`, and the optional `id`, `email` and `password` are `Opt[T]` boxes (§4.7), so an
+  absent email stays apart from an empty one. `RenderCasing` turns `["email"]`→`Email`, keeping
+  `Tag:json:"email"` from `WireName`. `password` (`Secret`) gets a redacting `String()` and is
+  excluded from the read shape. `Additional:"closed"` → the model's `UnmarshalJSONFrom` decodes its
+  members under `json.RejectUnknownMembers(true)`. Every model pins that option for itself, `false`
+  unless closed: a v2 option reaches every value below the call that sets it, so a closed model
+  would otherwise make an open model nested in it strict, and a strict caller would reach a model
+  the spec leaves open. A catch-all (`AdditionalProps`) is the struct's one embedded fallback, a
   `map[string]T` tagged `json:",embed"`, which receives the undeclared members whatever the options
   say.
 - **emit.** Printer folds the two structs, prints through `go/format`. File `models/user.go`.
