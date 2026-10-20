@@ -135,10 +135,13 @@ engine/      Layer 3 — orchestration; imports everything below.
 cmd/morphic/ Layer 4 — CLI; imports ir + engine + its command framework (cobra, pflag).
 cmd/morphic-harness/
              Layer 4 — sweeps a spec or directory through the oracles; imports internal/harness.
+cmd/morphic-census/
+             Layer 4 — counts which IR facts the documents compiled from specs set; imports
+             engine + internal/census + internal/harness.
 cmd/morphic-covergate/
              Layer 4 — judges a coverage profile for `make coverage`; imports x/tools/cover.
-internal/    Test/tooling infrastructure, outside the pipeline (harness, archtest, decls, jsonshape,
-             keydoc, leakcheck, testspec).
+internal/    Test/tooling infrastructure, outside the pipeline (harness, archtest, census, decls,
+             jsonshape, keydoc, leakcheck, testspec).
 ```
 
 The layering is enforced by `internal/archtest`, and **its `rules` map is the source of truth** —

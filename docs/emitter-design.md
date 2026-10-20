@@ -590,7 +590,9 @@ snapshot pins the whole lowering deterministically.
 
 Every one of the eleven `ir.TypeKind`s has a dispatch here: `primitive` and `any` map directly
 in `ResolveScalarChains`/type-reference lowering, `literal` in `LowerLiterals`, the rest in the
-named steps above. The switch-completeness test (§13) proves the coverage at build time. The
+named steps above. The switch-completeness test (§13) proves the coverage at build time. A kind no
+compiler produces yet dispatches to a coded degrade instead of a lowering (§14.1), which keeps the
+coverage without a lowering nothing could test. The
 concrete lowering strategies for the load-bearing axes follow.
 
 ### 4.3 The target AST substrate
@@ -1308,7 +1310,7 @@ throughout this document.
 6. **T-6 · Determinism / golden IR→artifact** — identical IR ⇒ identical bytes; a scoped run equals
    the corresponding slice of a full run.
 7. **T-7 · Diagnostic-not-silence** — every un-lowerable construct emits a coded diagnostic, never a
-   silent `any` and never a panic.
+   silent `any` and never a panic, a fact outside M3's scope included (§14.1).
 8. **T-8 · Manifest ID-keying** — the entity→symbol map survives path/name churn.
 9. **T-9 · Policy precedence** — declared `Retryable`/`Fault`/`Idempotency` override policy defaults.
 10. **T-10 · Step-trace golden** — the ordered refine step list produces a pinned, deterministic
@@ -1375,6 +1377,52 @@ Extends architecture.md §6 milestone 3 (the first emitter) and beyond.
 6. **M5 — second language (TS or Python).** Proves cross-language uniformity: a new target is a new
    target AST + printer + refine pipeline reusing the shared plan and step contract, forcing **no**
    IR or plan change. This is where the shared-plan investment visibly pays back.
+
+### 14.1 What M3 lowers
+
+M3a to M3c lower the IR facts a compiler produces, and degrade the rest. The IR stays as designed
+(INV9): this scopes what the first emitters implement, not what the IR models. The set is measured
+rather than kept by hand:
+
+```bash
+go run ./cmd/morphic-census testdata/ <golden spec> <more specs>...
+```
+
+lists every member of the IR's structs and every value of its enumerations with the number of
+compiled documents that set it, zeros included. `testdata/` brings the conformance corpus, which
+witnesses each construct the compilers lower, and the golden spec and any other real specs bring
+what documents in use contain. A fact at `0 0` is outside M3.
+
+- **Outside M3, a fact degrades with a code.** Its dispatch reports
+  `emitters/<target>/unsupported-<fact>` and takes the nearest lowering it can (T-7), never a silent
+  fallback, so T-1's dispatch over every kind stays complete.
+- **A fact enters when a compiler first produces it.** The change that makes a compiler produce one
+  adds the conformance case that witnesses it, so the census over `testdata/` reports it in that
+  change, and its lowering lands tested against that compiler's output.
+
+At morphic `c4e0c239`, over `testdata/`, the golden spec (`cloudflare/api-schemas` `openapi.json`
+@ `843eae2f`) and 1,838 other OpenAPI 3 specs, these were outside M3:
+
+- **Kinds and values:** the `external` type kind; the `datetime`, `float` and `decimal128`
+  primitives; constructor, reference and `symbol` values.
+- **Protocols:** channels, messages, message bindings and replies; RPC, GraphQL and OTP bindings;
+  protocol declarations; server protocols and bindings; SASL, X.509, user-password and encryption
+  auth schemes.
+- **Operation facets:** pagination, long-running and one-way operations, overloads, declared
+  idempotency, operation-level visibility, operation scenario examples, a response body at a path,
+  declared success statuses, request compression, host prefixes, checksums, shared routes, a
+  response's status-code property, an error case's `retryable` and `throttling`; parameters bound
+  to the body, a body property or the host.
+- **Versioning:** every `Availability`, and `Document.versions`.
+- **Models and properties:** abstract models, `implements`, positional models, extension ranges,
+  input-only models; property presence, wire IDs, `flatten`, event headers and payloads,
+  `clientOptional`, `defaultAdded`, arguments, `extensionOf`, per-format wire names; discriminator
+  envelopes, indexes and inference; union variants' wire names, wire IDs and events; enum fallback
+  members and flags, and member wire names; list encodings; a key type on a map or a catch-all.
+- **Elsewhere:** service namespaces, versions, inheritance, renames and common errors; template
+  instantiations; constraint precision, scale and pattern messages; file details on a content;
+  a scheme's declared credential type; name aliases; a parameter's `valueFrom`; type-level access,
+  namespaces, tags, media-type hints and per-format wire names.
 
 ---
 

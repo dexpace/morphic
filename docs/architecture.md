@@ -331,6 +331,7 @@ morphic/
 ├── emitters/               # Layer 2 — emitter contract, plan layer, registry (future).
 ├── engine/                 # Layer 3 — orchestration: detect format, run compiler, passes, emitters.
 ├── internal/archtest/      #           Layering, grammar, recursion and method-cap rules (tooling).
+├── internal/census/        #           Counts which IR facts a set of documents sets (tooling).
 ├── internal/decls/         #           Type-checked reads of declarations, for tests (tooling).
 ├── internal/harness/       #           Bug-catching oracle sweep over a spec corpus (tooling).
 ├── internal/jsonshape/     #           The IR's JSON shape, which IRVersion is pinned to (tooling).
@@ -339,6 +340,7 @@ morphic/
 ├── internal/testspec/      #           Spec fixtures shared by the tooling (tooling).
 ├── cmd/morphic/            # Layer 4 — CLI.
 ├── cmd/morphic-harness/    #           CLI over internal/harness (tooling, not the pipeline).
+├── cmd/morphic-census/     #           CLI over internal/census (tooling, not the pipeline).
 └── cmd/morphic-covergate/  #           Judges the coverage profile (tooling, not the pipeline).
 ```
 

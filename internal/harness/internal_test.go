@@ -350,6 +350,16 @@ func TestCheckDir_WalkErrorPropagates(t *testing.T) {
 	assert.Contains(t, err.Error(), "harness: walk")
 }
 
+func TestListDir_WalkErrorPropagates(t *testing.T) {
+	// SpecFiles stats its path first, so a walk that fails is reached here, with
+	// a directory that does not exist: WalkDir invokes the callback with a
+	// non-nil error, which listDir wraps and returns.
+	files, err := listDir(filepath.Join(t.TempDir(), "absent"))
+	require.Error(t, err)
+	assert.Nil(t, files)
+	assert.Contains(t, err.Error(), "harness: walk")
+}
+
 func TestCheckDir_UnreadableSpecFileErrors(t *testing.T) {
 	// A broken symlink named like a spec is visited as a non-directory spec file,
 	// but reading it fails when the link target is followed. The walk aborts with
