@@ -58,12 +58,19 @@ between stages. The IR itself is specified in [`ir-design.md`](./ir-design.md).
 One compiler per source format. Each owns its format completely: file loading, reference
 resolution, format-version normalization, and lowering into IR nodes.
 
-Contract (conceptually — signatures are illustrative, not implementation):
+Contract, abridged from `compilers.Compiler`, whose doc comments state each method's duties:
 
 ```go
 type Compiler interface {
-    Formats() []SourceFormat                    // e.g. openapi@3.0, openapi@3.1
-    Parse(ctx, sources, Options) (*ir.Document, []ir.Diagnostic, error)
+    Formats() []SourceFormat // e.g. openapi@3.0, openapi@3.1
+    // Detect reports the format src declares and whether this compiler recognizes it.
+    Detect(src Source, opts Options) (Recognition, []ir.Diagnostic, bool)
+    // DecodeOptions turns textual settings into this compiler's own options value.
+    DecodeOptions(set OptionSet) (any, error)
+    // Compile lowers sources into a Document, or refuses them with a nil one.
+    Compile(ctx context.Context, sources []Source, opts Options) (*ir.Document, []ir.Diagnostic, error)
+    // SourceTable names the inputs a compile reads: the table a refusal's diagnostics index.
+    SourceTable(sources []Source, opts Options) []ir.SourceInfo
 }
 ```
 
@@ -123,8 +130,8 @@ the engine dispatches to the one that does. Each is asked under the options it w
 because recognizing a source is a read of it, and the bounds a caller set on reading the source
 hold there as they do in the compile. A compiler also decodes its own textual options, so
 registering one is the whole of adding a format — no layer above names any of them. Milestone 1
-ships the OpenAPI 3.x compiler only; the compiler registry, provenance model, and IR are built for
-all eight from day one.
+ships the OpenAPI 3.x compiler only. The compiler registry and the provenance model take any format,
+and the IR is designed against all eight; §2.5 says how it changes where a compiler finds it short.
 
 ### 2.2 IR passes (IR → IR)
 
@@ -172,8 +179,10 @@ Built, and in the default list:
 - **validate** — referential integrity (every typed-ID reference resolves to something the document
   declares: a `TypeRef` target against the type registry, an `OpID` against the operations the
   service tree declares, and so on for every ID class), discriminator mappings point at actual
-  variants, wire-name uniqueness within a model, binding completeness (every operation parameter
-  is bound exactly once per binding). Structural errors here are fatal; style issues are warnings.
+  variants, wire-name uniqueness within a model, and binding completeness: a parameter an HTTP
+  binding places twice at one non-host location is an error, one it places nowhere is a warning,
+  and a `host` binding is additive (ir-design §8.1). Structural errors here are fatal; style issues
+  are warnings.
 
 Designed, not yet built:
 
@@ -267,6 +276,29 @@ deep-partial per-emitters/per-project overrides. Precedence rule: *declared IR f
 policy defaults* — `ErrorCase.Retryable/Fault` and `Operation.Idempotency` come from the spec;
 policy fills in where the spec is silent, never the reverse.
 
+### 2.5 Changing the IR
+
+The IR is the one contract between the stages, so a change to its shape is a change to every stage
+that reads it. Its capability surface is designed against every format the matrix covers
+(`ir-spec-matrix.md`), but that is a goal rather than a finished state: a compiler can meet a
+construct the IR has no place for, and the surface grows when one does. Two rules say how.
+
+**A gap closes as a versioned change.** Until the IR has a home for a construct, the compiler keeps
+it verbatim under `ReasonNoIRHome` rather than lowering it to a weaker shape, so nothing is lost
+while the gap is open, and the gap is an issue of its own, where the shape of its home is decided.
+The change that closes it adds the field, moves the construct out of `Unmodeled` and bumps
+`IRVersion`, as any change to the JSON shape does (ir-design §2.1).
+
+**Once an emitter reads a field, a change to it lands whole.** A change to a field the plan layer
+or an emitter reads — renamed, removed, or given another meaning — lands in the same change as the
+plan, refiner and golden updates it forces, for every target, under one `IRVersion` bump. None of
+it is left to a follow-up: an emitter is built against exactly one generation and has no mode for
+reading another (ir-design §2.1), so a `main` whose compiler writes one generation while an emitter
+reads the last would drop constructs without a word. Several changes made on one line of work are
+batched under one bump where they land, as §2.1 of ir-design already has it. A field no emitter
+reads yet is added by the compiler change that fills it, and the emitter that first reads it adopts
+it in its own change.
+
 ## 3. Go package layout
 
 ```
@@ -302,6 +334,7 @@ morphic/
 ├── internal/decls/         #           Type-checked reads of declarations, for tests (tooling).
 ├── internal/harness/       #           Bug-catching oracle sweep over a spec corpus (tooling).
 ├── internal/jsonshape/     #           The IR's JSON shape, which IRVersion is pinned to (tooling).
+├── internal/keydoc/        #           Reader of the keyed documents and their citations (tooling).
 ├── internal/leakcheck/     #           Goroutine leak check for test binaries (tooling).
 ├── internal/testspec/      #           Spec fixtures shared by the tooling (tooling).
 ├── cmd/morphic/            # Layer 4 — CLI.
@@ -326,13 +359,13 @@ Dependency rules, enforced by an architecture test as in oagen:
 - `ir` imports only the standard library. It contains no parsing, no generation, no I/O.
 - `compilers/compile` imports only `ir`: it is below every compiler, not beside them.
 - `compilers/*` and `pass` import `ir` (and their own format libraries) — never each other,
-  never `emitter` or `engine`. A compiler also names the contract package and
+  never `emitters` or `engine`. A compiler also names the contract package and
   `compilers/compile`; each is allowed in its own right, so no sibling compiler rides in beside
   them.
 - A compiler's own `internal/` packages each carry their own allowlist rather than inheriting the
   compiler's. That is what keeps the ordering among them real: `diag` reaches nothing but `ir`,
   and no lowering package may reach the compiler that calls it.
-- `emitters/*` imports `ir` and `emitter` (contract) — never `compiler`.
+- `emitters/*` imports `ir` and the contract package `emitters` — never a compiler.
 - `engine` imports everything below it; `cmd` imports `engine`.
 
 Two caps guard the shape rather than the graph, both in `internal/archtest` and `.golangci.yml`:

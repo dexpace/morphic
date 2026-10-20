@@ -246,10 +246,14 @@ func (c Ctx) WithAuth(auth map[ir.AuthID]ir.AuthScheme) Ctx {
 // being derived from it, since resolving either runs the resolver, which only
 // the load phase may (GitHub #757). One call sets both, so no context carries
 // one without the other. The copy remembers no TypePosition answer of c's,
-// which read c's targets.
+// which read c's targets, and reads raw YAML under its "#/$defs/..." pointers
+// through the index those targets were read through.
 func (c Ctx) WithLoaded(doc *load.Document) Ctx {
 	c.loaded = &loadResult{siblings: doc.Siblings, reads: resolve.Scope{Mapped: doc.Targets.At, Built: doc.Targets.Built,
 		Holds: doc.Targets.Holds, Beside: doc.Siblings.Beside, Writes: doc.Siblings.Writes}}
+	if c.Doc != nil {
+		c.defsReader = defs.NewIndexedReader(c.Doc, doc.Targets.RawTarget)
+	}
 	c.typePositions = map[typePositionKey]typePositionAt{}
 	return c
 }

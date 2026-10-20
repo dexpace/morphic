@@ -18,13 +18,13 @@ var ErrSourcesMoved = errSourcesMoved
 // which pin its order without a production caller needing to read it.
 func DefaultPasses() []pass.Pass { return defaultPasses() }
 
-// NewWithPasses builds an engine over fronts that runs passes instead of the
+// NewWithPasses builds an engine over the compilers cs that runs passes instead of the
 // default list. The external tests compose passes the default list does not
 // hold, beside the stub compilers declared there, to show threading, ordering
 // and disabling. Exporting it from a _test.go file keeps it out of the
 // production API.
-func NewWithPasses(passes []pass.Pass, fronts ...compilers.Compiler) (*Engine, error) {
-	eng, err := NewWith(fronts...)
+func NewWithPasses(passes []pass.Pass, cs ...compilers.Compiler) (*Engine, error) {
+	eng, err := NewWith(cs...)
 	if err != nil {
 		return nil, err
 	}

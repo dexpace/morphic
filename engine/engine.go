@@ -87,14 +87,14 @@ func New() (*Engine, error) {
 // An empty set is refused. A built engine cannot gain a compiler, so one with
 // none could compile nothing and would report every source as unrecognized,
 // blaming the document for the caller's misconfiguration.
-func NewWith(fronts ...compilers.Compiler) (*Engine, error) {
-	if len(fronts) == 0 {
+func NewWith(cs ...compilers.Compiler) (*Engine, error) {
+	if len(cs) == 0 {
 		return nil, errors.New("engine: no compilers; an engine with none can compile nothing")
 	}
 
 	reg := compilers.NewRegistry()
-	for i, front := range fronts {
-		if err := reg.Register(front); err != nil {
+	for i, c := range cs {
+		if err := reg.Register(c); err != nil {
 			return nil, fmt.Errorf("engine: register compiler %d: %w", i, err)
 		}
 	}
@@ -164,7 +164,7 @@ func (e *Engine) Run(ctx context.Context, specPath string, opts RunOptions) (*Re
 	sources := []compilers.Source{source}
 	doc, diags, err := det.Compiler.Compile(ctx, sources, det.Options)
 	if err != nil {
-		return nil, fmt.Errorf("engine: parse %q: %w", specPath, err)
+		return nil, fmt.Errorf("engine: compile %q: %w", specPath, err)
 	}
 	if doc == nil {
 		return &Result{Diagnostics: diags, Format: format,
@@ -222,16 +222,16 @@ func (e *Engine) served() string {
 	return "this build compiles " + strings.Join(names, ", ")
 }
 
-// formatOptions resolves the options front would compile with, decoding the
-// textual channel through front itself. os.ReadFile is what makes a
+// formatOptions resolves the options c would compile with, decoding the
+// textual channel through c itself. os.ReadFile is what makes a
 // path-valued setting work: the engine already reads the spec, so loading a file
 // a setting names keeps the I/O on this side of the contract and the compiler
 // pure.
-func formatOptions(front compilers.Compiler, opts RunOptions) (any, error) {
+func formatOptions(c compilers.Compiler, opts RunOptions) (any, error) {
 	if len(opts.CompilerOptions) == 0 {
 		return opts.FormatOptions, nil
 	}
-	decoded, err := front.DecodeOptions(compilers.OptionSet{
+	decoded, err := c.DecodeOptions(compilers.OptionSet{
 		Settings: opts.CompilerOptions,
 		ReadFile: os.ReadFile,
 	})

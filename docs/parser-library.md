@@ -200,10 +200,16 @@ components:
 ### `root-defs`
 
 A schema `$ref` to `#/$defs/X`, where `$defs` is written at the document's root, resolves to the
-schema there, though the OpenAPI object defines no `$defs`. The compiler reads it differently. It
-warns that the key is unknown, and its `$defs` rule finds a definition only in the reference's own
-schema or an ancestor of it, so it reports the reference unresolved (`openapi/unresolved-ref`).
-#910 decides which reading is intended; #570 asks the same of a schema under an extension.
+schema there, though the OpenAPI object defines no `$defs`. The resolver reads the pointer from the
+document's root before it tries any ancestor of the reference, so a root `$defs` answers even where
+an ancestor of the reference holds an `X`. The compiler reads it the same way (#910), as it reads a
+pointer to any other position the OpenAPI object leaves as raw YAML, and still warns that the key
+is unknown. #570 asks the same of a schema under an extension.
+
+The schema spelling the reference is the exception when it has no `$id` and holds an `X` in its own
+`$defs`. Resolved first, it reads the root's `X`. Once a chain has reached it, as `C` does below, it
+reads its own, so the answer turns on what was resolved before. The compiler leaves that reference
+unresolved, since the root's `X` is the reading it can name but not hand the resolver.
 
 ```yaml
 $defs:
@@ -211,12 +217,15 @@ $defs:
 components:
   schemas:
     A: {$ref: '#/$defs/X'}
+    B: {$ref: '#/$defs/X', $defs: {X: {type: integer}}}
+    C: {$ref: '#/components/schemas/B'}
 ```
 
 - Verified at: v1.25.5
 - Pinned by: `TestLibraryBehaviour/root-defs`
 - Code:
-  - `defs.Reader.Target` reads no definition from the document's root.
+  - `defs.Reader.Target` reads the pointer from the document's root first, raw YAML included.
+  - `defs.Reader.Shadowed` names the reference whose own `X` the resolver can read instead.
 
 ## Decoding
 

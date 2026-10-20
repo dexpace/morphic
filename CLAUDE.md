@@ -20,10 +20,16 @@ Pipeline: **compilers** (spec → IR) → **IR passes** (IR → IR) → **emitte
 
 ## The documents are the spec — read them first
 
-`ls docs/*.md` is the set; what follows is why each one matters, not how many there are.
+`ls docs/*.md docs/compilers/*.md` is the set; what follows is why each one matters, not how many
+there are. A first change starts from [`CONTRIBUTING.md`](CONTRIBUTING.md), whose recipes for a
+lowering rule, a pass and a compiler say which check each step answers to, and which steps no check
+covers.
 
 - **`docs/ir-design.md` is normative.** Field names and struct shapes in it are the contract;
   receiver methods and helpers are not. When implementing the IR, match its shapes exactly.
+- **`docs/compilers/openapi.md` is normative for the OpenAPI compiler**: its lowering rules, one
+  keyed entry each, with the cases, codes and tests that pin it. Read it for work on that compiler
+  only; every other layer needs ir-design and not this.
 - **`docs/emitter-design.md` is normative for the emitter half**, the way `ir-design.md` is for the
   IR. Nothing under `emitters/` exists yet, so read it before writing the first one.
 - `docs/architecture.md` — pipeline stages, package layout, layering rules, milestones.
@@ -80,8 +86,13 @@ in the docs.
    sorted-key order, slices in source order). This underpins golden snapshots, IR diffing, caching.
 8. **Optionality ≠ nullability.** `Property.Required` (wire presence) is orthogonal to
    `TypeRef.Nullable` (this usage admits null). Both are needed for the four distinct states.
-9. **The IR capability surface is complete from day one.** Only compilers are staged over time;
-   shipping OpenAPI first must never force an IR schema change when later compilers land.
+9. **The IR's capability surface is designed against every format; a gap closes as a versioned
+   change.** Every construct a supported format can express is meant to have a planned home in the
+   IR, or a reasoned `Unmodeled` entry where the IR declines to model it, so a later compiler fills
+   fields rather than inventing them. That is a goal, not a finished state: a compiler that meets a
+   construct with no home keeps it verbatim under `no_ir_home`, and the field that homes it lands as
+   a change of the IR's shape, which bumps `IRVersion` (ir-design §2.1). Once an emitter reads a
+   field, a change to it lands together with every emitter update it forces (architecture.md §2.5).
 10. **SDK runtime policy is not IR.** Retry/timeout/telemetry/error-class taxonomy is a separate
     emitter input. The IR describes the API; policy describes the SDK.
 
@@ -127,7 +138,7 @@ cmd/morphic-harness/
 cmd/morphic-covergate/
              Layer 4 — judges a coverage profile for `make coverage`; imports x/tools/cover.
 internal/    Test/tooling infrastructure, outside the pipeline (harness, archtest, decls, jsonshape,
-             leakcheck, testspec).
+             keydoc, leakcheck, testspec).
 ```
 
 The layering is enforced by `internal/archtest`, and **its `rules` map is the source of truth** —
@@ -173,6 +184,12 @@ These all exist already — extend them rather than building a parallel mechanis
   `compilers/openapi/conformance_matrix_test.go` requires every expressible row to be witnessed or
   listed with a reason. What it cannot check is whether a spec that *names* a row exercises that
   capability — that claim is read by a reviewer, so weigh it like any other.
+- **Lowering specification**: `docs/compilers/openapi.md` is machine-read like the matrix. Each rule
+  names its evidence, and the `TestLoweringSpec` tests in `compilers/openapi` hold the names to the
+  code both ways, each listed code to the rule's text, and every `docs/compilers/openapi.md#<key>`
+  citation to a rule. It and `docs/parser-library.md` are read through `internal/keydoc`, the one
+  reader of the repository's keyed documents, and a test a Markdown document names must exist
+  (`internal/archtest`).
 - **Oracles**: `internal/harness` drives a spec through no-panic → no error diagnostic →
   `irverify` invariants → JSON round-trip → determinism → order-invariance, stopping at the first
   one that fires. `harness.Check` is the list — read it there rather than trusting this sentence;

@@ -91,9 +91,10 @@ spec ──▶ compiler ──▶ IR ──▶ passes ──▶ IR ──▶ emi
 | 4 | Second family compiler (TypeSpec or Smithy), proving the spec-agnostic claim | Planned |
 | 5 | Event-shaped compiler (AsyncAPI), then GraphQL, Protobuf, Erlang/OTP | Planned |
 
-The IR's capability surface covers every format above from the start, so the later compilers land
-without reshaping it. Until milestone 2, a Swagger 2.0 document is recognized and refused with
-`engine/no-compiler-for-format`.
+The IR is designed against every format above, so a later compiler fills fields rather than adding
+them. Where one meets a construct the IR has no place for yet, it keeps the construct verbatim, and
+the IR grows by a versioned change ([Architecture](docs/architecture.md) §2.5). Until milestone 2, a
+Swagger 2.0 document is recognized and refused with `engine/no-compiler-for-format`.
 
 ## Install
 
@@ -260,7 +261,7 @@ entry in that test allows, and nothing from a layer above its own.
 | `emitters/*` | 2: IR → artifacts (not built yet) | `ir` + emitter contract |
 | `engine/` | 3: orchestration | everything below |
 | `cmd/morphic/` | 4: CLI | `engine` + `ir` + its command framework (`cobra`, `pflag`) |
-| `cmd/morphic-harness/`, `cmd/morphic-covergate/`, `internal/*` | tooling outside the pipeline: the oracle sweep, the coverage gate's judge, the architecture rules, the goroutine leak check, type-checked reads of declarations for tests, shared fixtures | as their entries allow; `internal/harness` is exempt |
+| `cmd/morphic-harness/`, `cmd/morphic-covergate/`, `internal/*` | tooling outside the pipeline: the oracle sweep, the coverage gate's judge, the architecture rules, the goroutine leak check, type-checked reads of declarations for tests, the reader of the keyed documents, shared fixtures | as their entries allow; `internal/harness` is exempt |
 
 Compilers and emitters never import each other. A compiler's own `internal/` packages each carry
 their own entry rather than inheriting the compiler's, so the order among them is enforced too,
@@ -299,9 +300,10 @@ Run a single test with `go test ./ir -run TestName`. Beyond that:
   witnesses one or more rows of the [spec capability matrix](docs/ir-spec-matrix.md). To add one,
   write `<name>.yaml`, add an entry to `conformanceCases()` in
   `compilers/openapi/conformance_test.go` naming its assertion and the matrix row keys it
-  witnesses, then run the command above to write `<name>.golden.json`. The suite fails on a spec
-  with no entry, and on a matrix row OpenAPI can express that no case witnesses, unless the row
-  is listed as uncovered with a reason.
+  witnesses, then run the command above to write `<name>.golden.json`, and name the case in the
+  rule of the [OpenAPI lowering specification](docs/compilers/openapi.md) it pins. The suite fails
+  on a spec with no entry, on a case no rule names, and on a matrix row OpenAPI can express that no
+  case witnesses, unless the row is listed as uncovered with a reason.
 - **Oracle harness.** `go run ./cmd/morphic-harness <file|dir>` sweeps specs through the
   bug-catching oracles, stopping at the first that fires for each: no panic, no error diagnostic,
   the `ir/irverify` structural invariants, JSON round-trip, determinism, and order-invariance. It
@@ -313,12 +315,15 @@ Run a single test with `go test ./ir -run TestName`. Beyond that:
 
 ## Design docs
 
-The design documents are normative. Read them before proposing changes to the IR or the pipeline.
+The design documents are normative. Read them before proposing changes to the IR or the pipeline,
+and start a first contribution from [CONTRIBUTING.md](CONTRIBUTING.md), which says which of them a
+change needs.
 
 | Document | Description |
 |---|---|
 | [Architecture](docs/architecture.md) | Pipeline stages, package layout, layering rules, milestones. |
-| [IR design](docs/ir-design.md) | The intermediate representation: node catalog, semantics, per-format lowering. Its field shapes are the contract. |
+| [IR design](docs/ir-design.md) | The intermediate representation: node catalog and semantics, and how each format without a lowering specification of its own is planned to lower. Its field shapes are the contract. |
+| [OpenAPI lowering](docs/compilers/openapi.md) | How the OpenAPI compiler lowers each construct, one keyed rule each, with the cases, codes and tests that pin it. |
 | [Spec capability matrix](docs/ir-spec-matrix.md) | What each source format can express: the union the IR is designed against. |
 | [Emitter design](docs/emitter-design.md) | The emitter contract and the plan / refine / emit boundary. |
 
