@@ -2050,6 +2050,12 @@ oversights). A promotion pass mining the IR for its next typed node reads `no_ir
 skip `out_of_scope`; nothing about the key or the value distinguishes them, which is the whole
 reason `Reason` is data rather than a comment.
 
+**Reporting a kept construct is the compiler's.** It is the stage that chose to keep the construct
+rather than model it, so its specification (§14) states, for every construct it keeps under a reason
+other than `vendor_extension`, the diagnostic the construct draws, or that it draws none.
+`Document.Diagnostics` carries those reports to every consumer, and an emitter acts on an entry's
+`Reason` without reporting it again (emitter-design §4.14).
+
 Sorting entries into *typed* buckets instead was considered and rejected: the defining property
 of an entry is that it is unmodeled, so anything with enough known semantics to be sorted into a
 bucket has enough to be modeled properly, and sorting would make the compiler guess — a

@@ -953,22 +953,27 @@ additive as they stand — which is why the shape is per-target rather than a pl
 ### 4.14 Unmodeled entries
 
 An `Unmodeled` entry is a construct the IR keeps verbatim rather than modeling it (ir-design §12).
-Its `Reason` decides what an SDK emitter does with it, and no reason leads the emitter to report
-it:
+An SDK emitter acts on an entry's `Reason`, never on its key, and reports none of them:
 
-| Reason | What an SDK emitter does | Who reports it |
-|---|---|---|
-| `vendor_extension` | nothing, unless a policy names the key (§6) | nobody |
-| `out_of_scope` | nothing, unless a policy names the key: emitter policy is the consumer these are kept for | nobody |
-| `validation_only` | nothing; a validation emitter reads them (§10) | the compiler, as an info |
-| `degraded_lowering` | lowers the weaker shape the IR holds beside the entry, never reading the entry | the compiler, where it degraded |
-| `no_ir_home` | nothing: the construct has no field yet, so the SDK cannot honour it | the compiler, where it kept it, or nobody where the lowering rule records why |
+| Reason | What an SDK emitter does |
+|---|---|
+| `vendor_extension` | nothing, unless a policy names the key (§6) |
+| `out_of_scope` | nothing, unless a policy names the key: emitter policy is the consumer the IR keeps these for |
+| `validation_only` | nothing; a validation emitter reads them (§10) |
+| `degraded_lowering` | lowers the weaker shape the IR holds beside the entry, never the entry |
+| `no_ir_home` | nothing: honouring the construct waits for the field the IR lacks, never a key read by name |
 
-The emitter does not report again because the compiler already did, at the construct's own
-position, and `Document.Diagnostics` carries that report to every consumer of the document. A
-second report per entry from each emitter would repeat it once per target with nothing added. Only
-`vendor_extension` and `out_of_scope` keys are ever read by name, and only by a policy (INV6), so the
-stability of key names (#429) matters for those and for no other reason.
+**Reporting is the compiler's.** The compiler is the stage that chose to keep a construct rather
+than model it, and its specification states the diagnostic each kept construct draws, or that it
+draws none (ir-design §12). `Document.Diagnostics` carries those reports to every consumer, so a
+report from the emitter would repeat each one once per target and add only "this target ignores
+it", which the table already says of every SDK target.
+
+**Keys are read by name only through a policy.** An SDK emitter reads an entry's key only where a
+policy names it, and only `vendor_extension` and `out_of_scope` entries are kept for policies
+(INV6), so the stability of key names (#429) reaches an SDK through those two reasons alone. The
+validation emitter reads `validation_only` keys as the keywords they are (§10), which #429 covers
+too.
 
 The copies of `readOnly` and `default` that the OpenAPI compiler keeps where they were declared,
 after applying them at every use
@@ -1599,8 +1604,9 @@ throughout this document.
     target's generated SDK runs one hand-written suite of behaviors against one behavior server,
     and a gate fails a target that silently skips one (§13.1).
 15. **T-15 · Unmodeled routing** — a document carrying an `Unmodeled` entry of each reason, on a
-    type an operation reaches and on the operation, generates byte-identical artifacts and the same
-    diagnostics as the document without them, unless a policy names an entry's key (§4.14).
+    type an operation reaches, on the operation and on the document, generates byte-identical
+    artifacts and the same diagnostics as the document without them, unless a policy names an
+    entry's key (§4.14).
 
 ### 13.1 The behavior server (T-14)
 
