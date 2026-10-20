@@ -4,6 +4,8 @@ import (
 	"strings"
 
 	"github.com/dexpace/morphic/compilers/compile"
+	lookcompile "github.com/dexpace/morphic/internal/lintrules/testdata/mod/lookalike/compile"
+	lookir "github.com/dexpace/morphic/internal/lintrules/testdata/mod/lookalike/ir"
 	"github.com/dexpace/morphic/ir"
 	irx "github.com/dexpace/morphic/ir"
 )
@@ -23,6 +25,8 @@ func plantNaming(name string, words []string, n *named, c *common, big ir.BigVal
 	hinted := ir.Naming{Hint: localWords(name)}                                       // want "namechannels: ir.Naming.Hint is filled by something other than a call into ir or compilers/compile; use compile.NamingFor, compile.NamingHint or ir.CanonicalWords"
 	carried := ir.Naming{Canonical: name}                                             // want "namechannels: ir.Naming.Canonical is filled by something other than a call into ir or compilers/compile; use compile.NamingFor, compile.NamingHint or ir.CanonicalWords"
 	wrapped := ir.Naming{Canonical: localWords(ir.CanonicalWords(name))}              // want "namechannels: ir.Naming.Canonical is filled by something other than a call into ir or compilers/compile; use compile.NamingFor, compile.NamingHint or ir.CanonicalWords"
+	spelled := ir.Naming{Canonical: lookir.CanonicalWords(name)}                      // want "namechannels: ir.Naming.Canonical is filled by something other than a call into ir or compilers/compile; use compile.NamingFor, compile.NamingHint or ir.CanonicalWords"
+	spelledHint := ir.Naming{Hint: lookcompile.SubHint(name, "x")}                    // want "namechannels: ir.Naming.Hint is filled by something other than a call into ir or compilers/compile; use compile.NamingFor, compile.NamingHint or ir.CanonicalWords"
 	converted := ir.Naming{Canonical: string(name)}                                   // want "namechannels: ir.Naming.Canonical is filled by something other than a call into ir or compilers/compile; use compile.NamingFor, compile.NamingHint or ir.CanonicalWords"
 	method := ir.Naming{Hint: big.String()}                                           // want "namechannels: ir.Naming.Hint is filled by something other than a call into ir or compilers/compile; use compile.NamingFor, compile.NamingHint or ir.CanonicalWords"
 	field := ir.Naming{Canonical: compile.NamingFor(name).Canonical}                  // want "namechannels: ir.Naming.Canonical is filled by something other than a call into ir or compilers/compile; use compile.NamingFor, compile.NamingHint or ir.CanonicalWords"
@@ -51,6 +55,7 @@ func plantNaming(name string, words []string, n *named, c *common, big ir.BigVal
 	made := compile.NamingFor(name)
 	kept := ir.Naming{Source: name, Aliases: []string{name}}
 	_, _, _, _, _, _ = byKey, pointers, other, converted, method, parenthesized
+	_, _ = spelled, spelledHint
 	return []ir.Naming{declared, hinted, carried, wrapped, field, positional, late, canonical, sub, made, kept,
 		{Canonical: localWords(name)}} // want "namechannels: ir.Naming.Canonical is filled by something other than a call into ir or compilers/compile; use compile.NamingFor, compile.NamingHint or ir.CanonicalWords"
 }
