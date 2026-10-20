@@ -40,6 +40,21 @@ if [[ -z "$want" ]]; then
 	exit 1
 fi
 
+# --enable-only runs these linters whatever .golangci.yml enables, so the
+# configuration is asked as well: a linter it leaves off is one `make lint` and
+# the lint action never run, however its plants fare here. awk reads to the end
+# rather than exit at the list's end: golangci-lint still writing to a closed
+# pipe dies of SIGPIPE, which pipefail turns into this script's failure.
+enabled="$(golangci-lint linters | awk '/^Enabled by your configuration/ { on = 1; next }
+	on && /^$/ { on = 0 }
+	on { sub(/:.*/, ""); print }')"
+for linter in ${linters//,/ }; do
+	if [[ $'\n'"$enabled"$'\n' != *$'\n'"$linter"$'\n'* ]]; then
+		echo "lint-planted: .golangci.yml does not enable $linter, so lint never runs its rules" >&2
+		exit 1
+	fi
+done
+
 cache="$(mktemp -d)"
 trap 'rm -rf "$cache"' EXIT
 
