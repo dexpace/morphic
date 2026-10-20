@@ -1,6 +1,6 @@
 // Package jsonshape describes the JSON shape of the types one Go type reaches,
-// as text for the test pinning a schema to its version and as data for the
-// census of IR facts.
+// as text for the IRVersion pin and as data for the census and the tests that
+// read the IR's types.
 //
 // A description records what encoding/json/v2 reads, never what it does with
 // it: tagged members and embeddings, each one's type, the methods the encoder
