@@ -779,10 +779,10 @@ func assertAllOfInlineMerge(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.True(t, ok, "inline allOf branch contributes its properties")
 }
 
-// assertAllOfNestedInline pins that a branch whose only unconsumed keyword is a
-// non-empty allOf is flattened into the enclosing list: it classifies as the
-// flat spelling does, keeps each property's own pointer, and is itself kept
-// nowhere.
+// assertAllOfNestedInline pins that a branch writing a non-empty allOf is
+// flattened into the enclosing list: it classifies as the flat spelling does and
+// keeps each property's own pointer. A wrapper writing nothing else is kept
+// nowhere; one that also writes a keyword is kept whole, with one diagnostic.
 func assertAllOfNestedInline(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	m, ok := doc.Types[namedID("M")].(*ir.Model)
 	require.True(t, ok)
@@ -815,7 +815,18 @@ func assertAllOfNestedInline(t *testing.T, doc *ir.Document, diags []ir.Diagnost
 	assert.Contains(t, closed.Unmodeled, "openapi:allOf/0/allOf/0")
 	assert.NotContains(t, closed.Unmodeled, "openapi:allOf/0")
 
+	described, ok := doc.Types[namedID("Described")].(*ir.Model)
+	require.True(t, ok)
+	assert.Nil(t, described.Base)
+	require.Len(t, described.Mixins, 2, "the wrapper's refs compose despite its description")
+	assert.Equal(t, namedID("A"), described.Mixins[0].Target)
+	assert.Equal(t, namedID("B"), described.Mixins[1].Target)
+	assert.Contains(t, described.Unmodeled, "openapi:allOf/0", "the wrapper is kept whole")
+
 	for _, d := range diags {
+		if d.Code == diag.DegradedConstruct && d.Provenance.Pointer == "/components/schemas/Described/allOf/0" {
+			continue // the one kept wrapper
+		}
 		assert.NotEqual(t, diag.DegradedConstruct, d.Code, "flattening is exact: %+v", d)
 	}
 }

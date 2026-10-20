@@ -3,9 +3,10 @@ info: {title: AllOfNestedInline, version: "1.0.0"}
 paths: {}
 components:
   schemas:
-    # allOf is associative, so a branch that only wraps another allOf
-    # classifies as if its branches were written beside it (ir-design §4.3):
-    # two refs, so no Base and both are Mixins, as the flat spelling gives.
+    # allOf is associative, so a branch that wraps another allOf classifies as
+    # if its branches were written beside it
+    # (docs/compilers/openapi.md#allof-classification): two refs, so no Base
+    # and both are Mixins, as the flat spelling gives.
     M:
       allOf:
         - allOf:
@@ -51,6 +52,15 @@ components:
             - properties:
                 a: {type: string}
             - allOf: [false]
+    # A wrapper that also writes a keyword the merge does not consume is
+    # flattened and kept whole. Declared before A and B, the refs it wraps,
+    # which is the order a predicate refusing such a wrapper got wrong.
+    Described:
+      allOf:
+        - description: grouped
+          allOf:
+            - {$ref: '#/components/schemas/A'}
+            - {$ref: '#/components/schemas/B'}
     P:
       type: object
       properties:

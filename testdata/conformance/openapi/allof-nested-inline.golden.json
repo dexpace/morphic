@@ -305,6 +305,54 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/openapi/components/schemas/Described": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Described",
+      "name": {
+        "source": "Described",
+        "canonical": "described"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:allOf/0": {
+          "reason": "degraded_lowering",
+          "value": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/A"
+              },
+              {
+                "$ref": "#/components/schemas/B"
+              }
+            ],
+            "description": "grouped"
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Described/allOf/0"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Described"
+      },
+      "mixins": [
+        {
+          "target": "t/openapi/components/schemas/A",
+          "nullable": false
+        },
+        {
+          "target": "t/openapi/components/schemas/B",
+          "nullable": false
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/openapi/components/schemas/M": {
       "kind": "model",
       "id": "t/openapi/components/schemas/M",
@@ -650,13 +698,22 @@
         "source": 0,
         "pointer": "/components/schemas/U"
       }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "inline allOf branch is merged in place, so only its properties, required list and nested allOf compose; the branch (description) is kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Described/allOf/0"
+      }
     }
   ],
   "sources": [
     {
       "format": "openapi@3.1",
       "path": "allof-nested-inline.yaml",
-      "hash": "122538eb6f5d99663167a84b50f330d959c74a5bfe4fc0713907dc158e92b975"
+      "hash": "7d4d12cc5ebe09590bf8f6ed5ae72e2771742bdde6460ce307a1bdd5663194d7"
     }
   ]
 }
