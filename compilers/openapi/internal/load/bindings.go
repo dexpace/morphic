@@ -179,7 +179,7 @@ func bindingDiags(at func(jsontext.Pointer) ir.Provenance, table *bind.Table) []
 	if table.Truncated() {
 		diags = append(diags, diag.Newf(ir.SeverityWarning, diag.DegradedConstruct, at(""),
 			"a mapping merges through `<<` deeper than %d levels, which resolving the schema $refs does not "+
-				"expand; a $ref past that, or naming a position past it, is left unresolved", nodeview.MergeDepthLimit))
+				"expand; a $ref past that, or one that reads a key past it, is left unresolved", nodeview.MergeDepthLimit))
 	}
 	return diags
 }

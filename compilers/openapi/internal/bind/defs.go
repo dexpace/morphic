@@ -40,33 +40,49 @@ type definitions struct {
 // resolver (docs/parser-library.md#defs-order), nor does the root's answer
 // give way to a schema's own (docs/parser-library.md#root-defs).
 //
-// Where none answers and a read stopped past the merge bound, the reason is
-// MergeBound.
+// A read the merge bound stopped answers MergeBound: what it missed may
+// overrule a later answer.
 func (d definitions) definition(site Position, pointer jsontext.Pointer, own bool) (reading, Reason) {
-	cut := false
-	if key, single := singleKey(pointer); own && single && d.ownResource(site) {
-		at := Position{Doc: site.Doc, Pointer: site.Pointer + defsRoot.AppendToken(key)}
-		n, past := d.below(site.Doc, d.docs.node(site), []string{"$defs", key})
-		if schemaShaped(n) {
-			return reading{at: at, node: n, state: d.docs.stateAt(at)}, NoReason
+	if key, single := singleKey(pointer); own && single {
+		if r, reason, settled := d.ownDefinition(site, key); settled {
+			return r, reason
 		}
-		cut = past
 	}
 	r, reason := d.docs.read(site.Doc, pointer)
-	if reason == NoReason && answers(r) {
+	switch {
+	case reason == NoReason && answers(r):
 		return r, NoReason
+	case reason == MergeBound:
+		return reading{}, MergeBound
 	}
-	r, why := d.ancestorDefinition(site, pointer)
-	if why == NoDefinition && (cut || reason == MergeBound) {
-		why = MergeBound
+	return d.ancestorDefinition(site, pointer)
+}
+
+// ownDefinition is the definition site's own definitions give key, and whether
+// that settles the answer: it does where site is a schema resource of its own
+// whose definitions hold key, and where the merge bound hides either key from
+// them or an $id that decides whether site is a resource of its own.
+func (d definitions) ownDefinition(site Position, key string) (reading, Reason, bool) {
+	// A site is a position its document holds, so the path reaches it.
+	path, _ := d.docs.path(site)
+	resource, known := d.ownResource(site, path)
+	n, past := d.below(site.Doc, path[len(path)-1], []string{"$defs", key})
+	switch {
+	case (resource || !known) && past, !known && schemaShaped(n):
+		return reading{}, MergeBound, true
+	case resource && schemaShaped(n):
+		at := Position{Doc: site.Doc, Pointer: site.Pointer + defsRoot.AppendToken(key)}
+		return reading{at: at, node: n, state: d.docs.stateAt(at)}, NoReason, true
 	}
-	return r, why
+	return reading{}, NoReason, false
 }
 
 // ancestorDefinition is the definition the nearest object above site that
 // holds "$defs" in the model gives pointer, read on into raw YAML where the
 // model leaves it, as the parser's resolver reads it (GitHub #997). The root
-// is not such an object: definition has read it already.
+// is not such an object: definition has read it already. A read the merge
+// bound stops makes it MergeBound, as a farther object would answer only
+// where that one holds nothing.
 func (d definitions) ancestorDefinition(site Position, pointer jsontext.Pointer) (reading, Reason) {
 	if !d.docs.list[site.Doc].grammar {
 		return reading{}, NoDefinition
@@ -80,7 +96,6 @@ func (d definitions) ancestorDefinition(site Position, pointer jsontext.Pointer)
 		states[i+1] = step(states[i], t)
 	}
 	rest := slices.Collect(pointer.Tokens())
-	why := NoDefinition
 	for i := len(tokens) - 1; i >= 1; i-- {
 		if !d.work.spend(1) {
 			break
@@ -94,10 +109,10 @@ func (d definitions) ancestorDefinition(site Position, pointer jsontext.Pointer)
 			return r, NoReason
 		}
 		if past {
-			why = MergeBound
+			return reading{}, MergeBound
 		}
 	}
-	return reading{}, why
+	return reading{}, NoDefinition
 }
 
 // below is the node tokens name from n in document id, or nil, and whether the
@@ -149,16 +164,17 @@ func singleKey(pointer jsontext.Pointer) (string, bool) {
 	return ts[1], true
 }
 
-// ownResource reports whether the schema at site is a schema resource of its
-// own: it writes an $id, or sits in a resource whose base differs from that
-// of the outermost schema holding it. A base is each $id above it, read as a
-// URI reference resolved against the one before; a fragment-only $id moves
-// none, and an $id that is no URI reference leaves the base as it was.
-func (d definitions) ownResource(site Position) bool {
-	// A site is a position its document holds, so the path reaches it.
-	path, _ := d.docs.path(site)
+// ownResource reports whether the schema at site, reached along path, is a
+// schema resource of its own: it writes an $id, or sits in a resource whose
+// base differs from that of the outermost schema holding it. A base is each
+// $id above it, read as a URI reference resolved against the one before; a
+// fragment-only $id moves none, and an $id that is no URI reference leaves the
+// base as it was. Its second result is false where a schema on the path
+// writes no $id and merges past the view's bound, which may hide one.
+func (d definitions) ownResource(site Position, path []*yaml.Node) (bool, bool) {
+	view := d.docs.list[site.Doc].view
 	var base, top *url.URL
-	outermost, written := true, false
+	outermost, written, known := true, false, true
 	state, tokens := d.docs.rootState(site.Doc), slices.Collect(site.Pointer.Tokens())
 	for i, n := range path {
 		if i > 0 {
@@ -169,6 +185,7 @@ func (d definitions) ownResource(site Position) bool {
 		}
 		var id string
 		id, written = d.idOf(site.Doc, n)
+		known = known && (written || view.Expanded(n))
 		if written && !strings.Contains(id, "#") {
 			base = rebase(base, id)
 		}
@@ -176,7 +193,7 @@ func (d definitions) ownResource(site Position) bool {
 			top, outermost = base, false
 		}
 	}
-	return written || spell(base) != spell(top)
+	return written || spell(base) != spell(top), known
 }
 
 // idOf is the $id n writes, and whether it writes a non-empty string one.

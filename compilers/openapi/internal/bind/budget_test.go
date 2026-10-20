@@ -164,6 +164,49 @@ func TestBind_SaysAKeyMayLiePastTheMergeBound(t *testing.T) {
 		"the root's definitions lie past the bound")
 }
 
+// TestBind_TakesNoDefinitionPastAReadTheMergeBoundStopped pins that the $defs
+// rule reads on to a later answer only where an earlier read holds nothing,
+// which one the merge bound stopped cannot say. Hidden's own definitions answer
+// if an $id past the bound makes it a resource of its own, and Lacking's may
+// hold one past it too; s's nearer ancestor, mid, and in the second document
+// the root, may hold the definition past it. Each would otherwise read on to
+// an answer a shallow merge shows to be wrong.
+func TestBind_TakesNoDefinitionPastAReadTheMergeBoundStopped(t *testing.T) {
+	t.Parallel()
+	var chain strings.Builder
+	chain.WriteString(head + "x-i0: &i0 {$id: 'https://x.test/i', $defs: {Y: {type: number}}}\n")
+	for i := 1; i <= 70; i++ {
+		fmt.Fprintf(&chain, "x-i%d: &i%d {<<: *i%d}\n", i, i, i-1)
+	}
+	table := bound(t, chain.String()+`$defs: {X: {type: string}}
+components:
+  schemas:
+    Hidden: {<<: *i70, $ref: '#/$defs/X', $defs: {X: {type: integer}}}
+    Lacking: {<<: *i70, $ref: '#/$defs/Y'}
+    Near: {<<: *i3, $ref: '#/$defs/X', $defs: {X: {type: integer}}}
+    Plain: {$ref: '#/$defs/X'}
+    Outer: {$defs: {Y: {type: integer}}, properties: {mid: {<<: *i70, properties: {s: {$ref: '#/$defs/Y'}}}}}
+    Shallow: {$defs: {Y: {type: integer}}, properties: {mid: {<<: *i3, properties: {s: {$ref: '#/$defs/Y'}}}}}
+`, self)
+	assert.Equal(t, bind.MergeBound, entryAt(t, table, "/components/schemas/Hidden").Hop.Reason)
+	assert.Equal(t, bind.MergeBound, entryAt(t, table, "/components/schemas/Lacking").Hop.Reason)
+	assert.Equal(t, bind.MergeBound, entryAt(t, table, "/components/schemas/Outer/properties/mid/properties/s").Hop.Reason)
+	for site, want := range map[jsontext.Pointer]jsontext.Pointer{
+		"/components/schemas/Near":                                "/components/schemas/Near/$defs/X",
+		"/components/schemas/Shallow/properties/mid/properties/s": "/components/schemas/Shallow/properties/mid/$defs/Y",
+		"/components/schemas/Plain":                               "/$defs/X",
+	} {
+		assert.Equal(t, at(want), entryAt(t, table, site).Hop.Target, site)
+	}
+
+	rooted := bound(t, chain.String()+`<<: *i70
+components:
+  schemas:
+    Holder: {$defs: {Y: {type: integer}}, properties: {s: {$ref: '#/$defs/Y'}}}
+`, self)
+	assert.Equal(t, bind.MergeBound, entryAt(t, rooted, "/components/schemas/Holder/properties/s").Hop.Reason)
+}
+
 // TestBind_AnswersAlikeInEitherOrder pins that a table depends on what the
 // document says, not the order it says it in: the same components, paths and
 // mapping entries declared in reverse give the same entries, loops, landings
@@ -223,8 +266,8 @@ func TestSpellings(t *testing.T) {
 		"it names another document, and external references are not read":                    {Reason: bind.ExternalOff},
 		"the document it names could not be read: gone":                                      {Reason: bind.Unreadable, Detail: "gone"},
 		"its pointer passes through a reference that resolves to nothing the compiler reads": {Reason: bind.Unpassable},
-		"it names a key of a mapping that merges through `<<` deeper than the 64 levels the compiler expands, " +
-			"and no level it read holds the key": {Reason: bind.MergeBound},
+		"it reads a key that may lie past a `<<` merge chain deeper than the 64 levels the compiler expands": {
+			Reason: bind.MergeBound},
 		"it was not read within the budget": {Status: bind.OverBudget},
 		"it does not resolve":               {Reason: 200},
 	} {

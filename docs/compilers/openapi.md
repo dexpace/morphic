@@ -264,9 +264,10 @@ none.
 
 Binding is held to one work budget, reported as an `openapi/budget-exceeded` error once it runs
 out, the `$ref`s past it left unresolved. A `<<` merge chain deeper than the 64 levels a mapping's
-merges are expanded to is reported as an `openapi/degraded-construct` warning, and a `$ref` past it,
-or naming a position past it, is left unresolved. A chain of references that closes on itself is
-[`reference-cycles`](#reference-cycles)'.
+merges are expanded to is reported as an `openapi/degraded-construct` warning, and a `$ref` past it
+is left unresolved, as is one that reads a key past it: a key its pointer names, or, for a
+`#/$defs/...` pointer, an `$id` or a definition the rule reads before the one that would answer. A
+chain of references that closes on itself is [`reference-cycles`](#reference-cycles)'.
 
 - Codes: `openapi/unresolved-ref`, `openapi/budget-exceeded`, `openapi/degraded-construct`
 - Tests: `openapi.TestCompile_ExternalFileRefIsNotReadByDefault`,
@@ -277,6 +278,7 @@ or naming a position past it, is left unresolved. A chain of references that clo
   `bind.TestBind_ReadsEachHop`, `bind.TestBind_ReadsADefinitionByTheDefsRule`,
   `bind.TestBind_ReadsEachPositionAsTheJSONItSpells`, `bind.TestBind_StopsAtItsBudget`,
   `bind.TestTable_SaysWhyARefWentUnread`, `bind.TestBind_SaysAKeyMayLiePastTheMergeBound`,
+  `bind.TestBind_TakesNoDefinitionPastAReadTheMergeBoundStopped`,
   `canary.TestBindingOracle_AgreesWithTheLibrary`
 - Status: partly built: no schema another document holds is lowered, so a schema `$ref` naming one
   is reported unresolved (#74), and an `$anchor` or an `$id` is not honoured as a reference target

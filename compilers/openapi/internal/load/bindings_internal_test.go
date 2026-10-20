@@ -128,7 +128,7 @@ func TestBindingDiags_ReportsTheMergeBound(t *testing.T) {
 
 	want := []ir.Diagnostic{diag.Newf(ir.SeverityWarning, diag.DegradedConstruct, at(""),
 		"a mapping merges through `<<` deeper than 64 levels, which resolving the schema $refs does not "+
-			"expand; a $ref past that, or naming a position past it, is left unresolved")}
+			"expand; a $ref past that, or one that reads a key past it, is left unresolved")}
 	assert.Empty(t, cmp.Diff(want, bindingDiags(at, bind.Bind(&root, bind.Config{Self: "spec.yaml"}))))
 }
 

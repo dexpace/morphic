@@ -138,9 +138,10 @@ const (
 	// Unpassable is a pointer through a reference object that resolves to
 	// nothing, or one in another document's content, which is not resolved.
 	Unpassable
-	// MergeBound is a key no mapping read holds, where one of them merges
-	// through `<<` deeper than nodeview.MergeDepthLimit, so the key may lie
-	// past the bound.
+	// MergeBound is a read that stopped at a mapping merging through `<<`
+	// deeper than nodeview.MergeDepthLimit, so a key it needs may lie past the
+	// bound: one the pointer names, or an $id or a definition the $defs rule
+	// reads before the one that would answer.
 	MergeBound
 )
 
@@ -254,8 +255,8 @@ func (h Hop) Why() string {
 	case Unpassable:
 		return "its pointer passes through a reference that resolves to nothing the compiler reads"
 	case MergeBound:
-		return "it names a key of a mapping that merges through `<<` deeper than the " +
-			strconv.Itoa(nodeview.MergeDepthLimit) + " levels the compiler expands, and no level it read holds the key"
+		return "it reads a key that may lie past a `<<` merge chain deeper than the " +
+			strconv.Itoa(nodeview.MergeDepthLimit) + " levels the compiler expands"
 	default:
 		return "it does not resolve"
 	}
