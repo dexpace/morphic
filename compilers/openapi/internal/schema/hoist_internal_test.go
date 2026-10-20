@@ -1,7 +1,6 @@
 package schema
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -11,7 +10,6 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/merge"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -99,47 +97,6 @@ func TestRegisteredNode_ReportsAMissRatherThanDroppingIt(t *testing.T) {
 	assert.True(t, ok)
 	assert.Empty(t, diags, "a hit reports nothing")
 	assert.Equal(t, id, td.Common().ID)
-}
-
-// TestFormatTable_EveryRowDistinguishesTheBareType pins the invariant the
-// `string/password` row broke (GitHub #579): a (type, format) key may only map
-// to a primitive kind the pairing itself distinguishes, because a row mapping to
-// the kind the bare type selects makes the pairing unreadable — the position
-// resolves to the shared primitive and nothing anywhere records the format. A
-// format whose kind does not differ must be absent from the table, to hoist a
-// node as byte and an unknown format do, or be read elsewhere, as password is.
-func TestFormatTable_EveryRowDistinguishesTheBareType(t *testing.T) {
-	t.Parallel()
-	for key, prim := range formatTable {
-		typ, _, paired := strings.Cut(key, "/")
-		if !paired {
-			continue // the bare type's own row, which no format selects
-		}
-		bare, ok := formatTable[typ]
-		require.True(t, ok, "row %q names a type with no row of its own", key)
-		assert.NotEqual(t, bare, prim,
-			"row %q maps to the same kind (%s) as the bare type %q, so the pairing "+
-				"reaches no field once the position resolves to the shared primitive; "+
-				"a format whose kind does not differ must not be a row", key, prim, typ)
-	}
-}
-
-// TestFormatTable_EveryRowNarrowsItsBareType holds merge.Narrows to what the
-// table lowers: every (type, format) row must narrow its bare type's row, or an
-// allOf redeclaring a bare type with a format would warn of a conflict that
-// loses nothing (GitHub #598).
-func TestFormatTable_EveryRowNarrowsItsBareType(t *testing.T) {
-	t.Parallel()
-	for key, prim := range formatTable {
-		typ, _, paired := strings.Cut(key, "/")
-		if !paired {
-			continue
-		}
-		bare, ok := formatTable[typ]
-		require.True(t, ok, "row %q names a type with no row of its own", key)
-		assert.True(t, merge.Narrows(prim, bare),
-			"row %q lowers to %s, which merge.Narrows does not relate to the bare %q kind %s", key, prim, typ, bare)
-	}
 }
 
 // TestRegisteredNode_LeavesANodeStillBeingBuiltToItsBuilder pins the one miss

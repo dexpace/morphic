@@ -21,6 +21,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/merge"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
+	"github.com/dexpace/morphic/compilers/openapi/internal/spelling"
 	"github.com/dexpace/morphic/compilers/openapi/internal/value"
 	"github.com/dexpace/morphic/ir"
 )
@@ -762,7 +763,7 @@ func isKind(td ir.TypeDef, k ir.TypeKind) bool {
 }
 
 // formatHome reports whether the position's `format` reached a field. A Scalar
-// hoisted for it carries it in Encoding; a (type, format) pairing formatTable
+// hoisted for it carries it in Encoding; a (type, format) pairing the spelling table
 // knows selects a primitive, which carries the pairing in the primitive kind
 // itself. With no type declared there was no pairing to make and nothing read it,
 // and a node of any other kind has no Encoding field at all.
@@ -1452,7 +1453,7 @@ func buildTuple(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 	return t, diags
 }
 
-// scalarTypeID maps a scalar (type, format) pair to a TypeID via formatTable: a
+// scalarTypeID maps a scalar (type, format) pair to a TypeID via spelling.Lookup: a
 // known pairing interns the shared primitive; byte, a pairing the table does
 // not list, and the 2020-12 content vocabulary each hoist a named Scalar
 // wrapping the base primitive with an Encoding, so what the position wrote
@@ -1470,7 +1471,7 @@ func scalarTypeID(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth
 	if format != "" {
 		key += "/" + format
 	}
-	prim, known := formatTable[key]
+	prim, known := spelling.Lookup(key)
 	if !known {
 		return hoistScalar(c, ts, anchors, depth, s, baseForType(st), format, nil, pointer, hint)
 	}
@@ -2005,51 +2006,6 @@ func (w *anchorWalk) charge(depth int) bool {
 	}
 	w.budget--
 	return true
-}
-
-// formatTable maps a scalar "type" or "type/format" key to its IR primitive.
-//
-// An integer width maps under either numeric type, since OpenAPI applies a
-// format to integers and other numbers alike (3.1.1 §4.4.1). float, double,
-// decimal and decimal128 map under number alone: under integer they admit only
-// the integral values, which no primitive narrower than integer holds. Any
-// pairing absent here hoists a Scalar that keeps the format, byte excepted:
-// scalarTypeID reads it before the table, as base64-encoded bytes.
-//
-// No row maps to the kind its bare type selects, which would leave the format
-// nowhere (TestFormatTable_EveryRowDistinguishesTheBareType).
-var formatTable = map[string]ir.PrimKind{
-	"string":            ir.PrimString,
-	"string/date":       ir.PrimDate,
-	"string/time":       ir.PrimTime,
-	"string/duration":   ir.PrimDuration,
-	"string/uuid":       ir.PrimUUID,
-	"string/uri":        ir.PrimURL,
-	"string/date-time":  ir.PrimDatetimeOffset,
-	"string/binary":     ir.PrimBytes,
-	"integer":           ir.PrimInteger,
-	"integer/int8":      ir.PrimInt8,
-	"integer/int16":     ir.PrimInt16,
-	"integer/int32":     ir.PrimInt32,
-	"integer/int64":     ir.PrimInt64,
-	"integer/uint8":     ir.PrimUint8,
-	"integer/uint16":    ir.PrimUint16,
-	"integer/uint32":    ir.PrimUint32,
-	"integer/uint64":    ir.PrimUint64,
-	"number":            ir.PrimNumber,
-	"number/int8":       ir.PrimInt8,
-	"number/int16":      ir.PrimInt16,
-	"number/int32":      ir.PrimInt32,
-	"number/int64":      ir.PrimInt64,
-	"number/uint8":      ir.PrimUint8,
-	"number/uint16":     ir.PrimUint16,
-	"number/uint32":     ir.PrimUint32,
-	"number/uint64":     ir.PrimUint64,
-	"number/float":      ir.PrimFloat32,
-	"number/double":     ir.PrimFloat64,
-	"number/decimal":    ir.PrimDecimal,
-	"number/decimal128": ir.PrimDecimal128,
-	"boolean":           ir.PrimBool,
 }
 
 // baseForType returns the base primitive for an unknown-format scalar of type st.

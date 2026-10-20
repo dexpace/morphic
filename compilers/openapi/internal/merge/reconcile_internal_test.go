@@ -858,6 +858,7 @@ func narrowingRegistry() map[ir.TypeID]ir.TypeDef {
 	for _, k := range []ir.PrimKind{
 		ir.PrimNumber, ir.PrimInteger, ir.PrimInt32, ir.PrimInt64, ir.PrimString, ir.PrimDatetimeOffset,
 		ir.PrimURL, ir.PrimFloat64, ir.PrimUUID, ir.PrimUint32, ir.PrimBytes,
+		ir.PrimUint8, ir.PrimInt16, ir.PrimAny,
 	} {
 		id := ir.TypeID("t/prim/" + string(k))
 		reg[id] = &ir.Primitive{ID: id, Prim: k}
@@ -904,6 +905,27 @@ func TestReconcileProperty_ANarrowerPrimitiveWinsInEitherOrder(t *testing.T) {
 			assert.Empty(t, cmp.Diff(merged[0], merged[1]), "the merged type does not depend on branch order")
 		})
 	}
+}
+
+// TestReconcileProperty_AUint8NarrowsInt16InEitherOrder pins a containment the
+// old chain omitted: every uint8 is an int16, so int16 declared beside uint8
+// keeps uint8 whichever branch is written first, with nothing reported or kept.
+func TestReconcileProperty_AUint8NarrowsInt16InEitherOrder(t *testing.T) {
+	t.Parallel()
+	var merged [2]ir.TypeRef
+	for i, order := range [][2]ir.PrimKind{{ir.PrimInt16, ir.PrimUint8}, {ir.PrimUint8, ir.PrimInt16}} {
+		g, recorded := stubMerger(narrowingRegistry())
+		dst := ir.Property{WireName: "x", Type: primRef(order[0])}
+		src := ir.Property{WireName: "x", Type: primRef(order[1]), Provenance: ptrAt("/allOf/1/properties/x")}
+
+		g.reconcileProperty(&dst, src, unread(t))
+
+		assert.Equal(t, primRef(ir.PrimUint8).Target, dst.Type.Target, "uint8 wins (order %d)", i)
+		assert.Empty(t, *recorded, "a containment is not a conflict (order %d)", i)
+		assert.Empty(t, dst.Unmodeled, "nothing is dropped (order %d)", i)
+		merged[i] = dst.Type
+	}
+	assert.Empty(t, cmp.Diff(merged[0], merged[1]), "the merged type does not depend on branch order")
 }
 
 // TestReconcileProperty_ANarrowingIntersectsNullability pins that the swap

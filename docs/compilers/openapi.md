@@ -783,8 +783,11 @@ single schema's null verdicts fold under ([`nullable`](#nullable)).
   `merge.TestReconcileProperty_ANarrowingIntersectsNullability`,
   `merge.TestReconcileProperty_ADroppedTargetKeepsTheFirstNullAdmission`,
   `merge.TestReconcileProperty_ARelatedKindThroughAScalarStillWarns`,
-  `merge.TestNarrows_IsTheStrictPrimitiveSubsumption`,
-  `schema.TestFormatTable_EveryRowNarrowsItsBareType`
+  `merge.TestReconcileProperty_AUint8NarrowsInt16InEitherOrder`,
+  `spelling.TestNarrows_HoldsEveryContainment`,
+  `spelling.TestNarrows_OmitsRoundingContainments`,
+  `spelling.TestRelate_ClassifiesEveryVerdict`,
+  `spelling.TestFormatTable_EveryRowNarrowsItsBareType`
 - Status: partly built: a redeclaration with an unknown format, or a narrowing reached through a
   `Scalar` over another base (`format: byte`), is resolved by branch order (#782); a property
   redeclared as a list and as a tuple is reported as a conflict (#899); and a conflict goes
@@ -1220,7 +1223,7 @@ pairing of `format` with another `type` is [`numeric-formats`](#numeric-formats)
 - Codes: `openapi/degraded-construct`
 - Tests: `schema.TestScalar_UnknownFormatPerBaseType`,
   `schema.TestLower_NamedScalarComponentResolves`,
-  `schema.TestFormatTable_EveryRowDistinguishesTheBareType`
+  `spelling.TestFormatTable_EveryRowDistinguishesTheBareType`
 - Status: partly built: `date-time-local` and `time-local` hoist over `string`, and `time`'s offset
   has no home (#869), and a `byte` string and a string-carried number put the logical and the wire
   type on opposite fields (#637).
