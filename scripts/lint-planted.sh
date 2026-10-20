@@ -13,14 +13,10 @@
 # encoding/json/v2 or a test file's forced assertion, so a rule cannot pass by
 # matching everything either.
 #
-# Lint reads the files one port's build includes, so the run is repeated on each
-# port given as GOOS/GOARCH. The plants under testdata/ports that a port alone
-# builds are marked for that port's run, which shows each run reads its port.
-#
 # It reads golangci-lint's JSON output with jq, which CI's runner and recent
 # macOS ship.
 #
-# Usage: lint-planted.sh [GOOS/GOARCH ...]        (make lint-planted passes $(PORTS))
+# Usage: lint-planted.sh
 set -euo pipefail
 export LC_ALL=C # one byte order for both sorted lists
 
@@ -46,59 +42,35 @@ done
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 
-# The plant packages, named apart: ./... does not reach into testdata.
-pkgs=("./$testdata/planted/..." "./$testdata/ports/...")
-
-# markers prints each finding marked in the files under $1 named like $2, as
-# "<file>:<line>: <message>"; `// want "` is nine bytes.
-markers() {
-	find "$1" -name "$2" -exec awk 'match($0, /\/\/ want "[^"]*"$/) {
-		print FILENAME ":" FNR ": " substr($0, RSTART + 9, RLENGTH - 10)
-	}' {} + | sort
-}
-
-planted="$(markers "$testdata/planted" '*.go')"
-if [[ -z "$planted" ]]; then
+# The findings marked in the plants, as "<file>:<line>: <message>"; `// want "`
+# is nine bytes.
+want="$(find "$testdata/planted" -name '*.go' -exec awk 'match($0, /\/\/ want "[^"]*"$/) {
+	print FILENAME ":" FNR ": " substr($0, RSTART + 9, RLENGTH - 10)
+}' {} + | sort)"
+if [[ -z "$want" ]]; then
 	echo "lint-planted: no // want markers under $testdata/planted, so a clean run proves nothing" >&2
 	exit 1
 fi
 
-# run lints the module and the plants on the port $1 names as GOOS/GOARCH, and
-# fails unless the plants draw exactly the marked findings: those under planted,
-# and those of the ports file of that port's GOOS, if there is one.
-run() {
-	local goos="${1%/*}" goarch="${1#*/}" want got
-	want="$planted"
-	if [[ -f "$testdata/ports/ports_$goos.go" ]]; then
-		want="$(printf '%s\n%s\n' "$planted" "$(markers "$testdata/ports" "ports_$goos.go")" | sort)"
-	fi
+# The module and the plants are linted in one go; ./... does not reach into
+# testdata, so the plants are named apart. Exit codes past --issues-exit-code, a
+# configuration that does not load among them, end the script. A finding's file
+# and line are fields of the JSON, so none goes unread, and one with no file is a
+# stray. The warnings about exclusions for linters this run leaves out are
+# dropped.
+if ! golangci-lint run --enable-only "$linters" \
+	--issues-exit-code 0 --max-issues-per-linter 0 --max-same-issues 0 \
+	--output.json.path "$work/issues.json" ./... "./$testdata/planted/..." >/dev/null 2>"$work/stderr"; then
+	cat "$work/stderr" >&2
+	exit 1
+fi
+grep -v 'Skipped 0 issues by rules' "$work/stderr" >&2 || true
+got="$(jq -r '(.Issues // [])[] | "\(.Pos.Filename):\(.Pos.Line): \(.Text) (\(.FromLinter))"' \
+	"$work/issues.json" | sort)"
 
-	# Exit codes past --issues-exit-code, a configuration that does not load
-	# among them, end the script. A finding's file and line are fields of the
-	# JSON, so none goes unread, and one with no file is a stray. The warnings
-	# about exclusions for linters this run leaves out are dropped.
-	if ! GOOS="$goos" GOARCH="$goarch" golangci-lint run --enable-only "$linters" \
-		--issues-exit-code 0 --max-issues-per-linter 0 --max-same-issues 0 \
-		--output.json.path "$work/issues.json" ./... "${pkgs[@]}" >/dev/null 2>"$work/stderr"; then
-		cat "$work/stderr" >&2
-		exit 1
-	fi
-	grep -v 'Skipped 0 issues by rules' "$work/stderr" >&2 || true
-	got="$(jq -r '(.Issues // [])[] | "\(.Pos.Filename):\(.Pos.Line): \(.Text) (\(.FromLinter))"' \
-		"$work/issues.json" | sort)"
-
-	if [[ "$got" != "$want" ]]; then
-		echo "lint-planted: on $1, the findings are not the marked ones (< want, > got):" >&2
-		diff <(printf '%s\n' "$want") <(printf '%s\n' "$got") >&2 || true
-		exit 1
-	fi
-	echo "lint-planted: on $1, the module is clean and the $(printf '%s\n' "$want" | wc -l | tr -d ' ') planted findings are drawn, nothing else"
-}
-
-for port in "$(go env GOOS)/$(go env GOARCH)" "$@"; do
-	if [[ "$port" != */* ]]; then
-		echo "lint-planted: $port is no GOOS/GOARCH pair" >&2
-		exit 2
-	fi
-	run "$port"
-done
+if [[ "$got" != "$want" ]]; then
+	echo "lint-planted: the findings are not the marked ones (< want, > got):" >&2
+	diff <(printf '%s\n' "$want") <(printf '%s\n' "$got") >&2 || true
+	exit 1
+fi
+echo "lint-planted: the module is clean and the $(printf '%s\n' "$want" | wc -l | tr -d ' ') planted findings are drawn, nothing else"

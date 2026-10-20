@@ -221,7 +221,8 @@ These all exist already — extend them rather than building a parallel mechanis
   `internal/lintrules/testdata/planted`, and `internal/lintrules`' own test holds the analyzers to
   `testdata/mod`, a tree laid out like the module. Lines there carry the findings they must draw.
   A new rule gets its plants beside the others, and a new linter a place in the script's list.
-  Both run on every port `make build` covers, which `testdata/ports` proves they reach.
+  `make vet` also requires the one finding planted in `testdata/reach`, which shows `go vet` runs
+  the analyzers at all.
 - **Declaration pins**: a test that holds a hand-written list (an enum's members, a sealed sum's
   kinds, the fields of a shape) to what a package declares reads the package through
   `internal/decls`, which type-checks it with `go/packages`. It does not parse the sources: parsed

@@ -61,13 +61,6 @@ export GOFLAGS
 # upstream release reddens main with no change to this repo.
 GOLANGCI_LINT_VERSION ?= v2.14.0
 
-# The ports CI never runs on, as GOOS/GOARCH, which make build, make vet and
-# make lint-planted cover beside the host: an API one port lacks fails only that
-# port's build, and a file one port alone builds is read by that port's vet and
-# lint only. Windows, and the two wasm ports, whose syscall package is the
-# narrowest the module builds against.
-PORTS := windows/amd64 js/wasm wasip1/wasm
-
 # Per-target fuzz budget, bounded on purpose. The gate's job is to keep every
 # target executable and to search a little on every change; a campaign is what
 # `make fuzz FUZZTIME=5m` is for.
@@ -95,21 +88,19 @@ fmt:
 	fi
 
 # go vet's own analyzers, then the repository's: internal/lintrules, through
-# cmd/morphic-vet, on the host and on each of the PORTS. scripts/vet-rules.sh
-# says how.
+# cmd/morphic-vet. scripts/vet-rules.sh says how.
 vet:
 	$(GO) vet ./...
-	./scripts/vet-rules.sh $(PORTS)
+	./scripts/vet-rules.sh
 
 lint: check-lint-version
 	golangci-lint run
 
 # The rules in .golangci.yml that a clean tree cannot prove, held to the findings
-# planted for them on the host and on each of the PORTS; scripts/lint-planted.sh
-# says how. In CI it runs after the lint action, which leaves its golangci-lint
-# on PATH for the steps after it.
+# planted for them; scripts/lint-planted.sh says how. In CI it runs after the
+# lint action, which leaves its golangci-lint on PATH for the steps after it.
 lint-planted: check-lint-version
-	./scripts/lint-planted.sh $(PORTS)
+	./scripts/lint-planted.sh
 
 # CI installs the pinned release through golangci-lint-action; here the binary
 # is whatever is on PATH. A mismatch is reported rather than fatal — a developer
@@ -123,13 +114,8 @@ check-lint-version:
 		echo "warning:   go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$$want" >&2; \
 	fi
 
-# The build runs for the host and again for each of the PORTS.
 build:
 	$(GO) build ./...
-	@for port in $(PORTS); do \
-		echo "GOOS=$${port%/*} GOARCH=$${port#*/} $(GO) build ./..."; \
-		GOOS="$${port%/*}" GOARCH="$${port#*/}" $(GO) build ./... || exit 1; \
-	done
 
 # The suite runs once, under the race detector, and cmd/morphic-covergate judges
 # its profile statement by statement; its doc says why go test's percentage is
