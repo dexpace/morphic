@@ -48,13 +48,13 @@ x-params:
 			require.NotNil(t, doc)
 			op := doc.Services[0].Groups[0].Operations[0]
 			require.Len(t, op.Params, 1)
+			want := ir.TypeID("t/prim/integer")
+			if ref == "#/x-params/q/" {
+				want = "t/openapi/components/schemas/Int"
+			}
+			assert.Equal(t, want, op.Params[0].Type.Target)
 			s, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Scalar)
 			require.True(t, ok)
-			if ref == "#/x-params/q/" {
-				assert.Equal(t, ir.TypeID("t/openapi/components/schemas/Int"), op.Params[0].Type.Target)
-				return
-			}
-			assert.Equal(t, ir.TypeID("t/prim/integer"), op.Params[0].Type.Target)
 			assert.Equal(t, ir.TypeID("t/anon/paths/~1a/get/parameters/0/schema"), s.Base.Target)
 		})
 	}

@@ -557,17 +557,17 @@ type chain struct {
 // pointer is read off the reference, decoded once as fragment.Pointer decodes
 // it, not cut from the absolute one: a document's path may hold a '#'.
 type record struct {
-	path    string
-	target  references.Reference
-	pointer jsontext.Pointer
-	object  any
-	// node is the node the object the chain reaches from this hop was built
-	// from, read off the object's reference.
-	node         *yaml.Node
+	path         string
+	target       references.Reference
+	pointer      jsontext.Pointer
+	object       any
 	walk         func(context.Context) iter.Seq[soa.WalkItem]
 	document     *any
 	documentPath *string
 	replace      func(obj any) bool
+	// node is the root node of the object the chain ends on from this hop:
+	// the hop's reference reports its chain's end, not its own target.
+	node *yaml.Node
 }
 
 // inSource reports whether r's hop resolved against the source, which the
