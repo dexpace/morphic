@@ -423,12 +423,13 @@ const (
 	// verdictSilent is a pair the merge does not guess about: composites of one
 	// kind, an unresolvable target or the top type.
 	verdictSilent redeclVerdict = iota
-	// verdictConflict is a pair no value satisfies: a scalar against a
-	// structure, two structure kinds or disjoint primitive kinds.
+	// verdictConflict is a pair reported as incompatible: a scalar against a
+	// structure, two structure kinds, disjoint primitive kinds, or an Enum
+	// against a different primitive kind.
 	verdictConflict
-	// verdictOverlap is a pair of primitive kinds that share values but which
-	// the merge does not narrow to one, or that the fold left unrelated
-	// although they resolve to related kinds.
+	// verdictOverlap is a pair with no Enum side whose primitive kinds share
+	// values but which the merge does not narrow to one, or that the fold left
+	// unrelated although they resolve to related kinds.
 	verdictOverlap
 )
 
@@ -448,9 +449,9 @@ func (g *Merger) overlappingTypesDiag(dst *ir.Property, pointer jsontext.Pointer
 // targets and the schemaless top type are silent. Two targets that resolve to
 // primitive kinds go through spelling.Relate: disjoint kinds conflict and
 // anything else overlaps. An Enum side keeps the kind comparison, since kind
-// alone cannot tell whether its members meet the other side. A scalar against a structural type conflicts, and so
-// do two structure kinds. Two distinct composites of one kind are not provably
-// contradictory, so they are silent.
+// alone cannot tell whether its members meet the other side. A scalar against
+// a structural type conflicts, and so do two structure kinds. Two distinct
+// composites of one kind are not provably contradictory, so they are silent.
 func (g *Merger) typesConflict(a, b ir.TypeRef) redeclVerdict {
 	if a.Target == b.Target || g.isAnyType(a) || g.isAnyType(b) {
 		return verdictSilent

@@ -1049,8 +1049,8 @@ func TestFoldTypeTargets_ANarrowingIsNoDrop(t *testing.T) {
 		assert.False(t, g.foldTypeTargets(&dst, &src), "a narrowing is no drop (order %d)", i)
 		assert.Equal(t, primRef(ir.PrimInteger).Target, dst.Type.Target, "the narrower target wins (order %d)", i)
 
-		// The classifier gets a freshly built narrowing pair, two different
-		// targets, rather than the pair the fold just made equal.
+		// Build the pair afresh: in order 1 the fold above has already made
+		// the targets equal, and the classifier must meet a narrowing in both orders.
 		dst2 := ir.Property{WireName: "x", Type: primRef(order[0])}
 		src2 := ir.Property{WireName: "x", Type: primRef(order[1]), Provenance: ptrAt("/allOf/1/properties/x")}
 		require.NotEqual(t, dst2.Type.Target, src2.Type.Target, "the pair is a narrowing (order %d)", i)
@@ -1059,7 +1059,7 @@ func TestFoldTypeTargets_ANarrowingIsNoDrop(t *testing.T) {
 
 		assert.False(t, dropped, "order %d", i)
 		assert.False(t, lost, "order %d", i)
-		assert.Empty(t, *recorded, "nothing is classified once targets agree (order %d)", i)
+		assert.Empty(t, *recorded, "a narrowing draws no diagnostic (order %d)", i)
 	}
 }
 

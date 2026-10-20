@@ -765,11 +765,12 @@ their types are incompatible — disjoint primitive kinds (`string` against `int
 `date-time`), a scalar against a structure, or two different kinds of structure — or where one
 constraint keyword is pinned to two values; types whose primitive kinds share values but that the
 merge does not narrow to one (`int32` against `uint32`, an unknown `format` against bare `string`)
-are named in an info `openapi/degraded-construct`, and only the first declaration's type is kept; a
-pair with an enum keeps the kind comparison, since kind alone cannot tell whether its members meet
-the other side; a detail the first declaration already holds differently is named in an info
-`openapi/degraded-construct`; and two composites of one kind, an unresolvable target, and the top
-type against anything are dropped without any diagnostic and kept all the same. The loser's
+are named in an info `openapi/degraded-construct`, and only the first declaration's type is kept; an
+enum against another enum or a type of primitive kind other than the top type warns where the kinds
+differ and is dropped without any diagnostic where they agree, since kind alone cannot tell whether
+its members meet the other side; a detail the first declaration already holds differently is named
+in an info `openapi/degraded-construct`; and two composites of one kind, an unresolvable target, and
+the top type against anything are dropped without any diagnostic and kept all the same. The loser's
 `default`, constraints and examples go with its type rather than folding onto the winner — they
 describe the shape that lost, and adopting them would leave one field asserting two contradictory
 things, with nothing downstream comparing a value's kind to its property's type; this is keyed on
