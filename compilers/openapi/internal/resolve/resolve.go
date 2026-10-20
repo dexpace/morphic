@@ -463,10 +463,9 @@ func InternedID(ts *compile.Types, pointer jsontext.Pointer) (ir.TypeID, bool) {
 // must not hoist nodes as a side effect of asking.
 //
 // It must stay in step with resolveSchemaRef, and mirrors it minus the two
-// steps that are not pure lookups: hoistSubSchema, which interns (its only
-// failure, a target with neither a body nor a boolean, is the last condition
-// here), and the InternedID hit, which would make the answer depend on which
-// schema lowered first.
+// steps that are not pure lookups: hoistSubSchema, which interns and fails
+// only where Hoistable does, and the InternedID hit, which would make the
+// answer depend on which schema lowered first.
 func (s Scope) NamesReferent(js *oas3.JSONSchema[oas3.Referenceable]) bool {
 	pointer, ok := s.TargetPointer(js)
 	if !ok {
@@ -475,7 +474,13 @@ func (s Scope) NamesReferent(js *oas3.JSONSchema[oas3.Referenceable]) bool {
 	if _, resolved, handled := s.ComponentRef(pointer); handled {
 		return resolved
 	}
-	decl := s.Bindings.Declared(js)
+	return Hoistable(s.Bindings.Declared(js))
+}
+
+// Hoistable reports whether decl, the schema a $ref lands on, can be hoisted
+// where it is written: one with a body, or a boolean one (GitHub #861).
+// hoistSubSchema and NamesReferent both ask it, so they cannot part.
+func Hoistable(decl *oas3.JSONSchema[oas3.Referenceable]) bool {
 	return decl != nil && (decl.IsBool() || annotation.At(decl).Node != nil)
 }
 

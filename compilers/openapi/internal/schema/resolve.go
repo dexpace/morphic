@@ -259,10 +259,10 @@ func resolvePointer(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, dep
 // decl is the declaration itself, not its resolved form, so a sub-schema that
 // is a $ref carrying siblings aliases its target while keeping them.
 func hoistSubSchema(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, decl *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer) (ir.TypeID, bool, []ir.Diagnostic) {
-	s := annotation.At(decl)
-	if s.Node == nil && !decl.IsBool() {
+	if !resolve.Hoistable(decl) {
 		return "", false, nil
 	}
+	s := annotation.At(decl)
 	// Everything lowered from here is reached through a $ref that named this
 	// coordinate, not through the declaration that owns it, so the names minted
 	// below are placeholders the declaration replaces (GitHub #372). It covers the
