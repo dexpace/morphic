@@ -12,6 +12,13 @@
 # Usage: vet-rules.sh
 set -euo pipefail
 
+# The run is the host's alone, so an argument, such as a port to vet as well,
+# is refused rather than read as checked.
+if [[ $# -ne 0 ]]; then
+	echo "usage: vet-rules.sh" >&2
+	exit 2
+fi
+
 cd "$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)"
 reach=internal/lintrules/testdata/reach
 

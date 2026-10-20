@@ -3,10 +3,11 @@
 # lint-planted.sh holds the rules .golangci.yml configures, which a clean tree
 # cannot prove, to the tree and to findings planted for them. It runs
 # golangci-lint with the repository's configuration and the linters in $linters
-# only, over the module and the packages under internal/lintrules/testdata, where
-# each line ending in `// want "<message> (<linter>)"` holds something a rule
-# exists to refuse. It fails unless the plants draw exactly the marked findings
-# and the module draws none.
+# only, over the module and the packages under
+# internal/lintrules/testdata/planted, where each line ending in
+# `// want "<message> (<linter>)"` holds something a rule exists to refuse. It
+# fails unless the plants draw exactly the marked findings and the module draws
+# none.
 #
 # The module alone cannot prove a rule: one that recognizes nothing leaves it as
 # clean as one that works. The plants also pin what must draw nothing, such as
@@ -19,6 +20,13 @@
 # Usage: lint-planted.sh
 set -euo pipefail
 export LC_ALL=C # one byte order for both sorted lists
+
+# The run is the host's alone, so an argument, such as a port to lint as well,
+# is refused rather than read as checked.
+if [[ $# -ne 0 ]]; then
+	echo "usage: lint-planted.sh" >&2
+	exit 2
+fi
 
 cd "$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)"
 testdata=internal/lintrules/testdata
@@ -55,8 +63,8 @@ fi
 # The module and the plants are linted in one go; ./... does not reach into
 # testdata, so the plants are named apart. Exit codes past --issues-exit-code, a
 # configuration that does not load among them, end the script. A finding's file
-# and line are fields of the JSON, so none goes unread, and one with no file is a
-# stray. The warnings about exclusions for linters this run leaves out are
+# and line are fields of the JSON, so none goes unread, and one with no file is
+# a stray. The warnings about exclusions for linters this run leaves out are
 # dropped.
 if ! golangci-lint run --enable-only "$linters" \
 	--issues-exit-code 0 --max-issues-per-linter 0 --max-same-issues 0 \

@@ -287,10 +287,10 @@ make gate
 That is not a summary of CI; it is what CI runs. Every check in `.github/workflows/gate.yml` runs
 a `Makefile` target bar `lint`, which the golangci-lint action runs at the version the `Makefile`
 pins, so the local command and CI run the same steps; CI splits them across two jobs that run side
-by side. The `Makefile` holds
-the step list, and each target (`make coverage`, `make fuzz`, `make bench` and the rest) runs on its
-own while iterating. Coverage is gated at exactly 100% of statements, counted from the profile
-rather than from `go test`'s rounded percentage, so one uncovered statement fails the build.
+by side. The `Makefile` holds the step list, and each target (`make coverage`, `make fuzz`,
+`make bench` and the rest) runs on its own while iterating. Coverage is gated at exactly 100% of
+statements, counted from the profile rather than from `go test`'s rounded percentage, so one
+uncovered statement fails the build.
 
 Run a single test with `go test ./ir -run TestName`. Beyond that:
 

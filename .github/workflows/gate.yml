@@ -10,8 +10,8 @@ concurrency:
   group: gate-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
-# The gate runs as two jobs side by side, split so each takes about half its
-# wall time. Every check is a Makefile target, and `make gate` runs them all.
+# The gate runs as two jobs side by side. Every check is a Makefile target, and
+# `make gate` runs them all.
 #
 # A run on main starts from empty Go build and module caches and saves what it
 # built. A pull request's run restores what the latest run of the same job on
