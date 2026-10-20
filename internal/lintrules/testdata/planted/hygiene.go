@@ -7,11 +7,13 @@ import (
 	"time"
 )
 
-// Wire is a JSON shape with one field spelled otherwise than Go spells it.
+// Wire is a JSON shape with one field spelled otherwise than Go spells it,
+// beside JSON and YAML names keeping an initialism whole, as Go does.
 type Wire struct {
 	SnakeField string `json:"snake_field"` // want "json(goCamel): got 'snake_field' want 'snakeField' (tagliatelle)"
 	CamelField string `json:"camelField"`
 	WireID     int    `json:"wireID"`
+	SpecURL    string `yaml:"specURL"`
 }
 
 // bidi hides a right-to-left override in a string literal.
