@@ -51,11 +51,12 @@ linters:
       # ir.ValueKind is a bare string enum with no marker method to hold it
       # otherwise. Only package ir's enums are held. The rest are ignored by
       # pattern: the standard library (no dot in its path), the libraries the
-      # module reads, and the module's other packages. A switch over a library's
-      # enum reads the few members it handles, so an enum from a library newly
+      # module reads, and every package of the module but ir (its path after
+      # morphic/ is anything but exactly ir). A switch over a library's enum
+      # reads the few members it handles, so an enum from a library newly
       # imported is held until it is named here.
       default-signifies-exhaustive: false
-      ignore-enum-types: ^([^.]+|gopkg\.in/yaml\.v3|github\.com/speakeasy-api/openapi/.+|github\.com/dexpace/morphic/(compilers|internal|pass|engine|cmd)/.+|github\.com/dexpace/morphic/ir/.+|github\.com/dexpace/morphic/ir_test)\.\w+$
+      ignore-enum-types: ^([^.]+|gopkg\.in/yaml\.v3|github\.com/speakeasy-api/openapi/.+|github\.com/dexpace/morphic/([^i.][^.]*|i[^r.][^.]*|ir[^.]+|i))\.\w+$
     forbidigo:
       # Invariant 5: a pipeline stage writes nothing to stdout or stderr and
       # logs nothing. It returns diagnostics, and the engine or the CLI decides

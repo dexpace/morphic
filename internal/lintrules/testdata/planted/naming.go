@@ -15,8 +15,13 @@ func plantNaming(name string) []ir.Naming {
 	carried := ir.Naming{Canonical: name}                                // want "ruleguard: a name channel is filled outside the framework; use compile.NamingFor, compile.NamingHint or ir.CanonicalWords (gocritic)"
 	wrapped := ir.Naming{Canonical: localWords(ir.CanonicalWords(name))} // want "ruleguard: a name channel is filled outside the framework; use compile.NamingFor, compile.NamingHint or ir.CanonicalWords (gocritic)"
 	var late ir.Naming
-	late.Canonical = strings.ToLower(name)                       // want "ruleguard: a name channel is filled outside the framework; use compile.NamingFor, compile.NamingHint or ir.CanonicalWords (gocritic)"
-	late.Hint = localWords(name)                                 // want "ruleguard: a name channel is filled outside the framework; use compile.NamingFor, compile.NamingHint or ir.CanonicalWords (gocritic)"
+	late.Canonical = strings.ToLower(name) // want "ruleguard: a name channel is filled outside the framework; use compile.NamingFor, compile.NamingHint or ir.CanonicalWords (gocritic)"
+	late.Hint = localWords(name)           // want "ruleguard: a name channel is filled outside the framework; use compile.NamingFor, compile.NamingHint or ir.CanonicalWords (gocritic)"
+	var pair ir.Naming
+	var count int
+	pair.Canonical, count = compile.NamingFor(name).Canonical, 1 // want "ruleguard: a name channel is filled in a multiple assignment; fill it alone, from compile.NamingFor, compile.NamingHint or ir.CanonicalWords (gocritic)"
+	count, pair.Hint = 2, localWords(name)                       // want "ruleguard: a name channel is filled in a multiple assignment; fill it alone, from compile.NamingFor, compile.NamingHint or ir.CanonicalWords (gocritic)"
+	_, _ = pair, count
 	byKey := map[string]ir.Naming{"k": {Hint: localWords(name)}} // want "ruleguard: a name channel is filled outside the framework; use compile.NamingFor, compile.NamingHint or ir.CanonicalWords (gocritic)"
 	canonical := ir.Naming{Source: name, Canonical: ir.CanonicalWords(name)}
 	sub := ir.Naming{Hint: compile.SubHint(name, "item")}

@@ -142,7 +142,6 @@ func nameChannels(m dsl.Matcher) {
 	// import of either under another name reads as a local call. ruleguard's
 	// Contains would read the import, but its answer changed with which other
 	// packages a run loaded.
-
 	m.Match(`ir.Naming{$*_, Canonical: $f($*_), $*_}`, `ir.Naming{$*_, Hint: $f($*_), $*_}`,
 		`{$*_, Canonical: $f($*_), $*_}`, `{$*_, Hint: $f($*_), $*_}`,
 		`$x.Canonical = $f($*_)`, `$x.Hint = $f($*_)`).
@@ -158,6 +157,15 @@ func nameChannels(m dsl.Matcher) {
 			!m.File().PkgPath.Matches(`^github\.com/dexpace/morphic/(ir|compilers/compile)(/|$)`) &&
 			!m.File().Name.Matches(`_test\.go$`)).
 		Report(`a name channel is filled outside the framework; use compile.NamingFor, compile.NamingHint or ir.CanonicalWords`)
+
+	// A multiple assignment pairs no single value with the field, so one that
+	// fills a name channel is refused whatever its values, at any of the first
+	// three targets.
+	m.Match(`$x.Canonical, $_, $*_ = $*_`, `$_, $x.Canonical, $*_ = $*_`, `$_, $_, $x.Canonical, $*_ = $*_`,
+		`$x.Hint, $_, $*_ = $*_`, `$_, $x.Hint, $*_ = $*_`, `$_, $_, $x.Hint, $*_ = $*_`).
+		Where(!m.File().PkgPath.Matches(`^github\.com/dexpace/morphic/(ir|compilers/compile)(/|$)`) &&
+			!m.File().Name.Matches(`_test\.go$`)).
+		Report(`a name channel is filled in a multiple assignment; fill it alone, from compile.NamingFor, compile.NamingHint or ir.CanonicalWords`)
 }
 
 // idDerivations refuses, in a compiler other than compilers/compile, building
@@ -176,25 +184,36 @@ func idDerivations(m dsl.Matcher) {
 			m["t"].Type.Is(`ir.AuthID`) || m["t"].Type.Is(`ir.ServiceID`) || m["t"].Type.Is(`ir.GroupID`) ||
 			m["t"].Type.Is(`ir.ParamID`) || m["t"].Type.Is(`ir.EnumMemberID`) || m["t"].Type.Is(`ir.ChannelID`) ||
 			m["t"].Type.Is(`ir.MessageID`)) &&
-			m.File().PkgPath.Matches(`^github\.com/dexpace/morphic/(compilers|internal/lintrules/testdata)/`) &&
+			m.File().PkgPath.Matches(`^github\.com/dexpace/morphic/(compilers(/|$)|internal/lintrules/testdata/)`) &&
 			!m.File().PkgPath.Matches(`^github\.com/dexpace/morphic/compilers/compile(/|$)`) &&
 			!m.File().Name.Matches(`_test\.go$`)).
 		Report(`an ir ID is converted from a string outside compilers/compile; derive it through the framework`)
 
-	m.Match(`const $_ $t = $v`, `var $_ $t = $v`).
+	m.Match(`const $*_ $t = $*v`, `var $*_ $t = $*v`).
 		Where((m["t"].Type.Is(`ir.TypeID`) || m["t"].Type.Is(`ir.OpID`) || m["t"].Type.Is(`ir.PropID`) ||
 			m["t"].Type.Is(`ir.AuthID`) || m["t"].Type.Is(`ir.ServiceID`) || m["t"].Type.Is(`ir.GroupID`) ||
 			m["t"].Type.Is(`ir.ParamID`) || m["t"].Type.Is(`ir.EnumMemberID`) || m["t"].Type.Is(`ir.ChannelID`) ||
 			m["t"].Type.Is(`ir.MessageID`)) &&
 			m["v"].Text.Matches("[\"`]") &&
-			m.File().PkgPath.Matches(`^github\.com/dexpace/morphic/(compilers|internal/lintrules/testdata)/`) &&
+			m.File().PkgPath.Matches(`^github\.com/dexpace/morphic/(compilers(/|$)|internal/lintrules/testdata/)`) &&
 			!m.File().PkgPath.Matches(`^github\.com/dexpace/morphic/compilers/compile(/|$)`) &&
 			!m.File().Name.Matches(`_test\.go$`)).
 		Report(`an ir ID is declared from a string literal outside compilers/compile; derive it through the framework`)
 
-	m.Match(`compile.Space($x)`, `const $_ compile.Space = $x`, `var $_ compile.Space = $x`).
+	m.Match(`compile.Space($x)`).
 		Where((!m["x"].Node.Is(`BasicLit`) || !m["x"].Text.Matches("^[\"`]")) &&
-			m.File().PkgPath.Matches(`^github\.com/dexpace/morphic/(compilers|internal/lintrules/testdata)/`) &&
+			m.File().PkgPath.Matches(`^github\.com/dexpace/morphic/(compilers(/|$)|internal/lintrules/testdata/)`) &&
+			!m.File().PkgPath.Matches(`^github\.com/dexpace/morphic/compilers/compile(/|$)`) &&
+			!m.File().Name.Matches(`_test\.go$`)).
+		Report(`a compile.Space is built from a non-literal; a namespace is a string literal, or the path glued onto it loses its separator`)
+
+	// A declaration's values are a list, every one of which must be a string
+	// literal: the pattern reads the list's text as literals and commas. The
+	// declared type is matched by what it resolves to, as a qualified name in
+	// that position missed an aliased import.
+	m.Match(`const $*_ $t = $*x`, `var $*_ $t = $*x`).
+		Where(m["t"].Type.Is(`compile.Space`) && !m["x"].Text.Matches("^(\"(\\\\.|[^\"\\\\])*\"|`[^`]*`)(\\s*,\\s*(\"(\\\\.|[^\"\\\\])*\"|`[^`]*`))*$") &&
+			m.File().PkgPath.Matches(`^github\.com/dexpace/morphic/(compilers(/|$)|internal/lintrules/testdata/)`) &&
 			!m.File().PkgPath.Matches(`^github\.com/dexpace/morphic/compilers/compile(/|$)`) &&
 			!m.File().Name.Matches(`_test\.go$`)).
 		Report(`a compile.Space is built from a non-literal; a namespace is a string literal, or the path glued onto it loses its separator`)

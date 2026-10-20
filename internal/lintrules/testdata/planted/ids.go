@@ -10,6 +10,14 @@ const anyTypeID ir.TypeID = "t/graphql/any" // want "ruleguard: an ir ID is decl
 
 const fixedSpace cmp.Space = "graphql"
 
+const aliasedID irx.OpID = "o/aliased" // want "ruleguard: an ir ID is declared from a string literal outside compilers/compile; derive it through the framework (gocritic)"
+
+var lhs, rhs ir.OpID = "o/a", "o/b" // want "ruleguard: an ir ID is declared from a string literal outside compilers/compile; derive it through the framework (gocritic)"
+
+var keptA, keptB, keptC cmp.Space = `alpha`, "beta", `gamma`
+
+var mixedA, mixedB cmp.Space = "alpha", fixedSpace // want "ruleguard: a compile.Space is built from a non-literal; a namespace is a string literal, or the path glued onto it loses its separator (gocritic)"
+
 var (
 	prefix            = "a"
 	glued   cmp.Space = cmp.Space(prefix) // want "ruleguard: a compile.Space is built from a non-literal; a namespace is a string literal, or the path glued onto it loses its separator (gocritic)"
@@ -28,5 +36,5 @@ func plantIDs(pointer string, existing ir.OpID, name string) []any {
 	literal := cmp.OpID(cmp.Space("graphql"), name)
 	var copied ir.OpID = existing
 	return []any{anyTypeID, glued, pending, named, prop, alias, member, lost, fromVar, fromRune,
-		op, literal, copied}
+		op, literal, copied, aliasedID, lhs, rhs, keptA, keptB, keptC, mixedA, mixedB}
 }
