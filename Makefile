@@ -75,7 +75,7 @@ FUZZTIME ?= 10s
 .NOTPARALLEL:
 
 .PHONY: gate fmt vet lint lint-planted check-lint-version build coverage \
-	fuzz bench bench-smoke print-lint-version
+	fuzz bench bench-smoke print-lint-version print-go-version
 
 gate: fmt vet lint lint-planted build coverage fuzz bench-smoke
 
