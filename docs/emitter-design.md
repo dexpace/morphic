@@ -1260,9 +1260,8 @@ that losslessly, as an anonymous `Model` whose `Base` is `Status` and which carr
 anonymous `Scalar` alias over `Status` wherever no property or parameter holds the annotations
 (ir-design §12.1), and so does an annotation alone on a non-carrier position, `items: {type: string,
 example: x}`. None of these nodes says anything about a value that its `Base` does not. Lowered as
-written, each would be a type of its own — a struct repeating a wrapped model's fields, or a Go type
-defined over a wrapped enum, which has none of the enum's methods — where every user expects the
-type it wraps.
+written, each would be a type of its own — a struct repeating a wrapped model's fields, or a second
+name for a wrapped enum (§4.9), named from a hint — where every user expects the type it wraps.
 
 **What a decorator is.** An anonymous type whose `Base` is set, and which is
 
