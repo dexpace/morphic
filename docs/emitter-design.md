@@ -665,7 +665,7 @@ snapshot pins the whole lowering deterministically.
 | `ExtractInterfaces` | `Model.Abstract`, `Implements`, union membership | Go interfaces / client interfaces for testability | §4.3 |
 | `MapExternalTypes` | `External{Identity, Package, MinVersion}` | imported library type + dependency-manifest entry; unmappable → diagnostic | §4.6 |
 | `MaterializeValues` | `Value{Kind, Num BigVal, Ref, Ctor}` | literals; `Num` → bignum/decimal, never float64; `Ctor` → call; `symbol` → string explicitly | §6 |
-| `BuildRequestShaping` | `plan.BindingView`, the target's parameter shape (§4.13) | request builders, per-protocol param binding, options-bag structs | §8 |
+| `BuildRequestShaping` | `plan.BindingView`, the target's parameter shape (§4.13) | request builders, per-protocol param binding, each operation's request type | §8 |
 | `LowerPagination` | `plan.PagePlan` (item unwrap, cursor paths) | auto-pager yielding `iter.Seq2[T, error]`; pacing left to policy | §7.3 |
 | `LowerStreaming` | `plan.StreamPlan` (direction, event union) | `EventStream.Recv()`/`Send()` over the event union; terminal ends | §7.3 |
 | `LowerLRO` | `plan.LROPlan` (final-state-via, poll/final ops, result path) | poller type + `Poll()/PollUntilDone()` returning the final type | §7.3 |
@@ -925,16 +925,27 @@ acronym table applies either way.
 `ExtractInterfaces` derives per-language interfaces from `Abstract` / `Implements` / union
 membership, plus client interfaces for testability from the `OperationGroup` structure.
 `BuildRequestShaping` turns the plan's `BindingView` into request builders, and passes an
-operation's inputs positionally or as an options-bag struct — RequestBuilder-style constructs are
+operation's inputs positionally or inside an options object — RequestBuilder-style constructs are
 generator-side, out of the IR (prior-art §2). `OperationGroup` nesting becomes sub-clients / fluent
 navigation.
 
-The parameter shape is each target's, because what reads naturally differs by language (§3.6).
-Each target has a default rule, marked `Inferred` and overridable through its options (§2.5). Go's
-default bags an operation with more than one path parameter, or with a path parameter beside a body
-or query parameters. The Kotlin targets take required inputs positionally and optional ones as
-named parameters with defaults, except that Kotlin Multiplatform gathers the optional ones into a
-request class, since default arguments do not reach Swift.
+The parameter shape is each target's (§3.6), with a default rule marked `Inferred` and overridable
+through the target's options (§2.5). The three first targets share one default: path parameters are
+positional, in the order the URI template names them, and every other input — query, header and
+cookie parameters and the body — is a field of one request type for the operation, which it takes
+when it has any such input. Go's request type is a `<Operation>Params` struct; Kotlin's is a class
+built like a model (§8.8). Two properties decide the rule:
+
+1. **Only the wire may fix an order.** A path template orders its parameters and a parameter list
+   does not: two required strings the spec lists the other way round would swap at every positional
+   call site, and still compile.
+2. **An input the spec adds is an additive change.** A new field of the request type is one on every
+   target. A new positional parameter breaks every Go caller, a new parameter with a default changes
+   the JVM signature (§12), and Swift sees no default arguments at all.
+
+An operation that gains its first non-path input gains the request argument, a break the surface
+differ reports (§12). A dynamic target's default may differ — Python's keyword arguments are
+additive as they stand — which is why the shape is per-target rather than a plan fact.
 
 ### 4.14 Unmodeled entries
 
@@ -1245,8 +1256,8 @@ bound `HTTPBinding{GET /users, query limit+cursor}`.
   Page:&PagePlan{Strategy:cursor, ItemType:User, ItemPath:body→items, CursorIn:cursor,
   CursorOut:next_cursor} }`. Item-type unwrap is a plan decision. Pacing delay is **not** here — it
   is runtime policy.
-- **refine.** `BuildRequestShaping` builds the request from the query bindings, as an options bag
-  by the Go target's default parameter shape (§4.13), marked `Inferred`.
+- **refine.** `BuildRequestShaping` builds the request from the query bindings. By the default
+  parameter shape (§4.13), marked `Inferred`, `limit` and `cursor` are fields of `ListUsersParams`.
   `func (c *Client) ListUsers(ctx, *ListUsersParams) iter.Seq2[User, error]` is a range-over-func
   auto-pager: it walks pages using `CursorOut` to read `next_cursor` and `CursorIn` to feed it back,
   yields each item deserialized elementwise over `ItemPath`, yields one non-nil error and stops when
@@ -1266,13 +1277,14 @@ binding.
   Per-event content-types and the terminal bit come from `Variant.Event`.
 - **refine.** The event union lowers exactly like §8.2 (sealed interface `Event` with concrete
   `MessageEvent`/`HeartbeatEvent`/`DoneEvent`). Server streaming lowers to
-  `func (c *Client) StreamEvents(ctx, *StreamEventsParams) (*EventStream, error)`, where
+  `func (c *Client) StreamEvents(ctx) (*EventStream, error)` — no request type, since the operation
+  has no input (§4.13) — where
   `EventStream.Recv() (Event, error)` returns the sealed-interface event and returns `io.EOF` after a
   variant whose `Variant.Event.Terminal` is true. Direction (server) is read from the *core*; the SSE
   framing is read from the *binding* — a bidi op (`Streaming:bidi`, both `RequestStream` and
   `ResponseStream`) would additionally emit a `Send(...)` method, and a gRPC binding of the same core
   would reuse the same `EventStream` shape over length-prefixed frames.
-- **emit.** Printer emits `StreamEvents`, `StreamEventsParams`, `EventStream`, and the event union.
+- **emit.** Printer emits `StreamEvents`, `EventStream`, and the event union.
   The stream *runtime* (SSE frame reader) is `stream.go.tmpl` boilerplate behind the `Transport`
   interface.
 
@@ -1318,7 +1330,8 @@ AuthRequirement{Schemes:[apiKey]} ]` (priority order); auth schemes in `Document
 ### 8.7 A long-running operation (`StartExport`, status-monitor polling)
 
 IR: `Operation{ LongRunning:&LongRunning{ FinalStateVia:"status-monitor", PollingOperation:GetExport.ID,
-FinalType:&TypeRef→Export, ResultPath:body→result } }`, bound `HTTPBinding{POST /exports}`; the
+FinalType:&TypeRef→Export, ResultPath:body→result }, Request:{ExportRequest} }`, bound
+`HTTPBinding{POST /exports}`; the
 declared poll op `GetExport` is `HTTPBinding{GET /exports/{id}}` returning an `ExportStatus` monitor.
 
 - **plan.** `OpPlan{ Return:model, LRO:&LROPlan{ FinalStateVia:"status-monitor", PollOp:GetExport.ID,
