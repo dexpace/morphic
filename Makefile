@@ -74,7 +74,7 @@ FUZZTIME ?= 10s
 # testdata/ while `coverage` is running `go test ./...` over the same tree.
 .NOTPARALLEL:
 
-.PHONY: gate fmt vet lint lint-planted build coverage \
+.PHONY: gate fmt vet lint lint-planted check-lint-version build coverage \
 	fuzz bench bench-smoke print-lint-version
 
 gate: fmt vet lint lint-planted build coverage fuzz bench-smoke
@@ -90,24 +90,26 @@ fmt:
 vet:
 	$(GO) vet ./...
 
+lint: check-lint-version
+	golangci-lint run
+
+# The rules in .golangci.yml that a clean tree cannot prove, held to the findings
+# planted for them; scripts/lint-planted.sh says how. In CI it runs after the
+# lint action, which leaves its golangci-lint on PATH for the steps after it.
+lint-planted: check-lint-version
+	./scripts/lint-planted.sh
+
 # CI installs the pinned release through golangci-lint-action; here the binary
 # is whatever is on PATH. A mismatch is reported rather than fatal — a developer
 # on a newer release should know their finding set is not CI's, but a tool
 # version is not a reason to refuse to run the gate at all.
-lint:
+check-lint-version:
 	@have="$$(golangci-lint version --short 2>/dev/null || true)"; \
 	want="$(GOLANGCI_LINT_VERSION)"; \
 	if [ "$$have" != "$${want#v}" ]; then \
 		echo "warning: local golangci-lint is $${have:-absent}, CI pins $$want" >&2; \
 		echo "warning:   go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$$want" >&2; \
 	fi
-	golangci-lint run
-
-# The rules in .golangci.yml that a clean tree cannot prove, held to the findings
-# planted for them; scripts/lint-planted.sh says how. In CI it runs after the
-# lint action, which leaves its golangci-lint on PATH for the steps after it.
-lint-planted:
-	./scripts/lint-planted.sh
 
 # The build runs for the host and again for ports CI never runs on, since an
 # API one port lacks fails only that port's build: Windows, and the two wasm
