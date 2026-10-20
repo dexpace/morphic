@@ -675,9 +675,9 @@ snapshot pins the whole lowering deterministically.
 | `ResolveCollisions` | `Ctx.Syms` (ID-keyed symbol table) | deterministic disambiguation; never mutates IR identity | §3.1; INV3 |
 | `ComputeImports` | referenced symbols in the module | per-file import sets | — |
 
-Every one of the eleven `ir.TypeKind`s has a dispatch here: `primitive` and `any` map directly
-in `ResolveScalarChains`/type-reference lowering, `literal` in `LowerLiterals`, the rest in the
-named steps above. The switch-completeness test (§13) proves the coverage at build time. The
+Every `ir.TypeKind` has a dispatch here: `primitive` and `any` map directly in
+`ResolveScalarChains`/type-reference lowering, `literal` in `LowerLiterals`, the rest in the named
+steps above. The switch-completeness test (§13) proves the coverage in the suite. The
 concrete lowering strategies for the load-bearing axes follow.
 
 ### 4.3 The target AST substrate
@@ -686,7 +686,8 @@ The target AST (`emitters/golang/goast` for Go, `emitters/kotlin/ktast` for both
 a small, purpose-built, sealed-sum syntax layer — the exact code the SDK needs, at
 declaration/signature granularity — modelled with the same discipline the IR uses (INV
 Go-conventions): an unexported marker method, one struct per node kind, a `Kind()` accessor, a
-generated switch-completeness test over the node enum.
+switch-completeness test over the node enum, its kind list held to what the package declares
+(`internal/decls`), as the IR's is.
 
 ```go
 package goast
@@ -1184,9 +1185,9 @@ than one with an option because their artifacts, surfaces and toolchains differ:
 after) asserts: `emitters/golang` and `emitters/kotlin` may each import `emitters`, `emitters/plan`,
 `emitters/policy`, `emitters/naming`, `emitters/refine`, `emitters/manifest`, `emitters/verify`,
 `ir`; neither may import `compilers/*`, `engine`, or the other. **Switch-completeness tests** live
-beside `goast` and `ktast` (over each one's `NodeKind`) and beside every refiner (over
-`ir.TypeKind`'s eleven kinds): adding an IR kind breaks compilation of every dispatch that must
-handle it (the `assertNever` obligation).
+beside `goast` and `ktast` (over each one's `NodeKind`) and beside every refiner (over every
+`ir.TypeKind`): adding an IR kind fails the test of every dispatch that must handle it (the
+`assertNever` obligation).
 
 ---
 
@@ -1575,8 +1576,9 @@ that emit performs.
 Built as the code lands, extending the testing strategy in `architecture.md §5`. Cited as `T-N`
 throughout this document.
 
-1. **T-1 · TypeKind switch-completeness** — a generated test over all eleven `ir.TypeKind`s and over
-   the target-AST `NodeKind`; adding a kind breaks every dispatch (`assertNever`).
+1. **T-1 · TypeKind switch-completeness** — a test over every `ir.TypeKind` and every target-AST
+   `NodeKind`, its kind lists held to what the packages declare; adding a kind fails every dispatch
+   that misses it (`assertNever`).
 2. **T-2 · Union tag-mode coverage** — all four wire shapes emit distinct (de)serializers.
 3. **T-3 · Four-state field matrix** — required×nullable×presence produce distinguishable
    declarations, or a diagnosed collapse.
