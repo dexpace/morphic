@@ -16,9 +16,8 @@ reports for the same path at that commit; all files, `LICENSE` included, match.
 The files are the suite's `tests/draft2020-12` files in which a group writes a `$ref`: `anchor`,
 `defs`, `dynamicRef`, `infinite-loop-detection`, `items`, `ref`, `refRemote`, `unevaluatedItems` and
 `unevaluatedProperties`, plus `optional/anchor`, `optional/cross-draft`, `optional/dynamicRef`,
-`optional/ecmascript-regex`, `optional/id`, `optional/refOfUnknownKeyword` and
-`optional/unknownKeyword`. The oracle takes from each file only the groups whose schema contains
-`"$ref"`; `optional/ecmascript-regex` has no such group and yields no document.
+`optional/id`, `optional/refOfUnknownKeyword` and `optional/unknownKeyword`. The oracle takes from
+each file only the groups whose schema contains `"$ref"`.
 
 ## Refreshing
 
