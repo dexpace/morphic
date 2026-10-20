@@ -117,6 +117,8 @@ in the docs.
 
 ```
 ir/          Layer 0 — IR nodes, IDs, traversal, JSON round-trip. Imports ONLY the stdlib.
+  irfacts/   Layer 0 — what a Document implies and does not state (subtypes, exposed properties,
+             usage, recursion), derived on demand and never stored. Imports ir only.
   irverify/  Layer 0 — structural-invariant checks over a compiled Document. Imports ir only.
   irtest/    Layer 0 — golden-file helper (`-update` rewrites) and fixture helpers. Imports ir + go-cmp.
 compilers/   Layer 1 — the Compiler contract and the format-keyed registry. Imports ir only.
@@ -129,8 +131,8 @@ compilers/   Layer 1 — the Compiler contract and the format-keyed registry. Im
     internal/  Layer 1 — that compiler's own packages, each with its own allowlist rather than
              the compiler's. The ordering among them is real and enforced, from diag (reaches
              only ir) up to operation. None may reach the compiler above it.
-pass/        Layer 1 — IR → IR passes. Imports ir only.
-emitters/*   Layer 2 — imports ir + emitter contract; never compiler. (Not built yet.)
+pass/        Layer 1 — IR → IR passes. Imports ir and ir/irfacts.
+emitters/*   Layer 2 — imports ir, ir/irfacts + emitter contract; never compiler. (Not built yet.)
 engine/      Layer 3 — orchestration; imports everything below.
 cmd/morphic/ Layer 4 — CLI; imports ir + engine + its command framework (cobra, pflag).
 cmd/morphic-harness/

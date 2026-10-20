@@ -226,3 +226,25 @@ func TestCompareGolden_HelperIsCalled(t *testing.T) {
 		assert.GreaterOrEqual(t, rec.helperCalls, 1, "compareGolden marks itself a helper")
 	})
 }
+
+func TestFill_RefusesAnythingButANonNilPointer(t *testing.T) {
+	t.Parallel()
+	for name, v := range map[string]any{
+		"a value":       ir.Document{},
+		"a nil pointer": (*ir.Document)(nil),
+		"nothing":       nil,
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			rec := &recordingT{}
+			done := make(chan struct{})
+			go func() {
+				defer close(done)
+				fill(rec, v)
+			}()
+			<-done
+			assert.True(t, rec.aborted, "fill must stop rather than fill what it cannot reach")
+			assert.Contains(t, rec.fatalf, "want a non-nil pointer")
+		})
+	}
+}

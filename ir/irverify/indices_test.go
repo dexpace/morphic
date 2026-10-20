@@ -181,7 +181,6 @@ var integerFields = map[string]string{
 	"refKey.n":     "slice length that identifies a reference the walk has met, not a position",
 	"descentRef.n": "slice length that identifies a reference a traversal is inside, not a position",
 
-	"TypeCommon.Usage":      "bitset of usage sites (UsageFlags), not a position",
 	"Property.WireID":       "protobuf field number / thrift id, not a position",
 	"Variant.WireID":        "protobuf oneof field number or ordinal, not a position",
 	"StatusRange.From":      "HTTP status code",

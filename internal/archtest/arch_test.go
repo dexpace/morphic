@@ -35,6 +35,7 @@ const subtreeSuffix = "/..."
 // internal tree.
 var rules = map[string][]string{
 	"ir":          {},
+	"ir/irfacts":  {module + "/ir"},
 	"ir/irtest":   {module + "/ir", "github.com/google/go-cmp" + subtreeSuffix},
 	"ir/irverify": {module + "/ir"},
 	"compilers":   {module + "/ir"},
@@ -269,7 +270,7 @@ var rules = map[string][]string{
 		"github.com/speakeasy-api/openapi/sequencedmap",
 		"github.com/stretchr/testify/assert",
 		"github.com/stretchr/testify/require", "gopkg.in/yaml.v3"},
-	"pass": {module + "/ir"},
+	"pass": {module + "/ir", module + "/ir/irfacts"},
 	// The orchestration. It reaches the compiler package to compose the default
 	// registry and nothing of any source format: what a spec looks like and what
 	// its options are called are answered through the contract, so no parser is
