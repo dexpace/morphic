@@ -320,9 +320,9 @@ cycle ([`recursion`](#recursion)). An alias scan that aborts on a fault of its o
   `load.TestBindingDiags_NamesALoopsMembersByTheirDocument`,
   `bind.TestBind_ReportsALoopOfDefinitionsAtItsLeastMember`,
   `openapi.TestCompile_MergeChainPastBoundStillCompiles`, `bind.TestBind_AnswersAlikeInEitherOrder`
-- Status: partly built: a cycle of component Reference Objects is reported at the root rather than at
-  a reference of the cycle (#580), and a reference object on a failing chain is reported only where
-  the walk reaches it first (#767).
+- Status: partly built: a cycle of component Reference Objects is reported as an unresolved
+  reference rather than as `openapi/cyclic-ref` (#580), and a reference object on a failing chain is
+  reported only where the walk reaches it first (#767).
 
 ## 2. The document and what it keeps
 
