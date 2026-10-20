@@ -20,7 +20,7 @@ concurrency:
 # to the next.
 jobs:
   checks:
-    name: lint, build, fuzz, bench
+    name: lint, fuzz, bench
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -65,8 +65,6 @@ jobs:
           version: ${{ steps.lint-version.outputs.version }}
       - name: lint rules draw their planted findings
         run: make lint-planted
-      - name: build
-        run: make build
       - name: fuzz
         id: fuzz
         run: make fuzz
@@ -90,7 +88,7 @@ jobs:
           key: go-${{ github.job }}-${{ runner.os }}-go${{ steps.toolchain.outputs.version }}-${{ github.sha }}
 
   suite:
-    name: test (race detector, exactly 100% coverage)
+    name: build, test (race detector, exactly 100% coverage)
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -98,6 +96,12 @@ jobs:
       - *setup-go
       - *toolchain
       - *restore
+      # Tests that load packages with go/packages run go list -export, which
+      # compiles what make build does. Built first, that compile no longer runs
+      # beside the tests that time a child process, which load can push past
+      # their bound (#1010).
+      - name: build
+        run: make build
       - name: test
         run: make coverage
       - *save
