@@ -307,7 +307,9 @@ target-AST nodes a default shapes carry `Inferred` provenance (§4.3), as INV6 r
 `emitters/plan` (Layer 2, imports `ir` only). `Build` is pure, deterministic, and JSON-serializable
 (INV7) so it can be cached, shared out-of-process, and golden-tested independently of any language.
 Every map in the plan is keyed by a string type, since JSON names an object's members by strings
-alone: `encoding/json/v2` refuses a struct key, so a composite key is a map nested in a map.
+alone. `encoding/json/v2` refuses a key that does not encode as a string, as a plain struct does, so
+a composite key is a map nested in a map: a struct given a text form would need an escaping of its
+own, since a `TypeID` may hold any separator the text form could choose.
 
 ```go
 package plan
