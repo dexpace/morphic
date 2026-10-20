@@ -1392,7 +1392,8 @@ type Service struct {
                                   // (Smithy @protocolDefinition traits like aws.protocols#restJson1)
     Renames    map[TypeID]Naming  // per-service shape presentation names (Smithy service `rename`);
                                   // the TypeID — and Naming on the type — are unchanged
-    Servers    []int              // indexes into Document.Servers scoped to this service
+    Servers    []int              // indexes into Document.Servers scoped to this service; empty =
+                                  // every one, in order (§10)
     Unmodeled  Unmodeled
     Provenance Provenance
 }
@@ -1818,7 +1819,7 @@ type Channel struct {
     Tags      []string
     Params    []Parameter
     Messages  []MessageID        // the channel's message set — messages live in Document.Messages
-    Servers   []int
+    Servers   []int              // indexes into Document.Servers; empty = every one, in order (§10)
     Bindings  map[string]RawConfig // protocol-specific ("kafka", "amqp", "ws", "mqtt") kept as namespaced raw config
     Unmodeled  Unmodeled
     Provenance Provenance
@@ -2010,6 +2011,12 @@ type Server struct {
     Unmodeled   Unmodeled
 }
 ```
+
+`Service.Servers` and `Channel.Servers` scope the document's servers by index. An empty list scopes
+nothing out: every server in `Document.Servers` serves that service or channel, in the document's
+order, which is how OpenAPI's root `servers` apply to every path and how AsyncAPI reads a channel
+that names none. Order is meaningful, since a consumer that needs one server, an SDK client's
+default among them, takes the first it can use (emitter-design §8.10).
 
 ## 11. Versioning & availability
 
