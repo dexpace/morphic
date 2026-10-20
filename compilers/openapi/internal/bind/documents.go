@@ -154,31 +154,48 @@ func (d *docs) read(id DocID, pointer jsontext.Pointer) (reading, Reason) {
 	return d.readFrom(id, pointer, 0)
 }
 
-// readFrom is read, having passed passes reference objects already.
+// readFrom is read, having passed passes reference objects already. The
+// pointer read so far is kept as bytes and spelled into the reading only where
+// one is passed on or returned, so a read costs its pointer's length rather
+// than its square.
 func (d *docs) readFrom(id DocID, pointer jsontext.Pointer, passes int) (reading, Reason) {
 	r := reading{at: Position{Doc: id}, node: d.list[id].root, state: d.rootState(id)}
 	if pointer == "/" {
 		return r, NoReason
 	}
+	var soFar []byte
 	tokens := 0
 	for token := range pointer.Tokens() {
 		if tokens++; tokens > maxPointerTokens || !d.work.spend(1) {
-			return r, NoTarget
+			return r.spelledAs(soFar), NoTarget
 		}
-		if referenceKinds[r.state] {
+		if referenceKinds[r.state] && d.passes(r) {
 			var reason Reason
-			if r, reason = d.through(r, passes); reason != NoReason {
+			if r, reason = d.through(r.spelledAs(soFar), passes); reason != NoReason {
 				return r, reason
 			}
+			soFar = append(soFar[:0], r.at.Pointer...)
 		}
 		child := d.child(r.at.Doc, r.node, token)
 		if child == nil {
-			return r, d.absent(r.at.Doc, r.node)
+			return r.spelledAs(soFar), d.absent(r.at.Doc, r.node)
 		}
-		r = reading{at: Position{Doc: r.at.Doc, Pointer: r.at.Pointer.AppendToken(token)}, node: child,
-			state: step(r.state, token)}
+		soFar = append(soFar, jsontext.Pointer("").AppendToken(token)...)
+		r = reading{at: Position{Doc: r.at.Doc}, node: child, state: step(r.state, token)}
 	}
-	return r, NoReason
+	return r.spelledAs(soFar), NoReason
+}
+
+// passes reports whether r holds a $ref through would read on through.
+func (d *docs) passes(r reading) bool {
+	ref, ok := d.refOf(r.at.Doc, r.node)
+	return ok && ref != ""
+}
+
+// spelledAs is r at the pointer spelled in b.
+func (r reading) spelledAs(b []byte) reading {
+	r.at.Pointer = jsontext.Pointer(b)
+	return r
 }
 
 // child is the node token names below n in document id, read as RFC 6901
@@ -218,8 +235,7 @@ func isIndex(token string) bool {
 // object writing no $ref is read where it is. Only the source's reference
 // objects are resolved; one in another document is not (GitHub #751).
 func (d *docs) through(r reading, passes int) (reading, Reason) {
-	ref, ok := d.refOf(r.at.Doc, r.node)
-	if !ok || ref == "" {
+	if !d.passes(r) {
 		return r, NoReason
 	}
 	if r.at.Doc != Source || d.cfg.Through == nil || passes >= maxPasses {

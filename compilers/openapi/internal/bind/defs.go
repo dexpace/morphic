@@ -123,16 +123,20 @@ func answers(r reading) bool {
 	return (role == Schema || role == Raw) && schemaShaped(r.node)
 }
 
-// prefix is the pointer to pointer's first n tokens.
+// prefix is the pointer to pointer's first n tokens: pointer up to the '/'
+// opening the token after them, since an escaped token holds none.
 func prefix(pointer jsontext.Pointer, n int) string {
-	var out jsontext.Pointer
-	for t := range pointer.Tokens() {
-		if n--; n < 0 {
-			break
+	s := string(pointer)
+	for i := range len(s) {
+		if s[i] != '/' {
+			continue
 		}
-		out = out.AppendToken(t)
+		if n == 0 {
+			return s[:i]
+		}
+		n--
 	}
-	return string(out)
+	return s
 }
 
 // singleKey is the one key "/$defs/key" names, and whether pointer names one

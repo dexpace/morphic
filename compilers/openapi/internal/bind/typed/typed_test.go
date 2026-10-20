@@ -2,6 +2,7 @@ package typed_test
 
 import (
 	"encoding/json/jsontext"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -161,4 +162,36 @@ func TestPointerOf(t *testing.T) {
 		{ParentKey: new("~c")}}))
 	assert.Equal(t, jsontext.Pointer("/properties/p/allOf/2"), typed.PointerOf(walk.Locations[any]{
 		{ParentField: "properties", ParentKey: new("p")}, loc{ParentField: "allOf", ParentIndex: new(2)}}))
+}
+
+// TestPointerOf_CostsItsLength pins that a location is spelled once: one twice
+// as deep allocates about twice the bytes, where extending the pointer a token
+// at a time copied it at each token and cost four times. Bytes count the work,
+// since they do not depend on the machine. It is not parallel, as the count is
+// the process's.
+func TestPointerOf_CostsItsLength(t *testing.T) {
+	deep := func(levels int) walk.Locations[any] {
+		out := make(walk.Locations[any], levels)
+		for i := range out {
+			out[i] = walk.LocationContext[any]{ParentField: "properties", ParentKey: new("p")}
+		}
+		return out
+	}
+	short, long := deep(500), deep(1000)
+	require.Equal(t, jsontext.Pointer(strings.Repeat("/properties/p", 1000)), typed.PointerOf(long))
+	shortBytes := allocated(func() { _ = typed.PointerOf(short) })
+	longBytes := allocated(func() { _ = typed.PointerOf(long) })
+	assert.Less(t, longBytes, 3*shortBytes, "twice the depth, about twice the bytes")
+}
+
+// allocated is the bytes ten runs of f allocate on the heap.
+func allocated(f func()) uint64 {
+	var stats runtime.MemStats
+	runtime.ReadMemStats(&stats)
+	before := stats.TotalAlloc
+	for range 10 {
+		f()
+	}
+	runtime.ReadMemStats(&stats)
+	return stats.TotalAlloc - before
 }

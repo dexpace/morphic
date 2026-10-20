@@ -173,21 +173,29 @@ func (bd *Builder) Walk(ctx context.Context, js *schemaRef, p bind.Position) {
 
 // PointerOf is the JSON pointer locations spell, relative to where the walk
 // that yielded them started. The library's own rendering writes a lone '/' for
-// none and '//' before a walk's first key, which name other positions.
+// none and '//' before a walk's first key, which name other positions. It is
+// spelled once, in steps linear in its length: extending a pointer a token at
+// a time copies it at each, which costs the square of a deep schema's depth.
 func PointerOf[T any](locations walk.Locations[T]) jsontext.Pointer {
-	var out jsontext.Pointer
+	var out []byte
 	for _, l := range locations {
 		if l.ParentField != "" {
-			out = out.AppendToken(l.ParentField)
+			out = appendToken(out, l.ParentField)
 		}
 		switch {
 		case l.ParentKey != nil:
-			out = out.AppendToken(*l.ParentKey)
+			out = appendToken(out, *l.ParentKey)
 		case l.ParentIndex != nil:
-			out = out.AppendToken(strconv.Itoa(*l.ParentIndex))
+			out = appendToken(out, strconv.Itoa(*l.ParentIndex))
 		}
 	}
-	return out
+	return jsontext.Pointer(out)
+}
+
+// appendToken appends token to the pointer spelled in b, escaped as
+// jsontext.Pointer.AppendToken escapes one.
+func appendToken(b []byte, token string) []byte {
+	return append(b, jsontext.Pointer("").AppendToken(token)...)
 }
 
 // errNothingThere is why no schema is built for a landing whose document
