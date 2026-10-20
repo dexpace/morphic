@@ -4,51 +4,55 @@ import (
 	"errors"
 	"fmt"
 	"go/ast"
+	"go/constant"
 	"go/types"
 	"slices"
+	"strings"
 )
 
-// variants describes the sealed sum n: the type of the tag its Kind method
-// returns, then each variant with that tag. The encoder writes whichever
+// variants reads the sealed sum t declares: the type of the tag its Kind
+// method returns, and each variant with that tag. The encoder writes whichever
 // variant a value holds, so the variants are the interface's shape. Any
 // package can implement an interface that is not sealed, so only a sealed one
 // has variants to list.
-func (w *walker) variants(n *types.Named, iface *types.Interface) ([]string, error) {
+func (w *walker) variants(t *Type, iface *types.Interface) error {
 	if !sealed(iface) {
-		return nil, errors.New("an interface with no unexported method is open to any implementation, so it has no one shape")
+		return errors.New("an interface with no unexported method is open to any implementation, so it has no one shape")
 	}
 	kind, err := kindMethod(iface)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	tag, err := w.spell(kind.Signature().Results().At(0).Type(), 0)
+	tagType := kind.Signature().Results().At(0).Type()
+	tag, err := w.spell(tagType, 0)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	var out []string
-	scope := n.Obj().Pkg().Scope()
-	for _, name := range scope.Names() {
-		variant, byPointer, implements := implementer(scope.Lookup(name), iface)
+	var out []Variant
+	pkg := t.Named.Obj().Pkg()
+	for _, name := range pkg.Scope().Names() {
+		variant, byPointer, implements := implementer(pkg.Scope().Lookup(name), iface)
 		if !implements {
 			continue
 		}
-		held, spelled := types.Type(variant), w.name(variant)
+		v := Variant{Named: variant, ByPointer: byPointer, spelled: w.name(variant)}
+		held := types.Type(variant)
 		if byPointer {
-			held, spelled = types.NewPointer(variant), "*"+spelled
+			held, v.spelled = types.NewPointer(variant), "*"+v.spelled
 		}
-		value, err := w.tagOf(held, n.Obj().Pkg())
-		if err != nil {
-			return nil, fmt.Errorf("variant %s: %w", name, err)
+		if v.Tag, err = w.tagOf(held, pkg); err != nil {
+			return fmt.Errorf("variant %s: %w", name, err)
 		}
 		w.reach(variant)
-		out = append(out, "variant "+value+" "+spelled)
+		out = append(out, v)
 	}
 	if len(out) == 0 {
-		return nil, errors.New("no type implements the sealed interface")
+		return errors.New("no type implements the sealed interface")
 	}
-	slices.Sort(out)
-	return append([]string{"tag " + tag}, out...), nil
+	slices.SortFunc(out, func(a, b Variant) int { return strings.Compare(a.line(), b.line()) })
+	t.Tag, t.tag, t.Variants = tagType, tag, out
+	return nil
 }
 
 // sealed reports whether iface has an unexported method, which only its own
@@ -100,7 +104,7 @@ func implementer(obj types.Object, iface *types.Interface) (variant *types.Named
 // method's body, which must be that one return, since a tag computed any
 // other way is not one a description can state. decls reads only a package
 // that compiles, and a method there always has a body.
-func (w *walker) tagOf(held types.Type, pkg *types.Package) (string, error) {
+func (w *walker) tagOf(held types.Type, pkg *types.Package) (constant.Value, error) {
 	var decl *ast.FuncDecl
 	if sel := types.NewMethodSet(held).Lookup(pkg, "Kind"); sel != nil {
 		if fn, isFunc := sel.Obj().(*types.Func); isFunc {
@@ -108,18 +112,18 @@ func (w *walker) tagOf(held types.Type, pkg *types.Package) (string, error) {
 		}
 	}
 	if decl == nil {
-		return "", errors.New("its Kind method is not declared in the package read")
+		return nil, errors.New("its Kind method is not declared in the package read")
 	}
 	if len(decl.Body.List) != 1 {
-		return "", errors.New("its Kind method is not a single return of a constant")
+		return nil, errors.New("its Kind method is not a single return of a constant")
 	}
 	ret, isReturn := decl.Body.List[0].(*ast.ReturnStmt)
 	if !isReturn || len(ret.Results) != 1 {
-		return "", errors.New("its Kind method is not a single return of a constant")
+		return nil, errors.New("its Kind method is not a single return of a constant")
 	}
 	tv := w.pkg.Info.Types[ret.Results[0]]
 	if tv.Value == nil {
-		return "", errors.New("its Kind method is not a single return of a constant")
+		return nil, errors.New("its Kind method is not a single return of a constant")
 	}
-	return tv.Value.ExactString(), nil
+	return tv.Value, nil
 }
