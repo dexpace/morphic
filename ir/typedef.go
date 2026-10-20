@@ -55,22 +55,6 @@ func IsNilTypeDef(td TypeDef) bool {
 	return rv.Kind() == reflect.Pointer && rv.IsNil()
 }
 
-// UsageFlags is a bitset recording how a type is used across the API surface. It
-// is computed by a pass and JSON-encoded as a number.
-type UsageFlags uint32
-
-// Usage bits.
-const (
-	// UsageInput marks a type reachable from a request payload.
-	UsageInput UsageFlags = 1 << iota
-	// UsageOutput marks a type reachable from a response payload.
-	UsageOutput
-	// UsageError marks a type reachable from an error payload.
-	UsageError
-	// UsageMultipart marks a type used in a multipart body.
-	UsageMultipart
-)
-
 // TypeCommon carries the identity, documentation, and cross-cutting metadata
 // shared by every type-graph node (ir-design §4). It is embedded in each
 // concrete kind, and its fields sit beside the kind's own in JSON.
@@ -101,8 +85,6 @@ type TypeCommon struct {
 	Deprecation *Deprecation `json:"deprecation,omitzero"`
 	// Availability records the type's versioning timeline.
 	Availability *Availability `json:"availability,omitzero"`
-	// Usage is the computed input/output/error/multipart usage bitset.
-	Usage UsageFlags `json:"usage,omitzero"`
 	// WireNameByFormat carries type-level serialized-name overrides per media type
 	// (TypeSpec @encodedName on models/enums/scalars).
 	WireNameByFormat map[string]string `json:"wireNameByFormat,omitempty"`
