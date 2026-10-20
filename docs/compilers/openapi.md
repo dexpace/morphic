@@ -241,7 +241,8 @@ passing a reference object reads on where the resolver resolved that, in whichev
 `$ref` written in another document's content is read in that document. A YAML alias or merge key is
 a copy written where it is placed, so what it holds is read at that position, as the document's JSON
 places it, and raw YAML a schema `$ref` lands on, under an extension or in another document, is read
-as a schema.
+as a schema. A key written twice in one mapping is read as its last occurrence, raw YAML included,
+as the parser's model reads one ([`duplicate-key`](../parser-library.md#duplicate-key)).
 
 A reference that resolves to nothing — a pointer naming no node, a position holding no schema, a
 component its section does not hold, another document while external references are off, an
@@ -276,8 +277,9 @@ chain of references that closes on itself is [`reference-cycles`](#reference-cyc
   `load.TestLoad_ARootDefinitionResolvesAsTheResolverReadsIt`,
   `load.TestLoad_ARootDefinitionAnswersBeforeASchemasOwn`,
   `bind.TestBind_ReadsEachHop`, `bind.TestBind_ReadsADefinitionByTheDefsRule`,
-  `bind.TestBind_ReadsEachPositionAsTheJSONItSpells`, `bind.TestBind_StopsAtItsBudget`,
-  `bind.TestTable_SaysWhyARefWentUnread`, `bind.TestBind_SaysAKeyMayLiePastTheMergeBound`,
+  `bind.TestBind_ReadsEachPositionAsTheJSONItSpells`, `bind.TestBind_ReadsARepeatedKeyAsItsLast`,
+  `bind.TestBind_StopsAtItsBudget`, `bind.TestTable_SaysWhyARefWentUnread`,
+  `bind.TestBind_SaysAKeyMayLiePastTheMergeBound`,
   `bind.TestBind_TakesNoDefinitionPastAReadTheMergeBoundStopped`,
   `canary.TestBindingOracle_AgreesWithTheLibrary`
 - Status: partly built: no schema another document holds is lowered, so a schema `$ref` naming one

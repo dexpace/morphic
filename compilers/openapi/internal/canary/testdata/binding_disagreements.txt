@@ -67,6 +67,7 @@ shape/spelling/empty-key/reversed	/components/schemas/A	resolved	unresolved	empt
 shape/target/anchor-in-its-schema	/components/schemas/A/properties/p	unresolved	resolved	anchor-id
 shape/target/anchor-in-its-schema/reversed	/components/schemas/A/properties/p	unresolved	resolved	anchor-id
 shape/yaml/alias-loop	/components/schemas/B	cyclic	unresolved	loop
+shape/repeated/raw	/components/schemas/A	resolved	resolved elsewhere	duplicate-key
 suite/anchor.json/0	/components/schemas/T	unresolved	resolved	anchor-id
 suite/anchor.json/1	/components/schemas/T	unresolved	resolved	anchor-id
 suite/anchor.json/2	/components/schemas/T	unresolved	resolved	anchor-id

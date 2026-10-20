@@ -210,6 +210,29 @@ func TestBind_ReadsEachPositionAsTheJSONItSpells(t *testing.T) {
 	}
 }
 
+// TestBind_ReadsARepeatedKeyAsItsLast pins a key written twice in a mapping,
+// which YAML forbids and the parser reads anyway: it is read as its last
+// occurrence in raw YAML as in the model, so a pointer names one node
+// wherever it leads (docs/parser-library.md#duplicate-key). Each first copy
+// is a $ref that would carry the chain on.
+func TestBind_ReadsARepeatedKeyAsItsLast(t *testing.T) {
+	t.Parallel()
+	table := bound(t, head+`components:
+  schemas:
+    A: {$ref: '#/x-lib/S'}
+    B: {$ref: '#/components/schemas/M'}
+    M: {$ref: '#/components/schemas/Missing'}
+    M: {type: string}
+x-lib:
+  S: {$ref: '#/components/schemas/Missing'}
+  S: {type: string}
+`, self)
+	assert.Equal(t, bind.Chain{Status: bind.Resolved, End: at("/x-lib/S"), Role: bind.Raw, Hops: 1},
+		entryAt(t, table, "/components/schemas/A").Chain, "in raw YAML")
+	assert.Equal(t, bind.Chain{Status: bind.Resolved, End: at("/components/schemas/M"), Role: bind.Schema, Hops: 1},
+		entryAt(t, table, "/components/schemas/B").Chain, "in the model")
+}
+
 // TestBind_ReadsEachRefAsTheSourceWritesIt pins that a $ref is read as Written
 // spells it where it answers, and as the tree holds it elsewhere: a tree may
 // hold a spelling the parser was handed in place of the source's.

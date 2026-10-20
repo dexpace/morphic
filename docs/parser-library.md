@@ -381,7 +381,9 @@ paths:
 A key written twice is read as its last occurrence through the model, which skips the earlier ones
 and warns (`validation-duplicate-key`). Through raw YAML it is read as its first: by
 `jsonpointer.GetTarget` on a `*yaml.Node`, and by the model's own fallback to raw YAML for what it
-does not hold, such as an extension's value.
+does not hold, such as an extension's value. The compiler's schema binder reads every mapping as the
+model does, raw YAML included, so a schema `$ref` into raw YAML lands on the last copy where the
+resolver lands on the first (`duplicate-key` in the binding oracle's disagreements).
 
 ```yaml
 components:

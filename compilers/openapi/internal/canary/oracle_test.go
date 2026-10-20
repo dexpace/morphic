@@ -111,6 +111,9 @@ var oracleReasons = map[string]string{
 		"fragment names a position from the document's root (docs/ir-design.md §4.7)",
 	"alias-position": "the compiler reads a YAML alias where it is written, as the document's JSON places it; " +
 		"the library, where its anchor is",
+	"duplicate-key": "the compiler reads a key written twice in a mapping as its last occurrence wherever the " +
+		"mapping is, as the parser's model reads one; the library's read of raw YAML takes the first " +
+		"(docs/parser-library.md#duplicate-key)",
 }
 
 // oracleDoc is one document the oracle compiles, under a name naming where

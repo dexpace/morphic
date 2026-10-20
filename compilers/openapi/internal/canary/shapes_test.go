@@ -8,8 +8,8 @@ import (
 // oracleShape is a document the binding oracle compiles: its paths, its
 // component schemas, written one a line, the rest of components, and what
 // follows them. A shape that is not fixed is compiled with its schemas in both
-// orders; a fixed one, whose YAML aliases must follow their anchors, in the
-// order written.
+// orders; a fixed one, whose YAML aliases must follow their anchors or whose
+// key written twice must keep its last copy, in the order written.
 type oracleShape struct {
 	name       string
 	paths      string
@@ -54,10 +54,11 @@ func component(name string) string {
 // oracleShapes are the shapes the binding oracle compiles: loops of $refs at
 // each position a schema is written at, recursion through what a schema
 // declares, chains, the $defs rule, pointer spellings, targets no schema is
-// written at, YAML aliases and merges, and pointers through a reference
-// object.
+// written at, YAML aliases and merges, keys written twice, and pointers
+// through a reference object.
 func oracleShapes() []oracleShape {
-	return slices.Concat(loopShapes(), chainShapes(), defsShapes(), spellingShapes(), targetShapes(), yamlShapes())
+	return slices.Concat(loopShapes(), chainShapes(), defsShapes(), spellingShapes(), targetShapes(), yamlShapes(),
+		repeatedShapes())
 }
 
 // loopShapes are loops of $refs, each closing at another position.
@@ -171,5 +172,18 @@ func yamlShapes() []oracleShape {
 		{name: "yaml/merge", fixed: true, schemas: []string{"Base: &b {properties: {p: {$ref: '" + component("B") + "'}}}",
 			"B: {type: string}", "Child: {<<: *b, type: object}"}},
 		{name: "yaml/alias-loop", fixed: true, schemas: []string{"A: &a {$ref: '" + component("B") + "'}", "B: *a"}},
+	}
+}
+
+// repeatedShapes write a key twice in one mapping, which YAML forbids and the
+// parser reads anyway: through its model as the last occurrence, through raw
+// YAML as the first. Swapping the copies changes the document, so each is
+// compiled in the order written.
+func repeatedShapes() []oracleShape {
+	return []oracleShape{
+		{name: "repeated/component", fixed: true, schemas: []string{ref("A", component("M")),
+			ref("M", component("Missing")), "M: {type: string}"}},
+		{name: "repeated/raw", fixed: true, schemas: []string{ref("A", "#/x-lib/S")},
+			tail: "x-lib:\n  S: {type: string}\n  S: {type: integer}\n"},
 	}
 }
