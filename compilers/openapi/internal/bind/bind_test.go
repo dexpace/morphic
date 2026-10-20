@@ -177,6 +177,10 @@ func TestBind_ReadsADefinitionByTheDefsRule(t *testing.T) {
 			"/components/schemas/B", "", bind.NoDefinition},
 		{"an ancestor that is a map holding $defs", "components:\n  schemas:\n    H: {properties: {$defs: {properties: {x: {}}}, p: {$ref: '#/$defs/properties/x'}}}\n",
 			"/components/schemas/H/properties/p", "/components/schemas/H/properties/$defs/properties/x", 0},
+		{"an object of the model whose $defs is no definitions", "components:\n  $defs: {K: {}}\n  schemas:\n    B: {$ref: '#/$defs/K'}\n",
+			"/components/schemas/B", "", bind.NoDefinition},
+		{"a raw schema's own, where its $id makes it a resource", "x-lib:\n  S: {$id: 'https://x.test/s', $ref: '#/$defs/n', $defs: {n: {}}}\n" +
+			"components:\n  schemas:\n    U: {$ref: '#/x-lib/S'}\n", "/x-lib/S", "/x-lib/S/$defs/n", 0},
 		{"the schemas map holding $defs", "components:\n  schemas:\n    $defs: {K: {type: integer}}\n    B: {properties: {y: {$ref: '#/$defs/K'}}}\n",
 			"/components/schemas/B/properties/y", "/components/schemas/$defs/K", 0},
 		{"a null $id makes no resource", "components:\n  schemas:\n    B: {$id: null, $ref: '#/$defs/A', $defs: {A: {}}}\n",
@@ -373,20 +377,29 @@ func TestBind_ReportsEachLoopOnceAtItsLeastMember(t *testing.T) {
 
 // TestBind_ReportsALoopOutsideTheSourceWhereTheSourceEntersIt pins a loop with
 // no member in the source: reported at the least source position leading into
-// it, and not at all when only another document's content leads there.
+// it, and not at all when only another document's content leads there, as W's
+// property leads into Z.
 func TestBind_ReportsALoopOutsideTheSourceWhereTheSourceEntersIt(t *testing.T) {
 	t.Parallel()
-	docs := map[string]string{"other.yaml": "X: {$ref: '#/Y'}\nY: {$ref: '#/X'}\nZ: {$ref: '#/Z'}\n"}
+	docs := map[string]string{"other.yaml": "X: {$ref: '#/Y'}\nY: {$ref: '#/X'}\nZ: {$ref: '#/Z'}\n" +
+		"W: {properties: {p: {$ref: '#/Z'}}}\n"}
 	table := bound(t, head+`components:
   schemas:
     B: {$ref: 'other.yaml#/X'}
     A: {$ref: 'other.yaml#/Y'}
+    C: {$ref: 'other.yaml#/W'}
 `, withDocuments(docs))
-	loops := table.Loops()
-	require.Len(t, loops, 1)
-	assert.Equal(t, at("/components/schemas/A"), loops[0].Site)
-	assert.True(t, loops[0].Reported)
-	assert.Equal(t, bind.DocID(1), loops[0].Members[0].Doc)
+	require.Len(t, table.Loops(), 2)
+	byFirst := map[jsontext.Pointer]bind.Loop{}
+	for _, l := range table.Loops() {
+		byFirst[l.Members[0].Pointer] = l
+	}
+	xy := byFirst["/X"]
+	assert.Equal(t, at("/components/schemas/A"), xy.Site)
+	assert.True(t, xy.Reported)
+	assert.Equal(t, bind.DocID(1), xy.Members[0].Doc)
+	assert.Equal(t, []bind.Position{{Doc: 1, Pointer: "/Z"}}, byFirst["/Z"].Members)
+	assert.False(t, byFirst["/Z"].Reported, "only W's content leads into Z")
 }
 
 // withDocuments is self reading other documents from docs, by name.

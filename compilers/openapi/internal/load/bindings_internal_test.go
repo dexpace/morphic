@@ -68,14 +68,15 @@ func TestBindingDiags_ReportsTheBudgetOnce(t *testing.T) {
 // TestBindSchemas_RecordsWhatAnUnplacedEndHolds pins the models in an end the
 // table cannot place, here the first of a key written twice in raw YAML,
 // which the parser resolved to and the binder reads as its last: each schema
-// and discriminator is recorded as unplaced, under the reference whose end it
-// is.
+// and discriminator is recorded as unplaced, under the least reference whose
+// end it is, /a's though /b's resolves to it too.
 func TestBindSchemas_RecordsWhatAnUnplacedEndHolds(t *testing.T) {
 	t.Parallel()
 	doc, _, err := Load(t.Context(), 0, openapitest.SourceOf(`openapi: 3.1.0
 info: {title: t, version: '1'}
 paths:
   /a: {get: {parameters: [{$ref: '#/x-params/q'}], responses: {'200': {description: ok}}}}
+  /b: {get: {parameters: [{$ref: '#/x-params/q'}], responses: {'200': {description: ok}}}}
 x-params:
   q: {name: q, in: query, schema: {oneOf: [{type: string}], discriminator: {propertyName: k}}}
   q: {name: r, in: query}
@@ -144,25 +145,77 @@ func TestBindingDiags_NamesALoopsMembersByTheirDocument(t *testing.T) {
 	}, got))
 }
 
+// TestBindSchemas_HoldsEveryEndPastOneAlreadyWalked pins that the ends of
+// reference objects are each held where the table places them, however many
+// references before them resolved to one object already walked: R's schema,
+// after the second reference to Q, is held at R, not recorded as unplaced.
+func TestBindSchemas_HoldsEveryEndPastOneAlreadyWalked(t *testing.T) {
+	t.Parallel()
+	doc, _, err := Load(t.Context(), 0, openapitest.SourceOf(`openapi: 3.1.0
+info: {title: t, version: '1'}
+paths:
+  /a: {get: {parameters: [{$ref: '#/components/parameters/Q'}], responses: {'200': {description: ok}}}}
+  /b:
+    get:
+      parameters: [{$ref: '#/components/parameters/Q'}, {$ref: '#/components/parameters/R'}]
+      responses: {'200': {description: ok}}
+components:
+  parameters:
+    Q: {name: q, in: query, schema: {type: string}}
+    R: {name: r, in: query, schema: {type: integer}}
+`), Options{})
+	require.NoError(t, err)
+	r, ok := doc.Doc.Components.GetParameters().Get("R")
+	require.True(t, ok)
+	js := r.GetObject().GetSchema()
+	require.NotNil(t, js)
+	_, unplaced := doc.Bindings.Unplaced(js)
+	assert.False(t, unplaced)
+	site, ok := doc.Bindings.Site(js)
+	require.True(t, ok)
+	assert.Equal(t, bind.Position{Pointer: "/components/parameters/R/schema"}, site)
+}
+
+// TestBindingDiags_ReportsAChainBackIntoTheSourceWhereItFails pins that a
+// source $ref whose chain leaves the source and fails back in it is not
+// reported for that failure: B's $ref is, where it is written.
+func TestBindingDiags_ReportsAChainBackIntoTheSourceWhereItFails(t *testing.T) {
+	t.Parallel()
+	_, root := buildDoc(t, schemaRoot("other.yaml#/S")+"    B: {$ref: '#/components/schemas/Gone'}\n")
+	var other yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte("S: {$ref: 'spec.yaml#/components/schemas/B'}\n"), &other))
+	table := bind.Bind(root, bind.Config{Self: "spec.yaml",
+		Open: func(string) (*yaml.Node, error) { return &other, nil }})
+
+	diags := bindingDiags(pointerAt(0, overlay.Origin{}), table)
+	require.Len(t, diags, 1, "%+v", diags)
+	assert.Equal(t, jsontext.Pointer("/components/schemas/B"), diags[0].Provenance.Pointer)
+	assert.Equal(t, diag.UnresolvedRef, diags[0].Code)
+}
+
 // TestLoad_ASchemaRefIsUnresolvedWhereItsDocumentCannotBeRead pins what a
 // schema $ref reports when the document it names cannot be read, by the reason
-// the read gave: a URL that answers an error, a document that is no YAML, and a
-// location the source's own URL gives no document for.
+// the read gave: a URL that answers an error, 300 being the least, a document
+// that is no YAML, and a location the source's own URL gives no document for.
 func TestLoad_ASchemaRefIsUnresolvedWhereItsDocumentCannotBeRead(t *testing.T) {
 	t.Parallel()
 	srv := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/garbage.yaml" {
+		switch r.URL.Path {
+		case "/garbage.yaml":
+			_, err := w.Write([]byte("a: [\n"))
+			assert.NoError(t, err)
+		case "/choices.yaml":
+			w.WriteHeader(http.StatusMultipleChoices)
+		default:
 			w.WriteHeader(http.StatusNotFound)
-			return
 		}
-		_, err := w.Write([]byte("a: [\n"))
-		assert.NoError(t, err)
 	})
 	dir := externalDir(t, map[string]string{"bad.yaml": "a: [\n"})
 	for _, c := range []struct {
 		name, path, ref, says string
 	}{
 		{"a URL answering an error", "", srv.URL + "/missing.yaml#/x", "fetching it answered 404"},
+		{"a URL answering the least status past success", "", srv.URL + "/choices.yaml#/x", "fetching it answered 300"},
 		{"a URL serving no YAML", "", srv.URL + "/garbage.yaml#/x", "it does not parse as YAML"},
 		{"a file holding no YAML", "", "./bad.yaml#/x", "it does not parse as YAML"},
 		{"a location the source's URL cannot be joined with", "https://example.com/api/spec.yaml", "%zz.yaml#/x",
@@ -216,7 +269,7 @@ func TestBindingDiags_ReportsTheMergeBound(t *testing.T) {
 // TestBuildFailures_ReportsALandingNoSchemaWasBuiltFor pins where a landing
 // the decoder could not build is reported: at the least source position
 // reaching it, with why, and not at all for one only another document's
-// content reaches, or one that was built.
+// content reaches, or one that was built, whichever comes first.
 func TestBuildFailures_ReportsALandingNoSchemaWasBuiltFor(t *testing.T) {
 	t.Parallel()
 	at := pointerAt(0, overlay.Origin{})
@@ -234,7 +287,7 @@ func TestBuildFailures_ReportsALandingNoSchemaWasBuiltFor(t *testing.T) {
 		diag.Newf(ir.SeverityError, diag.Validation, at("/components/schemas/B"),
 			"the $ref here reaches #/S in other.yaml, where no schema could be built: it failed"),
 	}
-	assert.Empty(t, cmp.Diff(want, buildFailures(at, []typed.Built{failed, elsewhere, foreign, built})))
+	assert.Empty(t, cmp.Diff(want, buildFailures(at, []typed.Built{built, failed, foreign, elsewhere})))
 }
 
 // TestLoad_AMergeFanOutPastTheMergeBoundIsRefusedForItsAliases pins GitHub

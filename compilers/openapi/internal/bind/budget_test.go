@@ -48,22 +48,25 @@ func budgetConfig(limit int) bind.Config {
 }
 
 // TestBind_StopsAtItsBudget pins the budget: every limit short of what the
-// table costs cuts it, and an answer read within the cut is the full one, or
-// one the budget stopped, never another. A site the budget never reached is
-// missing. The cut lands at the same place each time, since the sites are
-// read in order.
+// table costs cuts it, and the cost itself does not. An answer read within the
+// cut, a site's or a mapping value's, is the full one, or one the budget
+// stopped, never another. A site the budget never reached is missing. The cut
+// lands at the same place each time, since the sites are read in order.
 func TestBind_StopsAtItsBudget(t *testing.T) {
 	t.Parallel()
 	full := bound(t, budgetSpec, budgetConfig(0))
 	require.False(t, full.Exhausted())
 	require.Len(t, full.Loops(), 1)
 	assert.Equal(t, bind.DefaultLimit, full.Limit(), "a zero limit is the default")
+	assert.False(t, bound(t, budgetSpec, budgetConfig(full.Steps())).Exhausted(), "the cost itself suffices")
 	want := map[bind.Position]bind.Entry{}
 	for _, e := range full.Entries() {
 		want[e.Site] = e
 	}
+	disc := at("/components/schemas/P/discriminator")
+	values := []string{"#/x-lib/C", "#/components/schemas/H/properties/p"}
 
-	stopped, missing := 0, 0
+	stopped, missing, stoppedMappings := 0, 0, 0
 	for limit := 1; limit < full.Steps(); limit++ {
 		cut := bound(t, budgetSpec, budgetConfig(limit))
 		require.True(t, cut.Exhausted(), "limit %d", limit)
@@ -77,8 +80,21 @@ func TestBind_StopsAtItsBudget(t *testing.T) {
 			}
 			assert.Equal(t, want[e.Site], e, "limit %d: an answer read within the budget is the full one", limit)
 		}
+		for _, v := range values {
+			m, ok := cut.Mapping(disc, v)
+			if !ok {
+				continue
+			}
+			if m.Hop.Status == bind.OverBudget || m.Chain.Status == bind.OverBudget {
+				stoppedMappings++
+				continue
+			}
+			whole, _ := full.Mapping(disc, v)
+			assert.Equal(t, whole, m, "limit %d: a mapping value read within the budget is the full one", limit)
+		}
 	}
 	assert.Positive(t, stopped, "some limit stops a chain partway")
+	assert.Positive(t, stoppedMappings, "some limit stops a mapping value")
 	assert.Positive(t, missing, "some limit stops before a site is read")
 }
 

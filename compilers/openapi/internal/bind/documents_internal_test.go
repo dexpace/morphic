@@ -60,6 +60,23 @@ func TestDocs_ReadCostsItsPointersLength(t *testing.T) {
 	assert.Less(t, cost(800), 3*cost(400), "twice the depth, about twice the bytes")
 }
 
+// TestDocs_ReadsAPointerToItsTokenCap pins maxPointerTokens: a pointer of that
+// many tokens is read whole, and one a token longer names nothing, however
+// deep its document nests.
+func TestDocs_ReadsAPointerToItsTokenCap(t *testing.T) {
+	t.Parallel()
+	levels := maxPointerTokens + 1
+	var root yaml.Node
+	src := strings.Repeat("{p: ", levels) + "{}" + strings.Repeat("}", levels) + "\n"
+	require.NoError(t, yaml.Unmarshal([]byte(src), &root))
+	d := newDocs(&root, Config{Self: "spec.yaml"}, &budget{limit: DefaultLimit})
+
+	_, reason := d.read(Source, jsontext.Pointer(strings.Repeat("/p", maxPointerTokens)))
+	assert.Equal(t, NoReason, reason)
+	_, reason = d.read(Source, jsontext.Pointer(strings.Repeat("/p", maxPointerTokens+1)))
+	assert.Equal(t, NoTarget, reason)
+}
+
 // TestPrefix_SlicesItsPointer pins prefix: the pointer to the first n tokens,
 // cut from the pointer itself, so it allocates nothing however long it is.
 func TestPrefix_SlicesItsPointer(t *testing.T) {
