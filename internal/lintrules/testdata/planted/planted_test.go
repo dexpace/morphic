@@ -12,3 +12,10 @@ var _ = json.Valid
 var fixture = ir.TypeRegistry{}
 
 func init() { fixture["a"] = nil }
+
+// A test file may assert by force and print, which draws nothing.
+func init() {
+	var v any = 1
+	_ = v.(int)
+	println("test output")
+}

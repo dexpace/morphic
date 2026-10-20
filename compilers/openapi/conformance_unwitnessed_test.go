@@ -10,6 +10,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -18,6 +19,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
+	"github.com/dexpace/morphic/internal/decls"
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/ir/irtest"
 )
@@ -222,4 +224,27 @@ func sealedTypeKinds(t *testing.T) []ir.TypeKind {
 		out = append(out, ir.TypeKind(c.Value))
 	}
 	return out
+}
+
+// irPackage is the ir package's production sources, type-checked once per test
+// binary.
+var irPackage = sync.OnceValues(func() (*decls.Package, error) {
+	return decls.Load("github.com/dexpace/morphic/ir")
+})
+
+// irDecls returns the ir package, type-checked.
+func irDecls(t *testing.T) *decls.Package {
+	t.Helper()
+	p, err := irPackage()
+	require.NoError(t, err)
+	return p
+}
+
+// irConstsOfType returns every constant the ir package declares with the named
+// string type, in declaration order.
+func irConstsOfType(t *testing.T, typeName string) []decls.Const {
+	t.Helper()
+	consts, err := irDecls(t).StringConsts(typeName)
+	require.NoError(t, err)
+	return consts
 }

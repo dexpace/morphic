@@ -161,9 +161,9 @@ methods (`internal/archtest`), and no function may exceed 70 lines or a cognitiv
 structure replaced reached 159 methods without ever writing a long function, so every rule then in
 force stayed green while it grew. A failure is a prompt to ask what the type has started doing.
 
-No lint suppression stands in the source: `internal/archtest` refuses a `//nolint`, `revive:` or
-`lint:ignore` comment. A suppression is a rule under `exclusions` in `.golangci.yml`, kept as narrow
-as the finding it excuses, with its reason beside it.
+No lint suppression stands in the source: `internal/archtest` refuses a `//nolint`, `revive:`,
+`lint:ignore` or `exhaustive:ignore` comment. A suppression is a rule under `exclusions` in
+`.golangci.yml`, kept as narrow as the finding it excuses, with its reason beside it.
 
 ## Testing strategy
 
@@ -201,11 +201,13 @@ These all exist already — extend them rather than building a parallel mechanis
   production package's uses of the parser library's reference-resolution API, which it derives
   from the library's sources, to `resolutionBaseline`. The baseline only shrinks: removing a use
   means lowering it (#558).
-- **Lint rule plants**: a rule a linter already expresses lives in `.golangci.yml` (depguard) or
-  `internal/lintrules` (ruleguard) rather than in archtest. `make lint-planted` holds each one to a
-  clean module and to `internal/lintrules/testdata/planted`, whose lines carry the findings they
-  must draw, so a rule that recognizes nothing fails. A new rule gets its plants there. It runs
-  from an empty cache, since golangci-lint's cache does not key on the ruleguard rules file.
+- **Lint rule plants**: a rule a linter already expresses lives in `.golangci.yml` or, for
+  ruleguard, in `internal/lintrules`, rather than in archtest: the json v1 ban, the registry, name
+  and ID rules, fragment reading, exhaustive switches over IR enums, invariant 5's output ban.
+  `make lint-planted` holds each one to a clean module and to `internal/lintrules/testdata/planted`,
+  whose lines carry the findings they must draw, so a rule that recognizes nothing fails. A new rule
+  gets its plants there. It runs from an empty cache, since golangci-lint's cache does not key on
+  the ruleguard rules file.
 - **Declaration pins**: a test that holds a hand-written list (an enum's members, a sealed sum's
   kinds, the fields of a shape) to what a package declares reads the package through
   `internal/decls`, which type-checks it with `go/packages`. It does not parse the sources: parsed

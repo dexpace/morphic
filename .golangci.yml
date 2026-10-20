@@ -3,17 +3,24 @@ version: "2"
 linters:
   default: standard # errcheck, govet, ineffassign, staticcheck, unused
   enable:
+    - containedctx # a context is a parameter, never a struct field
     - copyloopvar
     - depguard # encoding/json v1, refused in every file
+    - errname # Err… sentinels and …Error types
     - errorlint # %w discipline: errors.Is/As over == and type assertions
+    - exhaustive # a switch over an IR enum names every member
+    - forbidigo # no stdout, stderr or logging from a pipeline stage
+    - forcetypeassert # comma-ok on every type assertion outside tests
     - funlen # the styleguide's 70-line cap, enforced rather than declared
     - gocognit # nesting-weighted complexity: the reason the cap is 70 and not 200
     - gocritic # its default checks, and the ruleguard rules in internal/lintrules
+    - godot # a doc comment is sentences, so it ends with a period
     - intrange # for i := range n, where a counted loop only counts
     - misspell
     - modernize # the standard library and language forms go fix and the modernize analyzers propose
     - nilerr
     - prealloc
+    - predeclared # no declaration shadows a builtin
     - revive
     - unconvert
     - unparam
@@ -38,6 +45,34 @@ linters:
           deny:
             - pkg: encoding/json$
               desc: use encoding/json/v2 and encoding/json/jsontext
+    exhaustive:
+      # A switch over one of the IR's enums names every member, default or not:
+      # a guessing default absorbs a new kind as whatever it asserts, and
+      # ir.ValueKind is a bare string enum with no marker method to hold it
+      # otherwise. Only package ir's enums are held. The rest are ignored by
+      # pattern: the standard library (no dot in its path), the libraries the
+      # module reads, and the module's other packages. A switch over a library's
+      # enum reads the few members it handles, so an enum from a library newly
+      # imported is held until it is named here.
+      default-signifies-exhaustive: false
+      ignore-enum-types: ^([^.]+|gopkg\.in/yaml\.v3|github\.com/speakeasy-api/openapi/.+|github\.com/dexpace/morphic/(compilers|internal|pass|engine|cmd)/.+|github\.com/dexpace/morphic/ir/.+|github\.com/dexpace/morphic/ir_test)\.\w+$
+    forbidigo:
+      # Invariant 5: a pipeline stage writes nothing to stdout or stderr and
+      # logs nothing. It returns diagnostics, and the engine or the CLI decides
+      # what is shown. An exclusion below confines these to the pipeline's
+      # packages. An injected *slog.Logger stays allowed: only the package-level
+      # functions writing through the default logger are refused.
+      analyze-types: true
+      forbid:
+        - pattern: ^os\.(Stdout|Stderr)$
+          pkg: ^os$
+        - pattern: ^fmt\.Print(f|ln)?$
+          pkg: ^fmt$
+        - pattern: ^print(ln)?$
+        - pattern: ^log\.
+          pkg: ^log$
+        - pattern: ^slog\.(Default|SetDefault|Debug|DebugContext|Info|InfoContext|Warn|WarnContext|Error|ErrorContext|Log|LogAttrs)$
+          pkg: ^log/slog$
     funlen:
       # The styleguide's hard cap. Statements are not capped as well: a function
       # is long because of what it does, and two limits on the same axis only
@@ -89,6 +124,25 @@ linters:
         linters:
           - usetesting
         text: os\.MkdirTemp
+      # forbidigo's rules are invariant 5's, which binds the pipeline: ir,
+      # compilers, pass and engine, beside the plants that hold the rules.
+      - path-except: ^(ir|compilers|pass|engine|internal/lintrules/testdata)/
+        linters:
+          - forbidigo
+      # A test may print, and a forced type assertion in one fails the test by
+      # panicking, which is what an assertion is for there. The comma-ok rule
+      # keeps a panic from escaping a package to its callers.
+      - path: _test\.go
+        linters:
+          - forbidigo
+          - forcetypeassert
+      # liveForCalls is a context.Context: it embeds the one it wraps to answer Err
+      # on a schedule, which is how a context decorator is written, not a context
+      # held for later.
+      - path: compilers/openapi/budgets_test\.go
+        linters:
+          - containedctx
+        source: ^\s*context\.Context$
       # keyed runs as pointer reads step through models, and the Type.Fields
       # range this proposes costs it four allocations a call where indexing
       # costs none. TestKeyed_CostsNoAllocation holds it there.

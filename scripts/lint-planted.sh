@@ -22,7 +22,7 @@ export LC_ALL=C # one byte order for both sorted lists
 repo_root="$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)"
 cd "$repo_root"
 dir=internal/lintrules/testdata/planted
-linters=depguard,gocritic
+linters=containedctx,depguard,errname,exhaustive,forbidigo,forcetypeassert,gocritic,godot,predeclared
 
 # The packages under $dir, look-alikes included. ./... does not reach into a
 # testdata directory, so each is named.
