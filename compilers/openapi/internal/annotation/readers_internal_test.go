@@ -770,7 +770,7 @@ func TestRawChildNodes_AgreesWithRawChildNode(t *testing.T) {
 			keys := append([]string{"title", "absent"}, RawMappingKeys(&doc)...)
 			keys = slices.AppendSeq(keys, maps.Keys(children))
 			for _, key := range keys {
-				assert.True(t, RawChildNode(&doc, key) == children[key], "the two readers disagree on %q", key)
+				assert.Same(t, RawChildNode(&doc, key), children[key], "the two readers disagree on %q", key)
 			}
 		})
 	}

@@ -88,7 +88,7 @@ func TestLimitOptions_NameEveryBudget(t *testing.T) {
 		fields[field] = name
 	}
 	limits := reflect.ValueOf(&l).Elem()
-	require.Equal(t, limits.NumField(), len(fields), "an option for each field, and no other")
+	require.Len(t, fields, limits.NumField(), "an option for each field, and no other")
 	for i := range limits.NumField() {
 		field, ok := reflect.TypeAssert[*int](limits.Field(i).Addr())
 		require.True(t, ok, "%s is an int budget", limits.Type().Field(i).Name)

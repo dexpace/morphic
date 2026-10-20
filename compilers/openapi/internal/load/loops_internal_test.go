@@ -461,7 +461,7 @@ func TestLoops_IncompleteReportsTheBoundTheReadsStoppedAt(t *testing.T) {
 		doc, pass := heldResolution(t, rootOfSchemas("    A: {type: object}\n"), filepath.Join(t.TempDir(), "root.yaml"))
 		pass.loops.work = maxLoopWork + 1
 
-		_, diags := pass.run(doc)
+		_, diags := pass.run(t.Context(), doc)
 
 		assert.Equal(t, []string{" " + diag.CycleScanFailed}, diagLines(diags))
 	})
@@ -548,7 +548,7 @@ func TestVisit_AChainTheGuardCouldNotReadIsLeftUnresolved(t *testing.T) {
 		a, ok := doc.GetComponents().GetSchemas().Get("A")
 		require.True(t, ok)
 
-		pass.visit("/components/schemas/A", a)
+		pass.visit(t.Context(), "/components/schemas/A", a)
 
 		assert.Equal(t, c.resolved, a.IsResolved(), c.name)
 		assert.Empty(t, pass.failures, c.name)

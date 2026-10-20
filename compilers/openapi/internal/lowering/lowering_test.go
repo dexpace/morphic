@@ -249,7 +249,8 @@ func TestRefScope_SharesTheContextsReader(t *testing.T) {
 	c := lowering.New(0, openapitest.DocDeclaring("A"), ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, overlay.Origin{})
 
 	require.NotNil(t, c.RefScope().Defs, "a context with a document reads through a reader")
-	assert.Same(t, c.RefScope().Defs, c.RefScope().Defs)
+	defs := c.RefScope().Defs
+	assert.Same(t, defs, c.RefScope().Defs, "each read hands back the one reader")
 	assert.Same(t, c.RefScope().Defs, c.NamingByReference().RefScope().Defs, "a copy shares it")
 	assert.Nil(t, lowering.Ctx{}.RefScope().Defs, "a context with no document has none")
 }

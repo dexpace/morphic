@@ -1679,7 +1679,10 @@ func TestInTree_AllocatesInTheTreesSizeNotItsPointers(t *testing.T) {
 	runtime.ReadMemStats(&after)
 	runtime.KeepAlive(root)
 
-	assert.True(t, got.Pointer == want, "the pointer asked for is %d bytes, want %d", len(got.Pointer), len(want))
+	// Compared as a bool, so a failure reports the lengths rather than printing
+	// two pointers of tens of kilobytes each.
+	same := got.Pointer == want
+	assert.True(t, same, "the pointer asked for is %d bytes, want %d", len(got.Pointer), len(want))
 	alloc := after.TotalAlloc - before.TotalAlloc
 	assert.Less(t, alloc, uint64(bound), "indexing the tree and asking for one pointer allocated %d bytes", alloc)
 }
