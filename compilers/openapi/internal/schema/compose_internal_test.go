@@ -964,23 +964,40 @@ func TestRefBranchTarget_InlineBranchNamesNothing(t *testing.T) {
 
 // TestAllOfBranches_DepthCapNamesWhatElseTheWrapperWrites pins that a wrapper
 // kept at the cap lists the keywords it writes besides allOf, so the message
-// says both why it was kept and what rides along.
+// says both why it was kept and what rides along. A wrapper whose type is not an
+// object reads as a warning, which names the depth as well.
 func TestAllOfBranches_DepthCapNamesWhatElseTheWrapperWrites(t *testing.T) {
 	t.Parallel()
-	var b strings.Builder
-	b.WriteString("    A: {type: object, properties: {a: {type: string}}}\n    M:\n      allOf:\n")
-	for i := range maxAllOfFlattenDepth {
-		b.WriteString(strings.Repeat("  ", i) + "        - allOf:\n")
-	}
-	pad := strings.Repeat("  ", maxAllOfFlattenDepth)
-	b.WriteString(pad + "        - description: Capped\n" + pad + "          allOf:\n" +
-		pad + "            - {$ref: '#/components/schemas/A'}\n")
+	for _, tc := range []struct {
+		name     string
+		sibling  string
+		severity ir.Severity
+		want     string
+	}{
+		{"description", "description: Capped", ir.SeverityInfo, "the branch (description) is kept verbatim"},
+		{"non-object type", "type: string", ir.SeverityWarning, "the branch (type) is kept verbatim"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var b strings.Builder
+			b.WriteString("    A: {type: object, properties: {a: {type: string}}}\n    M:\n      allOf:\n")
+			for i := range maxAllOfFlattenDepth {
+				b.WriteString(strings.Repeat("  ", i) + "        - allOf:\n")
+			}
+			pad := strings.Repeat("  ", maxAllOfFlattenDepth)
+			b.WriteString(pad + "        - " + tc.sibling + "\n" + pad + "          allOf:\n" +
+				pad + "            - {$ref: '#/components/schemas/A'}\n")
 
-	_, diags := lowerSpec(t, openapitest.ComponentSpec(b.String()))
-	openapitest.RequireNoErrorDiags(t, diags)
-	path := strings.TrimSuffix(strings.Repeat("allOf/0/", maxAllOfFlattenDepth+1), "/")
-	msg := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct,
-		ir.SeverityInfo, "/components/schemas/M/"+path)
-	assert.Contains(t, msg, "was not flattened")
-	assert.Contains(t, msg, "the branch (description) is kept verbatim")
+			_, diags := lowerSpec(t, openapitest.ComponentSpec(b.String()))
+			openapitest.RequireNoErrorDiags(t, diags)
+			path := strings.TrimSuffix(strings.Repeat("allOf/0/", maxAllOfFlattenDepth+1), "/")
+			msg := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct,
+				tc.severity, "/components/schemas/M/"+path)
+			assert.Contains(t, msg, "nested past the flattening depth of "+strconv.Itoa(maxAllOfFlattenDepth))
+			assert.Contains(t, msg, "was not flattened")
+			assert.Contains(t, msg, tc.want)
+			assert.NotContains(t, msg, "allOf)", "allOf is not listed as a kept keyword")
+			assert.NotContains(t, msg, ", allOf")
+		})
+	}
 }

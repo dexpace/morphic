@@ -411,10 +411,23 @@ func preserveUnmergedBranch(c lowering.Ctx, m *ir.Model, e allOfBranch, key stri
 // (docs/compilers/openapi.md#allof-inline-residue).
 func diagUnmergedBranch(c lowering.Ctx, bs *oas3.Schema, residue []string, e allOfBranch) ir.Diagnostic {
 	if branchExcludesObject(bs) {
-		return c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, e.pointer,
-			"inline allOf branch declares a type that is not an object, which the composed model asserts it is; the branch (%s) is kept verbatim under Unmodeled", strings.Join(residue, ", "))
+		msg := "inline allOf branch declares a type that is not an object, which the composed model asserts it is; the branch (" +
+			strings.Join(keptKeywords(residue, e), ", ") + ") is kept verbatim under Unmodeled"
+		if e.capped {
+			msg += ", and its own allOf, nested past the flattening depth of " + strconv.Itoa(maxAllOfFlattenDepth) + ", was not flattened"
+		}
+		return c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, e.pointer, "%s", msg)
 	}
 	return c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, e.pointer, "%s", unmergedWhy(residue, e))
+}
+
+// keptKeywords is residue as a diagnostic names it: a capped branch is kept for
+// its depth, so its allOf is not listed as a keyword the merge declines.
+func keptKeywords(residue []string, e allOfBranch) []string {
+	if !e.capped {
+		return residue
+	}
+	return slices.DeleteFunc(slices.Clone(residue), func(k string) bool { return k == "allOf" })
 }
 
 // unmergedWhy words why a branch with residue is kept. A flattened branch's
@@ -428,7 +441,7 @@ func unmergedWhy(residue []string, e allOfBranch) string {
 		return "inline allOf branch is merged in place, so only its properties, required list and nested allOf compose; the branch (" +
 			strings.Join(residue, ", ") + ")" + keptTail
 	case e.capped:
-		rest := slices.DeleteFunc(slices.Clone(residue), func(k string) bool { return k == "allOf" })
+		rest := keptKeywords(residue, e)
 		why := "inline allOf branch is nested past the flattening depth of " + strconv.Itoa(maxAllOfFlattenDepth) +
 			", so its own allOf was not flattened; only its properties and required list compose, and the branch"
 		if len(rest) > 0 {
