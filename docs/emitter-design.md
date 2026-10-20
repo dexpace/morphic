@@ -294,8 +294,8 @@ type TargetOptions interface {
   The manifest (§11) records the stated version, `OptionsVersion()`.
 
 Per-target heuristics live here too, beside the target's other choices, rather than in the plan:
-the parameter-passing shape (§4.13) and the numeric policy for unbounded numbers (§9). What each
-default shapes is marked `Inferred` on the target-AST nodes it produced (§4.3), as INV6 requires.
+the parameter-passing shape (§4.13) and the numeric policy for unbounded numbers (§9). The
+target-AST nodes a default shapes carry `Inferred` provenance (§4.3), as INV6 requires.
 
 ---
 
@@ -629,6 +629,7 @@ type Ctx struct {
     Policy  policy.Policy        // read-only SDK runtime policy (§6)
     Naming  naming.Policy        // per-target casing/acronym/reserved-word engine (INV4)
     Hints   map[emitter.EntityID]emitter.ShapeHint
+    Options emitter.TargetOptions // decoded options (§2.5); a step asserts its own target's type
     Out     TargetAST            // the per-language AST being built (e.g. *goast.Module)
     Syms    *SymbolTable         // ID-keyed; collision resolution never touches IR identity
 }
@@ -645,7 +646,7 @@ type TargetAST interface{ targetAST() }
 because a specific un-lowered IR fact reached it; a missing IR capability shows up as an
 unimplementable step, not a silent degrade. Ordering is asserted by a golden *step-trace* test:
 casing precedes reserved-word escaping; both run after every structural lowering; import
-computation runs last. Because each step is idempotent and reads only `IR + Plan + AST`, a step-trace
+computation runs last. Because each step is idempotent and reads only its `Ctx`, a step-trace
 snapshot pins the whole lowering deterministically.
 
 ### 4.2 The canonical step list
