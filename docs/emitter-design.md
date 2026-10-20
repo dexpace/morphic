@@ -1384,16 +1384,16 @@ version (§2.5).
 change signature with every property it gains, so a property the spec adds would break every JVM
 binary compiled against the SDK, and Swift, which sees no default arguments, would make every
 caller pass it. Kotlin's guidance for library authors keeps data classes out of a public API for
-the first reason. A model is a final class instead:
+the first reason. Each is a final class instead:
 
-1. Its properties are public `val`s and its constructor is not public. A nested `Builder` takes the
-   required properties in its constructor and the optional ones through setters. A Kotlin caller
-   writes `User(name = "Ada") { email = "ada@example.com" }` over it; a Swift caller uses the
+1. A model's properties are public `val`s and its constructor is not public. A nested `Builder`
+   takes the required properties in its constructor and the optional ones through setters. A Kotlin
+   caller writes `User(name = "Ada") { email = "ada@example.com" }` over it; a Swift caller uses the
    builder itself.
 2. `equals`, `hashCode` and `toString` are generated, and `toString` redacts a `Secret` property or
    a `Sensitive` type (§8.1), which a data class's would print.
-3. An operation's request type (§4.13) is built the same way, so an optional input the spec adds is
-   a new setter on both platforms.
+3. An operation's request type (§4.13) is built the same way, so an optional property or input the
+   spec adds is a new setter on both platforms.
 
 A required property the spec adds changes the builder's constructor, as it changes the API.
 
