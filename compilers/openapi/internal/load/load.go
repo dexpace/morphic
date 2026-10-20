@@ -405,7 +405,6 @@ func resolve(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *
 		diags = resolveWith(ctx, at, doc, sibs, self, opts, nil)
 	}
 	b := bindSchemas(ctx, at, doc, sibs, self, reader)
-	b.build(ctx)
 	reached := validateReached(ctx, at, doc, sibs, b.built, opts, self)
 	site, err := self.escapes.restore(ctx, doc, sibs, b.built)
 	diags = append(diags, restoreFault(at, site, err)...)

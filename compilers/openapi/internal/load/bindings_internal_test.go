@@ -22,31 +22,6 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// TestBound_ABuildAfterTheFirstChangesNothing pins that a bound builds its
-// schemas once: the builder is spent by the first build, so a second leaves the
-// bindings and what was built as they were, and a bound that never held a
-// builder builds nothing.
-func TestBound_ABuildAfterTheFirstChangesNothing(t *testing.T) {
-	t.Parallel()
-	doc, root := buildDoc(t, schemaRoot("#/components/schemas/B")+"    B: {type: string}\n")
-	data := []byte(schemaRoot("#/components/schemas/B"))
-	self := newSourceDocument("spec.yaml", data, root, nil, newSourceTree(0, overlay.Origin{}, root), nil)
-
-	b := bindSchemas(t.Context(), pointerAt(0, overlay.Origin{}), doc, Siblings{}, self, nil)
-	b.build(t.Context())
-	first, built := b.bindings, b.built
-	require.NotNil(t, first)
-
-	b.build(t.Context())
-
-	assert.Same(t, first, b.bindings, "the second build leaves the bindings")
-	assert.Equal(t, built, b.built, "and what was built")
-	var none bound
-	none.build(t.Context())
-	assert.Nil(t, none.bindings)
-	assert.Empty(t, none.built)
-}
-
 // TestBindingDiags_ReportsTheBudgetOnce pins that a table whose work ran out is
 // reported once, at the document, with the bound it crossed, and that a $ref it
 // left unread is not reported unresolved: it was not found wanting.

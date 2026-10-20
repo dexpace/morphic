@@ -25,31 +25,21 @@ import (
 
 // bound is what binding the source's schema references found: the bindings
 // the lowering reads, the schemas built for the table's landings, and what it
-// reports. Until build runs, it holds the builder that builds them.
+// reports.
 type bound struct {
-	builder  *typed.Builder
 	bindings *typed.Bindings
 	built    []typed.Built
 	diags    []ir.Diagnostic
 }
 
-// build builds the schemas for the table's landings, from the trees as the
-// parser was handed them (see resolve), and finishes the bindings.
-func (b *bound) build(ctx context.Context) {
-	if b.builder == nil {
-		return
-	}
-	b.built = b.builder.Build(ctx)
-	b.bindings, b.builder = b.builder.Bindings(), nil
-}
-
 // bindSchemas resolves every schema $ref of doc, the source's model, in the
 // compiler (internal/bind), never through the parser's resolver, which
 // overflows the stack on a cycle (docs/parser-library.md#schema-cycle-overflow)
-// and answers by declaration order (docs/parser-library.md#defs-order). It runs
-// once every reference object is resolved, since a pointer through one reads
-// on where the parser resolved it. reader reads other documents, or is nil
-// when none is read.
+// and answers by declaration order (docs/parser-library.md#defs-order), and
+// builds a schema for each landing from the trees as the parser was handed
+// them (see resolve). It runs once every reference object is resolved, since a
+// pointer through one reads on where the parser resolved it. reader reads
+// other documents, or is nil when none is read.
 func bindSchemas(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI,
 	sibs Siblings, self sourceDocument, reader *external,
 ) bound {
@@ -66,7 +56,8 @@ func bindSchemas(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, d
 	bd := typed.NewBuilder(table)
 	indexWalk(bd, walkSource(ctx, doc, sibs), bind.Position{})
 	indexEnds(ctx, bd, table, ends)
-	return bound{builder: bd, diags: bindingDiags(at, table)}
+	built := bd.Build(ctx)
+	return bound{bindings: bd.Bindings(), built: built, diags: bindingDiags(at, table)}
 }
 
 // referenceEnd is where the chain of one of the source's reference objects
