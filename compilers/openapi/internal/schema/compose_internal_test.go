@@ -871,7 +871,8 @@ func TestAllOfBranches_EntriesAgreeWithThePointerWalk(t *testing.T) {
 `))
 	decl, ok := l.ctx.Doc.Components.Schemas.Get("M")
 	require.True(t, ok)
-	entries := allOfBranches(decl.GetSchema(), "/components/schemas/M")
+	comp := allOfBranches(decl.GetSchema(), "/components/schemas/M")
+	entries := comp.branches
 	require.Len(t, entries, 6, "four inline branches and two wrappers")
 	wantKeys := []string{
 		"openapi:allOf/0",
@@ -883,7 +884,7 @@ func TestAllOfBranches_EntriesAgreeWithThePointerWalk(t *testing.T) {
 	}
 	var inline int
 	for i, e := range entries {
-		assert.Equal(t, wantKeys[i], branchKey("/components/schemas/M", e.pointer))
+		assert.Equal(t, wantKeys[i], comp.branchKey(e.pointer))
 		if e.wrapper {
 			continue
 		}

@@ -44,12 +44,12 @@ func lowerAllOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 		cons, consDiags := ConstraintsOf(c, &common.Unmodeled, s, pointer)
 		diags = append(diags, consDiags...)
 		m := &ir.Model{TypeCommon: common, Constraints: cons}
-		branches := allOfBranches(s, pointer) // read once: every reader below sees the flattened list
-		diags = append(diags, fillAllOf(c, ts, anchors, depth, m, branches, pointer)...)
+		comp := allOfBranches(s, pointer) // the one flattened list; the readers below take it, not s
+		diags = append(diags, fillAllOf(c, ts, anchors, depth, m, comp)...)
 		diags = append(diags, fillModelProperties(c, ts, anchors, depth, m, s, pointer)...)
-		diags = append(diags, applyCompositionRequired(c, m, s, pointer, branches)...)
+		diags = append(diags, applyCompositionRequired(c, m, s.GetRequired(), comp)...)
 		diags = append(diags, fillAdditional(c, ts, anchors, depth, m, s, pointer, hint)...)
-		diags = append(diags, applyFalseBranches(c, m, branches, pointer)...)
+		diags = append(diags, applyFalseBranches(c, m, comp)...)
 		d, discDiags := lowerDiscriminator(c, ts, anchors, depth, s, m, nil, pointer)
 		diags = append(diags, discDiags...)
 		if d != nil {
@@ -152,10 +152,18 @@ func stackPath(buf []int, stack []allOfFrame) []int {
 	return buf
 }
 
+// allOfComposition is the flattened allOf of the schema written at pointer: its
+// branches, each with the pointer it was written at. A reader that takes it
+// cannot reach the unflattened list.
+type allOfComposition struct {
+	pointer  jsontext.Pointer
+	branches []allOfBranch
+}
+
 // allOfBranches returns the branches of s's allOf as walkAllOf yields them, each
 // with the pointer it was written at, under the schema written at pointer. allOf
 // is associative, so the list classifies exactly as its flat spelling would.
-func allOfBranches(s *oas3.Schema, pointer jsontext.Pointer) []allOfBranch {
+func allOfBranches(s *oas3.Schema, pointer jsontext.Pointer) allOfComposition {
 	var out []allOfBranch
 	for st := range walkAllOf(s) {
 		p := pointer
@@ -164,7 +172,7 @@ func allOfBranches(s *oas3.Schema, pointer jsontext.Pointer) []allOfBranch {
 		}
 		out = append(out, allOfBranch{schema: st.schema, pointer: p, wrapper: st.wrapper, capped: st.capped})
 	}
-	return out
+	return allOfComposition{pointer: pointer, branches: out}
 }
 
 // allOfRefBranches yields the $ref branches of s's allOf after flattening,
@@ -188,10 +196,10 @@ func allOfRefBranches(s *oas3.Schema) iter.Seq[*oas3.JSONSchema[oas3.Referenceab
 }
 
 // branchKey is the Unmodeled key an allOf branch at bptr is kept under: "openapi:"
-// and its path from the composed schema at composed. The path's tokens are
-// `allOf` and decimal indices, so trimming the prefix is exact.
-func branchKey(composed, bptr jsontext.Pointer) string {
-	return "openapi:" + strings.TrimPrefix(string(bptr), string(composed)+"/")
+// and its path from the composed schema. The path's tokens are `allOf` and
+// decimal indices, so trimming the prefix is exact.
+func (a allOfComposition) branchKey(bptr jsontext.Pointer) string {
+	return "openapi:" + strings.TrimPrefix(string(bptr), string(a.pointer)+"/")
 }
 
 // pointerIndex is the last token of bptr: a branch's index within its own list,
@@ -226,12 +234,12 @@ type requiredEntry struct {
 
 // compositionRequired collects every required-property name declared across an
 // allOf composition, in source order: each branch's required list (a flattened
-// wrapper's included, at the wrapper's pointer), then the composed schema's
-// own. A branch is read from its local schema, never its resolved $ref target —
-// that required list belongs to the target's own model (issue #29).
-func compositionRequired(s *oas3.Schema, pointer jsontext.Pointer, branches []allOfBranch) []requiredEntry {
+// wrapper's included, at the wrapper's pointer), then own, the composed
+// schema's. A branch is read from its local schema, never its resolved $ref
+// target — that required list belongs to the target's own model (issue #29).
+func compositionRequired(own []string, comp allOfComposition) []requiredEntry {
 	var out []requiredEntry
-	for _, e := range branches {
+	for _, e := range comp.branches {
 		bs := e.schema.GetSchema() // the branch's own local schema; nil for a bare `false`
 		if bs == nil {
 			continue
@@ -240,8 +248,8 @@ func compositionRequired(s *oas3.Schema, pointer jsontext.Pointer, branches []al
 			out = append(out, requiredEntry{name: name, pointer: e.pointer})
 		}
 	}
-	for _, name := range s.GetRequired() {
-		out = append(out, requiredEntry{name: name, pointer: pointer})
+	for _, name := range own {
+		out = append(out, requiredEntry{name: name, pointer: comp.pointer})
 	}
 	return out
 }
@@ -250,8 +258,8 @@ func compositionRequired(s *oas3.Schema, pointer jsontext.Pointer, branches []al
 // own properties, matching by wire name; it never clears a Required already
 // set. An entry matching no own property has no IR home (ir-design §4.3) and
 // is diagnosed via diagUnattachableRequired instead of dropped silently.
-func applyCompositionRequired(c lowering.Ctx, m *ir.Model, s *oas3.Schema, pointer jsontext.Pointer, branches []allOfBranch) []ir.Diagnostic {
-	entries := compositionRequired(s, pointer, branches)
+func applyCompositionRequired(c lowering.Ctx, m *ir.Model, own []string, comp allOfComposition) []ir.Diagnostic {
+	entries := compositionRequired(own, comp)
 	if len(entries) == 0 {
 		return nil
 	}
@@ -281,8 +289,7 @@ func diagUnattachableRequired(c lowering.Ctx, m *ir.Model, e requiredEntry) ir.D
 		"required %q matches no property declared here", e.name)
 }
 
-// fillAllOf classifies and lowers the allOf branches into m, over the list
-// allOfBranches built for the composed schema written at pointer (GitHub #599).
+// fillAllOf classifies and lowers the branches of comp into m (GitHub #599).
 //
 // An inline branch merges in place: only its `properties` and `required`
 // (applyCompositionRequired) merge, the rest staying verbatim beside the model
@@ -293,13 +300,13 @@ func diagUnattachableRequired(c lowering.Ctx, m *ir.Model, e requiredEntry) ir.D
 // that homeDeclaration hoists there (GitHub #143). The census every $ref site
 // runs keeps what the alias cannot model, except `required`
 // (compositionCensusHandled); a co-declared oneOf/anyOf is kept too (GitHub #406).
-func fillAllOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, m *ir.Model, branches []allOfBranch, pointer jsontext.Pointer) []ir.Diagnostic {
+func fillAllOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, m *ir.Model, comp allOfComposition) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	baseIdx := selectAllOfBase(branches)
-	for i, e := range branches {
+	baseIdx := selectAllOfBase(comp.branches)
+	for i, e := range comp.branches {
 		if !isRefBranch(e.schema) {
 			diags = append(diags, fillModelProperties(c, ts, anchors, depth, m, e.schema.GetSchema(), e.pointer)...)
-			diags = append(diags, preserveUnmergedBranch(c, m, e, branchKey(pointer, e.pointer))...)
+			diags = append(diags, preserveUnmergedBranch(c, m, e, comp.branchKey(e.pointer))...)
 			continue
 		}
 		diags = append(diags, fillRefBranch(c, ts, anchors, depth, m, e, i == baseIdx)...)
@@ -344,9 +351,9 @@ func fillRefBranch(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, dept
 // would trade one silent loss for another. The verbatim branch tells this from
 // a plain `additionalProperties: false`; a diagnostic does not, being no part
 // of the document. A `true` branch constrains nothing and is skipped.
-func applyFalseBranches(c lowering.Ctx, m *ir.Model, branches []allOfBranch, composed jsontext.Pointer) []ir.Diagnostic {
+func applyFalseBranches(c lowering.Ctx, m *ir.Model, comp allOfComposition) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	for _, e := range branches {
+	for _, e := range comp.branches {
 		b := e.schema
 		if b == nil || !b.IsBool() {
 			continue
@@ -355,7 +362,7 @@ func applyFalseBranches(c lowering.Ctx, m *ir.Model, branches []allOfBranch, com
 			continue // `true` constrains nothing.
 		}
 		m.Additional = ir.AdditionalClosed
-		preserve(c, &m.Unmodeled, branchKey(composed, e.pointer),
+		preserve(c, &m.Unmodeled, comp.branchKey(e.pointer),
 			ir.RawValue("false"), ir.ReasonDegradedLowering, e.pointer)
 
 		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.FalseSchema, e.pointer,
@@ -1105,7 +1112,7 @@ func preserveUnusedCombinator(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, w
 func lowerDistributedUnion(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer jsontext.Pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
-		body := composedBody{schema: s, branches: allOfBranches(s, pointer), pointer: pointer, hint: hint, id: common.ID}
+		body := composedBody{schema: s, comp: allOfBranches(s, pointer), hint: hint, id: common.ID}
 		def, unionDiags := buildUnion(c, ts, anchors, depth, s, common, pointer,
 			func(b *oas3.JSONSchema[oas3.Referenceable], vptr jsontext.Pointer, vhint string) ir.TypeRef {
 				ref, variantDiags := composedVariant(c, ts, anchors, depth, body, b, vptr, vhint)
@@ -1124,11 +1131,10 @@ func lowerDistributedUnion(c lowering.Ctx, ts *compile.Types, anchors *AnchorInd
 // which is the node a base's discriminator mapping names, since the source
 // declares one schema, not one per branch.
 type composedBody struct {
-	schema   *oas3.Schema
-	branches []allOfBranch // schema's allOf, read once for every variant
-	pointer  jsontext.Pointer
-	hint     string
-	id       ir.TypeID
+	schema *oas3.Schema
+	comp   allOfComposition // schema's flattened allOf, built once for every variant
+	hint   string
+	id     ir.TypeID
 }
 
 // composedVariant synthesizes the Model for one distributed variant: the
@@ -1180,18 +1186,18 @@ func composedVariantNullable(body *oas3.Schema, branch ir.TypeRef) bool {
 // constrains both sides of the disjunction and this path never runs the
 // pointer's own census.
 func buildComposedVariant(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, body composedBody, branch ir.TypeID, common ir.TypeCommon) (ir.TypeDef, []ir.Diagnostic) {
-	cons, diags := ConstraintsOf(c, &common.Unmodeled, body.schema, body.pointer)
+	cons, diags := ConstraintsOf(c, &common.Unmodeled, body.schema, body.comp.pointer)
 	m := &ir.Model{TypeCommon: common, Constraints: cons}
-	diags = append(diags, fillAllOf(c, ts, anchors, depth, m, body.branches, body.pointer)...)
-	diags = append(diags, fillModelProperties(c, ts, anchors, depth, m, body.schema, body.pointer)...)
-	diags = append(diags, applyCompositionRequired(c, m, body.schema, body.pointer, body.branches)...)
-	diags = append(diags, fillAdditional(c, ts, anchors, depth, m, body.schema, body.pointer, body.hint)...)
-	diags = append(diags, applyFalseBranches(c, m, body.branches, body.pointer)...)
+	diags = append(diags, fillAllOf(c, ts, anchors, depth, m, body.comp)...)
+	diags = append(diags, fillModelProperties(c, ts, anchors, depth, m, body.schema, body.comp.pointer)...)
+	diags = append(diags, applyCompositionRequired(c, m, body.schema.GetRequired(), body.comp)...)
+	diags = append(diags, fillAdditional(c, ts, anchors, depth, m, body.schema, body.comp.pointer, body.hint)...)
+	diags = append(diags, applyFalseBranches(c, m, body.comp)...)
 	conjoinBranch(m, branch)
 	// The tag is the enclosing schema's: it is what a base's mapping names, and
 	// the variants are its lowering. No discriminator of its own can be declared
 	// here — a schema that declares one is never distributed.
-	tag, tagDiags := subtypeDiscriminatorValue(c, ts, body.schema, body.id, body.pointer)
+	tag, tagDiags := subtypeDiscriminatorValue(c, ts, body.schema, body.id, body.comp.pointer)
 	m.DiscriminatorValue = tag
 	diags = append(diags, tagDiags...)
 	return m, diags
