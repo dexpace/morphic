@@ -1848,7 +1848,7 @@ declaration of a name winning, or on a `Base` or `Mixin` it composes. The `allOf
 [`allof-classification`](#allof-classification) flattens it, with the same cap, and a `$ref`
 entry is followed up to a bound of its own, and entered again only by a shorter path. A bound that
 cuts a target no path enters is reported as a warning `openapi/degraded-construct` at the body
-schema, since a part past it has no entry.
+schema, since a part reached only past it has no entry.
 `contentType` lowers to
 `ContentTypes`, split on `,` and trimmed with empty items dropped; `headers` to `Headers`, lowered
 as a response's are; and `style` and `explode` to `Style` and `Explode` as declared, nothing
@@ -1866,7 +1866,9 @@ Encoding Object writes beyond those fields is
   `operation.TestPartEncodings_MixinPartIsKeyedOnTheMixin`,
   `operation.TestPartEncodings_ReadsTheFlattenedComposition`,
   `operation.TestPartEncodings_RefHopBoundIsReported`,
-  `operation.TestPartEncodings_ShorterPathReentersTarget`
+  `operation.TestPartEncodings_ShorterPathReentersTarget`,
+  `operation.TestPartEncodings_CappedEntryReachedByAnotherPath`,
+  `operation.TestPartEncodings_CutPastReachedPart`
 - Status: partly built: an `encoding` key that names no property, or one declared only inside a
   `oneOf` or `anyOf` branch, is dropped with no diagnostic (#604); on a multi-typed body the entry
   is keyed by a property no node holds, which validation then refuses (#744); an array of files is

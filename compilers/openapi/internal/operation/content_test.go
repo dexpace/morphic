@@ -2843,6 +2843,61 @@ components:
 	}
 }
 
+// TestPartEncodings_CutPastReachedPart cuts the walk at a target that no path
+// enters, while a shorter path reaches the object below it: a $ref chain past
+// the hop bound and inline wrappers past the flattening depth. Whichever the
+// body names first, both parts are keyed, and the bound's warning claims a
+// loss only for a part reached through the cut alone.
+func TestPartEncodings_CutPastReachedPart(t *testing.T) {
+	t.Parallel()
+	const partRefHops = 16
+	obj := "{type: object, properties: {file: {type: string, format: binary}, meta: {type: string}}}"
+	var chain strings.Builder
+	for i := range partRefHops + 1 {
+		chain.WriteString("    L" + strconv.Itoa(i) + ": {allOf: [{$ref: '#/components/schemas/L" + strconv.Itoa(i+1) + "'}]}\n")
+	}
+	chain.WriteString("    L" + strconv.Itoa(partRefHops+1) + ": " + obj + "\n")
+	const n = schema.AllOfFlattenDepth + 3
+	deep := obj
+	for range n {
+		deep = "{allOf: [" + deep + "]}"
+	}
+	leaf := "Deep" + strings.Repeat("/allOf/0", n)
+	cases := []struct{ name, first, second, comps, keyedAt, bound string }{
+		{"hops, chain first", "L0", "L17", chain.String(), "L17", "past 16 hops, so a part reached only beyond them"},
+		{"hops, target first", "L17", "L0", chain.String(), "L17", "past 16 hops, so a part reached only beyond them"},
+		{"depth, wrappers first", "Deep", leaf, "    Deep: " + deep + "\n", leaf, "depth of 32, so a part reached only below it"},
+		{"depth, pointer first", leaf, "Deep", "    Deep: " + deep + "\n", leaf, "depth of 32, so a part reached only below it"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			spec := openapitest.PathsSpec(`  /u:
+    post:
+      operationId: up
+      requestBody:
+        content:
+          multipart/form-data:
+            schema: {allOf: [{$ref: '#/components/schemas/` + tc.first + `'}, {$ref: '#/components/schemas/` + tc.second + `'}]}
+            encoding:
+              file: {contentType: image/png}
+              meta: {contentType: application/json}
+      responses: {"200": {description: ok}}
+components:
+  schemas:
+` + tc.comps)
+			_, svc, diags := lowerServiceSpec(t, spec)
+			openapitest.RequireNoErrorDiags(t, diags)
+			got := openapitest.FirstOp(t, svc).Request.Contents[0].Encoding
+			for _, part := range []string{"file", "meta"} {
+				id := ir.PropID("p/openapi/components/schemas/" + tc.keyedAt + string(ids.Ptr("properties", part)))
+				assert.Contains(t, got, id, "the %s part is keyed at the object the shorter path reaches", part)
+			}
+			assert.Contains(t, diagMessages(diags), tc.bound, "the warning claims a loss only for a part the cut alone reaches")
+		})
+	}
+}
+
 // TestPartEncodings_CycleEntersEachTargetOnce spells an allOf cycle back to the
 // body's own schema. Every part is declared once, so every part is keyed at the
 // target's properties and no bound is reported: a cycle costs one visit.

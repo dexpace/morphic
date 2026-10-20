@@ -366,12 +366,12 @@ func diagPartWalkCut(c lowering.Ctx, w partWalk, at jsontext.Pointer) []ir.Diagn
 	var out []ir.Diagnostic
 	if w.capped {
 		out = append(out, c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, at,
-			"multipart body composition is nested past the flattening depth of %d, so the parts declared below it have no encoding entry",
+			"multipart body composition is nested past the flattening depth of %d, so a part reached only below it has no encoding entry",
 			schema.AllOfFlattenDepth))
 	}
 	if w.hopsSpent {
 		out = append(out, c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, at,
-			"multipart body composition follows $refs past %d hops, so the parts declared beyond them have no encoding entry",
+			"multipart body composition follows $refs past %d hops, so a part reached only beyond them has no encoding entry",
 			maxPartRefHops))
 	}
 	return out
