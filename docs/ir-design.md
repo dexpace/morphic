@@ -841,9 +841,9 @@ includes GraphQL `@oneOf` input objects, which are spec-level tagged input union
 not to models.
 
 **Tag-mode conventions** (normative): `WireTagged=true` with a `Discriminator` means the tag
-travels in the payload, where the discriminator locates it: a property (an OpenAPI
-`discriminator`, GraphQL `__typename`) or a tuple element (`Index`, an Erlang tagged tuple),
-inline among the variant's own members or in the `{kind, value}` `Envelope` around them.
+travels in the payload, where the discriminator locates it: inline among the variant's own
+members, as a property (an OpenAPI `discriminator`, GraphQL `__typename`) or a tuple element
+(`Index`, an Erlang tagged tuple), or in the `{kind, value}` `Envelope` around them.
 `WireTagged=true` with **nil** `Discriminator` means the union is *key-tagged*: the wire shape is
 a single-key object whose key is the variant's wire name (Smithy unions, proto3-JSON oneof,
 GraphQL `@oneOf` inputs). `WireTagged=false` means the variant is inferred by validation (JSON

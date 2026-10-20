@@ -132,14 +132,14 @@ func TestVerify_UnionTagModes(t *testing.T) {
 		name       string
 		wireTagged bool
 		disc       *ir.Discriminator
-		wantPath   string
+		reported   bool
 	}{
 		{name: "untagged", wireTagged: false, disc: nil},
 		{name: "key-tagged", wireTagged: true, disc: nil},
 		{name: "payload-tagged by property", wireTagged: true, disc: byName},
 		{name: "payload-tagged by position", wireTagged: true, disc: byIndex},
-		{name: "a property tag on an untagged union", wireTagged: false, disc: byName, wantPath: "types[t/x/U]"},
-		{name: "a positional tag on an untagged union", wireTagged: false, disc: byIndex, wantPath: "types[t/x/U]"},
+		{name: "a property tag on an untagged union", wireTagged: false, disc: byName, reported: true},
+		{name: "a positional tag on an untagged union", wireTagged: false, disc: byIndex, reported: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -149,12 +149,12 @@ func TestVerify_UnionTagModes(t *testing.T) {
 			u.WireTagged, u.Discriminator = tc.wireTagged, tc.disc
 
 			got := unionViolations(t, doc, codeUntagged)
-			if tc.wantPath == "" {
+			if !tc.reported {
 				assert.Empty(t, got)
 				return
 			}
 			require.Len(t, got, 1, "the union is reported exactly once")
-			assert.Equal(t, tc.wantPath, got[0].Path, "the violation locates the union")
+			assert.Equal(t, "types[t/x/U]", got[0].Path, "the violation locates the union")
 			assert.Contains(t, got[0].Message, "not WireTagged")
 		})
 	}
