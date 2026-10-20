@@ -824,9 +824,9 @@ A `oneOf` lowers to a `Union` with `Exclusive` set and an `anyOf` to one without
 `Variant` per branch, in source order, each a reference to the branch's lowering — a `$ref` branch
 to its target, an inline one to its own node or primitive ([`inline-hoisting`](#inline-hoisting)) —
 and never collapsed into optional fields. The union is untagged, `WireTagged` false, unless a
-`discriminator` beside it routes it ([`discriminator`](#discriminator)), which makes it `WireTagged`:
-the tag property names the variant (§4.4). A branch set of one schema
-and `null` ([`union-null-variant`](#union-null-variant)), of `null` alone
+`discriminator` beside it routes it ([`discriminator`](#discriminator)): the tag property's value
+then names the variant, so the union is `WireTagged`, an `anyOf` as much as a `oneOf` (§4.4). A
+branch set of one schema and `null` ([`union-null-variant`](#union-null-variant)), of `null` alone
 ([`union-null-only`](#union-null-only)), and one written beside structure, a `$ref` or the other
 combinator ([`union-beside-structure`](#union-beside-structure),
 [`union-beside-ref`](#union-beside-ref), [`competing-keywords`](#competing-keywords)) lower

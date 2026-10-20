@@ -650,9 +650,11 @@ are normative (`ir-design.md §4.4`), and they give four wire shapes, each a dis
 - `WireTagged=false` → untagged; variant inferred by validation (JSON oneOf/anyOf).
   `Exclusive=true` = exactly-one; `false` = one-or-more (anyOf, open). An untagged union carries
   no `Discriminator`.
-- `WireTagged=true` + `Discriminator` → tag is a property inside the variant payload: an OpenAPI
-  `discriminator` and GraphQL `__typename`. Two wire shapes: the tag inline beside the variant's
-  members, or, with `Discriminator.Envelope == "object"`, a `{kind, value}` wrapper around them.
+- `WireTagged=true` + `Discriminator` → the tag travels in the payload, where the discriminator
+  locates it: an OpenAPI `discriminator`, GraphQL `__typename`, an Erlang tagged tuple. Two wire
+  shapes: the tag inline among the variant's own members (the property `PropertyName` names, or
+  the tuple element at `Index`), or, with `Discriminator.Envelope == "object"`, a `{kind, value}`
+  wrapper around them.
 - `WireTagged=true` + nil `Discriminator` → key-tagged: a single-key object keyed by the variant's
   wire name (Smithy unions, proto3-JSON oneof, GraphQL `@oneOf`).
 

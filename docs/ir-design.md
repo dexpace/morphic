@@ -299,9 +299,9 @@ it sees. Changes made together in one bump are listed together under it.
     model writing `true` beside its properties as stating nothing about the rest.
 - **0.15.0** — a union a discriminator routes is `WireTagged` (§4.4). The shape is unchanged, but
   the OpenAPI compiler had lowered every discriminated `oneOf` and `anyOf` with `wireTagged` false
-  beside its `discriminator`, a combination the tag modes did not define: a consumer following them
-  read each as untagged and ignored the tag. `irverify` now refuses the combination
-  (`ir/union-discriminator-untagged`).
+  beside its `discriminator`, a combination the tag modes do not define. A consumer pinned to
+  0.14.0 that follows them reads each such union as untagged and ignores its tag. `irverify` now
+  refuses the combination (`ir/union-discriminator-untagged`).
 
 ---
 
@@ -804,10 +804,10 @@ instead, enumerated by the OpenAPI compiler's rule
 type Union struct {
     TypeCommon
     Variants      []Variant
-    Exclusive     bool           // exactly one variant matches (oneOf, key-tagged); anyOf: one-or-more
-    WireTagged    bool           // the payload names its variant: a tag property (Discriminator) or
-                                 // a single key (protobuf oneof, Smithy union); false = untagged
-    Discriminator *Discriminator // the tag property inside the payload; set only when WireTagged
+    Exclusive     bool           // exactly one variant matches (oneOf); false = one or more (anyOf)
+    WireTagged    bool           // the payload names its variant: by the Discriminator's tag, or by
+                                 // a single key (Smithy union, protobuf oneof); false = untagged
+    Discriminator *Discriminator // where the tag sits in the payload; set only when WireTagged
 }
 
 type Variant struct {
@@ -833,29 +833,32 @@ type EventInfo struct {
 ```
 
 One node covers the whole design space from the capability matrix: untagged `anyOf`
-(`Exclusive=false`), untagged `oneOf` (`Exclusive=true`), unions a tag property in the payload
-routes (`WireTagged=true` with a `Discriminator`), and key-tagged unions (`WireTagged=true`
-alone). Variant identity survives so
-emitters can generate named accessors, sealed interfaces, or wrapper types per their refiner
-strategy. Unions never degrade to optional-field merges in the IR — that includes GraphQL
-`@oneOf` input objects, which are spec-level tagged input unions and lower here, not to models.
+(`Exclusive=false`), untagged `oneOf` (`Exclusive=true`), unions a tag in the payload routes
+(`WireTagged=true` with a `Discriminator`), and key-tagged unions (`WireTagged=true` alone).
+Variant identity survives so emitters can generate named accessors, sealed interfaces, or wrapper
+types per their refiner strategy. Unions never degrade to optional-field merges in the IR — that
+includes GraphQL `@oneOf` input objects, which are spec-level tagged input unions and lower here,
+not to models.
 
-**Tag-mode conventions** (normative): `WireTagged=true` with a `Discriminator` means the tag is
-a property inside the variant payload (an OpenAPI `discriminator`, GraphQL `__typename`), at the
-top level or inside the `Envelope` the discriminator names. `WireTagged=true` with **nil**
-`Discriminator` means the union is *key-tagged*: the wire shape is a single-key object whose key
-is the variant's wire name (Smithy unions, proto3-JSON oneof, GraphQL `@oneOf` inputs).
-`WireTagged=false` means the variant is inferred by validation (JSON oneOf/anyOf), and such a
-union carries no `Discriminator`; `irverify` refuses one that does
+**Tag-mode conventions** (normative): `WireTagged=true` with a `Discriminator` means the tag
+travels in the payload, where the discriminator locates it: a property (an OpenAPI
+`discriminator`, GraphQL `__typename`) or a tuple element (`Index`, an Erlang tagged tuple),
+inline among the variant's own members or in the `{kind, value}` `Envelope` around them.
+`WireTagged=true` with **nil** `Discriminator` means the union is *key-tagged*: the wire shape is
+a single-key object whose key is the variant's wire name (Smithy unions, proto3-JSON oneof,
+GraphQL `@oneOf` inputs). `WireTagged=false` means the variant is inferred by validation (JSON
+oneOf/anyOf), and such a union carries no `Discriminator`; `irverify` refuses one that does
 (`ir/union-discriminator-untagged`). `Exclusive` is independent of the mode: it records what
 validation admits, exactly one variant or one or more.
 
-An OpenAPI discriminator is the payload-tagged mode and not a fourth one. OpenAPI calls it a hint
-that must not change the validation outcome, but a value no mapping names selects no schema and
-validation fails, so for a valid payload the tag names exactly the variant validation would find.
-A mode for "tag plus validation" would describe the same wire shape twice. OpenAPI leaves one case
-undefined, a payload without the tag property: `Discriminator.Default` decides it where 3.2's
-`defaultMapping` declares one, and a refiner's policy where none does.
+An OpenAPI discriminator is the payload-tagged mode, not a fourth one. The tag property's value
+names the schema the payload is expected to validate against. A value no mapping names selects
+none, and OpenAPI says validation should then fail, unless 3.2's `defaultMapping` names one, which
+`Discriminator.Default` holds and which also answers for a payload carrying no tag. OpenAPI also
+says the discriminator must not change the validation outcome, but that binds validators, not the
+wire: what validation admits stays in `Exclusive`, and on an `anyOf` the tag picks one of the
+several schemas a payload may satisfy. A mode for "tag plus validation" would spell the same wire
+shape twice.
 
 ### 4.5 Enums
 
@@ -1806,9 +1809,9 @@ An OTP compiler consumes module type information (`-spec`/`-type` on behaviour c
 API functions). Lowering conventions: a gen_server ≈ one `Channel`; `handle_call`/`handle_cast`
 APIs are `Operation`s with an `OTPBinding`; unsolicited `handle_info` messages are channel
 `Messages` consumed via `MessageBinding{Direction: receive}`; a gen_event manager is a Channel
-with one message shape per event. Tagged-tuple protocols (`{ok, V} | {error, R}`) are Unions of
-Tuples discriminated by `Discriminator.Index`; records are `Model{Positional: true}` with the
-record tag as an index-1 `Literal`-typed property. Splitting a tagged reply union into
+with one message shape per event. Tagged-tuple protocols (`{ok, V} | {error, R}`) are `WireTagged`
+Unions of Tuples discriminated by `Discriminator.Index`; records are `Model{Positional: true}`
+with the record tag as an index-1 `Literal`-typed property. Splitting a tagged reply union into
 `Responses` vs `Errors` (`{error, Reason}` is in-band data, not transport failure) is injectable
 compiler policy, marked `Inferred`. Erlang `string()` is `[char()]` and must lower as a List of
 a char-ranged scalar — never as PrimKind `string`. Delayed replies (`noreply` +
@@ -2267,7 +2270,7 @@ list moves to a specification of its own when the compiler lands.
 - scalars → Scalar chains, constructors in values → Value.Ctor
 - `@encode`/`@format` → Encoding triple
 - `@encodedName` → WireNameByFormat at property AND type level
-- unions w/ named variants → Union, `@discriminated` →
+- unions w/ named variants → Union, `@discriminated` → WireTagged +
   Discriminator.PropertyName/Envelope/EnvelopeValueName
 - `| null` → Nullable
 - visibility classes (incl. custom, `@invisible` → Visibility.None) → Visibility, op overrides →
@@ -2385,7 +2388,7 @@ list moves to a specification of its own when the compiler lands.
 - §8.5
 - `-type`/`-spec` type language → type graph: tuples → Tuple with
   `Constraints.MinItems = len(Elems)` and no Rest, `tuple()` of any arity → Tuple with no Elems and
-  a Rest of the top type, tagged-tuple unions → Union + Discriminator.Index, records →
+  a Rest of the top type, tagged-tuple unions → WireTagged Union + Discriminator.Index, records →
   Model{Positional} w/ 1-based WireIDs, atoms → symbol Values / Literal types /
   `Scalar{Base: string, Encoding: "erlang:atom"}`, integer ranges → integer Scalar + Min/Max, maps
   `:=`/`=>` → Properties(Required)/AdditionalProps w/ typed keys, a map of `=>` associations alone →

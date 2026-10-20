@@ -843,8 +843,8 @@ type variantTypeFunc func(b *oas3.JSONSchema[oas3.Referenceable], vptr jsontext.
 //
 // The variants are lowered before the discriminator, so its mapping resolves
 // knowing what each variant names (readsThrough). A union the discriminator
-// routes is WireTagged: the tag property in the payload names its variant, and
-// a value no mapping names selects no schema (ir-design §4.4).
+// routes is WireTagged, an anyOf as much as a oneOf: the tag property's value
+// names its variant (ir-design §4.4).
 func buildUnion(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, common ir.TypeCommon, pointer jsontext.Pointer, variantType variantTypeFunc) (ir.TypeDef, []ir.Diagnostic) {
 	branches, key, exclusive := unionBranches(s)
 	diags := preserveUnusedCombinator(c, &common.Unmodeled, s, key, pointer)
