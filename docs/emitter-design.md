@@ -459,7 +459,7 @@ distinct beside it, so a class-based target can map `Base→extends` / `Implemen
 `Mixins→inline` where the three first targets flatten (§8.8). The plan does not decide which — that
 is per-language (§4).
 
-### 3.3 ShapePlan — visibility projection
+### 3.3 ModelShape — visibility projection
 
 One logical model produces N wire shapes across the lifecycle. `ModelShape(model, lifecycle)` is a
 **computed traversal in the plan layer**; the IR stores only the single logical model plus visibility
