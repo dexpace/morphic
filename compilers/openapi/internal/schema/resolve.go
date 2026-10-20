@@ -162,7 +162,7 @@ func refTypeRef(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 	if ok {
 		return ir.TypeRef{Target: id, Nullable: refNullable(c, js)}, diags
 	}
-	if e, known := c.Bindings().Entry(js); known && e.Chain.Member {
+	if onLoop(c, js) {
 		return ts.PrimRef(ir.PrimAny), diags
 	}
 	return ts.PrimRef(ir.PrimAny), append(diags, c.DiagAt(ir.SeverityError, diag.UnresolvedRef, pointer,

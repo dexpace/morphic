@@ -64,7 +64,7 @@ func bindSchemas(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, d
 	}
 	table := bind.Bind(self.root, cfg)
 	bd := typed.NewBuilder(table)
-	indexSource(ctx, bd, doc, sibs)
+	index(bd, walkSource(ctx, doc, sibs), bind.Position{})
 	indexEnds(ctx, bd, table, ends)
 	return bound{builder: bd, diags: bindingDiags(at, table)}
 }
@@ -107,11 +107,11 @@ func referenceEnds(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, self so
 	return ends
 }
 
-// indexSource tells bd where each schema and discriminator of the source's
-// model was read.
-func indexSource(ctx context.Context, bd *typed.Builder, doc *soa.OpenAPI, sibs Siblings) {
-	for item := range walkSource(ctx, doc, sibs) {
-		at := bind.Position{Pointer: typed.PointerOf(item.Location)}
+// index tells bd where each schema and discriminator items walks was read: at
+// base, the position the walk starts from, past the item's location.
+func index(bd *typed.Builder, items iter.Seq[soa.WalkItem], base bind.Position) {
+	for item := range items {
+		at := bind.Position{Doc: base.Doc, Pointer: base.Pointer + typed.PointerOf(item.Location)}
 		// Match returns only what its matcher does, and this one never fails.
 		_ = item.Match(soa.Matcher{
 			Schema:        func(js *schemaRef) error { bd.Schema(js, at); return nil },
@@ -136,14 +136,7 @@ func indexEnds(ctx context.Context, bd *typed.Builder, table *bind.Table, ends m
 			continue
 		}
 		walked[e.object] = true
-		for item := range e.walk(ctx) {
-			at := bind.Position{Doc: end.Doc, Pointer: end.Pointer + typed.PointerOf(item.Location)}
-			// Match returns only what its matcher does, and this one never fails.
-			_ = item.Match(soa.Matcher{
-				Schema:        func(js *schemaRef) error { bd.Schema(js, at); return nil },
-				Discriminator: func(d *oasDiscriminator) error { bd.Discriminator(d, at); return nil },
-			})
-		}
+		index(bd, e.walk(ctx), end)
 	}
 	for _, site := range sites {
 		if e := ends[site]; !walked[e.object] {

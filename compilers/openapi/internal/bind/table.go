@@ -166,15 +166,16 @@ func (b *binder) attribute(t *Table) map[Position]Position {
 		from, first Position
 	}
 	var starts []start
-	for _, e := range t.entries {
-		if e.Site.Doc == Source && e.Hop.Status == Resolved {
-			starts = append(starts, start{from: e.Site, first: e.Hop.Target})
+	add := func(from Position, h Hop) {
+		if from.Doc == Source && h.Status == Resolved {
+			starts = append(starts, start{from: from, first: h.Target})
 		}
 	}
+	for _, e := range t.entries {
+		add(e.Site, e.Hop)
+	}
 	for _, m := range t.mappings {
-		if m.At.Doc == Source && m.Hop.Status == Resolved {
-			starts = append(starts, start{from: m.At, first: m.Hop.Target})
-		}
+		add(m.At, m.Hop)
 	}
 	slices.SortFunc(starts, func(x, y start) int {
 		if c := comparePositions(x.from, y.from); c != 0 {
