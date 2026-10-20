@@ -14,6 +14,10 @@ var ErrNoDocument = errNoDocument
 // index fails a run with.
 var ErrSourcesMoved = errSourcesMoved
 
+// ErrUnknownSeverity exposes the error a stage reporting a diagnostic of a
+// severity the IR does not define fails a run with.
+var ErrUnknownSeverity = errUnknownSeverity
+
 // DefaultPasses exposes the default pass list to this package's external tests,
 // which pin its order without a production caller needing to read it.
 func DefaultPasses() []pass.Pass { return defaultPasses() }

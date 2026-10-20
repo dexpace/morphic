@@ -392,17 +392,20 @@ human rationale, supports expiry tied to a release, and rejects wildcards — na
 validated, so approvals cannot rot into blanket suppressions. Nothing in the pipeline writes to
 stderr; the CLI renders diagnostics.
 
-**What fails a run.** A stage reports severities; whether the run fails is the engine's decision,
-taken once every stage has reported. `RunOptions.FailOn` names the lowest severity that fails it:
-`error` by default, `warning` for a stricter gate, and `none` to fail only a run that produced no
-document. `Result.Failed` records the verdict, so the CLI's exit status (`--fail-on`) and any other
-driver read one rule rather than each reading the diagnostics its own way. Failing withholds
-nothing: a failed run still returns its document and every diagnostic, to inspect or persist. What
-it stops is the next stage. The passes are not that stage, since they run on every compiled
-document, errors reported or not (§2.2). The emitters are: the engine runs none on a failed run.
-Error is the default threshold because an error means the document may say something the spec does
-not, and building an SDK on it is a choice a caller makes by lowering the threshold, never a
-default.
+**What fails a run.** A stage reports severities; whether the run fails is the engine's verdict,
+taken once the passes have reported, and recorded as `Result.Failed`, so the CLI's exit status
+(`--fail-on`) and any other driver read one rule rather than each reading the diagnostics its own
+way. `RunOptions.FailOn` sets the threshold. At `error`, the default, an error diagnostic fails the
+run; `warning` and `info` are stricter gates, each failing it on a diagnostic at or above that
+severity; `none` fails only a run that produced no document, which fails at every threshold. A
+diagnostic of a severity outside the IR's three is a stage breaking its contract and fails the run
+with a Go error: no threshold can rank it, and ranking it below them all would let a misspelt error
+through every gate. Failing withholds nothing: a failed run still returns its document and every
+diagnostic, to inspect or persist. What it stops is the emitters, which the engine starts only on a
+run that has not failed. The passes are not gated, since they run on every compiled document, errors
+reported or not (§2.2), and the verdict reads their findings too. Error is the default threshold
+because an error means the document may say something the spec does not: an SDK built on it is
+something a caller asks for with `none`, never a default.
 
 ## 5. Testing strategy
 

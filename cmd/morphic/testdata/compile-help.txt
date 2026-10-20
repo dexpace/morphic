@@ -41,7 +41,7 @@ Examples:
 Flags:
       --disable-pass name   turn off the IR pass with this name (repeatable)
       --explain pointer     report what compiling produced at this pointer instead of the IR; '' is the whole document
-      --fail-on string      exit 1 on diagnostics at or above this severity: error or warning; none exits 1 only when no document was lowered (default "error")
+      --fail-on threshold   exit 1 on a diagnostic at or above this severity: error, warning or info; none exits 1 only when the spec lowered to no document (default error)
   -h, --help                help for compile
       --opt key=value       set one key=value option on the compiler the spec selects (repeatable)
   -o, --output string       write IR JSON to this file instead of stdout

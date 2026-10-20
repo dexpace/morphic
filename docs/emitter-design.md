@@ -201,7 +201,7 @@ The engine is the only caller of `Lookup`, the only thing that runs `Generate`, 
 that touches the filesystem, prunes, and renders diagnostics. Emitters are I/O-free. The engine runs
 `Generate` only for a run that has not failed (`engine.Result.Failed`, architecture.md §4): at the
 default threshold a document carrying an error diagnostic reaches no emitter, and a caller that
-wants one built from it anyway lowers the threshold to say so.
+wants one built from it anyway says so with the `none` threshold.
 
 ### 2.2 Who computes the plan
 

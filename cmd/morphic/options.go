@@ -6,6 +6,8 @@ import (
 	"maps"
 	"slices"
 	"strings"
+
+	"github.com/dexpace/morphic/engine"
 )
 
 // settingFlag collects the repeated `--opt key=value` settings that configure
@@ -91,5 +93,27 @@ func (p *passFlag) Type() string { return "name" }
 // Set records one pass name.
 func (p *passFlag) Set(raw string) error {
 	*p = append(*p, raw)
+	return nil
+}
+
+// failOnFlag is --fail-on's value. Unlike a pass name, a threshold does not
+// depend on which engine runs, so it is parsed as it is set: one the engine
+// does not know is a misuse reported while the flags are read, and the run is
+// handed a value already checked rather than the text it came from.
+type failOnFlag engine.FailOn
+
+// String renders the threshold as typed.
+func (f *failOnFlag) String() string { return string(*f) }
+
+// Type names the value in flag documentation.
+func (f *failOnFlag) Type() string { return "threshold" }
+
+// Set records the threshold raw names, refusing one the engine does not know.
+func (f *failOnFlag) Set(raw string) error {
+	failOn, err := engine.ParseFailOn(raw)
+	if err != nil {
+		return err
+	}
+	*f = failOnFlag(failOn)
 	return nil
 }

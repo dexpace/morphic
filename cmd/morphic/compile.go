@@ -135,7 +135,7 @@ func newCompileCmd() *cobra.Command {
 // document dropped, so the two configure that pipeline the same way: a spec that
 // needs an option to compile needs it to be validated as it will be compiled.
 type specOptions struct {
-	failOn       string
+	failOn       failOnFlag
 	skipValidate bool
 	disable      passFlag
 	settings     settingFlag
@@ -165,9 +165,10 @@ type compileOptions struct {
 // text identical across commands rather than identical-looking.
 func bindSpecFlags(fs *pflag.FlagSet, opts *specOptions) {
 	opts.settings = settingFlag{}
+	opts.failOn = failOnFlag(engine.FailOnError)
 
-	fs.StringVar(&opts.failOn, "fail-on", string(engine.FailOnError),
-		"exit 1 on diagnostics at or above this severity: error or warning; none exits 1 only when no document was lowered")
+	fs.Var(&opts.failOn, "fail-on",
+		"exit 1 on a diagnostic at or above this severity: error, warning or info; none exits 1 only when the spec lowered to no document")
 	fs.BoolVar(&opts.skipValidate, "skip-validate", false,
 		"alias for --disable-pass validate")
 	fs.Var(&opts.disable, "disable-pass",
@@ -190,9 +191,8 @@ func completeSpecFile(_ *cobra.Command, args []string, _ string) ([]cobra.Comple
 // writing the document, so --output would be accepted and ignored, with an exit
 // status that says it worked.
 func compileArgs(opts *compileOptions) cobra.PositionalArgs {
-	spec := specArgs(&opts.specOptions)
 	return func(cmd *cobra.Command, args []string) error {
-		if err := spec(cmd, args); err != nil {
+		if err := specArgs(cmd, args); err != nil {
 			return err
 		}
 		if opts.explain.set && opts.outPath != "" {
@@ -203,19 +203,15 @@ func compileArgs(opts *compileOptions) cobra.PositionalArgs {
 }
 
 // specArgs checks what every spec-taking command takes once its flags are
-// parsed: a --fail-on threshold the engine knows, then exactly one spec file.
-// The command's own name is in the message, so a misuse names what was typed.
-func specArgs(opts *specOptions) cobra.PositionalArgs {
-	return func(cmd *cobra.Command, args []string) error {
-		if _, err := engine.ParseFailOn(opts.failOn); err != nil {
-			return misuse(cmd, fmt.Sprintf("invalid --fail-on %q (want %s, %s or %s)",
-				opts.failOn, engine.FailOnError, engine.FailOnWarning, engine.FailOnNone))
-		}
-		if len(args) != 1 {
-			return misuse(cmd, cmd.Name()+" requires exactly one spec file")
-		}
-		return nil
+// parsed: exactly one spec file. The command's own name is in the message, so
+// a misuse names what was typed. No flag's value is checked here: --fail-on
+// refuses a bad one as it is set, and which pass names exist is the engine's
+// to say.
+func specArgs(cmd *cobra.Command, args []string) error {
+	if len(args) != 1 {
+		return misuse(cmd, cmd.Name()+" requires exactly one spec file")
 	}
+	return nil
 }
 
 // runPipeline runs the engine over specPath and renders every diagnostic the
@@ -247,7 +243,7 @@ func runPipeline(
 		code = exitFindings
 	}
 	if res.Document == nil {
-		res = nil
+		return nil, code, nil
 	}
 	return res, code, nil
 }

@@ -30,9 +30,9 @@ type RunOptions struct {
 	// passes carries fails the run with ErrUnknownPass before the spec is read,
 	// since ignoring a misspelt one would leave its pass running unseen.
 	DisablePasses []string `json:"disablePasses,omitempty"`
-	// FailOn is the lowest severity that fails the run; empty means
-	// FailOnError. Result.Failed carries the verdict. A value naming no
-	// threshold fails the run with ErrUnknownFailOn before the spec is read.
+	// FailOn is the threshold the run is judged at, FailOnError when empty,
+	// and Result.Failed is the verdict. A value naming no threshold fails the
+	// run with ErrUnknownFailOn before the spec is read.
 	FailOn FailOn `json:"failOn,omitempty"`
 }
 
@@ -59,8 +59,8 @@ type Result struct {
 	Format      compilers.SourceFormat `json:"format"`
 	// Failed is the engine's verdict: the run produced no document, or one
 	// with a diagnostic at or above RunOptions.FailOn. A failed run still
-	// returns what it produced, to inspect or persist; failing stops the next
-	// stage, so no emitter runs on it.
+	// returns what it produced, to inspect or persist. What failing stops is
+	// building on it: the engine starts no emitter on a failed run.
 	Failed bool `json:"failed,omitzero"`
 }
 
@@ -111,37 +111,17 @@ func NewWith(cs ...compilers.Compiler) (*Engine, error) {
 }
 
 // Run executes the pipeline for the spec at specPath: read it, compile it with
-// the compiler that recognizes it, then run the passes not named in
-// opts.DisablePasses, in order.
+// the compiler that recognizes it, run the passes opts.DisablePasses does not
+// name, in order, and judge the Result at opts.FailOn.
 //
 // A Go error is reserved for I/O, cancellation and programmer errors: an
 // unreadable file, a cancelled ctx, a compiler or pass breaking its contract,
-// or an option ErrUnknownPass or ErrUnknownFailOn refuses. Everything wrong with the spec itself, a
-// source no compiler can lower included, is a diagnostic in the Result, so a Go
-// error never blames the spec. Calls may overlap; each owns the document it
-// returns.
+// or an option ErrUnknownPass or ErrUnknownFailOn refuses. Everything wrong
+// with the spec, a source no compiler can lower included, is a diagnostic in
+// the Result, so a Go error never blames the spec. Calls may overlap; each
+// owns the document it returns.
 func (e *Engine) Run(ctx context.Context, specPath string, opts RunOptions) (*Result, error) {
-	// Ahead of the read, because an engine that never went through a constructor
-	// is the caller's mistake whatever the path turns out to say, and reporting
-	// the path first would send them to look at the file. Without this the nil
-	// registry is dereferenced during detection and the package panics, which is
-	// no way to report a misuse of it.
-	if e == nil || e.registry == nil {
-		return nil, errors.New("engine: uninitialized; build one with New or NewWith")
-	}
-
-	// Also ahead of the read: a run configured two ways is wrong whatever the
-	// source turns out to be, and every compiler would otherwise be asked to
-	// resolve options that no compiler could.
-	if opts.FormatOptions != nil && len(opts.CompilerOptions) > 0 {
-		return nil, errOptionChannels
-	}
-
-	passes, err := e.enabledPasses(opts.DisablePasses)
-	if err != nil {
-		return nil, err
-	}
-	failOn, err := opts.FailOn.threshold()
+	passes, failOn, err := e.prepare(opts)
 	if err != nil {
 		return nil, err
 	}
@@ -150,8 +130,51 @@ func (e *Engine) Run(ctx context.Context, specPath string, opts RunOptions) (*Re
 	if err != nil {
 		return nil, fmt.Errorf("engine: read spec %q: %w", specPath, err)
 	}
-	source := compilers.Source{Path: specPath, Data: data}
+	res, err := e.compile(ctx, compilers.Source{Path: specPath, Data: data}, opts, passes)
+	if err != nil {
+		return nil, err
+	}
 
+	failed, err := failOn.verdict(res)
+	if err != nil {
+		return nil, err
+	}
+	res.Failed = failed
+	return res, nil
+}
+
+// prepare checks what Run checks before it reads anything, and returns the
+// passes opts leaves on and the threshold the run is judged at.
+//
+// An engine no constructor built is the caller's mistake whatever the path
+// says, and reporting the path first would send them to look at the file;
+// unchecked, the nil registry panics during detection. A run configured two
+// ways is wrong whatever the source, and every compiler would otherwise be
+// asked to resolve options no compiler could.
+func (e *Engine) prepare(opts RunOptions) ([]pass.Pass, threshold, error) {
+	if e == nil || e.registry == nil {
+		return nil, 0, errors.New("engine: uninitialized; build one with New or NewWith")
+	}
+	if opts.FormatOptions != nil && len(opts.CompilerOptions) > 0 {
+		return nil, 0, errOptionChannels
+	}
+
+	passes, err := e.enabledPasses(opts.DisablePasses)
+	if err != nil {
+		return nil, 0, err
+	}
+	failOn, err := opts.FailOn.resolve()
+	if err != nil {
+		return nil, 0, err
+	}
+	return passes, failOn, nil
+}
+
+// compile runs the pipeline over source: detect, compile, then passes. The
+// Result it returns is not yet judged.
+func (e *Engine) compile(
+	ctx context.Context, source compilers.Source, opts RunOptions, passes []pass.Pass,
+) (*Result, error) {
 	// Each compiler is asked under the options it would compile with, because
 	// recognizing a source is a read of it that the caller's budgets bound as
 	// much as the compile's reads.
@@ -160,14 +183,14 @@ func (e *Engine) Run(ctx context.Context, specPath string, opts RunOptions) (*Re
 		return compilers.Options{FormatOptions: formatOpts}, err
 	})
 	if err != nil {
-		return nil, fmt.Errorf("engine: detect %q: %w", specPath, err)
+		return nil, fmt.Errorf("engine: detect %q: %w", source.Path, err)
 	}
 	format := det.Recognition.Format
 	if !ok {
 		// Detection is handed the one source, which is the whole table its
 		// findings and the engine's own can index.
 		return &Result{Format: format, Diagnostics: e.undetected(format, det.Declined),
-			Sources: []ir.SourceInfo{{Path: specPath}}, Failed: true}, nil
+			Sources: []ir.SourceInfo{{Path: source.Path}}}, nil
 	}
 	// What detection parsed to recognize the source is what the compile lowers,
 	// so the source carries it forward rather than being read twice. The
@@ -177,11 +200,11 @@ func (e *Engine) Run(ctx context.Context, specPath string, opts RunOptions) (*Re
 	sources := []compilers.Source{source}
 	doc, diags, err := det.Compiler.Compile(ctx, sources, det.Options)
 	if err != nil {
-		return nil, fmt.Errorf("engine: compile %q: %w", specPath, err)
+		return nil, fmt.Errorf("engine: compile %q: %w", source.Path, err)
 	}
 	if doc == nil {
 		return &Result{Diagnostics: diags, Format: format,
-			Sources: det.Compiler.SourceTable(sources, det.Options), Failed: true}, nil
+			Sources: det.Compiler.SourceTable(sources, det.Options)}, nil
 	}
 	// Both channels end up carrying the whole list: the Result is what a caller
 	// gates on, and the document is what gets persisted (golden snapshots, IR
@@ -196,8 +219,7 @@ func (e *Engine) Run(ctx context.Context, specPath string, opts RunOptions) (*Re
 		return nil, err
 	}
 	doc.Diagnostics = mergeDiagnostics(compiled, found)
-	return &Result{Document: doc, Diagnostics: doc.Diagnostics, Sources: doc.Sources, Format: format,
-		Failed: failOn.fails(doc.Diagnostics)}, nil
+	return &Result{Document: doc, Diagnostics: doc.Diagnostics, Sources: doc.Sources, Format: format}, nil
 }
 
 // undetected reports a source no registered compiler will take. None of the
