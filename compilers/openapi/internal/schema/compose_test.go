@@ -3786,7 +3786,7 @@ const nestedAB = `    A: {type: object, properties: {a: {type: string}}}
     B: {type: object, properties: {b: {type: string}}}
 `
 
-// refTargets renders the targets of refs as component names.
+// refTargets lists the TypeIDs refs target, in order.
 func refTargets(refs []ir.TypeRef) []ir.TypeID {
 	out := make([]ir.TypeID, 0, len(refs))
 	for _, r := range refs {
