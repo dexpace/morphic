@@ -1,0 +1,17 @@
+{
+  "openapi": "3.0.3",
+  "info": {"title": "Status", "version": "1"},
+  "paths": {
+    "/status": {
+      "get": {
+        "operationId": "getStatus",
+        "responses": {
+          "200": {
+            "description": "ok",
+            "content": {"application/json": {"schema": {"type": "string", "enum": ["up", "down"]}}}
+          }
+        }
+      }
+    }
+  }
+}

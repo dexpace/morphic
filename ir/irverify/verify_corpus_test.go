@@ -1,12 +1,10 @@
 package irverify_test // external test package — importing across layers is legal in tests
 
 import (
-	"io/fs"
 	"maps"
 	"os"
 	"path/filepath"
 	"slices"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -14,6 +12,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
+	"github.com/dexpace/morphic/internal/harness"
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/ir/irverify"
 )
@@ -36,21 +35,11 @@ func compile(t *testing.T, name string, data []byte) *ir.Document {
 	return doc
 }
 
-// corpusSpecs lists every committed spec under testdata, excluding golden IR
-// snapshots, in WalkDir's lexical order.
+// corpusSpecs lists every committed spec under testdata, as harness.SpecFiles
+// lists a directory.
 func corpusSpecs(t *testing.T) []string {
 	t.Helper()
-	var out []string
-	err := filepath.WalkDir(filepath.FromSlash("../../testdata"), func(p string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() || strings.HasSuffix(p, ".golden.json") {
-			return err
-		}
-		switch strings.ToLower(filepath.Ext(p)) {
-		case ".yaml", ".yml", ".json":
-			out = append(out, p)
-		}
-		return nil
-	})
+	out, err := harness.SpecFiles("../../testdata")
 	require.NoError(t, err)
 	require.NotEmpty(t, out, "corpus sweep found no specs")
 	return out

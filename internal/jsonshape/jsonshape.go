@@ -10,7 +10,6 @@ import (
 	"go/types"
 	"reflect"
 	"slices"
-	"strconv"
 	"strings"
 
 	"github.com/dexpace/morphic/internal/decls"
@@ -31,17 +30,27 @@ const maxTypes = 4096
 const maxDepth = 32
 
 // Describe returns the JSON shape of the named type root, which p declares,
-// and of every type it reaches: one entry per named type, sorted by name. It
-// refuses a type whose shape it cannot read from the declarations, such as one
-// held in a non-sealed interface, rather than describe less than the encoder
-// reads.
+// and of every type it reaches, spelled one entry per named type, sorted by
+// name. It refuses what Read refuses.
 func Describe(p *decls.Package, root string) (string, error) {
+	s, err := Read(p, root)
+	if err != nil {
+		return "", err
+	}
+	return s.String(), nil
+}
+
+// Read returns the JSON shape of the named type root, which p declares, and
+// of every type it reaches. It refuses a type whose shape it cannot read from
+// the declarations, such as one held in a non-sealed interface, rather than
+// return less than the encoder reads.
+func Read(p *decls.Package, root string) (*Shape, error) {
 	if p == nil {
-		return "", errors.New("jsonshape: no package")
+		return nil, errors.New("jsonshape: no package")
 	}
 	start, err := p.Named(root)
 	if err != nil {
-		return "", fmt.Errorf("jsonshape: %w", err)
+		return nil, fmt.Errorf("jsonshape: %w", err)
 	}
 
 	w := &walker{
@@ -51,45 +60,21 @@ func Describe(p *decls.Package, root string) (string, error) {
 		seen:    map[*types.Named]bool{},
 	}
 	w.reach(start)
-	var entries []entry
+	s := &Shape{pkg: p.Types, root: root}
 	for len(w.queue) > 0 {
-		if len(entries) == maxTypes {
-			return "", fmt.Errorf("jsonshape: %s reaches more than %d types", root, maxTypes)
+		if len(s.Types) == maxTypes {
+			return nil, fmt.Errorf("jsonshape: %s reaches more than %d types", root, maxTypes)
 		}
 		n := w.queue[0]
 		w.queue = w.queue[1:]
-		e, err := w.describe(n)
+		t, err := w.describe(n)
 		if err != nil {
-			return "", fmt.Errorf("jsonshape: %s: %w", w.name(n), err)
+			return nil, fmt.Errorf("jsonshape: %s: %w", w.name(n), err)
 		}
-		entries = append(entries, e)
+		s.Types = append(s.Types, t)
 	}
-	slices.SortFunc(entries, func(a, b entry) int { return strings.Compare(a.name, b.name) })
-
-	// The header names the package, not its import path, which is no part of
-	// the shape: moving the module must not move a pin.
-	var b strings.Builder
-	fmt.Fprintf(&b, "jsonshape %d: %s.%s\n", Format, p.Types.Name(), root)
-	for _, e := range entries {
-		fmt.Fprintf(&b, "\ntype %s %s\n", e.name, e.head)
-		for _, line := range e.lines {
-			fmt.Fprintf(&b, "\t%s\n", line)
-		}
-	}
-	return b.String(), nil
-}
-
-// entry is one named type's part of a description.
-type entry struct {
-	// name spells the type: bare when the described package declares it,
-	// qualified by import path otherwise.
-	name string
-	// head is what the type is defined as: struct, interface, or a type
-	// expression such as string or map[K]V.
-	head string
-	// lines are the members, variants, methods and constants, each group
-	// sorted, so a reordered declaration describes the same shape.
-	lines []string
+	slices.SortFunc(s.Types, func(a, b Type) int { return strings.Compare(a.name, b.name) })
+	return s, nil
 }
 
 // walker describes the named types one root reaches, each once, in the order
@@ -146,33 +131,34 @@ func (w *walker) qualifier(pkg *types.Package) string {
 	return pkg.Path()
 }
 
-// describe returns n's entry, queueing every named type it reaches. An
-// instance has its origin's type parameters, so one check refuses both.
-func (w *walker) describe(n *types.Named) (entry, error) {
+// describe returns n's part of the shape, queueing every named type it
+// reaches. An instance has its origin's type parameters, so one check refuses
+// both.
+func (w *walker) describe(n *types.Named) (Type, error) {
 	if n.TypeParams().Len() > 0 {
-		return entry{}, errors.New("a generic type has a shape per instantiation, not one")
+		return Type{}, errors.New("a generic type has a shape per instantiation, not one")
 	}
 	if n.Obj().Pkg() == nil {
-		return entry{}, errors.New("a predeclared type has no declarations to read")
+		return Type{}, errors.New("a predeclared type has no declarations to read")
 	}
-	e := entry{name: w.name(n)}
+	t := Type{Named: n, name: w.name(n)}
 	var err error
 	switch u := n.Underlying().(type) {
 	case *types.Struct:
-		e.head = "struct"
-		e.lines, err = w.members(u)
+		t.head = "struct"
+		t.Members, err = w.members(u)
 	case *types.Interface:
-		e.head = "interface"
-		e.lines, err = w.variants(n, u)
+		t.head = "interface"
+		err = w.variants(&t, u)
 	default:
-		e.head, err = w.spell(u, 0)
+		t.head, err = w.spell(u, 0)
 	}
 	if err != nil {
-		return entry{}, err
+		return Type{}, err
 	}
-	e.lines = append(e.lines, w.codec(n)...)
-	e.lines = append(e.lines, w.constants(n)...)
-	return e, nil
+	t.codecs = w.codec(n)
+	t.Constants = w.constants(n)
+	return t, nil
 }
 
 // spell writes t as a description does, queueing each named type in it. It
@@ -219,54 +205,50 @@ func basic(b *types.Basic) (string, error) {
 	return types.Typ[b.Kind()].Name(), nil
 }
 
-// members lists a struct's embeddings, then its members by JSON name. A field
-// the encoder ignores is left out, so adding one changes no shape.
-func (w *walker) members(s *types.Struct) ([]string, error) {
-	var embeds, fields []string
+// members lists the fields of a struct the encoder reads, in declaration
+// order. A field the encoder ignores is left out, so adding one changes no
+// shape.
+func (w *walker) members(s *types.Struct) ([]Member, error) {
+	var out []Member
 	for i := range s.NumFields() {
-		line, embedded, err := w.member(s.Field(i), s.Tag(i))
+		m, read, err := w.member(s.Field(i), i, s.Tag(i))
 		switch {
 		case err != nil:
 			return nil, fmt.Errorf("field %s: %w", s.Field(i).Name(), err)
-		case line == "":
-		case embedded:
-			embeds = append(embeds, line)
-		default:
-			fields = append(fields, line)
+		case read:
+			out = append(out, m)
 		}
 	}
-	slices.Sort(embeds)
-	slices.Sort(fields)
-	return append(embeds, fields...), nil
+	return out, nil
 }
 
-// member spells one field: its JSON name, type and tag options, or the type it
-// embeds. It returns no line for a field the encoder ignores: one tagged "-",
-// or an unexported one it does not embed.
-func (w *walker) member(f *types.Var, rawTag string) (line string, embedded bool, err error) {
+// member reads the field f, at index i of its struct: its JSON name, type and
+// tag options, or the type it embeds. It reports a field the encoder ignores
+// as not read: one tagged "-", or an unexported one it does not embed.
+func (w *walker) member(f *types.Var, i int, rawTag string) (m Member, read bool, err error) {
 	tag := reflect.StructTag(rawTag).Get("json")
 	if tag == "-" || (!f.Exported() && !f.Embedded()) {
-		return "", false, nil
+		return Member{}, false, nil
 	}
 	name, opts, err := parseTag(tag)
 	if err != nil {
-		return "", false, err
+		return Member{}, false, err
 	}
 	typ, err := w.spell(f.Type(), 0)
 	if err != nil {
-		return "", false, err
+		return Member{}, false, err
 	}
 
-	if i := slices.Index(opts, "embed"); i >= 0 || (f.Embedded() && name == "") {
-		if i >= 0 {
-			opts = slices.Delete(opts, i, i+1)
+	m = Member{Field: f, Index: i, Options: opts, typ: typ}
+	if at := slices.Index(opts, "embed"); at >= 0 || (f.Embedded() && name == "") {
+		if at >= 0 {
+			m.Options = slices.Delete(opts, at, at+1)
 		}
-		return strings.Join(append([]string{"embed", typ}, opts...), " "), true, nil
+		m.Embedded = true
+		return m, true, nil
 	}
-	if name == "" {
-		name = f.Name()
-	}
-	return strings.Join(append([]string{strconv.Quote(name), typ}, opts...), " "), false, nil
+	m.Name = cmp.Or(name, f.Name())
+	return m, true, nil
 }
 
 // parseTag splits a json tag into its name and its options, sorted, since
@@ -337,12 +319,9 @@ func (w *walker) signature(fn *types.Func) string {
 	return strings.TrimPrefix(types.TypeString(bare, w.qualifier), "func")
 }
 
-// constants lists the constants n's package declares of type n, in value
-// order. A string or a boolean says in the JSON what it means, so it is listed
-// by value alone, once however many names it has. A number says nothing of
-// what it means; its constant's name does, so a numeric constant is listed
-// with its name, and reordering iota flags changes the description.
-func (w *walker) constants(n *types.Named) []string {
+// constants returns the constants n's package declares of type n, in value
+// order, and by name among those of one value.
+func (w *walker) constants(n *types.Named) []*types.Const {
 	pkg := n.Obj().Pkg()
 	byType, indexed := w.consts[pkg]
 	if !indexed {
@@ -353,21 +332,7 @@ func (w *walker) constants(n *types.Named) []string {
 	slices.SortFunc(consts, func(a, b *types.Const) int {
 		return cmp.Or(compareConstants(a.Val(), b.Val()), strings.Compare(a.Name(), b.Name()))
 	})
-	out := make([]string, len(consts))
-	for i, c := range consts {
-		out[i] = constLine(c)
-	}
-	return slices.Compact(out)
-}
-
-// constLine spells one constant: a number with the name that says what it
-// means, anything else by value alone.
-func constLine(c *types.Const) string {
-	v := c.Val()
-	if v.Kind() == constant.Int || v.Kind() == constant.Float {
-		return fmt.Sprintf("const %s = %s", c.Name(), v.ExactString())
-	}
-	return "const " + v.ExactString()
+	return consts
 }
 
 // compareConstants orders two constants of one type by value: numbers and

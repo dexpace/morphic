@@ -292,6 +292,10 @@ var rules = map[string][]string{
 	"cmd/morphic": {module + "/ir", module + "/engine",
 		"github.com/spf13/cobra", "github.com/spf13/pflag"},
 	"cmd/morphic-harness": {module + "/internal/harness"},
+	// The census command: tooling outside the pipeline, like the harness command
+	// above. It compiles specs through the engine, lists them as the harness does,
+	// and counts what their documents set.
+	"cmd/morphic-census": {module + "/engine", module + "/internal/census", module + "/internal/harness"},
 	// The coverage gate's judge: tooling outside the pipeline, like the harness
 	// command above. x/tools/cover parses and merges the profile it judges.
 	"cmd/morphic-covergate": {"golang.org/x/tools/cover"},
@@ -314,8 +318,13 @@ var rules = map[string][]string{
 	},
 	// Test infrastructure as well: it describes the JSON shape of the types one
 	// root reaches, which it reads type-checked through decls, for the test in
-	// package ir that pins that shape to IRVersion.
+	// package ir that pins that shape to IRVersion, for the census, and for the
+	// tests that read the IR's types.
 	"internal/jsonshape": {module + "/internal/decls"},
+	// Tooling as well: it counts which facts of the IR a set of documents sets.
+	// The facts are the JSON shape jsonshape reads from ir's declarations, and
+	// ir's own walk reaches what each document holds.
+	"internal/census": {module + "/ir", module + "/internal/decls", module + "/internal/jsonshape"},
 	// Test infrastructure as well: the one reader of the repository's keyed
 	// documents and of the citations made of them, which the tests holding each
 	// document to the code share. Standard library only.

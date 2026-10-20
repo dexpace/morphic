@@ -109,3 +109,55 @@ func TestCheckPath_UnreadableFileIsError(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "harness: read")
 }
+
+func TestSpecFiles_ListsADirectorysSpecsInWalkOrder(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	// A directory named like a spec is walked into, not listed.
+	require.NoError(t, os.Mkdir(filepath.Join(dir, "nested.yaml"), 0o750))
+	b := writeSpec(t, dir, "b.yaml", testspec.Minimal)
+	a := writeSpec(t, dir, "a.json", "{}")
+	c := writeSpec(t, filepath.Join(dir, "nested.yaml"), "c.yml", testspec.Minimal)
+	// A golden snapshot and a file of another kind are not specs.
+	writeSpec(t, dir, "a.golden.json", "{}")
+	writeSpec(t, dir, "notes.txt", "x")
+
+	files, err := harness.SpecFiles(dir)
+	require.NoError(t, err)
+	assert.Equal(t, []string{a, b, c}, files)
+
+	results, err := harness.CheckPath(context.Background(), dir)
+	require.NoError(t, err)
+	checked := make([]string, len(results))
+	for i, r := range results {
+		checked[i] = r.Spec
+	}
+	assert.Equal(t, files, checked, "CheckPath checks what SpecFiles lists, in that order")
+}
+
+func TestSpecFiles_ListsARegularFileWhateverItsExtension(t *testing.T) {
+	t.Parallel()
+	notes := writeSpec(t, t.TempDir(), "notes.txt", "x")
+
+	files, err := harness.SpecFiles(notes)
+	require.NoError(t, err)
+	assert.Equal(t, []string{notes}, files)
+}
+
+func TestSpecFiles_Refusals(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, path, want string
+	}{
+		{"an empty path", "", "harness: empty path"},
+		{"a path that does not exist", filepath.Join(t.TempDir(), "nope"), "harness: stat"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			files, err := harness.SpecFiles(tc.path)
+			require.Error(t, err)
+			assert.Nil(t, files)
+			assert.Contains(t, err.Error(), tc.want)
+		})
+	}
+}

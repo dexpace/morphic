@@ -63,9 +63,10 @@ func TestConformance(t *testing.T) {
 // TestConformance_TableNamesEveryCorpusSpec requires the table and the corpus
 // directory to name the same specs. Both directions matter: a spec with no row
 // gets neither a capability assertion nor a golden while the corpus-wide sweeps
-// (dangling references, the fuzz seed, the unwitnessed walk) still read it, so
-// it looks covered; a row naming a deleted spec fails the other way. Comparing
-// sorted lists rather than sets also catches a spec named by two rows.
+// (dangling references, the fuzz seed, the census of unwitnessed facts) still
+// read it, so it looks covered; a row naming a deleted spec fails the other
+// way. Comparing sorted lists rather than sets also catches a spec named by two
+// rows.
 func TestConformance_TableNamesEveryCorpusSpec(t *testing.T) {
 	t.Parallel()
 	onDisk := corpusSpecNames(t)
@@ -86,9 +87,9 @@ func TestConformance_TableNamesEveryCorpusSpec(t *testing.T) {
 //
 // The .yaml-only restriction is asserted rather than left to a narrower glob.
 // parseCorpus reads only "<name>.yaml", so a spec committed as .yml or .json
-// could not be named by a table row, yet the corpus-wide walk in
-// conformance_unwitnessed_test.go reads all three extensions and would count its
-// fields as witnessed, leaving it with neither assertion nor golden.
+// could not be named by a table row, yet the census of the corpus that
+// cmd/morphic-census holds to its golden reads all three extensions and would
+// count its facts as witnessed, leaving it with neither assertion nor golden.
 func corpusSpecNames(t *testing.T) []string {
 	t.Helper()
 	entries, err := os.ReadDir(conformanceDir)
@@ -100,9 +101,6 @@ func corpusSpecNames(t *testing.T) []string {
 		name := e.Name()
 		require.False(t, e.IsDir(), "corpus directory holds a subdirectory %q; no sweep descends into one", name)
 		switch {
-		case name == filepath.Base(unwitnessedGolden):
-			// The derived never-witnessed snapshot: a corpus-wide artifact, not
-			// a spec's golden, so it pairs with nothing.
 		case strings.HasSuffix(name, ".golden.json"):
 			goldens = append(goldens, strings.TrimSuffix(name, ".golden.json"))
 		case strings.HasSuffix(name, ".yaml"):
