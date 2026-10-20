@@ -191,7 +191,7 @@ These all exist already — extend them rather than building a parallel mechanis
   what the first emitters degrade rather than lower (`docs/emitter-design.md` §14.1). A fact is a
   struct member, the emptiness of an `omitzero` collection, or an enumeration value, read off
   `internal/jsonshape` by `internal/census`; `go test ./cmd/morphic-census` holds the file to a
-  census of `testdata/`. A case that sets a fact takes its line out, so `-update` in that change.
+  census of `testdata/`. A case that sets a fact takes its line out, so its change runs `-update`.
 - **Lowering specification**: `docs/compilers/openapi.md` is machine-read like the matrix. Each rule
   names its evidence, and the `TestLoweringSpec` tests in `compilers/openapi` hold the names to the
   code both ways, each listed code to the rule's text, and every `docs/compilers/openapi.md#<key>`

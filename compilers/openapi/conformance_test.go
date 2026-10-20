@@ -64,8 +64,9 @@ func TestConformance(t *testing.T) {
 // directory to name the same specs. Both directions matter: a spec with no row
 // gets neither a capability assertion nor a golden while the corpus-wide sweeps
 // (dangling references, the fuzz seed, the census of unwitnessed facts) still
-// read it, so it looks covered; a row naming a deleted spec fails the other way. Comparing
-// sorted lists rather than sets also catches a spec named by two rows.
+// read it, so it looks covered; a row naming a deleted spec fails the other
+// way. Comparing sorted lists rather than sets also catches a spec named by two
+// rows.
 func TestConformance_TableNamesEveryCorpusSpec(t *testing.T) {
 	t.Parallel()
 	onDisk := corpusSpecNames(t)

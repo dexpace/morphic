@@ -28,7 +28,8 @@ type Type struct {
 	// declaration order; nil for any other type.
 	Members []Member
 	// Tag is the type a sealed sum's Kind method returns, and Variants are the
-	// types the sum holds, sorted by tag; both are zero for any other type.
+	// types the sum holds, sorted by the tag's spelling; both are zero for any
+	// other type.
 	Tag      types.Type
 	Variants []Variant
 	// Constants are the constants of this type that its package declares, in

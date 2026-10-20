@@ -1725,8 +1725,9 @@ enumerations, a `TypeKind` among them. `go test ./cmd/morphic-census` holds the 
 
 - **A listed fact degrades with a code.** Its dispatch reports a coded
   `emitters/<target>/unsupported-…` diagnostic and takes the nearest lowering it can (T-7), never a
-  silent fallback, so T-1's dispatch over every kind stays complete. Where an item of M3b or M3c above names listed facts, such as external
-  types, pagination or LRO, the item is that degrade until a compiler produces them.
+  silent fallback, so T-1's dispatch over every kind stays complete. Where an item of M3b or M3c
+  above names listed facts, such as external types, pagination or LRO, the item is that degrade
+  until a compiler produces them.
 - **A fact enters when a compiler first produces it.** The change that makes a compiler produce one
   adds the conformance case that witnesses it, which takes its line out of the file in that change,
   and its lowering lands tested against that compiler's output.
@@ -1741,8 +1742,9 @@ is the list, the rest were: the `external` kind; the `datetime`, `decimal`, `dec
 `duration`, `float`, `int16`, `time`, `uint16` and `uint8` primitives; constructor, reference and
 symbol values; every protocol but HTTP, and the auth schemes only those use; pagination,
 long-running, one-way and overloaded operations, idempotency, resources and stream details;
-versioning, from `Availability` to `Document.versions`; and members no OpenAPI construct sets, such
-as `Model.abstract`, `Property.presence` and `Enum.flags`.
+versioning, from `Availability` to `Document.versions`; the `none` streaming mode, which the
+compiler writes as `""` (#978); and facts no OpenAPI construct sets, such as `Model.abstract`,
+`Property.presence`, `Enum.flags` and the `host` parameter location.
 
 ---
 
