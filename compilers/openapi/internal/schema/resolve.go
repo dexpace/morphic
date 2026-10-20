@@ -231,15 +231,13 @@ func resolveSchemaRef(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, d
 
 // resolvePointer resolves a same-document pointer to the ID of the schema it
 // addresses: a component by its stable ID, an interned node by its own, and
-// otherwise decl, the schema declared there, hoisted at the pointer. A nil decl
-// declares nothing to hoist, and decl yields to the model's own schema where
-// the walk to the position finds one (see settledDecl).
+// otherwise decl, the schema the bindings hold there, hoisted at the pointer.
+// A nil decl declares nothing to hoist.
 //
 // It is where a $ref and a discriminator mapping target meet once each has its
 // pointer: they differ only in how decl is found, so they cannot drift apart.
 func resolvePointer(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, pointer jsontext.Pointer, decl *oas3.JSONSchema[oas3.Referenceable]) (ir.TypeID, bool, []ir.Diagnostic) {
-	scope := c.RefScope()
-	if id, resolved, handled := scope.ComponentRef(pointer); handled {
+	if id, resolved, handled := c.RefScope().ComponentRef(pointer); handled {
 		return id, resolved, nil
 	}
 	if id, ok := resolve.InternedID(ts, pointer); ok {
@@ -248,20 +246,7 @@ func resolvePointer(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, dep
 	if decl == nil {
 		return "", false, nil
 	}
-	at := scope.Locate(pointer)
-	return hoistSubSchema(c, ts, anchors, depth, settledDecl(at, decl), at)
-}
-
-// settledDecl returns what to hoist at the position at names for decl, the
-// schema the binding holds where the $ref lands: the model's own where the
-// walk to the position finds one, which reads through a reference object as
-// the lowering of what holds it does, and decl at a position the model holds
-// as raw YAML, which the binding built.
-func settledDecl(at resolve.Location, decl *oas3.JSONSchema[oas3.Referenceable]) *oas3.JSONSchema[oas3.Referenceable] {
-	if js := at.Model(); js != nil {
-		return js
-	}
-	return decl
+	return hoistSubSchema(c, ts, anchors, depth, decl, pointer)
 }
 
 // hoistSubSchema lowers the internal sub-schema declared at pointer and
@@ -272,10 +257,8 @@ func settledDecl(at resolve.Location, decl *oas3.JSONSchema[oas3.Referenceable])
 // does, so a $ref to {type: number, minimum: 5} keeps them.
 //
 // decl is the declaration itself, not its resolved form, so a sub-schema that
-// is a $ref carrying siblings aliases its target while keeping them. at is the
-// position, already walked to (resolve.Scope.Locate).
-func hoistSubSchema(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, decl *oas3.JSONSchema[oas3.Referenceable], at resolve.Location) (ir.TypeID, bool, []ir.Diagnostic) {
-	pointer := at.Pointer()
+// is a $ref carrying siblings aliases its target while keeping them.
+func hoistSubSchema(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, decl *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer) (ir.TypeID, bool, []ir.Diagnostic) {
 	s := annotation.At(decl)
 	if s.Node == nil && !decl.IsBool() {
 		return "", false, nil
@@ -285,9 +268,10 @@ func hoistSubSchema(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, dep
 	// below are placeholders the declaration replaces (GitHub #372). It covers the
 	// subtree rather than this coordinate alone: a reference to an object body
 	// interns its children too, and their names hang off this one. It is read
-	// where the coordinate lies, whichever document's content held the reference:
-	// the source's own, or another document's past a $ref the pointer passes.
-	c = c.InScope(at.At()).NamingByReference()
+	// where the bindings place decl, whichever document's content held the
+	// reference: the source's own, or another document's past a $ref the pointer
+	// passes.
+	c = c.InScope(c.RefScope().InDocumentOf(decl)).NamingByReference()
 
 	hint := subSchemaHint(c.Bindings(), decl, pointer)
 	ref, diags := Ref(c, ts, anchors, depth, decl, pointer, hint)

@@ -220,8 +220,9 @@ func Hops[T, S any, R interface {
 // ScopeOf returns the scope what the entry ref resolves to is read in, which is
 // where the last hop of its chain found it (see reached): a Foreign scope over
 // the document the resolver read it by, or, when that hop resolved against the
-// source, the scope the position it names there is read in (Scope.At). An
-// inline entry, and one that resolved nothing, are read in scope itself.
+// source, the scope the position it names there is read in, past any $ref the
+// walk to it passes. An inline entry, and one that resolved nothing, are read
+// in scope itself.
 func ScopeOf[T, S any, R interface {
 	*S
 	Referenced[T, S]

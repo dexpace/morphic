@@ -238,7 +238,6 @@ func TestRefScope_NoDocumentResolvesNoRef(t *testing.T) {
 	scope := lowering.Ctx{}.RefScope()
 
 	assert.Equal(t, nil, scope.Doc, "a nil interface, not one holding a nil pointer")
-	assert.Nil(t, scope.ModelAt("/components/schemas/n"), "no document to read a schema from")
 	assert.Nil(t, scope.Bindings)
 	_, ok := scope.TargetPointer(&oas3.JSONSchema[oas3.Referenceable]{})
 	assert.False(t, ok, "no bindings to say where a $ref lands")
@@ -318,7 +317,6 @@ x-lib:
 	require.NotNil(t, d)
 
 	bare := lowering.New(0, loaded.Doc, loaded.Source, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, loaded.Overlay)
-	assert.Nil(t, bare.RefScope().ModelAt("/x-lib/Cat"), "the model holds the target as raw YAML")
 	_, _, ok = bare.RefScope().MappingTarget(d, "#/x-lib/Cat")
 	assert.False(t, ok, "so a context without the bindings finds no target")
 
@@ -369,7 +367,9 @@ func TestTypePosition_IsReadOncePerScope(t *testing.T) {
 	ask(c, "/y")
 	ask(c, "/y")
 	assert.Equal(t, 2, reads, "another position is read once too")
-	foreign := c.InScope(c.RefScope().At("/paths/~1ext/get/responses/200"))
+	ext, ok := doc.Doc.Paths.Get("/ext")
+	require.True(t, ok)
+	foreign := lowering.Within[soa.PathItem](c, ext)
 	require.True(t, foreign.RefScope().Foreign)
 	ask(foreign, "/x")
 	assert.Equal(t, 3, reads, "the position is read again in another document's scope")

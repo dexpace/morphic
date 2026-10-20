@@ -257,7 +257,7 @@ func TestResolveSchemaRef_UnboundDeepRefDropped(t *testing.T) {
 func TestHoistSubSchema_NilSchema(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
-	_, ok, diags := hoistSubSchema(l.ctx, l.types, &l.anchors, TopLevelDepth, nil, l.ctx.RefScope().Locate(deepPointer))
+	_, ok, diags := hoistSubSchema(l.ctx, l.types, &l.anchors, TopLevelDepth, nil, deepPointer)
 	assert.False(t, ok, "a nil resolved sub-schema cannot be hoisted")
 	assert.Empty(t, diags)
 }
@@ -270,7 +270,7 @@ func TestHoistSubSchema_BodyInternsAtPointer(t *testing.T) {
 	object := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](
 		&oas3.Schema{Type: oas3.NewTypeFromString(oas3.SchemaTypeObject)})
 
-	id, ok, diags := hoistSubSchema(l.ctx, l.types, &l.anchors, TopLevelDepth, object, l.ctx.RefScope().Locate(deepPointer))
+	id, ok, diags := hoistSubSchema(l.ctx, l.types, &l.anchors, TopLevelDepth, object, deepPointer)
 	require.True(t, ok)
 	assert.Empty(t, diags, "an object body hoists cleanly")
 	assert.Equal(t, ids.AnonType(deepPointer), id)

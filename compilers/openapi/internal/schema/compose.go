@@ -1245,8 +1245,8 @@ func resolveMappingTarget(c lowering.Ctx, ts *compile.Types, anchors *AnchorInde
 const maxTypePositionHops = 64
 
 // typePosition returns the position whose type a mapping target naming
-// pointer names, and the schema declared there (settledDecl over decl, the
-// binding's), unread at a component. It is pointer itself unless the position
+// pointer names, and the schema the bindings hold there, starting from decl,
+// unread at a component. It is pointer itself unless the position
 // reads through (readsThrough): a $ref holding nothing an alias would is only
 // a use of its target's type, so it names the position the $ref does, as a
 // union variant there does (GitHub #758). A keyword beside a property's $ref
@@ -1260,7 +1260,6 @@ func typePosition(scope resolve.Scope, pointer jsontext.Pointer, decl *oas3.JSON
 		// for one by name, so nothing is fetched for it (see mappingTagsFor).
 		return pointer, nil
 	}
-	decl = settledDecl(scope.Locate(pointer), decl)
 	for range maxTypePositionHops {
 		if !readsThrough(pointer, decl, variantTypes) {
 			break
@@ -1270,7 +1269,7 @@ func typePosition(scope resolve.Scope, pointer jsontext.Pointer, decl *oas3.JSON
 		if _, named := ids.ComponentSchemaName(next); !ok || target == nil && !named {
 			break
 		}
-		pointer, decl = next, settledDecl(scope.Locate(next), target)
+		pointer, decl = next, target
 	}
 	return pointer, decl
 }

@@ -109,6 +109,41 @@ components:
 	assert.Equal(t, ir.ReasonDegradedLowering, held.Unmodeled["openapi:$dynamicRef"].Reason)
 }
 
+// TestDynamicRef_InAnotherDocumentsContentAHoistReachesIsNotExpanded pins the
+// same for a schema a $ref hoists: its pointer passes the source's parameter
+// $ref into ext.yaml, so what it lands on is read in ext.yaml's scope where
+// the source spells it, and its $dynamicRef is not expanded to the source's
+// anchor of that name (GitHub #762).
+func TestDynamicRef_InAnotherDocumentsContentAHoistReachesIsNotExpanded(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "ext.yaml"), []byte(`Param:
+  name: q
+  in: query
+  schema: {type: object, properties: {inner: {$dynamicRef: '#node'}}}
+`), 0o600))
+	const root = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  parameters:
+    P: {$ref: './ext.yaml#/Param'}
+  schemas:
+    Node: {$dynamicAnchor: node, type: object}
+    Held: {$ref: '#/components/parameters/P/schema'}
+`
+	_, diags, err := openapi.New().Compile(t.Context(),
+		[]compilers.Source{{Path: filepath.Join(dir, "root.yaml"), Data: []byte(root)}},
+		compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: true}})
+	require.NoError(t, err)
+
+	want := ir.Diagnostic{Severity: ir.SeverityInfo, Code: "openapi/degraded-construct",
+		Message: "$dynamicRef was not expanded because it is written in another document, whose " +
+			"$dynamicAnchor it names and which is not lowered; it is kept verbatim under Unmodeled",
+		Provenance: ir.Provenance{Pointer: "/components/parameters/P/schema/properties/inner/$dynamicRef"}}
+	assert.Contains(t, diags, want)
+}
+
 // TestUnresolvedRef_InAnotherDocumentsContentSaysWhyAtEachPosition pins the
 // reason GitHub #762 gives a $ref in content another document holds at the two
 // positions that report an unresolved one in words of their own: an allOf

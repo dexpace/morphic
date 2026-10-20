@@ -1,10 +1,6 @@
 package resolve
 
-import (
-	"encoding/json/jsontext"
-
-	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
-)
+import "encoding/json/jsontext"
 
 // MaxRefChain exposes the walk's hop bound to this package's external tests.
 //
@@ -20,9 +16,6 @@ const MaxRefChain = maxRefChain
 // resolution a test can build reaches.
 func Found[S any](obj *S) any { return found(obj) }
 
-// WholeModelAt exposes the reading ModelAt is held to, so the corpus test in
-// package resolve_test compares against the same one as this package's tests:
-// two copies could drift apart with every test still green.
-func WholeModelAt(doc any, pointer jsontext.Pointer) *oas3.JSONSchema[oas3.Referenceable] {
-	return wholeModelAt(doc, pointer)
-}
+// At exposes atPointer, the scope reached reads a position of the source's
+// model in, to this package's external tests.
+func At(s Scope, pointer jsontext.Pointer) Scope { return atPointer(s, pointer) }

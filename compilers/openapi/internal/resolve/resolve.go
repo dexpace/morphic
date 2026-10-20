@@ -141,22 +141,26 @@ func (s Scope) InSource() Scope {
 	return s
 }
 
-// At returns s for reading what an internal pointer names: the source's own
-// content (InSource), unless the resolver's walk to it passes a $ref, whose
-// target it then lies in (GitHub #762). Past one into another document, it is
-// that document's content, though the resolver reports the source as the
-// document the pointer resolved against.
-func (s Scope) At(pointer jsontext.Pointer) Scope {
-	return s.reached(End{Document: s.Doc, Pointer: pointer})
+// InDocumentOf returns s for reading what js holds, a schema the bindings
+// know: the source's own content (InSource), unless the bindings place js in
+// another document, whose content it then is (GitHub #762), as where a
+// pointer the source spells passes a reference object into one.
+func (s Scope) InDocumentOf(js *oas3.JSONSchema[oas3.Referenceable]) Scope {
+	p, ok := s.Bindings.Site(js)
+	if !ok || p.Doc == bind.Source {
+		return s.InSource()
+	}
+	s.Foreign, s.Holder = true, s.Bindings.Table().Document(p.Doc).Name
+	return s
 }
 
 // reached returns s for reading what a hop ending at end found: a Foreign scope
 // over the document it resolved against, unless that is the source (its model,
-// or its file read again where the load phase does not hold it), where the
-// position its pointer names is read as At reads it. A $ref the walk to that
-// position passes is followed to where its own chain ends, a turn each. Past
-// maxRefChain turns, and for a chain endOf cut, it is no document's: Foreign
-// with no Holder, so none of its references reads as internal.
+// or its file read again where the load phase does not hold it). There it is
+// the source's own content, unless the walk to its pointer passes a $ref,
+// which is followed to where its own chain ends, a turn each. Past maxRefChain
+// turns, and for a chain endOf cut, it is no document's: Foreign with no
+// Holder, so none of its references reads as internal.
 func (s Scope) reached(end End) Scope {
 	return s.turned(end, maxRefChain)
 }
@@ -178,78 +182,45 @@ func (s Scope) turned(end End, turns int) Scope {
 	return s
 }
 
-// located is what a walk of a pointer through the model found: what the model
-// holds there, nil where the read finds nothing or leaves the model, and where
-// the chain of the last reference the walk passed ends.
+// located is where the chain of the last reference a walk of a pointer
+// through the model passed ends, and whether it passed one.
 type located struct {
-	target any
 	end    End
 	passes bool
 }
 
 // locate walks pointer through Doc as the resolver's walk reads it, a token at
 // a time, noting each reference Ends names that it steps past, read as what it
-// resolved to. A schema's own $ref is read as a keyword, so none is noted past
-// a schema. A token that leaves the model (navigation.Leaves) ends the walk:
-// raw YAML holds no schema and no reference the resolver resolved (see leave).
-// Past an index the library retries (navigation.Retried), the pointer names
-// what the library's read of the rest finds, though references are still noted
-// a step at a time.
+// resolved to. A schema's own $ref is read as a keyword, so the walk ends at a
+// schema, as it does at a token that leaves the model (navigation.ReadingOf):
+// raw YAML holds no reference the resolver resolved (see leave). Without Ends
+// it notes nothing.
 func (s Scope) locate(pointer jsontext.Pointer) located {
 	var l located
 	tokens, ok := navigation.Tokens(pointer)
-	if !ok {
+	if !ok || s.Ends == nil {
 		return l
 	}
-	noting, whole := s.Ends != nil, false
 	node := s.Doc
-	for i, token := range tokens {
+	for _, token := range tokens {
 		if _, schema := node.(*oas3.JSONSchema[oas3.Referenceable]); schema {
-			noting = false
+			return l
 		}
 		reading, raw := navigation.ReadingOf(node, token)
 		if reading == navigation.Leaving {
-			if noting {
-				l.leave(s, node, raw, token)
-			}
+			l.leave(s, node, raw, token)
 			return l
-		}
-		if reading == navigation.Retried && !whole {
-			l.target, whole = retriedRead(node, tokens[i:]), true
 		}
 		next, ok := navigation.Step(node, token)
 		if !ok {
 			return l
 		}
-		if e, isRef := s.ends(noting, node); isRef {
+		if e, isRef := s.Ends(node); isRef {
 			l.end, l.passes = e, true
 		}
 		node = next
 	}
-	if !whole {
-		l.target = node
-	}
 	return l
-}
-
-// retriedRead returns what the library's read of tokens from node finds, or
-// nil where it finds nothing. The library retries tokens[0] as an index once
-// the rest fails below it as a key, so only the whole read says which answers
-// (navigation.Walk).
-func retriedRead(node any, tokens []string) any {
-	target, _, err := navigation.Walk(node, tokens)
-	if err != nil {
-		return nil
-	}
-	return target
-}
-
-// ends is Ends's answer for node, and false while a walk notes nothing.
-func (s Scope) ends(noting bool, node any) (End, bool) {
-	if !noting {
-		return End{}, false
-	}
-	return s.Ends(node)
 }
 
 // leave notes node passed where the walk leaves the model from it for raw: a
@@ -273,39 +244,6 @@ func held(holds func(*yaml.Node, string) bool, node any, raw *yaml.Node, token s
 	}
 	_, found := navigation.Step(node, token)
 	return found
-}
-
-// Location is what one walk of a same-document pointer through the model found
-// (Locate): ModelAt's and At's answers for it at once.
-type Location struct {
-	scope   Scope
-	pointer jsontext.Pointer
-	walk    located
-}
-
-// Locate walks pointer through the model once, for the answers ModelAt and At
-// would each walk it again for: a hoisted reference asks both about one
-// pointer.
-func (s Scope) Locate(pointer jsontext.Pointer) Location {
-	return Location{scope: s, pointer: pointer, walk: s.locate(pointer)}
-}
-
-// Pointer returns the pointer l located.
-func (l Location) Pointer() jsontext.Pointer { return l.pointer }
-
-// Model is ModelAt's answer for l's pointer: nil for anything but a schema,
-// as for a keyword a schema leaves unset, which the walk reaches as a nil one.
-func (l Location) Model() *oas3.JSONSchema[oas3.Referenceable] {
-	js, _ := l.walk.target.(*oas3.JSONSchema[oas3.Referenceable])
-	return js
-}
-
-// At is At's answer for l's pointer, whose first turn is the walk Locate took.
-func (l Location) At() Scope {
-	if !l.walk.passes {
-		return l.scope.InSource()
-	}
-	return l.scope.turned(l.walk.end, maxRefChain-1)
 }
 
 // TargetPointer returns the pointer of the position the $ref at js lands on
@@ -337,13 +275,6 @@ func (s Scope) MappingTarget(d *oas3.Discriminator, value string,
 		return "", nil, false
 	}
 	return m.Hop.Spelled, s.Bindings.At(m.Hop.Target), true
-}
-
-// ModelAt returns the schema the source's model holds at a same-document
-// pointer, found the way the resolver finds a $ref's target, or nil where it
-// holds none, as at a position it holds as raw YAML (see locate).
-func (s Scope) ModelAt(pointer jsontext.Pointer) *oas3.JSONSchema[oas3.Referenceable] {
-	return s.Locate(pointer).Model()
 }
 
 // FragmentPointer returns the JSON pointer a $ref's fragment spells, whatever
@@ -400,16 +331,6 @@ func (s Scope) namesSelf(ref references.Reference) bool {
 	}
 	doc, ok := documentOf(ref, base)
 	return ok && SameDocument(s.SelfPath, doc)
-}
-
-// NamesHolder reports whether ref, in a Foreign scope, names a position in the
-// document holding it, which this compile cannot lower (GitHub #74).
-func (s Scope) NamesHolder(ref string) bool {
-	if !s.Foreign {
-		return false
-	}
-	doc, ok := documentOf(references.Reference(ref), s.Holder)
-	return ok && SameDocument(s.Holder, doc)
 }
 
 // documentOf returns the path of the document ref names when it is written in

@@ -332,9 +332,8 @@ func Within[T, S any, R interface {
 }
 
 // InScope returns c for lowering what is read in scope, which c's own
-// reference scope answered for a position (resolve.Scope.At, Location.At): the
-// source's own content, or, where the resolver's walk to it passes a $ref into
-// another document, that document's.
+// reference scope answered for what it lowers (resolve.Scope.InDocumentOf,
+// InSource): the source's own content, or another document's.
 func (c Ctx) InScope(scope resolve.Scope) Ctx {
 	c.foreign, c.holder = scope.Foreign, scope.Holder
 	return c
