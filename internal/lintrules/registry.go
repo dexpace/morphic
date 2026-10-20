@@ -3,7 +3,6 @@ package lintrules
 import (
 	"go/ast"
 	"go/types"
-	"slices"
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/types/typeutil"
@@ -31,10 +30,6 @@ const (
 	writtenMessage = "writes a type registry outside ir and compilers/compile; go through compile.Types, or rewrite a node in a compile.Settlement"
 	genericMessage = "passes a type registry to a generic function, whose writes this rule cannot read; keep registry writes in ir and compilers/compile"
 )
-
-// mapsWriters are the functions of package maps that write the map they take
-// first.
-var mapsWriters = []string{"Copy", "DeleteFunc", "Insert"}
 
 func (l layout) runRegistryWrites(pass *analysis.Pass) (any, error) {
 	if l.framework(pass.Pkg.Path()) || !l.inModule(pass.Pkg.Path()) {
@@ -131,7 +126,7 @@ func (c registryCheck) builtin(call *ast.CallExpr, name string) {
 // declares outside the framework. A write inside a generic function from
 // elsewhere, or one made through reflect, is out of its sight.
 func (c registryCheck) function(call *ast.CallExpr, fn *types.Func) {
-	if fn.Pkg() != nil && fn.Pkg().Path() == "maps" && slices.Contains(mapsWriters, fn.Name()) &&
+	if fn.Pkg() != nil && fn.Pkg().Path() == "maps" && mapsWriter(fn.Name()) &&
 		len(call.Args) > 0 && c.isRegistry(c.pass.TypesInfo.TypeOf(call.Args[0])) {
 		c.pass.Reportf(call.Pos(), writtenMessage)
 		return
@@ -147,6 +142,17 @@ func (c registryCheck) function(call *ast.CallExpr, fn *types.Func) {
 	case c.l.inModule(fn.Pkg().Path()) && !c.l.framework(fn.Pkg().Path()) && c.anyRegistry(inst.TypeArgs):
 		c.pass.Reportf(call.Pos(), genericMessage)
 	default:
+	}
+}
+
+// mapsWriter reports whether the function of package maps named name writes
+// the map it takes first.
+func mapsWriter(name string) bool {
+	switch name {
+	case "Copy", "DeleteFunc", "Insert":
+		return true
+	default:
+		return false
 	}
 }
 
