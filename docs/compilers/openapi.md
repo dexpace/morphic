@@ -1950,7 +1950,8 @@ any case.
 - Status: partly built: an `encoding` key that names no property, or one declared only inside a
   `oneOf` or `anyOf` branch, is dropped with no diagnostic (#604); on a multi-typed body the entry
   is keyed by a property no node holds, which validation then refuses (#744); an array of files is
-  not marked as files (#605).
+  not marked as files (#605); and an encoding under a media type it does not apply to is kept in no
+  form (#1047).
 
 ### `encoding-allow-reserved`
 
