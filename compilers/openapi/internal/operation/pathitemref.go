@@ -73,8 +73,8 @@ func pathItemLayers(use lowering.Ctx, rp *soa.ReferencedPathItem, usePtr jsontex
 
 // unreadFields reports, at the mount's use site, the fields written beside the
 // $ref of the path item at reached that the load phase did not model: another
-// document's, which it does not walk, or those at a position of this one its
-// walk does not reach, such as under an x-* key (GitHub #823).
+// document's, as it models only the source's, or those at a position of the
+// source its walk does not reach, such as under an x-* key (GitHub #823).
 func unreadFields(use lowering.Ctx, usePtr jsontext.Pointer, reached string, foreign bool) ir.Diagnostic {
 	where := "at a position the compiler's walk of this document does not reach"
 	if foreign {

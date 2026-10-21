@@ -159,3 +159,51 @@ func TestExternalContent_WhatAReferenceItWritesReachesIsValidated(t *testing.T) 
 		})
 	}
 }
+
+// TestExternalContent_FieldsBesideAPathItemRefItWritesAreReported pins a path
+// item $ref another document writes with fields beside it (GitHub #751): the
+// $ref resolves, and the fields, which the load phase models only in the
+// source, draw the warning that keeps them from being dropped in silence, at
+// the $ref in that document (GitHub #823).
+func TestExternalContent_FieldsBesideAPathItemRefItWritesAreReported(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	layout(t, dir, map[string]string{"a.yaml": `openapi: 3.1.0
+info: {title: A, version: "1"}
+paths:
+  /x:
+    get:
+      responses: {"200": {description: ok}}
+      callbacks:
+        cb:
+          '{$request.query.u}':
+            $ref: '#/paths/~1y'
+            post: {operationId: postBeside, responses: {"200": {description: ok}}}
+  /y:
+    get: {operationId: getY, responses: {"200": {description: ok}}}
+`})
+
+	doc, diags := compileOnDisk(t, filepath.Join(dir, "root.yaml"), `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /p: {$ref: 'a.yaml#/paths/~1x'}
+`, false)
+
+	openapitest.RequireNoErrorDiags(t, diags)
+	var degraded []ir.Diagnostic
+	for _, d := range diags {
+		if d.Code == diag.DegradedConstruct {
+			degraded = append(degraded, d)
+		}
+	}
+	require.Len(t, degraded, 1, "%+v", diags)
+	assert.Equal(t, ir.SeverityWarning, degraded[0].Severity)
+	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/paths/~1x/get/callbacks/cb/{$request.query.u}"},
+		degraded[0].Provenance)
+	assert.Contains(t, degraded[0].Message, "not lowered")
+	op := operationAt(t, doc, "GET", "/p")
+	require.Len(t, op.Bindings.HTTP, 1)
+	require.Len(t, op.Bindings.HTTP[0].Callbacks, 1)
+	assert.Equal(t, []ir.OpID{"op/openapi/paths/~1p/get/callbacks/cb/{$request.query.u}/get"},
+		op.Bindings.HTTP[0].Callbacks[0].Operations, "the $ref resolves, and the field beside it is not lowered")
+}
