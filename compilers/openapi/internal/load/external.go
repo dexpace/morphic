@@ -316,7 +316,7 @@ func (e external) Open(name string) (fs.File, error) {
 	}
 	a := e.read.once(name, e.opts.MaxExternalDocuments, func() answer { return e.fetch(e.ctx, name, fileNamed(name)) })
 	if a.err != nil {
-		return nil, a.err
+		return nil, unread{a.err}
 	}
 	return servedFile{Reader: bytes.NewReader(a.body)}, nil
 }

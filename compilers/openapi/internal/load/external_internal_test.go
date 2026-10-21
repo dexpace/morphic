@@ -1,6 +1,7 @@
 package load
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -366,10 +367,10 @@ func TestExternal_DoFetchesAURLOnce(t *testing.T) {
 	_, _, first := do(closed.URL + "/doc.yaml")
 	_, _, again := do(closed.URL + "/doc.yaml")
 
-	require.Error(t, refused)
-	assert.Same(t, refused, refusedAgain, "the failure the one request got, an unsuccessful status")
-	require.Error(t, first)
-	assert.Same(t, first, again, "the failure the one request got, a transport error")
+	require.ErrorAs(t, refused, new(unread), "a failed read, worded as the binder words one")
+	assert.Same(t, errors.Unwrap(refused), errors.Unwrap(refusedAgain), "the failure the one request got, an unsuccessful status")
+	require.ErrorAs(t, first, new(unread))
+	assert.Same(t, errors.Unwrap(first), errors.Unwrap(again), "the failure the one request got, a transport error")
 	assert.Equal(t, int32(2), fetches.Load(), "each URL fetched once")
 }
 

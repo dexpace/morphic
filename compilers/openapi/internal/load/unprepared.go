@@ -101,7 +101,7 @@ type answer struct {
 // response to req carrying its body.
 func (a answer) response(req *http.Request) (*http.Response, error) {
 	if a.err != nil {
-		return nil, a.err
+		return nil, unread{a.err}
 	}
 	return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(bytes.NewReader(a.body)), Request: req}, nil
 }

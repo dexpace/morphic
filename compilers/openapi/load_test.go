@@ -287,7 +287,8 @@ func TestCompile_ByDefaultOnlyARelativeReferenceIsFollowed(t *testing.T) {
 // references allowed or not, and whatever the working directory: a reader
 // would read "foo:b.yaml" as a path against it. A file whose name holds a
 // colon, written "./foo:b.yaml", is read, the spec named relatively too,
-// where the resolver joins it to that same "foo:b.yaml".
+// where the resolver joins it to that same "foo:b.yaml". Both routes word the
+// refusal alike.
 func TestCompile_AURLNoReaderReadsIsRefusedUnread(t *testing.T) {
 	dir, err := filepath.EvalSymlinks(t.TempDir())
 	require.NoError(t, err)
@@ -316,6 +317,8 @@ func TestCompile_AURLNoReaderReadsIsRefusedUnread(t *testing.T) {
 			got := make([]string, 0, len(diags))
 			for _, d := range diags {
 				got = append(got, string(d.Provenance.Pointer)+": "+d.Message[strings.LastIndex(d.Message, ": ")+2:])
+				assert.Contains(t, d.Message, ": the document it names could not be read: external document foo:b.yaml refused: ",
+					"the binder and the parser's resolver word one refusal alike")
 			}
 			slices.Sort(got)
 			assert.Equal(t, []string{"/components/schemas/URL: " + refused, "/paths/~1x/get/parameters/0: " + refused}, got,

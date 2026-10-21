@@ -3,6 +3,7 @@ package load
 import (
 	"context"
 	"encoding/json/jsontext"
+	"errors"
 	"fmt"
 	"iter"
 	"strconv"
@@ -12,6 +13,7 @@ import (
 	"github.com/speakeasy-api/openapi/validation"
 	yaml "gopkg.in/yaml.v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
 )
@@ -309,13 +311,28 @@ func keyOf(err error, site jsontext.Pointer) findingKey {
 // not fit ref, as "external reference not allowed" does not fit a $ref to
 // #/components.
 func failureDiag(site ir.Provenance, ref references.Reference, t trail, err error) ir.Diagnostic {
+	reason := err.Error()
+	if errors.As(err, new(unread)) {
+		reason = bind.Hop{Reason: bind.Unreadable, Detail: reason}.Why()
+	}
 	if len(t.docs) > 0 && t.stopped != "" {
 		return diag.Newf(ir.SeverityError, diag.UnresolvedRef, site, "unresolved $ref %q, through %s: %s",
-			string(ref), quotedStop(t), err.Error())
+			string(ref), quotedStop(t), reason)
 	}
 	return diag.Newf(ir.SeverityError, diag.UnresolvedRef, site, "unresolved $ref %q: %s",
-		string(ref), err.Error())
+		string(ref), reason)
 }
+
+// unread is why a document the resolver asked Open or Do for was not read.
+// failureDiag words it as the binder words its own (bind.Unreadable), so one
+// failure reads alike whichever resolved the reference.
+type unread struct{ err error }
+
+// Error returns the failure as the read reported it.
+func (u unread) Error() string { return u.err.Error() }
+
+// Unwrap returns the failure.
+func (u unread) Unwrap() error { return u.err }
 
 // findingPlace names the document a finding made along t is in: the last one t
 // read, or, when t stopped at a reference it could not follow, the one that
