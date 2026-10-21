@@ -209,6 +209,31 @@ func TestRegistry_RegisterRefusesAFormatNamingNoDialect(t *testing.T) {
 	}
 }
 
+// TestRegistry_DetectRefusesAClaimNamingAPartFormat holds a claim to the
+// predicate Register holds a format to, not only to being non-zero: a claim
+// naming half a dialect would reach the user as a format no compiler serves.
+func TestRegistry_DetectRefusesAClaimNamingAPartFormat(t *testing.T) {
+	t.Parallel()
+	for name, format := range map[string]compilers.SourceFormat{
+		"no version":     {Name: "alpha"},
+		"no name":        {Version: "1"},
+		"an @ in a name": {Name: "al@pha", Version: "1"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			reg := compilers.NewRegistry()
+			require.NoError(t, reg.Register(&stubCompiler{
+				formats: []compilers.SourceFormat{alpha}, marker: "alpha", detects: format,
+			}))
+
+			_, ok, err := reg.Detect(t.Context(), spec, nil)
+
+			require.ErrorIs(t, err, compilers.ErrContract)
+			assert.False(t, ok)
+		})
+	}
+}
+
 func TestRegistry_RegisterRefusesNoFormatsAsAContractError(t *testing.T) {
 	t.Parallel()
 	err := compilers.NewRegistry().Register(&stubCompiler{})

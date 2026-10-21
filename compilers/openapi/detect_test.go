@@ -478,6 +478,8 @@ func TestSniff_ReadsAMergeChainAsFarAsTheViewExpandsIt(t *testing.T) {
 			[]byte(string(rootMergeChain(limit+1, "openapi: 3.1.0", "")) + "s: &s {openapi: 3.0.3}\n"), "", true},
 		"a root writing no version and a swagger one": {
 			rootMergeChain(limit+1, "openapi: 3.0.3", "openapi: prose words\nswagger: '2.0'\n"), "", false},
+		"a root writing no version and leaving swagger to its merges": {
+			rootMergeChain(limit+1, "swagger: '2.0'", "openapi: prose words\n"), "", true},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
