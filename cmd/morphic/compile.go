@@ -66,9 +66,9 @@ const newFilePerm os.FileMode = 0o666
 
 // compileLong is compile's description. cobra prints it as written, so it is
 // wrapped by hand.
-const compileLong = `Lower an API spec (OpenAPI 3.x) into Morphic IR JSON on stdout, and write
-diagnostics to stderr. Output to stdout is indented for reading; a file written
-with --output is compact unless --pretty asks for the indented form.
+const compileLong = `Lower an API spec into Morphic IR JSON on stdout, and write diagnostics to
+stderr. Output to stdout is indented for reading; a file written with --output
+is compact unless --pretty asks for the indented form.
 
 --explain reports what compiling produced at one source coordinate — the type
 node interned there, the coordinates interned beneath it, and the diagnostics
@@ -109,8 +109,8 @@ func newCompileCmd() *cobra.Command {
 	var opts compileOptions
 	cmd := &cobra.Command{
 		Use:     "compile <spec-file>",
-		Short:   "lower an API spec (OpenAPI 3.x) into Morphic IR JSON",
-		Long:    compileLong,
+		Short:   "lower an API spec into Morphic IR JSON",
+		Long:    withFormats(compileLong),
 		Example: compileExample,
 		Args:    compileArgs(&opts),
 		RunE: func(cmd *cobra.Command, args []string) error {
