@@ -429,8 +429,8 @@ func declaresShape(s *oas3.Schema) bool {
 // co-declares oneOf/anyOf and keeps the union verbatim beside it, so neither the
 // structural shape nor the union is dropped. reason says which kind of union it
 // is and why says what stopped a classified lowering; classifyUnionSiblings
-// picks both. A discriminator the body's model holds is settled once every node
-// is interned (deferDiscriminatorBesideUnion).
+// picks both. A discriminator the body's model holds is settled once the walk
+// lowering it has returned (deferDiscriminatorBesideUnion).
 func lowerBesideUnmodeledUnion(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer jsontext.Pointer, hint string, reason ir.UnmodeledReason, why string) (ir.TypeID, []ir.Diagnostic) {
 	inner, diags := lower(c, ts, anchors, depth, s, pointer, hint)
 	owner := inner
@@ -2352,7 +2352,7 @@ func merger(c lowering.Ctx, ts *compile.Types, diags *[]ir.Diagnostic) merge.Mer
 	}
 }
 
-// settledMerge is a redeclaration judgment deferred until the registry is whole
+// settledMerge is a redeclaration judgment deferred until the walk lowering it has returned
 // (compile.Settlement). It reads nodes other lowerings intern, so mid-walk it
 // would follow the order components are declared in.
 type settledMerge struct {

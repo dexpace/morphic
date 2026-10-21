@@ -137,13 +137,13 @@ func (*Compiler) SourceTable(sources []compilers.Source, opts compilers.Options)
 
 // run drives the four-phase pipeline over one loaded document (architecture
 // §2.1) and assembles the Document. Order matters: named component schemas
-// first, so refs from operations find interned IDs; then security schemes, so
-// requirements reference registered IDs; then the service walk; then the
-// deferred settlements; then document metadata.
+// first, so refs from operations find interned IDs, then the settlements they
+// deferred; then security schemes, so requirements reference registered IDs;
+// then the service walk and the settlements it deferred; then document
+// metadata.
 //
-// It reports cancellation as a Go error, not a diagnostic: nothing about the
-// document is wrong, the caller stopped asking. The document is dropped with it,
-// since the phases that honour ctx stop mid-registry and what is left
+// It reports cancellation as a Go error, not a diagnostic: the caller stopped
+// asking. The document is dropped with it, since the phases that honour ctx stop mid-registry and what is left
 // references types never interned or settled, but the diagnostics gathered
 // before the stop are returned.
 func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, []ir.Diagnostic, error) {

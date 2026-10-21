@@ -34,8 +34,8 @@ type Merger struct {
 	Resolve func(ir.TypeID) (ir.TypeDef, bool)
 	// Report records the diagnostics a decision taken now draws.
 	Report Reporter
-	// Defer queues a decision for once every lowering has returned and the
-	// registry is whole. It may be nil, and a redeclaration is then always
+	// Defer queues a decision for once the walk lowering the model has
+	// returned. It may be nil, and a redeclaration is then always
 	// judged against the registry as it stands.
 	Defer func(Settle)
 }
@@ -44,7 +44,7 @@ type Merger struct {
 // that supplied that position.
 type Reporter func(sev ir.Severity, code string, pointer jsontext.Pointer, format string, args ...any)
 
-// Settle is a decision taken against the whole registry. It reports through
+// Settle is a decision taken against the registry the walk left. It reports through
 // report, not through the Merger it was queued by, whose sink belongs to a walk
 // that has returned.
 type Settle func(reg ir.TypeRegistry, report Reporter)
