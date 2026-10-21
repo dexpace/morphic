@@ -75,9 +75,10 @@ type origin struct {
 	source Source
 }
 
-// origins are the declarations that wrote the default and the examples a
-// property holds now. A value two declarations gave equal has both listed, and
-// one a later declaration supplied what the first lacked has only that one.
+// origins lists, for the default and for the examples a property holds, every
+// declaration that wrote that value, equal values included. A value the field
+// newly holds replaces its list. Once a refusal empties the field the list is
+// stale and unread, and the next value written replaces it.
 type origins struct {
 	def, examples []origin
 }
@@ -441,75 +442,97 @@ func (g *Merger) foldTypeTargets(dst, src *ir.Property) (dropped bool, nw narrow
 	return false, nw
 }
 
-// judgeAdopted holds the broader declaration of a narrowing to the narrower
-// type: a default or example the winner does not admit is removed and reported
-// once per declaration that wrote it, at its pointer, so it never lands on the
-// merged field. Examples are judged as one keyword. A null is admitted where
-// the merged field is.
+// judgeAdopted holds both declarations of a fold to the type it settled on. The
+// broader side of a narrowing loses a default or example the winner does not
+// admit; either side of any fold loses a null the merged field refuses. Each is
+// reported once per declaration that wrote it and never lands. Examples are one
+// keyword. A declaration refused by different folds draws one info per fold;
+// each is true and Unmodeled holds one entry.
 //
-// srcLost says src is to be kept verbatim. keptDst lists those to keep when dst
-// is the broader side: org says which declarations wrote each of dst's values,
-// each kept, since one adopted from a later declaration is not dst's own.
+// srcLost says src is to be kept verbatim; keptDst lists dst's writers to keep,
+// as org names them.
 func (g *Merger) judgeAdopted(dst, src *ir.Property, nw narrowing, org *origins) (srcLost bool, keptDst []origin) {
-	broad := nw.broad
-	if broad == nil {
-		return false, nil
-	}
-	at := []origin{{prov: broad.Provenance}}
-	own := origins{def: at, examples: at}
-	if broad == dst {
-		own = *org
-	}
+	nullable := dst.Type.Nullable
+	nullOnly := func(v ir.Value) bool { return v.Kind != ir.ValueNull || nullable }
+	at := []origin{{prov: src.Provenance}}
+	srcOwn := origins{def: at, examples: at}
 	var refused []refusal
-	if d := broad.Default; d != nil && !admitted(nw.winner, dst.Type.Nullable, *d) {
-		broad.Default = nil
-		refused = appendRefusals(refused, "default", own.def)
-	}
-	if !examplesAdmitted(nw.winner, dst.Type.Nullable, broad.Examples) {
-		broad.Examples = nil
-		refused = appendRefusals(refused, "examples", own.examples)
+	switch {
+	case nw.broad != nil:
+		kind := func(v ir.Value) bool { return admitted(nw.winner, nullable, v) }
+		dstAdmit, srcAdmit := nullOnly, kind
+		if nw.broad == dst {
+			dstAdmit, srcAdmit = kind, nullOnly
+		}
+		refused = refuseFrom(refused, dst, *org, false, dstAdmit)
+		refused = refuseFrom(refused, src, srcOwn, true, srcAdmit)
+	case dst.Type.Target == src.Type.Target:
+		refused = refuseFrom(refused, dst, *org, false, nullOnly)
+		refused = refuseFrom(refused, src, srcOwn, true, nullOnly)
 	}
 	for _, grp := range groupRefusals(refused) {
 		g.Report(ir.SeverityInfo, diag.DegradedConstruct, grp.at.prov.Pointer,
-			"the narrower type %s that the declarations of field %q settle on does not admit the %s one declaration gives; "+
+			"the type the declarations of field %q narrow it to does not admit the %s one declaration gives; "+
 				"not adopted, with that declaration verbatim under Unmodeled",
-			nw.winner, dst.WireName, strings.Join(grp.keywords, " and "))
+			dst.WireName, strings.Join(grp.keywords, " and "))
+		if grp.fromSrc {
+			srcLost = true
+			continue
+		}
 		keptDst = append(keptDst, grp.at)
 	}
-	if broad == src {
-		return len(keptDst) > 0, nil
-	}
-	return false, keptDst
+	return srcLost, keptDst
 }
 
-// appendRefusals adds a refusal of keyword for each declaration that wrote it.
-func appendRefusals(refused []refusal, keyword string, writers []origin) []refusal {
-	for _, at := range writers {
-		refused = append(refused, refusal{keyword, at})
+// refuseFrom removes the default and the examples of side that admit does not
+// admit, and adds a refusal for each declaration in own that wrote them. An
+// example with no Value says nothing a type could refuse.
+func refuseFrom(refused []refusal, side *ir.Property, own origins, fromSrc bool, admit func(ir.Value) bool) []refusal {
+	if d := side.Default; d != nil && !admit(*d) {
+		side.Default = nil
+		refused = appendRefusals(refused, "default", own.def, fromSrc)
+	}
+	refuses := func(e ir.Example) bool { return e.Value != nil && !admit(*e.Value) }
+	if slices.ContainsFunc(side.Examples, refuses) {
+		side.Examples = nil
+		refused = appendRefusals(refused, "examples", own.examples, fromSrc)
 	}
 	return refused
 }
 
-// refusal is a keyword the narrower type refused and the declaration that wrote it.
+// appendRefusals adds a refusal of keyword for each declaration that wrote it.
+func appendRefusals(refused []refusal, keyword string, writers []origin, fromSrc bool) []refusal {
+	for _, at := range writers {
+		refused = append(refused, refusal{keyword: keyword, at: at, fromSrc: fromSrc})
+	}
+	return refused
+}
+
+// refusal is a keyword the folded type refused and the declaration that wrote it.
 type refusal struct {
 	keyword string
 	at      origin
+	// fromSrc says the writer is the redeclaration being folded in, not one dst holds.
+	fromSrc bool
 }
 
 // refusalGroup is the keywords one declaration wrote that were refused.
 type refusalGroup struct {
 	keywords []string
 	at       origin
+	fromSrc  bool
 }
 
-// groupRefusals gathers refusals by the pointer of the declaration that wrote
-// them, in order of first appearance.
+// groupRefusals gathers refusals by the declaration that wrote them, in order
+// of first appearance.
 func groupRefusals(refused []refusal) []refusalGroup {
 	var groups []refusalGroup
 	for _, r := range refused {
-		i := slices.IndexFunc(groups, func(g refusalGroup) bool { return g.at.prov.Pointer == r.at.prov.Pointer })
+		i := slices.IndexFunc(groups, func(g refusalGroup) bool {
+			return g.at.prov.Pointer == r.at.prov.Pointer && g.fromSrc == r.fromSrc
+		})
 		if i < 0 {
-			groups = append(groups, refusalGroup{keywords: []string{r.keyword}, at: r.at})
+			groups = append(groups, refusalGroup{keywords: []string{r.keyword}, at: r.at, fromSrc: r.fromSrc})
 			continue
 		}
 		groups[i].keywords = append(groups[i].keywords, r.keyword)
@@ -525,17 +548,6 @@ func admitted(k ir.PrimKind, nullable bool, v ir.Value) bool {
 		return nullable
 	}
 	return admits(k, v)
-}
-
-// examplesAdmitted reports whether every example's value is admitted. An
-// example with no Value says nothing a type could refuse.
-func examplesAdmitted(k ir.PrimKind, nullable bool, examples []ir.Example) bool {
-	for i := range examples {
-		if v := examples[i].Value; v != nil && !admitted(k, nullable, *v) {
-			return false
-		}
-	}
-	return true
 }
 
 // losingDeclarationKey prefixes the Unmodeled entry a redeclaration the merge could not

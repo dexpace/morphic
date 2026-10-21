@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/ir"
 )
@@ -95,6 +94,19 @@ func TestAdmits_JudgesEachKindExactly(t *testing.T) {
 		{"url bracket in path", ir.PrimURL, str("http://x/a[b"), false},
 		{"url bracket without authority", ir.PrimURL, str("x:a]"), false},
 		{"url ip literal host", ir.PrimURL, str("http://[::1]/"), true},
+		{"url bracket ends a reg-name host", ir.PrimURL, str("http://x]/"), false},
+		{"url bracket ends a host before the port", ir.PrimURL, str("http://x]:80/"), false},
+		{"url bracket ends a userinfo host", ir.PrimURL, str("http://u@x]/"), false},
+		{"url bracket inside a reg-name host", ir.PrimURL, str("http://a]b/"), false},
+		{"url two closing brackets", ir.PrimURL, str("http://[::1]]/"), false},
+		{"url text after the literal", ir.PrimURL, str("http://[::1]a/"), false},
+		{"url opening bracket ends a host", ir.PrimURL, str("http://x[/"), false},
+		{"url opening bracket in the userinfo", ir.PrimURL, str("http://u[@x/"), false},
+		{"url ipvfuture host is refused as url.Parse refuses it", ir.PrimURL, str("http://[v1.x]/"), false},
+		{"url ip literal with a port, path, query and fragment", ir.PrimURL, str("http://[::1]:80/a?b#c"), true},
+		{"url ip literal with userinfo", ir.PrimURL, str("http://u@[::1]/"), true},
+		{"url ip literal without a path", ir.PrimURL, str("x://[::1]"), true},
+		{"url ip literal with a zone", ir.PrimURL, str("http://[fe80::1%25en0]/"), true},
 		{"url query then fragment", ir.PrimURL, str("http://x?a#b"), true},
 		{"url empty", ir.PrimURL, str(""), false},
 		{"url no colon", ir.PrimURL, str("abc"), false},
@@ -196,11 +208,28 @@ func TestAdmitted_NullIsJudgedByNullability(t *testing.T) {
 	assert.True(t, admitted(ir.PrimInteger, false, num("1")))
 }
 
-func TestExamplesAdmitted_AllOrNothing(t *testing.T) {
+func TestRefuseFrom_ExamplesAreJudgedAsOneKeyword(t *testing.T) {
 	t.Parallel()
 	one, half := num("1"), num("1.5")
-	require.True(t, examplesAdmitted(ir.PrimInteger, false, nil), "no examples say nothing")
-	assert.True(t, examplesAdmitted(ir.PrimInteger, false, []ir.Example{{Value: &one}, {Summary: "no value"}}))
-	assert.False(t, examplesAdmitted(ir.PrimInteger, false, []ir.Example{{Value: &one}, {Value: &half}}),
-		"one refused example refuses the keyword")
+	admit := func(v ir.Value) bool { return admits(ir.PrimInteger, v) }
+	at := []origin{{prov: ptrAt("/a")}}
+	own := origins{def: at, examples: at}
+
+	for _, tc := range []struct {
+		name     string
+		examples []ir.Example
+		refused  bool
+	}{
+		{"no examples say nothing", nil, false},
+		{"an example with no value says nothing", []ir.Example{{Value: &one}, {Summary: "no value"}}, false},
+		{"one refused example refuses the keyword", []ir.Example{{Value: &one}, {Value: &half}}, true},
+	} {
+		side := &ir.Property{Examples: tc.examples}
+		got := refuseFrom(nil, side, own, true, admit)
+		assert.Equal(t, tc.refused, len(got) == 1, tc.name)
+		assert.Equal(t, tc.refused, side.Examples == nil && len(tc.examples) != 0, tc.name)
+		if tc.refused {
+			assert.Equal(t, []refusal{{keyword: "examples", at: at[0], fromSrc: true}}, got, tc.name)
+		}
+	}
 }

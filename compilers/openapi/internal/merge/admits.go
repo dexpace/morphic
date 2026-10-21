@@ -155,7 +155,10 @@ func admitsFloat(v ir.Value, mantissa, maxExp uint) bool {
 
 // isAbsoluteURI reports whether s is an RFC 3986 URI with a scheme. The bytes
 // are scanned first, since url.Parse accepts what the grammar does not (a
-// space, a brace, a non-ASCII byte); url.Parse then checks the structure.
+// space, a brace, a non-ASCII byte). The scan and ipLiteralPlaced own the
+// characters and where brackets sit; url.Parse owns the structure and the
+// IP-literal's content. An IPvFuture host ([v1.x]) is refused, since url.Parse
+// refuses it; a refused value is kept verbatim, never lost.
 func isAbsoluteURI(s string) bool {
 	if !uriBytesValid(s) {
 		return false
@@ -189,6 +192,9 @@ func uriTailValid(rest string) bool {
 	if strings.HasPrefix(rest, "//") {
 		authorityEnd = 2 + strings.IndexAny(rest[2:]+"/", "/?#")
 	}
+	if !ipLiteralPlaced(rest[:authorityEnd]) {
+		return false
+	}
 	fragments := 0
 	for i := 0; i < len(rest); i++ {
 		switch c := rest[i]; {
@@ -210,6 +216,24 @@ func uriTailValid(rest string) bool {
 		}
 	}
 	return true
+}
+
+// ipLiteralPlaced reports whether authority's brackets, if it has any, enclose
+// its whole host, which RFC 3986 allows only for an IP-literal: one "[" right
+// after "//" or the userinfo's "@", and one "]" ending the authority or
+// followed by the port's ":".
+func ipLiteralPlaced(authority string) bool {
+	if !strings.ContainsAny(authority, "[]") {
+		return true
+	}
+	host := authority[2:]
+	if at := strings.LastIndexByte(host, '@'); at >= 0 {
+		host = host[at+1:]
+	}
+	end := strings.IndexByte(host, ']')
+	return strings.HasPrefix(host, "[") && end > 0 &&
+		strings.Count(authority, "[") == 1 && strings.Count(authority, "]") == 1 &&
+		(end == len(host)-1 || host[end+1] == ':')
 }
 
 // isLetter reports whether c is an ASCII letter.

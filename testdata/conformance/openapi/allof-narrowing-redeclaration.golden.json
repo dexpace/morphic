@@ -999,7 +999,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "the narrower type integer that the declarations of field \"p\" settle on does not admit the default one declaration gives; not adopted, with that declaration verbatim under Unmodeled",
+      "message": "the type the declarations of field \"p\" narrow it to does not admit the default one declaration gives; not adopted, with that declaration verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/InadmissibleDefaultBroadFirst/allOf/0/properties/p"
@@ -1008,7 +1008,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "the narrower type integer that the declarations of field \"p\" settle on does not admit the default one declaration gives; not adopted, with that declaration verbatim under Unmodeled",
+      "message": "the type the declarations of field \"p\" narrow it to does not admit the default one declaration gives; not adopted, with that declaration verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/InadmissibleDefaultNarrowFirst/allOf/1/properties/p"

@@ -4,6 +4,7 @@ import (
 	"encoding/json/jsontext"
 	"errors"
 	"fmt"
+	"slices"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -1294,6 +1295,66 @@ func TestReconcileProperty_AnInadmissibleValueIsKeptNotAdopted(t *testing.T) {
 	assertThreeDeclarationsKeepTheWritingOne(t)
 	assertEveryWriterOfARefusedValueIsKept(t)
 	assertRefusedValuesAreKeptAtTheirOwnDeclarations(t)
+	assertANullTheMergedFieldRefusesIsKeptAtItsWriter(t)
+}
+
+// assertANullTheMergedFieldRefusesIsKeptAtItsWriter holds that a null default
+// is judged on the declaration that wrote it, whichever side of the fold that
+// is and whether the fold narrowed or kept one target: the field ends
+// non-nullable with no default, and one info and one entry sit at the writer
+// alone, in every order of the declarations.
+func assertANullTheMergedFieldRefusesIsKeptAtItsWriter(t *testing.T) {
+	t.Helper()
+	null := ir.Value{Kind: ir.ValueNull}
+	nullInt := decl{kind: ir.PrimInteger, nullable: true, def: &null, raw: `{"type":["integer","null"],"default":null}`}
+	nullNum := decl{kind: ir.PrimNumber, nullable: true, def: &null, raw: `{"type":["number","null"],"default":null}`}
+	plainInt := decl{kind: ir.PrimInteger, raw: `{"type":"integer"}`}
+	plainNum := decl{kind: ir.PrimNumber, raw: `{"type":"number"}`}
+	for _, tc := range []struct {
+		name  string
+		decls []decl // the null writer is first
+	}{
+		{"a narrow nullable integer against a number", []decl{nullInt, plainNum}},
+		{"a broad nullable number against an integer", []decl{nullNum, plainInt}},
+		{"the same target, nullable then not", []decl{nullInt, plainInt}},
+		{"a nullable integer among a number and an integer", []decl{nullInt, plainNum, plainInt}},
+	} {
+		for _, order := range permutations(len(tc.decls)) {
+			placed := make([]decl, len(order))
+			var writer decl
+			for pos, which := range order {
+				placed[pos] = tc.decls[which]
+				placed[pos].ptr = jsontext.Pointer("/allOf/" + string(rune('0'+pos)))
+				if which == 0 {
+					writer = placed[pos]
+				}
+			}
+			label := fmt.Sprintf("%s %v", tc.name, order)
+			got, diags := mergeDecls(t, placed...)
+			assert.Equal(t, primRef(ir.PrimInteger).Target, got.Type.Target, label)
+			assert.False(t, got.Type.Nullable, label)
+			assert.Nil(t, got.Default, label)
+			assert.Equal(t, entry(writer), got.Unmodeled, "%s: kept at the null writer alone", label)
+			require.Len(t, diags, 1, "%s: one info", label)
+			assert.Equal(t, ir.SeverityInfo, diags[0].Severity, label)
+			assert.Equal(t, writer.ptr, diags[0].Provenance.Pointer, "%s: at the writer", label)
+		}
+	}
+}
+
+// permutations returns every ordering of 0..n-1.
+func permutations(n int) [][]int {
+	if n == 0 {
+		return [][]int{{}}
+	}
+	var all [][]int
+	for _, rest := range permutations(n - 1) {
+		for at := 0; at <= len(rest); at++ {
+			one := slices.Insert(slices.Clone(rest), at, n-1)
+			all = append(all, one)
+		}
+	}
+	return all
 }
 
 // decl is one declaration of the field "p": its kind, optional default and
@@ -1301,6 +1362,7 @@ func TestReconcileProperty_AnInadmissibleValueIsKeptNotAdopted(t *testing.T) {
 type decl struct {
 	ptr      jsontext.Pointer
 	kind     ir.PrimKind
+	nullable bool
 	def      *ir.Value
 	examples []ir.Value
 	raw      string
@@ -1315,6 +1377,7 @@ func mergeDecls(t *testing.T, decls ...decl) (ir.Property, []ir.Diagnostic) {
 	idx := NewPropIndex()
 	for _, d := range decls {
 		p := ir.Property{WireName: "p", Type: primRef(d.kind), Default: d.def, Provenance: ptrAt(d.ptr)}
+		p.Type.Nullable = d.nullable
 		for i := range d.examples {
 			p.Examples = append(p.Examples, ir.Example{Value: &d.examples[i]})
 		}
