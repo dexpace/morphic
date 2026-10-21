@@ -262,11 +262,16 @@ func templateParameters(r ruler, rule Rule) {
 
 // checkPathItem judges one path item against the template expressions of its
 // path. An item with no operation and no parameter has nothing to answer with,
-// which the specification allows of an empty item.
+// which the specification allows of an empty item. One that writes a $ref
+// shares what the item it names holds with the operations written beside it,
+// as the lowering does, so a path parameter there may answer for any of them.
 func checkPathItem(r ruler, rule Rule, path string, item map[string]*yaml.Node) {
 	ptr := r.f.at.ptr.AppendToken(path)
 	exprs := expressions(path)
 	shared := pathParams(r, item["parameters"], ptr.AppendToken("parameters"))
+	if _, refers := item["$ref"]; refers {
+		shared.unread = true
+	}
 	reportStrayParams(r, rule, path, exprs, shared)
 	ops := operationsOf(r, item, ptr)
 	perOperation := make([]paramList, 0, len(ops))
