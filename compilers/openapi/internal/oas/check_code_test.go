@@ -1,6 +1,7 @@
 package oas_test
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
@@ -105,7 +106,7 @@ func TestCheck_PathParametersMayBeReferences(t *testing.T) {
 		{"followed", "3.1.0", oas.Document, doc("#/components/parameters/id"), badKeys},
 		{"followed with an escaped name", "3.1.0", oas.Document, doc("#/components/parameters/c~0d"), badKeys},
 		{"escaped slash is a nested path", "3.1.0", oas.Document, doc("#/components/parameters/a~1b"),
-			append(badKeys, at(dangling, "/paths/~1a~1{id}/get/parameters/0"), at(dangling, "/paths/~1a~1{id}"))},
+			slices.Concat(badKeys, []finding{at(dangling, "/paths/~1a~1{id}/get/parameters/0"), at(dangling, "/paths/~1a~1{id}")})},
 		{"a pointer deeper than a name is unread", "3.1.0", oas.Document, doc("#/components/parameters/id/name"), badKeys},
 		{"another document is unread", "3.1.0", oas.Document, doc("other.yaml#/components/parameters/id"), badKeys},
 		{"no such parameter is unread", "3.1.0", oas.Document, doc("#/components/parameters/none"), badKeys},
