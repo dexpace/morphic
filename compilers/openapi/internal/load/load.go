@@ -14,8 +14,6 @@ package load
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json/jsontext"
 	"errors"
 	"fmt"
@@ -837,7 +835,7 @@ func decodeStream(data []byte) (*yaml.Node, tail, error) {
 // The tree is live: an overlay patches it in place, so a Parsed belongs to one
 // compile.
 type Parsed struct {
-	hash [sha256.Size]byte
+	hash string
 	root *yaml.Node
 	rest tail
 }
@@ -856,7 +854,7 @@ func Decode(data []byte) (*Parsed, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Parsed{hash: sha256.Sum256(data), root: root, rest: rest}, nil
+	return &Parsed{hash: ir.SourceHash(data), root: root, rest: rest}, nil
 }
 
 // parsedFor returns the decoded form of src: the one its caller already made,
@@ -873,7 +871,7 @@ func parsedFor(src compilers.Source) (*Parsed, error) {
 	// A nil *Parsed stored in the interface is not a nil interface, so the
 	// assertion succeeds and hands back nothing to read; ir.IsNilTypeDef and
 	// compilers' own nil-compiler screen exist for the same two spellings.
-	if p, ok := src.Parsed.(*Parsed); ok && p != nil && p.hash == sha256.Sum256(src.Data) {
+	if p, ok := src.Parsed.(*Parsed); ok && p != nil && p.hash == ir.SourceHash(src.Data) {
 		return p, nil
 	}
 	return Decode(src.Data)
@@ -881,7 +879,7 @@ func parsedFor(src compilers.Source) (*Parsed, error) {
 
 // Hash is the lowercase hex SHA-256 of the bytes this parse was built from, for
 // SourceInfo.Hash.
-func (p *Parsed) Hash() string { return hex.EncodeToString(p.hash[:]) }
+func (p *Parsed) Hash() string { return p.hash }
 
 // firstWithContent reads documents from dec until one holds content, and
 // returns it. A leading document that decodes to null, such as a bare `---`, is

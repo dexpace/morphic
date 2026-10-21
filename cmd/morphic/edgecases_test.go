@@ -3,8 +3,6 @@ package main
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json/v2"
 	"errors"
 	"io"
@@ -852,13 +850,12 @@ func TestWriteCompiled_ToStdoutWritesNothingForABadDocument(t *testing.T) {
 type danglingDocCompiler struct{ nilDocCompiler }
 
 func (danglingDocCompiler) Compile(_ context.Context, sources []compilers.Source, _ compilers.Options) (*ir.Document, []ir.Diagnostic, error) {
-	sum := sha256.Sum256(sources[0].Data)
 	return &ir.Document{
 		Name:  "Dangling",
 		Types: ir.TypeRegistry{},
 		// The table the compiler contract holds a document to: its one source,
 		// read as the format detection recognized and hashed from its bytes.
-		Sources: []ir.SourceInfo{{Format: "openapi@3.1", Path: sources[0].Path, Hash: hex.EncodeToString(sum[:])}},
+		Sources: []ir.SourceInfo{{Format: "openapi@3.1", Path: sources[0].Path, Hash: ir.SourceHash(sources[0].Data)}},
 		Services: []ir.Service{{
 			ID: "s/x",
 			Groups: []ir.OperationGroup{{

@@ -1,6 +1,8 @@
 package ir
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json/jsontext"
 	"slices"
 	"strings"
@@ -138,4 +140,12 @@ type SourceInfo struct {
 	// It is the value the compiler lowered, so a `$self` an overlay writes is
 	// recorded here, on the patched document's entry, not on the overlay's.
 	SelfURI string `json:"selfURI,omitempty"`
+}
+
+// SourceHash returns the SourceInfo.Hash of a file whose bytes are data: their
+// SHA-256 in lowercase hex. It is the one spelling a producer writes and a
+// caller holding the bytes checks, so the two cannot drift apart.
+func SourceHash(data []byte) string {
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:])
 }

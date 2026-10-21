@@ -232,3 +232,12 @@ func TestHasError_Cases(t *testing.T) {
 		})
 	}
 }
+
+// TestSourceHash_IsTheLowercaseHexSHA256 pins the spelling against published
+// SHA-256 vectors rather than against the standard library it calls, so a
+// change of case or encoding fails here before any hash it wrote is compared.
+func TestSourceHash_IsTheLowercaseHexSHA256(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", ir.SourceHash(nil))
+	assert.Equal(t, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad", ir.SourceHash([]byte("abc")))
+}

@@ -2,8 +2,6 @@ package engine_test
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
@@ -319,8 +317,7 @@ func tableOf(sources []compilers.Source) []ir.SourceInfo {
 func sourcesOf(format string, sources []compilers.Source) []ir.SourceInfo {
 	table := tableOf(sources)
 	for i, src := range sources {
-		sum := sha256.Sum256(src.Data)
-		table[i].Format, table[i].Hash = format, hex.EncodeToString(sum[:])
+		table[i].Format, table[i].Hash = format, ir.SourceHash(src.Data)
 	}
 	return table
 }

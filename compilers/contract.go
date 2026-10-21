@@ -2,8 +2,6 @@ package compilers
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"strings"
@@ -97,7 +95,7 @@ func checkSources(got, table []ir.SourceInfo, src Source, format SourceFormat) e
 	if got[0].Format != format.String() {
 		return contractf("document reads source 0 as %q, recognized as %q", got[0].Format, format)
 	}
-	if want := sourceHash(src.Data); got[0].Hash != want {
+	if want := ir.SourceHash(src.Data); got[0].Hash != want {
 		return contractf("document hashes source 0 as %q, its bytes as %q", got[0].Hash, want)
 	}
 	return nil
@@ -113,13 +111,6 @@ func checkIndexes(diags []ir.Diagnostic, n int) error {
 		}
 	}
 	return nil
-}
-
-// sourceHash is SourceInfo.Hash's definition: the lowercase hex SHA-256 of the
-// bytes.
-func sourceHash(data []byte) string {
-	sum := sha256.Sum256(data)
-	return hex.EncodeToString(sum[:])
 }
 
 // contractf builds a breach: its detail, then ErrContract.
