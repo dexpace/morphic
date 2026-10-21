@@ -40,10 +40,12 @@ func declaredVersion(root *yaml.Node) string {
 // judgeSource holds the source to the table of the version it declares. root
 // is the tree as the source writes it, an applied overlay's patch included, and
 // tree places each finding at the node it is about, naming where it was read
-// when an alias or a merge key mounts that node there.
-func judgeSource(root *yaml.Node, tree sourceTree) judgment {
+// when an alias or a merge key mounts that node there. budget bounds what the
+// check reads (see nodesAdmitted).
+func judgeSource(root *yaml.Node, tree sourceTree, budget int) judgment {
 	j := judgment{seen: map[objectKey]bool{}}
 	j.diags = oas.NewChecker().Check(root, declaredVersion(root), oas.Options{
+		Budget: budget,
 		Locate: tree.locatorIn(root),
 		Seen: func(kind oas.Kind, node *yaml.Node) {
 			j.seen[objectKey{node: nodeview.Deref(node), kind: kind}] = true
@@ -51,6 +53,17 @@ func judgeSource(root *yaml.Node, tree sourceTree) judgment {
 		ReadAt: true,
 	})
 	return j
+}
+
+// nodesAdmitted is how many nodes a document opts admits may hold with its
+// aliases expanded, the node budget plus the alias budget, or 0 when either is
+// unbounded. A check of the table reads no more objects than that, so a
+// budget of it stops no check of an admitted document.
+func nodesAdmitted(opts Options) int {
+	if opts.MaxSourceNodes > 0 && opts.MaxAliasSurplus > 0 {
+		return opts.MaxSourceNodes + opts.MaxAliasSurplus
+	}
+	return 0
 }
 
 // locatorIn returns the Locator for the pointers of the object written at

@@ -242,7 +242,7 @@ func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Pars
 	// The table judges the tree as the source writes it, before anything below
 	// respells it for the parser.
 	tree := newSourceTree(srcIndex, origin, root)
-	judged := judgeSource(root, tree)
+	judged := judgeSource(root, tree, nodesAdmitted(opts))
 
 	releaseAnchors(root)
 	esc := newEscapes(refusedByName(opts, src.Path))

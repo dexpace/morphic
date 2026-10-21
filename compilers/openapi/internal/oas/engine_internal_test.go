@@ -35,7 +35,7 @@ func TestCheck_AnUnknownCodeRuleIsATableError(t *testing.T) {
 }
 
 // TestCheck_WorkIsBounded pins that the walk stops at its budget and its depth,
-// and says so once.
+// and says so once, as an error.
 func TestCheck_WorkIsBounded(t *testing.T) {
 	deep := "{}"
 	for range MaxDepth + 8 {
@@ -54,7 +54,7 @@ func TestCheck_WorkIsBounded(t *testing.T) {
 			diags := NewChecker().Check(parse(t, tc.doc), "3.1.0", Options{Start: Schema, Budget: tc.budget})
 			require.Len(t, diags, 1)
 			assert.Equal(t, diag.BudgetExceeded, diags[0].Code)
-			assert.Equal(t, ir.SeverityWarning, diags[0].Severity)
+			assert.Equal(t, ir.SeverityError, diags[0].Severity)
 		})
 	}
 }

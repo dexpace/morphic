@@ -12,10 +12,12 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// MaxDepth bounds how many objects deep the check descends. A schema nests
-// through every applicator, so real documents reach tens of levels; a document
-// past this is generated or hostile, and what lies below is left unchecked.
-const MaxDepth = 512
+// MaxDepth bounds how many objects deep the check descends. Each object it
+// descends into is a mapping nested below the one holding it, and the
+// pre-parse scan admits no document nested past 1,024 levels with its aliases
+// expanded (scan.MaxNesting, to which a test of the load phase holds this), so
+// the bound stops the check of no document the compiler admits.
+const MaxDepth = 1024
 
 // DefaultBudget is how many objects, entries and items a check reads when
 // Options.Budget is not set.
@@ -109,7 +111,8 @@ type frame struct {
 }
 
 // spend charges one unit of work and reports whether the walk may go on. The
-// first time the depth or the budget runs out it says so and stops reading.
+// first time the depth or the budget runs out it says so, an error as any
+// crossed budget is, and stops reading.
 func (w *walker) spend(depth int, ptr jsontext.Pointer) bool {
 	if w.stopped {
 		return false
@@ -119,7 +122,7 @@ func (w *walker) spend(depth int, ptr jsontext.Pointer) bool {
 		return true
 	}
 	w.stopped = true
-	w.diags = append(w.diags, diag.Newf(ir.SeverityWarning, diag.BudgetExceeded, w.locate(ptr),
+	w.diags = append(w.diags, diag.Newf(ir.SeverityError, diag.BudgetExceeded, w.locate(ptr),
 		"the OpenAPI %s check stopped at this depth or work budget; what lies below is unchecked", w.minor))
 	return false
 }

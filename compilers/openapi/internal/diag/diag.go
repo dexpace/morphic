@@ -251,7 +251,7 @@ const (
 	// past one), aliases adding more nodes than the alias budget, an enum past
 	// the member budget (GitHub #75), more external documents than the document
 	// budget. Load bounds binding schema $refs, resuming chains through other
-	// documents and validating what references reach; detection, a root's merges.
+	// documents and the rule table's checks; detection, a root's merges.
 	//
 	// Unlike AliasAmplification's bomb, none is a fault of the input. Each is an
 	// error: the document is refused, validation stops, an enum loses its

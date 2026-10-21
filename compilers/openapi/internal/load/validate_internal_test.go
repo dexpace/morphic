@@ -2,6 +2,7 @@ package load
 
 import (
 	"encoding/json/jsontext"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -14,6 +15,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
+	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -60,7 +62,7 @@ components:
 	root := decodeRoot(t, src)
 	tree := newSourceTree(4, overlay.Origin{}, root)
 
-	got := judgeSource(root, tree)
+	got := judgeSource(root, tree, 0)
 
 	type placed struct {
 		Code, Pointer string
@@ -95,7 +97,7 @@ components:
 	top := nodeAt(t, root, "components", "parameters")
 	p := nodeAt(t, top, "P")
 
-	got := judgeSource(root, newSourceTree(0, overlay.Origin{}, root))
+	got := judgeSource(root, newSourceTree(0, overlay.Origin{}, root), 0)
 
 	assert.Empty(t, got.diags)
 	assert.True(t, got.seen[objectKey{node: p, kind: oas.Parameter}], "the parameter, once however it is reached")
@@ -206,4 +208,41 @@ func TestLoad_WhatAnAliasMountsIsReportedOnce(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, diags, 1, "%+v", diags)
 	assert.Equal(t, 6, diags[0].Provenance.Position.Line)
+}
+
+// TestJudgeSource_ReadsEveryObjectTheCompilerAdmits pins the check's bounds to
+// what a load admits: its depth to the nesting the pre-parse scan admits, so a
+// schema 600 items deep is judged at its bottom, and its work to nodesAdmitted,
+// the node and alias budgets together, or the walker's default where either is
+// unbounded. A budget the check does cross is reported as an error.
+func TestJudgeSource_ReadsEveryObjectTheCompilerAdmits(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, scan.MaxNesting, oas.MaxDepth)
+
+	const depth = 600
+	schema := strings.Repeat("{type: array, items: ", depth) + "{type: bogus}" + strings.Repeat("}", depth)
+	src := compilers.Source{Path: "deep.yaml", Data: []byte("openapi: 3.1.0\ninfo: {title: T, version: '1'}\n" +
+		"paths: {}\ncomponents:\n  schemas:\n    A: " + schema + "\n")}
+	_, diags, err := Load(t.Context(), 0, src, Options{})
+	require.NoError(t, err)
+	bottom := jsontext.Pointer("/components/schemas/A" + strings.Repeat("/items", depth) + "/type")
+	var at []jsontext.Pointer
+	for _, d := range diags {
+		assert.NotEqual(t, diag.BudgetExceeded, d.Code, "%+v", d)
+		if d.Code == diag.Validation+"/validation-allowed-values" {
+			at = append(at, d.Provenance.Pointer)
+		}
+	}
+	assert.Equal(t, []jsontext.Pointer{bottom}, at)
+
+	assert.Equal(t, 7, nodesAdmitted(Options{MaxSourceNodes: 3, MaxAliasSurplus: 4}))
+	assert.Zero(t, nodesAdmitted(Options{MaxSourceNodes: 3}))
+	assert.Zero(t, nodesAdmitted(Options{MaxAliasSurplus: 4}))
+
+	var root yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte("openapi: 3.1.0\ninfo: {title: t, version: v}\npaths: {/a: {}, /b: {}}\n"), &root))
+	got := judgeSource(&root, newSourceTree(0, overlay.Origin{}, &root), 2)
+	require.Len(t, got.diags, 1, "%+v", got.diags)
+	assert.Equal(t, diag.BudgetExceeded, got.diags[0].Code)
+	assert.Equal(t, ir.SeverityError, got.diags[0].Severity)
 }

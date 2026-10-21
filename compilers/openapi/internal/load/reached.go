@@ -197,10 +197,7 @@ func (v *reached) dropSeen(targets map[objectKey]reachedTarget) {
 // unbounded. It holds them to the version doc declares. tree is the source's,
 // and judged what the table found in it, none of which is reported again.
 func newReached(doc *soa.OpenAPI, opts Options, tree sourceTree, judged judgment) *reached {
-	limit := 0
-	if opts.MaxSourceNodes > 0 && opts.MaxAliasSurplus > 0 {
-		limit = opts.MaxSourceNodes + opts.MaxAliasSurplus
-	}
+	limit := nodesAdmitted(opts)
 	reported := make(map[ir.Diagnostic]bool, len(judged.diags))
 	for _, d := range judged.diags {
 		reported[oas.AsPlaced(d)] = true
@@ -249,7 +246,8 @@ func (v *reached) check(site ir.Provenance, t reachedTarget) []ir.Diagnostic {
 	if d, over := v.charge(site, t.doc, t.node); over {
 		return d
 	}
-	found := v.checker.Check(t.node, v.version, oas.Options{Start: t.kind, Locate: v.tree.reachedLocator(t.node)})
+	found := v.checker.Check(t.node, v.version, oas.Options{Start: t.kind, Budget: v.limit,
+		Locate: v.tree.reachedLocator(t.node)})
 	var diags []ir.Diagnostic
 	for _, d := range found {
 		if key := identity(d, t.doc); !v.reported[key] {
