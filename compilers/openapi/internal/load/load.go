@@ -18,7 +18,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"slices"
 	"strings"
 
 	"github.com/speakeasy-api/openapi/marshaller"
@@ -29,6 +28,7 @@ import (
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
 	"github.com/dexpace/morphic/compilers/openapi/internal/sourceindex"
@@ -780,20 +780,13 @@ func unmarshal(ctx context.Context, data []byte, root *yaml.Node) (doc *soa.Open
 	return &out, nil
 }
 
-// supportedMinors are the OpenAPI minors the compiler reads, oldest first, so
-// an index orders them.
-var supportedMinors = []string{"3.0", "3.1", "3.2"}
-
 // SupportedMinor returns the normalized major.minor prefix of an OpenAPI version
-// string and whether the compiler supports it (supportedMinors).
+// string and whether the compiler supports it: a minor the rule table covers
+// (oas.ParseMinor), so no document is compiled that the table holds to nothing.
 func SupportedMinor(version string) (string, bool) {
-	parts := strings.SplitN(version, ".", 3)
-	if len(parts) < 2 {
+	m, ok := oas.ParseMinor(version)
+	if !ok {
 		return "", false
 	}
-	mm := parts[0] + "." + parts[1]
-	if !slices.Contains(supportedMinors, mm) {
-		return "", false
-	}
-	return mm, true
+	return m.String(), true
 }
