@@ -98,6 +98,8 @@ func TestAdmits_JudgesEachKindExactly(t *testing.T) {
 		{"url bracket ends a host before the port", ir.PrimURL, str("http://x]:80/"), false},
 		{"url bracket ends a userinfo host", ir.PrimURL, str("http://u@x]/"), false},
 		{"url bracket inside a reg-name host", ir.PrimURL, str("http://a]b/"), false},
+		{"url second @ in the authority", ir.PrimURL, str("http://a@b@x/"), false},
+		{"url second @ before an IP-literal", ir.PrimURL, str("http://a@b@[::1]/"), false},
 		{"url two closing brackets", ir.PrimURL, str("http://[::1]]/"), false},
 		{"url text after the literal", ir.PrimURL, str("http://[::1]a/"), false},
 		{"url opening bracket ends a host", ir.PrimURL, str("http://x[/"), false},

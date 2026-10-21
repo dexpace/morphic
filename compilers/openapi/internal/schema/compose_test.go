@@ -3877,3 +3877,32 @@ func TestAllOf_AnInadmissibleBroadValueIsKeptInEitherOrder(t *testing.T) {
 		})
 	}
 }
+
+// TestAllOf_ANullOnARefOverTheTopTypeIsKept folds two $refs to a scalar over
+// the top type, one writing default: null. The top type admits null, a fact
+// only the Base walk reaches, so the default lands and nothing is reported or
+// kept aside, in either order.
+func TestAllOf_ANullOnARefOverTheTopTypeIsKept(t *testing.T) {
+	t.Parallel()
+	const withNull = "            p: {$ref: '#/components/schemas/Y', default: null}\n"
+	const plain = "            p: {$ref: '#/components/schemas/Y'}\n"
+	branch := "        - type: object\n          properties:\n"
+	for _, tc := range []struct{ name, first, second string }{
+		{"null first", withNull, plain},
+		{"null second", plain, withNull},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := lowerSpec(t, openapitest.ComponentSpec("    Y: {description: free}\n    Held:\n      allOf:\n"+
+				branch+tc.first+branch+tc.second))
+			assert.Empty(t, diags, "nothing is refused")
+			m, ok := doc.Types[componentID("Held")].(*ir.Model)
+			require.True(t, ok, "Held should be a model")
+			require.Len(t, m.Properties, 1)
+			p := m.Properties[0]
+			require.NotNil(t, p.Default, "the null default lands")
+			assert.Equal(t, ir.ValueNull, p.Default.Kind)
+			assert.Empty(t, p.Unmodeled)
+		})
+	}
+}

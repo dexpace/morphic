@@ -186,13 +186,14 @@ func uriBytesValid(s string) bool {
 // uriTailValid reports whether rest, what follows a URI's scheme colon, holds
 // only bytes RFC 3986 allows: unreserved, a gen-delim, a sub-delim or a
 // percent-encoded octet. A bracket is allowed only in the authority (an
-// IP-literal host), and a fragment delimiter only once.
+// IP-literal host), an "@" at most once there, and a fragment delimiter only
+// once.
 func uriTailValid(rest string) bool {
 	authorityEnd := 0
 	if strings.HasPrefix(rest, "//") {
 		authorityEnd = 2 + strings.IndexAny(rest[2:]+"/", "/?#")
 	}
-	if !ipLiteralPlaced(rest[:authorityEnd]) {
+	if !ipLiteralPlaced(rest[:authorityEnd]) || strings.Count(rest[:authorityEnd], "@") > 1 {
 		return false
 	}
 	fragments := 0

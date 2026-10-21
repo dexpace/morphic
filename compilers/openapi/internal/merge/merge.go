@@ -142,7 +142,7 @@ func moveOrigin(list []origin, had, holds, equal bool, at origin) []origin {
 //
 // What the fold cannot carry is reported where it is dropped, and the
 // redeclaration is kept whole beside the winner (keepLosingDeclaration). So is
-// a default or examples the narrower type refuses (judgeAdopted), at every
+// a default or examples the merged type refuses (judgeAdopted), at every
 // declaration that wrote it.
 func (g *Merger) reconcileProperty(dst *ir.Property, org *origins, src ir.Property, source Source) {
 	pointer := src.Provenance.Pointer
@@ -452,7 +452,9 @@ func (g *Merger) foldTypeTargets(dst, src *ir.Property) (dropped bool, nw narrow
 // srcLost says src is to be kept verbatim; keptDst lists dst's writers to keep,
 // as org names them.
 func (g *Merger) judgeAdopted(dst, src *ir.Property, nw narrowing, org *origins) (srcLost bool, keptDst []origin) {
-	nullable := dst.Type.Nullable
+	// The top type admits null whatever the bit says: `{}` admits every
+	// instance, and a single schema keeps `default: null` on it.
+	nullable := dst.Type.Nullable || g.isAnyType(dst.Type)
 	nullOnly := func(v ir.Value) bool { return v.Kind != ir.ValueNull || nullable }
 	at := []origin{{prov: src.Provenance}}
 	srcOwn := origins{def: at, examples: at}

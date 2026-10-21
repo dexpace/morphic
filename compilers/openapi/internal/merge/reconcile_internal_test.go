@@ -1214,13 +1214,14 @@ func TestMerger_IsEnumFollowsTheBaseChain(t *testing.T) {
 	}
 }
 
-// TestReconcileProperty_AnInadmissibleValueIsKeptNotAdopted pins that the
-// broader declaration of a narrowing never lands a default or example the
-// narrower type does not admit: the narrow type wins, the field carries no such
-// value, and one info and one Unmodeled entry sit at the broad declaration's
-// pointer, identical whichever declaration comes first. The first three rows
-// are the cases a fractional default, an out-of-range default and a non-UUID
-// example make; the last is a null the merged field no longer admits.
+// TestReconcileProperty_AnInadmissibleValueIsKeptNotAdopted pins that no
+// declaration of a fold lands a default or example the merged field does not
+// admit: the field carries no such value, and one info and one Unmodeled entry
+// sit at each declaration that wrote it, identical whichever comes first. The
+// table holds the broad side's kind refusals (a fractional default, an
+// out-of-range default, a non-UUID example) and a null the merged field no
+// longer admits; the helpers add every writer, late writers, and a null on
+// either side of a fold.
 func TestReconcileProperty_AnInadmissibleValueIsKeptNotAdopted(t *testing.T) {
 	t.Parallel()
 	const broadPtr, narrowPtr = "/allOf/0/properties/p", "/allOf/1/properties/p"
@@ -1296,6 +1297,7 @@ func TestReconcileProperty_AnInadmissibleValueIsKeptNotAdopted(t *testing.T) {
 	assertEveryWriterOfARefusedValueIsKept(t)
 	assertRefusedValuesAreKeptAtTheirOwnDeclarations(t)
 	assertANullTheMergedFieldRefusesIsKeptAtItsWriter(t)
+	assertTheTopTypeKeepsANull(t)
 }
 
 // assertANullTheMergedFieldRefusesIsKeptAtItsWriter holds that a null default
@@ -1310,10 +1312,13 @@ func assertANullTheMergedFieldRefusesIsKeptAtItsWriter(t *testing.T) {
 	nullNum := decl{kind: ir.PrimNumber, nullable: true, def: &null, raw: `{"type":["number","null"],"default":null}`}
 	plainInt := decl{kind: ir.PrimInteger, raw: `{"type":"integer"}`}
 	plainNum := decl{kind: ir.PrimNumber, raw: `{"type":"number"}`}
+	nullIntEx := decl{kind: ir.PrimInteger, nullable: true, examples: []ir.Value{null}, raw: `{"type":["integer","null"],"examples":[null]}`}
 	for _, tc := range []struct {
 		name  string
 		decls []decl // the null writer is first
 	}{
+		{"a null example, narrow against a number", []decl{nullIntEx, plainNum}},
+		{"a null example, the same target", []decl{nullIntEx, plainInt}},
 		{"a narrow nullable integer against a number", []decl{nullInt, plainNum}},
 		{"a broad nullable number against an integer", []decl{nullNum, plainInt}},
 		{"the same target, nullable then not", []decl{nullInt, plainInt}},
@@ -1334,6 +1339,7 @@ func assertANullTheMergedFieldRefusesIsKeptAtItsWriter(t *testing.T) {
 			assert.Equal(t, primRef(ir.PrimInteger).Target, got.Type.Target, label)
 			assert.False(t, got.Type.Nullable, label)
 			assert.Nil(t, got.Default, label)
+			assert.Empty(t, got.Examples, label)
 			assert.Equal(t, entry(writer), got.Unmodeled, "%s: kept at the null writer alone", label)
 			require.Len(t, diags, 1, "%s: one info", label)
 			assert.Equal(t, ir.SeverityInfo, diags[0].Severity, label)
@@ -1342,17 +1348,40 @@ func assertANullTheMergedFieldRefusesIsKeptAtItsWriter(t *testing.T) {
 	}
 }
 
+// assertTheTopTypeKeepsANull holds that a fold of two top-type declarations
+// keeps a null default or example: the top type admits every instance, so
+// nothing is refused, reported or kept aside, in either order.
+func assertTheTopTypeKeepsANull(t *testing.T) {
+	t.Helper()
+	null := ir.Value{Kind: ir.ValueNull}
+	plain := decl{kind: ir.PrimAny, raw: `{"description":"x"}`}
+	for _, writer := range []decl{
+		{kind: ir.PrimAny, def: &null, raw: `{"default":null}`},
+		{kind: ir.PrimAny, examples: []ir.Value{null}, raw: `{"examples":[null]}`},
+	} {
+		for _, order := range [][]decl{{writer, plain}, {plain, writer}} {
+			label := fmt.Sprintf("%s first", order[0].raw)
+			order[0].ptr, order[1].ptr = "/allOf/0", "/allOf/1"
+			got, diags := mergeDecls(t, order...)
+			assert.Equal(t, writer.def, got.Default, label)
+			assert.Len(t, got.Examples, len(writer.examples), label)
+			assert.Empty(t, got.Unmodeled, label)
+			assert.Empty(t, diags, label)
+		}
+	}
+}
+
 // permutations returns every ordering of 0..n-1.
 func permutations(n int) [][]int {
-	if n == 0 {
-		return [][]int{{}}
-	}
-	var all [][]int
-	for _, rest := range permutations(n - 1) {
-		for at := 0; at <= len(rest); at++ {
-			one := slices.Insert(slices.Clone(rest), at, n-1)
-			all = append(all, one)
+	all := [][]int{{}}
+	for k := range n {
+		next := make([][]int, 0, len(all)*(k+1))
+		for _, rest := range all {
+			for at := 0; at <= len(rest); at++ {
+				next = append(next, slices.Insert(slices.Clone(rest), at, k))
+			}
 		}
+		all = next
 	}
 	return all
 }
