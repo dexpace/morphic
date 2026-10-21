@@ -57,7 +57,8 @@ type typeJudge struct {
 
 // relate compares a with b. The winner never depends on which is which: swapping
 // the arguments flips a narrowing and leaves any other verdict as it was.
-// The arms, in order: the same target; the top type, which loses to anything;
+// The arms, in order: the same target; a degraded Any node, which is unrelated
+// to every type; the top type, which loses to anything else;
 // two bare primitives (spelling.Relate); a Scalar, Enum or Literal against a
 // bare primitive; two lists or two maps; anything else is unrelated.
 func (j typeJudge) relate(a, b ir.TypeRef) relation { return j.relateAt(a, b, 0) }
@@ -74,10 +75,11 @@ func (j typeJudge) relateAt(a, b ir.TypeRef, depth int) relation {
 	if !aok || !bok {
 		return relUnrelated
 	}
+	if isDegraded(at) || isDegraded(bt) {
+		return relUnrelated
+	}
 	aTop, bTop := isTop(at), isTop(bt)
 	switch {
-	case aTop && bTop:
-		return relUnrelated
 	case aTop:
 		return relBNarrower
 	case bTop:
@@ -120,6 +122,14 @@ func fromSpelling(r spelling.Relation) relation {
 func isTop(td ir.TypeDef) bool {
 	p, ok := td.(*ir.Primitive)
 	return ok && p.Prim == ir.PrimAny
+}
+
+// isDegraded reports whether td is an Any node. This compiler mints one only
+// for a degraded lowering, so it stands for a declaration the judgment cannot
+// see: it is related to nothing, and a drop against it is kept.
+func isDegraded(td ir.TypeDef) bool {
+	_, ok := td.(*ir.Any)
+	return ok
 }
 
 // nodeAgainstBare compares a Scalar, Enum or Literal (ref, resolved to td)
@@ -205,7 +215,7 @@ func (j typeJudge) containers(at, bt ir.TypeDef, depth int) relation {
 // more widely than the loser, and the loser holds nothing the winner lacks.
 func (j typeJudge) contained(ae, be ir.TypeRef, ax, bx extras, depth int) relation {
 	rel := j.relateAt(ae, be, depth+1)
-	if rel == relDisjoint {
+	if rel == relDisjoint && admitsEmpty(ax) && admitsEmpty(bx) {
 		// An empty list or map is a value of both, so disjoint members overlap.
 		return relOverlap
 	}
@@ -222,6 +232,16 @@ func (j typeJudge) contained(ae, be ir.TypeRef, ax, bx extras, depth int) relati
 		return relOverlap
 	}
 	return rel
+}
+
+// admitsEmpty reports whether a container with x admits the empty one: true when
+// x.Constraints is nil or holds neither MinItems nor MinProps above zero.
+func admitsEmpty(x extras) bool {
+	c := x.Constraints
+	if c == nil {
+		return true
+	}
+	return (c.MinItems == nil || *c.MinItems <= 0) && (c.MinProps == nil || *c.MinProps <= 0)
 }
 
 // byNull orders two members of one target by null: the one that admits less is

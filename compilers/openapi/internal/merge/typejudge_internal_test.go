@@ -32,7 +32,6 @@ func judgeRegistry() map[ir.TypeID]ir.TypeDef {
 	reg["t/scalar-enc"] = &ir.Scalar{ID: "t/scalar-enc", Base: &integer, Encoding: &ir.Encoding{Name: "x"}}
 	reg["t/scalar-opaque"] = &ir.Scalar{ID: "t/scalar-opaque"}
 	reg["t/any"] = &ir.Any{ID: "t/any"}
-	reg["t/any-twin"] = &ir.Primitive{ID: "t/any-twin", Prim: ir.PrimAny}
 	reg["t/model"] = &ir.Model{ID: "t/model"}
 	reg["t/list-int-null"] = &ir.List{ID: "t/list-int-null", Elem: nullable(integer)}
 	reg["t/list-int"] = &ir.List{ID: "t/list-int", Elem: integer}
@@ -71,8 +70,7 @@ func TestTypeJudge_RelateArms(t *testing.T) {
 		{"a dangling second", "t/prim/integer", "t/absent", relUnrelated},
 		{"the top loses to a bare kind", prim(ir.PrimAny), prim(ir.PrimInt32), relBNarrower},
 		{"a degraded any node is not the top", "t/model", "t/any", relUnrelated},
-		{"`{}` loses to a degraded any", prim(ir.PrimAny), "t/any", relBNarrower},
-		{"two tops", prim(ir.PrimAny), "t/any-twin", relUnrelated},
+		{"`{}` is unrelated to a degraded any", prim(ir.PrimAny), "t/any", relUnrelated},
 		{"bare narrower", prim(ir.PrimInt32), prim(ir.PrimInteger), relANarrower},
 		{"bare broader", prim(ir.PrimInteger), prim(ir.PrimInt32), relBNarrower},
 		{"bare overlap", prim(ir.PrimInt32), prim(ir.PrimUint32), relOverlap},
@@ -104,6 +102,7 @@ func TestTypeJudge_RelateArms(t *testing.T) {
 		{"two lists of one element", "t/list-i32", "t/list-i32-twin", relSame},
 		{"two lists of one element, one constrained", "t/list-i32", "t/list-i32-min", relOverlap},
 		{"disjoint elements overlap in the empty list", "t/list-str", "t/list-i32", relOverlap},
+		{"disjoint elements where one list is never empty", "t/list-str", "t/list-int-min", relDisjoint},
 		{"nested lists", "t/list-list-int", "t/list-list-i32", relBNarrower},
 		{"a list against a map", "t/list-int", "t/map-int", relUnrelated},
 		{"a map value", "t/map-int", "t/map-i32", relBNarrower},

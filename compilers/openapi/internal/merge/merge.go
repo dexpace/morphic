@@ -721,9 +721,10 @@ func conflictIf(incompatible bool) redeclVerdict {
 	return verdictSilent
 }
 
-// isAnyType reports whether ref targets the schemaless top type (a PrimAny
-// primitive or an Any node). The top type imposes no constraint under allOf
-// intersection, so it never conflicts with a sibling redeclaration.
+// isAnyType reports whether ref targets a type the merge does not compare: the
+// schemaless top type (a PrimAny primitive or an alias over it), or an Any node
+// a degraded lowering minted. Neither conflicts with a sibling redeclaration, so
+// a drop against either is silent and kept.
 //
 // It follows the Base chain rather than reading only the target node: a
 // position that wrote something only a node can hold gets an alias over the top

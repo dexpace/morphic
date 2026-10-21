@@ -741,8 +741,10 @@ about the composed node instead, stated with the `false`-schema rule
 
 `allOf` intersection folds a field declared in more than one branch into one `Property`, and the
 first declaration wins its shape (§4.3) unless the other narrows it. One judgment compares the two
-types and returns one verdict, whichever branch is written first. `{}` loses to anything, and the
-winner's own null admission stands alone, since `{}` admits null yet lowers non-nullable. Two bare
+types and returns one verdict, whichever branch is written first. `{}` loses to anything but the
+node a degraded lowering mints (an enum past its member budget, an unconvertible const), which is
+unrelated to every type, and the winner's own null admission stands alone, since `{}` admits null
+yet lowers non-nullable. Two bare
 primitives compare by value domain and spelling (`integer` against `number`, `uuid` against
 `string`, `int32` against `int64`). A `Scalar` or `Enum` against a bare primitive wins over a kind
 it equals or narrows (`string` against `format: byte`, or an unknown format over bare `string`) and
@@ -775,8 +777,9 @@ their types are incompatible — disjoint primitive kinds (`string` against `int
 `date-time`), a scalar against a structure, or two different kinds of structure — or where one
 constraint keyword is pinned to two values; types that share values but that the merge does not
 narrow to one (`int32` against `uint32`, an enum of `integer` against `int32`, two enums of one
-kind, two lists or maps whose members share no value, a `const` against a kind with no judge or
-against any other value-holding node) are named in an info `openapi/degraded-construct`, and only
+kind, two lists or maps whose members share no value but that both admit the empty one, a `const`
+against a kind with no judge or against any other value-holding node) are named in an info
+`openapi/degraded-construct`, and only
 the first declaration's type is kept; a detail the first declaration already holds differently is
 named in an info `openapi/degraded-construct`; and two composites of one kind the judgment does not
 compare (two models, a model and a map) and an unresolvable target are dropped without any

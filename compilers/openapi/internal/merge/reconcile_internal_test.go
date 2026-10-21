@@ -1092,6 +1092,9 @@ func TestReconcileProperty_TheJudgmentsVerdictIsWhatIsReported(t *testing.T) {
 			dst := ir.Property{WireName: "x", Type: ref(order[0]), Provenance: ptrAt("/allOf/0/properties/x")}
 			src := ir.Property{WireName: "x", Type: ref(order[1]), Default: tc.dflt,
 				Provenance: ptrAt("/allOf/1/properties/x")}
+			if i == 1 {
+				dst.Default, src.Default = src.Default, nil
+			}
 
 			g.reconcileProperty(&dst, new(origins), src, written(`{"type":"x"}`))
 
