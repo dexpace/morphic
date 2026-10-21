@@ -19,6 +19,7 @@ import (
 	"github.com/dexpace/morphic/engine"
 	"github.com/dexpace/morphic/internal/testspec"
 	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/ir/irverify"
 )
 
 func writeSpec(t *testing.T, contents string) string {
@@ -847,4 +848,68 @@ func TestEngine_RunReadsAVersionKeyPastTheSniffCap(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, compilers.SourceFormat{Name: "openapi", Version: "3.1"}, res.Format)
 	require.NotNil(t, res.Document, "a document that declares its version last still compiles")
+}
+
+// throwawayCompiler is a second compiler as a new format's author first writes
+// one: it claims the spec and lowers it to whatever document shape says.
+type throwawayCompiler struct {
+	stubFront
+	shape func(doc *ir.Document)
+}
+
+func (c throwawayCompiler) Compile(_ context.Context, sources []compilers.Source, _ compilers.Options) (*ir.Document, []ir.Diagnostic, error) {
+	doc := &ir.Document{
+		IRVersion: ir.IRVersion,
+		Name:      "Throwaway",
+		Services:  []ir.Service{{ID: "s/x/0", Name: ir.Naming{Source: "svc", Canonical: "svc"}}},
+		Sources:   sourcesOf("openapi@3.1", sources),
+	}
+	c.shape(doc)
+	if doc.Sources == nil && doc.Services == nil {
+		return nil, nil, nil // a refusal that says nothing
+	}
+	return doc, nil, nil
+}
+
+// TestEngine_RunHoldsAThrowawayCompilerToItsContract registers a compiler
+// through NewWith whose output breaks one duty at a time, and requires each
+// breach to come out named: a Go error wrapping compilers.ErrContract for what
+// relates the document to its input, and an irverify violation for what the
+// document holds whatever produced it. It is what shows Run compiles through
+// compilers.Detection.Compile rather than around it.
+func TestEngine_RunHoldsAThrowawayCompilerToItsContract(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name      string
+		shape     func(*ir.Document)
+		violation string
+	}{
+		{"a document naming no source", func(d *ir.Document) { d.Sources = nil }, ""},
+		{"a source read as no format", func(d *ir.Document) { d.Sources[0].Format = "" }, ""},
+		{"a source hashed from nothing", func(d *ir.Document) { d.Sources[0].Hash = "" }, ""},
+		{"a refusal saying nothing", func(d *ir.Document) { d.Sources, d.Services = nil, nil }, ""},
+		{"a document with no service", func(d *ir.Document) { d.Services = nil }, "ir/services-absent"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			eng, err := engine.NewWith(throwawayCompiler{shape: tc.shape})
+			require.NoError(t, err)
+
+			res, err := eng.Run(t.Context(), writeSpec(t, testspec.Tiny),
+				engine.RunOptions{DisablePasses: []string{engine.ValidatePass}})
+
+			if tc.violation == "" {
+				require.ErrorIs(t, err, compilers.ErrContract)
+				assert.Nil(t, res)
+				return
+			}
+			require.NoError(t, err)
+			vs := irverify.Verify(res.Document)
+			codes := make([]string, 0, len(vs))
+			for _, v := range vs {
+				codes = append(codes, v.Code)
+			}
+			assert.Contains(t, codes, tc.violation)
+		})
+	}
 }
