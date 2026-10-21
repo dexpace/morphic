@@ -62,13 +62,14 @@ type Document struct {
     IRVersion   string                 // version of the IR schema itself, semver
     IDSpaces    map[string][]string    // the namespaces the document's IDs live in, by kind prefix (§3.1);
                                        // a producer states it as it stamps IRVersion
-    Name        string                 // API title
+    Name        string                 // API title, as declared; "" when the source declares none
     Version     string                 // API version string (source-declared)
     Docs        Docs
     Contact     *Contact               // {Name, URL, Email} (OpenAPI/AsyncAPI info.contact)
     License     *License               // {Name, Identifier, URL} (OpenAPI/AsyncAPI info.license)
     TermsOfService string
-    Services    []Service              // ≥1; multi-service documents are normal (TypeSpec, stitching)
+    Services    []Service              // ≥1 (irverify); multi-service documents are normal (TypeSpec,
+                                       // stitching)
     Types       map[TypeID]TypeDef     // the type registry — the only owner of TypeDefs
     Channels    map[ChannelID]Channel  // event/messaging layer (AsyncAPI, webhooks, subscriptions, OTP processes)
     Messages    map[MessageID]Message  // message registry — messages are reused across channels and
@@ -81,7 +82,7 @@ type Document struct {
     Versions    []string               // ordered version labels when availability metadata is used
     Unmodeled   Unmodeled
     Diagnostics []Diagnostic           // accumulated by compiler + passes; not part of API meaning
-    Sources     []SourceInfo           // one entry per input file
+    Sources     []SourceInfo           // ≥1 (irverify), one entry per input file
 }
 
 type Contact struct { Name, URL, Email string }
@@ -95,9 +96,10 @@ type TagDef  struct {
                                   // interpretation is grouping policy (§7.1), never read here
 }
 type SourceInfo struct {
-    Format  string   // format and version the file was read as: "openapi@3.2", "overlay@1.0.0"
+    Format  string   // format and version the file was read as, name@version: "openapi@3.2",
+                     // "overlay@1.0.0"
     Path    string   // the path the file was handed to the compiler under
-    Hash    string   // hex SHA-256 of the file's bytes
+    Hash    string   // lowercase hex SHA-256 of the file's bytes (ir.SourceHash)
     SelfURI string   // the URI the document declared for itself (OpenAPI `$self`), as written;
                      // "" = none declared
 }

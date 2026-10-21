@@ -44,7 +44,8 @@ type Document struct {
 	// byte order of its UTF-8 spelling, without repeats, and names no empty or
 	// separator-bearing namespace.
 	IDSpaces map[string][]string `json:"idSpaces,omitempty"`
-	// Name is the API title.
+	// Name is the API title, as the source declares it, or empty for a source
+	// that declares none.
 	Name string `json:"name,omitempty"`
 	// Version is the source-declared API version string.
 	Version string `json:"version,omitempty"`
@@ -81,7 +82,8 @@ type Document struct {
 	// Diagnostics is accumulated by the compiler and passes; not part of API
 	// meaning.
 	Diagnostics []Diagnostic `json:"diagnostics,omitempty"`
-	// Sources describes the input files, one entry each.
+	// Sources describes the input files, one entry each; a compiled document
+	// read at least one.
 	Sources []SourceInfo `json:"sources,omitempty"`
 }
 

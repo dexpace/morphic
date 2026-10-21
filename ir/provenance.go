@@ -129,7 +129,8 @@ type SourceInfo struct {
 	Format string `json:"format"`
 	// Path is the path the file was handed to the compiler under.
 	Path string `json:"path"`
-	// Hash is the hex SHA-256 of the file's bytes.
+	// Hash is the lowercase hex SHA-256 of the file's bytes, as SourceHash
+	// spells it.
 	Hash string `json:"hash"`
 	// SelfURI is the URI the document declared for itself, OpenAPI's `$self`,
 	// as written: a relative reference is not resolved against Path. It is

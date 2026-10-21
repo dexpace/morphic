@@ -151,30 +151,34 @@ A compiler lowers one source format into an IR document ([`architecture.md`](doc
 §2.1). `compilers.Compiler`'s doc comments are its contract; read them before writing any of it.
 
 1. **Create the package** `compilers/<format>`, with a `doc.go`, a `Compiler` implementing all five
-   methods of `compilers.Compiler`, and the `Options` type its `FormatOptions` holds.
+   methods of `compilers.Compiler`, and the `Options` type its `FormatOptions` holds. Before writing
+   a YAML reader, a version sniff or a test of document identity of its own, read what
+   [`architecture.md`](docs/architecture.md) §2.1 says stays in the OpenAPI compiler, and why.
    *Fails if missed:* `make lint` for a package with no package comment, and the build, once step 4
    registers the compiler, for a missing method.
 2. **Rule its imports.** Add `compilers/<format>` to the `rules` map in
    `internal/archtest/arch_test.go`, allowing `ir`, `compilers` and `compilers/compile` by exact
    path, its own internal tree, and its format libraries. Give each package under its `internal/`
-   an entry of its own; nothing enforces that yet, and an unkeyed one is audited under its
-   compiler's allowlist (#993). Run `gofmt -w` on the file afterwards: a longer key realigns its
-   neighbours.
-   *Fails if missed:* `TestImportGraph_LayeringHolds`. A package with no entry falls back to the
-   `compilers` rule, which allows only `ir`, so its first import of `compilers` or
-   `compilers/compile` fails with a message naming that allowlist.
-   `TestImportGraph_EveryPackageIsRuledOrExempt` does not fire for a package under `compilers/`.
+   an entry of its own. Run `gofmt -w` on the file afterwards: a longer key realigns its neighbours.
+   *Fails if missed:* `TestImportGraph_EveryPackageIsRuledOrExempt`, which requires every package
+   under `compilers/` to carry an entry of its own and names the one that does not, and
+   `TestImportGraph_LayeringHolds` for an import an entry does not allow, whose message says when
+   the package is audited under an ancestor's entry for want of its own.
 3. **Mint IDs and names through the framework.** Intern types through `compile.Types`, derive IDs
    and canonical names with `compilers/compile`, declare in `Document.IDSpaces` every namespace an
    ID lives in, source-addressed as well as minted (`ir-design.md` §3.1), and stamp
-   `ir.IRVersion`. Call `compile.Types.Violations()` after interning and report what it returns, as
-   the OpenAPI compiler does; take the `*compile.Types` as a parameter, as that compiler's `run`
-   does, so a test can drive the refusal no source provokes.
+   `ir.IRVersion`. Once the last lowering returns, take the registry from `compile.Types.Finish` and
+   report every entry it refused, as the OpenAPI compiler's `run` does; take the `*compile.Types` as
+   a parameter, as `run` does, so a test can drive the refusal no source provokes. Name each source
+   in `Document.Sources` with the format it was recognized as and `ir.SourceHash` of its bytes.
    *Fails if missed:* the `namechannels`, `idderivations` and `registrywrites` rules in
-   `internal/lintrules` (`make vet`) for the framework. Nothing in the repository checks
-   the namespaces, the version or the violations (#967): step 5's `irverify` tests do, and
-   `irtest.SpacesUsed` holds `IDSpaces` to what the output uses.
-4. **Register it** in `engine.New` (`engine/engine.go`), the one place built-in compilers are
+   `internal/lintrules` (`make vet`) for the framework; `irverify`, in step 5's tests, for the
+   namespaces, the version, the services and a malformed source table, with `irtest.SpacesUsed`
+   holding `IDSpaces` to what the output uses; and `compilers.Detection.Compile`, which every engine
+   run compiles through, for a source table that does not describe the inputs. Nothing checks that
+   the refusals are reported: `Finish` returns them beside the registry, so dropping them takes a
+   `_` a reviewer can see.
+4. **Register it** in `engine.Compilers` (`engine/engine.go`), the one place built-in compilers are
    listed, and add the package to the `engine` entry of the `rules` map.
    *Fails if missed:* `TestImportGraph_LayeringHolds/engine` for the allowlist. Nothing fails if the
    compiler is never registered, so add an engine test that compiles a document of the format.
