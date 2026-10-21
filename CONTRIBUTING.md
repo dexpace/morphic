@@ -176,7 +176,8 @@ A compiler lowers one source format into an IR document ([`architecture.md`](doc
    `compile/registry-refused` error for each entry the registry refused. Take the `*compile.Types`
    as a parameter, as `run` does, so a test can drive the refusal no source provokes. Name each
    source in `Document.Sources` with the format it was recognized as and `ir.SourceHash` of its
-   bytes.
+   bytes, in `SourceTable`'s order, and after them each document a reference read through
+   `compilers.Options.Reader`.
    *Fails if missed:* the `namechannels`, `idderivations` and `registrywrites` rules in
    `internal/lintrules` (`make vet`) for the framework; `irverify`, in step 5's tests, for the
    namespaces, the version, the services and a malformed source table, with `irtest.SpacesUsed`
