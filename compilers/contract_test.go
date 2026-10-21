@@ -347,3 +347,39 @@ func TestRegistry_DetectRecordsTheSourceItWasHanded(t *testing.T) {
 		})
 	}
 }
+
+// TestRegistry_DetectRefusesADeclineSpeakingWithNoError holds a decline to the
+// duty a refusal has: a compiler that speaks while declining its own source
+// says why with an error, or the caller is left no document and no reason.
+// Saying nothing is how it declines bytes that are not its own.
+func TestRegistry_DetectRefusesADeclineSpeakingWithNoError(t *testing.T) {
+	t.Parallel()
+	for name, tc := range map[string]struct {
+		declines []ir.Diagnostic
+		broken   bool
+	}{
+		"silence":                   {},
+		"an error":                  {declines: []ir.Diagnostic{at(0, ir.SeverityError)}},
+		"a warning beside an error": {declines: []ir.Diagnostic{at(0, ir.SeverityWarning), at(0, ir.SeverityError)}},
+		"a warning alone":           {declines: []ir.Diagnostic{at(0, ir.SeverityWarning)}, broken: true},
+		"an info alone":             {declines: []ir.Diagnostic{at(ir.NoSource, ir.SeverityInfo)}, broken: true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			reg := compilers.NewRegistry()
+			require.NoError(t, reg.Register(&stubCompiler{formats: []compilers.SourceFormat{alpha}, declines: tc.declines}))
+
+			det, ok, err := reg.Detect(t.Context(), spec, nil)
+
+			assert.False(t, ok)
+			if !tc.broken {
+				require.NoError(t, err)
+				assert.Equal(t, tc.declines, det.Declined, "the decline is carried out for the caller")
+				return
+			}
+			require.ErrorIs(t, err, compilers.ErrContract)
+			assert.Contains(t, err.Error(), "no error diagnostic saying why")
+			assert.Contains(t, err.Error(), "alpha@1", "the error names the compiler")
+		})
+	}
+}

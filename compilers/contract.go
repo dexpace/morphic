@@ -112,6 +112,18 @@ func checkSources(got, table []ir.SourceInfo, src Source, format SourceFormat) e
 	return nil
 }
 
+// checkDecline holds what a compiler said while declining a source to
+// Compiler.Detect. Silence is how it declines bytes that are not its own, so
+// anything it says is about its own source: it includes an error saying why the
+// source cannot be read, and indexes the one source detection was handed, or
+// none. Speaking with no error leaves the caller no document and no reason.
+func checkDecline(diags []ir.Diagnostic) error {
+	if _, stated := ir.FirstError(diags); len(diags) > 0 && !stated {
+		return contractf("declined its own source with no error diagnostic saying why")
+	}
+	return checkIndexes(diags, 1)
+}
+
 // checkIndexes reports the first diagnostic of diags that is not in a table of n
 // sources (ir.FirstOutsideTable).
 func checkIndexes(diags []ir.Diagnostic, n int) error {

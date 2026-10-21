@@ -154,12 +154,13 @@ var compile = func(ctx context.Context, spec string, data []byte) (*ir.Document,
 }
 
 // unrecognized answers for a source no registered compiler takes. A compiler
-// that declined it with an error has said why in its own words, so those
-// diagnostics are returned for Check to classify like any refusal. Otherwise the
-// source is unrecognized, naming the format a compiler recognized and none
-// serves, as with Swagger 2.0.
+// that declined it with diagnostics has said why in its own words, with an
+// error (compilers.Compiler.Detect), so those are returned for Check to classify
+// like any refusal, as the engine reports them. Otherwise the source is
+// unrecognized, naming the format a compiler recognized and none serves, as
+// with Swagger 2.0.
 func unrecognized(det compilers.Detection) ([]ir.Diagnostic, error) {
-	if _, stated := ir.FirstError(det.Declined); stated {
+	if len(det.Declined) > 0 {
 		return det.Declined, nil
 	}
 	if format := det.Recognition.Format; format.Name != "" {

@@ -105,8 +105,9 @@ type Compiler interface {
 	// them.
 	//
 	// diags is read only when ok is false. Declining another format's bytes is
-	// silent; diags is for this compiler's own source when it is unreadable or
-	// opts forbid reading it, and names src as Source 0, or no source.
+	// silent; diags is for this compiler's own source, unreadable or one opts
+	// forbid reading, holds an error saying why, and names src as Source 0, or
+	// no source.
 	Detect(src Source, opts Options) (rec Recognition, diags []ir.Diagnostic, ok bool)
 	// DecodeOptions turns textual settings into the value this compiler expects
 	// in Options.FormatOptions. An empty set yields defaults. An unknown key, an
@@ -225,8 +226,8 @@ type Detection struct {
 // included, has the zero format, unlike src recognized but unsupported.
 //
 // It fails on a canceled ctx, checked before each compiler; on undecodable
-// options for the compiler taking src; and, wrapping ErrContract, on a claim
-// naming no dialect or a decline indexing another source.
+// options for the compiler taking src; and, wrapping ErrContract, on a claim or
+// a decline Compiler.Detect does not admit.
 func (r *Registry) Detect(ctx context.Context, src Source, configure Configure) (Detection, bool, error) {
 	if len(src.Data) == 0 {
 		return Detection{Source: src}, false, nil
@@ -246,8 +247,7 @@ func (r *Registry) Detect(ctx context.Context, src Source, configure Configure) 
 		}
 		rec, diags, ok := c.Detect(src, opts)
 		if !ok {
-			// src is the whole of the table a decline can index (Compiler.Detect).
-			if err := checkIndexes(diags, 1); err != nil {
+			if err := checkDecline(diags); err != nil {
 				return Detection{}, false, fmt.Errorf("compilers: detect by %s: %w", served(c), err)
 			}
 			declined = append(declined, diags...)
