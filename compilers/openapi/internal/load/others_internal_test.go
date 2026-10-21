@@ -3,6 +3,8 @@ package load
 import (
 	"context"
 	"encoding/json/jsontext"
+	"errors"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -72,19 +74,43 @@ func TestOthers_NamesADocumentByEverySpellingItIsReadUnder(t *testing.T) {
 
 // TestLabelOf_IsTheLocationTheSourcesDirectoryReachesADocumentBy pins the
 // label that qualifies another document's IDs: a path relative to the source's
-// directory, written with '/', or the cleaned path where none reaches it, and a
-// URL as read.
+// directory, written with '/', whether either path is relative or absolute,
+// the two related through the working directory; the cleaned path where that
+// cannot be read; and a URL as read.
 func TestLabelOf_IsTheLocationTheSourcesDirectoryReachesADocumentBy(t *testing.T) {
 	t.Parallel()
-	for _, tc := range []struct{ self, key, want string }{
-		{"/r/root.yaml", "/r/common.yaml", "common.yaml"},
-		{"/r/root.yaml", "/r/schemas/pet.yaml", "schemas/pet.yaml"},
-		{"/r/root.yaml", "/r/schemas/../pet.yaml", "pet.yaml"},
-		{"/r/root.yaml", "/s/pet.yaml", "../s/pet.yaml"},
-		{"root.yaml", "/s/pet.yaml", "/s/pet.yaml"},
-		{"/r/root.yaml", "https://h/pet.yaml", "https://h/pet.yaml"},
+	// inWork reads paths as filepath.Abs does with /work as the working directory.
+	inWork := func(p string) (string, error) {
+		if filepath.IsAbs(p) {
+			return p, nil
+		}
+		return filepath.Join("/work", p), nil
+	}
+	// unread reads them as filepath.Abs does where the working directory cannot
+	// be read: an absolute path as it is, a relative one not at all.
+	unread := func(p string) (string, error) {
+		if filepath.IsAbs(p) {
+			return p, nil
+		}
+		return "", errors.New("no working directory")
+	}
+	for _, tc := range []struct {
+		self, key, want string
+		abs             func(string) (string, error)
+	}{
+		{"/r/root.yaml", "/r/common.yaml", "common.yaml", inWork},
+		{"/r/root.yaml", "/r/schemas/pet.yaml", "schemas/pet.yaml", inWork},
+		{"/r/root.yaml", "/r/schemas/../pet.yaml", "pet.yaml", inWork},
+		{"/r/root.yaml", "/s/pet.yaml", "../s/pet.yaml", inWork},
+		{"root.yaml", "inner/pet.yaml", "inner/pet.yaml", unread},
+		{"root.yaml", "/work/inner/pet.yaml", "inner/pet.yaml", inWork},
+		{"specs/root.yaml", "/work/pet.yaml", "../pet.yaml", inWork},
+		{"/work/specs/root.yaml", "inner/pet.yaml", "../inner/pet.yaml", inWork},
+		{"root.yaml", "/s/pet.yaml", "/s/pet.yaml", unread},
+		{"/r/root.yaml", "inner/pet.yaml", "inner/pet.yaml", unread},
+		{"/r/root.yaml", "https://h/pet.yaml", "https://h/pet.yaml", unread},
 	} {
-		assert.Equal(t, tc.want, labelOf(tc.self, tc.key), "%s from %s", tc.key, tc.self)
+		assert.Equal(t, tc.want, labelOf(tc.self, tc.key, tc.abs), "%s from %s", tc.key, tc.self)
 	}
 }
 

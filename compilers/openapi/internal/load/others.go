@@ -77,7 +77,7 @@ func newOthers(read *externalReads, first int, format string) Others {
 		if read.self.names(key) || read.trees[key] == read.self.root {
 			continue
 		}
-		label := labelOf(read.self.path, key)
+		label := labelOf(read.self.path, key, filepath.Abs)
 		byLabel[label] = append(byLabel[label], key)
 	}
 	o := Others{byName: map[string]int{}}
@@ -98,13 +98,23 @@ func newOthers(read *externalReads, first int, format string) Others {
 // labelOf is the label of the document read under key, from the source at
 // self: a file's path relative to the source's directory, with '/' between its
 // segments whatever the system, or its cleaned path where no relative path
-// reaches it; a URL as the resolver spells it.
-func labelOf(self, key string) string {
+// reaches it; a URL as the resolver spells it. A relative path and an absolute
+// one are related through abs, filepath.Abs's reading of the working
+// directory, as resolve.SameDocument relates them, so one file is one label
+// however the source was named.
+func labelOf(self, key string, abs func(string) (string, error)) string {
 	if refscope.IsURL(key) {
 		return key
 	}
-	clean := filepath.Clean(key)
-	if rel, err := filepath.Rel(filepath.Dir(self), clean); err == nil {
+	dir, clean := filepath.Dir(self), filepath.Clean(key)
+	if filepath.IsAbs(dir) != filepath.IsAbs(clean) {
+		absDir, dirErr := abs(dir)
+		absKey, keyErr := abs(clean)
+		if dirErr == nil && keyErr == nil {
+			dir, clean = absDir, absKey
+		}
+	}
+	if rel, err := filepath.Rel(dir, clean); err == nil {
 		return filepath.ToSlash(rel)
 	}
 	return filepath.ToSlash(clean)

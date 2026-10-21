@@ -66,7 +66,14 @@ func (c *Compiler) Compile(ctx context.Context, sources []compilers.Source, opts
 	if err != nil {
 		return nil, nil, err
 	}
-	loadedDoc, diags, err := load.Load(ctx, rootSrcIndex, sources[0], loadOptions(formatOpts, opts.Reader, sources[0]))
+	loadedDoc, loadDiags, err := load.Load(ctx, rootSrcIndex, sources[0], loadOptions(formatOpts, opts.Reader, sources[0]))
+	// The load phase reads a document once under each name a reference spells
+	// it by, as a relative and an absolute path to one file, so what it finds
+	// there it finds once per name, at one position: one finding, kept once,
+	// as compile.Diags keeps the lowering's.
+	var loaded compile.Diags
+	loaded.AppendAll(loadDiags)
+	diags := loaded.List()
 	if errors.Is(err, load.ErrParse) {
 		// ErrParse is a source Load could not read: bytes that will not parse,
 		// which reach here only from a caller compiling directly — detection

@@ -13,6 +13,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
@@ -183,4 +184,48 @@ func TestLoad_RecoverableLiteralSuppressesFindingAmongOtherScalars(t *testing.T)
 	_, diags := parseFull(t, openapitest.ComponentSpec(`    S: {type: string, default: !custom foo, example: .5}`))
 	assert.False(t, openapitest.HasDiag(diags, diag.Validation+"/"+string(validation.RuleValidationInvalidSyntax)),
 		"a finding a recoverable literal explains stays suppressed: %+v", diags)
+}
+
+// TestCompile_OneFileUnderTwoNamesIsOneDocument pins that a file references
+// spell two ways, by a path relative to the spec and by an absolute one, is
+// one document: one Document.Sources entry, its declarations lowered once
+// under one label, each finding in it reported once, and every ID the same
+// whether the spec itself was named by a relative path or an absolute one.
+func TestCompile_OneFileUnderTwoNamesIsOneDocument(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.Mkdir(filepath.Join(dir, "inner"), 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "inner", "real.yaml"), []byte(
+		"components:\n  schemas:\n    S: {type: object, properties: {gone: {$ref: '#/components/schemas/Missing'}}}\n"), 0o600))
+	root := []byte("openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\ncomponents:\n  schemas:\n" +
+		"    A: {$ref: './inner/real.yaml#/components/schemas/S'}\n" +
+		"    B: {$ref: '" + filepath.Join(dir, "inner", "real.yaml") + "#/components/schemas/S'}\n")
+	t.Chdir(dir)
+	compileAt := func(path string) (*ir.Document, []ir.Diagnostic) {
+		t.Helper()
+		doc, diags, err := New().Compile(t.Context(), []compilers.Source{{Path: path, Data: root}},
+			compilers.Options{Reader: reader.Disk{}})
+		require.NoError(t, err)
+		require.NotNil(t, doc)
+		return doc, diags
+	}
+
+	relative, diags := compileAt("root.yaml")
+	absolute, _ := compileAt(filepath.Join(dir, "root.yaml"))
+
+	assert.Len(t, relative.Sources, 2, "the spec and the one file it reads")
+	s := ids.In("inner/real.yaml").NamedType("/components/schemas/S")
+	for _, name := range []string{"A", "B"} {
+		a, ok := relative.Types[ids.Document{}.NamedType(ids.Ptr("components", "schemas", name))].(*ir.Scalar)
+		require.True(t, ok, name)
+		require.NotNil(t, a.Base, name)
+		assert.Equal(t, s, a.Base.Target, "%s names the one S", name)
+	}
+	gone := 0
+	for _, d := range diags {
+		if d.Code == diag.UnresolvedRef {
+			gone++
+		}
+	}
+	assert.Equal(t, 1, gone, "the finding in the file is reported once: %+v", diags)
+	assert.Empty(t, cmp.Diff(relative.Types, absolute.Types), "the IDs do not depend on how the spec was named")
 }
