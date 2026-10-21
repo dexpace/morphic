@@ -665,7 +665,7 @@ is a `nil *TypeRef`. TypeSpec `safeint` is not a primitive either — its canoni
 strictly within `b` when every finite value of `a` is a value of `b` and `b` lies above `a` in the
 edges below. NaN and the infinities, which only the IEEE-754 kinds hold and no JSON instance
 carries, are outside the domain; that is what puts `float` below `number` and `decimal128` below
-`decimal`. The edges (`DomainParents`) follow TypeSpec's declared numeric hierarchy — each integer
+`decimal`. The edges (`domainParents`) follow TypeSpec's declared numeric hierarchy — each integer
 width extends the next (`int8` up to `int64`, `uint8` up to `uint64`), `int64` and `uint64` extend
 `integer`, `float32` extends `float64` extends `float`, `decimal128` extends `decimal`, and
 `numeric` (`PrimNumber`) is their top — with two of its edges refined to exact containments it does

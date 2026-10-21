@@ -82,15 +82,15 @@ func (k PrimKind) Valid() bool {
 	}
 }
 
-// maxDomainDepth bounds the walk up DomainParents. It exceeds the longest
+// maxDomainDepth bounds the walk up domainParents. It exceeds the longest
 // chain, int8 up to number, so it only guards a table edited into a cycle.
 const maxDomainDepth = 8
 
-// DomainParents returns the immediate supertypes of k by value domain: the
+// domainParents returns the immediate supertypes of k by value domain: the
 // kinds that hold every finite value of k, with no kind between (ir-design
 // §4.1). A kind with none is a root. PrimAny is the top of every kind without
 // being an edge; see StrictlyWithin. The result is fresh, so a caller may keep it.
-func (k PrimKind) DomainParents() []PrimKind {
+func (k PrimKind) domainParents() []PrimKind {
 	switch k {
 	case PrimInt8:
 		return []PrimKind{PrimInt16}
@@ -128,7 +128,7 @@ func (k PrimKind) DomainParents() []PrimKind {
 }
 
 // StrictlyWithin reports whether every finite value of k is a value of broad and the
-// kinds differ: broad is reached by walking DomainParents up from k, or is
+// kinds differ: broad is reached by walking domainParents up from k, or is
 // PrimAny and k is another valid kind. It is a strict partial order, and the
 // walk is bounded by maxDomainDepth.
 func (k PrimKind) StrictlyWithin(broad PrimKind) bool {
@@ -142,7 +142,7 @@ func (k PrimKind) StrictlyWithin(broad PrimKind) bool {
 	for depth := 0; depth < maxDomainDepth && len(frontier) > 0; depth++ {
 		var next []PrimKind
 		for _, kind := range frontier {
-			for _, parent := range kind.DomainParents() {
+			for _, parent := range kind.domainParents() {
 				if parent == broad {
 					return true
 				}

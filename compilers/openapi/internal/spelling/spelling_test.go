@@ -104,8 +104,9 @@ func TestFormatTable_EveryRowNarrowsItsBareType(t *testing.T) {
 // table: a kind an edge touches is one a row selects, or a listed hop.
 func TestFormatTable_EveryRelatedKindIsSpelledOrAHop(t *testing.T) {
 	t.Parallel()
-	for _, k := range declaredKinds(t) {
-		for _, p := range k.DomainParents() {
+	kinds := declaredKinds(t)
+	for _, k := range kinds {
+		for _, p := range coveringKinds(kinds, k) {
 			for _, end := range []ir.PrimKind{k, p} {
 				_, hop := hopOnly[end]
 				assert.True(t, spelled(end) || hop, "%s on an edge is spelled by no row and is no listed hop", end)
@@ -142,17 +143,18 @@ func TestRelation_LongestChainFitsTheCap(t *testing.T) {
 	limit, err := irDeclared(t).IntConst("maxDomainDepth")
 	require.NoError(t, err)
 
+	kinds := declaredKinds(t)
 	var longest func(k ir.PrimKind, depth int) int
 	longest = func(k ir.PrimKind, depth int) int {
 		require.LessOrEqual(t, int64(depth), limit, "a chain past the cap: a cycle or a cap too low")
 		best := 0
-		for _, p := range k.DomainParents() {
+		for _, p := range coveringKinds(kinds, k) {
 			best = max(best, 1+longest(p, depth+1))
 		}
 		return best
 	}
 	chain := 0
-	for _, k := range declaredKinds(t) {
+	for _, k := range kinds {
 		chain = max(chain, longest(k, 0))
 	}
 	assert.LessOrEqual(t, chain, int(limit))
@@ -256,4 +258,25 @@ func TestLookup_ReadsTheTable(t *testing.T) {
 
 	_, ok = Lookup("string/password")
 	assert.False(t, ok)
+}
+
+// coveringKinds returns the kinds immediately above k by value domain: those k
+// is strictly within, with no declared kind between, and never the top type.
+// It reads the containment through the exported StrictlyWithin, which is what
+// the unexported edge table in ir yields.
+func coveringKinds(kinds []ir.PrimKind, k ir.PrimKind) []ir.PrimKind {
+	var out []ir.PrimKind
+	for _, p := range kinds {
+		if p == ir.PrimAny || !k.StrictlyWithin(p) {
+			continue
+		}
+		between := false
+		for _, m := range kinds {
+			between = between || (m != ir.PrimAny && k.StrictlyWithin(m) && m.StrictlyWithin(p))
+		}
+		if !between {
+			out = append(out, p)
+		}
+	}
+	return out
 }
