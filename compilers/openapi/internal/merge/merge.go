@@ -3,8 +3,9 @@
 //
 // It is the compiler's most intricate logic and the part least tied to the walk
 // that drives it. Everything it needs from the rest of lowering arrives as the
-// two function fields on Merger, so the conflict lattice can be exercised
-// against a map and a recorder rather than a document.
+// two function fields on Merger, and the conflict lattice reads nodes through
+// Nodes, so it can be exercised against a map and a recorder rather than a
+// document.
 package merge
 
 import (
@@ -22,16 +23,47 @@ import (
 // Merger reconciles properties that more than one allOf branch declares:
 // either merging the two declarations or reporting that they disagree.
 //
-// It is not pure — deciding whether two TypeRefs conflict needs the registry —
-// but that dependency is narrow enough to arrive as a function, so the conflict
-// lattice stays testable against a stub.
+// It reads no registry. Whether two types conflict compares the nodes they
+// name, which a walk may not have built yet, so a redeclaration of another type
+// goes to Later as a Conflict, reported once the registry is whole (GitHub
+// #898). What is folded never depends on that answer.
 type Merger struct {
-	// Resolve looks a type up in the registry. Conflict detection compares what
-	// two references point at, not the references themselves.
-	Resolve func(ir.TypeID) (ir.TypeDef, bool)
 	// Report records one diagnostic at pointer, attributed to the input document
 	// that supplied that position.
 	Report func(sev ir.Severity, code string, pointer jsontext.Pointer, format string, args ...any)
+	// Later takes each redeclaration whose type differs from the first
+	// declaration's, to report once every node exists (Conflict.Report).
+	Later func(Conflict)
+}
+
+// Nodes looks a type up in a registry. Conflict detection compares what two
+// references point at, not the references themselves.
+type Nodes func(ir.TypeID) (ir.TypeDef, bool)
+
+// Conflict is a redeclaration of a field whose type differs from the first
+// declaration's, held until the registry is whole: the two disagree where the
+// types they name conflict (Nodes.typesConflict), and otherwise where a
+// constraint keyword does.
+type Conflict struct {
+	field             string
+	first, redeclared jsontext.Pointer
+	a, b              ir.TypeRef
+	// constraint is the constraint keyword the two pin apart, or "".
+	constraint string
+}
+
+// Report returns the conflicting-redeclaration message c makes against the
+// registry nodes reads, and false where the two declarations do not disagree.
+// It is reported at c's redeclaration, at warning severity.
+func (c Conflict) Report(nodes Nodes) (jsontext.Pointer, string, bool) {
+	detail := c.constraint
+	if nodes.typesConflict(c.a, c.b) {
+		detail = fmt.Sprintf("incompatible types %s and %s", c.a.Target, c.b.Target)
+	}
+	if detail == "" {
+		return "", "", false
+	}
+	return c.redeclared, conflictMessage(c.field, detail, c.first, c.redeclared), true
 }
 
 // WireNameIndex maps each property's wire name to its position in props, so a
@@ -294,32 +326,28 @@ const maxTypeResolveDepth = 64
 //
 // dropped reports that the targets differ, so src's type is lost. lost reports
 // that src's type or a constraint keyword was lost, so the redeclaration is
-// kept whole (GitHub #424). dropped is wider than the reported conflicts, since
-// typesConflict does not guess about composites of one kind, unresolvable
-// targets or the top type.
+// kept whole (GitHub #424). Neither reads the registry: differing targets lose
+// src's type whether or not they conflict, so only the report waits, as a
+// Conflict (Later).
 func (g *Merger) recordRedeclarationConflict(dst, src *ir.Property) (dropped, lost bool) {
 	pointer := src.Provenance.Pointer
+	detail, constrained := constraintsConflict(dst.Constraints, src.Constraints)
 	if dst.Type.Target != src.Type.Target {
-		dropped = true
-	} else {
-		// Same referent, and the only thing left for the two to disagree about
-		// is whether null is admitted. Under intersection it is admitted only
-		// where both branches admit it — the rule foldNullVerdicts already
-		// states for a single schema. Without this the answer came from
-		// whichever branch was written first, so reordering two allOf branches
-		// changed the merged field.
-		dst.Type.Nullable = dst.Type.Nullable && src.Type.Nullable
-	}
-	if g.typesConflict(dst.Type, src.Type) {
-		g.redeclarationConflictDiag(dst, pointer,
-			fmt.Sprintf("incompatible types %s and %s", dst.Type.Target, src.Type.Target))
+		g.Later(Conflict{field: dst.WireName, first: dst.Provenance.Pointer, redeclared: pointer,
+			a: dst.Type, b: src.Type, constraint: detail})
 		return true, true
 	}
-	if detail, ok := constraintsConflict(dst.Constraints, src.Constraints); ok {
-		g.redeclarationConflictDiag(dst, pointer, detail)
-		return dropped, true
+	// Same referent, and the only thing left for the two to disagree about is
+	// whether null is admitted. Under intersection it is admitted only where
+	// both branches admit it — the rule foldNullVerdicts already states for a
+	// single schema. Without this the answer came from whichever branch was
+	// written first, so reordering two allOf branches changed the merged field.
+	dst.Type.Nullable = dst.Type.Nullable && src.Type.Nullable
+	if constrained {
+		g.Report(ir.SeverityWarning, diag.ConflictingRedecl, pointer, "%s",
+			conflictMessage(dst.WireName, detail, dst.Provenance.Pointer, pointer))
 	}
-	return dropped, dropped
+	return false, constrained
 }
 
 // losingDeclarationKey prefixes the Unmodeled entry a redeclaration the merge could not
@@ -361,21 +389,19 @@ func (g *Merger) keepLosingDeclaration(dst, src *ir.Property, source func() (ir.
 		ir.ReasonDegradedLowering, src.Provenance)
 }
 
-// redeclarationConflictDiag emits the shared conflicting-redeclaration warning,
-// naming the field and both declaration sites (dst's own, and the redeclaration
-// at pointer). detail is the caller-formatted disagreement, so one wording
-// serves both callers.
+// conflictMessage is the shared conflicting-redeclaration warning, naming the
+// field and both declaration sites (first, and the redeclaration). detail is
+// the caller-formatted disagreement, so one wording serves both callers.
 //
-// It says "declarations", not "allOf branches", because dst's declaration can
-// sit directly beside allOf rather than inside a branch. Severity is warning,
-// as the merged model is still usable, leaving escalation to the consumer via
-// the stable code. The message says the redeclaration is kept whole beside the
-// winner (keepLosingDeclaration), so a reader knows where to look.
-func (g *Merger) redeclarationConflictDiag(dst *ir.Property, pointer jsontext.Pointer, detail string) {
-	g.Report(ir.SeverityWarning, diag.ConflictingRedecl, pointer,
-		"declarations of field %q disagree: %s; kept the first declaration (%s) over the redeclaration (%s), "+
-			"which is kept verbatim under Unmodeled",
-		dst.WireName, detail, dst.Provenance.Pointer, pointer)
+// It says "declarations", not "allOf branches", because the first declaration
+// can sit directly beside allOf rather than inside a branch. Severity is
+// warning, as the merged model is still usable, leaving escalation to the
+// consumer via the stable code. The message says the redeclaration is kept
+// whole beside the winner (keepLosingDeclaration), so a reader knows where to
+// look.
+func conflictMessage(field, detail string, first, redeclared jsontext.Pointer) string {
+	return fmt.Sprintf("declarations of field %q disagree: %s; kept the first declaration (%s) over the "+
+		"redeclaration (%s), which is kept verbatim under Unmodeled", field, detail, first, redeclared)
 }
 
 // typesConflict reports whether two reconciled property types describe an
@@ -388,21 +414,21 @@ func (g *Merger) redeclarationConflictDiag(dst *ir.Property, pointer jsontext.Po
 // narrowing, so {string, format: uri} against a bare {string} reads as a
 // conflict though the merge loses nothing, and the diagnostic and preserved
 // entry claim otherwise. Every format-narrowing pair is affected.
-func (g *Merger) typesConflict(a, b ir.TypeRef) bool {
-	if a.Target == b.Target || g.isAnyType(a) || g.isAnyType(b) {
+func (n Nodes) typesConflict(a, b ir.TypeRef) bool {
+	if a.Target == b.Target || n.isAnyType(a) || n.isAnyType(b) {
 		return false
 	}
-	ak, aok := g.resolvePrimKind(a)
-	bk, bok := g.resolvePrimKind(b)
+	ak, aok := n.resolvePrimKind(a)
+	bk, bok := n.resolvePrimKind(b)
 	switch {
 	case aok && bok:
 		return ak != bk
 	case aok && !bok:
-		return g.isStructuralType(b)
+		return n.isStructuralType(b)
 	case !aok && bok:
-		return g.isStructuralType(a)
+		return n.isStructuralType(a)
 	default:
-		return g.differentTypeKind(a, b)
+		return n.differentTypeKind(a, b)
 	}
 }
 
@@ -414,11 +440,11 @@ func (g *Merger) typesConflict(a, b ir.TypeRef) bool {
 // position that wrote something only a node can hold gets an alias over the top
 // type, and reading the alias alone would compare PrimAny unequal to the
 // sibling's kind and report the top type as a conflict.
-func (g *Merger) isAnyType(ref ir.TypeRef) bool {
-	if k, ok := g.resolvePrimKind(ref); ok {
+func (n Nodes) isAnyType(ref ir.TypeRef) bool {
+	if k, ok := n.resolvePrimKind(ref); ok {
 		return k == ir.PrimAny
 	}
-	td, ok := g.Resolve(ref.Target)
+	td, ok := n(ref.Target)
 	return ok && td.Kind() == ir.KindAny
 }
 
@@ -432,10 +458,10 @@ func (g *Merger) isAnyType(ref ir.TypeRef) bool {
 // Literal is deliberately left unresolved: Value.Kind doesn't map cleanly to
 // one PrimKind (a ValueNumber literal spans integer/number/float/decimal), so
 // rather than guess it is excluded from isStructuralType below too.
-func (g *Merger) resolvePrimKind(ref ir.TypeRef) (ir.PrimKind, bool) {
+func (n Nodes) resolvePrimKind(ref ir.TypeRef) (ir.PrimKind, bool) {
 	id := ref.Target
 	for range maxTypeResolveDepth {
-		td, ok := g.Resolve(id)
+		td, ok := n(id)
 		if !ok {
 			return "", false
 		}
@@ -460,9 +486,9 @@ func (g *Merger) resolvePrimKind(ref ir.TypeRef) (ir.PrimKind, bool) {
 // TypeDef kinds (a model vs a union); an unresolvable target is never treated
 // as a conflict. Reached only from typesConflict's default case, when neither
 // side resolved a PrimKind — e.g. a base-less opaque scalar against a Union.
-func (g *Merger) differentTypeKind(a, b ir.TypeRef) bool {
-	at, aok := g.Resolve(a.Target)
-	bt, bok := g.Resolve(b.Target)
+func (n Nodes) differentTypeKind(a, b ir.TypeRef) bool {
+	at, aok := n(a.Target)
+	bt, bok := n(b.Target)
 	if !aok || !bok {
 		return false
 	}
@@ -491,8 +517,8 @@ func objectKind(k ir.TypeKind) ir.TypeKind {
 // (Literal for the same reason as in resolvePrimKind), and a base-less opaque
 // scalar is likewise unknown, not structural — none of these count as
 // conflicts.
-func (g *Merger) isStructuralType(ref ir.TypeRef) bool {
-	td, ok := g.Resolve(ref.Target)
+func (n Nodes) isStructuralType(ref ir.TypeRef) bool {
+	td, ok := n(ref.Target)
 	if !ok {
 		return false
 	}

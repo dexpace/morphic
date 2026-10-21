@@ -72,5 +72,7 @@ func serviceWithGrouping(t *testing.T, src string, grouping lowering.GroupingStr
 
 	svc, _, svcDiags := operation.LowerService(t.Context(), c, types, &anchors)
 	acc.AppendAll(svcDiags)
+	_, finished := types.Finish(t.Context())
+	acc.AppendAll(finished)
 	return svc, append(loadDiags, acc.List()...)
 }

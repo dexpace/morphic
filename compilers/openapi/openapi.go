@@ -187,11 +187,13 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, 
 	out.Services = []ir.Service{svc}
 	out.TagDefs = tagDefs
 	acc.AppendAll(svcDiags)
-	// Every lowering has returned, so the registry is finished: what was
-	// deferred until it is whole is decided now (compile.Settlement), before the
-	// check that refuses a registry either phase left cut short. What Finish
-	// reports carries each entry the registry refused, a compiler bug that would
-	// otherwise leave every reference to it dangling with nothing said.
+	// Every lowering has returned, so the registry is finished: a coordinate a
+	// $ref named and none built is built now, in its own context
+	// (compile.Types.Promise), and what was deferred until the registry is whole
+	// is decided (compile.Settlement), before the check that refuses a registry
+	// either phase left cut short. What Finish reports carries each entry the
+	// registry refused, a compiler bug that would otherwise leave every reference
+	// to it dangling with nothing said.
 	reg, settled := ts.Finish(ctx)
 	acc.AppendAll(settled)
 	if err := ctx.Err(); err != nil {

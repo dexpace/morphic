@@ -280,7 +280,7 @@ func TestRefScope_CarriesTheBindingsItWasGiven(t *testing.T) {
 	carrying := bare.WithLoaded(loaded)
 	assert.Same(t, loaded.Bindings, carrying.Bindings())
 	assert.Same(t, loaded.Bindings, carrying.RefScope().Bindings)
-	assert.Same(t, loaded.Bindings, carrying.NamingByReference().Bindings(), "a copy shares it")
+	assert.Same(t, loaded.Bindings, carrying.InScope(carrying.RefScope()).Bindings(), "a copy shares it")
 	assert.Same(t, loaded.Bindings, carrying.WithAuth(nil).RefScope().Bindings)
 	at, ok := carrying.RefScope().Target(alias)
 	require.True(t, ok, "its $ref lands where the load phase resolved it")
@@ -364,7 +364,7 @@ func TestTypePosition_IsReadOncePerScope(t *testing.T) {
 	}
 
 	ask(c, "/x")
-	ask(c.NamingByReference(), "/x")
+	ask(c.InScope(c.RefScope()), "/x")
 	assert.Equal(t, 1, reads, "a copy reads what the context remembered")
 	ask(c, "/y")
 	ask(c, "/y")
@@ -580,46 +580,27 @@ func TestWithLoaded_ReadsRawYAMLThroughTheLoadIndex(t *testing.T) {
 	assert.NotNil(t, base.WithLoaded(doc).RefScope().Holds)
 }
 
-// TestCtx_NamingByReferenceIsScopedToTheCopy holds what makes the flag safe to
-// thread: it is set on a copy, so a lowering that descends under a $ref cannot
-// leak the marking back to the caller that is still lowering a declaration.
-func TestCtx_NamingByReferenceIsScopedToTheCopy(t *testing.T) {
+// TestCtx_DeclareHintKeepsTheFirstRecordForEveryCopy pins the record a hoisted
+// node takes its name from: the first hint recorded for a position stands,
+// every copy of a context reads and writes the one record, except a copy given
+// another load, and a zero context records nothing.
+func TestCtx_DeclareHintKeepsTheFirstRecordForEveryCopy(t *testing.T) {
 	t.Parallel()
-	declaring := lowering.Ctx{}
-	assert.False(t, declaring.NamesByReference(), "a context names by declaration by default")
+	c := lowering.New(0, &soa.OpenAPI{}, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{},
+		lowering.ExtensionPromotions{}, overlay.Origin{})
+	_, recorded := c.HintAt("/x")
+	assert.False(t, recorded, "nothing is recorded before a lowering reaches the position")
 
-	referencing := declaring.NamingByReference()
-	assert.True(t, referencing.NamesByReference())
-	assert.False(t, declaring.NamesByReference(),
-		"the caller's context is unchanged, so the marking cannot escape the subtree")
+	c.DeclareHint("/x", "declared")
+	c.InScope(c.RefScope()).DeclareHint("/x", "later")
+	hint, recorded := c.InScope(c.RefScope()).HintAt("/x")
+	require.True(t, recorded, "a copy reads what another recorded")
+	assert.Equal(t, "declared", hint, "and the first record stands")
+	_, recorded = c.WithLoaded(&load.Document{}).HintAt("/x")
+	assert.False(t, recorded, "a copy given another load remembers none of the old one's")
 
-	assert.True(t, referencing.NamingByReference().NamesByReference(),
-		"and marking an already-marked context is a no-op rather than a toggle")
-}
-
-// TestCtx_NamingByReferenceAtMarksOnlyAForeignDeclaration pins the question the
-// marking is derived from: whether the declaration a lowering is about to read
-// sits at the position that reached it.
-//
-// The two pointers agree exactly when a construct is declared where it is used,
-// and differ exactly when a $ref carried the lowering into a declaration another
-// position owns. Deciding it here rather than at each call site is what keeps a
-// request body and a response header answering it the same way (GitHub #433).
-func TestCtx_NamingByReferenceAtMarksOnlyAForeignDeclaration(t *testing.T) {
-	t.Parallel()
-	const use = "/paths/~1b/post/requestBody"
-	declaring := lowering.Ctx{}
-
-	assert.False(t, lowering.NamingByReferenceAt(declaring, declaring, use, use).NamesByReference(),
-		"a construct declared where it is used is reached through its own declaration")
-
-	foreign := lowering.NamingByReferenceAt(declaring, declaring, use, "/paths/~1a/post/requestBody")
-	assert.True(t, foreign.NamesByReference(),
-		"a declaration another position owns is reached by reference, so its name is a placeholder")
-	assert.False(t, declaring.NamesByReference(),
-		"and the caller's context is left alone, as NamingByReference leaves it")
-
-	assert.True(t, lowering.NamingByReferenceAt(foreign, foreign, use, use).NamesByReference(),
-		"a marked context stays marked: the subtree under a $ref is named by reference throughout, "+
-			"however its own positions line up")
+	var zero lowering.Ctx
+	zero.DeclareHint("/x", "declared")
+	_, recorded = zero.HintAt("/x")
+	assert.False(t, recorded, "a zero context records nothing")
 }

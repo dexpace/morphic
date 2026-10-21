@@ -6,11 +6,10 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// A Settlement is a decision about a node that reads nodes other lowerings
-// intern. A walk lowers one declaration at a time, so mid-walk such a decision
-// would read whatever had been lowered so far, and its answer would follow
-// declaration order (invariant 3). Deferred to Finish, it reads the registry
-// whole.
+// A Settlement is a decision that reads nodes other lowerings intern. A walk
+// lowers one declaration at a time, so mid-walk such a decision would read
+// whatever had been lowered so far, and its answer would follow declaration
+// order (invariant 3). Deferred to Finish, it reads the registry whole.
 //
 // Settle may rewrite nodes already in reg but must not add or remove one:
 // nothing lowers after it, so an added node is one no lowering produced, and a
@@ -34,10 +33,10 @@ func (t *Types) Defer(s Settlement) {
 }
 
 // settle takes every deferred Settlement once, in the order deferred, and
-// returns their diagnostics; Finish is how a compiler calls it, after its last
-// lowering returns. Like the walks, it checks ctx before each settlement and
-// stops once it is done, leaving a registry the caller must not assemble. A
-// settlement that changes how many nodes the registry holds is refused, and
+// returns their diagnostics; Finish is how a compiler calls it, once every
+// promised node is built. Like the walks, it checks ctx before each settlement
+// and stops once it is done, leaving a registry the caller must not assemble.
+// A settlement that changes how many nodes the registry holds is refused, and
 // what it did is left standing: the refusal names a compiler bug, not a
 // recovery. A swap of one node for another keeps the count, so the references
 // it leaves dangling are left to pass.Validate and irverify.
