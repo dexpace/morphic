@@ -386,7 +386,7 @@ func assertAllOfConflictingType(t *testing.T, doc *ir.Document, diags []ir.Diagn
 
 // assertAllOfNarrowingRedeclaration pins that a redeclaration narrowing a bare
 // primitive is lossless (GitHub #598, #446): each pair, in both branch orders,
-// merges to the narrower target with no warning and nothing kept under
+// merges to the narrower target with no diagnostic and nothing kept under
 // Unmodeled, and the two orders agree on the type. The Nullable pair adds the
 // nullability intersection and the broad branch's adopted minimum, and the
 // InadmissibleDefault pair the broad default the narrow kind refuses.
