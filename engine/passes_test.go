@@ -373,6 +373,43 @@ func TestEngine_RunHoldsPassesToTheSourceTable(t *testing.T) {
 	}
 }
 
+// TestEngine_RunHoldsPassDiagnosticsToTheSourceTable pins the other half of
+// what Result.Sources promises: every finding a pass reports indexes the table
+// or no source at all, so a renderer never looks a file up past its end. The
+// compiler is held to the same by compilers.Detection.Compile.
+func TestEngine_RunHoldsPassDiagnosticsToTheSourceTable(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		source  int
+		refused bool
+	}{
+		{source: 0},
+		{source: ir.NoSource},
+		{source: 1, refused: true},
+		{source: -2, refused: true},
+	} {
+		t.Run(fmt.Sprint(tc.source), func(t *testing.T) {
+			t.Parallel()
+			finding := ir.NewDiagnostic(ir.SeverityWarning, "x/finding", "m", ir.Provenance{Source: tc.source})
+			eng, err := engine.NewWithPasses([]pass.Pass{reportPass{[]ir.Diagnostic{finding}}}, splitDiagCompiler{})
+			require.NoError(t, err)
+
+			res, err := eng.Run(t.Context(), writeSpec(t, testspec.Tiny), engine.RunOptions{})
+
+			if !tc.refused {
+				require.NoError(t, err)
+				assert.Contains(t, res.Diagnostics, finding)
+				return
+			}
+			require.ErrorIs(t, err, engine.ErrSourceOutOfRange)
+			assert.Contains(t, err.Error(), `"report"`, "the error names the pass")
+			assert.Contains(t, err.Error(), fmt.Sprintf("x/finding at source %d of 1", tc.source),
+				"and the finding, with the index it gave")
+			assert.Nil(t, res)
+		})
+	}
+}
+
 // TestEngine_RunStopsBeforeTheNextPassOnceCancelled pins that ctx is checked
 // before every pass, the first included: a run cancelled during the compile or
 // during a pass runs no further pass and names the one it stopped before.

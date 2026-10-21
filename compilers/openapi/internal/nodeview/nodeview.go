@@ -161,7 +161,9 @@ func (v *View) expand(n *yaml.Node, depth int) expansion {
 		return cached
 	}
 	// A merge cycle needs no bound of its own: it requires an alias to an
-	// ancestor, which the alias pre-scan refuses before any view reads the tree.
+	// ancestor, which the alias pre-scan refuses before a compile's views read
+	// the tree. Detection reads the root before that scan, and inFlight closes
+	// a cycle there having read every mapping on it.
 	if v.inFlight[n] {
 		return expansion{}
 	}

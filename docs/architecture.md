@@ -74,7 +74,7 @@ type Compiler interface {
     DecodeOptions(set OptionSet) (any, error)
     // Compile lowers sources into a Document, or refuses them with a nil one.
     Compile(ctx context.Context, sources []Source, opts Options) (*ir.Document, []ir.Diagnostic, error)
-    // SourceTable names the inputs a compile reads: the table a refusal's diagnostics index.
+    // SourceTable names the inputs its arguments name: the table a refusal's diagnostics index.
     SourceTable(sources []Source, opts Options) []ir.SourceInfo
 }
 ```
@@ -134,6 +134,34 @@ rather than a Go error. Time is bounded by the caller instead of by a constant: 
 work proportional to the document, and the settling after them, honour the `context.Context` a
 compile is given, so a deadline or a cancellation stops one between items and the error reaches the
 caller unwrapped.
+
+**The contract is checked, not trusted.** Each duty `compilers.Compiler`'s doc comments state is
+held where its data is. `Registry.Register` refuses a format naming no dialect, and
+`Registry.Detect` a claim naming none and a decline that indexes a source detection was not handed
+or speaks with no error. `Detection.Compile`, which the engine compiles through, refuses a refusal
+that gives no error, a source table that does not open with the one `SourceTable` names, a source
+read as a format other than the one it was recognized as or hashed from other bytes, and a finding
+indexing no source. Entries past that opening name what else the compile read, such as a document a
+reference names, which `SourceTable` reads no input to know of. Each breach is a Go error wrapping
+`compilers.ErrContract`: a compiler bug, never the spec's. What a document holds whatever produced
+it, the schema stamp, the namespaces, a service and a well-formed source table among them, is
+`irverify`'s, and `compile.Types.Finish` hands a compiler its registry with the diagnostics it
+reports, a `compile/registry-refused` error for each entry the registry refused among them.
+
+**What stays in the OpenAPI compiler.** Three of its pieces read as if any format could use them:
+the YAML view (`internal/nodeview`), version sniffing (`detect.go`) and document identity
+(`resolve.SameDocument`, `resolve.IsURL`). None moves into `compilers/compile`, because what each
+owes is agreement with the OpenAPI parser library, not with YAML or RFC 3986. The view reads a
+mapping as the library's unmarshaller does, its `<<` merges and repeated keys included, which
+yaml.v3's own decoder reads differently. Sniffing reads the parse the compile lowers, through that
+view, and claims a broken document by OpenAPI's discriminating keys. Identity classifies a location
+as the library's resolver does. A compiler parsing through the same library is the evidence that
+would move the view or identity, and one wanting the byte probe for a key of its own would move
+that probe; any other needs a reading that agrees with its own parser, since a shared reading would
+disagree with it as detection disagreed with the compile before it read through the view. What does
+cross formats is a duty rather than code, a recognition naming the version the compile reads, and
+`Detection.Compile` holds every compiler to it. The one piece every compiler spelled alike, the
+digest a source table records, is `ir.SourceHash`.
 
 Compilers are registered in a registry keyed by the formats they report, and detection belongs to
 them too: the registry asks each compiler in registration order whether it recognizes a source, and
@@ -350,6 +378,7 @@ morphic/
 │   └── output/             #           Writes the IR document to a stream, or to a file atomically.
 ├── internal/archtest/      #           Import layering, the recursion pin and the caps (tooling).
 ├── internal/census/        #           Counts which IR facts a set of documents sets (tooling).
+├── internal/conformance/   #           Holds each registered format to its matrix column (tooling, tests only).
 ├── internal/decls/         #           Type-checked reads of declarations, for tests (tooling).
 ├── internal/harness/       #           Bug-catching oracle sweep over a spec corpus (tooling).
 ├── internal/jsonshape/     #           The IR's JSON shape: IRVersion's pin and the census read it (tooling).
@@ -446,11 +475,12 @@ something a caller asks for with `none`, never a default.
 - **Capability conformance corpus**: one minimal spec per row of `ir-spec-matrix.md` per format
   that can express it, asserting the IR captures it losslessly. This is the regression net that
   keeps "lossless by default" honest as compilers are added. Row and spec are tied to each other
-  rather than left to prose: every matrix row carries a stable key, each corpus spec names the keys
-  it witnesses, and a row the OpenAPI column marks expressible must be witnessed by a spec or
-  listed as not-yet-covered with a reason (`compilers/openapi/conformance_matrix_test.go`). What
-  stays a reviewer's job is the claim inside that link — a spec naming a row has to *exercise* that
-  capability, and no test can read a golden and tell you whether it does.
+  rather than left to prose: every matrix row and format column carries a stable key, each
+  format's `testdata/conformance/<format>/matrix.md` names the specs that witness every row its
+  column marks expressible or why none does yet, and `internal/conformance` holds each format the
+  engine registers a compiler for to that column. What stays a reviewer's job is the claim inside
+  that link — a spec naming a row has to *exercise* that capability, and no test can read a golden
+  and tell you whether it does.
 - **Round-trip property**: `parse → serialize → deserialize → deep-equal` for every corpus
   document.
 - **Oracle sweep** (`internal/harness`): every corpus spec is driven through the oracles in order

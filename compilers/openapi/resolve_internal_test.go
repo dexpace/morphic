@@ -92,13 +92,13 @@ components:
 `)
 	l.diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.ctx, l.types, &l.anchors))
 
-	sc, ok := typeByName(l.out, "S").(*ir.Scalar)
+	sc, ok := typeByName(l.document(t), "S").(*ir.Scalar)
 	require.True(t, ok, "S aliases Target and must own a Scalar node")
 	require.NotNil(t, sc.Constraints, "a bound beside a $ref binds S, not Target")
 	require.NotNil(t, sc.Constraints.Min)
 	assert.Equal(t, "5", sc.Constraints.Min.String())
 
-	target := typeByName(l.out, "Target")
+	target := typeByName(l.document(t), "Target")
 	require.NotNil(t, target)
 	tsc, ok := target.(*ir.Scalar)
 	require.True(t, ok, "Target aliases a primitive and must own a Scalar node")
@@ -131,12 +131,12 @@ components:
 `)
 	l.diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.ctx, l.types, &l.anchors))
 
-	target := typeByName(l.out, "Target")
+	target := typeByName(l.document(t), "Target")
 	require.NotNil(t, target)
 	assert.Empty(t, target.Common().Examples,
 		"an example beside a $ref must not attach to the referent")
 
-	holder, ok := typeByName(l.out, "Holder").(*ir.Model)
+	holder, ok := typeByName(l.document(t), "Holder").(*ir.Model)
 	require.True(t, ok, "Holder must own a Model node")
 	f, ok := openapitest.PropsByWire(holder.Properties)["f"]
 	require.True(t, ok, "property f must be present")

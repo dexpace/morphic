@@ -39,7 +39,7 @@ func compile(t *testing.T, name string, data []byte) *ir.Document {
 // lists a directory.
 func corpusSpecs(t *testing.T) []string {
 	t.Helper()
-	out, err := harness.SpecFiles("../../testdata")
+	out, err := harness.SpecFiles(t.Context(), "../../testdata")
 	require.NoError(t, err)
 	require.NotEmpty(t, out, "corpus sweep found no specs")
 	return out

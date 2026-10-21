@@ -39,6 +39,9 @@ var rules = map[string][]string{
 	"ir/irtest":   {module + "/ir", "github.com/google/go-cmp" + subtreeSuffix},
 	"ir/irverify": {module + "/ir"},
 	"compilers":   {module + "/ir"},
+	// What every compiler shares: the type registry, diagnostics and the naming
+	// and ID grammars. It reaches ir alone, so no compiler's vocabulary rides in.
+	"compilers/compile": {module + "/ir"},
 	"compilers/openapi": {module + "/ir", module + "/compilers", module + "/compilers/compile",
 		module + "/compilers/openapi/internal" + subtreeSuffix,
 		"github.com/speakeasy-api/openapi" + subtreeSuffix, "gopkg.in/yaml.v3"},
@@ -365,7 +368,7 @@ var rules = map[string][]string{
 // to neither fails, which is what stops both lists rotting.
 var exempt = map[string]string{
 	"internal/harness": "test/tooling infrastructure that drives specs through the oracles, " +
-		"so it legitimately imports the Layer-1 compilers/openapi package",
+		"so it legitimately imports the Layer-3 engine for the compilers it registers",
 }
 
 // TestImportGraph_LayeringHolds parses every non-test Go file under each ruled
@@ -438,6 +441,39 @@ func TestWalkImports_NestedLookAlikeIsAudited(t *testing.T) {
 	assert.Contains(t, violations[0], filepath.Join("sub", "irtest", "nested.go"))
 }
 
+// TestWalkImports_AnInheritingPackageIsNamed plants the package a new compiler
+// starts as: a directory under compilers/ with no entry of its own, importing
+// the contract package its inherited allowlist forbids. The message must name
+// the missing entry, which is the fix, rather than the import alone.
+func TestWalkImports_AnInheritingPackageIsNamed(t *testing.T) {
+	t.Parallel()
+	base := t.TempDir()
+	writeImporter(t, filepath.Join(base, "newformat", "newformat.go"), module+"/compilers/compile")
+
+	violations, err := walkImports("compilers", base, rules["compilers"])
+	require.NoError(t, err)
+	require.Len(t, violations, 1)
+	assert.Contains(t, violations[0], "compilers/newformat has no rules entry of its own")
+}
+
+// TestOwnEntryRequired_HoldsEveryPackageUnderCompilers pins the subtree the
+// stricter rule covers: each package under compilers/, at any depth, and
+// nothing outside it, where nearest-ancestor inheritance is deliberate.
+func TestOwnEntryRequired_HoldsEveryPackageUnderCompilers(t *testing.T) {
+	t.Parallel()
+	for dir, want := range map[string]bool{
+		"compilers":                       true,
+		"compilers/newformat":             true,
+		"compilers/openapi/internal/zz":   true,
+		"compilers/openapi/internal/a/b":  true,
+		"compilersx":                      false,
+		"internal/harness":                false,
+		"internal/lintrules/testdata/mod": false,
+	} {
+		assert.Equal(t, want, ownEntryRequired(dir), dir)
+	}
+}
+
 // writeImporter writes a minimal parseable Go file at file importing imp, so a
 // planted tree exercises walkImports without a buildable package.
 func writeImporter(t *testing.T, file, imp string) {
@@ -448,8 +484,9 @@ func writeImporter(t *testing.T, file, imp string) {
 }
 
 // TestImportGraph_EveryPackageIsRuledOrExempt requires every directory holding
-// production Go files to be reached by rules — through itself or an ancestor —
-// or named in exempt with its reason.
+// production Go files to be reached by rules — through itself or an ancestor,
+// and under compilers/ through itself (ownEntryRequired) — or named in exempt
+// with its reason.
 //
 // A package in neither is audited by nothing, and looks no different from one
 // deliberately left out: the layering gate stays green while that package
@@ -469,10 +506,24 @@ func TestImportGraph_EveryPackageIsRuledOrExempt(t *testing.T) {
 		assert.True(t, coveredByRule(dir),
 			"%s holds production Go files but no import rule reaches it; "+
 				"add it to rules, or name it in exempt with the reason it is out", dir)
+		_, own := rules[dir]
+		assert.False(t, ownEntryRequired(dir) && !own,
+			"%s has no rules entry of its own: a package under compilers/ needs one, since an inherited "+
+				"allowlist says nothing about where it sits (CONTRIBUTING.md, Add a compiler, step 2)", dir)
 	}
 	for dir := range exempt {
 		assert.Contains(t, pkgs, dir, "exempt names %s, which holds no production Go files", dir)
 	}
+}
+
+// ownEntryRequired reports whether dir must carry a rules entry of its own
+// rather than inherit an ancestor's. Under compilers/ an inherited allowlist is
+// never the intended one: a new compiler would inherit the contract package's,
+// which forbids the two packages every compiler imports, and a compiler's
+// internal package its compiler's, which admits every sibling the ordering
+// among them exists to keep out.
+func ownEntryRequired(dir string) bool {
+	return dir == "compilers" || strings.HasPrefix(dir, "compilers/")
 }
 
 // coveredByRule reports whether dir or one of its ancestors carries an import
@@ -544,7 +595,7 @@ func walkImports(dir, base string, allowed []string) ([]string, error) {
 		if !isProductionGoFile(d.Name()) {
 			return nil
 		}
-		found, ferr := fileViolations(p, dir, allowed)
+		found, ferr := fileViolations(p, inheritedBy(dir, base, filepath.Dir(p)), allowed)
 		if ferr != nil {
 			return ferr
 		}
@@ -575,8 +626,21 @@ func skipIfRuled(dir, base, p string) error {
 	return nil
 }
 
+// inheritedBy names the rule a file in pkgDir is audited under: dir itself when
+// pkgDir is base, the directory dir's entry keys, and otherwise dir with a note
+// that the package has no entry of its own. A violation in an inheriting
+// package is most often that missing entry rather than a wrong import, and a
+// message naming only the ancestor's allowlist sends its reader to the import.
+func inheritedBy(dir, base, pkgDir string) string {
+	rel, err := filepath.Rel(base, pkgDir)
+	if err != nil || rel == "." {
+		return dir
+	}
+	return dir + " (" + path.Join(dir, filepath.ToSlash(rel)) + " has no rules entry of its own and inherits it)"
+}
+
 // fileViolations parses one file's import declarations and returns a message for
-// each disallowed non-stdlib import.
+// each disallowed non-stdlib import. dir names the rule it is audited under.
 func fileViolations(p, dir string, allowed []string) ([]string, error) {
 	f, err := parser.ParseFile(token.NewFileSet(), p, nil, parser.ImportsOnly)
 	if err != nil {

@@ -486,7 +486,7 @@ Compile(source, opts) → (ir.Document, []ir.Diagnostic)
   2. scan      cycle and amplification refusal, pure over raw source
   3. index     derive Ctx once
   4. lower     recursive descent; each node f(ctx, ts, at) → (value, diags)
-  5. assemble  Document from returned values + ts.Registry()
+  5. assemble  Document from returned values + ts.Finish()
 ```
 
 ### 6.1 Diagnostic fan-in is the neutrality risk
