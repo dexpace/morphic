@@ -740,9 +740,16 @@ func unmodeledAt(s *oas3.Schema, pointer jsontext.Pointer, locate Locator) (ir.U
 // `$schema`/`$vocabulary` to land on and none is coming — ReasonOutOfScope rather
 // than ReasonNoIRHome (§12).
 //
-// `$id` is kept, not honoured: reference resolution addresses same-document JSON
-// pointers, never an `$id` base URI.
+// `$id` is kept and read besides: the binder resolves a $ref against the
+// identifier and base URI it gives (docs/compilers/openapi.md#references).
 var DialectKeywords = []string{"$id", "$schema", "$vocabulary"}
+
+// dialectRead is what each dialect keyword is read for, beyond being kept.
+var dialectRead = map[string]string{
+	"$id":         "is read only as the identifier, and the base URI, that references resolve against",
+	"$schema":     "is not honoured for reference resolution",
+	"$vocabulary": "is not honoured for reference resolution",
+}
 
 // dialectAt keeps each dialect keyword s declares verbatim and announces it, so
 // the exclusion is visible in the output rather than only in this comment.
@@ -759,8 +766,8 @@ func dialectAt(s *oas3.Schema, pointer jsontext.Pointer, locate Locator) (ir.Unm
 		}
 		diags = append(diags, diag.Newf(ir.SeverityInfo, diag.DegradedConstruct, prov,
 			"%s identifies or configures a JSON Schema resource rather than describing data; "+
-				"the IR models no such axis, so it is kept verbatim under Unmodeled and is not "+
-				"honoured for reference resolution", keyword))
+				"the IR models no such axis, so it is kept verbatim under Unmodeled and %s", keyword,
+			dialectRead[keyword]))
 	}
 	return p, diags
 }

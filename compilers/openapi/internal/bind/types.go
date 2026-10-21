@@ -99,12 +99,28 @@ const (
 	NoReason Reason = iota
 	// NoTarget is a pointer that names no node of its document.
 	NoTarget
+	// NoResourceTarget is a pointer that names no node of the schema resource
+	// an $id names, which it is read from; Hop.Detail is the resource's URI.
+	NoResourceTarget
 	// NotSchema is a node no schema reference may name: an object of the
 	// grammar, or a value that is neither a mapping nor a boolean.
 	NotSchema
-	// AnchorTarget is a fragment naming a $anchor, which is not read as a
-	// target (docs/compilers/openapi.md#references).
-	AnchorTarget
+	// NoAnchor is a plain-name fragment no schema of the resource it names
+	// declares as its $anchor or $dynamicAnchor.
+	NoAnchor
+	// DuplicateAnchor is a plain-name fragment two or more schemas of the
+	// resource it names declare, so it names none.
+	DuplicateAnchor
+	// AnchorUnread is a plain-name fragment naming a resource of another
+	// document, whose identifiers are not read (GitHub #74).
+	AnchorUnread
+	// UnknownID is a URI, resolved against a base an $id gives, that no schema
+	// declares as its $id. An $id is an identifier, not a location, so no
+	// document is read for it; Hop.Detail is the URI.
+	UnknownID
+	// DuplicateID is a URI two or more schemas declare as their $id, so it
+	// names none; Hop.Detail is the URI.
+	DuplicateID
 	// BadPointer is a fragment that is no JSON pointer and no $anchor name: an
 	// invalid escape, bytes that are not UTF-8, or a second '#', which RFC
 	// 3986 admits in no fragment.
@@ -150,7 +166,8 @@ type Hop struct {
 	Ref    string
 	Status Status
 	Reason Reason
-	// Detail is a read error, for Unreadable.
+	// Detail is a read error, for Unreadable, and the URI named, for
+	// NoResourceTarget, UnknownID and DuplicateID.
 	Detail string
 	// Use and Key are the path item $ref and the key written beside it, for
 	// BesideRef.
@@ -236,10 +253,22 @@ func (h Hop) Why() string {
 	switch h.Reason {
 	case NoTarget:
 		return "it names nothing in the document it points into"
+	case NoResourceTarget:
+		return "it names nothing in the schema resource " + h.Detail + ", whose root its pointer is read from"
 	case NotSchema:
 		return "it names a position that holds no schema"
-	case AnchorTarget:
-		return "it names a $anchor, which the compiler does not read as a reference target"
+	case NoAnchor:
+		return "no schema of the resource it names declares that name as its $anchor or $dynamicAnchor"
+	case DuplicateAnchor:
+		return "two or more schemas of the resource it names declare that name as their $anchor or " +
+			"$dynamicAnchor, so it names none of them"
+	case AnchorUnread:
+		return "it names a $anchor in another document, whose identifiers are not read (GitHub #74)"
+	case UnknownID:
+		return "it names " + h.Detail + " against the base an $id gives, which no schema declares as its $id; " +
+			"an $id is an identifier, not a location, so no document is read for it"
+	case DuplicateID:
+		return "two or more schemas declare " + h.Detail + " as their $id, so it names none of them"
 	case BadPointer:
 		return "its fragment is no JSON pointer"
 	case NoDefinition:

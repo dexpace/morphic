@@ -175,6 +175,7 @@ func conformanceCases() []conformanceCase {
 		{"dependent-required", assertDependentRequired, nil},
 		{"dialect-keywords", assertDialectKeywords, nil},
 		{"dynamic-ref", assertDynamicRef, nil},
+		{"schema-identifiers", assertSchemaIdentifiers, nil},
 		{"enum-string", assertEnumString, []string{"enums-string"}},
 		{"enum-numeric", assertEnumNumeric, []string{"enums-numeric"}},
 		{"empty-enum", assertEmptyEnum, nil},

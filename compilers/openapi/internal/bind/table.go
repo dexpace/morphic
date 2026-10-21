@@ -80,6 +80,7 @@ type binder struct {
 	work   *budget
 	defs   definitions
 	find   *finder
+	ids    *identifiers
 	hops   map[Position]Hop
 	chains map[Position]Chain
 	loops  []Loop
@@ -96,6 +97,7 @@ func Bind(src *yaml.Node, cfg Config) *Table {
 	b := &binder{cfg: cfg, docs: d, work: work, defs: definitions{docs: d, work: work}, find: newFinder(d, work),
 		hops: map[Position]Hop{}, chains: map[Position]Chain{}}
 	b.find.walk(rootOf(Source, sDocument), false)
+	b.ids = b.find.ids
 	t := &Table{entries: map[Position]Entry{}, mappings: map[mappingKey]Mapping{}}
 	for more := true; more && !work.over(); more = b.find.walkPending() {
 		b.settle(t)

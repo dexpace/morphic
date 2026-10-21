@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
@@ -572,8 +573,37 @@ func assertDialectKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic
 	assert.JSONEq(t, `"https://example.com/schemas/resource"`, string(declared.Value))
 	for id := range doc.Types {
 		assert.NotContains(t, string(id), "example.com",
-			"$id is kept, never honoured: no type is keyed by the identity it declares")
+			"$id is kept, and read only to resolve references: no type is keyed by the identity it declares")
 	}
+}
+
+// assertSchemaIdentifiers pins a $ref naming a schema by an identifier, as JSON
+// Schema 2020-12 §8.2 reads one (docs/compilers/openapi.md#references): a plain
+// name a $anchor or a $dynamicAnchor declares, every schema under no $id being
+// in the document's resource; a URI an $id declares, and one relative to the
+// $id above the $ref; and, under an $id, a pointer read from the resource's
+// root, "#" naming the schema writing it.
+func assertSchemaIdentifiers(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	for _, d := range diags {
+		assert.NotEqual(t, ir.SeverityError, d.Severity, "every identifier resolves: %s", d.Message)
+	}
+	for model, props := range map[string]map[string]ir.TypeID{
+		"Pet": {"owner": namedID("Person"), "tag": namedID("Tag"), "address": namedID("Address")},
+		"Address": {"country": namedID("Country"), "next": namedID("Address"),
+			"zip": ids.ForPointer("/components/schemas/Address/$defs/zip")},
+	} {
+		m, ok := doc.Types[namedID(model)].(*ir.Model)
+		require.True(t, ok, model)
+		for wire, want := range props {
+			p, ok := propByWire(m, wire)
+			require.True(t, ok, "%s.%s", model, wire)
+			assert.Equal(t, want, p.Type.Target, "%s.%s", model, wire)
+		}
+	}
+	zip, ok := doc.Types[ids.ForPointer("/components/schemas/Address/$defs/zip")].(*ir.Scalar)
+	require.True(t, ok, "the definition a pointer under the $id names lowers where it is written")
+	require.NotNil(t, zip.Constraints)
+	assert.Equal(t, "^[0-9]{5}$", zip.Constraints.Pattern)
 }
 
 // assertDynamicRef pins both halves of $dynamicRef lowering (GitHub #125). A name

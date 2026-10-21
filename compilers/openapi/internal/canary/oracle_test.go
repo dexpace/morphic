@@ -109,8 +109,19 @@ var oracleReasons = map[string]string{
 	"through-reference": "the library resolves no schema $ref whose pointer passes a reference object, though " +
 		"it reads past one for a reference object's own $ref; the compiler reads both alike " +
 		"(docs/compilers/openapi.md#references)",
-	"anchor-id": "the compiler reads no $anchor or $id as a reference target, and no $id as a base URI, so a " +
-		"fragment names a position from the document's root (docs/compilers/openapi.md#references)",
+	"anchor-id": "the compiler reads a plain-name fragment as the $anchor or $dynamicAnchor the resource it " +
+		"names declares, and a URI an $id declares as that schema, every schema under no $id being in the " +
+		"document's resource, as OAS 3.1 reads one (JSON Schema 2020-12 §8.2, docs/compilers/openapi.md#references); " +
+		"the library looks for an anchor only inside the top-level schema it resolves, whatever URI names it, " +
+		"reads no $dynamicAnchor as one, and reads a URI an $id declares as a document to fetch",
+	"id-base": "the compiler reads a $ref under an $id against the base the $id gives: a fragment's pointer from " +
+		"the root of the resource it names, with no fallback, and a relative URI as an identifier, never a " +
+		"document to fetch (JSON Schema 2020-12 §8.2.1); under none, a fragment is read in the document, so \"#\" " +
+		"names its root; the library reads a fragment's pointer from another root: the document's, the " +
+		"top-level schema's, or one its $defs rule finds",
+	"duplicate-identifier": "two or more schemas declare the $anchor, $dynamicAnchor or $id the reference " +
+		"names, which JSON Schema 2020-12 §8.2 forbids, so the compiler reads it as naming none of them; the " +
+		"library takes one",
 	"alias-position": "the compiler reads a YAML alias where it is written, as the document's JSON places it; " +
 		"the library, where its anchor is",
 	"duplicate-key": "the compiler reads a key written twice in a mapping as its last occurrence wherever the " +
