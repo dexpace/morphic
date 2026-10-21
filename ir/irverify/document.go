@@ -64,8 +64,8 @@ func checkDocument(doc *ir.Document) []Violation {
 // isFormat reports whether format reads as name@version, each part non-empty
 // and the name free of '@', as compilers.SourceFormat.String spells one.
 func isFormat(format string) bool {
-	name, version, ok := strings.Cut(format, "@")
-	return ok && name != "" && version != ""
+	name, version, _ := strings.Cut(format, "@")
+	return name != "" && version != ""
 }
 
 // isSHA256Hex reports whether hash is a SHA-256 digest in lowercase hex, the
