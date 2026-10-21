@@ -1417,8 +1417,9 @@ applies decides.
    - an import cycle between units is an error, since neither a Go package nor a Gradle module
      admits one, naming the units and one reference that closes the cycle.
 
-   Until the compiler loads a spec split across files into one document (#74), `Sources` names the
-   entry document and its overlay alone, so every other key names no source.
+   Each document a spec's references read is a `Sources` entry after the entry document and its
+   overlay, and a type it declares, inline in a parameter or response it holds included, names that
+   entry (ir-design §3.1), so a key names a file the references read.
 2. **Split by group.** With `SplitByGroup`, each top-level operation group is a unit, holding the
    group's operations, its sub-client and every type only its operations reach, as `TypePlan.Reach`
    says; `Reach` spreads from each operation's roots along the type graph as usage does (ir-design

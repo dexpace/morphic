@@ -4,7 +4,6 @@
 package openapi_test // external test package — exercises only the public API
 
 import (
-	"encoding/json/jsontext"
 	"fmt"
 	"maps"
 	"os"
@@ -19,6 +18,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
+	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
@@ -92,10 +92,10 @@ paths:
 
 // TestExternalContent_ARefInItNamesItsOwnDocument pins GitHub #762. A pointer
 // $ref in an object another document holds names a position in that document,
-// which the compile cannot lower (GitHub #74): it is reported unresolved, never
-// resolved to what the source declares at the same pointer. Each row reaches
-// the object by a kind of entry the operation walk follows. The last comes back
-// into the source, whose Thing it does name.
+// and lowers to the type declared there, in that document's namespace, never
+// to what the source declares at the same pointer. Each row reaches the object
+// by a kind of entry the operation walk follows. The last comes back into the
+// source, whose Thing it names.
 func TestExternalContent_ARefInItNamesItsOwnDocument(t *testing.T) {
 	t.Parallel()
 	op := func(lines string) string { return "  /op:\n    get:\n" + lines }
@@ -121,34 +121,32 @@ func TestExternalContent_ARefInItNamesItsOwnDocument(t *testing.T) {
 			dir := t.TempDir()
 			require.NoError(t, os.WriteFile(filepath.Join(dir, "ext.yaml"), []byte(foreignContent), 0o600))
 			root := foreignRoot(c.paths)
-			_, diags, err := openapi.New().Compile(t.Context(),
+			doc, diags, err := openapi.New().Compile(t.Context(),
 				[]compilers.Source{{Path: filepath.Join(dir, "root.yaml"), Data: []byte(root)}},
 				compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
 			require.NoError(t, err)
+			require.NotNil(t, doc)
+			openapitest.RequireNoErrorDiags(t, diags)
 
-			var foreign []ir.Diagnostic
-			for _, d := range diags {
-				if strings.Contains(d.Message, "the other document holding it") {
-					foreign = append(foreign, d)
-				}
+			// ext.yaml's Thing is lowered only where a $ref reaches it, so its
+			// presence says the row's $ref named it rather than the source's.
+			theirs, lowered := doc.Types[ids.In("ext.yaml").NamedType("/components/schemas/Thing")].(*ir.Model)
+			assert.Equal(t, c.foreign, lowered, "%+v", slices.Collect(maps.Keys(doc.Types)))
+			if lowered {
+				require.Len(t, theirs.Properties, 1)
+				assert.Equal(t, "theirs", theirs.Properties[0].WireName)
+				assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/components/schemas/Thing"}, theirs.Provenance)
 			}
-			if !c.foreign {
-				assert.Empty(t, foreign, "a $ref back in the source names the source's own")
-				return
-			}
-			require.Len(t, foreign, 1, "%+v", diags)
-			assert.Equal(t, ir.SeverityError, foreign[0].Severity)
-			assert.Contains(t, foreign[0].Message, `"#/components/schemas/Thing"`)
 		})
 	}
 }
 
 // TestExternalContent_AMappingNamesAsTheSpecificationSays pins the line
 // GitHub #762 draws inside another document's content. A mapping value that is
-// a pointer names a position in that document, so it is unresolved, and says
-// why, as such a $ref does. One that is a component's name is an implicit
-// connection, which the specification recommends resolving against the entry
-// document, so it names the source's component.
+// a pointer names a position in that document, as such a $ref does, and so does
+// a defaultMapping. One that is a component's name is an implicit connection,
+// which the specification recommends resolving against the entry document, so
+// it names the source's component.
 func TestExternalContent_AMappingNamesAsTheSpecificationSays(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
@@ -160,19 +158,16 @@ func TestExternalContent_AMappingNamesAsTheSpecificationSays(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 
-	const schema = "/paths/~1op/get/responses/200/content/application~1json/schema"
-	model, ok := doc.Types[ir.TypeID("t/anon"+schema)].(*ir.Model)
-	require.True(t, ok, "the response's schema is lowered as a model")
+	assert.False(t, slices.ContainsFunc(diags, func(d ir.Diagnostic) bool { return d.Code == "openapi/unresolved-ref" }),
+		"every mapping value resolves: %+v", diags)
+	ext := ids.In("ext.yaml")
+	model, ok := doc.Types[ext.AnonType("/components/responses/D/content/application~1json/schema")].(*ir.Model)
+	require.True(t, ok, "the response's schema is lowered as a model, where ext.yaml declares it")
 	require.NotNil(t, model.Discriminator)
-	assert.Equal(t, map[string]ir.TypeID{"byName": "t/openapi/components/schemas/Thing"}, model.Discriminator.Mapping)
-	const why = `"#/components/schemas/Thing": it names a position in the other document holding it, which is not lowered`
-	for at, message := range map[string]string{
-		"/mapping/byRef":  `discriminator mapping "byRef" references unresolved schema ` + why,
-		"/defaultMapping": "discriminator defaultMapping references unresolved schema " + why,
-	} {
-		assert.Contains(t, diags, ir.Diagnostic{Severity: ir.SeverityError, Code: "openapi/unresolved-ref",
-			Message: message, Provenance: ir.Provenance{Pointer: jsontext.Pointer(schema + "/discriminator" + at)}})
-	}
+	theirs := ext.NamedType("/components/schemas/Thing")
+	assert.Equal(t, map[string]ir.TypeID{"byName": "t/openapi/components/schemas/Thing", "byRef": theirs},
+		model.Discriminator.Mapping)
+	assert.Equal(t, theirs, model.Discriminator.Default)
 }
 
 // sourceNamer is a document whose path item holds a mapping to two positions
@@ -232,8 +227,9 @@ func TestExternalContent_ASourcePositionItNamesIsTheSources(t *testing.T) {
 		openapitest.RequireNoErrorDiags(t, diags)
 
 		const thing = ir.TypeID("t/openapi/components/schemas/Thing")
-		base, ok := doc.Types[ir.TypeID("t/anon/paths/~1a/get/responses/200/content/application~1json/schema")].(*ir.Model)
-		require.True(t, ok, "%v: the mapping's schema is lowered as a model", order)
+		mapping := ids.In("ext.yaml").AnonType("/paths/~1x/get/responses/200/content/application~1json/schema")
+		base, ok := doc.Types[mapping].(*ir.Model)
+		require.True(t, ok, "%v: the mapping's schema is lowered as a model, where ext.yaml declares it", order)
 		require.NotNil(t, base.Discriminator)
 		assert.Equal(t, map[string]ir.TypeID{"obj": ir.TypeID("t/anon" + obj), "ref": thing},
 			base.Discriminator.Mapping, order)
@@ -288,39 +284,29 @@ paths:
 
 // TestExternalContent_APointerPastItsRefNamesItsContent pins GitHub #762 for a
 // pointer in the source that passes /a's $ref into ext.yaml, which the resolver
-// reports resolved against the source. What it names is ext.yaml's content, as
-// /a's own lowering reads it, so each $ref written there is unresolved, with
-// the reason, in both orders: Pet is ext.yaml's, which is not lowered, and Toy
-// names nothing there. Read as the source's, the entry's and the hoist's rows
-// followed declaration order, and the mapping named the source's Pet. Each row
-// is declared first in the order that went wrong.
+// reports resolved against the source. What it names is ext.yaml's content,
+// lowered once where ext.yaml declares it, as /a's own lowering reads it, in
+// both orders: Pet is ext.yaml's, and Toy names nothing there, reported once.
+// Read as the source's, the entry's and the hoist's rows followed declaration
+// order, and the mapping named the source's Pet. Each row is declared first in
+// the order that went wrong.
 func TestExternalContent_APointerPastItsRefNamesItsContent(t *testing.T) {
 	t.Parallel()
 	const (
 		object = "/paths/~1a/get/responses/200/content/application~1json/schema"
 		alias  = "/paths/~1a/get/responses/201/content/application~1json/schema"
-		pet    = `unresolved $ref "#/components/schemas/Pet": it names a position in the other document holding it, ` +
-			"which is not lowered"
-		toy = `unresolved $ref "#/components/schemas/Toy": in <dir>/ext.yaml, it names nothing in the document it ` +
-			"points into"
 	)
-	copies := []string{"/paths/~10", "/paths/~1a"}
-	want := make([]string, 0, 3*len(copies))
-	for _, at := range copies {
-		want = append(want,
-			"error openapi/unresolved-ref "+at+"/get/responses/200/content/application~1json/schema/properties/pet "+pet,
-			"error openapi/unresolved-ref "+at+"/get/responses/200/content/application~1json/schema/properties/toy "+toy,
-			"error openapi/unresolved-ref "+at+"/get/responses/201/content/application~1json/schema "+pet)
-	}
-	slices.Sort(want)
+	want := []string{"error openapi/unresolved-ref 1" + object + `/properties/toy unresolved $ref ` +
+		`"#/components/schemas/Toy": it names nothing in the document it points into`}
+	ext := ids.In("ext.yaml")
 	objectReadsTheirs := func(t *testing.T, doc *ir.Document) {
 		t.Helper()
-		model, ok := doc.Types[ir.TypeID("t/anon"+object)].(*ir.Model)
-		require.True(t, ok, "the object is lowered as a model")
-		for _, name := range []string{"pet", "toy"} {
+		model, ok := doc.Types[ext.AnonType(object)].(*ir.Model)
+		require.True(t, ok, "the object is lowered as a model, where ext.yaml declares it")
+		for name, target := range map[string]ir.TypeID{"pet": ext.NamedType("/components/schemas/Pet"), "toy": "t/prim/any"} {
 			p, ok := propByWire(model, name)
 			require.True(t, ok, name)
-			assert.Equal(t, ir.TypeID("t/prim/any"), p.Type.Target, name)
+			assert.Equal(t, target, p.Type.Target, name)
 		}
 	}
 	for _, c := range []struct {
@@ -337,8 +323,8 @@ func TestExternalContent_APointerPastItsRefNamesItsContent(t *testing.T) {
 			model, ok := doc.Types[ir.TypeID("t/anon/paths/~1d/get/responses/200/content/application~1json/schema")].(*ir.Model)
 			require.True(t, ok, "the mapping's schema is lowered as a model")
 			require.NotNil(t, model.Discriminator)
-			assert.Equal(t, map[string]ir.TypeID{"x": ir.TypeID("t/anon" + alias)}, model.Discriminator.Mapping,
-				"its $ref names ext.yaml's Pet, so the mapping names the position, not the source's Pet")
+			assert.Equal(t, map[string]ir.TypeID{"x": ext.NamedType("/components/schemas/Pet")}, model.Discriminator.Mapping,
+				"its $ref names ext.yaml's Pet, which the mapping reads through to, not the source's Pet")
 		}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
@@ -358,8 +344,8 @@ func TestExternalContent_APointerPastItsRefNamesItsContent(t *testing.T) {
 				require.NotNil(t, doc)
 				got := make([]string, 0, len(diags))
 				for _, d := range diags {
-					got = append(got, fmt.Sprintf("%s %s %s %s", d.Severity, d.Code, d.Provenance.Pointer,
-						strings.ReplaceAll(d.Message, dir, "<dir>")))
+					got = append(got, fmt.Sprintf("%s %s %d%s %s", d.Severity, d.Code, d.Provenance.Source,
+						d.Provenance.Pointer, strings.ReplaceAll(d.Message, dir, "<dir>")))
 				}
 				slices.Sort(got)
 				assert.Equal(t, want, got, root)
@@ -374,11 +360,10 @@ func TestExternalContent_APointerPastItsRefNamesItsContent(t *testing.T) {
 // TestExternalContent_ASchemaRefPastARefNamesItsContent pins a schema $ref in
 // the source whose pointer passes the $ref of the response R into ext.yaml,
 // which the resolver reports resolved against the source. What it names is
-// ext.yaml's schema (GitHub #762), so the $ref written there names ext.yaml's
-// Pet, which ext.yaml does not declare, and is unresolved, naming that
-// document, as where /x's own response lowers it.
-// Read as the source's, it named the source's Pet without a word, and no
-// declaration lowers the position to correct it.
+// ext.yaml's schema (GitHub #762), lowered once where ext.yaml declares it, the
+// node /x's own response lowers to as well, so the $ref written there names
+// ext.yaml's Pet, which ext.yaml does not declare: it is unresolved, reported
+// once, there. Read as the source's, it named the source's Pet without a word.
 func TestExternalContent_ASchemaRefPastARefNamesItsContent(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
@@ -405,22 +390,20 @@ components:
 	require.NoError(t, err)
 
 	const named = "/components/responses/R/content/application~1json/schema"
-	unresolved := func(at string) ir.Diagnostic {
-		return ir.Diagnostic{Severity: ir.SeverityError, Code: "openapi/unresolved-ref",
-			Message: `unresolved $ref "#/components/schemas/Pet": in ` + filepath.Join(dir, "ext.yaml") +
-				", it names nothing in the document it points into",
-			Provenance: ir.Provenance{Pointer: jsontext.Pointer(at + "/properties/pet")}}
-	}
-	assert.ElementsMatch(t, []ir.Diagnostic{
-		unresolved(named),
-		unresolved("/paths/~1x/get/responses/200/content/application~1json/schema"),
-	}, diags)
+	assert.Empty(t, cmp.Diff([]ir.Diagnostic{{Severity: ir.SeverityError, Code: "openapi/unresolved-ref",
+		Message:    `unresolved $ref "#/components/schemas/Pet": it names nothing in the document it points into`,
+		Provenance: ir.Provenance{Source: 1, Pointer: named + "/properties/pet"}}}, diags))
 	require.NotNil(t, doc)
+	theirs := ids.In("ext.yaml").AnonType(named)
 	usesR, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/UsesR")].(*ir.Model)
 	require.True(t, ok)
 	require.Len(t, usesR.Properties, 1)
-	assert.Equal(t, ir.TypeID("t/anon"+named), usesR.Properties[0].Type.Target)
-	body, ok := doc.Types[ir.TypeID("t/anon"+named)].(*ir.Model)
+	assert.Equal(t, theirs, usesR.Properties[0].Type.Target)
+	ops := allOperations(doc)
+	require.Len(t, ops, 1)
+	require.Len(t, ops[0].Responses, 1)
+	assert.Equal(t, theirs, openapitest.BodyTarget(t, ops[0].Responses[0].Payload), "/x's response lowers to that node")
+	body, ok := doc.Types[theirs].(*ir.Model)
 	require.True(t, ok, "the position is hoisted as a model")
 	require.Len(t, body.Properties, 1)
 	assert.Equal(t, ir.TypeID("t/prim/any"), body.Properties[0].Type.Target, "not the source's Pet")
@@ -470,8 +453,8 @@ func TestExternalContent_ASourcePathThroughASchemeLikeDirectoryIsAFile(t *testin
 // document sits, as the resolver reads it. One whose document part names the
 // source, however spelled from there, names the source's own Thing. One that
 // names a file beside a document in a subdirectory names that file, not the
-// source, so it is unresolved as any other $ref to a missing file is, naming
-// the document it is written in.
+// source, so it is unresolved as any other $ref to a missing file is, reported
+// where the document in the subdirectory writes it.
 func TestExternalContent_ARefNamingTheSourceNamesIt(t *testing.T) {
 	t.Parallel()
 	item := func(ref string) string {
@@ -501,10 +484,10 @@ func TestExternalContent_ARefNamingTheSourceNamesIt(t *testing.T) {
 
 			if !c.names {
 				want := ir.Diagnostic{Severity: ir.SeverityError, Code: "openapi/unresolved-ref",
-					Message: `unresolved $ref "` + c.ref + `#/components/schemas/Thing": in ` + filepath.Join(dir, c.file) +
-						", the document it names could not be read: open " + filepath.Join(dir, "sub", c.ref) +
+					Message: `unresolved $ref "` + c.ref + `#/components/schemas/Thing": ` +
+						"the document it names could not be read: open " + filepath.Join(dir, "sub", c.ref) +
 						": no such file or directory",
-					Provenance: ir.Provenance{Pointer: "/paths/~1p/get/responses/200/content/application~1json/schema"}}
+					Provenance: ir.Provenance{Source: 1, Pointer: "/paths/~1x/get/responses/200/content/application~1json/schema"}}
 				assert.Contains(t, diags, want, "the $ref names another file, not a position in ext.yaml")
 				return
 			}
@@ -635,8 +618,8 @@ func TestExternalContent_ASourcePositionItNamesByFileResolvesInEitherOrder(t *te
 			"  /a:\n    get:\n      responses:\n        \"200\":\n          description: ok\n" +
 				"          content: {application/json: {schema: {$ref: '#/x-lib/Cat'}}}\n",
 		}, func(t *testing.T, doc *ir.Document) {
-			model, ok := doc.Types[ir.TypeID("t/anon/paths/~1b"+schema)].(*ir.Model)
-			require.True(t, ok, "the mapping's schema is lowered as a model")
+			model, ok := doc.Types[ids.In("ext.yaml").AnonType("/paths/~1b"+schema)].(*ir.Model)
+			require.True(t, ok, "the mapping's schema is lowered as a model, where ext.yaml declares it")
 			require.NotNil(t, model.Discriminator)
 			assert.Equal(t, map[string]ir.TypeID{"cat": "t/anon/x-lib/Cat"}, model.Discriminator.Mapping)
 		}},
@@ -686,12 +669,11 @@ paths:
 
 // TestExternalContent_ARefLendsItsUseSiteWhatItsTypeReaches pins that a use
 // site borrows what its schema $ref ends on, a default, a description, a form
-// body's parts, a file body or a discriminator, only where every $ref of the
-// chain names the source, as only then does its type reach that schema. One
-// naming another document, which is not lowered (GitHub #74), lends nothing,
-// the source's own included, so no part is keyed to a property the IR lacks
-// (GitHub #1023). One another document writes naming the source lends as the
-// source's own does.
+// body's parts, a file body or a discriminator, whichever documents the chain
+// passes, as its type reaches that schema there. A form body's parts are keyed
+// to the properties of the model in the document declaring it, so none
+// addresses a property the IR lacks (GitHub #1023), and a model composing a
+// discriminated base from another document takes its discriminator value.
 func TestExternalContent_ARefLendsItsUseSiteWhatItsTypeReaches(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
@@ -774,39 +756,44 @@ components:
 	for _, p := range op("form").Params {
 		params[p.Name.Source] = p
 	}
-	for name, lends := range map[string]bool{"lent": false, "own": false, "home": true} {
-		assert.Equal(t, lends, params[name].Default != nil, "%s: a parameter's default", name)
-		assert.Equal(t, lends, params[name].Docs.Description == "fmt", "%s: a parameter's description", name)
+	for _, name := range []string{"lent", "own", "home"} {
+		require.NotNil(t, params[name].Default, "%s: a parameter's default", name)
+		assert.Equal(t, "json", params[name].Default.Str, name)
+		assert.Equal(t, "fmt", params[name].Docs.Description, "%s: a parameter's description", name)
 	}
 	require.Len(t, op("form").Responses, 1)
 	headers := map[string]ir.Property{}
 	for _, h := range op("form").Responses[0].Headers {
 		headers[h.Name.Source] = h
 	}
-	assert.Nil(t, headers["X-Lent"].Default, "a header's default")
-	assert.Empty(t, headers["X-Lent"].Docs.Description, "a header's description")
-	require.NotNil(t, headers["X-Home"].Default)
-	assert.Equal(t, "json", headers["X-Home"].Default.Str)
+	for _, name := range []string{"X-Lent", "X-Home"} {
+		require.NotNil(t, headers[name].Default, "%s: a header's default", name)
+		assert.Equal(t, "json", headers[name].Default.Str, name)
+		assert.Equal(t, "fmt", headers[name].Docs.Description, "%s: a header's description", name)
+	}
 
+	lib := ids.In("lib.yaml")
 	for path, keys := range map[string][]ir.PropID{
-		"form": nil,
-		"own":  nil,
+		"form": {lib.Prop("/Form/properties/file")},
+		"own":  {lib.Prop("/Form/properties/file")},
 		"home": {"p/openapi/components/schemas/Form/properties/file"},
 	} {
 		require.NotNil(t, op(path).Request, path)
 		require.Len(t, op(path).Request.Contents, 1, path)
 		assert.Equal(t, keys, slices.Sorted(maps.Keys(op(path).Request.Contents[0].Encoding)), "%s: a form body's parts", path)
 	}
-	for path, want := range map[string]ir.TypeID{"file": "t/prim/any", "file-home": "t/prim/bytes"} {
+	for _, path := range []string{"file", "file-home"} {
 		require.NotNil(t, op(path).Request, path)
 		require.Len(t, op(path).Request.Contents, 1, path)
 		body := op(path).Request.Contents[0]
-		assert.Equal(t, want, body.Type.Target, "%s: a binary body's type", path)
-		assert.Equal(t, want == "t/prim/bytes", body.File != nil, path)
+		assert.Equal(t, ir.TypeID("t/prim/bytes"), body.Type.Target, "%s: a binary body's type", path)
+		assert.NotNil(t, body.File, path)
 	}
-	for _, name := range []string{"Local", "Mine"} {
+	for name, base := range map[string]ir.TypeID{"Local": lib.AnonType("/Kid"), "Mine": lib.AnonType("/Pet")} {
 		model, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/"+name)].(*ir.Model)
 		require.True(t, ok, name)
-		assert.Empty(t, model.DiscriminatorValue, "%s: a discriminator through a composed schema", name)
+		require.NotNil(t, model.Base, name)
+		assert.Equal(t, base, model.Base.Target, name)
+		assert.Equal(t, name, model.DiscriminatorValue, "%s: a discriminator through a composed schema", name)
 	}
 }

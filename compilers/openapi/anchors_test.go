@@ -115,10 +115,10 @@ func TestCompile_AnAnchoredEntryCompilesAsItsUnanchoredTwin(t *testing.T) {
 // the release of the source's anchors, and the same entries were skipped there
 // in silence (GitHub #501).
 //
-// The two halves of a comparison differ in the external document's anchors,
-// and in where the source names that document from: its own path for a file,
-// the $ref's URL over HTTP. The second reaches the IR only through the source's
-// path or hash, which the comparison clears.
+// The two halves of a comparison differ in the external document's anchors
+// alone: a file is named by one relative path from either directory, and a
+// URL is served from one server, so the IDs qualified by the document agree.
+// The paths and hashes, which differ, the comparison clears.
 func TestCompile_AnAnchoredEntryInAnExternalDocumentCompilesAsItsTwin(t *testing.T) {
 	t.Parallel()
 	for _, tc := range anchoredEntries {
@@ -135,8 +135,7 @@ func TestCompile_AnAnchoredEntryInAnExternalDocumentCompilesAsItsTwin(t *testing
 		})
 		t.Run(tc.name+" over HTTP", func(t *testing.T) {
 			t.Parallel()
-			anchored := compileServed(t, ext)
-			twin := compileServed(t, unanchored(ext))
+			anchored, twin := compileServed(t, ext, unanchored(ext))
 			if diff := cmp.Diff(twin, anchored); diff != "" {
 				t.Errorf("the anchored document compiled to other IR than its twin (-twin +anchored):\n%s", diff)
 			}
@@ -154,19 +153,22 @@ func compileBeside(t *testing.T, ext string) *ir.Document {
 	return compileReferring(t, filepath.Join(dir, "root.yaml"), "./other.yaml")
 }
 
-// compileServed compiles a source whose one path is a reference to /x in ext,
-// served over HTTP, and returns the IR with the source's content hash cleared:
-// each call serves from a server of its own, so the URL the source names, and
-// with it the source's bytes, differ.
-func compileServed(t *testing.T, ext string) *ir.Document {
+// compileServed compiles, twice, a source whose one path is a reference to /x
+// in a document served over HTTP: first, then second. One server serves both
+// from one URL, so the two compiles name the document alike.
+func compileServed(t *testing.T, first, second string) (*ir.Document, *ir.Document) {
 	t.Helper()
+	var served atomic.Pointer[string]
+	served.Store(&first)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/yaml")
-		_, err := w.Write([]byte(ext))
+		_, err := w.Write([]byte(*served.Load()))
 		assert.NoError(t, err)
 	}))
 	t.Cleanup(srv.Close)
-	return compileReferring(t, "root.yaml", srv.URL+"/other.yaml")
+	a := compileReferring(t, "root.yaml", srv.URL+"/other.yaml")
+	served.Store(&second)
+	return a, compileReferring(t, "root.yaml", srv.URL+"/other.yaml")
 }
 
 // compileReferring compiles, with external references allowed, a source at

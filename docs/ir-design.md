@@ -306,6 +306,13 @@ it sees. Changes made together in one bump are listed together under it.
   moved to `ir/irfacts`, whose `Index.Usage` derives it. No compiler or pass ever wrote the member,
   so every document carried none, and a consumer pinned to 0.15.0 loses nothing it read; the
   version check refuses it a 0.16.0 document all the same.
+- **0.17.0** — a spec split across files is one document (§3.1, §13). The shape is unchanged, but
+  the OpenAPI compiler lists every document a reference reads in `Sources`, after the source and
+  its overlay, and lowers what each declares where it declares it: its `Provenance.Source` names
+  that entry, and its IDs are in namespaces qualified by the document's location
+  (`t/openapi@common.yaml/...`). It had lowered no schema another document holds and placed a
+  parameter, response or other object read from one at the source's use site. A consumer pinned to
+  0.16.0 reads `Sources` as the source and its overlay alone.
 
 ---
 
@@ -333,6 +340,16 @@ records the path as an RFC 6901 pointer, and the ID's path is that pointer witho
 a protobuf full name is one segment, so `acme.v1.UserId` is recorded as `/acme.v1.UserId`. A node a
 lowering *mints* rather than finds takes a namespace of its own, so no pointer a reference can spell
 ever reaches it — the general form of the rule §4.3 states for distributed unions.
+
+A source can span documents: an OpenAPI description split across files is one. A node another
+document declares lives in that document's namespaces, which are the source's own qualified by the
+document, so one pointer in two documents is two IDs and each ID's path is still the pointer its
+node records; its `Provenance.Source` names that document's `Sources` entry (§13). The qualifier is
+an `@` and the document's location from the source's directory, as one segment, escaped as RFC 6901
+escapes a token: `t/openapi@schemas~1pet.yaml/Pet` is the `Pet` that `schemas/pet.yaml` declares at
+`/Pet`. The location, not the entry's index, qualifies it, so an ID moves only when its document
+does. Operations and parameters are named by where the source mounts them, so they take the
+source's namespace whichever document declares them.
 
 Primitives are the one exception, and only because the rule's premise does not hold for them: a
 primitive occupies no source position, so there is no path for a format to own. Its identity is
@@ -417,8 +434,9 @@ namespace left out, each list sorted by the byte order of its UTF-8 spelling and
 no empty namespace and none carrying the separator (`ir/id-spaces-unknown-kind`,
 `ir/id-spaces-not-canonical`, `ir/id-space-invalid`). It is a vocabulary and not a usage report, so
 a namespace no ID uses is not an error here; a compiler's own test holds its vocabulary to what its
-corpus uses, in both directions. In this repository an architecture test also holds a compiler to
-building a namespace only from a literal, which is where a path gets glued on. Channels and messages
+corpus uses, in both directions. In this repository a lint rule also holds a compiler to building a
+namespace only from a literal, which is where a path gets glued on, or through the framework's
+qualifier for another document (`compile.Space.Qualified`). Channels and messages
 have no prefix yet and are held to none of this.
 
 An ID held as a reference — a field, a slice element, a map key or value, anywhere but the

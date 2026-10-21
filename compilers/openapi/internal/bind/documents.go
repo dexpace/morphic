@@ -106,6 +106,18 @@ func (d *docs) node(p Position) *yaml.Node {
 	return path[len(path)-1]
 }
 
+// compare orders positions as a table reads them: the source's first,
+// another document's by its name, then by pointer (comparePositions).
+func (d *docs) compare(p, q Position) int {
+	if c, ok := byName(p, q, d.name); ok {
+		return c
+	}
+	return comparePositions(p, q)
+}
+
+// name returns the name of the document id names.
+func (d *docs) name(id DocID) string { return d.list[id].name }
+
 // rootState is the state a document's root is read at.
 func (d *docs) rootState(id DocID) state {
 	if d.list[id].grammar {

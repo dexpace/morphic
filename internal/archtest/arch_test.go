@@ -197,6 +197,7 @@ var rules = map[string][]string{
 	// of the document, and the grammar that answers it is the loader's — and for
 	// the schema bindings the load phase built, which its scope reads.
 	"compilers/openapi/internal/lowering": {module + "/ir",
+		module + "/compilers/openapi/internal/bind",
 		module + "/compilers/openapi/internal/bind/typed",
 		module + "/compilers/openapi/internal/diag",
 		module + "/compilers/openapi/internal/ids",

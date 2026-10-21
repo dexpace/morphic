@@ -277,11 +277,11 @@ func TestCompile_AReferenceOfEveryKindThroughAPlusKeyIsLoweredWhereItIsDeclared(
 
 // TestCompile_APointerPastAPathItemRefThroughAPlusKeyNamesTheOtherDocument pins
 // GitHub #762 for a key with a plus: a reference whose pointer passes the $ref
-// of the path item "/a+b" into ext.yaml names what ext.yaml holds there, so the
-// $ref written in it, which names ext.yaml's own Pet, is unresolved in the source
-// that reached it, where read through a key spelled with a space it would name
-// the source's Pet without a word. The references are declared first in one
-// order and last in the other, the first being the order that went wrong.
+// of the path item "/a+b" into ext.yaml names what ext.yaml holds there, lowered
+// once where ext.yaml declares it, so the $ref written in it names ext.yaml's
+// own Pet, where read through a key spelled with a space it would name the
+// source's Pet without a word. The references are declared first in one order
+// and last in the other, the first being the order that went wrong.
 func TestCompile_APointerPastAPathItemRefThroughAPlusKeyNamesTheOtherDocument(t *testing.T) {
 	t.Parallel()
 	const (
@@ -329,6 +329,8 @@ components:
 	// /0 names /a+b first, so the resolver has followed its $ref before any
 	// pointer passes it, in either order.
 	const first = "  /0: {$ref: '#/paths/~1a+b'}\n"
+	const schema = "/paths/~1a/get/responses/200/content/application~1json/schema"
+	theirs := ids.In("ext.yaml")
 	reported := make([][]string, 0, 2)
 	for _, paths := range []string{first + uses + item, first + item + uses} {
 		dir := t.TempDir()
@@ -347,11 +349,13 @@ components:
 		}
 		slices.Sort(got)
 		reported = append(reported, got)
+		body, ok := doc.Types[theirs.AnonType(schema)].(*ir.Model)
+		require.True(t, ok, "ext.yaml's /a schema is lowered where ext.yaml declares it")
+		pet, ok := propByWire(body, "pet")
+		require.True(t, ok)
+		assert.Equal(t, theirs.NamedType("/components/schemas/Pet"), pet.Type.Target, "ext.yaml's Pet, not the source's")
 	}
-	const why = `unresolved $ref "#/components/schemas/Pet": it names a position in the other document holding it, which is not lowered`
-	const pet = "/get/responses/200/content/application~1json/schema/properties/pet"
-	assert.Equal(t, []string{"/paths/~10" + pet + " " + why, "/paths/~1a+b" + pet + " " + why}, reported[0],
-		"each copy of ext.yaml's /a reports its Pet, and the references reach nothing of the source's")
+	assert.Empty(t, reported[0], "every reference resolves")
 	assert.Equal(t, reported[0], reported[1], "whichever order the references are declared in")
 }
 

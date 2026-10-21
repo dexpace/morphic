@@ -180,6 +180,9 @@ type Document struct {
 	// Siblings holds the fields the source writes beside its path items' $refs,
 	// modelled and resolved with the document.
 	Siblings Siblings
+	// Others is every document a reference read beside the source, in the
+	// order Document.Sources lists them after the source and its overlay.
+	Others Others
 }
 
 // Load parses, validates, and resolves one source document. Spec problems
@@ -276,8 +279,12 @@ func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Pars
 	diags = append(diags, sibFaults...)
 	diags = append(diags, validDiags...)
 	self := newSourceDocument(src.Path, src.Data, root, valErrs, tree, esc)
+	beside := besideSource{first: srcIndex + 1, format: "openapi@" + minor}
+	if origin.Applied() {
+		beside.first = opts.OverlaySrcIndex + 1
+	}
 	doc, sibs, bindings, resolveDiags, err := resolve(ctx, pointerAt(srcIndex, origin), doc, sibs, self, opts,
-		opts.rebuilder(ctx, src.Data, root))
+		opts.rebuilder(ctx, src.Data, root), beside)
 	if err != nil {
 		return nil, nil, fmt.Errorf("openapi: rebuild source %d: %w", srcIndex, err)
 	}
@@ -296,6 +303,7 @@ func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Pars
 		},
 		Overlay:  origin,
 		Siblings: sibs,
+		Others:   bindings.others,
 	}, esc.asWritten(diags), nil
 }
 
@@ -395,7 +403,7 @@ func compilerOwned(verr validation.Error) bool {
 // since a rebuild discards a first resolution's objects. Only then are the
 // models and trees put back as written.
 func resolve(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI, sibs Siblings,
-	self sourceDocument, opts Options, rebuild func() (*soa.OpenAPI, error),
+	self sourceDocument, opts Options, rebuild func() (*soa.OpenAPI, error), beside besideSource,
 ) (*soa.OpenAPI, Siblings, bound, []ir.Diagnostic, error) {
 	var reader *external
 	var diags []ir.Diagnostic
@@ -408,12 +416,16 @@ func resolve(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *
 	} else {
 		diags = resolveWith(ctx, at, doc, sibs, self, opts, nil)
 	}
-	b := bindSchemas(ctx, at, doc, sibs, self, reader)
-	reached := validateReached(ctx, at, doc, sibs, b.built, opts, self)
+	b := bindSchemas(ctx, doc, sibs, self, reader)
+	if reader != nil {
+		b.others = newOthers(reader.read, beside.first, beside.format)
+	}
+	place := b.placer(at)
+	reached := validateReached(ctx, at, place, doc, sibs, b.built, opts, self)
 	site, err := self.escapes.restore(ctx, doc, sibs, b.built)
 	diags = append(diags, restoreFault(at, site, err)...)
-	diags = append(diags, b.diags...)
-	diags = append(diags, buildFailures(at, b.built)...)
+	diags = append(diags, bindingDiags(place, b.bindings.Table())...)
+	diags = append(diags, buildFailures(place, b.built)...)
 	if reader != nil {
 		diags = append(diags, crossed(at, reader)...)
 	}

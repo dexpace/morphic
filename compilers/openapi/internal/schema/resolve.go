@@ -12,6 +12,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
@@ -170,11 +171,10 @@ func refTypeRef(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 }
 
 // unresolvedWhy is the reason the $ref at js reports when it resolves to no
-// type here: why its own hop lands on no schema (bind.Hop.Why), that it lands
-// in another document, which is not lowered (GitHub #74), or why the table
-// never read it (unreadWhy). It is empty for any other, a target declaring
-// nothing to lower. The position may well exist, so without it the report
-// reads as though it named nothing.
+// type here: why its own hop lands on no schema (bind.Hop.Why), or why the
+// table never read it (unreadWhy). It is empty for any other, a target
+// declaring nothing to lower. The position may well exist, so without it the
+// report reads as though it named nothing.
 func unresolvedWhy(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) string {
 	if e, ok := c.Bindings().Entry(js); ok {
 		return hopWhy(c.Bindings().Table(), e.Hop, e.Site)
@@ -202,10 +202,6 @@ func unreadWhy(refs *typed.Bindings, model any) string {
 // the use site in the source says nothing of it.
 func hopWhy(table *bind.Table, h bind.Hop, site bind.Position) string {
 	switch {
-	case h.Status == bind.Resolved && !h.Named && h.Target.Doc == site.Doc:
-		return ": it names a position in the other document holding it, which is not lowered"
-	case h.Status == bind.Resolved && !h.Named:
-		return ": it names a schema in another document, which is not lowered"
 	case h.Status == bind.Resolved:
 		return ""
 	case site.Doc != bind.Source:
@@ -217,16 +213,26 @@ func hopWhy(table *bind.Table, h bind.Hop, site bind.Position) string {
 
 // resolveSchemaRef resolves a schema-position $ref to an interned TypeID, never
 // synthesizing an ID that nothing backs. A top-level component keeps its stable
-// named ID; an already-interned target reuses it; an internal sub-schema the
-// $ref lands on is hoisted at its pointer-derived ID. It returns ok=false for a
-// $ref that lands on no schema in the source (resolve.Scope.TargetPointer) and
-// for a reference to an undeclared component.
+// named ID; an already-interned target reuses it; any other schema the $ref
+// lands on, in whichever document, is hoisted at its pointer-derived ID there.
+// It returns ok=false for a $ref that lands on no schema
+// (resolve.Scope.Target) and for a reference to an undeclared component.
 func resolveSchemaRef(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, js *oas3.JSONSchema[oas3.Referenceable]) (ir.TypeID, bool, []ir.Diagnostic) {
-	pointer, ok := c.RefScope().TargetPointer(js)
+	at, ok := c.RefScope().Target(js)
 	if !ok {
 		return "", false, nil
 	}
-	return resolvePointer(c, ts, anchors, depth, pointer, c.Bindings().Declared(js))
+	return resolveAt(c, ts, anchors, depth, at, c.Bindings().Declared(js))
+}
+
+// resolveAt is resolvePointer at a position of the bindings' table, read at
+// its own document's coordinates (lowering.InDocument).
+func resolveAt(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, at bind.Position, decl *oas3.JSONSchema[oas3.Referenceable]) (ir.TypeID, bool, []ir.Diagnostic) {
+	c, ok := lowering.InDocument(c, at.Doc)
+	if !ok {
+		return "", false, nil
+	}
+	return resolvePointer(c, ts, anchors, depth, at.Pointer, decl)
 }
 
 // resolvePointer resolves a same-document pointer to the ID of the schema it
@@ -237,8 +243,13 @@ func resolveSchemaRef(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, d
 // It is where a $ref and a discriminator mapping target meet once each has its
 // pointer: they differ only in how decl is found, so they cannot drift apart.
 func resolvePointer(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, pointer jsontext.Pointer, decl *oas3.JSONSchema[oas3.Referenceable]) (ir.TypeID, bool, []ir.Diagnostic) {
-	if id, resolved, handled := c.RefScope().ComponentRef(pointer); handled {
-		return id, resolved, nil
+	// The source's components alone are lowered whole and named by name;
+	// another document's are hoisted where a reference reaches them, as any
+	// other position of it is.
+	if c.IDs() == (ids.Document{}) {
+		if id, resolved, handled := c.RefScope().ComponentRef(pointer); handled {
+			return id, resolved, nil
+		}
 	}
 	if id, ok := resolve.InternedID(ts, c.IDs(), pointer); ok {
 		return id, true, nil

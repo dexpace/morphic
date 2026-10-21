@@ -163,7 +163,7 @@ func (w *finder) walkPending() bool {
 	roots := w.pending
 	w.pending = nil
 	slices.SortFunc(roots, func(x, y root) int {
-		if c := comparePositions(x.at, y.at); c != 0 {
+		if c := w.docs.compare(x.at, y.at); c != 0 {
 			return c
 		}
 		return int(x.state) - int(y.state)
@@ -198,13 +198,12 @@ func (b *binder) mapping(k mappingKey) Mapping {
 	}
 	b.find.landed(m.Hop)
 	if !b.holdsRef(m.Hop.Target) {
-		m.Chain = Chain{Status: Resolved, End: m.Hop.Target, Role: m.Hop.Role, Hops: 1, Named: m.Hop.Named}
+		m.Chain = Chain{Status: Resolved, End: m.Hop.Target, Role: m.Hop.Role, Hops: 1}
 		return m
 	}
 	m.Chain = b.chain(m.Hop.Target)
 	if m.Chain.Status == Resolved {
 		m.Chain.Hops++
-		m.Chain.Named = m.Chain.Named && m.Hop.Named
 	}
 	return m
 }

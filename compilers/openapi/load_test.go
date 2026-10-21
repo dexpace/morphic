@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/speakeasy-api/openapi/validation"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -40,11 +41,10 @@ func TestCompile_ResolverPanicIsADiagnostic(t *testing.T) {
 // promise (#235's acceptance) at the compiler's public surface: a schema $ref
 // to nothing, whether written directly, as an allOf branch, or as a oneOf
 // branch, is reported exactly once, by the load phase, naming the reference and
-// why it does not resolve. The #74 shape — a $ref this compile follows into
-// another document but cannot lower any further — is the one case the load
-// phase has nothing to report, so the lowering's own report survives
-// withoutRereported instead of being dropped as the duplicate it is everywhere
-// else. A cycle is reported once, as one.
+// why it does not resolve, and the lowering's own report at that position is
+// dropped as the duplicate it is (withoutRereported). In another document the
+// failure is reported where it is written there, once, and the source's $ref
+// into it, which resolves, reports nothing. A cycle is reported once, as one.
 func TestCompile_AResolutionFailureIsReportedOnceAtItsRef(t *testing.T) {
 	t.Parallel()
 	tests := map[string]struct {
@@ -74,12 +74,12 @@ func TestCompile_AResolutionFailureIsReportedOnceAtItsRef(t *testing.T) {
 		})
 	}
 
-	t.Run("the #74 shape keeps the lowering's report", func(t *testing.T) {
+	t.Run("a failure in another document is reported there, once", func(t *testing.T) {
 		t.Parallel()
 		dir := t.TempDir()
 		require.NoError(t, os.WriteFile(filepath.Join(dir, "other.yaml"), []byte(
 			"openapi: 3.1.0\ninfo: {title: O, version: \"1\"}\npaths: {}\n"+
-				"components:\n  schemas:\n    X: {type: string}\n"), 0o600))
+				"components:\n  schemas:\n    X: {$ref: '#/components/schemas/Ghost'}\n"), 0o600))
 		rootPath := filepath.Join(dir, "root.yaml")
 		root := "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\n" +
 			"components:\n  schemas:\n    S: {$ref: 'other.yaml#/components/schemas/X'}\n"
@@ -90,10 +90,11 @@ func TestCompile_AResolutionFailureIsReportedOnceAtItsRef(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, doc)
 
-		msg := openapitest.DiagMessageAt(t, diags, diag.UnresolvedRef, ir.SeverityError, "/components/schemas/S")
-		assert.Equal(t, `unresolved $ref "other.yaml#/components/schemas/X": it names a schema in another document, `+
-			"which is not lowered", msg,
-			"the lowering's own report survives: the load phase resolved this reference successfully")
+		want := []ir.Diagnostic{{Severity: ir.SeverityError, Code: diag.UnresolvedRef,
+			Message:    `unresolved $ref "#/components/schemas/Ghost": it names nothing in the document it points into`,
+			Provenance: ir.Provenance{Source: 1, Pointer: "/components/schemas/X"}}}
+		assert.Empty(t, cmp.Diff(want, diags), "reported where other.yaml writes it, and nowhere in the source")
+		assert.Equal(t, filepath.Join(dir, "other.yaml"), doc.Sources[1].Path)
 	})
 
 	t.Run("a cycle is reported once, as a cycle", func(t *testing.T) {
@@ -114,6 +115,33 @@ func TestCompile_AResolutionFailureIsReportedOnceAtItsRef(t *testing.T) {
 		}
 		assert.Equal(t, []string{diag.CyclicRef}, at, "the lowering reports nothing for a member of the loop")
 	})
+}
+
+// TestCompile_AFindingInASchemaOnlyAnotherDocumentReachesIsPlacedThere pins
+// where the validation of a schema built for raw YAML is reported when only
+// another document's content reaches it, through a parameter that document
+// declares: at that document's $ref reaching it, in its Document.Sources
+// entry, never at the same pointer in the source, which holds nothing there.
+func TestCompile_AFindingInASchemaOnlyAnotherDocumentReachesIsPlacedThere(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "other.yaml"), []byte(
+		"components:\n  parameters:\n    P: {name: p, in: query, schema: {$ref: '#/x-lib/B'}}\n"+
+			"x-lib:\n  B: {type: string, minLength: notanumber}\n"), 0o600))
+	root := "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n  /a:\n    get:\n" +
+		"      parameters: [{$ref: './other.yaml#/components/parameters/P'}]\n" +
+		"      responses: {\"200\": {description: ok}}\n"
+
+	_, diags, err := New().Compile(t.Context(),
+		[]compilers.Source{{Path: filepath.Join(dir, "root.yaml"), Data: []byte(root)}},
+		compilers.Options{Reader: reader.Disk{}})
+	require.NoError(t, err)
+
+	require.NotEmpty(t, diags)
+	for _, d := range diags {
+		assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/components/parameters/P/schema"}, d.Provenance, "%+v", d)
+		assert.True(t, strings.HasPrefix(d.Code, diag.Validation+"/"), "%+v", d)
+	}
 }
 
 // TestCompile_AFindingInAnExternalDocumentKeepsItsRule is the #537 repro: a

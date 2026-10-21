@@ -1,0 +1,22 @@
+openapi: 3.1.0
+info: {title: Split Petstore common, version: "1.0.0"}
+paths: {}
+components:
+  parameters:
+    Limit:
+      name: limit
+      in: query
+      schema: {type: integer, format: int32, minimum: 1, maximum: 100}
+  responses:
+    Error:
+      description: an error
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+  schemas:
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code: {type: integer, format: int32}
+        message: {type: string}

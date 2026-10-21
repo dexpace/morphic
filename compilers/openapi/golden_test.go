@@ -12,6 +12,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
+	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/ir/irtest"
 )
@@ -31,4 +32,28 @@ func TestGolden(t *testing.T) {
 		assert.NotEqual(t, ir.SeverityError, d.Severity, "unexpected error diagnostic: %+v", d)
 	}
 	irtest.CompareGolden(t, "../../testdata/golden/openapi/petstore.golden.json", doc)
+}
+
+// TestGolden_SplitSpec pins the IR of a spec split across three files, read
+// from memory under the paths they are named by: each other document is a
+// Document.Sources entry after the source, ordered by its path from the
+// source's directory, and what it declares is lowered where it declares it,
+// in namespaces qualified by that path.
+func TestGolden_SplitSpec(t *testing.T) {
+	t.Parallel()
+	sources := make([]compilers.Source, 0, 3)
+	for _, name := range []string{"root.yaml", "common.yaml", "schemas/pet.yaml"} {
+		data, err := os.ReadFile("../../testdata/golden/openapi/split/" + name)
+		require.NoError(t, err)
+		sources = append(sources, compilers.Source{Path: "split/" + name, Data: data})
+	}
+	docs, err := reader.NewMemory(sources)
+	require.NoError(t, err)
+	doc, diags, err := openapi.New().Compile(t.Context(), sources[:1], compilers.Options{Reader: docs})
+	require.NoError(t, err)
+	require.NotNil(t, doc)
+	for _, d := range diags {
+		assert.NotEqual(t, ir.SeverityError, d.Severity, "unexpected error diagnostic: %+v", d)
+	}
+	irtest.CompareGolden(t, "../../testdata/golden/openapi/split/split.golden.json", doc)
 }

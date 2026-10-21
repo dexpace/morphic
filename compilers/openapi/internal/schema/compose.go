@@ -16,6 +16,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
@@ -1229,13 +1230,12 @@ func resolveMappingTarget(c lowering.Ctx, ts *compile.Types, anchors *AnchorInde
 	if c.DeclaresSchema(target) {
 		return componentIDByName(target), true, nil
 	}
-	scope := c.RefScope()
-	pointer, decl, ok := scope.MappingTarget(d, target)
+	at, decl, ok := c.RefScope().MappingTarget(d, target)
 	if !ok {
 		return "", false, nil
 	}
-	pointer, decl = typePosition(scope, c.IDs(), pointer, decl, variantTypes)
-	return resolvePointer(c, ts, anchors, depth, pointer, decl)
+	at, decl = typePosition(c, at, decl, variantTypes)
+	return resolveAt(c, ts, anchors, depth, at, decl)
 }
 
 // maxTypePositionHops bounds how many $ref positions typePosition reads
@@ -1244,38 +1244,46 @@ func resolveMappingTarget(c lowering.Ctx, ts *compile.Types, anchors *AnchorInde
 // position's alias.
 const maxTypePositionHops = 64
 
-// typePosition returns the position whose type a mapping target naming
-// pointer names, and the schema the bindings hold there, starting from decl,
-// unread at a component. It is pointer itself unless the position
-// reads through (readsThrough): a $ref holding nothing an alias would is only
-// a use of its target's type, so it names the position the $ref does, as a
-// union variant there does (GitHub #758). A keyword beside a property's $ref
-// stops it (GitHub #764), and so does a $ref landing on nothing a type is read
-// at, whose own position, lowered as an alias that reports why, is named.
-func typePosition(scope resolve.Scope, d ids.Document, pointer jsontext.Pointer,
-	decl *oas3.JSONSchema[oas3.Referenceable], variantTypes map[ir.TypeID]bool,
-) (jsontext.Pointer, *oas3.JSONSchema[oas3.Referenceable]) {
-	if _, named := ids.ComponentSchemaName(pointer); named {
+// typePosition returns the position, in whichever document, whose type a
+// mapping target naming at names, and the schema held there, starting from
+// decl, unread at a source component. It is at unless the position reads
+// through (readsThrough): a $ref holding nothing an alias would only uses its
+// target's type, so it names the position the $ref does, as a union variant
+// there does (GitHub #758). A keyword beside a property's $ref stops it
+// (GitHub #764), and so does a $ref landing on nothing a type is read at,
+// whose own position, lowered as an alias that reports why, is named.
+func typePosition(c lowering.Ctx, at bind.Position, decl *oas3.JSONSchema[oas3.Referenceable],
+	variantTypes map[ir.TypeID]bool,
+) (bind.Position, *oas3.JSONSchema[oas3.Referenceable]) {
+	if sourceComponent(at) {
 		// Most targets name a component, and resolve.Scope.ComponentRef answers
 		// for one by name, so nothing is fetched for it (see mappingTagsFor).
-		return pointer, nil
+		return at, nil
 	}
+	scope := c.RefScope()
 	for range maxTypePositionHops {
-		if !readsThrough(d, pointer, decl, variantTypes) {
+		if !readsThrough(c, at, decl, variantTypes) {
 			break
 		}
-		next, ok := scope.TargetPointer(decl)
+		next, ok := scope.Target(decl)
 		target := scope.Bindings.Declared(decl)
-		if _, named := ids.ComponentSchemaName(next); !ok || target == nil && !named {
+		if !ok || target == nil && !sourceComponent(next) {
 			break
 		}
-		pointer, decl = next, target
+		at, decl = next, target
 	}
-	return pointer, decl
+	return at, decl
 }
 
-// readsThrough reports whether a mapping target naming pointer in d, where decl
-// is declared, names the position decl's $ref names instead (typePosition): not at
+// sourceComponent reports whether at is one of the source's components, which
+// is named by name rather than fetched where it is declared.
+func sourceComponent(at bind.Position) bool {
+	_, named := ids.ComponentSchemaName(at.Pointer)
+	return named && at.Doc == bind.Source
+}
+
+// readsThrough reports whether a mapping target naming at, where decl is
+// declared, names the position decl's $ref names instead (typePosition): not at
 // a component, nor where a keyword beside the $ref gives the position an alias
 // (refSiteHomesNothing).
 //
@@ -1284,17 +1292,22 @@ func typePosition(scope resolve.Scope, d ids.Document, pointer jsontext.Pointer,
 // hoisted an alias there as a $ref to any position does, and the mapping must
 // name what the variant names. Read through, it named a type no variant names
 // (GitHub #758).
-func readsThrough(d ids.Document, pointer jsontext.Pointer, decl *oas3.JSONSchema[oas3.Referenceable],
+func readsThrough(c lowering.Ctx, at bind.Position, decl *oas3.JSONSchema[oas3.Referenceable],
 	variantTypes map[ir.TypeID]bool,
 ) bool {
-	if _, named := ids.ComponentSchemaName(pointer); named || ids.ComponentSchemaNamedEmpty(pointer) || decl == nil {
+	_, named := ids.ComponentSchemaName(at.Pointer)
+	if named || ids.ComponentSchemaNamedEmpty(at.Pointer) || decl == nil {
 		return false
 	}
 	s := decl.GetSchema()
 	if !resolve.IsRefSite(decl, s) || !refSiteHomesNothing(s) {
 		return false
 	}
-	return len(variantTypes) == 0 || !variantTypes[d.ForPointer(pointer)]
+	if len(variantTypes) == 0 {
+		return true
+	}
+	in, ok := lowering.InDocument(c, at.Doc)
+	return !ok || !variantTypes[in.IDs().ForPointer(at.Pointer)]
 }
 
 // componentIDByName is the ID a mapping target naming a declared component
@@ -1318,21 +1331,27 @@ func mappingTargetID(c lowering.Ctx, scope resolve.Scope, ts *compile.Types, d *
 	if scope.Declares(target) {
 		return componentIDByName(target), true
 	}
-	pointer, decl, ok := scope.MappingTarget(d, target)
+	named, decl, ok := scope.MappingTarget(d, target)
 	if !ok {
 		return "", false
 	}
 	// No variant types: a tag asks whether the mapping reaches the subtype, so
 	// it reads through whatever a union's variants name (readsThrough). Each
 	// subtype asks it of every entry, so it is read once (Ctx.TypePosition).
-	at := c.TypePosition(pointer, func() jsontext.Pointer {
-		position, _ := typePosition(scope, c.IDs(), pointer, decl, nil)
+	at := c.TypePosition(named, func() bind.Position {
+		position, _ := typePosition(c, named, decl, nil)
 		return position
 	})
-	if id, resolved, handled := scope.ComponentRef(at); handled {
-		return id, resolved
+	in, ok := lowering.InDocument(c, at.Doc)
+	if !ok {
+		return "", false
 	}
-	return resolve.InternedID(ts, c.IDs(), at)
+	if in.IDs() == (ids.Document{}) {
+		if id, resolved, handled := scope.ComponentRef(at.Pointer); handled {
+			return id, resolved
+		}
+	}
+	return resolve.InternedID(ts, in.IDs(), at.Pointer)
 }
 
 // propIDByName returns the PropID of the model property with the given source

@@ -425,10 +425,10 @@ func parseTree(data []byte) (*yaml.Node, bool) {
 // the pre-parse refusals, then the node budget.
 //
 // Any finding refuses it, the scan's report that it could not finish included,
-// where the source carries that one forward as a warning. A finding about an
-// external document has nowhere of its own to be reported — Document.Sources
-// records the source alone (GitHub #74) — so the reference that named the
-// document is what fails, with the findings as its reason.
+// where the source carries that one forward as a warning. A refused document
+// is not read into the compile, so it has no Document.Sources entry a finding
+// could name: the reference that named the document is what fails, with the
+// findings as its reason.
 func (e external) admit(key string, root *yaml.Node) error {
 	findings := refusals(nowhere, root, e.opts)
 	if len(findings) > 0 {

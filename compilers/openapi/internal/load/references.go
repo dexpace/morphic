@@ -348,8 +348,9 @@ func quotedStop(t trail) string {
 //
 // One about a node of the source's tree is placed as the source's own findings
 // are, at the node (GitHub #879). Any other is placed at site, the $ref that
-// reached it, and its message names its position in the document place names,
-// which no Provenance can (GitHub #74).
+// reached it, and its message names its position in the document place names:
+// the resolution draws it before the documents Document.Sources lists are all
+// read, so it is not yet placed in its own (GitHub #1030).
 func reachedFinding(tree sourceTree, site ir.Provenance, place string, err error) ir.Diagnostic {
 	verr, ok := asValidationError(err)
 	if !ok {

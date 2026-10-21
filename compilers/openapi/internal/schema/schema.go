@@ -1651,8 +1651,9 @@ func dynamicExpansion(c lowering.Ctx, anchors *AnchorIndex, s *oas3.Schema, poin
 	if c.RefScope().Foreign {
 		// Its fragment names that document's anchor, and the index holds the
 		// source's alone: expanding it read the source's anchor of that name
-		// (GitHub #762).
-		return "", "it is written in another document, whose $dynamicAnchor it names and which is not lowered", false, nil
+		// (GitHub #762). Indexing each document's is GitHub #1031.
+		return "", "it is written in another document, whose $dynamicAnchor it names, and only the source's " +
+			"anchors are indexed", false, nil
 	}
 	at, why, ok, diags := soleAnchorSite(c, anchors, name)
 	if !ok {

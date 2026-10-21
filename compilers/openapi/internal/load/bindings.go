@@ -23,12 +23,38 @@ import (
 )
 
 // bound is what binding the source's schema references found: the bindings
-// the lowering reads, the schemas built for the table's landings, and what it
-// reports.
+// the lowering reads, the schemas built for the table's landings, and every
+// document a reference read beside the source.
 type bound struct {
 	bindings *typed.Bindings
 	built    []typed.Built
-	diags    []ir.Diagnostic
+	others   Others
+}
+
+// besideSource is what the documents read beside the source are listed with
+// (newOthers): the Document.Sources index of the first, and the format each
+// is read as, the source's.
+type besideSource struct {
+	first  int
+	format string
+}
+
+// placer returns where a finding at a position of b's table is placed: at's
+// Provenance for the source's, and for another document's its own
+// Document.Sources entry. One no entry holds, which a document the binder read
+// always has, is placed at the source's root rather than nowhere.
+func (b bound) placer(at func(jsontext.Pointer) ir.Provenance) func(bind.Position) ir.Provenance {
+	table := b.bindings.Table()
+	return func(p bind.Position) ir.Provenance {
+		if p.Doc == bind.Source {
+			return at(p.Pointer)
+		}
+		o, ok := b.others.Named(table.Document(p.Doc).Name)
+		if !ok {
+			return at("")
+		}
+		return ir.Provenance{Source: o.Index, Pointer: p.Pointer}
+	}
 }
 
 // bindSchemas resolves every schema $ref of doc, the source's model, in the
@@ -39,8 +65,7 @@ type bound struct {
 // them (see resolve). It runs once every reference object is resolved, since a
 // pointer through one reads on where the parser resolved it. reader reads
 // other documents, or is nil when none is read.
-func bindSchemas(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI,
-	sibs Siblings, self sourceDocument, reader *external,
+func bindSchemas(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, self sourceDocument, reader *external,
 ) bound {
 	ends := referenceEnds(ctx, doc, sibs, self)
 	cfg := bind.Config{Self: self.path, Locate: self.locate, Beside: sibs.Beside, Written: self.escapes.original,
@@ -55,8 +80,7 @@ func bindSchemas(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, d
 	bd := typed.NewBuilder(table)
 	indexWalk(bd, walkSource(ctx, doc, sibs), bind.Position{})
 	indexEnds(ctx, bd, table, ends)
-	built := bd.Build(ctx)
-	return bound{bindings: bd.Bindings(), built: built, diags: bindingDiags(at, table)}
+	return bound{bindings: bd.Bindings(), built: bd.Build(ctx)}
 }
 
 // referenceEnd is where the chain of one of the source's reference objects
@@ -170,80 +194,62 @@ func (s sourceDocument) nameOf(name string) string {
 	return name
 }
 
-// bindingDiags reports what the table found in the source: each $ref that
-// fails, at the $ref (refDiags); each loop of $refs once, where the table
+// bindingDiags reports what the table found: each $ref that fails, at the
+// $ref, in whichever document; each loop of $refs once, where the table
 // places it; and the budget or the merge bound, if either stopped the reading.
-func bindingDiags(at func(jsontext.Pointer) ir.Provenance, table *bind.Table) []ir.Diagnostic {
-	diags := refDiags(at, table)
-	for _, l := range table.Loops() {
-		if l.Reported {
-			diags = append(diags, diag.Newf(ir.SeverityError, diag.CyclicRef, at(l.Site.Pointer),
-				"cyclic $ref: the chain of $refs through %s comes back to where it started and never reaches a schema",
-				spellLoop(l, table)))
+func bindingDiags(place func(bind.Position) ir.Provenance, table *bind.Table) []ir.Diagnostic {
+	var diags []ir.Diagnostic
+	for _, e := range table.Entries() {
+		if e.Hop.Status == bind.Unresolved {
+			diags = append(diags, diag.Newf(ir.SeverityError, diag.UnresolvedRef, place(e.Site),
+				"unresolved $ref %q: %s", e.Hop.Ref, e.Hop.Why()))
 		}
 	}
+	for _, l := range table.Loops() {
+		diags = append(diags, diag.Newf(ir.SeverityError, diag.CyclicRef, place(l.Site),
+			"cyclic $ref: the chain of $refs through %s comes back to where it started and never reaches a schema",
+			spellLoop(l, table)))
+	}
+	at := place(bind.Position{})
 	if table.Exhausted() {
-		diags = append(diags, diag.Newf(ir.SeverityError, diag.BudgetExceeded, at(""),
+		diags = append(diags, diag.Newf(ir.SeverityError, diag.BudgetExceeded, at,
 			"resolving the schema $refs takes more than %d steps; the $refs past them are left unresolved",
 			table.Limit()))
 	}
 	if table.Truncated() {
-		diags = append(diags, diag.Newf(ir.SeverityWarning, diag.DegradedConstruct, at(""),
+		diags = append(diags, diag.Newf(ir.SeverityWarning, diag.DegradedConstruct, at,
 			"a mapping merges through `<<` deeper than %d levels, which resolving the schema $refs does not "+
 				"expand; a $ref past that, or one that reads a key past it, is left unresolved", nodeview.MergeDepthLimit))
 	}
 	return diags
 }
 
-// refDiags reports each source $ref whose own hop fails, and each whose hop
-// leaves the source for content whose chain fails there, which no source
-// position is written in. A $ref whose hop lands on another source $ref is
-// not reported for that one's failure: that one is.
-func refDiags(at func(jsontext.Pointer) ir.Provenance, table *bind.Table) []ir.Diagnostic {
-	var diags []ir.Diagnostic
-	for _, e := range table.Entries() {
-		switch {
-		case e.Site.Doc != bind.Source:
-		case e.Hop.Status == bind.Unresolved:
-			diags = append(diags, diag.Newf(ir.SeverityError, diag.UnresolvedRef, at(e.Site.Pointer),
-				"unresolved $ref %q: %s", e.Hop.Ref, e.Hop.Why()))
-		case e.Hop.Target.Doc != bind.Source && e.Chain.Status == bind.Unresolved && e.Chain.Failed.Doc != bind.Source:
-			failed, _ := table.Entry(e.Chain.Failed)
-			diags = append(diags, diag.Newf(ir.SeverityError, diag.UnresolvedRef, at(e.Site.Pointer),
-				"unresolved $ref %q: its chain reaches #%s in %s, whose $ref %q is unresolved: %s", e.Hop.Ref,
-				failed.Site.Pointer, table.Document(failed.Site.Doc).Name, failed.Hop.Ref, failed.Hop.Why()))
-		}
-	}
-	return diags
-}
-
 // buildFailures reports each landing no schema could be built for, at the
-// least source position whose chain reaches it, with why. One only another
-// document's content reaches is reported where the lowering meets its $ref.
-func buildFailures(at func(jsontext.Pointer) ir.Provenance, built []typed.Built) []ir.Diagnostic {
+// least position whose chain reaches it, in whichever document, with why.
+func buildFailures(place func(bind.Position) ir.Provenance, built []typed.Built) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for _, b := range built {
 		if b.Err == nil || !b.Landing.Reached {
 			continue
 		}
 		where := "#" + string(b.Landing.At.Pointer)
-		if b.Landing.At.Doc != bind.Source {
+		if b.Landing.At.Doc != b.Landing.Site.Doc {
 			where += " in " + b.Landing.Name
 		}
-		diags = append(diags, diag.Newf(ir.SeverityError, diag.Validation, at(b.Landing.Site.Pointer),
+		diags = append(diags, diag.Newf(ir.SeverityError, diag.Validation, place(b.Landing.Site),
 			"the $ref here reaches %s, where no schema could be built: %s", where, b.Err.Error()))
 	}
 	return diags
 }
 
-// spellLoop names l's members, in order: a source position by its pointer,
-// and another document's by its pointer in that document's name, as refDiags
-// names one.
+// spellLoop names l's members, in order: one in the document l is reported in
+// by its pointer, and another document's by its pointer in that document's
+// name.
 func spellLoop(l bind.Loop, table *bind.Table) string {
 	parts := make([]string, len(l.Members))
 	for i, m := range l.Members {
 		parts[i] = "#" + string(m.Pointer)
-		if m.Doc != bind.Source {
+		if m.Doc != l.Site.Doc {
 			parts[i] += " in " + table.Document(m.Doc).Name
 		}
 	}

@@ -1,0 +1,35 @@
+openapi: 3.1.0
+info: {title: Split Petstore, version: "1.0.0"}
+paths:
+  /pets:
+    get:
+      operationId: listPets
+      parameters:
+        - $ref: './common.yaml#/components/parameters/Limit'
+      responses:
+        "200":
+          description: the pets
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: './schemas/pet.yaml#/components/schemas/Pet'}}
+        default: {$ref: './common.yaml#/components/responses/Error'}
+    post:
+      operationId: createPet
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/NewPet'}
+      responses:
+        "201":
+          description: created
+          content:
+            application/json:
+              schema: {$ref: './schemas/pet.yaml#/components/schemas/Pet'}
+        default: {$ref: './common.yaml#/components/responses/Error'}
+components:
+  schemas:
+    NewPet:
+      allOf:
+        - {$ref: './schemas/pet.yaml#/components/schemas/Pet'}
+        - {required: [name]}

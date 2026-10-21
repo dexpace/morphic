@@ -96,10 +96,10 @@ func (c *Compiler) Compile(ctx context.Context, sources []compilers.Source, opts
 //
 // The load phase reports a failure at the $ref, and a cycle once, with the
 // reason. The lowering reports a schema or security-scheme $ref it could not
-// follow at that pointer, and also where the load phase did not: a $ref into a
-// document it does not lower (GitHub #74), one the binding never read, or one a
-// resolver panic hid. So only a report the load phase made at that exact
-// provenance is dropped; kept, one failure would read as two (#385).
+// follow at that pointer, and also where the load phase did not: a $ref the
+// binding never read, or one a resolver panic hid. So only a report the load
+// phase made at that exact provenance, in whichever document, is dropped; kept,
+// one failure would read as two (#385).
 func withoutRereported(lowered, loaded []ir.Diagnostic) []ir.Diagnostic {
 	reported := make(map[ir.Provenance]bool)
 	for _, d := range loaded {
@@ -199,7 +199,7 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, 
 	}
 	acc.AppendAll(metaDiags)
 	out.IRVersion = ir.IRVersion
-	out.IDSpaces = ids.Namespaces().Declaration()
+	out.IDSpaces = ids.Namespaces(lowering.OtherIDs(c)...).Declaration()
 	out.Sources = c.Sources()
 	// An entry the registry refused is a compiler bug no source can provoke, and
 	// a refusal nothing reports hides the bug rather than the symptom: the node is

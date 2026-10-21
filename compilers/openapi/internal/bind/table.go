@@ -117,13 +117,13 @@ func (b *binder) settle(t *Table) {
 	sites, keys := b.find.fresh, b.find.freshMappings
 	b.find.fresh, b.find.freshMappings = nil, nil
 	b.work.spend(len(sites) + len(keys))
-	slices.SortFunc(sites, comparePositions)
+	slices.SortFunc(sites, b.docs.compare)
 	for _, site := range sites {
 		c := b.chain(site)
 		t.entries[site] = Entry{Site: site, Hop: b.hops[site], Chain: c}
 	}
 	slices.SortFunc(keys, func(x, y mappingKey) int {
-		if c := comparePositions(x.at, y.at); c != 0 {
+		if c := b.docs.compare(x.at, y.at); c != 0 {
 			return c
 		}
 		return cmp.Compare(x.value, y.value)
@@ -153,12 +153,13 @@ func (b *binder) table(t *Table) *Table {
 		site, reached := reach[at]
 		t.landings = append(t.landings, Landing{At: at, Name: t.docs[at.Doc].Name, Site: site, Reached: reached})
 	}
-	slices.SortFunc(t.landings, func(x, y Landing) int { return comparePositions(x.At, y.At) })
+	slices.SortFunc(t.landings, func(x, y Landing) int { return t.compare(x.At, y.At) })
 	return t
 }
 
-// attribute returns, for each position some source $ref's or mapping value's
-// chain reaches, the least such source position. Starting from each in order,
+// attribute returns, for each position some $ref's or mapping value's chain
+// reaches, the least such position, in whichever document. Starting from each
+// in order,
 // a chain is followed until it meets a position a lesser start reached, whose
 // chain on from there that start has marked, so each position is marked once.
 func (b *binder) attribute(t *Table) map[Position]Position {
@@ -167,7 +168,7 @@ func (b *binder) attribute(t *Table) map[Position]Position {
 	}
 	var starts []start
 	add := func(from Position, h Hop) {
-		if from.Doc == Source && h.Status == Resolved {
+		if h.Status == Resolved {
 			starts = append(starts, start{from: from, first: h.Target})
 		}
 	}
@@ -178,10 +179,10 @@ func (b *binder) attribute(t *Table) map[Position]Position {
 		add(m.At, m.Hop)
 	}
 	slices.SortFunc(starts, func(x, y start) int {
-		if c := comparePositions(x.from, y.from); c != 0 {
+		if c := b.docs.compare(x.from, y.from); c != 0 {
 			return c
 		}
-		return comparePositions(x.first, y.first)
+		return b.docs.compare(x.first, y.first)
 	})
 	reach := map[Position]Position{}
 	for _, s := range starts {
@@ -233,7 +234,7 @@ func (t *Table) Entry(site Position) (Entry, bool) {
 // Entries returns every entry, ordered by site.
 func (t *Table) Entries() []Entry {
 	out := slices.Collect(maps.Values(t.entries))
-	slices.SortFunc(out, func(x, y Entry) int { return comparePositions(x.Site, y.Site) })
+	slices.SortFunc(out, func(x, y Entry) int { return t.compare(x.Site, y.Site) })
 	return out
 }
 
@@ -253,6 +254,18 @@ func (t *Table) Landings() []Landing { return slices.Clone(t.landings) }
 
 // Document returns the document id names.
 func (t *Table) Document(id DocID) Document { return t.docs[id] }
+
+// compare orders positions as the table reads them: the source's first,
+// another document's by its name, then by pointer (comparePositions).
+func (t *Table) compare(p, q Position) int {
+	if c, ok := byName(p, q, t.name); ok {
+		return c
+	}
+	return comparePositions(p, q)
+}
+
+// name returns the name of the document id names.
+func (t *Table) name(id DocID) string { return t.docs[id].Name }
 
 // Documents reports how many documents the table read, the source included.
 func (t *Table) Documents() int { return len(t.docs) }

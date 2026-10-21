@@ -76,14 +76,11 @@ func (b *Bindings) Declared(js *schemaRef) *schemaRef {
 	return b.held[e.Hop.Target]
 }
 
-// End returns the schema the chain of $refs from js ends on, or nil where it
-// does not end on one or a $ref of it names another document (bind.Chain.Named).
-// The lowering lowers no schema there (GitHub #74), so what such a chain ends
-// on lends the use site holding it nothing: no annotation, form part, file
-// body or discriminator its type does not also hold.
+// End returns the schema the chain of $refs from js ends on, in whichever
+// document, or nil where it does not end on one.
 func (b *Bindings) End(js *schemaRef) *schemaRef {
 	e, ok := b.Entry(js)
-	if !ok || e.Chain.Status != bind.Resolved || !e.Chain.Named {
+	if !ok || e.Chain.Status != bind.Resolved {
 		return nil
 	}
 	return b.held[e.Chain.End]

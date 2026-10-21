@@ -15,6 +15,7 @@ import (
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
@@ -1158,18 +1159,16 @@ func TestPathItemRefSiblings_AnExpressionBesideACallbackRefIsIgnored(t *testing.
 	}
 }
 
-// TestPathItemRefSiblings_AForeignReferentKeepsItsOwnPositions pins the one
-// mount where both declarations would share pointers: a use site writing item
-// parameters beside a $ref to another document's path item, whose content is
-// placed at the use site because no pointer here addresses it. Each parameter
-// keeps the type its own schema declares.
+// TestPathItemRefSiblings_AForeignReferentKeepsItsOwnPositions pins a use site
+// writing item parameters beside a $ref to another document's path item: each
+// parameter keeps the type its own schema declares, the referent's lowered
+// where that document declares it. Where the bindings' table places no end, as
+// for a key that document writes twice, the referent is lowered at the use
+// site, under its "$ref", so the two still share no pointer. A finding names
+// the referent's positions by the reference.
 func TestPathItemRefSiblings_AForeignReferentKeepsItsOwnPositions(t *testing.T) {
 	t.Parallel()
-	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "target.yaml"), []byte(`openapi: 3.1.0
-info: {title: Target, version: "1"}
-paths:
-  /b:
+	const item = `
     parameters:
       - {name: refP, in: header, schema: {type: object, properties: {fromRef: {type: integer}}}}
     get:
@@ -1178,42 +1177,51 @@ paths:
     post:
       operationId: postB
       responses: {"200": {description: OK}}
-`), 0o600))
-	doc, diags, err := openapi.New().Compile(t.Context(),
-		[]compilers.Source{{Path: filepath.Join(dir, "main.yaml"), Data: []byte(`openapi: 3.1.0
+`
+	for name, tc := range map[string]struct {
+		target, ref string
+		refType     ir.TypeID
+	}{
+		"declared once": {
+			target:  "openapi: 3.1.0\ninfo: {title: Target, version: \"1\"}\npaths:\n  /b:" + item,
+			ref:     "./target.yaml#/paths/~1b",
+			refType: ids.In("target.yaml").AnonType("/paths/~1b/parameters/0/schema"),
+		},
+		"a key written twice": {
+			target:  "B:" + strings.ReplaceAll(item, "\n    ", "\n  ") + "B: {}\n",
+			ref:     "./target.yaml#/B",
+			refType: ids.Document{}.AnonType("/paths/~1a/$ref/parameters/0/schema"),
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			dir := t.TempDir()
+			require.NoError(t, os.WriteFile(filepath.Join(dir, "target.yaml"), []byte(tc.target), 0o600))
+			doc, diags, err := openapi.New().Compile(t.Context(),
+				[]compilers.Source{{Path: filepath.Join(dir, "main.yaml"), Data: []byte(`openapi: 3.1.0
 info: {title: Main, version: "1"}
 paths:
   /a:
-    $ref: './target.yaml#/paths/~1b'
+    $ref: '` + tc.ref + `'
     parameters:
       - {name: useP, in: query, schema: {type: object, properties: {fromUse: {type: string}}}}
     get:
       operationId: useGet
       responses: {"200": {description: OK}}
 `)}}, compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
-	require.NoError(t, err)
-	require.NotNil(t, doc)
-	assert.Empty(t, irverify.Verify(doc))
+			require.NoError(t, err)
+			require.NotNil(t, doc)
+			assert.Empty(t, irverify.Verify(doc))
 
-	props := func(p ir.Parameter) []string {
-		t.Helper()
-		def, ok := doc.Types[p.Type.Target]
-		require.True(t, ok, "%s has a type", p.Name.Source)
-		model, ok := def.(*ir.Model)
-		require.True(t, ok)
-		names := make([]string, 0, len(model.Properties))
-		for _, prop := range model.Properties {
-			names = append(names, prop.Name.Source)
-		}
-		return names
+			for _, op := range []ir.Operation{opByPath(t, doc, "GET", "/a"), opByPath(t, doc, "POST", "/a")} {
+				assert.Equal(t, ids.Document{}.AnonType("/paths/~1a/parameters/0/schema"), paramNamed(t, op, "useP").Type.Target)
+				assert.Equal(t, tc.refType, paramNamed(t, op, "refP").Type.Target,
+					"the referent's parameter keeps its own schema, not the use site's at the same index")
+			}
+			message := openapitest.DiagMessageAt(t, diags, diag.PathItemRefCollision, ir.SeverityWarning, "/paths/~1a/get")
+			assert.Contains(t, message, tc.ref+"/get", "another document's position is named by the reference")
+		})
 	}
-	for _, op := range []ir.Operation{opByPath(t, doc, "GET", "/a"), opByPath(t, doc, "POST", "/a")} {
-		assert.Equal(t, []string{"fromUse"}, props(paramNamed(t, op, "useP")))
-		assert.Equal(t, []string{"fromRef"}, props(paramNamed(t, op, "refP")),
-			"the referent's parameter keeps its own schema, not the use site's at the same index")
-	}
-	message := openapitest.DiagMessageAt(t, diags, diag.PathItemRefCollision, ir.SeverityWarning, "/paths/~1a/get")
-	assert.Contains(t, message, "./target.yaml#/paths/~1b/get", "another document's position is named by the reference")
 }
 
 // TestPathItemRefSiblings_AWholeDocumentReferentIsNamedByItsFragment pins how a

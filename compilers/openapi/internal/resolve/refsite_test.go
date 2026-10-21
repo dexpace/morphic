@@ -87,10 +87,10 @@ func externalDocument(t *testing.T) string {
 
 // TestScope_TargetSchema_TheEndOfTheChainOrNothing pins the fallback readers
 // rely on: a $ref has the schema its chain ends on, however many hops that
-// takes; a non-reference, an unresolved reference, a loop and a $ref into
-// another document, which the lowering lowers nothing of, have none, so a
-// use-site annotation never falls back to a referent its type does not name. A
-// scope that holds no bindings finds none either.
+// takes and into whichever document, so a $ref into another document has that
+// document's schema; a non-reference, an unresolved reference and a loop have
+// none, so a use-site annotation never falls back to a referent its type does
+// not name. A scope that holds no bindings finds none either.
 func TestScope_TargetSchema_TheEndOfTheChainOrNothing(t *testing.T) {
 	t.Parallel()
 	b := loadBound(t, externalDocument(t), openapitest.ComponentSpec(targetsSpec), load.Options{Reader: reader.Disk{}})
@@ -116,7 +116,8 @@ func TestScope_TargetSchema_TheEndOfTheChainOrNothing(t *testing.T) {
 	e, ok := b.scope.Bindings.Entry(other)
 	require.True(t, ok)
 	require.Equal(t, "external", b.scope.Bindings.At(e.Chain.End).GetSchema().GetTitle(), "the chain ends there")
-	assert.Nil(t, b.scope.TargetSchema(other, other.GetSchema()), "a $ref into another document")
+	end := b.scope.Bindings.At(e.Chain.End).GetSchema()
+	assert.Same(t, end, b.scope.TargetSchema(other, other.GetSchema()), "a $ref into another document ends on E")
 
 	via := b.component(t, "Via")
 	assert.Nil(t, resolve.Scope{}.TargetSchema(via, via.GetSchema()), "no bindings, no referent")
@@ -152,9 +153,10 @@ func TestScope_InDocumentOf_ReadsWhereTheBindingsPlaceTheSchema(t *testing.T) {
 
 // TestScope_NamesReferent_ADeclaredTargetOrAResolvedOne pins what counts as
 // naming something this compilation can intern. A component the lowering
-// declares counts; one it does not, one the document lacks, another document
-// and a bare name do not; and a pointer deeper than a component counts only
-// when it landed on a schema with a body or a boolean one.
+// declares counts; one it does not, one the document lacks and a bare name do
+// not; a pointer deeper than a component counts only when it landed on a
+// schema with a body or a boolean one; and so does a $ref into another
+// document, which counts when it landed on one and not when it landed on none.
 func TestScope_NamesReferent_ADeclaredTargetOrAResolvedOne(t *testing.T) {
 	t.Parallel()
 	const schemas = `
@@ -162,6 +164,7 @@ func TestScope_NamesReferent_ADeclaredTargetOrAResolvedOne(t *testing.T) {
     ToUser: {$ref: '#/components/schemas/User'}
     ToMissing: {$ref: '#/components/schemas/Missing'}
     ToOther: {$ref: 'ext.yaml#/components/schemas/E'}
+    ToOtherMissing: {$ref: 'ext.yaml#/components/schemas/Missing'}
     ToBare: {$ref: Bare}
     Outer:
       $defs: {k: {type: string}, off: false}
@@ -183,7 +186,8 @@ func TestScope_NamesReferent_ADeclaredTargetOrAResolvedOne(t *testing.T) {
 	}{
 		"declared":   {b.component(t, "ToUser"), true, "a declared component is a target"},
 		"missing":    {b.component(t, "ToMissing"), false, "an undeclared component is a dangling reference"},
-		"other":      {b.component(t, "ToOther"), false, "another document is not this compilation's to intern"},
+		"other":      {b.component(t, "ToOther"), true, "a schema another document declares is a target"},
+		"other gone": {b.component(t, "ToOtherMissing"), false, "another document that lacks the schema is a dangling reference"},
 		"bare":       {b.component(t, "ToBare"), false, "a bare name addresses no pointer at all"},
 		"sub-schema": {b.at(t, outer+"sub"), true, "a sub-schema pointer counts once it landed on a body"},
 		"boolean":    {b.at(t, outer+"boolean"), true, "a boolean schema lowers as at its own position"},
@@ -197,14 +201,15 @@ func TestScope_NamesReferent_ADeclaredTargetOrAResolvedOne(t *testing.T) {
 	assert.False(t, resolve.Scope{}.NamesReferent(b.component(t, "ToUser")), "no bindings, no target")
 }
 
-// TestScope_TargetPointer_WhereTheCompilerResolvedTheRef pins the pointer a
-// $ref lands on as the compiler resolved it. A "#/$defs/..." pointer is the
-// definition the $defs rule finds, the root's first and otherwise the nearest
-// ancestor's; any other is the position it names; and a document part naming
-// the source reads from its root, as any other pointer does, not by the $defs
-// rule. A $ref that lands on no schema, in another document or on a loop has no
-// pointer, nor does a schema the bindings do not know.
-func TestScope_TargetPointer_WhereTheCompilerResolvedTheRef(t *testing.T) {
+// TestScope_Target_WhereTheCompilerResolvedTheRef pins where the lowering
+// places what a $ref names as the compiler resolved it. A "#/$defs/..."
+// pointer is the definition the $defs rule finds, the root's first and
+// otherwise the nearest ancestor's; any other is the position it names; a
+// document part naming the source reads from its root, as any other pointer
+// does, not by the $defs rule; and one naming another document is the position
+// it lands on there. A $ref that lands on no schema or on a loop has no
+// target, nor does a schema the bindings do not know.
+func TestScope_Target_WhereTheCompilerResolvedTheRef(t *testing.T) {
 	t.Parallel()
 	const schemas = `
     Target: {type: string}
@@ -241,31 +246,36 @@ func TestScope_TargetPointer_WhereTheCompilerResolvedTheRef(t *testing.T) {
 		"unresolved":  {b.component(t, "Dangling"), ""},
 		"loop member": {b.component(t, "LoopA"), ""},
 		"into loop":   {b.component(t, "ToLoop"), "/components/schemas/LoopA"},
-		"other doc":   {b.component(t, "Other"), ""},
 		"no ref":      {b.component(t, "Target"), ""},
 		"unknown":     {&schemaRef{}, ""},
 	} {
-		got, ok := b.scope.TargetPointer(tc.js)
+		got, ok := b.scope.Target(tc.js)
 		assert.Equal(t, tc.want != "", ok, name)
-		assert.Equal(t, tc.want, string(got), name)
+		assert.Equal(t, bind.Position{Pointer: jsontext.Pointer(tc.want)}, got, name)
 	}
 
 	other, ok := b.doc.Bindings.Entry(b.component(t, "Other"))
 	require.True(t, ok)
 	assert.Equal(t, bind.Resolved, other.Hop.Status, "the $ref into another document resolved")
 	assert.False(t, other.Hop.Named, "but not in the source, whose pointers it spells")
+	got, ok := b.scope.Target(b.component(t, "Other"))
+	require.True(t, ok)
+	assert.Equal(t, bind.Position{Doc: other.Hop.Target.Doc, Pointer: "/components/schemas/E"}, got,
+		"the position it lands on in the other document")
+	assert.NotEqual(t, bind.Source, got.Doc)
 
-	_, ok = resolve.Scope{}.TargetPointer(b.component(t, "Direct"))
+	_, ok = resolve.Scope{}.Target(b.component(t, "Direct"))
 	assert.False(t, ok, "no bindings, no pointer")
 }
 
-// TestScope_MappingTarget_WhereTheCompilerResolvedTheValue pins the pointer a
-// discriminator mapping value names, read as a $ref written at the
-// discriminator is, and the schema written there: a pointer or a component, and
-// a "#/$defs/..." value, which is the definition the nearest ancestor holds. A
-// value into another document, one a document part leaves reading from the
-// root, one naming no definition and a bare name land on none, and neither does
-// a missing discriminator, one the bindings do not know or a scope without them.
+// TestScope_MappingTarget_WhereTheCompilerResolvedTheValue pins where the
+// lowering places what a discriminator mapping value names, read as a $ref
+// written at the discriminator is, and the schema written there: a pointer or a
+// component, a "#/$defs/..." value, which is the definition the nearest
+// ancestor holds, and a value into another document, the position it lands on
+// there. One a document part leaves reading from the root, one naming no
+// definition and a bare name land on none, and neither does a missing
+// discriminator, one the bindings do not know or a scope without them.
 func TestScope_MappingTarget_WhereTheCompilerResolvedTheValue(t *testing.T) {
 	t.Parallel()
 	const schemas = `
@@ -293,12 +303,16 @@ func TestScope_MappingTarget_WhereTheCompilerResolvedTheValue(t *testing.T) {
 	} {
 		got, decl, ok := b.scope.MappingTarget(d, value)
 		assert.True(t, ok, value)
-		assert.Equal(t, want, string(got), value)
+		assert.Equal(t, bind.Position{Pointer: jsontext.Pointer(want)}, got, value)
 		assert.Same(t, b.at(t, want), decl, "%s: the schema written there", value)
 	}
+	other, decl, ok := b.scope.MappingTarget(d, "ext.yaml#/components/schemas/E")
+	require.True(t, ok, "a value into another document lands there")
+	assert.NotEqual(t, bind.Source, other.Doc)
+	assert.Equal(t, jsontext.Pointer("/components/schemas/E"), other.Pointer)
+	assert.Same(t, b.doc.Bindings.At(other), decl, "the schema held there")
 
 	for value, why := range map[string]string{
-		"ext.yaml#/components/schemas/E": "a value into another document is not the source's",
 		"spec.yaml#/$defs/dog":           "a document part reads from the root, which holds no dog",
 		"#/$defs/missing":                "the $defs rule finds no such definition",
 		"Cat":                            "a bare name is a component's name, read as no $ref",
@@ -306,11 +320,11 @@ func TestScope_MappingTarget_WhereTheCompilerResolvedTheValue(t *testing.T) {
 	} {
 		got, decl, ok := b.scope.MappingTarget(d, value)
 		assert.False(t, ok, "%s: %s", value, why)
-		assert.Empty(t, got, value)
+		assert.Zero(t, got, value)
 		assert.Nil(t, decl, value)
 	}
 
-	_, _, ok := b.scope.MappingTarget(nil, "#/components/schemas/Cat")
+	_, _, ok = b.scope.MappingTarget(nil, "#/components/schemas/Cat")
 	assert.False(t, ok, "no discriminator to read a position from")
 	_, _, ok = b.scope.MappingTarget(&oas3.Discriminator{}, "#/components/schemas/Cat")
 	assert.False(t, ok, "a discriminator the bindings do not know")

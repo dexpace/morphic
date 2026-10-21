@@ -14,6 +14,7 @@ import (
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/compile"
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
@@ -736,11 +737,11 @@ func TestMappingTargetID_ReadsEachPositionOnce(t *testing.T) {
 		"#/components/schemas/Hold/properties/p")
 	require.True(t, ok)
 	assert.Equal(t, componentIDByName("Cat"), id, "the position reads through to Cat")
-	at := l.ctx.TypePosition("/components/schemas/Hold/properties/p", func() jsontext.Pointer {
+	at := l.ctx.TypePosition(bind.Position{Pointer: "/components/schemas/Hold/properties/p"}, func() bind.Position {
 		t.Error("the position was read again")
-		return ""
+		return bind.Position{}
 	})
-	assert.Equal(t, jsontext.Pointer("/components/schemas/Cat"), at)
+	assert.Equal(t, bind.Position{Pointer: "/components/schemas/Cat"}, at)
 }
 
 // defsSiblingMappingSchemas is the discriminator-mapping shape of GitHub #557:

@@ -96,11 +96,9 @@ type Options struct {
 	// inside that directory, symbolic links included.
 	//
 	// Reads go through compilers.Options.Reader; with none, nothing is read.
-	// A schema another document holds is not lowered yet (GitHub #74).
-	//
-	// A referenced document fails the reference naming it when it crosses the
-	// source's budgets or pre-parse refusals, or its scan cannot finish, where
-	// the source only warns.
+	// Each document read is a Document.Sources entry, and what it declares is
+	// lowered there. One that crosses the source's budgets or pre-parse
+	// refusals, or whose scan cannot finish, fails each reference naming it.
 	AllowExternalRefs bool `json:"allowExternalRefs"`
 	// Overlay is an OpenAPI Overlay document to apply to the source before
 	// lowering, or nil for none. It is the source-document patching hook

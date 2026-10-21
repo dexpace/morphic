@@ -389,12 +389,10 @@ x-lib:
 `, self)
 	disc := at("/components/schemas/P/discriminator")
 	for value, want := range map[string]bind.Chain{
-		"#/x-lib/a": {Status: bind.Resolved, End: at("/x-lib/b"), Role: bind.Raw, Hops: 2, Named: true},
-		"#/$defs/D": {Status: bind.Resolved, End: at("/components/schemas/P/$defs/D"), Role: bind.Schema, Hops: 1,
-			Named: true},
-		"#/x-lib/h": {Status: bind.Resolved, End: at("/components/schemas/Holder/$defs/X"), Role: bind.Schema, Hops: 3,
-			Named: true},
-		"#/x-lib/b":       {Status: bind.Resolved, End: at("/x-lib/b"), Role: bind.Raw, Hops: 1, Named: true},
+		"#/x-lib/a":       {Status: bind.Resolved, End: at("/x-lib/b"), Role: bind.Raw, Hops: 2},
+		"#/$defs/D":       {Status: bind.Resolved, End: at("/components/schemas/P/$defs/D"), Role: bind.Schema, Hops: 1},
+		"#/x-lib/h":       {Status: bind.Resolved, End: at("/components/schemas/Holder/$defs/X"), Role: bind.Schema, Hops: 3},
+		"#/x-lib/b":       {Status: bind.Resolved, End: at("/x-lib/b"), Role: bind.Raw, Hops: 1},
 		"#/x-lib/missing": {Status: bind.Unresolved, Failed: disc},
 	} {
 		m, ok := table.Mapping(disc, value)
@@ -410,25 +408,26 @@ x-lib:
 	assert.True(t, ok, "and every other discriminator")
 }
 
-// TestBind_PlacesEachLandingAtTheLeastSourcePositionReachingIt pins the
-// landings a table reports, positions a schema has to be built for: each raw
-// YAML or other document's position some hop lands on, placed at the least
-// source $ref or mapping value whose chain reaches it, and marked unreached
-// when only another document's content leads there.
-func TestBind_PlacesEachLandingAtTheLeastSourcePositionReachingIt(t *testing.T) {
+// TestBind_PlacesEachLandingAtTheLeastPositionReachingIt pins the landings a
+// table reports, positions a schema has to be built for: each raw YAML or
+// other document's position some hop lands on, placed at the least $ref or
+// mapping value whose chain reaches it, the source's before another
+// document's, whichever document writes it.
+func TestBind_PlacesEachLandingAtTheLeastPositionReachingIt(t *testing.T) {
 	t.Parallel()
-	cfg := withDocuments(map[string]string{"other.yaml": "A: {$ref: '#/B'}\nB: {type: string}\nC: {$ref: '#/D'}\nD: {}\n"})
+	const otherSrc = "A: {$ref: '#/B'}\nB: {type: string}\nC: {$ref: '#/D'}\nD: {}\nE: {}\nF: {$ref: '#/E'}\n" +
+		"R: {description: ok, content: {a/b: {schema: {$ref: '#/C'}}}}\n"
+	cfg := withDocuments(map[string]string{"other.yaml": otherSrc})
 	cfg.Through = func(p jsontext.Pointer) (bind.ReferenceEnd, bool) {
 		return bind.ReferenceEnd{Name: "other.yaml", Pointer: "/R"}, p == "/components/responses/R"
 	}
-	cfg.Open = withRaw(cfg.Open, "other.yaml", "A: {$ref: '#/B'}\nB: {type: string}\nC: {$ref: '#/D'}\nD: {}\n"+
-		"R: {description: ok, content: {a/b: {schema: {$ref: '#/C'}}}}\n")
 	table := bound(t, head+`components:
   responses:
     R: {$ref: 'other.yaml#/R'}
   schemas:
     Z: {$ref: '#/x-lib/S'}
     M: {$ref: 'other.yaml#/A'}
+    Y: {$ref: 'other.yaml#/F'}
     P: {discriminator: {propertyName: k, mapping: {s: '#/x-lib/S'}}}
 x-lib:
   S: {type: string}
@@ -439,24 +438,15 @@ x-lib:
 	for _, l := range table.Landings() {
 		got[l.At] = l
 	}
+	in := func(pointer jsontext.Pointer) bind.Position { return bind.Position{Doc: other, Pointer: pointer} }
 	assert.Equal(t, bind.Landing{At: at("/x-lib/S"), Name: "spec.yaml", Site: at("/components/schemas/P/discriminator"),
 		Reached: true}, got[at("/x-lib/S")], "the least of a mapping value and a $ref reaching it")
-	assert.Equal(t, at("/components/schemas/M"), got[bind.Position{Doc: other, Pointer: "/B"}].Site,
-		"reached through a chain")
-	assert.False(t, got[bind.Position{Doc: other, Pointer: "/D"}].Reached,
-		"only what R resolved to leads there")
-}
-
-// withRaw is open answering name with src instead.
-func withRaw(open func(string) (*yaml.Node, error), name, src string) func(string) (*yaml.Node, error) {
-	return func(n string) (*yaml.Node, error) {
-		if n != name {
-			return open(n)
-		}
-		var node yaml.Node
-		if err := yaml.Unmarshal([]byte(src), &node); err != nil {
-			return nil, err
-		}
-		return &node, nil
-	}
+	assert.Equal(t, bind.Landing{At: in("/B"), Name: "other.yaml", Site: at("/components/schemas/M"), Reached: true},
+		got[in("/B")], "reached through a chain")
+	assert.Equal(t, bind.Landing{At: in("/D"), Name: "other.yaml", Site: in("/C"), Reached: true},
+		got[in("/D")], "a $ref another document writes places it, though it also leads there through R")
+	assert.Equal(t, bind.Landing{At: in("/C"), Name: "other.yaml", Site: in("/R/content/a~1b/schema"), Reached: true},
+		got[in("/C")], "the content R resolved to is read")
+	assert.Equal(t, bind.Landing{At: in("/E"), Name: "other.yaml", Site: at("/components/schemas/Y"), Reached: true},
+		got[in("/E")], "a source position orders before the other document's own $ref to it")
 }

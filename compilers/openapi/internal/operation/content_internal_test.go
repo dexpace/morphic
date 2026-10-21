@@ -15,7 +15,9 @@ import (
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
+	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
@@ -51,9 +53,9 @@ func TestBodyModelPointer_NoModelBehindBody(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			pointer, ok := bodyModelPointer(l.types, tc.body)
+			model, ok := bodyModel(l.types, tc.body)
 			assert.False(t, ok, "no model stands behind this body")
-			assert.Empty(t, pointer, "and no pointer is invented for one")
+			assert.Zero(t, model, "and no position is invented for one")
 		})
 	}
 }
@@ -65,6 +67,23 @@ func refSite(t *testing.T, ref string) (*lowerer, *oas3.JSONSchema[oas3.Referenc
 	t.Helper()
 	l, _ := loweredFor(t, openapitest.ComponentSpec("    Form: {type: object}\n    Ref: {$ref: '"+ref+"'}\n"))
 	return l, refComponent(t, l)
+}
+
+// keyed is where bodySchemaPointer keys an encoding entry: a document and a
+// pointer there.
+type keyed struct {
+	doc     ids.Document
+	pointer jsontext.Pointer
+}
+
+// local is the source's "/local", the pointer every keyedAt below falls back to.
+var local = keyed{pointer: "/local"}
+
+// keyedAt is bodySchemaPointer's answer for js under c, falling back to
+// "/local", as one comparable value.
+func keyedAt(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) keyed {
+	d, p := bodySchemaPointer(c, js, "/local")
+	return keyed{doc: d, pointer: p}
 }
 
 // refComponent returns the component Ref of the document l holds.
@@ -81,20 +100,21 @@ func refComponent(t *testing.T, l *lowerer) *oas3.JSONSchema[oas3.Referenceable]
 func TestBodySchemaPointer_LocalRefFragment(t *testing.T) {
 	t.Parallel()
 	l, js := refSite(t, "#/components/schemas/Form")
-	assert.Equal(t, jsontext.Pointer("/components/schemas/Form"), bodySchemaPointer(l.ctx, js, "/local"))
+	assert.Equal(t, keyed{pointer: "/components/schemas/Form"}, keyedAt(l.ctx, js))
 }
 
-// TestBodySchemaPointer_ForeignDocumentRefStaysLocal pins the document half of a
-// $ref deciding the pointer. Cutting the fragment off blindly turned another
-// document's property into an identity in this one, silently naming whichever
-// local schema shared the path. Neither a document that is not read nor one that
-// is lands in the source, so the local pointer stands.
-func TestBodySchemaPointer_ForeignDocumentRefStaysLocal(t *testing.T) {
+// TestBodySchemaPointer_AnotherDocumentsRefKeysInThatDocument pins the document
+// half of a $ref deciding the key. Cutting the fragment off blindly turned
+// another document's property into an identity in this one, silently naming
+// whichever local schema shared the path. A document that is read keys the
+// entry in that document, whose IDs it qualifies; one that is not read, or
+// that the compile does not list, lands nowhere, so the local pointer stands.
+func TestBodySchemaPointer_AnotherDocumentsRefKeysInThatDocument(t *testing.T) {
 	t.Parallel()
 	t.Run("not read", func(t *testing.T) {
 		t.Parallel()
 		l, js := refSite(t, "./ext-form.yaml#/components/schemas/Form")
-		assert.Equal(t, jsontext.Pointer("/local"), bodySchemaPointer(l.ctx, js, "/local"),
+		assert.Equal(t, local, keyedAt(l.ctx, js),
 			"a fragment from another document must not become a pointer into this one")
 	})
 
@@ -111,8 +131,12 @@ func TestBodySchemaPointer_ForeignDocumentRefStaysLocal(t *testing.T) {
 		require.True(t, ok)
 		require.Equal(t, bind.Resolved, e.Hop.Status, "the $ref lands in the other document")
 
-		assert.Equal(t, jsontext.Pointer("/local"), bodySchemaPointer(l.ctx, js, "/local"),
-			"a fragment from another document must not become a pointer into this one")
+		assert.Equal(t, keyed{doc: ids.In("ext-form.yaml"), pointer: "/components/schemas/Form"}, keyedAt(l.ctx, js),
+			"the other document's position, in its own IDs")
+
+		unlisted := l.ctx.WithLoaded(&load.Document{Doc: l.ctx.Doc, Bindings: l.ctx.Bindings()})
+		assert.Equal(t, local, keyedAt(unlisted, js),
+			"a landing in a document the compile did not list keeps the local pointer")
 	})
 }
 
@@ -122,7 +146,7 @@ func TestBodySchemaPointer_ForeignDocumentRefStaysLocal(t *testing.T) {
 func TestBodySchemaPointer_SelfNamedRefFollowsFragment(t *testing.T) {
 	t.Parallel()
 	l, js := refSite(t, "spec.yaml#/components/schemas/Form")
-	assert.Equal(t, jsontext.Pointer("/components/schemas/Form"), bodySchemaPointer(l.ctx, js, "/local"))
+	assert.Equal(t, keyed{pointer: "/components/schemas/Form"}, keyedAt(l.ctx, js))
 }
 
 // TestBodySchemaPointer_NonUTF8FragmentStaysLocal pins another reason a $ref
@@ -133,8 +157,7 @@ func TestBodySchemaPointer_SelfNamedRefFollowsFragment(t *testing.T) {
 func TestBodySchemaPointer_NonUTF8FragmentStaysLocal(t *testing.T) {
 	t.Parallel()
 	l, js := refSite(t, "#/components/schemas/%FF")
-	assert.Equal(t, jsontext.Pointer("/local"), bodySchemaPointer(l.ctx, js, "/local"),
-		"a fragment that is not UTF-8 must not become a pointer")
+	assert.Equal(t, local, keyedAt(l.ctx, js), "a fragment that is not UTF-8 must not become a pointer")
 }
 
 // TestBodySchemaPointer_UnresolvedRefStaysLocal pins the last reason: a $ref
@@ -143,11 +166,10 @@ func TestBodySchemaPointer_NonUTF8FragmentStaysLocal(t *testing.T) {
 func TestBodySchemaPointer_UnresolvedRefStaysLocal(t *testing.T) {
 	t.Parallel()
 	l, js := refSite(t, "#/components/schemas/Missing")
-	assert.Equal(t, jsontext.Pointer("/local"), bodySchemaPointer(l.ctx, js, "/local"))
+	assert.Equal(t, local, keyedAt(l.ctx, js))
 
 	bare := newRawLowerer(&soa.OpenAPI{})
-	assert.Equal(t, jsontext.Pointer("/local"), bodySchemaPointer(bare.ctx, js, "/local"),
-		"a context that was given no bindings resolves no $ref")
+	assert.Equal(t, local, keyedAt(bare.ctx, js), "a context that was given no bindings resolves no $ref")
 }
 
 func TestContentTypeKeys_Nil(t *testing.T) {
@@ -199,13 +221,13 @@ func TestPositionalEncoding_WithoutRootNode(t *testing.T) {
 func TestBodySchemaPointer_ExternalRefNoFragment(t *testing.T) {
 	t.Parallel()
 	l, js := refSite(t, "external.yaml")
-	assert.Equal(t, jsontext.Pointer("/local"), bodySchemaPointer(l.ctx, js, "/local"), "a fragmentless ref falls back to the local pointer")
+	assert.Equal(t, local, keyedAt(l.ctx, js), "a fragmentless ref falls back to the local pointer")
 }
 
 func TestBodySchemaPointer_NilSchema(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
-	assert.Equal(t, jsontext.Pointer("/local"), bodySchemaPointer(l.ctx, nil, "/local"))
+	assert.Equal(t, local, keyedAt(l.ctx, nil))
 }
 
 func TestLowerPayload_NilMediaEntriesYieldNil(t *testing.T) {

@@ -22,15 +22,24 @@ type Position struct {
 	Pointer jsontext.Pointer
 }
 
-// less reports whether p orders before q (comparePositions).
-func (p Position) less(q Position) bool { return comparePositions(p, q) < 0 }
-
-// comparePositions orders positions by document, then pointer.
+// comparePositions orders positions by document, then pointer: the order a
+// table reads them in where they share a document or one is the source's.
+// Two other documents are ordered by name (docs.compare): a DocID numbers them
+// in the order the table first needed them, which a declaration order changes.
 func comparePositions(p, q Position) int {
 	if c := cmp.Compare(p.Doc, q.Doc); c != 0 {
 		return c
 	}
 	return cmp.Compare(p.Pointer, q.Pointer)
+}
+
+// byName orders p and q, positions in two documents neither of which is the
+// source, by the names name gives those documents.
+func byName(p, q Position, name func(DocID) string) (int, bool) {
+	if p.Doc == q.Doc || p.Doc == Source || q.Doc == Source {
+		return 0, false
+	}
+	return cmp.Compare(name(p.Doc), name(q.Doc)), true
 }
 
 // Role is what a reference reads at the position it lands on.
@@ -182,10 +191,6 @@ type Chain struct {
 	// position itself lies on that loop rather than leading into it.
 	Loop   int
 	Member bool
-	// Named reports, when Resolved, whether every $ref of the chain names the
-	// source (Hop.Named): only then does the lowering, which lowers no schema
-	// another document holds (GitHub #74), reach End.
-	Named bool
 }
 
 // Entry is one position writing a schema $ref: its hop and its chain.
@@ -196,21 +201,18 @@ type Entry struct {
 }
 
 // Loop is a cycle of $refs: its members, ordered, and Site, where it is
-// reported: the least member in the source, or, when no member is, the least
-// source position whose chain leads into it. Reported is false when neither
-// exists, for a loop only another document's content reaches.
+// reported: the least of them, in whichever document.
 type Loop struct {
-	Members  []Position
-	Site     Position
-	Reported bool
+	Members []Position
+	Site    Position
 }
 
 // Landing is a position some hop reads as a schema though the parser's model
 // holds none there, which a schema has to be built for: raw YAML in the
 // source, or a node of another document, whose Name it is in. Site is the
-// least source position whose chain reaches it, a $ref's or a mapping
-// value's; Reached is false when none does, and only another document's
-// content leads there.
+// least position whose chain reaches it, a $ref's or a mapping value's, in
+// whichever document; Reached is false when none does, as where the budget
+// cut the reading.
 type Landing struct {
 	At      Position
 	Name    string

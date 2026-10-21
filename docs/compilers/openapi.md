@@ -143,8 +143,9 @@ instead: [`minor-required-fields`](#minor-required-fields),
 - Codes: `openapi/validation`
 - Tests: `load.TestLoad_ValidationErrorsBecomeDiagnostics`, `load.TestMapSeverity`,
   `openapi.TestCompile_AFindingInAnExternalDocumentKeepsItsRule`
-- Status: partly built: a finding about a declaration in another document is reported once per
-  `$ref` that reaches it (#874), and one in an object an alias mounts twice is reported twice
+- Status: partly built: a finding about content another document holds is placed at the source's
+  `$ref` that reaches it, naming its position there in the message (#1030), and one in an object an
+  alias mounts twice is reported twice
   (#889); a null written in some validated fields faults the parser, and the whole document is
   refused as undecodable rather than the field reported (#891).
 
@@ -232,8 +233,15 @@ and refusals ([`source-budgets`](#source-budgets)), where a document past one fa
 naming it. The read stays inside the directory of the source's path, symbolic links included,
 unless `Options.AllowExternalRefs` lets it reach any file and http(s) URLs; a document outside fails
 each reference naming it, and with no reader no document is read.
-What a reference to another document's parameter, request body, response, header, example, callback
-or path item brings in lowers at the use site as the source's own would.
+
+Each document read is a `Document.Sources` entry after the source and its overlay, ordered by its
+location from the source's directory, and what it declares lowers there, as the source's own lowers
+where the source declares it: a schema a `$ref` lands on, and a parameter, request body, response,
+header, example, callback, path item or security scheme a reference brings in, with the schemas
+inline in it. Its `Provenance` names that entry, and its IDs are in that document's namespaces, the
+source's qualified by its location (`t/openapi@common.yaml/components/schemas/Pet`, ir-design
+§3.1), so one pointer in two documents is two nodes. An operation and a parameter keep the IDs of
+the mount that lowers them.
 
 A schema `$ref`, and a discriminator mapping value spelled as one, is bound by the compiler itself,
 never by the parser's resolver
@@ -243,11 +251,11 @@ nothing else, so a `+` names itself, and read as RFC 6901 reads a pointer: an in
 with no leading zero, a pointer ending in `/` names a member whose key is empty, and a fragment
 holding a second `#` names nothing. A pointer passing a reference object reads on where the resolver
 resolved that, in whichever document, and a `$ref` written in another document's content is read in
-that document. A use site takes what its schema `$ref`'s chain ends on — an annotation, a form
-body's parts, a file body or a discriminator — only where every `$ref` of the chain names the
-source, as only then does its type name that schema: one naming another document lends nothing,
-whichever document writes it, and one another document writes naming the source lends as the
-source's own does. An empty `$ref` names the document's root, which holds no schema, so a chain
+that document. What a `$ref` lands on in another document lowers where that document declares it;
+one in the source lowers at the pointer the `$ref` spells. A use site takes what its schema `$ref`'s
+chain ends on — an annotation, a form body's parts, a file body or a discriminator — whichever
+documents the chain passes, as its type names that schema. An empty `$ref` names the document's
+root, which holds no schema, so a chain
 reaching one ends on none and lends nothing, as any chain that fails does, though the schema writing
 it keeps what it declares beside it. A YAML alias or merge key is a copy written where it is placed,
 so what it holds is read at that position, as the document's JSON places it, and raw YAML a schema
@@ -261,14 +269,13 @@ A reference that resolves to nothing — a pointer naming no node, a position ho
 component its section does not hold, another document the compile may not read, an `$anchor`
 — is reported as an `openapi/unresolved-ref` error at the referencing position, with why,
 and the position lowers without it: a schema position to the top type, any other position to nothing
-at all, so the parameter, response or body it would have named is absent. A schema `$ref` whose
-chain ends on another failing `$ref` of the source is not reported for it, as that one is; one whose
-chain leaves the source and fails in another document's content is reported where it leaves, naming
-the `$ref` that fails. What a reference object resolved to is read at the node the resolver's chain
-reached ([`trailing-empty-token`](../parser-library.md#trailing-empty-token)), and where no position
-holds that node, as for the first of a key written twice in raw YAML
-([`duplicate-key`](../parser-library.md#duplicate-key)), each schema `$ref` and mapping value in it
-is reported unresolved, saying so.
+at all, so the parameter, response or body it would have named is absent. Each is reported once,
+where it is written, in whichever document, and a schema `$ref` whose chain ends on another failing
+`$ref` is not reported for it, as that one is. What a reference object resolved to is read at the
+node the resolver's chain reached ([`trailing-empty-token`](../parser-library.md#trailing-empty-token)),
+and where no position holds that node, as for the first of a key written twice in raw YAML
+([`duplicate-key`](../parser-library.md#duplicate-key)), it lowers at the use site, and each schema
+`$ref` and mapping value in it is reported unresolved, saying so.
 
 A same-document `#/$defs/...` pointer is read by a rule of its own, in an order no declaration
 changes: the `$defs` of the schema writing the `$ref` where an `$id` makes that schema a resource of
@@ -296,6 +303,11 @@ would answer. A chain of references that closes on itself is
 
 - Codes: `openapi/unresolved-ref`, `openapi/budget-exceeded`, `openapi/degraded-construct`
 - Tests: `openapi.TestCompile_ExternalFileRefIsNotReadByDefault`,
+  `openapi.TestGolden_SplitSpec`, `openapi.TestExternalContent_ARefInItNamesItsOwnDocument`,
+  `openapi.TestCompile_AResolutionFailureIsReportedOnceAtItsRef`,
+  `lowering.TestInDocument_PlacesWhatAnotherDocumentDeclares`,
+  `lowering.TestDeclared_LowersAReferencedObjectWhereItIsDeclared`,
+  `lowering.TestDeclared_KeepsTheUseSiteInAnotherDocumentsContent`,
   `openapi.TestCompile_ASiblingRefResolvesWithinTheSourcesDirectory`,
   `openapi.TestCompile_ARefOutsideTheSourcesDirectoryIsRefused`,
   `openapi.TestCompile_ASymlinkOutOfTheSourcesDirectoryIsRefused`,
@@ -320,9 +332,8 @@ would answer. A chain of references that closes on itself is
   `bind.TestBind_SaysAKeyMayLiePastTheMergeBound`,
   `bind.TestBind_TakesNoDefinitionPastAReadTheMergeBoundStopped`,
   `canary.TestBindingOracle_AgreesWithTheLibrary`
-- Status: partly built: no schema another document holds is lowered, so a schema `$ref` naming one
-  is reported unresolved (#74), and a form body's `encoding` entries naming its parts are dropped
-  with no record (#604). An `$anchor` or an `$id` is not honoured as a reference target (#1015). A
+- Status: partly built: an `encoding` entry naming no part of its body is dropped with no record
+  (#604). An `$anchor` or an `$id` is not honoured as a reference target (#1015). A
   reference object inside an object another document holds is never resolved, and nothing reports it
   (#751); an absolute-path `$ref` in a remote document is read as a local path (#936); a remote
   document can make the compiler request a private address (#937); an external document that does
@@ -336,9 +347,9 @@ would answer. A chain of references that closes on itself is
 A chain of schema `$ref`s that never reaches a schema — `A: {$ref: B}`, `B: {$ref: A}` — is a loop,
 found however it closes: through same-document pointers, a `$defs` pointer, a root definition, the
 source's own file name, a pointer read on past a reference object, or another document's content.
-It is reported once, as an `openapi/cyclic-ref` error at the least member the source writes, or,
-when the source writes none, at the least source `$ref` leading into it, so the report does not move
-with declaration order. Each member lowers to the top type with no report of its own, and the
+It is reported once, as an `openapi/cyclic-ref` error at its least member, in the document that
+writes it, the source's members first and another document's by its location, so the report does
+not move with declaration order. Each member lowers to the top type with no report of its own, and the
 document compiles. A YAML anchor recursive in itself would run the parser out of stack, so a source
 holding one is refused before the parser reads it, as an `openapi/cyclic-ref` error, and compiles to
 no Document; so is an overlay's patched tree. A document an external reference reads that holds one
@@ -357,6 +368,7 @@ cycle ([`recursion`](#recursion)). An alias scan that aborts on a fault of its o
   `openapi.TestCompile_AliasCycleIsRefused`, `load.TestLoad_ADegenerateCycleLoadsAndIsReportedOnce`,
   `openapi.TestCompile_ALoopThroughAnotherDocumentIsReportedOnce`,
   `load.TestBindingDiags_NamesALoopsMembersByTheirDocument`,
+  `bind.TestBind_ReportsALoopOutsideTheSourceAtItsLeastMember`,
   `bind.TestBind_ReportsALoopOfDefinitionsAtItsLeastMember`,
   `openapi.TestCompile_MergeChainPastBoundStillCompiles`, `bind.TestBind_AnswersAlikeInEitherOrder`
 - Status: partly built: a cycle of component Reference Objects is reported as an unresolved
@@ -1440,7 +1452,8 @@ expansion.
   `schema.TestDynamicAnchorIndex_ReportsATruncatedWalk`
 - Status: partly built: a merge chain past the view's merge bound hides an `$id`, so a `$dynamicRef`
   can expand across a resource boundary (#401), and the truncation warning names the walk's own
-  bounds when the merge bound stopped it (#454).
+  bounds when the merge bound stopped it (#454). A `$dynamicRef` written in another document is not
+  expanded, since only the source's anchors are indexed (#1031).
 
 ### `content-vocabulary`
 
@@ -1607,8 +1620,10 @@ left unresolved and reported as an `openapi/unresolved-ref` error rather than lo
 is a `#/$defs/...` pointer written in them, since its definition is read the same way. The exception
 is a reference whose target the resolver finds to be the field written there, as it can for a
 reference other than a schema's `$ref` or a mapping value when the compile reads other documents,
-which lowers as that field. An item another document holds, mounted where the use site writes fields
-too, is declared under the use site's `$ref` (`…/$ref/…`), a position the source cannot name. The
+which lowers as that field. An item another document holds is declared where that document declares
+it, and a finding names its positions by the reference; one the compile cannot place there, as past
+the longest chain it follows, is declared under the use site's `$ref` (`…/$ref/…`), which no
+document names. The
 fields beside a `$ref` the load phase's walk does not reach, in another document or under an `x-*`
 key, are not lowered, reported as an `openapi/degraded-construct` warning at the mount naming the
 reference that reaches them.
