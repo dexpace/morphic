@@ -81,39 +81,34 @@ func TestTypes_SettleWithNothingDeferredReturnsNothing(t *testing.T) {
 	assert.Empty(t, types.Violations())
 }
 
-// TestTypes_DeferRefusesWhatSettleWouldNeverTake pins the two settlements
-// Defer refuses rather than drops: one deferred after Settle ran, which no
-// later Settle is promised to take, and a nil one, which cannot be taken.
-func TestTypes_DeferRefusesWhatSettleWouldNeverTake(t *testing.T) {
+// TestTypes_DeferRefusesANilSettlement pins that Defer records a nil
+// settlement, which cannot be taken, as a breach rather than dropping it.
+func TestTypes_DeferRefusesANilSettlement(t *testing.T) {
 	t.Parallel()
-	cases := []struct {
-		name  string
-		queue func(types *compile.Types, s compile.Settlement)
-	}{
-		{"after settling", func(types *compile.Types, s compile.Settlement) {
-			types.Settle(t.Context())
-			types.Defer(s)
-		}},
-		{"nil", func(types *compile.Types, _ compile.Settlement) { types.Defer(nil) }},
-	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			t.Parallel()
-			types := compile.NewTypes()
-			runs := 0
-			c.queue(types, settleFunc(func(ir.TypeRegistry) []ir.Diagnostic { runs++; return nil }))
+	types := compile.NewTypes()
+	types.Defer(nil)
 
-			assert.Empty(t, types.Settle(t.Context()))
-			assert.Zero(t, runs)
-			assert.Len(t, types.Violations(), 1, "the refusal is recorded, not dropped")
-		})
-	}
+	assert.Empty(t, types.Settle(t.Context()))
+	assert.Len(t, types.Violations(), 1, "the refusal is recorded, not dropped")
+}
+
+// TestTypes_ASettlementNoSettleTakesIsAViolation pins that a settlement
+// deferred after the last Settle is reported, since nothing takes it.
+func TestTypes_ASettlementNoSettleTakesIsAViolation(t *testing.T) {
+	t.Parallel()
+	types := compile.NewTypes()
+	runs := 0
+	types.Settle(t.Context())
+	types.Defer(settleFunc(func(ir.TypeRegistry) []ir.Diagnostic { runs++; return nil }))
+
+	assert.Zero(t, runs)
+	require.Len(t, types.Violations(), 1)
+	assert.Contains(t, types.Violations()[0], "1 settlements were deferred after the last Settle")
 }
 
 // TestTypes_SettlementThatAddsOrRemovesANodeIsRefused pins the writes a
-// settlement may not make. Nothing lowers after Settle, so an added node is
-// the only one no lowering produced, and a removed one leaves its references
-// dangling. Either is reported as a breach, and left standing.
+// settlement may not make. An added node is one no lowering produced, and a
+// removed one leaves its references dangling. Either is reported as a breach, and left standing.
 func TestTypes_SettlementThatAddsOrRemovesANodeIsRefused(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
@@ -149,11 +144,10 @@ func TestTypes_SettlementThatAddsOrRemovesANodeIsRefused(t *testing.T) {
 	}
 }
 
-// TestTypes_SettleQueuedTakesWhatIsQueuedAndLeavesDeferOpen pins the early
-// settling a compiler uses before a later lowering reads the registry: it takes
-// what is queued once, in order, and a settlement deferred after it is left for
-// Settle, not taken by a second call.
-func TestTypes_SettleQueuedTakesWhatIsQueuedAndLeavesDeferOpen(t *testing.T) {
+// TestTypes_SettleTakesWhatIsQueuedAndLeavesDeferOpen pins the early settling
+// a compiler uses before a later lowering reads the registry: each Settle takes
+// what was queued since the last one, once, in order, and Defer stays open.
+func TestTypes_SettleTakesWhatIsQueuedAndLeavesDeferOpen(t *testing.T) {
 	t.Parallel()
 	types := compile.NewTypes()
 	var runs []string
@@ -166,7 +160,7 @@ func TestTypes_SettleQueuedTakesWhatIsQueuedAndLeavesDeferOpen(t *testing.T) {
 	types.Defer(record("first"))
 	types.Defer(record("second"))
 
-	diags := types.SettleQueued(t.Context())
+	diags := types.Settle(t.Context())
 
 	assert.Equal(t, []string{"first", "second"}, runs, "each runs once, in the order deferred")
 	require.Len(t, diags, 2)
@@ -174,56 +168,15 @@ func TestTypes_SettleQueuedTakesWhatIsQueuedAndLeavesDeferOpen(t *testing.T) {
 	assert.Equal(t, "second", diags[1].Code)
 
 	types.Defer(record("late"))
-	assert.Empty(t, types.Violations(), "the registry is still open to Defer")
-	assert.Equal(t, []string{"first", "second"}, runs, "what was deferred late waits for Settle")
+	assert.Len(t, types.Violations(), 1, "an untaken settlement is reported until a Settle takes it")
+	assert.Equal(t, []string{"first", "second"}, runs, "what was deferred late waits for the next Settle")
 
 	diags = types.Settle(t.Context())
 
 	require.Len(t, diags, 1)
 	assert.Equal(t, "late", diags[0].Code, "Settle takes the late one and not the two already taken")
 	assert.Equal(t, []string{"first", "second", "late"}, runs)
-	assert.Empty(t, types.SettleQueued(t.Context()), "nothing is left to take twice")
+	assert.Empty(t, types.Settle(t.Context()), "nothing is left to take twice")
 	assert.Equal(t, []string{"first", "second", "late"}, runs)
 	assert.Empty(t, types.Violations())
-}
-
-// TestTypes_SettleQueuedHonoursCancellationAndTheNodeCount pins that the early
-// settling stops between settlements once ctx is done and refuses a settlement
-// that changes the node count, as Settle does.
-func TestTypes_SettleQueuedHonoursCancellationAndTheNodeCount(t *testing.T) {
-	t.Parallel()
-	t.Run("cancellation", func(t *testing.T) {
-		t.Parallel()
-		ctx, cancel := context.WithCancel(t.Context())
-		types := compile.NewTypes()
-		var runs []string
-		types.Defer(settleFunc(func(ir.TypeRegistry) []ir.Diagnostic {
-			runs = append(runs, "first")
-			cancel()
-			return nil
-		}))
-		types.Defer(settleFunc(func(ir.TypeRegistry) []ir.Diagnostic {
-			runs = append(runs, "second")
-			return nil
-		}))
-
-		types.SettleQueued(ctx)
-
-		assert.Equal(t, []string{"first"}, runs, "the settlement after the cancellation is not taken")
-		assert.Empty(t, types.Violations())
-	})
-	t.Run("node count", func(t *testing.T) {
-		t.Parallel()
-		types := compile.NewTypes()
-		types.Intern("/p", "t/x", func() ir.TypeDef { return &ir.Model{ID: "t/x"} })
-		types.Defer(settleFunc(func(reg ir.TypeRegistry) []ir.Diagnostic {
-			reg["t/other"] = &ir.Model{ID: "t/other"}
-			return nil
-		}))
-
-		types.SettleQueued(t.Context())
-
-		require.Len(t, types.Violations(), 1)
-		assert.Contains(t, types.Violations()[0], "from 1 to 2 nodes")
-	})
 }

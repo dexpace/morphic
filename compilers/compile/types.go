@@ -2,6 +2,7 @@ package compile
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/dexpace/morphic/ir"
 )
@@ -34,10 +35,9 @@ type Types struct {
 	// byReference holds the coordinates whose node a reference built and the
 	// declaration that owns them has not rebuilt yet. See InternDeclared.
 	byReference map[string]bool
-	// pending holds the settlements Defer queued for Settle, and settled
-	// records that Settle has run. See Settlement.
+	// pending holds the settlements Defer queued for the next Settle. See
+	// Settlement.
 	pending []Settlement
-	settled bool
 }
 
 // refuse records why an entry was rejected. The registry declines to hold it
@@ -50,13 +50,20 @@ func (t *Types) refuse(format string, args ...any) {
 }
 
 // Violations returns the invariant breaches the registry refused to record, in
-// the order they were attempted.
+// the order they were attempted, and then any settlement deferred after the
+// last Settle, which nothing took.
 //
 // A non-empty result is a compiler bug, not a spec problem: every entry names an
 // empty ID, an empty coordinate, or a nil type definition, none of which any
 // source can produce. The owning compiler surfaces them as internal-invariant
 // diagnostics rather than dropping them.
-func (t *Types) Violations() []string { return t.refused }
+func (t *Types) Violations() []string {
+	if len(t.pending) == 0 {
+		return t.refused
+	}
+	return append(slices.Clip(t.refused),
+		fmt.Sprintf("%d settlements were deferred after the last Settle and never taken", len(t.pending)))
+}
 
 // NewTypes returns an empty registry.
 func NewTypes() *Types {

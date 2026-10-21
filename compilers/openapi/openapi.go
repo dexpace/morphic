@@ -163,7 +163,7 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, 
 	// filename and multi flags), and every component is a node now, so what the
 	// component walk deferred is taken before it. Inline schemas in the
 	// operations can still defer; the Settle below takes those.
-	acc.AppendAll(ts.SettleQueued(ctx))
+	acc.AppendAll(ts.Settle(ctx))
 	// The checks in this function sit after the phases that honour ctx. Each
 	// stops between items and returns what it had, so a non-nil ctx.Err() here
 	// is the only way to tell a phase that finished from one that was cut short —
