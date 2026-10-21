@@ -4184,8 +4184,9 @@ func TestAllOf_IdenticalNodesAreOneType(t *testing.T) {
 // TestAllOf_ARedeclarationIsJudgedOnceTheComponentsHaveLowered pins that a
 // field redeclared as two $refs to components declared after the composing
 // schema is judged as it is when they are declared before it: identical nodes
-// are one type, and a pair the merge does not narrow is reported and kept, in
-// whichever order the two components are declared (#898).
+// are one type, and a pair the merge does not narrow is reported and kept. It
+// compiles three arms: the components declared before the schema, and after it
+// in either order of the two (#898).
 func TestAllOf_ARedeclarationIsJudgedOnceTheComponentsHaveLowered(t *testing.T) {
 	t.Parallel()
 	p, q := "{$ref: '#/components/schemas/P'}", "{$ref: '#/components/schemas/Q'}"
@@ -4206,11 +4207,14 @@ func TestAllOf_ARedeclarationIsJudgedOnceTheComponentsHaveLowered(t *testing.T) 
 			if tc.items {
 				a, b = "{type: array, items: "+p+"}", "{type: array, items: "+q+"}"
 			}
-			for i, extra := range []string{
-				"    P: " + tc.pdecl + "\n    Q: " + tc.qdecl + "\n",
-				"    Q: " + tc.qdecl + "\n    P: " + tc.pdecl + "\n",
+			pq := "    P: " + tc.pdecl + "\n    Q: " + tc.qdecl + "\n"
+			qp := "    Q: " + tc.qdecl + "\n    P: " + tc.pdecl + "\n"
+			for i, lower := range []func() (*ir.Document, []ir.Diagnostic){
+				func() (*ir.Document, []ir.Diagnostic) { return lowerSpec(t, nonBareSpec(pq, a, b)) },
+				func() (*ir.Document, []ir.Diagnostic) { return settledSpec(t, pq, a, b) },
+				func() (*ir.Document, []ir.Diagnostic) { return settledSpec(t, qp, a, b) },
 			} {
-				doc, diags := settledSpec(t, extra, a, b)
+				doc, diags := lower()
 				m, ok := doc.Types[componentID("T")].(*ir.Model)
 				require.True(t, ok, "order %d", i)
 				require.Len(t, m.Properties, 1, "order %d", i)

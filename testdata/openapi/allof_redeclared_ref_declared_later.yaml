@@ -4,7 +4,7 @@
 # registry is whole, not against whatever had lowered when the walk reached it:
 # the merged type and the redeclaration kept beside it must not follow the
 # order the components are declared in (docs/compilers/openapi.md#allof-redeclared-property).
-# `same` pairs two identical enums; `narrower` pairs an integer with a number.
+# `same` pairs two identical enums; `overlap` pairs a number with an integer, two named scalars the merge reports as an overlap.
 openapi: 3.0.3
 info:
   title: redeclared ref declared later
@@ -17,11 +17,11 @@ components:
         - type: object
           properties:
             same: {$ref: '#/components/schemas/EnumA'}
-            narrower: {$ref: '#/components/schemas/Number'}
+            overlap: {$ref: '#/components/schemas/Number'}
         - type: object
           properties:
             same: {$ref: '#/components/schemas/EnumB'}
-            narrower: {$ref: '#/components/schemas/Integer'}
+            overlap: {$ref: '#/components/schemas/Integer'}
     EnumA: {type: string, enum: [a, b]}
     EnumB: {type: string, enum: [a, b]}
     Number: {type: number}
