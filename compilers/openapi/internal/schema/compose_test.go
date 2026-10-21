@@ -281,8 +281,8 @@ func TestAllOf_OverlappingPrimitivesAreReportedNotConflicting(t *testing.T) {
 // level, in either order: an enum over a bare kind it equals or narrows wins
 // with no diagnostic; a bare kind that admits one of its members overlaps it,
 // which is info; a kind that admits none of them warns, as does another family;
-// and two enums overlap. A Scalar node of a judged kind is judged by member too,
-// and one with no judge refuses nothing.
+// and two enums of one kind, each with members, overlap. A Scalar node of a
+// judged kind is judged by member too, and one with no judge refuses nothing.
 func TestAllOf_EnumPairsAreJudgedByKind(t *testing.T) {
 	t.Parallel()
 	cases := []struct {

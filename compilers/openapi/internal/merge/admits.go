@@ -244,8 +244,7 @@ func isLetter(c byte) bool { return c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z'
 func isDigit(c byte) bool { return c >= '0' && c <= '9' }
 
 // parses reports whether s is a time in layout. Calendar fields are checked, so
-// 2024-02-30 is refused; a leap second is refused too, which errs toward
-// keeping a declaration.
+// 2024-02-30 is refused.
 func parses(layout, s string) bool {
 	_, err := time.Parse(layout, s)
 	return err == nil
@@ -255,7 +254,9 @@ func parses(layout, s string) bool {
 // a date-time: the grammar's shape first, since time.Parse accepts a comma
 // fraction and an offset hour above 23, then time.Parse for the calendar and
 // range. The T separator and the Z offset may be lower case, which time.Parse
-// refuses, so both are upper-cased once the shape is known.
+// refuses, so both are upper-cased once the shape is known. A second of 60 is
+// a leap second, admitted where the time in UTC is 23:59 (§5.7); time.Parse
+// refuses every one, so it is parsed as 59 and its hour and minute checked.
 func parsesRFC3339(s string, date bool) bool {
 	layout, clock := "15:04:05Z07:00", s
 	if date {
@@ -271,7 +272,13 @@ func parsesRFC3339(s string, date bool) bool {
 	if last := len(s) - 1; s[last] == 'z' {
 		s = s[:last] + "Z"
 	}
-	return parses(layout, s)
+	sec := len(s) - len(clock) + len("15:04:")
+	leap := s[sec:sec+2] == "60"
+	if leap {
+		s = s[:sec] + "59" + s[sec+2:]
+	}
+	t, err := time.Parse(layout, s)
+	return err == nil && (!leap || t.UTC().Hour() == 23 && t.UTC().Minute() == 59)
 }
 
 // fullTimeShape reports whether s is hh:mm:ss, an optional fraction of a dot

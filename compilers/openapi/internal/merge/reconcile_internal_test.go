@@ -1186,21 +1186,26 @@ func TestReconcileProperty_DisjointKindsStillWarn(t *testing.T) {
 }
 
 // enumRegistry adds two integer enums and two string enums to narrowingRegistry,
-// each with a member the pairs below judge.
+// each with a member the pairs below judge, and the uuid and bytes Scalar nodes
+// that stand for a kind the same way a bare reference does.
 func enumRegistry() map[ir.TypeID]ir.TypeDef {
 	reg := narrowingRegistry()
 	reg["t/enum/a"] = &ir.Enum{ID: "t/enum/a", ValueType: ir.PrimString, Members: []ir.EnumMember{{Value: str("a")}}}
 	reg["t/enum/b"] = &ir.Enum{ID: "t/enum/b", ValueType: ir.PrimString, Members: []ir.EnumMember{{Value: str("b")}}}
 	reg["t/enum/big"] = &ir.Enum{ID: "t/enum/big", ValueType: ir.PrimInteger, Members: []ir.EnumMember{{Value: num("5000000000")}}}
 	reg["t/enum/small"] = &ir.Enum{ID: "t/enum/small", ValueType: ir.PrimInteger, Members: []ir.EnumMember{{Value: num("1")}}}
+	uuid, bytes := primRef(ir.PrimUUID), primRef(ir.PrimBytes)
+	reg["t/scalar/uuid"] = &ir.Scalar{ID: "t/scalar/uuid", Base: &uuid}
+	reg["t/scalar/bytes"] = &ir.Scalar{ID: "t/scalar/bytes", Base: &bytes}
 	return reg
 }
 
 // TestReconcileProperty_EnumPairsAreJudgedByKind pins, in both orders, what an
-// enum side draws: an enum over a bare kind it equals or narrows wins; a bare
-// kind that admits one of its members overlaps it, which is info and keeps the
-// first declaration, as does a kind with no judge; a kind that admits none of
-// them warns, as does another family; and two enums overlap.
+// enum side draws: an enum over a bare kind or a Scalar node it equals or
+// narrows wins; a bare kind or a Scalar node that admits one of its members
+// overlaps it, which is info and keeps the first declaration, as does a kind
+// with no judge; a kind that admits none of them warns, as does another
+// family; and two enums of one kind, each with members, overlap.
 func TestReconcileProperty_EnumPairsAreJudgedByKind(t *testing.T) {
 	t.Parallel()
 	enum := func(id ir.TypeID) ir.TypeRef { return ir.TypeRef{Target: id} }
@@ -1214,6 +1219,8 @@ func TestReconcileProperty_EnumPairsAreJudgedByKind(t *testing.T) {
 		{"enum of integer and int32", enum("t/enum/big"), primRef(ir.PrimInt32), ir.SeverityWarning, ""},
 		{"enum admitted by int32", enum("t/enum/small"), primRef(ir.PrimInt32), ir.SeverityInfo, ""},
 		{"enum of string and bytes", enum("t/enum/a"), primRef(ir.PrimBytes), ir.SeverityInfo, ""},
+		{"enum of string and a uuid scalar", enum("t/enum/a"), enum("t/scalar/uuid"), ir.SeverityWarning, ""},
+		{"enum of string and a bytes scalar", enum("t/enum/a"), enum("t/scalar/bytes"), ir.SeverityInfo, ""},
 		{"enum of string and integer", enum("t/enum/a"), primRef(ir.PrimInteger), ir.SeverityWarning, ""},
 		{"enum of string and another enum", enum("t/enum/a"), enum("t/enum/b"), ir.SeverityInfo, ""},
 		{"enum of string and bare string", enum("t/enum/a"), primRef(ir.PrimString), "", "t/enum/a"},

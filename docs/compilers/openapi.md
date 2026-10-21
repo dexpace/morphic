@@ -750,26 +750,27 @@ const), which is unrelated to every type; where `{}` loses, the winner's own nul
 alone, since `{}` admits null yet lowers non-nullable. Two bare primitives compare by value domain
 and spelling (`integer` against `number`, `uuid` against `string`, `int32` against `int64`). A
 `Scalar` or `Enum` against a bare primitive wins over a kind it equals or narrows (`string` against
-`format: byte`, or an unknown format over bare `string`), is disjoint from a kind of another family
-or another string format (`uuid` against `format: date`), and overlaps any other kind; for an
-`Enum`, that overlap is disjoint where the kind's judge refuses every member. An enum with no
-members is refused vacuously, so it is disjoint from any kind it would otherwise overlap, `bytes`
-included; an enum with members against `bytes` stays an overlap. A `const` wins when the kind admits
-its value; where it does not, it is disjoint from a kind with a judge and overlaps `bytes`, which
-has none. Two lists, or two maps with one key, compare by element or value, nested up to a bound,
-and the narrower one wins only where it admits null no more widely than the other and the other
-holds no constraint, encoding, documentation, examples or `Unmodeled` the winner lacks; disjoint
-members still overlap where both admit null, or where both containers admit the empty one. Anything
-else between distinct targets is unrelated and dropped.
+`format: byte`, or an unknown format over bare `string`), is disjoint from a kind of another family,
+or from another string format where neither is `bytes` (`uuid` against `format: date`), and overlaps
+any other kind (`uuid` against `format: byte`); for an `Enum`, that overlap is disjoint where the
+kind's judge refuses every member. An enum with no members is refused vacuously, so it is disjoint
+from any kind it would otherwise overlap, `bytes` included; an enum with members against `bytes`
+stays an overlap. A `const` wins when the kind admits its value; where it does not, it is disjoint
+from a kind with a judge and overlaps `bytes`, which has none. Two lists, or two maps with one key,
+compare by element or value, nested up to a bound, and the narrower one wins only where it admits
+null no more widely than the other and the other holds no constraint, encoding, documentation,
+examples or `Unmodeled` the winner lacks; disjoint members still overlap where both admit null, or
+where both containers admit the empty one. Anything else between distinct targets is unrelated and
+dropped.
 
 The relation between kinds is stated over JSON instances, so that a narrowing, which is adopted
 silently, holds in every reading. Its value-domain half is `PrimKind.StrictlyWithin` (§4.1) and its
-spelling half is the string rows of `formatTable` (`string-formats`): a format refines `string`. Only
-exact containments are edges. OpenAPI floats round, so `format: float` admits every finite number in
-its range; a bounded integer width sits inside either float width by rounding, while `integer`
-merely shares the values a float width holds. That containment holds of instances and not of values,
-so `int32`, `uint32`, `int64`, `uint64` and `integer` against `float32`, and `int64`, `uint64` and
-`integer` against `float64`, are overlaps, reported with the first declaration kept.
+spelling half is the string rows of `formatTable` (`string-formats`): a format refines `string`.
+Only exact containments are edges. OpenAPI floats round, so `format: float` admits every finite
+number in its range; a bounded integer width sits inside either float width by rounding, while
+`integer` merely shares the values a float width holds. That containment holds of instances and not
+of values, so `int32`, `uint32`, `int64`, `uint64` and `integer` against `float32`, and `int64`,
+`uint64` and `integer` against `float64`, are overlaps, reported with the first declaration kept.
 
 A narrower type wins in either order, the intersection being that type, and is no drop. The merged
 field admits null only where both declarations do, and a null either declaration writes is judged
@@ -802,20 +803,20 @@ their types are incompatible — disjoint primitive kinds (`string` against `int
 different kinds of structure, or two lists or maps whose members share no value where one is never
 empty — or where one constraint keyword is pinned to two values; types that share values but that
 the merge does not narrow to one (`int32` against `uint32`, an enum of `integer` against an `int32`
-that admits one of its members, two enums of one kind, a `const` against a kind with no judge or
-against any other value-holding node, or two lists or maps whose members share only null or share
-nothing while both admit the empty one) are named in an info `openapi/degraded-construct`, and only
-the first declaration's type is kept; a detail the first declaration already holds differently is
-named in an info `openapi/degraded-construct`; and two composites of one kind the judgment does not
-compare (two models, a model and a map) and an unresolvable target are dropped without any
-diagnostic and kept all the same. The loser's `default`, constraints and examples go with its type
-rather than folding onto the winner — they describe the shape that lost, and adopting them would
-leave one field asserting two contradictory things, with nothing downstream comparing a value's kind
-to its property's type; this is keyed on the type being dropped, not on the drop being called a
-conflict. Two declarations naming the same target, or one narrowing the other, are not a drop, and
-differing only in nullability they take no entry: the merged field admits null only where both
-branches do, which is the same conjunction a single schema's null verdicts fold under
-([`nullable`](#nullable)).
+that admits one of its members, two enums of one kind, each with members, a `const` against a kind
+with no judge or against any other value-holding node, or two lists or maps whose members share only
+null or share nothing while both admit the empty one) are named in an info
+`openapi/degraded-construct`, and only the first declaration's type is kept; a detail the first
+declaration already holds differently is named in an info `openapi/degraded-construct`; and two
+composites of one kind the judgment does not compare (two models, a model and a map) and an
+unresolvable target are dropped without any diagnostic and kept all the same. The loser's `default`,
+constraints and examples go with its type rather than folding onto the winner — they describe the
+shape that lost, and adopting them would leave one field asserting two contradictory things, with
+nothing downstream comparing a value's kind to its property's type; this is keyed on the type being
+dropped, not on the drop being called a conflict. Two declarations naming the same target, or one
+narrowing the other, are not a drop, and differing only in nullability they take no entry: the
+merged field admits null only where both branches do, which is the same conjunction a single
+schema's null verdicts fold under ([`nullable`](#nullable)).
 
 - Cases: `allof-conflicting-type`, `allof-narrowing-redeclaration`
 - Codes: `openapi/conflicting-redeclaration`, `openapi/degraded-construct`
@@ -855,10 +856,10 @@ branches do, which is the same conjunction a single schema's null verdicts fold 
   `merge.TestReconcileProperty_AnInadmissibleValueIsKeptNotAdopted`,
   `schema.TestAllOf_ANullOnARefOverTheTopTypeIsKept`
 - Status: partly built: two distinct nodes of related kinds (`format: hex` against `format: byte`,
-  two enums, two literals) are reported as an overlap and never narrowed; a property redeclared as a
-  list and as a tuple is reported as a conflict (#899); and a conflict goes unreported when the
-  other type lowers later (#898). Open: intersecting the redeclared bounds and
-  defaults rather than keeping one (#10).
+  two enums whose members fit each other's kind, two literals) are reported as an overlap and never
+  narrowed; a property redeclared as a list and as a tuple is reported as a conflict (#899); and a
+  conflict goes unreported when the other type lowers later (#898). Open: intersecting the
+  redeclared bounds and defaults rather than keeping one (#10).
 
 ### `allof-required`
 
