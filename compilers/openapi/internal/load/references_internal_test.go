@@ -760,6 +760,7 @@ func TestFailureDiag_WordsAFailedReadAsTheBinderDoes(t *testing.T) {
 			`unresolved $ref "b.yaml#/P": the document it names could not be read: external document b.yaml refused: why`},
 		{"a document that does not parse", unread{&bind.UnparsableError{Err: parser}},
 			`unresolved $ref "b.yaml#/P": the document it names does not parse as YAML: yaml: line 1: did not find expected node content`},
+		{"a document holding nothing", unread{bind.ErrEmptyDocument}, `unresolved $ref "b.yaml#/P": the document it names is empty`},
 		{"the resolver's own reason", errors.New("not found"), `unresolved $ref "b.yaml#/P": not found`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

@@ -138,6 +138,9 @@ const (
 	// Unparsable is a reference to another document that was read and does
 	// not parse; Hop.Detail is the parser's account of where.
 	Unparsable
+	// Empty is a reference to another document that was read and holds
+	// nothing (IsEmpty).
+	Empty
 	// BesideRef is a pointer through the fields beside a path item's $ref;
 	// Hop.Use and Hop.Key name them.
 	BesideRef
@@ -265,6 +268,8 @@ func (h Hop) Why() string {
 		return "the document it names could not be read: " + h.Detail
 	case Unparsable:
 		return "the document it names does not parse as YAML: " + h.Detail
+	case Empty:
+		return "the document it names is empty"
 	case BesideRef:
 		return "it reaches " + string(h.Spelled) + "; " + BesideReason(h.Use, h.Key)
 	case BesideDefs:

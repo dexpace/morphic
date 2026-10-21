@@ -72,6 +72,8 @@ func (b *binder) document(site Position, ref string) (DocID, Reason, string) {
 		return 0, ExternalOff, ""
 	case errors.As(err, &unparsable):
 		return 0, Unparsable, unparsable.Err.Error()
+	case errors.Is(err, ErrEmptyDocument):
+		return 0, Empty, ""
 	case err != nil:
 		return 0, Unreadable, err.Error()
 	}

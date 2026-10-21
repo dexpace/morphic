@@ -155,6 +155,40 @@ func TestExternal_PrepareRefusesBytesThatDoNotParse(t *testing.T) {
 	assert.False(t, ok, "and no tree is recorded")
 }
 
+// TestExternal_PrepareRefusesADocumentHoldingNothing pins that bytes which
+// parse to no node, white space or comments alone, are refused as an empty
+// document, with nothing cached or recorded, while a document holding null is
+// prepared as any other.
+func TestExternal_PrepareRefusesADocumentHoldingNothing(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, body string
+		empty      bool
+	}{
+		{"no bytes", "", true}, {"a blank line", "\n", true}, {"a comment", "# nothing yet\n", true},
+		{"null", "---\n", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc := &soa.OpenAPI{}
+			read := newExternalReads(sourceDocument{})
+
+			_, err := newExternal(t.Context(), doc, Options{}, read).prepare("k", []byte(tc.body))
+
+			_, recorded := read.preparedFor("k")
+			if !tc.empty {
+				require.NoError(t, err)
+				assert.True(t, recorded)
+				return
+			}
+			require.ErrorIs(t, err, bind.ErrEmptyDocument)
+			_, cached := doc.GetCachedExternalDocument("k")
+			assert.False(t, cached)
+			assert.False(t, recorded)
+		})
+	}
+}
+
 // TestExternal_AdmitRefusesARecursiveAnchor pins the refusal that makes
 // releasing anchor names safe: a recursive anchor is caught by the same scan
 // the source is held to, before its name is ever cleared.

@@ -316,6 +316,8 @@ func failureDiag(site ir.Provenance, ref references.Reference, t trail, err erro
 	switch {
 	case errors.As(err, &unparsable):
 		reason = bind.Hop{Reason: bind.Unparsable, Detail: unparsable.Err.Error()}.Why()
+	case errors.Is(err, bind.ErrEmptyDocument):
+		reason = bind.Hop{Reason: bind.Empty}.Why()
 	case errors.As(err, new(unread)):
 		reason = bind.Hop{Reason: bind.Unreadable, Detail: reason}.Why()
 	}

@@ -281,33 +281,48 @@ func TestCompile_ByDefaultOnlyARelativeReferenceIsFollowed(t *testing.T) {
 	}
 }
 
-// TestCompile_ADocumentThatDoesNotParseIsReportedAlikeOnEitherRoute pins that
-// a document read and not parsed fails a schema $ref, which the compiler binds,
-// and a parameter's, which the parser's resolver follows, with one wording,
-// the parser's line and reason included, in either mode.
-func TestCompile_ADocumentThatDoesNotParseIsReportedAlikeOnEitherRoute(t *testing.T) {
+// TestCompile_AnUnusableDocumentIsReportedAlikeOnEitherRoute pins that a
+// document read and not usable, one that does not parse or one holding
+// nothing, fails a schema $ref, which the compiler binds, and a parameter's,
+// which the parser's resolver follows, with one wording, whether the $ref names
+// a node in it or the whole of it, in either mode, and draws no other finding.
+func TestCompile_AnUnusableDocumentIsReportedAlikeOnEitherRoute(t *testing.T) {
 	t.Parallel()
-	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "bad.yaml"), []byte("a: [unclosed\n"), 0o600))
-	root := []byte("openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n  /x:\n    get:\n" +
-		"      parameters:\n        - {$ref: 'bad.yaml#/P'}\n      responses: {\"200\": {description: ok}}\n" +
-		"components:\n  schemas:\n    B: {$ref: 'bad.yaml#/B'}\n")
-	const says = ": the document it names does not parse as YAML: yaml: line 1: did not find expected ',' or ']'"
+	for _, tc := range []struct{ name, body, says string }{
+		{"one that does not parse", "a: [unclosed\n",
+			"the document it names does not parse as YAML: yaml: line 1: did not find expected ',' or ']'"},
+		{"one holding nothing", "", "the document it names is empty"},
+		{"one holding only a comment", "# nothing yet\n", "the document it names is empty"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			dir := t.TempDir()
+			require.NoError(t, os.WriteFile(filepath.Join(dir, "u.yaml"), []byte(tc.body), 0o600))
+			root := []byte("openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n  /x:\n    get:\n" +
+				"      parameters:\n        - {$ref: 'u.yaml#/P'}\n        - {$ref: 'u.yaml'}\n" +
+				"      responses: {\"200\": {description: ok}}\n" +
+				"components:\n  schemas:\n    S: {$ref: 'u.yaml#/B'}\n    T: {$ref: 'u.yaml'}\n")
 
-	for _, allow := range []bool{false, true} {
-		_, diags, err := New().Compile(t.Context(), []compilers.Source{{Path: filepath.Join(dir, "root.yaml"), Data: root}},
-			compilers.Options{Reader: reader.Disk{}, FormatOptions: Options{AllowExternalRefs: allow}})
-		require.NoError(t, err)
+			for _, allow := range []bool{false, true} {
+				doc, diags, err := New().Compile(t.Context(), []compilers.Source{{Path: filepath.Join(dir, "root.yaml"), Data: root}},
+					compilers.Options{Reader: reader.Disk{}, FormatOptions: Options{AllowExternalRefs: allow}})
+				require.NoError(t, err)
+				require.NotNil(t, doc)
 
-		got := make([]string, 0, len(diags))
-		for _, d := range diags {
-			got = append(got, string(d.Provenance.Pointer)+": "+d.Message)
-		}
-		slices.Sort(got)
-		assert.Equal(t, []string{
-			`/components/schemas/B: unresolved $ref "bad.yaml#/B"` + says,
-			`/paths/~1x/get/parameters/0: unresolved $ref "bad.yaml#/P"` + says,
-		}, got, "external references allowed: %v", allow)
+				got := make([]string, 0, len(diags))
+				for _, d := range diags {
+					got = append(got, string(d.Provenance.Pointer)+": "+d.Message)
+				}
+				slices.Sort(got)
+				assert.Equal(t, []string{
+					`/components/schemas/S: unresolved $ref "u.yaml#/B": ` + tc.says,
+					`/components/schemas/T: unresolved $ref "u.yaml": ` + tc.says,
+					`/paths/~1x/get/parameters/0: unresolved $ref "u.yaml#/P": ` + tc.says,
+					`/paths/~1x/get/parameters/1: unresolved $ref "u.yaml": ` + tc.says,
+				}, got, "external references allowed: %v", allow)
+				assert.Len(t, doc.Sources, 1, "a document refused is no source")
+			}
+		})
 	}
 }
 

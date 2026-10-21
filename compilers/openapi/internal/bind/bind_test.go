@@ -490,6 +490,17 @@ func TestBind_RefuseJudgesEachReferenceByItsSpelling(t *testing.T) {
 	assert.NotContains(t, located, "/other.yaml", "a refused $ref is placed nowhere")
 }
 
+// TestIsEmpty_HoldsNoNode pins what an empty document is: one parsed to no
+// node, white space and comments aside, or no tree at all, while a document
+// holding null, or an empty mapping, holds a node.
+func TestIsEmpty_HoldsNoNode(t *testing.T) {
+	t.Parallel()
+	for src, want := range map[string]bool{"": true, "\n": true, "# a comment\n": true, "---\n": false, "~\n": false, "{}\n": false} {
+		assert.Equal(t, want, bind.IsEmpty(tree(t, src)), "%q", src)
+	}
+	assert.True(t, bind.IsEmpty(nil), "no tree")
+}
+
 // TestBind_ReportsADocumentThatDoesNotParse pins Unparsable: a document Open
 // read and could not parse fails its $ref with the parser's reason, which the
 // error carries whole and Hop.Why repeats after its own phrasing.
@@ -512,8 +523,8 @@ func TestBind_ReportsADocumentThatDoesNotParse(t *testing.T) {
 // TestBind_ReadsOtherDocuments pins a reference to another document: read once
 // however many name it, as one that failed is, as raw YAML, the whole of it
 // named by a reference with no fragment; a chain followed across documents and
-// back; a document that cannot be read or names nothing reported as such; and
-// a reference naming no document at all.
+// back; a document that cannot be read, or holds nothing, reported as such;
+// and a reference naming no document at all.
 func TestBind_ReadsOtherDocuments(t *testing.T) {
 	t.Parallel()
 	docs := map[string]string{
@@ -565,7 +576,8 @@ func TestBind_ReadsOtherDocuments(t *testing.T) {
 	assert.Equal(t, bind.Unreadable, entryAt(t, table, "/components/schemas/Missing").Hop.Reason)
 	assert.Equal(t, "the document it names could not be read: no such document",
 		entryAt(t, table, "/components/schemas/Missing").Hop.Why())
-	assert.Equal(t, bind.Unreadable, entryAt(t, table, "/components/schemas/Empty").Hop.Reason)
+	assert.Equal(t, bind.Empty, entryAt(t, table, "/components/schemas/Empty").Hop.Reason)
+	assert.Equal(t, "the document it names is empty", entryAt(t, table, "/components/schemas/Empty").Hop.Why())
 	assert.Equal(t, bind.Unreadable, entryAt(t, table, "/components/schemas/Nowhere").Hop.Reason)
 	id, ok := table.Find("other.yaml")
 	require.True(t, ok)

@@ -75,8 +75,8 @@ func (d *docs) open(name string) (DocID, error) {
 	}
 	d.work.spend(1)
 	tree, err := d.cfg.Open(name)
-	if root := nodeview.DocumentRoot(tree); err == nil && (root == nil || root.Kind == 0) {
-		err = errors.New("the document is empty")
+	if err == nil && IsEmpty(tree) {
+		err = ErrEmptyDocument
 	}
 	if err != nil {
 		d.failed[name] = err

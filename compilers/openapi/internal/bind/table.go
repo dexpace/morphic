@@ -3,6 +3,7 @@ package bind
 import (
 	"cmp"
 	"encoding/json/jsontext"
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
@@ -29,7 +30,8 @@ type Config struct {
 	Locate func(uri, base string) (string, bool)
 	// Open returns the tree of the document named name, read under the
 	// compile's budgets, or an *UnparsableError for one that was read and does
-	// not parse. Nil reads no other document.
+	// not parse, or ErrEmptyDocument for one that holds nothing. Nil reads no
+	// other document.
 	Open func(name string) (*yaml.Node, error)
 	// Refuse returns why a reference whose document part is uri, as written,
 	// is refused unread by that spelling alone, however another reference
@@ -49,6 +51,18 @@ type Config struct {
 	Written func(n *yaml.Node) (string, bool)
 	// Limit bounds the work; zero is DefaultLimit.
 	Limit int
+}
+
+// ErrEmptyDocument is the failure of Config.Open, or of the tree it returns,
+// for a document that was read and holds nothing (see IsEmpty).
+var ErrEmptyDocument = errors.New("the document is empty")
+
+// IsEmpty reports whether tree, a document as parsed, holds nothing: no node,
+// though it may hold white space and comments. A document holding null is not
+// empty.
+func IsEmpty(tree *yaml.Node) bool {
+	root := nodeview.DocumentRoot(tree)
+	return root == nil || root.Kind == 0
 }
 
 // UnparsableError is the failure of Config.Open for a document that was read

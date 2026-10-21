@@ -460,8 +460,8 @@ func directoryNamed(dir string) string {
 //
 // The byte budget is checked again, though the reader held the read to it:
 // admitting bytes past it would let a reader lift a budget the compile set.
-// Bytes that do not parse are refused with the parser's reason, the one the
-// resolver would give (see bind.UnparsableError).
+// Bytes that do not parse, or hold nothing, are refused as such, the parser's
+// reason kept (see bind.UnparsableError, bind.ErrEmptyDocument).
 func (e external) prepare(key string, data []byte) ([]byte, error) {
 	if exceeds(len(data), e.opts.MaxSourceBytes) {
 		return nil, refused(key, fmt.Sprintf("it is past the %d-byte budget", e.opts.MaxSourceBytes))
@@ -470,6 +470,9 @@ func (e external) prepare(key string, data []byte) ([]byte, error) {
 	root, err := parseTree(data)
 	if err != nil {
 		return nil, &bind.UnparsableError{Err: err}
+	}
+	if bind.IsEmpty(root) {
+		return nil, bind.ErrEmptyDocument
 	}
 	if err := e.admit(key, root); err != nil {
 		return nil, err
