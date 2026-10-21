@@ -1190,7 +1190,7 @@ func TestReconcileProperty_DisjointKindsStillWarn(t *testing.T) {
 func enumRegistry() map[ir.TypeID]ir.TypeDef {
 	reg := narrowingRegistry()
 	reg["t/enum/a"] = &ir.Enum{ID: "t/enum/a", ValueType: ir.PrimString, Members: []ir.EnumMember{{Value: str("a")}}}
-	reg["t/enum/b"] = &ir.Enum{ID: "t/enum/b", ValueType: ir.PrimString}
+	reg["t/enum/b"] = &ir.Enum{ID: "t/enum/b", ValueType: ir.PrimString, Members: []ir.EnumMember{{Value: str("b")}}}
 	reg["t/enum/big"] = &ir.Enum{ID: "t/enum/big", ValueType: ir.PrimInteger, Members: []ir.EnumMember{{Value: num("5000000000")}}}
 	reg["t/enum/small"] = &ir.Enum{ID: "t/enum/small", ValueType: ir.PrimInteger, Members: []ir.EnumMember{{Value: num("1")}}}
 	return reg

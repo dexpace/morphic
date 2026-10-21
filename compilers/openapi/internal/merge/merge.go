@@ -663,11 +663,12 @@ func (g *Merger) overlappingTypesDiag(dst *ir.Property, pointer jsontext.Pointer
 // typesConflict classifies the drop of two reconciled property types the
 // judgment had no arm for. Identical targets and the schemaless top type are
 // silent. Two targets that resolve to primitive kinds go through
-// spelling.Relate: disjoint kinds conflict and anything else overlaps. A
-// literal against anything that holds values overlaps, since which values meet
-// is not decided here. A scalar against a structural type conflicts, and so do
-// two structure kinds. Two distinct composites of one kind are not provably
-// contradictory, so they are silent.
+// spelling.Relate: disjoint kinds, or an enum none of whose members the other
+// kind admits, conflict, and anything else overlaps. A literal against
+// anything that holds values overlaps, since which values meet is not decided
+// here. A scalar against a structural type conflicts, and so do two structure
+// kinds. Two distinct composites of one kind are not provably contradictory, so
+// they are silent.
 func (g *Merger) typesConflict(a, b ir.TypeRef) redeclVerdict {
 	if a.Target == b.Target || g.isAnyType(a) || g.isAnyType(b) {
 		return verdictSilent
@@ -676,7 +677,8 @@ func (g *Merger) typesConflict(a, b ir.TypeRef) redeclVerdict {
 	bk, bok := g.resolvePrimKind(b)
 	switch {
 	case aok && bok:
-		if spelling.Relate(ak, bk) == spelling.Disjoint {
+		if spelling.Relate(ak, bk) == spelling.Disjoint ||
+			enumMisses(g.Resolve, a, bk, b.Nullable) || enumMisses(g.Resolve, b, ak, a.Nullable) {
 			return verdictConflict
 		}
 		return verdictOverlap
@@ -744,10 +746,11 @@ func (g *Merger) isAnyType(ref ir.TypeRef) bool {
 // opaque scalar). The Base chain is bounded against a malformed registry.
 //
 // An Enum resolves via its already-computed ValueType (ir-design §4.5), so a
-// string enum conflicts with an integer redeclaration but not a string one. A
-// Literal is deliberately left unresolved: Value.Kind doesn't map cleanly to
-// one PrimKind (a ValueNumber literal spans integer/number/float/decimal), so
-// rather than guess it is excluded from isStructuralType below too.
+// string enum conflicts with an integer redeclaration and, where no member
+// fits, with a string one. A Literal is deliberately left unresolved:
+// Value.Kind doesn't map cleanly to one PrimKind (a ValueNumber literal spans
+// integer/number/float/decimal), so rather than guess it is excluded from
+// isStructuralType below too.
 func (g *Merger) resolvePrimKind(ref ir.TypeRef) (ir.PrimKind, bool) {
 	return typeJudge{Resolve: g.Resolve}.primKind(ref)
 }

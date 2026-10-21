@@ -744,21 +744,23 @@ first declaration wins its shape (§4.3) unless the other narrows it. One judgme
 types and returns one of six verdicts: the same type, either one narrower, an overlap, disjoint, or
 unrelated. The winner never depends on which branch is written first. A disjoint pair is
 unsatisfiable but for a null both declarations admit: no other value satisfies both. An overlap
-shares values and is merely not narrowed to one. The arms are tried in this order. `{}` loses to anything but the node a degraded lowering
-mints (an enum past its member budget, an unconvertible const), which is unrelated to every type;
-where `{}` loses, the winner's own null admission stands alone, since `{}` admits null yet lowers
-non-nullable. Two bare primitives compare by value domain and spelling (`integer` against `number`,
-`uuid` against `string`, `int32` against `int64`). A `Scalar` or `Enum` against a bare primitive wins
-over a kind it equals or narrows (`string` against `format: byte`, or an unknown format over bare
-`string`) and overlaps a kind it does not equal or narrow; for an `Enum`, that overlap is disjoint
-where the kind's judge refuses every member. An enum with no members is refused vacuously, so it is
-disjoint from any kind it would otherwise overlap, `bytes` included; an enum with members against
-`bytes` stays an overlap. A `const` wins when the kind admits its value; where it does not, it is
-disjoint from a kind with a judge and overlaps `bytes`, which has none. Two lists, or two maps with
-one key, compare by element or value, nested up to a bound, and the narrower one wins only where it
-admits null no more widely than the other and the other holds no constraint, encoding,
-documentation, examples or `Unmodeled` the winner lacks; disjoint members still overlap where both
-admit null, or where both containers admit the empty one. Anything else between distinct targets is unrelated and dropped.
+shares values and is merely not narrowed to one. The arms are tried in this order. `{}` loses to
+anything but the node a degraded lowering mints (an enum past its member budget, an unconvertible
+const), which is unrelated to every type; where `{}` loses, the winner's own null admission stands
+alone, since `{}` admits null yet lowers non-nullable. Two bare primitives compare by value domain
+and spelling (`integer` against `number`, `uuid` against `string`, `int32` against `int64`). A
+`Scalar` or `Enum` against a bare primitive wins over a kind it equals or narrows (`string` against
+`format: byte`, or an unknown format over bare `string`), is disjoint from a kind of another family
+or another string format (`uuid` against `format: date`), and overlaps any other kind; for an
+`Enum`, that overlap is disjoint where the kind's judge refuses every member. An enum with no
+members is refused vacuously, so it is disjoint from any kind it would otherwise overlap, `bytes`
+included; an enum with members against `bytes` stays an overlap. A `const` wins when the kind admits
+its value; where it does not, it is disjoint from a kind with a judge and overlaps `bytes`, which
+has none. Two lists, or two maps with one key, compare by element or value, nested up to a bound,
+and the narrower one wins only where it admits null no more widely than the other and the other
+holds no constraint, encoding, documentation, examples or `Unmodeled` the winner lacks; disjoint
+members still overlap where both admit null, or where both containers admit the empty one. Anything
+else between distinct targets is unrelated and dropped.
 
 The relation between kinds is stated over JSON instances, so that a narrowing, which is adopted
 silently, holds in every reading. Its value-domain half is `PrimKind.StrictlyWithin` (§4.1) and its
@@ -796,22 +798,23 @@ nullability, a default.
 Preservation is owed wherever something is dropped, which is wider than the disagreements worth a
 warning. The two declarations are reported as an `openapi/conflicting-redeclaration` warning where
 their types are incompatible — disjoint primitive kinds (`string` against `integer`, `uuid` against
-`date-time`), an enum none of whose members the other kind admits, a scalar against a structure, two different kinds of structure, or two lists or maps
-whose members share no value where one is never empty — or where one constraint keyword is pinned to
-two values; types that share values but that the merge does not narrow to one (`int32` against
-`uint32`, an enum of `integer` against an `int32` that admits one of its members, two enums of one kind, a `const` against a kind with
-no judge or against any other value-holding node, or two lists or maps whose members share only null
-or share nothing while both admit the empty one) are named in an info `openapi/degraded-construct`,
-and only the first declaration's type is kept; a detail the first declaration already holds
-differently is named in an info `openapi/degraded-construct`; and two composites of one kind the
-judgment does not compare (two models, a model and a map) and an unresolvable target are dropped
-without any diagnostic and kept all the same. The loser's `default`, constraints and examples go
-with its type rather than folding onto the winner — they describe the shape that lost, and adopting
-them would leave one field asserting two contradictory things, with nothing downstream comparing a
-value's kind to its property's type; this is keyed on the type being dropped, not on the drop being
-called a conflict. Two declarations naming the same target, or one narrowing the other, are not a
-drop, and differing only in nullability they take no entry: the merged field admits null only where
-both branches do, which is the same conjunction a single schema's null verdicts fold under
+`date-time`), an enum none of whose members the other kind admits, a scalar against a structure, two
+different kinds of structure, or two lists or maps whose members share no value where one is never
+empty — or where one constraint keyword is pinned to two values; types that share values but that
+the merge does not narrow to one (`int32` against `uint32`, an enum of `integer` against an `int32`
+that admits one of its members, two enums of one kind, a `const` against a kind with no judge or
+against any other value-holding node, or two lists or maps whose members share only null or share
+nothing while both admit the empty one) are named in an info `openapi/degraded-construct`, and only
+the first declaration's type is kept; a detail the first declaration already holds differently is
+named in an info `openapi/degraded-construct`; and two composites of one kind the judgment does not
+compare (two models, a model and a map) and an unresolvable target are dropped without any
+diagnostic and kept all the same. The loser's `default`, constraints and examples go with its type
+rather than folding onto the winner — they describe the shape that lost, and adopting them would
+leave one field asserting two contradictory things, with nothing downstream comparing a value's kind
+to its property's type; this is keyed on the type being dropped, not on the drop being called a
+conflict. Two declarations naming the same target, or one narrowing the other, are not a drop, and
+differing only in nullability they take no entry: the merged field admits null only where both
+branches do, which is the same conjunction a single schema's null verdicts fold under
 ([`nullable`](#nullable)).
 
 - Cases: `allof-conflicting-type`, `allof-narrowing-redeclaration`

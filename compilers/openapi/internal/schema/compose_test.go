@@ -281,7 +281,8 @@ func TestAllOf_OverlappingPrimitivesAreReportedNotConflicting(t *testing.T) {
 // level, in either order: an enum over a bare kind it equals or narrows wins
 // with no diagnostic; a bare kind that admits one of its members overlaps it,
 // which is info; a kind that admits none of them warns, as does another family;
-// and two enums overlap.
+// and two enums overlap. A Scalar node of a judged kind is judged by member too,
+// and one with no judge refuses nothing.
 func TestAllOf_EnumPairsAreJudgedByKind(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
@@ -291,6 +292,10 @@ func TestAllOf_EnumPairsAreJudgedByKind(t *testing.T) {
 		{"enum against uuid", "{type: string, enum: [a]}", "{type: string, format: uuid}", false, true},
 		{"enum against int32", "{type: integer, enum: [3000000000]}", "{type: integer, format: int32}", false, true},
 		{"enum against a date it admits", `{type: string, enum: ["2024-01-01"]}`, "{type: string, format: date}", true, false},
+		{"enum against a uuid scalar", "{type: string, enum: [a]}", "{type: string, format: uuid, contentMediaType: text/plain}", false, true},
+		{"enum against a date scalar it admits", `{type: string, enum: ["2024-01-01"]}`, "{type: string, format: date, contentMediaType: text/plain}", true, false},
+		{"empty enum against byte", "{type: string, enum: []}", "{type: string, format: byte}", false, true},
+		{"enum against byte", "{type: string, enum: [a]}", "{type: string, format: byte}", true, false},
 		{"enum against integer", "{type: string, enum: [a]}", "{type: integer}", false, true},
 		{"enum against enum", "{type: string, enum: [a]}", "{type: string, enum: [b]}", true, false},
 		{"enum against string", "{type: string, enum: [a]}", "{type: string}", false, false},

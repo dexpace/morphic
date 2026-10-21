@@ -184,16 +184,25 @@ func literalAgainst(v ir.Value, kind ir.PrimKind, bareNullable bool) relation {
 	}
 }
 
-// noMemberMeets reports whether the bare kind refuses every member of en, each
-// judged by literalAgainst: vacuously true for an enum with no members, and
-// false where the kind has no judge, as bytes has none.
-func noMemberMeets(en *ir.Enum, kind ir.PrimKind, bareNullable bool) bool {
+// noMemberMeets reports whether kind refuses every member of en, each judged
+// by literalAgainst: vacuously true for an enum with no members, and false
+// where the kind has no judge, as bytes has none.
+func noMemberMeets(en *ir.Enum, kind ir.PrimKind, nullable bool) bool {
 	for _, m := range en.Members {
-		if literalAgainst(m.Value, kind, bareNullable) != relDisjoint {
+		if literalAgainst(m.Value, kind, nullable) != relDisjoint {
 			return false
 		}
 	}
 	return true
+}
+
+// enumMisses reports whether ref targets an Enum no member of which kind
+// admits, judging each member as literalAgainst does: an enum with no members
+// is vacuously disjoint, and a kind with no judge refuses nothing.
+func enumMisses(resolve func(ir.TypeID) (ir.TypeDef, bool), ref ir.TypeRef, kind ir.PrimKind, nullable bool) bool {
+	td, ok := resolve(ref.Target)
+	en, isEnum := td.(*ir.Enum)
+	return ok && isEnum && noMemberMeets(en, kind, nullable)
 }
 
 // extras is what a list or map node holds beyond its element.

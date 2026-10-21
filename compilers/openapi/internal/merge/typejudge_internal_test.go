@@ -23,6 +23,7 @@ func judgeRegistry() map[ir.TypeID]ir.TypeDef {
 	reg["t/enum-int"] = &ir.Enum{ID: "t/enum-int", ValueType: ir.PrimInteger, Members: []ir.EnumMember{{Value: num("1")}}}
 	reg["t/enum-big"] = &ir.Enum{ID: "t/enum-big", ValueType: ir.PrimInteger, Members: []ir.EnumMember{{Value: num("5000000000")}}}
 	reg["t/enum-none"] = &ir.Enum{ID: "t/enum-none", ValueType: ir.PrimInteger}
+	reg["t/enum-bytes"] = &ir.Enum{ID: "t/enum-bytes", ValueType: ir.PrimBytes, Members: []ir.EnumMember{{Value: ir.Value{Kind: ir.ValueBytes, Bytes: []byte("hi")}}}}
 	reg["t/enum-str"] = &ir.Enum{ID: "t/enum-str", ValueType: ir.PrimString, Members: []ir.EnumMember{{Value: str("a")}}}
 	reg["t/lit-a"] = &ir.Literal{ID: "t/lit-a", Value: str("a")}
 	reg["t/lit-x"] = &ir.Literal{ID: "t/lit-x", Value: str("x")}
@@ -90,6 +91,7 @@ func TestTypeJudge_RelateArms(t *testing.T) {
 		{"bare int32 against an enum none of whose members it admits", prim(ir.PrimInt32), "t/enum-big", relDisjoint},
 		{"an enum with no members against an overlapping kind", "t/enum-none", prim(ir.PrimInt32), relDisjoint},
 		{"an enum against a kind with no judge", "t/enum-str", prim(ir.PrimBytes), relOverlap},
+		{"an enum of bytes against a format no member meets", "t/enum-bytes", prim(ir.PrimUUID), relDisjoint},
 		{"an enum of string over bare string", "t/enum-str", prim(ir.PrimString), relANarrower},
 		{"bare string under an enum of string", prim(ir.PrimString), "t/enum-str", relBNarrower},
 		{"an enum against another family", "t/enum-str", prim(ir.PrimInteger), relDisjoint},
