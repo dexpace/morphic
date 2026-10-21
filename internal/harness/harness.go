@@ -137,8 +137,7 @@ var compile = func(ctx context.Context, spec string, data []byte) (*ir.Document,
 		return nil, nil, err
 	}
 
-	src := compilers.Source{Path: spec, Data: data}
-	det, ok, err := reg.Detect(ctx, src, nil)
+	det, ok, err := reg.Detect(ctx, compilers.Source{Path: spec, Data: data}, nil)
 	if err != nil {
 		return nil, nil, fmt.Errorf("harness: detect: %w", err)
 	}
@@ -147,7 +146,7 @@ var compile = func(ctx context.Context, spec string, data []byte) (*ir.Document,
 		return nil, diags, err
 	}
 
-	out, err := det.Compile(ctx, src)
+	out, err := det.Compile(ctx)
 	if err != nil {
 		return nil, nil, fmt.Errorf("harness: compile: %w", err)
 	}

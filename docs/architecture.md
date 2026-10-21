@@ -69,7 +69,7 @@ type Compiler interface {
     DecodeOptions(set OptionSet) (any, error)
     // Compile lowers sources into a Document, or refuses them with a nil one.
     Compile(ctx context.Context, sources []Source, opts Options) (*ir.Document, []ir.Diagnostic, error)
-    // SourceTable names the inputs a compile reads: the table a refusal's diagnostics index.
+    // SourceTable names the inputs its arguments name: the table a refusal's diagnostics index.
     SourceTable(sources []Source, opts Options) []ir.SourceInfo
 }
 ```
@@ -127,9 +127,11 @@ caller unwrapped.
 **The contract is checked, not trusted.** Each duty `compilers.Compiler`'s doc comments state is held
 where its data is. `Registry.Register` refuses a format naming no dialect, and `Registry.Detect` a
 claim naming none and a decline indexing a source detection was not handed. `Detection.Compile`,
-which the engine compiles through, refuses a refusal that gives no error, a source table other than
-the one `SourceTable` names, a source read as a format other than the one it was recognized as or
-hashed from other bytes, and a finding indexing no source. Each breach is a Go error wrapping
+which the engine compiles through, refuses a refusal that gives no error, a source table that does
+not open with the one `SourceTable` names, a source read as a format other than the one it was
+recognized as or hashed from other bytes, and a finding indexing no source. Entries past that
+opening name what else the compile read, such as a document a reference names, which `SourceTable`
+reads no input to know of. Each breach is a Go error wrapping
 `compilers.ErrContract`: a compiler bug, never the spec's. What a document holds whatever produced
 it, the schema stamp, the namespaces, a service and a well-formed source table among them, is
 `irverify`'s, and `compile.Types.Finish` hands a compiler its registry only beside the entries it

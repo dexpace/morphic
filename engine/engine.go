@@ -201,7 +201,7 @@ func (e *Engine) compile(
 	// The detection hands the compile what recognizing the source parsed, and
 	// holds what comes back to the compiler's contract, so a Result never carries
 	// a finding indexing no source or a document misnaming its input.
-	out, err := det.Compile(ctx, source)
+	out, err := det.Compile(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("engine: compile %q: %w", source.Path, err)
 	}

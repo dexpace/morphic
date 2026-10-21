@@ -32,15 +32,19 @@ type Compiled struct {
 	Sources []ir.SourceInfo
 }
 
-// Compile compiles src with the compiler d names, under d's options, handing it
-// what recognizing src parsed, and holds the outcome to the duties Compiler's
-// Compile and SourceTable state that the inputs let a caller check. A breach is
-// an error wrapping ErrContract; an error the compiler returned is passed on as
-// it is, so a cancellation still reads as one.
-func (d Detection) Compile(ctx context.Context, src Source) (Compiled, error) {
+// Compile compiles d.Source with the compiler d names, under d's options,
+// handing it what recognizing the source parsed, and holds the outcome to the
+// duties Compiler's Compile and SourceTable state that the inputs let a caller
+// check. A breach is an error wrapping ErrContract; an error the compiler
+// returned is passed on as it is, so a cancellation still reads as one.
+//
+// A Detection compiles once: the parse it hands over is live, and a compile
+// may write through it (Source.Parsed).
+func (d Detection) Compile(ctx context.Context) (Compiled, error) {
 	if isNilCompiler(d.Compiler) {
 		return Compiled{}, errors.New("compilers: compile: the detection names no compiler")
 	}
+	src := d.Source
 	src.Parsed = d.Recognition.Parsed
 	sources := []Source{src}
 	doc, diags, err := d.Compiler.Compile(ctx, sources, d.Options)
@@ -53,7 +57,7 @@ func (d Detection) Compile(ctx context.Context, src Source) (Compiled, error) {
 	if doc != nil {
 		out.Sources = doc.Sources
 	}
-	if err := d.check(out, table, src); err != nil {
+	if err := d.check(out, table); err != nil {
 		return Compiled{}, fmt.Errorf("compilers: compile as %s: %w", d.Recognition.Format, err)
 	}
 	if doc != nil {
@@ -62,11 +66,11 @@ func (d Detection) Compile(ctx context.Context, src Source) (Compiled, error) {
 	return out, nil
 }
 
-// check holds out, compiled from src, to the contract. table is what the
+// check holds out, compiled from d.Source, to the contract. table is what the
 // compiler's SourceTable named for the compile.
-func (d Detection) check(out Compiled, table []ir.SourceInfo, src Source) error {
-	if len(table) == 0 || table[0].Path != src.Path {
-		return contractf("SourceTable does not name the source %q first", src.Path)
+func (d Detection) check(out Compiled, table []ir.SourceInfo) error {
+	if len(table) == 0 || table[0].Path != d.Source.Path {
+		return contractf("SourceTable does not name the source %q first", d.Source.Path)
 	}
 	if out.Document == nil {
 		// A refusal leaves the caller its diagnostics alone, so one with no error
@@ -76,7 +80,7 @@ func (d Detection) check(out Compiled, table []ir.SourceInfo, src Source) error 
 		}
 		return checkIndexes(out.Diagnostics, len(out.Sources))
 	}
-	if err := checkSources(out.Sources, table, src, d.Recognition.Format); err != nil {
+	if err := checkSources(out.Sources, table, d.Source, d.Recognition.Format); err != nil {
 		return err
 	}
 	if err := checkIndexes(out.Document.Diagnostics, len(out.Sources)); err != nil {
@@ -85,11 +89,13 @@ func (d Detection) check(out Compiled, table []ir.SourceInfo, src Source) error 
 	return checkIndexes(out.Diagnostics, len(out.Sources))
 }
 
-// checkSources reports a document whose source table is not the one the
-// compile's inputs give: SourceTable's entries in its order, src's entry first,
-// naming the format src was recognized as and the digest of its bytes.
+// checkSources reports a document whose source table does not open with the
+// one the compile's inputs give: SourceTable's entries in its order, src's
+// entry first, naming the format src was recognized as and the digest of its
+// bytes. An entry past them names another document the compile read, which
+// SourceTable, reading no input, cannot know of.
 func checkSources(got, table []ir.SourceInfo, src Source, format SourceFormat) error {
-	if len(got) != len(table) {
+	if len(got) < len(table) {
 		return contractf("document lists %d sources where SourceTable names %d", len(got), len(table))
 	}
 	for i := range table {
@@ -107,12 +113,10 @@ func checkSources(got, table []ir.SourceInfo, src Source, format SourceFormat) e
 }
 
 // checkIndexes reports the first diagnostic of diags that is not in a table of n
-// sources (ir.Provenance.InTable).
+// sources (ir.FirstOutsideTable).
 func checkIndexes(diags []ir.Diagnostic, n int) error {
-	for _, d := range diags {
-		if !d.Provenance.InTable(n) {
-			return contractf("diagnostic %s indexes source %d of %d", d.Code, d.Provenance.Source, n)
-		}
+	if d, outside := ir.FirstOutsideTable(diags, n); outside {
+		return contractf("diagnostic %s indexes source %d of %d", d.Code, d.Provenance.Source, n)
 	}
 	return nil
 }

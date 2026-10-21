@@ -113,19 +113,19 @@ type Compiler interface {
 	// unusable value, or a file that cannot be read is an error — a setting that
 	// is silently ignored leaves the caller believing they configured something.
 	DecodeOptions(set OptionSet) (any, error)
-	// Compile lowers sources into a Document, or refuses them by returning a nil
-	// one, no error, and at least one error diagnostic saying why. Every
-	// Provenance.Source it reports other than ir.NoSource, on the Document or in
-	// the returned diagnostics, indexes the table SourceTable gives for the same
-	// arguments. A Document's Sources is that table filled in: a source's entry
-	// names the format Detect recognized it as and the SHA-256 of its Data. The
-	// Document holds the invariants irverify checks, at least one service and
-	// the IRVersion stamp among them; its Name may be empty, as a source's title
-	// may be.
+	// Compile lowers sources into a Document, or refuses them with a nil one, no
+	// error and at least one error diagnostic saying why. Each Provenance.Source
+	// it reports, on the Document or returned, is ir.NoSource or indexes the
+	// Document's Sources, or for a refusal SourceTable's table. Sources opens
+	// with that table filled in, a source's entry naming the format Detect
+	// recognized and the SHA-256 of its Data, then may name other documents the
+	// compile read, such as one a reference names. The Document holds the
+	// invariants irverify checks, a service and the IRVersion stamp among them;
+	// its Name may be empty.
 	Compile(ctx context.Context, sources []Source, opts Options) (*ir.Document, []ir.Diagnostic, error)
-	// SourceTable names the inputs a compile of sources under opts reads, in the
-	// order its provenance indexes them: the sources, then any input the
-	// options supply, such as an overlay.
+	// SourceTable names the inputs its arguments name, in the order a compile's
+	// provenance indexes them: the sources, then any input the options supply,
+	// such as an overlay.
 	//
 	// It is the table a refusal's diagnostics index, since a refusal has no
 	// Document to carry one. It reads no input and fails on none, so an entry
@@ -199,6 +199,9 @@ type Configure func(c Compiler) (Options, error)
 
 // Detection is what Registry.Detect found for one source.
 type Detection struct {
+	// Source is the source detection was handed, and the one Compile compiles,
+	// so what was recognized and what is compiled cannot be two inputs.
+	Source Source
 	// Compiler is the compiler registered for the format the source was
 	// recognized as, or nil when none is.
 	Compiler Compiler
@@ -226,7 +229,7 @@ type Detection struct {
 // naming no dialect or a decline indexing another source.
 func (r *Registry) Detect(ctx context.Context, src Source, configure Configure) (Detection, bool, error) {
 	if len(src.Data) == 0 {
-		return Detection{}, false, nil
+		return Detection{Source: src}, false, nil
 	}
 	if configure == nil {
 		configure = func(Compiler) (Options, error) { return Options{}, nil }
@@ -256,14 +259,19 @@ func (r *Registry) Detect(ctx context.Context, src Source, configure Configure) 
 			return Detection{}, false, fmt.Errorf("compilers: detect by %s: claimed the source as %q: %w",
 				served(c), rec.Format, ErrContract)
 		}
-		return r.claim(c, rec, opts, optsErr, configure)
+		det, ok, err := r.claim(c, rec, opts, optsErr, configure)
+		if err != nil {
+			return Detection{}, false, err
+		}
+		det.Source = src
+		return det, ok, nil
 	}
-	return Detection{Declined: declined}, false, nil
+	return Detection{Source: src, Declined: declined}, false, nil
 }
 
 // claim resolves a recognition into the compiler that will compile the source
 // and the options it compiles with. c is the compiler that recognized it, and
-// opts and optsErr are what configuring c gave.
+// opts and optsErr are what configuring c gave. The caller records the source.
 func (r *Registry) claim(c Compiler, rec Recognition, opts Options, optsErr error, configure Configure) (Detection, bool, error) {
 	owns := slices.Contains(c.Formats(), rec.Format)
 	if !owns {

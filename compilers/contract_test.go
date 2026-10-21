@@ -53,9 +53,11 @@ func keeping() *scripted {
 	}
 }
 
-// detected is the detection a registry would hand back for c.
+// detected is the detection a registry would hand back for spec claimed by c.
 func detected(c compilers.Compiler, parsed any) compilers.Detection {
-	return compilers.Detection{Compiler: c, Recognition: compilers.Recognition{Format: alpha, Parsed: parsed}}
+	return compilers.Detection{
+		Source: spec, Compiler: c, Recognition: compilers.Recognition{Format: alpha, Parsed: parsed},
+	}
 }
 
 func at(source int, severity ir.Severity) ir.Diagnostic {
@@ -68,14 +70,33 @@ func TestDetectionCompile_AKeptContractComesBackWhole(t *testing.T) {
 	c.diags = []ir.Diagnostic{at(0, ir.SeverityWarning), at(ir.NoSource, ir.SeverityInfo)}
 	parse := &struct{ tree string }{"parsed"}
 
-	out, err := detected(c, parse).Compile(t.Context(), spec)
+	out, err := detected(c, parse).Compile(t.Context())
 
 	require.NoError(t, err)
 	assert.Same(t, c.doc, out.Document)
 	assert.Equal(t, c.diags, out.Diagnostics, "a finding at NoSource indexes no table and is kept")
 	assert.Equal(t, c.doc.Sources, out.Sources, "a document's findings index its own table")
 	assert.Same(t, parse, c.got.Parsed, "the compile is handed what recognizing the source parsed")
+	assert.Equal(t, spec.Path, c.got.Path, "the compile is handed the source detection was")
 	assert.Equal(t, spec.Data, c.got.Data)
+}
+
+// TestDetectionCompile_ADocumentMayNameWhatElseItRead pins the table's other
+// end: SourceTable reads no input, so a document goes on past it to name each
+// further document the compile read, and its findings may index those too.
+func TestDetectionCompile_ADocumentMayNameWhatElseItRead(t *testing.T) {
+	t.Parallel()
+	c := keeping()
+	read := ir.SourceInfo{Format: alpha.String(), Path: "shared.alpha", Hash: digest([]byte("shared"))}
+	c.doc.Sources = append(c.doc.Sources, read)
+	c.doc.Diagnostics = []ir.Diagnostic{at(1, ir.SeverityWarning)}
+	c.diags = []ir.Diagnostic{at(1, ir.SeverityInfo)}
+
+	out, err := detected(c, nil).Compile(t.Context())
+
+	require.NoError(t, err)
+	assert.Equal(t, c.doc.Sources, out.Sources)
+	assert.Equal(t, []ir.Diagnostic{at(1, ir.SeverityWarning), at(1, ir.SeverityInfo)}, out.Diagnostics)
 }
 
 // TestDetectionCompile_BothChannelsComeBackAsOne pins that a caller reads a
@@ -88,7 +109,7 @@ func TestDetectionCompile_BothChannelsComeBackAsOne(t *testing.T) {
 	c.doc.Diagnostics = []ir.Diagnostic{stored, both}
 	c.diags = []ir.Diagnostic{both, returned}
 
-	out, err := detected(c, nil).Compile(t.Context(), spec)
+	out, err := detected(c, nil).Compile(t.Context())
 
 	require.NoError(t, err)
 	assert.Equal(t, []ir.Diagnostic{stored, both, returned}, out.Diagnostics)
@@ -101,7 +122,7 @@ func TestDetectionCompile_ARefusalComesBackWithItsTable(t *testing.T) {
 	c.table = []ir.SourceInfo{{Path: spec.Path}, {Path: "patch.overlay"}}
 	c.diags = []ir.Diagnostic{at(1, ir.SeverityError)}
 
-	out, err := detected(c, nil).Compile(t.Context(), spec)
+	out, err := detected(c, nil).Compile(t.Context())
 
 	require.NoError(t, err)
 	assert.Nil(t, out.Document)
@@ -135,8 +156,16 @@ func TestDetectionCompile_EachBreachIsAContractError(t *testing.T) {
 		"a document listing no source": {
 			func(c *scripted) { c.doc.Sources = nil }, "lists 0 sources where SourceTable names 1",
 		},
-		"a document listing a source the table does not": {
-			func(c *scripted) { c.doc.Sources = append(c.doc.Sources, ir.SourceInfo{Path: "extra"}) }, "lists 2 sources",
+		"a document dropping a source the table names": {
+			func(c *scripted) { c.table = append(c.table, ir.SourceInfo{Path: "patch.overlay"}) },
+			"lists 1 sources where SourceTable names 2",
+		},
+		"a document naming a source the table names in another place": {
+			func(c *scripted) {
+				c.table = append(c.table, ir.SourceInfo{Path: "patch.overlay"})
+				c.doc.Sources = append(c.doc.Sources, ir.SourceInfo{Path: "shared.alpha"}, ir.SourceInfo{Path: "patch.overlay"})
+			},
+			`source 1 is "shared.alpha" where SourceTable names "patch.overlay"`,
 		},
 		"a document naming the source by another path": {
 			func(c *scripted) { c.doc.Sources[0].Path = "elsewhere" }, `source 0 is "elsewhere"`,
@@ -169,7 +198,7 @@ func TestDetectionCompile_EachBreachIsAContractError(t *testing.T) {
 			c := keeping()
 			tc.breakIt(c)
 
-			out, err := detected(c, nil).Compile(t.Context(), spec)
+			out, err := detected(c, nil).Compile(t.Context())
 
 			require.ErrorIs(t, err, compilers.ErrContract)
 			assert.Contains(t, err.Error(), tc.want)
@@ -184,7 +213,7 @@ func TestDetectionCompile_ACompilerErrorPassesThroughUnwrapped(t *testing.T) {
 	c := keeping()
 	c.err = context.Canceled
 
-	_, err := detected(c, nil).Compile(t.Context(), spec)
+	_, err := detected(c, nil).Compile(t.Context())
 
 	require.ErrorIs(t, err, context.Canceled)
 	assert.NotErrorIs(t, err, compilers.ErrContract, "a compiler that stops when asked keeps its contract")
@@ -198,7 +227,7 @@ func TestDetectionCompile_ADetectionNamingNoCompilerIsAnError(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			_, err := det.Compile(t.Context(), spec)
+			_, err := det.Compile(t.Context())
 			require.Error(t, err)
 			assert.NotErrorIs(t, err, compilers.ErrContract, "no compiler is there to have broken one")
 		})
@@ -286,6 +315,35 @@ func TestRegistry_DetectRefusesADeclineIndexingAnotherSource(t *testing.T) {
 			}
 			require.ErrorIs(t, err, compilers.ErrContract)
 			assert.Contains(t, err.Error(), "alpha@1", "the error names the compiler")
+		})
+	}
+}
+
+// TestRegistry_DetectRecordsTheSourceItWasHanded pins the source a Detection
+// compiles to the one it was detected from, on every answer Detect gives, so no
+// caller hands the compile a second input.
+func TestRegistry_DetectRecordsTheSourceItWasHanded(t *testing.T) {
+	t.Parallel()
+	for name, data := range map[string]string{
+		"a source a compiler takes":              "alpha source",
+		"a source every compiler declines":       "gamma source",
+		"a source recognized and served by none": "beta source",
+		"a source with no bytes":                 "",
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			reg := compilers.NewRegistry()
+			require.NoError(t, reg.Register(&stubCompiler{formats: []compilers.SourceFormat{alpha}, marker: "alpha"}))
+			require.NoError(t, reg.Register(&stubCompiler{
+				formats: []compilers.SourceFormat{{Name: "gamma", Version: "1"}}, marker: "beta",
+				detects: compilers.SourceFormat{Name: "beta", Version: "1"},
+			}))
+			src := compilers.Source{Path: "in." + name, Data: []byte(data)}
+
+			det, _, err := reg.Detect(t.Context(), src, nil)
+
+			require.NoError(t, err)
+			assert.Equal(t, src, det.Source)
 		})
 	}
 }
