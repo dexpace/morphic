@@ -152,7 +152,7 @@ completes commands, flags, and spec files by extension.
 Diagnostics print one per line as `<severity> <code> <location>: <message>`:
 
 ```
-error openapi/unresolved-ref openapi.yaml#/components/schemas/Pet/discriminator/mapping/dog: discriminator mapping "dog" references unresolved schema "#/components/schemas/Dog"
+error openapi/unresolved-ref openapi.yaml#/components/schemas/Pet/discriminator/mapping/dog: discriminator mapping "dog" references unresolved schema "#/components/schemas/Dog": it names nothing in the document it points into
 ```
 
 `<location>` is the most precise form available:
@@ -258,11 +258,12 @@ entry in that test allows, and nothing from a layer above its own.
 | Package | Layer | Imports |
 |---|---|---|
 | `ir/` | 0: IR nodes, IDs, traversal, JSON round-trip | stdlib only |
+| `ir/irfacts/` | 0: what a document implies and does not state (subtypes, exposed properties, usage, recursion), never stored | `ir` only |
 | `ir/irverify/`, `ir/irtest/` | 0: structural-invariant checker; golden-snapshot and fixture helpers | `ir` (`irtest` also `go-cmp`) |
 | `compilers/` | 1: the `Compiler` contract and the format-keyed registry | `ir` only |
 | `compilers/compile/` | 1: what every compiler shares (type registry, diagnostics, naming and identifier grammars) | `ir` only |
 | `compilers/*` | 1: one compiler per format; a public face over its own `internal/` packages | `ir` + `compilers` + `compilers/compile` + own `internal/*` + format libs |
-| `pass/` | 1: IR → IR passes | `ir` only |
+| `pass/` | 1: IR → IR passes | `ir` + `ir/irfacts` |
 | `emitters/*` | 2: IR → artifacts (not built yet) | `ir` + emitter contract |
 | `engine/` | 3: orchestration | everything below |
 | `cmd/morphic/` | 4: CLI | `engine` + `ir` + its command framework (`cobra`, `pflag`) |
@@ -285,10 +286,11 @@ make gate
 
 That is not a summary of CI; it is what CI runs. Every check in `.github/workflows/gate.yml` runs
 a `Makefile` target bar `lint`, which the golangci-lint action runs at the version the `Makefile`
-pins, so the local command and the job run the same steps in the same order. The `Makefile` holds
-the step list, and each target (`make coverage`, `make fuzz`, `make bench` and the rest) runs on its
-own while iterating. Coverage is gated at exactly 100% of statements, counted from the profile
-rather than from `go test`'s rounded percentage, so one uncovered statement fails the build.
+pins, so the local command and CI run the same steps; CI splits them across two jobs that run side
+by side. The `Makefile` holds the step list, and each target (`make coverage`, `make fuzz`,
+`make bench` and the rest) runs on its own while iterating. Coverage is gated at exactly 100% of
+statements, counted from the profile rather than from `go test`'s rounded percentage, so one
+uncovered statement fails the build.
 
 Run a single test with `go test ./ir -run TestName`. Beyond that:
 

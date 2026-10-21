@@ -14,7 +14,6 @@ package resolve
 
 import (
 	"encoding/json/jsontext"
-	"fmt"
 	"path/filepath"
 	"strings"
 	"unicode/utf8"
@@ -25,7 +24,8 @@ import (
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
-	"github.com/dexpace/morphic/compilers/openapi/internal/defs"
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/fragment"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/navigation"
@@ -47,20 +47,12 @@ type Scope struct {
 	// name.
 	Declares func(name string) bool
 	// Doc is the parsed document a pointer is read against, as the resolver reads
-	// it; nil leaves every "#/$defs/..." pointer unresolved and every DeclaredAt
-	// answer nil.
-	Doc defs.Navigable
-	// Defs reads the document's "#/$defs/..." pointers and remembers what it has
-	// read, so references that share ancestors share the work. Nil reads each
-	// through a fresh reader over Doc, which answers the same and shares nothing.
-	Defs *defs.Reader
-	// Mapped returns the schema the load phase resolved at a pointer a
-	// discriminator mapping target names, or nil; see DeclaredAt.
-	Mapped func(jsontext.Pointer) *oas3.JSONSchema[oas3.Referenceable]
-	// Built returns the schema the load phase walked at a raw position, or nil:
-	// the one whose $refs it resolved, which a $ref to the position may not
-	// reach when spelled so the resolver built it a copy.
-	Built func(jsontext.Pointer) *oas3.JSONSchema[oas3.Referenceable]
+	// it; nil reads nothing there.
+	Doc any
+	// Bindings answers where each schema $ref lands, as the compiler resolved
+	// it (internal/bind), and the schemas there; nil knows none, so no schema
+	// $ref resolves.
+	Bindings *typed.Bindings
 	// Foreign marks a scope over content another document holds, read where
 	// that document holds it (GitHub #762). A reference there is internal only
 	// when its document part, resolved against Holder as the resolver resolves
@@ -110,41 +102,6 @@ func (s Scope) beside(pointer jsontext.Pointer) bool {
 	return ok
 }
 
-// BesideWhy returns the reason a reference written at site, naming pointer,
-// reports when Beside refuses it, and "" for any other. A "#/$defs/..." pointer
-// names a definition read from where it is written, so it is refused when site
-// is in the fields beside a $ref; any other pointer when it lands there itself.
-func (s Scope) BesideWhy(site, pointer jsontext.Pointer) string {
-	if s.Beside == nil {
-		return ""
-	}
-	if defs.IsPointer(pointer) {
-		if use, key, ok := s.Beside(site); ok {
-			return ": " + DefsBesideReason(use, key)
-		}
-		return ""
-	}
-	if use, key, ok := s.Beside(pointer); ok {
-		return ": it reaches " + string(pointer) + "; " + BesideReason(use, key)
-	}
-	return ""
-}
-
-// BesideReason says why a reference reaching the fields beside the path item
-// $ref at use, under key, is left unresolved, in one phrasing for every report.
-func BesideReason(use jsontext.Pointer, key string) string {
-	return fmt.Sprintf("the path item $ref at %s has %q written beside it, and the resolver reads a pointer "+
-		"through that $ref into the item it names, not into the field written there, so the reference is left "+
-		"unresolved (GitHub #824)", use, key)
-}
-
-// DefsBesideReason is BesideReason for a "#/$defs/..." pointer written in the
-// fields beside the path item $ref at use, which names a definition there too.
-func DefsBesideReason(use jsontext.Pointer, key string) string {
-	return "it is written in the fields beside a path item $ref, as is any definition it can name; " +
-		BesideReason(use, key)
-}
-
 // Reached records the positions in the source a lowering resolved a reference
 // to, each hop of a chain included: the declarations the IR carries through
 // their uses rather than on a node of their own (GitHub #616).
@@ -184,22 +141,26 @@ func (s Scope) InSource() Scope {
 	return s
 }
 
-// At returns s for reading what an internal pointer names: the source's own
-// content (InSource), unless the resolver's walk to it passes a $ref, whose
-// target it then lies in (GitHub #762). Past one into another document, it is
-// that document's content, though the resolver reports the source as the
-// document the pointer resolved against.
-func (s Scope) At(pointer jsontext.Pointer) Scope {
-	return s.reached(End{Document: s.Doc, Pointer: pointer})
+// InDocumentOf returns s for reading what js holds, a schema the bindings
+// know: the source's own content (InSource), unless the bindings place js in
+// another document, whose content it then is (GitHub #762), as where a
+// pointer the source spells passes a reference object into one.
+func (s Scope) InDocumentOf(js *oas3.JSONSchema[oas3.Referenceable]) Scope {
+	p, ok := s.Bindings.Site(js)
+	if !ok || p.Doc == bind.Source {
+		return s.InSource()
+	}
+	s.Foreign, s.Holder = true, s.Bindings.Table().Document(p.Doc).Name
+	return s
 }
 
 // reached returns s for reading what a hop ending at end found: a Foreign scope
 // over the document it resolved against, unless that is the source (its model,
-// or its file read again where the load phase does not hold it), where the
-// position its pointer names is read as At reads it. A $ref the walk to that
-// position passes is followed to where its own chain ends, a turn each. Past
-// maxRefChain turns, and for a chain endOf cut, it is no document's: Foreign
-// with no Holder, so none of its references reads as internal.
+// or its file read again where the load phase does not hold it). There it is
+// the source's own content, unless the walk to its pointer passes a $ref,
+// which is followed to where its own chain ends, a turn each. Past maxRefChain
+// turns, and for a chain endOf cut, it is no document's: Foreign with no
+// Holder, so none of its references reads as internal.
 func (s Scope) reached(end End) Scope {
 	return s.turned(end, maxRefChain)
 }
@@ -207,7 +168,7 @@ func (s Scope) reached(end End) Scope {
 // turned is reached with turns walks left to take.
 func (s Scope) turned(end End, turns int) Scope {
 	for range turns {
-		if end.Document != any(s.Doc) && !SameDocument(s.SelfPath, end.Path) {
+		if end.Document != s.Doc && !SameDocument(s.SelfPath, end.Path) {
 			s.Foreign, s.Holder = true, end.Path
 			return s
 		}
@@ -221,78 +182,45 @@ func (s Scope) turned(end End, turns int) Scope {
 	return s
 }
 
-// located is what a walk of a pointer through the model found: what the model
-// holds there, nil where the read finds nothing or leaves the model, and where
-// the chain of the last reference the walk passed ends.
+// located is where the chain of the last reference a walk of a pointer
+// through the model passed ends, and whether it passed one.
 type located struct {
-	target any
 	end    End
 	passes bool
 }
 
 // locate walks pointer through Doc as the resolver's walk reads it, a token at
 // a time, noting each reference Ends names that it steps past, read as what it
-// resolved to. A schema's own $ref is read as a keyword, so none is noted past
-// a schema. A token that leaves the model (navigation.Leaves) ends the walk:
-// raw YAML holds no schema and no reference the resolver resolved (see leave).
-// Past an index the library retries (navigation.Retried), the pointer names
-// what the library's read of the rest finds, though references are still noted
-// a step at a time.
+// resolved to. A schema's own $ref is read as a keyword, so the walk ends at a
+// schema, as it does at a token that leaves the model (navigation.ReadingOf):
+// raw YAML holds no reference the resolver resolved (see leave). Without Ends
+// it notes nothing.
 func (s Scope) locate(pointer jsontext.Pointer) located {
 	var l located
 	tokens, ok := navigation.Tokens(pointer)
-	if !ok {
+	if !ok || s.Ends == nil {
 		return l
 	}
-	noting, whole := s.Ends != nil, false
-	var node any = s.Doc
-	for i, token := range tokens {
+	node := s.Doc
+	for _, token := range tokens {
 		if _, schema := node.(*oas3.JSONSchema[oas3.Referenceable]); schema {
-			noting = false
+			return l
 		}
 		reading, raw := navigation.ReadingOf(node, token)
 		if reading == navigation.Leaving {
-			if noting {
-				l.leave(s, node, raw, token)
-			}
+			l.leave(s, node, raw, token)
 			return l
-		}
-		if reading == navigation.Retried && !whole {
-			l.target, whole = retriedRead(node, tokens[i:]), true
 		}
 		next, ok := navigation.Step(node, token)
 		if !ok {
 			return l
 		}
-		if e, isRef := s.ends(noting, node); isRef {
+		if e, isRef := s.Ends(node); isRef {
 			l.end, l.passes = e, true
 		}
 		node = next
 	}
-	if !whole {
-		l.target = node
-	}
 	return l
-}
-
-// retriedRead returns what the library's read of tokens from node finds, or
-// nil where it finds nothing. The library retries tokens[0] as an index once
-// the rest fails below it as a key, so only the whole read says which answers
-// (navigation.Walk).
-func retriedRead(node any, tokens []string) any {
-	target, _, err := navigation.Walk(node, tokens)
-	if err != nil {
-		return nil
-	}
-	return target
-}
-
-// ends is Ends's answer for node, and false while a walk notes nothing.
-func (s Scope) ends(noting bool, node any) (End, bool) {
-	if !noting {
-		return End{}, false
-	}
-	return s.Ends(node)
 }
 
 // leave notes node passed where the walk leaves the model from it for raw: a
@@ -318,117 +246,35 @@ func held(holds func(*yaml.Node, string) bool, node any, raw *yaml.Node, token s
 	return found
 }
 
-// Location is what one walk of a same-document pointer through the model found
-// (Locate): ModelAt's, DeclaredAt's and At's answers for it at once.
-type Location struct {
-	scope   Scope
-	pointer jsontext.Pointer
-	walk    located
-}
-
-// Locate walks pointer through the model once, for the answers ModelAt,
-// DeclaredAt and At would each walk it again for: a hoisted reference asks two
-// of them about one pointer.
-func (s Scope) Locate(pointer jsontext.Pointer) Location {
-	return Location{scope: s, pointer: pointer, walk: s.locate(pointer)}
-}
-
-// Pointer returns the pointer l located.
-func (l Location) Pointer() jsontext.Pointer { return l.pointer }
-
-// Model is ModelAt's answer for l's pointer: nil for anything but a schema,
-// as for a keyword a schema leaves unset, which the walk reaches as a nil one.
-func (l Location) Model() *oas3.JSONSchema[oas3.Referenceable] {
-	js, _ := l.walk.target.(*oas3.JSONSchema[oas3.Referenceable])
-	return js
-}
-
-// Declared is DeclaredAt's answer for l's pointer.
-func (l Location) Declared() *oas3.JSONSchema[oas3.Referenceable] {
-	if js := l.Model(); js != nil {
-		return js
-	}
-	if l.scope.Mapped == nil {
-		return nil
-	}
-	return l.scope.Mapped(l.pointer)
-}
-
-// At is At's answer for l's pointer, whose first turn is the walk Locate took.
-func (l Location) At() Scope {
-	if !l.walk.passes {
-		return l.scope.InSource()
-	}
-	return l.scope.turned(l.walk.end, maxRefChain-1)
-}
-
-// reader returns the reader s reads "#/$defs/..." pointers through.
-func (s Scope) reader() *defs.Reader {
-	if s.Defs != nil {
-		return s.Defs
-	}
-	return defs.NewReader(s.Doc)
-}
-
-// TargetPointer returns the pointer of the position the $ref at js resolves to
-// in this document: InternalPointer's answer, except that a "#/$defs/..."
-// pointer names the definition the resolver's rule finds for js
-// (defs.Reader.Target): the document-rooted /$defs/... it spells only where the
-// document's root holds it (docs/parser-library.md#root-defs), else one
-// relative to js (GitHub #557).
-// ok is false for a reference into another document, for a $defs pointer the
-// rule finds nothing for, and for any other pointer Beside refuses. A $defs
-// pointer written beside a path item's $ref is held unresolved by load, so no
-// schema it could name reaches here.
-func (s Scope) TargetPointer(js *oas3.JSONSchema[oas3.Referenceable], ref string) (jsontext.Pointer, bool) {
-	pointer, ok := s.InternalPointer(ref)
-	if !ok || !defs.IsPointer(pointer) {
-		return pointer, ok && !s.beside(pointer)
-	}
-	if _, held := defs.PointerOf(references.Reference(ref)); !held {
-		return "", false // left to the resolver, as load leaves it: see load.heldRefs
-	}
-	def, found := s.reader().Target(js, pointer)
-	return def.At, found
-}
-
-// MappingPointer is TargetPointer for a discriminator mapping value: the
-// pointer it names, which for a "#/$defs/..." value is the definition read from
-// the discriminator d that holds it (defs.Reader.MappingTarget), as a $ref in
-// the same schema reads one (GitHub #557). ok is false for a value into another
-// document, for a $defs value the rule finds nothing for, for no discriminator,
-// and for a pointer Beside refuses.
-func (s Scope) MappingPointer(d *oas3.Discriminator, value string) (jsontext.Pointer, bool) {
-	pointer, ok := s.InternalPointer(value)
-	if !ok || !defs.IsPointer(pointer) {
-		return pointer, ok && !s.beside(pointer)
-	}
-	if _, held := defs.PointerOf(references.Reference(value)); !held {
+// TargetPointer returns the pointer of the position the $ref at js lands on
+// in the source, as the compiler resolved it (bind.Hop.Spelled): a
+// "#/$defs/..." pointer's definition, read by the $defs rule, or the position
+// any other names from the source's root. ok is false for a $ref that lands on
+// no schema, one that lands in another document, and one on a loop of $refs,
+// which lands nowhere a type can be read.
+func (s Scope) TargetPointer(js *oas3.JSONSchema[oas3.Referenceable]) (jsontext.Pointer, bool) {
+	e, ok := s.Bindings.Entry(js)
+	if !ok || !lands(e.Hop) || e.Chain.Member {
 		return "", false
 	}
-	def, found := s.reader().MappingTarget(d, pointer)
-	return def.At, found && !s.beside(def.At)
+	return e.Hop.Spelled, true
 }
 
-// DeclaredAt returns the schema declared at a same-document pointer, found the
-// way the resolver finds a $ref's target, or nil where there is none, like
-// annotation.DeclaredSchema for a followed $ref.
-//
-// It is for a mapping value, which the resolver never follows
-// (docs/parser-library.md#mapping-unresolved), so it carries no declaration of
-// its own (GitHub #530). The model's schema answers first: the
-// load phase's may be a copy a $ref by the source's file name built, whose own
-// $refs nothing resolved. Mapped answers where the model holds raw YAML, such
-// as an extension's value or an enum member (GitHub #757).
-func (s Scope) DeclaredAt(pointer jsontext.Pointer) *oas3.JSONSchema[oas3.Referenceable] {
-	return s.Locate(pointer).Declared()
+// lands reports whether h lands on a schema in the source.
+func lands(h bind.Hop) bool {
+	return h.Status == bind.Resolved && h.Named
 }
 
-// ModelAt returns the schema the source's model holds at a same-document
-// pointer, found the way the resolver finds a $ref's target, or nil where it
-// holds none, as at a position it holds as raw YAML (see locate).
-func (s Scope) ModelAt(pointer jsontext.Pointer) *oas3.JSONSchema[oas3.Referenceable] {
-	return s.Locate(pointer).Model()
+// MappingTarget returns the pointer the mapping value of the discriminator d
+// names, read as a $ref written at d is (bind.Mapping), and the schema written
+// there. ok is false for a value that lands on no schema in the source.
+func (s Scope) MappingTarget(d *oas3.Discriminator, value string,
+) (jsontext.Pointer, *oas3.JSONSchema[oas3.Referenceable], bool) {
+	m, ok := s.Bindings.Mapping(d, value)
+	if !ok || !lands(m.Hop) {
+		return "", nil, false
+	}
+	return m.Hop.Spelled, s.Bindings.At(m.Hop.Target), true
 }
 
 // FragmentPointer returns the JSON pointer a $ref's fragment spells, whatever
@@ -485,16 +331,6 @@ func (s Scope) namesSelf(ref references.Reference) bool {
 	}
 	doc, ok := documentOf(ref, base)
 	return ok && SameDocument(s.SelfPath, doc)
-}
-
-// NamesHolder reports whether ref, in a Foreign scope, names a position in the
-// document holding it, which this compile cannot lower (GitHub #74).
-func (s Scope) NamesHolder(ref string) bool {
-	if !s.Foreign {
-		return false
-	}
-	doc, ok := documentOf(references.Reference(ref), s.Holder)
-	return ok && SameDocument(s.Holder, doc)
 }
 
 // documentOf returns the path of the document ref names when it is written in
@@ -621,26 +457,31 @@ func InternedID(ts *compile.Types, pointer jsontext.Pointer) (ir.TypeID, bool) {
 	return "", false
 }
 
-// NamesReferent reports whether ref names a schema this compilation can point a
-// TypeRef at, answering what resolveSchemaRef answers without interning
-// anything on the way, since deciding how to lower a schema must not hoist
-// nodes as a side effect of asking.
+// NamesReferent reports whether the $ref at js names a schema this
+// compilation can point a TypeRef at, answering what resolveSchemaRef answers
+// without interning anything on the way, since deciding how to lower a schema
+// must not hoist nodes as a side effect of asking.
 //
 // It must stay in step with resolveSchemaRef, and mirrors it minus the two
-// steps that are not pure lookups: hoistSubSchema, which interns (its own only
-// failure, a target declaring no schema body, is the last condition here), and
-// the InternedID hit, which would make the answer depend on which schema
-// lowered first.
-func (s Scope) NamesReferent(js *oas3.JSONSchema[oas3.Referenceable], ref string) bool {
-	pointer, ok := s.TargetPointer(js, ref)
+// steps that are not pure lookups: hoistSubSchema, which interns and fails
+// only where Hoistable does, and the InternedID hit, which would make the
+// answer depend on which schema lowered first.
+func (s Scope) NamesReferent(js *oas3.JSONSchema[oas3.Referenceable]) bool {
+	pointer, ok := s.TargetPointer(js)
 	if !ok {
 		return false
 	}
 	if _, resolved, handled := s.ComponentRef(pointer); handled {
 		return resolved
 	}
-	decl := annotation.DeclaredSchema(js)
-	return decl != nil && annotation.At(decl).Node != nil
+	return Hoistable(s.Bindings.Declared(js))
+}
+
+// Hoistable reports whether decl, the schema a $ref lands on, can be hoisted
+// where it is written: one with a body, or a boolean one (GitHub #861).
+// hoistSubSchema and NamesReferent both ask it, so they cannot part.
+func Hoistable(decl *oas3.JSONSchema[oas3.Referenceable]) bool {
+	return decl != nil && (decl.IsBool() || annotation.At(decl).Node != nil)
 }
 
 // IsRefSite reports whether a position is $ref-shaped: the resolver's own
@@ -656,15 +497,12 @@ func IsRefSite(js *oas3.JSONSchema[oas3.Referenceable], s *oas3.Schema) bool {
 	return js.IsReference() || (s != nil && s.Ref != nil)
 }
 
-// TargetSchema returns the resolved target schema when js is a $ref, so
-// use-site annotations can fall back to the referent; it returns nil otherwise.
-func TargetSchema(js *oas3.JSONSchema[oas3.Referenceable], ref *oas3.Schema) *oas3.Schema {
+// TargetSchema returns the schema the chain of $refs from js ends on when js
+// is a $ref, so use-site annotations can fall back to the referent, and nil
+// otherwise or where the chain ends on none.
+func (s Scope) TargetSchema(js *oas3.JSONSchema[oas3.Referenceable], ref *oas3.Schema) *oas3.Schema {
 	if !IsRefSite(js, ref) {
 		return nil
 	}
-	resolved := js.GetResolvedSchema()
-	if resolved == nil {
-		return nil
-	}
-	return resolved.GetSchema()
+	return s.Bindings.End(js).GetSchema()
 }

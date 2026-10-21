@@ -34,7 +34,6 @@ func TestTypeCommon_JSONContract(t *testing.T) {
 			Access:           "internal",
 			Deprecation:      populatedDeprecation(),
 			Availability:     populatedAvailability(),
-			Usage:            ir.UsageInput | ir.UsageOutput,
 			WireNameByFormat: map[string]string{"xml": "User", "json": "user"},
 			MediaTypeHint:    "application/json",
 			XML:              populatedXMLHints(),
@@ -325,7 +324,7 @@ func TestAny_PopulatedRoundTrip(t *testing.T) {
 // across kinds. A copying or singleton implementation would pass every other
 // test in this package (including the JSON round-trip tests above, which
 // never call Common()) while silently breaking any pass that mutates shared
-// metadata (Usage flags, Availability, …) via the TypeDef interface.
+// metadata (Availability, Deprecation, …) via the TypeDef interface.
 //
 // The read-back goes through json.Marshal of the whole td rather than
 // td.Common().ID again, since re-reading via Common() would trivially pass a

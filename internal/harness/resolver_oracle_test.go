@@ -1,22 +1,21 @@
 package harness_test
 
-// The differential oracle for the compiler's reference refusals.
+// The differential oracle for the compiler's reading of references.
 //
-// compilers/openapi/internal/scan refuses documents that would crash
-// speakeasy's resolver (docs/parser-library.md#schema-cycle-overflow), and
-// leaves to it the reference-object chains it reports itself
-// (docs/parser-library.md#reference-object-cycle). That refusal is a *model* of
-// one version's behavior, and a model can be wrong in two directions: too
-// narrow lets a hang through, too wide refuses a document that compiles.
-// Neither shows up in a test that only asserts what the scan says, because the
-// scan is the thing under test.
+// The compiler binds schema $refs itself (compilers/openapi/internal/bind),
+// never through speakeasy's resolver, which overflows the stack on a cycle
+// (docs/parser-library.md#schema-cycle-overflow), and leaves to the resolver
+// the reference-object chains it reports itself
+// (docs/parser-library.md#reference-object-cycle). Whether either holds is not
+// something a test of the compiler alone can show: a hang or a crash the
+// resolver would meet is invisible until the compiler meets it too.
 //
-// So this asks the resolver instead. For each generated shape it compares what
-// the compiler does against what the resolver actually does, both measured in a
-// subprocess — because a hang and a stack overflow cannot be observed from
-// inside the process they happen to, and because the compiler is subject to both
-// if its refusal ever regresses. An oracle that hangs instead of failing on the
-// regression it exists for would be no oracle at all.
+// So this asks the resolver as well. For each generated shape it compares what
+// the compiler does against what the resolver does, both measured in a
+// subprocess, because a hang and a stack overflow cannot be observed from
+// inside the process they happen to, and because the compiler is subject to
+// both if a schema $ref ever reaches the resolver again. An oracle that hangs
+// instead of failing on the regression it exists for would be no oracle at all.
 //
 // It lives entirely in a _test.go file: the coverage gate counts statements in
 // non-test files and the architecture test reads only non-test imports, so
@@ -80,7 +79,7 @@ const helperTimeout = 2 * probeTimeout
 // that never returns is still attributable: losing both markers means the
 // compiler did not survive, losing only the second means the resolver did not.
 const (
-	refusedMarker = "MORPHIC_COMPILER_REFUSED="
+	failedMarker  = "MORPHIC_COMPILER_FAILED="
 	outcomeMarker = "MORPHIC_RESOLVER_OUTCOME="
 )
 
@@ -199,18 +198,19 @@ func referenceShapes() []referenceShape {
 	return shapes
 }
 
-// TestResolverOracle_RefusalMatchesResolverBehavior is the oracle. Across every
-// generated shape it holds the compiler to two things:
+// TestResolverOracle_VerdictMatchesResolverBehavior is the oracle. Across every
+// generated shape it holds the compiler to three things:
 //
-//   - A shape the resolver cannot survive (a hang or a crash) must be refused.
-//   - A shape the resolver resolves cleanly must not be refused.
+//   - It survives every shape (probe).
+//   - A shape the resolver cannot survive (a hang or a crash) fails it.
+//   - A shape the resolver resolves cleanly does not.
 //
-// A shape the resolver survives but reports an error on binds neither way: the
-// document fails on either path, so refusing it early is the scan's call. Most
-// shapes are such, so each one's outcome is also pinned in outcomesGolden: a
-// bump turning a crash into an error makes a guard obsolete, not wrong, and only
-// the pin sees it (GitHub #574).
-func TestResolverOracle_RefusalMatchesResolverBehavior(t *testing.T) {
+// A shape the resolver survives but reports an error on binds neither way:
+// where the compiler reads a pointer as RFC 6901 does and the resolver does
+// not, the two may differ. Each shape's outcome is also pinned in
+// outcomesGolden: a bump turning a crash into an error changes what the
+// library does, and only the pin sees it (GitHub #574).
+func TestResolverOracle_VerdictMatchesResolverBehavior(t *testing.T) {
 	t.Parallel()
 	if os.Getenv(probeEnv) != "" {
 		t.Skip("helper process")
@@ -223,16 +223,16 @@ func TestResolverOracle_RefusalMatchesResolverBehavior(t *testing.T) {
 		t.Run(shape.name, func(t *testing.T) {
 			t.Parallel()
 
-			refused, outcome := probe(t, shape.spec)
+			failed, outcome := probe(t, shape.spec)
 			measured.record(shape.name, outcome)
 			switch outcome {
 			case resolverHung, resolverOverflowed, resolverPanicked:
-				assert.True(t, refused,
-					"the resolver cannot survive this, so the compiler must refuse it before "+
-						"reaching it\nresolver outcome: %s\nspec:\n%s", outcome, shape.spec)
+				assert.True(t, failed,
+					"the resolver cannot survive this, so the compiler must report what is wrong "+
+						"with it\nresolver outcome: %s\nspec:\n%s", outcome, shape.spec)
 			case resolverClean:
-				assert.False(t, refused,
-					"the resolver resolves this cleanly, so refusing it is an over-refusal"+
+				assert.False(t, failed,
+					"the resolver resolves this cleanly, so failing it is an over-refusal"+
 						"\nspec:\n%s", shape.spec)
 			}
 			if !*update {
@@ -322,14 +322,14 @@ func measuredOutcomes(t *testing.T, shapes []referenceShape) *outcomeRecord {
 }
 
 const outcomesHeader = `# Generated by:
-#   go test ./internal/harness -run TestResolverOracle_RefusalMatchesResolverBehavior -update
+#   go test ./internal/harness -run TestResolverOracle_VerdictMatchesResolverBehavior -update
 #
 # What the parser library's resolver does with each reference shape
 # referenceShapes generates, measured in a subprocess with nothing in its way:
-# clean, errors, hung, overflowed or panicked. The compiler refuses some shapes
-# because of these outcomes, so a line that changes is a library change that
-# makes a guard obsolete or calls for a new one. Decide which before
-# regenerating; the regeneration is not the decision.
+# clean, errors, hung, overflowed or panicked. A line that changes is a library
+# change: one the compiler may need to answer, or one that retires something it
+# keeps because of the library. Decide which before regenerating; the
+# regeneration is not the decision.
 `
 
 // writeOutcomes writes the golden, one shape per line in generation order.
@@ -344,11 +344,11 @@ func writeOutcomes(t *testing.T, path string, shapes []referenceShape, seen map[
 	require.NoError(t, os.WriteFile(path, []byte(sb.String()), 0o644))
 }
 
-// probe runs one shape in a subprocess and reports the compiler's verdict and
-// what the resolver did. A helper that stops in a way none of the outcomes
-// describes, or a shape the library cannot parse, fails the shape rather than
-// being filed under the nearest outcome.
-func probe(t *testing.T, spec string) (refused bool, outcome string) {
+// probe runs one shape in a subprocess and reports the compiler's verdict,
+// whether it reported an error, and what the resolver did. A helper that stops
+// in a way none of the outcomes describes, or a shape the library cannot
+// parse, fails the shape rather than being filed under the nearest outcome.
+func probe(t *testing.T, spec string) (failed bool, outcome string) {
 	t.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), probeTimeout)
@@ -361,27 +361,27 @@ func probe(t *testing.T, spec string) (refused bool, outcome string) {
 	out, err := cmd.CombinedOutput()
 	text := string(out)
 
-	verdict, sawCompiler := markerValue(text, refusedMarker)
+	verdict, sawCompiler := markerValue(text, failedMarker)
 	if !sawCompiler {
-		t.Fatalf("the compiler did not survive this shape (%s), so its refusal has regressed"+
-			"\nspec:\n%s\n%s", stopReason(ctx, err), spec, truncate(out))
+		t.Fatalf("the compiler did not survive this shape (%s)\nspec:\n%s\n%s",
+			stopReason(ctx, err), spec, truncate(out))
 	}
-	refused = verdict == "true"
+	failed = verdict == "true"
 
 	returned, sawResolver := markerValue(text, outcomeMarker)
 	switch {
 	case sawResolver && returned == unparsed:
 		t.Fatalf("the library could not parse this shape, so the resolver never ran\nspec:\n%s", spec)
 	case sawResolver && (returned == resolverClean || returned == resolverErrors):
-		return refused, returned
+		return failed, returned
 	case sawResolver:
 		t.Fatalf("the helper reported an outcome the oracle does not know: %q", returned)
 	case ctx.Err() != nil:
-		return refused, resolverHung
+		return failed, resolverHung
 	case strings.Contains(text, "fatal error: stack overflow"):
-		return refused, resolverOverflowed
+		return failed, resolverOverflowed
 	case strings.Contains(text, "panic: "):
-		return refused, resolverPanicked
+		return failed, resolverPanicked
 	}
 	t.Fatalf("the resolver process stopped in a way the oracle does not recognize (%v)\nspec:\n%s\n%s",
 		err, spec, truncate(out))
@@ -404,10 +404,10 @@ func TestResolverOracle_ProbeHelper(t *testing.T) {
 	// call is what hangs, the missing marker is the finding.
 	_, diags, err := openapi.New().Compile(ctx,
 		[]compilers.Source{{Path: "probe.yaml", Data: []byte(spec)}}, compilers.Options{})
-	fmt.Printf("%s%v\n", refusedMarker, err == nil && hasCyclicRef(diags))
+	fmt.Printf("%s%v\n", failedMarker, err == nil && ir.HasError(diags))
 
 	// Then the resolver with nothing in its way, which is the measurement the
-	// compiler's refusal is a model of.
+	// compiler's verdict is held to.
 	doc, _, err := soa.Unmarshal(ctx, strings.NewReader(spec))
 	if err != nil || doc == nil {
 		fmt.Printf("%s%s\n", outcomeMarker, unparsed)
@@ -422,15 +422,6 @@ func TestResolverOracle_ProbeHelper(t *testing.T) {
 		outcome = resolverErrors
 	}
 	fmt.Printf("%s%s\n", outcomeMarker, outcome)
-}
-
-// hasCyclicRef reports whether the compiler refused a spec as a degenerate
-// reference. Other error diagnostics — an unresolved ref, a validation failure —
-// are not refusals of this kind and do not count.
-func hasCyclicRef(diags []ir.Diagnostic) bool {
-	return slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {
-		return d.Code == "openapi/cyclic-ref" && d.Severity == ir.SeverityError
-	})
 }
 
 // markerValue reads the value the helper printed for a marker.

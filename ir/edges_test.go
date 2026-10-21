@@ -17,79 +17,13 @@ import (
 // typeIDReflect is the reflect.Type of ir.TypeID.
 var typeIDReflect = reflect.TypeFor[ir.TypeID]()
 
-// fillDepth is how many times the filler enters one struct type on a single
-// path, which is how deep it nests ir.Value.
-const fillDepth = 3
-
-// filler populates a value reflectively: every reachable TypeID gets a distinct
-// ID, every pointer is allocated, and every slice and map gets one element.
-type filler struct {
-	next  int
-	stack map[reflect.Type]int
-}
-
+// newFilled returns a TypeDef of kind with every field filled.
 func newFilled(t *testing.T, kind ir.TypeKind) ir.TypeDef {
 	t.Helper()
 	td, ok := ir.NewTypeDef(kind)
 	require.True(t, ok, "no concrete type for kind %q", kind)
-	f := &filler{stack: map[reflect.Type]int{}}
-	f.fill(reflect.ValueOf(td).Elem())
+	irtest.Fill(t, td)
 	return td
-}
-
-func (f *filler) id() string {
-	f.next++
-	return fmt.Sprintf("t/filled-%d", f.next)
-}
-
-func (f *filler) fill(v reflect.Value) {
-	switch v.Kind() {
-	case reflect.String:
-		if v.Type() == typeIDReflect {
-			v.SetString(f.id())
-		}
-	case reflect.Pointer:
-		v.Set(reflect.New(v.Type().Elem()))
-		f.fill(v.Elem())
-	case reflect.Struct:
-		f.fillStruct(v)
-	case reflect.Slice:
-		if v.Type().Elem().Kind() == reflect.Uint8 {
-			return
-		}
-		v.Set(reflect.MakeSlice(v.Type(), 1, 1))
-		f.fill(v.Index(0))
-	case reflect.Map:
-		f.fillMap(v)
-	default:
-		// Numbers, bools and the like carry no TypeID.
-	}
-}
-
-func (f *filler) fillStruct(v reflect.Value) {
-	t := v.Type()
-	if f.stack[t] >= fillDepth {
-		return
-	}
-	f.stack[t]++
-	defer func() { f.stack[t]-- }()
-	for i := range v.NumField() {
-		if t.Field(i).IsExported() {
-			f.fill(v.Field(i))
-		}
-	}
-}
-
-func (f *filler) fillMap(v reflect.Value) {
-	if v.Type().Key().Kind() != reflect.String {
-		return
-	}
-	key := reflect.New(v.Type().Key()).Elem()
-	key.SetString(fmt.Sprintf("key%d", f.next))
-	elem := reflect.New(v.Type().Elem()).Elem()
-	f.fill(elem)
-	v.Set(reflect.MakeMap(v.Type()))
-	v.SetMapIndex(key, elem)
 }
 
 // reflectedEdges is the oracle: every non-empty TypeID the reflection walk

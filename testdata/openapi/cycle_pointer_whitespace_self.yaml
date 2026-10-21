@@ -1,7 +1,7 @@
 # A self-reference that only the resolver's pointer normalization reveals.
 # speakeasy trims whitespace around the pointer half of a $ref
 # (references/reference.go GetJSONPointer), so '#/components/schemas/A ' names A
-# there, while a scan reading the raw value would call it dangling.
+# there, while a reader taking the raw value would call it dangling.
 openapi: 3.1.0
 info: {title: Pointer Whitespace Self, version: "1"}
 paths: {}

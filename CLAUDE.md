@@ -117,6 +117,8 @@ in the docs.
 
 ```
 ir/          Layer 0 — IR nodes, IDs, traversal, JSON round-trip. Imports ONLY the stdlib.
+  irfacts/   Layer 0 — what a Document implies and does not state (subtypes, exposed properties,
+             usage, recursion), derived on demand and never stored. Imports ir only.
   irverify/  Layer 0 — structural-invariant checks over a compiled Document. Imports ir only.
   irtest/    Layer 0 — golden-file helper (`-update` rewrites) and fixture helpers. Imports ir + go-cmp.
 compilers/   Layer 1 — the Compiler contract and the format-keyed registry. Imports ir only.
@@ -129,8 +131,8 @@ compilers/   Layer 1 — the Compiler contract and the format-keyed registry. Im
     internal/  Layer 1 — that compiler's own packages, each with its own allowlist rather than
              the compiler's. The ordering among them is real and enforced, from diag (reaches
              only ir) up to operation. None may reach the compiler above it.
-pass/        Layer 1 — IR → IR passes. Imports ir only.
-emitters/*   Layer 2 — imports ir + emitter contract; never compiler. (Not built yet.)
+pass/        Layer 1 — IR → IR passes. Imports ir and ir/irfacts.
+emitters/*   Layer 2 — imports ir, ir/irfacts + emitter contract; never compiler. (Not built yet.)
 engine/      Layer 3 — orchestration; imports everything below.
 cmd/morphic/ Layer 4 — CLI; imports ir + engine + its command framework (cobra, pflag).
 cmd/morphic-harness/
@@ -219,7 +221,8 @@ These all exist already — extend them rather than building a parallel mechanis
   `internal/lintrules/testdata/planted`, and `internal/lintrules`' own test holds the analyzers to
   `testdata/mod`, a tree laid out like the module. Lines there carry the findings they must draw.
   A new rule gets its plants beside the others, and a new linter a place in the script's list.
-  Both run on every port `make build` covers, which `testdata/ports` proves they reach.
+  `make vet` also requires the one finding planted in `testdata/reach`, which shows `go vet` runs
+  the analyzers at all.
 - **Declaration pins**: a test that holds a hand-written list (an enum's members, a sealed sum's
   kinds, the fields of a shape) to what a package declares reads the package through
   `internal/decls`, which type-checks it with `go/packages`. It does not parse the sources: parsed
@@ -331,9 +334,9 @@ make gate
 
 That is not a summary of CI — it is what CI runs. Every check in `.github/workflows/gate.yml` runs a
 `Makefile` target bar `lint`, which the golangci-lint action runs at the version the `Makefile`
-pins, so the local command and the job are the same commands in the same order. Read the `Makefile`
-for the step list rather than restating it here; `make coverage`, `make fuzz`, `make bench` and the
-rest are individually runnable while iterating.
+pins, so the local command and CI are the same commands; CI splits them across two jobs that run
+side by side. Read the `Makefile` for the step list rather than restating it here; `make coverage`,
+`make fuzz`, `make bench` and the rest are individually runnable while iterating.
 
 **Coverage is a gate at exactly 100%, not a target.** `cmd/morphic-covergate` counts
 statements from the profile rather than reading `go test`'s rounded percentage, so one uncovered
@@ -349,9 +352,11 @@ context-switch between repos.
   `fix/ir-nullable-defaulting`, `docs/architecture-milestone-2`).
 - No CODEOWNERS, PR/issue templates, or CODE_OF_CONDUCT.md exist in this repo — don't assume them
   or invent content for files that aren't there.
-- CI is one bundled `gate` job (`.github/workflows/gate.yml`) on PR and on push to `main`. Keep it
-  that way — add steps to it rather than new workflows; both reference repos converge on one
-  bundled gate over granular per-check pipelines.
+- CI is one `gate` workflow (`.github/workflows/gate.yml`) of two jobs that run side by side, on PR
+  and on push to `main`. Keep it that way — add a check as a step of one of the two jobs rather than
+  a new job or workflow; both reference repos converge on one bundled gate over granular per-check
+  pipelines, and two jobs is as far as this one splits. The gate builds, vets and lints for the
+  host alone; Windows and wasm are not targets it checks.
 
 ## Commits & pull requests
 

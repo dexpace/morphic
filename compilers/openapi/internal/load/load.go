@@ -33,6 +33,7 @@ import (
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
@@ -87,10 +88,6 @@ type Options struct {
 	// and tree, and unmarshal depends on nothing else, so only a substitute
 	// reaches the error build returns for a failed rebuild.
 	rebuildDoc func(ctx context.Context, data []byte, root *yaml.Node) (*soa.OpenAPI, []error, error)
-	// chainCheck runs the reference-chain cycle refusal, or nil for chainCycle
-	// itself. It is unexported because it is this package's test seam: the fuzz
-	// oracle turns the check off to find what it stands between the resolver and.
-	chainCheck func(ctx context.Context, locate scan.Locator, root *yaml.Node, doc *soa.OpenAPI, sibs Siblings) (ir.Diagnostic, bool)
 }
 
 // exceeds reports whether an observed count crosses limit, treating a zero or
@@ -166,9 +163,13 @@ const maxSchemaScanDepth = scan.MaxNesting
 type Document struct {
 	Doc    *soa.OpenAPI  // parsed, reference-resolved document
 	Source ir.SourceInfo // the entry Document.Sources records for this source
-	// Targets holds the schema each discriminator mapping target names,
-	// resolved as a $ref to it is.
-	Targets MappingTargets
+	// Bindings answers where each schema $ref lands and where its chain ends,
+	// as the compiler resolved it (bindSchemas), and the schemas there.
+	Bindings *typed.Bindings
+	// Holds is resolve.Scope.Holds, answered from an index of the raw YAML
+	// the model reads on in, which builds each mapping's index once, whoever
+	// asks (GitHub #778).
+	Holds func(raw *yaml.Node, token string) bool
 	// Overlay attributes the positions an applied overlay is answerable for. Its
 	// zero value — nothing applied — is the answer for a compile with no overlay.
 	Overlay overlay.Origin
@@ -212,25 +213,25 @@ func Load(ctx context.Context, srcIndex int, src compilers.Source, opts Options)
 
 // build turns the decoded tree of a source's first document into a Document:
 // the pre-parse refusals, the overlay, the node budget, the model build, the
-// version check, the reference-chain cycle refusal, then validation findings
-// and reference resolution as diagnostics. A nil document with error
-// diagnostics is a refusal to lower.
+// version check, then validation findings, reference resolution and the source
+// checks as diagnostics. A nil document with error diagnostics is a refusal to
+// lower.
 //
 // It is what Load does after the decode, split from it so that what the decode
 // found past the first document is reported on every return path — a refusal
 // included — without being read as a refusal itself.
 func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Parsed, opts Options) (*Document, []ir.Diagnostic, error) {
 	root := parsed.root
-	cyc := refusals(scan.InTree(srcIndex, scan.Pointers(root)), root, opts)
-	if diag.HasError(cyc) {
-		return nil, cyc, nil // degenerate cycle: refuse to lower, do not crash the parser
+	early := refusals(scan.InTree(srcIndex, scan.Pointers(root)), root, opts)
+	if diag.HasError(early) {
+		return nil, early, nil // a pre-parse refusal: the parser is never handed a tree it faults on
 	}
-	// cyc may still hold a non-fatal scan-incomplete warning; carry it forward.
+	// early may still hold a non-fatal scan-incomplete warning; carry it forward.
 
 	origin, patchDiags := patch(srcIndex, root, opts)
-	cyc = append(cyc, patchDiags...)
-	if diag.HasError(cyc) {
-		return nil, cyc, nil // an overlay that did not apply: refuse to lower a half-patched tree
+	early = append(early, patchDiags...)
+	if diag.HasError(early) {
+		return nil, early, nil // an overlay that did not apply: refuse to lower a half-patched tree
 	}
 
 	// The node budget is checked after the overlay for the reason patch re-runs
@@ -239,7 +240,7 @@ func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Pars
 	// it. Building that model and resolving its references is what the budget
 	// exists to bound, and both are still ahead.
 	if nodes := nodeCount(root); exceeds(nodes, opts.MaxSourceNodes) {
-		return nil, append(cyc, budgetRefusal(srcIndex,
+		return nil, append(early, budgetRefusal(srcIndex,
 			"source document parses to %d nodes, past the %d-node budget",
 			nodes, opts.MaxSourceNodes)), nil
 	}
@@ -257,7 +258,7 @@ func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Pars
 
 	minor, ok := SupportedMinor(doc.OpenAPI)
 	if !ok {
-		return nil, append(cyc, diag.Newf(ir.SeverityError, diag.UnsupportedVersion,
+		return nil, append(early, diag.Newf(ir.SeverityError, diag.UnsupportedVersion,
 			ir.Provenance{Source: srcIndex},
 			"unsupported OpenAPI version %q; want 3.0, 3.1, or 3.2", doc.OpenAPI)), nil
 	}
@@ -266,18 +267,12 @@ func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Pars
 	sibs, sibErrs, sibFaults := modelSiblings(ctx, doc, tree.locate)
 	valErrs = append(valErrs, unreported(sibErrs, valErrs)...)
 	validation.SortValidationErrors(valErrs)
-	if d, found := opts.chains(ctx, tree.locate, root, doc, sibs); found {
-		if d.Severity == ir.SeverityError {
-			return nil, append(cyc, d), nil // a chain the resolver would recurse through forever
-		}
-		cyc = append(cyc, d)
-	}
 	valErrs, validDiags := validated(ctx, pointerAt(srcIndex, origin), tree.locate, doc, sibs, valErrs, minor)
-	diags := cyc
+	diags := early
 	diags = append(diags, sibFaults...)
 	diags = append(diags, validDiags...)
 	self := newSourceDocument(src.Path, src.Data, root, valErrs, tree, esc)
-	doc, sibs, targets, resolveDiags, err := resolve(ctx, pointerAt(srcIndex, origin), doc, sibs, self, opts,
+	doc, sibs, bindings, resolveDiags, err := resolve(ctx, pointerAt(srcIndex, origin), doc, sibs, self, opts,
 		opts.rebuilder(ctx, src.Data, root))
 	if err != nil {
 		return nil, nil, fmt.Errorf("openapi: rebuild source %d: %w", srcIndex, err)
@@ -286,8 +281,9 @@ func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Pars
 	diags = append(diags, sourceChecks(ctx, pointerAt(srcIndex, origin), doc, sibs, resolveDiags)...)
 
 	return &Document{
-		Doc:     doc,
-		Targets: targets,
+		Doc:      doc,
+		Bindings: bindings.bindings,
+		Holds:    newTreeReads().holds,
 		Source: ir.SourceInfo{
 			Format:  "openapi@" + minor,
 			Path:    src.Path,
@@ -384,43 +380,40 @@ func compilerOwned(verr validation.Error) bool {
 		verr.Rule == validation.RuleValidationOperationParameters
 }
 
-// resolve resolves every reference in doc and reports what each resolution
-// found at the $ref that produced it (see resolveWith). It returns the document
-// it resolved, which is a rebuild of doc when resolveExternal had to recover an
-// anchored external document the resolver parsed itself.
+// resolve resolves every reference in doc: each reference object through the
+// parser's resolver (resolveWith), then each schema $ref in the compiler
+// (bindSchemas). It returns the document it resolved, a rebuild of doc when
+// resolveExternal recovered an anchored document the resolver parsed itself.
 //
-// The resolver reads the $refs the source's trees were rewritten to (see
-// escapes). Once it is done, the models are put back as written, so nothing
-// past this call sees the rewritten spelling.
+// The parser reads the $refs as the trees were rewritten for it (escapes) in
+// the resolution, in the schemas built for the bindings, and in validating
+// what the references reach (validateReached), over the document returned,
+// since a rebuild discards a first resolution's objects. Only then are the
+// models and trees put back as written.
 func resolve(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI, sibs Siblings,
 	self sourceDocument, opts Options, rebuild func() (*soa.OpenAPI, error),
-) (*soa.OpenAPI, Siblings, MappingTargets, []ir.Diagnostic, error) {
-	doc, sibs, targets, diags, err := resolveRefs(ctx, at, doc, sibs, self, opts, rebuild)
-	if err != nil {
-		return nil, Siblings{}, MappingTargets{}, nil, err
+) (*soa.OpenAPI, Siblings, bound, []ir.Diagnostic, error) {
+	var reader *external
+	var diags []ir.Diagnostic
+	if opts.AllowExternalRefs {
+		var err error
+		doc, sibs, reader, diags, err = resolveExternal(ctx, at, doc, sibs, self, opts, rebuild)
+		if err != nil {
+			return nil, Siblings{}, bound{}, nil, err
+		}
+	} else {
+		diags = resolveWith(ctx, at, doc, sibs, self, opts, nil)
 	}
-	site, err := self.escapes.restore(ctx, doc, sibs, targets)
-	return doc, sibs, targets, append(diags, restoreFault(at, site, err)...), nil
-}
-
-// resolveRefs is resolve less the restore of the models.
-//
-// What the references reach that the source's own validation never checked is
-// validated after the last resolution, over the document returned (see
-// validateReached): a rebuild discards a first resolution's objects, so
-// validating those would report on objects the IR is not built from.
-func resolveRefs(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI, sibs Siblings,
-	self sourceDocument, opts Options, rebuild func() (*soa.OpenAPI, error),
-) (*soa.OpenAPI, Siblings, MappingTargets, []ir.Diagnostic, error) {
-	if !opts.AllowExternalRefs {
-		targets, diags := resolveWith(ctx, at, doc, sibs, self, opts, nil)
-		return doc, sibs, targets, append(diags, validateReached(ctx, at, doc, sibs, targets, opts, self)...), nil
+	b := bindSchemas(ctx, at, doc, sibs, self, reader)
+	reached := validateReached(ctx, at, doc, sibs, b.built, opts, self)
+	site, err := self.escapes.restore(ctx, doc, sibs, b.built)
+	diags = append(diags, restoreFault(at, site, err)...)
+	diags = append(diags, b.diags...)
+	diags = append(diags, buildFailures(at, b.built)...)
+	if reader != nil {
+		diags = append(diags, crossed(at, reader)...)
 	}
-	resolved, sibs, targets, diags, err := resolveExternal(ctx, at, doc, sibs, self, opts, rebuild)
-	if err != nil {
-		return nil, Siblings{}, MappingTargets{}, nil, err
-	}
-	return resolved, sibs, targets, append(diags, validateReached(ctx, at, resolved, sibs, targets, opts, self)...), nil
+	return doc, sibs, b, append(diags, reached...), nil
 }
 
 // defaultIndex indexes a decoded tree under the compiler's node bound. It is
@@ -460,10 +453,10 @@ func pointerAt(srcIndex int, origin overlay.Origin) func(jsontext.Pointer) ir.Pr
 
 // refusals indexes a decoded tree once and reports its pre-parse refusals, each
 // alongside the others: a document nested too deeply to build (scan.Nesting),
-// the degenerate reference structures scan finds and its alias ones
-// (docs/parser-library.md#alias-cycle), a mapping carrying a tag the parser
-// faults on (diag.TaggedMapping), and a refusal of its own when the document is
-// too large to index in full.
+// aliases the parser cannot expand (scan.Aliases,
+// docs/parser-library.md#alias-cycle), a mapping carrying a tag the parser
+// faults on (diag.TaggedMapping), and a refusal of its own when the document
+// is too large to index in full.
 //
 // The size refusal is here, not in scan, because a truncated index answers only
 // in part, and an alias-expansion allowance derived from a partial node count
@@ -485,7 +478,7 @@ func refusals(locate scan.Locator, root *yaml.Node, opts Options) []ir.Diagnosti
 	if d, deep := scan.Nesting(locate, idx); deep {
 		diags = append(diags, d)
 	}
-	diags = append(diags, scan.Cycles(locate, idx, int64(opts.MaxAliasSurplus))...)
+	diags = append(diags, scan.Aliases(locate, idx, int64(opts.MaxAliasSurplus))...)
 	if tagged := idx.TaggedMappings(); len(tagged) > 0 {
 		diags = append(diags, taggedMappingRefusal(locate, scan.Least(root, tagged)))
 	}
@@ -493,7 +486,7 @@ func refusals(locate scan.Locator, root *yaml.Node, opts Options) []ir.Diagnosti
 }
 
 // taggedMappingRefusal builds the diag.TaggedMapping refusal, anchored where
-// locate puts the mapping — the way the cycle refusals are anchored. The parser
+// locate puts the mapping — the way the alias refusals are anchored. The parser
 // panics on such a mapping at a reference object, where no recover reaches
 // (docs/parser-library.md#tagged-mapping-panic).
 func taggedMappingRefusal(locate scan.Locator, n *yaml.Node) ir.Diagnostic {

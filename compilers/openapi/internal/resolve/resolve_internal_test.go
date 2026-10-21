@@ -16,7 +16,6 @@ import (
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/compile"
-	"github.com/dexpace/morphic/compilers/openapi/internal/defs"
 	"github.com/dexpace/morphic/compilers/openapi/internal/fragment"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/navigation"
@@ -280,28 +279,6 @@ func TestInternalPointer_InAForeignScope(t *testing.T) {
 	}
 }
 
-// TestNamesHolder pins which references in a Foreign scope name a position in
-// the document holding them: a pointer alone, or a document part naming that
-// document. Outside a Foreign scope, none does.
-func TestNamesHolder(t *testing.T) {
-	t.Parallel()
-	scope := Scope{SelfPath: "api/spec.yaml", Foreign: true, Holder: "api/ext.yaml"}
-	for ref, want := range map[string]bool{
-		"#/components/schemas/A":            true,
-		"ext.yaml#/components/schemas/A":    true,
-		"spec.yaml#/components/schemas/A":   false,
-		"third.yaml#/components/schemas/A":  false,
-		"https://example.com/ext.yaml#/x/y": false,
-	} {
-		assert.Equal(t, want, scope.NamesHolder(ref), ref)
-	}
-	assert.False(t, Scope{SelfPath: "api/spec.yaml"}.NamesHolder("#/components/schemas/A"))
-	assert.False(t, Scope{SelfPath: "api/spec.yaml", Holder: "api/ext.yaml"}.NamesHolder("#/components/schemas/A"),
-		"a holder means nothing outside a Foreign scope")
-	unplaceable := Scope{SelfPath: "api/spec.yaml", Foreign: true, Holder: "http://[::1"}
-	assert.False(t, unplaceable.NamesHolder("#/components/schemas/A"), "a holder the resolver cannot place")
-}
-
 // TestSameDocument pins when the resolver reading one path reads the document
 // at another: the same spelling, or the same file however reached. A URL is
 // one document only as spelled, and an empty path names none.
@@ -555,84 +532,21 @@ func TestInternedID_Miss(t *testing.T) {
 // rule could classify it as a top-level declaration.
 const deepPointer = "/components/schemas/Obj/properties/inner"
 
-// TestScope_DeclaredAt pins which positions resolve: a schema position to the
-// very schema the document holds there, and every position holding no schema
-// to nil. That covers a non-schema object, an undeclared name, a keyword the
-// schema leaves unset (which the pointer walk reaches as a typed nil), raw YAML
-// under an extension key or in an enum, which only a $ref makes the resolver
-// parse, and a Scope with no Doc.
-func TestScope_DeclaredAt(t *testing.T) {
-	t.Parallel()
-	doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(`openapi: 3.1.0
+// rawMappingDoc is a document whose pointers leave the model for raw YAML:
+// the root's under an extension, and a schema's.
+const rawMappingDoc = `openapi: 3.1.0
 info: {title: T, version: "1"}
 paths: {}
 components:
   schemas:
-    Pet:
-      type: object
-      enum: [{type: object}]
-      x-dog: {type: object}
-`))
-	require.NoError(t, err)
-	sc := Scope{Doc: doc}
-
-	pet, ok := doc.Components.Schemas.Get("Pet")
-	require.True(t, ok)
-	assert.Same(t, pet, sc.DeclaredAt("/components/schemas/Pet"),
-		"a schema position resolves to the declaration the document holds")
-
-	for pointer, why := range map[jsontext.Pointer]string{
-		"/info":                          "a non-schema position does not resolve",
-		"/components/schemas/Ghost":      "a position the document does not declare does not resolve",
-		"/components/schemas/Pet/not":    "a keyword the schema leaves unset does not resolve",
-		"/components/schemas/Pet/x-dog":  "raw YAML under an extension does not resolve",
-		"/components/schemas/Pet/enum/0": "raw YAML in an enum does not resolve",
-	} {
-		assert.Nil(t, sc.DeclaredAt(pointer), why)
-	}
-
-	assert.Nil(t, Scope{}.DeclaredAt("/components/schemas/Pet"), "a nil Doc resolves nothing")
-}
-
-// modelDoc is a document whose pointers ModelAt is asked about: schemas the
-// model holds, through properties, a $ref, an alias, a branch list and an
-// operation's responses, which it holds by value, and raw YAML under
-// extensions, one of them written twice. S's property "0" makes the library
-// retry that token as an index where the key leads nowhere below.
-const modelDoc = `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths:
-  /a:
-    get:
-      responses:
-        "200": {$ref: '#/components/responses/R'}
-        default: {description: ok, content: {application/json: {schema: {type: object, x-k: {a: 1}}}}}
-components:
-  responses:
-    R: {description: r, content: {application/json: {schema: {type: string}}}}
-  schemas:
-    S:
-      type: object
-      properties:
-        p: {type: object, properties: {q: {type: string}}}
-        "0": {type: string}
-        "01": {type: integer}
-        "~2": {type: boolean}
-      allOf: [{type: object}, {$ref: '#/components/schemas/T'}]
-      x-ext: {k: {type: object}}
-    T: {$ref: '#/components/schemas/S'}
-    U: &u {type: string}
-    V: *u
+    S: {type: object, x-ext: {k: {type: object}}}
 x-lib:
   a: {b: {type: object}}
-  a: {b: {type: string}}
-  "0": {type: object}
-  list: [{type: object}]
 `
 
-// wholeModelAt reads the whole pointer in one library call: the answer ModelAt
-// must give though it reads the pointer a token at a time.
-func wholeModelAt(doc defs.Navigable, pointer jsontext.Pointer) *oas3.JSONSchema[oas3.Referenceable] {
+// wholeModelAt reads the whole pointer in one library call, as the library's
+// resolver reads it: the schema found there, or nil.
+func wholeModelAt(doc any, pointer jsontext.Pointer) *oas3.JSONSchema[oas3.Referenceable] {
 	target, err := jsonpointer.GetTarget(doc, jsonpointer.JSONPointer(pointer), jsonpointer.WithStructTags("key"))
 	if js, ok := target.(*oas3.JSONSchema[oas3.Referenceable]); ok && err == nil && js != nil {
 		return js
@@ -640,65 +554,8 @@ func wholeModelAt(doc defs.Navigable, pointer jsontext.Pointer) *oas3.JSONSchema
 	return nil
 }
 
-// modelPointers are the pointers modelDoc is asked about: the model's schemas,
-// raw YAML, an index token the library retries, no position, and a pointer the
-// library refuses, though a property is named by what its token decodes to.
-var modelPointers = []jsontext.Pointer{
-	"/components/schemas/S/properties/p/properties/q",
-	"/components/schemas/S/properties/0/properties/q",
-	"/components/schemas/S/properties/01",
-	"/components/schemas/S/allOf/1/properties/p",
-	"/components/schemas/S/allOf/2",
-	"/components/schemas/S/x-ext/k",
-	"/components/schemas/T/properties/p",
-	"/components/schemas/V",
-	"/components/schemas/Nope/properties/x",
-	"/x-lib/a/b",
-	"/x-lib/0/type",
-	"/x-lib/list/0",
-	"/paths/~1a/get/responses/default/content/application~1json/schema/x-k/a",
-	"/paths/~1a/get/responses/200/content/application~1json/schema",
-	"/info/title",
-	"/nope/x",
-	"/components/schemas/S/properties/~2",
-	"/",
-	"",
-}
-
-// TestScope_ModelAt_AnswersAsTheWholeReadDoes pins that reading a token at a
-// time answers as reading the pointer whole, for each of modelPointers and
-// each of its prefixes.
-func TestScope_ModelAt_AnswersAsTheWholeReadDoes(t *testing.T) {
-	t.Parallel()
-	doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(modelDoc))
-	require.NoError(t, err)
-	sc := Scope{Doc: doc}
-	found := 0
-	for _, pointer := range modelPointers {
-		for prefix := range prefixesOf(pointer) {
-			want := wholeModelAt(doc, prefix)
-			assert.Same(t, want, sc.ModelAt(prefix), "%q", prefix)
-			if want != nil {
-				found++
-			}
-		}
-	}
-	assert.Greater(t, found, 8, "the pointers reach schemas, not only nothing")
-}
-
-// prefixesOf yields pointer and each pointer it extends, longest first.
-func prefixesOf(pointer jsontext.Pointer) func(func(jsontext.Pointer) bool) {
-	return func(yield func(jsontext.Pointer) bool) {
-		for p := pointer; ; p = p.Parent() {
-			if !yield(p) || p == "" {
-				return
-			}
-		}
-	}
-}
-
-// TestScope_ReadsNoRawMappingAPointerPasses pins GitHub #778 for ModelAt, At
-// and Locate: none scans the mapping where a pointer leaves the model, the
+// TestScope_ReadsNoRawMappingAPointerPasses pins GitHub #778 for the walk
+// reached takes: it scans no mapping where a pointer leaves the model, the
 // object's own, nor any raw mapping below. Each such mapping is given a first
 // key that is no node, which the library's read of it faults on, as the whole
 // read shows.
@@ -710,7 +567,7 @@ func TestScope_ReadsNoRawMappingAPointerPasses(t *testing.T) {
 		{"/components/schemas/S", "/components/schemas/S/x-ext/k"},
 		{"/components/schemas/S/x-ext", "/components/schemas/S/x-ext/k"},
 	} {
-		doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(modelDoc))
+		doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(rawMappingDoc))
 		require.NoError(t, err)
 		mapping := builtAt(t, doc, at.mapping)
 		mapping.Content = append([]*yaml.Node{nil, {Kind: yaml.ScalarNode}}, mapping.Content...)
@@ -718,9 +575,7 @@ func TestScope_ReadsNoRawMappingAPointerPasses(t *testing.T) {
 		assert.Panics(t, func() { wholeModelAt(doc, at.pointer) }, "the whole read scans %q", at.mapping)
 		sc := Scope{Doc: doc, Ends: ReferenceEnd}
 		assert.NotPanics(t, func() {
-			assert.Nil(t, sc.ModelAt(at.pointer))
-			assert.False(t, sc.At(at.pointer).Foreign)
-			assert.Nil(t, sc.Locate(at.pointer).Model())
+			assert.False(t, atPointer(sc, at.pointer).Foreign)
 		}, "%q", at.pointer)
 	}
 }
@@ -742,51 +597,13 @@ func builtAt(t *testing.T, doc *soa.OpenAPI, pointer jsontext.Pointer) *yaml.Nod
 	}
 }
 
-// TestScope_ModelAt_ReadsThePointerAsTheLibraryDoes pins the two pointers the
-// library reads by a rule of its own, on a document that is itself a schema,
-// the one kind whose root ModelAt can answer: "/" is the root, not the entry
-// keyed by the empty string, and "" is no pointer.
-func TestScope_ModelAt_ReadsThePointerAsTheLibraryDoes(t *testing.T) {
-	t.Parallel()
-	js := schemaFromYAML(t, "type: object\nproperties:\n  a: {type: string}\n")
-	sc := Scope{Doc: js}
-
-	assert.Same(t, js, sc.ModelAt("/"), "the root")
-	assert.Nil(t, sc.ModelAt(""), "no pointer")
-	for _, pointer := range []jsontext.Pointer{"/", "", "/properties/a", "/properties/a/", "/properties", "/~2"} {
-		assert.Same(t, wholeModelAt(js, pointer), sc.ModelAt(pointer), "%q", pointer)
-	}
-}
-
-// TestScope_Locate_ReadsTheScopeAsAtDoes pins that the scope Locate's one walk
-// reads a position in is At's, whose own walk notes references only up to a
-// schema, for each pointer of modelDoc and its prefixes, with nothing read as
-// a reference, every node, and the references the library resolves.
-func TestScope_Locate_ReadsTheScopeAsAtDoes(t *testing.T) {
-	t.Parallel()
-	doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(modelDoc))
-	require.NoError(t, err)
-	for _, ends := range []func(any) (End, bool){nil, elsewhere, ReferenceEnd} {
-		sc := Scope{Doc: doc, Ends: ends}
-		for _, base := range modelPointers {
-			for pointer := range prefixesOf(base) {
-				located := sc.Locate(pointer)
-				assert.Equal(t, pointer, located.Pointer())
-				want, got := sc.At(pointer), located.At()
-				assert.Equal(t, want.Foreign, got.Foreign, "%q", pointer)
-				assert.Equal(t, want.Holder, got.Holder, "%q", pointer)
-			}
-		}
-	}
-}
-
-// TestScopeAt_PassesAReferenceTheWalkLeavesTheModelFrom pins a walk that
+// TestScopeReached_PassesAReferenceTheWalkLeavesTheModelFrom pins a walk that
 // leaves the model at a reference, for raw YAML its target holds: the
 // reference is passed when the target holds the next token, as the resolver
 // steps past it into that YAML, and not when it holds nothing there. Holds,
 // asked of the target's mapping, answers in place of the library: as the
 // library's read of that mapping does, and what it answers is what is passed.
-func TestScopeAt_PassesAReferenceTheWalkLeavesTheModelFrom(t *testing.T) {
+func TestScopeReached_PassesAReferenceTheWalkLeavesTheModelFrom(t *testing.T) {
 	t.Parallel()
 	doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(`openapi: 3.1.0
 info: {title: T, version: "1"}
@@ -811,25 +628,24 @@ components:
 	}
 	for _, holds := range []func(*yaml.Node, string) bool{nil, library} {
 		sc := Scope{Doc: doc, Ends: elsewhere, Holds: holds}
-		assert.True(t, sc.At("/components/responses/R/x-foo/a").Foreign, "S holds x-foo")
-		assert.True(t, sc.Locate("/components/responses/R/x-foo").At().Foreign)
-		assert.False(t, sc.At("/components/responses/R/x-nope").Foreign, "S holds no x-nope")
-		assert.False(t, sc.At("/components/responses/S/x-foo").Foreign, "S is no reference")
+		assert.True(t, atPointer(sc, "/components/responses/R/x-foo/a").Foreign, "S holds x-foo")
+		assert.True(t, atPointer(sc, "/components/responses/R/x-foo").Foreign)
+		assert.False(t, atPointer(sc, "/components/responses/R/x-nope").Foreign, "S holds no x-nope")
+		assert.False(t, atPointer(sc, "/components/responses/S/x-foo").Foreign, "S is no reference")
 	}
 
 	never := Scope{Doc: doc, Ends: elsewhere, Holds: func(*yaml.Node, string) bool { return false }}
-	assert.False(t, never.At("/components/responses/R/x-foo/a").Foreign, "Holds, not the library, answers")
+	assert.False(t, atPointer(never, "/components/responses/R/x-foo/a").Foreign, "Holds, not the library, answers")
 	always := Scope{Doc: doc, Ends: elsewhere, Holds: func(*yaml.Node, string) bool { return true }}
-	assert.True(t, always.At("/components/responses/R/x-nope").Foreign, "Holds, not the library, answers")
-	assert.False(t, always.At("/components/responses/S/x-foo").Foreign, "only a reference asks it")
+	assert.True(t, atPointer(always, "/components/responses/R/x-nope").Foreign, "Holds, not the library, answers")
+	assert.False(t, atPointer(always, "/components/responses/S/x-foo").Foreign, "only a reference asks it")
 }
 
-// TestScope_Locate_ReadsAnIndexTheLibraryRetriesWhole pins what ModelAt
-// answers past an index the library retries: the token is read as a key with
-// the rest below it, and as an index once that fails, so the pointer names
-// what the library's whole read finds, here k past the index where the key's
-// 0 holds none, while references are still noted a step at a time.
-func TestScope_Locate_ReadsAnIndexTheLibraryRetriesWhole(t *testing.T) {
+// TestScopeReached_StepsPastAnIndexTheLibraryRetries pins the walk past an
+// index the library retries, reading it as a key with the rest below it and as
+// an index once that fails: what it steps past is still noted a step at a
+// time.
+func TestScopeReached_StepsPastAnIndexTheLibraryRetries(t *testing.T) {
 	t.Parallel()
 	var built yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte("{'0': {j: 5}}"), &built))
@@ -837,11 +653,8 @@ func TestScope_Locate_ReadsAnIndexTheLibraryRetriesWhole(t *testing.T) {
 	doc := &indexedDoc{built: built.Content[0], schema: js}
 	for _, ends := range []func(any) (End, bool){nil, elsewhere} {
 		sc := Scope{Doc: doc, Ends: ends}
-		for _, pointer := range []jsontext.Pointer{"/0/k", "/0/j", "/0", "/1/k", "/0/k/type"} {
-			assert.Same(t, wholeModelAt(doc, pointer), sc.ModelAt(pointer), "%q", pointer)
-		}
-		assert.Same(t, js, sc.ModelAt("/0/k"), "the index answers k, which the mapping's 0 does not hold")
-		assert.Equal(t, ends != nil, sc.At("/0/k").Foreign, "the walk noted the document it stepped past")
+		assert.Same(t, js, wholeModelAt(doc, "/0/k"), "sanity: the index answers k, which the mapping's 0 does not hold")
+		assert.Equal(t, ends != nil, atPointer(sc, "/0/k").Foreign, "the walk noted the document it stepped past")
 	}
 }
 
@@ -873,110 +686,6 @@ func walkTo(doc *soa.OpenAPI, pointer jsontext.Pointer) any {
 	return node
 }
 
-// TestScope_DeclaredAt_TheModelAnswersFirst pins the order of DeclaredAt's two
-// sources: a schema the model declares at a pointer wins, even over one Mapped
-// holds there, which a $ref by the source's file name may have left a copy of,
-// whose own $refs nothing resolved. Mapped answers where the model declares no
-// schema, such as a position it holds as raw YAML (GitHub #757), and only
-// there is it asked.
-func TestScope_DeclaredAt_TheModelAnswersFirst(t *testing.T) {
-	t.Parallel()
-	doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(`openapi: 3.1.0
-info: {title: T, version: "1"}
-paths: {}
-components:
-  schemas:
-    Pet: {type: object}
-`))
-	require.NoError(t, err)
-	pet, ok := doc.Components.Schemas.Get("Pet")
-	require.True(t, ok)
-
-	mapped := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{})
-	require.NotSame(t, pet, mapped, "the two sources must be told apart")
-
-	const raw = jsontext.Pointer("/x-lib/Cat")
-	var asked []jsontext.Pointer
-	answering := func(at jsontext.Pointer, js *oas3.JSONSchema[oas3.Referenceable]) func(jsontext.Pointer) *oas3.JSONSchema[oas3.Referenceable] {
-		return func(pointer jsontext.Pointer) *oas3.JSONSchema[oas3.Referenceable] {
-			asked = append(asked, pointer)
-			if pointer == at {
-				return js
-			}
-			return nil
-		}
-	}
-
-	sc := Scope{Doc: doc, Mapped: answering(raw, mapped)}
-	assert.Same(t, mapped, sc.DeclaredAt(raw), "a position only Mapped holds resolves to its answer")
-	assert.Same(t, pet, sc.DeclaredAt("/components/schemas/Pet"), "the model answers for its own declaration")
-	assert.Equal(t, []jsontext.Pointer{raw}, asked, "Mapped is asked only where the model declares no schema")
-
-	shadowed := Scope{Doc: doc, Mapped: answering("/components/schemas/Pet", mapped)}
-	assert.Same(t, pet, shadowed.DeclaredAt("/components/schemas/Pet"), "the model's own declaration wins over Mapped")
-
-	assert.Same(t, pet, Scope{Doc: doc}.DeclaredAt("/components/schemas/Pet"), "no Mapped leaves the model to answer")
-	assert.Nil(t, Scope{Doc: doc}.DeclaredAt(raw), "no Mapped and no declaration resolves nothing")
-}
-
-// TestScope_MappingPointer pins what a mapping value names. A pointer or a
-// declared component is InternalPointer's answer; a "#/$defs/..." value is the
-// definition read from its discriminator; and every value that cannot be read
-// so is refused: one with a document part, which load leaves to the resolver,
-// one into another document, one in a Scope with no Doc, one with no
-// discriminator, one whose discriminator this document's tree does not contain,
-// and one the rule finds nothing for.
-func TestScope_MappingPointer(t *testing.T) {
-	t.Parallel()
-	doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(`openapi: 3.1.0
-info: {title: T, version: "1"}
-paths: {}
-components:
-  schemas:
-    Pet:
-      oneOf: [{$ref: "#/$defs/cat"}]
-      discriminator: {propertyName: kind, mapping: {cat: "#/$defs/cat"}}
-      $defs:
-        cat: {type: object}
-`))
-	require.NoError(t, err)
-	pet, ok := doc.Components.Schemas.Get("Pet")
-	require.True(t, ok)
-	d := pet.GetSchema().GetDiscriminator()
-	require.NotNil(t, d)
-	sc := Scope{SelfPath: "spec.yaml", Doc: doc}
-
-	for value, want := range map[string]jsontext.Pointer{
-		"#/components/schemas/Pet": "/components/schemas/Pet",
-		"#/$defs/cat":              "/components/schemas/Pet/$defs/cat",
-	} {
-		got, ok := sc.MappingPointer(d, value)
-		assert.True(t, ok, value)
-		assert.Equal(t, want, got, value)
-	}
-
-	for value, why := range map[string]string{
-		"other.yaml#/A":        "a value into another document is refused",
-		"spec.yaml#/$defs/cat": "a document part is left to the resolver, as load leaves a $ref spelled so",
-		"#/$defs/missing":      "the rule finds no such definition",
-		"Pet":                  "a bare name names no pointer",
-	} {
-		_, ok := sc.MappingPointer(d, value)
-		assert.False(t, ok, why)
-	}
-
-	_, ok = (Scope{SelfPath: "spec.yaml"}).MappingPointer(d, "#/$defs/cat")
-	assert.False(t, ok, "no document to read from")
-	_, ok = sc.MappingPointer(nil, "#/$defs/cat")
-	assert.False(t, ok, "no discriminator to read a position from")
-	// A discriminator this document's tree does not contain has no position to
-	// read from. The document is a standalone schema with its own $defs, the one
-	// kind a missing position could still read a definition from.
-	standalone := Scope{SelfPath: "spec.yaml", Doc: schemaFromYAML(t, "$defs:\n  cat: {type: object}\n")}
-	_, ok = standalone.MappingPointer(&oas3.Discriminator{}, "#/$defs/cat")
-	assert.False(t, ok, "no position to read the pointer from")
-}
-
 // walkDoc is a document whose positions a walk reaches past a path item and an
 // operation's responses, which the model holds by value, into a schema,
 // through a response keyed by the empty string, and into an extension's value,
@@ -1006,10 +715,17 @@ func unmarshalWalkDoc(t *testing.T) *soa.OpenAPI {
 // ending in another document, so any node a walk steps past shows.
 func elsewhere(any) (End, bool) { return End{Document: "elsewhere", Path: "x.yaml"}, true }
 
-// TestScopeAt_PassesAReferenceUnderADefaultResponse pins that the walk goes on
+// atPointer is the scope reached reads what pointer names in, a position of
+// the source's own model: ScopeOf's answer for a chain whose last hop resolved
+// there.
+func atPointer(s Scope, pointer jsontext.Pointer) Scope {
+	return s.reached(End{Document: s.Doc, Pointer: pointer})
+}
+
+// TestScopeReached_PassesAReferenceUnderADefaultResponse pins that the walk goes on
 // past an operation's responses, which the model holds by value: a default
 // response that is a reference is passed, as one under a status code is.
-func TestScopeAt_PassesAReferenceUnderADefaultResponse(t *testing.T) {
+func TestScopeReached_PassesAReferenceUnderADefaultResponse(t *testing.T) {
 	t.Parallel()
 	responses := func(node any) (End, bool) {
 		if _, ok := node.(*soa.ReferencedResponse); ok {
@@ -1019,64 +735,64 @@ func TestScopeAt_PassesAReferenceUnderADefaultResponse(t *testing.T) {
 	}
 	sc := Scope{Doc: unmarshalWalkDoc(t), Ends: responses}
 	for _, code := range []string{"default", "200"} {
-		at := sc.At(jsontext.Pointer("/paths/~1a/get/responses/" + code + "/description"))
+		at := atPointer(sc, jsontext.Pointer("/paths/~1a/get/responses/"+code+"/description"))
 		assert.True(t, at.Foreign, "the %s response is passed", code)
 		assert.Equal(t, "x.yaml", at.Holder, code)
 	}
 }
 
-// TestScopeAt_StopsAtASchema pins where the walk stops reading references: at
+// TestScopeReached_StopsAtASchema pins where the walk stops reading references: at
 // the first schema, since the resolver reads a schema's own $ref as a keyword,
 // so nothing past it is asked whether it is one.
-func TestScopeAt_StopsAtASchema(t *testing.T) {
+func TestScopeReached_StopsAtASchema(t *testing.T) {
 	t.Parallel()
 	asked := 0
 	sc := Scope{Doc: unmarshalWalkDoc(t), Ends: func(any) (End, bool) { asked++; return End{}, false }}
 
-	assert.False(t, sc.At("/components/schemas/S/properties/p/properties/q").Foreign)
+	assert.False(t, atPointer(sc, "/components/schemas/S/properties/p/properties/q").Foreign)
 	assert.Equal(t, 3, asked, "the document, its components and its schemas, then the schema stops it")
 }
 
-// TestScopeAt_StopsAtRawYAML pins the other place the walk stops: at a value
+// TestScopeReached_StopsAtRawYAML pins the other place the walk stops: at a value
 // the model holds as raw YAML, which holds no reference the resolver resolved,
 // so a pointer into an extension costs one step rather than a key scan for
 // each token past it.
-func TestScopeAt_StopsAtRawYAML(t *testing.T) {
+func TestScopeReached_StopsAtRawYAML(t *testing.T) {
 	t.Parallel()
 	asked := 0
 	sc := Scope{Doc: unmarshalWalkDoc(t), Ends: func(any) (End, bool) { asked++; return End{}, false }}
 
-	assert.False(t, sc.At("/x-lib/a/b/c").Foreign)
+	assert.False(t, atPointer(sc, "/x-lib/a/b/c").Foreign)
 	assert.Equal(t, 1, asked, "the document, then the extension's value stops it")
 
 	rawAsReference := func(node any) (End, bool) {
 		_, raw := node.(*yaml.Node)
 		return End{Document: "elsewhere", Path: "x.yaml"}, raw
 	}
-	at := Scope{Doc: unmarshalWalkDoc(t), Ends: rawAsReference}.At("/extensions/x-lib/a/b")
+	at := atPointer(Scope{Doc: unmarshalWalkDoc(t), Ends: rawAsReference}, "/extensions/x-lib/a/b")
 	assert.False(t, at.Foreign, "raw YAML a field holds is passed by no walk, though Ends would read it as a reference")
 }
 
-// TestScopeAt_PassesOnlyWhatTheWalkStepsPast pins which nodes a walk passes:
+// TestScopeReached_PassesOnlyWhatTheWalkStepsPast pins which nodes a walk passes:
 // those it steps past to the next token. One where the walk finds nothing more
 // is not passed, nor is the node the pointer ends at.
-func TestScopeAt_PassesOnlyWhatTheWalkStepsPast(t *testing.T) {
+func TestScopeReached_PassesOnlyWhatTheWalkStepsPast(t *testing.T) {
 	t.Parallel()
 	sc := Scope{Doc: unmarshalWalkDoc(t), Ends: elsewhere}
 
-	assert.False(t, sc.At("/nope/x").Foreign, "the walk finds nothing past the document")
-	assert.False(t, sc.At("").Foreign, "the pointer ends at the document")
-	past := sc.At("/paths/~1a")
+	assert.False(t, atPointer(sc, "/nope/x").Foreign, "the walk finds nothing past the document")
+	assert.False(t, atPointer(sc, "").Foreign, "the pointer ends at the document")
+	past := atPointer(sc, "/paths/~1a")
 	assert.True(t, past.Foreign, "the walk steps past the document and its paths")
 	assert.Equal(t, "x.yaml", past.Holder)
 }
 
-// TestScopeAt_FollowsAtMostMaxRefChainRefs pins the bound on the $refs a walk
+// TestScopeReached_FollowsAtMostMaxRefChainRefs pins the bound on the $refs a walk
 // follows, each to where its chain ends: a chain ending back at a position its
 // own walk passes it again is followed maxRefChain times, then read as no
 // document's. Read as the source's own, content past the bound that another
 // document holds read its references against the source (GitHub #762).
-func TestScopeAt_FollowsAtMostMaxRefChainRefs(t *testing.T) {
+func TestScopeReached_FollowsAtMostMaxRefChainRefs(t *testing.T) {
 	t.Parallel()
 	doc := unmarshalWalkDoc(t)
 	turns := 0
@@ -1088,16 +804,11 @@ func TestScopeAt_FollowsAtMostMaxRefChainRefs(t *testing.T) {
 		return End{Document: doc, Pointer: "/paths/~1a/get"}, true
 	}}
 
-	past := sc.At("/paths/~1a/get")
+	past := atPointer(sc, "/paths/~1a/get")
 	assert.True(t, past.Foreign, "past the bound, no document's")
 	assert.Empty(t, past.Holder, "so no reference there names a document")
 	assert.Equal(t, maxRefChain, turns, "each turn follows one $ref")
 
-	turns = 0
-	past = sc.Locate("/paths/~1a/get").At()
-	assert.True(t, past.Foreign, "Locate's walk is the first of the same turns")
-	assert.Empty(t, past.Holder)
-	assert.Equal(t, maxRefChain, turns)
 }
 
 // TestScopeReached_AnEndInTheSourcesFileIsTheSources pins a hop that resolved
@@ -1123,13 +834,13 @@ func TestScopeReached_AnEndInTheSourcesFileIsTheSources(t *testing.T) {
 	assert.True(t, none.Foreign, "a scope with no source path names no source file")
 }
 
-// TestScopeAt_WithoutEndsPassesNothing pins a scope with no Ends: nothing can
+// TestScopeReached_WithoutEndsPassesNothing pins a scope with no Ends: nothing can
 // be read as a reference, so every pointer names the source's own content.
-func TestScopeAt_WithoutEndsPassesNothing(t *testing.T) {
+func TestScopeReached_WithoutEndsPassesNothing(t *testing.T) {
 	t.Parallel()
 	sc := Scope{Doc: unmarshalWalkDoc(t), Foreign: true, Holder: "x.yaml"}
 
-	got := sc.At("/paths/~1a/get")
+	got := atPointer(sc, "/paths/~1a/get")
 	assert.False(t, got.Foreign)
 	assert.Empty(t, got.Holder)
 }

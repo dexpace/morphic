@@ -411,43 +411,34 @@ const (
 type Kind int
 
 // Site is what a schema position declares: Node is the schema written there,
-// and Referent — set only for a reference site — is the schema exactly one
-// hop away, never the end of a $ref chain.
+// and Referent — set only for a reference site — is the schema the $ref's
+// chain ends on, the referent a use site's annotations fall back to.
 //
-// Production reads only Node from a Site At builds: a declaration's annotations
-// bind the position they are written at (attachDeclaredAnnotations), and a
-// component that aliases another keeps the target's annotations reachable
-// through its Base. A reader that inherits, FillPropertyDetail (schema.go) or
-// fillParamSchema, builds its own Site with Referent from resolve.TargetSchema,
-// which follows the chain to its end; the two differ on a ref-to-ref chain.
+// A Site At builds carries no Referent: a declaration's annotations bind the
+// position they are written at (attachDeclaredAnnotations), and a component
+// that aliases another keeps the target's annotations reachable through its
+// Base. A reader that inherits, FillPropertyDetail (schema.go) or
+// fillParamSchema, builds its own Site with Referent from
+// resolve.Scope.TargetSchema.
 type Site struct {
 	Kind Kind
 	Node *oas3.Schema
-	// Referent is nil when Kind is Reference but the $ref does not
-	// resolve; refTypeRef is what diagnoses that, not this.
+	// Referent is nil when Kind is Reference but the $ref's chain ends on no
+	// schema; refTypeRef is what diagnoses that, not this.
 	Referent *oas3.Schema
 }
 
-// At builds the site for js. A $ref position resolves Referent exactly one hop
-// through DeclaredSchema, never the full chain (see Site).
+// At builds the site for js, a reference site's without its Referent (see
+// Site).
 //
 // A schema whose $ref is present but empty ({$ref: ""}) is a declaration, not a
-// reference site: an empty ref resolves nowhere, so IsReference is false. That
-// keeps Referent's nil guarantee: a reference site's $ref was genuinely
-// attempted, so an unresolved target is the only reason Referent is nil.
+// reference site: an empty ref resolves nowhere, so IsReference is false.
 //
 // At trusts its caller that js is the schema at the position being modeled.
 func At(js *oas3.JSONSchema[oas3.Referenceable]) Site {
 	s := Site{Kind: Declaration, Node: SchemaOf(js)}
-	if js == nil || js.IsBool() {
-		return s
-	}
-	if !js.IsReference() {
-		return s
-	}
-	s.Kind = Reference
-	if decl := DeclaredSchema(js); decl != nil {
-		s.Referent = SchemaOf(decl)
+	if js != nil && !js.IsBool() && js.IsReference() {
+		s.Kind = Reference
 	}
 	return s
 }
@@ -461,7 +452,7 @@ func At(js *oas3.JSONSchema[oas3.Referenceable]) Site {
 //
 // Every position modeled as a site reads it through At: a named component
 // (lowerComponentSchema) and a $ref'd internal sub-schema (hoistSubSchema, fed
-// one hop at a time by DeclaredSchema).
+// one hop at a time by the schema bindings).
 func SchemaOf(js *oas3.JSONSchema[oas3.Referenceable]) *oas3.Schema {
 	if js == nil || js.IsBool() {
 		return nil
@@ -474,20 +465,6 @@ func SchemaOf(js *oas3.JSONSchema[oas3.Referenceable]) *oas3.Schema {
 // hoists one of its own, so the two homes can never both hold the same
 // declaration (GitHub #116).
 type Home int
-
-// DeclaredSchema returns the schema written at the position js references — one
-// hop, not the end of the chain. GetResolvedSchema follows a reference to a
-// reference all the way through, which is the wrong node to hoist at that
-// position: a sub-schema spelled {$ref: Other, minimum: 7} would be read as
-// Other, and the bound written beside the $ref would be gone before anything
-// could record it.
-func DeclaredSchema(js *oas3.JSONSchema[oas3.Referenceable]) *oas3.JSONSchema[oas3.Referenceable] {
-	info := js.GetReferenceResolutionInfo()
-	if info == nil {
-		return nil
-	}
-	return info.Object
-}
 
 // RawChildNode returns the raw YAML value node of a mapping child keyed by the
 // on-wire name, unwrapping a document node first; nil when absent. It reads

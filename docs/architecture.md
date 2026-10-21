@@ -168,11 +168,10 @@ naming it.
 
 A caller turns a pass off by name (`RunOptions.DisablePasses`, `--disable-pass`); a name no pass
 carries is a Go error (`engine.ErrUnknownPass`), not a diagnostic, because it names no defect in the
-spec. A pass whose output a consumer relies on, such as one filling `TypeCommon.Usage` (ir-design.md
-§16, question 4), is not a caller's to turn off: from the first such pass, the engine refuses its
-name as it refuses an unknown one. Turning a pass *on* by name is for one that has no settings and
-is off by default, as the convenience simplifications of reference-learnings.md §B0 are to be, and
-it lands with the first of them.
+spec. A pass whose output a consumer relies on is not a caller's to turn off: from the first such
+pass, the engine refuses its name as it refuses an unknown one. Turning a pass *on* by name is for
+one that has no settings and is off by default, as the convenience simplifications of
+reference-learnings.md §B0 are to be, and it lands with the first of them.
 
 Built, and in the default list:
 
@@ -226,7 +225,7 @@ converged on independently:
 
 1. **Plan** — compute language-*neutral* per-operation and per-type decisions once
    (is-paginated, error taxonomy, primary-content/response selection, return-shape
-   classification (model / void / list-of-models with elementwise deserialization), pagination
+   classification (a success body read as a value / void / raw bytes / a stream), pagination
    item-type unwrap) so templates contain no policy. This list is the decision set oagen's
    emitters demonstrably needed, computed once and shared across all languages, less two kinds of
    entry (emitter-design.md §3.6): what the IR already states, such as body presence and
@@ -306,6 +305,7 @@ it in its own change.
 ```
 morphic/
 ├── ir/                     # Layer 0 — IR node types, IDs, shared traversals, JSON round-trip.
+│   ├── irfacts/            #           Derived facts of a document, never stored (ir-design §4.9).
 │   ├── irtest/             #           Golden-snapshot and fixture helpers for IR documents.
 │   └── irverify/           #           Structural-invariant oracle (dangling refs, IDs, naming).
 ├── compilers/              # Layer 1 — compiler contract + registry.
@@ -319,7 +319,8 @@ morphic/
 │   │       ├── ids/        #             pointer construction; pointer → TypeID
 │   │       ├── value/      #             scalar and BigVal lowering
 │   │       ├── nodeview/   #             the raw source as the resolver reads it
-│   │       ├── scan/       #             pre-lowering refusals (ref cycles, alias fan-out)
+│   │       ├── scan/       #             pre-parse refusals (alias cycles and fan-out, nesting)
+│   │       ├── bind/       #             every schema $ref bound where it lands, loops found
 │   │       ├── annotation/ #             what a schema says about itself, not its shape
 │   │       ├── load/       #             parse, validate, resolve
 │   │       ├── resolve/    #             what a $ref names; reference-or-inline entries
@@ -364,14 +365,14 @@ Dependency rules, enforced by an architecture test as in oagen:
 
 - `ir` imports only the standard library. It contains no parsing, no generation, no I/O.
 - `compilers/compile` imports only `ir`: it is below every compiler, not beside them.
-- `compilers/*` and `pass` import `ir` (and their own format libraries) — never each other,
-  never `emitters` or `engine`. A compiler also names the contract package and
-  `compilers/compile`; each is allowed in its own right, so no sibling compiler rides in beside
-  them.
+- `compilers/*` and `pass` import `ir` (and their own format libraries), and `pass` also
+  `ir/irfacts` — never each other, never `emitters` or `engine`. A compiler also names the
+  contract package and `compilers/compile`; each is allowed in its own right, so no sibling
+  compiler rides in beside them.
 - A compiler's own `internal/` packages each carry their own allowlist rather than inheriting the
   compiler's. That is what keeps the ordering among them real: `diag` reaches nothing but `ir`,
   and no lowering package may reach the compiler that calls it.
-- `emitters/*` imports `ir` and the contract package `emitters` — never a compiler.
+- `emitters/*` imports `ir`, `ir/irfacts` and the contract package `emitters` — never a compiler.
 - `engine` imports everything below it; `cmd` imports `engine`.
 
 Two caps guard the shape rather than the graph, both in `internal/archtest` and `.golangci.yml`:
@@ -442,7 +443,7 @@ something a caller asks for with `none`, never a default.
   hold — which packages may build or write an `ir.TypeRegistry`, derive a name or build an ID, that
   no pipeline stage prints or logs, and that a switch over an IR enum names every member. Each rule
   is held to findings planted for it, since a clean tree cannot tell a rule from one that matches
-  nothing, and runs on every port the build covers.
+  nothing.
 - **Wire-conformance harness** (from milestone 3): expected request shapes (method, path,
   query, body keys) are derived *from the IR alone* — offline, deterministic, shared across
   every language emitter; generated SDKs run under HTTP interception and the requests are

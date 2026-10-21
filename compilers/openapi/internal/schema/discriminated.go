@@ -58,7 +58,7 @@ func namedBranches(c lowering.Ctx, s *oas3.Schema) []ir.TypeID {
 	branches, _, _ := unionBranches(s)
 	var named []ir.TypeID
 	for _, b := range branches {
-		pointer, internal := scope.TargetPointer(b, b.GetRef().String())
+		pointer, internal := scope.TargetPointer(b)
 		if !internal {
 			continue
 		}
@@ -146,8 +146,10 @@ func (d besideUnionDiscriminator) rehome(m *ir.Model, mt *ir.MapT) []ir.Diagnost
 
 // routesToSubtypes reports whether every type m's discriminator routes to is a
 // subtype of m: each mapping target, the default, and each of named. Each is
-// one ir.IsSubtype walk, as pass/validate spends on a mapping target; no walk
-// is shared yet (GitHub #850).
+// one ir.IsSubtype walk rather than a question of an irfacts.Index, which
+// indexes the whole registry: a settlement asks a few questions, of a registry
+// the settlements before it may have rewritten. Walks are not shared between
+// settlements (GitHub #1008).
 func routesToSubtypes(reg ir.TypeRegistry, m *ir.Model, named []ir.TypeID) bool {
 	doc := &ir.Document{Types: reg}
 	routes := slices.AppendSeq(slices.Clone(named), maps.Values(m.Discriminator.Mapping))
