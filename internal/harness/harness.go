@@ -5,13 +5,14 @@ import (
 	"cmp"
 	"context"
 	"encoding/json/v2"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
 	"unicode/utf8"
 
 	"github.com/dexpace/morphic/compilers"
-	"github.com/dexpace/morphic/compilers/openapi"
+	"github.com/dexpace/morphic/engine"
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/ir/irverify"
 )
@@ -21,10 +22,13 @@ type Outcome string
 
 // Oracle outcomes, in the order Check applies them. OutcomeOK is the only
 // non-finding value; every other outcome marks a spec the harness flags.
+// OutcomeUnrecognized is a source no registered compiler takes: its Detail names
+// the format when one was recognized and none serves it.
 const (
 	OutcomeOK               Outcome = "ok"
 	OutcomePanic            Outcome = "panic"
 	OutcomeError            Outcome = "error"
+	OutcomeUnrecognized     Outcome = "unrecognized"
 	OutcomeErrorDiag        Outcome = "error-diagnostic"
 	OutcomeViolations       Outcome = "violations"
 	OutcomeRoundtrip        Outcome = "roundtrip-mismatch"
@@ -43,12 +47,12 @@ type Result struct {
 	Detail string
 }
 
-// Check compiles data under recover() and applies every oracle in order,
-// returning the first failure or OutcomeOK. A panic anywhere in compilation or
-// the oracles is captured as OutcomePanic rather than escaping to the caller. A
-// caller mistake (nil ctx, empty spec identifier) is reported as OutcomeError
-// with a harness-prefixed Detail, so it is never misattributed to the spec as a
-// compiler panic.
+// Check compiles data through the registered compilers under recover() and
+// applies every oracle in order, returning the first failure or OutcomeOK. A
+// panic anywhere in compilation or the oracles is captured as OutcomePanic
+// rather than escaping to the caller. A caller mistake (nil ctx, empty spec
+// identifier) is reported as OutcomeError with a harness-prefixed Detail, so it
+// is never misattributed to the spec as a compiler panic.
 func Check(ctx context.Context, spec string, data []byte) (res Result) {
 	res = Result{Spec: spec, Outcome: OutcomeOK}
 	defer func() {
@@ -65,6 +69,9 @@ func Check(ctx context.Context, spec string, data []byte) (res Result) {
 	}
 
 	doc, diags, err := compile(ctx, spec, data)
+	if errors.Is(err, errUnrecognized) {
+		return Result{Spec: spec, Outcome: OutcomeUnrecognized, Detail: err.Error()}
+	}
 	if err != nil {
 		return Result{Spec: spec, Outcome: OutcomeError, Detail: err.Error()}
 	}
@@ -89,14 +96,78 @@ func Check(ctx context.Context, spec string, data []byte) (res Result) {
 	return res
 }
 
-// compile runs the OpenAPI compiler on one in-memory source with default
-// options. It is a package-level seam: production always uses the real compiler
-// wired here, while tests replace it to drive the oracle-failure paths a correct
-// compiler never produces — a panic, a document with structural violations, a
-// non-round-tripping document, or a nondeterministic recompile.
+// errUnrecognized marks a source no registered compiler takes. Check reports it
+// as OutcomeUnrecognized rather than as a fault of the harness.
+var errUnrecognized = errors.New("unrecognized source")
+
+// registered is the compiler set a sweep compiles with: the engine's built-ins,
+// so a compiler registered there is swept with no change here. It is a seam, as
+// compile is, for tests that need a compiler the engine does not carry.
+var registered = engine.Compilers
+
+// newRegistry registers the compilers into a registry of its own. Each call
+// builds a fresh one, so no sweep shares a registry with another. An empty set
+// is refused: every source would then read as unrecognized, blaming the spec
+// for a misconfigured harness.
+func newRegistry() (*compilers.Registry, error) {
+	cs := registered()
+	if len(cs) == 0 {
+		return nil, errors.New("harness: no compilers registered")
+	}
+
+	reg := compilers.NewRegistry()
+	for i, c := range cs {
+		if err := reg.Register(c); err != nil {
+			return nil, fmt.Errorf("harness: register compiler %d: %w", i, err)
+		}
+	}
+	return reg, nil
+}
+
+// compile lowers one in-memory source with the compiler that claims it, under
+// default options and without the passes, and holds the outcome to the compiler
+// contract. It returns the diagnostics Compile returned; findings a compiler
+// stores on the Document alone are not read. It is a package-level seam:
+// production always uses the registry wired here, while tests replace it to
+// drive the oracle-failure paths a correct compiler never produces — a panic, a
+// document with structural violations, a non-round-tripping document, or a
+// nondeterministic recompile.
 var compile = func(ctx context.Context, spec string, data []byte) (*ir.Document, []ir.Diagnostic, error) {
-	return openapi.New().Compile(ctx,
-		[]compilers.Source{{Path: spec, Data: data}}, compilers.Options{})
+	reg, err := newRegistry()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	src := compilers.Source{Path: spec, Data: data}
+	det, ok, err := reg.Detect(ctx, src, nil)
+	if err != nil {
+		return nil, nil, fmt.Errorf("harness: detect: %w", err)
+	}
+	if !ok {
+		diags, err := unrecognized(det)
+		return nil, diags, err
+	}
+
+	out, err := det.Compile(ctx, src)
+	if err != nil {
+		return nil, nil, fmt.Errorf("harness: compile: %w", err)
+	}
+	return out.Document, out.Diagnostics, nil
+}
+
+// unrecognized answers for a source no registered compiler takes. A compiler
+// that declined it with an error has said why in its own words, so those
+// diagnostics are returned for Check to classify like any refusal. Otherwise the
+// source is unrecognized, naming the format a compiler recognized and none
+// serves, as with Swagger 2.0.
+func unrecognized(det compilers.Detection) ([]ir.Diagnostic, error) {
+	if _, stated := ir.FirstError(det.Declined); stated {
+		return det.Declined, nil
+	}
+	if format := det.Recognition.Format; format.Name != "" {
+		return nil, fmt.Errorf("no registered compiler serves %s: %w", format, errUnrecognized)
+	}
+	return nil, fmt.Errorf("no registered compiler recognizes the source: %w", errUnrecognized)
 }
 
 // reserializeJSON re-encodes a value that has already survived a marshal or a

@@ -60,8 +60,9 @@ func emitf(w io.Writer, format string, args ...any) {
 const usage = `usage:
   morphic-harness <path>...
 
-Each path is a spec file or a directory of specs (*.yaml, *.yml, *.json,
-excluding *.golden.json). Every spec is swept through the Morphic oracles
-(no panic/error, IR invariants, JSON round-trip, determinism). Exit status is
-0 when every spec passes, 1 when any spec fails an oracle, 2 on a usage or
+Each path is a spec file or a directory of specs: every file in it that a
+registered compiler takes, excluding *.golden.* snapshots and dot-directories.
+Every spec is swept through the Morphic oracles (no panic/error, IR
+invariants, JSON round-trip, determinism, order-invariance). Exit status is 0
+when every spec passes, 1 when any spec fails an oracle, 2 on a usage or
 filesystem error.`

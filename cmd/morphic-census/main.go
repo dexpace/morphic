@@ -58,7 +58,7 @@ func sweep(ctx context.Context, paths []string) (*census.Census, error) {
 
 	c := census.New(u)
 	for _, path := range paths {
-		specs, err := harness.SpecFiles(path)
+		specs, err := harness.SpecFiles(ctx, path)
 		if err != nil {
 			return nil, err
 		}
@@ -95,8 +95,9 @@ func emitf(w io.Writer, format string, args ...any) {
 const usage = `usage:
   morphic-census <path>...
 
-Each path is a spec file or a directory of specs (*.yaml, *.yml, *.json,
-excluding *.golden.json). Every spec is compiled with the default options, and
+Each path is a spec file or a directory of specs: every file in it that a
+registered compiler takes, excluding *.golden.* snapshots and dot-directories.
+Every spec is compiled with the default options, and
 the facts its document sets are counted: the members of the IR's structs, the
 emptiness of each member whose empty value differs from its absence, and the
 values of its enumerations. The report counts the documents, the specs that

@@ -189,15 +189,19 @@ A compiler lowers one source format into an IR document ([`architecture.md`](doc
    `testdata/conformance/<format>/matrix.md`, one entry for each row the column marks expressible,
    as `testdata/conformance/openapi/matrix.md` does.
    *Fails if missed:* `TestConformance_EveryRegisteredFormatIsHeldToItsColumn` for the column and
-   the document, and `TestImportGraph_LayeringHolds/engine` for the allowlist. Nothing fails if the
-   compiler is never registered, so add an engine test that compiles a document of the format.
-5. **Test it** with golden snapshots through `ir/irtest` and `irverify` over its output. Keep its
-   fixtures and goldens under `compilers/<format>/testdata/`: the harness sweeps the repository's
-   `testdata/` through the OpenAPI compiler alone, and its determinism and order-invariance oracles
-   reach no other compiler yet (#968), so write those checks yourself. A goroutine needs
-   `internal/leakcheck` in the package's `TestMain`.
-   *Fails if missed:* `TestHarness_InRepoCorpus` for a fixture under the root `testdata/`, and
-   `TestGoroutineLeak_EveryGoStatementHasALeakCheck`.
+   the document, and `TestImportGraph_LayeringHolds/engine` for the allowlist. Nothing fails here
+   if the compiler is never registered, though step 5's `TestHarness_InRepoCorpus` does once its
+   fixtures are under `testdata/`, so add an engine test that compiles a document of the format.
+5. **Test it** with golden snapshots through `ir/irtest` and `irverify` over its output. Put its
+   corpus under the repository's `testdata/` (the conformance corpus is
+   `testdata/conformance/<format>/`): the harness sweeps every spec there through whichever
+   registered compiler takes it, with every oracle, so registering the compiler in step 4 is all
+   it takes to be swept. Order-invariance permutes YAML and JSON mappings, so a source that is
+   neither is not permuted; write that check yourself. A goroutine needs `internal/leakcheck` in
+   the package's `TestMain`.
+   *Fails if missed:* `TestHarness_InRepoCorpus`, which sweeps the corpus and requires every
+   fixture in it to be listed, so one that no registered compiler recognizes fails there instead of
+   dropping out of the sweep, and `TestGoroutineLeak_EveryGoStatementHasALeakCheck`.
 6. **Write its lowering specification** at `docs/compilers/<format>.md`, and link it from
    `ir-design.md` §14: move the format's list there into the new document, or add a row for a
    format §14 does not list. The `TestLoweringSpec` tests read `docs/compilers/openapi.md` alone, so
