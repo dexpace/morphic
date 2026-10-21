@@ -89,9 +89,9 @@ func (j typeJudge) relateAt(a, b ir.TypeRef, depth int) relation {
 	case aBare && bBare:
 		return fromSpelling(spelling.Relate(ap.Prim, bp.Prim))
 	case bBare:
-		return j.nodeAgainstBare(a, at, bp.Prim)
+		return j.nodeAgainstBare(a, at, b, bp.Prim)
 	case aBare:
-		return j.nodeAgainstBare(b, bt, ap.Prim).flipped()
+		return j.nodeAgainstBare(b, bt, a, ap.Prim).flipped()
 	}
 	return j.containers(at, bt, depth)
 }
@@ -113,21 +113,21 @@ func fromSpelling(r spelling.Relation) relation {
 	return relDisjoint
 }
 
-// isTop reports whether td is the schemaless top type.
+// isTop reports whether td is the schemaless top type, a bare PrimAny. An
+// *ir.Any node is not: this compiler mints one only for a degraded lowering (an
+// enum past its member budget, an unconvertible const), which stands for a
+// narrower declaration.
 func isTop(td ir.TypeDef) bool {
-	if p, ok := td.(*ir.Primitive); ok {
-		return p.Prim == ir.PrimAny
-	}
-	_, ok := td.(*ir.Any)
-	return ok
+	p, ok := td.(*ir.Primitive)
+	return ok && p.Prim == ir.PrimAny
 }
 
 // nodeAgainstBare compares a Scalar, Enum or Literal (ref, resolved to td)
-// against a bare primitive of kind bare, from the node's side. Any other node is
-// unrelated.
-func (j typeJudge) nodeAgainstBare(ref ir.TypeRef, td ir.TypeDef, bare ir.PrimKind) relation {
+// against the bare primitive ref bare, of kind bareKind, from the node's side.
+// Any other node is unrelated.
+func (j typeJudge) nodeAgainstBare(ref ir.TypeRef, td ir.TypeDef, bare ir.TypeRef, bareKind ir.PrimKind) relation {
 	if lit, ok := td.(*ir.Literal); ok {
-		return literalAgainst(lit.Value, bare)
+		return literalAgainst(lit.Value, bareKind, bare.Nullable)
 	}
 	if _, ok := td.(*ir.Scalar); !ok {
 		if _, ok = td.(*ir.Enum); !ok {
@@ -138,7 +138,7 @@ func (j typeJudge) nodeAgainstBare(ref ir.TypeRef, td ir.TypeDef, bare ir.PrimKi
 	if !ok {
 		return relUnrelated
 	}
-	rel := fromSpelling(spelling.Relate(kind, bare))
+	rel := fromSpelling(spelling.Relate(kind, bareKind))
 	if rel == relSame {
 		return relANarrower
 	}
@@ -151,12 +151,14 @@ func (j typeJudge) nodeAgainstBare(ref ir.TypeRef, td ir.TypeDef, bare ir.PrimKi
 // literalAgainst compares a literal's value with a bare primitive: the literal
 // is narrower when the kind admits it. When it does not, the pair is disjoint
 // where the kind has a judge, and an overlap where it has none, as a bytes or
-// datetime kind has none. A null is judged against the field's nullability, not
-// a kind, so it never claims disjointness.
-func literalAgainst(v ir.Value, kind ir.PrimKind) relation {
+// datetime kind has none. A null is judged against the bare side's nullability,
+// not its kind: narrower where the side admits null, disjoint where it does not.
+func literalAgainst(v ir.Value, kind ir.PrimKind, bareNullable bool) relation {
 	switch {
+	case v.Kind == ir.ValueNull && bareNullable:
+		return relANarrower
 	case v.Kind == ir.ValueNull:
-		return relOverlap
+		return relDisjoint
 	case admits(kind, v):
 		return relANarrower
 	case kind == ir.PrimBytes || kind == ir.PrimDatetime:
@@ -203,6 +205,10 @@ func (j typeJudge) containers(at, bt ir.TypeDef, depth int) relation {
 // more widely than the loser, and the loser holds nothing the winner lacks.
 func (j typeJudge) contained(ae, be ir.TypeRef, ax, bx extras, depth int) relation {
 	rel := j.relateAt(ae, be, depth+1)
+	if rel == relDisjoint {
+		// An empty list or map is a value of both, so disjoint members overlap.
+		return relOverlap
+	}
 	if rel == relSame {
 		rel = byNull(ae, be)
 	}

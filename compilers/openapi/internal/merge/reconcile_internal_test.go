@@ -1067,6 +1067,49 @@ func TestFoldTypeTargets_ANarrowingIsNoDrop(t *testing.T) {
 	}
 }
 
+// TestReconcileProperty_TheJudgmentsVerdictIsWhatIsReported pins the three
+// paths of the fold: a disjoint pair warns, an overlapping pair draws an info,
+// and one target declared twice judges null alone and adopts a default.
+func TestReconcileProperty_TheJudgmentsVerdictIsWhatIsReported(t *testing.T) {
+	t.Parallel()
+	d := str("x")
+	for _, tc := range []struct {
+		name      string
+		a, b      ir.TypeID
+		dflt      *ir.Value
+		severity  ir.Severity
+		code      string
+		keptEntry bool
+	}{
+		{"a literal against a kind it is disjoint from", "t/lit-x", "t/prim/integer", nil,
+			ir.SeverityWarning, diag.ConflictingRedecl, true},
+		{"lists whose elements overlap", "t/list-int", "t/list-i32-null", nil,
+			ir.SeverityInfo, diag.DegradedConstruct, true},
+		{"one target declared twice", "t/prim/integer", "t/prim/integer", &d, "", "", false},
+	} {
+		for i, order := range [][2]ir.TypeID{{tc.a, tc.b}, {tc.b, tc.a}} {
+			g, recorded := stubMerger(judgeRegistry())
+			dst := ir.Property{WireName: "x", Type: ref(order[0]), Provenance: ptrAt("/allOf/0/properties/x")}
+			src := ir.Property{WireName: "x", Type: ref(order[1]), Default: tc.dflt,
+				Provenance: ptrAt("/allOf/1/properties/x")}
+
+			g.reconcileProperty(&dst, new(origins), src, written(`{"type":"x"}`))
+
+			if tc.keptEntry {
+				require.Len(t, *recorded, 1, "%s (order %d)", tc.name, i)
+				assert.Equal(t, tc.severity, (*recorded)[0].Severity, "%s (order %d)", tc.name, i)
+				assert.Equal(t, tc.code, (*recorded)[0].Code, "%s (order %d)", tc.name, i)
+				assert.Contains(t, dst.Unmodeled, losingDeclarationKey+"/allOf/1/properties/x",
+					"%s (order %d)", tc.name, i)
+				continue
+			}
+			assert.Empty(t, *recorded, "%s (order %d)", tc.name, i)
+			assert.Equal(t, tc.dflt, dst.Default, "the default is adopted (%s, order %d)", tc.name, i)
+			assert.Empty(t, dst.Unmodeled, "%s (order %d)", tc.name, i)
+		}
+	}
+}
+
 // reconcileBothOrders reconciles kinds a and b in both declaration orders and
 // returns what each order recorded and merged.
 func reconcileBothOrders(t *testing.T, a, b ir.PrimKind) (dsts [2]ir.Property, diags [2][]ir.Diagnostic) {

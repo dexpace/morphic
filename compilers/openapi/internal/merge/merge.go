@@ -147,7 +147,7 @@ func moveOrigin(list []origin, had, holds, equal bool, at origin) []origin {
 func (g *Merger) reconcileProperty(dst *ir.Property, org *origins, src ir.Property, source Source) {
 	pointer := src.Provenance.Pointer
 	dropped, lost, narrowed := g.recordRedeclarationConflict(dst, &src)
-	srcLost, keptDst := g.judgeAdopted(dst, &src, narrowed, org)
+	srcLost, keptDst := g.judgeAdopted(dst, &src, narrowed, dropped, org)
 	lost = lost || srcLost
 
 	dst.Required = dst.Required || src.Required
@@ -464,14 +464,14 @@ func (g *Merger) foldTypeTargets(dst, src *ir.Property) (rel relation, nw narrow
 
 // judgeAdopted holds both declarations of a fold to the type it settled on. The
 // broader side of a narrowing loses a default or example the winner does not
-// admit; either side of any fold loses a null the merged field refuses. Each is
-// reported once per declaration that wrote it and never lands. Examples are one
-// keyword. A declaration refused by different folds draws one info per fold;
-// each is true and Unmodeled holds one entry.
+// admit; either side of a fold that kept one type loses a null the merged
+// field refuses. Each is reported once per declaration that wrote it and never
+// lands. A declaration refused by different folds draws one info per fold;
+// Unmodeled holds one entry.
 //
-// srcLost says src is to be kept verbatim; keptDst lists dst's writers to keep,
-// as org names them.
-func (g *Merger) judgeAdopted(dst, src *ir.Property, nw narrowing, org *origins) (srcLost bool, keptDst []origin) {
+// dropped says the fold lost src's type, so nothing is judged. srcLost says
+// src is to be kept verbatim; keptDst lists dst's writers to keep.
+func (g *Merger) judgeAdopted(dst, src *ir.Property, nw narrowing, dropped bool, org *origins) (srcLost bool, keptDst []origin) {
 	// The top type admits null whatever the bit says: `{}` admits every
 	// instance, and a single schema keeps `default: null` on it.
 	nullable := dst.Type.Nullable || g.isAnyType(dst.Type)
@@ -490,7 +490,7 @@ func (g *Merger) judgeAdopted(dst, src *ir.Property, nw narrowing, org *origins)
 		}
 		refused = refuseFrom(refused, dst, *org, false, dstAdmit)
 		refused = refuseFrom(refused, src, srcOwn, true, srcAdmit)
-	case dst.Type.Target == src.Type.Target:
+	case !dropped:
 		refused = refuseFrom(refused, dst, *org, false, nullOnly)
 		refused = refuseFrom(refused, src, srcOwn, true, nullOnly)
 	}

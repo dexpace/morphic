@@ -216,10 +216,10 @@ const (
 	DynamicRefExpanded = "openapi/dynamic-ref-expanded"
 	// ConflictingRedecl reports that inline allOf branches redeclare one field
 	// with disagreeing values. Leaving the top type aside, a target type
-	// conflicts when the kinds are disjoint (string against integer), an enum
-	// meets another primitive kind, a scalar meets a structure, or two
-	// structure kinds meet; types with no enum side whose primitive kinds share
-	// values are DegradedConstruct. A conflicting constraint keyword (minimum:
+	// conflicts when the judgment finds the kinds disjoint (string against
+	// integer, a const its kind refuses), a scalar meets a structure, or two
+	// structure kinds meet; types that share values but that the merge does not
+	// narrow are DegradedConstruct. A conflicting constraint keyword (minimum:
 	// 10 vs. exclusiveMinimum: 10) is usually satisfiable, but no simple merge
 	// states it, so the merge keeps an arbitrary source-order winner.
 	//

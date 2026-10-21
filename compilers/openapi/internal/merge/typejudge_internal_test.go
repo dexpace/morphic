@@ -32,6 +32,7 @@ func judgeRegistry() map[ir.TypeID]ir.TypeDef {
 	reg["t/scalar-enc"] = &ir.Scalar{ID: "t/scalar-enc", Base: &integer, Encoding: &ir.Encoding{Name: "x"}}
 	reg["t/scalar-opaque"] = &ir.Scalar{ID: "t/scalar-opaque"}
 	reg["t/any"] = &ir.Any{ID: "t/any"}
+	reg["t/any-twin"] = &ir.Primitive{ID: "t/any-twin", Prim: ir.PrimAny}
 	reg["t/model"] = &ir.Model{ID: "t/model"}
 	reg["t/list-int-null"] = &ir.List{ID: "t/list-int-null", Elem: nullable(integer)}
 	reg["t/list-int"] = &ir.List{ID: "t/list-int", Elem: integer}
@@ -69,8 +70,9 @@ func TestTypeJudge_RelateArms(t *testing.T) {
 		{"a dangling target", "t/absent", "t/prim/integer", relUnrelated},
 		{"a dangling second", "t/prim/integer", "t/absent", relUnrelated},
 		{"the top loses to a bare kind", prim(ir.PrimAny), prim(ir.PrimInt32), relBNarrower},
-		{"the top loses to anything", "t/model", "t/any", relANarrower},
-		{"two tops", prim(ir.PrimAny), "t/any", relUnrelated},
+		{"a degraded any node is not the top", "t/model", "t/any", relUnrelated},
+		{"`{}` loses to a degraded any", prim(ir.PrimAny), "t/any", relBNarrower},
+		{"two tops", prim(ir.PrimAny), "t/any-twin", relUnrelated},
 		{"bare narrower", prim(ir.PrimInt32), prim(ir.PrimInteger), relANarrower},
 		{"bare broader", prim(ir.PrimInteger), prim(ir.PrimInt32), relBNarrower},
 		{"bare overlap", prim(ir.PrimInt32), prim(ir.PrimUint32), relOverlap},
@@ -89,7 +91,7 @@ func TestTypeJudge_RelateArms(t *testing.T) {
 		{"a literal string against integer", "t/lit-a", prim(ir.PrimInteger), relDisjoint},
 		{"a literal 1.5 against integer", "t/lit-1.5", prim(ir.PrimInteger), relDisjoint},
 		{"a literal against a kind with no judge", "t/lit-x", prim(ir.PrimBytes), relOverlap},
-		{"a null literal", "t/lit-null", prim(ir.PrimInteger), relOverlap},
+		{"a null literal against a bare integer", "t/lit-null", prim(ir.PrimInteger), relDisjoint},
 		{"a model against a bare kind", "t/model", prim(ir.PrimInteger), relUnrelated},
 		{"two literals", "t/lit-a", "t/lit-x", relUnrelated},
 		{"a narrower element", "t/list-int-null", "t/list-i32", relBNarrower},
@@ -101,7 +103,7 @@ func TestTypeJudge_RelateArms(t *testing.T) {
 		{"the same constraint on both", "t/list-int-min", "t/list-i32-min", relBNarrower},
 		{"two lists of one element", "t/list-i32", "t/list-i32-twin", relSame},
 		{"two lists of one element, one constrained", "t/list-i32", "t/list-i32-min", relOverlap},
-		{"disjoint elements", "t/list-str", "t/list-i32", relDisjoint},
+		{"disjoint elements overlap in the empty list", "t/list-str", "t/list-i32", relOverlap},
 		{"nested lists", "t/list-list-int", "t/list-list-i32", relBNarrower},
 		{"a list against a map", "t/list-int", "t/map-int", relUnrelated},
 		{"a map value", "t/map-int", "t/map-i32", relBNarrower},
@@ -112,6 +114,11 @@ func TestTypeJudge_RelateArms(t *testing.T) {
 		assert.Equal(t, want, j.relate(ref(tc.a), ref(tc.b)), tc.name)
 		assert.Equal(t, want.flipped(), j.relate(ref(tc.b), ref(tc.a)), "%s, swapped", tc.name)
 	}
+
+	nullInt := primRef(ir.PrimInteger)
+	nullInt.Nullable = true
+	assert.Equal(t, relANarrower, j.relate(ref("t/lit-null"), nullInt), "a null literal against a nullable integer")
+	assert.Equal(t, relBNarrower, j.relate(nullInt, ref("t/lit-null")), "a nullable integer against a null literal")
 }
 
 func TestTypeJudge_AdmitsPerNode(t *testing.T) {

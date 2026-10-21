@@ -132,8 +132,7 @@ func TestAllOf_ReconcileAccumulatesRicherDetailWhateverTheOrder(t *testing.T) {
 // survives the fold in both declaration orders, and that it costs the fold
 // nothing else: `format: password` names no shape, so both declarations share
 // the bare string's target and every detail folds rather than the losing one
-// being dropped whole (the order-dependent drop GitHub #782 tracks for a
-// format that does name one).
+// being dropped whole.
 func TestAllOf_RedeclarationOrsSecret(t *testing.T) {
 	t.Parallel()
 	secret := "            token: {type: string, format: password}\n"
@@ -4088,5 +4087,39 @@ func TestAllOf_ADefaultTheNarrowerNodeRefusesIsKeptInEitherOrder(t *testing.T) {
 		require.Len(t, diags, 1, "order %d", i)
 		assert.Equal(t, diag.DegradedConstruct, diags[0].Code, "order %d", i)
 		assert.Equal(t, ir.SeverityInfo, diags[0].Severity, "order %d", i)
+	}
+}
+
+// TestAllOf_TwoEqualListsRefuseANullTheMergeDoesNotAdmit pins that two lists of
+// one element, which are two targets, settle on a non-nullable list, so a null
+// default the nullable declaration wrote is not adopted and the declaration is
+// kept at its own pointer, whichever branch it is.
+func TestAllOf_TwoEqualListsRefuseANullTheMergeDoesNotAdmit(t *testing.T) {
+	t.Parallel()
+	nullable := `{type: [array, "null"], items: {type: integer}, default: null}`
+	plain := "{type: array, items: {type: integer}}"
+	for i, tc := range []struct {
+		order [2]string
+		kept  string
+	}{
+		{[2]string{nullable, plain}, "/components/schemas/T/allOf/0/properties/v"},
+		{[2]string{plain, nullable}, "/components/schemas/T/allOf/1/properties/v"},
+	} {
+		doc, diags := lowerSpec(t, nonBareSpec("", tc.order[0], tc.order[1]))
+		openapitest.RequireNoErrorDiags(t, diags)
+		m, ok := doc.Types[componentID("T")].(*ir.Model)
+		require.True(t, ok)
+		require.Len(t, m.Properties, 1)
+		p := m.Properties[0]
+
+		require.Equal(t, ir.KindList, doc.Types[p.Type.Target].Kind(), "order %d", i)
+		assert.False(t, p.Type.Nullable, "order %d", i)
+		assert.Nil(t, p.Default, "the refused null is not adopted (order %d)", i)
+		require.Len(t, p.Unmodeled, 1, "order %d", i)
+		assert.Contains(t, p.Unmodeled, "openapi:conflicting-redeclaration"+tc.kept, "order %d", i)
+		require.Len(t, diags, 1, "order %d", i)
+		assert.Equal(t, diag.DegradedConstruct, diags[0].Code, "order %d", i)
+		assert.Equal(t, ir.SeverityInfo, diags[0].Severity, "order %d", i)
+		assert.Equal(t, jsontext.Pointer(tc.kept), diags[0].Provenance.Pointer, "order %d", i)
 	}
 }
