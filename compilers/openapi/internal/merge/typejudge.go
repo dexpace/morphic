@@ -65,6 +65,10 @@ type typeJudge struct {
 // else is unrelated.
 func (j typeJudge) relate(a, b ir.TypeRef) relation { return j.relateAt(a, b, 0) }
 
+// relateAt is relate at a nesting depth. A $ref whose component lowers after
+// the composing schema is not judged: the first declaration's type is kept
+// without a diagnostic, whether the pair narrows or conflicts, so the merged
+// type depends on branch order and on component order (#898).
 func (j typeJudge) relateAt(a, b ir.TypeRef, depth int) relation {
 	if a.Target == b.Target {
 		return relSame

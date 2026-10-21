@@ -801,7 +801,7 @@ about the composed node instead, stated with the `false`-schema rule
 `allOf` intersection folds a field declared in more than one branch into one `Property`, and the
 first declaration wins its shape (§4.3) unless the other narrows it. One judgment compares the two
 types and returns one of six verdicts: the same type, either one narrower, an overlap, disjoint, or
-unrelated. The winner never depends on which branch is
+unrelated. Where both targets have lowered, the winner never depends on which branch is
 written first. A disjoint pair is unsatisfiable but for a null both declarations admit: no other value satisfies both. An overlap
 shares values and is merely not narrowed to one. The arms are tried in this order. `{}` loses to
 anything but the node a degraded lowering mints (an enum past its member budget, an unconvertible
@@ -921,7 +921,9 @@ schema's null verdicts fold under ([`nullable`](#nullable)).
 - Status: partly built: two distinct nodes of related kinds (`format: hex` against `format: byte`,
   two enums whose members fit each other's kind, two different literals) are reported as an overlap
   and never narrowed; a property redeclared as a list and as a tuple is reported as a conflict (#899); and a
-  conflict goes unreported when the other type lowers later (#898). Open: intersecting the
+  `$ref` whose component lowers after the composing schema is not judged: the first declaration's
+  type is kept without a diagnostic, whether the pair narrows or conflicts, so the merged type
+  depends on branch order and on component order (#898). Open: intersecting the
   redeclared bounds and defaults rather than keeping one (#10).
 
 ### `allof-required`
