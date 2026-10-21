@@ -70,7 +70,7 @@ func lowererOver(ctx lowering.Ctx) *lowerer {
 	types := compile.NewTypes()
 	return &lowerer{
 		ctx:   ctx,
-		out:   &ir.Document{Types: types.Registry()},
+		out:   &ir.Document{},
 		types: types,
 	}
 }
@@ -93,9 +93,8 @@ func lowerSpec(t *testing.T, src string) (*ir.Document, []ir.Diagnostic) {
 	t.Helper()
 	l, diags := loweredFor(t, src)
 	l.diags.AppendAll(LowerComponentSchemas(t.Context(), l.ctx, l.types, &l.anchors))
-	l.diags.AppendAll(l.types.Fulfil(t.Context()))
-	l.diags.AppendAll(l.types.Settle(t.Context()))
-	return l.out, append(diags, l.diags.List()...)
+	doc := l.document(t)
+	return doc, append(diags, l.diags.List()...)
 }
 
 // newRawLowerer builds a fixture over a hand-constructed document, bypassing the
@@ -116,4 +115,19 @@ func assertInternalInvariant(t *testing.T, diags []ir.Diagnostic) {
 		}
 	}
 	t.Fatalf("expected an internal-invariant error, got %+v", diags)
+}
+
+// document finishes the registry as run does once every lowering has
+// returned, and returns the document under construction holding it. What the
+// settling reports joins the fixture's diagnostics; a refusal is a compiler bug
+// no fixture provokes, so one fails the test.
+func (l *lowerer) document(t *testing.T) *ir.Document {
+	t.Helper()
+	reg, settled := l.types.Finish(t.Context())
+	for _, d := range settled {
+		require.NotEqual(t, compile.RegistryRefused, d.Code, "the registry refused an entry: %s", d.Message)
+	}
+	l.diags.AppendAll(settled)
+	l.out.Types = reg
+	return l.out
 }

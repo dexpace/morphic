@@ -19,6 +19,7 @@ import (
 	"github.com/dexpace/morphic/engine"
 	"github.com/dexpace/morphic/internal/testspec"
 	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/ir/irverify"
 )
 
 func writeSpec(t *testing.T, contents string) string {
@@ -298,7 +299,29 @@ func (stubFront) Detect(compilers.Source, compilers.Options) (compilers.Recognit
 
 func (stubFront) DecodeOptions(compilers.OptionSet) (any, error) { return nil, nil }
 
-func (stubFront) SourceTable([]compilers.Source, compilers.Options) []ir.SourceInfo { return nil }
+func (stubFront) SourceTable(sources []compilers.Source, _ compilers.Options) []ir.SourceInfo {
+	return tableOf(sources)
+}
+
+// tableOf is the table SourceTable gives for sources: each one's path, in order.
+func tableOf(sources []compilers.Source) []ir.SourceInfo {
+	table := make([]ir.SourceInfo, 0, len(sources))
+	for _, src := range sources {
+		table = append(table, ir.SourceInfo{Path: src.Path})
+	}
+	return table
+}
+
+// sourcesOf is the table a stub's document carries for sources, as the
+// compilers.Compiler contract has it: each read as format and hashed from its
+// bytes.
+func sourcesOf(format string, sources []compilers.Source) []ir.SourceInfo {
+	table := tableOf(sources)
+	for i, src := range sources {
+		table[i].Format, table[i].Hash = format, ir.SourceHash(src.Data)
+	}
+	return table
+}
 
 // collidingCompiler claims a single fixed format. Two of them registered
 // together make the second Register call fail, driving NewWith's error path.
@@ -399,13 +422,14 @@ type splitDiagCompiler struct {
 	stored, returned []ir.Diagnostic
 }
 
-func (c splitDiagCompiler) Compile(context.Context, []compilers.Source, compilers.Options) (*ir.Document, []ir.Diagnostic, error) {
+func (c splitDiagCompiler) Compile(_ context.Context, sources []compilers.Source, _ compilers.Options) (*ir.Document, []ir.Diagnostic, error) {
 	// A fresh document and fresh slices per call: Run writes the merged list onto
 	// the document, so shared ones would carry one run's result into the next.
 	return &ir.Document{
 		IRVersion:   "1.0.0",
 		Types:       ir.TypeRegistry{},
 		Diagnostics: slices.Clone(c.stored),
+		Sources:     sourcesOf("openapi@3.1", sources),
 	}, slices.Clone(c.returned), nil
 }
 
@@ -461,10 +485,11 @@ func TestEngine_RunKeepsDiagnosticsFromEitherChannel(t *testing.T) {
 // sniffs to it.
 type danglingCompiler struct{ stubFront }
 
-func (danglingCompiler) Compile(_ context.Context, _ []compilers.Source, _ compilers.Options) (*ir.Document, []ir.Diagnostic, error) {
+func (danglingCompiler) Compile(_ context.Context, sources []compilers.Source, _ compilers.Options) (*ir.Document, []ir.Diagnostic, error) {
 	doc := &ir.Document{
-		Name:  "Dangling",
-		Types: ir.TypeRegistry{},
+		Name:    "Dangling",
+		Types:   ir.TypeRegistry{},
+		Sources: sourcesOf("openapi@3.1", sources),
 		Services: []ir.Service{{
 			ID: "s/x",
 			Groups: []ir.OperationGroup{{
@@ -536,11 +561,13 @@ func (s *smithyCompiler) DecodeOptions(set compilers.OptionSet) (any, error) {
 	return set.Settings["shape"], nil
 }
 
-func (*smithyCompiler) SourceTable([]compilers.Source, compilers.Options) []ir.SourceInfo { return nil }
+func (*smithyCompiler) SourceTable(sources []compilers.Source, _ compilers.Options) []ir.SourceInfo {
+	return tableOf(sources)
+}
 
 func (*smithyCompiler) Compile(_ context.Context, sources []compilers.Source, opts compilers.Options) (*ir.Document, []ir.Diagnostic, error) {
 	name, _ := opts.FormatOptions.(string)
-	doc := &ir.Document{Name: name, Types: ir.TypeRegistry{}}
+	doc := &ir.Document{Name: name, Types: ir.TypeRegistry{}, Sources: sourcesOf("smithy@2.0", sources)}
 	if len(sources) == 1 {
 		if _, ok := sources[0].Parsed.(smithyParse); ok {
 			doc.Version = "parse-arrived"
@@ -830,4 +857,68 @@ func TestEngine_RunReadsAVersionKeyPastTheSniffCap(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, compilers.SourceFormat{Name: "openapi", Version: "3.1"}, res.Format)
 	require.NotNil(t, res.Document, "a document that declares its version last still compiles")
+}
+
+// throwawayCompiler is a second compiler as a new format's author first writes
+// one: it claims the spec and lowers it to whatever document shape says.
+type throwawayCompiler struct {
+	stubFront
+	shape func(doc *ir.Document)
+}
+
+func (c throwawayCompiler) Compile(_ context.Context, sources []compilers.Source, _ compilers.Options) (*ir.Document, []ir.Diagnostic, error) {
+	doc := &ir.Document{
+		IRVersion: ir.IRVersion,
+		Name:      "Throwaway",
+		Services:  []ir.Service{{ID: "s/x/0", Name: ir.Naming{Source: "svc", Canonical: "svc"}}},
+		Sources:   sourcesOf("openapi@3.1", sources),
+	}
+	c.shape(doc)
+	if doc.Sources == nil && doc.Services == nil {
+		return nil, nil, nil // a refusal that says nothing
+	}
+	return doc, nil, nil
+}
+
+// TestEngine_RunHoldsAThrowawayCompilerToItsContract registers a compiler
+// through NewWith whose output breaks one duty at a time, and requires each
+// breach to come out named: a Go error wrapping compilers.ErrContract for what
+// relates the document to its input, and an irverify violation for what the
+// document holds whatever produced it. It is what shows Run compiles through
+// compilers.Detection.Compile rather than around it.
+func TestEngine_RunHoldsAThrowawayCompilerToItsContract(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name      string
+		shape     func(*ir.Document)
+		violation string
+	}{
+		{"a document naming no source", func(d *ir.Document) { d.Sources = nil }, ""},
+		{"a source read as no format", func(d *ir.Document) { d.Sources[0].Format = "" }, ""},
+		{"a source hashed from nothing", func(d *ir.Document) { d.Sources[0].Hash = "" }, ""},
+		{"a refusal saying nothing", func(d *ir.Document) { d.Sources, d.Services = nil, nil }, ""},
+		{"a document with no service", func(d *ir.Document) { d.Services = nil }, "ir/services-absent"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			eng, err := engine.NewWith(throwawayCompiler{shape: tc.shape})
+			require.NoError(t, err)
+
+			res, err := eng.Run(t.Context(), writeSpec(t, testspec.Tiny),
+				engine.RunOptions{DisablePasses: []string{engine.ValidatePass}})
+
+			if tc.violation == "" {
+				require.ErrorIs(t, err, compilers.ErrContract)
+				assert.Nil(t, res)
+				return
+			}
+			require.NoError(t, err)
+			vs := irverify.Verify(res.Document)
+			codes := make([]string, 0, len(vs))
+			for _, v := range vs {
+				codes = append(codes, v.Code)
+			}
+			assert.Contains(t, codes, tc.violation)
+		})
+	}
 }

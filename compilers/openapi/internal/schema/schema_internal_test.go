@@ -233,7 +233,7 @@ func TestStampConstraintDiags_RelocatesEveryDiagnosticToTheReadingPointer(t *tes
 
 // TestResolvePointer_PromisesWhatItNames pins that a $ref never builds what it
 // names: it takes the ID the target's pointer derives and promises the node,
-// which Fulfil builds only where no lowering interned one, and a target it
+// which Finish builds only where no lowering interned one, and a target it
 // cannot hoist resolves to nothing.
 func TestResolvePointer_PromisesWhatItNames(t *testing.T) {
 	t.Parallel()
@@ -247,11 +247,11 @@ func TestResolvePointer_PromisesWhatItNames(t *testing.T) {
 	_, built := l.types.Lookup(deepPointer)
 	assert.False(t, built, "the reference builds nothing itself")
 
-	assert.Empty(t, l.types.Fulfil(t.Context()), "an object body hoists cleanly")
+	_, finished := l.types.Finish(t.Context())
+	assert.Empty(t, finished, "an object body hoists cleanly, and nothing is refused")
 	seeded, built := l.types.Lookup(deepPointer)
-	require.True(t, built, "Fulfil builds what no lowering interned")
+	require.True(t, built, "Finish builds what no lowering interned")
 	assert.Equal(t, id, seeded)
-	assert.Empty(t, l.types.Violations())
 
 	_, ok = resolvePointer(l.ctx, l.types, &l.anchors, deepPointer, nil)
 	assert.False(t, ok, "a target the bindings hold no schema at cannot be hoisted")

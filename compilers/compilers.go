@@ -90,46 +90,49 @@ type OptionSet struct {
 // no package-level mutable state, no writes to stderr. Spec problems are
 // ir.Diagnostic values; errors are for I/O and programmer faults.
 //
-// One Compiler value must accept overlapping Compile calls, except over one
-// Source carrying a Parsed (see Source.Parsed).
+// One value must accept overlapping Compile calls, except over one Source
+// carrying a Parsed. Every method is required: a compiler answering neither
+// Detect nor DecodeOptions would be unreachable. Compile may also store its
+// findings on the Document; a caller unions the two lists.
 //
-// Detect and DecodeOptions are methods, not optional interfaces: a compiler
-// answering neither would be registered yet unreachable.
-//
-// Compile may also store its findings on the Document, for persisted IR JSON; a
-// compiler doing both fills them alike, but a caller unions the two, since
-// neither is guaranteed to hold the other.
+// The duties below are checked where a caller can: by Registry.Register and
+// Registry.Detect, by Detection.Compile against a compile's inputs, and by
+// irverify on the Document.
 type Compiler interface {
+	// Formats reports the dialects this compiler serves, at least one, each
+	// naming a name and a version, the name free of the '@' String writes.
 	Formats() []SourceFormat
 	// Detect reports the format src declares and whether this compiler
-	// recognizes it. Recognition is not support: it may name a format it does
-	// not serve. An ok answer must name a format, or Registry.Detect ignores
-	// it, diags included, and asks the next compiler.
+	// recognizes it, which is not support: it may name a format it does not
+	// serve. An ok answer names a format as Formats does: the one Compile reads.
 	//
 	// Detection honors the bounds opts sets for reading src. FormatOptions of
 	// another compiler's type mean this one's defaults; only Compile rejects
 	// them.
 	//
 	// diags is read only when ok is false. Declining another format's bytes is
-	// silent; diags is for this compiler's own source when it is unreadable or
-	// opts forbid reading it, and names src as Source 0.
+	// silent; diags is for this compiler's own source, unreadable or one opts
+	// forbid reading, holds an error saying why, and names src as Source 0, or
+	// no source.
 	Detect(src Source, opts Options) (rec Recognition, diags []ir.Diagnostic, ok bool)
 	// DecodeOptions turns textual settings into the value this compiler expects
 	// in Options.FormatOptions. An empty set yields defaults. An unknown key, an
 	// unusable value, or a file that cannot be read is an error — a setting that
 	// is silently ignored leaves the caller believing they configured something.
 	DecodeOptions(set OptionSet) (any, error)
-	// Compile lowers sources into a Document, or refuses them by returning a nil
-	// one and no error. A returned Document's Sources begins with the table
-	// SourceTable gives for the same arguments, in that order, each entry filled
-	// in, and may go on to name each further document the compile read, such as
-	// one a reference names. Every Provenance.Source it reports other than
-	// ir.NoSource, on the Document or in the returned diagnostics, indexes that
-	// Document's Sources; a refusal's diagnostics index SourceTable's table.
+	// Compile lowers sources into a Document, or refuses them with a nil one, no
+	// error and at least one error diagnostic saying why. A returned Document's
+	// Sources begins with the table SourceTable gives for the same arguments,
+	// each entry filled in, a source's naming the format Detect recognized and
+	// the SHA-256 of its Data, and may go on to name each further document the
+	// compile read, such as one a reference names. Every Provenance.Source it
+	// reports other than ir.NoSource indexes that Document's Sources; a
+	// refusal's diagnostics index SourceTable's table. The Document holds what
+	// irverify checks; its Name may be empty.
 	Compile(ctx context.Context, sources []Source, opts Options) (*ir.Document, []ir.Diagnostic, error)
-	// SourceTable names the inputs a compile of sources under opts reads, in the
-	// order its provenance indexes them: the sources, then any input the
-	// options supply, such as an overlay.
+	// SourceTable names the inputs its arguments name, in the order a compile's
+	// provenance indexes them: the sources, then any input the options supply,
+	// such as an overlay.
 	//
 	// It is the table a refusal's diagnostics index, and a returned Document's
 	// Sources begins with it. It reads no input and fails on none, so an entry
@@ -161,9 +164,10 @@ func NewRegistry() *Registry {
 	return &Registry{byFormat: make(map[SourceFormat]Compiler)}
 }
 
-// Register adds c under every format it reports. It rejects a nil compiler and
-// a compiler reporting no formats, and it fails if any format is already
-// claimed; on failure nothing is registered.
+// Register adds c under every format it reports. It rejects a nil compiler, and
+// a compiler reporting no formats or one that names no dialect (an empty name or
+// version, or a name holding '@') with an error wrapping ErrContract, and it
+// fails if any format is already claimed; on failure nothing is registered.
 //
 // Rejecting nil is what keeps a caller's programmer error a Go error instead of
 // a segmentation fault raised inside this package, which is why the check comes
@@ -174,9 +178,12 @@ func (r *Registry) Register(c Compiler) error {
 	}
 	formats := c.Formats()
 	if len(formats) == 0 {
-		return errors.New("compilers: register: compiler reports no formats")
+		return fmt.Errorf("compilers: register: compiler reports no formats: %w", ErrContract)
 	}
 	for _, format := range formats {
+		if !format.valid() {
+			return fmt.Errorf("compilers: register: format %q names no dialect: %w", format, ErrContract)
+		}
 		if _, taken := r.byFormat[format]; taken {
 			return fmt.Errorf("compilers: register: format %s already registered", format)
 		}
@@ -199,6 +206,9 @@ type Configure func(c Compiler) (Options, error)
 
 // Detection is what Registry.Detect found for one source.
 type Detection struct {
+	// Source is the source detection was handed, and the one Compile compiles,
+	// so what was recognized and what is compiled cannot be two inputs.
+	Source Source
 	// Compiler is the compiler registered for the format the source was
 	// recognized as, or nil when none is.
 	Compiler Compiler
@@ -214,19 +224,19 @@ type Detection struct {
 }
 
 // Detect asks each registered compiler, in registration order, to recognize src
-// under the options configure gives it. The first format named decides;
-// Detection.Compiler is its owner, and a recognizer that does not own it loses
-// its parse while the owner is configured separately.
+// under the options configure gives it, zero Options for a nil configure. The
+// first format named decides: its owner is Detection.Compiler, configured for
+// itself, and a recognizer not owning it loses its parse.
 //
 // The bool reports whether a compiler takes src. Unrecognized src, empty Data
-// included, has the zero format, unlike src recognized but unsupported; a nil
-// configure means zero Options for all.
+// included, has the zero format, unlike src recognized but unsupported.
 //
-// Undecodable options are an error only for the compiler that takes src. ctx is
-// checked before each compiler is asked, and once canceled it is the error.
+// It fails on a canceled ctx, checked before each compiler; on undecodable
+// options for the compiler taking src; and, wrapping ErrContract, on a claim or
+// a decline Compiler.Detect does not admit.
 func (r *Registry) Detect(ctx context.Context, src Source, configure Configure) (Detection, bool, error) {
 	if len(src.Data) == 0 {
-		return Detection{}, false, nil
+		return Detection{Source: src}, false, nil
 	}
 	if configure == nil {
 		configure = func(Compiler) (Options, error) { return Options{}, nil }
@@ -243,27 +253,31 @@ func (r *Registry) Detect(ctx context.Context, src Source, configure Configure) 
 		}
 		rec, diags, ok := c.Detect(src, opts)
 		if !ok {
+			if err := checkDecline(diags); err != nil {
+				return Detection{}, false, fmt.Errorf("compilers: detect by %s: %w", served(c), err)
+			}
 			declined = append(declined, diags...)
 			continue
 		}
-		// A compiler that recognizes a source names the format it recognized. One
-		// that claims a source and names nothing has answered no question, and
-		// letting it end the search would hide every compiler registered after it
-		// — a source another compiler would have taken becomes unrecognized, with
-		// nothing to say which compiler swallowed it. Its diags are not collected:
-		// the contract reads them only when a compiler declines, and this one did
-		// not say it declined.
-		if rec.Format == (SourceFormat{}) {
-			continue
+		// A claim that names no dialect answers no question, and passing over it
+		// would hide which compiler swallowed a source the next one might take.
+		if !rec.Format.valid() {
+			return Detection{}, false, fmt.Errorf("compilers: detect by %s: claimed the source as %q: %w",
+				served(c), rec.Format, ErrContract)
 		}
-		return r.claim(c, rec, opts, optsErr, configure)
+		det, ok, err := r.claim(c, rec, opts, optsErr, configure)
+		if err != nil {
+			return Detection{}, false, err
+		}
+		det.Source = src
+		return det, ok, nil
 	}
-	return Detection{Declined: declined}, false, nil
+	return Detection{Source: src, Declined: declined}, false, nil
 }
 
 // claim resolves a recognition into the compiler that will compile the source
 // and the options it compiles with. c is the compiler that recognized it, and
-// opts and optsErr are what configuring c gave.
+// opts and optsErr are what configuring c gave. The caller records the source.
 func (r *Registry) claim(c Compiler, rec Recognition, opts Options, optsErr error, configure Configure) (Detection, bool, error) {
 	owns := slices.Contains(c.Formats(), rec.Format)
 	if !owns {

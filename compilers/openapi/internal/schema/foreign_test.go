@@ -349,6 +349,7 @@ components:
 	l := lowererOver(lowering.New(0, unlisted.Doc, unlisted.Source, lowering.GroupByTags, lowering.Limits{},
 		lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, overlay.Origin{}).WithLoaded(&unlisted))
 	l.diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.ctx, l.types, &l.anchors))
+	doc := l.document(t)
 
 	unresolved := func(pointer jsontext.Pointer, message string) ir.Diagnostic {
 		return ir.Diagnostic{Severity: ir.SeverityError, Code: "openapi/unresolved-ref", Message: message,
@@ -362,10 +363,10 @@ components:
 		unresolved("/components/schemas/Base/discriminator/mapping/x",
 			`discriminator mapping "x" references unresolved schema "./ext.yaml#/components/schemas/Sub"`),
 	}, withCode(l.diags.List(), "openapi/unresolved-ref")))
-	sub, ok := l.out.Types[ids.Document{}.NamedType("/components/schemas/Sub")].(*ir.Model)
+	sub, ok := doc.Types[ids.Document{}.NamedType("/components/schemas/Sub")].(*ir.Model)
 	require.True(t, ok)
 	assert.Equal(t, "Sub", sub.DiscriminatorValue, "the mapping tags no subtype, which takes its own name")
-	for id := range l.out.Types {
+	for id := range doc.Types {
 		space, _ := ir.IDSpace(ir.IDKindType, string(id))
 		assert.NotContains(t, space, "@", "%s is lowered in a document the compile does not list", id)
 	}

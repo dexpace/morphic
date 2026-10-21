@@ -487,9 +487,9 @@ Compile(source, opts) → (ir.Document, []ir.Diagnostic)
   3. index     derive Ctx once
   4. lower     recursive descent; each node f(ctx, ts, at) → (value, diags);
                a $ref promises what it names rather than lowering it (§6.2)
-  5. fulfil    build each promised coordinate no declaration built, in coordinate order
-  6. settle    take each decision that reads nodes other lowerings intern
-  7. assemble  Document from returned values + ts.Registry()
+  5. assemble  Document from returned values + ts.Finish(), which first builds each
+               promised coordinate no declaration built, in coordinate order, then
+               takes each decision that reads nodes other lowerings intern
 ```
 
 ### 6.1 Diagnostic fan-in is the neutrality risk
@@ -514,9 +514,9 @@ stands for every later one and no answer follows declaration order. Three mechan
 
 1. A `$ref` never lowers what it names. It takes the ID the target's pointer derives and promises
    the node (`compile.Types.Promise`). The declaration owning the position builds it in its own
-   walk; `Fulfil`, after every declaration, builds in coordinate order only what none interned,
-   each build a walk of its own from the top level, under the hint the position's own lowering
-   recorded.
+   walk; `Finish`, after every declaration and before any settlement, builds in coordinate order
+   only what none interned, each build a walk of its own from the top level, under the hint the
+   position's own lowering recorded.
 2. A lowering that mounts an object another position declares, a request body or a header written
    elsewhere, names it by where it is declared, never by where it is mounted, so every mount builds
    the node the declaration builds.

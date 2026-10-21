@@ -40,7 +40,7 @@ func lowererOver(ctx lowering.Ctx) *lowerer {
 	types := compile.NewTypes()
 	return &lowerer{
 		ctx:   ctx,
-		out:   &ir.Document{Types: types.Registry()},
+		out:   &ir.Document{},
 		types: types,
 	}
 }
@@ -87,7 +87,7 @@ func lowerServiceSpec(t *testing.T, src string) (ir.Service, []ir.Diagnostic) {
 
 	svc, _, svcDiags := LowerService(t.Context(), l.ctx.WithAuth(schemes), l.types, &l.anchors)
 	l.diags.AppendAll(svcDiags)
-	l.diags.AppendAll(l.types.Fulfil(t.Context()))
-	l.diags.AppendAll(l.types.Settle(t.Context()))
+	_, finished := l.types.Finish(t.Context())
+	l.diags.AppendAll(finished)
 	return svc, append(loadDiags, l.diags.List()...)
 }

@@ -367,7 +367,8 @@ func TestResolveMappingTarget_Branches(t *testing.T) {
 	assert.Equal(t, kind, id)
 	_, interned := l.types.Node(id)
 	assert.False(t, interned, "a promise builds nothing until every declaration has lowered")
-	assert.Empty(t, l.types.Fulfil(t.Context()))
+	_, finished := l.types.Finish(t.Context())
+	assert.Empty(t, finished)
 	_, interned = l.types.Node(id)
 	assert.True(t, interned, "the hoisted alias is registered in the type registry")
 }
@@ -723,7 +724,8 @@ func TestMappingTargetID_NamesAPositionByItsPointer(t *testing.T) {
 	assert.Equal(t, want, before)
 
 	l.diags.AppendAll(LowerComponentSchemas(t.Context(), l.ctx, l.types, &l.anchors))
-	l.diags.AppendAll(l.types.Fulfil(t.Context()))
+	_, finished := l.types.Finish(t.Context())
+	l.diags.AppendAll(finished)
 	after, ok := mappingTargetID(l.ctx, l.ctx.RefScope(), petDiscriminator(t, l), sub)
 	require.True(t, ok)
 	assert.Equal(t, want, after, "the node interned there has the ID it was named by")

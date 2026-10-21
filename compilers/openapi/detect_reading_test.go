@@ -421,3 +421,49 @@ func TestDetect_CarriesTheParseItRead(t *testing.T) {
 		})
 	}
 }
+
+// TestDetect_ReadsTheVersionTheCompileReads holds detection to the compile on
+// the roots where a reading of its own disagreed with the parser's: each is
+// routed as the version its compile lowers, the agreement
+// compilers.Detection.Compile checks. A key repeated over an unreadable value,
+// an alias in either place, a key tagged `!!merge` that is not `<<`, an alias
+// key outranking a merge, and a chain deeper than the old walk followed.
+func TestDetect_ReadsTheVersionTheCompileReads(t *testing.T) {
+	t.Parallel()
+	const tail = "info: {title: t, version: '1'}\npaths: {}\n"
+	cases := map[string]string{
+		"a version over an unreadable value": "openapi: [x]\nopenapi: 3.1.0\n",
+		"an alias as the key":                "k: &k openapi\n*k : 3.1.0\n",
+		"an alias as the value":              "v: &v 3.1.0\nopenapi: *v\n",
+		"a key tagged !!merge that is no <<": "!!merge openapi: 3.1.0\n",
+		"an alias key outranking a merge":    "b: &b {openapi: 3.0.3}\nk: &k openapi\n<<: *b\n*k : 3.1.0\n",
+		"a merge chain ten mappings deep":    string(rootMergeChain(10, "openapi: 3.1.0", "")),
+		"a merge written before its own key": "b: &b {openapi: 3.0.3}\n<<: *b\nopenapi: 3.1.0\n",
+		"the first of two merges that agree": "a: &a {openapi: 3.1.0}\nb: &b {openapi: 3.0.3}\n<<: [*a, *b]\n",
+	}
+	for name, root := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			src := compilers.Source{Path: "api.yaml", Data: []byte(root + tail)}
+			rec, diags, ok := New().Detect(src, compilers.Options{})
+			require.True(t, ok, "the compile lowers it, so detection claims it: %v", diags)
+
+			doc, compiled, err := New().Compile(t.Context(), []compilers.Source{src}, compilers.Options{})
+			require.NoError(t, err)
+			require.NotNil(t, doc, "%v", compiled)
+			assert.Equal(t, compilers.SourceFormat{Name: "openapi", Version: "3.1"}, rec.Format)
+			assert.Equal(t, rec.Format.String(), doc.Sources[0].Format, "detection and the compile read one version")
+		})
+	}
+}
+
+// TestDetect_AKeyTaggedMergeThatIsNoScalarMergesNothing pins the other half
+// of the merge-key predicate: a mapping key tagged `!!merge` merges nothing,
+// as the parser reads it, so the version under it is no declaration.
+func TestDetect_AKeyTaggedMergeThatIsNoScalarMergesNothing(t *testing.T) {
+	t.Parallel()
+	src := "? !!merge [z]\n: {openapi: 3.1.0}\ninfo: {title: t, version: '1'}\npaths: {}\n"
+	_, diags, ok := New().Detect(compilers.Source{Path: "api.yaml", Data: []byte(src)}, compilers.Options{})
+	assert.False(t, ok)
+	assert.Empty(t, diags, "a source that declares nothing is declined in silence")
+}

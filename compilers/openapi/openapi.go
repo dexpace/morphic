@@ -159,7 +159,7 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, 
 	// out and the anchor memo are this function's, not a struct's: a document
 	// being built and a memo (micro-compiler-design §4.1). Nothing below
 	// allocates them.
-	out := &ir.Document{Types: ts.Registry()}
+	out := &ir.Document{}
 	var anchors schema.AnchorIndex
 
 	// acc is what makes the identity dedup still hold. Every lowering returns its
@@ -187,15 +187,19 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, 
 	out.Services = []ir.Service{svc}
 	out.TagDefs = tagDefs
 	acc.AppendAll(svcDiags)
-	// Every declaration has lowered, so a coordinate a $ref named and none built
-	// is built now, in its own context (compile.Types.Promise); then what was
-	// deferred until the registry is whole is decided (compile.Settlement),
-	// before the check that refuses a registry any phase left cut short.
-	acc.AppendAll(ts.Fulfil(ctx))
-	acc.AppendAll(ts.Settle(ctx))
+	// Every lowering has returned, so the registry is finished: a coordinate a
+	// $ref named and none built is built now, in its own context
+	// (compile.Types.Promise), and what was deferred until the registry is whole
+	// is decided (compile.Settlement), before the check that refuses a registry
+	// either phase left cut short. What Finish reports carries each entry the
+	// registry refused, a compiler bug that would otherwise leave every reference
+	// to it dangling with nothing said.
+	reg, settled := ts.Finish(ctx)
+	acc.AppendAll(settled)
 	if err := ctx.Err(); err != nil {
 		return nil, acc.List(), err
 	}
+	out.Types = reg
 
 	m, metaDiags := lowerMeta(c)
 	out.Name, out.Version = m.Name, m.Version
@@ -211,12 +215,6 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, 
 	out.IRVersion = ir.IRVersion
 	out.IDSpaces = ids.Namespaces(lowering.OtherIDs(c)...).Declaration()
 	out.Sources = c.Sources()
-	// An entry the registry refused is a compiler bug no source can provoke, and
-	// a refusal nothing reports hides the bug rather than the symptom: the node is
-	// simply absent and every reference to it dangles.
-	for _, v := range ts.Violations() {
-		acc.Append(c.DiagAt(ir.SeverityError, diag.InternalInvariant, "", "internal: %s", v))
-	}
 	return out, acc.List(), nil
 }
 

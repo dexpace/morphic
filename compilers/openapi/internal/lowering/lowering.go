@@ -137,7 +137,7 @@ type Ctx struct {
 	// lowering to reach it names it. Copies share it on purpose, as
 	// typePositions: a node hoisted where a position's own lowering left none
 	// takes the name that lowering gave the position, which every declaration
-	// has recorded before such a node is built (compile.Types.Fulfil). Nil in a
+	// has recorded before such a node is built (compile.Types.Finish). Nil in a
 	// zero context, which records none.
 	hints map[scopedPosition]string
 

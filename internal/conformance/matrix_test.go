@@ -1,17 +1,16 @@
 // This file is a package-level suite, not a per-source-file test: it reads
-// docs/ir-spec-matrix.md and measures the whole committed corpus against it.
+// docs/ir-spec-matrix.md and holds the document itself to the shape the
+// corpus contract reads, a unique slug key on every row and every format column
+// and a legend marker in every cell.
 //
-// The table reader is format-agnostic, so it belongs where a second compiler
-// can reach it. It sits here because archtest's allowlist for compilers/openapi
-// excludes internal/testspec, and archtest skips _test.go files, so importing
-// it from here would pass by way of a blind spot rather than by the rule.
-// Whoever adds the Swagger column moves it to a home both compilers can reach.
-package openapi_test // external test package — exercises only the public API
+// Nothing here names a format. The reader serves every column, so a compiler
+// added to engine.New is held to its own by data alone (registered_test.go).
+package conformance_test // external test package — exercises only the public API
 
 import (
+	"fmt"
 	"os"
 	"regexp"
-	"slices"
 	"strings"
 	"testing"
 
@@ -19,6 +18,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/internal/keydoc"
 	"github.com/dexpace/morphic/ir/irtest"
 )
 
@@ -35,33 +35,46 @@ const (
 	matrixCapabilityColumn = "Capability"
 )
 
-// matrixOpenAPIColumn is the header of the column this compiler answers to.
-const matrixOpenAPIColumn = "OpenAPI 3.x"
-
-// matrixKeyPattern is the shape a row key must have: a lowercase slug. Keys are
-// spelled in Go string literals and in a markdown table, so anything looser
-// makes two spellings of one row possible.
+// matrixKeyPattern is the shape a row key or a format key must have: a
+// lowercase slug. Keys are spelled in Go string literals and in a markdown
+// table, so anything looser makes two spellings of one row possible.
 var matrixKeyPattern = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
 
-// matrixCell is one format's answer for a capability row.
-type matrixCell struct {
-	column string
-	cell   string
+// matrixColumn is one format's column, held as its header was written: a title
+// for a reader, then the key a compiler registers the format under, in code.
+type matrixColumn struct {
+	header string
 }
 
-// matrixRow is one capability row: its stable key, the capability it names, the
-// cell of the column this compiler answers to, and every format's cell in
-// document order.
-//
-// openAPI is read off the header index rather than searched for on demand, so
-// there is no answer to give when the column is absent — readMatrixRows requires
-// it, and a lookup that could miss would need a not-found value that means the
-// same as an unmarked cell.
+// keys returns the code spans the header carries. A well-formed header carries
+// exactly one; keeping them all is what lets a header with none or two be
+// reported rather than guessed at.
+func (c matrixColumn) keys() []string { return keydoc.Spans(c.header) }
+
+// matrixRow is one capability row: its stable key, the capability it names and
+// one cell per format column, in column order.
 type matrixRow struct {
 	key        string
 	capability string
-	openAPI    string
-	formats    []matrixCell
+	cells      []string
+}
+
+// matrix is the capability table: its format columns and its rows.
+type matrix struct {
+	columns []matrixColumn
+	rows    []matrixRow
+}
+
+// columnsKeyed returns the index of every column whose header carries name as
+// its one key.
+func (m matrix) columnsKeyed(name string) []int {
+	var at []int
+	for i, c := range m.columns {
+		if keys := c.keys(); len(keys) == 1 && keys[0] == name {
+			at = append(at, i)
+		}
+	}
+	return at
 }
 
 // TestMatrix_RowsCarryUniqueSlugKeys pins the half of the contract that lives in
@@ -71,29 +84,69 @@ type matrixRow struct {
 // An unmarked cell is neither expressible nor absent, so a row whose marker was
 // lost in an edit would silently drop out of the corpus contract; it is
 // rejected here rather than defaulted. The check covers every format column,
-// not only this compiler's: the legend is the document's, and the next
+// not only those with a compiler: the legend is the document's, and the next
 // compiler reads the next column.
 func TestMatrix_RowsCarryUniqueSlugKeys(t *testing.T) {
 	t.Parallel()
-	rows := readMatrixRows(t)
-	seen := make(map[string]string, len(rows))
-	for _, row := range rows {
+	m := readMatrix(t)
+	seen := make(map[string]string, len(m.rows))
+	for _, row := range m.rows {
 		assert.Regexp(t, matrixKeyPattern, row.key, "row %q needs a lowercase-slug key", row.capability)
 		assert.NotContains(t, seen, row.key,
 			"rows %q and %q share the key %q", seen[row.key], row.capability, row.key)
 		seen[row.key] = row.capability
-		for _, f := range row.formats {
-			if _, known := legendMarker(f.cell); !known {
+		for i, cell := range row.cells {
+			if _, known := legendMarker(cell); !known {
 				t.Errorf("matrix row %q: %s cell %q opens with none of the legend markers ✅ ⚠ —",
-					row.key, f.column, f.cell)
+					row.key, m.columns[i].header, cell)
 			}
 		}
 	}
 }
 
+// TestMatrix_FormatColumnsCarryUniqueKeys holds the other axis to the same
+// standard: every format column's header ends in one key, a lowercase slug no
+// other column uses.
+//
+// The key is how a registered compiler finds its column. A header without one
+// leaves that format held to nothing, and a key two columns share would let a
+// compiler be held to a neighbour's.
+func TestMatrix_FormatColumnsCarryUniqueKeys(t *testing.T) {
+	t.Parallel()
+	for _, p := range columnKeyProblems(readMatrix(t).columns) {
+		t.Error(p)
+	}
+}
+
+// columnKeyProblems reports each way columns fail to be keyed: a header with
+// no code span or several, a key that is no slug, and a key used twice.
+func columnKeyProblems(columns []matrixColumn) []string {
+	var problems []string
+	seen := make(map[string]string, len(columns))
+	for _, c := range columns {
+		keys := c.keys()
+		if len(keys) != 1 {
+			problems = append(problems, fmt.Sprintf(
+				"format column %q carries %d code spans, and needs exactly one: the name its compiler "+
+					"registers the format under, after the title", c.header, len(keys)))
+			continue
+		}
+		if !matrixKeyPattern.MatchString(keys[0]) {
+			problems = append(problems, fmt.Sprintf("format column %q is keyed %q, which is no lowercase slug",
+				c.header, keys[0]))
+		}
+		if first, dup := seen[keys[0]]; dup {
+			problems = append(problems, fmt.Sprintf("format columns %q and %q share the key %q",
+				first, c.header, keys[0]))
+		}
+		seen[keys[0]] = c.header
+	}
+	return problems
+}
+
 // TestMatrix_KeysStayPinnedToTheirCapabilities snapshots every row as
 // "key<tab>capability". Regenerate with
-// `go test ./compilers/openapi -run TestMatrix -update`.
+// `go test ./internal/conformance -run TestMatrix -update`.
 //
 // Nothing else binds a key to the row it labels: an insert or delete that
 // shifts the Key column against the Capability column leaves every other test
@@ -103,114 +156,10 @@ func TestMatrix_RowsCarryUniqueSlugKeys(t *testing.T) {
 func TestMatrix_KeysStayPinnedToTheirCapabilities(t *testing.T) {
 	t.Parallel()
 	var b strings.Builder
-	for _, row := range readMatrixRows(t) {
+	for _, row := range readMatrix(t).rows {
 		b.WriteString(row.key + "\t" + row.capability + "\n")
 	}
 	compareTextGolden(t, matrixRowsGolden, b.String())
-}
-
-// TestConformance_EveryExpressibleMatrixRowIsWitnessed turns the corpus
-// contract of docs/architecture.md, one minimal spec per matrix row per format
-// that can express it, into something that can disagree with the tree. It runs
-// row → spec; TestConformance_TableNamesEveryCorpusSpec runs spec → row.
-//
-// An expressible row needs a witnessing spec or an entry in
-// matrixRowsUncovered. A row OpenAPI cannot express must have neither: a
-// witness means the matrix or the corpus is wrong about the source format, and
-// an excuse describes a gap nothing would ever retire. Whether a spec naming a
-// row really exercises it is judged by reading, not checked.
-func TestConformance_EveryExpressibleMatrixRowIsWitnessed(t *testing.T) {
-	t.Parallel()
-	witnesses := matrixRowWitnesses(t)
-	uncovered := matrixRowsUncovered()
-	for _, row := range readMatrixRows(t) {
-		expressible, known := legendMarker(row.openAPI)
-		if !known {
-			continue // TestMatrix_RowsCarryUniqueSlugKeys reports the unmarked cell.
-		}
-		if !expressible {
-			assert.NotContains(t, witnesses, row.key,
-				"matrix row %q is marked absent for OpenAPI, yet %v witness it",
-				row.key, witnesses[row.key])
-			assert.NotContains(t, uncovered, row.key,
-				"matrix row %q is marked absent for OpenAPI, so matrixRowsUncovered's line for it "+
-					"describes a gap no spec could ever close; delete it", row.key)
-			continue
-		}
-		if reason, excused := uncovered[row.key]; excused {
-			assert.NotEmpty(t, reason, "matrixRowsUncovered must say why %q has no spec", row.key)
-			assert.NotContains(t, witnesses, row.key,
-				"matrix row %q is listed uncovered yet witnessed by %v; delete its line",
-				row.key, witnesses[row.key])
-			continue
-		}
-		assert.Contains(t, witnesses, row.key,
-			"matrix row %q (%s) has no conformance spec: add one naming it in conformanceCases, "+
-				"or list it in matrixRowsUncovered with the reason it has none", row.key, row.capability)
-	}
-}
-
-// TestConformance_MatrixRowNamesResolve requires every key spelled in Go to name
-// a row the document declares. Without it a renamed or deleted matrix row leaves
-// the corpus still claiming to cover it, and the coverage test above stays green
-// because it only ever asks about rows the document still has.
-func TestConformance_MatrixRowNamesResolve(t *testing.T) {
-	t.Parallel()
-	rows := readMatrixRows(t)
-	declared := make([]string, 0, len(rows))
-	for _, row := range rows {
-		declared = append(declared, row.key)
-	}
-	require.NotEmpty(t, declared, "the matrix must declare rows to resolve against")
-
-	for key, specs := range matrixRowWitnesses(t) {
-		assert.Contains(t, declared, key,
-			"corpus specs %v witness matrix row %q, which ir-spec-matrix.md does not declare", specs, key)
-	}
-	for key := range matrixRowsUncovered() {
-		assert.Contains(t, declared, key,
-			"matrixRowsUncovered names matrix row %q, which ir-spec-matrix.md does not declare", key)
-	}
-}
-
-// matrixRowsUncovered names every OpenAPI-expressible matrix row the corpus does
-// not witness, each with the reason it has none. A row both listed and
-// witnessed fails, so closing a gap means deleting its line and naming the row
-// from a case.
-//
-// Each reason must name the blocker and what retires it. Nothing here can tell
-// a stale reason from a live one, and a reason with no retirement condition
-// reads as closable when it is not.
-func matrixRowsUncovered() map[string]string {
-	return map[string]string{
-		"pagination": "OpenAPI states it only through links and x-*, and this compiler keeps both " +
-			"verbatim rather than reading either into ir.Pagination — response-links pins that they " +
-			"survive. Invariant 6 puts the inference in a pass rather than in the compiler, so this " +
-			"retires when such a pass lands and a spec can read ir.Pagination back",
-		"long-running-operations": "OpenAPI states it only through vendor extensions, so a spec for " +
-			"this row would assert what extensions-x already asserts — that x-* survives. " +
-			"ir.LongRunning models the capability; the missing half is a pass reading those " +
-			"extensions into it, and this retires when one lands",
-		"idempotency": "OpenAPI conveys it through HTTP verb semantics alone, and the method string " +
-			"http-binding pins is the whole of what a spec could read. ir.Idempotency models the " +
-			"capability, and a pass inferring safe/idempotent from that method is what would let a " +
-			"spec witness the row; this retires when one lands",
-	}
-}
-
-// matrixRowWitnesses inverts the corpus table into row key → the specs naming
-// it, rejecting a case that names one row twice.
-func matrixRowWitnesses(t *testing.T) map[string][]string {
-	t.Helper()
-	witnesses := map[string][]string{}
-	for _, tc := range conformanceCases() {
-		for i, key := range tc.rows {
-			assert.NotContains(t, tc.rows[:i], key, "case %q names matrix row %q twice", tc.file, key)
-			witnesses[key] = append(witnesses[key], tc.file)
-		}
-	}
-	assert.NotEmpty(t, witnesses, "the corpus table must witness matrix rows")
-	return witnesses
 }
 
 // legendMarker classifies one matrix cell by the legend marker it opens with:
@@ -218,9 +167,9 @@ func matrixRowWitnesses(t *testing.T) map[string][]string {
 // marker was found at all.
 //
 // The two are separate answers because an unmarked cell is not an absent one.
-// Folding them into one bool made a lost marker report "marked absent for
-// OpenAPI, yet these specs witness it" — a confident, false claim about the
-// document, printed over the real cause.
+// Folding them into one bool made a lost marker report "marked absent, yet
+// these specs witness it" — a confident, false claim about the document,
+// printed over the real cause.
 func legendMarker(cell string) (expressible, known bool) {
 	switch {
 	case strings.HasPrefix(cell, "✅"), strings.HasPrefix(cell, "⚠"):
@@ -232,33 +181,31 @@ func legendMarker(cell string) (expressible, known bool) {
 	}
 }
 
-// readMatrixRows parses the capability table into one matrixRow per data row.
-func readMatrixRows(t *testing.T) []matrixRow {
+// readMatrix parses the capability table into its format columns and one
+// matrixRow per data row.
+func readMatrix(t *testing.T) matrix {
 	t.Helper()
 	lines := matrixTableLines(t)
 	header := splitMatrixCells(lines[0])
+	require.Greater(t, len(header), 2, "the capability table needs a format column")
 	require.Equal(t, matrixKeyColumn, header[0], "the capability table's first column is the row key")
 	require.Equal(t, matrixCapabilityColumn, header[1], "and its second names the capability")
-	openAPIAt := slices.Index(header, matrixOpenAPIColumn)
-	require.GreaterOrEqual(t, openAPIAt, 2, "the capability table needs a %q format column", matrixOpenAPIColumn)
 
-	rows := make([]matrixRow, 0, len(lines))
+	m := matrix{columns: make([]matrixColumn, 0, len(header)-2)}
+	for _, h := range header[2:] {
+		m.columns = append(m.columns, matrixColumn{header: h})
+	}
 	for _, line := range lines[2:] {
 		cells := splitMatrixCells(line)
 		require.Len(t, cells, len(header), "row %q has a different cell count than the header", line)
-		formats := make([]matrixCell, 0, len(header)-2)
-		for i, column := range header[2:] {
-			formats = append(formats, matrixCell{column: column, cell: cells[i+2]})
-		}
-		rows = append(rows, matrixRow{
+		m.rows = append(m.rows, matrixRow{
 			key:        strings.Trim(cells[0], "`"),
 			capability: cells[1],
-			openAPI:    cells[openAPIAt],
-			formats:    formats,
+			cells:      cells[2:],
 		})
 	}
-	require.NotEmpty(t, rows, "the capability table must hold data rows")
-	return rows
+	require.NotEmpty(t, m.rows, "the capability table must hold data rows")
+	return m
 }
 
 // matrixTableLines returns the keyed capability table: its header, its

@@ -92,8 +92,9 @@ func TestEngine_RunDocumentLeavesTheDocumentAlone(t *testing.T) {
 // compile's finding and the validate pass's.
 type notedDanglingCompiler struct{ stubFront }
 
-func (notedDanglingCompiler) Compile(context.Context, []compilers.Source, compilers.Options) (*ir.Document, []ir.Diagnostic, error) {
+func (notedDanglingCompiler) Compile(_ context.Context, sources []compilers.Source, _ compilers.Options) (*ir.Document, []ir.Diagnostic, error) {
 	doc := danglingDocument()
+	doc.Sources = sourcesOf("openapi@3.1", sources)
 	doc.Diagnostics = []ir.Diagnostic{
 		ir.NewDiagnostic(ir.SeverityWarning, "stub/note", "from the compile", ir.Provenance{Source: 0}),
 	}
@@ -200,9 +201,10 @@ func TestEngine_RunDocumentHonoursDisabledPasses(t *testing.T) {
 
 // TestEngine_RunDocumentRefusals pins that a run RunDocument cannot make is a
 // Go error naming its fault: no document, one from another IR generation or
-// none, compiler options no compiler would read, a threshold that names none,
-// an unbuilt engine, and a cancelled context, which stops it before the first
-// pass.
+// none, one holding a finding past its source table or at a sentinel the IR
+// does not declare, compiler options no compiler would read, a threshold that
+// names none, an unbuilt engine, and a cancelled context, which stops it before
+// the first pass.
 func TestEngine_RunDocumentRefusals(t *testing.T) {
 	t.Parallel()
 	built, err := engine.New()
@@ -211,6 +213,14 @@ func TestEngine_RunDocumentRefusals(t *testing.T) {
 	stale.IRVersion = "0.0.1"
 	unstamped := danglingDocument()
 	unstamped.IRVersion = ""
+	pastTable, atSentinel := danglingDocument(), danglingDocument()
+	pastTable.Diagnostics = []ir.Diagnostic{
+		ir.NewDiagnostic(ir.SeverityWarning, "x/near", "m", ir.Provenance{Source: 0}),
+		ir.NewDiagnostic(ir.SeverityWarning, "x/far", "m", ir.Provenance{Source: 1}),
+	}
+	atSentinel.Diagnostics = []ir.Diagnostic{
+		ir.NewDiagnostic(ir.SeverityWarning, "x/odd", "m", ir.Provenance{Source: -2}),
+	}
 	tests := []struct {
 		name      string
 		eng       *engine.Engine
@@ -222,6 +232,9 @@ func TestEngine_RunDocumentRefusals(t *testing.T) {
 		{"no document", built, false, nil, engine.RunOptions{}, "no document"},
 		{"another generation", built, false, stale, engine.RunOptions{}, `"0.0.1"`},
 		{"no generation", built, false, unstamped, engine.RunOptions{}, "carries no IR version"},
+		{"a finding past the table", built, false, pastTable, engine.RunOptions{}, "x/far indexes source 1 of 1"},
+		{"a finding at an undeclared sentinel", built, false, atSentinel, engine.RunOptions{},
+			"x/odd indexes source -2 of 1"},
 		{"format options", built, false, danglingDocument(),
 			engine.RunOptions{FormatOptions: struct{}{}}, "compiles nothing"},
 		{"compiler options", built, false, danglingDocument(),

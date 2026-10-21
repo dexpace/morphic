@@ -233,6 +233,93 @@ func TestHasError_Cases(t *testing.T) {
 	}
 }
 
+// TestSourceHash_IsTheLowercaseHexSHA256 pins the spelling against published
+// SHA-256 vectors rather than against the standard library it calls, so a
+// change of case or encoding fails here before any hash it wrote is compared.
+func TestSourceHash_IsTheLowercaseHexSHA256(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", ir.SourceHash(nil))
+	assert.Equal(t, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad", ir.SourceHash([]byte("abc")))
+}
+
+// TestMergeDiagnostics_KeepsEachFindingOnceInOrder pins the union both of a
+// compiler's channels are read through: the stored list first, then each
+// produced finding it does not hold, a repeat within produced kept as it is.
+func TestMergeDiagnostics_KeepsEachFindingOnceInOrder(t *testing.T) {
+	t.Parallel()
+	a := ir.NewDiagnostic(ir.SeverityError, "x/a", "a", ir.Provenance{})
+	b := ir.NewDiagnostic(ir.SeverityWarning, "x/b", "b", ir.Provenance{})
+	c := ir.NewDiagnostic(ir.SeverityInfo, "x/c", "c", ir.Provenance{Source: 1})
+
+	assert.Equal(t, []ir.Diagnostic{a, b, c}, ir.MergeDiagnostics([]ir.Diagnostic{a, b}, []ir.Diagnostic{b, c}))
+	assert.Equal(t, []ir.Diagnostic{c, a}, ir.MergeDiagnostics(nil, []ir.Diagnostic{c, a}))
+	stored := []ir.Diagnostic{a}
+	assert.Equal(t, stored, ir.MergeDiagnostics(stored, nil), "nothing produced leaves the stored list as it is")
+}
+
+// TestMergeDiagnostics_NeverWritesThroughAnAliasedList covers the two lists
+// sharing one backing array, as a compiler returning the slice it stored makes
+// them: appending to stored in place would overwrite produced before it is read.
+// produced opens with a finding stored holds, so a write in place lands on an
+// entry that differs from what it writes.
+func TestMergeDiagnostics_NeverWritesThroughAnAliasedList(t *testing.T) {
+	t.Parallel()
+	a := ir.NewDiagnostic(ir.SeverityError, "x/a", "a", ir.Provenance{})
+	c := ir.NewDiagnostic(ir.SeverityError, "x/c", "c", ir.Provenance{})
+	backing := []ir.Diagnostic{a, a, c}
+
+	merged := ir.MergeDiagnostics(backing[:1], backing[1:])
+
+	assert.Equal(t, []ir.Diagnostic{a, c}, merged)
+	assert.Equal(t, []ir.Diagnostic{a, a, c}, backing, "the lists merged from are left as they were")
+}
+
+// TestProvenance_InTableAdmitsTheTableAndTheSentinelAlone pins both edges of a
+// table and the one sentinel the IR declares: any other negative index is a
+// second, undeclared sentinel.
+func TestProvenance_InTableAdmitsTheTableAndTheSentinelAlone(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		source, n int
+		want      bool
+	}{
+		{0, 1, true},
+		{1, 2, true},
+		{ir.NoSource, 0, true},
+		{ir.NoSource, 3, true},
+		{0, 0, false},
+		{1, 1, false},
+		{ir.NoSource - 1, 3, false},
+	} {
+		assert.Equal(t, tc.want, ir.Provenance{Source: tc.source}.InTable(tc.n), "source %d of %d", tc.source, tc.n)
+	}
+}
+
+// TestFirstOutsideTable_NamesTheFirstFindingNoEntryHolds pins the finding a
+// holder of a table reports: the first whose index the table lacks, past a
+// sentinel and an in-range one, and none when each indexes an entry.
+func TestFirstOutsideTable_NamesTheFirstFindingNoEntryHolds(t *testing.T) {
+	t.Parallel()
+	at := func(source int) ir.Diagnostic {
+		return ir.NewDiagnostic(ir.SeverityWarning, "x/at", "m", ir.Provenance{Source: source})
+	}
+
+	got, out := ir.FirstOutsideTable([]ir.Diagnostic{at(ir.NoSource), at(1), at(2), at(-2)}, 2)
+	assert.True(t, out)
+	assert.Equal(t, at(2), got, "the first past the table, not a later one")
+
+	got, out = ir.FirstOutsideTable([]ir.Diagnostic{at(0), at(-2), at(2)}, 2)
+	assert.True(t, out)
+	assert.Equal(t, at(-2), got, "a sentinel the IR does not declare is outside every table")
+
+	got, out = ir.FirstOutsideTable([]ir.Diagnostic{at(0), at(ir.NoSource), at(1)}, 2)
+	assert.False(t, out)
+	assert.Equal(t, ir.Diagnostic{}, got)
+
+	_, out = ir.FirstOutsideTable(nil, 0)
+	assert.False(t, out, "no finding indexes nothing")
+}
+
 // TestSourceInfo_IsOverlayReadsTheFormatTag pins how an overlay's entry is
 // told from the spec's and from another document's: by the format before the
 // version, whatever the version, and never by a format that only starts alike.

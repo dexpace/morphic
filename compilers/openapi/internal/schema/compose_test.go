@@ -3027,13 +3027,15 @@ func TestOneOf_CoDeclaredNotDistributedReasons(t *testing.T) {
 	nullBranch := typeByName(doc, "NullBranch").(*ir.Model)
 	assert.Contains(t, string(nullBranch.Unmodeled["openapi:oneOf"].Value), `"null"`,
 		"a null branch is written inline, so it blocks distribution rather than lifting to Nullable")
-	declined := 0
-	for _, d := range diags {
-		if d.Code == diag.DegradedConstruct && strings.HasPrefix(d.Message, "oneOf/anyOf co-declared") {
-			declined++
-		}
-	}
-	assert.Equal(t, 5, declined, "each declined shape is reported once; got %+v", diags)
+	// The sixth is settling's, once the registry is whole: Discriminated's
+	// discriminator routes to no subtype of its model, so it stays beside the
+	// union it was written for.
+	assert.Contains(t,
+		openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo,
+			"/components/schemas/Discriminated/discriminator"),
+		"not a subtype of the model holding it")
+	assert.Equal(t, 6, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
+		"each declined shape is reported once, and the kept discriminator once; got %+v", diags)
 }
 
 // TestUnionCombinators_CoDeclaredKeepsTheBoundsWrittenBesideIt pins that

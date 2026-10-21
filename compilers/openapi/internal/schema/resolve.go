@@ -253,7 +253,7 @@ func resolvePointer(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, poi
 
 // hoistSubSchema builds the node at pointer from decl, the schema written there,
 // where a $ref names a position no declaration interned a node at, once every
-// declaration has lowered (compile.Types.Fulfil). It aliases where the body
+// declaration has lowered (compile.Types.Finish). It aliases where the body
 // reduces to a shared target, so a $ref always resolves (invariants 1, 2), a
 // boolean schema included (GitHub #861), keeping the position's constraints
 // and examples.

@@ -546,7 +546,7 @@ func TestLower_MissingArrayItems(t *testing.T) {
 // or a parameter's schema takes the same path) leaves lowering it to that
 // declaration: the body is lowered once, by its owner, and warned of once, in
 // either order, and promising it builds nothing more once every declaration
-// has lowered (compile.Types.Fulfil).
+// has lowered (compile.Types.Finish).
 func TestLower_MissingArrayItemsAtAReferencedPositionWarnsOnce(t *testing.T) {
 	t.Parallel()
 	const (
@@ -560,7 +560,8 @@ func TestLower_MissingArrayItemsAtAReferencedPositionWarnsOnce(t *testing.T) {
 			l, _ := loweredFor(t, openapitest.ComponentSpecVer("3.0.3", schemas))
 			raw := schema.LowerComponentSchemas(t.Context(), l.ctx, l.types, &l.anchors)
 			require.Len(t, missingItemsAt(t, raw), 1, "the declaration lowers the property once")
-			raw = append(raw, l.types.Fulfil(t.Context())...)
+			_, finished := l.types.Finish(t.Context())
+			raw = append(raw, finished...)
 			require.Len(t, missingItemsAt(t, raw), 1, "and the reference's promise lowers it no more")
 
 			l.diags.AppendAll(raw)
