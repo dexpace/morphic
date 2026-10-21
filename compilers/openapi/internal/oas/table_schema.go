@@ -8,9 +8,11 @@ func schemaObjects() []Object {
 }
 
 // schemaObject is the Schema Object: the fields OpenAPI defines on it and the
-// JSON Schema keywords of the dialect it declares (schemaKeywords). A $ref is a
-// Reference Object in 3.0 and a keyword from 3.1, and from 3.1 true and false
-// are schemas.
+// JSON Schema keywords of the dialect it declares (schemaKeywords). From 3.1
+// true and false are schemas, and a $ref is a keyword. In 3.0 a $ref makes the
+// mapping a Reference Object, whose siblings OpenAPI ignores, but the schema
+// lowering reads them as 3.1 does (GitHub #871), so they are held to 3.0's
+// keywords as written, the $ref among them.
 func schemaObject() Object {
 	c := sectioned("Schema Object")
 	own := []Field{
@@ -22,8 +24,7 @@ func schemaObject() Object {
 		field("example", Any, c(V30, "A free-form field to include an example of an instance for this schema.")),
 	}
 	return Object{
-		Kind: Schema, Name: "Schema Object", Extensible: true,
-		Referenceable: Only(V30), Boolean: From(V31),
+		Kind: Schema, Name: "Schema Object", Extensible: true, Boolean: From(V31),
 		Fields: slices.Concat(own, schemaKeywords()),
 		Rules: []Rule{
 			mustBe(Only(V30), "writeOnly", "false", when(term("readOnly", "true")),

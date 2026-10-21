@@ -251,8 +251,9 @@ Whether a construct is a later minor's is asked in one place, the table [`valida
 holds a document to, which gives the minor each field and value was added in; no lowering asks it,
 so no field's treatment can depend on whether the parser happens to model it. The construct's value
 is held to the shape its table row gives it, and any object inside it to the table like any other.
-The keys beside a `$ref` are judged as the object they belong to: a Reference Object's, or a Path
-Item's own fields beside its `$ref`. An object a `$ref` reaches is judged as the source's own are,
+The keys beside a `$ref` are judged as the object they belong to: a Reference Object's, a Path
+Item's own fields beside its `$ref`, or a schema's keywords, which the schema lowering reads beside a
+3.0 `$ref` too. An object a `$ref` reaches is judged as the source's own are,
 wherever it is written, and reported where [`validation`](#validation) places a finding about it. A
 Path Item's `additionalOperations` before 3.2, and a field 3.2 added to a Discriminator or XML
 Object, draw the warning as any other construct does. A keyword a later minor's JSON Schema dialect
@@ -267,9 +268,9 @@ judges a Parameter Object's `allowReserved` against where the declared minor app
   `oas.TestCheck_ValuesAddedLaterAreWarnedOf`,
   `oas.TestTable_AgreesWithTheConstructsLaterMinorsAdded`,
   `load.TestResolve_AReachedObjectIsHeldToTheLaterVersionTable`
-- Status: partly built: a 3.0 schema's `$ref` siblings are read as 3.1 reads them, which admits any
-  keyword there, and no row of the table reports them (#871), and a JSON Schema 2020-12 keyword in a
-  3.0 schema lowers with no diagnostic (#820). Open: how a keyword a later minor removed, such as
+- Status: partly built: a 3.0 schema's `$ref` siblings are read as 3.1 reads them, each held to
+  3.0's keywords, and nothing reports that 3.0 ignores them (#871), and a JSON Schema 2020-12 keyword
+  in a 3.0 schema lowers with no diagnostic (#820). Open: how a keyword a later minor removed, such as
   3.1's `nullable`, is read (#632), and which minor governs a document a reference reaches (#839).
 
 ### `references`

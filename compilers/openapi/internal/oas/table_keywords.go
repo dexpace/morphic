@@ -54,6 +54,8 @@ func keywords30() []Field {
 	s := Only(V30)
 	composed := adjust("Inline or referenced schema MUST be of a [Schema Object](#schema-object) and not a standard JSON Schema.")
 	return []Field{
+		keyword("$ref", String, s, adjust("Alternatively, any time a Schema Object can be used, a "+
+			"[Reference Object](#reference-object) can be used in its place.")).formatted(URI),
 		keyword("title", String, s, direct),
 		keyword("multipleOf", PositiveNumber, s, direct),
 		keyword("maximum", Number, s, direct),
