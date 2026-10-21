@@ -2354,9 +2354,10 @@ func allNullUnion(s *oas3.Schema) bool {
 }
 
 // collectionConstraints reads an array schema's collection bounds, which bound
-// the whole instance whether it lowers to a List or a Tuple. Only the safe
-// integer/bool bounds are read here; numeric-value bounds go through raw nodes
-// elsewhere to avoid the float64 trap.
+// the whole instance whether it lowers to a List or a Tuple. Only the integer
+// and boolean bounds are read here, from the parser's model, which holds an
+// integer past int64 as 0 (GitHub #1050); numeric-value bounds go through raw
+// nodes elsewhere to avoid the float64 trap.
 func collectionConstraints(s *oas3.Schema) *ir.Constraints {
 	if s.MinItems == nil && s.MaxItems == nil && s.UniqueItems == nil {
 		return nil
