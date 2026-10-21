@@ -12,8 +12,9 @@ import (
 	"github.com/dexpace/morphic/compilers"
 )
 
-// location is a request's document as a reader reads it: a URL to fetch, or a
-// file path, a file URI having been read as the path it names.
+// location is a request's document as a reader reads it: a URL to fetch, as a
+// request built from it spells it, or a file path, a file URI having been read
+// as the path it names.
 type location struct {
 	url  string
 	path string
@@ -44,7 +45,7 @@ func locate(req compilers.DocumentRequest, windows bool) (location, error) {
 	if req.Within != "" {
 		return location{}, outside(req.Location, req.Within)
 	}
-	return location{url: req.Location}, nil
+	return location{url: u.String()}, nil
 }
 
 // asURL parses s as one of the URLs a reader reads: http, https or file. Any

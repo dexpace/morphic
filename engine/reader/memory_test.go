@@ -24,6 +24,7 @@ func memorySources() []compilers.Source {
 		{Path: "specs/a.yaml", Data: []byte("alpha")},
 		{Path: "/abs/b.yaml", Data: []byte("bravo")},
 		{Path: "https://example.com/c.yaml", Data: []byte("charlie")},
+		{Path: "https://example.com/d e.yaml", Data: []byte("delta")},
 		{Path: "x/./y.yaml", Data: []byte("yankee")},
 		{Path: "file:///abs/e.yaml", Data: []byte("echo")},
 		{Path: "", Data: []byte("nameless")},
@@ -42,9 +43,11 @@ func newMemory(t *testing.T, sources []compilers.Source) *reader.Memory {
 
 // TestMemory_ReadDocumentFindsASourceByTheDocumentItNames pins how a request
 // finds a source: by path with its dot segments removed, by the file URI
-// naming that path, or by the URL as written. Identity is lexical: a relative
-// and an absolute path, or a URL spelled in other capitals, are other
-// documents, and a document no source holds is fs.ErrNotExist.
+// naming that path, or by the URL as a request spells it, whatever case its
+// scheme is in and whether what it escapes is written escaped. Identity is
+// otherwise lexical: a relative and an absolute path, or a URL whose host is
+// in other capitals, are other documents, and a document no source holds is
+// fs.ErrNotExist.
 func TestMemory_ReadDocumentFindsASourceByTheDocumentItNames(t *testing.T) {
 	t.Parallel()
 	m := newMemory(t, memorySources())
@@ -65,7 +68,10 @@ func TestMemory_ReadDocumentFindsASourceByTheDocumentItNames(t *testing.T) {
 		{name: "a file URI in capitals", location: "FILE:///abs/b.yaml", want: "bravo"},
 		{name: "a source added as a file URI, by path", location: "/abs/e.yaml", want: "echo"},
 		{name: "a URL as written", location: "https://example.com/c.yaml", want: "charlie"},
-		{name: "a URL in other capitals", location: "HTTPS://example.com/c.yaml", wantIs: fs.ErrNotExist},
+		{name: "a URL whose scheme is in capitals", location: "HTTPS://example.com/c.yaml", want: "charlie"},
+		{name: "a URL whose host is in capitals", location: "https://EXAMPLE.com/c.yaml", wantIs: fs.ErrNotExist},
+		{name: "a URL as its source spells it", location: "https://example.com/d e.yaml", want: "delta"},
+		{name: "a URL as a request spells it", location: "https://example.com/d%20e.yaml", want: "delta"},
 		{name: "a relative path for an absolute source", location: "abs/b.yaml", wantIs: fs.ErrNotExist},
 		{name: "an absolute path for a relative source", location: "/specs/a.yaml", wantIs: fs.ErrNotExist},
 		{name: "a path no source holds", location: "missing.yaml", wantIs: fs.ErrNotExist},
@@ -217,9 +223,9 @@ func TestMemory_ReadDocumentWithACancelledContext(t *testing.T) {
 
 // TestNewMemory_RefusesSourcesNamingOneDocument pins that two sources whose
 // Paths name one document are refused, naming the second, however the Paths
-// are spelled: with dot segments, as a path and its file URI, or as one URL
-// twice. Paths that name two documents, and sources with no Path, are not
-// duplicates.
+// are spelled: with dot segments, as a path and its file URI, as one URL
+// twice, or as one URL in two spellings a request reads alike. Paths that name
+// two documents, and sources with no Path, are not duplicates.
 func TestNewMemory_RefusesSourcesNamingOneDocument(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -233,7 +239,10 @@ func TestNewMemory_RefusesSourcesNamingOneDocument(t *testing.T) {
 		{name: "a URL twice", paths: []string{"https://h/a.yaml", "x.yaml", "https://h/a.yaml"},
 			names: "https://h/a.yaml"},
 		{name: "a relative and an absolute path", paths: []string{"a.yaml", "/a.yaml"}},
-		{name: "a URL in other capitals", paths: []string{"https://h/a", "HTTPS://h/a"}},
+		{name: "a URL whose scheme is in other capitals", paths: []string{"https://h/a", "HTTPS://h/a"},
+			names: "HTTPS://h/a"},
+		{name: "a URL escaped and not", paths: []string{"https://h/a b", "https://h/a%20b"}, names: "https://h/a%20b"},
+		{name: "a URL whose host is in other capitals", paths: []string{"https://h/a", "https://H/a"}},
 		{name: "two sources with no Path", paths: []string{"", "", "a.yaml"}},
 	}
 	for _, tc := range tests {

@@ -21,8 +21,9 @@ import (
 // TestLocate_ClassifiesARequestsLocation pins what a request's Location is
 // read as: an http(s) or file URL, in any case of its scheme, or else a path,
 // whatever else parses as a URL, so a Windows drive letter or a string
-// url.Parse refuses is a file, not a malformed URL. A file URI is read as the
-// path it names, and a confined request refuses an http(s) URL.
+// url.Parse refuses is a file, not a malformed URL. An http(s) URL is kept as
+// a request spells it, a file URI is read as the path it names, and a confined
+// request refuses an http(s) URL.
 func TestLocate_ClassifiesARequestsLocation(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -38,9 +39,11 @@ func TestLocate_ClassifiesARequestsLocation(t *testing.T) {
 		{name: "a drive path in slashes", location: "c:/x/a.yaml", want: location{path: filepath.Clean("c:/x/a.yaml")}},
 		{name: "a string url.Parse refuses", location: "100%.yaml", want: location{path: "100%.yaml"}},
 		{name: "a scheme no reader reads", location: "ftp://h/a.yaml", want: location{path: filepath.Clean("ftp://h/a.yaml")}},
-		{name: "an http URL, as written", location: "http://h/a.yaml", want: location{url: "http://h/a.yaml"}},
-		{name: "an https URL, as written", location: "https://h/a.yaml?v=1", want: location{url: "https://h/a.yaml?v=1"}},
-		{name: "an http URL in capitals", location: "HTTP://h/a", want: location{url: "HTTP://h/a"}},
+		{name: "an http URL", location: "http://h/a.yaml", want: location{url: "http://h/a.yaml"}},
+		{name: "an https URL", location: "https://h/a.yaml?v=1", want: location{url: "https://h/a.yaml?v=1"}},
+		{name: "an http URL in capitals, its scheme lowered", location: "HTTP://H/a", want: location{url: "http://H/a"}},
+		{name: "an http URL escaped as a request spells it", location: "http://h/a b/é.yaml",
+			want: location{url: "http://h/a%20b/%C3%A9.yaml"}},
 		{name: "an http URL a confined request refuses", location: "http://h/a.yaml", within: "d",
 			wantIs: compilers.ErrOutsideWithin, wantErr: `"d"`},
 		{name: "an https URL in capitals a confined request refuses", location: "HTTPS://h/a", within: "d",

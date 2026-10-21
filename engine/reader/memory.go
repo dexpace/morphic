@@ -13,8 +13,8 @@ import (
 // Memory reads documents from sources held in memory, and nothing else: what
 // Disk would read were each source a file at its Path. A file path or file URI
 // finds the source whose Path, dot segments removed, names the same path; an
-// http(s) URL the source whose Path is that URL. A confined request is judged
-// lexically, as memory holds no symbolic link.
+// http(s) URL the source whose Path is that URL as a request spells it. A
+// confined request is judged lexically, as memory holds no symbolic link.
 //
 // Identity is lexical, as a reference's is: a relative and an absolute path
 // naming one file are two documents. Memory is safe for concurrent reads.
@@ -46,7 +46,7 @@ func NewMemory(sources []compilers.Source) (*Memory, error) {
 }
 
 // memoryKey returns the key a source at path, or a request for it, is found
-// under: a path with its dot segments removed, or a URL as written.
+// under: a path with its dot segments removed, or a URL as a request spells it.
 func memoryKey(path string) (string, error) {
 	loc, err := locate(compilers.DocumentRequest{Location: path}, runtime.GOOS == "windows")
 	if err != nil {

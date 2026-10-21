@@ -70,6 +70,27 @@ func TestEngine_RunSourcesCompilesASpecSplitAcrossSources(t *testing.T) {
 	assert.Equal(t, filepath.Join(dir, "root.yaml"), res.Sources[0].Path, "the first source is the spec")
 }
 
+// TestEngine_RunSourcesServesAURLSourceAsARequestSpellsIt pins that sources
+// named by URL are served to the references naming them, a name with a
+// character the URL escapes included: the reference spells it unescaped, the
+// compile asks for it escaped, and the source answers either spelling.
+func TestEngine_RunSourcesServesAURLSourceAsARequestSpellsIt(t *testing.T) {
+	t.Parallel()
+	eng, err := engine.New()
+	require.NoError(t, err)
+
+	res, err := eng.RunSources(t.Context(), []compilers.Source{
+		{Path: "https://example.com/specs/root.yaml", Data: []byte(strings.ReplaceAll(splitRoot, "./common.yaml", "./common file.yaml"))},
+		{Path: "https://example.com/specs/common file.yaml", Data: []byte(splitCommon)},
+	}, engine.RunOptions{CompilerOptions: map[string]string{"allow-external-refs": "true"}})
+
+	require.NoError(t, err)
+	require.NotNil(t, res.Document)
+	assert.Empty(t, unresolved(res.Diagnostics), "both references are served from the second source")
+	require.Len(t, res.Sources, 2)
+	assert.Equal(t, "https://example.com/specs/common%20file.yaml", res.Sources[1].Path)
+}
+
 // TestEngine_RunSourcesReadsNothingElse pins that RunSources reads only the
 // sources it was handed: the document a reference names sits on disk beside
 // the spec's path, and is still not read when no source holds it.
