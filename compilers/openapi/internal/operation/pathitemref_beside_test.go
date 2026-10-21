@@ -15,6 +15,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -108,7 +109,7 @@ func TestPathItemRefSiblings_AnAnswerWrittenThereIsTakenInEitherOrder(t *testing
 	t.Parallel()
 	compile := func(src string) (*ir.Document, []ir.Diagnostic) {
 		doc, diags, err := openapi.New().Compile(t.Context(), []compilers.Source{{Path: "spec.yaml", Data: []byte(src)}},
-			compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: true}})
+			compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
 		require.NoError(t, err)
 		require.NotNil(t, doc)
 		return doc, diags
@@ -346,7 +347,7 @@ paths:
       responses: {"200": {description: OK}}
 `, "")
 	doc, diags, err := openapi.New().Compile(t.Context(), []compilers.Source{{Path: root, Data: []byte(src)}},
-		compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: true}})
+		compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 

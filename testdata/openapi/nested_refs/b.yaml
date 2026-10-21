@@ -1,0 +1,15 @@
+openapi: 3.1.0
+info: {title: Nested references B, version: "1"}
+paths: {}
+components:
+  parameters:
+    Third: {name: third, in: query, schema: {$ref: '#/components/schemas/T'}}
+  responses:
+    R:
+      description: from b
+      headers:
+        X-H: {$ref: '#/components/headers/H'}
+  headers:
+    H: {schema: {type: integer}}
+  schemas:
+    T: {type: object, properties: {t: {type: string}}}

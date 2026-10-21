@@ -107,9 +107,10 @@ func WebhookGroup() ir.GroupID { return compile.GroupID(WebhookGroupSpace, "") }
 // Namespaces returns the namespaces this compiler mints IDs in, by kind: what the
 // document declares in IDSpaces. It names the constants the derivations below use,
 // so a namespace cannot be minted in without being one of these, and the
-// compiler's tests hold the list to the namespaces its corpus really uses.
-func Namespaces() compile.Namespaces {
-	return compile.Namespaces{
+// compiler's tests hold the list to the namespaces its corpus really uses. Each
+// of others adds the spaces Document qualifies by it.
+func Namespaces(others ...Document) compile.Namespaces {
+	ns := compile.Namespaces{
 		ir.IDKindType:       {OpenAPISpace, AnonSpace, ComposedSpace},
 		ir.IDKindOp:         {OpenAPISpace},
 		ir.IDKindProp:       {OpenAPISpace},
@@ -119,22 +120,61 @@ func Namespaces() compile.Namespaces {
 		ir.IDKindParam:      {OpenAPISpace},
 		ir.IDKindEnumMember: {OpenAPISpace, AnonSpace},
 	}
+	for _, d := range others {
+		ns[ir.IDKindType] = append(ns[ir.IDKindType], d.space(OpenAPISpace), d.space(AnonSpace), d.space(ComposedSpace))
+		ns[ir.IDKindProp] = append(ns[ir.IDKindProp], d.space(OpenAPISpace))
+		ns[ir.IDKindEnumMember] = append(ns[ir.IDKindEnumMember], d.space(OpenAPISpace), d.space(AnonSpace))
+	}
+	return ns
 }
 
-// NamedType returns the stable ID of a components-named schema at pointer.
-func NamedType(pointer jsontext.Pointer) ir.TypeID {
-	return compile.TypeID(OpenAPISpace, string(pointer))
+// Document is a document of the compile as the IDs of what it declares name
+// it. The zero value is the source, whose IDs take the bare spaces; another is
+// named by its label (In), which qualifies each space (compile.Space.Qualified),
+// so one pointer in two documents derives two IDs, each still the pointer it
+// records. Operations, parameters, security schemes and services are named by
+// where the source mounts or names them, so they take no Document.
+type Document struct {
+	label string
 }
 
-// AnonType returns the stable ID of a hoisted inline type at pointer.
-func AnonType(pointer jsontext.Pointer) ir.TypeID {
-	return compile.TypeID(AnonSpace, string(pointer))
+// In returns the document labelled label: its location, as the source's
+// directory reaches it. The empty label is the source's.
+func In(label string) Document { return Document{label: label} }
+
+// space returns s as d names it: s itself for the source, else qualified by d.
+func (d Document) space(s compile.Space) compile.Space {
+	if d.label == "" {
+		return s
+	}
+	return s.Qualified(d.label)
+}
+
+// Coordinate returns the key the type registry interns the schema at pointer
+// in d under: the pointer itself in the source, and the pointer behind d's
+// qualifier elsewhere, which no pointer spells, so one pointer in two
+// documents is two coordinates.
+func (d Document) Coordinate(pointer jsontext.Pointer) string {
+	if d.label == "" {
+		return string(pointer)
+	}
+	return string(compile.Space("").Qualified(d.label)) + string(pointer)
+}
+
+// NamedType returns the stable ID of a components-named schema at pointer in d.
+func (d Document) NamedType(pointer jsontext.Pointer) ir.TypeID {
+	return compile.TypeID(d.space(OpenAPISpace), string(pointer))
+}
+
+// AnonType returns the stable ID of a hoisted inline type at pointer in d.
+func (d Document) AnonType(pointer jsontext.Pointer) ir.TypeID {
+	return compile.TypeID(d.space(AnonSpace), string(pointer))
 }
 
 // ComposedType returns the stable ID of the Model synthesized for the
-// distributed union variant at a branch pointer (§4.3).
-func ComposedType(branchPointer jsontext.Pointer) ir.TypeID {
-	return compile.TypeID(ComposedSpace, string(branchPointer))
+// distributed union variant at a branch pointer in d (§4.3).
+func (d Document) ComposedType(branchPointer jsontext.Pointer) ir.TypeID {
+	return compile.TypeID(d.space(ComposedSpace), string(branchPointer))
 }
 
 // Op returns the stable ID of the operation at pointer.
@@ -142,9 +182,9 @@ func Op(pointer jsontext.Pointer) ir.OpID {
 	return compile.OpID(OpenAPISpace, string(pointer))
 }
 
-// Prop returns the stable ID of the property at pointer.
-func Prop(pointer jsontext.Pointer) ir.PropID {
-	return compile.PropID(OpenAPISpace, string(pointer))
+// Prop returns the stable ID of the property at pointer in d.
+func (d Document) Prop(pointer jsontext.Pointer) ir.PropID {
+	return compile.PropID(d.space(OpenAPISpace), string(pointer))
 }
 
 // Param returns the stable ID of the occurrence-th parameter, counting from one,
@@ -161,15 +201,15 @@ func Param(mount jsontext.Pointer, name, in string, occurrence int) ir.ParamID {
 }
 
 // EnumMember returns the stable ID of the occurrence-th member, counting from
-// one, of the enum at enumPointer to hold key.
+// one, of the enum at enumPointer in d to hold key.
 //
 // It lives in the namespace of the enum's own TypeID, which schemaSpace chooses
 // for both, so the member sits under the type that declares it. The key is one
 // escaped token, built by the caller from the member's value, never from its
 // name or position. A repeat's number follows the key (numbered) and is never
 // a key itself, since a key opens with a kind tag and a colon.
-func EnumMember(enumPointer jsontext.Pointer, key string, occurrence int) ir.EnumMemberID {
-	return compile.EnumMemberID(schemaSpace(enumPointer), string(numbered(enumPointer+Ptr(key), occurrence)))
+func (d Document) EnumMember(enumPointer jsontext.Pointer, key string, occurrence int) ir.EnumMemberID {
+	return compile.EnumMemberID(d.space(schemaSpace(enumPointer)), string(numbered(enumPointer+Ptr(key), occurrence)))
 }
 
 // numbered returns the path of the occurrence-th holder of the identity at
@@ -265,14 +305,14 @@ func componentEntryName(pointer jsontext.Pointer) (string, bool) {
 	return name, ok
 }
 
-// ForPointer returns the stable TypeID for a schema hoisted at pointer:
+// ForPointer returns the stable TypeID for a schema hoisted at pointer in d:
 // the named-component ID for a top-level component schema, the anonymous
 // (hoisted-inline) ID otherwise.
-func ForPointer(pointer jsontext.Pointer) ir.TypeID {
+func (d Document) ForPointer(pointer jsontext.Pointer) ir.TypeID {
 	if schemaSpace(pointer) == OpenAPISpace {
-		return NamedType(pointer)
+		return d.NamedType(pointer)
 	}
-	return AnonType(pointer)
+	return d.AnonType(pointer)
 }
 
 // schemaSpace returns the namespace of the type a schema at pointer lowers to:

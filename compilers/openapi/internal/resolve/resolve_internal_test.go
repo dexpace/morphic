@@ -150,7 +150,7 @@ func TestResolveComponentRef(t *testing.T) {
 	id, ok, handled := sc.ComponentRef("/components/schemas/User")
 	assert.True(t, handled)
 	assert.True(t, ok)
-	assert.Equal(t, ids.NamedType("/components/schemas/User"), id)
+	assert.Equal(t, ids.Document{}.NamedType("/components/schemas/User"), id)
 
 	_, ok, handled = sc.ComponentRef("/components/schemas/Missing")
 	assert.True(t, handled, "an undeclared component pointer is still classified as a component")
@@ -171,9 +171,9 @@ func TestResolveComponentRef_NonCanonicalEscape(t *testing.T) {
 	id, ok, handled := sc.ComponentRef("/components/schemas/A~B")
 	assert.True(t, handled)
 	assert.True(t, ok)
-	assert.Equal(t, ids.NamedType("/components/schemas/A~0B"), id,
+	assert.Equal(t, ids.Document{}.NamedType("/components/schemas/A~0B"), id,
 		"the ID is canonically re-escaped to match the interned node")
-	assert.Equal(t, ids.NamedType(ids.Ptr("components", "schemas", "A~B")), id,
+	assert.Equal(t, ids.Document{}.NamedType(ids.Ptr("components", "schemas", "A~B")), id,
 		"and equals the ID the component was interned under")
 }
 

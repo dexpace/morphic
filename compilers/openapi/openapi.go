@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"slices"
 
 	"github.com/dexpace/morphic/compilers"
@@ -65,7 +66,15 @@ func (c *Compiler) Compile(ctx context.Context, sources []compilers.Source, opts
 	if err != nil {
 		return nil, nil, err
 	}
-	loadedDoc, diags, err := load.Load(ctx, rootSrcIndex, sources[0], loadOptions(formatOpts))
+	loadedDoc, loadDiags, err := load.Load(ctx, rootSrcIndex, sources[0], loadOptions(formatOpts, opts.Reader, sources[0]))
+	// The load phase reads a document once under each name a reference spells
+	// it by, as a relative and an absolute path to one file where external
+	// references are allowed, so what it finds there it finds once per name,
+	// at one position: one finding, kept once, as compile.Diags keeps the
+	// lowering's.
+	var loaded compile.Diags
+	loaded.AppendAll(loadDiags)
+	diags := loaded.List()
 	if errors.Is(err, load.ErrParse) {
 		// ErrParse is a source Load could not read: bytes that will not parse,
 		// which reach here only from a caller compiling directly — detection
@@ -95,10 +104,10 @@ func (c *Compiler) Compile(ctx context.Context, sources []compilers.Source, opts
 //
 // The load phase reports a failure at the $ref, and a cycle once, with the
 // reason. The lowering reports a schema or security-scheme $ref it could not
-// follow at that pointer, and also where the load phase did not: a $ref into a
-// document it does not lower (GitHub #74), one the binding never read, or one a
-// resolver panic hid. So only a report the load phase made at that exact
-// provenance is dropped; kept, one failure would read as two (#385).
+// follow at that pointer, and also where the load phase did not: a $ref the
+// binding never read, or one a resolver panic hid. So only a report the load
+// phase made at that exact provenance, in whichever document, is dropped; kept,
+// one failure would read as two (#385).
 func withoutRereported(lowered, loaded []ir.Diagnostic) []ir.Diagnostic {
 	reported := make(map[ir.Provenance]bool)
 	for _, d := range loaded {
@@ -200,7 +209,7 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, 
 	}
 	acc.AppendAll(metaDiags)
 	out.IRVersion = ir.IRVersion
-	out.IDSpaces = ids.Namespaces().Declaration()
+	out.IDSpaces = ids.Namespaces(lowering.OtherIDs(c)...).Declaration()
 	out.Sources = c.Sources()
 	// An entry the registry refused is a compiler bug no source can provoke, and
 	// a refusal nothing reports hides the bug rather than the symptom: the node is
@@ -225,17 +234,22 @@ func optionsFrom(opts compilers.Options) (Options, error) {
 	}
 }
 
-// loadOptions projects Options onto the subset the load phase reads. It exists
-// so the mapping lives in one place: load.Options is that package's own input,
-// deliberately not this public type, whose shape is a published contract (see
-// Options) and most of which describes lowering the loader cannot see.
-func loadOptions(o Options) load.Options {
+// loadOptions projects Options onto the subset the load phase reads, with the
+// caller's reader and the confinement Options.AllowExternalRefs sets for it:
+// the directory of src's path unless it is on. It exists so the mapping lives
+// in one place: load.Options is that package's own input, deliberately not this
+// public type, whose shape is a published contract (see Options) and most of
+// which describes lowering the loader cannot see.
+func loadOptions(o Options, reader compilers.DocumentReader, src compilers.Source) load.Options {
 	out := load.Options{
-		AllowExternalRefs:    o.AllowExternalRefs,
+		Reader:               reader,
 		MaxSourceBytes:       bounded(o.Limits.MaxSourceBytes),
 		MaxSourceNodes:       bounded(o.Limits.MaxSourceNodes),
 		MaxAliasSurplus:      bounded(o.Limits.MaxAliasSurplus),
 		MaxExternalDocuments: bounded(o.Limits.MaxExternalDocuments),
+	}
+	if !o.AllowExternalRefs {
+		out.Within = filepath.Dir(src.Path)
 	}
 	if o.Overlay != nil {
 		out.Overlay = &overlay.Options{Path: o.Overlay.Path, Data: o.Overlay.Data, Lax: o.Overlay.Lax}

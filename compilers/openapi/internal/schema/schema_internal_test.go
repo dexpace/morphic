@@ -243,7 +243,7 @@ func TestResolvePointer_PromisesWhatItNames(t *testing.T) {
 
 	id, ok := resolvePointer(l.ctx, l.types, &l.anchors, deepPointer, object)
 	require.True(t, ok)
-	assert.Equal(t, ids.AnonType(deepPointer), id)
+	assert.Equal(t, ids.Document{}.AnonType(deepPointer), id)
 	_, built := l.types.Lookup(deepPointer)
 	assert.False(t, built, "the reference builds nothing itself")
 
@@ -278,7 +278,7 @@ func TestHoistSubSchema_BodyInternsAtPointer(t *testing.T) {
 
 	assert.Empty(t, hoistSubSchema(l.ctx, l.types, &l.anchors, object, deepPointer), "an object body hoists cleanly")
 	seeded, _ := l.types.Lookup(deepPointer)
-	assert.Equal(t, ids.AnonType(deepPointer), seeded)
+	assert.Equal(t, ids.Document{}.AnonType(deepPointer), seeded)
 	td, ok := l.types.NodeAt(deepPointer)
 	require.True(t, ok)
 	assert.Equal(t, ir.KindModel, td.Kind(), "the body's own node, not an alias over it")

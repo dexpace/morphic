@@ -45,9 +45,9 @@ func registeredNode(c lowering.Ctx, ts *compile.Types, id ir.TypeID, pointer jso
 }
 
 // internNode is the single hoisting entry point: it derives pointer's stable
-// TypeID (ids.ForPointer) and shared TypeCommon (commonFor) once, then interns
-// build's result under that ID. build receives the built TypeCommon, so it
-// never re-derives pointer, hint or id.
+// TypeID (ids.Document.ForPointer) and shared TypeCommon (commonFor) once, then
+// interns build's result under that ID. build receives the built TypeCommon, so
+// it never re-derives pointer, hint or id.
 //
 // A $ref promises the node rather than building it (resolvePointer), so every
 // lowering reaching pointer does so in the context its position gives it, and
@@ -57,11 +57,11 @@ func registeredNode(c lowering.Ctx, ts *compile.Types, id ir.TypeID, pointer jso
 func internNode(c lowering.Ctx, ts *compile.Types, pointer jsontext.Pointer, hint string,
 	build func(common ir.TypeCommon) ir.TypeDef,
 ) ir.TypeID {
-	id := ids.ForPointer(pointer)
+	id := c.IDs().ForPointer(pointer)
 	if declared, ok := c.HintAt(pointer); ok {
 		hint = declared
 	}
-	return ts.Intern(string(pointer), id, func() ir.TypeDef { return build(commonFor(c, id, pointer, hint)) })
+	return ts.Intern(c.IDs().Coordinate(pointer), id, func() ir.TypeDef { return build(commonFor(c, id, pointer, hint)) })
 }
 
 // commonFor builds the TypeCommon shared by every hoisted node at pointer. A

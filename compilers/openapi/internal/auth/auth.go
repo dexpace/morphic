@@ -48,12 +48,12 @@ func LowerSecuritySchemes(c lowering.Ctx) (map[ir.AuthID]ir.AuthScheme, []ir.Dia
 	var diags []ir.Diagnostic
 	for name, rs := range schemes.All() {
 		entry := ids.Ptr("components", "securitySchemes", name)
-		ss, decl := resolve.ObjectAt[soa.SecurityScheme](c.RefScope(), rs, entry)
+		ss, dc, decl := lowering.Declared[soa.SecurityScheme](c, rs, entry)
 		if ss == nil {
 			diags = append(diags, unresolvableSchemeDiags(c, name, rs, entry)...)
 			continue
 		}
-		scheme, ok, schemeDiags := lowerSecurityScheme(c, name, ss, entry, decl)
+		scheme, ok, schemeDiags := lowerSecurityScheme(c, dc, name, ss, entry, decl)
 		diags = append(diags, schemeDiags...)
 		if !ok {
 			continue
@@ -102,7 +102,7 @@ func unresolvableSchemeDiags(c lowering.Ctx, name string, rs *soa.ReferencedSecu
 // since aliases of one declaration are separate schemes and irverify holds an
 // AuthID to agree with its provenance path. A `$ref` entry holds only the
 // reference, so `<entry>/in` names a position no document holds.
-func lowerSecurityScheme(c lowering.Ctx, name string, ss *soa.SecurityScheme,
+func lowerSecurityScheme(c, dc lowering.Ctx, name string, ss *soa.SecurityScheme,
 	entry, decl jsontext.Pointer,
 ) (scheme ir.AuthScheme, ok bool, diags []ir.Diagnostic) {
 	scheme = ir.AuthScheme{
@@ -120,15 +120,15 @@ func lowerSecurityScheme(c lowering.Ctx, name string, ss *soa.SecurityScheme,
 	}
 	if tokenless(scheme) && !flowsMissing(ss) {
 		// Reported rather than refused; see oauthNoFlowDiag.
-		diags = append(diags, oauthNoFlowDiag(c, decl))
+		diags = append(diags, oauthNoFlowDiag(dc, decl))
 	}
-	diags = append(diags, preserveUnreadFields(c, &scheme, ss, decl)...)
-	diags = append(diags, applySchemeAnnotations(c, &scheme, ss, decl)...)
+	diags = append(diags, preserveUnreadFields(dc, &scheme, ss, decl)...)
+	diags = append(diags, applySchemeAnnotations(dc, &scheme, ss, decl)...)
 	// Distinct from preserveUnreadFields above it: that keeps the fields OpenAPI
 	// defines for a securityScheme which this entry's own mechanism gives no
 	// meaning to, while this keeps the keys OpenAPI defines for no securityScheme
 	// at all.
-	diags = append(diags, annotation.UnknownKeysIn(&scheme.Unmodeled, ss, c.ProvenanceAt, decl)...)
+	diags = append(diags, annotation.UnknownKeysIn(&scheme.Unmodeled, ss, dc.ProvenanceAt, decl)...)
 	// After the extensions, whose entries are what a promotion reads.
 	return scheme, true, append(diags,
 		c.PromoteDeprecation(scheme.Unmodeled, scheme.Deprecation, &scheme.Provenance)...)

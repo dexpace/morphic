@@ -14,12 +14,14 @@ import (
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
+	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -239,7 +241,7 @@ func TestRefScope_NoDocumentResolvesNoRef(t *testing.T) {
 
 	assert.Equal(t, nil, scope.Doc, "a nil interface, not one holding a nil pointer")
 	assert.Nil(t, scope.Bindings)
-	_, ok := scope.TargetPointer(&oas3.JSONSchema[oas3.Referenceable]{})
+	_, ok := scope.Target(&oas3.JSONSchema[oas3.Referenceable]{})
 	assert.False(t, ok, "no bindings to say where a $ref lands")
 }
 
@@ -272,7 +274,7 @@ func TestRefScope_CarriesTheBindingsItWasGiven(t *testing.T) {
 	bare := lowering.New(0, loaded.Doc, loaded.Source, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, loaded.Overlay)
 	assert.Nil(t, bare.Bindings(), "a context given no load result knows no binding")
 	assert.Nil(t, bare.RefScope().Bindings)
-	_, ok = bare.RefScope().TargetPointer(alias)
+	_, ok = bare.RefScope().Target(alias)
 	assert.False(t, ok, "so its $ref lands nowhere")
 
 	carrying := bare.WithLoaded(loaded)
@@ -280,9 +282,9 @@ func TestRefScope_CarriesTheBindingsItWasGiven(t *testing.T) {
 	assert.Same(t, loaded.Bindings, carrying.RefScope().Bindings)
 	assert.Same(t, loaded.Bindings, carrying.InScope(carrying.RefScope()).Bindings(), "a copy shares it")
 	assert.Same(t, loaded.Bindings, carrying.WithAuth(nil).RefScope().Bindings)
-	at, ok := carrying.RefScope().TargetPointer(alias)
+	at, ok := carrying.RefScope().Target(alias)
 	require.True(t, ok, "its $ref lands where the load phase resolved it")
-	assert.Equal(t, jsontext.Pointer("/components/schemas/Target"), at)
+	assert.Equal(t, bind.Position{Pointer: "/components/schemas/Target"}, at)
 
 	assert.Nil(t, bare.Bindings(), "the context it was derived from still has none")
 	assert.Nil(t, lowering.Ctx{}.Bindings(), "and a zero context never had any")
@@ -323,7 +325,7 @@ x-lib:
 	carrying := bare.WithLoaded(loaded)
 	at, built, ok := carrying.RefScope().MappingTarget(d, "#/x-lib/Cat")
 	require.True(t, ok)
-	assert.Equal(t, jsontext.Pointer("/x-lib/Cat"), at)
+	assert.Equal(t, bind.Position{Pointer: "/x-lib/Cat"}, at)
 	require.NotNil(t, built, "the load phase built a schema there")
 	assert.Equal(t, oas3.SchemaTypeObject, built.GetSchema().GetType()[0])
 	_, _, ok = bare.RefScope().MappingTarget(d, "#/x-lib/Cat")
@@ -347,18 +349,18 @@ func TestTypePosition_IsReadOncePerScope(t *testing.T) {
 		[]byte("paths:\n  /x: {get: {responses: {\"200\": {description: ok}}}}\n"), 0o600))
 	const root = "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n  /ext: {$ref: './ext.yaml#/paths/~1x'}\n"
 	doc, _, err := load.Load(t.Context(), 0, compilers.Source{Path: filepath.Join(dir, "root.yaml"),
-		Data: []byte(root)}, load.Options{AllowExternalRefs: true})
+		Data: []byte(root)}, load.Options{Reader: reader.Disk{}})
 	require.NoError(t, err)
 	c := lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{}, lowering.StreamingMedia{},
 		lowering.ExtensionPromotions{}, overlay.Origin{})
 	reads := 0
 	ask := func(c lowering.Ctx, pointer jsontext.Pointer) {
 		t.Helper()
-		at := c.TypePosition(pointer, func() jsontext.Pointer {
+		at := c.TypePosition(bind.Position{Pointer: pointer}, func() bind.Position {
 			reads++
-			return pointer + "/there"
+			return bind.Position{Doc: 1, Pointer: pointer + "/there"}
 		})
-		assert.Equal(t, pointer+"/there", at)
+		assert.Equal(t, bind.Position{Doc: 1, Pointer: pointer + "/there"}, at)
 	}
 
 	ask(c, "/x")

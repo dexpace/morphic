@@ -15,8 +15,10 @@ import (
 
 	soa "github.com/speakeasy-api/openapi/openapi"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
@@ -85,10 +87,18 @@ type Ctx struct {
 
 	// foreign marks a lowering of content another document holds, read in that
 	// document's scope, and holder is the path the resolver read it by (see
-	// Within). Unexported and set only by Within and At, which scope them to the
-	// subtree that copy is threaded through.
+	// Within). Unexported and set only by Within, InScope and InDocument, which
+	// scope them to the subtree that copy is threaded through.
 	foreign bool
 	holder  string
+
+	// home is the Document.Sources index of the document other than the
+	// source whose positions this lowering reads, or zero for the source's
+	// own, and homeDoc that document in the bindings' table. Set only by
+	// InDocument, beside the scope it reads that document's references in, and
+	// cleared by InScope, which reads at the source's.
+	home    int
+	homeDoc bind.DocID
 
 	// auth is the document's declared security schemes, keyed by the IDs a
 	// requirement names. It is unexported, and read through a predicate rather
@@ -121,7 +131,7 @@ type Ctx struct {
 	// purpose: an answer reads only the document and its bindings, which no
 	// lowering changes, so what one copy remembers is what another would read.
 	// Nil in a zero context.
-	typePositions map[scopedPointer]jsontext.Pointer
+	typePositions map[scopedPosition]bind.Position
 
 	// hints records the hint each schema position is named by, as the first
 	// lowering to reach it names it. Copies share it on purpose, as
@@ -129,7 +139,7 @@ type Ctx struct {
 	// takes the name that lowering gave the position, which every declaration
 	// has recorded before such a node is built (compile.Types.Fulfil). Nil in a
 	// zero context, which records none.
-	hints map[scopedPointer]string
+	hints map[scopedPosition]string
 
 	// reached records where each reference a lowering resolved landed in the
 	// source. Copies share it on purpose: no lowering reads it, so it cannot
@@ -145,18 +155,22 @@ type Ctx struct {
 // in RefScope would allocate each time.
 type loadResult struct {
 	siblings load.Siblings
+	// others is every document a reference read beside the source.
+	others load.Others
 	// reads holds those readings in the scope fields they fill: Holds over the
 	// raw YAML, Beside and Writes over siblings, Bindings over the schema
 	// $refs.
 	reads resolve.Scope
 }
 
-// scopedPointer is a position and the scope it is read in (see Within), which
-// a TypePosition answer and a recorded hint (DeclareHint) are kept under.
-type scopedPointer struct {
+// scopedPosition is a position, the document it is in, and the scope it is
+// read in (see Within), which a TypePosition answer and a recorded hint
+// (DeclareHint) are kept under.
+type scopedPosition struct {
 	foreign bool
 	holder  string
-	pointer jsontext.Pointer
+	home    int
+	at      bind.Position
 }
 
 // New derives the immutable context for one loaded source.
@@ -181,8 +195,8 @@ func New(srcIndex int, doc *soa.OpenAPI, src ir.SourceInfo, grouping GroupingStr
 		promotions: promotionSet(promotions),
 		overlay:    origin,
 
-		typePositions: map[scopedPointer]jsontext.Pointer{},
-		hints:         map[scopedPointer]string{},
+		typePositions: map[scopedPosition]bind.Position{},
+		hints:         map[scopedPosition]string{},
 		reached:       resolve.NewReached(),
 	}
 }
@@ -196,17 +210,23 @@ func (c Ctx) Reached(pointer jsontext.Pointer) bool {
 
 // Sources is the document's input files, in the order Provenance.Source indexes
 // them: the source being lowered, then the overlay applied to it if there was
-// one.
+// one, then each document a reference read beside it (load.Others).
 //
 // It is built here rather than by the compiler that assembles the Document
 // because the two facts it joins are already the context's, and a second place
 // that pairs a source index with a SourceInfo is a second place they can
 // disagree — which would misattribute every node rather than fail.
 func (c Ctx) Sources() []ir.SourceInfo {
-	if !c.overlay.Applied() {
-		return []ir.SourceInfo{c.Source}
+	out := []ir.SourceInfo{c.Source}
+	if c.overlay.Applied() {
+		out = append(out, c.overlay.Source())
 	}
-	return []ir.SourceInfo{c.Source, c.overlay.Source()}
+	if c.loaded != nil {
+		for _, o := range c.loaded.others.List() {
+			out = append(out, o.Info)
+		}
+	}
+	return out
 }
 
 // WithAuth returns a copy of c carrying the resolved security schemes.
@@ -233,9 +253,9 @@ func (c Ctx) WithAuth(auth map[ir.AuthID]ir.AuthScheme) Ctx {
 // both, so no context carries one without the other. The copy remembers no
 // TypePosition answer of c's, which read c's bindings.
 func (c Ctx) WithLoaded(doc *load.Document) Ctx {
-	c.loaded = &loadResult{siblings: doc.Siblings, reads: resolve.Scope{Holds: doc.Holds,
+	c.loaded = &loadResult{siblings: doc.Siblings, others: doc.Others, reads: resolve.Scope{Holds: doc.Holds,
 		Beside: doc.Siblings.Beside, Writes: doc.Siblings.Writes, Bindings: doc.Bindings}}
-	c.typePositions = map[scopedPointer]jsontext.Pointer{}
+	c.typePositions = map[scopedPosition]bind.Position{}
 	return c
 }
 
@@ -248,39 +268,46 @@ func (c Ctx) Bindings() *typed.Bindings {
 	return c.loaded.reads.Bindings
 }
 
-// TypePosition returns read's answer for pointer in c's scope, read once and
+// TypePosition returns read's answer for at in c's scope, read once and
 // remembered for every copy of c. read is where a discriminator mapping target
-// naming pointer names a type, which must follow from the document and the
+// naming at names a type, which must follow from the documents and the
 // mapping targets alone. Each subtype asks it of every entry of its base's
 // mapping, so n subtypes read each n times. A zero context reads it every time.
-func (c Ctx) TypePosition(pointer jsontext.Pointer, read func() jsontext.Pointer) jsontext.Pointer {
+func (c Ctx) TypePosition(at bind.Position, read func() bind.Position) bind.Position {
 	if c.typePositions == nil {
 		return read()
 	}
-	key := scopedPointer{foreign: c.foreign, holder: c.holder, pointer: pointer}
-	if at, seen := c.typePositions[key]; seen {
-		return at
+	key := scopedPosition{foreign: c.foreign, holder: c.holder, home: c.home, at: at}
+	if named, seen := c.typePositions[key]; seen {
+		return named
 	}
-	at := read()
-	c.typePositions[key] = at
-	return at
+	named := read()
+	c.typePositions[key] = named
+	return named
 }
 
 // DeclareHint records hint as the name the lowering reaching pointer, in c's
-// scope, gives it, where none is recorded there yet. Every lowering reaching a
-// position names it alike, so the first record stands for all of them.
+// document and scope, gives it, where none is recorded there yet. Every
+// lowering reaching a position names it alike, so the first record stands for
+// all of them.
 func (c Ctx) DeclareHint(pointer jsontext.Pointer, hint string) {
-	key := scopedPointer{foreign: c.foreign, holder: c.holder, pointer: pointer}
+	key := hintKey(c, pointer)
 	if _, seen := c.hints[key]; !seen && c.hints != nil {
 		c.hints[key] = hint
 	}
 }
 
-// HintAt returns the hint recorded for pointer in c's scope (DeclareHint), and
-// false where none is.
+// HintAt returns the hint recorded for pointer in c's document and scope
+// (DeclareHint), and false where none is.
 func (c Ctx) HintAt(pointer jsontext.Pointer) (string, bool) {
-	hint, ok := c.hints[scopedPointer{foreign: c.foreign, holder: c.holder, pointer: pointer}]
+	hint, ok := c.hints[hintKey(c, pointer)]
 	return hint, ok
+}
+
+// hintKey is what a hint for pointer, in c's document and scope, is kept under.
+func hintKey(c Ctx, pointer jsontext.Pointer) scopedPosition {
+	return scopedPosition{foreign: c.foreign, holder: c.holder, home: c.home,
+		at: bind.Position{Doc: c.homeDoc, Pointer: pointer}}
 }
 
 // Siblings returns the fields the load phase modelled beside the document's
@@ -311,11 +338,50 @@ func Within[T, S any, R interface {
 	return c
 }
 
-// InScope returns c for lowering what is read in scope, which c's own
-// reference scope answered for what it lowers (resolve.Scope.InDocumentOf,
-// InSource): the source's own content, or another document's.
+// Declared returns what the entry ref, written at usePtr in c's document,
+// resolves to, with the context its declaration is lowered in and the pointer
+// declaring it there. For the source's own reference whose chain ends in the
+// source, that is Within's context and the pointer resolve.ObjectAt reads.
+// Otherwise it is the context of the document the chain ends in (InDocument)
+// and the position the bindings' table places the end at (bind.Table.Through),
+// the source's included for a reference another document writes (GitHub
+// #751). A chain the table places no end for keeps the use site.
+func Declared[T, S any, R interface {
+	*S
+	resolve.Referenced[T, S]
+}](c Ctx, ref R, usePtr jsontext.Pointer) (*T, Ctx, jsontext.Pointer) {
+	obj, decl := resolve.ObjectAt[T, S](c.RefScope(), ref, usePtr)
+	in := Within[T, S](c, ref)
+	if there, at, ok := declaredElsewhere(c, obj != nil && (in.foreign || c.home != 0), usePtr); ok {
+		return obj, there, at
+	}
+	return obj, in, decl
+}
+
+// declaredElsewhere returns the context and pointer of what the reference
+// object at usePtr in c's document resolved to, where the table places its
+// end, and false where Declared keeps Within's answer: elsewhere is false, or
+// the end is the source's own reference's in the source, or the table places
+// none.
+func declaredElsewhere(c Ctx, elsewhere bool, usePtr jsontext.Pointer) (Ctx, jsontext.Pointer, bool) {
+	if !elsewhere || c.loaded == nil {
+		return c, "", false
+	}
+	end, ok := c.Bindings().Table().Through(bind.Position{Doc: c.homeDoc, Pointer: usePtr})
+	if !ok || end.Doc == bind.Source && c.home == 0 {
+		return c, "", false
+	}
+	there, ok := InDocument(c, end.Doc)
+	return there, end.Pointer, ok
+}
+
+// InScope returns c for lowering at the source's coordinates what is read in
+// scope: the source's own content (resolve.Scope.InSource), or, as Within
+// gives it, another document's that no position of that document places.
+// What another document declares at a position of its own is lowered in its
+// coordinates instead (InDocument).
 func (c Ctx) InScope(scope resolve.Scope) Ctx {
-	c.foreign, c.holder = scope.Foreign, scope.Holder
+	c.foreign, c.holder, c.home, c.homeDoc = scope.Foreign, scope.Holder, 0, bind.Source
 	return c
 }
 
@@ -394,6 +460,87 @@ func (c Ctx) DiagAt(sev ir.Severity, code string, pointer jsontext.Pointer, form
 	return diag.Newf(sev, code, c.ProvenanceAt(pointer), format, args...)
 }
 
+// IDs returns the document c's positions are in, as the IDs of what it
+// declares name it (see InDocument).
+func (c Ctx) IDs() ids.Document {
+	if o, ok := homeOf(c); ok {
+		return ids.In(o.Label)
+	}
+	return ids.Document{}
+}
+
+// OtherIDs returns how the IDs of what each document a reference read beside
+// the source declares name it, in the order Document.Sources lists them: the
+// documents whose namespaces the compile declares beside the source's.
+func OtherIDs(c Ctx) []ids.Document {
+	if c.loaded == nil {
+		return nil
+	}
+	others := c.loaded.others.List()
+	out := make([]ids.Document, 0, len(others))
+	for _, o := range others {
+		out = append(out, ids.In(o.Label))
+	}
+	return out
+}
+
+// IDsAt returns how the IDs of what the Document.Sources entry at source
+// declares name that document: ids.In its label for one a reference read
+// beside the source, and the source's own for the source and its overlay.
+func IDsAt(c Ctx, source int) ids.Document {
+	if c.loaded == nil {
+		return ids.Document{}
+	}
+	if o, ok := c.loaded.others.At(source); ok {
+		return ids.In(o.Label)
+	}
+	return ids.Document{}
+}
+
+// OperationIDAt returns the operationId of the operation written at pointer in
+// c's document, and "" where none is there or it names none: read in the
+// source's model, and in another document's YAML, which no model holds whole
+// (resolve.OperationIDAt).
+func OperationIDAt(c Ctx, pointer jsontext.Pointer) string {
+	if _, other := homeOf(c); other {
+		return resolve.OperationIDAt(c.Bindings().Table().Document(c.homeDoc).Root, pointer)
+	}
+	if c.Doc == nil {
+		return ""
+	}
+	return resolve.OperationIDAt(c.Doc, pointer)
+}
+
+// homeOf returns the document other than the source whose positions c reads,
+// and false for the source's own.
+func homeOf(c Ctx) (load.Other, bool) {
+	if c.home == 0 || c.loaded == nil {
+		return load.Other{}, false
+	}
+	return c.loaded.others.At(c.home)
+}
+
+// InDocument returns c for lowering what document id of the bindings' table
+// declares, at that document's own coordinates: the source's (InScope), or
+// another's, whose references are read in its scope, whose positions are its
+// own, so each Provenance names it, and whose IDs it qualifies. It is false, c
+// unchanged, for a document the compile did not read beside the source.
+func InDocument(c Ctx, id bind.DocID) (Ctx, bool) {
+	if id == bind.Source {
+		return c.InScope(c.RefScope().InSource()), true
+	}
+	if c.loaded == nil {
+		return c, false
+	}
+	name := c.Bindings().Table().Document(id).Name
+	o, ok := c.loaded.others.Named(name)
+	if !ok {
+		return c, false
+	}
+	c.foreign, c.holder, c.home, c.homeDoc = true, name, o.Index, id
+	return c, true
+}
+
 // ProvenanceAt is where a Provenance is built, and the only place this compiler
 // spells the source index into one.
 //
@@ -406,5 +553,8 @@ func (c Ctx) DiagAt(sev ir.Severity, code string, pointer jsontext.Pointer, form
 // from lists the keywords' positions, so the entry names the document that
 // wrote all of them, when one did (see overlay.Origin.IndexOf).
 func (c Ctx) ProvenanceAt(pointer jsontext.Pointer, from ...jsontext.Pointer) ir.Provenance {
+	if o, ok := homeOf(c); ok {
+		return ir.Provenance{Source: o.Index, Pointer: pointer}
+	}
 	return ir.Provenance{Source: c.overlay.IndexOf(pointer, from, c.SrcIndex), Pointer: pointer}
 }

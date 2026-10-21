@@ -175,7 +175,7 @@ func TestUnpreservable_CompositeFailsWhole(t *testing.T) {
 
 	_, ok := firstDiagWithCode(diags, diag.UnpreservableConstruct)
 	require.True(t, ok, "the unconvertible arm is reported: %+v", diags)
-	for key, entry := range typeUnmodeled(t, doc, ids.NamedType(ids.Ptr("components", "schemas", "C"))) {
+	for key, entry := range typeUnmodeled(t, doc, ids.Document{}.NamedType(ids.Ptr("components", "schemas", "C"))) {
 		assert.NotContains(t, key, "if-then-else",
 			"a combination missing an arm is not the verbatim source: %s", entry.Value)
 	}

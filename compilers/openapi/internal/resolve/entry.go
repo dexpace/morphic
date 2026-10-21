@@ -6,6 +6,7 @@ import (
 
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/speakeasy-api/openapi/references"
+	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/fragment"
 	"github.com/dexpace/morphic/compilers/openapi/internal/navigation"
@@ -320,19 +321,34 @@ func ReferenceEnd(node any) (End, bool) {
 	}
 }
 
-// OperationAt returns the operation doc's model holds at pointer, the position
-// it is written at, and nil where it holds none there.
-func OperationAt(doc *soa.OpenAPI, pointer jsontext.Pointer) *soa.Operation {
+// OperationIDAt returns the operationId of the operation written at pointer
+// below root, a document's model or its raw YAML, read as the library's
+// pointer walk reads it (navigation.Step), and "" where root holds no
+// operation there or one naming none. In raw YAML an operation is the mapping
+// at pointer, and its operationId any scalar but null written there, read as
+// the model reads it.
+func OperationIDAt(root any, pointer jsontext.Pointer) string {
 	tokens, ok := navigation.Tokens(pointer)
 	if !ok {
-		return nil
+		return ""
 	}
-	var node any = doc
+	node := root
 	for _, token := range tokens {
 		if node, ok = navigation.Step(node, token); !ok {
-			return nil
+			return ""
 		}
 	}
-	op, _ := node.(*soa.Operation)
-	return op
+	switch n := node.(type) {
+	case *soa.Operation:
+		return n.GetOperationID()
+	case *yaml.Node:
+		id, _ := navigation.Step(n, "operationId")
+		scalar, ok := id.(*yaml.Node)
+		if !ok || n.Kind != yaml.MappingNode || scalar.Kind != yaml.ScalarNode || scalar.ShortTag() == "!!null" {
+			return ""
+		}
+		return scalar.Value
+	default:
+		return ""
+	}
 }

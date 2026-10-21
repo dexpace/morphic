@@ -16,6 +16,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
@@ -965,7 +966,7 @@ func composedVariant(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, de
 	// it keeps whatever it declares beside the $ref and a reference to that
 	// pointer still finds the branch rather than the variant.
 	branch, diags := Ref(c, ts, anchors, depth, b, vptr, vhint)
-	id := ids.ComposedType(vptr)
+	id := c.IDs().ComposedType(vptr)
 	common := commonFor(c, id, vptr, compile.SubHint(body.hint, vhint))
 	def, variantDiags := buildComposedVariant(c, ts, anchors, depth, body, branch.Target, common)
 	ts.Register(id, def)
@@ -1197,15 +1198,15 @@ func discriminatorDefault(c lowering.Ctx, ts *compile.Types, anchors *AnchorInde
 }
 
 // mappingWhy is the reason target, a value of d's mapping, reports when it
-// resolves to no type: why it lands on no schema, that it lands in another
-// document, or why the table never read it, as unresolvedWhy says for a $ref.
+// resolves to no type: why it lands on no schema, or why the table never read
+// it, as unresolvedWhy says for a $ref.
 // A value with no '#' names a component, which the table never reads
 // (bind.Table.Mapping), so neither its budget nor the merge bound is why.
 func mappingWhy(c lowering.Ctx, d *oas3.Discriminator, target string) string {
 	m, ok := c.Bindings().Mapping(d, target)
 	switch {
 	case ok:
-		return hopWhy(c.Bindings().Table(), m.Hop, m.At)
+		return hopWhy(m.Hop)
 	case !strings.Contains(target, "#"):
 		return ""
 	}
@@ -1226,13 +1227,12 @@ func resolveMappingTarget(c lowering.Ctx, ts *compile.Types, anchors *AnchorInde
 	if c.DeclaresSchema(target) {
 		return componentIDByName(target), true
 	}
-	scope := c.RefScope()
-	pointer, decl, ok := scope.MappingTarget(d, target)
+	at, decl, ok := c.RefScope().MappingTarget(d, target)
 	if !ok {
 		return "", false
 	}
-	pointer, decl = typePosition(scope, pointer, decl, variantTypes)
-	return resolvePointer(c, ts, anchors, pointer, decl)
+	at, decl = typePosition(c, at, decl, variantTypes)
+	return resolveAt(c, ts, anchors, at, decl)
 }
 
 // maxTypePositionHops bounds how many $ref positions typePosition reads
@@ -1241,37 +1241,45 @@ func resolveMappingTarget(c lowering.Ctx, ts *compile.Types, anchors *AnchorInde
 // position's alias.
 const maxTypePositionHops = 64
 
-// typePosition returns the position whose type a mapping target naming
-// pointer names, and the schema the bindings hold there, starting from decl,
-// unread at a component. It is pointer itself unless the position
-// reads through (readsThrough): a $ref holding nothing an alias would is only
-// a use of its target's type, so it names the position the $ref does, as a
-// union variant there does (GitHub #758). A keyword beside a property's $ref
-// stops it (GitHub #764), and so does a $ref landing on nothing a type is read
-// at, whose own position, lowered as an alias that reports why, is named.
-func typePosition(scope resolve.Scope, pointer jsontext.Pointer, decl *oas3.JSONSchema[oas3.Referenceable],
+// typePosition returns the position, in whichever document, whose type a
+// mapping target naming at names, and the schema held there, starting from
+// decl, unread at a source component. It is at unless the position reads
+// through (readsThrough): a $ref holding nothing an alias would only uses its
+// target's type, so it names the position the $ref does, as a union variant
+// there does (GitHub #758). A keyword beside a property's $ref stops it
+// (GitHub #764), and so does a $ref landing on nothing a type is read at,
+// whose own position, lowered as an alias that reports why, is named.
+func typePosition(c lowering.Ctx, at bind.Position, decl *oas3.JSONSchema[oas3.Referenceable],
 	variantTypes map[ir.TypeID]bool,
-) (jsontext.Pointer, *oas3.JSONSchema[oas3.Referenceable]) {
-	if _, named := ids.ComponentSchemaName(pointer); named {
+) (bind.Position, *oas3.JSONSchema[oas3.Referenceable]) {
+	if sourceComponent(at) {
 		// Most targets name a component, and resolve.Scope.ComponentRef answers
 		// for one by name, so nothing is fetched for it (see mappingTagsFor).
-		return pointer, nil
+		return at, nil
 	}
+	scope := c.RefScope()
 	for range maxTypePositionHops {
-		if !readsThrough(pointer, decl, variantTypes) {
+		if !readsThrough(c, at, decl, variantTypes) {
 			break
 		}
-		next, ok := scope.TargetPointer(decl)
+		next, ok := scope.Target(decl)
 		target := scope.Bindings.Declared(decl)
-		if _, named := ids.ComponentSchemaName(next); !ok || target == nil && !named {
+		if !ok || target == nil && !sourceComponent(next) {
 			break
 		}
-		pointer, decl = next, target
+		at, decl = next, target
 	}
-	return pointer, decl
+	return at, decl
 }
 
-// readsThrough reports whether a mapping target naming pointer, where decl is
+// sourceComponent reports whether at is one of the source's components, which
+// is named by name rather than fetched where it is declared.
+func sourceComponent(at bind.Position) bool {
+	_, named := ids.ComponentSchemaName(at.Pointer)
+	return named && at.Doc == bind.Source
+}
+
+// readsThrough reports whether a mapping target naming at, where decl is
 // declared, names the position decl's $ref names instead (typePosition): not at
 // a component, nor where a keyword beside the $ref gives the position an alias
 // (refSiteHomesNothing).
@@ -1281,51 +1289,66 @@ func typePosition(scope resolve.Scope, pointer jsontext.Pointer, decl *oas3.JSON
 // hoisted an alias there as a $ref to any position does, and the mapping must
 // name what the variant names. Read through, it named a type no variant names
 // (GitHub #758).
-func readsThrough(pointer jsontext.Pointer, decl *oas3.JSONSchema[oas3.Referenceable], variantTypes map[ir.TypeID]bool) bool {
-	if _, named := ids.ComponentSchemaName(pointer); named || ids.ComponentSchemaNamedEmpty(pointer) || decl == nil {
+func readsThrough(c lowering.Ctx, at bind.Position, decl *oas3.JSONSchema[oas3.Referenceable],
+	variantTypes map[ir.TypeID]bool,
+) bool {
+	_, named := ids.ComponentSchemaName(at.Pointer)
+	if named || ids.ComponentSchemaNamedEmpty(at.Pointer) || decl == nil {
 		return false
 	}
 	s := decl.GetSchema()
 	if !resolve.IsRefSite(decl, s) || !refSiteHomesNothing(s) {
 		return false
 	}
-	return len(variantTypes) == 0 || !variantTypes[ids.ForPointer(pointer)]
+	if len(variantTypes) == 0 {
+		return true
+	}
+	in, ok := lowering.InDocument(c, at.Doc)
+	return !ok || !variantTypes[in.IDs().ForPointer(at.Pointer)]
 }
 
 // componentIDByName is the ID a mapping target naming a declared component
-// resolves to: its pointer's, so a component keyed "" gets the anonymous ID it
-// is interned under rather than a named one nothing backs.
+// resolves to: its pointer's in the source, whose components a bare name names,
+// so a component keyed "" gets the anonymous ID it is interned under rather
+// than a named one nothing backs.
 func componentIDByName(name string) ir.TypeID {
-	return ids.ForPointer(ids.Ptr("components", "schemas", name))
+	return ids.Document{}.ForPointer(ids.Ptr("components", "schemas", name))
 }
 
 // mappingTargetID resolves a discriminator mapping target, a bare schema name
 // or a $ref string, to the TypeID of the schema it names. A bare name (even one
 // containing '/') naming a declared component resolves in any source order,
 // since every declared name is recorded before lowering begins. Otherwise the
-// target must be a same-file $ref, read at the position whose type it names
-// (typePosition): a component, or any other position by the ID its pointer
-// derives, whose node resolveMappingTarget promises. It reads no registry, so
-// no answer turns on which schema lowered first. scope is c's.
+// target must be a $ref, read at the position whose type it names
+// (typePosition), in whichever document: a source component, or any other
+// position by the ID its pointer derives there, whose node resolveMappingTarget
+// promises. It reads no registry, so no answer turns on which schema lowered
+// first. scope is c's.
 func mappingTargetID(c lowering.Ctx, scope resolve.Scope, d *oas3.Discriminator, target string) (ir.TypeID, bool) {
 	if scope.Declares(target) {
 		return componentIDByName(target), true
 	}
-	pointer, decl, ok := scope.MappingTarget(d, target)
+	named, decl, ok := scope.MappingTarget(d, target)
 	if !ok {
 		return "", false
 	}
 	// No variant types: a tag asks whether the mapping reaches the subtype, so
 	// it reads through whatever a union's variants name (readsThrough). Each
 	// subtype asks it of every entry, so it is read once (Ctx.TypePosition).
-	at := c.TypePosition(pointer, func() jsontext.Pointer {
-		position, _ := typePosition(scope, pointer, decl, nil)
+	at := c.TypePosition(named, func() bind.Position {
+		position, _ := typePosition(c, named, decl, nil)
 		return position
 	})
-	if id, resolved, handled := scope.ComponentRef(at); handled {
-		return id, resolved
+	in, ok := lowering.InDocument(c, at.Doc)
+	if !ok {
+		return "", false
 	}
-	return ids.ForPointer(at), true
+	if in.IDs() == (ids.Document{}) {
+		if id, resolved, handled := scope.ComponentRef(at.Pointer); handled {
+			return id, resolved
+		}
+	}
+	return in.IDs().ForPointer(at.Pointer), true
 }
 
 // propIDByName returns the PropID of the model property with the given source
@@ -1374,7 +1397,7 @@ func lowerEnum(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsonte
 			return &ir.Any{TypeCommon: common}
 		}
 		diags = append(diags, enumRepeats(c, s.GetEnum(), pointer)...)
-		members, memberPrim, ok := enumMembers(s.GetEnum(), schemaAdmitsNull(c, s), pointer)
+		members, memberPrim, ok := enumMembers(s.GetEnum(), schemaAdmitsNull(c, s), c.IDs(), pointer)
 		if !ok {
 			def, enumDiags := enumAsUnion(c, ts, s, common, pointer, hint)
 			diags = append(diags, enumDiags...)
@@ -1421,7 +1444,7 @@ func emptyEnum(c lowering.Ctx, s *oas3.Schema, common ir.TypeCommon, pointer jso
 //
 // Each member's ID is keyed by its value under the enum at pointer, and a
 // repeated value is kept, its ID numbered by occurrence; enumRepeats reports it.
-func enumMembers(nodes []values.Value, dropNull bool, pointer jsontext.Pointer) ([]ir.EnumMember, ir.PrimKind, bool) {
+func enumMembers(nodes []values.Value, dropNull bool, d ids.Document, pointer jsontext.Pointer) ([]ir.EnumMember, ir.PrimKind, bool) {
 	members := make([]ir.EnumMember, 0, len(nodes))
 	occurrences := make(map[string]int, len(nodes))
 	var kind ir.ValueKind
@@ -1446,7 +1469,7 @@ func enumMembers(nodes []values.Value, dropNull bool, pointer jsontext.Pointer) 
 		}
 		occurrences[key]++
 		members = append(members, ir.EnumMember{
-			ID:    ids.EnumMember(pointer, key, occurrences[key]),
+			ID:    d.EnumMember(pointer, key, occurrences[key]),
 			Name:  compile.NamingFor(text),
 			Value: val,
 		})

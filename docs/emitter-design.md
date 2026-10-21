@@ -204,10 +204,13 @@ func (r *Registry) Targets() []TargetKey               // sorted — determinism
 ```
 
 The engine is the only caller of `Lookup`, the only thing that runs `Generate`, and the only thing
-that touches the filesystem, prunes, and renders diagnostics. Emitters are I/O-free. The engine runs
-`Generate` only for a run that has not failed (`engine.Result.Failed`, architecture.md §4): at the
-default threshold a document carrying an error diagnostic reaches no emitter, and a caller that
-wants one built from it anyway says so with the `none` threshold.
+that touches the filesystem, prunes, and renders diagnostics. Emitters are I/O-free. Reading,
+rendering and writing the IR document have homes already: `engine/reader` reads what a run's
+references name, `engine/report` renders, and `engine/output` writes, replacing a file through the
+atomic replace in `engine/internal/atomicfile`. Writing artifacts and pruning land with §11. The
+engine runs `Generate` only for a run that has not failed (`engine.Result.Failed`, architecture.md
+§4): at the default threshold a document carrying an error diagnostic reaches no emitter, and a
+caller that wants one built from it anyway says so with the `none` threshold.
 
 ### 2.2 Who computes the plan
 
@@ -1414,8 +1417,9 @@ applies decides.
    - an import cycle between units is an error, since neither a Go package nor a Gradle module
      admits one, naming the units and one reference that closes the cycle.
 
-   Until the compiler loads a spec split across files into one document (#74), `Sources` names the
-   entry document and its overlay alone, so every other key names no source.
+   Each document a spec's references read is a `Sources` entry after the entry document and its
+   overlay, and a type it declares, inline in a parameter or response it holds included, names that
+   entry (ir-design §3.1), so a key names a file the references read.
 2. **Split by group.** With `SplitByGroup`, each top-level operation group is a unit, holding the
    group's operations, its sub-client and every type only its operations reach, as `TypePlan.Reach`
    says; `Reach` spreads from each operation's roots along the type graph as usage does (ir-design
