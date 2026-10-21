@@ -152,7 +152,7 @@ func TestResolveComponentRef(t *testing.T) {
 	id, ok, handled := sc.ComponentRef("/components/schemas/User")
 	assert.True(t, handled)
 	assert.True(t, ok)
-	assert.Equal(t, ids.NamedType("/components/schemas/User"), id)
+	assert.Equal(t, ids.Document{}.NamedType("/components/schemas/User"), id)
 
 	_, ok, handled = sc.ComponentRef("/components/schemas/Missing")
 	assert.True(t, handled, "an undeclared component pointer is still classified as a component")
@@ -173,9 +173,9 @@ func TestResolveComponentRef_NonCanonicalEscape(t *testing.T) {
 	id, ok, handled := sc.ComponentRef("/components/schemas/A~B")
 	assert.True(t, handled)
 	assert.True(t, ok)
-	assert.Equal(t, ids.NamedType("/components/schemas/A~0B"), id,
+	assert.Equal(t, ids.Document{}.NamedType("/components/schemas/A~0B"), id,
 		"the ID is canonically re-escaped to match the interned node")
-	assert.Equal(t, ids.NamedType(ids.Ptr("components", "schemas", "A~B")), id,
+	assert.Equal(t, ids.Document{}.NamedType(ids.Ptr("components", "schemas", "A~B")), id,
 		"and equals the ID the component was interned under")
 }
 
@@ -503,7 +503,7 @@ func TestInternedID_ByPointerHit(t *testing.T) {
 	ts := compile.NewTypes()
 	ts.Intern(deepPointer, "t/anon/prev", func() ir.TypeDef { return &ir.Any{} })
 
-	id, ok := InternedID(ts, deepPointer)
+	id, ok := InternedID(ts, ids.Document{}, deepPointer)
 	require.True(t, ok, "a pointer already recorded in byPointer resolves")
 	assert.Equal(t, ir.TypeID("t/anon/prev"), id)
 }
@@ -513,10 +513,10 @@ func TestInternedID_RegistryHit(t *testing.T) {
 	ts := compile.NewTypes()
 	// A node lives at the pointer-derived ID without a byPointer entry: InternedID
 	// still finds it through the type registry.
-	id := ids.AnonType(deepPointer)
+	id := ids.Document{}.AnonType(deepPointer)
 	ts.Register(id, &ir.Primitive{ID: id, Prim: ir.PrimString})
 
-	got, ok := InternedID(ts, deepPointer)
+	got, ok := InternedID(ts, ids.Document{}, deepPointer)
 	require.True(t, ok, "a node registered under its pointer-derived ID resolves")
 	assert.Equal(t, id, got)
 }
@@ -524,7 +524,7 @@ func TestInternedID_RegistryHit(t *testing.T) {
 func TestInternedID_Miss(t *testing.T) {
 	t.Parallel()
 	ts := compile.NewTypes()
-	_, ok := InternedID(ts, deepPointer)
+	_, ok := InternedID(ts, ids.Document{}, deepPointer)
 	assert.False(t, ok, "an un-interned pointer does not resolve")
 }
 

@@ -199,6 +199,7 @@ var rules = map[string][]string{
 	"compilers/openapi/internal/lowering": {module + "/ir",
 		module + "/compilers/openapi/internal/bind/typed",
 		module + "/compilers/openapi/internal/diag",
+		module + "/compilers/openapi/internal/ids",
 		module + "/compilers/openapi/internal/load",
 		module + "/compilers/openapi/internal/overlay",
 		module + "/compilers/openapi/internal/resolve",

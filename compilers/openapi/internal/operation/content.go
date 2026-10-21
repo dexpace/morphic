@@ -234,7 +234,7 @@ func partEncodings(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInde
 		if partEncodingEmpty(pe) {
 			continue
 		}
-		out[partPropID(ts, body, part.name, schemaPtr)] = pe
+		out[partPropID(ts, c.IDs(), body, part.name, schemaPtr)] = pe
 	}
 	if len(out) == 0 {
 		return nil, unmodeled, diags
@@ -299,18 +299,18 @@ func dedupeParts(parts []bodyPart) []bodyPart {
 }
 
 // partPropID returns the ID of the property carrying the given wire name on the
-// model body stands for, falling back to deriving one under schemaPtr.
+// model body stands for, falling back to deriving one under schemaPtr in d.
 //
 // The IR is asked first because §4.3 stores only a model's own properties: a
 // composed body holds its parts on the Base it inherits them from, so a key
 // derived from the composed node's pointer would name a property that exists
 // nowhere. Deriving is the answer for a body with no model in the IR, such as a
 // schema declaring properties beside an enum or scalar type.
-func partPropID(ts *compile.Types, body ir.TypeID, wire string, schemaPtr jsontext.Pointer) ir.PropID {
+func partPropID(ts *compile.Types, d ids.Document, body ir.TypeID, wire string, schemaPtr jsontext.Pointer) ir.PropID {
 	if id, ok := propIDByWire(ts, body, wire, 0); ok {
 		return id
 	}
-	return ids.Prop(schemaPtr + ids.Ptr("properties", wire))
+	return d.Prop(schemaPtr + ids.Ptr("properties", wire))
 }
 
 // propIDByWire searches the type body denotes for a property with the given wire
@@ -522,11 +522,11 @@ func lowerHeader(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex,
 	// when the header is declared under another response (GitHub #433). A
 	// component header has no owning response, so a schema's $ref into it leaves
 	// the subtree named by that reference (GitHub #747).
-	headerType, headerDiags := schema.CarriedRef(c.NamingByReferenceAt(hptr, hdecl), ts, anchors,
+	headerType, headerDiags := schema.CarriedRef(lowering.NamingByReferenceAt(c, hptr, hdecl), ts, anchors,
 		schema.TopLevelDepth, elected.js, elected.pointer, ids.DeclarationHint(hdecl, name))
 	diags = append(diags, headerDiags...)
 	p := ir.Property{
-		ID:         ids.Prop(hptr),
+		ID:         c.IDs().Prop(hptr),
 		Name:       compile.NamingFor(name),
 		WireName:   name,
 		Type:       headerType,
@@ -914,7 +914,7 @@ func lowerRequestBody(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorI
 	// whichever order the two run (GitHub #433). A component body has no owning
 	// operation, so a schema's $ref into it leaves the subtree named by that
 	// reference (GitHub #747).
-	payload, diags := lowerPayload(c.NamingByReferenceAt(usePtr, bodyPtr), ts, anchors, rb.GetContent(),
+	payload, diags := lowerPayload(lowering.NamingByReferenceAt(c, usePtr, bodyPtr), ts, anchors, rb.GetContent(),
 		bodyPtr, ids.DeclarationHint(bodyPtr, requestBodyHint(src)))
 	if payload == nil {
 		// A body lowering no media type is still the body: whether it must be

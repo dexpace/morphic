@@ -224,7 +224,7 @@ func TestForPointer_ChoosesTheNamespace(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tc.want, ids.ForPointer(tc.pointer))
+			assert.Equal(t, tc.want, ids.Document{}.ForPointer(tc.pointer))
 		})
 	}
 }
@@ -237,11 +237,11 @@ func TestDerivations_AreDistinctAndPointerShaped(t *testing.T) {
 	t.Parallel()
 	const pointer = "/components/schemas/User"
 	got := map[string]string{
-		"named":    string(ids.NamedType(pointer)),
-		"anon":     string(ids.AnonType(pointer)),
-		"composed": string(ids.ComposedType(pointer)),
+		"named":    string(ids.Document{}.NamedType(pointer)),
+		"anon":     string(ids.Document{}.AnonType(pointer)),
+		"composed": string(ids.Document{}.ComposedType(pointer)),
 		"op":       string(ids.Op(pointer)),
-		"prop":     string(ids.Prop(pointer)),
+		"prop":     string(ids.Document{}.Prop(pointer)),
 		"auth":     string(ids.Auth("apiKey")),
 		"service":  string(ids.Service(0)),
 	}
@@ -459,13 +459,13 @@ func TestEnumMember_LivesInItsEnumsSpaceAndPath(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got := ids.EnumMember(tc.pointer, tc.key, tc.occurrence)
+			got := ids.Document{}.EnumMember(tc.pointer, tc.key, tc.occurrence)
 			assert.Equal(t, tc.want, got)
 			assert.True(t, ir.WellFormedID(ir.IDKindEnumMember, string(got)))
 			memberSpace, _ := ir.IDSpace(ir.IDKindEnumMember, string(got))
-			enumSpace, _ := ir.IDSpace(ir.IDKindType, string(ids.ForPointer(tc.pointer)))
+			enumSpace, _ := ir.IDSpace(ir.IDKindType, string(ids.Document{}.ForPointer(tc.pointer)))
 			assert.Equal(t, enumSpace, memberSpace, "a member lives in its enum's own namespace")
-			assert.Equal(t, tc.enum, ids.ForPointer(tc.pointer))
+			assert.Equal(t, tc.enum, ids.Document{}.ForPointer(tc.pointer))
 		})
 		require.NotContains(t, seen, tc.want, "%s and %s share an ID", tc.name, seen[tc.want])
 		seen[tc.want] = tc.name

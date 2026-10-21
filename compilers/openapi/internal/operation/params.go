@@ -204,7 +204,7 @@ func fillParamSchemaAnnotations(c lowering.Ctx, ts *compile.Types, param *ir.Par
 	// drop them for exactly the parameters whose schema owns a node — an object,
 	// an enum, an array.
 	diags := preserveParamVisibility(c, param, s, pointer)
-	if schema.LoweredToOwnNode(ts, pointer, param.Type) {
+	if schema.LoweredToOwnNode(c, ts, pointer, param.Type) {
 		return diags
 	}
 	a, readDiags := annotation.Read(annotation.Site{Kind: annotation.Reference, Node: s, Referent: tgt}, pointer, c.ProvenanceAt)

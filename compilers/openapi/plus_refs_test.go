@@ -51,7 +51,7 @@ paths:
 `)
 
 	openapitest.RequireNoErrorDiags(t, diags)
-	want := ids.ForPointer(ids.Ptr(responseSchema("/a+b")...))
+	want := ids.Document{}.ForPointer(ids.Ptr(responseSchema("/a+b")...))
 	assert.Contains(t, string(want), "~1a+b")
 	require.NotNil(t, doc.Types[want], "the type is interned at the key the pointer names")
 	assert.Equal(t, want, openapitest.BodyTarget(t, openapitest.FindOp(t, doc, "h").Responses[0].Payload))
@@ -132,8 +132,8 @@ func viewOf(t *testing.T, src string) plusView {
 // compiled and compared.
 func TestCompile_APlusAndAnEscapedPlusAndASpaceKeepTheirOwnTypesInEveryOrder(t *testing.T) {
 	t.Parallel()
-	plusType := ids.ForPointer(ids.Ptr(responseSchema("/a+b")...))
-	spaceType := ids.ForPointer(ids.Ptr(responseSchema("/a b")...))
+	plusType := ids.Document{}.ForPointer(ids.Ptr(responseSchema("/a+b")...))
+	spaceType := ids.Document{}.ForPointer(ids.Ptr(responseSchema("/a b")...))
 	orders := []struct {
 		name        string
 		paths, uses []string
@@ -236,7 +236,7 @@ components:
 			openapitest.RequireNoErrorDiags(t, diags)
 			plus, ok := typeByName(doc, "Plus").(*ir.Scalar)
 			require.True(t, ok, "Plus is an alias of the type its $ref names")
-			assert.Equal(t, ids.ForPointer(ids.Ptr(responseSchema("/a+b")...)), plus.Base.Target)
+			assert.Equal(t, ids.Document{}.ForPointer(ids.Ptr(responseSchema("/a+b")...)), plus.Base.Target)
 			for _, name := range []string{"Named", "Text"} {
 				assert.Equal(t, text, typeByName(doc, name).Common().Docs.Description, name)
 			}
@@ -261,7 +261,7 @@ func TestCompile_AReferenceOfEveryKindThroughAPlusKeyIsLoweredWhereItIsDeclared(
 	require.Len(t, relay.Responses, 1)
 	require.Len(t, relay.Responses[0].Headers, 1)
 	assert.Equal(t, ir.PropID("p/openapi/paths/~1a+b/get/responses/200/headers/H"), relay.Responses[0].Headers[0].ID, "the header")
-	assert.Equal(t, ids.ForPointer(ids.Ptr(responseSchema("/a+b")...)),
+	assert.Equal(t, ids.Document{}.ForPointer(ids.Ptr(responseSchema("/a+b")...)),
 		openapitest.BodyTarget(t, &ir.Payload{Contents: relay.Responses[0].Payload.Contents[:1]}), "the response")
 
 	var mounted []string

@@ -55,6 +55,33 @@ func TestIDGrammar_PathSeparatorIsSuppliedOnce(t *testing.T) {
 		"a space naming one node gets no trailing separator")
 }
 
+// TestSpace_QualifiedNamesTheDocumentInOneSegment pins how a space names
+// another document: after an '@', with '~' and '/' escaped as a pointer token
+// escapes them, '~' first. The ID it opens keeps the path's separator, and
+// documents differing only in where a '/' or '~' falls qualify the space
+// apart. Expected strings are written out, not derived.
+func TestSpace_QualifiedNamesTheDocumentInOneSegment(t *testing.T) {
+	t.Parallel()
+	const space compile.Space = "openapi"
+	for _, tc := range []struct{ document, want string }{
+		{"common.yaml", "openapi@common.yaml"},
+		{"schemas/pet.yaml", "openapi@schemas~1pet.yaml"},
+		{"../shared/a~b.yaml", "openapi@..~1shared~1a~0b.yaml"},
+		{"a~1b.yaml", "openapi@a~01b.yaml"},
+		{"https://example.com/x.yaml", "openapi@https:~1~1example.com~1x.yaml"},
+	} {
+		assert.Equal(t, compile.Space(tc.want), space.Qualified(tc.document), tc.document)
+	}
+	id := string(compile.TypeID(space.Qualified("schemas/pet.yaml"), "/Pet/properties/x"))
+	got, ok := ir.IDSpace(ir.IDKindType, id)
+	require.True(t, ok)
+	assert.Equal(t, "openapi@schemas~1pet.yaml", got)
+	path, ok := ir.IDPath(ir.IDKindType, id)
+	require.True(t, ok)
+	assert.Equal(t, "Pet/properties/x", path, "the path keeps its own separator")
+	assert.NotEqual(t, space.Qualified("a/b"), space.Qualified("a~1b"))
+}
+
 // TestTypes_MintingIntoASourceSpaceIsRefused plants invariant 3's corollary
 // broken — a minted node taking a namespace that addresses source coordinates —
 // and asserts it is refused whichever order the two arrive in.

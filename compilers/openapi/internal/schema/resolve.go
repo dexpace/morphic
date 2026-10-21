@@ -54,7 +54,7 @@ func schemaRefHomed(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, dep
 		// node's name even when a $ref interned the node there first (GitHub #372).
 		// It sits here rather than only at intern because a position whose node
 		// already exists resolves to it and returns before interning anything.
-		ts.NameFromDeclaration(string(pointer), hint)
+		ts.NameFromDeclaration(c.IDs().Coordinate(pointer), hint)
 	}
 	if js == nil {
 		return ts.PrimRef(ir.PrimAny), nil
@@ -118,7 +118,7 @@ func PreserveRefSiteKeywords(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled,
 	// GetSchema is nil-safe and yields nil for a boolean schema too, so the one
 	// check covers an absent position, a boolean one, and a caller passing nil.
 	s := js.GetSchema()
-	if s == nil || LoweredToOwnNode(ts, pointer, t) {
+	if s == nil || LoweredToOwnNode(c, ts, pointer, t) {
 		return nil
 	}
 	if !resolve.IsRefSite(js, s) {
@@ -240,7 +240,7 @@ func resolvePointer(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, dep
 	if id, resolved, handled := c.RefScope().ComponentRef(pointer); handled {
 		return id, resolved, nil
 	}
-	if id, ok := resolve.InternedID(ts, pointer); ok {
+	if id, ok := resolve.InternedID(ts, c.IDs(), pointer); ok {
 		return id, true, nil
 	}
 	if decl == nil {
@@ -275,7 +275,7 @@ func hoistSubSchema(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, dep
 
 	hint := subSchemaHint(c.Bindings(), decl, pointer)
 	ref, diags := Ref(c, ts, anchors, depth, decl, pointer, hint)
-	if owned, ok := ts.Lookup(string(pointer)); ok {
+	if owned, ok := ts.Lookup(c.IDs().Coordinate(pointer)); ok {
 		return owned, true, diags
 	}
 	id, aliasDiags := internAlias(c, ts, s.Node, pointer, hint, ref)

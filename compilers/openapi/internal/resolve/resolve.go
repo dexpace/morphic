@@ -438,19 +438,19 @@ func (s Scope) ComponentRef(pointer jsontext.Pointer) (id ir.TypeID, ok, handled
 		return "", false, false
 	}
 	if s.Declares(name) {
-		return ids.NamedType(ids.Ptr("components", "schemas", name)), true, true
+		return ids.Document{}.NamedType(ids.Ptr("components", "schemas", name)), true, true
 	}
 	return "", false, true
 }
 
-// InternedID returns the TypeID a node was interned under at pointer, when one
-// already exists there — either a previously hoisted sub-schema (via byPointer)
-// or a node registered directly under its pointer-derived ID.
-func InternedID(ts *compile.Types, pointer jsontext.Pointer) (ir.TypeID, bool) {
-	if id, ok := ts.Lookup(string(pointer)); ok {
+// InternedID returns the TypeID a node was interned under at pointer in d, when
+// one already exists there — either a previously hoisted sub-schema (via
+// byPointer) or a node registered directly under its pointer-derived ID.
+func InternedID(ts *compile.Types, d ids.Document, pointer jsontext.Pointer) (ir.TypeID, bool) {
+	if id, ok := ts.Lookup(d.Coordinate(pointer)); ok {
 		return id, true
 	}
-	id := ids.ForPointer(pointer)
+	id := d.ForPointer(pointer)
 	if _, ok := ts.Node(id); ok {
 		return id, true
 	}

@@ -966,7 +966,7 @@ func composedVariant(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, de
 	// it keeps whatever it declares beside the $ref and a reference to that
 	// pointer still finds the branch rather than the variant.
 	branch, diags := Ref(c, ts, anchors, depth, b, vptr, vhint)
-	id := ids.ComposedType(vptr)
+	id := c.IDs().ComposedType(vptr)
 	common := commonFor(c, id, vptr, compile.SubHint(body.hint, vhint))
 	def, variantDiags := buildComposedVariant(c, ts, anchors, depth, body, branch.Target, common)
 	ts.Register(id, def)
@@ -1234,7 +1234,7 @@ func resolveMappingTarget(c lowering.Ctx, ts *compile.Types, anchors *AnchorInde
 	if !ok {
 		return "", false, nil
 	}
-	pointer, decl = typePosition(scope, pointer, decl, variantTypes)
+	pointer, decl = typePosition(scope, c.IDs(), pointer, decl, variantTypes)
 	return resolvePointer(c, ts, anchors, depth, pointer, decl)
 }
 
@@ -1252,8 +1252,8 @@ const maxTypePositionHops = 64
 // union variant there does (GitHub #758). A keyword beside a property's $ref
 // stops it (GitHub #764), and so does a $ref landing on nothing a type is read
 // at, whose own position, lowered as an alias that reports why, is named.
-func typePosition(scope resolve.Scope, pointer jsontext.Pointer, decl *oas3.JSONSchema[oas3.Referenceable],
-	variantTypes map[ir.TypeID]bool,
+func typePosition(scope resolve.Scope, d ids.Document, pointer jsontext.Pointer,
+	decl *oas3.JSONSchema[oas3.Referenceable], variantTypes map[ir.TypeID]bool,
 ) (jsontext.Pointer, *oas3.JSONSchema[oas3.Referenceable]) {
 	if _, named := ids.ComponentSchemaName(pointer); named {
 		// Most targets name a component, and resolve.Scope.ComponentRef answers
@@ -1261,7 +1261,7 @@ func typePosition(scope resolve.Scope, pointer jsontext.Pointer, decl *oas3.JSON
 		return pointer, nil
 	}
 	for range maxTypePositionHops {
-		if !readsThrough(pointer, decl, variantTypes) {
+		if !readsThrough(d, pointer, decl, variantTypes) {
 			break
 		}
 		next, ok := scope.TargetPointer(decl)
@@ -1274,8 +1274,8 @@ func typePosition(scope resolve.Scope, pointer jsontext.Pointer, decl *oas3.JSON
 	return pointer, decl
 }
 
-// readsThrough reports whether a mapping target naming pointer, where decl is
-// declared, names the position decl's $ref names instead (typePosition): not at
+// readsThrough reports whether a mapping target naming pointer in d, where decl
+// is declared, names the position decl's $ref names instead (typePosition): not at
 // a component, nor where a keyword beside the $ref gives the position an alias
 // (refSiteHomesNothing).
 //
@@ -1284,7 +1284,9 @@ func typePosition(scope resolve.Scope, pointer jsontext.Pointer, decl *oas3.JSON
 // hoisted an alias there as a $ref to any position does, and the mapping must
 // name what the variant names. Read through, it named a type no variant names
 // (GitHub #758).
-func readsThrough(pointer jsontext.Pointer, decl *oas3.JSONSchema[oas3.Referenceable], variantTypes map[ir.TypeID]bool) bool {
+func readsThrough(d ids.Document, pointer jsontext.Pointer, decl *oas3.JSONSchema[oas3.Referenceable],
+	variantTypes map[ir.TypeID]bool,
+) bool {
 	if _, named := ids.ComponentSchemaName(pointer); named || ids.ComponentSchemaNamedEmpty(pointer) || decl == nil {
 		return false
 	}
@@ -1292,14 +1294,15 @@ func readsThrough(pointer jsontext.Pointer, decl *oas3.JSONSchema[oas3.Reference
 	if !resolve.IsRefSite(decl, s) || !refSiteHomesNothing(s) {
 		return false
 	}
-	return len(variantTypes) == 0 || !variantTypes[ids.ForPointer(pointer)]
+	return len(variantTypes) == 0 || !variantTypes[d.ForPointer(pointer)]
 }
 
 // componentIDByName is the ID a mapping target naming a declared component
-// resolves to: its pointer's, so a component keyed "" gets the anonymous ID it
-// is interned under rather than a named one nothing backs.
+// resolves to: its pointer's in the source, whose components a bare name names,
+// so a component keyed "" gets the anonymous ID it is interned under rather
+// than a named one nothing backs.
 func componentIDByName(name string) ir.TypeID {
-	return ids.ForPointer(ids.Ptr("components", "schemas", name))
+	return ids.Document{}.ForPointer(ids.Ptr("components", "schemas", name))
 }
 
 // mappingTargetID resolves a discriminator mapping target, a bare schema name
@@ -1323,13 +1326,13 @@ func mappingTargetID(c lowering.Ctx, scope resolve.Scope, ts *compile.Types, d *
 	// it reads through whatever a union's variants name (readsThrough). Each
 	// subtype asks it of every entry, so it is read once (Ctx.TypePosition).
 	at := c.TypePosition(pointer, func() jsontext.Pointer {
-		position, _ := typePosition(scope, pointer, decl, nil)
+		position, _ := typePosition(scope, c.IDs(), pointer, decl, nil)
 		return position
 	})
 	if id, resolved, handled := scope.ComponentRef(at); handled {
 		return id, resolved
 	}
-	return resolve.InternedID(ts, at)
+	return resolve.InternedID(ts, c.IDs(), at)
 }
 
 // propIDByName returns the PropID of the model property with the given source
@@ -1378,7 +1381,7 @@ func lowerEnum(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsonte
 			return &ir.Any{TypeCommon: common}
 		}
 		diags = append(diags, enumRepeats(c, s.GetEnum(), pointer)...)
-		members, memberPrim, ok := enumMembers(s.GetEnum(), schemaAdmitsNull(c, s), pointer)
+		members, memberPrim, ok := enumMembers(s.GetEnum(), schemaAdmitsNull(c, s), c.IDs(), pointer)
 		if !ok {
 			def, enumDiags := enumAsUnion(c, ts, s, common, pointer, hint)
 			diags = append(diags, enumDiags...)
@@ -1425,7 +1428,7 @@ func emptyEnum(c lowering.Ctx, s *oas3.Schema, common ir.TypeCommon, pointer jso
 //
 // Each member's ID is keyed by its value under the enum at pointer, and a
 // repeated value is kept, its ID numbered by occurrence; enumRepeats reports it.
-func enumMembers(nodes []values.Value, dropNull bool, pointer jsontext.Pointer) ([]ir.EnumMember, ir.PrimKind, bool) {
+func enumMembers(nodes []values.Value, dropNull bool, d ids.Document, pointer jsontext.Pointer) ([]ir.EnumMember, ir.PrimKind, bool) {
 	members := make([]ir.EnumMember, 0, len(nodes))
 	occurrences := make(map[string]int, len(nodes))
 	var kind ir.ValueKind
@@ -1450,7 +1453,7 @@ func enumMembers(nodes []values.Value, dropNull bool, pointer jsontext.Pointer) 
 		}
 		occurrences[key]++
 		members = append(members, ir.EnumMember{
-			ID:    ids.EnumMember(pointer, key, occurrences[key]),
+			ID:    d.EnumMember(pointer, key, occurrences[key]),
 			Name:  compile.NamingFor(text),
 			Value: val,
 		})

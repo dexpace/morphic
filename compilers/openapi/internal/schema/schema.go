@@ -68,7 +68,7 @@ func lowerComponentSchema(c lowering.Ctx, ts *compile.Types, anchors *AnchorInde
 	ref, diags := Ref(c, ts, anchors, TopLevelDepth, js, pointer, name)
 	// A body that interned the component's own node at its component ID needs no
 	// alias, and its annotations were attached where it was lowered.
-	if _, owned := ts.Lookup(string(pointer)); owned {
+	if _, owned := ts.Lookup(c.IDs().Coordinate(pointer)); owned {
 		return diags
 	}
 	_, aliasDiags := internAlias(c, ts, s.Node, pointer, name, ref)
@@ -100,7 +100,7 @@ func recordDeclarationResidue(c lowering.Ctx, ts *compile.Types, s *oas3.Schema,
 	if home != annotation.HomeOwnNode || s == nil {
 		return nil
 	}
-	td, ok := ts.NodeAt(string(pointer))
+	td, ok := ts.NodeAt(c.IDs().Coordinate(pointer))
 	if !ok {
 		return nil
 	}
@@ -255,7 +255,7 @@ func hoistDeclarationHome(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, ref
 	if !unhomed && !declaresPositionScoped(s) {
 		return ref, nil
 	}
-	if id, owned := ts.Lookup(string(pointer)); owned {
+	if id, owned := ts.Lookup(c.IDs().Coordinate(pointer)); owned {
 		return ir.TypeRef{Target: id, Nullable: ref.Nullable}, nil
 	}
 	id, diags := internAlias(c, ts, s, pointer, hint, ref)
@@ -433,7 +433,7 @@ func declaresShape(s *oas3.Schema) bool {
 func lowerBesideUnmodeledUnion(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer jsontext.Pointer, hint string, reason ir.UnmodeledReason, why string) (ir.TypeID, []ir.Diagnostic) {
 	inner, diags := lower(c, ts, anchors, depth, s, pointer, hint)
 	owner := inner
-	if got, _ := ts.Lookup(string(pointer)); got != inner {
+	if got, _ := ts.Lookup(c.IDs().Coordinate(pointer)); got != inner {
 		// The structural body reduced to a shared/aliased target; hoist an alias
 		// so the preserved union attaches to a node this pointer owns, never to a
 		// shared primitive.
@@ -939,7 +939,7 @@ func preserveUnhomedKeywords(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, 
 	if !ok {
 		return id, diags
 	}
-	owns, _ := ts.Lookup(string(pointer))
+	owns, _ := ts.Lookup(c.IDs().Coordinate(pointer))
 	unhomed := unhomedKeywords(s, td, censusHandled(d))
 	if owns == id && !constraintsHome(td) {
 		// No alias will be hoisted over a node the position already owns, so the
@@ -1161,7 +1161,7 @@ func fillModelProperties(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex
 		ref, refDiags := CarriedRef(c, ts, anchors, depth, js, ppointer, name)
 		diags = append(diags, refDiags...)
 		p := ir.Property{
-			ID:         ids.Prop(ppointer),
+			ID:         c.IDs().Prop(ppointer),
 			Name:       compile.NamingFor(name),
 			WireName:   name,
 			Type:       ref,
@@ -1251,7 +1251,7 @@ func fillPropertyVisibility(c lowering.Ctx, p *ir.Property, ref, tgt *oas3.Schem
 // A $ref position never hoists a node, so annotations written beside a
 // property's $ref land here (GitHub #114).
 func fillPropertyAnnotations(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, p *ir.Property, ref, tgt *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
-	if LoweredToOwnNode(ts, pointer, p.Type) {
+	if LoweredToOwnNode(c, ts, pointer, p.Type) {
 		return nil
 	}
 	a, diags := annotation.Read(annotation.Site{Kind: annotation.Reference, Node: ref, Referent: tgt}, pointer, c.ProvenanceAt)
@@ -1278,8 +1278,8 @@ func fillPropertyAnnotations(c lowering.Ctx, ts *compile.Types, anchors *AnchorI
 	return append(diags, PreserveUnknownKeywords(c, &p.Unmodeled, ref, pointer)...)
 }
 
-// LoweredToOwnNode reports whether the declaration at pointer lowered to a type
-// node of its own — the node attachDeclaredAnnotations then fills, leaving its
+// LoweredToOwnNode reports whether the declaration at pointer, in c's document,
+// lowered to a type node of its own — the node attachDeclaredAnnotations then fills, leaving its
 // carrier nothing to hold.
 //
 // It asks whether the node interned at pointer is the one the declaration
@@ -1287,8 +1287,8 @@ func fillPropertyAnnotations(c lowering.Ctx, ts *compile.Types, anchors *AnchorI
 // inline position hoists that position's home for its own use, in either
 // declaration order, and a carrier reading the registry alone would keep its
 // schema's annotations only when it happened to lower first.
-func LoweredToOwnNode(ts *compile.Types, pointer jsontext.Pointer, t ir.TypeRef) bool {
-	id, owned := ts.Lookup(string(pointer))
+func LoweredToOwnNode(c lowering.Ctx, ts *compile.Types, pointer jsontext.Pointer, t ir.TypeRef) bool {
+	id, owned := ts.Lookup(c.IDs().Coordinate(pointer))
 	return owned && id == t.Target
 }
 
@@ -1343,7 +1343,7 @@ func attachDeclaredAnnotations(c lowering.Ctx, ts *compile.Types, anchors *Ancho
 	// No node here means a position that reduced to a shared primitive, or one
 	// still being built further up this walk, whose builder attaches the same
 	// declaration once its build returns (GitHub #749).
-	td, ok := ts.NodeAt(string(pointer))
+	td, ok := ts.NodeAt(c.IDs().Coordinate(pointer))
 	if !ok {
 		return nil
 	}

@@ -609,16 +609,16 @@ func TestCtx_NamingByReferenceAtMarksOnlyAForeignDeclaration(t *testing.T) {
 	const use = "/paths/~1b/post/requestBody"
 	declaring := lowering.Ctx{}
 
-	assert.False(t, declaring.NamingByReferenceAt(use, use).NamesByReference(),
+	assert.False(t, lowering.NamingByReferenceAt(declaring, use, use).NamesByReference(),
 		"a construct declared where it is used is reached through its own declaration")
 
-	foreign := declaring.NamingByReferenceAt(use, "/paths/~1a/post/requestBody")
+	foreign := lowering.NamingByReferenceAt(declaring, use, "/paths/~1a/post/requestBody")
 	assert.True(t, foreign.NamesByReference(),
 		"a declaration another position owns is reached by reference, so its name is a placeholder")
 	assert.False(t, declaring.NamesByReference(),
 		"and the caller's context is left alone, as NamingByReference leaves it")
 
-	assert.True(t, foreign.NamingByReferenceAt(use, use).NamesByReference(),
+	assert.True(t, lowering.NamingByReferenceAt(foreign, use, use).NamesByReference(),
 		"a marked context stays marked: the subtree under a $ref is named by reference throughout, "+
 			"however its own positions line up")
 }

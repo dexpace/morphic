@@ -17,6 +17,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
@@ -284,7 +285,7 @@ func (c Ctx) NamingByReference() Ctx {
 // declaration replaces. See NamingByReference.
 func (c Ctx) NamesByReference() bool { return c.namesByReference }
 
-// NamingByReferenceAt is NamingByReference for a reference-or-declaration
+// NamingByReferenceAt is c.NamingByReference for a reference-or-declaration
 // position: it marks c only when declPtr differs from usePtr.
 //
 // They differ when a $ref reached a declaration another position owns, such as
@@ -296,7 +297,7 @@ func (c Ctx) NamesByReference() bool { return c.namesByReference }
 // schema-level $ref, which hoistSubSchema marks. Without the mark, whichever
 // lowering ran first would name the shared node, since Intern is
 // first-write-wins (GitHub #433).
-func (c Ctx) NamingByReferenceAt(usePtr, declPtr jsontext.Pointer) Ctx {
+func NamingByReferenceAt(c Ctx, usePtr, declPtr jsontext.Pointer) Ctx {
 	if declPtr == usePtr {
 		return c
 	}
@@ -413,6 +414,10 @@ func (c Ctx) RefScope() resolve.Scope {
 func (c Ctx) DiagAt(sev ir.Severity, code string, pointer jsontext.Pointer, format string, args ...any) ir.Diagnostic {
 	return diag.Newf(sev, code, c.ProvenanceAt(pointer), format, args...)
 }
+
+// IDs returns the document c's positions are in, as the IDs of what it
+// declares name it: the source's.
+func (c Ctx) IDs() ids.Document { return ids.Document{} }
 
 // ProvenanceAt is where a Provenance is built, and the only place this compiler
 // spells the source index into one.
