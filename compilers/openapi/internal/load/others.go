@@ -1,8 +1,6 @@
 package load
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"maps"
 	"net/url"
 	"path/filepath"
@@ -84,9 +82,8 @@ func newOthers(read *externalReads, first int, format string) Others {
 	for i, label := range slices.Sorted(maps.Keys(byLabel)) {
 		keys := slices.Sorted(slices.Values(byLabel[label]))
 		data := read.data[keys[0]]
-		sum := sha256.Sum256(data)
 		o.list = append(o.list, Other{Index: first + i, Label: label, Info: ir.SourceInfo{
-			Format: format, Path: sourcePathOf(keys[0]), Hash: hex.EncodeToString(sum[:]),
+			Format: format, Path: sourcePathOf(keys[0]), Hash: ir.SourceHash(data),
 		}})
 		for _, key := range keys {
 			o.byName[key] = i

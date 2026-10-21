@@ -1,6 +1,7 @@
 package compile
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/dexpace/morphic/ir"
@@ -16,7 +17,10 @@ import (
 type Types struct {
 	reg       ir.TypeRegistry
 	byPointer map[string]ir.TypeID
-	refused   []string
+	// refused holds why each rejected entry was rejected, and reported how many
+	// of them Finish has reported.
+	refused  []string
+	reported int
 	// spaces records how each namespace is addressed — true for minted, false
 	// for source-addressed — so claimSpace can catch one namespace used both
 	// ways whichever way round it happens.
@@ -34,8 +38,8 @@ type Types struct {
 	// byReference holds the coordinates whose node a reference built and the
 	// declaration that owns them has not rebuilt yet. See InternDeclared.
 	byReference map[string]bool
-	// pending holds the settlements Defer queued for Settle, and settled
-	// records that Settle has run. See Settlement.
+	// pending holds the settlements Defer queued for Finish, and settled
+	// records that Finish has taken them. See Settlement.
 	pending []Settlement
 	settled bool
 }
@@ -44,19 +48,35 @@ type Types struct {
 // rather than returning an error, because the caller is mid-walk with no useful
 // recovery — but declining silently would make this type the one place able to
 // manufacture the malformed states irverify and pass.Validate exist to report.
-// Violations surfaces them.
+// Finish reports them.
 func (t *Types) refuse(format string, args ...any) {
 	t.refused = append(t.refused, fmt.Sprintf(format, args...))
 }
 
-// Violations returns the invariant breaches the registry refused to record, in
-// the order they were attempted.
+// RegistryRefused is the code of the error Finish reports for an entry the
+// registry refused. It names a compiler bug no source can produce, so it
+// locates nothing in a source.
+const RegistryRefused = "compile/registry-refused"
+
+// Finish ends a compile's use of t, once its last lowering has returned. It
+// takes every deferred Settlement, then hands over the registry the Document
+// holds and the diagnostics to report: what settling reported, then a
+// RegistryRefused error for each entry t refused, in the order attempted. The
+// refusals ride in the list a compiler reports anyway, so it cannot take the
+// registry and lose them.
 //
-// A non-empty result is a compiler bug, not a spec problem: every entry names an
-// empty ID, an empty coordinate, or a nil type definition, none of which any
-// source can produce. The owning compiler surfaces them as internal-invariant
-// diagnostics rather than dropping them.
-func (t *Types) Violations() []string { return t.refused }
+// Each refusal is reported once, and one made after Finish only by a later
+// call. A cancelled ctx stops the settling between settlements, and leaves a
+// registry the caller must not assemble.
+func (t *Types) Finish(ctx context.Context) (ir.TypeRegistry, []ir.Diagnostic) {
+	diags := t.settle(ctx)
+	for _, why := range t.refused[t.reported:] {
+		diags = append(diags, ir.NewDiagnostic(ir.SeverityError, RegistryRefused,
+			"internal: the type registry refused an entry: "+why, ir.Provenance{Source: ir.NoSource}))
+	}
+	t.reported = len(t.refused)
+	return t.reg, diags
+}
 
 // NewTypes returns an empty registry.
 func NewTypes() *Types {
@@ -341,15 +361,6 @@ func (t *Types) PrimRef(k ir.PrimKind) ir.TypeRef {
 
 // PrimID interns the primitive of kind k and returns its ID.
 func (t *Types) PrimID(k ir.PrimKind) ir.TypeID { return t.PrimRef(k).Target }
-
-// Registry returns the built registry for assembly into an ir.Document.
-//
-// It hands over the live map rather than a copy: the caller is the compiler that
-// owns this Types, the value goes straight into a Document it is assembling, and
-// copying a registry per compile to guard against a caller that has no reason to
-// mutate it would cost the whole walk's allocation for nothing. Callers outside
-// the owning compile must treat the result as read-only.
-func (t *Types) Registry() ir.TypeRegistry { return t.reg }
 
 // Len reports how many types are interned.
 func (t *Types) Len() int { return len(t.reg) }

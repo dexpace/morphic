@@ -88,11 +88,17 @@ type Engine struct {
 	passes   []pass.Pass
 }
 
+// Compilers returns the built-in compilers, fresh values in registration order:
+// the set New registers, for a caller that drives compilers without an Engine.
+// Future compilers are added here and only here.
+func Compilers() []compilers.Compiler {
+	return []compilers.Compiler{openapi.New()}
+}
+
 // New composes the default engine: a registry with every built-in compiler
-// registered, and the default passes. Future compilers are added here and only
-// here.
+// registered (Compilers), and the default passes.
 func New() (*Engine, error) {
-	return NewWith(openapi.New())
+	return NewWith(Compilers()...)
 }
 
 // NewWith registers the given compilers into a fresh registry and wraps it in
@@ -184,7 +190,8 @@ func (e *Engine) RunSources(ctx context.Context, sources []compilers.Source, opt
 //
 // doc is not modified. The Result's document shares all of doc but its
 // Diagnostics, so neither may change while the other is read. A nil doc, one
-// whose IRVersion this build cannot read, and compiler options are Go errors.
+// whose IRVersion this build cannot read, one holding a finding indexing none
+// of its Sources, and compiler options are Go errors.
 func (e *Engine) RunDocument(ctx context.Context, doc *ir.Document, opts RunOptions) (*Result, error) {
 	passes, failOn, err := e.prepare(opts)
 	if err != nil {
@@ -205,6 +212,12 @@ func (e *Engine) RunDocument(ctx context.Context, doc *ir.Document, opts RunOpti
 		return nil, fmt.Errorf("engine: document IR version %q is not %q, the one this build reads",
 			doc.IRVersion, ir.IRVersion)
 	}
+	// Its findings join the Result as they are, and no compiler made them, so
+	// they are held to the table here, as a compile's and a pass's are.
+	if d, outside := ir.FirstOutsideTable(doc.Diagnostics, len(doc.Sources)); outside {
+		return nil, fmt.Errorf("engine: document finding %s indexes source %d of %d",
+			d.Code, d.Provenance.Source, len(doc.Sources))
+	}
 	// Run refuses a cancelled ctx whatever passes are on, and so does this,
 	// though with every pass off no pass would see it.
 	if err := ctx.Err(); err != nil {
@@ -218,7 +231,7 @@ func (e *Engine) RunDocument(ctx context.Context, doc *ir.Document, opts RunOpti
 	if err != nil {
 		return nil, err
 	}
-	out.Diagnostics = mergeDiagnostics(slices.Clone(doc.Diagnostics), found)
+	out.Diagnostics = ir.MergeDiagnostics(slices.Clone(doc.Diagnostics), found)
 	return failOn.judge(&Result{Document: out, Diagnostics: out.Diagnostics, Sources: out.Sources})
 }
 
@@ -272,33 +285,29 @@ func (e *Engine) compile(ctx context.Context, source compilers.Source, docs comp
 		return &Result{Format: format, Diagnostics: e.undetected(format, det.Declined),
 			Sources: []ir.SourceInfo{{Path: source.Path}}}, nil
 	}
-	// What detection parsed to recognize the source is what the compile lowers,
-	// so the source carries it forward rather than being read twice. The
-	// registry has already dropped it unless the compiler about to be asked is
-	// the one that made it.
-	source.Parsed = det.Recognition.Parsed
-	sources := []compilers.Source{source}
-	doc, diags, err := det.Compiler.Compile(ctx, sources, det.Options)
+	// The detection hands the compile what recognizing the source parsed, and
+	// holds what comes back to the compiler's contract, so a Result never carries
+	// a finding indexing no source or a document misnaming its input.
+	out, err := det.Compile(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("engine: compile %q: %w", source.Path, err)
 	}
+	doc, compiled := out.Document, out.Diagnostics
 	if doc == nil {
-		return &Result{Diagnostics: diags, Format: format,
-			Sources: det.Compiler.SourceTable(sources, det.Options)}, nil
+		return &Result{Diagnostics: compiled, Format: format, Sources: out.Sources}, nil
 	}
 	// Both channels end up carrying the whole list: the Result is what a caller
 	// gates on, and the document is what gets persisted (golden snapshots, IR
-	// diff, caches, emitters). Merging rather than picking one is what keeps a
-	// finding its compiler put on only one of them — see mergeDiagnostics. The
-	// compiler's list is taken before any pass runs, since the passes' contract
-	// leaves Document.Diagnostics to the engine: a transform that builds a
-	// fresh document cannot lose what the compiler stored on the old one.
-	compiled := mergeDiagnostics(doc.Diagnostics, diags)
+	// diff, caches, emitters). The compiler's findings, both of its channels
+	// already merged by the detection, are taken before any pass runs, since the
+	// passes' contract leaves Document.Diagnostics to the engine: a transform
+	// that builds a fresh document cannot lose what the compiler stored on the
+	// old one.
 	doc, found, err := runPasses(ctx, doc, passes)
 	if err != nil {
 		return nil, err
 	}
-	doc.Diagnostics = mergeDiagnostics(compiled, found)
+	doc.Diagnostics = ir.MergeDiagnostics(compiled, found)
 	return &Result{Document: doc, Diagnostics: doc.Diagnostics, Sources: doc.Sources, Format: format}, nil
 }
 
@@ -322,6 +331,12 @@ func (e *Engine) undetected(format compilers.SourceFormat, declined []ir.Diagnos
 		"unrecognized spec format; %s", e.served())}
 }
 
+// Formats returns every format e compiles, in compilers.Registry.Formats's
+// order: what a caller names to say which specs this build reads.
+func (e *Engine) Formats() []compilers.SourceFormat {
+	return e.registry.Formats()
+}
+
 // served names the formats this build compiles, for a reader who has just been
 // told theirs is not one of them. Naming what failed without naming what would
 // have worked leaves the next step to guesswork, and the engine can answer it
@@ -330,7 +345,7 @@ func (e *Engine) undetected(format compilers.SourceFormat, declined []ir.Diagnos
 // NewWith builds every Engine and refuses an empty compiler set, so there is
 // always at least one format to name and the sentence never trails off.
 func (e *Engine) served() string {
-	formats := e.registry.Formats()
+	formats := e.Formats()
 	names := make([]string, 0, len(formats))
 	for _, format := range formats {
 		names = append(names, format.String())

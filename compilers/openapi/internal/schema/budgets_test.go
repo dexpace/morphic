@@ -44,7 +44,7 @@ components:
 
 			diags := schema.LowerComponentSchemas(t.Context(), l.ctx, l.types, &l.anchors)
 
-			node := typeByName(l.out, "E")
+			node := typeByName(l.document(t), "E")
 			require.NotNil(t, node)
 			if !tc.refused {
 				openapitest.RequireNoErrorDiags(t, diags)
@@ -89,12 +89,12 @@ components:
     B: {type: object, properties: {n: {type: string}}}
 `
 	l, _ := loweredFor(t, spec)
-	require.Empty(t, l.types.Registry(), "nothing is interned before the walk runs")
+	require.Zero(t, l.types.Len(), "nothing is interned before the walk runs")
 
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	diags := schema.LowerComponentSchemas(ctx, l.ctx, l.types, &l.anchors)
 
 	assert.Empty(t, diags)
-	assert.Empty(t, l.types.Registry(), "a cancelled walk lowers no component")
+	assert.Zero(t, l.types.Len(), "a cancelled walk lowers no component")
 }

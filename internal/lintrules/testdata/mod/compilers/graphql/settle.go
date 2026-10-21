@@ -83,7 +83,7 @@ func (f *fed) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
 // notASettlement has a method named Settle that is no compile.Settlement's.
 type notASettlement struct{}
 
-// Settle takes a registry it was not handed by compile.Types.Settle.
+// Settle takes a registry it was not handed by compile.Types.Finish.
 func (notASettlement) Settle(reg ir.TypeRegistry) {
 	reg["a"] = nil // want "registrywrites: writes a type registry outside ir and compilers/compile; go through compile.Types, or rewrite a node in a compile.Settlement" "idderivations: spells an ir.TypeID as a constant outside compilers/compile; derive the ID through the framework"
 }

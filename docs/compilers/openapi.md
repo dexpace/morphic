@@ -55,18 +55,26 @@ version and does not parse is reported, when the engine asks the compiler whethe
 as an `openapi/undecodable-source` error, and nothing compiles. A YAML stream lowers the first of
 its documents that holds content; the documents after it that hold content reach the IR in no form,
 reported once as an `openapi/stream-documents-dropped` error at the first of them, and the first
-still lowers. A document holding nothing, a bare separator or an explicit null, is not counted. A
+still lowers. A document holding nothing, a bare separator or an explicit null, is not counted.
+Detection reads the version off the root mapping as the parser does, through aliases, `<<` merges and
+a repeated key's last value, so the compile reads the version the source is routed by. A root that
+merges deeper than that reading expands, writing no version of its own, is declined as an
+`openapi/budget-exceeded` error, since a version past the bound may outrank one found above it. A
+merge cycle hides no key, and is the compile's to refuse. A
 mapping tagged anything but `!!map`, which OpenAPI's limit on YAML tags forbids, refuses the source
 before the parser reads it, as an `openapi/tagged-mapping` error at the tagged mapping with the
 least pointer, and it compiles to no Document. A tagged scalar is not refused here; what it lowers
 to is [`values`](#values)'.
 
-- Codes: `openapi/undecodable-source`, `openapi/stream-documents-dropped`, `openapi/tagged-mapping`
+- Codes: `openapi/undecodable-source`, `openapi/stream-documents-dropped`, `openapi/tagged-mapping`,
+  `openapi/budget-exceeded`
 - Tests: `openapi.TestDetect_ABrokenDocumentIsReportedAtAnySize`,
+  `openapi.TestDetect_ReadsTheVersionTheCompileReads`, `openapi.TestDetect_AReadCutShortIsReported`,
+  `openapi.TestDetect_AMergeCycleHidesNoKey`,
   `load.TestLoad_AStreamLowersItsFirstDocumentAndReportsTheRest`,
   `load.TestLoad_ATaggedMappingIsRefusedBeforeParsing`
 - Status: partly built: a JSON source holding a surrogate-pair escape is refused as undecodable
-  (#900), and detection reads any `!!merge`-tagged key as a merge key (#845).
+  (#900).
 
 ### `source-budgets`
 
