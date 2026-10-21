@@ -123,10 +123,6 @@ const (
 	// AnchorUnread is a plain-name fragment naming a resource of another
 	// document, whose identifiers are not read (GitHub #1049).
 	AnchorUnread
-	// UnknownID is a URI, resolved against a base an $id gives, that no schema
-	// declares as its $id. An $id is an identifier, not a location, so no
-	// document is read for it; Hop.Detail is the URI.
-	UnknownID
 	// DuplicateID is a URI two or more schemas declare as their $id, so it
 	// names none; Hop.Detail is the URI.
 	DuplicateID
@@ -184,7 +180,7 @@ type Hop struct {
 	Status Status
 	Reason Reason
 	// Detail is a read error, for Unreadable, a parse error, for Unparsable,
-	// and the URI named, for NoResourceTarget, UnknownID and DuplicateID.
+	// and the URI named, for NoResourceTarget and DuplicateID.
 	Detail string
 	// Use and Key are the path item $ref and the key written beside it, for
 	// BesideRef.
@@ -274,9 +270,6 @@ func (h Hop) Why() string {
 			"$dynamicAnchor, so it names none of them"
 	case AnchorUnread:
 		return "it names a plain name in another document, whose identifiers are not read (GitHub #1049)"
-	case UnknownID:
-		return "it names " + h.Detail + " against the base an $id gives, which no schema declares as its $id; " +
-			"an $id is an identifier, not a location, so no document is read for it"
 	case DuplicateID:
 		return "two or more schemas declare " + h.Detail + " as their $id, so it names none of them"
 	case BadPointer:

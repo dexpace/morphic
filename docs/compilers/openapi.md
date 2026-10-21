@@ -278,9 +278,10 @@ against the base above it, by RFC 3986 where that base is a URI and as a `$ref`'
 where it is a file's path, and identifiers match as RFC 3986 §6.2.2 normalizes them. One with a
 fragment that is not empty names none, as 2020-12 admits none, one naming the URI of the resource
 holding it starts no resource, and one naming the source, however spelled, returns to the
-document's. A relative URI read against an `$id` is an identifier, so one no schema declares names
-nothing, and no document is read for it; an absolute one, and one read against the document, names
-a document as any other does. A pointer passing a reference object reads on where the resolver
+document's. A URI no schema declares names the document at that URI, read as any other is: one read
+against an `$id` is the URI the `$id` makes of it, never the file of that name beside the source,
+and is judged for refusal as written while only relative paths moved its base, and as that URI once
+an absolute `$id` did. A pointer passing a reference object reads on where the resolver
 resolved that, in whichever document, and a `$ref` written in another document's content is read in
 that document. What a `$ref` lands on in another document lowers where that document declares it;
 one in the source lowers at the pointer the `$ref` spells. A use site takes what its schema `$ref`'s
@@ -326,8 +327,8 @@ the `$ref`s past it left unresolved. A `<<` merge chain deeper than the levels a
 are expanded to (`nodeview.MergeDepthLimit`) is reported as an `openapi/degraded-construct` warning,
 and a `$ref` past it is left unresolved, as is one that reads a key past it: a key its pointer
 names, an `$id` that may give the base it is read against, or, for a `#/$defs/...` pointer, a
-definition the rule reads before the one that would answer. So is a plain name, and a relative URI
-read against an `$id`, that no schema declares where a schema merging past the bound may. A chain of
+definition the rule reads before the one that would answer. So is a plain name no schema declares
+where a schema merging past the bound may; a URI is read as a location all the same. A chain of
 references that closes on itself is [`reference-cycles`](#reference-cycles)'.
 
 - Cases: `schema-identifiers`
@@ -348,6 +349,9 @@ references that closes on itself is [`reference-cycles`](#reference-cycles)'.
   `openapi.TestCompile_ByDefaultEachReferenceIsJudgedByItsOwnSpelling`,
   `openapi.TestCompile_AURLNoReaderReadsIsRefusedUnread`,
   `openapi.TestCompile_ARefAnIDAnswersIsNeverRefusedUnread`,
+  `openapi.TestCompile_ARelativeRefUnderAnIDReadsWhereTheIDPlacesIt`,
+  `bind.TestBind_ReadsARelativeURIUnderAnIDWhereTheIDPlacesIt`,
+  `bind.TestBind_RefusesAReadUnderAnIDAsItsSpellingsWould`,
   `openapi.TestCompile_OneFileUnderTwoNamesIsOneDocument`,
   `openapi.TestExternalContent_ASchemaRefPastARefNamesItsContent`,
   `openapi.TestExternalContent_ASourcePositionItNamesByFileResolvesInEitherOrder`,

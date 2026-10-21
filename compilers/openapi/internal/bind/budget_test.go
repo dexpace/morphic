@@ -350,11 +350,9 @@ func TestSpellings(t *testing.T) {
 		"two or more schemas of the resource it names declare that name as their $anchor or $dynamicAnchor, " +
 			"so it names none of them": {Reason: bind.DuplicateAnchor},
 		"it names a plain name in another document, whose identifiers are not read (GitHub #1049)": {Reason: bind.AnchorUnread},
-		"it names u against the base an $id gives, which no schema declares as its $id; an $id is an identifier, " +
-			"not a location, so no document is read for it": {Reason: bind.UnknownID, Detail: "u"},
-		"two or more schemas declare u as their $id, so it names none of them":                   {Reason: bind.DuplicateID, Detail: "u"},
-		"no schema of the resource it names declares that name as its $anchor or $dynamicAnchor": {Reason: bind.NoAnchor},
-		"its fragment is no JSON pointer":                                                        {Reason: bind.BadPointer},
+		"two or more schemas declare u as their $id, so it names none of them":                     {Reason: bind.DuplicateID, Detail: "u"},
+		"no schema of the resource it names declares that name as its $anchor or $dynamicAnchor":   {Reason: bind.NoAnchor},
+		"its fragment is no JSON pointer": {Reason: bind.BadPointer},
 		"no definition answers it: neither the document's root nor a schema of the model above it holds one " +
 			"by that name": {Reason: bind.NoDefinition},
 		"the schema writing it defines that name, but a schema's own definitions answer a \"#/$defs/...\" " +

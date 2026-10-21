@@ -52,9 +52,9 @@ func (b *binder) resolve(site Position, path []*yaml.Node, ref string, schema bo
 // named is the resource the document part uri of a reference read in the
 // resource in names: in itself for none, else the one the URI it names against
 // in's identifies: a resource an $id names, the source, or the document there,
-// opened. A relative URI read against an $id is an identifier, so it names no
-// document to open; an absolute one names what it names wherever it is
-// written.
+// opened. A relative URI read against an $id that no schema declares names the
+// document at the URI the $id makes of it (readAt); an absolute one names what
+// it names wherever it is written.
 func (b *binder) named(in resource, uri string) (resource, Reason, string) {
 	if uri = strings.TrimSpace(uri); uri == "" {
 		return in, NoReason, ""
@@ -66,32 +66,55 @@ func (b *binder) named(in resource, uri string) (resource, Reason, string) {
 	if b.resources.names(Source, key) {
 		return b.resources.document(Source), NoReason, ""
 	}
-	// A miss the merge bound may explain is read as a location all the same
-	// where the base is a document's: the table says it is truncated.
-	root, why := b.ids.lookupURI(key)
+	// A miss the merge bound may explain is read as a location all the same:
+	// the table says it is truncated.
+	root, found, why := b.ids.lookupURI(key)
 	switch {
-	case why == NoReason:
+	case found:
 		return resource{root: root, uri: key, id: true}, NoReason, ""
-	case why == DuplicateID || in.id && !absolute(uri):
+	case why == DuplicateID:
 		return resource{}, why, key
+	case in.id && !absolute(uri):
+		return b.readAt(in, uri, key)
 	}
 	return b.opened(in, uri)
 }
 
 // opened is the resource of the document uri, written in the resource in,
-// names, read through Config.Open, or why it is not read: Config.Refuse
-// refuses that spelling, it names no document, or the read failed. An
-// identifier is never refused, since no document is read for one.
+// names, placed by Config.Locate, or why it is not read: Config.Refuse
+// refuses that spelling, or it names no document. An identifier is never
+// refused, since no document is read for one.
 func (b *binder) opened(in resource, uri string) (resource, Reason, string) {
-	if refuse := b.docs.cfg.Refuse; refuse != nil {
-		if err := refuse(uri); err != nil {
-			return resource{}, Unreadable, err.Error()
-		}
+	if why := b.docs.refusal(uri); why != "" {
+		return resource{}, Unreadable, why
 	}
 	name, ok := b.docs.locate(uri, in.uri)
 	if !ok {
 		return resource{}, Unreadable, "it names no document a reference can"
 	}
+	return b.read(name)
+}
+
+// readAt is the resource of the document a relative URI uri names, written in
+// the resource in, whose base an $id gives: key, the URI that base makes of it
+// by RFC 3986, read as such rather than placed by Config.Locate, which reads a
+// path against a URL as a local one (GitHub #936). Config.Refuse judges uri as
+// written where only relative paths moved the base, and key once an absolute
+// $id detached it, so an $id cannot make a refused read pass as relative.
+func (b *binder) readAt(in resource, uri, key string) (resource, Reason, string) {
+	spelled := uri
+	if in.detached {
+		spelled = key
+	}
+	if why := b.docs.refusal(spelled); why != "" {
+		return resource{}, Unreadable, why
+	}
+	return b.read(key)
+}
+
+// read is the resource of the document named name, read through Config.Open,
+// or why the read failed.
+func (b *binder) read(name string) (resource, Reason, string) {
 	id, err := b.docs.open(name)
 	var unparsable *UnparsableError
 	switch {

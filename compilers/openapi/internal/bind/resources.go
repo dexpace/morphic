@@ -21,6 +21,10 @@ type resource struct {
 	// id reports whether an $id names it, so that its name is an identifier
 	// rather than a document's location.
 	id bool
+	// detached reports that an $id on the way to it from its document's own
+	// names an absolute URI or path, so a read against its base is judged by
+	// the URI it resolves to rather than by its own relative spelling.
+	detached bool
 }
 
 // resources reads the schema resources of the documents a table reads: where
@@ -91,11 +95,13 @@ func (ix *identifiers) declare(r resources, in int32, at Position, n *yaml.Node)
 	return in
 }
 
-// lookupURI returns the root of the one resource uri identifies, or why none
-// answers: two or more schemas declare it, or none does, or the merge bound
-// may hide the one that would.
-func (ix *identifiers) lookupURI(uri string) (Position, Reason) {
-	return ix.one(ix.uris[uri], DuplicateID, UnknownID)
+// lookupURI returns the root of the one resource uri identifies, and whether
+// one does. Where none does, why is DuplicateID for two or more, MergeBound
+// where the merge bound may hide the one that would, and NoReason where no
+// schema declares uri, which then names a document.
+func (ix *identifiers) lookupURI(uri string) (Position, bool, Reason) {
+	at, why := ix.one(ix.uris[uri], DuplicateID, NoReason)
+	return at, len(ix.uris[uri]) == 1, why
 }
 
 // lookupAnchor returns the schema the resource rooted at root declares name
@@ -130,14 +136,15 @@ func (r resources) enter(in resource, n *yaml.Node) (res resource, rooted, known
 	if !written {
 		return in, false, r.docs.list[in.root.Doc].view.Expanded(nodeview.Deref(n))
 	}
-	uri, ok := r.identify(id, in.uri)
+	uri, part, ok := r.identify(id, in.uri)
 	switch {
 	case !ok || uri == in.uri:
 		return in, false, true
 	case r.names(in.root.Doc, uri):
 		return r.document(in.root.Doc), false, true
 	default:
-		return resource{uri: uri, id: true}, true, true
+		detached := in.detached || absolute(part) || strings.HasPrefix(part, "/")
+		return resource{uri: uri, id: true, detached: detached}, true, true
 	}
 }
 
@@ -152,19 +159,21 @@ func (r resources) names(id DocID, uri string) bool {
 	return err == nil && len(u.Scheme) > 1 && uri == normalURI(u)
 }
 
-// identify is the URI an $id of id names, written where the base is base: its
-// part before the '#', resolved against base (resolveURI), or base for an $id
-// naming no document. An $id with a fragment that is not empty names none, as
-// JSON Schema 2020-12 §8.2.1 admits none.
-func (r resources) identify(id, base string) (string, bool) {
-	uri, frag, _ := strings.Cut(id, "#")
+// identify is the URI an $id of id names, written where the base is base, and
+// the part it is spelled by: its part before the '#', trimmed, resolved
+// against base (resolveURI), or base for an $id naming no document. An $id
+// with a fragment that is not empty names none, as JSON Schema 2020-12 §8.2.1
+// admits none.
+func (r resources) identify(id, base string) (uri, part string, ok bool) {
+	part, frag, _ := strings.Cut(id, "#")
 	if frag != "" {
-		return "", false
+		return "", "", false
 	}
-	if uri = strings.TrimSpace(uri); uri == "" {
-		return base, true
+	if part = strings.TrimSpace(part); part == "" {
+		return base, part, true
 	}
-	return r.resolveURI(uri, base)
+	uri, ok = r.resolveURI(part, base)
+	return uri, part, ok
 }
 
 // absolute reports whether uri is an absolute URI, which no base moves: one

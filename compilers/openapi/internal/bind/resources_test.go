@@ -2,10 +2,13 @@ package bind_test
 
 import (
 	"encoding/json/jsontext"
+	"errors"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 )
@@ -14,8 +17,9 @@ import (
 // as JSON Schema 2020-12 §8.2 reads one: a plain name its resource declares as
 // an $anchor or a $dynamicAnchor, every schema under no $id being in the
 // document's resource, as OAS 3.1 reads one, and a URI an $id declares, by
-// RFC 3986 and normalized. A relative URI read against an $id names no
-// document, and a name two schemas declare names neither.
+// RFC 3986 and normalized. A relative URI no $id declares names the document
+// at the URI the $id above it makes of it, and a name two schemas declare
+// names neither.
 func TestBind_ReadsIdentifiers(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -60,8 +64,8 @@ func TestBind_ReadsIdentifiers(t *testing.T) {
 			"    B: {$id: 'https://x.test/s/b', $defs: {c: {$id: c}}}\n", "/components/schemas/A", "/components/schemas/B/$defs/c", 0},
 		{"an $id relative to the document", "    A: {$ref: 'b.json'}\n    B: {$id: b.json}\n",
 			"/components/schemas/A", "/components/schemas/B", 0},
-		{"no document for a relative URI no $id declares", "    B: {$id: 'https://x.test/b', properties: {p: {$ref: 'c'}}}\n",
-			"/components/schemas/B/properties/p", "", bind.UnknownID},
+		{"a document for a relative URI no $id declares", "    B: {$id: 'https://x.test/b', properties: {p: {$ref: 'c'}}}\n",
+			"/components/schemas/B/properties/p", "", bind.ExternalOff},
 		{"a document for an absolute URI no $id declares", "    B: {$id: 'https://x.test/b', properties: {p: {$ref: " +
 			"'https://x.test/c'}}}\n", "/components/schemas/B/properties/p", "", bind.ExternalOff},
 		{"no URI two $ids declare", "    A: {$ref: 'https://x.test/b'}\n    B: {$id: 'https://x.test/b'}\n" +
@@ -184,4 +188,83 @@ func TestBind_NamesTheDocumentByItsNormalizedURI(t *testing.T) {
 
 	table = bound(t, head+"components:\n  schemas:\n    A: {$ref: 'other.yaml#/X'}\n", bind.Config{Self: "/spec%zz.yaml"})
 	assert.Equal(t, bind.ExternalOff, entryAt(t, table, "/components/schemas/A").Hop.Reason)
+}
+
+// TestBind_ReadsARelativeURIUnderAnIDWhereTheIDPlacesIt pins the document a
+// relative URI no $id declares names under an $id: the one at the URI the $id
+// makes of it by RFC 3986, never the one beside the source, and read as that
+// URI rather than placed by Config.Locate, which here reads a path against a
+// URL as a local one, as the load phase's does (GitHub #936). A relative $id
+// places its base as a $ref places a document.
+func TestBind_ReadsARelativeURIUnderAnIDWhereTheIDPlacesIt(t *testing.T) {
+	t.Parallel()
+	var opened []string
+	cfg := withDocuments(map[string]string{
+		"https://x.test/s/c.yaml": "C: {type: string}\n", "https://x.test/c.yaml": "C: {type: integer}\n",
+		"/dir/c.yaml": "C: {type: boolean}\n", "/dir/schemas/tag.json": "T: {type: string}\n",
+	})
+	open := cfg.Open
+	cfg.Open = func(name string) (*yaml.Node, error) { opened = append(opened, name); return open(name) }
+	cfg.Self = "/dir/spec.yaml"
+	cfg.Locate = func(uri, base string) (string, bool) {
+		if strings.HasPrefix(uri, "/") {
+			return uri, true
+		}
+		return resolving.Locate(uri, base)
+	}
+	table := bound(t, head+"components:\n  schemas:\n"+
+		"    B: {$id: 'https://x.test/s/b', properties: {p: {$ref: 'c.yaml#/C'}, q: {$ref: '/c.yaml#/C'}}}\n"+
+		"    R: {$id: 'schemas/pet.json', properties: {t: {$ref: 'tag.json#/T'}}}\n", cfg)
+
+	for site, want := range map[jsontext.Pointer]string{
+		"/components/schemas/B/properties/p": "https://x.test/s/c.yaml",
+		"/components/schemas/B/properties/q": "https://x.test/c.yaml",
+		"/components/schemas/R/properties/t": "/dir/schemas/tag.json",
+	} {
+		e := entryAt(t, table, site)
+		require.Equal(t, bind.Resolved, e.Hop.Status, "%s: %s", site, e.Hop.Why())
+		assert.Equal(t, want, table.Document(e.Hop.Target.Doc).Name, site)
+	}
+	assert.NotContains(t, opened, "/dir/c.yaml", "never the document beside the source")
+	assert.NotContains(t, opened, "/c.yaml", "never the path Locate makes of an absolute path against a URL")
+}
+
+// TestBind_RefusesAReadUnderAnIDAsItsSpellingsWould pins Config.Refuse for a
+// read under an $id: it judges the $ref as written while only relative-path
+// $ids moved its base, and otherwise the URI the read resolves to, so no $id
+// makes a refused location of a relative $ref, while one the refusal admits,
+// an https URL under an absolute path's $id, is read. A relative $id under a
+// source named by an absolute path keeps a relative $ref relative.
+func TestBind_RefusesAReadUnderAnIDAsItsSpellingsWould(t *testing.T) {
+	t.Parallel()
+	cfg := withDocuments(map[string]string{"/dir/schemas/tag.json": "T: {}\n", "https://x.test/e.yaml": "E: {}\n"})
+	cfg.Self, cfg.Locate = "/dir/spec.yaml", resolving.Locate
+	var refused []string
+	cfg.Refuse = func(uri string) error {
+		if strings.HasPrefix(uri, "/") || strings.HasPrefix(uri, "urn:") {
+			refused = append(refused, uri)
+			return errors.New("refused " + uri)
+		}
+		return nil
+	}
+	table := bound(t, head+"components:\n  schemas:\n"+
+		"    A: {$id: '/srv/a.json', properties: {p: {$ref: 'b.json#/B'}}}\n"+
+		"    U: {$id: 'urn:x:a', properties: {p: {$ref: 'b#/B'}}}\n"+
+		"    N: {$id: '/srv/n.json', $defs: {d: {$id: 'https://x.test/d', properties: {p: {$ref: 'e.yaml#/E'}}}}}\n"+
+		"    M: {$id: '/srv/m/a.json', $defs: {d: {$id: 'sub/b.json', properties: {p: {$ref: 'c.json#/C'}}}}}\n"+
+		"    R: {$id: 'schemas/pet.json', properties: {t: {$ref: 'tag.json#/T'}}}\n", cfg)
+
+	for site, want := range map[jsontext.Pointer]string{
+		"/components/schemas/A/properties/p":         "refused /srv/b.json",
+		"/components/schemas/M/$defs/d/properties/p": "refused /srv/m/sub/c.json",
+		"/components/schemas/U/properties/p":         "refused urn:",
+	} {
+		why := entryAt(t, table, site).Hop.Why()
+		assert.True(t, strings.HasPrefix(why, "the document it names could not be read: "+want), "%s: %s", site, why)
+	}
+	for _, site := range []jsontext.Pointer{"/components/schemas/N/$defs/d/properties/p", "/components/schemas/R/properties/t"} {
+		e := entryAt(t, table, site)
+		assert.Equal(t, bind.Resolved, e.Hop.Status, "%s: %s", site, e.Hop.Why())
+	}
+	assert.NotContains(t, refused, "/dir/schemas/tag.json", "a relative $id keeps a relative $ref relative")
 }

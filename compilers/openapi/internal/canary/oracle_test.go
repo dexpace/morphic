@@ -115,8 +115,9 @@ var oracleReasons = map[string]string{
 		"the library looks for an anchor only inside the top-level schema it resolves, whatever URI names it, " +
 		"reads no $dynamicAnchor as one, and reads a URI an $id declares as a document to fetch",
 	"id-base": "the compiler reads a $ref under an $id against the base the $id gives: a fragment's pointer from " +
-		"the root of the resource it names, with no fallback, and a relative URI as an identifier, never a " +
-		"document to fetch (JSON Schema 2020-12 §8.2.1); under none, a fragment is read in the document, so \"#\" " +
+		"the root of the resource it names, with no fallback, and a relative URI as the URI the $id makes of it, " +
+		"never the document beside the source (JSON Schema 2020-12 §8.2.1); under none, a fragment is read in " +
+		"the document, so \"#\" " +
 		"names its root; the library reads a fragment's pointer from another root: the document's, the " +
 		"top-level schema's, or one its $defs rule finds",
 	"duplicate-identifier": "two or more schemas declare the $anchor, $dynamicAnchor or $id the reference " +
