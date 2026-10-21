@@ -608,3 +608,20 @@ func TestReferenceEnd_NamesWhereEachKindOfReferenceEnds(t *testing.T) {
 	_, ok := resolve.ReferenceEnd(got.Doc)
 	assert.False(t, ok, "a document is no reference")
 }
+
+// TestOperationAt_ReadsTheOperationWrittenAtAPointer pins the model read a
+// mounted request body is named by: the operation written at a pointer,
+// directly or under a path item component, and nothing at a position that
+// holds another object, holds nothing, or that no pointer spells.
+func TestOperationAt_ReadsTheOperationWrittenAtAPointer(t *testing.T) {
+	t.Parallel()
+	doc, _, err := load.Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(
+		"openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths:\n  /a: {post: {operationId: postA}}\n" +
+			"components:\n  pathItems:\n    P: {put: {operationId: putP}}\n")}, load.Options{})
+	require.NoError(t, err)
+	assert.Equal(t, "postA", resolve.OperationAt(doc.Doc, "/paths/~1a/post").GetOperationID())
+	assert.Equal(t, "putP", resolve.OperationAt(doc.Doc, "/components/pathItems/P/put").GetOperationID())
+	for _, pointer := range []jsontext.Pointer{"/paths/~1a", "/paths/~1b/post", "/paths/~1a/post/~2"} {
+		assert.Nil(t, resolve.OperationAt(doc.Doc, pointer), pointer)
+	}
+}

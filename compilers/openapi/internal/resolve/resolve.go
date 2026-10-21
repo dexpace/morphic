@@ -22,7 +22,6 @@ import (
 	"github.com/speakeasy-api/openapi/references"
 	yaml "gopkg.in/yaml.v3"
 
-	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
@@ -443,29 +442,11 @@ func (s Scope) ComponentRef(pointer jsontext.Pointer) (id ir.TypeID, ok, handled
 	return "", false, true
 }
 
-// InternedID returns the TypeID a node was interned under at pointer, when one
-// already exists there — either a previously hoisted sub-schema (via byPointer)
-// or a node registered directly under its pointer-derived ID.
-func InternedID(ts *compile.Types, pointer jsontext.Pointer) (ir.TypeID, bool) {
-	if id, ok := ts.Lookup(string(pointer)); ok {
-		return id, true
-	}
-	id := ids.ForPointer(pointer)
-	if _, ok := ts.Node(id); ok {
-		return id, true
-	}
-	return "", false
-}
-
 // NamesReferent reports whether the $ref at js names a schema this
 // compilation can point a TypeRef at, answering what resolveSchemaRef answers
-// without interning anything on the way, since deciding how to lower a schema
-// must not hoist nodes as a side effect of asking.
-//
-// It must stay in step with resolveSchemaRef, and mirrors it minus the two
-// steps that are not pure lookups: hoistSubSchema, which interns and fails
-// only where Hoistable does, and the InternedID hit, which would make the
-// answer depend on which schema lowered first.
+// without promising anything on the way, since deciding how to lower a schema
+// must not queue nodes as a side effect of asking. resolveSchemaRef reads the
+// registry no more than it does, so the two answer alike in any order.
 func (s Scope) NamesReferent(js *oas3.JSONSchema[oas3.Referenceable]) bool {
 	pointer, ok := s.TargetPointer(js)
 	if !ok {

@@ -82,6 +82,8 @@ func lowerSpec(t *testing.T, src string) (*ir.Document, []ir.Diagnostic) {
 	t.Helper()
 	l, diags := loweredFor(t, src)
 	l.diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.ctx, l.types, &l.anchors))
+	l.diags.AppendAll(l.types.Fulfil(t.Context()))
+	l.diags.AppendAll(l.types.Settle(t.Context()))
 	return l.out, append(diags, l.diags.List()...)
 }
 
@@ -96,6 +98,8 @@ func lowerSpecOnly(t *testing.T, src string) (*ir.Document, []ir.Diagnostic) {
 	t.Helper()
 	l, _ := loweredFor(t, src)
 	l.diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.ctx, l.types, &l.anchors))
+	l.diags.AppendAll(l.types.Fulfil(t.Context()))
+	l.diags.AppendAll(l.types.Settle(t.Context()))
 	return l.out, l.diags.List()
 }
 

@@ -90,12 +90,6 @@ type Ctx struct {
 	foreign bool
 	holder  string
 
-	// namesByReference marks a lowering running under a $ref that named a
-	// coordinate, whose names are placeholders. Unexported and read through
-	// NamesByReference so it can only be set by NamingByReference, which is what
-	// keeps it scoped to the subtree that copy is threaded through.
-	namesByReference bool
-
 	// auth is the document's declared security schemes, keyed by the IDs a
 	// requirement names. It is unexported, and read through a predicate rather
 	// than handed back, for the reason schemas is.
@@ -127,7 +121,15 @@ type Ctx struct {
 	// purpose: an answer reads only the document and its bindings, which no
 	// lowering changes, so what one copy remembers is what another would read.
 	// Nil in a zero context.
-	typePositions map[typePositionKey]jsontext.Pointer
+	typePositions map[scopedPointer]jsontext.Pointer
+
+	// hints records the hint each schema position is named by, as the first
+	// lowering to reach it names it. Copies share it on purpose, as
+	// typePositions: a node hoisted where a position's own lowering left none
+	// takes the name that lowering gave the position, which every declaration
+	// has recorded before such a node is built (compile.Types.Fulfil). Nil in a
+	// zero context, which records none.
+	hints map[scopedPointer]string
 
 	// reached records where each reference a lowering resolved landed in the
 	// source. Copies share it on purpose: no lowering reads it, so it cannot
@@ -149,9 +151,9 @@ type loadResult struct {
 	reads resolve.Scope
 }
 
-// typePositionKey is a position a discriminator mapping target names, and the
-// scope it is read in (see Within), which a TypePosition answer is kept under.
-type typePositionKey struct {
+// scopedPointer is a position and the scope it is read in (see Within), which
+// a TypePosition answer and a recorded hint (DeclareHint) are kept under.
+type scopedPointer struct {
 	foreign bool
 	holder  string
 	pointer jsontext.Pointer
@@ -179,7 +181,8 @@ func New(srcIndex int, doc *soa.OpenAPI, src ir.SourceInfo, grouping GroupingStr
 		promotions: promotionSet(promotions),
 		overlay:    origin,
 
-		typePositions: map[typePositionKey]jsontext.Pointer{},
+		typePositions: map[scopedPointer]jsontext.Pointer{},
+		hints:         map[scopedPointer]string{},
 		reached:       resolve.NewReached(),
 	}
 }
@@ -232,7 +235,7 @@ func (c Ctx) WithAuth(auth map[ir.AuthID]ir.AuthScheme) Ctx {
 func (c Ctx) WithLoaded(doc *load.Document) Ctx {
 	c.loaded = &loadResult{siblings: doc.Siblings, reads: resolve.Scope{Holds: doc.Holds,
 		Beside: doc.Siblings.Beside, Writes: doc.Siblings.Writes, Bindings: doc.Bindings}}
-	c.typePositions = map[typePositionKey]jsontext.Pointer{}
+	c.typePositions = map[scopedPointer]jsontext.Pointer{}
 	return c
 }
 
@@ -254,7 +257,7 @@ func (c Ctx) TypePosition(pointer jsontext.Pointer, read func() jsontext.Pointer
 	if c.typePositions == nil {
 		return read()
 	}
-	key := typePositionKey{foreign: c.foreign, holder: c.holder, pointer: pointer}
+	key := scopedPointer{foreign: c.foreign, holder: c.holder, pointer: pointer}
 	if at, seen := c.typePositions[key]; seen {
 		return at
 	}
@@ -263,44 +266,21 @@ func (c Ctx) TypePosition(pointer jsontext.Pointer, read func() jsontext.Pointer
 	return at
 }
 
-// NamingByReference returns a copy of c marking everything lowered under it as
-// reached through a reference naming a coordinate, not through the declaration
-// that owns it.
-//
-// A $ref can spell a pointer inside another declaration's body, so the node
-// interned there would be named by whichever lowering arrives first. A name
-// belongs to a declaration, so a lowering under this context names
-// provisionally and the declaration replaces the name when it arrives (GitHub
-// #372).
-//
-// It marks the whole subtree: a referenced object body interns its children
-// too, named from the enclosing one, so they are placeholders as well.
-func (c Ctx) NamingByReference() Ctx {
-	c.namesByReference = true
-	return c
+// DeclareHint records hint as the name the lowering reaching pointer, in c's
+// scope, gives it, where none is recorded there yet. Every lowering reaching a
+// position names it alike, so the first record stands for all of them.
+func (c Ctx) DeclareHint(pointer jsontext.Pointer, hint string) {
+	key := scopedPointer{foreign: c.foreign, holder: c.holder, pointer: pointer}
+	if _, seen := c.hints[key]; !seen && c.hints != nil {
+		c.hints[key] = hint
+	}
 }
 
-// NamesByReference reports whether names minted under c are placeholders a
-// declaration replaces. See NamingByReference.
-func (c Ctx) NamesByReference() bool { return c.namesByReference }
-
-// NamingByReferenceAt is NamingByReference for a reference-or-declaration
-// position: it marks c only when declPtr differs from usePtr.
-//
-// They differ when a $ref reached a declaration another position owns, such as
-// a request body written under another operation: a use-site hint (an
-// operationId, a headers-map key) would name a node the use site does not own.
-//
-// $ref is resolved at these positions before lowering starts, so nothing
-// downstream can tell a reference reached the declaration, unlike a
-// schema-level $ref, which hoistSubSchema marks. Without the mark, whichever
-// lowering ran first would name the shared node, since Intern is
-// first-write-wins (GitHub #433).
-func (c Ctx) NamingByReferenceAt(usePtr, declPtr jsontext.Pointer) Ctx {
-	if declPtr == usePtr {
-		return c
-	}
-	return c.NamingByReference()
+// HintAt returns the hint recorded for pointer in c's scope (DeclareHint), and
+// false where none is.
+func (c Ctx) HintAt(pointer jsontext.Pointer) (string, bool) {
+	hint, ok := c.hints[scopedPointer{foreign: c.foreign, holder: c.holder, pointer: pointer}]
+	return hint, ok
 }
 
 // Siblings returns the fields the load phase modelled beside the document's

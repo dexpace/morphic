@@ -50,7 +50,7 @@ func TestBodyModelPointer_NoModelBehindBody(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			pointer, ok := bodyModelPointer(l.types, tc.body)
+			pointer, ok := bodyModelPointer(l.types.Node, tc.body)
 			assert.False(t, ok, "no model stands behind this body")
 			assert.Empty(t, pointer, "and no pointer is invented for one")
 		})
@@ -250,7 +250,7 @@ func TestPropIDByWire_DeadEnds(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			id, ok := propIDByWire(l.types, tc.body, "file", 0)
+			id, ok := propIDByWire(l.types.Node, tc.body, "file", 0)
 			assert.False(t, ok, "no property with that wire name stands behind this body")
 			assert.Empty(t, id, "and no ID is invented for one")
 		})

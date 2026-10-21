@@ -626,14 +626,15 @@ any other position that owns a node of its own, is therefore pushed down to each
 or header referencing it that has a field for it, with use-site precedence
 ([`ref-use-site`](#ref-use-site)), and the declaration keeps its own copy verbatim under
 `no_ir_home`, reported with an info `openapi/degraded-construct` at the keyword. That copy is what a
-component nothing references would otherwise lose in silence.
+component nothing references would otherwise lose in silence. A position a property, parameter or
+header carries keeps them on its carrier whichever reaches it first, the carrier or a `$ref` naming
+the position: a `$ref` leaves lowering a position to the declaration that owns it.
 
 - Cases: `defaults`, `readonly-writeonly`, `inline-residue`
 - Codes: `openapi/degraded-construct`
 - Tests: `openapi.TestAnnotationRetention_OtherDeclarationShapes`,
-  `schema.TestPropertyPosition_ResidueStaysOutOfTheTypeNode`
-- Status: partly built: a `$ref` to a property's schema reports `readOnly` as kept on a node that
-  lacks it (#750).
+  `schema.TestPropertyPosition_ResidueStaysOutOfTheTypeNode`,
+  `openapi.TestCompile_AReferenceLeavesItsTargetToItsOwnerInEitherOrder`
 
 ### `docs-and-deprecation`
 
@@ -826,19 +827,22 @@ things, with nothing downstream comparing a value's kind to its property's type;
 the type being dropped, not on the drop being called a conflict. Two declarations naming the same
 target and differing only in nullability are not a drop and take no entry: the merged field admits
 null only where both branches do, which is the same conjunction a single schema's null verdicts fold
-under ([`nullable`](#nullable)).
+under ([`nullable`](#nullable)). Whether two types conflict is read from the nodes they name once
+every type has lowered, so the warning follows the walk's diagnostics and neither declaration's
+order decides it; what is folded and kept never turns on it.
 
 - Cases: `allof-conflicting-type`
 - Codes: `openapi/conflicting-redeclaration`, `openapi/degraded-construct`
 - Tests: `merge.TestReconcileProperty_NullabilityIntersectsWhenTargetsAgree`,
   `merge.TestReconcileProperty_ADroppedTypeIsKeptEvenWhenItDoesNotConflict`,
-  `merge.TestReconcileProperty_ALosingDetailIsKeptAndReported`
+  `merge.TestReconcileProperty_ALosingDetailIsKeptAndReported`,
+  `merge.TestMerger_ATypeConflictWaitsForTheRegistry`,
+  `openapi.TestCompile_AReferenceLeavesItsTargetToItsOwnerInEitherOrder`
 - Status: partly built: a primitive a `format` narrows is reported as conflicting with the bare
   primitive, which it does not contradict (#446); an `allOf` that narrows a property's type is
   reported as a conflict and resolved by branch order (#598), as is a redeclaration with an unknown
-  format (#782); a property redeclared as a list and as a tuple is reported as a conflict (#899);
-  and a conflict goes unreported when the other type lowers later (#898). Open: intersecting the
-  redeclared bounds and defaults rather than keeping one (#10).
+  format (#782); and a property redeclared as a list and as a tuple is reported as a conflict
+  (#899). Open: intersecting the redeclared bounds and defaults rather than keeping one (#10).
 
 ### `allof-required`
 
@@ -1121,7 +1125,9 @@ An entry repeating an earlier entry's value, compared as JSON Schema compares in
 each occurrence a member of its own (§4.5), and reported as an `openapi/duplicate-enum-value`
 warning at the repeat. An `enum` past `Limits.MaxEnumMembers` lowers to the top type, with an
 `openapi/budget-exceeded` error at the schema. A `const` lowers to a `Literal` of its value, and one
-that cannot convert to the top type, with an `openapi/degraded-construct` warning at the schema.
+that cannot convert to the top type, with an `openapi/degraded-construct` warning at the schema. A
+`$ref` into a member of such a union names the member's `Literal`, the node the enumeration lowers
+at that position, whichever is lowered first.
 
 - Cases: `enum-string`, `enum-numeric`, `empty-enum`, `enum-member-identity`, `nullable-enum-31`,
   `literal-const`
@@ -1132,9 +1138,8 @@ that cannot convert to the top type, with an `openapi/degraded-construct` warnin
   `schema.TestEnumAsUnion_UnconvertibleMemberBecomesAny`
 - Status: partly built: an `enum` ignores its `format`, though `Enum.ValueType` can carry it (#607);
   an enum whose members do not match its declared type lowers to a union with only an info
-  diagnostic (#619); a `Literal` carries no value type or format (#668); and a `$ref` into an enum
-  member lowers it as a schema in one declaration order (#730). Open: whether a mixed-type enum's
-  `null` lifts out of its union (#618).
+  diagnostic (#619); and a `Literal` carries no value type or format (#668). Open: whether a
+  mixed-type enum's `null` lifts out of its union (#618).
 
 ## 6. Schemas: objects, arrays and scalars
 
@@ -1189,7 +1194,7 @@ which merges in place, or a subschema kept verbatim, such as one under `not`.
 - Cases: `missing-array-items`
 - Codes: `openapi/missing-array-items`
 - Tests: `schema.TestLower_MissingArrayItems`, `schema.TestLower_ListWithoutItems`,
-  `schema.TestLower_MissingArrayItemsLoweredTwiceWarnsOnce`
+  `schema.TestLower_MissingArrayItemsAtAReferencedPositionWarnsOnce`
 
 ### `tuples`
 
@@ -1308,7 +1313,8 @@ under `openapi:format` (`no_ir_home`), with an info `openapi/degraded-construct`
 
 Two whole-schema fallbacks answer to a compiler's own limits rather than to anything about the
 construct, which is why §4.8's list of degradations does not hold them. A schema nested past the
-lowering's depth cap becomes the top type, reported as an `openapi/degraded-construct` error at it.
+lowering's depth cap becomes the top type, reported as an `openapi/degraded-construct` error at it;
+the cap counts from where the position's own declaration enters, never from a `$ref` naming it.
 A boolean `false` schema becomes a closed empty `Model`, with the schema itself kept verbatim under
 `degraded_lowering` at `Unmodeled["openapi:schema"]` and an info `openapi/false-schema` at it — the
 key names the position because a boolean schema writes no keyword to name it by, and nothing can
@@ -1339,9 +1345,8 @@ needs to produce it.
 - Codes: `openapi/degraded-construct`, `openapi/false-schema`
 - Tests: `schema.TestLower_DepthCapExceeded`,
   `openapi.TestMaxNesting_AdmitsWhatTheLoweringLowersInFull`,
-  `openapi.TestCompile_ARefToABooleanSchemaResolvesInEitherOrder`
-- Status: partly built: a `$ref` and the declaration it targets reach the depth cap at different
-  coordinates (#748).
+  `openapi.TestCompile_ARefToABooleanSchemaResolvesInEitherOrder`,
+  `openapi.TestCompile_AReferenceLeavesItsTargetToItsOwnerInEitherOrder`
 
 ## 7. Schemas: keywords beyond the shape
 

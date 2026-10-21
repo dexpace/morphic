@@ -15,11 +15,9 @@ import (
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
 
-	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/fragment"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/navigation"
-	"github.com/dexpace/morphic/ir"
 )
 
 func TestInternalPointer(t *testing.T) {
@@ -497,40 +495,6 @@ func TestIsURL(t *testing.T) {
 		assert.Equal(t, want, IsURL(location), "%q", location)
 	}
 }
-
-func TestInternedID_ByPointerHit(t *testing.T) {
-	t.Parallel()
-	ts := compile.NewTypes()
-	ts.Intern(deepPointer, "t/anon/prev", func() ir.TypeDef { return &ir.Any{} })
-
-	id, ok := InternedID(ts, deepPointer)
-	require.True(t, ok, "a pointer already recorded in byPointer resolves")
-	assert.Equal(t, ir.TypeID("t/anon/prev"), id)
-}
-
-func TestInternedID_RegistryHit(t *testing.T) {
-	t.Parallel()
-	ts := compile.NewTypes()
-	// A node lives at the pointer-derived ID without a byPointer entry: InternedID
-	// still finds it through the type registry.
-	id := ids.AnonType(deepPointer)
-	ts.Register(id, &ir.Primitive{ID: id, Prim: ir.PrimString})
-
-	got, ok := InternedID(ts, deepPointer)
-	require.True(t, ok, "a node registered under its pointer-derived ID resolves")
-	assert.Equal(t, id, got)
-}
-
-func TestInternedID_Miss(t *testing.T) {
-	t.Parallel()
-	ts := compile.NewTypes()
-	_, ok := InternedID(ts, deepPointer)
-	assert.False(t, ok, "an un-interned pointer does not resolve")
-}
-
-// deepPointer is a sub-schema coordinate, deep enough that no component-name
-// rule could classify it as a top-level declaration.
-const deepPointer = "/components/schemas/Obj/properties/inner"
 
 // rawMappingDoc is a document whose pointers leave the model for raw YAML:
 // the root's under an extension, and a schema's.

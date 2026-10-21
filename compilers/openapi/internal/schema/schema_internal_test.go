@@ -231,15 +231,30 @@ func TestStampConstraintDiags_RelocatesEveryDiagnosticToTheReadingPointer(t *tes
 	assert.Equal(t, diag.NumericPrecision, got[1].Code, "only the provenance changes")
 }
 
-func TestResolvePointer_ReusesInternedSubSchema(t *testing.T) {
+// TestResolvePointer_PromisesWhatItNames pins that a $ref never builds what it
+// names: it takes the ID the target's pointer derives and promises the node,
+// which Fulfil builds only where no lowering interned one, and a target it
+// cannot hoist resolves to nothing.
+func TestResolvePointer_PromisesWhatItNames(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
-	l.types.Intern(deepPointer, "t/anon/prev", func() ir.TypeDef { return &ir.Any{} })
+	object := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](
+		&oas3.Schema{Type: oas3.NewTypeFromString(oas3.SchemaTypeObject)})
 
-	id, ok, diags := resolvePointer(l.ctx, l.types, &l.anchors, TopLevelDepth, deepPointer, nil)
-	require.True(t, ok, "a $ref to an already-hoisted sub-schema reuses its ID")
-	assert.Equal(t, ir.TypeID("t/anon/prev"), id)
-	assert.Empty(t, diags, "reusing an interned node reports nothing")
+	id, ok := resolvePointer(l.ctx, l.types, &l.anchors, deepPointer, object)
+	require.True(t, ok)
+	assert.Equal(t, ids.AnonType(deepPointer), id)
+	_, built := l.types.Lookup(deepPointer)
+	assert.False(t, built, "the reference builds nothing itself")
+
+	assert.Empty(t, l.types.Fulfil(t.Context()), "an object body hoists cleanly")
+	seeded, built := l.types.Lookup(deepPointer)
+	require.True(t, built, "Fulfil builds what no lowering interned")
+	assert.Equal(t, id, seeded)
+	assert.Empty(t, l.types.Violations())
+
+	_, ok = resolvePointer(l.ctx, l.types, &l.anchors, deepPointer, nil)
+	assert.False(t, ok, "a target the bindings hold no schema at cannot be hoisted")
 }
 
 func TestResolveSchemaRef_UnboundDeepRefDropped(t *testing.T) {
@@ -249,33 +264,24 @@ func TestResolveSchemaRef_UnboundDeepRefDropped(t *testing.T) {
 	// nothing the bindings know it lands on, so the reference is dropped.
 	js := oas3.NewJSONSchemaFromReference("#" + deepPointer)
 
-	_, ok, diags := resolveSchemaRef(l.ctx, l.types, &l.anchors, TopLevelDepth, js)
+	_, ok := resolveSchemaRef(l.ctx, l.types, &l.anchors, js)
 	assert.False(t, ok, "an unresolved deep sub-schema $ref is dropped, not synthesized")
-	assert.Empty(t, diags, "the drop is reported by refTypeRef, which owns the pointer to report it at")
-}
-
-func TestHoistSubSchema_NilSchema(t *testing.T) {
-	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
-	_, ok, diags := hoistSubSchema(l.ctx, l.types, &l.anchors, TopLevelDepth, nil, deepPointer)
-	assert.False(t, ok, "a nil resolved sub-schema cannot be hoisted")
-	assert.Empty(t, diags)
 }
 
 func TestHoistSubSchema_BodyInternsAtPointer(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
 	// An object body interns a node at the sub-schema's own pointer, so the
-	// pointer-owns-a-node branch returns that node rather than aliasing it.
+	// pointer-owns-a-node branch keeps that node rather than aliasing it.
 	object := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](
 		&oas3.Schema{Type: oas3.NewTypeFromString(oas3.SchemaTypeObject)})
 
-	id, ok, diags := hoistSubSchema(l.ctx, l.types, &l.anchors, TopLevelDepth, object, deepPointer)
-	require.True(t, ok)
-	assert.Empty(t, diags, "an object body hoists cleanly")
-	assert.Equal(t, ids.AnonType(deepPointer), id)
+	assert.Empty(t, hoistSubSchema(l.ctx, l.types, &l.anchors, object, deepPointer), "an object body hoists cleanly")
 	seeded, _ := l.types.Lookup(deepPointer)
 	assert.Equal(t, ids.AnonType(deepPointer), seeded)
+	td, ok := l.types.NodeAt(deepPointer)
+	require.True(t, ok)
+	assert.Equal(t, ir.KindModel, td.Kind(), "the body's own node, not an alias over it")
 }
 
 func TestIsRefBranch_Nil(t *testing.T) {

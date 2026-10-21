@@ -8,6 +8,7 @@ import (
 	"github.com/speakeasy-api/openapi/references"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/fragment"
+	"github.com/dexpace/morphic/compilers/openapi/internal/navigation"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -317,4 +318,21 @@ func ReferenceEnd(node any) (End, bool) {
 	default:
 		return End{}, false
 	}
+}
+
+// OperationAt returns the operation doc's model holds at pointer, the position
+// it is written at, and nil where it holds none there.
+func OperationAt(doc *soa.OpenAPI, pointer jsontext.Pointer) *soa.Operation {
+	tokens, ok := navigation.Tokens(pointer)
+	if !ok {
+		return nil
+	}
+	var node any = doc
+	for _, token := range tokens {
+		if node, ok = navigation.Step(node, token); !ok {
+			return nil
+		}
+	}
+	op, _ := node.(*soa.Operation)
+	return op
 }

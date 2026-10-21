@@ -94,9 +94,9 @@ func lowerComponentSchema(c lowering.Ctx, ts *compile.Types, anchors *AnchorInde
 // A pointer with no node wrote none (declaresPositionScoped hoists one for any
 // it wrote) or is mid-build, and its builder records them.
 func recordDeclarationResidue(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsontext.Pointer, home annotation.Home) []ir.Diagnostic {
-	// A $ref aimed at a carrier's own schema reaches here as HomeOwnNode. When the
-	// declaration then rebuilds that node, what this records goes with it but the
-	// report stays (GitHub #750).
+	// A $ref never lowers a carrier's own schema, which its declaration lowers as
+	// HomeCarrier, so a position reaches here as HomeOwnNode only where nothing
+	// carries it, and the record here is its only one (GitHub #750).
 	if home != annotation.HomeOwnNode || s == nil {
 		return nil
 	}
@@ -1122,7 +1122,7 @@ func lowerModel(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 		m := &ir.Model{TypeCommon: common, Constraints: cons}
 		diags = append(diags, fillModelProperties(c, ts, anchors, depth, m, s, pointer)...)
 		diags = append(diags, fillAdditional(c, ts, anchors, depth, m, s, pointer, hint)...)
-		d, discDiags := lowerDiscriminator(c, ts, anchors, depth, s, m, nil, pointer)
+		d, discDiags := lowerDiscriminator(c, ts, anchors, s, m, nil, pointer)
 		diags = append(diags, discDiags...)
 		if d != nil {
 			m.Discriminator = d
@@ -2384,14 +2384,36 @@ func requiredSet(required []string) map[string]bool {
 // Merger.Report records rather than returns, which is the one place this package
 // still hands diagnostics to a callback. diags is the caller's own slice, so what
 // the reconciler reports travels out the way everything else does; the callback
-// is the merge package's contract, not accumulation surviving here. It is two
-// closures over state already at hand, so building it per use costs nothing
-// worth measuring.
+// is the merge package's contract, not accumulation surviving here. A conflict
+// that reads the types it compares is reported once the registry is whole
+// (redeclaration). It is two closures over state already at hand, so building
+// it per use costs nothing worth measuring.
 func merger(c lowering.Ctx, ts *compile.Types, diags *[]ir.Diagnostic) merge.Merger {
 	return merge.Merger{
-		Resolve: ts.Node,
 		Report: func(sev ir.Severity, code string, pointer jsontext.Pointer, format string, args ...any) {
 			*diags = append(*diags, c.DiagAt(sev, code, pointer, format, args...))
 		},
+		Later: func(conflict merge.Conflict) { ts.Defer(redeclaration{c: c, conflict: conflict}) },
 	}
+}
+
+// redeclaration reports a merge.Conflict once every node exists
+// (compile.Settlement): whether two redeclared types conflict reads the nodes
+// they name, and mid-walk a node another declaration owns may not be built
+// yet, which made the report follow declaration order (GitHub #898).
+type redeclaration struct {
+	c        lowering.Ctx
+	conflict merge.Conflict
+}
+
+// Settle reports the conflict, writing no node of reg.
+func (r redeclaration) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
+	pointer, message, conflicts := r.conflict.Report(func(id ir.TypeID) (ir.TypeDef, bool) {
+		td, ok := reg[id]
+		return td, ok
+	})
+	if !conflicts {
+		return nil
+	}
+	return []ir.Diagnostic{r.c.DiagAt(ir.SeverityWarning, diag.ConflictingRedecl, pointer, "%s", message)}
 }

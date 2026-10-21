@@ -13,9 +13,9 @@ import (
 // maxSchemaDepth caps schema-lowering recursion (styleguide bounded-recursion
 // rule). Interning by pointer is what terminates recursive and diamond schemas;
 // this bound only guards pathologically deep inline nesting. It counts from where
-// a lowering enters, so a $ref and its target's declaration reach it at different
-// coordinates, and the declaration's rebuild leaves what the reference built past
-// it (GitHub #748).
+// the lowering owning a position enters: a $ref never lowers what it names
+// (resolvePointer), so a position meets the bound at one depth, whichever
+// reaches it first (GitHub #748).
 const maxSchemaDepth = 256
 
 // TopLevelDepth is the nesting a schema position outside the walk starts at.
@@ -45,28 +45,23 @@ func registeredNode(c lowering.Ctx, ts *compile.Types, id ir.TypeID, pointer jso
 }
 
 // internNode is the single hoisting entry point: it derives pointer's stable
-// TypeID (ids.ForPointer) and shared TypeCommon (commonFor) once, then
-// interns build's result under that ID. build receives the already-built
-// TypeCommon (its ID field is the same id), so it never needs pointer, hint,
-// or a bare id to re-derive it.
+// TypeID (ids.ForPointer) and shared TypeCommon (commonFor) once, then interns
+// build's result under that ID. build receives the built TypeCommon, so it
+// never re-derives pointer, hint or id.
+//
+// A $ref promises the node rather than building it (resolvePointer), so every
+// lowering reaching pointer does so in the context its position gives it, and
+// the first build stands for all. It is named by the hint the position's own
+// lowering recorded (lowering.Ctx.DeclareHint), as a node a $ref hoists where
+// that lowering interned none is too.
 func internNode(c lowering.Ctx, ts *compile.Types, pointer jsontext.Pointer, hint string,
 	build func(common ir.TypeCommon) ir.TypeDef,
 ) ir.TypeID {
 	id := ids.ForPointer(pointer)
-	mint := func() ir.TypeDef { return build(commonFor(c, id, pointer, hint)) }
-	if c.NamesByReference() {
-		// A $ref named this coordinate, so the name is a placeholder until the
-		// declaration that owns it arrives (GitHub #372).
-		return ts.InternProvisional(string(pointer), id, mint)
+	if declared, ok := c.HintAt(pointer); ok {
+		hint = declared
 	}
-	// The declaration reaching its own coordinate. A reference that got here
-	// first built the node and everything beneath it under its own names, so the
-	// declaration builds it again rather than taking the reference's (GitHub #529).
-	interned := ts.InternDeclared(string(pointer), id, mint)
-	// On a first visit or after a rebuild the node already has this name; only
-	// where a rebuild was refused is there a reference's placeholder to replace.
-	ts.NameFromDeclaration(string(pointer), hint)
-	return interned
+	return ts.Intern(string(pointer), id, func() ir.TypeDef { return build(commonFor(c, id, pointer, hint)) })
 }
 
 // commonFor builds the TypeCommon shared by every hoisted node at pointer. A

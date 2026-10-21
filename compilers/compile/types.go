@@ -24,16 +24,11 @@ type Types struct {
 	// byID is byPointer read backwards, so a derivation that maps two distinct
 	// coordinates onto one ID is caught rather than silently overwriting.
 	byID map[ir.TypeID]string
-	// provisional holds the coordinates whose node was named by a lowering that
-	// reached them through a reference rather than through the declaration that
-	// owns them. See InternProvisional.
-	provisional map[string]bool
-	// declared holds the hint a declaration gave each coordinate it reached
-	// without finding a placeholder there. See NameFromDeclaration.
-	declared map[string]string
-	// byReference holds the coordinates whose node a reference built and the
-	// declaration that owns them has not rebuilt yet. See InternDeclared.
-	byReference map[string]bool
+	// promised holds every coordinate Promise queued, and promises those not
+	// yet taken; fulfilled records that Fulfil has returned. See Promise.
+	promised  map[string]bool
+	promises  map[string]func() []ir.Diagnostic
+	fulfilled bool
 	// pending holds the settlements Defer queued for Settle, and settled
 	// records that Settle has run. See Settlement.
 	pending []Settlement
@@ -65,10 +60,8 @@ func NewTypes() *Types {
 		byPointer: make(map[string]ir.TypeID),
 		spaces:    make(map[Space]bool),
 		byID:      make(map[ir.TypeID]string),
-
-		provisional: make(map[string]bool),
-		declared:    make(map[string]string),
-		byReference: make(map[string]bool),
+		promised:  make(map[string]bool),
+		promises:  make(map[string]func() []ir.Diagnostic),
 	}
 }
 
@@ -149,99 +142,6 @@ func (t *Types) Intern(pointer string, id ir.TypeID, build func() ir.TypeDef) ir
 	}
 	t.reg[id] = td
 	return id
-}
-
-// InternProvisional is Intern for a lowering that reached pointer through a
-// reference rather than the declaration that owns it, and records that the
-// node's name is a placeholder.
-//
-// Either can arrive first at a coordinate inside another declaration's body,
-// and Intern builds for the first. The declaration names it better, so
-// NameFromDeclaration replaces the name and InternDeclared rebuilds the node
-// when it arrives.
-//
-// An interned coordinate is not marked: its name may be settled. One the
-// declaration reached before any node existed takes the declared hint instead
-// (GitHub #519).
-func (t *Types) InternProvisional(pointer string, id ir.TypeID, build func() ir.TypeDef) ir.TypeID {
-	_, before := t.byPointer[pointer]
-	interned := t.Intern(pointer, id, build)
-	if _, after := t.byPointer[pointer]; !after || before {
-		return interned
-	}
-	if hint, ok := t.declared[pointer]; ok {
-		t.reg[interned].Common().Name.Hint = neutralHint(hint)
-		return interned
-	}
-	t.provisional[pointer] = true
-	t.byReference[pointer] = true
-	return interned
-}
-
-// InternDeclared is Intern for the declaration that owns pointer. Where a
-// reference built the node first, it builds it again under the same ID.
-//
-// Renaming only that node would leave the nodes the reference interned beneath
-// it named from its guess, which a pointer under /paths cannot replay (GitHub
-// #529). The build lowers the same schema at the same pointers, so each one
-// takes the declaration's name. It replaces what the reference built, not what
-// it reported (GitHub #750).
-//
-// A coordinate is rebuilt once. A build yielding nothing is refused, keeping
-// the reference's node so IDs other nodes hold still resolve.
-func (t *Types) InternDeclared(pointer string, id ir.TypeID, build func() ir.TypeDef) ir.TypeID {
-	if !t.byReference[pointer] {
-		return t.Intern(pointer, id, build)
-	}
-	delete(t.byReference, pointer)
-	existing := t.byPointer[pointer]
-	if existing != id {
-		t.refuse("rebuild rejected: %q is interned as %q, not %q", pointer, existing, id)
-		return existing
-	}
-	if build == nil {
-		t.refuse("rebuild rejected: nil build for id=%q at %q", id, pointer)
-		return existing
-	}
-	td := build()
-	if ir.IsNilTypeDef(td) {
-		t.refuse("rebuild rejected: build returned a nil type definition for id=%q at %q", id, pointer)
-		return existing
-	}
-	t.reg[id] = td
-	return id
-}
-
-// NameFromDeclaration gives the node at pointer its declaration's hint,
-// replacing a placeholder a reference left first.
-//
-// Without a placeholder the declaration came first, and the hint is recorded
-// for InternProvisional. A declaration may intern nothing at a position, such
-// as a $ref resolved straight to its target; a reference naming the position
-// later hoists a node the declaration never made, whose name would otherwise
-// depend on declaration order (GitHub #519).
-//
-// A position has one declaration hint however many lowerings reach it (GitHub
-// #433), so a second call is harmless: a named node keeps its name, and the
-// rewritten record is never read.
-func (t *Types) NameFromDeclaration(pointer, hint string) {
-	if !t.provisional[pointer] {
-		t.declared[pointer] = hint
-		return
-	}
-	delete(t.provisional, pointer)
-	// The coordinate resolves and its node is present: InternProvisional marks a
-	// coordinate only once its build has returned a node, and Intern is what
-	// removes the pair again when a build yields nothing — so there is no state
-	// here in which one exists without the other, and a branch for one would be
-	// untestable.
-	//
-	// Neutralized on the way in, because this writes the field NamingHint would
-	// have written and has to write it the same way. A raw hint here would leave
-	// the node holding the caller's spelling — "A" where interning the same hint
-	// gives "a" — so the name would depend on whether a reference got there
-	// first, which is the dependence this whole path exists to remove.
-	t.reg[t.byPointer[pointer]].Common().Name.Hint = neutralHint(hint)
 }
 
 // Register records td under id without associating it with any source

@@ -87,5 +87,7 @@ func lowerServiceSpec(t *testing.T, src string) (ir.Service, []ir.Diagnostic) {
 
 	svc, _, svcDiags := LowerService(t.Context(), l.ctx.WithAuth(schemes), l.types, &l.anchors)
 	l.diags.AppendAll(svcDiags)
+	l.diags.AppendAll(l.types.Fulfil(t.Context()))
+	l.diags.AppendAll(l.types.Settle(t.Context()))
 	return svc, append(loadDiags, l.diags.List()...)
 }

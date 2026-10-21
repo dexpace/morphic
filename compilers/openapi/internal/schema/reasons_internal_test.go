@@ -27,7 +27,7 @@ func TestRefTypeRef_SaysWhyAnUnboundRefIsUnresolved(t *testing.T) {
 	t.Parallel()
 	message := func(t *testing.T, l *lowerer, js *oas3.JSONSchema[oas3.Referenceable]) string {
 		t.Helper()
-		ref, diags := refTypeRef(l.ctx, l.types, &l.anchors, TopLevelDepth, js, "/components/schemas/A")
+		ref, diags := refTypeRef(l.ctx, l.types, &l.anchors, js, "/components/schemas/A")
 		assert.Equal(t, ir.TypeID("t/prim/any"), ref.Target)
 		require.Len(t, diags, 1)
 		return diags[0].Message

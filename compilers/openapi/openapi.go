@@ -178,9 +178,11 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, 
 	out.Services = []ir.Service{svc}
 	out.TagDefs = tagDefs
 	acc.AppendAll(svcDiags)
-	// Every lowering has returned, so what was deferred until the registry is
-	// whole is decided now (compile.Settlement), before the check that refuses
-	// a registry either phase left cut short.
+	// Every declaration has lowered, so a coordinate a $ref named and none built
+	// is built now, in its own context (compile.Types.Promise); then what was
+	// deferred until the registry is whole is decided (compile.Settlement),
+	// before the check that refuses a registry any phase left cut short.
+	acc.AppendAll(ts.Fulfil(ctx))
 	acc.AppendAll(ts.Settle(ctx))
 	if err := ctx.Err(); err != nil {
 		return nil, acc.List(), err
