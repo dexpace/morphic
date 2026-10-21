@@ -32,6 +32,10 @@ func (r ruler) code(rule Rule) {
 		additionalMethods(r, rule)
 	case "encoding-applies":
 		encodingApplies(r, rule)
+	case "dependent-required":
+		dependentRequired(r, rule)
+	case "vocabulary":
+		vocabulary(r, rule)
 	default:
 		r.w.add(diag.Newf(ir.SeverityError, diag.InternalInvariant, r.w.locate(r.f.at.ptr),
 			"the %s names the rule %q, which the engine does not implement", r.f.obj.Name, rule.Name), r.f.at.ptr)
@@ -421,6 +425,47 @@ func encodingApplies(r ruler, rule Rule) {
 		if scope != "" {
 			r.fail(rule, classNoEffect, r.f.at.ptr.AppendToken(field),
 				"field "+quote(field)+" has no effect under "+quote(r.f.at.held)+", which the specification applies "+scope)
+		}
+	}
+}
+
+// dependentRequired reports an entry of dependentRequired that is no list of
+// strings, and a string an entry lists twice: each lists the properties an
+// instance holding the entry's key must hold too.
+func dependentRequired(r ruler, rule Rule) {
+	base := r.f.at.ptr.AppendToken("dependentRequired")
+	for _, p := range r.w.view.MappingPairs(r.f.byKey["dependentRequired"]) {
+		ptr := base.AppendToken(p.Key)
+		list := nodeview.Deref(p.Val)
+		if list == nil || !matches(StringList, list) {
+			r.fail(rule, classType, ptr, "field \"dependentRequired\" entry "+quote(p.Key)+" must be a list of strings")
+			continue
+		}
+		first := map[string]jsontext.Pointer{}
+		for i, item := range list.Content {
+			text, _ := textOf(item)
+			at, seen := first[text]
+			if seen {
+				r.fail(rule, classDuplicate, itemPointer(ptr, i),
+					"field \"dependentRequired\" entry "+quote(p.Key)+" repeats "+quote(text)+" first written at "+string(at))
+				continue
+			}
+			first[text] = itemPointer(ptr, i)
+		}
+	}
+}
+
+// vocabulary reports a $vocabulary key that is no URI with a scheme, and a
+// value that is no boolean, which says whether the vocabulary is required.
+func vocabulary(r ruler, rule Rule) {
+	base := r.f.at.ptr.AppendToken("$vocabulary")
+	for _, p := range r.w.view.MappingPairs(r.f.byKey["$vocabulary"]) {
+		ptr := base.AppendToken(p.Key)
+		if !validFormat(AbsoluteURI, p.Key) {
+			r.fail(rule, classFormat, ptr, "field \"$vocabulary\" has the key "+quote(p.Key)+", which must be "+describeFormat(AbsoluteURI))
+		}
+		if v := nodeview.Deref(p.Val); v == nil || !matches(Boolean, v) {
+			r.fail(rule, classType, ptr, "field \"$vocabulary\" entry "+quote(p.Key)+" must be a boolean")
 		}
 	}
 }

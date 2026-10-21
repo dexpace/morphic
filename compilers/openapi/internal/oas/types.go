@@ -113,6 +113,9 @@ const (
 	// AnchorName is a name a $anchor or a $dynamicAnchor declares: a letter or
 	// '_', then letters, digits, '-', '_' and '.' (JSON Schema 2020-12 §8.2.2).
 	AnchorName
+	// ResourceURI is a URI reference whose fragment, if any, is empty, as a
+	// $id must be (JSON Schema 2020-12 §8.2.1).
+	ResourceURI
 )
 
 // Level is how firmly the specification states a rule.
@@ -221,7 +224,8 @@ const (
 	RuleMustBe
 	// RuleMember: Field's value is among the strings of the list Of.
 	RuleMember
-	// RuleUnique: the items of the list Field are unique by their Key.
+	// RuleUnique: the items of the list Field are unique by their Key, or
+	// whole where Key is empty.
 	RuleUnique
 	// RuleSyntax: Field, when written, has the syntax Format if every When
 	// term holds.

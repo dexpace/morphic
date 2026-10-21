@@ -37,6 +37,9 @@ func validFormat(format Format, s string) bool {
 		return validMediaRanges(s)
 	case AnchorName:
 		return validAnchorName(s)
+	case ResourceURI:
+		u := validURI(s)
+		return u != nil && u.Fragment == ""
 	default:
 		return true
 	}

@@ -97,7 +97,7 @@ func dialectCore() []Field {
 	cite := sectioned("Schema Object")(V31, dialectSentence)
 	s := From(V31)
 	return []Field{
-		keyword("$id", String, s, cite).formatted(URI),
+		keyword("$id", String, s, cite).formatted(ResourceURI),
 		keyword("$schema", String, s, cite).formatted(AbsoluteURI),
 		keyword("$ref", String, s, cite).formatted(URI),
 		keyword("$anchor", String, s, cite).formatted(AnchorName).nonEmpty(s),
@@ -177,4 +177,29 @@ func dialectAnnotations() []Field {
 		keyword("writeOnly", Boolean, s, cite),
 		keyword("examples", RawList, s, cite),
 	}
+}
+
+// keywordRules are what JSON Schema requires of keywords' values beyond their
+// shapes: a list of schemas, and from 3.1 prefixItems and a list of types,
+// holds an entry; the names required lists, and from 3.1 the types a list
+// gives, differ; and from 3.1 dependentRequired and $vocabulary hold what
+// their keywords define.
+func keywordRules() []Rule {
+	c := sectioned("Schema Object")
+	composed := c(V30, "Inline or referenced schema MUST be of a [Schema Object](#schema-object) and not a standard JSON Schema.")
+	direct := c(V30, "The following keywords are taken directly from the JSON Schema definition and follow the same specifications:")
+	dialect := c(V31, dialectSentence)
+	var rules []Rule
+	for _, name := range []string{"allOf", "anyOf", "oneOf"} {
+		rules = append(rules, count(Always(), Must, name, 0, composed, dialect))
+	}
+	for _, name := range []string{"prefixItems", "type"} {
+		rules = append(rules, count(From(V31), Must, name, 0, dialect))
+	}
+	return append(rules,
+		distinct(Always(), "required", direct, dialect),
+		distinct(From(V31), "type", dialect),
+		code(From(V31), "dependent-required", "", dialect),
+		code(From(V31), "vocabulary", "", dialect),
+	)
 }

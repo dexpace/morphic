@@ -293,3 +293,33 @@ func TestCheck_AllowReservedWordsWhereItAppliesAndWhereItDoesNot(t *testing.T) {
 		assert.Equal(t, c.want, diags[0].Message)
 	}
 }
+
+// TestCheck_KeywordsHoldWhatJSONSchemaRequires pins what JSON Schema requires of
+// a keyword's value beyond its shape: a list of schemas holds an entry, the
+// names required lists and the types a list gives differ, dependentRequired
+// lists strings once each, $vocabulary maps URIs to booleans, and a $id carries
+// no fragment but an empty one.
+func TestCheck_KeywordsHoldWhatJSONSchemaRequires(t *testing.T) {
+	verify(t, []scenario{
+		{"empty lists of schemas", "3.1.0", oas.Schema, `{allOf: [], anyOf: [], oneOf: []}`,
+			[]finding{at(entries, "/allOf"), at(entries, "/anyOf"), at(entries, "/oneOf")}},
+		{"an empty list of schemas in 3.0", "3.0.3", oas.Schema, `{allOf: []}`, []finding{at(entries, "/allOf")}},
+		{"empty prefixItems and types", "3.1.0", oas.Schema, `{prefixItems: [], type: []}`,
+			[]finding{at(entries, "/prefixItems"), at(entries, "/type")}},
+		{"a list of schemas of another shape", "3.1.0", oas.Schema, `{allOf: {}}`, []finding{at(mismatch, "/allOf")}},
+		{"a type that is no list", "3.1.0", oas.Schema, `{type: string}`, nil},
+		{"a required name twice", "3.0.3", oas.Schema, `{required: [a, b, a]}`, []finding{at(duplicate, "/required/2")}},
+		{"a type twice", "3.1.0", oas.Schema, `{type: [string, string]}`, []finding{at(duplicate, "/type/1")}},
+		{"dependentRequired", "3.1.0", oas.Schema, `{dependentRequired: {a: [b, b], c: x, d: [e]}}`,
+			[]finding{at(duplicate, "/dependentRequired/a/1"), at(mismatch, "/dependentRequired/c")}},
+		{"vocabulary", "3.1.0", oas.Schema,
+			`{$vocabulary: {"https://e.com/v": true, rel: false, "https://e.com/w": "true"}}`,
+			[]finding{at(badFormat, "/$vocabulary/rel"), at(mismatch, "/$vocabulary/https:~1~1e.com~1w")}},
+		{"an id with a fragment", "3.1.0", oas.Schema, `{$id: "https://e.com/a#frag"}`, []finding{at(badFormat, "/$id")}},
+		{"an id with an empty fragment", "3.1.0", oas.Schema, `{$id: "https://e.com/a#"}`, nil},
+	})
+	diags := run(t, "3.1.0", oas.Schema, `{required: [a, a]}`)
+	require.Len(t, diags, 1)
+	assert.Equal(t, `Schema Object field "required" repeats "a" first written at /required/0 in OpenAPI 3.1 (Schema Object)`,
+		diags[0].Message)
+}

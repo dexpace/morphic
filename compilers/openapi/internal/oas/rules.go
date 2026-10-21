@@ -189,20 +189,25 @@ func (r ruler) named(field string) string {
 	return `field "` + field + `" `
 }
 
-// entryCount counts the entries of the field, where it is a map or a list. An
-// entry written null is read as left out, so it is not counted.
+// entryCount counts the entries of the field, where it is a map or a list of
+// the shape the field takes; a value of another is the field's own check's to
+// report. An entry written null is read as left out, so it is not counted.
 func (r ruler) entryCount(field string) (int, jsontext.Pointer, bool) {
 	if field == "" {
 		return written(r.f.pairs, func(p nodeview.Pair) bool { return !strings.HasPrefix(p.Key, "x-") }), r.f.at.ptr, true
 	}
 	node := nodeview.Deref(r.f.byKey[field])
 	ptr := r.f.at.ptr.AppendToken(field)
-	switch {
-	case node == nil:
+	if node == nil {
 		return 0, ptr, false
-	case node.Kind == yaml.MappingNode:
+	}
+	if _, ok := r.w.shapeOf(r.f.obj.fieldAt(field, r.w.minor), node); !ok {
+		return 0, ptr, false
+	}
+	switch node.Kind {
+	case yaml.MappingNode:
 		return written(r.w.view.MappingPairs(node), func(nodeview.Pair) bool { return true }), ptr, true
-	case node.Kind == yaml.SequenceNode:
+	case yaml.SequenceNode:
 		n := 0
 		for _, item := range node.Content {
 			if !isNull(nodeview.Deref(item)) {
@@ -286,7 +291,8 @@ func (r ruler) syntax(rule Rule) {
 		`field "`+rule.Field+`" must be `+describeFormat(rule.Format)+` when `+describeTerms(rule.When))
 }
 
-// unique reports each item of the list that repeats the key of an earlier one.
+// unique reports each item of the list that repeats an earlier one: its key,
+// or, for a rule naming none, the item itself.
 func (r ruler) unique(rule Rule) {
 	list := nodeview.Deref(r.f.byKey[rule.Field])
 	if list == nil || list.Kind != yaml.SequenceNode {
@@ -294,17 +300,21 @@ func (r ruler) unique(rule Rule) {
 	}
 	first := map[string]jsontext.Pointer{}
 	for i, item := range list.Content {
-		name, ok := textOf(r.keysOf(item)[rule.Key])
+		ptr := itemPointer(r.f.at.ptr.AppendToken(rule.Field), i)
+		text, ok := textOf(item)
+		what := strconv.Quote(text)
+		if rule.Key != "" {
+			text, ok = textOf(r.keysOf(item)[rule.Key])
+			ptr, what = ptr.AppendToken(rule.Key), "the "+rule.Key+" "+strconv.Quote(text)
+		}
 		if !ok {
 			continue
 		}
-		ptr := itemPointer(r.f.at.ptr.AppendToken(rule.Field), i).AppendToken(rule.Key)
-		if at, seen := first[name]; seen {
-			r.fail(rule, classDuplicate, ptr,
-				`field "`+rule.Field+`" repeats the `+rule.Key+" "+strconv.Quote(name)+" first written at "+string(at))
+		if at, seen := first[text]; seen {
+			r.fail(rule, classDuplicate, ptr, `field "`+rule.Field+`" repeats `+what+" first written at "+string(at))
 			continue
 		}
-		first[name] = ptr
+		first[text] = ptr
 	}
 }
 

@@ -154,15 +154,17 @@ which lowers as written.
 
 A finding is an error where the document's meaning is missing or contradicted: a REQUIRED field
 absent, a value of the wrong type, a value outside the set the specification allows, fields that
-exclude each other written together, a path template and its path parameters disagreeing, or a
-name a token grammar the specification cites refuses. It is a warning where the document breaks a
-rule of its version and still says what it means: a key outside the pattern the specification
-gives, a key a mapping writes twice, a number or a boolean where a string belongs, a field written
-where the specification gives it no effect (`validation-no-effect`), or a `null` written for an
-optional field, which is read as the field left out, by the rules that bind it to other fields as
-well. A `null` inside a Schema Object, or where a schema belongs, is an error, since the schema
-lowering does not read it as left out; one written for a field whose requirement another rule
-reports is left to that rule.
+exclude each other written together, a path template and its path parameters disagreeing, a list or
+map holding fewer entries than the specification requires or repeating one it requires to be unique,
+as JSON Schema requires of `allOf` and of `required`, or a value a grammar the specification cites
+refuses, such as a token or an anchor's name. It is a warning where the document breaks a rule of
+its version and still says what it means: a key outside the pattern the specification gives, a key a
+mapping writes twice, a number or a boolean where a string belongs, a field written where the
+specification gives it no effect (`validation-no-effect`), or a `null` written for an optional
+field, which is read as the field left out, by the rules that bind it to other fields as well. A
+`null` inside a Schema Object, or where a schema belongs, is an error, since the schema lowering
+does not read it as left out; one written for a field whose requirement another rule reports is left
+to that rule.
 
 The source is read as it writes it, an applied overlay's patch included, each object as the kind
 its position gives it. An object a `$ref` reaches that the source's own reading did not take as
@@ -193,6 +195,7 @@ gives it no effect is [`allow-reserved-locations`](#allow-reserved-locations)' a
   `oas.TestCheck_AFindingIsMadeOnceWhereItIsPlaced`,
   `oas.TestCheck_RulesAnotherPackageOwnsAreNotApplied`,
   `oas.TestCheck_AnAnchorIsANameJSONSchemaAdmits`,
+  `oas.TestCheck_KeywordsHoldWhatJSONSchemaRequires`,
   `oas.TestTable_EveryRowCitesTheSpecification`, `load.TestJudgeSource_PlacesEachFindingAtItsNode`,
   `load.TestJudgeSource_RefusesTheAnchorsNoReferenceCanName`,
   `load.TestLoad_WhatAnAliasMountsIsReportedOnce`,

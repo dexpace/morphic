@@ -26,12 +26,12 @@ func schemaObject() Object {
 	return Object{
 		Kind: Schema, Name: "Schema Object", Extensible: true, Boolean: From(V31),
 		Fields: slices.Concat(own, schemaKeywords()),
-		Rules: []Rule{
+		Rules: append([]Rule{
 			mustBe(Only(V30), "writeOnly", "false", when(term("readOnly", "true")),
 				c(V30, "A property MUST NOT be marked as both `readOnly` and `writeOnly` being `true`.")),
 			requiredWhen(Only(V30), "items", when(term("type", "array")),
 				c(V30, "`items` MUST be present if `type` is `\"array\"`.")).owned(ownerSchema),
-		},
+		}, keywordRules()...),
 	}
 }
 

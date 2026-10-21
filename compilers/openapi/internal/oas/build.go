@@ -179,6 +179,11 @@ func uniqueNames(s Span, list string, cites ...Cite) Rule {
 	return Rule{Kind: RuleUnique, Span: s, Field: list, Key: "name", Cites: cites}
 }
 
+// distinct returns a rule: the items of list differ.
+func distinct(s Span, list string, cites ...Cite) Rule {
+	return Rule{Kind: RuleUnique, Span: s, Field: list, Cites: cites}
+}
+
 // syntax returns a rule: name, when written, has the format when the terms hold.
 func syntax(s Span, name string, format Format, cond []Term, cites ...Cite) Rule {
 	return Rule{Kind: RuleSyntax, Span: s, Field: name, Format: format, When: cond, Cites: cites}
