@@ -133,10 +133,17 @@ func conflictDiags(diags []ir.Diagnostic) []ir.Diagnostic {
 // them, and the registry settled, as a compile settles it.
 func settledSpec(t *testing.T, extra, schemaA, schemaB string) (*ir.Document, []ir.Diagnostic) {
 	t.Helper()
-	l, diags := loweredFor(t, openapitest.ComponentSpec(
+	return lowerSettled(t, openapitest.ComponentSpec(
 		"    T:\n      allOf:\n"+
 			"        - type: object\n          properties: {v: "+schemaA+"}\n"+
 			"        - type: object\n          properties: {v: "+schemaB+"}\n"+extra))
+}
+
+// lowerSettled is lowerSpec with the registry settled after the walk, as a
+// compile settles it, so a redeclaration deferred on a later component is judged.
+func lowerSettled(t *testing.T, src string) (*ir.Document, []ir.Diagnostic) {
+	t.Helper()
+	l, diags := loweredFor(t, src)
 	l.diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.ctx, l.types, &l.anchors))
 	l.diags.AppendAll(l.types.Settle(t.Context()))
 	return l.out, append(diags, l.diags.List()...)

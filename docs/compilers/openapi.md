@@ -927,6 +927,8 @@ schema's null verdicts fold under ([`nullable`](#nullable)).
   `merge.TestMergeProperty_AValueJudgedAgainstAMissedTypeDefers`,
   `schema.TestAllOf_ARefToAnInlineNodeIsDeclaredApart`,
   `schema.TestAllOf_ACopyANarrowingKeptIsStillACopy`,
+  `schema.TestAllOf_AListOfAComponentWinsOverAListOfItsCopy`,
+  `schema.TestAllOf_ARefToASiblingFieldIsDeclaredApart`,
   `schema.TestAllOf_ARedeclarationIsJudgedOnceTheComponentsHaveLowered`
 - Status: partly built: two distinct nodes of related kinds (`format: hex` against `format: byte`,
   two enums whose members fit each other's kind, two different literals), and a list or map whose

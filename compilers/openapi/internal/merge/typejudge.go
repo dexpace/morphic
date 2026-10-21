@@ -62,13 +62,13 @@ type typeJudge struct {
 	written [2]jsontext.Pointer
 }
 
-// relate compares a with b. The winner never depends on which is which: swapping
-// the arguments flips a narrowing and leaves any other verdict as it was.
-// The arms, in order: the same target; a degraded Any node, which is unrelated
-// to every type; the top type, which loses to anything else;
-// two bare primitives (spelling.Relate); a Scalar, Enum or Literal against a
-// bare primitive; two identical such nodes; two lists or two maps; anything
-// else is unrelated.
+// relate compares a with b. The winner never depends on which is which:
+// swapping the arguments, and written's two pointers with them, flips a
+// narrowing and leaves any other verdict as it was. The arms, in order: the
+// same target; a degraded Any node, which is unrelated to every type; the top
+// type, which loses to anything else; two bare primitives (spelling.Relate); a
+// Scalar, Enum or Literal against a bare primitive; two identical such nodes;
+// two lists or two maps; anything else is unrelated.
 func (j typeJudge) relate(a, b ir.TypeRef) relation { return j.relateAt(a, b, 0) }
 
 // relateAt is relate at a nesting depth.

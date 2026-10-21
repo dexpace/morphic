@@ -4240,7 +4240,8 @@ func TestAllOf_ARefToAnInlineNodeIsDeclaredApart(t *testing.T) {
 }
 
 // TestAllOf_ACopyANarrowingKeptIsStillACopy compiles a field declared as {},
-// an inline enum and a $ref to a component of the same enum, in every order.
+// an inline enum and a $ref to a component of the same enum, in every order,
+// with the component declared before the composing schema and after it.
 // Where {} comes first, the inline enum narrows it and the property holds a node
 // written at the second declaration, not the first; it is still an inline copy,
 // so the component wins in all six orders with nothing reported or kept.
@@ -4248,18 +4249,78 @@ func TestAllOf_ACopyANarrowingKeptIsStillACopy(t *testing.T) {
 	t.Parallel()
 	const enum = "{type: string, enum: [a, b]}"
 	decls := []string{"{}", enum, "{$ref: '#/components/schemas/Color'}"}
-	for _, order := range [][3]int{{0, 1, 2}, {0, 2, 1}, {1, 0, 2}, {1, 2, 0}, {2, 0, 1}, {2, 1, 0}} {
-		var branches strings.Builder
-		for _, i := range order {
-			branches.WriteString("        - type: object\n          properties: {v: " + decls[i] + "}\n")
+	for _, colorLast := range []bool{false, true} {
+		for _, order := range [][3]int{{0, 1, 2}, {0, 2, 1}, {1, 0, 2}, {1, 2, 0}, {2, 0, 1}, {2, 1, 0}} {
+			var branches strings.Builder
+			for _, i := range order {
+				branches.WriteString("        - type: object\n          properties: {v: " + decls[i] + "}\n")
+			}
+			color, composed := "    Color: "+enum+"\n", "    T:\n      allOf:\n"+branches.String()
+			schemas := color + composed
+			if colorLast {
+				schemas = composed + color
+			}
+			doc, diags := lowerSettled(t, openapitest.ComponentSpec(schemas))
+			m, ok := doc.Types[componentID("T")].(*ir.Model)
+			require.True(t, ok, "order %v, Color last %t", order, colorLast)
+			require.Len(t, m.Properties, 1, "order %v, Color last %t", order, colorLast)
+			assert.Equal(t, componentID("Color"), m.Properties[0].Type.Target, "order %v, Color last %t", order, colorLast)
+			assert.Empty(t, diags, "order %v, Color last %t", order, colorLast)
+			assert.Empty(t, m.Properties[0].Unmodeled, "order %v, Color last %t", order, colorLast)
 		}
-		doc, diags := lowerSpec(t, openapitest.ComponentSpec("    Color: "+enum+"\n    T:\n      allOf:\n"+branches.String()))
+	}
+}
+
+// TestAllOf_AListOfAComponentWinsOverAListOfItsCopy compiles a field redeclared
+// as a list of a component and as a list of an inline copy of it, in either
+// order. The copy is written under the field's own declaration, so the list
+// holding the component wins in both orders with nothing reported or kept.
+func TestAllOf_AListOfAComponentWinsOverAListOfItsCopy(t *testing.T) {
+	t.Parallel()
+	const enum = "{type: string, enum: [a, b]}"
+	ofRef, ofCopy := "{type: array, items: {$ref: '#/components/schemas/Color'}}", "{type: array, items: "+enum+"}"
+	for i, order := range [][2]string{{ofRef, ofCopy}, {ofCopy, ofRef}} {
+		doc, diags := lowerSpec(t, nonBareSpec("    Color: "+enum+"\n", order[0], order[1]))
 		m, ok := doc.Types[componentID("T")].(*ir.Model)
-		require.True(t, ok, "order %v", order)
-		require.Len(t, m.Properties, 1, "order %v", order)
-		assert.Equal(t, componentID("Color"), m.Properties[0].Type.Target, "order %v", order)
-		assert.Empty(t, diags, "order %v", order)
-		assert.Empty(t, m.Properties[0].Unmodeled, "order %v", order)
+		require.True(t, ok, "order %d", i)
+		require.Len(t, m.Properties, 1, "order %d", i)
+		list, ok := doc.Types[m.Properties[0].Type.Target].(*ir.List)
+		require.True(t, ok, "the field is a list (order %d)", i)
+		assert.Equal(t, componentID("Color"), list.Elem.Target, "order %d", i)
+		assert.Empty(t, diags, "order %d", i)
+		assert.Empty(t, m.Properties[0].Unmodeled, "order %d", i)
+	}
+}
+
+// TestAllOf_ARefToASiblingFieldIsDeclaredApart compiles a field v redeclared as
+// a $ref to its branch's sibling field vx and as an inline copy of vx, in either
+// order. vx's pointer begins with v's but is not under it, so vx was declared
+// apart and wins in both orders with nothing reported or kept.
+func TestAllOf_ARefToASiblingFieldIsDeclaredApart(t *testing.T) {
+	t.Parallel()
+	const enum = "{type: string, enum: [a, b]}"
+	for i := range 2 {
+		vx := fmt.Sprintf("/components/schemas/T/allOf/%d/properties/vx", i)
+		branches := [2]string{
+			"        - type: object\n          properties: {vx: " + enum + ", v: {$ref: '#" + vx + "'}}\n",
+			"        - type: object\n          properties: {v: " + enum + "}\n",
+		}
+		if i == 1 {
+			branches[0], branches[1] = branches[1], branches[0]
+		}
+		doc, diags := lowerSpec(t, openapitest.ComponentSpec("    T:\n      allOf:\n"+branches[0]+branches[1]))
+		m, ok := doc.Types[componentID("T")].(*ir.Model)
+		require.True(t, ok, "order %d", i)
+		var v *ir.Property
+		for k := range m.Properties {
+			if m.Properties[k].WireName == "v" {
+				v = &m.Properties[k]
+			}
+		}
+		require.NotNil(t, v, "order %d", i)
+		assert.Equal(t, ir.TypeID("t/anon"+vx), v.Type.Target, "order %d", i)
+		assert.Empty(t, diags, "order %d", i)
+		assert.Empty(t, v.Unmodeled, "order %d", i)
 	}
 }
 
