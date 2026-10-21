@@ -151,6 +151,7 @@ func conformanceCases() []conformanceCase {
 		{"allof-mixins", assertAllOfMixins},
 		{"allof-inline-merge", assertAllOfInlineMerge},
 		{"allof-required-only", assertAllOfRequiredOnly},
+		{"required-members", assertRequiredMembers},
 		{"allof-oneof-cooccurrence", assertAllOfOneOfCooccurrence},
 		{"allof-inline-residue", assertAllOfInlineResidue},
 		{"allof-ref-branch-siblings", assertAllOfRefBranchSiblings},
@@ -787,6 +788,57 @@ func assertAllOfRequiredOnly(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) 
 	require.True(t, ok, "the inline branch's own property survives")
 	assert.True(t, name.Required,
 		"a required-only allOf branch attaches across the whole composition, not just its own properties map (issue #29)")
+}
+
+// assertRequiredMembers pins where a `required` name lands when no property of
+// the object it is written for declares it (ir-design §4.3): in Model.Requires,
+// once, beside the Required on the properties it does name. The four shapes are
+// four ways an object lowers: a plain object, an allOf making a property its
+// base declares required, an object whose catch-all governs the name, which
+// stays a Model rather than becoming a map since a map requires no key, and the
+// object variant of a multi-typed schema.
+func assertRequiredMembers(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	plain, ok := doc.Types[namedID("Plain")].(*ir.Model)
+	require.True(t, ok)
+	id, ok := propByWire(plain, "id")
+	require.True(t, ok)
+	assert.True(t, id.Required, "a declared name is Required on its property")
+	assert.Equal(t, []string{"ghost"}, plain.Requires, "an undeclared one is listed, and the declared one is not")
+
+	created, ok := doc.Types[namedID("CreatedUser")].(*ir.Model)
+	require.True(t, ok)
+	require.NotNil(t, created.Base)
+	assert.Equal(t, namedID("User"), created.Base.Target)
+	assert.Empty(t, created.Properties, "the base declares id, so the composed model has no property for it")
+	assert.Equal(t, []string{"id"}, created.Requires, "the inherited property it makes required")
+	user, ok := doc.Types[namedID("User")].(*ir.Model)
+	require.True(t, ok)
+	assert.Empty(t, user.Requires, "the base is not made to require what only its subtype does")
+	userID, ok := propByWire(user, "id")
+	require.True(t, ok)
+	assert.False(t, userID.Required, "and its own property stays optional")
+
+	tagged, ok := doc.Types[namedID("Tagged")].(*ir.Model)
+	require.True(t, ok, "a required name beside a catch-all keeps the object a Model, not a map")
+	assert.NotNil(t, tagged.AdditionalProps)
+	assert.Empty(t, tagged.Properties)
+	assert.Equal(t, []string{"a"}, tagged.Requires, "required only because the catch-all governs it")
+	_, isMap := ir.AsMap(tagged)
+	assert.False(t, isMap, "AsMap keeps a model that requires a member a Model")
+
+	either, ok := doc.Types[namedID("Either")].(*ir.Union)
+	require.True(t, ok)
+	var object *ir.Model
+	for _, v := range either.Variants {
+		if m, isModel := doc.Types[v.Type.Target].(*ir.Model); isModel {
+			object = m
+		}
+	}
+	require.NotNil(t, object, "the object variant is a Model")
+	variantID, ok := propByWire(object, "id")
+	require.True(t, ok)
+	assert.True(t, variantID.Required)
+	assert.Equal(t, []string{"extra"}, object.Requires, "the variant lists what it declares nowhere")
 }
 
 // assertAllOfOneOfCooccurrence pins both halves of the co-declared composition

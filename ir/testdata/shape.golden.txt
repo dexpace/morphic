@@ -388,6 +388,7 @@ type Model struct
 	"mixins" []TypeRef omitempty
 	"positional" bool
 	"properties" []Property omitempty
+	"requires" []string omitempty
 	method (*Model) MarshalJSONTo(*encoding/json/jsontext.Encoder) error
 	method (*Model) UnmarshalJSONFrom(*encoding/json/jsontext.Decoder) error
 

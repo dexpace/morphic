@@ -19,7 +19,7 @@ witnessing it.
 ### `inheritance`
 
 - Witnesses: `allof-inheritance`, `discriminator-inheritance`, `discriminator-inline-subtype`,
-  `discriminator-transitive`, `discriminated-union-beside-model`
+  `discriminator-transitive`, `discriminated-union-beside-model`, `required-members`
 
 ### `tagged-unions`
 
@@ -93,7 +93,7 @@ witnessing it.
 
 ### `maps`
 
-- Witnesses: `maps`
+- Witnesses: `maps`, `required-members`
 
 ### `tuples`
 

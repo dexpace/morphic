@@ -255,12 +255,6 @@ const (
 	// error: the document is refused, validation stops, an enum loses its
 	// members (UnpreservableConstruct), or what was not reached is unresolved.
 	BudgetExceeded = "openapi/budget-exceeded"
-	// UnattachableRequired reports a composition-scope `required` name (an allOf
-	// branch's own required list, or the composed schema's own) that matches none
-	// of the model's own properties, so it has no IR home to attach to
-	// (ir-design §4.3: Properties holds only own properties, and flattening
-	// across Base/Mixins is computed, never stored).
-	UnattachableRequired = "openapi/unattachable-required"
 	// InternalInvariant reports that one of the compiler's own invariants broke:
 	// a pointer named a type ID the registry does not hold, a second resolution
 	// read a document load never prepared, or the library faulted while load put

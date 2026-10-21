@@ -595,6 +595,9 @@
         "source": 0,
         "pointer": "/components/schemas/NewPet"
       },
+      "requires": [
+        "name"
+      ],
       "base": {
         "target": "t/openapi@schemas~1pet.yaml/components/schemas/Pet",
         "nullable": false
@@ -908,17 +911,6 @@
       },
       "urlTemplate": "/",
       "description": {}
-    }
-  ],
-  "diagnostics": [
-    {
-      "severity": "warning",
-      "code": "openapi/unattachable-required",
-      "message": "required \"name\" matches no property declared here; a base or mixin may declare it, and the requirement cannot be carried across composition",
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/NewPet/allOf/1"
-      }
     }
   ],
   "sources": [

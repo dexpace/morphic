@@ -565,6 +565,10 @@ negotiation` default (`json > form > multipart > binary`) is a shared, overridab
 ```go
 type TypePlan struct {
     Flattened  []ir.PropID          // FlattenedProperties() over Base+Implements+Mixins+own — COMPUTED
+    Required   []ir.PropID          // the flattened properties an instance must carry: each one's
+                                    // own Required, and each Requires names along the way
+    Undeclared []string             // the names Requires lists that no flattened property declares,
+                                    // in order: members only the catch-all governs
     Union      UnionShape           // a union's wire shape, one of four (§4.4); "" = not a union
     Discrim    *DiscrimFacts        // a union's or hierarchy's discriminator, as variant IDs
     Scalar     *ScalarChain         // a scalar's Base chain, walked once; nil = not a scalar
@@ -607,6 +611,15 @@ not case anything, does not resolve reserved words, and does not copy a fact the
 distinct beside it, so a class-based target can map `Base→extends` / `Implements→interfaces` /
 `Mixins→inline` where the three first targets flatten (§8.8). The plan does not decide which — that
 is per-language (§4).
+
+`Required` and `Undeclared` read what a model requires over the same walk (ir-design §4.3): a
+flattened property is required where it says so itself, or where this model or one it composes
+lists its wire name in `Requires`, as `allOf: [{$ref: User}, {required: [id]}]` makes `User`'s `id`
+required on the composed model. A name `Requires` lists that no flattened property declares is
+`Undeclared`: a member only the catch-all governs, whose value the catch-all types —
+`AdditionalProps.Value`, or the top type where the model has no catch-all or scopes values by
+`Patterns`, since which pattern governs a name is ECMA-262's to say and no target's matcher is held
+to it.
 
 ### 3.3 ModelShape — visibility projection
 
@@ -834,7 +847,7 @@ snapshot pins the whole lowering deterministically.
 | `ResolveScalarChains` | `plan.ScalarChain` (the `Base` chain walked once, constraints merged), `Ctx.Types` | a defined type over a root with no methods, an alias over any other (§4.9), the root typed by the type table (§2.6), + merged constraints; nil-base → newtype (opaque-scalar strategy) | §4.2 |
 | `LowerContainers` | `List/MapT/Tuple` nodes (with IDs) | `[]T` / `map[K]V` / positional struct, its positions past `MinItems` optional and a `Rest` as a trailing slice; a nil `MapT.Key` is `string`, and a non-string key → custom-key map or diagnostic | §4.6 |
 | `LowerLiterals` | `Literal{Value}` | typed constant / single-value newtype (incl. `symbol`) | §4.6 |
-| `LowerModels` | `TypePlan.Flattened`, `Base`/`Implements`/`Mixins`, `AdditionalProps`, `Additional`, `Positional` | struct over the flattened properties, catch-all map as the embedded fallback, unknown members rejected on `closed` (§8.1) | §4.3 |
+| `LowerModels` | `TypePlan.Flattened`, `Required`, `Undeclared`, `Base`/`Implements`/`Mixins`, `AdditionalProps`, `Additional`, `Positional` | struct over the flattened properties, an `Undeclared` member a required field typed as the catch-all types it, catch-all map as the embedded fallback, unknown members rejected on `closed` (§8.1) | §4.3 |
 | `ProjectVisibilityShapes` | `plan.ModelShape` per lifecycle | `User` / `UserCreate` / `UserPatch` structs | §5.2 |
 | `LowerOptionality` | `Property.Required` ⊥ `TypeRef.Nullable` ⊥ `Property.Presence`; `Facts.Component` | the four+ states → `T` / `*T` / `Opt[T]`/`Nil[T]`/`OptNil[T]` / `omitzero` + presence bit; a reference on a cycle the target holds by value held through a pointer (§4.16) | §5.1; INV8 |
 | `LowerConstraints` | `Constraints` on properties/scalars/lists/maps | field-level `validate` tags + a refine-built `Validate()` method structure | §5.3 |

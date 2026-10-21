@@ -706,7 +706,9 @@ func keywordHome(td ir.TypeDef, s *oas3.Schema, keyword string) bool {
 		// only because the other two declared no member (ir.AsMap).
 		return isKind(td, ir.KindModel) || isKind(td, ir.KindMap)
 	case "required":
-		// A MapT has no key to require, so it homes only an empty list.
+		// A MapT has no key to require, so it homes only an empty list. A name
+		// lands on a property or in Model.Requires (requireMembers), either of
+		// which keeps the node a Model, so a MapT never meets a longer one.
 		return isKind(td, ir.KindModel) || (isKind(td, ir.KindMap) && len(s.GetRequired()) == 0)
 	case "items", "prefixItems":
 		return isKind(td, ir.KindList) || isKind(td, ir.KindTuple)
@@ -875,8 +877,7 @@ func censusWrote(s *oas3.Schema, keyword string) bool {
 // handled names keywords another reader at this position already accounts for:
 // the families lower()'s election passed over go to recordSkippedFamilies, which
 // knows why they lost, and an allOf branch's `required` is consumed by
-// applyCompositionRequired. Recording them here too would report one keyword
-// twice.
+// requireMembers. Recording them here too would report one keyword twice.
 func unhomedKeywords(s *oas3.Schema, td ir.TypeDef, handled []string) []string {
 	out := make([]string, 0, len(censusKeywords))
 	for _, keyword := range censusKeywords {
@@ -893,7 +894,7 @@ func unhomedKeywords(s *oas3.Schema, td ir.TypeDef, handled []string) []string {
 
 // refSiteUnhomedKeywords is unhomedKeywords for a $ref site (td is always nil),
 // plus allOf. handled passes through so an allOf branch spelled as a $ref still
-// routes its own `required` to applyCompositionRequired.
+// routes its own `required` to requireMembers.
 //
 // allOf is as homeless here as every census keyword, because none of the
 // $ref-site callers goes through dispatchOf, so it never wins an election.
@@ -953,7 +954,7 @@ func preserveUnhomedKeywords(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, 
 		return id, diags
 	}
 	owns, _ := ts.Lookup(c.IDs().Coordinate(pointer))
-	unhomed := unhomedKeywords(s, td, censusHandled(d))
+	unhomed := unhomedKeywords(s, td, d.skipped)
 	if owns == id && !constraintsHome(td) {
 		// No alias will be hoisted over a node the position already owns, so the
 		// bounds it wrote reach no Constraints field anywhere.
@@ -970,18 +971,6 @@ func preserveUnhomedKeywords(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, 
 	}
 	diags = append(diags, recordUnhomedKeywords(c, ts, owner, s, unhomed, nodeShape(td.Kind()), pointer)...)
 	return owner, append(diags, recordSkippedFamilies(c, ts, owner, s, d, pointer)...)
-}
-
-// censusHandled names the census keywords another reader at a position whose
-// election d records accounts for: the families passed over, which
-// recordSkippedFamilies keeps, and where allOf won, what the composition reads
-// (compositionCensusHandled). A map an allOf leaves would otherwise report its
-// `required` twice.
-func censusHandled(d dispatch) []string {
-	if d.won != "allOf" {
-		return d.skipped
-	}
-	return append(slices.Clone(d.skipped), compositionCensusHandled...)
 }
 
 // recordSkippedFamilies keeps verbatim the keyword families lower()'s election
@@ -1134,6 +1123,7 @@ func lowerModel(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 		diags = append(diags, consDiags...)
 		m := &ir.Model{TypeCommon: common, Constraints: cons}
 		diags = append(diags, fillModelProperties(c, ts, anchors, depth, m, s, pointer)...)
+		requireMembers(m, s.GetRequired())
 		diags = append(diags, fillAdditional(c, ts, anchors, depth, m, s, pointer, hint)...)
 		d, discDiags := lowerDiscriminator(c, ts, anchors, s, m, nil, pointer)
 		diags = append(diags, discDiags...)
@@ -1161,13 +1151,13 @@ func objectNode(m *ir.Model) ir.TypeDef {
 
 // fillModelProperties lowers a model's own properties in source order, each with
 // its full property-level detail (constraints, visibility, defaults, docs, ...).
+// Which are required is requireMembers' to say, once every property is in.
 func fillModelProperties(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, m *ir.Model, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	props := s.GetProperties()
 	if props == nil {
 		return nil
 	}
 	var diags []ir.Diagnostic
-	required := requiredSet(s.GetRequired())
 	byWire := merge.WireNameIndex(m.Properties)
 	for name, js := range props.All() {
 		ppointer := pointer + ids.Ptr("properties", name)
@@ -1178,7 +1168,6 @@ func fillModelProperties(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex
 			Name:       compile.NamingFor(name),
 			WireName:   name,
 			Type:       ref,
-			Required:   required[name],
 			Provenance: c.ProvenanceAt(ppointer),
 		}
 		diags = append(diags, FillPropertyDetail(c, ts, anchors, &p, js, ppointer)...)
@@ -2384,18 +2373,6 @@ func collectionConstraints(s *oas3.Schema) *ir.Constraints {
 		c.UniqueItems = *s.UniqueItems
 	}
 	return c
-}
-
-// requiredSet builds a lookup of a model's required property names.
-func requiredSet(required []string) map[string]bool {
-	if len(required) == 0 {
-		return nil
-	}
-	set := make(map[string]bool, len(required))
-	for _, r := range required {
-		set[r] = true
-	}
-	return set
 }
 
 // merger builds the allOf property reconciler over an explicit diagnostic sink.

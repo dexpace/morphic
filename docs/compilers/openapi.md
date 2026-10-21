@@ -918,25 +918,18 @@ order decides it; what is folded and kept never turns on it.
 ### `allof-required`
 
 A `required` name written on an `allOf` branch, inline or beside a branch's `$ref`, or beside the
-`allOf` itself lowers to `Property.Required` (§5.1) on the composed `Model`'s own property of that
-wire name, whichever branch declares the property: a branch holding nothing but `required` attaches
-across the whole composition, not only its own `properties`, and an attachment never clears a
-`Required` already set. A branch is read from its local schema, never from its `$ref` target, whose
-`required` list belongs to the target's own model. A name that matches no property the composed
-`Model` declares — one only a `Base` or `Mixin` declares, or one nothing declares — has no field to
-land on, because a `Model` stores its own properties and no flattened view across `Base`/`Mixins`
-(§4.3). It is reported as an `openapi/unattachable-required` at the branch or schema that wrote it,
-a warning where the `Model` composes a `Base` or `Mixin` that may declare it, an info where it
-composes none.
+`allOf` itself lands on the composed `Model` by [`required-members`](#required-members), whichever
+branch declares the property: a branch holding nothing but `required` attaches across the whole
+composition, not only its own `properties`. A branch is read from its local schema, never from its
+`$ref` target, whose `required` list belongs to the target's own model. A name only a `Base` or
+`Mixin` declares, or one nothing declares, is in `Model.Requires`, since a `Model` stores its own
+properties and no flattened view across `Base` and `Mixins` (§4.3): the composed model makes an
+inherited property required without declaring it a second time.
 
 - Cases: `allof-required-only`
-- Codes: `openapi/unattachable-required`
 - Tests: `schema.TestAllOf_CompositionRequiredAttaches`,
-  `schema.TestAllOf_RequiredOnlyBranchNamingBaseOwnedPropertyDiagnosed`,
-  `schema.TestAllOf_RequiredOnlyBranchNoBaseOrMixinDiagnosedInfo`
-- Status: partly built: the unattached name is reported and kept nowhere, where a map keeps its
-  `required` verbatim (#896), and an inherited property a composing schema makes required has no IR
-  home (#663).
+  `schema.TestAllOf_RequiredOnlyBranchNamingBaseOwnedPropertyLandsInRequires`,
+  `schema.TestAllOf_RequiredNameNothingDeclaresLandsInRequires`
 
 ### `allof-false-branch`
 
@@ -1243,6 +1236,30 @@ That object stays a `Model`, since a `MapT` has no field for a pattern-scoped va
   `unevaluatedProperties: false` that a catch-all beside it makes inert in JSON Schema still lowers
   to a closure, which keeps the object a `Model` (#862).
 
+### `required-members`
+
+Each name a `required` list writes lands on the object it is written for: as `Property.Required`
+(§5.1) on the `Model`'s own property of that wire name, which is never cleared once set, or else in
+`Model.Requires` (§4.3), once, in the order the lists name it, an `allOf`'s branches before the
+schema's own. A name in `Requires` is one a `Base` or
+`Mixin` declares, which the object makes required (`allOf: [{$ref: User}, {required: [id]}]`), or
+one only its catch-all governs, which JSON Schema requires whether or not a schema declares it. The
+rule is one for every way an object lowers — a plain object, an `allOf`
+([`allof-required`](#allof-required)), the object variant of a multi-typed schema, a distributed
+union's variant — and reports nothing, since nothing is lost. An object writing a catch-all beside a
+name its properties do not declare is a `Model`, not a `MapT`, since a map requires no key, and
+stays one when a discriminator moves off it. A `required` beside a `$ref` is kept on the alias the
+`$ref` site hoists ([`shape-applicator`](#shape-applicator)), as any keyword is there that composes
+the referent.
+
+- Cases: `allof-required-only`, `required-members`
+- Tests: `schema.TestModel_PlainRequiredUndeclaredPropertyLandsInRequires`,
+  `schema.TestObject_ACatchAllBesideARequiredNameStaysAModel`,
+  `schema.TestDiscriminatorBesideUnion_ARequiredNameKeepsTheBodyAModel`,
+  `schema.TestAllOf_RequiresIsTheSameInEitherComponentOrder`,
+  `schema.TestAllOf_ARequiredNameWrittenInSeveralListsIsListedOnce`,
+  `schema.TestDistributedUnion_EachVariantCarriesTheRequiresOfItsBody`
+
 ### `pattern-properties`
 
 Each `patternProperties` entry lowers to one `AdditionalProps.Patterns` entry, in source order: its
@@ -1290,8 +1307,9 @@ them stays the verbatim entry [`validation-only`](#validation-only) keeps, as it
 each constrain an instance whether or not a `type` is written beside them, and each has exactly one
 IR home: a `Model`'s property set, openness and pattern bindings, or a `List`'s element and a
 `Tuple`'s positions and rest. A `MapT` homes an object's catch-all and the empty `properties`,
-`patternProperties` and `required` lists that left it a map (§4.6), but not a `required` that names
-a key. A position whose lowering produced none of these — an `Enum`, a `Literal`, a `Scalar`, or the
+`patternProperties` and `required` lists that left it a map (§4.6), and a `required` naming a key
+keeps it a `Model` ([`required-members`](#required-members)). A position whose lowering produced
+none of these — an `Enum`, a `Literal`, a `Scalar`, or the
 top type — has nowhere to put them, and so does a position whose lowering produced the other of the
 two shapes (`{type: object, properties: {…}, items: {…}}` lowers to a `Model`, which holds no
 element type). This covers both a contradictory schema, where one half is taken and the other must
@@ -1322,7 +1340,7 @@ schema and the homes are the variants'.
 
 - Cases: `unhomed-keywords`, `empty-enum`
 - Codes: `openapi/degraded-construct`
-- Tests: `schema.TestObject_MapKeepsARequiredListVerbatim`,
+- Tests: `schema.TestObject_ACatchAllBesideARequiredNameStaysAModel`,
   `schema.TestUnhomedApplicator_KeptOnAListAndAnnounced`,
   `schema.TestUnhomedApplicator_FormatWithNoTypeIsKept`
 - Status: partly built: a keyword beside a multi-typed schema that no variant holds is dropped in

@@ -315,6 +315,12 @@ it sees. Changes made together in one bump are listed together under it.
   (`t/openapi@common.yaml/...`). It had lowered no schema another document holds and placed a
   parameter, response or other object read from one at the source's use site. A consumer pinned to
   0.16.0 reads `Sources` as the source and its overlay alone.
+- **0.18.0** — `Model` gained `Requires`, the members an instance must carry that no property of its
+  own declares: one a `Base` or `Mixin` declares, which a composing schema makes required, or one
+  only its catch-all governs (§4.3). The OpenAPI compiler had dropped such a name, reporting it only
+  on an `allOf`, and kept a map's verbatim, so an object writing a catch-all and a `required` name is
+  now a `Model` where it had been a `MapT`. A consumer pinned to 0.17.0 reads those members as
+  optional.
 
 ---
 
@@ -712,6 +718,10 @@ restriction chain; `Constraints` and annotations on such a node bind the positio
 type Model struct {
     TypeCommon
     Properties     []Property
+    Requires       []string        // wire names of members an instance must carry that no own
+                                   // property declares: one Base, Implements or Mixins declare,
+                                   // which this model makes required, or one only the catch-all
+                                   // governs (JSON Schema `required`); none names an own property
     Base           *TypeRef        // declared single inheritance (TypeSpec extends, allOf-as-inheritance)
     Implements     []TypeRef       // interface conformance, N-ary (GraphQL `implements A & B`); targets are Abstract models
     Mixins         []TypeRef       // composition without subtyping (Smithy mixins, TypeSpec spread provenance, extra allOf entries)
@@ -778,6 +788,18 @@ what oagen and Kiota lose: the difference between "inherits from", "conforms to"
 "declares". `Base` is single (subtype identity); `Implements` is N-ary conformance to `Abstract`
 models — the distinction matters because GraphQL allows multiple interfaces while every class-based
 target language allows at most one base class.
+
+**Required members beyond the own properties.** Whether an own property must be present is its
+`Required` (§5.1). A member the model requires that none of its own properties declares is in
+`Requires`, by wire name and once, in the order the source's `required` lists name it: an inherited
+property
+the model makes required, as `allOf: [{$ref: User}, {required: [id]}]` makes `User`'s `id` required
+on the composed model, or a member only the catch-all governs, which JSON Schema requires whether
+or not a schema declares it. A consumer reads it as it reads `Base`, over the flattened shape, and
+the IR asserts nothing about which of these a name is, since that needs the hierarchy walked. A name
+an own property declares is never listed (`irverify` refuses it as `ir/requires-own-property`), so
+required-ness has one home per member. A model that requires a member is never a map (§4.6),
+since a map requires no key.
 
 Which `allOf` entry becomes `Base` and which a `Mixin` is the OpenAPI compiler's rule
 [`allof-classification`](./compilers/openapi.md#allof-classification).
@@ -1014,13 +1036,11 @@ way, so `irverify` rejects it (`ir/map-key-string`), and a `Key` that is set nam
 another `Model` field keeps the node a model with no second predicate to update, and `irverify`
 holds every document to the same function (`ir/map-as-model`). The conversion keeps the model's
 `TypeCommon` — its ID, name, docs and unmodeled entries — and takes the catch-all's key and value
-and the model's `Constraints`, which on a map bound how many entries an instance may carry. What a
-map has no field for is kept the way any keyword without a home is: an OpenAPI `required` naming
-keys stays verbatim ([`shape-applicator`](./compilers/openapi.md#shape-applicator)), also where a
-discriminator's move makes the object a map after its census ran, and `propertyNames` stays the
-validation-only entry §4.7 makes it, since it constrains keys without being a key type. An `allOf`
-that leaves a map is the exception so far: the composition reads its `required` itself and reports
-each name it cannot attach without keeping it, as it does for a model (#896).
+and the model's `Constraints`, which on a map bound how many entries an instance may carry. A map
+requires no key, so an object whose `required` names one is a `Model` whose `Requires` lists it
+(§4.3), never a `MapT`, however it is composed. What a map has no field for is kept the way any
+keyword without a home is: `propertyNames` stays the validation-only entry §4.7 makes it, since it
+constrains keys without being a key type.
 
 A `Tuple` states three independent things, one field each. `Elems` types the leading positions.
 `Rest` types every element past them, as `List.Elem` types every element of a list; nil means no
