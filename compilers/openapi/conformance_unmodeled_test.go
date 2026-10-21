@@ -387,7 +387,7 @@ func assertAllOfConflictingType(t *testing.T, doc *ir.Document, diags []ir.Diagn
 // assertAllOfNarrowingRedeclaration pins that a redeclaration narrowing a bare
 // primitive is lossless (GitHub #598, #446): each pair, in both branch orders,
 // merges to the narrower target with no warning and nothing kept under
-// Unmodeled, and the two orders agree on the type. NullableBroadFirst adds the
+// Unmodeled, and the two orders agree on the type. The Nullable pair adds the
 // nullability intersection and the broad branch's adopted minimum, and the
 // InadmissibleDefault pair the broad default the narrow kind refuses.
 func assertAllOfNarrowingRedeclaration(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
@@ -414,23 +414,24 @@ func assertAllOfNarrowingRedeclaration(t *testing.T, doc *ir.Document, diags []i
 			for key := range p.Unmodeled {
 				assert.NotContains(t, key, "openapi:conflicting-redeclaration", "%s: nothing is kept", model)
 			}
-			for _, branch := range []string{"0", "1"} {
-				ptr := "/components/schemas/" + model + "/allOf/" + branch + "/properties/p"
-				assert.Empty(t, diagsAt(diags, "openapi/conflicting-redeclaration", ptr),
-					"%s: a narrowing is not a conflict", model)
-			}
+			assert.Empty(t, diagsUnder(diags, "/components/schemas/"+model+"/"), "%s: a narrowing draws no diagnostic", model)
 			types[i] = p.Type
 		}
 		assert.Empty(t, cmp.Diff(types[0], types[1]), "%s: the merged type does not depend on branch order", pair.name)
 	}
 
-	p := narrowedProp(t, doc, "NullableBroadFirst")
-	assert.Equal(t, ir.TypeID("t/prim/integer"), p.Type.Target)
-	assert.False(t, p.Type.Nullable, "null is admitted only where both branches admit it")
-	require.NotNil(t, p.Constraints)
-	require.NotNil(t, p.Constraints.Min, "the broad branch's minimum is adopted")
-	assert.Equal(t, ir.BigVal("0"), *p.Constraints.Min)
-	assert.Empty(t, p.Unmodeled)
+	for _, model := range []string{"NullableBroadFirst", "NullableNarrowFirst"} {
+		t.Run(model, func(t *testing.T) {
+			p := narrowedProp(t, doc, model)
+			assert.Equal(t, ir.TypeID("t/prim/integer"), p.Type.Target, "%s: the narrower target wins", model)
+			assert.False(t, p.Type.Nullable, "null is admitted only where both branches admit it")
+			require.NotNil(t, p.Constraints)
+			require.NotNil(t, p.Constraints.Min, "the broad branch's minimum is adopted")
+			assert.Equal(t, ir.BigVal("0"), *p.Constraints.Min)
+			assert.Empty(t, p.Unmodeled, "%s: nothing is kept", model)
+			assert.Empty(t, diagsUnder(diags, "/components/schemas/"+model+"/"), "%s: no diagnostic", model)
+		})
+	}
 
 	assertInadmissibleDefault(t, doc, diags)
 	assertNarrowingChainsAndScalars(t, doc, diags)
@@ -461,10 +462,11 @@ func assertNarrowingChainsAndScalars(t *testing.T, doc *ir.Document, diags []ir.
 	}
 }
 
-// assertRefusedLateDefault pins a default adopted from a non-first declaration
-// and then refused by the narrower integer that arrives later: the entry is
-// keyed at the branch that wrote the default, whichever position the integer
-// declaration takes, with one info there.
+// assertRefusedLateDefault pins a broad default the winning integer refuses,
+// with the integer declaration first, in the middle and last. Declared after
+// the integer, the default is refused as it arrives; declared before it, it is
+// adopted from a non-first branch and refused when the integer arrives. Either
+// way the entry is keyed at the branch that wrote the default, with one info.
 func assertRefusedLateDefault(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	for _, tc := range []struct{ model, branch string }{
 		{"RefusedLateDefaultFirst", "2"}, {"RefusedLateDefaultMiddle", "2"}, {"RefusedLateDefaultLast", "1"},

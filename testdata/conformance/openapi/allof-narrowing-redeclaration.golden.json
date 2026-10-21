@@ -778,6 +778,57 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/openapi/components/schemas/NullableNarrowFirst": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/NullableNarrowFirst",
+      "name": {
+        "source": "NullableNarrowFirst",
+        "canonical": "nullable_narrow_first"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/NullableNarrowFirst"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/NullableNarrowFirst/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/prim/integer",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "constraints": {
+            "min": "0",
+            "uniqueItems": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/NullableNarrowFirst/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/openapi/components/schemas/NumberIntegerBroadFirst": {
       "kind": "model",
       "id": "t/openapi/components/schemas/NumberIntegerBroadFirst",
@@ -1727,7 +1778,7 @@
     {
       "format": "openapi@3.1",
       "path": "allof-narrowing-redeclaration.yaml",
-      "hash": "9d73a7d220d5a7246cb99686d3fa9ace2d5342a153ab60e40978c64cd4606902"
+      "hash": "3f05fa1519319fdb41d5b6e0dc3f388f0bb75e45c619549560cbb89746b30d41"
     }
   ]
 }
