@@ -9,11 +9,12 @@ import (
 	"reflect"
 	"slices"
 
-	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/speakeasy-api/openapi/validation"
 	yaml "gopkg.in/yaml.v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
 )
@@ -54,13 +55,15 @@ type reached struct {
 
 // reachedTarget is an object the source's references reach: the least pointer
 // among the $refs reaching it, the object and the node it was built from, the
-// document it is in, as findingPlace names it, and whether that is the source.
+// document it is in, as findingPlace names it, whether that is the source, and
+// what building it found already, for a schema built for a landing.
 type reachedTarget struct {
 	site     jsontext.Pointer
 	obj      any
 	node     *yaml.Node
 	doc      string
 	inSource bool
+	found    []error
 }
 
 // targetKey identifies a target by the node its object was built from and the
@@ -73,22 +76,39 @@ type targetKey struct {
 
 // validateReached validates every object a resolved reference in doc reaches
 // that the source's own validation did not (see targetOf and dropDeclared), and
-// reports each finding once, where reachedFinding places it. A finding known,
-// the source's own validation's, is not reported again: a node a $ref reads as
-// another kind holds what the source declares inside it. The source is walked
-// with the fields beside its path item $refs, which it validated as its own.
+// every schema built for a landing of the schema bindings, and reports each
+// finding once, where reachedFinding places it. A finding known, the source's
+// own validation's, is not reported again: a node a $ref reads as another kind
+// holds what the source declares inside it. The source is walked with the
+// fields beside its path item $refs, which it validated as its own.
 func validateReached(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI, sibs Siblings,
-	targets MappingTargets, opts Options, self sourceDocument,
+	built []typed.Built, opts Options, self sourceDocument,
 ) []ir.Diagnostic {
 	checks := newReached(doc, opts, self.tree)
 	checks.esc = self.escapes
 	maps.Copy(checks.reported, self.found)
-	return checkReached(ctx, at, walkSource(ctx, doc, sibs), targets.resolved, checks)
+	return checkReached(ctx, at, walkSource(ctx, doc, sibs), builtTargets(built), checks)
+}
+
+// builtTargets returns the targets the schemas built for landings make, each
+// placed at the least source position whose chain reaches it. One no source
+// position reaches is no target: only another document's content leads to it.
+func builtTargets(built []typed.Built) []reachedTarget {
+	var out []reachedTarget
+	for _, b := range built {
+		if b.Schema == nil || !b.Landing.Reached || b.Schema.GetSchema() == nil {
+			continue
+		}
+		out = append(out, reachedTarget{site: b.Landing.Site.Pointer, obj: b.Schema,
+			node: b.Schema.GetSchema().GetRootNode(), doc: b.Landing.Name, inSource: b.Landing.At.Doc == bind.Source,
+			found: b.Findings})
+	}
+	return out
 }
 
 // checkReached is validateReached over a walk the caller supplies, so a test
-// can hand it one yielding a reference no real document builds. resolved are
-// the references the walk does not show (see MappingTargets.resolved).
+// can hand it one yielding a reference no real document builds. built are the
+// targets the schema bindings' landings make (see builtTargets).
 //
 // The library's validation faults on shapes it did not expect as its resolver
 // does, so reading the walk and validating each run behind a barrier. A panic
@@ -96,25 +116,23 @@ func validateReached(ctx context.Context, at func(jsontext.Pointer) ir.Provenanc
 // nothing is validated, since the targets read so far need not hold each one's
 // least $ref.
 func checkReached(ctx context.Context, at func(jsontext.Pointer) ir.Provenance,
-	items iter.Seq[soa.WalkItem], resolved []siteRef, checks *reached,
+	items iter.Seq[soa.WalkItem], built []reachedTarget, checks *reached,
 ) []ir.Diagnostic {
 	targets := map[targetKey]reachedTarget{}
-	add := func(site jsontext.Pointer, r resolvable) {
-		t, ok := targetOf(site, r, checks.esc)
-		if !ok {
-			return
-		}
+	add := func(t reachedTarget) {
 		key := targetKey{node: t.node, kind: reflect.TypeOf(t.obj)}
-		if prev, seen := targets[key]; !seen || site < prev.site {
+		if prev, seen := targets[key]; !seen || t.site < prev.site {
 			targets[key] = t
 		}
 	}
 	site, err := eachReference(items, "validation", func(site jsontext.Pointer, r resolvable) error {
-		add(site, r)
+		if t, ok := targetOf(site, r, checks.esc); ok {
+			add(t)
+		}
 		return nil
 	})
-	if err == nil {
-		site, err = eachResolved(resolved, add)
+	for _, t := range built {
+		add(t)
 	}
 	if err == nil {
 		site, err = dropDeclared(items, targets)
@@ -123,18 +141,6 @@ func checkReached(ctx context.Context, at func(jsontext.Pointer) ir.Provenance,
 		return []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.Validation, at(site), "%s", err.Error())}
 	}
 	return checks.checkAll(ctx, at, targets)
-}
-
-// eachResolved calls visit with each of resolved, behind the barrier
-// eachReference puts around a walk: a panic stops it, reported at the site
-// being visited.
-func eachResolved(resolved []siteRef, visit func(jsontext.Pointer, resolvable)) (site jsontext.Pointer, err error) {
-	defer recovered(&err, "validation")
-	for _, r := range resolved {
-		site = r.site
-		visit(r.site, r.ref)
-	}
-	return "", nil
 }
 
 // targetOf returns the object the reference at site reaches, or false when its
@@ -247,7 +253,7 @@ func (v *reached) check(ctx context.Context, at func(jsontext.Pointer) ir.Proven
 	}
 
 	checked := v.checkVersion(ctx, at, t)
-	found := validateObject(ctx, t.obj, v.opts)
+	found := append(slices.Clip(t.found), validateObject(ctx, t.obj, v.opts)...)
 	if checked.additionalOperations {
 		found = ownAdditionalOperations(ctx, v.doc, Siblings{}, reachedWalk(ctx, t.obj), found)
 	}
@@ -331,32 +337,19 @@ func (v *reached) checkVersion(ctx context.Context, at func(jsontext.Pointer) ir
 
 // reachedObject returns the object a reference names and the node it was built
 // from, or false for one with none to validate: an unresolved reference names
-// none, a boolean schema has nothing but its value, and a chain that loops, or
-// stops at a reference it could not resolve, ends on no object. The reference
-// reads the node itself: asked of a missing object, a model's own GetRootNode
-// faults.
+// none, and a chain that loops, or stops at a reference it could not resolve,
+// ends on no object. The reference reads the node itself: asked of a missing
+// object, a model's own GetRootNode faults.
 func reachedObject(r resolvable) (any, *yaml.Node, bool) {
-	switch ref := r.(type) {
-	case *oas3.JSONSchema[oas3.Referenceable]:
-		s := ref.GetResolvedSchema()
-		if s.GetSchema() == nil {
-			return nil, nil, false
-		}
-		return s, s.GetSchema().GetRootNode(), true
-	default:
-		holder, ok := r.(interface {
-			GetObjectAny() any
-			GetRootNode() *yaml.Node
-		})
-		if !ok {
-			return nil, nil, false
-		}
-		node := holder.GetRootNode()
-		if node == nil {
-			return nil, nil, false
-		}
-		return holder.GetObjectAny(), node, true
+	holder, ok := r.(interface{ GetRootNode() *yaml.Node })
+	if !ok {
+		return nil, nil, false
 	}
+	node := holder.GetRootNode()
+	if node == nil {
+		return nil, nil, false
+	}
+	return r.GetObjectAny(), node, true
 }
 
 // validateObject validates obj under opts through its own Validate, as the
@@ -383,8 +376,8 @@ func validateObject(ctx context.Context, obj any, opts []validation.Option) []er
 // straight through to the Object's fields, so what the walk finds is unchanged.
 func reachedWalk(ctx context.Context, obj any) iter.Seq[soa.WalkItem] {
 	switch o := obj.(type) {
-	case *oas3.JSONSchema[oas3.Concrete]:
-		return soa.Walk(ctx, oas3.ConcreteToReferenceable(o))
+	case *schemaRef:
+		return soa.Walk(ctx, o)
 	case *soa.PathItem:
 		return soa.Walk(ctx, &soa.ReferencedPathItem{Object: o})
 	case *soa.Parameter:

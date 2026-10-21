@@ -200,7 +200,7 @@ func TestEngine_RunResultSourcesOnARefusedCompile(t *testing.T) {
 	const cyclic = `openapi: 3.1.0
 info: {title: t, version: '1'}
 paths: {}
-components: {schemas: {A: {$ref: '#/components/schemas/A'}}}
+x-a: &a [*a]
 `
 	eng, err := engine.New()
 	require.NoError(t, err)

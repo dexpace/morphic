@@ -319,7 +319,8 @@ morphic/
 │   │       ├── ids/        #             pointer construction; pointer → TypeID
 │   │       ├── value/      #             scalar and BigVal lowering
 │   │       ├── nodeview/   #             the raw source as the resolver reads it
-│   │       ├── scan/       #             pre-lowering refusals (ref cycles, alias fan-out)
+│   │       ├── scan/       #             pre-parse refusals (alias cycles and fan-out, nesting)
+│   │       ├── bind/       #             every schema $ref bound where it lands, loops found
 │   │       ├── annotation/ #             what a schema says about itself, not its shape
 │   │       ├── load/       #             parse, validate, resolve
 │   │       ├── resolve/    #             what a $ref names; reference-or-inline entries

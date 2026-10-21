@@ -1,7 +1,7 @@
-# A schema that refers to itself under an operation's default response. The
-# resolver recurses round the loop until the stack runs out. Outside a schema a
-# default is a response, not example data, so the scan must read the schemas
-# beneath it.
+# A schema that refers to itself under an operation's default response, a loop
+# the resolver recurses round until the stack runs out. Outside a schema a
+# default is a response, not example data, so the binding reads the schemas
+# beneath it and reports the loop.
 openapi: 3.1.0
 info: {title: Schema Default Response, version: "1"}
 paths:

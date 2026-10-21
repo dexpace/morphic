@@ -94,6 +94,8 @@ func children() map[string]child {
 		"orders":      unknownKeyOrders,
 		"allocations": allocations,
 		"overlay":     applyOverlay,
+		// The binding oracle's library side.
+		"binding-oracle": libraryAnswers,
 		// Two whose ending is known, for the tests of probe itself.
 		"panic here":      panicHere,
 		"panic elsewhere": panicElsewhere,

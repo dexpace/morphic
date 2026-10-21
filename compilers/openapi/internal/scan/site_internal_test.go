@@ -17,15 +17,15 @@ import (
 )
 
 // nodesAt returns the nodes of root's tree at pointers, read through the
-// mapping view the way a $ref is.
+// mapping view.
 func nodesAt(t *testing.T, root *yaml.Node, pointers []jsontext.Pointer) []*yaml.Node {
 	t.Helper()
 	view := nodeview.New()
 	nodes := make([]*yaml.Node, 0, len(pointers))
 	for _, p := range pointers {
-		n, landed := view.PointerTarget(root, p)
-		require.True(t, landed, "%s names nothing", p)
-		nodes = append(nodes, n)
+		path, complete := view.DocumentPath(root, p)
+		require.True(t, complete, "%s names nothing", p)
+		nodes = append(nodes, path[len(path)-1])
 	}
 	return nodes
 }

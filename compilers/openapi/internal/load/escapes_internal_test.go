@@ -1,7 +1,6 @@
 package load
 
 import (
-	"encoding/json/jsontext"
 	"errors"
 	"iter"
 	"maps"
@@ -287,7 +286,7 @@ func TestEscapes_NilRegistryDoesNothing(t *testing.T) {
 
 	esc.escape(root)
 	esc.restoreTrees()
-	site, err := esc.restore(t.Context(), nil, Siblings{}, MappingTargets{})
+	site, err := esc.restore(t.Context(), nil, Siblings{}, nil)
 	_, was := esc.original(node)
 
 	assert.Equal(t, []string{"#/a+b"}, refValues(root), "nothing is rewritten")
@@ -592,7 +591,7 @@ func TestEscapes_RestoreFromWalksNothingWhenNothingWasRewritten(t *testing.T) {
 	t.Parallel()
 	panicking := iter.Seq[soa.WalkItem](func(func(soa.WalkItem) bool) { panic("walked") })
 
-	site, err := newEscapes().restoreFrom(t.Context(), panicking, MappingTargets{})
+	site, err := newEscapes().restoreFrom(t.Context(), panicking, nil)
 
 	require.NoError(t, err)
 	assert.Empty(t, site)
@@ -613,7 +612,7 @@ components:
 	require.Equal(t, []string{"#/paths/~1a%2Bb"}, refValues(root))
 	panicking := iter.Seq[soa.WalkItem](func(func(soa.WalkItem) bool) { panic("walk fault") })
 
-	site, err := esc.restoreFrom(t.Context(), panicking, MappingTargets{})
+	site, err := esc.restoreFrom(t.Context(), panicking, nil)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "restoring $refs as written panicked")
@@ -621,52 +620,6 @@ components:
 	assert.Empty(t, site, "the walk faulted before it reached a model")
 	assert.Equal(t, []string{"#/paths/~1a+b"}, refValues(root), "the trees are put back whatever happened")
 	assert.Empty(t, esc.written)
-}
-
-// TestEscapes_RestoreFromReachesTheModelsTheMappingTargetsHold pins what restore
-// reaches past the walk of the source, which shows none of it: the schemas the
-// targets hold by pointer and as built, and the references they resolved. Each
-// is held with no chain behind it, so only reading the targets reaches the $ref
-// inside. The schema left out is the control that nothing else restores it.
-func TestEscapes_RestoreFromReachesTheModelsTheMappingTargetsHold(t *testing.T) {
-	t.Parallel()
-	doc, esc := escapedDoc(t, `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths: {}
-components:
-  schemas:
-    ByPointer: {type: object, properties: {p: {$ref: 'o.yaml#/a+b'}}}
-    Built: {type: object, properties: {p: {$ref: 'o.yaml#/a+b'}}}
-    Resolved: {type: object, properties: {p: {$ref: 'o.yaml#/a+b'}}}
-    Left: {type: object, properties: {p: {$ref: 'o.yaml#/a+b'}}}
-`)
-	schema := func(name string) *schemaRef {
-		js, ok := doc.Components.GetSchemas().Get(name)
-		require.True(t, ok)
-		return js
-	}
-	property := func(name string) *schemaRef {
-		p, ok := schema(name).GetSchema().GetProperties().Get("p")
-		require.True(t, ok)
-		return p
-	}
-	targets := MappingTargets{
-		byPointer: map[jsontext.Pointer]*schemaRef{"/x": schema("ByPointer")},
-		built:     map[jsontext.Pointer]*schemaRef{"/y": schema("Built")},
-		resolved:  []siteRef{{site: "/z", ref: property("Resolved")}},
-	}
-	nothing := iter.Seq[soa.WalkItem](func(func(soa.WalkItem) bool) {})
-	for _, name := range []string{"ByPointer", "Built", "Resolved", "Left"} {
-		require.Equal(t, references.Reference("o.yaml#/a%2Bb"), property(name).GetRef(), name)
-	}
-
-	_, err := esc.restoreFrom(t.Context(), nothing, targets)
-
-	require.NoError(t, err)
-	assert.Equal(t, references.Reference("o.yaml#/a+b"), property("ByPointer").GetRef(), "a schema held by pointer")
-	assert.Equal(t, references.Reference("o.yaml#/a+b"), property("Built").GetRef(), "a schema held as built")
-	assert.Equal(t, references.Reference("o.yaml#/a+b"), property("Resolved").GetRef(), "a reference resolved")
-	assert.Equal(t, references.Reference("o.yaml#/a%2Bb"), property("Left").GetRef(), "and none that is held by nothing")
 }
 
 func TestRestoreFault_ReportsTheFaultWhereItEnded(t *testing.T) {
@@ -690,9 +643,9 @@ func TestRestorer_FinishReportsAWalkOfAnObjectThatFaults(t *testing.T) {
 	hop := &soa.ReferencedParameter{}
 	hop.GetCore().Reference.ValueNode = &yaml.Node{Kind: yaml.ScalarNode, Value: "#/x"}
 	r := &restorer{esc: newEscapes(), seen: map[any]bool{}, walked: map[any]bool{},
-		queue: []record{{object: hop, reached: true}}}
+		queue: []record{{object: hop}}}
 
-	err := r.finish(t.Context(), MappingTargets{})
+	err := r.finish(t.Context(), nil)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "restoring $refs as written panicked")

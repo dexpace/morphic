@@ -20,11 +20,12 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// TestLoad_DegenerateCycleIsRefusedBeforeParsing pins the first gate in the
-// load path. A document whose references close a cycle is refused with a
-// diagnostic rather than handed to a parser that would fault on it, so the
-// refusal is a spec problem and not a crash.
-func TestLoad_DegenerateCycleIsRefusedBeforeParsing(t *testing.T) {
+// TestLoad_ADegenerateCycleLoadsAndIsReportedOnce pins the first gate in the
+// load path. A document whose schema $refs close a cycle loads: no schema $ref
+// reaches the parser's resolver, which is what faulted on one, so the loop is a
+// spec problem reported once, at its least member, and not a crash or a
+// refusal.
+func TestLoad_ADegenerateCycleLoadsAndIsReportedOnce(t *testing.T) {
 	t.Parallel()
 	data, err := os.ReadFile("../../../../testdata/openapi/cycle_self_ref.yaml")
 	require.NoError(t, err)
@@ -32,8 +33,9 @@ func TestLoad_DegenerateCycleIsRefusedBeforeParsing(t *testing.T) {
 	doc, diags, err := Load(t.Context(), 0, compilers.Source{Path: "cycle.yaml", Data: data}, Options{})
 
 	require.NoError(t, err, "a cyclic document is a spec problem, not a Go error")
-	assert.Nil(t, doc, "nothing is lowered")
-	require.True(t, diag.HasError(diags), "and the refusal is reported: %+v", diags)
+	require.NotNil(t, doc, "the document is lowered: %+v", diags)
+	assert.Equal(t, []jsontext.Pointer{"/components/schemas/A"}, errorSites(diags, diag.CyclicRef))
+	assert.Equal(t, 1, countErrors(diags), "and the loop is the only error: %+v", diags)
 }
 
 // TestLoad_UnparseableSourceIsAGoError pins the other side of that split: bytes
@@ -244,12 +246,12 @@ func TestLoad_RefusesToLowerAfterAnOverlayFails(t *testing.T) {
 	require.True(t, diag.HasError(diags), "and the refusal is reported: %+v", diags)
 }
 
-// TestLoad_RefusesACycleAnOverlayIntroduced pins that the pre-parse refusals
-// cover the tree the parser is handed rather than only the bytes on disk. The
-// source alone is acyclic, so the scan that runs before the overlay cannot see
-// this; without the second scan the cycle reaches the third-party resolver,
-// which is the crash those refusals exist to prevent.
-func TestLoad_RefusesACycleAnOverlayIntroduced(t *testing.T) {
+// TestLoad_ACycleAnOverlayIntroducedIsReportedOnce pins that the schema $refs
+// are bound over the tree the parser is handed rather than only the bytes on
+// disk. The source alone is acyclic, so a loop found only in the patched
+// document is one the overlay introduced; it is reported once, at its least
+// member.
+func TestLoad_ACycleAnOverlayIntroducedIsReportedOnce(t *testing.T) {
 	t.Parallel()
 	const acyclic = `openapi: 3.1.0
 info: {title: T, version: "1"}
@@ -259,16 +261,18 @@ components:
     A: {$ref: '#/components/schemas/B'}
     B: {type: string}
 `
-	clean, _, err := Load(t.Context(), 0, openapitest.SourceOf(acyclic), Options{})
+	clean, cleanDiags, err := Load(t.Context(), 0, openapitest.SourceOf(acyclic), Options{})
 	require.NoError(t, err)
-	require.NotNil(t, clean, "the source alone gives the scan nothing to find")
+	require.NotNil(t, clean, "the source alone gives the binder nothing to find")
+	assert.Empty(t, errorSites(cleanDiags, diag.CyclicRef))
 
 	got, diags, err := Load(t.Context(), 0, openapitest.SourceOf(acyclic),
 		overlayOptions("  - target: $.components.schemas.B\n    update: {$ref: '#/components/schemas/A'}\n"))
 
 	require.NoError(t, err)
-	assert.Nil(t, got, "the patched document is refused before the resolver sees it")
-	assert.Equal(t, 1, countErrorsAt(diags, diag.CyclicRef), "the introduced cycle is what refused it")
+	require.NotNil(t, got, "the patched document is lowered: %+v", diags)
+	assert.Equal(t, []jsontext.Pointer{"/components/schemas/A"}, errorSites(diags, diag.CyclicRef),
+		"the introduced loop is reported once, at its least member")
 }
 
 // TestLoad_ADocumentThatFailsToBuildIsAGoError pins the split between the two
@@ -313,8 +317,8 @@ func TestLoad_RejectsAnOverlaySharingTheSourceIndex(t *testing.T) {
 }
 
 // TestLoad_ADocumentTooLargeToIndexIsRefused drives the refusal a document draws
-// before the cycle scan reads a single reference: one with more YAML nodes than
-// the source index walks.
+// before the alias scan reads a single alias: one with more YAML nodes than the
+// source index walks.
 //
 // The bound is reached by shrinking it rather than by building a document of
 // sourceindex.MaxIndexedNodes nodes — that would be several gigabytes of

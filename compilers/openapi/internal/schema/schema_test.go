@@ -1761,6 +1761,36 @@ func TestSchema_EmptyStringRefMirrorBranches(t *testing.T) {
 	assert.Contains(t, []string{u.Variants[0].Name.Hint, u.Variants[1].Name.Hint}, "variant_0")
 }
 
+// TestSchema_ARefThroughAnEmptyRefLendsNothing pins a use site whose $ref lands
+// on a schema writing an empty $ref beside its annotations. That $ref names the
+// document's root, which holds no schema, so the schema lowers to an alias over
+// the top type and the chain ends on no schema: the use site takes no
+// description, default or discriminator from it, as from one whose $ref names
+// nothing.
+func TestSchema_ARefThroughAnEmptyRefLendsNothing(t *testing.T) {
+	t.Parallel()
+	spec := openapitest.ComponentSpec(`    Empty: {$ref: '', description: from-empty, default: e}
+    Base: {$ref: '', type: object, properties: {kind: {type: string}}, discriminator: {propertyName: kind}}
+    Sub:
+      type: object
+      allOf: [{$ref: '#/components/schemas/Base'}]
+    Owner:
+      type: object
+      properties:
+        p: {$ref: '#/components/schemas/Empty'}
+`)
+	doc, _ := lowerSpec(t, spec)
+	require.NotNil(t, doc)
+	owner, ok := typeByName(doc, "Owner").(*ir.Model)
+	require.True(t, ok)
+	require.Len(t, owner.Properties, 1)
+	assert.Empty(t, owner.Properties[0].Docs.Description, "no description comes through the empty $ref")
+	assert.Nil(t, owner.Properties[0].Default, "nor a default")
+	sub, ok := typeByName(doc, "Sub").(*ir.Model)
+	require.True(t, ok)
+	assert.Empty(t, sub.DiscriminatorValue, "nor a discriminator Base's alias does not hold")
+}
+
 func TestAllOf_UntypedRedeclarationDoesNotConflict(t *testing.T) {
 	t.Parallel()
 	// One branch leaves the field schemaless (the top type), the other types it.
@@ -4524,7 +4554,7 @@ func TestDynamicRef_ResourceBoundaryVerdictIsOrderInvariant(t *testing.T) {
 	assert.Empty(t, cmp.Diff(diagnosticSet(first.Diagnostics), diagnosticSet(last.Diagnostics)),
 		"the declaration order must not decide whether the merge bound is reported")
 	assert.Contains(t, diagnosticSet(first.Diagnostics),
-		"warning\x00"+diag.CycleScanFailed+"\x00", // a source-level finding: no pointer
+		"warning\x00"+diag.DegradedConstruct+"\x00", // a source-level finding: no pointer
 		"the chain past the bound is reported in the as-written order, so the set is not trivially equal")
 }
 
@@ -4543,8 +4573,8 @@ func diagnosticSet(diags []ir.Diagnostic) []string {
 // TestDynamicRef_CycleIsRefusedAtEveryEdge pins that a cycle of $dynamicRef
 // expansions is preserved whole rather than broken at whichever edge lowered
 // first. Each member reaches the verdict from its own position, so no Scalar
-// ends up with a Base chain that never terminates — the shape refCycles already
-// refuses for every pure-$ref cycle, and which neither pass.Validate nor
+// ends up with a Base chain that never terminates — the shape a loop of pure
+// $refs lowers to the top type to avoid, and which neither pass.Validate nor
 // irverify checks for aliases.
 func TestDynamicRef_CycleIsRefusedAtEveryEdge(t *testing.T) {
 	t.Parallel()
@@ -5652,15 +5682,21 @@ func TestRedactionFormat_BesideContentEncoding(t *testing.T) {
 	assert.NotContains(t, sc.Unmodeled, "openapi:format")
 }
 
-// TestSchemaRef_ToAPointerEndingInSlashLowersWhatTheResolverBuilt pins that a
-// $ref ending in '/' lowers the object the resolver built for it, the parent it
-// reads (GitHub #770): neither the model nor the load phase's walk
-// holds a schema at that pointer for the reference to settle on instead.
-func TestSchemaRef_ToAPointerEndingInSlashLowersWhatTheResolverBuilt(t *testing.T) {
+// TestSchemaRef_ToAPointerEndingInSlashNamesAnEmptyKey pins a $ref ending in
+// '/' as RFC 6901 reads it (GitHub #770): naming the member whose key is the
+// empty string, never the parent. Where there is none it is unresolved; where
+// there is one, it lowers that.
+func TestSchemaRef_ToAPointerEndingInSlashNamesAnEmptyKey(t *testing.T) {
 	t.Parallel()
-	doc, diags := lowerSpec(t, openapitest.ComponentSpec("    A: {type: object, properties: {p: {$ref: '#/x-lib/T/'}}}\n")+
+	_, diags := lowerSpecOnly(t, openapitest.ComponentSpec("    A: {type: object, properties: {p: {$ref: '#/x-lib/T/'}}}\n")+
 		"x-lib:\n  T: {type: object, properties: {t: {type: string}}}\n")
-	openapitest.RequireNoErrorDiags(t, diags)
+	assert.Equal(t, `unresolved $ref "#/x-lib/T/": it names nothing in the document it points into`,
+		openapitest.DiagMessageAt(t, diags, diag.UnresolvedRef, ir.SeverityError, "/components/schemas/A/properties/p"))
 
-	assert.Contains(t, doc.Types, ir.TypeID("t/anon/x-lib/T/"))
+	doc, diags := lowerSpec(t, openapitest.ComponentSpec("    A: {type: object, properties: {p: {$ref: '#/x-lib/T/'}}}\n")+
+		"x-lib:\n  T: {'': {type: integer}, type: object}\n")
+	openapitest.RequireNoErrorDiags(t, diags)
+	empty, ok := doc.Types[ir.TypeID("t/anon/x-lib/T/")].(*ir.Scalar)
+	require.True(t, ok, "the empty key's schema, not T's object")
+	assert.Equal(t, ir.TypeID("t/prim/integer"), empty.Base.Target)
 }

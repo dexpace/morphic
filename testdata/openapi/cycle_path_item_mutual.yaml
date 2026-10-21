@@ -1,6 +1,6 @@
 # Two paths whose only key is a $ref to each other, by document position. The
 # resolver follows the chain in a loop and reports the cycle as an unresolved
-# reference (docs/parser-library.md#reference-object-cycle), so the cycle scan
+# reference (docs/parser-library.md#reference-object-cycle), so the compile
 # leaves it to the resolver (GitHub #574).
 openapi: 3.1.0
 info: {title: Path Item Mutual, version: "1"}

@@ -12,7 +12,6 @@ import (
 	"slices"
 	"sync"
 
-	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/speakeasy-api/openapi/references"
 	yaml "gopkg.in/yaml.v3"
@@ -392,19 +391,19 @@ func (r *externalReads) handOver(doc *soa.OpenAPI, used []usedDocument) {
 // unprepared is an internal fault.
 func resolveExternal(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI, sibs Siblings,
 	self sourceDocument, opts Options, rebuild func() (*soa.OpenAPI, error),
-) (*soa.OpenAPI, Siblings, MappingTargets, []ir.Diagnostic, error) {
+) (*soa.OpenAPI, Siblings, *external, []ir.Diagnostic, error) {
 	read := newExternalReads(self)
 	reader := newExternal(doc, opts, read)
-	targets, diags := resolveWith(ctx, at, doc, sibs, self, opts, &reader)
+	diags := resolveWith(ctx, at, doc, sibs, self, opts, &reader)
 	used := documentsUsed(ctx, doc, sibs)
 	first := unprepared(doc, read, used)
 	if !anyAnchored(doc, first) && !anyRewritable(doc, first) {
-		return doc, sibs, targets, diags, nil
+		return doc, sibs, &reader, diags, nil
 	}
 
 	again, err := rebuild()
 	if err != nil {
-		return nil, Siblings{}, MappingTargets{}, nil, err
+		return nil, Siblings{}, nil, nil, err
 	}
 	again.InitCache()
 	// Modelled again, since the first models hold what the first pass resolved.
@@ -412,9 +411,9 @@ func resolveExternal(ctx context.Context, at func(jsontext.Pointer) ir.Provenanc
 	sibs, _, _ = modelSiblings(ctx, again, nowhere)
 	read.handOver(again, used)
 	reader = newExternal(again, opts, read)
-	targets, diags = resolveWith(ctx, at, again, sibs, self, opts, &reader)
+	diags = resolveWith(ctx, at, again, sibs, self, opts, &reader)
 	missed := unprepared(again, read, documentsUsed(ctx, again, sibs))
-	return again, sibs, targets, append(diags, stillUnprepared(at, missed)...), nil
+	return again, sibs, &reader, append(diags, stillUnprepared(at, missed)...), nil
 }
 
 // anyAnchored reports whether any document in missed, as the resolver parsed
@@ -540,10 +539,7 @@ func resolutionTrail(model any) trail {
 
 // chain is every record a reference's resolution holds, first hop first, and
 // the reference it stopped at, if it stopped at one, with the hop that holds
-// it. The last record holds no object when the library gave the reference it
-// stopped at one of its own: a $ref inside a resolved schema gets one holding
-// only the base it resolves against. cut marks a chain followed only as far as
-// maxResolutionHops.
+// it. cut marks a chain followed only as far as maxResolutionHops.
 type chain struct {
 	records   []record
 	stopped   references.Reference
@@ -568,21 +564,27 @@ type record struct {
 	walk         func(context.Context) iter.Seq[soa.WalkItem]
 	document     *any
 	documentPath *string
-	reached      bool
 	replace      func(obj any) bool
+	// node is the root node of the object the chain ends on from this hop:
+	// the hop's reference reports its chain's end, not its own target.
+	node *yaml.Node
 }
 
-// trail reads what c's records say about where the resolution went. A record
-// holding no object is no hop.
+// inSource reports whether r's hop resolved against the source, which the
+// resolver reads as the model rather than as a parsed tree, whatever name its
+// path gives it: a document's $self is one (GitHub #863).
+func (r record) inSource() bool {
+	_, ok := (*r.document).(*soa.OpenAPI)
+	return ok
+}
+
+// trail reads what c's records say about where the resolution went.
 func (c chain) trail() trail {
 	t := trail{stopped: c.stopped, cut: c.cut}
 	var last references.Reference
 	for _, r := range c.records {
-		if !r.reached {
-			continue
-		}
 		t.docs = append(t.docs, r.path)
-		_, t.endsInSource = (*r.document).(*soa.OpenAPI)
+		t.endsInSource = r.inSource()
 		last = r.target
 	}
 	if !c.cut && t.stopped == "" {
@@ -613,46 +615,39 @@ func resolutionChain(model any) chain {
 		return recordsOf(r)
 	case *soa.ReferencedSecurityScheme:
 		return recordsOf(r)
-	case *oas3.JSONSchema[oas3.Referenceable]:
-		return recordsOf(r)
 	default:
 		return chain{}
 	}
 }
 
-// recordsOf follows a reference through each record its resolution holds. S is
-// the reference's own type, a schema or a Referenced* alias's Reference[T, V,
+// recordsOf follows a reference object through each record its resolution
+// holds. S is the reference's own type, a Referenced* alias's Reference[T, V,
 // C], named through S as resolve.Referenced does because the library's V
-// constraint is internal.
-//
-// It walks forward from the reference, each hop owning its record. A schema's
-// GetReferenceChain would not do: it hangs off the target's parent, which the
-// last reference to resolve a shared target overwrites.
+// constraint is internal; GetObjectAny is what a schema lacks, whose $ref the
+// library never resolves. It walks forward from the reference, each hop owning
+// its record.
 func recordsOf[S any, R interface {
 	*S
 	GetReference() references.Reference
 	GetReferenceResolutionInfo() *references.ResolveResult[S]
+	GetObjectAny() any
+	GetRootNode() *yaml.Node
 }](ref R) chain {
 	var c chain
 	hop := ref
 	for hop != nil {
 		info := hop.GetReferenceResolutionInfo()
-		if info == nil {
-			break
-		}
-		r := record{path: info.AbsoluteDocumentPath, target: info.AbsoluteReference,
-			pointer: fragment.Pointer(string(hop.GetReference())), document: &info.ResolvedDocument,
-			documentPath: &info.AbsoluteDocumentPath, replace: replacing(info)}
-		if info.Object == nil {
-			c.records = append(c.records, r)
+		if info == nil || info.Object == nil {
 			break
 		}
 		if len(c.records) == maxResolutionHops {
 			c.cut = true
 			return c
 		}
-		r.object, r.walk, r.reached = info.Object, walkOf(info.Object), true
-		c.records = append(c.records, r)
+		c.records = append(c.records, record{path: info.AbsoluteDocumentPath, target: info.AbsoluteReference,
+			pointer: fragment.Pointer(string(hop.GetReference())), object: info.Object,
+			node: R(info.Object).GetRootNode(), walk: walkOf(info.Object),
+			document: &info.ResolvedDocument, documentPath: &info.AbsoluteDocumentPath, replace: replacing(info)})
 		hop = info.Object
 	}
 	if hop != nil {

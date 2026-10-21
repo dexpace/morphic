@@ -167,10 +167,10 @@ func fillParamSchema(c lowering.Ctx, ts *compile.Types, param *ir.Parameter, js 
 	if s == nil {
 		return nil
 	}
-	// resolve.TargetSchema, not annotation.At's Referent: the fallback must read the
-	// end of a $ref chain, since one hop would take the default and description
-	// off an intermediate reference instead of the schema that declares them.
-	tgt := resolve.TargetSchema(js, s)
+	// resolve.Scope.TargetSchema reads the end of a $ref chain, since one hop
+	// would take the default and description off an intermediate reference
+	// instead of the schema that declares them.
+	tgt := c.RefScope().TargetSchema(js, s)
 	def, diags := schema.DefaultOf(c, s, tgt, pointer)
 	param.Default = def
 

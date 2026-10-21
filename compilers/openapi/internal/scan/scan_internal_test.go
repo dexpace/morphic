@@ -1,7 +1,6 @@
 package scan
 
 import (
-	"bytes"
 	"encoding/json/jsontext"
 	"errors"
 	"fmt"
@@ -27,10 +26,20 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-var cycleReproducers = []struct{ name, file string }{
+// aliasCycleReproducers are the cycle fixtures whose loop is a YAML anchor
+// naming its own ancestor, which the parser cannot decode, so Aliases refuses
+// them before it is asked to.
+var aliasCycleReproducers = []struct{ name, file string }{
+	{"yaml-anchor", "cycle_yaml_anchor"},
+}
+
+// refCycleReproducers are the cycle fixtures whose loop is one of schema $refs,
+// in every spelling the corpus holds. The compiler resolves schema $refs
+// itself, so none of them is this package's to refuse: it reads aliases and
+// nesting, never a $ref.
+var refCycleReproducers = []struct{ name, file string }{
 	{"self-ref", "cycle_self_ref"},
 	{"two-node-ref", "cycle_two_node_ref"},
-	{"yaml-anchor", "cycle_yaml_anchor"},
 	{"self-ref-sibling", "cycle_self_ref_sibling"},
 	{"two-node-ref-sibling", "cycle_two_node_ref_sibling"},
 	{"alias-ref-value", "cycle_alias_ref_value"},
@@ -40,20 +49,12 @@ var cycleReproducers = []struct{ name, file string }{
 	{"alias-schema-node", "cycle_alias_schema_node"},
 	{"alias-dual-position", "cycle_alias_dual_position"},
 	{"duplicate-key", "cycle_duplicate_key"},
-	// A self-reference only the resolver's pointer normalization reveals.
 	{"pointer-whitespace-self", "cycle_pointer_whitespace_self"},
-	// A self-reference only a plus read as a plus reveals (GitHub #911).
 	{"pointer-plus-self", "cycle_pointer_plus_self"},
-	// A loop closed by a pointer passing back through a schema $ref on it
-	// (GitHub #932).
 	{"schema-through-own-member", "cycle_schema_through_own_member"},
 	{"schema-through-member-chain", "cycle_schema_through_member_chain"},
-	// Loops through a trailing empty token, which the resolver reads by where
-	// its walk is: in a map of schemas as the key "", in raw YAML as the node
-	// reached (GitHub #944).
 	{"schema-empty-key", "cycle_schema_empty_key"},
 	{"schema-empty-token-stays", "cycle_schema_empty_token_stays"},
-	// A loop under a default response, a schema position (GitHub #949).
 	{"schema-default-response", "cycle_schema_default_response"},
 }
 
@@ -76,10 +77,10 @@ var referenceObjectCycles = []struct{ name, file string }{
 	{"path-item-empty-segment", "cycle_path_item_empty_segment"},
 }
 
-// TestCycleReproducers_EveryFixtureIsExercised holds cycleReproducers and
-// referenceObjectCycles to the fixtures on disk. A cycle_*.yaml added to the
-// corpus and left out of both is scanned by nothing here, and the suite stays
-// green while the corpus grows past it.
+// TestCycleReproducers_EveryFixtureIsExercised holds the three fixture tables
+// above to the fixtures on disk. A cycle_*.yaml added to the corpus and left out
+// of all is scanned by nothing here, and the suite stays green while the corpus
+// grows past it.
 //
 // The compiler package keeps tables of the same fixtures for its own assertion
 // and carries the twin of this test. Holding both to one directory is what stops
@@ -91,26 +92,29 @@ func TestCycleReproducers_EveryFixtureIsExercised(t *testing.T) {
 	require.NoError(t, err, "globbing the reproducer corpus")
 	require.NotEmpty(t, onDisk, "the corpus holds cycle reproducers")
 
-	listed := make(map[string]bool, len(cycleReproducers)+len(referenceObjectCycles))
-	for _, tc := range slices.Concat(cycleReproducers, referenceObjectCycles) {
+	all := slices.Concat(aliasCycleReproducers, refCycleReproducers, referenceObjectCycles)
+	listed := make(map[string]bool, len(all))
+	for _, tc := range all {
 		require.False(t, listed[tc.file+".yaml"], "%s is listed twice", tc.file)
 		listed[tc.file+".yaml"] = true
 	}
 	for _, path := range onDisk {
 		assert.True(t, listed[filepath.Base(path)],
-			"%s is in %s but in neither table", filepath.Base(path), reproducerDir)
+			"%s is in %s but in none of the tables", filepath.Base(path), reproducerDir)
 	}
 	assert.Len(t, listed, len(onDisk), "the tables and %s hold different numbers of fixtures", reproducerDir)
 }
 
-func TestDetectCycles_Reproducers(t *testing.T) {
+// TestAliases_RefusesARecursiveAnchor pins that a fixture whose loop is a YAML
+// anchor naming its own ancestor is refused as one cycle, with a position.
+func TestAliases_RefusesARecursiveAnchor(t *testing.T) {
 	t.Parallel()
-	for _, tc := range cycleReproducers {
+	for _, tc := range aliasCycleReproducers {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			data := readReproducer(t, tc.file)
 			diags := scanBytes(t, data)
-			require.NotEmpty(t, diags, "degenerate cycle must be diagnosed")
+			require.Len(t, diags, 1, "a recursive anchor is diagnosed once")
 			assert.Equal(t, diag.CyclicRef, diags[0].Code)
 			assert.Equal(t, ir.SeverityError, diags[0].Severity)
 			assert.NotZero(t, diags[0].Provenance.Position, "position provenance")
@@ -118,9 +122,24 @@ func TestDetectCycles_Reproducers(t *testing.T) {
 	}
 }
 
-// TestDetectCycles_ReferenceObjectCyclesAreLeftToTheResolver pins that the
-// scan reports nothing on a chain of reference objects, however it fails.
-func TestDetectCycles_ReferenceObjectCyclesAreLeftToTheResolver(t *testing.T) {
+// TestAliases_LeavesASchemaRefCycleToTheBinder pins that no loop of schema
+// $refs is refused here, in any spelling the corpus holds. The compiler
+// resolves schema $refs itself and reports a loop once, at its least member,
+// while the document still compiles. A scan that read $refs would refuse a
+// document the compile admits.
+func TestAliases_LeavesASchemaRefCycleToTheBinder(t *testing.T) {
+	t.Parallel()
+	for _, tc := range refCycleReproducers {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Empty(t, scanBytes(t, readReproducer(t, tc.file)))
+		})
+	}
+}
+
+// TestAliases_ReferenceObjectCyclesAreLeftToTheResolver pins that the scan
+// reports nothing on a chain of reference objects, however it fails.
+func TestAliases_ReferenceObjectCyclesAreLeftToTheResolver(t *testing.T) {
 	t.Parallel()
 	for _, tc := range referenceObjectCycles {
 		t.Run(tc.name, func(t *testing.T) {
@@ -130,67 +149,24 @@ func TestDetectCycles_ReferenceObjectCyclesAreLeftToTheResolver(t *testing.T) {
 	}
 }
 
-func TestDetectCycles_LegalRecursionClean(t *testing.T) {
+// TestAliases_LegalRecursionClean pins that a schema recursing through $refs,
+// which is legal, is not a cycle to the scan.
+func TestAliases_LegalRecursionClean(t *testing.T) {
 	t.Parallel()
 	data, err := os.ReadFile("../../../../testdata/conformance/openapi/recursive.yaml")
 	require.NoError(t, err)
 	assert.Empty(t, scanBytes(t, data), "legal recursion is not a degenerate cycle")
 }
 
-var refShapedDataSpecs = []struct {
+// legalAliasSpecs are documents that use anchors, aliases and merge keys the
+// way a real spec does, none of them a cycle. They are the negative controls to
+// the refusals above: a scan that refused every document using an alias would
+// pass every refusal case.
+var legalAliasSpecs = []struct {
 	name string
 	data string
 }{
-	{"example-data-cycle", `openapi: 3.1.0
-info: {title: t, version: '1'}
-paths: {}
-components:
-  schemas:
-    A:
-      type: object
-      example:
-        p: {$ref: '#/components/schemas/A/example/q'}
-        q: {$ref: '#/components/schemas/A/example/p'}
-`},
-	{"default-data-cycle", `openapi: 3.1.0
-info: {title: t, version: '1'}
-paths: {}
-components:
-  schemas:
-    A:
-      type: object
-      default:
-        p: {$ref: '#/components/schemas/A/default/q'}
-        q: {$ref: '#/components/schemas/A/default/p'}
-`},
-	// Under an extension a schema position is data too: the resolver never
-	// reads x-foo, so neither loop below is followed.
-	{"extension-cycle", `openapi: 3.1.0
-info: {title: t, version: '1'}
-paths: {}
-x-foo: {schema: {$ref: '#/x-foo/schema'}, schemas: {A: {$ref: '#/x-foo/schemas/A'}}}
-`},
-	{"responses-ref-cycle", `openapi: 3.1.0
-info: {title: t, version: '1'}
-paths: {}
-components:
-  responses:
-    A: {$ref: '#/components/responses/B'}
-    B: {$ref: '#/components/responses/A'}
-`},
-	{"allof-wrapped-cycle", `openapi: 3.1.0
-info: {title: t, version: '1'}
-paths: {}
-components:
-  schemas:
-    A: {allOf: [{$ref: '#/components/schemas/B'}]}
-    B: {allOf: [{$ref: '#/components/schemas/A'}]}
-`},
-	// The four cases below are the negative controls for GitHub #26: each uses
-	// the same alias/merge/contentSchema shapes as the crashing reproducers, but
-	// legally (no degenerate cycle), so the alias- and merge-aware scan must not
-	// start refusing valid documents it previously accepted.
-	{"legal-anchor-reuse", `openapi: 3.1.0
+	{"anchor-reuse", `openapi: 3.1.0
 info: {title: t, version: '1'}
 paths: {}
 x-anchors: {s: &s {type: object}}
@@ -199,7 +175,7 @@ components:
     A: *s
     B: {type: object, properties: {p: *s}}
 `},
-	{"legal-merge-key", `openapi: 3.1.0
+	{"merge-key", `openapi: 3.1.0
 info: {title: t, version: '1'}
 paths: {}
 x-anchors: {base: &base {description: base schema}}
@@ -207,14 +183,7 @@ components:
   schemas:
     A: {<<: *base, type: object}
 `},
-	{"legal-content-schema", `openapi: 3.1.0
-info: {title: t, version: '1'}
-paths: {}
-components:
-  schemas:
-    A: {type: string, contentMediaType: application/json, contentSchema: {type: object}}
-`},
-	{"legal-alias-ref-terminates", `openapi: 3.1.0
+	{"alias-as-a-ref-value", `openapi: 3.1.0
 info: {title: t, version: '1'}
 paths: {}
 x-anchors: {ref: &r '#/components/schemas/B'}
@@ -223,61 +192,27 @@ components:
     A: {$ref: *r}
     B: {type: object}
 `},
-	// The cases below carry a pointer whose prefix names a reference. The first
-	// two are reference objects, which the scan leaves to the resolver; the last
-	// two are schema hops landing on a node with no $ref, or on nothing. The
-	// resolver reports each unresolved, so refusing one as a cycle would be an
-	// over-refusal.
-	{"legal-prefix-both-hops-dangle", `openapi: 3.1.0
-info: {title: t, version: '1'}
-paths:
-  /a: {$ref: '#/paths/~1b/t'}
-  /b: {$ref: '#/paths/~1a/t'}
-`},
-	{"legal-prefix-through-offchain-ref", `openapi: 3.1.0
-info: {title: t, version: '1'}
-paths:
-  /a: {$ref: '#/paths/~1b/t'}
-  /b: {$ref: '#/components/pathItems/C'}
-components:
-  pathItems:
-    C: {get: {operationId: c, responses: {"200": {description: ok}}}}
-`},
-	{"legal-schema-prefix-self", `openapi: 3.1.0
-info: {title: t, version: '1'}
-paths: {}
-components:
-  schemas:
-    A: {$ref: '#/components/schemas/A/properties', properties: {p: {type: string}}}
-`},
-	{"legal-schema-chain-reentry", `openapi: 3.1.0
-info: {title: t, version: '1'}
-paths:
-  /a: {$ref: '#/components/schemas/S/t'}
-components:
-  schemas:
-    S: {$ref: '#/paths/~1a'}
-`},
 }
 
-func TestDetectCycles_RefShapedDataIsClean(t *testing.T) {
+// TestAliases_LegalAliasAndMergeUseIsClean pins that ordinary anchor reuse, a
+// merge key and an alias standing for a scalar are not refused.
+func TestAliases_LegalAliasAndMergeUseIsClean(t *testing.T) {
 	t.Parallel()
-	for _, tc := range refShapedDataSpecs {
+	for _, tc := range legalAliasSpecs {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Empty(t, scanBytes(t, []byte(tc.data)),
-				"a ref-shaped structure outside a schema position is not a degenerate cycle")
+			assert.Empty(t, scanBytes(t, []byte(tc.data)), "a legal use of aliases is not a degenerate cycle")
 		})
 	}
 }
 
-// TestDetectCycles_EmptyDocumentIsNoCycle covers the index a source with nothing
+// TestAliases_EmptyDocumentIsNoCycle covers the index a source with nothing
 // in it produces. A source that does not decode at all no longer reaches here —
 // load refuses it as a parse error before it indexes anything — so the empty
 // document is the only sourceless index the scan can be handed.
-func TestDetectCycles_EmptyDocumentIsNoCycle(t *testing.T) {
+func TestAliases_EmptyDocumentIsNoCycle(t *testing.T) {
 	t.Parallel()
-	assert.Empty(t, Cycles(InSource(0), sourceindex.Build(nil, sourceindex.MaxIndexedNodes), defaultSurplus))
+	assert.Empty(t, Aliases(InSource(0), sourceindex.Build(nil, sourceindex.MaxIndexedNodes), defaultSurplus))
 	assert.Empty(t, scanBytes(t, nil))
 }
 
@@ -288,11 +223,11 @@ func TestDetectCycles_EmptyDocumentIsNoCycle(t *testing.T) {
 const defaultSurplus = 1 << 18
 
 // scanBytes decodes source bytes and runs the refusals over the index built from
-// them — what load does around Cycles, with the compile's one decode — under the
-// default alias budget.
+// them — what load does around Aliases, with the compile's one decode — under
+// the default alias budget.
 func scanBytes(t *testing.T, data []byte) []ir.Diagnostic {
 	t.Helper()
-	return Cycles(InSource(0), indexOf(t, data), defaultSurplus)
+	return Aliases(InSource(0), indexOf(t, data), defaultSurplus)
 }
 
 // scanPlaced is scanBytes with each diagnostic placed by its pointer too, as
@@ -300,7 +235,7 @@ func scanBytes(t *testing.T, data []byte) []ir.Diagnostic {
 func scanPlaced(t *testing.T, data []byte) []ir.Diagnostic {
 	t.Helper()
 	idx := indexOf(t, data)
-	return Cycles(InTree(0, Pointers(idx.Root())), idx, defaultSurplus)
+	return Aliases(InTree(0, Pointers(idx.Root())), idx, defaultSurplus)
 }
 
 // indexOf decodes source bytes and indexes the tree. A fixture that does not
@@ -340,6 +275,8 @@ func TestRecoverCycleScan_PanicYieldsWarning(t *testing.T) {
 	assert.Equal(t, diag.CycleScanFailed, got[0].Code)
 	assert.Equal(t, ir.SeverityWarning, got[0].Severity, "the scan failure must not refuse a spec")
 	assert.Equal(t, 3, got[0].Provenance.Source, "the diagnostic carries the source index")
+	assert.Equal(t, "alias pre-scan aborted (detector bug); alias-cycle protection is incomplete for this source",
+		got[0].Message, "the warning says what is left unprotected")
 }
 
 func TestRecoverCycleScan_PassesThroughResult(t *testing.T) {
@@ -351,13 +288,13 @@ func TestRecoverCycleScan_PassesThroughResult(t *testing.T) {
 	assert.Equal(t, want, got)
 }
 
-func TestDetectCycles_WhitespaceOnlyIsNoCycle(t *testing.T) {
+func TestAliases_WhitespaceOnlyIsNoCycle(t *testing.T) {
 	t.Parallel()
 	assert.Empty(t, scanBytes(t, []byte("\n\n\n")))
 	assert.Empty(t, scanBytes(t, []byte("# only a comment\n")))
 }
 
-func TestDetectCycles_LegalAliasReuseClean(t *testing.T) {
+func TestAliases_LegalAliasReuseClean(t *testing.T) {
 	t.Parallel()
 	src := "a: &x {p: 1}\nb: *x\n"
 	assert.Empty(t, scanBytes(t, []byte(src)),
@@ -369,34 +306,6 @@ func TestAnchorName_Cases(t *testing.T) {
 	anchored := &yaml.Node{Kind: yaml.MappingNode, Anchor: "root"}
 	assert.Equal(t, "root", anchorName(ynode.Alias(anchored)))
 	assert.Equal(t, "bare", anchorName(&yaml.Node{Kind: yaml.AliasNode, Value: "bare"}))
-}
-
-func TestRefScanCollect_NilRoot(t *testing.T) {
-	t.Parallel()
-	s := newRefScan()
-	s.collect(nil)
-	assert.Empty(t, s.out)
-	assert.Empty(t, s.stack, "the worklist drains to empty")
-}
-
-func TestDetectCycles_MalformedSchemaShapes(t *testing.T) {
-	t.Parallel()
-	schemasNotMap := "openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\n" +
-		"components:\n  schemas: [1, 2]\n"
-	allOfNotSeq := "openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\n" +
-		"components:\n  schemas:\n    A:\n      allOf: {x: 1}\n"
-	assert.Empty(t, scanBytes(t, []byte(schemasNotMap)), "schemas as a sequence is not a schema map")
-	assert.Empty(t, scanBytes(t, []byte(allOfNotSeq)), "allOf as a mapping is not a schema list")
-}
-
-func TestSettleChains_DanglingRefIsNotCycle(t *testing.T) {
-	t.Parallel()
-	a := ynode.Map(ynode.Scalar("$ref"), ynode.Scalar("#/schemas/Missing"))
-	root := ynode.Map(ynode.Scalar("schemas"), ynode.Map(ynode.Scalar("A"), a))
-
-	chains := settleChains(nodeview.New(), root, []*yaml.Node{a}, sourceindex.MaxIndexedNodes)
-
-	assert.Zero(t, chains.loopOf(a), "a dangling $ref is not a cycle")
 }
 
 func TestMappingPairs_Cases(t *testing.T) {
@@ -526,7 +435,7 @@ func TestMappingPairs_Cases(t *testing.T) {
 		v := nodeview.New()
 		assert.Empty(t, v.MappingPairs(ynode.MergeChain(nodeview.MergeDepthLimit+2)),
 			"a merge chain longer than the bound never reaches the leaf pair")
-		assert.True(t, v.Exhausted(), "exceeding the bound is recorded for refCycles")
+		assert.True(t, v.Exhausted(), "exceeding the bound is recorded on the view")
 	})
 }
 
@@ -555,94 +464,6 @@ func pairMap(pairs []nodeview.Pair) map[string]string {
 	return out
 }
 
-func TestDetectCycles_NonMergeKeyShapesAreClean(t *testing.T) {
-	t.Parallel()
-	quoted := `openapi: 3.1.0
-info: {title: t, version: '1'}
-paths: {}
-x-anchors: {base: &base {$ref: '#/components/schemas/A'}}
-components: {schemas: {A: {'<<': *base}}}
-`
-	aliasedKey := `openapi: 3.1.0
-info: {title: t, version: '1'}
-paths: {}
-x-anchors: {k: &k '<<', base: &base {$ref: '#/components/schemas/A'}}
-components: {schemas: {A: {*k : *base}}}
-`
-	assert.Empty(t, scanBytes(t, []byte(quoted)),
-		"a quoted '<<' is a plain key to speakeasy, not a merge")
-	assert.Empty(t, scanBytes(t, []byte(aliasedKey)),
-		"an alias standing in for the key is a plain key to speakeasy, not a merge")
-}
-
-func TestRefScanCollect_VisitsEachNodeOncePerRole(t *testing.T) {
-	t.Parallel()
-	ref := ynode.Map(ynode.Scalar("$ref"), ynode.Scalar("#/components/schemas/B"))
-	root := ynode.Map(ynode.Scalar("schemas"), ynode.Map(
-		ynode.Scalar("A"), ynode.Map(ynode.Scalar("allOf"), ynode.Seq(ynode.Alias(ref), ynode.Alias(ref))),
-		ynode.Scalar("B"), ynode.Map(ynode.Scalar("properties"), ynode.Alias(ref)),
-		ynode.Scalar("C"), ynode.Alias(ref),
-		// allOf whose value is the mapping itself, not a sequence: the only way
-		// this node is entered in the schema-list role.
-		ynode.Scalar("D"), ynode.Map(ynode.Scalar("allOf"), ynode.Alias(ref)),
-	))
-
-	s := newRefScan()
-	s.collect(root)
-
-	assert.Equal(t, []*yaml.Node{ref}, s.out,
-		"the shared node is collected once despite repeated schema-role arrivals")
-	assert.True(t, s.seen[roleSchema][ref], "entered as a schema")
-	assert.True(t, s.seen[roleSchemaMap][ref], "and as a name->schema map")
-	assert.True(t, s.seen[roleSchemaList][ref], "and as a schema list, each in its own set")
-	assert.False(t, s.seen[roleOutside][ref], "never reached outside a schema")
-}
-
-func TestDetectCycles_TruncationDoesNotDisableTheRestOfTheScan(t *testing.T) {
-	t.Parallel()
-
-	var b strings.Builder
-	b.WriteString("openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\nx-anchors:\n")
-	b.WriteString("  m0: &m0 {type: object}\n")
-	for i := 1; i <= nodeview.MergeDepthLimit+10; i++ {
-		fmt.Fprintf(&b, "  m%d: &m%d {<<: *m%d, p%d: %d}\n", i, i, i-1, i, i)
-	}
-	b.WriteString("components:\n  schemas:\n")
-	fmt.Fprintf(&b, "    Deep: {properties: {x: *m%d}}\n", nodeview.MergeDepthLimit+10)
-	b.WriteString("    A: {$ref: '#/components/schemas/B'}\n")
-	b.WriteString("    B: {$ref: '#/components/schemas/A'}\n")
-
-	diags := scanBytes(t, []byte(b.String()))
-	require.NotEmpty(t, diags)
-	assert.Equal(t, diag.CyclicRef, diags[0].Code,
-		"a cycle outside the truncated chain is still found, and outranks the warning")
-	assert.Equal(t, ir.SeverityError, diags[0].Severity)
-}
-
-func TestRefScanCollect_UnhandledRolePanics(t *testing.T) {
-	t.Parallel()
-	assert.Panics(t, func() {
-		s := newRefScan()
-		s.stack = append(s.stack, refTask{n: ynode.Map(), role: roleCount})
-		s.collect(nil)
-	}, "a task carrying an unhandled role is a programmer error")
-	assert.Panics(t, func() { roleCount.child("items") }, "and so is reading a child in one")
-}
-
-func TestRefScanCollect_DeepNestingIsNotTruncated(t *testing.T) {
-	t.Parallel()
-	ref := ynode.Map(ynode.Scalar("$ref"), ynode.Scalar("#/components/schemas/A"))
-	deep := ref
-	for range 10010 { // past the 10,000 levels the recursive walk stopped at
-		deep = ynode.Map(ynode.Scalar("items"), deep)
-	}
-	root := ynode.Map(ynode.Scalar("schemas"), ynode.Map(ynode.Scalar("A"), deep))
-
-	s := newRefScan()
-	s.collect(root)
-	assert.Contains(t, s.out, ref, "a ref nested past the old depth cap is still collected")
-}
-
 // chainedAliasSpec writes a document whose Root schema is the top of a chain
 // of levels anchors, each an allOf naming the one below it twice, so its alias
 // expansion doubles with each level.
@@ -657,10 +478,10 @@ func chainedAliasSpec(levels int) string {
 	return b.String()
 }
 
-// TestDetectCycles_ChainedAliasFanOutIsRefused refuses a millionfold
+// TestAliases_ChainedAliasFanOutIsRefused refuses a millionfold
 // expansion. Twenty levels keep this test finite even for a walk that lost its
-// memo, a defect TestCycles_AllocatesLinearlyInItsInput reports.
-func TestDetectCycles_ChainedAliasFanOutIsRefused(t *testing.T) {
+// memo, a defect TestAliases_AllocatesLinearlyInItsInput reports.
+func TestAliases_ChainedAliasFanOutIsRefused(t *testing.T) {
 	t.Parallel()
 	diags := scanBytes(t, []byte(chainedAliasSpec(20)))
 	require.Len(t, diags, 1, "a fan-out this deep is refused, not silently accepted")
@@ -668,48 +489,43 @@ func TestDetectCycles_ChainedAliasFanOutIsRefused(t *testing.T) {
 	assert.Equal(t, ir.SeverityError, diags[0].Severity)
 }
 
-func TestDetectCycles_MergeChainWithinBoundIsClean(t *testing.T) {
+func TestAliases_MergeChainWithinBoundIsClean(t *testing.T) {
 	t.Parallel()
 	diags := scanBytes(t, []byte(ynode.MergeChainSpec(nodeview.MergeDepthLimit)))
-	assert.Empty(t, diags, "a merge chain the scan can expand in full is clean")
+	assert.Empty(t, diags, "a merge chain of this depth is clean")
 }
 
-// TestDetectCycles_MergeChainPastBoundWarns reads a chain past both the depth
-// bound and the alias allowance, with room to spare, yet short enough that a
-// bound which stopped binding fails here in seconds.
-func TestDetectCycles_MergeChainPastBoundWarns(t *testing.T) {
+// TestAliases_MergeChainPastBoundIsRefused pins a merge chain longer than
+// nodeview.MergeDepthLimit and past the alias allowance with room to spare. The
+// scan does not read merge keys through the mapping view, whose depth bound
+// would make it report an incomplete scan beside the refusal, so the refusal
+// stands alone.
+func TestAliases_MergeChainPastBoundIsRefused(t *testing.T) {
 	t.Parallel()
 	diags := scanBytes(t, []byte(ynode.MergeChainSpec(500)))
-	require.Len(t, diags, 2, "both the truncation warning and the amplification refusal are reported")
-	assert.Equal(t, diag.CycleScanFailed, diags[0].Code)
-	assert.Equal(t, ir.SeverityWarning, diags[0].Severity,
-		"incomplete protection is a warning, never a refusal")
-	assert.Equal(t, diag.AliasAmplification, diags[1].Code)
-	assert.Equal(t, ir.SeverityError, diags[1].Severity,
-		"the document's alias expansion is also refused outright")
+	require.Len(t, diags, 1, "the amplification refusal, and no incomplete-scan warning beside it")
+	assert.Equal(t, diag.AliasAmplification, diags[0].Code)
+	assert.Equal(t, ir.SeverityError, diags[0].Severity,
+		"the document's alias expansion is refused outright")
 }
 
-// TestCycles_AllocatesLinearlyInItsInput holds Cycles to a cost linear in its
-// input, on each shape a walk without its memo or its bound blows up on. A row
-// is measured at n, 2n and 4n, which must take one path through the scan, and
-// the second doubling may add at most 2.5 times what the first did: a linear
-// walk adds twice as much, a quadratic one four times, and the fixed cost
-// cancels. Allocations do not move with load. It runs serially, since
-// AllocsPerRun counts the whole process. A collect walk re-entering a node
-// allocates nothing, so TestRefScanCollect_VisitsEachNodeOncePerRole pins that.
-func TestCycles_AllocatesLinearlyInItsInput(t *testing.T) {
+// TestAliases_AllocatesLinearlyInItsInput holds Aliases to a cost linear in its
+// input, on each shape a weigher without its memo blows up on. A row is
+// measured at n, 2n and 4n, which must take one path through the scan, and the
+// second doubling may add at most 2.5 times what the first did: a linear walk
+// adds twice as much, a quadratic one four times, and the fixed cost cancels.
+// Allocations do not move with load. It runs serially, since AllocsPerRun
+// counts the whole process.
+func TestAliases_AllocatesLinearlyInItsInput(t *testing.T) {
 	rows := []struct {
 		name string
 		spec func(n int) string
 		n    int
 	}{
-		// The alias weigher's memo. Sizes the expansion ratio admits keep one
-		// path, and a walk that lost its memo finite.
+		// Sizes the expansion ratio admits keep one path, and a weigher that
+		// lost its memo finite.
 		{"chained aliases", chainedAliasSpec, 2},
-		// The merge view's memo, up to the depth bound.
-		{"merge chain within the bound", ynode.MergeChainSpec, nodeview.MergeDepthLimit / 4},
-		// The depth bound, which holds each level's re-expansion to a constant.
-		{"merge chain past the bound", ynode.MergeChainSpec, 80},
+		{"merge chain", ynode.MergeChainSpec, 80},
 	}
 	for _, row := range rows {
 		t.Run(row.name, func(t *testing.T) {
@@ -721,7 +537,7 @@ func TestCycles_AllocatesLinearlyInItsInput(t *testing.T) {
 				var diags []ir.Diagnostic
 				// No alias budget, so only the expansion ratio refuses, and it
 				// refuses none of these sizes.
-				allocs[i] = testing.AllocsPerRun(1, func() { diags = Cycles(InSource(0), idx, 0) })
+				allocs[i] = testing.AllocsPerRun(1, func() { diags = Aliases(InSource(0), idx, 0) })
 				for _, d := range diags {
 					paths[i] = append(paths[i], d.Code)
 				}
@@ -735,290 +551,6 @@ func TestCycles_AllocatesLinearlyInItsInput(t *testing.T) {
 				"sizes %v took %v allocations: the second doubling added over 2.5 times the first", sizes, allocs)
 		})
 	}
-}
-
-// TestRefScanCollect_OutsidePositions covers the two ways the walk moves through
-// a document position that is not itself a schema: a sequence, whose elements
-// are each still outside, and a `schema` key, which is where schema context
-// begins.
-//
-// Both matter to what the scan can see. A sequence not descended into hides
-// every reference under a parameter or server list, and a `schema` key not
-// entered as one leaves the schema beneath it read as ordinary data, where a
-// $ref is collected under no role at all.
-func TestRefScanCollect_OutsidePositions(t *testing.T) {
-	t.Parallel()
-	inSeq := ynode.Map(ynode.Scalar("$ref"), ynode.Scalar("#/components/schemas/A"))
-	underSchema := ynode.Map(ynode.Scalar("$ref"), ynode.Scalar("#/components/schemas/B"))
-	notASchema := ynode.Map(ynode.Scalar("$ref"), ynode.Scalar("#/components/schemas/C"))
-
-	root := ynode.Map(
-		// a sequence at an outside position: each element stays outside
-		ynode.Scalar("parameters"), ynode.Seq(ynode.Map(ynode.Scalar("schema"), underSchema)),
-		// a data key: everything beneath it is data, whatever it looks like
-		ynode.Scalar("example"), notASchema,
-		// a mapping at an outside position that is a reference object itself
-		ynode.Scalar("requestBody"), inSeq,
-	)
-
-	s := newRefScan()
-	s.collect(root)
-
-	assert.True(t, s.seen[roleSchema][underSchema],
-		"a schema key inside a sequence element is entered as a schema")
-	assert.True(t, s.seen[roleOutside][inSeq],
-		"a reference object outside any schema is still walked")
-	assert.False(t, s.seen[roleSchema][notASchema],
-		"nothing under a data key is entered as a schema")
-	assert.False(t, s.seen[roleOutside][notASchema],
-		"nor walked as an outside position")
-}
-
-// TestCycles_ATrailingEmptyTokenIsReadWhereTheWalkIs is GitHub #944 and the
-// readings beside it. The library reads a pointer's last empty token by where
-// its walk is: in a map, as the key ""; at a schema or a list of schemas, as a
-// field or index none has; in raw YAML, as the node reached. Each refused row
-// overflows the resolver's stack unrefused, and each clean row's hop lands
-// where the loop it spells is not followed. Both declaration orders.
-func TestCycles_ATrailingEmptyTokenIsReadWhereTheWalkIs(t *testing.T) {
-	t.Parallel()
-	const a = "'#/components/schemas/A'"
-	tests := []struct {
-		name    string
-		members []string
-		want    jsontext.Pointer // the site reported, or "" for none
-	}{
-		{"components-schemas-key", []string{
-			"    '': {$ref: '#/components/schemas/'}\n",
-		}, "/components/schemas/"},
-		{"components-schemas-key-pair", []string{
-			"    A: {$ref: '#/components/schemas/'}\n", "    '': {$ref: " + a + "}\n",
-		}, "/components/schemas/"},
-		{"properties-key", []string{
-			"    A: {$ref: '#/components/schemas/A/properties/', properties: {'': {$ref: " + a + "}}}\n",
-		}, "/components/schemas/A"},
-		{"pattern-properties-key", []string{
-			"    A: {$ref: '#/components/schemas/A/patternProperties/', patternProperties: {'': {$ref: " + a + "}}}\n",
-		}, "/components/schemas/A"},
-		{"defs-key", []string{
-			"    A: {$ref: '#/components/schemas/A/$defs/', $defs: {'': {$ref: " + a + "}}}\n",
-		}, "/components/schemas/A"},
-		{"dependent-schemas-key", []string{
-			"    A: {$ref: '#/components/schemas/A/dependentSchemas/', dependentSchemas: {'': {$ref: " + a + "}}}\n",
-		}, "/components/schemas/A"},
-		{"a-schema-is-no-map", []string{
-			"    A: {$ref: '#/components/schemas/A/', '': {$ref: " + a + "}}\n",
-		}, ""},
-		{"a-sub-schema-is-no-map", []string{
-			"    A: {$ref: '#/components/schemas/A/items/', items: {$ref: " + a + ", '': {$ref: " + a + "}}}\n",
-		}, ""},
-		{"a-list-is-no-map", []string{
-			"    A: {$ref: '#/components/schemas/A/allOf/', allOf: [{$ref: " + a + "}]}\n",
-		}, ""},
-		{"raw-stays-on-an-unknown-key", []string{
-			"    A: {$ref: '#/components/schemas/A/u/', u: {$ref: " + a + "}}\n",
-		}, "/components/schemas/A"},
-		{"raw-stays-on-an-extension", []string{
-			"    A: {$ref: '#/components/schemas/A/x-u/', x-u: {$ref: " + a + "}}\n",
-		}, "/components/schemas/A"},
-		{"raw-stays-on-an-example", []string{
-			"    A: {$ref: '#/components/schemas/A/example/', example: {$ref: " + a + "}}\n",
-		}, "/components/schemas/A"},
-		{"raw-stays-on-additional-items", []string{
-			"    A: {$ref: '#/components/schemas/A/additionalItems/', additionalItems: {$ref: " + a + "}}\n",
-		}, "/components/schemas/A"},
-		{"raw-reads-no-key", []string{
-			"    A: {$ref: '#/components/schemas/A/u/', u: {'': {$ref: " + a + "}}}\n",
-		}, ""},
-		{"raw-reads-no-key-under-definitions", []string{
-			"    A: {$ref: '#/components/schemas/A/definitions/', definitions: {'': {$ref: " + a + "}}}\n",
-		}, ""},
-		{"raw-stays-on-nothing", []string{
-			"    A: {$ref: '#/components/schemas/A/missing/'}\n",
-		}, ""},
-	}
-	for _, tc := range tests {
-		for order, data := range bothOrders(schemasHeader, tc.members) {
-			t.Run(tc.name+"/"+order, func(t *testing.T) {
-				t.Parallel()
-				if tc.want == "" {
-					assert.Empty(t, scanPlaced(t, data), "the hop lands where no loop is")
-					return
-				}
-				d := onlyRefusal(t, data)
-				assert.Equal(t, diag.CyclicRef, d.Code)
-				assert.Equal(t, tc.want, d.Provenance.Pointer)
-			})
-		}
-	}
-}
-
-// TestCycles_ATrailingEmptyTokenOutsideASchemaNamesTheKey pins the reading
-// where the scan cannot tell the library's model from raw YAML: outside a
-// schema, and below a key it skips there by name, a trailing empty token names
-// the key "", as RFC 6901 reads it. A link's parameters are a map, and so are a
-// schema's properties under a default response or a webhook named x-h, so each
-// hop lands on the member keyed "" and the loop through it is refused.
-func TestCycles_ATrailingEmptyTokenOutsideASchemaNamesTheKey(t *testing.T) {
-	t.Parallel()
-	const head = "openapi: 3.1.0\ninfo: {title: t, version: '1'}\n"
-	const back = "{properties: {'': {$ref: '#/components/schemas/S'}}}"
-	tests := []struct {
-		name, data string
-		want       jsontext.Pointer
-	}{
-		{"link-parameters", head + "paths: {}\ncomponents:\n" +
-			"  links: {L: {operationId: o, parameters: {'': {$ref: '#/components/schemas/S'}}}}\n" +
-			"  schemas: {S: {$ref: '#/components/links/L/parameters/'}}\n",
-			"/components/links/L/parameters/"},
-		{"default-response", head + "paths: {/a: {get: {responses: {default: {description: d, " +
-			"content: {application/json: {schema: " + back + "}}}}}}}\ncomponents:\n" +
-			"  schemas: {S: {$ref: '#/paths/~1a/get/responses/default/content/application~1json/schema/properties/'}}\n",
-			"/components/schemas/S"},
-		{"webhook-named-like-an-extension", head + "paths: {}\nwebhooks: {x-h: {post: {requestBody: " +
-			"{content: {application/json: {schema: " + back + "}}}}}}\ncomponents:\n" +
-			"  schemas: {S: {$ref: '#/webhooks/x-h/post/requestBody/content/application~1json/schema/properties/'}}\n",
-			"/components/schemas/S"},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			d := onlyRefusal(t, []byte(tc.data))
-			assert.Equal(t, diag.CyclicRef, d.Code)
-			assert.Equal(t, tc.want, d.Provenance.Pointer)
-		})
-	}
-}
-
-// TestCycles_OutsideASchemaOnlyExamplesArePassedOver pins exampleKeys at
-// work. A schema loop under a default response, or a webhook named default, is
-// refused: the resolver recurses round it until the stack runs out, and a
-// default is no example data there. A loop in an example payload, or in an
-// Example's value, is data the resolver never resolves, and compiles.
-func TestCycles_OutsideASchemaOnlyExamplesArePassedOver(t *testing.T) {
-	t.Parallel()
-	const head = "openapi: 3.1.0\ninfo: {title: t, version: '1'}\n"
-	const media = "content: {application/json: {schema: {$ref: '%s'}}}"
-	const response = "#/paths/~1a/get/responses/default/content/application~1json/schema"
-	const webhook = "#/webhooks/default/post/requestBody/content/application~1json/schema"
-	parameter := func(field, body string) string {
-		return head + "paths: {/a: {get: {parameters: [{name: q, in: query, schema: {type: string}, " +
-			field + ": " + body + "}], responses: {'200': {description: d}}}}}\n"
-	}
-	tests := []struct {
-		name, data string
-		want       jsontext.Pointer
-	}{
-		{"default-response", head + "paths: {/a: {get: {responses: {default: {description: d, " +
-			fmt.Sprintf(media, response) + "}}}}}\n", jsontext.Pointer(response[1:])},
-		{"webhook-named-default", head + "paths: {}\nwebhooks: {default: {post: {requestBody: {" +
-			fmt.Sprintf(media, webhook) + "}}}}\n", jsontext.Pointer(webhook[1:])},
-		{"example", parameter("example", "{schema: {$ref: '#/paths/~1a/get/parameters/0/example/schema'}}"), ""},
-		{"examples", parameter("examples",
-			"{e: {value: {schema: {$ref: '#/paths/~1a/get/parameters/0/examples/e/value/schema'}}}}"), ""},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			if tc.want == "" {
-				assert.Empty(t, scanPlaced(t, []byte(tc.data)), "example data is never resolved")
-				return
-			}
-			assert.Equal(t, tc.want, onlyRefusal(t, []byte(tc.data)).Provenance.Pointer)
-		})
-	}
-}
-
-// TestRefScanCollect_ReadsNoSchemaUnderAKeyTheModelLacks pins the start
-// collection to the library's schema model: draft-07's definitions and
-// additionalItems are no field of it, so the resolver resolves nothing beneath
-// them, and a loop held wholly there compiles. A loop a schema the resolver
-// does resolve runs into through them is still refused, since a hop is followed
-// wherever it lands.
-func TestRefScanCollect_ReadsNoSchemaUnderAKeyTheModelLacks(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name    string
-		members []string
-		want    jsontext.Pointer
-	}{
-		{"definitions", []string{
-			"    A: {definitions: {X: {$ref: '#/components/schemas/A/definitions/X'}}}\n",
-		}, ""},
-		{"additional-items", []string{
-			"    A: {additionalItems: {$ref: '#/components/schemas/A/additionalItems'}}\n",
-		}, ""},
-		{"through-definitions", []string{
-			"    A: {definitions: {X: {$ref: '#/components/schemas/B'}}}\n",
-			"    B: {$ref: '#/components/schemas/A/definitions/X'}\n",
-		}, "/components/schemas/A/definitions/X"},
-	}
-	for _, tc := range tests {
-		for order, data := range bothOrders(schemasHeader, tc.members) {
-			t.Run(tc.name+"/"+order, func(t *testing.T) {
-				t.Parallel()
-				if tc.want == "" {
-					assert.Empty(t, scanPlaced(t, data), "nothing beneath the key is resolved")
-					return
-				}
-				assert.Equal(t, tc.want, onlyRefusal(t, data).Provenance.Pointer)
-			})
-		}
-	}
-}
-
-// TestDetectCycles_PointerIsNormalizedLikeTheResolver holds the scan's pointer
-// reading to the resolver's: each spelling is read by the library too, and the
-// scan refuses exactly those it lands back on the schema spelling them. The
-// resolver trims a $ref and percent-decodes its pointer (references.Reference),
-// so a scan reading the raw value called '#/components/schemas/~0A ' dangling
-// and let a self-reference through. The self column pins today's library. A '+'
-// is the one byte read otherwise (see TestDetectCycles_PlusInAPointerIsAPlus).
-func TestDetectCycles_PointerIsNormalizedLikeTheResolver(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name, ref string
-		self      bool
-	}{
-		{"trailing space", "'#/components/schemas/~0A '", true},
-		{"leading space", "' #/components/schemas/~0A'", true},
-		{"percent-encoded", "'#/components/schemas/%7E0A'", true},
-		{"lower-case escape", "'#/components/schemas/%7e0A'", true},
-		{"an escaped space outlives the trim", "'#/components/schemas/~0A%20'", false},
-		{"another schema", "'#/components/schemas/B'", false},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			src := schemasDoc([]string{"    ~A: {$ref: " + tc.ref + "}\n", "    B: {type: string}\n"})
-			library := schemaLandsOnItself(t, src, "~A")
-			assert.Equal(t, tc.self, library, "the resolver's reading of this spelling")
-
-			refused := slices.ContainsFunc(scanBytes(t, src), func(d ir.Diagnostic) bool {
-				return d.Code == diag.CyclicRef
-			})
-			assert.Equal(t, library, refused, "the scan refuses what the resolver reads as the schema itself")
-		})
-	}
-}
-
-// schemaLandsOnItself reports whether the library reads the $ref of the schema
-// named name in src as naming that schema: normalized by references.Reference
-// and walked by jsonpointer.GetTarget on the parsed model, which is the read
-// the schema resolver makes. Resolving the schema itself would recurse round the
-// self-reference until the stack ran out.
-func schemaLandsOnItself(t *testing.T, src []byte, name string) bool {
-	t.Helper()
-	doc, _, err := soa.Unmarshal(t.Context(), bytes.NewReader(src))
-	require.NoError(t, err)
-	schema, ok := doc.Components.Schemas.Get(name)
-	require.True(t, ok)
-	ref := schema.GetRef()
-	if ref.GetURI() != "" {
-		return false
-	}
-	landed, ok := libraryLanding(t, doc, jsontext.Pointer(ref.GetJSONPointer()))
-	return ok && landed == schema.GetRootNode()
 }
 
 // resolveFirstItem resolves the path item /a in src with the library and
@@ -1065,100 +597,13 @@ func resolverWalk(t *testing.T, src string) walkEnd {
 	}
 }
 
-// TestDetectCycles_PlusInAPointerIsAPlus pins that the scan reads '+' in a $ref
-// fragment as itself (RFC 3986 section 3.5), not as the space the resolver's own
-// decoder makes of it: a key spelled with a plus is reached by a pointer spelled
-// with one, a key spelled with a space is not, and load hands the resolver the
-// same reading (GitHub #911). The escaped spelling is the control, which both
-// readings agree on.
-func TestDetectCycles_PlusInAPointerIsAPlus(t *testing.T) {
-	t.Parallel()
-	const head = "openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\n"
-	tests := []struct {
-		name    string
-		src     string
-		isCycle bool
-	}{
-		{name: "a plus reaches the key spelled with a plus", isCycle: true,
-			src: head + "x-a+b: {$ref: '#/x-a+b'}\ncomponents:\n  schemas:\n    A: {$ref: '#/x-a+b'}\n"},
-		{name: "an escaped plus reaches the same key", isCycle: true,
-			src: head + "x-a+b: {$ref: '#/x-a%2Bb'}\ncomponents:\n  schemas:\n    A: {$ref: '#/x-a+b'}\n"},
-		{name: "a plus does not reach the key spelled with a space",
-			src: head + "x-a b: {$ref: '#/x-a+b'}\ncomponents:\n  schemas:\n    A: {$ref: '#/x-a%20b'}\n"},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			diags := scanBytes(t, []byte(tc.src))
-			if !tc.isCycle {
-				assert.Empty(t, diags, "the chain ends at a key that is not there")
-				return
-			}
-			require.NotEmpty(t, diags, "the chain closes on the key it starts at")
-			assert.Equal(t, diag.CyclicRef, diags[0].Code)
-		})
-	}
-}
-
-// TestDetectCycles_AnchorFragmentIsNotWalked pins the fix for GitHub #523: a
-// fragment with no leading '/' names a $anchor, not a pointer, and the resolver
-// never walks it as one. Reading it as though '#x-s' were the pointer 'x-s' made
-// the scan walk it from the root as a key, refusing a document the resolver
-// never treats as a cycle.
-//
-// The pointer-spelled twin is the point of the pair. The anchor case fails if
-// the leading-'/' refusal is reverted; the pointer case fails if a fix refuses
-// the key rather than the anchor spelling, which would swallow this real cycle.
-func TestDetectCycles_AnchorFragmentIsNotWalked(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name    string
-		src     string
-		isCycle bool
-	}{
-		{name: "anchor spelling names a $anchor, not a pointer", src: `openapi: 3.1.0
-info: {title: t, version: '1'}
-paths: {}
-x-s:
-  $ref: '#x-s'
-components:
-  schemas:
-    A:
-      $ref: '#x-s'
-`},
-		{name: "the pointer spelling is a real cycle through the document root", isCycle: true, src: `openapi: 3.1.0
-info: {title: t, version: '1'}
-paths: {}
-x-s:
-  $ref: '#/x-s'
-components:
-  schemas:
-    A:
-      $ref: '#/x-s'
-`},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			diags := scanBytes(t, []byte(tc.src))
-			if !tc.isCycle {
-				assert.Empty(t, diags, "'#x-s' names a $anchor, which the resolver's pointer walk never enters")
-				return
-			}
-			require.NotEmpty(t, diags, "'#/x-s' is a real pointer cycle through the document root")
-			assert.Equal(t, diag.CyclicRef, diags[0].Code)
-			assert.Equal(t, ir.SeverityError, diags[0].Severity)
-		})
-	}
-}
-
-// TestDetectCycles_TheResolverEndsAWalkThroughAReferenceObject pins the
-// premise the scan leaves reference objects on (GitHub #574): the library ends
-// its walk of a path item's pointer through the reference it is resolving,
-// stopped there, as it ends one below another item for want of a key, whether
-// or not the last token is UTF-8. The end column pins today's library; the scan
-// refuses none of them, and the resolver reports each.
-func TestDetectCycles_TheResolverEndsAWalkThroughAReferenceObject(t *testing.T) {
+// TestAliases_TheResolverEndsAWalkThroughAReferenceObject pins the premise the
+// scan leaves reference objects on (GitHub #574): the library ends its walk of
+// a path item's pointer through the reference it is resolving, stopped there,
+// as it ends one below another item for want of a key, whether or not the last
+// token is UTF-8. The end column pins today's library; the scan refuses none of
+// them, and the resolver reports each.
+func TestAliases_TheResolverEndsAWalkThroughAReferenceObject(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name, ref string
@@ -1180,10 +625,10 @@ func TestDetectCycles_TheResolverEndsAWalkThroughAReferenceObject(t *testing.T) 
 	}
 }
 
-// TestDetectCycles_AcceptsATreeWithNoCycle is the control the refusal cases
-// need: without it, a suite made only of refusals would pass on a scan that
-// refused everything handed to it.
-func TestDetectCycles_AcceptsATreeWithNoCycle(t *testing.T) {
+// TestAliases_AcceptsATreeWithNoCycle is the control the refusal cases need:
+// without it, a suite made only of refusals would pass on a scan that refused
+// everything handed to it.
+func TestAliases_AcceptsATreeWithNoCycle(t *testing.T) {
 	t.Parallel()
 	assert.Empty(t, scanBytes(t, []byte(
 		"openapi: 3.1.0\ncomponents: {schemas: {A: {$ref: '#/components/schemas/B'}, B: {type: string}}}\n")))
@@ -1222,15 +667,14 @@ func TestInSource_AnchorsANodeAndNamesTheSourceForNone(t *testing.T) {
 	}
 }
 
-// TestCycles_AnchorsThroughTheLocator pins that a refusal takes its provenance
+// TestAliases_AnchorsThroughTheLocator pins that a refusal takes its provenance
 // from the locator it is handed rather than from the node it found. A locator
 // the caller composes over an overlay's attribution is how a refusal on a
 // grafted node — one with no line and column of its own — comes to name the
 // overlay (GitHub #476); a scan that read the node directly would bypass it.
-func TestCycles_AnchorsThroughTheLocator(t *testing.T) {
+func TestAliases_AnchorsThroughTheLocator(t *testing.T) {
 	t.Parallel()
 	for name, fixture := range map[string]string{
-		"a $ref cycle":           "cycle_self_ref",
 		"a recursive anchor":     "cycle_yaml_anchor",
 		"an alias amplification": "amplification_alias_bomb",
 	} {
@@ -1242,7 +686,7 @@ func TestCycles_AnchorsThroughTheLocator(t *testing.T) {
 				return ir.Provenance{Source: 9, Pointer: "/somewhere/the/locator/decided"}
 			}
 
-			got := Cycles(locate, indexOf(t, readReproducer(t, fixture)), defaultSurplus)
+			got := Aliases(locate, indexOf(t, readReproducer(t, fixture)), defaultSurplus)
 			require.Len(t, got, 1)
 			assert.Equal(t, ir.Provenance{Source: 9, Pointer: "/somewhere/the/locator/decided"}, got[0].Provenance)
 			assert.NotNil(t, seen, "the locator was handed the node the refusal is about")
@@ -1250,12 +694,12 @@ func TestCycles_AnchorsThroughTheLocator(t *testing.T) {
 	}
 }
 
-// TestAliases_RefusesTheYAMLShapesAndNotTheOpenAPIOnes pins what separates
-// Aliases from Cycles. Both refuse an anchor naming its own ancestor and an
-// alias expansion far past the document's size, because those are properties
-// of YAML and any document carries them. Only Cycles follows $ref chains,
-// because that is what an OpenAPI resolver does — and an overlay, which
-// Aliases exists for, is a document nothing resolves.
+// TestAliases_RefusesTheYAMLShapesAndNotTheOpenAPIOnes pins what Aliases
+// refuses and what it leaves. It refuses an anchor naming its own ancestor and
+// an alias expansion far past the document's size, because those are
+// properties of YAML and any document carries them, an overlay included. It
+// follows no $ref chain: the compiler's binder resolves a schema $ref, and the
+// parser's resolver reports a loop of reference objects.
 func TestAliases_RefusesTheYAMLShapesAndNotTheOpenAPIOnes(t *testing.T) {
 	t.Parallel()
 	aliases := func(src string) []ir.Diagnostic { return Aliases(InSource(0), indexOf(t, []byte(src)), defaultSurplus) }
@@ -1269,15 +713,14 @@ func TestAliases_RefusesTheYAMLShapesAndNotTheOpenAPIOnes(t *testing.T) {
 	assert.Equal(t, diag.AliasAmplification, bomb[0].Code, "an alias bomb expands far past its size")
 
 	refCycle := string(readReproducer(t, "cycle_self_ref"))
-	require.NotEmpty(t, scanBytes(t, []byte(refCycle)), "Cycles refuses the $ref cycle")
-	assert.Empty(t, aliases(refCycle), "Aliases leaves it: nothing resolves an overlay's references")
+	assert.Empty(t, aliases(refCycle), "a $ref cycle is the binder's to report, not a YAML shape")
 
 	assert.Empty(t, aliases("a: &x {p: 1}\nb: *x\nc: *x\n"), "ordinary anchor reuse is not a refusal")
 }
 
-// TestAliases_DegradesAScanFaultToAWarning pins that Aliases runs under the
-// same barrier as Cycles: a fault in the walk is reported as an incomplete
-// scan, never raised through a caller that has not yet refused anything.
+// TestAliases_DegradesAScanFaultToAWarning pins that Aliases runs under
+// recoverCycleScan: a fault in the walk is reported as an incomplete scan,
+// never raised through a caller that has not yet refused anything.
 //
 // The locator faults only when asked about a node, which is what the walk asks
 // it; asked about no node, as the barrier's own report does, it answers. A
@@ -1297,6 +740,8 @@ func TestAliases_DegradesAScanFaultToAWarning(t *testing.T) {
 	require.Len(t, got, 1)
 	assert.Equal(t, diag.CycleScanFailed, got[0].Code)
 	assert.Equal(t, ir.SeverityWarning, got[0].Severity)
+	assert.Equal(t, "alias pre-scan aborted (locator fault); alias-cycle protection is incomplete for this source",
+		got[0].Message)
 }
 
 // inTreeFixture holds each shape of node whose pointer InTree answers: keys that

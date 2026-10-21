@@ -152,7 +152,7 @@ completes commands, flags, and spec files by extension.
 Diagnostics print one per line as `<severity> <code> <location>: <message>`:
 
 ```
-error openapi/unresolved-ref openapi.yaml#/components/schemas/Pet/discriminator/mapping/dog: discriminator mapping "dog" references unresolved schema "#/components/schemas/Dog"
+error openapi/unresolved-ref openapi.yaml#/components/schemas/Pet/discriminator/mapping/dog: discriminator mapping "dog" references unresolved schema "#/components/schemas/Dog": it names nothing in the document it points into
 ```
 
 `<location>` is the most precise form available:

@@ -4,7 +4,6 @@ import (
 	"encoding/json/jsontext"
 	"slices"
 
-	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/speakeasy-api/openapi/references"
 
@@ -22,6 +21,7 @@ import (
 // GetReferenceResolutionInfo to follow a chain of component aliases.
 type Referenced[T, S any] interface {
 	GetObject() *T
+	GetObjectAny() any
 	GetResolvedObject() *T
 	GetReference() references.Reference
 	GetReferenceResolutionInfo() *references.ResolveResult[S]
@@ -220,8 +220,9 @@ func Hops[T, S any, R interface {
 // ScopeOf returns the scope what the entry ref resolves to is read in, which is
 // where the last hop of its chain found it (see reached): a Foreign scope over
 // the document the resolver read it by, or, when that hop resolved against the
-// source, the scope the position it names there is read in (Scope.At). An
-// inline entry, and one that resolved nothing, are read in scope itself.
+// source, the scope the position it names there is read in, past any $ref the
+// walk to it passes. An inline entry, and one that resolved nothing, are read
+// in scope itself.
 func ScopeOf[T, S any, R interface {
 	*S
 	Referenced[T, S]
@@ -252,16 +253,19 @@ func EndOf[T, S any, R interface {
 	return endOf[S](ref)
 }
 
-// chained is what endOf reads of a reference: the one it is written as, and
-// what its resolution recorded. A schema holds both, though it is no Referenced.
+// chained is what endOf reads of a reference object: the one it is written as,
+// and what its resolution recorded. A schema has no object of its own to name
+// (GetObjectAny), so none is chained: the compiler binds a schema's $ref
+// itself, and the library's resolution of one is never read.
 type chained[S any] interface {
 	GetReference() references.Reference
 	GetReferenceResolutionInfo() *references.ResolveResult[S]
+	GetObjectAny() any
 }
 
-// endOf is EndOf for any reference, a schema's included. A chain still going
-// after maxRefChain hops ends nowhere it read, so it is cut, not taken to end at
-// the last hop read: that hop's document need not be the one holding its end.
+// endOf is EndOf for a reference object of any kind. A chain still going after
+// maxRefChain hops ends nowhere it read, so it is cut, not taken to end at the
+// last hop read: that hop's document need not be the one holding its end.
 func endOf[S any, R interface {
 	*S
 	chained[S]
@@ -285,12 +289,11 @@ func endOf[S any, R interface {
 		Pointer: fragment.Pointer(string(written))}, true
 }
 
-// ReferenceEnd is EndOf for a reference of each of the library's kinds, a
-// schema's included, which a walk through the document meets as values of any
-// type, and false for any other value. It is the one place this package lists
-// them, for the readers of a chain that cannot name its kind: the load phase
-// and the lowering each ask where the walk to a pointer passes into another
-// document.
+// ReferenceEnd is EndOf for a reference object of each of the library's kinds,
+// which a walk through the document meets as values of any type, and false for
+// any other value, a schema included. It is the one place this package lists
+// them, for the readers of a chain that cannot name its kind: the lowering
+// asks where the walk to a pointer passes into another document.
 func ReferenceEnd(node any) (End, bool) {
 	switch r := node.(type) {
 	case *soa.ReferencedPathItem:
@@ -311,8 +314,6 @@ func ReferenceEnd(node any) (End, bool) {
 		return endOf[soa.ReferencedCallback](r)
 	case *soa.ReferencedSecurityScheme:
 		return endOf[soa.ReferencedSecurityScheme](r)
-	case *oas3.JSONSchema[oas3.Referenceable]:
-		return endOf[oas3.JSONSchema[oas3.Referenceable]](r)
 	default:
 		return End{}, false
 	}

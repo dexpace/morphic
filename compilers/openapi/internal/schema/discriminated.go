@@ -58,7 +58,7 @@ func namedBranches(c lowering.Ctx, s *oas3.Schema) []ir.TypeID {
 	branches, _, _ := unionBranches(s)
 	var named []ir.TypeID
 	for _, b := range branches {
-		pointer, internal := scope.TargetPointer(b, b.GetRef().String())
+		pointer, internal := scope.TargetPointer(b)
 		if !internal {
 			continue
 		}

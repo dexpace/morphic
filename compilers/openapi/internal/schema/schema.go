@@ -15,6 +15,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
@@ -368,18 +369,18 @@ func lowerSchemaBody(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, de
 	if expanded {
 		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DynamicRefExpanded, pointer+ids.Ptr("$dynamicRef"),
 			"$dynamicRef expanded to %q, the one matching $dynamicAnchor in this document", target))
-		return ir.TypeRef{Target: target, Nullable: schemaAdmitsNull(schema)}, diags
+		return ir.TypeRef{Target: target, Nullable: schemaAdmitsNull(c, schema)}, diags
 	}
 	if len(schema.GetOneOf()) > 0 || len(schema.GetAnyOf()) > 0 {
 		if hasUnionSiblings(schema) {
 			id, unionDiags := lowerCoDeclaredUnion(c, ts, anchors, depth, schema, pointer, hint)
-			return ir.TypeRef{Target: id, Nullable: schemaAdmitsNull(schema)}, append(diags, unionDiags...)
+			return ir.TypeRef{Target: id, Nullable: schemaAdmitsNull(c, schema)}, append(diags, unionDiags...)
 		}
 		ref, unionDiags := lowerOneOfAnyOf(c, ts, anchors, depth, schema, pointer, hint)
 		return ref, append(diags, unionDiags...)
 	}
 	id, bodyDiags := lower(c, ts, anchors, depth, schema, pointer, hint)
-	return ir.TypeRef{Target: id, Nullable: schemaAdmitsNull(schema)}, append(diags, bodyDiags...)
+	return ir.TypeRef{Target: id, Nullable: schemaAdmitsNull(c, schema)}, append(diags, bodyDiags...)
 }
 
 // hasUnionSiblings reports whether a oneOf/anyOf schema also carries structural
@@ -1208,7 +1209,7 @@ func FillPropertyDetail(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex,
 	if ref == nil {
 		return nil
 	}
-	tgt := resolve.TargetSchema(js, ref)
+	tgt := c.RefScope().TargetSchema(js, ref)
 	def, diags := DefaultOf(c, ref, tgt, pointer)
 	p.Default = def
 	diags = append(diags, fillPropertyVisibility(c, p, ref, tgt, pointer)...)
@@ -1902,8 +1903,7 @@ type AnchorIndex struct {
 // A truncated index can only undercount, and every verdict resting on it reads
 // an undercount as "declared exactly once" — the one count that expands. So the
 // warning is what tells a reader that an expansion reported below was decided
-// against an index nothing verified, which is exactly what diag.CycleScanFailed
-// says for the pre-parse scan.
+// against an index nothing verified.
 func (a *AnchorIndex) sites(c lowering.Ctx, name string) ([]jsontext.Pointer, []ir.Diagnostic) {
 	if a.byName != nil {
 		return a.byName[name], nil
@@ -2108,12 +2108,25 @@ const maxNullConjuncts = 256
 // lifts every spelling of that onto the enclosing TypeRef rather than into the
 // type node, so this is the one predicate every site computing a Nullable bit
 // goes through — a definition site, a union, an allOf conjunct and a $ref use
-// site must never disagree about the same schema.
-func schemaAdmitsNull(s *oas3.Schema) bool {
-	return schemaNullVerdict(s, new(maxNullConjuncts)) == nullAdmitted
+// site must never disagree about the same schema. A $ref conjunct is read
+// across to its target as c's bindings resolved it.
+func schemaAdmitsNull(c lowering.Ctx, s *oas3.Schema) bool {
+	return newNulls(c.Bindings()).schemaVerdict(s) == nullAdmitted
 }
 
-// schemaNullVerdict reads what a whole schema says about null, by conjoining
+// nulls reads what schemas say about null: across each $ref to where refs
+// says its chain ends, within one budget for the whole read.
+type nulls struct {
+	refs   *typed.Bindings
+	budget int
+}
+
+// newNulls returns a read with the whole budget, over refs.
+func newNulls(refs *typed.Bindings) *nulls {
+	return &nulls{refs: refs, budget: maxNullConjuncts}
+}
+
+// schemaVerdict reads what a whole schema says about null, by conjoining
 // what each of its keyword families says (foldNullVerdicts).
 //
 // 3.0 `nullable: true` is the one keyword that does not conjoin: it widens the
@@ -2121,16 +2134,16 @@ func schemaAdmitsNull(s *oas3.Schema) bool {
 // The 3.1 spelling is an ordinary `type` member and conjoins like any other —
 // which is why `{type: [string, "null"], enum: [red, green]}` does not admit
 // null while `{type: string, nullable: true, enum: [red, green]}` does.
-func schemaNullVerdict(s *oas3.Schema, budget *int) nullVerdict {
-	if s == nil || *budget <= 0 {
+func (n *nulls) schemaVerdict(s *oas3.Schema) nullVerdict {
+	if s == nil || n.budget <= 0 {
 		return nullSilent
 	}
-	*budget--
+	n.budget--
 	if s.Nullable != nil && *s.Nullable {
 		return nullAdmitted
 	}
 	return foldNullVerdicts(typeNullVerdict(s), constNullVerdict(s), enumNullVerdict(s),
-		unionNullVerdict(s), allOfNullVerdict(s, budget))
+		unionNullVerdict(s), n.allOfVerdict(s))
 }
 
 // foldNullVerdicts conjoins keyword verdicts: one forbidding family decides the
@@ -2225,17 +2238,17 @@ func unionNullVerdict(s *oas3.Schema) nullVerdict {
 // to derive the bit from (GitHub #279). Model.Base and Mixins still carry no
 // Nullable bit: they name a conjunct, and nullability is a property of the
 // usage that names the conjunction.
-func allOfNullVerdict(s *oas3.Schema, budget *int) nullVerdict {
+func (n *nulls) allOfVerdict(s *oas3.Schema) nullVerdict {
 	out := nullSilent
 	for _, b := range s.GetAllOf() {
-		out = foldNullVerdicts(out, conjunctNullVerdict(b, budget))
+		out = foldNullVerdicts(out, n.conjunctVerdict(b))
 	}
 	return out
 }
 
-// conjunctNullVerdict reads one allOf branch. A `false` branch admits no
-// instance whatever, null included; a `true` branch constrains nothing.
-func conjunctNullVerdict(b *oas3.JSONSchema[oas3.Referenceable], budget *int) nullVerdict {
+// conjunctVerdict reads one allOf branch. A `false` branch admits no instance
+// whatever, null included; a `true` branch constrains nothing.
+func (n *nulls) conjunctVerdict(b *oas3.JSONSchema[oas3.Referenceable]) nullVerdict {
 	if b == nil {
 		return nullSilent
 	}
@@ -2247,28 +2260,25 @@ func conjunctNullVerdict(b *oas3.JSONSchema[oas3.Referenceable], budget *int) nu
 	}
 	s := b.GetSchema()
 	if resolve.IsRefSite(b, s) {
-		return refNullVerdict(b, budget)
+		return n.refVerdict(b)
 	}
-	return schemaNullVerdict(s, budget)
+	return n.schemaVerdict(s)
 }
 
-// refNullVerdict reads a $ref usage: the reference site or its resolved target
-// admitting null is enough, since a site's keywords widen the referent as often
-// as they narrow it (3.0 writes `{$ref: T, nullable: true}` for exactly that).
-// Only when neither admits does a forbidding side decide.
+// refVerdict reads a $ref usage: the reference site or the schema its chain
+// ends on admitting null is enough, since a site's keywords widen the referent
+// as often as they narrow it (3.0 writes `{$ref: T, nullable: true}` for
+// exactly that). Only when neither admits does a forbidding side decide.
 //
 // The ref site must be read at all because a target interned at its own ID — a
 // model, a union — discards the TypeRef its definition produced, so the bit
 // survives nowhere else.
-func refNullVerdict(js *oas3.JSONSchema[oas3.Referenceable], budget *int) nullVerdict {
-	site := schemaNullVerdict(js.GetSchema(), budget)
+func (n *nulls) refVerdict(js *oas3.JSONSchema[oas3.Referenceable]) nullVerdict {
+	site := n.schemaVerdict(js.GetSchema())
 	if site == nullAdmitted {
 		return nullAdmitted
 	}
-	var target nullVerdict
-	if resolved := js.GetResolvedSchema(); resolved != nil {
-		target = schemaNullVerdict(resolved.GetSchema(), budget)
-	}
+	target := n.schemaVerdict(n.refs.End(js).GetSchema())
 	if target == nullAdmitted {
 		return nullAdmitted
 	}
@@ -2277,18 +2287,19 @@ func refNullVerdict(js *oas3.JSONSchema[oas3.Referenceable], budget *int) nullVe
 
 // nullUnionCollapse detects a oneOf/anyOf with exactly one non-null branch
 // beside `type: null` branches, and returns that branch's schema, pointer and
-// hint so it lowers as nullable X, not a union node (ir-design §3.3).
+// index, so it lowers as nullable X, not a union node (ir-design §3.3).
 //
-// The hint is the branch's own (branchHint), which an outside $ref naming the
-// same pointer also derives. Whichever lowers first interns the node, so any
-// other hint would make the document depend on declaration order (GitHub #281).
+// It is named by the branch's own hint (branchHint), which an outside $ref
+// naming the same pointer also derives. Whichever lowers first interns the
+// node, so any other hint would make the document depend on declaration order
+// (GitHub #281).
 //
 // A schema declaring both combinators collapses neither: the co-declared anyOf
 // conjoins, so the position is not nullable X. The Union keeps the unused
 // combinator (preserveUnusedCombinator), which X's shared node cannot.
-func nullUnionCollapse(s *oas3.Schema, pointer jsontext.Pointer) (*oas3.JSONSchema[oas3.Referenceable], jsontext.Pointer, string, bool) {
+func nullUnionCollapse(s *oas3.Schema, pointer jsontext.Pointer) (*oas3.JSONSchema[oas3.Referenceable], jsontext.Pointer, int, bool) {
 	if len(s.GetOneOf()) > 0 && len(s.GetAnyOf()) > 0 {
-		return nil, "", "", false
+		return nil, "", 0, false
 	}
 	variants, key, _ := unionBranches(s)
 	var nonNull *oas3.JSONSchema[oas3.Referenceable]
@@ -2302,9 +2313,9 @@ func nullUnionCollapse(s *oas3.Schema, pointer jsontext.Pointer) (*oas3.JSONSche
 		nonNullCount++
 	}
 	if nullCount == 0 || nonNullCount != 1 {
-		return nil, "", "", false
+		return nil, "", 0, false
 	}
-	return nonNull, pointer + ids.Ptr(key, strconv.Itoa(nonNullIdx)), branchHint(nonNull, nonNullIdx), true
+	return nonNull, pointer + ids.Ptr(key, strconv.Itoa(nonNullIdx)), nonNullIdx, true
 }
 
 // isNullSchema reports whether a variant schema is the bare null-typed schema.

@@ -11,12 +11,12 @@ import (
 	"strings"
 	"sync"
 
-	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	"github.com/speakeasy-api/openapi/marshaller"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/speakeasy-api/openapi/references"
 	yaml "gopkg.in/yaml.v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/fragment"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
@@ -31,9 +31,9 @@ const restoring = "restoring $refs as written"
 // builds models from, by the node in the $ref's place, with the value written
 // there, and each node it changed as it was (GitHub #911).
 //
-// The resolver reads '+' in a fragment as a space, and builds models from raw
+// The parser reads '+' in a fragment as a space, and builds models from raw
 // YAML as well as from the source's model. So the spelling is fixed in the
-// trees before anything is built, and put back once resolution is done: the
+// trees before anything is built, and put back once it is done: the
 // IR, verbatim copies and diagnostics see what the source writes (asWritten
 // has the one exception). A nil *escapes does nothing.
 type escapes struct {
@@ -315,13 +315,12 @@ func (e *escapes) restoreTrees() {
 }
 
 // restore puts every tree and every model copy of a rewritten value back as
-// written, ending the window in which the resolver read the rewritten
-// spelling. The models are the ones the lowering reads (see restorer), and a
-// fault finding them is returned with where it stopped; the trees are put back
-// either way.
-func (e *escapes) restore(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, targets MappingTargets,
-) (jsontext.Pointer, error) {
-	return e.restoreFrom(ctx, walkSource(ctx, doc, sibs), targets)
+// written, ending the window in which the parser read the rewritten spelling.
+// The models are the ones the lowering reads (see restorer) and the schemas
+// built for the bindings' landings, and a fault finding them is returned with
+// where it stopped; the trees are put back either way.
+func (e *escapes) restore(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, built []typed.Built) (jsontext.Pointer, error) {
+	return e.restoreFrom(ctx, walkSource(ctx, doc, sibs), built)
 }
 
 // restoreFault reports the fault restore ended on, at the model it ended at,
@@ -336,8 +335,7 @@ func restoreFault(at func(jsontext.Pointer) ir.Provenance, site jsontext.Pointer
 
 // restoreFrom is restore over a walk of the source the caller supplies, so a
 // test can hand it one that panics.
-func (e *escapes) restoreFrom(ctx context.Context, items iter.Seq[soa.WalkItem], targets MappingTargets,
-) (jsontext.Pointer, error) {
+func (e *escapes) restoreFrom(ctx context.Context, items iter.Seq[soa.WalkItem], built []typed.Built) (jsontext.Pointer, error) {
 	if e.empty() {
 		return "", nil // no model holds a rewritten value, so nothing is walked
 	}
@@ -350,7 +348,7 @@ func (e *escapes) restoreFrom(ctx context.Context, items iter.Seq[soa.WalkItem],
 	if err != nil {
 		return site, err
 	}
-	return "", r.finish(ctx, targets)
+	return "", r.finish(ctx, built)
 }
 
 // restorer puts the model copies of rewritten values back, starting from the
@@ -378,35 +376,22 @@ func (r *restorer) add(model any) bool {
 	if v, rewritten := r.esc.original(nodeview.Deref(node)); rewritten {
 		put(v)
 	}
-	for _, rec := range resolutionChain(model).records {
-		if rec.reached {
-			r.queue = append(r.queue, rec)
-		}
-	}
+	r.queue = append(r.queue, resolutionChain(model).records...)
 	return true
 }
 
-// finish adds the mapping targets and then what everything added reaches, behind
-// the barrier the walks have: the library faults on shapes it did not expect.
-func (r *restorer) finish(ctx context.Context, targets MappingTargets) (err error) {
+// finish adds the schemas built for the bindings' landings, which no walk of
+// the source shows, and then what everything added reaches, behind the
+// barrier the walks have: the library faults on shapes it did not expect.
+func (r *restorer) finish(ctx context.Context, built []typed.Built) (err error) {
 	defer recovered(&err, restoring)
-	r.addTargets(ctx, targets)
+	for _, b := range built {
+		if b.Schema != nil {
+			r.addObject(ctx, record{object: b.Schema, walk: walkOf(b.Schema)})
+		}
+	}
 	r.drain(ctx)
 	return nil
-}
-
-// addTargets adds the references and schemas the mapping targets hold, which
-// the lowering reads though the source's walk does not show them.
-func (r *restorer) addTargets(ctx context.Context, targets MappingTargets) {
-	for _, s := range targets.resolved {
-		r.add(s.ref)
-	}
-	for _, js := range targets.byPointer {
-		r.addObject(ctx, record{object: js})
-	}
-	for _, js := range targets.built {
-		r.addObject(ctx, record{object: js})
-	}
 }
 
 // drain adds the object of each queued hop and what it holds, until the queue
@@ -430,20 +415,8 @@ func (r *restorer) addObject(ctx context.Context, rec record) {
 	eachWithin(ctx, rec, func(model any) { r.add(model) })
 }
 
-// eachWithin calls visit with each model the walk of rec's object yields. A
-// schema is walked as one, as mappings.walk does, since the document's walk
-// copies each item's whole location.
+// eachWithin calls visit with each model the walk of rec's object yields.
 func eachWithin(ctx context.Context, rec record, visit func(model any)) {
-	if js, ok := rec.object.(*schemaRef); ok {
-		for item := range oas3.Walk(ctx, js) {
-			// Match returns only what its matcher does, and this one never fails.
-			_ = item.Match(oas3.SchemaMatcher{Any: func(model any) error {
-				visit(model)
-				return nil
-			}})
-		}
-		return
-	}
 	for item := range rec.walk(ctx) {
 		// Match returns only what its matcher does, and this one never fails.
 		_ = item.Match(soa.Matcher{Any: func(model any) error {

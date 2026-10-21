@@ -147,18 +147,23 @@ func TestRefusals_NamesTheLeastTaggedMapping(t *testing.T) {
 }
 
 // TestRefusals_ReportsEachRefusalAlongsideTheOthers pins that no pre-parse
-// refusal hides another: a document too deep, holding a $ref cycle and a
-// tagged mapping, draws all three.
+// refusal hides another: a document too deep, whose aliases add more nodes than
+// the alias budget allows, and holding a tagged mapping, draws all three. A
+// schema $ref cycle is none of them: the compiler binds it, and reports it,
+// once the document loads. A recursive anchor is not either, for the nesting
+// refusal leaves it to the anchor-cycle one.
 func TestRefusals_ReportsEachRefusalAlongsideTheOthers(t *testing.T) {
 	t.Parallel()
-	src := "components:\n  schemas:\n    A: {$ref: '#/components/schemas/A'}\n    T: !t {k: 1}\n" +
-		"x-deep: " + itemsDeep(scan.MaxNesting) + "\n"
+	src := "x-a: &a {k: 1}\nx-b: *a\nT: !t {k: 1}\nx-deep: " + itemsDeep(scan.MaxNesting) + "\n"
+	var root yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte(src), &root))
 
-	diags := placedRefusals(t, src)
+	diags := refusals(scan.InTree(0, scan.Pointers(&root)), &root, Options{MaxAliasSurplus: 1})
+
 	codes := make([]string, 0, len(diags))
 	for _, d := range diags {
 		codes = append(codes, d.Code)
 	}
 	slices.Sort(codes)
-	assert.Equal(t, []string{diag.CyclicRef, diag.SourceTooDeep, diag.TaggedMapping}, codes)
+	assert.Equal(t, []string{diag.BudgetExceeded, diag.SourceTooDeep, diag.TaggedMapping}, codes)
 }

@@ -2,39 +2,7 @@ package bind
 
 import "strings"
 
-// Role is what a position of the document holds, as a schema reference reads
-// it.
-type Role uint8
-
-const (
-	// NoRole is a position the document does not hold.
-	NoRole Role = iota
-	// Schema is a Schema Object the OpenAPI grammar places there.
-	Schema
-	// Raw is YAML the model keeps as written: an extension, a key no object
-	// defines, or a literal such as an example or an enum member. A reference
-	// reads it as a schema.
-	Raw
-	// Object is any other object or value of the grammar, which no schema
-	// reference may name.
-	Object
-)
-
-// String spells r for a table.
-func (r Role) String() string {
-	switch r {
-	case Schema:
-		return "schema"
-	case Raw:
-		return "raw"
-	case Object:
-		return "object"
-	default:
-		return "none"
-	}
-}
-
-// state is where the grammar stands after reading a pointer's tokens.
+// state is where the OpenAPI grammar stands after reading a pointer's tokens.
 type state uint8
 
 const (
@@ -67,11 +35,19 @@ const (
 	sEncoding
 	sCallbackMap
 	sCallback
+	sExampleMap
+	sExample
+	sLinkMap
+	sLink
+	sSecuritySchemeMap
+	sSecurityScheme
 	sObject
+	sRawEntries
 )
 
-// fields maps the fields an object state defines to the state each leads to.
-// A field an object leaves out is raw YAML to the model, as is every x- key.
+// fields maps the fields an object state defines to the state each leads to,
+// as the parser's model defines them (TestGrammar_FieldsAreTheModels). A field
+// an object leaves out is raw YAML to the model, as is every x- key.
 var fields = map[state]map[string]state{
 	sDocument: {
 		"openapi": sValue, "info": sObject, "jsonSchemaDialect": sValue, "servers": sObject, "paths": sPaths,
@@ -79,9 +55,9 @@ var fields = map[state]map[string]state{
 		"externalDocs": sObject, "$self": sValue,
 	},
 	sComponents: {
-		"schemas": sSchemaMap, "responses": sResponseMap, "parameters": sParameterMap, "examples": sObject,
-		"requestBodies": sRequestBodyMap, "headers": sHeaderMap, "securitySchemes": sObject, "links": sObject,
-		"callbacks": sCallbackMap, "pathItems": sPathItemMap, "mediaTypes": sMediaTypeMap,
+		"schemas": sSchemaMap, "responses": sResponseMap, "parameters": sParameterMap, "examples": sExampleMap,
+		"requestBodies": sRequestBodyMap, "headers": sHeaderMap, "securitySchemes": sSecuritySchemeMap,
+		"links": sLinkMap, "callbacks": sCallbackMap, "pathItems": sPathItemMap,
 	},
 	sSchema: schemaFields(),
 	sPathItem: {
@@ -98,28 +74,39 @@ var fields = map[state]map[string]state{
 	sParameter: {
 		"name": sValue, "in": sValue, "description": sValue, "required": sValue, "deprecated": sValue,
 		"allowEmptyValue": sValue, "style": sValue, "explode": sValue, "allowReserved": sValue,
-		"schema": sSchema, "example": sRaw, "examples": sObject, "content": sMediaTypeMap,
+		"schema": sSchema, "example": sRaw, "examples": sExampleMap, "content": sMediaTypeMap,
 	},
 	sHeader: {
 		"description": sValue, "required": sValue, "deprecated": sValue, "style": sValue, "explode": sValue,
-		"schema": sSchema, "example": sRaw, "examples": sObject, "content": sMediaTypeMap,
+		"schema": sSchema, "example": sRaw, "examples": sExampleMap, "content": sMediaTypeMap,
 	},
 	sRequestBody: {"description": sValue, "content": sMediaTypeMap, "required": sValue},
-	sResponse: {
-		"summary": sValue, "description": sValue, "headers": sHeaderMap, "content": sMediaTypeMap, "links": sObject,
-	},
+	sResponse:    {"description": sValue, "headers": sHeaderMap, "content": sMediaTypeMap, "links": sLinkMap},
 	sMediaType: {
-		"schema": sSchema, "itemSchema": sSchema, "example": sRaw, "examples": sObject, "encoding": sEncodingMap,
-		"prefixEncoding": sEncodingList, "itemEncoding": sEncoding, "description": sValue,
+		"schema": sSchema, "itemSchema": sSchema, "example": sRaw, "examples": sExampleMap,
+		"encoding": sEncodingMap, "prefixEncoding": sEncodingList, "itemEncoding": sEncoding,
 	},
 	sEncoding: {
 		"contentType": sValue, "headers": sHeaderMap, "style": sValue, "explode": sValue, "allowReserved": sValue,
-		"encoding": sEncodingMap, "prefixEncoding": sEncodingList, "itemEncoding": sEncoding,
+	},
+	sExample: {
+		"summary": sValue, "description": sValue, "value": sRaw, "dataValue": sRaw, "serializedValue": sValue,
+		"externalValue": sValue,
+	},
+	sLink: {
+		"operationRef": sValue, "operationId": sValue, "parameters": sRawEntries, "requestBody": sRaw,
+		"description": sValue, "server": sObject,
+	},
+	sSecurityScheme: {
+		"type": sValue, "description": sValue, "name": sValue, "in": sValue, "scheme": sValue,
+		"bearerFormat": sValue, "flows": sObject, "openIdConnectUrl": sValue, "oauth2MetadataUrl": sValue,
+		"deprecated": sValue,
 	},
 }
 
 // schemaFields is what a Schema Object holds under each keyword the model
-// reads: a schema, a map or list of them, a literal kept raw, or a value.
+// reads: a schema, a map or list of them, a literal kept raw, a list of
+// literals, or a value.
 func schemaFields() map[string]state {
 	m := map[string]state{}
 	for _, k := range []string{"not", "if", "then", "else", "additionalProperties", "items", "contains",
@@ -132,8 +119,11 @@ func schemaFields() map[string]state {
 	for _, k := range []string{"allOf", "anyOf", "oneOf", "prefixItems"} {
 		m[k] = sSchemaList
 	}
-	for _, k := range []string{"example", "default", "const", "enum", "examples"} {
+	for _, k := range []string{"example", "default", "const"} {
 		m[k] = sRaw
+	}
+	for _, k := range []string{"enum", "examples"} {
+		m[k] = sRawEntries
 	}
 	for _, k := range []string{"$ref", "$id", "$schema", "$anchor", "type", "title", "description", "format",
 		"multipleOf", "maximum", "minimum", "exclusiveMaximum", "exclusiveMinimum", "maxLength", "minLength",
@@ -147,27 +137,40 @@ func schemaFields() map[string]state {
 
 // entries maps a container state to the state of each of its entries.
 var entries = map[state]state{
-	sSchemaMap:      sSchema,
-	sSchemaList:     sSchema,
-	sPaths:          sPathItem,
-	sPathItemMap:    sPathItem,
-	sOperationMap:   sOperation,
-	sParameterList:  sParameter,
-	sParameterMap:   sParameter,
-	sHeaderMap:      sHeader,
-	sRequestBodyMap: sRequestBody,
-	sResponses:      sResponse,
-	sResponseMap:    sResponse,
-	sMediaTypeMap:   sMediaType,
-	sEncodingMap:    sEncoding,
-	sEncodingList:   sEncoding,
-	sCallbackMap:    sCallback,
-	sCallback:       sPathItem,
+	sSchemaMap:         sSchema,
+	sSchemaList:        sSchema,
+	sPaths:             sPathItem,
+	sPathItemMap:       sPathItem,
+	sOperationMap:      sOperation,
+	sParameterList:     sParameter,
+	sParameterMap:      sParameter,
+	sHeaderMap:         sHeader,
+	sRequestBodyMap:    sRequestBody,
+	sResponses:         sResponse,
+	sResponseMap:       sResponse,
+	sMediaTypeMap:      sMediaType,
+	sEncodingMap:       sEncoding,
+	sEncodingList:      sEncoding,
+	sCallbackMap:       sCallback,
+	sCallback:          sPathItem,
+	sExampleMap:        sExample,
+	sLinkMap:           sLink,
+	sSecuritySchemeMap: sSecurityScheme,
+	sRawEntries:        sRaw,
 }
 
 // extensible holds the containers whose x- keys are extensions rather than
 // entries: those the specification gives patterned fields of their own.
 var extensible = map[state]bool{sPaths: true, sResponses: true, sCallback: true}
+
+// referenceKinds holds the states of the objects the parser models as a
+// reference object when they write a $ref: the parser's resolver, not this
+// package, resolves those, and a pointer read through one reads on in the
+// object it names.
+var referenceKinds = map[state]bool{
+	sPathItem: true, sParameter: true, sHeader: true, sRequestBody: true, sResponse: true, sCallback: true,
+	sExample: true, sLink: true, sSecurityScheme: true,
+}
 
 // step is the state one token below s.
 func step(s state, token string) state {
@@ -189,17 +192,16 @@ func step(s state, token string) state {
 	return sRaw
 }
 
-// roleOf is the role of the position tokens names from the document's root.
-func roleOf(tokens []string) Role {
-	s := sDocument
+// stateOf is the state tokens reach from s.
+func stateOf(s state, tokens []string) state {
 	for _, t := range tokens {
 		s = step(s, t)
 	}
-	return roleOfState(s)
+	return s
 }
 
-// roleOfState is the role a grammar state gives its position.
-func roleOfState(s state) Role {
+// roleOf is the role a position read at state s has.
+func roleOf(s state) Role {
 	switch s {
 	case sSchema:
 		return Schema
@@ -208,4 +210,10 @@ func roleOfState(s state) Role {
 	default:
 		return Object
 	}
+}
+
+// modelled reports whether the model holds a position read at s as an object
+// or a list of its own, rather than as raw YAML or a scalar value.
+func modelled(s state) bool {
+	return s != sRaw && s != sValue
 }

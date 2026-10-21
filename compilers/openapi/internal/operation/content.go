@@ -23,6 +23,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
@@ -120,7 +121,7 @@ func lowerContent(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex
 		content.Examples = ex
 	}
 	switch {
-	case isBinaryBody(mt, media.GetSchema()):
+	case isBinaryBody(c.Bindings(), mt, media.GetSchema()):
 		content.File = &ir.FileInfo{IsText: false, ContentTypes: []string{mt}}
 		content.Type = ts.PrimRef(ir.PrimBytes)
 	case isFormContent(mt):
@@ -207,7 +208,7 @@ func positionalEncoding(c lowering.Ctx, content *ir.Content, media *soa.MediaTyp
 // encoding entry or is itself a repeated (array) or file (binary) part. body is
 // the TypeID the content's own schema position lowered to.
 func partEncodings(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, media *soa.MediaType, mediaPtr jsontext.Pointer, body ir.TypeID) (map[ir.PropID]ir.PartEncoding, ir.Unmodeled, []ir.Diagnostic) {
-	parts := bodyParts(media.GetSchema(), 0)
+	parts := bodyParts(c.Bindings(), media.GetSchema(), 0)
 	if len(parts) == 0 {
 		return nil, nil, nil
 	}
@@ -248,9 +249,9 @@ type bodyPart struct {
 	schema *oas3.JSONSchema[oas3.Referenceable]
 }
 
-// maxPartCompositionDepth bounds the allOf walk bodyParts makes. A $ref cycle is
-// refused at load, so no source document can spell a composition that deep; the
-// bound is what keeps the walk terminating without relying on that.
+// maxPartCompositionDepth bounds the allOf walk bodyParts makes (styleguide
+// bounded-everything rule): a composition that reaches itself through a $ref
+// stops there, whatever else the document holds.
 const maxPartCompositionDepth = 16
 
 // bodyParts returns the parts a multipart body declares, in source order: the
@@ -261,11 +262,11 @@ const maxPartCompositionDepth = 16
 // properties of its own, so reading only those found nothing to key against and
 // discarded the whole encoding block without a word (GitHub #140). The two
 // spellings describe the same wire format, so they must enumerate the same parts.
-func bodyParts(js *oas3.JSONSchema[oas3.Referenceable], depth int) []bodyPart {
+func bodyParts(refs *typed.Bindings, js *oas3.JSONSchema[oas3.Referenceable], depth int) []bodyPart {
 	if depth > maxPartCompositionDepth {
 		return nil
 	}
-	s := schemaOf(js)
+	s := schemaOf(refs, js)
 	if s == nil {
 		return nil
 	}
@@ -276,7 +277,7 @@ func bodyParts(js *oas3.JSONSchema[oas3.Referenceable], depth int) []bodyPart {
 		}
 	}
 	for _, branch := range s.GetAllOf() {
-		out = append(out, bodyParts(branch, depth+1)...)
+		out = append(out, bodyParts(refs, branch, depth+1)...)
 	}
 	return dedupeParts(out)
 }
@@ -370,7 +371,7 @@ func buildPartEncoding(c lowering.Ctx, ts *compile.Types, anchors *schema.Anchor
 				mediaPtr+ids.Ptr("encoding", name), ids.Scope("encoding", name))
 		}
 	}
-	if part := schemaOf(pjs); part != nil {
+	if part := schemaOf(c.Bindings(), pjs); part != nil {
 		pe.Multi = schemaIsArray(part)
 		pe.Filename = schemaIsFilePart(part)
 	}
@@ -990,8 +991,8 @@ func isFormContent(mt string) bool {
 
 // isBinaryBody reports whether a content entry is a binary file body: a
 // string+binary schema, or an absent schema on application/octet-stream.
-func isBinaryBody(mt string, js *oas3.JSONSchema[oas3.Referenceable]) bool {
-	s := schemaOf(js)
+func isBinaryBody(refs *typed.Bindings, mt string, js *oas3.JSONSchema[oas3.Referenceable]) bool {
+	s := schemaOf(refs, js)
 	if s == nil {
 		return lowering.NormalizeMediaType(mt) == "application/octet-stream"
 	}
@@ -1020,25 +1021,26 @@ func schemaIsArray(s *oas3.Schema) bool {
 }
 
 // schemaOf returns the concrete Schema of a schema-or-ref-or-bool position,
-// following a $ref to its resolved target so binary/file detection and part
-// enumeration see the referent's type and properties rather than the bare ref
-// (which carries none). It returns nil for a boolean schema or an absent one.
-func schemaOf(js *oas3.JSONSchema[oas3.Referenceable]) *oas3.Schema {
+// following a $ref to the schema its chain ends on, as refs resolved it, so
+// binary/file detection and part enumeration see the referent's type and
+// properties rather than the bare ref (which carries none). It returns nil for
+// a boolean schema or an absent one.
+func schemaOf(refs *typed.Bindings, js *oas3.JSONSchema[oas3.Referenceable]) *oas3.Schema {
 	if js == nil || !js.IsSchema() {
 		return nil
 	}
 	s := js.GetSchema()
 	if s != nil && s.Ref != nil {
-		if resolved := js.GetResolvedSchema(); resolved != nil {
-			return resolved.GetSchema()
+		if end := refs.End(js); end != nil {
+			return end.GetSchema()
 		}
 	}
 	return s
 }
 
-// maxBodyAliasHops bounds the alias chain bodyModelPointer follows. A $ref cycle
-// is refused at load, so no source document can spell a chain that long — the
-// bound is what keeps the walk terminating without relying on that.
+// maxBodyAliasHops bounds the alias chain bodyModelPointer follows (styleguide
+// bounded-everything rule). A loop of $refs lowers to no alias chain, so only
+// an absurdly long one reaches it.
 const maxBodyAliasHops = 64
 
 // bodyModelPointer returns the pointer the model behind body was interned at,
@@ -1085,7 +1087,7 @@ func bodySchemaPointer(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable], 
 	if js == nil || !resolve.IsRefSite(js, js.GetSchema()) {
 		return localPtr
 	}
-	if pointer, ok := c.RefScope().TargetPointer(js, js.GetRef().String()); ok {
+	if pointer, ok := c.RefScope().TargetPointer(js); ok {
 		return pointer
 	}
 	return localPtr

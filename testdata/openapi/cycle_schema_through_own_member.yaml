@@ -1,7 +1,7 @@
 # A schema whose pointer passes through its own $ref to a member that refers
-# back. The resolver reads a schema's pointer through the schema's own members,
-# so the hop lands on p and the chain loops, recursing until the stack runs out
-# (GitHub #932).
+# back. A schema's pointer is read through the schema's own members, so the hop
+# lands on p and the chain loops: the resolver recurses until the stack runs
+# out, and the binding reports the loop (GitHub #932).
 openapi: 3.1.0
 info: {title: Schema Through Own Member, version: "1"}
 paths: {}

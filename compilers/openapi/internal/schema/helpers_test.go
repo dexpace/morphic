@@ -87,9 +87,9 @@ func lowerSpec(t *testing.T, src string) (*ir.Document, []ir.Diagnostic) {
 
 // lowerSpecOnly is lowerSpec without the load phase's diagnostics mixed in. A
 // $ref the lowering cannot follow is reported both by the load phase, which
-// resolves it and names the reason, and by the lowering itself, at the same
-// pointer but without one (compilers/openapi's withoutRereported drops the
-// second once both reach the compiler). A test that wants to pin what the
+// binds it, and by the lowering itself, at the same pointer
+// (compilers/openapi's withoutRereported drops the second once both reach the
+// compiler). A test that wants to pin what the
 // lowering itself reports — not what a full compile does with the two reports
 // after deduplication — needs the lowering's diagnostics on their own.
 func lowerSpecOnly(t *testing.T, src string) (*ir.Document, []ir.Diagnostic) {
