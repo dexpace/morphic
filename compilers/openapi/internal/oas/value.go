@@ -87,8 +87,12 @@ func (w *walker) enumerated(f frame, fld Field, text string, ptr jsontext.Pointe
 			return
 		}
 	}
+	admitted := w.admitted(f, fld)
+	if admitted == "" {
+		return // the sibling the values depend on names none, which it reports itself
+	}
 	w.report(ir.SeverityError, classValues, ptr, "%s field %q must be one of %s in OpenAPI %s (%s)",
-		f.obj.Name, fld.Name, w.admitted(f, fld), w.minor, citeFor(fld.Cites, w.minor).Section)
+		f.obj.Name, fld.Name, admitted, w.minor, citeFor(fld.Cites, w.minor).Section)
 }
 
 // admitted lists the values the field admits at the declared minor, as the

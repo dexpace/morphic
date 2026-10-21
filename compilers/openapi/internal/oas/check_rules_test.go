@@ -186,7 +186,7 @@ func TestCheck_HeadersRefuseWhatAParameterNames(t *testing.T) {
 func TestCheck_QuerystringTakesOnlyContent(t *testing.T) {
 	verify(t, []scenario{
 		{"style and schema", "3.2.0", oas.Parameter, `{name: a, in: querystring, style: form, schema: {}}`,
-			[]finding{at(forbidden, "/style"), at(allowed, "/style"), at(forbidden, "/schema")}},
+			[]finding{at(forbidden, "/style"), at(forbidden, "/schema")}},
 		{"content alone", "3.2.0", oas.Parameter, `{name: a, in: querystring, content: {a/b: {}}}`, nil},
 		{"explode and allowReserved are the operation package's", "3.2.0", oas.Parameter,
 			`{name: a, in: querystring, content: {a/b: {}}, explode: true, allowReserved: true}`, nil},

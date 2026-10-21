@@ -87,6 +87,8 @@ func TestCheck_ValuesAreEnumerated(t *testing.T) {
 			[]finding{at(required, "")}},
 		{"style with an unreadable location", "3.1.0", oas.Parameter, `{name: a, in: [x], style: matrix, schema: {}}`,
 			[]finding{at(mismatch, "/in")}},
+		{"style with a location no style fits", "3.1.0", oas.Parameter, `{name: a, in: sideways, style: matrix, schema: {}}`,
+			[]finding{at(allowed, "/in")}},
 		{"schema type", "3.0.3", oas.Schema, `{type: bogus}`, []finding{at(allowed, "/type")}},
 		{"schema type list element", "3.1.0", oas.Schema, `{type: [string, bogus]}`, []finding{at(allowed, "/type/1")}},
 		{"schema type list", "3.1.0", oas.Schema, `{type: [string, "null"]}`, nil},
