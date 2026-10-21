@@ -19,8 +19,8 @@ const emptySHA256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b785
 // one the fixtures' scaffolding IDs share.
 const fixtureSpace = "x"
 
-// oneSource is the shape every compiled document has today: exactly one loaded
-// file, so index 0 is the only addressable source.
+// oneSource is the table of a document compiled from one file and nothing
+// else, so index 0 is the only addressable source.
 func oneSource() []ir.SourceInfo {
 	return []ir.SourceInfo{{Format: "openapi@3.1", Path: "api.yaml", Hash: emptySHA256}}
 }
