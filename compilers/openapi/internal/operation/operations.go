@@ -863,11 +863,10 @@ func lowerResponses(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 		// operation to make the same mistake lost its warning to the first,
 		// since the diagnostic stream dedups on full identity.
 		entry := opDeclPtr + ids.Ptr("responses", code)
-		r, rptr := resolve.ObjectAt[soa.Response](c.RefScope(), rr, entry)
+		r, rc, rptr := lowering.Declared[soa.Response](c, rr, entry)
 		if r == nil {
 			continue
 		}
-		c := lowering.Within[soa.Response](c, rr)
 		rng, named := statusRange(code)
 		if !named {
 			diags = append(diags, invalidStatusKeyDiag(c, code, entry))
@@ -881,19 +880,18 @@ func lowerResponses(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 		// statusConditions lets the success side record no status at all.
 		// TestStatusRange_NamesNoStatus is what pins the pairing.
 		if isErrorRange(rng) {
-			ec, ecDiags := lowerErrorCase(c, ts, anchors, r, code, rng, rptr, rr)
+			ec, ecDiags := lowerErrorCase(rc, ts, anchors, r, code, rng, rptr, rr)
 			diags = append(diags, ecDiags...)
 			errs = append(errs, ec)
 		} else {
-			resp, respDiags := lowerResponse(c, ts, anchors, r, code, statusConditions(rng, named), rptr, rr)
+			resp, respDiags := lowerResponse(rc, ts, anchors, r, code, statusConditions(rng, named), rptr, rr)
 			diags = append(diags, respDiags...)
 			responses = append(responses, resp)
 		}
 	}
-	def, dptr := resolve.ObjectAt[soa.Response](c.RefScope(), resps.GetDefault(), opDeclPtr+ids.Ptr("responses", defaultResponseKey))
+	def, dc, dptr := lowering.Declared[soa.Response](c, resps.GetDefault(), opDeclPtr+ids.Ptr("responses", defaultResponseKey))
 	if def != nil {
-		ec, ecDiags := lowerErrorCase(lowering.Within[soa.Response](c, resps.GetDefault()), ts, anchors, def,
-			defaultResponseKey, ir.StatusRange{}, dptr, resps.GetDefault())
+		ec, ecDiags := lowerErrorCase(dc, ts, anchors, def, defaultResponseKey, ir.StatusRange{}, dptr, resps.GetDefault())
 		diags = append(diags, ecDiags...)
 		errs = append(errs, ec)
 	}
@@ -1055,11 +1053,10 @@ func lowerCallbacks(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 	var ext ir.Unmodeled
 	var diags []ir.Diagnostic
 	for cbName, rcb := range cbMap.All() {
-		cb, cbDecl := resolve.ObjectAt[soa.Callback](c.RefScope(), rcb, parent.decl+ids.Ptr("callbacks", cbName))
+		cb, c, cbDecl := lowering.Declared[soa.Callback](c, rcb, parent.decl+ids.Ptr("callbacks", cbName))
 		if cb == nil {
 			continue
 		}
-		c := lowering.Within[soa.Callback](c, rcb)
 		// A Callback Object's own x-* describe the callback rather than any
 		// expression's path item, and ir.Callback holds no Unmodeled map. The HTTP
 		// binding does, and is where the callbacks themselves live, so they are kept
@@ -1114,10 +1111,10 @@ func lowerCallbackOps(ts *compile.Types, anchors *schema.AnchorIndex, claims *op
 type sourcedParam struct {
 	ref     *soa.ReferencedParameter
 	pointer jsontext.Pointer
-	// in is the scope a path-item entry is read in, its layer's (see
-	// itemParams), or nil for an operation's own entry, which is read in the
-	// operation's.
-	in *resolve.Scope
+	// in is the context a path-item entry is lowered in, its layer's (see
+	// itemParams), whose document its pointer is in, or nil for an
+	// operation's own entry, which is lowered in the operation's.
+	in *lowering.Ctx
 }
 
 // mergeParameters merges a mount's path-item parameters with an operation's own
@@ -1144,12 +1141,12 @@ func mergeParameters(pathParams []sourcedParam, opParams []*soa.ReferencedParame
 }
 
 // appendSourced appends params to dst, pairing each with the pointer of its own
-// declaration position under base and the scope in it is read in, and skipping
-// any whose (name, in) key is in shadowed. A nil shadowed map reads as
+// declaration position under base and the context in it is lowered in, and
+// skipping any whose (name, in) key is in shadowed. A nil shadowed map reads as
 // all-false, which is what the operation side passes: operation parameters are
-// never shadowed, and are read in the operation's own scope (a nil in).
+// never shadowed, and are lowered in the operation's own context (a nil in).
 func appendSourced(dst []sourcedParam, params []*soa.ReferencedParameter, base jsontext.Pointer,
-	shadowed map[string]bool, in *resolve.Scope,
+	shadowed map[string]bool, in *lowering.Ctx,
 ) []sourcedParam {
 	for i, p := range params {
 		if key, ok := paramKey(p); ok && shadowed[key] {
