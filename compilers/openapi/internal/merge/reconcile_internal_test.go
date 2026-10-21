@@ -1694,6 +1694,13 @@ func twinRegistry() map[ir.TypeID]ir.TypeDef {
 		}}
 		reg[id] = e
 	}
+	valued := enum("t/enum/x-ext-valued", members("xv/", "a", "b"), "")
+	valued.Unmodeled = ir.Unmodeled{"openapi:x-foo": {
+		Reason:     ir.ReasonVendorExtension,
+		Value:      ir.RawValue("2"),
+		Provenance: ptrAt("/at/t/enum/x-ext1/x-foo"),
+	}}
+	reg["t/enum/x-ext-valued"] = valued
 	hoisted := enum("t/enum/x-hoisted", members("xh/", "a", "b"), "")
 	hoisted.Anonymous = true
 	reg["t/enum/x-hoisted"] = hoisted
@@ -1708,9 +1715,9 @@ func twinRegistry() map[ir.TypeID]ir.TypeDef {
 }
 
 // TestReconcileProperty_IdenticalNodesAreOneType pins, in both orders, that two
-// Enum, Literal or Scalar nodes equal but for their IDs are one type: no
-// diagnostic and nothing kept aside, where a pair that differs in a field,
-// member order included, is still an overlap reported as info.
+// Enum, Literal or Scalar nodes equal but for what names their site are one
+// type: no diagnostic and nothing kept aside, where a pair that differs in a
+// field, member order included, is still an overlap reported as info.
 func TestReconcileProperty_IdenticalNodesAreOneType(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -1723,6 +1730,7 @@ func TestReconcileProperty_IdenticalNodesAreOneType(t *testing.T) {
 		{"two identical scalars", "t/hex/1", "t/hex/2", true},
 		{"enums that differ in the provenance of an extension", "t/enum/x-ext1", "t/enum/x-ext2", true},
 		{"enums that differ in being hoisted", "t/enum/x1", "t/enum/x-hoisted", true},
+		{"enums that differ in an extension's value", "t/enum/x-ext1", "t/enum/x-ext-valued", false},
 		{"enums that differ in a description", "t/enum/x1", "t/enum/x-described", false},
 		{"enums that differ in member order", "t/enum/x1", "t/enum/x-reordered", false},
 		{"scalars that differ in a constraint", "t/hex/1", "t/hex/min", false},

@@ -4161,13 +4161,21 @@ func TestAllOf_IdenticalNodesAreOneType(t *testing.T) {
 			t.Parallel()
 			extra := "    P: " + schema + "\n    Q: " + schema + "\n"
 			p, q := "{$ref: '#/components/schemas/P'}", "{$ref: '#/components/schemas/Q'}"
-			for _, order := range [][2]string{{p, q}, {q, p}, {p, schema}, {schema, p}} {
+			for i, order := range [][2]string{{p, q}, {q, p}, {p, schema}, {schema, p}} {
 				doc, diags := lowerSpec(t, nonBareSpec(extra, order[0], order[1]))
-				assert.Empty(t, diags)
+				assert.Empty(t, diags, "order %d", i)
 				m, ok := doc.Types[componentID("T")].(*ir.Model)
-				require.True(t, ok)
-				require.Len(t, m.Properties, 1)
-				assert.Empty(t, m.Properties[0].Unmodeled)
+				require.True(t, ok, "order %d", i)
+				require.Len(t, m.Properties, 1, "order %d", i)
+				assert.Empty(t, m.Properties[0].Unmodeled, "order %d", i)
+				for _, name := range []string{"P", "Q"} {
+					td, ok := doc.Types[componentID(name)]
+					require.True(t, ok, "%s (order %d)", name, i)
+					for key, e := range td.Common().Unmodeled {
+						assert.True(t, strings.HasPrefix(string(e.Provenance.Pointer), "/components/schemas/"+name+"/"),
+							"%s keeps where its %s came from, got %q (order %d)", name, key, e.Provenance.Pointer, i)
+					}
+				}
 			}
 		})
 	}
