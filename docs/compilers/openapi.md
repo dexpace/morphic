@@ -774,12 +774,12 @@ nullability, a default.
 Preservation is owed wherever something is dropped, which is wider than the disagreements worth a
 warning. The two declarations are reported as an `openapi/conflicting-redeclaration` warning where
 their types are incompatible — disjoint primitive kinds (`string` against `integer`, `uuid` against
-`date-time`), a scalar against a structure, or two different kinds of structure, two lists or maps
+`date-time`), a scalar against a structure, two different kinds of structure, or two lists or maps
 whose members share no value where one is never empty — or where one constraint keyword is pinned to
 two values; types that share values but that the merge does not narrow to one (`int32` against
 `uint32`, an enum of `integer` against `int32`, two enums of one kind, two lists or maps whose
-members share no value but that both admit the empty one, or whose members both admit null, a
-`const` against a kind with no judge or against any other value-holding node) are named in an info
+members share only null, or share nothing while both admit the empty one, a `const` against a kind
+with no judge or against any other value-holding node) are named in an info
 `openapi/degraded-construct`, and only the first declaration's type is kept; a detail the first
 declaration already holds differently is named in an info `openapi/degraded-construct`; and two
 composites of one kind the judgment does not compare (two models, a model and a map) and an

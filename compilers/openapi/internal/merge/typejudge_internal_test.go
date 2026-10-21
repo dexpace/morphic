@@ -113,6 +113,7 @@ func TestTypeJudge_RelateArms(t *testing.T) {
 		{"a minItems of zero admits the empty list", "t/list-str", "t/list-int-min0", relOverlap},
 		{"disjoint values where one map is never empty", "t/map-str", "t/map-int-min", relDisjoint},
 		{"disjoint elements that both admit null overlap", "t/list-str-null", "t/list-int-null-min", relOverlap},
+		{"disjoint elements where only one admits null", "t/list-str-null", "t/list-int-min", relDisjoint},
 		{"nested lists", "t/list-list-int", "t/list-list-i32", relBNarrower},
 		{"a list against a map", "t/list-int", "t/map-int", relUnrelated},
 		{"a map value", "t/map-int", "t/map-i32", relBNarrower},
