@@ -215,13 +215,12 @@ const (
 	// rather than left to evaluation.
 	DynamicRefExpanded = "openapi/dynamic-ref-expanded"
 	// ConflictingRedecl reports that inline allOf branches redeclare one field
-	// with disagreeing values. Leaving the top type aside, a target type
-	// conflicts when the judgment finds the kinds disjoint (string against
-	// integer, a const its kind refuses), a scalar meets a structure, or two
-	// structure kinds meet; types that share values but that the merge does not
-	// narrow are DegradedConstruct. A conflicting constraint keyword (minimum:
-	// 10 vs. exclusiveMinimum: 10) is usually satisfiable, but no simple merge
-	// states it, so the merge keeps an arbitrary source-order winner.
+	// with disagreeing values. The judgment finds the types narrower (no
+	// diagnostic), overlapping (a DegradedConstruct: shared values the merge does
+	// not narrow) or disjoint; only disjoint types, a scalar against a structure
+	// and two structure kinds conflict. A conflicting constraint keyword
+	// (minimum: 10 vs. exclusiveMinimum: 10) is usually satisfiable, but no
+	// simple merge states it, so the merge keeps a source-order winner.
 	//
 	// Either way the losing declaration is kept whole under the merged property's
 	// Unmodeled (merge.keepLosingDeclaration); #10 records intersecting bounds.
