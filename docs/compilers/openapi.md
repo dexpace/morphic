@@ -740,11 +740,21 @@ about the composed node instead, stated with the `false`-schema rule
 ### `allof-redeclared-property`
 
 `allOf` intersection folds a field declared in more than one branch into one `Property`, and the
-first declaration wins its shape (§4.3) unless the redeclaration narrows it. Where both declarations
-target a bare primitive and one kind strictly narrows the other (`integer` against `number`, `uuid`
-against `string`, `int32` against `int64`), the narrower wins in either branch order, since the
-intersection is that kind, and the type is no drop. A pair related only through a `Scalar` or an
-`Enum` (`string` against `format: byte`) is not narrowed and keeps the rule below. The IR has no
+first declaration wins its shape (§4.3) unless the other narrows it. One judgment compares the two
+types and returns one verdict, whichever branch is written first. The top type loses to anything,
+and the winner's own null admission stands alone, since `{}` admits null yet lowers non-nullable.
+Two bare primitives compare by value domain and spelling (`integer` against `number`, `uuid`
+against `string`, `int32` against `int64`). A `Scalar` or `Enum` against a bare primitive wins
+over a kind it equals or narrows (`string` against `format: byte`, or an unknown format over bare
+`string`) and overlaps a kind strictly narrower than its own. A `const` wins when the kind admits its
+value, and is disjoint from the kind when it does not. Two lists, or two maps with one key, compare by
+element or value, nested up to a bound, and the narrower one wins only where it admits null no more
+widely than the other and the other holds no constraint, encoding, documentation or `Unmodeled` the
+winner lacks. A narrower type wins in either order, the intersection being that type, and is no drop.
+Anything else between distinct targets is unrelated and dropped. A `default` or `examples` the
+broader declaration gives is adopted only when the winning type admits it, judged per keyword and
+all or nothing; one it does not admit is reported in an info `openapi/degraded-construct` and the
+declaration that wrote it is kept verbatim beside the field, in either order. The IR has no
 combinator for "string here, integer there", nor a second slot for a default, title, description,
 external link, examples, deprecation or XML hint the first declaration already fills, so whatever
 of the redeclaration the fold cannot carry has nowhere to sit on the merged property, and with
@@ -763,14 +773,13 @@ Preservation is owed wherever something is dropped, which is wider than the disa
 warning. The two declarations are reported as an `openapi/conflicting-redeclaration` warning where
 their types are incompatible — disjoint primitive kinds (`string` against `integer`, `uuid` against
 `date-time`), a scalar against a structure, or two different kinds of structure — or where one
-constraint keyword is pinned to two values; types whose primitive kinds share values but that the
-merge does not narrow to one (`int32` against `uint32`, an unknown `format` against bare `string`)
-are named in an info `openapi/degraded-construct`, and only the first declaration's type is kept; an
-enum against another enum or a type of primitive kind other than the top type warns where the kinds
-differ and is dropped without any diagnostic where they agree, since kind alone cannot tell whether
-its members meet the other side; a detail the first declaration already holds differently is named
-in an info `openapi/degraded-construct`; and two composites of one kind, an unresolvable target, and
-the top type against anything are dropped without any diagnostic and kept all the same. The loser's
+constraint keyword is pinned to two values; types that share values but that the
+merge does not narrow to one (`int32` against `uint32`, an enum of `integer` against `int32`, two
+enums of one kind, a `const` against a kind with no judge or against any other value-holding node) are
+named in an info `openapi/degraded-construct`, and only the first declaration's type is kept; a detail
+the first declaration already holds differently is named
+in an info `openapi/degraded-construct`; and two composites of one kind and an unresolvable target
+are dropped without any diagnostic and kept all the same. The loser's
 `default`, constraints and examples go with its type rather than folding onto the winner — they
 describe the shape that lost, and adopting them would leave one field asserting two contradictory
 things, with nothing downstream comparing a value's kind to its property's type; this is keyed on
@@ -791,17 +800,27 @@ single schema's null verdicts fold under ([`nullable`](#nullable)).
   `merge.TestReconcileProperty_OverlappingKindsAreKeptAndReportedAsInfo`,
   `merge.TestReconcileProperty_DisjointKindsStillWarn`,
   `schema.TestAllOf_OverlappingPrimitivesAreReportedNotConflicting`,
-  `merge.TestReconcileProperty_EnumPairsKeepTheKindVerdict`,
-  `schema.TestAllOf_EnumPairsKeepTheKindVerdict`,
+  `merge.TestReconcileProperty_EnumPairsAreJudgedByKind`,
+  `schema.TestAllOf_EnumPairsAreJudgedByKind`,
+  `merge.TestTypeJudge_RelateArms`,
+  `merge.TestTypeJudge_AdmitsPerNode`,
+  `merge.TestTypesConflict_ALiteralOverlapsWhatHoldsValues`,
+  `schema.TestAllOf_NonBareNarrowingIsOrderInvariant`,
+  `merge.TestReconcileProperty_AScalarOverANarrowerKindWins`,
+  `merge.TestReconcileProperty_TheTopTypeTakesTheOtherSidesNullAdmission`,
+  `schema.TestAllOf_TheTopTypeAndANullableKindMeetAsNullableInEitherOrder`,
+  `schema.TestAllOf_ADefaultTheNarrowerNodeRefusesIsKeptInEitherOrder`,
+  `schema.TestAllOf_AnUnknownFormatWinsInEitherOrder`,
+  `schema.TestAllOf_ReconcileAccumulatesRicherDetailForAnUnknownFormat`,
   `merge.TestReconcileProperty_AUint8NarrowsInt16InEitherOrder`,
   `spelling.TestNarrows_HoldsEveryContainment`,
   `spelling.TestNarrows_OmitsRoundingContainments`,
   `spelling.TestRelate_ClassifiesEveryVerdict`,
   `spelling.TestFormatTable_EveryRowNarrowsItsBareType`
-- Status: partly built: a redeclaration with an unknown format, or a narrowing reached through a
-  `Scalar` over another base (`format: byte`), is resolved by branch order (#782); a property
-  redeclared as a list and as a tuple is reported as a conflict (#899); and a conflict goes
-  unreported when the other type lowers later (#898). Open: intersecting the redeclared bounds and
+- Status: partly built: two distinct nodes of related kinds (`format: hex` against `format: byte`,
+  two enums, two literals) are reported as an overlap and never narrowed; a property redeclared as a
+  list and as a tuple is reported as a conflict (#899); and a conflict goes unreported when the
+  other type lowers later (#898). Open: intersecting the redeclared bounds and
   defaults rather than keeping one (#10).
 
 ### `allof-required`

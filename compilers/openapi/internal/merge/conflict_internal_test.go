@@ -304,3 +304,19 @@ func TestConstraintsConflict_DeterministicKeywordOrder(t *testing.T) {
 	assert.Contains(t, detail, "minLength", "the earlier-checked keyword is reported")
 	assert.NotContains(t, detail, "maxLength", "the later-checked keyword is not also reported")
 }
+
+// TestTypesConflict_ALiteralOverlapsWhatHoldsValues pins that a literal against
+// another literal or against a type with a primitive kind is an overlap, never
+// silent, while a literal against a structure still conflicts and a dangling
+// target stays silent.
+func TestTypesConflict_ALiteralOverlapsWhatHoldsValues(t *testing.T) {
+	t.Parallel()
+	g, _ := stubMerger(judgeRegistry())
+
+	assert.Equal(t, verdictOverlap, g.typesConflict(ref("t/lit-a"), ref("t/lit-x")))
+	assert.Equal(t, verdictOverlap, g.typesConflict(ref("t/lit-1"), ref("t/enum-int")))
+	assert.Equal(t, verdictOverlap, g.typesConflict(ref("t/scalar-str"), ref("t/lit-a")))
+	assert.Equal(t, verdictConflict, g.typesConflict(ref("t/lit-a"), ref("t/model")))
+	assert.Equal(t, verdictSilent, g.typesConflict(ref("t/absent"), ref("t/prim/string")))
+	assert.Equal(t, verdictSilent, g.typesConflict(ref("t/prim/string"), ref("t/absent")))
+}

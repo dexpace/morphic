@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -277,18 +278,21 @@ func TestAllOf_OverlappingPrimitivesAreReportedNotConflicting(t *testing.T) {
 	}
 }
 
-// TestAllOf_EnumPairsKeepTheKindVerdict pins that a pair with an enum side
-// keeps the kind comparison at the schema level, in either order: differing
-// kinds warn, equal kinds stay silent, and none draws the overlap info.
-func TestAllOf_EnumPairsKeepTheKindVerdict(t *testing.T) {
+// TestAllOf_EnumPairsAreJudgedByKind pins what an enum side draws at the schema
+// level, in either order: an enum over a bare kind it equals or narrows wins
+// with no diagnostic; a bare kind strictly narrower than the enum's overlaps it,
+// which is info; another family warns; and two enums overlap.
+func TestAllOf_EnumPairsAreJudgedByKind(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
 		name, a, b string
-		warn       bool
+		info, warn bool
 	}{
-		{"enum against uuid", "{type: string, enum: [a]}", "{type: string, format: uuid}", true},
-		{"enum against int32", "{type: integer, enum: [3000000000]}", "{type: integer, format: int32}", true},
-		{"enum against enum", "{type: string, enum: [a]}", "{type: string, enum: [b]}", false},
+		{"enum against uuid", "{type: string, enum: [a]}", "{type: string, format: uuid}", true, false},
+		{"enum against int32", "{type: integer, enum: [3000000000]}", "{type: integer, format: int32}", true, false},
+		{"enum against integer", "{type: string, enum: [a]}", "{type: integer}", false, true},
+		{"enum against enum", "{type: string, enum: [a]}", "{type: string, enum: [b]}", true, false},
+		{"enum against string", "{type: string, enum: [a]}", "{type: string}", false, false},
 	}
 	for _, tc := range cases {
 		for _, swap := range []bool{false, true} {
@@ -300,8 +304,8 @@ func TestAllOf_EnumPairsKeepTheKindVerdict(t *testing.T) {
 				t.Parallel()
 				_, diags := lowerSpec(t, allOfConflictSpec(a, b))
 				openapitest.RequireNoErrorDiags(t, diags)
-				assert.False(t, openapitest.HasDiagAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
-					"an enum pair never draws the overlap info")
+				assert.Equal(t, tc.info, openapitest.HasDiagAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
+					"the overlap info")
 				if tc.warn {
 					assert.Len(t, conflictDiags(diags), 1, "one conflict warning")
 					return
@@ -315,7 +319,7 @@ func TestAllOf_EnumPairsKeepTheKindVerdict(t *testing.T) {
 // TestAllOf_ALosingRedeclarationIsKeptAsWritten pins what the entry holds at
 // the two property shapes that have no schema node of their own to speak of: a
 // `$ref` is kept as the `$ref` the position wrote, not as the target it names,
-// and a boolean schema — which has no node at all — is kept as its value.
+// and a boolean schema — which has no source node to render — is kept as its value.
 func TestAllOf_ALosingRedeclarationIsKeptAsWritten(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    Str: {type: string}
@@ -327,21 +331,21 @@ func TestAllOf_ALosingRedeclarationIsKeptAsWritten(t *testing.T) {
         - type: object
           properties:
             id: {$ref: '#/components/schemas/Str'}
-    Anything:
+    Nothing:
       allOf:
         - type: object
           properties:
             id: {type: integer}
         - type: object
           properties:
-            id: true
+            id: false
 `)
 	doc, diags := lowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	for _, tc := range []struct{ model, want string }{
 		{"Referred", `{"$ref":"#/components/schemas/Str"}`},
-		{"Anything", `true`},
+		{"Nothing", `false`},
 	} {
 		m, ok := doc.Types[componentID(tc.model)].(*ir.Model)
 		require.True(t, ok, "%s should be a model", tc.model)
@@ -3904,5 +3908,185 @@ func TestAllOf_ANullOnARefOverTheTopTypeIsKept(t *testing.T) {
 			assert.Equal(t, ir.ValueNull, p.Default.Kind)
 			assert.Empty(t, p.Unmodeled)
 		})
+	}
+}
+
+// nonBareSpec declares T with one property v written as schemaA in the first
+// branch and schemaB in the second, after the components in extra.
+func nonBareSpec(extra, schemaA, schemaB string) string {
+	return openapitest.ComponentSpec(extra +
+		"    T:\n" +
+		"      allOf:\n" +
+		"        - type: object\n" +
+		"          properties: {v: " + schemaA + "}\n" +
+		"        - type: object\n" +
+		"          properties: {v: " + schemaB + "}\n")
+}
+
+// TestAllOf_NonBareNarrowingIsOrderInvariant pins that a redeclaration whose
+// narrower side is not a bare primitive settles on that side whichever branch
+// is written first, with no diagnostic and nothing kept.
+func TestAllOf_NonBareNarrowingIsOrderInvariant(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, extra, narrow, broad string
+		kind                       ir.TypeKind
+	}{
+		{"an enum over its kind", "", "{type: integer, enum: [1, 2]}", "{type: integer}", ir.KindEnum},
+		{"a const over its kind", "", "{const: 1}", "{type: integer}", ir.KindLiteral},
+		{"an untyped, described schema", "", "{description: the id}", "{type: integer}", ir.KindPrimitive},
+		{"a list of a narrower kind", "", "{type: array, items: {type: integer, format: int32}}",
+			"{type: array, items: {type: integer}}", ir.KindList},
+		{"a map of a narrower kind", "", "{type: object, additionalProperties: {type: integer, format: int32}}",
+			"{type: object, additionalProperties: {type: integer}}", ir.KindMap},
+		{"an unknown format over its kind", "", "{type: string, format: hex-token}", "{type: string}", ir.KindScalar},
+		{"a ref declared before the schema", "    Id: {type: integer, format: int32}\n",
+			"{$ref: '#/components/schemas/Id'}", "{type: integer}", ir.KindScalar},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			types := make([]ir.TypeDef, 0, 2)
+			for _, order := range [][2]string{{tc.narrow, tc.broad}, {tc.broad, tc.narrow}} {
+				doc, diags := lowerSpec(t, nonBareSpec(tc.extra, order[0], order[1]))
+				openapitest.RequireNoErrorDiags(t, diags)
+				m, ok := doc.Types[componentID("T")].(*ir.Model)
+				require.True(t, ok)
+				require.Len(t, m.Properties, 1)
+				p := m.Properties[0]
+				types = append(types, doc.Types[p.Type.Target])
+				assert.Equal(t, tc.kind, doc.Types[p.Type.Target].Kind(), "the narrower declaration's type wins")
+				assert.Empty(t, p.Unmodeled, "nothing is kept")
+				for _, d := range diags {
+					assert.NotContains(t, []string{diag.ConflictingRedecl, diag.DegradedConstruct}, d.Code, d.Message)
+				}
+			}
+			assert.Empty(t, cmp.Diff(types[0], types[1],
+				cmpopts.IgnoreFields(ir.TypeCommon{}, "ID", "Name", "Provenance"),
+				cmpopts.IgnoreFields(ir.EnumMember{}, "ID")),
+				"the winner does not depend on branch order")
+		})
+	}
+}
+
+// TestAllOf_AnUnknownFormatWinsInEitherOrder pins GitHub #782: a format that
+// hoists a Scalar over the bare kind narrows it whichever branch is first, and
+// the plain branch's details fold in rather than the format's being parked.
+func TestAllOf_AnUnknownFormatWinsInEitherOrder(t *testing.T) {
+	t.Parallel()
+	plain := "{type: string}"
+	formatted := "{type: string, format: hex-token, minLength: 8, default: x, description: the token}"
+	for i, order := range [][2]string{{plain, formatted}, {formatted, plain}} {
+		doc, diags := lowerSpec(t, nonBareSpec("", order[0], order[1]))
+		openapitest.RequireNoErrorDiags(t, diags)
+		m, ok := doc.Types[componentID("T")].(*ir.Model)
+		require.True(t, ok)
+		require.Len(t, m.Properties, 1)
+		p := m.Properties[0]
+
+		assert.Equal(t, ir.KindScalar, doc.Types[p.Type.Target].Kind(), "the format's scalar types the field (order %d)", i)
+		require.NotNil(t, p.Default, "order %d", i)
+		assert.Equal(t, "x", p.Default.Str, "order %d", i)
+		require.NotNil(t, p.Constraints, "order %d", i)
+		require.NotNil(t, p.Constraints.MinLength, "order %d", i)
+		assert.Equal(t, int64(8), *p.Constraints.MinLength, "order %d", i)
+		sc, ok := doc.Types[p.Type.Target].(*ir.Scalar)
+		require.True(t, ok, "order %d", i)
+		assert.Equal(t, "the token", sc.Docs.Description, "the description stays on the scalar that wrote it (order %d)", i)
+		assert.Empty(t, p.Unmodeled, "nothing is parked (order %d)", i)
+		assert.Empty(t, diags, "order %d", i)
+	}
+}
+
+// TestAllOf_ReconcileAccumulatesRicherDetailForAnUnknownFormat is
+// TestAllOf_ReconcileAccumulatesRicherDetailWhateverTheOrder with a format that
+// hoists, in the richer branch.
+func TestAllOf_ReconcileAccumulatesRicherDetailForAnUnknownFormat(t *testing.T) {
+	t.Parallel()
+	spec := openapitest.ComponentSpec(`    Tokenish:
+      allOf:
+        - type: object
+          properties:
+            token: {type: string}
+        - type: object
+          required: [token]
+          properties:
+            token:
+              type: string
+              format: hex-token
+              description: the access token
+              default: none
+              minLength: 1
+              deprecated: true
+              examples: [abc]
+              xml: {name: tok}
+`)
+	doc, diags := lowerSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	m, ok := doc.Types[componentID("Tokenish")].(*ir.Model)
+	require.True(t, ok, "Tokenish should be a model")
+	require.Len(t, m.Properties, 1, "token reconciles to a single property")
+
+	tok := m.Properties[0]
+	assert.Equal(t, ir.KindScalar, doc.Types[tok.Type.Target].Kind(), "the format's scalar types the field")
+	assert.True(t, tok.Required)
+	sc, ok := doc.Types[tok.Type.Target].(*ir.Scalar)
+	require.True(t, ok)
+	assert.Equal(t, "the access token", sc.Docs.Description, "the description stays on the scalar that wrote it")
+	assert.NotNil(t, sc.Deprecation, "so does the deprecation")
+	assert.Len(t, sc.Examples, 1, "and the examples")
+	require.NotNil(t, tok.Default)
+	require.NotNil(t, tok.Constraints)
+	require.NotNil(t, tok.Constraints.MinLength)
+	require.NotNil(t, sc.XML)
+	assert.Empty(t, tok.Unmodeled)
+}
+
+// TestAllOf_TheTopTypeAndANullableKindMeetAsNullableInEitherOrder pins that `{}`
+// against `type: [integer, "null"]` is a nullable integer whichever is first.
+func TestAllOf_TheTopTypeAndANullableKindMeetAsNullableInEitherOrder(t *testing.T) {
+	t.Parallel()
+	top, nullable := "{}", `{type: [integer, "null"]}`
+	for i, order := range [][2]string{{top, nullable}, {nullable, top}} {
+		doc, diags := lowerSpec(t, nonBareSpec("", order[0], order[1]))
+		openapitest.RequireNoErrorDiags(t, diags)
+		m, ok := doc.Types[componentID("T")].(*ir.Model)
+		require.True(t, ok)
+		require.Len(t, m.Properties, 1)
+		p := m.Properties[0]
+
+		assert.Equal(t, ir.TypeRef{Target: "t/prim/integer", Nullable: true}, p.Type, "order %d", i)
+		assert.Empty(t, p.Unmodeled, "order %d", i)
+		assert.Empty(t, diags, "order %d", i)
+	}
+}
+
+// TestAllOf_ADefaultTheNarrowerNodeRefusesIsKeptInEitherOrder pins that the
+// broader declaration's default is judged against a winner that is not a bare
+// primitive: one the enum does not admit is not adopted, and the declaration
+// that wrote it is kept at its own pointer, whichever branch it is.
+func TestAllOf_ADefaultTheNarrowerNodeRefusesIsKeptInEitherOrder(t *testing.T) {
+	t.Parallel()
+	enum, broad := "{type: integer, enum: [1, 2]}", "{type: integer, default: 5}"
+	for i, tc := range []struct {
+		order [2]string
+		kept  string
+	}{
+		{[2]string{enum, broad}, "/components/schemas/T/allOf/1/properties/v"},
+		{[2]string{broad, enum}, "/components/schemas/T/allOf/0/properties/v"},
+	} {
+		doc, diags := lowerSpec(t, nonBareSpec("", tc.order[0], tc.order[1]))
+		openapitest.RequireNoErrorDiags(t, diags)
+		m, ok := doc.Types[componentID("T")].(*ir.Model)
+		require.True(t, ok)
+		require.Len(t, m.Properties, 1)
+		p := m.Properties[0]
+
+		assert.Equal(t, ir.KindEnum, doc.Types[p.Type.Target].Kind(), "the enum wins (order %d)", i)
+		assert.Nil(t, p.Default, "the refused default is not adopted (order %d)", i)
+		require.Len(t, p.Unmodeled, 1, "order %d", i)
+		assert.Contains(t, p.Unmodeled, "openapi:conflicting-redeclaration"+tc.kept, "order %d", i)
+		require.Len(t, diags, 1, "order %d", i)
+		assert.Equal(t, diag.DegradedConstruct, diags[0].Code, "order %d", i)
+		assert.Equal(t, ir.SeverityInfo, diags[0].Severity, "order %d", i)
 	}
 }

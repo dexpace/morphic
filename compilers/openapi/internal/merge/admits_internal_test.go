@@ -204,14 +204,17 @@ func TestAdmits_ReadsAHugeExponentWithoutMaterializingIt(t *testing.T) {
 	assert.Less(t, time.Since(start), 5*time.Second)
 }
 
-func TestAdmitted_NullIsJudgedByNullability(t *testing.T) {
+func TestTypeJudge_NullIsJudgedByNullability(t *testing.T) {
 	t.Parallel()
 	null := ir.Value{Kind: ir.ValueNull}
+	j := typeJudge{Resolve: stubResolve(narrowingRegistry())}
+	nullable := func(k ir.PrimKind) ir.TypeRef { r := primRef(k); r.Nullable = true; return r }
 
-	assert.True(t, admitted(ir.PrimInteger, true, null))
-	assert.False(t, admitted(ir.PrimInteger, false, null))
-	assert.False(t, admitted(ir.PrimInteger, true, str("x")))
-	assert.True(t, admitted(ir.PrimInteger, false, num("1")))
+	assert.True(t, j.admits(nullable(ir.PrimInteger), null))
+	assert.False(t, j.admits(primRef(ir.PrimInteger), null))
+	assert.False(t, j.admits(nullable(ir.PrimInteger), str("x")))
+	assert.True(t, j.admits(primRef(ir.PrimInteger), num("1")))
+	assert.True(t, j.admits(primRef(ir.PrimAny), null), "the top type admits null whatever the bit says")
 }
 
 func TestRefuseFrom_ExamplesAreJudgedAsOneKeyword(t *testing.T) {

@@ -385,15 +385,15 @@ const maxTypeResolveDepth = 64
 // target type, or a contradictory constraint keyword. At most one diagnostic
 // fires, a type verdict subsuming a constraint one.
 //
-// dropped reports that src's type was lost; only a drop is classified
-// (typesConflict). lost reports that src's type or a constraint keyword was
-// lost, so the redeclaration is kept whole (GitHub #424). narrowed says which
-// declaration a narrowing left broader, for judgeAdopted.
+// dropped reports that src's type was lost. lost reports that src's type or a
+// constraint keyword was lost, so the redeclaration is kept whole (GitHub #424).
+// narrowed says which declaration a narrowing left broader, for judgeAdopted.
 func (g *Merger) recordRedeclarationConflict(dst, src *ir.Property) (dropped, lost bool, narrowed narrowing) {
 	pointer := src.Provenance.Pointer
-	dropped, narrowed = g.foldTypeTargets(dst, src)
+	rel, narrowed := g.foldTypeTargets(dst, src)
+	dropped = rel.dropped()
 	if dropped {
-		switch g.typesConflict(dst.Type, src.Type) {
+		switch g.dropVerdict(rel, dst.Type, src.Type) {
 		case verdictConflict:
 			g.redeclarationConflictDiag(dst, pointer,
 				fmt.Sprintf("incompatible types %s and %s", dst.Type.Target, src.Type.Target))
@@ -411,35 +411,55 @@ func (g *Merger) recordRedeclarationConflict(dst, src *ir.Property) (dropped, lo
 	return dropped, dropped, narrowed
 }
 
-// narrowing says what a fold that settled on the narrower of two bare
-// primitives left behind. The zero value is no narrowing.
+// dropVerdict classifies a drop: the judgment's own disjoint and overlap
+// verdicts stand, and a pair it had no arm for goes to typesConflict.
+func (g *Merger) dropVerdict(rel relation, a, b ir.TypeRef) redeclVerdict {
+	if rel == relDisjoint {
+		return verdictConflict
+	}
+	if rel == relOverlap {
+		return verdictOverlap
+	}
+	return g.typesConflict(a, b)
+}
+
+// narrowing says which declaration a fold that settled on the narrower of two
+// types left behind. The zero value is no narrowing.
 type narrowing struct {
 	// broad is the declaration whose type lost to the narrower one; its
 	// default and examples ride onto a type that may not admit them.
 	broad *ir.Property
-	// winner is the narrower kind.
-	winner ir.PrimKind
 }
 
-// foldTypeTargets settles which target dst keeps and reports whether src's was
-// dropped. A bare primitive that strictly narrows the other wins in either
-// order, and the narrowing it returns names the broader declaration. Any other
-// differing target is a drop, and dst keeps its own null admission. Where the
-// referent is the same or one narrows the other, null is admitted only where
-// both branches admit it, as foldNullVerdicts states for a single schema.
-func (g *Merger) foldTypeTargets(dst, src *ir.Property) (dropped bool, nw narrowing) {
-	if aNarrower, winner, related := g.bareNarrowing(dst.Type, src.Type); related {
-		nw = narrowing{broad: dst, winner: winner}
-		if aNarrower {
-			nw.broad = src
-		} else {
-			dst.Type.Target = src.Type.Target
-		}
-	} else if dst.Type.Target != src.Type.Target {
-		return true, nw
+// foldTypeTargets settles which target dst keeps and returns the judgment on
+// the two (typeJudge.relate). A narrower target wins in either order, and the
+// narrowing it returns names the broader declaration. Any other differing
+// target is a drop, and dst keeps its own null admission. Where the referent is
+// the same or one narrows the other, null is admitted only where both
+// branches admit it, as foldNullVerdicts states for a single schema; when the
+// loser is the top type, which admits null whatever the bit says, the winner's
+// admission stands alone.
+func (g *Merger) foldTypeTargets(dst, src *ir.Property) (rel relation, nw narrowing) {
+	j := typeJudge{Resolve: g.Resolve}
+	rel = j.relate(dst.Type, src.Type)
+	if rel.dropped() {
+		return rel, nw
 	}
-	dst.Type.Nullable = dst.Type.Nullable && src.Type.Nullable
-	return false, nw
+	winner, loser := dst.Type, src.Type
+	nw.broad = src
+	if rel == relBNarrower {
+		winner, loser = src.Type, dst.Type
+		nw.broad = dst
+	}
+	if rel == relSame {
+		nw.broad = nil
+	}
+	dst.Type.Target = winner.Target
+	dst.Type.Nullable = winner.Nullable && loser.Nullable
+	if td, ok := j.Resolve(loser.Target); ok && rel != relSame && isTop(td) {
+		dst.Type.Nullable = winner.Nullable
+	}
+	return rel, nw
 }
 
 // judgeAdopted holds both declarations of a fold to the type it settled on. The
@@ -461,7 +481,9 @@ func (g *Merger) judgeAdopted(dst, src *ir.Property, nw narrowing, org *origins)
 	var refused []refusal
 	switch {
 	case nw.broad != nil:
-		kind := func(v ir.Value) bool { return admitted(nw.winner, nullable, v) }
+		winner := dst.Type
+		winner.Nullable = nullable
+		kind := func(v ir.Value) bool { return typeJudge{Resolve: g.Resolve}.admits(winner, v) }
 		dstAdmit, srcAdmit := nullOnly, kind
 		if nw.broad == dst {
 			dstAdmit, srcAdmit = kind, nullOnly
@@ -542,16 +564,6 @@ func groupRefusals(refused []refusal) []refusalGroup {
 	return groups
 }
 
-// admitted reports whether v is a value of a field of kind k that admits null
-// as nullable says: null is judged against that, any other value against the
-// kind (admits).
-func admitted(k ir.PrimKind, nullable bool, v ir.Value) bool {
-	if v.Kind == ir.ValueNull {
-		return nullable
-	}
-	return admits(k, v)
-}
-
 // losingDeclarationKey prefixes the Unmodeled entry a redeclaration the merge could not
 // fold whole is kept under. The "openapi:" namespace is what keeps two source
 // formats' keys from colliding on one node (ir-design §12); the redeclaration's
@@ -626,16 +638,13 @@ type redeclVerdict int
 
 const (
 	// verdictSilent is a pair the merge does not guess about: composites of one
-	// kind, an unresolvable target, the top type, or an Enum against a type of
-	// the same primitive kind.
+	// kind, an unresolvable target, or the top type.
 	verdictSilent redeclVerdict = iota
 	// verdictConflict is a pair reported as incompatible: a scalar against a
-	// structure, two structure kinds, disjoint primitive kinds, or an Enum
-	// against a different primitive kind.
+	// structure, two structure kinds, or disjoint primitive kinds.
 	verdictConflict
-	// verdictOverlap is a pair with no Enum side whose primitive kinds share
-	// values but which the merge does not narrow to one, or that the fold left
-	// unrelated although they resolve to related kinds.
+	// verdictOverlap is a pair whose primitive kinds share values, or that holds
+	// a literal, but which the merge does not narrow to one.
 	verdictOverlap
 )
 
@@ -651,13 +660,14 @@ func (g *Merger) overlappingTypesDiag(dst *ir.Property, pointer jsontext.Pointer
 		dst.WireName, dst.Type.Target, other.Target, dst.Provenance.Pointer)
 }
 
-// typesConflict classifies the drop of two reconciled property types. Identical
-// targets and the schemaless top type are silent. Two targets that resolve to
-// primitive kinds go through spelling.Relate: disjoint kinds conflict and
-// anything else overlaps. An Enum side keeps the kind comparison, since kind
-// alone cannot tell whether its members meet the other side. A scalar against
-// a structural type conflicts, and so do two structure kinds. Two distinct
-// composites of one kind are not provably contradictory, so they are silent.
+// typesConflict classifies the drop of two reconciled property types the
+// judgment had no arm for. Identical targets and the schemaless top type are
+// silent. Two targets that resolve to primitive kinds go through
+// spelling.Relate: disjoint kinds conflict and anything else overlaps. A
+// literal against anything that holds values overlaps, since which values meet
+// is not decided here. A scalar against a structural type conflicts, and so do
+// two structure kinds. Two distinct composites of one kind are not provably
+// contradictory, so they are silent.
 func (g *Merger) typesConflict(a, b ir.TypeRef) redeclVerdict {
 	if a.Target == b.Target || g.isAnyType(a) || g.isAnyType(b) {
 		return verdictSilent
@@ -666,20 +676,40 @@ func (g *Merger) typesConflict(a, b ir.TypeRef) redeclVerdict {
 	bk, bok := g.resolvePrimKind(b)
 	switch {
 	case aok && bok:
-		if g.isEnum(a) || g.isEnum(b) {
-			return conflictIf(ak != bk)
-		}
 		if spelling.Relate(ak, bk) == spelling.Disjoint {
 			return verdictConflict
 		}
 		return verdictOverlap
 	case aok && !bok:
-		return conflictIf(g.isStructuralType(b))
+		return g.againstUnresolved(b)
 	case !aok && bok:
-		return conflictIf(g.isStructuralType(a))
+		return g.againstUnresolved(a)
 	default:
+		if g.isLiteral(a) && g.isLiteral(b) {
+			return verdictOverlap
+		}
 		return conflictIf(g.differentTypeKind(a, b))
 	}
+}
+
+// againstUnresolved classifies a type that resolves to no primitive kind,
+// against one that does: a literal overlaps it, a structure conflicts with it,
+// and anything else is silent.
+func (g *Merger) againstUnresolved(ref ir.TypeRef) redeclVerdict {
+	if g.isLiteral(ref) {
+		return verdictOverlap
+	}
+	return conflictIf(g.isStructuralType(ref))
+}
+
+// isLiteral reports whether ref targets a Literal.
+func (g *Merger) isLiteral(ref ir.TypeRef) bool {
+	td, ok := g.Resolve(ref.Target)
+	if !ok {
+		return false
+	}
+	_, ok = td.(*ir.Literal)
+	return ok
 }
 
 // conflictIf maps a pair reported as incompatible to verdictConflict, and any
@@ -689,30 +719,6 @@ func conflictIf(incompatible bool) redeclVerdict {
 		return verdictConflict
 	}
 	return verdictSilent
-}
-
-// isEnum reports whether ref resolves, through the same bounded Base chain
-// resolvePrimKind walks, to an Enum node.
-func (g *Merger) isEnum(ref ir.TypeRef) bool {
-	id := ref.Target
-	for range maxTypeResolveDepth {
-		td, ok := g.Resolve(id)
-		if !ok {
-			return false
-		}
-		switch t := td.(type) {
-		case *ir.Enum:
-			return true
-		case *ir.Scalar:
-			if t.Base == nil {
-				return false
-			}
-			id = t.Base.Target
-		default:
-			return false
-		}
-	}
-	return false
 }
 
 // isAnyType reports whether ref targets the schemaless top type (a PrimAny
@@ -742,27 +748,7 @@ func (g *Merger) isAnyType(ref ir.TypeRef) bool {
 // one PrimKind (a ValueNumber literal spans integer/number/float/decimal), so
 // rather than guess it is excluded from isStructuralType below too.
 func (g *Merger) resolvePrimKind(ref ir.TypeRef) (ir.PrimKind, bool) {
-	id := ref.Target
-	for range maxTypeResolveDepth {
-		td, ok := g.Resolve(id)
-		if !ok {
-			return "", false
-		}
-		switch t := td.(type) {
-		case *ir.Primitive:
-			return t.Prim, true
-		case *ir.Enum:
-			return t.ValueType, true
-		case *ir.Scalar:
-			if t.Base == nil {
-				return "", false
-			}
-			id = t.Base.Target
-		default:
-			return "", false
-		}
-	}
-	return "", false
+	return typeJudge{Resolve: g.Resolve}.primKind(ref)
 }
 
 // differentTypeKind reports whether two registry targets carry different

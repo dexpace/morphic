@@ -686,13 +686,14 @@ func TestReconcileProperty_ADroppedTypeIsKeptEvenWhenItDoesNotConflict(t *testin
 		"t/B":   &ir.Model{ID: "t/B"},
 		"t/any": &ir.Any{ID: "t/any"},
 		"t/str": &ir.Primitive{ID: "t/str", Prim: ir.PrimString},
+		"t/opq": &ir.Scalar{ID: "t/opq"},
 	}
 	cases := []struct {
 		name                 string
 		dstTarget, srcTarget ir.TypeID
 	}{
 		{"two models of one kind", "t/A", "t/B"},
-		{"the top type keeps the position", "t/any", "t/str"},
+		{"an opaque scalar keeps the position", "t/opq", "t/str"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1048,8 +1049,8 @@ func TestFoldTypeTargets_ANarrowingIsNoDrop(t *testing.T) {
 		dst := ir.Property{WireName: "x", Type: primRef(order[0])}
 		src := ir.Property{WireName: "x", Type: primRef(order[1]), Provenance: ptrAt("/allOf/1/properties/x")}
 
-		dropped, _ := g.foldTypeTargets(&dst, &src)
-		assert.False(t, dropped, "a narrowing is no drop (order %d)", i)
+		rel, _ := g.foldTypeTargets(&dst, &src)
+		assert.False(t, rel.dropped(), "a narrowing is no drop (order %d)", i)
 		assert.Equal(t, primRef(ir.PrimInteger).Target, dst.Type.Target, "the narrower target wins (order %d)", i)
 
 		// Build the pair afresh: in order 1 the fold above has already made
@@ -1147,21 +1148,25 @@ func enumRegistry() map[ir.TypeID]ir.TypeDef {
 	return reg
 }
 
-// TestReconcileProperty_EnumPairsKeepTheKindVerdict pins that a pair with an
-// enum side keeps the kind comparison, in both orders: differing kinds warn,
-// equal kinds are silent, and no pair draws the overlap info.
-func TestReconcileProperty_EnumPairsKeepTheKindVerdict(t *testing.T) {
+// TestReconcileProperty_EnumPairsAreJudgedByKind pins, in both orders, what an
+// enum side draws: an enum over a bare kind it equals or narrows wins; a bare
+// kind strictly narrower than the enum's overlaps it, which is info and keeps
+// the first declaration; another family warns; and two enums overlap.
+func TestReconcileProperty_EnumPairsAreJudgedByKind(t *testing.T) {
 	t.Parallel()
 	enum := func(id ir.TypeID) ir.TypeRef { return ir.TypeRef{Target: id} }
 	cases := []struct {
-		name string
-		a, b ir.TypeRef
-		warn bool
+		name   string
+		a, b   ir.TypeRef
+		want   ir.Severity // "" = none
+		winner ir.TypeID   // "" = the first declaration's
 	}{
-		{"enum of string and uuid", enum("t/enum/a"), primRef(ir.PrimUUID), true},
-		{"enum of integer and int32", enum("t/enum/big"), primRef(ir.PrimInt32), true},
-		{"enum of string and another enum", enum("t/enum/a"), enum("t/enum/b"), false},
-		{"enum of string and bare string", enum("t/enum/a"), primRef(ir.PrimString), false},
+		{"enum of string and uuid", enum("t/enum/a"), primRef(ir.PrimUUID), ir.SeverityInfo, ""},
+		{"enum of integer and int32", enum("t/enum/big"), primRef(ir.PrimInt32), ir.SeverityInfo, ""},
+		{"enum of string and integer", enum("t/enum/a"), primRef(ir.PrimInteger), ir.SeverityWarning, ""},
+		{"enum of string and another enum", enum("t/enum/a"), enum("t/enum/b"), ir.SeverityInfo, ""},
+		{"enum of string and bare string", enum("t/enum/a"), primRef(ir.PrimString), "", "t/enum/a"},
+		{"enum of integer and number", enum("t/enum/big"), primRef(ir.PrimNumber), "", "t/enum/big"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1173,44 +1178,21 @@ func TestReconcileProperty_EnumPairsKeepTheKindVerdict(t *testing.T) {
 
 				g.reconcileProperty(&dst, new(origins), src, written(`{"type":"x"}`))
 
-				assert.Equal(t, order[0].Target, dst.Type.Target, "the first declaration's target stays (order %d)", i)
-				if !tc.warn {
+				wantTarget := order[0].Target
+				if tc.winner != "" {
+					wantTarget = tc.winner
+				}
+				assert.Equal(t, wantTarget, dst.Type.Target, "the winning target (order %d)", i)
+				if tc.want == "" {
 					assert.Empty(t, *recorded, "no diagnostic (order %d)", i)
 					continue
 				}
 				require.Len(t, *recorded, 1, "exactly one diagnostic (order %d)", i)
-				assert.Equal(t, diag.ConflictingRedecl, (*recorded)[0].Code, "order %d", i)
-				assert.Equal(t, ir.SeverityWarning, (*recorded)[0].Severity, "order %d", i)
+				assert.Equal(t, tc.want, (*recorded)[0].Severity, "order %d", i)
 				assert.Contains(t, dst.Unmodeled, losingDeclarationKey+"/allOf/1/properties/x",
 					"the redeclaration is kept (order %d)", i)
 			}
 		})
-	}
-}
-
-// TestMerger_IsEnumFollowsTheBaseChain pins that a target counts as an enum
-// when it is one or is a scalar chain ending in one, and for nothing else,
-// including a chain that never ends.
-func TestMerger_IsEnumFollowsTheBaseChain(t *testing.T) {
-	t.Parallel()
-	reg := enumRegistry()
-	reg["t/scalar/over-enum"] = &ir.Scalar{ID: "t/scalar/over-enum", Base: &ir.TypeRef{Target: "t/enum/a"}}
-	reg["t/scalar/over-prim"] = &ir.Scalar{ID: "t/scalar/over-prim", Base: &ir.TypeRef{Target: "t/prim/string"}}
-	reg["t/scalar/opaque"] = &ir.Scalar{ID: "t/scalar/opaque"}
-	reg["t/scalar/loop"] = &ir.Scalar{ID: "t/scalar/loop", Base: &ir.TypeRef{Target: "t/scalar/loop"}}
-	reg["t/model"] = &ir.Model{ID: "t/model"}
-	g, _ := stubMerger(reg)
-
-	for target, want := range map[ir.TypeID]bool{
-		"t/enum/a":           true,
-		"t/scalar/over-enum": true,
-		"t/scalar/over-prim": false,
-		"t/scalar/opaque":    false,
-		"t/scalar/loop":      false,
-		"t/model":            false,
-		"t/missing":          false,
-	} {
-		assert.Equal(t, want, g.isEnum(ir.TypeRef{Target: target}), string(target))
 	}
 }
 
@@ -1579,4 +1561,48 @@ func TestReconcileProperty_ARefusedValueFromAnIndexlessDeclarationIsReported(t *
 	assert.Equal(t, diag.UnpreservableConstruct, (*recorded)[1].Code)
 	assert.Contains(t, (*recorded)[1].Message, errNoSource.Error())
 	assert.Empty(t, m.Properties[0].Unmodeled)
+}
+
+// TestReconcileProperty_AScalarOverANarrowerKindWins pins that a Scalar over a
+// kind the bare side equals or contains wins in either order, with no
+// diagnostic and no kept declaration.
+func TestReconcileProperty_AScalarOverANarrowerKindWins(t *testing.T) {
+	t.Parallel()
+	reg := judgeRegistry()
+	for i, order := range [][2]ir.TypeRef{
+		{ref("t/scalar-int"), primRef(ir.PrimNumber)},
+		{primRef(ir.PrimNumber), ref("t/scalar-int")},
+	} {
+		g, recorded := stubMerger(reg)
+		dst := ir.Property{WireName: "x", Type: order[0], Provenance: ptrAt("/allOf/0/properties/x")}
+		src := ir.Property{WireName: "x", Type: order[1], Provenance: ptrAt("/allOf/1/properties/x")}
+
+		g.reconcileProperty(&dst, new(origins), src, unread(t))
+
+		assert.Equal(t, ir.TypeID("t/scalar-int"), dst.Type.Target, "order %d", i)
+		assert.Empty(t, *recorded, "order %d", i)
+		assert.Empty(t, dst.Unmodeled, "order %d", i)
+	}
+}
+
+// TestReconcileProperty_TheTopTypeTakesTheOtherSidesNullAdmission pins that a
+// narrower type over the top type keeps its own null admission rather than the
+// conjunction with the top type's, since the top type admits null yet lowers
+// non-nullable.
+func TestReconcileProperty_TheTopTypeTakesTheOtherSidesNullAdmission(t *testing.T) {
+	t.Parallel()
+	nullable := func(r ir.TypeRef) ir.TypeRef { r.Nullable = true; return r }
+	for i, order := range [][2]ir.TypeRef{
+		{primRef(ir.PrimAny), nullable(primRef(ir.PrimInteger))},
+		{nullable(primRef(ir.PrimInteger)), primRef(ir.PrimAny)},
+	} {
+		g, recorded := stubMerger(judgeRegistry())
+		dst := ir.Property{WireName: "x", Type: order[0], Provenance: ptrAt("/allOf/0/properties/x")}
+		src := ir.Property{WireName: "x", Type: order[1], Provenance: ptrAt("/allOf/1/properties/x")}
+
+		g.reconcileProperty(&dst, new(origins), src, unread(t))
+
+		assert.Equal(t, nullable(primRef(ir.PrimInteger)), dst.Type, "nullable integer (order %d)", i)
+		assert.Empty(t, *recorded, "order %d", i)
+	}
 }
