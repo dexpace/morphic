@@ -114,6 +114,10 @@ const (
 	// NotSchema is a node no schema reference may name: an object of the
 	// grammar, or a value that is neither a mapping nor a boolean.
 	NotSchema
+	// NotObject is a node a reference object's $ref names that is no object of
+	// the kind Hop.Detail names. The parser resolves those, not the binder, so
+	// only load words a failure by it, as a schema's NotSchema is worded.
+	NotObject
 	// NoAnchor is a plain-name fragment no schema of the resource it names
 	// declares as its $anchor or $dynamicAnchor.
 	NoAnchor
@@ -263,6 +267,8 @@ func (h Hop) Why() string {
 		return "it names nothing in the schema resource " + h.Detail + ", whose root its pointer is read from"
 	case NotSchema:
 		return "it names a position that holds no schema"
+	case NotObject:
+		return "it names a position that holds no " + h.Detail
 	case NoAnchor:
 		return "no schema of the resource it names declares that name as its $anchor or $dynamicAnchor"
 	case DuplicateAnchor:

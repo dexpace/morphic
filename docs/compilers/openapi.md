@@ -301,9 +301,15 @@ component its section does not hold, another document the compile may not read, 
 URI no schema declares, or two do — is reported as an `openapi/unresolved-ref` error at the
 referencing position, with why, and the position lowers without it: a schema position to the top
 type, any other position to nothing at all, so the parameter, response or body it would have named
-is absent. Each is reported once, where it is written, in whichever document, and a schema `$ref`
-whose chain ends on another failing `$ref` is not reported for it, as that one is. What a reference
-object resolved to is read at the node the resolver's chain reached
+is absent. A reference object whose chain ends on a position holding no object of its kind, such as
+a string or a `null` under an extension, is that report alone, its reason worded as a schema
+`$ref`'s is (`it names a position that holds no parameter`), and quoting the reference written at
+the hop before, and the document it is written in where that is not the source, when the chain
+passed through others. The parser's own finding there, handed only to the first reference to reach
+the position, is not reported beside it.
+Each is reported once, where it is written, in whichever document, and a schema `$ref` whose chain
+ends on another failing `$ref` is not reported for it, as that one is. What a reference object
+resolved to is read at the node the resolver's chain reached
 ([`trailing-empty-token`](../parser-library.md#trailing-empty-token)), and where no position holds
 that node, as for the first of a key written twice in raw YAML
 ([`duplicate-key`](../parser-library.md#duplicate-key)), it lowers at the use site, and each schema
@@ -372,14 +378,18 @@ references that closes on itself is [`reference-cycles`](#reference-cycles)'.
   `bind.TestTable_SaysWhyARefWentUnread`,
   `bind.TestBind_SaysAKeyMayLiePastTheMergeBound`,
   `bind.TestBind_TakesNoDefinitionPastAReadTheMergeBoundStopped`,
-  `canary.TestBindingOracle_AgreesWithTheLibrary`
+  `canary.TestBindingOracle_AgreesWithTheLibrary`,
+  `load.TestResolve_AFindingNamesTheDocumentItIsIn`,
+  `load.TestResolve_ReachedFindingsDoNotDependOnDeclarationOrder`,
+  `openapi.TestCompile_AReferenceObjectToANonObjectIsReportedOnce`
 - Status: partly built: an `encoding` entry naming no part of its body is dropped with no record
   (#604). Another document's identifiers are not read, so a plain name naming one of its resources
   is reported unresolved (#1049). An absolute-path `$ref` in a remote document is read as a local
   path (#936); a remote document can make the compiler request a private address (#937); and a
   remote document reaching a local file is refused naming only its last such `$ref` (#940). A
   reference object's pointer holding a character above U+FFFF is refused as malformed (#516), and an
-  unresolved reference object's message ends in the resolver's own wording (#809).
+  unresolved reference object's message ends in the resolver's own wording, unless its chain ends
+  on a position holding no object of its kind (#809).
 
 ### `reference-cycles`
 

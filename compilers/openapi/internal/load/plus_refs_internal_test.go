@@ -484,9 +484,10 @@ func TestLoad_AnUnresolvedReferenceIsQuotedAsTheSourceWritesIt(t *testing.T) {
 }
 
 // TestLoad_TheLibrarysOwnTextQuotesAReferenceAsWritten covers the text the
-// library writes about the model it was resolving: a reason naming the
-// reference, and a value it could not use, dumped whole with each $ref inside
-// it, one of them a spelling its JSON encoder escapes.
+// library writes about the model it was resolving, a value it could not use,
+// dumped whole with each $ref inside it, one of them a spelling its JSON
+// encoder escapes; and the reason load words for a reference whose target
+// holds no object, which quotes the reference as written too.
 func TestLoad_TheLibrarysOwnTextQuotesAReferenceAsWritten(t *testing.T) {
 	t.Parallel()
 	l := loadPlus(t, `openapi: 3.1.0
@@ -509,7 +510,7 @@ x-s: {L+1&<x>: {type: string}, M+1: {type: string}}
 `, Options{})
 
 	errs := strings.Join(errorsOf(l.diags), "\n")
-	assert.Contains(t, errs, "unable to resolve reference: #/x-null/a+b", "a reason")
+	assert.Contains(t, errs, `unresolved $ref "#/x-null/a+b": it names a position that holds no request body`, "a reason")
 	assert.Contains(t, errs, `"Ref":"#/x-s/M+1"`, "a value")
 	assert.Contains(t, errs, `"Ref":"#/x-s/L+1\u0026\u003cx\u003e"`, "a value the encoder escaped")
 	assertNoRewrittenSpelling(t, l.diags)
@@ -517,7 +518,9 @@ x-s: {L+1&<x>: {type: string}, M+1: {type: string}}
 
 // TestLoad_TheLibrarysTextKeepsASpellingTheSourceWrites pins that a reference
 // the source writes with "%2B" is quoted so, in the library's text as well,
-// though another site spells the same one with '+'.
+// though another site spells the same one with '+': the value it could not
+// use quotes both $refs inside it as "%2B". A message load words quotes each
+// site's own spelling.
 func TestLoad_TheLibrarysTextKeepsASpellingTheSourceWrites(t *testing.T) {
 	t.Parallel()
 	l := loadPlus(t, `openapi: 3.1.0
@@ -526,21 +529,34 @@ paths:
   /x:
     get:
       requestBody: {$ref: '#/x-null/a+b'}
-      responses: {"200": {description: ok}}
+      responses:
+        "200": {$ref: '#/components/schemas/Good'}
   /y:
     get:
       requestBody: {$ref: '#/x-null/a%2Bb'}
       responses: {"200": {description: ok}}
+components:
+  schemas:
+    Good:
+      type: object
+      properties:
+        l: {$ref: '#/x-s/M+1'}
+        m: {$ref: '#/x-s/M%2B1'}
 x-null: {a+b: null}
+x-s: {M+1: {type: string}}
 `, Options{})
 
-	var escaped string
+	messages := map[jsontext.Pointer]string{}
 	for _, d := range l.diags {
-		if d.Provenance.Pointer == "/paths/~1y/get/requestBody" {
-			escaped = d.Message
-		}
+		messages[d.Provenance.Pointer] = d.Message
 	}
-	assert.Equal(t, `unresolved $ref "#/x-null/a%2Bb": unable to resolve reference: #/x-null/a%2Bb`, escaped)
+	assert.Equal(t, `unresolved $ref "#/x-null/a%2Bb": it names a position that holds no request body`,
+		messages["/paths/~1y/get/requestBody"])
+	assert.Equal(t, `unresolved $ref "#/x-null/a+b": it names a position that holds no request body`,
+		messages["/paths/~1x/get/requestBody"])
+	dump := messages["/paths/~1x/get/responses/200"]
+	assert.Equal(t, 2, strings.Count(dump, `"Ref":"#/x-s/M%2B1"`), dump)
+	assert.NotContains(t, dump, `"Ref":"#/x-s/M+1"`, dump)
 }
 
 // TestLoad_ARefusalAfterTheRespellingLeavesTheTreeAsWritten covers a load that

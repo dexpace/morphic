@@ -1,6 +1,7 @@
 package openapi
 
 import (
+	"encoding/json/jsontext"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -119,6 +120,180 @@ func TestCompile_AResolutionFailureIsReportedOnceAtItsRef(t *testing.T) {
 			}
 		}
 		assert.Equal(t, []string{diag.CyclicRef}, at, "the lowering reports nothing for a member of the loop")
+	})
+}
+
+// TestCompile_AReferenceObjectToANonObjectIsReportedOnce pins what a reference
+// object whose $ref names a position holding no object of its kind draws
+// (GitHub #1044): one unresolved-ref error at the $ref, naming the kind as a
+// schema $ref to a position holding no schema is worded, and, when the chain
+// went through another reference object first, the $ref written at the hop
+// before. No finding of the parser's stands beside it, and it does not depend
+// on which $ref reaches the target first. A target with findings of its own
+// still reports them.
+func TestCompile_AReferenceObjectToANonObjectIsReportedOnce(t *testing.T) {
+	t.Parallel()
+	const (
+		stringLib = "x-lib: {S: just a string}\n"
+		okGet     = "    get:\n      responses: {\"200\": {description: ok}}\n"
+		refParam  = "  /x:\n    get:\n      parameters: [{$ref: '#/x-lib/S'}]\n" +
+			"      responses: {\"200\": {description: ok}}\n"
+	)
+	notKind := func(kind string) string {
+		return `unresolved $ref "#/x-lib/S": it names a position that holds no ` + kind
+	}
+	paths := func(item string) string { return openapitest.PathsSpec(item) + stringLib }
+	tests := map[string]struct {
+		spec    string
+		pointer string
+		message string
+	}{
+		"a parameter": {
+			spec: paths(refParam), pointer: "/paths/~1x/get/parameters/0", message: notKind("parameter"),
+		},
+		"a request body": {
+			spec: paths("  /x:\n    post:\n      requestBody: {$ref: '#/x-lib/S'}\n" +
+				"      responses: {\"200\": {description: ok}}\n"),
+			pointer: "/paths/~1x/post/requestBody", message: notKind("request body"),
+		},
+		"a response": {
+			spec:    paths("  /x:\n    get:\n      responses:\n        '204': {$ref: '#/x-lib/S'}\n"),
+			pointer: "/paths/~1x/get/responses/204", message: notKind("response"),
+		},
+		"a header": {
+			spec: paths("  /x:\n    get:\n      responses:\n        '204':\n          description: ok\n" +
+				"          headers: {H: {$ref: '#/x-lib/S'}}\n"),
+			pointer: "/paths/~1x/get/responses/204/headers/H", message: notKind("header"),
+		},
+		"an example": {
+			spec: paths("  /x:\n    get:\n      responses:\n        '200':\n          description: ok\n" +
+				"          content:\n            application/json:\n              examples: {e: {$ref: '#/x-lib/S'}}\n"),
+			pointer: "/paths/~1x/get/responses/200/content/application~1json/examples/e", message: notKind("example"),
+		},
+		"a link": {
+			spec: paths("  /x:\n    get:\n      responses:\n        '204':\n          description: ok\n" +
+				"          links: {l: {$ref: '#/x-lib/S'}}\n"),
+			pointer: "/paths/~1x/get/responses/204/links/l", message: notKind("link"),
+		},
+		"a callback": {
+			spec: paths("  /x:\n    get:\n      callbacks: {cb: {$ref: '#/x-lib/S'}}\n" +
+				"      responses: {\"200\": {description: ok}}\n"),
+			pointer: "/paths/~1x/get/callbacks/cb", message: notKind("callback"),
+		},
+		"a path item": {
+			spec:    paths("  /x: {$ref: '#/x-lib/S'}\n"),
+			pointer: "/paths/~1x", message: notKind("path item"),
+		},
+		"a security scheme": {
+			spec: openapitest.PathsSpec("  /x:\n"+okGet) + "components:\n  securitySchemes:\n    s: {$ref: '#/x-lib/S'}\n" +
+				stringLib,
+			pointer: "/components/securitySchemes/s", message: notKind("security scheme"),
+		},
+		"a target that is null": {
+			spec:    openapitest.PathsSpec(refParam) + "x-lib: {S: null}\n",
+			pointer: "/paths/~1x/get/parameters/0", message: notKind("parameter"),
+		},
+		"a target that is a sequence": {
+			spec:    openapitest.PathsSpec(refParam) + "x-lib: {S: [a, b]}\n",
+			pointer: "/paths/~1x/get/parameters/0", message: notKind("parameter"),
+		},
+		"a chain through another reference object": {
+			spec: openapitest.PathsSpec("  /x:\n    get:\n      parameters: [{$ref: '#/components/parameters/P'}]\n"+
+				"      responses: {\"200\": {description: ok}}\n") +
+				"components:\n  parameters:\n    P: {$ref: '#/x-lib/S'}\n" + stringLib,
+			pointer: "/paths/~1x/get/parameters/0",
+			message: `unresolved $ref "#/components/parameters/P", through "#/x-lib/S": ` +
+				"it names a position that holds no parameter",
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			_, diags := parseFull(t, tc.spec)
+			want := []ir.Diagnostic{{Severity: ir.SeverityError, Code: diag.UnresolvedRef, Message: tc.message,
+				Provenance: ir.Provenance{Pointer: jsontext.Pointer(tc.pointer)}}}
+			assert.Empty(t, cmp.Diff(want, diags), "the one finding of the document")
+		})
+	}
+
+	t.Run("two references to one target are reported alike in either order", func(t *testing.T) {
+		t.Parallel()
+		site := func(path string) string {
+			return "  " + path + ":\n    get:\n      parameters: [{$ref: '#/x-lib/S'}]\n" +
+				"      responses: {\"200\": {description: ok}}\n"
+		}
+		want := map[jsontext.Pointer]string{
+			"/paths/~1a/get/parameters/0": notKind("parameter"),
+			"/paths/~1b/get/parameters/0": notKind("parameter"),
+		}
+		for _, order := range []string{site("/a") + site("/b"), site("/b") + site("/a")} {
+			_, diags := parseFull(t, openapitest.PathsSpec(order)+stringLib)
+			got := map[jsontext.Pointer]string{}
+			for _, d := range diags {
+				assert.Equal(t, diag.UnresolvedRef, d.Code, "%+v", d)
+				assert.Equal(t, ir.SeverityError, d.Severity, "%+v", d)
+				got[d.Provenance.Pointer] = d.Message
+			}
+			assert.Len(t, diags, len(want), "one finding at each $ref, none beside it: %+v", diags)
+			assert.Empty(t, cmp.Diff(want, got), "declared in the order %q", order)
+		}
+	})
+
+	t.Run("a target that is null in another document", func(t *testing.T) {
+		t.Parallel()
+		root := openapitest.PathsSpec("  /x:\n    get:\n      parameters: [{$ref: 'other.yaml'}]\n" +
+			"      responses: {\"200\": {description: ok}}\n")
+
+		diags := compileBesideExpectingErrors(t, "null\n", root)
+
+		want := []ir.Diagnostic{{Severity: ir.SeverityError, Code: diag.UnresolvedRef,
+			Message:    `unresolved $ref "other.yaml": it names a position that holds no parameter`,
+			Provenance: ir.Provenance{Pointer: "/paths/~1x/get/parameters/0"}}}
+		assert.Empty(t, cmp.Diff(want, diags), "reported at the $ref in the source, once")
+	})
+
+	t.Run("a chain through a reference written in another document", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "mid.yaml"),
+			[]byte("P: {$ref: '#/S'}\nS: just a string\n"), 0o600))
+		root := openapitest.PathsSpec("  /x:\n    get:\n      parameters: [{$ref: 'mid.yaml#/P'}]\n" +
+			"      responses: {\"200\": {description: ok}}\n")
+
+		_, diags, err := New().Compile(t.Context(),
+			[]compilers.Source{{Path: filepath.Join(dir, "root.yaml"), Data: []byte(root)}},
+			compilers.Options{Reader: reader.Disk{}, FormatOptions: Options{AllowExternalRefs: true}})
+		require.NoError(t, err)
+
+		want := []ir.Diagnostic{{Severity: ir.SeverityError, Code: diag.UnresolvedRef,
+			Message: `unresolved $ref "mid.yaml#/P", through "#/S" in ` + filepath.Join(dir, "mid.yaml") +
+				": it names a position that holds no parameter",
+			Provenance: ir.Provenance{Pointer: "/paths/~1x/get/parameters/0"}}}
+		assert.Empty(t, cmp.Diff(want, diags), "the hop before names where it is written")
+	})
+
+	t.Run("a target with findings of its own still reports them", func(t *testing.T) {
+		t.Parallel()
+		_, diags := parseFull(t, openapitest.PathsSpec(strings.Replace(refParam, "x-lib/S", "x-lib/P", 1))+
+			"x-lib: {P: {name: q, in: nowhere}}\n")
+
+		require.Len(t, diags, 1, "%+v", diags)
+		assert.Equal(t, diag.Validation+"/validation-allowed-values", diags[0].Code)
+		assert.Equal(t, ir.SeverityError, diags[0].Severity)
+		assert.Equal(t, jsontext.Pointer("/x-lib/P/in"), diags[0].Provenance.Pointer, "at the node it is about")
+		assert.False(t, openapitest.HasDiag(diags, diag.UnresolvedRef), "the $ref resolved to an object")
+	})
+
+	t.Run("a target in another document with findings of its own still reports them", func(t *testing.T) {
+		t.Parallel()
+		root := openapitest.PathsSpec(strings.Replace(refParam, "#/x-lib/S", "other.yaml#/x-lib/P", 1))
+
+		diags := compileBesideExpectingErrors(t, "x-lib: {P: {name: q, in: nowhere}}\n", root)
+
+		require.Len(t, diags, 1, "%+v", diags)
+		assert.Equal(t, diag.Validation+"/validation-allowed-values", diags[0].Code)
+		assert.Equal(t, jsontext.Pointer("/paths/~1x/get/parameters/0"), diags[0].Provenance.Pointer, "at the $ref that reached it")
+		assert.Contains(t, diags[0].Message, "other.yaml", "naming the document it is in")
 	})
 }
 

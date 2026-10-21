@@ -224,11 +224,76 @@ func (p *resolution) visit(ctx context.Context, site refSite, r resolvable, opts
 	p.away.reach(site, c, opts, p.nameOf)
 	p.visited = append(p.visited, visitedRef{site: site, r: r})
 	t := p.esc.trailOf(c)
-	p.found.note(site, t, p.unrequired(ctx, site, r, vErrs))
-	if err != nil {
-		p.failures[site.doc] = append(p.failures[site.doc], failureDiag(pointerOnly(site.pointer), p.esc.writtenOf(r), t, err))
+	if err == nil {
+		p.found.note(site, t, p.unrequired(ctx, site, r, vErrs))
+		return
+	}
+	// A resolution that failed built no object, so what it found is why it
+	// failed, which the failure states once, worded as the binder words a
+	// schema $ref's (GitHub #1044).
+	p.found.note(site, t, nil)
+	if c.endsOnNothing() {
+		err = notObjectError{kind: objectKind(r), through: p.through(c), err: err}
+	}
+	p.failures[site.doc] = append(p.failures[site.doc], failureDiag(pointerOnly(site.pointer), p.esc.writtenOf(r), t, err))
+}
+
+// through quotes the reference written at the hop before c's last, where the
+// chain went through another reference to reach its end, with the document
+// it is written in when that is not the source; "" where it went through none.
+func (p *resolution) through(c chain) string {
+	if len(c.records) < 2 {
+		return ""
+	}
+	prev := c.records[len(c.records)-2]
+	quoted := strconv.Quote(string(p.esc.writtenOf(prev.object)))
+	if prev.inSource() {
+		return quoted
+	}
+	return quoted + " in " + prev.path
+}
+
+// objectKind names the kind of object the reference object r resolves to, as
+// a message names it.
+func objectKind(r resolvable) string {
+	switch r.(type) {
+	case *soa.ReferencedPathItem:
+		return "path item"
+	case *soa.ReferencedParameter:
+		return "parameter"
+	case *soa.ReferencedHeader:
+		return "header"
+	case *soa.ReferencedRequestBody:
+		return "request body"
+	case *soa.ReferencedResponse:
+		return "response"
+	case *soa.ReferencedExample:
+		return "example"
+	case *soa.ReferencedLink:
+		return "link"
+	case *soa.ReferencedCallback:
+		return "callback"
+	case *soa.ReferencedSecurityScheme:
+		return "security scheme"
+	default:
+		return "object"
 	}
 }
+
+// notObjectError is why a reference object's resolution failed where the
+// position its chain ends on holds no object of kind, reached through the
+// reference through quotes, if any. failureDiag words it as the binder words a
+// schema $ref to a position holding no schema (bind.NotObject).
+type notObjectError struct {
+	kind, through string
+	err           error
+}
+
+// Error returns the failure as the parser reported it.
+func (e notObjectError) Error() string { return e.err.Error() }
+
+// Unwrap returns the failure.
+func (e notObjectError) Unwrap() error { return e.err }
 
 // unrequired returns vErrs, the findings resolving r at site drew, less the
 // REQUIRED-field rule's artifacts in the object r reached (requiredArtifacts),
@@ -425,7 +490,13 @@ func keyOf(err error, site refSite) findingKey {
 func failureDiag(site ir.Provenance, ref references.Reference, t trail, err error) ir.Diagnostic {
 	reason := err.Error()
 	var unparsable *bind.UnparsableError
+	var held notObjectError
 	switch {
+	case errors.As(err, &held) && held.through != "":
+		return diag.Newf(ir.SeverityError, diag.UnresolvedRef, site, "unresolved $ref %q, through %s: %s",
+			string(ref), held.through, bind.Hop{Reason: bind.NotObject, Detail: held.kind}.Why())
+	case errors.As(err, &held):
+		reason = bind.Hop{Reason: bind.NotObject, Detail: held.kind}.Why()
 	case errors.As(err, &unparsable):
 		reason = bind.Hop{Reason: bind.Unparsable, Detail: unparsable.Err.Error()}.Why()
 	case errors.Is(err, bind.ErrEmptyDocument):

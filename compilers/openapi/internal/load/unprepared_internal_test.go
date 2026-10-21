@@ -1579,3 +1579,30 @@ func TestExternalReads_IsSafeForConcurrentUse(t *testing.T) {
 		})
 	}
 }
+
+// TestChain_EndsOnNothing pins when a resolution's chain is said to end on a
+// position holding no object (GitHub #1044): it reached the position its last
+// hop names and built nothing there. A chain that holds no record, was cut, or
+// stopped at a reference reached no position, whatever its records say, and
+// only the last record's node is read.
+func TestChain_EndsOnNothing(t *testing.T) {
+	t.Parallel()
+	built := &yaml.Node{Kind: yaml.MappingNode}
+	for _, tc := range []struct {
+		name string
+		c    chain
+		want bool
+	}{
+		{"no records", chain{}, false},
+		{"a cut chain", chain{cut: true, records: []record{{}}}, false},
+		{"a chain that stopped at a reference", chain{stopped: "#/components/parameters/P", records: []record{{}}}, false},
+		{"a last record that built no node", chain{records: []record{{node: built}, {}}}, true},
+		{"a single record that built no node", chain{records: []record{{}}}, true},
+		{"a last record that built a node", chain{records: []record{{}, {node: built}}}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, tc.c.endsOnNothing())
+		})
+	}
+}
