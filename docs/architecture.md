@@ -79,6 +79,11 @@ type Compiler interface {
 }
 ```
 
+A returned `Document`'s `Sources` begins with the table `SourceTable` gives, in order and filled
+in, and may go on to name each further document the compile read, such as one a reference names.
+`SourceTable` reads no input, so it names only what the caller supplies; a refusal reads no other
+document, so the table is what its diagnostics index.
+
 Internal phases every compiler follows (each format implements them its own way):
 
 1. **Load & bundle** — read every document the source's references name, through the caller's

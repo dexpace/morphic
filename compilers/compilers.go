@@ -120,17 +120,19 @@ type Compiler interface {
 	// is silently ignored leaves the caller believing they configured something.
 	DecodeOptions(set OptionSet) (any, error)
 	// Compile lowers sources into a Document, or refuses them by returning a nil
-	// one and no error. Every Provenance.Source it reports other than
-	// ir.NoSource, on the Document or in the returned diagnostics, indexes the
-	// table SourceTable gives for the same arguments, and a returned Document's
-	// Sources names those inputs in that order.
+	// one and no error. A returned Document's Sources begins with the table
+	// SourceTable gives for the same arguments, in that order, each entry filled
+	// in, and may go on to name each further document the compile read, such as
+	// one a reference names. Every Provenance.Source it reports other than
+	// ir.NoSource, on the Document or in the returned diagnostics, indexes that
+	// Document's Sources; a refusal's diagnostics index SourceTable's table.
 	Compile(ctx context.Context, sources []Source, opts Options) (*ir.Document, []ir.Diagnostic, error)
 	// SourceTable names the inputs a compile of sources under opts reads, in the
 	// order its provenance indexes them: the sources, then any input the
 	// options supply, such as an overlay.
 	//
-	// It is the table a refusal's diagnostics index, since a refusal has no
-	// Document to carry one. It reads no input and fails on none, so an entry
+	// It is the table a refusal's diagnostics index, and a returned Document's
+	// Sources begins with it. It reads no input and fails on none, so an entry
 	// holds only the Path it was given. For options a compile would reject, it
 	// names the sources alone. It is required: a caller left to guess the
 	// table can name only the sources, and would print an overlay's findings

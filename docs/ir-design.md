@@ -2348,7 +2348,8 @@ that addresses no declared source, so a producer inventing a second sentinel is 
 tolerated.
 
 **A refusal still has a table.** A compile that refuses returns no `Document`, yet its diagnostics
-index the table that document would have carried. The compiler names it without reading anything
+index the table that document's `Sources` would have begun with, the inputs the compile was handed,
+which a document a reference names follows. The compiler names it without reading anything
 (`compilers.Compiler.SourceTable`), and the engine returns it beside the findings as
 `engine.Result.Sources`. A finding about a whole source carries its index and no locator, even one
 made before any compiler claimed the spec, which names it as source `0`: it is about a file the
