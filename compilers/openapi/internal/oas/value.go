@@ -15,13 +15,15 @@ import (
 )
 
 // value checks the value a field is written with: its shape, then what its
-// shape allows, then the objects it holds.
+// shape allows, then the objects it holds. A field whose shape another package
+// owns is left to it, bar a number outside a numeric field's range, such as a
+// multipleOf of 0, which that package reads as the number it is.
 func (w *walker) value(f frame, fld Field, val *yaml.Node, depth int) {
 	node := nodeview.Deref(val)
 	ptr := f.at.ptr.AppendToken(fld.Name)
 	shape, ok := w.shapeOf(fld, node)
 	if !ok {
-		if fld.ShapeOwner == "" {
+		if fld.ShapeOwner == "" || numeric(fld.Shape) && numberOf(Number, node) {
 			w.mismatch(f, fld, node, ptr)
 		}
 		return
@@ -267,6 +269,16 @@ func allScalar(node *yaml.Node) bool {
 		}
 	}
 	return true
+}
+
+// numeric reports whether a shape is a number of some range.
+func numeric(shape Shape) bool {
+	switch shape {
+	case Number, PositiveNumber, Natural:
+		return true
+	default:
+		return false
+	}
 }
 
 // stringStyles marks the styles that write a string whatever its text.

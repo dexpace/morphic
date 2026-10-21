@@ -73,7 +73,8 @@ func TestCheck_ShapesFollowTheField(t *testing.T) {
 // TestCheck_NumbersFollowTheirShape pins the numeric shapes, and that the numeric
 // bounds the schema lowering reads off the raw node are left to it: it reports a
 // value that is no finite decimal, a null included, or is in the other
-// dialect's form, and takes a quoted number as the decimal it spells.
+// dialect's form, and takes a quoted number as the decimal it spells. A number
+// outside a bound's range, a multipleOf no greater than 0, is the table's.
 func TestCheck_NumbersFollowTheirShape(t *testing.T) {
 	verify(t, []scenario{
 		{"natural: zero", "3.1.0", oas.Schema, `{maxLength: 0}`, nil},
@@ -93,7 +94,9 @@ func TestCheck_NumbersFollowTheirShape(t *testing.T) {
 			`{maximum: high, minimum: true, multipleOf: [1], exclusiveMinimum: .inf, exclusiveMaximum: "5"}`, nil},
 		{"bound: the other dialect's form is the lowering's", "3.0.3", oas.Schema,
 			`{exclusiveMinimum: 5, exclusiveMaximum: 6}`, nil},
-		{"bound: a multipleOf of zero is the lowering's", "3.1.0", oas.Schema, `{multipleOf: 0}`, nil},
+		{"bound: a multipleOf of zero is the table's", "3.1.0", oas.Schema, `{multipleOf: 0}`,
+			[]finding{at(mismatch, "/multipleOf")}},
+		{"bound: a negative multipleOf in 3.0", "3.0.3", oas.Schema, `{multipleOf: -2}`, []finding{at(mismatch, "/multipleOf")}},
 		{"bound: a null is the lowering's", "3.1.0", oas.Schema, `{maximum: ~}`, nil},
 	})
 }
