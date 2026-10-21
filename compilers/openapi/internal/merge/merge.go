@@ -3,7 +3,7 @@
 //
 // It is the compiler's most intricate logic and the part least tied to the walk
 // that drives it. Everything it needs from the rest of lowering arrives as the
-// two function fields on Merger, so the conflict lattice can be exercised
+// function fields on Merger, so the conflict lattice can be exercised
 // against a map and a recorder rather than a document.
 package merge
 
@@ -32,10 +32,22 @@ type Merger struct {
 	// Resolve looks a type up in the registry. Conflict detection compares what
 	// two references point at, not the references themselves.
 	Resolve func(ir.TypeID) (ir.TypeDef, bool)
-	// Report records one diagnostic at pointer, attributed to the input document
-	// that supplied that position.
-	Report func(sev ir.Severity, code string, pointer jsontext.Pointer, format string, args ...any)
+	// Report records the diagnostics a decision taken now draws.
+	Report Reporter
+	// Defer queues a decision for once every lowering has returned and the
+	// registry is whole. It may be nil, and a redeclaration is then always
+	// judged against the registry as it stands.
+	Defer func(Settle)
 }
+
+// Reporter records one diagnostic at pointer, attributed to the input document
+// that supplied that position.
+type Reporter func(sev ir.Severity, code string, pointer jsontext.Pointer, format string, args ...any)
+
+// Settle is a decision taken against the whole registry. It reports through
+// report, not through the Merger it was queued by, whose sink belongs to a walk
+// that has returned.
+type Settle func(reg ir.TypeRegistry, report Reporter)
 
 // WireNameIndex maps each property's wire name to its position in props, so a
 // redeclaration reconciles in one lookup rather than a rescan (fillModelProperties
@@ -67,6 +79,10 @@ type PropIndex struct {
 type indexed struct {
 	pos int
 	origins
+	// pending holds the redeclarations queued for Settle, once one was. Every
+	// later one joins it, so no fold compares against a property an earlier
+	// fold has not produced.
+	pending *deferredFold
 }
 
 // origin is one declaration: where it was written and how to render it.
@@ -101,7 +117,7 @@ func NewPropIndex() *PropIndex {
 // disagreeing.
 func (g *Merger) MergeProperty(m *ir.Model, idx *PropIndex, p ir.Property, source Source) {
 	if e, ok := idx.byWire[p.WireName]; ok {
-		g.reconcileProperty(&m.Properties[e.pos], &e.origins, p, source)
+		foldOrDefer(g, m, e, p, source)
 		return
 	}
 	at := []origin{{prov: p.Provenance, source: source}}

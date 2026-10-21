@@ -2348,5 +2348,24 @@ func merger(c lowering.Ctx, ts *compile.Types, diags *[]ir.Diagnostic) merge.Mer
 		Report: func(sev ir.Severity, code string, pointer jsontext.Pointer, format string, args ...any) {
 			*diags = append(*diags, c.DiagAt(sev, code, pointer, format, args...))
 		},
+		Defer: func(run merge.Settle) { ts.Defer(settledMerge{c: c, run: run}) },
 	}
+}
+
+// settledMerge is a redeclaration judgment deferred until the registry is whole
+// (compile.Settlement). It reads nodes other lowerings intern, so mid-walk it
+// would follow the order components are declared in.
+type settledMerge struct {
+	c   lowering.Ctx
+	run merge.Settle
+}
+
+// Settle takes the judgment against reg and returns what it reports. The merge
+// interns nothing, so the registry keeps its node count.
+func (s settledMerge) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
+	var diags []ir.Diagnostic
+	s.run(reg, func(sev ir.Severity, code string, pointer jsontext.Pointer, format string, args ...any) {
+		diags = append(diags, s.c.DiagAt(sev, code, pointer, format, args...))
+	})
+	return diags
 }

@@ -4172,3 +4172,52 @@ func TestAllOf_IdenticalNodesAreOneType(t *testing.T) {
 		})
 	}
 }
+
+// TestAllOf_ARedeclarationIsJudgedOnceTheComponentsHaveLowered pins that a
+// field redeclared as two $refs to components declared after the composing
+// schema is judged as it is when they are declared before it: identical nodes
+// are one type, and a pair the merge does not narrow is reported and kept, in
+// whichever order the two components are declared (#898).
+func TestAllOf_ARedeclarationIsJudgedOnceTheComponentsHaveLowered(t *testing.T) {
+	t.Parallel()
+	p, q := "{$ref: '#/components/schemas/P'}", "{$ref: '#/components/schemas/Q'}"
+	for _, tc := range []struct {
+		name, pdecl, qdecl string
+		items              bool
+		kind               ir.TypeKind
+		code               string // the one diagnostic, or "" for none
+	}{
+		{"identical enums", "{type: string, enum: [a, b]}", "{type: string, enum: [a, b]}", false, ir.KindEnum, ""},
+		{"an integer beside a number", "{type: number}", "{type: integer}", false, ir.KindScalar, diag.DegradedConstruct},
+		{"a string against an integer", "{type: string}", "{type: integer}", false, ir.KindScalar, diag.ConflictingRedecl},
+		{"identical enums as list items", "{type: string, enum: [a, b]}", "{type: string, enum: [a, b]}", true, ir.KindList, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			a, b := p, q
+			if tc.items {
+				a, b = "{type: array, items: "+p+"}", "{type: array, items: "+q+"}"
+			}
+			for i, extra := range []string{
+				"    P: " + tc.pdecl + "\n    Q: " + tc.qdecl + "\n",
+				"    Q: " + tc.qdecl + "\n    P: " + tc.pdecl + "\n",
+			} {
+				doc, diags := settledSpec(t, extra, a, b)
+				m, ok := doc.Types[componentID("T")].(*ir.Model)
+				require.True(t, ok, "order %d", i)
+				require.Len(t, m.Properties, 1, "order %d", i)
+				prop := m.Properties[0]
+
+				assert.Equal(t, tc.kind, doc.Types[prop.Type.Target].Kind(), "order %d", i)
+				if tc.code == "" {
+					assert.Empty(t, diags, "order %d", i)
+					assert.Empty(t, prop.Unmodeled, "order %d", i)
+					continue
+				}
+				require.Len(t, diags, 1, "order %d", i)
+				assert.Equal(t, tc.code, diags[0].Code, "order %d", i)
+				assert.Len(t, prop.Unmodeled, 1, "the losing declaration is kept (order %d)", i)
+			}
+		})
+	}
+}

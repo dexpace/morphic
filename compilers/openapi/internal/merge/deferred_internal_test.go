@@ -1,0 +1,92 @@
+package merge
+
+import (
+	"encoding/json/jsontext"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/ir"
+)
+
+// deferring is a Merger over reg whose Defer queues instead of settling.
+func deferring(reg map[ir.TypeID]ir.TypeDef) (g *Merger, queued *[]Settle, reported *[]ir.Diagnostic) {
+	g, reported = stubMerger(reg)
+	queued = &[]Settle{}
+	g.Defer = func(s Settle) { *queued = append(*queued, s) }
+	return g, queued, reported
+}
+
+// redeclared is the property v of the allOf branch at, typed target.
+func redeclared(target ir.TypeID, at string) ir.Property {
+	return ir.Property{WireName: "v", Type: ir.TypeRef{Target: target}, Provenance: ptrAt(jsontext.Pointer("/allOf/" + at + "/properties/v"))}
+}
+
+func TestMergeProperty_AMissedTypeDefersEveryRedeclarationOfTheProperty(t *testing.T) {
+	t.Parallel()
+	reg := map[ir.TypeID]ir.TypeDef{
+		"t/str":  &ir.Primitive{ID: "t/str", Prim: ir.PrimString},
+		"t/bool": &ir.Primitive{ID: "t/bool", Prim: ir.PrimBool},
+	}
+	g, queued, reported := deferring(reg)
+	m, idx := &ir.Model{ID: "t/m"}, NewPropIndex()
+
+	g.MergeProperty(m, idx, redeclared("t/str", "0"), written(`{"type":"string"}`))
+	g.MergeProperty(m, idx, redeclared("t/int", "1"), written(`{"$ref":"int"}`))
+	g.MergeProperty(m, idx, redeclared("t/bool", "2"), written(`{"type":"boolean"}`))
+
+	require.Len(t, *queued, 1, "one settlement per property, however many redeclarations")
+	require.Len(t, m.Properties, 1)
+	assert.Equal(t, ir.TypeID("t/str"), m.Properties[0].Type.Target)
+	assert.Empty(t, m.Properties[0].Unmodeled, "nothing is folded before the settlement runs")
+	assert.Empty(t, *reported, "nothing is reported before the settlement runs")
+
+	reg["t/int"] = &ir.Primitive{ID: "t/int", Prim: ir.PrimInt32}
+	reg["t/m"] = m
+	var settled []ir.Diagnostic
+	(*queued)[0](reg, func(sev ir.Severity, code string, pointer jsontext.Pointer, format string, args ...any) {
+		settled = append(settled, diag.Newf(sev, code, ir.Provenance{Pointer: pointer}, format, args...))
+	})
+
+	require.Len(t, settled, 2, "each redeclaration is judged, in order, against the whole registry, one that resolved included")
+	assert.Equal(t, diag.ConflictingRedecl, settled[0].Code)
+	assert.Equal(t, diag.ConflictingRedecl, settled[1].Code)
+	assert.Equal(t, ptrAt("/allOf/1/properties/v").Pointer, settled[0].Provenance.Pointer)
+	assert.Equal(t, ptrAt("/allOf/2/properties/v").Pointer, settled[1].Provenance.Pointer)
+	assert.Len(t, m.Properties[0].Unmodeled, 2, "both losing declarations are kept")
+	assert.Empty(t, *reported, "the walk's sink is not written to afterwards")
+}
+
+func TestMergeProperty_ASettlementOfAReplacedModelDoesNothing(t *testing.T) {
+	t.Parallel()
+	g, queued, _ := deferring(map[ir.TypeID]ir.TypeDef{"t/str": &ir.Primitive{ID: "t/str", Prim: ir.PrimString}})
+	m, idx := &ir.Model{ID: "t/m"}, NewPropIndex()
+	g.MergeProperty(m, idx, redeclared("t/str", "0"), written(`{}`))
+	g.MergeProperty(m, idx, redeclared("t/int", "1"), written(`{}`))
+	require.Len(t, *queued, 1)
+
+	reg := ir.TypeRegistry{"t/m": &ir.Model{ID: "t/m"}, "t/int": &ir.Primitive{ID: "t/int", Prim: ir.PrimInt32}}
+	(*queued)[0](reg, func(ir.Severity, string, jsontext.Pointer, string, ...any) {
+		t.Fatal("a settlement of a node no longer registered reports nothing")
+	})
+
+	assert.Empty(t, m.Properties[0].Unmodeled, "the replaced model is left as it was")
+}
+
+func TestMergeProperty_AResolvedRedeclarationIsFoldedAtOnceBesideADefer(t *testing.T) {
+	t.Parallel()
+	g, queued, reported := deferring(map[ir.TypeID]ir.TypeDef{
+		"t/str": &ir.Primitive{ID: "t/str", Prim: ir.PrimString},
+		"t/int": &ir.Primitive{ID: "t/int", Prim: ir.PrimInt32},
+	})
+	m, idx := &ir.Model{ID: "t/m"}, NewPropIndex()
+
+	g.MergeProperty(m, idx, redeclared("t/str", "0"), written(`{}`))
+	g.MergeProperty(m, idx, redeclared("t/int", "1"), written(`{"type":"integer"}`))
+
+	assert.Empty(t, *queued, "every type resolved, so nothing waits")
+	require.Len(t, *reported, 1)
+	assert.Equal(t, diag.ConflictingRedecl, (*reported)[0].Code)
+}

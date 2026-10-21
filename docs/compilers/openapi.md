@@ -801,29 +801,28 @@ about the composed node instead, stated with the `false`-schema rule
 `allOf` intersection folds a field declared in more than one branch into one `Property`, and the
 first declaration wins its shape (§4.3) unless the other narrows it. One judgment compares the two
 types and returns one of six verdicts: the same type, either one narrower, an overlap, disjoint, or
-unrelated. Where both targets have lowered, the winner never depends on which branch is written
-first. A disjoint pair is unsatisfiable but for a null both declarations admit: no other value
-satisfies both. An overlap shares values and is merely not narrowed to one. The arms are tried in
-this order. `{}` loses to
-anything but the node a degraded lowering mints (an enum past its member budget, an unconvertible
-const), which is unrelated to every type; where `{}` loses, the winner's own null admission stands
-alone, since `{}` admits null yet lowers non-nullable. Two bare primitives compare by value domain
-and spelling (`integer` against `number`, `uuid` against `string`, `int32` against `int64`). A
-`Scalar` or `Enum` against a bare primitive wins over a kind it equals or narrows (`string` against
-`format: byte`, or an unknown format over bare `string`), is disjoint from a kind of another family,
-or from another string format where neither is `bytes` (`uuid` against `format: date`), and overlaps
-any other kind (`uuid` against `format: byte`); for an `Enum`, that overlap is disjoint where the
-kind's judge refuses every member. An enum with no members is refused vacuously, so it is disjoint
-from any kind it would otherwise overlap, `bytes` included; an enum with members against `bytes`
-stays an overlap. A `const` wins when the kind admits its value; where it does not, it is disjoint
-from a kind with a judge and overlaps `bytes`, which has none. Two enums, two `const`s or two
-`Scalar`s equal in every field but where they were declared (IDs, names, whether hoisted inline,
-and the provenance of the node and of what it keeps under `Unmodeled`) are the same type, as the
-same declaration written twice. Two lists, or two maps with one key, compare by element or value,
-nested up to a bound, and the narrower one wins only where it admits null no more widely than the
-other and the other holds no constraint, encoding, documentation, examples or `Unmodeled` the
-winner lacks; disjoint members still overlap where both admit null, or where both containers admit
-the empty one. Anything else between distinct targets is unrelated and dropped.
+unrelated. The winner never depends on which branch, or which component, is declared first. A
+disjoint pair is unsatisfiable but for a null both declarations admit: no other value satisfies
+both. An overlap shares values and is merely not narrowed to one. The arms are tried in this order.
+`{}` loses to anything but the node a degraded lowering mints (an enum past its member budget, an
+unconvertible const), which is unrelated to every type; where `{}` loses, the winner's own null
+admission stands alone, since `{}` admits null yet lowers non-nullable. Two bare primitives compare
+by value domain and spelling (`integer` against `number`, `uuid` against `string`, `int32` against
+`int64`). A `Scalar` or `Enum` against a bare primitive wins over a kind it equals or narrows
+(`string` against `format: byte`, or an unknown format over bare `string`), is disjoint from a kind
+of another family, or from another string format where neither is `bytes` (`uuid` against
+`format: date`), and overlaps any other kind (`uuid` against `format: byte`); for an `Enum`, that
+overlap is disjoint where the kind's judge refuses every member. An enum with no members is refused
+vacuously, so it is disjoint from any kind it would otherwise overlap, `bytes` included; an enum
+with members against `bytes` stays an overlap. A `const` wins when the kind admits its value; where
+it does not, it is disjoint from a kind with a judge and overlaps `bytes`, which has none. Two
+enums, two `const`s or two `Scalar`s equal in every field but where they were declared (IDs, names,
+whether hoisted inline, and the provenance of the node and of what it keeps under `Unmodeled`) are
+the same type, as the same declaration written twice. Two lists, or two maps with one key, compare
+by element or value, nested up to a bound, and the narrower one wins only where it admits null no
+more widely than the other and the other holds no constraint, encoding, documentation, examples or
+`Unmodeled` the winner lacks; disjoint members still overlap where both admit null, or where both
+containers admit the empty one. Anything else between distinct targets is unrelated and dropped.
 
 The relation between kinds is stated over JSON instances, so that a narrowing, which is adopted
 silently, holds in every reading. Its value-domain half is `PrimKind.StrictlyWithin` (§4.1) and its
@@ -918,14 +917,13 @@ schema's null verdicts fold under ([`nullable`](#nullable)).
   `merge.TestReconcileProperty_AnInadmissibleValueIsKeptNotAdopted`,
   `schema.TestAllOf_ANullOnARefOverTheTopTypeIsKept`,
   `merge.TestReconcileProperty_IdenticalNodesAreOneType`,
-  `schema.TestAllOf_IdenticalNodesAreOneType`
+  `schema.TestAllOf_IdenticalNodesAreOneType`,
+  `merge.TestMergeProperty_AMissedTypeDefersEveryRedeclarationOfTheProperty`,
+  `schema.TestAllOf_ARedeclarationIsJudgedOnceTheComponentsHaveLowered`
 - Status: partly built: two distinct nodes of related kinds (`format: hex` against `format: byte`,
   two enums whose members fit each other's kind, two different literals) are reported as an overlap
   and never narrowed; a property redeclared as a list and as a tuple is reported as a conflict
-  (#899); and a `$ref` whose component lowers after the composing schema is not judged: the first
-  declaration's type is kept without a diagnostic, whether the pair narrows or conflicts, so the
-  merged type depends on branch order and on component order (#898). Open: intersecting the
-  redeclared bounds and defaults rather than keeping one (#10).
+  (#899). Open: intersecting the redeclared bounds and defaults rather than keeping one (#10).
 
 ### `allof-required`
 

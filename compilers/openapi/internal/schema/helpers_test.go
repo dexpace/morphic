@@ -128,3 +128,16 @@ func conflictDiags(diags []ir.Diagnostic) []ir.Diagnostic {
 	}
 	return out
 }
+
+// settledSpec is nonBareSpec with the components after the schema composing
+// them, and the registry settled, as a compile settles it.
+func settledSpec(t *testing.T, extra, schemaA, schemaB string) (*ir.Document, []ir.Diagnostic) {
+	t.Helper()
+	l, diags := loweredFor(t, openapitest.ComponentSpec(
+		"    T:\n      allOf:\n"+
+			"        - type: object\n          properties: {v: "+schemaA+"}\n"+
+			"        - type: object\n          properties: {v: "+schemaB+"}\n"+extra))
+	l.diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.ctx, l.types, &l.anchors))
+	l.diags.AppendAll(l.types.Settle(t.Context()))
+	return l.out, append(diags, l.diags.List()...)
+}
