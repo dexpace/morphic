@@ -97,16 +97,18 @@ func readWithin(within, path string, limit int) ([]byte, error) {
 // link leads to rather than following the link. A path outside within, as
 // written or once its links are followed, is refused with ErrOutsideWithin. A
 // path whose links do not resolve, a missing file among them, is placed as
-// written and left for the open to report.
+// written and left for the open to report. The two are put alike first, since
+// a relative path's links resolve only below a working directory that may
+// itself be reached through one.
 func resolveWithin(within, path string) (string, string, error) {
-	rel, ok := relativeTo(within, path)
+	dir, file, rel, ok := relate(within, path)
 	if !ok {
 		return "", "", outside(path, within)
 	}
-	realDir, dirResolved := linksResolved(within)
-	realFile, fileResolved := linksResolved(path)
+	realDir, dirResolved := linksResolved(dir)
+	realFile, fileResolved := linksResolved(file)
 	if !dirResolved || !fileResolved {
-		return within, rel, nil
+		return dir, rel, nil
 	}
 	if rel, ok = relativeTo(realDir, realFile); !ok {
 		return "", "", outside(path, within)

@@ -69,21 +69,29 @@ func asURL(s string) (*url.URL, bool) {
 // the working directory is read only when one of the two is absolute and the
 // other is not. dir itself lies inside dir.
 func relativeTo(dir, path string) (string, bool) {
+	_, _, rel, ok := relate(dir, path)
+	return rel, ok
+}
+
+// relate is relativeTo, returning beside the relative path dir and path as it
+// read them: cleaned and, where exactly one is absolute, both made absolute
+// against the working directory, so each is read as the other is.
+func relate(dir, path string) (string, string, string, bool) {
 	dir, path = filepath.Clean(dir), filepath.Clean(path)
 	if filepath.IsAbs(dir) != filepath.IsAbs(path) {
 		var err error
 		if dir, err = filepath.Abs(dir); err != nil {
-			return "", false
+			return "", "", "", false
 		}
 		if path, err = filepath.Abs(path); err != nil {
-			return "", false
+			return "", "", "", false
 		}
 	}
 	rel, err := filepath.Rel(dir, path)
 	if err != nil || !filepath.IsLocal(rel) {
-		return "", false
+		return "", "", "", false
 	}
-	return rel, true
+	return dir, path, rel, true
 }
 
 // outside returns the error a request confined to within fails with for name.

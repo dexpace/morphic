@@ -57,12 +57,12 @@ type diskCase struct {
 	names                  string
 }
 
-// check reads tc's request through d and holds the answer to tc.
-func (tc diskCase) check(t *testing.T, d reader.Disk, expand func(string) string) {
+// check reads tc's request through a Disk and holds the answer to tc.
+func (tc diskCase) check(t *testing.T, expand func(string) string) {
 	t.Helper()
 	req := compilers.DocumentRequest{Location: expand(tc.location), Within: expand(tc.within)}
 
-	got, err := d.ReadDocument(t.Context(), req)
+	got, err := reader.Disk{}.ReadDocument(t.Context(), req)
 
 	if !tc.fails && tc.wantIs == nil {
 		require.NoError(t, err)
@@ -125,7 +125,7 @@ func TestDisk_ReadDocumentConfined(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			tc.check(t, reader.Disk{}, expand)
+			tc.check(t, expand)
 		})
 	}
 }
@@ -155,7 +155,31 @@ func TestDisk_ReadDocumentConfinedToTheWorkingDirectory(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			tc.check(t, reader.Disk{}, expand)
+			tc.check(t, expand)
+		})
+	}
+}
+
+// TestDisk_ReadDocumentConfinedBelowALinkedWorkingDirectory pins a confined
+// read from a working directory reached through a symbolic link: a relative
+// directory and an absolute file inside it are inside, though the file's links
+// resolve and the directory's, being relative, only below the working
+// directory. It changes directory, so it runs alone.
+func TestDisk_ReadDocumentConfinedBelowALinkedWorkingDirectory(t *testing.T) {
+	root := diskTree(t)
+	link := filepath.Join(resolvedDir(t), "link")
+	symlink(t, root, link)
+	t.Chdir(link)
+	expand := expander(link, "")
+	tests := []diskCase{
+		{name: "a relative directory, an absolute file", within: "in", location: "{root}/in/a.yaml", want: "inside"},
+		{name: "an absolute directory, a relative file", within: "{root}/in", location: "in/a.yaml", want: "inside"},
+		{name: "a relative directory, an absolute file outside", within: "in", location: "{root}/outside.yaml",
+			wantIs: compilers.ErrOutsideWithin},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			tc.check(t, expand)
 		})
 	}
 }
@@ -195,7 +219,7 @@ func TestDisk_ReadDocumentUnconfined(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			tc.check(t, reader.Disk{}, expand)
+			tc.check(t, expand)
 		})
 	}
 }

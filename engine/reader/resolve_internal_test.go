@@ -8,6 +8,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/dexpace/morphic/compilers"
 )
 
 // TestReadRooted_RefusesALinkSwappedInAfterTheCheck pins what the os.Root open
@@ -38,4 +40,19 @@ func TestReadRooted_RefusesALinkSwappedInAfterTheCheck(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Nil(t, got, "the link's target is never read")
+}
+
+// TestResolveWithin_RefusesAMixedPairWithNoWorkingDirectory pins a confined
+// read of a relative directory and an absolute file where the working
+// directory cannot be read: the two cannot be put alike, so the file is
+// outside, as relativeTo answers for the same pair.
+func TestResolveWithin_RefusesAMixedPairWithNoWorkingDirectory(t *testing.T) {
+	root := resolved(t)
+	t.Chdir(root)
+	abs := filepath.Join(root, "d", "a.yaml")
+	vanishWorkingDirectory(t)
+
+	_, _, err := resolveWithin("d", abs)
+
+	require.ErrorIs(t, err, compilers.ErrOutsideWithin)
 }
