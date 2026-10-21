@@ -271,9 +271,9 @@ names nothing. Under an `$id` a pointer names a position of the resource, with n
 names the schema writing the `$id`; under none, `#` names the document's root. A plain-name
 fragment names the schema of that resource declaring it as its `$anchor` or `$dynamicAnchor`, and a
 URI an `$id` declares names that schema, as one a `$ref`'s document part names; a name or a URI two
-schemas declare names neither. The identifiers read are those the source's schemas declare where the
-OpenAPI grammar places a schema, so one written in an example, an extension, the fields beside a
-reference object's `$ref`, or another document, which is raw YAML, declares none. An `$id` names the URI its part before the `#` resolves to
+schemas declare names neither. Identifiers are read only where the OpenAPI grammar places a schema
+in the source, so one in an example, an extension, the fields beside a reference object's `$ref`, or
+another document declares none. An `$id` names the URI its part before the `#` resolves to
 against the base above it, by RFC 3986 where that base is a URI and as a `$ref`'s document is placed
 where it is a file's path, and identifiers match as RFC 3986 §6.2.2 normalizes them. One with a
 fragment that is not empty names none, as 2020-12 admits none, one naming the URI of the resource
@@ -1514,11 +1514,10 @@ under `no_ir_home`, each under `openapi:<keyword>` and each reported as an info
 identifies every type by a synthetic ID derived from its source pointer rather than by `$id` (§3),
 and describes one API surface rather than a resource graph, so it has no dialect axis and none is
 coming: each is kept verbatim under `openapi:<keyword>` (`out_of_scope`), with an info
-`openapi/degraded-construct` at it. `$id` is read besides, where [`references`](#references) reads
-one, as the identifier, and the base URI, that a `$ref` resolves against, and it stops a
-`$dynamicRef` expanding across it ([`dynamic-ref`](#dynamic-ref)); a reference to it lowers to the
-schema's type, whose ID its pointer gives, so nothing of the identifier reaches the IR beyond the
-verbatim copy. A
+`openapi/degraded-construct` at it. `$id` is read besides, as the identifier and base URI a `$ref`
+resolves against where [`references`](#references) reads one, and it stops a `$dynamicRef` expanding
+across it ([`dynamic-ref`](#dynamic-ref)); a reference to it lowers to the schema's type, whose ID
+its pointer gives, so nothing of the identifier reaches the IR beyond the verbatim copy. A
 document's `jsonSchemaDialect`, the default `$schema` of its schemas, is kept on the Document the
 same way, every schema read in the OpenAPI dialect whatever it names. `$comment` is dropped outright
 — 2020-12 §8.3 forbids presenting it to end users, so no emitter may see it. `$dynamicAnchor` is
@@ -1536,8 +1535,8 @@ schema declaring it.
 Every keyword of the JSON Schema 2020-12 vocabularies reaches the compiled IR, lowered by a rule of
 this document or kept verbatim, its presence and its value both, with four exceptions that change
 nothing by design: `$comment`, which the specification forbids surfacing; `$defs`, whose members
-lower where a `$ref` reaches them; and `$dynamicAnchor` and `$anchor`, each read as a reference
-target ([`dialect-keywords`](#dialect-keywords)). The keyword lists
+lower where a `$ref` reaches them; and `$dynamicAnchor` and `$anchor`, each consumed as a reference
+target rather than carried as content ([`dialect-keywords`](#dialect-keywords)). The keyword lists
 of §4.7 and of this section are held to that rather than merely asserted:
 `TestVocabulary2020_12_EveryKeywordIsLoweredOrKept` enumerates the vocabularies keyword by keyword
 and, for each, compiles three documents — the keyword absent, written with one value, written with a
