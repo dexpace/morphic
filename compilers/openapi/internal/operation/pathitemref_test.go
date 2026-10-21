@@ -1385,11 +1385,11 @@ func methodsAt(doc *ir.Document, uri string) []string {
 // TestContent_ASharedBodyOrHeaderIsNamedForItsDeclaration pins how a request
 // body or a header two operations reach by reference is named: for its
 // declaration, never for whichever reference lowered first, a body for the
-// operation declaring it whether or not that operation is lowered. Each spec is
-// compiled with the two referencing operations in both orders, and the type
-// registries must match: another document's declaration, one there at the
-// pointer a referencing operation has in the source, and one the source writes
-// under no operation.
+// operation declaring it whether or not that operation is lowered, and built in
+// the document declaring it. Each spec is compiled with the two referencing
+// operations in both orders, and the type registries must match: another
+// document's declaration, one there at the pointer a referencing operation has
+// in the source, and one the source writes under no operation.
 func TestContent_ASharedBodyOrHeaderIsNamedForItsDeclaration(t *testing.T) {
 	t.Parallel()
 	const other = `openapi: 3.1.0
@@ -1417,13 +1417,18 @@ x-headers:
 	}
 	for name, tc := range map[string]struct {
 		extra, path, body, header string
-		hints                     []string
+		nodes                     []string // each node's ID and hint, sorted
 	}{
 		"another document's": {"", "/a", "other.yaml#/paths/~1x/post/requestBody",
-			"other.yaml#/paths/~1x/post/responses/200/headers/X-H", []string{"other_post_request", "x_h"}},
+			"other.yaml#/paths/~1x/post/responses/200/headers/X-H", []string{
+				"t/anon@other.yaml/paths/~1x/post/requestBody/content/application~1json/schema other_post_request",
+				"t/anon@other.yaml/paths/~1x/post/responses/200/headers/X-H/schema x_h"}},
 		"another document's, at the source's own pointer": {"", "/x", "other.yaml#/paths/~1x/post/requestBody",
-			"other.yaml#/paths/~1x/post/responses/200/headers/X-H", []string{"other_post_request", "x_h"}},
-		"the source's, under no operation": {local, "/a", "#/x-bodies/b", "#/x-headers/h", []string{"h", "request"}},
+			"other.yaml#/paths/~1x/post/responses/200/headers/X-H", []string{
+				"t/anon@other.yaml/paths/~1x/post/requestBody/content/application~1json/schema other_post_request",
+				"t/anon@other.yaml/paths/~1x/post/responses/200/headers/X-H/schema x_h"}},
+		"the source's, under no operation": {local, "/a", "#/x-bodies/b", "#/x-headers/h", []string{
+			"t/anon/x-bodies/b/content/application~1json/schema request", "t/anon/x-headers/h/schema h"}},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -1444,14 +1449,14 @@ x-headers:
 			forward, backward := compile(alpha, bravo), compile(bravo, alpha)
 
 			assert.Empty(t, cmp.Diff(forward, backward), "the names must not follow the declaration order")
-			var hints []string
+			var nodes []string
 			for _, td := range forward {
 				if td.Common().Provenance.Source != ir.NoSource {
-					hints = append(hints, td.Common().Name.Hint)
+					nodes = append(nodes, string(td.Common().ID)+" "+td.Common().Name.Hint)
 				}
 			}
-			slices.Sort(hints)
-			assert.Equal(t, tc.hints, hints)
+			slices.Sort(nodes)
+			assert.Equal(t, tc.nodes, nodes, "each built in its declaration's document, under its name")
 		})
 	}
 }

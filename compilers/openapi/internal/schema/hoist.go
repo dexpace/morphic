@@ -13,7 +13,8 @@ import (
 // maxSchemaDepth caps schema-lowering recursion (styleguide bounded-recursion
 // rule). Interning by pointer is what terminates recursive and diamond schemas;
 // this bound only guards pathologically deep inline nesting. It counts from where
-// the lowering owning a position enters: a $ref never lowers what it names
+// the lowering owning a position enters, and from TopLevelDepth for a node only
+// a $ref's promise builds (hoistSubSchema): a $ref never lowers what it names
 // (resolvePointer), so a position meets the bound at one depth, whichever
 // reaches it first (GitHub #748).
 const maxSchemaDepth = 256
@@ -51,16 +52,13 @@ func registeredNode(c lowering.Ctx, ts *compile.Types, id ir.TypeID, pointer jso
 //
 // A $ref promises the node rather than building it (resolvePointer), so every
 // lowering reaching pointer does so in the context its position gives it, and
-// the first build stands for all. It is named by the hint the position's own
-// lowering recorded (lowering.Ctx.DeclareHint), as a node a $ref hoists where
-// that lowering interned none is too.
+// the first build stands for all. A node a $ref hoists where no lowering
+// interned one takes the hint the position's own lowering recorded
+// (hoistSubSchema), so hint is always the position's.
 func internNode(c lowering.Ctx, ts *compile.Types, pointer jsontext.Pointer, hint string,
 	build func(common ir.TypeCommon) ir.TypeDef,
 ) ir.TypeID {
 	id := c.IDs().ForPointer(pointer)
-	if declared, ok := c.HintAt(pointer); ok {
-		hint = declared
-	}
 	return ts.Intern(c.IDs().Coordinate(pointer), id, func() ir.TypeDef { return build(commonFor(c, id, pointer, hint)) })
 }
 

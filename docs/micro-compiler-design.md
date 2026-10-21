@@ -515,7 +515,8 @@ stands for every later one and no answer follows declaration order. Three mechan
 1. A `$ref` never lowers what it names. It takes the ID the target's pointer derives and promises
    the node (`compile.Types.Promise`). The declaration owning the position builds it in its own
    walk; `Fulfil`, after every declaration, builds in coordinate order only what none interned,
-   from the position's own depth and under the hint its own lowering recorded.
+   each build a walk of its own from the top level, under the hint the position's own lowering
+   recorded.
 2. A lowering that mounts an object another position declares, a request body or a header written
    elsewhere, names it by where it is declared, never by where it is mounted, so every mount builds
    the node the declaration builds.

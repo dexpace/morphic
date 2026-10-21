@@ -1034,9 +1034,10 @@ func conjoinBranch(m *ir.Model, branch ir.TypeID) {
 // name, falling back to a positional hint for inline branches. It names both a
 // union variant and an allOf branch, which reach it as the same question.
 //
-// A $ref branch's answer is also hoistSubSchema's (subSchemaHint), and must
-// stay so: an outside $ref can name the branch pointer, and the node it owns
-// would otherwise be hinted by whichever of the two lowerings arrived first.
+// A $ref branch's answer is also subSchemaHint's, and must stay so: an outside
+// $ref can name the branch pointer, and hoistSubSchema names it by
+// subSchemaHint where no lowering of the composition recorded this hint, so
+// the branch takes one name whether or not its composition is lowered.
 func branchHint(refs *typed.Bindings, b *oas3.JSONSchema[oas3.Referenceable], i int) string {
 	// Only a true reference carries a target name: IsReference() is precisely
 	// GetSchema().Ref != "" for a non-bool branch, so a schema whose Ref pointer is

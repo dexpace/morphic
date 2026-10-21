@@ -227,8 +227,8 @@ func resolveAt(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, at bind.
 
 // resolvePointer resolves a pointer in c's document to the ID of the schema it
 // addresses: a source component by its stable ID, any other position by the ID
-// its pointer derives in that document. A reference never builds what it names, so never in its own
-// context rather than its owner's: it promises the node
+// its pointer derives there. A reference never builds what it names, so no node
+// is built in a reference's context: it promises the node
 // (compile.Types.Promise), which hoistSubSchema builds from decl, the schema
 // the bindings hold there, only where no declaration interned one. A decl it
 // cannot hoist resolves to nothing.
@@ -255,13 +255,13 @@ func resolvePointer(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, poi
 // where a $ref names a position no declaration interned a node at, once every
 // declaration has lowered (compile.Types.Fulfil). It aliases where the body
 // reduces to a shared target, so a $ref always resolves (invariants 1, 2), a
-// boolean schema included (GitHub #861), and the alias keeps the position's
-// constraints and examples.
+// boolean schema included (GitHub #861), keeping the position's constraints
+// and examples.
 //
 // It lowers in the position's own context, whichever reference promised it:
-// its own depth, decl's document, and the hint the position's lowering
-// recorded, else subSchemaHint. A $ref decl writes with siblings is aliased
-// with them kept.
+// from TopLevelDepth, as a walk of its own, in decl's document, and under the
+// hint the position's lowering recorded, else subSchemaHint. A $ref with
+// siblings is aliased, keeping them.
 func hoistSubSchema(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, decl *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer) []ir.Diagnostic {
 	s := annotation.At(decl)
 	// c reads the document that declares pointer already (resolveAt), which is

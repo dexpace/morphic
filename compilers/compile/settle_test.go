@@ -110,6 +110,33 @@ func TestTypes_DeferRefusesWhatSettleWouldNeverTake(t *testing.T) {
 	}
 }
 
+// TestTypes_SettleBeforeFulfilIsRefused pins the order a compiler keeps: a
+// settlement reads the registry whole, which it is not while a promise waits
+// for Fulfil, so settling first is a breach. A Fulfil that ran, even one a
+// cancellation cut short with a promise left over, is no breach: the stop is
+// the caller's to act on.
+func TestTypes_SettleBeforeFulfilIsRefused(t *testing.T) {
+	t.Parallel()
+	early := compile.NewTypes()
+	early.Promise("/a", func() []ir.Diagnostic { return nil })
+	early.Settle(t.Context())
+	require.Len(t, early.Violations(), 1)
+	assert.Contains(t, early.Violations()[0], "settle before fulfil: the settlements read a registry missing every promised node (1 promised)")
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cut := compile.NewTypes()
+	cut.Promise("/a", func() []ir.Diagnostic {
+		cancel()
+		cut.Promise("/c", func() []ir.Diagnostic { return nil })
+		cut.Intern("/a", "t/anon/a", func() ir.TypeDef { return &ir.Model{ID: "t/anon/a"} })
+		return nil
+	})
+	cut.Promise("/b", func() []ir.Diagnostic { return nil })
+	cut.Fulfil(ctx)
+	cut.Settle(ctx)
+	assert.Empty(t, cut.Violations(), "a promise a cut-short Fulfil left over is not settling first")
+}
+
 // TestTypes_SettlementThatAddsOrRemovesANodeIsRefused pins the writes a
 // settlement may not make. Nothing lowers after Settle, so an added node is
 // the only one no lowering produced, and a removed one leaves its references

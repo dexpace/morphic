@@ -10,8 +10,8 @@ import (
 
 // Promise records that a node is expected at coordinate: a reference names it
 // and leaves building it to the lowering that owns it, so the node is built in
-// its owner's context whichever lowering reached it first. build builds it
-// where no lowering has once every one has returned (Fulfil).
+// its owner's context whichever lowering reached it first. Once every lowering
+// has returned, build builds it if none did (Fulfil).
 //
 // A coordinate promised again keeps its first build: a build lowers the
 // coordinate in the context its own position gives it, not its referrer's, so

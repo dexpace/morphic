@@ -476,7 +476,8 @@ func (s Scope) NamesReferent(js *oas3.JSONSchema[oas3.Referenceable]) bool {
 
 // Hoistable reports whether decl, the schema a $ref lands on, can be hoisted
 // where it is written: one with a body, or a boolean one (GitHub #861).
-// hoistSubSchema and NamesReferent both ask it, so they cannot part.
+// The schema lowering's resolvePointer and NamesReferent both ask it, so they
+// cannot part.
 func Hoistable(decl *oas3.JSONSchema[oas3.Referenceable]) bool {
 	return decl != nil && (decl.IsBool() || annotation.At(decl).Node != nil)
 }

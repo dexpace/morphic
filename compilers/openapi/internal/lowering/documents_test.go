@@ -122,7 +122,9 @@ func TestIDsAt_NamesEachSourceEntrysDocument(t *testing.T) {
 
 // TestDeclareHint_KeepsOnePointerInTwoDocumentsApart pins that one pointer in
 // two documents is two positions: a hint recorded at the source's /X names
-// nothing at another document's /X, and each keeps its own.
+// nothing at another document's /X, and each keeps its own. ext.yaml's content
+// read in its scope at the source's coordinates (InScope) is a third, though
+// its scope is ext.yaml's.
 func TestDeclareHint_KeepsOnePointerInTwoDocumentsApart(t *testing.T) {
 	t.Parallel()
 	c, _ := loadSplit(t, "X: {type: string}\nP: {name: p, in: query}\n")
@@ -137,6 +139,8 @@ func TestDeclareHint_KeepsOnePointerInTwoDocumentsApart(t *testing.T) {
 	assert.Equal(t, "source", hint)
 	hint, _ = there.HintAt("/X")
 	assert.Equal(t, "ext", hint)
+	_, recorded = there.InScope(there.RefScope()).HintAt("/X")
+	assert.False(t, recorded, "ext.yaml's scope at the source's coordinates is neither")
 }
 
 // TestOperationIDAt_ReadsTheDeclaringDocument pins where a position's

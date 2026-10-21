@@ -3322,15 +3322,15 @@ func TestCrossPathReference_ADiagnosticIsReportedOnce(t *testing.T) {
 		"the reference adds no copy of a diagnostic the declaration reports")
 }
 
-// TestComponentBody_SubtreeIsNamedByItsDeclaration is #529 for a schema inside a
-// component response or parameter. Components lower before operations, so a
-// schema's $ref into the body always arrives first and interns the subtree
-// under its own names; the component, used from /u, must still name it.
+// TestComponentBody_SubtreeIsNamedByItsDeclaration is #529 for a schema inside
+// a component response, parameter, request body or header. Components lower
+// before operations, so a schema's $ref into the body always reaches it first;
+// it builds nothing, and the component, used from /u, names the subtree
+// (GitHub #747).
 //
 // Each row compiles the owner alone and with a $ref from components/schemas to
 // its items, the components declared in both orders. The registry at the
-// owner's schema pointer must come out identical. A request body or header
-// does not yet (GitHub #747).
+// owner's schema pointer must come out identical.
 func TestComponentBody_SubtreeIsNamedByItsDeclaration(t *testing.T) {
 	t.Parallel()
 	const preamble = "openapi: 3.1.0\ninfo: {title: O, version: \"1.0.0\"}\n"
@@ -3342,6 +3342,14 @@ func TestComponentBody_SubtreeIsNamedByItsDeclaration(t *testing.T) {
 		{"parameter", "/components/parameters/P/schema",
 			"paths:\n  /u:\n    get:\n      operationId: useP\n      parameters: [{$ref: '#/components/parameters/P'}]\n      responses: {\"204\": {description: ok}}\n",
 			"  parameters:\n    P: {name: q, in: query, schema: " + ownerSchema + "}\n"},
+		{"request body", "/components/requestBodies/B/content/application~1json/schema",
+			"paths:\n  /u:\n    post:\n      operationId: useB\n      requestBody: {$ref: '#/components/requestBodies/B'}\n" +
+				"      responses: {\"204\": {description: ok}}\n",
+			"  requestBodies:\n    B: {content: {application/json: {schema: " + ownerSchema + "}}}\n"},
+		{"header", "/components/headers/H/schema",
+			"paths:\n  /u:\n    get:\n      operationId: useH\n      responses:\n        \"200\":\n" +
+				"          description: ok\n          headers: {X-H: {$ref: '#/components/headers/H'}}\n",
+			"  headers:\n    H: {schema: " + ownerSchema + "}\n"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

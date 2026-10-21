@@ -25,15 +25,19 @@ func okResponse(path, opID, schema string) string {
 		"          description: ok\n          content: {application/json: {schema: %s}}\n", path, opID, schema)
 }
 
+// arraysAround wraps body in n arrays.
+func arraysAround(body string, n int) string {
+	for range n {
+		body = "{type: array, items: " + body + "}"
+	}
+	return body
+}
+
 // nestedArrays is an object body wrapped in arrays, close enough to the schema
 // depth bound that a lowering entering it from a reference's depth, rather than
 // its own, would cross the bound.
 func nestedArrays() string {
-	body := "{type: object, properties: {v: {type: string}}}"
-	for range 254 {
-		body = "{type: array, items: " + body + "}"
-	}
-	return body
+	return arraysAround("{type: object, properties: {v: {type: string}}}", 254)
 }
 
 // ownershipCases are the shapes in which a reference reached a coordinate before
@@ -93,6 +97,14 @@ var ownershipCases = []struct {
 			okResponse("/b", "getB", nestedArrays()),
 		check: func(t *testing.T, _ *ir.Document, diags []ir.Diagnostic) {
 			assert.Zero(t, countAt(diags, "openapi/degraded-construct", ""), "no position crosses the bound")
+		}},
+	{name: "a body near the depth bound only a reference reaches, from deep in another (GitHub #748)",
+		spec: ownershipHead + "paths: {}\ncomponents:\n  schemas:\n" +
+			"    Use: " + arraysAround("{$ref: '#/components/schemas/Holder/$defs/D'}", 100) + "\n" +
+			"    Holder: {type: string, $defs: {D: " + nestedArrays() + "}}\n",
+		check: func(t *testing.T, _ *ir.Document, diags []ir.Diagnostic) {
+			assert.Zero(t, countAt(diags, "openapi/degraded-construct", ""),
+				"the promise builds the body from the top level, not from the reference's depth")
 		}},
 	{name: "a $ref into an enum member (GitHub #730)",
 		spec: ownershipHead + "paths: {}\ncomponents:\n  schemas:\n" +

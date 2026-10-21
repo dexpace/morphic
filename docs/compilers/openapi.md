@@ -538,11 +538,10 @@ operation with an `operationId` declares. `Aliases` is never set.
 - Tests: `ids.TestComponentSchemaNamedEmpty_SeparatesAnEmptyNameFromNoEntry`,
   `schema.TestEnumMemberIDs_NamesThatCanonicalizeToNothingStillGetIDs`,
   `schema.TestInlinePosition_HintIsTheSameInBothOrders`,
-  `operation.TestContent_ASharedBodyOrHeaderIsNamedForItsDeclaration`
-- Status: partly built: union variants and inline schemas ignore their `title` as a hint (#662); a
-  union variant naming a position in a path's body takes the pointer's name (#729); and a `$ref`
-  into a component request body or header names the subtree beneath its target by the reference
-  (#747).
+  `operation.TestContent_ASharedBodyOrHeaderIsNamedForItsDeclaration`,
+  `schema.TestComponentBody_SubtreeIsNamedByItsDeclaration`
+- Status: partly built: union variants and inline schemas ignore their `title` as a hint (#662); and
+  a union variant naming a position in a path's body takes the pointer's name (#729).
 
 ### `values`
 
@@ -1168,7 +1167,8 @@ at that position, whichever is lowered first.
   `openapi/budget-exceeded`
 - Tests: `schema.TestEnum_HeterogeneousBecomesUnionWithBadValue`,
   `schema.TestEnum_NonScalarAndMidListMismatch`,
-  `schema.TestEnumAsUnion_UnconvertibleMemberBecomesAny`
+  `schema.TestEnumAsUnion_UnconvertibleMemberBecomesAny`,
+  `openapi.TestCompile_AReferenceLeavesItsTargetToItsOwnerInEitherOrder`
 - Status: partly built: an `enum` ignores its `format`, though `Enum.ValueType` can carry it (#607);
   an enum whose members do not match its declared type lowers to a union with only an info
   diagnostic (#619); and a `Literal` carries no value type or format (#668). Open: whether a
