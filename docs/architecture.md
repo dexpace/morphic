@@ -361,6 +361,7 @@ morphic/
 ├── engine/                 # Layer 3 — orchestration: detect format, run compiler, passes, emitters.
 ├── internal/archtest/      #           Import layering, the recursion pin and the caps (tooling).
 ├── internal/census/        #           Counts which IR facts a set of documents sets (tooling).
+├── internal/conformance/   #           Holds each registered format to its matrix column (tooling, tests only).
 ├── internal/decls/         #           Type-checked reads of declarations, for tests (tooling).
 ├── internal/harness/       #           Bug-catching oracle sweep over a spec corpus (tooling).
 ├── internal/jsonshape/     #           The IR's JSON shape: IRVersion's pin and the census read it (tooling).
@@ -447,11 +448,12 @@ something a caller asks for with `none`, never a default.
 - **Capability conformance corpus**: one minimal spec per row of `ir-spec-matrix.md` per format
   that can express it, asserting the IR captures it losslessly. This is the regression net that
   keeps "lossless by default" honest as compilers are added. Row and spec are tied to each other
-  rather than left to prose: every matrix row carries a stable key, each corpus spec names the keys
-  it witnesses, and a row the OpenAPI column marks expressible must be witnessed by a spec or
-  listed as not-yet-covered with a reason (`compilers/openapi/conformance_matrix_test.go`). What
-  stays a reviewer's job is the claim inside that link — a spec naming a row has to *exercise* that
-  capability, and no test can read a golden and tell you whether it does.
+  rather than left to prose: every matrix row and format column carries a stable key, each
+  format's `testdata/conformance/<format>/matrix.md` names the specs that witness every row its
+  column marks expressible or why none does yet, and `internal/conformance` holds each format the
+  engine registers a compiler for to that column. What stays a reviewer's job is the claim inside
+  that link — a spec naming a row has to *exercise* that capability, and no test can read a golden
+  and tell you whether it does.
 - **Round-trip property**: `parse → serialize → deserialize → deep-equal` for every corpus
   document.
 - **Oracle sweep** (`internal/harness`): every corpus spec is driven through the oracles in order

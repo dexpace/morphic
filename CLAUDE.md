@@ -144,8 +144,8 @@ cmd/morphic-covergate/
              Layer 4 — judges a coverage profile for `make coverage`; imports x/tools/cover.
 cmd/morphic-vet/
              Layer 4 — runs internal/lintrules under go vet; imports it + x/tools unitchecker.
-internal/    Test/tooling infrastructure, outside the pipeline (harness, archtest, census, decls,
-             jsonshape, keydoc, leakcheck, lintrules, testspec).
+internal/    Test/tooling infrastructure, outside the pipeline (harness, archtest, census,
+             conformance, decls, jsonshape, keydoc, leakcheck, lintrules, testspec).
 ```
 
 The layering is enforced by `internal/archtest`, and **its `rules` map is the source of truth** —
@@ -187,10 +187,11 @@ These all exist already — extend them rather than building a parallel mechanis
 - **Capability conformance corpus** (`testdata/conformance/`): one minimal spec per
   `ir-spec-matrix.md` row per format that can express it, asserting lossless capture. This is what
   keeps "lossless by default" honest. The row↔spec mapping is machine-read, not prose: matrix rows
-  carry stable keys, each case names the keys it witnesses, and
-  `compilers/openapi/conformance_matrix_test.go` requires every expressible row to be witnessed or
-  listed with a reason. What it cannot check is whether a spec that *names* a row exercises that
-  capability — that claim is read by a reviewer, so weigh it like any other.
+  and format columns carry stable keys, each format's `testdata/conformance/<format>/matrix.md`
+  names the specs that witness every row its column marks expressible, or why none does yet, and
+  `internal/conformance` holds each format `engine.New` registers to its column with no test code of
+  its own. What it cannot check is whether a spec that *names* a row exercises that capability —
+  that claim is read by a reviewer, so weigh it like any other.
 - **IR census** (`testdata/unwitnessed.golden.txt`): every IR fact no committed spec sets, which is
   what the first emitters degrade rather than lower (`docs/emitter-design.md` §14.1). A fact is a
   struct member, the emptiness of an `omitzero` collection, or an enumeration value, read off
@@ -199,9 +200,9 @@ These all exist already — extend them rather than building a parallel mechanis
 - **Lowering specification**: `docs/compilers/openapi.md` is machine-read like the matrix. Each rule
   names its evidence, and the `TestLoweringSpec` tests in `compilers/openapi` hold the names to the
   code both ways, each listed code to the rule's text, and every `docs/compilers/openapi.md#<key>`
-  citation to a rule. It and `docs/parser-library.md` are read through `internal/keydoc`, the one
-  reader of the repository's keyed documents, and a test a Markdown document names must exist
-  (`internal/archtest`).
+  citation to a rule. It, `docs/parser-library.md` and each format's conformance `matrix.md` are
+  read through `internal/keydoc`, the one reader of the repository's keyed documents, and a test a
+  Markdown document names must exist (`internal/archtest`).
 - **Oracles**: `internal/harness` drives a spec through no-panic → no error diagnostic →
   `irverify` invariants → JSON round-trip → determinism → order-invariance, stopping at the first
   one that fires. `harness.Check` is the list — read it there rather than trusting this sentence;

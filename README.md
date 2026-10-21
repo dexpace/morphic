@@ -307,11 +307,12 @@ Run a single test with `go test ./ir -run TestName`. Beyond that:
 - **Conformance corpus.** Each case in `testdata/conformance/openapi/` is a minimal spec that
   witnesses one or more rows of the [spec capability matrix](docs/ir-spec-matrix.md). To add one,
   write `<name>.yaml`, add an entry to `conformanceCases()` in
-  `compilers/openapi/conformance_test.go` naming its assertion and the matrix row keys it
-  witnesses, then run the command above to write `<name>.golden.json`, and name the case in the
-  rule of the [OpenAPI lowering specification](docs/compilers/openapi.md) it pins. The suite fails
-  on a spec with no entry, on a case no rule names, and on a matrix row OpenAPI can express that no
-  case witnesses, unless the row is listed as uncovered with a reason.
+  `compilers/openapi/conformance_test.go` naming its assertion, list it under the matrix rows it
+  witnesses in `testdata/conformance/openapi/matrix.md`, then run the command above to write
+  `<name>.golden.json`, and name the case in the rule of the
+  [OpenAPI lowering specification](docs/compilers/openapi.md) it pins. The suite fails on a spec
+  with no entry, on a case no rule names, and on a matrix row OpenAPI can express that no case
+  witnesses, unless `matrix.md` lists the row as uncovered with a reason.
 - **Oracle harness.** `go run ./cmd/morphic-harness <file|dir>` sweeps specs through the
   bug-catching oracles, stopping at the first that fires for each: no panic, no error diagnostic,
   the `ir/irverify` structural invariants, JSON round-trip, determinism, and order-invariance. It

@@ -74,11 +74,12 @@ A lowering rule says how one OpenAPI construct reaches the IR: the field it fill
    `TestDocComments_StayUnderTheCap`, `TestSuppressions_NoDirectiveStandsInTheSource`.
 4. **Add a conformance case and a unit test.** Write a minimal spec at
    `testdata/conformance/openapi/<name>.yaml` that exercises the rule, add an entry to
-   `conformanceCases()` in `compilers/openapi/conformance_test.go` naming its assertion and the
-   [`ir-spec-matrix.md`](docs/ir-spec-matrix.md) rows it witnesses (none, for a case that pins only
-   a diagnostic), write the assertion, and name the case in the rule's Cases field. Then write its
-   golden alone, since a run that also reaches `TestConformance_TableNamesEveryCorpusSpec` reads the
-   directory before the golden exists:
+   `conformanceCases()` in `compilers/openapi/conformance_test.go` naming its assertion, list it
+   under each [`ir-spec-matrix.md`](docs/ir-spec-matrix.md) row it witnesses in
+   `testdata/conformance/openapi/matrix.md` (none, for a case that pins only a diagnostic), write
+   the assertion, and name the case in the rule's Cases field. Then write its golden alone, since
+   a run that also reaches `TestConformance_TableNamesEveryCorpusSpec` reads the directory before
+   the golden exists:
 
    ```bash
    go test ./compilers/openapi -run '^TestConformance$/^<name>$' -update
@@ -89,7 +90,10 @@ A lowering rule says how one OpenAPI construct reaches the IR: the field it fill
    rule's Tests field then names.
    *Fails if missed:* `TestConformance_TableNamesEveryCorpusSpec` for a spec with no entry,
    `TestConformance/<name>` for a golden that does not match, `TestLoweringSpec_CasesAreTheCorpus`
-   for a case no rule names, and `make coverage` for a statement only the case reaches.
+   for a case no rule names, `TestConformance_EveryRegisteredFormatIsHeldToItsColumn` for a name in
+   `matrix.md` that is no spec and for a row that has both a witness and a reason, and
+   `make coverage` for a statement only the case reaches. Nothing fails for a spec that witnesses a
+   row but is not listed under it.
 5. **Regenerate what the change moves, and read the diff.** Other goldens may change too:
 
    ```bash
@@ -179,8 +183,13 @@ A compiler lowers one source format into an IR document ([`architecture.md`](doc
    the refusals are reported: `Finish` returns them beside the registry, so dropping them takes a
    `_` a reviewer can see.
 4. **Register it** in `engine.Compilers` (`engine/engine.go`), the one place built-in compilers are
-   listed, and add the package to the `engine` entry of the `rules` map.
-   *Fails if missed:* `TestImportGraph_LayeringHolds/engine` for the allowlist. Nothing fails if the
+   listed, and add the package to the `engine` entry of the `rules` map. A registered compiler is
+   also held to its column of [`ir-spec-matrix.md`](docs/ir-spec-matrix.md): end the format's
+   column header with its registered name in code, and write
+   `testdata/conformance/<format>/matrix.md`, one entry for each row the column marks expressible,
+   as `testdata/conformance/openapi/matrix.md` does.
+   *Fails if missed:* `TestConformance_EveryRegisteredFormatIsHeldToItsColumn` for the column and
+   the document, and `TestImportGraph_LayeringHolds/engine` for the allowlist. Nothing fails if the
    compiler is never registered, so add an engine test that compiles a document of the format.
 5. **Test it** with golden snapshots through `ir/irtest` and `irverify` over its output. Keep its
    fixtures and goldens under `compilers/<format>/testdata/`: the harness sweeps the repository's
