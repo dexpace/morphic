@@ -274,11 +274,10 @@ func hoistSubSchema(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, dep
 	// coordinate, not through the declaration that owns it, so the names minted
 	// below are placeholders the declaration replaces (GitHub #372). It covers the
 	// subtree rather than this coordinate alone: a reference to an object body
-	// interns its children too, and their names hang off this one. It is read
-	// where the bindings place decl, whichever document's content held the
-	// reference: the source's own, or another document's past a $ref the pointer
-	// passes.
-	c = c.InScope(c.RefScope().InDocumentOf(decl)).NamingByReference()
+	// interns its children too, and their names hang off this one. c reads the
+	// document that declares pointer already (resolveAt), which is where the
+	// bindings place decl.
+	c = c.NamingByReference()
 
 	hint := subSchemaHint(c.Bindings(), decl, pointer)
 	ref, diags := Ref(c, ts, anchors, depth, decl, pointer, hint)

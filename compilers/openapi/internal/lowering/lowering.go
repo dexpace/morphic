@@ -95,7 +95,7 @@ type Ctx struct {
 	// home is the Document.Sources index of the document other than the
 	// source whose positions this lowering reads, or zero for the source's
 	// own. Set only by InDocument, beside the scope it reads that document's
-	// references in, so the two never part.
+	// references in, and cleared by InScope, which reads at the source's.
 	home int
 
 	// namesByReference marks a lowering running under a $ref that named a
@@ -384,15 +384,13 @@ func declaredElsewhere(c Ctx, foreign bool, usePtr jsontext.Pointer) (Ctx, jsont
 	return there, end.Pointer, ok
 }
 
-// InScope returns c for lowering what is read in scope, which c's own
-// reference scope answered for what it lowers (resolve.Scope.InDocumentOf,
-// InSource): the source's own content, whose positions are the source's, or
-// another document's.
+// InScope returns c for lowering at the source's coordinates what is read in
+// scope: the source's own content (resolve.Scope.InSource), or, as Within
+// gives it, another document's that no position of that document places.
+// What another document declares at a position of its own is lowered in its
+// coordinates instead (InDocument).
 func (c Ctx) InScope(scope resolve.Scope) Ctx {
-	c.foreign, c.holder = scope.Foreign, scope.Holder
-	if !scope.Foreign {
-		c.home = 0
-	}
+	c.foreign, c.holder, c.home = scope.Foreign, scope.Holder, 0
 	return c
 }
 

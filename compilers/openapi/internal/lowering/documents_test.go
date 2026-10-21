@@ -62,8 +62,8 @@ func extDoc(t *testing.T, c lowering.Ctx) bind.DocID {
 // of another document's content runs in: its references read in that
 // document's scope, each Provenance naming its Document.Sources entry, and its
 // IDs qualified by its label. The source's own number returns to the source's
-// coordinates, and a context given no documents, or none holding that one,
-// cannot place it.
+// coordinates, as InScope does in any scope, and a context given no documents,
+// or none holding that one, cannot place it.
 func TestInDocument_PlacesWhatAnotherDocumentDeclares(t *testing.T) {
 	t.Parallel()
 	c, doc := loadSplit(t, "X: {type: string}\nP: {name: p, in: query}\n")
@@ -88,6 +88,10 @@ func TestInDocument_PlacesWhatAnotherDocumentDeclares(t *testing.T) {
 	assert.False(t, back.RefScope().Foreign)
 	assert.Equal(t, ids.Document{}, there.InScope(there.RefScope().InSource()).IDs(),
 		"the source's scope is read at the source's coordinates")
+	kept := there.InScope(there.RefScope())
+	assert.True(t, kept.RefScope().Foreign)
+	assert.Equal(t, ir.Provenance{Pointer: "/X"}, kept.ProvenanceAt("/X"),
+		"InScope reads at the source's coordinates, in whichever scope")
 
 	_, ok = lowering.InDocument(lowering.Ctx{}, id)
 	assert.False(t, ok, "a context given no load holds no documents")
