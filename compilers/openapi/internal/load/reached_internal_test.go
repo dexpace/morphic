@@ -118,7 +118,7 @@ func TestReached_ChargeHoldsADocumentToWhatItHasLeft(t *testing.T) {
 }
 
 // reachedFixtureOther, reachedFixtureThird and reachedFixtureRoot exercise
-// reachedObject and targetOf through a real, resolved document: a schema
+// reachedNode and targetOf through a real, resolved document: a schema
 // reference to an object, one to a boolean (nothing but its value), a path
 // item, a path item whose chain stops at a pointer naming nothing, a response
 // whose chain loops, a chain through two documents, and internal references

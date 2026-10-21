@@ -50,20 +50,19 @@ func TestLoad_UnsupportedVersion(t *testing.T) {
 	assert.Equal(t, ir.SeverityError, diags[0].Severity)
 }
 
+// TestLoad_ValidationErrorsBecomeDiagnostics pins that what the rule table
+// finds reaches the caller as a diagnostic at the node it is about: responses
+// written as a string is a field of the wrong type, placed by pointer and by
+// position.
 func TestLoad_ValidationErrorsBecomeDiagnostics(t *testing.T) {
 	t.Parallel()
-	// paths entry with a bogus structure triggers library validation errors.
 	src := compilers.Source{Path: "bad.yaml", Data: []byte("openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {/x: {get: {responses: \"nope\"}}}\n")}
 	_, diags, err := Load(t.Context(), 0, src, Options{})
 	require.NoError(t, err)
-	require.NotEmpty(t, diags)
-	found := false
-	for _, d := range diags {
-		if d.Provenance.Position != (ir.Position{}) {
-			found = true
-		}
-	}
-	assert.True(t, found, "diagnostics should carry position provenance")
+	require.Len(t, diags, 1, "%+v", diags)
+	assert.Equal(t, diag.Validation+"/validation-type-mismatch", diags[0].Code)
+	assert.Equal(t, ir.Provenance{Pointer: "/paths/~1x/get/responses", Position: ir.Position{Line: 3, Column: 31}},
+		diags[0].Provenance)
 }
 
 // TestLoad_OperationIDAndParameterUniquenessAreOthersToReport pins the two
