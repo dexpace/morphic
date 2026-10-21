@@ -5,7 +5,10 @@ import (
 	"fmt"
 	"strings"
 
+	yaml "gopkg.in/yaml.v3"
+
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -51,6 +54,16 @@ func (r *reporter) later(obj Object, key, value string, since Minor, ptr jsontex
 	r.diags = append(r.diags, diag.Newf(ir.SeverityWarning, diag.LaterVersionConstruct, r.locate(ptr),
 		"%s of the %s was added in OpenAPI %s, and this document declares %s; it is lowered as in an OpenAPI %s document",
 		what, obj.Name, since, r.declared, since))
+}
+
+// repeated warns of each key the mapping at ptr writes more than once: the
+// model reads the last copy and drops the rest without a word. what names the
+// mapping in the message.
+func (w *walker) repeated(node *yaml.Node, ptr jsontext.Pointer, what string) {
+	for _, key := range nodeview.RepeatedKeys(node) {
+		w.report(ir.SeverityWarning, classDuplicate, ptr.AppendToken(key),
+			"%s writes the key %q more than once, and only the last copy is read in OpenAPI %s (Format)", what, key, w.minor)
+	}
 }
 
 // severity is the severity of a finding of a rule stated at the level.

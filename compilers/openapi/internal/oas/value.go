@@ -114,6 +114,7 @@ func (w *walker) entries(f frame, fld Field, shape Shape, node *yaml.Node, ptr j
 	case Nested:
 		w.object(site{kind: fld.Of, node: node, ptr: ptr, held: fld.Name}, depth+1)
 	case Map:
+		w.repeated(node, ptr, "field "+strconv.Quote(fld.Name)+" of the "+f.obj.Name)
 		for _, p := range w.view.MappingPairs(node) {
 			if fld.Keys == ComponentName && !validFormat(ComponentName, p.Key) {
 				w.report(ir.SeverityError, classSyntax, ptr.AppendToken(p.Key),

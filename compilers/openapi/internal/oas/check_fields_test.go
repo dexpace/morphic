@@ -4,8 +4,10 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
+	"github.com/dexpace/morphic/ir"
 )
 
 // TestCheck_RequiredFieldsFollowTheMinor pins which minors require a field.
@@ -223,4 +225,21 @@ func TestCheck_RequestsAreHeldToTheirMinor(t *testing.T) {
 	assert.Empty(t, run(t, "3.5.0", oas.Info, `{}`))
 	assert.Empty(t, run(t, "4", oas.Info, `{}`))
 	assert.Empty(t, run(t, "3.1.0", oas.Kind(99), `{}`))
+}
+
+// TestCheck_RepeatedKeysAreWarnedOf pins the warning for a key a mapping writes
+// twice, whose earlier copy the model drops without a word.
+func TestCheck_RepeatedKeysAreWarnedOf(t *testing.T) {
+	verify(t, []scenario{
+		{"a field twice", "3.1.0", oas.Info, `{title: a, title: b, version: v}`, []finding{at(duplicate, "/title")}},
+		{"a key of a map twice", "3.1.0", oas.Components, `{schemas: {A: {}, B: {}, A: {}}}`, []finding{at(duplicate, "/schemas/A")}},
+		{"a path twice", "3.1.0", oas.Paths, `{/a: {}, /a: {}}`, []finding{at(duplicate, "/~1a")}},
+		{"a third copy is a second finding", "3.1.0", oas.Info, `{title: a, version: v, version: w, version: x}`,
+			[]finding{at(duplicate, "/version"), at(duplicate, "/version")}},
+		{"a key a merge also supplies", "3.1.0", oas.Info, `{<<: {title: a}, title: b, version: v}`, nil},
+		{"each key once", "3.1.0", oas.Info, `{title: a, version: v}`, nil},
+	})
+	got := run(t, "3.1.0", oas.Info, `{title: a, title: b, version: v}`)
+	require.Len(t, got, 1)
+	assert.Equal(t, ir.SeverityWarning, got[0].Severity)
 }

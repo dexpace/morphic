@@ -126,6 +126,7 @@ func (w *walker) object(s site, depth int) {
 		return
 	}
 	f := w.frameOf(obj, s, node)
+	w.repeated(node, s.ptr, obj.Name)
 	if w.reference(f, depth) {
 		return
 	}
