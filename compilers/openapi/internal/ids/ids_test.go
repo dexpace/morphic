@@ -224,7 +224,7 @@ func TestForPointer_ChoosesTheNamespace(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tc.want, ids.ForPointer(tc.pointer))
+			assert.Equal(t, tc.want, ids.Document{}.ForPointer(tc.pointer))
 		})
 	}
 }
@@ -237,11 +237,11 @@ func TestDerivations_AreDistinctAndPointerShaped(t *testing.T) {
 	t.Parallel()
 	const pointer = "/components/schemas/User"
 	got := map[string]string{
-		"named":    string(ids.NamedType(pointer)),
-		"anon":     string(ids.AnonType(pointer)),
-		"composed": string(ids.ComposedType(pointer)),
+		"named":    string(ids.Document{}.NamedType(pointer)),
+		"anon":     string(ids.Document{}.AnonType(pointer)),
+		"composed": string(ids.Document{}.ComposedType(pointer)),
 		"op":       string(ids.Op(pointer)),
-		"prop":     string(ids.Prop(pointer)),
+		"prop":     string(ids.Document{}.Prop(pointer)),
 		"auth":     string(ids.Auth("apiKey")),
 		"service":  string(ids.Service(0)),
 	}
@@ -263,6 +263,38 @@ func TestDerivations_AreDistinctAndPointerShaped(t *testing.T) {
 		}
 		seen[id] = kind
 	}
+}
+
+// TestDocument_QualifiesEachSpaceByItsLabel pins how another document's IDs
+// name it: each space qualified by its label as one segment, so a '/' or '~'
+// in a label cannot be read as a further path step, and its coordinates
+// behind that qualifier, so one pointer in two documents is two of each. The
+// empty label is the source's, which takes the bare spaces.
+func TestDocument_QualifiesEachSpaceByItsLabel(t *testing.T) {
+	t.Parallel()
+	const pointer = "/components/schemas/User"
+	other := ids.In("dir/a~b.yaml")
+	assert.Equal(t, map[string]string{
+		"named":      "t/openapi@dir~1a~0b.yaml/components/schemas/User",
+		"anon":       "t/anon@dir~1a~0b.yaml/components/schemas/User",
+		"composed":   "t/composed@dir~1a~0b.yaml/components/schemas/User",
+		"for":        "t/anon@dir~1a~0b.yaml/X",
+		"prop":       "p/openapi@dir~1a~0b.yaml/components/schemas/User",
+		"member":     "e/openapi@dir~1a~0b.yaml/components/schemas/User/s:a",
+		"coordinate": "@dir~1a~0b.yaml/components/schemas/User",
+	}, map[string]string{
+		"named":      string(other.NamedType(pointer)),
+		"anon":       string(other.AnonType(pointer)),
+		"composed":   string(other.ComposedType(pointer)),
+		"for":        string(other.ForPointer("/X")),
+		"prop":       string(other.Prop(pointer)),
+		"member":     string(other.EnumMember(pointer, "s:a", 1)),
+		"coordinate": other.Coordinate(pointer),
+	})
+
+	assert.Equal(t, ids.Document{}, ids.In(""), "the empty label is the source's")
+	assert.Equal(t, pointer, ids.Document{}.Coordinate(pointer))
+	assert.NotEqual(t, other.Coordinate(pointer), ids.In("dir").Coordinate(pointer))
 }
 
 // TestDeclarationHint_PrefersTheComponentName pins why a hint is not taken from
@@ -401,6 +433,25 @@ func TestNamespaces_NameEveryNamespaceThisCompilerMints(t *testing.T) {
 	}, ids.Namespaces().Declaration())
 }
 
+// TestNamespaces_DeclareEachOtherDocumentsSpaces pins that a compile reading
+// other documents declares, for each, the type, property and enum member
+// spaces its IDs are minted in, and no operation, parameter, security scheme
+// or service space, which the source's mounts and names alone take.
+func TestNamespaces_DeclareEachOtherDocumentsSpaces(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, map[string][]string{
+		ir.IDKindType: {"anon", "anon@a.yaml", "anon@b~1c.yaml", "composed", "composed@a.yaml",
+			"composed@b~1c.yaml", "openapi", "openapi@a.yaml", "openapi@b~1c.yaml"},
+		ir.IDKindOp:         {"openapi"},
+		ir.IDKindProp:       {"openapi", "openapi@a.yaml", "openapi@b~1c.yaml"},
+		ir.IDKindAuth:       {"openapi"},
+		ir.IDKindService:    {"openapi"},
+		ir.IDKindGroup:      {"default", "path-prefix", "tags", "webhooks"},
+		ir.IDKindParam:      {"openapi"},
+		ir.IDKindEnumMember: {"anon", "anon@a.yaml", "anon@b~1c.yaml", "openapi", "openapi@a.yaml", "openapi@b~1c.yaml"},
+	}, ids.Namespaces(ids.In("a.yaml"), ids.In("b/c.yaml")).Declaration())
+}
+
 // TestParam_ScopesByOperationNameAndLocation pins the spelling of a parameter ID
 // and what it is scoped by, written out rather than derived. The mount, the name
 // and the location each change it; the name is one escaped token, so a slash in
@@ -459,13 +510,13 @@ func TestEnumMember_LivesInItsEnumsSpaceAndPath(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got := ids.EnumMember(tc.pointer, tc.key, tc.occurrence)
+			got := ids.Document{}.EnumMember(tc.pointer, tc.key, tc.occurrence)
 			assert.Equal(t, tc.want, got)
 			assert.True(t, ir.WellFormedID(ir.IDKindEnumMember, string(got)))
 			memberSpace, _ := ir.IDSpace(ir.IDKindEnumMember, string(got))
-			enumSpace, _ := ir.IDSpace(ir.IDKindType, string(ids.ForPointer(tc.pointer)))
+			enumSpace, _ := ir.IDSpace(ir.IDKindType, string(ids.Document{}.ForPointer(tc.pointer)))
 			assert.Equal(t, enumSpace, memberSpace, "a member lives in its enum's own namespace")
-			assert.Equal(t, tc.enum, ids.ForPointer(tc.pointer))
+			assert.Equal(t, tc.enum, ids.Document{}.ForPointer(tc.pointer))
 		})
 		require.NotContains(t, seen, tc.want, "%s and %s share an ID", tc.name, seen[tc.want])
 		seen[tc.want] = tc.name

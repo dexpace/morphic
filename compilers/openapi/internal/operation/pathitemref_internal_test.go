@@ -35,11 +35,10 @@ func TestFirstDeclared_KeepsEachKeysFirstDeclaration(t *testing.T) {
 // TestPathItemLayers_NamesWhereTheUseSitesOwnUnreadFieldsAre pins the use
 // site's own place in the report of fields no model holds: read in another
 // document's scope they are that document's, and read in the source's they are
-// fields its walk did not reach. A compile rarely gets here, since a $ref
-// inside another document's content is never resolved (GitHub #751) and a
-// source use site goes unmodelled only when a walk panic stops the search, so
-// the context is given an empty load result in place of the load phase's
-// models.
+// fields its walk did not reach. A compile reaches the first through a path
+// item $ref another document's callback writes with fields beside it, and the
+// second only when a walk panic stops the search, so the context is given an
+// empty load result in place of the load phase's models.
 func TestPathItemLayers_NamesWhereTheUseSitesOwnUnreadFieldsAre(t *testing.T) {
 	t.Parallel()
 	l, diags := loweredFor(t, `openapi: 3.1.0

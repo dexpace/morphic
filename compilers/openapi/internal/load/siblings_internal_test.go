@@ -20,6 +20,7 @@ import (
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
+	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -360,7 +361,7 @@ func loadSiblingFixture(t *testing.T, main, target string, opts Options) []ir.Di
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "target.yaml"), []byte(target), 0o600))
 	path := filepath.Join(dir, "main.yaml")
-	opts.AllowExternalRefs = true
+	opts.Reader = reader.Disk{}
 	_, diags, err := Load(t.Context(), 0, compilers.Source{Path: path, Data: []byte(main)}, opts)
 	require.NoError(t, err)
 	return diags

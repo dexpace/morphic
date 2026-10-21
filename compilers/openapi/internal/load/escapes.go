@@ -6,6 +6,7 @@ import (
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"iter"
+	"net/url"
 	"reflect"
 	"slices"
 	"strings"
@@ -45,6 +46,12 @@ type escapes struct {
 	// writes with "%2B" itself. A restore keeps both, for asWritten.
 	spellings map[string]string
 	verbatim  map[string]bool
+	// refuses returns why a read refuses the document a $ref's document part
+	// names by that spelling alone, or nil (see forResolver); a nil refuses
+	// refuses none. minted holds the refusal of each document part escape
+	// respelled, by its respelling.
+	refuses func(uri string) error
+	minted  map[string]error
 }
 
 // changed is a node escape changed in place, and the node as it was.
@@ -53,9 +60,68 @@ type changed struct {
 	was  yaml.Node
 }
 
-// newEscapes returns a registry holding nothing.
-func newEscapes() *escapes {
-	return &escapes{written: map[*yaml.Node]string{}, spellings: map[string]string{}, verbatim: map[string]bool{}}
+// newEscapes returns a registry holding nothing, which respells each $ref
+// whose document part refuses refuses (see forResolver).
+func newEscapes(refuses func(uri string) error) *escapes {
+	return &escapes{written: map[*yaml.Node]string{}, spellings: map[string]string{}, verbatim: map[string]bool{},
+		refuses: refuses, minted: map[string]error{}}
+}
+
+// refusedScheme is the scheme forResolver respells a refused document part
+// under. The resolver hands a URL of any scheme to external.Do, which answers
+// each one escape minted with its refusal, unread (see external.unnamed). The
+// part is escaped whole, so the URL is opaque and net/url spells it back as
+// forResolver wrote it.
+const refusedScheme = "x-morphic-refused"
+
+// refusalOf returns the refusal of the document part escape respelled to key,
+// or nil for a key it minted none for.
+func (e *escapes) refusalOf(key string) error {
+	if e == nil {
+		return nil
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.minted[key]
+}
+
+// refused returns the respelling of the document part of the $ref value v,
+// and why e.refuses refuses it, or a nil reason where it refuses none.
+func (e *escapes) refused(v string) (key string, why error) {
+	if e == nil || e.refuses == nil {
+		return "", nil
+	}
+	uri, _, _ := strings.Cut(v, "#")
+	uri = strings.TrimSpace(uri)
+	if why = e.refuses(uri); why == nil {
+		return "", nil
+	}
+	return refusedScheme + ":" + url.PathEscape(uri), why
+}
+
+// refusal is bind.Config.Refuse for the document parts forResolver respells,
+// or nil where it respells none: the binder reads each $ref as written.
+func (e *escapes) refusal() func(uri string) error {
+	if e == nil {
+		return nil
+	}
+	return e.refuses
+}
+
+// forResolver returns the spelling the resolver is handed for the $ref value
+// v: its fragment as fragment.ForResolver spells it, and a document part
+// e.refuses refuses respelled under refusedScheme, so that the resolver asks
+// for it where the read refuses it.
+func (e *escapes) forResolver(v string) string {
+	spelled := fragment.ForResolver(v)
+	key, why := e.refused(spelled)
+	if why == nil {
+		return spelled
+	}
+	if _, rest, found := strings.Cut(spelled, "#"); found {
+		return key + "#" + rest
+	}
+	return key
 }
 
 // escape respells, in the tree under root, each $ref value the resolver would
@@ -73,7 +139,7 @@ func (e *escapes) escape(root *yaml.Node) {
 	respelled := map[*yaml.Node]string{}
 	eachRefValue(root, func(n *yaml.Node) bool {
 		v := nodeview.Deref(n)
-		spelled := fragment.ForResolver(v.Value)
+		spelled := e.forResolver(v.Value)
 		if spelled == v.Value {
 			if strings.Contains(v.Value, "%2B") {
 				e.verbatim[v.Value] = true
@@ -82,6 +148,9 @@ func (e *escapes) escape(root *yaml.Node) {
 		}
 		if was, ok := e.spellings[spelled]; !ok || v.Value < was {
 			e.spellings[spelled] = v.Value
+		}
+		if key, why := e.refused(v.Value); why != nil {
+			e.minted[key] = why
 		}
 		e.written[n] = v.Value
 		if n == v {
@@ -109,13 +178,13 @@ func (e *escapes) becomeScalar(n, v *yaml.Node, value string) {
 	n.Value, n.Line, n.Column, n.Anchor = value, line, column, anchor
 }
 
-// rewritable reports whether the tree under root holds a $ref value escape
-// would rewrite.
-func rewritable(root *yaml.Node) bool {
+// rewritable reports whether the tree under root holds a $ref value
+// forResolver respells.
+func (e *escapes) rewritable(root *yaml.Node) bool {
 	found := false
 	eachRefValue(root, func(n *yaml.Node) bool {
 		v := nodeview.Deref(n)
-		found = fragment.ForResolver(v.Value) != v.Value
+		found = e.forResolver(v.Value) != v.Value
 		return !found
 	})
 	return found

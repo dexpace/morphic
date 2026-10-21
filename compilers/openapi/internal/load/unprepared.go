@@ -90,21 +90,20 @@ func newExternalReads(self sourceDocument) *externalReads {
 	return r
 }
 
-// answer is how a request was answered: the error it failed with, or a status
-// and the body read for it.
+// answer is how a read was answered: the error it failed with, or the body
+// read.
 type answer struct {
-	status int
-	body   []byte
-	err    error
+	body []byte
+	err  error
 }
 
-// response returns a as the client returned it: its error, or a response to req
-// with its status and body.
+// response returns a as the client returned it: its error, or a successful
+// response to req carrying its body.
 func (a answer) response(req *http.Request) (*http.Response, error) {
 	if a.err != nil {
-		return nil, a.err
+		return nil, unread{a.err}
 	}
-	return &http.Response{StatusCode: a.status, Body: io.NopCloser(bytes.NewReader(a.body)), Request: req}, nil
+	return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(bytes.NewReader(a.body)), Request: req}, nil
 }
 
 // reading is one document's read: the answer it got, set once.
@@ -387,33 +386,32 @@ func (r *externalReads) handOver(doc *soa.OpenAPI, used []usedDocument) {
 // resolver parsed holds an anchor, or a $ref the prepared tree respells (see
 // escapes), doc is rebuilt and resolved again, handed every prepared tree (see
 // handOver) and answered from the first pass's reads. That reaches no new
-// document: the walk never descends into those trees; one found
-// unprepared is an internal fault.
-func resolveExternal(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI, sibs Siblings,
-	self sourceDocument, opts Options, rebuild func() (*soa.OpenAPI, error),
-) (*soa.OpenAPI, Siblings, *external, []ir.Diagnostic, error) {
+// document, as both passes walk alike; one found unprepared is returned, an
+// internal fault (stillUnprepared).
+func resolveExternal(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, self sourceDocument, opts Options,
+	rebuild func() (*soa.OpenAPI, error),
+) (*soa.OpenAPI, Siblings, *external, *resolution, []usedDocument, error) {
 	read := newExternalReads(self)
-	reader := newExternal(doc, opts, read)
-	diags := resolveWith(ctx, at, doc, sibs, self, opts, &reader)
-	used := documentsUsed(ctx, doc, sibs)
+	reader := newExternal(ctx, doc, opts, read)
+	pass := resolveWith(ctx, doc, sibs, self, opts, &reader)
+	used := pass.used()
 	first := unprepared(doc, read, used)
-	if !anyAnchored(doc, first) && !anyRewritable(doc, first) {
-		return doc, sibs, &reader, diags, nil
+	if !anyAnchored(doc, first) && !anyRewritable(doc, first, self.escapes) {
+		return doc, sibs, &reader, pass, nil, nil
 	}
 
 	again, err := rebuild()
 	if err != nil {
-		return nil, Siblings{}, nil, nil, err
+		return nil, Siblings{}, nil, nil, nil, err
 	}
 	again.InitCache()
 	// Modelled again, since the first models hold what the first pass resolved.
 	// Their faults are the first models', reported already.
 	sibs, _ = modelSiblings(ctx, again, nowhere)
 	read.handOver(again, used)
-	reader = newExternal(again, opts, read)
-	diags = resolveWith(ctx, at, again, sibs, self, opts, &reader)
-	missed := unprepared(again, read, documentsUsed(ctx, again, sibs))
-	return again, sibs, &reader, append(diags, stillUnprepared(at, missed)...), nil
+	reader = newExternal(ctx, again, opts, read)
+	pass = resolveWith(ctx, again, sibs, self, opts, &reader)
+	return again, sibs, &reader, pass, unprepared(again, read, pass.used()), nil
 }
 
 // anyAnchored reports whether any document in missed, as the resolver parsed
@@ -423,10 +421,11 @@ func anyAnchored(doc *soa.OpenAPI, missed []usedDocument) bool {
 }
 
 // anyRewritable reports whether any document in missed, as the resolver parsed
-// it, holds a $ref the resolver reads a '+' of as a space, which the prepared
-// tree has spelled otherwise (GitHub #911).
-func anyRewritable(doc *soa.OpenAPI, missed []usedDocument) bool {
-	return anyParsed(doc, missed, rewritable)
+// it, holds a $ref esc would respell, which the prepared tree has spelled
+// otherwise: one the resolver reads a '+' of as a space (GitHub #911), or one
+// a read refuses by its spelling.
+func anyRewritable(doc *soa.OpenAPI, missed []usedDocument, esc *escapes) bool {
+	return anyParsed(doc, missed, esc.rewritable)
 }
 
 // anyParsed reports whether the tree the resolver parsed for any document in
@@ -455,8 +454,8 @@ func hasAnchor(root *yaml.Node) bool {
 }
 
 // stillUnprepared reports each document the second resolution found
-// unprepared, once, at the first reference that read it.
-func stillUnprepared(at func(jsontext.Pointer) ir.Provenance, missed []usedDocument) []ir.Diagnostic {
+// unprepared, once, at the first reference that read it, placed by place.
+func stillUnprepared(place func(refSite) ir.Provenance, missed []usedDocument) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	reported := map[string]bool{}
 	for _, m := range missed {
@@ -464,7 +463,7 @@ func stillUnprepared(at func(jsontext.Pointer) ir.Provenance, missed []usedDocum
 			continue
 		}
 		reported[m.key] = true
-		diags = append(diags, diag.Newf(ir.SeverityError, diag.InternalInvariant, at(m.site),
+		diags = append(diags, diag.Newf(ir.SeverityError, diag.InternalInvariant, place(m.site),
 			"internal: the second resolution read %s itself; "+
 				"anchored entries in it may be missing (GitHub #538)", m.key))
 	}
@@ -472,35 +471,10 @@ func stillUnprepared(at func(jsontext.Pointer) ir.Provenance, missed []usedDocum
 }
 
 // usedDocument is a document the resolver read for a reference, under the key
-// it looked it up by, and the pointer that writes the reference.
+// it looked it up by, and the site that writes the reference.
 type usedDocument struct {
 	key  string
-	site jsontext.Pointer
-}
-
-// documentsUsed returns every document a resolved reference in doc read, at
-// every hop of its resolution, in walk order.
-func documentsUsed(ctx context.Context, doc *soa.OpenAPI, sibs Siblings) []usedDocument {
-	return hopsUsed(walkSource(ctx, doc, sibs))
-}
-
-// hopsUsed is documentsUsed over walk items rather than a document, so a test
-// can reach its early return: Match returns only what its callback returns,
-// which here is always nil, so no real walk stops early.
-func hopsUsed(items iter.Seq[soa.WalkItem]) []usedDocument {
-	var used []usedDocument
-	for item := range items {
-		if err := item.Match(soa.Matcher{Any: func(model any) error {
-			site := jsontext.Pointer(item.Location.ToJSONPointer())
-			for _, key := range resolutionTrail(model).docs {
-				used = append(used, usedDocument{key: key, site: site})
-			}
-			return nil
-		}}); err != nil {
-			return used
-		}
-	}
-	return used
+	site refSite
 }
 
 // unprepared returns the documents among used whose tree the resolver parsed

@@ -23,6 +23,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
+	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -67,7 +68,7 @@ func TestResolve_SitesEachFailureAtItsReference(t *testing.T) {
 	t.Parallel()
 	doc := parseSpec(t, sitedFailuresSpec)
 
-	got := resolveWith(t.Context(), pointerAt(0, overlay.Origin{}), doc, Siblings{}, sourceDocument{path: "root.yaml"}, Options{}, nil)
+	got := resolvedDiags(t, doc, "root.yaml")
 
 	want := []struct {
 		pointer        jsontext.Pointer
@@ -154,7 +155,7 @@ components:
     Alias: {$ref: 'other.yaml#/components/schemas/S'}
 `)
 
-		got := resolveWith(t.Context(), pointerAt(0, overlay.Origin{}), doc, Siblings{}, sourceDocument{path: "root.yaml"}, Options{}, nil)
+		got := resolvedDiags(t, doc, "root.yaml")
 
 		assertFailures(t, got, map[jsontext.Pointer]string{
 			"/paths/~1a/get/parameters/0": `unresolved $ref "#/components/parameters/Alias", ` +
@@ -180,7 +181,7 @@ components:
     Missing: {description: the source has one by this name}
 `)}
 
-		_, diags, err := Load(t.Context(), 0, src, Options{AllowExternalRefs: true})
+		_, diags, err := Load(t.Context(), 0, src, Options{Reader: reader.Disk{}})
 		require.NoError(t, err)
 
 		assertFailures(t, diags, map[jsontext.Pointer]string{
@@ -222,7 +223,7 @@ func TestResolve_AMappingChainReadsADefinitionWhereItIsWritten(t *testing.T) {
 		src := openapitest.ComponentSpec(pet+"    Holder: "+tc.holder+"\n") +
 			"x-lib:\n  S: {$defs: {X: " + tc.x + "}, $ref: '#/components/schemas/Holder/properties/p'}\n"
 		doc, diags, err := Load(t.Context(), 0, compilers.Source{Path: filepath.Join(dir, "root.yaml"), Data: []byte(src)},
-			Options{AllowExternalRefs: true})
+			Options{Reader: reader.Disk{}})
 		require.NoError(t, err, name)
 		require.NotNil(t, doc, name)
 
@@ -302,7 +303,7 @@ paths:
         "202": {$ref: 'ext.yaml#/components/responses/Broken'}
 `)}
 
-	_, diags, err := Load(t.Context(), 0, src, Options{AllowExternalRefs: true})
+	_, diags, err := Load(t.Context(), 0, src, Options{Reader: reader.Disk{}})
 	require.NoError(t, err)
 
 	ext, ext2 := filepath.Join(dir, "ext.yaml"), filepath.Join(dir, "sub", "ext2.yaml")
@@ -369,7 +370,7 @@ func TestResolve_ReachedFindingsDoNotDependOnDeclarationOrder(t *testing.T) {
 		}
 		src += "components:\n  responses:\n    Alias: {$ref: 'ext.yaml#/components/responses/R'}\n"
 		_, diags, err := Load(t.Context(), 0,
-			compilers.Source{Path: filepath.Join(dir, "root.yaml"), Data: []byte(src)}, Options{AllowExternalRefs: true})
+			compilers.Source{Path: filepath.Join(dir, "root.yaml"), Data: []byte(src)}, Options{Reader: reader.Disk{}})
 		require.NoError(t, err)
 		out := make([]string, 0, len(diags))
 		for _, d := range diags {
@@ -425,7 +426,7 @@ paths:
         "200": {$ref: 'ext.yaml#/components/responses/R'}
 `)}
 
-	doc, diags, err := Load(t.Context(), 0, src, Options{AllowExternalRefs: true})
+	doc, diags, err := Load(t.Context(), 0, src, Options{Reader: reader.Disk{}})
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 	assert.Empty(t, diags)
@@ -647,7 +648,7 @@ func TestResolve_ResolvesWhatTheLibraryResolves(t *testing.T) {
 		})
 		want := referencePairs(t, doc1)
 
-		resolveWith(t.Context(), pointerAt(0, overlay.Origin{}), doc2, Siblings{}, sourceDocument{path: path}, Options{}, nil)
+		resolveWith(t.Context(), doc2, Siblings{}, sourceDocument{path: path}, Options{}, nil)
 		got := referencePairs(t, doc2)
 
 		if d := cmp.Diff(want, got); d != "" {
@@ -657,4 +658,39 @@ func TestResolve_ResolvesWhatTheLibraryResolves(t *testing.T) {
 	}
 	assert.GreaterOrEqual(t, checked, 10,
 		"most of the corpus reaches the comparison; a filter this tight would check nothing")
+}
+
+// TestFailureDiag_WordsAFailedReadAsTheBinderDoes pins the phrasing a reference
+// object's failure takes from the binder's: a read Open or Do answered with a
+// refusal, a parse failure with the parser's line, and any other reason left
+// as the resolver gave it.
+func TestFailureDiag_WordsAFailedReadAsTheBinderDoes(t *testing.T) {
+	t.Parallel()
+	parser := errors.New("yaml: line 1: did not find expected node content")
+	for _, tc := range []struct {
+		name string
+		err  error
+		want string
+	}{
+		{"a read refused", unread{errors.New("external document b.yaml refused: why")},
+			`unresolved $ref "b.yaml#/P": the document it names could not be read: external document b.yaml refused: why`},
+		{"a document that does not parse", unread{&bind.UnparsableError{Err: parser}},
+			`unresolved $ref "b.yaml#/P": the document it names does not parse as YAML: yaml: line 1: did not find expected node content`},
+		{"a document holding nothing", unread{bind.ErrEmptyDocument}, `unresolved $ref "b.yaml#/P": the document it names is empty`},
+		{"the resolver's own reason", errors.New("not found"), `unresolved $ref "b.yaml#/P": not found`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			d := failureDiag(ir.Provenance{}, "b.yaml#/P", trail{}, tc.err)
+			assert.Equal(t, tc.want, d.Message)
+		})
+	}
+}
+
+// resolvedDiags is what a resolver pass over doc, at path and with no reader,
+// reports.
+func resolvedDiags(t *testing.T, doc *soa.OpenAPI, path string) []ir.Diagnostic {
+	t.Helper()
+	return resolveWith(t.Context(), doc, Siblings{}, sourceDocument{path: path}, Options{}, nil).
+		diags(sitePlacer(pointerAt(0, overlay.Origin{}), Others{}))
 }

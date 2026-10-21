@@ -13,6 +13,8 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
+	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
+	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -42,7 +44,7 @@ x-params:
   q: ` + param + "\n"
 			doc, diags, err := openapi.New().Compile(t.Context(),
 				[]compilers.Source{{Path: filepath.Join(dir, "root.yaml"), Data: []byte(root)}},
-				compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: true}})
+				compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
 			require.NoError(t, err)
 			assert.Empty(t, diags)
 			require.NotNil(t, doc)
@@ -55,7 +57,11 @@ x-params:
 			assert.Equal(t, want, op.Params[0].Type.Target)
 			s, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Scalar)
 			require.True(t, ok)
-			assert.Equal(t, ir.TypeID("t/anon/paths/~1a/get/parameters/0/schema"), s.Base.Target)
+			base := ir.TypeID("t/anon/paths/~1a/get/parameters/0/schema")
+			if ref != "#/x-params/q/" {
+				base = ids.In("ext.yaml").AnonType("/x-params/q/schema")
+			}
+			assert.Equal(t, base, s.Base.Target, "where the parameter's schema is declared")
 		})
 	}
 }

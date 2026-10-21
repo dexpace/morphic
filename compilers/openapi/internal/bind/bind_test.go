@@ -302,10 +302,9 @@ x-lib:
   S: {$ref: '#/components/schemas/Missing'}
   S: {type: string}
 `, self)
-	assert.Equal(t, bind.Chain{Status: bind.Resolved, End: at("/x-lib/S"), Role: bind.Raw, Hops: 1, Named: true},
+	assert.Equal(t, bind.Chain{Status: bind.Resolved, End: at("/x-lib/S"), Role: bind.Raw, Hops: 1},
 		entryAt(t, table, "/components/schemas/A").Chain, "in raw YAML")
-	assert.Equal(t, bind.Chain{Status: bind.Resolved, End: at("/components/schemas/M"), Role: bind.Schema, Hops: 1,
-		Named: true}, entryAt(t, table, "/components/schemas/B").Chain, "in the model")
+	assert.Equal(t, bind.Chain{Status: bind.Resolved, End: at("/components/schemas/M"), Role: bind.Schema, Hops: 1}, entryAt(t, table, "/components/schemas/B").Chain, "in the model")
 }
 
 // TestBind_ReadsEachRefAsTheSourceWritesIt pins that a $ref is read as Written
@@ -351,7 +350,7 @@ x-lib:
   C: {type: string}
 `, self)
 	a := entryAt(t, table, "/components/schemas/A")
-	assert.Equal(t, bind.Chain{Status: bind.Resolved, End: at("/x-lib/C"), Role: bind.Raw, Hops: 2, Named: true},
+	assert.Equal(t, bind.Chain{Status: bind.Resolved, End: at("/x-lib/C"), Role: bind.Raw, Hops: 2},
 		a.Chain)
 	d := entryAt(t, table, "/components/schemas/D")
 	assert.Equal(t, bind.Resolved, d.Hop.Status, "D's own hop lands")
@@ -391,7 +390,7 @@ func TestBind_ReportsEachLoopOnceAtItsLeastMember(t *testing.T) {
 		loops := table.Loops()
 		require.Len(t, loops, 1, "%v", order)
 		assert.Equal(t, bind.Loop{Members: []bind.Position{at("/components/schemas/B"), at("/components/schemas/C")},
-			Site: at("/components/schemas/B"), Reported: true}, loops[0], "%v", order)
+			Site: at("/components/schemas/B")}, loops[0], "%v", order)
 		for site, member := range map[jsontext.Pointer]bool{"/components/schemas/B": true,
 			"/components/schemas/C": true, "/components/schemas/A": false} {
 			e := entryAt(t, table, site)
@@ -405,11 +404,11 @@ func TestBind_ReportsEachLoopOnceAtItsLeastMember(t *testing.T) {
 	}
 }
 
-// TestBind_ReportsALoopOutsideTheSourceWhereTheSourceEntersIt pins a loop with
-// no member in the source: reported at the least source position leading into
-// it, and not at all when only another document's content leads there, as W's
-// property leads into Z.
-func TestBind_ReportsALoopOutsideTheSourceWhereTheSourceEntersIt(t *testing.T) {
+// TestBind_ReportsALoopOutsideTheSourceAtItsLeastMember pins a loop with no
+// member in the source: reported at its least member, in the document holding
+// it, whether the source leads into it or only another document's content
+// does, as W's property leads into Z.
+func TestBind_ReportsALoopOutsideTheSourceAtItsLeastMember(t *testing.T) {
 	t.Parallel()
 	docs := map[string]string{"other.yaml": "X: {$ref: '#/Y'}\nY: {$ref: '#/X'}\nZ: {$ref: '#/Z'}\n" +
 		"W: {properties: {p: {$ref: '#/Z'}}}\n"}
@@ -425,11 +424,10 @@ func TestBind_ReportsALoopOutsideTheSourceWhereTheSourceEntersIt(t *testing.T) {
 		byFirst[l.Members[0].Pointer] = l
 	}
 	xy := byFirst["/X"]
-	assert.Equal(t, at("/components/schemas/A"), xy.Site)
-	assert.True(t, xy.Reported)
+	assert.Equal(t, bind.Position{Doc: 1, Pointer: "/X"}, xy.Site)
 	assert.Equal(t, bind.DocID(1), xy.Members[0].Doc)
 	assert.Equal(t, []bind.Position{{Doc: 1, Pointer: "/Z"}}, byFirst["/Z"].Members)
-	assert.False(t, byFirst["/Z"].Reported, "only W's content leads into Z")
+	assert.Equal(t, bind.Position{Doc: 1, Pointer: "/Z"}, byFirst["/Z"].Site, "only W's content leads into Z")
 }
 
 // withDocuments is self reading other documents from docs, by name.
@@ -449,11 +447,84 @@ func withDocuments(docs map[string]string) bind.Config {
 	return cfg
 }
 
+// TestBind_RefuseJudgesEachReferenceByItsSpelling pins Config.Refuse: a $ref
+// whose document part it refuses fails unread with its reason, though another
+// $ref names the same document and it is read. It is handed the document part
+// as written, spaces trimmed, and never an $id, which Locate places but which
+// reads nothing.
+func TestBind_RefuseJudgesEachReferenceByItsSpelling(t *testing.T) {
+	t.Parallel()
+	cfg := withDocuments(map[string]string{"/other.yaml": "X: {type: string}\n"})
+	cfg.Self = resolving.Self
+	opened := map[string]int{}
+	open := cfg.Open
+	cfg.Open = func(name string) (*yaml.Node, error) { opened[name]++; return open(name) }
+	var located, refused []string
+	cfg.Locate = func(uri, base string) (string, bool) {
+		located = append(located, uri)
+		return resolving.Locate(uri, base)
+	}
+	cfg.Refuse = func(uri string) error {
+		refused = append(refused, uri)
+		if strings.HasPrefix(uri, "/") {
+			return errors.New("named by its spelling")
+		}
+		return nil
+	}
+
+	table := bound(t, `components:
+  schemas:
+    Rel: {$ref: 'other.yaml#/X'}
+    Abs: {$ref: ' /other.yaml #/X'}
+    Res: {$id: '/elsewhere/b', $ref: '#/$defs/A', $defs: {A: {}}}
+`, cfg)
+
+	rel := entryAt(t, table, "/components/schemas/Rel")
+	assert.Equal(t, bind.Resolved, rel.Hop.Status, rel.Hop.Why())
+	abs := entryAt(t, table, "/components/schemas/Abs")
+	assert.Equal(t, bind.Unreadable, abs.Hop.Reason)
+	assert.Equal(t, "the document it names could not be read: named by its spelling", abs.Hop.Why())
+	assert.Equal(t, 1, opened["/other.yaml"], "read for the relative $ref alone")
+	assert.ElementsMatch(t, []string{"other.yaml", "/other.yaml"}, refused)
+	assert.Contains(t, located, "/elsewhere/b", "the $id is placed")
+	assert.NotContains(t, located, "/other.yaml", "a refused $ref is placed nowhere")
+}
+
+// TestIsEmpty_HoldsNoNode pins what an empty document is: one parsed to no
+// node, white space and comments aside, or no tree at all, while a document
+// holding null, or an empty mapping, holds a node.
+func TestIsEmpty_HoldsNoNode(t *testing.T) {
+	t.Parallel()
+	for src, want := range map[string]bool{"": true, "\n": true, "# a comment\n": true, "---\n": false, "~\n": false, "{}\n": false} {
+		assert.Equal(t, want, bind.IsEmpty(tree(t, src)), "%q", src)
+	}
+	assert.True(t, bind.IsEmpty(nil), "no tree")
+}
+
+// TestBind_ReportsADocumentThatDoesNotParse pins Unparsable: a document Open
+// read and could not parse fails its $ref with the parser's reason, which the
+// error carries whole and Hop.Why repeats after its own phrasing.
+func TestBind_ReportsADocumentThatDoesNotParse(t *testing.T) {
+	t.Parallel()
+	parser := errors.New("yaml: line 1: did not find expected node content")
+	cfg := self
+	cfg.Open = func(string) (*yaml.Node, error) { return nil, &bind.UnparsableError{Err: parser} }
+
+	table := bound(t, "components:\n  schemas:\n    A: {$ref: 'bad.yaml#/x'}\n", cfg)
+
+	a := entryAt(t, table, "/components/schemas/A")
+	assert.Equal(t, bind.Unparsable, a.Hop.Reason)
+	assert.Equal(t, "the document it names does not parse as YAML: yaml: line 1: did not find expected node content", a.Hop.Why())
+	err := &bind.UnparsableError{Err: parser}
+	require.EqualError(t, err, "it does not parse as YAML: yaml: line 1: did not find expected node content")
+	assert.ErrorIs(t, err, parser)
+}
+
 // TestBind_ReadsOtherDocuments pins a reference to another document: read once
 // however many name it, as one that failed is, as raw YAML, the whole of it
 // named by a reference with no fragment; a chain followed across documents and
-// back; a document that cannot be read or names nothing reported as such; and
-// a reference naming no document at all.
+// back; a document that cannot be read, or holds nothing, reported as such;
+// and a reference naming no document at all.
 func TestBind_ReadsOtherDocuments(t *testing.T) {
 	t.Parallel()
 	docs := map[string]string{
@@ -493,20 +564,20 @@ func TestBind_ReadsOtherDocuments(t *testing.T) {
 		back.Chain, "a chain back into the source ends there, past a $ref naming another document")
 	there, ok := table.Entry(bind.Position{Doc: back.Hop.Target.Doc, Pointer: "/S"})
 	require.True(t, ok)
-	assert.Equal(t, bind.Chain{Status: bind.Resolved, End: at("/components/schemas/Leaf"), Role: bind.Schema, Hops: 1,
-		Named: true}, there.Chain, "another document's $ref naming the source")
+	assert.Equal(t, bind.Chain{Status: bind.Resolved, End: at("/components/schemas/Leaf"), Role: bind.Schema, Hops: 1}, there.Chain, "another document's $ref naming the source")
 	for value, named := range map[string]bool{"other.yaml#/S": false, "other.yaml#/T": false, "#/components/schemas/Leaf": true} {
 		m, ok := table.Mapping(at("/components/schemas/Pick/discriminator"), value)
 		require.True(t, ok, value)
 		require.Equal(t, bind.Resolved, m.Chain.Status, value)
-		assert.Equal(t, named, m.Chain.Named, value)
+		assert.Equal(t, named, m.Hop.Named, value)
 	}
 	assert.Equal(t, 1, opened["other.yaml"], "read once however many name it")
 	assert.Equal(t, 1, opened["gone.yaml"], "a document that could not be read is not asked for again")
 	assert.Equal(t, bind.Unreadable, entryAt(t, table, "/components/schemas/Missing").Hop.Reason)
 	assert.Equal(t, "the document it names could not be read: no such document",
 		entryAt(t, table, "/components/schemas/Missing").Hop.Why())
-	assert.Equal(t, bind.Unreadable, entryAt(t, table, "/components/schemas/Empty").Hop.Reason)
+	assert.Equal(t, bind.Empty, entryAt(t, table, "/components/schemas/Empty").Hop.Reason)
+	assert.Equal(t, "the document it names is empty", entryAt(t, table, "/components/schemas/Empty").Hop.Why())
 	assert.Equal(t, bind.Unreadable, entryAt(t, table, "/components/schemas/Nowhere").Hop.Reason)
 	id, ok := table.Find("other.yaml")
 	require.True(t, ok)

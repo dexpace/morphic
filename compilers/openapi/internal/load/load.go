@@ -42,10 +42,14 @@ import (
 // shape is a published contract (its own doc comment says why) and most of it
 // describes lowering, which nothing here can see.
 type Options struct {
-	// AllowExternalRefs lets reference resolution reach outside the document —
-	// off the filesystem or over the network. Off is the default, so the zero
-	// value performs no I/O.
-	AllowExternalRefs bool
+	// Reader reads the documents references name beyond the source, or nil to
+	// read none, so the zero value reads nothing: a reference leaving the source
+	// is reported unresolved. Every read goes through it; the load phase makes
+	// none of its own.
+	Reader compilers.DocumentReader
+	// Within confines Reader's reads to one directory, or "" to confine them
+	// nowhere. It is read only when Reader is set.
+	Within string
 	// Overlay is the OpenAPI Overlay document to apply to the source before the
 	// model is built, or nil for none. Its bytes are the caller's to read, like
 	// the source's.
@@ -165,6 +169,9 @@ type Document struct {
 	// Siblings holds the fields the source writes beside its path items' $refs,
 	// modelled and resolved with the document.
 	Siblings Siblings
+	// Others is every document a reference read beside the source, in the
+	// order Document.Sources lists them after the source and its overlay.
+	Others Others
 }
 
 // Load parses, validates, and resolves one source document. Spec problems
@@ -240,7 +247,7 @@ func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Pars
 	judged := judgeSource(root, tree)
 
 	releaseAnchors(root)
-	esc := newEscapes()
+	esc := newEscapes(refusedByName(opts, src.Path))
 	esc.escape(root)
 	// Every return below leaves the tree as the source wrote it; the models are
 	// put back at the end of resolve.
@@ -262,8 +269,12 @@ func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Pars
 	diags = append(diags, sibFaults...)
 	diags = append(diags, judged.diags...)
 	self := newSourceDocument(src.Path, src.Data, root, judged, tree, esc)
+	beside := besideSource{first: srcIndex + 1, format: "openapi@" + minor}
+	if origin.Applied() {
+		beside.first = opts.OverlaySrcIndex + 1
+	}
 	doc, sibs, bindings, resolveDiags, err := resolve(ctx, pointerAt(srcIndex, origin), doc, sibs, self, opts,
-		opts.rebuilder(ctx, src.Data, root))
+		opts.rebuilder(ctx, src.Data, root), beside)
 	if err != nil {
 		return nil, nil, fmt.Errorf("openapi: rebuild source %d: %w", srcIndex, err)
 	}
@@ -282,6 +293,7 @@ func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Pars
 		},
 		Overlay:  origin,
 		Siblings: sibs,
+		Others:   bindings.others,
 	}, esc.asWritten(diags), nil
 }
 
@@ -317,25 +329,31 @@ func sourceChecks(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, 
 // since a rebuild discards a first resolution's objects. Only then are the
 // models and trees put back as written.
 func resolve(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI, sibs Siblings,
-	self sourceDocument, opts Options, rebuild func() (*soa.OpenAPI, error),
+	self sourceDocument, opts Options, rebuild func() (*soa.OpenAPI, error), beside besideSource,
 ) (*soa.OpenAPI, Siblings, bound, []ir.Diagnostic, error) {
 	var reader *external
-	var diags []ir.Diagnostic
-	if opts.AllowExternalRefs {
+	var pass *resolution
+	var missed []usedDocument
+	if opts.Reader != nil {
 		var err error
-		doc, sibs, reader, diags, err = resolveExternal(ctx, at, doc, sibs, self, opts, rebuild)
+		doc, sibs, reader, pass, missed, err = resolveExternal(ctx, doc, sibs, self, opts, rebuild)
 		if err != nil {
 			return nil, Siblings{}, bound{}, nil, err
 		}
 	} else {
-		diags = resolveWith(ctx, at, doc, sibs, self, opts, nil)
+		pass = resolveWith(ctx, doc, sibs, self, opts, nil)
 	}
-	b := bindSchemas(ctx, at, doc, sibs, self, reader)
-	reached := validateReached(ctx, at, doc, sibs, b.built, opts, self)
+	b := bindSchemas(ctx, doc, sibs, self, reader, pass.ends())
+	if reader != nil {
+		b.others = newOthers(reader.read, beside.first, beside.format)
+	}
+	place, placeSite := b.placer(at), sitePlacer(at, b.others)
+	diags := append(pass.diags(placeSite), stillUnprepared(placeSite, missed)...)
+	reached := validateReached(ctx, at, b, doc, sibs, opts, self, pass.elsewhere(placeSite))
 	site, err := self.escapes.restore(ctx, doc, sibs, b.built)
 	diags = append(diags, restoreFault(at, site, err)...)
-	diags = append(diags, b.diags...)
-	diags = append(diags, buildFailures(at, b.built)...)
+	diags = append(diags, bindingDiags(place, b.bindings.Table())...)
+	diags = append(diags, buildFailures(place, b.built)...)
 	if reader != nil {
 		diags = append(diags, crossed(at, reader)...)
 	}

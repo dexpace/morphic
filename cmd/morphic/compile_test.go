@@ -352,12 +352,12 @@ func TestRun_PrettyRestoresIndentedFile(t *testing.T) {
 		"--pretty must write the bytes stdout gets")
 }
 
-// TestRun_StdoutIsTheGoldenEncoding pins encodeDocument's claim against an
+// TestRun_StdoutIsTheGoldenEncoding pins output.Indented's claim against an
 // encoder it does not share: what compile prints is byte for byte what
 // irtest.WriteGolden writes for the same document, indentation and trailing
 // newline included, once the irVersion line a golden leaves out is taken from
 // it. Comparing --pretty with stdout cannot show this, since both go through
-// encodeDocument.
+// the engine's writer.
 func TestRun_StdoutIsTheGoldenEncoding(t *testing.T) {
 	t.Parallel()
 	spec := writeFile(t, "spec.yaml", unsortedSpec)

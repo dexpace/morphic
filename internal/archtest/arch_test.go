@@ -201,8 +201,10 @@ var rules = map[string][]string{
 	// of the document, and the grammar that answers it is the loader's — and for
 	// the schema bindings the load phase built, which its scope reads.
 	"compilers/openapi/internal/lowering": {module + "/ir",
+		module + "/compilers/openapi/internal/bind",
 		module + "/compilers/openapi/internal/bind/typed",
 		module + "/compilers/openapi/internal/diag",
+		module + "/compilers/openapi/internal/ids",
 		module + "/compilers/openapi/internal/load",
 		module + "/compilers/openapi/internal/overlay",
 		module + "/compilers/openapi/internal/resolve",
@@ -278,12 +280,28 @@ var rules = map[string][]string{
 	// The orchestration. It reaches the compiler package to compose the default
 	// registry and nothing of any source format: what a spec looks like and what
 	// its options are called are answered through the contract, so no parser is
-	// named here.
+	// named here. It reads a run's documents through its own reader package.
 	"engine": {module + "/ir", module + "/compilers", module + "/compilers/openapi",
-		module + "/pass"},
+		module + "/engine/reader", module + "/pass"},
+	// What a run's references and settings name, read from disk, the network or
+	// memory. It reaches the contract whose reader it implements and nothing
+	// else, so a caller compiling directly reads as the engine does without
+	// composing a pipeline.
+	"engine/reader": {module + "/compilers"},
+	// The one renderer of a run's findings for a person. It reaches ir alone: it
+	// renders what a run returned and nothing of how the run was composed.
+	"engine/report": {module + "/ir"},
+	// The engine's writer: the IR document to a stream or a file, published
+	// through the atomic replace beneath it.
+	"engine/output": {module + "/ir", module + "/engine/internal/atomicfile"},
+	// The atomic replace every file the engine writes goes through. It reaches
+	// renameio, which creates, syncs and renames the file, and nothing of the
+	// module, so each writer the engine grows can stand on it.
+	"engine/internal/atomicfile": {"github.com/google/renameio/v2"},
 	// The CLI. Beyond the pipeline it reaches its command framework: cobra
-	// dispatches the commands and renders help, on pflag's parse.
-	"cmd/morphic": {module + "/ir", module + "/engine",
+	// dispatches the commands and renders help, on pflag's parse. What it prints
+	// it asks the engine's renderer and writer for.
+	"cmd/morphic": {module + "/ir", module + "/engine", module + "/engine/output", module + "/engine/report",
 		"github.com/spf13/cobra", "github.com/spf13/pflag"},
 	"cmd/morphic-harness": {module + "/internal/harness"},
 	// The census command: tooling outside the pipeline, like the harness command

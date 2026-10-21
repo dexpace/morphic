@@ -16,6 +16,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -233,7 +234,7 @@ components:
 `
 	require.NoError(t, os.WriteFile(path, []byte(src), 0o600))
 	doc, diags, err := New().Compile(t.Context(), []compilers.Source{{Path: path, Data: []byte(src)}},
-		compilers.Options{FormatOptions: Options{AllowExternalRefs: true}})
+		compilers.Options{Reader: reader.Disk{}, FormatOptions: Options{AllowExternalRefs: true}})
 	require.NoError(t, err)
 	openapitest.RequireNoErrorDiags(t, diags)
 	require.Len(t, openapitest.FindOp(t, doc, "a").Params, 1, "the reference resolves and the parameter lowers")

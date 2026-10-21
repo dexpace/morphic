@@ -9,6 +9,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -43,8 +44,17 @@ func petMapping(mapping string) string {
 func loadTargets(t *testing.T, path, spec string, external bool) (*Document, []ir.Diagnostic) {
 	t.Helper()
 	got, diags, err := Load(t.Context(), 0, compilers.Source{Path: path, Data: []byte(spec)},
-		Options{AllowExternalRefs: external})
+		readingIf(external))
 	require.NoError(t, err)
 	require.NotNil(t, got, "%+v", diags)
 	return got, diags
+}
+
+// readingIf returns the Options of a compile that reads the documents its
+// references name from disk when external is set, and reads none otherwise.
+func readingIf(external bool) Options {
+	if external {
+		return Options{Reader: reader.Disk{}}
+	}
+	return Options{}
 }

@@ -13,6 +13,7 @@ import (
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
+	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -117,7 +118,7 @@ func TestLoad_ReportsAChainIntoTheFieldsBesideARefAsTheLoweringReadsIt(t *testin
 func TestLoad_TakesAHopThatFindsTheFieldWrittenThere(t *testing.T) {
 	t.Parallel()
 	got, diags, err := Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(besideChainSpec)},
-		Options{AllowExternalRefs: true})
+		Options{Reader: reader.Disk{}})
 	require.NoError(t, err)
 
 	refused := map[jsontext.Pointer]int{}
@@ -158,7 +159,7 @@ func TestSiblings_WritesReadsTheNodeAnAnswerIsWrittenAs(t *testing.T) {
 components:
 `, 1)
 	got, diags, err := Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(spec)},
-		Options{AllowExternalRefs: true})
+		Options{Reader: reader.Disk{}})
 	require.NoError(t, err)
 	for _, d := range diags {
 		assert.NotEqual(t, jsontext.Pointer("/paths/~1d/post/requestBody"), d.Provenance.Pointer, "%s", d.Message)

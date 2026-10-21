@@ -36,15 +36,15 @@ func lowerParameters(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIn
 	for _, sp := range params {
 		pc := c
 		if sp.in != nil {
-			pc = c.InScope(*sp.in)
+			pc = *sp.in
 		}
-		p, pptr := resolve.ObjectAt[soa.Parameter](pc.RefScope(), sp.ref, sp.pointer)
+		p, dc, pptr := lowering.Declared[soa.Parameter](pc, sp.ref, sp.pointer)
 		if p == nil {
 			continue
 		}
 		id, repeatDiags := ledger.next(pc, p.GetName(), string(p.GetIn()), sp.pointer)
 		diags = append(diags, repeatDiags...)
-		param, binding, paramDiags := lowerParameter(lowering.Within[soa.Parameter](pc, sp.ref), ts, anchors, id, p, pptr)
+		param, binding, paramDiags := lowerParameter(dc, ts, anchors, id, p, pptr)
 		diags = append(diags, paramDiags...)
 		// A summary or description beside a $ref of the entry's chain documents
 		// this use of the parameter, over what its declaration says (GitHub #610).
@@ -176,7 +176,7 @@ func fillParamSchemaAnnotations(c lowering.Ctx, ts *compile.Types, param *ir.Par
 	// drop them for exactly the parameters whose schema owns a node — an object,
 	// an enum, an array.
 	diags := preserveParamVisibility(c, param, s, pointer)
-	if schema.LoweredToOwnNode(ts, pointer, param.Type) {
+	if schema.LoweredToOwnNode(c, ts, pointer, param.Type) {
 		return diags
 	}
 	a, readDiags := annotation.Read(annotation.Site{Kind: annotation.Reference, Node: s, Referent: tgt}, pointer, c.ProvenanceAt)

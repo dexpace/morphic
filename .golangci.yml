@@ -206,6 +206,14 @@ linters:
         linters:
           - containedctx
         source: ^\s*context\.Context$
+      # external is the file system the parser's resolver reads documents
+      # through, and fs.FS's Open takes no context, so the context the
+      # resolution runs under is held for the reads Open makes through the
+      # caller's reader, as the resolver holds its own.
+      - path: compilers/openapi/internal/load/external\.go
+        linters:
+          - containedctx
+        source: ^\s*ctx\s+context\.Context$
       # keyed runs as pointer reads step through models, and the Type.Fields
       # range this proposes costs it four allocations a call where indexing
       # costs none. TestKeyed_CostsNoAllocation holds it there.

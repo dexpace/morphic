@@ -2,10 +2,14 @@ package operation_test
 
 import (
 	"encoding/json/jsontext"
+	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -13,6 +17,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -1395,10 +1400,11 @@ components:
 }
 
 // TestParams_RepeatInAnotherDocumentIsReportedOnce covers the two places a
-// repeat is reported. A list the source writes is load's, even when its entries
-// $ref another document; a list another document writes, which load's walk of
-// the source does not reach, is the lowering's, at the entry it lowered. Each
-// repeat is reported once.
+// repeat is reported, each at the entry where its list is written. A list the
+// source writes is load's, even when its entries $ref another document; a list
+// another document writes, which load's walk of the source does not reach, is
+// the lowering's, at the entry it lowered, in that document. Each repeat is
+// reported once.
 func TestParams_RepeatInAnotherDocumentIsReportedOnce(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
@@ -1429,20 +1435,31 @@ paths:
 	path := filepath.Join(dir, "root.yaml")
 	require.NoError(t, os.WriteFile(path, []byte(root), 0o600))
 
-	_, diags, err := openapi.New().Compile(t.Context(),
+	doc, diags, err := openapi.New().Compile(t.Context(),
 		[]compilers.Source{{Path: path, Data: []byte(root)}},
-		compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: true}})
+		compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
 	require.NoError(t, err)
 
-	got := map[jsontext.Pointer]int{}
+	require.Len(t, doc.Sources, 2)
+	assert.Equal(t, filepath.Join(dir, "other.yaml"), doc.Sources[1].Path)
+	repeat := func(source int, pointer jsontext.Pointer, name, in string, first jsontext.Pointer) ir.Diagnostic {
+		return ir.Diagnostic{Severity: ir.SeverityError, Code: diag.DuplicateParameter,
+			Message:    fmt.Sprintf("parameter %q in %q repeats the entry at %s", name, in, first),
+			Provenance: ir.Provenance{Source: source, Pointer: pointer}}
+	}
+	var got []ir.Diagnostic
 	for _, d := range diags {
 		if d.Code == diag.DuplicateParameter {
-			got[d.Provenance.Pointer]++
+			got = append(got, d)
 		}
 	}
-	assert.Equal(t, map[jsontext.Pointer]int{
-		"/paths/~1x/get/parameters/2": 1,
-		"/paths/~1x/parameters/1":     1,
-		"/paths/~1y/get/parameters/1": 1,
-	}, got)
+	slices.SortFunc(got, func(x, y ir.Diagnostic) int {
+		return strings.Compare(string(x.Provenance.Pointer), string(y.Provenance.Pointer))
+	})
+	want := []ir.Diagnostic{
+		repeat(1, "/X/get/parameters/2", "q", "query", "/X/get/parameters/0"),
+		repeat(1, "/X/parameters/1", "limit", "query", "/X/parameters/0"),
+		repeat(0, "/paths/~1y/get/parameters/1", "limit", "query", "/paths/~1y/get/parameters/0"),
+	}
+	assert.Empty(t, cmp.Diff(want, got))
 }

@@ -23,6 +23,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -1788,8 +1789,8 @@ paths:
 // another. The resolver answers it from the source as held (GitHub #759), so
 // it shares the declaring node, and that is what makes it a reuse.
 //
-// AllowExternalRefs is needed because the resolver counts a document part as
-// leaving the document.
+// A reader is needed because the resolver counts a document part as leaving
+// the document.
 func TestOperations_SelfReferencesByFileName(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -1835,7 +1836,7 @@ paths:
 
 			doc, diags, err := openapi.New().Compile(t.Context(),
 				[]compilers.Source{{Path: path, Data: []byte(spec)}},
-				compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: true}})
+				compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
 
 			require.NoError(t, err)
 			require.NotNil(t, doc, "compile refused: %+v", diags)

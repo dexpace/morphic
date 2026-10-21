@@ -21,6 +21,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
+	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -159,7 +160,7 @@ func TestHold_EverySpellingOfTheSourceReachesIt(t *testing.T) {
 				backPath("/b", name+"#/components/responses/Alias")),
 				"components:\n  responses:\n", "components:\n  responses:\n    RA: {$ref: '#/components/responses/R'}\n", 1)
 			got, diags, err := Load(t.Context(), 0,
-				compilers.Source{Path: c.source, Data: []byte(root)}, Options{AllowExternalRefs: true})
+				compilers.Source{Path: c.source, Data: []byte(root)}, Options{Reader: reader.Disk{}})
 			require.NoError(t, err)
 			require.NotNil(t, got, "%+v", diags)
 
@@ -214,7 +215,7 @@ components:
     R: {description: ok}
 `
 			got, diags, err := Load(t.Context(), 0,
-				compilers.Source{Path: "root.yaml", Data: []byte(root)}, Options{AllowExternalRefs: true})
+				compilers.Source{Path: "root.yaml", Data: []byte(root)}, Options{Reader: reader.Disk{}})
 			require.NoError(t, err)
 			require.NotNil(t, got, "%+v", diags)
 
@@ -284,7 +285,7 @@ func TestHold_APanicStopsTheWalkWhereItStands(t *testing.T) {
 	t.Parallel()
 	doc := &soa.OpenAPI{}
 	root := &yaml.Node{Kind: yaml.DocumentNode}
-	reader := newExternal(doc, Options{}, newExternalReads(sourceDocument{path: "root.yaml", data: []byte("x"), root: root}))
+	ext := newExternal(t.Context(), doc, Options{}, newExternalReads(sourceDocument{path: "root.yaml", data: []byte("x"), root: root}))
 	first := fakeResolvable{ref: "#/first"}
 	items := func(yield func(soa.WalkItem) bool) {
 		if !yield(fakeWalkItem("first", first)) {
@@ -293,7 +294,7 @@ func TestHold_APanicStopsTheWalkWhereItStands(t *testing.T) {
 		panic("boom")
 	}
 
-	require.NotPanics(t, func() { reader.holdWalked(items) })
+	require.NotPanics(t, func() { ext.holdWalked(items) })
 
 	tree, ok := doc.GetCachedExternalDocument("root.yaml")
 	require.True(t, ok)
@@ -314,7 +315,7 @@ func TestHold_APanicStillHoldsTheSpellingsRecorded(t *testing.T) {
 	read := newExternalReads(sourceDocument{path: "root.yaml", data: []byte("x"), root: root})
 	read.spelled.note("spelled.yaml", "/first")
 	read.spelled.note("spelled.yaml", "/second")
-	reader := newExternal(doc, Options{}, read)
+	ext := newExternal(t.Context(), doc, Options{}, read)
 	items := func(yield func(soa.WalkItem) bool) {
 		if !yield(fakeWalkItem("first", fakeResolvable{ref: "#/first"})) {
 			return
@@ -322,7 +323,7 @@ func TestHold_APanicStillHoldsTheSpellingsRecorded(t *testing.T) {
 		panic("boom")
 	}
 
-	require.NotPanics(t, func() { reader.holdWalked(items) })
+	require.NotPanics(t, func() { ext.holdWalked(items) })
 
 	_, ok := doc.GetCachedExternalDocument("spelled.yaml")
 	assert.True(t, ok, "the spelling's document")
@@ -337,8 +338,8 @@ func TestHold_APanicStillHoldsTheSpellingsRecorded(t *testing.T) {
 func TestHold_ASourceWithNoKeyIsNotHeld(t *testing.T) {
 	t.Parallel()
 	doc := &soa.OpenAPI{}
-	reader := newExternal(doc, Options{}, newExternalReads(sourceDocument{root: &yaml.Node{}}))
-	reader.holdWalked(func(func(soa.WalkItem) bool) { t.Fatal("walked for a source held under no key") })
+	ext := newExternal(t.Context(), doc, Options{}, newExternalReads(sourceDocument{root: &yaml.Node{}}))
+	ext.holdWalked(func(func(soa.WalkItem) bool) { t.Fatal("walked for a source held under no key") })
 	_, ok := doc.GetCachedExternalDocument("")
 	assert.False(t, ok)
 }
@@ -416,7 +417,7 @@ func TestHold_ARelativeSourceResolvesItsComponentAsItDoesInEitherOrder(t *testin
 
 	for _, spec := range []string{root(back + internal), root(internal + back)} {
 		got, diags, err := Load(t.Context(), 0,
-			compilers.Source{Path: "root.yaml", Data: []byte(spec)}, Options{AllowExternalRefs: true})
+			compilers.Source{Path: "root.yaml", Data: []byte(spec)}, Options{Reader: reader.Disk{}})
 		require.NoError(t, err)
 		require.NotNil(t, got, "%+v", diags)
 		require.Len(t, diags, 1, "%+v", diags)
@@ -437,9 +438,9 @@ func heldResolution(t *testing.T, spec, path string) (*soa.OpenAPI, *resolution)
 	doc, err := unmarshal(t.Context(), data, root)
 	require.NoError(t, err)
 	self := newSourceDocument(path, data, root, judgment{}, newSourceTree(0, overlay.Origin{}, root), nil)
-	opts := Options{AllowExternalRefs: true}
-	reader := newExternal(doc, opts, newExternalReads(self))
-	return doc, newResolution(t.Context(), pointerAt(0, overlay.Origin{}), doc, Siblings{}, self, opts, &reader)
+	opts := Options{Reader: reader.Disk{}}
+	ext := newExternal(t.Context(), doc, opts, newExternalReads(self))
+	return doc, newResolution(t.Context(), doc, Siblings{}, self, opts, &ext)
 }
 
 // TestExternal_OpenHoldsTheSourceItIsAskedFor pins what Open does with the
@@ -483,13 +484,13 @@ func TestHold_EachSpellingADocumentUsesIsHeldAhead(t *testing.T) {
 	path := filepath.Join(dir, "root.yaml")
 	doc, pass := heldResolution(t, backRoot(backPath("/a", "#/components/responses/R")), path)
 	unclean := dir + "/./root.yaml"
-	tree, ok := parseTree([]byte(`a: {$ref: '#/components/responses/R'}
+	tree, err := parseTree([]byte(`a: {$ref: '#/components/responses/R'}
 b: {$ref: [root.yaml]}
 c: {$ref: 'other.yaml#/x'}
 d: {$ref: 'https://example.com/root.yaml#/x'}
 e: [{$ref: '` + unclean + `#/components/responses/R'}, {$ref: '` + unclean + `'}, {$ref: '../root.yaml'}]
 `))
-	require.True(t, ok)
+	require.NoError(t, err)
 
 	pass.reader.holdSpellings(tree, filepath.Join(dir, "sub", "doc.yaml"))
 
@@ -606,8 +607,8 @@ func TestHold_ASecondResolutionHoldsTheSpellingsTheFirstFound(t *testing.T) {
 	pass.reader.holdSite(spelled, "/components/responses/R")
 
 	again, _ := heldResolution(t, backRoot(backPath("/a", "#/components/responses/R")), filepath.Join(dir, "root.yaml"))
-	reader := newExternal(again, Options{}, pass.reader.read)
-	reader.hold(t.Context(), Siblings{})
+	ext := newExternal(t.Context(), again, Options{}, pass.reader.read)
+	ext.hold(t.Context(), Siblings{})
 
 	_, ok := again.GetCachedReferencedObject(spelled + "#/components/responses/R")
 	assert.True(t, ok, "held under the spelling the first resolution found")
@@ -629,9 +630,9 @@ func TestHold_AReferenceNamingTheSourceCopiesNoBytesOfIt(t *testing.T) {
 		"components:\n  responses:\n    B: {description: ok}\n", path)
 	a := response200(t, doc, "/a")
 
-	pass.visit(t.Context(), "/paths/~1a/get/responses/200", a)
+	pass.visit(t.Context(), refSite{pointer: "/paths/~1a/get/responses/200"}, a, pass.opts)
 
-	require.Empty(t, pass.failures)
+	require.Empty(t, pass.diags(sitePlacer(pointerAt(0, overlay.Origin{}), Others{})))
 	assert.Equal(t, "ok", a.GetObject().Description)
 	cached, ok := doc.GetCachedReferenceDocument(path)
 	require.True(t, ok)

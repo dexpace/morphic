@@ -19,6 +19,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
+	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -583,7 +584,7 @@ components:
 	require.NoError(t, err)
 
 	_, diags, err := Load(t.Context(), 0, compilers.Source{Path: filepath.Join(dir, "root.yaml"), Data: []byte(spec), Parsed: parsed},
-		Options{AllowExternalRefs: true})
+		Options{Reader: reader.Disk{}})
 
 	require.NoError(t, err)
 	errs := errorsOf(diags)
@@ -622,7 +623,7 @@ func TestLoad_WhatAReferenceReachesQuotesAPlusAsWritten(t *testing.T) {
 			dir := t.TempDir()
 			writeFile(t, dir, "other.yaml", tc.other)
 
-			l := loadPlusAt(t, filepath.Join(dir, "root.yaml"), tc.spec, Options{AllowExternalRefs: true})
+			l := loadPlusAt(t, filepath.Join(dir, "root.yaml"), tc.spec, Options{Reader: reader.Disk{}})
 
 			var quoting int
 			for _, d := range l.diags {
@@ -684,7 +685,7 @@ components:
 	require.NoError(t, err)
 
 	got, diags, err := Load(t.Context(), 0, compilers.Source{Path: filepath.Join(dir, "root.yaml"), Data: []byte(spec), Parsed: parsed},
-		Options{AllowExternalRefs: true})
+		Options{Reader: reader.Disk{}})
 
 	require.NoError(t, err)
 	require.NotNil(t, got)
@@ -695,11 +696,11 @@ components:
 func TestExternal_PrepareRewritesTheTreeItStoresAndRestoreTreesPutsItBack(t *testing.T) {
 	t.Parallel()
 	const body = "a: &x '#/p+q'\nb: {$ref: *x}\nc: {$ref: 'o.yaml#/r+s'}\n"
-	esc := newEscapes()
+	esc := newEscapes(nil)
 	doc := &soa.OpenAPI{}
-	reader := newExternal(doc, Options{}, newExternalReads(sourceDocument{escapes: esc}))
+	ext := newExternal(t.Context(), doc, Options{}, newExternalReads(sourceDocument{escapes: esc}))
 
-	_, err := reader.prepare("k", strings.NewReader(body))
+	_, err := ext.prepare("k", []byte(body))
 
 	require.NoError(t, err)
 	cached, ok := doc.GetCachedExternalDocument("k")
@@ -795,8 +796,8 @@ paths:
         "200": {description: ok}
 `, filepath.Join(dir, "root.yaml"))
 	unclean := dir + "/./root.yaml"
-	tree, ok := parseTree([]byte("a: {$ref: '" + unclean + "#/paths/~1a+b/get/responses/200'}\n"))
-	require.True(t, ok)
+	tree, err := parseTree([]byte("a: {$ref: '" + unclean + "#/paths/~1a+b/get/responses/200'}\n"))
+	require.NoError(t, err)
 
 	pass.reader.holdSpellings(tree, filepath.Join(dir, "sub", "doc.yaml"))
 
@@ -827,7 +828,7 @@ func TestLoad_ARespelledURLHoldingAPlusReferenceIsReadAsTheTreeIs(t *testing.T) 
 				"    A: {$ref: '" + tc.spell(srv.URL+"/ext.yaml") + "#/x-start'}\n"
 
 			got, diags, err := Load(t.Context(), 0, compilers.Source{Path: "root.yaml", Data: []byte(spec)},
-				Options{AllowExternalRefs: true})
+				Options{Reader: reader.Disk{}})
 
 			require.NoError(t, err)
 			require.NotNil(t, got)

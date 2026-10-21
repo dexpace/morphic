@@ -60,14 +60,14 @@ func TestEnumMemberKey_IsInjectiveAcrossKinds(t *testing.T) {
 		{Kind: ir.ValueString, Str: "a"},
 	}
 	const enum = jsontext.Pointer("/components/schemas/E")
-	repeat := ids.EnumMember(enum, "s:a", 2)
+	repeat := ids.Document{}.EnumMember(enum, "s:a", 2)
 	seen := map[string]int{}
 	for i, v := range values {
 		key, ok := enumMemberKey(v)
 		require.True(t, ok)
 		require.NotContains(t, seen, key, "values %d and %d share a key", seen[key], i)
 		seen[key] = i
-		assert.NotEqual(t, repeat, ids.EnumMember(enum, key, 1), "value %d spells the second a", i)
+		assert.NotEqual(t, repeat, ids.Document{}.EnumMember(enum, key, 1), "value %d spells the second a", i)
 	}
 }
 

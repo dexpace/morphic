@@ -45,27 +45,27 @@ func registeredNode(c lowering.Ctx, ts *compile.Types, id ir.TypeID, pointer jso
 }
 
 // internNode is the single hoisting entry point: it derives pointer's stable
-// TypeID (ids.ForPointer) and shared TypeCommon (commonFor) once, then
+// TypeID (ids.Document.ForPointer) and shared TypeCommon (commonFor) once, then
 // interns build's result under that ID. build receives the already-built
 // TypeCommon (its ID field is the same id), so it never needs pointer, hint,
 // or a bare id to re-derive it.
 func internNode(c lowering.Ctx, ts *compile.Types, pointer jsontext.Pointer, hint string,
 	build func(common ir.TypeCommon) ir.TypeDef,
 ) ir.TypeID {
-	id := ids.ForPointer(pointer)
+	id := c.IDs().ForPointer(pointer)
 	mint := func() ir.TypeDef { return build(commonFor(c, id, pointer, hint)) }
 	if c.NamesByReference() {
 		// A $ref named this coordinate, so the name is a placeholder until the
 		// declaration that owns it arrives (GitHub #372).
-		return ts.InternProvisional(string(pointer), id, mint)
+		return ts.InternProvisional(c.IDs().Coordinate(pointer), id, mint)
 	}
 	// The declaration reaching its own coordinate. A reference that got here
 	// first built the node and everything beneath it under its own names, so the
 	// declaration builds it again rather than taking the reference's (GitHub #529).
-	interned := ts.InternDeclared(string(pointer), id, mint)
+	interned := ts.InternDeclared(c.IDs().Coordinate(pointer), id, mint)
 	// On a first visit or after a rebuild the node already has this name; only
 	// where a rebuild was refused is there a reference's placeholder to replace.
-	ts.NameFromDeclaration(string(pointer), hint)
+	ts.NameFromDeclaration(c.IDs().Coordinate(pointer), hint)
 	return interned
 }
 

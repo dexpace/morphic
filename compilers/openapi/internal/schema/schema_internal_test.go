@@ -273,9 +273,9 @@ func TestHoistSubSchema_BodyInternsAtPointer(t *testing.T) {
 	id, ok, diags := hoistSubSchema(l.ctx, l.types, &l.anchors, TopLevelDepth, object, deepPointer)
 	require.True(t, ok)
 	assert.Empty(t, diags, "an object body hoists cleanly")
-	assert.Equal(t, ids.AnonType(deepPointer), id)
+	assert.Equal(t, ids.Document{}.AnonType(deepPointer), id)
 	seeded, _ := l.types.Lookup(deepPointer)
-	assert.Equal(t, ids.AnonType(deepPointer), seeded)
+	assert.Equal(t, ids.Document{}.AnonType(deepPointer), seeded)
 }
 
 func TestIsRefBranch_Nil(t *testing.T) {
