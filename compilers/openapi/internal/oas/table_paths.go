@@ -107,8 +107,9 @@ func callbackObject() Object {
 		Kind: Callback, Name: "Callback Object", Extensible: true, Referenceable: Always(),
 		Patterned: []Pattern{
 			pattern("{expression}", Nested, PathItem, c(V30, "A Path Item Object used to define a callback request and expected responses."),
-				sectioned("Key Expression")(V30, "The key that identifies the [Path Item Object](#path-item-object) is a [runtime expression](#runtime-expressions)"),
-				sectioned("Runtime Expressions")(V30, "Expressions can be embedded into string values by surrounding the expression with `{}` curly braces.")).
+				// 3.0 closes the Runtime Expressions examples with this, under a heading of their own.
+				sectioned("Examples")(V30, "Expressions can be embedded into string values by surrounding the expression with `{}` curly braces."),
+				sectioned("Key Expression")(V30, "The key that identifies the [Path Item Object](#path-item-object) is a [runtime expression](#runtime-expressions)")).
 				keyed(RuntimeExpression),
 		},
 	}
