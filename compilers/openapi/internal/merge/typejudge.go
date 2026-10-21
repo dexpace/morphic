@@ -61,7 +61,8 @@ type typeJudge struct {
 // The arms, in order: the same target; a degraded Any node, which is unrelated
 // to every type; the top type, which loses to anything else;
 // two bare primitives (spelling.Relate); a Scalar, Enum or Literal against a
-// bare primitive; two lists or two maps; anything else is unrelated.
+// bare primitive; two identical such nodes; two lists or two maps; anything
+// else is unrelated.
 func (j typeJudge) relate(a, b ir.TypeRef) relation { return j.relateAt(a, b, 0) }
 
 func (j typeJudge) relateAt(a, b ir.TypeRef, depth int) relation {
@@ -96,7 +97,59 @@ func (j typeJudge) relateAt(a, b ir.TypeRef, depth int) relation {
 	case aBare:
 		return j.nodeAgainstBare(b, bt, a, ap.Prim).flipped()
 	}
+	if sameNode(at, bt) {
+		return byNull(a, b)
+	}
 	return j.containers(at, bt, depth)
+}
+
+// sameNode reports whether a and b are two Literal, Enum or Scalar nodes equal
+// in every field but their ID, Name and Provenance and their members' IDs: one
+// declaration written twice, hoisted to two nodes.
+func sameNode(a, b ir.TypeDef) bool {
+	switch x := a.(type) {
+	case *ir.Literal:
+		y, ok := b.(*ir.Literal)
+		if !ok {
+			return false
+		}
+		x2, y2 := *x, *y
+		x2.ID, x2.Name, x2.Provenance = "", ir.Naming{}, ir.Provenance{}
+		y2.ID, y2.Name, y2.Provenance = "", ir.Naming{}, ir.Provenance{}
+		return reflect.DeepEqual(x2, y2)
+	case *ir.Scalar:
+		y, ok := b.(*ir.Scalar)
+		if !ok {
+			return false
+		}
+		x2, y2 := *x, *y
+		x2.ID, x2.Name, x2.Provenance = "", ir.Naming{}, ir.Provenance{}
+		y2.ID, y2.Name, y2.Provenance = "", ir.Naming{}, ir.Provenance{}
+		return reflect.DeepEqual(x2, y2)
+	case *ir.Enum:
+		y, ok := b.(*ir.Enum)
+		return ok && sameEnum(*x, *y)
+	default:
+		return false
+	}
+}
+
+// sameEnum compares two enums as sameNode does, members by position.
+func sameEnum(x, y ir.Enum) bool {
+	x.ID, x.Name, x.Provenance = "", ir.Naming{}, ir.Provenance{}
+	y.ID, y.Name, y.Provenance = "", ir.Naming{}, ir.Provenance{}
+	x.Members, y.Members = idless(x.Members), idless(y.Members)
+	return reflect.DeepEqual(x, y)
+}
+
+// idless copies members with their IDs cleared.
+func idless(ms []ir.EnumMember) []ir.EnumMember {
+	out := make([]ir.EnumMember, len(ms))
+	for i, m := range ms {
+		m.ID = ""
+		out[i] = m
+	}
+	return out
 }
 
 // fromSpelling maps spelling's verdict on two kinds to a relation.

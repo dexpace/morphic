@@ -1664,3 +1664,73 @@ func TestReconcileProperty_TheTopTypeTakesTheOtherSidesNullAdmission(t *testing.
 		assert.Empty(t, *recorded, "order %d", i)
 	}
 }
+
+// twinRegistry holds, for each of Enum, Literal and Scalar, two nodes that
+// differ only in ID and member IDs, and the variants that differ in a field.
+func twinRegistry() map[ir.TypeID]ir.TypeDef {
+	reg := narrowingRegistry()
+	members := func(prefix string, vs ...string) []ir.EnumMember {
+		out := make([]ir.EnumMember, 0, len(vs))
+		for _, v := range vs {
+			out = append(out, ir.EnumMember{ID: ir.EnumMemberID(prefix + v), Value: str(v)})
+		}
+		return out
+	}
+	enum := func(id ir.TypeID, ms []ir.EnumMember, desc string) *ir.Enum {
+		e := &ir.Enum{ID: id, ValueType: ir.PrimString, Members: ms}
+		e.Docs.Description = desc
+		return e
+	}
+	reg["t/enum/x1"] = enum("t/enum/x1", members("x1/", "a", "b"), "")
+	reg["t/enum/x2"] = enum("t/enum/x2", members("x2/", "a", "b"), "")
+	reg["t/enum/x-described"] = enum("t/enum/x-described", members("xd/", "a", "b"), "some")
+	reg["t/enum/x-reordered"] = enum("t/enum/x-reordered", members("xr/", "b", "a"), "")
+	reg["t/lit/1"] = &ir.Literal{ID: "t/lit/1", Value: str("a")}
+	reg["t/lit/2"] = &ir.Literal{ID: "t/lit/2", Value: str("a")}
+	str := primRef(ir.PrimString)
+	minLen := int64(2)
+	reg["t/hex/1"] = &ir.Scalar{ID: "t/hex/1", Base: &str}
+	reg["t/hex/2"] = &ir.Scalar{ID: "t/hex/2", Base: &str}
+	reg["t/hex/min"] = &ir.Scalar{ID: "t/hex/min", Base: &str, Constraints: &ir.Constraints{MinLength: &minLen}}
+	return reg
+}
+
+// TestReconcileProperty_IdenticalNodesAreOneType pins, in both orders, that two
+// Enum, Literal or Scalar nodes equal but for their IDs are one type: no
+// diagnostic and nothing kept aside, where a pair that differs in a field,
+// member order included, is still an overlap reported as info.
+func TestReconcileProperty_IdenticalNodesAreOneType(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name string
+		a, b ir.TypeID
+		same bool
+	}{
+		{"two identical enums", "t/enum/x1", "t/enum/x2", true},
+		{"two identical literals", "t/lit/1", "t/lit/2", true},
+		{"two identical scalars", "t/hex/1", "t/hex/2", true},
+		{"enums that differ in a description", "t/enum/x1", "t/enum/x-described", false},
+		{"enums that differ in member order", "t/enum/x1", "t/enum/x-reordered", false},
+		{"scalars that differ in a constraint", "t/hex/1", "t/hex/min", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			for i, order := range [][2]ir.TypeID{{tc.a, tc.b}, {tc.b, tc.a}} {
+				g, recorded := stubMerger(twinRegistry())
+				dst := ir.Property{WireName: "x", Type: ir.TypeRef{Target: order[0]}, Provenance: ptrAt("/allOf/0/properties/x")}
+				src := ir.Property{WireName: "x", Type: ir.TypeRef{Target: order[1]}, Provenance: ptrAt("/allOf/1/properties/x")}
+
+				g.reconcileProperty(&dst, new(origins), src, written(`{"type":"x"}`))
+
+				assert.Equal(t, order[0], dst.Type.Target, "the first declaration's type stands (order %d)", i)
+				if tc.same {
+					assert.Empty(t, *recorded, "no diagnostic (order %d)", i)
+					assert.Empty(t, dst.Unmodeled, "nothing is kept (order %d)", i)
+					continue
+				}
+				require.Len(t, *recorded, 1, "exactly one diagnostic (order %d)", i)
+				assert.Equal(t, ir.SeverityInfo, (*recorded)[0].Severity, "order %d", i)
+			}
+		})
+	}
+}

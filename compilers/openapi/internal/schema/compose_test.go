@@ -4145,3 +4145,29 @@ func TestAllOf_TwoEqualListsRefuseANullTheMergeDoesNotAdmit(t *testing.T) {
 		assert.Equal(t, jsontext.Pointer(tc.kept), diags[0].Provenance.Pointer, "order %d", i)
 	}
 }
+
+// TestAllOf_IdenticalNodesAreOneType compiles a field written as two
+// components with the same enum, const or format: no diagnostic and nothing
+// kept, in either order.
+func TestAllOf_IdenticalNodesAreOneType(t *testing.T) {
+	t.Parallel()
+	for _, schema := range []string{
+		"{type: string, enum: [a, b]}",
+		"{const: a}",
+		"{type: string, format: hex}",
+	} {
+		t.Run(schema, func(t *testing.T) {
+			t.Parallel()
+			extra := "    P: " + schema + "\n    Q: " + schema + "\n"
+			p, q := "{$ref: '#/components/schemas/P'}", "{$ref: '#/components/schemas/Q'}"
+			for _, order := range [][2]string{{p, q}, {q, p}} {
+				doc, diags := lowerSpec(t, nonBareSpec(extra, order[0], order[1]))
+				assert.Empty(t, diags)
+				m, ok := doc.Types[componentID("T")].(*ir.Model)
+				require.True(t, ok)
+				require.Len(t, m.Properties, 1)
+				assert.Empty(t, m.Properties[0].Unmodeled)
+			}
+		})
+	}
+}
