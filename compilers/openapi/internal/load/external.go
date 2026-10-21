@@ -356,7 +356,8 @@ func (e external) Do(req *http.Request) (*http.Response, error) {
 }
 
 // fetch reads the document at location through Options.Reader, confined to
-// Options.Within and held to the byte budget, and prepares it under key.
+// Options.Within as unnamed narrows it and held to the byte budget, and
+// prepares it under key.
 func (e external) fetch(ctx context.Context, key, location string) answer {
 	if e.opts.Reader == nil {
 		return answer{err: refused(key, "no reader was supplied to read it")}

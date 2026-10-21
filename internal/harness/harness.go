@@ -92,11 +92,11 @@ func Check(ctx context.Context, spec string, data []byte) (res Result) {
 
 // compile runs the OpenAPI compiler on one in-memory source with default
 // options, reading the documents its references name from disk as a run of
-// the engine does: inside the spec's directory. It is a package-level seam:
-// production always uses the real compiler wired here, while tests replace it
-// to drive the oracle-failure paths a correct compiler never produces — a
-// panic, a document with structural violations, a non-round-tripping document,
-// or a nondeterministic recompile.
+// the engine does: inside the spec's directory, through relative references.
+// It is a package-level seam: production always uses the real compiler wired
+// here, while tests replace it to drive the oracle-failure paths a correct
+// compiler never produces — a panic, a document with structural violations, a
+// non-round-tripping document, or a nondeterministic recompile.
 var compile = func(ctx context.Context, spec string, data []byte) (*ir.Document, []ir.Diagnostic, error) {
 	return openapi.New().Compile(ctx,
 		[]compilers.Source{{Path: spec, Data: data}}, compilers.Options{Reader: reader.Disk{}})

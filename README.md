@@ -61,8 +61,8 @@ and [IR design](docs/ir-design.md) give the reasoning.
 - **Heuristics are policy.** Anything inferred rather than declared, such as which media types
   imply a stream or which vendor extensions fill typed fields, is an injectable policy the caller
   can change or switch off, and what it produces is marked as inferred in the IR's provenance.
-- **Untrusted input is bounded.** A `$ref` reads only files inside the spec's directory unless
-  enabled, and budgets on source size, parsed nodes, enum members and YAML alias expansion turn a
+- **Untrusted input is bounded.** A `$ref` reads only files inside the spec's directory, and only
+  through relative references, unless enabled, and budgets on source size, parsed nodes, enum members and YAML alias expansion turn a
   pathological document into a diagnostic instead of an exhausted host.
 
 ## Pipeline
