@@ -777,20 +777,20 @@ their types are incompatible — disjoint primitive kinds (`string` against `int
 `date-time`), a scalar against a structure, two different kinds of structure, or two lists or maps
 whose members share no value where one is never empty — or where one constraint keyword is pinned to
 two values; types that share values but that the merge does not narrow to one (`int32` against
-`uint32`, an enum of `integer` against `int32`, two enums of one kind, two lists or maps whose
-members share only null, or share nothing while both admit the empty one, a `const` against a kind
-with no judge or against any other value-holding node) are named in an info
-`openapi/degraded-construct`, and only the first declaration's type is kept; a detail the first
-declaration already holds differently is named in an info `openapi/degraded-construct`; and two
-composites of one kind the judgment does not compare (two models, a model and a map) and an
-unresolvable target are dropped without any diagnostic and kept all the same. The loser's `default`,
-constraints and examples go with its type rather than folding onto the winner — they describe the
-shape that lost, and adopting them would leave one field asserting two contradictory things, with
-nothing downstream comparing a value's kind to its property's type; this is keyed on the type being
-dropped, not on the drop being called a conflict. Two declarations naming the same target, or one
-narrowing the other, are not a drop, and differing only in nullability they take no entry: the
-merged field admits null only where both branches do, which is the same conjunction a single
-schema's null verdicts fold under ([`nullable`](#nullable)).
+`uint32`, an enum of `integer` against `int32`, two enums of one kind, a `const` against a kind with
+no judge or against any other value-holding node, or two lists or maps whose members share only null
+or share nothing while both admit the empty one) are named in an info `openapi/degraded-construct`,
+and only the first declaration's type is kept; a detail the first declaration already holds
+differently is named in an info `openapi/degraded-construct`; and two composites of one kind the
+judgment does not compare (two models, a model and a map) and an unresolvable target are dropped
+without any diagnostic and kept all the same. The loser's `default`, constraints and examples go
+with its type rather than folding onto the winner — they describe the shape that lost, and adopting
+them would leave one field asserting two contradictory things, with nothing downstream comparing a
+value's kind to its property's type; this is keyed on the type being dropped, not on the drop being
+called a conflict. Two declarations naming the same target, or one narrowing the other, are not a
+drop, and differing only in nullability they take no entry: the merged field admits null only where
+both branches do, which is the same conjunction a single schema's null verdicts fold under
+([`nullable`](#nullable)).
 
 - Cases: `allof-conflicting-type`, `allof-narrowing-redeclaration`
 - Codes: `openapi/conflicting-redeclaration`, `openapi/degraded-construct`
