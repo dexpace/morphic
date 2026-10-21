@@ -253,7 +253,7 @@ func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Pars
 	}
 
 	releaseAnchors(root)
-	esc := newEscapes(byAbsolutePath(opts, src.Path))
+	esc := newEscapes(refusedByName(opts, src.Path))
 	esc.escape(root)
 	// Every return below leaves the tree as the source wrote it; the models are
 	// put back at the end of resolve.

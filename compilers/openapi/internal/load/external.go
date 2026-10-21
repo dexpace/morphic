@@ -374,18 +374,15 @@ func (e external) fetch(ctx context.Context, key, location string) answer {
 	return answer{body: data}
 }
 
-// unnamed returns the refusal of the document under key by a read confined to
-// Options.Within, unread, or nil: a file URI names it, or an absolute path
-// does, respelled for the resolver (see byAbsolutePath).
+// unnamed returns the refusal of the document under key, unread, or nil: the
+// one its $ref drew by how it is spelled, respelled for the resolver (see
+// refusedByName), or, for a read confined to Options.Within, a file URI's.
 func (e external) unnamed(key string) error {
-	if e.opts.Within == "" {
-		return nil
+	if why := e.read.self.escapes.refusalOf(key); why != nil {
+		return why
 	}
-	if len(key) >= len("file:") && strings.EqualFold(key[:len("file:")], "file:") {
+	if e.opts.Within != "" && len(key) >= len("file:") && strings.EqualFold(key[:len("file:")], "file:") {
 		return refused(key, "it is named by a file URI"+followedWhenAllowed)
-	}
-	if uri, ok := absolutePath(key); ok {
-		return absoluteRefusal(uri)
 	}
 	return nil
 }
@@ -394,26 +391,36 @@ func (e external) unnamed(key string) error {
 // how a $ref spells it.
 const followedWhenAllowed = ", which a read follows only when external references are allowed"
 
-// byAbsolutePath returns what a read confined to opts.Within refuses by a
-// $ref's spelling alone: a document part that is an absolute file path naming
-// any document but the source, named self. A relative $ref is followed, so
-// what such a read reaches never depends on how the working directory is
-// spelled (GitHub #780); each $ref is judged by its own spelling, so no order
-// of reading changes which. It returns nil, refusing none, for a read confined
-// nowhere, or for no reader, where no other document is read at all.
-func byAbsolutePath(opts Options, self string) func(uri string) bool {
-	if opts.Within == "" || opts.Reader == nil {
+// refusedByName returns why a read refuses a $ref by how its document part is
+// written, uri, or nil, judging each $ref alone so that no order of reading
+// changes the answer. Confined to opts.Within, it refuses an absolute file path
+// naming any document but the source, named self, since a relative $ref reaches
+// the same file however the working directory is spelled (GitHub #780). In
+// either mode it refuses a URL whose scheme is none of http, https and file,
+// which a reader would take for a path against the working directory. With no
+// reader it is nil.
+func refusedByName(opts Options, self string) func(uri string) error {
+	if opts.Reader == nil {
 		return nil
 	}
-	return func(uri string) bool {
-		return filepath.IsAbs(uri) && !refscope.IsURL(uri) && !refscope.SameDocument(self, uri)
+	confined := opts.Within != ""
+	return func(uri string) error {
+		if !refscope.IsURL(uri) {
+			if confined && filepath.IsAbs(uri) && !refscope.SameDocument(self, uri) {
+				return refused(uri, "the $ref names it by an absolute path"+followedWhenAllowed)
+			}
+			return nil
+		}
+		// IsURL found a scheme, which is all a URL's text holds before its first ':'.
+		scheme, _, _ := strings.Cut(uri, ":")
+		switch scheme = strings.ToLower(scheme); scheme {
+		case "http", "https", "file":
+			return nil
+		default:
+			return refused(uri, fmt.Sprintf("it is named by a URL with the scheme %q, "+
+				"and only http, https and file URLs are read", scheme))
+		}
 	}
-}
-
-// absoluteRefusal is the refusal of the document at the absolute path uri,
-// as a $ref names it (see byAbsolutePath).
-func absoluteRefusal(uri string) error {
-	return refused(uri, "the $ref names it by an absolute path"+followedWhenAllowed)
 }
 
 // readFailure returns the error a reference into the document under key fails

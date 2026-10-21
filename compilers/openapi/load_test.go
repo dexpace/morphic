@@ -281,6 +281,52 @@ func TestCompile_ByDefaultOnlyARelativeReferenceIsFollowed(t *testing.T) {
 	}
 }
 
+// TestCompile_AURLNoReaderReadsIsRefusedUnread pins that a $ref whose
+// document part is a URL with a scheme other than http, https or file fails
+// unread with the reason, in a schema and in a parameter, with external
+// references allowed or not, and whatever the working directory: a reader
+// would read "foo:b.yaml" as a path against it. A file whose name holds a
+// colon, written "./foo:b.yaml", is read, the spec named relatively too,
+// where the resolver joins it to that same "foo:b.yaml".
+func TestCompile_AURLNoReaderReadsIsRefusedUnread(t *testing.T) {
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+	sub := filepath.Join(dir, "sub")
+	require.NoError(t, os.Mkdir(sub, 0o700))
+	for _, at := range []string{dir, sub} {
+		require.NoError(t, os.WriteFile(filepath.Join(at, "foo:b.yaml"), []byte(
+			"B: {type: string}\nP: {name: q, in: query, schema: {type: string}}\n"), 0o600))
+	}
+	root := []byte("openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n  /x:\n    get:\n" +
+		"      parameters:\n        - {$ref: 'foo:b.yaml#/P'}\n        - {$ref: './foo:b.yaml#/P'}\n" +
+		"      responses: {\"200\": {description: ok}}\n" +
+		"components:\n  schemas:\n    URL: {$ref: 'foo:b.yaml#/B'}\n    Dot: {$ref: './foo:b.yaml#/B'}\n")
+	const refused = `it is named by a URL with the scheme "foo", and only http, https and file URLs are read`
+
+	for _, run := range []struct{ cwd, spec string }{
+		{dir, filepath.Join(dir, "root.yaml")}, {sub, filepath.Join(dir, "root.yaml")}, {dir, "root.yaml"},
+	} {
+		t.Chdir(run.cwd)
+		for _, allow := range []bool{false, true} {
+			doc, diags, err := New().Compile(t.Context(), []compilers.Source{{Path: run.spec, Data: root}},
+				compilers.Options{Reader: reader.Disk{}, FormatOptions: Options{AllowExternalRefs: allow}})
+			require.NoError(t, err)
+			require.NotNil(t, doc)
+
+			got := make([]string, 0, len(diags))
+			for _, d := range diags {
+				got = append(got, string(d.Provenance.Pointer)+": "+d.Message[strings.LastIndex(d.Message, ": ")+2:])
+			}
+			slices.Sort(got)
+			assert.Equal(t, []string{"/components/schemas/URL: " + refused, "/paths/~1x/get/parameters/0: " + refused}, got,
+				"%s from %s, external references allowed: %v", run.spec, run.cwd, allow)
+			require.Len(t, doc.Sources, 2, "%s from %s, external references allowed: %v", run.spec, run.cwd, allow)
+			assert.Equal(t, "foo:b.yaml", filepath.Base(doc.Sources[1].Path), "the file the dot segment names")
+			assert.Contains(t, doc.Types, ids.In("foo:b.yaml").AnonType("/B"), "the dot-segment $ref is followed")
+		}
+	}
+}
+
 // TestCompile_ByDefaultEachReferenceIsJudgedByItsOwnSpelling pins that the
 // default refuses a $ref by how it spells its document, never by how another
 // $ref spells it or by which document was read first: an absolute $ref is

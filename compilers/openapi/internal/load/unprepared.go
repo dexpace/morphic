@@ -424,7 +424,7 @@ func anyAnchored(doc *soa.OpenAPI, missed []usedDocument) bool {
 // anyRewritable reports whether any document in missed, as the resolver parsed
 // it, holds a $ref esc would respell, which the prepared tree has spelled
 // otherwise: one the resolver reads a '+' of as a space (GitHub #911), or one
-// a confined read refuses by its spelling.
+// a read refuses by its spelling.
 func anyRewritable(doc *soa.OpenAPI, missed []usedDocument, esc *escapes) bool {
 	return anyParsed(doc, missed, esc.rewritable)
 }

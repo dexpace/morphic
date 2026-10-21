@@ -235,8 +235,10 @@ follows relative references alone, unless `Options.AllowExternalRefs` lets it re
 http(s) URLs: a `$ref` naming a document by a `file:` URI, or one other than the source by an
 absolute path, fails unread, whatever another `$ref` names that document by. Each is judged by its
 own spelling, so what the default reads depends neither on how the working directory is spelled nor
-on the order references are read in. A document outside fails each reference naming it, and with no
-reader no document is read.
+on the order references are read in. In either mode a `$ref` naming a URL whose scheme is none of
+`http`, `https` and `file` fails unread, where a reader would take it for a path against the working
+directory; a file whose name holds a colon is written `./a:b.yaml`. A document outside fails each
+reference naming it, and with no reader no document is read.
 
 Each document read is a `Document.Sources` entry after the source and its overlay, ordered by its
 location from the source's directory, and what it declares lowers there, as the source's own lowers
@@ -319,6 +321,7 @@ would answer. A chain of references that closes on itself is
   `openapi.TestCompile_ARefOutsideTheSourcesDirectoryResolvesWhenAllowed`,
   `openapi.TestCompile_ByDefaultOnlyARelativeReferenceIsFollowed`,
   `openapi.TestCompile_ByDefaultEachReferenceIsJudgedByItsOwnSpelling`,
+  `openapi.TestCompile_AURLNoReaderReadsIsRefusedUnread`,
   `openapi.TestCompile_OneFileUnderTwoNamesIsOneDocument`,
   `openapi.TestExternalContent_ASchemaRefPastARefNamesItsContent`,
   `openapi.TestExternalContent_ASourcePositionItNamesByFileResolvesInEitherOrder`,

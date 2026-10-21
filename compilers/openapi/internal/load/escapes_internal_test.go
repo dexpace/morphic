@@ -304,27 +304,34 @@ func TestEscapes_NilRegistryDoesNothing(t *testing.T) {
 	assert.Nil(t, esc.refusal(), "and refuses none")
 }
 
-// TestEscapes_RespellsADocumentPartTheReadRefuses pins the respelling for a
-// confined read: a document part refuses reports goes to the resolver under
-// absoluteScheme, its fragment as ForResolver spells it, as one opaque URL that
-// net/url spells back unchanged and absolutePath reads the path from exactly,
-// whatever it holds. A part it does not refuse is left as it is.
+// refuseAbsolute is a refusal of every absolute path, by its own reason.
+func refuseAbsolute(uri string) error {
+	if strings.HasPrefix(uri, "/") {
+		return errors.New("refused " + uri)
+	}
+	return nil
+}
+
+// TestEscapes_RespellsADocumentPartTheReadRefuses pins the respelling of a
+// document part a read refuses by its spelling: under refusedScheme, its
+// fragment as ForResolver spells it, as one opaque URL that net/url spells back
+// unchanged, minted with the refusal of the part exactly as written, whatever
+// it holds. A part refuses refuses not is left as it is.
 func TestEscapes_RespellsADocumentPartTheReadRefuses(t *testing.T) {
 	t.Parallel()
-	refuses := func(uri string) bool { return strings.HasPrefix(uri, "/") }
 	for _, tc := range []struct{ name, ref, want, path string }{
-		{"an absolute path", "/r/a.yaml#/X", "x-morphic-absolute:%2Fr%2Fa.yaml#/X", "/r/a.yaml"},
-		{"no fragment", "/r/a.yaml", "x-morphic-absolute:%2Fr%2Fa.yaml", "/r/a.yaml"},
-		{"spaces around it", " /r/a b.yaml #/X", "x-morphic-absolute:%2Fr%2Fa%20b.yaml#/X", "/r/a b.yaml"},
-		{"a plus in the fragment", "/r/a.yaml#/a+b", "x-morphic-absolute:%2Fr%2Fa.yaml#/a%2Bb", "/r/a.yaml"},
-		{"what a URL reads otherwise", "/r/a?b=%41:c;d.yaml", "x-morphic-absolute:%2Fr%2Fa%3Fb=%2541:c%3Bd.yaml", "/r/a?b=%41:c;d.yaml"},
+		{"an absolute path", "/r/a.yaml#/X", "x-morphic-refused:%2Fr%2Fa.yaml#/X", "/r/a.yaml"},
+		{"no fragment", "/r/a.yaml", "x-morphic-refused:%2Fr%2Fa.yaml", "/r/a.yaml"},
+		{"spaces around it", " /r/a b.yaml #/X", "x-morphic-refused:%2Fr%2Fa%20b.yaml#/X", "/r/a b.yaml"},
+		{"a plus in the fragment", "/r/a.yaml#/a+b", "x-morphic-refused:%2Fr%2Fa.yaml#/a%2Bb", "/r/a.yaml"},
+		{"what a URL reads otherwise", "/r/a?b=%41:c;d.yaml", "x-morphic-refused:%2Fr%2Fa%3Fb=%2541:c%3Bd.yaml", "/r/a?b=%41:c;d.yaml"},
 		{"a relative path", "a.yaml#/a+b", "a.yaml#/a%2Bb", ""},
 		{"a fragment alone", "#/X", "#/X", ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			src := "{$ref: '" + tc.ref + "'}"
-			esc := newEscapes(refuses)
+			esc := newEscapes(refuseAbsolute)
 
 			assert.Equal(t, tc.want != tc.ref, esc.rewritable(decodeRoot(t, src)))
 			root := decodeRoot(t, src)
@@ -332,12 +339,11 @@ func TestEscapes_RespellsADocumentPartTheReadRefuses(t *testing.T) {
 
 			assert.Equal(t, []string{tc.want}, refValues(root))
 			key, _, _ := strings.Cut(tc.want, "#")
-			got, ok := absolutePath(key)
-			assert.Equal(t, tc.path != "", ok)
-			assert.Equal(t, tc.path, got)
 			if tc.path == "" {
+				assert.NoError(t, esc.refusalOf(key))
 				return
 			}
+			assert.EqualError(t, esc.refusalOf(key), "refused "+tc.path)
 			req, err := http.NewRequest(http.MethodGet, key, nil)
 			require.NoError(t, err)
 			assert.Equal(t, key, req.URL.String(), "the key the resolver asks for")
@@ -347,26 +353,42 @@ func TestEscapes_RespellsADocumentPartTheReadRefuses(t *testing.T) {
 	}
 }
 
-// TestAbsolutePath_RefusesWhatNoRespellingWrites pins that only a key under
-// absoluteScheme with a path that unescapes is read as one.
-func TestAbsolutePath_RefusesWhatNoRespellingWrites(t *testing.T) {
+// TestEscapes_ASourcesOwnRefusedSchemeIsRespelledApart pins that a $ref the
+// source writes in refusedScheme itself, which the read refuses as a URL no
+// reader reads, is respelled apart from the part it spells, so each keeps its
+// own refusal and each message its own $ref as written.
+func TestEscapes_ASourcesOwnRefusedSchemeIsRespelledApart(t *testing.T) {
 	t.Parallel()
-	for _, key := range []string{"/r/a.yaml", "file:///r/a.yaml", "x-morphic-absolute", "x-morphic-absolute:%zz"} {
-		_, ok := absolutePath(key)
-		assert.False(t, ok, key)
+	esc := newEscapes(refusedByName(Options{Within: "/r", Reader: &fakeReader{}}, "/r/root.yaml"))
+	root := decodeRoot(t, "[{$ref: '/r/a.yaml#/X'}, {$ref: 'x-morphic-refused:%2Fr%2Fa.yaml#/X'}]")
+
+	esc.escape(root)
+
+	got := refValues(root)
+	require.Len(t, got, 2)
+	assert.NotEqual(t, got[0], got[1])
+	for i, want := range []string{"external document /r/a.yaml refused: the $ref names it by an absolute path",
+		`external document x-morphic-refused:%2Fr%2Fa.yaml refused: it is named by a URL with the scheme "x-morphic-refused"`,
+	} {
+		key, _, _ := strings.Cut(got[i], "#")
+		require.Error(t, esc.refusalOf(key), got[i])
+		assert.True(t, strings.HasPrefix(esc.refusalOf(key).Error(), want), esc.refusalOf(key).Error())
 	}
+	quoted := esc.asWritten([]ir.Diagnostic{{Message: `"` + got[0] + `"`}, {Message: `"` + got[1] + `"`}})
+	assert.Equal(t, `"/r/a.yaml#/X"`, quoted[0].Message)
+	assert.Equal(t, `"x-morphic-refused:%2Fr%2Fa.yaml#/X"`, quoted[1].Message)
+	assert.NoError(t, (*escapes)(nil).refusalOf(strings.SplitN(got[0], "#", 2)[0]), "a nil registry minted none")
 }
 
-// TestEscapes_RefusalRefusesWhatItRespells pins bind.Config.Refuse as the
-// registry answers it: the refusal naming the path, for a part it respells.
-func TestEscapes_RefusalRefusesWhatItRespells(t *testing.T) {
+// TestEscapes_RefusalIsTheReadsOwn pins bind.Config.Refuse as the registry
+// answers it: the refusal it respells by, and none where it refuses none.
+func TestEscapes_RefusalIsTheReadsOwn(t *testing.T) {
 	t.Parallel()
-	refuse := newEscapes(func(uri string) bool { return uri == "/r/a.yaml" }).refusal()
+	refuse := newEscapes(refuseAbsolute).refusal()
 	require.NotNil(t, refuse)
 
 	require.NoError(t, refuse("a.yaml"))
-	assert.EqualError(t, refuse("/r/a.yaml"), "external document /r/a.yaml refused: "+
-		"the $ref names it by an absolute path, which a read follows only when external references are allowed")
+	assert.EqualError(t, refuse("/r/a.yaml"), "refused /r/a.yaml")
 	assert.Nil(t, newEscapes(nil).refusal(), "a registry refusing none refuses nothing")
 }
 
@@ -419,24 +441,6 @@ func TestEscapes_AsWrittenKeepsASpellingTheSourceWrites(t *testing.T) {
 		`unresolved $ref "#/a%2Bb": unable to resolve reference: #/a%2Bb`,
 		"unable to resolve reference: #/c+d",
 	}, got)
-}
-
-// TestEscapes_AsWrittenKeepsTheRespellingOfAPathWhereTheSourceWritesIt pins
-// the "%2B" rule for a document part respelled under absoluteScheme: where
-// the source writes that spelling itself, a message quoting it is left alone.
-func TestEscapes_AsWrittenKeepsTheRespellingOfAPathWhereTheSourceWritesIt(t *testing.T) {
-	t.Parallel()
-	const src = "[{$ref: '/r/a.yaml#/X'}, {$ref: 'x-morphic-absolute:%2Fr%2Fa.yaml#/X'}, {$ref: '/r/b.yaml#/X'}]"
-	esc := newEscapes(func(uri string) bool { return strings.HasPrefix(uri, "/") })
-	esc.escape(decodeRoot(t, src))
-
-	got := esc.asWritten([]ir.Diagnostic{
-		{Message: `unresolved $ref "x-morphic-absolute:%2Fr%2Fa.yaml#/X"`},
-		{Message: `unresolved $ref "x-morphic-absolute:%2Fr%2Fb.yaml#/X"`},
-	})
-
-	assert.Equal(t, `unresolved $ref "x-morphic-absolute:%2Fr%2Fa.yaml#/X"`, got[0].Message)
-	assert.Equal(t, `unresolved $ref "/r/b.yaml#/X"`, got[1].Message)
 }
 
 func TestEscapes_AsWrittenChoosesOneSpellingWhereSeveralRespellAlike(t *testing.T) {
