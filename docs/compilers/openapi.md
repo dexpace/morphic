@@ -742,28 +742,32 @@ about the composed node instead, stated with the `false`-schema rule
 `allOf` intersection folds a field declared in more than one branch into one `Property`, and the
 first declaration wins its shape (§4.3) unless the other narrows it. One judgment compares the two
 types and returns one of six verdicts: the same type, either one narrower, an overlap, disjoint, or
-unrelated. The winner never depends on which branch is written first. Only a disjoint pair is
-unsatisfiable, since no value satisfies both; an overlap shares values and is merely not narrowed to
-one. The arms are tried in this order. `{}` loses to anything but the node a degraded lowering
+unrelated. The winner never depends on which branch is written first. A disjoint pair is
+unsatisfiable but for a null both declarations admit: no other value satisfies both. An overlap
+shares values and is merely not narrowed to one. The arms are tried in this order. `{}` loses to anything but the node a degraded lowering
 mints (an enum past its member budget, an unconvertible const), which is unrelated to every type;
 where `{}` loses, the winner's own null admission stands alone, since `{}` admits null yet lowers
 non-nullable. Two bare primitives compare by value domain and spelling (`integer` against `number`,
 `uuid` against `string`, `int32` against `int64`). A `Scalar` or `Enum` against a bare primitive wins
 over a kind it equals or narrows (`string` against `format: byte`, or an unknown format over bare
-`string`) and overlaps a kind strictly narrower than its own. A `const` wins when the kind admits its
-value, and is disjoint from the kind when it does not. Two lists, or two maps with one key, compare
-by element or value, nested up to a bound, and the narrower one wins only where it admits null no
-more widely than the other and the other holds no constraint, encoding, documentation or `Unmodeled`
-the winner lacks; members that share only null, or that both admit the empty container, overlap
-rather than being disjoint. Anything else between distinct targets is unrelated and dropped.
+`string`) and overlaps a kind it does not equal or narrow; for an `Enum`, that overlap is disjoint
+where the kind's judge refuses every member. An enum with no members is refused vacuously, so it is
+disjoint from any kind it would otherwise overlap, `bytes` included; an enum with members against
+`bytes` stays an overlap. A `const` wins when the kind admits its value; where it does not, it is
+disjoint from a kind with a judge and overlaps `bytes`, which has none. Two lists, or two maps with
+one key, compare by element or value, nested up to a bound, and the narrower one wins only where it
+admits null no more widely than the other and the other holds no constraint, encoding,
+documentation, examples or `Unmodeled` the winner lacks; disjoint members still overlap where both
+admit null, or where both containers admit the empty one. Anything else between distinct targets is unrelated and dropped.
 
 The relation between kinds is stated over JSON instances, so that a narrowing, which is adopted
 silently, holds in every reading. Its value-domain half is `PrimKind.StrictlyWithin` (§4.1) and its
 spelling half is the string rows of `formatTable` (`string-formats`): a format refines `string`. Only
 exact containments are edges. OpenAPI floats round, so `format: float` admits every finite number in
-its range, and an integer width sits inside either float width by rounding; that containment holds of
-instances and not of values, so `int32`, `uint32` and `int64` against `float32`, and `int64` and
-`uint64` against `float64`, are overlaps, reported with the first declaration kept.
+its range; a bounded integer width sits inside either float width by rounding, while `integer`
+merely shares the values a float width holds. That containment holds of instances and not of values,
+so `int32`, `uint32`, `int64`, `uint64` and `integer` against `float32`, and `int64`, `uint64` and
+`integer` against `float64`, are overlaps, reported with the first declaration kept.
 
 A narrower type wins in either order, the intersection being that type, and is no drop. The merged
 field admits null only where both declarations do, and a null either declaration writes is judged
@@ -792,10 +796,10 @@ nullability, a default.
 Preservation is owed wherever something is dropped, which is wider than the disagreements worth a
 warning. The two declarations are reported as an `openapi/conflicting-redeclaration` warning where
 their types are incompatible — disjoint primitive kinds (`string` against `integer`, `uuid` against
-`date-time`), a scalar against a structure, two different kinds of structure, or two lists or maps
+`date-time`), an enum none of whose members the other kind admits, a scalar against a structure, two different kinds of structure, or two lists or maps
 whose members share no value where one is never empty — or where one constraint keyword is pinned to
 two values; types that share values but that the merge does not narrow to one (`int32` against
-`uint32`, an enum of `integer` against `int32`, two enums of one kind, a `const` against a kind with
+`uint32`, an enum of `integer` against an `int32` that admits one of its members, two enums of one kind, a `const` against a kind with
 no judge or against any other value-holding node, or two lists or maps whose members share only null
 or share nothing while both admit the empty one) are named in an info `openapi/degraded-construct`,
 and only the first declaration's type is kept; a detail the first declaration already holds
@@ -846,7 +850,6 @@ both branches do, which is the same conjunction a single schema's null verdicts 
   `merge.TestTypeJudge_NullIsJudgedByNullability`,
   `merge.TestRefuseFrom_ExamplesAreJudgedAsOneKeyword`,
   `merge.TestReconcileProperty_AnInadmissibleValueIsKeptNotAdopted`,
-  `schema.TestAllOf_AnInadmissibleBroadValueIsKeptInEitherOrder`,
   `schema.TestAllOf_ANullOnARefOverTheTopTypeIsKept`
 - Status: partly built: two distinct nodes of related kinds (`format: hex` against `format: byte`,
   two enums, two literals) are reported as an overlap and never narrowed; a property redeclared as a

@@ -463,7 +463,7 @@
     {
       "format": "openapi@3.1",
       "path": "allof-conflicting-type.yaml",
-      "hash": "8884d8ee185e02a911048e3422c70b93a4266fadafa5216c49161f895b84de06"
+      "hash": "1216b950a9fdc2aada3e8db734856f69eac741560a89fcd66d0c4940fc1697ba"
     }
   ]
 }

@@ -670,9 +670,10 @@ float is a finite decimal. To these they add the cross-signed widths (`uint8` wi
 walk and not an edge.
 
 Every edge holds both of a kind's finite values and of the JSON instances its spellings admit.
-OpenAPI floats round, so `format: float` admits every finite number in its range, and every integer
-width sits inside both float widths by rounding. That holds of JSON instances and not of values, so
-`int32`, `uint32` and `int64` against `float32`, and `int64` and `uint64` against `float64`, are not
+OpenAPI floats round, so `format: float` admits every finite number in its range; a bounded integer
+width sits inside either float width by rounding, while `integer` merely shares the values a float
+width holds. That holds of JSON instances and not of values, so `int32`, `uint32`, `int64`, `uint64`
+and `integer` against `float32`, and `int64`, `uint64` and `integer` against `float64`, are not
 edges. The string-spelled kinds (`date`, `time`, `datetime_offset`, `duration`, `url`, `uuid`,
 `bytes`) are **not** within `string` here, although TypeSpec declares `url extends string`: they are
 distinct kinds in this domain, and a format's refinement of `string` is a fact about an OpenAPI

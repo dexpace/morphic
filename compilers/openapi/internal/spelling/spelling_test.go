@@ -200,14 +200,14 @@ func TestNarrows_HoldsEveryContainment(t *testing.T) {
 // TestNarrows_OmitsRoundingContainments pins the choice not to take a
 // containment that holds only by rounding. A narrowing is adopted silently, so
 // it must hold of every value and every JSON instance. OpenAPI floats round:
-// an int32, uint32 or int64 sits inside float32 only by losing low bits, an
+// an int32, uint32, int64 or uint64 sits inside float32 only by losing low bits, an
 // int64 or uint64 inside float64 likewise, and integer inside either float
 // width has no bound at all. Those pairs overlap: the first declaration is kept
 // and the second reported.
 func TestNarrows_OmitsRoundingContainments(t *testing.T) {
 	t.Parallel()
 	rounding := [][2]ir.PrimKind{
-		{ir.PrimInt32, ir.PrimFloat32}, {ir.PrimUint32, ir.PrimFloat32}, {ir.PrimInt64, ir.PrimFloat32},
+		{ir.PrimInt32, ir.PrimFloat32}, {ir.PrimUint32, ir.PrimFloat32}, {ir.PrimInt64, ir.PrimFloat32}, {ir.PrimUint64, ir.PrimFloat32},
 		{ir.PrimInt64, ir.PrimFloat64}, {ir.PrimUint64, ir.PrimFloat64},
 		{ir.PrimInteger, ir.PrimFloat32}, {ir.PrimInteger, ir.PrimFloat64},
 	}

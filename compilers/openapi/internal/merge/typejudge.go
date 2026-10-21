@@ -16,7 +16,8 @@ const (
 	// relUnrelated is a pair the judgment has no arm for; the fold drops the
 	// second and typesConflict classifies the drop.
 	relUnrelated relation = iota
-	// relDisjoint is a pair no value satisfies together.
+	// relDisjoint is a pair no value satisfies together, but a null both sides
+	// admit.
 	relDisjoint
 	// relOverlap is a pair that shares values and that the judgment does not
 	// narrow to one.
@@ -134,7 +135,9 @@ func isDegraded(td ir.TypeDef) bool {
 
 // nodeAgainstBare compares a Scalar, Enum or Literal (ref, resolved to td)
 // against the bare primitive ref bare, of kind bareKind, from the node's side.
-// Any other node is unrelated.
+// Any other node is unrelated. Where an Enum's kind and the bare kind overlap,
+// the pair is disjoint when the bare kind refuses every member, as literalAgainst
+// judges one value, so an enum with no members is disjoint from any such kind.
 func (j typeJudge) nodeAgainstBare(ref ir.TypeRef, td ir.TypeDef, bare ir.TypeRef, bareKind ir.PrimKind) relation {
 	if lit, ok := td.(*ir.Literal); ok {
 		return literalAgainst(lit.Value, bareKind, bare.Nullable)
@@ -153,7 +156,10 @@ func (j typeJudge) nodeAgainstBare(ref ir.TypeRef, td ir.TypeDef, bare ir.TypeRe
 		return relANarrower
 	}
 	if rel == relBNarrower {
-		return relOverlap
+		rel = relOverlap
+	}
+	if en, ok := td.(*ir.Enum); ok && rel == relOverlap && noMemberMeets(en, bareKind, bare.Nullable) {
+		return relDisjoint
 	}
 	return rel
 }
@@ -176,6 +182,18 @@ func literalAgainst(v ir.Value, kind ir.PrimKind, bareNullable bool) relation {
 	default:
 		return relDisjoint
 	}
+}
+
+// noMemberMeets reports whether the bare kind refuses every member of en, each
+// judged by literalAgainst: vacuously true for an enum with no members, and
+// false where the kind has no judge, as bytes has none.
+func noMemberMeets(en *ir.Enum, kind ir.PrimKind, bareNullable bool) bool {
+	for _, m := range en.Members {
+		if literalAgainst(m.Value, kind, bareNullable) != relDisjoint {
+			return false
+		}
+	}
+	return true
 }
 
 // extras is what a list or map node holds beyond its element.

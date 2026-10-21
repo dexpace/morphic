@@ -465,11 +465,11 @@ func (g *Merger) foldTypeTargets(dst, src *ir.Property) (rel relation, nw narrow
 // judgeAdopted holds both declarations of a fold to the type it settled on. The
 // broader side of a narrowing loses a default or example the winner does not
 // admit; either side of a fold that kept one type loses a null the merged
-// field refuses. Each is reported once per declaration that wrote it and never
-// lands. A declaration refused by different folds draws one info per fold;
-// Unmodeled holds one entry.
+// field refuses. Each is reported once per declaration, never adopted.
+// Constraints adopted from the broader side are not judged: a bound the winning
+// kind cannot meet (`minimum: 0.5, maximum: 0.7` on `int32`) still lands.
 //
-// dropped says the fold lost src's type, so nothing is judged. srcLost says
+// dropped says the fold lost src's type: nothing is judged. srcLost says
 // src is to be kept verbatim; keptDst lists dst's writers to keep.
 func (g *Merger) judgeAdopted(dst, src *ir.Property, nw narrowing, dropped bool, org *origins) (srcLost bool, keptDst []origin) {
 	// The top type admits null whatever the bit says: `{}` admits every
@@ -496,7 +496,7 @@ func (g *Merger) judgeAdopted(dst, src *ir.Property, nw narrowing, dropped bool,
 	}
 	for _, grp := range groupRefusals(refused) {
 		g.Report(ir.SeverityInfo, diag.DegradedConstruct, grp.at.prov.Pointer,
-			"the type the declarations of field %q narrow it to does not admit the %s one declaration gives; "+
+			"the type the declarations of field %q merge it to does not admit the %s one declaration gives; "+
 				"not adopted, with that declaration verbatim under Unmodeled",
 			dst.WireName, strings.Join(grp.keywords, " and "))
 		if grp.fromSrc {

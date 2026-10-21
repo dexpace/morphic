@@ -279,16 +279,18 @@ func TestAllOf_OverlappingPrimitivesAreReportedNotConflicting(t *testing.T) {
 
 // TestAllOf_EnumPairsAreJudgedByKind pins what an enum side draws at the schema
 // level, in either order: an enum over a bare kind it equals or narrows wins
-// with no diagnostic; a bare kind strictly narrower than the enum's overlaps it,
-// which is info; another family warns; and two enums overlap.
+// with no diagnostic; a bare kind that admits one of its members overlaps it,
+// which is info; a kind that admits none of them warns, as does another family;
+// and two enums overlap.
 func TestAllOf_EnumPairsAreJudgedByKind(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
 		name, a, b string
 		info, warn bool
 	}{
-		{"enum against uuid", "{type: string, enum: [a]}", "{type: string, format: uuid}", true, false},
-		{"enum against int32", "{type: integer, enum: [3000000000]}", "{type: integer, format: int32}", true, false},
+		{"enum against uuid", "{type: string, enum: [a]}", "{type: string, format: uuid}", false, true},
+		{"enum against int32", "{type: integer, enum: [3000000000]}", "{type: integer, format: int32}", false, true},
+		{"enum against a date it admits", `{type: string, enum: ["2024-01-01"]}`, "{type: string, format: date}", true, false},
 		{"enum against integer", "{type: string, enum: [a]}", "{type: integer}", false, true},
 		{"enum against enum", "{type: string, enum: [a]}", "{type: string, enum: [b]}", true, false},
 		{"enum against string", "{type: string, enum: [a]}", "{type: string}", false, false},

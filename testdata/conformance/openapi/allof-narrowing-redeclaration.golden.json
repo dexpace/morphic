@@ -1731,7 +1731,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "the type the declarations of field \"p\" narrow it to does not admit the default one declaration gives; not adopted, with that declaration verbatim under Unmodeled",
+      "message": "the type the declarations of field \"p\" merge it to does not admit the default one declaration gives; not adopted, with that declaration verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/InadmissibleDefaultBroadFirst/allOf/0/properties/p"
@@ -1740,7 +1740,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "the type the declarations of field \"p\" narrow it to does not admit the default one declaration gives; not adopted, with that declaration verbatim under Unmodeled",
+      "message": "the type the declarations of field \"p\" merge it to does not admit the default one declaration gives; not adopted, with that declaration verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/InadmissibleDefaultNarrowFirst/allOf/1/properties/p"
@@ -1749,7 +1749,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "the type the declarations of field \"p\" narrow it to does not admit the default one declaration gives; not adopted, with that declaration verbatim under Unmodeled",
+      "message": "the type the declarations of field \"p\" merge it to does not admit the default one declaration gives; not adopted, with that declaration verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/RefusedLateDefaultFirst/allOf/2/properties/p"
@@ -1758,7 +1758,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "the type the declarations of field \"p\" narrow it to does not admit the default one declaration gives; not adopted, with that declaration verbatim under Unmodeled",
+      "message": "the type the declarations of field \"p\" merge it to does not admit the default one declaration gives; not adopted, with that declaration verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/RefusedLateDefaultMiddle/allOf/2/properties/p"
@@ -1767,7 +1767,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "the type the declarations of field \"p\" narrow it to does not admit the default one declaration gives; not adopted, with that declaration verbatim under Unmodeled",
+      "message": "the type the declarations of field \"p\" merge it to does not admit the default one declaration gives; not adopted, with that declaration verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/RefusedLateDefaultLast/allOf/1/properties/p"

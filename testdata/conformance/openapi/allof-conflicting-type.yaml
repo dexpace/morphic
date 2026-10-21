@@ -3,7 +3,7 @@ info: {title: AllOfConflictingType, version: "1.0.0"}
 paths: {}
 components:
   schemas:
-    # A format-narrowed string against an integer: unrelated kinds, so the pair
+    # A format-narrowed string against an integer: disjoint kinds, so the pair
     # is genuinely unsatisfiable. The first declaration wins; the second is kept
     # beside it. (A format over its bare type is a refinement, not a conflict:
     # see allof-narrowing-redeclaration.)
