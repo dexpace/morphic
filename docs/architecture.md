@@ -165,12 +165,12 @@ typed, checked and documented where it is declared.
 The order lives in the `engine` package's default list, not in `pass/`: composing passes is
 orchestration, which only the engine does. The engine runs the list after any compile that produced
 a document, errors reported or not, and over a document already compiled that a caller hands it
-(`RunDocument`), and threads each pass's output into the next. An analysis that
-judges the document runs after every transform, so `validate` comes last. It then checks what the
-run returns, every transform's output included, and its findings, whose `Provenance.Node` is spelled
-against the document it was handed, locate in that document. Running it first would give the
-transforms no guarantee, since a caller can turn it off: each pass must cope with a document that
-fails it whatever the order.
+(`RunDocument`), and threads each pass's output into the next. An analysis that judges the document
+runs after every transform, so `validate` comes last. It then checks what the run returns, every
+transform's output included, and its findings, whose `Provenance.Node` is spelled against the
+document it was handed, locate in that document. Running it first would give the transforms no
+guarantee, since a caller can turn it off: each pass must cope with a document that fails it
+whatever the order.
 
 The engine owns `Document.Diagnostics`, writing the compiler's findings and every pass's onto the
 document it returns, so a transform that builds a fresh document cannot lose any. Those findings
@@ -347,7 +347,7 @@ morphic/
 ├── engine/                 # Layer 3 — orchestration: detect format, run compiler, passes, emitters.
 │   ├── reader/             #           Reads what a run's references name: disk, network or memory.
 │   ├── report/             #           Renders diagnostics and --explain for a person.
-│   └── output/             #           Writes the IR document, a file through engine/internal/atomicfile.
+│   └── output/             #           Writes the IR document to a stream, or to a file atomically.
 ├── internal/archtest/      #           Import layering, the recursion pin and the caps (tooling).
 ├── internal/census/        #           Counts which IR facts a set of documents sets (tooling).
 ├── internal/decls/         #           Type-checked reads of declarations, for tests (tooling).

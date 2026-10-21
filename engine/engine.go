@@ -182,7 +182,8 @@ func (e *Engine) RunSources(ctx context.Context, sources []compilers.Source, opt
 // and Result.Format is the zero format; Result.Diagnostics holds doc's own
 // findings and the passes'.
 //
-// doc is not modified, and must not be while the run reads it. A nil doc, one
+// doc is not modified. The Result's document shares all of doc but its
+// Diagnostics, so neither may change while the other is read. A nil doc, one
 // whose IRVersion this build cannot read, and compiler options are Go errors.
 func (e *Engine) RunDocument(ctx context.Context, doc *ir.Document, opts RunOptions) (*Result, error) {
 	passes, failOn, err := e.prepare(opts)

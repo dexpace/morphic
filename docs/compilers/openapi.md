@@ -145,9 +145,8 @@ instead: [`minor-required-fields`](#minor-required-fields),
   `openapi.TestCompile_AFindingInAnExternalDocumentKeepsItsRule`
 - Status: partly built: a finding about content another document holds is placed at the source's
   `$ref` that reaches it, naming its position there in the message (#1030), and one in an object an
-  alias mounts twice is reported twice
-  (#889); a null written in some validated fields faults the parser, and the whole document is
-  refused as undecodable rather than the field reported (#891).
+  alias mounts twice is reported twice (#889); a null written in some validated fields faults the
+  parser, and the whole document is refused as undecodable rather than the field reported (#891).
 
 ### `minor-required-fields`
 
@@ -263,25 +262,24 @@ that document. What a `$ref` lands on in another document lowers where that docu
 one in the source lowers at the pointer the `$ref` spells. A use site takes what its schema `$ref`'s
 chain ends on — an annotation, a form body's parts, a file body or a discriminator — whichever
 documents the chain passes, as its type names that schema. An empty `$ref` names the document's
-root, which holds no schema, so a chain
-reaching one ends on none and lends nothing, as any chain that fails does, though the schema writing
-it keeps what it declares beside it. A YAML alias or merge key is a copy written where it is placed,
-so what it holds is read at that position, as the document's JSON places it, and raw YAML a schema
-`$ref` lands on, under an extension or in another document, is read as a schema. A schema position
-of the model holds the schema the parser built there, whatever its YAML, so a `$ref` to a component
-written as a string names that component, as it lowers. A key written twice in one mapping is read
-as its last occurrence, raw YAML included, as the parser's model reads one
-([`duplicate-key`](../parser-library.md#duplicate-key)).
+root, which holds no schema, so a chain reaching one ends on none and lends nothing, as any chain
+that fails does, though the schema writing it keeps what it declares beside it. A YAML alias or
+merge key is a copy written where it is placed, so what it holds is read at that position, as the
+document's JSON places it, and raw YAML a schema `$ref` lands on, under an extension or in another
+document, is read as a schema. A schema position of the model holds the schema the parser built
+there, whatever its YAML, so a `$ref` to a component written as a string names that component, as it
+lowers. A key written twice in one mapping is read as its last occurrence, raw YAML included, as the
+parser's model reads one ([`duplicate-key`](../parser-library.md#duplicate-key)).
 
 A reference that resolves to nothing — a pointer naming no node, a position holding no schema, a
-component its section does not hold, another document the compile may not read, an `$anchor`
-— is reported as an `openapi/unresolved-ref` error at the referencing position, with why,
-and the position lowers without it: a schema position to the top type, any other position to nothing
-at all, so the parameter, response or body it would have named is absent. Each is reported once,
-where it is written, in whichever document, and a schema `$ref` whose chain ends on another failing
-`$ref` is not reported for it, as that one is. What a reference object resolved to is read at the
-node the resolver's chain reached ([`trailing-empty-token`](../parser-library.md#trailing-empty-token)),
-and where no position holds that node, as for the first of a key written twice in raw YAML
+component its section does not hold, another document the compile may not read, an `$anchor` — is
+reported as an `openapi/unresolved-ref` error at the referencing position, with why, and the
+position lowers without it: a schema position to the top type, any other position to nothing at all,
+so the parameter, response or body it would have named is absent. Each is reported once, where it is
+written, in whichever document, and a schema `$ref` whose chain ends on another failing `$ref` is
+not reported for it, as that one is. What a reference object resolved to is read at the node the
+resolver's chain reached ([`trailing-empty-token`](../parser-library.md#trailing-empty-token)), and
+where no position holds that node, as for the first of a key written twice in raw YAML
 ([`duplicate-key`](../parser-library.md#duplicate-key)), it lowers at the use site, and each schema
 `$ref` and mapping value in it is reported unresolved, saying so.
 
@@ -349,30 +347,28 @@ would answer. A chain of references that closes on itself is
 - Status: partly built: an `encoding` entry naming no part of its body is dropped with no record
   (#604). An `$anchor` or an `$id` is not honoured as a reference target (#1015). An absolute-path
   `$ref` in a remote document is read as a local path (#936); a remote document can make the
-  compiler request a private address (#937); an external document that does not parse is handed on
-  rather than refused (#939); and a remote document reaching a local file is refused naming only its
-  last such `$ref` (#940). A reference object's pointer holding a character above U+FFFF is refused
-  as malformed (#516), and an unresolved reference object's message ends in the resolver's own
-  wording (#809).
+  compiler request a private address (#937); and a remote document reaching a local file is refused
+  naming only its last such `$ref` (#940). A reference object's pointer holding a character above
+  U+FFFF is refused as malformed (#516), and an unresolved reference object's message ends in the
+  resolver's own wording (#809).
 
 ### `reference-cycles`
 
 A chain of schema `$ref`s that never reaches a schema — `A: {$ref: B}`, `B: {$ref: A}` — is a loop,
 found however it closes: through same-document pointers, a `$defs` pointer, a root definition, the
-source's own file name, a pointer read on past a reference object, or another document's content.
-It is reported once, as an `openapi/cyclic-ref` error at its least member, in the document that
-writes it, the source's members first and another document's by its location, so the report does
-not move with declaration order. Each member lowers to the top type with no report of its own, and the
+source's own file name, a pointer read on past a reference object, or another document's content. It
+is reported once, as an `openapi/cyclic-ref` error at its least member, in the document that writes
+it, the source's members first and another document's by its location, so the report does not move
+with declaration order. Each member lowers to the top type with no report of its own, and the
 document compiles. A YAML anchor recursive in itself would run the parser out of stack, so a source
 holding one is refused before the parser reads it, as an `openapi/cyclic-ref` error, and compiles to
 no Document; so is an overlay's patched tree. A document an external reference reads that holds one
 fails each reference naming it instead, as it fails the source's other refusals
 ([`source-budgets`](#source-budgets)): each is an `openapi/unresolved-ref` error saying why, and the
-rest of the document lowers. A cycle
-of Reference Objects the resolver reports itself, as an unresolved reference
-([`references`](#references)). A schema reaching itself through what it declares is recursion, not a
-cycle ([`recursion`](#recursion)). An alias scan that aborts on a fault of its own is reported as an
-`openapi/cycle-scan-failed` warning, and the compile proceeds.
+rest of the document lowers. A cycle of Reference Objects the resolver reports itself, as an
+unresolved reference ([`references`](#references)). A schema reaching itself through what it
+declares is recursion, not a cycle ([`recursion`](#recursion)). An alias scan that aborts on a fault
+of its own is reported as an `openapi/cycle-scan-failed` warning, and the compile proceeds.
 
 - Codes: `openapi/cyclic-ref`, `openapi/cycle-scan-failed`
 - Tests: `openapi.TestCompile_SchemaRefCycleIsReportedAndStillCompiles`,
@@ -1640,8 +1636,8 @@ reference other than a schema's `$ref` or a mapping value when the compile reads
 which lowers as that field. An item another document holds is declared where that document declares
 it, and a finding names its positions by the reference; one the compile cannot place there, as past
 the longest chain it follows or at a key that document writes twice, is declared under the use
-site's `$ref` (`…/$ref/…`), which no document names. The fields beside a `$ref` the load phase's walk
-does not reach, in another document or under an `x-*` key, are not lowered, reported as an
+site's `$ref` (`…/$ref/…`), which no document names. The fields beside a `$ref` the load phase's
+walk does not reach, in another document or under an `x-*` key, are not lowered, reported as an
 `openapi/degraded-construct` warning at the mount naming the reference that reaches them.
 
 - Cases: `path-item-ref-siblings`

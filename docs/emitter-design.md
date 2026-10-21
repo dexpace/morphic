@@ -207,9 +207,10 @@ The engine is the only caller of `Lookup`, the only thing that runs `Generate`, 
 that touches the filesystem, prunes, and renders diagnostics. Emitters are I/O-free. Reading,
 rendering and writing the IR document have homes already: `engine/reader` reads what a run's
 references name, `engine/report` renders, and `engine/output` writes, replacing a file through the
-atomic replace in `engine/internal/atomicfile`. Writing artifacts and pruning land with §11. The engine runs `Generate` only for a run that has not failed (`engine.Result.Failed`,
-architecture.md §4): at the default threshold a document carrying an error diagnostic reaches no
-emitter, and a caller that wants one built from it anyway says so with the `none` threshold.
+atomic replace in `engine/internal/atomicfile`. Writing artifacts and pruning land with §11. The
+engine runs `Generate` only for a run that has not failed (`engine.Result.Failed`, architecture.md
+§4): at the default threshold a document carrying an error diagnostic reaches no emitter, and a
+caller that wants one built from it anyway says so with the `none` threshold.
 
 ### 2.2 Who computes the plan
 
