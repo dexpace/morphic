@@ -529,8 +529,8 @@ x-lib:
 // TestResolve_AComponentTheYAMLWritesAsNoSchemaIsTheParsers pins that a
 // component the YAML writes as no schema, here a string, holds the schema the
 // parser built there, as the lowering reads it: a $ref to it names it, and the
-// parser's own finding is the one report, where raw YAML holding no schema is
-// reported unresolved (GitHub #769).
+// rule table's finding that it is no schema is the one report, where raw YAML
+// holding no schema is reported unresolved (GitHub #769).
 func TestResolve_AComponentTheYAMLWritesAsNoSchemaIsTheParsers(t *testing.T) {
 	t.Parallel()
 	_, diags := loadExternal(t, t.TempDir(), `openapi: 3.1.0
@@ -543,7 +543,7 @@ components:
 `, Options{})
 
 	assert.Empty(t, cmp.Diff([]string{"/components/schemas/S openapi/validation/validation-type-mismatch"},
-		diagLines(diags)), "the parser's finding, and no unresolved $ref")
+		diagLines(diags)), "the table's finding, and no unresolved $ref")
 }
 
 // TestResolve_ANodeReadAsAnotherKindReportsNothingTheSourceDid pins what a node

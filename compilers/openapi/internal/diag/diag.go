@@ -163,13 +163,13 @@ const (
 	DuplicateStatusKey = "openapi/duplicate-status-key"
 	// DuplicateParameter reports a parameter list entry repeating the name and
 	// location of an earlier entry in the same list, its $refs resolved, which
-	// OpenAPI forbids. The compiler owns the rule, dropping the bundled parser's
-	// report, which saw only inline entries: every list the source writes is
+	// OpenAPI forbids. The rule table states the rule and leaves it here, where
+	// every entry is read through its $ref: every list the source writes is
 	// checked whether or not it lowers (load), and a list another document
 	// writes where it lowers (the parameter lowering). A lowered list keeps
 	// every occurrence, each repeat's ID ending in its occurrence number.
 	//
-	// Error, as the parser's report was.
+	// An error, as the specification forbids the repeat.
 	DuplicateParameter = "openapi/duplicate-parameter"
 	// DuplicateServerName reports a servers list entry whose name an earlier
 	// entry in the same list already has, compared as written, at the repeat's

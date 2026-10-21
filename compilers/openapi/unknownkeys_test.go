@@ -403,10 +403,9 @@ webhooks:
   hook:
     x-on-hook: {d: 4}
 `)
-	// Not requireNoErrorDiagnostics: an object-valued undeclared key folds into
-	// the operations map as an operation with no responses, so the library reports
-	// a required-field error naming it. That is the fold this census exists to see
-	// past, not a problem with the fixture.
+	// An object-valued undeclared key is an undeclared key, not an operation the
+	// item declares, so the document draws no error.
+	requireNoErrorDiagnostics(t, diags)
 
 	keys := map[string]bool{}
 	for _, site := range unmodeledSites(doc) {

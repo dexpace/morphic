@@ -46,7 +46,8 @@ Document.
 
 - Codes: `openapi/unsupported-version`, `openapi/validation`
 - Tests: `openapi.TestCompile_UnsupportedVersion`,
-  `load.TestSupportedMinor_AcceptsOnlyTheThreeMinors`, `oas.TestCheck_TheOpenAPIFieldIsAVersionNumber`,
+  `load.TestSupportedMinor_AcceptsOnlyTheThreeMinors`,
+  `oas.TestCheck_TheOpenAPIFieldIsAVersionNumber`,
   `openapi.TestDetect_AVersionThatIsNotServedIsStillADeclaration`
 
 ### `yaml-decoding`
@@ -174,12 +175,16 @@ gives it no effect is [`allow-reserved-locations`](#allow-reserved-locations)' a
 [`querystring`](#querystring)'s.
 
 - Codes: `openapi/validation`
-- Tests: `oas.TestCheck_RulesGradeByLevel`, `oas.TestCheck_NullIsReadAsAbsentWhereTheFieldIsOptional`,
-  `oas.TestCheck_ShapesFollowTheField`, `oas.TestCheck_PathTemplatesAnswerToPathParameters`,
-  `oas.TestCheck_AServerURLNamesOnlyItsVariables`, `oas.TestCheck_EncodingsApplyWhereTheSpecificationSays`,
-  `oas.TestCheck_AFindingIsMadeOnceWhereItIsPlaced`, `oas.TestCheck_RulesAnotherPackageOwnsAreNotApplied`,
+- Tests: `oas.TestCheck_RulesGradeByLevel`,
+  `oas.TestCheck_NullIsReadAsAbsentWhereTheFieldIsOptional`, `oas.TestCheck_ShapesFollowTheField`,
+  `oas.TestCheck_PathTemplatesAnswerToPathParameters`,
+  `oas.TestCheck_AServerURLNamesOnlyItsVariables`,
+  `oas.TestCheck_EncodingsApplyWhereTheSpecificationSays`,
+  `oas.TestCheck_AFindingIsMadeOnceWhereItIsPlaced`,
+  `oas.TestCheck_RulesAnotherPackageOwnsAreNotApplied`,
   `oas.TestTable_EveryRowCitesTheSpecification`, `load.TestJudgeSource_PlacesEachFindingAtItsNode`,
-  `load.TestLoad_WhatAnAliasMountsIsReportedOnce`, `load.TestResolve_AnObjectReachedTwiceIsReportedOnce`,
+  `load.TestLoad_WhatAnAliasMountsIsReportedOnce`,
+  `load.TestResolve_AnObjectReachedTwiceIsReportedOnce`,
   `openapi.TestCompile_AFindingInAnExternalDocumentKeepsItsRule`,
   `canary.TestValidationOracle_AgreesWithTheLibrary`
 - Status: open: which minor governs a document a reference reaches, held to the source's until it is
@@ -205,7 +210,8 @@ the field.
 
 - Cases: `empty-required-values`, `relaxed-required-fields`
 - Codes: `openapi/validation`
-- Tests: `oas.TestCheck_RequiredFieldsFollowTheMinor`, `oas.TestCheck_AtLeastOneSectionStandsInADocument`,
+- Tests: `oas.TestCheck_RequiredFieldsFollowTheMinor`,
+  `oas.TestCheck_AtLeastOneSectionStandsInADocument`,
   `oas.TestCheck_EmptyStringsAreRefusedWhereTheGrammarSaysSo`,
   `oas.TestCheck_NamesSentInAHeaderOrACookieAreTokens`, `oas.TestCheck_AnHTTPSchemeIsAToken`
 - Status: open: which minor governs a document a reference reaches, held to the source's until it is
@@ -233,20 +239,21 @@ between minors, such as `exclusiveMinimum`, follows the declared one
 Whether a construct is a later minor's is asked in one place, the table [`validation`](#validation)
 holds a document to, which gives the minor each field and value was added in; no lowering asks it,
 so no field's treatment can depend on whether the parser happens to model it. The construct's value
-is held to the shape its table row gives it, and what it holds to the table as any object is. The
-keys beside a `$ref` are judged as the object they belong to: a Reference Object's, or a Path Item's
-own fields beside its `$ref`. An object a `$ref` reaches is judged as the source's own are, wherever
-it is written, and reported where [`validation`](#validation) places a finding about it. A construct
-the parser refused at an earlier minor, a Path Item's `additionalOperations` before 3.2 or a schema
-keyword 3.2 added, draws the warning as any other does. A JSON Schema keyword is read by the schema
-lowering as it finds it, so the table leaves it alone. The same table judges a Parameter Object's
-`allowReserved` against where the declared minor applies it
+is held to the shape its table row gives it, and any object inside it to the table like any other.
+The keys beside a `$ref` are judged as the object they belong to: a Reference Object's, or a Path
+Item's own fields beside its `$ref`. An object a `$ref` reaches is judged as the source's own are,
+wherever it is written, and reported where [`validation`](#validation) places a finding about it. A
+Path Item's `additionalOperations` before 3.2, and a field 3.2 added to a Discriminator or XML
+Object, draw the warning as any other construct does. A keyword a later minor's JSON Schema dialect
+added is read by the schema lowering as it finds it, so the table leaves it alone. The same table
+judges a Parameter Object's `allowReserved` against where the declared minor applies it
 ([`allow-reserved-locations`](#allow-reserved-locations)).
 
 - Cases: `later-version-constructs`, `reached-outside-model`
 - Codes: `openapi/later-version-construct`
 - Tests: `openapi.TestLaterVersionConstructs_LowerAsInTheVersionThatAddedThem`,
-  `oas.TestCheck_LaterConstructsAreWarnedOfInTheCompilersWords`, `oas.TestCheck_ValuesAddedLaterAreWarnedOf`,
+  `oas.TestCheck_LaterConstructsAreWarnedOfInTheCompilersWords`,
+  `oas.TestCheck_ValuesAddedLaterAreWarnedOf`,
   `oas.TestTable_AgreesWithTheConstructsLaterMinorsAdded`,
   `load.TestResolve_AReachedObjectIsHeldToTheLaterVersionTable`
 - Status: partly built: a 3.0 schema's `$ref` siblings are read as 3.1 reads them, which admits any
@@ -1679,7 +1686,8 @@ that declares no parents groups exactly as it would were parents never read.
   `operation.TestGrouping_SameNameDeclaredTwiceIsDeterministic`,
   `operation.TestGrouping_BadgeOnlyOperationFallsToDefault`, `oas.TestCheck_TagParentsExist`,
   `oas.TestCheck_DuplicatesAreFound`
-- Status: partly built: a tag an operation repeats passes into the IR undeduplicated (#738). Open: grouping operations by a vendor extension (#582).
+- Status: partly built: a tag an operation repeats passes into the IR undeduplicated (#738). Open:
+  grouping operations by a vendor extension (#582).
 
 ## 9. Parameters
 
@@ -1783,8 +1791,8 @@ broken, once, where the parameter is written, whether anything lowers it or not.
 - Codes: `openapi/inapplicable-location-keyword`
 - Tests: `oas.TestCheck_AllowReservedWarnsWhereItHasNoEffect`,
   `oas.TestCheck_AllowReservedWordsWhereItAppliesAndWhereItDoesNot`
-- Status: open: which minor governs a parameter another document holds, held to the source's until it
-  is settled (#839).
+- Status: open: which minor governs a parameter another document holds, held to the source's until
+  it is settled (#839).
 
 ### `parameter-schema-keywords`
 
@@ -1928,14 +1936,15 @@ still gets entries for its array and file parts, and an entry declaring nothing 
 Encoding Object writes beyond those fields is
 [`encoding-allow-reserved`](#encoding-allow-reserved)'. An encoding written where OpenAPI gives it
 no effect is reported as an `openapi/validation` warning, of the class `validation-no-effect`, at
-the field ([`validation`](#validation)): an `encoding` under a media type that is neither multipart nor form,
-which lowers nowhere, or before 3.2 outside a request body, and a 3.2 `prefixEncoding` or
+the field ([`validation`](#validation)): an `encoding` under a media type that is neither multipart
+nor form, which lowers nowhere, or before 3.2 outside a request body, and a 3.2 `prefixEncoding` or
 `itemEncoding` under one that is not multipart. A media type is read without its parameters and in
 any case.
 
 - Cases: `multipart-encoding`
 - Codes: `openapi/validation`
-- Tests: `operation.TestContent_MultipartPartEncoding`, `oas.TestCheck_EncodingsApplyWhereTheSpecificationSays`,
+- Tests: `operation.TestContent_MultipartPartEncoding`,
+  `oas.TestCheck_EncodingsApplyWhereTheSpecificationSays`,
   `operation.TestContent_ArrayMultipartPartMulti`,
   `operation.TestPartEncodings_MixinPartIsKeyedOnTheMixin`
 - Status: partly built: an `encoding` key that names no property, or one declared only inside a
@@ -2070,7 +2079,8 @@ is none of them is reported as an `openapi/validation` error, of the class
 
 - Cases: `callbacks`
 - Codes: `openapi/validation`
-- Tests: `operation.TestCallbacks_NameWithSlashKeepsItsOwnKey`, `oas.TestCheck_CallbackKeysAreRuntimeExpressions`
+- Tests: `operation.TestCallbacks_NameWithSlashKeepsItsOwnKey`,
+  `oas.TestCheck_CallbackKeysAreRuntimeExpressions`
 - Status: partly built: callbacks declared on an operation inside a callback are dropped in silence
   (#858); and a callback operation is not marked inbound, and a callback has no name (#625). Open:
   whether a callback operation inherits the service's auth (#626).
@@ -2089,11 +2099,12 @@ requirement and dropped. An entry that omits the field naming its mechanism — 
 the `scheme` token — is interned as no scheme, reported as an `openapi/incomplete-security-scheme`
 error at the entry, and every requirement naming it is dropped. 3.2's device flow lowers to `Flows`
 beside the other flows, and `oauth2MetadataUrl` to `OAuth2MetadataURL`. An `oauth2` scheme whose
-`flows` declares no flow — `flows: {}`, only `x-*` and keys that name no flow, or flows written
-null — and that has no `oauth2MetadataUrl` lowers as declared, reported as an `openapi/oauth2-no-flow`
-warning at the declaration; a `flows` left out, null or no mapping is the rule table's to report
-instead ([`minor-required-fields`](#minor-required-fields)). The table states the rules this one
-reports, a requirement naming no scheme and a scheme naming no mechanism, and leaves them to it.
+`flows` declares no flow — `flows: {}`, only `x-*` and keys that name no flow, or only flows written
+null — and that has no `oauth2MetadataUrl` lowers as declared, reported as an
+`openapi/oauth2-no-flow` warning at the declaration; a `flows` left out, null or no mapping is the
+rule table's to report instead ([`minor-required-fields`](#minor-required-fields)). The table states
+the rules this one reports, a requirement naming no scheme and a scheme naming no mechanism, and
+leaves them to it.
 
 - Cases: `security-schemes`, `security-or-and`, `oauth2-no-flow`
 - Codes: `openapi/oauth2-no-flow`, `openapi/incomplete-security-scheme`, `openapi/unresolved-ref`

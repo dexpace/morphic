@@ -1,8 +1,8 @@
 # Parser library behaviours
 
 The OpenAPI compiler reads a document through `github.com/speakeasy-api/openapi`, the parser
-library. Its decoder builds the typed model from the YAML tree, its resolver follows `$ref`s, and its
-overlay applier patches a YAML tree. This page records what the compiler depends on the library
+library. Its decoder builds the typed model from the YAML tree, its resolver follows `$ref`s, and
+its overlay applier patches a YAML tree. This page records what the compiler depends on the library
 doing, defects included: each behaviour the compiler refuses input over or works around. Each entry
 gives the behaviour, the smallest input that shows it, the compiler code that exists because of it,
 and the test that pins it.

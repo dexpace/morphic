@@ -834,7 +834,7 @@ func appendPluralExample(c lowering.Ctx, out []ir.Example, re *soa.ReferencedExa
 // `value` or 3.2's `dataValue` (GitHub #612). A spelling ir.Example has no field
 // for is kept verbatim at decl, the entry's declaration, rather than dropped:
 // 3.2's `serializedValue` whatever it is written beside, and a `dataValue`
-// written beside `value`, which the parser reports. An entry with no value in
+// written beside `value`, which the rule table reports. An entry with no value in
 // any spelling is an empty stub, dropped with a warning.
 func appendExampleValue(c lowering.Ctx, out []ir.Example, proto ir.Example, ex *soa.Example,
 	re *soa.ReferencedExample, pointer, decl jsontext.Pointer, name string,

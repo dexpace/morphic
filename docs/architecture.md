@@ -322,6 +322,7 @@ morphic/
 │   │       ├── scan/       #             pre-parse refusals (alias cycles and fan-out, nesting)
 │   │       ├── bind/       #             every schema $ref bound where it lands, loops found
 │   │       ├── annotation/ #             what a schema says about itself, not its shape
+│   │       ├── oas/        #             the OpenAPI Specification's rules by minor, and their check
 │   │       ├── load/       #             parse, validate, resolve
 │   │       ├── resolve/    #             what a $ref names; reference-or-inline entries
 │   │       ├── merge/      #             allOf property reconciliation

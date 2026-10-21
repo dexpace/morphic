@@ -4279,12 +4279,12 @@ func assertOAuth2NoFlow(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 		byPointer["/components/securitySchemes/metadataOnly"].OAuth2MetadataURL, "the control's metadata URL is kept")
 }
 
-// assertNoParserFinding requires that the parser's validation reported nothing
+// assertNoValidationFinding requires that the rule table reported nothing
 // about the document, which is what the required-field cases below are about.
-func assertNoParserFinding(t *testing.T, diags []ir.Diagnostic) {
+func assertNoValidationFinding(t *testing.T, diags []ir.Diagnostic) {
 	t.Helper()
 	for _, d := range diags {
-		assert.False(t, strings.HasPrefix(d.Code, diag.Validation+"/"), "unexpected parser finding: %+v", d)
+		assert.False(t, strings.HasPrefix(d.Code, diag.Validation+"/"), "unexpected validation finding: %+v", d)
 	}
 }
 
@@ -4294,7 +4294,7 @@ func assertNoParserFinding(t *testing.T, diags []ir.Diagnostic) {
 // security scheme with an empty name or URL (GitHub #622).
 func assertEmptyRequiredValues(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	t.Helper()
-	assertNoParserFinding(t, diags)
+	assertNoValidationFinding(t, diags)
 	require.Len(t, doc.Servers, 2)
 	assert.Empty(t, doc.Servers[0].URLTemplate)
 	require.Len(t, doc.Servers[1].Variables, 2)
@@ -4319,7 +4319,7 @@ func assertEmptyRequiredValues(t *testing.T, doc *ir.Document, diags []ir.Diagno
 // and as a component alike (GitHub #622).
 func assertRelaxedRequiredFields(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	t.Helper()
-	assertNoParserFinding(t, diags)
+	assertNoValidationFinding(t, diags)
 	byName := map[string]ir.Operation{}
 	for _, op := range allOperations(doc) {
 		byName[op.Name.Source] = op

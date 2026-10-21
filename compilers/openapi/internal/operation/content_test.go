@@ -800,7 +800,7 @@ components:
 	assert.True(t, slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {
 		return d.Code == diag.Validation+"/validation-required-field" &&
 			d.Provenance.Pointer == "/paths/~1missing/post/requestBody"
-	}), "the parser reports the content left out: %+v", diags)
+	}), "the rule table reports the content left out: %+v", diags)
 }
 
 // encodingSpec declares one form part per position an Encoding Object reaches:
