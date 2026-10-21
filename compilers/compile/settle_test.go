@@ -148,3 +148,82 @@ func TestTypes_SettlementThatAddsOrRemovesANodeIsRefused(t *testing.T) {
 		})
 	}
 }
+
+// TestTypes_SettleQueuedTakesWhatIsQueuedAndLeavesDeferOpen pins the early
+// settling a compiler uses before a later lowering reads the registry: it takes
+// what is queued once, in order, and a settlement deferred after it is left for
+// Settle, not taken by a second call.
+func TestTypes_SettleQueuedTakesWhatIsQueuedAndLeavesDeferOpen(t *testing.T) {
+	t.Parallel()
+	types := compile.NewTypes()
+	var runs []string
+	record := func(name string) compile.Settlement {
+		return settleFunc(func(ir.TypeRegistry) []ir.Diagnostic {
+			runs = append(runs, name)
+			return []ir.Diagnostic{{Code: name}}
+		})
+	}
+	types.Defer(record("first"))
+	types.Defer(record("second"))
+
+	diags := types.SettleQueued(t.Context())
+
+	assert.Equal(t, []string{"first", "second"}, runs, "each runs once, in the order deferred")
+	require.Len(t, diags, 2)
+	assert.Equal(t, "first", diags[0].Code)
+	assert.Equal(t, "second", diags[1].Code)
+
+	types.Defer(record("late"))
+	assert.Empty(t, types.Violations(), "the registry is still open to Defer")
+	assert.Equal(t, []string{"first", "second"}, runs, "what was deferred late waits for Settle")
+
+	diags = types.Settle(t.Context())
+
+	require.Len(t, diags, 1)
+	assert.Equal(t, "late", diags[0].Code, "Settle takes the late one and not the two already taken")
+	assert.Equal(t, []string{"first", "second", "late"}, runs)
+	assert.Empty(t, types.SettleQueued(t.Context()), "nothing is left to take twice")
+	assert.Equal(t, []string{"first", "second", "late"}, runs)
+	assert.Empty(t, types.Violations())
+}
+
+// TestTypes_SettleQueuedHonoursCancellationAndTheNodeCount pins that the early
+// settling stops between settlements once ctx is done and refuses a settlement
+// that changes the node count, as Settle does.
+func TestTypes_SettleQueuedHonoursCancellationAndTheNodeCount(t *testing.T) {
+	t.Parallel()
+	t.Run("cancellation", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithCancel(t.Context())
+		types := compile.NewTypes()
+		var runs []string
+		types.Defer(settleFunc(func(ir.TypeRegistry) []ir.Diagnostic {
+			runs = append(runs, "first")
+			cancel()
+			return nil
+		}))
+		types.Defer(settleFunc(func(ir.TypeRegistry) []ir.Diagnostic {
+			runs = append(runs, "second")
+			return nil
+		}))
+
+		types.SettleQueued(ctx)
+
+		assert.Equal(t, []string{"first"}, runs, "the settlement after the cancellation is not taken")
+		assert.Empty(t, types.Violations())
+	})
+	t.Run("node count", func(t *testing.T) {
+		t.Parallel()
+		types := compile.NewTypes()
+		types.Intern("/p", "t/x", func() ir.TypeDef { return &ir.Model{ID: "t/x"} })
+		types.Defer(settleFunc(func(reg ir.TypeRegistry) []ir.Diagnostic {
+			reg["t/other"] = &ir.Model{ID: "t/other"}
+			return nil
+		}))
+
+		types.SettleQueued(t.Context())
+
+		require.Len(t, types.Violations(), 1)
+		assert.Contains(t, types.Violations()[0], "from 1 to 2 nodes")
+	})
+}

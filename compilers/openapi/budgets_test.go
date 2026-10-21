@@ -416,18 +416,22 @@ components:
 	moved := func(diags []ir.Diagnostic) bool {
 		return openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/Pet/discriminator")
 	}
-	// Pet's is the one settlement, so the settling asks once, second to last,
-	// and the boundary after it asks last.
+	// Pet's is the one settlement, and the early settling takes it directly
+	// after the component walk: it asks once, third to last, and the boundary
+	// after it asks next to last. The operation walk and the final Settle, which
+	// has nothing queued, ask nothing, so the last call is the boundary after
+	// them, which a compile cancelled earlier never reaches.
 	calls, diags, err := runUntil(math.MaxInt)
 	require.NoError(t, err)
 	require.True(t, moved(diags), "uncancelled, the settlement moves the discriminator")
 
-	seen, diags, err := runUntil(calls - 2)
+	seen, diags, err := runUntil(calls - 3)
 	require.ErrorIs(t, err, context.Canceled)
 	assert.False(t, moved(diags), "a cancelled settling takes no settlement")
-	assert.Equal(t, calls, seen, "and the boundary after it still asks")
+	assert.Equal(t, calls-1, seen, "and the boundary after it still asks")
 
-	_, diags, err = runUntil(calls - 1)
+	seen, diags, err = runUntil(calls - 2)
 	require.ErrorIs(t, err, context.Canceled)
 	assert.True(t, moved(diags), "one call later the settlement ran and only the boundary refused")
+	assert.Equal(t, calls-1, seen, "and it is the same boundary that stopped the compile")
 }

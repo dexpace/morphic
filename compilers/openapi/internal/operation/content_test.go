@@ -284,6 +284,63 @@ components:
 	assert.True(t, fileEnc.Filename)
 }
 
+// TestContent_MultipartRedeclaredPartFlagsComeFromTheSettledType holds a part
+// the body's allOf redeclares to a $ref, whose target may be declared after the
+// body, to the flag of the type the merge settled on, whichever component
+// comes first. The operation walk reads the property's type, so it must read it
+// after the redeclaration is judged and not at its first declaration.
+func TestContent_MultipartRedeclaredPartFlagsComeFromTheSettledType(t *testing.T) {
+	t.Parallel()
+	const body = `    T:
+      allOf:
+        - {type: object, properties: {f: {}}}
+        - {type: object, properties: {f: {$ref: "#/components/schemas/Q"}}}
+`
+	cases := []struct {
+		name     string
+		q        string
+		filename bool
+		multi    bool
+	}{
+		{"binary", `{type: string, format: binary}`, true, false},
+		{"array", `{type: array, items: {type: string}}`, false, true},
+	}
+	for _, tc := range cases {
+		for _, qFirst := range []bool{false, true} {
+			t.Run(tc.name+map[bool]string{false: " declared after", true: " declared before"}[qFirst], func(t *testing.T) {
+				t.Parallel()
+				q := "    Q: " + tc.q + "\n"
+				components := body + q
+				if qFirst {
+					components = q + body
+				}
+				doc, svc, diags := lowerServiceSpec(t, openapitest.PathsSpec(`  /u:
+    post:
+      requestBody:
+        content:
+          multipart/form-data:
+            schema: {$ref: "#/components/schemas/T"}
+      responses: {"204": {description: ok}}
+components:
+  schemas:
+`+components))
+				openapitest.RequireNoErrorDiags(t, diags)
+				enc := multipartEncoding(t, openapitest.FirstOp(t, svc))
+				model, ok := typeByName(doc, "T").(*ir.Model)
+				require.True(t, ok, "T lowers to a model")
+				require.Len(t, model.Properties, 1)
+				prop := model.Properties[0]
+				assert.Equal(t, ir.TypeID("t/openapi/components/schemas/Q"), prop.Type.Target,
+					"the settled type of f is Q")
+				pe, ok := enc[prop.ID]
+				require.True(t, ok, "the part is entered; got %v", enc)
+				assert.Equal(t, tc.filename, pe.Filename, "filename")
+				assert.Equal(t, tc.multi, pe.Multi, "multi")
+			})
+		}
+	}
+}
+
 // aliasedMultipartSpec is a multipart body whose media schema is written as
 // mediaSchema, over a Form component reachable both directly and through a
 // second component that is a bare $ref to it.

@@ -1987,7 +1987,8 @@ writes beyond those fields is [`encoding-allow-reserved`](#encoding-allow-reserv
   `operation.TestPartEncoding_FlagsOfAnUndecidedTypeComeFromTheSchema`,
   `operation.TestPartEncoding_FlagsOfABodyWithNoModelPropertyComeFromTheSchema`,
   `operation.TestPartEncoding_FlagsOfAnUndecidedMergedTypeComeFromEveryDeclaration`,
-  `operation.TestPartEncoding_ADecidedTypeNeverFallsBack`
+  `operation.TestPartEncoding_ADecidedTypeNeverFallsBack`,
+  `operation.TestContent_MultipartRedeclaredPartFlagsComeFromTheSettledType`
 - Status: partly built: an `encoding` key that names no property, or one declared only inside a
   `oneOf` or `anyOf` branch, is dropped with no diagnostic (#604); on a multi-typed body the entry
   is keyed by a property no node holds, which validation then refuses (#744); an array of files is

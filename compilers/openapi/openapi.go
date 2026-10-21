@@ -159,6 +159,11 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, 
 	// whole stream to do it.
 	var acc compile.Diags
 	acc.AppendAll(schema.LowerComponentSchemas(ctx, c, ts, &anchors))
+	// The operation walk reads merged property types (a multipart part's
+	// filename and multi flags), and every component is a node now, so what the
+	// component walk deferred is taken before it. Inline schemas in the
+	// operations can still defer; the Settle below takes those.
+	acc.AppendAll(ts.SettleQueued(ctx))
 	// The checks in this function sit after the phases that honour ctx. Each
 	// stops between items and returns what it had, so a non-nil ctx.Err() here
 	// is the only way to tell a phase that finished from one that was cut short —
