@@ -67,6 +67,24 @@ var ownershipCases = []struct {
 			assert.Zero(t, countAt(diags, "openapi/degraded-construct", "/components/schemas/Pet/properties/tags/readOnly"),
 				"the property carries readOnly, so no node keeps it, whoever reaches the position first")
 		}},
+	{name: "a $ref by $anchor to a property's schema before the model declaring it (GitHub #750)",
+		spec: ownershipHead + "paths: {}\ncomponents:\n  schemas:\n" +
+			"    Use: {type: object, properties: {t: {$ref: '#tags'}}}\n" +
+			"    Pet:\n      type: object\n" +
+			"      properties: {tags: {$anchor: tags, type: array, items: {type: string}, readOnly: true}}\n",
+		check: func(t *testing.T, _ *ir.Document, diags []ir.Diagnostic) {
+			assert.Zero(t, countAt(diags, "openapi/degraded-construct", "/components/schemas/Pet/properties/tags/readOnly"),
+				"the property carries readOnly, whichever reaches the position first")
+		}},
+	{name: "a $ref by $id to a property's schema before the model declaring it (GitHub #750)",
+		spec: ownershipHead + "paths: {}\ncomponents:\n  schemas:\n" +
+			"    Use: {type: object, properties: {t: {$ref: 'https://example.com/pet#/properties/tags'}}}\n" +
+			"    Pet:\n      $id: https://example.com/pet\n      type: object\n" +
+			"      properties: {tags: {type: array, items: {type: string}, readOnly: true}}\n",
+		check: func(t *testing.T, _ *ir.Document, diags []ir.Diagnostic) {
+			assert.Zero(t, countAt(diags, "openapi/degraded-construct", "/components/schemas/Pet/properties/tags/readOnly"),
+				"the property carries readOnly, whichever reaches the position first")
+		}},
 	{name: "a $ref to a response body's property under /paths (GitHub #750)",
 		spec: ownershipHead + "paths:\n" +
 			okResponse("/a", "getA", "{$ref: '#/paths/~1b/get/responses/200/content/application~1json/schema/properties/p'}") +
