@@ -1381,3 +1381,76 @@ func methodsAt(doc *ir.Document, uri string) []string {
 	}
 	return methods
 }
+
+// TestContent_ASharedBodyOrHeaderIsNamedForItsDeclaration pins how a request
+// body or a header two operations reach by reference is named when nothing
+// declares it at an operation that is lowered: for its declaration, never for
+// whichever reference lowered first. Each spec is compiled with the two
+// referencing operations in both orders, and the type registries must match:
+// another document's declaration, one there at the pointer a referencing
+// operation has in the source, and one the source writes under no operation.
+func TestContent_ASharedBodyOrHeaderIsNamedForItsDeclaration(t *testing.T) {
+	t.Parallel()
+	const other = `openapi: 3.1.0
+info: {title: O, version: "1"}
+paths:
+  /x:
+    post:
+      operationId: otherPost
+      requestBody:
+        content: {application/json: {schema: {type: object, properties: {v: {type: string}}}}}
+      responses:
+        "200":
+          description: ok
+          headers: {X-H: {schema: {type: object, properties: {h: {type: integer}}}}}
+`
+	const local = `x-bodies:
+  b: {content: {application/json: {schema: {type: object, properties: {v: {type: string}}}}}}
+x-headers:
+  h: {schema: {type: object, properties: {h: {type: integer}}}}
+`
+	op := func(path, id, body, header string) string {
+		return "  " + path + ":\n    post:\n      operationId: " + id + "\n      requestBody: {$ref: '" + body + "'}\n" +
+			"      responses:\n        \"200\":\n          description: ok\n          headers: {X-" + id +
+			": {$ref: '" + header + "'}}\n"
+	}
+	for name, tc := range map[string]struct {
+		extra, path, body, header string
+		hints                     []string
+	}{
+		"another document's": {"", "/a", "other.yaml#/paths/~1x/post/requestBody",
+			"other.yaml#/paths/~1x/post/responses/200/headers/X-H", []string{"request", "x_h"}},
+		"another document's, at the source's own pointer": {"", "/x", "other.yaml#/paths/~1x/post/requestBody",
+			"other.yaml#/paths/~1x/post/responses/200/headers/X-H", []string{"request", "x_h"}},
+		"the source's, under no operation": {local, "/a", "#/x-bodies/b", "#/x-headers/h", []string{"h", "request"}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			compile := func(first, second string) ir.TypeRegistry {
+				t.Helper()
+				dir := t.TempDir()
+				require.NoError(t, os.WriteFile(filepath.Join(dir, "other.yaml"), []byte(other), 0o600))
+				doc, diags, err := openapi.New().Compile(t.Context(), []compilers.Source{{
+					Path: filepath.Join(dir, "root.yaml"),
+					Data: []byte("openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\n" + tc.extra + "paths:\n" + first + second),
+				}}, compilers.Options{Reader: reader.Disk{}})
+				require.NoError(t, err)
+				openapitest.RequireNoErrorDiags(t, diags)
+				return doc.Types
+			}
+			alpha, bravo := op(tc.path, "alpha", tc.body, tc.header), op("/b", "bravo", tc.body, tc.header)
+
+			forward, backward := compile(alpha, bravo), compile(bravo, alpha)
+
+			assert.Empty(t, cmp.Diff(forward, backward), "the names must not follow the declaration order")
+			var hints []string
+			for _, td := range forward {
+				if td.Common().Provenance.Source != ir.NoSource {
+					hints = append(hints, td.Common().Name.Hint)
+				}
+			}
+			slices.Sort(hints)
+			assert.Equal(t, tc.hints, hints)
+		})
+	}
+}

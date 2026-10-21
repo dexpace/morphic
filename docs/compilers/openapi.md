@@ -520,12 +520,16 @@ of `""` is read as absent instead,
 schema, a union variant, a response ([`response-conditions`](#response-conditions)), a server with
 no `name` (its URL's words, else `server`), the synthesized `default` and `webhooks` groups —
 carries a `Hint` alone, in the same word grammar and composed from its position, each half
-neutralized first so an empty parent gives `empty_item`, never `_item`. `Aliases` is never set.
+neutralized first so an empty parent gives `empty_item`, never `_item`. A request body or header
+that references reach is named for its declaration, never for whichever reference lowered first: a
+component's name, a header's own key, the declaring operation's `operationId`, or `request` for a
+body declared anywhere else, in this document or another. `Aliases` is never set.
 
 - Cases: `neutral-naming`, `empty-names`
 - Tests: `ids.TestComponentSchemaNamedEmpty_SeparatesAnEmptyNameFromNoEntry`,
   `schema.TestEnumMemberIDs_NamesThatCanonicalizeToNothingStillGetIDs`,
-  `schema.TestInlinePosition_HintIsTheSameInBothOrders`
+  `schema.TestInlinePosition_HintIsTheSameInBothOrders`,
+  `operation.TestContent_ASharedBodyOrHeaderIsNamedForItsDeclaration`
 - Status: partly built: union variants and inline schemas ignore their `title` as a hint (#662); a
   union variant naming a position in a path's body takes the pointer's name (#729); and a `$ref`
   into a component request body or header names the subtree beneath its target by the reference

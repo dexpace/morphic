@@ -519,12 +519,13 @@ func reservedHeaderEntryDiag(c lowering.Ctx, name string, hptr jsontext.Pointer)
 func lowerHeader(c, dc lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, h *soa.Header, name string, hptr, hdecl jsontext.Pointer) (ir.Property, []ir.Diagnostic) {
 	elected, diags := electTypeSpelling(dc, h.GetSchema(), h.GetContent(), h.GetRootNode(), hdecl,
 		"header", "ir.Property")
-	// name is this entry's map key, which names the shared node after this mount
-	// when the header is declared under another response (GitHub #433). A
-	// component header has no owning response, so a schema's $ref into it leaves
-	// the subtree named by that reference (GitHub #747).
+	// The schema is named after the key the header is declared under, which is
+	// name where this entry declares it. A key another entry $refs it under
+	// names no shared node: whichever mount lowered first would choose it
+	// (GitHub #433). A component header has no owning response, so a schema's
+	// $ref into it leaves the subtree named by that reference (GitHub #747).
 	headerType, headerDiags := schema.CarriedRef(lowering.NamingByReferenceAt(c, dc, hptr, hdecl), ts, anchors,
-		schema.TopLevelDepth, elected.js, elected.pointer, ids.DeclarationHint(hdecl, name))
+		schema.TopLevelDepth, elected.js, elected.pointer, ids.DeclarationHint(hdecl, hdecl.LastToken()))
 	diags = append(diags, headerDiags...)
 	p := ir.Property{
 		ID:         c.IDs().Prop(hptr),
@@ -908,14 +909,19 @@ func lowerRequestBody(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorI
 	if rb == nil {
 		return nil
 	}
-	// requestBodyHint spells this operation's ID, which names the shared node
-	// after this mount when the body is declared under another operation. Marking
-	// the lowering lets that operation's own pass replace the placeholder, in
-	// whichever order the two run (GitHub #433). A component body has no owning
-	// operation, so a schema's $ref into it leaves the subtree named by that
-	// reference (GitHub #747).
+	// A body this operation declares is named after it (requestBodyHint). One
+	// declared elsewhere is named for its declaration: a component's name, or
+	// else a name no mount spells, since whichever lowered first would choose
+	// it. Marking the lowering lets an operation declaring the body replace that
+	// placeholder with its own, in either order (GitHub #433). A component body
+	// has no owning operation, so a schema's $ref into it leaves the subtree
+	// named by that reference (GitHub #747).
+	hint := requestBodyHint(src)
+	if bodyPtr != usePtr || dc.IDs() != c.IDs() {
+		hint = elsewhereBodyHint
+	}
 	payload, diags := lowerPayload(lowering.NamingByReferenceAt(c, dc, usePtr, bodyPtr), ts, anchors, rb.GetContent(),
-		bodyPtr, ids.DeclarationHint(bodyPtr, requestBodyHint(src)))
+		bodyPtr, ids.DeclarationHint(bodyPtr, hint))
 	if payload == nil {
 		// A body lowering no media type is still the body: whether it must be
 		// sent, its description and its x-* stay on a Payload with no Contents.
@@ -959,13 +965,17 @@ func contentTypeKeys(content *sequencedmap.Map[string, *soa.MediaType]) []string
 }
 
 // requestBodyHint derives an anonymous-type naming hint for a request body from
-// the operationId, falling back to "request".
+// the operationId, falling back to elsewhereBodyHint.
 func requestBodyHint(src *soa.Operation) string {
 	if id := src.GetOperationID(); id != "" {
 		return id + "_request"
 	}
-	return "request"
+	return elsewhereBodyHint
 }
+
+// elsewhereBodyHint names a request body no operationId names: one declared by
+// an operation that has none, or anywhere but at the operation using it.
+const elsewhereBodyHint = "request"
 
 // splitContentTypes splits an encoding contentType value on "," into trimmed,
 // non-empty media types.
