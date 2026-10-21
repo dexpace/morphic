@@ -74,16 +74,17 @@ func parameterRules() []Rule {
 			c(V32, "Analogous to `form`, but following [[RFC6265]] `Cookie` syntax rules")),
 		forbiddenWhen(Always(), fields("allowEmptyValue"), when(term("in", "path", "header", "cookie", "querystring")),
 			c(V30, "This field is valid only for `query` parameters.")),
-		inapplicable(Through(V31), "allowReserved", when(term("in", "path", "header", "cookie")),
+		inapplicable(Through(V31), "allowReserved", when(term("in", "path", "header", "cookie")), "to in=query alone",
 			c(V30, "This field only applies to parameters with an `in` value of `query`.")),
-		inapplicable(From(V32), "allowReserved", when(term("in", "header")),
+		inapplicable(From(V32), "allowReserved", when(term("in", "header")), "only where the value is percent-encoded",
 			c(V32, "This field only applies to `in` and `style` values that automatically percent-encode.")),
 		inapplicable(From(V32), "allowReserved", when(term("in", "cookie"), term("style", "cookie")),
+			"only where the value is percent-encoded",
 			c(V32, "This field only applies to `in` and `style` values that automatically percent-encode.")),
-		forbiddenWhen(From(V32), fields("style", "schema"), when(term("in", "querystring")),
+		forbiddenWhen(From(V32), fields("schema"), when(term("in", "querystring")),
 			c(V32, "These fields MUST NOT be used with `in: \"querystring\"`.")),
-		forbiddenWhen(From(V32), fields("explode", "allowReserved"), when(term("in", "querystring")),
-			c(V32, "These fields MUST NOT be used with `in: \"querystring\"`.")).owned(ownerOperation),
+		misplaced(From(V32), fields("style", "explode", "allowReserved"), when(term("in", "querystring")),
+			c(V32, "These fields MUST NOT be used with `in: \"querystring\"`.")),
 	}
 }
 
@@ -109,12 +110,14 @@ func headerObject() Object {
 			exclusive(Always(), fields("example", "examples"),
 				c(V30, "The `example` and `examples` fields are mutually exclusive")),
 			count(Always(), Must, "content", 1, c(V30, "The map MUST only contain one entry.")),
+			// Each is a key the Header Object does not define, which the unknown-key
+			// census reports where it is written and keeps verbatim.
 			forbiddenWhen(Always(), fields("name", "in"), nil,
-				c(V30, "`name` MUST NOT be specified, it is given in the corresponding `headers` map.")),
+				c(V30, "`name` MUST NOT be specified, it is given in the corresponding `headers` map.")).owned(ownerAnnotation),
 			forbiddenWhen(Through(V31), fields("allowEmptyValue", "allowReserved"), nil,
-				c(V30, "This means that `allowEmptyValue` and `allowReserved` MUST NOT be used")),
+				c(V30, "This means that `allowEmptyValue` and `allowReserved` MUST NOT be used")).owned(ownerAnnotation),
 			forbiddenWhen(From(V32), fields("allowEmptyValue"), nil,
-				c(V32, "This means that `allowEmptyValue` MUST NOT be used")),
+				c(V32, "This means that `allowEmptyValue` MUST NOT be used")).owned(ownerAnnotation),
 		},
 	}
 }
@@ -161,11 +164,20 @@ func mediaTypeObject() Object {
 	}
 }
 
-// mediaTypeRules are the rules of the Media Type Object beside its encodings.
+// mediaTypeRules are the rules of the Media Type Object beside its encodings'
+// exclusions.
 func mediaTypeRules(c func(Minor, string) Cite) []Rule {
+	// What an encoding is written for, the specification says it SHALL only
+	// apply to, so one written elsewhere has no effect, a warning.
+	applies := code(Always(), "encoding-applies", "",
+		c(V30, "The `encoding` field SHALL only apply to [Request Body Objects](#request-body-object), and only when the media type is `multipart` or `application/x-www-form-urlencoded`."),
+		c(V32, "The `encoding` field SHALL only apply when the media type is `multipart` or `application/x-www-form-urlencoded`."),
+		c(V32, "The `prefixEncoding` field SHALL only apply when the media type is `multipart`."))
+	applies.Level = Should
 	return []Rule{
 		exclusive(Always(), fields("example", "examples"),
 			c(V30, "The `example` and `examples` fields are mutually exclusive")),
+		applies,
 	}
 }
 
@@ -185,7 +197,9 @@ func encodingObject() Object {
 	return Object{
 		Kind: Encoding, Name: "Encoding Object", Extensible: true,
 		Fields: []Field{
-			field("contentType", String, c(V30, "The `Content-Type` for encoding a specific property.")),
+			field("contentType", String, c(V30, "The `Content-Type` for encoding a specific property."),
+				c(V30, "The value is a comma-separated list, each element of which is either a specific media type")).
+				formatted(MediaRanges),
 			mapOf("headers", Header, c(V30, "A map allowing additional information to be provided as headers.")),
 			mapOf("encoding", Encoding, c(V32, "Applies nested Encoding Objects in the same manner as the")).during(From(V32)),
 			listOf("prefixEncoding", Encoding, c(V32, "Applies nested Encoding Objects in the same manner as the")).during(From(V32)),

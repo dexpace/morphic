@@ -25,10 +25,14 @@ const (
 	classEmpty     = "validation-empty-value"
 	classDuplicate = "validation-duplicate-key"
 	classReference = "validation-invalid-reference"
+	classCircular  = "validation-circular-reference"
 	// classCount: a map or list holds too few or too many entries.
 	classCount = "validation-entry-count"
 	// classForbidden: a field is written where the specification bars it.
 	classForbidden = "validation-forbidden-field"
+	// classNoEffect: a field is written where the specification gives it no
+	// effect.
+	classNoEffect = "validation-no-effect"
 )
 
 // reporter collects the findings of one check.
@@ -36,11 +40,43 @@ type reporter struct {
 	locate   Locator
 	declared string
 	diags    []ir.Diagnostic
+	// readAt says whether a finding placed elsewhere than it was read names
+	// where it was read (Options.ReadAt).
+	readAt bool
+	// said holds each finding made, as placed, before readAt adds to it.
+	said map[ir.Diagnostic]bool
 }
 
 // report adds a finding of class at ptr.
 func (r *reporter) report(sev ir.Severity, class string, ptr jsontext.Pointer, format string, args ...any) {
-	r.diags = append(r.diags, diag.Newf(sev, diag.Validation+"/"+class, r.locate(ptr), format, args...))
+	r.add(diag.Newf(sev, diag.Validation+"/"+class, r.locate(ptr), format, args...), ptr)
+}
+
+// add adds d, a finding about the node read at ptr, unless it was made already:
+// a node an alias mounts at two positions is read at each, and a defect in it
+// is one defect, at one node. Where readAt holds and that node is written
+// elsewhere, the message names the position it was first read at.
+func (r *reporter) add(d ir.Diagnostic, ptr jsontext.Pointer) {
+	if r.said[d] {
+		return
+	}
+	r.said[d] = true
+	if r.readAt && d.Provenance.Pointer != "" && d.Provenance.Pointer != ptr {
+		d.Message += readAtClause + string(ptr)
+	}
+	r.diags = append(r.diags, d)
+}
+
+// readAtClause begins what Options.ReadAt adds to a message.
+const readAtClause = "; read at "
+
+// AsPlaced returns d without the position Options.ReadAt names: the finding as
+// it is placed, which is the same whichever position read the node it is about.
+func AsPlaced(d ir.Diagnostic) ir.Diagnostic {
+	if i := strings.LastIndex(d.Message, readAtClause); i >= 0 {
+		d.Message = d.Message[:i]
+	}
+	return d
 }
 
 // later adds the warning for a construct a later minor than the declared one
@@ -51,9 +87,9 @@ func (r *reporter) later(obj Object, key, value string, since Minor, ptr jsontex
 	if value != "" {
 		what = fmt.Sprintf("value %q of field %q", value, key)
 	}
-	r.diags = append(r.diags, diag.Newf(ir.SeverityWarning, diag.LaterVersionConstruct, r.locate(ptr),
+	r.add(diag.Newf(ir.SeverityWarning, diag.LaterVersionConstruct, r.locate(ptr),
 		"%s of the %s was added in OpenAPI %s, and this document declares %s; it is lowered as in an OpenAPI %s document",
-		what, obj.Name, since, r.declared, since))
+		what, obj.Name, since, r.declared, since), ptr)
 }
 
 // repeated warns of each key the mapping at ptr writes more than once: the
@@ -82,6 +118,9 @@ func describeFormat(format Format) string {
 		Token:             "a token of letters, digits and !#$%&'*+-.^_`|~",
 		AuthScheme:        "a token of letters, digits and !#$%&'*+-.^_`|~",
 		RuntimeExpression: "a runtime expression, or text whose braces hold runtime expressions",
+		VersionNumber:     "a version number of the form major.minor.patch",
+		ServerURL:         "a URL reference, its variables aside",
+		MediaRanges:       "a comma-separated list of media types and media type ranges",
 	}[format]
 }
 

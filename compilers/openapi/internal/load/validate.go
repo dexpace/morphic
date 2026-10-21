@@ -1,0 +1,122 @@
+package load
+
+import (
+	"encoding/json/jsontext"
+	"fmt"
+
+	yaml "gopkg.in/yaml.v3"
+
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
+	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
+	"github.com/dexpace/morphic/ir"
+)
+
+// objectKey identifies an object the table has judged: a mapping, read as a
+// kind. A mapping a $ref reads as another kind is not the same object.
+type objectKey struct {
+	node *yaml.Node
+	kind oas.Kind
+}
+
+// judgment is what the table found in the source: its diagnostics, and the
+// objects it read, so the validation of what a reference reaches skips them.
+type judgment struct {
+	diags []ir.Diagnostic
+	seen  map[objectKey]bool
+}
+
+// declaredVersion returns the version the document at root writes under
+// "openapi", or "" when it writes none as a scalar. It reads the tree rather
+// than the model, which is built from a respelled copy.
+func declaredVersion(root *yaml.Node) string {
+	for _, p := range nodeview.New().MappingPairs(nodeview.DocumentRoot(root)) {
+		if v := nodeview.Deref(p.Val); p.Key == "openapi" && v != nil && v.Kind == yaml.ScalarNode && v.Tag != "!!null" {
+			return v.Value
+		}
+	}
+	return ""
+}
+
+// judgeSource holds the source to the table of the version it declares. root
+// is the tree as the source writes it, an applied overlay's patch included, and
+// tree places each finding at the node it is about, naming where it was read
+// when an alias or a merge key mounts that node there.
+func judgeSource(root *yaml.Node, tree sourceTree) judgment {
+	j := judgment{seen: map[objectKey]bool{}}
+	j.diags = oas.NewChecker().Check(root, declaredVersion(root), oas.Options{
+		Locate: tree.locatorIn(root),
+		Seen: func(kind oas.Kind, node *yaml.Node) {
+			j.seen[objectKey{node: nodeview.Deref(node), kind: kind}] = true
+		},
+		ReadAt: true,
+	})
+	return j
+}
+
+// locatorIn returns the Locator for the pointers of the object written at
+// node: each is walked from node to the node it names, which is placed as the
+// source's own findings are. A pointer that leads nowhere is placed at the last
+// node it reached.
+func (t sourceTree) locatorIn(node *yaml.Node) oas.Locator {
+	view := nodeview.New()
+	return func(pointer jsontext.Pointer) ir.Provenance {
+		path, _ := view.DocumentPath(nodeview.DocumentRoot(node), pointer)
+		if len(path) == 0 {
+			return t.locate(nil)
+		}
+		return t.locate(path[len(path)-1])
+	}
+}
+
+// foreign marks the provenance a Locator gives a finding the source's tree does
+// not hold, until the finding is placed at the reference that reached it: it
+// is no source index any list holds.
+const foreign = -1
+
+// reachedLocator returns the Locator for the object written at node, which a
+// reference reaches. A finding about a node the source's tree holds is placed
+// there, as the source's own are; any other is marked foreign, its position
+// that of the node in the document it is in.
+func (t sourceTree) reachedLocator(node *yaml.Node) oas.Locator {
+	view := nodeview.New()
+	return func(pointer jsontext.Pointer) ir.Provenance {
+		path, _ := view.DocumentPath(nodeview.DocumentRoot(node), pointer)
+		at := nodeview.DocumentRoot(node)
+		if len(path) > 0 {
+			at = path[len(path)-1]
+		}
+		if t.has(at) {
+			return t.locate(at)
+		}
+		return ir.Provenance{Source: foreign, Position: ir.Position{Line: at.Line, Column: at.Column}}
+	}
+}
+
+// holds reports whether d is a finding about a node of another document, still
+// marked foreign.
+func holds(d ir.Diagnostic) bool { return d.Provenance.Source != foreign }
+
+// placeAt puts a finding about an object a reference reaches where it is
+// reported: one about a node the source's tree holds stays there; one marked
+// foreign goes to the reference, site, its message naming where in the document
+// place it lies, as no Provenance can (GitHub #74).
+func placeAt(d ir.Diagnostic, site ir.Provenance, place string) ir.Diagnostic {
+	if holds(d) {
+		return d
+	}
+	at := d.Provenance.Position
+	d.Provenance = site
+	d.Message = fmt.Sprintf("%s, at %d:%d of %s", d.Message, at.Line, at.Column, place)
+	return d
+}
+
+// identity is what tells a finding from another about the same node however
+// many references reach it: the finding as placed in the source's tree, or, for
+// another document's, the finding with the place it names, whichever reference
+// it is placed at.
+func identity(d ir.Diagnostic, place string) ir.Diagnostic {
+	if !holds(d) {
+		d.Message += " of " + place
+	}
+	return d
+}

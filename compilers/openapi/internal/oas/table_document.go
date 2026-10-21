@@ -15,7 +15,9 @@ func openAPIObject() Object {
 	return Object{
 		Kind: Document, Name: "OpenAPI Object", Extensible: true,
 		Fields: []Field{
-			field("openapi", String, c(V30, "**REQUIRED**. This string MUST be the")).required(Always()),
+			field("openapi", String, c(V30, "**REQUIRED**. This string MUST be the"),
+				sectioned("Versions")(V30, "The OpenAPI Specification is versioned using a `major`.`minor`.`patch` versioning scheme.")).
+				required(Always()).formatted(VersionNumber),
 			objectOf("info", Info, c(V30, "**REQUIRED**. Provides metadata about the API.")).required(Always()),
 			field("$self", String, c(V32, "This string MUST be in the form of a URI reference as defined by")).
 				during(From(V32)).formatted(URI),
@@ -107,7 +109,8 @@ func serverObject() Object {
 	return Object{
 		Kind: Server, Name: "Server Object", Extensible: true,
 		Fields: []Field{
-			field("url", String, c(V30, "**REQUIRED**. A URL to the target host.")).required(Always()).
+			field("url", String, c(V30, "**REQUIRED**. A URL to the target host."),
+				c(V30, "This URL supports Server Variables and MAY be relative")).required(Always()).formatted(ServerURL).
 				nonEmpty(From(V32), sectioned("Server Variable Object")(V32, "server-url-template  = 1*( literals / server-variable )")),
 			field("description", String, c(V30, "An optional string describing the host designated by the URL.")),
 			field("name", String, c(V32, "An optional unique string to refer to the host designated by the URL.")).
@@ -117,6 +120,10 @@ func serverObject() Object {
 		Rules: []Rule{
 			code(From(V32), "server-url-template", "",
 				sectioned("Server Variable Object")(V32, "Each server variable MUST NOT appear more than once in the URL template.")),
+			code(Always(), "server-url-variables", "",
+				c(V30, "Variable substitutions will be made when a variable is named in"),
+				c(V30, "The value is used for substitution in the server's URL template.")),
+			code(From(V31), "server-url-parts", "", c(V31, "Query and fragment MUST NOT be part of this URL.")),
 		},
 	}
 }

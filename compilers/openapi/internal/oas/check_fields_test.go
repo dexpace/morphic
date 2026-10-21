@@ -29,12 +29,19 @@ func TestCheck_RequiredFieldsFollowTheMinor(t *testing.T) {
 	})
 }
 
-// TestCheck_ShapesFollowTheField pins what each shape admits.
+// TestCheck_ShapesFollowTheField pins what each shape admits, and that a
+// number or a boolean where a string belongs is a warning: the text it writes
+// says what it means.
 func TestCheck_ShapesFollowTheField(t *testing.T) {
 	verify(t, []scenario{
 		{"string field given a list", "3.1.0", oas.Info, `{title: [a], version: v}`, []finding{at(mismatch, "/title")}},
 		{"string field given null", "3.1.0", oas.Info, `{title: ~, version: v}`, []finding{at(mismatch, "/title")}},
-		{"string field given a number", "3.1.0", oas.Info, `{title: 12, version: 1.0}`, nil},
+		{"string field given a number", "3.1.0", oas.Info, `{title: 12, version: 1.0}`,
+			[]finding{at(mismatch, "/title"), at(mismatch, "/version")}},
+		{"string field given a date", "3.1.0", oas.Info, `{title: t, version: 2024-01-01}`, nil},
+		{"string list given a boolean", "3.1.0", oas.Schema, `{required: [a, true]}`, []finding{at(mismatch, "/required/1")}},
+		{"string map given a number", "3.1.0", oas.OAuthFlow, `{tokenUrl: 'https://t', scopes: {a: 1, b: x}}`,
+			[]finding{at(mismatch, "/scopes/a")}},
 		{"object field given a scalar", "3.1.0", oas.Info, `{title: t, version: v, contact: x}`, []finding{at(mismatch, "/contact")}},
 		{"the object itself is a list", "3.1.0", oas.Info, `[a]`, []finding{at(mismatch, "")}},
 		{"boolean field given a string", "3.1.0", oas.Operation, `{deprecated: "true"}`, []finding{at(mismatch, "/deprecated")}},
@@ -49,9 +56,24 @@ func TestCheck_ShapesFollowTheField(t *testing.T) {
 		{"raw map given a list", "3.1.0", oas.Schema, `{$vocabulary: []}`, []finding{at(mismatch, "/$vocabulary")}},
 		{"any field takes anything", "3.1.0", oas.Schema, `{default: [1, {a: b}], const: ~, example: x}`, nil},
 	})
+	for doc, want := range map[string]string{
+		`{title: 12, version: v}`:   `Info Object field "title" must be a string in OpenAPI 3.1 (Info Object); it is the number 12`,
+		`{title: t, version: true}`: `Info Object field "version" must be a string in OpenAPI 3.1 (Info Object); it is the boolean true`,
+	} {
+		diags := run(t, "3.1.0", oas.Info, doc)
+		require.Len(t, diags, 1, doc)
+		assert.Equal(t, ir.SeverityWarning, diags[0].Severity, "a string written unquoted means what it says")
+		assert.Equal(t, want, diags[0].Message)
+	}
+	diags := run(t, "3.1.0", oas.Schema, `{required: [a, 1]}`)
+	require.Len(t, diags, 1)
+	assert.Contains(t, diags[0].Message, `Schema Object field "required" item 1 must be a string`)
 }
 
-// TestCheck_NumbersFollowTheirShape pins the three numeric shapes.
+// TestCheck_NumbersFollowTheirShape pins the numeric shapes, and that the numeric
+// bounds the schema lowering reads off the raw node are left to it: it reports a
+// value that is no finite decimal, a null included, or is in the other
+// dialect's form, and takes a quoted number as the decimal it spells.
 func TestCheck_NumbersFollowTheirShape(t *testing.T) {
 	verify(t, []scenario{
 		{"natural: zero", "3.1.0", oas.Schema, `{maxLength: 0}`, nil},
@@ -61,14 +83,14 @@ func TestCheck_NumbersFollowTheirShape(t *testing.T) {
 		{"natural: hex", "3.1.0", oas.Schema, `{maxLength: 0x10}`, nil},
 		{"natural: quoted", "3.1.0", oas.Schema, `{maxLength: "5"}`, []finding{at(mismatch, "/maxLength")}},
 		{"natural: infinity", "3.1.0", oas.Schema, `{maxLength: .inf}`, []finding{at(mismatch, "/maxLength")}},
-		{"positive: zero", "3.1.0", oas.Schema, `{multipleOf: 0}`, []finding{at(mismatch, "/multipleOf")}},
-		{"positive: fraction", "3.1.0", oas.Schema, `{multipleOf: 0.5}`, nil},
-		{"number: exponent", "3.1.0", oas.Schema, `{maximum: 1e3, minimum: -2.5}`, nil},
-		{"number: string", "3.1.0", oas.Schema, `{maximum: high}`, []finding{at(mismatch, "/maximum")}},
-		{"number: past float64's range", "3.1.0", oas.Schema, `{maximum: 1e999, minLength: 1e30}`, nil},
-		{"number: a boolean", "3.1.0", oas.Schema, `{maximum: true}`, []finding{at(mismatch, "/maximum")}},
-		{"number: null", "3.1.0", oas.Schema, `{maximum: ~}`, []finding{at(mismatch, "/maximum")}},
-		{"number: a list", "3.1.0", oas.Schema, `{maximum: [1]}`, []finding{at(mismatch, "/maximum")}},
+		{"bound: exponent", "3.1.0", oas.Schema, `{maximum: 1e3, minimum: -2.5, multipleOf: 0.5}`, nil},
+		{"bound: past float64's range", "3.1.0", oas.Schema, `{maximum: 1e999, minLength: 1e30}`, nil},
+		{"bound: no number is the lowering's", "3.1.0", oas.Schema,
+			`{maximum: high, minimum: true, multipleOf: [1], exclusiveMinimum: .inf, exclusiveMaximum: "5"}`, nil},
+		{"bound: the other dialect's form is the lowering's", "3.0.3", oas.Schema,
+			`{exclusiveMinimum: 5, exclusiveMaximum: 6}`, nil},
+		{"bound: a multipleOf of zero is the lowering's", "3.1.0", oas.Schema, `{multipleOf: 0}`, nil},
+		{"bound: a null is the lowering's", "3.1.0", oas.Schema, `{maximum: ~}`, nil},
 	})
 }
 
@@ -234,8 +256,8 @@ func TestCheck_RepeatedKeysAreWarnedOf(t *testing.T) {
 		{"a field twice", "3.1.0", oas.Info, `{title: a, title: b, version: v}`, []finding{at(duplicate, "/title")}},
 		{"a key of a map twice", "3.1.0", oas.Components, `{schemas: {A: {}, B: {}, A: {}}}`, []finding{at(duplicate, "/schemas/A")}},
 		{"a path twice", "3.1.0", oas.Paths, `{/a: {}, /a: {}}`, []finding{at(duplicate, "/~1a")}},
-		{"a third copy is a second finding", "3.1.0", oas.Info, `{title: a, version: v, version: w, version: x}`,
-			[]finding{at(duplicate, "/version"), at(duplicate, "/version")}},
+		{"a third copy is no second finding", "3.1.0", oas.Info, `{title: a, version: v, version: w, version: x}`,
+			[]finding{at(duplicate, "/version")}},
 		{"a key a merge also supplies", "3.1.0", oas.Info, `{<<: {title: a}, title: b, version: v}`, nil},
 		{"each key once", "3.1.0", oas.Info, `{title: a, version: v}`, nil},
 	})

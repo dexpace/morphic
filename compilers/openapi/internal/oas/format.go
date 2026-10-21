@@ -1,7 +1,9 @@
 package oas
 
 import (
+	"mime"
 	"net/url"
+	"slices"
 	"strings"
 	"unicode"
 )
@@ -27,9 +29,63 @@ func validFormat(format Format, s string) bool {
 		return s == "" || validToken(s)
 	case RuntimeExpression:
 		return validEmbedding(s)
+	case VersionNumber:
+		return validVersion(s)
+	case ServerURL:
+		return validServerURL(s)
+	case MediaRanges:
+		return validMediaRanges(s)
 	default:
 		return true
 	}
+}
+
+// validVersion reports whether s is major.minor.patch, three runs of decimal
+// digits joined by dots.
+func validVersion(s string) bool {
+	parts := strings.Split(s, ".")
+	return len(parts) == 3 && !slices.ContainsFunc(parts, func(p string) bool {
+		return p == "" || strings.ContainsFunc(p, func(r rune) bool { return r < '0' || r > '9' })
+	})
+}
+
+// validServerURL reports whether s writes only what a URL may hold, its
+// variables' braces aside, which 3.2's template rule judges: no space, control
+// or other character RFC 3986 leaves out, and a percent sign only as an escape
+// of two hex digits. A template is no URL until its variables are substituted,
+// so nothing finer is judged.
+func validServerURL(s string) bool {
+	for i := range len(s) {
+		switch c := s[i]; {
+		case c <= ' ' || c == 0x7f || strings.IndexByte(`"<>\^`+"`"+`|`, c) >= 0:
+			return false
+		case c == '%' && (i+2 >= len(s) || !isHex(s[i+1]) || !isHex(s[i+2])):
+			return false
+		}
+	}
+	return true
+}
+
+// isHex reports whether c is a hexadecimal digit.
+func isHex(c byte) bool {
+	return '0' <= c && c <= '9' || 'a' <= c && c <= 'f' || 'A' <= c && c <= 'F'
+}
+
+// validMediaRanges reports whether s is a comma-separated list of media types
+// (RFC 9110 §8.3.1) or ranges of them (§12.5.1). An empty element names
+// nothing and is read past.
+func validMediaRanges(s string) bool {
+	for element := range strings.SplitSeq(s, ",") {
+		element = strings.TrimSpace(element)
+		if element == "" {
+			continue
+		}
+		mediaType, _, err := mime.ParseMediaType(element)
+		if err != nil || !strings.Contains(mediaType, "/") {
+			return false
+		}
+	}
+	return true
 }
 
 // validURI parses s as a URI reference, or returns nil when it holds a space
@@ -147,7 +203,7 @@ func validPointer(s string) bool {
 	if !strings.HasPrefix(s, "/") {
 		return false
 	}
-	for i := 0; i < len(s); i++ {
+	for i := range len(s) {
 		if s[i] == '~' && (i+1 == len(s) || (s[i+1] != '0' && s[i+1] != '1')) {
 			return false
 		}

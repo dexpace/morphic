@@ -834,7 +834,7 @@ func TestMappingPairs_ANonMappingHasNone(t *testing.T) {
 	assert.Empty(t, New().MappingPairs(nil))
 }
 
-func TestRepeatedKeys_NamesEachCopyPastTheFirst(t *testing.T) {
+func TestRepeatedKeys_NamesEachRepeatedKeyOnce(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name, doc string
@@ -842,7 +842,7 @@ func TestRepeatedKeys_NamesEachCopyPastTheFirst(t *testing.T) {
 	}{
 		{"no repeat", "{a: 1, b: 2}", nil},
 		{"one repeat", "{a: 1, b: 2, a: 3}", []string{"a"}},
-		{"three copies", "{a: 1, a: 2, a: 3}", []string{"a", "a"}},
+		{"three copies", "{a: 1, a: 2, a: 3}", []string{"a"}},
 		{"two keys repeated", "{a: 1, b: 1, b: 2, a: 2}", []string{"b", "a"}},
 		{"a key shared with a merge is no repeat", "{<<: {a: 1}, a: 2}", nil},
 		{"a merge key twice is no repeat", "{<<: {a: 1}, <<: {b: 1}}", nil},

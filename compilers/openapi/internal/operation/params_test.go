@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/speakeasy-api/openapi/validation"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -221,9 +220,9 @@ func TestParams_QueryStringLocation(t *testing.T) {
 
 // TestParams_QueryStringDeclaredStyleIsKeptAndReported pins the other half of
 // the same rule: the compiler stopped inventing a style at that location, it did
-// not start erasing one. A document declaring style there is invalid and the
-// parser says so; what it declared still lowers, because dropping declared
-// content is an emitter's call rather than a compiler's.
+// not start erasing one. A document declaring style there breaks 3.2's rule and
+// is warned of, as explode is; what it declared still lowers, because dropping
+// declared content is an emitter's call rather than a compiler's.
 func TestParams_QueryStringDeclaredStyleIsKeptAndReported(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.PathsSpecVer("3.2.0", `  /q:
@@ -241,7 +240,12 @@ func TestParams_QueryStringDeclaredStyleIsKeptAndReported(t *testing.T) {
         "200": {description: ok}
 `)
 	doc, diags := parseFull(t, spec)
-	openapitest.AssertHasCode(t, diags, diag.Validation+"/"+string(validation.RuleValidationAllowedValues), ir.SeverityError)
+	openapitest.RequireNoErrorDiags(t, diags)
+	for _, keyword := range []string{"style", "explode"} {
+		assert.Equal(t, "parameter field "+keyword+" is not allowed for in=querystring; lowered as declared",
+			openapitest.DiagMessageAt(t, diags, diag.InvalidLocationKeyword, ir.SeverityWarning,
+				"/paths/~1q/get/parameters/0/"+keyword))
+	}
 	op := openapitest.FindOp(t, doc, "q")
 	require.Len(t, op.Bindings.HTTP, 1)
 	require.Len(t, op.Bindings.HTTP[0].ParamBindings, 1)
@@ -259,11 +263,9 @@ func TestParams_QueryStringDeclaredStyleIsKeptAndReported(t *testing.T) {
 // keywords: an explode written without a style beside it.
 //
 // Suppressing the invented style must not take a declared explode with it. 3.2
-// forbids explode at this location as it forbids style, but the bundled parser
-// enforces only the style half — so this reaches the compiler unrefused, and
-// erasing it would be the same silent drop the invented style was, in the other
-// direction. See diag.InvalidLocationKeyword's GoDoc for why this compiler's
-// own report is the only diagnostic naming it, and why it is a warning.
+// forbids explode at this location as it forbids style, and erasing it would be
+// the same silent drop the invented style was, in the other direction. See
+// diag.InvalidLocationKeyword's GoDoc for why the report is a warning.
 func TestParams_QueryStringDeclaredExplodeAloneIsKeptAndReported(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.PathsSpecVer("3.2.0", `  /q:
@@ -300,8 +302,7 @@ func TestParams_QueryStringDeclaredExplodeAloneIsKeptAndReported(t *testing.T) {
 
 // TestParams_QueryStringDeclaredAllowReservedIsKeptAndReported is the third
 // keyword 3.2 forbids at this location alongside style and explode; see
-// diag.InvalidLocationKeyword's GoDoc for why the parser enforces none of it
-// and why this compiler's report is a warning.
+// diag.InvalidLocationKeyword's GoDoc for why the report is a warning.
 func TestParams_QueryStringDeclaredAllowReservedIsKeptAndReported(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.PathsSpecVer("3.2.0", `  /q:
@@ -1322,9 +1323,8 @@ func TestParams_RepeatedNameAndLocationKeepsEveryParameter(t *testing.T) {
 			assert.Equal(t, []ir.ParamID{op.Params[0].ID, op.Params[1].ID},
 				[]ir.ParamID{bindings[0].Param, bindings[1].Param}, "each binding names its own parameter")
 
-			assert.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.DuplicateParameter, ir.SeverityError))
-			assert.Zero(t, openapitest.CountDiagsAt(diags, diag.Validation+"/"+validation.RuleValidationOperationParameters, ir.SeverityError),
-				"the parser's own report is dropped, so an inline repeat is one error")
+			assert.Equal(t, []string{diag.DuplicateParameter + " at " + tc.repeat}, errorFindings(diags),
+				"the repeat is one error, whatever spells its entries")
 			msg := openapitest.DiagMessageAt(t, diags, diag.DuplicateParameter, ir.SeverityError, tc.repeat)
 			assert.Contains(t, msg, tc.first, "the report names the entry the repeat collides with")
 		})

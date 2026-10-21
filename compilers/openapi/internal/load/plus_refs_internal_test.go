@@ -144,7 +144,7 @@ func (l loadedPlus) reachedNode(t *testing.T, site jsontext.Pointer) *yaml.Node 
 	model := l.refAt(t, site)
 	js, schema := model.(*schemaRef)
 	if !schema {
-		_, node, ok := reachedObject(model.(resolvable))
+		node, ok := reachedNode(model.(resolvable))
 		require.True(t, ok, "the $ref at %s resolves to an object", site)
 		return node
 	}
@@ -593,27 +593,28 @@ components:
 	assertNoRewrittenSpelling(t, diags)
 }
 
-// TestLoad_AFindingInWhatAReferenceReachesQuotesAPlusAsWritten pins that what
-// the references reach is validated before the models are put back, as the
-// source's own validation runs: the library reads a '+' in a component name
-// as a space, so it validates the spelling the parser was handed. Each target
-// is one the source's validation never checked, an object or a schema in
-// another document or a schema under an x-* key.
-func TestLoad_AFindingInWhatAReferenceReachesQuotesAPlusAsWritten(t *testing.T) {
+// TestLoad_WhatAReferenceReachesQuotesAPlusAsWritten pins that a diagnostic
+// about what the references reach quotes a '+' in a component name as the source
+// writes it, not as the parser was handed it: the library reads it as a space.
+// Each target is one the source's own check never read, an object or a schema in
+// another document or a schema under an x-* key; the name is either dangling,
+// which the binding reports, or declared, which the table reports at its key.
+func TestLoad_WhatAReferenceReachesQuotesAPlusAsWritten(t *testing.T) {
 	t.Parallel()
 	const head = "openapi: 3.1.0\ninfo: {title: t, version: \"1\"}\n"
 	const plusRef = "{$ref: '#/components/schemas/Y+Z'}"
 	tests := []struct {
 		name, other, spec string
+		named             bool // whether a diagnostic names the component
 	}{
 		{"an object in another document",
 			"components:\n  responses:\n    R: {description: ok, content: {application/json: {schema: " + plusRef + "}}}\n",
-			head + "paths:\n  /a: {get: {responses: {'200': {$ref: 'other.yaml#/components/responses/R'}}}}\n"},
+			head + "paths:\n  /a: {get: {responses: {'200': {$ref: 'other.yaml#/components/responses/R'}}}}\n", false},
 		{"a schema in another document", "components:\n  schemas:\n    X: " + plusRef + "\n",
-			head + "paths: {}\ncomponents:\n  schemas:\n    A: {$ref: 'other.yaml#/components/schemas/X'}\n"},
+			head + "paths: {}\ncomponents:\n  schemas:\n    A: {$ref: 'other.yaml#/components/schemas/X'}\n", true},
 		{"a schema under an x-* key", "",
 			head + "paths: {}\ncomponents:\n  schemas:\n    A: {$ref: '#/x-lib/S'}\n    Y+Z: {type: string}\n" +
-				"x-lib:\n  S: " + plusRef + "\n"},
+				"x-lib:\n  S: " + plusRef + "\n", true},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -623,14 +624,15 @@ func TestLoad_AFindingInWhatAReferenceReachesQuotesAPlusAsWritten(t *testing.T) 
 
 			l := loadPlusAt(t, filepath.Join(dir, "root.yaml"), tc.spec, Options{AllowExternalRefs: true})
 
-			var findings []string
+			var quoting int
 			for _, d := range l.diags {
-				if strings.Contains(d.Message, "component name") {
-					findings = append(findings, d.Message)
+				if strings.Contains(d.Message, "Y+Z") {
+					quoting++
 				}
 			}
-			require.Len(t, findings, 1, "%v", l.diags)
-			assert.Contains(t, findings[0], `component name "Y+Z" must match`)
+			if tc.named {
+				assert.Positive(t, quoting, "a diagnostic names the component: %v", l.diags)
+			}
 			assertNoRewrittenSpelling(t, l.diags)
 		})
 	}

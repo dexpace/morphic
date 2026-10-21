@@ -97,8 +97,13 @@ func TestLaterVersionConstructs_LowerAsInTheVersionThatAddedThem(t *testing.T) {
 
 	assert.Equal(t, body32, body31, "a 3.1 document lowers as a 3.2 one")
 	assert.Equal(t, body32, body30, "a 3.0 document lowers as a 3.2 one")
-	assert.Equal(t, others32, others31)
-	assert.Equal(t, others32, others30)
+	// A rule a minor adds binds a document declaring it, and no older one, whose
+	// construct the later-version warning already names.
+	until31 := slices.DeleteFunc(slices.Clone(others32), func(line string) bool {
+		return strings.Contains(line, "validation-mutually-exclusive-fields")
+	})
+	assert.Equal(t, until31, others31)
+	assert.Equal(t, until31, others30)
 	assert.NotEmpty(t, later31)
 	assert.Subset(t, later30, later31, "what 3.2 added is owed to 3.0 as to 3.1")
 	assert.Greater(t, len(later30), len(later31), "and what 3.1 added to 3.0 alone")

@@ -24,11 +24,17 @@ func (r ruler) code(rule Rule) {
 		distinctTemplates(r, rule)
 	case "server-url-template":
 		serverTemplate(r, rule)
+	case "server-url-variables":
+		serverVariables(r, rule)
+	case "server-url-parts":
+		serverURLParts(r, rule)
 	case "additional-operations-methods":
 		additionalMethods(r, rule)
+	case "encoding-applies":
+		encodingApplies(r, rule)
 	default:
-		r.w.diags = append(r.w.diags, diag.Newf(ir.SeverityError, diag.InternalInvariant, r.w.locate(r.f.at.ptr),
-			"the %s names the rule %q, which the engine does not implement", r.f.obj.Name, rule.Name))
+		r.w.add(diag.Newf(ir.SeverityError, diag.InternalInvariant, r.w.locate(r.f.at.ptr),
+			"the %s names the rule %q, which the engine does not implement", r.f.obj.Name, rule.Name), r.f.at.ptr)
 	}
 }
 
@@ -38,52 +44,77 @@ func standardMethods() []string {
 }
 
 // tagParents reports a tag whose parent no tag declares, and a tag nested under
-// itself through its parents.
+// itself through its parents. A name declared twice is nested as its first
+// declaration says, as the lowering groups it.
 func tagParents(r ruler, rule Rule) {
 	list := nodeview.Deref(r.f.byKey["tags"])
 	if list == nil || list.Kind != yaml.SequenceNode {
 		return
 	}
+	var names []string
 	parent := map[string]string{}
 	declared := map[string]bool{}
 	for _, item := range list.Content {
 		kv := r.keysOf(item)
-		if name, ok := textOf(kv["name"]); ok {
-			declared[name] = true
-			if up, ok := textOf(kv["parent"]); ok {
-				parent[name] = up
-			}
+		name, ok := textOf(kv["name"])
+		if !ok || declared[name] {
+			continue
+		}
+		declared[name] = true
+		names = append(names, name)
+		if up, ok := textOf(kv["parent"]); ok {
+			parent[name] = up
 		}
 	}
+	onCycle := cycles(names, parent)
 	for i, item := range list.Content {
-		name, _ := textOf(r.keysOf(item)["name"])
-		up, nested := parent[name]
+		kv := r.keysOf(item)
+		name, named := textOf(kv["name"])
+		up, nested := textOf(kv["parent"])
 		ptr := itemPointer(r.f.at.ptr.AppendToken("tags"), i).AppendToken("parent")
 		switch {
-		case !nested:
+		case !named || !nested:
 		case !declared[up]:
 			r.fail(rule, classReference, ptr, "tag "+quote(name)+" is nested under "+quote(up)+", which no tag declares")
-		case nestedInItself(name, parent):
-			r.fail(rule, classReference, ptr, "tag "+quote(name)+" is nested under itself through its parents")
+		case parent[name] == up && onCycle[name]:
+			r.fail(rule, classCircular, ptr, "tag "+quote(name)+" is nested under itself through its parents")
 		}
 	}
 }
 
-// nestedInItself reports whether following parents from name leads back to it.
-// The walk takes at most one step per tag.
-func nestedInItself(name string, parent map[string]string) bool {
-	at := name
-	for range len(parent) {
-		up, ok := parent[at]
-		if !ok {
-			return false
+// cycles returns the names that following parents from leads back to. A walk
+// stops at a name an earlier walk reached, so each name is stepped through
+// once, and the work is linear in the names however long a chain or cycle is.
+func cycles(names []string, parent map[string]string) map[string]bool {
+	on := map[string]bool{}
+	done := map[string]bool{}
+	for _, start := range names {
+		at := map[string]int{}
+		var path []string
+		name := start
+		for range len(names) + 1 {
+			if done[name] {
+				break
+			}
+			if i, seen := at[name]; seen {
+				for _, n := range path[i:] {
+					on[n] = true
+				}
+				break
+			}
+			at[name] = len(path)
+			path = append(path, name)
+			up, ok := parent[name]
+			if !ok {
+				break
+			}
+			name = up
 		}
-		if up == name {
-			return true
+		for _, n := range path {
+			done[n] = true
 		}
-		at = up
 	}
-	return false
+	return on
 }
 
 // quote spells a name in the double quotes a message uses.
@@ -112,10 +143,18 @@ func operationsOf(r ruler, item map[string]*yaml.Node, ptr jsontext.Pointer) []o
 	return out
 }
 
-// expressions returns the names of the template expressions of a path.
+// expressions returns the names of the template expressions of a path. A "#"
+// ends the path, as it ends what the path-key check reads (GitHub #602).
 func expressions(path string) []string {
+	before, _, _ := strings.Cut(path, "#")
+	return braced(before)
+}
+
+// braced returns the text of each {group} s writes, up to the first brace no
+// group closes.
+func braced(s string) []string {
 	var out []string
-	rest := path
+	rest := s
 	for {
 		_, after, ok := strings.Cut(rest, "{")
 		if !ok {
@@ -272,6 +311,40 @@ func serverTemplate(r ruler, rule Rule) {
 	}
 }
 
+// serverVariables reports a variable a server URL names in braces that its
+// variables map does not define: the URL has nothing to substitute there. A
+// group naming no usable variable is the template's fault, not a variable's.
+func serverVariables(r ruler, rule Rule) {
+	url, ok := textOf(r.f.byKey["url"])
+	if !ok {
+		return
+	}
+	defined := r.keysOf(r.f.byKey["variables"])
+	for _, name := range braced(url) {
+		if _, ok := defined[name]; !ok && name != "" && !strings.Contains(name, "{") {
+			r.fail(rule, classReference, r.f.at.ptr.AppendToken("url"),
+				"field \"url\" names the variable "+quote(name)+", which variables does not define")
+		}
+	}
+}
+
+// serverURLParts reports a server URL writing a query or a fragment outside
+// its variables' braces.
+func serverURLParts(r ruler, rule Rule) {
+	url, ok := textOf(r.f.byKey["url"])
+	if !ok {
+		return
+	}
+	literal := url
+	for _, name := range braced(url) {
+		literal = strings.Replace(literal, "{"+name+"}", "", 1)
+	}
+	if i := strings.IndexAny(literal, "?#"); i >= 0 {
+		part := map[byte]string{'?': "a query", '#': "a fragment"}[literal[i]]
+		r.fail(rule, classSyntax, r.f.at.ptr.AppendToken("url"), "field \"url\" carries "+part)
+	}
+}
+
 // templateFault says what is wrong with a server URL template, or returns "".
 func templateFault(url string) string {
 	var seen []string
@@ -306,6 +379,43 @@ func additionalMethods(r ruler, rule Rule) {
 		if slices.Contains(standardMethods(), strings.ToLower(p.Key)) {
 			r.fail(rule, classValues, base.AppendToken(p.Key),
 				"additionalOperations holds an entry for "+quote(p.Key)+", which the field "+quote(strings.ToLower(p.Key))+" defines")
+		}
+	}
+}
+
+// contentOwners are the objects whose content map holds Media Type Objects
+// keyed by a media type.
+func contentOwners() []Kind { return []Kind{RequestBody, Response, Parameter, Header} }
+
+// encodingApplies warns of an encoding a media type writes where the
+// specification gives it no effect: encoding under a key that is no form media
+// type, prefixEncoding or itemEncoding under one that is not multipart, and,
+// before 3.2, encoding outside a request body. A Media Type Object held under
+// any other key, a component's name, names no media type, so it is not judged.
+func encodingApplies(r ruler, rule Rule) {
+	if !slices.Contains(contentOwners(), r.f.at.in) {
+		return
+	}
+	// RFC 6838 §4.2: names are case-insensitive, and parameters follow a ';'.
+	name, _, _ := strings.Cut(r.f.at.held, ";")
+	name = strings.ToLower(strings.TrimSpace(name))
+	multipart := strings.HasPrefix(name, "multipart/")
+	for _, field := range []string{"encoding", "prefixEncoding", "itemEncoding"} {
+		if _, ok := r.f.byKey[field]; !ok {
+			continue
+		}
+		scope := ""
+		switch {
+		case field == "encoding" && !multipart && name != "application/x-www-form-urlencoded":
+			scope = "to multipart and application/x-www-form-urlencoded media types alone"
+		case field != "encoding" && !multipart:
+			scope = "to multipart media types alone"
+		case field == "encoding" && r.w.minor < V32 && r.f.at.in != RequestBody:
+			scope = "to request bodies alone"
+		}
+		if scope != "" {
+			r.fail(rule, classNoEffect, r.f.at.ptr.AppendToken(field),
+				"field "+quote(field)+" has no effect under "+quote(r.f.at.held)+", which the specification applies "+scope)
 		}
 	}
 }

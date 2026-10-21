@@ -407,8 +407,8 @@ func resolveExternal(ctx context.Context, at func(jsontext.Pointer) ir.Provenanc
 	}
 	again.InitCache()
 	// Modelled again, since the first models hold what the first pass resolved.
-	// Their findings are the first models', reported already.
-	sibs, _, _ = modelSiblings(ctx, again, nowhere)
+	// Their faults are the first models', reported already.
+	sibs, _ = modelSiblings(ctx, again, nowhere)
 	read.handOver(again, used)
 	reader = newExternal(again, opts, read)
 	diags = resolveWith(ctx, at, again, sibs, self, opts, &reader)

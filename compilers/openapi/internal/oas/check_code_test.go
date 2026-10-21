@@ -4,7 +4,10 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
+	"github.com/dexpace/morphic/ir"
 )
 
 // TestCheck_TagParentsExist pins the rule on 3.2's nested tags.
@@ -14,12 +17,16 @@ func TestCheck_TagParentsExist(t *testing.T) {
 		{"parent exists", "3.2.0", oas.Document, head + "tags: [{name: a}, {name: b, parent: a}]\n", nil},
 		{"siblings under one parent", "3.2.0", oas.Document, head + "tags: [{name: a}, {name: b, parent: a}, {name: c, parent: a}]\n", nil},
 		{"parent missing", "3.2.0", oas.Document, head + "tags: [{name: a, parent: z}]\n", []finding{at(dangling, "/tags/0/parent")}},
-		{"tag under itself", "3.2.0", oas.Document, head + "tags: [{name: a, parent: a}]\n", []finding{at(dangling, "/tags/0/parent")}},
+		{"tag under itself", "3.2.0", oas.Document, head + "tags: [{name: a, parent: a}]\n", []finding{at(circular, "/tags/0/parent")}},
 		{"cycle", "3.2.0", oas.Document, head + "tags: [{name: a, parent: b}, {name: b, parent: a}]\n",
-			[]finding{at(dangling, "/tags/0/parent"), at(dangling, "/tags/1/parent")}},
+			[]finding{at(circular, "/tags/0/parent"), at(circular, "/tags/1/parent")}},
 		{"a chain below a cycle", "3.2.0", oas.Document,
 			head + "tags: [{name: a, parent: b}, {name: b, parent: a}, {name: c, parent: a}]\n",
-			[]finding{at(dangling, "/tags/0/parent"), at(dangling, "/tags/1/parent")}},
+			[]finding{at(circular, "/tags/0/parent"), at(circular, "/tags/1/parent")}},
+		{"a name declared twice nests as its first declaration says", "3.2.0", oas.Document,
+			head + "tags: [{name: a, parent: b}, {name: b, parent: a}, {name: a, parent: c}, {name: c, parent: z}]\n",
+			[]finding{at(circular, "/tags/0/parent"), at(circular, "/tags/1/parent"), at(duplicate, "/tags/2/name"),
+				at(dangling, "/tags/3/parent")}},
 		{"tag with an unreadable name", "3.2.0", oas.Document, head + "tags: [{parent: a}, {name: [x], parent: y}]\n",
 			[]finding{at(required, "/tags/0"), at(mismatch, "/tags/1/name")}},
 		{"no tags", "3.2.0", oas.Document, head, nil},
@@ -78,6 +85,7 @@ func TestCheck_PathTemplatesAnswerToPathParameters(t *testing.T) {
 		{"two expressions, one answered", "3.1.0", oas.Paths,
 			"{\"/a/{id}/{other}\": {get: {responses: {'200': {description: d}}, parameters: [" + param + "]}}}", []finding{at(dangling, "/~1a~1{id}~1{other}")}},
 		{"an unclosed brace", "3.1.0", oas.Paths, "{\"/a/{id\": {get: " + ok + "}}", nil},
+		{"a fragment is no part of the path", "3.1.0", oas.Paths, "{\"/a#{id}\": {get: " + ok + "}}", nil},
 		{"parameters that are no list", "3.1.0", oas.Paths, "{\"/a/{id}\": {get: {responses: {'200': {description: d}}, parameters: x}}}",
 			[]finding{at(mismatch, "/~1a~1{id}/get/parameters"), at(dangling, "/~1a~1{id}")}},
 		{"additional operations", "3.2.0", oas.Paths,
@@ -123,7 +131,9 @@ func TestCheck_IdenticalTemplatesAreFound(t *testing.T) {
 
 // TestCheck_ServerUrlTemplatesAreWellFormed pins the 3.2 template grammar.
 func TestCheck_ServerUrlTemplatesAreWellFormed(t *testing.T) {
-	url := func(u string) string { return `{url: "` + u + `"}` }
+	url := func(u string) string {
+		return `{url: "` + u + `", variables: {host: {default: h}, port: {default: "1"}, a: {default: x}, b: {default: x}}}`
+	}
 	verify(t, []scenario{
 		{"no variables", "3.2.0", oas.Server, url("https://a.example/v1"), nil},
 		{"variables", "3.2.0", oas.Server, url("https://{host}:{port}/v1"), nil},
@@ -145,5 +155,52 @@ func TestCheck_AdditionalOperationsExcludeStandardMethods(t *testing.T) {
 		{"a standard method", "3.2.0", oas.PathItem, `{additionalOperations: {POST: {}}}`, []finding{at(allowed, "/additionalOperations/POST")}},
 		{"a lower-case standard method", "3.2.0", oas.PathItem, `{additionalOperations: {query: {}}}`, []finding{at(allowed, "/additionalOperations/query")}},
 		{"in 3.1 the field is unknown", "3.1.0", oas.PathItem, `{additionalOperations: {POST: {}}}`, []finding{at(later, "/additionalOperations")}},
+	})
+}
+
+// TestCheck_EncodingsApplyWhereTheSpecificationSays pins where an encoding has
+// an effect: a form media type, read case-insensitively and without its
+// parameters; a multipart one for the positional encodings; and, before 3.2, a
+// request body's.
+func TestCheck_EncodingsApplyWhereTheSpecificationSays(t *testing.T) {
+	body := func(key, fields string) string { return "{content: {'" + key + "': {" + fields + "}}}" }
+	verify(t, []scenario{
+		{"a JSON body", "3.1.0", oas.RequestBody, body("application/json", "encoding: {}"),
+			[]finding{at(inert, "/content/application~1json/encoding")}},
+		{"a multipart body", "3.1.0", oas.RequestBody, body("multipart/form-data", "encoding: {}"), nil},
+		{"a form body", "3.1.0", oas.RequestBody, body("application/x-www-form-urlencoded", "encoding: {}"), nil},
+		{"a form body spelled otherwise, with parameters", "3.1.0", oas.RequestBody,
+			body(" Application/X-WWW-Form-Urlencoded; charset=utf-8", "encoding: {}"), nil},
+		{"a multipart response before 3.2", "3.1.0", oas.Response, "{description: d, content: {multipart/mixed: {encoding: {}}}}",
+			[]finding{at(inert, "/content/multipart~1mixed/encoding")}},
+		{"a multipart response in 3.2", "3.2.0", oas.Response, "{description: d, content: {multipart/mixed: {encoding: {}}}}", nil},
+		{"positional encodings under a form", "3.2.0", oas.RequestBody,
+			body("application/x-www-form-urlencoded", "prefixEncoding: [], itemEncoding: {}"),
+			[]finding{at(inert, "/content/application~1x-www-form-urlencoded/prefixEncoding"),
+				at(inert, "/content/application~1x-www-form-urlencoded/itemEncoding")}},
+		{"positional encodings under multipart", "3.2.0", oas.RequestBody, body("multipart/mixed", "prefixEncoding: [], itemEncoding: {}"), nil},
+		{"a component's name is no media type", "3.2.0", oas.Components, "{mediaTypes: {JSON: {encoding: {}}}}", nil},
+	})
+	for _, d := range run(t, "3.1.0", oas.RequestBody, body("application/json", "encoding: {}")) {
+		assert.Equal(t, ir.SeverityWarning, d.Severity)
+	}
+}
+
+// TestCheck_AServerURLNamesOnlyItsVariables pins what a server URL may write
+// beside its literal text: variables its variables map defines, and, from 3.1,
+// no query or fragment, which a variable's braces may still hold.
+func TestCheck_AServerURLNamesOnlyItsVariables(t *testing.T) {
+	server := func(url, variables string) string { return `{url: "` + url + `", variables: {` + variables + `}}` }
+	verify(t, []scenario{
+		{"every variable defined", "3.1.0", oas.Server, server("https://{dc}.x/{v}", "dc: {default: a}, v: {default: b}"), nil},
+		{"one undefined", "3.0.3", oas.Server, server("https://{dc}.x/{v}", "dc: {default: a}"), []finding{at(dangling, "/url")}},
+		{"no variables at all", "3.1.0", oas.Server, `{url: "https://{dc}.x"}`, []finding{at(dangling, "/url")}},
+		{"a variable defined and unused", "3.1.0", oas.Server, server("https://x", "dc: {default: a}"), nil},
+		{"a query", "3.1.0", oas.Server, server("https://x/?a=1", ""), []finding{at(badSyntax, "/url")}},
+		{"a fragment", "3.1.0", oas.Server, server("https://x/#f", ""), []finding{at(badSyntax, "/url")}},
+		{"a query in 3.0", "3.0.3", oas.Server, server("https://x/?a=1", ""), nil},
+		{"a variable's name holding both", "3.2.0", oas.Server, server("https://x/{a?#b}", "'a?#b': {default: c}"), nil},
+		{"a group naming no variable is the template's", "3.2.0", oas.Server, server("https://x/{}/{a{b}}", ""),
+			[]finding{at(badSyntax, "/url")}},
 	})
 }

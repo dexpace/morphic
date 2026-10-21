@@ -14,8 +14,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/dexpace/morphic/compilers"
-	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
 	typed "github.com/dexpace/morphic/internal/decls"
 )
@@ -105,33 +103,6 @@ func TestLocationOf_RendersThePointer(t *testing.T) {
 	}
 }
 
-// TestLocationOf_NoReachedObjectHasAnEmptyFirstToken pins the premise that
-// lets locationOf render a reached object: the resolver takes "#/" for the
-// document, not for a top-level key "", so no $ref reaches an object whose
-// pointer starts with an empty token, which a located walk would render one
-// segment short. Were it to, this parameter would be judged at
-// "/allowReserved" rather than "//allowReserved".
-func TestLocationOf_NoReachedObjectHasAnEmptyFirstToken(t *testing.T) {
-	t.Parallel()
-	_, diags, err := Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(`openapi: 3.1.0
-info: {title: T, version: "1"}
-paths:
-  /a:
-    get:
-      parameters:
-        - $ref: '#/'
-      responses: {"200": {description: ok}}
-"": {name: h, in: header, allowReserved: true, schema: {type: string}}
-`)}, Options{})
-	require.NoError(t, err)
-	unresolved := false
-	for _, d := range diags {
-		unresolved = unresolved || d.Code == diag.UnresolvedRef && d.Provenance.Pointer == "/paths/~1a/get/parameters/0"
-	}
-	assert.True(t, unresolved, "the $ref reaches the document, which is no parameter")
-	assert.Empty(t, reservedIn(t, diags))
-}
-
 // locatedSpec writes a path item whose walk meets a map key first, its method.
 const locatedSpec = `openapi: 3.1.0
 info: {title: T, version: "1"}
@@ -151,7 +122,7 @@ func TestLocatedWalk_PlacesAWalkUnderItsObject(t *testing.T) {
 	t.Parallel()
 	item := modelOf(t, locatedSpec).Paths.GetOrZero("/a").GetObject()
 	var sites []string
-	for wi := range locatedWalk(reachedWalk(t.Context(), item), "/x-paths/X") {
+	for wi := range locatedWalk(soa.Walk(t.Context(), &soa.ReferencedPathItem{Object: item}), "/x-paths/X") {
 		sites = append(sites, string(wi.Location.ToJSONPointer()))
 	}
 	require.NotEmpty(t, sites)
@@ -170,7 +141,7 @@ func TestLocatedWalk_StopsWhenTheReaderDoes(t *testing.T) {
 	t.Parallel()
 	item := modelOf(t, locatedSpec).Paths.GetOrZero("/a").GetObject()
 	read := 0
-	for range locatedWalk(reachedWalk(t.Context(), item), "/x-paths/X") {
+	for range locatedWalk(soa.Walk(t.Context(), &soa.ReferencedPathItem{Object: item}), "/x-paths/X") {
 		read++
 		break
 	}
@@ -184,7 +155,7 @@ func TestLocatedWalk_StopsWhenTheReaderDoes(t *testing.T) {
 func TestWalkSource_WalksTheFieldsWhereTheSourceWritesThem(t *testing.T) {
 	t.Parallel()
 	doc := modelOf(t, siblingSpec)
-	sibs, _, _ := modelSiblings(t.Context(), doc, scan.InSource(0))
+	sibs, _ := modelSiblings(t.Context(), doc, scan.InSource(0))
 	sites := walkSites(walkSource(t.Context(), doc, sibs))
 
 	index := func(site string) int {
@@ -220,7 +191,7 @@ func TestWalkSource_WalksTheFieldsWhereTheSourceWritesThem(t *testing.T) {
 func TestWalkSource_StopsWhenTheReaderDoes(t *testing.T) {
 	t.Parallel()
 	doc := modelOf(t, siblingSpec)
-	sibs, _, _ := modelSiblings(t.Context(), doc, scan.InSource(0))
+	sibs, _ := modelSiblings(t.Context(), doc, scan.InSource(0))
 	for _, stopAt := range []string{"/paths/~1b", "/paths/~1a/put"} {
 		var last string
 		for item := range walkSource(t.Context(), doc, sibs) {
@@ -240,7 +211,7 @@ func TestWalkSource_StopsWhenTheReaderDoes(t *testing.T) {
 // the process's goroutines.
 func TestWalkSource_ReleasesEveryWalkItOpens(t *testing.T) {
 	doc := modelOf(t, siblingSpec)
-	sibs, _, _ := modelSiblings(t.Context(), doc, scan.InSource(0))
+	sibs, _ := modelSiblings(t.Context(), doc, scan.InSource(0))
 	nested := "/paths/~1a/put/callbacks/cb/{$request.body#~1url}/"
 	const reads = 100
 	before := runtime.NumGoroutine()

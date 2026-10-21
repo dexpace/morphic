@@ -6,7 +6,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/speakeasy-api/openapi/validation"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -139,19 +138,19 @@ func TestCompile_AFindingInAnExternalDocumentKeepsItsRule(t *testing.T) {
 	require.NotNil(t, doc)
 
 	msg := openapitest.DiagMessageAt(t, diags, diag.Validation+"/validation-required-field", ir.SeverityError, "/paths/~1x")
-	assert.Contains(t, msg, "`parameter.in` is required")
+	assert.Contains(t, msg, `Parameter Object field "in" is REQUIRED`)
 	assert.True(t, strings.HasSuffix(msg, ", at 7:11 of "+filepath.Join(dir, "other.yaml")),
 		"its position, in the document it is in: %q", msg)
 }
 
-// TestLoad_RecoverableLiteralSuppressesFindingAmongOtherScalars pins the
-// end-to-end shape the candidacy rule has to preserve. The library reports this
-// document as invalid JSON because of the .5, and names that character in the
-// message; the unconvertible custom tag beside it is a bystander that converts
-// fine on its own, so the finding is still an artifact and must not surface.
-func TestLoad_RecoverableLiteralSuppressesFindingAmongOtherScalars(t *testing.T) {
+// TestLoad_RecoverableLiteralAmongOtherScalarsIsNotAFinding pins that a schema
+// writing a number JSON does not spell (.5) beside a custom-tagged scalar draws
+// no validation finding: the table reads the YAML nodes, and both are values a
+// default and an example may hold.
+func TestLoad_RecoverableLiteralAmongOtherScalarsIsNotAFinding(t *testing.T) {
 	t.Parallel()
 	_, diags := parseFull(t, openapitest.ComponentSpec(`    S: {type: string, default: !custom foo, example: .5}`))
-	assert.False(t, openapitest.HasDiag(diags, diag.Validation+"/"+string(validation.RuleValidationInvalidSyntax)),
-		"a finding a recoverable literal explains stays suppressed: %+v", diags)
+	for _, d := range diags {
+		assert.False(t, strings.HasPrefix(d.Code, diag.Validation), "no finding: %+v", d)
+	}
 }

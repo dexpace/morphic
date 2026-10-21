@@ -102,6 +102,14 @@ const (
 	// RuntimeExpression is a string whose braces hold runtime expressions, or
 	// a runtime expression bare.
 	RuntimeExpression
+	// VersionNumber is a version of the specification: major.minor.patch,
+	// each a run of decimal digits.
+	VersionNumber
+	// ServerURL is a URL reference that may write {variables}.
+	ServerURL
+	// MediaRanges is a comma-separated list of media types, each specific or
+	// a wildcard range.
+	MediaRanges
 )
 
 // Level is how firmly the specification states a rule.
@@ -167,6 +175,8 @@ type Field struct {
 	Keys   Format
 	// Owner is the package that reports the field's missing-field finding.
 	Owner string
+	// ShapeOwner is the package that reports a value of the wrong shape.
+	ShapeOwner string
 	// Keyword marks a JSON Schema keyword: one a later minor adds is read
 	// as the schema lowering reads it, not reported here.
 	Keyword bool
@@ -215,6 +225,9 @@ const (
 	RuleSyntax
 	// RuleInapplicable: Field has no effect when every When term holds.
 	RuleInapplicable
+	// RuleMisplaced: no field of Fields is present when every When term
+	// holds; one that is lowers as declared.
+	RuleMisplaced
 	// RuleCode: a predicate written in Go, named by Name.
 	RuleCode
 )
@@ -239,6 +252,8 @@ type Rule struct {
 	// Min and Max bound a Count rule.
 	Min, Max int
 	When     []Term
+	// Scope says, for an Inapplicable rule, where the field does apply.
+	Scope string
 	// Name names the predicate of a Code rule.
 	Name string
 	// Owner is the package that already reports the rule; the engine skips it.

@@ -140,6 +140,10 @@ func knownInvalid() map[string]bool {
 		// node, but the loader reports the malformed JSON pointer as an
 		// unresolved-ref error first (#14).
 		filepath.FromSlash("../../testdata/dangling/openapi/f32-ref-noncanonical-escape.yaml"): true,
+		// A parameter and a header writing both schema and content, which the
+		// specification bars ("but not both"); the case pins how such a document
+		// lowers.
+		filepath.FromSlash("../../testdata/conformance/openapi/codeclared-schema-content.yaml"): true,
 		// The other dangling reproducers (f07, f08, f10, f11, f13, f28, f31)
 		// intern their targets and compile clean, so they are absent. f08 and
 		// f13 map a tag to a sub-schema that is not a subtype; it resolves as

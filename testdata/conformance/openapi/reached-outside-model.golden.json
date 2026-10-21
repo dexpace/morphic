@@ -460,6 +460,7 @@
       "value": {
         "key": {
           "bearerFormat": "JWT",
+          "description": null,
           "in": "header",
           "name": "X-Key",
           "type": "apiKey"
@@ -478,37 +479,10 @@
       "message": "field \"summary\" of the Response Object was added in OpenAPI 3.2, and this document declares 3.1.0; it is lowered as in an OpenAPI 3.2 document",
       "provenance": {
         "source": 0,
-        "pointer": "/x-responses/Listed/summary"
-      }
-    },
-    {
-      "severity": "warning",
-      "code": "openapi/later-version-construct",
-      "message": "field \"nodeType\" of the XML Object was added in OpenAPI 3.2, and this document declares 3.1.0; it is lowered as in an OpenAPI 3.2 document",
-      "provenance": {
-        "source": 0,
-        "pointer": "/x-lib/Cat/xml/nodeType"
-      }
-    },
-    {
-      "severity": "warning",
-      "code": "openapi/later-version-construct",
-      "message": "field \"nodeType\" of the XML Object was added in OpenAPI 3.2, and this document declares 3.1.0; it is lowered as in an OpenAPI 3.2 document",
-      "provenance": {
-        "source": 0,
-        "pointer": "/x-lib/Pet/xml/nodeType"
-      }
-    },
-    {
-      "severity": "warning",
-      "code": "openapi/validation/validation-allowed-values",
-      "message": "securityScheme.bearerFormat is not used for type=apiKey (only valid for type=http)",
-      "provenance": {
-        "source": 0,
-        "pointer": "/x-schemes/key/bearerFormat",
+        "pointer": "/x-responses/Listed/summary",
         "position": {
-          "line": 38,
-          "column": 62
+          "line": 34,
+          "column": 44
         }
       }
     },
@@ -518,7 +492,50 @@
       "message": "field \"nodeType\" of the XML Object was added in OpenAPI 3.2, and this document declares 3.1.0; it is lowered as in an OpenAPI 3.2 document",
       "provenance": {
         "source": 0,
-        "pointer": "/x-lib/Owner/xml/nodeType"
+        "pointer": "/x-lib/Cat/xml/nodeType",
+        "position": {
+          "line": 32,
+          "column": 21
+        }
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/later-version-construct",
+      "message": "field \"nodeType\" of the XML Object was added in OpenAPI 3.2, and this document declares 3.1.0; it is lowered as in an OpenAPI 3.2 document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-lib/Pet/xml/nodeType",
+        "position": {
+          "line": 28,
+          "column": 21
+        }
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/validation/validation-type-mismatch",
+      "message": "Security Scheme Object field \"description\" must be a string in OpenAPI 3.1 (Security Scheme Object); it is null, which is read as the field left out",
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-schemes/key/description",
+        "position": {
+          "line": 39,
+          "column": 80
+        }
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/later-version-construct",
+      "message": "field \"nodeType\" of the XML Object was added in OpenAPI 3.2, and this document declares 3.1.0; it is lowered as in an OpenAPI 3.2 document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-lib/Owner/xml/nodeType",
+        "position": {
+          "line": 29,
+          "column": 77
+        }
       }
     },
     {
@@ -535,7 +552,7 @@
     {
       "format": "openapi@3.1",
       "path": "reached-outside-model.yaml",
-      "hash": "5ceee6aced1fbf2f9c9b0810b6a53b7deb04c0017a74cc4b023aac701e5f148d"
+      "hash": "e837e017d789abfcfaadace079ff04b141b6befe48c43b3f30bb0aecf530f327"
     }
   ]
 }

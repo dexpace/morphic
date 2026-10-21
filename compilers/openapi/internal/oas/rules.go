@@ -50,10 +50,11 @@ func (f frame) text(name string) (string, bool) {
 	return textOf(f.byKey[name])
 }
 
-// textOf reads a node as a scalar.
+// textOf reads a node as a scalar. A null writes no text: a rule reading a
+// sibling reads it as unwritten, and the field's own check reports it.
 func textOf(node *yaml.Node) (string, bool) {
 	n := nodeview.Deref(node)
-	if n == nil || n.Kind != yaml.ScalarNode {
+	if n == nil || n.Kind != yaml.ScalarNode || isNull(n) {
 		return "", false
 	}
 	return n.Value, true
@@ -101,6 +102,8 @@ func (r ruler) apply(rule Rule) {
 		r.syntax(rule)
 	case RuleInapplicable:
 		r.inapplicable(rule)
+	case RuleMisplaced:
+		r.misplaced(rule)
 	case RuleCode:
 		r.code(rule)
 	}
@@ -186,16 +189,11 @@ func (r ruler) named(field string) string {
 	return `field "` + field + `" `
 }
 
-// entryCount counts the entries of the field, where it is a map or a list.
+// entryCount counts the entries of the field, where it is a map or a list. An
+// entry written null is read as left out, so it is not counted.
 func (r ruler) entryCount(field string) (int, jsontext.Pointer, bool) {
 	if field == "" {
-		n := 0
-		for _, p := range r.f.pairs {
-			if !strings.HasPrefix(p.Key, "x-") {
-				n++
-			}
-		}
-		return n, r.f.at.ptr, true
+		return written(r.f.pairs, func(p nodeview.Pair) bool { return !strings.HasPrefix(p.Key, "x-") }), r.f.at.ptr, true
 	}
 	node := nodeview.Deref(r.f.byKey[field])
 	ptr := r.f.at.ptr.AppendToken(field)
@@ -203,11 +201,28 @@ func (r ruler) entryCount(field string) (int, jsontext.Pointer, bool) {
 	case node == nil:
 		return 0, ptr, false
 	case node.Kind == yaml.MappingNode:
-		return len(r.w.view.MappingPairs(node)), ptr, true
+		return written(r.w.view.MappingPairs(node), func(nodeview.Pair) bool { return true }), ptr, true
 	case node.Kind == yaml.SequenceNode:
-		return len(node.Content), ptr, true
+		n := 0
+		for _, item := range node.Content {
+			if !isNull(nodeview.Deref(item)) {
+				n++
+			}
+		}
+		return n, ptr, true
 	}
 	return 0, ptr, false
+}
+
+// written counts the pairs counted keeps whose value is not null.
+func written(pairs []nodeview.Pair, counted func(nodeview.Pair) bool) int {
+	n := 0
+	for _, p := range pairs {
+		if counted(p) && !isNull(nodeview.Deref(p.Val)) {
+			n++
+		}
+	}
+	return n
 }
 
 // requiredWhen reports a field missing where the conditions make it required.
@@ -277,17 +292,19 @@ func (r ruler) unique(rule Rule) {
 	if list == nil || list.Kind != yaml.SequenceNode {
 		return
 	}
-	seen := map[string]bool{}
+	first := map[string]jsontext.Pointer{}
 	for i, item := range list.Content {
 		name, ok := textOf(r.keysOf(item)[rule.Key])
 		if !ok {
 			continue
 		}
-		if seen[name] {
-			ptr := itemPointer(r.f.at.ptr.AppendToken(rule.Field), i).AppendToken(rule.Key)
-			r.fail(rule, classDuplicate, ptr, `field "`+rule.Field+`" repeats the `+rule.Key+" "+strconv.Quote(name))
+		ptr := itemPointer(r.f.at.ptr.AppendToken(rule.Field), i).AppendToken(rule.Key)
+		if at, seen := first[name]; seen {
+			r.fail(rule, classDuplicate, ptr,
+				`field "`+rule.Field+`" repeats the `+rule.Key+" "+strconv.Quote(name)+" first written at "+string(at))
+			continue
 		}
-		seen[name] = true
+		first[name] = ptr
 	}
 }
 
@@ -305,8 +322,36 @@ func (r ruler) inapplicable(rule Rule) {
 	if _, ok := r.f.byKey[rule.Field]; !ok || r.f.test(rule.When) != yes {
 		return
 	}
-	r.w.diags = append(r.w.diags, diag.Newf(ir.SeverityWarning, diag.InapplicableLocationKeyword,
-		r.w.locate(r.f.at.ptr.AppendToken(rule.Field)),
-		"%s field %q has no effect when %s in OpenAPI %s (%s); lowered as declared",
-		r.f.obj.Name, rule.Field, describeTerms(rule.When), r.w.minor, citeFor(rule.Cites, r.w.minor).Section))
+	ptr := r.f.at.ptr.AppendToken(rule.Field)
+	r.w.add(diag.Newf(ir.SeverityWarning, diag.InapplicableLocationKeyword, r.w.locate(ptr),
+		"%s field %s has no effect for %s in OpenAPI %s, which applies it %s; lowered as declared",
+		r.f.obj.noun(), rule.Field, r.place(rule.When), r.w.minor, rule.Scope), ptr)
+}
+
+// misplaced warns of each field written where the conditions bar it.
+func (r ruler) misplaced(rule Rule) {
+	if r.f.test(rule.When) != yes {
+		return
+	}
+	for _, name := range r.present(rule.Fields) {
+		ptr := r.f.at.ptr.AppendToken(name)
+		r.w.add(diag.Newf(ir.SeverityWarning, diag.InvalidLocationKeyword, r.w.locate(ptr),
+			"%s field %s is not allowed for %s; lowered as declared", r.f.obj.noun(), name, r.place(rule.When)), ptr)
+	}
+}
+
+// noun names the object in lower case and without "Object", as a message
+// about one of its fields begins.
+func (o Object) noun() string { return strings.ToLower(strings.TrimSuffix(o.Name, " Object")) }
+
+// place spells where the object stands as the terms read it: the first term as
+// the object writes it, the others after "with". A term the object writes with
+// a value among those the term lists is the only kind a rule that holds has.
+func (r ruler) place(terms []Term) string {
+	parts := make([]string, len(terms))
+	for i, t := range terms {
+		got, _ := r.f.text(t.Field)
+		parts[i] = t.Field + "=" + got
+	}
+	return strings.Join(parts, " with ")
 }

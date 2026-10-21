@@ -147,7 +147,7 @@ func TestSettle_AChainTargetIsValidatedInEitherOrder(t *testing.T) {
 		}
 		reports = append(reports, got)
 	}
-	want := []string{"/components/responses/Mid openapi/validation/validation-invalid-schema"}
+	want := []string{"/components/responses/Mid openapi/validation/validation-type-mismatch"}
 	for _, got := range reports {
 		assert.Empty(t, cmp.Diff(want, got), "the finding in the chain's target is reported, at the $ref reaching it")
 	}
@@ -305,7 +305,7 @@ func TestSettle_AResumedResolutionFailsWhereItStillFails(t *testing.T) {
 
 // TestSettle_AFailureMendingCannotTouchIsNotResumed pins settle's loop guard: a
 // resolution whose chain holds no record mending changes is returned as it
-// failed, with its findings, and never resumed.
+// failed, and never resumed.
 func TestSettle_AFailureMendingCannotTouchIsNotResumed(t *testing.T) {
 	t.Parallel()
 	resumed := 0
@@ -316,11 +316,10 @@ func TestSettle_AFailureMendingCannotTouchIsNotResumed(t *testing.T) {
 	reader := newExternal(&soa.OpenAPI{}, Options{}, newExternalReads(sourceDocument{}))
 	failed := errors.New("failed")
 
-	vErrs, err := reader.settle(t.Context(), r, references.ResolveOptions{}, []error{assert.AnError}, failed)
+	err := reader.settle(t.Context(), r, references.ResolveOptions{}, failed)
 
 	assert.Zero(t, resumed, "nothing a mend could change, so nothing to resume")
 	require.ErrorIs(t, err, failed)
-	assert.Equal(t, []error{assert.AnError}, vErrs)
 }
 
 // report is what a site's one diagnostic says: an unresolved reference, with

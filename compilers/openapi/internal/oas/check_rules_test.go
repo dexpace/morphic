@@ -78,6 +78,9 @@ func TestCheck_CountsBoundTheEntries(t *testing.T) {
 		{"no responses", "3.1.0", oas.Responses, `{}`, []finding{at(entries, "")}},
 		{"extensions are not responses", "3.1.0", oas.Responses, `{x-a: 1}`, []finding{at(entries, "")}},
 		{"one response", "3.1.0", oas.Responses, `{default: {description: d}}`, nil},
+		{"a null response is none", "3.1.0", oas.Responses, `{'200': ~}`, []finding{at(entries, ""), at(mismatch, "/200")}},
+		{"a null content is none", "3.1.0", oas.Parameter, `{name: a, in: query, content: {a/b: ~}}`,
+			[]finding{at(entries, "/content"), at(mismatch, "/content/a~1b")}},
 		{"two contents", "3.1.0", oas.Parameter, `{name: a, in: query, content: {a/b: {}, c/d: {}}}`, []finding{at(entries, "/content")}},
 		{"one content", "3.1.0", oas.Parameter, `{name: a, in: query, content: {a/b: {}}}`, nil},
 		{"empty content", "3.1.0", oas.Parameter, `{name: a, in: query, content: {}}`, []finding{at(entries, "/content")}},
@@ -184,14 +187,16 @@ func TestCheck_OAuthFlowsNeedTheirUrls(t *testing.T) {
 	})
 }
 
-// TestCheck_HeadersRefuseWhatAParameterNames pins the bans on the Header Object.
-func TestCheck_HeadersRefuseWhatAParameterNames(t *testing.T) {
+// TestCheck_HeadersLeaveWhatAParameterNamesToTheUnknownKeys pins that the
+// table states the Header Object's bans on what a parameter names and leaves
+// them to the unknown-key census, which reports each, since a Header Object
+// defines none of those keys; a Parameter Object's allowEmptyValue outside the
+// query, a field it does define, is the table's.
+func TestCheck_HeadersLeaveWhatAParameterNamesToTheUnknownKeys(t *testing.T) {
 	verify(t, []scenario{
-		{"name and in", "3.1.0", oas.Header, `{name: n, in: header, schema: {}}`, []finding{at(forbidden, "/name"), at(forbidden, "/in")}},
-		{"allowEmptyValue in 3.1", "3.1.0", oas.Header, `{allowEmptyValue: true, schema: {}}`, []finding{at(forbidden, "/allowEmptyValue")}},
-		{"allowReserved in 3.1", "3.1.0", oas.Header, `{allowReserved: true, schema: {}}`, []finding{at(forbidden, "/allowReserved")}},
-		{"allowEmptyValue in 3.2", "3.2.0", oas.Header, `{allowEmptyValue: true, schema: {}}`, []finding{at(forbidden, "/allowEmptyValue")}},
-		{"allowReserved in 3.2 is not banned", "3.2.0", oas.Header, `{allowReserved: true, schema: {}}`, nil},
+		{"name and in", "3.1.0", oas.Header, `{name: n, in: header, schema: {}}`, nil},
+		{"allowEmptyValue and allowReserved in 3.1", "3.1.0", oas.Header, `{allowEmptyValue: true, allowReserved: true, schema: {}}`, nil},
+		{"allowEmptyValue in 3.2", "3.2.0", oas.Header, `{allowEmptyValue: true, schema: {}}`, nil},
 		{"allowEmptyValue outside the query", "3.1.0", oas.Parameter, `{name: a, in: header, allowEmptyValue: true, schema: {}}`,
 			[]finding{at(forbidden, "/allowEmptyValue")}},
 		{"allowEmptyValue in the query", "3.1.0", oas.Parameter, `{name: a, in: query, allowEmptyValue: true, schema: {}}`, nil},
@@ -199,15 +204,23 @@ func TestCheck_HeadersRefuseWhatAParameterNames(t *testing.T) {
 	})
 }
 
-// TestCheck_QuerystringTakesOnlyContent pins the rules on in: querystring.
+// TestCheck_QuerystringTakesOnlyContent pins the rules on in: querystring: a
+// schema there leaves the parameter no content to bind the query string by, an
+// error, while a style, explode or allowReserved has nothing to qualify, and
+// lowers as declared, a warning in the words the message gives.
 func TestCheck_QuerystringTakesOnlyContent(t *testing.T) {
 	verify(t, []scenario{
-		{"style and schema", "3.2.0", oas.Parameter, `{name: a, in: querystring, style: form, schema: {}}`,
-			[]finding{at(forbidden, "/style"), at(forbidden, "/schema")}},
+		{"schema", "3.2.0", oas.Parameter, `{name: a, in: querystring, schema: {}}`, []finding{at(forbidden, "/schema")}},
 		{"content alone", "3.2.0", oas.Parameter, `{name: a, in: querystring, content: {a/b: {}}}`, nil},
-		{"explode and allowReserved are the operation package's", "3.2.0", oas.Parameter,
-			`{name: a, in: querystring, content: {a/b: {}}, explode: true, allowReserved: true}`, nil},
+		{"style, explode and allowReserved", "3.2.0", oas.Parameter,
+			`{name: a, in: querystring, content: {a/b: {}}, style: form, explode: true, allowReserved: true}`,
+			[]finding{at(misplacedField, "/style"), at(misplacedField, "/explode"), at(misplacedField, "/allowReserved")}},
+		{"at another location", "3.2.0", oas.Parameter, `{name: a, in: query, schema: {}, style: form, explode: true}`, nil},
 	})
+	diags := run(t, "3.2.0", oas.Parameter, `{name: a, in: querystring, content: {a/b: {}}, explode: true}`)
+	require.Len(t, diags, 1)
+	assert.Equal(t, ir.SeverityWarning, diags[0].Severity)
+	assert.Equal(t, "parameter field explode is not allowed for in=querystring; lowered as declared", diags[0].Message)
 }
 
 // TestCheck_AllowReservedWarnsWhereItHasNoEffect pins the minors apart.
@@ -238,7 +251,12 @@ func TestCheck_DuplicatesAreFound(t *testing.T) {
 		{"distinct tags", "3.1.0", oas.Document, head + "tags: [{name: a}, {name: b}]\n", nil},
 		{"tags without names", "3.1.0", oas.Document, head + "tags: [{}, {}]\n", []finding{at(required, "/tags/0"), at(required, "/tags/1")}},
 		{"tags that are no list", "3.1.0", oas.Document, head + "tags: {}\n", []finding{at(mismatch, "/tags")}},
+		{"names compared as written", "3.1.0", oas.Document, head + "tags: [{name: a}, {name: A}]\n", nil},
 	})
+	diags := run(t, "3.1.0", oas.Document, head+"tags: [{name: a}, {name: b}, {name: a}, {name: a}]\n")
+	require.Len(t, diags, 2)
+	assert.Equal(t, `OpenAPI Object field "tags" repeats the name "a" first written at /tags/0/name in OpenAPI 3.1 (OpenAPI Object)`,
+		diags[1].Message, "each repeat names the first (GitHub #881)")
 }
 
 // TestCheck_RulesAnotherPackageOwnsAreNotApplied pins that a finding another
@@ -255,4 +273,23 @@ func TestCheck_RulesAnotherPackageOwnsAreNotApplied(t *testing.T) {
 		{"status keys", "3.1.0", oas.Responses, `{ninety: {description: d}}`, nil},
 		{"3.0 array without items", "3.0.3", oas.Schema, `{type: array}`, nil},
 	})
+}
+
+// TestCheck_AllowReservedWordsWhereItAppliesAndWhereItDoesNot pins the words of
+// the warning, which name the place the keyword is written at and where the
+// declared minor applies it.
+func TestCheck_AllowReservedWordsWhereItAppliesAndWhereItDoesNot(t *testing.T) {
+	for _, c := range []struct{ version, doc, want string }{
+		{"3.1.0", `{name: n, in: path, required: true, allowReserved: true, schema: {}}`,
+			"parameter field allowReserved has no effect for in=path in OpenAPI 3.1, which applies it to in=query alone; lowered as declared"},
+		{"3.2.0", `{name: n, in: header, allowReserved: true, schema: {}}`,
+			"parameter field allowReserved has no effect for in=header in OpenAPI 3.2, which applies it only where the value is percent-encoded; lowered as declared"},
+		{"3.2.0", `{name: n, in: cookie, style: cookie, allowReserved: true, schema: {}}`,
+			"parameter field allowReserved has no effect for in=cookie with style=cookie in OpenAPI 3.2, which applies it only where the value is percent-encoded; lowered as declared"},
+	} {
+		diags := run(t, c.version, oas.Parameter, c.doc)
+		require.Len(t, diags, 1, c.doc)
+		assert.Equal(t, noEffect, diags[0].Code)
+		assert.Equal(t, c.want, diags[0].Message)
+	}
 }

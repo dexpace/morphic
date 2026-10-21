@@ -270,27 +270,26 @@ func KeyOf(raw *yaml.Node) (string, bool) {
 	return key.Value, true
 }
 
-// RepeatedKeys returns the keys a mapping writes more than once, one entry for
-// each copy past the first, in the order the copies appear. A key an explicit
-// pair shares with a `<<` merge is the merge's precedence rule at work, not a
-// repeat, so merged pairs are not counted. n is dereferenced; a node that is no
-// mapping repeats nothing.
+// RepeatedKeys returns the keys a mapping writes more than once, each once, in
+// the order their second copies appear. A key an explicit pair shares with a
+// `<<` merge is the merge's precedence rule at work, not a repeat, so merged
+// pairs are not counted. n is dereferenced; a node that is no mapping repeats
+// nothing.
 func RepeatedKeys(n *yaml.Node) []string {
 	n = Deref(n)
 	if n == nil || n.Kind != yaml.MappingNode {
 		return nil
 	}
-	seen := make(map[string]bool, len(n.Content)/2)
+	copies := make(map[string]int, len(n.Content)/2)
 	var out []string
 	for i := 0; i+1 < len(n.Content); i += 2 {
 		key, own := KeyOf(n.Content[i])
 		if !own {
 			continue
 		}
-		if seen[key] {
+		if copies[key]++; copies[key] == 2 {
 			out = append(out, key)
 		}
-		seen[key] = true
 	}
 	return out
 }

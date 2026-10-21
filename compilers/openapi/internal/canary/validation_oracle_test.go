@@ -50,7 +50,7 @@ const (
 // side reads the specification otherwise, and what decides it.
 var validationReasons = map[string]string{
 	"empty-is-missing": "the library reads a required field written as the empty string, or as an empty map, as " +
-		"missing (docs/parser-library.md#empty-is-missing); the specification requires the field to be written and " +
+		"missing; the specification requires the field to be written and " +
 		"types it a string or a map, which an empty value is (3.1.2 §Info Object: 'title ... REQUIRED. The title of the " +
 		"API'), and states no grammar that refuses it",
 	"empty-refused": "the table reports an empty value under the rule of the specification it breaks, where the " +
@@ -60,19 +60,19 @@ var validationReasons = map[string]string{
 		"are'); a path parameter name, which must match a template expression (3.2.0 §Parameter Object: 'the name " +
 		"field MUST correspond to a single template expression')",
 	"relaxed-requirement": "the library requires a field the declared minor made optional, an Operation's responses " +
-		"from 3.1 and a Response's description from 3.2 (docs/parser-library.md#validation-version); 3.0.4 §Operation " +
+		"from 3.1 and a Response's description from 3.2; 3.0.4 §Operation " +
 		"Object marks responses REQUIRED and 3.1.2 does not, 3.1.2 §Response Object marks description REQUIRED and " +
 		"3.2.0 does not",
-	"version-gate": "the library does not gate a field or value by the declared minor " +
-		"(docs/parser-library.md#validation-version); the table warns, as later-version-construct, of one that only " +
+	"version-gate": "the library does not gate a field or value by the declared minor; the table warns, as " +
+		"later-version-construct, of one that only " +
 		"a later minor's Fixed Fields define, such as an Info Object summary (3.1.2 §Info Object) or a Server Object " +
 		"name (3.2.0 §Server Object), and lowers it as that minor does",
 	"later-refused": "the library refuses a construct a later minor added as an error (additionalOperations before " +
 		"3.2, a cookie parameter's style: cookie before 3.2, a discriminator's defaultMapping or an xml nodeType " +
-		"before 3.2, which its 3.1 meta-schema closes) (docs/parser-library.md#validation-version); the table reports " +
+		"before 3.2, which its 3.1 meta-schema closes); the table reports " +
 		"it as the later-version-construct warning, since only a later minor defines it, and lowers it as that minor",
-	"old-grammar": "the library checks a 3.2 document against the 3.1 grammar (docs/parser-library.md#validation-version) " +
-		"and refuses what 3.2 added: style: cookie on a cookie parameter (3.2.0 §Parameter Object), a discriminator's " +
+	"old-grammar": "the library checks a 3.2 document against the 3.1 grammar, a schema's own Validate discarding " +
+		"the version it is handed, and refuses what 3.2 added: style: cookie on a cookie parameter (3.2.0 §Parameter Object), a discriminator's " +
 		"defaultMapping (3.2.0 §Discriminator Object), an xml nodeType (3.2.0 §XML Object)",
 	"duplicate-report": "the library reports one defect more than once, from its model and again from its " +
 		"meta-schema or a second check of the same field: a Discriminator Object without propertyName, a Parameter " +
@@ -81,11 +81,12 @@ var validationReasons = map[string]string{
 		"additionalOperations method, the repeated key), the table on the entry's value, the node its pointer names",
 	"numeric-literal": "the library holds a numeric keyword to a float64 and checks a schema as JSON text, so it " +
 		"refuses a literal YAML reads as a number that JSON spells otherwise (.5, 5., 0644) or float64 cannot hold " +
-		"(1e999); the table reads the literal exactly (docs/compilers/openapi.md#constraints) and refuses only what no " +
-		"JSON number is, .inf, as a type mismatch where the library calls the schema invalid JSON",
-	"over-strict": "the library refuses a field written beside a type it does not apply to; the specification's " +
+		"(1e999); the table leaves the shape of a bound to the schema lowering, which reads the literal exactly and " +
+		"reports one that is no finite decimal (docs/compilers/openapi.md#constraints)",
+	"over-strict": "the library warns of a field written beside a type it does not apply to; the specification's " +
 		"'Applies To' column says where a field has meaning and bars it nowhere (3.2.0 §Security Scheme Object: " +
-		"bearerFormat applies to http), so the table accepts it",
+		"bearerFormat applies to http), so the table accepts it, and the security scheme lowering keeps the field " +
+		"under Unmodeled and says so",
 	"owned": "another package reports the rule, and the table states it and leaves it to them: a repeated " +
 		"operationId is judged once every operation is lowered (docs/compilers/openapi.md#operation-ids), a repeated " +
 		"parameter by the load phase's check of every parameter list (docs/compilers/openapi.md#parameters), an " +
@@ -104,6 +105,10 @@ var validationReasons = map[string]string{
 		"$ref is a URI reference, which holds no space (3.1.2 §Reference Object: 'This MUST be in the form of a URI'), and " +
 		"a header name is a token, which a slash is not (3.1.2 §Parameter Object: 'states header names are case " +
 		"insensitive')",
+	"querystring-keywords": "the library accepts explode and allowReserved at in: querystring, which 3.2 bars " +
+		"there as it bars style (3.2.0 §Parameter Object: 'These fields MUST NOT be used with in: \"querystring\"'); " +
+		"the table warns of each as invalid-location-keyword: the content says what the parameter means, and the " +
+		"value lowers as declared",
 	"analogy": "the library has no check for it, and the specification words the rule only by reference: an Encoding " +
 		"Object's nested encodings apply 'in the same manner' as the Media Type Object's, which MUST NOT be written " +
 		"together (3.2.0 §Media Type Object); the table reads that as a warning",
@@ -330,8 +335,8 @@ func libraryFindings(t *testing.T, data []byte, root *yaml.Node) (out []finding,
 // libraryFinding is the finding a validation error reports.
 func libraryFinding(err error) finding {
 	for e := err; e != nil; e = errors.Unwrap(e) {
-		// Hand-walked: errors.As on this error type panics (see load's
-		// asValidationError).
+		// Hand-walked: errors.As would call the library's errors.Error As
+		// method, which matches any target named Error and panics on this one.
 		switch v := any(e).(type) {
 		case *validation.Error:
 			return findingAt(v.Rule, v.Node)

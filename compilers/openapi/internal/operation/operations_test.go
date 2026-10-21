@@ -12,7 +12,6 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/speakeasy-api/openapi/validation"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
@@ -504,7 +503,10 @@ func TestResponses_LinksPreserved(t *testing.T) {
 func TestGrouping_ByPathPrefixInferred(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.PathsSpec(`  /users/{id}:
-    get: {operationId: getUser, responses: {"200": {description: ok}}}
+    get:
+      operationId: getUser
+      parameters: [{name: id, in: path, required: true, schema: {type: string}}]
+      responses: {"200": {description: ok}}
   /orders:
     get:
       operationId: listOrders
@@ -1414,14 +1416,14 @@ func TestOperations_DistinctOperationIDsClean(t *testing.T) {
 // renderOperationIDDiags renders each operationId diagnostic in diags as
 // "severity code pointer", sorted. Pinning the three together in one string is
 // what shows a table row's severity, code and location cannot drift apart, and
-// including the library's own rule's code alongside the compiler's two is what
-// shows it never appears — compilerOwned drops its finding in the loader
-// before a diagnostic is ever built from it.
+// rendering every validation finding beside the compiler's two codes is what
+// shows the rule table, which leaves operationId uniqueness to this package,
+// adds none.
 func renderOperationIDDiags(diags []ir.Diagnostic) []string {
 	var out []string
 	for _, d := range diags {
-		switch d.Code {
-		case diag.DuplicateOperationID, diag.ConflictingOperationID, diag.Validation + "/" + validation.RuleValidationOperationIdUnique:
+		if d.Code == diag.DuplicateOperationID || d.Code == diag.ConflictingOperationID ||
+			strings.HasPrefix(d.Code, diag.Validation) {
 			out = append(out, fmt.Sprintf("%s %s %s", d.Severity, d.Code, d.Provenance.Pointer))
 		}
 	}
@@ -3159,7 +3161,8 @@ paths:
 
 // TestGrouping_DanglingParentStaysTopLevel pins that a parent naming no declared
 // tag ends the walk: the group is top-level rather than nested under a group
-// invented for the missing name.
+// invented for the missing name. The parent MUST exist, so the document draws
+// the table's error, and lowers all the same.
 func TestGrouping_DanglingParentStaysTopLevel(t *testing.T) {
 	t.Parallel()
 	spec := `openapi: 3.2.0
@@ -3174,7 +3177,7 @@ paths:
       responses: {"200": {description: ok}}
 `
 	_, svc, diags := lowerServiceSpec(t, spec)
-	openapitest.RequireNoErrorDiags(t, diags)
+	assert.Equal(t, []string{"openapi/validation/validation-invalid-reference at /tags/0/parent"}, errorFindings(diags))
 	require.Len(t, svc.Groups, 1)
 	assert.Equal(t, "books", svc.Groups[0].Name.Source, "the group is top-level")
 }
@@ -3232,8 +3235,10 @@ paths:
       responses: {"200": {description: ok}}
 `
 	_, svc, diags := lowerServiceSpec(t, spec)
-	assert.True(t, openapitest.HasDiag(diags, "openapi/validation/validation-circular-reference"),
-		"the parser reports the cycle; the lowering only has to terminate")
+	assert.Equal(t, []string{
+		"openapi/validation/validation-circular-reference at /tags/0/parent",
+		"openapi/validation/validation-circular-reference at /tags/1/parent",
+	}, errorFindings(diags), "the table reports the cycle; the lowering only has to terminate")
 	require.Len(t, svc.Groups, 2, "the cycle's members stay top-level")
 	byName := openapitest.IndexBy(svc.Groups, func(g ir.OperationGroup) string { return g.Name.Source })
 	assert.Empty(t, byName["b"].Groups)
@@ -3263,7 +3268,8 @@ func TestGrouping_UndeclaredTagIsNavigational(t *testing.T) {
 // TestGrouping_SameNameDeclaredTwiceIsDeterministic pins that two declarations
 // of one tag name resolve the same way whichever order the operations that name
 // them are lowered in: the first declaration wins, so a second one declaring a
-// different parent cannot move the group midway through the walk.
+// different parent cannot move the group midway through the walk. A tag name
+// MUST be unique, so the document draws the table's error as well.
 func TestGrouping_SameNameDeclaredTwiceIsDeterministic(t *testing.T) {
 	t.Parallel()
 	spec := `openapi: 3.2.0
@@ -3280,9 +3286,21 @@ paths:
       responses: {"200": {description: ok}}
 `
 	_, svc, diags := lowerServiceSpec(t, spec)
-	openapitest.RequireNoErrorDiags(t, diags)
+	assert.Equal(t, []string{"openapi/validation/validation-duplicate-key at /tags/1/name"}, errorFindings(diags))
 	require.Len(t, svc.Groups, 1, "the first declaration wins for both the kind and the parent")
 	assert.Equal(t, "books", svc.Groups[0].Name.Source)
+}
+
+// errorFindings spells each error in diags as its code and pointer, in the order
+// reported.
+func errorFindings(diags []ir.Diagnostic) []string {
+	var out []string
+	for _, d := range diags {
+		if d.Severity == ir.SeverityError {
+			out = append(out, d.Code+" at "+string(d.Provenance.Pointer))
+		}
+	}
+	return out
 }
 
 // TestTagDefs_RecordParentAndKind pins GitHub #613's second half: the declared
@@ -3295,7 +3313,7 @@ info: {title: T, version: "1"}
 tags:
   - {name: books, parent: catalog, kind: nav}
   - {name: beta, kind: badge}
-  - {name: plain}
+  - {name: catalog}
 paths: {}
 `
 	doc, _, diags := lowerServiceSpec(t, spec)

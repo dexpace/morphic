@@ -28,10 +28,14 @@ const (
 	empty     = diag.Validation + "/validation-empty-value"
 	duplicate = diag.Validation + "/validation-duplicate-key"
 	dangling  = diag.Validation + "/validation-invalid-reference"
+	circular  = diag.Validation + "/validation-circular-reference"
 	entries   = diag.Validation + "/validation-entry-count"
 	forbidden = diag.Validation + "/validation-forbidden-field"
+	inert     = diag.Validation + "/validation-no-effect"
 	later     = diag.LaterVersionConstruct
 	noEffect  = diag.InapplicableLocationKeyword
+	// misplacedField is a field written at a location that bars it.
+	misplacedField = diag.InvalidLocationKeyword
 )
 
 // finding is what a test compares of a diagnostic: its code and where it sits.

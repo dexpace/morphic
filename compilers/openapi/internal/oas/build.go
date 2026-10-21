@@ -87,6 +87,12 @@ func (f Field) ownedBy(pkg string) Field {
 	return f
 }
 
+// shapeOwnedBy names the package that reports a value of the wrong shape.
+func (f Field) shapeOwnedBy(pkg string) Field {
+	f.ShapeOwner = pkg
+	return f
+}
+
 // keyword marks the field a JSON Schema keyword.
 func (f Field) keyword() Field {
 	f.Keyword = true
@@ -178,9 +184,16 @@ func syntax(s Span, name string, format Format, cond []Term, cites ...Cite) Rule
 	return Rule{Kind: RuleSyntax, Span: s, Field: name, Format: format, When: cond, Cites: cites}
 }
 
-// inapplicable returns a rule: name has no effect when the terms hold.
-func inapplicable(s Span, name string, cond []Term, cites ...Cite) Rule {
-	return Rule{Kind: RuleInapplicable, Span: s, Level: Should, Field: name, When: cond, Cites: cites}
+// inapplicable returns a rule: name has no effect when the terms hold, the
+// specification applying it only where scope says.
+func inapplicable(s Span, name string, cond []Term, scope string, cites ...Cite) Rule {
+	return Rule{Kind: RuleInapplicable, Span: s, Level: Should, Field: name, When: cond, Scope: scope, Cites: cites}
+}
+
+// misplaced returns a rule: none of fields is written when the terms hold, and
+// one that is lowers as declared, so it is warned of.
+func misplaced(s Span, fields []string, cond []Term, cites ...Cite) Rule {
+	return Rule{Kind: RuleMisplaced, Span: s, Level: Should, Fields: fields, When: cond, Cites: cites}
 }
 
 // code returns a rule written in Go, reported by owner when it is not empty.
@@ -211,7 +224,9 @@ func when(terms ...Term) []Term { return terms }
 
 // The packages that report a rule the table also states.
 const (
-	ownerOperation = "operation"
-	ownerLoad      = "load"
-	ownerAuth      = "auth"
+	ownerOperation  = "operation"
+	ownerLoad       = "load"
+	ownerAuth       = "auth"
+	ownerSchema     = "schema"
+	ownerAnnotation = "annotation"
 )

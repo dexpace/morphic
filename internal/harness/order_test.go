@@ -515,14 +515,14 @@ func TestOrderInvariant_PermutationArtifactsAreNotFindings(t *testing.T) {
 			// implicit null — as "{A: ''}", so the second compile reads an empty
 			// string where the first read null. Block style keeps the null.
 			name: "flow-style implicit null",
-			src: "openapi: 3.0.0\ninfo: {title: 0, version: 0}\n" +
+			src: "openapi: 3.0.0\ninfo: {title: 0, version: 0}\npaths: {}\n" +
 				"components:\n schemas:\n  0:\n   allOf:\n    - {A}\n",
 		},
 		{
 			// Reversed, the alias precedes the anchor it names, which YAML forbids:
 			// the permuted source does not parse at all.
 			name: "an alias reordered above its anchor",
-			src:  "openapi: 3.0.0\ninfo: {title: 0, version: 0}\n0: &m\n1: *m\n",
+			src:  "openapi: 3.0.0\ninfo: {title: 0, version: 0}\npaths: {}\n0: &m\n1: *m\n",
 		},
 		{
 			// Each object value's members come back reversed, which Value.Object
@@ -554,18 +554,16 @@ func TestOrderInvariant_PermutationArtifactsAreNotFindings(t *testing.T) {
 }
 
 // positionedFindingSpec draws one finding, located by line and column: a
-// validation warning about an invalid callback expression. Reversing the source
-// moves that expression to another line and, inside its flow mapping, to
-// another column.
-const positionedFindingSpec = "openapi: 3.0.0\ninfo: {title: t, version: v}\npaths:\n  /a:\n    get:\n" +
-	"      responses:\n        \"200\":\n          description: ok\n" +
-	"      callbacks:\n        cb: {notAnExpression: {}, \"{$request.body#/url}\": {}}\n"
+// validation warning about a component name outside the pattern OpenAPI gives.
+// Reversing the source moves that component to another line and, inside its
+// flow mapping, to another column.
+const positionedFindingSpec = "openapi: 3.0.0\ninfo: {title: t, version: v}\npaths: {}\n" +
+	"components:\n  schemas: {ok: {type: string}, \"a b\": {type: string}}\n"
 
 // TestOrderInvariant_LineAndColumnCaseMovesItsFinding holds the "a diagnostic
 // located by line and column" case to its question. That case would go on
 // passing if its fixture stopped drawing the finding or the permutation stopped
-// moving it, and the finding comes from the third-party parser's validation
-// rather than a rule of the compiler's own, so it can change with no change
+// moving it, and the finding is a rule table's, which can change with no change
 // here. The line and the column are each asserted because diagnosticSet sets
 // each aside.
 func TestOrderInvariant_LineAndColumnCaseMovesItsFinding(t *testing.T) {

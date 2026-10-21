@@ -5,7 +5,18 @@ import "slices"
 // schemaKeywords returns the JSON Schema keywords a Schema Object takes: the
 // subset OpenAPI 3.0 names, and the 2020-12 vocabularies 3.1 and 3.2 adopt.
 func schemaKeywords() []Field {
-	return slices.Concat(keywords30(), dialectCore(), dialectApplicators(), dialectValidation(), dialectAnnotations())
+	fields := slices.Concat(keywords30(), dialectCore(), dialectApplicators(), dialectValidation(), dialectAnnotations())
+	for i, f := range fields {
+		switch f.Name {
+		case "minimum", "maximum", "multipleOf", "exclusiveMinimum", "exclusiveMaximum":
+			// The schema lowering reads a bound off the raw node, a quoted number as the
+			// decimal it spells, and reports one that is no finite decimal or is written
+			// in the other dialect's form, so the table leaves the shape to it. A
+			// multipleOf that is no positive number is left unreported with it.
+			fields[i] = f.shapeOwnedBy(ownerSchema)
+		}
+	}
+	return fields
 }
 
 // keyword returns a JSON Schema keyword defined during span s.

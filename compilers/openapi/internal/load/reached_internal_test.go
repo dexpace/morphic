@@ -1,11 +1,9 @@
 package load
 
 import (
-	"context"
 	"encoding/json/jsontext"
 	"errors"
 	"fmt"
-	"iter"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -14,10 +12,8 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	"github.com/speakeasy-api/openapi/marshaller"
 	soa "github.com/speakeasy-api/openapi/openapi"
-	"github.com/speakeasy-api/openapi/validation"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
@@ -26,6 +22,8 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
+	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/ir"
 )
@@ -190,6 +188,7 @@ func TestTargetOf(t *testing.T) {
 	assert.False(t, got.inSource)
 	assert.Equal(t, jsontext.Pointer("/site"), got.site)
 	assert.NotNil(t, got.node)
+	assert.Equal(t, oas.PathItem, got.kind)
 	_, ok = targetOf("/site", stops, nil)
 	assert.False(t, ok, "/stops reaches no object")
 }
@@ -240,10 +239,9 @@ func TestBindSchemas_AChainEndsInTheDocumentItEndsIn(t *testing.T) {
 func TestBuiltTargets(t *testing.T) {
 	t.Parallel()
 	built := buildRaw(t, "{type: object}")
-	found := []error{errors.New("decoding found this")}
 	got := builtTargets([]typed.Built{
 		{Landing: bind.Landing{At: bind.Position{Pointer: "/x-lib/A"}, Name: "spec.yaml",
-			Site: bind.Position{Pointer: "/s"}, Reached: true}, Schema: built, Findings: found},
+			Site: bind.Position{Pointer: "/s"}, Reached: true}, Schema: built},
 		{Landing: bind.Landing{At: bind.Position{Doc: 1, Pointer: "/B"}, Name: "other.yaml",
 			Site: bind.Position{Pointer: "/t"}, Reached: true}, Schema: built},
 		{Landing: bind.Landing{At: bind.Position{Doc: 1, Pointer: "/C"}, Name: "other.yaml"}, Schema: built},
@@ -252,8 +250,8 @@ func TestBuiltTargets(t *testing.T) {
 	})
 
 	require.Len(t, got, 2)
-	assert.Equal(t, reachedTarget{site: "/s", obj: built, node: built.GetSchema().GetRootNode(), doc: "spec.yaml",
-		inSource: true, found: found}, got[0])
+	assert.Equal(t, reachedTarget{site: "/s", kind: oas.Schema, node: built.GetSchema().GetRootNode(), doc: "spec.yaml",
+		inSource: true}, got[0])
 	assert.Equal(t, jsontext.Pointer("/t"), got[1].site)
 	assert.Equal(t, "other.yaml", got[1].doc)
 	assert.False(t, got[1].inSource)
@@ -270,11 +268,11 @@ func buildRaw(t *testing.T, src string) *schemaRef {
 	return js
 }
 
-// TestReachedObject covers every outcome of reachedObject: a reference object
+// TestReachedNode covers every outcome of reachedNode: a reference object
 // resolving to an object, a chain that ends on no object, and a resolvable
 // that cannot say what it names, which no real document produces, so a fake
 // drives it.
-func TestReachedObject(t *testing.T) {
+func TestReachedNode(t *testing.T) {
 	t.Parallel()
 	doc, _ := reachedFixtureDoc(t)
 
@@ -282,10 +280,9 @@ func TestReachedObject(t *testing.T) {
 		t.Parallel()
 		ref, ok := doc.Paths.Get("/x")
 		require.True(t, ok)
-		obj, node, ok := reachedObject(ref)
+		node, ok := reachedNode(ref)
 		assert.True(t, ok)
-		assert.Same(t, ref.GetObject(), obj)
-		assert.Same(t, ref.GetObject().GetRootNode(), node)
+		assert.Same(t, nodeview.Deref(ref.GetObject().GetRootNode()), node)
 	})
 
 	stops, ok := doc.Paths.Get("/stops")
@@ -296,286 +293,58 @@ func TestReachedObject(t *testing.T) {
 		t.Run("a chain that "+name+" ends on no object", func(t *testing.T) {
 			t.Parallel()
 			require.True(t, ref.IsResolved(), "the resolver marks it resolved, with nothing at its end")
-			obj, node, ok := reachedObject(ref)
+			node, ok := reachedNode(ref)
 			assert.False(t, ok)
-			assert.Nil(t, obj)
 			assert.Nil(t, node)
 		})
 	}
 
-	t.Run("a resolvable that cannot say what it names names nothing to validate", func(t *testing.T) {
+	t.Run("a resolvable that cannot say what it names names nothing to check", func(t *testing.T) {
 		t.Parallel()
-		_, _, ok := reachedObject(fakeResolvable{ref: "other.yaml#/x", resolved: true})
+		_, ok := reachedNode(fakeResolvable{ref: "other.yaml#/x", resolved: true})
 		assert.False(t, ok)
 	})
 }
 
-// TestValidateObject covers validateObject's two outcomes: an object, a schema
-// among them, validated through its own Validate, and a value with no
-// Validate, which no resolvable a real document produces reaches, so it is
-// driven directly.
-func TestValidateObject(t *testing.T) {
+// TestKindOf covers the kind each reference object expects, and that a
+// resolvable the table has no kind for expects none.
+func TestKindOf(t *testing.T) {
 	t.Parallel()
-	doc, valErrs := parseSpec(t, `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths:
-  /x:
-    get:
-      operationId: getX
-      parameters: [{name: q, in: sideways, schema: {type: string}}]
-      responses: {"200": {description: ok}}
-components:
-  schemas:
-    Bad: {type: string, minLength: -1}
-`)
-	require.Len(t, valErrs, 2, "the source's own validation sees both defects: %v", valErrs)
-	schema, ok := doc.Components.Schemas.Get("Bad")
-	require.True(t, ok)
-	pathItem, ok := doc.Paths.Get("/x")
-	require.True(t, ok)
-
-	for name, c := range map[string]struct {
-		obj  any
-		rule string
-	}{
-		"a schema":    {schema.GetResolvedSchema(), validation.RuleValidationInvalidSchema},
-		"a path item": {pathItem.GetObject(), validation.RuleValidationAllowedValues},
+	for want, ref := range map[oas.Kind]resolvable{
+		oas.PathItem: &soa.ReferencedPathItem{}, oas.Parameter: &soa.ReferencedParameter{},
+		oas.Header: &soa.ReferencedHeader{}, oas.RequestBody: &soa.ReferencedRequestBody{},
+		oas.Response: &soa.ReferencedResponse{}, oas.Example: &soa.ReferencedExample{},
+		oas.Link: &soa.ReferencedLink{}, oas.Callback: &soa.ReferencedCallback{},
+		oas.SecurityScheme: &soa.ReferencedSecurityScheme{},
 	} {
-		errs := validateObject(t.Context(), c.obj, nil)
-		require.Len(t, errs, 1, "%s: %v", name, errs)
-		verr, ok := asValidationError(errs[0])
-		require.True(t, ok, name)
-		assert.Equal(t, c.rule, verr.Rule, name)
+		got, ok := kindOf(ref)
+		assert.True(t, ok, "%T", ref)
+		assert.Equal(t, want, got, "%T", ref)
 	}
-	assert.Nil(t, validateObject(t.Context(), 42, nil), "a value with no Validate")
+	_, ok := kindOf(fakeResolvable{})
+	assert.False(t, ok)
 }
 
-// aliasKindsResolved resolves aliasKindsFixture (unprepared_internal_test.go)
-// and returns the bare object each Referenced* wrapper resolves to, keyed as
-// resolvedModels keys them: this fixture is the one place every kind
-// reachedWalk and resolutionTrail switch on already exists, wired together.
-func aliasKindsResolved(t *testing.T) map[string]any {
-	t.Helper()
-	doc, diags, err := resolveSpec(t, aliasKindsFixture, "root.yaml")
-	require.NoError(t, err)
-	require.Empty(t, diags)
-	models := resolvedModels(t, doc)
-	out := map[string]any{}
-	out["pathItem"] = models["pathItem"].(*soa.ReferencedPathItem).GetObject()
-	out["parameter"] = models["parameter"].(*soa.ReferencedParameter).GetObject()
-	out["header"] = models["header"].(*soa.ReferencedHeader).GetObject()
-	out["requestBody"] = models["requestBody"].(*soa.ReferencedRequestBody).GetObject()
-	out["response"] = models["response"].(*soa.ReferencedResponse).GetObject()
-	out["callback"] = models["callback"].(*soa.ReferencedCallback).GetObject()
-	out["example"] = models["example"].(*soa.ReferencedExample).GetObject()
-	out["link"] = models["link"].(*soa.ReferencedLink).GetObject()
-	out["securityScheme"] = models["securityScheme"].(*soa.ReferencedSecurityScheme).GetObject()
-	return out
-}
-
-// countSchemas counts the schema matches reachedWalk(ctx, obj) yields.
-func countSchemas(ctx context.Context, obj any) int {
-	n := 0
-	matchSchemas(reachedWalk(ctx, obj), func(*oas3.JSONSchema[oas3.Referenceable]) error {
-		n++
-		return nil
-	})
-	return n
-}
-
-// TestReachedWalk covers every branch of reachedWalk: the schema case, each of
-// the concrete kinds it walks through a synthetic Reference wrapper (see
-// reachedWalk's own doc comment for why a wrapper rather than the bare type),
-// the three that hold no schema but are walked for the later version's
-// constructs, and the default arm for a kind it does not know.
-func TestReachedWalk(t *testing.T) {
+// TestCheckReached_APanicReadingTheWalkIsReported pins the barrier around the
+// walk: a panic in it is reported at the root, and nothing is checked.
+func TestCheckReached_APanicReadingTheWalkIsReported(t *testing.T) {
 	t.Parallel()
-	ctx := t.Context()
-
-	t.Run("a schema walks as one", func(t *testing.T) {
-		t.Parallel()
-		obj := buildRaw(t, "{type: object, properties: {inner: {type: string}}}")
-		assert.GreaterOrEqual(t, countSchemas(ctx, obj), 2, "the schema itself and its inner property")
-	})
-
-	kinds := aliasKindsResolved(t)
-
-	// aliasKindsFixture's own path item and response nest every field behind a
-	// further $ref (resolutionTrail's dispatch is what that fixture is
-	// for), so neither has a schema an unresolved-boundary walk would ever
-	// reach; a schema nested inline, as a real document can write it, needs
-	// its own small fixture instead.
-	t.Run("a path item walks into its operations", func(t *testing.T) {
-		t.Parallel()
-		doc, valErrs := parseSpec(t, `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths:
-  /x:
-    get:
-      operationId: getX
-      parameters:
-        - {name: q, in: query, schema: {type: string}}
-      responses: {"200": {description: ok}}
-`)
-		require.Empty(t, valErrs)
-		ref, ok := doc.Paths.Get("/x")
-		require.True(t, ok)
-		assert.Positive(t, countSchemas(ctx, ref.GetObject()))
-	})
-	t.Run("a parameter walks into its own schema", func(t *testing.T) {
-		t.Parallel()
-		assert.Positive(t, countSchemas(ctx, kinds["parameter"]))
-	})
-	t.Run("a header walks into its own schema", func(t *testing.T) {
-		t.Parallel()
-		assert.Positive(t, countSchemas(ctx, kinds["header"]))
-	})
-	t.Run("a request body walks into its content's schema", func(t *testing.T) {
-		t.Parallel()
-		assert.Positive(t, countSchemas(ctx, kinds["requestBody"]))
-	})
-	t.Run("a response walks into its header's schema", func(t *testing.T) {
-		t.Parallel()
-		doc, valErrs := parseSpec(t, `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths:
-  /x:
-    get:
-      operationId: getX
-      responses:
-        "200":
-          description: ok
-          headers:
-            X: {schema: {type: string}}
-`)
-		require.Empty(t, valErrs)
-		ref, ok := doc.Paths.Get("/x")
-		require.True(t, ok)
-		resp, ok := ref.GetObject().Get().GetResponses().Get("200")
-		require.True(t, ok)
-		assert.Positive(t, countSchemas(ctx, resp.GetObject()))
-	})
-	t.Run("a callback does not panic even though it holds no schema of its own", func(t *testing.T) {
-		t.Parallel()
-		assert.NotPanics(t, func() { countSchemas(ctx, kinds["callback"]) })
-	})
-
-	t.Run("an example, a link and a security scheme are walked, holding no schema", func(t *testing.T) {
-		t.Parallel()
-		for _, kind := range []string{"example", "link", "securityScheme"} {
-			assert.Zero(t, countSchemas(ctx, kinds[kind]), "%s holds no schema", kind)
-			assert.Positive(t, countItems(ctx, kinds[kind]), "%s is walked all the same", kind)
+	doc := parseSpec(t, minimal31)
+	item := fakeWalkItem("x", fakeResolvable{ref: "other.yaml#/x", resolved: true})
+	items := func(yield func(soa.WalkItem) bool) {
+		if yield(item) {
+			panic("walk boom")
 		}
-	})
-	t.Run("the default arm walks nothing", func(t *testing.T) {
-		t.Parallel()
-		assert.Zero(t, countItems(ctx, 42))
-	})
-}
-
-// countItems returns how many items reachedWalk yields for obj.
-func countItems(ctx context.Context, obj any) int {
-	n := 0
-	for range reachedWalk(ctx, obj) {
-		n++
 	}
-	return n
-}
 
-// securityRequirementFixtureOther and its root reach an operation whose
-// security requirement is checked against a scheme name the components never
-// declare — the SecurityRequirement.Validate path that panics without the
-// root document in context (security.go).
-const securityRequirementFixtureOther = `openapi: 3.1.0
-info: {title: O, version: "1"}
-paths:
-  /x:
-    get:
-      operationId: getX
-      security:
-        - nosuch: []
-      responses: {"200": {description: ok}}
-`
+	diags := checkReached(pointerAt(0, overlay.Origin{}), items, nil,
+		newReached(doc, Options{}, sourceTree{}, judgment{}))
 
-const securityRequirementFixtureRoot = `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths:
-  /x: {$ref: "./other.yaml#/paths/~1x"}
-`
-
-// panickingObject is an object whose Validate panics, driving checkAll's
-// barrier without depending on a particular library fault.
-type panickingObject struct{}
-
-func (panickingObject) Validate(context.Context, ...validation.Option) []error {
-	panic("object validation panicked")
-}
-
-// panickingRef is a fakeResolvable naming a panickingObject, so reachedObject
-// succeeds and validateObject then panics on it.
-type panickingRef struct{ fakeResolvable }
-
-func (panickingRef) GetObjectAny() any { return panickingObject{} }
-
-func (panickingRef) GetRootNode() *yaml.Node { return &yaml.Node{Kind: yaml.MappingNode} }
-
-// TestCheckReached_APanicIsReported pins how both of checkReached's barriers
-// turn a recovered panic into a diagnostic: openapi/validation, "validation
-// panicked". One in an object's validation is reported at the $ref that
-// reached it. One reading the walk is reported at the root, and nothing read
-// before it is validated. No real document reaches either: the root document
-// newReached passes keeps a security requirement from panicking
-// (TestResolve_ASecurityRequirementInAReachedOperationDoesNotPanic).
-func TestCheckReached_APanicIsReported(t *testing.T) {
-	t.Parallel()
-	doc, valErrs := parseSpec(t, minimal31)
-	require.Empty(t, valErrs)
-	item := fakeWalkItem("x", panickingRef{fakeResolvable{ref: "other.yaml#/x", resolved: true}})
-
-	for name, c := range map[string]struct {
-		items   iter.Seq[soa.WalkItem]
-		site    jsontext.Pointer
-		message string
-	}{
-		"in an object's validation": {slices.Values([]soa.WalkItem{item}), "/x", "object validation panicked"},
-		"reading the walk": {func(yield func(soa.WalkItem) bool) {
-			if yield(item) {
-				panic("walk boom")
-			}
-		}, "", "walk boom"},
-	} {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-			diags := checkReached(t.Context(), pointerAt(0, overlay.Origin{}), c.items, nil, newReached(doc, Options{}, sourceTree{}))
-
-			require.Len(t, diags, 1, "%+v", diags)
-			assert.Equal(t, diag.Validation, diags[0].Code)
-			assert.Equal(t, ir.SeverityError, diags[0].Severity)
-			assert.Equal(t, "validation panicked: "+c.message, diags[0].Message)
-			assert.Equal(t, c.site, diags[0].Provenance.Pointer)
-		})
-	}
-}
-
-// TestResolve_ASecurityRequirementInAReachedOperationDoesNotPanic pins the
-// production path: newReached's WithContextObject(doc) is what keeps
-// SecurityRequirement.Validate from panicking (security.go, "OpenAPI is
-// required") when the operation it belongs to is reached through an external
-// reference rather than declared in the root. Dropping that option is the
-// mutation this test must catch, and it must catch it as a validation-panicked
-// diagnostic — not as a reference-resolver-panicked one, which would mean the
-// wrong barrier (eachReference's, for #565's resolution phase) caught it
-// instead.
-func TestResolve_ASecurityRequirementInAReachedOperationDoesNotPanic(t *testing.T) {
-	t.Parallel()
-	dir := externalDir(t, map[string]string{"other.yaml": securityRequirementFixtureOther})
-
-	_, diags := loadExternal(t, dir, securityRequirementFixtureRoot, Options{})
-
-	for _, d := range diags {
-		assert.NotContains(t, d.Message, "panicked", "%+v", d)
-		assert.NotEqual(t, diag.UnresolvedRef, d.Code, "no reference resolver panicked diagnostic: %+v", d)
-	}
+	require.Len(t, diags, 1, "%+v", diags)
+	assert.Equal(t, diag.Validation, diags[0].Code)
+	assert.Equal(t, ir.SeverityError, diags[0].Severity)
+	assert.Equal(t, "validation panicked: walk boom", diags[0].Message)
+	assert.Equal(t, jsontext.Pointer(""), diags[0].Provenance.Pointer)
 }
 
 // reachRootFixture and reachOtherFixture are GitHub #545's repro. root.yaml
@@ -638,48 +407,31 @@ components:
 
 // reachWantDiags is the exact diagnostic list
 // TestResolve_ValidatesWhatAnExternalReferenceReaches expects, with other.yaml
-// at otherPath: resolution's own finding first, then validation's, by site,
-// then the repeat /z's list writes by naming P twice.
+// at otherPath: the findings in the order of the sites that reached them, then
+// the repeat /z's list writes by naming P twice.
 func reachWantDiags(otherPath string) []ir.Diagnostic {
+	at := func(code, message, pointer string) ir.Diagnostic {
+		return ir.Diagnostic{
+			Severity: ir.SeverityError, Code: diag.Validation + "/" + code,
+			Message:    message + " of " + otherPath,
+			Provenance: ir.Provenance{Source: 0, Pointer: jsontext.Pointer(pointer)},
+		}
+	}
 	return []ir.Diagnostic{
-		{
-			Severity:   ir.SeverityError,
-			Code:       diag.Validation + "/validation-required-field",
-			Message:    "`parameter.in` is required, at 10:11 of " + otherPath,
-			Provenance: ir.Provenance{Source: 0, Pointer: "/paths/~1x"},
-		},
-		{
-			Severity:   ir.SeverityError,
-			Code:       diag.Validation + "/validation-invalid-schema",
-			Message:    "schema.minProperties minimum: got -3, want 0, at 31:22 of " + otherPath,
-			Provenance: ir.Provenance{Source: 0, Pointer: "/components/schemas/S"},
-		},
-		{
-			Severity:   ir.SeverityError,
-			Code:       diag.Validation + "/validation-type-mismatch",
-			Message:    "schema.deprecated expected `boolean`, got `string`, at 32:19 of " + otherPath,
-			Provenance: ir.Provenance{Source: 0, Pointer: "/components/schemas/S"},
-		},
-		{
-			Severity: ir.SeverityError,
-			Code:     diag.Validation + "/validation-allowed-values",
-			Message: "parameter.in must be one of [`query, querystring, header, path, cookie`], " +
-				"at 10:11 of " + otherPath,
-			Provenance: ir.Provenance{Source: 0, Pointer: "/paths/~1x"},
-		},
-		{
-			Severity: ir.SeverityError,
-			Code:     diag.Validation + "/validation-allowed-values",
-			Message: "parameter.in must be one of [`query, querystring, header, path, cookie`], " +
-				"at 21:22 of " + otherPath,
-			Provenance: ir.Provenance{Source: 0, Pointer: "/paths/~1z/get/parameters/0"},
-		},
-		{
-			Severity:   ir.SeverityError,
-			Code:       diag.Validation + "/validation-invalid-schema",
-			Message:    "schema.minLength minimum: got -1, want 0, at 27:45 of " + otherPath,
-			Provenance: ir.Provenance{Source: 0, Pointer: "/paths/~1z/get/responses/200"},
-		},
+		at("validation-type-mismatch",
+			`Schema Object field "minProperties" must be a non-negative integer in OpenAPI 3.1 (Schema Object), at 31:22`,
+			"/components/schemas/S"),
+		at("validation-type-mismatch",
+			`Schema Object field "deprecated" must be a boolean in OpenAPI 3.1 (Schema Object), at 32:19`,
+			"/components/schemas/S"),
+		at("validation-required-field",
+			`Parameter Object field "in" is REQUIRED in OpenAPI 3.1 (Parameter Object), at 10:11`, "/paths/~1x"),
+		at("validation-allowed-values",
+			`Parameter Object field "in" must be one of "query", "header", "path", "cookie" in OpenAPI 3.1 `+
+				`(Parameter Object), at 21:22`, "/paths/~1z/get/parameters/0"),
+		at("validation-type-mismatch",
+			`Schema Object field "minLength" must be a non-negative integer in OpenAPI 3.1 (Schema Object), at 27:45`,
+			"/paths/~1z/get/responses/200"),
 		{
 			Severity:   ir.SeverityError,
 			Code:       diag.DuplicateParameter,
@@ -690,12 +442,10 @@ func reachWantDiags(otherPath string) []ir.Diagnostic {
 }
 
 // TestResolve_ValidatesWhatAnExternalReferenceReaches is GitHub #545's repro:
-// compiled as the source, other.yaml raises seven findings, but
-// only six are reachable through root.yaml, and only what is reached is
-// validated at all. The numeric-literal artifact P's schema would otherwise
-// raise (minimum: .5, an artifact numericLiteralArtifact drops everywhere, not
-// only for the source) is absent, and so is anything from /unreached, which
-// nothing in root.yaml names.
+// compiled as the source, other.yaml raises more findings than root.yaml
+// reaches, and only what is reached is checked at all. The numeric literal P's
+// schema writes (minimum: .5) is a number, so it draws none, and nothing is
+// reported from /unreached, which nothing in root.yaml names.
 func TestResolve_ValidatesWhatAnExternalReferenceReaches(t *testing.T) {
 	t.Parallel()
 	dir := externalDir(t, map[string]string{"other.yaml": reachOtherFixture})
@@ -707,13 +457,13 @@ func TestResolve_ValidatesWhatAnExternalReferenceReaches(t *testing.T) {
 	}
 	for _, d := range diags {
 		assert.NotContains(t, d.Message, "17:25", "/unreached's own finding must not appear: %+v", d)
-		assert.NotContains(t, d.Message, "21:40", "the numeric-literal artifact must not appear: %+v", d)
+		assert.NotContains(t, d.Message, "21:40", "the numeric literal must not appear: %+v", d)
 	}
 }
 
 // TestResolve_WhatTheSourcesValidationNeverCheckedIsValidated pins what a $ref
-// naming the source's file reaches that the source's own validation never
-// checked: raw YAML, such as an extension's value. It is validated as an object
+// naming the source's file reaches that the source's own check never read:
+// raw YAML, such as an extension's value. It is checked as an object
 // in another document is, whether the $ref is the source's own or comes back
 // into it from another document (GitHub #759), and its finding is placed at the
 // node it is about (GitHub #879). A node of the grammar a schema $ref names, or
@@ -734,7 +484,7 @@ components:
     A: {$ref: 'root.yaml#/x-defs/S'}
 x-defs:
   S: {type: string, minLength: -1}
-`, []string{"/x-defs/S/minLength openapi/validation/validation-invalid-schema"}},
+`, []string{"/x-defs/S/minLength openapi/validation/validation-type-mismatch"}},
 		{
 			"a response under an extension, from another document",
 			map[string]string{"other.yaml": "components:\n  responses:\n    Back: {$ref: 'root.yaml#/x-responses/R'}\n"},
@@ -748,7 +498,7 @@ x-responses:
     description: ok
     links:
       L: {operationId: a, operationRef: '#/paths/~1a/get'}
-`, []string{"/x-responses/R/links/L/operationId openapi/validation/validation-mutually-exclusive-fields"},
+`, []string{"/x-responses/R/links/L openapi/validation/validation-mutually-exclusive-fields"},
 		},
 		{"a response named as a schema", nil, header + `paths: {}
 components:
@@ -815,50 +565,16 @@ components:
     H: {name: h, in: query, schema: {type: string, minLength: -1}}
 `, Options{})
 
-	assert.Empty(t, cmp.Diff([]string{"/components/headers/H/schema/minLength openapi/validation/validation-invalid-schema"},
-		diagLines(diags)), "the source's own finding, once")
-}
-
-// TestCheckReached_APanicDroppingWhatTheSourceDeclaresIsReported pins the
-// barrier over the second read of the walk, which drops what the source
-// declares from what a $ref naming its file reached: a panic there is reported
-// at the root, and nothing is validated.
-func TestCheckReached_APanicDroppingWhatTheSourceDeclaresIsReported(t *testing.T) {
-	t.Parallel()
-	got, _ := loadExternal(t, t.TempDir(), `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths: {}
-components:
-  responses:
-    A: {$ref: 'root.yaml#/x-defs/R'}
-x-defs:
-  R: {description: ok, links: {L: {operationId: a, operationRef: '#/paths/~1a/get'}}}
-`, Options{})
-	reads := 0
-	items := func(yield func(soa.WalkItem) bool) {
-		reads++
-		if reads > 1 {
-			panic("walk boom")
-		}
-		for item := range soa.Walk(t.Context(), got.Doc) {
-			if !yield(item) {
-				return
-			}
-		}
-	}
-
-	diags := checkReached(t.Context(), pointerAt(0, overlay.Origin{}), items, nil, newReached(got.Doc, Options{}, sourceTree{}))
-
-	require.Len(t, diags, 1, "%+v", diags)
-	assert.Equal(t, "validation panicked: walk boom", diags[0].Message)
-	assert.Equal(t, jsontext.Pointer(""), diags[0].Provenance.Pointer)
+	assert.Empty(t, cmp.Diff([]string{
+		"/components/headers/H/schema/minLength openapi/validation/validation-type-mismatch",
+	}, diagLines(diags)), "the source's own finding, once, as the header it declares: the $ref's reading as a parameter adds none")
 }
 
 // TestResolve_EveryKindOfObjectIsValidated reaches each kind of object a $ref
 // names that the other tests do not, a header, request body, callback,
-// example, link and security scheme, each with a defect only its own Validate
-// finds. Each finding is reported at its $ref, under the rule and severity the
-// library gives it: the callback's is a warning.
+// example, link and security scheme, each with a defect only its own table
+// entry finds. Each finding is reported at its $ref, under the rule and
+// severity the table gives it.
 func TestResolve_EveryKindOfObjectIsValidated(t *testing.T) {
 	t.Parallel()
 	root := `openapi: 3.1.0
@@ -902,8 +618,8 @@ components:
 	}
 	want := []string{
 		"/components/securitySchemes/s error openapi/validation/validation-allowed-values",
-		"/paths/~1a/get/callbacks/cb warning openapi/validation/validation-invalid-format",
-		"/paths/~1a/get/requestBody error openapi/validation/validation-invalid-schema",
+		"/paths/~1a/get/callbacks/cb error openapi/validation/validation-invalid-format",
+		"/paths/~1a/get/requestBody error openapi/validation/validation-type-mismatch",
 		"/paths/~1a/get/responses/200/content/application~1json/examples/e error " +
 			"openapi/validation/validation-mutually-exclusive-fields",
 		"/paths/~1a/get/responses/200/headers/X error openapi/validation/validation-allowed-values",
@@ -1036,7 +752,7 @@ components:
 			sites[d.Provenance.Pointer] = append(sites[d.Provenance.Pointer], d.Message)
 		}
 		require.Len(t, sites["/paths/~1a/get/responses/200"], 1, "read as a response: %+v", diags)
-		assert.Contains(t, sites["/paths/~1a/get/responses/200"][0], "schema.minLength minimum: got -2")
+		assert.Contains(t, sites["/paths/~1a/get/responses/200"][0], `Schema Object field "minLength"`)
 		assert.NotEmpty(t, sites["/components/schemas/S"], "read as a schema, type: 42 is a finding: %+v", diags)
 	})
 
@@ -1162,11 +878,9 @@ paths:
 	assert.Equal(t, diag.Validation+"/validation-allowed-values", diags[0].Code)
 }
 
-// v32OtherFixture and v32RootFixture are a 3.2 root reaching
-// two external schemas, one that only trips the wrong-meta-schema artifact
-// (Pet's defaultMapping, a 3.2-only discriminator keyword) and one with a
-// genuine defect beside it (Broken: {type: 42}) that must survive
-// reconciliation.
+// v32OtherFixture and v32RootFixture are a 3.2 root reaching two external
+// schemas, one writing a keyword only 3.2 defines (Pet's defaultMapping) and
+// one with a defect (Broken: {type: 42}).
 const v32OtherFixture = `openapi: 3.2.0
 info: {title: T, version: "1"}
 paths: {}
@@ -1194,13 +908,11 @@ components:
     B: {$ref: "./other.yaml#/components/schemas/Broken"}
 `
 
-// TestResolve_AReached32SchemaIsReconciled: Pet's defaultMapping is a 3.2-only
-// discriminator keyword the library checks against the 3.1 meta-schema, so S
-// must report nothing, while B's genuine type: 42 survives beside it. The
-// second case reaches the same keyword nested in a path item, which the
-// reconciliation finds through a walk of the object (reachedWalk) rather than
-// as the object itself.
-func TestResolve_AReached32SchemaIsReconciled(t *testing.T) {
+// TestResolve_AReachedSchemaIsHeldToTheSourcesMinor: Pet's defaultMapping is a
+// keyword 3.2 defines, so S, reached from a 3.2 source, reports nothing, while
+// B's type: 42 is reported beside it. The second case reaches the same keyword
+// nested in a path item rather than as the object itself.
+func TestResolve_AReachedSchemaIsHeldToTheSourcesMinor(t *testing.T) {
 	t.Parallel()
 
 	t.Run("a schema reached directly", func(t *testing.T) {
@@ -1211,9 +923,9 @@ func TestResolve_AReached32SchemaIsReconciled(t *testing.T) {
 
 		for _, d := range diags {
 			assert.Equal(t, jsontext.Pointer("/components/schemas/B"), d.Provenance.Pointer,
-				"S's defaultMapping is an artifact and must report nothing: %+v", d)
+				"S's defaultMapping is a 3.2 keyword and reports nothing: %+v", d)
 		}
-		assert.NotEmpty(t, diags, "B's type: 42 is a real defect and must survive reconciliation")
+		assert.NotEmpty(t, diags, "B's type: 42 is a defect")
 	})
 
 	t.Run("the same keyword nested inside a reached path item", func(t *testing.T) {
@@ -1248,16 +960,15 @@ paths:
 
 		_, diags := loadExternal(t, dir, root, Options{})
 
-		assert.Empty(t, diags, "the nested defaultMapping is an artifact reachedWalk must reconcile: %+v", diags)
+		assert.Empty(t, diags, "the nested defaultMapping is a 3.2 keyword too: %+v", diags)
 	})
 }
 
 // TestResolve_AReached30SchemaIsCheckedAsTheSourcesAre compiles one 3.0 schema
 // in the source, reached directly, and reached inside a parameter, and each
-// draws only its minLength finding. Validated at 3.0, the one reached directly
-// would also draw findings for its type list and examples, which 3.0's
-// meta-schema forbids: the source's schemas are checked against 3.1's, and
-// reconciling that for 3.0 is a change of its own (metaSchemaReconciledMinor).
+// draws the same two findings, as 3.0 words them: its type list, which 3.0
+// does not admit (3.0.4 §Schema Object: type "Value MUST be a string"), and its
+// negative minLength. examples is not a 3.0 keyword, and draws none.
 func TestResolve_AReached30SchemaIsCheckedAsTheSourcesAre(t *testing.T) {
 	t.Parallel()
 	const header = "openapi: 3.0.3\ninfo: {title: T, version: \"1\"}\npaths: {}\ncomponents:\n"
@@ -1279,9 +990,12 @@ func TestResolve_AReached30SchemaIsCheckedAsTheSourcesAre(t *testing.T) {
 
 			_, diags := loadExternal(t, dir, c.root, Options{})
 
-			require.Len(t, diags, 1, "%+v", diags)
-			assert.Equal(t, diag.Validation+"/validation-invalid-schema", diags[0].Code)
-			assert.Contains(t, diags[0].Message, "schema.minLength minimum: got -1, want 0")
+			require.Len(t, diags, 2, "%+v", diags)
+			for _, d := range diags {
+				assert.Equal(t, diag.Validation+"/validation-type-mismatch", d.Code)
+			}
+			assert.Contains(t, diags[0].Message, `Schema Object field "minLength" must be a non-negative integer in OpenAPI 3.0`)
+			assert.Contains(t, diags[1].Message, `Schema Object field "type" must be a string in OpenAPI 3.0`)
 		})
 	}
 }
@@ -1382,7 +1096,7 @@ func TestResolve_ReachedValidationIsBudgeted(t *testing.T) {
 			assert.Equal(t, jsontext.Pointer("/paths/~1a/get/parameters/0"), diags[0].Provenance.Pointer)
 			assert.Equal(t, diag.Validation+"/validation-allowed-values", diags[0].Code)
 			assert.Equal(t, jsontext.Pointer("/paths/~1c/get/responses/200"), diags[1].Provenance.Pointer)
-			assert.Equal(t, diag.Validation+"/validation-invalid-schema", diags[1].Code)
+			assert.Equal(t, diag.Validation+"/validation-type-mismatch", diags[1].Code)
 		})
 	}
 }
@@ -1551,10 +1265,14 @@ func TestResolve_WhatAReferenceReachesInTheSourceIsValidated(t *testing.T) {
 	const (
 		required = "openapi/validation/validation-required-field"
 		allowed  = "openapi/validation/validation-allowed-values"
-		invalid  = "openapi/validation/validation-invalid-schema"
+		invalid  = "openapi/validation/validation-type-mismatch"
 		mismatch = "openapi/validation/validation-type-mismatch"
-		minimum  = "schema.minLength minimum: got -1, want 0"
-		inValues = "parameter.in must be one of [`query, querystring, header, path, cookie`]"
+		minimum  = `Schema Object field "minLength" must be a non-negative integer in OpenAPI 3.1 (Schema Object)`
+		inValues = `Parameter Object field "in" must be one of "query", "header", "path", "cookie" in OpenAPI 3.1 (Parameter Object)`
+		noIn     = `Parameter Object field "in" is REQUIRED in OpenAPI 3.1 (Parameter Object)`
+		noName   = `Security Scheme Object field "name" is REQUIRED when type=apiKey in OpenAPI 3.1 (Security Scheme Object)`
+		noURL    = `Security Scheme Object field "openIdConnectUrl" is REQUIRED when type=openIdConnect in OpenAPI 3.1 (Security Scheme Object)`
+		noFlows  = `Security Scheme Object field "flows" is REQUIRED when type=oauth2 in OpenAPI 3.1 (Security Scheme Object)`
 	)
 	const header = "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\n"
 	byOperation := header + `paths:
@@ -1570,12 +1288,10 @@ func TestResolve_WhatAReferenceReachesInTheSourceIsValidated(t *testing.T) {
 		want []inSourceFinding
 	}{
 		{"GitHub #872's reproducer", reachedInSourceFixture, []inSourceFinding{
-			{"/x-params/q", required, "`parameter.in` is required", "{name: q"},
-			{"/x-params/q", allowed, inValues, "{name: q"},
-			{"/x-schemes/key", required, "`securityScheme.name` is required for type=apiKey", "{type: apiKey"},
-			{"/x-schemes/oidc", required,
-				"`securityScheme.openIdConnectUrl` is required for type=openIdConnect", "{type: openIdConnect}"},
-			{"/x-schemes/oauth", required, "`securityScheme.flows` is required for type=oauth2", "{type: oauth2}"},
+			{"/x-params/q", required, noIn, "{name: q"},
+			{"/x-schemes/key", required, noName, "{type: apiKey"},
+			{"/x-schemes/oidc", required, noURL, "{type: openIdConnect}"},
+			{"/x-schemes/oauth", required, noFlows, "{type: oauth2}"},
 		}},
 		{
 			"a schema only a discriminator mapping entry reaches",
@@ -1589,12 +1305,9 @@ func TestResolve_WhatAReferenceReachesInTheSourceIsValidated(t *testing.T) {
 			[]inSourceFinding{{"/x-lib/B/minLength", invalid, minimum, "-1"}},
 		},
 		{
-			"a type mismatch is told by resolution and by validation",
+			"a type mismatch is told once",
 			mappingSpec("    S: {$ref: '#/x-lib/A'}\n", "x-lib:\n  A: {type: string, minLength: abc}\n"),
-			[]inSourceFinding{
-				{"/x-lib/A/minLength", mismatch, "schema.minLength line {line}: cannot unmarshal !!str `abc` into int64", "abc"},
-				{"/x-lib/A", mismatch, "schema.minLength expected `integer`, got `string`", "{type: string, minLength: abc}"},
-			},
+			[]inSourceFinding{{"/x-lib/A/minLength", mismatch, minimum, "abc"}},
 		},
 		{
 			"a declared component is reported by the source alone",
@@ -1667,7 +1380,7 @@ func TestResolve_InSourceReachedSitesDoNotDependOnDeclarationOrder(t *testing.T)
 				_, diags := loadTargets(t, "spec.yaml", spec, false)
 				return diagLines(diags)
 			}
-			want := []string{"/x-lib/Bad/minLength openapi/validation/validation-invalid-schema"}
+			want := []string{"/x-lib/Bad/minLength openapi/validation/validation-type-mismatch"}
 
 			backwards := slices.Clone(c.entries)
 			slices.Reverse(backwards)
@@ -1736,11 +1449,11 @@ func TestResolve_AnObjectTheSourceDeclaresIsNotChargedToTheBudget(t *testing.T) 
 // a $ref reaches in the source outside its model draws what the same object
 // written inline draws in an older document: a warning for each construct a
 // later minor added, at the pointer it is written at, even beneath a path
-// item's method or a callback's expression, with the library's refusal of it
-// taken over, and an additionalOperations' operations checked. An object
+// item's method or a callback's expression, and an additionalOperations'
+// operations checked. An object
 // reached both itself and inside another reached object draws each warning
-// once. A 3.2 document draws none; another document's object keeps the
-// library's own reading (GitHub #839).
+// once. A 3.2 document draws none; another document's object is held to the
+// source's version, reported at the $ref that reaches it (GitHub #839).
 func TestResolve_AReachedObjectIsHeldToTheLaterVersionTable(t *testing.T) {
 	t.Parallel()
 	const later = " openapi/later-version-construct"
@@ -1749,7 +1462,7 @@ func TestResolve_AReachedObjectIsHeldToTheLaterVersionTable(t *testing.T) {
 		name, version, body string
 		want                []string
 	}{
-		{"a schema keyword, its refusal taken over", "3.1.0",
+		{"a schema keyword", "3.1.0",
 			"paths: {}\ncomponents:\n  schemas:\n    Ref: {$ref: '#/x-lib/Pet'}\n    Cat: {type: object}\n" + pet,
 			[]string{"/x-lib/Pet/discriminator/defaultMapping" + later}},
 		{"a response field", "3.1.0",
@@ -1799,12 +1512,11 @@ func TestResolve_AReachedObjectIsHeldToTheLaterVersionTable(t *testing.T) {
 		})
 	}
 
-	t.Run("another document's object keeps the library's reading", func(t *testing.T) {
+	t.Run("another document's object is held to the source's version", func(t *testing.T) {
 		t.Parallel()
 		dir := externalDir(t, map[string]string{"other.yaml": pet})
 		_, diags := loadExternal(t, dir, "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\n"+
 			"components:\n  schemas:\n    Ref: {$ref: 'other.yaml#/x-lib/Pet'}\n    Cat: {type: object}\n", Options{})
-		assert.Empty(t, cmp.Diff([]string{"/components/schemas/Ref openapi/validation/validation-invalid-schema"},
-			diagLines(diags)), "%+v", diags)
+		assert.Empty(t, cmp.Diff([]string{"/components/schemas/Ref" + later}, diagLines(diags)), "%+v", diags)
 	})
 }

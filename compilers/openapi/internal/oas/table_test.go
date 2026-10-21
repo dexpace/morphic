@@ -189,12 +189,14 @@ func TestTable_OwnedRulesNameTheirOwners(t *testing.T) {
 			}
 		}
 		for _, f := range o.Fields {
-			if f.Owner != "" {
-				owners[f.Owner] = true
+			for _, owner := range []string{f.Owner, f.ShapeOwner} {
+				if owner != "" {
+					owners[owner] = true
+				}
 			}
 		}
 	}
-	assert.Equal(t, map[string]bool{"auth": true, "load": true, "operation": true, "schema": true}, owners)
+	assert.Equal(t, map[string]bool{"annotation": true, "auth": true, "load": true, "operation": true, "schema": true}, owners)
 }
 
 // laterRow is one construct a later minor added: the object, the field, the

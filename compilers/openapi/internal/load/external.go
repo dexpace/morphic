@@ -267,16 +267,14 @@ func (e external) holdSpelling(ref references.Reference, base string) {
 	e.holdSite(abs.AbsoluteReference, fragment.Pointer(string(ref)))
 }
 
-// settle finishes resolving r, whose resolution returned vErrs and err. It
-// mends the records r's chain holds (see externalReads.mend), and resumes a
-// resolution that stalled where mending cures it (see resumable): the library
-// reports a document as its bytes when it holds both them and the object a
-// reference names, and a hop resolved against bytes fails (GitHub #761). Each
-// resumption starts past the hop the last stalled at, so maxResolutionHops
-// bounds them, and is charged to e.work before it reads anything.
-func (e external) settle(ctx context.Context, r resolvable, opts references.ResolveOptions,
-	vErrs []error, err error,
-) ([]error, error) {
+// settle finishes resolving r, whose resolution returned err. It mends the
+// records r's chain holds (see externalReads.mend), and resumes a resolution
+// that stalled where mending cures it (see resumable): the library reports a
+// document as its bytes when it holds both them and the object a reference
+// names, and a hop resolved against bytes fails (GitHub #761). Each resumption
+// starts past the hop the last stalled at, so maxResolutionHops bounds them, and
+// is charged to e.work before it reads anything.
+func (e external) settle(ctx context.Context, r resolvable, opts references.ResolveOptions, err error) error {
 	for range maxResolutionHops {
 		c := resolutionChain(r)
 		resume, refused := e.resumable(c, err)
@@ -287,11 +285,10 @@ func (e external) settle(ctx context.Context, r resolvable, opts references.Reso
 			break
 		}
 		e.read.mend(c, e.doc)
-		more, again := r.Resolve(ctx, opts)
-		vErrs, err = append(vErrs, more...), again
+		_, err = r.Resolve(ctx, opts)
 	}
 	e.read.mend(resolutionChain(r), e.doc)
-	return vErrs, err
+	return err
 }
 
 // Open serves the file name names as its one read in the compile answered it

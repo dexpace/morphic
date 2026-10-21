@@ -21,8 +21,10 @@ import (
 // The stable codes the OpenAPI compiler reports under. They are stable strings
 // so CI can allowlist them (ir-design §13).
 const (
-	// Validation reports a speakeasy validation finding; it is suffixed with the
-	// library rule name (e.g. "openapi/validation/duplicate-tag").
+	// Validation reports a document breaking a rule of the OpenAPI Specification
+	// at its declared minor, which the load phase's rule table finds; it is
+	// suffixed with the finding's class (e.g.
+	// "openapi/validation/validation-required-field").
 	Validation = "openapi/validation"
 	// UnsupportedVersion reports an OpenAPI version the compiler cannot lower.
 	UnsupportedVersion = "openapi/unsupported-version"
@@ -394,18 +396,14 @@ const (
 	// than error because the document is otherwise lowered whole, and the entry
 	// that did survive is in it.
 	UnknownKeyEntryTaken = "openapi/unknown-key-entry-taken"
-	// InvalidLocationKeyword reports explode or allowReserved at in: querystring.
-	// OpenAPI 3.2 binds the whole query string from the parameter's content there
-	// and states its serialization through the media type alone, so neither
-	// keyword has anything left to qualify.
+	// InvalidLocationKeyword reports a style, explode or allowReserved at in:
+	// querystring, at the keyword. OpenAPI 3.2 binds the whole query string from
+	// the parameter's content there and states its serialization through the
+	// media type alone, so none of the three has anything left to qualify.
 	//
-	// The bundled parser enforces this for style at that location but not for
-	// these two (GitHub #408), so the compiler reports the gap itself. The value
-	// still lowers as declared: dropping stated content is an emitter's call
-	// (invariant 2).
-	//
-	// Warning, not the error style gets: that is the parser's own validation
-	// refusal, whereas here the compiler has already kept the value.
+	// A warning, though 3.2 says MUST NOT: the value lowers as declared, since
+	// dropping stated content is an emitter's call (invariant 2), and what the
+	// parameter means is the content's to say, which it does.
 	InvalidLocationKeyword = "openapi/invalid-location-keyword"
 	// InapplicableLocationKeyword reports a Parameter Object's allowReserved
 	// written where its document's version gives it no effect, at the keyword.

@@ -35,9 +35,10 @@ reason a code has no rule. [`CONTRIBUTING.md`](../../CONTRIBUTING.md) walks addi
 ### `openapi-versions`
 
 A document declaring `openapi: 3.0.x`, `3.1.x` or `3.2.x` is read as the minor its first two parts
-name, and every rule below that differs by minor follows that one. The patch is the parser's to
-check: a version it cannot read as major, minor and patch, such as `3.0` or `3.1.0-rc1`, is reported
-as an `openapi/validation` error, and the document still lowers under the minor it names. Any other
+name, and every rule below that differs by minor follows that one. A version that is not three runs
+of digits, major, minor and patch, such as `3.0` or `3.1.0-rc1`, is reported as an
+`openapi/validation` error, of the class `validation-invalid-format` ([`validation`](#validation)),
+and the document still lowers under the minor it names. Any other
 version is not this compiler's. The engine refuses a document declaring one before any compiler
 runs, as it refuses a Swagger 2.0 document ([`swagger-lift`](#swagger-lift)), and the compiler,
 handed one directly, refuses it with an `openapi/unsupported-version` error and compiles to no
@@ -45,7 +46,7 @@ Document.
 
 - Codes: `openapi/unsupported-version`, `openapi/validation`
 - Tests: `openapi.TestCompile_UnsupportedVersion`,
-  `load.TestSupportedMinor_AcceptsOnlyTheThreeMinors`,
+  `load.TestSupportedMinor_AcceptsOnlyTheThreeMinors`, `oas.TestCheck_TheOpenAPIFieldIsAVersionNumber`,
   `openapi.TestDetect_AVersionThatIsNotServedIsStillADeclaration`
 
 ### `yaml-decoding`
@@ -129,54 +130,86 @@ the overlay is applied and every position names the source, as with no overlay, 
   merges a nested array (#653), and whether an overlay that replaces a value the source declares is
   reported (#588).
 
-### `parser-validation`
+### `validation`
 
-The parser validates the source against the declared minor, and each finding is reported as
-`openapi/validation` suffixed with the parser's rule name
-(`openapi/validation/validation-required-field`), at the parser's severity, an error or a warning,
-with a hint reported as info, and at the node it names. A finding does not refuse the document,
-which lowers as written. The findings some rules take over are dropped and stated by those rules
-instead: [`minor-required-fields`](#minor-required-fields),
-[`later-version-construct`](#later-version-construct), [`parameters`](#parameters) and
-[`operation-ids`](#operation-ids).
+The load phase holds the source to a table of the OpenAPI Specification's rules, at the minor it
+declares, and the parser's own validation does not run. Each row of the table cites the sentence of
+the specification it comes from. It gives every object's fields, the shape, values and syntax of
+each, which fields each minor requires, and the rules that bind fields together; what data cannot
+state is written as code beside it, such as a path template against its path parameters, a server
+URL against its variables, a tag's parent, and where an encoding applies. Each finding is reported
+as `openapi/validation` suffixed with its class (`openapi/validation/validation-required-field`), at
+the node it is about, its message naming the object, the field, the minor and the section of the
+specification it cites. A finding never refuses the document,
+which lowers as written.
+
+A finding is an error where the document's meaning is missing or contradicted: a REQUIRED field
+absent, a value of the wrong type, a value outside the set the specification allows, fields that
+exclude each other written together, a path template and its path parameters disagreeing, or a
+name a token grammar the specification cites refuses. It is a warning where the document breaks a
+rule of its version and still says what it means: a key outside the pattern the specification
+gives, a key a mapping writes twice, a number or a boolean where a string belongs, a field written
+where the specification gives it no effect (`validation-no-effect`), or a `null` written for an
+optional field, which is read as the field left out. A `null` inside a Schema Object, or where a
+schema belongs, is an error, since the schema lowering does not read it as left out; one written
+for a field whose requirement another rule reports is left to that rule.
+
+The source is read as it writes it, an applied overlay's patch included, each object as the kind
+its position gives it. An object a `$ref` reaches that the source's own reading did not take as
+that kind, one under an `x-` key or in another document, is read as the kind the reference
+expects and held to the source's minor. A finding about it stays at its node where the source holds
+that node, and otherwise goes to the least `$ref` reaching it, its message naming where in which
+document it lies. Each finding is made once: a node an alias or a merge key mounts at several
+positions draws one, placed where the node is written and naming the position that first read it.
+
+A rule another lowering reports is stated in the table and left to it, so a document draws one
+report: [`operation-ids`](#operation-ids), a repeated parameter ([`parameters`](#parameters)), a
+security requirement naming no scheme and a scheme naming no mechanism
+([`security-requirements`](#security-requirements)), an array schema without `items` in 3.0
+([`missing-array-items`](#missing-array-items)), a numeric bound that is no finite decimal
+([`constraints`](#constraints)), and a request body's empty `content`
+([`request-body`](#request-body)). A construct a later minor added is
+[`later-version-construct`](#later-version-construct)'s, and a keyword written where its location
+gives it no effect is [`allow-reserved-locations`](#allow-reserved-locations)' and
+[`querystring`](#querystring)'s.
 
 - Codes: `openapi/validation`
-- Tests: `load.TestLoad_ValidationErrorsBecomeDiagnostics`, `load.TestMapSeverity`,
-  `openapi.TestCompile_AFindingInAnExternalDocumentKeepsItsRule`
-- Status: partly built: a finding about a declaration in another document is reported once per
-  `$ref` that reaches it (#874), and one in an object an alias mounts twice is reported twice
-  (#889); a null written in some validated fields faults the parser, and the whole document is
-  refused as undecodable rather than the field reported (#891).
+- Tests: `oas.TestCheck_RulesGradeByLevel`, `oas.TestCheck_NullIsReadAsAbsentWhereTheFieldIsOptional`,
+  `oas.TestCheck_ShapesFollowTheField`, `oas.TestCheck_PathTemplatesAnswerToPathParameters`,
+  `oas.TestCheck_AServerURLNamesOnlyItsVariables`, `oas.TestCheck_EncodingsApplyWhereTheSpecificationSays`,
+  `oas.TestCheck_AFindingIsMadeOnceWhereItIsPlaced`, `oas.TestCheck_RulesAnotherPackageOwnsAreNotApplied`,
+  `oas.TestTable_EveryRowCitesTheSpecification`, `load.TestJudgeSource_PlacesEachFindingAtItsNode`,
+  `load.TestLoad_WhatAnAliasMountsIsReportedOnce`, `load.TestResolve_AnObjectReachedTwiceIsReportedOnce`,
+  `openapi.TestCompile_AFindingInAnExternalDocumentKeepsItsRule`,
+  `canary.TestValidationOracle_AgreesWithTheLibrary`
+- Status: open: which minor governs a document a reference reaches, held to the source's until it is
+  settled (#839).
 
 ### `minor-required-fields`
 
-The parser's REQUIRED-field rule is held to the declared version. It requires at every minor two
-fields a later one stopped requiring — an Operation's `responses` from 3.1, a Response's
-`description` from 3.2 — and it reads a field written as the empty string, or as an empty map, as
-missing, where every minor's schema types the field as a bare string or map; its server URL check
-repeats that reading for a variable's `default`. The load phase drops those findings wherever the
-parser makes them: in the source, in an object a `$ref` reaches outside the model, and in another
-document, which is held to the source's declared minor as its schemas' findings are. Nothing else is
-dropped, and what stands is reported as an `openapi/validation` error
-([`parser-validation`](#parser-validation)). An empty value the specification, or a grammar it
-cites, refuses stands: an enumerated field (a Parameter's `in`, a security scheme's `type`); a path
-parameter's `name`, which must match a template expression, none of which the empty string names; a
-name sent in a header or a cookie, by a parameter or an API key, and an HTTP `scheme`, each a token
-of RFC 9110 or RFC 6265; and a server `url` from 3.2, whose server URL grammar requires a character.
-A name sent in the query, or a `querystring` parameter's, which is never sent, is admitted. A field
-left out below the minor that relaxed it stands too, as does a `null`, and so does every finding at
-a node two reads share through a YAML alias or merge key, unless every read there draws one of those
-dropped there. The objects a later minor's construct holds are held to the declared minor like any
-other.
+A document is held to the fields its declared minor requires, which its own Fixed Fields say: an
+Operation's `responses` is required in 3.0 and not from 3.1, and a Response's `description` up to
+3.1 and not in 3.2; 3.0 requires `paths`, while 3.1 and 3.2 require at least one of `paths`,
+`components` and `webhooks`. A required field left out is reported as an `openapi/validation`
+error, of the class `validation-required-field`, at the object ([`validation`](#validation)),
+and one a rule requires only beside another field's value, such as an oauth2 scheme's `flows`, only
+where that value is written. A required field written as the empty string, or as an empty map, is
+written, since every minor types it as a bare string or map, and stands unless the specification,
+or a grammar it cites, refuses the empty value: an enumerated field (a Parameter's `in`, a security
+scheme's `type`); a path parameter's `name`, which must match a template expression, none of which
+the empty string names; a name sent in a header or a cookie, by a parameter or an API key, and an
+HTTP `scheme`, each a token of RFC 9110 or RFC 6265; and a server `url` from 3.2, whose server URL
+grammar requires a character. A name sent in the query, or a `querystring` parameter's, which is
+never sent, is admitted. A `null` written for a required field is the value missing, an error at
+the field.
 
 - Cases: `empty-required-values`, `relaxed-required-fields`
 - Codes: `openapi/validation`
-- Tests: `load.TestRequired_AnEmptyValueNoMinorAdmitsIsStillRefused`,
-  `load.TestRequired_AnEmptyServerURLFollowsTheDeclaredVersion`,
-  `load.TestRequired_ARelaxedFieldFollowsTheDeclaredVersion`
-- Status: partly built: the root fields each minor requires are never checked (#894), and a 3.0
-  server variable is held to 3.1's `enum` rules (#890). Open: which minor governs a document a
-  reference reaches, held to the source's until it is settled (#839).
+- Tests: `oas.TestCheck_RequiredFieldsFollowTheMinor`, `oas.TestCheck_AtLeastOneSectionStandsInADocument`,
+  `oas.TestCheck_EmptyStringsAreRefusedWhereTheGrammarSaysSo`,
+  `oas.TestCheck_NamesSentInAHeaderOrACookieAreTokens`, `oas.TestCheck_AnHTTPSchemeIsAToken`
+- Status: open: which minor governs a document a reference reaches, held to the source's until it is
+  settled (#839).
 
 ### `later-version-construct`
 
@@ -197,27 +230,25 @@ document writing one is warned that it was read as 3.1 reads it. A keyword whose
 between minors, such as `exclusiveMinimum`, follows the declared one
 ([`constraints`](#constraints)).
 
-Whether a construct is a later minor's is asked in one place: the load phase holds every object the
-source's model holds to one table of what each minor added, and no lowering asks it, so no field's
-treatment can depend on whether the parser happens to model it. The keys beside a `$ref` are judged
-as the object they belong to: a Reference Object's, or a Path Item's own fields beside its `$ref`,
-which are modelled and walked with the source. An object a `$ref` reaches in the source outside the
-model, such as under an `x-` key, is held to the table as one the model holds is, and reported at
-the pointers it is written at. Where the parser refuses such a construct itself — a Path Item's
-`additionalOperations` below 3.2, a schema keyword the 3.1 meta-schema forbids — the compiler takes
-the refusal over, dropping the parser's finding, and only the refusal: what the 3.2 meta-schema
-merely stopped requiring still binds the declared version. Where refusing made the parser skip
-checking what the construct holds, as inside `additionalOperations`, the compiler runs those checks
-itself and reports what they find as the parser would, under `openapi/validation`. The table and the
-takeover cover the source document; in a document a reference reaches, the parser's own treatment
-stands. The same pass, with the same reach, judges a Parameter Object's `allowReserved` against
-where the declared minor applies it ([`allow-reserved-locations`](#allow-reserved-locations)).
+Whether a construct is a later minor's is asked in one place, the table [`validation`](#validation)
+holds a document to, which gives the minor each field and value was added in; no lowering asks it,
+so no field's treatment can depend on whether the parser happens to model it. The construct's value
+is held to the shape its table row gives it, and what it holds to the table as any object is. The
+keys beside a `$ref` are judged as the object they belong to: a Reference Object's, or a Path Item's
+own fields beside its `$ref`. An object a `$ref` reaches is judged as the source's own are, wherever
+it is written, and reported where [`validation`](#validation) places a finding about it. A construct
+the parser refused at an earlier minor, a Path Item's `additionalOperations` before 3.2 or a schema
+keyword 3.2 added, draws the warning as any other does. A JSON Schema keyword is read by the schema
+lowering as it finds it, so the table leaves it alone. The same table judges a Parameter Object's
+`allowReserved` against where the declared minor applies it
+([`allow-reserved-locations`](#allow-reserved-locations)).
 
 - Cases: `later-version-constructs`, `reached-outside-model`
-- Codes: `openapi/later-version-construct`, `openapi/validation`
+- Codes: `openapi/later-version-construct`
 - Tests: `openapi.TestLaterVersionConstructs_LowerAsInTheVersionThatAddedThem`,
-  `load.TestAdditions_EachIsReportedBelowItsMinorOnly`,
-  `load.TestMetaSchemaVersionArtifacts_OlderMinorsOnlyWhenLater`
+  `oas.TestCheck_LaterConstructsAreWarnedOfInTheCompilersWords`, `oas.TestCheck_ValuesAddedLaterAreWarnedOf`,
+  `oas.TestTable_AgreesWithTheConstructsLaterMinorsAdded`,
+  `load.TestResolve_AReachedObjectIsHeldToTheLaterVersionTable`
 - Status: partly built: a 3.0 schema's `$ref` siblings are read as 3.1 reads them, which admits any
   keyword there, and no row of the table reports them (#871), and a JSON Schema 2020-12 keyword in a
   3.0 schema lowers with no diagnostic (#820). Open: how a keyword a later minor removed, such as
@@ -1500,7 +1531,10 @@ A Paths Object key lowers to `HTTPBinding.URITemplate` as written. One that brea
 templating rules, those of 3.2.0 §4.8.2 read at every version — no leading `/`, a character a path
 admits only percent-encoded, a brace outside a template expression, an expression used twice, an
 empty segment, or a query — lowers as declared and is reported as one `openapi/invalid-path-key`
-warning at its path item, naming each rule the key breaks.
+warning at its path item, naming each rule the key breaks. That every template expression has a path
+parameter, in the path item or in each of its operations, that every path parameter names an
+expression, and that no two templated paths differ only in their names is
+[`validation`](#validation)'s to report, as an error.
 
 - Cases: `http-binding`
 - Codes: `openapi/invalid-path-key`
@@ -1508,8 +1542,7 @@ warning at its path item, naming each rule the key breaks.
   `operation.TestPathKeys_RulesAreNotVersionGated`,
   `operation.TestPathKeys_FragmentIsLeftToGitHub602`
 - Status: partly built: a `#` and what follows it are not read, so a fragment lowers into the
-  template unreported (#602), and nothing matches a template's expressions to the path parameters
-  (#640).
+  template unreported (#602).
 
 ### `path-item-operations`
 
@@ -1540,8 +1573,8 @@ reported as an `openapi/conflicting-operation-id` error at the pointer it is wri
 first declaration, the declarations taken in pointer order; one declaration mounted more than once,
 by a path item `$ref`, a YAML alias or a merge key, as an `openapi/duplicate-operation-id` warning
 at each mount but the first, naming that mount. Every operation lowers whatever the verdict,
-repeated names included, and the parser's own uniqueness finding is dropped for this one
-([`parser-validation`](#parser-validation)).
+repeated names included; the rule table ([`validation`](#validation)) states this rule and leaves it
+to this one.
 
 - Codes: `openapi/duplicate-operation-id`, `openapi/conflicting-operation-id`
 - Tests: `operation.TestOperations_DuplicateOperationIDReported`,
@@ -1633,17 +1666,20 @@ A tag's declared `parent` (3.2) nests its group under the parent's, one level pe
 so `Service.Groups` reads as the section tree the document describes. A parent that is not itself a
 declared navigational tag ends the walk there, and the group stays top-level. Where declared parents
 form a cycle, the tags on it nest under none of one another while a tag declaring one of them as its
-parent still nests under it; the parser's own report of a missing or circular parent is left to
-stand. Group and sibling order stay first-seen from the operations, with a missing ancestor created
-immediately before its first descendant, so a document that declares no parents groups exactly as it
-would were parents never read.
+parent still nests under it. A tag name declared twice nests as its first declaration says. Each of
+the three breaks a MUST of 3.2, and the rule table reports it as an error
+([`validation`](#validation)): a parent naming no tag, a parent cycle, at each tag on it, and a
+repeated name, at the repeat, naming the first. Group and sibling order stay first-seen from the
+operations, with a missing ancestor created immediately before its first descendant, so a document
+that declares no parents groups exactly as it would were parents never read.
 
 - Cases: `tags-grouping`, `tags-grouping-32`, `group-identity`
 - Tests: `operation.TestGrouping_ParentCycleNestsNoMemberUnderAnother`,
   `operation.TestGrouping_DanglingParentStaysTopLevel`,
-  `operation.TestGrouping_BadgeOnlyOperationFallsToDefault`
-- Status: partly built: two tags with one name compile clean (#881), and a tag an operation repeats
-  passes into the IR undeduplicated (#738). Open: grouping operations by a vendor extension (#582).
+  `operation.TestGrouping_SameNameDeclaredTwiceIsDeterministic`,
+  `operation.TestGrouping_BadgeOnlyOperationFallsToDefault`, `oas.TestCheck_TagParentsExist`,
+  `oas.TestCheck_DuplicatesAreFound`
+- Status: partly built: a tag an operation repeats passes into the IR undeduplicated (#738). Open: grouping operations by a vendor extension (#582).
 
 ## 9. Parameters
 
@@ -1653,21 +1689,22 @@ An operation's own parameters, in order, and then those of its path item it does
 order, lower to the operation's `Params`, an operation's parameter overriding a path item's of the
 same `name` and `in`. Each is placed on the HTTP binding at its location (`path`, `query`,
 `querystring`, `header` or `cookie`) under its wire name, with its `style`, `explode` and
-`allowReserved`, each the location's default where the parameter writes none (§8.1). A parameter's
+`allowReserved`, each the default where the parameter writes none (§8.1): the location's style, and
+an `explode` true under `form` and 3.2's `cookie` style, false under any other. A parameter's
 ID is derived from the operation's mount pointer, its name and its location (§3.1). A list repeating
 an earlier entry's `name` and `in`, its `$ref`s resolved, which OpenAPI forbids, keeps every
 occurrence, each repeat's ID ending in its occurrence number, and is reported as an
 `openapi/duplicate-parameter` error at the repeat. Every list the source writes is checked, whether
-or not it lowers, and a list another document writes where it lowers; the parser's own finding,
-which sees only inline entries, is dropped for this one ([`parser-validation`](#parser-validation)).
+or not it lowers, and a list another document writes where it lowers; the rule table
+([`validation`](#validation)) states this rule and leaves it to this one.
 
 - Cases: `param-styles`, `param-style-matrix`, `param-identity`
 - Codes: `openapi/duplicate-parameter`
 - Tests: `operation.TestParams_RepeatedNameAndLocationKeepsEveryParameter`
 - Status: partly built: an undeclared `explode` is written out as the location's default, which
   erases whether the document declared it (#627); header parameters whose names differ only in case
-  are two parameters, unreported (#635); the 3.2 cookie `style` is refused as invalid (#389); and a
-  list only a `$ref` reaches is never checked for repeats (#880).
+  are two parameters, unreported (#635); and a list only a `$ref` reaches is never checked for
+  repeats (#880).
 
 ### `content-parameters`
 
@@ -1721,16 +1758,18 @@ call, not a compiler's, and the diagnostic lets an emitter suppress it.
 ### `querystring`
 
 3.2's `in: querystring` lowers to the `querystring` location, the parameter binding the whole query
-string ([`content-parameters`](#content-parameters)). A `style` written there, which 3.2 forbids,
-lowers as declared and is reported by the parser as an `openapi/validation` error. An `explode` or
-`allowReserved`, which the parser does not check there, lowers as declared and is reported as an
-`openapi/invalid-location-keyword` warning at the keyword.
+string ([`content-parameters`](#content-parameters)). A `style`, `explode` or `allowReserved`
+written there, which 3.2 forbids, lowers as declared and is reported as an
+`openapi/invalid-location-keyword` warning at the keyword: the parameter's `content` states its
+serialization, so the keyword has nothing left to qualify. A `schema` written there leaves the
+parameter no content to bind the query string by, and is reported as an `openapi/validation` error,
+of the class `validation-forbidden-field` ([`validation`](#validation)). Each Parameter
+Object is judged where it is written, whether anything lowers it or not.
 
 - Cases: `param-querystring`, `querystring-forbidden-keywords`
 - Codes: `openapi/invalid-location-keyword`, `openapi/validation`
-- Tests: `operation.TestParams_QueryStringDeclaredStyleIsKeptAndReported`
-- Status: partly built: `explode` and `allowReserved` there are judged only where the parameter is
-  lowered (#885).
+- Tests: `oas.TestCheck_QuerystringTakesOnlyContent`,
+  `operation.TestParams_QueryStringDeclaredStyleIsKeptAndReported`
 
 ### `allow-reserved-locations`
 
@@ -1742,11 +1781,10 @@ broken, once, where the parameter is written, whether anything lowers it or not.
 
 - Cases: `param-allowreserved-locations`
 - Codes: `openapi/inapplicable-location-keyword`
-- Tests: `load.TestReservedIgnored_FollowsEachMinorsText`,
-  `load.TestReservedFinding_ReportsWhereTheVersionGivesNoEffect`,
-  `load.TestReservedFinding_AnotherDocumentIsNotJudgedByTheRoots`
-- Status: partly built: a parameter another document holds is not judged, until it is settled which
-  minor governs that document (#839).
+- Tests: `oas.TestCheck_AllowReservedWarnsWhereItHasNoEffect`,
+  `oas.TestCheck_AllowReservedWordsWhereItAppliesAndWhereItDoesNot`
+- Status: open: which minor governs a parameter another document holds, held to the source's until it
+  is settled (#839).
 
 ### `parameter-schema-keywords`
 
@@ -1794,7 +1832,7 @@ OpenAPI's own default makes an undeclared `required` mean false rather than unst
 `description` to `Payload.Docs`. A request body whose `content` map is empty, which every minor's
 schema admits and 3.2 says SHOULD hold an entry, lowers to a `Payload` with no Contents that keeps
 all three and its `x-*`, reported as an `openapi/empty-request-content` warning at the map; a
-`content` the parser finds missing is [`minor-required-fields`](#minor-required-fields)'.
+`content` left out is [`minor-required-fields`](#minor-required-fields)'.
 
 - Cases: `empty-request-content`, `request-body-docs`
 - Codes: `openapi/empty-request-content`
@@ -1888,17 +1926,22 @@ defaulted. `Multi` and `Filename` come from the part's own schema and never from
 part is entered only when its `PartEncoding` holds something, so a body that declares no encoding
 still gets entries for its array and file parts, and an entry declaring nothing leaves none. What an
 Encoding Object writes beyond those fields is
-[`encoding-allow-reserved`](#encoding-allow-reserved)'.
+[`encoding-allow-reserved`](#encoding-allow-reserved)'. An encoding written where OpenAPI gives it
+no effect is reported as an `openapi/validation` warning, of the class `validation-no-effect`, at
+the field ([`validation`](#validation)): an `encoding` under a media type that is neither multipart nor form,
+which lowers nowhere, or before 3.2 outside a request body, and a 3.2 `prefixEncoding` or
+`itemEncoding` under one that is not multipart. A media type is read without its parameters and in
+any case.
 
 - Cases: `multipart-encoding`
-- Tests: `operation.TestContent_MultipartPartEncoding`,
+- Codes: `openapi/validation`
+- Tests: `operation.TestContent_MultipartPartEncoding`, `oas.TestCheck_EncodingsApplyWhereTheSpecificationSays`,
   `operation.TestContent_ArrayMultipartPartMulti`,
   `operation.TestPartEncodings_MixinPartIsKeyedOnTheMixin`
 - Status: partly built: an `encoding` key that names no property, or one declared only inside a
   `oneOf` or `anyOf` branch, is dropped with no diagnostic (#604); on a multi-typed body the entry
   is keyed by a property no node holds, which validation then refuses (#744); an array of files is
-  not marked as files (#605); and an encoding on a form body whose media type carries parameters is
-  refused by the parser's validation (#623).
+  not marked as files (#605).
 
 ### `encoding-allow-reserved`
 
@@ -2020,14 +2063,17 @@ each named callback, a `Callback` holding the expression as written and the `OpI
 operations its path item declares. Each of those lowers to an `Operation` of its own, mounted at its
 own pointer below the declaring operation's (`…/callbacks/<name>/<expression>/<method>`, the name
 escaped as one token), grouped as any other operation is, with the expression as its `URITemplate`
-(§8.1).
+(§8.1). A key is a runtime expression, by the grammar each minor gives, text embedding runtime
+expressions in braces, as OpenAPI's own example does, or a constant URL, which embeds none; one that
+is none of them is reported as an `openapi/validation` error, of the class
+`validation-invalid-format`, at the key ([`validation`](#validation)), and lowers as written.
 
 - Cases: `callbacks`
-- Tests: `operation.TestCallbacks_NameWithSlashKeepsItsOwnKey`
+- Codes: `openapi/validation`
+- Tests: `operation.TestCallbacks_NameWithSlashKeepsItsOwnKey`, `oas.TestCheck_CallbackKeysAreRuntimeExpressions`
 - Status: partly built: callbacks declared on an operation inside a callback are dropped in silence
-  (#858); a callback operation is not marked inbound, and a callback has no name (#625); and a
-  callback key that embeds runtime expressions in a URL, as OpenAPI's own example does, draws a
-  validation warning (#621). Open: whether a callback operation inherits the service's auth (#626).
+  (#858); and a callback operation is not marked inbound, and a callback has no name (#625). Open:
+  whether a callback operation inherits the service's auth (#626).
 
 ## 13. Security
 
@@ -2043,10 +2089,11 @@ requirement and dropped. An entry that omits the field naming its mechanism — 
 the `scheme` token — is interned as no scheme, reported as an `openapi/incomplete-security-scheme`
 error at the entry, and every requirement naming it is dropped. 3.2's device flow lowers to `Flows`
 beside the other flows, and `oauth2MetadataUrl` to `OAuth2MetadataURL`. An `oauth2` scheme whose
-`flows` declares no flow — `flows: {}`, or only `x-*` and keys that name no flow — and that has no
-`oauth2MetadataUrl` lowers as declared, reported as an `openapi/oauth2-no-flow` warning at the
-declaration; a `flows` the parser's REQUIRED-field rule finds missing is that rule's to report
-instead ([`minor-required-fields`](#minor-required-fields)).
+`flows` declares no flow — `flows: {}`, only `x-*` and keys that name no flow, or flows written
+null — and that has no `oauth2MetadataUrl` lowers as declared, reported as an `openapi/oauth2-no-flow`
+warning at the declaration; a `flows` left out, null or no mapping is the rule table's to report
+instead ([`minor-required-fields`](#minor-required-fields)). The table states the rules this one
+reports, a requirement naming no scheme and a scheme naming no mechanism, and leaves them to it.
 
 - Cases: `security-schemes`, `security-or-and`, `oauth2-no-flow`
 - Codes: `openapi/oauth2-no-flow`, `openapi/incomplete-security-scheme`, `openapi/unresolved-ref`

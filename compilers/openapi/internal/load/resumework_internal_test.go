@@ -28,9 +28,9 @@ func resumedOver(t *testing.T, dir, root string, limit int) (*resumeWork, []ir.D
 	tree, _, err := decodeStream([]byte(root))
 	require.NoError(t, err)
 	releaseAnchors(tree)
-	doc, valErrs, err := unmarshal(t.Context(), []byte(root), tree)
+	doc, err := unmarshal(t.Context(), []byte(root), tree)
 	require.NoError(t, err)
-	self := newSourceDocument(filepath.Join(dir, "root.yaml"), []byte(root), tree, valErrs, newSourceTree(0, overlay.Origin{}, tree), nil)
+	self := newSourceDocument(filepath.Join(dir, "root.yaml"), []byte(root), tree, judgment{}, newSourceTree(0, overlay.Origin{}, tree), nil)
 	opts := Options{AllowExternalRefs: true}
 	reader := newExternal(doc, opts, newExternalReads(self))
 	reader.work.limit = limit

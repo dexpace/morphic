@@ -38,14 +38,14 @@ func resolveSpec(t *testing.T, spec, path string) (*soa.OpenAPI, []ir.Diagnostic
 	root, _, err := decodeStream(data)
 	require.NoError(t, err)
 	releaseAnchors(root)
-	doc, _, err := unmarshal(t.Context(), data, root)
+	doc, err := unmarshal(t.Context(), data, root)
 	require.NoError(t, err)
 	rebuild := func() (*soa.OpenAPI, error) {
-		again, _, err := unmarshal(t.Context(), data, root)
+		again, err := unmarshal(t.Context(), data, root)
 		return again, err
 	}
 	resolved, _, _, diags, err := resolveExternal(t.Context(), pointerAt(0, overlay.Origin{}), doc, Siblings{},
-		newSourceDocument(path, data, root, nil, newSourceTree(0, overlay.Origin{}, root), nil),
+		newSourceDocument(path, data, root, judgment{}, newSourceTree(0, overlay.Origin{}, root), nil),
 		Options{AllowExternalRefs: true}, rebuild)
 	return resolved, diags, err
 }
@@ -536,8 +536,8 @@ paths:
 // in a target two $refs reach is reported once, at the lesser pointer, with or
 // without a rebuild. /w reads the document first, so the library builds /x's
 // target from bytes it already holds, and caches no object built that way: it
-// builds the target again for /y, finding and all, which reachedFindings keeps
-// from a second report.
+// builds the target again for /y, which the reached check's identity of a
+// finding keeps from a second report.
 func TestResolveExternal_TwoRefsToOneTargetReportItsFindingOnce(t *testing.T) {
 	t.Parallel()
 	srv, _ := countingServer(t, twoRefsTarget)
@@ -548,7 +548,7 @@ func TestResolveExternal_TwoRefsToOneTargetReportItsFindingOnce(t *testing.T) {
 			"  /w: {$ref: \"" + doc + "~1w\"}\n" +
 			"  /x: {$ref: \"" + doc + "~1x\"}\n  /y: {$ref: \"" + doc + "~1x\"}\n")}
 		var rebuilds atomic.Int32
-		rebuild := func(ctx context.Context, data []byte, root *yaml.Node) (*soa.OpenAPI, []error, error) {
+		rebuild := func(ctx context.Context, data []byte, root *yaml.Node) (*soa.OpenAPI, error) {
 			rebuilds.Add(1)
 			return unmarshal(ctx, data, root)
 		}
@@ -661,8 +661,8 @@ func TestLoad_ARebuildFailureIsWrappedAsRebuildSource(t *testing.T) {
 	boom := errors.New("rebuild boom")
 	opts := Options{
 		AllowExternalRefs: true,
-		rebuildDoc: func(context.Context, []byte, *yaml.Node) (*soa.OpenAPI, []error, error) {
-			return nil, nil, boom
+		rebuildDoc: func(context.Context, []byte, *yaml.Node) (*soa.OpenAPI, error) {
+			return nil, boom
 		},
 	}
 
@@ -711,7 +711,7 @@ func modelOf(t *testing.T, spec string) *soa.OpenAPI {
 	root, _, err := decodeStream(data)
 	require.NoError(t, err)
 	releaseAnchors(root)
-	doc, _, err := unmarshal(t.Context(), data, root)
+	doc, err := unmarshal(t.Context(), data, root)
 	require.NoError(t, err)
 	return doc
 }

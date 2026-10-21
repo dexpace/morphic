@@ -2,7 +2,6 @@ package load
 
 import (
 	"encoding/json/jsontext"
-	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -16,8 +15,6 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	soa "github.com/speakeasy-api/openapi/openapi"
-	"github.com/speakeasy-api/openapi/references"
-	"github.com/speakeasy-api/openapi/validation"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
@@ -395,20 +392,6 @@ func TestSourceDocument_Names(t *testing.T) {
 	}
 }
 
-// TestNewSourceDocument_KeepsOnlyFindingsAtANode pins which of the source's
-// own findings a $ref's are measured against: one at a node, never one at
-// none, which is told apart by where it is placed.
-func TestNewSourceDocument_KeepsOnlyFindingsAtANode(t *testing.T) {
-	t.Parallel()
-	node := &yaml.Node{}
-	atNode := &validation.Error{Rule: "r", UnderlyingError: errors.New("m"), Node: node}
-	atNone := &validation.Error{Rule: "r", UnderlyingError: errors.New("n")}
-
-	self := newSourceDocument("root.yaml", nil, nil, []error{atNode, atNone, errors.New("plain")}, sourceTree{}, nil)
-
-	assert.Equal(t, map[findingKey]bool{keyOf(atNode, ""): true}, self.found)
-}
-
 // TestHold_ARelativeSourceResolvesItsComponentAsItDoesInEitherOrder pins that
 // the source's own component is resolved as the source resolves it when a back
 // reference spelling the source otherwise reaches it first. Resolved against
@@ -451,9 +434,9 @@ func heldResolution(t *testing.T, spec, path string) (*soa.OpenAPI, *resolution)
 	root, _, err := decodeStream(data)
 	require.NoError(t, err)
 	releaseAnchors(root)
-	doc, valErrs, err := unmarshal(t.Context(), data, root)
+	doc, err := unmarshal(t.Context(), data, root)
 	require.NoError(t, err)
-	self := newSourceDocument(path, data, root, valErrs, newSourceTree(0, overlay.Origin{}, root), nil)
+	self := newSourceDocument(path, data, root, judgment{}, newSourceTree(0, overlay.Origin{}, root), nil)
 	opts := Options{AllowExternalRefs: true}
 	reader := newExternal(doc, opts, newExternalReads(self))
 	return doc, newResolution(t.Context(), pointerAt(0, overlay.Origin{}), doc, Siblings{}, self, opts, &reader)
@@ -757,16 +740,4 @@ func TestStandIn(t *testing.T) {
 	assert.False(t, ok, "a kind of no known stand-in is held as none")
 	_, ok = read.stoodFor(&soa.ReferencedResponse{})
 	assert.False(t, ok, "an object made elsewhere stands for nothing")
-}
-
-// TestReachedFindings_DropsAKnownFinding pins the known findings at the one
-// place they act: a finding the walk draws at a node the source's own
-// validation already reported is dropped there.
-func TestReachedFindings_DropsAKnownFinding(t *testing.T) {
-	t.Parallel()
-	node := &yaml.Node{Line: 1, Column: 1}
-	finding := &validation.Error{Severity: validation.SeverityError, Rule: "r", UnderlyingError: errors.New("m"), Node: node}
-	found := reachedFindings{sites: map[references.Reference]jsontext.Pointer{}, known: map[findingKey]bool{keyOf(finding, ""): true}}
-	found.note("/a", trail{}, []error{finding})
-	assert.Empty(t, found.diags(pointerAt(0, overlay.Origin{})))
 }

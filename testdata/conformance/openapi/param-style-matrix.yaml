@@ -2,11 +2,11 @@ openapi: 3.2.0
 info: {title: ParamStyleMatrix, version: "1.0.0"}
 # OpenAPI's location-dependent serialization table, declared in full. `style` is
 # legal only in certain (in, style) pairs — path takes simple|label|matrix, query
-# form|spaceDelimited|pipeDelimited|deepObject, header simple, cookie form — and
-# each pair appears three times here: writing explode true, writing it false, and
-# omitting it so the style's own default answers. Beside them sit the four
-# locations with `style` omitted, which is the only way the per-location default
-# table is read at all.
+# form|spaceDelimited|pipeDelimited|deepObject, header simple, cookie
+# form|cookie — and each pair appears three times here: writing explode true,
+# writing it false, and omitting it so the style's own default answers. Beside
+# them sit the four locations with `style` omitted, which is the only way the
+# per-location default table is read at all.
 #
 # The parameter names are what makes this checkable rather than merely present:
 # `<location><Style>` plus `Explode`, `NoExplode` or `DefaultExplode`, and
@@ -19,10 +19,6 @@ info: {title: ParamStyleMatrix, version: "1.0.0"}
 # explode no effect at all under deepObject. Both are still written, because what
 # is pinned is that the declared flag reaches the IR — an emitter needs to see
 # what the document said before it can decide such a combination is meaningless.
-#
-# 3.2 also admits a `cookie` *style* at `in: cookie`, which this compiler rejects
-# outright; it is left out rather than declared, and GitHub #389 tracks both that
-# and the explode default 3.2 gives it.
 #
 # param-styles.yaml is the neighbouring spec, and its subject is what sits beside
 # the table rather than in it: allowReserved, allowEmptyValue, a content-typed
@@ -69,11 +65,15 @@ paths:
         - {name: headerSimpleDefaultExplode, in: header, style: simple, schema: {type: string}}
         - {name: headerDefaulted, in: header, schema: {type: string}}
 
-        # in: cookie — form only. This is the location whose default arm no
+        # in: cookie — form, and 3.2's cookie style, which defaults explode to
+        # true as form does. This is the location whose default arm no
         # committed golden used to read, so a table that lost it stayed green.
         - {name: cookieFormExplode, in: cookie, style: form, explode: true, schema: {type: array, items: {type: string}}}
         - {name: cookieFormNoExplode, in: cookie, style: form, explode: false, schema: {type: string}}
         - {name: cookieFormDefaultExplode, in: cookie, style: form, schema: {type: array, items: {type: string}}}
+        - {name: cookieCookieExplode, in: cookie, style: cookie, explode: true, schema: {type: object}}
+        - {name: cookieCookieNoExplode, in: cookie, style: cookie, explode: false, schema: {type: string}}
+        - {name: cookieCookieDefaultExplode, in: cookie, style: cookie, schema: {type: object}}
         - {name: cookieDefaulted, in: cookie, schema: {type: string}}
       responses:
         "200": {description: ok}

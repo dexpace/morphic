@@ -238,12 +238,9 @@ components:
 }
 
 // TestUnknownKeys_SchemaSubObjects covers a schema's xml, discriminator and
-// externalDocs objects, which the fixture above leaves out: the OpenAPI dialect
-// meta-schema closes all three to anything but an x- key, so the library
-// reports an error on each and harness.Check returns at the first, before the
-// oracles that fixture exists to reach. The keys are kept and announced
-// regardless, graded as OpenAPI objects' keys at warning, not as schema
-// keywords at info.
+// externalDocs objects, which OpenAPI closes to anything but an x- key, though
+// they sit in a schema: an undefined key there is kept and announced, graded as
+// an OpenAPI object's key at warning, not as a schema keyword at info.
 //
 // All three ride on the schema's own map, since none of ir.XMLHints,
 // ir.Discriminator or ir.Link holds one; the keyword each was written under
@@ -290,11 +287,10 @@ components:
 // TestUnknownKeys_PathItemKeyKeepsItsValue compiles the reproducer from GitHub
 // #377 and holds the half of it that used to go missing.
 //
-// The other half never did: folding the key into the item's operations map makes
-// the library reject the scalar sitting where an Operation should be, so the
-// error below is the diagnostic that named the key all along. What no channel
-// carried is the 1 it was written with, which is what the entry keeps — and the
-// warning beside it is the census's own, graded like every other undeclared key.
+// The other half never did: the census warns of the key, graded like every
+// other undeclared key. What no channel carried is the 1 it was written with,
+// which is what the entry keeps. The table reads no key of a path item as an
+// operation, so the scalar draws no error of its own.
 func TestUnknownKeys_PathItemKeyKeepsItsValue(t *testing.T) {
 	t.Parallel()
 	doc, diags := compileAnnotationSpec(t, "path-item-key", `openapi: 3.1.0
@@ -315,7 +311,7 @@ paths:
 	assert.Equal(t, []ir.Severity{ir.SeverityWarning},
 		diagsAt(diags, "openapi/unknown-object-key", "/paths/~1x/bogusPathItem"))
 	_, isError := ir.FirstError(diags)
-	assert.True(t, isError, "the library still rejects the scalar the key was written with")
+	assert.False(t, isError, "the table reads no key of a path item as an operation, so the scalar is no error")
 }
 
 // TestUnknownKeys_PathItemDeclaredFieldsAreNotUndeclared is the path item

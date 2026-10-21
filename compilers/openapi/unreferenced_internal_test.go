@@ -274,11 +274,13 @@ components:
 `
 	for _, tc := range []struct {
 		name, version, body string
+		warnedAt            string // where load warns that the field is a later version's
 	}{
-		{"3.2", "3.2.0", body},
-		{"3.2 merged in", "3.2.0", merged},
-		{"3.1", "3.1.0", body},
-		{"3.1 merged in", "3.1.0", merged},
+		{"3.2", "3.2.0", body, ""},
+		{"3.2 merged in", "3.2.0", merged, ""},
+		{"3.1", "3.1.0", body, "/components/mediaTypes"},
+		// A node a `<<` merge key supplies is held at no pointer of the tree.
+		{"3.1 merged in", "3.1.0", merged, ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -289,9 +291,11 @@ components:
 			assert.NotEmpty(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo,
 				"/components/mediaTypes"))
 			assert.False(t, openapitest.HasDiag(diags, diag.UnknownObjectKey))
-			assert.Equal(t, tc.version != "3.2.0",
-				openapitest.HasDiagCodeAt(diags, diag.LaterVersionConstruct, "/components/mediaTypes"),
+			assert.Equal(t, tc.version != "3.2.0", openapitest.HasDiag(diags, diag.LaterVersionConstruct),
 				"a field merged in through `<<` is written as the parser reads it")
+			if tc.warnedAt != "" {
+				assert.True(t, openapitest.HasDiagCodeAt(diags, diag.LaterVersionConstruct, tc.warnedAt))
+			}
 		})
 	}
 }

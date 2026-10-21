@@ -47,7 +47,7 @@ func TestConformance(t *testing.T) {
 		t.Run(tc.file, func(t *testing.T) {
 			t.Parallel()
 			doc, diags := parseCorpus(t, tc.file)
-			assertNoErrorDiags(t, diags)
+			assertOnlyErrorDiags(t, diags, invalidCases()[tc.file])
 			tc.assert(t, doc, diags)
 			// A failed capability assertion must not reach the golden. require
 			// aborts, but assert does not, and under -update a non-fatal failure
@@ -291,11 +291,36 @@ func assertJSONRoundTrip(t *testing.T, doc *ir.Document) {
 	assert.Equal(t, string(first), string(second), "round-trip must preserve the document")
 }
 
+// invalidCases lists the corpus specs that write a construct the specification
+// forbids, because what they pin is how such a document lowers: each draws
+// errors of the codes listed, and of no other.
+func invalidCases() map[string][]string {
+	return map[string][]string{
+		// A parameter and a header writing both schema and content: "but not both".
+		"codeclared-schema-content": {"openapi/validation/validation-mutually-exclusive-fields"},
+	}
+}
+
 // assertNoErrorDiags fails when any diagnostic has error severity.
 func assertNoErrorDiags(t *testing.T, diags []ir.Diagnostic) {
 	t.Helper()
+	assertOnlyErrorDiags(t, diags, nil)
+}
+
+// assertOnlyErrorDiags fails when a diagnostic has error severity and a code
+// outside want, or when a code of want draws no error.
+func assertOnlyErrorDiags(t *testing.T, diags []ir.Diagnostic, want []string) {
+	t.Helper()
+	drawn := map[string]bool{}
 	for _, d := range diags {
-		assert.NotEqual(t, ir.SeverityError, d.Severity, "unexpected error diagnostic: %+v", d)
+		if d.Severity != ir.SeverityError {
+			continue
+		}
+		drawn[d.Code] = true
+		assert.Contains(t, want, d.Code, "unexpected error diagnostic: %+v", d)
+	}
+	for _, code := range want {
+		assert.True(t, drawn[code], "the spec is listed as invalid but draws no %s", code)
 	}
 }
 
@@ -2278,7 +2303,7 @@ func assertParamIdentity(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.Equal(t, map[ir.OpID][]ir.ParamID{
 		"op/openapi/paths/~1items~1{id}/get": {
 			"param/openapi/paths/~1items~1{id}/get/parameters/id/query",
-			"param/openapi/paths/~1items~1{id}/get/parameters/a~1b/header",
+			"param/openapi/paths/~1items~1{id}/get/parameters/a~1b/query",
 			"param/openapi/paths/~1items~1{id}/get/parameters/id/path",
 		},
 		"op/openapi/paths/~1items~1{id}/post": {
@@ -2446,12 +2471,8 @@ func upperFirst(s string) string {
 // paramStyleLegalPairs is OpenAPI's (in, style) table, read off the
 // specification rather than off the fixture: path takes simple|label|matrix,
 // query form|spaceDelimited|pipeDelimited|deepObject, header simple, cookie
-// form. querystring is a fifth location that takes no style at all, so it has no
-// pair here and assertQuerystringParam covers it instead.
-//
-// 3.2 adds a tenth pair — a `cookie` style at in: cookie — which this compiler
-// rejects with a hard error, so no fixture can declare it; GitHub #389 tracks
-// that and the explode default 3.2 gives it.
+// form|cookie. querystring is a fifth location that takes no style at all, so
+// it has no pair here and assertQuerystringParam covers it instead.
 func paramStyleLegalPairs() []paramStylePair {
 	return []paramStylePair{
 		{ir.HTTPLocationPath, "simple"},
@@ -2463,6 +2484,7 @@ func paramStyleLegalPairs() []paramStylePair {
 		{ir.HTTPLocationQuery, "deepObject"},
 		{ir.HTTPLocationHeader, "simple"},
 		{ir.HTTPLocationCookie, "form"},
+		{ir.HTTPLocationCookie, "cookie"},
 	}
 }
 
@@ -2478,10 +2500,10 @@ func paramStyleDefaultStyles() []paramStylePair {
 }
 
 // paramStyleExplodeDefault is what `explode` means when omitted: true under
-// form, false under every other style a location pairs with. (3.2 gives its
-// `cookie` style the form default too — see paramStyleLegalPairs.)
+// form and under 3.2's cookie style, false under every other style a location
+// pairs with.
 func paramStyleExplodeDefault(style string) bool {
-	return style == "form"
+	return style == "form" || style == "cookie"
 }
 
 // paramStyleMatrixWant generates what param-style-matrix.yaml must resolve to
@@ -2526,9 +2548,8 @@ func paramStyleMatrixWant() map[paramSlot]paramWire {
 func TestParamStyleTable_MatchesTheSpecification(t *testing.T) {
 	t.Parallel()
 	pairs := paramStyleLegalPairs()
-	require.Len(t, pairs, 9,
-		"3.2 permits ten (in, style) pairs and this compiler rejects one of them, the cookie "+
-			"style (GitHub #389); a different number here is a claim about OpenAPI, not about the fixture")
+	require.Len(t, pairs, 10,
+		"3.2 permits ten (in, style) pairs; a different number here is a claim about OpenAPI, not about the fixture")
 
 	legal := make(map[paramStylePair]bool, len(pairs))
 	for _, p := range pairs {
@@ -3891,7 +3912,8 @@ func assertXMLNodeType32(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) 
 	require.True(t, ok)
 	require.NotNil(t, body.XML)
 	assert.Equal(t, "text", body.XML.NodeType)
-	assert.True(t, body.XML.Wrapped, "the object's other fields still lower as they did")
+	assert.Equal(t, "B", body.XML.Name, "the object's other fields still lower as they did")
+	assert.Equal(t, "p", body.XML.Prefix)
 
 	assert.Empty(t, diagsAt(diags, diag.UnknownObjectKey, "/components/schemas/Report/properties/id/xml/nodeType"),
 		"a key 3.2 defines is not an undefined key")
@@ -4423,8 +4445,8 @@ func assertSecurityOrAnd(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 // checked as one the model declares when a $ref reaches it, a discriminator
 // mapping names it, or a $ref nested in such an object does (GitHub #872):
 // each construct OpenAPI 3.2 added draws its warning once, at the pointer it is
-// written at, and the parser's own finding about a scheme reached that way is
-// placed where its field is written, as for the scheme written inline (#879).
+// written at, and a finding about a scheme reached that way is placed where its
+// field is written, as for the scheme written inline (#879).
 func assertReachedOutsideModel(t *testing.T, _ *ir.Document, diags []ir.Diagnostic) {
 	t.Helper()
 	const later = "openapi/later-version-construct"
@@ -4442,6 +4464,6 @@ func assertReachedOutsideModel(t *testing.T, _ *ir.Document, diags []ir.Diagnost
 	}
 	assert.Equal(t, len(written), n, "one warning per construct, none elsewhere: %+v", diags)
 	assert.Equal(t, []ir.Severity{ir.SeverityWarning},
-		diagsAt(diags, "openapi/validation/validation-allowed-values", "/x-schemes/key/bearerFormat"),
-		"the parser's finding on the reached scheme, where the field is written (GitHub #879)")
+		diagsAt(diags, "openapi/validation/validation-type-mismatch", "/x-schemes/key/description"),
+		"the table's finding on the reached scheme, where the field is written (GitHub #879)")
 }
