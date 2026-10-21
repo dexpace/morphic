@@ -298,3 +298,33 @@ func diagnosticsAt(sevs ...ir.Severity) []ir.Diagnostic {
 	}
 	return diags
 }
+
+// TestEngine_RunDocumentIsJudgedAsRunIs pins that RunDocument judges a run by
+// Run's rule: over a document carrying the findings a compile stored, the two
+// reach one verdict at every threshold, and both refuse a severity the IR does
+// not define. Validate is off, so the findings are the document's alone.
+func TestEngine_RunDocumentIsJudgedAsRunIs(t *testing.T) {
+	t.Parallel()
+	eng, err := engine.New()
+	require.NoError(t, err)
+	for _, failOn := range thresholds {
+		for _, sev := range []ir.Severity{ir.SeverityInfo, ir.SeverityWarning, ir.SeverityError, "fatal"} {
+			t.Run(fmt.Sprintf("fail-on=%q/%s", failOn, sev), func(t *testing.T) {
+				t.Parallel()
+				doc := danglingDocument()
+				doc.Diagnostics = diagnosticsAt(sev)
+				opts := engine.RunOptions{FailOn: failOn, DisablePasses: []string{engine.ValidatePass}}
+
+				res, err := eng.RunDocument(t.Context(), doc, opts)
+
+				if sev == "fatal" {
+					require.ErrorIs(t, err, engine.ErrUnknownSeverity)
+					assert.Nil(t, res)
+					return
+				}
+				require.NoError(t, err)
+				assert.Equal(t, runStored(t, failOn, diagnosticsAt(sev)).Failed, res.Failed)
+			})
+		}
+	}
+}

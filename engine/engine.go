@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/dexpace/morphic/compilers"
@@ -194,18 +195,29 @@ func (e *Engine) RunDocument(ctx context.Context, doc *ir.Document, opts RunOpti
 	if opts.FormatOptions != nil || len(opts.CompilerOptions) > 0 {
 		return nil, errCompilerOptionsUnused
 	}
+	// An unstamped document was never stamped by its producer, where a
+	// mismatched one was paired with the wrong build (ir.CompatibleVersion).
+	if doc.IRVersion == "" {
+		return nil, fmt.Errorf("engine: document carries no IR version; this build reads %q", ir.IRVersion)
+	}
 	if !ir.CompatibleVersion(doc.IRVersion) {
 		return nil, fmt.Errorf("engine: document IR version %q is not %q, the one this build reads",
 			doc.IRVersion, ir.IRVersion)
 	}
-	// A shallow copy is all the passes need: none mutates the document it is
-	// handed, and the engine writes only Diagnostics, onto the copy.
+	// Run refuses a cancelled ctx whatever passes are on, and so does this,
+	// though with every pass off no pass would see it.
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("engine: stop before the passes: %w", err)
+	}
+	// A shallow copy keeps the engine's own write, Diagnostics, off the
+	// caller's document, as no pass mutates the one it is handed, and a copy of
+	// the list keeps the Result from sharing the caller's slice.
 	own := *doc
 	out, found, err := runPasses(ctx, &own, passes)
 	if err != nil {
 		return nil, err
 	}
-	out.Diagnostics = mergeDiagnostics(doc.Diagnostics, found)
+	out.Diagnostics = mergeDiagnostics(slices.Clone(doc.Diagnostics), found)
 	return failOn.judge(&Result{Document: out, Diagnostics: out.Diagnostics, Sources: out.Sources})
 }
 

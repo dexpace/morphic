@@ -295,6 +295,16 @@ func TestEncode_ErrorPaths(t *testing.T) {
 	}
 }
 
+// TestWriteDocument_RefusesNoWriter pins that a call handed no writer is an
+// error, rather than a panic inside the write the encoding ends in.
+func TestWriteDocument_RefusesNoWriter(t *testing.T) {
+	t.Parallel()
+
+	err := output.WriteDocument(nil, orderedDoc(), output.Compact)
+
+	assert.EqualError(t, err, "output: no writer to write to")
+}
+
 // TestReplaceDocument_RefusesAnEmptyPath pins that a call naming no file is
 // refused before anything is created, rather than encoding the document into
 // a temporary file in the working directory and failing at the rename.

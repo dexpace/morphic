@@ -222,3 +222,27 @@ func TestWriteDiagnostics_NothingToWrite(t *testing.T) {
 		})
 	}
 }
+
+// TestRenderers_RefuseNoWriter pins that both renderers refuse a nil writer
+// with an error rather than a panic, whether or not they have a line to write,
+// so a refusal does not depend on what the run reported.
+func TestRenderers_RefuseNoWriter(t *testing.T) {
+	t.Parallel()
+	full, _ := fullExplanation()
+	tests := []struct {
+		name   string
+		render func() error
+	}{
+		{"diagnostics", func() error {
+			return report.WriteDiagnostics(nil, []ir.Diagnostic{diag("c", ir.Provenance{})}, nil)
+		}},
+		{"no diagnostics", func() error { return report.WriteDiagnostics(nil, nil, nil) }},
+		{"an explanation", func() error { return report.WriteExplanation(nil, full) }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.EqualError(t, tt.render(), "report: no writer to write to")
+		})
+	}
+}

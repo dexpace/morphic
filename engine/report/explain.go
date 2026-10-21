@@ -72,8 +72,11 @@ func Explain(doc *ir.Document, diags []ir.Diagnostic, pointer jsontext.Pointer) 
 // WriteExplanation writes e to w as the lines --explain prints: the
 // coordinate, the node at it or a line saying none was interned, what interned
 // below it when anything did, and its diagnostics. It stops at the first write
-// that fails and returns that write's error.
+// that fails and returns that write's error, and refuses a nil w.
 func WriteExplanation(w io.Writer, e Explanation) error {
+	if w == nil {
+		return errNoWriter
+	}
 	lw := &lineWriter{w: w}
 	shown := string(e.Pointer)
 	if e.Pointer == "" {

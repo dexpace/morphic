@@ -159,7 +159,8 @@ typed, checked and documented where it is declared.
 
 The order lives in the `engine` package's default list, not in `pass/`: composing passes is
 orchestration, which only the engine does. The engine runs the list after any compile that produced
-a document, errors reported or not, and threads each pass's output into the next. An analysis that
+a document, errors reported or not, and over a document already compiled that a caller hands it
+(`RunDocument`), and threads each pass's output into the next. An analysis that
 judges the document runs after every transform, so `validate` comes last. It then checks what the
 run returns, every transform's output included, and its findings, whose `Provenance.Node` is spelled
 against the document it was handed, locate in that document. Running it first would give the

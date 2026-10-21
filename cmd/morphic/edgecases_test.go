@@ -284,3 +284,58 @@ func TestRun_PassFlagsSilenceTheValidatePass(t *testing.T) {
 		}
 	}
 }
+
+// firstWriteFails refuses its first write and keeps every write after it, so
+// a test can fail the diagnostics and still read what the run reported about
+// that.
+type firstWriteFails struct {
+	refused bool
+	text    bytes.Buffer
+}
+
+func (w *firstWriteFails) Write(p []byte) (int, error) {
+	if !w.refused {
+		w.refused = true
+		return 0, errors.New("pipe closed")
+	}
+	return w.text.Write(p)
+}
+
+// TestRun_DiagnosticsWriteFailureEndsTheRun pins that a stderr refusing the
+// diagnostics fails the run as a refused document does, on both commands: exit
+// 2 when the verdict earned 0, the verdict's own code otherwise, and the reason
+// reported after it. compile then writes no document, so nothing is published
+// beside findings nobody saw. A spec with no findings never asks the stream.
+func TestRun_DiagnosticsWriteFailureEndsTheRun(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		spec string
+		want int
+	}{
+		{"a finding below the threshold", warnSpec, exitFailure},
+		{"a finding at the threshold", errSpec, exitFindings},
+		{"no findings", testspec.Tiny, 0},
+	}
+	for _, command := range []string{"compile", "validate"} {
+		for _, tt := range tests {
+			t.Run(command+"/"+tt.name, func(t *testing.T) {
+				t.Parallel()
+				spec := writeFile(t, "spec.yaml", tt.spec)
+				var stdout bytes.Buffer
+				stderr := &firstWriteFails{}
+
+				code := run([]string{command, spec}, &stdout, stderr)
+
+				assert.Equal(t, tt.want, code, "stderr: %s", stderr.text.String())
+				if tt.want == 0 {
+					assert.False(t, stderr.refused, "a run with no findings writes no diagnostic")
+					assert.Equal(t, command == "compile", stdout.Len() > 0, "compile writes its document as usual")
+					return
+				}
+				assert.Equal(t, "morphic: write diagnostics: pipe closed\n", stderr.text.String())
+				assert.Empty(t, stdout.String(), "no document follows findings that were not reported")
+			})
+		}
+	}
+}

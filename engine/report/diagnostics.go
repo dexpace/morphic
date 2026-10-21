@@ -6,12 +6,16 @@
 package report
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"strconv"
 
 	"github.com/dexpace/morphic/ir"
 )
+
+// errNoWriter reports a renderer handed no writer to render to.
+var errNoWriter = errors.New("report: no writer to write to")
 
 // lineWriter writes formatted lines to w until one write fails, and keeps that
 // failure, so a renderer writing many lines reports the first and stops.
@@ -31,8 +35,12 @@ func (lw *lineWriter) printf(format string, args ...any) {
 // WriteDiagnostics writes each of diags to w, one per line, as
 // "<severity> <code><location>: <message>". sources is the table each
 // Provenance.Source indexes, a run's engine.Result.Sources. It stops at the
-// first write that fails and returns that write's error.
+// first write that fails and returns that write's error, and refuses a nil w
+// whether or not there is a line to write.
 func WriteDiagnostics(w io.Writer, diags []ir.Diagnostic, sources []ir.SourceInfo) error {
+	if w == nil {
+		return errNoWriter
+	}
 	lw := &lineWriter{w: w}
 	for _, d := range diags {
 		lw.printf("%s %s%s: %s\n", d.Severity, d.Code, location(sources, d.Provenance), d.Message)

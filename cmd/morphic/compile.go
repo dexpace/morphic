@@ -175,16 +175,17 @@ func specArgs(cmd *cobra.Command, args []string) error {
 // runPipeline runs the engine over specPath and renders every diagnostic the
 // run produced to stderr.
 //
-// A non-nil err means the run could not happen — the engine could not be built
-// or failed — and is an exit-2 failure. Otherwise code is the exit code the
-// engine's verdict calls for, and res holds the document, or is nil when the
-// spec lowered to none.
+// A non-nil err ends the run with its exit code: 2 when the run could not
+// happen, the engine not built or failed, and a refused diagnostics write as
+// writeFailureExit says, so no document follows findings nobody saw.
+// Otherwise code is the exit code the engine's verdict calls for, and res
+// holds the document, or is nil when the spec lowered to none.
 func runPipeline(
 	ctx context.Context, specPath string, opts specOptions, stderr io.Writer,
 ) (res *engine.Result, code int, err error) {
 	eng, err := newEngine()
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, failure(err)
 	}
 
 	res, err = eng.Run(ctx, specPath, engine.RunOptions{
@@ -193,14 +194,14 @@ func runPipeline(
 		FailOn:          engine.FailOn(opts.failOn),
 	})
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, failure(err)
 	}
 
-	// stderr is where a failed write would be reported, so it has nowhere to
-	// go, and the exit code stays the verdict's own (see emitf).
-	_ = report.WriteDiagnostics(stderr, res.Diagnostics, res.Sources)
 	if res.Failed {
 		code = exitFindings
+	}
+	if err := report.WriteDiagnostics(stderr, res.Diagnostics, res.Sources); err != nil {
+		return nil, 0, &exitError{code: writeFailureExit(code), err: fmt.Errorf("write diagnostics: %w", err)}
 	}
 	if res.Document == nil {
 		return nil, code, nil
@@ -213,7 +214,7 @@ func runPipeline(
 func compileSpec(cmd *cobra.Command, specPath string, opts compileOptions) error {
 	res, code, err := runPipeline(cmd.Context(), specPath, opts.specOptions, cmd.ErrOrStderr())
 	if err != nil {
-		return failure(err)
+		return err
 	}
 	if res == nil {
 		return exitWith(code)

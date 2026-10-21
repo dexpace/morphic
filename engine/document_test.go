@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/engine"
 	"github.com/dexpace/morphic/internal/testspec"
 	"github.com/dexpace/morphic/ir"
@@ -86,23 +87,98 @@ func TestEngine_RunDocumentLeavesTheDocumentAlone(t *testing.T) {
 	assert.Empty(t, doc.Diagnostics)
 }
 
+// notedDanglingCompiler lowers every source to danglingDocument, which is
+// stamped, with a finding of its own stored on it, so a run of it holds the
+// compile's finding and the validate pass's.
+type notedDanglingCompiler struct{ stubFront }
+
+func (notedDanglingCompiler) Compile(context.Context, []compilers.Source, compilers.Options) (*ir.Document, []ir.Diagnostic, error) {
+	doc := danglingDocument()
+	doc.Diagnostics = []ir.Diagnostic{
+		ir.NewDiagnostic(ir.SeverityWarning, "stub/note", "from the compile", ir.Provenance{Source: 0}),
+	}
+	return doc, nil, nil
+}
+
+// findingsSpec compiles to a document carrying the compiler's findings: an
+// error for the reference to a schema that is not there, and a note for the
+// validation-only keyword kept verbatim.
+const findingsSpec = `openapi: 3.1.0
+info: {title: Findings, version: "1"}
+paths:
+  /x:
+    get:
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json: {schema: {$ref: '#/components/schemas/Missing'}}
+components:
+  schemas:
+    S: {type: object, not: {required: [x]}}
+`
+
 // TestEngine_RunDocumentAgreesWithRun pins the use RunDocument exists for: a
-// document Run compiled, persisted and read back, runs to the findings Run
-// reported, each once, though the validate pass finds its own again.
+// document Run compiled, persisted and read back, runs to the verdict and the
+// findings Run reported, each once. The second row is the one that tells: the
+// validate pass finds its own finding again on the persisted document.
 func TestEngine_RunDocumentAgreesWithRun(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name     string
+		compiler func() (*engine.Engine, error)
+		spec     string
+		// passCode is a code the validate pass reported, or "" for none.
+		passCode string
+	}{
+		{"the compiler's findings", engine.New, findingsSpec, ""},
+		{"the validate pass's findings", func() (*engine.Engine, error) {
+			return engine.NewWith(notedDanglingCompiler{})
+		}, testspec.Tiny, "ir/dangling-type-ref"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			eng, err := tt.compiler()
+			require.NoError(t, err)
+			compiled, err := eng.Run(t.Context(), writeSpec(t, tt.spec), engine.RunOptions{})
+			require.NoError(t, err)
+			require.NotNil(t, compiled.Document)
+			require.NotEmpty(t, compiled.Diagnostics, "a run with no findings would agree vacuously")
+			if tt.passCode != "" {
+				require.True(t, hasDiagCode(compiled.Diagnostics, tt.passCode), "%+v", compiled.Diagnostics)
+			}
+
+			res, err := eng.RunDocument(t.Context(), roundTrip(t, compiled.Document), engine.RunOptions{})
+
+			require.NoError(t, err)
+			assert.Empty(t, cmp.Diff(compiled.Diagnostics, res.Diagnostics))
+			assert.Equal(t, compiled.Failed, res.Failed)
+			// An empty map round-trips as an absent one, which the encoding leaves out.
+			assert.Empty(t, cmp.Diff(compiled.Document, res.Document, cmpopts.EquateEmpty()))
+		})
+	}
+}
+
+// TestEngine_RunDocumentDoesNotAliasTheCallersFindings pins that the list a run
+// returns is its own even when the passes add nothing to the document's: an
+// append to it reaches neither the caller's document nor its spare capacity.
+func TestEngine_RunDocumentDoesNotAliasTheCallersFindings(t *testing.T) {
 	t.Parallel()
 	eng, err := engine.New()
 	require.NoError(t, err)
-	compiled, err := eng.Run(t.Context(), writeSpec(t, testspec.Tiny), engine.RunOptions{})
-	require.NoError(t, err)
-	require.NotNil(t, compiled.Document)
+	doc := danglingDocument()
+	own := ir.NewDiagnostic(ir.SeverityWarning, "stub/note", "from the compile", ir.Provenance{Source: 0})
+	doc.Diagnostics = make([]ir.Diagnostic, 1, 4)
+	doc.Diagnostics[0] = own
 
-	res, err := eng.RunDocument(t.Context(), roundTrip(t, compiled.Document), engine.RunOptions{})
-
+	res, err := eng.RunDocument(t.Context(), doc, engine.RunOptions{DisablePasses: []string{pass.ValidateName}})
 	require.NoError(t, err)
-	assert.Empty(t, cmp.Diff(compiled.Diagnostics, res.Diagnostics))
-	// An empty map round-trips as an absent one, which the encoding leaves out.
-	assert.Empty(t, cmp.Diff(compiled.Document, res.Document, cmpopts.EquateEmpty()))
+	res.Diagnostics = append(res.Diagnostics, own)
+	res.Diagnostics[0].Message = "changed"
+
+	assert.Equal(t, "from the compile", doc.Diagnostics[0].Message, "the caller's list is not the run's")
+	assert.Zero(t, doc.Diagnostics[:2][1], "nothing reached the caller's spare capacity")
 }
 
 // TestEngine_RunDocumentHonoursDisabledPasses pins that RunDocument takes
@@ -145,7 +221,7 @@ func TestEngine_RunDocumentRefusals(t *testing.T) {
 	}{
 		{"no document", built, false, nil, engine.RunOptions{}, "no document"},
 		{"another generation", built, false, stale, engine.RunOptions{}, `"0.0.1"`},
-		{"no generation", built, false, unstamped, engine.RunOptions{}, `IR version ""`},
+		{"no generation", built, false, unstamped, engine.RunOptions{}, "carries no IR version"},
 		{"format options", built, false, danglingDocument(),
 			engine.RunOptions{FormatOptions: struct{}{}}, "compiles nothing"},
 		{"compiler options", built, false, danglingDocument(),
@@ -154,6 +230,8 @@ func TestEngine_RunDocumentRefusals(t *testing.T) {
 			engine.RunOptions{FailOn: "fatal"}, "unknown fail-on threshold"},
 		{"an unbuilt engine", &engine.Engine{}, false, danglingDocument(), engine.RunOptions{}, "uninitialized"},
 		{"a cancelled context", built, true, danglingDocument(), engine.RunOptions{}, "context canceled"},
+		{"a cancelled context, every pass off", built, true, danglingDocument(),
+			engine.RunOptions{DisablePasses: []string{pass.ValidateName}}, "context canceled"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -169,6 +247,44 @@ func TestEngine_RunDocumentRefusals(t *testing.T) {
 			require.Error(t, err)
 			assert.Nil(t, res)
 			assert.Contains(t, err.Error(), tt.want)
+		})
+	}
+}
+
+// TestEngine_RunDocumentFailsOnAPassBreakingItsContract pins that RunDocument
+// holds the passes to their contract as Run does: one returning no document, or
+// moving an entry of the source table, fails the run naming it, and one that
+// cancels the run stops it before the next pass.
+func TestEngine_RunDocumentFailsOnAPassBreakingItsContract(t *testing.T) {
+	t.Parallel()
+	dropSources := sourcesPass{edit: func([]ir.SourceInfo) []ir.SourceInfo { return nil }}
+	tests := []struct {
+		name   string
+		passes func(t *testing.T, cancel context.CancelFunc) []pass.Pass
+		want   error
+	}{
+		{"no document", func(*testing.T, context.CancelFunc) []pass.Pass {
+			return []pass.Pass{nilPass{}}
+		}, engine.ErrNoDocument},
+		{"a source dropped", func(*testing.T, context.CancelFunc) []pass.Pass {
+			return []pass.Pass{dropSources}
+		}, engine.ErrSourcesMoved},
+		{"cancelled by a pass", func(t *testing.T, cancel context.CancelFunc) []pass.Pass {
+			return []pass.Pass{cancelPass{cancel: cancel}, unreachedPass{t: t, name: "after"}}
+		}, context.Canceled},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx, cancel := context.WithCancel(t.Context())
+			t.Cleanup(cancel)
+			eng, err := engine.NewWithPasses(tt.passes(t, cancel), collidingCompiler{})
+			require.NoError(t, err)
+
+			res, err := eng.RunDocument(ctx, danglingDocument(), engine.RunOptions{})
+
+			require.ErrorIs(t, err, tt.want)
+			assert.Nil(t, res)
 		})
 	}
 }

@@ -31,6 +31,9 @@ const (
 // errNoDocument reports a call handed no document to write.
 var errNoDocument = errors.New("output: no document to write")
 
+// errNoWriter reports a WriteDocument call handed no writer.
+var errNoWriter = errors.New("output: no writer to write to")
+
 // check refuses a call with no document or a layout this package does not
 // define; an unknown layout written as either would hide the caller's mistake.
 func check(doc *ir.Document, layout Layout) error {
@@ -46,7 +49,11 @@ func check(doc *ir.Document, layout Layout) error {
 // WriteDocument writes doc's IR JSON to w, laid out as layout and ending in a
 // newline. The document is encoded whole before any byte reaches w, so w
 // receives all of it or none: a document that will not marshal writes nothing.
+// A nil w is refused.
 func WriteDocument(w io.Writer, doc *ir.Document, layout Layout) error {
+	if w == nil {
+		return errNoWriter
+	}
 	if err := check(doc, layout); err != nil {
 		return err
 	}
