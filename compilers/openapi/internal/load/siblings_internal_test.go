@@ -384,36 +384,38 @@ paths:
 // TestLoad_ASiblingsExternalReferenceIsReadAsAnyOther pins that a reference
 // written beside a path item's $ref leaves the document through the load
 // phase's own reader: refused for a recursive anchor and past the byte budget,
-// and its findings kept at their own severity, each reported once, at the
-// reference.
+// each reported once at the reference, and a finding in what it reaches kept at
+// its own severity, reported once, in the document it is in.
 func TestLoad_ASiblingsExternalReferenceIsReadAsAnyOther(t *testing.T) {
 	t.Parallel()
-	const site = jsontext.Pointer("/paths/~1a/put/parameters/0")
+	site := ir.Provenance{Pointer: "/paths/~1a/put/parameters/0"}
 	param := "openapi: 3.1.0\ninfo: {title: X, version: \"1\"}\npaths: {}\ncomponents:\n  parameters:\n    Ext:\n"
 	cases := []struct {
 		name, target string
 		opts         Options
+		at           ir.Provenance
 		code         string
 		severity     ir.Severity
 		says         string
 	}{
 		{"recursive anchor", param + "      name: q\n      in: query\n      schema: &s {type: object, properties: {self: *s}}\n",
-			Options{}, diag.UnresolvedRef, ir.SeverityError, "recursive YAML anchor"},
+			Options{}, site, diag.UnresolvedRef, ir.SeverityError, "recursive YAML anchor"},
 		{"byte budget", param + "      name: q\n      in: query\n      description: " + strings.Repeat("x", len(siblingExternalMain)) + "\n",
-			Options{MaxSourceBytes: len(siblingExternalMain)}, diag.UnresolvedRef, ir.SeverityError, "byte budget"},
+			Options{MaxSourceBytes: len(siblingExternalMain)}, site, diag.UnresolvedRef, ir.SeverityError, "byte budget"},
 		{"duplicate key", param + "      name: q\n      in: query\n      schema: {type: string}\n      description: one\n      description: two\n",
-			Options{}, diag.Validation + "/validation-duplicate-key", ir.SeverityWarning, "duplicate"},
+			Options{}, ir.Provenance{Source: 1, Pointer: "/components/parameters/Ext/description"},
+			diag.Validation + "/validation-duplicate-key", ir.SeverityWarning, "more than once"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			var at []ir.Diagnostic
 			for _, d := range loadSiblingFixture(t, siblingExternalMain, tc.target, tc.opts) {
-				if d.Provenance.Pointer == site {
+				if d.Provenance.Source == tc.at.Source && d.Provenance.Pointer == tc.at.Pointer {
 					at = append(at, d)
 				}
 			}
-			require.Len(t, at, 1, "one finding, at the reference written beside the $ref")
+			require.Len(t, at, 1, "one finding, where it is placed")
 			assert.Equal(t, tc.code, at[0].Code)
 			assert.Equal(t, tc.severity, at[0].Severity)
 			assert.Contains(t, at[0].Message, tc.says)

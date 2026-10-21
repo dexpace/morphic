@@ -412,32 +412,32 @@ components:
 `
 
 // reachWantDiags is the exact diagnostic list
-// TestResolve_ValidatesWhatAnExternalReferenceReaches expects, with other.yaml
-// at otherPath: the findings in the order of the sites that reached them, then
-// the repeat /z's list writes by naming P twice.
-func reachWantDiags(otherPath string) []ir.Diagnostic {
-	at := func(code, message, pointer string) ir.Diagnostic {
+// TestResolve_ValidatesWhatAnExternalReferenceReaches expects: the findings,
+// each placed in other.yaml's entry at the node it is about, in the order of
+// the sites that reached them, then the repeat /z's list writes by naming P
+// twice.
+func reachWantDiags() []ir.Diagnostic {
+	at := func(code, message, pointer string, line, column int) ir.Diagnostic {
 		return ir.Diagnostic{
-			Severity: ir.SeverityError, Code: diag.Validation + "/" + code,
-			Message:    message + " of " + otherPath,
-			Provenance: ir.Provenance{Source: 0, Pointer: jsontext.Pointer(pointer)},
+			Severity: ir.SeverityError, Code: diag.Validation + "/" + code, Message: message,
+			Provenance: ir.Provenance{Source: 1, Pointer: jsontext.Pointer(pointer),
+				Position: ir.Position{Line: line, Column: column}},
 		}
 	}
 	return []ir.Diagnostic{
 		at("validation-type-mismatch",
-			`Schema Object field "minProperties" must be a non-negative integer in OpenAPI 3.1 (Schema Object), at 31:22`,
-			"/components/schemas/S"),
-		at("validation-type-mismatch",
-			`Schema Object field "deprecated" must be a boolean in OpenAPI 3.1 (Schema Object), at 32:19`,
-			"/components/schemas/S"),
-		at("validation-required-field",
-			`Parameter Object field "in" is REQUIRED in OpenAPI 3.1 (Parameter Object), at 10:11`, "/paths/~1x"),
+			`Schema Object field "minProperties" must be a non-negative integer in OpenAPI 3.1 (Schema Object)`,
+			"/components/schemas/Bad/minProperties", 31, 22),
+		at("validation-type-mismatch", `Schema Object field "deprecated" must be a boolean in OpenAPI 3.1 (Schema Object)`,
+			"/components/schemas/Bad/deprecated", 32, 19),
+		at("validation-required-field", `Parameter Object field "in" is REQUIRED in OpenAPI 3.1 (Parameter Object)`,
+			"/paths/~1x/get/parameters/0", 10, 11),
 		at("validation-allowed-values",
 			`Parameter Object field "in" must be one of "query", "header", "path", "cookie" in OpenAPI 3.1 `+
-				`(Parameter Object), at 21:22`, "/paths/~1z/get/parameters/0"),
+				`(Parameter Object)`, "/components/parameters/P/in", 21, 22),
 		at("validation-type-mismatch",
-			`Schema Object field "minLength" must be a non-negative integer in OpenAPI 3.1 (Schema Object), at 27:45`,
-			"/paths/~1z/get/responses/200"),
+			`Schema Object field "minLength" must be a non-negative integer in OpenAPI 3.1 (Schema Object)`,
+			"/components/responses/R/content/application~1json/schema/minLength", 27, 45),
 		{
 			Severity:   ir.SeverityError,
 			Code:       diag.DuplicateParameter,
@@ -458,12 +458,14 @@ func TestResolve_ValidatesWhatAnExternalReferenceReaches(t *testing.T) {
 
 	_, diags := loadExternal(t, dir, reachRootFixture, Options{})
 
-	if d := cmp.Diff(reachWantDiags(filepath.Join(dir, "other.yaml")), diags); d != "" {
+	if d := cmp.Diff(reachWantDiags(), diags); d != "" {
 		t.Errorf("diagnostics did not match (-want +got):\n%s", d)
 	}
 	for _, d := range diags {
-		assert.NotContains(t, d.Message, "17:25", "/unreached's own finding must not appear: %+v", d)
-		assert.NotContains(t, d.Message, "21:40", "the numeric literal must not appear: %+v", d)
+		assert.NotEqual(t, ir.Position{Line: 17, Column: 25}, d.Provenance.Position,
+			"/unreached's own finding must not appear: %+v", d)
+		assert.NotEqual(t, ir.Position{Line: 21, Column: 40}, d.Provenance.Position,
+			"the numeric literal must not appear: %+v", d)
 	}
 }
 
@@ -579,8 +581,8 @@ components:
 // TestResolve_EveryKindOfObjectIsValidated reaches each kind of object a $ref
 // names that the other tests do not, a header, request body, callback,
 // example, link and security scheme, each with a defect only its own table
-// entry finds. Each finding is reported at its $ref, under the rule and
-// severity the table gives it.
+// entry finds. Each finding is placed in other.yaml's entry at the node it is
+// about, under the rule and severity the table gives it.
 func TestResolve_EveryKindOfObjectIsValidated(t *testing.T) {
 	t.Parallel()
 	root := `openapi: 3.1.0
@@ -620,16 +622,16 @@ components:
 
 	got := make([]string, 0, len(diags))
 	for _, d := range diags {
-		got = append(got, fmt.Sprintf("%s %s %s", d.Provenance.Pointer, d.Severity, d.Code))
+		got = append(got, fmt.Sprintf("%d %s %s %s", d.Provenance.Source, d.Provenance.Pointer, d.Severity, d.Code))
 	}
 	want := []string{
-		"/components/securitySchemes/s error openapi/validation/validation-allowed-values",
-		"/paths/~1a/get/callbacks/cb error openapi/validation/validation-invalid-format",
-		"/paths/~1a/get/requestBody error openapi/validation/validation-type-mismatch",
-		"/paths/~1a/get/responses/200/content/application~1json/examples/e error " +
-			"openapi/validation/validation-mutually-exclusive-fields",
-		"/paths/~1a/get/responses/200/headers/X error openapi/validation/validation-allowed-values",
-		"/paths/~1a/get/responses/200/links/l error openapi/validation/validation-mutually-exclusive-fields",
+		"1 /components/securitySchemes/S/type error openapi/validation/validation-allowed-values",
+		"1 /components/callbacks/C/{$bogus error openapi/validation/validation-invalid-format",
+		"1 /components/requestBodies/B/content/application~1json/schema/minLength error " +
+			"openapi/validation/validation-type-mismatch",
+		"1 /components/examples/E error openapi/validation/validation-mutually-exclusive-fields",
+		"1 /components/headers/H/style error openapi/validation/validation-allowed-values",
+		"1 /components/links/L error openapi/validation/validation-mutually-exclusive-fields",
 	}
 	if d := cmp.Diff(want, got); d != "" {
 		t.Errorf("findings (-want +got):\n%s", d)
@@ -639,9 +641,9 @@ components:
 // TestResolve_AnObjectReachedTwiceIsReportedOnce covers the ways one node can
 // be reached more than once: two $refs to one component, a container reached
 // beside something inside it, at the lesser $ref and at the greater, and one
-// node read as two kinds. Each root declares first the $ref that does not sort
-// first, so a report placed in walk order lands at the wrong one. Inside a
-// container, an object is validated twice and its finding reported once.
+// node read as two kinds. Each finding is placed at its node in other.yaml,
+// whichever $ref is declared first. Inside a container, an object is validated
+// twice, and charged twice, and its finding reported once.
 func TestResolve_AnObjectReachedTwiceIsReportedOnce(t *testing.T) {
 	t.Parallel()
 	compile := func(t *testing.T, other, root string, opts Options) []ir.Diagnostic {
@@ -650,7 +652,7 @@ func TestResolve_AnObjectReachedTwiceIsReportedOnce(t *testing.T) {
 		return diags
 	}
 
-	t.Run("two refs to one component report once, at the lesser", func(t *testing.T) {
+	t.Run("two refs to one component report once, at the node", func(t *testing.T) {
 		t.Parallel()
 		other := `openapi: 3.1.0
 info: {title: O, version: "1"}
@@ -670,8 +672,8 @@ paths:
 		diags := compile(t, other, root, Options{})
 
 		require.Len(t, diags, 1, "%+v", diags)
-		assert.Equal(t, jsontext.Pointer("/paths/~1a/get/parameters/0"), diags[0].Provenance.Pointer,
-			"reported at the lesser $ref, not the one declared first")
+		assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/components/parameters/P/in",
+			Position: ir.Position{Line: 6, Column: 22}}, diags[0].Provenance)
 	})
 
 	other := `openapi: 3.1.0
@@ -698,13 +700,12 @@ paths:
   /a: {$ref: "./other.yaml#/paths/~1x"}
 `
 
-	t.Run("a container at the lesser $ref keeps the finding of what it holds", func(t *testing.T) {
+	t.Run("a container at the lesser $ref and what it holds report once", func(t *testing.T) {
 		t.Parallel()
 		diags := compile(t, other, containedFirst, Options{})
 
-		require.Len(t, diags, 1, "%+v", diags)
-		assert.Equal(t, jsontext.Pointer("/paths/~1a"), diags[0].Provenance.Pointer,
-			"the container's own finding; the parameter it holds draws it again, and that copy is dropped")
+		require.Len(t, diags, 1, "the parameter the container holds draws it again, and that copy is dropped: %+v", diags)
+		assert.Equal(t, jsontext.Pointer("/paths/~1x/get/parameters/0/in"), diags[0].Provenance.Pointer)
 	})
 
 	t.Run("what a container holds is charged again", func(t *testing.T) {
@@ -713,13 +714,13 @@ paths:
 
 		require.Len(t, diags, 2, "the container fits this budget and its parameter, charged again, "+
 			"does not: %+v", diags)
-		assert.Equal(t, jsontext.Pointer("/paths/~1a"), diags[0].Provenance.Pointer)
+		assert.Equal(t, jsontext.Pointer("/paths/~1x/get/parameters/0/in"), diags[0].Provenance.Pointer)
 		assert.Equal(t, diag.Validation+"/validation-allowed-values", diags[0].Code)
 		assert.Equal(t, jsontext.Pointer("/paths/~1b/get/parameters/0"), diags[1].Provenance.Pointer)
 		assert.Equal(t, diag.BudgetExceeded, diags[1].Code)
 	})
 
-	t.Run("what a container spans but does not read is validated at its own $ref", func(t *testing.T) {
+	t.Run("what a container spans but does not read is validated through its own $ref", func(t *testing.T) {
 		t.Parallel()
 		other := `paths:
   /x:
@@ -735,7 +736,7 @@ paths:
 		diags := compile(t, other, root, Options{})
 
 		require.Len(t, diags, 1, "the path item at /a holds the parameter but never reads it: %+v", diags)
-		assert.Equal(t, jsontext.Pointer("/paths/~1b/get/parameters/0"), diags[0].Provenance.Pointer)
+		assert.Equal(t, jsontext.Pointer("/paths/~1x/x-shared/in"), diags[0].Provenance.Pointer)
 		assert.Equal(t, diag.Validation+"/validation-allowed-values", diags[0].Code)
 	})
 
@@ -757,12 +758,13 @@ components:
 		for _, d := range diags {
 			sites[d.Provenance.Pointer] = append(sites[d.Provenance.Pointer], d.Message)
 		}
-		require.Len(t, sites["/paths/~1a/get/responses/200"], 1, "read as a response: %+v", diags)
-		assert.Contains(t, sites["/paths/~1a/get/responses/200"][0], `Schema Object field "minLength"`)
-		assert.NotEmpty(t, sites["/components/schemas/S"], "read as a schema, type: 42 is a finding: %+v", diags)
+		const minLength = "/components/responses/R/content/application~1json/schema/minLength"
+		require.Len(t, sites[minLength], 1, "read as a response: %+v", diags)
+		assert.Contains(t, sites[minLength][0], `Schema Object field "minLength"`)
+		assert.NotEmpty(t, sites["/components/responses/R/type"], "read as a schema, type: 42 is a finding: %+v", diags)
 	})
 
-	t.Run("a contained object at the lesser $ref keeps its finding there", func(t *testing.T) {
+	t.Run("a contained object at the lesser $ref and its container report once", func(t *testing.T) {
 		t.Parallel()
 		root := `openapi: 3.1.0
 info: {title: T, version: "1"}
@@ -777,15 +779,14 @@ paths:
 `
 		diags := compile(t, other, root, Options{})
 
-		require.Len(t, diags, 1, "%+v", diags)
-		assert.Equal(t, jsontext.Pointer("/paths/~1a/get/parameters/0"), diags[0].Provenance.Pointer,
-			"the parameter's own finding; the container draws it again, and that copy is dropped")
+		require.Len(t, diags, 1, "the container draws it again, and that copy is dropped: %+v", diags)
+		assert.Equal(t, jsontext.Pointer("/paths/~1x/get/parameters/0/in"), diags[0].Provenance.Pointer)
 	})
 }
 
 // TestResolve_ReachedSitesDoNotDependOnDeclarationOrder compiles one source as
 // written and with its paths and parameters reversed, and requires the same
-// reports. Placed in walk order, a finding moves with the declarations. The
+// reports, each at its node in other.yaml whichever $ref reached it first. The
 // shapes: a component two paths reach, a container at the lesser $ref and one
 // at the greater, and an internal $ref whose chain leaves the source, which
 // sorts before the external $ref it chains to.
@@ -844,11 +845,11 @@ components:
 		sites = append(sites, code+" "+site)
 	}
 	assert.Equal(t, []string{
-		"openapi/validation/validation-allowed-values /components/parameters/Q",    // P2: Q chains to R's target
-		"openapi/validation/validation-allowed-values /paths/~1a/get/parameters/0", // P: the lesser of /a and /b
-		"openapi/validation/validation-allowed-values /paths/~1c/get/parameters/0", // q: held by /d, reached at /c
-		"openapi/validation/validation-allowed-values /paths/~1e",                  // r: /e holds what /f reaches
-		"openapi/validation/validation-required-field /components/parameters/Q",    // P2, as resolution places it
+		"openapi/validation/validation-allowed-values /components/parameters/P/in",    // P: /a and /b reach it
+		"openapi/validation/validation-allowed-values /components/parameters/P2/in",   // P2: Q chains to R's target
+		"openapi/validation/validation-allowed-values /paths/~1x/get/parameters/0/in", // q: held by /d, reached at /c
+		"openapi/validation/validation-allowed-values /paths/~1y/get/parameters/0/in", // r: /e holds what /f reaches
+		"openapi/validation/validation-required-field /components/parameters/P2",      // P2 writes no name
 	}, sites)
 }
 
@@ -916,7 +917,7 @@ components:
 
 // TestResolve_AReachedSchemaIsHeldToTheSourcesMinor: Pet's defaultMapping is a
 // keyword 3.2 defines, so S, reached from a 3.2 source, reports nothing, while
-// B's type: 42 is reported beside it. The second case reaches the same keyword
+// the type: 42 of Broken, which B reaches, is reported beside it. The second case reaches the same keyword
 // nested in a path item rather than as the object itself.
 func TestResolve_AReachedSchemaIsHeldToTheSourcesMinor(t *testing.T) {
 	t.Parallel()
@@ -928,10 +929,10 @@ func TestResolve_AReachedSchemaIsHeldToTheSourcesMinor(t *testing.T) {
 		_, diags := loadExternal(t, dir, v32RootFixture, Options{})
 
 		for _, d := range diags {
-			assert.Equal(t, jsontext.Pointer("/components/schemas/B"), d.Provenance.Pointer,
+			assert.Equal(t, jsontext.Pointer("/components/schemas/Broken/type"), d.Provenance.Pointer,
 				"S's defaultMapping is a 3.2 keyword and reports nothing: %+v", d)
 		}
-		assert.NotEmpty(t, diags, "B's type: 42 is a defect")
+		assert.NotEmpty(t, diags, "Broken's type: 42 is a defect")
 	})
 
 	t.Run("the same keyword nested inside a reached path item", func(t *testing.T) {
@@ -1053,7 +1054,7 @@ func nestedRoot(paths []string) string {
 
 // TestResolve_ReachedValidationIsBudgeted runs nestedRootPaths under three
 // budgets. At 151 nodes (150 + 1) the parameter's finding is reported once,
-// from /a, the path item at /b, which charges those nodes again, is refused
+// reached from /a, the path item at /b, which charges those nodes again, is refused
 // as budget-exceeded, and Small at /c is not validated, in either declaration
 // order. The three total 206 nodes, so 206 (205 + 1) admits all of them where
 // MaxSourceNodes alone, 205, would not: that boundary is what shows the alias
@@ -1071,7 +1072,7 @@ func TestResolve_ReachedValidationIsBudgeted(t *testing.T) {
 
 		require.Len(t, diags, 2, "exactly two: Small's document is already over budget, so neither "+
 			"its finding nor a second budget-exceeded is reported: %+v", diags)
-		assert.Equal(t, jsontext.Pointer("/paths/~1a/get/parameters/0"), diags[0].Provenance.Pointer)
+		assert.Equal(t, jsontext.Pointer("/paths/~1x/get/parameters/0/in"), diags[0].Provenance.Pointer)
 		assert.Equal(t, diag.Validation+"/validation-allowed-values", diags[0].Code)
 
 		assert.Equal(t, diag.BudgetExceeded, diags[1].Code)
@@ -1099,9 +1100,10 @@ func TestResolve_ReachedValidationIsBudgeted(t *testing.T) {
 			_, diags := loadExternal(t, dir, nestedRootFixture, opts)
 
 			require.Len(t, diags, 2, "%+v", diags)
-			assert.Equal(t, jsontext.Pointer("/paths/~1a/get/parameters/0"), diags[0].Provenance.Pointer)
+			assert.Equal(t, jsontext.Pointer("/paths/~1x/get/parameters/0/in"), diags[0].Provenance.Pointer)
 			assert.Equal(t, diag.Validation+"/validation-allowed-values", diags[0].Code)
-			assert.Equal(t, jsontext.Pointer("/paths/~1c/get/responses/200"), diags[1].Provenance.Pointer)
+			assert.Equal(t, jsontext.Pointer("/components/responses/Small/content/application~1json/schema/minLength"),
+				diags[1].Provenance.Pointer)
 			assert.Equal(t, diag.Validation+"/validation-type-mismatch", diags[1].Code)
 		})
 	}
@@ -1147,7 +1149,7 @@ func respelledRoot(scheme, host string) string {
 // recovered document, and validateReached, run once on the document resolve
 // returns, must find it exactly once. other.yaml is served over HTTP so the
 // spelling is the one difference between the runs, which must report the same
-// diagnostics, the document's name aside: each finding once, at /x.
+// diagnostics: each finding once, placed in other.yaml at its node.
 func TestResolve_ValidatesOnceAfterARebuild(t *testing.T) {
 	t.Parallel()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -1173,23 +1175,21 @@ func TestResolve_ValidatesOnceAfterARebuild(t *testing.T) {
 	if d := cmp.Diff(notRebuilt, rebuilt, respelled); d != "" {
 		t.Errorf("the diagnostics must be identical whether or not a rebuild ran (-not-rebuilt +rebuilt):\n%s", d)
 	}
+	made := map[string]bool{}
+	recovered := 0
 	for _, d := range rebuilt {
-		assert.Equal(t, jsontext.Pointer("/paths/~1x"), d.Provenance.Pointer,
-			"every finding is reported once, at the first $ref that reaches it: %+v", d)
-	}
-
-	count8_25 := 0
-	for _, d := range rebuilt {
-		if strings.Contains(d.Message, "8:25") {
-			count8_25++
-			assert.Equal(t, jsontext.Pointer("/paths/~1x"), d.Provenance.Pointer)
+		assert.Equal(t, 1, d.Provenance.Source, "placed in other.yaml, where its node is: %+v", d)
+		key := fmt.Sprint(d.Code, d.Provenance, d.Message)
+		assert.False(t, made[key], "made once: %+v", d)
+		made[key] = true
+		assert.False(t, strings.HasPrefix(string(d.Provenance.Pointer), "/paths/~1unreached"),
+			"/unreached must not be validated: %+v", d)
+		if d.Provenance.Position == (ir.Position{Line: 8, Column: 25}) {
+			recovered++
+			assert.Equal(t, jsontext.Pointer("/paths/~1x/get/parameters/0/in"), d.Provenance.Pointer)
 		}
 	}
-	assert.Equal(t, 1, count8_25, "the recovered get's own finding, exactly once: %+v", rebuilt)
-
-	for _, d := range rebuilt {
-		assert.NotContains(t, d.Message, "in: nowhere", "/unreached must not be validated: %+v", d)
-	}
+	assert.Equal(t, 1, recovered, "the recovered get's own finding, exactly once: %+v", rebuilt)
 }
 
 // markerPosition returns the line and column, both counted from 1, at which
@@ -1459,7 +1459,7 @@ func TestResolve_AnObjectTheSourceDeclaresIsNotChargedToTheBudget(t *testing.T) 
 // operations checked. An object
 // reached both itself and inside another reached object draws each warning
 // once. A 3.2 document draws none; another document's object is held to the
-// source's version, reported at the $ref that reaches it (GitHub #839).
+// source's version (GitHub #839), each warning placed at its pointer there.
 func TestResolve_AReachedObjectIsHeldToTheLaterVersionTable(t *testing.T) {
 	t.Parallel()
 	const later = " openapi/later-version-construct"
@@ -1523,6 +1523,8 @@ func TestResolve_AReachedObjectIsHeldToTheLaterVersionTable(t *testing.T) {
 		dir := externalDir(t, map[string]string{"other.yaml": pet})
 		_, diags := loadExternal(t, dir, "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\n"+
 			"components:\n  schemas:\n    Ref: {$ref: 'other.yaml#/x-lib/Pet'}\n    Cat: {type: object}\n", Options{})
-		assert.Empty(t, cmp.Diff([]string{"/components/schemas/Ref" + later}, diagLines(diags)), "%+v", diags)
+		assert.Empty(t, cmp.Diff([]string{"/x-lib/Pet/discriminator/defaultMapping" + later}, diagLines(diags)), "%+v", diags)
+		require.Len(t, diags, 1)
+		assert.Equal(t, 1, diags[0].Provenance.Source, "placed in other.yaml's entry")
 	})
 }

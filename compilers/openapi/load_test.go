@@ -124,8 +124,8 @@ func TestCompile_AResolutionFailureIsReportedOnceAtItsRef(t *testing.T) {
 // TestCompile_AFindingInASchemaOnlyAnotherDocumentReachesIsPlacedThere pins
 // where the validation of a schema built for raw YAML is reported when only
 // another document's content reaches it, through a parameter that document
-// declares: at that document's $ref reaching it, in its Document.Sources
-// entry, never at the same pointer in the source, which holds nothing there.
+// declares: in that document's Document.Sources entry, at the keyword it is
+// about, never at the same pointer in the source, which holds nothing there.
 func TestCompile_AFindingInASchemaOnlyAnotherDocumentReachesIsPlacedThere(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
@@ -143,17 +143,17 @@ func TestCompile_AFindingInASchemaOnlyAnotherDocumentReachesIsPlacedThere(t *tes
 
 	require.NotEmpty(t, diags)
 	for _, d := range diags {
-		assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/components/parameters/P/schema"}, d.Provenance, "%+v", d)
+		assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/x-lib/B/minLength", Position: ir.Position{Line: 5, Column: 32}},
+			d.Provenance, "%+v", d)
 		assert.True(t, strings.HasPrefix(d.Code, diag.Validation+"/"), "%+v", d)
 	}
 }
 
-// TestCompile_AFindingInAnExternalDocumentKeepsItsRule is the #537 repro: a
-// finding the parser's validation makes inside a document reached only through
-// an external $ref keeps its own rule and severity, reported at the $ref rather
-// than as an unresolved reference, with its position in that document in the
-// message. Placing it in that document's own Document.Sources entry is GitHub
-// #1030.
+// TestCompile_AFindingInAnExternalDocumentKeepsItsRule is the #537 and #1030
+// repro: a finding inside a document reached only through an external $ref
+// keeps its own rule and severity, rather than reading as an unresolved
+// reference, and is placed in that document's own Document.Sources entry, at
+// the node it is about.
 func TestCompile_AFindingInAnExternalDocumentKeepsItsRule(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
@@ -171,10 +171,19 @@ func TestCompile_AFindingInAnExternalDocumentKeepsItsRule(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 
-	msg := openapitest.DiagMessageAt(t, diags, diag.Validation+"/validation-required-field", ir.SeverityError, "/paths/~1x")
-	assert.Contains(t, msg, `Parameter Object field "in" is REQUIRED`)
-	assert.True(t, strings.HasSuffix(msg, ", at 7:11 of "+filepath.Join(dir, "other.yaml")),
-		"its position, in the document it is in: %q", msg)
+	var found []ir.Diagnostic
+	for _, d := range diags {
+		if d.Code == diag.Validation+"/validation-required-field" {
+			found = append(found, d)
+		}
+	}
+	require.Len(t, found, 1, "%+v", diags)
+	assert.Equal(t, ir.SeverityError, found[0].Severity)
+	assert.Equal(t, `Parameter Object field "in" is REQUIRED in OpenAPI 3.1 (Parameter Object)`, found[0].Message)
+	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/paths/~1y/get/parameters/0", Position: ir.Position{Line: 7, Column: 11}},
+		found[0].Provenance)
+	require.Len(t, doc.Sources, 2)
+	assert.Equal(t, filepath.Join(dir, "other.yaml"), doc.Sources[1].Path, "the document it is in")
 }
 
 // TestLoad_RecoverableLiteralAmongOtherScalarsIsNotAFinding pins that a schema

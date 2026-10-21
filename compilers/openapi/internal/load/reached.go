@@ -34,8 +34,10 @@ type reached struct {
 	// esc holds the $refs rewritten for the resolver to read, which a message
 	// names as the source writes them (GitHub #911).
 	esc *escapes
-	// tree places a finding about a node of the source (see reachedLocator).
-	tree sourceTree
+	// tree places a finding about a node of the source (see reachedLocator),
+	// and others one about another document's (see locatorFor).
+	tree   sourceTree
+	others Others
 	// seen holds the objects the source's own check read as their kind.
 	seen map[objectKey]bool
 	// reported holds every finding already reported, the source's own included.
@@ -49,8 +51,9 @@ type reached struct {
 // reachedTarget is an object the source's references reach: the least pointer
 // among the $refs reaching it, the kind they expect it to be, the node it is
 // written as, the document it is in, as findingPlace names it, and whether that
-// is the source. place places a finding at site where another document writes
-// that $ref, named siteDoc, and is nil where the source does.
+// is the source, or else the name a reference reads it by (held). place places
+// a finding at site where another document writes that $ref, named siteDoc,
+// and is nil where the source does.
 type reachedTarget struct {
 	site     jsontext.Pointer
 	siteDoc  string
@@ -58,6 +61,7 @@ type reachedTarget struct {
 	node     *yaml.Node
 	doc      string
 	inSource bool
+	held     string
 	place    func(jsontext.Pointer) ir.Provenance
 }
 
@@ -74,7 +78,7 @@ func validateReached(ctx context.Context, at func(jsontext.Pointer) ir.Provenanc
 	sibs Siblings, opts Options, self sourceDocument, away []awayRef,
 ) []ir.Diagnostic {
 	checks := newReached(doc, opts, self.tree, self.judged)
-	checks.esc = self.escapes
+	checks.esc, checks.others = self.escapes, b.others
 	table := b.bindings.Table()
 	targets := builtTargets(b.built, b.placer(at), func(id bind.DocID) string { return table.Document(id).Name })
 	for _, a := range away {
@@ -100,6 +104,9 @@ func builtTargets(built []typed.Built, place func(bind.Position) ir.Provenance, 
 		node := nodeview.Deref(b.Schema.GetSchema().GetRootNode())
 		t := reachedTarget{site: b.Landing.Site.Pointer, kind: oas.Schema, node: node,
 			doc: b.Landing.Name, inSource: b.Landing.At.Doc == bind.Source}
+		if at := b.Landing.At; at.Doc != bind.Source {
+			t.held = name(at.Doc)
+		}
 		if site := b.Landing.Site; site.Doc != bind.Source {
 			t.siteDoc = name(site.Doc)
 			t.place = func(p jsontext.Pointer) ir.Provenance { return place(bind.Position{Doc: site.Doc, Pointer: p}) }
@@ -177,13 +184,18 @@ func kindOf(r resolvable) (oas.Kind, bool) {
 // as another kind, neither of which the source's check read as that kind. What
 // it did read, dropSeen drops.
 func targetOf(site jsontext.Pointer, r resolvable, esc *escapes) (reachedTarget, bool) {
-	t := esc.trailOf(resolutionChain(r))
+	c := resolutionChain(r)
+	t := esc.trailOf(c)
 	node, ok := reachedNode(r)
 	kind, known := kindOf(r)
 	if !ok || !known {
 		return reachedTarget{}, false
 	}
-	return reachedTarget{site: site, kind: kind, node: node, doc: findingPlace(t), inSource: t.endsInSource}, true
+	target := reachedTarget{site: site, kind: kind, node: node, doc: findingPlace(t), inSource: t.endsInSource}
+	if n := len(c.records); n > 0 {
+		target.held = c.records[n-1].path
+	}
+	return target, true
 }
 
 // dropSeen drops each target in the source that the source's own check read as
@@ -246,8 +258,7 @@ func (v *reached) check(site ir.Provenance, t reachedTarget) []ir.Diagnostic {
 	if d, over := v.charge(site, t.doc, t.node); over {
 		return d
 	}
-	found := v.checker.Check(t.node, v.version, oas.Options{Start: t.kind, Budget: v.limit,
-		Locate: v.tree.reachedLocator(t.node)})
+	found := v.checker.Check(t.node, v.version, oas.Options{Start: t.kind, Budget: v.limit, Locate: v.locatorFor(t)})
 	var diags []ir.Diagnostic
 	for _, d := range found {
 		if key := identity(d, t.doc); !v.reported[key] {
@@ -256,6 +267,18 @@ func (v *reached) check(site ir.Provenance, t reachedTarget) []ir.Diagnostic {
 		}
 	}
 	return diags
+}
+
+// locatorFor returns where a finding about t's object is placed: where the
+// source's tree holds the node it is about; else in the Document.Sources entry
+// of the document holding the object, at the node's pointer there (GitHub
+// #1030); and, for a document no entry lists, nowhere yet, marked foreign for
+// placeAt to put at the $ref.
+func (v *reached) locatorFor(t reachedTarget) oas.Locator {
+	if locate, listed := v.others.locator(t.held); listed && !t.inSource {
+		return walkedFrom(t.node, locate)
+	}
+	return v.tree.reachedLocator(t.node)
 }
 
 // charge counts what checking the object at node spans against doc's budget,

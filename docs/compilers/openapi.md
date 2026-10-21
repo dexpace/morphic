@@ -173,10 +173,12 @@ to that rule.
 The source is read as it writes it, an applied overlay's patch included, each object as the kind
 its position gives it. An object a `$ref` reaches that the source's own reading did not take as
 that kind, one under an `x-` key or in another document, is read as the kind the reference
-expects and held to the source's minor. A finding about it stays at its node where the source holds
-that node, and otherwise goes to the least `$ref` reaching it, its message naming where in which
-document it lies. Each finding is made once: a node an alias or a merge key mounts at several
-positions draws one, placed where the node is written and naming the position that first read it.
+expects and held to the source's minor. A finding about it is placed at its node, in the entry of
+`Document.Sources` for the document that writes that node, a file the source spells two ways being
+one document. One about a node of a document no entry lists goes to the least `$ref` reaching it,
+its message naming where in that document it lies. Each finding is made once: a node an alias or a
+merge key mounts at several positions draws one, placed where the node is written and naming the
+position that first read it.
 
 A rule another lowering reports is stated in the table and left to it, so a document draws one
 report: [`operation-ids`](#operation-ids), a repeated parameter ([`parameters`](#parameters)), a
@@ -204,11 +206,11 @@ gives it no effect is [`allow-reserved-locations`](#allow-reserved-locations)' a
   `load.TestJudgeSource_RefusesTheAnchorsNoReferenceCanName`,
   `load.TestLoad_WhatAnAliasMountsIsReportedOnce`,
   `load.TestResolve_AnObjectReachedTwiceIsReportedOnce`,
+  `load.TestResolve_AFileSpelledTwoWaysPlacesAFindingOnce`,
   `openapi.TestCompile_AFindingInAnExternalDocumentKeepsItsRule`,
   `canary.TestValidationOracle_AgreesWithTheLibrary`
-- Status: partly built: a finding about content another document holds is placed at the `$ref` that
-  reaches it, naming its position there in the message (#1030). Open: which minor governs a document
-  a reference reaches, held to the source's until it is settled (#839).
+- Status: partly built: a document a reference reaches is held to the source's minor until which
+  minor governs it is settled (#839).
 
 ### `minor-required-fields`
 

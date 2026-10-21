@@ -546,8 +546,8 @@ paths:
 `
 
 // TestResolveExternal_TwoRefsToOneTargetReportItsFindingOnce pins that a finding
-// in a target two $refs reach is reported once, at the lesser pointer, with or
-// without a rebuild. /w reads the document first, so the library builds /x's
+// in a target two $refs reach is reported once, at its node, with or without a
+// rebuild. /w reads the document first, so the library builds /x's
 // target from bytes it already holds, and caches no object built that way: it
 // builds the target again for /y, which the reached check's identity of a
 // finding keeps from a second report.
@@ -584,8 +584,8 @@ func TestResolveExternal_TwoRefsToOneTargetReportItsFindingOnce(t *testing.T) {
 				sites = append(sites, d.Provenance.Pointer)
 			}
 		}
-		assert.Equal(t, []jsontext.Pointer{"/paths/~1x"}, sites,
-			"%s: the finding is reported once, at the lesser of the $refs that reach it", name)
+		assert.Equal(t, []jsontext.Pointer{"/paths/~1x/put/parameters/0"}, sites,
+			"%s: the finding is reported once, at its node", name)
 	}
 }
 

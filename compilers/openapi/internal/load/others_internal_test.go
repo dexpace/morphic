@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
@@ -78,6 +79,32 @@ func TestOthers_NamesADocumentByEverySpellingItIsReadUnder(t *testing.T) {
 	}
 	_, ok := Others{}.At(1)
 	assert.False(t, ok, "an empty list holds no index")
+}
+
+// TestPointersIn_PlacesANodeInWhicheverTreeHoldsIt pins the pointers of a
+// document read prepared under two keys, each its own tree: a node of either is
+// placed where it is written, an alias's target where the anchor is, and a
+// node neither holds has no pointer, so it is placed by its position alone.
+func TestPointersIn_PlacesANodeInWhicheverTreeHoldsIt(t *testing.T) {
+	t.Parallel()
+	trees := map[string]*yaml.Node{}
+	for _, key := range []string{"a.yaml", "./a.yaml"} {
+		var tree yaml.Node
+		require.NoError(t, yaml.Unmarshal([]byte("A: &a {x: 1}\nB: *a\n"), &tree))
+		trees[key] = &tree
+	}
+	trees["/r/a.yaml"] = trees["a.yaml"]
+	held := pointersIn(trees, []string{"./a.yaml", "/r/a.yaml", "a.yaml"})
+
+	for key, tree := range trees {
+		x := tree.Content[0].Content[3].Alias.Content[1]
+		p, ok := held(x)
+		assert.True(t, ok, key)
+		assert.Equal(t, jsontext.Pointer("/A/x"), p, key)
+	}
+	p, ok := held(&yaml.Node{Kind: yaml.ScalarNode, Value: "1"})
+	assert.False(t, ok)
+	assert.Empty(t, p)
 }
 
 // TestLabelOf_IsTheLocationTheSourcesDirectoryReachesADocumentBy pins the

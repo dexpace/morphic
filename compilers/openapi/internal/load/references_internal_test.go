@@ -270,12 +270,12 @@ func assertFailures(t *testing.T, got []ir.Diagnostic, want map[jsontext.Pointer
 	}
 }
 
-// TestResolve_AFindingNamesTheDocumentItIsIn pins the document a finding's
-// message places it in, through Load. The second and third $refs name ext.yaml,
-// whose target is itself a $ref on to sub/ext2.yaml, where both findings are:
-// naming the document a $ref names would send a reader to a line of ext.yaml
-// that sits in the other file. The third fails to resolve, so it reaches no
-// object to check, and its failure is pinned.
+// TestResolve_AFindingNamesTheDocumentItIsIn pins the document a finding is
+// placed in, through Load. The second and third $refs name ext.yaml, whose
+// target is itself a $ref on to sub/ext2.yaml, where the second's finding is:
+// placing it in the document a $ref names would send a reader to a line of
+// ext.yaml that sits in the other file. The third fails to resolve, so it
+// reaches no object to check, and its failure is pinned.
 func TestResolve_AFindingNamesTheDocumentItIsIn(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
@@ -303,23 +303,22 @@ paths:
         "202": {$ref: 'ext.yaml#/components/responses/Broken'}
 `)}
 
-	_, diags, err := Load(t.Context(), 0, src, Options{Reader: reader.Disk{}})
+	doc, diags, err := Load(t.Context(), 0, src, Options{Reader: reader.Disk{}})
 	require.NoError(t, err)
 
-	ext, ext2 := filepath.Join(dir, "ext.yaml"), filepath.Join(dir, "sub", "ext2.yaml")
-	for pointer, want := range map[jsontext.Pointer]string{
-		"/paths/~1a/get/responses/200": ", at 3:8 of " + ext,
-		"/paths/~1a/get/responses/201": ", at 4:9 of " + ext2,
-	} {
-		var found []string
-		for _, d := range diags {
-			if d.Provenance.Pointer == pointer && strings.HasPrefix(d.Code, diag.Validation+"/") {
-				found = append(found, d.Message)
-			}
+	var placed []string
+	for _, d := range diags {
+		if strings.HasPrefix(d.Code, diag.Validation+"/") {
+			other, ok := doc.Others.At(d.Provenance.Source)
+			require.True(t, ok, "placed in a document read beside the source: %+v", d)
+			placed = append(placed, fmt.Sprintf("%s#%s %d:%d", other.Label, d.Provenance.Pointer,
+				d.Provenance.Position.Line, d.Provenance.Position.Column))
 		}
-		require.Len(t, found, 1, "%s: %+v", pointer, diags)
-		assert.True(t, strings.HasSuffix(found[0], want), "%s: want suffix %q, got %q", pointer, want, found[0])
 	}
+	assert.Equal(t, []string{
+		"ext.yaml#/components/responses/R 3:8",
+		"sub/ext2.yaml#/components/responses/R2 4:9",
+	}, placed)
 	for _, d := range diags {
 		if d.Provenance.Pointer == "/paths/~1a/get/responses/202" {
 			assert.False(t, strings.HasPrefix(d.Code, diag.Validation+"/"), "a reference that fails reaches no object to check: %+v", d)
@@ -331,10 +330,59 @@ paths:
 		"a resolution that recorded where it ended stopped at no other reference to quote")
 }
 
+// TestResolve_AFileSpelledTwoWaysPlacesAFindingOnce pins a node of a file the
+// source spells two ways, which read prepares once under each spelling: Bad's
+// parameter is an alias of Base's, so each check finds Base's fields, and the
+// findings are placed where ext.yaml writes them, once, in its one entry,
+// whichever spelling reaches the alias.
+func TestResolve_AFileSpelledTwoWaysPlacesAFindingOnce(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	writeFile(t, dir, "ext.yaml", `components:
+  parameters:
+    Base: &base {name: b, in: nowhere}
+    Bad: *base
+`)
+	plain, dotted := filepath.Join(dir, "ext.yaml"), dir+"/./ext.yaml"
+	for name, refs := range map[string][2]string{"the alias dotted": {plain, dotted}, "the alias plain": {dotted, plain}} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			src := compilers.Source{Path: filepath.Join(dir, "root.yaml"), Data: []byte(`openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    get:
+      parameters:
+        - $ref: '` + refs[0] + `#/components/parameters/Base'
+        - $ref: '` + refs[1] + `#/components/parameters/Bad'
+      responses: {"200": {description: ok}}
+`)}
+
+			doc, diags, err := Load(t.Context(), 0, src, Options{Reader: reader.Disk{}})
+			require.NoError(t, err)
+
+			var placed []string
+			for _, d := range diags {
+				if strings.HasPrefix(d.Code, diag.Validation+"/") {
+					placed = append(placed, fmt.Sprintf("%d %s %d:%d", d.Provenance.Source, d.Provenance.Pointer,
+						d.Provenance.Position.Line, d.Provenance.Position.Column))
+				}
+			}
+			slices.Sort(placed)
+			assert.Equal(t, []string{
+				"1 /components/parameters/Base 3:11",
+				"1 /components/parameters/Base/in 3:31",
+			}, placed, "%+v", diags)
+			require.Len(t, doc.Others.List(), 1, "one file, one entry")
+			assert.Equal(t, "ext.yaml", doc.Others.List()[0].Label)
+		})
+	}
+}
+
 // TestResolve_ReachedFindingsDoNotDependOnDeclarationOrder compiles one source
 // as written and with its paths reversed, and requires the same reports.
 // The library hands a later $ref the object an earlier one built, so which $ref
-// draws a finding follows declaration order; where it is reported must not. The
+// draws a finding follows declaration order; where it is placed must not. The
 // shapes: a target several $refs share, one an internal alias chains to, one
 // built again from cached bytes (/a reads the document first), one that fails
 // to build, reached twice, and a $ref /z's chain resolves before the walk
@@ -396,10 +444,10 @@ func TestResolve_ReachedFindingsDoNotDependOnDeclarationOrder(t *testing.T) {
 		}
 	}
 	assert.Equal(t, []string{
-		"/components/responses/Alias",   // R: the least of /x, /y, /c and the alias itself
-		"/paths/~1b1/get/responses/200", // B: drawn twice, kept once
-		"/paths/~1m/get/responses/200",  // R2: /m, which /z's chain resolves first as written
-	}, findingSites, "each finding at the least pointer among the $refs reaching its target")
+		"/components/responses/B",  // drawn by /b1 and /b2, kept once
+		"/components/responses/R",  // reached from /x, /y, /c and the alias itself
+		"/components/responses/R2", // reached at /m, which /z's chain resolves first as written
+	}, findingSites, "each finding at its node in ext.yaml, once")
 }
 
 // TestResolve_ABoundInAnotherDocumentIsTheSchemaLowerings pins that a numeric

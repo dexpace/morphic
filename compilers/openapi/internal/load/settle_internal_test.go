@@ -147,9 +147,9 @@ func TestSettle_AChainTargetIsValidatedInEitherOrder(t *testing.T) {
 		}
 		reports = append(reports, got)
 	}
-	want := []string{"/components/responses/Mid openapi/validation/validation-type-mismatch"}
+	want := []string{"/components/responses/Bad/headers/X/schema/minLength openapi/validation/validation-type-mismatch"}
 	for _, got := range reports {
-		assert.Empty(t, cmp.Diff(want, got), "the finding in the chain's target is reported, at the $ref reaching it")
+		assert.Empty(t, cmp.Diff(want, got), "the finding in the chain's target is reported, at its node")
 	}
 }
 

@@ -8,6 +8,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
+	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -67,52 +68,50 @@ func nodesAdmitted(opts Options) int {
 }
 
 // locatorIn returns the Locator for the pointers of the object written at
-// node: each is walked from node to the node it names, which is placed as the
-// source's own findings are. A pointer that leads nowhere is placed at the last
-// node it reached.
-func (t sourceTree) locatorIn(node *yaml.Node) oas.Locator {
+// node, which places each as the source's own findings are (see walkedFrom).
+func (t sourceTree) locatorIn(node *yaml.Node) oas.Locator { return walkedFrom(node, t.locate) }
+
+// walkedFrom returns the Locator for the pointers of the object written at
+// node: each is walked from node to the node it names, which locate places. A
+// pointer that leads nowhere is placed at the last node it reached.
+func walkedFrom(node *yaml.Node, locate scan.Locator) oas.Locator {
 	view := nodeview.New()
+	root := nodeview.DocumentRoot(node)
 	return func(pointer jsontext.Pointer) ir.Provenance {
-		path, _ := view.DocumentPath(nodeview.DocumentRoot(node), pointer)
+		path, _ := view.DocumentPath(root, pointer)
 		if len(path) == 0 {
-			return t.locate(nil)
+			return locate(nil)
 		}
-		return t.locate(path[len(path)-1])
+		return locate(path[len(path)-1])
 	}
 }
 
-// foreign marks the provenance a Locator gives a finding the source's tree does
-// not hold, until the finding is placed at the reference that reached it: it
-// is no source index any list holds.
+// foreign marks the provenance a Locator gives a finding no document entry
+// holds, until the finding is placed at the reference that reached it: it is
+// no source index any list holds.
 const foreign = -1
 
 // reachedLocator returns the Locator for the object written at node, which a
 // reference reaches. A finding about a node the source's tree holds is placed
 // there, as the source's own are; any other is marked foreign, its position
-// that of the node in the document it is in.
+// that of the node in the document it is in, which no entry lists.
 func (t sourceTree) reachedLocator(node *yaml.Node) oas.Locator {
-	view := nodeview.New()
-	return func(pointer jsontext.Pointer) ir.Provenance {
-		path, _ := view.DocumentPath(nodeview.DocumentRoot(node), pointer)
-		at := nodeview.DocumentRoot(node)
-		if len(path) > 0 {
-			at = path[len(path)-1]
+	elsewhere := scan.InSource(foreign)
+	return walkedFrom(node, func(n *yaml.Node) ir.Provenance {
+		if t.has(n) {
+			return t.locate(n)
 		}
-		if t.has(at) {
-			return t.locate(at)
-		}
-		return ir.Provenance{Source: foreign, Position: ir.Position{Line: at.Line, Column: at.Column}}
-	}
+		return elsewhere(n)
+	})
 }
 
-// holds reports whether d is a finding about a node of another document, still
-// marked foreign.
+// holds reports whether d is placed in a document, rather than marked foreign.
 func holds(d ir.Diagnostic) bool { return d.Provenance.Source != foreign }
 
 // placeAt puts a finding about an object a reference reaches where it is
-// reported: one about a node the source's tree holds stays there; one marked
-// foreign goes to the reference, site, its message naming where in the document
-// place it lies, as no Provenance can (GitHub #74).
+// reported: one placed in a document stays there; one marked foreign, in a
+// document no entry lists, goes to the reference, site, its message naming
+// where in the document place it lies, as no Provenance can (GitHub #74).
 func placeAt(d ir.Diagnostic, site ir.Provenance, place string) ir.Diagnostic {
 	if holds(d) {
 		return d
@@ -124,9 +123,9 @@ func placeAt(d ir.Diagnostic, site ir.Provenance, place string) ir.Diagnostic {
 }
 
 // identity is what tells a finding from another about the same node however
-// many references reach it: the finding as placed in the source's tree, or, for
-// another document's, the finding with the place it names, whichever reference
-// it is placed at.
+// many references reach it: the finding as placed in its document, or, for one
+// marked foreign, the finding with the place it names, whichever reference it
+// is placed at.
 func identity(d ir.Diagnostic, place string) ir.Diagnostic {
 	if !holds(d) {
 		d.Message += " of " + place

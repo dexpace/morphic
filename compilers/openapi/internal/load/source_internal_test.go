@@ -397,7 +397,7 @@ func TestSourceDocument_Names(t *testing.T) {
 // the source's own component is resolved as the source resolves it when a back
 // reference spelling the source otherwise reaches it first. Resolved against
 // that spelling, its $ref named the file beside it otherwise, so the file was
-// read twice, and a finding in it was named by whichever spelling came first.
+// read twice, and a finding in it was placed by whichever spelling came first.
 //
 // Not run in parallel: the source's path is relative to the working directory.
 func TestHold_ARelativeSourceResolvesItsComponentAsItDoesInEitherOrder(t *testing.T) {
@@ -421,8 +421,15 @@ func TestHold_ARelativeSourceResolvesItsComponentAsItDoesInEitherOrder(t *testin
 		require.NoError(t, err)
 		require.NotNil(t, got, "%+v", diags)
 		require.Len(t, diags, 1, "%+v", diags)
-		assert.Equal(t, jsontext.Pointer("/components/responses/P"), diags[0].Provenance.Pointer)
-		assert.Contains(t, diags[0].Message, "of other.yaml", "named as the source names it")
+		assert.Equal(t, jsontext.Pointer("/components/responses/Q/links/L"), diags[0].Provenance.Pointer)
+		other, ok := got.Others.At(diags[0].Provenance.Source)
+		require.True(t, ok, "placed in a document read beside the source: %+v", diags[0])
+		assert.Equal(t, "other.yaml", other.Label, "named as the source names it")
+		labels := make([]string, 0, 2)
+		for _, o := range got.Others.List() {
+			labels = append(labels, o.Label)
+		}
+		assert.Equal(t, []string{"../x.yaml", "other.yaml"}, labels, "each file read once")
 	}
 }
 
