@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -19,6 +20,7 @@ import (
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/fragment"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
@@ -435,11 +437,20 @@ func (e external) readFailure(key string, err error) error {
 	case errors.Is(err, compilers.ErrOutsideWithin) && overNetwork(key):
 		return refused(key, "it is on the network, which a read reaches only when external references are allowed")
 	case errors.Is(err, compilers.ErrOutsideWithin):
-		return refused(key, fmt.Sprintf("it lies outside the source's directory %q, "+
-			"which a read leaves only when external references are allowed", e.opts.Within))
+		return refused(key, fmt.Sprintf("it lies outside the source's directory %s, "+
+			"which a read leaves only when external references are allowed", directoryNamed(e.opts.Within)))
 	default:
 		return err
 	}
+}
+
+// directoryNamed is dir as a refusal names it: quoted, or, for the working
+// directory, which a source named by a bare file name lies in, said so.
+func directoryNamed(dir string) string {
+	if dir == "." {
+		return "(the working directory)"
+	}
+	return strconv.Quote(dir)
 }
 
 // prepare stores the tree an external document's bytes parse to under key, once
@@ -449,16 +460,16 @@ func (e external) readFailure(key string, err error) error {
 //
 // The byte budget is checked again, though the reader held the read to it:
 // admitting bytes past it would let a reader lift a budget the compile set.
-// Bytes that will not parse are handed over unprepared, for the resolver to
-// refuse with its own reason.
+// Bytes that do not parse are refused with the parser's reason, the one the
+// resolver would give (see bind.UnparsableError).
 func (e external) prepare(key string, data []byte) ([]byte, error) {
 	if exceeds(len(data), e.opts.MaxSourceBytes) {
 		return nil, refused(key, fmt.Sprintf("it is past the %d-byte budget", e.opts.MaxSourceBytes))
 	}
 
-	root, parsed := parseTree(data)
-	if !parsed {
-		return data, nil
+	root, err := parseTree(data)
+	if err != nil {
+		return nil, &bind.UnparsableError{Err: err}
 	}
 	if err := e.admit(key, root); err != nil {
 		return nil, err
@@ -472,10 +483,10 @@ func (e external) prepare(key string, data []byte) ([]byte, error) {
 }
 
 // parseTree parses data as the resolver parses an external document, and
-// reports whether it parsed at all.
-func parseTree(data []byte) (*yaml.Node, bool) {
+// returns the parser's error for bytes that do not parse.
+func parseTree(data []byte) (*yaml.Node, error) {
 	var root yaml.Node
-	return &root, yaml.Unmarshal(data, &root) == nil
+	return &root, yaml.Unmarshal(data, &root)
 }
 
 // admit holds an external document's tree to what Load holds the source's to:

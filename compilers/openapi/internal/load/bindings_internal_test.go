@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
@@ -192,10 +193,25 @@ func TestBindingDiags_ReportsAChainBackIntoTheSourceWhereItFails(t *testing.T) {
 	assert.Equal(t, diag.UnresolvedRef, diags[0].Code)
 }
 
+// TestExternal_DocumentReportsAReadWithNoTreeAsAFault pins the invariant
+// document holds the reads to: a document read without error has a tree
+// prepared for it, so one with none is the compiler's fault, said so.
+func TestExternal_DocumentReportsAReadWithNoTreeAsAFault(t *testing.T) {
+	t.Parallel()
+	ext := newExternal(t.Context(), &soa.OpenAPI{}, Options{Reader: &fakeReader{}}, newExternalReads(sourceDocument{}))
+	ext.read.once("doc.yaml", 0, func() answer { return answer{body: []byte("a: 1\n")} })
+
+	tree, err := ext.document(t.Context(), "doc.yaml")
+
+	assert.Nil(t, tree)
+	require.EqualError(t, err, "internal: no tree was prepared for doc.yaml")
+}
+
 // TestLoad_ASchemaRefIsUnresolvedWhereItsDocumentCannotBeRead pins what a
 // schema $ref reports when the document it names cannot be read, by the reason
-// the read gave: a URL that answers an error, 300 being the least, a document
-// that is no YAML, and a location the source's own URL gives no document for.
+// the read gave: a URL that answers an error, 300 being the least, and a
+// location the source's own URL gives no document for; and when it was read
+// and is no YAML, by the parser's reason, its line included.
 func TestLoad_ASchemaRefIsUnresolvedWhereItsDocumentCannotBeRead(t *testing.T) {
 	t.Parallel()
 	srv := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
@@ -210,15 +226,16 @@ func TestLoad_ASchemaRefIsUnresolvedWhereItsDocumentCannotBeRead(t *testing.T) {
 		}
 	})
 	dir := externalDir(t, map[string]string{"bad.yaml": "a: [\n"})
+	const unread, unparsed = "the document it names could not be read: ", "the document it names does not parse as YAML: yaml: line 1: "
 	for _, c := range []struct {
-		name, path, ref, says string
+		name, path, ref, phrase, says string
 	}{
-		{"a URL answering an error", "", srv.URL + "/missing.yaml#/x", "404 Not Found"},
-		{"a URL answering the least status past success", "", srv.URL + "/choices.yaml#/x", "300 Multiple Choices"},
-		{"a URL serving no YAML", "", srv.URL + "/garbage.yaml#/x", "it does not parse as YAML"},
-		{"a file holding no YAML", "", "./bad.yaml#/x", "it does not parse as YAML"},
+		{"a URL answering an error", "", srv.URL + "/missing.yaml#/x", unread, "404 Not Found"},
+		{"a URL answering the least status past success", "", srv.URL + "/choices.yaml#/x", unread, "300 Multiple Choices"},
+		{"a URL serving no YAML", "", srv.URL + "/garbage.yaml#/x", unparsed, "did not find expected node content"},
+		{"a file holding no YAML", "", "./bad.yaml#/x", unparsed, "did not find expected node content"},
 		{"a location the source's URL cannot be joined with", "https://example.com/api/spec.yaml", "%zz.yaml#/x",
-			"it names no document a reference can"},
+			unread, "it names no document a reference can"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
@@ -238,7 +255,7 @@ func TestLoad_ASchemaRefIsUnresolvedWhereItsDocumentCannotBeRead(t *testing.T) {
 			}
 			require.Len(t, unresolved, 1, "%+v", diags)
 			assert.Equal(t, "/components/schemas/A", string(unresolved[0].Provenance.Pointer))
-			assert.Contains(t, unresolved[0].Message, "the document it names could not be read: ")
+			assert.Contains(t, unresolved[0].Message, c.phrase)
 			assert.Contains(t, unresolved[0].Message, c.says)
 		})
 	}

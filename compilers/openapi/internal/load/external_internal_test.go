@@ -19,6 +19,7 @@ import (
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/engine/reader"
 )
 
@@ -133,21 +134,25 @@ func TestExternal_OpenReadsAFileOnce(t *testing.T) {
 	assert.Same(t, first, again, "the tree stored the first time stands")
 }
 
-// TestExternal_PrepareLeavesUnparseableBytesForTheResolver pins the overlay
-// path's own rule extended to an external document: bytes that will not parse
-// are handed back unprepared and uncached, and the resolver parses them itself
-// and reports its own reason.
-func TestExternal_PrepareLeavesUnparseableBytesForTheResolver(t *testing.T) {
+// TestExternal_PrepareRefusesBytesThatDoNotParse pins that bytes which will
+// not parse are refused with the parser's reason, line included, as the
+// resolver, parsing them with the same call, would refuse them, and that
+// nothing is cached or recorded for them.
+func TestExternal_PrepareRefusesBytesThatDoNotParse(t *testing.T) {
 	t.Parallel()
-	const bad = "a: [\n"
 	doc := &soa.OpenAPI{}
+	read := newExternalReads(sourceDocument{})
 
-	data, err := newExternal(t.Context(), doc, Options{}, newExternalReads(sourceDocument{})).prepare("k", []byte(bad))
+	data, err := newExternal(t.Context(), doc, Options{}, read).prepare("k", []byte("a: [\n"))
 
-	require.NoError(t, err)
-	assert.Equal(t, bad, string(data))
+	var unparsable *bind.UnparsableError
+	require.ErrorAs(t, err, &unparsable)
+	assert.Equal(t, "yaml: line 1: did not find expected node content", unparsable.Err.Error())
+	assert.Nil(t, data)
 	_, ok := doc.GetCachedExternalDocument("k")
 	assert.False(t, ok, "nothing not admitted is cached")
+	_, ok = read.preparedFor("k")
+	assert.False(t, ok, "and no tree is recorded")
 }
 
 // TestExternal_AdmitRefusesARecursiveAnchor pins the refusal that makes
@@ -155,10 +160,10 @@ func TestExternal_PrepareLeavesUnparseableBytesForTheResolver(t *testing.T) {
 // the source is held to, before its name is ever cleared.
 func TestExternal_AdmitRefusesARecursiveAnchor(t *testing.T) {
 	t.Parallel()
-	root, parsed := parseTree([]byte("p: &a [*a]\n"))
-	require.True(t, parsed)
+	root, err := parseTree([]byte("p: &a [*a]\n"))
+	require.NoError(t, err)
 
-	err := newExternal(t.Context(), &soa.OpenAPI{}, Options{}, newExternalReads(sourceDocument{})).admit("k", root)
+	err = newExternal(t.Context(), &soa.OpenAPI{}, Options{}, newExternalReads(sourceDocument{})).admit("k", root)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "refused")
@@ -172,10 +177,10 @@ func TestExternal_AdmitRefusesARecursiveAnchor(t *testing.T) {
 // to land in.
 func TestExternal_AdmitJoinsTwoFindings(t *testing.T) {
 	t.Parallel()
-	root, parsed := parseTree([]byte("p: &a [*a]\nq: !x {b: 1}\n"))
-	require.True(t, parsed)
+	root, err := parseTree([]byte("p: &a [*a]\nq: !x {b: 1}\n"))
+	require.NoError(t, err)
 
-	err := newExternal(t.Context(), &soa.OpenAPI{}, Options{}, newExternalReads(sourceDocument{})).admit("k", root)
+	err = newExternal(t.Context(), &soa.OpenAPI{}, Options{}, newExternalReads(sourceDocument{})).admit("k", root)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(),
@@ -187,12 +192,12 @@ func TestExternal_AdmitJoinsTwoFindings(t *testing.T) {
 // holds an external document to once the pre-parse refusals have cleared it.
 func TestExternal_AdmitOverTheNodeBudgetIsRefused(t *testing.T) {
 	t.Parallel()
-	root, parsed := parseTree([]byte("a: 1\n"))
-	require.True(t, parsed)
+	root, err := parseTree([]byte("a: 1\n"))
+	require.NoError(t, err)
 	nodes := nodeCount(root)
 	require.Greater(t, nodes, 3, "sanity: the fixture crosses the budget below")
 
-	err := newExternal(t.Context(), &soa.OpenAPI{}, Options{MaxSourceNodes: 3}, newExternalReads(sourceDocument{})).admit("k", root)
+	err = newExternal(t.Context(), &soa.OpenAPI{}, Options{MaxSourceNodes: 3}, newExternalReads(sourceDocument{})).admit("k", root)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "refused")
@@ -204,10 +209,10 @@ func TestExternal_AdmitOverTheNodeBudgetIsRefused(t *testing.T) {
 // every document is held to whatever the budget.
 func TestExternal_AdmitHoldsTheAliasBudget(t *testing.T) {
 	t.Parallel()
-	root, parsed := parseTree([]byte("a: &x {b: 1}\nc: *x\n"))
-	require.True(t, parsed)
+	root, err := parseTree([]byte("a: &x {b: 1}\nc: *x\n"))
+	require.NoError(t, err)
 
-	err := newExternal(t.Context(), &soa.OpenAPI{}, Options{MaxAliasSurplus: 1}, newExternalReads(sourceDocument{})).admit("k", root)
+	err = newExternal(t.Context(), &soa.OpenAPI{}, Options{MaxAliasSurplus: 1}, newExternalReads(sourceDocument{})).admit("k", root)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "refused")

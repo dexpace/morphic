@@ -312,7 +312,11 @@ func keyOf(err error, site jsontext.Pointer) findingKey {
 // #/components.
 func failureDiag(site ir.Provenance, ref references.Reference, t trail, err error) ir.Diagnostic {
 	reason := err.Error()
-	if errors.As(err, new(unread)) {
+	var unparsable *bind.UnparsableError
+	switch {
+	case errors.As(err, &unparsable):
+		reason = bind.Hop{Reason: bind.Unparsable, Detail: unparsable.Err.Error()}.Why()
+	case errors.As(err, new(unread)):
 		reason = bind.Hop{Reason: bind.Unreadable, Detail: reason}.Why()
 	}
 	if len(t.docs) > 0 && t.stopped != "" {

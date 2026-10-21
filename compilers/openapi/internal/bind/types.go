@@ -135,6 +135,9 @@ const (
 	// Unreadable is a reference to another document that could not be read;
 	// Hop.Detail says why.
 	Unreadable
+	// Unparsable is a reference to another document that was read and does
+	// not parse; Hop.Detail is the parser's account of where.
+	Unparsable
 	// BesideRef is a pointer through the fields beside a path item's $ref;
 	// Hop.Use and Hop.Key name them.
 	BesideRef
@@ -159,7 +162,8 @@ type Hop struct {
 	Ref    string
 	Status Status
 	Reason Reason
-	// Detail is a read error, for Unreadable.
+	// Detail is a read error, for Unreadable, or a parse error, for
+	// Unparsable.
 	Detail string
 	// Use and Key are the path item $ref and the key written beside it, for
 	// BesideRef.
@@ -259,6 +263,8 @@ func (h Hop) Why() string {
 		return "it names another document, and external references are not read"
 	case Unreadable:
 		return "the document it names could not be read: " + h.Detail
+	case Unparsable:
+		return "the document it names does not parse as YAML: " + h.Detail
 	case BesideRef:
 		return "it reaches " + string(h.Spelled) + "; " + BesideReason(h.Use, h.Key)
 	case BesideDefs:

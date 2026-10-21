@@ -794,8 +794,8 @@ paths:
         "200": {description: ok}
 `, filepath.Join(dir, "root.yaml"))
 	unclean := dir + "/./root.yaml"
-	tree, ok := parseTree([]byte("a: {$ref: '" + unclean + "#/paths/~1a+b/get/responses/200'}\n"))
-	require.True(t, ok)
+	tree, err := parseTree([]byte("a: {$ref: '" + unclean + "#/paths/~1a+b/get/responses/200'}\n"))
+	require.NoError(t, err)
 
 	pass.reader.holdSpellings(tree, filepath.Join(dir, "sub", "doc.yaml"))
 

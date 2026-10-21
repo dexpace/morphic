@@ -57,8 +57,8 @@ func holdBackRefs(t *testing.T, objects int, refs []backRef) (*soa.OpenAPI, []st
 		spellings[r.spelling] = spellingOf(dir, r.spelling)
 		fmt.Fprintf(&text, "x%d: {$ref: '%s#/components/responses/R%d'}\n", i, spellings[r.spelling], r.response)
 	}
-	tree, ok := parseTree([]byte(text.String()))
-	require.True(t, ok)
+	tree, err := parseTree([]byte(text.String()))
+	require.NoError(t, err)
 
 	pass.reader.holdSpellings(tree, filepath.Join(dir, "sub", "doc.yaml"))
 
@@ -175,12 +175,12 @@ func TestHold_ASecondResolutionHoldsWhatTheFirstDid(t *testing.T) {
 	path := filepath.Join(dir, "root.yaml")
 	_, pass := heldResolution(t, responsesSource(4), path)
 	scanned := spellingOf(dir, 100)
-	tree, ok := parseTree([]byte("x: {$ref: '" + scanned + "#/components/responses/R1'}\n"))
-	require.True(t, ok)
+	tree, err := parseTree([]byte("x: {$ref: '" + scanned + "#/components/responses/R1'}\n"))
+	require.NoError(t, err)
 	pass.reader.holdSpellings(tree, filepath.Join(dir, "sub", "doc.yaml"))
 	schemaOnly := spellingOf(dir, 101)
-	tree, ok = parseTree([]byte("y: {$ref: '" + schemaOnly + "#/components/schemas/S'}\n"))
-	require.True(t, ok)
+	tree, err = parseTree([]byte("y: {$ref: '" + schemaOnly + "#/components/schemas/S'}\n"))
+	require.NoError(t, err)
 	pass.reader.holdSpellings(tree, filepath.Join(dir, "sub", "doc.yaml"))
 	for i := range maxOpenedSpellings + 1 {
 		f, err := pass.reader.Open(spellingOf(dir, i))
@@ -198,7 +198,7 @@ func TestHold_ASecondResolutionHoldsWhatTheFirstDid(t *testing.T) {
 	}
 	assert.True(t, held(scanned, "R1"), "what the scanned $ref names")
 	assert.False(t, held(scanned, "R2"), "and nothing more")
-	_, ok = again.GetCachedExternalDocument(schemaOnly)
+	_, ok := again.GetCachedExternalDocument(schemaOnly)
 	assert.True(t, ok, "the document under a spelling whose $ref names no held object")
 	assert.True(t, held(spellingOf(dir, 0), "R2"), "every object under a spelling Open held whole")
 	last := spellingOf(dir, maxOpenedSpellings)

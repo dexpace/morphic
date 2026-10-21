@@ -315,13 +315,13 @@ func derefAll(n *yaml.Node) *yaml.Node {
 // and one for each pair it compares, or passes on its way to a `<<` key.
 func TestTreeReads_Cost(t *testing.T) {
 	t.Parallel()
-	tree, parsed := parseTree([]byte(`a: 1
+	tree, err := parseTree([]byte(`a: 1
 b: {c: 2}
 b: 3
 <<: {d: 4}
 s: [x, y]
 `))
-	require.True(t, parsed)
+	require.NoError(t, err)
 	b := tree.Content[0].Content[3]
 	for _, c := range []struct {
 		pointer string
@@ -499,8 +499,8 @@ func holdsTokens(n *yaml.Node) []string {
 // however many reads follow.
 func TestTreeReads_IndexesAMappingOnce(t *testing.T) {
 	t.Parallel()
-	tree, parsed := parseTree([]byte("x: {a: 1, b: 2, c: 3}\ny: 4\n"))
-	require.True(t, parsed)
+	tree, err := parseTree([]byte("x: {a: 1, b: 2, c: 3}\ny: 4\n"))
+	require.NoError(t, err)
 	reads := newTreeReads()
 	for _, pointer := range []string{"/x/a", "/x/c", "/x/missing", "/y"} {
 		reads.cost(tree, pointer, math.MaxInt)

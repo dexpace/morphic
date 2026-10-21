@@ -501,13 +501,13 @@ func TestHold_EachSpellingADocumentUsesIsHeldAhead(t *testing.T) {
 	path := filepath.Join(dir, "root.yaml")
 	doc, pass := heldResolution(t, backRoot(backPath("/a", "#/components/responses/R")), path)
 	unclean := dir + "/./root.yaml"
-	tree, ok := parseTree([]byte(`a: {$ref: '#/components/responses/R'}
+	tree, err := parseTree([]byte(`a: {$ref: '#/components/responses/R'}
 b: {$ref: [root.yaml]}
 c: {$ref: 'other.yaml#/x'}
 d: {$ref: 'https://example.com/root.yaml#/x'}
 e: [{$ref: '` + unclean + `#/components/responses/R'}, {$ref: '` + unclean + `'}, {$ref: '../root.yaml'}]
 `))
-	require.True(t, ok)
+	require.NoError(t, err)
 
 	pass.reader.holdSpellings(tree, filepath.Join(dir, "sub", "doc.yaml"))
 

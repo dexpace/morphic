@@ -281,6 +281,36 @@ func TestCompile_ByDefaultOnlyARelativeReferenceIsFollowed(t *testing.T) {
 	}
 }
 
+// TestCompile_ADocumentThatDoesNotParseIsReportedAlikeOnEitherRoute pins that
+// a document read and not parsed fails a schema $ref, which the compiler binds,
+// and a parameter's, which the parser's resolver follows, with one wording,
+// the parser's line and reason included, in either mode.
+func TestCompile_ADocumentThatDoesNotParseIsReportedAlikeOnEitherRoute(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "bad.yaml"), []byte("a: [unclosed\n"), 0o600))
+	root := []byte("openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n  /x:\n    get:\n" +
+		"      parameters:\n        - {$ref: 'bad.yaml#/P'}\n      responses: {\"200\": {description: ok}}\n" +
+		"components:\n  schemas:\n    B: {$ref: 'bad.yaml#/B'}\n")
+	const says = ": the document it names does not parse as YAML: yaml: line 1: did not find expected ',' or ']'"
+
+	for _, allow := range []bool{false, true} {
+		_, diags, err := New().Compile(t.Context(), []compilers.Source{{Path: filepath.Join(dir, "root.yaml"), Data: root}},
+			compilers.Options{Reader: reader.Disk{}, FormatOptions: Options{AllowExternalRefs: allow}})
+		require.NoError(t, err)
+
+		got := make([]string, 0, len(diags))
+		for _, d := range diags {
+			got = append(got, string(d.Provenance.Pointer)+": "+d.Message)
+		}
+		slices.Sort(got)
+		assert.Equal(t, []string{
+			`/components/schemas/B: unresolved $ref "bad.yaml#/B"` + says,
+			`/paths/~1x/get/parameters/0: unresolved $ref "bad.yaml#/P"` + says,
+		}, got, "external references allowed: %v", allow)
+	}
+}
+
 // TestCompile_AURLNoReaderReadsIsRefusedUnread pins that a $ref whose
 // document part is a URL with a scheme other than http, https or file fails
 // unread with the reason, in a schema and in a parameter, with external

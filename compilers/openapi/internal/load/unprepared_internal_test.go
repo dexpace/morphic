@@ -1291,16 +1291,16 @@ func TestHasAnchor(t *testing.T) {
 
 	t.Run("no anchor anywhere", func(t *testing.T) {
 		t.Parallel()
-		root, parsed := parseTree([]byte("a: {b: [1, 2]}\n"))
-		require.True(t, parsed)
+		root, err := parseTree([]byte("a: {b: [1, 2]}\n"))
+		require.NoError(t, err)
 
 		assert.False(t, hasAnchor(root))
 	})
 
 	t.Run("an anchor deep in the tree", func(t *testing.T) {
 		t.Parallel()
-		root, parsed := parseTree([]byte("a: {b: [1, &x 2]}\n"))
-		require.True(t, parsed)
+		root, err := parseTree([]byte("a: {b: [1, &x 2]}\n"))
+		require.NoError(t, err)
 
 		assert.True(t, hasAnchor(root))
 	})

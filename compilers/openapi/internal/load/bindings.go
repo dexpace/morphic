@@ -3,7 +3,7 @@ package load
 import (
 	"context"
 	"encoding/json/jsontext"
-	"errors"
+	"fmt"
 	"iter"
 	"maps"
 	"net/http"
@@ -275,7 +275,7 @@ func (e external) document(ctx context.Context, name string) (*yaml.Node, error)
 	}
 	tree, ok := e.read.preparedFor(name)
 	if !ok {
-		return nil, errors.New("it does not parse as YAML")
+		return nil, fmt.Errorf("internal: no tree was prepared for %s", name)
 	}
 	return tree, nil
 }

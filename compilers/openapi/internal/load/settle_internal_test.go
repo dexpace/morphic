@@ -435,8 +435,8 @@ func TestResumable(t *testing.T) {
 	t.Parallel()
 	data := []byte("components:\n  responses:\n    Base: {description: b}\n" +
 		"    Alias: {$ref: '#/components/responses/Base'}\n    Loop: {$ref: '#/components/responses/Loop'}\n")
-	tree, parsed := parseTree(data)
-	require.True(t, parsed)
+	tree, err := parseTree(data)
+	require.NoError(t, err)
 	read := newExternalReads(sourceDocument{})
 	read.recordTree("other.yaml", tree, data)
 	reader := newExternal(t.Context(), &soa.OpenAPI{}, Options{}, read)

@@ -156,7 +156,7 @@ func responseTree(n int) string {
 // so.
 func TestResumeWork_Charge(t *testing.T) {
 	t.Parallel()
-	tree, parsed := parseTree([]byte(`components:
+	tree, err := parseTree([]byte(`components:
   schemas:
     Base: {type: object}
     Alias: {$ref: '#/components/schemas/Base'}
@@ -166,7 +166,7 @@ func TestResumeWork_Charge(t *testing.T) {
     Back: {$ref: '#/components/schemas/Out'}
     Plus+Key: {$ref: '#/components/schemas/Base'}
 `))
-	require.True(t, parsed)
+	require.NoError(t, err)
 	cost := func(name string) int {
 		steps, _ := newTreeReads().cost(tree, "/components/schemas/"+name, math.MaxInt)
 		return steps
@@ -220,8 +220,8 @@ func TestResumeWork_Charge(t *testing.T) {
 func TestResumable_TheBudgetStopsWhatItWouldResume(t *testing.T) {
 	t.Parallel()
 	data := []byte("components:\n  schemas:\n    Base: {type: object}\n")
-	tree, parsed := parseTree(data)
-	require.True(t, parsed)
+	tree, err := parseTree(data)
+	require.NoError(t, err)
 	read := newExternalReads(sourceDocument{})
 	read.recordTree("other.yaml", tree, data)
 	walked := jsonpointer.ErrInvalidPath.Wrap(errors.New("expected index, got key at /components"))

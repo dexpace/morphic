@@ -490,6 +490,25 @@ func TestBind_RefuseJudgesEachReferenceByItsSpelling(t *testing.T) {
 	assert.NotContains(t, located, "/other.yaml", "a refused $ref is placed nowhere")
 }
 
+// TestBind_ReportsADocumentThatDoesNotParse pins Unparsable: a document Open
+// read and could not parse fails its $ref with the parser's reason, which the
+// error carries whole and Hop.Why repeats after its own phrasing.
+func TestBind_ReportsADocumentThatDoesNotParse(t *testing.T) {
+	t.Parallel()
+	parser := errors.New("yaml: line 1: did not find expected node content")
+	cfg := self
+	cfg.Open = func(string) (*yaml.Node, error) { return nil, &bind.UnparsableError{Err: parser} }
+
+	table := bound(t, "components:\n  schemas:\n    A: {$ref: 'bad.yaml#/x'}\n", cfg)
+
+	a := entryAt(t, table, "/components/schemas/A")
+	assert.Equal(t, bind.Unparsable, a.Hop.Reason)
+	assert.Equal(t, "the document it names does not parse as YAML: yaml: line 1: did not find expected node content", a.Hop.Why())
+	err := &bind.UnparsableError{Err: parser}
+	require.EqualError(t, err, "it does not parse as YAML: yaml: line 1: did not find expected node content")
+	assert.ErrorIs(t, err, parser)
+}
+
 // TestBind_ReadsOtherDocuments pins a reference to another document: read once
 // however many name it, as one that failed is, as raw YAML, the whole of it
 // named by a reference with no fragment; a chain followed across documents and

@@ -743,3 +743,29 @@ func TestResolve_ResolvesWhatTheLibraryResolves(t *testing.T) {
 	assert.GreaterOrEqual(t, checked, 10,
 		"most of the corpus reaches the comparison; a filter this tight would check nothing")
 }
+
+// TestFailureDiag_WordsAFailedReadAsTheBinderDoes pins the phrasing a reference
+// object's failure takes from the binder's: a read Open or Do answered with a
+// refusal, a parse failure with the parser's line, and any other reason left
+// as the resolver gave it.
+func TestFailureDiag_WordsAFailedReadAsTheBinderDoes(t *testing.T) {
+	t.Parallel()
+	parser := errors.New("yaml: line 1: did not find expected node content")
+	for _, tc := range []struct {
+		name string
+		err  error
+		want string
+	}{
+		{"a read refused", unread{errors.New("external document b.yaml refused: why")},
+			`unresolved $ref "b.yaml#/P": the document it names could not be read: external document b.yaml refused: why`},
+		{"a document that does not parse", unread{&bind.UnparsableError{Err: parser}},
+			`unresolved $ref "b.yaml#/P": the document it names does not parse as YAML: yaml: line 1: did not find expected node content`},
+		{"the resolver's own reason", errors.New("not found"), `unresolved $ref "b.yaml#/P": not found`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			d := failureDiag(ir.Provenance{}, "b.yaml#/P", trail{}, tc.err)
+			assert.Equal(t, tc.want, d.Message)
+		})
+	}
+}

@@ -66,9 +66,12 @@ func (b *binder) document(site Position, ref string) (DocID, Reason, string) {
 		return 0, Unreadable, "it names no document a reference can"
 	}
 	id, err := b.docs.open(name)
+	var unparsable *UnparsableError
 	switch {
 	case errors.Is(err, errNotRead):
 		return 0, ExternalOff, ""
+	case errors.As(err, &unparsable):
+		return 0, Unparsable, unparsable.Err.Error()
 	case err != nil:
 		return 0, Unreadable, err.Error()
 	}

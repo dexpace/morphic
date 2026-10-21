@@ -315,6 +315,16 @@ func TestExternal_AReadRefusesByHowItIsNamed(t *testing.T) {
 	}
 }
 
+// TestDirectoryNamed_SaysTheWorkingDirectory pins how a refusal names the
+// source's directory: quoted, and as the working directory where the source
+// was named by a bare file name, whose directory is ".".
+func TestDirectoryNamed_SaysTheWorkingDirectory(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, `"/srv/specs"`, directoryNamed("/srv/specs"))
+	assert.Equal(t, `".."`, directoryNamed(".."))
+	assert.Equal(t, "(the working directory)", directoryNamed("."))
+}
+
 // TestRefusedByName_JudgesADocumentPartByItsSpelling pins what a read refuses
 // by a $ref's spelling alone. Confined, an absolute file path is refused
 // wherever it points, unless it names the source. In either mode, a URL whose

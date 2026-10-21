@@ -28,7 +28,8 @@ type Config struct {
 	// names none. Nil names each document by its uri.
 	Locate func(uri, base string) (string, bool)
 	// Open returns the tree of the document named name, read under the
-	// compile's budgets. Nil reads no other document.
+	// compile's budgets, or an *UnparsableError for one that was read and does
+	// not parse. Nil reads no other document.
 	Open func(name string) (*yaml.Node, error)
 	// Refuse returns why a reference whose document part is uri, as written,
 	// is refused unread by that spelling alone, however another reference
@@ -49,6 +50,18 @@ type Config struct {
 	// Limit bounds the work; zero is DefaultLimit.
 	Limit int
 }
+
+// UnparsableError is the failure of Config.Open for a document that was read
+// and does not parse: Err is the parser's reason, which says where.
+type UnparsableError struct {
+	Err error
+}
+
+// Error says the document does not parse, and the parser's reason.
+func (e *UnparsableError) Error() string { return "it does not parse as YAML: " + e.Err.Error() }
+
+// Unwrap returns the parser's reason.
+func (e *UnparsableError) Unwrap() error { return e.Err }
 
 // ReferenceEnd is where the parser's resolver ended a reference object's
 // chain: the name of the document, the pointer its last $ref writes there, and
