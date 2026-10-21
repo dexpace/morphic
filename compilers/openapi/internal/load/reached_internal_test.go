@@ -249,7 +249,7 @@ func TestBuiltTargets(t *testing.T) {
 		{Landing: bind.Landing{At: bind.Position{Doc: 1, Pointer: "/C"}, Name: "other.yaml"}, Schema: built},
 		{Landing: bind.Landing{At: bind.Position{Pointer: "/x-lib/D"}, Reached: true}, Err: errors.New("no")},
 		{Landing: bind.Landing{At: bind.Position{Pointer: "/x-lib/E"}, Reached: true}, Schema: buildRaw(t, "true")},
-	}, place)
+	}, place, func(id bind.DocID) string { return fmt.Sprintf("doc%d.yaml", id) })
 
 	require.Len(t, got, 3)
 	assert.Equal(t, reachedTarget{site: "/s", obj: built, node: built.GetSchema().GetRootNode(), doc: "spec.yaml",
@@ -261,6 +261,8 @@ func TestBuiltTargets(t *testing.T) {
 	assert.Equal(t, jsontext.Pointer("/u"), got[2].site)
 	require.NotNil(t, got[2].place, "a $ref only another document writes")
 	assert.Equal(t, ir.Provenance{Source: 11, Pointer: "/u"}, got[2].place("/u"), "placed in that document")
+	assert.Equal(t, "doc1.yaml", got[2].siteDoc, "and ordered by its name")
+	assert.Empty(t, got[1].siteDoc)
 }
 
 // buildRaw decodes src, YAML, as the bindings build a schema for a landing.

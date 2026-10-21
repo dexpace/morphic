@@ -94,9 +94,11 @@ type Ctx struct {
 
 	// home is the Document.Sources index of the document other than the
 	// source whose positions this lowering reads, or zero for the source's
-	// own. Set only by InDocument, beside the scope it reads that document's
-	// references in, and cleared by InScope, which reads at the source's.
-	home int
+	// own, and homeDoc that document in the bindings' table. Set only by
+	// InDocument, beside the scope it reads that document's references in, and
+	// cleared by InScope, which reads at the source's.
+	home    int
+	homeDoc bind.DocID
 
 	// namesByReference marks a lowering running under a $ref that named a
 	// coordinate, whose names are placeholders. Unexported and read through
@@ -349,35 +351,35 @@ func Within[T, S any, R interface {
 
 // Declared returns what the entry ref, written at usePtr in c's document,
 // resolves to, with the context its declaration is lowered in and the pointer
-// declaring it there. In the source that is Within's context and the pointer
-// resolve.ObjectAt reads. Where the chain ends in another document, it is that
-// document's context (InDocument) and the position the bindings' table places
-// the end at (bind.Table.Through). A chain ending in no document the compile
-// read beside the source keeps the use site.
+// declaring it there. For the source's own reference whose chain ends in the
+// source, that is Within's context and the pointer resolve.ObjectAt reads.
+// Otherwise it is the context of the document the chain ends in (InDocument)
+// and the position the bindings' table places the end at (bind.Table.Through),
+// the source's included for a reference another document writes (GitHub
+// #751). A chain the table places no end for keeps the use site.
 func Declared[T, S any, R interface {
 	*S
 	resolve.Referenced[T, S]
 }](c Ctx, ref R, usePtr jsontext.Pointer) (*T, Ctx, jsontext.Pointer) {
 	obj, decl := resolve.ObjectAt[T, S](c.RefScope(), ref, usePtr)
 	in := Within[T, S](c, ref)
-	if there, at, ok := declaredElsewhere(c, obj != nil && in.foreign, usePtr); ok {
+	if there, at, ok := declaredElsewhere(c, obj != nil && (in.foreign || c.home != 0), usePtr); ok {
 		return obj, there, at
 	}
 	return obj, in, decl
 }
 
 // declaredElsewhere returns the context and pointer of what the reference
-// object at usePtr resolved to, in another document, and false where Declared
-// keeps the use site: foreign is false, the object read in no other document's
-// scope, or the bindings' table places no end there. Only the source's own
-// reference objects have ends the table places (bind.Table.Through), so one
-// read in another document's content keeps its use site.
-func declaredElsewhere(c Ctx, foreign bool, usePtr jsontext.Pointer) (Ctx, jsontext.Pointer, bool) {
-	if !foreign || c.home != 0 || c.loaded == nil {
+// object at usePtr in c's document resolved to, where the table places its
+// end, and false where Declared keeps Within's answer: elsewhere is false, or
+// the end is the source's own reference's in the source, or the table places
+// none.
+func declaredElsewhere(c Ctx, elsewhere bool, usePtr jsontext.Pointer) (Ctx, jsontext.Pointer, bool) {
+	if !elsewhere || c.loaded == nil {
 		return c, "", false
 	}
-	end, ok := c.Bindings().Table().Through(usePtr)
-	if !ok || end.Doc == bind.Source {
+	end, ok := c.Bindings().Table().Through(bind.Position{Doc: c.homeDoc, Pointer: usePtr})
+	if !ok || end.Doc == bind.Source && c.home == 0 {
 		return c, "", false
 	}
 	there, ok := InDocument(c, end.Doc)
@@ -390,7 +392,7 @@ func declaredElsewhere(c Ctx, foreign bool, usePtr jsontext.Pointer) (Ctx, jsont
 // What another document declares at a position of its own is lowered in its
 // coordinates instead (InDocument).
 func (c Ctx) InScope(scope resolve.Scope) Ctx {
-	c.foreign, c.holder, c.home = scope.Foreign, scope.Holder, 0
+	c.foreign, c.holder, c.home, c.homeDoc = scope.Foreign, scope.Holder, 0, bind.Source
 	return c
 }
 
@@ -532,7 +534,7 @@ func InDocument(c Ctx, id bind.DocID) (Ctx, bool) {
 	if !ok {
 		return c, false
 	}
-	c.foreign, c.holder, c.home = true, name, o.Index
+	c.foreign, c.holder, c.home, c.homeDoc = true, name, o.Index, id
 	return c, true
 }
 

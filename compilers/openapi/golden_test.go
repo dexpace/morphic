@@ -34,15 +34,17 @@ func TestGolden(t *testing.T) {
 	irtest.CompareGolden(t, "../../testdata/golden/openapi/petstore.golden.json", doc)
 }
 
-// TestGolden_SplitSpec pins the IR of a spec split across three files, read
+// TestGolden_SplitSpec pins the IR of a spec split across four files, read
 // from memory under the paths they are named by: each other document is a
 // Document.Sources entry after the source, ordered by its path from the
 // source's directory, and what it declares is lowered where it declares it,
-// in namespaces qualified by that path.
+// in namespaces qualified by that path. paths.yaml's path item writes
+// references of its own, into itself, a third file and the source, and
+// common.yaml's response one into itself (GitHub #751).
 func TestGolden_SplitSpec(t *testing.T) {
 	t.Parallel()
-	sources := make([]compilers.Source, 0, 3)
-	for _, name := range []string{"root.yaml", "common.yaml", "schemas/pet.yaml"} {
+	sources := make([]compilers.Source, 0, 4)
+	for _, name := range []string{"root.yaml", "common.yaml", "paths.yaml", "schemas/pet.yaml"} {
 		data, err := os.ReadFile("../../testdata/golden/openapi/split/" + name)
 		require.NoError(t, err)
 		sources = append(sources, compilers.Source{Path: "split/" + name, Data: data})

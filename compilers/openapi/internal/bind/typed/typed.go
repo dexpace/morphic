@@ -33,9 +33,9 @@ type Bindings struct {
 	discs map[*oas3.Discriminator]bind.Position
 	// held is the schema at each position: the model's own, or one built.
 	held map[bind.Position]*schemaRef
-	// unplaced is the source's reference object each schema and discriminator
-	// of an end the table could not place was read under (Builder.Unplaced).
-	unplaced map[any]jsontext.Pointer
+	// unplaced is the reference object each schema and discriminator of an end
+	// the table could not place was read under, as spelled (Builder.Unplaced).
+	unplaced map[any]string
 }
 
 // Table returns the table b answers from.
@@ -108,11 +108,12 @@ func (b *Bindings) Mapping(d *oas3.Discriminator, value string) (bind.Mapping, b
 	return b.table.Mapping(at, value)
 }
 
-// Unplaced returns the pointer of the source's reference object in whose
-// content model, a schema or a discriminator, was read, where the table could
-// not place what the parser resolved that object to (bind.Table.Through), so
-// no $ref in it is bound. It is false for any other model.
-func (b *Bindings) Unplaced(model any) (jsontext.Pointer, bool) {
+// Unplaced returns the reference object in whose content model, a schema or a
+// discriminator, was read, spelled as its pointer and, outside the source, its
+// document, where the table could not place what the parser resolved that
+// object to (bind.Table.Through), so no $ref in it is bound. It is false for
+// any other model.
+func (b *Bindings) Unplaced(model any) (string, bool) {
 	if b == nil {
 		return "", false
 	}
@@ -136,7 +137,7 @@ type Builder struct {
 func NewBuilder(table *bind.Table) *Builder {
 	return &Builder{decode: decodeSchema, view: nodeview.New(), b: &Bindings{table: table, at: map[*schemaRef]bind.Position{},
 		discs: map[*oas3.Discriminator]bind.Position{}, held: map[bind.Position]*schemaRef{},
-		unplaced: map[any]jsontext.Pointer{}}}
+		unplaced: map[any]string{}}}
 }
 
 // decodeSchema decodes n into js as the parser decodes a schema of its model,
@@ -178,9 +179,9 @@ func (bd *Builder) Discriminator(d *oas3.Discriminator, p bind.Position) {
 }
 
 // Unplaced records that model, a schema or a discriminator, was read in what
-// the source's reference object at site resolved to, where the table could
-// not place it.
-func (bd *Builder) Unplaced(model any, site jsontext.Pointer) {
+// the reference object site spells resolved to, where the table could not
+// place it.
+func (bd *Builder) Unplaced(model any, site string) {
 	bd.b.unplaced[model] = site
 }
 

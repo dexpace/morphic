@@ -406,22 +406,24 @@ func resolve(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *
 	self sourceDocument, opts Options, rebuild func() (*soa.OpenAPI, error), beside besideSource,
 ) (*soa.OpenAPI, Siblings, bound, []ir.Diagnostic, error) {
 	var reader *external
-	var diags []ir.Diagnostic
+	var pass *resolution
+	var unprepared []ir.Diagnostic
 	if opts.Reader != nil {
 		var err error
-		doc, sibs, reader, diags, err = resolveExternal(ctx, at, doc, sibs, self, opts, rebuild)
+		doc, sibs, reader, pass, unprepared, err = resolveExternal(ctx, at, doc, sibs, self, opts, rebuild)
 		if err != nil {
 			return nil, Siblings{}, bound{}, nil, err
 		}
 	} else {
-		diags = resolveWith(ctx, at, doc, sibs, self, opts, nil)
+		pass = resolveWith(ctx, doc, sibs, self, opts, nil)
 	}
-	b := bindSchemas(ctx, doc, sibs, self, reader)
+	b := bindSchemas(ctx, doc, sibs, self, reader, pass.ends())
 	if reader != nil {
 		b.others = newOthers(reader.read, beside.first, beside.format)
 	}
-	place := b.placer(at)
-	reached := validateReached(ctx, at, place, doc, sibs, b.built, opts, self)
+	place, placeSite := b.placer(at), sitePlacer(at, b.others)
+	diags := append(pass.diags(placeSite), unprepared...)
+	reached := validateReached(ctx, at, b, doc, sibs, opts, self, pass.elsewhere(placeSite))
 	site, err := self.escapes.restore(ctx, doc, sibs, b.built)
 	diags = append(diags, restoreFault(at, site, err)...)
 	diags = append(diags, bindingDiags(place, b.bindings.Table())...)

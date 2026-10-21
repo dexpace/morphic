@@ -10,9 +10,14 @@ components:
   responses:
     Error:
       description: an error
+      headers:
+        X-Request-Id: {$ref: '#/components/headers/RequestId'}
       content:
         application/json:
           schema: {$ref: '#/components/schemas/Error'}
+  headers:
+    RequestId:
+      schema: {type: string, format: uuid}
   schemas:
     Error:
       type: object

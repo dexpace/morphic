@@ -71,7 +71,7 @@ func TestResolve_SitesEachFailureAtItsReference(t *testing.T) {
 	doc, valErrs := parseSpec(t, sitedFailuresSpec)
 	require.Empty(t, valErrs, "the fixture is otherwise well-formed")
 
-	got := resolveWith(t.Context(), pointerAt(0, overlay.Origin{}), doc, Siblings{}, sourceDocument{path: "root.yaml"}, Options{}, nil)
+	got := resolvedDiags(t, doc, "root.yaml")
 
 	want := []struct {
 		pointer        jsontext.Pointer
@@ -159,7 +159,7 @@ components:
 `)
 		require.Empty(t, valErrs)
 
-		got := resolveWith(t.Context(), pointerAt(0, overlay.Origin{}), doc, Siblings{}, sourceDocument{path: "root.yaml"}, Options{}, nil)
+		got := resolvedDiags(t, doc, "root.yaml")
 
 		assertFailures(t, got, map[jsontext.Pointer]string{
 			"/paths/~1a/get/parameters/0": `unresolved $ref "#/components/parameters/Alias", ` +
@@ -544,33 +544,39 @@ func TestEachReference_PanicIsReportedAtTheReference(t *testing.T) {
 }
 
 // TestReachedFindings covers where resolveWith reports the findings its walk draws. A
-// finding is placed at the least pointer among the $refs whose trails end at
-// its target, whichever $ref drew it; one along a trail with no target stays at
-// its own. One drawn twice is kept at the least of its places, and one at no
-// node is told apart by its place too. One the source's own would drop is not.
+// finding is placed at the least site among the $refs whose trails end at its
+// target, whichever $ref drew it, a source's before another document's
+// (compareSites); one along a trail with no target stays at its own. One drawn
+// twice is kept at the least of its places, and one at no node is told apart by
+// its place too. One the source's own would drop is not.
 func TestReachedFindings(t *testing.T) {
 	t.Parallel()
-	node, other := &yaml.Node{Line: 3, Column: 5}, &yaml.Node{Line: 4, Column: 1}
+	node, other, far := &yaml.Node{Line: 3, Column: 5}, &yaml.Node{Line: 4, Column: 1}, &yaml.Node{Line: 7, Column: 2}
 	at := func(n *yaml.Node, rule, msg string) error {
 		return &validation.Error{Severity: validation.SeverityError, Rule: rule,
 			UnderlyingError: errors.New(msg), Node: n}
 	}
+	src := func(p jsontext.Pointer) refSite { return refSite{pointer: p} }
 	toT := trail{docs: []string{"e.yaml"}, target: "e.yaml#/T"}
-	f := reachedFindings{sites: map[references.Reference]jsontext.Pointer{}}
+	toU := trail{docs: []string{"e.yaml"}, target: "e.yaml#/U"}
+	f := reachedFindings{sites: map[references.Reference]refSite{}}
 
-	f.note("/paths/~1y", toT, []error{at(node, "r", "m"), at(nil, "r", "m"),
+	f.note(refSite{doc: "a.yaml", pointer: "/a"}, toT, []error{at(node, "r", "m")}) // another document reaches T
+	f.note(src("/paths/~1y"), toT, []error{at(node, "r", "m"), at(nil, "r", "m"),
 		at(node, validation.RuleValidationOperationIdUnique, "m")})
-	f.note("/paths/~1x", toT, nil)                         // reaches T, draws nothing
-	f.note("/paths/~1z", toT, []error{at(node, "r", "m")}) // T built again
-	f.note("/paths/~1b", trail{stopped: "#/g"}, []error{at(other, "r", "m")})
-	f.note("/paths/~1a", trail{stopped: "#/g"}, []error{at(other, "r", "m")})
-	f.note("/paths/~1c", trail{stopped: "#/h"}, []error{at(nil, "r", "m"), errors.New("bare")})
+	f.note(src("/paths/~1x"), toT, nil)                         // reaches T, draws nothing
+	f.note(src("/paths/~1z"), toT, []error{at(node, "r", "m")}) // T built again
+	f.note(src("/paths/~1b"), trail{stopped: "#/g"}, []error{at(other, "r", "m")})
+	f.note(src("/paths/~1a"), trail{stopped: "#/g"}, []error{at(other, "r", "m")})
+	f.note(src("/paths/~1c"), trail{stopped: "#/h"}, []error{at(nil, "r", "m"), errors.New("bare")})
+	f.note(refSite{doc: "b.yaml", pointer: "/a"}, toU, []error{at(far, "r", "m")}) // only other documents reach U
+	f.note(refSite{doc: "a.yaml", pointer: "/z"}, toU, nil)
 
 	type placed struct {
 		Pointer jsontext.Pointer
 		Message string
 	}
-	diags := f.diags(func(p jsontext.Pointer) ir.Provenance { return ir.Provenance{Pointer: p} })
+	diags := f.diags(func(s refSite) ir.Provenance { return ir.Provenance{Pointer: jsontext.Pointer(s.doc) + s.pointer} })
 	got := make([]placed, 0, len(diags))
 	for _, d := range diags {
 		got = append(got, placed{d.Provenance.Pointer, d.Message})
@@ -581,6 +587,7 @@ func TestReachedFindings(t *testing.T) {
 		{"/paths/~1a", `m, at 4:1 of the document that "#/g" names`},
 		{"/paths/~1c", "m"},
 		{"/paths/~1c", "bare"},
+		{"a.yaml/z", "m, at 7:2 of e.yaml"},
 	}
 	if d := cmp.Diff(want, got); d != "" {
 		t.Errorf("reachedFindings.diags (-want +got):\n%s", d)
@@ -732,7 +739,7 @@ func TestResolve_ResolvesWhatTheLibraryResolves(t *testing.T) {
 		})
 		want := referencePairs(t, doc1)
 
-		resolveWith(t.Context(), pointerAt(0, overlay.Origin{}), doc2, Siblings{}, sourceDocument{path: path}, Options{}, nil)
+		resolveWith(t.Context(), doc2, Siblings{}, sourceDocument{path: path}, Options{}, nil)
 		got := referencePairs(t, doc2)
 
 		if d := cmp.Diff(want, got); d != "" {
@@ -769,4 +776,12 @@ func TestFailureDiag_WordsAFailedReadAsTheBinderDoes(t *testing.T) {
 			assert.Equal(t, tc.want, d.Message)
 		})
 	}
+}
+
+// resolvedDiags is what a resolver pass over doc, at path and with no reader,
+// reports.
+func resolvedDiags(t *testing.T, doc *soa.OpenAPI, path string) []ir.Diagnostic {
+	t.Helper()
+	return resolveWith(t.Context(), doc, Siblings{}, sourceDocument{path: path}, Options{}, nil).
+		diags(sitePlacer(pointerAt(0, overlay.Origin{}), Others{}))
 }

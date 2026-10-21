@@ -37,10 +37,10 @@ type Config struct {
 	// is refused unread by that spelling alone, however another reference
 	// names the same document, or nil. Nil refuses none.
 	Refuse func(uri string) error
-	// Through returns where the chain of the source's reference object at a
-	// pointer ends, as the parser's resolver followed it. Nil, or false, is a
-	// reference that resolved to nothing.
-	Through func(pointer jsontext.Pointer) (ReferenceEnd, bool)
+	// Through returns where the chain of the reference object at a pointer of
+	// the document named name ends, as the parser's resolver followed it. Nil,
+	// or false, is a reference that resolved to nothing.
+	Through func(name string, pointer jsontext.Pointer) (ReferenceEnd, bool)
 	// Beside returns the path item $ref, and the key written beside it, whose
 	// fields a pointer passes through. Nil passes none.
 	Beside func(pointer jsontext.Pointer) (use jsontext.Pointer, key string, ok bool)
@@ -247,7 +247,7 @@ type Table struct {
 	loops     []Loop
 	landings  []Landing
 	docs      []Document
-	ends      map[jsontext.Pointer]Position
+	ends      map[Position]Position
 	steps     int
 	limit     int
 	exhausted bool
@@ -286,6 +286,17 @@ func (t *Table) Landings() []Landing { return slices.Clone(t.landings) }
 // Document returns the document id names.
 func (t *Table) Document(id DocID) Document { return t.docs[id] }
 
+// Find returns the document the table read under name, and false for a name
+// it read none under.
+func (t *Table) Find(name string) (DocID, bool) {
+	for id, d := range t.docs {
+		if d.Name == name {
+			return DocID(id), true
+		}
+	}
+	return 0, false
+}
+
 // compare orders positions as the table reads them: the source's first,
 // another document's by its name, then by pointer (comparePositions).
 func (t *Table) compare(p, q Position) int {
@@ -301,12 +312,13 @@ func (t *Table) name(id DocID) string { return t.docs[id].Name }
 // Documents reports how many documents the table read, the source included.
 func (t *Table) Documents() int { return len(t.docs) }
 
-// Through returns where the source's reference object at pointer resolves
-// to: where the parser's resolver ended its chain (Config.Through), read on
-// through any reference object that end lies past. It is false for a position
-// writing no $ref, or one whose end the table could not read.
-func (t *Table) Through(pointer jsontext.Pointer) (Position, bool) {
-	at, ok := t.ends[pointer]
+// Through returns where the reference object at site resolves to, in
+// whichever document: where the parser's resolver ended its chain
+// (Config.Through), read on through any reference object that end lies past.
+// It is false for a position writing no $ref, or one whose end the table could
+// not read.
+func (t *Table) Through(site Position) (Position, bool) {
+	at, ok := t.ends[site]
 	return at, ok
 }
 

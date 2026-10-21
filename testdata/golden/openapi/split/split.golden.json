@@ -6,9 +6,11 @@
     "e": [
       "anon",
       "anon@common.yaml",
+      "anon@paths.yaml",
       "anon@schemas~1pet.yaml",
       "openapi",
       "openapi@common.yaml",
+      "openapi@paths.yaml",
       "openapi@schemas~1pet.yaml"
     ],
     "g": [
@@ -23,6 +25,7 @@
     "p": [
       "openapi",
       "openapi@common.yaml",
+      "openapi@paths.yaml",
       "openapi@schemas~1pet.yaml"
     ],
     "param": [
@@ -34,12 +37,15 @@
     "t": [
       "anon",
       "anon@common.yaml",
+      "anon@paths.yaml",
       "anon@schemas~1pet.yaml",
       "composed",
       "composed@common.yaml",
+      "composed@paths.yaml",
       "composed@schemas~1pet.yaml",
       "openapi",
       "openapi@common.yaml",
+      "openapi@paths.yaml",
       "openapi@schemas~1pet.yaml"
     ]
   },
@@ -146,6 +152,35 @@
                       }
                     ]
                   },
+                  "headers": [
+                    {
+                      "id": "p/openapi@common.yaml/components/responses/Error/headers/X-Request-Id",
+                      "name": {
+                        "source": "X-Request-Id",
+                        "canonical": "x_request_id"
+                      },
+                      "wireName": "X-Request-Id",
+                      "type": {
+                        "target": "t/prim/uuid",
+                        "nullable": false
+                      },
+                      "required": false,
+                      "clientOptional": false,
+                      "defaultAdded": false,
+                      "visibility": {
+                        "none": false
+                      },
+                      "flatten": false,
+                      "eventHeader": false,
+                      "eventPayload": false,
+                      "secret": false,
+                      "docs": {},
+                      "provenance": {
+                        "source": 1,
+                        "pointer": "/components/responses/Error/headers/X-Request-Id"
+                      }
+                    }
+                  ],
                   "docs": {
                     "description": "an error"
                   }
@@ -251,6 +286,35 @@
                       }
                     ]
                   },
+                  "headers": [
+                    {
+                      "id": "p/openapi@common.yaml/components/responses/Error/headers/X-Request-Id",
+                      "name": {
+                        "source": "X-Request-Id",
+                        "canonical": "x_request_id"
+                      },
+                      "wireName": "X-Request-Id",
+                      "type": {
+                        "target": "t/prim/uuid",
+                        "nullable": false
+                      },
+                      "required": false,
+                      "clientOptional": false,
+                      "defaultAdded": false,
+                      "visibility": {
+                        "none": false
+                      },
+                      "flatten": false,
+                      "eventHeader": false,
+                      "eventPayload": false,
+                      "secret": false,
+                      "docs": {},
+                      "provenance": {
+                        "source": 1,
+                        "pointer": "/components/responses/Error/headers/X-Request-Id"
+                      }
+                    }
+                  ],
                   "docs": {
                     "description": "an error"
                   }
@@ -275,6 +339,176 @@
               "provenance": {
                 "source": 0,
                 "pointer": "/paths/~1pets/post"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1pets~1{petId}/get",
+              "name": {
+                "source": "showPet",
+                "canonical": "show_pet"
+              },
+              "docs": {},
+              "params": [
+                {
+                  "id": "param/openapi/paths/~1pets~1{petId}/get/parameters/X-Trace/header",
+                  "name": {
+                    "source": "X-Trace",
+                    "canonical": "x_trace"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {},
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/components/parameters/Trace"
+                  }
+                },
+                {
+                  "id": "param/openapi/paths/~1pets~1{petId}/get/parameters/petId/path",
+                  "name": {
+                    "source": "petId",
+                    "canonical": "pet_id"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": false
+                  },
+                  "required": true,
+                  "constraints": {
+                    "pattern": "^[0-9]+$",
+                    "uniqueItems": false
+                  },
+                  "docs": {},
+                  "provenance": {
+                    "source": 2,
+                    "pointer": "/components/parameters/PetId"
+                  }
+                }
+              ],
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "payload": {
+                    "contents": [
+                      {
+                        "mediaType": "application/json",
+                        "type": {
+                          "target": "t/openapi@schemas~1pet.yaml/components/schemas/Pet",
+                          "nullable": false
+                        }
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "the pet"
+                  }
+                }
+              ],
+              "errors": [
+                {
+                  "name": {
+                    "hint": "default"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 0,
+                        "to": 0
+                      }
+                    ]
+                  },
+                  "payload": {
+                    "contents": [
+                      {
+                        "mediaType": "application/json",
+                        "type": {
+                          "target": "t/openapi@common.yaml/components/schemas/Error",
+                          "nullable": false
+                        }
+                      }
+                    ]
+                  },
+                  "headers": [
+                    {
+                      "id": "p/openapi@common.yaml/components/responses/Error/headers/X-Request-Id",
+                      "name": {
+                        "source": "X-Request-Id",
+                        "canonical": "x_request_id"
+                      },
+                      "wireName": "X-Request-Id",
+                      "type": {
+                        "target": "t/prim/uuid",
+                        "nullable": false
+                      },
+                      "required": false,
+                      "clientOptional": false,
+                      "defaultAdded": false,
+                      "visibility": {
+                        "none": false
+                      },
+                      "flatten": false,
+                      "eventHeader": false,
+                      "eventPayload": false,
+                      "secret": false,
+                      "docs": {},
+                      "provenance": {
+                        "source": 1,
+                        "pointer": "/components/responses/Error/headers/X-Request-Id"
+                      }
+                    }
+                  ],
+                  "docs": {
+                    "description": "an error"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/pets/{petId}",
+                    "sharedRoute": false,
+                    "paramBindings": [
+                      {
+                        "param": "param/openapi/paths/~1pets~1{petId}/get/parameters/X-Trace/header",
+                        "location": "header",
+                        "wireName": "X-Trace",
+                        "style": "simple",
+                        "explode": false,
+                        "allowReserved": false
+                      },
+                      {
+                        "param": "param/openapi/paths/~1pets~1{petId}/get/parameters/petId/path",
+                        "location": "path",
+                        "wireName": "petId",
+                        "style": "simple",
+                        "explode": false,
+                        "allowReserved": false
+                      }
+                    ],
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 2,
+                "pointer": "/paths/~1pets~1{petId}/get"
               }
             }
           ]
@@ -314,7 +548,7 @@
       "docs": {},
       "sensitive": false,
       "provenance": {
-        "source": 2,
+        "source": 3,
         "pointer": "/components/schemas/Pet/properties/status"
       },
       "valueType": "string",
@@ -454,7 +688,7 @@
       "docs": {},
       "sensitive": false,
       "provenance": {
-        "source": 2,
+        "source": 3,
         "pointer": "/components/schemas/Pet"
       },
       "properties": [
@@ -481,7 +715,7 @@
           "secret": false,
           "docs": {},
           "provenance": {
-            "source": 2,
+            "source": 3,
             "pointer": "/components/schemas/Pet/properties/id"
           }
         },
@@ -508,7 +742,7 @@
           "secret": false,
           "docs": {},
           "provenance": {
-            "source": 2,
+            "source": 3,
             "pointer": "/components/schemas/Pet/properties/name"
           }
         },
@@ -535,7 +769,7 @@
           "secret": false,
           "docs": {},
           "provenance": {
-            "source": 2,
+            "source": 3,
             "pointer": "/components/schemas/Pet/properties/tag"
           }
         },
@@ -562,7 +796,7 @@
           "secret": false,
           "docs": {},
           "provenance": {
-            "source": 2,
+            "source": 3,
             "pointer": "/components/schemas/Pet/properties/status"
           }
         }
@@ -582,7 +816,7 @@
       "docs": {},
       "sensitive": false,
       "provenance": {
-        "source": 2,
+        "source": 3,
         "pointer": "/components/schemas/Tag"
       },
       "properties": [
@@ -609,7 +843,7 @@
           "secret": false,
           "docs": {},
           "provenance": {
-            "source": 2,
+            "source": 3,
             "pointer": "/components/schemas/Tag/properties/label"
           }
         }
@@ -653,6 +887,18 @@
         "source": -1
       },
       "prim": "string"
+    },
+    "t/prim/uuid": {
+      "kind": "primitive",
+      "id": "t/prim/uuid",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "uuid"
     }
   },
   "servers": [
@@ -679,12 +925,17 @@
     {
       "format": "openapi@3.1",
       "path": "split/root.yaml",
-      "hash": "979cb92cfc11fc27a424768e70ca564fb8e426e5ead9699264da06dd4d97f9ce"
+      "hash": "fb75b25cb56a15e435cc43d545f317b52999a6492d522cc8a89f49ffabf50492"
     },
     {
       "format": "openapi@3.1",
       "path": "split/common.yaml",
-      "hash": "4e6b2168dd2eeba62e33d6e69edd20485eff8ac7d3ca405b5febef4506404dec"
+      "hash": "5ca710338ac6b31fec3a3114305011aa3326077a9c6f058030e8c991eaffaa96"
+    },
+    {
+      "format": "openapi@3.1",
+      "path": "split/paths.yaml",
+      "hash": "c67807ab32d73b7fd5843167a73930f9d3aadc409b1bc256fb3bf0166738dd9a"
     },
     {
       "format": "openapi@3.1",

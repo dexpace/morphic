@@ -36,8 +36,9 @@ func resumedOver(t *testing.T, dir, root string, limit int) (*resumeWork, []ir.D
 	ext := newExternal(t.Context(), doc, opts, newExternalReads(self))
 	ext.work.limit = limit
 	at := pointerAt(0, overlay.Origin{})
-	diags := newResolution(t.Context(), at, doc, Siblings{}, self, opts, &ext).run(t.Context(), doc)
-	return ext.work, append(diags, crossed(at, &ext)...)
+	pass := newResolution(t.Context(), doc, Siblings{}, self, opts, &ext)
+	pass.run(t.Context(), doc)
+	return ext.work, append(pass.diags(sitePlacer(at, Others{})), crossed(at, &ext)...)
 }
 
 // TestSettle_TheResumedWorkIsBounded pins maxResumeWork's bound. Two chains

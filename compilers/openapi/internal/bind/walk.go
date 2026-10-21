@@ -1,7 +1,6 @@
 package bind
 
 import (
-	"encoding/json/jsontext"
 	"slices"
 	"strconv"
 
@@ -26,13 +25,13 @@ type frame struct {
 }
 
 // finder finds the positions a table answers for: the schema sites, the
-// discriminator mapping values, the landings, and where each of the source's
-// reference objects resolves to, walking each root as it is noted. It keeps
+// discriminator mapping values, the landings, and where each reference object
+// resolves to, walking each root as it is noted. It keeps
 // what it has found, and which of that is new since the table last settled.
 type finder struct {
 	docs          *docs
 	work          *budget
-	ends          map[jsontext.Pointer]Position
+	ends          map[Position]Position
 	sites         map[Position]bool
 	mappingSites  map[mappingKey]bool
 	fresh         []Position
@@ -44,7 +43,7 @@ type finder struct {
 
 // newFinder returns a finder over docs that has found nothing.
 func newFinder(d *docs, work *budget) *finder {
-	return &finder{docs: d, work: work, ends: map[jsontext.Pointer]Position{}, sites: map[Position]bool{},
+	return &finder{docs: d, work: work, ends: map[Position]Position{}, sites: map[Position]bool{},
 		mappingSites: map[mappingKey]bool{}, landings: map[Position]bool{}, covered: map[root]bool{}}
 }
 
@@ -84,9 +83,9 @@ func (w *finder) visit(n *yaml.Node, f frame) {
 			w.fresh = append(w.fresh, f.at)
 		}
 		w.mappingsOf(n, f.at)
-	case referenceKinds[f.state] && f.at.Doc == Source:
+	case referenceKinds[f.state]:
 		if r, reason := w.docs.through(reading{at: f.at, node: n, state: f.state}, 0); reason == NoReason && r.at != f.at {
-			w.ends[f.at.Pointer] = r.at
+			w.ends[f.at] = r.at
 			w.pending = append(w.pending, root{at: r.at, state: f.state})
 		}
 	}

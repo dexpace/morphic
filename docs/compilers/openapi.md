@@ -244,10 +244,12 @@ Each document read is a `Document.Sources` entry after the source and its overla
 location from the source's directory, and what it declares lowers there, as the source's own lowers
 where the source declares it: a schema a `$ref` lands on, and a parameter, request body, response,
 header, example, callback, path item or security scheme a reference brings in, with the schemas
-inline in it. Its `Provenance` names that entry, and its IDs are in that document's namespaces, the
-source's qualified by its location (`t/openapi@common.yaml/components/schemas/Pet`, ir-design
-§3.1), so one pointer in two documents is two nodes. An operation and a parameter keep the IDs of
-the mount that lowers them.
+inline in it. A reference object written in what another document brings in is resolved against that
+document, as the source's are against the source, and what it names lowers where it is declared, in
+whichever document, the source included. What a document declares names its entry in its
+`Provenance`, and has IDs in that document's namespaces, the source's qualified by its location
+(`t/openapi@common.yaml/components/schemas/Pet`, ir-design §3.1), so one pointer in two documents is
+two nodes. An operation and a parameter keep the IDs of the mount that lowers them.
 
 A schema `$ref`, and a discriminator mapping value spelled as one, is bound by the compiler itself,
 never by the parser's resolver
@@ -314,7 +316,8 @@ would answer. A chain of references that closes on itself is
   `schema.TestMapping_InAnotherDocumentIsReportedWhereItIsWritten`,
   `lowering.TestInDocument_PlacesWhatAnotherDocumentDeclares`,
   `lowering.TestDeclared_LowersAReferencedObjectWhereItIsDeclared`,
-  `lowering.TestDeclared_KeepsTheUseSiteInAnotherDocumentsContent`,
+  `lowering.TestDeclared_ReadsTheEndOfTheDocumentWritingTheReference`,
+  `bind.TestBind_PassesAReferenceObjectOfAnotherDocument`,
   `openapi.TestCompile_ASiblingRefResolvesWithinTheSourcesDirectory`,
   `openapi.TestCompile_ARefOutsideTheSourcesDirectoryIsRefused`,
   `openapi.TestCompile_ASymlinkOutOfTheSourcesDirectoryIsRefused`,
@@ -344,14 +347,13 @@ would answer. A chain of references that closes on itself is
   `bind.TestBind_TakesNoDefinitionPastAReadTheMergeBoundStopped`,
   `canary.TestBindingOracle_AgreesWithTheLibrary`
 - Status: partly built: an `encoding` entry naming no part of its body is dropped with no record
-  (#604). An `$anchor` or an `$id` is not honoured as a reference target (#1015). A
-  reference object inside an object another document holds is never resolved, and nothing reports it
-  (#751); an absolute-path `$ref` in a remote document is read as a local path (#936); a remote
-  document can make the compiler request a private address (#937); an external document that does
-  not parse is handed on rather than refused (#939); and a remote document reaching a local file is
-  refused naming only its last such `$ref` (#940). A reference object's pointer holding a character
-  above U+FFFF is refused as malformed (#516), and an unresolved reference object's message ends in
-  the resolver's own wording (#809).
+  (#604). An `$anchor` or an `$id` is not honoured as a reference target (#1015). An absolute-path
+  `$ref` in a remote document is read as a local path (#936); a remote document can make the
+  compiler request a private address (#937); an external document that does not parse is handed on
+  rather than refused (#939); and a remote document reaching a local file is refused naming only its
+  last such `$ref` (#940). A reference object's pointer holding a character above U+FFFF is refused
+  as malformed (#516), and an unresolved reference object's message ends in the resolver's own
+  wording (#809).
 
 ### `reference-cycles`
 

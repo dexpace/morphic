@@ -66,7 +66,7 @@ x-params:
 	for _, model := range []any{js, js.GetSchema().GetDiscriminator()} {
 		site, ok := doc.Bindings.Unplaced(model)
 		assert.True(t, ok, "%T", model)
-		assert.Equal(t, jsontext.Pointer("/paths/~1a/get/parameters/0"), site, "%T", model)
+		assert.Equal(t, "/paths/~1a/get/parameters/0", site, "%T", model)
 	}
 }
 

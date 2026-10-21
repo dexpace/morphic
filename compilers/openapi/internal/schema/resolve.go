@@ -188,7 +188,7 @@ func unresolvedWhy(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) stri
 // merge bound stopped the reading (bind.Table.Unread).
 func unreadWhy(refs *typed.Bindings, model any) string {
 	if site, ok := refs.Unplaced(model); ok {
-		return ": it is in what the reference at " + string(site) + " resolved to, which the compiler " +
+		return ": it is in what the reference at " + site + " resolved to, which the compiler " +
 			"cannot read where the parser placed it"
 	}
 	if why := refs.Table().Unread(); why != "" {

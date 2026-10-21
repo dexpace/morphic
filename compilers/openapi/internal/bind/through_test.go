@@ -52,7 +52,10 @@ func throughConfig() bind.Config {
           n: {$ref: '#/Elsewhere'}
 Elsewhere: {type: string}
 `})
-	cfg.Through = func(p jsontext.Pointer) (bind.ReferenceEnd, bool) {
+	cfg.Through = func(name string, p jsontext.Pointer) (bind.ReferenceEnd, bool) {
+		if name != "spec.yaml" {
+			return bind.ReferenceEnd{}, false
+		}
 		switch p {
 		case "/paths/~1a":
 			return bind.ReferenceEnd{Name: "spec.yaml", Pointer: "/components/pathItems/P"}, true
@@ -100,25 +103,27 @@ func TestBind_ReadsAPointerThroughAReferenceObject(t *testing.T) {
 		"a schema is read for its own keywords, not through its $ref")
 }
 
-// TestBind_PassesNoReferenceObjectOfAnotherDocument pins that only the source's
-// reference objects are read through (GitHub #751). The pointer passes the
-// source's /paths/~1x response into other.yaml's R, whose header H writes a
-// $ref; the source writes one at the same pointer, so asking where that
-// pointer's end lies would answer the source's header, not other.yaml's.
-func TestBind_PassesNoReferenceObjectOfAnotherDocument(t *testing.T) {
+// TestBind_PassesAReferenceObjectOfAnotherDocument pins that a reference object
+// another document writes is read through as the source's are (GitHub #751),
+// asked of by the document writing it. The pointer passes the source's /paths/~1x
+// response into other.yaml's R, whose header H writes a $ref; the source writes
+// one at the same pointer, so asking by the pointer alone would answer the
+// source's header, not other.yaml's.
+func TestBind_PassesAReferenceObjectOfAnotherDocument(t *testing.T) {
 	t.Parallel()
 	cfg := withDocuments(map[string]string{"other.yaml": "components:\n  responses:\n" +
 		"    R: {description: o, headers: {H: {$ref: '#/components/headers/HO'}}}\n" +
 		"  headers:\n    HO: {schema: {maxLength: 9}}\n"})
-	cfg.Through = func(p jsontext.Pointer) (bind.ReferenceEnd, bool) {
-		switch p {
-		case "/paths/~1x/get/responses/200":
-			return bind.ReferenceEnd{Name: "other.yaml", Pointer: "/components/responses/R"}, true
-		case "/components/responses/R/headers/H":
-			return bind.ReferenceEnd{Name: "spec.yaml", Pointer: "/components/headers/HS"}, true
-		default:
-			return bind.ReferenceEnd{}, false
-		}
+	ends := map[string]map[jsontext.Pointer]bind.ReferenceEnd{
+		"spec.yaml": {
+			"/paths/~1x/get/responses/200":      {Name: "other.yaml", Pointer: "/components/responses/R"},
+			"/components/responses/R/headers/H": {Name: "spec.yaml", Pointer: "/components/headers/HS"},
+		},
+		"other.yaml": {"/components/responses/R/headers/H": {Name: "other.yaml", Pointer: "/components/headers/HO"}},
+	}
+	cfg.Through = func(name string, p jsontext.Pointer) (bind.ReferenceEnd, bool) {
+		e, ok := ends[name][p]
+		return e, ok
 	}
 	table := bound(t, `openapi: 3.1.0
 info: {title: t, version: '1'}
@@ -132,9 +137,14 @@ components:
   schemas:
     S: {$ref: '#/paths/~1x/get/responses/200/headers/H/schema'}
 `, cfg)
+	other, ok := table.Find("other.yaml")
+	require.True(t, ok)
 	s := entryAt(t, table, "/components/schemas/S")
-	assert.Equal(t, bind.Unresolved, s.Hop.Status)
-	assert.Equal(t, bind.Unpassable, s.Hop.Reason, s.Hop.Why())
+	require.Equal(t, bind.Resolved, s.Hop.Status, s.Hop.Why())
+	assert.Equal(t, bind.Position{Doc: other, Pointer: "/components/headers/HO/schema"}, s.Hop.Target)
+	end, ok := table.Through(bind.Position{Doc: other, Pointer: "/components/responses/R/headers/H"})
+	require.True(t, ok, "other.yaml's header is placed where it resolves to")
+	assert.Equal(t, bind.Position{Doc: other, Pointer: "/components/headers/HO"}, end)
 }
 
 // TestBind_ReadsWhatAReferenceObjectResolvedTo pins the sites the table reads
@@ -162,7 +172,10 @@ func TestTable_ThroughReadsAnEndPastAnotherReferenceObject(t *testing.T) {
 	t.Parallel()
 	cfg := withDocuments(map[string]string{"other.yaml": "paths:\n  /a:\n    get:\n      responses:\n        '200':\n" +
 		"          description: ok\n          content: {application/json: {schema: {$ref: '#/S'}}}\nS: {type: string}\n"})
-	cfg.Through = func(p jsontext.Pointer) (bind.ReferenceEnd, bool) {
+	cfg.Through = func(name string, p jsontext.Pointer) (bind.ReferenceEnd, bool) {
+		if name != "spec.yaml" {
+			return bind.ReferenceEnd{}, false
+		}
 		switch p {
 		case "/paths/~1a":
 			return bind.ReferenceEnd{Name: "other.yaml", Pointer: "/paths/~1a"}, true
@@ -192,12 +205,12 @@ components:
 		"/paths/~1a":                   "/paths/~1a",
 		"/paths/~1b/get/responses/200": "/paths/~1a/get/responses/200",
 	} {
-		end, ok := table.Through(pointer)
+		end, ok := table.Through(at(pointer))
 		require.True(t, ok, pointer)
 		assert.Equal(t, bind.Position{Doc: other, Pointer: want}, end, pointer)
 	}
 	for _, pointer := range []jsontext.Pointer{"/paths/~1x", "/paths/~1y", "/paths/~1b/get/responses/201", "/paths"} {
-		_, ok := table.Through(pointer)
+		_, ok := table.Through(at(pointer))
 		assert.False(t, ok, pointer)
 	}
 	b := entryAt(t, table, "/components/schemas/B")
@@ -256,12 +269,12 @@ func TestBind_LeavesAReferenceObjectWithoutAnEnd(t *testing.T) {
 	table := bound(t, throughSpec, self)
 	assert.Equal(t, bind.Unpassable, entryAt(t, table, "/components/schemas/Body").Hop.Reason)
 	cfg := throughConfig()
-	cfg.Through = func(jsontext.Pointer) (bind.ReferenceEnd, bool) {
+	cfg.Through = func(string, jsontext.Pointer) (bind.ReferenceEnd, bool) {
 		return bind.ReferenceEnd{Name: "gone.yaml", Pointer: "/R"}, true
 	}
 	assert.Equal(t, bind.Unpassable, entryAt(t, bound(t, throughSpec, cfg), "/components/schemas/Body").Hop.Reason,
 		"an end in a document that cannot be read")
-	cfg.Through = func(jsontext.Pointer) (bind.ReferenceEnd, bool) {
+	cfg.Through = func(string, jsontext.Pointer) (bind.ReferenceEnd, bool) {
 		return bind.ReferenceEnd{Name: "other.yaml", Pointer: "/Missing"}, true
 	}
 	assert.Equal(t, bind.Unpassable, entryAt(t, bound(t, throughSpec, cfg), "/components/schemas/Body").Hop.Reason,
@@ -307,12 +320,12 @@ x-params:
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			cfg := self
-			cfg.Through = func(p jsontext.Pointer) (bind.ReferenceEnd, bool) {
+			cfg.Through = func(name string, p jsontext.Pointer) (bind.ReferenceEnd, bool) {
 				return bind.ReferenceEnd{Name: "spec.yaml", Pointer: tc.pointer, Node: tc.node},
-					p == "/components/parameters/P"
+					name == "spec.yaml" && p == "/components/parameters/P"
 			}
 			table := bind.Bind(src, cfg)
-			end, ok := table.Through("/components/parameters/P")
+			end, ok := table.Through(at("/components/parameters/P"))
 			s := entryAt(t, table, "/components/schemas/S")
 			if !tc.placed {
 				assert.False(t, ok)
@@ -418,8 +431,8 @@ func TestBind_PlacesEachLandingAtTheLeastPositionReachingIt(t *testing.T) {
 	const otherSrc = "A: {$ref: '#/B'}\nB: {type: string}\nC: {$ref: '#/D'}\nD: {}\nE: {}\nF: {$ref: '#/E'}\n" +
 		"R: {description: ok, content: {a/b: {schema: {$ref: '#/C'}}}}\n"
 	cfg := withDocuments(map[string]string{"other.yaml": otherSrc})
-	cfg.Through = func(p jsontext.Pointer) (bind.ReferenceEnd, bool) {
-		return bind.ReferenceEnd{Name: "other.yaml", Pointer: "/R"}, p == "/components/responses/R"
+	cfg.Through = func(name string, p jsontext.Pointer) (bind.ReferenceEnd, bool) {
+		return bind.ReferenceEnd{Name: "other.yaml", Pointer: "/R"}, name == "spec.yaml" && p == "/components/responses/R"
 	}
 	table := bound(t, head+`components:
   responses:

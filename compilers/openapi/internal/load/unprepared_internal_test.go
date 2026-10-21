@@ -45,19 +45,31 @@ func resolveSpec(t *testing.T, spec, path string) (*soa.OpenAPI, []ir.Diagnostic
 		again, _, err := unmarshal(t.Context(), data, root)
 		return again, err
 	}
-	resolved, _, _, diags, err := resolveExternal(t.Context(), pointerAt(0, overlay.Origin{}), doc, Siblings{},
+	at := pointerAt(0, overlay.Origin{})
+	resolved, _, _, pass, extra, err := resolveExternal(t.Context(), at, doc, Siblings{},
 		newSourceDocument(path, data, root, nil, newSourceTree(0, overlay.Origin{}, root), nil),
 		Options{Reader: reader.Disk{}}, rebuild)
-	return resolved, diags, err
+	return resolved, passDiags(at, pass, extra), err
 }
 
 // resolveSpecWith is resolveSpec at root.yaml with a caller-supplied rebuild, for
 // the tests that need to observe or fail whether it is called.
 func resolveSpecWith(t *testing.T, spec string, rebuild func() (*soa.OpenAPI, error)) (*soa.OpenAPI, []ir.Diagnostic, error) {
 	t.Helper()
-	resolved, _, _, diags, err := resolveExternal(t.Context(), pointerAt(0, overlay.Origin{}), modelOf(t, spec),
+	at := pointerAt(0, overlay.Origin{})
+	resolved, _, _, pass, extra, err := resolveExternal(t.Context(), at, modelOf(t, spec),
 		Siblings{}, sourceDocument{path: "root.yaml"}, Options{Reader: reader.Disk{}}, rebuild)
-	return resolved, diags, err
+	return resolved, passDiags(at, pass, extra), err
+}
+
+// passDiags is what pass and the faults beside it report, a finding in another
+// document placed at the source's root, as no document is listed: nil for no
+// pass, as a failed rebuild leaves.
+func passDiags(at func(jsontext.Pointer) ir.Provenance, pass *resolution, extra []ir.Diagnostic) []ir.Diagnostic {
+	if pass == nil {
+		return extra
+	}
+	return append(pass.diags(sitePlacer(at, Others{})), extra...)
 }
 
 // rootReferencing is a minimal source document whose one path is a reference to

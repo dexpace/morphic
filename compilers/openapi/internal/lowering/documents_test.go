@@ -165,21 +165,40 @@ func TestDeclared_LowersAReferencedObjectWhereItIsDeclared(t *testing.T) {
 	}
 }
 
-// TestDeclared_KeepsTheUseSiteInAnotherDocumentsContent pins that only the
-// source's own reference objects move to where the bindings' table places
-// their ends: that table places no end of an object another document's
-// content writes, so a pointer there is no key into it, and the use site is
-// kept even where the source writes an object at the same pointer.
-func TestDeclared_KeepsTheUseSiteInAnotherDocumentsContent(t *testing.T) {
+// TestDeclared_ReadsTheEndOfTheDocumentWritingTheReference pins that a
+// reference object's end is asked of by the document writing it (GitHub #751):
+// one pointer in two documents is two positions, so where ext.yaml writes
+// nothing at the pointer the source's reference is written at, the source's
+// end there is not read, and the use site is kept.
+func TestDeclared_ReadsTheEndOfTheDocumentWritingTheReference(t *testing.T) {
 	t.Parallel()
 	c, _ := loadSplit(t, "X: {type: string}\nP: {name: p, in: query}\n")
 	a, ok := c.Doc.Paths.Get("/a")
 	require.True(t, ok)
 	ref := a.GetObject().Get().GetParameters()[0]
-	inExt := lowering.WithHome(c, 1)
+	inExt, ok := lowering.InDocument(c, extDoc(t, c))
+	require.True(t, ok)
 
 	_, there, at := lowering.Declared[soa.Parameter](inExt, ref, "/paths/~1a/get/parameters/0")
 
 	assert.Equal(t, "/paths/~1a/get/parameters/0", string(at), "the source's end at that pointer is not read")
 	assert.Equal(t, ids.In("ext.yaml"), there.IDs())
+}
+
+// TestDeclared_KeepsTheUseSiteOfAReferenceThatResolvedNothing pins Declared
+// for a reference with no end: ext.yaml declares no P, so nothing is lowered,
+// and the use site is kept in the source's coordinates, where the load phase
+// reported it.
+func TestDeclared_KeepsTheUseSiteOfAReferenceThatResolvedNothing(t *testing.T) {
+	t.Parallel()
+	c, _ := loadSplit(t, "X: {type: string}\n")
+	a, ok := c.Doc.Paths.Get("/a")
+	require.True(t, ok)
+	ref := a.GetObject().Get().GetParameters()[0]
+
+	p, there, at := lowering.Declared[soa.Parameter](c, ref, "/paths/~1a/get/parameters/0")
+
+	assert.Nil(t, p)
+	assert.Equal(t, "/paths/~1a/get/parameters/0", string(at))
+	assert.Equal(t, ids.Document{}, there.IDs())
 }

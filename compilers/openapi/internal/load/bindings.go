@@ -63,15 +63,16 @@ func (b bound) placer(at func(jsontext.Pointer) ir.Provenance) func(bind.Positio
 // and answers by declaration order (docs/parser-library.md#defs-order), and
 // builds a schema for each landing from the trees as the parser was handed
 // them (see resolve). It runs once every reference object is resolved, since a
-// pointer through one reads on where the parser resolved it. reader reads
-// other documents, or is nil when none is read.
+// pointer through one reads on where the parser resolved it: ends says where
+// each one's chain ended, in whichever document writes it
+// (resolution.ends). reader reads other documents, or is nil when none is read.
 func bindSchemas(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, self sourceDocument, reader *external,
+	ends map[refSite]referenceEnd,
 ) bound {
-	ends := referenceEnds(ctx, doc, sibs, self)
 	cfg := bind.Config{Self: self.path, Locate: self.locate, Beside: sibs.Beside, Written: self.escapes.original,
 		Refuse: self.escapes.refusal(),
-		Through: func(p jsontext.Pointer) (bind.ReferenceEnd, bool) {
-			e, ok := ends[p]
+		Through: func(name string, p jsontext.Pointer) (bind.ReferenceEnd, bool) {
+			e, ok := ends[self.siteIn(name, p)]
 			return bind.ReferenceEnd{Name: e.name, Pointer: e.pointer, Node: e.node}, ok
 		}}
 	if reader != nil {
@@ -80,46 +81,43 @@ func bindSchemas(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, self sour
 	table := bind.Bind(self.root, cfg)
 	bd := typed.NewBuilder(table)
 	indexWalk(bd, walkSource(ctx, doc, sibs), bind.Position{})
-	indexEnds(ctx, bd, table, ends)
+	indexEnds(ctx, bd, table, ends, self)
 	return bound{bindings: bd.Bindings(), built: bd.Build(ctx)}
 }
 
-// referenceEnd is where the chain of one of the source's reference objects
-// ended, as the parser resolved it: the document, by the name bind reads it
-// under, and the pointer there, and the object built there, with its node and
-// its walk.
+// siteIn is the site of the reference at pointer in the document bind names
+// name: the source's, or another's, keyed as a request reads it (readKey), so
+// that a URL the binder and the resolver spell apart is one document.
+func (s sourceDocument) siteIn(name string, pointer jsontext.Pointer) refSite {
+	if name == s.path {
+		return refSite{pointer: pointer}
+	}
+	return refSite{doc: readKey(name), pointer: pointer}
+}
+
+// positionOf is the position of site in table, and false for a site in a
+// document the table did not read.
+func (s sourceDocument) positionOf(table *bind.Table, site refSite) (bind.Position, bool) {
+	if site.inSource() {
+		return bind.Position{Doc: bind.Source, Pointer: site.pointer}, true
+	}
+	for _, name := range []string{site.doc, readKey(site.doc)} {
+		if id, ok := table.Find(name); ok {
+			return bind.Position{Doc: id, Pointer: site.pointer}, true
+		}
+	}
+	return bind.Position{}, false
+}
+
+// referenceEnd is where the chain of a reference object ended, as the parser
+// resolved it: the document, by the name bind reads it under, and the pointer
+// there, and the object built there, with its node and its walk.
 type referenceEnd struct {
 	name    string
 	pointer jsontext.Pointer
 	object  any
 	node    *yaml.Node
 	walk    func(context.Context) iter.Seq[soa.WalkItem]
-}
-
-// referenceEnds returns where each of the source's reference objects ended,
-// by the pointer writing it, and holds none for one whose chain stopped, or
-// was cut. Each carries the node its chain reached, by which the binder places
-// it (docs/parser-library.md#trailing-empty-token).
-func referenceEnds(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, self sourceDocument,
-) map[jsontext.Pointer]referenceEnd {
-	ends := map[jsontext.Pointer]referenceEnd{}
-	// A walk that panics stops here; what it read is kept, and resolution has
-	// reported the panic at the reference it stopped at.
-	_, _ = eachReference(walkSource(ctx, doc, sibs), resolverPanics, func(site jsontext.Pointer, r resolvable) error {
-		c := resolutionChain(r)
-		if c.cut || c.stopped != "" || len(c.records) == 0 {
-			return nil
-		}
-		last := c.records[len(c.records)-1]
-		name := self.nameOf(last.path)
-		if last.inSource() {
-			name = self.path
-		}
-		ends[site] = referenceEnd{name: name, pointer: last.pointer, object: last.object, node: last.node,
-			walk: last.walk}
-		return nil
-	})
-	return ends
 }
 
 // indexWalk tells bd where each schema and discriminator of items was read:
@@ -137,17 +135,21 @@ func indexWalk(bd *typed.Builder, items iter.Seq[soa.WalkItem], base bind.Positi
 
 // indexEnds tells bd where each schema and discriminator of what a reference
 // object resolved to was read: where the table reads its end (bind.Table.Through),
-// which the lowering reads through that reference. An object many references
-// resolved to is walked once, at the least of them the table places, so that
-// which it is held at never follows the order of a map. One the table places
-// at none is recorded as unplaced, under the least of them.
-func indexEnds(ctx context.Context, bd *typed.Builder, table *bind.Table, ends map[jsontext.Pointer]referenceEnd) {
-	sites := slices.Sorted(maps.Keys(ends))
+// which the lowering reads through that reference, in whichever document
+// writes it. An object many references resolved to is walked once, at the
+// least of them the table places (compareSites), so that which it is held at
+// never follows the order of a map. One the table places at none is recorded
+// as unplaced, under the least of them.
+func indexEnds(ctx context.Context, bd *typed.Builder, table *bind.Table, ends map[refSite]referenceEnd,
+	self sourceDocument,
+) {
+	sites := slices.SortedFunc(maps.Keys(ends), compareSites)
 	walked := map[any]bool{}
 	for _, site := range sites {
 		e := ends[site]
-		end, ok := table.Through(site)
-		if !ok || walked[e.object] {
+		at, placed := self.positionOf(table, site)
+		end, ok := table.Through(at)
+		if !placed || !ok || walked[e.object] {
 			continue
 		}
 		walked[e.object] = true
@@ -161,15 +163,20 @@ func indexEnds(ctx context.Context, bd *typed.Builder, table *bind.Table, ends m
 	}
 }
 
-// unplaced records each schema and discriminator of e, the end of the source's
+// unplaced records each schema and discriminator of e, the end of the
 // reference object at site, as unplaced: the table could not read where the
-// parser resolved it, so the lowering reports each $ref in it with why.
-func unplaced(ctx context.Context, bd *typed.Builder, e referenceEnd, site jsontext.Pointer) {
+// parser resolved it, so the lowering reports each $ref in it with why, naming
+// site, and its document when that is not the source.
+func unplaced(ctx context.Context, bd *typed.Builder, e referenceEnd, site refSite) {
+	spelled := string(site.pointer)
+	if !site.inSource() {
+		spelled += " in " + site.doc
+	}
 	for item := range e.walk(ctx) {
 		// Match returns only what its matcher does, and this one never fails.
 		_ = item.Match(soa.Matcher{
-			Schema:        func(js *schemaRef) error { bd.Unplaced(js, site); return nil },
-			Discriminator: func(d *oasDiscriminator) error { bd.Unplaced(d, site); return nil },
+			Schema:        func(js *schemaRef) error { bd.Unplaced(js, spelled); return nil },
+			Discriminator: func(d *oasDiscriminator) error { bd.Unplaced(d, spelled); return nil },
 		})
 	}
 }

@@ -386,23 +386,23 @@ func (r *externalReads) handOver(doc *soa.OpenAPI, used []usedDocument) {
 // resolver parsed holds an anchor, or a $ref the prepared tree respells (see
 // escapes), doc is rebuilt and resolved again, handed every prepared tree (see
 // handOver) and answered from the first pass's reads. That reaches no new
-// document: the walk never descends into those trees; one found
-// unprepared is an internal fault.
+// document, as both passes walk alike; one found unprepared is an internal
+// fault.
 func resolveExternal(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI, sibs Siblings,
 	self sourceDocument, opts Options, rebuild func() (*soa.OpenAPI, error),
-) (*soa.OpenAPI, Siblings, *external, []ir.Diagnostic, error) {
+) (*soa.OpenAPI, Siblings, *external, *resolution, []ir.Diagnostic, error) {
 	read := newExternalReads(self)
 	reader := newExternal(ctx, doc, opts, read)
-	diags := resolveWith(ctx, at, doc, sibs, self, opts, &reader)
+	pass := resolveWith(ctx, doc, sibs, self, opts, &reader)
 	used := documentsUsed(ctx, doc, sibs)
 	first := unprepared(doc, read, used)
 	if !anyAnchored(doc, first) && !anyRewritable(doc, first, self.escapes) {
-		return doc, sibs, &reader, diags, nil
+		return doc, sibs, &reader, pass, nil, nil
 	}
 
 	again, err := rebuild()
 	if err != nil {
-		return nil, Siblings{}, nil, nil, err
+		return nil, Siblings{}, nil, nil, nil, err
 	}
 	again.InitCache()
 	// Modelled again, since the first models hold what the first pass resolved.
@@ -410,9 +410,9 @@ func resolveExternal(ctx context.Context, at func(jsontext.Pointer) ir.Provenanc
 	sibs, _, _ = modelSiblings(ctx, again, nowhere)
 	read.handOver(again, used)
 	reader = newExternal(ctx, again, opts, read)
-	diags = resolveWith(ctx, at, again, sibs, self, opts, &reader)
+	pass = resolveWith(ctx, again, sibs, self, opts, &reader)
 	missed := unprepared(again, read, documentsUsed(ctx, again, sibs))
-	return again, sibs, &reader, append(diags, stillUnprepared(at, missed)...), nil
+	return again, sibs, &reader, pass, stillUnprepared(at, missed), nil
 }
 
 // anyAnchored reports whether any document in missed, as the resolver parsed

@@ -249,16 +249,15 @@ func isIndex(token string) bool {
 // read as any pointer is, through the reference objects it lies past, up to
 // the node the chain reached (ReferenceEnd, and
 // docs/parser-library.md#trailing-empty-token). An object writing no $ref is read
-// where it is. Only the source's reference objects are resolved; one in
-// another document is not (GitHub #751).
+// where it is, in whichever document.
 func (d *docs) through(r reading, passes int) (reading, Reason) {
 	if !d.writesRef(r) {
 		return r, NoReason
 	}
-	if r.at.Doc != Source || d.cfg.Through == nil || passes >= maxPasses {
+	if d.cfg.Through == nil || passes >= maxPasses {
 		return r, Unpassable
 	}
-	e, ok := d.cfg.Through(r.at.Pointer)
+	e, ok := d.cfg.Through(d.list[r.at.Doc].name, r.at.Pointer)
 	if !ok {
 		return r, Unpassable
 	}

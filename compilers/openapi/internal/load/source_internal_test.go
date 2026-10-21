@@ -407,7 +407,7 @@ func TestNewSourceDocument_KeepsOnlyFindingsAtANode(t *testing.T) {
 
 	self := newSourceDocument("root.yaml", nil, nil, []error{atNode, atNone, errors.New("plain")}, sourceTree{}, nil)
 
-	assert.Equal(t, map[findingKey]bool{keyOf(atNode, ""): true}, self.found)
+	assert.Equal(t, map[findingKey]bool{keyOf(atNode, refSite{}): true}, self.found)
 }
 
 // TestHold_ARelativeSourceResolvesItsComponentAsItDoesInEitherOrder pins that
@@ -457,7 +457,7 @@ func heldResolution(t *testing.T, spec, path string) (*soa.OpenAPI, *resolution)
 	self := newSourceDocument(path, data, root, valErrs, newSourceTree(0, overlay.Origin{}, root), nil)
 	opts := Options{Reader: reader.Disk{}}
 	ext := newExternal(t.Context(), doc, opts, newExternalReads(self))
-	return doc, newResolution(t.Context(), pointerAt(0, overlay.Origin{}), doc, Siblings{}, self, opts, &ext)
+	return doc, newResolution(t.Context(), doc, Siblings{}, self, opts, &ext)
 }
 
 // TestExternal_OpenHoldsTheSourceItIsAskedFor pins what Open does with the
@@ -647,9 +647,9 @@ func TestHold_AReferenceNamingTheSourceCopiesNoBytesOfIt(t *testing.T) {
 		"components:\n  responses:\n    B: {description: ok}\n", path)
 	a := response200(t, doc, "/a")
 
-	pass.visit(t.Context(), "/paths/~1a/get/responses/200", a)
+	pass.visit(t.Context(), refSite{pointer: "/paths/~1a/get/responses/200"}, a, pass.opts)
 
-	require.Empty(t, pass.failures)
+	require.Empty(t, pass.diags(sitePlacer(pointerAt(0, overlay.Origin{}), Others{})))
 	assert.Equal(t, "ok", a.GetObject().Description)
 	cached, ok := doc.GetCachedReferenceDocument(path)
 	require.True(t, ok)
@@ -767,7 +767,7 @@ func TestReachedFindings_DropsAKnownFinding(t *testing.T) {
 	t.Parallel()
 	node := &yaml.Node{Line: 1, Column: 1}
 	finding := &validation.Error{Severity: validation.SeverityError, Rule: "r", UnderlyingError: errors.New("m"), Node: node}
-	found := reachedFindings{sites: map[references.Reference]jsontext.Pointer{}, known: map[findingKey]bool{keyOf(finding, ""): true}}
-	found.note("/a", trail{}, []error{finding})
-	assert.Empty(t, found.diags(pointerAt(0, overlay.Origin{})))
+	found := reachedFindings{sites: map[references.Reference]refSite{}, known: map[findingKey]bool{keyOf(finding, refSite{}): true}}
+	found.note(refSite{pointer: "/a"}, trail{}, []error{finding})
+	assert.Empty(t, found.diags(sitePlacer(pointerAt(0, overlay.Origin{}), Others{})))
 }
