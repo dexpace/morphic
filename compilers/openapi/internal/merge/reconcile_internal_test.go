@@ -1685,6 +1685,18 @@ func twinRegistry() map[ir.TypeID]ir.TypeDef {
 	reg["t/enum/x2"] = enum("t/enum/x2", members("x2/", "a", "b"), "")
 	reg["t/enum/x-described"] = enum("t/enum/x-described", members("xd/", "a", "b"), "some")
 	reg["t/enum/x-reordered"] = enum("t/enum/x-reordered", members("xr/", "b", "a"), "")
+	for _, id := range []ir.TypeID{"t/enum/x-ext1", "t/enum/x-ext2"} {
+		e := enum(id, members(string(id)+"/", "a", "b"), "")
+		e.Unmodeled = ir.Unmodeled{"openapi:x-foo": {
+			Reason:     ir.ReasonVendorExtension,
+			Value:      ir.RawValue("1"),
+			Provenance: ptrAt(jsontext.Pointer("/at/" + string(id) + "/x-foo")),
+		}}
+		reg[id] = e
+	}
+	hoisted := enum("t/enum/x-hoisted", members("xh/", "a", "b"), "")
+	hoisted.Anonymous = true
+	reg["t/enum/x-hoisted"] = hoisted
 	reg["t/lit/1"] = &ir.Literal{ID: "t/lit/1", Value: str("a")}
 	reg["t/lit/2"] = &ir.Literal{ID: "t/lit/2", Value: str("a")}
 	str := primRef(ir.PrimString)
@@ -1709,6 +1721,8 @@ func TestReconcileProperty_IdenticalNodesAreOneType(t *testing.T) {
 		{"two identical enums", "t/enum/x1", "t/enum/x2", true},
 		{"two identical literals", "t/lit/1", "t/lit/2", true},
 		{"two identical scalars", "t/hex/1", "t/hex/2", true},
+		{"enums that differ in the provenance of an extension", "t/enum/x-ext1", "t/enum/x-ext2", true},
+		{"enums that differ in being hoisted", "t/enum/x1", "t/enum/x-hoisted", true},
 		{"enums that differ in a description", "t/enum/x1", "t/enum/x-described", false},
 		{"enums that differ in member order", "t/enum/x1", "t/enum/x-reordered", false},
 		{"scalars that differ in a constraint", "t/hex/1", "t/hex/min", false},

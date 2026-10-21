@@ -108,8 +108,9 @@ func (j typeJudge) relateAt(a, b ir.TypeRef, depth int) relation {
 }
 
 // sameNode reports whether a and b are two Literal, Enum or Scalar nodes equal
-// in every field but their ID, Name and Provenance and their members' IDs: one
-// declaration written twice, hoisted to two nodes.
+// but for what names their site (the ID, the naming, whether it was hoisted,
+// and the provenance of the node and of what it keeps under Unmodeled) and
+// their members' IDs: one declaration written twice, hoisted to two nodes.
 func sameNode(a, b ir.TypeDef) bool {
 	switch x := a.(type) {
 	case *ir.Literal:
@@ -118,8 +119,7 @@ func sameNode(a, b ir.TypeDef) bool {
 			return false
 		}
 		x2, y2 := *x, *y
-		x2.ID, x2.Name, x2.Provenance = "", ir.Naming{}, ir.Provenance{}
-		y2.ID, y2.Name, y2.Provenance = "", ir.Naming{}, ir.Provenance{}
+		x2.TypeCommon, y2.TypeCommon = siteless(x.TypeCommon), siteless(y.TypeCommon)
 		return reflect.DeepEqual(x2, y2)
 	case *ir.Scalar:
 		y, ok := b.(*ir.Scalar)
@@ -127,8 +127,7 @@ func sameNode(a, b ir.TypeDef) bool {
 			return false
 		}
 		x2, y2 := *x, *y
-		x2.ID, x2.Name, x2.Provenance = "", ir.Naming{}, ir.Provenance{}
-		y2.ID, y2.Name, y2.Provenance = "", ir.Naming{}, ir.Provenance{}
+		x2.TypeCommon, y2.TypeCommon = siteless(x.TypeCommon), siteless(y.TypeCommon)
 		return reflect.DeepEqual(x2, y2)
 	case *ir.Enum:
 		y, ok := b.(*ir.Enum)
@@ -140,10 +139,26 @@ func sameNode(a, b ir.TypeDef) bool {
 
 // sameEnum compares two enums as sameNode does, members by position.
 func sameEnum(x, y ir.Enum) bool {
-	x.ID, x.Name, x.Provenance = "", ir.Naming{}, ir.Provenance{}
-	y.ID, y.Name, y.Provenance = "", ir.Naming{}, ir.Provenance{}
+	x.TypeCommon, y.TypeCommon = siteless(x.TypeCommon), siteless(y.TypeCommon)
 	x.Members, y.Members = idless(x.Members), idless(y.Members)
 	return reflect.DeepEqual(x, y)
+}
+
+// siteless returns c with what names where its node was declared zeroed: ID,
+// Name, Anonymous, Provenance and the Provenance of each Unmodeled entry. It
+// copies the Unmodeled map, which belongs to the registry.
+func siteless(c ir.TypeCommon) ir.TypeCommon {
+	c.ID, c.Name, c.Anonymous, c.Provenance = "", ir.Naming{}, false, ir.Provenance{}
+	if c.Unmodeled == nil {
+		return c
+	}
+	um := make(ir.Unmodeled, len(c.Unmodeled))
+	for k, e := range c.Unmodeled {
+		e.Provenance = ir.Provenance{}
+		um[k] = e
+	}
+	c.Unmodeled = um
+	return c
 }
 
 // idless copies members with their IDs cleared.
