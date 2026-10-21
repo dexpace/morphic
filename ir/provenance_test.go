@@ -273,3 +273,24 @@ func TestMergeDiagnostics_NeverWritesThroughAnAliasedList(t *testing.T) {
 	assert.Equal(t, []ir.Diagnostic{a, c}, merged)
 	assert.Equal(t, []ir.Diagnostic{a, a, c}, backing, "the lists merged from are left as they were")
 }
+
+// TestProvenance_InTableAdmitsTheTableAndTheSentinelAlone pins both edges of a
+// table and the one sentinel the IR declares: any other negative index is a
+// second, undeclared sentinel.
+func TestProvenance_InTableAdmitsTheTableAndTheSentinelAlone(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		source, n int
+		want      bool
+	}{
+		{0, 1, true},
+		{1, 2, true},
+		{ir.NoSource, 0, true},
+		{ir.NoSource, 3, true},
+		{0, 0, false},
+		{1, 1, false},
+		{ir.NoSource - 1, 3, false},
+	} {
+		assert.Equal(t, tc.want, ir.Provenance{Source: tc.source}.InTable(tc.n), "source %d of %d", tc.source, tc.n)
+	}
+}

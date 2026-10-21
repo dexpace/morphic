@@ -106,13 +106,12 @@ func checkSources(got, table []ir.SourceInfo, src Source, format SourceFormat) e
 	return nil
 }
 
-// checkIndexes reports the first diagnostic whose Provenance.Source addresses
-// none of n sources and is not ir.NoSource, the one out-of-table value the IR
-// declares.
+// checkIndexes reports the first diagnostic of diags that is not in a table of n
+// sources (ir.Provenance.InTable).
 func checkIndexes(diags []ir.Diagnostic, n int) error {
 	for _, d := range diags {
-		if s := d.Provenance.Source; s != ir.NoSource && (s < 0 || s >= n) {
-			return contractf("diagnostic %s indexes source %d of %d", d.Code, s, n)
+		if !d.Provenance.InTable(n) {
+			return contractf("diagnostic %s indexes source %d of %d", d.Code, d.Provenance.Source, n)
 		}
 	}
 	return nil

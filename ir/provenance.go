@@ -51,6 +51,14 @@ type Provenance struct {
 	Inferred string `json:"inferred,omitempty"`
 }
 
+// InTable reports whether p.Source addresses one of a source table's n entries,
+// or is NoSource, the one value outside every table the IR declares. It is the
+// test each holder of a table applies to what indexes it, so none reads the
+// sentinel apart from the others.
+func (p Provenance) InTable(n int) bool {
+	return p.Source == NoSource || 0 <= p.Source && p.Source < n
+}
+
 // Position is a 1-based line and column inside a source. The zero value is no
 // position, and a zero Column is a line whose column the producer does not
 // know.

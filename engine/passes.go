@@ -94,11 +94,11 @@ func keepsSources(prev, next []ir.SourceInfo) bool {
 	return len(next) >= len(prev) && slices.Equal(prev, next[:len(prev)])
 }
 
-// indexesSources reports whether every diagnostic of diags addresses one of n
-// sources or ir.NoSource, the one out-of-table value the IR declares.
+// indexesSources reports whether every diagnostic of diags is in a table of n
+// sources (ir.Provenance.InTable).
 func indexesSources(diags []ir.Diagnostic, n int) bool {
 	for _, d := range diags {
-		if s := d.Provenance.Source; s != ir.NoSource && (s < 0 || s >= n) {
+		if !d.Provenance.InTable(n) {
 			return false
 		}
 	}
