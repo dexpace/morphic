@@ -4,11 +4,16 @@ paths: {}
 components:
   schemas:
     # One branch narrows a bare primitive the other leaves broader: a format over
-    # its bare type, or an integer width over a wider one. The intersection is
-    # the narrower kind, so the merge loses nothing: no warning, nothing kept
-    # under Unmodeled, and the same type whichever branch comes first. Each pair
-    # is declared in both orders, since the old merge got the broad-first order
-    # wrong on the type and the narrow-first order right on it but still warned.
+    # its bare type, an integer width over a wider one, or any type over the top
+    # type. The intersection is the narrower kind, so the merge loses nothing: no
+    # warning, and the same type whichever branch comes first. Only a value the
+    # broader branch wrote and the narrower kind refuses is kept under
+    # Unmodeled, at the declaration that wrote it (see the RefusedLateDefault
+    # models). Each pair is declared in both orders, and each three-branch chain
+    # in all three positions of its narrowest member. The two orders are
+    # separate inputs to one rule: the harness's order oracle keeps sequence
+    # order (internal/harness/order_test.go), so this fixture is the corpus's
+    # only guard on branch order.
     NumberIntegerBroadFirst:
       allOf:
         - type: object
@@ -151,3 +156,126 @@ components:
         - type: object
           properties:
             p: {type: number, default: 1.5}
+    # A three-branch chain, number > integer > int32, with the narrowest first,
+    # in the middle and last: the swap must adopt a narrower src at every position.
+    ChainNarrowestFirst:
+      allOf:
+        - type: object
+          properties:
+            p: {type: integer, format: int32}
+        - type: object
+          properties:
+            p: {type: integer}
+        - type: object
+          properties:
+            p: {type: number}
+    ChainNarrowestMiddle:
+      allOf:
+        - type: object
+          properties:
+            p: {type: integer}
+        - type: object
+          properties:
+            p: {type: integer, format: int32}
+        - type: object
+          properties:
+            p: {type: number}
+    ChainNarrowestLast:
+      allOf:
+        - type: object
+          properties:
+            p: {type: number}
+        - type: object
+          properties:
+            p: {type: integer}
+        - type: object
+          properties:
+            p: {type: integer, format: int32}
+    # uint8 sits inside int16 by value, so it narrows it in either order.
+    Uint8Int16BroadFirst:
+      allOf:
+        - type: object
+          properties:
+            p: {type: integer, format: int16}
+        - type: object
+          properties:
+            p: {type: integer, format: uint8}
+    Uint8Int16NarrowFirst:
+      allOf:
+        - type: object
+          properties:
+            p: {type: integer, format: uint8}
+        - type: object
+          properties:
+            p: {type: integer, format: int16}
+    # The top type loses to any declaration, in either order.
+    TopBroadFirst:
+      allOf:
+        - type: object
+          properties:
+            p: {}
+        - type: object
+          properties:
+            p: {type: integer}
+    TopNarrowFirst:
+      allOf:
+        - type: object
+          properties:
+            p: {type: integer}
+        - type: object
+          properties:
+            p: {}
+    # An unknown format is a Scalar over its bare kind, so it wins over the bare
+    # string in either order.
+    HexBroadFirst:
+      allOf:
+        - type: object
+          properties:
+            p: {type: string}
+        - type: object
+          properties:
+            p: {type: string, format: hex}
+    HexNarrowFirst:
+      allOf:
+        - type: object
+          properties:
+            p: {type: string, format: hex}
+        - type: object
+          properties:
+            p: {type: string}
+    # A default adopted from a non-first declaration, then refused by the integer
+    # that wins: the entry is kept at the branch that wrote it, with the integer
+    # declaration first, in the middle and last.
+    RefusedLateDefaultFirst:
+      allOf:
+        - type: object
+          properties:
+            p: {type: integer}
+        - type: object
+          properties:
+            p: {type: number}
+        - type: object
+          properties:
+            p: {type: number, default: 1.5}
+    RefusedLateDefaultMiddle:
+      allOf:
+        - type: object
+          properties:
+            p: {type: number}
+        - type: object
+          properties:
+            p: {type: integer}
+        - type: object
+          properties:
+            p: {type: number, default: 1.5}
+    RefusedLateDefaultLast:
+      allOf:
+        - type: object
+          properties:
+            p: {type: number}
+        - type: object
+          properties:
+            p: {type: number, default: 1.5}
+        - type: object
+          properties:
+            p: {type: integer}

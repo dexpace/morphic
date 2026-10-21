@@ -1991,7 +1991,7 @@ func TestAllOf_PrimitiveNarrowingIsLosslessInEitherOrder(t *testing.T) {
 			for i, spec := range []string{allOfConflictSpec(tc.broad, tc.narrow), allOfConflictSpec(tc.narrow, tc.broad)} {
 				doc, diags := lowerSpec(t, spec)
 				openapitest.RequireNoErrorDiags(t, diags)
-				assert.Empty(t, conflictDiags(diags), "a narrowing is not a conflict (order %d)", i)
+				assert.Empty(t, diags, "a narrowing draws no diagnostic (order %d)", i)
 				model, ok := doc.Types[componentID("T")].(*ir.Model)
 				require.True(t, ok)
 				require.Len(t, model.Properties, 1)

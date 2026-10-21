@@ -27,12 +27,24 @@ components:
             id: {type: [string, "null"]}
     # Agreeing types and a disagreeing default: not a conflict, and the merged
     # field is whole, but the second declaration's default has nowhere to go
-    # and is kept the same way, beside a diagnostic naming what differed.
+    # and is kept the same way, beside a diagnostic naming what differed. The
+    # title and the external link differ too, so five details are named.
     Described:
       allOf:
         - type: object
           properties:
-            id: {type: integer, default: 1, description: first, example: 1}
+            id: {type: integer, default: 1, title: first title, description: first, externalDocs: {url: "https://example.com/first"}, example: 1}
         - type: object
           properties:
-            id: {type: integer, default: 2, description: second, example: 2}
+            id: {type: integer, default: 2, title: second title, description: second, externalDocs: {url: "https://example.com/second"}, example: 2}
+    # Two fixed widths neither of which holds the other: int32 holds negatives
+    # uint32 lacks, uint32 holds values past int32. They overlap, so the first
+    # stands and the second is kept beside an info, not a warning.
+    Overlapping:
+      allOf:
+        - type: object
+          properties:
+            n: {type: integer, format: int32}
+        - type: object
+          properties:
+            n: {type: integer, format: uint32}

@@ -97,7 +97,13 @@
             }
           ],
           "docs": {
-            "description": "first"
+            "summary": "first title",
+            "description": "first",
+            "externalDocs": [
+              {
+                "url": "https://example.com/first"
+              }
+            ]
           },
           "unmodeled": {
             "openapi:conflicting-redeclaration/components/schemas/Described/allOf/1/properties/id": {
@@ -106,6 +112,10 @@
                 "default": 2,
                 "description": "second",
                 "example": 2,
+                "externalDocs": {
+                  "url": "https://example.com/second"
+                },
+                "title": "second title",
                 "type": "integer"
               },
               "provenance": {
@@ -186,6 +196,66 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/openapi/components/schemas/Overlapping": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Overlapping",
+      "name": {
+        "source": "Overlapping",
+        "canonical": "overlapping"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Overlapping"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Overlapping/allOf/0/properties/n",
+          "name": {
+            "source": "n",
+            "canonical": "n"
+          },
+          "wireName": "n",
+          "type": {
+            "target": "t/prim/int32",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "unmodeled": {
+            "openapi:conflicting-redeclaration/components/schemas/Overlapping/allOf/1/properties/n": {
+              "reason": "degraded_lowering",
+              "value": {
+                "format": "uint32",
+                "type": "integer"
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/components/schemas/Overlapping/allOf/1/properties/n"
+              }
+            }
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Overlapping/allOf/0/properties/n"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/openapi/components/schemas/Repository": {
       "kind": "model",
       "id": "t/openapi/components/schemas/Repository",
@@ -245,6 +315,18 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/prim/int32": {
+      "kind": "primitive",
+      "id": "t/prim/int32",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "int32"
+    },
     "t/prim/integer": {
       "kind": "primitive",
       "id": "t/prim/integer",
@@ -268,6 +350,18 @@
         "source": -1
       },
       "prim": "string"
+    },
+    "t/prim/uint32": {
+      "kind": "primitive",
+      "id": "t/prim/uint32",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "uint32"
     },
     "t/prim/url": {
       "kind": "primitive",
@@ -313,7 +407,25 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
+      "message": "declarations of field \"id\" give its title differently; kept the first declaration's, with the redeclaration verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Described/allOf/1/properties/id"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
       "message": "declarations of field \"id\" give its description differently; kept the first declaration's, with the redeclaration verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Described/allOf/1/properties/id"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "declarations of field \"id\" give its external docs differently; kept the first declaration's, with the redeclaration verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Described/allOf/1/properties/id"
@@ -336,13 +448,22 @@
         "source": 0,
         "pointer": "/components/schemas/Described/allOf/1/properties/id"
       }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "declarations of field \"n\" give types t/prim/int32 and t/prim/uint32 whose kinds share values but that the merge does not narrow to one; kept the first declaration's type (/components/schemas/Overlapping/allOf/0/properties/n), with the redeclaration verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Overlapping/allOf/1/properties/n"
+      }
     }
   ],
   "sources": [
     {
       "format": "openapi@3.1",
       "path": "allof-conflicting-type.yaml",
-      "hash": "9f2716765e30d00be01f1d50d2f2e7547f6d7a844f1ec05e818f76c2fbf99cb7"
+      "hash": "8884d8ee185e02a911048e3422c70b93a4266fadafa5216c49161f895b84de06"
     }
   ]
 }
