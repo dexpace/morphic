@@ -236,25 +236,25 @@ func TestMappingTargetID(t *testing.T) {
 `))
 	d := petDiscriminator(t, l)
 	// A $ref to a declared component.
-	id, ok := mappingTargetID(l.ctx, l.ctx.RefScope(), l.types, d, "#/components/schemas/Cat")
+	id, ok := mappingTargetID(l.ctx, l.ctx.RefScope(), d, "#/components/schemas/Cat")
 	require.True(t, ok)
 	assert.Equal(t, ids.Document{}.NamedType("/components/schemas/Cat"), id)
 	// A bare schema name.
-	id, ok = mappingTargetID(l.ctx, l.ctx.RefScope(), l.types, d, "Dog")
+	id, ok = mappingTargetID(l.ctx, l.ctx.RefScope(), d, "Dog")
 	require.True(t, ok)
 	assert.Equal(t, ids.Document{}.NamedType(ids.Ptr("components", "schemas", "Dog")), id)
 	// A bare name that contains '/' but names an existing schema must resolve, not
 	// dangle as a misclassified external $ref (issue #14, f07).
-	id, ok = mappingTargetID(l.ctx, l.ctx.RefScope(), l.types, d, "A/B")
+	id, ok = mappingTargetID(l.ctx, l.ctx.RefScope(), d, "A/B")
 	require.True(t, ok)
 	assert.Equal(t, ids.Document{}.NamedType(ids.Ptr("components", "schemas", "A/B")), id)
 	// An undeclared component and a genuine external ref are dropped, never
 	// synthesized into a dangling ID.
-	_, ok = mappingTargetID(l.ctx, l.ctx.RefScope(), l.types, d, "#/components/schemas/Ghost")
+	_, ok = mappingTargetID(l.ctx, l.ctx.RefScope(), d, "#/components/schemas/Ghost")
 	assert.False(t, ok, "undeclared component target dropped")
-	_, ok = mappingTargetID(l.ctx, l.ctx.RefScope(), l.types, d, "a.yaml#/A")
+	_, ok = mappingTargetID(l.ctx, l.ctx.RefScope(), d, "a.yaml#/A")
 	assert.False(t, ok, "external target dropped")
-	_, ok = mappingTargetID(l.ctx, l.ctx.RefScope(), l.types, &oas3.Discriminator{}, "#/components/schemas/Cat")
+	_, ok = mappingTargetID(l.ctx, l.ctx.RefScope(), &oas3.Discriminator{}, "#/components/schemas/Cat")
 	assert.False(t, ok, "a discriminator the document does not hold maps nothing")
 	// A declared but empty-named component ("") is interned anonymously, so its
 	// bare mapping name must resolve to that anon ID, not an unbacked ids.NamedType
@@ -262,7 +262,7 @@ func TestMappingTargetID(t *testing.T) {
 	// one above: the declared set is derived from the document now, so saying "and
 	// also this one" means saying it to a document.
 	empty := lowering.New(0, openapitest.DocDeclaring(""), ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, overlay.Origin{})
-	id, ok = mappingTargetID(empty, empty.RefScope(), l.types, &oas3.Discriminator{}, "")
+	id, ok = mappingTargetID(empty, empty.RefScope(), &oas3.Discriminator{}, "")
 	require.True(t, ok)
 	assert.Equal(t, ids.Document{}.AnonType(ids.Ptr("components", "schemas", "")), id)
 	assert.NotEqual(t, ids.Document{}.NamedType(ids.Ptr("components", "schemas", "")), id)
@@ -284,7 +284,7 @@ func TestDiscriminatorDefault_ResolvesDeclaredComponent(t *testing.T) {
 	l := newRawLowerer(openapitest.DocDeclaring("Cat"))
 	d := &oas3.Discriminator{PropertyName: "kind", DefaultMapping: new("Cat")}
 
-	id, diags := discriminatorDefault(l.ctx, l.types, &AnchorIndex{}, TopLevelDepth, d, nil, "/components/schemas/Pet")
+	id, diags := discriminatorDefault(l.ctx, l.types, &AnchorIndex{}, d, nil, "/components/schemas/Pet")
 	assert.Equal(t, ids.Document{}.NamedType("/components/schemas/Cat"), id)
 	assert.Empty(t, diags, "a resolvable defaultMapping produces no diagnostic")
 }
@@ -296,7 +296,7 @@ func TestDiscriminatorDefault_DroppedWhenUnresolved(t *testing.T) {
 	// defaultMapping does not resolve and is dropped with one error diagnostic.
 	d := &oas3.Discriminator{PropertyName: "kind", DefaultMapping: new("Missing")}
 
-	id, diags := discriminatorDefault(l.ctx, l.types, &AnchorIndex{}, TopLevelDepth, d, nil, "/components/schemas/Pet")
+	id, diags := discriminatorDefault(l.ctx, l.types, &AnchorIndex{}, d, nil, "/components/schemas/Pet")
 	assert.Empty(t, id, "an unresolved defaultMapping yields no target")
 	require.Len(t, diags, 1)
 	assert.Equal(t, diag.UnresolvedRef, diags[0].Code)
@@ -305,7 +305,7 @@ func TestDiscriminatorDefault_DroppedWhenUnresolved(t *testing.T) {
 func TestDiscriminatorDefault_EmptyIsNoOp(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
-	id, diags := discriminatorDefault(l.ctx, l.types, &AnchorIndex{}, TopLevelDepth, &oas3.Discriminator{PropertyName: "kind"}, nil, "/components/schemas/Pet")
+	id, diags := discriminatorDefault(l.ctx, l.types, &AnchorIndex{}, &oas3.Discriminator{PropertyName: "kind"}, nil, "/components/schemas/Pet")
 	assert.Empty(t, id)
 	assert.Empty(t, diags)
 }
@@ -334,16 +334,15 @@ func TestResolveMappingTarget_Branches(t *testing.T) {
           k: '#/components/schemas/Pet/properties/kind'
 `))
 	d := petDiscriminator(t, l)
-	resolveTarget := func(target string) (ir.TypeID, bool, []ir.Diagnostic) {
-		return resolveMappingTarget(l.ctx, l.types, &l.anchors, TopLevelDepth, d, target, nil)
+	resolveTarget := func(target string) (ir.TypeID, bool) {
+		return resolveMappingTarget(l.ctx, l.types, &l.anchors, d, target, nil)
 	}
 
 	cat := ids.Document{}.NamedType(ids.Ptr("components", "schemas", "Cat"))
 	for _, target := range []string{"Cat", "#/components/schemas/Cat"} {
-		id, ok, targetDiags := resolveTarget(target)
+		id, ok := resolveTarget(target)
 		assert.True(t, ok, "%s names a declared component", target)
 		assert.Equal(t, cat, id)
-		assert.Empty(t, targetDiags)
 	}
 
 	before := l.types.Len()
@@ -352,19 +351,25 @@ func TestResolveMappingTarget_Branches(t *testing.T) {
 		"#/components/schemas/Ghost":                  "an undeclared component is refused, not hoisted as an inline position",
 		"#/components/schemas/Pet/properties/missing": "a position the document does not declare does not resolve",
 	} {
-		_, ok, _ := resolveTarget(target)
+		_, ok := resolveTarget(target)
 		assert.False(t, ok, why)
 	}
 	assert.Equal(t, before, l.types.Len(), "a refused target interns nothing")
 
 	const scalarTarget = "#/components/schemas/Pet/properties/kind"
-	_, mappingOK := mappingTargetID(l.ctx, l.ctx.RefScope(), l.types, d, scalarTarget)
-	require.False(t, mappingOK, "mappingTargetID alone cannot reach an un-interned scalar position")
+	kind := ids.Document{}.ForPointer("/components/schemas/Pet/properties/kind")
+	got, mappingOK := mappingTargetID(l.ctx, l.ctx.RefScope(), d, scalarTarget)
+	require.True(t, mappingOK, "mappingTargetID names an un-interned scalar position by its pointer")
+	assert.Equal(t, kind, got)
 
-	id, ok, _ := resolveTarget(scalarTarget)
-	require.True(t, ok, "resolveMappingTarget hoists it instead")
-	assert.Equal(t, ids.Document{}.ForPointer("/components/schemas/Pet/properties/kind"), id)
+	id, ok := resolveTarget(scalarTarget)
+	require.True(t, ok, "resolveMappingTarget promises it")
+	assert.Equal(t, kind, id)
 	_, interned := l.types.Node(id)
+	assert.False(t, interned, "a promise builds nothing until every declaration has lowered")
+	_, finished := l.types.Finish(t.Context())
+	assert.Empty(t, finished)
+	_, interned = l.types.Node(id)
 	assert.True(t, interned, "the hoisted alias is registered in the type registry")
 }
 
@@ -697,30 +702,35 @@ func TestPositionHint_Shapes(t *testing.T) {
 	}
 }
 
-// TestMappingTargetID_FallsBackToAnInternedPointer pins the last of the three
-// answers a mapping target can have. A bare declared name and a component $ref
-// are decided without the registry; a $ref to anything deeper can only be
-// answered by what is already interned at that pointer, and a target nothing
-// backs must come back unresolved rather than mint an ID for a node that does
-// not exist.
-func TestMappingTargetID_FallsBackToAnInternedPointer(t *testing.T) {
+// TestMappingTargetID_NamesAPositionByItsPointer pins the answer for a mapping
+// target deeper than a component: the ID its pointer derives, read from the
+// bindings alone, before anything is interned there and after alike, so no
+// tag turns on which schema lowered first. A target the bindings land nowhere
+// is unresolved.
+func TestMappingTargetID_NamesAPositionByItsPointer(t *testing.T) {
 	t.Parallel()
 	const sub = "#/components/schemas/Pet/properties/kind"
 
 	empty := newRawLowerer(openapitest.DocDeclaring("Pet"))
-	_, ok := mappingTargetID(empty.ctx, empty.ctx.RefScope(), empty.types, &oas3.Discriminator{}, sub)
-	assert.False(t, ok, "nothing is interned at that pointer, so the target does not resolve")
+	_, ok := mappingTargetID(empty.ctx, empty.ctx.RefScope(), &oas3.Discriminator{}, sub)
+	assert.False(t, ok, "with no bindings the target lands nowhere, so it does not resolve")
 
-	// A nested object owns a node at its own pointer, where a scalar property
-	// would reduce to the shared primitive and leave the pointer backing nothing.
 	l, _ := loweredFor(t, openapitest.ComponentSpec("    Pet:\n      type: object\n"+
 		"      properties: {kind: {type: object, properties: {a: {type: string}}}}\n"+
 		"      discriminator: {propertyName: k, mapping: {s: '"+sub+"'}}\n"))
-	l.diags.AppendAll(LowerComponentSchemas(t.Context(), l.ctx, l.types, &l.anchors))
+	want := ids.Document{}.ForPointer("/components/schemas/Pet/properties/kind")
+	before, ok := mappingTargetID(l.ctx, l.ctx.RefScope(), petDiscriminator(t, l), sub)
+	require.True(t, ok, "nothing is interned yet, and the position is named all the same")
+	assert.Equal(t, want, before)
 
-	got, ok := mappingTargetID(l.ctx, l.ctx.RefScope(), l.types, petDiscriminator(t, l), sub)
-	require.True(t, ok, "the interned sub-schema resolves")
-	assert.Equal(t, ids.Document{}.ForPointer("/components/schemas/Pet/properties/kind"), got)
+	l.diags.AppendAll(LowerComponentSchemas(t.Context(), l.ctx, l.types, &l.anchors))
+	_, finished := l.types.Finish(t.Context())
+	l.diags.AppendAll(finished)
+	after, ok := mappingTargetID(l.ctx, l.ctx.RefScope(), petDiscriminator(t, l), sub)
+	require.True(t, ok)
+	assert.Equal(t, want, after, "the node interned there has the ID it was named by")
+	_, interned := l.types.Node(want)
+	assert.True(t, interned)
 }
 
 // TestMappingTargetID_ReadsEachPositionOnce pins that the position whose type a
@@ -733,7 +743,7 @@ func TestMappingTargetID_ReadsEachPositionOnce(t *testing.T) {
 		"    Hold: {type: object, properties: {p: {$ref: '#/components/schemas/Cat'}}}\n"+
 		"    Pet: {discriminator: {propertyName: k, mapping: {p: '#/components/schemas/Hold/properties/p'}}}\n"))
 
-	id, ok := mappingTargetID(l.ctx, l.ctx.RefScope(), l.types, petDiscriminator(t, l),
+	id, ok := mappingTargetID(l.ctx, l.ctx.RefScope(), petDiscriminator(t, l),
 		"#/components/schemas/Hold/properties/p")
 	require.True(t, ok)
 	assert.Equal(t, componentIDByName("Cat"), id, "the position reads through to Cat")

@@ -485,8 +485,11 @@ Compile(source, opts) → (ir.Document, []ir.Diagnostic)
   1. load      parse → raw document
   2. scan      cycle and amplification refusal, pure over raw source
   3. index     derive Ctx once
-  4. lower     recursive descent; each node f(ctx, ts, at) → (value, diags)
-  5. assemble  Document from returned values + ts.Finish()
+  4. lower     recursive descent; each node f(ctx, ts, at) → (value, diags);
+               a $ref promises what it names rather than lowering it (§6.2)
+  5. assemble  Document from returned values + ts.Finish(), which first builds each
+               promised coordinate no declaration built, in coordinate order, then
+               takes each decision that reads nodes other lowerings intern
 ```
 
 ### 6.1 Diagnostic fan-in is the neutrality risk
@@ -500,6 +503,35 @@ safety net and is the opposite: the temptation at that moment is to run `-update
 during a Tier-1 step is a stop-and-explain, never an `-update`.** `compile.Diags` preserves
 first-seen order, but "first-seen" differs between central accumulation and bottom-up returns, so
 some reordering is expected and each instance must be understood rather than absorbed.
+
+### 6.2 A coordinate is built in its own context
+
+**A coordinate's role is decided by the position it is written at, before any lowering reaches
+it:** what it lowers to, the hint it is named by, where its annotations live (its own node, or the
+property, parameter or header carrying it) and the depth the schema bound counts from. Whichever
+path reaches a coordinate first builds the node that role gives it, so `Intern`'s first build
+stands for every later one and no answer follows declaration order. Three mechanisms keep it.
+
+1. A `$ref` never lowers what it names. It takes the ID the target's pointer derives in the
+   target's document and promises the node (`compile.Types.Promise`). The declaration owning the
+   position builds it in its own walk; `Finish`, after every declaration and before any settlement,
+   builds in coordinate order only what none interned, each build a walk of its own from the top
+   level, under the hint the position's own lowering recorded.
+2. A lowering that mounts an object another position declares, a request body or a header written
+   elsewhere, lowers it in its declaration's document and names it by where it is declared, never
+   by where it is mounted, so every mount builds the node the declaration builds.
+3. A decision that reads a node another lowering interns, such as whether two redeclared types
+   conflict or which property a form part names, is a `compile.Settlement`, taken once the registry
+   is whole. Its diagnostics follow the walk's, an order no golden may be updated over unexplained
+   (§6.1).
+
+The alternative #917 drafted assigned each coordinate a role in the binding table. The table knows
+what a position is (a schema, raw YAML, another object), not the context its declaration lowers it
+in, and a table replaying hint and home from the grammar would be a second reading of the
+declaration walk, free to drift from it. Deferring the reference makes the declaration the only
+builder of what it owns. It replaced the provisional naming that rebuilt a node a reference built
+before its declaration (#372, #529): the rebuild replaced the node, but not what the reference had
+reported (#750) nor where it met the depth bound (#748).
 
 ## 7. Enforcement
 

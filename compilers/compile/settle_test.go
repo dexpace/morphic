@@ -142,6 +142,28 @@ func TestTypes_DeferRefusesWhatSettleWouldNeverTake(t *testing.T) {
 	}
 }
 
+// TestTypes_FinishBuildsPromisesBeforeSettling pins the order Finish keeps: a
+// settlement reads the registry whole, so it runs only once every promised
+// node is built, and what the builds reported comes before what settling did.
+func TestTypes_FinishBuildsPromisesBeforeSettling(t *testing.T) {
+	t.Parallel()
+	types := compile.NewTypes()
+	types.Promise("/a", func() []ir.Diagnostic {
+		types.Intern("/a", "t/anon/a", func() ir.TypeDef { return &ir.Model{ID: "t/anon/a"} })
+		return []ir.Diagnostic{{Code: "built"}}
+	})
+	types.Defer(settleFunc(func(reg ir.TypeRegistry) []ir.Diagnostic {
+		if _, built := reg["t/anon/a"]; !built {
+			return []ir.Diagnostic{{Code: "unbuilt"}}
+		}
+		return []ir.Diagnostic{{Code: "settled"}}
+	}))
+
+	_, diags := types.Finish(t.Context())
+
+	assert.Equal(t, []ir.Diagnostic{{Code: "built"}, {Code: "settled"}}, diags)
+}
+
 // TestTypes_SettlementThatAddsOrRemovesANodeIsRefused pins the writes a
 // settlement may not make. Nothing lowers after Settle, so an added node is
 // the only one no lowering produced, and a removed one leaves its references

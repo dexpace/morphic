@@ -843,8 +843,8 @@ func assertAllOfOneOfCooccurrence(t *testing.T, doc *ir.Document, _ []ir.Diagnos
 
 // assertInlineBranchHint pins the hint an inline composition branch takes when
 // an outside reference names its pointer too. The union reaches that node
-// through its composition and the reference through hoistSubSchema, and only the
-// first to arrive interns it, so both must derive the same hint. An inline
+// through its composition, and the reference builds it (hoistSubSchema) only
+// where nothing else did, under the hint the composition recorded. An inline
 // branch has only its position to be named by, and the reference path once used
 // the bare ordinal "0" (GitHub #181). The value is asserted because the golden
 // records whichever hint won without saying the two agree, and the corpus

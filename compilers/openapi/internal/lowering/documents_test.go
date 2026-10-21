@@ -26,6 +26,7 @@ info: {title: T, version: "1"}
 paths:
   /a:
     get:
+      operationId: getA
       parameters: [{$ref: './ext.yaml#/P'}]
       responses: {"200": {description: ok}}
 components:
@@ -120,17 +121,54 @@ func TestIDsAt_NamesEachSourceEntrysDocument(t *testing.T) {
 	assert.Nil(t, lowering.OtherIDs(lowering.Ctx{}))
 }
 
-// TestNamingByReferenceAt_MarksADeclarationInAnotherDocument pins that one
-// pointer in two documents is two positions: a declaration another document
-// holds at the use site's own pointer is still reached by reference.
-func TestNamingByReferenceAt_MarksADeclarationInAnotherDocument(t *testing.T) {
+// TestDeclareHint_KeepsOnePointerInTwoDocumentsApart pins that one pointer in
+// two documents is two positions: a hint recorded at the source's /X names
+// nothing at another document's /X, and each keeps its own. ext.yaml's content
+// read in its scope at the source's coordinates (InScope) is a third, though
+// its scope is ext.yaml's.
+func TestDeclareHint_KeepsOnePointerInTwoDocumentsApart(t *testing.T) {
 	t.Parallel()
 	c, _ := loadSplit(t, "X: {type: string}\nP: {name: p, in: query}\n")
 	there, ok := lowering.InDocument(c, extDoc(t, c))
 	require.True(t, ok)
 
-	assert.True(t, lowering.NamingByReferenceAt(c, there, "/X", "/X").NamesByReference())
-	assert.False(t, lowering.NamingByReferenceAt(there, there, "/X", "/X").NamesByReference())
+	c.DeclareHint("/X", "source")
+	_, recorded := there.HintAt("/X")
+	assert.False(t, recorded, "the source's /X is not ext.yaml's")
+	there.DeclareHint("/X", "ext")
+	hint, _ := c.HintAt("/X")
+	assert.Equal(t, "source", hint)
+	hint, _ = there.HintAt("/X")
+	assert.Equal(t, "ext", hint)
+	_, recorded = there.InScope(there.RefScope()).HintAt("/X")
+	assert.False(t, recorded, "ext.yaml's scope at the source's coordinates is neither")
+}
+
+// TestOperationIDAt_ReadsTheDeclaringDocument pins where a position's
+// operationId is read: in the source's YAML, and its model where only a
+// reference reaches the position; in another document's YAML alone, never the
+// source's model, for that document's; and nowhere for a context given no
+// document.
+func TestOperationIDAt_ReadsTheDeclaringDocument(t *testing.T) {
+	t.Parallel()
+	c, _ := loadSplit(t, "X: {type: string}\nP: {name: p, in: query}\nO: {operationId: extOp}\n")
+	there, ok := lowering.InDocument(c, extDoc(t, c))
+	require.True(t, ok)
+	assert.Equal(t, "extOp", lowering.OperationIDAt(there, "/O"), "ext.yaml's, read in its YAML")
+	assert.Empty(t, lowering.OperationIDAt(c, "/O"), "the source holds no /O")
+	assert.Equal(t, "getA", lowering.OperationIDAt(c, "/paths/~1a/get"))
+	assert.Empty(t, lowering.OperationIDAt(there, "/paths/~1a/get"), "ext.yaml writes none there, whatever the source does")
+
+	doc, _, err := load.Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(
+		"openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n  /a: {get: {operationId: getA}}\n" +
+			"  /b: {$ref: '#/components/pathItems/P'}\ncomponents:\n  pathItems:\n    P: {put: {operationId: putP}}\n")},
+		load.Options{})
+	require.NoError(t, err)
+	source := lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{}, lowering.StreamingMedia{},
+		lowering.ExtensionPromotions{}, overlay.Origin{}).WithLoaded(doc)
+	assert.Equal(t, "getA", lowering.OperationIDAt(source, "/paths/~1a/get"), "the source's, read where it is written")
+	assert.Equal(t, "putP", lowering.OperationIDAt(source, "/paths/~1b/put"), "and in its model past a $ref")
+	assert.Empty(t, lowering.OperationIDAt(lowering.Ctx{}, "/paths/~1a/get"), "a context given no document")
 }
 
 // TestDeclared_LowersAReferencedObjectWhereItIsDeclared pins where a reference

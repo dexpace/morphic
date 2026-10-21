@@ -543,11 +543,11 @@ components:
 	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, at), "%+v", diags)
 }
 
-// TestDiscriminatorBesideUnion_SettlesAPositionAReferenceBuiltFirst pins a
-// model two settlements are deferred for: a $ref reaches the position first
-// and builds it, then the declaration rebuilds it. The first moves the
-// discriminator off the rebuilt model; the second finds none left to move.
-func TestDiscriminatorBesideUnion_SettlesAPositionAReferenceBuiltFirst(t *testing.T) {
+// TestDiscriminatorBesideUnion_SettlesAPositionAReferenceNamesFirst pins a
+// model a $ref names before its declaration lowers it: the reference builds
+// nothing, so the declaration alone lowers the model and defers its settlement,
+// which moves the discriminator off it once, in either order.
+func TestDiscriminatorBesideUnion_SettlesAPositionAReferenceNamesFirst(t *testing.T) {
 	t.Parallel()
 	const at = "/components/schemas/Holder/properties/pet"
 	outside := "    Outside: {$ref: '#/components/schemas/Holder/properties/pet'}\n"

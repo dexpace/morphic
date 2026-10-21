@@ -12,3 +12,6 @@ func (t *Types) Violations() []string { return t.refused }
 
 // Settle is settle, for the tests that drive a settlement on its own.
 func (t *Types) Settle(ctx context.Context) []ir.Diagnostic { return t.settle(ctx) }
+
+// Fulfil is fulfil, for the tests that drive the promised builds on their own.
+func (t *Types) Fulfil(ctx context.Context) []ir.Diagnostic { return t.fulfil(ctx) }

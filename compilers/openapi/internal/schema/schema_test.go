@@ -541,34 +541,28 @@ func TestLower_MissingArrayItems(t *testing.T) {
 	}
 }
 
-// TestLower_MissingArrayItemsLoweredTwiceWarnsOnce pins the path that lowers a
-// declaration twice: a $ref naming a coordinate inside another declaration (a
-// property here; an `items` or a parameter's schema takes the same path),
-// lowered before that declaration, lowers the body, and the declaration lowers
-// it again (Types.InternDeclared). The lowering reports each time, and
-// compile.Diags drops the identical repeat, so the caller sees one warning in
-// both orders.
-func TestLower_MissingArrayItemsLoweredTwiceWarnsOnce(t *testing.T) {
+// TestLower_MissingArrayItemsAtAReferencedPositionWarnsOnce pins that a $ref
+// naming a coordinate inside another declaration (a property here; an `items`
+// or a parameter's schema takes the same path) leaves lowering it to that
+// declaration: the body is lowered once, by its owner, and warned of once, in
+// either order, and promising it builds nothing more once every declaration
+// has lowered (compile.Types.Finish).
+func TestLower_MissingArrayItemsAtAReferencedPositionWarnsOnce(t *testing.T) {
 	t.Parallel()
 	const (
 		ref    = "    A:\n      type: object\n      properties:\n        copy: {$ref: '#/components/schemas/Holder/properties/tags'}\n"
 		holder = "    Holder:\n      type: object\n      properties:\n        tags: {type: array}\n"
 		tags   = "/components/schemas/Holder/properties/tags"
 	)
-	cases := []struct {
-		name    string
-		schemas string
-		raw     int // reports the lowering returns before compile.Diags
-	}{
-		{name: "ref first", schemas: ref + holder, raw: 2},
-		{name: "declaration first", schemas: holder + ref, raw: 1},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
+	for name, schemas := range map[string]string{"ref first": ref + holder, "declaration first": holder + ref} {
+		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			l, _ := loweredFor(t, openapitest.ComponentSpecVer("3.0.3", tc.schemas))
+			l, _ := loweredFor(t, openapitest.ComponentSpecVer("3.0.3", schemas))
 			raw := schema.LowerComponentSchemas(t.Context(), l.ctx, l.types, &l.anchors)
-			require.Len(t, missingItemsAt(t, raw), tc.raw, "this order lowers the property that many times")
+			require.Len(t, missingItemsAt(t, raw), 1, "the declaration lowers the property once")
+			_, finished := l.types.Finish(t.Context())
+			raw = append(raw, finished...)
+			require.Len(t, missingItemsAt(t, raw), 1, "and the reference's promise lowers it no more")
 
 			l.diags.AppendAll(raw)
 			assert.Equal(t, []string{tags}, missingItemsAt(t, l.diags.List()))
@@ -2733,10 +2727,9 @@ func TestInlinePosition_HintIsTheSameInBothOrders(t *testing.T) {
 //
 // The enclosing hint under /paths comes from a response, an operationId or a
 // media-type key, none of which the pointer records, so no pointer-derived
-// spelling reproduces it and a reference can only offer a placeholder. The name
-// is taken from the declaration rather than from whichever lowering interned the
-// node first, so the position is "response_item" whether or not an unrelated
-// schema points at it, and in either declaration order.
+// spelling reproduces it. A reference never builds a position its declaration
+// lowers, so the position is "response_item" whether or not an unrelated schema
+// points at it, and in either declaration order.
 func TestInlinePosition_UnderPathsIsNamedByItsDeclaration(t *testing.T) {
 	t.Parallel()
 	const id = ir.TypeID("t/anon/paths/~1x/get/responses/200/content/application~1json/schema/items")
@@ -2965,11 +2958,11 @@ func TestPureRefPosition_IsNamedByItsDeclarationInBothOrders(t *testing.T) {
 // TestPureRefPosition_UnderPathsIsNamedByItsDeclaration is
 // TestPureRefPosition_IsNamedByItsDeclarationInBothOrders's counterpart under
 // /paths, modelled on TestInlinePosition_UnderPathsIsNamedByItsDeclaration:
-// positionHint cannot replay the enclosing hint there, so a reference can only
-// offer a placeholder ("schema_item") where the declaration says
-// "response_item". /b's declaration is the only lowering that ever knows that
-// name, and recording it before anything is interned there is what lets it
-// survive whichever of /b or /a lowers first.
+// positionHint cannot replay the enclosing hint there, so it offers
+// "schema_item" where the declaration says "response_item". /b's declaration,
+// which interns nothing at the pure $ref, records the name it gives the
+// position, and the alias a reference hoists there once every declaration has
+// lowered takes it, whichever of /b or /a lowers first.
 func TestPureRefPosition_UnderPathsIsNamedByItsDeclaration(t *testing.T) {
 	t.Parallel()
 	const id = ir.TypeID("t/anon/paths/~1b/get/responses/200/content/application~1json/schema/items")
@@ -3218,16 +3211,15 @@ func TestUndeclaredRegion_TwoReferencesAgreeInBothOrders(t *testing.T) {
 	}
 }
 
-// TestCrossPathReference_ComposedMultipartKeepsItsEncodingKeys pins that the
-// referenced body's node exists while the reference itself lowers, in either
-// declaration order, which is why a declaration rebuilds the node rather than
-// the reference deferring.
+// TestCrossPathReference_ComposedMultipartKeepsItsEncodingKeys pins that a
+// multipart body naming another operation's composed body keys its parts by
+// the properties that body's model holds, in either declaration order.
 //
 // /b's multipart body composes Base through allOf, so the property "file" that
-// /a's encoding key names lives on Base. partEncodings resolves the key by
-// walking the composition (propIDByWire), which needs /b's node interned when
-// /a's operation lowers; otherwise the key falls back to a property ID that
-// exists nowhere.
+// /a's encoding key names lives on Base. The key is found by walking the
+// composition (propIDByWire), which needs /b's node, and /a's reference leaves
+// building it to /b, so the keys are settled once every node exists (partKeys);
+// read earlier, the key would fall back to a property ID that exists nowhere.
 func TestCrossPathReference_ComposedMultipartKeepsItsEncodingKeys(t *testing.T) {
 	t.Parallel()
 	const preamble = "openapi: 3.1.0\ninfo: {title: t, version: \"1\"}\npaths:\n"
@@ -3301,14 +3293,13 @@ func sortedDiagStrings(diags []ir.Diagnostic) []string {
 	return out
 }
 
-// TestCrossPathReference_RebuildDoesNotDuplicateADiagnostic checks the risk
-// InternDeclared's rebuild carries: it lowers the same schema again, so a
-// diagnostic the reference's build reported fires a second time, and only
-// compile.Diags's whole-value dedup keeps it from doubling. A message built
-// from naming state would differ between the two builds and defeat that, so the
-// fixture co-declares oneOf and anyOf at the referenced position, a message that
-// names only those fixed keywords (preserveUnusedCombinator).
-func TestCrossPathReference_RebuildDoesNotDuplicateADiagnostic(t *testing.T) {
+// TestCrossPathReference_ADiagnosticIsReportedOnce pins that a $ref naming a
+// position under another operation, declared before it, adds no diagnostic to
+// what the position reports lowered alone: the reference leaves lowering it to
+// its declaration, so it is lowered, and reports, once. The fixture
+// co-declares oneOf and anyOf at the referenced position, which reports a
+// message naming only those keywords (preserveUnusedCombinator).
+func TestCrossPathReference_ADiagnosticIsReportedOnce(t *testing.T) {
 	t.Parallel()
 	const preamble = "openapi: 3.1.0\ninfo: {title: O, version: \"1.0.0\"}\npaths:\n"
 	const ownerSchema = "{type: object, oneOf: [{type: object, properties: {x: {type: string}}}], " +
@@ -3329,19 +3320,18 @@ func TestCrossPathReference_RebuildDoesNotDuplicateADiagnostic(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, refFirstDiags)
 
 	assert.Equal(t, sortedDiagStrings(aloneDiags), sortedDiagStrings(refFirstDiags),
-		"the declaration's rebuild must not leave a second copy of a diagnostic "+
-			"the reference's build already reported")
+		"the reference adds no copy of a diagnostic the declaration reports")
 }
 
-// TestComponentBody_SubtreeIsNamedByItsDeclaration is #529 for a schema inside a
-// component response or parameter. Components lower before operations, so a
-// schema's $ref into the body always arrives first and interns the subtree
-// under its own names; the component, used from /u, must still name it.
+// TestComponentBody_SubtreeIsNamedByItsDeclaration is #529 for a schema inside
+// a component response, parameter, request body or header. Components lower
+// before operations, so a schema's $ref into the body always reaches it first;
+// it builds nothing, and the component, used from /u, names the subtree
+// (GitHub #747).
 //
 // Each row compiles the owner alone and with a $ref from components/schemas to
 // its items, the components declared in both orders. The registry at the
-// owner's schema pointer must come out identical. A request body or header
-// does not yet (GitHub #747).
+// owner's schema pointer must come out identical.
 func TestComponentBody_SubtreeIsNamedByItsDeclaration(t *testing.T) {
 	t.Parallel()
 	const preamble = "openapi: 3.1.0\ninfo: {title: O, version: \"1.0.0\"}\n"
@@ -3353,6 +3343,14 @@ func TestComponentBody_SubtreeIsNamedByItsDeclaration(t *testing.T) {
 		{"parameter", "/components/parameters/P/schema",
 			"paths:\n  /u:\n    get:\n      operationId: useP\n      parameters: [{$ref: '#/components/parameters/P'}]\n      responses: {\"204\": {description: ok}}\n",
 			"  parameters:\n    P: {name: q, in: query, schema: " + ownerSchema + "}\n"},
+		{"request body", "/components/requestBodies/B/content/application~1json/schema",
+			"paths:\n  /u:\n    post:\n      operationId: useB\n      requestBody: {$ref: '#/components/requestBodies/B'}\n" +
+				"      responses: {\"204\": {description: ok}}\n",
+			"  requestBodies:\n    B: {content: {application/json: {schema: " + ownerSchema + "}}}\n"},
+		{"header", "/components/headers/H/schema",
+			"paths:\n  /u:\n    get:\n      operationId: useH\n      responses:\n        \"200\":\n" +
+				"          description: ok\n          headers: {X-H: {$ref: '#/components/headers/H'}}\n",
+			"  headers:\n    H: {schema: " + ownerSchema + "}\n"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
