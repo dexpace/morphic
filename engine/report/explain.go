@@ -76,9 +76,10 @@ func Explain(doc *ir.Document, diags []ir.Diagnostic, sources []ir.SourceInfo, p
 	return e
 }
 
-// inSource reports whether a position in the Document.Sources entry at source
-// is located in the source's coordinates: it is the source's own, the first
-// entry, or an overlay's, which locates what it patched there.
+// inSource reports whether a position the Document.Sources entry at source
+// names can be in the source's coordinates: it is the source's own, the first
+// entry, or an overlay's, credited with what it wrote into the source at the
+// source's positions, though it names its own for a finding about itself.
 func inSource(sources []ir.SourceInfo, source int) bool {
 	if source == 0 {
 		return true

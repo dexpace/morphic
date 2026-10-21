@@ -144,10 +144,11 @@ type SourceInfo struct {
 // before the "@" and the overlay version its Format carries.
 const OverlayFormat = "overlay"
 
-// IsOverlay reports whether s is an overlay applied to the source. What an
-// overlay is credited with is located in the document it patched: its
-// Provenance.Pointer spells a position of that document, not of the overlay.
-// Another document a split source reads is located in its own.
+// IsOverlay reports whether s is an overlay applied to the source. A construct
+// an overlay wrote into the document it patched is credited to the overlay at
+// its position in that document, so a Provenance naming an overlay can spell
+// a position of either document. Another document a split source reads names
+// its own positions alone.
 func (s SourceInfo) IsOverlay() bool {
 	return strings.HasPrefix(s.Format, OverlayFormat+"@")
 }
