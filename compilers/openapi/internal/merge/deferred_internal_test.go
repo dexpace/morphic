@@ -59,6 +59,27 @@ func TestMergeProperty_AMissedTypeDefersEveryRedeclarationOfTheProperty(t *testi
 	assert.Empty(t, *reported, "the walk's sink is not written to afterwards")
 }
 
+// TestMergeProperty_AValueJudgedAgainstAMissedTypeDefers pins that the lookups
+// the value judgment makes are counted: the top type against a list relates
+// without reading the element, but its default is held to that element.
+func TestMergeProperty_AValueJudgedAgainstAMissedTypeDefers(t *testing.T) {
+	t.Parallel()
+	g, queued, reported := deferring(map[ir.TypeID]ir.TypeDef{
+		"t/any":  &ir.Primitive{ID: "t/any", Prim: ir.PrimAny},
+		"t/list": &ir.List{ID: "t/list", Elem: ir.TypeRef{Target: "t/late"}},
+	})
+	m, idx := &ir.Model{ID: "t/m"}, NewPropIndex()
+	broad := redeclared("t/any", "0")
+	broad.Default = &ir.Value{Kind: ir.ValueList, List: []ir.Value{{Kind: ir.ValueString, Str: "x"}}}
+
+	g.MergeProperty(m, idx, broad, written(`{"default":["x"]}`))
+	g.MergeProperty(m, idx, redeclared("t/list", "1"), written(`{"type":"array"}`))
+
+	require.Len(t, *queued, 1, "the default is judged against an element no node holds yet")
+	assert.Empty(t, *reported)
+	assert.NotNil(t, m.Properties[0].Default, "nothing is refused before the settlement runs")
+}
+
 func TestMergeProperty_ASettlementOfAReplacedModelDoesNothing(t *testing.T) {
 	t.Parallel()
 	g, queued, _ := deferring(map[ir.TypeID]ir.TypeDef{"t/str": &ir.Primitive{ID: "t/str", Prim: ir.PrimString}})
