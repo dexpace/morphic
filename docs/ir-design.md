@@ -315,6 +315,11 @@ it sees. Changes made together in one bump are listed together under it.
   (`t/openapi@common.yaml/...`). It had lowered no schema another document holds and placed a
   parameter, response or other object read from one at the source's use site. A consumer pinned to
   0.16.0 reads `Sources` as the source and its overlay alone.
+- **0.18.0** — a reference says when its null was inferred (§3.3): `TypeRef` gained `Inferred`,
+  naming the heuristic that read null in, and empty where the source declares it. The OpenAPI
+  compiler sets it where its nullable-widening policy reads a null in, from `nullable: true` or
+  beside a `$ref`, and the document's version does not. A consumer pinned to 0.17.0 reads every
+  nullable reference as declared.
 
 ---
 
@@ -574,6 +579,7 @@ An alias can also collide with *another* entity's name, and that is not a rule o
 type TypeRef struct {
     Target   TypeID
     Nullable bool     // this *usage* admits null on the wire
+    Inferred string   // "" = the source declares the null; else the heuristic that read it in
 }
 ```
 
@@ -594,6 +600,14 @@ keywords (JSON Schema), a compiler reads them together: a value set that omits `
 that names it — `{type: [string, "null"], enum: [red, green]}` — does not admit null, one that lists
 `null` with no type beside it does, and a composition admits what its conjuncts jointly admit. So
 every spelling of one constraint reaches the same bit, which is the only thing an emitter reads.
+
+A bit a heuristic set rather than the source declared names that heuristic in `Inferred` (invariant
+6). It is the reference's own marker because a reference has no `Provenance` (§13) and the node
+holding one may hold several, so marking the holder would not say which bit was guessed. The marker
+is set only where the heuristic admits null and the source's own reading does not, so `Nullable &&
+Inferred == ""` is the bit that reading sets. `irverify` reports a marker on a reference that admits
+no null (`ir/type-ref-inferred-not-nullable`). The OpenAPI compiler's one such heuristic is its
+nullable-widening policy ([`nullable`](./compilers/openapi.md#nullable)).
 
 Protobuf field *presence* is **not** nullability — protobuf has no null. Presence disciplines
 lower to `Property.Presence` (§5.1), keeping `Nullable` strictly about wire-null.
