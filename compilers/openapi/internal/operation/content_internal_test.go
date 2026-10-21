@@ -267,11 +267,12 @@ func TestBodyParts_DepthBound(t *testing.T) {
 		"past the bound the walk stops rather than descending further")
 }
 
-// TestPartTypeFlags_DeadEnds covers the type walk's ends that name neither a
-// list nor bytes: an ID nothing declares, an opaque scalar, a kind that is
-// neither, and an alias chain that closes on itself, which the bound is for.
-// Only the kinds and the dead end the walk cannot answer for are undecided.
-func TestPartTypeFlags_DeadEnds(t *testing.T) {
+// TestPartTypeFlags_DecidesOnlyTheKindsItReads holds the type walk to what it
+// decides at each end: a tuple repeats; a string primitive, an opaque scalar
+// and an alias cycle that exhausts the bound decide neither flag; an ID
+// nothing declares, a model and a union are left to the caller's schema
+// reading.
+func TestPartTypeFlags_DecidesOnlyTheKindsItReads(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
 	l.types.Register("t/opaque", &ir.Scalar{ID: "t/opaque"})

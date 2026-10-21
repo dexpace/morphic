@@ -1087,8 +1087,8 @@ func schemaOf(refs *typed.Bindings, js *oas3.JSONSchema[oas3.Referenceable]) *oa
 }
 
 // maxBodyAliasHops bounds every chain of Scalar bases this file's walks follow
-// (styleguide bounded-everything rule). A loop of $refs lowers to no alias chain, so only
-// an absurdly long one reaches it.
+// (styleguide bounded-everything rule). A loop of $refs lowers to no alias
+// chain, so only an absurdly long one reaches it.
 const maxBodyAliasHops = 64
 
 // bodyModelPointer returns the pointer the model behind body was interned at,

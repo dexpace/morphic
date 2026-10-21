@@ -2614,8 +2614,6 @@ func TestPartEncoding_FlagsComeFromTheMergedType(t *testing.T) {
 		{"untyped and byte", `{description: the file}`, `{type: string, format: byte}`, true, false},
 		{"untyped and a hoisted binary", `{description: the file}`,
 			`{$ref: "#/components/schemas/Blob", description: the blob}`, true, false},
-		{"untyped and a binary enum", `{description: d}`,
-			`{type: string, format: binary, enum: [a, b]}`, true, false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -2631,6 +2629,62 @@ func TestPartEncoding_FlagsComeFromTheMergedType(t *testing.T) {
 			assert.Equal(t, tc.multi, got[0].Multi, "multi")
 		})
 	}
+}
+
+// TestPartEncoding_FlagsOfAnUndecidedMergedTypeComeFromEveryDeclaration holds a
+// part whose merged type the type walk cannot answer for to the flags every
+// declaration of its name gives, in either branch order, and a redeclared part
+// that is not the first to its own entry.
+func TestPartEncoding_FlagsOfAnUndecidedMergedTypeComeFromEveryDeclaration(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name     string
+		a, b     string
+		filename bool
+		multi    bool
+	}{
+		{"untyped and a binary enum", `{description: d}`,
+			`{type: string, format: binary, enum: [a, b]}`, true, false},
+		{"untyped and a union with an array", `{description: d}`,
+			`{type: [array, string], items: {type: string}}`, false, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var got [2]ir.PartEncoding
+			for i, branches := range [2][2]string{{tc.a, tc.b}, {tc.b, tc.a}} {
+				got[i] = onlyPartEncoding(t, `{allOf: [`+
+					`{type: object, properties: {file: `+branches[0]+`}}, `+
+					`{type: object, properties: {file: `+branches[1]+`}}]}`)
+			}
+			assert.Empty(t, cmp.Diff(got[0], got[1]), "the two branch orders agree")
+			assert.Equal(t, tc.filename, got[0].Filename, "filename")
+			assert.Equal(t, tc.multi, got[0].Multi, "multi")
+		})
+	}
+
+	pe := onlyPartEncoding(t, `{allOf: [{type: object, properties: {name: {type: string}, file: {description: d}}}, `+
+		`{type: object, properties: {file: {type: string, format: binary, enum: [a, b]}}}]}`)
+	assert.True(t, pe.Filename, "the second part collects its own redeclaration")
+}
+
+// TestPartEncoding_ADecidedTypeNeverFallsBack holds a part whose merged type
+// decides it is not bytes to no flag, though another declaration is binary.
+func TestPartEncoding_ADecidedTypeNeverFallsBack(t *testing.T) {
+	t.Parallel()
+	spec := openapitest.PathsSpec(`  /upload:
+    post:
+      operationId: upload
+      requestBody:
+        content:
+          multipart/form-data:
+            schema: {allOf: [{type: object, properties: {file: {type: integer}}}, `+
+		`{type: object, properties: {file: {type: string, format: binary}}}]}
+      responses: {"200": {description: ok}}
+`)
+	_, svc, diags := lowerServiceSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	assert.Empty(t, openapitest.FirstOp(t, svc).Request.Contents[0].Encoding, "the kept integer decides: not a file")
 }
 
 // TestPartEncoding_FlagsOfAnUndecidedTypeComeFromTheSchema holds a part whose
