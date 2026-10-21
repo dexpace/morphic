@@ -1,0 +1,12 @@
+openapi: 3.1.0
+info: {title: t, version: '1'}
+paths:
+  /a:
+    $ref: '#/paths/~1b'
+    put: {requestBody: {content: {application/json: {schema: {type: string}}}}, responses: {'200': {description: ok}}}
+  /b:
+    get: {operationId: g, responses: {'200': {description: ok}}}
+  /c:
+    post:
+      requestBody: {$ref: '#/paths/~1a/put/requestBody'}
+      responses: {'200': {description: ok}}
