@@ -10,13 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/ir/irverify"
 )
-
-// oneSource is the shape every compiled document has today: exactly one loaded
-// file, so index 0 is the only addressable source.
-func oneSource() []ir.SourceInfo {
-	return []ir.SourceInfo{{Format: "openapi", Path: "api.yaml", Hash: "h"}}
-}
 
 // TestVerify_InRangeProvenanceSourceIsClean pins the negative half: a document
 // that declares its source and indexes it must report nothing.
@@ -67,23 +62,31 @@ func TestVerify_BelowSentinelProvenanceSourceIsAViolation(t *testing.T) {
 	}
 }
 
-// TestVerify_SourcelessDocAdmitsZeroAndTheSentinel pins the one tolerance: a
-// document declaring no sources makes no claim about source indexing, so a
-// zero-value Provenance is clean there — but any other index except the
-// no-source sentinel still names a table entry that cannot exist.
-func TestVerify_SourcelessDocAdmitsZeroAndTheSentinel(t *testing.T) {
-	clean := validDoc()
-	require.Empty(t, clean.Sources)
-	assert.Empty(t, verifyDeclared(clean))
+// sourcelessDoc returns tabledDoc without its source table, the one node of
+// which indexes it with source.
+func sourcelessDoc(source int) *ir.Document {
+	doc := tabledDoc()
+	doc.Sources = nil
+	doc.Types["t/x/Model"].Common().Provenance = ir.Provenance{Source: source}
+	return doc
+}
 
-	sentinel := validDoc()
-	sentinel.Types["t/x/Model"].Common().Provenance = ir.Provenance{Source: ir.NoSource}
-	assert.Empty(t, verifyDeclared(sentinel))
+// TestVerify_SourcelessDocAdmitsZeroAndTheSentinel pins the one tolerance: an
+// empty source table is ir/sources-absent's to report, once, so a node indexing
+// it with the zero value or the no-source sentinel draws no
+// ir/provenance-source-out-of-range as well. Any other index still names a
+// table entry that cannot exist.
+func TestVerify_SourcelessDocAdmitsZeroAndTheSentinel(t *testing.T) {
+	t.Parallel()
+	for _, src := range []int{0, ir.NoSource} {
+		got := irverify.Verify(sourcelessDoc(src))
+		assert.Equal(t, []string{"ir/sources-absent"}, codesOf(got),
+			"source %d is admitted by an empty table, which is reported once on its own", src)
+	}
 
 	for _, src := range []int{1, ir.NoSource - 1} {
-		broken := validDoc()
-		broken.Types["t/x/Model"].Common().Provenance = ir.Provenance{Source: src}
-		assert.Contains(t, codesOf(verifyDeclared(broken)), "ir/provenance-source-out-of-range",
+		got := irverify.Verify(sourcelessDoc(src))
+		assert.Equal(t, []string{"ir/provenance-source-out-of-range", "ir/sources-absent"}, codesOf(got),
 			"source %d addresses no entry of an empty source table", src)
 	}
 }

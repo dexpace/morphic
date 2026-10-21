@@ -16,6 +16,20 @@ import (
 	"github.com/dexpace/morphic/ir/irverify"
 )
 
+// emptySHA256 is the SHA-256 of zero bytes in lowercase hex, the digest a
+// source table entry carries.
+const emptySHA256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+// tables returns the source table and service every compiled document carries,
+// and the namespaces their IDs and the fixtures' types live in, so a stub
+// document reaches the oracle it is named for rather than the checks of the
+// tables.
+func tables() ([]ir.SourceInfo, []ir.Service, map[string][]string) {
+	return []ir.SourceInfo{{Format: "openapi@3.1", Path: "api.yaml", Hash: emptySHA256}},
+		[]ir.Service{{ID: "s/x/S", Name: ir.Naming{Source: "svc", Canonical: "svc"}}},
+		map[string][]string{ir.IDKindType: {"x"}, ir.IDKindService: {"x"}}
+}
+
 // badExtDoc returns a document that cannot be marshalled: its Unmodeled holds
 // an ir.RawValue with malformed bytes, which the encoder refuses when it writes
 // the value into the document.
@@ -44,7 +58,8 @@ func badExtDoc() *ir.Document {
 // node is a defect of its own.
 func dupKeyDoc() *ir.Document {
 	named := ir.Naming{Source: "node", Canonical: "node"}
-	return &ir.Document{IRVersion: ir.IRVersion, IDSpaces: map[string][]string{ir.IDKindType: {"x"}}, Types: ir.TypeRegistry{
+	sources, services, spaces := tables()
+	return &ir.Document{IRVersion: ir.IRVersion, IDSpaces: spaces, Sources: sources, Services: services, Types: ir.TypeRegistry{
 		ir.TypeID("t/x/\xff"): &ir.Any{ID: "t/x/\xff", Name: named},
 		ir.TypeID("t/x/\xfe"): &ir.Any{ID: "t/x/\xfe", Name: named},
 	}}
@@ -65,17 +80,21 @@ func cyclicDoc() *ir.Document {
 }
 
 // soundDoc returns a minimal, structurally-sound document: one model keyed by its
-// own ID with a neutral canonical name, stamped with the IR schema version this
-// build writes and declaring its one namespace. It has no violations and
-// round-trips through JSON cleanly, so the oracles reach the step under test.
+// own ID with a neutral canonical name, a service and a source, stamped with the
+// IR schema version this build writes and declaring its namespaces. It has no
+// violations and round-trips through JSON cleanly, so the oracles reach the step
+// under test.
 func soundDoc() *ir.Document {
 	m := &ir.Model{
 		ID:   "t/x/Model",
 		Name: ir.Naming{Source: "Model", Canonical: "model"},
 	}
+	sources, services, spaces := tables()
 	return &ir.Document{
 		IRVersion: ir.IRVersion,
-		IDSpaces:  map[string][]string{ir.IDKindType: {"x"}},
+		IDSpaces:  spaces,
+		Sources:   sources,
+		Services:  services,
 		Types:     ir.TypeRegistry{m.ID: m},
 	}
 }
