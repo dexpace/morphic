@@ -375,6 +375,38 @@ func TestCompile_AURLNoReaderReadsIsRefusedUnread(t *testing.T) {
 	}
 }
 
+// TestCompile_ARefAnIDAnswersIsNeverRefusedUnread pins that a $ref naming a
+// URI an $id declares resolves to that schema whatever its scheme, with
+// external references allowed or not, since no document is read for an
+// identifier, while one no $id declares is refused unread by its scheme.
+func TestCompile_ARefAnIDAnswersIsNeverRefusedUnread(t *testing.T) {
+	t.Parallel()
+	root := []byte("openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\ncomponents:\n  schemas:\n" +
+		"    Pet:\n      type: object\n      properties:\n        kind: {$ref: 'urn:example:kind'}\n" +
+		"        other: {$ref: 'urn:example:none'}\n    Kind: {$id: 'urn:example:kind', type: string}\n")
+	path := filepath.Join(t.TempDir(), "root.yaml")
+	component := func(name string) ir.TypeID { return ids.Document{}.ForPointer(ids.Ptr("components", "schemas", name)) }
+	for _, allow := range []bool{false, true} {
+		doc, diags, err := New().Compile(t.Context(), []compilers.Source{{Path: path, Data: root}},
+			compilers.Options{Reader: reader.Disk{}, FormatOptions: Options{AllowExternalRefs: allow}})
+		require.NoError(t, err)
+		require.NotNil(t, doc)
+
+		pet, ok := doc.Types[component("Pet")].(*ir.Model)
+		require.True(t, ok, "Pet is a Model")
+		kind, ok := propByWire(pet, "kind")
+		require.True(t, ok, "Pet declares kind")
+		assert.Equal(t, component("Kind"), kind.Type.Target, "external references allowed: %v", allow)
+		assert.Equal(t, `unresolved $ref "urn:example:none": the document it names could not be read: `+
+			`external document urn:example:none refused: it is named by a URL with the scheme "urn", `+
+			`and only http, https and file URLs are read`,
+			openapitest.DiagMessageAt(t, diags, diag.UnresolvedRef, ir.SeverityError,
+				"/components/schemas/Pet/properties/other"))
+		errs := slices.DeleteFunc(slices.Clone(diags), func(d ir.Diagnostic) bool { return d.Severity != ir.SeverityError })
+		assert.Len(t, errs, 1, "the identifier draws no refusal: %v", errs)
+	}
+}
+
 // TestCompile_ByDefaultEachReferenceIsJudgedByItsOwnSpelling pins that the
 // default refuses a $ref by how it spells its document, never by how another
 // $ref spells it or by which document was read first: an absolute $ref is

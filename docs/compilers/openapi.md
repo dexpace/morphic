@@ -339,6 +339,7 @@ references that closes on itself is [`reference-cycles`](#reference-cycles)'.
   `openapi.TestCompile_ByDefaultOnlyARelativeReferenceIsFollowed`,
   `openapi.TestCompile_ByDefaultEachReferenceIsJudgedByItsOwnSpelling`,
   `openapi.TestCompile_AURLNoReaderReadsIsRefusedUnread`,
+  `openapi.TestCompile_ARefAnIDAnswersIsNeverRefusedUnread`,
   `openapi.TestCompile_OneFileUnderTwoNamesIsOneDocument`,
   `openapi.TestExternalContent_ASchemaRefPastARefNamesItsContent`,
   `openapi.TestExternalContent_ASourcePositionItNamesByFileResolvesInEitherOrder`,
