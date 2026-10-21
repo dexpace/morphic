@@ -81,9 +81,9 @@ func (b *binder) named(in resource, uri string) (resource, Reason, string) {
 }
 
 // opened is the resource of the document uri, written in the resource in,
-// names, placed by Config.Locate, or why it is not read: Config.Refuse
-// refuses that spelling, or it names no document. An identifier is never
-// refused, since no document is read for one.
+// names, placed by Config.Locate, or why not: Config.Refuse refuses that
+// spelling, it names no document, or the read fails (read). An identifier is
+// never refused, since no document is read for one.
 func (b *binder) opened(in resource, uri string) (resource, Reason, string) {
 	if why := b.docs.refusal(uri); why != "" {
 		return resource{}, Unreadable, why

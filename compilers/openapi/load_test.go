@@ -413,9 +413,9 @@ func TestCompile_ARefAnIDAnswersIsNeverRefusedUnread(t *testing.T) {
 // TestCompile_ARelativeRefUnderAnIDReadsWhereTheIDPlacesIt pins the document a
 // relative $ref no $id declares names under an $id: the one at the URI the $id
 // makes of it, read as any reference to that URI is, and never the file of
-// that name beside the source. A relative $id places it beside the schema
-// declaring it, read by default; a URL is on the network, read only when
-// external references are allowed.
+// that name beside the source. Under a relative $id it lies beside the
+// location the $id gives, read by default; under a URL it is on the network,
+// read only when external references are allowed.
 func TestCompile_ARelativeRefUnderAnIDReadsWhereTheIDPlacesIt(t *testing.T) {
 	t.Parallel()
 	srv := httptest.NewServer(http.FileServerFS(fstest.MapFS{"x/b.yaml": {Data: []byte("B: {type: integer}\n")}}))
@@ -444,8 +444,8 @@ func TestCompile_ARelativeRefUnderAnIDReadsWhereTheIDPlacesIt(t *testing.T) {
 		for _, beside := range []ir.TypeID{ids.In("tag.json").AnonType("/T"), ids.In("b.yaml").AnonType("/B")} {
 			assert.NotContains(t, doc.Types, beside, "the file beside the source is never read")
 		}
-		on := openapitest.HasDiagCodeAt(diags, diag.UnresolvedRef, "/components/schemas/S/properties/b")
-		assert.Equal(t, !allow, on, "the URL is read only when allowed: %v", diags)
+		unresolved := openapitest.HasDiagCodeAt(diags, diag.UnresolvedRef, "/components/schemas/S/properties/b")
+		assert.Equal(t, !allow, unresolved, "the URL is read only when allowed: %v", diags)
 		if !allow {
 			assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.UnresolvedRef, ir.SeverityError,
 				"/components/schemas/S/properties/b"), "external document "+srv.URL+"/x/b.yaml refused: it is on the network")
