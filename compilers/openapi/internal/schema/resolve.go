@@ -177,7 +177,7 @@ func refTypeRef(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 // report reads as though it named nothing.
 func unresolvedWhy(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) string {
 	if e, ok := c.Bindings().Entry(js); ok {
-		return hopWhy(c.Bindings().Table(), e.Hop, e.Site)
+		return hopWhy(e.Hop)
 	}
 	return unreadWhy(c.Bindings(), js)
 }
@@ -197,18 +197,14 @@ func unreadWhy(refs *typed.Bindings, model any) string {
 	return ""
 }
 
-// hopWhy is unresolvedWhy's reason for the hop h of a reference written at
-// site. A failure in another document's content names that document, since
-// the use site in the source says nothing of it.
-func hopWhy(table *bind.Table, h bind.Hop, site bind.Position) string {
-	switch {
-	case h.Status == bind.Resolved:
+// hopWhy is unresolvedWhy's reason for the hop h, or nothing for one that
+// resolved. It names no document: a finding about a reference is placed in
+// the document that writes it.
+func hopWhy(h bind.Hop) string {
+	if h.Status == bind.Resolved {
 		return ""
-	case site.Doc != bind.Source:
-		return ": in " + table.Document(site.Doc).Name + ", " + h.Why()
-	default:
-		return ": " + h.Why()
 	}
+	return ": " + h.Why()
 }
 
 // resolveSchemaRef resolves a schema-position $ref to an interned TypeID, never

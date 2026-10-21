@@ -145,11 +145,11 @@ func TestCompile_AFindingInASchemaOnlyAnotherDocumentReachesIsPlacedThere(t *tes
 }
 
 // TestCompile_AFindingInAnExternalDocumentKeepsItsRule is the #537 repro: a
-// finding inside a document reached only through an external $ref keeps its own
-// rule and severity, reported at the $ref rather than as an unresolved
-// reference, with its position in that document going into the message rather
-// than into a Provenance the compiler has no source table entry for (GitHub
-// #74).
+// finding the parser's validation makes inside a document reached only through
+// an external $ref keeps its own rule and severity, reported at the $ref rather
+// than as an unresolved reference, with its position in that document in the
+// message. Placing it in that document's own Document.Sources entry is GitHub
+// #1030.
 func TestCompile_AFindingInAnExternalDocumentKeepsItsRule(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()

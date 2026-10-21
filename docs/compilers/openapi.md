@@ -305,6 +305,7 @@ would answer. A chain of references that closes on itself is
 - Tests: `openapi.TestCompile_ExternalFileRefIsNotReadByDefault`,
   `openapi.TestGolden_SplitSpec`, `openapi.TestExternalContent_ARefInItNamesItsOwnDocument`,
   `openapi.TestCompile_AResolutionFailureIsReportedOnceAtItsRef`,
+  `schema.TestMapping_InAnotherDocumentIsReportedWhereItIsWritten`,
   `lowering.TestInDocument_PlacesWhatAnotherDocumentDeclares`,
   `lowering.TestDeclared_LowersAReferencedObjectWhereItIsDeclared`,
   `lowering.TestDeclared_KeepsTheUseSiteInAnotherDocumentsContent`,
@@ -1622,17 +1623,17 @@ is a reference whose target the resolver finds to be the field written there, as
 reference other than a schema's `$ref` or a mapping value when the compile reads other documents,
 which lowers as that field. An item another document holds is declared where that document declares
 it, and a finding names its positions by the reference; one the compile cannot place there, as past
-the longest chain it follows, is declared under the use site's `$ref` (`…/$ref/…`), which no
-document names. The
-fields beside a `$ref` the load phase's walk does not reach, in another document or under an `x-*`
-key, are not lowered, reported as an `openapi/degraded-construct` warning at the mount naming the
-reference that reaches them.
+the longest chain it follows or at a key that document writes twice, is declared under the use
+site's `$ref` (`…/$ref/…`), which no document names. The fields beside a `$ref` the load phase's walk
+does not reach, in another document or under an `x-*` key, are not lowered, reported as an
+`openapi/degraded-construct` warning at the mount naming the reference that reaches them.
 
 - Cases: `path-item-ref-siblings`
 - Codes: `openapi/path-item-ref-collision`, `openapi/unresolved-ref`, `openapi/degraded-construct`
 - Tests: `operation.TestPathItemRefSiblings_CollisionIsLoudAndUseSiteWins`,
   `operation.TestPathItemRefSiblings_AReferenceIntoTheFieldsBesideARefIsRefused`,
-  `operation.TestPathItemRefSiblings_FieldsAnotherDocumentWritesAreReported`
+  `operation.TestPathItemRefSiblings_FieldsAnotherDocumentWritesAreReported`,
+  `operation.TestPathItemRefSiblings_AForeignReferentKeepsItsOwnPositions`
 - Status: partly built: a reference into the fields beside a path item `$ref` is left unresolved,
   rather than lowered as the field written there (#824); the fields beside a `$ref` the load phase's
   walk does not reach are not lowered (#823); and a pointer through a path item `$ref` resolves only

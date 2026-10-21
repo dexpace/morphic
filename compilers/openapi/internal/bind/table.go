@@ -159,9 +159,9 @@ func (b *binder) table(t *Table) *Table {
 
 // attribute returns, for each position some $ref's or mapping value's chain
 // reaches, the least such position, in whichever document. Starting from each
-// in order,
-// a chain is followed until it meets a position a lesser start reached, whose
-// chain on from there that start has marked, so each position is marked once.
+// in order, a chain is followed until it meets a position a lesser start
+// reached, whose chain on from there that start has marked, so each position
+// is marked once.
 func (b *binder) attribute(t *Table) map[Position]Position {
 	type start struct {
 		from, first Position

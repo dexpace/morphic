@@ -258,6 +258,33 @@ components:
 	}
 }
 
+// TestMapping_InAnotherDocumentIsReportedWhereItIsWritten pins the report of a
+// discriminator mapping value another document writes that names nothing
+// there: once, at the value in that document's Document.Sources entry, in the
+// words a mapping in the source draws, so the message does not name the
+// document its Provenance already does. The value naming what it declares
+// resolves and draws nothing.
+func TestMapping_InAnotherDocumentIsReportedWhereItIsWritten(t *testing.T) {
+	t.Parallel()
+	_, diags, _ := compileBeside(t, map[string]string{"pets.yaml": `Pet:
+  oneOf: [{$ref: '#/Cat'}]
+  discriminator: {propertyName: kind, mapping: {cat: '#/Cat', dog: '#/Dog'}}
+Cat: {type: object, properties: {kind: {type: string}}}
+`}, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+    A: {$ref: './pets.yaml#/Pet'}
+`)
+
+	assert.Empty(t, cmp.Diff([]ir.Diagnostic{{Severity: ir.SeverityError, Code: "openapi/unresolved-ref",
+		Message: `discriminator mapping "dog" references unresolved schema "#/Dog": ` +
+			"it names nothing in the document it points into",
+		Provenance: ir.Provenance{Source: 1, Pointer: "/Pet/discriminator/mapping/dog"}}},
+		withCode(diags, "openapi/unresolved-ref")))
+}
+
 // TestRef_IntoAnotherDocumentNamesTheTypeLoweredThere pins what a schema $ref
 // that lands in another document draws: it resolves, so nothing is reported,
 // and the schema it lands on is lowered where that document declares it, under

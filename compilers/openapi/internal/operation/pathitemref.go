@@ -89,8 +89,9 @@ func unreadFields(use lowering.Ctx, usePtr jsontext.Pointer, reached string, for
 // use's document names a position in another by the reference (referenceName).
 // A nearer layer declaring at that position too is the use site of an item the
 // compile cannot place where it is declared, as past the longest chain it
-// follows: the item is then declared under the use site's "$ref", which no
-// document names, so the two never intern a type at one pointer (invariant 3).
+// follows or at a key its document writes twice: the item is then declared
+// under the use site's "$ref", which no document names, so the two never
+// intern a type at one pointer (invariant 3).
 func referent(use, dc lowering.Ctx, last *soa.ReferencedPathItem, pi *soa.PathItem, declPtr jsontext.Pointer,
 	nearer []layer,
 ) layer {

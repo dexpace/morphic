@@ -1278,9 +1278,9 @@ func fillPropertyAnnotations(c lowering.Ctx, ts *compile.Types, anchors *AnchorI
 	return append(diags, PreserveUnknownKeywords(c, &p.Unmodeled, ref, pointer)...)
 }
 
-// LoweredToOwnNode reports whether the declaration at pointer, in c's document,
-// lowered to a type node of its own — the node attachDeclaredAnnotations then fills, leaving its
-// carrier nothing to hold.
+// LoweredToOwnNode reports whether the declaration at pointer, in c's
+// document, lowered to a type node of its own — the node
+// attachDeclaredAnnotations then fills, leaving its carrier nothing to hold.
 //
 // It asks whether the node interned at pointer is the one the declaration
 // lowered to, not merely whether a node is interned there. A $ref naming an
