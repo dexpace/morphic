@@ -13,6 +13,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/engine"
+	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/ir/irverify"
 )
@@ -124,8 +125,15 @@ func newRegistry() (*compilers.Registry, error) {
 	return reg, nil
 }
 
+// sweepOptions is what every compiler detects and compiles a swept source
+// with: its defaults, reading the documents a source's references name from
+// disk as a run of the engine does, inside the spec's directory.
+func sweepOptions(compilers.Compiler) (compilers.Options, error) {
+	return compilers.Options{Reader: reader.Disk{}}, nil
+}
+
 // compile lowers one in-memory source with the compiler that claims it, under
-// default options and without the passes, and holds the outcome to the compiler
+// sweepOptions and without the passes, and holds the outcome to the compiler
 // contract. It returns every finding the compile reported, on either of the
 // compiler's channels. It is a package-level seam: production always uses the
 // registry wired here, while tests replace it to drive the oracle-failure paths
@@ -137,7 +145,7 @@ var compile = func(ctx context.Context, spec string, data []byte) (*ir.Document,
 		return nil, nil, err
 	}
 
-	det, ok, err := reg.Detect(ctx, compilers.Source{Path: spec, Data: data}, nil)
+	det, ok, err := reg.Detect(ctx, compilers.Source{Path: spec, Data: data}, sweepOptions)
 	if err != nil {
 		return nil, nil, fmt.Errorf("harness: detect: %w", err)
 	}

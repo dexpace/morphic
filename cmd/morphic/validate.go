@@ -60,7 +60,7 @@ func newValidateCmd() *cobra.Command {
 func validateSpec(cmd *cobra.Command, specPath string, opts specOptions) error {
 	_, code, err := runPipeline(cmd.Context(), specPath, opts, cmd.ErrOrStderr())
 	if err != nil {
-		return failure(err)
+		return err
 	}
 	return exitWith(code)
 }

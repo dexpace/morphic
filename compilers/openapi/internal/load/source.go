@@ -64,7 +64,7 @@ func newSourceDocument(path string, data []byte, root *yaml.Node, valErrs []erro
 	found := make(map[findingKey]bool, len(valErrs))
 	for _, ve := range valErrs {
 		if verr, ok := asValidationError(ve); ok && verr.Node != nil {
-			found[keyOf(ve, "")] = true
+			found[keyOf(ve, refSite{})] = true
 		}
 	}
 	return sourceDocument{path: path, data: data, root: root, found: found, tree: tree, escapes: esc}

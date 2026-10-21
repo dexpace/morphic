@@ -21,6 +21,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -282,7 +283,7 @@ func TestBounded_TranslatesTheCallersSpellingOfUnbounded(t *testing.T) {
 
 func TestLoadOptions_CarriesTheResolvedSizeBudgets(t *testing.T) {
 	t.Parallel()
-	got := loadOptions(Options{Limits: Limits{MaxSourceBytes: 11, MaxSourceNodes: -1}}.withDefaults())
+	got := loadOptions(Options{Limits: Limits{MaxSourceBytes: 11, MaxSourceNodes: -1}}.withDefaults(), nil, compilers.Source{Path: "spec.yaml"})
 
 	assert.Equal(t, 11, got.MaxSourceBytes)
 	assert.Equal(t, 0, got.MaxSourceNodes, "an unbounded budget reaches the loader as no budget")
@@ -290,11 +291,11 @@ func TestLoadOptions_CarriesTheResolvedSizeBudgets(t *testing.T) {
 
 	assert.Equal(t, DefaultMaxExternalDocuments, got.MaxExternalDocuments)
 
-	got = loadOptions(Options{Limits: Limits{MaxAliasSurplus: -1, MaxExternalDocuments: -1}}.withDefaults())
+	got = loadOptions(Options{Limits: Limits{MaxAliasSurplus: -1, MaxExternalDocuments: -1}}.withDefaults(), nil, compilers.Source{Path: "spec.yaml"})
 	assert.Equal(t, 0, got.MaxAliasSurplus, "an unbounded alias budget reaches the loader as no budget")
 	assert.Equal(t, 0, got.MaxExternalDocuments, "an unbounded document budget reaches the loader as no budget")
 
-	got = loadOptions(Options{Limits: Limits{MaxExternalDocuments: 3}}.withDefaults())
+	got = loadOptions(Options{Limits: Limits{MaxExternalDocuments: 3}}.withDefaults(), nil, compilers.Source{Path: "spec.yaml"})
 	assert.Equal(t, 3, got.MaxExternalDocuments)
 }
 
@@ -315,7 +316,7 @@ func TestCompile_TheDocumentBudgetIsTheCallersToSet(t *testing.T) {
 		"components:\n  schemas:\n    A: {$ref: '" + srv.URL + "/0.yaml#/x'}\n"
 
 	_, diags, err := New().Compile(t.Context(), []compilers.Source{{Path: "spec.yaml", Data: []byte(src)}},
-		compilers.Options{FormatOptions: Options{AllowExternalRefs: true, Limits: Limits{MaxExternalDocuments: 3}}})
+		compilers.Options{Reader: reader.Disk{}, FormatOptions: Options{AllowExternalRefs: true, Limits: Limits{MaxExternalDocuments: 3}}})
 
 	require.NoError(t, err)
 	assert.Equal(t, int32(3), requests.Load())
@@ -405,8 +406,8 @@ components:
     Cat: {type: object}
 `
 	runUntil := func(live int) (int, []ir.Diagnostic, error) {
-		loaded, _, err := load.Load(t.Context(), 0,
-			compilers.Source{Path: "spec.yaml", Data: []byte(src)}, loadOptions(Options{}.withDefaults()))
+		source := compilers.Source{Path: "spec.yaml", Data: []byte(src)}
+		loaded, _, err := load.Load(t.Context(), 0, source, loadOptions(Options{}.withDefaults(), nil, source))
 		require.NoError(t, err)
 		left, seen := live, 0
 		_, diags, err := run(liveForCalls{Context: t.Context(), left: &left, seen: &seen},

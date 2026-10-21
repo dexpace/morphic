@@ -65,7 +65,7 @@ func TestInternNode_DerivesTheIDAndInternsOnce(t *testing.T) {
 	first := internNode(c, ts, at, "", build)
 	second := internNode(c, ts, at, "", build)
 
-	assert.Equal(t, ids.ForPointer(at), first, "the ID is derived from the pointer")
+	assert.Equal(t, ids.Document{}.ForPointer(at), first, "the ID is derived from the pointer")
 	assert.Equal(t, first, second, "a second visit returns the interned ID")
 	assert.Equal(t, 1, built, "and does not build the node again")
 

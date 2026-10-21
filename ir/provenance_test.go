@@ -319,3 +319,20 @@ func TestFirstOutsideTable_NamesTheFirstFindingNoEntryHolds(t *testing.T) {
 	_, out = ir.FirstOutsideTable(nil, 0)
 	assert.False(t, out, "no finding indexes nothing")
 }
+
+// TestSourceInfo_IsOverlayReadsTheFormatTag pins how an overlay's entry is
+// told from the spec's and from another document's: by the format before the
+// version, whatever the version, and never by a format that only starts alike.
+func TestSourceInfo_IsOverlayReadsTheFormatTag(t *testing.T) {
+	t.Parallel()
+	for format, want := range map[string]bool{
+		"overlay@1.0.0": true,
+		"overlay@1.1.0": true,
+		"openapi@3.1":   false,
+		"overlay":       false,
+		"overlays@1.0":  false,
+		"":              false,
+	} {
+		assert.Equal(t, want, ir.SourceInfo{Format: format}.IsOverlay(), format)
+	}
+}

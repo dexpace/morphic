@@ -38,8 +38,8 @@ func parseFull(t *testing.T, src string) (*ir.Document, []ir.Diagnostic) {
 // time. lowerSpec builds on this same load path to also lower components.
 func loweredFor(t *testing.T, src string) (*lowerer, []ir.Diagnostic) {
 	t.Helper()
-	loadedDoc, diags, err := load.Load(t.Context(), 0,
-		compilers.Source{Path: "spec.yaml", Data: []byte(src)}, loadOptions(Options{}.withDefaults()))
+	source := compilers.Source{Path: "spec.yaml", Data: []byte(src)}
+	loadedDoc, diags, err := load.Load(t.Context(), 0, source, loadOptions(Options{}.withDefaults(), nil, source))
 	require.NoError(t, err)
 	require.NotNil(t, loadedDoc, "load returned no document: %+v", diags)
 	return newLowerer(loadedDoc, Options{}.withDefaults()), diags
@@ -60,7 +60,8 @@ func lowerSpec(t *testing.T, src string) (*ir.Document, []ir.Diagnostic) {
 func lowerServiceSpec(t *testing.T, src string) (*ir.Document, ir.Service, []ir.Diagnostic) {
 	t.Helper()
 	doc, diags := func() (*ir.Document, []ir.Diagnostic) {
-		loadedDoc, loadDiags, err := load.Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(src)}, loadOptions(Options{}.withDefaults()))
+		source := compilers.Source{Path: "spec.yaml", Data: []byte(src)}
+		loadedDoc, loadDiags, err := load.Load(t.Context(), 0, source, loadOptions(Options{}.withDefaults(), nil, source))
 		require.NoError(t, err)
 		require.NotNil(t, loadedDoc)
 		l := newLowerer(loadedDoc, Options{}.withDefaults())

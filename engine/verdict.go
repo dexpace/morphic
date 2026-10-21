@@ -115,3 +115,14 @@ func (t threshold) verdict(res *Result) (bool, error) {
 	}
 	return failed, nil
 }
+
+// judge records res's verdict at t as Result.Failed and returns res, or the
+// error the verdict refused it with.
+func (t threshold) judge(res *Result) (*Result, error) {
+	failed, err := t.verdict(res)
+	if err != nil {
+		return nil, err
+	}
+	res.Failed = failed
+	return res, nil
+}

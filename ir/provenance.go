@@ -173,7 +173,7 @@ func MergeDiagnostics(stored, produced []Diagnostic) []Diagnostic {
 // compile's findings index names files nothing read, so it sets Path alone.
 type SourceInfo struct {
 	// Format names the format and version the file was read as, such as
-	// "openapi@3.2" or "overlay@1.0.0".
+	// "openapi@3.2", or "overlay@1.0.0" for an overlay (IsOverlay).
 	Format string `json:"format"`
 	// Path is the path the file was handed to the compiler under.
 	Path string `json:"path"`
@@ -197,4 +197,17 @@ type SourceInfo struct {
 func SourceHash(data []byte) string {
 	sum := sha256.Sum256(data)
 	return hex.EncodeToString(sum[:])
+}
+
+// OverlayFormat is the format an overlay applied to the source is read as,
+// before the "@" and the overlay version its Format carries.
+const OverlayFormat = "overlay"
+
+// IsOverlay reports whether s is an overlay applied to the source. A construct
+// an overlay wrote into the document it patched is credited to the overlay at
+// its position in that document, so a Provenance naming an overlay can spell
+// a position of either document. Another document a split source reads names
+// its own positions alone.
+func (s SourceInfo) IsOverlay() bool {
+	return strings.HasPrefix(s.Format, OverlayFormat+"@")
 }

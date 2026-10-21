@@ -89,19 +89,17 @@ type Options struct {
 	// The zero value is the default mapping, on; a caller who wants extensions
 	// kept verbatim and nothing more disables it.
 	Promotions ExtensionPromotions `json:"promotions"`
-	// AllowExternalRefs lets resolution leave the source document, reading
-	// files and fetching http(s) URLs. Off by default, since a spec is
-	// untrusted and its $refs could name any file or host, a $ref leaving the
-	// document is reported unresolved.
+	// AllowExternalRefs lets a read of another document leave the directory of
+	// Source.Path, against which references resolve, for any file and http(s)
+	// URLs. Off by default, since a spec is untrusted: reads stay inside that
+	// directory, symbolic links included, and follow relative references alone:
+	// a $ref spelling a file URI, or an absolute path to any document but the
+	// source, is refused.
 	//
-	// Turning it on makes output depend on the filesystem and network:
-	// references resolve against Source.Path's directory (the working
-	// directory when Path is empty). Resolved content is validated as the
-	// source is but not lowered (GitHub #74).
-	//
-	// A referenced document fails the reference naming it when it crosses the
-	// source's budgets or pre-parse refusals, or its scan cannot finish, where
-	// the source only warns.
+	// Reads go through compilers.Options.Reader; with none, nothing is read.
+	// Each document read is a Document.Sources entry, and what it declares is
+	// lowered there. One past the source's budgets or pre-parse refusals fails
+	// each reference naming it.
 	AllowExternalRefs bool `json:"allowExternalRefs"`
 	// Overlay is an OpenAPI Overlay document to apply to the source before
 	// lowering, or nil for none. It is the source-document patching hook

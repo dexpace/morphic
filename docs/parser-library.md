@@ -190,7 +190,8 @@ x-params:
 - Code:
   - `bind.docs.through` places a reference object's end at the first position on its pointer's read
     that holds the node the chain reached, which `bind.ReferenceEnd` carries.
-  - `load.referenceEnds` hands the binder the node each chain reached.
+  - `load.resolution.ends` hands the binder the node each chain reached, in whichever document writes
+    the reference.
 
 ### `root-defs`
 

@@ -360,13 +360,22 @@ func (errCompiler) Compile(context.Context, []compilers.Source, compilers.Option
 	return nil, nil, assert.AnError
 }
 
+// TestEngine_RunCompileError pins that a compiler failing its contract fails
+// the run with a Go error naming the compile, from a file and from memory.
 func TestEngine_RunCompileError(t *testing.T) {
 	t.Parallel()
 	eng, err := engine.NewWith(errCompiler{})
 	require.NoError(t, err)
-	_, err = eng.Run(t.Context(), writeSpec(t, testspec.Tiny), engine.RunOptions{})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "engine: compile")
+
+	_, fromFile := eng.Run(t.Context(), writeSpec(t, testspec.Tiny), engine.RunOptions{})
+	res, fromMemory := eng.RunSources(t.Context(),
+		[]compilers.Source{{Path: "spec.yaml", Data: []byte(testspec.Tiny)}}, engine.RunOptions{})
+
+	require.ErrorIs(t, fromFile, assert.AnError)
+	assert.Contains(t, fromFile.Error(), "engine: compile")
+	require.ErrorIs(t, fromMemory, assert.AnError)
+	assert.Contains(t, fromMemory.Error(), "engine: compile")
+	assert.Nil(t, res)
 }
 
 // nilDocCompiler claims openapi 3.1 and returns a nil Document with no error,

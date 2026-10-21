@@ -242,7 +242,7 @@ func failed(at ir.Provenance, err error) ir.Diagnostic {
 // Document.Sources can tell an overlay entry from the spec beside it.
 func sourceInfo(doc *soaoverlay.Overlay, opts Options) ir.SourceInfo {
 	return ir.SourceInfo{
-		Format: "overlay@" + doc.Version,
+		Format: ir.OverlayFormat + "@" + doc.Version,
 		Path:   opts.Path,
 		Hash:   ir.SourceHash(opts.Data),
 	}

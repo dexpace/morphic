@@ -166,7 +166,7 @@ func TestBindings_AnswersWhereAnUnplacedModelWasRead(t *testing.T) {
 	bd.Unplaced(js, "/paths/~1a/get/parameters/0")
 	bd.Unplaced(d, "/components/parameters/P")
 	b := bd.Bindings()
-	for model, want := range map[any]jsontext.Pointer{js: "/paths/~1a/get/parameters/0", d: "/components/parameters/P"} {
+	for model, want := range map[any]string{js: "/paths/~1a/get/parameters/0", d: "/components/parameters/P"} {
 		site, ok := b.Unplaced(model)
 		assert.True(t, ok)
 		assert.Equal(t, want, site)

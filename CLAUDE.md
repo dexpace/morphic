@@ -133,8 +133,13 @@ compilers/   Layer 1 — the Compiler contract and the format-keyed registry. Im
              only ir) up to operation. None may reach the compiler above it.
 pass/        Layer 1 — IR → IR passes. Imports ir and ir/irfacts.
 emitters/*   Layer 2 — imports ir, ir/irfacts + emitter contract; never compiler. (Not built yet.)
-engine/      Layer 3 — orchestration; imports everything below.
-cmd/morphic/ Layer 4 — CLI; imports ir + engine + its command framework (cobra, pflag).
+engine/      Layer 3 — orchestration; imports everything below. It owns every read, write and
+             rendering, so a second driver needs nothing from the CLI:
+  reader/    what a run's references name, from disk, the network or memory. Imports compilers.
+  report/    diagnostics and --explain, rendered for a person. Imports ir only.
+  output/    the IR document to a stream or a file, through engine/internal/atomicfile.
+cmd/morphic/ Layer 4 — CLI; imports ir + engine (and its report and output) + its command
+             framework (cobra, pflag).
 cmd/morphic-harness/
              Layer 4 — sweeps a spec or directory through the oracles; imports internal/harness.
 cmd/morphic-census/

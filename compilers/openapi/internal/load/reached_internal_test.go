@@ -27,6 +27,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
+	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -45,7 +46,7 @@ func externalDir(t *testing.T, files map[string]string) string {
 // allowed, and requires it to load.
 func loadExternal(t *testing.T, dir, root string, opts Options) (*Document, []ir.Diagnostic) {
 	t.Helper()
-	opts.AllowExternalRefs = true
+	opts.Reader = reader.Disk{}
 	got, diags, err := Load(t.Context(), 0, compilers.Source{Path: filepath.Join(dir, "root.yaml"), Data: []byte(root)}, opts)
 	require.NoError(t, err)
 	require.NotNil(t, got, "%+v", diags)
@@ -197,8 +198,8 @@ func TestTargetOf(t *testing.T) {
 // TestBindSchemas_AChainEndsInTheDocumentItEndsIn is TestTargetOf for schema
 // $refs, which the bindings read: each chain ends in the document its last
 // hop lands in, not the one it first leaves for, and a schema the model does
-// not hold there is built for the landing, a boolean one included. Only the
-// chain naming no other document on the way lends its use site that schema.
+// not hold there is built for the landing, a boolean one included, and lends
+// its use site that schema, whichever documents the chain passes.
 func TestBindSchemas_AChainEndsInTheDocumentItEndsIn(t *testing.T) {
 	t.Parallel()
 	dir := externalDir(t, map[string]string{"other.yaml": reachedFixtureOther, "third.yaml": reachedFixtureThird})
@@ -224,39 +225,44 @@ func TestBindSchemas_AChainEndsInTheDocumentItEndsIn(t *testing.T) {
 		assert.Equal(t, want.pointer, e.Chain.End.Pointer, name)
 		held := bindings.At(e.Chain.End)
 		assert.NotNil(t, held, "%s ends on a schema held for it", name)
-		if assert.Equal(t, name == "ToLocal", e.Chain.Named, name) && e.Chain.Named {
-			assert.Same(t, held, bindings.End(js), name)
-		} else {
-			assert.Nil(t, bindings.End(js), name)
-		}
+		assert.Same(t, held, bindings.End(js), name)
 	}
 }
 
 // TestBuiltTargets covers which schemas built for the bindings' landings are
-// validated, and where: one a source $ref's chain reaches, placed at the least
-// such $ref and named by its document, in the source or not. One only another
-// document's content reaches, one that failed to build and a boolean schema
-// are none.
+// validated, and where: one a $ref's chain reaches, at the least such $ref and
+// named by its document, in the source or not, and placed in the document
+// writing that $ref. One no $ref reaches, one that failed to build and a
+// boolean schema are none.
 func TestBuiltTargets(t *testing.T) {
 	t.Parallel()
 	built := buildRaw(t, "{type: object}")
 	found := []error{errors.New("decoding found this")}
+	place := func(p bind.Position) ir.Provenance { return ir.Provenance{Source: int(p.Doc) + 10, Pointer: p.Pointer} }
 	got := builtTargets([]typed.Built{
 		{Landing: bind.Landing{At: bind.Position{Pointer: "/x-lib/A"}, Name: "spec.yaml",
 			Site: bind.Position{Pointer: "/s"}, Reached: true}, Schema: built, Findings: found},
 		{Landing: bind.Landing{At: bind.Position{Doc: 1, Pointer: "/B"}, Name: "other.yaml",
 			Site: bind.Position{Pointer: "/t"}, Reached: true}, Schema: built},
+		{Landing: bind.Landing{At: bind.Position{Doc: 1, Pointer: "/F"}, Name: "other.yaml",
+			Site: bind.Position{Doc: 1, Pointer: "/u"}, Reached: true}, Schema: built},
 		{Landing: bind.Landing{At: bind.Position{Doc: 1, Pointer: "/C"}, Name: "other.yaml"}, Schema: built},
 		{Landing: bind.Landing{At: bind.Position{Pointer: "/x-lib/D"}, Reached: true}, Err: errors.New("no")},
 		{Landing: bind.Landing{At: bind.Position{Pointer: "/x-lib/E"}, Reached: true}, Schema: buildRaw(t, "true")},
-	})
+	}, place, func(id bind.DocID) string { return fmt.Sprintf("doc%d.yaml", id) })
 
-	require.Len(t, got, 2)
+	require.Len(t, got, 3)
 	assert.Equal(t, reachedTarget{site: "/s", obj: built, node: built.GetSchema().GetRootNode(), doc: "spec.yaml",
 		inSource: true, found: found}, got[0])
 	assert.Equal(t, jsontext.Pointer("/t"), got[1].site)
 	assert.Equal(t, "other.yaml", got[1].doc)
 	assert.False(t, got[1].inSource)
+	assert.Nil(t, got[1].place, "a $ref the source writes is placed as the source's")
+	assert.Equal(t, jsontext.Pointer("/u"), got[2].site)
+	require.NotNil(t, got[2].place, "a $ref only another document writes")
+	assert.Equal(t, ir.Provenance{Source: 11, Pointer: "/u"}, got[2].place("/u"), "placed in that document")
+	assert.Equal(t, "doc1.yaml", got[2].siteDoc, "and ordered by its name")
+	assert.Empty(t, got[1].siteDoc)
 }
 
 // buildRaw decodes src, YAML, as the bindings build a schema for a landing.
@@ -1439,7 +1445,7 @@ func TestResolve_ValidatesOnceAfterARebuild(t *testing.T) {
 
 	run := func(scheme string) []ir.Diagnostic {
 		src := compilers.Source{Path: "root.yaml", Data: []byte(respelledRoot(scheme, host))}
-		_, diags, err := Load(t.Context(), 0, src, Options{AllowExternalRefs: true})
+		_, diags, err := Load(t.Context(), 0, src, Options{Reader: reader.Disk{}})
 		require.NoError(t, err)
 		return diags
 	}

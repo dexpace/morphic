@@ -23,7 +23,8 @@ type SourceFormat struct {
 func (f SourceFormat) String() string { return f.Name + "@" + f.Version }
 
 // Source is one pre-read input document. Compilers perform no file I/O; the
-// caller loads bytes so compilation stays pure and reentrant.
+// caller loads bytes so compilation stays pure and reentrant, and a document a
+// reference names reaches the compiler through Options.Reader.
 type Source struct {
 	Path string
 	Data []byte
@@ -56,8 +57,13 @@ type Recognition struct {
 // Options carries per-compile configuration. FormatOptions is the
 // compiler-specific options value; each compiler documents the concrete type
 // it accepts and treats nil as defaults.
+//
+// Reader reads the documents a source's references name. Nil reads none, so a
+// reference leaving the sources is a spec problem the compiler reports, never
+// a read it makes itself.
 type Options struct {
 	FormatOptions any
+	Reader        DocumentReader
 }
 
 // OptionSet is one compile's configuration as text: settings named in the
@@ -115,21 +121,21 @@ type Compiler interface {
 	// is silently ignored leaves the caller believing they configured something.
 	DecodeOptions(set OptionSet) (any, error)
 	// Compile lowers sources into a Document, or refuses them with a nil one, no
-	// error and at least one error diagnostic saying why. Each Provenance.Source
-	// it reports, on the Document or returned, is ir.NoSource or indexes the
-	// Document's Sources, or for a refusal SourceTable's table. Sources opens
-	// with that table filled in, a source's entry naming the format Detect
-	// recognized and the SHA-256 of its Data, then may name other documents the
-	// compile read, such as one a reference names. The Document holds the
-	// invariants irverify checks, a service and the IRVersion stamp among them;
-	// its Name may be empty.
+	// error and at least one error diagnostic saying why. A returned Document's
+	// Sources begins with the table SourceTable gives for the same arguments,
+	// each entry filled in, a source's naming the format Detect recognized and
+	// the SHA-256 of its Data, and may go on to name each further document the
+	// compile read, such as one a reference names. Every Provenance.Source it
+	// reports other than ir.NoSource indexes that Document's Sources; a
+	// refusal's diagnostics index SourceTable's table. The Document holds what
+	// irverify checks; its Name may be empty.
 	Compile(ctx context.Context, sources []Source, opts Options) (*ir.Document, []ir.Diagnostic, error)
 	// SourceTable names the inputs its arguments name, in the order a compile's
 	// provenance indexes them: the sources, then any input the options supply,
 	// such as an overlay.
 	//
-	// It is the table a refusal's diagnostics index, since a refusal has no
-	// Document to carry one. It reads no input and fails on none, so an entry
+	// It is the table a refusal's diagnostics index, and a returned Document's
+	// Sources begins with it. It reads no input and fails on none, so an entry
 	// holds only the Path it was given. For options a compile would reject, it
 	// names the sources alone. It is required: a caller left to guess the
 	// table can name only the sources, and would print an overlay's findings

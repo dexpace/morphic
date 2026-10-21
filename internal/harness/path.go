@@ -152,7 +152,7 @@ func isSpec(ctx context.Context, reg *compilers.Registry, p string) (bool, error
 	if err != nil {
 		return false, fmt.Errorf("harness: read %s: %w", p, err)
 	}
-	det, ok, err := reg.Detect(ctx, compilers.Source{Path: p, Data: data}, nil)
+	det, ok, err := reg.Detect(ctx, compilers.Source{Path: p, Data: data}, sweepOptions)
 	if err != nil {
 		return false, fmt.Errorf("harness: detect %s: %w", p, err)
 	}
