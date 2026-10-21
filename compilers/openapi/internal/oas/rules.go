@@ -298,23 +298,34 @@ func (r ruler) unique(rule Rule) {
 	if list == nil || list.Kind != yaml.SequenceNode {
 		return
 	}
-	first := map[string]jsontext.Pointer{}
+	base := r.f.at.ptr.AppendToken(rule.Field)
+	at := func(i int) jsontext.Pointer { return itemPointer(base, i) }
+	text, what := textOf, strconv.Quote
+	if rule.Key != "" {
+		text = func(n *yaml.Node) (string, bool) { return textOf(r.keysOf(n)[rule.Key]) }
+		at = func(i int) jsontext.Pointer { return itemPointer(base, i).AppendToken(rule.Key) }
+		what = func(s string) string { return "the " + rule.Key + " " + strconv.Quote(s) }
+	}
+	repeats(list, text, func(i, first int, s string) {
+		r.fail(rule, classDuplicate, at(i), `field "`+rule.Field+`" repeats `+what(s)+" first written at "+string(at(first)))
+	})
+}
+
+// repeats calls repeat with each item of list whose text, as text reads it,
+// an earlier item has, and the index of the first that has it. An item text
+// reads nothing of is passed over.
+func repeats(list *yaml.Node, text func(*yaml.Node) (string, bool), repeat func(i, first int, s string)) {
+	first := map[string]int{}
 	for i, item := range list.Content {
-		ptr := itemPointer(r.f.at.ptr.AppendToken(rule.Field), i)
-		text, ok := textOf(item)
-		what := strconv.Quote(text)
-		if rule.Key != "" {
-			text, ok = textOf(r.keysOf(item)[rule.Key])
-			ptr, what = ptr.AppendToken(rule.Key), "the "+rule.Key+" "+strconv.Quote(text)
-		}
+		s, ok := text(item)
 		if !ok {
 			continue
 		}
-		if at, seen := first[text]; seen {
-			r.fail(rule, classDuplicate, ptr, `field "`+rule.Field+`" repeats `+what+" first written at "+string(at))
+		if at, seen := first[s]; seen {
+			repeat(i, at, s)
 			continue
 		}
-		first[text] = ptr
+		first[s] = i
 	}
 }
 

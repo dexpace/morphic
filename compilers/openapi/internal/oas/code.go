@@ -441,17 +441,10 @@ func dependentRequired(r ruler, rule Rule) {
 			r.fail(rule, classType, ptr, "field \"dependentRequired\" entry "+quote(p.Key)+" must be a list of strings")
 			continue
 		}
-		first := map[string]jsontext.Pointer{}
-		for i, item := range list.Content {
-			text, _ := textOf(item)
-			at, seen := first[text]
-			if seen {
-				r.fail(rule, classDuplicate, itemPointer(ptr, i),
-					"field \"dependentRequired\" entry "+quote(p.Key)+" repeats "+quote(text)+" first written at "+string(at))
-				continue
-			}
-			first[text] = itemPointer(ptr, i)
-		}
+		repeats(list, textOf, func(i, first int, s string) {
+			r.fail(rule, classDuplicate, itemPointer(ptr, i), "field \"dependentRequired\" entry "+quote(p.Key)+
+				" repeats "+quote(s)+" first written at "+string(itemPointer(ptr, first)))
+		})
 	}
 }
 
