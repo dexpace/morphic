@@ -277,12 +277,18 @@ func numberOf(shape Shape, node *yaml.Node) bool {
 }
 
 // parseNumber reads a YAML number exactly: an integer in any base the YAML
-// resolver admits, else a decimal.
+// resolver admits, else a decimal with an optional fraction and exponent, as
+// ir.NewBigVal reads one. Anything else big.Rat reads, a fraction such as 4/2
+// or a binary exponent, is text in YAML and JSON alike, so it is no number.
 func parseNumber(text string) (*big.Rat, bool) {
-	if i, err := strconv.ParseInt(strings.ReplaceAll(text, "_", ""), 0, 64); err == nil {
-		return new(big.Rat).SetInt64(i), true
+	plain := strings.ReplaceAll(text, "_", "")
+	if i, ok := new(big.Int).SetString(plain, 0); ok {
+		return new(big.Rat).SetInt(i), true
 	}
-	return new(big.Rat).SetString(text)
+	if _, err := ir.NewBigVal(plain); err != nil {
+		return nil, false
+	}
+	return new(big.Rat).SetString(plain)
 }
 
 // describeShape says what a field's value must be.
