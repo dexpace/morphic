@@ -244,7 +244,7 @@ components:
 
 // referenceSiblingsSpec writes summary or description beside a $ref at every
 // position a Reference Object stands, beside a Path Item's $ref, whose own
-// fields those are, and beside a schema's, which GitHub #871 owns.
+// fields those are, and beside a schema's, whose keywords those are.
 const referenceSiblingsSpec = `info: {title: T, version: "1"}
 paths:
   /a:
@@ -295,9 +295,11 @@ components:
 // at its own key at every position a Reference Object stands, though the
 // lowering folds it over the target's docs at every version
 // (docs/compilers/openapi.md#reference-object-siblings). A Path Item's $ref is
-// not a Reference Object, and a schema's is not judged here (GitHub #871).
+// not a Reference Object, and a schema's description is the Schema Object's
+// keyword, judged as one (TestVersionCheck_ASchemaRefIsJudgedOnEveryKeyBesideIt).
 func TestVersionCheck_AReferenceObjectIsJudgedOnItsOwnKeys(t *testing.T) {
 	t.Parallel()
+	const schemaAt = "/paths/~1a/get/responses/200/content/application~1json/schema/description"
 	got := laterAt(t, "openapi: 3.0.3\n"+referenceSiblingsSpec)
 	assert.Equal(t, []jsontext.Pointer{
 		"/components/securitySchemes/Alias/description",
@@ -305,14 +307,78 @@ func TestVersionCheck_AReferenceObjectIsJudgedOnItsOwnKeys(t *testing.T) {
 		"/paths/~1a/get/parameters/0/description",
 		"/paths/~1a/get/requestBody/description",
 		"/paths/~1a/get/responses/200/content/application~1json/examples/e/summary",
+		schemaAt,
 		"/paths/~1a/get/responses/200/headers/X/description",
 		"/paths/~1a/get/responses/200/links/l/description",
 		"/paths/~1a/get/responses/201/summary",
 	}, slices.Sorted(maps.Keys(got)))
 	for at, message := range got {
+		if at == schemaAt {
+			assert.Contains(t, message, "beside the $ref of a Schema Object", at)
+			continue
+		}
 		assert.Contains(t, message, "of the Reference Object was added in OpenAPI 3.1", at)
 	}
 	assert.Empty(t, laterAt(t, "openapi: 3.1.0\n"+referenceSiblingsSpec))
+}
+
+// schemaRefSiblingsSpec writes keys beside a schema's $ref at each kind of
+// position a schema stands at, one $ref with nothing beside it, and a $ref
+// beside which a schema is written that has a $ref of its own.
+const schemaRefSiblingsSpec = `info: {title: T, version: "1"}
+paths:
+  /a:
+    get:
+      parameters:
+        - {name: q, in: query, schema: {$ref: '#/components/schemas/S', default: x}}
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/S'}
+components:
+  schemas:
+    S: {type: string}
+    Alias: {$ref: '#/components/schemas/S', description: d, x-note: n}
+    M:
+      type: object
+      properties:
+        p: {$ref: '#/components/schemas/S', nullable: true, readOnly: true}
+        l: {type: array, items: {$ref: '#/components/schemas/S', type: string}}
+        c: {allOf: [{$ref: '#/components/schemas/S', title: t}]}
+        o:
+          $ref: '#/components/schemas/S'
+          properties:
+            z: {$ref: '#/components/schemas/S', minLength: 1}
+`
+
+// TestVersionCheck_ASchemaRefIsJudgedOnEveryKeyBesideIt pins GitHub #871: in
+// 3.0 a schema written as a $ref is a Reference Object, which ignores every key
+// beside the $ref, while 3.1 applies them as the schema's keywords. The
+// lowering reads them as 3.1 does, so below 3.1 each key beside the $ref is
+// reported at its own pointer, whatever the position and whatever the key, and
+// the $ref itself never is.
+func TestVersionCheck_ASchemaRefIsJudgedOnEveryKeyBesideIt(t *testing.T) {
+	t.Parallel()
+	got := laterAt(t, "openapi: 3.0.3\n"+schemaRefSiblingsSpec)
+	assert.Equal(t, []jsontext.Pointer{
+		"/components/schemas/Alias/description",
+		"/components/schemas/Alias/x-note",
+		"/components/schemas/M/properties/c/allOf/0/title",
+		"/components/schemas/M/properties/l/items/type",
+		"/components/schemas/M/properties/o/properties",
+		"/components/schemas/M/properties/o/properties/z/minLength",
+		"/components/schemas/M/properties/p/nullable",
+		"/components/schemas/M/properties/p/readOnly",
+		"/paths/~1a/get/parameters/0/schema/default",
+	}, slices.Sorted(maps.Keys(got)))
+	assert.Equal(t, `keyword "readOnly" beside the $ref of a Schema Object is ignored by OpenAPI 3.0 and applied by `+
+		`OpenAPI 3.1, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.1 document`,
+		got["/components/schemas/M/properties/p/readOnly"])
+	for _, version := range []string{"3.1.0", "3.2.0"} {
+		assert.Empty(t, laterAt(t, "openapi: "+version+"\n"+schemaRefSiblingsSpec), version)
+	}
 }
 
 // TestVersionCheck_APathItemRefIsJudgedOnTheFieldsBesideIt pins a Path

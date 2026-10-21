@@ -206,7 +206,6 @@ member 0 0 TypeCommon.mediaTypeHint
 member 0 0 TypeCommon.namespace
 member 0 0 TypeCommon.tags
 member 0 0 TypeCommon.wireNameByFormat
-member 0 0 TypeRef.inferred
 member 0 0 Value.ctor
 member 0 0 Value.ref
 member 0 0 ValueRef.member

@@ -10,18 +10,15 @@ import (
 	"strings"
 
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
-	"github.com/speakeasy-api/openapi/values"
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/merge"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
-	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/compilers/openapi/internal/value"
 	"github.com/dexpace/morphic/ir"
 )
@@ -255,11 +252,16 @@ func hoistDeclarationHome(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, ref
 	if !unhomed && !declaresPositionScoped(s) {
 		return ref, nil
 	}
+	// The home stands where its target stood, so it keeps what the reference
+	// said of null, the marker naming a heuristic that read it in included.
+	out := ref
 	if id, owned := ts.Lookup(c.IDs().Coordinate(pointer)); owned {
-		return ir.TypeRef{Target: id, Nullable: ref.Nullable}, nil
+		out.Target = id
+		return out, nil
 	}
 	id, diags := internAlias(c, ts, s, pointer, hint, ref)
-	return ir.TypeRef{Target: id, Nullable: ref.Nullable}, diags
+	out.Target = id
+	return out, diags
 }
 
 // refSiteHomesNothing reports whether a $ref position written as s holds
@@ -369,18 +371,21 @@ func lowerSchemaBody(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, de
 	if expanded {
 		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DynamicRefExpanded, pointer+ids.Ptr("$dynamicRef"),
 			"$dynamicRef expanded to %q, the one matching $dynamicAnchor in this document", target))
-		return ir.TypeRef{Target: target, Nullable: schemaAdmitsNull(c, schema)}, diags
+		ref, nullDiags := schemaNullRef(c, target, schema, siteAt(pointer))
+		return ref, append(diags, nullDiags...)
 	}
 	if len(schema.GetOneOf()) > 0 || len(schema.GetAnyOf()) > 0 {
 		if hasUnionSiblings(schema) {
 			id, unionDiags := lowerCoDeclaredUnion(c, ts, anchors, depth, schema, pointer, hint)
-			return ir.TypeRef{Target: id, Nullable: schemaAdmitsNull(c, schema)}, append(diags, unionDiags...)
+			ref, nullDiags := schemaNullRef(c, id, schema, siteAt(pointer))
+			return ref, slices.Concat(diags, unionDiags, nullDiags)
 		}
 		ref, unionDiags := lowerOneOfAnyOf(c, ts, anchors, depth, schema, pointer, hint)
 		return ref, append(diags, unionDiags...)
 	}
 	id, bodyDiags := lower(c, ts, anchors, depth, schema, pointer, hint)
-	return ir.TypeRef{Target: id, Nullable: schemaAdmitsNull(c, schema)}, append(diags, bodyDiags...)
+	ref, nullDiags := schemaNullRef(c, id, schema, siteAt(pointer))
+	return ref, slices.Concat(diags, bodyDiags, nullDiags)
 }
 
 // hasUnionSiblings reports whether a oneOf/anyOf schema also carries structural
@@ -2079,211 +2084,6 @@ func effectiveTypes(s *oas3.Schema) []oas3.SchemaType {
 		out = append(out, t)
 	}
 	return out
-}
-
-// nullVerdict is what one keyword family says about the null value. JSON Schema
-// conjoins keywords, so the families are read together rather than first-match:
-// a schema admits null when one family puts it in the value space and no other
-// takes it out.
-type nullVerdict int
-
-const (
-	// nullSilent is a family the schema does not declare, or one that constrains
-	// only non-null instances. It forbids nothing.
-	nullSilent nullVerdict = iota
-	// nullAdmitted is a family that puts null in the value space.
-	nullAdmitted
-	// nullForbidden is a family that takes null out of it.
-	nullForbidden
-)
-
-// maxNullConjuncts bounds the conjunct walk below (styleguide bounded-recursion
-// rule). One budget unit is spent per schema visited, so it caps the walk's
-// depth as well as its breadth — an `allOf` naming its own schema, or a diamond
-// of conjunctions, terminates on it rather than on the shape of the source. A
-// conjunction deeper or wider than this reads as silent, which is the answer
-// that claims the least.
-const maxNullConjuncts = 256
-
-// schemaAdmitsNull reports whether a schema admits the null value. Lowering
-// lifts every spelling of that onto the enclosing TypeRef rather than into the
-// type node, so this is the one predicate every site computing a Nullable bit
-// goes through — a definition site, a union, an allOf conjunct and a $ref use
-// site must never disagree about the same schema. A $ref conjunct is read
-// across to its target as c's bindings resolved it.
-func schemaAdmitsNull(c lowering.Ctx, s *oas3.Schema) bool {
-	return newNulls(c.Bindings()).schemaVerdict(s) == nullAdmitted
-}
-
-// nulls reads what schemas say about null: across each $ref to where refs
-// says its chain ends, within one budget for the whole read.
-type nulls struct {
-	refs   *typed.Bindings
-	budget int
-}
-
-// newNulls returns a read with the whole budget, over refs.
-func newNulls(refs *typed.Bindings) *nulls {
-	return &nulls{refs: refs, budget: maxNullConjuncts}
-}
-
-// schemaVerdict reads what a whole schema says about null, by conjoining
-// what each of its keyword families says (foldNullVerdicts).
-//
-// 3.0 `nullable: true` is the one keyword that does not conjoin: it widens the
-// schema it is written on, which is what it exists to do, so it decides alone.
-// The 3.1 spelling is an ordinary `type` member and conjoins like any other —
-// which is why `{type: [string, "null"], enum: [red, green]}` does not admit
-// null while `{type: string, nullable: true, enum: [red, green]}` does.
-func (n *nulls) schemaVerdict(s *oas3.Schema) nullVerdict {
-	if s == nil || n.budget <= 0 {
-		return nullSilent
-	}
-	n.budget--
-	if s.Nullable != nil && *s.Nullable {
-		return nullAdmitted
-	}
-	return foldNullVerdicts(typeNullVerdict(s), constNullVerdict(s), enumNullVerdict(s),
-		unionNullVerdict(s), n.allOfVerdict(s))
-}
-
-// foldNullVerdicts conjoins keyword verdicts: one forbidding family decides the
-// schema, otherwise one admitting family does, and a schema no family speaks for
-// stays silent — which is not the same answer as forbidding, since a silent
-// conjunct must not veto a sibling that admits.
-func foldNullVerdicts(verdicts ...nullVerdict) nullVerdict {
-	out := nullSilent
-	for _, v := range verdicts {
-		if v == nullForbidden {
-			return nullForbidden
-		}
-		if v == nullAdmitted {
-			out = nullAdmitted
-		}
-	}
-	return out
-}
-
-// typeNullVerdict reads the `type` keyword. A schema writing none constrains no
-// instance kind at all, so it is silent rather than forbidding.
-func typeNullVerdict(s *oas3.Schema) nullVerdict {
-	types := s.GetType()
-	if len(types) == 0 {
-		return nullSilent
-	}
-	if slices.Contains(types, oas3.SchemaTypeNull) {
-		return nullAdmitted
-	}
-	return nullForbidden
-}
-
-// constNullVerdict reads `const`, which fixes the value space to one member.
-func constNullVerdict(s *oas3.Schema) nullVerdict {
-	node := s.GetConst()
-	if node == nil {
-		return nullSilent
-	}
-	if isNullValue(node) {
-		return nullAdmitted
-	}
-	return nullForbidden
-}
-
-// enumNullVerdict reads `enum`, which fixes the value space to its members: the
-// position admits null exactly when a member is null.
-//
-// An empty enum is silent rather than forbidding. It lists no member at all, so
-// reading it as "no null member" would let a degenerate keyword strip a
-// co-declared type array's null; what an empty enum lowers to is GitHub #278's
-// question, and this rule leaves it open.
-func enumNullVerdict(s *oas3.Schema) nullVerdict {
-	nodes := s.GetEnum()
-	if len(nodes) == 0 {
-		return nullSilent
-	}
-	if slices.ContainsFunc(nodes, isNullValue) {
-		return nullAdmitted
-	}
-	return nullForbidden
-}
-
-// isNullValue reports whether an enum member or const node is the null literal,
-// read through the same converter enumMembers drops a member by. Both must
-// recognize one spelling: the null this predicate lifts onto a reference is
-// exactly the member that lowering strips.
-func isNullValue(node values.Value) bool {
-	val, err := value.FromNode(node)
-	return err == nil && val.Kind == ir.ValueNull
-}
-
-// unionNullVerdict reads a oneOf/anyOf null branch, which counts only when the
-// union is the type itself. Structural siblings intersect with the union, so
-// `{type: object, oneOf: [{type: string}, {type: null}]}` admits neither string
-// nor null, and that union is kept verbatim under Unmodeled. An inline
-// `type: null` branch also blocks distribution, so no distributed union can
-// strip a null branch from under this verdict.
-//
-// It never forbids: a union with no null branch says nothing about a null that
-// a sibling keyword admits, as in `{nullable: true, oneOf: [...]}`.
-func unionNullVerdict(s *oas3.Schema) nullVerdict {
-	if oneOfAnyOfHasNull(s) && !hasUnionSiblings(s) {
-		return nullAdmitted
-	}
-	return nullSilent
-}
-
-// allOfNullVerdict conjoins what the allOf branches say. A conjunction admits
-// null when a branch does and none forbids it, which is what makes
-// `{allOf: [{$ref: T}]}` answer the same as `{$ref: T}` — the composition
-// declares no nullability of its own, and the usage naming it has nowhere else
-// to derive the bit from (GitHub #279). Model.Base and Mixins still carry no
-// Nullable bit: they name a conjunct, and nullability is a property of the
-// usage that names the conjunction.
-func (n *nulls) allOfVerdict(s *oas3.Schema) nullVerdict {
-	out := nullSilent
-	for _, b := range s.GetAllOf() {
-		out = foldNullVerdicts(out, n.conjunctVerdict(b))
-	}
-	return out
-}
-
-// conjunctVerdict reads one allOf branch. A `false` branch admits no instance
-// whatever, null included; a `true` branch constrains nothing.
-func (n *nulls) conjunctVerdict(b *oas3.JSONSchema[oas3.Referenceable]) nullVerdict {
-	if b == nil {
-		return nullSilent
-	}
-	if b.IsBool() {
-		if v := b.GetBool(); v != nil && !*v {
-			return nullForbidden
-		}
-		return nullSilent
-	}
-	s := b.GetSchema()
-	if resolve.IsRefSite(b, s) {
-		return n.refVerdict(b)
-	}
-	return n.schemaVerdict(s)
-}
-
-// refVerdict reads a $ref usage: the reference site or the schema its chain
-// ends on admitting null is enough, since a site's keywords widen the referent
-// as often as they narrow it (3.0 writes `{$ref: T, nullable: true}` for
-// exactly that). Only when neither admits does a forbidding side decide.
-//
-// The ref site must be read at all because a target interned at its own ID — a
-// model, a union — discards the TypeRef its definition produced, so the bit
-// survives nowhere else.
-func (n *nulls) refVerdict(js *oas3.JSONSchema[oas3.Referenceable]) nullVerdict {
-	site := n.schemaVerdict(js.GetSchema())
-	if site == nullAdmitted {
-		return nullAdmitted
-	}
-	target := n.schemaVerdict(n.refs.End(js).GetSchema())
-	if target == nullAdmitted {
-		return nullAdmitted
-	}
-	return foldNullVerdicts(site, target)
 }
 
 // nullUnionCollapse detects a oneOf/anyOf with exactly one non-null branch

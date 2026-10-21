@@ -1,0 +1,22 @@
+openapi: 3.1.0
+# OpenAPI 3.1 removed `nullable`, so its schemas, JSON Schema 2020-12, give the
+# keyword no effect. The nullable-widening policy reads `nullable: true` as
+# admitting null all the same, and marks each reference whose null only that
+# reading admits. `declared` admits null by its type array, so its reference is
+# not marked, and `nullable: false` reads as nothing.
+info: {title: NullableKeyword31, version: "1.0.0"}
+paths: {}
+components:
+  schemas:
+    Name: {type: string, nullable: true}
+    Plain: {type: string}
+    Holder:
+      type: object
+      properties:
+        inline: {type: string, nullable: true}
+        viaRef: {$ref: '#/components/schemas/Name'}
+        besideRef: {$ref: '#/components/schemas/Plain', nullable: true}
+        declared: {type: [string, "null"], nullable: true}
+        notNullable: {type: string, nullable: false}
+        counts: {type: array, items: {type: integer, nullable: true}}
+        described: {type: array, items: {type: integer, nullable: true, description: A count.}}

@@ -1,0 +1,326 @@
+{
+  "idSpaces": {
+    "auth": [
+      "openapi"
+    ],
+    "e": [
+      "anon",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
+  "name": "SchemaRefSiblings30",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "SchemaRefSiblings30",
+        "canonical": "schema_ref_siblings_30"
+      },
+      "docs": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/components/schemas/Pet/properties/keepers": {
+      "kind": "list",
+      "id": "t/anon/components/schemas/Pet/properties/keepers",
+      "name": {
+        "hint": "keepers"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Pet/properties/keepers"
+      },
+      "elem": {
+        "target": "t/anon/components/schemas/Pet/properties/keepers/items",
+        "nullable": false
+      }
+    },
+    "t/anon/components/schemas/Pet/properties/keepers/items": {
+      "kind": "scalar",
+      "id": "t/anon/components/schemas/Pet/properties/keepers/items",
+      "name": {
+        "hint": "keepers_item"
+      },
+      "anonymous": true,
+      "docs": {
+        "summary": "Keeper"
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Pet/properties/keepers/items"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Person",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/Owner": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/Owner",
+      "name": {
+        "source": "Owner",
+        "canonical": "owner"
+      },
+      "anonymous": false,
+      "docs": {
+        "description": "An owner."
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Owner"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Person",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/Person": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Person",
+      "name": {
+        "source": "Person",
+        "canonical": "person"
+      },
+      "anonymous": false,
+      "docs": {
+        "description": "A person."
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Person"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Person/properties/name",
+          "name": {
+            "source": "name",
+            "canonical": "name"
+          },
+          "wireName": "name",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Person/properties/name"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Pet": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Pet",
+      "name": {
+        "source": "Pet",
+        "canonical": "pet"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Pet"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Pet/properties/owner",
+          "name": {
+            "source": "owner",
+            "canonical": "owner"
+          },
+          "wireName": "owner",
+          "type": {
+            "target": "t/openapi/components/schemas/Person",
+            "nullable": true,
+            "inferred": "nullable-widening"
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "only": [
+              "read",
+              "delete",
+              "query"
+            ],
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {
+            "description": "The pet's owner."
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Pet/properties/owner"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Pet/properties/keepers",
+          "name": {
+            "source": "keepers",
+            "canonical": "keepers"
+          },
+          "wireName": "keepers",
+          "type": {
+            "target": "t/anon/components/schemas/Pet/properties/keepers",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Pet/properties/keepers"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "string"
+    }
+  },
+  "servers": [
+    {
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {}
+    }
+  ],
+  "diagnostics": [
+    {
+      "severity": "warning",
+      "code": "openapi/later-version-construct",
+      "message": "keyword \"description\" beside the $ref of a Schema Object is ignored by OpenAPI 3.0 and applied by OpenAPI 3.1, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.1 document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Owner/description"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/later-version-construct",
+      "message": "keyword \"description\" beside the $ref of a Schema Object is ignored by OpenAPI 3.0 and applied by OpenAPI 3.1, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.1 document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Pet/properties/owner/description"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/later-version-construct",
+      "message": "keyword \"nullable\" beside the $ref of a Schema Object is ignored by OpenAPI 3.0 and applied by OpenAPI 3.1, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.1 document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Pet/properties/owner/nullable"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/later-version-construct",
+      "message": "keyword \"readOnly\" beside the $ref of a Schema Object is ignored by OpenAPI 3.0 and applied by OpenAPI 3.1, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.1 document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Pet/properties/owner/readOnly"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/later-version-construct",
+      "message": "keyword \"title\" beside the $ref of a Schema Object is ignored by OpenAPI 3.0 and applied by OpenAPI 3.1, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.1 document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Pet/properties/keepers/items/title"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/inferred-nullable",
+      "message": "nullable: true is read as admitting null under the nullable-widening policy, though no OpenAPI version gives it an effect beside a $ref: 3.0 ignores every keyword there, and 3.1, which applies them, defines no nullable; a reference whose null rests on it is marked inferred",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Pet/properties/owner/nullable"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.0",
+      "path": "schema-ref-siblings-30.yaml",
+      "hash": "25b85fd37df7574fb553888c4b097498ede599c16b9b1d7a6d5de19e1c9a7d34"
+    }
+  ]
+}

@@ -37,6 +37,7 @@ const (
 	discriminatorObject  = "Discriminator Object"
 	xmlObject            = "XML Object"
 	referenceObject      = "Reference Object"
+	schemaObject         = "Schema Object"
 )
 
 // addition is one construct an OpenAPI minor after 3.0 added to an object: a
@@ -161,11 +162,44 @@ func (r *versionReport) addLater(at func(jsontext.Pointer) ir.Provenance, site j
 	if !ok {
 		return
 	}
+	if object == schemaObject {
+		r.addRefSiblings(at, site, view.MappingPairs(root), declared)
+		return
+	}
 	for _, a := range writtenOn(object, view.MappingPairs(root), pending) {
 		r.diags = append(r.diags, laterDiag(at(site.AppendToken(a.key)), a, declared))
 		r.inSchema = r.inSchema || a.inSchema()
 		r.additionalOperations = r.additionalOperations ||
 			a.object == pathItemObject && a.key == "additionalOperations"
+	}
+}
+
+// refSiblingsSince is the minor that gave the keywords beside a Schema
+// Object's $ref an effect. Below it the position is a Reference Object, which
+// ignores every key beside its $ref; from it the schema's keywords apply
+// alongside the reference, as JSON Schema 2020-12 conjoins them. No row of
+// additions can say this, since the construct is any key at all.
+const refSiblingsSince = "3.1"
+
+// addRefSiblings adds each key pairs write beside a Schema Object's $ref in a
+// document declaring a minor before refSiblingsSince, at the key. The lowering
+// reads them as that minor does, whose dialect then says what each one means:
+// the nullable keyword, which it does not define, the nullable-widening policy
+// reads and reports on besides.
+func (r *versionReport) addRefSiblings(at func(jsontext.Pointer) ir.Provenance, site jsontext.Pointer,
+	pairs []nodeview.Pair, declared string,
+) {
+	if !before(declared, refSiblingsSince) {
+		return
+	}
+	for _, pair := range pairs {
+		if pair.Key == "$ref" {
+			continue
+		}
+		r.diags = append(r.diags, diag.Newf(ir.SeverityWarning, diag.LaterVersionConstruct, at(site.AppendToken(pair.Key)),
+			"keyword %q beside the $ref of a %s is ignored by OpenAPI 3.0 and applied by OpenAPI %s, "+
+				"and this document declares %s; it is lowered as in an OpenAPI %s document",
+			pair.Key, schemaObject, refSiblingsSince, declared, refSiblingsSince))
 	}
 }
 
@@ -262,15 +296,14 @@ func laterObject(m rootNoder) (string, *yaml.Node, bool) {
 // referenceOf names the object whose keys a model written as a $ref writes
 // beside it, with the mapping they are written on. A Path Item's $ref is a
 // field of the Path Item, so the keys beside it are the Path Item's own. A
-// schema's is a Reference Object in 3.0, but 3.1 admits any keyword beside it,
-// which no row expresses (GitHub #871), so it is judged as none here. Any other
-// $ref is the Reference Object's.
+// schema's are the Schema Object's, whose every keyword 3.1 applies beside the
+// $ref (addRefSiblings). Any other $ref is the Reference Object's.
 func referenceOf(w referenceWrapper) (string, *yaml.Node, bool) {
 	switch w.(type) {
 	case *soa.ReferencedPathItem:
 		return pathItemObject, nodeview.DocumentRoot(ownRoot(w)), true
 	case *oas3.JSONSchema[oas3.Referenceable]:
-		return "", nil, false
+		return schemaObject, nodeview.DocumentRoot(ownRoot(w)), true
 	default:
 		return referenceObject, nodeview.DocumentRoot(ownRoot(w)), true
 	}

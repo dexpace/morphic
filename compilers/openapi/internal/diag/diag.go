@@ -425,9 +425,10 @@ const (
 	MissingArrayItems = "openapi/missing-array-items"
 	// LaterVersionConstruct reports a field, or a value of one, that a later
 	// OpenAPI minor than the document declares added to the object it is written
-	// on. It is lowered as in a document declaring that minor, the reading that
-	// loses the least: from the lowering and this diagnostic a consumer can still
-	// set it aside, while from a verbatim copy it could not recover the lowering
+	// on, or a keyword beside a 3.0 schema's $ref, which 3.1 applies. It is
+	// lowered as in a document declaring that minor, the reading that loses the
+	// least: from the lowering and this diagnostic a consumer can set it aside,
+	// while from a verbatim copy it could not recover the lowering
 	// (docs/compilers/openapi.md#later-version-construct).
 	//
 	// Warning, as UnknownObjectKey is: an object's key set is closed, so the
@@ -444,6 +445,15 @@ const (
 	// #602's to report, so nothing from it on is read, and matching the
 	// expressions to path parameters is #640's.
 	InvalidPathKey = "openapi/invalid-path-key"
+	// InferredNullable reports a null the nullable-widening policy reads in
+	// where the document's version does not: a `nullable: true` in a 3.1 or 3.2
+	// schema, beside a $ref, or in a 3.0 schema with no type beside it or a
+	// keyword that excludes null, at the keyword; or keywords beside a $ref that
+	// admit null over a target that does not, at the $ref. Each is reported once,
+	// and each reference whose null rests on it is marked Inferred
+	// (docs/compilers/openapi.md#nullable). Info: the reading is the document's
+	// evident intent, and the mark keeps the declared one.
+	InferredNullable = "openapi/inferred-nullable"
 )
 
 // Newf builds an ir.Diagnostic with a formatted message. It is the single

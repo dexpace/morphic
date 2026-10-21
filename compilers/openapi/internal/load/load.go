@@ -1136,13 +1136,16 @@ func mapSeverity(s validation.Severity) ir.Severity {
 var supportedMinors = []string{"3.0", "3.1", "3.2"}
 
 // SupportedMinor returns the normalized major.minor prefix of an OpenAPI version
-// string and whether the compiler supports it (supportedMinors).
+// string and whether the compiler supports it (supportedMinors). The prefix is
+// a slice of version, so the answer allocates nothing: the lowering asks it of
+// every schema whose null it reads (lowering.Ctx.Is30).
 func SupportedMinor(version string) (string, bool) {
-	parts := strings.SplitN(version, ".", 3)
-	if len(parts) < 2 {
+	major, rest, ok := strings.Cut(version, ".")
+	if !ok {
 		return "", false
 	}
-	mm := parts[0] + "." + parts[1]
+	minor, _, _ := strings.Cut(rest, ".")
+	mm := version[:len(major)+1+len(minor)]
 	if !slices.Contains(supportedMinors, mm) {
 		return "", false
 	}

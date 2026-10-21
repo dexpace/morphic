@@ -42,7 +42,7 @@ paths:
 		Data: []byte(root)}, load.Options{Reader: reader.Disk{}})
 	require.NoError(t, err)
 	c := lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{}, lowering.StreamingMedia{},
-		lowering.ExtensionPromotions{}, overlay.Origin{})
+		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{})
 	inline, ok := doc.Doc.Paths.Get("/inline")
 	require.True(t, ok)
 	ext, ok := doc.Doc.Paths.Get("/ext")
@@ -99,7 +99,7 @@ components:
 		Data: []byte(root)}, load.Options{Reader: reader.Disk{}})
 	require.NoError(t, err)
 	c := lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{}, lowering.StreamingMedia{},
-		lowering.ExtensionPromotions{}, overlay.Origin{}).WithLoaded(doc)
+		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}).WithLoaded(doc)
 	declared := func(name string) *oas3.JSONSchema[oas3.Referenceable] {
 		t.Helper()
 		js, ok := doc.Doc.Components.Schemas.Get(name)

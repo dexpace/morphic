@@ -186,6 +186,8 @@ func TestSupportedMinor_AcceptsOnlyTheThreeMinors(t *testing.T) {
 		{version: "4.0.0"},
 		{version: "3"},
 		{version: ""},
+		{version: "3..1"},
+		{version: ".1"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.version, func(t *testing.T) {
@@ -195,6 +197,14 @@ func TestSupportedMinor_AcceptsOnlyTheThreeMinors(t *testing.T) {
 			assert.Equal(t, tc.want, got)
 		})
 	}
+}
+
+// TestSupportedMinor_AllocatesNothing pins what the lowering's dialect check
+// costs: it asks this of every schema whose null it reads, so the prefix is a
+// slice of the version rather than a string built from its parts. It is not
+// run in parallel: AllocsPerRun refuses to be.
+func TestSupportedMinor_AllocatesNothing(t *testing.T) {
+	assert.Zero(t, testing.AllocsPerRun(100, func() { _, _ = SupportedMinor("3.1.0") }))
 }
 
 // overlayHeader is the preamble every overlay document below needs.
