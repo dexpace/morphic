@@ -3,7 +3,11 @@ package oas_test
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
+	"github.com/dexpace/morphic/ir"
 )
 
 // TestCheck_ExclusiveFieldsAreNotWrittenTogether pins the exclusion rules at
@@ -102,6 +106,19 @@ func TestCheck_RulesGradeByLevel(t *testing.T) {
 	if got := sev("3.1.0", `{default: a, enum: []}`); got != "error" {
 		t.Errorf("3.1 MUST NOT: severity %q", got)
 	}
+}
+
+// TestCheck_NestedEncodingsAreWarnedOfByAnalogy pins that the Media Type
+// Object's exclusion is a MUST NOT and the Encoding Object's, which the
+// specification words only by reference to it, a warning.
+func TestCheck_NestedEncodingsAreWarnedOfByAnalogy(t *testing.T) {
+	severity := func(kind oas.Kind, doc string) ir.Severity {
+		diags := run(t, "3.2.0", kind, doc)
+		require.Len(t, diags, 1)
+		return diags[0].Severity
+	}
+	assert.Equal(t, ir.SeverityError, severity(oas.MediaType, `{encoding: {}, itemEncoding: {}}`))
+	assert.Equal(t, ir.SeverityWarning, severity(oas.Encoding, `{encoding: {}, itemEncoding: {}}`))
 }
 
 // TestCheck_DefaultsMustBeAmongTheEnum pins the member rule.

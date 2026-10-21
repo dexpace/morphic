@@ -177,6 +177,15 @@ func code(s Span, name, owner string, cites ...Cite) Rule {
 	return Rule{Kind: RuleCode, Span: s, Name: name, Owner: owner, Cites: cites}
 }
 
+// softened grades rules down to SHOULD: they rest on a sentence's wording by
+// analogy, not on a sentence of their own, so a finding is a warning.
+func softened(rules []Rule) []Rule {
+	for i := range rules {
+		rules[i].Level = Should
+	}
+	return rules
+}
+
 // owned marks a rule another package already reports.
 func (r Rule) owned(pkg string) Rule {
 	r.Owner = pkg

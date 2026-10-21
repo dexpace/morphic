@@ -189,8 +189,9 @@ func encodingObject() Object {
 			field("explode", Boolean, c(V30, "When this is true, property values of type `array` or `object` generate separate parameters")),
 			field("allowReserved", Boolean, c(V30, "When this is true, parameter values are serialized using reserved expansion")),
 		},
-		// Strictest reading: the nested fields apply "in the same manner" as the
-		// Media Type Object's, whose text bars writing them together.
-		Rules: encodingExclusions(c, V32, "Applies nested Encoding Objects in the same manner as the"),
+		// The nested fields apply "in the same manner" as the Media Type Object's,
+		// whose text bars writing them together: a reading by analogy, so a
+		// warning.
+		Rules: softened(encodingExclusions(c, V32, "Applies nested Encoding Objects in the same manner as the")),
 	}
 }
