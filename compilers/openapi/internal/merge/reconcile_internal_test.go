@@ -1665,8 +1665,9 @@ func TestReconcileProperty_TheTopTypeTakesTheOtherSidesNullAdmission(t *testing.
 	}
 }
 
-// twinRegistry holds, for each of Enum, Literal and Scalar, two nodes that
-// differ only in ID and member IDs, and the variants that differ in a field.
+// twinRegistry holds, for each of Enum, Literal and Scalar, two hoisted nodes
+// that differ only in ID and member IDs, and the variants that differ in a
+// field. t/enum/x-named and t/enum/x-named2 are named copies of t/enum/x1.
 func twinRegistry() map[ir.TypeID]ir.TypeDef {
 	reg := narrowingRegistry()
 	members := func(prefix string, vs ...string) []ir.EnumMember {
@@ -1701,9 +1702,6 @@ func twinRegistry() map[ir.TypeID]ir.TypeDef {
 		Provenance: ptrAt("/at/t/enum/x-ext1/x-foo"),
 	}}
 	reg["t/enum/x-ext-valued"] = valued
-	hoisted := enum("t/enum/x-hoisted", members("xh/", "a", "b"), "")
-	hoisted.Anonymous = true
-	reg["t/enum/x-hoisted"] = hoisted
 	reg["t/lit/1"] = &ir.Literal{ID: "t/lit/1", Value: str("a")}
 	reg["t/lit/2"] = &ir.Literal{ID: "t/lit/2", Value: str("a")}
 	str := primRef(ir.PrimString)
@@ -1711,29 +1709,40 @@ func twinRegistry() map[ir.TypeID]ir.TypeDef {
 	reg["t/hex/1"] = &ir.Scalar{ID: "t/hex/1", Base: &str}
 	reg["t/hex/2"] = &ir.Scalar{ID: "t/hex/2", Base: &str}
 	reg["t/hex/min"] = &ir.Scalar{ID: "t/hex/min", Base: &str, Constraints: &ir.Constraints{MinLength: &minLen}}
+	for _, td := range reg {
+		switch td.(type) {
+		case *ir.Enum, *ir.Literal, *ir.Scalar:
+			td.Common().Anonymous = true
+		}
+	}
+	reg["t/enum/x-named"] = enum("t/enum/x-named", members("xn/", "a", "b"), "")
+	reg["t/enum/x-named2"] = enum("t/enum/x-named2", members("xn2/", "a", "b"), "")
 	return reg
 }
 
 // TestReconcileProperty_IdenticalNodesAreOneType pins, in both orders, that two
-// Enum, Literal or Scalar nodes equal but for what names their site are one
-// type: no diagnostic and nothing kept aside, where a pair that differs in a
-// field, member order included, is still an overlap reported as info.
+// hoisted Enum, Literal or Scalar nodes equal but for what names their site are
+// one type: no diagnostic and nothing kept aside. A named node wins over a
+// hoisted copy of itself, and two named ones, or a pair that differs in a
+// field, member order included, are an overlap reported as info.
 func TestReconcileProperty_IdenticalNodesAreOneType(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name string
 		a, b ir.TypeID
 		same bool
+		win  ir.TypeID // the type that stands in both orders, or "" for the first
 	}{
-		{"two identical enums", "t/enum/x1", "t/enum/x2", true},
-		{"two identical literals", "t/lit/1", "t/lit/2", true},
-		{"two identical scalars", "t/hex/1", "t/hex/2", true},
-		{"enums that differ in the provenance of an extension", "t/enum/x-ext1", "t/enum/x-ext2", true},
-		{"enums that differ in being hoisted", "t/enum/x1", "t/enum/x-hoisted", true},
-		{"enums that differ in an extension's value", "t/enum/x-ext1", "t/enum/x-ext-valued", false},
-		{"enums that differ in a description", "t/enum/x1", "t/enum/x-described", false},
-		{"enums that differ in member order", "t/enum/x1", "t/enum/x-reordered", false},
-		{"scalars that differ in a constraint", "t/hex/1", "t/hex/min", false},
+		{"two identical enums", "t/enum/x1", "t/enum/x2", true, ""},
+		{"two identical literals", "t/lit/1", "t/lit/2", true, ""},
+		{"two identical scalars", "t/hex/1", "t/hex/2", true, ""},
+		{"enums that differ in the provenance of an extension", "t/enum/x-ext1", "t/enum/x-ext2", true, ""},
+		{"a named enum against a hoisted copy", "t/enum/x-named", "t/enum/x1", true, "t/enum/x-named"},
+		{"two named enums declared alike", "t/enum/x-named", "t/enum/x-named2", false, ""},
+		{"enums that differ in an extension's value", "t/enum/x-ext1", "t/enum/x-ext-valued", false, ""},
+		{"enums that differ in a description", "t/enum/x1", "t/enum/x-described", false, ""},
+		{"enums that differ in member order", "t/enum/x1", "t/enum/x-reordered", false, ""},
+		{"scalars that differ in a constraint", "t/hex/1", "t/hex/min", false, ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -1744,7 +1753,11 @@ func TestReconcileProperty_IdenticalNodesAreOneType(t *testing.T) {
 
 				g.reconcileProperty(&dst, new(origins), src, written(`{"type":"x"}`))
 
-				assert.Equal(t, order[0], dst.Type.Target, "the first declaration's type stands (order %d)", i)
+				want := tc.win
+				if want == "" {
+					want = order[0]
+				}
+				assert.Equal(t, want, dst.Type.Target, "the type that stands (order %d)", i)
 				if tc.same {
 					assert.Empty(t, *recorded, "no diagnostic (order %d)", i)
 					assert.Empty(t, dst.Unmodeled, "nothing is kept (order %d)", i)
@@ -1752,6 +1765,7 @@ func TestReconcileProperty_IdenticalNodesAreOneType(t *testing.T) {
 				}
 				require.Len(t, *recorded, 1, "exactly one diagnostic (order %d)", i)
 				assert.Equal(t, ir.SeverityInfo, (*recorded)[0].Severity, "order %d", i)
+				assert.Len(t, dst.Unmodeled, 1, "the redeclaration is kept (order %d)", i)
 			}
 		})
 	}

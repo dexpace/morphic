@@ -99,9 +99,26 @@ func (j typeJudge) relateAt(a, b ir.TypeRef, depth int) relation {
 		return j.nodeAgainstBare(b, bt, a, ap.Prim).flipped()
 	}
 	if sameNode(at, bt) {
-		return byNull(a, b)
+		return sameNodes(a, b, at.Common().Anonymous, bt.Common().Anonymous)
 	}
 	return j.containers(at, bt, depth)
+}
+
+// sameNodes judges two nodes sameNode holds equal. Two hoisted copies are one
+// type. A named node wins over a hoisted copy of itself in either order. Two
+// named nodes are two types the source declared apart, so neither is dropped
+// unreported: they overlap.
+func sameNodes(a, b ir.TypeRef, aHoisted, bHoisted bool) relation {
+	switch {
+	case aHoisted && bHoisted:
+		return byNull(a, b)
+	case bHoisted:
+		return relANarrower
+	case aHoisted:
+		return relBNarrower
+	default:
+		return relOverlap
+	}
 }
 
 // sameNode reports whether a and b are two Literal, Enum or Scalar nodes equal

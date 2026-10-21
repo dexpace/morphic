@@ -5,8 +5,8 @@
 # reached it: the merged type and the redeclaration kept beside it must not
 # follow the order the components are declared in
 # (docs/compilers/openapi.md#allof-redeclared-property). `same` pairs two
-# identical enums; `overlap` pairs a number with an integer, two named scalars
-# the merge reports as an overlap.
+# named enums declared alike, and `overlap` a number with an integer: the merge
+# reports each pair as an overlap.
 openapi: 3.0.3
 info:
   title: redeclared ref declared later

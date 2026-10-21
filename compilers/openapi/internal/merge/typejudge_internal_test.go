@@ -29,6 +29,11 @@ func judgeRegistry() map[ir.TypeID]ir.TypeDef {
 	reg["t/lit-a-twin"] = &ir.Literal{ID: "t/lit-a-twin", Value: str("a")}
 	reg["t/enum-str-twin"] = &ir.Enum{ID: "t/enum-str-twin", ValueType: ir.PrimString, Members: []ir.EnumMember{{ID: "twin/a", Value: str("a")}}}
 	reg["t/scalar-str-twin"] = &ir.Scalar{ID: "t/scalar-str-twin", Base: &ir.TypeRef{Target: "t/prim/string"}}
+	for _, id := range []ir.TypeID{"t/lit-a-h1", "t/lit-a-h2"} {
+		reg[id] = &ir.Literal{ID: id, Anonymous: true, Value: str("a")}
+	}
+	reg["t/enum-str-h"] = &ir.Enum{ID: "t/enum-str-h", Anonymous: true,
+		ValueType: ir.PrimString, Members: []ir.EnumMember{{ID: "h/a", Value: str("a")}}}
 	reg["t/lit-x"] = &ir.Literal{ID: "t/lit-x", Value: str("x")}
 	reg["t/lit-1.5"] = &ir.Literal{ID: "t/lit-1.5", Value: num("1.5")}
 	reg["t/lit-null"] = &ir.Literal{ID: "t/lit-null", Value: ir.Value{Kind: ir.ValueNull}}
@@ -110,9 +115,11 @@ func TestTypeJudge_RelateArms(t *testing.T) {
 		{"a null literal against a bare integer", "t/lit-null", prim(ir.PrimInteger), relDisjoint},
 		{"a model against a bare kind", "t/model", prim(ir.PrimInteger), relUnrelated},
 		{"two literals", "t/lit-a", "t/lit-x", relUnrelated},
-		{"two identical literals", "t/lit-a", "t/lit-a-twin", relSame},
-		{"two identical enums", "t/enum-str", "t/enum-str-twin", relSame},
-		{"two identical scalars", "t/scalar-str", "t/scalar-str-twin", relSame},
+		{"two identical hoisted literals", "t/lit-a-h1", "t/lit-a-h2", relSame},
+		{"a named enum against a hoisted copy", "t/enum-str", "t/enum-str-h", relANarrower},
+		{"two identical named literals", "t/lit-a", "t/lit-a-twin", relOverlap},
+		{"two identical named enums", "t/enum-str", "t/enum-str-twin", relOverlap},
+		{"two identical named scalars", "t/scalar-str", "t/scalar-str-twin", relOverlap},
 		{"a literal against an enum", "t/lit-a", "t/enum-str", relUnrelated},
 		{"a scalar against an enum", "t/scalar-str", "t/enum-str", relUnrelated},
 		{"a scalar against a literal", "t/scalar-str", "t/lit-a", relUnrelated},
@@ -142,9 +149,9 @@ func TestTypeJudge_RelateArms(t *testing.T) {
 		assert.Equal(t, want.flipped(), j.relate(ref(tc.b), ref(tc.a)), "%s, swapped", tc.name)
 	}
 
-	nullTwin := ref("t/lit-a-twin")
+	nullTwin := ref("t/lit-a-h2")
 	nullTwin.Nullable = true
-	assert.Equal(t, relBNarrower, j.relate(nullTwin, ref("t/lit-a")), "identical nodes order by null")
+	assert.Equal(t, relBNarrower, j.relate(nullTwin, ref("t/lit-a-h1")), "identical hoisted nodes order by null")
 
 	nullInt := primRef(ir.PrimInteger)
 	nullInt.Nullable = true

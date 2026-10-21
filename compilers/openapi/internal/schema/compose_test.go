@@ -4146,9 +4146,11 @@ func TestAllOf_TwoEqualListsRefuseANullTheMergeDoesNotAdmit(t *testing.T) {
 	}
 }
 
-// TestAllOf_IdenticalNodesAreOneType compiles a field written as two
-// components, or a component and an inline schema, with the same enum, const
-// or format: no diagnostic and nothing kept, in either order.
+// TestAllOf_IdenticalNodesAreOneType compiles a field written twice with the
+// same enum, const or format, in either order. Two inline copies are one type,
+// and a component wins over an inline copy of itself: no diagnostic and nothing
+// kept. Two components declared alike are two types the source named apart: an
+// info, with the first kept and the second's $ref kept verbatim.
 func TestAllOf_IdenticalNodesAreOneType(t *testing.T) {
 	t.Parallel()
 	for _, schema := range []string{
@@ -4161,13 +4163,33 @@ func TestAllOf_IdenticalNodesAreOneType(t *testing.T) {
 			t.Parallel()
 			extra := "    P: " + schema + "\n    Q: " + schema + "\n"
 			p, q := "{$ref: '#/components/schemas/P'}", "{$ref: '#/components/schemas/Q'}"
-			for i, order := range [][2]string{{p, q}, {q, p}, {p, schema}, {schema, p}} {
-				doc, diags := lowerSpec(t, nonBareSpec(extra, order[0], order[1]))
-				assert.Empty(t, diags, "order %d", i)
+			for i, tc := range []struct {
+				order [2]string
+				win   ir.TypeID // the type that stands, or "" for the first inline copy
+				same  bool
+			}{
+				{[2]string{schema, schema}, "", true},
+				{[2]string{p, schema}, componentID("P"), true},
+				{[2]string{schema, p}, componentID("P"), true},
+				{[2]string{p, q}, componentID("P"), false},
+				{[2]string{q, p}, componentID("Q"), false},
+			} {
+				doc, diags := lowerSpec(t, nonBareSpec(extra, tc.order[0], tc.order[1]))
 				m, ok := doc.Types[componentID("T")].(*ir.Model)
 				require.True(t, ok, "order %d", i)
 				require.Len(t, m.Properties, 1, "order %d", i)
-				assert.Empty(t, m.Properties[0].Unmodeled, "order %d", i)
+				prop := m.Properties[0]
+				if tc.win != "" {
+					assert.Equal(t, tc.win, prop.Type.Target, "order %d", i)
+				}
+				if tc.same {
+					assert.Empty(t, diags, "order %d", i)
+					assert.Empty(t, prop.Unmodeled, "order %d", i)
+				} else {
+					require.Len(t, diags, 1, "order %d", i)
+					assert.Equal(t, diag.DegradedConstruct, diags[0].Code, "order %d", i)
+					assert.Len(t, prop.Unmodeled, 1, "the second $ref is kept (order %d)", i)
+				}
 				for _, name := range []string{"P", "Q"} {
 					td, ok := doc.Types[componentID(name)]
 					require.True(t, ok, "%s (order %d)", name, i)
@@ -4183,8 +4205,8 @@ func TestAllOf_IdenticalNodesAreOneType(t *testing.T) {
 
 // TestAllOf_ARedeclarationIsJudgedOnceTheComponentsHaveLowered pins that a
 // field redeclared as two $refs to components declared after the composing
-// schema is judged as it is when they are declared before it: identical nodes
-// are one type, and a pair the merge does not narrow is reported and kept. It
+// schema is judged as it is when they are declared before it: two components
+// declared alike, or a pair the merge does not narrow, are reported and kept. It
 // compiles three arms: the components declared before the schema, and after it
 // in either order of the two (#898).
 func TestAllOf_ARedeclarationIsJudgedOnceTheComponentsHaveLowered(t *testing.T) {
@@ -4196,10 +4218,10 @@ func TestAllOf_ARedeclarationIsJudgedOnceTheComponentsHaveLowered(t *testing.T) 
 		kind               ir.TypeKind
 		code               string // the one diagnostic, or "" for none
 	}{
-		{"identical enums", "{type: string, enum: [a, b]}", "{type: string, enum: [a, b]}", false, ir.KindEnum, ""},
+		{"enums declared alike", "{type: string, enum: [a, b]}", "{type: string, enum: [a, b]}", false, ir.KindEnum, diag.DegradedConstruct},
 		{"an integer beside a number", "{type: number}", "{type: integer}", false, ir.KindScalar, diag.DegradedConstruct},
 		{"a string against an integer", "{type: string}", "{type: integer}", false, ir.KindScalar, diag.ConflictingRedecl},
-		{"identical enums as list items", "{type: string, enum: [a, b]}", "{type: string, enum: [a, b]}", true, ir.KindList, ""},
+		{"enums declared alike as list items", "{type: string, enum: [a, b]}", "{type: string, enum: [a, b]}", true, ir.KindList, diag.DegradedConstruct},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
