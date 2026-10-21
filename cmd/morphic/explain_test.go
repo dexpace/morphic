@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -119,6 +121,54 @@ func TestRun_ExplainWriteFailureIsReported(t *testing.T) {
 
 			assert.Equal(t, tt.want, code, "stderr: %s", stderr.String())
 			assert.Contains(t, stderr.String(), "morphic: write explanation: pipe closed")
+		})
+	}
+}
+
+// splitCommon is a document a split spec's reference reads, declaring a Pet
+// with a child object and a finding of its own.
+const splitCommon = `openapi: 3.1.0
+info: {title: Common, version: "1"}
+paths: {}
+components:
+  schemas:
+    Pet:
+      type: object
+      properties:
+        owner: {type: object, properties: {id: {type: integer}}}
+      not: {required: [x]}
+`
+
+// TestRun_ExplainReadsTheSpecsOwnCoordinates pins that --explain addresses the
+// spec it compiles, whatever another document a reference reads declares at
+// the same pointer: neither that document's nodes nor its findings are taken
+// for the spec's, whether the spec declares something there or not.
+func TestRun_ExplainReadsTheSpecsOwnCoordinates(t *testing.T) {
+	t.Parallel()
+	const use = "      responses:\n        \"200\":\n          description: ok\n          content:\n" +
+		"            application/json: {schema: {$ref: './common.yaml#/components/schemas/Pet'}}\n"
+	root := "openapi: 3.1.0\ninfo: {title: Root, version: \"1\"}\npaths:\n  /pets:\n    get:\n" + use
+	for name, tc := range map[string]struct {
+		spec, want string
+	}{
+		"the spec declares one":  {root + "components:\n  schemas:\n    Pet: {type: object, properties: {name: {type: string}}}\n", "node t/openapi/components/schemas/Pet (model)"},
+		"the spec declares none": {root, "no type node was interned at this coordinate"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			spec := writeFile(t, "root.yaml", tc.spec)
+			require.NoError(t, os.WriteFile(filepath.Join(filepath.Dir(spec), "common.yaml"), []byte(splitCommon), 0o644))
+			var stdout, stderr bytes.Buffer
+
+			code := run([]string{"compile", spec, "--explain", "/components/schemas/Pet"}, &stdout, &stderr)
+
+			require.Equal(t, 0, code, "stderr: %s", stderr.String())
+			require.Contains(t, stderr.String(), "common.yaml#/components/schemas/Pet",
+				"sanity: common.yaml's Pet is lowered and draws its finding there")
+			out := stdout.String()
+			assert.Contains(t, out, tc.want)
+			assert.NotContains(t, out, "common.yaml", "nothing of common.yaml's is the spec's")
+			assert.NotContains(t, out, "validation-only-keyword")
 		})
 	}
 }

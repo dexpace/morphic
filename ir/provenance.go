@@ -123,7 +123,7 @@ func HasError(diags []Diagnostic) bool {
 // compile's findings index names files nothing read, so it sets Path alone.
 type SourceInfo struct {
 	// Format names the format and version the file was read as, such as
-	// "openapi@3.2" or "overlay@1.0.0".
+	// "openapi@3.2", or "overlay@1.0.0" for an overlay (IsOverlay).
 	Format string `json:"format"`
 	// Path is the path the file was handed to the compiler under.
 	Path string `json:"path"`
@@ -138,4 +138,16 @@ type SourceInfo struct {
 	// It is the value the compiler lowered, so a `$self` an overlay writes is
 	// recorded here, on the patched document's entry, not on the overlay's.
 	SelfURI string `json:"selfURI,omitempty"`
+}
+
+// OverlayFormat is the format an overlay applied to the source is read as,
+// before the "@" and the overlay version its Format carries.
+const OverlayFormat = "overlay"
+
+// IsOverlay reports whether s is an overlay applied to the source. What an
+// overlay is credited with is located in the document it patched: its
+// Provenance.Pointer spells a position of that document, not of the overlay.
+// Another document a split source reads is located in its own.
+func (s SourceInfo) IsOverlay() bool {
+	return strings.HasPrefix(s.Format, OverlayFormat+"@")
 }

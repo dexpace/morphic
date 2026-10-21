@@ -221,7 +221,7 @@ func compileSpec(cmd *cobra.Command, specPath string, opts compileOptions) error
 	}
 
 	if opts.explain.set {
-		e := report.Explain(res.Document, res.Diagnostics, opts.explain.pointer)
+		e := report.Explain(res.Document, res.Diagnostics, res.Sources, opts.explain.pointer)
 		if err := report.WriteExplanation(cmd.OutOrStdout(), e); err != nil {
 			return &exitError{code: writeFailureExit(code), err: fmt.Errorf("write explanation: %w", err)}
 		}

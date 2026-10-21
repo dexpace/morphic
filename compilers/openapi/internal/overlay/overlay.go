@@ -245,7 +245,7 @@ func failed(at ir.Provenance, err error) ir.Diagnostic {
 func sourceInfo(doc *soaoverlay.Overlay, opts Options) ir.SourceInfo {
 	sum := sha256.Sum256(opts.Data)
 	return ir.SourceInfo{
-		Format: "overlay@" + doc.Version,
+		Format: ir.OverlayFormat + "@" + doc.Version,
 		Path:   opts.Path,
 		Hash:   hex.EncodeToString(sum[:]),
 	}

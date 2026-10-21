@@ -21,29 +21,33 @@ import (
 // readers are not separable units.
 type Explanation struct {
 	// Pointer is the coordinate explained; "" is the whole document.
-	Pointer jsontext.Pointer
+	Pointer jsontext.Pointer `json:"pointer"`
 	// Node is the type node interned at Pointer, or nil when none was.
-	Node *Interned
+	Node *Interned `json:"node,omitzero"`
 	// Below holds the coordinates strictly beneath Pointer that interned a
 	// node, in pointer order and, at one pointer, in ID order.
-	Below []Interned
+	Below []Interned `json:"below,omitempty"`
 	// Diagnostics holds the diagnostics stamped at Pointer, in reported order.
-	Diagnostics []ir.Diagnostic
+	Diagnostics []ir.Diagnostic `json:"diagnostics,omitempty"`
 }
 
 // Interned is one source coordinate and the type node it interned.
 type Interned struct {
-	Pointer jsontext.Pointer
-	ID      ir.TypeID
-	Kind    ir.TypeKind
+	Pointer jsontext.Pointer `json:"pointer"`
+	ID      ir.TypeID        `json:"id"`
+	Kind    ir.TypeKind      `json:"kind"`
 }
 
 // Explain reports what the compile that produced doc and diags produced at
-// pointer. A nil document, which a compile that produced none passes, has no
-// types; a nil registry entry, untyped or a typed nil pointer, is skipped
-// rather than dereferenced, since a malformed registry is what pass.Validate
-// and irverify exist to report.
-func Explain(doc *ir.Document, diags []ir.Diagnostic, pointer jsontext.Pointer) Explanation {
+// pointer in the source it compiled. sources is the table each
+// Provenance.Source indexes, a run's engine.Result.Sources: a position in the
+// source, or credited to an overlay patching it (ir.SourceInfo.IsOverlay), is
+// read, and one in another document a split source reads is not, since its
+// pointer spells a position of that document. A nil document has no types; a
+// nil registry entry, untyped or a typed nil pointer, is skipped rather than
+// dereferenced, since a malformed registry is what pass.Validate and irverify
+// exist to report.
+func Explain(doc *ir.Document, diags []ir.Diagnostic, sources []ir.SourceInfo, pointer jsontext.Pointer) Explanation {
 	e := Explanation{Pointer: pointer}
 	for _, id := range sortedTypeIDs(doc) {
 		td := doc.Types[id]
@@ -51,6 +55,9 @@ func Explain(doc *ir.Document, diags []ir.Diagnostic, pointer jsontext.Pointer) 
 			continue
 		}
 		prov := td.Common().Provenance
+		if !inSource(sources, prov.Source) {
+			continue
+		}
 		// The first node at the pointer, in ID order, names it: several can
 		// share one, and the answer must not follow map order (invariant 7).
 		if e.Node == nil && stampedAt(prov, pointer) {
@@ -62,11 +69,21 @@ func Explain(doc *ir.Document, diags []ir.Diagnostic, pointer jsontext.Pointer) 
 	}
 	slices.SortStableFunc(e.Below, func(a, b Interned) int { return cmp.Compare(a.Pointer, b.Pointer) })
 	for _, d := range diags {
-		if stampedAt(d.Provenance, pointer) {
+		if inSource(sources, d.Provenance.Source) && stampedAt(d.Provenance, pointer) {
 			e.Diagnostics = append(e.Diagnostics, d)
 		}
 	}
 	return e
+}
+
+// inSource reports whether a position in the Document.Sources entry at source
+// is located in the source's coordinates: it is the source's own, the first
+// entry, or an overlay's, which locates what it patched there.
+func inSource(sources []ir.SourceInfo, source int) bool {
+	if source == 0 {
+		return true
+	}
+	return source > 0 && source < len(sources) && sources[source].IsOverlay()
 }
 
 // WriteExplanation writes e to w as the lines --explain prints: the

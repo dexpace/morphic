@@ -2,6 +2,7 @@ package report_test
 
 import (
 	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"fmt"
 	"strings"
 	"testing"
@@ -143,7 +144,7 @@ func TestExplain_SelectsTheNodeAndWhatIsBelowIt(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := report.Explain(tt.doc, nil, tt.pointer)
+			got := report.Explain(tt.doc, nil, nil, tt.pointer)
 
 			assert.Empty(t, sameExplanation(tt.want, got))
 		})
@@ -160,7 +161,7 @@ func TestExplain_ReportsEachNodesKind(t *testing.T) {
 		&ir.Enum{ID: "t/e", Provenance: ir.Provenance{Pointer: "/k/e"}},
 	)}
 
-	got := report.Explain(doc, nil, "/k")
+	got := report.Explain(doc, nil, nil, "/k")
 
 	want := report.Explanation{
 		Pointer: "/k",
@@ -193,7 +194,7 @@ func TestExplain_AnEmptyPointerIsNotAlwaysTheRoot(t *testing.T) {
 			t.Parallel()
 			doc := &ir.Document{Types: registry(decoy, atRoot)}
 
-			got := report.Explain(doc, nil, "")
+			got := report.Explain(doc, nil, nil, "")
 
 			want := report.Explanation{Node: &report.Interned{ID: "t/root", Kind: ir.KindModel}}
 			assert.Empty(t, sameExplanation(want, got), "the root names the node declared there, never the decoy")
@@ -221,7 +222,7 @@ func TestExplain_ASharedPointerNamesTheLeastID(t *testing.T) {
 			types[id] = model(id, sharedPointer)
 		}
 
-		got := report.Explain(&ir.Document{Types: types}, nil, sharedPointer)
+		got := report.Explain(&ir.Document{Types: types}, nil, nil, sharedPointer)
 
 		require.NotNil(t, got.Node, "round %d: the coordinate holds %d nodes", round, nodes)
 		require.Equal(t, ir.TypeID("t/n/00"), got.Node.ID, "round %d", round)
@@ -246,7 +247,7 @@ func TestExplain_TiedPointersListInIDOrder(t *testing.T) {
 		}
 	}
 
-	got := report.Explain(&ir.Document{Types: types}, nil, "/components/schemas").Below
+	got := report.Explain(&ir.Document{Types: types}, nil, nil, "/components/schemas").Below
 
 	require.Len(t, got, pointers*perPointer)
 	for i := 1; i < len(got); i++ {
@@ -270,7 +271,7 @@ func TestExplain_SelectsOnlyTheCoordinatesDiagnostics(t *testing.T) {
 		diag("c", ir.Provenance{Pointer: "/p"}),
 	}
 
-	got := report.Explain(nil, diags, "/p")
+	got := report.Explain(nil, diags, nil, "/p")
 
 	assert.Empty(t, cmp.Diff([]ir.Diagnostic{diags[0], diags[3]}, got.Diagnostics))
 }
@@ -289,7 +290,7 @@ func TestExplain_RootExcludesPositionAndNodeLocatedFindings(t *testing.T) {
 	besideSource := diag("s", ir.Provenance{Source: 0, Node: "op/x"})
 	atRoot := diag("r", ir.Provenance{Source: 0})
 
-	got := report.Explain(nil, []ir.Diagnostic{byPosition, byNode, besideSource, atRoot}, "")
+	got := report.Explain(nil, []ir.Diagnostic{byPosition, byNode, besideSource, atRoot}, nil, "")
 
 	assert.Empty(t, cmp.Diff([]ir.Diagnostic{besideSource, atRoot}, got.Diagnostics),
 		"only findings about the source as a whole are at the root")
@@ -406,6 +407,74 @@ func TestWriteExplanation_StopsAtFirstFailingWrite(t *testing.T) {
 			require.ErrorIs(t, err, errDisk)
 			assert.Equal(t, failAt, w.attempts, "no write may follow the failing one")
 			assert.Equal(t, strings.Join(lines[:failAt-1], ""), w.text.String())
+		})
+	}
+}
+
+// TestExplain_ReadsOnlyTheSourcesCoordinates pins which positions a coordinate
+// of the compiled source matches: the source's own, and an overlay's, which
+// locates what it patched in the source, but not another document's, whose
+// pointer spells a position of that document though it is written alike, nor
+// an entry the table does not hold.
+func TestExplain_ReadsOnlyTheSourcesCoordinates(t *testing.T) {
+	t.Parallel()
+	const pet = jsontext.Pointer("/components/schemas/Pet")
+	sources := []ir.SourceInfo{{Format: "openapi@3.1"}, {Format: "overlay@1.0.0"}, {Format: "openapi@3.1"}}
+	at := func(id ir.TypeID, source int, pointer jsontext.Pointer) *ir.Model {
+		return &ir.Model{ID: id, Provenance: ir.Provenance{Source: source, Pointer: pointer}}
+	}
+	finding := func(code string, source int) ir.Diagnostic {
+		return diag(code, ir.Provenance{Source: source, Pointer: pet})
+	}
+	doc := &ir.Document{Sources: sources, Types: registry(
+		at("t/0-other", 2, pet),
+		at("t/1-source", 0, pet),
+		at("t/2-other", 2, pet+"/properties/owner"),
+		at("t/3-overlay", 1, pet+"/properties/tag"),
+		at("t/4-unheld", 7, pet+"/properties/gone"),
+	)}
+	diags := []ir.Diagnostic{finding("source", 0), finding("overlay", 1), finding("other", 2), finding("unheld", 7)}
+
+	got := report.Explain(doc, diags, sources, pet)
+
+	assert.Empty(t, sameExplanation(report.Explanation{
+		Pointer:     pet,
+		Node:        &report.Interned{Pointer: pet, ID: "t/1-source", Kind: ir.KindModel},
+		Below:       []report.Interned{interned(pet+"/properties/tag", "t/3-overlay")},
+		Diagnostics: []ir.Diagnostic{finding("source", 0), finding("overlay", 1)},
+	}, got))
+}
+
+// TestExplanation_EncodesAsData pins the JSON a driver reads an explanation as,
+// so an editor integration never parses WriteExplanation's text: each member by
+// its lower-camel name, a miss without a node, empty sections left out, and the
+// value read back unchanged.
+func TestExplanation_EncodesAsData(t *testing.T) {
+	t.Parallel()
+	full, _ := fullExplanation()
+	tests := []struct {
+		name string
+		e    report.Explanation
+		want string
+	}{
+		{"every section", full, `{"pointer":"/components/schemas/S",` +
+			`"node":{"pointer":"/components/schemas/S","id":"t/s","kind":"model"},` +
+			`"below":[{"pointer":"/components/schemas/S/properties/a","id":"t/a","kind":"scalar"},` +
+			`{"pointer":"/components/schemas/S/properties/b","id":"t/b","kind":"model"}],` +
+			`"diagnostics":[{"severity":"warning","code":"openapi/w","message":"careful","provenance":{"source":0}},` +
+			`{"severity":"error","code":"openapi/e","message":"broken","provenance":{"source":0}}]}`},
+		{"a miss at the root", report.Explanation{}, `{"pointer":""}`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			raw, err := json.Marshal(tt.e, json.Deterministic(true))
+			require.NoError(t, err)
+			var back report.Explanation
+			require.NoError(t, json.Unmarshal(raw, &back))
+
+			assert.Equal(t, tt.want, string(raw))
+			assert.Empty(t, cmp.Diff(tt.e, back))
 		})
 	}
 }
