@@ -156,7 +156,7 @@ func TestContent_MixedCaseURLEncodedKeepsPartEncoding(t *testing.T) {
 			tagsProp := ir.PropID("p/openapi" + ids.Ptr("paths", "/submit", "post", "requestBody", "content", tc.mt, "schema", "properties", "tags"))
 			enc, ok := content.Encoding[tagsProp]
 			require.True(t, ok, "a repeated part carries a PartEncoding keyed by its PropID; got keys %v", content.Encoding)
-			assert.True(t, enc.Multi, "the structural flag comes from the part's own schema")
+			assert.True(t, enc.Multi, "the structural flag is read off the part")
 		})
 	}
 }

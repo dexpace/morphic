@@ -1963,8 +1963,12 @@ wherever the body declares that property: on the schema, in an `allOf` branch wi
 declaration of a name winning, or on a `Base` or `Mixin` it composes. `contentType` lowers to
 `ContentTypes`, split on `,` and trimmed with empty items dropped; `headers` to `Headers`, lowered
 as a response's are; and `style` and `explode` to `Style` and `Explode` as declared, nothing
-defaulted. `Multi` and `Filename` come from the part's own schema and never from the `encoding` map:
-`Multi` where it is an array, `Filename` where it is a `string` with `format` `binary` or `byte`. A
+defaulted. `Multi` and `Filename` come from the part and never from the `encoding` map. Where the body
+model has the property, they are read off its type, the one the `allOf` merge settled on: `Multi`
+where it is a list or tuple, `Filename` where its scalar bases end in `bytes` (`format` `binary`
+or `byte`). For a property of another kind, and for a body with no model, they are read from every
+declaration of the part's name: `Multi` where any is an array, `Filename` where any is a `string`
+with `format` `binary` or `byte`. A
 part is entered only when its `PartEncoding` holds something, so a body that declares no encoding
 still gets entries for its array and file parts, and an entry declaring nothing leaves none. What an
 Encoding Object writes beyond those fields is
@@ -1973,7 +1977,10 @@ Encoding Object writes beyond those fields is
 - Cases: `multipart-encoding`
 - Tests: `operation.TestContent_MultipartPartEncoding`,
   `operation.TestContent_ArrayMultipartPartMulti`,
-  `operation.TestPartEncodings_MixinPartIsKeyedOnTheMixin`
+  `operation.TestPartEncodings_MixinPartIsKeyedOnTheMixin`,
+  `operation.TestPartEncoding_FlagsComeFromTheMergedType`,
+  `operation.TestPartEncoding_FlagsOfAnUndecidedTypeComeFromTheSchema`,
+  `operation.TestPartEncoding_FlagsOfABodyWithNoModelPropertyComeFromTheSchema`
 - Status: partly built: an `encoding` key that names no property, or one declared only inside a
   `oneOf` or `anyOf` branch, is dropped with no diagnostic (#604); on a multi-typed body the entry
   is keyed by a property no node holds, which validation then refuses (#744); an array of files is

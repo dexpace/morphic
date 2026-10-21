@@ -2919,7 +2919,7 @@ func assertComposedPartEncoding(t *testing.T, doc *ir.Document) {
 	file, ok := enc[inherited]
 	require.True(t, ok, "the inherited part is keyed on the Base that holds it; got keys %v", enc)
 	assert.Equal(t, []string{"image/png"}, file.ContentTypes)
-	assert.True(t, file.Filename, "the structural flag still comes from the part's own schema")
+	assert.True(t, file.Filename, "the structural flag is read off the merged type of the inherited part")
 
 	// Every key must name a property some type in the document declares. A part
 	// keyed by a PropID nothing holds is the failure this lowering can produce
@@ -2960,7 +2960,7 @@ func assertFormPartStyle(t *testing.T, doc *ir.Document) {
 		assert.Equal(t, "form", pe.Style)
 		require.NotNil(t, pe.Explode)
 		assert.True(t, *pe.Explode)
-		assert.True(t, pe.Multi, "the structural flag still comes from the part's own schema")
+		assert.True(t, pe.Multi, "the structural flag is read off the part")
 	}
 	// allowReserved has no PartEncoding field, and PartEncoding has no Unmodeled
 	// map, so it is kept on the content keyed by the part it governs. Two
