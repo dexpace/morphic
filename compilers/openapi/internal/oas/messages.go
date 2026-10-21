@@ -128,7 +128,16 @@ func describeFormat(format Format) string {
 func describeTerms(terms []Term) string {
 	parts := make([]string, len(terms))
 	for i, t := range terms {
-		parts[i] = t.Field + "=" + strings.Join(t.In, "|")
+		parts[i] = describeTerm(t.Field, strings.Join(t.In, "|"))
 	}
 	return strings.Join(parts, ", ")
+}
+
+// describeTerm spells one term holding text: a field and its value, in=header,
+// or, for "$key", which no field names, the key the object is held under.
+func describeTerm(field, text string) string {
+	if field == "$key" {
+		return "held under " + text
+	}
+	return field + "=" + text
 }

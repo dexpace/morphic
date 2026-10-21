@@ -55,3 +55,13 @@ func TestCheck_ReadAtNamesNoPositionAFindingIsPlacedAt(t *testing.T) {
 		assert.Equal(t, diags[0], oas.AsPlaced(diags[0]))
 	}
 }
+
+// TestCheck_AFlowsRequirementNamesTheKeyItIsHeldUnder pins how a rule that
+// rests on the key an object is held under spells it: as the key, which the
+// document writes, not as a field, which it does not.
+func TestCheck_AFlowsRequirementNamesTheKeyItIsHeldUnder(t *testing.T) {
+	diags := run(t, "3.1.0", oas.OAuthFlows, `{implicit: {scopes: {}}}`)
+	require.Len(t, diags, 1)
+	assert.Equal(t, `OAuth Flow Object field "authorizationUrl" is REQUIRED when held under implicit|authorizationCode `+
+		`in OpenAPI 3.1 (OAuth Flow Object)`, diags[0].Message)
+}

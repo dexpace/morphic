@@ -351,7 +351,7 @@ func (r ruler) place(terms []Term) string {
 	parts := make([]string, len(terms))
 	for i, t := range terms {
 		got, _ := r.f.text(t.Field)
-		parts[i] = t.Field + "=" + got
+		parts[i] = describeTerm(t.Field, got)
 	}
 	return strings.Join(parts, " with ")
 }
