@@ -78,7 +78,10 @@ func severity(lv Level) ir.Severity {
 func describeFormat(format Format) string {
 	return map[Format]string{
 		URI: "a URI reference", AbsoluteURI: "a URI with a scheme", Email: "an email address",
-		ComponentName: "a name of letters, digits, '.', '-' and '_'",
+		ComponentName:     "a name of letters, digits, '.', '-' and '_'",
+		Token:             "a token of letters, digits and !#$%&'*+-.^_`|~",
+		AuthScheme:        "a token of letters, digits and !#$%&'*+-.^_`|~",
+		RuntimeExpression: "a runtime expression, or text whose braces hold runtime expressions",
 	}[format]
 }
 

@@ -34,6 +34,10 @@ type Options struct {
 	Start Kind
 	// Budget bounds the work; unset, DefaultBudget.
 	Budget int
+	// Seen, when set, is told each mapping read as an object of a kind and
+	// not as a Reference Object standing in its place. The node is the
+	// mapping itself, its aliases followed.
+	Seen func(kind Kind, node *yaml.Node)
 }
 
 // Checker judges documents against the table.
@@ -53,7 +57,7 @@ func (c Checker) Check(root *yaml.Node, declared string, opts Options) []ir.Diag
 		return nil
 	}
 	w := &walker{spec: c.spec, minor: minor, view: nodeview.New(), budget: opts.Budget}
-	w.locate, w.declared = opts.Locate, declared
+	w.locate, w.declared, w.seen = opts.Locate, declared, opts.Seen
 	if w.budget <= 0 {
 		w.budget = DefaultBudget
 	}
@@ -77,6 +81,7 @@ type walker struct {
 	root    *yaml.Node
 	budget  int
 	stopped bool
+	seen    func(Kind, *yaml.Node)
 	reporter
 }
 
@@ -129,6 +134,9 @@ func (w *walker) object(s site, depth int) {
 	w.repeated(node, s.ptr, obj.Name)
 	if w.reference(f, depth) {
 		return
+	}
+	if w.seen != nil {
+		w.seen(s.kind, node)
 	}
 	w.fields(f, depth)
 	w.patterned(f, depth)
@@ -236,9 +244,20 @@ func (w *walker) patterned(f frame, depth int) {
 		if f.defines(p.Key) || (f.obj.Extensible && strings.HasPrefix(p.Key, "x-")) {
 			continue
 		}
+		w.key(f, pat, p.Key)
 		fld := Field{Name: p.Key, Shape: pat.Shape, Of: pat.Of, Defined: Always(), Cites: pat.Cites}
 		w.value(f, fld, p.Val, depth)
 	}
+}
+
+// key checks the syntax of a key the object holds under its pattern.
+func (w *walker) key(f frame, pat Pattern, key string) {
+	if pat.Keys == FormatNone || validFormat(pat.Keys, key) {
+		return
+	}
+	w.report(ir.SeverityError, classFormat, f.at.ptr.AppendToken(key),
+		"%s has the key %q, which must be %s in OpenAPI %s (%s)",
+		f.obj.Name, key, describeFormat(pat.Keys), w.minor, citeFor(pat.Cites, w.minor).Section)
 }
 
 // patternHeld returns the pattern of obj that holds at the declared minor.

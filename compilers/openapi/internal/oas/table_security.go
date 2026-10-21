@@ -42,13 +42,33 @@ func securitySchemeRules() []Rule {
 	need := func(name, kind, sentence string) Rule {
 		return requiredWhen(Always(), name, when(term("type", kind)), c(V30, sentence))
 	}
-	return []Rule{
+	return append(securitySchemeTokens(), []Rule{
 		need("name", "apiKey", "**REQUIRED**. The name of the header, query or cookie parameter to be used."),
 		need("in", "apiKey", "**REQUIRED**. The location of the API key."),
 		need("scheme", "http", "**REQUIRED**. The name of the HTTP Authentication scheme to be used in the").
 			owned(ownerAuth),
 		need("flows", "oauth2", "**REQUIRED**. An object containing configuration information for the flow types supported."),
 		need("openIdConnectUrl", "openIdConnect", "**REQUIRED**. [Well-known URL]"),
+	}...)
+}
+
+// securitySchemeTokens are the rules that hold the names a scheme sends to the
+// grammars of the HTTP specifications it points to.
+func securitySchemeTokens() []Rule {
+	c := sectioned("Security Scheme Object")
+	p := sectioned("Parameter Object")
+	name := "**REQUIRED**. The name of the header, query or cookie parameter to be used."
+	return []Rule{
+		syntax(Always(), "name", Token, when(term("type", "apiKey"), term("in", "header")),
+			c(V30, name),
+			p(V30, "Note that [RFC7230](https://tools.ietf.org/html/rfc7230#section-3.2) states header names are case insensitive."),
+			p(V32, "Note that [RFC9110](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.1) states header names are case-insensitive.")),
+		syntax(Always(), "name", Token, when(term("type", "apiKey"), term("in", "cookie")),
+			c(V30, name), p(V30, "cookie - Used to pass a specific cookie value to the API.")),
+		syntax(Through(V31), "scheme", AuthScheme, when(term("type", "http")),
+			c(V30, "The name of the HTTP Authentication scheme to be used in the [Authorization header as defined in RFC7235](https://tools.ietf.org/html/rfc7235#section-5.1).")),
+		syntax(From(V32), "scheme", AuthScheme, when(term("type", "http")),
+			c(V32, "The name of the HTTP Authentication scheme to be used in the [Authorization header as defined in RFC9110](https://www.rfc-editor.org/rfc/rfc9110.html#section-16.4.1).")),
 	}
 }
 

@@ -93,6 +93,15 @@ const (
 	Email
 	// ComponentName is a Components Object key: ^[a-zA-Z0-9\.\-_]+$.
 	ComponentName
+	// Token is a name of one or more token characters: an HTTP field name, a
+	// cookie name (RFC 9110 §5.6.2).
+	Token
+	// AuthScheme is a Token, with the empty string left to the lowering, which
+	// reports a security scheme that names no HTTP scheme.
+	AuthScheme
+	// RuntimeExpression is a string whose braces hold runtime expressions, or
+	// a runtime expression bare.
+	RuntimeExpression
 )
 
 // Level is how firmly the specification states a rule.
@@ -172,6 +181,8 @@ type Pattern struct {
 	Shape Shape
 	Of    Kind
 	Span  Span
+	// Keys is the syntax of the key itself.
+	Keys  Format
 	Cites []Cite
 }
 
@@ -199,6 +210,9 @@ const (
 	RuleMember
 	// RuleUnique: the items of the list Field are unique by their Key.
 	RuleUnique
+	// RuleSyntax: Field, when written, has the syntax Format if every When
+	// term holds.
+	RuleSyntax
 	// RuleInapplicable: Field has no effect when every When term holds.
 	RuleInapplicable
 	// RuleCode: a predicate written in Go, named by Name.
@@ -220,6 +234,8 @@ type Rule struct {
 	Key string
 	// Value is the value a MustBe rule demands.
 	Value string
+	// Format is the syntax a Syntax rule demands of Field.
+	Format Format
 	// Min and Max bound a Count rule.
 	Min, Max int
 	When     []Term

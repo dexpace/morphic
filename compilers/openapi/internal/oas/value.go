@@ -20,12 +20,23 @@ func (w *walker) value(f frame, fld Field, val *yaml.Node, depth int) {
 	ptr := f.at.ptr.AppendToken(fld.Name)
 	shape, ok := w.shapeOf(fld, node)
 	if !ok {
-		w.report(ir.SeverityError, classType, ptr, "%s field %q must be %s in OpenAPI %s (%s)",
-			f.obj.Name, fld.Name, describeShape(fld), w.minor, citeFor(fld.Cites, w.minor).Section)
+		w.mismatch(f, fld, node, ptr)
 		return
 	}
 	w.scalar(f, fld, node, ptr)
 	w.entries(f, fld, shape, node, ptr, depth)
+}
+
+// mismatch reports a value that has none of the shapes its field admits. A null
+// written for an optional field is read as the field left out, so it is a
+// warning; for a required field it is the value that is missing, an error.
+func (w *walker) mismatch(f frame, fld Field, node *yaml.Node, ptr jsontext.Pointer) {
+	sev, null := ir.SeverityError, ""
+	if node.Kind == yaml.ScalarNode && node.Tag == "!!null" && !fld.Required.Holds(w.minor) {
+		sev, null = ir.SeverityWarning, "; it is null, which is read as the field left out"
+	}
+	w.report(sev, classType, ptr, "%s field %q must be %s in OpenAPI %s (%s)%s",
+		f.obj.Name, fld.Name, describeShape(fld), w.minor, citeFor(fld.Cites, w.minor).Section, null)
 }
 
 // shapeOf finds the shape, among the field's own and the alternatives that hold
@@ -117,7 +128,7 @@ func (w *walker) entries(f frame, fld Field, shape Shape, node *yaml.Node, ptr j
 		w.repeated(node, ptr, "field "+strconv.Quote(fld.Name)+" of the "+f.obj.Name)
 		for _, p := range w.view.MappingPairs(node) {
 			if fld.Keys == ComponentName && !validFormat(ComponentName, p.Key) {
-				w.report(ir.SeverityError, classSyntax, ptr.AppendToken(p.Key),
+				w.report(ir.SeverityWarning, classSyntax, ptr.AppendToken(p.Key),
 					"%s field %q has the key %q, which must be %s in OpenAPI %s (%s)",
 					f.obj.Name, fld.Name, p.Key, describeFormat(fld.Keys), w.minor, citeFor(fld.Cites, w.minor).Section)
 			}

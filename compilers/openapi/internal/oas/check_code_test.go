@@ -29,29 +29,20 @@ func TestCheck_TagParentsExist(t *testing.T) {
 	})
 }
 
-// TestCheck_SecurityRequirementsNameDeclaredSchemes pins the rule that every
-// name a requirement uses is declared.
-func TestCheck_SecurityRequirementsNameDeclaredSchemes(t *testing.T) {
+// TestCheck_SecurityRequirementNamesAreLeftToTheLowering pins that the table
+// states the rule that every name a requirement uses is declared, and the
+// lowering alone reports a name that is not (openapi/unresolved-ref), so a
+// document draws the one report.
+func TestCheck_SecurityRequirementNamesAreLeftToTheLowering(t *testing.T) {
 	doc := func(version, extra string) string {
 		return "openapi: " + version + "\ninfo: {title: t, version: v}\npaths: {}\ncomponents: {securitySchemes: {k: {type: mutualTLS}}}\n" + extra
 	}
 	verify(t, []scenario{
 		{"declared", "3.2.0", oas.Document, doc("3.2.0", "security: [{k: []}]\n"), nil},
-		{"undeclared at the root", "3.1.0", oas.Document, doc("3.1.0", "security: [{k: [], z: []}, {}]\n"),
-			[]finding{at(dangling, "/security/0/z")}},
+		{"undeclared at the root", "3.1.0", oas.Document, doc("3.1.0", "security: [{k: [], z: []}, {}]\n"), nil},
 		{"undeclared in an operation", "3.0.3", oas.Document,
 			"openapi: 3.0.3\ninfo: {title: t, version: v}\npaths:\n  /a:\n    get:\n      responses: {}\n      security: [{z: []}]\n",
-			[]finding{at(dangling, "/paths/~1a/get/security/0/z"), at(entries, "/paths/~1a/get/responses")}},
-		{"undeclared in a webhook", "3.1.0", oas.Document,
-			"openapi: 3.1.0\ninfo: {title: t, version: v}\nwebhooks:\n  w:\n    post:\n      security: [{z: []}]\n",
-			[]finding{at(dangling, "/webhooks/w/post/security/0/z")}},
-		{"a uri in 3.2", "3.2.0", oas.Document, doc("3.2.0", "security: [{./k: [], 'other.yaml#/s': [], '.x': []}]\n"), nil},
-		{"a uri in 3.1 is just a name", "3.1.0", oas.Document, doc("3.1.0", "security: [{./k: []}]\n"),
-			[]finding{at(dangling, "/security/0/.~1k")}},
-		{"a bare name in 3.2 is a component name", "3.2.0", oas.Document, doc("3.2.0", "security: [{z: []}]\n"),
-			[]finding{at(dangling, "/security/0/z")}},
-		{"no components at all", "3.1.0", oas.Document, "openapi: 3.1.0\ninfo: {title: t, version: v}\npaths: {}\nsecurity: [{z: []}]\n",
-			[]finding{at(dangling, "/security/0/z")}},
+			[]finding{at(entries, "/paths/~1a/get/responses")}},
 		{"security that is no list", "3.1.0", oas.Document, doc("3.1.0", "security: x\n"), []finding{at(mismatch, "/security")}},
 		{"an operation with a security list that is no list", "3.1.0", oas.Document,
 			"openapi: 3.1.0\ninfo: {title: t, version: v}\npaths:\n  /a:\n    get: {responses: {'200': {description: d}}, security: x}\n",

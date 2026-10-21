@@ -18,8 +18,6 @@ func (r ruler) code(rule Rule) {
 	switch rule.Name {
 	case "tag-parents":
 		tagParents(r, rule)
-	case "security-requirement-names":
-		securityNames(r, rule)
 	case "path-template-parameters":
 		templateParameters(r, rule)
 	case "path-templates-distinct":
@@ -112,54 +110,6 @@ func operationsOf(r ruler, item map[string]*yaml.Node, ptr jsontext.Pointer) []o
 		out = append(out, operationAt{method: p.Key, node: p.Val, ptr: extra.AppendToken(p.Key)})
 	}
 	return out
-}
-
-// securityNames reports each name a security requirement uses that no security
-// scheme of the components declares. From 3.2 a name may also be the URI of a
-// scheme, so a name that reads as one is left unchecked.
-func securityNames(r ruler, rule Rule) {
-	declared := map[string]bool{}
-	components := r.keysOf(r.f.byKey["components"])
-	for _, p := range r.w.view.MappingPairs(components["securitySchemes"]) {
-		declared[p.Key] = true
-	}
-	check := func(list *yaml.Node, ptr jsontext.Pointer) {
-		for i, req := range nodeview.Deref(list).Content {
-			for _, p := range r.w.view.MappingPairs(req) {
-				if !declared[p.Key] && (r.w.minor < V32 || !readsAsURI(p.Key)) {
-					r.fail(rule, classReference, itemPointer(ptr, i).AppendToken(p.Key),
-						"security requirement names "+quote(p.Key)+", which no security scheme declares")
-				}
-			}
-		}
-	}
-	forEachSecurity(r, check)
-}
-
-// forEachSecurity calls fn for each security list of the document: its own and
-// those of the operations of its paths and webhooks.
-func forEachSecurity(r ruler, fn func(list *yaml.Node, ptr jsontext.Pointer)) {
-	visit := func(list *yaml.Node, ptr jsontext.Pointer) {
-		if l := nodeview.Deref(list); l != nil && l.Kind == yaml.SequenceNode {
-			fn(l, ptr)
-		}
-	}
-	visit(r.f.byKey["security"], r.f.at.ptr.AppendToken("security"))
-	for _, section := range []string{"paths", "webhooks"} {
-		base := r.f.at.ptr.AppendToken(section)
-		for _, item := range r.w.view.MappingPairs(r.f.byKey[section]) {
-			itemPtr := base.AppendToken(item.Key)
-			for _, op := range operationsOf(r, r.keysOf(item.Val), itemPtr) {
-				visit(r.keysOf(op.node)["security"], op.ptr.AppendToken("security"))
-			}
-		}
-	}
-}
-
-// readsAsURI reports whether a security requirement name looks like a URI
-// reference rather than a component name.
-func readsAsURI(name string) bool {
-	return strings.ContainsAny(name, "/#:") || strings.HasPrefix(name, ".")
 }
 
 // expressions returns the names of the template expressions of a path.

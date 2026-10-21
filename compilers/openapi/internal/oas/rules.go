@@ -97,6 +97,8 @@ func (r ruler) apply(rule Rule) {
 		r.member(rule)
 	case RuleUnique:
 		r.unique(rule)
+	case RuleSyntax:
+		r.syntax(rule)
 	case RuleInapplicable:
 		r.inapplicable(rule)
 	case RuleCode:
@@ -256,6 +258,17 @@ func (r ruler) member(rule Rule) {
 	}
 	r.fail(rule, classValues, r.f.at.ptr.AppendToken(rule.Field),
 		`field "`+rule.Field+`" must be one of the values of "`+rule.Of+`"`)
+}
+
+// syntax reports a field written in a syntax the rule bars, where the
+// conditions hold.
+func (r ruler) syntax(rule Rule) {
+	got, ok := r.f.text(rule.Field)
+	if !ok || validFormat(rule.Format, got) || r.f.test(rule.When) != yes {
+		return
+	}
+	r.fail(rule, classFormat, r.f.at.ptr.AppendToken(rule.Field),
+		`field "`+rule.Field+`" must be `+describeFormat(rule.Format)+` when `+describeTerms(rule.When))
 }
 
 // unique reports each item of the list that repeats the key of an earlier one.

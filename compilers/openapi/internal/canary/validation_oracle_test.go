@@ -88,7 +88,8 @@ var validationReasons = map[string]string{
 		"bearerFormat applies to http), so the table accepts it",
 	"owned": "another package reports the rule, and the table states it and leaves it to them: a repeated " +
 		"operationId is judged once every operation is lowered (docs/compilers/openapi.md#operation-ids), a repeated " +
-		"parameter by the load phase's check of every parameter list (docs/compilers/openapi.md#parameters)",
+		"parameter by the load phase's check of every parameter list (docs/compilers/openapi.md#parameters), an " +
+		"HTTP scheme written empty by the security scheme lowering (docs/compilers/openapi.md#security-requirements)",
 	"beside-ref": "the library models a Path Item that writes a $ref as the reference alone, and validates none of " +
 		"the fields beside it; the table reads them as the item's own, as the lowering does " +
 		"(docs/compilers/openapi.md#path-item-ref-fields)",
@@ -100,7 +101,9 @@ var validationReasons = map[string]string{
 		"Parameter or Header Object holds schema or content, not both (3.1.2 §Parameter Object: 'Parameter Objects " +
 		"MUST include either a content field or a schema field, but not both'), an XML Object's nodeType bars wrapped " +
 		"(3.2.0 §XML Object), a Header Object writes no in (3.2.0 §Header Object: 'in MUST NOT be specified'), and a " +
-		"$ref is a URI reference, which holds no space (3.1.2 §Reference Object: 'This MUST be in the form of a URI')",
+		"$ref is a URI reference, which holds no space (3.1.2 §Reference Object: 'This MUST be in the form of a URI'), and " +
+		"a header name is a token, which a slash is not (3.1.2 §Parameter Object: 'states header names are case " +
+		"insensitive')",
 	"analogy": "the library has no check for it, and the specification words the rule only by reference: an Encoding " +
 		"Object's nested encodings apply 'in the same manner' as the Media Type Object's, which MUST NOT be written " +
 		"together (3.2.0 §Media Type Object); the table reads that as a warning",
@@ -111,9 +114,6 @@ var validationReasons = map[string]string{
 	"path-templating": "the library does not match a path's template expressions to its path parameters, which the " +
 		"specification requires (3.1.2 §Path Templating: 'Each template expression in the path MUST correspond to a " +
 		"path parameter')",
-	"security-names": "the library does not check that a security requirement names a declared scheme, which the " +
-		"specification requires (3.1.2 §Security Requirement Object: 'Each name MUST correspond to a security " +
-		"scheme which is declared in the Security Schemes under the Components Object')",
 }
 
 // validationDoc is one document the oracle checks, under its repository path.

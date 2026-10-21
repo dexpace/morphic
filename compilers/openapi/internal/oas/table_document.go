@@ -45,9 +45,9 @@ func openAPIObject() Object {
 				owned(ownerLoad),
 			code(From(V32), "tag-parents", "",
 				sectioned("Tag Object")(V32, "The named tag MUST exist in the API description")),
-			code(Through(V31), "security-requirement-names", "",
+			code(Through(V31), "security-requirement-names", ownerAuth,
 				sectioned("Security Requirement Object")(V30, "The name used for each property MUST correspond to a security scheme declared in the")),
-			code(From(V32), "security-requirement-names", "",
+			code(From(V32), "security-requirement-names", ownerAuth,
 				sectioned("Security Requirement Object")(V32, "The name used for each property MUST either correspond to a security scheme declared in the")),
 		},
 	}

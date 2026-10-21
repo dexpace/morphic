@@ -121,6 +121,12 @@ func pattern(name string, shape Shape, k Kind, cites ...Cite) Pattern {
 	return Pattern{Name: name, Shape: shape, Of: k, Span: Always(), Cites: cites}
 }
 
+// keyed sets the syntax of the pattern's keys.
+func (p Pattern) keyed(format Format) Pattern {
+	p.Keys = format
+	return p
+}
+
 // exclusive returns a rule: at most one of fields.
 func exclusive(s Span, fields []string, cites ...Cite) Rule {
 	return Rule{Kind: RuleExclusive, Span: s, Fields: fields, Cites: cites}
@@ -165,6 +171,11 @@ func member(s Span, lv Level, name, list string, cites ...Cite) Rule {
 // uniqueNames returns a rule: the items of list have names that differ.
 func uniqueNames(s Span, list string, cites ...Cite) Rule {
 	return Rule{Kind: RuleUnique, Span: s, Field: list, Key: "name", Cites: cites}
+}
+
+// syntax returns a rule: name, when written, has the format when the terms hold.
+func syntax(s Span, name string, format Format, cond []Term, cites ...Cite) Rule {
+	return Rule{Kind: RuleSyntax, Span: s, Field: name, Format: format, When: cond, Cites: cites}
 }
 
 // inapplicable returns a rule: name has no effect when the terms hold.
