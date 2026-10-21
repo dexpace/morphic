@@ -12,6 +12,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
+	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/ir/irverify"
 )
@@ -90,13 +91,15 @@ func Check(ctx context.Context, spec string, data []byte) (res Result) {
 }
 
 // compile runs the OpenAPI compiler on one in-memory source with default
-// options. It is a package-level seam: production always uses the real compiler
-// wired here, while tests replace it to drive the oracle-failure paths a correct
+// options, reading the documents its references name from disk as a run of
+// the engine does: inside the spec's directory, through relative references.
+// It is a package-level seam: production always uses the real compiler wired
+// here, while tests replace it to drive the oracle-failure paths a correct
 // compiler never produces — a panic, a document with structural violations, a
 // non-round-tripping document, or a nondeterministic recompile.
 var compile = func(ctx context.Context, spec string, data []byte) (*ir.Document, []ir.Diagnostic, error) {
 	return openapi.New().Compile(ctx,
-		[]compilers.Source{{Path: spec, Data: data}}, compilers.Options{})
+		[]compilers.Source{{Path: spec, Data: data}}, compilers.Options{Reader: reader.Disk{}})
 }
 
 // reserializeJSON re-encodes a value that has already survived a marshal or a

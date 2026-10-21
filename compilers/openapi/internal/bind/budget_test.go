@@ -40,8 +40,8 @@ x-lib:
 // budgetConfig is the configuration budgetSpec is bound under, at limit.
 func budgetConfig(limit int) bind.Config {
 	cfg := withDocuments(map[string]string{"other.yaml": "S: {$ref: '#/T'}\nT: {type: string}\n"})
-	cfg.Through = func(p jsontext.Pointer) (bind.ReferenceEnd, bool) {
-		return bind.ReferenceEnd{Name: "spec.yaml", Pointer: "/components/pathItems/P"}, p == "/paths/~1a"
+	cfg.Through = func(name string, p jsontext.Pointer) (bind.ReferenceEnd, bool) {
+		return bind.ReferenceEnd{Name: "spec.yaml", Pointer: "/components/pathItems/P"}, name == "spec.yaml" && p == "/paths/~1a"
 	}
 	cfg.Limit = limit
 	return cfg

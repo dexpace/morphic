@@ -1,7 +1,6 @@
 package load
 
 import (
-	"cmp"
 	"context"
 	"encoding/json/jsontext"
 	"iter"
@@ -56,15 +55,22 @@ type reached struct {
 // reachedTarget is an object the source's references reach: the least pointer
 // among the $refs reaching it, the object and the node it was built from, the
 // document it is in, as findingPlace names it, whether that is the source, and
-// what building it found already, for a schema built for a landing.
+// what building it found already, for a schema built for a landing. place
+// places a finding at site where another document writes that $ref, named
+// siteDoc, and is nil where the source does.
 type reachedTarget struct {
 	site     jsontext.Pointer
+	siteDoc  string
 	obj      any
 	node     *yaml.Node
 	doc      string
 	inSource bool
 	found    []error
+	place    func(jsontext.Pointer) ir.Provenance
 }
+
+// at is the site of the $ref t is placed at.
+func (t reachedTarget) at() refSite { return refSite{doc: t.siteDoc, pointer: t.site} }
 
 // targetKey identifies a target by the node its object was built from and the
 // kind a $ref read it as: a node one $ref reads as a response and another as a
@@ -74,34 +80,49 @@ type targetKey struct {
 	kind reflect.Type
 }
 
-// validateReached validates every object a resolved reference in doc reaches
-// that the source's own validation did not (see targetOf and dropDeclared), and
-// every schema built for a landing of the schema bindings, and reports each
-// finding once, where reachedFinding places it. A finding known, the source's
-// own validation's, is not reported again: a node a $ref reads as another kind
-// holds what the source declares inside it. The source is walked with the
-// fields beside its path item $refs, which it validated as its own.
-func validateReached(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI, sibs Siblings,
-	built []typed.Built, opts Options, self sourceDocument,
+// validateReached validates every object a resolved reference reaches that
+// the source's own validation did not (see targetOf and dropDeclared), in doc,
+// walked with the fields beside its path item $refs, or in away, another
+// document's (GitHub #751), and every schema built for a landing of b. Each
+// finding is reported once, where reachedFinding places it, and none the
+// source's own validation knows: a node a $ref reads as another kind holds
+// what the source declares inside it.
+func validateReached(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, b bound, doc *soa.OpenAPI,
+	sibs Siblings, opts Options, self sourceDocument, away []awayRef,
 ) []ir.Diagnostic {
 	checks := newReached(doc, opts, self.tree)
 	checks.esc = self.escapes
 	maps.Copy(checks.reported, self.found)
-	return checkReached(ctx, at, walkSource(ctx, doc, sibs), builtTargets(built), checks)
+	table := b.bindings.Table()
+	targets := builtTargets(b.built, b.placer(at), func(id bind.DocID) string { return table.Document(id).Name })
+	for _, a := range away {
+		if t, ok := targetOf(a.site.pointer, a.r, checks.esc); ok {
+			t.siteDoc, t.place = a.site.doc, a.place
+			targets = append(targets, t)
+		}
+	}
+	return checkReached(ctx, at, walkSource(ctx, doc, sibs), targets, checks)
 }
 
 // builtTargets returns the targets the schemas built for landings make, each
-// placed at the least source position whose chain reaches it. One no source
-// position reaches is no target: only another document's content leads to it.
-func builtTargets(built []typed.Built) []reachedTarget {
+// placed at the least position whose chain reaches it, in whichever document
+// (place), as name names it. One no position reaches, which only a budget
+// cutting the reading leaves, is no target.
+func builtTargets(built []typed.Built, place func(bind.Position) ir.Provenance, name func(bind.DocID) string,
+) []reachedTarget {
 	var out []reachedTarget
 	for _, b := range built {
 		if b.Schema == nil || !b.Landing.Reached || b.Schema.GetSchema() == nil {
 			continue
 		}
-		out = append(out, reachedTarget{site: b.Landing.Site.Pointer, obj: b.Schema,
+		t := reachedTarget{site: b.Landing.Site.Pointer, obj: b.Schema,
 			node: b.Schema.GetSchema().GetRootNode(), doc: b.Landing.Name, inSource: b.Landing.At.Doc == bind.Source,
-			found: b.Findings})
+			found: b.Findings}
+		if site := b.Landing.Site; site.Doc != bind.Source {
+			t.siteDoc = name(site.Doc)
+			t.place = func(p jsontext.Pointer) ir.Provenance { return place(bind.Position{Doc: site.Doc, Pointer: p}) }
+		}
+		out = append(out, t)
 	}
 	return out
 }
@@ -121,7 +142,7 @@ func checkReached(ctx context.Context, at func(jsontext.Pointer) ir.Provenance,
 	targets := map[targetKey]reachedTarget{}
 	add := func(t reachedTarget) {
 		key := targetKey{node: t.node, kind: reflect.TypeOf(t.obj)}
-		if prev, seen := targets[key]; !seen || t.site < prev.site {
+		if prev, seen := targets[key]; !seen || compareSites(t.at(), prev.at()) < 0 {
 			targets[key] = t
 		}
 	}
@@ -223,7 +244,7 @@ func (v *reached) checkAll(ctx context.Context, at func(jsontext.Pointer) ir.Pro
 	targets map[targetKey]reachedTarget,
 ) (diags []ir.Diagnostic) {
 	order := slices.SortedFunc(maps.Values(targets), func(a, b reachedTarget) int {
-		return cmp.Compare(a.site, b.site)
+		return compareSites(a.at(), b.at())
 	})
 	var site jsontext.Pointer
 	defer func() {
@@ -247,6 +268,9 @@ func (v *reached) checkAll(ctx context.Context, at func(jsontext.Pointer) ir.Pro
 // panic finding the REQUIRED-field rule's artifacts is reported at t's site,
 // as checkAll reports one in validation.
 func (v *reached) check(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, t reachedTarget) []ir.Diagnostic {
+	if t.place != nil {
+		at = t.place
+	}
 	site := at(t.site)
 	if d, over := v.charge(site, t.doc, t.node); over {
 		return d
@@ -271,7 +295,7 @@ func (v *reached) check(ctx context.Context, at func(jsontext.Pointer) ir.Proven
 			(dropped(verr) || artifacts[siteOf(verr)] || required.excuses(verr)) {
 			continue
 		}
-		if key := keyOf(f, t.site); !v.reported[key] {
+		if key := keyOf(f, t.at()); !v.reported[key] {
 			v.reported[key] = true
 			diags = append(diags, reachedFinding(v.tree, site, t.doc, f))
 		}

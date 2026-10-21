@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
@@ -19,6 +20,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
+	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -31,7 +33,7 @@ func TestBindingDiags_ReportsTheBudgetOnce(t *testing.T) {
 	table := bind.Bind(root, bind.Config{Self: "spec.yaml", Limit: 2})
 	require.True(t, table.Exhausted(), "sanity: two steps are not enough to bind the document")
 
-	diags := bindingDiags(pointerAt(0, overlay.Origin{}), table)
+	diags := bindingDiags(inSource(pointerAt(0, overlay.Origin{})), table)
 
 	require.Len(t, diags, 1, "%+v", diags)
 	assert.Equal(t, diag.BudgetExceeded, diags[0].Code)
@@ -64,59 +66,82 @@ x-params:
 	for _, model := range []any{js, js.GetSchema().GetDiscriminator()} {
 		site, ok := doc.Bindings.Unplaced(model)
 		assert.True(t, ok, "%T", model)
-		assert.Equal(t, jsontext.Pointer("/paths/~1a/get/parameters/0"), site, "%T", model)
+		assert.Equal(t, "/paths/~1a/get/parameters/0", site, "%T", model)
 	}
 }
 
-// TestBindingDiags_NamesWhereAChainFailsAtEveryBudget pins the report of a
-// source $ref whose chain fails in another document's content: at every
-// limit the budget cuts the table at, it names the $ref that fails there and
-// why, though the walk that would have found that $ref as a site never ran.
-func TestBindingDiags_NamesWhereAChainFailsAtEveryBudget(t *testing.T) {
+// TestBindingDiags_ReportsAFailedRefOnceWhereItIsWrittenAtEveryBudget pins
+// the report of a $ref failing in another document's content: at each limit
+// the budget cuts the table at, it is reported at most once, at the $ref in
+// that document and not at the source $refs whose chains reach it, and a
+// table cut before the walk read it reports the budget instead.
+func TestBindingDiags_ReportsAFailedRefOnceWhereItIsWrittenAtEveryBudget(t *testing.T) {
 	t.Parallel()
 	_, root := buildDoc(t, schemaRoot("other.yaml#/X")+"    B: {$ref: 'other.yaml#/P'}\n")
 	var other yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte("X: {$ref: '#/Y'}\nY: {$ref: '#/Missing'}\nP: {$ref: '#/X'}\n"), &other))
 	cfg := bind.Config{Self: "spec.yaml", Open: func(string) (*yaml.Node, error) { return &other, nil }}
 	full := bind.Bind(root, cfg)
-	reported := 0
+	want := []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.UnresolvedRef, ir.Provenance{Source: 1, Pointer: "/Y"},
+		`unresolved $ref "#/Missing": it names nothing in the document it points into`)}
+	reported, silent := 0, 0
 	for limit := 1; limit <= full.Steps(); limit++ {
 		cfg.Limit = limit
-		for _, d := range bindingDiags(pointerAt(0, overlay.Origin{}), bind.Bind(root, cfg)) {
-			if d.Code != diag.UnresolvedRef {
-				continue
+		table := bind.Bind(root, cfg)
+		var failed []ir.Diagnostic
+		budget := false
+		for _, d := range bindingDiags(byDocument, table) {
+			switch d.Code {
+			case diag.UnresolvedRef:
+				failed = append(failed, d)
+			case diag.BudgetExceeded:
+				budget = true
 			}
-			reported++
-			assert.Contains(t, d.Message, `its chain reaches #/Y in other.yaml, whose $ref "#/Missing" is unresolved: `+
-				"it names nothing in the document it points into", "limit %d", limit)
 		}
+		assert.Equal(t, table.Exhausted(), budget, "a cut table reports the budget, limit %d", limit)
+		if len(failed) == 0 {
+			silent++
+			continue
+		}
+		reported++
+		assert.Empty(t, cmp.Diff(want, failed), "limit %d", limit)
 	}
-	assert.Positive(t, reported, "some limit cut short of the full table reports the chain")
+	assert.Positive(t, reported, "some limit cut short of the full table reports the failure")
+	assert.Positive(t, silent, "and some limit cuts the table before the walk that reads it")
 }
 
-// TestBindingDiags_NamesALoopsMembersByTheirDocument pins how a loop's report
-// names its members: a source position by its pointer, and another document's
-// by its pointer in that document's name, as an unresolved $ref names one,
-// never by the number the table reads that document under.
+// TestBindingDiags_NamesALoopsMembersByTheirDocument pins how a loop is
+// reported: once, at its least member, in whichever document holds it, naming
+// a member in another document than that one by its pointer in that document's
+// name, never by the number the table reads it under. A $ref leading into a
+// loop is not reported for it.
 func TestBindingDiags_NamesALoopsMembersByTheirDocument(t *testing.T) {
 	t.Parallel()
-	_, root := buildDoc(t, schemaRoot("other.yaml#/X")+"    B: {$ref: '#/components/schemas/B'}\n")
-	var other yaml.Node
-	require.NoError(t, yaml.Unmarshal([]byte("X: {$ref: '#/Y'}\nY: {$ref: '#/X'}\n"), &other))
-	table := bind.Bind(root, bind.Config{Self: "spec.yaml",
-		Open: func(string) (*yaml.Node, error) { return &other, nil }})
+	_, root := buildDoc(t, schemaRoot("other.yaml#/X")+"    B: {$ref: '#/components/schemas/B'}\n"+
+		"    C: {$ref: 'other.yaml#/P'}\n    D: {$ref: 'other.yaml#/Q'}\n")
+	docs := map[string]string{
+		"other.yaml": "X: {$ref: '#/Y'}\nY: {$ref: '#/X'}\nP: {$ref: 'spec.yaml#/components/schemas/C'}\n" +
+			"Q: {$ref: 'third.yaml#/R'}\n",
+		"third.yaml": "R: {$ref: 'other.yaml#/Q'}\n",
+	}
+	table := bind.Bind(root, bind.Config{Self: "spec.yaml", Open: func(name string) (*yaml.Node, error) {
+		var node yaml.Node
+		return &node, yaml.Unmarshal([]byte(docs[name]), &node)
+	}})
+	require.Equal(t, 3, table.Documents(), "sanity: the source and the two documents it leads into")
 
-	diags := bindingDiags(pointerAt(0, overlay.Origin{}), table)
+	diags := bindingDiags(byDocument, table)
 	got := make([]string, 0, len(diags))
 	for _, d := range diags {
-		got = append(got, string(d.Provenance.Pointer)+": "+d.Message)
+		got = append(got, fmt.Sprintf("%d%s: %s", d.Provenance.Source, d.Provenance.Pointer, d.Message))
 	}
 
+	const rest = " comes back to where it started and never reaches a schema"
 	assert.Empty(t, cmp.Diff([]string{
-		"/components/schemas/A: cyclic $ref: the chain of $refs through #/X in other.yaml, #/Y in other.yaml " +
-			"comes back to where it started and never reaches a schema",
-		"/components/schemas/B: cyclic $ref: the chain of $refs through #/components/schemas/B " +
-			"comes back to where it started and never reaches a schema",
+		"1/X: cyclic $ref: the chain of $refs through #/X, #/Y" + rest,
+		"0/components/schemas/B: cyclic $ref: the chain of $refs through #/components/schemas/B" + rest,
+		"0/components/schemas/C: cyclic $ref: the chain of $refs through #/components/schemas/C, #/P in other.yaml" + rest,
+		"1/Q: cyclic $ref: the chain of $refs through #/Q, #/R in third.yaml" + rest,
 	}, got))
 }
 
@@ -162,17 +187,31 @@ func TestBindingDiags_ReportsAChainBackIntoTheSourceWhereItFails(t *testing.T) {
 	table := bind.Bind(root, bind.Config{Self: "spec.yaml",
 		Open: func(string) (*yaml.Node, error) { return &other, nil }})
 
-	diags := bindingDiags(pointerAt(0, overlay.Origin{}), table)
+	diags := bindingDiags(inSource(pointerAt(0, overlay.Origin{})), table)
 	require.Len(t, diags, 1, "%+v", diags)
 	assert.Equal(t, jsontext.Pointer("/components/schemas/B"), diags[0].Provenance.Pointer)
 	assert.Equal(t, diag.UnresolvedRef, diags[0].Code)
 }
 
+// TestExternal_DocumentReportsAReadWithNoTreeAsAFault pins the invariant
+// document holds the reads to: a document read without error has a tree
+// prepared for it, so one with none is the compiler's fault, said so.
+func TestExternal_DocumentReportsAReadWithNoTreeAsAFault(t *testing.T) {
+	t.Parallel()
+	ext := newExternal(t.Context(), &soa.OpenAPI{}, Options{Reader: &fakeReader{}}, newExternalReads(sourceDocument{}))
+	ext.read.once("doc.yaml", 0, func() answer { return answer{body: []byte("a: 1\n")} })
+
+	tree, err := ext.document(t.Context(), "doc.yaml")
+
+	assert.Nil(t, tree)
+	require.EqualError(t, err, "internal: no tree was prepared for doc.yaml")
+}
+
 // TestLoad_ASchemaRefIsUnresolvedWhereItsDocumentCannotBeRead pins what a
 // schema $ref reports when the document it names cannot be read, by the reason
-// the read gave: a URL that answers an error, 300 being the least, a document
-// that is no YAML, and a location the source's own URL, or its own path, gives
-// no document for.
+// the read gave: a URL that answers an error, 300 being the least, and a
+// location the source's own URL, or its own path, gives no document for; and
+// when it was read and is no YAML, by the parser's reason, its line included.
 func TestLoad_ASchemaRefIsUnresolvedWhereItsDocumentCannotBeRead(t *testing.T) {
 	t.Parallel()
 	srv := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
@@ -187,17 +226,18 @@ func TestLoad_ASchemaRefIsUnresolvedWhereItsDocumentCannotBeRead(t *testing.T) {
 		}
 	})
 	dir := externalDir(t, map[string]string{"bad.yaml": "a: [\n"})
+	const unread, unparsed = "the document it names could not be read: ", "the document it names does not parse as YAML: yaml: line 1: "
 	for _, c := range []struct {
-		name, path, ref, says string
+		name, path, ref, phrase, says string
 	}{
-		{"a URL answering an error", "", srv.URL + "/missing.yaml#/x", "fetching it answered 404"},
-		{"a URL answering the least status past success", "", srv.URL + "/choices.yaml#/x", "fetching it answered 300"},
-		{"a URL serving no YAML", "", srv.URL + "/garbage.yaml#/x", "it does not parse as YAML"},
-		{"a file holding no YAML", "", "./bad.yaml#/x", "it does not parse as YAML"},
+		{"a URL answering an error", "", srv.URL + "/missing.yaml#/x", unread, "404 Not Found"},
+		{"a URL answering the least status past success", "", srv.URL + "/choices.yaml#/x", unread, "300 Multiple Choices"},
+		{"a URL serving no YAML", "", srv.URL + "/garbage.yaml#/x", unparsed, "did not find expected node content"},
+		{"a file holding no YAML", "", "./bad.yaml#/x", unparsed, "did not find expected node content"},
 		{"a location the source's URL cannot be joined with", "https://example.com/api/spec.yaml", "%zz.yaml#/x",
-			"it names no document a reference can"},
+			unread, "it names no document a reference can"},
 		{"a source whose path is no URL reference", "spec%zz.yaml", "./other.yaml#/x",
-			"it names no document a reference can"},
+			unread, "it names no document a reference can"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
@@ -206,7 +246,7 @@ func TestLoad_ASchemaRefIsUnresolvedWhereItsDocumentCannotBeRead(t *testing.T) {
 				path = dir + "/root.yaml"
 			}
 			_, diags, err := Load(t.Context(), 0, compilers.Source{Path: path, Data: []byte(schemaRoot(c.ref))},
-				Options{AllowExternalRefs: true})
+				Options{Reader: reader.Disk{}})
 
 			require.NoError(t, err)
 			var unresolved []ir.Diagnostic
@@ -217,7 +257,7 @@ func TestLoad_ASchemaRefIsUnresolvedWhereItsDocumentCannotBeRead(t *testing.T) {
 			}
 			require.Len(t, unresolved, 1, "%+v", diags)
 			assert.Equal(t, "/components/schemas/A", string(unresolved[0].Provenance.Pointer))
-			assert.Contains(t, unresolved[0].Message, "the document it names could not be read: ")
+			assert.Contains(t, unresolved[0].Message, c.phrase)
 			assert.Contains(t, unresolved[0].Message, c.says)
 		})
 	}
@@ -241,7 +281,7 @@ func TestBindingDiags_ReportsTheMergeBound(t *testing.T) {
 	want := []ir.Diagnostic{diag.Newf(ir.SeverityWarning, diag.DegradedConstruct, at(""),
 		"a mapping merges through `<<` deeper than 64 levels, which resolving the schema $refs does not "+
 			"expand; a $ref past that, or one that reads a key past it, is left unresolved")}
-	assert.Empty(t, cmp.Diff(want, bindingDiags(at, bind.Bind(&root, bind.Config{Self: "spec.yaml"}))))
+	assert.Empty(t, cmp.Diff(want, bindingDiags(inSource(at), bind.Bind(&root, bind.Config{Self: "spec.yaml"}))))
 }
 
 // TestBuildFailures_ReportsALandingNoSchemaWasBuiltFor pins where a landing
@@ -265,7 +305,7 @@ func TestBuildFailures_ReportsALandingNoSchemaWasBuiltFor(t *testing.T) {
 		diag.Newf(ir.SeverityError, diag.Validation, at("/components/schemas/B"),
 			"the $ref here reaches #/S in other.yaml, where no schema could be built: it failed"),
 	}
-	assert.Empty(t, cmp.Diff(want, buildFailures(at, []typed.Built{built, failed, foreign, elsewhere})))
+	assert.Empty(t, cmp.Diff(want, buildFailures(inSource(at), []typed.Built{built, failed, foreign, elsewhere})))
 }
 
 // TestLoad_AMergeFanOutPastTheMergeBoundIsRefusedForItsAliases pins GitHub
@@ -288,4 +328,17 @@ func TestLoad_AMergeFanOutPastTheMergeBoundIsRefusedForItsAliases(t *testing.T) 
 	assert.Nil(t, doc, "the document is refused")
 	require.Len(t, diags, 1, "%+v", diags)
 	assert.Equal(t, diag.AliasAmplification, diags[0].Code)
+}
+
+// inSource places a finding at a position of a table that read the source
+// alone: at's Provenance for its pointer.
+func inSource(at func(jsontext.Pointer) ir.Provenance) func(bind.Position) ir.Provenance {
+	return func(p bind.Position) ir.Provenance { return at(p.Pointer) }
+}
+
+// byDocument places a finding at a position of a table that read other
+// documents: Source is the number the table reads the position's document
+// under, which indexes Document.Sources in the order these tests read them.
+func byDocument(p bind.Position) ir.Provenance {
+	return ir.Provenance{Source: int(p.Doc), Pointer: p.Pointer}
 }

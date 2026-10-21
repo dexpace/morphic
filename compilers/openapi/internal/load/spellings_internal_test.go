@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/engine/reader"
 )
 
 // responsesSource is a source with count component responses, R0 to R<count-1>.
@@ -56,8 +57,8 @@ func holdBackRefs(t *testing.T, objects int, refs []backRef) (*soa.OpenAPI, []st
 		spellings[r.spelling] = spellingOf(dir, r.spelling)
 		fmt.Fprintf(&text, "x%d: {$ref: '%s#/components/responses/R%d'}\n", i, spellings[r.spelling], r.response)
 	}
-	tree, ok := parseTree([]byte(text.String()))
-	require.True(t, ok)
+	tree, err := parseTree([]byte(text.String()))
+	require.NoError(t, err)
 
 	pass.reader.holdSpellings(tree, filepath.Join(dir, "sub", "doc.yaml"))
 
@@ -174,12 +175,12 @@ func TestHold_ASecondResolutionHoldsWhatTheFirstDid(t *testing.T) {
 	path := filepath.Join(dir, "root.yaml")
 	_, pass := heldResolution(t, responsesSource(4), path)
 	scanned := spellingOf(dir, 100)
-	tree, ok := parseTree([]byte("x: {$ref: '" + scanned + "#/components/responses/R1'}\n"))
-	require.True(t, ok)
+	tree, err := parseTree([]byte("x: {$ref: '" + scanned + "#/components/responses/R1'}\n"))
+	require.NoError(t, err)
 	pass.reader.holdSpellings(tree, filepath.Join(dir, "sub", "doc.yaml"))
 	schemaOnly := spellingOf(dir, 101)
-	tree, ok = parseTree([]byte("y: {$ref: '" + schemaOnly + "#/components/schemas/S'}\n"))
-	require.True(t, ok)
+	tree, err = parseTree([]byte("y: {$ref: '" + schemaOnly + "#/components/schemas/S'}\n"))
+	require.NoError(t, err)
 	pass.reader.holdSpellings(tree, filepath.Join(dir, "sub", "doc.yaml"))
 	for i := range maxOpenedSpellings + 1 {
 		f, err := pass.reader.Open(spellingOf(dir, i))
@@ -188,8 +189,8 @@ func TestHold_ASecondResolutionHoldsWhatTheFirstDid(t *testing.T) {
 	}
 
 	again, _ := heldResolution(t, responsesSource(4), path)
-	reader := newExternal(again, Options{}, pass.reader.read)
-	reader.hold(t.Context(), Siblings{})
+	ext := newExternal(t.Context(), again, Options{}, pass.reader.read)
+	ext.hold(t.Context(), Siblings{})
 
 	held := func(key, response string) bool {
 		_, ok := again.GetCachedReferencedObject(key + "#/components/responses/" + response)
@@ -197,7 +198,7 @@ func TestHold_ASecondResolutionHoldsWhatTheFirstDid(t *testing.T) {
 	}
 	assert.True(t, held(scanned, "R1"), "what the scanned $ref names")
 	assert.False(t, held(scanned, "R2"), "and nothing more")
-	_, ok = again.GetCachedExternalDocument(schemaOnly)
+	_, ok := again.GetCachedExternalDocument(schemaOnly)
 	assert.True(t, ok, "the document under a spelling whose $ref names no held object")
 	assert.True(t, held(spellingOf(dir, 0), "R2"), "every object under a spelling Open held whole")
 	last := spellingOf(dir, maxOpenedSpellings)
@@ -227,7 +228,7 @@ func TestHold_EachBackReferenceReachesTheObjectItNamesThroughItsOwnSpelling(t *t
 	}
 
 	got, diags, err := Load(t.Context(), 0,
-		compilers.Source{Path: filepath.Join(dir, "root.yaml"), Data: []byte(spec.String())}, Options{AllowExternalRefs: true})
+		compilers.Source{Path: filepath.Join(dir, "root.yaml"), Data: []byte(spec.String())}, Options{Reader: reader.Disk{}})
 
 	require.NoError(t, err)
 	require.NotNil(t, got, "%+v", diags)

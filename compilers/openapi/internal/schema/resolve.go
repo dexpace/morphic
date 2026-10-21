@@ -12,6 +12,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
@@ -54,7 +55,7 @@ func schemaRefHomed(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, dep
 		// node's name even when a $ref interned the node there first (GitHub #372).
 		// It sits here rather than only at intern because a position whose node
 		// already exists resolves to it and returns before interning anything.
-		ts.NameFromDeclaration(string(pointer), hint)
+		ts.NameFromDeclaration(c.IDs().Coordinate(pointer), hint)
 	}
 	if js == nil {
 		return ts.PrimRef(ir.PrimAny), nil
@@ -118,7 +119,7 @@ func PreserveRefSiteKeywords(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled,
 	// GetSchema is nil-safe and yields nil for a boolean schema too, so the one
 	// check covers an absent position, a boolean one, and a caller passing nil.
 	s := js.GetSchema()
-	if s == nil || LoweredToOwnNode(ts, pointer, t) {
+	if s == nil || LoweredToOwnNode(c, ts, pointer, t) {
 		return nil
 	}
 	if !resolve.IsRefSite(js, s) {
@@ -170,14 +171,13 @@ func refTypeRef(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 }
 
 // unresolvedWhy is the reason the $ref at js reports when it resolves to no
-// type here: why its own hop lands on no schema (bind.Hop.Why), that it lands
-// in another document, which is not lowered (GitHub #74), or why the table
-// never read it (unreadWhy). It is empty for any other, a target declaring
-// nothing to lower. The position may well exist, so without it the report
-// reads as though it named nothing.
+// type here: why its own hop lands on no schema (bind.Hop.Why), or why the
+// table never read it (unreadWhy). It is empty for any other, a target
+// declaring nothing to lower. The position may well exist, so without it the
+// report reads as though it named nothing.
 func unresolvedWhy(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) string {
 	if e, ok := c.Bindings().Entry(js); ok {
-		return hopWhy(c.Bindings().Table(), e.Hop, e.Site)
+		return hopWhy(e.Hop)
 	}
 	return unreadWhy(c.Bindings(), js)
 }
@@ -188,7 +188,7 @@ func unresolvedWhy(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) stri
 // merge bound stopped the reading (bind.Table.Unread).
 func unreadWhy(refs *typed.Bindings, model any) string {
 	if site, ok := refs.Unplaced(model); ok {
-		return ": it is in what the reference at " + string(site) + " resolved to, which the compiler " +
+		return ": it is in what the reference at " + site + " resolved to, which the compiler " +
 			"cannot read where the parser placed it"
 	}
 	if why := refs.Table().Unread(); why != "" {
@@ -197,36 +197,38 @@ func unreadWhy(refs *typed.Bindings, model any) string {
 	return ""
 }
 
-// hopWhy is unresolvedWhy's reason for the hop h of a reference written at
-// site. A failure in another document's content names that document, since
-// the use site in the source says nothing of it.
-func hopWhy(table *bind.Table, h bind.Hop, site bind.Position) string {
-	switch {
-	case h.Status == bind.Resolved && !h.Named && h.Target.Doc == site.Doc:
-		return ": it names a position in the other document holding it, which is not lowered"
-	case h.Status == bind.Resolved && !h.Named:
-		return ": it names a schema in another document, which is not lowered"
-	case h.Status == bind.Resolved:
+// hopWhy is unresolvedWhy's reason for the hop h, or nothing for one that
+// resolved. It names no document: a finding about a reference is placed in
+// the document that writes it.
+func hopWhy(h bind.Hop) string {
+	if h.Status == bind.Resolved {
 		return ""
-	case site.Doc != bind.Source:
-		return ": in " + table.Document(site.Doc).Name + ", " + h.Why()
-	default:
-		return ": " + h.Why()
 	}
+	return ": " + h.Why()
 }
 
 // resolveSchemaRef resolves a schema-position $ref to an interned TypeID, never
 // synthesizing an ID that nothing backs. A top-level component keeps its stable
-// named ID; an already-interned target reuses it; an internal sub-schema the
-// $ref lands on is hoisted at its pointer-derived ID. It returns ok=false for a
-// $ref that lands on no schema in the source (resolve.Scope.TargetPointer) and
-// for a reference to an undeclared component.
+// named ID; an already-interned target reuses it; any other schema the $ref
+// lands on, in whichever document, is hoisted at its pointer-derived ID there.
+// It returns ok=false for a $ref that lands on no schema
+// (resolve.Scope.Target) and for a reference to an undeclared component.
 func resolveSchemaRef(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, js *oas3.JSONSchema[oas3.Referenceable]) (ir.TypeID, bool, []ir.Diagnostic) {
-	pointer, ok := c.RefScope().TargetPointer(js)
+	at, ok := c.RefScope().Target(js)
 	if !ok {
 		return "", false, nil
 	}
-	return resolvePointer(c, ts, anchors, depth, pointer, c.Bindings().Declared(js))
+	return resolveAt(c, ts, anchors, depth, at, c.Bindings().Declared(js))
+}
+
+// resolveAt is resolvePointer at a position of the bindings' table, read at
+// its own document's coordinates (lowering.InDocument).
+func resolveAt(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, at bind.Position, decl *oas3.JSONSchema[oas3.Referenceable]) (ir.TypeID, bool, []ir.Diagnostic) {
+	c, ok := lowering.InDocument(c, at.Doc)
+	if !ok {
+		return "", false, nil
+	}
+	return resolvePointer(c, ts, anchors, depth, at.Pointer, decl)
 }
 
 // resolvePointer resolves a same-document pointer to the ID of the schema it
@@ -237,10 +239,15 @@ func resolveSchemaRef(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, d
 // It is where a $ref and a discriminator mapping target meet once each has its
 // pointer: they differ only in how decl is found, so they cannot drift apart.
 func resolvePointer(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, pointer jsontext.Pointer, decl *oas3.JSONSchema[oas3.Referenceable]) (ir.TypeID, bool, []ir.Diagnostic) {
-	if id, resolved, handled := c.RefScope().ComponentRef(pointer); handled {
-		return id, resolved, nil
+	// The source's components alone are lowered whole and named by name;
+	// another document's are hoisted where a reference reaches them, as any
+	// other position of it is.
+	if c.IDs() == (ids.Document{}) {
+		if id, resolved, handled := c.RefScope().ComponentRef(pointer); handled {
+			return id, resolved, nil
+		}
 	}
-	if id, ok := resolve.InternedID(ts, pointer); ok {
+	if id, ok := resolve.InternedID(ts, c.IDs(), pointer); ok {
 		return id, true, nil
 	}
 	if decl == nil {
@@ -267,15 +274,14 @@ func hoistSubSchema(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, dep
 	// coordinate, not through the declaration that owns it, so the names minted
 	// below are placeholders the declaration replaces (GitHub #372). It covers the
 	// subtree rather than this coordinate alone: a reference to an object body
-	// interns its children too, and their names hang off this one. It is read
-	// where the bindings place decl, whichever document's content held the
-	// reference: the source's own, or another document's past a $ref the pointer
-	// passes.
-	c = c.InScope(c.RefScope().InDocumentOf(decl)).NamingByReference()
+	// interns its children too, and their names hang off this one. c reads the
+	// document that declares pointer already (resolveAt), which is where the
+	// bindings place decl.
+	c = c.NamingByReference()
 
 	hint := subSchemaHint(c.Bindings(), decl, pointer)
 	ref, diags := Ref(c, ts, anchors, depth, decl, pointer, hint)
-	if owned, ok := ts.Lookup(string(pointer)); ok {
+	if owned, ok := ts.Lookup(c.IDs().Coordinate(pointer)); ok {
 		return owned, true, diags
 	}
 	id, aliasDiags := internAlias(c, ts, s.Node, pointer, hint, ref)

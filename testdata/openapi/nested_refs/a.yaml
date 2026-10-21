@@ -1,0 +1,26 @@
+openapi: 3.1.0
+info: {title: Nested references A, version: "1"}
+paths:
+  /x:
+    get:
+      parameters:
+        - $ref: '#/components/parameters/Own'
+        - $ref: 'b.yaml#/components/parameters/Third'
+        - $ref: 'root.yaml#/components/parameters/Back'
+      responses:
+        "200": {$ref: 'b.yaml#/components/responses/R'}
+      callbacks:
+        again: {$ref: 'a.yaml#/components/callbacks/C'}
+components:
+  parameters:
+    Own:
+      name: own
+      in: query
+      schema: {type: object, properties: {o: {type: string}}}
+  callbacks:
+    C:
+      '{$request.body#/u}':
+        post:
+          callbacks:
+            again: {$ref: 'a.yaml#/components/callbacks/C'}
+          responses: {"200": {description: ok}}

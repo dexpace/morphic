@@ -9,9 +9,11 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/engine"
+	"github.com/dexpace/morphic/ir"
 )
 
 // concurrencyCorpus is the capability corpus the compiler's own conformance
@@ -94,6 +96,80 @@ func TestEngine_ConcurrentRunSharesOneEngine(t *testing.T) {
 			}
 		}
 	}
+}
+
+// TestEngine_ConcurrentRunDocumentSharesOneDocument runs the passes over each
+// corpus document from several goroutines at once, all handed the same decoded
+// document, and requires every result to match a lone run's and the shared
+// document to come out as it went in. Under -race it is what holds
+// RunDocument's claim that it reads the document and never writes it.
+func TestEngine_ConcurrentRunDocumentSharesOneDocument(t *testing.T) {
+	t.Parallel()
+	eng, err := engine.New()
+	require.NoError(t, err)
+	ctx := t.Context()
+	specs := corpusSpecs(t)
+
+	shared := make([]*ir.Document, len(specs))
+	before := make([]string, len(specs))
+	want := make([]string, len(specs))
+	for i, spec := range specs {
+		res, err := eng.Run(ctx, spec, engine.RunOptions{})
+		require.NoError(t, err)
+		require.NotNil(t, res.Document, "%s lowered no document", spec)
+		shared[i] = roundTrip(t, res.Document)
+		before[i] = marshalled(t, shared[i])
+		alone, err := eng.RunDocument(ctx, roundTrip(t, res.Document), engine.RunOptions{})
+		require.NoError(t, err)
+		want[i] = marshalled(t, alone.Document)
+	}
+
+	got := make([]workerRun, concurrentWorkers)
+	var wg sync.WaitGroup
+	for w := range concurrentWorkers {
+		wg.Go(func() {
+			got[w] = runDocuments(ctx, eng, shared, w)
+		})
+	}
+	wg.Wait()
+
+	for w, run := range got {
+		require.NoError(t, run.err, "worker %d", w)
+		require.Len(t, run.docs, len(specs), "worker %d", w)
+		for i, spec := range specs {
+			assert.Empty(t, cmp.Diff(want[i], run.docs[i]), "worker %d ran %s differently", w, filepath.Base(spec))
+		}
+	}
+	for i, spec := range specs {
+		assert.Empty(t, cmp.Diff(before[i], marshalled(t, shared[i])), "the shared %s changed", filepath.Base(spec))
+	}
+}
+
+// runDocuments runs the passes over every document through eng, starting at
+// offset so that workers are on different documents at any instant.
+func runDocuments(ctx context.Context, eng *engine.Engine, docs []*ir.Document, offset int) workerRun {
+	out := make([]string, len(docs))
+	for i := range docs {
+		j := (offset + i) % len(docs)
+		res, err := eng.RunDocument(ctx, docs[j], engine.RunOptions{})
+		if err != nil {
+			return workerRun{err: fmt.Errorf("document %d: %w", j, err)}
+		}
+		raw, err := json.Marshal(res.Document)
+		if err != nil {
+			return workerRun{err: fmt.Errorf("marshal document %d: %w", j, err)}
+		}
+		out[j] = string(raw)
+	}
+	return workerRun{docs: out}
+}
+
+// marshalled returns doc's JSON.
+func marshalled(t *testing.T, doc *ir.Document) string {
+	t.Helper()
+	raw, err := json.Marshal(doc)
+	require.NoError(t, err)
+	return string(raw)
 }
 
 // workerRun is one goroutine's sweep of the corpus: the marshalled document per

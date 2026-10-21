@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json/v2"
 	"errors"
-	"io"
 	"os"
 	"path/filepath"
 	"slices"
@@ -26,75 +25,6 @@ import (
 type failWriter struct{ err error }
 
 func (f failWriter) Write([]byte) (int, error) { return 0, f.err }
-
-// newlineFailWriter accepts a marshalled document but refuses the trailing
-// newline encodeDocument appends afterwards, to drive that write's own error
-// branch separately from a destination that refuses the document itself.
-type newlineFailWriter struct {
-	buf bytes.Buffer
-	err error
-}
-
-func (w *newlineFailWriter) Write(p []byte) (int, error) {
-	if string(p) == "\n" {
-		return 0, w.err
-	}
-	return w.buf.Write(p)
-}
-
-// closeFailWriteCloser accepts writes but fails Close, to drive writeCompiled's
-// f.Close error branch.
-type closeFailWriteCloser struct {
-	buf      bytes.Buffer
-	closeErr error
-}
-
-func (c *closeFailWriteCloser) Write(p []byte) (int, error) { return c.buf.Write(p) }
-func (c *closeFailWriteCloser) Sync() error                 { return nil }
-func (c *closeFailWriteCloser) Close() error                { return c.closeErr }
-
-// writeFailWriteCloser opens successfully but fails every Write, to drive
-// writeCompiled's write-then-close-then-return error branch (e.g. the disk
-// filling up mid-write, after outPath was already truncated by the open).
-type writeFailWriteCloser struct {
-	writeErr error
-	closed   bool
-}
-
-func (w *writeFailWriteCloser) Write([]byte) (int, error) { return 0, w.writeErr }
-func (w *writeFailWriteCloser) Sync() error               { return nil }
-
-func (w *writeFailWriteCloser) Close() error {
-	w.closed = true
-	return nil
-}
-
-// syncFailWriteCloser accepts writes but fails Sync, modelling a filesystem that
-// takes the bytes into cache and then cannot flush them (a full or failing
-// device), to drive fillTemp's sync branch.
-type syncFailWriteCloser struct {
-	buf     bytes.Buffer
-	syncErr error
-	closed  bool
-}
-
-func (s *syncFailWriteCloser) Write(p []byte) (int, error) { return s.buf.Write(p) }
-func (s *syncFailWriteCloser) Sync() error                 { return s.syncErr }
-
-func (s *syncFailWriteCloser) Close() error {
-	s.closed = true
-	return nil
-}
-
-// writeFailFile is a real file that has already been created (and so truncated)
-// but fails every Write, modelling the disk filling up after the destination was
-// opened — the exact sequence that used to destroy the previous output.
-type writeFailFile struct {
-	*os.File
-	writeErr error
-}
-
-func (w *writeFailFile) Write([]byte) (int, error) { return 0, w.writeErr }
 
 // nilDocCompiler claims openapi 3.1 and lowers to a nil Document with no error,
 // modelling a compiler that refuses to lower (e.g. an unsupported construct)
@@ -125,16 +55,6 @@ func (nilDocCompiler) Compile(context.Context, []compilers.Source, compilers.Opt
 		Code:     "openapi/unsupported-version",
 		Message:  "refused",
 	}}, nil
-}
-
-// badDoc returns an ir.Document that cannot be marshalled to JSON: its
-// Unmodeled holds an ir.RawValue with malformed bytes, which the encoder refuses
-// when it writes the value into the document.
-func badDoc() *ir.Document {
-	return &ir.Document{
-		Name:      "Bad",
-		Unmodeled: ir.Unmodeled{"openapi:x": {Value: ir.RawValue("{invalid")}},
-	}
 }
 
 func TestMain_ExitCode(t *testing.T) {
@@ -263,8 +183,8 @@ func readOnlyDirDest(t *testing.T) string {
 // refuses the write does not decide the exit code. A spec that reached the
 // --fail-on threshold exits 1 wherever -o pointed; only a run with nothing to
 // report at the threshold exits 2 for the write. Both destinations here are
-// refused for the same reason — replaceFile publishes by rename and their
-// directories will not take a temp file — which is also why -o /dev/null fails,
+// refused for the same reason — output.ReplaceDocument publishes by rename and
+// their directories will not take a temp file — which is also why -o /dev/null fails,
 // untestable here because a root /dev would take the temp file and the rename
 // would then replace /dev/null itself.
 func TestRun_CompileWriteFailureDoesNotMaskDiagnostics(t *testing.T) {
@@ -304,544 +224,6 @@ func TestRun_CompileWriteFailureDoesNotMaskDiagnostics(t *testing.T) {
 				"a failed write must not swallow the diagnostics it was reported alongside")
 		})
 	}
-}
-
-func TestSourcePath_Cases(t *testing.T) {
-	t.Parallel()
-	table := []ir.SourceInfo{{Path: "spec.yaml"}}
-	tests := []struct {
-		name    string
-		sources []ir.SourceInfo
-		source  int
-		want    string
-	}{
-		{"no table", nil, 0, ""},
-		{"negative index", table, -1, ""},
-		{"index past end", table, 1, ""},
-		{"valid index", table, 0, "spec.yaml"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			assert.Equal(t, tt.want, sourcePath(tt.sources, tt.source))
-		})
-	}
-}
-
-// TestRenderDiagnostics_WithAndWithoutSourcePath is the table over every shape
-// location renders: each of the three locators alone, the precedence between
-// them, a source with none of them, and a source index past the end of the
-// table — a producer bug, which location renders bare rather than guess at
-// (see location's doc comment). Whole lines are asserted, not fragments: the
-// location is what varies between rows, and a containment check on the
-// message alone would pass for a line that rendered the location wrongly or
-// fabricated one.
-func TestRenderDiagnostics_WithAndWithoutSourcePath(t *testing.T) {
-	t.Parallel()
-	sources := []ir.SourceInfo{{Path: "spec.yaml"}}
-
-	tests := []struct {
-		name string
-		prov ir.Provenance
-		want string
-	}{
-		{
-			name: "pointer",
-			prov: ir.Provenance{Source: 0, Pointer: "/paths/~1x"},
-			want: "error openapi/bad spec.yaml#/paths/~1x: m\n",
-		},
-		{
-			name: "root: a source with no locator prints the bare path, not a trailing #",
-			prov: ir.Provenance{Source: 0},
-			want: "error openapi/bad spec.yaml: m\n",
-		},
-		{
-			name: "position",
-			prov: ir.Provenance{Source: 0, Position: ir.Position{Line: 5, Column: 1}},
-			want: "error openapi/bad spec.yaml:5:1: m\n",
-		},
-		{
-			name: "the first line is a position like any other",
-			prov: ir.Provenance{Source: 0, Position: ir.Position{Line: 1, Column: 1}},
-			want: "error openapi/bad spec.yaml:1:1: m\n",
-		},
-		{
-			name: "line only: the producer knows no column",
-			prov: ir.Provenance{Source: 0, Position: ir.Position{Line: 5}},
-			want: "error openapi/bad spec.yaml:5: m\n",
-		},
-		{
-			name: "pointer and position together: the link leads and the pointer follows",
-			prov: ir.Provenance{Source: 0, Pointer: "/paths/~1x", Position: ir.Position{Line: 5, Column: 1}},
-			want: "error openapi/bad spec.yaml:5:1 (#/paths/~1x): m\n",
-		},
-		{
-			name: "pointer and a line alone",
-			prov: ir.Provenance{Source: 0, Pointer: "/paths/~1x", Position: ir.Position{Line: 5}},
-			want: "error openapi/bad spec.yaml:5 (#/paths/~1x): m\n",
-		},
-		{
-			name: "a node beside a source: the file is printed, not the node",
-			prov: ir.Provenance{Source: 0, Node: "op/x"},
-			want: "error openapi/bad spec.yaml: m\n",
-		},
-		{
-			name: "NoSource with a node prints the node bare",
-			prov: ir.Provenance{Source: ir.NoSource, Node: "op/x"},
-			want: "error openapi/bad op/x: m\n",
-		},
-		{
-			name: "an unresolvable source with a position prints the position bare",
-			prov: ir.Provenance{Source: 99, Position: ir.Position{Line: 9, Column: 7}},
-			want: "error openapi/bad 9:7: m\n",
-		},
-		{
-			name: "an unresolvable source with a pointer prints the pointer bare",
-			prov: ir.Provenance{Source: 99, Pointer: "/paths/~1x"},
-			want: "error openapi/bad /paths/~1x: m\n",
-		},
-		{
-			name: "an unresolvable source with both prints them bare",
-			prov: ir.Provenance{Source: 99, Pointer: "/paths/~1x", Position: ir.Position{Line: 9, Column: 7}},
-			want: "error openapi/bad 9:7 (#/paths/~1x): m\n",
-		},
-		{
-			name: "nothing at all prints no location",
-			prov: ir.Provenance{Source: ir.NoSource},
-			want: "error openapi/bad: m\n",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			res := &engine.Result{
-				Sources: sources,
-				Diagnostics: []ir.Diagnostic{
-					{Severity: ir.SeverityError, Code: "openapi/bad", Message: "m", Provenance: tt.prov},
-				},
-			}
-			var buf bytes.Buffer
-
-			renderDiagnostics(&buf, res)
-
-			assert.Equal(t, tt.want, buf.String())
-		})
-	}
-}
-
-// TestEncodeDocument_ErrorPaths pins that both output forms tell the same two
-// failures apart. Both now stream through json.MarshalWrite, which reports a
-// refusing destination and an unmarshallable document as one error either way,
-// so without the writer that records what the destination said, a disk
-// failure in either form would be reported as a marshal failure.
-func TestEncodeDocument_ErrorPaths(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name   string
-		w      io.Writer
-		doc    *ir.Document
-		indent bool
-		want   string
-	}{
-		{"indented, bad document", io.Discard, badDoc(), true, "marshal ir document"},
-		{"compact, bad document", io.Discard, badDoc(), false, "marshal ir document"},
-		{"indented, refusing destination",
-			failWriter{err: errors.New("disk gone")}, &ir.Document{Name: "ok"}, true, "write ir document"},
-		{"compact, refusing destination",
-			failWriter{err: errors.New("disk gone")}, &ir.Document{Name: "ok"}, false, "write ir document"},
-		{"indented, newline write fails",
-			&newlineFailWriter{err: errors.New("disk gone")}, &ir.Document{Name: "ok"}, true, "write ir document"},
-		{"compact, newline write fails",
-			&newlineFailWriter{err: errors.New("disk gone")}, &ir.Document{Name: "ok"}, false, "write ir document"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			err := encodeDocument(tt.w, tt.doc, tt.indent)
-
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), tt.want)
-		})
-	}
-}
-
-func TestWriteCompiled_CreateError(t *testing.T) {
-	t.Parallel()
-	badOut := filepath.Join(t.TempDir(), "no-such-dir", "ir.json")
-	err := writeCompiled(compileOptions{outPath: badOut}, io.Discard, &ir.Document{Name: "ok"})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "create output")
-}
-
-// swapCreateOutput installs fn as the temp-file creator for one test.
-func swapCreateOutput(t *testing.T, fn func(string, os.FileMode) (outputFile, error)) {
-	t.Helper()
-	orig := createOutput
-	t.Cleanup(func() { createOutput = orig })
-	createOutput = fn
-}
-
-func TestWriteCompiled_WriteErrorClosesFile(t *testing.T) {
-	wc := &writeFailWriteCloser{writeErr: errors.New("disk gone")}
-	swapCreateOutput(t, func(string, os.FileMode) (outputFile, error) { return wc, nil })
-
-	// doc marshals fine; the write to the temp file is what fails, exercising
-	// the close-and-return path.
-	err := writeCompiled(compileOptions{outPath: filepath.Join(t.TempDir(), "out.json")},
-		io.Discard, &ir.Document{Name: "ok"})
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "write ir document")
-	assert.True(t, wc.closed, "file must still be closed after a write error")
-}
-
-// TestWriteCompiled_WriteErrorPreservesDestination is the regression guard for a
-// failed run destroying the previous output: the bytes must go to a temp file, so
-// a mid-write failure leaves the existing destination byte-for-byte intact.
-func TestWriteCompiled_WriteErrorPreservesDestination(t *testing.T) {
-	out := filepath.Join(t.TempDir(), "ir.json")
-	const existing = `{"name":"Existing"}` + "\n"
-	require.NoError(t, os.WriteFile(out, []byte(existing), 0o644))
-
-	// The creator truncates whatever path it is handed, exactly as the os.Create
-	// this fix replaced did, and then fails the write. So if the code under test
-	// ever opens the destination directly, the old content is really gone and the
-	// assertion below really fires — the test cannot pass by using a fake that
-	// never touches the disk.
-	var opened string
-	swapCreateOutput(t, func(path string, perm os.FileMode) (outputFile, error) {
-		opened = path
-		f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm)
-		if err != nil {
-			return nil, err
-		}
-		return &writeFailFile{File: f, writeErr: errors.New("disk full")}, nil
-	})
-
-	err := writeCompiled(compileOptions{outPath: out}, io.Discard, &ir.Document{Name: "ok"})
-
-	require.Error(t, err)
-	assert.NotEqual(t, out, opened, "the write must go through a temp file, never the destination")
-	got, readErr := os.ReadFile(out)
-	require.NoError(t, readErr)
-	assert.Equal(t, existing, string(got), "a failed write must not disturb the previous output")
-}
-
-// TestWriteCompiled_MarshalErrorLeavesFileUntouched pins both halves of encoding
-// into the temp file instead of marshalling ahead of it: the temp file is
-// created before the document is known to marshal, and a document that does not
-// marshal must still leave nothing behind and leave the destination alone —
-// outPath is only ever reached by the rename.
-func TestWriteCompiled_MarshalErrorLeavesFileUntouched(t *testing.T) {
-	dir := t.TempDir()
-	out := filepath.Join(dir, "ir.json")
-	const existing = `{"name":"Existing"}` + "\n"
-	require.NoError(t, os.WriteFile(out, []byte(existing), 0o644))
-
-	created := 0
-	swapCreateOutput(t, func(path string, perm os.FileMode) (outputFile, error) {
-		created++
-		return os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, perm)
-	})
-
-	err := writeCompiled(compileOptions{outPath: out}, io.Discard, badDoc())
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "marshal ir document")
-	assert.Equal(t, 1, created,
-		"the document must be encoded into the temp file, not marshalled ahead of it")
-	got, readErr := os.ReadFile(out)
-	require.NoError(t, readErr)
-	assert.Equal(t, existing, string(got),
-		"a failed marshal must not truncate a file that already exists at outPath")
-	entries, readErr := os.ReadDir(dir)
-	require.NoError(t, readErr)
-	assert.Len(t, entries, 1, "a failed encode must leave no temp file beside the destination")
-}
-
-func TestWriteCompiled_CloseError(t *testing.T) {
-	wc := &closeFailWriteCloser{closeErr: errors.New("close failed")}
-	swapCreateOutput(t, func(string, os.FileMode) (outputFile, error) { return wc, nil })
-
-	err := writeCompiled(compileOptions{outPath: filepath.Join(t.TempDir(), "out.json")},
-		io.Discard, &ir.Document{Name: "ok"})
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "close output")
-	assert.NotEmpty(t, wc.buf.Bytes(), "document should have been written before close")
-}
-
-// TestWriteCompiled_ReplacesAtomically pins the success path end to end: the
-// destination gains the new bytes, keeps the mode it already had, and no temp
-// file is left beside it.
-func TestWriteCompiled_ReplacesAtomically(t *testing.T) {
-	t.Parallel()
-	dir := t.TempDir()
-	out := filepath.Join(dir, "ir.json")
-	require.NoError(t, os.WriteFile(out, []byte("stale\n"), 0o640))
-
-	require.NoError(t, writeCompiled(compileOptions{outPath: out}, io.Discard, &ir.Document{Name: "Fresh"}))
-
-	got, err := os.ReadFile(out)
-	require.NoError(t, err)
-	assert.Contains(t, string(got), `"Fresh"`)
-
-	info, err := os.Stat(out)
-	require.NoError(t, err)
-	assert.Equal(t, os.FileMode(0o640), info.Mode().Perm(),
-		"replacing a file must preserve the mode it already carried")
-
-	entries, err := os.ReadDir(dir)
-	require.NoError(t, err)
-	assert.Len(t, entries, 1, "no temp file may survive a successful write")
-}
-
-// The three tests below pin the behaviours publishing by rename gives up, all
-// documented on replaceFile. None is a bug: each is a way to reach the
-// destination's bytes other than through its own name, and honouring any of them
-// means writing in place, which is the truncation replaceFile exists to remove.
-// They are pinned so that changing one is a change to a stated contract rather
-// than silent drift.
-
-// TestWriteCompiled_ReadOnlyDirFails pins that writing needs permission on the
-// destination's directory, not merely on the destination. Truncating an existing
-// writable file in a read-only directory used to succeed.
-func TestWriteCompiled_ReadOnlyDirFails(t *testing.T) {
-	t.Parallel()
-	if os.Geteuid() == 0 {
-		t.Skip("root bypasses directory permission checks, so the write would succeed")
-	}
-	dir := t.TempDir()
-	out := filepath.Join(dir, "ir.json")
-	require.NoError(t, os.WriteFile(out, []byte("PREVIOUS\n"), 0o644))
-	require.NoError(t, os.Chmod(dir, 0o555))
-	// Restore write permission so t.TempDir's own cleanup can remove the tree.
-	t.Cleanup(func() { _ = os.Chmod(dir, 0o755) })
-
-	err := writeCompiled(compileOptions{outPath: out}, io.Discard, &ir.Document{Name: "Fresh"})
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "create output")
-	got, readErr := os.ReadFile(out)
-	require.NoError(t, readErr)
-	assert.Equal(t, "PREVIOUS\n", string(got),
-		"a destination that cannot be replaced must keep its previous content")
-}
-
-// TestWriteCompiled_SymlinkIsReplaced pins that a symlink destination is replaced
-// by a regular file rather than followed and written through, so its target
-// keeps its old content.
-func TestWriteCompiled_SymlinkIsReplaced(t *testing.T) {
-	t.Parallel()
-	dir := t.TempDir()
-	target := filepath.Join(dir, "target.json")
-	link := filepath.Join(dir, "link.json")
-	require.NoError(t, os.WriteFile(target, []byte("PREVIOUS\n"), 0o644))
-	require.NoError(t, os.Symlink(target, link))
-
-	require.NoError(t, writeCompiled(compileOptions{outPath: link}, io.Discard, &ir.Document{Name: "Fresh"}))
-
-	info, err := os.Lstat(link)
-	require.NoError(t, err)
-	assert.Zero(t, info.Mode()&os.ModeSymlink, "the symlink must be replaced, not followed")
-
-	got, err := os.ReadFile(link)
-	require.NoError(t, err)
-	assert.Contains(t, string(got), `"Fresh"`)
-
-	behind, err := os.ReadFile(target)
-	require.NoError(t, err)
-	assert.Equal(t, "PREVIOUS\n", string(behind),
-		"the symlink's former target must be left untouched")
-}
-
-// TestWriteCompiled_HardLinkIsBroken pins that other hard links to the destination
-// keep pointing at the old inode, and so keep the old content, instead of
-// observing the new bytes.
-func TestWriteCompiled_HardLinkIsBroken(t *testing.T) {
-	t.Parallel()
-	dir := t.TempDir()
-	out := filepath.Join(dir, "a.json")
-	other := filepath.Join(dir, "b.json")
-	require.NoError(t, os.WriteFile(out, []byte("PREVIOUS\n"), 0o644))
-	require.NoError(t, os.Link(out, other))
-
-	require.NoError(t, writeCompiled(compileOptions{outPath: out}, io.Discard, &ir.Document{Name: "Fresh"}))
-
-	got, err := os.ReadFile(out)
-	require.NoError(t, err)
-	assert.Contains(t, string(got), `"Fresh"`)
-
-	kept, err := os.ReadFile(other)
-	require.NoError(t, err)
-	assert.Equal(t, "PREVIOUS\n", string(kept),
-		"the other hard link must keep the old inode's content")
-}
-
-// TestWriteCompiled_NearLimitNameFails pins the one limitation that is a new
-// failure rather than a lost capability: the temp name is 21 characters longer
-// than the destination's own, so a basename within 21 of the filesystem's limit
-// cannot be written at all. A truncating write to the same path succeeded, which
-// the first half of this test establishes before the second half shows the
-// destination one character too long failing.
-func TestWriteCompiled_NearLimitNameFails(t *testing.T) {
-	t.Parallel()
-	dir := t.TempDir()
-
-	// nameMax is the POSIX floor every filesystem Morphic targets meets or
-	// exceeds; probing the real limit would make the test depend on the
-	// filesystem under /tmp.
-	const nameMax = 255
-	const tempOverhead = 21
-
-	writable := filepath.Join(dir, strings.Repeat("a", nameMax-tempOverhead)+".json")
-	require.NoError(t, os.WriteFile(writable, []byte("x"), 0o644),
-		"precondition: the filesystem must accept a name this long at all")
-	require.NoError(t, os.Remove(writable))
-
-	tooLong := filepath.Join(dir, strings.Repeat("a", nameMax-tempOverhead+1)+".json")
-	require.NoError(t, os.WriteFile(tooLong, []byte("PREVIOUS\n"), 0o644),
-		"precondition: a truncating write to this name succeeds")
-
-	err := writeCompiled(compileOptions{outPath: tooLong}, io.Discard, &ir.Document{Name: "Fresh"})
-
-	require.Error(t, err, "the temp name must not fit where the destination does")
-	assert.Contains(t, err.Error(), "create output")
-	got, readErr := os.ReadFile(tooLong)
-	require.NoError(t, readErr)
-	assert.Equal(t, "PREVIOUS\n", string(got),
-		"the destination must keep its previous content when the temp name will not fit")
-}
-
-func TestWriteCompiled_StatError(t *testing.T) {
-	t.Parallel()
-	// A regular file used as a parent directory makes Stat fail with ENOTDIR,
-	// which is an error but not "does not exist".
-	notDir := filepath.Join(t.TempDir(), "file")
-	require.NoError(t, os.WriteFile(notDir, []byte("x"), 0o644))
-
-	err := writeCompiled(compileOptions{outPath: filepath.Join(notDir, "ir.json")},
-		io.Discard, &ir.Document{Name: "ok"})
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "stat output")
-}
-
-func TestWriteCompiled_TempNameCollisionRetries(t *testing.T) {
-	var names []string
-	swapCreateOutput(t, func(path string, perm os.FileMode) (outputFile, error) {
-		names = append(names, path)
-		if len(names) == 1 {
-			return nil, os.ErrExist // first name taken; the loop must draw another
-		}
-		return os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, perm)
-	})
-
-	out := filepath.Join(t.TempDir(), "ir.json")
-	require.NoError(t, writeCompiled(compileOptions{outPath: out}, io.Discard, &ir.Document{Name: "ok"}))
-
-	require.Len(t, names, 2, "a taken temp name must be retried, not reused")
-	assert.NotEqual(t, names[0], names[1], "each attempt must draw a fresh name")
-}
-
-func TestWriteCompiled_TempNamesExhausted(t *testing.T) {
-	attempts := 0
-	swapCreateOutput(t, func(string, os.FileMode) (outputFile, error) {
-		attempts++
-		return nil, os.ErrExist
-	})
-
-	err := writeCompiled(compileOptions{outPath: filepath.Join(t.TempDir(), "ir.json")},
-		io.Discard, &ir.Document{Name: "ok"})
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "no unused temp name")
-	assert.Equal(t, maxTempAttempts, attempts, "the name search must be bounded")
-}
-
-// TestWriteCompiled_SyncErrorPreservesDestination drives the branch that makes the
-// rename safe to trust: a filesystem that accepts the bytes but cannot flush
-// them must abort before publishing, leaving the old destination whole. A sync
-// failure that fell through to the rename would publish a file whose contents a
-// crash could still lose, which is the loss this whole path exists to prevent.
-func TestWriteCompiled_SyncErrorPreservesDestination(t *testing.T) {
-	dir := t.TempDir()
-	out := filepath.Join(dir, "ir.json")
-	require.NoError(t, os.WriteFile(out, []byte("old\n"), 0o644))
-
-	f := &syncFailWriteCloser{syncErr: errors.New("sync refused")}
-	swapCreateOutput(t, func(string, os.FileMode) (outputFile, error) { return f, nil })
-
-	err := writeCompiled(compileOptions{outPath: out}, io.Discard, &ir.Document{Name: "ok"})
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "sync output")
-	assert.True(t, f.closed, "a failed sync must still close the temp file")
-	got, readErr := os.ReadFile(out)
-	require.NoError(t, readErr)
-	assert.Equal(t, "old\n", string(got), "a failed sync must not disturb the destination")
-	entries, readErr := os.ReadDir(dir)
-	require.NoError(t, readErr)
-	assert.Len(t, entries, 1, "a failed sync must leave no temp file beside the destination")
-}
-
-func TestWriteCompiled_ChmodError(t *testing.T) {
-	out := filepath.Join(t.TempDir(), "ir.json")
-	require.NoError(t, os.WriteFile(out, []byte("old\n"), 0o644))
-
-	origChmod := chmodOutput
-	t.Cleanup(func() { chmodOutput = origChmod })
-	chmodOutput = func(string, os.FileMode) error { return errors.New("chmod refused") }
-
-	err := writeCompiled(compileOptions{outPath: out}, io.Discard, &ir.Document{Name: "ok"})
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "chmod output")
-	got, readErr := os.ReadFile(out)
-	require.NoError(t, readErr)
-	assert.Equal(t, "old\n", string(got), "a failed chmod must not disturb the destination")
-}
-
-func TestWriteCompiled_RenameError(t *testing.T) {
-	dir := t.TempDir()
-	out := filepath.Join(dir, "ir.json")
-
-	origRename := renameOutput
-	t.Cleanup(func() { renameOutput = origRename })
-	renameOutput = func(string, string) error { return errors.New("rename refused") }
-
-	err := writeCompiled(compileOptions{outPath: out}, io.Discard, &ir.Document{Name: "ok"})
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "replace output")
-	entries, readErr := os.ReadDir(dir)
-	require.NoError(t, readErr)
-	assert.Empty(t, entries, "a failed rename must remove the temp file it left behind")
-}
-
-func TestWriteCompiled_ToStdoutSuccess(t *testing.T) {
-	t.Parallel()
-	var buf bytes.Buffer
-	require.NoError(t, writeCompiled(compileOptions{}, &buf, &ir.Document{Name: "ok"}))
-	assert.True(t, bytes.HasSuffix(buf.Bytes(), []byte("\n")))
-}
-
-// TestWriteCompiled_ToStdoutWritesNothingForABadDocument pins that stdout gets a
-// whole document or nothing. The description runs past the encoder's internal
-// buffer, so an encoder writing straight to stdout would already have flushed
-// part of the document there by the time it reaches the malformed payload.
-func TestWriteCompiled_ToStdoutWritesNothingForABadDocument(t *testing.T) {
-	t.Parallel()
-	doc := badDoc()
-	doc.Docs.Description = strings.Repeat("x", 64<<10)
-	var stdout bytes.Buffer
-	err := writeCompiled(compileOptions{}, &stdout, doc)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "marshal ir document")
-	assert.Empty(t, stdout.String(), "a document that will not marshal must leave stdout empty")
 }
 
 // danglingDocCompiler lowers to a Document with a dangling type ref and no
@@ -899,6 +281,61 @@ func TestRun_PassFlagsSilenceTheValidatePass(t *testing.T) {
 			assert.Equal(t, tt.want, code, "%v: stderr %q", args, stderr.String())
 			assert.Equal(t, tt.want == exitFindings, strings.Contains(stderr.String(), "ir/dangling-type-ref"),
 				"%v: stderr %q", args, stderr.String())
+		}
+	}
+}
+
+// firstWriteFails refuses its first write and keeps every write after it, so
+// a test can fail the diagnostics and still read what the run reported about
+// that.
+type firstWriteFails struct {
+	refused bool
+	text    bytes.Buffer
+}
+
+func (w *firstWriteFails) Write(p []byte) (int, error) {
+	if !w.refused {
+		w.refused = true
+		return 0, errors.New("pipe closed")
+	}
+	return w.text.Write(p)
+}
+
+// TestRun_DiagnosticsWriteFailureEndsTheRun pins that a stderr refusing the
+// diagnostics fails the run as a refused document does, on both commands: exit
+// 2 when the verdict earned 0, the verdict's own code otherwise, and the reason
+// reported after it. compile then writes no document, so nothing is published
+// beside findings nobody saw. A spec with no findings never asks the stream.
+func TestRun_DiagnosticsWriteFailureEndsTheRun(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		spec string
+		want int
+	}{
+		{"a finding below the threshold", warnSpec, exitFailure},
+		{"a finding at the threshold", errSpec, exitFindings},
+		{"no findings", testspec.Tiny, 0},
+	}
+	for _, command := range []string{"compile", "validate"} {
+		for _, tt := range tests {
+			t.Run(command+"/"+tt.name, func(t *testing.T) {
+				t.Parallel()
+				spec := writeFile(t, "spec.yaml", tt.spec)
+				var stdout bytes.Buffer
+				stderr := &firstWriteFails{}
+
+				code := run([]string{command, spec}, &stdout, stderr)
+
+				assert.Equal(t, tt.want, code, "stderr: %s", stderr.text.String())
+				if tt.want == 0 {
+					assert.False(t, stderr.refused, "a run with no findings writes no diagnostic")
+					assert.Equal(t, command == "compile", stdout.Len() > 0, "compile writes its document as usual")
+					return
+				}
+				assert.Equal(t, "morphic: write diagnostics: pipe closed\n", stderr.text.String())
+				assert.Empty(t, stdout.String(), "no document follows findings that were not reported")
+			})
 		}
 	}
 }

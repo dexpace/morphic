@@ -590,7 +590,7 @@ func assertSchemaIdentifiers(t *testing.T, doc *ir.Document, diags []ir.Diagnost
 	for model, props := range map[string]map[string]ir.TypeID{
 		"Pet": {"owner": namedID("Person"), "tag": namedID("Tag"), "address": namedID("Address")},
 		"Address": {"country": namedID("Country"), "next": namedID("Address"),
-			"zip": ids.ForPointer("/components/schemas/Address/$defs/zip")},
+			"zip": ids.Document{}.ForPointer("/components/schemas/Address/$defs/zip")},
 	} {
 		m, ok := doc.Types[namedID(model)].(*ir.Model)
 		require.True(t, ok, model)
@@ -600,7 +600,7 @@ func assertSchemaIdentifiers(t *testing.T, doc *ir.Document, diags []ir.Diagnost
 			assert.Equal(t, want, p.Type.Target, "%s.%s", model, wire)
 		}
 	}
-	zip, ok := doc.Types[ids.ForPointer("/components/schemas/Address/$defs/zip")].(*ir.Scalar)
+	zip, ok := doc.Types[ids.Document{}.ForPointer("/components/schemas/Address/$defs/zip")].(*ir.Scalar)
 	require.True(t, ok, "the definition a pointer under the $id names lowers where it is written")
 	require.NotNil(t, zip.Constraints)
 	assert.Equal(t, "^[0-9]{5}$", zip.Constraints.Pattern)

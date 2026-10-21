@@ -216,9 +216,10 @@ func partEncodings(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInde
 	// keys align with that model's property IDs (invariant 2/3). Asking the IR is
 	// what keeps this in step with schemaOf, which reads the end of a $ref chain
 	// while a pointer cut from the ref string names only its first hop.
-	schemaPtr, ok := bodyModelPointer(ts, body)
+	model, ok := bodyModel(ts, body)
+	doc, schemaPtr := lowering.IDsAt(c, model.Source), model.Pointer
 	if !ok {
-		schemaPtr = bodySchemaPointer(c, media.GetSchema(), mediaPtr+ids.Ptr("schema"))
+		doc, schemaPtr = bodySchemaPointer(c, media.GetSchema(), mediaPtr+ids.Ptr("schema"))
 	}
 	var diags []ir.Diagnostic
 	var unmodeled ir.Unmodeled
@@ -234,7 +235,7 @@ func partEncodings(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInde
 		if partEncodingEmpty(pe) {
 			continue
 		}
-		out[partPropID(ts, body, part.name, schemaPtr)] = pe
+		out[partPropID(ts, doc, body, part.name, schemaPtr)] = pe
 	}
 	if len(out) == 0 {
 		return nil, unmodeled, diags
@@ -299,18 +300,18 @@ func dedupeParts(parts []bodyPart) []bodyPart {
 }
 
 // partPropID returns the ID of the property carrying the given wire name on the
-// model body stands for, falling back to deriving one under schemaPtr.
+// model body stands for, falling back to deriving one under schemaPtr in d.
 //
 // The IR is asked first because §4.3 stores only a model's own properties: a
 // composed body holds its parts on the Base it inherits them from, so a key
 // derived from the composed node's pointer would name a property that exists
 // nowhere. Deriving is the answer for a body with no model in the IR, such as a
 // schema declaring properties beside an enum or scalar type.
-func partPropID(ts *compile.Types, body ir.TypeID, wire string, schemaPtr jsontext.Pointer) ir.PropID {
+func partPropID(ts *compile.Types, d ids.Document, body ir.TypeID, wire string, schemaPtr jsontext.Pointer) ir.PropID {
 	if id, ok := propIDByWire(ts, body, wire, 0); ok {
 		return id
 	}
-	return ids.Prop(schemaPtr + ids.Ptr("properties", wire))
+	return d.Prop(schemaPtr + ids.Ptr("properties", wire))
 }
 
 // propIDByWire searches the type body denotes for a property with the given wire
@@ -474,11 +475,11 @@ func lowerHeaders(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex
 	out := make([]ir.Property, 0, headers.Len())
 	for name, rh := range headers.All() {
 		hptr := basePtr + ids.Ptr("headers", name)
-		h, hdecl := resolve.ObjectAt[soa.Header](c.RefScope(), rh, hptr)
+		h, dc, hdecl := lowering.Declared[soa.Header](c, rh, hptr)
 		if h == nil {
 			continue
 		}
-		p, headerDiags := lowerHeader(lowering.Within[soa.Header](c, rh), ts, anchors, h, name, hptr, hdecl)
+		p, headerDiags := lowerHeader(c, dc, ts, anchors, h, name, hptr, hdecl)
 		diags = append(diags, headerDiags...)
 		diags = append(diags, reservedHeaderEntryDiag(c, name, hptr)...)
 		// A summary or description beside a $ref of the entry's chain documents
@@ -515,18 +516,19 @@ func reservedHeaderEntryDiag(c lowering.Ctx, name string, hptr jsontext.Pointer)
 // docs, constraints, xml, examples and validation-only keywords the same way,
 // and ir.Property has a field for each, so the header path had no reason to drop
 // them (GitHub #116).
-func lowerHeader(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, h *soa.Header, name string, hptr, hdecl jsontext.Pointer) (ir.Property, []ir.Diagnostic) {
-	elected, diags := electTypeSpelling(c, h.GetSchema(), h.GetContent(), h.GetRootNode(), hdecl,
+func lowerHeader(c, dc lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, h *soa.Header, name string, hptr, hdecl jsontext.Pointer) (ir.Property, []ir.Diagnostic) {
+	elected, diags := electTypeSpelling(dc, h.GetSchema(), h.GetContent(), h.GetRootNode(), hdecl,
 		"header", "ir.Property")
-	// name is this entry's map key, which names the shared node after this mount
-	// when the header is declared under another response (GitHub #433). A
-	// component header has no owning response, so a schema's $ref into it leaves
-	// the subtree named by that reference (GitHub #747).
-	headerType, headerDiags := schema.CarriedRef(c.NamingByReferenceAt(hptr, hdecl), ts, anchors,
-		schema.TopLevelDepth, elected.js, elected.pointer, ids.DeclarationHint(hdecl, name))
+	// The schema is named after the key the header is declared under, which is
+	// name where this entry declares it. A key another entry $refs it under
+	// names no shared node: whichever mount lowered first would choose it
+	// (GitHub #433). A component header has no owning response, so a schema's
+	// $ref into it leaves the subtree named by that reference (GitHub #747).
+	headerType, headerDiags := schema.CarriedRef(lowering.NamingByReferenceAt(c, dc, hptr, hdecl), ts, anchors,
+		schema.TopLevelDepth, elected.js, elected.pointer, ids.DeclarationHint(hdecl, hdecl.LastToken()))
 	diags = append(diags, headerDiags...)
 	p := ir.Property{
-		ID:         ids.Prop(hptr),
+		ID:         c.IDs().Prop(hptr),
 		Name:       compile.NamingFor(name),
 		WireName:   name,
 		Type:       headerType,
@@ -541,9 +543,9 @@ func lowerHeader(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex,
 		// spelling keeps.
 		p.Encoding = &ir.Encoding{MediaType: elected.mediaType}
 	}
-	diags = append(diags, schema.FillPropertyDetail(c, ts, anchors, &p, elected.js, elected.pointer)...)
-	diags = append(diags, applyHeaderAnnotations(c, &p, h, hdecl, elected.examples)...)
-	return p, append(diags, preserveHeaderSerialization(c, &p, h, hdecl)...)
+	diags = append(diags, schema.FillPropertyDetail(dc, ts, anchors, &p, elected.js, elected.pointer)...)
+	diags = append(diags, applyHeaderAnnotations(dc, &p, h, hdecl, elected.examples)...)
+	return p, append(diags, preserveHeaderSerialization(dc, &p, h, hdecl)...)
 }
 
 // preserveHeaderSerialization keeps the two serialization controls a header
@@ -809,12 +811,12 @@ func appendPluralExample(c lowering.Ctx, out []ir.Example, re *soa.ReferencedExa
 	// keywords are written: a $ref entry holds none of them. ir.Example carries an
 	// Unmodeled map, so neither the object's x-* nor its undeclared keys need a
 	// scope.
-	ex, decl := resolve.ObjectAt[soa.Example](c.RefScope(), re, pointer+ids.Ptr("examples", name))
+	ex, dc, decl := lowering.Declared[soa.Example](c, re, pointer+ids.Ptr("examples", name))
 	if ex == nil {
 		return out, nil
 	}
-	ext, diags := schema.ExtensionsOf(c, ex.GetExtensions(), decl)
-	diags = append(diags, annotation.UnknownKeysIn(&ext, ex, c.ProvenanceAt, decl)...)
+	ext, diags := schema.ExtensionsOf(dc, ex.GetExtensions(), decl)
+	diags = append(diags, annotation.UnknownKeysIn(&ext, ex, dc.ProvenanceAt, decl)...)
 	// A summary or description beside a $ref of the entry's chain documents this
 	// use of the example (GitHub #610).
 	docs := resolve.UseDocs[soa.Example](re, ir.Docs{Summary: ex.GetSummary(), Description: ex.GetDescription()})
@@ -825,7 +827,7 @@ func appendPluralExample(c lowering.Ctx, out []ir.Example, re *soa.ReferencedExa
 		ExternalURL: ex.GetExternalValue(),
 		Unmodeled:   ext,
 	}
-	out, exDiags := appendExampleValue(c, out, proto, ex, re, pointer, decl, name)
+	out, exDiags := appendExampleValue(c, dc, out, proto, ex, re, pointer, decl, name)
 	return out, append(diags, exDiags...)
 }
 
@@ -836,16 +838,16 @@ func appendPluralExample(c lowering.Ctx, out []ir.Example, re *soa.ReferencedExa
 // 3.2's `serializedValue` whatever it is written beside, and a `dataValue`
 // written beside `value`, which the parser reports. An entry with no value in
 // any spelling is an empty stub, dropped with a warning.
-func appendExampleValue(c lowering.Ctx, out []ir.Example, proto ir.Example, ex *soa.Example,
+func appendExampleValue(c, dc lowering.Ctx, out []ir.Example, proto ir.Example, ex *soa.Example,
 	re *soa.ReferencedExample, pointer, decl jsontext.Pointer, name string,
 ) ([]ir.Example, []ir.Diagnostic) {
-	serialized, diags := keepExampleSpelling(c, &proto.Unmodeled, ex.GetCore().SerializedValue.ValueNode,
+	serialized, diags := keepExampleSpelling(dc, &proto.Unmodeled, ex.GetCore().SerializedValue.ValueNode,
 		"serializedValue", ir.ReasonNoIRHome, decl, "serializedValue has no ir.Example home")
 	value, data := ex.GetValue(), ex.GetDataValue()
 	switch {
 	case value != nil:
 		if data != nil {
-			_, dataDiags := keepExampleSpelling(c, &proto.Unmodeled, data, "dataValue",
+			_, dataDiags := keepExampleSpelling(dc, &proto.Unmodeled, data, "dataValue",
 				ir.ReasonDegradedLowering, decl, "dataValue is written beside value, which lowered")
 			diags = append(diags, dataDiags...)
 		}
@@ -903,24 +905,28 @@ func keepExampleSpelling(c lowering.Ctx, u *ir.Unmodeled, node *yaml.Node, keywo
 // reference and leaves the owning operation to settle it (GitHub #433).
 func lowerRequestBody(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, op *ir.Operation, hb *ir.HTTPBinding, src *soa.Operation, opDeclPtr jsontext.Pointer) []ir.Diagnostic {
 	usePtr := opDeclPtr + ids.Ptr("requestBody")
-	rb, bodyPtr := resolve.ObjectAt[soa.RequestBody](c.RefScope(), src.GetRequestBody(), usePtr)
+	rb, dc, bodyPtr := lowering.Declared[soa.RequestBody](c, src.GetRequestBody(), usePtr)
 	if rb == nil {
 		return nil
 	}
-	c = lowering.Within[soa.RequestBody](c, src.GetRequestBody())
-	// requestBodyHint spells this operation's ID, which names the shared node
-	// after this mount when the body is declared under another operation. Marking
-	// the lowering lets that operation's own pass replace the placeholder, in
-	// whichever order the two run (GitHub #433). A component body has no owning
-	// operation, so a schema's $ref into it leaves the subtree named by that
-	// reference (GitHub #747).
-	payload, diags := lowerPayload(c.NamingByReferenceAt(usePtr, bodyPtr), ts, anchors, rb.GetContent(),
-		bodyPtr, ids.DeclarationHint(bodyPtr, requestBodyHint(src)))
+	// A body this operation declares is named after it (requestBodyHint). One
+	// declared elsewhere is named for its declaration: a component's name, or
+	// else a name no mount spells, since whichever lowered first would choose
+	// it. Marking the lowering lets an operation declaring the body replace that
+	// placeholder with its own, in either order (GitHub #433). A component body
+	// has no owning operation, so a schema's $ref into it leaves the subtree
+	// named by that reference (GitHub #747).
+	hint := requestBodyHint(src)
+	if bodyPtr != usePtr || dc.IDs() != c.IDs() {
+		hint = elsewhereBodyHint
+	}
+	payload, diags := lowerPayload(lowering.NamingByReferenceAt(c, dc, usePtr, bodyPtr), ts, anchors, rb.GetContent(),
+		bodyPtr, ids.DeclarationHint(bodyPtr, hint))
 	if payload == nil {
 		// A body lowering no media type is still the body: whether it must be
 		// sent, its description and its x-* stay on a Payload with no Contents.
 		payload = &ir.Payload{}
-		diags = append(diags, emptyContentDiags(c, rb, bodyPtr)...)
+		diags = append(diags, emptyContentDiags(dc, rb, bodyPtr)...)
 	}
 	// A Request Body Object's description documents the body rather than any
 	// one media type in it (GitHub #609), and a summary or description beside a
@@ -929,10 +935,10 @@ func lowerRequestBody(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorI
 	payload.Required = new(rb.GetRequired())
 	// soa.RequestBody exposes no GetExtensions at this library version, so the
 	// field is read directly — as XMLHints already reads its own.
-	bodyExt, bodyExtDiags := schema.ExtensionsOf(c, rb.Extensions, bodyPtr)
+	bodyExt, bodyExtDiags := schema.ExtensionsOf(dc, rb.Extensions, bodyPtr)
 	payload.Unmodeled = annotation.MergeUnmodeled(payload.Unmodeled, bodyExt)
 	diags = append(diags, bodyExtDiags...)
-	diags = append(diags, annotation.UnknownKeysIn(&payload.Unmodeled, rb, c.ProvenanceAt, bodyPtr)...)
+	diags = append(diags, annotation.UnknownKeysIn(&payload.Unmodeled, rb, dc.ProvenanceAt, bodyPtr)...)
 	op.Request = payload
 	hb.RequestContentTypes = contentTypeKeys(rb.GetContent())
 	return diags
@@ -959,13 +965,17 @@ func contentTypeKeys(content *sequencedmap.Map[string, *soa.MediaType]) []string
 }
 
 // requestBodyHint derives an anonymous-type naming hint for a request body from
-// the operationId, falling back to "request".
+// the operationId, falling back to elsewhereBodyHint.
 func requestBodyHint(src *soa.Operation) string {
 	if id := src.GetOperationID(); id != "" {
 		return id + "_request"
 	}
-	return "request"
+	return elsewhereBodyHint
 }
+
+// elsewhereBodyHint names a request body no operationId names: one declared by
+// an operation that has none, or anywhere but at the operation using it.
+const elsewhereBodyHint = "request"
 
 // splitContentTypes splits an encoding contentType value on "," into trimmed,
 // non-empty media types.
@@ -1038,59 +1048,61 @@ func schemaOf(refs *typed.Bindings, js *oas3.JSONSchema[oas3.Referenceable]) *oa
 	return s
 }
 
-// maxBodyAliasHops bounds the alias chain bodyModelPointer follows (styleguide
+// maxBodyAliasHops bounds the alias chain bodyModel follows (styleguide
 // bounded-everything rule). A loop of $refs lowers to no alias chain, so only
 // an absurdly long one reaches it.
 const maxBodyAliasHops = 64
 
-// bodyModelPointer returns the pointer the model behind body was interned at,
-// following the alias scalars a $ref-with-siblings position hoists to reach it.
-// That pointer is the one whose /properties/<name> children minted the model's
-// PropIDs, so an encoding key derived from it addresses a property that exists.
+// bodyModel returns where the model behind body was interned, its document
+// and pointer, following the alias scalars a $ref-with-siblings position
+// hoists to reach it. That pointer, in that document, is the one whose
+// /properties/<name> children minted the model's PropIDs, so an encoding key
+// derived from it addresses a property that exists.
 //
 // It reports ok=false for a body that stands for no model at all — a primitive,
 // an enum, an opaque scalar — where no pointer would name a property either.
-func bodyModelPointer(ts *compile.Types, body ir.TypeID) (jsontext.Pointer, bool) {
+func bodyModel(ts *compile.Types, body ir.TypeID) (ir.Provenance, bool) {
 	id := body
 	for range maxBodyAliasHops {
 		td, found := ts.Node(id)
 		if !found {
-			return "", false
+			return ir.Provenance{}, false
 		}
 		switch t := td.(type) {
 		case *ir.Model:
-			return t.Provenance.Pointer, true
+			return t.Provenance, true
 		case *ir.Scalar:
 			if t.Base == nil {
-				return "", false
+				return ir.Provenance{}, false
 			}
 			id = t.Base.Target
 		default:
-			return "", false
+			return ir.Provenance{}, false
 		}
 	}
-	return "", false
+	return ir.Provenance{}, false
 }
 
-// bodySchemaPointer returns the pointer partEncodings keys encoding entries by
-// when the body has no model in the IR (bodyModelPointer): the ref target's,
-// when resolve.Scope.InternalPointer reads one from the media schema's $ref,
-// else localPtr. Such a schema declares properties beside a contradictory
-// `enum` or scalar `type`, so no property was interned under this pointer and
-// the keys address none (see preserveUnhomedKeywords).
-//
-// InternalPointer refuses a ref into another document, whose fragment would
-// otherwise become an identity in this one and name whichever local schema
-// shared the path, and a non-UTF-8 fragment, which no PropID can carry (GitHub
-// #520). localPtr applies in both cases.
-func bodySchemaPointer(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable], localPtr jsontext.Pointer) jsontext.Pointer {
+// bodySchemaPointer returns the document and pointer partEncodings keys
+// encoding entries by when the body has no model in the IR (bodyModel): where
+// the media schema's $ref places what it names (resolve.Scope.Target), in
+// whichever document, else localPtr in c's. Such a schema declares properties
+// beside a contradictory `enum` or scalar `type`, so no property was interned
+// under this pointer and the keys address none (see preserveUnhomedKeywords).
+func bodySchemaPointer(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable], localPtr jsontext.Pointer,
+) (ids.Document, jsontext.Pointer) {
 	if js == nil || !resolve.IsRefSite(js, js.GetSchema()) {
-		return localPtr
+		return c.IDs(), localPtr
 	}
-	if pointer, ok := c.RefScope().TargetPointer(js); ok {
-		return pointer
+	at, ok := c.RefScope().Target(js)
+	if !ok {
+		return c.IDs(), localPtr
 	}
-	return localPtr
+	in, ok := lowering.InDocument(c, at.Doc)
+	if !ok {
+		return c.IDs(), localPtr
+	}
+	return in.IDs(), at.Pointer
 }
 
 // partEncodingEmpty reports whether a PartEncoding carries no information and can

@@ -1,7 +1,6 @@
 package bind
 
 import (
-	"encoding/json/jsontext"
 	"slices"
 	"strconv"
 
@@ -32,15 +31,15 @@ type frame struct {
 }
 
 // finder finds the positions a table answers for: the schema sites, the
-// discriminator mapping values, the landings, and where each of the source's
-// reference objects resolves to, walking each root as it is noted, and, in
-// the source's own walk, the identifiers its schemas declare. It keeps what it
-// has found, and which of that is new since the table last settled.
+// discriminator mapping values, the landings, and where each reference object
+// resolves to, walking each root as it is noted, and, in the source's own
+// walk, the identifiers its schemas declare. It keeps what it has found, and
+// which of that is new since the table last settled.
 type finder struct {
 	docs          *docs
 	ids           *identifiers
 	work          *budget
-	ends          map[jsontext.Pointer]Position
+	ends          map[Position]Position
 	sites         map[Position]bool
 	mappingSites  map[mappingKey]bool
 	fresh         []Position
@@ -52,7 +51,7 @@ type finder struct {
 
 // newFinder returns a finder over docs that has found nothing.
 func newFinder(d *docs, work *budget) *finder {
-	return &finder{docs: d, ids: newIdentifiers(d.documentResource(Source)), work: work, ends: map[jsontext.Pointer]Position{},
+	return &finder{docs: d, ids: newIdentifiers(d.documentResource(Source)), work: work, ends: map[Position]Position{},
 		sites: map[Position]bool{}, mappingSites: map[mappingKey]bool{}, landings: map[Position]bool{},
 		covered: map[root]bool{}}
 }
@@ -112,9 +111,9 @@ func (w *finder) visit(n *yaml.Node, f frame) {
 			w.fresh = append(w.fresh, f.at)
 		}
 		w.mappingsOf(n, f.at)
-	case referenceKinds[f.state] && f.at.Doc == Source:
+	case referenceKinds[f.state]:
 		if r, reason := w.docs.through(reading{at: f.at, node: n, state: f.state}, 0); reason == NoReason && r.at != f.at {
-			w.ends[f.at.Pointer] = r.at
+			w.ends[f.at] = r.at
 			w.pending = append(w.pending, root{at: r.at, state: f.state})
 		}
 	}
@@ -193,7 +192,7 @@ func (w *finder) walkPending() bool {
 	roots := w.pending
 	w.pending = nil
 	slices.SortFunc(roots, func(x, y root) int {
-		if c := comparePositions(x.at, y.at); c != 0 {
+		if c := w.docs.compare(x.at, y.at); c != 0 {
 			return c
 		}
 		return int(x.state) - int(y.state)
@@ -230,13 +229,12 @@ func (b *binder) mapping(k mappingKey) Mapping {
 	}
 	b.find.landed(m.Hop)
 	if !b.holdsRef(m.Hop.Target) {
-		m.Chain = Chain{Status: Resolved, End: m.Hop.Target, Role: m.Hop.Role, Hops: 1, Named: m.Hop.Named}
+		m.Chain = Chain{Status: Resolved, End: m.Hop.Target, Role: m.Hop.Role, Hops: 1}
 		return m
 	}
 	m.Chain = b.chain(m.Hop.Target)
 	if m.Chain.Status == Resolved {
 		m.Chain.Hops++
-		m.Chain.Named = m.Chain.Named && m.Hop.Named
 	}
 	return m
 }

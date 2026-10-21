@@ -74,14 +74,32 @@ func (b *binder) named(in resource, uri string) (resource, Reason, string) {
 	case why == DuplicateID || in.id && !absolute(uri):
 		return resource{}, why, key
 	}
+	return b.opened(in, uri)
+}
+
+// opened is the resource of the document uri, written in the resource in,
+// names, read through Config.Open, or why it is not read: Config.Refuse
+// refuses that spelling, it names no document, or the read failed. An
+// identifier is never refused, since no document is read for one.
+func (b *binder) opened(in resource, uri string) (resource, Reason, string) {
+	if refuse := b.docs.cfg.Refuse; refuse != nil {
+		if err := refuse(uri); err != nil {
+			return resource{}, Unreadable, err.Error()
+		}
+	}
 	name, ok := b.docs.locate(uri, in.uri)
 	if !ok {
 		return resource{}, Unreadable, "it names no document a reference can"
 	}
 	id, err := b.docs.open(name)
+	var unparsable *UnparsableError
 	switch {
 	case errors.Is(err, errNotRead):
 		return resource{}, ExternalOff, ""
+	case errors.As(err, &unparsable):
+		return resource{}, Unparsable, unparsable.Err.Error()
+	case errors.Is(err, ErrEmptyDocument):
+		return resource{}, Empty, ""
 	case err != nil:
 		return resource{}, Unreadable, err.Error()
 	}

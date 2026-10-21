@@ -20,6 +20,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
+	"github.com/dexpace/morphic/engine/reader"
 )
 
 // TestExternalCorpus_DeclarationOrderDecidesNothing compiles every OpenAPI 3
@@ -155,7 +156,7 @@ func compiledThrough(t *testing.T, dir, root string) []string {
 	path := filepath.Join(dir, "root.yaml")
 	require.NoError(t, os.WriteFile(path, []byte(root), 0o600))
 	doc, diags, err := openapi.New().Compile(t.Context(), []compilers.Source{{Path: path, Data: []byte(root)}},
-		compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: true}})
+		compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
 	require.NoError(t, err)
 	out := make([]string, 0, len(diags)+1)
 	for _, d := range diags {
