@@ -380,7 +380,7 @@ func TestRecordRedeclarationConflict_ConstraintDisagreementIsReported(t *testing
 		Constraints: &ir.Constraints{Min: bigVal("20")},
 	}
 
-	g.recordRedeclarationConflict(&dst, &src)
+	g.recordRedeclarationConflict(&dst, &src, dst.Provenance.Pointer)
 
 	require.Len(t, *recorded, 1)
 	assert.Equal(t, ir.SeverityWarning, (*recorded)[0].Severity)
@@ -1049,7 +1049,7 @@ func TestFoldTypeTargets_ANarrowingIsNoDrop(t *testing.T) {
 		dst := ir.Property{WireName: "x", Type: primRef(order[0])}
 		src := ir.Property{WireName: "x", Type: primRef(order[1]), Provenance: ptrAt("/allOf/1/properties/x")}
 
-		rel, _ := g.foldTypeTargets(&dst, &src)
+		rel, _ := g.foldTypeTargets(&dst, &src, dst.Provenance.Pointer)
 		assert.False(t, rel.dropped(), "a narrowing is no drop (order %d)", i)
 		assert.Equal(t, primRef(ir.PrimInteger).Target, dst.Type.Target, "the narrower target wins (order %d)", i)
 
@@ -1059,7 +1059,7 @@ func TestFoldTypeTargets_ANarrowingIsNoDrop(t *testing.T) {
 		src2 := ir.Property{WireName: "x", Type: primRef(order[1]), Provenance: ptrAt("/allOf/1/properties/x")}
 		require.NotEqual(t, dst2.Type.Target, src2.Type.Target, "the pair is a narrowing (order %d)", i)
 
-		dropped, lost, _ := g.recordRedeclarationConflict(&dst2, &src2)
+		dropped, lost, _ := g.recordRedeclarationConflict(&dst2, &src2, dst2.Provenance.Pointer)
 
 		assert.False(t, dropped, "order %d", i)
 		assert.False(t, lost, "order %d", i)
@@ -1747,11 +1747,17 @@ func TestReconcileProperty_IdenticalNodesAreOneType(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			for i, order := range [][2]ir.TypeID{{tc.a, tc.b}, {tc.b, tc.a}} {
-				g, recorded := stubMerger(twinRegistry())
+				reg := twinRegistry()
+				g, recorded := stubMerger(reg)
 				dst := ir.Property{WireName: "x", Type: ir.TypeRef{Target: order[0]}, Provenance: ptrAt("/allOf/0/properties/x")}
 				src := ir.Property{WireName: "x", Type: ir.TypeRef{Target: order[1]}, Provenance: ptrAt("/allOf/1/properties/x")}
+				for _, p := range []ir.Property{dst, src} {
+					if c := reg[p.Type.Target].Common(); c.Anonymous {
+						c.Provenance = p.Provenance
+					}
+				}
 
-				g.reconcileProperty(&dst, new(origins), src, written(`{"type":"x"}`))
+				g.reconcileProperty(&dst, &origins{typeAt: dst.Provenance.Pointer}, src, written(`{"type":"x"}`))
 
 				want := tc.win
 				if want == "" {

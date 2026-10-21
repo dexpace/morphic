@@ -73,7 +73,7 @@ func misses(g *Merger, dst *ir.Property, org *origins, src ir.Property) bool {
 		Report: func(ir.Severity, string, jsontext.Pointer, string, ...any) {},
 	}
 	merged := *dst
-	dropped, _, narrowed := trial.recordRedeclarationConflict(&merged, &src)
+	dropped, _, narrowed := trial.recordRedeclarationConflict(&merged, &src, org.typeAt)
 	trial.judgeAdopted(&merged, &src, narrowed, dropped, org)
 	return missed
 }

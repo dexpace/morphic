@@ -1,7 +1,9 @@
 package merge
 
 import (
+	"encoding/json/jsontext"
 	"reflect"
+	"strings"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/spelling"
@@ -54,6 +56,10 @@ const maxJudgeDepth = 8
 type typeJudge struct {
 	// Resolve looks a type up in the registry.
 	Resolve func(ir.TypeID) (ir.TypeDef, bool)
+	// written is where the declarations a and b were written. A node is a
+	// hoisted copy only where it was written at or under its declaration's
+	// pointer; one a $ref reached elsewhere was declared apart.
+	written [2]jsontext.Pointer
 }
 
 // relate compares a with b. The winner never depends on which is which: swapping
@@ -99,15 +105,24 @@ func (j typeJudge) relateAt(a, b ir.TypeRef, depth int) relation {
 		return j.nodeAgainstBare(b, bt, a, ap.Prim).flipped()
 	}
 	if sameNode(at, bt) {
-		return sameNodes(a, b, at.Common().Anonymous, bt.Common().Anonymous)
+		return sameNodes(a, b, hoistedAt(at, j.written[0]), hoistedAt(bt, j.written[1]))
 	}
 	return j.containers(at, bt, depth)
 }
 
+// hoistedAt reports whether td is a hoisted node written at or under pointer,
+// the declaration that holds it. A hoisted node a $ref reached from elsewhere,
+// another schema's property or a parameter's schema, was declared apart.
+func hoistedAt(td ir.TypeDef, pointer jsontext.Pointer) bool {
+	c := td.Common()
+	p := c.Provenance.Pointer
+	return c.Anonymous && (p == pointer || strings.HasPrefix(string(p), string(pointer)+"/"))
+}
+
 // sameNodes judges two nodes sameNode holds equal. Two hoisted copies are one
-// type. A named node wins over a hoisted copy of itself in either order. Two
-// named nodes are two types the source declared apart, so neither is dropped
-// unreported: they overlap.
+// type. A node declared elsewhere, a component or one a $ref reached, wins over
+// a hoisted copy of itself in either order. Two such nodes are two types the
+// source declared apart, so neither is dropped unreported: they overlap.
 func sameNodes(a, b ir.TypeRef, aHoisted, bHoisted bool) relation {
 	switch {
 	case aHoisted && bHoisted:

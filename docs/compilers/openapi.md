@@ -820,10 +820,11 @@ with members against `bytes` stays an overlap. A `const` wins when the kind admi
 it does not, it is disjoint from a kind with a judge and overlaps `bytes`, which has none. Two
 enums, two `const`s or two `Scalar`s equal in every field but where they were declared (IDs, names,
 whether hoisted inline, and the provenance of the node and of what it keeps under `Unmodeled`) are
-one type where both are written inline, as the same declaration written twice; a named one wins over
-an inline copy of itself in either order, and two named ones are two types the source declared
-apart, which overlap. Two lists, or two maps with one key, compare by element or value, nested up to
-a bound, and the narrower one wins only where it admits null no more widely than the other and the
+one type where both were written inline at the field's own declarations, as the same declaration
+written twice; a node declared elsewhere, a component or a schema a `$ref` reaches, wins over an
+inline copy of itself in either order, and two such nodes are two types the source declared apart,
+which overlap. Two lists, or two maps with one key, compare by element or value, nested up to a
+bound, and the narrower one wins only where it admits null no more widely than the other and the
 other holds no constraint, encoding, documentation, examples or `Unmodeled` the winner lacks;
 disjoint members still overlap where both admit null, or where both containers admit the empty one.
 Anything else between distinct targets is unrelated and dropped.
@@ -924,6 +925,8 @@ schema's null verdicts fold under ([`nullable`](#nullable)).
   `schema.TestAllOf_IdenticalNodesAreOneType`,
   `merge.TestMergeProperty_AMissedTypeDefersEveryRedeclarationOfTheProperty`,
   `merge.TestMergeProperty_AValueJudgedAgainstAMissedTypeDefers`,
+  `schema.TestAllOf_ARefToAnInlineNodeIsDeclaredApart`,
+  `schema.TestAllOf_ACopyANarrowingKeptIsStillACopy`,
   `schema.TestAllOf_ARedeclarationIsJudgedOnceTheComponentsHaveLowered`
 - Status: partly built: two distinct nodes of related kinds (`format: hex` against `format: byte`,
   two enums whose members fit each other's kind, two different literals), and a list or map whose

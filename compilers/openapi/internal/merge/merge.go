@@ -97,6 +97,9 @@ type origin struct {
 // stale and unread, and the next value written replaces it.
 type origins struct {
 	def, examples []origin
+	// typeAt is where the declaration whose type the property holds was
+	// written, which a narrowing moves to the redeclaration that won.
+	typeAt jsontext.Pointer
 }
 
 // NewPropIndex returns an empty index. A Model fills from empty, so every
@@ -122,7 +125,7 @@ func (g *Merger) MergeProperty(m *ir.Model, idx *PropIndex, p ir.Property, sourc
 	}
 	at := []origin{{prov: p.Provenance, source: source}}
 	e := &indexed{pos: len(m.Properties)}
-	e.def, e.examples = at, at
+	e.def, e.examples, e.typeAt = at, at, p.Provenance.Pointer
 	idx.byWire[p.WireName] = e
 	m.Properties = append(m.Properties, p)
 }
@@ -162,7 +165,10 @@ func moveOrigin(list []origin, had, holds, equal bool, at origin) []origin {
 // declaration that wrote it.
 func (g *Merger) reconcileProperty(dst *ir.Property, org *origins, src ir.Property, source Source) {
 	pointer := src.Provenance.Pointer
-	dropped, lost, narrowed := g.recordRedeclarationConflict(dst, &src)
+	dropped, lost, narrowed := g.recordRedeclarationConflict(dst, &src, org.typeAt)
+	if narrowed.broad == dst {
+		org.typeAt = pointer
+	}
 	srcLost, keptDst := g.judgeAdopted(dst, &src, narrowed, dropped, org)
 	lost = lost || srcLost
 
@@ -404,9 +410,9 @@ const maxTypeResolveDepth = 64
 // dropped reports that src's type was lost. lost reports that src's type or a
 // constraint keyword was lost, so the redeclaration is kept whole (GitHub #424).
 // narrowed says which declaration a narrowing left broader, for judgeAdopted.
-func (g *Merger) recordRedeclarationConflict(dst, src *ir.Property) (dropped, lost bool, narrowed narrowing) {
+func (g *Merger) recordRedeclarationConflict(dst, src *ir.Property, typeAt jsontext.Pointer) (dropped, lost bool, narrowed narrowing) {
 	pointer := src.Provenance.Pointer
-	rel, narrowed := g.foldTypeTargets(dst, src)
+	rel, narrowed := g.foldTypeTargets(dst, src, typeAt)
 	dropped = rel.dropped()
 	if dropped {
 		switch g.dropVerdict(rel, dst.Type, src.Type) {
@@ -455,8 +461,8 @@ type narrowing struct {
 // branches admit it, as foldNullVerdicts states for a single schema; when the
 // loser is the top type, which admits null whatever the bit says, the winner's
 // admission stands alone.
-func (g *Merger) foldTypeTargets(dst, src *ir.Property) (rel relation, nw narrowing) {
-	j := typeJudge{Resolve: g.Resolve}
+func (g *Merger) foldTypeTargets(dst, src *ir.Property, typeAt jsontext.Pointer) (rel relation, nw narrowing) {
+	j := typeJudge{Resolve: g.Resolve, written: [2]jsontext.Pointer{typeAt, src.Provenance.Pointer}}
 	rel = j.relate(dst.Type, src.Type)
 	if rel.dropped() {
 		return rel, nw
