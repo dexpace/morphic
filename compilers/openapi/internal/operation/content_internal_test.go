@@ -270,6 +270,7 @@ func TestBodyParts_DepthBound(t *testing.T) {
 // TestPartTypeFlags_DeadEnds covers the type walk's ends that name neither a
 // list nor bytes: an ID nothing declares, an opaque scalar, a kind that is
 // neither, and an alias chain that closes on itself, which the bound is for.
+// Only the kinds and the dead end the walk cannot answer for are undecided.
 func TestPartTypeFlags_DeadEnds(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
@@ -281,10 +282,26 @@ func TestPartTypeFlags_DeadEnds(t *testing.T) {
 		ID: "t/cycle/b", Base: &ir.TypeRef{Target: "t/cycle/a"},
 	})
 	l.types.Register("t/model", &ir.Model{ID: "t/model"})
+	l.types.Register("t/tuple", &ir.Tuple{ID: "t/tuple"})
+	l.types.Register("t/union", &ir.Union{ID: "t/union"})
 
-	for _, target := range []ir.TypeID{"t/absent", "t/opaque", "t/model", "t/cycle/a", l.types.PrimID(ir.PrimString)} {
-		multi, file := partTypeFlags(l.types, ir.TypeRef{Target: target})
-		assert.False(t, multi, "%s is not a list", target)
-		assert.False(t, file, "%s is not bytes", target)
+	cases := []struct {
+		target  ir.TypeID
+		multi   bool
+		decided bool
+	}{
+		{"t/absent", false, false},
+		{"t/opaque", false, true},
+		{"t/model", false, false},
+		{"t/union", false, false},
+		{"t/tuple", true, true},
+		{"t/cycle/a", false, true},
+		{l.types.PrimID(ir.PrimString), false, true},
+	}
+	for _, tc := range cases {
+		multi, file, decided := partTypeFlags(l.types, ir.TypeRef{Target: tc.target})
+		assert.Equal(t, tc.multi, multi, "%s multi", tc.target)
+		assert.False(t, file, "%s is not bytes", tc.target)
+		assert.Equal(t, tc.decided, decided, "%s decided", tc.target)
 	}
 }

@@ -2614,6 +2614,8 @@ func TestPartEncoding_FlagsComeFromTheMergedType(t *testing.T) {
 		{"untyped and byte", `{description: the file}`, `{type: string, format: byte}`, true, false},
 		{"untyped and a hoisted binary", `{description: the file}`,
 			`{$ref: "#/components/schemas/Blob", description: the blob}`, true, false},
+		{"untyped and a binary enum", `{description: d}`,
+			`{type: string, format: binary, enum: [a, b]}`, true, false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -2627,6 +2629,33 @@ func TestPartEncoding_FlagsComeFromTheMergedType(t *testing.T) {
 			assert.Empty(t, cmp.Diff(got[0], got[1]), "the two branch orders agree")
 			assert.Equal(t, tc.filename, got[0].Filename, "filename")
 			assert.Equal(t, tc.multi, got[0].Multi, "multi")
+		})
+	}
+}
+
+// TestPartEncoding_FlagsOfAnUndecidedTypeComeFromTheSchema holds a part whose
+// single declaration lowers to a kind the type walk cannot answer for to the
+// flags its schema gives, and a tuple to the type's own answer.
+func TestPartEncoding_FlagsOfAnUndecidedTypeComeFromTheSchema(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name     string
+		part     string
+		filename bool
+		multi    bool
+	}{
+		{"union of binary", `{type: [string, integer], format: binary}`, true, false},
+		{"union with an array", `{type: [array, string], items: {type: string}}`, false, true},
+		{"tuple", `{type: array, prefixItems: [{type: string}]}`, false, true},
+		{"enum of binary", `{type: string, format: binary, enum: [a, b]}`, true, false},
+		{"literal of binary", `{type: string, format: binary, const: a}`, true, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			pe := onlyPartEncoding(t, `{type: object, properties: {file: `+tc.part+`}}`)
+			assert.Equal(t, tc.filename, pe.Filename, "filename")
+			assert.Equal(t, tc.multi, pe.Multi, "multi")
 		})
 	}
 }

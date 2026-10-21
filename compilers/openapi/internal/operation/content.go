@@ -243,11 +243,12 @@ func partEncodings(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInde
 	return out, unmodeled, diags
 }
 
-// bodyPart is one multipart part: the name keying its encoding entry, and the
-// schema whose shape decides the structural flags.
+// bodyPart is one multipart part: the name keying its encoding entry, and every
+// schema declaring it, which decide the structural flags when the body's type
+// cannot.
 type bodyPart struct {
-	name   string
-	schema *oas3.JSONSchema[oas3.Referenceable]
+	name    string
+	schemas []*oas3.JSONSchema[oas3.Referenceable]
 }
 
 // maxPartCompositionDepth bounds the allOf walk bodyParts makes (styleguide
@@ -257,7 +258,8 @@ const maxPartCompositionDepth = 16
 
 // bodyParts returns the parts a multipart body declares, in source order: the
 // properties written on the schema itself, then those each allOf branch
-// contributes, with the first declaration of a name winning.
+// contributes. The first declaration of a name wins its encoding key; every
+// declaration is kept for the structural flags.
 //
 // A body that composes rather than declares — `allOf: [{$ref: Form}]` — has no
 // properties of its own, so reading only those found nothing to key against and
@@ -274,7 +276,7 @@ func bodyParts(refs *typed.Bindings, js *oas3.JSONSchema[oas3.Referenceable], de
 	var out []bodyPart
 	if props := s.GetProperties(); props != nil {
 		for name, pjs := range props.All() {
-			out = append(out, bodyPart{name: name, schema: pjs})
+			out = append(out, bodyPart{name: name, schemas: []*oas3.JSONSchema[oas3.Referenceable]{pjs}})
 		}
 	}
 	for _, branch := range s.GetAllOf() {
@@ -283,17 +285,20 @@ func bodyParts(refs *typed.Bindings, js *oas3.JSONSchema[oas3.Referenceable], de
 	return dedupeParts(out)
 }
 
-// dedupeParts keeps the first declaration of each part name, in order. A name
-// redeclared across allOf branches is one part on the wire, so it must key one
-// encoding entry rather than depend on which branch was walked last.
+// dedupeParts keeps the first entry of each part name, in order, and collects
+// the schemas of its later declarations onto it. A name redeclared across allOf
+// branches is one part on the wire, so it must key one encoding entry and read
+// its flags from every declaration rather than depend on which branch was
+// walked last.
 func dedupeParts(parts []bodyPart) []bodyPart {
-	seen := make(map[string]bool, len(parts))
+	seen := make(map[string]int, len(parts))
 	out := make([]bodyPart, 0, len(parts))
 	for _, part := range parts {
-		if seen[part.name] {
+		if i, ok := seen[part.name]; ok {
+			out[i].schemas = append(out[i].schemas, part.schemas...)
 			continue
 		}
-		seen[part.name] = true
+		seen[part.name] = len(out)
 		out = append(out, part)
 	}
 	return out
@@ -361,38 +366,41 @@ func propInComposition(ts *compile.Types, m *ir.Model, wire string, depth int) (
 }
 
 // partTypeFlags reads the structural flags of a part from the type the merge
-// settled on: multi when it is a list, file when it is bytes, following the
-// alias scalars a hoisted position or `format: byte` puts over the primitive.
-// The walk is bounded by maxBodyAliasHops.
-func partTypeFlags(ts *compile.Types, ref ir.TypeRef) (multi, file bool) {
+// settled on: multi when it is a list or tuple, file when it is bytes,
+// following the alias scalars a hoisted position or `format: byte` puts over
+// the primitive. decided reports that the walk judged the type; false means the
+// type is a kind it cannot answer for and the caller reads the schemas. The
+// walk is bounded by maxBodyAliasHops.
+func partTypeFlags(ts *compile.Types, ref ir.TypeRef) (multi, file, decided bool) {
 	id := ref.Target
 	for range maxBodyAliasHops {
 		td, found := ts.Node(id)
 		if !found {
-			return false, false
+			return false, false, false
 		}
 		switch t := td.(type) {
-		case *ir.List:
-			return true, false
+		case *ir.List, *ir.Tuple:
+			return true, false, true
 		case *ir.Primitive:
-			return false, t.Prim == ir.PrimBytes
+			return false, t.Prim == ir.PrimBytes, true
 		case *ir.Scalar:
 			if t.Base == nil {
-				return false, false
+				return false, false, true
 			}
 			id = t.Base.Target
 		default:
-			return false, false
+			return false, false, false
 		}
 	}
-	return false, false
+	return false, false, true
 }
 
 // buildPartEncoding assembles one part's PartEncoding: explicit encoding config
 // (content types, headers, style, explode) merged with the structural flags Multi
 // (array part) and Filename (binary/file part). The flags come from prop's type
-// when the body model has one, since that is the type the allOf merge settled
-// on; only a body with no model property reads them from the part's schema.
+// when the body model has one and the type is a kind partTypeFlags can decide,
+// since that is the type the allOf merge settled on. Otherwise they are read
+// from every schema declaring the part.
 func buildPartEncoding(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, part bodyPart, prop *ir.Property, encMap *sequencedmap.Map[string, *soa.Encoding], mediaPtr jsontext.Pointer) (ir.PartEncoding, ir.Unmodeled, []ir.Diagnostic) {
 	pe := ir.PartEncoding{}
 	var unmodeled ir.Unmodeled
@@ -404,19 +412,23 @@ func buildPartEncoding(c lowering.Ctx, ts *compile.Types, anchors *schema.Anchor
 		}
 	}
 	if prop != nil {
-		pe.Multi, pe.Filename = partTypeFlags(ts, prop.Type)
-		return pe, unmodeled, diags
+		var decided bool
+		if pe.Multi, pe.Filename, decided = partTypeFlags(ts, prop.Type); decided {
+			return pe, unmodeled, diags
+		}
 	}
-	if ps := schemaOf(c.Bindings(), part.schema); ps != nil {
-		pe.Multi = schemaIsArray(ps)
-		pe.Filename = schemaIsFilePart(ps)
+	for _, js := range part.schemas {
+		if ps := schemaOf(c.Bindings(), js); ps != nil {
+			pe.Multi = pe.Multi || schemaIsArray(ps)
+			pe.Filename = pe.Filename || schemaIsFilePart(ps)
+		}
 	}
 	return pe, unmodeled, diags
 }
 
 // encodingConfig lowers one Encoding object's declared wire config: content
 // types, per-part headers, and form-style serialization. The structural flags
-// (Multi, Filename) come from the part's own schema, not from here.
+// (Multi, Filename) come from the part, not from here.
 //
 // It returns what the object declared that PartEncoding has no field for as a
 // second value rather than writing it, because PartEncoding carries no
@@ -1074,8 +1086,8 @@ func schemaOf(refs *typed.Bindings, js *oas3.JSONSchema[oas3.Referenceable]) *oa
 	return s
 }
 
-// maxBodyAliasHops bounds the alias chain bodyModelPointer follows (styleguide
-// bounded-everything rule). A loop of $refs lowers to no alias chain, so only
+// maxBodyAliasHops bounds every chain of Scalar bases this file's walks follow
+// (styleguide bounded-everything rule). A loop of $refs lowers to no alias chain, so only
 // an absurdly long one reaches it.
 const maxBodyAliasHops = 64
 
