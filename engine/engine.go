@@ -190,7 +190,8 @@ func (e *Engine) RunSources(ctx context.Context, sources []compilers.Source, opt
 //
 // doc is not modified. The Result's document shares all of doc but its
 // Diagnostics, so neither may change while the other is read. A nil doc, one
-// whose IRVersion this build cannot read, and compiler options are Go errors.
+// whose IRVersion this build cannot read, one holding a finding indexing none
+// of its Sources, and compiler options are Go errors.
 func (e *Engine) RunDocument(ctx context.Context, doc *ir.Document, opts RunOptions) (*Result, error) {
 	passes, failOn, err := e.prepare(opts)
 	if err != nil {
@@ -210,6 +211,12 @@ func (e *Engine) RunDocument(ctx context.Context, doc *ir.Document, opts RunOpti
 	if !ir.CompatibleVersion(doc.IRVersion) {
 		return nil, fmt.Errorf("engine: document IR version %q is not %q, the one this build reads",
 			doc.IRVersion, ir.IRVersion)
+	}
+	// Its findings join the Result as they are, and no compiler made them, so
+	// they are held to the table here, as a compile's and a pass's are.
+	if d, outside := ir.FirstOutsideTable(doc.Diagnostics, len(doc.Sources)); outside {
+		return nil, fmt.Errorf("engine: document finding %s indexes source %d of %d",
+			d.Code, d.Provenance.Source, len(doc.Sources))
 	}
 	// Run refuses a cancelled ctx whatever passes are on, and so does this,
 	// though with every pass off no pass would see it.
