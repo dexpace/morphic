@@ -794,7 +794,9 @@ about the composed node instead, stated with the `false`-schema rule
   `schema.TestAllOf_UnpreservableBranchIsNotAnnounced`
 - Status: partly built: a nested inline `allOf` is kept as residue rather than flattened into the
   composition, so the composed model has no base, mixins or properties (#599), and an `allOf` of one
-  `$ref` and an annotation-only branch keeps none of the branch's annotations typed (#660).
+  `$ref` and an annotation-only branch keeps none of the branch's annotations typed (#660). An
+  `allOf` whose branches are all primitives lowers to a model with no properties, each branch kept
+  as residue (#1043).
 
 ### `allof-redeclared-property`
 
@@ -921,9 +923,10 @@ schema's null verdicts fold under ([`nullable`](#nullable)).
   `merge.TestMergeProperty_AMissedTypeDefersEveryRedeclarationOfTheProperty`,
   `schema.TestAllOf_ARedeclarationIsJudgedOnceTheComponentsHaveLowered`
 - Status: partly built: two distinct nodes of related kinds (`format: hex` against `format: byte`,
-  two enums whose members fit each other's kind, two different literals) are reported as an overlap
-  and never narrowed; a property redeclared as a list and as a tuple is reported as a conflict
-  (#899). Open: intersecting the redeclared bounds and defaults rather than keeping one (#10).
+  two enums whose members fit each other's kind, two different literals), and a list or map whose
+  broader side carries detail the narrower lacks, are reported as an overlap and never narrowed
+  (#1042); a property redeclared as a list and as a tuple is reported as a conflict (#899). Open:
+  intersecting the redeclared bounds and defaults rather than keeping one (#10).
 
 ### `allof-required`
 
