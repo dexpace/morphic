@@ -100,6 +100,8 @@ func TestAdmits_JudgesEachKindExactly(t *testing.T) {
 		{"url bracket inside a reg-name host", ir.PrimURL, str("http://a]b/"), false},
 		{"url second @ in the authority", ir.PrimURL, str("http://a@b@x/"), false},
 		{"url second @ before an IP-literal", ir.PrimURL, str("http://a@b@[::1]/"), false},
+		{"url @ after the authority is a path or query byte", ir.PrimURL, str("http://u@x/a@b?c@d"), true},
+		{"url @ in a path with no authority", ir.PrimURL, str("mailto:a@b@c"), true},
 		{"url two closing brackets", ir.PrimURL, str("http://[::1]]/"), false},
 		{"url text after the literal", ir.PrimURL, str("http://[::1]a/"), false},
 		{"url opening bracket ends a host", ir.PrimURL, str("http://x[/"), false},
