@@ -26,6 +26,7 @@ info: {title: T, version: "1"}
 paths:
   /a:
     get:
+      operationId: getA
       parameters: [{$ref: './ext.yaml#/P'}]
       responses: {"200": {description: ok}}
 components:
@@ -144,8 +145,9 @@ func TestDeclareHint_KeepsOnePointerInTwoDocumentsApart(t *testing.T) {
 }
 
 // TestOperationIDAt_ReadsTheDeclaringDocument pins where a position's
-// operationId is read: in the source's model for the source's own, in another
-// document's YAML for that document's, and nowhere for a context given no
+// operationId is read: in the source's YAML, and its model where only a
+// reference reaches the position; in another document's YAML alone, never the
+// source's model, for that document's; and nowhere for a context given no
 // document.
 func TestOperationIDAt_ReadsTheDeclaringDocument(t *testing.T) {
 	t.Parallel()
@@ -154,13 +156,18 @@ func TestOperationIDAt_ReadsTheDeclaringDocument(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, "extOp", lowering.OperationIDAt(there, "/O"), "ext.yaml's, read in its YAML")
 	assert.Empty(t, lowering.OperationIDAt(c, "/O"), "the source holds no /O")
+	assert.Equal(t, "getA", lowering.OperationIDAt(c, "/paths/~1a/get"))
+	assert.Empty(t, lowering.OperationIDAt(there, "/paths/~1a/get"), "ext.yaml writes none there, whatever the source does")
 
 	doc, _, err := load.Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(
-		"openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n  /a: {get: {operationId: getA}}\n")}, load.Options{})
+		"openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n  /a: {get: {operationId: getA}}\n" +
+			"  /b: {$ref: '#/components/pathItems/P'}\ncomponents:\n  pathItems:\n    P: {put: {operationId: putP}}\n")},
+		load.Options{})
 	require.NoError(t, err)
 	source := lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{}, lowering.StreamingMedia{},
 		lowering.ExtensionPromotions{}, overlay.Origin{}).WithLoaded(doc)
-	assert.Equal(t, "getA", lowering.OperationIDAt(source, "/paths/~1a/get"), "the source's, read in its model")
+	assert.Equal(t, "getA", lowering.OperationIDAt(source, "/paths/~1a/get"), "the source's, read where it is written")
+	assert.Equal(t, "putP", lowering.OperationIDAt(source, "/paths/~1b/put"), "and in its model past a $ref")
 	assert.Empty(t, lowering.OperationIDAt(lowering.Ctx{}, "/paths/~1a/get"), "a context given no document")
 }
 

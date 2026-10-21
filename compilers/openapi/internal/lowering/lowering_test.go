@@ -582,8 +582,8 @@ func TestWithLoaded_ReadsRawYAMLThroughTheLoadIndex(t *testing.T) {
 
 // TestCtx_DeclareHintKeepsTheFirstRecordForEveryCopy pins the record a hoisted
 // node takes its name from: the first hint recorded for a position stands,
-// every copy of a context reads and writes the one record, and a zero context
-// records nothing.
+// every copy of a context reads and writes the one record, except a copy given
+// another load, and a zero context records nothing.
 func TestCtx_DeclareHintKeepsTheFirstRecordForEveryCopy(t *testing.T) {
 	t.Parallel()
 	c := lowering.New(0, &soa.OpenAPI{}, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{},
@@ -596,6 +596,8 @@ func TestCtx_DeclareHintKeepsTheFirstRecordForEveryCopy(t *testing.T) {
 	hint, recorded := c.InScope(c.RefScope()).HintAt("/x")
 	require.True(t, recorded, "a copy reads what another recorded")
 	assert.Equal(t, "declared", hint, "and the first record stands")
+	_, recorded = c.WithLoaded(&load.Document{}).HintAt("/x")
+	assert.False(t, recorded, "a copy given another load remembers none of the old one's")
 
 	var zero lowering.Ctx
 	zero.DeclareHint("/x", "declared")

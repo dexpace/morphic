@@ -1355,7 +1355,8 @@ under `openapi:format` (`no_ir_home`), with an info `openapi/degraded-construct`
 Two whole-schema fallbacks answer to a compiler's own limits rather than to anything about the
 construct, which is why §4.8's list of degradations does not hold them. A schema nested past the
 lowering's depth cap becomes the top type, reported as an `openapi/degraded-construct` error at it;
-the cap counts from where the position's own declaration enters, never from a `$ref` naming it.
+the cap counts from where the position's own declaration enters, or from the top level for a body
+only a `$ref` reaches, never from the depth of a `$ref` naming it.
 A boolean `false` schema becomes a closed empty `Model`, with the schema itself kept verbatim under
 `degraded_lowering` at `Unmodeled["openapi:schema"]` and an info `openapi/false-schema` at it — the
 key names the position because a boolean schema writes no keyword to name it by, and nothing can

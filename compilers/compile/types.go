@@ -57,12 +57,12 @@ const RegistryRefused = "compile/registry-refused"
 // promised node no lowering built (Promise), takes every deferred Settlement,
 // then hands over the Document's registry and the diagnostics to report: what
 // building and settling reported, then a RegistryRefused error for each entry
-// t refused. The refusals ride in the list a compiler reports anyway, so it
-// cannot take the registry and lose them.
+// t refused, in order. The refusals ride in the list a compiler reports
+// anyway, so it cannot take the registry and lose them.
 //
 // Each refusal is reported once, and one made after Finish only by a later
-// call. A cancelled ctx stops it between steps, and leaves a registry the
-// caller must not assemble.
+// call. A cancelled ctx stops it between steps, leaving a registry the caller
+// must not assemble.
 func (t *Types) Finish(ctx context.Context) (ir.TypeRegistry, []ir.Diagnostic) {
 	diags := t.fulfil(ctx)
 	diags = append(diags, t.settle(ctx)...)

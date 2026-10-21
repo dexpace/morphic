@@ -175,7 +175,7 @@ var rules = map[string][]string{
 	// at raw YAML, which holds none. It reaches nothing that lowers — following a
 	// reference far enough to lower its target recurses back into the schema
 	// walk, so that stays with the walk.
-	"compilers/openapi/internal/resolve": {module + "/ir", module + "/compilers/compile",
+	"compilers/openapi/internal/resolve": {module + "/ir",
 		module + "/compilers/openapi/internal/annotation",
 		module + "/compilers/openapi/internal/bind",
 		module + "/compilers/openapi/internal/bind/typed",

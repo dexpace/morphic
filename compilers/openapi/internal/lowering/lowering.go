@@ -251,11 +251,12 @@ func (c Ctx) WithAuth(auth map[ir.AuthID]ir.AuthScheme) Ctx {
 // being derived from it, since resolving either reads every document the
 // source names, which only the load phase may (GitHub #757). One call sets
 // both, so no context carries one without the other. The copy remembers no
-// TypePosition answer of c's, which read c's bindings.
+// TypePosition answer or hint of c's, which read c's bindings and documents.
 func (c Ctx) WithLoaded(doc *load.Document) Ctx {
 	c.loaded = &loadResult{siblings: doc.Siblings, others: doc.Others, reads: resolve.Scope{Holds: doc.Holds,
 		Beside: doc.Siblings.Beside, Writes: doc.Siblings.Writes, Bindings: doc.Bindings}}
 	c.typePositions = map[scopedPosition]bind.Position{}
+	c.hints = map[scopedPosition]string{}
 	return c
 }
 
@@ -498,17 +499,19 @@ func IDsAt(c Ctx, source int) ids.Document {
 }
 
 // OperationIDAt returns the operationId of the operation written at pointer in
-// c's document, and "" where none is there or it names none: read in the
-// source's model, and in another document's YAML, which no model holds whole
-// (resolve.OperationIDAt).
+// c's document, and "" where none is there or it names none: read in that
+// document's YAML, and for the source's also in its model, which reaches a
+// position only a reference leads to (resolve.OperationIDAt).
 func OperationIDAt(c Ctx, pointer jsontext.Pointer) string {
+	model := c.Doc
 	if _, other := homeOf(c); other {
-		return resolve.OperationIDAt(c.Bindings().Table().Document(c.homeDoc).Root, pointer)
+		model = nil
 	}
-	if c.Doc == nil {
-		return ""
+	table := c.Bindings().Table()
+	if table == nil {
+		return resolve.OperationIDAt(nil, model, pointer)
 	}
-	return resolve.OperationIDAt(c.Doc, pointer)
+	return resolve.OperationIDAt(table.Document(c.homeDoc).Root, model, pointer)
 }
 
 // homeOf returns the document other than the source whose positions c reads,

@@ -133,6 +133,21 @@ var ownershipCases = []struct {
 			require.NotNil(t, body)
 			assert.Equal(t, "post_a_request", body.Common().Name.Hint, "named by the operation declaring it")
 		}},
+	{name: "a request body written beside a path item's $ref, which declares the same method (GitHub #433)",
+		spec: ownershipHead + "paths:\n" +
+			"  /b:\n    post:\n      operationId: postB\n      requestBody: {$ref: '#/paths/~1a/put/requestBody'}\n" +
+			"      responses: {'204': {description: none}}\n" +
+			"  /a:\n    $ref: '#/components/pathItems/P'\n    put:\n      operationId: besidePut\n" +
+			"      requestBody: {content: {application/json: {schema: {type: object, properties: {v: {type: string}}}}}}\n" +
+			"      responses: {'204': {description: none}}\n" +
+			"components:\n  pathItems:\n    P:\n      put:\n        operationId: putP\n" +
+			"        responses: {'204': {description: none}}\n",
+		check: func(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+			body := doc.Types["t/anon/paths/~1a/put/requestBody/content/application~1json/schema"]
+			require.NotNil(t, body)
+			assert.Equal(t, "beside_put_request", body.Common().Name.Hint,
+				"named by the operation written beside the $ref, not the one it names")
+		}},
 	{name: "a header another response mounts under another key (GitHub #433)",
 		spec: ownershipHead + "paths:\n" +
 			"  /b:\n    get:\n      operationId: getB\n      responses:\n        '200':\n          description: ok\n" +

@@ -512,14 +512,14 @@ property, parameter or header carrying it) and the depth the schema bound counts
 path reaches a coordinate first builds the node that role gives it, so `Intern`'s first build
 stands for every later one and no answer follows declaration order. Three mechanisms keep it.
 
-1. A `$ref` never lowers what it names. It takes the ID the target's pointer derives and promises
-   the node (`compile.Types.Promise`). The declaration owning the position builds it in its own
-   walk; `Finish`, after every declaration and before any settlement, builds in coordinate order
-   only what none interned, each build a walk of its own from the top level, under the hint the
-   position's own lowering recorded.
+1. A `$ref` never lowers what it names. It takes the ID the target's pointer derives in the
+   target's document and promises the node (`compile.Types.Promise`). The declaration owning the
+   position builds it in its own walk; `Finish`, after every declaration and before any settlement,
+   builds in coordinate order only what none interned, each build a walk of its own from the top
+   level, under the hint the position's own lowering recorded.
 2. A lowering that mounts an object another position declares, a request body or a header written
-   elsewhere, names it by where it is declared, never by where it is mounted, so every mount builds
-   the node the declaration builds.
+   elsewhere, lowers it in its declaration's document and names it by where it is declared, never
+   by where it is mounted, so every mount builds the node the declaration builds.
 3. A decision that reads a node another lowering interns, such as whether two redeclared types
    conflict or which property a form part names, is a `compile.Settlement`, taken once the registry
    is whole. Its diagnostics follow the walk's, an order no golden may be updated over unexplained
