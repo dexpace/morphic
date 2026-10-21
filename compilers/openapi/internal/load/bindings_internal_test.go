@@ -171,7 +171,8 @@ func TestBindingDiags_ReportsAChainBackIntoTheSourceWhereItFails(t *testing.T) {
 // TestLoad_ASchemaRefIsUnresolvedWhereItsDocumentCannotBeRead pins what a
 // schema $ref reports when the document it names cannot be read, by the reason
 // the read gave: a URL that answers an error, 300 being the least, a document
-// that is no YAML, and a location the source's own URL gives no document for.
+// that is no YAML, and a location the source's own URL, or its own path, gives
+// no document for.
 func TestLoad_ASchemaRefIsUnresolvedWhereItsDocumentCannotBeRead(t *testing.T) {
 	t.Parallel()
 	srv := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
@@ -194,6 +195,8 @@ func TestLoad_ASchemaRefIsUnresolvedWhereItsDocumentCannotBeRead(t *testing.T) {
 		{"a URL serving no YAML", "", srv.URL + "/garbage.yaml#/x", "it does not parse as YAML"},
 		{"a file holding no YAML", "", "./bad.yaml#/x", "it does not parse as YAML"},
 		{"a location the source's URL cannot be joined with", "https://example.com/api/spec.yaml", "%zz.yaml#/x",
+			"it names no document a reference can"},
+		{"a source whose path is no URL reference", "spec%zz.yaml", "./other.yaml#/x",
 			"it names no document a reference can"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
