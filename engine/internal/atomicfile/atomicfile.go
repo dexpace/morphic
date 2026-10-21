@@ -25,28 +25,29 @@ import (
 const newFilePerm fs.FileMode = 0o666
 
 // Replace atomically replaces path with what fill writes, through a temporary
-// file in path's directory, which keeps the rename on one filesystem. fill's
-// error is joined with any failed cleanup, so errors.Is finds it. An empty
-// path or a nil fill is refused before anything is created.
+// file beside it, so the rename stays on one filesystem; fill's error is
+// joined with any failed cleanup. An empty path or a nil fill is refused first.
 //
-// Never writing in place has costs. The directory must take a new entry, so
-// /dev/null and a read-only directory fail. A symlink or FIFO at path is
-// replaced, and other hard links keep the old content. The temporary name is
-// up to 20 characters longer than path's base. The directory is not synced.
+// Writing by rename needs path's directory to take a new entry, replaces a
+// symlink or FIFO at path, leaves other hard links the old content, and does
+// not sync the directory. The temporary name adds a dot and up to 19 random
+// digits, so a base within 20 of the name limit fails on some runs.
 func Replace(path string, fill func(io.Writer) error) error {
+	return replace(path, fill, (*renameio.PendingFile).Chmod)
+}
+
+// replace is Replace with the step that gives the temporary file an existing
+// destination's mode handed in, so a test can fail it.
+func replace(path string, fill func(io.Writer) error, chmod func(*renameio.PendingFile, fs.FileMode) error) error {
 	if path == "" {
 		return errors.New("replace output: no path to replace")
 	}
 	if fill == nil {
 		return fmt.Errorf("replace output %q: nothing to fill it with", path)
 	}
-	mode, err := modeFor(path)
+	f, err := pendingFor(path, chmod)
 	if err != nil {
 		return err
-	}
-	f, err := renameio.NewPendingFile(path, renameio.WithTempDir(filepath.Dir(path)), mode)
-	if err != nil {
-		return fmt.Errorf("create output %q: %w", path, err)
 	}
 	if err := fill(f); err != nil {
 		return errors.Join(err, f.Cleanup())
@@ -57,23 +58,33 @@ func Replace(path string, fill func(io.Writer) error) error {
 	return nil
 }
 
-// modeFor returns the option that gives the file replacing path its mode. An
-// existing destination's mode is kept exactly, a symlink followed to its
-// target's: renameio creates the file owner-only and sets that mode through
-// the open file before fill writes a byte, so the content is never readable
-// by anyone the destination keeps it from. A new destination takes
-// newFilePerm, narrowed by the umask.
+// pendingFor creates the temporary file replacing path, holding the mode it
+// publishes with before fill writes a byte. An existing destination's mode is
+// kept exactly, a symlink followed to its target's: renameio creates the file
+// owner-only and chmod sets that mode, the file removed if it cannot be. A new
+// destination's file is created at newFilePerm, narrowed by the umask.
 //
-// renameio's own WithExistingPermissions reads the link rather than its
-// target, so a private target replaced through a link would come back with the
-// umask's mode.
-func modeFor(path string) (renameio.Option, error) {
+// renameio's own mode options set it inside NewPendingFile, which keeps the
+// file when that fails, and its WithExistingPermissions reads a link rather
+// than its target.
+func pendingFor(path string, chmod func(*renameio.PendingFile, fs.FileMode) error) (*renameio.PendingFile, error) {
+	opts := []renameio.Option{renameio.WithTempDir(filepath.Dir(path))}
 	info, err := os.Stat(path)
-	if errors.Is(err, fs.ErrNotExist) {
-		return renameio.WithPermissions(newFilePerm), nil
-	}
-	if err != nil {
+	exists := err == nil
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		opts = append(opts, renameio.WithPermissions(newFilePerm))
+	case err != nil:
 		return nil, fmt.Errorf("stat output %q: %w", path, err)
 	}
-	return renameio.WithStaticPermissions(info.Mode().Perm()), nil
+	f, err := renameio.NewPendingFile(path, opts...)
+	if err != nil {
+		return nil, fmt.Errorf("create output %q: %w", path, err)
+	}
+	if exists {
+		if err := chmod(f, info.Mode().Perm()); err != nil {
+			return nil, errors.Join(fmt.Errorf("chmod output %q: %w", path, err), f.Cleanup())
+		}
+	}
+	return f, nil
 }
