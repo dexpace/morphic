@@ -15,7 +15,6 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/speakeasy-api/openapi/references"
 	"github.com/speakeasy-api/openapi/validation"
@@ -634,42 +633,42 @@ func TestHold_ASecondResolutionHoldsTheSpellingsTheFirstFound(t *testing.T) {
 	assert.True(t, ok)
 }
 
-// TestHold_ASchemaRefNamingTheSourceCopiesNoBytesOfIt pins the cost of a schema
-// $ref that names the source's file. The resolver reads the whole document
-// such a $ref names, copying the bytes it holds for it, with nothing cached
-// for the next one to reuse. The bytes held beside the source's tree are none
-// of the source's, so no read copies the source, and none is left holding a
-// copy.
-func TestHold_ASchemaRefNamingTheSourceCopiesNoBytesOfIt(t *testing.T) {
+// TestHold_AReferenceNamingTheSourceCopiesNoBytesOfIt pins the cost of a $ref
+// that names the source's file. The resolver reads the whole document a $ref it
+// finds no held object for names, copying the bytes it holds for it. The bytes
+// held beside the source's tree are none of the source's, so no read copies the
+// source, and none is left holding a copy. Only reference objects are held, so
+// this is the cost a response $ref pays; a schema's is the compiler's own.
+func TestHold_AReferenceNamingTheSourceCopiesNoBytesOfIt(t *testing.T) {
 	t.Parallel()
 	path := filepath.Join(t.TempDir(), "root.yaml")
-	doc, pass := heldResolution(t, rootOfSchemas(
-		"    A: {$ref: 'root.yaml#/components/schemas/B'}\n",
-		"    B: {type: string}\n"), path)
-	a, ok := doc.Components.Schemas.Get("A")
-	require.True(t, ok)
+	doc, pass := heldResolution(t, "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n"+
+		backPath("/a", "root.yaml#/components/responses/B")+
+		"components:\n  responses:\n    B: {description: ok}\n", path)
+	a := response200(t, doc, "/a")
 
-	pass.visit("/components/schemas/A", a)
+	pass.visit(t.Context(), "/paths/~1a/get/responses/200", a)
 
 	require.Empty(t, pass.failures)
-	assert.Equal(t, "string", string(a.GetResolvedSchema().GetSchema().GetType()[0]))
+	assert.Equal(t, "ok", a.GetObject().Description)
 	cached, ok := doc.GetCachedReferenceDocument(path)
 	require.True(t, ok)
 	assert.Empty(t, cached)
 }
 
-// TestHold_ASchemaCycleThroughTheSourceEndsAsACycle pins that a schema chain
-// leaving the source and coming back to where it started ends as the cycle it
-// is. The resolver follows a schema hop it finds resolved without tracking it,
-// so the held schema the chain started from looped it until the stack ran out.
-// This is the resolution the walk starts, before anything settles it.
-func TestHold_ASchemaCycleThroughTheSourceEndsAsACycle(t *testing.T) {
+// TestHold_AReferenceCycleThroughTheSourceEndsAsACycle pins that a chain of
+// reference objects leaving the source and coming back to where it started
+// ends as the cycle it is. The resolver follows a hop it finds resolved
+// without tracking it, so the held object the chain started from looped it
+// until the stack ran out. This is the resolution the walk starts, before
+// anything settles it.
+func TestHold_AReferenceCycleThroughTheSourceEndsAsACycle(t *testing.T) {
 	t.Parallel()
-	dir := externalDir(t, map[string]string{"other.yaml": "A: {$ref: 'root.yaml#/components/schemas/W'}\n"})
-	doc, pass := heldResolution(t, rootOfSchemas(
-		"    P: {$ref: 'other.yaml#/A'}\n",
-		"    W: {$ref: '#/components/schemas/P'}\n"), filepath.Join(dir, "root.yaml"))
-	p, ok := doc.Components.Schemas.Get("P")
+	dir := externalDir(t, map[string]string{"other.yaml": "A: {$ref: 'root.yaml#/components/responses/W'}\n"})
+	doc, pass := heldResolution(t, "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\n"+
+		"components:\n  responses:\n    P: {$ref: 'other.yaml#/A'}\n    W: {$ref: '#/components/responses/P'}\n",
+		filepath.Join(dir, "root.yaml"))
+	p, ok := doc.Components.Responses.Get("P")
 	require.True(t, ok)
 
 	_, err := p.Resolve(t.Context(), pass.opts)
@@ -737,8 +736,8 @@ func TestHold_AnInternalRefResolvesThroughEveryAlias(t *testing.T) {
 }
 
 // TestStandIn pins the stand-in held for each kind of reference object: an
-// empty object of the kind, which mend knows to stand for the object. A schema
-// has none.
+// empty object of the kind, which mend knows to stand for the object. A
+// resolvable of no known kind has none.
 func TestStandIn(t *testing.T) {
 	t.Parallel()
 	read := newExternalReads(sourceDocument{})
@@ -755,8 +754,8 @@ func TestStandIn(t *testing.T) {
 		require.True(t, ok, "%T", obj)
 		assert.Same(t, obj, stood)
 	}
-	_, ok := read.standIn(oas3.NewJSONSchemaFromReference("#/components/schemas/S"))
-	assert.False(t, ok, "a schema is held as no stand-in")
+	_, ok := read.standIn(fakeResolvable{})
+	assert.False(t, ok, "a kind of no known stand-in is held as none")
 	_, ok = read.stoodFor(&soa.ReferencedResponse{})
 	assert.False(t, ok, "an object made elsewhere stands for nothing")
 }

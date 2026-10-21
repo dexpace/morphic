@@ -50,14 +50,14 @@ components:
     X: {get: {responses: {'200': {description: ok}}}, <<: *base, x-foo: {a: 1}, x-bar: [1, 2], x-dup: one, x-dup: two, 'x-a/b': {c: 1}, 'x-t~': 1}
 `
 
-// TestScope_Locate_HoldsAnswersAsTheLibraryAtEveryReferenceKind holds a walk
-// asking Holds, as the lowering's does, to one asking the library, where the
-// walk leaves the model at a reference of each kind: for tokens the target
+// TestScope_HoldsAnswersAsTheLibraryAtEveryReferenceKind holds a walk asking
+// Holds, as the lowering's does, to one asking the library, where the walk
+// leaves the model at a reference of each kind: for tokens the target
 // holds itself, through a merge, escaped or written twice, and tokens it does
 // not hold. Every reference reads as ending in another document, so each one
 // passed shows in the scope. At 6a9f53d, no corpus position left the model at
 // a reference into a token its target holds.
-func TestScope_Locate_HoldsAnswersAsTheLibraryAtEveryReferenceKind(t *testing.T) {
+func TestScope_HoldsAnswersAsTheLibraryAtEveryReferenceKind(t *testing.T) {
 	t.Parallel()
 	loaded, _, err := load.Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(referenceKindsSpec)},
 		load.Options{})
@@ -68,7 +68,7 @@ func TestScope_Locate_HoldsAnswersAsTheLibraryAtEveryReferenceKind(t *testing.T)
 	indexed := library
 	indexed.Holds = func(raw *yaml.Node, token string) bool {
 		asked++
-		answer := loaded.Targets.Holds(raw, token)
+		answer := loaded.Holds(raw, token)
 		if answer {
 			held++
 		}
@@ -80,9 +80,8 @@ func TestScope_Locate_HoldsAnswersAsTheLibraryAtEveryReferenceKind(t *testing.T)
 		for _, tail := range []string{"x-foo", "x-foo/a", "x-bar/1", "x-m/q", "x-shared", "x-dup", "x-a~1b/c", "x-t~0",
 			"x-missing", "x-missing/a", "<<", "", "description"} {
 			pointer := jsontext.Pointer(base + "/" + tail)
-			want, got := library.Locate(pointer), indexed.Locate(pointer)
-			assert.Equal(t, want.At().Foreign, got.At().Foreign, "%q", pointer)
-			assert.Same(t, want.Model(), got.Model(), "%q", pointer)
+			want, got := resolve.At(library, pointer), resolve.At(indexed, pointer)
+			assert.Equal(t, want.Foreign, got.Foreign, "%q", pointer)
 		}
 	}
 	assert.Greater(t, held, 50, "the targets hold most of the tokens asked")

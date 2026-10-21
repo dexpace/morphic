@@ -6,6 +6,7 @@ import (
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/auth"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
@@ -48,7 +49,14 @@ func lowererOver(ctx lowering.Ctx) *lowerer {
 // yet, plus the load diagnostics.
 func loweredFor(t *testing.T, src string) (*lowerer, []ir.Diagnostic) {
 	t.Helper()
-	loadedDoc, diags, err := load.Load(t.Context(), 0, openapitest.SourceOf(src), load.Options{})
+	return loweredAt(t, openapitest.SourceOf(src), load.Options{})
+}
+
+// loweredAt is loweredFor for a source with a path of its own, loaded under
+// opts, which a test needs when the document names another one.
+func loweredAt(t *testing.T, src compilers.Source, opts load.Options) (*lowerer, []ir.Diagnostic) {
+	t.Helper()
+	loadedDoc, diags, err := load.Load(t.Context(), 0, src, opts)
 	require.NoError(t, err)
 	require.NotNil(t, loadedDoc, "load returned no document: %+v", diags)
 	return lowererOver(lowering.New(0, loadedDoc.Doc, loadedDoc.Source,

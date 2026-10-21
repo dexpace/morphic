@@ -180,7 +180,7 @@ components:
     s: {type: apiKey, in: header, name: X-Key, x-bad: {1: intkey}}
 `
 	doc, _, diags := serviceSpec(t, spec)
-	assert.True(t, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning) > 0,
+	assert.Positive(t, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning),
 		"an entirely unserializable extension still warns even though the scheme's own Unmodeled ends up empty")
 	scheme, ok := doc.Auth[ids.Auth("s")]
 	require.True(t, ok)
@@ -225,7 +225,7 @@ func TestAuth_AllSchemeKinds(t *testing.T) {
 	assert.Equal(t, "header", byKind[ir.AuthKindAPIKey].In)
 	require.NotNil(t, byKind[ir.AuthKindHTTPBasic].Deprecation, "deprecated basic scheme")
 	assert.Equal(t, "JWT", byKind[ir.AuthKindHTTPBearer].BearerFormat)
-	assert.Equal(t, "openIdConnect", "openIdConnect")
+	require.Contains(t, byKind, ir.AuthKindOpenIDConnect, "type: openIdConnect lowers to the OpenID Connect kind")
 	assert.Equal(t, "https://oidc", byKind[ir.AuthKindOpenIDConnect].OpenIDConnectURL)
 	_, hasMTLS := byKind[ir.AuthKindMutualTLS]
 	assert.True(t, hasMTLS)

@@ -200,7 +200,7 @@ func TestEngine_RunResultSourcesOnARefusedCompile(t *testing.T) {
 	const cyclic = `openapi: 3.1.0
 info: {title: t, version: '1'}
 paths: {}
-components: {schemas: {A: {$ref: '#/components/schemas/A'}}}
+x-a: &a [*a]
 `
 	eng, err := engine.New()
 	require.NoError(t, err)
@@ -346,22 +346,28 @@ func TestEngine_RunCompileError(t *testing.T) {
 	assert.Contains(t, err.Error(), "engine: compile")
 }
 
-// nilDocCompiler claims openapi 3.1 and returns a nil Document with no error —
-// a legal outcome that must skip the validate pass and surface a nil Document.
+// nilDocCompiler claims openapi 3.1 and returns a nil Document with no error,
+// reporting what reported holds — a legal outcome that must skip the validate
+// pass and surface a nil Document.
 //
 // It is not a stand-in for a compiler whose two diagnostic channels disagree:
 // a nil Document short-circuits the validate step entirely, so this stub never
 // reaches the code that folds the two together. splitDiagCompiler is what
 // covers that.
-type nilDocCompiler struct{ stubFront }
+type nilDocCompiler struct {
+	stubFront
+	reported []ir.Diagnostic
+}
 
-func (nilDocCompiler) Compile(context.Context, []compilers.Source, compilers.Options) (*ir.Document, []ir.Diagnostic, error) {
-	return nil, []ir.Diagnostic{{Code: "x/none"}}, nil
+func (c nilDocCompiler) Compile(context.Context, []compilers.Source, compilers.Options) (*ir.Document, []ir.Diagnostic, error) {
+	return nil, slices.Clone(c.reported), nil
 }
 
 func TestEngine_RunNilDocument(t *testing.T) {
 	t.Parallel()
-	eng, err := engine.NewWith(nilDocCompiler{})
+	eng, err := engine.NewWith(nilDocCompiler{
+		reported: []ir.Diagnostic{{Severity: ir.SeverityError, Code: "x/none"}},
+	})
 	require.NoError(t, err)
 	// No pass is disabled, but a nil Document must still short-circuit the passes.
 	res, err := eng.Run(t.Context(), writeSpec(t, testspec.Tiny), engine.RunOptions{})

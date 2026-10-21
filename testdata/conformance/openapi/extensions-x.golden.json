@@ -686,7 +686,7 @@
         }
       ],
       "exclusive": true,
-      "wireTagged": false,
+      "wireTagged": true,
       "discriminator": {
         "propertyName": "k",
         "inferred": false

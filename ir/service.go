@@ -35,7 +35,8 @@ type Service struct {
 	// Renames holds per-service shape presentation names (Smithy service rename);
 	// the TypeID — and Naming on the type — are unchanged. No key is empty.
 	Renames map[TypeID]Naming `json:"renames,omitempty"`
-	// Servers indexes into Document.Servers scoped to this service.
+	// Servers indexes into Document.Servers scoped to this service. Empty scopes
+	// nothing out: every server serves it, in the document's order (ir-design §10).
 	Servers []int `json:"servers,omitempty"`
 	// Unmodeled holds source constructs the IR does not model, kept verbatim.
 	Unmodeled Unmodeled `json:"unmodeled,omitempty"`

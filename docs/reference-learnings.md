@@ -135,7 +135,11 @@ in IR. Add oagen's two plan predicates Morphic's §2.3 list omits: **`pathParams
 (positional-vs-options-bag: `pathParams>1 || (pathParams>0 && (hasBody||hasQuery))`) and
 **`isArrayResponse`** (unpaginated array→`Model[]` + elementwise decode, distinct from the pagination
 wrapper). Streaming stays on the operation core (`StreamDetail`/`Variant.Event`) — Kiota's lack of any
-streaming concept is the counterexample.
+streaming concept is the counterexample. *Superseded in part:* `pathParamsInOptions` is not a plan
+predicate — how a target passes its inputs varies by language, so emitter-design §3.6 makes the shape
+each target's (§4.13) — and `isArrayResponse` is not a shape of its own: an unpaginated array is a
+`value` of `ReturnShape`, decoded as any type is, since the typed targets decode a list whole
+(emitter-design §3.1).
 
 ## A6. Naming / casing / reserved words: neutral in IR, rendered in refine — STRONGLY CONFIRMS #3/#4
 
@@ -251,9 +255,10 @@ lacks (the strongest validation the oagen audit produced).
   context)`; it splits **lexical vs reference context** (decl-site context stays, use-site context
   propagates across ref edges) — Morphic's plan hits this the moment one model is used under two
   lifecycles/media-types. Key visibility/shape projections on `(TypeID, lifecycle-set, options-hash)`
-  and intern the option set (answers ir-design open-question #4: compute Usage once, store, key by
-  interned context). Support `manuallyTrack`-style usage injection for emitter-synthesized types
-  (envelopes, page wrappers) or you get mis-scoped duplicate declarations.
+  and intern the option set (answers ir-design open-question #4: derive Usage once per document in
+  `ir/irfacts`, do not store it, key by interned context). Support `manuallyTrack`-style usage
+  injection for emitter-synthesized types (envelopes, page wrappers) or you get mis-scoped
+  duplicate declarations.
 
 ## A11. Error-response collapse, dedup equality, encode/decode pairing — plan-layer patterns to steal
 

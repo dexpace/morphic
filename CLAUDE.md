@@ -78,7 +78,7 @@ in the docs.
    PascalCase — emitters own all identifier rendering, casing, and reserved-word escaping.
 5. **Pure, reentrant stages.** Every stage is `f(input, options) → (output, diagnostics)` with no
    package-level mutable state. No stage writes to stderr; each emits typed `Diagnostic` values
-   (severity, stable string code, message, provenance). The engine/CLI decides what is fatal.
+   (severity, stable string code, message, provenance). The engine decides what is fatal.
 6. **Heuristics are policy, not semantics.** Anything inferred rather than declared (pagination
    from param names, envelope detection, acronym casing) lives in injectable per-compiler/emitter
    policy, is marked `Inferred` in provenance, and can be disabled.
@@ -117,6 +117,8 @@ in the docs.
 
 ```
 ir/          Layer 0 — IR nodes, IDs, traversal, JSON round-trip. Imports ONLY the stdlib.
+  irfacts/   Layer 0 — what a Document implies and does not state (subtypes, exposed properties,
+             usage, recursion), derived on demand and never stored. Imports ir only.
   irverify/  Layer 0 — structural-invariant checks over a compiled Document. Imports ir only.
   irtest/    Layer 0 — golden-file helper (`-update` rewrites) and fixture helpers. Imports ir + go-cmp.
 compilers/   Layer 1 — the Compiler contract and the format-keyed registry. Imports ir only.
@@ -129,8 +131,8 @@ compilers/   Layer 1 — the Compiler contract and the format-keyed registry. Im
     internal/  Layer 1 — that compiler's own packages, each with its own allowlist rather than
              the compiler's. The ordering among them is real and enforced, from diag (reaches
              only ir) up to operation. None may reach the compiler above it.
-pass/        Layer 1 — IR → IR passes. Imports ir only.
-emitters/*   Layer 2 — imports ir + emitter contract; never compiler. (Not built yet.)
+pass/        Layer 1 — IR → IR passes. Imports ir and ir/irfacts.
+emitters/*   Layer 2 — imports ir, ir/irfacts + emitter contract; never compiler. (Not built yet.)
 engine/      Layer 3 — orchestration; imports everything below. It owns every read, write and
              rendering, so a second driver needs nothing from the CLI:
   reader/    what a run's references name, from disk, the network or memory. Imports compilers.
@@ -140,10 +142,15 @@ cmd/morphic/ Layer 4 — CLI; imports ir + engine (and its report and output) + 
              framework (cobra, pflag).
 cmd/morphic-harness/
              Layer 4 — sweeps a spec or directory through the oracles; imports internal/harness.
+cmd/morphic-census/
+             Layer 4 — counts which IR facts the documents compiled from specs set; imports
+             engine + internal/census + internal/harness.
 cmd/morphic-covergate/
              Layer 4 — judges a coverage profile for `make coverage`; imports x/tools/cover.
-internal/    Test/tooling infrastructure, outside the pipeline (harness, archtest, decls, jsonshape,
-             keydoc, leakcheck, testspec).
+cmd/morphic-vet/
+             Layer 4 — runs internal/lintrules under go vet; imports it + x/tools unitchecker.
+internal/    Test/tooling infrastructure, outside the pipeline (harness, archtest, census, decls,
+             jsonshape, keydoc, leakcheck, lintrules, testspec).
 ```
 
 The layering is enforced by `internal/archtest`, and **its `rules` map is the source of truth** —
@@ -166,9 +173,9 @@ methods (`internal/archtest`), and no function may exceed 70 lines or a cognitiv
 structure replaced reached 159 methods without ever writing a long function, so every rule then in
 force stayed green while it grew. A failure is a prompt to ask what the type has started doing.
 
-No lint suppression stands in the source: `internal/archtest` refuses a `//nolint`, `revive:` or
-`lint:ignore` comment. A suppression is a rule under `exclusions` in `.golangci.yml`, kept as narrow
-as the finding it excuses, with its reason beside it.
+No lint suppression stands in the source: `internal/archtest` refuses a `//nolint`, `revive:`,
+`lint:ignore` or `exhaustive:ignore` comment. A suppression is a rule under `exclusions` in
+`.golangci.yml`, kept as narrow as the finding it excuses, with its reason beside it.
 
 ## Testing strategy
 
@@ -189,6 +196,11 @@ These all exist already — extend them rather than building a parallel mechanis
   `compilers/openapi/conformance_matrix_test.go` requires every expressible row to be witnessed or
   listed with a reason. What it cannot check is whether a spec that *names* a row exercises that
   capability — that claim is read by a reviewer, so weigh it like any other.
+- **IR census** (`testdata/unwitnessed.golden.txt`): every IR fact no committed spec sets, which is
+  what the first emitters degrade rather than lower (`docs/emitter-design.md` §14.1). A fact is a
+  struct member, the emptiness of an `omitzero` collection, or an enumeration value, read off
+  `internal/jsonshape` by `internal/census`; `go test ./cmd/morphic-census` holds the file to a
+  census of `testdata/`. A case that sets a fact takes its line out, so its change runs `-update`.
 - **Lowering specification**: `docs/compilers/openapi.md` is machine-read like the matrix. Each rule
   names its evidence, and the `TestLoweringSpec` tests in `compilers/openapi` hold the names to the
   code both ways, each listed code to the rule's text, and every `docs/compilers/openapi.md#<key>`
@@ -206,6 +218,16 @@ These all exist already — extend them rather than building a parallel mechanis
   production package's uses of the parser library's reference-resolution API, which it derives
   from the library's sources, to `resolutionBaseline`. The baseline only shrinks: removing a use
   means lowering it (#558).
+- **Lint rules and their plants**: a rule an off-the-shelf linter expresses lives in
+  `.golangci.yml`; one about which package may build or spell a part of the IR is a go/analysis
+  analyzer in `internal/lintrules`, which `make vet` runs through `cmd/morphic-vet`. Neither lives
+  in archtest. Each is held to findings planted for it, since a rule that recognizes nothing
+  leaves a clean tree clean: `make lint-planted` holds the linters to
+  `internal/lintrules/testdata/planted`, and `internal/lintrules`' own test holds the analyzers to
+  `testdata/mod`, a tree laid out like the module. Lines there carry the findings they must draw.
+  A new rule gets its plants beside the others, and a new linter a place in the script's list.
+  `make vet` also requires the one finding planted in `testdata/reach`, which shows `go vet` runs
+  the analyzers at all.
 - **Declaration pins**: a test that holds a hand-written list (an enum's members, a sealed sum's
   kinds, the fields of a shape) to what a package declares reads the package through
   `internal/decls`, which type-checks it with `go/packages`. It does not parse the sources: parsed
@@ -292,7 +314,7 @@ below are the ones most likely to bite in this codebase — the full guide gover
   `internal/archtest` enforces the cap, and `go test ./internal/archtest -run TestDocComments`
   lists every comment over it; an exception is a `longDocComments` entry there, with its reason.
 - **Serialization:** JSON goes through `encoding/json/v2` and `encoding/json/jsontext` only;
-  `encoding/json` (v1) is banned by `internal/archtest`, tests included. Explicit struct tags on
+  `encoding/json` (v1) is banned by the depguard lint, tests included. Explicit struct tags on
   every field: `omitempty` only on strings, slices and maps whose empty and absent forms mean the
   same; `omitzero` on every other optional field (pointers, bools, numbers), because v2's
   `omitempty` keeps a zero number or bool and drops a pointer to an empty struct, and on a
@@ -317,9 +339,9 @@ make gate
 
 That is not a summary of CI — it is what CI runs. Every check in `.github/workflows/gate.yml` runs a
 `Makefile` target bar `lint`, which the golangci-lint action runs at the version the `Makefile`
-pins, so the local command and the job are the same commands in the same order. Read the `Makefile`
-for the step list rather than restating it here; `make coverage`, `make fuzz`, `make bench` and the
-rest are individually runnable while iterating.
+pins, so the local command and CI are the same commands; CI splits them across two jobs that run
+side by side. Read the `Makefile` for the step list rather than restating it here; `make coverage`,
+`make fuzz`, `make bench` and the rest are individually runnable while iterating.
 
 **Coverage is a gate at exactly 100%, not a target.** `cmd/morphic-covergate` counts
 statements from the profile rather than reading `go test`'s rounded percentage, so one uncovered
@@ -335,9 +357,11 @@ context-switch between repos.
   `fix/ir-nullable-defaulting`, `docs/architecture-milestone-2`).
 - No CODEOWNERS, PR/issue templates, or CODE_OF_CONDUCT.md exist in this repo — don't assume them
   or invent content for files that aren't there.
-- CI is one bundled `gate` job (`.github/workflows/gate.yml`) on PR and on push to `main`. Keep it
-  that way — add steps to it rather than new workflows; both reference repos converge on one
-  bundled gate over granular per-check pipelines.
+- CI is one `gate` workflow (`.github/workflows/gate.yml`) of two jobs that run side by side, on PR
+  and on push to `main`. Keep it that way — add a check as a step of one of the two jobs rather than
+  a new job or workflow; both reference repos converge on one bundled gate over granular per-check
+  pipelines, and two jobs is as far as this one splits. The gate builds, vets and lints for the
+  host alone; Windows and wasm are not targets it checks.
 
 ## Commits & pull requests
 

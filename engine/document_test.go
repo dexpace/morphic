@@ -124,8 +124,9 @@ func TestEngine_RunDocumentHonoursDisabledPasses(t *testing.T) {
 
 // TestEngine_RunDocumentRefusals pins that a run RunDocument cannot make is a
 // Go error naming its fault: no document, one from another IR generation or
-// none, compiler options no compiler would read, an unbuilt engine, and a
-// cancelled context, which stops it before the first pass.
+// none, compiler options no compiler would read, a threshold that names none,
+// an unbuilt engine, and a cancelled context, which stops it before the first
+// pass.
 func TestEngine_RunDocumentRefusals(t *testing.T) {
 	t.Parallel()
 	built, err := engine.New()
@@ -134,31 +135,36 @@ func TestEngine_RunDocumentRefusals(t *testing.T) {
 	stale.IRVersion = "0.0.1"
 	unstamped := danglingDocument()
 	unstamped.IRVersion = ""
-	cancelled, cancel := context.WithCancel(t.Context())
-	cancel()
 	tests := []struct {
-		name string
-		eng  *engine.Engine
-		ctx  context.Context
-		doc  *ir.Document
-		opts engine.RunOptions
-		want string
+		name      string
+		eng       *engine.Engine
+		cancelled bool
+		doc       *ir.Document
+		opts      engine.RunOptions
+		want      string
 	}{
-		{"no document", built, t.Context(), nil, engine.RunOptions{}, "no document"},
-		{"another generation", built, t.Context(), stale, engine.RunOptions{}, `"0.0.1"`},
-		{"no generation", built, t.Context(), unstamped, engine.RunOptions{}, `IR version ""`},
-		{"format options", built, t.Context(), danglingDocument(),
+		{"no document", built, false, nil, engine.RunOptions{}, "no document"},
+		{"another generation", built, false, stale, engine.RunOptions{}, `"0.0.1"`},
+		{"no generation", built, false, unstamped, engine.RunOptions{}, `IR version ""`},
+		{"format options", built, false, danglingDocument(),
 			engine.RunOptions{FormatOptions: struct{}{}}, "compiles nothing"},
-		{"compiler options", built, t.Context(), danglingDocument(),
+		{"compiler options", built, false, danglingDocument(),
 			engine.RunOptions{CompilerOptions: map[string]string{"grouping": "tags"}}, "compiles nothing"},
-		{"an unbuilt engine", &engine.Engine{}, t.Context(), danglingDocument(), engine.RunOptions{}, "uninitialized"},
-		{"a cancelled context", built, cancelled, danglingDocument(), engine.RunOptions{}, "context canceled"},
+		{"a threshold naming none", built, false, danglingDocument(),
+			engine.RunOptions{FailOn: "fatal"}, "unknown fail-on threshold"},
+		{"an unbuilt engine", &engine.Engine{}, false, danglingDocument(), engine.RunOptions{}, "uninitialized"},
+		{"a cancelled context", built, true, danglingDocument(), engine.RunOptions{}, "context canceled"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+			ctx, cancel := context.WithCancel(t.Context())
+			if tt.cancelled {
+				cancel()
+			}
+			t.Cleanup(cancel)
 
-			res, err := tt.eng.RunDocument(tt.ctx, tt.doc, tt.opts)
+			res, err := tt.eng.RunDocument(ctx, tt.doc, tt.opts)
 
 			require.Error(t, err)
 			assert.Nil(t, res)

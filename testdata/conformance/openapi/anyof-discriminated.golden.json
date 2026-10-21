@@ -1,0 +1,293 @@
+{
+  "idSpaces": {
+    "auth": [
+      "openapi"
+    ],
+    "e": [
+      "anon",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
+  "name": "AnyOfDiscriminated",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "AnyOfDiscriminated",
+        "canonical": "any_of_discriminated"
+      },
+      "docs": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/components/schemas/Labelled/properties/labels": {
+      "kind": "list",
+      "id": "t/anon/components/schemas/Labelled/properties/labels",
+      "name": {
+        "hint": "labels"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Labelled/properties/labels"
+      },
+      "elem": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/Labelled": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Labelled",
+      "name": {
+        "source": "Labelled",
+        "canonical": "labelled"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Labelled"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Labelled/properties/kind",
+          "name": {
+            "source": "kind",
+            "canonical": "kind"
+          },
+          "wireName": "kind",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Labelled/properties/kind"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Labelled/properties/labels",
+          "name": {
+            "source": "labels",
+            "canonical": "labels"
+          },
+          "wireName": "labels",
+          "type": {
+            "target": "t/anon/components/schemas/Labelled/properties/labels",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Labelled/properties/labels"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Named": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Named",
+      "name": {
+        "source": "Named",
+        "canonical": "named"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Named"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Named/properties/kind",
+          "name": {
+            "source": "kind",
+            "canonical": "kind"
+          },
+          "wireName": "kind",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Named/properties/kind"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Named/properties/name",
+          "name": {
+            "source": "name",
+            "canonical": "name"
+          },
+          "wireName": "name",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Named/properties/name"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Resource": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/Resource",
+      "name": {
+        "source": "Resource",
+        "canonical": "resource"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Resource"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "named"
+          },
+          "type": {
+            "target": "t/openapi/components/schemas/Named",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "labelled"
+          },
+          "type": {
+            "target": "t/openapi/components/schemas/Labelled",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": false,
+      "wireTagged": true,
+      "discriminator": {
+        "propertyName": "kind",
+        "mapping": {
+          "labelled": "t/openapi/components/schemas/Labelled",
+          "named": "t/openapi/components/schemas/Named"
+        },
+        "inferred": false
+      }
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "string"
+    }
+  },
+  "servers": [
+    {
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {}
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "anyof-discriminated.yaml",
+      "hash": "1ca951de63dc0541ba771b9cbd957ab205f30bfff17b1d32b5e6f0e5228fae44"
+    }
+  ]
+}

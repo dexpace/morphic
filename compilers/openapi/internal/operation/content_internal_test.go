@@ -2,24 +2,31 @@ package operation
 
 import (
 	"encoding/json/jsontext"
+	"os"
+	"path/filepath"
 	"testing"
 
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/speakeasy-api/openapi/sequencedmap"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
 
 // TestBodyModelPointer_NoModelBehindBody covers the walk's dead ends on a
 // hand-built registry: an ID nothing declares, an opaque scalar, a kind that is
 // no model, and an alias chain that closes on itself. The last is what the bound
-// is for — a $ref cycle is refused at load, so no document can spell one, and a
-// walk that relied on that would loop forever the day one arrived by another
-// route.
+// is for: a $ref cycle compiles rather than being refused at load, so nothing
+// upstream keeps a chain from closing, and a walk that relied on that would loop
+// forever.
 func TestBodyModelPointer_NoModelBehindBody(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
@@ -51,26 +58,62 @@ func TestBodyModelPointer_NoModelBehindBody(t *testing.T) {
 	}
 }
 
+// refSite loads a source declaring a component Ref whose $ref spells ref, and
+// the object schema Form it may name, and returns the lowerer over it with the
+// schema Ref: the position bodySchemaPointer is asked about.
+func refSite(t *testing.T, ref string) (*lowerer, *oas3.JSONSchema[oas3.Referenceable]) {
+	t.Helper()
+	l, _ := loweredFor(t, openapitest.ComponentSpec("    Form: {type: object}\n    Ref: {$ref: '"+ref+"'}\n"))
+	return l, refComponent(t, l)
+}
+
+// refComponent returns the component Ref of the document l holds.
+func refComponent(t *testing.T, l *lowerer) *oas3.JSONSchema[oas3.Referenceable] {
+	t.Helper()
+	js, ok := l.ctx.Doc.Components.Schemas.Get("Ref")
+	require.True(t, ok, "the fixture declares component Ref")
+	return js
+}
+
 // TestBodySchemaPointer_LocalRefFragment pins the fallback's own ref hop, which
-// the production path reaches only for a body standing for no model.
+// the production path reaches only for a body standing for no model: a $ref the
+// compiler resolved to a position in the source is keyed by that position.
 func TestBodySchemaPointer_LocalRefFragment(t *testing.T) {
 	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
-	js := oas3.NewJSONSchemaFromReference("#/components/schemas/Form")
+	l, js := refSite(t, "#/components/schemas/Form")
 	assert.Equal(t, jsontext.Pointer("/components/schemas/Form"), bodySchemaPointer(l.ctx, js, "/local"))
 }
 
 // TestBodySchemaPointer_ForeignDocumentRefStaysLocal pins the document half of a
 // $ref deciding the pointer. Cutting the fragment off blindly turned another
 // document's property into an identity in this one, silently naming whichever
-// local schema shared the path.
+// local schema shared the path. Neither a document that is not read nor one that
+// is lands in the source, so the local pointer stands.
 func TestBodySchemaPointer_ForeignDocumentRefStaysLocal(t *testing.T) {
 	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
-	l.ctx.Source = ir.SourceInfo{Path: "spec.yaml"}
-	js := oas3.NewJSONSchemaFromReference("./ext-form.yaml#/components/schemas/Form")
-	assert.Equal(t, jsontext.Pointer("/local"), bodySchemaPointer(l.ctx, js, "/local"),
-		"a fragment from another document must not become a pointer into this one")
+	t.Run("not read", func(t *testing.T) {
+		t.Parallel()
+		l, js := refSite(t, "./ext-form.yaml#/components/schemas/Form")
+		assert.Equal(t, jsontext.Pointer("/local"), bodySchemaPointer(l.ctx, js, "/local"),
+			"a fragment from another document must not become a pointer into this one")
+	})
+
+	t.Run("read", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "ext-form.yaml"),
+			[]byte("components:\n  schemas:\n    Form: {type: object}\n"), 0o600))
+		src := openapitest.ComponentSpec("    Form: {type: object}\n    Ref: {$ref: './ext-form.yaml#/components/schemas/Form'}\n")
+		l, _ := loweredAt(t, compilers.Source{Path: filepath.Join(dir, "spec.yaml"), Data: []byte(src)},
+			load.Options{Reader: reader.Disk{}})
+		js := refComponent(t, l)
+		e, ok := l.ctx.Bindings().Entry(js)
+		require.True(t, ok)
+		require.Equal(t, bind.Resolved, e.Hop.Status, "the $ref lands in the other document")
+
+		assert.Equal(t, jsontext.Pointer("/local"), bodySchemaPointer(l.ctx, js, "/local"),
+			"a fragment from another document must not become a pointer into this one")
+	})
 }
 
 // TestBodySchemaPointer_SelfNamedRefFollowsFragment pins the other half: a ref
@@ -78,9 +121,7 @@ func TestBodySchemaPointer_ForeignDocumentRefStaysLocal(t *testing.T) {
 // pointer here after all.
 func TestBodySchemaPointer_SelfNamedRefFollowsFragment(t *testing.T) {
 	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
-	l.ctx.Source = ir.SourceInfo{Path: "spec.yaml"}
-	js := oas3.NewJSONSchemaFromReference("spec.yaml#/components/schemas/Form")
+	l, js := refSite(t, "spec.yaml#/components/schemas/Form")
 	assert.Equal(t, jsontext.Pointer("/components/schemas/Form"), bodySchemaPointer(l.ctx, js, "/local"))
 }
 
@@ -91,10 +132,22 @@ func TestBodySchemaPointer_SelfNamedRefFollowsFragment(t *testing.T) {
 // (GitHub #520).
 func TestBodySchemaPointer_NonUTF8FragmentStaysLocal(t *testing.T) {
 	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
-	js := oas3.NewJSONSchemaFromReference("#/components/schemas/%FF")
+	l, js := refSite(t, "#/components/schemas/%FF")
 	assert.Equal(t, jsontext.Pointer("/local"), bodySchemaPointer(l.ctx, js, "/local"),
 		"a fragment that is not UTF-8 must not become a pointer")
+}
+
+// TestBodySchemaPointer_UnresolvedRefStaysLocal pins the last reason: a $ref
+// naming nothing lands nowhere, so it keys no encoding entry by a position the
+// document does not hold. A scope with no bindings lands none either.
+func TestBodySchemaPointer_UnresolvedRefStaysLocal(t *testing.T) {
+	t.Parallel()
+	l, js := refSite(t, "#/components/schemas/Missing")
+	assert.Equal(t, jsontext.Pointer("/local"), bodySchemaPointer(l.ctx, js, "/local"))
+
+	bare := newRawLowerer(&soa.OpenAPI{})
+	assert.Equal(t, jsontext.Pointer("/local"), bodySchemaPointer(bare.ctx, js, "/local"),
+		"a context that was given no bindings resolves no $ref")
 }
 
 func TestContentTypeKeys_Nil(t *testing.T) {
@@ -137,14 +190,15 @@ func TestPositionalEncoding_WithoutRootNode(t *testing.T) {
 	assert.Nil(t, content.ItemEncoding, "prefixes still block the every-item lowering")
 	assert.Nil(t, content.Unmodeled, "a media type with no source node has nothing verbatim to keep")
 	openapitest.AssertHasCode(t, diags, diag.UnpreservableConstruct, ir.SeverityError)
-	assert.False(t, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityInfo) > 0,
+	assert.Zero(t, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
 		"nothing was kept, so nothing announces that it was")
 }
 
+// TestBodySchemaPointer_ExternalRefNoFragment pins that a $ref naming another
+// document with no fragment falls back to the local pointer.
 func TestBodySchemaPointer_ExternalRefNoFragment(t *testing.T) {
 	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
-	js := oas3.NewJSONSchemaFromReference("external.yaml")
+	l, js := refSite(t, "external.yaml")
 	assert.Equal(t, jsontext.Pointer("/local"), bodySchemaPointer(l.ctx, js, "/local"), "a fragmentless ref falls back to the local pointer")
 }
 
@@ -204,12 +258,12 @@ func TestPropIDByWire_DeadEnds(t *testing.T) {
 	}
 }
 
-// TestBodyParts_DepthBound covers the composition walk's bound. A $ref cycle is
-// refused at load, so no document can spell a composition this deep; the bound is
-// what keeps the walk terminating without relying on that.
+// TestBodyParts_DepthBound covers the composition walk's bound. A $ref cycle
+// compiles rather than being refused at load, so the bound is what keeps the
+// walk terminating whatever the document holds.
 func TestBodyParts_DepthBound(t *testing.T) {
 	t.Parallel()
 	js := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{})
-	assert.Nil(t, bodyParts(js, maxPartCompositionDepth+1),
+	assert.Nil(t, bodyParts(nil, js, maxPartCompositionDepth+1),
 		"past the bound the walk stops rather than descending further")
 }

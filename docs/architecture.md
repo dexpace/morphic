@@ -110,9 +110,9 @@ registry is the one handle a lowering holds (micro-compiler-design §4). What st
 compiler is what only it can compute: the path an ID derives from, since a JSON Pointer, a GraphQL
 structural path and a protobuf fully-qualified name are different things.
 
-The split is enforced rather than documented: architecture tests fail a package outside the
-framework that writes the type registry, derives a canonical name, builds an ID out of a string, or
-builds a namespace out of anything but a literal.
+The split is enforced rather than documented: lint rules (`internal/lintrules`, run by `make vet`)
+fail a package outside the framework that builds or writes the type registry, derives a canonical
+name, builds an ID out of a string, or builds a namespace out of anything but a literal.
 Promoting something into the framework later is additive, while demoting it breaks every compiler,
 so borderline machinery starts outside and moves in on evidence from more than one format.
 
@@ -173,11 +173,10 @@ naming it.
 
 A caller turns a pass off by name (`RunOptions.DisablePasses`, `--disable-pass`); a name no pass
 carries is a Go error (`engine.ErrUnknownPass`), not a diagnostic, because it names no defect in the
-spec. A pass whose output a consumer relies on, such as one filling `TypeCommon.Usage` (ir-design.md
-§16, question 4), is not a caller's to turn off: from the first such pass, the engine refuses its
-name as it refuses an unknown one. Turning a pass *on* by name is for one that has no settings and
-is off by default, as the convenience simplifications of reference-learnings.md §B0 are to be, and
-it lands with the first of them.
+spec. A pass whose output a consumer relies on is not a caller's to turn off: from the first such
+pass, the engine refuses its name as it refuses an unknown one. Turning a pass *on* by name is for
+one that has no settings and is off by default, as the convenience simplifications of
+reference-learnings.md §B0 are to be, and it lands with the first of them.
 
 Built, and in the default list:
 
@@ -186,8 +185,8 @@ Built, and in the default list:
   service tree declares, and so on for every ID class), discriminator mappings point at actual
   variants, wire-name uniqueness within a model, and binding completeness: a parameter an HTTP
   binding places twice at one non-host location is an error, one it places nowhere is a warning,
-  and a `host` binding is additive (ir-design §8.1). Structural errors here are fatal; style issues
-  are warnings.
+  and a `host` binding is additive (ir-design §8.1). Structural problems are errors, which fail the
+  run at the default threshold (§4); style issues are warnings.
 
 Designed, not yet built:
 
@@ -230,11 +229,13 @@ except for the boundary they impose on the IR; the internal shape mirrors what K
 converged on independently:
 
 1. **Plan** — compute language-*neutral* per-operation and per-type decisions once
-   (is-paginated, body presence, idempotency, error taxonomy, primary-content/response
-   selection, return-shape classification (model / void / list-of-models with elementwise
-   deserialization), pagination item-type unwrap, parameter-passing shape (positional vs
-   options-bag)) so templates contain no policy. This list is the decision set oagen's
-   emitters demonstrably needed, computed once and shared across all languages.
+   (is-paginated, error taxonomy, primary-content/response selection, return-shape
+   classification (a success body read as a value / void / raw bytes / a stream), pagination
+   item-type unwrap) so templates contain no policy. This list is the decision set oagen's
+   emitters demonstrably needed, computed once and shared across all languages, less two kinds of
+   entry (emitter-design.md §3.6): what the IR already states, such as body presence and
+   idempotency, which a refiner reads there; and what varies by language, such as oagen's
+   parameter-passing shape (positional vs inside an options object), which is each target's.
 2. **Refine** — per-language lowering: reserved words, casing, union representation strategy
    (native union vs sealed interface vs wrapper class), enum strategy for open enums, interface
    extraction. Everything a refiner needs must exist un-lowered in the IR — this is the IR's
@@ -309,6 +310,7 @@ it in its own change.
 ```
 morphic/
 ├── ir/                     # Layer 0 — IR node types, IDs, shared traversals, JSON round-trip.
+│   ├── irfacts/            #           Derived facts of a document, never stored (ir-design §4.9).
 │   ├── irtest/             #           Golden-snapshot and fixture helpers for IR documents.
 │   └── irverify/           #           Structural-invariant oracle (dangling refs, IDs, naming).
 ├── compilers/              # Layer 1 — compiler contract + registry.
@@ -322,7 +324,8 @@ morphic/
 │   │       ├── ids/        #             pointer construction; pointer → TypeID
 │   │       ├── value/      #             scalar and BigVal lowering
 │   │       ├── nodeview/   #             the raw source as the resolver reads it
-│   │       ├── scan/       #             pre-lowering refusals (ref cycles, alias fan-out)
+│   │       ├── scan/       #             pre-parse refusals (alias cycles and fan-out, nesting)
+│   │       ├── bind/       #             every schema $ref bound where it lands, loops found
 │   │       ├── annotation/ #             what a schema says about itself, not its shape
 │   │       ├── load/       #             parse, validate, resolve
 │   │       ├── resolve/    #             what a $ref names; reference-or-inline entries
@@ -338,16 +341,20 @@ morphic/
 │   ├── reader/             #           Reads what a run's references name: disk, network or memory.
 │   ├── report/             #           Renders diagnostics and --explain for a person.
 │   └── output/             #           Writes the IR document, through internal/atomicfile.
-├── internal/archtest/      #           Layering, grammar, recursion and method-cap rules (tooling).
+├── internal/archtest/      #           Import layering, the recursion pin and the caps (tooling).
+├── internal/census/        #           Counts which IR facts a set of documents sets (tooling).
 ├── internal/decls/         #           Type-checked reads of declarations, for tests (tooling).
 ├── internal/harness/       #           Bug-catching oracle sweep over a spec corpus (tooling).
-├── internal/jsonshape/     #           The IR's JSON shape, which IRVersion is pinned to (tooling).
+├── internal/jsonshape/     #           The IR's JSON shape: IRVersion's pin and the census read it (tooling).
 ├── internal/keydoc/        #           Reader of the keyed documents and their citations (tooling).
 ├── internal/leakcheck/     #           Goroutine leak check for test binaries (tooling).
+├── internal/lintrules/     #           The repository's go/analysis lint rules (tooling).
 ├── internal/testspec/      #           Spec fixtures shared by the tooling (tooling).
 ├── cmd/morphic/            # Layer 4 — CLI.
 ├── cmd/morphic-harness/    #           CLI over internal/harness (tooling, not the pipeline).
-└── cmd/morphic-covergate/  #           Judges the coverage profile (tooling, not the pipeline).
+├── cmd/morphic-census/     #           CLI over internal/census (tooling, not the pipeline).
+├── cmd/morphic-covergate/  #           Judges the coverage profile (tooling, not the pipeline).
+└── cmd/morphic-vet/        #           Runs internal/lintrules under go vet (tooling, not the pipeline).
 ```
 
 Swagger 2.0 gets no directory of its own: the lift normalizes it to the OpenAPI 3.x shape and
@@ -366,14 +373,14 @@ Dependency rules, enforced by an architecture test as in oagen:
 
 - `ir` imports only the standard library. It contains no parsing, no generation, no I/O.
 - `compilers/compile` imports only `ir`: it is below every compiler, not beside them.
-- `compilers/*` and `pass` import `ir` (and their own format libraries) — never each other,
-  never `emitters` or `engine`. A compiler also names the contract package and
-  `compilers/compile`; each is allowed in its own right, so no sibling compiler rides in beside
-  them.
+- `compilers/*` and `pass` import `ir` (and their own format libraries), and `pass` also
+  `ir/irfacts` — never each other, never `emitters` or `engine`. A compiler also names the
+  contract package and `compilers/compile`; each is allowed in its own right, so no sibling
+  compiler rides in beside them.
 - A compiler's own `internal/` packages each carry their own allowlist rather than inheriting the
   compiler's. That is what keeps the ordering among them real: `diag` reaches nothing but `ir`,
   and no lowering package may reach the compiler that calls it.
-- `emitters/*` imports `ir` and the contract package `emitters` — never a compiler.
+- `emitters/*` imports `ir`, `ir/irfacts` and the contract package `emitters` — never a compiler.
 - `engine` imports everything below it; `cmd` imports `engine`.
 
 The engine owns every read, every write and every rendering for a person, so a second driver — an
@@ -410,6 +417,21 @@ validated, so approvals cannot rot into blanket suppressions. Nothing in the pip
 stderr. The engine renders diagnostics (`engine/report`), and a driver such as the CLI chooses the
 stream they go to.
 
+**What fails a run.** A stage reports severities; whether the run fails is the engine's verdict,
+taken once the passes have reported, and recorded as `Result.Failed`, so the CLI's exit status
+(`--fail-on`) and any other driver read one rule rather than each reading the diagnostics its own
+way. `RunOptions.FailOn` sets the threshold. At `error`, the default, an error diagnostic fails the
+run; `warning` and `info` are stricter gates, each failing it on a diagnostic at or above that
+severity; `none` fails only a run that produced no document, which fails at every threshold. A
+diagnostic of a severity the IR does not declare is a stage breaking its contract and fails the run
+with a Go error: no threshold can rank it, and ranking it below them all would let a misspelt error
+through every gate. Failing withholds nothing: a failed run still returns its document and every
+diagnostic, to inspect or persist. What it stops is the emitters, which the engine starts only on a
+run that has not failed. The passes are not gated, since they run on every compiled document, errors
+reported or not (§2.2), and the verdict reads their findings too. Error is the default threshold
+because an error means the document may say something the spec does not: an SDK built on it is
+something a caller asks for with `none`, never a default.
+
 ## 5. Testing strategy
 
 - **Golden IR snapshots**: each compiler has a corpus of specs; `spec → IR → JSON` is
@@ -433,9 +455,13 @@ stream they go to.
   only if neither is the one that got there first. Both pointer collisions the compiler has had
   were invisible to a single-order suite.
 - **Architecture test** (`internal/archtest`): import-graph assertions for the layering rules
-  above, plus the rules the graph cannot express — which packages may write an `ir.TypeRegistry`,
-  which lowerings are mutually recursive (so a set that grows is noticed rather than measured),
-  and the method-per-type cap.
+  above, plus the rules the graph cannot express — which lowerings are mutually recursive (so a
+  set that grows is noticed rather than measured), and the method-per-type cap.
+- **Lint rules** (`.golangci.yml`; `internal/lintrules`, under `make vet`): what a linter can
+  hold — which packages may build or write an `ir.TypeRegistry`, derive a name or build an ID, that
+  no pipeline stage prints or logs, and that a switch over an IR enum names every member. Each rule
+  is held to findings planted for it, since a clean tree cannot tell a rule from one that matches
+  nothing.
 - **Wire-conformance harness** (from milestone 3): expected request shapes (method, path,
   query, body keys) are derived *from the IR alone* — offline, deterministic, shared across
   every language emitter; generated SDKs run under HTTP interception and the requests are
@@ -447,8 +473,9 @@ stream they go to.
 1. **IR + OpenAPI 3.x compiler** — `ir` package, validate pass, golden corpus, JSON round-trip.
 2. **Swagger 2.0 lift** — normalization into the OpenAPI compiler; proves the
    format-version-normalization seam.
-3. **First emitter** — one language end-to-end; proves the plan/refine/emit boundary and that the
-   IR retains everything a refiner needs.
+3. **First emitters** — Go, Kotlin/JVM and Kotlin Multiplatform end-to-end from one plan; proves the
+   plan/refine/emit boundary, the plan's neutrality across three targets, and that the IR retains
+   everything a refiner needs (emitter-design.md §14).
 4. **Second family compiler (TypeSpec or Smithy)** — proves the spec-agnostic claim: richer-than-
    OpenAPI concepts (interfaces, custom scalars, lifecycle visibility, declared pagination) flow
    through untouched IR code.

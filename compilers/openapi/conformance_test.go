@@ -63,9 +63,10 @@ func TestConformance(t *testing.T) {
 // TestConformance_TableNamesEveryCorpusSpec requires the table and the corpus
 // directory to name the same specs. Both directions matter: a spec with no row
 // gets neither a capability assertion nor a golden while the corpus-wide sweeps
-// (dangling references, the fuzz seed, the unwitnessed walk) still read it, so
-// it looks covered; a row naming a deleted spec fails the other way. Comparing
-// sorted lists rather than sets also catches a spec named by two rows.
+// (dangling references, the fuzz seed, the census of unwitnessed facts) still
+// read it, so it looks covered; a row naming a deleted spec fails the other
+// way. Comparing sorted lists rather than sets also catches a spec named by two
+// rows.
 func TestConformance_TableNamesEveryCorpusSpec(t *testing.T) {
 	t.Parallel()
 	onDisk := corpusSpecNames(t)
@@ -86,9 +87,9 @@ func TestConformance_TableNamesEveryCorpusSpec(t *testing.T) {
 //
 // The .yaml-only restriction is asserted rather than left to a narrower glob.
 // parseCorpus reads only "<name>.yaml", so a spec committed as .yml or .json
-// could not be named by a table row, yet the corpus-wide walk in
-// conformance_unwitnessed_test.go reads all three extensions and would count its
-// fields as witnessed, leaving it with neither assertion nor golden.
+// could not be named by a table row, yet the census of the corpus that
+// cmd/morphic-census holds to its golden reads all three extensions and would
+// count its facts as witnessed, leaving it with neither assertion nor golden.
 func corpusSpecNames(t *testing.T) []string {
 	t.Helper()
 	entries, err := os.ReadDir(conformanceDir)
@@ -100,9 +101,6 @@ func corpusSpecNames(t *testing.T) []string {
 		name := e.Name()
 		require.False(t, e.IsDir(), "corpus directory holds a subdirectory %q; no sweep descends into one", name)
 		switch {
-		case name == filepath.Base(unwitnessedGolden):
-			// The derived never-witnessed snapshot: a corpus-wide artifact, not
-			// a spec's golden, so it pairs with nothing.
 		case strings.HasSuffix(name, ".golden.json"):
 			goldens = append(goldens, strings.TrimSuffix(name, ".golden.json"))
 		case strings.HasSuffix(name, ".yaml"):
@@ -160,6 +158,7 @@ func conformanceCases() []conformanceCase {
 		{"allof-conflicting-type", assertAllOfConflictingType, nil},
 		{"allof-position-constraints", assertAllOfPositionConstraints, []string{"intersection"}},
 		{"oneof-discriminated", assertOneOfDiscriminated, []string{"tagged-unions"}},
+		{"anyof-discriminated", assertAnyOfDiscriminated, []string{"tagged-unions"}},
 		{"discriminator-inheritance", assertDiscriminatorInheritance, []string{"tagged-unions", "inheritance"}},
 		{"discriminator-inline-subtype", assertDiscriminatorInlineSubtype, []string{"tagged-unions", "inheritance"}},
 		{"discriminator-default-mapping", assertDiscriminatorDefaultMapping, []string{"tagged-unions"}},
@@ -900,11 +899,27 @@ func assertOneOfDiscriminated(t *testing.T, doc *ir.Document, _ []ir.Diagnostic)
 	pet, ok := doc.Types[namedID("Pet")].(*ir.Union)
 	require.True(t, ok, "oneOf survives as a Union node, never collapsed")
 	assert.True(t, pet.Exclusive)
+	assert.True(t, pet.WireTagged, "the discriminator's tag names the variant")
 	require.Len(t, pet.Variants, 2)
 	require.NotNil(t, pet.Discriminator)
 	assert.Equal(t, "petType", pet.Discriminator.PropertyName)
 	assert.Equal(t, namedID("Cat"), pet.Discriminator.Mapping["cat"])
 	assert.Equal(t, namedID("Dog"), pet.Discriminator.Mapping["dog"])
+}
+
+// assertAnyOfDiscriminated pins that the tag mode and Exclusive are independent
+// (ir-design §4.4): a discriminator on an anyOf tags the union without making
+// it exclusive, since a payload may still satisfy both branches.
+func assertAnyOfDiscriminated(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	u, ok := doc.Types[namedID("Resource")].(*ir.Union)
+	require.True(t, ok, "anyOf survives as a Union node, never collapsed")
+	assert.False(t, u.Exclusive, "anyOf admits a payload both branches satisfy")
+	assert.True(t, u.WireTagged, "the discriminator's tag names the variant")
+	require.Len(t, u.Variants, 2)
+	require.NotNil(t, u.Discriminator)
+	assert.Equal(t, "kind", u.Discriminator.PropertyName)
+	assert.Equal(t, namedID("Named"), u.Discriminator.Mapping["named"])
+	assert.Equal(t, namedID("Labelled"), u.Discriminator.Mapping["labelled"])
 }
 
 // assertDiscriminatorInheritance covers the model-hierarchy form of a
@@ -1106,6 +1121,7 @@ func assertAnyOfUntagged(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	u, ok := doc.Types[namedID("StringOrNumber")].(*ir.Union)
 	require.True(t, ok)
 	assert.False(t, u.Exclusive, "anyOf is a non-exclusive union")
+	assert.False(t, u.WireTagged, "with no discriminator, validation infers the variant")
 	assert.Nil(t, u.Discriminator)
 	assert.Len(t, u.Variants, 2)
 }

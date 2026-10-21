@@ -229,39 +229,74 @@ func TestRefScope_IsTheContextSeenAsAScope(t *testing.T) {
 	assert.False(t, scope.Declares("Missing"))
 }
 
-// TestRefScope_NoDocumentResolvesNoDefsPointer pins that a context with no
-// document hands over a scope with none, rather than one holding a nil
-// pointer: that passes every nil check a reader makes and then faults when a
-// "#/$defs/..." pointer is navigated in it.
-func TestRefScope_NoDocumentResolvesNoDefsPointer(t *testing.T) {
+// TestRefScope_NoDocumentResolvesNoRef pins that a context with no document
+// hands over a scope with none, rather than one holding a nil pointer: that
+// passes every nil check a reader makes and then faults when a pointer is
+// navigated in it. With no load result it holds no bindings either, so no
+// schema $ref lands anywhere.
+func TestRefScope_NoDocumentResolvesNoRef(t *testing.T) {
 	t.Parallel()
 	scope := lowering.Ctx{}.RefScope()
 
-	_, ok := scope.TargetPointer(&oas3.JSONSchema[oas3.Referenceable]{}, "#/$defs/n")
-	assert.False(t, ok, "no document to read a definition from")
+	assert.Equal(t, nil, scope.Doc, "a nil interface, not one holding a nil pointer")
+	assert.Nil(t, scope.Bindings)
+	_, ok := scope.TargetPointer(&oas3.JSONSchema[oas3.Referenceable]{})
+	assert.False(t, ok, "no bindings to say where a $ref lands")
 }
 
-// TestRefScope_SharesTheContextsReader pins that every scope a context hands
-// out, from the context or any copy of it, reads "#/$defs/..." pointers through
-// the one reader New built: its memory is what keeps a reference's cost from
-// growing with how deep its schema sits, and a reader per scope would have none.
-func TestRefScope_SharesTheContextsReader(t *testing.T) {
+// bindingsSpec declares a component schema whose $ref lands on another, for
+// the tests that follow the bindings a context carries.
+const bindingsSpec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+    Target: {type: string}
+    Alias: {$ref: '#/components/schemas/Target'}
+`
+
+// TestRefScope_CarriesTheBindingsItWasGiven pins that the document's schema
+// bindings reach the scope through the context, and only through WithLoaded:
+// the context it was derived from and a zero context hold none, so no $ref
+// lands there. Every copy of the carrying context shares the one set, since they
+// are built once and never written, and a $ref lands where the load phase
+// resolved it.
+func TestRefScope_CarriesTheBindingsItWasGiven(t *testing.T) {
 	t.Parallel()
-	c := lowering.New(0, openapitest.DocDeclaring("A"), ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, overlay.Origin{})
+	loaded, _, err := load.Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(bindingsSpec)}, load.Options{})
+	require.NoError(t, err)
+	require.NotNil(t, loaded)
+	require.NotNil(t, loaded.Bindings, "the load phase bound the source")
+	alias, ok := loaded.Doc.Components.Schemas.Get("Alias")
+	require.True(t, ok)
 
-	require.NotNil(t, c.RefScope().Defs, "a context with a document reads through a reader")
-	assert.Same(t, c.RefScope().Defs, c.RefScope().Defs)
-	assert.Same(t, c.RefScope().Defs, c.NamingByReference().RefScope().Defs, "a copy shares it")
-	assert.Nil(t, lowering.Ctx{}.RefScope().Defs, "a context with no document has none")
+	bare := lowering.New(0, loaded.Doc, loaded.Source, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, loaded.Overlay)
+	assert.Nil(t, bare.Bindings(), "a context given no load result knows no binding")
+	assert.Nil(t, bare.RefScope().Bindings)
+	_, ok = bare.RefScope().TargetPointer(alias)
+	assert.False(t, ok, "so its $ref lands nowhere")
+
+	carrying := bare.WithLoaded(loaded)
+	assert.Same(t, loaded.Bindings, carrying.Bindings())
+	assert.Same(t, loaded.Bindings, carrying.RefScope().Bindings)
+	assert.Same(t, loaded.Bindings, carrying.NamingByReference().Bindings(), "a copy shares it")
+	assert.Same(t, loaded.Bindings, carrying.WithAuth(nil).RefScope().Bindings)
+	at, ok := carrying.RefScope().TargetPointer(alias)
+	require.True(t, ok, "its $ref lands where the load phase resolved it")
+	assert.Equal(t, jsontext.Pointer("/components/schemas/Target"), at)
+
+	assert.Nil(t, bare.Bindings(), "the context it was derived from still has none")
+	assert.Nil(t, lowering.Ctx{}.Bindings(), "and a zero context never had any")
 }
 
-// TestRefScope_CarriesTheMappingTargetsItWasGiven pins that a mapping target
-// the load phase resolved reaches the scope through the context. The target is
-// an extension's value, a position the parsed model holds as raw YAML, so the
-// scope finds it only if WithLoaded handed it over (GitHub #757). The
-// scope asks the targets, too, what a mapping a walk leaves the model for
-// holds (resolve.Scope.Holds).
-func TestRefScope_CarriesTheMappingTargetsItWasGiven(t *testing.T) {
+// TestRefScope_ReadsAMappingTargetTheModelHoldsAsRawYAML pins that a mapping
+// target the load phase resolved reaches the scope through the context. The
+// target is an extension's value, a position the parsed model holds as raw
+// YAML, so the scope finds a schema there only if WithLoaded handed over the
+// bindings, which built one (GitHub #757). The scope asks the load phase's
+// index, too, what a mapping a walk leaves the model for holds
+// (resolve.Scope.Holds).
+func TestRefScope_ReadsAMappingTargetTheModelHoldsAsRawYAML(t *testing.T) {
 	t.Parallel()
 	const spec = `openapi: 3.1.0
 info: {title: T, version: "1"}
@@ -277,14 +312,23 @@ x-lib:
 	loaded, _, err := load.Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(spec)}, load.Options{})
 	require.NoError(t, err)
 	require.NotNil(t, loaded)
-	require.NotNil(t, loaded.Targets.At("/x-lib/Cat"), "the load phase resolved the target")
+	pet, ok := loaded.Doc.Components.Schemas.Get("Pet")
+	require.True(t, ok)
+	d := pet.GetSchema().GetDiscriminator()
+	require.NotNil(t, d)
 
 	bare := lowering.New(0, loaded.Doc, loaded.Source, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, loaded.Overlay)
-	assert.Nil(t, bare.RefScope().DeclaredAt("/x-lib/Cat"), "the model holds the target as raw YAML")
+	_, _, ok = bare.RefScope().MappingTarget(d, "#/x-lib/Cat")
+	assert.False(t, ok, "so a context without the bindings finds no target")
 
 	carrying := bare.WithLoaded(loaded)
-	assert.Same(t, loaded.Targets.At("/x-lib/Cat"), carrying.RefScope().DeclaredAt("/x-lib/Cat"))
-	assert.Nil(t, bare.RefScope().DeclaredAt("/x-lib/Cat"), "the context it was derived from still has none")
+	at, built, ok := carrying.RefScope().MappingTarget(d, "#/x-lib/Cat")
+	require.True(t, ok)
+	assert.Equal(t, jsontext.Pointer("/x-lib/Cat"), at)
+	require.NotNil(t, built, "the load phase built a schema there")
+	assert.Equal(t, oas3.SchemaTypeObject, built.GetSchema().GetType()[0])
+	_, _, ok = bare.RefScope().MappingTarget(d, "#/x-lib/Cat")
+	assert.False(t, ok, "the context it was derived from still finds none")
 
 	holds := carrying.RefScope().Holds
 	require.NotNil(t, holds)
@@ -293,10 +337,10 @@ x-lib:
 }
 
 // TestTypePosition_IsReadOncePerScope pins the answers every copy of a context
-// shares: a position is read once in each scope it is read in, whatever its
-// answer, and a copy reads what another remembered. A copy carrying other
-// mapping targets starts afresh, since an answer reads them, and a zero
-// context remembers nothing.
+// shares: a position is read once in each scope it is read in, and a copy
+// reads what another remembered. A copy carrying other
+// bindings starts afresh, since an answer reads them, and a zero context
+// remembers nothing.
 func TestTypePosition_IsReadOncePerScope(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
@@ -311,26 +355,27 @@ func TestTypePosition_IsReadOncePerScope(t *testing.T) {
 	reads := 0
 	ask := func(c lowering.Ctx, pointer jsontext.Pointer) {
 		t.Helper()
-		at, ok := c.TypePosition(pointer, func() (jsontext.Pointer, bool) {
+		at := c.TypePosition(pointer, func() jsontext.Pointer {
 			reads++
-			return pointer + "/there", pointer != "/none"
+			return pointer + "/there"
 		})
 		assert.Equal(t, pointer+"/there", at)
-		assert.Equal(t, pointer != "/none", ok)
 	}
 
 	ask(c, "/x")
 	ask(c.NamingByReference(), "/x")
 	assert.Equal(t, 1, reads, "a copy reads what the context remembered")
-	ask(c, "/none")
-	ask(c, "/none")
-	assert.Equal(t, 2, reads, "a position naming none is remembered too")
-	foreign := c.InScope(c.RefScope().At("/paths/~1ext/get/responses/200"))
+	ask(c, "/y")
+	ask(c, "/y")
+	assert.Equal(t, 2, reads, "another position is read once too")
+	ext, ok := doc.Doc.Paths.Get("/ext")
+	require.True(t, ok)
+	foreign := lowering.Within[soa.PathItem](c, ext)
 	require.True(t, foreign.RefScope().Foreign)
 	ask(foreign, "/x")
 	assert.Equal(t, 3, reads, "the position is read again in another document's scope")
 	ask(c.WithLoaded(&load.Document{}), "/x")
-	assert.Equal(t, 4, reads, "a copy carrying other targets remembers nothing of c's")
+	assert.Equal(t, 4, reads, "a copy carrying other bindings remembers nothing of c's")
 	ask(lowering.Ctx{}, "/x")
 	ask(lowering.Ctx{}, "/x")
 	assert.Equal(t, 6, reads, "a zero context remembers nothing")
@@ -518,11 +563,11 @@ func TestWithLoaded_CarriesTheSiblingsOnACopy(t *testing.T) {
 	assert.False(t, ok, "the context it was made from is unchanged")
 }
 
-// TestWithLoaded_ReadsDefinitionsThroughTheLoadIndex pins that a context
-// carrying the load phase's results reads raw YAML under its "#/$defs/..."
-// pointers through an index, where the one it was made from asks the library,
-// which scans a mapping on every read (GitHub #778).
-func TestWithLoaded_ReadsDefinitionsThroughTheLoadIndex(t *testing.T) {
+// TestWithLoaded_ReadsRawYAMLThroughTheLoadIndex pins that a context carrying
+// the load phase's results reads the raw YAML a walk leaves the model for
+// through an index, where the one it was made from asks the library, which
+// scans a mapping on every read (GitHub #778).
+func TestWithLoaded_ReadsRawYAMLThroughTheLoadIndex(t *testing.T) {
 	t.Parallel()
 	doc, diags, err := load.Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(openapitest.ComponentSpec("    A: {type: string}\n"))}, load.Options{})
 	require.NoError(t, err)
@@ -530,8 +575,8 @@ func TestWithLoaded_ReadsDefinitionsThroughTheLoadIndex(t *testing.T) {
 	base := lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{}, lowering.StreamingMedia{},
 		lowering.ExtensionPromotions{}, overlay.Origin{})
 
-	assert.False(t, base.RefScope().Defs.Indexed())
-	assert.True(t, base.WithLoaded(doc).RefScope().Defs.Indexed())
+	assert.Nil(t, base.RefScope().Holds)
+	assert.NotNil(t, base.WithLoaded(doc).RefScope().Holds)
 }
 
 // TestCtx_NamingByReferenceIsScopedToTheCopy holds what makes the flag safe to

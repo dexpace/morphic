@@ -161,8 +161,8 @@ func TestCompile_APlusAndAnEscapedPlusAndASpaceKeepTheirOwnTypesInEveryOrder(t *
 
 // TestCompile_AnUnresolvedPlusReferenceIsQuotedAsWritten pins that no stage of
 // the compile spells a '+' the source wrote as "%2B" in what it reports: the
-// load phase for a $ref the model holds, the lowering for one inside an object
-// built from raw YAML and for a discriminator mapping value.
+// load phase for a reference object and for a schema $ref, one inside raw YAML
+// a $ref reaches included, and the lowering for a discriminator mapping value.
 func TestCompile_AnUnresolvedPlusReferenceIsQuotedAsWritten(t *testing.T) {
 	t.Parallel()
 	_, diags := parseFull(t, `openapi: 3.1.0
@@ -193,9 +193,11 @@ x-defs:
 		assert.NotContains(t, d.Message, "%2B", "%s", d.Provenance.Pointer)
 	}
 	assert.True(t, strings.HasPrefix(messages["/paths/~1a/get/parameters/0"], `unresolved $ref "#/paths/~1nope+x/get": `))
-	assert.Equal(t, `unresolved $ref "#/x-defs/nope+x"`, messages["/x-defs/A/properties/p"])
-	assert.Equal(t, `unresolved $ref "other.yaml#/x+y"`, messages["/x-defs/A/properties/q"])
-	assert.Equal(t, `discriminator mapping "k" references unresolved schema "#/x-defs/nope+x"`,
+	const nothing = ": it names nothing in the document it points into"
+	assert.Equal(t, `unresolved $ref "#/x-defs/nope+x"`+nothing, messages["/x-defs/A/properties/p"])
+	assert.Equal(t, `unresolved $ref "other.yaml#/x+y": it names another document, and external references are not read`,
+		messages["/x-defs/A/properties/q"])
+	assert.Equal(t, `discriminator mapping "k" references unresolved schema "#/x-defs/nope+x"`+nothing,
 		messages["/components/schemas/Pet/discriminator/mapping/k"])
 }
 

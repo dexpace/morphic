@@ -40,11 +40,11 @@ func TestCompile_ResolverPanicIsADiagnostic(t *testing.T) {
 // promise (#235's acceptance) at the compiler's public surface: a schema $ref
 // to nothing, whether written directly, as an allOf branch, or as a oneOf
 // branch, is reported exactly once, by the load phase, naming the reference and
-// the resolver's reason. The #74 shape — a $ref this compile follows into
+// why it does not resolve. The #74 shape — a $ref this compile follows into
 // another document but cannot lower any further — is the one case the load
 // phase has nothing to report, so the lowering's own report survives
 // withoutRereported instead of being dropped as the duplicate it is everywhere
-// else. A cycle the load phase refuses is reported once, as one.
+// else. A cycle is reported once, as one.
 func TestCompile_AResolutionFailureIsReportedOnceAtItsRef(t *testing.T) {
 	t.Parallel()
 	tests := map[string]struct {
@@ -91,11 +91,12 @@ func TestCompile_AResolutionFailureIsReportedOnceAtItsRef(t *testing.T) {
 		require.NotNil(t, doc)
 
 		msg := openapitest.DiagMessageAt(t, diags, diag.UnresolvedRef, ir.SeverityError, "/components/schemas/S")
-		assert.Equal(t, `unresolved $ref "other.yaml#/components/schemas/X"`, msg,
+		assert.Equal(t, `unresolved $ref "other.yaml#/components/schemas/X": it names a schema in another document, `+
+			"which is not lowered", msg,
 			"the lowering's own report survives: the load phase resolved this reference successfully")
 	})
 
-	t.Run("a cycle the load phase refuses is reported once, as a cycle", func(t *testing.T) {
+	t.Run("a cycle is reported once, as a cycle", func(t *testing.T) {
 		t.Parallel()
 		root := "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\n" +
 			"components:\n  schemas:\n    A: {$ref: 'root.yaml#/x-a'}\nx-a: {$ref: '#/components/schemas/A'}\n"
@@ -111,7 +112,7 @@ func TestCompile_AResolutionFailureIsReportedOnceAtItsRef(t *testing.T) {
 				at = append(at, d.Code)
 			}
 		}
-		assert.Equal(t, []string{diag.CyclicRef}, at, "the lowering's unresolved $ref there is the same failure")
+		assert.Equal(t, []string{diag.CyclicRef}, at, "the lowering reports nothing for a member of the loop")
 	})
 }
 

@@ -56,7 +56,8 @@ and [IR design](docs/ir-design.md) give the reasoning.
   gives the same bytes, and reordering a spec's declarations changes nothing beyond source order.
 - **Diagnostics, not logs.** Every stage is a pure function `f(input, options) → (output,
   diagnostics)` with no package-level state. Problems in a spec come back as typed `ir.Diagnostic`
-  values, and the caller decides which are fatal.
+  values, and the engine decides whether they fail the run, at a severity threshold the caller
+  sets.
 - **Heuristics are policy.** Anything inferred rather than declared, such as which media types
   imply a stream or which vendor extensions fill typed fields, is an injectable policy the caller
   can change or switch off, and what it produces is marked as inferred in the IR's provenance.
@@ -87,7 +88,7 @@ spec ──▶ compiler ──▶ IR ──▶ passes ──▶ IR ──▶ emi
 |---|---|---|
 | 1 | IR package + OpenAPI 3.x compiler, `validate` pass, golden corpus, JSON round-trip | **Implemented** |
 | 2 | Swagger 2.0 lift into the OpenAPI compiler (format-version-normalization seam) | Planned |
-| 3 | First emitter: one language end to end (plan / refine / emit boundary) | Planned |
+| 3 | First emitters: Go, Kotlin/JVM and Kotlin Multiplatform end to end from one plan (plan / refine / emit boundary) | Planned |
 | 4 | Second family compiler (TypeSpec or Smithy), proving the spec-agnostic claim | Planned |
 | 5 | Event-shaped compiler (AsyncAPI), then GraphQL, Protobuf, Erlang/OTP | Planned |
 
@@ -138,7 +139,7 @@ completes commands, flags, and spec files by extension.
 
 | Flag | Commands | Meaning |
 |---|---|---|
-| `--fail-on error\|warning` | both | Exit non-zero when a diagnostic at or above this severity is emitted (default `error`). |
+| `--fail-on error\|warning\|info\|none` | both | Exit non-zero when a diagnostic at or above this severity is emitted (default `error`). `none` exits non-zero only when the spec lowered to no document. |
 | `--disable-pass <name>` | both | Turn off the IR pass with this name, such as `validate`. Repeatable; a name no pass carries is refused with exit `2` and a message naming the passes there are. |
 | `--skip-validate` | both | Alias for `--disable-pass validate`. |
 | `--opt <key>=<value>` | both | Set one option on the compiler the spec selects. Repeatable; a repeated key is refused. |
@@ -151,7 +152,7 @@ completes commands, flags, and spec files by extension.
 Diagnostics print one per line as `<severity> <code> <location>: <message>`:
 
 ```
-error openapi/unresolved-ref openapi.yaml#/components/schemas/Pet/discriminator/mapping/dog: discriminator mapping "dog" references unresolved schema "#/components/schemas/Dog"
+error openapi/unresolved-ref openapi.yaml#/components/schemas/Pet/discriminator/mapping/dog: discriminator mapping "dog" references unresolved schema "#/components/schemas/Dog": it names nothing in the document it points into
 ```
 
 `<location>` is the most precise form available:
@@ -233,8 +234,8 @@ if err != nil {
 if err := report.WriteDiagnostics(os.Stderr, res.Diagnostics, res.Sources); err != nil {
     return err
 }
-if res.Document == nil {
-    return errors.New("the spec could not be lowered")
+if res.Failed {
+    return errors.New("the spec has problems") // no document, or a diagnostic at FailOn
 }
 
 // Canonical, deterministic bytes, replacing the file atomically as `-o` does.
@@ -254,6 +255,10 @@ lowered. Options go in either as text through `RunOptions.CompilerOptions`, the 
 vocabulary, or as a typed value such as an `openapi.Options` through `RunOptions.FormatOptions`;
 set one or the other, not both.
 
+`Result.Failed` is the engine's verdict, the one the CLI's exit status reads: a run fails when it
+lowered no document, or when a diagnostic reaches `RunOptions.FailOn`, which is `error` unless set
+to `warning`, `info` or `none`. A failed run still carries its document and every diagnostic.
+
 ## Package layout
 
 The import graph is layered, and `internal/archtest` enforces it: a package imports only what its
@@ -262,16 +267,17 @@ entry in that test allows, and nothing from a layer above its own.
 | Package | Layer | Imports |
 |---|---|---|
 | `ir/` | 0: IR nodes, IDs, traversal, JSON round-trip | stdlib only |
+| `ir/irfacts/` | 0: what a document implies and does not state (subtypes, exposed properties, usage, recursion), never stored | `ir` only |
 | `ir/irverify/`, `ir/irtest/` | 0: structural-invariant checker; golden-snapshot and fixture helpers | `ir` (`irtest` also `go-cmp`) |
 | `compilers/` | 1: the `Compiler` contract and the format-keyed registry | `ir` only |
 | `compilers/compile/` | 1: what every compiler shares (type registry, diagnostics, naming and identifier grammars) | `ir` only |
 | `compilers/*` | 1: one compiler per format; a public face over its own `internal/` packages | `ir` + `compilers` + `compilers/compile` + own `internal/*` + format libs |
-| `pass/` | 1: IR → IR passes | `ir` only |
+| `pass/` | 1: IR → IR passes | `ir` + `ir/irfacts` |
 | `emitters/*` | 2: IR → artifacts (not built yet) | `ir` + emitter contract |
 | `engine/` | 3: orchestration | everything below |
 | `engine/reader/`, `engine/report/`, `engine/output/` | 3: what the engine reads, renders and writes | `compilers`; `ir`; `ir` + `engine/internal/atomicfile` |
 | `cmd/morphic/` | 4: CLI | `engine` (and its `report` and `output`) + `ir` + its command framework (`cobra`, `pflag`) |
-| `cmd/morphic-harness/`, `cmd/morphic-covergate/`, `internal/*` | tooling outside the pipeline: the oracle sweep, the coverage gate's judge, the architecture rules, the goroutine leak check, type-checked reads of declarations for tests, the reader of the keyed documents, shared fixtures | as their entries allow; `internal/harness` is exempt |
+| `cmd/morphic-harness/`, `cmd/morphic-census/`, `cmd/morphic-covergate/`, `cmd/morphic-vet/`, `internal/*` | tooling outside the pipeline: the oracle sweep, the census of IR facts, the coverage gate's judge, the go vet tool and the lint rules it runs, the architecture rules, the goroutine leak check, type-checked reads of declarations for tests, the IR's JSON shape that the IRVersion pin and the census read, the reader of the keyed documents, shared fixtures | as their entries allow; `internal/harness` is exempt |
 
 Compilers and emitters never import each other. A compiler's own `internal/` packages each carry
 their own entry rather than inheriting the compiler's, so the order among them is enforced too,
@@ -290,10 +296,11 @@ make gate
 
 That is not a summary of CI; it is what CI runs. Every check in `.github/workflows/gate.yml` runs
 a `Makefile` target bar `lint`, which the golangci-lint action runs at the version the `Makefile`
-pins, so the local command and the job run the same steps in the same order. The `Makefile` holds
-the step list, and each target (`make coverage`, `make fuzz`, `make bench` and the rest) runs on its
-own while iterating. Coverage is gated at exactly 100% of statements, counted from the profile
-rather than from `go test`'s rounded percentage, so one uncovered statement fails the build.
+pins, so the local command and CI run the same steps; CI splits them across two jobs that run side
+by side. The `Makefile` holds the step list, and each target (`make coverage`, `make fuzz`,
+`make bench` and the rest) runs on its own while iterating. Coverage is gated at exactly 100% of
+statements, counted from the profile rather than from `go test`'s rounded percentage, so one
+uncovered statement fails the build.
 
 Run a single test with `go test ./ir -run TestName`. Beyond that:
 
@@ -319,6 +326,13 @@ Run a single test with `go test ./ir -run TestName`. Beyond that:
   the `ir/irverify` structural invariants, JSON round-trip, determinism, and order-invariance. It
   exits `1` if any spec fails. `testdata/` holds negative fixtures that fail on purpose, so sweep
   it with `go test ./internal/harness`, which knows which ones are expected to.
+- **IR census.** `go run ./cmd/morphic-census <file|dir>...` compiles the specs and lists every
+  fact of the IR with the number of documents that set it and the number of instances, zeros
+  included: each member of its structs, the emptiness of a member whose empty value differs from
+  its absence, and each value of its enumerations. The facts no committed spec sets are held to
+  `testdata/unwitnessed.golden.txt`, which `go test ./cmd/morphic-census -update` rewrites and
+  which scopes the first emitters (`docs/emitter-design.md` §14.1). Run it from inside the module:
+  it reads the IR's declarations through the go command.
 - **Fuzzing.** `make fuzz` runs every fuzz target for 10s each (`make fuzz FUZZTIME=5m` for a
   longer search). One target runs on its own with, for example,
   `go test ./compilers/openapi -run '^$' -fuzz '^FuzzCompile$' -fuzztime 1m`.

@@ -104,7 +104,7 @@ func TestWriteDocument_BadDocumentWritesNothing(t *testing.T) {
 
 			require.Error(t, err)
 			assert.ErrorContains(t, err, "marshal ir document")
-			assert.NotNil(t, errors.Unwrap(err), "the encoder's own error stays behind the message")
+			assert.Error(t, errors.Unwrap(err), "the encoder's own error stays behind the message")
 			assert.Empty(t, w.String(), "a document that will not marshal leaves the writer untouched")
 		})
 	}

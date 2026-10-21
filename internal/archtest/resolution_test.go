@@ -23,8 +23,9 @@ import (
 )
 
 // libraryModule is the parser library whose reference resolution the compiler
-// is moving off (GitHub #558): its resolver overflows the stack on a
-// reference-only cycle, and its answer depends on declaration order.
+// keeps to reference objects: its schema resolver overflows the stack on a
+// reference-only cycle and answers by declaration order, so the compiler binds
+// schema $refs itself (GitHub #558).
 const libraryModule = "github.com/speakeasy-api/openapi"
 
 // The two anchors the library's resolution API is derived from: its resolver,
@@ -43,34 +44,12 @@ const (
 // TestResolutionCalls_HeldToTheBaseline fails when a count rises, since each new
 // use deepens the dependence on the library's resolution, and when one falls
 // until the count here is lowered to match, so the map only shrinks (GitHub
-// #920). A call through an interface both kinds of reference satisfy counts
-// toward each, so its schema count reaches zero only once the interface is
-// split.
+// #920). No member of the schema package appears: the compiler resolves schema
+// $refs itself (internal/bind), so any use of the library's schema resolution
+// is a new one. What stays is the resolution of reference objects.
 var resolutionBaseline = map[string]map[string]int{
-	"compilers/openapi/internal/annotation": {
-		"oas3.JSONSchema.GetReferenceResolutionInfo": 1,
-	},
-	"compilers/openapi/internal/defs": {
-		"oas3.Schema.GetEffectiveBaseURI": 1,
-		"oas3.Schema.GetSchemaRegistry":   1,
-	},
 	"compilers/openapi/internal/load": {
-		"oas3.JSONSchema.GetReferenceResolutionInfo": 2,
-		"oas3.JSONSchema.GetResolvedSchema":          1,
-		"oas3.JSONSchema.IsResolved":                 3,
-		"oas3.JSONSchema.Resolve":                    4,
-		"oas3.Schema.GetOwningDocument":              1,
-		"openapi.Reference.Resolve":                  2,
-	},
-	"compilers/openapi/internal/operation": {
-		"oas3.JSONSchema.GetResolvedSchema": 1,
-	},
-	"compilers/openapi/internal/resolve": {
-		"oas3.JSONSchema.GetReferenceResolutionInfo": 2,
-		"oas3.JSONSchema.GetResolvedSchema":          1,
-	},
-	"compilers/openapi/internal/schema": {
-		"oas3.JSONSchema.GetResolvedSchema": 2,
+		"openapi.Reference.Resolve": 2,
 	},
 }
 
@@ -863,4 +842,27 @@ func TestBaselineFindings_EveryDifferenceFails(t *testing.T) {
 	}, baselineFindings(baseline, map[string]map[string][]token.Position{
 		"held": {"lib.A": at(1, 2, 5)}, "new": {"lib.C": at(7)},
 	}, root))
+}
+
+// loadOverlaid type-checks the package at dir, a directory of the repository,
+// with src added to it as the file named file, and returns it.
+func loadOverlaid(t *testing.T, dir, file, src string) *decls.Package {
+	t.Helper()
+	root := repoRoot(t)
+	planted := filepath.Join(root, filepath.FromSlash(dir), file)
+	cfg := &packages.Config{
+		Mode:    packages.NeedName | packages.NeedFiles | packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo,
+		Dir:     root,
+		Env:     append(os.Environ(), "GOPACKAGESDRIVER=off"),
+		Overlay: map[string][]byte{planted: []byte(src)},
+	}
+	loaded, err := packages.Load(cfg, module+"/"+dir)
+	require.NoError(t, err)
+	require.Len(t, loaded, 1)
+	require.Empty(t, loaded[0].Errors, "the plant must type-check, or it proves nothing")
+	hasPlant := slices.ContainsFunc(loaded[0].Syntax, func(f *ast.File) bool {
+		return loaded[0].Fset.Position(f.Pos()).Filename == planted
+	})
+	require.True(t, hasPlant, "the plant was not part of the package")
+	return &decls.Package{Types: loaded[0].Types, Info: loaded[0].TypesInfo, Syntax: loaded[0].Syntax, Fset: loaded[0].Fset}
 }

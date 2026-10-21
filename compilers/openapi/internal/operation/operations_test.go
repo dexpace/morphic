@@ -89,7 +89,7 @@ func TestResponses_ErrorSplitAndRanges(t *testing.T) {
 	assert.Equal(t, []ir.StatusRange{{From: 500, To: 599}}, op.Errors[1].Conditions.StatusCodes)
 	assert.Equal(t, "server", op.Errors[1].Fault)
 	assert.Equal(t, []ir.StatusRange{{From: 0, To: 0}}, op.Errors[2].Conditions.StatusCodes)
-	assert.Equal(t, "", op.Errors[2].Fault)
+	assert.Empty(t, op.Errors[2].Fault)
 }
 
 // TestResponses_NamedByStatusKey pins the only naming OpenAPI gives a response.
@@ -673,7 +673,7 @@ func TestGrouping_PathPrefixRootPath(t *testing.T) {
 `)
 	svc, _ := serviceWithGrouping(t, spec, lowering.GroupByPathPrefix)
 	require.NotEmpty(t, svc.Groups)
-	assert.Equal(t, "", svc.Groups[0].Name.Source, "root path yields empty first segment")
+	assert.Empty(t, svc.Groups[0].Name.Source, "root path yields empty first segment")
 }
 
 func TestRawChildNode(t *testing.T) {

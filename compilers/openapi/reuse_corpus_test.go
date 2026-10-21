@@ -15,6 +15,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
+	"github.com/dexpace/morphic/internal/harness"
 )
 
 // TestReuse_MatchesAFreshParseAcrossTheCorpus sweeps every committed spec
@@ -73,4 +74,17 @@ func encodeDoc(t *testing.T, doc any) string {
 	encoded, err := json.Marshal(doc)
 	require.NoError(t, err)
 	return string(encoded)
+}
+
+// corpusRoot is every committed spec directory, addressed relative to this file.
+const corpusRoot = "../../testdata"
+
+// corpusSpecs lists every committed spec under testdata, as harness.SpecFiles
+// lists a directory.
+func corpusSpecs(t *testing.T) []string {
+	t.Helper()
+	out, err := harness.SpecFiles(corpusRoot)
+	require.NoError(t, err)
+	require.NotEmpty(t, out, "corpus sweep found no specs")
+	return out
 }

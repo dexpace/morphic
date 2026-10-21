@@ -21,7 +21,8 @@ type Channel struct {
 	// Messages is the channel's message set; messages live in Document.Messages.
 	// No entry is empty.
 	Messages []MessageID `json:"messages,omitempty"`
-	// Servers indexes into Document.Servers scoped to this channel.
+	// Servers indexes into Document.Servers scoped to this channel. Empty scopes
+	// nothing out: every server serves it, in the document's order (ir-design §10).
 	Servers []int `json:"servers,omitempty"`
 	// Bindings holds protocol-specific config ("kafka", "amqp", "ws", "mqtt")
 	// kept as namespaced raw config.

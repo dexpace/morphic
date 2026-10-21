@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/speakeasy-api/openapi/references"
 	"github.com/stretchr/testify/assert"
@@ -890,11 +891,11 @@ func resolvedModels(t *testing.T, doc *soa.OpenAPI) map[string]any {
 }
 
 // TestResolutionTrail covers resolutionTrail's dispatch: each Referenced* alias
-// arm, the schema arm (a direct reference, a chain through three documents, and
-// a chain whose target another reference shares), and the default arm for a
-// model none of the cases name. It also covers where a trail stops: at nothing
-// for a resolution that ended on an object, at the reference that failed for
-// one that did not, including a schema whose record holds no object.
+// arm, a chain of them (a direct reference, a chain through three documents,
+// and a chain whose target another reference shares), and the default arm for a
+// model none of the cases name, a schema among them: the compiler binds its
+// $ref itself. It also covers where a trail stops: at nothing for a resolution
+// that ended on an object, at the reference that failed for one that did not.
 func TestResolutionTrail(t *testing.T) {
 	t.Parallel()
 
@@ -922,24 +923,24 @@ func TestResolutionTrail(t *testing.T) {
 		}
 	})
 
-	t.Run("a schema", func(t *testing.T) {
+	t.Run("a chain of reference objects", func(t *testing.T) {
 		t.Parallel()
 		dir := t.TempDir()
-		const hdr = "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\ncomponents:\n  schemas:\n"
-		writeFile(t, dir, "c.yaml", hdr+"    C: {$ref: \"./a.yaml#/components/schemas/A\"}\n")
+		const hdr = "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\ncomponents:\n  responses:\n"
+		writeFile(t, dir, "c.yaml", hdr+"    C: {$ref: \"./a.yaml#/components/responses/A\"}\n")
 		writeFile(t, dir, "a.yaml", hdr+
-			"    A: {$ref: \"#/components/schemas/X\"}\n"+
-			"    A2: {$ref: \"#/components/schemas/X\"}\n"+
-			"    X: {$ref: \"./b.yaml#/components/schemas/B\"}\n")
-		writeFile(t, dir, "b.yaml", hdr+"    B: {type: string}\n")
+			"    A: {$ref: \"#/components/responses/X\"}\n"+
+			"    A2: {$ref: \"#/components/responses/X\"}\n"+
+			"    X: {$ref: \"./b.yaml#/components/responses/B\"}\n")
+		writeFile(t, dir, "b.yaml", hdr+"    B: {description: ok}\n")
 		aPath, bPath, cPath := filepath.Join(dir, "a.yaml"), filepath.Join(dir, "b.yaml"), filepath.Join(dir, "c.yaml")
 		// Shared reaches X after Chained does, which leaves X's parent on Shared's
 		// route: a chain read off the shared target would be Shared's.
 		root := hdr +
-			"    Direct: {$ref: \"" + bPath + "#/components/schemas/B\"}\n" +
-			"    Chained: {$ref: \"" + cPath + "#/components/schemas/C\"}\n" +
-			"    Shared: {$ref: \"" + aPath + "#/components/schemas/A2\"}\n" +
-			"    Local: {$ref: \"#/components/schemas/Direct\"}\n"
+			"    Direct: {$ref: \"" + bPath + "#/components/responses/B\"}\n" +
+			"    Chained: {$ref: \"" + cPath + "#/components/responses/C\"}\n" +
+			"    Shared: {$ref: \"" + aPath + "#/components/responses/A2\"}\n" +
+			"    Local: {$ref: \"#/components/responses/Direct\"}\n"
 
 		doc, diags, err := resolveSpec(t, root, filepath.Join(dir, "root.yaml"))
 		require.NoError(t, err)
@@ -955,10 +956,10 @@ func TestResolutionTrail(t *testing.T) {
 			{"Shared", []string{aPath, aPath, bPath}, "an internal hop names the document it was read in"},
 			{"Local", []string{filepath.Join(dir, "root.yaml"), bPath}, "a trail out of the source ends outside it"},
 		} {
-			sch, ok := doc.Components.Schemas.Get(tc.name)
+			response, ok := doc.Components.Responses.Get(tc.name)
 			require.True(t, ok)
-			assert.Equal(t, trail{docs: tc.want, target: references.Reference(bPath + "#/components/schemas/B")},
-				resolutionTrail(sch), "%s: %s", tc.name, tc.why)
+			assert.Equal(t, trail{docs: tc.want, target: references.Reference(bPath + "#/components/responses/B")},
+				resolutionTrail(response), "%s: %s", tc.name, tc.why)
 		}
 	})
 
@@ -971,9 +972,6 @@ components:
   responses:
     Direct: {$ref: '#/components/responses/Ghost'}
     Chained: {$ref: '#/components/responses/Direct'}
-  schemas:
-    Direct: {$ref: '#/components/schemas/Ghost'}
-    Chained: {$ref: '#/components/schemas/Direct'}
 `, "root.yaml")
 		require.NoError(t, err)
 
@@ -985,16 +983,6 @@ components:
 			require.True(t, ok)
 			assert.Equal(t, want, resolutionTrail(ref), "response %s stops at the reference that failed", name)
 		}
-		// A schema's Direct holds a record with no object, only the base its
-		// $ref resolves against: that is no hop, so its trail stops there too.
-		for name, want := range map[string]trail{
-			"Direct":  {stopped: "#/components/schemas/Ghost"},
-			"Chained": {docs: []string{"root.yaml"}, stopped: "#/components/schemas/Ghost", endsInSource: true},
-		} {
-			sch, ok := doc.Components.Schemas.Get(name)
-			require.True(t, ok)
-			assert.Equal(t, want, resolutionTrail(sch), "schema %s stops at the reference that failed", name)
-		}
 	})
 
 	t.Run("the default arm", func(t *testing.T) {
@@ -1002,6 +990,7 @@ components:
 		assert.Zero(t, resolutionTrail(42))
 		assert.Zero(t, resolutionTrail(&soa.Info{}))
 		assert.Zero(t, resolutionTrail(nil))
+		assert.Zero(t, resolutionTrail(oas3.NewJSONSchemaFromReference("#/components/schemas/S")), "a schema's $ref is bound, not resolved")
 	})
 }
 
@@ -1050,12 +1039,12 @@ func TestResolutionTrail_StopsAtMaxResolutionHops(t *testing.T) {
 			},
 		},
 		{
-			name: "a schema",
-			end:  hdr + "paths: {}\ncomponents:\n  schemas:\n    S: {type: string}\n",
-			link: hdr + "paths: {}\ncomponents:\n  schemas:\n    S: {$ref: \"%s#/components/schemas/S\"}\n",
+			name: "a response",
+			end:  hdr + "paths: {}\ncomponents:\n  responses:\n    S: {description: ok}\n",
+			link: hdr + "paths: {}\ncomponents:\n  responses:\n    S: {$ref: \"%s#/components/responses/S\"}\n",
 			first: func(doc *soa.OpenAPI) any {
-				sch, _ := doc.Components.Schemas.Get("S")
-				return sch
+				response, _ := doc.Components.Responses.Get("S")
+				return response
 			},
 		},
 	} {
@@ -1389,8 +1378,8 @@ func TestExternalReads_OnceReadsEachDocumentOnce(t *testing.T) {
 			return a
 		}
 	}
-	gone := answer{status: http.StatusNotFound}
-	found := answer{status: http.StatusOK, body: []byte("doc")}
+	gone := answer{err: errors.New("GET k: 404 Not Found")}
+	found := answer{body: []byte("doc")}
 
 	first := r.once("k", 0, readAs("k", gone))
 	again := r.once("k", 0, readAs("k", found))
@@ -1415,7 +1404,7 @@ func TestExternalReads_OnceReadsOnceUnderConcurrentAsks(t *testing.T) {
 	for i := range got {
 		wg.Go(func() {
 			got[i] = r.once("k", 0, func() answer {
-				return answer{status: http.StatusOK, body: fmt.Appendf(nil, "read %d", reads.Add(1))}
+				return answer{body: fmt.Appendf(nil, "read %d", reads.Add(1))}
 			})
 		})
 	}
@@ -1438,7 +1427,7 @@ func TestExternalReads_OnceRefusesADocumentPastTheBudget(t *testing.T) {
 	read := 0
 	fetch := func() answer {
 		read++
-		return answer{status: http.StatusOK}
+		return answer{}
 	}
 	for i := range 2 {
 		assert.NoError(t, r.once(fmt.Sprintf("k%d", i), 2, fetch).err)
@@ -1464,7 +1453,7 @@ func TestExternalReads_OnceLeavesAFailureWhereAReadPanics(t *testing.T) {
 		r.once("k", 0, func() answer { panic("read") })
 	})
 
-	got := r.once("k", 0, func() answer { return answer{status: http.StatusOK} })
+	got := r.once("k", 0, func() answer { return answer{} })
 
 	require.Error(t, got.err)
 	assert.Equal(t, "external document k refused: its read did not finish", got.err.Error())
@@ -1477,7 +1466,7 @@ func TestExternalReads_ExhaustedReportsOnceAtTheSource(t *testing.T) {
 	t.Parallel()
 	at := pointerAt(0, overlay.Origin{})
 	r := newExternalReads(sourceDocument{})
-	ok := func() answer { return answer{status: http.StatusOK} }
+	ok := func() answer { return answer{} }
 	r.once("a", 1, ok)
 	assert.Empty(t, r.exhausted(at, 1), "a budget spent exactly is not crossed")
 
@@ -1514,7 +1503,7 @@ func TestExternalReads_IsSafeForConcurrentUse(t *testing.T) {
 				assert.True(t, ok)
 				assert.Same(t, tree, got)
 				assert.True(t, r.prepared(tree))
-				a := r.once(key, 0, func() answer { return answer{status: http.StatusOK, body: []byte(key)} })
+				a := r.once(key, 0, func() answer { return answer{body: []byte(key)} })
 				assert.Equal(t, key, string(a.body))
 				r.handOver(doc, nil)
 			}

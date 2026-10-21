@@ -77,47 +77,64 @@ func TestTargetHint_Shapes(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tc.want, targetHint(oas3.NewJSONSchemaFromReference(references.Reference(tc.ref))))
+			assert.Equal(t, tc.want, targetHint(nil, oas3.NewJSONSchemaFromReference(references.Reference(tc.ref))))
 		})
 	}
 }
 
-// TestTargetHint_FollowsABranchToItsTarget attaches resolution info with
-// oas3.NewReferencedScheme instead of driving a compile, to pin where
-// targetHint's walk goes on and where it stops. A reference to a composition
-// branch holding a $ref (at, holding to) is named after that branch's target
-// (GitHub #521), inside a component or not; a target that names nothing leaves
-// the branch's own name. Any other position holding a $ref is named for the
-// position, as positionHint replays it: a guess under /paths that the
-// declaration replaces (GitHub #729).
+// TestTargetHint_FollowsABranchToItsTarget pins where targetHint's walk goes on
+// and where it stops, over the bindings a load gives. A reference to a
+// composition branch holding a $ref (at, holding to) is named after that
+// branch's target (GitHub #521), inside a component or not; a target that
+// names nothing leaves the branch's own name. Any other position holding a
+// $ref is named for the position, as positionHint replays it: a guess under
+// /paths that the declaration replaces (GitHub #729).
 func TestTargetHint_FollowsABranchToItsTarget(t *testing.T) {
 	t.Parallel()
-	const under = "#/paths/~1x/get/responses/200/content/application~1json/schema"
+	const under = "/paths/~1x/get/responses/200/content/application~1json/schema"
 	tests := []struct {
 		name string
 		at   string
 		to   string
 		want string
 	}{
-		{"a branch beneath a component", "#/components/schemas/X/oneOf/0", "#/components/schemas/Y", "Y"},
+		{"a branch beneath a component", "/components/schemas/X/oneOf/0", "#/components/schemas/Y", "Y"},
 		{"a branch elsewhere", under + "/oneOf/0", "#/components/schemas/Y", "Y"},
-		{"a branch holding a reference to another document", "#/components/schemas/X/oneOf/0",
+		{"a branch holding a reference to another document", "/components/schemas/X/oneOf/0",
 			"./Fish%2DTank.yaml", "Fish-Tank.yaml"},
-		{"a branch whose target names nothing", "#/components/schemas/X/oneOf/0", "#/components/schemas/", "variant_0"},
-		{"a branch whose other document names nothing", "#/components/schemas/X/oneOf/0", "./schemas/", "variant_0"},
-		{"any other position beneath a component", "#/components/schemas/X/items", "#/components/schemas/Y",
+		{"a branch whose target names nothing", "/components/schemas/X/oneOf/0", "#/components/schemas/", "variant_0"},
+		{"a branch whose other document names nothing", "/components/schemas/X/oneOf/0", "./schemas/", "variant_0"},
+		{"any other position beneath a component", "/components/schemas/X/items", "#/components/schemas/Y",
 			compile.SubHint("X", "item")},
 		{"any other position elsewhere", under + "/items", "#/components/schemas/Y", compile.SubHint("schema", "item")},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			to := references.Reference(tc.to)
-			target := oas3.NewJSONSchemaFromSchema[oas3.Concrete](&oas3.Schema{Ref: &to})
-			outer := oas3.NewReferencedScheme(t.Context(), references.Reference(tc.at), target)
-			assert.Equal(t, tc.want, targetHint(outer))
+			l, _ := loweredFor(t, hintSpec(tc.at, tc.to))
+			u, ok := l.ctx.Doc.Components.GetSchemas().Get("U")
+			require.True(t, ok)
+			assert.Equal(t, tc.want, targetHint(l.ctx.Bindings(), u))
 		})
 	}
+}
+
+// hintSpec is a document whose schema U is a $ref to at, a composition branch
+// or an items position, which holds a $ref to to; Y is a schema to name.
+func hintSpec(at, to string) string {
+	holder := "{oneOf: [{$ref: '" + to + "'}]}"
+	if strings.HasSuffix(at, "/items") {
+		holder = "{type: array, items: {$ref: '" + to + "'}}"
+	}
+	doc := "openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths:"
+	x := ""
+	if strings.HasPrefix(at, "/components/schemas/X") {
+		doc += " {}\n"
+		x = "    X: " + holder + "\n"
+	} else {
+		doc += "\n  /x: {get: {responses: {'200': {description: ok, content: {application/json: {schema: " + holder + "}}}}}}\n"
+	}
+	return doc + "components:\n  schemas:\n" + x + "    Y: {type: object}\n    U: {$ref: '#" + at + "'}\n"
 }
 
 // TestTargetHint_StopsAtTheHopCap pins maxTargetHintHops at its boundary,
@@ -200,36 +217,44 @@ func TestSubSchemaHint_Shapes(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tc.want, subSchemaHint(tc.decl, tc.pointer))
+			assert.Equal(t, tc.want, subSchemaHint(nil, tc.decl, tc.pointer))
 		})
 	}
 }
 
 func TestMappingTargetID(t *testing.T) {
 	t.Parallel()
-	l := &lowerer{
-		ctx: lowering.New(0, openapitest.DocDeclaring("Cat", "Dog", "A/B"), ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, overlay.Origin{}),
-		out: &ir.Document{Types: ir.TypeRegistry{}},
-	}
+	l, _ := loweredFor(t, openapitest.ComponentSpec(`    Cat: {type: object}
+    Dog: {type: object}
+    A/B: {type: object}
+    Pet:
+      type: object
+      discriminator:
+        propertyName: k
+        mapping: {c: '#/components/schemas/Cat', g: '#/components/schemas/Ghost', e: 'a.yaml#/A'}
+`))
+	d := petDiscriminator(t, l)
 	// A $ref to a declared component.
-	id, ok := mappingTargetID(l.ctx, l.ctx.RefScope(), l.types, &oas3.Discriminator{}, "#/components/schemas/Cat")
+	id, ok := mappingTargetID(l.ctx, l.ctx.RefScope(), l.types, d, "#/components/schemas/Cat")
 	require.True(t, ok)
 	assert.Equal(t, ids.NamedType("/components/schemas/Cat"), id)
 	// A bare schema name.
-	id, ok = mappingTargetID(l.ctx, l.ctx.RefScope(), l.types, &oas3.Discriminator{}, "Dog")
+	id, ok = mappingTargetID(l.ctx, l.ctx.RefScope(), l.types, d, "Dog")
 	require.True(t, ok)
 	assert.Equal(t, ids.NamedType(ids.Ptr("components", "schemas", "Dog")), id)
 	// A bare name that contains '/' but names an existing schema must resolve, not
 	// dangle as a misclassified external $ref (issue #14, f07).
-	id, ok = mappingTargetID(l.ctx, l.ctx.RefScope(), l.types, &oas3.Discriminator{}, "A/B")
+	id, ok = mappingTargetID(l.ctx, l.ctx.RefScope(), l.types, d, "A/B")
 	require.True(t, ok)
 	assert.Equal(t, ids.NamedType(ids.Ptr("components", "schemas", "A/B")), id)
 	// An undeclared component and a genuine external ref are dropped, never
 	// synthesized into a dangling ID.
-	_, ok = mappingTargetID(l.ctx, l.ctx.RefScope(), l.types, &oas3.Discriminator{}, "#/components/schemas/Ghost")
+	_, ok = mappingTargetID(l.ctx, l.ctx.RefScope(), l.types, d, "#/components/schemas/Ghost")
 	assert.False(t, ok, "undeclared component target dropped")
-	_, ok = mappingTargetID(l.ctx, l.ctx.RefScope(), l.types, &oas3.Discriminator{}, "a.yaml#/A")
+	_, ok = mappingTargetID(l.ctx, l.ctx.RefScope(), l.types, d, "a.yaml#/A")
 	assert.False(t, ok, "external target dropped")
+	_, ok = mappingTargetID(l.ctx, l.ctx.RefScope(), l.types, &oas3.Discriminator{}, "#/components/schemas/Cat")
+	assert.False(t, ok, "a discriminator the document does not hold maps nothing")
 	// A declared but empty-named component ("") is interned anonymously, so its
 	// bare mapping name must resolve to that anon ID, not an unbacked ids.NamedType
 	// (issue #14, f31). It gets a context of its own rather than being added to the
@@ -240,6 +265,17 @@ func TestMappingTargetID(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, ids.AnonType(ids.Ptr("components", "schemas", "")), id)
 	assert.NotEqual(t, ids.NamedType(ids.Ptr("components", "schemas", "")), id)
+}
+
+// petDiscriminator returns the discriminator the component schema Pet holds
+// in l's document.
+func petDiscriminator(t *testing.T, l *lowerer) *oas3.Discriminator {
+	t.Helper()
+	js, ok := l.ctx.Doc.Components.GetSchemas().Get("Pet")
+	require.True(t, ok)
+	d := js.GetSchema().GetDiscriminator()
+	require.NotNil(t, d)
+	return d
 }
 
 func TestDiscriminatorDefault_ResolvesDeclaredComponent(t *testing.T) {
@@ -283,14 +319,22 @@ func TestDiscriminatorDefault_EmptyIsNoOp(t *testing.T) {
 // (TestMappingTargetID_FallsBackToAnInternedPointer pins that side).
 func TestResolveMappingTarget_Branches(t *testing.T) {
 	t.Parallel()
-	l, diags := loweredFor(t, openapitest.ComponentSpec(`    Cat: {type: string}
+	l, _ := loweredFor(t, openapitest.ComponentSpec(`    Cat: {type: string}
     Pet:
       type: object
       properties: {kind: {type: string}}
+      discriminator:
+        propertyName: kind
+        mapping:
+          c: '#/components/schemas/Cat'
+          o: 'other.yaml#/A'
+          g: '#/components/schemas/Ghost'
+          m: '#/components/schemas/Pet/properties/missing'
+          k: '#/components/schemas/Pet/properties/kind'
 `))
-	openapitest.RequireNoErrorDiags(t, diags)
+	d := petDiscriminator(t, l)
 	resolveTarget := func(target string) (ir.TypeID, bool, []ir.Diagnostic) {
-		return resolveMappingTarget(l.ctx, l.types, &l.anchors, TopLevelDepth, &oas3.Discriminator{}, target, nil)
+		return resolveMappingTarget(l.ctx, l.types, &l.anchors, TopLevelDepth, d, target, nil)
 	}
 
 	cat := ids.NamedType(ids.Ptr("components", "schemas", "Cat"))
@@ -313,7 +357,7 @@ func TestResolveMappingTarget_Branches(t *testing.T) {
 	assert.Equal(t, before, l.types.Len(), "a refused target interns nothing")
 
 	const scalarTarget = "#/components/schemas/Pet/properties/kind"
-	_, mappingOK := mappingTargetID(l.ctx, l.ctx.RefScope(), l.types, &oas3.Discriminator{}, scalarTarget)
+	_, mappingOK := mappingTargetID(l.ctx, l.ctx.RefScope(), l.types, d, scalarTarget)
 	require.False(t, mappingOK, "mappingTargetID alone cannot reach an un-interned scalar position")
 
 	id, ok, _ := resolveTarget(scalarTarget)
@@ -364,11 +408,10 @@ func TestRawMappingKeys_OnlyEnumeratesAMapping(t *testing.T) {
 	}
 }
 
-// TestEnumMemberForm_ClassifiesEveryValueKind pins the classification arm by arm,
-// including the kinds OpenAPI cannot produce. ValueKind is IR-wide, and
-// TestValueKindSwitches_NameEveryValueKind requires every member of it to be
-// named here — this is what says the naming is a decision rather than a
-// formality.
+// TestEnumMemberForm_ClassifiesEveryValueKind pins the classification arm by
+// arm, including the kinds OpenAPI cannot produce. ValueKind is IR-wide, and
+// the exhaustive linter requires every member of it to be named here — this is
+// what says the naming is a decision rather than a formality.
 func TestEnumMemberForm_ClassifiesEveryValueKind(t *testing.T) {
 	t.Parallel()
 	admissible := []struct {
@@ -466,12 +509,12 @@ func TestBranchHint_AgreesWithThePointerWalk(t *testing.T) {
 		inline := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{})
 		pointer := jsontext.Pointer("/components/schemas/Host/oneOf/" + strconv.Itoa(i))
 
-		fromComposition := branchHint(inline, i)
+		fromComposition := branchHint(nil, inline, i)
 		fromPointer, branch := positionHint(pointer)
 		require.True(t, branch, "the branch pointer is recognized as one")
 		assert.Equal(t, fromComposition, fromPointer,
 			"branch %d must be named the same whichever lowering interns it first", i)
-		assert.Equal(t, fromComposition, subSchemaHint(inline, pointer),
+		assert.Equal(t, fromComposition, subSchemaHint(nil, inline, pointer),
 			"and subSchemaHint is the path that actually asks")
 	}
 }
@@ -670,10 +713,11 @@ func TestMappingTargetID_FallsBackToAnInternedPointer(t *testing.T) {
 	// A nested object owns a node at its own pointer, where a scalar property
 	// would reduce to the shared primitive and leave the pointer backing nothing.
 	l, _ := loweredFor(t, openapitest.ComponentSpec("    Pet:\n      type: object\n"+
-		"      properties: {kind: {type: object, properties: {a: {type: string}}}}\n"))
+		"      properties: {kind: {type: object, properties: {a: {type: string}}}}\n"+
+		"      discriminator: {propertyName: k, mapping: {s: '"+sub+"'}}\n"))
 	l.diags.AppendAll(LowerComponentSchemas(t.Context(), l.ctx, l.types, &l.anchors))
 
-	got, ok := mappingTargetID(l.ctx, l.ctx.RefScope(), l.types, &oas3.Discriminator{}, sub)
+	got, ok := mappingTargetID(l.ctx, l.ctx.RefScope(), l.types, petDiscriminator(t, l), sub)
 	require.True(t, ok, "the interned sub-schema resolves")
 	assert.Equal(t, ids.ForPointer("/components/schemas/Pet/properties/kind"), got)
 }
@@ -685,17 +729,17 @@ func TestMappingTargetID_FallsBackToAnInternedPointer(t *testing.T) {
 func TestMappingTargetID_ReadsEachPositionOnce(t *testing.T) {
 	t.Parallel()
 	l, _ := loweredFor(t, openapitest.ComponentSpec("    Cat: {type: object}\n"+
-		"    Hold: {type: object, properties: {p: {$ref: '#/components/schemas/Cat'}}}\n"))
+		"    Hold: {type: object, properties: {p: {$ref: '#/components/schemas/Cat'}}}\n"+
+		"    Pet: {discriminator: {propertyName: k, mapping: {p: '#/components/schemas/Hold/properties/p'}}}\n"))
 
-	id, ok := mappingTargetID(l.ctx, l.ctx.RefScope(), l.types, &oas3.Discriminator{},
+	id, ok := mappingTargetID(l.ctx, l.ctx.RefScope(), l.types, petDiscriminator(t, l),
 		"#/components/schemas/Hold/properties/p")
 	require.True(t, ok)
 	assert.Equal(t, componentIDByName("Cat"), id, "the position reads through to Cat")
-	at, found := l.ctx.TypePosition("/components/schemas/Hold/properties/p", func() (jsontext.Pointer, bool) {
+	at := l.ctx.TypePosition("/components/schemas/Hold/properties/p", func() jsontext.Pointer {
 		t.Error("the position was read again")
-		return "", false
+		return ""
 	})
-	assert.True(t, found)
 	assert.Equal(t, jsontext.Pointer("/components/schemas/Cat"), at)
 }
 

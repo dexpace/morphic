@@ -35,6 +35,7 @@ const subtreeSuffix = "/..."
 // internal tree.
 var rules = map[string][]string{
 	"ir":          {},
+	"ir/irfacts":  {module + "/ir"},
 	"ir/irtest":   {module + "/ir", "github.com/google/go-cmp" + subtreeSuffix},
 	"ir/irverify": {module + "/ir"},
 	"compilers":   {module + "/ir"},
@@ -70,43 +71,31 @@ var rules = map[string][]string{
 	"compilers/openapi/internal/fragment": {"github.com/speakeasy-api/openapi/references"},
 	// A view over the raw source: mappings read the way the resolver reads them,
 	// through aliases and `<<` merge keys. It reaches the library's yml package
-	// for the merge-key predicate the unmarshaller itself uses, and is below both
-	// the scans that first wanted it and the schema lowering that wants the same
-	// view.
-	"compilers/openapi/internal/nodeview": {module + "/compilers/openapi/internal/fragment",
-		"github.com/speakeasy-api/openapi/yml", "gopkg.in/yaml.v3"},
+	// for the merge-key predicate the unmarshaller itself uses, and is below the
+	// scan, the schema bindings and the schema lowering, which read alike through
+	// it.
+	"compilers/openapi/internal/nodeview": {"github.com/speakeasy-api/openapi/yml", "gopkg.in/yaml.v3"},
 	// How the library's walk reads a pointer through the parsed model, a token at
 	// a time, and where it leaves the model for raw YAML. It reaches the library's
 	// navigation and the root node a model was built from, and nothing of the
-	// compiler, so the $defs rule, the reference scope and the loader all read a
-	// pointer as the resolver does, without the key scan its read of raw YAML
-	// costs.
+	// compiler, so the reference scope and the loader read a pointer as the
+	// resolver does, without the key scan its read of raw YAML costs.
 	"compilers/openapi/internal/navigation": {"github.com/speakeasy-api/openapi/jsonpointer",
 		"github.com/speakeasy-api/openapi/marshaller", "gopkg.in/yaml.v3"},
-	// How the resolver reads a "#/$defs/..." pointer: relative to the schema that
-	// spells it. It reads the parsed model as the library's walk does, through
-	// navigation, and nothing of the compiler, so the loader that hands the
-	// resolver its answer and the lowering that names the target can both reach
-	// the one rule.
-	"compilers/openapi/internal/defs": {module + "/compilers/openapi/internal/fragment",
-		module + "/compilers/openapi/internal/navigation",
-		"github.com/speakeasy-api/openapi/jsonpointer",
-		"github.com/speakeasy-api/openapi/jsonschema/oas3",
-		"github.com/speakeasy-api/openapi/references", "gopkg.in/yaml.v3"},
-	// Every schema $ref of the source resolved into a table over its decoded
-	// tree, without the library's resolver (GitHub #913). It reads the tree
+	// Every schema $ref of the source resolved into a table over the decoded
+	// trees, never through the library's resolver (GitHub #558). It reads a tree
 	// through nodeview and a fragment through fragment, and nothing of the
-	// library's model or of the compiler, so it can stand where the resolver's
-	// reading of a schema reference does.
+	// library's model or of the compiler: what the library resolved of a
+	// reference object reaches it as data, through its Config.
 	"compilers/openapi/internal/bind": {module + "/compilers/openapi/internal/fragment",
 		module + "/compilers/openapi/internal/nodeview", "gopkg.in/yaml.v3"},
-	// The typed side of a bind table: the schema the parsed model holds at a
-	// position, read as the library's walk reads it, or one the library's decoder
-	// builds from raw YAML there.
+	// The typed side of a bind table: each schema of the parsed model known by
+	// the position it was read at, located through the library's walk, and one
+	// the library's decoder builds from raw YAML where the model holds none.
 	"compilers/openapi/internal/bind/typed": {module + "/compilers/openapi/internal/bind",
-		module + "/compilers/openapi/internal/navigation", module + "/compilers/openapi/internal/nodeview",
+		module + "/compilers/openapi/internal/nodeview",
 		"github.com/speakeasy-api/openapi/jsonschema/oas3", "github.com/speakeasy-api/openapi/marshaller",
-		"gopkg.in/yaml.v3"},
+		"github.com/speakeasy-api/openapi/walk", "gopkg.in/yaml.v3"},
 	// One walk over the decoded source tree, answering what the pre-lowering
 	// refusals would otherwise each walk it to ask. It reaches nodeview for the
 	// document root and nothing else: an index of what the source says is not
@@ -155,7 +144,8 @@ var rules = map[string][]string{
 	// again over copies of its variables. It reaches nothing that lowers — at
 	// this point there is no document to lower.
 	"compilers/openapi/internal/load": {module + "/ir", module + "/compilers",
-		module + "/compilers/openapi/internal/defs",
+		module + "/compilers/openapi/internal/bind",
+		module + "/compilers/openapi/internal/bind/typed",
 		module + "/compilers/openapi/internal/diag",
 		module + "/compilers/openapi/internal/fragment",
 		module + "/compilers/openapi/internal/navigation",
@@ -174,17 +164,18 @@ var rules = map[string][]string{
 		"github.com/speakeasy-api/openapi/validation",
 		"github.com/speakeasy-api/openapi/yml", "gopkg.in/yaml.v3"},
 	// What a $ref names: the pointer it addresses, the schema declared there and
-	// the type already interned there. It reaches annotation to ask whether a
-	// referenced position declares a body at all, navigation to find that schema
-	// as the resolver does, compile for the registry it looks IDs up in, the
-	// library's openapi package to name each kind of reference once
-	// (ReferenceEnd), and yaml to stop a walk at raw YAML, which holds none. It
-	// reaches nothing that lowers — following a reference far enough to lower
-	// its target recurses back into the schema walk, so that stays with the
-	// walk.
+	// the type already interned there. It reaches bind for where a schema $ref
+	// lands, annotation to ask whether a referenced position declares a body at
+	// all, navigation to walk a pointer through the model as the resolver does,
+	// compile for the registry it looks IDs up in, the library's openapi package
+	// to name each kind of reference once (ReferenceEnd), and yaml to stop a walk
+	// at raw YAML, which holds none. It reaches nothing that lowers — following a
+	// reference far enough to lower its target recurses back into the schema
+	// walk, so that stays with the walk.
 	"compilers/openapi/internal/resolve": {module + "/ir", module + "/compilers/compile",
 		module + "/compilers/openapi/internal/annotation",
-		module + "/compilers/openapi/internal/defs",
+		module + "/compilers/openapi/internal/bind",
+		module + "/compilers/openapi/internal/bind/typed",
 		module + "/compilers/openapi/internal/fragment",
 		module + "/compilers/openapi/internal/ids",
 		module + "/compilers/openapi/internal/navigation",
@@ -204,10 +195,9 @@ var rules = map[string][]string{
 	// and so must reach neither, which is why it sits here rather than with either
 	// one. It reaches load for the version grammar — the dialect question is asked
 	// of the document, and the grammar that answers it is the loader's — and for
-	// the mapping targets the load phase resolved, which its scope reads; and defs
-	// for the reader its scope reads "#/$defs/..." pointers through.
+	// the schema bindings the load phase built, which its scope reads.
 	"compilers/openapi/internal/lowering": {module + "/ir",
-		module + "/compilers/openapi/internal/defs",
+		module + "/compilers/openapi/internal/bind/typed",
 		module + "/compilers/openapi/internal/diag",
 		module + "/compilers/openapi/internal/load",
 		module + "/compilers/openapi/internal/overlay",
@@ -231,7 +221,8 @@ var rules = map[string][]string{
 	// of the compiler package from here is the cycle the extraction removed.
 	"compilers/openapi/internal/schema": {module + "/ir", module + "/compilers/compile",
 		module + "/compilers/openapi/internal/annotation",
-		module + "/compilers/openapi/internal/defs",
+		module + "/compilers/openapi/internal/bind",
+		module + "/compilers/openapi/internal/bind/typed",
 		module + "/compilers/openapi/internal/diag",
 		module + "/compilers/openapi/internal/ids",
 		module + "/compilers/openapi/internal/lowering",
@@ -241,7 +232,6 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/value",
 		"github.com/speakeasy-api/openapi/extensions",
 		"github.com/speakeasy-api/openapi/jsonschema/oas3",
-		"github.com/speakeasy-api/openapi/references",
 		"github.com/speakeasy-api/openapi/values", "gopkg.in/yaml.v3"},
 	// The operation walk: path items, webhooks and callbacks, the parameters
 	// merged onto them, and the content of every body, response and header. It
@@ -251,6 +241,7 @@ var rules = map[string][]string{
 	"compilers/openapi/internal/operation": {module + "/ir", module + "/compilers/compile",
 		module + "/compilers/openapi/internal/annotation",
 		module + "/compilers/openapi/internal/auth",
+		module + "/compilers/openapi/internal/bind/typed",
 		module + "/compilers/openapi/internal/diag",
 		module + "/compilers/openapi/internal/ids",
 		module + "/compilers/openapi/internal/lowering",
@@ -279,7 +270,7 @@ var rules = map[string][]string{
 		"github.com/speakeasy-api/openapi/sequencedmap",
 		"github.com/stretchr/testify/assert",
 		"github.com/stretchr/testify/require", "gopkg.in/yaml.v3"},
-	"pass": {module + "/ir"},
+	"pass": {module + "/ir", module + "/ir/irfacts"},
 	// The orchestration. It reaches the compiler package to compose the default
 	// registry and nothing of any source format: what a spec looks like and what
 	// its options are called are answered through the contract, so no parser is
@@ -306,10 +297,17 @@ var rules = map[string][]string{
 	"cmd/morphic": {module + "/ir", module + "/engine", module + "/engine/output", module + "/engine/report",
 		"github.com/spf13/cobra", "github.com/spf13/pflag"},
 	"cmd/morphic-harness": {module + "/internal/harness"},
+	// The census command: tooling outside the pipeline, like the harness command
+	// above. It compiles specs through the engine, lists them as the harness does,
+	// and counts what their documents set.
+	"cmd/morphic-census": {module + "/engine", module + "/internal/census", module + "/internal/harness"},
 	// The coverage gate's judge: tooling outside the pipeline, like the harness
 	// command above. x/tools/cover parses and merges the profile it judges.
 	"cmd/morphic-covergate": {"golang.org/x/tools/cover"},
-	"internal/testspec":     {},
+	// The go vet tool that runs internal/lintrules: tooling outside the pipeline,
+	// on unitchecker, the driver go vet speaks to.
+	"cmd/morphic-vet":   {module + "/internal/lintrules", "golang.org/x/tools/go/analysis/unitchecker"},
+	"internal/testspec": {},
 	// Test infrastructure outside the pipeline, like internal/harness above —
 	// but stdlib-only, which is what lets a package that starts a goroutine in
 	// its tests call it without pulling anything else in.
@@ -325,12 +323,34 @@ var rules = map[string][]string{
 	},
 	// Test infrastructure as well: it describes the JSON shape of the types one
 	// root reaches, which it reads type-checked through decls, for the test in
-	// package ir that pins that shape to IRVersion.
+	// package ir that pins that shape to IRVersion, for the census, and for the
+	// tests that read the IR's types.
 	"internal/jsonshape": {module + "/internal/decls"},
+	// Tooling as well: it counts which facts of the IR a set of documents sets.
+	// The facts are the JSON shape jsonshape reads from ir's declarations, and
+	// ir's own walk reaches what each document holds.
+	"internal/census": {module + "/ir", module + "/internal/decls", module + "/internal/jsonshape"},
 	// Test infrastructure as well: the one reader of the repository's keyed
 	// documents and of the citations made of them, which the tests holding each
 	// document to the code share. Standard library only.
 	"internal/keydoc": {},
+	// The repository's own lint rules: go/analysis analyzers, which read the
+	// packages they hold through types and nothing of the module's own.
+	"internal/lintrules": {"golang.org/x/tools/go/analysis", "golang.org/x/tools/go/types/typeutil"},
+	// What the analyzers refuse, planted in a tree laid out like the module. It
+	// reaches what the rules are about: ir's types, the framework, the parser
+	// library's reference readings, and its own packages, look-alikes of ir and
+	// compile among them.
+	"internal/lintrules/testdata/mod": {module + "/ir", module + "/compilers/compile",
+		module + "/internal/lintrules/testdata/mod" + subtreeSuffix,
+		"github.com/speakeasy-api/openapi/expression", "github.com/speakeasy-api/openapi/references"},
+	// Beside that tree, so no rule holds it.
+	"internal/lintrules/testdata/outside": {module + "/ir"},
+	// What the rules .golangci.yml configures refuse, planted for
+	// scripts/lint-planted.sh, and what cmd/morphic-vet refuses, planted for
+	// scripts/vet-rules.sh.
+	"internal/lintrules/testdata/planted": {module + "/ir"},
+	"internal/lintrules/testdata/reach":   {module + "/ir"},
 }
 
 // exempt names the production packages deliberately outside the layering rules,
@@ -348,6 +368,11 @@ var exempt = map[string]string{
 // TestImportGraph_LayeringHolds parses every non-test Go file under each ruled
 // directory (imports only) and fails on any import whose path is neither stdlib
 // nor covered by that directory's allowlist.
+//
+// It stays a test rather than linter configuration (#796): depguard matches raw
+// string prefixes and applies every list a file matches at once, so
+// nearest-ancestor inheritance cannot be written, and go-arch-lint allows
+// components where these entries name packages.
 func TestImportGraph_LayeringHolds(t *testing.T) {
 	t.Parallel()
 	root := repoRoot(t)

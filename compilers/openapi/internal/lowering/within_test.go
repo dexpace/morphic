@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -73,40 +74,52 @@ paths:
 	assert.Equal(t, scope.Holder, past.Holder, "read where /ext's own entry reads it")
 }
 
-// TestAt pins the copy At returns for lowering what an internal pointer names:
-// the source's own content, whatever copy it is taken from, so a pointer alone
-// names the source's position again, unless the resolver's walk to it passes a
-// $ref into another document, whose content it then is. The $ref the pointer
-// ends at is not passed. The context it was taken from is left as it was.
-func TestAt(t *testing.T) {
+// TestInScope_ReadsWhereTheBindingsPlaceASchema pins the copy InScope returns
+// for lowering what a schema the bindings know holds (resolve.Scope.InDocumentOf):
+// the source's own content for one the source holds, whatever copy it is taken
+// from, and ext.yaml's for one a $ref reaches past /ext's $ref into ext.yaml.
+// A schema the bindings do not know is read as the source's. The context it
+// was taken from is left as it was.
+func TestInScope_ReadsWhereTheBindingsPlaceASchema(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "ext.yaml"),
-		[]byte("paths:\n  /x: {get: {responses: {\"200\": {description: ok}}}}\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "ext.yaml"), []byte("paths:\n  /x: {get: {responses: {\"200\": "+
+		"{description: ok, content: {application/json: {schema: {type: string}}}}}}}\n"), 0o600))
 	const root = `openapi: 3.1.0
 info: {title: T, version: "1"}
 paths:
   /ext: {$ref: './ext.yaml#/paths/~1x'}
+components:
+  schemas:
+    Past: {$ref: '#/paths/~1ext/get/responses/200/content/application~1json/schema'}
+    Home: {$ref: '#/components/schemas/Own'}
+    Own: {type: integer}
 `
 	doc, _, err := load.Load(t.Context(), 0, compilers.Source{Path: filepath.Join(dir, "root.yaml"),
 		Data: []byte(root)}, load.Options{Reader: reader.Disk{}})
 	require.NoError(t, err)
 	c := lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{}, lowering.StreamingMedia{},
-		lowering.ExtensionPromotions{}, overlay.Origin{})
-	ext, ok := doc.Doc.Paths.Get("/ext")
-	require.True(t, ok)
-	foreign := lowering.Within[soa.PathItem](c, ext)
-	require.True(t, foreign.RefScope().Foreign)
+		lowering.ExtensionPromotions{}, overlay.Origin{}).WithLoaded(doc)
+	declared := func(name string) *oas3.JSONSchema[oas3.Referenceable] {
+		t.Helper()
+		js, ok := doc.Doc.Components.Schemas.Get(name)
+		require.True(t, ok)
+		decl := c.Bindings().Declared(js)
+		require.NotNil(t, decl, "the $ref of %s lands on a schema", name)
+		return decl
+	}
 
-	home := foreign.InScope(foreign.RefScope().At("/paths/~1ext")).RefScope()
-	assert.False(t, home.Foreign, "what the source holds is read as the source's")
-	assert.Empty(t, home.Holder)
-	_, internal := home.InternalPointer("#/paths/~1ext")
-	assert.True(t, internal, "a pointer alone names the source's position again")
-	assert.True(t, foreign.RefScope().Foreign, "the context it was taken from is left as it was")
-
-	past := c.InScope(c.RefScope().At("/paths/~1ext/get/responses/200")).RefScope()
-	assert.True(t, past.Foreign, "past /ext's $ref, the pointer names ext.yaml's content")
+	past := c.InScope(c.RefScope().InDocumentOf(declared("Past"))).RefScope()
+	assert.True(t, past.Foreign, "past /ext's $ref, the schema is ext.yaml's content")
 	assert.Equal(t, filepath.Join(dir, "ext.yaml"), past.Holder)
 	assert.False(t, c.RefScope().Foreign, "the context it was taken from is left as it was")
+
+	foreign := c.InScope(past)
+	home := foreign.InScope(foreign.RefScope().InDocumentOf(declared("Home"))).RefScope()
+	assert.False(t, home.Foreign, "what the source holds is read as the source's")
+	assert.Empty(t, home.Holder)
+	assert.True(t, foreign.RefScope().Foreign, "the context it was taken from is left as it was")
+
+	unknown := foreign.RefScope().InDocumentOf(&oas3.JSONSchema[oas3.Referenceable]{})
+	assert.False(t, unknown.Foreign, "a schema the bindings do not know is read as the source's")
 }

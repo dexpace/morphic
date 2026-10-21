@@ -770,7 +770,6 @@ type TypeCommon struct
 	"sensitive" bool
 	"tags" []string omitempty
 	"unmodeled" Unmodeled omitempty
-	"usage" UsageFlags omitzero
 	"wireNameByFormat" map[string]string omitempty
 	"xml" *XMLHints omitzero
 
@@ -832,12 +831,6 @@ type UnmodeledReason string
 	const "out_of_scope"
 	const "validation_only"
 	const "vendor_extension"
-
-type UsageFlags uint32
-	const UsageInput = 1
-	const UsageOutput = 2
-	const UsageError = 4
-	const UsageMultipart = 8
 
 type Value struct
 	"bool" bool omitzero

@@ -79,7 +79,7 @@ func TestRun_SingleDashArgumentsThatAreNotFlags(t *testing.T) {
 		{"the value of a short flag", []string{"compile", spec, "--explain", "", "-o", "-opt"},
 			"--explain writes no document"},
 		{"the value of a long flag", []string{"compile", spec, "--fail-on", "-pretty"},
-			`invalid --fail-on "-pretty"`},
+			`invalid argument "-pretty" for "--fail-on" flag`},
 		{"an operand after --", []string{"compile", "--", "-opt"}, `read spec "-opt"`},
 		{"an argument of an unknown command", []string{"bogus", "-opt"}, `unknown command "bogus"`},
 		{"a root flag's one-dash spelling after an unknown command", []string{"bogus", "-version"},

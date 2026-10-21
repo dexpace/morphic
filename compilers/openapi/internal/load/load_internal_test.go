@@ -510,6 +510,28 @@ func countErrorsAt(diags []ir.Diagnostic, code string) int {
 	return n
 }
 
+// errorSites returns where each error of the given code is reported, in order.
+func errorSites(diags []ir.Diagnostic, code string) []jsontext.Pointer {
+	var sites []jsontext.Pointer
+	for _, d := range diags {
+		if d.Code == code && d.Severity == ir.SeverityError {
+			sites = append(sites, d.Provenance.Pointer)
+		}
+	}
+	return sites
+}
+
+// countErrors counts the errors among diags, whatever their code.
+func countErrors(diags []ir.Diagnostic) int {
+	var n int
+	for _, d := range diags {
+		if d.Severity == ir.SeverityError {
+			n++
+		}
+	}
+	return n
+}
+
 // TestUnmarshal_RejectsADocumentNodeHoldingMoreThanOneRoot pins the model
 // build's other failure exit: the library refuses a document node that does not
 // wrap exactly one root, and that refusal is a Go error rather than a

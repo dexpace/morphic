@@ -256,7 +256,7 @@ func sourceInfo(doc *soaoverlay.Overlay, opts Options) ir.SourceInfo {
 //
 // The library's clone copies an alias's target too, leaving an alias to a node
 // in no Content list (docs/parser-library.md#overlay-alias-clone). Readers here
-// walk Content and treat an alias as a leaf, so the budget, cycle scan and
+// walk Content and treat an alias as a leaf, so the budget, alias scan and
 // attribution miss that content while the parser follows it (GitHub #477).
 //
 // normalized reports whether the tree was walked within budget; if not,

@@ -1,11 +1,12 @@
 # Contributing to Morphic
 
 This guide is the way in. It says what to read for the change you are making, then walks the three
-changes most contributions are: a lowering rule in the OpenAPI compiler, a pass, and a compiler.
-Each step names the check that fails when the step is missed, so a red test points back to the
-step, and says so where nothing checks it, so a green run is not read as more than it proves. The
-rules themselves live in the root guidance, [`CLAUDE.md`](CLAUDE.md), and in the design documents
-under [`docs/`](docs/); this guide links them rather than restating them.
+changes most contributions are: a lowering rule in the OpenAPI compiler, a pass, and a compiler,
+and ends with merging a dependency update. Each step names the check that fails when the step is
+missed, so a red test points back to the step, and says so where nothing checks it, so a green run
+is not read as more than it proves. The rules themselves live in the root guidance,
+[`CLAUDE.md`](CLAUDE.md), and in the design documents under [`docs/`](docs/); this guide links them
+rather than restating them.
 
 ## Before you start
 
@@ -105,16 +106,17 @@ A lowering rule says how one OpenAPI construct reaches the IR: the field it fill
    misspelt key, or a rule renamed without its citations. Nothing requires a citation.
 7. **Run the gate:** `make gate`. A statement only a fault-injection seam reaches still needs a test
    that reaches it; `make coverage` names the file and line it misses. On a loaded machine
-   `TestDetectCycles_MergeChainPastBoundStaysFastAndWarns` can fail its wall-clock bound under
-   `make coverage` (#979); rerun before reading that failure as yours.
+   `TestLibraryBehaviour` and `TestResolverOracle_VerdictMatchesResolverBehavior` can read a slow
+   child as hung under `make coverage` (#1010); rerun before reading that failure as yours, and
+   before recording it with `-update`.
 
 ## Add a pass
 
 A pass is an IR-to-IR step the engine runs after a compile
 ([`architecture.md`](docs/architecture.md) §2.2). Today a pass can analyse a document and report on
 it, or return a new document built from it, but it cannot replace or remove a type: writing the type
-registry outside `compilers/compile` and `ir` fails `TestRegistryWrites_StayInsideTheFramework`, and
-the sanctioned way for a pass to do it is #966's.
+registry outside `compilers/compile` and `ir` fails the `registrywrites` rule
+(`internal/lintrules`, run by `make vet`), and the sanctioned way for a pass to do it is #966's.
 
 1. **Implement `pass.Pass`** in a file of its own under `pass/`, shaped as `Validator` and
    `ValidateName` are in `pass/pass.go`: an exported type, and a constant holding its stable
@@ -168,9 +170,8 @@ A compiler lowers one source format into an IR document ([`architecture.md`](doc
    `ir.IRVersion`. Call `compile.Types.Violations()` after interning and report what it returns, as
    the OpenAPI compiler does; take the `*compile.Types` as a parameter, as that compiler's `run`
    does, so a test can drive the refusal no source provokes.
-   *Fails if missed:* `TestNamingGrammar_NameChannelsAreFilledByTheFrameworkOnly`,
-   `TestIDGrammar_CompilersDeriveIDsThroughTheFramework` and
-   `TestRegistryWrites_StayInsideTheFramework` for the framework. Nothing in the repository checks
+   *Fails if missed:* the `namechannels`, `idderivations` and `registrywrites` rules in
+   `internal/lintrules` (`make vet`) for the framework. Nothing in the repository checks
    the namespaces, the version or the violations (#967): step 5's `irverify` tests do, and
    `irtest.SpacesUsed` holds `IDSpaces` to what the output uses.
 4. **Register it** in `engine.New` (`engine/engine.go`), the one place built-in compilers are
@@ -190,3 +191,31 @@ A compiler lowers one source format into an IR document ([`architecture.md`](doc
    give the new specification tests of its own, reading it through `internal/keydoc` as they do.
    Nothing fails if this step is missed.
 7. **Run the gate:** `make gate`.
+
+## Merge a dependency update
+
+Dependabot opens the pull requests [`.github/dependabot.yml`](.github/dependabot.yml) asks for each
+week: the Go modules' minor and patch updates together, the parser library and any major update
+each on its own, and the workflow's actions together. It proposes direct modules only, so an
+indirect one such as go-yit, which `go.mod` holds back (#798), moves only when a direct module
+requires it. Every proposal waits a week after its release. A security update opens when an
+advisory names a module in `go.mod`, direct or indirect, and does not wait. Nothing proposes a Go or
+golangci-lint release: the `Makefile` comment above `GO_VERSION` says what moves with them, by hand.
+
+1. **Re-read [`docs/parser-library.md`](docs/parser-library.md)** when the update is to the parser
+   library, following its steps to bump the library, and push the result onto Dependabot's branch.
+   *Fails if missed:* `TestRecord_EntriesAreVerifiedAtTheLinkedVersion`, for each entry verified at
+   the previous version.
+2. **Finish the toolchain move** when an update raises the `go` directive, which `go get` does for a
+   module that needs a newer Go: the pins the `Makefile` lists above `GO_VERSION` move on the same
+   branch. Nothing is sure to fail if this step is missed; an old pin fails the gate only when it
+   cannot read the new toolchain.
+3. **Keep what you push.** Pushing to a Dependabot branch stops Dependabot rebasing it, so bring
+   `main` in by merging it, as on any branch. `@dependabot recreate` overwrites what was pushed.
+   Nothing checks this.
+4. **Set the squash subject when merging.** A Dependabot pull request has one commit, and this
+   repository squashes a one-commit pull request under that commit's subject rather than the pull
+   request's title, so retitling the pull request changes nothing. A subject naming one module
+   often passes the 72-character cap once the number is appended; shorten it in the merge dialog,
+   or with `gh pr merge <n> --squash --subject "build: bump <module> to <version>"`. Nothing checks
+   this.

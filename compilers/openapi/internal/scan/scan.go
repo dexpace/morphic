@@ -1,22 +1,19 @@
 // Package scan refuses a source document before any of it is lowered, for
-// shapes the parser library cannot survive. A schema $ref chain that never
-// reaches a concrete schema overflows its stack
-// (docs/parser-library.md#schema-cycle-overflow); a chain of reference objects
-// is left to the resolver, which reports one
-// (docs/parser-library.md#reference-object-cycle). A YAML alias cycle or
-// fan-out overflows it or exhausts memory (docs/parser-library.md#alias-cycle,
-// docs/parser-library.md#alias-expansion). And nesting so deep that its cost
-// per node, growing with depth, adds up past use
-// (docs/parser-library.md#nesting-cost). Each is read from the raw text,
-// through the sourceindex.Index the caller supplies.
+// shapes the parser library cannot decode: a YAML alias cycle or fan-out,
+// which overflows its stack or exhausts memory
+// (docs/parser-library.md#alias-cycle, docs/parser-library.md#alias-expansion),
+// and nesting so deep that its cost per node, growing with depth, adds up past
+// use (docs/parser-library.md#nesting-cost). Each is read from the raw text,
+// through the sourceindex.Index the caller supplies. A $ref is no concern of
+// it: the compiler resolves schema $refs itself (internal/bind), and the
+// parser's resolver reports a loop of reference objects
+// (docs/parser-library.md#reference-object-cycle).
 package scan
 
 import (
 	"encoding/json/jsontext"
-	"fmt"
 	"slices"
 	"strconv"
-	"strings"
 
 	yaml "gopkg.in/yaml.v3"
 
@@ -25,44 +22,6 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/sourceindex"
 	"github.com/dexpace/morphic/ir"
 )
-
-// schemaEntryMapKeys name a mapping of schemas encountered outside a schema
-// (e.g. components.schemas, $defs): every value is a schema root.
-var schemaEntryMapKeys = map[string]bool{
-	"schemas": true, "$defs": true, "definitions": true,
-}
-
-// subSchemaObjectKeys name single sub-schemas within a schema object. These and
-// the two sets below are the schema fields of the library's model, and only
-// those (TestSubSchemaKeys_AreTheModelsSchemaFields): under any other key of a
-// schema, such as draft-07's additionalItems, the resolver resolves nothing,
-// and its pointer walk is in raw YAML or a field holding no schema.
-var subSchemaObjectKeys = map[string]bool{
-	"items": true, "not": true, "additionalProperties": true,
-	"propertyNames": true, "contains": true,
-	"if": true, "then": true, "else": true,
-	"unevaluatedItems": true, "unevaluatedProperties": true,
-	"contentSchema": true,
-}
-
-// subSchemaMapKeys name a mapping of name→schema within a schema object.
-var subSchemaMapKeys = map[string]bool{
-	"properties": true, "patternProperties": true, "dependentSchemas": true,
-	"$defs": true,
-}
-
-// subSchemaListKeys name a sequence of schemas within a schema object.
-var subSchemaListKeys = map[string]bool{
-	"allOf": true, "oneOf": true, "anyOf": true, "prefixItems": true,
-}
-
-// exampleKeys name the fields holding example data outside a schema: the
-// example of a parameter, a header or a media type, a raw value, and its
-// examples, Example objects that hold no schema either. A $ref-shaped mapping
-// under one is an opaque value, never resolved. No field so named outside a
-// schema holds one (TestExampleKeys_HoldNoSchema). A default there is a
-// response, so it is no such key, whatever a schema's default is.
-var exampleKeys = map[string]bool{"example": true, "examples": true}
 
 // Locator answers where a diagnostic's subject is. Given a node it returns the
 // provenance to report the node at; given nil it returns the source alone, the
@@ -230,46 +189,34 @@ func pointerOf(steps map[*yaml.Node]step, n *yaml.Node) jsontext.Pointer {
 	return p
 }
 
-// Cycles refuses, before parsing, the structures the package doc names (GitHub
-// #12, #27, speakeasy-api/openapi#231): a recursive anchor, a schema $ref chain
-// that loops, and alias amplification past the ratio or the surplus budget
-// (zero for none). An incomplete scan yields a diag.CycleScanFailed warning.
-//
-// The index must cover the tree that will reach the parser, since an overlay
-// can graft a cycle onto a clean document, and must not be truncated: a partial
-// count refuses documents wrongly. yaml.v3's alias guard never fires on a
-// yaml.Node decode, so nothing else bounds expansion (GitHub #479).
-func Cycles(locate Locator, idx sourceindex.Index, surplus int64) []ir.Diagnostic {
-	return recoverCycleScan(locate, func() []ir.Diagnostic {
-		return scanIndex(locate, idx, surplus)
-	})
-}
-
-// recoverCycleScan runs scan and, on any panic from the recursive walks,
-// degrades to a diag.CycleScanFailed warning instead of propagating — a bug in
-// the detector must not crash the compiler on a degenerate spec (GitHub #12).
-// The compile still proceeds to the parser; only the pre-parse guarantee is
-// flagged incomplete for this source.
+// recoverCycleScan runs scan and, on any panic from its walks, degrades to a
+// diag.CycleScanFailed warning instead of propagating — a bug in the detector
+// must not crash the compiler on a degenerate spec (GitHub #12). The compile
+// still proceeds to the parser; only the pre-parse guarantee is flagged
+// incomplete for this source.
 func recoverCycleScan(locate Locator, scan func() []ir.Diagnostic) (diags []ir.Diagnostic) {
 	defer func() {
 		if r := recover(); r != nil {
 			diags = []ir.Diagnostic{diag.Newf(ir.SeverityWarning, diag.CycleScanFailed,
 				locate(nil),
-				"cycle pre-scan aborted (%v); reference-cycle protection is incomplete for this source", r)}
+				"alias pre-scan aborted (%v); alias-cycle protection is incomplete for this source", r)}
 		}
 	}()
 	return scan()
 }
 
-// Aliases refuses a YAML document whose aliases expand without end or far past
-// its own size, the two refusals Cycles makes that concern YAML rather than
-// OpenAPI. It serves overlays, whose applier clones an update through its
-// aliases: an anchor naming its own ancestor overflows the stack, and an alias
-// bomb exhausts memory (docs/parser-library.md#overlay-alias-clone, GitHub
-// #489). $ref chains are skipped; nothing resolves them in an overlay.
+// Aliases refuses, before parsing, a YAML document whose aliases expand
+// without end or far past its own size (GitHub #12, #27): an anchor naming its
+// own ancestor overflows the parser's stack, and an alias bomb exhausts its
+// memory (docs/parser-library.md#alias-cycle,
+// docs/parser-library.md#alias-expansion). It serves an overlay too
+// (docs/parser-library.md#overlay-alias-clone). An incomplete scan yields a
+// diag.CycleScanFailed warning.
 //
-// The index must cover the whole document: an alias to an ancestor is visible
-// only from the root. surplus is the alias budget.
+// The index must cover the whole tree that will reach the parser: an alias to
+// an ancestor is visible only from the root. surplus is the alias budget, zero
+// for none; yaml.v3's own alias guard never fires on a yaml.Node decode
+// (GitHub #479).
 func Aliases(locate Locator, idx sourceindex.Index, surplus int64) []ir.Diagnostic {
 	return recoverCycleScan(locate, func() []ir.Diagnostic {
 		if d, ok := anchorCycle(locate, idx); ok {
@@ -298,276 +245,12 @@ func anchorCycle(locate Locator, idx sourceindex.Index) (ir.Diagnostic, bool) {
 		"recursive YAML anchor %q references an ancestor node", anchorName(alias)), true
 }
 
-// scanIndex reports the degenerate structure the index's tree carries, or nil:
-// a recursive anchor before anything else, then $ref chains, then alias
-// amplification. The index's root is nil for a source with no document in it;
-// the ref walk and the weigher both treat that as "nothing to scan", so no
-// explicit nil guard is needed here.
-func scanIndex(locate Locator, idx sourceindex.Index, surplus int64) []ir.Diagnostic {
-	if d, ok := anchorCycle(locate, idx); ok {
-		return []ir.Diagnostic{d}
-	}
-
-	root := idx.Root()
-	diags := refCycles(locate, root)
-	if diag.HasError(diags) {
-		return diags
-	}
-
-	// refCycles runs first: a genuine $ref cycle should win the diagnostic over
-	// an amplification finding on the same document, and refCycles is safe to
-	// run on an amplifying document since it never materializes the expansion.
-	// Appending (rather than replacing) preserves any diag.CycleScanFailed
-	// warning refCycles already produced, so a document that both truncates a
-	// merge chain and amplifies reports both findings.
-	if d, ok := aliasAmplification(locate, root, idx.Nodes(), surplus); ok {
-		return append(diags, d)
-	}
-	return diags
-}
-
 // anchorName is the anchor label an alias points at, for the diagnostic message.
 func anchorName(alias *yaml.Node) string {
 	if alias.Alias != nil && alias.Alias.Anchor != "" {
 		return alias.Alias.Anchor
 	}
 	return alias.Value
-}
-
-// refCycles reports the schema chains that never reach a node without a
-// top-level $ref, which the resolver recurses round until the stack runs out
-// (docs/parser-library.md#schema-cycle-overflow), at one site (see refusal). A
-// chain of reference objects is left to the resolver, which reports it
-// (docs/parser-library.md#reference-object-cycle).
-//
-// If the mapping view hit nodeview.MergeDepthLimit it returns a
-// diag.CycleScanFailed warning rather than a clean nil. Truncation only drops
-// pairs, so a cycle found despite it is real, but a clean result means only
-// that none was found in what could be expanded.
-func refCycles(locate Locator, root *yaml.Node) []ir.Diagnostic {
-	s := newRefScan()
-	s.collect(root)
-	chains := settleChains(s.view, root, s.out, sourceindex.MaxIndexedNodes)
-	if d, found := s.refusal(locate, root, chains); found {
-		return []ir.Diagnostic{d}
-	}
-	if s.view.Exhausted() {
-		return []ir.Diagnostic{diag.Newf(ir.SeverityWarning, diag.CycleScanFailed,
-			locate(nil),
-			"cycle pre-scan stopped at its %d-level merge-key expansion bound; "+
-				"reference-cycle protection is incomplete for this source",
-			nodeview.MergeDepthLimit)}
-	}
-	return nil
-}
-
-// refusal reports the chains refCycles refuses, or nothing when it refuses
-// none. However many there are, one diagnostic names one site: of the nodes of
-// every loop a schema chain runs into, the one with the least pointer (Least).
-// A reference that only leads into a loop is not named, and no declaration
-// order moves the site (GitHub #912).
-func (s *refScan) refusal(locate Locator, root *yaml.Node, chains *chainGraph) (ir.Diagnostic, bool) {
-	sites := chains.loopsReached(s.out)
-	if len(sites) == 0 {
-		return ir.Diagnostic{}, false
-	}
-	return cyclicDiag(locate, Least(root, sites),
-		"cyclic $ref: reference chain never reaches a node without a $ref"), true
-}
-
-// walkRole is how the ref-collection walk reads the node it is visiting. The
-// same node can legally occupy more than one role — an anchored pure-$ref
-// mapping aliased once into a "properties" position and once used directly as a
-// schema, say — and each role must be walked in full independently, so every
-// role carries its own visited set.
-type walkRole int
-
-const (
-	roleOutside    walkRole = iota // a document position outside any schema
-	roleSchema                     // the node itself is a schema object
-	roleSchemaMap                  // the node's values are schemas
-	roleSchemaList                 // the node's elements are schemas
-
-	roleCount // number of roles; sizes refScan.seen
-)
-
-// child returns the role of what a node read in role r holds under key, and
-// false where the scan reads no further: under a schema, any key naming no
-// sub-schema, below which the resolver reads no schema; outside one, an
-// extension or an example (exampleKeys). That skip goes by the name alone,
-// though the library's model also asks which object holds the key, so it
-// passes over an object named so, such as a webhook named x-h (GitHub #949).
-// The collection walk and a hop's pointer walk (emptyTokenLanding) share this
-// one reading.
-func (r walkRole) child(key string) (walkRole, bool) {
-	switch r {
-	case roleOutside:
-		switch {
-		case strings.HasPrefix(key, "x-"), exampleKeys[key]:
-			return roleOutside, false
-		case key == "schema":
-			return roleSchema, true
-		case schemaEntryMapKeys[key]:
-			return roleSchemaMap, true
-		default:
-			return roleOutside, true
-		}
-	case roleSchema:
-		switch {
-		case subSchemaObjectKeys[key]:
-			return roleSchema, true
-		case subSchemaMapKeys[key]:
-			return roleSchemaMap, true
-		case subSchemaListKeys[key]:
-			return roleSchemaList, true
-		default:
-			return roleSchema, false
-		}
-	case roleSchemaMap, roleSchemaList:
-		return roleSchema, true
-	default:
-		// Unreachable by construction, as in collect: recoverCycleScan turns
-		// this into the diag.CycleScanFailed warning, never a crash.
-		panic(fmt.Sprintf("cycle scan: unhandled walk role %d", r))
-	}
-}
-
-// refTask is one unit of the ref-collection walk: a node and the role to read it
-// in.
-type refTask struct {
-	n    *yaml.Node
-	role walkRole
-}
-
-// refScan holds the state of one pure-$ref cycle search, over a
-// resolver-faithful view of the source tree.
-//
-// The collection walk is iterative. Aliases make a node reachable from many
-// parents, so it needs memoization against exponential time, but memoization
-// and a recursion depth cap are unsound together: a node first reached near the
-// cap is truncated, then skipped from a shallower path, dropping refs. Without
-// a cap, push enqueues each (node, role) pair once, so the loop runs at most
-// roleCount times the node count.
-type refScan struct {
-	view  *nodeview.View
-	stack []refTask
-	seen  [roleCount]map[*yaml.Node]bool
-	out   []*yaml.Node
-}
-
-// newRefScan returns a scan with every memoization map initialized. Building the
-// visited sets as one array indexed by role — rather than a field per role —
-// makes it impossible to add a role and forget its set.
-func newRefScan() *refScan {
-	s := &refScan{view: nodeview.New()}
-	for i := range s.seen {
-		s.seen[i] = map[*yaml.Node]bool{}
-	}
-	return s
-}
-
-// collect gathers every pure-$ref node reachable through a schema position into
-// s.out, skipping reference objects and data subtrees that speakeasy never
-// resolves as schema references. Nodes are appended in the depth-first
-// pre-order a recursive walk would produce, which the chains are read in; what
-// a refusal names is chosen by pointer, so it follows no such order.
-func (s *refScan) collect(root *yaml.Node) {
-	s.push(root, roleOutside)
-	for len(s.stack) > 0 {
-		t := s.stack[len(s.stack)-1]
-		s.stack = s.stack[:len(s.stack)-1]
-		switch t.role {
-		case roleOutside:
-			s.visitOutside(t.n)
-		case roleSchema:
-			s.visitSchema(t.n)
-		case roleSchemaMap:
-			s.visitSchemaMap(t.n)
-		case roleSchemaList:
-			s.visitSchemaList(t.n)
-		default:
-			// Unreachable by construction: push is the only producer of tasks
-			// and every declared role has a case above. A role added without
-			// one is a programmer error, so fail loudly rather than silently
-			// walking it as the wrong kind of node — recoverCycleScan turns
-			// this into the diag.CycleScanFailed warning, never a crash.
-			panic(fmt.Sprintf("cycle scan: unhandled walk role %d", t.role))
-		}
-	}
-}
-
-// push enqueues n in role unless it is nil or that exact pair was already
-// enqueued. Dereferencing here is what lets an alias stand in for a whole schema
-// (or for any position outside one) and still be followed. Marking at push time
-// is what bounds collect: no pair is ever enqueued twice.
-func (s *refScan) push(n *yaml.Node, role walkRole) {
-	n = nodeview.Deref(n)
-	if n == nil || s.seen[role][n] {
-		return
-	}
-	s.seen[role][n] = true
-	s.stack = append(s.stack, refTask{n: n, role: role})
-}
-
-// pushReversed enqueues nodes so that a LIFO pop yields them in their original
-// order, preserving the depth-first pre-order collect documents.
-func (s *refScan) pushReversed(nodes []*yaml.Node, role walkRole) {
-	for _, node := range slices.Backward(nodes) {
-		s.push(node, role)
-	}
-}
-
-// visitOutside reads a document position outside any schema, collecting
-// nothing there: it enters schema context at schema-valued keys, and never
-// descends into data or extension subtrees (walkRole.child).
-func (s *refScan) visitOutside(n *yaml.Node) {
-	if n.Kind == yaml.SequenceNode {
-		s.pushReversed(n.Content, roleOutside)
-		return
-	}
-	s.pushChildren(roleOutside, s.view.MappingPairs(n))
-}
-
-// visitSchema reads one schema object: it collects the node when it is a pure
-// $ref, then descends only into sub-schema positions — never into type, enum,
-// example, or extension data — so ref-shaped values never masquerade as schema
-// references.
-func (s *refScan) visitSchema(n *yaml.Node) {
-	if n.Kind != yaml.MappingNode {
-		return
-	}
-	pairs := s.view.MappingPairs(n)
-	if _, ok := nodeview.PureRefTargetOf(pairs); ok {
-		s.out = append(s.out, n)
-	}
-	s.pushChildren(roleSchema, pairs)
-}
-
-// visitSchemaMap reads each value of a name→schema mapping as a schema.
-func (s *refScan) visitSchemaMap(n *yaml.Node) {
-	if n.Kind != yaml.MappingNode {
-		return
-	}
-	s.pushChildren(roleSchemaMap, s.view.MappingPairs(n))
-}
-
-// pushChildren enqueues each value of pairs, a mapping read in role r, in the
-// role walkRole.child gives it there, skipping those that hold no schema. They
-// are pushed last first, so a LIFO pop meets them in written order.
-func (s *refScan) pushChildren(r walkRole, pairs []nodeview.Pair) {
-	for _, p := range slices.Backward(pairs) {
-		if role, held := r.child(p.Key); held {
-			s.push(p.Val, role)
-		}
-	}
-}
-
-// visitSchemaList reads each element of a schema sequence as a schema.
-func (s *refScan) visitSchemaList(n *yaml.Node) {
-	if n.Kind != yaml.SequenceNode {
-		return
-	}
-	s.pushReversed(n.Content, roleSchema)
 }
 
 // cyclicDiag builds a diag.CyclicRef error diagnostic anchored where locate
@@ -607,7 +290,7 @@ const minExpandedNodes = 1 << 15 // 32768
 // while memory climbs, as diag.BudgetExceeded.
 //
 // Run it only once recursive anchors are refused, which makes the alias graph
-// a DAG (see scanIndex).
+// a DAG (see Aliases).
 func aliasAmplification(locate Locator, root *yaml.Node, raw, surplus int64) (ir.Diagnostic, bool) {
 	shape := shapeAllowance(raw)
 	// A surplus the ratio already bounds more tightly can never be the bound

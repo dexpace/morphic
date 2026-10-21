@@ -14,7 +14,6 @@ import (
 	"strings"
 	"sync"
 
-	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/speakeasy-api/openapi/references"
 	yaml "gopkg.in/yaml.v3"
@@ -54,6 +53,12 @@ type external struct {
 	// context, so the one its resolution runs under is held here, as the
 	// resolution holds it.
 	ctx context.Context
+}
+
+// crossed reports each budget the reads through reader crossed, once every
+// read is in: the resolver's and the binding's.
+func crossed(at func(jsontext.Pointer) ir.Provenance, reader *external) []ir.Diagnostic {
+	return append(reader.work.exhausted(at), reader.read.exhausted(at, reader.opts.MaxExternalDocuments)...)
 }
 
 // maxOpenedSpellings is the most spellings Open holds every object of the
@@ -122,13 +127,8 @@ func (e external) hold(ctx context.Context, sibs Siblings) {
 // holdWalked is hold over the walk of e.doc the caller supplies, so a test can
 // hand it one that panics, which stops the walk where it stands, for the
 // resolution walk to report. It holds the source under its keys, then each
-// spelling recorded (see holdRecorded): a second resolution's.
-//
-// No schema is held: the resolver follows a schema's chain through a hop it
-// finds resolved without tracking where the chain has been, so a chain reaching
-// a held schema it resolved already loops until the stack runs out
-// (docs/parser-library.md#schema-cycle-overflow). One closing through the
-// source's file name is not refused (GitHub #768).
+// spelling recorded (see holdRecorded): a second resolution's. Only reference
+// objects are held: the resolver is never asked to resolve a schema.
 func (e external) holdWalked(items iter.Seq[soa.WalkItem]) {
 	keys := e.read.self.keys()
 	if len(keys) == 0 {
@@ -143,9 +143,6 @@ func (e external) holdWalked(items iter.Seq[soa.WalkItem]) {
 		e.holdDocument(key, true)
 	}
 	if _, err := eachModel(items, "source", func(site jsontext.Pointer, r resolvable) error {
-		if _, schema := r.(*oas3.JSONSchema[oas3.Referenceable]); schema {
-			return nil
-		}
 		o := heldObject{site: site, obj: r}
 		e.held.bySite[site] = o
 		for _, key := range keys {
@@ -278,14 +275,13 @@ func (e external) holdSpelling(ref references.Reference, base string) {
 // reports a document as its bytes when it holds both them and the object a
 // reference names, and a hop resolved against bytes fails (GitHub #761). Each
 // resumption starts past the hop the last stalled at, so maxResolutionHops
-// bounds them, and is charged to e.work before it reads anything. A hop left
-// stalled keeps its record (see chain.withoutStall).
+// bounds them, and is charged to e.work before it reads anything.
 func (e external) settle(ctx context.Context, r resolvable, opts references.ResolveOptions,
 	vErrs []error, err error,
 ) ([]error, error) {
 	for range maxResolutionHops {
 		c := resolutionChain(r)
-		resume, refused := e.resumable(r, c, err)
+		resume, refused := e.resumable(c, err)
 		if refused != nil {
 			err = refused
 		}
@@ -296,7 +292,7 @@ func (e external) settle(ctx context.Context, r resolvable, opts references.Reso
 		more, again := r.Resolve(ctx, opts)
 		vErrs, err = append(vErrs, more...), again
 	}
-	e.read.mend(resolutionChain(r).withoutStall(), e.doc)
+	e.read.mend(resolutionChain(r), e.doc)
 	return vErrs, err
 }
 
@@ -347,9 +343,7 @@ func fileNamed(name string) string {
 func (e external) Do(req *http.Request) (*http.Response, error) {
 	key := req.URL.String()
 	return e.read.once(key, e.opts.MaxExternalDocuments, func() answer {
-		a := e.fetch(req.Context(), key, key)
-		a.status = http.StatusOK
-		return a
+		return e.fetch(req.Context(), key, key)
 	}).response(req)
 }
 

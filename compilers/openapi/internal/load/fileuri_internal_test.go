@@ -50,12 +50,12 @@ func TestLoad_AFileURIDocumentResolvesItsOwnRelativeRefs(t *testing.T) {
 	t.Parallel()
 	dir := externalDir(t, map[string]string{
 		"a.yaml": "x: {$ref: './sub/b.yaml#/x'}\n",
-		"c.yaml": "x: {type: string}\n",
+		"c.yaml": "x: {description: ok}\n",
 	})
 	require.NoError(t, os.Mkdir(filepath.Join(dir, "sub"), 0o750))
 	writeFile(t, dir, filepath.Join("sub", "b.yaml"), "x: {$ref: '../c.yaml#/x'}\n")
 
-	root := schemaRoot(fileURI("file", filepath.Join(dir, "a.yaml")) + "#/x")
+	root := responseRoot(fileURI("file", filepath.Join(dir, "a.yaml")) + "#/x")
 
 	_, diags := loadExternal(t, dir, root, Options{MaxExternalDocuments: 3})
 	_, short := loadExternal(t, dir, root, Options{MaxExternalDocuments: 2})
@@ -85,8 +85,8 @@ func TestLoad_AFileURIIsRefusedWithItsReason(t *testing.T) {
 // read and charged on its own. Under a budget of one, the second is refused.
 func TestLoad_AFileURIAndAPathAreTwoDocuments(t *testing.T) {
 	t.Parallel()
-	dir := externalDir(t, map[string]string{"a.yaml": "x: {type: string}\n"})
-	root := schemaRoot("./a.yaml#/x") +
+	dir := externalDir(t, map[string]string{"a.yaml": "x: {description: ok}\n"})
+	root := responseRoot("./a.yaml#/x") +
 		"    B: {$ref: '" + fileURI("file", filepath.Join(dir, "a.yaml")) + "#/x'}\n"
 
 	_, within := loadExternal(t, dir, root, Options{MaxExternalDocuments: 2})

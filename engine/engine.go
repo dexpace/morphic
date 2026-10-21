@@ -31,6 +31,10 @@ type RunOptions struct {
 	// passes carries fails the run with ErrUnknownPass before the spec is read,
 	// since ignoring a misspelt one would leave its pass running unseen.
 	DisablePasses []string `json:"disablePasses,omitempty"`
+	// FailOn is the threshold the run is judged at, FailOnError when empty,
+	// and Result.Failed is the verdict. A value naming no threshold fails the
+	// run with ErrUnknownFailOn before the spec is read.
+	FailOn FailOn `json:"failOn,omitempty"`
 }
 
 // errOptionChannels reports both option channels set at once. Which one wins
@@ -47,7 +51,7 @@ var errCompilerOptionsUnused = errors.New(
 
 // Result is the outcome of a pipeline run. A nil Document alongside diagnostics
 // is a legal outcome and the shape every refusal takes — a source no compiler
-// claims, or one a compiler declined to lower; the caller decides what is fatal.
+// claims, or one a compiler declined to lower.
 //
 // Diagnostics is the whole list for the run. When Document is non-nil it holds
 // the same values, so a caller reading either channel sees every finding.
@@ -60,6 +64,11 @@ type Result struct {
 	Diagnostics []ir.Diagnostic        `json:"diagnostics,omitempty"`
 	Sources     []ir.SourceInfo        `json:"sources,omitempty"`
 	Format      compilers.SourceFormat `json:"format"`
+	// Failed is the engine's verdict: the run produced no document, or one
+	// with a diagnostic at or above RunOptions.FailOn. A failed run still
+	// returns what it produced, to inspect or persist. What failing stops is
+	// building on it: the engine starts no emitter on a failed run.
+	Failed bool `json:"failed,omitzero"`
 }
 
 // Engine orchestrates the detect → compiler → passes pipeline.
@@ -109,16 +118,17 @@ func NewWith(cs ...compilers.Compiler) (*Engine, error) {
 }
 
 // Run executes the pipeline for the spec at specPath: read it, compile it with
-// the compiler that recognizes it, then run the passes opts.DisablePasses does
-// not name, in order. Its references are read through reader.Disk, as far from
-// the spec's directory as the compiler's options let a read go.
+// the compiler that recognizes it, run the passes opts.DisablePasses does not
+// name, in order, and judge the Result at opts.FailOn. Its references are read
+// through reader.Disk, as far as the compiler's options let a read go.
 //
-// A Go error is reserved for I/O, cancellation and programmer errors, such as
-// a compiler or pass breaking its contract or a name ErrUnknownPass refuses.
-// Everything wrong with the spec, a source no compiler can lower included, is
-// a diagnostic in the Result. Calls may overlap; each owns its document.
+// A Go error is reserved for I/O, cancellation and programmer errors: an
+// unreadable file, a cancelled ctx, a stage breaking its contract, or an
+// option ErrUnknownPass or ErrUnknownFailOn refuses. Everything wrong with the
+// spec is a diagnostic in the Result. Calls may overlap; each owns the
+// document it returns.
 func (e *Engine) Run(ctx context.Context, specPath string, opts RunOptions) (*Result, error) {
-	passes, err := e.prepare(opts)
+	passes, failOn, err := e.prepare(opts)
 	if err != nil {
 		return nil, err
 	}
@@ -126,7 +136,11 @@ func (e *Engine) Run(ctx context.Context, specPath string, opts RunOptions) (*Re
 	if err != nil {
 		return nil, fmt.Errorf("engine: read spec %q: %w", specPath, err)
 	}
-	return e.compile(ctx, compilers.Source{Path: specPath, Data: data}, reader.Disk{}, os.ReadFile, opts, passes)
+	res, err := e.compile(ctx, compilers.Source{Path: specPath, Data: data}, reader.Disk{}, os.ReadFile, opts, passes)
+	if err != nil {
+		return nil, err
+	}
+	return failOn.judge(res)
 }
 
 // RunSources executes Run's pipeline over sources held in memory, and reads
@@ -139,7 +153,7 @@ func (e *Engine) Run(ctx context.Context, specPath string, opts RunOptions) (*Re
 // An empty list and two sources naming one document are Go errors: the run is
 // misconfigured. It shares Run's other contracts.
 func (e *Engine) RunSources(ctx context.Context, sources []compilers.Source, opts RunOptions) (*Result, error) {
-	passes, err := e.prepare(opts)
+	passes, failOn, err := e.prepare(opts)
 	if err != nil {
 		return nil, err
 	}
@@ -154,18 +168,23 @@ func (e *Engine) RunSources(ctx context.Context, sources []compilers.Source, opt
 		return docs.ReadDocument(ctx, compilers.DocumentRequest{Location: name})
 	}
 	spec := compilers.Source{Path: sources[0].Path, Data: sources[0].Data}
-	return e.compile(ctx, spec, docs, readFile, opts, passes)
+	res, err := e.compile(ctx, spec, docs, readFile, opts, passes)
+	if err != nil {
+		return nil, err
+	}
+	return failOn.judge(res)
 }
 
 // RunDocument runs the passes not named in opts.DisablePasses over doc, an IR
-// document already compiled, such as one decoded from a file. No compiler
-// runs, so opts may name no compiler option and Result.Format is the zero
-// format; Result.Diagnostics holds doc's own findings and the passes'.
+// document already compiled, such as one decoded from a file, and judges the
+// Result at opts.FailOn. No compiler runs, so opts may name no compiler option
+// and Result.Format is the zero format; Result.Diagnostics holds doc's own
+// findings and the passes'.
 //
 // doc is not modified, and must not be while the run reads it. A nil doc, one
 // whose IRVersion this build cannot read, and compiler options are Go errors.
 func (e *Engine) RunDocument(ctx context.Context, doc *ir.Document, opts RunOptions) (*Result, error) {
-	passes, err := e.prepare(opts)
+	passes, failOn, err := e.prepare(opts)
 	if err != nil {
 		return nil, err
 	}
@@ -187,27 +206,39 @@ func (e *Engine) RunDocument(ctx context.Context, doc *ir.Document, opts RunOpti
 		return nil, err
 	}
 	out.Diagnostics = mergeDiagnostics(doc.Diagnostics, found)
-	return &Result{Document: out, Diagnostics: out.Diagnostics, Sources: out.Sources}, nil
+	return failOn.judge(&Result{Document: out, Diagnostics: out.Diagnostics, Sources: out.Sources})
 }
 
 // prepare checks what every entry point checks before it reads anything, and
-// returns the passes opts leaves on. An engine no constructor built is the
-// caller's mistake whatever the input says, and reporting the input first would
-// send them to look at it; unchecked, the nil registry panics during detection.
-// A run configured two ways is wrong whatever the source, and every compiler
-// would otherwise be asked to resolve options no compiler could.
-func (e *Engine) prepare(opts RunOptions) ([]pass.Pass, error) {
+// returns the passes opts leaves on and the threshold the run is judged at.
+//
+// An engine no constructor built is the caller's mistake whatever the input
+// says, and reporting the input first would send them to look at it;
+// unchecked, the nil registry panics during detection. A run configured two
+// ways is wrong whatever the source, and every compiler would otherwise be
+// asked to resolve options no compiler could.
+func (e *Engine) prepare(opts RunOptions) ([]pass.Pass, threshold, error) {
 	if e == nil || e.registry == nil {
-		return nil, errors.New("engine: uninitialized; build one with New or NewWith")
+		return nil, 0, errors.New("engine: uninitialized; build one with New or NewWith")
 	}
 	if opts.FormatOptions != nil && len(opts.CompilerOptions) > 0 {
-		return nil, errOptionChannels
+		return nil, 0, errOptionChannels
 	}
-	return e.enabledPasses(opts.DisablePasses)
+
+	passes, err := e.enabledPasses(opts.DisablePasses)
+	if err != nil {
+		return nil, 0, err
+	}
+	failOn, err := opts.FailOn.resolve()
+	if err != nil {
+		return nil, 0, err
+	}
+	return passes, failOn, nil
 }
 
 // compile runs the pipeline over source: detect, compile, then passes. docs
 // reads what source's references name, and readFile what its settings name.
+// The Result it returns is not yet judged.
 func (e *Engine) compile(ctx context.Context, source compilers.Source, docs compilers.DocumentReader,
 	readFile func(string) ([]byte, error), opts RunOptions, passes []pass.Pass,
 ) (*Result, error) {

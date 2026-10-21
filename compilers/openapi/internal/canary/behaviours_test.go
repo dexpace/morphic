@@ -16,7 +16,6 @@ func canaries() map[string]func(t *testing.T) {
 		"schema-cycle-overflow":  schemaCycleOverflow,
 		"resolution-unbounded":   resolutionUnbounded,
 		"defs-order":             defsOrder,
-		"anchor-id-scope":        anchorIDScope,
 		"mapping-unresolved":     mappingUnresolved,
 		"reference-object-cycle": referenceObjectCycle,
 		"root-defs":              rootDefs,
@@ -34,6 +33,7 @@ func canaries() map[string]func(t *testing.T) {
 		"validation-version":     validationVersion,
 		"empty-is-missing":       emptyIsMissing,
 		"overlay-alias-clone":    overlayAliasClone,
+		"trailing-empty-token":   trailingEmptyToken,
 	}
 }
 

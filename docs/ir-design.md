@@ -157,7 +157,7 @@ describes every type a `Document` reaches through `internal/jsonshape`: each mem
 type and tag options, the methods the encoder calls in place of reading fields, the constants each
 type declares, and each sealed sum's variants with their tags. A name is in the description where
 it gives a value its meaning: a member's Go type, so retyping a string member to an ID type moves
-the description, and a numeric constant's name, since nothing else says what a `usage` of 2
+the description, and a numeric constant's name, since nothing else says what its number
 means. A field's Go name and a string constant's are left out, because the JSON name and the
 string say it themselves. The test requires the description's SHA-256 to be the one its
 `generations` table records for `IRVersion`, so a shape change at an unmoved version fails. So
@@ -297,6 +297,15 @@ it sees. Changes made together in one bump are listed together under it.
   - `additionalProperties: true` became a catch-all typed by the top type, as `{}` already was,
     where it had lowered to nothing, like an absent keyword. A consumer pinned to 0.13.0 reads a
     model writing `true` beside its properties as stating nothing about the rest.
+- **0.15.0** — a union a discriminator routes is `WireTagged` (§4.4). The shape is unchanged, but
+  the OpenAPI compiler had lowered every discriminated `oneOf` and `anyOf` with `wireTagged` false
+  beside its `discriminator`, a combination the tag modes do not define. A consumer pinned to
+  0.14.0 that follows them reads each such union as untagged and ignores its tag. `irverify` now
+  refuses the combination (`ir/union-discriminator-untagged`).
+- **0.16.0** — usage is derived, not stored (§4.9): `TypeCommon` lost `Usage`, and `UsageFlags`
+  moved to `ir/irfacts`, whose `Index.Usage` derives it. No compiler or pass ever wrote the member,
+  so every document carried none, and a consumer pinned to 0.15.0 loses nothing it read; the
+  version check refuses it a 0.16.0 document all the same.
 
 ---
 
@@ -440,8 +449,11 @@ type Naming struct {
 ```
 
 `Canonical` is a cleaned word sequence, not a cased identifier — emitters apply casing, acronym
-policy, and reserved-word escaping. Anonymous (hoisted) types have empty `Source` and a `Hint`;
-whether a emitter inlines them or names them is its choice.
+policy, and reserved-word escaping. An emitter may read `Source` to recover the letter case of the
+words `Canonical` fixes (`iOS` in `iOSVersion`), segmenting it with this section's grammar rather
+than one of its own, and never to find where a word ends (emitter-design §4.12). Anonymous
+(hoisted) types have empty `Source` and a `Hint`; whether a emitter inlines them or names them is
+its choice.
 
 **`Hint` is the same word sequence in the same grammar.** It is not a presentation affordance
 sitting outside the neutrality rule: a hoisted type has no other name, so `Hint` is exactly what an
@@ -589,7 +601,6 @@ type TypeCommon struct {
                             // (protobuf editions export/local, TCGC @access(internal), Smithy @internal via policy)
     Deprecation *Deprecation
     Availability *Availability
-    Usage      UsageFlags   // computed by a pass: Input | Output | Error | Multipart | …
     WireNameByFormat map[string]string // type-level serialized-name overrides per mime
                                        // (TypeSpec @encodedName on models/enums/scalars)
     MediaTypeHint string    // declared default content type when the type is a body
@@ -618,6 +629,10 @@ type TemplateArg struct {
 empty level, so a source that spells one has written an invalid name, which its compiler reports
 rather than carries. A null or global namespace is the empty list, not one blank segment. A segment
 may repeat — `com.acme.acme` has three levels — so a path is not held to unique entries.
+
+**Derived facts** — the subtypes of a model, the properties a type exposes, how each type is used,
+which types can hold themselves — are not stored on a type; `ir/irfacts` derives them from the
+document (§4.9).
 
 ### 4.1 Primitives
 
@@ -736,7 +751,8 @@ type Discriminator struct {
 **Composition semantics.** `Properties` contains only the model's *own* properties. Consumers walk
 `Base`, `Implements`, and `Mixins` for the full shape; the flattening is computed, never stored.
 `ir.ExposedProps` computes the flat set of property IDs, and `ir.Supertypes` and `ir.IsSubtype` the
-subtype relation, which excludes mixins. The ordered, override-aware `FlattenedProperties()` that
+subtype relation, which excludes mixins; `irfacts.Index` answers both for many questions at once
+(§4.9). The ordered, override-aware `FlattenedProperties()` that
 emitter-design §3.2 computes `TypePlan.Flattened` with is not provided so far (#812). This preserves
 what oagen and Kiota lose: the difference between "inherits from", "conforms to", "mixes in", and
 "declares". `Base` is single (subtype identity); `Implements` is N-ary conformance to `Abstract`
@@ -799,10 +815,10 @@ instead, enumerated by the OpenAPI compiler's rule
 type Union struct {
     TypeCommon
     Variants      []Variant
-    Exclusive     bool           // oneOf/tagged: exactly one variant matches; anyOf: one-or-more
-    WireTagged    bool           // the wire format itself encodes the variant (protobuf oneof,
-                                 // Smithy union, GraphQL __typename) vs untagged JSON oneOf
-    Discriminator *Discriminator // internal tag property, when one exists
+    Exclusive     bool           // exactly one variant matches (oneOf); false = one or more (anyOf)
+    WireTagged    bool           // the payload names its variant: by the Discriminator's tag, or by
+                                 // a single key (Smithy union, protobuf oneof); false = untagged
+    Discriminator *Discriminator // where the tag sits in the payload; set only when WireTagged
 }
 
 type Variant struct {
@@ -828,17 +844,32 @@ type EventInfo struct {
 ```
 
 One node covers the whole design space from the capability matrix: untagged `anyOf`
-(`Exclusive=false`), untagged `oneOf` (`Exclusive=true`), discriminated `oneOf`
-(`+Discriminator`), natively tagged unions (`WireTagged=true`). Variant identity survives so
-emitters can generate named accessors, sealed interfaces, or wrapper types per their refiner
-strategy. Unions never degrade to optional-field merges in the IR — that includes GraphQL
-`@oneOf` input objects, which are spec-level tagged input unions and lower here, not to models.
+(`Exclusive=false`), untagged `oneOf` (`Exclusive=true`), unions a tag in the payload routes
+(`WireTagged=true` with a `Discriminator`), and key-tagged unions (`WireTagged=true` alone).
+Variant identity survives so emitters can generate named accessors, sealed interfaces, or wrapper
+types per their refiner strategy. Unions never degrade to optional-field merges in the IR — that
+includes GraphQL `@oneOf` input objects, which are spec-level tagged input unions and lower here,
+not to models.
 
-**Tag-mode conventions** (normative): `WireTagged=true` with a `Discriminator` means the tag is
-a property inside the variant payload (GraphQL `__typename`). `WireTagged=true` with **nil**
-`Discriminator` means the union is *key-tagged*: the wire shape is a single-key object whose key
-is the variant's wire name (Smithy unions, proto3-JSON oneof, GraphQL `@oneOf` inputs).
-`WireTagged=false` means the variant is inferred by validation (JSON oneOf/anyOf).
+**Tag-mode conventions** (normative): `WireTagged=true` with a `Discriminator` means the tag
+travels in the payload, where the discriminator locates it: inline among the variant's own
+members, as a property (an OpenAPI `discriminator`, GraphQL `__typename`) or a tuple element
+(`Index`, an Erlang tagged tuple), or in the `{kind, value}` `Envelope` around them.
+`WireTagged=true` with **nil** `Discriminator` means the union is *key-tagged*: the wire shape is
+a single-key object whose key is the variant's wire name (Smithy unions, proto3-JSON oneof,
+GraphQL `@oneOf` inputs). `WireTagged=false` means the variant is inferred by validation (JSON
+oneOf/anyOf), and such a union carries no `Discriminator`; `irverify` refuses one that does
+(`ir/union-discriminator-untagged`). `Exclusive` is independent of the mode: it records what
+validation admits, exactly one variant or one or more.
+
+An OpenAPI discriminator is the payload-tagged mode, not a fourth one. The tag property's value
+names the schema the payload is expected to validate against. A value no mapping names selects
+none, and OpenAPI says validation should then fail, unless 3.2's `defaultMapping` names one, which
+`Discriminator.Default` holds and which also answers for a payload carrying no tag. OpenAPI also
+says the discriminator must not change the validation outcome, but that binds validators, not the
+wire: what validation admits stays in `Exclusive`, and on an `anyOf` the tag picks one of the
+several schemas a payload may satisfy. A mode for "tag plus validation" would spell the same wire
+shape twice.
 
 ### 4.5 Enums
 
@@ -1058,6 +1089,85 @@ are ([`whole-schema-fallbacks`](./compilers/openapi.md#whole-schema-fallbacks), 
   abstraction boundary the attribute declares, which no IR node states.
   `Unmodeled["erlang:opaque"] = true` records it, and emitter policy decides whether to expose
   or wrap.
+
+### 4.9 Derived facts — `ir/irfacts`
+
+What a document implies and does not state is derived by one per-document index,
+`irfacts.Index` (`irfacts.New(doc)`), and never stored: nothing orders the derivations, and none
+goes stale after a transform. Each of its indexes is built whole the first time one of its facts
+needs it and never written again, so an `Index` is safe for concurrent use; a caller that changes
+the document builds a new one. The package imports only `ir`, which keeps the definitions it
+indexes: `Supertypes`, `IsSubtype`, `ExposedProps` and `AliasBase`.
+
+The two relations `ir` walks, subtypes and exposed properties, are walked rather than indexed while
+that is cheaper. An `Index` answers a relation's first questions by `ir`'s own walk, limited in
+steps (`ir.IsSubtypeWithin`, `ir.ExposesWithin`), until its walks have taken as many steps as the
+registry holds types, and indexes the relation then, or once another fact has. A caller asking a
+few cheap questions, as `pass.Validate` does of the golden spec, pays only for the walks, and one
+asking many pays for one index.
+
+**Subtypes.** `IsSubtype(t, b)` answers exactly what `ir.IsSubtype` answers (§4.3), and
+`Subtypes(b)` lists every declared type it holds below `b`. The index condenses the relation into
+its strongly connected components and numbers them in post-order, searching depth-first down the
+condensation; each component's interval runs from the least number below it to its own. A pair
+whose intervals do not nest is unrelated, and a type numbered after the search reached `b`, and
+before `b` itself, is below `b`. Any other pair is confirmed by `ir.IsSubtype`'s walk. There is one
+only when a subtype of `b` has a supertype that is neither `b` nor below it, so a model naming two
+supertypes leaves open only pairs whose base lies above it, and in a forest every question is a few
+comparisons.
+
+**Exposed properties.** `Exposes(t, p)` answers exactly what `ir.ExposedProps(t)` answers about `p`
+(§4.3). The relation `ExposedProps` walks, a model leading to its `Base`, `Implements` and `Mixins`
+and an alias scalar to its `Base`, is numbered the way the subtype relation is, and a property
+declared by one model is exposed by that model and every type that reaches it. A pair the numbering
+leaves open, and a property several models declare, are confirmed by the walk. A mixin is a second
+parent, so this relation leaves pairs open more often than the subtype relation does.
+
+**The type graph.** Usage and recursion read one graph with two vertices per declared type: its
+*shape*, what a value of exactly that type holds, and its *range*, every shape a value declared as
+that type may take. A type is *polymorphic* when the model it stands for, read through its alias
+scalars, has a `Discriminator` or is `Abstract`; a value declared as any other type is of exactly
+its shape.
+
+| From | To | Through |
+|---|---|---|
+| a shape | the target's range when it is polymorphic, its shape otherwise | what a value holds: a model's properties and catch-all (value, key, patterns), a union's variants, a list's element, a map's key and value, a tuple's elements and rest, and what an encoded value holds once decoded (`Encoding.Schema` on a property, a scalar or a list, §5.3) |
+| a shape | the target's shape | what a model composes: `Base`, `Implements`, `Mixins` |
+| a shape, a range | the target's shape, its range | what a scalar stands for: its `Base` |
+| a range | its own shape, and each direct subtype's range | the shapes a declared value may take |
+
+Composition reaches a shape and never a range, so a subtype that includes its discriminated base's
+members does not thereby reach the base's other subtypes, and a base routing to its own subtype is
+no cycle. A discriminator's mapping and default, a default or example value, an encoding's wire
+type, a template argument and an availability record name types too, but none puts a value of one
+type in a value of another, so none is an edge.
+
+**Usage.** `Usage(id)` flags a type as the client's side of the wire sees it. `Input` and `Output`
+say which way a value travels — the client writes it, or reads it — and `Error` and `Multipart` in
+what role, so a type in an error payload carries the side it travels on beside `Error`.
+
+| Root | Flags |
+|---|---|
+| an operation's parameters, request, request stream and RPC input type | `Input` |
+| its responses' payloads and headers, its response stream, its long-running polling and final types | `Output` |
+| its errors' and each service's common errors' payloads and headers | `Output` and `Error` |
+| the messages a messaging binding sends, or receives; its reply's travel the other way | `Input`, or `Output`; both for a direction neither send nor receive |
+| each channel's parameters, each auth scheme's credentials | `Input` |
+
+A payload names its contents' types, stream items and file contents, and the headers of their
+parts; a header names its type and what its encoding decodes to. An operation the API starts — a
+webhook, or an operation an HTTP binding names among its callbacks — swaps `Input` and `Output`,
+its errors included. A flag spreads from a root's vertex along every edge, and a property's field
+arguments (`Property.Args`) make the types they name `Input`, since a client writes them to select
+the field whatever it reads back. `Multipart` marks only a multipart body's own type and the types
+its alias scalars stand for, not the types nested in it. An operation nested past
+`ir.MaxGroupDepth` is not read, and a type no root reaches has usage 0.
+
+**Recursion.** `Recursive(id)` reports whether a type's shape lies on a cycle of the graph — a
+value of exactly that type can hold, at any depth, one of the same shape — and `Component(id)` lists
+the types whose shapes share its strongly connected component. A reference to a polymorphic base
+counts every subtype it may hold, so a subtype holding its own discriminated base is recursive. A
+cycle through composition alone, which the IR permits, is reported too.
 
 ---
 
@@ -1282,7 +1392,8 @@ type Service struct {
                                   // (Smithy @protocolDefinition traits like aws.protocols#restJson1)
     Renames    map[TypeID]Naming  // per-service shape presentation names (Smithy service `rename`);
                                   // the TypeID — and Naming on the type — are unchanged
-    Servers    []int              // indexes into Document.Servers scoped to this service
+    Servers    []int              // indexes into Document.Servers scoped to this service; empty =
+                                  // every one, in order (§10)
     Unmodeled  Unmodeled
     Provenance Provenance
 }
@@ -1493,8 +1604,9 @@ Design notes:
   per-protocol view.
 - **All responses and all content types survive** (oagen's "primary response" collapse is the
   counterexample). The plan layer picks a primary for SDK ergonomics; the IR doesn't.
-- **Errors reference error models** (`Model` with `UsageFlags.Error`), with status conditions and
-  range collapsing exactly as Kiota's error mappings (`404`, `4XX`, catch-all).
+- **Errors reference error models**, which `irfacts.Index.Usage` marks `UsageError` (§4.9), with
+  status conditions and range collapsing exactly as Kiota's error mappings (`404`, `4XX`,
+  catch-all).
 - **`OneWay` is on the neutral core**, like `Streaming` and `Idempotency`, because
   fire-and-forget is protocol-independent — an SDK that blocks awaiting a reply on a cast is
   wrong regardless of transport. The AsyncAPI compiler sets it for send-operations without a
@@ -1707,7 +1819,7 @@ type Channel struct {
     Tags      []string
     Params    []Parameter
     Messages  []MessageID        // the channel's message set — messages live in Document.Messages
-    Servers   []int
+    Servers   []int              // indexes into Document.Servers; empty = every one, in order (§10)
     Bindings  map[string]RawConfig // protocol-specific ("kafka", "amqp", "ws", "mqtt") kept as namespaced raw config
     Unmodeled  Unmodeled
     Provenance Provenance
@@ -1789,9 +1901,9 @@ An OTP compiler consumes module type information (`-spec`/`-type` on behaviour c
 API functions). Lowering conventions: a gen_server ≈ one `Channel`; `handle_call`/`handle_cast`
 APIs are `Operation`s with an `OTPBinding`; unsolicited `handle_info` messages are channel
 `Messages` consumed via `MessageBinding{Direction: receive}`; a gen_event manager is a Channel
-with one message shape per event. Tagged-tuple protocols (`{ok, V} | {error, R}`) are Unions of
-Tuples discriminated by `Discriminator.Index`; records are `Model{Positional: true}` with the
-record tag as an index-1 `Literal`-typed property. Splitting a tagged reply union into
+with one message shape per event. Tagged-tuple protocols (`{ok, V} | {error, R}`) are `WireTagged`
+Unions of Tuples discriminated by `Discriminator.Index`; records are `Model{Positional: true}`
+with the record tag as an index-1 `Literal`-typed property. Splitting a tagged reply union into
 `Responses` vs `Errors` (`{error, Reason}` is in-band data, not transport failure) is injectable
 compiler policy, marked `Inferred`. Erlang `string()` is `[char()]` and must lower as a List of
 a char-ranged scalar — never as PrimKind `string`. Delayed replies (`noreply` +
@@ -1899,6 +2011,12 @@ type Server struct {
     Unmodeled   Unmodeled
 }
 ```
+
+`Service.Servers` and `Channel.Servers` scope the document's servers by index. An empty list scopes
+nothing out: every server in `Document.Servers` serves that service or channel, in the document's
+order, which is how OpenAPI's root `servers` apply to every path and how AsyncAPI reads a channel
+that names none. Order is meaningful, since a consumer that needs one server, an SDK client's
+default among them, takes the first it can use (emitter-design §8.10).
 
 ## 11. Versioning & availability
 
@@ -2046,6 +2164,12 @@ is a decision (§15's list, which exists precisely so those constructs are never
 oversights). A promotion pass mining the IR for its next typed node reads `no_ir_home` and must
 skip `out_of_scope`; nothing about the key or the value distinguishes them, which is the whole
 reason `Reason` is data rather than a comment.
+
+**Reporting a kept construct is the compiler's.** It is the stage that chose to keep the construct
+rather than model it, so its specification (§14) states, for every construct it keeps under a reason
+other than `vendor_extension`, the diagnostic the construct draws, or that it draws none.
+`Document.Diagnostics` carries those reports to every consumer, and an emitter acts on an entry's
+`Reason` without reporting it again (emitter-design §4.14).
 
 Sorting entries into *typed* buckets instead was considered and rejected: the defining property
 of an entry is that it is unmodeled, so anything with enough known semantics to be sorted into a
@@ -2250,7 +2374,7 @@ list moves to a specification of its own when the compiler lands.
 - scalars → Scalar chains, constructors in values → Value.Ctor
 - `@encode`/`@format` → Encoding triple
 - `@encodedName` → WireNameByFormat at property AND type level
-- unions w/ named variants → Union, `@discriminated` →
+- unions w/ named variants → Union, `@discriminated` → WireTagged +
   Discriminator.PropertyName/Envelope/EnvelopeValueName
 - `| null` → Nullable
 - visibility classes (incl. custom, `@invisible` → Visibility.None) → Visibility, op overrides →
@@ -2268,7 +2392,8 @@ list moves to a specification of its own when the compiler lands.
 - multipart w/ parts → Content.Encoding/PartEncoding, `Http.File` → FileInfo (content-type set,
   contents chain, filename location)
 - streams/SSE → StreamDetail + Variant.Event (contentType, terminal)
-- `@error` → UsageFlags.Error
+- `@error` → the response becomes an `ErrorCase`, whose payload `irfacts.Index.Usage` marks
+  `UsageError`
 - `@example`/`@opExample` → Examples (Input/Output pairs)
 - `@pattern` message → Constraints.PatternMessage
 - `@mediaTypeHint` → TypeCommon.MediaTypeHint
@@ -2368,7 +2493,7 @@ list moves to a specification of its own when the compiler lands.
 - §8.5
 - `-type`/`-spec` type language → type graph: tuples → Tuple with
   `Constraints.MinItems = len(Elems)` and no Rest, `tuple()` of any arity → Tuple with no Elems and
-  a Rest of the top type, tagged-tuple unions → Union + Discriminator.Index, records →
+  a Rest of the top type, tagged-tuple unions → WireTagged Union + Discriminator.Index, records →
   Model{Positional} w/ 1-based WireIDs, atoms → symbol Values / Literal types /
   `Scalar{Base: string, Encoding: "erlang:atom"}`, integer ranges → integer Scalar + Min/Max, maps
   `:=`/`=>` → Properties(Required)/AdditionalProps w/ typed keys, a map of `=>` associations alone →
@@ -2433,8 +2558,11 @@ the IR and preserve nothing.
 3. **Content negotiation in the plan layer** — the IR keeps all media types; the default
    primary-selection policy (json > form > multipart > binary?) belongs to emitters but should be
    shared as a standard plan helper.
-4. **Whether `UsageFlags` is stored or always recomputed** — leaning: computed by a standard pass
-   and stored, since emitters all need it and it's expensive to derive.
+4. **Whether `UsageFlags` is stored or always recomputed** — settled: derived by `ir/irfacts`,
+   not stored (§4.9). On the golden spec (`cloudflare/api-schemas` at `843eae2f`) deriving usage
+   for every type, the subtype index and the type graph included, takes about 50 ms of a compile
+   of about 8 s (morphic `4545c23e`), so storing it bought nothing, and a stored copy goes stale
+   after any transform that changes what an operation reaches.
 5. **Dual identity for cross-revision correlation** — pointer-derived `TypeID`s are stable across
    runs but churn when a schema moves within its source file. TCGC solves cross-version
    correlation with name-based `crossLanguageDefinitionId`s. Likely resolution: keep pointer IDs

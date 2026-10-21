@@ -14,11 +14,13 @@ import (
 	"testing"
 	"testing/fstest"
 
+	"github.com/speakeasy-api/openapi/jsonpointer"
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/speakeasy-api/openapi/references"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	yaml "gopkg.in/yaml.v3"
 )
 
 // resolved is what resolveAll reports for a document it resolves cleanly.
@@ -44,8 +46,8 @@ func resolveWith(ctx context.Context, input []byte, opts soa.ResolveAllOptions) 
 }
 
 // resolveTargets decodes input and resolves each discriminator mapping value
-// in it as the load phase resolves a mapping target: a schema built from the
-// value as a $ref, resolved on its own. It reports a line per value.
+// in it as a $ref to it would be: a schema built from the value as a $ref,
+// resolved on its own. It reports a line per value.
 func resolveTargets(ctx context.Context, input []byte) string {
 	doc, _, err := soa.Unmarshal(ctx, bytes.NewReader(input))
 	if err != nil {
@@ -240,35 +242,9 @@ func defsOrder(t *testing.T) {
 	assert.Contains(t, got, "definition not found: #/$defs/A", revisit(t, result{report: got}))
 }
 
-// anchorIDScope pins anchor-id-scope: a $anchor or $id is found only from
-// inside the top-level schema declaring it. From another, the anchor is read
-// as a JSON pointer and the $id as an external document.
-func anchorIDScope(t *testing.T) {
-	anchor := "{$anchor: x, type: string}"
-	id := "{$id: 'https://example.com/b', type: string}"
-	inside := map[string]string{
-		"an anchor": schemas("A: {properties: {p: {$ref: '#x'}}, $defs: {X: " + anchor + "}}"),
-		"an id":     schemas("A: {properties: {p: {$ref: 'https://example.com/b'}}, $defs: {B: " + id + "}}"),
-	}
-	for name, doc := range inside {
-		got := resolveAll(t.Context(), []byte(doc))
-		assert.Equal(t, resolved, got, "%s inside: %s", name, revisit(t, result{report: got}))
-	}
-
-	got := resolveAll(t.Context(), []byte(schemas("A: {properties: {p: {$ref: '#x'}}}", "B: "+anchor)))
-	assert.Contains(t, got, "jsonpointer must start with /", revisit(t, result{report: got}))
-
-	across := []byte(schemas("A: {properties: {p: {$ref: 'https://example.com/b'}}}", "B: "+id))
-	got = resolveAll(t.Context(), across)
-	assert.Contains(t, got, "external reference not allowed", revisit(t, result{report: got}))
-	client := &chainClient{}
-	resolveWith(t.Context(), across, soa.ResolveAllOptions{OpenAPILocation: location, HTTPClient: client})
-	assert.Equal(t, int64(1), client.requests.Load(), "the $id is fetched: %s", revisit(t, result{}))
-}
-
 // mappingUnresolved pins mapping-unresolved: neither resolution nor decoding
-// reads a discriminator mapping value, and one resolved as a $ref to it, as
-// the load phase does, recurses as a schema's chain does.
+// reads a discriminator mapping value, and one resolved as a $ref to it
+// recurses as a schema's chain does.
 func mappingUnresolved(t *testing.T) {
 	t.Run("no value is read", func(t *testing.T) {
 		t.Parallel()
@@ -389,4 +365,30 @@ func shadowedRootDefs(t *testing.T) {
 		require.NotNil(t, b.GetResolvedSchema(), "%s\n%s", name, revisit(t, result{}))
 		assert.Equal(t, []oas3.SchemaType{want}, b.GetResolvedSchema().GetSchema().GetType(), "%s\n%s", name, revisit(t, result{}))
 	}
+}
+
+// trailingEmptyToken pins trailing-empty-token: through raw YAML, a pointer
+// whose last token is empty names the node before it, a lone '/' the root,
+// and a reference object spelling one resolves to that node.
+func trailingEmptyToken(t *testing.T) {
+	src := head + "components:\n  parameters:\n    P: {$ref: '#/x-params/q/'}\nx-params:\n  q: {name: q, in: query}\n"
+	var tree yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte(src), &tree))
+	q, err := jsonpointer.GetTarget(&tree, "/x-params/q")
+	require.NoError(t, err)
+	for pointer, want := range map[jsonpointer.JSONPointer]any{"/x-params/q/": q, "/": tree.Content[0]} {
+		got, err := jsonpointer.GetTarget(&tree, pointer)
+		require.NoError(t, err, "%s\n%s", pointer, revisit(t, result{}))
+		assert.Same(t, want, got, "%s\n%s", pointer, revisit(t, result{}))
+	}
+
+	doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(src))
+	require.NoError(t, err)
+	_, err = doc.ResolveAllReferences(t.Context(), soa.ResolveAllOptions{OpenAPILocation: location, DisableExternalRefs: true})
+	require.NoError(t, err, revisit(t, result{}))
+	p := doc.Components.Parameters.GetOrZero("P")
+	require.NotNil(t, p.GetObject(), revisit(t, result{}))
+	own, err := jsonpointer.GetTarget(doc.GetRootNode(), "/x-params/q")
+	require.NoError(t, err)
+	assert.Same(t, own, p.GetObject().GetRootNode(), "it resolves to q itself: %s", revisit(t, result{}))
 }

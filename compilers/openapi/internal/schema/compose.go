@@ -16,6 +16,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
@@ -149,7 +150,7 @@ func diagUnattachableRequired(c lowering.Ctx, m *ir.Model, e requiredEntry) ir.D
 func fillAllOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, m *ir.Model, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	branches := s.GetAllOf()
-	baseIdx := selectAllOfBase(branches)
+	baseIdx := selectAllOfBase(c.Bindings(), branches)
 	for i, b := range branches {
 		bptr := pointer + ids.Ptr("allOf", strconv.Itoa(i))
 		if !isRefBranch(b) {
@@ -157,18 +158,19 @@ func fillAllOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth in
 			diags = append(diags, preserveUnmergedBranch(c, m, b.GetSchema(), i, bptr)...)
 			continue
 		}
-		id, ok, refDiags := resolveSchemaRef(c, ts, anchors, depth, b, b.GetRef().String())
+		id, ok, refDiags := resolveSchemaRef(c, ts, anchors, depth, b)
 		diags = append(diags, refDiags...)
 		if !ok {
-			ref := b.GetRef().String()
-			diags = append(diags, c.DiagAt(ir.SeverityError, diag.UnresolvedRef, bptr,
-				"unresolved allOf $ref %q%s", ref, unresolvedWhy(c, ref, bptr)))
+			if !onLoop(c, b) {
+				diags = append(diags, c.DiagAt(ir.SeverityError, diag.UnresolvedRef, bptr,
+					"unresolved allOf $ref %q%s", b.GetRef().String(), unresolvedWhy(c, b)))
+			}
 			continue
 		}
 		bs := b.GetSchema()
 		unhomed := refSiteUnhomedKeywords(bs, compositionCensusHandled)
 		hasUnion := declaresUnion(bs)
-		ref, homeDiags := homeDeclaration(c, ts, anchors, bs, ir.TypeRef{Target: id}, bptr, branchHint(b, i), annotation.HomeOwnNode, len(unhomed) > 0 || hasUnion)
+		ref, homeDiags := homeDeclaration(c, ts, anchors, bs, ir.TypeRef{Target: id}, bptr, branchHint(c.Bindings(), b, i), annotation.HomeOwnNode, len(unhomed) > 0 || hasUnion)
 		diags = append(diags, homeDiags...)
 		diags = append(diags, recordUnhomedKeywords(c, ts, ref.Target, bs, unhomed, refSiteShape, bptr)...)
 		if hasUnion {
@@ -352,8 +354,9 @@ func rawMapping(root *yaml.Node) *yaml.Node {
 }
 
 // selectAllOfBase returns the branch index that becomes Model.Base, or -1 when
-// none qualifies (multiple non-hierarchy refs stay Mixins).
-func selectAllOfBase(branches []*oas3.JSONSchema[oas3.Referenceable]) int {
+// none qualifies (multiple non-hierarchy refs stay Mixins). refs says where
+// each branch's $ref ends.
+func selectAllOfBase(refs *typed.Bindings, branches []*oas3.JSONSchema[oas3.Referenceable]) int {
 	refIdxs := make([]int, 0, len(branches))
 	for i, b := range branches {
 		if isRefBranch(b) {
@@ -364,7 +367,7 @@ func selectAllOfBase(branches []*oas3.JSONSchema[oas3.Referenceable]) int {
 		return refIdxs[0]
 	}
 	for _, i := range refIdxs {
-		if refTargetHasDiscriminator(branches[i]) {
+		if refTargetHasDiscriminator(refs, branches[i]) {
 			return i
 		}
 	}
@@ -393,23 +396,28 @@ func isInlineBranch(b *oas3.JSONSchema[oas3.Referenceable]) bool {
 
 // refTargetHasDiscriminator reports whether a $ref branch resolves to a schema
 // that carries a discriminator (it anchors a polymorphic hierarchy).
-func refTargetHasDiscriminator(b *oas3.JSONSchema[oas3.Referenceable]) bool {
-	target := refBranchTarget(b)
+func refTargetHasDiscriminator(refs *typed.Bindings, b *oas3.JSONSchema[oas3.Referenceable]) bool {
+	target := refBranchTarget(refs, b)
 	return target != nil && target.GetDiscriminator() != nil
 }
 
-// refBranchTarget returns the schema a composition branch resolves to, or nil
-// when the branch is inline, names nothing this compilation resolved, or names a
-// bare boolean schema (which has no *oas3.Schema of its own).
-func refBranchTarget(b *oas3.JSONSchema[oas3.Referenceable]) *oas3.Schema {
+// refBranchTarget returns the schema the chain of $refs from a composition
+// branch ends on, as refs resolved it, or nil when the branch is inline, its
+// chain ends on no schema, or on a bare boolean schema (which has no
+// *oas3.Schema of its own).
+func refBranchTarget(refs *typed.Bindings, b *oas3.JSONSchema[oas3.Referenceable]) *oas3.Schema {
 	if !isRefBranch(b) {
 		return nil
 	}
-	resolved := b.GetResolvedSchema()
-	if resolved == nil {
-		return nil
-	}
-	return resolved.GetSchema()
+	return refs.End(b).GetSchema()
+}
+
+// onLoop reports whether the $ref at b lies on a loop of $refs, which the load
+// phase reports once and the lowering drops to any without a report of its
+// own.
+func onLoop(c lowering.Ctx, b *oas3.JSONSchema[oas3.Referenceable]) bool {
+	e, ok := c.Bindings().Entry(b)
+	return ok && e.Chain.Member
 }
 
 // subtypeDiscriminatorValue returns the wire tag this allOf subtype carries in
@@ -423,7 +431,7 @@ func refBranchTarget(b *oas3.JSONSchema[oas3.Referenceable]) *oas3.Schema {
 // order is elected, as a mapping is unordered (GitHub #410); the base's
 // Discriminator keeps them all, and an info diagnostic reports it.
 func subtypeDiscriminatorValue(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, id ir.TypeID, pointer jsontext.Pointer) (string, []ir.Diagnostic) {
-	ds := ancestorDiscriminators(s)
+	ds := ancestorDiscriminators(c.Bindings(), s)
 	if len(ds) == 0 {
 		return "", nil
 	}
@@ -490,7 +498,7 @@ const maxDiscriminatorAncestorDepth = 256
 // frontier multiplies by the fan-out each level (2^level for a chain of
 // diamonds). TestAllOf_DiscriminatorValueCyclicComposition (cyclic) and
 // TestCompile_SharedCompositionAncestorsDoNotAmplify (acyclic) pin it.
-func ancestorDiscriminators(s *oas3.Schema) []*oas3.Discriminator {
+func ancestorDiscriminators(refs *typed.Bindings, s *oas3.Schema) []*oas3.Discriminator {
 	var out []*oas3.Discriminator
 	visited := make(map[*oas3.Schema]bool)
 	// s is visited before the walk starts, so a composition cycle cannot bring it
@@ -502,7 +510,7 @@ func ancestorDiscriminators(s *oas3.Schema) []*oas3.Discriminator {
 	for depth := 0; depth < maxDiscriminatorAncestorDepth && len(level) > 0; depth++ {
 		next := make([]*oas3.Schema, 0, len(level))
 		for _, cur := range level {
-			next = append(next, unvisitedRefTargets(cur, visited)...)
+			next = append(next, unvisitedRefTargets(refs, cur, visited)...)
 		}
 		for _, target := range next {
 			if d := target.GetDiscriminator(); d != nil {
@@ -518,10 +526,10 @@ func ancestorDiscriminators(s *oas3.Schema) []*oas3.Discriminator {
 // to, in source order, skipping those already seen and marking those it returns.
 // Marking as it enqueues rather than when the walk reaches them is what keeps a
 // schema two branches both name from being queued, and walked, twice.
-func unvisitedRefTargets(s *oas3.Schema, visited map[*oas3.Schema]bool) []*oas3.Schema {
+func unvisitedRefTargets(refs *typed.Bindings, s *oas3.Schema, visited map[*oas3.Schema]bool) []*oas3.Schema {
 	var out []*oas3.Schema
 	for _, b := range s.GetAllOf() {
-		target := refBranchTarget(b)
+		target := refBranchTarget(refs, b)
 		if target == nil || visited[target] {
 			continue
 		}
@@ -539,8 +547,8 @@ func unvisitedRefTargets(s *oas3.Schema, visited map[*oas3.Schema]bool) []*oas3.
 // with one Variant per branch (oneOf exclusive, anyOf not), never collapsing a
 // union into optional fields.
 func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer jsontext.Pointer, hint string) (ir.TypeRef, []ir.Diagnostic) {
-	if inner, ip, ih, ok := nullUnionCollapse(s, pointer); ok {
-		ref, diags := Ref(c, ts, anchors, depth, inner, ip, ih)
+	if inner, ip, i, ok := nullUnionCollapse(s, pointer); ok {
+		ref, diags := Ref(c, ts, anchors, depth, inner, ip, branchHint(c.Bindings(), inner, i))
 		ref.Nullable = true
 		return ref, diags
 	}
@@ -558,7 +566,7 @@ func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, de
 		diags = append(diags, unionDiags...)
 		return def
 	})
-	return ir.TypeRef{Target: tid, Nullable: schemaAdmitsNull(s)}, diags
+	return ir.TypeRef{Target: tid, Nullable: schemaAdmitsNull(c, s)}, diags
 }
 
 // lowerNullOnlyUnion lowers a oneOf/anyOf every one of whose branches is a bare
@@ -686,7 +694,7 @@ func classifyUnionSiblings(c lowering.Ctx, s *oas3.Schema) unionLowering {
 func branchesNameReferents(c lowering.Ctx, s *oas3.Schema) bool {
 	branches, _, _ := unionBranches(s)
 	for _, b := range branches {
-		if !c.RefScope().NamesReferent(b, b.GetRef().String()) {
+		if !c.RefScope().NamesReferent(b) {
 			return false
 		}
 	}
@@ -735,30 +743,21 @@ func lowerCoDeclaredUnion(c lowering.Ctx, ts *compile.Types, anchors *AnchorInde
 }
 
 // diagUnresolvedBranches returns one diagnostic per union branch whose $ref
-// names nothing this compilation resolves, or none when they all resolve. The branch text survives verbatim under Unmodeled, so
-// nothing is dropped — but a reference that resolves nowhere is a defect of the
-// document itself, reported at the same severity as everywhere else, and the
-// info diagnostic beside it explains only the lowering.
-//
-// One in another document's content naming a position there, or one naming
-// the fields beside a path item's $ref, says so, as refTypeRef's report does
-// (unresolvedWhy): the position may well be declared, so "nothing declared"
-// would be false.
+// names nothing this compilation resolves, or none when they all resolve. The
+// branch text survives verbatim under Unmodeled, so nothing is dropped, but a
+// reference that resolves nowhere is a defect of the document itself, reported
+// at the same severity as everywhere else, with the reason refTypeRef's report
+// gives (unresolvedWhy).
 func diagUnresolvedBranches(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	branches, key, _ := unionBranches(s)
 	var diags []ir.Diagnostic
 	for i, b := range branches {
-		ref := b.GetRef().String()
-		if c.RefScope().NamesReferent(b, ref) {
+		if c.RefScope().NamesReferent(b) || onLoop(c, b) {
 			continue
-		}
-		why := " resolves to nothing this document declares"
-		if reason := unresolvedWhy(c, ref, pointer+ids.Ptr(key, strconv.Itoa(i))); reason != "" {
-			why = " is unresolved" + reason
 		}
 		diags = append(diags, c.DiagAt(ir.SeverityError, diag.UnresolvedRef,
 			pointer+ids.Ptr(key, strconv.Itoa(i)),
-			"union branch $ref %q%s; the branch is kept verbatim", ref, why))
+			"union branch $ref %q is unresolved%s; the branch is kept verbatim", b.GetRef().String(), unresolvedWhy(c, b)))
 	}
 	return diags
 }
@@ -842,7 +841,9 @@ type variantTypeFunc func(b *oas3.JSONSchema[oas3.Referenceable], vptr jsontext.
 // (internNode), so buildUnion needs no hint of its own to build one.
 //
 // The variants are lowered before the discriminator, so its mapping resolves
-// knowing what each variant names (readsThrough).
+// knowing what each variant names (readsThrough). A union the discriminator
+// routes is WireTagged, an anyOf as much as a oneOf: the tag property's value
+// names its variant (ir-design §4.4).
 func buildUnion(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, common ir.TypeCommon, pointer jsontext.Pointer, variantType variantTypeFunc) (ir.TypeDef, []ir.Diagnostic) {
 	branches, key, exclusive := unionBranches(s)
 	diags := preserveUnusedCombinator(c, &common.Unmodeled, s, key, pointer)
@@ -851,7 +852,7 @@ func buildUnion(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 		if isNullSchema(b) {
 			continue // null branches lift to the enclosing ref's Nullable bit
 		}
-		vh := branchHint(b, i)
+		vh := branchHint(c.Bindings(), b, i)
 		vptr := pointer + ids.Ptr(key, strconv.Itoa(i))
 		variants = append(variants, ir.Variant{
 			Name: compile.NamingHint(vh),
@@ -862,10 +863,10 @@ func buildUnion(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 		TypeCommon: common,
 		Variants:   variants,
 		Exclusive:  exclusive,
-		WireTagged: false,
 	}
 	disc, discDiags := lowerDiscriminator(c, ts, anchors, depth, s, nil, variants, pointer)
 	u.Discriminator = disc
+	u.WireTagged = disc != nil
 	return u, append(diags, discDiags...)
 }
 
@@ -969,7 +970,7 @@ func composedVariant(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, de
 	common := commonFor(c, id, vptr, compile.SubHint(body.hint, vhint))
 	def, variantDiags := buildComposedVariant(c, ts, anchors, depth, body, branch.Target, common)
 	ts.Register(id, def)
-	return ir.TypeRef{Target: id, Nullable: composedVariantNullable(body.schema, branch)},
+	return ir.TypeRef{Target: id, Nullable: composedVariantNullable(c, body.schema, branch)},
 		append(diags, variantDiags...)
 }
 
@@ -979,11 +980,11 @@ func composedVariant(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, de
 // it: schemaNullVerdict's allOf rule, applied to a conjunction the source does
 // not spell as an allOf. The bit lives on this TypeRef, not on the variant's
 // Base or Mixins, for the reason conjoinBranch records.
-func composedVariantNullable(body *oas3.Schema, branch ir.TypeRef) bool {
+func composedVariantNullable(c lowering.Ctx, body *oas3.Schema, branch ir.TypeRef) bool {
 	if !branch.Nullable {
 		return false
 	}
-	return schemaNullVerdict(body, new(maxNullConjuncts)) != nullForbidden
+	return newNulls(c.Bindings()).schemaVerdict(body) != nullForbidden
 }
 
 // buildComposedVariant assembles the variant Model itself. Every fill reads the
@@ -1036,12 +1037,12 @@ func conjoinBranch(m *ir.Model, branch ir.TypeID) {
 // A $ref branch's answer is also hoistSubSchema's (subSchemaHint), and must
 // stay so: an outside $ref can name the branch pointer, and the node it owns
 // would otherwise be hinted by whichever of the two lowerings arrived first.
-func branchHint(b *oas3.JSONSchema[oas3.Referenceable], i int) string {
+func branchHint(refs *typed.Bindings, b *oas3.JSONSchema[oas3.Referenceable], i int) string {
 	// Only a true reference carries a target name: IsReference() is precisely
 	// GetSchema().Ref != "" for a non-bool branch, so a schema whose Ref pointer is
 	// set but empty (IsReference() false) suggests no name.
 	if b != nil && b.IsReference() {
-		if name := targetHint(b); name != "" {
+		if name := targetHint(refs, b); name != "" {
 			return name
 		}
 	}
@@ -1071,11 +1072,10 @@ func isDecimalIndex(s string) bool {
 }
 
 // maxTargetHintHops bounds targetHint's walk along composition branches that
-// hold a $ref. A cycle of them inside the document never reaches it, since the
-// cycle scan refuses one before lowering; the cap is what bounds any other. An
-// acyclic chain longer than the cap is legal, though no real document writes
-// one: past it the walk keeps the name it has reached, so a union variant
-// naming the chain's first branch can be named apart from the node it holds.
+// hold a $ref: a loop of them, and any longer chain, stops there. An acyclic
+// chain longer than the cap is legal, though no real document writes one: past
+// it the walk keeps the name it has reached, so a union variant naming the
+// chain's first branch can be named apart from the node it holds.
 const maxTargetHintHops = 64
 
 // targetHint returns the hint of the node a $ref resolves to, so a union
@@ -1088,7 +1088,7 @@ const maxTargetHintHops = 64
 // #505); one spelling no pointer ends the walk with refHint's name. A position
 // under /paths keeps ownHint's guess, which the declaration replaces on the
 // node (GitHub #729).
-func targetHint(b *oas3.JSONSchema[oas3.Referenceable]) string {
+func targetHint(refs *typed.Bindings, b *oas3.JSONSchema[oas3.Referenceable]) string {
 	hint := ""
 	for range maxTargetHintHops {
 		ref := b.GetRef().String()
@@ -1096,7 +1096,7 @@ func targetHint(b *oas3.JSONSchema[oas3.Referenceable]) string {
 		if !ok {
 			return cmp.Or(refHint(ref), hint)
 		}
-		decl := annotation.DeclaredSchema(b)
+		decl := refs.Declared(b)
 		own, follow := ownHint(decl, pointer)
 		hint = cmp.Or(own, hint)
 		if !follow {
@@ -1169,7 +1169,7 @@ func discriminatorMapping(c lowering.Ctx, ts *compile.Types, anchors *AnchorInde
 			diags = append(diags, c.DiagAt(ir.SeverityError, diag.UnresolvedRef,
 				pointer+ids.Ptr("discriminator", "mapping", tag),
 				"discriminator mapping %q references unresolved schema %q%s", tag, target,
-				unresolvedWhy(c, target, pointer+ids.Ptr("discriminator"))))
+				mappingWhy(c, d, target)))
 			continue
 		}
 		out[tag] = id
@@ -1193,9 +1193,25 @@ func discriminatorDefault(c lowering.Ctx, ts *compile.Types, anchors *AnchorInde
 		return "", append(diags, c.DiagAt(ir.SeverityError, diag.UnresolvedRef,
 			pointer+ids.Ptr("discriminator", "defaultMapping"),
 			"discriminator defaultMapping references unresolved schema %q%s", dm,
-			unresolvedWhy(c, dm, pointer+ids.Ptr("discriminator"))))
+			mappingWhy(c, d, dm)))
 	}
 	return id, diags
+}
+
+// mappingWhy is the reason target, a value of d's mapping, reports when it
+// resolves to no type: why it lands on no schema, that it lands in another
+// document, or why the table never read it, as unresolvedWhy says for a $ref.
+// A value with no '#' names a component, which the table never reads
+// (bind.Table.Mapping), so neither its budget nor the merge bound is why.
+func mappingWhy(c lowering.Ctx, d *oas3.Discriminator, target string) string {
+	m, ok := c.Bindings().Mapping(d, target)
+	switch {
+	case ok:
+		return hopWhy(c.Bindings().Table(), m.Hop, m.At)
+	case !strings.Contains(target, "#"):
+		return ""
+	}
+	return unreadWhy(c.Bindings(), d)
 }
 
 // resolveMappingTarget resolves a mapping target, a mapping entry's or a
@@ -1204,72 +1220,58 @@ func discriminatorDefault(c lowering.Ctx, ts *compile.Types, anchors *AnchorInde
 // position whose type it names (typePosition), interning the schema there when
 // nothing has yet.
 //
-// The resolver never follows a mapping value
-// (docs/parser-library.md#mapping-unresolved), so DeclaredAt finds the schema a
-// $ref would have carried. Hoisting it resolves the target to the same
-// pointer-derived ID in either declaration order (GitHub #530), naming the
-// node provisionally until its declaration arrives. variantTypes is as
-// readsThrough takes it.
+// The parser never reads a mapping value
+// (docs/parser-library.md#mapping-unresolved); the compiler reads one as a
+// $ref written at the discriminator (resolve.Scope.MappingTarget). Hoisting
+// what it lands on gives the target one pointer-derived ID in either
+// declaration order (GitHub #530). variantTypes is as readsThrough takes it.
 func resolveMappingTarget(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, d *oas3.Discriminator, target string, variantTypes map[ir.TypeID]bool) (ir.TypeID, bool, []ir.Diagnostic) {
 	if c.DeclaresSchema(target) {
 		return componentIDByName(target), true, nil
 	}
 	scope := c.RefScope()
-	pointer, ok := scope.MappingPointer(d, target)
+	pointer, decl, ok := scope.MappingTarget(d, target)
 	if !ok {
 		return "", false, nil
 	}
-	pointer, decl, ok := typePosition(scope, pointer, variantTypes)
-	if !ok {
-		return "", false, nil
-	}
+	pointer, decl = typePosition(scope, pointer, decl, variantTypes)
 	return resolvePointer(c, ts, anchors, depth, pointer, decl)
 }
 
 // maxTypePositionHops bounds how many $ref positions typePosition reads
-// through (styleguide bounded-everything rule). A cycle of them is one the
-// resolver reports circular. A longer chain that is none stops at the position
-// the bound reached, so the mapping names that position's alias.
+// through (styleguide bounded-everything rule). A loop of them, and any longer
+// chain, stops at the position the bound reached, so the mapping names that
+// position's alias.
 const maxTypePositionHops = 64
 
 // typePosition returns the position whose type a mapping target naming
-// pointer names, and the schema declared there, unread at a component. It is
-// pointer itself unless the position reads through (readsThrough): a $ref
-// holding nothing an alias would is only a use of its target's type, so it
-// names the position the $ref does, as a union variant there does (GitHub
-// #758). Each hop is read where it is written (resolve.Scope.At). A keyword
-// beside a property's $ref stops it (GitHub #764). A $ref the loader did not
-// follow names no schema, so ok is false unless it names a component.
-func typePosition(scope resolve.Scope, pointer jsontext.Pointer, variantTypes map[ir.TypeID]bool) (jsontext.Pointer, *oas3.JSONSchema[oas3.Referenceable], bool) {
+// pointer names, and the schema the bindings hold there, starting from decl,
+// unread at a component. It is pointer itself unless the position
+// reads through (readsThrough): a $ref holding nothing an alias would is only
+// a use of its target's type, so it names the position the $ref does, as a
+// union variant there does (GitHub #758). A keyword beside a property's $ref
+// stops it (GitHub #764), and so does a $ref landing on nothing a type is read
+// at, whose own position, lowered as an alias that reports why, is named.
+func typePosition(scope resolve.Scope, pointer jsontext.Pointer, decl *oas3.JSONSchema[oas3.Referenceable],
+	variantTypes map[ir.TypeID]bool,
+) (jsontext.Pointer, *oas3.JSONSchema[oas3.Referenceable]) {
 	if _, named := ids.ComponentSchemaName(pointer); named {
 		// Most targets name a component, and resolve.Scope.ComponentRef answers
 		// for one by name, so nothing is fetched for it (see mappingTagsFor).
-		return pointer, nil, true
+		return pointer, nil
 	}
-	located := scope.Locate(pointer)
-	decl := located.Declared()
-	for hop := range maxTypePositionHops {
+	for range maxTypePositionHops {
 		if !readsThrough(pointer, decl, variantTypes) {
 			break
 		}
-		var here resolve.Scope
-		if hop == 0 {
-			here = located.At() // the walk Locate took
-		} else {
-			here = scope.At(pointer)
-		}
-		next, ok := here.TargetPointer(decl, decl.GetRef().String())
-		if !ok {
+		next, ok := scope.TargetPointer(decl)
+		target := scope.Bindings.Declared(decl)
+		if _, named := ids.ComponentSchemaName(next); !ok || target == nil && !named {
 			break
-		}
-		target := annotation.DeclaredSchema(decl)
-		if _, named := ids.ComponentSchemaName(next); target == nil && !named {
-			// Found at all, it was only through whatever interned next first.
-			return "", nil, false
 		}
 		pointer, decl = next, target
 	}
-	return pointer, decl, true
+	return pointer, decl
 }
 
 // readsThrough reports whether a mapping target naming pointer, where decl is
@@ -1313,20 +1315,17 @@ func mappingTargetID(c lowering.Ctx, scope resolve.Scope, ts *compile.Types, d *
 	if scope.Declares(target) {
 		return componentIDByName(target), true
 	}
-	pointer, ok := scope.MappingPointer(d, target)
+	pointer, decl, ok := scope.MappingTarget(d, target)
 	if !ok {
 		return "", false
 	}
 	// No variant types: a tag asks whether the mapping reaches the subtype, so
 	// it reads through whatever a union's variants name (readsThrough). Each
 	// subtype asks it of every entry, so it is read once (Ctx.TypePosition).
-	at, ok := c.TypePosition(pointer, func() (jsontext.Pointer, bool) {
-		position, _, found := typePosition(scope, pointer, nil)
-		return position, found
+	at := c.TypePosition(pointer, func() jsontext.Pointer {
+		position, _ := typePosition(scope, pointer, decl, nil)
+		return position
 	})
-	if !ok {
-		return "", false
-	}
 	if id, resolved, handled := scope.ComponentRef(at); handled {
 		return id, resolved
 	}
@@ -1379,7 +1378,7 @@ func lowerEnum(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsonte
 			return &ir.Any{TypeCommon: common}
 		}
 		diags = append(diags, enumRepeats(c, s.GetEnum(), pointer)...)
-		members, memberPrim, ok := enumMembers(s.GetEnum(), schemaAdmitsNull(s), pointer)
+		members, memberPrim, ok := enumMembers(s.GetEnum(), schemaAdmitsNull(c, s), pointer)
 		if !ok {
 			def, enumDiags := enumAsUnion(c, ts, s, common, pointer, hint)
 			diags = append(diags, enumDiags...)
@@ -1541,10 +1540,9 @@ func enumValueType(s *oas3.Schema, memberPrim ir.PrimKind) ir.PrimKind {
 // the kind has no place in an Enum, and the caller degrades the whole enum to a
 // Union of Literals with a diagnostic.
 //
-// Its switch has one arm per ir.ValueKind, as enumMemberKey's does;
-// TestValueKindSwitches_NameEveryValueKind reddens when ir adds a kind either
-// lacks. The default arm refuses a kind rather than assert a type the source
-// never wrote.
+// Its switch has one arm per ir.ValueKind, as enumMemberKey's does; the
+// exhaustive linter fails when ir adds a kind either lacks. The default arm
+// refuses a kind rather than assert a type the source never wrote.
 func enumMemberForm(v ir.Value) (ir.PrimKind, string, bool) {
 	switch v.Kind {
 	case ir.ValueString:

@@ -149,28 +149,31 @@ func TestEngine_RunSourcesIgnoresParsed(t *testing.T) {
 
 // TestEngine_RunSourcesRefusals pins that a misconfigured run is a Go error
 // naming its fault, before anything is compiled: no sources, two naming one
-// document, and an engine no constructor built.
+// document, a threshold that names none, and an engine no constructor built.
 func TestEngine_RunSourcesRefusals(t *testing.T) {
 	t.Parallel()
 	built, err := engine.New()
 	require.NoError(t, err)
-	tiny := []byte(testspec.Tiny)
+	tiny := []compilers.Source{{Path: "s.yaml", Data: []byte(testspec.Tiny)}}
 	tests := []struct {
 		name    string
 		eng     *engine.Engine
 		sources []compilers.Source
+		opts    engine.RunOptions
 		want    string
 	}{
-		{"no sources", built, nil, "no sources"},
+		{"no sources", built, nil, engine.RunOptions{}, "no sources"},
 		{"two sources naming one document", built,
-			[]compilers.Source{{Path: "a/b.yaml", Data: tiny}, {Path: "a/./b.yaml", Data: tiny}}, "names a document"},
-		{"an unbuilt engine", &engine.Engine{}, []compilers.Source{{Path: "s.yaml", Data: tiny}}, "uninitialized"},
+			[]compilers.Source{{Path: "a/b.yaml", Data: tiny[0].Data}, {Path: "a/./b.yaml", Data: tiny[0].Data}},
+			engine.RunOptions{}, "names a document"},
+		{"a threshold naming none", built, tiny, engine.RunOptions{FailOn: "fatal"}, "unknown fail-on threshold"},
+		{"an unbuilt engine", &engine.Engine{}, tiny, engine.RunOptions{}, "uninitialized"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			res, err := tt.eng.RunSources(t.Context(), tt.sources, engine.RunOptions{})
+			res, err := tt.eng.RunSources(t.Context(), tt.sources, tt.opts)
 
 			require.Error(t, err)
 			assert.Nil(t, res)

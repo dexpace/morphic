@@ -1,11 +1,11 @@
 # The gate, defined once.
 #
-# .github/workflows/gate.yml runs these targets, so `make gate` and the CI job
-# are the same commands by construction rather than by two lists that agree until
-# somebody edits one. Add a check here and the workflow gains a step that calls
-# it; there is no second place to keep in step.
+# .github/workflows/gate.yml runs these targets, split across two jobs that run
+# side by side, so `make gate` and CI are the same commands by construction
+# rather than by two lists that agree until somebody edits one. Add a check here,
+# then a step that calls it to one of the jobs.
 #
-#   make            the whole gate, in CI order
+#   make            the whole gate, one check at a time
 #   make coverage   the suite once, under -race, at exactly 100% coverage
 #   make bench      benchmark timings (the gate only smoke-runs them)
 #   make fuzz FUZZTIME=5m    a longer search than the gate's
@@ -69,15 +69,15 @@ FUZZTIME ?= 10s
 .DEFAULT_GOAL := gate
 
 # The gate runs one check at a time even under `make -j`. Prerequisites of a
-# single target are otherwise eligible to run concurrently, which would both lose
-# the CI order this file exists to mirror and let `fuzz` write a reproducer into
-# testdata/ while `coverage` is running `go test ./...` over the same tree.
+# single target are otherwise eligible to run concurrently, which would let
+# `fuzz` write a reproducer into testdata/ while `coverage` is running
+# `go test ./...` over the same tree. CI runs them on two machines instead.
 .NOTPARALLEL:
 
-.PHONY: gate fmt vet lint build coverage \
-	fuzz bench bench-smoke print-lint-version
+.PHONY: gate fmt vet lint lint-planted check-lint-version build coverage \
+	fuzz bench bench-smoke print-lint-version print-go-version
 
-gate: fmt vet lint build coverage fuzz bench-smoke
+gate: fmt vet lint lint-planted build coverage fuzz bench-smoke
 
 fmt:
 	@unformatted="$$(gofmt -l $$(git ls-files '*.go'))"; \
@@ -87,30 +87,35 @@ fmt:
 		exit 1; \
 	fi
 
+# go vet's own analyzers, then the repository's: internal/lintrules, through
+# cmd/morphic-vet. scripts/vet-rules.sh says how.
 vet:
 	$(GO) vet ./...
+	./scripts/vet-rules.sh
+
+lint: check-lint-version
+	golangci-lint run
+
+# The rules in .golangci.yml that a clean tree cannot prove, held to the findings
+# planted for them; scripts/lint-planted.sh says how. In CI it runs after the
+# lint action, which leaves its golangci-lint on PATH for the steps after it.
+lint-planted: check-lint-version
+	./scripts/lint-planted.sh
 
 # CI installs the pinned release through golangci-lint-action; here the binary
 # is whatever is on PATH. A mismatch is reported rather than fatal — a developer
 # on a newer release should know their finding set is not CI's, but a tool
 # version is not a reason to refuse to run the gate at all.
-lint:
+check-lint-version:
 	@have="$$(golangci-lint version --short 2>/dev/null || true)"; \
 	want="$(GOLANGCI_LINT_VERSION)"; \
 	if [ "$$have" != "$${want#v}" ]; then \
 		echo "warning: local golangci-lint is $${have:-absent}, CI pins $$want" >&2; \
 		echo "warning:   go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$$want" >&2; \
 	fi
-	golangci-lint run
 
-# The build runs for the host and again for ports CI never runs on, since an
-# API one port lacks fails only that port's build: Windows, and the two wasm
-# ports, whose syscall package is the narrowest the module builds against.
 build:
 	$(GO) build ./...
-	GOOS=windows GOARCH=amd64 $(GO) build ./...
-	GOOS=js GOARCH=wasm $(GO) build ./...
-	GOOS=wasip1 GOARCH=wasm $(GO) build ./...
 
 # The suite runs once, under the race detector, and cmd/morphic-covergate judges
 # its profile statement by statement; its doc says why go test's percentage is

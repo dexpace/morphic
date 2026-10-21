@@ -93,7 +93,7 @@ func newCompileCmd() *cobra.Command {
 // document dropped, so the two configure that pipeline the same way: a spec that
 // needs an option to compile needs it to be validated as it will be compiled.
 type specOptions struct {
-	failOn       string
+	failOn       failOnFlag
 	skipValidate bool
 	disable      passFlag
 	settings     settingFlag
@@ -123,9 +123,10 @@ type compileOptions struct {
 // text identical across commands rather than identical-looking.
 func bindSpecFlags(fs *pflag.FlagSet, opts *specOptions) {
 	opts.settings = settingFlag{}
+	opts.failOn = failOnFlag(engine.FailOnError)
 
-	fs.StringVar(&opts.failOn, "fail-on", string(ir.SeverityError),
-		"exit 1 on diagnostics at or above this severity: error or warning")
+	fs.Var(&opts.failOn, "fail-on",
+		"exit 1 on a diagnostic at or above this severity: error, warning or info; none exits 1 only when the spec lowered to no document")
 	fs.BoolVar(&opts.skipValidate, "skip-validate", false,
 		"alias for --disable-pass validate")
 	fs.Var(&opts.disable, "disable-pass",
@@ -148,9 +149,8 @@ func completeSpecFile(_ *cobra.Command, args []string, _ string) ([]cobra.Comple
 // writing the document, so --output would be accepted and ignored, with an exit
 // status that says it worked.
 func compileArgs(opts *compileOptions) cobra.PositionalArgs {
-	spec := specArgs(&opts.specOptions)
 	return func(cmd *cobra.Command, args []string) error {
-		if err := spec(cmd, args); err != nil {
+		if err := specArgs(cmd, args); err != nil {
 			return err
 		}
 		if opts.explain.set && opts.outPath != "" {
@@ -161,19 +161,15 @@ func compileArgs(opts *compileOptions) cobra.PositionalArgs {
 }
 
 // specArgs checks what every spec-taking command takes once its flags are
-// parsed: a --fail-on severity that exists, then exactly one spec file. The
-// command's own name is in the message, so a misuse names what was typed.
-func specArgs(opts *specOptions) cobra.PositionalArgs {
-	return func(cmd *cobra.Command, args []string) error {
-		if opts.failOn != string(ir.SeverityError) && opts.failOn != string(ir.SeverityWarning) {
-			return misuse(cmd, fmt.Sprintf("invalid --fail-on %q (want %s or %s)",
-				opts.failOn, ir.SeverityError, ir.SeverityWarning))
-		}
-		if len(args) != 1 {
-			return misuse(cmd, cmd.Name()+" requires exactly one spec file")
-		}
-		return nil
+// parsed: exactly one spec file. The command's own name is in the message, so
+// a misuse names what was typed. No flag's value is checked here: --fail-on
+// refuses a bad one as it is set, and which pass names exist is the engine's
+// to say.
+func specArgs(cmd *cobra.Command, args []string) error {
+	if len(args) != 1 {
+		return misuse(cmd, cmd.Name()+" requires exactly one spec file")
 	}
+	return nil
 }
 
 // runPipeline runs the engine over specPath and renders every diagnostic the
@@ -181,8 +177,8 @@ func specArgs(opts *specOptions) cobra.PositionalArgs {
 //
 // A non-nil err means the run could not happen — the engine could not be built
 // or failed — and is an exit-2 failure. Otherwise code is the exit code the
-// diagnostics call for, and res holds the document, or is nil when the spec
-// lowered to none.
+// engine's verdict calls for, and res holds the document, or is nil when the
+// spec lowered to none.
 func runPipeline(
 	ctx context.Context, specPath string, opts specOptions, stderr io.Writer,
 ) (res *engine.Result, code int, err error) {
@@ -194,18 +190,22 @@ func runPipeline(
 	res, err = eng.Run(ctx, specPath, engine.RunOptions{
 		CompilerOptions: opts.settings,
 		DisablePasses:   opts.disabledPasses(),
+		FailOn:          engine.FailOn(opts.failOn),
 	})
 	if err != nil {
 		return nil, 0, err
 	}
 
 	// stderr is where a failed write would be reported, so it has nowhere to
-	// go, and the exit code stays the diagnostics' own (see emitf).
+	// go, and the exit code stays the verdict's own (see emitf).
 	_ = report.WriteDiagnostics(stderr, res.Diagnostics, res.Sources)
-	if res.Document == nil {
-		return nil, exitFindings, nil
+	if res.Failed {
+		code = exitFindings
 	}
-	return res, exitCodeFor(res.Diagnostics, opts.failOn), nil
+	if res.Document == nil {
+		return nil, code, nil
+	}
+	return res, code, nil
 }
 
 // compileSpec runs the pipeline over specPath, writes the IR document and its
@@ -245,31 +245,6 @@ func writeFailureExit(code int) int {
 		return code
 	}
 	return exitFailure
-}
-
-// exitCodeFor returns 1 when any diagnostic is at or above the failOn severity,
-// otherwise 0. failOn is one of "error" or "warning".
-func exitCodeFor(diags []ir.Diagnostic, failOn string) int {
-	threshold := severityRank(ir.Severity(failOn))
-	if slices.ContainsFunc(diags, func(d ir.Diagnostic) bool { return severityRank(d.Severity) >= threshold }) {
-		return 1
-	}
-	return 0
-}
-
-// severityRank orders severities so a threshold comparison is a plain integer
-// compare: error > warning > info > unknown.
-func severityRank(s ir.Severity) int {
-	switch s {
-	case ir.SeverityError:
-		return 3
-	case ir.SeverityWarning:
-		return 2
-	case ir.SeverityInfo:
-		return 1
-	default:
-		return 0
-	}
 }
 
 // writeCompiled writes doc's IR JSON to opts.outPath, or to stdout when it is

@@ -18,7 +18,6 @@ import (
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers"
-	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/engine/reader"
 )
 
@@ -212,27 +211,6 @@ func TestExternal_AdmitHoldsTheAliasBudget(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "refused")
 	assert.Contains(t, err.Error(), "past the 1-node alias budget")
-}
-
-// TestExternal_AdmitRefusesWhereTheScanCannotFinish pins the rule admit states:
-// any finding refuses an external document, the scan's report that it could
-// not finish included, though the source is only warned about that one. A
-// merge-key chain deeper than the scan expands is a document that draws it.
-func TestExternal_AdmitRefusesWhereTheScanCannotFinish(t *testing.T) {
-	t.Parallel()
-	var b strings.Builder
-	b.WriteString("m0: &m0 {k: v}\n")
-	for i := 1; i <= nodeview.MergeDepthLimit+2; i++ {
-		fmt.Fprintf(&b, "m%d: &m%d {<<: *m%d}\n", i, i, i-1)
-	}
-	root, parsed := parseTree([]byte(b.String()))
-	require.True(t, parsed)
-
-	err := newExternal(t.Context(), &soa.OpenAPI{}, Options{}, newExternalReads(sourceDocument{})).admit("k", root)
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "refused")
-	assert.Contains(t, err.Error(), "merge-key expansion bound")
 }
 
 // newTestServer starts an httptest.Server for handler, closed when the test

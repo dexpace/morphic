@@ -226,38 +226,6 @@ func TestRun_CompileWriteFailureDoesNotMaskDiagnostics(t *testing.T) {
 	}
 }
 
-func TestExitCodeFor_SeverityMatrix(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name   string
-		diags  []ir.Diagnostic
-		failOn string
-		want   int
-	}{
-		{"info below error", []ir.Diagnostic{{Severity: ir.SeverityInfo}}, "error", 0},
-		{"info below warning", []ir.Diagnostic{{Severity: ir.SeverityInfo}}, "warning", 0},
-		{"warning meets warning", []ir.Diagnostic{{Severity: ir.SeverityWarning}}, "warning", 1},
-		{"warning below error", []ir.Diagnostic{{Severity: ir.SeverityWarning}}, "error", 0},
-		{"error meets error", []ir.Diagnostic{{Severity: ir.SeverityError}}, "error", 1},
-		{"unknown severity ranks lowest", []ir.Diagnostic{{Severity: ir.Severity("weird")}}, "error", 0},
-		{"no diagnostics", nil, "error", 0},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			assert.Equal(t, tt.want, exitCodeFor(tt.diags, tt.failOn))
-		})
-	}
-}
-
-func TestSeverityRank_AllLevels(t *testing.T) {
-	t.Parallel()
-	assert.Equal(t, 3, severityRank(ir.SeverityError))
-	assert.Equal(t, 2, severityRank(ir.SeverityWarning))
-	assert.Equal(t, 1, severityRank(ir.SeverityInfo))
-	assert.Equal(t, 0, severityRank(ir.Severity("nonsense")))
-}
-
 // danglingDocCompiler lowers to a Document with a dangling type ref and no
 // compiler diagnostics, so the only thing that can report it is the validate
 // pass.
