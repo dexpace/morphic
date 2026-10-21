@@ -19,6 +19,7 @@ import (
 
 	"github.com/speakeasy-api/openapi/extensions"
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
+	"github.com/speakeasy-api/openapi/yml"
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
@@ -260,9 +261,33 @@ func MergeUnmodeled(dst, src ir.Unmodeled) ir.Unmodeled {
 	return dst
 }
 
-// IsFalseSchema reports whether js is the boolean `false` schema.
+// IsFalseSchema reports whether js is the boolean `false` schema, which a
+// `null` written in its place is not, though the parser decodes one as `false`
+// (docs/parser-library.md#null-schema-is-false).
 func IsFalseSchema(js *oas3.JSONSchema[oas3.Referenceable]) bool {
-	return js != nil && js.IsBool() && js.GetBool() != nil && !*js.GetBool()
+	return js != nil && js.IsBool() && js.GetBool() != nil && !*js.GetBool() && !IsNullLiteral(js)
+}
+
+// IsNullLiteral reports whether js is a `null` written where a schema belongs.
+// The parser reads one as the boolean `false` schema
+// (docs/parser-library.md#null-schema-is-false), so only its node tells the
+// two apart.
+func IsNullLiteral(js *oas3.JSONSchema[oas3.Referenceable]) bool {
+	return js != nil && js.IsBool() && IsNullNode(js.GetCore().GetRootNode())
+}
+
+// IsNullNode reports whether n, read through an alias, is a YAML null.
+func IsNullNode(n *yaml.Node) bool {
+	n = yml.ResolveAlias(n)
+	return n != nil && n.Kind == yaml.ScalarNode && n.ShortTag() == "!!null"
+}
+
+// Written reports whether js is a schema written at its position: present,
+// and no `null`, which states nothing about the values there (IsNullLiteral).
+// The load phase reports the null; every reader takes it as left out
+// (docs/compilers/openapi.md#null-schema).
+func Written(js *oas3.JSONSchema[oas3.Referenceable]) bool {
+	return js != nil && !IsNullLiteral(js)
 }
 
 // IfThenElseRaw combines the present if/then/else arms into one raw JSON
@@ -274,7 +299,7 @@ func IfThenElseRaw(s *oas3.Schema) (ir.RawValue, []string, error) {
 // ContainsRaw combines contains/minContains/maxContains into one raw JSON
 // object, and names the keywords it combines.
 func ContainsRaw(s *oas3.Schema) (ir.RawValue, []string, error) {
-	if s.GetContains() == nil && s.GetMinContains() == nil && s.GetMaxContains() == nil {
+	if !Written(s.GetContains()) && s.GetMinContains() == nil && s.GetMaxContains() == nil {
 		return nil, nil, nil
 	}
 	return combine(s, "contains", "minContains", "maxContains")
@@ -286,10 +311,10 @@ func ContainsRaw(s *oas3.Schema) (ir.RawValue, []string, error) {
 // combines.
 func UnevaluatedRaw(s *oas3.Schema) (ir.RawValue, []string, error) {
 	var want []string
-	if up := s.GetUnevaluatedProperties(); up != nil && !IsFalseSchema(up) {
+	if up := s.GetUnevaluatedProperties(); Written(up) && !IsFalseSchema(up) {
 		want = append(want, "unevaluatedProperties")
 	}
-	if s.GetUnevaluatedItems() != nil {
+	if Written(s.GetUnevaluatedItems()) {
 		want = append(want, "unevaluatedItems")
 	}
 	return combine(s, want...)
@@ -311,21 +336,21 @@ func combine(s *oas3.Schema, keys ...string) (ir.RawValue, []string, error) {
 }
 
 // presentMembers collects the given keywords that are present on s as raw JSON
-// members, preserving the requested order, and names the keywords present.
+// members, preserving the requested order, and names the keywords present. A
+// keyword written as `null` states nothing, so it is read as left out.
 //
 // A member that cannot be converted fails the whole combination rather than
-// being skipped. The entry these build is one object presented as the verbatim
-// source, so dropping a member from it would restate GitHub #144 in miniature:
-// an object labelled verbatim that silently omits one of its keywords. The
-// error names the first such member, and the keywords present are returned in
-// full even then, since the report of the failure is attributed by all of them.
+// being skipped: the entry is presented as the verbatim source, so dropping a
+// member would restate GitHub #144 in miniature. The error names the first such
+// member, and the keywords present are returned in full even then, since the
+// report of the failure is attributed by all of them.
 func presentMembers(s *oas3.Schema, keys ...string) ([]rawMember, []string, error) {
 	var members []rawMember
 	var present []string
 	var failed error
 	for _, k := range keys {
 		node := RawPropertyNode(s, k)
-		if node == nil {
+		if node == nil || IsNullNode(node) {
 			continue
 		}
 		present = append(present, k)
@@ -839,7 +864,7 @@ func validationOnlyAt(s *oas3.Schema, pointer jsontext.Pointer, locate Locator) 
 		keep("openapi:"+keyword, raw, err, pointer+ids.Ptr(keyword), keyword)
 	}
 
-	if s.GetNot() != nil {
+	if Written(s.GetNot()) {
 		keepKeyword("not")
 	}
 	ite, iteKeys, iteErr := IfThenElseRaw(s)
@@ -856,7 +881,7 @@ func validationOnlyAt(s *oas3.Schema, pointer jsontext.Pointer, locate Locator) 
 	if dr != nil || drErr != nil {
 		keep("openapi:dependentRequired", dr, drErr, pointer+ids.Ptr("dependentRequired"), "dependentRequired")
 	}
-	if s.GetPropertyNames() != nil {
+	if Written(s.GetPropertyNames()) {
 		keepKeyword("propertyNames")
 	}
 	craw, cKeys, cErr := ContainsRaw(s)

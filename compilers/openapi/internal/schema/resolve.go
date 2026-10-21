@@ -53,7 +53,11 @@ func schemaRefHomed(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, dep
 	// The hint this lowering names the position by stands for any node a $ref
 	// later hoists here, where the position itself interned none (hoistSubSchema).
 	c.DeclareHint(pointer, hint)
-	if js == nil {
+	if !annotation.Written(js) {
+		// None, or a null, which states nothing: an entry written so — a
+		// property, a branch, a component, items — lowers as the empty schema.
+		// A keyword whose absence differs from the empty schema reads a null as
+		// left out before it gets here (docs/compilers/openapi.md#null-schema).
 		return ts.PrimRef(ir.PrimAny), nil
 	}
 	if js.IsBool() {

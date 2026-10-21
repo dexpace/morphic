@@ -446,6 +446,26 @@ components:
     unknown-key census leaves to other readers.
   - `annotation.UnknownKeywordsIn` reads every other unknown keyword's value from the raw node.
 
+### `null-schema-is-false`
+
+A `null` written where a schema belongs decodes as the boolean `false` schema: `IsBool` reports
+true and `GetBool` false, at a keyword such as `additionalProperties` or `items` and at an entry
+such as a property or a component alike. Only the schema's node, a scalar tagged `!!null`, tells it
+from a written `false`. A `null` states nothing about the values there, where `false` admits none.
+
+```yaml
+components:
+  schemas:
+    A: {properties: {p: null}, additionalProperties: null}
+    C: null
+```
+
+- Verified at: v1.25.5
+- Pinned by: `TestLibraryBehaviour/null-schema-is-false`
+- Code:
+  - `annotation.IsNullLiteral` tells a `null` from `false` by its node.
+  - `annotation.IsFalseSchema` excludes a `null`, so no reader takes one for `false`.
+
 ### `bare-walk-panic`
 
 `soa.Walk` panics with `no match handler registered` when started from a reference object that is

@@ -1421,6 +1421,29 @@ needs to produce it.
   `openapi.TestCompile_ARefToABooleanSchemaResolvesInEitherOrder`,
   `openapi.TestCompile_AReferenceLeavesItsTargetToItsOwnerInEitherOrder`
 
+### `null-schema`
+
+A `null` written where a schema belongs states nothing about the values there, so it is read as no
+schema written, never as the `false` schema the parser decodes it as
+([`null-schema-is-false`](../parser-library.md#null-schema-is-false)), which admits no value. An
+entry, which exists whatever its value — a property, a composition branch, a component, a
+`prefixItems` position, a parameter's, header's or media type's `schema` — lowers as the empty
+schema does, to the top type, and a `$ref` naming it as one naming `{}` does. A keyword, whose
+absence states something its empty schema may not, is read as left out: `additionalProperties: null`
+writes no catch-all, `contentSchema: null` no `Encoding.Schema`, a `null` `allOf` branch composes
+nothing, and a `null` `not`, `if`, `then`, `else`, `contains`, `propertyNames`, `unevaluatedItems`
+or `unevaluatedProperties` is kept nowhere. `items: null` lowers as an absent `items` does, and a
+`null` `items` or `additionalProperties` a node has no home for is not kept for want of one
+([`shape-applicator`](#shape-applicator)). Nothing is kept verbatim, since a `null` means nothing a
+consumer could recover, and the lowering reports nothing, since reading it so loses nothing: the
+load phase reports each such `null` as the error it is, at the node
+([`parser-validation`](#parser-validation)). One inside a value the IR keeps verbatim whole, a
+`dependentSchemas` entry, stays in that value, since nothing reads it as a schema.
+
+- Tests: `openapi.TestCompile_ANullWhereASchemaBelongsIsNoSchema`,
+  `schema.TestNullSchema_AnEntryIsTheEmptySchemaAndAKeywordIsLeftOut`,
+  `annotation.TestIsNullLiteral_TellsANullFromFalse`
+
 ## 7. Schemas: keywords beyond the shape
 
 ### `constraints`

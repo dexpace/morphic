@@ -154,6 +154,9 @@ func fillAllOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth in
 	baseIdx := selectAllOfBase(c.Bindings(), branches)
 	for i, b := range branches {
 		bptr := pointer + ids.Ptr("allOf", strconv.Itoa(i))
+		if annotation.IsNullLiteral(b) {
+			continue // a null conjunct states nothing, so it composes nothing, as `true` does
+		}
 		if !isRefBranch(b) {
 			diags = append(diags, fillModelProperties(c, ts, anchors, depth, m, b.GetSchema(), bptr)...)
 			diags = append(diags, preserveUnmergedBranch(c, m, b.GetSchema(), i, bptr)...)
@@ -198,11 +201,8 @@ func fillAllOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth in
 func applyFalseBranches(c lowering.Ctx, m *ir.Model, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for i, b := range s.GetAllOf() {
-		if b == nil || !b.IsBool() {
-			continue
-		}
-		if v := b.GetBool(); v == nil || *v {
-			continue // `true` constrains nothing.
+		if !annotation.IsFalseSchema(b) {
+			continue // `true`, a null and any schema with a body close nothing.
 		}
 		bptr := pointer + ids.Ptr("allOf", strconv.Itoa(i))
 		m.Additional = ir.AdditionalClosed
