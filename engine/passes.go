@@ -80,8 +80,9 @@ func runPasses(ctx context.Context, doc *ir.Document, passes []pass.Pass) (*ir.D
 		if !keepsSources(doc.Sources, next.Sources) {
 			return nil, nil, fmt.Errorf("engine: run pass %q: %w", p.Name(), errSourcesMoved)
 		}
-		if !indexesSources(diags, len(next.Sources)) {
-			return nil, nil, fmt.Errorf("engine: run pass %q: %w", p.Name(), errSourceOutOfRange)
+		if d, outside := ir.FirstOutsideTable(diags, len(next.Sources)); outside {
+			return nil, nil, fmt.Errorf("engine: run pass %q: %s at source %d of %d: %w",
+				p.Name(), d.Code, d.Provenance.Source, len(next.Sources), errSourceOutOfRange)
 		}
 		doc, found = next, append(found, diags...)
 	}
@@ -92,15 +93,4 @@ func runPasses(ctx context.Context, doc *ir.Document, passes []pass.Pass) (*ir.D
 // gives it, which is all a Provenance.Source already made needs.
 func keepsSources(prev, next []ir.SourceInfo) bool {
 	return len(next) >= len(prev) && slices.Equal(prev, next[:len(prev)])
-}
-
-// indexesSources reports whether every diagnostic of diags is in a table of n
-// sources (ir.Provenance.InTable).
-func indexesSources(diags []ir.Diagnostic, n int) bool {
-	for _, d := range diags {
-		if !d.Provenance.InTable(n) {
-			return false
-		}
-	}
-	return true
 }

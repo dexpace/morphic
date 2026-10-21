@@ -403,6 +403,8 @@ func TestEngine_RunHoldsPassDiagnosticsToTheSourceTable(t *testing.T) {
 			}
 			require.ErrorIs(t, err, engine.ErrSourceOutOfRange)
 			assert.Contains(t, err.Error(), `"report"`, "the error names the pass")
+			assert.Contains(t, err.Error(), fmt.Sprintf("x/finding at source %d of 1", tc.source),
+				"and the finding, with the index it gave")
 			assert.Nil(t, res)
 		})
 	}

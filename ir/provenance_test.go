@@ -294,3 +294,28 @@ func TestProvenance_InTableAdmitsTheTableAndTheSentinelAlone(t *testing.T) {
 		assert.Equal(t, tc.want, ir.Provenance{Source: tc.source}.InTable(tc.n), "source %d of %d", tc.source, tc.n)
 	}
 }
+
+// TestFirstOutsideTable_NamesTheFirstFindingNoEntryHolds pins the finding a
+// holder of a table reports: the first whose index the table lacks, past a
+// sentinel and an in-range one, and none when each indexes an entry.
+func TestFirstOutsideTable_NamesTheFirstFindingNoEntryHolds(t *testing.T) {
+	t.Parallel()
+	at := func(source int) ir.Diagnostic {
+		return ir.NewDiagnostic(ir.SeverityWarning, "x/at", "m", ir.Provenance{Source: source})
+	}
+
+	got, out := ir.FirstOutsideTable([]ir.Diagnostic{at(ir.NoSource), at(1), at(2), at(-2)}, 2)
+	assert.True(t, out)
+	assert.Equal(t, at(2), got, "the first past the table, not a later one")
+
+	got, out = ir.FirstOutsideTable([]ir.Diagnostic{at(0), at(-2), at(2)}, 2)
+	assert.True(t, out)
+	assert.Equal(t, at(-2), got, "a sentinel the IR does not declare is outside every table")
+
+	got, out = ir.FirstOutsideTable([]ir.Diagnostic{at(0), at(ir.NoSource), at(1)}, 2)
+	assert.False(t, out)
+	assert.Equal(t, ir.Diagnostic{}, got)
+
+	_, out = ir.FirstOutsideTable(nil, 0)
+	assert.False(t, out, "no finding indexes nothing")
+}

@@ -129,6 +129,18 @@ func HasError(diags []Diagnostic) bool {
 	return ok
 }
 
+// FirstOutsideTable returns the first diagnostic in diags whose provenance
+// indexes none of a source table's n entries (Provenance.InTable) and true, or
+// the zero Diagnostic and false if each indexes one. A holder of a table asks
+// it of the findings that will be read against the table.
+func FirstOutsideTable(diags []Diagnostic, n int) (Diagnostic, bool) {
+	i := slices.IndexFunc(diags, func(d Diagnostic) bool { return !d.Provenance.InTable(n) })
+	if i < 0 {
+		return Diagnostic{}, false
+	}
+	return diags[i], true
+}
+
 // MergeDiagnostics returns stored followed by every diagnostic of produced
 // that stored does not already hold, identity being the whole value, the one
 // compilers/compile dedupes on. A compiler hands its findings back on two
