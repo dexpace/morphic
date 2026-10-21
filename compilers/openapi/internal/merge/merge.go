@@ -44,9 +44,9 @@ type Merger struct {
 // that supplied that position.
 type Reporter func(sev ir.Severity, code string, pointer jsontext.Pointer, format string, args ...any)
 
-// Settle is a decision taken against the registry the walk left. It reports through
-// report, not through the Merger it was queued by, whose sink belongs to a walk
-// that has returned.
+// Settle is a decision taken against the registry the walk left. It reports
+// through report, not through the Merger it was queued by, whose sink belongs
+// to a walk that has returned.
 type Settle func(reg ir.TypeRegistry, report Reporter)
 
 // WireNameIndex maps each property's wire name to its position in props, so a

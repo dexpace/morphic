@@ -1070,11 +1070,11 @@ union, with an info `openapi/degraded-construct` at the discriminator; a subtype
 a body the move leaves holding a map and nothing else lowers to that map's `MapT` (§4.6). A union
 whose branches declare no shape (`validation_only`) is held to the same rule, and so is a
 multi-typed body, which lowers to a `Union` whose object variant, built from the same schema, holds
-the discriminator. The compiler decides once the walk lowering the `Model` has returned (`compile.Settlement`), because
-neither the walk nor the source schemas can answer it: a subtype declared after the `Model` has no
-`Base` while the `Model` lowers, and a schema whose `allOf` names the `Model` may still lower to no
-subtype — an `enum`, a `const`, an alias over a `$ref` beside it, or a union its `allOf` is
-distributed across.
+the discriminator. The compiler decides once the walk lowering the `Model` has returned
+(`compile.Settlement`), because neither the walk nor the source schemas can answer it: a subtype
+declared after the `Model` has no `Base` while the `Model` lowers, and a schema whose `allOf` names
+the `Model` may still lower to no subtype — an `enum`, a `const`, an alias over a `$ref` beside it,
+or a union its `allOf` is distributed across.
 
 A union whose branches declare no shape at all (`oneOf: [{required: [a]}, {required: [b]}]`) is not
 a degradation and is not one of the five: it narrows the body without reshaping it, which is

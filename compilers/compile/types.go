@@ -50,12 +50,12 @@ func (t *Types) refuse(format string, args ...any) {
 }
 
 // Violations returns the invariant breaches the registry refused to record, in
-// the order they were attempted, and then any settlement deferred after the
-// last Settle, which nothing took.
+// the order they were attempted, and then one entry counting the settlements
+// deferred that no Settle took.
 //
-// A non-empty result is a compiler bug, not a spec problem: no source can produce one.
-// The owning compiler surfaces them as internal-invariant diagnostics rather
-// than dropping them.
+// A non-empty result is a compiler bug, not a spec problem: no source can
+// produce one. The owning compiler surfaces them as internal-invariant
+// diagnostics rather than dropping them.
 func (t *Types) Violations() []string {
 	if len(t.pending) == 0 {
 		return t.refused

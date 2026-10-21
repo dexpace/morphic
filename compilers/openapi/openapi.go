@@ -143,9 +143,9 @@ func (*Compiler) SourceTable(sources []compilers.Source, opts compilers.Options)
 // metadata.
 //
 // It reports cancellation as a Go error, not a diagnostic: the caller stopped
-// asking. The document is dropped with it, since the phases that honour ctx stop mid-registry and what is left
-// references types never interned or settled, but the diagnostics gathered
-// before the stop are returned.
+// asking. The document is dropped with it, since the phases that honour ctx
+// stop mid-registry and what is left references types never interned or
+// settled, but the diagnostics gathered before the stop are returned.
 func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, []ir.Diagnostic, error) {
 	// out and the anchor memo are this function's, not a struct's: a document
 	// being built and a memo (micro-compiler-design §4.1). Nothing below

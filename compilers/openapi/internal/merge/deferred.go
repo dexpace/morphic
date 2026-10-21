@@ -40,10 +40,10 @@ func foldOrDefer(g *Merger, m *ir.Model, e *indexed, src ir.Property, source Sou
 	e.pending.decls = append(e.pending.decls, declaration{prop: src, source: source})
 }
 
-// settle replays the redeclarations in order against the registry the walk left. It
-// does nothing when m is no longer the node registered under its ID: a $ref
-// reached it first and its declaration built it again, and the settlement that
-// build queued holds the node now registered.
+// settle replays the redeclarations in order against the registry the walk
+// left. It does nothing when m is no longer the node registered under its ID:
+// a $ref reached it first and its declaration built it again, and the
+// settlement that build queued holds the node now registered.
 func (d *deferredFold) settle(reg ir.TypeRegistry, report Reporter) {
 	if reg[d.m.ID] != ir.TypeDef(d.m) {
 		return

@@ -2352,9 +2352,9 @@ func merger(c lowering.Ctx, ts *compile.Types, diags *[]ir.Diagnostic) merge.Mer
 	}
 }
 
-// settledMerge is a redeclaration judgment deferred until the walk lowering it has returned
-// (compile.Settlement). It reads nodes other lowerings intern, so mid-walk it
-// would follow the order components are declared in.
+// settledMerge is a redeclaration judgment deferred until the walk lowering it
+// has returned (compile.Settlement). It reads nodes other lowerings intern, so
+// mid-walk it would follow the order components are declared in.
 type settledMerge struct {
 	c   lowering.Ctx
 	run merge.Settle
