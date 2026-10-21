@@ -97,12 +97,12 @@ const usage = `usage:
 
 Each path is a spec file or a directory of specs: every file in it that a
 registered compiler takes, excluding *.golden.* snapshots and dot-directories.
-Every spec is compiled with the default options, and
-the facts its document sets are counted: the members of the IR's structs, the
-emptiness of each member whose empty value differs from its absence, and the
-values of its enumerations. The report counts the documents, the specs that
-lowered to none and the walks cut at the depth bound, then lists every fact
-with the number of documents that set it and the number of instances, zeros
-included. It reads the IR's declarations through the go command, so run it with
-go run from inside the module. Exit status is 0 on a report, 2 on a usage error,
-an unreadable spec, or declarations it cannot read.`
+Every spec is compiled with the default options, and the facts its document sets
+are counted: the members of the IR's structs, the emptiness of each member whose
+empty value differs from its absence, and the values of its enumerations. The
+report counts the documents, the specs that lowered to none and the walks cut at
+the depth bound, then lists every fact with the number of documents that set it
+and the number of instances, zeros included. It reads the IR's declarations
+through the go command, so run it with go run from inside the module. Exit
+status is 0 on a report, 2 on a usage error, an unreadable spec, or declarations
+it cannot read.`
