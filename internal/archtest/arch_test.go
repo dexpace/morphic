@@ -290,9 +290,10 @@ var rules = map[string][]string{
 	// The engine's writer: the IR document to a stream or a file, published
 	// through the atomic replace beneath it.
 	"engine/output": {module + "/ir", module + "/engine/internal/atomicfile"},
-	// The atomic replace every file the engine writes goes through. Standard
-	// library only, so each writer the engine grows can stand on it.
-	"engine/internal/atomicfile": {},
+	// The atomic replace every file the engine writes goes through. It reaches
+	// renameio, which creates, syncs and renames the file, and nothing of the
+	// module, so each writer the engine grows can stand on it.
+	"engine/internal/atomicfile": {"github.com/google/renameio/v2"},
 	// The CLI. Beyond the pipeline it reaches its command framework: cobra
 	// dispatches the commands and renders help, on pflag's parse. What it prints
 	// it asks the engine's renderer and writer for.

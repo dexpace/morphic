@@ -294,3 +294,16 @@ func TestEncode_ErrorPaths(t *testing.T) {
 		}
 	}
 }
+
+// TestReplaceDocument_RefusesAnEmptyPath pins that a call naming no file is
+// refused before anything is created, rather than encoding the document into
+// a temporary file in the working directory and failing at the rename.
+func TestReplaceDocument_RefusesAnEmptyPath(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+
+	err := output.ReplaceDocument("", orderedDoc(), output.Compact)
+
+	assert.EqualError(t, err, "replace output: no path to replace")
+	assert.Empty(t, entriesIn(t, dir))
+}

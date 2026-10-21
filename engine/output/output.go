@@ -61,20 +61,19 @@ func WriteDocument(w io.Writer, doc *ir.Document, layout Layout) error {
 }
 
 // ReplaceDocument replaces the file at path with doc's IR JSON, laid out as
-// layout and ending in a newline. The document is encoded straight into a
-// temporary file beside path and published by renaming it over path, so path
-// holds the whole previous content or the whole document, and a document that
-// will not marshal leaves it untouched.
+// layout and ending in a newline, encoded into a temporary file beside path
+// and renamed over it: path holds the whole previous content or the whole
+// document, and a document that will not marshal leaves it be.
 //
 // Publishing by rename needs path's directory to take a new entry, so
-// /dev/null and a file in a read-only directory fail; a symlink or FIFO at path
-// is replaced rather than written through; and other hard links keep the old
-// content.
+// /dev/null and a read-only directory fail. A symlink or FIFO at path is
+// replaced, other hard links keep the old content, a name near the
+// filesystem's limit can fail, and the directory is not synced.
 func ReplaceDocument(path string, doc *ir.Document, layout Layout) error {
 	if err := check(doc, layout); err != nil {
 		return err
 	}
-	return atomicfile.Replacer{}.Replace(path, func(w io.Writer) error {
+	return atomicfile.Replace(path, func(w io.Writer) error {
 		return encode(w, doc, layout)
 	})
 }

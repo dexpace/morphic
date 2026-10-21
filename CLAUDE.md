@@ -137,7 +137,7 @@ engine/      Layer 3 — orchestration; imports everything below. It owns every 
              rendering, so a second driver needs nothing from the CLI:
   reader/    what a run's references name, from disk, the network or memory. Imports compilers.
   report/    diagnostics and --explain, rendered for a person. Imports ir only.
-  output/    the IR document to a stream or a file, through internal/atomicfile's replace.
+  output/    the IR document to a stream or a file, through engine/internal/atomicfile.
 cmd/morphic/ Layer 4 — CLI; imports ir + engine (and its report and output) + its command
              framework (cobra, pflag).
 cmd/morphic-harness/

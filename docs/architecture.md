@@ -341,7 +341,7 @@ morphic/
 ├── engine/                 # Layer 3 — orchestration: detect format, run compiler, passes, emitters.
 │   ├── reader/             #           Reads what a run's references name: disk, network or memory.
 │   ├── report/             #           Renders diagnostics and --explain for a person.
-│   └── output/             #           Writes the IR document, through internal/atomicfile.
+│   └── output/             #           Writes the IR document, a file through engine/internal/atomicfile.
 ├── internal/archtest/      #           Import layering, the recursion pin and the caps (tooling).
 ├── internal/census/        #           Counts which IR facts a set of documents sets (tooling).
 ├── internal/decls/         #           Type-checked reads of declarations, for tests (tooling).

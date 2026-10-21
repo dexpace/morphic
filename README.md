@@ -275,7 +275,7 @@ entry in that test allows, and nothing from a layer above its own.
 | `pass/` | 1: IR → IR passes | `ir` + `ir/irfacts` |
 | `emitters/*` | 2: IR → artifacts (not built yet) | `ir` + emitter contract |
 | `engine/` | 3: orchestration | everything below |
-| `engine/reader/`, `engine/report/`, `engine/output/` | 3: what the engine reads, renders and writes | `compilers`; `ir`; `ir` + `engine/internal/atomicfile` |
+| `engine/reader/`, `engine/report/`, `engine/output/` | 3: what the engine reads, renders and writes | `compilers`; `ir`; `ir` + `engine/internal/atomicfile` (over `renameio`) |
 | `cmd/morphic/` | 4: CLI | `engine` (and its `report` and `output`) + `ir` + its command framework (`cobra`, `pflag`) |
 | `cmd/morphic-harness/`, `cmd/morphic-census/`, `cmd/morphic-covergate/`, `cmd/morphic-vet/`, `internal/*` | tooling outside the pipeline: the oracle sweep, the census of IR facts, the coverage gate's judge, the go vet tool and the lint rules it runs, the architecture rules, the goroutine leak check, type-checked reads of declarations for tests, the IR's JSON shape that the IRVersion pin and the census read, the reader of the keyed documents, shared fixtures | as their entries allow; `internal/harness` is exempt |
 
