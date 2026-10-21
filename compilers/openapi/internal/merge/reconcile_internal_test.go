@@ -46,7 +46,8 @@ func TestMergeProperty_AppendsThenFolds(t *testing.T) {
 	g.MergeProperty(m, byWire, ir.Property{WireName: "name", Provenance: ptrAt("/p")}, unread(t))
 
 	require.Len(t, m.Properties, 2, "two distinct wire names are two properties")
-	assert.Equal(t, map[string]int{"id": 0, "name": 1}, byWire.pos)
+	assert.Equal(t, 0, byWire.byWire["id"].pos)
+	assert.Equal(t, 1, byWire.byWire["name"].pos)
 
 	g.MergeProperty(m, byWire, ir.Property{WireName: "id", Secret: true, Provenance: ptrAt("/other")}, unread(t))
 
@@ -1291,6 +1292,7 @@ func TestReconcileProperty_AnInadmissibleValueIsKeptNotAdopted(t *testing.T) {
 		assert.Equal(t, merged[0].Type.Nullable, merged[1].Type.Nullable, "%s: nor the nullability", tc.name)
 	}
 	assertThreeDeclarationsKeepTheWritingOne(t)
+	assertEveryWriterOfARefusedValueIsKept(t)
 	assertRefusedValuesAreKeptAtTheirOwnDeclarations(t)
 }
 
@@ -1364,6 +1366,52 @@ func assertThreeDeclarationsKeepTheWritingOne(t *testing.T) {
 	}
 }
 
+// assertEveryWriterOfARefusedValueIsKept holds that two declarations giving a
+// refused value equal are both reported and kept in all six orders, the
+// narrowing one never, and that each pointer is the one its position gives.
+func assertEveryWriterOfARefusedValueIsKept(t *testing.T) {
+	t.Helper()
+	half, two := num("1.5"), num("2.5")
+	for _, kw := range []string{"default", "examples"} {
+		writer := func(name string) decl {
+			d := decl{kind: ir.PrimNumber, raw: `{"writer":"` + name + `"}`}
+			if kw == "default" {
+				d.def = &half
+			} else {
+				d.examples = []ir.Value{two}
+			}
+			return d
+		}
+		decls := map[string]decl{"a": writer("a"), "b": writer("b"), "c": {kind: ir.PrimInteger, raw: `{"type":"integer"}`}}
+		for _, order := range []string{"abc", "acb", "bac", "bca", "cab", "cba"} {
+			placed := make([]decl, 0, len(order))
+			want := ir.Unmodeled{}
+			var wantPtrs []jsontext.Pointer
+			for i, name := range order {
+				d := decls[string(name)]
+				d.ptr = jsontext.Pointer("/allOf/" + string(rune('0'+i)))
+				placed = append(placed, d)
+				if name != 'c' {
+					want[losingDeclarationKey+string(d.ptr)] = entry(d)[losingDeclarationKey+string(d.ptr)]
+					wantPtrs = append(wantPtrs, d.ptr)
+				}
+			}
+			label := kw + " " + order
+			got, diags := mergeDecls(t, placed...)
+			assert.Equal(t, primRef(ir.PrimInteger).Target, got.Type.Target, label)
+			assert.Nil(t, got.Default, label)
+			assert.Empty(t, got.Examples, label)
+			assert.Equal(t, want, got.Unmodeled, "%s: both writers are kept, and only they", label)
+			gotPtrs := make([]jsontext.Pointer, 0, len(diags))
+			for _, d := range diags {
+				gotPtrs = append(gotPtrs, d.Provenance.Pointer)
+				assert.Contains(t, d.Message, kw, label)
+			}
+			assert.ElementsMatch(t, wantPtrs, gotPtrs, "%s: and both are reported", label)
+		}
+	}
+}
+
 // assertRefusedValuesAreKeptAtTheirOwnDeclarations holds the grouping: one
 // info and one entry per declaration that wrote a refused value, a value
 // adopted from the narrow side's own declaration after a refusal moves the
@@ -1430,7 +1478,7 @@ func TestReconcileProperty_ARefusedValueFromAnIndexlessDeclarationIsReported(t *
 	half := num("1.5")
 	m := &ir.Model{Properties: []ir.Property{{WireName: "p", Type: primRef(ir.PrimNumber), Default: &half, Provenance: ptrAt("/a")}}}
 	at := origin{prov: ptrAt("/a")}
-	idx := &PropIndex{pos: map[string]int{"p": 0}, origins: map[string]*origins{"p": {def: at, examples: at}}}
+	idx := &PropIndex{byWire: map[string]*indexed{"p": {pos: 0, origins: origins{def: []origin{at}, examples: []origin{at}}}}}
 
 	g.MergeProperty(m, idx, ir.Property{WireName: "p", Type: primRef(ir.PrimInteger), Provenance: ptrAt("/b")}, unread(t))
 
@@ -1439,20 +1487,4 @@ func TestReconcileProperty_ARefusedValueFromAnIndexlessDeclarationIsReported(t *
 	assert.Equal(t, diag.UnpreservableConstruct, (*recorded)[1].Code)
 	assert.Contains(t, (*recorded)[1].Message, errNoSource.Error())
 	assert.Empty(t, m.Properties[0].Unmodeled)
-}
-
-// TestMergeProperty_AnIndexedPropertyWithNoOriginsStillFolds pins that a
-// position the index holds without origins is reconciled, its declarations
-// unlocated, rather than dereferenced.
-func TestMergeProperty_AnIndexedPropertyWithNoOriginsStillFolds(t *testing.T) {
-	t.Parallel()
-	g, recorded := stubMerger(narrowingRegistry())
-	m := &ir.Model{Properties: []ir.Property{{WireName: "p", Type: primRef(ir.PrimInteger), Provenance: ptrAt("/a")}}}
-	idx := &PropIndex{pos: map[string]int{"p": 0}, origins: map[string]*origins{}}
-
-	g.MergeProperty(m, idx, ir.Property{WireName: "p", Required: true, Type: primRef(ir.PrimInteger), Provenance: ptrAt("/b")}, unread(t))
-
-	assert.True(t, m.Properties[0].Required)
-	assert.Empty(t, *recorded)
-	assert.Contains(t, idx.origins, "p", "the origins are recorded for the next declaration")
 }

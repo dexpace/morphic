@@ -164,9 +164,8 @@ func isAbsoluteURI(s string) bool {
 	return err == nil && u.Scheme != ""
 }
 
-// uriBytesValid reports whether s is a scheme, a colon and then only bytes
-// RFC 3986 allows in a URI: unreserved, a gen-delim, a sub-delim, or a
-// percent-encoded octet.
+// uriBytesValid reports whether s is a scheme, a colon and then a tail
+// uriTailValid admits.
 func uriBytesValid(s string) bool {
 	if s == "" || !isLetter(s[0]) {
 		return false
@@ -178,14 +177,35 @@ func uriBytesValid(s string) bool {
 	if i == len(s) || s[i] != ':' {
 		return false
 	}
-	for i++; i < len(s); i++ {
-		switch {
-		case s[i] == '%':
-			if i+2 >= len(s) || !isHex(s[i+1]) || !isHex(s[i+2]) {
+	return uriTailValid(s[i+1:])
+}
+
+// uriTailValid reports whether rest, what follows a URI's scheme colon, holds
+// only bytes RFC 3986 allows: unreserved, a gen-delim, a sub-delim or a
+// percent-encoded octet. A bracket is allowed only in the authority (an
+// IP-literal host), and a fragment delimiter only once.
+func uriTailValid(rest string) bool {
+	authorityEnd := 0
+	if strings.HasPrefix(rest, "//") {
+		authorityEnd = 2 + strings.IndexAny(rest[2:]+"/", "/?#")
+	}
+	fragments := 0
+	for i := 0; i < len(rest); i++ {
+		switch c := rest[i]; {
+		case c == '%':
+			if i+2 >= len(rest) || !isHex(rest[i+1]) || !isHex(rest[i+2]) {
 				return false
 			}
 			i += 2
-		case !isLetter(s[i]) && !isDigit(s[i]) && strings.IndexByte("-._~:/?#[]@!$&'()*+,;=", s[i]) < 0:
+		case c == '[' || c == ']':
+			if i >= authorityEnd {
+				return false
+			}
+		case c == '#':
+			if fragments++; fragments > 1 {
+				return false
+			}
+		case !isLetter(c) && !isDigit(c) && strings.IndexByte("-._~:/?@!$&'()*+,;=", c) < 0:
 			return false
 		}
 	}

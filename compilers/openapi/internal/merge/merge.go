@@ -55,13 +55,18 @@ func WireNameIndex(props []ir.Property) map[string]int {
 type Source func() (ir.RawValue, error)
 
 // PropIndex finds, for each wire name of one Model, the position of the
-// property that holds it and the declarations its default and examples came
-// from. An origin's Source is what lets a declaration whose value the merge
+// property that holds it and every declaration that wrote its default and
+// examples. An origin's Source is what lets a declaration whose value the merge
 // refuses be kept verbatim beside the merged field, as a redeclaration is
 // (keepLosingDeclaration).
 type PropIndex struct {
-	pos     map[string]int
-	origins map[string]*origins
+	byWire map[string]*indexed
+}
+
+// indexed is one property's position in its Model and the origins of its values.
+type indexed struct {
+	pos int
+	origins
 }
 
 // origin is one declaration: where it was written and how to render it.
@@ -70,16 +75,17 @@ type origin struct {
 	source Source
 }
 
-// origins are the declarations a property's current default and examples came
-// from. They differ once a later declaration supplied what the first lacked.
+// origins are the declarations that wrote the default and the examples a
+// property holds now. A value two declarations gave equal has both listed, and
+// one a later declaration supplied what the first lacked has only that one.
 type origins struct {
-	def, examples origin
+	def, examples []origin
 }
 
 // NewPropIndex returns an empty index. A Model fills from empty, so every
 // property reaches it through MergeProperty.
 func NewPropIndex() *PropIndex {
-	return &PropIndex{pos: map[string]int{}, origins: map[string]*origins{}}
+	return &PropIndex{byWire: map[string]*indexed{}}
 }
 
 // MergeProperty appends p to m and records it in idx, or folds it into the
@@ -93,29 +99,37 @@ func NewPropIndex() *PropIndex {
 // construction at the one call site, which left nothing able to catch them
 // disagreeing.
 func (g *Merger) MergeProperty(m *ir.Model, idx *PropIndex, p ir.Property, source Source) {
-	if i, ok := idx.pos[p.WireName]; ok {
-		org := idx.origins[p.WireName]
-		if org == nil {
-			org = &origins{}
-			idx.origins[p.WireName] = org
-		}
-		g.reconcileProperty(&m.Properties[i], org, p, source)
+	if e, ok := idx.byWire[p.WireName]; ok {
+		g.reconcileProperty(&m.Properties[e.pos], &e.origins, p, source)
 		return
 	}
-	at := origin{prov: p.Provenance, source: source}
-	idx.pos[p.WireName] = len(m.Properties)
-	idx.origins[p.WireName] = &origins{def: at, examples: at}
+	at := []origin{{prov: p.Provenance, source: source}}
+	e := &indexed{pos: len(m.Properties)}
+	e.def, e.examples = at, at
+	idx.byWire[p.WireName] = e
 	m.Properties = append(m.Properties, p)
 }
 
-// adopted moves an origin to at for each of the default and examples that dst
-// holds now and did not before the fold.
-func (o *origins) adopted(dst *ir.Property, hadDefault, hadExamples bool, at origin) {
-	if !hadDefault && dst.Default != nil {
-		o.def = at
-	}
-	if !hadExamples && len(dst.Examples) != 0 {
-		o.examples = at
+// adopted moves each of the default and examples origins after a fold that
+// src took part in; had says whether dst held the keyword before it.
+func (o *origins) adopted(dst, src *ir.Property, hadDefault, hadExamples bool, at origin) {
+	o.def = moveOrigin(o.def, hadDefault, dst.Default != nil, reflect.DeepEqual(dst.Default, src.Default), at)
+	o.examples = moveOrigin(o.examples, hadExamples, len(dst.Examples) != 0, reflect.DeepEqual(dst.Examples, src.Examples), at)
+}
+
+// moveOrigin returns the writers of a value after src's fold. A value dst did
+// not hold but holds now was written by src alone; one dst held that src wrote
+// equal gains src as a writer; any other list is unchanged.
+func moveOrigin(list []origin, had, holds, equal bool, at origin) []origin {
+	switch {
+	case !holds:
+		return list
+	case !had:
+		return []origin{at}
+	case equal:
+		return append(slices.Clone(list), at)
+	default:
+		return list
 	}
 }
 
@@ -127,7 +141,7 @@ func (o *origins) adopted(dst *ir.Property, hadDefault, hadExamples bool, at ori
 //
 // What the fold cannot carry is reported where it is dropped, and the
 // redeclaration is kept whole beside the winner (keepLosingDeclaration). So is
-// a default or examples the narrower type refuses (judgeAdopted), at the
+// a default or examples the narrower type refuses (judgeAdopted), at every
 // declaration that wrote it.
 func (g *Merger) reconcileProperty(dst *ir.Property, org *origins, src ir.Property, source Source) {
 	pointer := src.Provenance.Pointer
@@ -164,7 +178,7 @@ func (g *Merger) reconcileProperty(dst *ir.Property, org *origins, src ir.Proper
 	if !dropped {
 		hadDefault, hadExamples := dst.Default != nil, len(dst.Examples) != 0
 		lost = g.foldShapeDetail(dst, &src) || lost
-		org.adopted(dst, hadDefault, hadExamples, origin{prov: src.Provenance, source: source})
+		org.adopted(dst, &src, hadDefault, hadExamples, origin{prov: src.Provenance, source: source})
 	}
 	lost = g.foldAnnotations(dst, &src) || lost
 	dst.Unmodeled = annotation.MergeUnmodeled(dst.Unmodeled, src.Unmodeled)
@@ -433,26 +447,27 @@ func (g *Merger) foldTypeTargets(dst, src *ir.Property) (dropped bool, nw narrow
 // merged field. Examples are judged as one keyword. A null is admitted where
 // the merged field is.
 //
-// srcLost says src is the declaration to keep verbatim. keptDst lists those to
-// keep when dst is the broader side: org says which declaration wrote each of
-// dst's values, since one adopted from a later declaration is not dst's own.
+// srcLost says src is to be kept verbatim. keptDst lists those to keep when dst
+// is the broader side: org says which declarations wrote each of dst's values,
+// each kept, since one adopted from a later declaration is not dst's own.
 func (g *Merger) judgeAdopted(dst, src *ir.Property, nw narrowing, org *origins) (srcLost bool, keptDst []origin) {
 	broad := nw.broad
 	if broad == nil {
 		return false, nil
 	}
-	own := origins{def: origin{prov: broad.Provenance}, examples: origin{prov: broad.Provenance}}
+	at := []origin{{prov: broad.Provenance}}
+	own := origins{def: at, examples: at}
 	if broad == dst {
 		own = *org
 	}
 	var refused []refusal
 	if d := broad.Default; d != nil && !admitted(nw.winner, dst.Type.Nullable, *d) {
 		broad.Default = nil
-		refused = append(refused, refusal{"default", own.def})
+		refused = appendRefusals(refused, "default", own.def)
 	}
 	if !examplesAdmitted(nw.winner, dst.Type.Nullable, broad.Examples) {
 		broad.Examples = nil
-		refused = append(refused, refusal{"examples", own.examples})
+		refused = appendRefusals(refused, "examples", own.examples)
 	}
 	for _, grp := range groupRefusals(refused) {
 		g.Report(ir.SeverityInfo, diag.DegradedConstruct, grp.at.prov.Pointer,
@@ -465,6 +480,14 @@ func (g *Merger) judgeAdopted(dst, src *ir.Property, nw narrowing, org *origins)
 		return len(keptDst) > 0, nil
 	}
 	return false, keptDst
+}
+
+// appendRefusals adds a refusal of keyword for each declaration that wrote it.
+func appendRefusals(refused []refusal, keyword string, writers []origin) []refusal {
+	for _, at := range writers {
+		refused = append(refused, refusal{keyword, at})
+	}
+	return refused
 }
 
 // refusal is a keyword the narrower type refused and the declaration that wrote it.
