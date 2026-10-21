@@ -208,7 +208,7 @@ func TestReplaceDocument_BadDocumentLeavesDestinationUntouched(t *testing.T) {
 			err := output.ReplaceDocument(dest, bigBadDoc(), tt.layout)
 
 			require.Error(t, err)
-			assert.ErrorContains(t, err, "marshal ir document")
+			assert.ErrorContains(t, err, fmt.Sprintf("replace output %q: marshal ir document", dest))
 			assert.Equal(t, existing, contentOf(t, dest), "a failed marshal must not truncate the destination")
 			assert.Equal(t, []string{"ir.json"}, entriesIn(t, filepath.Dir(dest)),
 				"a failed encode must leave no temporary file beside the destination")

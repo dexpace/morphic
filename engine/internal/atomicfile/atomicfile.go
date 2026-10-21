@@ -25,8 +25,9 @@ import (
 const newFilePerm fs.FileMode = 0o666
 
 // Replace atomically replaces path with what fill writes, through a temporary
-// file beside it, so the rename stays on one filesystem; fill's error is
-// joined with any failed cleanup. An empty path or a nil fill is refused first.
+// file beside it, so the rename stays on one filesystem. fill's error comes
+// back naming path, joined with any failed cleanup. An empty path or a nil
+// fill is refused first.
 //
 // Writing by rename needs path's directory to take a new entry, replaces a
 // symlink or FIFO at path, leaves other hard links the old content, and does
@@ -50,7 +51,7 @@ func replace(path string, fill func(io.Writer) error, chmod func(*renameio.Pendi
 		return err
 	}
 	if err := fill(f); err != nil {
-		return errors.Join(err, f.Cleanup())
+		return errors.Join(fmt.Errorf("replace output %q: %w", path, err), f.Cleanup())
 	}
 	if err := f.CloseAtomicallyReplace(); err != nil {
 		return errors.Join(fmt.Errorf("replace output %q: %w", path, err), f.Cleanup())

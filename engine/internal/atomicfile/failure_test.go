@@ -18,7 +18,8 @@ import (
 // temporary file instead of preparing the bytes first: the file exists before
 // fill is known to succeed, so a fill that fails, before writing or part way
 // through, must leave nothing beside the destination, leave the destination
-// alone, and surface its own error unwrapped.
+// alone, and surface its own error naming the destination, not the temporary
+// file a failed write names.
 func TestReplace_FillErrorLeavesDestinationUntouched(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -42,7 +43,8 @@ func TestReplace_FillErrorLeavesDestinationUntouched(t *testing.T) {
 			err := atomicfile.Replace(dest, tt.fill)
 
 			require.ErrorIs(t, err, errFill)
-			assert.EqualError(t, err, "fill refused", "fill's error comes back unwrapped")
+			assert.EqualError(t, err, fmt.Sprintf("replace output %q: fill refused", dest),
+				"fill's error comes back naming the destination")
 			assert.Equal(t, "PREVIOUS\n", contentOf(t, dest))
 			assert.Equal(t, fs.FileMode(0o640), modeOf(t, dest))
 			assert.Equal(t, []string{"ir.json"}, entriesIn(t, filepath.Dir(dest)),
