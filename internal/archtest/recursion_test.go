@@ -55,10 +55,6 @@ var loweringRecursions = [][]string{
 	// refuses past maxDynamicAnchorDepth or a spent node budget and records the
 	// refusal, so a caller learns the index is partial.
 	{"anchorWalk.walk", "anchorWalk.walkMapping"},
-	// Format detection's read of a root mapping's merge keys. A `<<` may name a
-	// mapping that merges another, so following one is following a chain the
-	// document's size does not bound. Bounded by maxMergeDepth.
-	{"probeFromMapping", "probeFromMerge"},
 	// Property lookup through a composition. Finding a property by wire name
 	// descends into a model's base and mixins, each of which is a model whose
 	// properties are looked up the same way.
@@ -477,8 +473,8 @@ func TestLoweringCallGraph_RecordsAMethodEdge(t *testing.T) {
 // GitHub #323 on the tree. Each edge names a method and so decides which
 // lowering runs; a graph resolving only the declaring method's own receiver
 // described every one as absent. The bases cover the shapes these packages
-// write: a constructor's local, a pointer parameter, a composite literal, a
-// multi-result bind.
+// write: a constructor's local, a pointer parameter, a composite literal; the
+// multi-result bind they no longer write is planted beside them.
 //
 // Not every selector reaches a node: anchorWalk.walkMapping reads its pairs
 // through w.view.MappingPairs, a method of a type nodeview declares, and no
@@ -488,14 +484,13 @@ func TestLoweringCallGraph_ResolvesAMethodOnAValue(t *testing.T) {
 	graph := loweringCallGraph(t)
 
 	edges := [][2]string{
-		{"dynamicAnchors", "anchorWalk.walk"},       // w := newAnchorWalk(…)
-		{"LowerService", "serviceGroups.finalize"},  // groups := newServiceGroups()
-		{"lowerPathItem", "serviceGroups.place"},    // a *serviceGroups parameter
-		{"lowerWebhooks", "serviceGroups.group"},    // the same, in the other caller
-		{"soleAnchorSite", "AnchorIndex.sites"},     // an *AnchorIndex parameter
-		{"dynamicHop", "AnchorIndex.sites"},         // the same, in the other caller
-		{"optionsFrom", "Options.withDefaults"},     // Options{}.withDefaults()
-		{"probeFromMapping", "sniffProbe.fillFrom"}, // probe, merges, err := …
+		{"dynamicAnchors", "anchorWalk.walk"},      // w := newAnchorWalk(…)
+		{"LowerService", "serviceGroups.finalize"}, // groups := newServiceGroups()
+		{"lowerPathItem", "serviceGroups.place"},   // a *serviceGroups parameter
+		{"lowerWebhooks", "serviceGroups.group"},   // the same, in the other caller
+		{"soleAnchorSite", "AnchorIndex.sites"},    // an *AnchorIndex parameter
+		{"dynamicHop", "AnchorIndex.sites"},        // the same, in the other caller
+		{"optionsFrom", "Options.withDefaults"},    // Options{}.withDefaults()
 	}
 	for _, e := range edges {
 		_, held := graph[e[0]]

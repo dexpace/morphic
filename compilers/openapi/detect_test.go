@@ -12,6 +12,8 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
+	"github.com/dexpace/morphic/compilers/openapi/internal/ynode"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -443,32 +445,68 @@ func TestDetect_ReadsAVersionKeyThroughAMergeKey(t *testing.T) {
 	}
 }
 
-// TestSniff_BoundsAMergeChain pins the bound on the one recursion this file has.
-// A merge key's value may be an alias to a mapping that merges another, so the
-// chain is a property of the document and not of its size, and an anchor may
-// name a mapping that reaches itself. The bound is what makes the walk finite;
-// what it costs is a version key buried deeper than any document writes one.
-func TestSniff_BoundsAMergeChain(t *testing.T) {
-	t.Parallel()
+// rootMergeChain writes a document whose root merges a chain of levels
+// anchored mappings, the innermost holding leaf, and writes own after the merge.
+func rootMergeChain(levels int, leaf, own string) []byte {
 	var b strings.Builder
-	for i := range maxMergeDepth + 2 {
-		fmt.Fprintf(&b, "l%d: &a%d\n", i, i)
-		if i == 0 {
-			b.WriteString("  openapi: 3.1.0\n")
-			continue
-		}
-		fmt.Fprintf(&b, "  <<: *a%d\n", i-1)
+	fmt.Fprintf(&b, "l0: &a0 {%s}\n", leaf)
+	for i := 1; i < levels; i++ {
+		fmt.Fprintf(&b, "l%d: &a%d {<<: *a%d}\n", i, i, i-1)
 	}
-	deep := b.String() + fmt.Sprintf("<<: *a%d\n", maxMergeDepth+1)
+	fmt.Fprintf(&b, "<<: *a%d\n%s", levels-1, own)
+	return []byte(b.String())
+}
 
-	probe, _, err := sniff([]byte(deep))
-	require.NoError(t, err, "a chain past the bound is declined, not failed")
-	assert.Empty(t, probe.OpenAPI, "past the bound the key is not followed to")
+// TestSniff_ReadsAMergeChainAsFarAsTheViewExpandsIt pins where the bound on
+// the root's merges lies, nodeview's, and what a read it cuts short answers. A
+// key past the bound may outrank what the read found, so the answer is
+// unknown, and Detect says the bound stopped it, unless the root's own pairs,
+// which outrank every merge, settle it.
+func TestSniff_ReadsAMergeChainAsFarAsTheViewExpandsIt(t *testing.T) {
+	t.Parallel()
+	const limit = nodeview.MergeDepthLimit
+	cases := map[string]struct {
+		src     []byte
+		version string
+		cut     bool
+	}{
+		"a chain the view expands": {rootMergeChain(limit, "openapi: 3.0.3", ""), "3.0.3", false},
+		"a chain past it":          {rootMergeChain(limit+1, "openapi: 3.0.3", ""), "", true},
+		"a version the root writes itself": {
+			rootMergeChain(limit+1, "openapi: 3.0.3", "openapi: 3.1.0\n"), "3.1.0", false},
+		"a merged version a deeper one may outrank": {
+			[]byte(string(rootMergeChain(limit+1, "openapi: 3.1.0", "")) + "s: &s {openapi: 3.0.3}\n"), "", true},
+		"a root writing no version and a swagger one": {
+			rootMergeChain(limit+1, "openapi: 3.0.3", "openapi: prose words\nswagger: '2.0'\n"), "", false},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			probe, _, err := sniff(tc.src)
+			require.NoError(t, err, "a read cut short is no parse failure")
+			assert.Equal(t, tc.cut, probe.Cut)
+			if tc.cut {
+				return
+			}
+			assert.Equal(t, tc.version, probe.OpenAPI)
+		})
+	}
+}
 
-	shallow := "l0: &a0\n  openapi: 3.1.0\n<<: *a0\n"
-	probe, _, err = sniff([]byte(shallow))
-	require.NoError(t, err)
-	assert.Equal(t, "3.1.0", probe.OpenAPI, "the bound must not refuse the depth a document writes")
+// TestDetect_AReadCutShortIsReported pins that the bound never passes for a
+// decline: the source may be this compiler's own, so detection says why it
+// could not tell.
+func TestDetect_AReadCutShortIsReported(t *testing.T) {
+	t.Parallel()
+	_, diags, ok := New().Detect(compilers.Source{
+		Path: "api.yaml", Data: rootMergeChain(nodeview.MergeDepthLimit+1, "openapi: 3.1.0", ""),
+	}, compilers.Options{})
+
+	assert.False(t, ok)
+	require.Len(t, diags, 1)
+	assert.Equal(t, diag.BudgetExceeded, diags[0].Code)
+	assert.Equal(t, ir.SeverityError, diags[0].Severity, "it is the whole reason the source went unclaimed")
+	assert.Contains(t, diags[0].Message, fmt.Sprint(nodeview.MergeDepthLimit))
 }
 
 // TestDecodeYAML_RefusesARootThatIsNoMapping pins the shape complaint. A source
@@ -595,34 +633,18 @@ func TestDecodeYAML_PassesOverWhatNamesNoVersion(t *testing.T) {
 	}
 }
 
-// TestProbeFromMapping_StopsAtTheBound reaches the bound at the mapping rather
-// than at the merge, which is the other of the two places the count is spent.
-// It is called directly because the depth a chain lands on is a property of the
-// chain, and pinning the bound through one is pinning the chain instead.
-func TestProbeFromMapping_StopsAtTheBound(t *testing.T) {
+// TestProbeVersion_RefusesAnAliasThatResolvedToNothing covers the guard on a
+// value nodeview could not dereference. A parser resolves every alias it
+// accepts, so the node is built here rather than parsed: the guard exists
+// because reading the value is what the next line does, and a nil there is a
+// panic in detection, which runs before the compiler has decided the bytes are
+// even its own.
+func TestProbeVersion_RefusesAnAliasThatResolvedToNothing(t *testing.T) {
 	t.Parallel()
-	var root yaml.Node
-	require.NoError(t, yaml.Unmarshal([]byte("base: &b\n  openapi: 3.1.0\n<<: *b\n"), &root))
-
-	spent, err := probeFromMapping(documentRoot(&root), 0, map[*yaml.Node]bool{})
-	require.NoError(t, err, "a walk that stops at the bound declines; it does not fail")
-	assert.Empty(t, spent.OpenAPI, "at the bound the merge is not followed")
-
-	within, err := probeFromMapping(documentRoot(&root), maxMergeDepth, map[*yaml.Node]bool{})
-	require.NoError(t, err)
-	assert.Equal(t, "3.1.0", within.OpenAPI, "the same mapping within the bound is read")
-}
-
-// TestProbeFromMerge_DeclinesAnAliasThatResolvedToNothing covers the guard on an
-// alias node carrying no target. A parser resolves every alias it accepts, so the
-// node is built here rather than parsed: the guard exists because dereferencing
-// the field is what the next line does, and a nil there is a panic in detection,
-// which runs before the compiler has decided the bytes are even its own.
-func TestProbeFromMerge_DeclinesAnAliasThatResolvedToNothing(t *testing.T) {
-	t.Parallel()
-	probe, err := probeFromMerge(&yaml.Node{Kind: yaml.AliasNode}, maxMergeDepth, map[*yaml.Node]bool{})
-	require.NoError(t, err)
-	assert.Empty(t, probe.OpenAPI)
+	root := ynode.Map(ynode.Scalar("openapi"), &yaml.Node{Kind: yaml.AliasNode})
+	_, err := probeFromMapping(root)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no value")
 }
 
 // breadthMergeDoc writes a document whose root merges one anchor k times, where
@@ -644,52 +666,12 @@ func breadthMergeDoc(k int) []byte {
 	return []byte(b.String())
 }
 
-// TestProbeFromMapping_EntersEachNodeOnce pins the mechanism that bounds the
-// walk, without a clock: the set records each anchored mapping the walk enters,
-// and a mapping already in it is not entered again.
-//
-// Re-entry cannot show in the finished set, which only re-marks keys it already
-// holds. So each case seeds one anchor as already entered; a real walk would
-// have read the version through it on the first visit, so seeded, the version
-// must go unread.
-func TestProbeFromMapping_EntersEachNodeOnce(t *testing.T) {
-	t.Parallel()
-	var root yaml.Node
-	require.NoError(t, yaml.Unmarshal(breadthMergeDoc(64), &root))
-	content := documentRoot(&root)
-	anchors := map[string]*yaml.Node{}
-	for _, child := range content.Content {
-		if child.Anchor != "" {
-			anchors[child.Anchor] = child
-		}
-	}
-	require.Len(t, anchors, 2, "the document anchors the two mappings the walk enters")
-
-	seen := map[*yaml.Node]bool{}
-	probe, err := probeFromMapping(content, maxMergeDepth, seen)
-	require.NoError(t, err)
-	assert.Equal(t, "3.1.0", probe.OpenAPI, "the version is still read")
-	for _, name := range []string{"a0", "a1"} {
-		assert.True(t, seen[anchors[name]], "the walk records %s once it has entered it", name)
-	}
-
-	for _, name := range []string{"a0", "a1"} {
-		t.Run("seeded "+name, func(t *testing.T) {
-			seeded := map[*yaml.Node]bool{anchors[name]: true}
-			got, err := probeFromMapping(content, maxMergeDepth, seeded)
-			require.NoError(t, err)
-			assert.Empty(t, got.OpenAPI, "a mapping already entered is not entered again")
-		})
-	}
-}
-
 // TestProbeFromMapping_CostIsLinearInMergeBreadth pins the bound GitHub #487
-// was about: maxMergeDepth limits how deep a merge chain is followed, not how
-// wide, and the walk used to enter an anchored mapping once per merge key
-// naming it. It counts allocations, not time, so load cannot move it, and
-// runs serially because AllocsPerRun measures the whole process. It sees
-// re-entry only because each entry allocates, so
-// TestProbeFromMapping_EntersEachNodeOnce pins the walk itself.
+// was about: the merge bound limits how deep a chain is followed, not how wide,
+// and a walk entering an anchored mapping once per merge key naming it costs
+// the product of the two. nodeview's memo is what keeps it a sum. It counts
+// allocations, not time, so load cannot move it, and runs serially because
+// AllocsPerRun measures the whole process.
 func TestProbeFromMapping_CostIsLinearInMergeBreadth(t *testing.T) {
 	for _, k := range []int{2000, 4000} {
 		var root yaml.Node
@@ -699,7 +681,7 @@ func TestProbeFromMapping_CostIsLinearInMergeBreadth(t *testing.T) {
 		var probe sniffProbe
 		var err error
 		allocs := testing.AllocsPerRun(1, func() {
-			probe, err = probeFromMapping(content, maxMergeDepth, map[*yaml.Node]bool{})
+			probe, err = probeFromMapping(content)
 		})
 		require.NoError(t, err)
 		require.Equal(t, "3.1.0", probe.OpenAPI,
