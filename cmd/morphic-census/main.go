@@ -95,8 +95,9 @@ func emitf(w io.Writer, format string, args ...any) {
 const usage = `usage:
   morphic-census <path>...
 
-Each path is a spec file or a directory of specs: every file in it that a
-registered compiler takes, excluding *.golden.* snapshots and dot-directories.
+Each path is a spec file or a directory of specs: every file in it a registered
+compiler claims, to compile, as a format it names, or as its own and broken,
+excluding *.golden.* snapshots and dot-directories.
 Every spec is compiled with the default options, and the facts its document sets
 are counted: the members of the IR's structs, the emptiness of each member whose
 empty value differs from its absence, and the values of its enumerations. The

@@ -56,10 +56,10 @@ func (t *Types) refuse(format string, args ...any) {
 // attempted: one call, so a compiler cannot take the registry without the
 // refusals beside it.
 //
-// A refusal is a compiler bug no source can produce — an empty ID or
-// coordinate, a nil node, a colliding derivation — which the compiler reports
-// rather than drops. A cancelled ctx stops the settling between settlements,
-// and leaves a registry the caller must not assemble.
+// A refusal is a compiler bug no source can produce, which the compiler
+// reports rather than drops; one made after Finish reaches no caller. A
+// cancelled ctx stops the settling between settlements, and leaves a registry
+// the caller must not assemble.
 func (t *Types) Finish(ctx context.Context) (ir.TypeRegistry, []ir.Diagnostic, []string) {
 	settled := t.settle(ctx)
 	return t.reg, settled, t.refused
