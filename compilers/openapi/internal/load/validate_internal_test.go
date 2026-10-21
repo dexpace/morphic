@@ -246,3 +246,23 @@ func TestJudgeSource_ReadsEveryObjectTheCompilerAdmits(t *testing.T) {
 	assert.Equal(t, diag.BudgetExceeded, got.diags[0].Code)
 	assert.Equal(t, ir.SeverityError, got.diags[0].Severity)
 }
+
+// TestJudgeSource_RefusesTheAnchorsNoReferenceCanName holds the table's grammar
+// for an anchor's name to the binder's, which reads a $ref's plain-name
+// fragment: the table refuses a $anchor exactly where a $ref to its name
+// resolves to nothing.
+func TestJudgeSource_RefusesTheAnchorsNoReferenceCanName(t *testing.T) {
+	t.Parallel()
+	for _, name := range []string{"a", "_a", "Z9", "a.b-c_d", "1a", "-a", ".a", "_", "a:b", "a/b", "é"} {
+		spec := "openapi: 3.1.0\ninfo: {title: T, version: '1'}\npaths: {}\ncomponents:\n  schemas:\n" +
+			"    A: {$anchor: '" + name + "', type: string}\n    B: {$ref: '#" + name + "'}\n"
+		_, diags, err := Load(t.Context(), 0, compilers.Source{Path: "a.yaml", Data: []byte(spec)}, Options{})
+		require.NoError(t, err)
+		refused, unresolved := false, false
+		for _, d := range diags {
+			refused = refused || d.Provenance.Pointer == "/components/schemas/A/$anchor"
+			unresolved = unresolved || d.Code == diag.UnresolvedRef
+		}
+		assert.Equal(t, unresolved, refused, "%q: %+v", name, diags)
+	}
+}

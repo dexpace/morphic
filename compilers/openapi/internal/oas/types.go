@@ -110,6 +110,9 @@ const (
 	// MediaRanges is a comma-separated list of media types, each specific or
 	// a wildcard range.
 	MediaRanges
+	// AnchorName is a name a $anchor or a $dynamicAnchor declares: a letter or
+	// '_', then letters, digits, '-', '_' and '.' (JSON Schema 2020-12 §8.2.2).
+	AnchorName
 )
 
 // Level is how firmly the specification states a rule.

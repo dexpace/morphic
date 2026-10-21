@@ -121,6 +121,7 @@ func describeFormat(format Format) string {
 		VersionNumber:     "a version number of the form major.minor.patch",
 		ServerURL:         "a URL reference, its variables aside",
 		MediaRanges:       "a comma-separated list of media types and media type ranges",
+		AnchorName:        "a name of a letter or '_', then letters, digits, '-', '_' and '.'",
 	}[format]
 }
 

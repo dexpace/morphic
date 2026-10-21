@@ -192,7 +192,9 @@ gives it no effect is [`allow-reserved-locations`](#allow-reserved-locations)' a
   `oas.TestCheck_EncodingsApplyWhereTheSpecificationSays`,
   `oas.TestCheck_AFindingIsMadeOnceWhereItIsPlaced`,
   `oas.TestCheck_RulesAnotherPackageOwnsAreNotApplied`,
+  `oas.TestCheck_AnAnchorIsANameJSONSchemaAdmits`,
   `oas.TestTable_EveryRowCitesTheSpecification`, `load.TestJudgeSource_PlacesEachFindingAtItsNode`,
+  `load.TestJudgeSource_RefusesTheAnchorsNoReferenceCanName`,
   `load.TestLoad_WhatAnAliasMountsIsReportedOnce`,
   `load.TestResolve_AnObjectReachedTwiceIsReportedOnce`,
   `openapi.TestCompile_AFindingInAnExternalDocumentKeepsItsRule`,
@@ -313,30 +315,31 @@ names nothing. Under an `$id` a pointer names a position of the resource, with n
 names the schema writing the `$id`; under none, `#` names the document's root. A plain-name
 fragment names the schema of that resource declaring it as its `$anchor` or `$dynamicAnchor`, and a
 URI an `$id` declares names that schema, as one a `$ref`'s document part names; a name or a URI two
-schemas declare names neither. Identifiers are read only where the OpenAPI grammar places a schema
-in the source, so one in an example, an extension, the fields beside a reference object's `$ref`, or
-another document declares none. An `$id` names the URI its part before the `#` resolves to
-against the base above it, by RFC 3986 where that base is a URI and as a `$ref`'s document is placed
-where it is a file's path, and identifiers match as RFC 3986 §6.2.2 normalizes them. One with a
-fragment that is not empty names none, as 2020-12 admits none, one naming the URI of the resource
+schemas declare names neither, and a name 2020-12's grammar refuses is declared by none
+([`validation`](#validation) reports it). Identifiers are read only where the OpenAPI grammar places
+a schema in the source, so one in an example, an extension, the fields beside a reference object's
+`$ref`, or another document declares none. An `$id` names the URI its part before the `#` resolves
+to against the base above it, by RFC 3986 where that base is a URI and as a `$ref`'s document is
+placed where it is a file's path, and identifiers match as RFC 3986 §6.2.2 normalizes them. One with
+a fragment that is not empty names none, as 2020-12 admits none, one naming the URI of the resource
 holding it starts no resource, and one naming the source, however spelled, returns to the
 document's. A URI no schema declares names the document at that URI, read as any other is: one read
 against an `$id` is the URI the `$id` makes of it, never the file of that name beside the source,
 and is judged for refusal as written while only relative paths moved its base, and as that URI once
-an absolute `$id` did. A pointer passing a reference object reads on where the resolver
-resolved that, in whichever document, and a `$ref` written in another document's content is read in
-that document. What a `$ref` lands on in another document lowers where that document declares it;
-one in the source lowers at the pointer the `$ref` spells. A use site takes what its schema `$ref`'s
-chain ends on — an annotation, a form body's parts, a file body or a discriminator — whichever
-documents the chain passes, as its type names that schema. An empty `$ref` names the document's
-root, which holds no schema, so a chain reaching one ends on none and lends nothing, as any chain
-that fails does, though the schema writing it keeps what it declares beside it. A YAML alias or
-merge key is a copy written where it is placed, so what it holds is read at that position, as the
-document's JSON places it, and raw YAML a schema `$ref` lands on, under an extension or in another
-document, is read as a schema. A schema position of the model holds the schema the parser built
-there, whatever its YAML, so a `$ref` to a component written as a string names that component, as it
-lowers. A key written twice in one mapping is read as its last occurrence, raw YAML included, as the
-parser's model reads one ([`duplicate-key`](../parser-library.md#duplicate-key)).
+an absolute `$id` did. A pointer passing a reference object reads on where the resolver resolved
+that, in whichever document, and a `$ref` written in another document's content is read in that
+document. What a `$ref` lands on in another document lowers where that document declares it; one in
+the source lowers at the pointer the `$ref` spells. A use site takes what its schema `$ref`'s chain
+ends on — an annotation, a form body's parts, a file body or a discriminator — whichever documents
+the chain passes, as its type names that schema. An empty `$ref` names the document's root, which
+holds no schema, so a chain reaching one ends on none and lends nothing, as any chain that fails
+does, though the schema writing it keeps what it declares beside it. A YAML alias or merge key is a
+copy written where it is placed, so what it holds is read at that position, as the document's JSON
+places it, and raw YAML a schema `$ref` lands on, under an extension or in another document, is read
+as a schema. A schema position of the model holds the schema the parser built there, whatever its
+YAML, so a `$ref` to a component written as a string names that component, as it lowers. A key
+written twice in one mapping is read as its last occurrence, raw YAML included, as the parser's
+model reads one ([`duplicate-key`](../parser-library.md#duplicate-key)).
 
 A reference that resolves to nothing — a pointer naming no node, a position holding no schema, a
 component its section does not hold, another document the compile may not read, a plain name or a

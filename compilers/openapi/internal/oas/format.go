@@ -35,6 +35,8 @@ func validFormat(format Format, s string) bool {
 		return validServerURL(s)
 	case MediaRanges:
 		return validMediaRanges(s)
+	case AnchorName:
+		return validAnchorName(s)
 	default:
 		return true
 	}
@@ -99,6 +101,21 @@ func validURI(s string) *url.URL {
 		return nil
 	}
 	return u
+}
+
+// validAnchorName reports whether s is a name a $anchor may declare. The binder
+// reads a $ref's plain-name fragment by the same grammar (bind.isAnchorName),
+// a test of the load phase holding the two together.
+func validAnchorName(s string) bool {
+	for i, c := range s {
+		switch {
+		case c >= 'a' && c <= 'z', c >= 'A' && c <= 'Z', c == '_':
+		case i > 0 && (c >= '0' && c <= '9' || c == '-' || c == '.'):
+		default:
+			return false
+		}
+	}
+	return s != ""
 }
 
 // validEmail reports whether s is a name, one @, and a domain, with no space.
