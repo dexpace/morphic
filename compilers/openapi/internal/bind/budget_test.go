@@ -349,7 +349,7 @@ func TestSpellings(t *testing.T) {
 			Reason: bind.NoResourceTarget, Detail: "u"},
 		"two or more schemas of the resource it names declare that name as their $anchor or $dynamicAnchor, " +
 			"so it names none of them": {Reason: bind.DuplicateAnchor},
-		"it names a $anchor in another document, whose identifiers are not read (GitHub #74)": {Reason: bind.AnchorUnread},
+		"it names a plain name in another document, whose identifiers are not read (GitHub #1049)": {Reason: bind.AnchorUnread},
 		"it names u against the base an $id gives, which no schema declares as its $id; an $id is an identifier, " +
 			"not a location, so no document is read for it": {Reason: bind.UnknownID, Detail: "u"},
 		"two or more schemas declare u as their $id, so it names none of them":                   {Reason: bind.DuplicateID, Detail: "u"},

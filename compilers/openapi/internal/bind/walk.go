@@ -58,8 +58,8 @@ func newFinder(d *docs, work *budget) *finder {
 
 // walk reads every position below r by the grammar, noting each schema
 // position that writes a $ref (a site), each discriminator mapping value that
-// can name a position (mapping), and what each of the source's reference
-// objects resolved to (a root to walk in turn). A node an alias places at
+// can name a position (mapping), and what each reference object resolved to
+// (a root to walk in turn). A node an alias places at
 // several positions is read at each, as the parser reads it. With mark, each
 // position read at a state is noted, so a later root inside one already read
 // is not read again; the source's own walk from its root, which reads

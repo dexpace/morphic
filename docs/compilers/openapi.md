@@ -362,7 +362,7 @@ references that closes on itself is [`reference-cycles`](#reference-cycles)'.
   `canary.TestBindingOracle_AgreesWithTheLibrary`
 - Status: partly built: an `encoding` entry naming no part of its body is dropped with no record
   (#604). Another document's identifiers are not read, so a plain name naming one of its resources
-  is reported unresolved (#74). An absolute-path `$ref` in a remote document is read as a local
+  is reported unresolved (#1049). An absolute-path `$ref` in a remote document is read as a local
   path (#936); a remote document can make the compiler request a private address (#937); and a
   remote document reaching a local file is refused naming only its last such `$ref` (#940). A
   reference object's pointer holding a character above U+FFFF is refused as malformed (#516), and an
@@ -1505,17 +1505,18 @@ under `no_ir_home`, each under `openapi:<keyword>` and each reported as an info
 identifies every type by a synthetic ID derived from its source pointer rather than by `$id` (§3),
 and describes one API surface rather than a resource graph, so it has no dialect axis and none is
 coming: each is kept verbatim under `openapi:<keyword>` (`out_of_scope`), with an info
-`openapi/degraded-construct` at it. `$id` is read besides, as the identifier, and the base URI, that
-a `$ref` resolves against ([`references`](#references)), and it stops a `$dynamicRef` expanding
-across it ([`dynamic-ref`](#dynamic-ref)); a reference to it lowers to the schema's type, whose ID
-its pointer gives, so nothing of the identifier reaches the IR beyond the verbatim copy. A
+`openapi/degraded-construct` at it. `$id` is read besides, where [`references`](#references) reads
+one, as the identifier, and the base URI, that a `$ref` resolves against, and it stops a
+`$dynamicRef` expanding across it ([`dynamic-ref`](#dynamic-ref)); a reference to it lowers to the
+schema's type, whose ID its pointer gives, so nothing of the identifier reaches the IR beyond the
+verbatim copy. A
 document's `jsonSchemaDialect`, the default `$schema` of its schemas, is kept on the Document the
 same way, every schema read in the OpenAPI dialect whatever it names. `$comment` is dropped outright
 — 2020-12 §8.3 forbids presenting it to end users, so no emitter may see it. `$dynamicAnchor` is
 consumed as a reference target rather than carried as content — it is what lets a `$dynamicRef`
 expand ([`dynamic-ref`](#dynamic-ref)), and a `$ref` naming it reads it as an `$anchor`. `$anchor`
-is consumed the same way: a `$ref` naming one resolves to the schema declaring it
-([`references`](#references)).
+is consumed the same way: a `$ref` naming one that [`references`](#references) reads resolves to the
+schema declaring it.
 
 - Cases: `dialect-keywords`
 - Codes: `openapi/degraded-construct`

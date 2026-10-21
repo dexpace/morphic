@@ -39,8 +39,8 @@ func (r resources) document(id DocID) resource {
 // $id names, and each plain name an $anchor or a $dynamicAnchor declares, by
 // the root of the resource it is declared in. Only the schemas the OpenAPI
 // grammar places are read, as JSON Schema 2020-12 §9.4.2 recognizes no
-// identifier anywhere else; another document's are not read until its schemas
-// are lowered (GitHub #74).
+// identifier anywhere else, so another document, which is raw YAML to the
+// binder, declares none (GitHub #1049).
 type identifiers struct {
 	// resources is every resource the source's walk reads in, the document's
 	// own first, which a walk's frame names by index.

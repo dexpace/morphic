@@ -326,7 +326,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "$id identifies or configures a JSON Schema resource rather than describing data; the IR models no such axis, so it is kept verbatim under Unmodeled and is read only as the identifier, and the base URI, that references resolve against",
+      "message": "$id identifies or configures a JSON Schema resource rather than describing data; the IR models no such axis, so it is kept verbatim under Unmodeled and is read only for reference resolution",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas//$id"

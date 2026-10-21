@@ -746,7 +746,7 @@ var DialectKeywords = []string{"$id", "$schema", "$vocabulary"}
 
 // dialectRead is what each dialect keyword is read for, beyond being kept.
 var dialectRead = map[string]string{
-	"$id":         "is read only as the identifier, and the base URI, that references resolve against",
+	"$id":         "is read only for reference resolution",
 	"$schema":     "is not honoured for reference resolution",
 	"$vocabulary": "is not honoured for reference resolution",
 }

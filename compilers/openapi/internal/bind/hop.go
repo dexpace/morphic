@@ -14,9 +14,10 @@ import (
 // resolve is where ref, written at site, reached along path, lands: in the
 // resource its document part names against the resource site is in
 // (resources.holding), at the position its fragment names there. schema says
-// whether site is read as a schema, as a $ref's is and a discriminator's
-// mapping value's is not: its own $id then counts, and the $defs rule reads
-// its own definitions.
+// whether site is read as a schema whatever the grammar reads it as, as a
+// $ref's is and a discriminator's mapping value's is not: its own $id then
+// counts, and a "#/$defs/..." pointer nothing answers says whether its own
+// definitions hold the name.
 func (b *binder) resolve(site Position, path []*yaml.Node, ref string, schema bool) Hop {
 	h := Hop{Ref: ref, Status: Unresolved}
 	uri, frag, _ := strings.Cut(ref, "#")

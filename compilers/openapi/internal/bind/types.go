@@ -121,7 +121,7 @@ const (
 	// resource it names declare, so it names none.
 	DuplicateAnchor
 	// AnchorUnread is a plain-name fragment naming a resource of another
-	// document, whose identifiers are not read (GitHub #74).
+	// document, whose identifiers are not read (GitHub #1049).
 	AnchorUnread
 	// UnknownID is a URI, resolved against a base an $id gives, that no schema
 	// declares as its $id. An $id is an identifier, not a location, so no
@@ -139,8 +139,9 @@ const (
 	NoDefinition
 	// OwnDefinition is a "#/$defs/..." pointer the $defs rule finds nothing
 	// for, which the schema writing it defines: its own definitions answer
-	// only where an $id makes it a resource of its own (definitions.ownResource),
-	// as OAS 3.1 reads one with none against the document.
+	// only where an $id makes it a resource of its own, whose root the pointer
+	// is then read from (resources.holding), as OAS 3.1 reads one with none
+	// against the document.
 	OwnDefinition
 	// RawDefinition is a "#/$defs/..." pointer the $defs rule finds nothing
 	// for, which raw YAML above it defines: raw YAML holds no schema of the
@@ -169,8 +170,9 @@ const (
 	Unpassable
 	// MergeBound is a read that stopped at a mapping merging through `<<`
 	// deeper than nodeview.MergeDepthLimit, so a key it needs may lie past the
-	// bound: one the pointer names, or an $id or a definition the $defs rule
-	// reads before the one that would answer.
+	// bound: one the pointer names, an $id that may give the base it is read
+	// against, an identifier it names, or a definition the $defs rule reads
+	// before the one that would answer.
 	MergeBound
 )
 
@@ -271,7 +273,7 @@ func (h Hop) Why() string {
 		return "two or more schemas of the resource it names declare that name as their $anchor or " +
 			"$dynamicAnchor, so it names none of them"
 	case AnchorUnread:
-		return "it names a $anchor in another document, whose identifiers are not read (GitHub #74)"
+		return "it names a plain name in another document, whose identifiers are not read (GitHub #1049)"
 	case UnknownID:
 		return "it names " + h.Detail + " against the base an $id gives, which no schema declares as its $id; " +
 			"an $id is an identifier, not a location, so no document is read for it"
