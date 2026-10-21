@@ -32,6 +32,10 @@ import (
 // ir-spec-matrix.md, addressed relative to this test file.
 const conformanceDir = "../../testdata/conformance/openapi"
 
+// witnessDoc is the file in the corpus directory that names the matrix rows each
+// spec witnesses. It is no spec, and internal/conformance reads it.
+const witnessDoc = "matrix.md"
+
 // TestConformance drives one minimal spec per OpenAPI-expressible capability
 // through the full compiler and asserts lossless capture: a focused
 // capability-specific assertion plus a byte-exact golden IR snapshot. Regenerate
@@ -83,7 +87,8 @@ func TestConformance_TableNamesEveryCorpusSpec(t *testing.T) {
 }
 
 // corpusSpecNames returns the base name of every spec in the corpus directory,
-// failing on any file that is neither a .yaml spec nor a golden beside one.
+// failing on any file that is neither a .yaml spec, a golden beside one nor the
+// witness document.
 //
 // The .yaml-only restriction is asserted rather than left to a narrower glob.
 // parseCorpus reads only "<name>.yaml", so a spec committed as .yml or .json
@@ -101,6 +106,7 @@ func corpusSpecNames(t *testing.T) []string {
 		name := e.Name()
 		require.False(t, e.IsDir(), "corpus directory holds a subdirectory %q; no sweep descends into one", name)
 		switch {
+		case name == witnessDoc: // names rows, not a spec
 		case strings.HasSuffix(name, ".golden.json"):
 			goldens = append(goldens, strings.TrimSuffix(name, ".golden.json"))
 		case strings.HasSuffix(name, ".yaml"):
@@ -120,142 +126,136 @@ func corpusSpecNames(t *testing.T) []string {
 }
 
 // conformanceCase pairs one corpus spec with the assertion that its capability
-// is captured losslessly, and with the ir-spec-matrix.md rows it witnesses.
+// is captured losslessly.
 //
-// rows may be empty: a spec pinning a construct the matrix has no row for, such
-// as a dialect keyword, needs none, since an invented row would make the matrix
-// describe the corpus. The contract runs row to spec, checked in
-// conformance_matrix_test.go; TestConformance_TableNamesEveryCorpusSpec covers
-// the reverse.
-//
-// Naming a row claims the golden shows that capability captured, which only a
-// person reading the golden can check. Touching a construct on the way to
-// another subject is not witnessing it.
+// Which ir-spec-matrix.md rows a spec witnesses is data, not a field here: it
+// lives in testdata/conformance/openapi/matrix.md, which a test outside this
+// package can read. A spec pinning a construct the matrix has no row for, such
+// as a dialect keyword, appears under no row there.
 type conformanceCase struct {
 	file   string
 	assert func(*testing.T, *ir.Document, []ir.Diagnostic)
-	rows   []string
 }
 
-// conformanceCases is the corpus table: one row per spec, each naming the file,
-// the assertion that reads it, and the matrix rows it witnesses.
+// conformanceCases is the corpus table: one row per spec, each naming the file
+// and the assertion that reads it.
 func conformanceCases() []conformanceCase {
 	return []conformanceCase{
-		{"named-types", assertNamedTypes, []string{"named-objects"}},
-		{"neutral-naming", assertNeutralNaming, []string{"wire-name-distinct"}},
-		{"empty-names", assertEmptyNames, []string{"wire-name-distinct"}},
-		{"inline-types", assertInlineTypes, []string{"inline-anonymous"}},
-		{"component-reuse", assertComponentReuse, []string{"named-objects", "inline-anonymous"}},
-		{"shared-response-across-status", assertSharedResponseAcrossStatus, []string{"named-objects", "inline-anonymous"}},
-		{"allof-inheritance", assertAllOfInheritance, []string{"inheritance"}},
-		{"allof-mixins", assertAllOfMixins, []string{"intersection"}},
-		{"allof-inline-merge", assertAllOfInlineMerge, []string{"intersection"}},
-		{"allof-required-only", assertAllOfRequiredOnly, []string{"intersection"}},
-		{"allof-oneof-cooccurrence", assertAllOfOneOfCooccurrence, []string{"intersection", "untagged-unions"}},
-		{"allof-inline-residue", assertAllOfInlineResidue, []string{"intersection"}},
-		{"allof-ref-branch-siblings", assertAllOfRefBranchSiblings, []string{"intersection", "untagged-unions"}},
-		{"allof-boolean-branch", assertAllOfBooleanBranch, []string{"intersection"}},
-		{"allof-conflicting-type", assertAllOfConflictingType, nil},
-		{"allof-position-constraints", assertAllOfPositionConstraints, []string{"intersection"}},
-		{"oneof-discriminated", assertOneOfDiscriminated, []string{"tagged-unions"}},
-		{"anyof-discriminated", assertAnyOfDiscriminated, []string{"tagged-unions"}},
-		{"discriminator-inheritance", assertDiscriminatorInheritance, []string{"tagged-unions", "inheritance"}},
-		{"discriminator-inline-subtype", assertDiscriminatorInlineSubtype, []string{"tagged-unions", "inheritance"}},
-		{"discriminator-default-mapping", assertDiscriminatorDefaultMapping, []string{"tagged-unions"}},
-		{"discriminator-transitive", assertDiscriminatorTransitive, []string{"tagged-unions", "inheritance"}},
-		{"discriminator-alias-mapping", assertDiscriminatorAliasMapping, []string{"tagged-unions"}},
-		{"discriminated-union-beside-model", assertDiscriminatedUnionBesideModel, []string{"tagged-unions", "inheritance"}},
-		{"nullable-union-discriminator", assertNullableUnionDiscriminator, []string{"tagged-unions", "optionality-vs-nullability"}},
-		{"unhomed-keywords", assertUnhomedKeywords, nil},
-		{"union-beside-ref", assertUnionBesideRef, []string{"untagged-unions"}},
-		{"codeclared-keywords", assertCoDeclaredKeywords, []string{"intersection", "literal-types", "enums-string"}},
-		{"codeclared-schema-content", assertCoDeclaredSchemaContent, nil},
-		{"anyof-untagged", assertAnyOfUntagged, []string{"untagged-unions"}},
-		{"negation-not", assertNegationNot, []string{"negation"}},
-		{"dependent-required", assertDependentRequired, nil},
-		{"dialect-keywords", assertDialectKeywords, nil},
-		{"dynamic-ref", assertDynamicRef, nil},
-		{"enum-string", assertEnumString, []string{"enums-string"}},
-		{"enum-numeric", assertEnumNumeric, []string{"enums-numeric"}},
-		{"empty-enum", assertEmptyEnum, nil},
-		{"missing-array-items", assertMissingArrayItems, nil},
-		{"scalar-format", assertScalarFormat, []string{"custom-scalars"}},
-		{"secret-format", assertSecretFormat, []string{"redaction"}},
-		{"encoding-byte", assertEncodingByte, []string{"encoding-hints"}},
-		{"content-vocabulary", assertContentVocabulary, []string{"encoding-hints"}},
-		{"xml-hints", assertXMLHints, nil},
-		{"nullability-four-states", assertNullabilityFourStates, []string{"optionality-vs-nullability"}},
-		{"nullable-30", assertNullable30, []string{"optionality-vs-nullability"}},
-		{"nullable-31-ref", assertNullable31Ref, []string{"optionality-vs-nullability"}},
-		{"nullable-enum-31", assertNullableEnum31, []string{"optionality-vs-nullability", "enums-string"}},
-		{"nullability-conjunction", assertNullabilityConjunction, []string{"optionality-vs-nullability"}},
-		{"null-only-union", assertNullOnlyUnion, []string{"optionality-vs-nullability"}},
-		{"defaults", assertDefaults, []string{"defaults"}},
-		{"yaml-timestamp-scalars", assertYAMLTimestampScalars, []string{"defaults", "literal-types"}},
-		{"constraints", assertConstraints, []string{"constraints"}},
-		{"numeric-precision", assertNumericPrecision, []string{"constraints", "defaults", "literal-types"}},
-		{"readonly-writeonly", assertReadOnlyWriteOnly, []string{"visibility"}},
-		{"recursive", assertRecursive, []string{"recursive-types"}},
-		{"maps", assertMaps, []string{"maps"}},
-		{"tuples-prefixitems", assertTuples, []string{"tuples", "tuple-rest", "positional-encoding"}},
-		{"literal-const", assertLiteralConst, []string{"literal-types"}},
-		{"tags-grouping", assertTagsGrouping, []string{"operation-grouping"}},
-		{"group-identity", assertGroupIdentity, []string{"operation-grouping"}},
-		{"param-identity", assertParamIdentity, []string{"http-binding"}},
-		{"enum-member-identity", assertEnumMemberIdentity, []string{"enums-string", "enums-numeric"}},
-		{"http-binding", assertHTTPBinding, []string{"http-binding"}},
-		{"param-styles", assertParamStyles, []string{"param-styles"}},
-		{"param-style-matrix", assertParamStyleMatrix, []string{"param-styles"}},
-		{"param-querystring", assertParamQuerystring, nil},
-		{"querystring-forbidden-keywords", assertQuerystringForbiddenKeywords, nil},
-		{"param-allowreserved-locations", assertParamAllowReservedLocations, nil},
-		{laterVersionCase, assertLaterVersionConstructs, nil},
-		{"param-xml-residue", assertParamXMLResidue, nil},
-		{"param-ref-inheritance", assertParamRefInheritance, []string{"defaults", "deprecation", "docs-summary-description"}},
-		{"header-content-schema", assertHeaderContentSchema, nil},
-		{"multi-content", assertMultiContent, []string{"multi-content"}},
-		{"multipart-encoding", assertMultipartEncoding, []string{"multipart-encoding"}},
-		{"file-body", assertFileBody, nil},
-		{"media-type-spelling", assertMediaTypeSpelling, []string{"multipart-encoding"}},
-		{"sequential-media", assertSequentialMedia, []string{"streaming-server"}},
-		{"streaming-media-30", assertStreamingMedia30, []string{"streaming-server"}},
-		{"streaming-media-31", assertStreamingMedia31, []string{"streaming-server", "streaming-client"}},
-		{"per-status-errors", assertPerStatusErrors, []string{"per-status-errors"}},
-		{"response-links", assertResponseLinks, nil},
-		{"webhooks", assertWebhooks, []string{"events-channels", "server-initiated-messages"}},
-		{"callbacks", assertCallbacks, []string{"callbacks"}},
-		{"inline-hoist-positions", assertInlineHoistPositions, []string{"inline-anonymous"}},
-		{"path-item-docs", assertPathItemDocs, []string{"docs-summary-description"}},
-		{"path-item-operations", assertPathItemOperations, []string{"http-binding"}},
-		{"path-item-anchored-key", assertPathItemAnchoredKey, nil},
-		{"path-item-ref-siblings", assertPathItemRefSiblings, nil},
-		{"deprecation", assertDeprecation, []string{"deprecation"}},
-		{"extension-promotion", assertExtensionPromotion, []string{"deprecation", "open-enums"}},
-		{"examples", assertExamples, []string{"examples"}},
-		{"docs-summary-desc", assertDocsSummaryDesc, []string{"docs-summary-description"}},
-		{"request-body-docs", assertRequestBodyDocs, []string{"docs-summary-description"}},
-		{"ref-site-docs", assertRefSiteDocs, []string{"docs-summary-description", "named-objects"}},
-		{"param-content-fields", assertParamContentFields, []string{"multi-content"}},
-		{"examples-32", assertExamples32, []string{"examples"}},
-		{"tags-grouping-32", assertTagsGrouping32, []string{"operation-grouping"}},
-		{"response-summary-32", assertResponseSummary32, []string{"docs-summary-description"}},
-		{"component-media-types-32", assertComponentMediaTypes32, nil},
-		{"xml-nodetype-32", assertXMLNodeType32, nil},
-		{"nested-encoding-32", assertNestedEncoding32, []string{"multipart-encoding"}},
-		{"unreferenced-components", assertUnreferencedComponents, nil},
-		{"self-uri", assertSelfURI, nil},
-		{"extensions-x", assertExtensionsX, []string{"vendor-extensions"}},
-		{"inline-annotations", assertInlineAnnotations, []string{"vendor-extensions", "inline-anonymous"}},
-		{"inline-residue", assertInlineResidue, []string{"inline-anonymous"}},
-		{"servers-variables", assertServersVariables, []string{"servers"}},
-		{"security-schemes", assertSecuritySchemes, []string{"auth-schemes"}},
-		{"oauth2-no-flow", assertOAuth2NoFlow, nil},
-		{"empty-required-values", assertEmptyRequiredValues, nil},
-		{"relaxed-required-fields", assertRelaxedRequiredFields, nil},
-		{"empty-request-content", assertEmptyRequestContent, nil},
-		{"oauth-flow-fields", assertOAuthFlowFields, []string{"auth-schemes"}},
-		{"reached-outside-model", assertReachedOutsideModel, nil},
-		{"security-or-and", assertSecurityOrAnd, []string{"per-op-auth"}},
+		{"named-types", assertNamedTypes},
+		{"neutral-naming", assertNeutralNaming},
+		{"empty-names", assertEmptyNames},
+		{"inline-types", assertInlineTypes},
+		{"component-reuse", assertComponentReuse},
+		{"shared-response-across-status", assertSharedResponseAcrossStatus},
+		{"allof-inheritance", assertAllOfInheritance},
+		{"allof-mixins", assertAllOfMixins},
+		{"allof-inline-merge", assertAllOfInlineMerge},
+		{"allof-required-only", assertAllOfRequiredOnly},
+		{"allof-oneof-cooccurrence", assertAllOfOneOfCooccurrence},
+		{"allof-inline-residue", assertAllOfInlineResidue},
+		{"allof-ref-branch-siblings", assertAllOfRefBranchSiblings},
+		{"allof-boolean-branch", assertAllOfBooleanBranch},
+		{"allof-conflicting-type", assertAllOfConflictingType},
+		{"allof-position-constraints", assertAllOfPositionConstraints},
+		{"oneof-discriminated", assertOneOfDiscriminated},
+		{"anyof-discriminated", assertAnyOfDiscriminated},
+		{"discriminator-inheritance", assertDiscriminatorInheritance},
+		{"discriminator-inline-subtype", assertDiscriminatorInlineSubtype},
+		{"discriminator-default-mapping", assertDiscriminatorDefaultMapping},
+		{"discriminator-transitive", assertDiscriminatorTransitive},
+		{"discriminator-alias-mapping", assertDiscriminatorAliasMapping},
+		{"discriminated-union-beside-model", assertDiscriminatedUnionBesideModel},
+		{"nullable-union-discriminator", assertNullableUnionDiscriminator},
+		{"unhomed-keywords", assertUnhomedKeywords},
+		{"union-beside-ref", assertUnionBesideRef},
+		{"codeclared-keywords", assertCoDeclaredKeywords},
+		{"codeclared-schema-content", assertCoDeclaredSchemaContent},
+		{"anyof-untagged", assertAnyOfUntagged},
+		{"negation-not", assertNegationNot},
+		{"dependent-required", assertDependentRequired},
+		{"dialect-keywords", assertDialectKeywords},
+		{"dynamic-ref", assertDynamicRef},
+		{"enum-string", assertEnumString},
+		{"enum-numeric", assertEnumNumeric},
+		{"empty-enum", assertEmptyEnum},
+		{"missing-array-items", assertMissingArrayItems},
+		{"scalar-format", assertScalarFormat},
+		{"secret-format", assertSecretFormat},
+		{"encoding-byte", assertEncodingByte},
+		{"content-vocabulary", assertContentVocabulary},
+		{"xml-hints", assertXMLHints},
+		{"nullability-four-states", assertNullabilityFourStates},
+		{"nullable-30", assertNullable30},
+		{"nullable-31-ref", assertNullable31Ref},
+		{"nullable-enum-31", assertNullableEnum31},
+		{"nullability-conjunction", assertNullabilityConjunction},
+		{"null-only-union", assertNullOnlyUnion},
+		{"defaults", assertDefaults},
+		{"yaml-timestamp-scalars", assertYAMLTimestampScalars},
+		{"constraints", assertConstraints},
+		{"numeric-precision", assertNumericPrecision},
+		{"readonly-writeonly", assertReadOnlyWriteOnly},
+		{"recursive", assertRecursive},
+		{"maps", assertMaps},
+		{"tuples-prefixitems", assertTuples},
+		{"literal-const", assertLiteralConst},
+		{"tags-grouping", assertTagsGrouping},
+		{"group-identity", assertGroupIdentity},
+		{"param-identity", assertParamIdentity},
+		{"enum-member-identity", assertEnumMemberIdentity},
+		{"http-binding", assertHTTPBinding},
+		{"param-styles", assertParamStyles},
+		{"param-style-matrix", assertParamStyleMatrix},
+		{"param-querystring", assertParamQuerystring},
+		{"querystring-forbidden-keywords", assertQuerystringForbiddenKeywords},
+		{"param-allowreserved-locations", assertParamAllowReservedLocations},
+		{laterVersionCase, assertLaterVersionConstructs},
+		{"param-xml-residue", assertParamXMLResidue},
+		{"param-ref-inheritance", assertParamRefInheritance},
+		{"header-content-schema", assertHeaderContentSchema},
+		{"multi-content", assertMultiContent},
+		{"multipart-encoding", assertMultipartEncoding},
+		{"file-body", assertFileBody},
+		{"media-type-spelling", assertMediaTypeSpelling},
+		{"sequential-media", assertSequentialMedia},
+		{"streaming-media-30", assertStreamingMedia30},
+		{"streaming-media-31", assertStreamingMedia31},
+		{"per-status-errors", assertPerStatusErrors},
+		{"response-links", assertResponseLinks},
+		{"webhooks", assertWebhooks},
+		{"callbacks", assertCallbacks},
+		{"inline-hoist-positions", assertInlineHoistPositions},
+		{"path-item-docs", assertPathItemDocs},
+		{"path-item-operations", assertPathItemOperations},
+		{"path-item-anchored-key", assertPathItemAnchoredKey},
+		{"path-item-ref-siblings", assertPathItemRefSiblings},
+		{"deprecation", assertDeprecation},
+		{"extension-promotion", assertExtensionPromotion},
+		{"examples", assertExamples},
+		{"docs-summary-desc", assertDocsSummaryDesc},
+		{"request-body-docs", assertRequestBodyDocs},
+		{"ref-site-docs", assertRefSiteDocs},
+		{"param-content-fields", assertParamContentFields},
+		{"examples-32", assertExamples32},
+		{"tags-grouping-32", assertTagsGrouping32},
+		{"response-summary-32", assertResponseSummary32},
+		{"component-media-types-32", assertComponentMediaTypes32},
+		{"xml-nodetype-32", assertXMLNodeType32},
+		{"nested-encoding-32", assertNestedEncoding32},
+		{"unreferenced-components", assertUnreferencedComponents},
+		{"self-uri", assertSelfURI},
+		{"extensions-x", assertExtensionsX},
+		{"inline-annotations", assertInlineAnnotations},
+		{"inline-residue", assertInlineResidue},
+		{"servers-variables", assertServersVariables},
+		{"security-schemes", assertSecuritySchemes},
+		{"oauth2-no-flow", assertOAuth2NoFlow},
+		{"empty-required-values", assertEmptyRequiredValues},
+		{"relaxed-required-fields", assertRelaxedRequiredFields},
+		{"empty-request-content", assertEmptyRequestContent},
+		{"oauth-flow-fields", assertOAuthFlowFields},
+		{"reached-outside-model", assertReachedOutsideModel},
+		{"security-or-and", assertSecurityOrAnd},
 	}
 }
 

@@ -270,6 +270,11 @@ func TestVerify_UsableDeclarationIsClean(t *testing.T) {
 	for _, kind := range ir.IDKinds() {
 		declaration[kind] = []string{"anon", "composed", "openapi", "path-prefix"}
 	}
-	got := irverify.Verify(&ir.Document{IRVersion: ir.IRVersion, IDSpaces: declaration})
+	got := irverify.Verify(&ir.Document{
+		IRVersion: ir.IRVersion,
+		IDSpaces:  declaration,
+		Sources:   oneSource(),
+		Services:  []ir.Service{fixtureService("openapi")},
+	})
 	assert.Empty(t, got)
 }

@@ -9,16 +9,18 @@ protocols.
 
 Legend: ✅ native concept · ⚠ expressible indirectly · — absent
 
-The **Key** column is the row's stable identifier, and it is read by machine as well as by eye:
-each conformance corpus spec names the keys it witnesses, and a test requires every row the
-OpenAPI column marks expressible to be witnessed by a spec or listed as not-yet-covered with a
-reason. Adding such a row fails that test until it is witnessed or excluded. Keys are therefore
-append-only in practice, and a golden snapshotting every key beside the capability it labels
-extends that to the rest of the table: renaming a key, deleting a row, or letting the two columns
-drift out of step is a diff a reviewer reads — including for the rows no spec names yet, which are
-the ones the next compiler will be first to bind to.
+The **Key** column is the row's stable identifier, and it is read by machine as well as by eye.
+Each format column is keyed too: its header ends in the name a compiler registers its format under,
+in code (`openapi`, `swagger`). Every column whose format has a registered compiler is held to its
+corpus: `testdata/conformance/<format>/matrix.md` names, for each row the column marks expressible,
+the specs that witness it or the reason none does yet, and a test requires an entry for every such
+row and for no other. Adding a row fails that test for each registered format until the row is
+witnessed or excluded. Keys are therefore append-only in practice, and a golden snapshotting every
+key beside the capability it labels extends that to the rest of the table: renaming a key, deleting
+a row, or letting the two columns drift out of step is a diff a reviewer reads — including for the
+rows no spec names yet, which are the ones the next compiler will be first to bind to.
 
-| Key | Capability | OpenAPI 3.x | Swagger 2.0 | TypeSpec | Smithy 2.0 | GraphQL | AsyncAPI | Protobuf | Erlang/OTP |
+| Key | Capability | OpenAPI 3.x `openapi` | Swagger 2.0 `swagger` | TypeSpec `typespec` | Smithy 2.0 `smithy` | GraphQL `graphql` | AsyncAPI `asyncapi` | Protobuf `protobuf` | Erlang/OTP `erlang` |
 |---|---|---|---|---|---|---|---|---|---|
 | `named-objects` | Named object types | ✅ components.schemas | ✅ definitions | ✅ model | ✅ structure | ✅ type/input | ✅ schemas | ✅ message | ✅ -record/-type |
 | `inline-anonymous` | Inline/anonymous types | ✅ | ✅ | ✅ | — (all named) | ⚠ | ✅ | ⚠ nested | ✅ type exprs |

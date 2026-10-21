@@ -43,6 +43,47 @@ func TestCheck_EmptySpecIsErrorNotPanic(t *testing.T) {
 	assert.Contains(t, r.Detail, "empty spec")
 }
 
+// TestCheck_SourceNoRegisteredCompilerTakesIsUnrecognized pins the outcome of a
+// source that reaches no compiler, and what its Detail says. A Swagger 2.0
+// document is recognized by the OpenAPI compiler and served by none, so the
+// harness names the format; text nobody recognizes, an empty source included,
+// can only say so.
+func TestCheck_SourceNoRegisteredCompilerTakesIsUnrecognized(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, data, want string
+	}{
+		{"a format recognized and not served", swagger2, "no registered compiler serves swagger@2.0"},
+		{"text nothing recognizes", "just some words\n", "no registered compiler recognizes the source"},
+		{"an empty source", "", "no registered compiler recognizes the source"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			r := harness.Check(context.Background(), "spec", []byte(tc.data))
+			assert.Equal(t, harness.OutcomeUnrecognized, r.Outcome, r.Detail)
+			assert.Contains(t, r.Detail, tc.want)
+		})
+	}
+}
+
+// TestCheck_SpecOfACompilerThatDeclinesItIsAnErrorDiagnostic pins that a
+// compiler's own account of a source it cannot read classifies as any other
+// refusal does, rather than as unrecognized: the spec is the compiler's and
+// broken.
+func TestCheck_SpecOfACompilerThatDeclinesItIsAnErrorDiagnostic(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ name, data string }{
+		{"declined at detection", brokenOpenAPI},
+		{"refused at compile", testspec.BadHeader},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			r := harness.Check(context.Background(), "spec", []byte(tc.data))
+			assert.Equal(t, harness.OutcomeErrorDiag, r.Outcome, r.Detail)
+		})
+	}
+}
+
 func TestReport_IsStableAndSorted(t *testing.T) {
 	t.Parallel()
 	results := []harness.Result{

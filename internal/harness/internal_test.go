@@ -1,6 +1,7 @@
 package harness
 
 import (
+	"bytes"
 	"context"
 	"encoding/json/v2"
 	"errors"
@@ -12,9 +13,26 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/engine"
+	"github.com/dexpace/morphic/internal/testspec"
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/ir/irverify"
 )
+
+// emptySHA256 is the SHA-256 of zero bytes in lowercase hex, the digest a
+// source table entry carries.
+const emptySHA256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+// tables returns the source table and service every compiled document carries,
+// and the namespaces their IDs and the fixtures' types live in, so a stub
+// document reaches the oracle it is named for rather than the checks of the
+// tables.
+func tables() ([]ir.SourceInfo, []ir.Service, map[string][]string) {
+	return []ir.SourceInfo{{Format: "openapi@3.1", Path: "api.yaml", Hash: emptySHA256}},
+		[]ir.Service{{ID: "s/x/S", Name: ir.Naming{Source: "svc", Canonical: "svc"}}},
+		map[string][]string{ir.IDKindType: {"x"}, ir.IDKindService: {"x"}}
+}
 
 // badExtDoc returns a document that cannot be marshalled: its Unmodeled holds
 // an ir.RawValue with malformed bytes, which the encoder refuses when it writes
@@ -44,7 +62,8 @@ func badExtDoc() *ir.Document {
 // node is a defect of its own.
 func dupKeyDoc() *ir.Document {
 	named := ir.Naming{Source: "node", Canonical: "node"}
-	return &ir.Document{IRVersion: ir.IRVersion, IDSpaces: map[string][]string{ir.IDKindType: {"x"}}, Types: ir.TypeRegistry{
+	sources, services, spaces := tables()
+	return &ir.Document{IRVersion: ir.IRVersion, IDSpaces: spaces, Sources: sources, Services: services, Types: ir.TypeRegistry{
 		ir.TypeID("t/x/\xff"): &ir.Any{ID: "t/x/\xff", Name: named},
 		ir.TypeID("t/x/\xfe"): &ir.Any{ID: "t/x/\xfe", Name: named},
 	}}
@@ -65,17 +84,21 @@ func cyclicDoc() *ir.Document {
 }
 
 // soundDoc returns a minimal, structurally-sound document: one model keyed by its
-// own ID with a neutral canonical name, stamped with the IR schema version this
-// build writes and declaring its one namespace. It has no violations and
-// round-trips through JSON cleanly, so the oracles reach the step under test.
+// own ID with a neutral canonical name, a service and a source, stamped with the
+// IR schema version this build writes and declaring its namespaces. It has no
+// violations and round-trips through JSON cleanly, so the oracles reach the step
+// under test.
 func soundDoc() *ir.Document {
 	m := &ir.Model{
 		ID:   "t/x/Model",
 		Name: ir.Naming{Source: "Model", Canonical: "model"},
 	}
+	sources, services, spaces := tables()
 	return &ir.Document{
 		IRVersion: ir.IRVersion,
-		IDSpaces:  map[string][]string{ir.IDKindType: {"x"}},
+		IDSpaces:  spaces,
+		Sources:   sources,
+		Services:  services,
 		Types:     ir.TypeRegistry{m.ID: m},
 	}
 }
@@ -326,12 +349,11 @@ func TestCheck_NondeterministicOutcome(t *testing.T) {
 	assert.Equal(t, OutcomeNondeterministic, r.Outcome)
 }
 
-func TestIsSpecFile_Extensions(t *testing.T) {
-	assert.True(t, isSpecFile("api.yaml"))
-	assert.True(t, isSpecFile("api.yml"))
-	assert.True(t, isSpecFile("api.json"))
-	assert.False(t, isSpecFile("ir.golden.json"), "golden IR snapshots are skipped")
-	assert.False(t, isSpecFile("notes.txt"), "a non-spec extension is skipped")
+func TestIsSnapshot_Names(t *testing.T) {
+	assert.True(t, isSnapshot("ir.golden.json"), "golden IR snapshots are skipped")
+	assert.True(t, isSnapshot("unwitnessed.golden.txt"), "whatever their extension")
+	assert.False(t, isSnapshot("api.yaml"))
+	assert.False(t, isSnapshot("golden.yaml"), "the marker is a name part, not any name containing the word")
 }
 
 func TestCheckFile_ReadErrorOnDirectory(t *testing.T) {
@@ -346,16 +368,19 @@ func TestListDir_WalkErrorPropagates(t *testing.T) {
 	// SpecFiles stats its path first, so a walk that fails is reached here, with
 	// a directory that does not exist: WalkDir invokes the callback with a
 	// non-nil error, which listDir wraps and returns.
-	files, err := listDir(filepath.Join(t.TempDir(), "absent"))
+	reg, err := newRegistry()
+	require.NoError(t, err)
+
+	files, err := listDir(context.Background(), reg, filepath.Join(t.TempDir(), "absent"))
 	require.Error(t, err)
 	assert.Nil(t, files)
 	assert.Contains(t, err.Error(), "harness: walk")
 }
 
 func TestCheckPath_UnreadableSpecInADirectoryErrors(t *testing.T) {
-	// A broken symlink named like a spec is listed as a non-directory spec file,
-	// but reading it fails when the link target is followed. The sweep aborts
-	// with that error rather than a silent skip.
+	// A broken symlink cannot be read to decide whether a compiler takes it. The
+	// sweep aborts with that error rather than a silent skip, since a file it
+	// passed over would be one it never checked.
 	dir := t.TempDir()
 	link := filepath.Join(dir, "spec.yaml")
 	require.NoError(t, os.Symlink(filepath.Join(dir, "no-such-target"), link))
@@ -364,4 +389,207 @@ func TestCheckPath_UnreadableSpecInADirectoryErrors(t *testing.T) {
 	require.Error(t, err)
 	assert.Nil(t, results)
 	assert.Contains(t, err.Error(), "harness: read")
+}
+
+// stubFormat is the format stubCompiler serves, one the engine does not carry.
+var stubFormat = compilers.SourceFormat{Name: "stub", Version: "1.0"}
+
+// stubCompiler is a compiler the engine does not register. It takes any source
+// that mentions its marker, and lower stands for its lowering.
+type stubCompiler struct {
+	lower func(sources []compilers.Source) (*ir.Document, []ir.Diagnostic, error)
+}
+
+func (stubCompiler) Formats() []compilers.SourceFormat {
+	return []compilers.SourceFormat{stubFormat}
+}
+
+func (stubCompiler) Detect(src compilers.Source, _ compilers.Options) (compilers.Recognition, []ir.Diagnostic, bool) {
+	if !bytes.Contains(src.Data, []byte("stub:")) {
+		return compilers.Recognition{}, nil, false
+	}
+	return compilers.Recognition{Format: stubFormat}, nil, true
+}
+
+func (stubCompiler) DecodeOptions(compilers.OptionSet) (any, error) { return nil, nil }
+
+func (stubCompiler) SourceTable(sources []compilers.Source, _ compilers.Options) []ir.SourceInfo {
+	return []ir.SourceInfo{{Path: sources[0].Path}}
+}
+
+func (c stubCompiler) Compile(_ context.Context, sources []compilers.Source, _ compilers.Options) (*ir.Document, []ir.Diagnostic, error) {
+	return c.lower(sources)
+}
+
+// stubDocument is a sound document for the one source, naming the first key of
+// its text as a model, so a lowering that reads it reads the mapping's order.
+func stubDocument(sources []compilers.Source, byFirstKey bool) *ir.Document {
+	doc := soundDoc()
+	doc.Sources = []ir.SourceInfo{{
+		Format: stubFormat.String(), Path: sources[0].Path, Hash: ir.SourceHash(sources[0].Data),
+	}}
+	if byFirstKey {
+		key, _, _ := strings.Cut(string(sources[0].Data), ":")
+		id := ir.TypeID("t/x/" + key)
+		doc.Types = ir.TypeRegistry{id: &ir.Model{ID: id, Name: ir.Naming{Source: key, Canonical: key}}}
+	}
+	return doc
+}
+
+// stubSource is a source of the stub's, written as a YAML mapping so the order
+// oracle has entries to permute.
+const stubSource = "stub: 1\na: x\nb: y\n"
+
+// withCompilers makes sweeps compile with the engine's built-ins and extra for
+// the rest of the test.
+func withCompilers(t *testing.T, extra ...compilers.Compiler) {
+	t.Helper()
+	replaceRegistered(t, func() []compilers.Compiler { return append(engine.Compilers(), extra...) })
+}
+
+// replaceRegistered makes sweeps compile with the set f gives, for the rest of
+// the test.
+func replaceRegistered(t *testing.T, f func() []compilers.Compiler) {
+	t.Helper()
+	orig := registered
+	t.Cleanup(func() { registered = orig })
+	registered = f
+}
+
+// TestCheck_ASecondRegisteredCompilerIsSweptWithEveryOracle is the point of
+// compiling through the registry: a compiler added beside the built-ins gets its
+// files listed, compiled and put through the oracles with no change to the
+// harness. The order oracle is the last of them, so reaching it shows the rest
+// were passed.
+func TestCheck_ASecondRegisteredCompilerIsSweptWithEveryOracle(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		byFirstKey bool
+		want       Outcome
+	}{
+		{"a lowering independent of mapping order", false, OutcomeOK},
+		{"a lowering that reads mapping order", true, OutcomeOrderDependent},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			withCompilers(t, stubCompiler{lower: func(sources []compilers.Source) (*ir.Document, []ir.Diagnostic, error) {
+				return stubDocument(sources, tc.byFirstKey), nil, nil
+			}})
+			dir := t.TempDir()
+			spec := filepath.Join(dir, "api.stub")
+			require.NoError(t, os.WriteFile(spec, []byte(stubSource), 0o600))
+
+			files, err := SpecFiles(context.Background(), dir)
+			require.NoError(t, err)
+			require.Equal(t, []string{spec}, files, "the stub's file is listed by its claim, not its extension")
+
+			results, err := CheckPath(context.Background(), dir)
+			require.NoError(t, err)
+			require.Len(t, results, 1)
+			assert.Equal(t, tc.want, results[0].Outcome, results[0].Detail)
+		})
+	}
+}
+
+// TestCheck_CompileFaultsAreErrorOutcomes covers what stops a compile before an
+// oracle can ask anything of it: a compiler that fails, one that breaks the
+// compiler contract, a registry that cannot be built, and a canceled context.
+func TestCheck_CompileFaultsAreErrorOutcomes(t *testing.T) {
+	refuse := func([]compilers.Source) (*ir.Document, []ir.Diagnostic, error) { return nil, nil, nil }
+	fail := func([]compilers.Source) (*ir.Document, []ir.Diagnostic, error) {
+		return nil, nil, errors.New("lowering boom")
+	}
+
+	for _, tc := range []struct {
+		name     string
+		canceled bool
+		extra    []compilers.Compiler
+		want     string
+	}{
+		{"a compiler that fails", false, []compilers.Compiler{stubCompiler{lower: fail}}, "lowering boom"},
+		{"a refusal that says nothing", false, []compilers.Compiler{stubCompiler{lower: refuse}}, compilers.ErrContract.Error()},
+		{"a nil compiler", false, []compilers.Compiler{nil}, "harness: register compiler 1"},
+		{"a format registered twice", false, []compilers.Compiler{openapiLike{}}, "already registered"},
+		{"a canceled context", true, nil, "harness: detect"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			withCompilers(t, tc.extra...)
+			ctx, cancel := context.WithCancel(context.Background())
+			t.Cleanup(cancel)
+			if tc.canceled {
+				cancel()
+			}
+
+			r := Check(ctx, "spec", []byte(stubSource))
+			assert.Equal(t, OutcomeError, r.Outcome, r.Detail)
+			assert.Contains(t, r.Detail, tc.want)
+		})
+	}
+}
+
+// openapiLike claims a format the built-in compiler already serves.
+type openapiLike struct{ stubCompiler }
+
+func (openapiLike) Formats() []compilers.SourceFormat {
+	return []compilers.SourceFormat{{Name: "openapi", Version: "3.1"}}
+}
+
+func TestSpecFiles_AnEmptyCompilerSetIsAnError(t *testing.T) {
+	replaceRegistered(t, func() []compilers.Compiler { return nil })
+
+	files, err := SpecFiles(context.Background(), t.TempDir())
+	require.Error(t, err)
+	assert.Nil(t, files)
+	assert.Contains(t, err.Error(), "no compilers registered")
+}
+
+// namelessClaim recognizes every source and names no dialect for it, which the
+// registry refuses as a breach of the compiler contract.
+type namelessClaim struct{ stubCompiler }
+
+func (namelessClaim) Detect(compilers.Source, compilers.Options) (compilers.Recognition, []ir.Diagnostic, bool) {
+	return compilers.Recognition{}, nil, true
+}
+
+// TestSpecFiles_ABreachDetectionFindsIsAnError holds listing to the contract as
+// compiling is held to it: a compiler whose claim names nothing is its own fault,
+// reported rather than read as a file that is not a spec.
+func TestSpecFiles_ABreachDetectionFindsIsAnError(t *testing.T) {
+	withCompilers(t, namelessClaim{})
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "api.txt"), []byte("words"), 0o600))
+
+	files, err := SpecFiles(context.Background(), dir)
+	require.ErrorIs(t, err, compilers.ErrContract)
+	assert.Nil(t, files)
+	assert.Contains(t, err.Error(), "harness: detect")
+}
+
+func TestSpecFiles_AFileThatCannotBeReadIsAnError(t *testing.T) {
+	orig := readSpecFile
+	t.Cleanup(func() { readSpecFile = orig })
+	readSpecFile = func(string) ([]byte, error) { return nil, errors.New("read boom") }
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "api.yaml"), []byte(testspec.Minimal), 0o600))
+
+	files, err := SpecFiles(context.Background(), dir)
+	require.Error(t, err)
+	assert.Nil(t, files)
+	assert.Contains(t, err.Error(), "harness: read")
+	assert.Contains(t, err.Error(), "read boom")
+}
+
+// TestCheck_AFindingOnTheDocumentAloneIsRead pins that the sweep reads both of
+// a compiler's channels: one storing its error on the document alone is
+// classified by it, as the engine judges the run by it.
+func TestCheck_AFindingOnTheDocumentAloneIsRead(t *testing.T) {
+	withCompilers(t, stubCompiler{lower: func(sources []compilers.Source) (*ir.Document, []ir.Diagnostic, error) {
+		doc := stubDocument(sources, false)
+		doc.Diagnostics = []ir.Diagnostic{ir.NewDiagnostic(ir.SeverityError, "stub/broken", "stored only", ir.Provenance{})}
+		return doc, nil, nil
+	}})
+
+	r := Check(context.Background(), "spec", []byte(stubSource))
+
+	assert.Equal(t, OutcomeErrorDiag, r.Outcome, r.Detail)
+	assert.Contains(t, r.Detail, "stub/broken")
 }

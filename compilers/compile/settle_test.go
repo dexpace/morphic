@@ -45,6 +45,38 @@ func TestTypes_SettleTakesEachDeferredSettlementOnceInOrder(t *testing.T) {
 	assert.Empty(t, types.Violations())
 }
 
+// TestTypes_FinishReportsEveryRefusalWithTheRegistry pins the one hand-over a
+// compiler gets: the live registry the Document holds, settled, and one list to
+// report, what settling said and then an error for each entry refused, so the
+// refusals cannot be taken apart from what the compiler reports anyway.
+func TestTypes_FinishReportsEveryRefusalWithTheRegistry(t *testing.T) {
+	t.Parallel()
+	types := compile.NewTypes()
+	types.Intern("/p", "t/x", func() ir.TypeDef { return &ir.Model{ID: "t/x"} })
+	types.Register("", &ir.Any{})
+	types.Defer(settleFunc(func(reg ir.TypeRegistry) []ir.Diagnostic {
+		reg["t/x"].Common().Docs.Description = "settled"
+		return []ir.Diagnostic{{Code: "settled"}}
+	}))
+
+	reg, diags := types.Finish(t.Context())
+
+	require.Contains(t, reg, ir.TypeID("t/x"))
+	assert.Equal(t, "settled", reg["t/x"].Common().Docs.Description, "the registry comes back settled")
+	require.Len(t, diags, 2)
+	assert.Equal(t, ir.Diagnostic{Code: "settled"}, diags[0], "what settling reported comes first")
+	refusal := diags[1]
+	assert.Equal(t, compile.RegistryRefused, refusal.Code)
+	assert.Equal(t, ir.SeverityError, refusal.Severity)
+	assert.Equal(t, ir.Provenance{Source: ir.NoSource}, refusal.Provenance, "a compiler bug locates nothing in a source")
+	assert.Contains(t, refusal.Message, "empty type id")
+
+	types.Defer(settleFunc(func(ir.TypeRegistry) []ir.Diagnostic { return nil }))
+	_, again := types.Finish(t.Context())
+	require.Len(t, again, 1, "a refusal already reported is not reported again")
+	assert.Contains(t, again[0].Message, "defer rejected", "a deferral after finishing is refused, and a later Finish says so")
+}
+
 // TestTypes_SettleStopsBetweenSettlementsOnCancellation pins that Settle
 // honours ctx as the walks do: once it is done, no further settlement is
 // taken, and what the ones before it reported is returned.

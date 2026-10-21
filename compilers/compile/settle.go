@@ -9,7 +9,7 @@ import (
 // A Settlement is a decision about a node that reads nodes other lowerings
 // intern. A walk lowers one declaration at a time, so mid-walk such a decision
 // would read whatever had been lowered so far, and its answer would follow
-// declaration order (invariant 3). Deferred to Settle, it reads the registry
+// declaration order (invariant 3). Deferred to Finish, it reads the registry
 // whole.
 //
 // Settle may rewrite nodes already in reg but must not add or remove one:
@@ -19,8 +19,8 @@ type Settlement interface {
 	Settle(reg ir.TypeRegistry) []ir.Diagnostic
 }
 
-// Defer queues s for Settle. One deferred once Settle has run would never be
-// taken, and a nil one cannot be, so both are refused.
+// Defer queues s for Finish to settle. A nil settlement cannot be taken and is
+// refused, as is one deferred after Finish, which would never be.
 func (t *Types) Defer(s Settlement) {
 	if t.settled {
 		t.refuse("defer rejected: the registry has already settled")
@@ -33,15 +33,15 @@ func (t *Types) Defer(s Settlement) {
 	t.pending = append(t.pending, s)
 }
 
-// Settle takes every deferred Settlement once, in the order deferred, and
-// returns their diagnostics. A compiler calls it after its last lowering
-// returns. Like the walks, it checks ctx before each settlement and stops once
-// it is done, leaving a registry the caller must not assemble. A settlement
-// that changes how many nodes the registry holds is refused, and what it did is
-// left standing: the refusal names a compiler bug, not a recovery. A swap of
-// one node for another keeps the count, so the references it leaves dangling
-// are left to pass.Validate and irverify.
-func (t *Types) Settle(ctx context.Context) []ir.Diagnostic {
+// settle takes every deferred Settlement once, in the order deferred, and
+// returns their diagnostics; Finish is how a compiler calls it, after its last
+// lowering returns. Like the walks, it checks ctx before each settlement and
+// stops once it is done, leaving a registry the caller must not assemble. A
+// settlement that changes how many nodes the registry holds is refused, and
+// what it did is left standing: the refusal names a compiler bug, not a
+// recovery. A swap of one node for another keeps the count, so the references
+// it leaves dangling are left to pass.Validate and irverify.
+func (t *Types) settle(ctx context.Context) []ir.Diagnostic {
 	t.settled = true
 	pending := t.pending
 	t.pending = nil

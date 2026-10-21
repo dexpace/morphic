@@ -250,13 +250,12 @@ const (
 	// most: a document past the byte or node budget (or an overlay building it
 	// past one), aliases adding more nodes than the alias budget, an enum past
 	// the member budget (GitHub #75), more external documents than the document
-	// budget. Load also bounds binding schema $refs, resuming chains through
-	// other documents, and validating objects references reach.
+	// budget. Load bounds binding schema $refs, resuming chains through other
+	// documents and validating what references reach; detection, a root's merges.
 	//
-	// Unlike AliasAmplification's bomb, these are legitimately that large. Every
-	// site reports an error: the document is refused, its validation stops, an
-	// enum loses its members (UnpreservableConstruct), or what the work did not
-	// reach is left unresolved.
+	// Unlike AliasAmplification's bomb, none is a fault of the input. Each is an
+	// error: the document is refused, validation stops, an enum loses its
+	// members (UnpreservableConstruct), or what was not reached is unresolved.
 	BudgetExceeded = "openapi/budget-exceeded"
 	// UnattachableRequired reports a composition-scope `required` name (an allOf
 	// branch's own required list, or the composed schema's own) that matches none
@@ -265,12 +264,12 @@ const (
 	// across Base/Mixins is computed, never stored).
 	UnattachableRequired = "openapi/unattachable-required"
 	// InternalInvariant reports that one of the compiler's own invariants broke:
-	// a pointer named a type ID the registry does not hold, the registry refused
-	// an entry, a second resolution read a document load never prepared, or the
-	// library faulted while load put the $refs it respelled back as written. It
-	// is a compiler bug, not a problem with the source, but it is reported rather
-	// than dropped in silence, since the alternative is losing constructs with no
-	// trace at all.
+	// a pointer named a type ID the registry does not hold, a second resolution
+	// read a document load never prepared, or the library faulted while load put
+	// the $refs it respelled back as written. It is a compiler bug, not a problem
+	// with the source, but it is reported rather than dropped in silence, since
+	// the alternative is losing constructs with no trace at all. An entry the
+	// registry refused is compile.RegistryRefused instead.
 	InternalInvariant = "openapi/internal-invariant"
 	// DuplicateOperationID reports an operationId that one declaration claims
 	// more than once because it is mounted more than once: a path item or an

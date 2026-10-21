@@ -640,9 +640,12 @@ func TestCheck_OrderDependentOutcome(t *testing.T) {
 			Name:       ir.Naming{Source: "M", Canonical: "m"},
 			Provenance: ir.Provenance{Pointer: jsontext.Pointer("/" + path)},
 		}
+		sources, services, spaces := tables()
 		return &ir.Document{
 			IRVersion: ir.IRVersion,
-			IDSpaces:  map[string][]string{ir.IDKindType: {"x"}},
+			IDSpaces:  spaces,
+			Sources:   sources,
+			Services:  services,
 			Types:     ir.TypeRegistry{m.ID: m},
 		}, nil, nil
 	}
