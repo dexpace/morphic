@@ -398,12 +398,13 @@ func documentRoot(doc *yaml.Node) *yaml.Node {
 // probeFromMapping reads the probe keys off a root mapping through nodeview,
 // the one reading of a mapping the compile's parser gives: through aliases, its
 // `<<` merges expanded as the library expands them, and a key written twice at
-// its last value (docs/parser-library.md#duplicate-key). A second reading here
-// would let detection name a version the compile does not read, the agreement
-// compilers.Detection.Compile holds the two to.
+// its last value (docs/parser-library.md#duplicate-key). A second reading
+// would let detection name a version the compile does not read, which
+// compilers.Detection.Compile checks.
 //
 // Only a key's effective value is read, so a value it overrides cannot fail
-// the probe.
+// the probe. Only the depth bound hides a key (View.Exhausted): a merge cycle,
+// which the compile refuses, closes having read every mapping on it.
 func probeFromMapping(root *yaml.Node) (sniffProbe, error) {
 	view := nodeview.New()
 	var probe sniffProbe
@@ -418,7 +419,7 @@ func probeFromMapping(root *yaml.Node) (sniffProbe, error) {
 		}
 		*field = version
 	}
-	probe.Cut = !view.Expanded(root) && !settledByOwnPairs(root, probe)
+	probe.Cut = view.Exhausted() && !settledByOwnPairs(root, probe)
 	return probe, nil
 }
 

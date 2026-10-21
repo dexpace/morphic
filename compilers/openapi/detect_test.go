@@ -511,6 +511,37 @@ func TestDetect_AReadCutShortIsReported(t *testing.T) {
 	assert.Contains(t, diags[0].Message, fmt.Sprint(nodeview.MergeDepthLimit))
 }
 
+// TestDetect_AMergeCycleHidesNoKey pins the other way a root's merges can stop
+// short of a complete expansion: a cycle, which the compile's alias pre-scan
+// refuses and detection meets first. It reads every mapping on it, so it cuts
+// no read short, and a root that declares nothing is declined in silence as
+// any other file that is not a spec is, while one that declares a version is
+// claimed for the compile to refuse.
+func TestDetect_AMergeCycleHidesNoKey(t *testing.T) {
+	t.Parallel()
+	cases := map[string]struct {
+		src     string
+		version string
+	}{
+		"a root merging itself":                        {"&r\n<<: *r\nfoo: 1\n", ""},
+		"a root merging itself beside its version":     {"&r\n<<: *r\nopenapi: 3.1.0\n", "3.1"},
+		"a root merging a mapping that merges it back": {"&r\nx: &x {<<: *r, openapi: 3.0.3}\n<<: *x\n", "3.0"},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			probe, _, err := sniff([]byte(tc.src))
+			require.NoError(t, err)
+			assert.False(t, probe.Cut, "a cycle reads every mapping on it")
+
+			rec, diags, ok := New().Detect(compilers.Source{Path: "api.yaml", Data: []byte(tc.src)}, compilers.Options{})
+			assert.Equal(t, tc.version != "", ok)
+			assert.Equal(t, tc.version, rec.Format.Version)
+			assert.Empty(t, diags, "a cycle is no budget, and a file declaring nothing earns no complaint")
+		})
+	}
+}
+
 // TestDecodeYAML_RefusesARootThatIsNoMapping pins the shape complaint. A source
 // with no root mapping has no top-level keys, and saying so is what lets Detect
 // report bytes that declare a key it serves and will not read.
