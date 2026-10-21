@@ -53,16 +53,15 @@ func (t *Types) refuse(format string, args ...any) {
 // the order they were attempted, and then any settlement deferred after the
 // last Settle, which nothing took.
 //
-// A non-empty result is a compiler bug, not a spec problem: every entry names an
-// empty ID, an empty coordinate, or a nil type definition, none of which any
-// source can produce. The owning compiler surfaces them as internal-invariant
-// diagnostics rather than dropping them.
+// A non-empty result is a compiler bug, not a spec problem: no source can produce one.
+// The owning compiler surfaces them as internal-invariant diagnostics rather
+// than dropping them.
 func (t *Types) Violations() []string {
 	if len(t.pending) == 0 {
 		return t.refused
 	}
 	return append(slices.Clip(t.refused),
-		fmt.Sprintf("%d settlements were deferred after the last Settle and never taken", len(t.pending)))
+		fmt.Sprintf("settlements deferred and never taken by a Settle: %d", len(t.pending)))
 }
 
 // NewTypes returns an empty registry.

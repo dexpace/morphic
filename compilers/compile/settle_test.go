@@ -103,7 +103,7 @@ func TestTypes_ASettlementNoSettleTakesIsAViolation(t *testing.T) {
 
 	assert.Zero(t, runs)
 	require.Len(t, types.Violations(), 1)
-	assert.Contains(t, types.Violations()[0], "1 settlements were deferred after the last Settle")
+	assert.Contains(t, types.Violations()[0], "settlements deferred and never taken by a Settle: 1")
 }
 
 // TestTypes_SettlementThatAddsOrRemovesANodeIsRefused pins the writes a
