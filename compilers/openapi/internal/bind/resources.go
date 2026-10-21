@@ -23,9 +23,16 @@ type resource struct {
 	id bool
 }
 
-// documentResource is the resource of document id's own content.
-func (d *docs) documentResource(id DocID) resource {
-	return resource{root: Position{Doc: id}, uri: d.list[id].name}
+// resources reads the schema resources of the documents a table reads: where
+// each begins, the URI naming it, and the base a reference written in one is
+// read against.
+type resources struct {
+	docs *docs
+}
+
+// document is the resource of document id's own content.
+func (r resources) document(id DocID) resource {
+	return resource{root: Position{Doc: id}, uri: r.docs.list[id].name}
 }
 
 // identifiers is every identifier the source's schemas declare: each URI an
@@ -60,10 +67,10 @@ func newIdentifiers(source resource) *identifiers {
 
 // declare notes what the schema n, read at at in the resource indexed in,
 // declares, and returns the index of the resource its content is in: its own
-// where it writes an $id naming another URI (docs.enter).
-func (ix *identifiers) declare(d *docs, in int32, at Position, n *yaml.Node) int32 {
+// where it writes an $id naming another URI (resources.enter).
+func (ix *identifiers) declare(r resources, in int32, at Position, n *yaml.Node) int32 {
 	held := ix.resources[in]
-	res, rooted, known := d.enter(held, n)
+	res, rooted, known := r.enter(held, n)
 	ix.truncated = ix.truncated || !known
 	switch {
 	case rooted:
@@ -74,7 +81,7 @@ func (ix *identifiers) declare(d *docs, in int32, at Position, n *yaml.Node) int
 	case res != held:
 		in = 0 // the document's own
 	}
-	view := d.list[at.Doc].view
+	view := r.docs.list[at.Doc].view
 	for _, keyword := range []string{"$anchor", "$dynamicAnchor"} {
 		if name, ok := scalarOf(view.ChildByToken(nodeview.Deref(n), keyword)); ok && isAnchorName(name) {
 			k := anchorKey{root: res.root, name: name}
@@ -118,17 +125,17 @@ func (ix *identifiers) one(found []Position, twice, none Reason) (Position, Reas
 // $id naming in's own URI starts none. rooted reports that n roots the
 // resource returned, whose root the caller sets. known is false where n writes
 // no $id and merges past the view's bound, which may hide one.
-func (d *docs) enter(in resource, n *yaml.Node) (res resource, rooted, known bool) {
-	id, written := d.idOf(in.root.Doc, n)
+func (r resources) enter(in resource, n *yaml.Node) (res resource, rooted, known bool) {
+	id, written := r.idOf(in.root.Doc, n)
 	if !written {
-		return in, false, d.list[in.root.Doc].view.Expanded(nodeview.Deref(n))
+		return in, false, r.docs.list[in.root.Doc].view.Expanded(nodeview.Deref(n))
 	}
-	uri, ok := d.identify(id, in.uri)
+	uri, ok := r.identify(id, in.uri)
 	switch {
 	case !ok || uri == in.uri:
 		return in, false, true
-	case d.names(in.root.Doc, uri):
-		return d.documentResource(in.root.Doc), false, true
+	case r.names(in.root.Doc, uri):
+		return r.document(in.root.Doc), false, true
 	default:
 		return resource{uri: uri, id: true}, true, true
 	}
@@ -136,8 +143,8 @@ func (d *docs) enter(in resource, n *yaml.Node) (res resource, rooted, known boo
 
 // names reports whether uri, as resolveURI spells one, names document id: its
 // name, or the name normalized where it is an absolute URI.
-func (d *docs) names(id DocID, uri string) bool {
-	name := d.list[id].name
+func (r resources) names(id DocID, uri string) bool {
+	name := r.docs.list[id].name
 	if uri == name {
 		return true
 	}
@@ -149,7 +156,7 @@ func (d *docs) names(id DocID, uri string) bool {
 // part before the '#', resolved against base (resolveURI), or base for an $id
 // naming no document. An $id with a fragment that is not empty names none, as
 // JSON Schema 2020-12 §8.2.1 admits none.
-func (d *docs) identify(id, base string) (string, bool) {
+func (r resources) identify(id, base string) (string, bool) {
 	uri, frag, _ := strings.Cut(id, "#")
 	if frag != "" {
 		return "", false
@@ -157,7 +164,7 @@ func (d *docs) identify(id, base string) (string, bool) {
 	if uri = strings.TrimSpace(uri); uri == "" {
 		return base, true
 	}
-	return d.resolveURI(uri, base)
+	return r.resolveURI(uri, base)
 }
 
 // absolute reports whether uri is an absolute URI, which no base moves: one
@@ -172,20 +179,20 @@ func absolute(uri string) bool {
 // as a $ref's document part is (docs.locate) where base is a document's
 // location, such as a file's path. An absolute result is spelled as RFC 3986
 // §6.2.2 normalizes one (normalURI), so two spellings of one identifier match.
-func (d *docs) resolveURI(ref, base string) (string, bool) {
+func (r resources) resolveURI(ref, base string) (string, bool) {
 	b, err := url.Parse(base)
 	if err != nil || len(b.Scheme) < 2 {
-		named, ok := d.locate(ref, base)
+		named, ok := r.docs.locate(ref, base)
 		if u, err := url.Parse(named); ok && err == nil && len(u.Scheme) > 1 {
 			return normalURI(u), true
 		}
 		return named, ok
 	}
-	r, err := url.Parse(ref)
+	u, err := url.Parse(ref)
 	if err != nil {
 		return "", false
 	}
-	return normalURI(b.ResolveReference(r)), true
+	return normalURI(b.ResolveReference(u)), true
 }
 
 // normalURI is the absolute URI u spelled as RFC 3986 §6.2.2 normalizes it:
@@ -252,8 +259,8 @@ func unreserved(c byte) bool {
 
 // idOf is the $id n writes in document id, and whether it writes a non-empty
 // string one: a null $id is none, as refOf reads a null $ref.
-func (d *docs) idOf(id DocID, n *yaml.Node) (string, bool) {
-	return scalarOf(d.list[id].view.ChildByToken(nodeview.Deref(n), "$id"))
+func (r resources) idOf(id DocID, n *yaml.Node) (string, bool) {
+	return scalarOf(r.docs.list[id].view.ChildByToken(nodeview.Deref(n), "$id"))
 }
 
 // scalarOf is the string n holds, and whether it holds a non-empty one that
@@ -266,14 +273,14 @@ func scalarOf(n *yaml.Node) (string, bool) {
 	return v.Value, true
 }
 
-// resourceOf is the resource the position p, reached along path, is in: the
-// one each schema on path enters in turn (enter), from its document's own.
+// holding is the resource the position p, reached along path, is in: the one
+// each schema on path enters in turn (enter), from its document's own.
 // With schema, p is read as a schema whatever the grammar reads it as, as a
 // $ref site is, so its own $id counts. known is false where a schema on path
 // may hide an $id past the merge bound.
-func (d *docs) resourceOf(p Position, path []*yaml.Node, schema bool) (resource, bool) {
-	res, known := d.documentResource(p.Doc), true
-	s, tokens := d.rootState(p.Doc), slices.Collect(p.Pointer.Tokens())
+func (r resources) holding(p Position, path []*yaml.Node, schema bool) (resource, bool) {
+	res, known := r.document(p.Doc), true
+	s, tokens := r.docs.rootState(p.Doc), slices.Collect(p.Pointer.Tokens())
 	for i, n := range path {
 		if i > 0 {
 			s = step(s, tokens[i-1])
@@ -281,7 +288,7 @@ func (d *docs) resourceOf(p Position, path []*yaml.Node, schema bool) (resource,
 		if s != sSchema && (i < len(path)-1 || !schema) {
 			continue
 		}
-		next, rooted, ok := d.enter(res, n)
+		next, rooted, ok := r.enter(res, n)
 		known = known && ok
 		if rooted {
 			next.root = Position{Doc: p.Doc, Pointer: jsontext.Pointer(prefix(p.Pointer, i))}

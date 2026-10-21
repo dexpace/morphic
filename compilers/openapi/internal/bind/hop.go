@@ -13,7 +13,7 @@ import (
 
 // resolve is where ref, written at site, reached along path, lands: in the
 // resource its document part names against the resource site is in
-// (docs.resourceOf), at the position its fragment names there. schema says
+// (resources.holding), at the position its fragment names there. schema says
 // whether site is read as a schema, as a $ref's is and a discriminator's
 // mapping value's is not: its own $id then counts, and the $defs rule reads
 // its own definitions.
@@ -24,7 +24,7 @@ func (b *binder) resolve(site Position, path []*yaml.Node, ref string, schema bo
 		h.Reason = BadPointer
 		return h
 	}
-	in, known := b.docs.resourceOf(site, path, schema)
+	in, known := b.resources.holding(site, path, schema)
 	if !known {
 		h.Reason = MergeBound
 		return h
@@ -58,12 +58,12 @@ func (b *binder) named(in resource, uri string) (resource, Reason, string) {
 	if uri = strings.TrimSpace(uri); uri == "" {
 		return in, NoReason, ""
 	}
-	key, ok := b.docs.resolveURI(uri, in.uri)
+	key, ok := b.resources.resolveURI(uri, in.uri)
 	if !ok {
 		return resource{}, Unreadable, "it names no document a reference can"
 	}
-	if b.docs.names(Source, key) {
-		return b.docs.documentResource(Source), NoReason, ""
+	if b.resources.names(Source, key) {
+		return b.resources.document(Source), NoReason, ""
 	}
 	// A miss the merge bound may explain is read as a location all the same
 	// where the base is a document's: the table says it is truncated.
@@ -103,7 +103,7 @@ func (b *binder) opened(in resource, uri string) (resource, Reason, string) {
 	case err != nil:
 		return resource{}, Unreadable, err.Error()
 	}
-	return b.docs.documentResource(id), NoReason, ""
+	return b.resources.document(id), NoReason, ""
 }
 
 // land reads where the fragment of ref, written at site and reached along

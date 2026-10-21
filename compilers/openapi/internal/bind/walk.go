@@ -51,7 +51,7 @@ type finder struct {
 
 // newFinder returns a finder over docs that has found nothing.
 func newFinder(d *docs, work *budget) *finder {
-	return &finder{docs: d, ids: newIdentifiers(d.documentResource(Source)), work: work, ends: map[Position]Position{},
+	return &finder{docs: d, ids: newIdentifiers(resources{d}.document(Source)), work: work, ends: map[Position]Position{},
 		sites: map[Position]bool{}, mappingSites: map[mappingKey]bool{}, landings: map[Position]bool{},
 		covered: map[root]bool{}}
 }
@@ -95,7 +95,7 @@ func (w *finder) declared(n *yaml.Node, f frame) frame {
 	switch {
 	case f.inert:
 	case f.state == sSchema:
-		f.res = w.ids.declare(w.docs, f.res, f.at, n)
+		f.res = w.ids.declare(resources{w.docs}, f.res, f.at, n)
 	case referenceKinds[f.state] && f.state != sPathItem:
 		_, f.inert = w.docs.refOf(f.at.Doc, n)
 	}
