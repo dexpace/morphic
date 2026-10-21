@@ -346,10 +346,10 @@ document declares lives in that document's namespaces, which are the source's ow
 document, so one pointer in two documents is two IDs and each ID's path is still the pointer its
 node records; its `Provenance.Source` names that document's `Sources` entry (§13). The qualifier is
 an `@` and the document's location from the source's directory, as one segment, escaped as RFC 6901
-escapes a token: `t/openapi@schemas~1pet.yaml/Pet` is the `Pet` that `schemas/pet.yaml` declares at
-`/Pet`. The location, not the entry's index, qualifies it, so an ID moves only when its document
-does. Operations and parameters are named by where the source mounts them, so they take the
-source's namespace whichever document declares them.
+escapes a token: `t/openapi@schemas~1pet.yaml/components/schemas/Pet` is the `Pet` component that
+`schemas/pet.yaml` declares. The location, not the entry's index, qualifies it, so an ID moves only
+when its document does. Operations, parameters and security schemes are named by where the source
+mounts or names them, so they take the source's namespace whichever document declares them.
 
 Primitives are the one exception, and only because the rule's premise does not hold for them: a
 primitive occupies no source position, so there is no path for a format to own. Its identity is
