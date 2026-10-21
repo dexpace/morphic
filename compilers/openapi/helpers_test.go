@@ -52,7 +52,8 @@ func lowerSpec(t *testing.T, src string) (*ir.Document, []ir.Diagnostic) {
 	t.Helper()
 	l, diags := loweredFor(t, src)
 	l.diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.ctx, l.types, &l.anchors)) // named components; the entry Compile's run() calls first
-	return l.out, append(diags, l.diags.List()...)
+	doc := l.document(t)
+	return doc, append(diags, l.diags.List()...)
 }
 
 // lowerServiceSpec lowers components and the service layer of src.
@@ -71,7 +72,8 @@ func lowerServiceSpec(t *testing.T, src string) (*ir.Document, ir.Service, []ir.
 		l.out.TagDefs = tagDefs
 		l.diags.AppendAll(svcDiags)
 		l.out.Services = []ir.Service{svc}
-		return l.out, append(loadDiags, l.diags.List()...)
+		doc := l.document(t)
+		return doc, append(loadDiags, l.diags.List()...)
 	}()
 	require.Len(t, doc.Services, 1)
 	return doc, doc.Services[0], diags
@@ -98,7 +100,7 @@ func lowererOver(ctx lowering.Ctx) *lowerer {
 	types := compile.NewTypes()
 	return &lowerer{
 		ctx:   ctx,
-		out:   &ir.Document{Types: types.Registry()},
+		out:   &ir.Document{},
 		types: types,
 	}
 }
@@ -139,4 +141,17 @@ func typeByName(doc *ir.Document, name string) ir.TypeDef {
 func assertHasErrorCode(t *testing.T, diags []ir.Diagnostic, code string) {
 	t.Helper()
 	openapitest.AssertHasCode(t, diags, code, ir.SeverityError)
+}
+
+// document finishes the registry as run does once every lowering has
+// returned, and returns the document under construction holding it. What the
+// settling reports joins the fixture's diagnostics; a refusal is a compiler bug
+// no fixture provokes, so one fails the test.
+func (l *lowerer) document(t *testing.T) *ir.Document {
+	t.Helper()
+	reg, settled, refused := l.types.Finish(t.Context())
+	require.Empty(t, refused, "the registry refused an entry")
+	l.diags.AppendAll(settled)
+	l.out.Types = reg
+	return l.out
 }

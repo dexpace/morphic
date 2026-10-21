@@ -19,7 +19,7 @@ type Settlement interface {
 	Settle(reg ir.TypeRegistry) []ir.Diagnostic
 }
 
-// Defer queues s for Settle. One deferred once Settle has run would never be
+// Defer queues s for Finish to settle. One deferred once Settle has run would never be
 // taken, and a nil one cannot be, so both are refused.
 func (t *Types) Defer(s Settlement) {
 	if t.settled {
@@ -33,15 +33,15 @@ func (t *Types) Defer(s Settlement) {
 	t.pending = append(t.pending, s)
 }
 
-// Settle takes every deferred Settlement once, in the order deferred, and
-// returns their diagnostics. A compiler calls it after its last lowering
-// returns. Like the walks, it checks ctx before each settlement and stops once
-// it is done, leaving a registry the caller must not assemble. A settlement
+// settle takes every deferred Settlement once, in the order deferred, and
+// returns their diagnostics; Finish is how a compiler calls it, after its last
+// lowering returns. Like the walks, it checks ctx before each settlement and
+// stops once it is done, leaving a registry the caller must not assemble. A settlement
 // that changes how many nodes the registry holds is refused, and what it did is
 // left standing: the refusal names a compiler bug, not a recovery. A swap of
 // one node for another keeps the count, so the references it leaves dangling
 // are left to pass.Validate and irverify.
-func (t *Types) Settle(ctx context.Context) []ir.Diagnostic {
+func (t *Types) settle(ctx context.Context) []ir.Diagnostic {
 	t.settled = true
 	pending := t.pending
 	t.pending = nil

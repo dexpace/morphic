@@ -150,7 +150,7 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, 
 	// out and the anchor memo are this function's, not a struct's: a document
 	// being built and a memo (micro-compiler-design §4.1). Nothing below
 	// allocates them.
-	out := &ir.Document{Types: ts.Registry()}
+	out := &ir.Document{}
 	var anchors schema.AnchorIndex
 
 	// acc is what makes the identity dedup still hold. Every lowering returns its
@@ -178,13 +178,15 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, 
 	out.Services = []ir.Service{svc}
 	out.TagDefs = tagDefs
 	acc.AppendAll(svcDiags)
-	// Every lowering has returned, so what was deferred until the registry is
-	// whole is decided now (compile.Settlement), before the check that refuses
-	// a registry either phase left cut short.
-	acc.AppendAll(ts.Settle(ctx))
+	// Every lowering has returned, so the registry is finished: what was
+	// deferred until it is whole is decided now (compile.Settlement), before the
+	// check that refuses a registry either phase left cut short.
+	reg, settled, refused := ts.Finish(ctx)
+	acc.AppendAll(settled)
 	if err := ctx.Err(); err != nil {
 		return nil, acc.List(), err
 	}
+	out.Types = reg
 
 	m, metaDiags := lowerMeta(c)
 	out.Name, out.Version = m.Name, m.Version
@@ -203,7 +205,7 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, 
 	// An entry the registry refused is a compiler bug no source can provoke, and
 	// a refusal nothing reports hides the bug rather than the symptom: the node is
 	// simply absent and every reference to it dangles.
-	for _, v := range ts.Violations() {
+	for _, v := range refused {
 		acc.Append(c.DiagAt(ir.SeverityError, diag.InternalInvariant, "", "internal: %s", v))
 	}
 	return out, acc.List(), nil

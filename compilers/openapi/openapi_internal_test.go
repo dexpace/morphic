@@ -2,6 +2,8 @@ package openapi
 
 import (
 	"context"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -66,12 +68,14 @@ func TestRun_RegistryRefusalsAreSurfaced(t *testing.T) {
 	t.Parallel()
 	types := compile.NewTypes()
 	types.Register("", nil)
-	require.Len(t, types.Violations(), 1, "the refusal is recorded before run reports it")
 
 	_, diags, err := run(t.Context(), lowering.Ctx{Doc: &soa.OpenAPI{}}, types)
 	require.NoError(t, err)
 
 	assertHasErrorCode(t, diags, diag.InternalInvariant)
+	assert.True(t, slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {
+		return d.Code == diag.InternalInvariant && strings.Contains(d.Message, "register rejected: empty type id")
+	}), "the diagnostic carries the refusal Finish handed over: %v", diags)
 }
 
 // TestWithoutRereported is a unit table over the ways a lowering diagnostic

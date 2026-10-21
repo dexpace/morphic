@@ -1,6 +1,7 @@
 package compile
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/dexpace/morphic/ir"
@@ -44,19 +45,25 @@ type Types struct {
 // rather than returning an error, because the caller is mid-walk with no useful
 // recovery — but declining silently would make this type the one place able to
 // manufacture the malformed states irverify and pass.Validate exist to report.
-// Violations surfaces them.
+// Finish hands them over with the registry.
 func (t *Types) refuse(format string, args ...any) {
 	t.refused = append(t.refused, fmt.Sprintf(format, args...))
 }
 
-// Violations returns the invariant breaches the registry refused to record, in
-// the order they were attempted.
+// Finish ends a compile's use of t, once its last lowering has returned. It
+// takes every deferred Settlement, then hands over the registry the Document
+// holds, what settling reported, and every entry t refused, in the order
+// attempted: one call, so a compiler cannot take the registry without the
+// refusals beside it.
 //
-// A non-empty result is a compiler bug, not a spec problem: every entry names an
-// empty ID, an empty coordinate, or a nil type definition, none of which any
-// source can produce. The owning compiler surfaces them as internal-invariant
-// diagnostics rather than dropping them.
-func (t *Types) Violations() []string { return t.refused }
+// A refusal is a compiler bug no source can produce — an empty ID or
+// coordinate, a nil node, a colliding derivation — which the compiler reports
+// rather than drops. A cancelled ctx stops the settling between settlements,
+// and leaves a registry the caller must not assemble.
+func (t *Types) Finish(ctx context.Context) (ir.TypeRegistry, []ir.Diagnostic, []string) {
+	settled := t.settle(ctx)
+	return t.reg, settled, t.refused
+}
 
 // NewTypes returns an empty registry.
 func NewTypes() *Types {
@@ -341,15 +348,6 @@ func (t *Types) PrimRef(k ir.PrimKind) ir.TypeRef {
 
 // PrimID interns the primitive of kind k and returns its ID.
 func (t *Types) PrimID(k ir.PrimKind) ir.TypeID { return t.PrimRef(k).Target }
-
-// Registry returns the built registry for assembly into an ir.Document.
-//
-// It hands over the live map rather than a copy: the caller is the compiler that
-// owns this Types, the value goes straight into a Document it is assembling, and
-// copying a registry per compile to guard against a caller that has no reason to
-// mutate it would cost the whole walk's allocation for nothing. Callers outside
-// the owning compile must treat the result as read-only.
-func (t *Types) Registry() ir.TypeRegistry { return t.reg }
 
 // Len reports how many types are interned.
 func (t *Types) Len() int { return len(t.reg) }

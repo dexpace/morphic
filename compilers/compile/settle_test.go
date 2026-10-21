@@ -45,6 +45,34 @@ func TestTypes_SettleTakesEachDeferredSettlementOnceInOrder(t *testing.T) {
 	assert.Empty(t, types.Violations())
 }
 
+// TestTypes_FinishHandsOverTheRegistryWithItsRefusals pins the one hand-over
+// a compiler gets: the live registry the Document holds, settled, beside what
+// settling reported and every entry refused, so none of the three can be taken
+// without the others.
+func TestTypes_FinishHandsOverTheRegistryWithItsRefusals(t *testing.T) {
+	t.Parallel()
+	types := compile.NewTypes()
+	types.Intern("/p", "t/x", func() ir.TypeDef { return &ir.Model{ID: "t/x"} })
+	types.Register("", &ir.Any{})
+	types.Defer(settleFunc(func(reg ir.TypeRegistry) []ir.Diagnostic {
+		reg["t/x"].Common().Docs.Description = "settled"
+		return []ir.Diagnostic{{Code: "settled"}}
+	}))
+
+	reg, settled, refused := types.Finish(t.Context())
+
+	require.Contains(t, reg, ir.TypeID("t/x"))
+	assert.Equal(t, "settled", reg["t/x"].Common().Docs.Description, "the registry comes back settled")
+	assert.Equal(t, []ir.Diagnostic{{Code: "settled"}}, settled)
+	require.Len(t, refused, 1)
+	assert.Contains(t, refused[0], "empty type id")
+
+	types.Defer(settleFunc(func(ir.TypeRegistry) []ir.Diagnostic { return nil }))
+	_, again, refusedAgain := types.Finish(t.Context())
+	assert.Empty(t, again, "a settlement is taken once")
+	assert.Len(t, refusedAgain, 2, "a deferral after finishing is refused, and a second Finish says so")
+}
+
 // TestTypes_SettleStopsBetweenSettlementsOnCancellation pins that Settle
 // honours ctx as the walks do: once it is done, no further settlement is
 // taken, and what the ones before it reported is returned.
