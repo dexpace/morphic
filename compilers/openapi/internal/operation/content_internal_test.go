@@ -218,11 +218,11 @@ func TestLowerPayload_NilMediaEntriesYieldNil(t *testing.T) {
 	assert.Empty(t, diags)
 }
 
-// TestPropIDByWire_DeadEnds mirrors TestBodyModelPointer_NoModelBehindBody for
+// TestPropByWire_DeadEnds mirrors TestBodyModelPointer_NoModelBehindBody for
 // the property walk: the same dead ends, asked for a part name rather than a
 // pointer. Neither may invent an ID — a part keyed by a PropID nothing declares
 // is a dangling reference the encoding map would carry silently.
-func TestPropIDByWire_DeadEnds(t *testing.T) {
+func TestPropByWire_DeadEnds(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
 	l.types.Register("t/opaque", &ir.Scalar{ID: "t/opaque"})
@@ -250,9 +250,9 @@ func TestPropIDByWire_DeadEnds(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			id, ok := propIDByWire(l.types, tc.body, "file", 0)
+			prop, ok := propByWire(l.types, tc.body, "file", 0)
 			assert.False(t, ok, "no property with that wire name stands behind this body")
-			assert.Empty(t, id, "and no ID is invented for one")
+			assert.Nil(t, prop, "and no property is invented for one")
 		})
 	}
 }
@@ -265,4 +265,26 @@ func TestBodyParts_DepthBound(t *testing.T) {
 	js := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{})
 	assert.Nil(t, bodyParts(nil, js, maxPartCompositionDepth+1),
 		"past the bound the walk stops rather than descending further")
+}
+
+// TestPartTypeFlags_DeadEnds covers the type walk's ends that name neither a
+// list nor bytes: an ID nothing declares, an opaque scalar, a kind that is
+// neither, and an alias chain that closes on itself, which the bound is for.
+func TestPartTypeFlags_DeadEnds(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{})
+	l.types.Register("t/opaque", &ir.Scalar{ID: "t/opaque"})
+	l.types.Register("t/cycle/a", &ir.Scalar{
+		ID: "t/cycle/a", Base: &ir.TypeRef{Target: "t/cycle/b"},
+	})
+	l.types.Register("t/cycle/b", &ir.Scalar{
+		ID: "t/cycle/b", Base: &ir.TypeRef{Target: "t/cycle/a"},
+	})
+	l.types.Register("t/model", &ir.Model{ID: "t/model"})
+
+	for _, target := range []ir.TypeID{"t/absent", "t/opaque", "t/model", "t/cycle/a", l.types.PrimID(ir.PrimString)} {
+		multi, file := partTypeFlags(l.types, ir.TypeRef{Target: target})
+		assert.False(t, multi, "%s is not a list", target)
+		assert.False(t, file, "%s is not bytes", target)
+	}
 }

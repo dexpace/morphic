@@ -225,7 +225,8 @@ func partEncodings(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInde
 	encMap := media.GetEncoding()
 	out := map[ir.PropID]ir.PartEncoding{}
 	for _, part := range parts {
-		pe, partUnmodeled, partDiags := buildPartEncoding(c, ts, anchors, part.name, part.schema, encMap, mediaPtr)
+		prop, _ := propByWire(ts, body, part.name, 0)
+		pe, partUnmodeled, partDiags := buildPartEncoding(c, ts, anchors, part, prop, encMap, mediaPtr)
 		diags = append(diags, partDiags...)
 		// Before the emptiness check, not after it: an entry declaring only
 		// allowReserved or only x-* lowers to an empty PartEncoding that is left out
@@ -234,7 +235,7 @@ func partEncodings(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInde
 		if partEncodingEmpty(pe) {
 			continue
 		}
-		out[partPropID(ts, body, part.name, schemaPtr)] = pe
+		out[partPropID(prop, part.name, schemaPtr)] = pe
 	}
 	if len(out) == 0 {
 		return nil, unmodeled, diags
@@ -298,82 +299,117 @@ func dedupeParts(parts []bodyPart) []bodyPart {
 	return out
 }
 
-// partPropID returns the ID of the property carrying the given wire name on the
-// model body stands for, falling back to deriving one under schemaPtr.
+// partPropID returns the ID of prop, the property carrying the given wire name
+// on the model the body stands for, falling back to deriving one under
+// schemaPtr when prop is nil.
 //
 // The IR is asked first because §4.3 stores only a model's own properties: a
 // composed body holds its parts on the Base it inherits them from, so a key
 // derived from the composed node's pointer would name a property that exists
 // nowhere. Deriving is the answer for a body with no model in the IR, such as a
 // schema declaring properties beside an enum or scalar type.
-func partPropID(ts *compile.Types, body ir.TypeID, wire string, schemaPtr jsontext.Pointer) ir.PropID {
-	if id, ok := propIDByWire(ts, body, wire, 0); ok {
-		return id
+func partPropID(prop *ir.Property, wire string, schemaPtr jsontext.Pointer) ir.PropID {
+	if prop != nil {
+		return prop.ID
 	}
 	return ids.Prop(schemaPtr + ids.Ptr("properties", wire))
 }
 
-// propIDByWire searches the type body denotes for a property with the given wire
+// propByWire searches the type body denotes for a property with the given wire
 // name: what it declares itself, then what it inherits through Base and mixes in
 // through Mixins, following the alias scalars a $ref-with-siblings position
 // hoists on the way. depth bounds the walk against a chain no source can spell.
-func propIDByWire(ts *compile.Types, body ir.TypeID, wire string, depth int) (ir.PropID, bool) {
+func propByWire(ts *compile.Types, body ir.TypeID, wire string, depth int) (*ir.Property, bool) {
 	if depth > maxBodyAliasHops {
-		return "", false
+		return nil, false
 	}
 	td, found := ts.Node(body)
 	if !found {
-		return "", false
+		return nil, false
 	}
 	switch t := td.(type) {
 	case *ir.Model:
-		for _, p := range t.Properties {
-			if p.WireName == wire {
-				return p.ID, true
+		for i := range t.Properties {
+			if t.Properties[i].WireName == wire {
+				return &t.Properties[i], true
 			}
 		}
-		return propIDInComposition(ts, t, wire, depth)
+		return propInComposition(ts, t, wire, depth)
 	case *ir.Scalar:
 		if t.Base == nil {
-			return "", false
+			return nil, false
 		}
-		return propIDByWire(ts, t.Base.Target, wire, depth+1)
+		return propByWire(ts, t.Base.Target, wire, depth+1)
 	default:
-		return "", false
+		return nil, false
 	}
 }
 
-// propIDInComposition searches a model's Base and Mixins, in that order.
-func propIDInComposition(ts *compile.Types, m *ir.Model, wire string, depth int) (ir.PropID, bool) {
+// propInComposition searches a model's Base and Mixins, in that order.
+func propInComposition(ts *compile.Types, m *ir.Model, wire string, depth int) (*ir.Property, bool) {
 	if m.Base != nil {
-		if id, ok := propIDByWire(ts, m.Base.Target, wire, depth+1); ok {
-			return id, true
+		if p, ok := propByWire(ts, m.Base.Target, wire, depth+1); ok {
+			return p, true
 		}
 	}
 	for _, mixin := range m.Mixins {
-		if id, ok := propIDByWire(ts, mixin.Target, wire, depth+1); ok {
-			return id, true
+		if p, ok := propByWire(ts, mixin.Target, wire, depth+1); ok {
+			return p, true
 		}
 	}
-	return "", false
+	return nil, false
+}
+
+// partTypeFlags reads the structural flags of a part from the type the merge
+// settled on: multi when it is a list, file when it is bytes, following the
+// alias scalars a hoisted position or `format: byte` puts over the primitive.
+// The walk is bounded by maxBodyAliasHops.
+func partTypeFlags(ts *compile.Types, ref ir.TypeRef) (multi, file bool) {
+	id := ref.Target
+	for range maxBodyAliasHops {
+		td, found := ts.Node(id)
+		if !found {
+			return false, false
+		}
+		switch t := td.(type) {
+		case *ir.List:
+			return true, false
+		case *ir.Primitive:
+			return false, t.Prim == ir.PrimBytes
+		case *ir.Scalar:
+			if t.Base == nil {
+				return false, false
+			}
+			id = t.Base.Target
+		default:
+			return false, false
+		}
+	}
+	return false, false
 }
 
 // buildPartEncoding assembles one part's PartEncoding: explicit encoding config
 // (content types, headers, style, explode) merged with the structural flags Multi
-// (array part) and Filename (binary/file part).
-func buildPartEncoding(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, name string, pjs *oas3.JSONSchema[oas3.Referenceable], encMap *sequencedmap.Map[string, *soa.Encoding], mediaPtr jsontext.Pointer) (ir.PartEncoding, ir.Unmodeled, []ir.Diagnostic) {
+// (array part) and Filename (binary/file part). The flags come from prop's type
+// when the body model has one, since that is the type the allOf merge settled
+// on; only a body with no model property reads them from the part's schema.
+func buildPartEncoding(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, part bodyPart, prop *ir.Property, encMap *sequencedmap.Map[string, *soa.Encoding], mediaPtr jsontext.Pointer) (ir.PartEncoding, ir.Unmodeled, []ir.Diagnostic) {
 	pe := ir.PartEncoding{}
 	var unmodeled ir.Unmodeled
 	var diags []ir.Diagnostic
 	if encMap != nil {
-		if enc, ok := encMap.Get(name); ok {
+		if enc, ok := encMap.Get(part.name); ok {
 			pe, unmodeled, diags = encodingConfig(c, ts, anchors, enc,
-				mediaPtr+ids.Ptr("encoding", name), ids.Scope("encoding", name))
+				mediaPtr+ids.Ptr("encoding", part.name), ids.Scope("encoding", part.name))
 		}
 	}
-	if part := schemaOf(c.Bindings(), pjs); part != nil {
-		pe.Multi = schemaIsArray(part)
-		pe.Filename = schemaIsFilePart(part)
+	if prop != nil {
+		pe.Multi, pe.Filename = partTypeFlags(ts, prop.Type)
+		return pe, unmodeled, diags
+	}
+	if ps := schemaOf(c.Bindings(), part.schema); ps != nil {
+		pe.Multi = schemaIsArray(ps)
+		pe.Filename = schemaIsFilePart(ps)
 	}
 	return pe, unmodeled, diags
 }

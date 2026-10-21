@@ -3268,7 +3268,7 @@ func TestUndeclaredRegion_TwoReferencesAgreeInBothOrders(t *testing.T) {
 //
 // /b's multipart body composes Base through allOf, so the property "file" that
 // /a's encoding key names lives on Base. partEncodings resolves the key by
-// walking the composition (propIDByWire), which needs /b's node interned when
+// walking the composition (propByWire), which needs /b's node interned when
 // /a's operation lowers; otherwise the key falls back to a property ID that
 // exists nowhere.
 func TestCrossPathReference_ComposedMultipartKeepsItsEncodingKeys(t *testing.T) {

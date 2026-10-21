@@ -2593,3 +2593,80 @@ func TestEncoding_NestedEncodingsAreKeptAtEveryVersion(t *testing.T) {
 		})
 	}
 }
+
+// TestPartEncoding_FlagsComeFromTheMergedType holds a part's Multi and Filename
+// to the type the allOf merge settled on, not to whichever branch declared the
+// name first. The merge keeps the narrower declaration in either order, so a
+// flag read from the first declaration differs between the two orders.
+func TestPartEncoding_FlagsComeFromTheMergedType(t *testing.T) {
+	t.Parallel()
+	const binary = `{type: string, format: binary}`
+	cases := []struct {
+		name     string
+		a, b     string
+		filename bool
+		multi    bool
+	}{
+		{"string and binary", `{type: string}`, binary, true, false},
+		{"untyped and binary", `{description: the file}`, binary, true, false},
+		{"untyped and a list of binary", `{description: the files}`,
+			`{type: array, items: ` + binary + `}`, false, true},
+		{"untyped and byte", `{description: the file}`, `{type: string, format: byte}`, true, false},
+		{"untyped and a hoisted binary", `{description: the file}`,
+			`{$ref: "#/components/schemas/Blob", description: the blob}`, true, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var got [2]ir.PartEncoding
+			for i, branches := range [2][2]string{{tc.a, tc.b}, {tc.b, tc.a}} {
+				got[i] = onlyPartEncoding(t, `{allOf: [`+
+					`{type: object, properties: {file: `+branches[0]+`}}, `+
+					`{type: object, properties: {file: `+branches[1]+`}}]}`)
+			}
+			assert.Empty(t, cmp.Diff(got[0], got[1]), "the two branch orders agree")
+			assert.Equal(t, tc.filename, got[0].Filename, "filename")
+			assert.Equal(t, tc.multi, got[0].Multi, "multi")
+		})
+	}
+}
+
+// TestPartEncoding_FlagsOfABodyWithNoModelPropertyComeFromTheSchema covers the
+// schema reading, which stays for a body the IR holds no model for.
+func TestPartEncoding_FlagsOfABodyWithNoModelPropertyComeFromTheSchema(t *testing.T) {
+	t.Parallel()
+	file := onlyPartEncoding(t, `{enum: [x], properties: {file: {type: string, format: binary}}}`)
+	assert.True(t, file.Filename, "a binary part is a file")
+	assert.False(t, file.Multi)
+
+	files := onlyPartEncoding(t,
+		`{enum: [x], properties: {file: {type: array, items: {type: string, format: binary}}}}`)
+	assert.True(t, files.Multi, "an array part repeats")
+	assert.False(t, files.Filename)
+}
+
+// onlyPartEncoding lowers a multipart body with the given schema and returns
+// the one part encoding it keeps. The part is named file.
+func onlyPartEncoding(t *testing.T, mediaSchema string) ir.PartEncoding {
+	t.Helper()
+	spec := openapitest.PathsSpec(`  /upload:
+    post:
+      operationId: upload
+      requestBody:
+        content:
+          multipart/form-data:
+            schema: ` + mediaSchema + `
+      responses: {"200": {description: ok}}
+components:
+  schemas:
+    Blob: {type: string, format: binary}
+`)
+	_, svc, diags := lowerServiceSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	enc := openapitest.FirstOp(t, svc).Request.Contents[0].Encoding
+	require.Len(t, enc, 1, "one part carries a flag: %v", enc)
+	for _, pe := range enc {
+		return pe
+	}
+	return ir.PartEncoding{}
+}
