@@ -94,7 +94,8 @@ func TestCheck_PathTemplatesAnswerToPathParameters(t *testing.T) {
 }
 
 // TestCheck_PathParametersMayBeReferences pins that a $ref into the components
-// is followed one hop in the document being checked.
+// is followed one hop in the document being checked, and that a parameter the
+// check cannot read answers for any template expression of its path.
 func TestCheck_PathParametersMayBeReferences(t *testing.T) {
 	doc := func(ref string) string {
 		return "openapi: 3.1.0\ninfo: {title: t, version: v}\npaths:\n  /a/{id}:\n    get:\n      responses: {'200': {description: d}}\n      parameters: [{$ref: '" + ref + "'}]\ncomponents:\n  parameters:\n    id: {name: id, in: path, required: true, schema: {}}\n    'a/b': {name: other, in: path, required: true, schema: {}}\n    'c~d': {name: id, in: path, required: true, schema: {}}\n"
@@ -105,12 +106,16 @@ func TestCheck_PathParametersMayBeReferences(t *testing.T) {
 		{"followed with an escaped name", "3.1.0", oas.Document, doc("#/components/parameters/c~0d"), badKeys},
 		{"escaped slash is a nested path", "3.1.0", oas.Document, doc("#/components/parameters/a~1b"),
 			append(badKeys, at(dangling, "/paths/~1a~1{id}/get/parameters/0"), at(dangling, "/paths/~1a~1{id}"))},
-		{"a pointer deeper than a name is not followed", "3.1.0", oas.Document, doc("#/components/parameters/id/name"),
-			append(badKeys, at(dangling, "/paths/~1a~1{id}"))},
-		{"another document is not followed", "3.1.0", oas.Document, doc("other.yaml#/components/parameters/id"),
-			append(badKeys, at(dangling, "/paths/~1a~1{id}"))},
-		{"no such parameter", "3.1.0", oas.Document, doc("#/components/parameters/none"),
-			append(badKeys, at(dangling, "/paths/~1a~1{id}"))},
+		{"a pointer deeper than a name is unread", "3.1.0", oas.Document, doc("#/components/parameters/id/name"), badKeys},
+		{"another document is unread", "3.1.0", oas.Document, doc("other.yaml#/components/parameters/id"), badKeys},
+		{"no such parameter is unread", "3.1.0", oas.Document, doc("#/components/parameters/none"), badKeys},
+		{"a parameter that is itself a reference is unread", "3.1.0", oas.Document,
+			doc("#/components/parameters/again") + "    again: {$ref: 'other.yaml#/id'}\n", badKeys},
+		{"an unread parameter on one operation answers for it only", "3.1.0", oas.Paths,
+			"{\"/a/{id}\": {get: {responses: {'200': {description: d}}, parameters: [{$ref: 'other.yaml#/id'}]}, put: {responses: {'200': {description: d}}}}}",
+			[]finding{at(dangling, "/~1a~1{id}")}},
+		{"an unread parameter on the item answers for every operation", "3.1.0", oas.Paths,
+			"{\"/a/{id}\": {parameters: [{$ref: 'other.yaml#/id'}], get: {responses: {'200': {description: d}}}}}", nil},
 	})
 }
 

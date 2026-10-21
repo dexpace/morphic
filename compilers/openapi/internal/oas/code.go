@@ -207,23 +207,40 @@ type pathParam struct {
 	ptr  jsontext.Pointer
 }
 
-// pathParams lists the path parameters a parameter list writes, a $ref into the
-// components read there. A parameter the document does not let it read is left
-// out.
-func pathParams(r ruler, list *yaml.Node, ptr jsontext.Pointer) []pathParam {
+// paramList is the path parameters a parameter list writes. A parameter the
+// document does not let the check read, a $ref to another document or to
+// nothing, may be one too, so it answers for any template expression.
+type paramList struct {
+	found  []pathParam
+	unread bool
+}
+
+// answers reports whether the list holds a path parameter named name, or
+// might.
+func (l paramList) answers(name string) bool {
+	return l.unread || slices.ContainsFunc(l.found, func(pp pathParam) bool { return pp.name == name })
+}
+
+// pathParams reads the path parameters a parameter list writes, a $ref into
+// the components read there.
+func pathParams(r ruler, list *yaml.Node, ptr jsontext.Pointer) paramList {
 	l := nodeview.Deref(list)
 	if l == nil || l.Kind != yaml.SequenceNode {
-		return nil
+		return paramList{}
 	}
-	var out []pathParam
+	var out paramList
 	for i, entry := range l.Content {
 		kv := r.keysOf(entry)
 		if ref, ok := textOf(kv["$ref"]); ok {
 			kv = r.keysOf(localParameter(r, ref))
+			if _, again := kv["$ref"]; again || len(kv) == 0 {
+				out.unread = true
+				continue
+			}
 		}
 		in, _ := textOf(kv["in"])
 		if name, ok := textOf(kv["name"]); ok && in == "path" {
-			out = append(out, pathParam{name: name, ptr: itemPointer(ptr, i)})
+			out.found = append(out.found, pathParam{name: name, ptr: itemPointer(ptr, i)})
 		}
 	}
 	return out
@@ -263,7 +280,7 @@ func checkPathItem(r ruler, rule Rule, path string, item map[string]*yaml.Node) 
 	shared := pathParams(r, item["parameters"], ptr.AppendToken("parameters"))
 	reportStrayParams(r, rule, path, exprs, shared)
 	ops := operationsOf(r, item, ptr)
-	perOperation := make([][]pathParam, 0, len(ops))
+	perOperation := make([]paramList, 0, len(ops))
 	for _, op := range ops {
 		own := pathParams(r, r.keysOf(op.node)["parameters"], op.ptr.AppendToken("parameters"))
 		reportStrayParams(r, rule, path, exprs, own)
@@ -279,16 +296,13 @@ func checkPathItem(r ruler, rule Rule, path string, item map[string]*yaml.Node) 
 
 // unanswered reports whether the expression has no path parameter in the path
 // item and some operation lacks one too.
-func unanswered(name string, shared []pathParam, perOperation [][]pathParam) bool {
-	has := func(params []pathParam) bool {
-		return slices.ContainsFunc(params, func(pp pathParam) bool { return pp.name == name })
-	}
-	return !has(shared) && slices.ContainsFunc(perOperation, func(own []pathParam) bool { return !has(own) })
+func unanswered(name string, shared paramList, perOperation []paramList) bool {
+	return !shared.answers(name) && slices.ContainsFunc(perOperation, func(own paramList) bool { return !own.answers(name) })
 }
 
 // reportStrayParams reports each path parameter that names none of exprs.
-func reportStrayParams(r ruler, rule Rule, path string, exprs []string, params []pathParam) {
-	for _, pp := range params {
+func reportStrayParams(r ruler, rule Rule, path string, exprs []string, params paramList) {
+	for _, pp := range params.found {
 		if !slices.Contains(exprs, pp.name) {
 			r.fail(rule, classReference, pp.ptr,
 				"path parameter "+quote(pp.name)+" matches no template expression of "+quote(path))
