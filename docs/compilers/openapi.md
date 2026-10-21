@@ -86,15 +86,18 @@ whose YAML parses to more than `MaxSourceNodes` nodes, or whose aliases add more
 `MaxAliasSurplus` nodes to it, before its model is built: each as an `openapi/budget-exceeded`
 error, compiling to no Document. Past `MaxExternalDocuments`, a document an external reference names
 is not read, each reference into it is unresolved ([`references`](#references)), and the compile
-reports `openapi/budget-exceeded` once. Three bounds hold whatever the caller sets, since past them
-no answer the pre-parse scan gives is whole: a document nested past the scan's depth bound, its
-aliases expanded, is refused as an `openapi/source-too-deep` error at the least pointer where its
-nesting passes the bound; one with more nodes than the scan indexes, as an
-`openapi/source-too-large` error; and one whose aliases expand it past a fixed multiple of its own
-size, with a floor for a small document, as an `openapi/alias-amplification` error at the least
-pointer of the smallest structures past the ratio. An overlay is held to the same refusals before it
-is applied, and so is a document an external reference names, which fails the reference instead. The
-member budget of an enum is [`enum-const`](#enum-const)'s.
+reports `openapi/budget-exceeded` once. The rule table ([`validation`](#validation)) reads no more
+objects than the node and alias budgets admit together, and nests no deeper than the scan's depth
+bound, so it stops on no document they admit; with either budget unbounded it stops past 4,194,304
+objects, as an `openapi/budget-exceeded` error at the object it stopped on. Three bounds hold
+whatever the caller sets, since past them no answer the pre-parse scan gives is whole: a document
+nested past the scan's depth bound, its aliases expanded, is refused as an `openapi/source-too-deep`
+error at the least pointer where its nesting passes the bound; one with more nodes than the scan
+indexes, as an `openapi/source-too-large` error; and one whose aliases expand it past a fixed
+multiple of its own size, with a floor for a small document, as an `openapi/alias-amplification`
+error at the least pointer of the smallest structures past the ratio. An overlay is held to the same
+refusals before it is applied, and so is a document an external reference names, which fails the
+reference instead. The member budget of an enum is [`enum-const`](#enum-const)'s.
 
 - Codes: `openapi/budget-exceeded`, `openapi/source-too-deep`, `openapi/source-too-large`,
   `openapi/alias-amplification`
@@ -102,7 +105,8 @@ member budget of an enum is [`enum-const`](#enum-const)'s.
   `openapi.TestCompile_AnUnboundedAliasBudgetStillRefusesABomb`,
   `load.TestLoad_RefusesANestingPastTheBoundBeforeBuildingTheModel`,
   `load.TestLoad_ADocumentTooLargeToIndexIsRefused`,
-  `openapi.TestCompile_TheDocumentBudgetIsTheCallersToSet`
+  `openapi.TestCompile_TheDocumentBudgetIsTheCallersToSet`,
+  `load.TestJudgeSource_ReadsEveryObjectTheCompilerAdmits`
 - Status: partly built: an external object reached after its contents is charged against the
   document budget twice (#571), and long keys nested a few hundred levels deep cost gigabytes within
   every bound (#931).
