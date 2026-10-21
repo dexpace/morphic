@@ -68,9 +68,10 @@ func (c *Compiler) Compile(ctx context.Context, sources []compilers.Source, opts
 	}
 	loadedDoc, loadDiags, err := load.Load(ctx, rootSrcIndex, sources[0], loadOptions(formatOpts, opts.Reader, sources[0]))
 	// The load phase reads a document once under each name a reference spells
-	// it by, as a relative and an absolute path to one file, so what it finds
-	// there it finds once per name, at one position: one finding, kept once,
-	// as compile.Diags keeps the lowering's.
+	// it by, as a relative and an absolute path to one file where external
+	// references are allowed, so what it finds there it finds once per name,
+	// at one position: one finding, kept once, as compile.Diags keeps the
+	// lowering's.
 	var loaded compile.Diags
 	loaded.AppendAll(loadDiags)
 	diags := loaded.List()

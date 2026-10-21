@@ -92,8 +92,9 @@ type Options struct {
 	// AllowExternalRefs lets a read of another document leave the directory of
 	// Source.Path, against which references resolve, for any file and http(s)
 	// URLs. Off by default, since a spec is untrusted: reads stay inside that
-	// directory, symbolic links included, and follow relative references alone,
-	// not a document only an absolute path or file URI names.
+	// directory, symbolic links included, and follow relative references alone:
+	// a $ref spelling a file URI, or an absolute path to any document but the
+	// source, is refused.
 	//
 	// Reads go through compilers.Options.Reader; with none, nothing is read.
 	// Each document read is a Document.Sources entry, and what it declares is

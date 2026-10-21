@@ -30,6 +30,10 @@ type Config struct {
 	// Open returns the tree of the document named name, read under the
 	// compile's budgets. Nil reads no other document.
 	Open func(name string) (*yaml.Node, error)
+	// Refuse returns why a reference whose document part is uri, as written,
+	// is refused unread by that spelling alone, however another reference
+	// names the same document, or nil. Nil refuses none.
+	Refuse func(uri string) error
 	// Through returns where the chain of the source's reference object at a
 	// pointer ends, as the parser's resolver followed it. Nil, or false, is a
 	// reference that resolved to nothing.

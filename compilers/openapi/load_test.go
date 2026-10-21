@@ -3,6 +3,7 @@ package openapi
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -232,11 +233,11 @@ func TestCompile_OneFileUnderTwoNamesIsOneDocument(t *testing.T) {
 }
 
 // TestCompile_ByDefaultOnlyARelativeReferenceIsFollowed pins what the default
-// reads: a document a relative $ref names. One named only by an absolute path,
-// or by a file URI, is refused unread with the reason, though it lies inside
-// the spec's directory, so the result depends on no spelling of the working
-// directory: it is the same from a directory reached through a symbolic link
-// and from its target, the spec named relatively or not.
+// reads: a document a relative $ref names. A $ref naming one by an absolute
+// path, or by a file URI, is refused unread with the reason, though the file
+// lies inside the spec's directory, so the result depends on no spelling of the
+// working directory: it is the same from a directory reached through a
+// symbolic link and from its target, the spec named relatively or not.
 func TestCompile_ByDefaultOnlyARelativeReferenceIsFollowed(t *testing.T) {
 	dir, err := filepath.EvalSymlinks(t.TempDir())
 	require.NoError(t, err)
@@ -267,7 +268,7 @@ func TestCompile_ByDefaultOnlyARelativeReferenceIsFollowed(t *testing.T) {
 	types, reasons := compileFrom(dir, "root.yaml")
 
 	assert.Equal(t, []string{
-		"/components/schemas/Abs: it is named only by an absolute path, which a read follows only when external references are allowed",
+		"/components/schemas/Abs: the $ref names it by an absolute path, which a read follows only when external references are allowed",
 		"/components/schemas/URI: it is named by a file URI, which a read follows only when external references are allowed",
 	}, reasons)
 	assert.Contains(t, types, ids.In("inner/real.yaml").AnonType("/X"), "the relative $ref is followed")
@@ -280,30 +281,59 @@ func TestCompile_ByDefaultOnlyARelativeReferenceIsFollowed(t *testing.T) {
 	}
 }
 
-// TestCompile_ADocumentARelativeReferenceNamesIsReadHoweverOthersSpellIt pins
-// the other half of the default: a document a relative $ref names is read, and
-// an absolute $ref spelling the same location resolves to it, as one
-// document, where the spec is named by an absolute path and the two spellings
-// meet.
-func TestCompile_ADocumentARelativeReferenceNamesIsReadHoweverOthersSpellIt(t *testing.T) {
-	t.Parallel()
-	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "real.yaml"), []byte("X: {type: string}\n"), 0o600))
-	root := "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\ncomponents:\n  schemas:\n" +
-		"    Rel: {$ref: './real.yaml#/X'}\n" +
-		"    Abs: {$ref: '" + filepath.Join(dir, "real.yaml") + "#/X'}\n"
-
-	doc, diags, err := New().Compile(t.Context(), []compilers.Source{{Path: filepath.Join(dir, "root.yaml"),
-		Data: []byte(root)}}, compilers.Options{Reader: reader.Disk{}})
-
+// TestCompile_ByDefaultEachReferenceIsJudgedByItsOwnSpelling pins that the
+// default refuses a $ref by how it spells its document, never by how another
+// $ref spells it or by which document was read first: an absolute $ref is
+// refused while a relative one naming the same file is followed, in a schema
+// and in a parameter, whichever of the documents holding the schema $refs is
+// declared first, the spec named relatively or not. An absolute $ref naming
+// the spec itself resolves. Under the first order, with the spec named by an
+// absolute path, an earlier reading refused the relative $ref too.
+func TestCompile_ByDefaultEachReferenceIsJudgedByItsOwnSpelling(t *testing.T) {
+	dir, err := filepath.EvalSymlinks(t.TempDir())
 	require.NoError(t, err)
-	assert.Empty(t, diags)
-	require.Len(t, doc.Sources, 2)
-	x := ids.In("real.yaml").AnonType("/X")
-	for _, name := range []string{"Rel", "Abs"} {
-		a, ok := doc.Types[ids.Document{}.NamedType(ids.Ptr("components", "schemas", name))].(*ir.Scalar)
-		require.True(t, ok, name)
-		require.NotNil(t, a.Base, name)
-		assert.Equal(t, x, a.Base.Target, name)
+	b, p, self := filepath.Join(dir, "b.yaml"), filepath.Join(dir, "p.yaml"), filepath.Join(dir, "root.yaml")
+	for name, body := range map[string]string{
+		"b.yaml":   "B: {type: string}\n",
+		"abs.yaml": "Y: {$ref: '" + b + "#/B'}\n",
+		"rel.yaml": "W: {$ref: 'b.yaml#/B'}\n",
+		"p.yaml":   "P: {name: q, in: query, schema: {type: string}}\n",
+	} {
+		require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte(body), 0o600))
+	}
+	spec := func(first, second string) []byte {
+		return []byte("openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n  /x:\n    get:\n" +
+			"      parameters:\n        - {$ref: '" + p + "#/P'}\n        - {$ref: 'p.yaml#/P'}\n" +
+			"        - {$ref: '" + self + "#/components/parameters/Own'}\n" +
+			"      responses: {\"200\": {description: ok}}\ncomponents:\n" +
+			"  parameters:\n    Own: {name: o, in: query, schema: {type: string}}\n  schemas:\n" +
+			"    Leaf: {type: integer}\n    Self: {$ref: '" + self + "#/components/schemas/Leaf'}\n" +
+			"    " + first + ": {$ref: 'abs.yaml#/Y'}\n    " + second + ": {$ref: 'rel.yaml#/W'}\n")
+	}
+	t.Chdir(dir)
+	const refused = "the $ref names it by an absolute path, which a read follows only when external references are allowed"
+
+	for _, order := range [][2]string{{"C", "D"}, {"D", "C"}} {
+		types := make([]ir.TypeRegistry, 0, 2)
+		for _, path := range []string{"root.yaml", self} {
+			doc, diags, err := New().Compile(t.Context(), []compilers.Source{{Path: path, Data: spec(order[0], order[1])}},
+				compilers.Options{Reader: reader.Disk{}})
+			require.NoError(t, err)
+			require.NotNil(t, doc)
+			var got []string
+			for _, d := range diags {
+				got = append(got, filepath.Base(doc.Sources[d.Provenance.Source].Path)+"#"+string(d.Provenance.Pointer)+": "+
+					d.Message[strings.LastIndex(d.Message, ": ")+2:])
+			}
+			slices.Sort(got)
+			assert.Equal(t, []string{"abs.yaml#/Y: " + refused, "root.yaml#/paths/~1x/get/parameters/0: " + refused}, got,
+				"%v as %s", order, path)
+			w, ok := doc.Types[ids.In("rel.yaml").AnonType("/W")].(*ir.Scalar)
+			require.True(t, ok, "%v as %s", order, path)
+			require.NotNil(t, w.Base)
+			assert.Equal(t, ids.In("b.yaml").AnonType("/B"), w.Base.Target, "the relative $ref is followed")
+			types = append(types, doc.Types)
+		}
+		assert.Empty(t, cmp.Diff(types[0], types[1]), "%v: the IDs do not depend on how the spec was named", order)
 	}
 }

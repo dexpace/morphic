@@ -6,6 +6,7 @@ import (
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"iter"
+	"net/url"
 	"reflect"
 	"slices"
 	"strings"
@@ -45,6 +46,9 @@ type escapes struct {
 	// writes with "%2B" itself. A restore keeps both, for asWritten.
 	spellings map[string]string
 	verbatim  map[string]bool
+	// refuses reports whether a read refuses the document a $ref's document
+	// part names by that spelling alone (see forResolver); nil refuses none.
+	refuses func(uri string) bool
 }
 
 // changed is a node escape changed in place, and the node as it was.
@@ -53,9 +57,62 @@ type changed struct {
 	was  yaml.Node
 }
 
-// newEscapes returns a registry holding nothing.
-func newEscapes() *escapes {
-	return &escapes{written: map[*yaml.Node]string{}, spellings: map[string]string{}, verbatim: map[string]bool{}}
+// newEscapes returns a registry holding nothing, which respells each $ref
+// whose document part refuses reports (see forResolver).
+func newEscapes(refuses func(uri string) bool) *escapes {
+	return &escapes{written: map[*yaml.Node]string{}, spellings: map[string]string{}, verbatim: map[string]bool{},
+		refuses: refuses}
+}
+
+// absoluteScheme is the scheme forResolver respells a refused document part
+// under. The resolver hands a URL of any scheme to external.Do, which refuses
+// this one unread (see external.unnamed). The path is escaped whole, so the URL
+// is opaque and net/url spells it back as forResolver wrote it.
+const absoluteScheme = "x-morphic-absolute"
+
+// absolutePath returns the document part forResolver respelled to key, and
+// whether key is such a respelling.
+func absolutePath(key string) (string, bool) {
+	rest, ok := strings.CutPrefix(key, absoluteScheme+":")
+	if !ok {
+		return "", false
+	}
+	uri, err := url.PathUnescape(rest)
+	return uri, err == nil
+}
+
+// refusal is bind.Config.Refuse for the document parts forResolver respells,
+// or nil where it respells none: the binder reads each $ref as written.
+func (e *escapes) refusal() func(uri string) error {
+	if e == nil || e.refuses == nil {
+		return nil
+	}
+	return func(uri string) error {
+		if e.refuses(uri) {
+			return absoluteRefusal(uri)
+		}
+		return nil
+	}
+}
+
+// forResolver returns the spelling the resolver is handed for the $ref value
+// v: its fragment as fragment.ForResolver spells it, and a document part
+// e.refuses reports respelled under absoluteScheme, so that the resolver asks
+// for it where the read refuses it.
+func (e *escapes) forResolver(v string) string {
+	spelled := fragment.ForResolver(v)
+	if e == nil || e.refuses == nil {
+		return spelled
+	}
+	uri, rest, found := strings.Cut(spelled, "#")
+	if uri = strings.TrimSpace(uri); !e.refuses(uri) {
+		return spelled
+	}
+	at := absoluteScheme + ":" + url.PathEscape(uri)
+	if found {
+		at += "#" + rest
+	}
+	return at
 }
 
 // escape respells, in the tree under root, each $ref value the resolver would
@@ -73,9 +130,9 @@ func (e *escapes) escape(root *yaml.Node) {
 	respelled := map[*yaml.Node]string{}
 	eachRefValue(root, func(n *yaml.Node) bool {
 		v := nodeview.Deref(n)
-		spelled := fragment.ForResolver(v.Value)
+		spelled := e.forResolver(v.Value)
 		if spelled == v.Value {
-			if strings.Contains(v.Value, "%2B") {
+			if strings.Contains(v.Value, "%2B") || strings.HasPrefix(v.Value, absoluteScheme+":") {
 				e.verbatim[v.Value] = true
 			}
 			return true
@@ -109,13 +166,13 @@ func (e *escapes) becomeScalar(n, v *yaml.Node, value string) {
 	n.Value, n.Line, n.Column, n.Anchor = value, line, column, anchor
 }
 
-// rewritable reports whether the tree under root holds a $ref value escape
-// would rewrite.
-func rewritable(root *yaml.Node) bool {
+// rewritable reports whether the tree under root holds a $ref value
+// forResolver respells.
+func (e *escapes) rewritable(root *yaml.Node) bool {
 	found := false
 	eachRefValue(root, func(n *yaml.Node) bool {
 		v := nodeview.Deref(n)
-		found = fragment.ForResolver(v.Value) != v.Value
+		found = e.forResolver(v.Value) != v.Value
 		return !found
 	})
 	return found

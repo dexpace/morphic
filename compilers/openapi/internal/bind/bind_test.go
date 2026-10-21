@@ -447,6 +447,49 @@ func withDocuments(docs map[string]string) bind.Config {
 	return cfg
 }
 
+// TestBind_RefuseJudgesEachReferenceByItsSpelling pins Config.Refuse: a $ref
+// whose document part it refuses fails unread with its reason, though another
+// $ref names the same document and it is read. It is handed the document part
+// as written, spaces trimmed, and never an $id, which Locate places but which
+// reads nothing.
+func TestBind_RefuseJudgesEachReferenceByItsSpelling(t *testing.T) {
+	t.Parallel()
+	cfg := withDocuments(map[string]string{"/other.yaml": "X: {type: string}\n"})
+	cfg.Self = resolving.Self
+	opened := map[string]int{}
+	open := cfg.Open
+	cfg.Open = func(name string) (*yaml.Node, error) { opened[name]++; return open(name) }
+	var located, refused []string
+	cfg.Locate = func(uri, base string) (string, bool) {
+		located = append(located, uri)
+		return resolving.Locate(uri, base)
+	}
+	cfg.Refuse = func(uri string) error {
+		refused = append(refused, uri)
+		if strings.HasPrefix(uri, "/") {
+			return errors.New("named by its spelling")
+		}
+		return nil
+	}
+
+	table := bound(t, `components:
+  schemas:
+    Rel: {$ref: 'other.yaml#/X'}
+    Abs: {$ref: ' /other.yaml #/X'}
+    Res: {$id: '/elsewhere/b', $ref: '#/$defs/A', $defs: {A: {}}}
+`, cfg)
+
+	rel := entryAt(t, table, "/components/schemas/Rel")
+	assert.Equal(t, bind.Resolved, rel.Hop.Status, rel.Hop.Why())
+	abs := entryAt(t, table, "/components/schemas/Abs")
+	assert.Equal(t, bind.Unreadable, abs.Hop.Reason)
+	assert.Equal(t, "the document it names could not be read: named by its spelling", abs.Hop.Why())
+	assert.Equal(t, 1, opened["/other.yaml"], "read for the relative $ref alone")
+	assert.ElementsMatch(t, []string{"other.yaml", "/other.yaml"}, refused)
+	assert.Contains(t, located, "/elsewhere/b", "the $id is placed")
+	assert.NotContains(t, located, "/other.yaml", "a refused $ref is placed nowhere")
+}
+
 // TestBind_ReadsOtherDocuments pins a reference to another document: read once
 // however many name it, as one that failed is, as raw YAML, the whole of it
 // named by a reference with no fragment; a chain followed across documents and

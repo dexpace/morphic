@@ -4,6 +4,7 @@ import (
 	"errors"
 	"iter"
 	"maps"
+	"net/http"
 	"net/url"
 	"reflect"
 	"slices"
@@ -113,6 +114,7 @@ func TestEscapes_RewritesOnlyWhatTheResolverMisreads(t *testing.T) {
 		{"another document's fragment", "{$ref: 'o.yaml#/a+b'}", []string{"o.yaml#/a%2Bb"}, 1},
 		{"nothing to rewrite", "{$ref: '#/a b'}", []string{"#/a b"}, 0},
 		{"a plus in the document part", "{$ref: 'a+b.yaml#/c'}", []string{"a+b.yaml#/c"}, 0},
+		{"an absolute path, where none is refused", "{$ref: '/r/a.yaml#/c'}", []string{"/r/a.yaml#/c"}, 0},
 		{"an escaped plus", "{$ref: '#/a%2Bb'}", []string{"#/a%2Bb"}, 0},
 		{"a fragment the resolver cannot decode", "{$ref: '#/a+b%zz'}", []string{"#/a+b%zz"}, 0},
 		{"a mapping where a value is expected", "{$ref: {a: '#/a+b'}}", nil, 0},
@@ -136,7 +138,7 @@ func TestEscapes_RewritesOnlyWhatTheResolverMisreads(t *testing.T) {
 				}
 			}
 			require.Equal(t, tc.recorded, misread, "the values the resolver misreads in %q", written)
-			esc := newEscapes()
+			esc := newEscapes(nil)
 
 			esc.escape(root)
 
@@ -159,7 +161,7 @@ func TestEscapes_LeavesAnAnchoredValueAlone(t *testing.T) {
 	aliases := []*yaml.Node{root.Content[0].Content[3].Content[1], root.Content[0].Content[5].Content[1]}
 	at := [][2]int{{aliases[0].Line, aliases[0].Column}, {aliases[1].Line, aliases[1].Column}}
 	require.NotEqual(t, [2]int{anchored.Line, anchored.Column}, at[0])
-	esc := newEscapes()
+	esc := newEscapes(nil)
 
 	esc.escape(root)
 
@@ -182,7 +184,7 @@ func TestEscapes_KeepsTextAnAliasSharesWithARefAsWritten(t *testing.T) {
 	anchored := root.Content[0].Content[1].Content[1]
 	text := root.Content[0].Content[3].Content[1]
 	key := root.Content[0].Content[3].Content[2]
-	esc := newEscapes()
+	esc := newEscapes(nil)
 
 	esc.escape(root)
 
@@ -204,7 +206,7 @@ func TestEscapes_RewritesAValueAMergeKeySupplies(t *testing.T) {
 	t.Parallel()
 	const src = "base: &m {$ref: '#/x+y'}\nuse: {<<: *m, other: 1}\n"
 	root := decodeRoot(t, src)
-	esc := newEscapes()
+	esc := newEscapes(nil)
 
 	esc.escape(root)
 
@@ -253,7 +255,7 @@ c: {$ref: '#/p+q', x-e: {$ref: 'o.yaml#/r+s'}}
 d: [{$ref: '#/t+u'}]
 `
 	root := decodeRoot(t, src)
-	esc := newEscapes()
+	esc := newEscapes(nil)
 	esc.escape(root)
 	require.NotEmpty(t, esc.written)
 	require.NotEqual(t, refValues(decodeRoot(t, src)), refValues(root), "the tree was rewritten")
@@ -270,7 +272,7 @@ func TestEscapes_LeavesATreeWithNoCandidateAlone(t *testing.T) {
 	t.Parallel()
 	const src = "a: {$ref: '#/b'}\nc: '+'\nd: '#'\n"
 	root := decodeRoot(t, src)
-	esc := newEscapes()
+	esc := newEscapes(nil)
 
 	esc.escape(root)
 
@@ -298,13 +300,81 @@ func TestEscapes_NilRegistryDoesNothing(t *testing.T) {
 	assert.Equal(t, trail{stopped: "#/a+b"}, esc.trailOf(chain{stopped: "#/a+b", stoppedAt: built}))
 	text := []ir.Diagnostic{{Message: "unable to resolve reference: #/a%2Bb"}}
 	assert.Equal(t, text, esc.asWritten(slices.Clone(text)))
+	assert.False(t, esc.rewritable(decodeRoot(t, "{$ref: '/r/a.yaml'}")), "a nil registry respells no document part")
+	assert.Nil(t, esc.refusal(), "and refuses none")
+}
+
+// TestEscapes_RespellsADocumentPartTheReadRefuses pins the respelling for a
+// confined read: a document part refuses reports goes to the resolver under
+// absoluteScheme, its fragment as ForResolver spells it, as one opaque URL that
+// net/url spells back unchanged and absolutePath reads the path from exactly,
+// whatever it holds. A part it does not refuse is left as it is.
+func TestEscapes_RespellsADocumentPartTheReadRefuses(t *testing.T) {
+	t.Parallel()
+	refuses := func(uri string) bool { return strings.HasPrefix(uri, "/") }
+	for _, tc := range []struct{ name, ref, want, path string }{
+		{"an absolute path", "/r/a.yaml#/X", "x-morphic-absolute:%2Fr%2Fa.yaml#/X", "/r/a.yaml"},
+		{"no fragment", "/r/a.yaml", "x-morphic-absolute:%2Fr%2Fa.yaml", "/r/a.yaml"},
+		{"spaces around it", " /r/a b.yaml #/X", "x-morphic-absolute:%2Fr%2Fa%20b.yaml#/X", "/r/a b.yaml"},
+		{"a plus in the fragment", "/r/a.yaml#/a+b", "x-morphic-absolute:%2Fr%2Fa.yaml#/a%2Bb", "/r/a.yaml"},
+		{"what a URL reads otherwise", "/r/a?b=%41:c;d.yaml", "x-morphic-absolute:%2Fr%2Fa%3Fb=%2541:c%3Bd.yaml", "/r/a?b=%41:c;d.yaml"},
+		{"a relative path", "a.yaml#/a+b", "a.yaml#/a%2Bb", ""},
+		{"a fragment alone", "#/X", "#/X", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			src := "{$ref: '" + tc.ref + "'}"
+			esc := newEscapes(refuses)
+
+			assert.Equal(t, tc.want != tc.ref, esc.rewritable(decodeRoot(t, src)))
+			root := decodeRoot(t, src)
+			esc.escape(root)
+
+			assert.Equal(t, []string{tc.want}, refValues(root))
+			key, _, _ := strings.Cut(tc.want, "#")
+			got, ok := absolutePath(key)
+			assert.Equal(t, tc.path != "", ok)
+			assert.Equal(t, tc.path, got)
+			if tc.path == "" {
+				return
+			}
+			req, err := http.NewRequest(http.MethodGet, key, nil)
+			require.NoError(t, err)
+			assert.Equal(t, key, req.URL.String(), "the key the resolver asks for")
+			quoted := []ir.Diagnostic{{Message: `unresolved $ref "` + tc.want + `"`}}
+			assert.Equal(t, `unresolved $ref "`+tc.ref+`"`, esc.asWritten(quoted)[0].Message)
+		})
+	}
+}
+
+// TestAbsolutePath_RefusesWhatNoRespellingWrites pins that only a key under
+// absoluteScheme with a path that unescapes is read as one.
+func TestAbsolutePath_RefusesWhatNoRespellingWrites(t *testing.T) {
+	t.Parallel()
+	for _, key := range []string{"/r/a.yaml", "file:///r/a.yaml", "x-morphic-absolute", "x-morphic-absolute:%zz"} {
+		_, ok := absolutePath(key)
+		assert.False(t, ok, key)
+	}
+}
+
+// TestEscapes_RefusalRefusesWhatItRespells pins bind.Config.Refuse as the
+// registry answers it: the refusal naming the path, for a part it respells.
+func TestEscapes_RefusalRefusesWhatItRespells(t *testing.T) {
+	t.Parallel()
+	refuse := newEscapes(func(uri string) bool { return uri == "/r/a.yaml" }).refusal()
+	require.NotNil(t, refuse)
+
+	require.NoError(t, refuse("a.yaml"))
+	assert.EqualError(t, refuse("/r/a.yaml"), "external document /r/a.yaml refused: "+
+		"the $ref names it by an absolute path, which a read follows only when external references are allowed")
+	assert.Nil(t, newEscapes(nil).refusal(), "a registry refusing none refuses nothing")
 }
 
 // escapedMessages returns each message in turn as asWritten renders it, once
 // escape has rewritten src.
 func escapedMessages(t *testing.T, src string, messages ...string) []string {
 	t.Helper()
-	esc := newEscapes()
+	esc := newEscapes(nil)
 	esc.escape(decodeRoot(t, src))
 	diags := make([]ir.Diagnostic, 0, len(messages))
 	for _, m := range messages {
@@ -351,6 +421,24 @@ func TestEscapes_AsWrittenKeepsASpellingTheSourceWrites(t *testing.T) {
 	}, got)
 }
 
+// TestEscapes_AsWrittenKeepsTheRespellingOfAPathWhereTheSourceWritesIt pins
+// the "%2B" rule for a document part respelled under absoluteScheme: where
+// the source writes that spelling itself, a message quoting it is left alone.
+func TestEscapes_AsWrittenKeepsTheRespellingOfAPathWhereTheSourceWritesIt(t *testing.T) {
+	t.Parallel()
+	const src = "[{$ref: '/r/a.yaml#/X'}, {$ref: 'x-morphic-absolute:%2Fr%2Fa.yaml#/X'}, {$ref: '/r/b.yaml#/X'}]"
+	esc := newEscapes(func(uri string) bool { return strings.HasPrefix(uri, "/") })
+	esc.escape(decodeRoot(t, src))
+
+	got := esc.asWritten([]ir.Diagnostic{
+		{Message: `unresolved $ref "x-morphic-absolute:%2Fr%2Fa.yaml#/X"`},
+		{Message: `unresolved $ref "x-morphic-absolute:%2Fr%2Fb.yaml#/X"`},
+	})
+
+	assert.Equal(t, `unresolved $ref "x-morphic-absolute:%2Fr%2Fa.yaml#/X"`, got[0].Message)
+	assert.Equal(t, `unresolved $ref "/r/b.yaml#/X"`, got[1].Message)
+}
+
 func TestEscapes_AsWrittenChoosesOneSpellingWhereSeveralRespellAlike(t *testing.T) {
 	t.Parallel()
 	for _, src := range []string{
@@ -394,7 +482,7 @@ func escapeSource(t *testing.T, src string) escapedSource {
 	t.Helper()
 	root := decodeRoot(t, src)
 	releaseAnchors(root)
-	esc := newEscapes()
+	esc := newEscapes(nil)
 	esc.escape(root)
 	doc, valErrs, err := unmarshal(t.Context(), []byte(src), root)
 	require.NoError(t, err)
@@ -591,7 +679,7 @@ func TestEscapes_RestoreFromWalksNothingWhenNothingWasRewritten(t *testing.T) {
 	t.Parallel()
 	panicking := iter.Seq[soa.WalkItem](func(func(soa.WalkItem) bool) { panic("walked") })
 
-	site, err := newEscapes().restoreFrom(t.Context(), panicking, nil)
+	site, err := newEscapes(nil).restoreFrom(t.Context(), panicking, nil)
 
 	require.NoError(t, err)
 	assert.Empty(t, site)
@@ -607,7 +695,7 @@ components:
     P: {$ref: '#/paths/~1a+b'}
 `
 	root := decodeRoot(t, src)
-	esc := newEscapes()
+	esc := newEscapes(nil)
 	esc.escape(root)
 	require.Equal(t, []string{"#/paths/~1a%2Bb"}, refValues(root))
 	panicking := iter.Seq[soa.WalkItem](func(func(soa.WalkItem) bool) { panic("walk fault") })
@@ -642,7 +730,7 @@ func TestRestorer_FinishReportsAWalkOfAnObjectThatFaults(t *testing.T) {
 	// faults, and the barrier turns that into the error.
 	hop := &soa.ReferencedParameter{}
 	hop.GetCore().Reference.ValueNode = &yaml.Node{Kind: yaml.ScalarNode, Value: "#/x"}
-	r := &restorer{esc: newEscapes(), seen: map[any]bool{}, walked: map[any]bool{},
+	r := &restorer{esc: newEscapes(nil), seen: map[any]bool{}, walked: map[any]bool{},
 		queue: []record{{object: hop}}}
 
 	err := r.finish(t.Context(), nil)

@@ -69,6 +69,7 @@ func bindSchemas(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, self sour
 ) bound {
 	ends := referenceEnds(ctx, doc, sibs, self)
 	cfg := bind.Config{Self: self.path, Locate: self.locate, Beside: sibs.Beside, Written: self.escapes.original,
+		Refuse: self.escapes.refusal(),
 		Through: func(p jsontext.Pointer) (bind.ReferenceEnd, bool) {
 			e, ok := ends[p]
 			return bind.ReferenceEnd{Name: e.name, Pointer: e.pointer, Node: e.node}, ok

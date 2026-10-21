@@ -232,9 +232,11 @@ path, each file or URL read once however many references name it, and held to th
 and refusals ([`source-budgets`](#source-budgets)), where a document past one fails each reference
 naming it. The read stays inside the directory of the source's path, symbolic links included, and
 follows relative references alone, unless `Options.AllowExternalRefs` lets it reach any file and
-http(s) URLs: a document named only by an absolute path, or by a `file:` URI, is not read, so what
-the default reads never depends on how the working directory is spelled. A document outside, or
-named that way, fails each reference naming it, and with no reader no document is read.
+http(s) URLs: a `$ref` naming a document by a `file:` URI, or one other than the source by an
+absolute path, fails unread, whatever another `$ref` names that document by. Each is judged by its
+own spelling, so what the default reads depends neither on how the working directory is spelled nor
+on the order references are read in. A document outside fails each reference naming it, and with no
+reader no document is read.
 
 Each document read is a `Document.Sources` entry after the source and its overlay, ordered by its
 location from the source's directory, and what it declares lowers there, as the source's own lowers
@@ -316,7 +318,7 @@ would answer. A chain of references that closes on itself is
   `openapi.TestCompile_ASymlinkOutOfTheSourcesDirectoryIsRefused`,
   `openapi.TestCompile_ARefOutsideTheSourcesDirectoryResolvesWhenAllowed`,
   `openapi.TestCompile_ByDefaultOnlyARelativeReferenceIsFollowed`,
-  `openapi.TestCompile_ADocumentARelativeReferenceNamesIsReadHoweverOthersSpellIt`,
+  `openapi.TestCompile_ByDefaultEachReferenceIsJudgedByItsOwnSpelling`,
   `openapi.TestCompile_OneFileUnderTwoNamesIsOneDocument`,
   `openapi.TestExternalContent_ASchemaRefPastARefNamesItsContent`,
   `openapi.TestExternalContent_ASourcePositionItNamesByFileResolvesInEitherOrder`,

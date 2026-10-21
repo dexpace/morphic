@@ -269,32 +269,29 @@ func TestExternal_OpenServesWhatTheReaderReturned(t *testing.T) {
 	assert.True(t, cached)
 }
 
-// TestExternal_AConfinedReadFollowsRelativeReferencesOnly pins what a read
-// confined to the source's directory refuses before asking the reader: a
-// document a file URI names, and one only absolute paths name, each with its
-// reason. A document a relative $ref names too is read, and an unconfined read
-// refuses neither.
-func TestExternal_AConfinedReadFollowsRelativeReferencesOnly(t *testing.T) {
+// TestExternal_AConfinedReadRefusesByHowItIsNamed pins what a read confined to
+// the source's directory refuses unread, each with its reason and naming the
+// document: one a file URI names, and one an absolute path names, respelled for
+// the resolver (see escapes.forResolver). A key that is an absolute path is
+// read, for it says nothing of how a $ref spells it, and an unconfined read
+// refuses none.
+func TestExternal_AConfinedReadRefusesByHowItIsNamed(t *testing.T) {
 	t.Parallel()
 	const allowed = ", which a read follows only when external references are allowed"
-	for _, tc := range []struct {
-		name, key, within, want string
-		spelled                 []bool // each $ref naming key: true for an absolute path
-	}{
-		{"a file URI", "file:///r/a.yaml", "/r", "it is named by a file URI" + allowed, nil},
-		{"a file URI in capitals", "FILE:///r/a.yaml", "/r", "it is named by a file URI" + allowed, nil},
-		{"an absolute path alone", "/r/a.yaml", "/r", "it is named only by an absolute path" + allowed, []bool{true}},
-		{"an absolute path and a relative one", "/r/a.yaml", "/r", "", []bool{true, false}},
-		{"a relative path", "a.yaml", "/r", "", []bool{false}},
-		{"a file URI, unconfined", "file:///r/a.yaml", "", "", nil},
-		{"an absolute path alone, unconfined", "/r/a.yaml", "", "", []bool{true}},
+	for _, tc := range []struct{ name, key, within, want string }{
+		{"a file URI", "file:///r/a.yaml", "/r", "external document file:///r/a.yaml refused: it is named by a file URI" + allowed},
+		{"a file URI in capitals", "FILE:///r/a.yaml", "/r", "external document FILE:///r/a.yaml refused: it is named by a file URI" + allowed},
+		{"an absolute path, respelled", "x-morphic-absolute:%2Fr%2Fa%20b.yaml", "/r",
+			"external document /r/a b.yaml refused: the $ref names it by an absolute path" + allowed},
+		{"an absolute key", "/r/a.yaml", "/r", ""},
+		{"a relative path", "a.yaml", "/r", ""},
+		{"a file URI, unconfined", "file:///r/a.yaml", "", ""},
+		{"an absolute path respelled, unconfined", "x-morphic-absolute:%2Fr%2Fa.yaml", "", ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			ext, _ := externalOver(t.Context(), Options{Within: tc.within}, &fakeReader{data: []byte("X: {}\n")})
-			for _, absolute := range tc.spelled {
-				ext.read.noteName(tc.key, absolute)
-			}
+			fake := &fakeReader{data: []byte("X: {}\n")}
+			ext, _ := externalOver(t.Context(), Options{Within: tc.within}, fake)
 
 			a := ext.fetch(t.Context(), tc.key, tc.key)
 
@@ -303,8 +300,30 @@ func TestExternal_AConfinedReadFollowsRelativeReferencesOnly(t *testing.T) {
 				assert.Equal(t, "X: {}\n", string(a.body))
 				return
 			}
-			require.Error(t, a.err)
-			assert.Contains(t, a.err.Error(), tc.want)
+			require.EqualError(t, a.err, tc.want)
+			assert.Empty(t, fake.reqs, "the reader is never asked")
 		})
 	}
+}
+
+// TestByAbsolutePath_RefusesAnAbsolutePathToAnotherDocument pins what a
+// confined read refuses by a $ref's spelling: an absolute file path, wherever
+// it points, unless it names the source. A relative path, a URL and a file URI,
+// which unnamed refuses itself, are not, and a read confined nowhere, or with
+// no reader, refuses none.
+func TestByAbsolutePath_RefusesAnAbsolutePathToAnotherDocument(t *testing.T) {
+	t.Parallel()
+	confined := Options{Within: "/r", Reader: &fakeReader{}}
+	refuses := byAbsolutePath(confined, "/r/root.yaml")
+	require.NotNil(t, refuses)
+	for uri, want := range map[string]bool{
+		"/r/a.yaml": true, "/elsewhere/a.yaml": true, "/r/x/../a.yaml": true,
+		"/r/root.yaml": false, "/r/./root.yaml": false,
+		"a.yaml": false, "../a.yaml": false, "https://h/a.yaml": false, "file:///r/a.yaml": false,
+	} {
+		assert.Equal(t, want, refuses(uri), uri)
+	}
+	assert.True(t, byAbsolutePath(confined, "")("/r/root.yaml"), "a source with no path is named by none")
+	assert.Nil(t, byAbsolutePath(Options{Reader: &fakeReader{}}, "/r/root.yaml"))
+	assert.Nil(t, byAbsolutePath(Options{Within: "/r"}, "/r/root.yaml"))
 }

@@ -57,38 +57,6 @@ type externalReads struct {
 	// spelled holds what the source is held under besides its own keys, for a
 	// second resolution to hold again.
 	spelled *heldSpellings
-	// named holds how the $refs naming each document's key spell it (see
-	// external.unnamed).
-	named map[string]namedBy
-}
-
-// namedBy is how the $refs naming one document spell its location: by a
-// relative path, by an absolute one, or both.
-type namedBy struct {
-	relative, absolute bool
-}
-
-// noteName records that a $ref spelling its location relative, or absolute,
-// names the document under key.
-func (r *externalReads) noteName(key string, absolute bool) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	n := r.named[key]
-	if absolute {
-		n.absolute = true
-	} else {
-		n.relative = true
-	}
-	r.named[key] = n
-}
-
-// absoluteOnly reports whether the document under key is named by an absolute
-// path and by no relative one.
-func (r *externalReads) absoluteOnly(key string) bool {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	n := r.named[key]
-	return n.absolute && !n.relative
 }
 
 // digest is the SHA-256 of a document's bytes.
@@ -115,7 +83,6 @@ func newExternalReads(self sourceDocument) *externalReads {
 		mended:   map[string]treeAnswer{},
 		stood:    map[any]resolvable{},
 		spelled:  newHeldSpellings(),
-		named:    map[string]namedBy{},
 	}
 	for _, key := range self.keys() {
 		r.recordTree(key, self.root, self.data)
@@ -429,7 +396,7 @@ func resolveExternal(ctx context.Context, at func(jsontext.Pointer) ir.Provenanc
 	diags := resolveWith(ctx, at, doc, sibs, self, opts, &reader)
 	used := documentsUsed(ctx, doc, sibs)
 	first := unprepared(doc, read, used)
-	if !anyAnchored(doc, first) && !anyRewritable(doc, first) {
+	if !anyAnchored(doc, first) && !anyRewritable(doc, first, self.escapes) {
 		return doc, sibs, &reader, diags, nil
 	}
 
@@ -455,10 +422,11 @@ func anyAnchored(doc *soa.OpenAPI, missed []usedDocument) bool {
 }
 
 // anyRewritable reports whether any document in missed, as the resolver parsed
-// it, holds a $ref the resolver reads a '+' of as a space, which the prepared
-// tree has spelled otherwise (GitHub #911).
-func anyRewritable(doc *soa.OpenAPI, missed []usedDocument) bool {
-	return anyParsed(doc, missed, rewritable)
+// it, holds a $ref esc would respell, which the prepared tree has spelled
+// otherwise: one the resolver reads a '+' of as a space (GitHub #911), or one
+// a confined read refuses by its spelling.
+func anyRewritable(doc *soa.OpenAPI, missed []usedDocument, esc *escapes) bool {
+	return anyParsed(doc, missed, esc.rewritable)
 }
 
 // anyParsed reports whether the tree the resolver parsed for any document in

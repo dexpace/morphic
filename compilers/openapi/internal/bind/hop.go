@@ -56,6 +56,11 @@ func (b *binder) document(site Position, ref string) (DocID, Reason, string) {
 	if uri = strings.TrimSpace(uri); uri == "" {
 		return site.Doc, NoReason, ""
 	}
+	if refuse := b.docs.cfg.Refuse; refuse != nil {
+		if err := refuse(uri); err != nil {
+			return 0, Unreadable, err.Error()
+		}
+	}
 	name, ok := b.docs.locate(uri, b.docs.list[site.Doc].name)
 	if !ok {
 		return 0, Unreadable, "it names no document a reference can"

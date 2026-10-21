@@ -694,7 +694,7 @@ components:
 func TestExternal_PrepareRewritesTheTreeItStoresAndRestoreTreesPutsItBack(t *testing.T) {
 	t.Parallel()
 	const body = "a: &x '#/p+q'\nb: {$ref: *x}\nc: {$ref: 'o.yaml#/r+s'}\n"
-	esc := newEscapes()
+	esc := newEscapes(nil)
 	doc := &soa.OpenAPI{}
 	ext := newExternal(t.Context(), doc, Options{}, newExternalReads(sourceDocument{escapes: esc}))
 
