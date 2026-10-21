@@ -211,8 +211,11 @@ func TestEngine_RunRefusesAnUnknownSeverity(t *testing.T) {
 		{"the compiler, with a document", func(diags []ir.Diagnostic) (*engine.Engine, error) {
 			return engine.NewWith(splitDiagCompiler{stored: diags})
 		}},
+		// A refusal states why, so its list leads with an error: one holding only
+		// the unknown severity breaks the contract before the verdict reads it.
 		{"the compiler, with none", func(diags []ir.Diagnostic) (*engine.Engine, error) {
-			return engine.NewWith(nilDocCompiler{reported: diags})
+			why := ir.Diagnostic{Severity: ir.SeverityError, Code: "x/refused"}
+			return engine.NewWith(nilDocCompiler{reported: append([]ir.Diagnostic{why}, diags...)})
 		}},
 		{"a pass", func(diags []ir.Diagnostic) (*engine.Engine, error) {
 			return engine.NewWithPasses([]pass.Pass{reportPass{diags}}, splitDiagCompiler{})

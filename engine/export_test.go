@@ -15,6 +15,10 @@ var ErrNoDocument = errNoDocument
 // index fails a run with.
 var ErrSourcesMoved = errSourcesMoved
 
+// ErrSourceOutOfRange exposes the error a pass reporting a diagnostic that
+// indexes no source fails a run with.
+var ErrSourceOutOfRange = errSourceOutOfRange
+
 // ErrUnknownSeverity exposes the error a stage reporting a diagnostic of a
 // severity the IR does not define fails a run with.
 var ErrUnknownSeverity = errUnknownSeverity

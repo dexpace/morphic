@@ -30,6 +30,11 @@ var errNoDocument = errors.New("returned no document")
 // to the wrong file.
 var errSourcesMoved = errors.New("moved, replaced or dropped an entry of Document.Sources")
 
+// errSourceOutOfRange reports a pass that broke its contract with a diagnostic
+// indexing no entry of Document.Sources, which the Result promises every one it
+// carries does (Result.Sources).
+var errSourceOutOfRange = errors.New("reported a diagnostic indexing no source")
+
 // defaultPasses returns the passes every engine runs, in the order it runs
 // them; no other code holds that order. An analysis that judges the document,
 // validate among them, goes after every transform, so it checks what the run
@@ -75,6 +80,9 @@ func runPasses(ctx context.Context, doc *ir.Document, passes []pass.Pass) (*ir.D
 		if !keepsSources(doc.Sources, next.Sources) {
 			return nil, nil, fmt.Errorf("engine: run pass %q: %w", p.Name(), errSourcesMoved)
 		}
+		if !indexesSources(diags, len(next.Sources)) {
+			return nil, nil, fmt.Errorf("engine: run pass %q: %w", p.Name(), errSourceOutOfRange)
+		}
 		doc, found = next, append(found, diags...)
 	}
 	return doc, found, nil
@@ -84,4 +92,15 @@ func runPasses(ctx context.Context, doc *ir.Document, passes []pass.Pass) (*ir.D
 // gives it, which is all a Provenance.Source already made needs.
 func keepsSources(prev, next []ir.SourceInfo) bool {
 	return len(next) >= len(prev) && slices.Equal(prev, next[:len(prev)])
+}
+
+// indexesSources reports whether every diagnostic of diags addresses one of n
+// sources or ir.NoSource, the one out-of-table value the IR declares.
+func indexesSources(diags []ir.Diagnostic, n int) bool {
+	for _, d := range diags {
+		if s := d.Provenance.Source; s != ir.NoSource && (s < 0 || s >= n) {
+			return false
+		}
+	}
+	return true
 }

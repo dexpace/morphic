@@ -2,6 +2,8 @@ package engine_test
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
@@ -298,7 +300,30 @@ func (stubFront) Detect(compilers.Source, compilers.Options) (compilers.Recognit
 
 func (stubFront) DecodeOptions(compilers.OptionSet) (any, error) { return nil, nil }
 
-func (stubFront) SourceTable([]compilers.Source, compilers.Options) []ir.SourceInfo { return nil }
+func (stubFront) SourceTable(sources []compilers.Source, _ compilers.Options) []ir.SourceInfo {
+	return tableOf(sources)
+}
+
+// tableOf is the table SourceTable gives for sources: each one's path, in order.
+func tableOf(sources []compilers.Source) []ir.SourceInfo {
+	table := make([]ir.SourceInfo, 0, len(sources))
+	for _, src := range sources {
+		table = append(table, ir.SourceInfo{Path: src.Path})
+	}
+	return table
+}
+
+// sourcesOf is the table a stub's document carries for sources, as the
+// compilers.Compiler contract has it: each read as format and hashed from its
+// bytes.
+func sourcesOf(format string, sources []compilers.Source) []ir.SourceInfo {
+	table := tableOf(sources)
+	for i, src := range sources {
+		sum := sha256.Sum256(src.Data)
+		table[i].Format, table[i].Hash = format, hex.EncodeToString(sum[:])
+	}
+	return table
+}
 
 // collidingCompiler claims a single fixed format. Two of them registered
 // together make the second Register call fail, driving NewWith's error path.
@@ -390,13 +415,14 @@ type splitDiagCompiler struct {
 	stored, returned []ir.Diagnostic
 }
 
-func (c splitDiagCompiler) Compile(context.Context, []compilers.Source, compilers.Options) (*ir.Document, []ir.Diagnostic, error) {
+func (c splitDiagCompiler) Compile(_ context.Context, sources []compilers.Source, _ compilers.Options) (*ir.Document, []ir.Diagnostic, error) {
 	// A fresh document and fresh slices per call: Run writes the merged list onto
 	// the document, so shared ones would carry one run's result into the next.
 	return &ir.Document{
 		IRVersion:   "1.0.0",
 		Types:       ir.TypeRegistry{},
 		Diagnostics: slices.Clone(c.stored),
+		Sources:     sourcesOf("openapi@3.1", sources),
 	}, slices.Clone(c.returned), nil
 }
 
@@ -452,10 +478,11 @@ func TestEngine_RunKeepsDiagnosticsFromEitherChannel(t *testing.T) {
 // sniffs to it.
 type danglingCompiler struct{ stubFront }
 
-func (danglingCompiler) Compile(_ context.Context, _ []compilers.Source, _ compilers.Options) (*ir.Document, []ir.Diagnostic, error) {
+func (danglingCompiler) Compile(_ context.Context, sources []compilers.Source, _ compilers.Options) (*ir.Document, []ir.Diagnostic, error) {
 	doc := &ir.Document{
-		Name:  "Dangling",
-		Types: ir.TypeRegistry{},
+		Name:    "Dangling",
+		Types:   ir.TypeRegistry{},
+		Sources: sourcesOf("openapi@3.1", sources),
 		Services: []ir.Service{{
 			ID: "s/x",
 			Groups: []ir.OperationGroup{{
@@ -527,11 +554,13 @@ func (s *smithyCompiler) DecodeOptions(set compilers.OptionSet) (any, error) {
 	return set.Settings["shape"], nil
 }
 
-func (*smithyCompiler) SourceTable([]compilers.Source, compilers.Options) []ir.SourceInfo { return nil }
+func (*smithyCompiler) SourceTable(sources []compilers.Source, _ compilers.Options) []ir.SourceInfo {
+	return tableOf(sources)
+}
 
 func (*smithyCompiler) Compile(_ context.Context, sources []compilers.Source, opts compilers.Options) (*ir.Document, []ir.Diagnostic, error) {
 	name, _ := opts.FormatOptions.(string)
-	doc := &ir.Document{Name: name, Types: ir.TypeRegistry{}}
+	doc := &ir.Document{Name: name, Types: ir.TypeRegistry{}, Sources: sourcesOf("smithy@2.0", sources)}
 	if len(sources) == 1 {
 		if _, ok := sources[0].Parsed.(smithyParse); ok {
 			doc.Version = "parse-arrived"
