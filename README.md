@@ -215,7 +215,8 @@ built-in compiler and the default IR passes. `Run` reads the spec, asks the regi
 which one recognizes it, compiles, and runs the passes in order, each over the document the one
 before it returned. `RunOptions.DisablePasses` turns passes off by name (`engine.ValidatePass`
 names the referential-integrity check), and a name no pass carries fails the run with
-`engine.ErrUnknownPass`.
+`engine.ErrUnknownPass`. A compiler breaking its contract, say by returning a document whose source
+table does not describe the spec, fails the run with an error wrapping `compilers.ErrContract`.
 
 ```go
 eng, err := engine.New()
@@ -227,7 +228,7 @@ res, err := eng.Run(ctx, "openapi.yaml", engine.RunOptions{
     CompilerOptions: map[string]string{"grouping": "path-prefix"},
 })
 if err != nil {
-    return err // misuse or I/O; problems in the spec arrive as diagnostics
+    return err // misuse, I/O or a broken contract; problems in the spec arrive as diagnostics
 }
 
 for _, d := range res.Diagnostics {
