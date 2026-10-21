@@ -172,16 +172,17 @@ A compiler lowers one source format into an IR document ([`architecture.md`](doc
    and canonical names with `compilers/compile`, declare in `Document.IDSpaces` every namespace an
    ID lives in, source-addressed as well as minted (`ir-design.md` §3.1), and stamp
    `ir.IRVersion`. Once the last lowering returns, take the registry from `compile.Types.Finish` and
-   report every entry it refused, as the OpenAPI compiler's `run` does; take the `*compile.Types` as
-   a parameter, as `run` does, so a test can drive the refusal no source provokes. Name each source
-   in `Document.Sources` with the format it was recognized as and `ir.SourceHash` of its bytes.
+   report the diagnostics it returns beside it, as the OpenAPI compiler's `run` does: they carry a
+   `compile/registry-refused` error for each entry the registry refused. Take the `*compile.Types`
+   as a parameter, as `run` does, so a test can drive the refusal no source provokes. Name each
+   source in `Document.Sources` with the format it was recognized as and `ir.SourceHash` of its
+   bytes.
    *Fails if missed:* the `namechannels`, `idderivations` and `registrywrites` rules in
    `internal/lintrules` (`make vet`) for the framework; `irverify`, in step 5's tests, for the
    namespaces, the version, the services and a malformed source table, with `irtest.SpacesUsed`
    holding `IDSpaces` to what the output uses; and `compilers.Detection.Compile`, which every engine
-   run compiles through, for a source table that does not describe the inputs. Nothing checks that
-   the refusals are reported: `Finish` returns them beside the registry, so dropping them takes a
-   `_` a reviewer can see.
+   run compiles through, for a source table that does not describe the inputs. The refusals cannot
+   be dropped apart from what settling reports, since `Finish` returns the two as one list.
 4. **Register it** in `engine.Compilers` (`engine/engine.go`), the one place built-in compilers are
    listed, and add the package to the `engine` entry of the `rules` map. A registered compiler is
    also held to its column of [`ir-spec-matrix.md`](docs/ir-spec-matrix.md): end the format's

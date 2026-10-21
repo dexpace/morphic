@@ -124,18 +124,18 @@ work proportional to the document, and the settling after them, honour the `cont
 compile is given, so a deadline or a cancellation stops one between items and the error reaches the
 caller unwrapped.
 
-**The contract is checked, not trusted.** Each duty `compilers.Compiler`'s doc comments state is held
-where its data is. `Registry.Register` refuses a format naming no dialect, and `Registry.Detect` a
-claim naming none and a decline indexing a source detection was not handed. `Detection.Compile`,
-which the engine compiles through, refuses a refusal that gives no error, a source table that does
-not open with the one `SourceTable` names, a source read as a format other than the one it was
-recognized as or hashed from other bytes, and a finding indexing no source. Entries past that
-opening name what else the compile read, such as a document a reference names, which `SourceTable`
-reads no input to know of. Each breach is a Go error wrapping
+**The contract is checked, not trusted.** Each duty `compilers.Compiler`'s doc comments state is
+held where its data is. `Registry.Register` refuses a format naming no dialect, and
+`Registry.Detect` a claim naming none and a decline indexing a source detection was not handed.
+`Detection.Compile`, which the engine compiles through, refuses a refusal that gives no error, a
+source table that does not open with the one `SourceTable` names, a source read as a format other
+than the one it was recognized as or hashed from other bytes, and a finding indexing no source.
+Entries past that opening name what else the compile read, such as a document a reference names,
+which `SourceTable` reads no input to know of. Each breach is a Go error wrapping
 `compilers.ErrContract`: a compiler bug, never the spec's. What a document holds whatever produced
 it, the schema stamp, the namespaces, a service and a well-formed source table among them, is
-`irverify`'s, and `compile.Types.Finish` hands a compiler its registry only beside the entries it
-refused, which the compiler reports.
+`irverify`'s, and `compile.Types.Finish` hands a compiler its registry with the diagnostics it
+reports, a `compile/registry-refused` error for each entry the registry refused among them.
 
 **What stays in the OpenAPI compiler.** Three of its pieces read as if any format could use them:
 the YAML view (`internal/nodeview`), version sniffing (`detect.go`) and document identity

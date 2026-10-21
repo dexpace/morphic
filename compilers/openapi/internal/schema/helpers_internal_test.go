@@ -123,8 +123,10 @@ func assertInternalInvariant(t *testing.T, diags []ir.Diagnostic) {
 // no fixture provokes, so one fails the test.
 func (l *lowerer) document(t *testing.T) *ir.Document {
 	t.Helper()
-	reg, settled, refused := l.types.Finish(t.Context())
-	require.Empty(t, refused, "the registry refused an entry")
+	reg, settled := l.types.Finish(t.Context())
+	for _, d := range settled {
+		require.NotEqual(t, compile.RegistryRefused, d.Code, "the registry refused an entry: %s", d.Message)
+	}
 	l.diags.AppendAll(settled)
 	l.out.Types = reg
 	return l.out

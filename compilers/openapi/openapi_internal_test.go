@@ -72,10 +72,9 @@ func TestRun_RegistryRefusalsAreSurfaced(t *testing.T) {
 	_, diags, err := run(t.Context(), lowering.Ctx{Doc: &soa.OpenAPI{}}, types)
 	require.NoError(t, err)
 
-	assertHasErrorCode(t, diags, diag.InternalInvariant)
 	assert.True(t, slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {
-		return d.Code == diag.InternalInvariant && strings.Contains(d.Message, "register rejected: empty type id")
-	}), "the diagnostic carries the refusal Finish handed over: %v", diags)
+		return d.Code == compile.RegistryRefused && strings.Contains(d.Message, "register rejected: empty type id")
+	}), "the compile reports the refusal Finish carries: %v", diags)
 }
 
 // TestWithoutRereported is a unit table over the ways a lowering diagnostic

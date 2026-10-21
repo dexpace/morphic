@@ -9,7 +9,7 @@ import (
 // A Settlement is a decision about a node that reads nodes other lowerings
 // intern. A walk lowers one declaration at a time, so mid-walk such a decision
 // would read whatever had been lowered so far, and its answer would follow
-// declaration order (invariant 3). Deferred to Settle, it reads the registry
+// declaration order (invariant 3). Deferred to Finish, it reads the registry
 // whole.
 //
 // Settle may rewrite nodes already in reg but must not add or remove one:

@@ -150,7 +150,7 @@ func TestTypes_PrimRefInternsOnceAndNamesNoSource(t *testing.T) {
 func TestTypes_RegistryIsTheLiveMap(t *testing.T) {
 	t.Parallel()
 	types := compile.NewTypes()
-	reg, _, _ := types.Finish(t.Context())
+	reg, _ := types.Finish(t.Context())
 	types.Register("t/late", &ir.Any{})
 
 	assert.Contains(t, reg, ir.TypeID("t/late"),

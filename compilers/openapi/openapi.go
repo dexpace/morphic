@@ -180,8 +180,10 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, 
 	acc.AppendAll(svcDiags)
 	// Every lowering has returned, so the registry is finished: what was
 	// deferred until it is whole is decided now (compile.Settlement), before the
-	// check that refuses a registry either phase left cut short.
-	reg, settled, refused := ts.Finish(ctx)
+	// check that refuses a registry either phase left cut short. What Finish
+	// reports carries each entry the registry refused, a compiler bug that would
+	// otherwise leave every reference to it dangling with nothing said.
+	reg, settled := ts.Finish(ctx)
 	acc.AppendAll(settled)
 	if err := ctx.Err(); err != nil {
 		return nil, acc.List(), err
@@ -202,12 +204,6 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, 
 	out.IRVersion = ir.IRVersion
 	out.IDSpaces = ids.Namespaces().Declaration()
 	out.Sources = c.Sources()
-	// An entry the registry refused is a compiler bug no source can provoke, and
-	// a refusal nothing reports hides the bug rather than the symptom: the node is
-	// simply absent and every reference to it dangles.
-	for _, v := range refused {
-		acc.Append(c.DiagAt(ir.SeverityError, diag.InternalInvariant, "", "internal: %s", v))
-	}
 	return out, acc.List(), nil
 }
 
