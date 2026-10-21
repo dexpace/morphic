@@ -64,6 +64,13 @@ var rules = map[string][]string{
 	// included: an internal test file cannot import a package that imports its
 	// own.
 	"compilers/openapi/internal/ynode": {"gopkg.in/yaml.v3"},
+	// The OpenAPI Specification's rules as data, and the engine that checks a
+	// source tree against them at the minor it declares. It reads the tree
+	// through nodeview, reports through diag and reaches nothing that loads or
+	// lowers: the table is the compiler's own authority on the specification,
+	// so it depends on no parser library.
+	"compilers/openapi/internal/oas": {module + "/ir", module + "/compilers/openapi/internal/diag",
+		module + "/compilers/openapi/internal/nodeview", "gopkg.in/yaml.v3"},
 	// The one reading of a $ref fragment, and the spelling the resolver is handed
 	// for it (GitHub #911). It reaches the library's reference type for the
 	// resolver's own reading and nothing of the compiler, so the scans, the loader
