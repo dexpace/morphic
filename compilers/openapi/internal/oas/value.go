@@ -16,14 +16,14 @@ import (
 
 // value checks the value a field is written with: its shape, then what its
 // shape allows, then the objects it holds. A field whose shape another package
-// owns is left to it, bar a number outside a numeric field's range, such as a
-// multipleOf of 0, which that package reads as the number it is.
+// owns is left to it, bar a number outside the field's range, such as a
+// multipleOf of 0, which that package reads as the number it is, quoted or not.
 func (w *walker) value(f frame, fld Field, val *yaml.Node, depth int) {
 	node := nodeview.Deref(val)
 	ptr := f.at.ptr.AppendToken(fld.Name)
 	shape, ok := w.shapeOf(fld, node)
 	if !ok {
-		if fld.ShapeOwner == "" || numeric(fld.Shape) && numberOf(Number, node) {
+		if fld.ShapeOwner == "" || outOfRange(fld.Shape, node) {
 			w.mismatch(f, fld, node, ptr)
 		}
 		return
@@ -271,16 +271,6 @@ func allScalar(node *yaml.Node) bool {
 	return true
 }
 
-// numeric reports whether a shape is a number of some range.
-func numeric(shape Shape) bool {
-	switch shape {
-	case Number, PositiveNumber, Natural:
-		return true
-	default:
-		return false
-	}
-}
-
 // stringStyles marks the styles that write a string whatever its text.
 const stringStyles = yaml.DoubleQuotedStyle | yaml.SingleQuotedStyle | yaml.LiteralStyle | yaml.FoldedStyle
 
@@ -293,12 +283,27 @@ func numberOf(shape Shape, node *yaml.Node) bool {
 		return false
 	}
 	n, ok := parseNumber(node.Value)
-	switch {
-	case !ok:
+	return ok && inRange(shape, n)
+}
+
+// outOfRange reports whether the node's text, quoted or not, is a number the
+// shape's range refuses: one at or below zero for PositiveNumber, a fraction or
+// a negative number for Natural.
+func outOfRange(shape Shape, node *yaml.Node) bool {
+	if node.Kind != yaml.ScalarNode {
 		return false
-	case shape == PositiveNumber:
+	}
+	n, ok := parseNumber(node.Value)
+	return ok && !inRange(shape, n)
+}
+
+// inRange reports whether n falls in the range of the shape: above zero, an
+// integer from zero up, or, for any other shape, anything.
+func inRange(shape Shape, n *big.Rat) bool {
+	switch shape {
+	case PositiveNumber:
 		return n.Sign() > 0
-	case shape == Natural:
+	case Natural:
 		return n.IsInt() && n.Sign() >= 0
 	default:
 		return true
