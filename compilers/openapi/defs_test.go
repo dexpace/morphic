@@ -429,26 +429,29 @@ components:
 // TestCompile_DefsPointerUnderANestedIDReadsTheBaseItNames pins the base a
 // nested $id gives, placed as the load phase places a $ref's document: a dot
 // segment, the root path or a document with an empty fragment is another base,
-// so the schema below it reads its own $defs, and the source itself, however
-// spelled, is none, so the outer schema's definition answers.
+// so b roots a resource and q's pointer reads b's $defs, from the resource's
+// root alone. The source itself, however spelled, is none, so the nearest
+// definition above q answers, c's. q's own never does.
 func TestCompile_DefsPointerUnderANestedIDReadsTheBaseItNames(t *testing.T) {
 	t.Parallel()
 	b := ids.Ptr("components", "schemas", "A", "properties", "b")
-	for id, own := range map[string]bool{".": true, "./": true, "/": true, "x.json#": true,
+	c := b + ids.Ptr("properties", "c")
+	for id, resource := range map[string]bool{".": true, "./": true, "/": true, "x.json#": true,
 		"spec.yaml": false, "./spec.yaml#": false, "sub/../spec.yaml": false} {
 		t.Run(id, func(t *testing.T) {
 			t.Parallel()
 			doc, diags := parseFull(t, openapitest.ComponentSpec("    A:\n      $defs: {K: {type: string}}\n"+
-				"      properties:\n        b:\n          $id: '"+id+"'\n          properties:\n"+
-				"            q: {$ref: '#/$defs/K', $defs: {K: {type: integer}}}\n"))
+				"      properties:\n        b:\n          $id: '"+id+"'\n          $defs: {K: {type: boolean}}\n"+
+				"          properties:\n            c:\n              $defs: {K: {type: number}}\n"+
+				"              properties:\n                q: {$ref: '#/$defs/K', $defs: {K: {type: integer}}}\n"))
 			openapitest.RequireNoErrorDiags(t, diags)
-			m, ok := doc.Types[ids.Document{}.ForPointer(b)].(*ir.Model)
-			require.True(t, ok, "b is a Model")
+			m, ok := doc.Types[ids.Document{}.ForPointer(c)].(*ir.Model)
+			require.True(t, ok, "c is a Model")
 			q, ok := propByWire(m, "q")
-			require.True(t, ok, "b declares q")
-			want := ids.Ptr("components", "schemas", "A", "$defs", "K")
-			if own {
-				want = b + ids.Ptr("properties", "q", "$defs", "K")
+			require.True(t, ok, "c declares q")
+			want := c + ids.Ptr("$defs", "K")
+			if resource {
+				want = b + ids.Ptr("$defs", "K")
 			}
 			assert.Equal(t, ids.Document{}.ForPointer(want), q.Type.Target)
 		})

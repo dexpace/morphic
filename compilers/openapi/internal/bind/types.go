@@ -108,12 +108,24 @@ const (
 	NoReason Reason = iota
 	// NoTarget is a pointer that names no node of its document.
 	NoTarget
+	// NoResourceTarget is a pointer that names no node of the schema resource
+	// an $id names, which it is read from; Hop.Detail is the resource's URI.
+	NoResourceTarget
 	// NotSchema is a node no schema reference may name: an object of the
 	// grammar, or a value that is neither a mapping nor a boolean.
 	NotSchema
-	// AnchorTarget is a fragment naming a $anchor, which is not read as a
-	// target (docs/compilers/openapi.md#references).
-	AnchorTarget
+	// NoAnchor is a plain-name fragment no schema of the resource it names
+	// declares as its $anchor or $dynamicAnchor.
+	NoAnchor
+	// DuplicateAnchor is a plain-name fragment two or more schemas of the
+	// resource it names declare, so it names none.
+	DuplicateAnchor
+	// AnchorUnread is a plain-name fragment naming a resource of another
+	// document, whose identifiers are not read (GitHub #1049).
+	AnchorUnread
+	// DuplicateID is a URI two or more schemas declare as their $id, so it
+	// names none; Hop.Detail is the URI.
+	DuplicateID
 	// BadPointer is a fragment that is no JSON pointer and no $anchor name: an
 	// invalid escape, bytes that are not UTF-8, or a second '#', which RFC
 	// 3986 admits in no fragment.
@@ -123,8 +135,9 @@ const (
 	NoDefinition
 	// OwnDefinition is a "#/$defs/..." pointer the $defs rule finds nothing
 	// for, which the schema writing it defines: its own definitions answer
-	// only where an $id makes it a resource of its own (definitions.ownResource),
-	// as OAS 3.1 reads one with none against the document.
+	// only where an $id makes it a resource of its own, whose root the pointer
+	// is then read from (resources.holding), as OAS 3.1 reads one with none
+	// against the document.
 	OwnDefinition
 	// RawDefinition is a "#/$defs/..." pointer the $defs rule finds nothing
 	// for, which raw YAML above it defines: raw YAML holds no schema of the
@@ -153,8 +166,9 @@ const (
 	Unpassable
 	// MergeBound is a read that stopped at a mapping merging through `<<`
 	// deeper than nodeview.MergeDepthLimit, so a key it needs may lie past the
-	// bound: one the pointer names, or an $id or a definition the $defs rule
-	// reads before the one that would answer.
+	// bound: one the pointer names, an $id that may give the base it is read
+	// against, an identifier it names, or a definition the $defs rule reads
+	// before the one that would answer.
 	MergeBound
 )
 
@@ -165,8 +179,8 @@ type Hop struct {
 	Ref    string
 	Status Status
 	Reason Reason
-	// Detail is a read error, for Unreadable, or a parse error, for
-	// Unparsable.
+	// Detail is a read error, for Unreadable, a parse error, for Unparsable,
+	// and the URI named, for NoResourceTarget and DuplicateID.
 	Detail string
 	// Use and Key are the path item $ref and the key written beside it, for
 	// BesideRef.
@@ -245,10 +259,19 @@ func (h Hop) Why() string {
 	switch h.Reason {
 	case NoTarget:
 		return "it names nothing in the document it points into"
+	case NoResourceTarget:
+		return "it names nothing in the schema resource " + h.Detail + ", whose root its pointer is read from"
 	case NotSchema:
 		return "it names a position that holds no schema"
-	case AnchorTarget:
-		return "it names a $anchor, which the compiler does not read as a reference target"
+	case NoAnchor:
+		return "no schema of the resource it names declares that name as its $anchor or $dynamicAnchor"
+	case DuplicateAnchor:
+		return "two or more schemas of the resource it names declare that name as their $anchor or " +
+			"$dynamicAnchor, so it names none of them"
+	case AnchorUnread:
+		return "it names a plain name in another document, whose identifiers are not read (GitHub #1049)"
+	case DuplicateID:
+		return "two or more schemas declare " + h.Detail + " as their $id, so it names none of them"
 	case BadPointer:
 		return "its fragment is no JSON pointer"
 	case NoDefinition:

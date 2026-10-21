@@ -1,11 +1,14 @@
 package openapi
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
+	"testing/fstest"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
@@ -370,6 +373,81 @@ func TestCompile_AURLNoReaderReadsIsRefusedUnread(t *testing.T) {
 			require.Len(t, doc.Sources, 2, "%s from %s, external references allowed: %v", run.spec, run.cwd, allow)
 			assert.Equal(t, "foo:b.yaml", filepath.Base(doc.Sources[1].Path), "the file the dot segment names")
 			assert.Contains(t, doc.Types, ids.In("foo:b.yaml").AnonType("/B"), "the dot-segment $ref is followed")
+		}
+	}
+}
+
+// TestCompile_ARefAnIDAnswersIsNeverRefusedUnread pins that a $ref naming a
+// URI an $id declares resolves to that schema whatever its scheme, with
+// external references allowed or not, since no document is read for an
+// identifier, while one no $id declares is refused unread by its scheme.
+func TestCompile_ARefAnIDAnswersIsNeverRefusedUnread(t *testing.T) {
+	t.Parallel()
+	root := []byte("openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\ncomponents:\n  schemas:\n" +
+		"    Pet:\n      type: object\n      properties:\n        kind: {$ref: 'urn:example:kind'}\n" +
+		"        other: {$ref: 'urn:example:none'}\n    Kind: {$id: 'urn:example:kind', type: string}\n")
+	path := filepath.Join(t.TempDir(), "root.yaml")
+	component := func(name string) ir.TypeID { return ids.Document{}.ForPointer(ids.Ptr("components", "schemas", name)) }
+	for _, allow := range []bool{false, true} {
+		doc, diags, err := New().Compile(t.Context(), []compilers.Source{{Path: path, Data: root}},
+			compilers.Options{Reader: reader.Disk{}, FormatOptions: Options{AllowExternalRefs: allow}})
+		require.NoError(t, err)
+		require.NotNil(t, doc)
+
+		pet, ok := doc.Types[component("Pet")].(*ir.Model)
+		require.True(t, ok, "Pet is a Model")
+		kind, ok := propByWire(pet, "kind")
+		require.True(t, ok, "Pet declares kind")
+		assert.Equal(t, component("Kind"), kind.Type.Target, "external references allowed: %v", allow)
+		assert.Equal(t, `unresolved $ref "urn:example:none": the document it names could not be read: `+
+			`external document urn:example:none refused: it is named by a URL with the scheme "urn", `+
+			`and only http, https and file URLs are read`,
+			openapitest.DiagMessageAt(t, diags, diag.UnresolvedRef, ir.SeverityError,
+				"/components/schemas/Pet/properties/other"))
+		errs := slices.DeleteFunc(slices.Clone(diags), func(d ir.Diagnostic) bool { return d.Severity != ir.SeverityError })
+		assert.Len(t, errs, 1, "the identifier draws no refusal: %v", errs)
+	}
+}
+
+// TestCompile_ARelativeRefUnderAnIDReadsWhereTheIDPlacesIt pins the document a
+// relative $ref no $id declares names under an $id: the one at the URI the $id
+// makes of it, read as any reference to that URI is, and never the file of
+// that name beside the source. Under a relative $id it lies beside the
+// location the $id gives, read by default; under a URL it is on the network,
+// read only when external references are allowed.
+func TestCompile_ARelativeRefUnderAnIDReadsWhereTheIDPlacesIt(t *testing.T) {
+	t.Parallel()
+	srv := httptest.NewServer(http.FileServerFS(fstest.MapFS{"x/b.yaml": {Data: []byte("B: {type: integer}\n")}}))
+	t.Cleanup(srv.Close)
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+	for name, body := range map[string]string{"b.yaml": "B: {type: boolean}\n", "tag.json": "T: {type: boolean}\n",
+		"schemas/tag.json": "T: {type: string}\n"} {
+		require.NoError(t, os.MkdirAll(filepath.Dir(filepath.Join(dir, name)), 0o700))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte(body), 0o600))
+	}
+	root := []byte("openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\ncomponents:\n  schemas:\n" +
+		"    Pet: {$id: 'schemas/pet.json', type: object, properties: {tag: {$ref: 'tag.json#/T'}}}\n" +
+		"    S: {$id: '" + srv.URL + "/x/s.json', type: object, properties: {b: {$ref: 'b.yaml#/B'}}}\n")
+	for _, allow := range []bool{false, true} {
+		doc, diags, err := New().Compile(t.Context(), []compilers.Source{{Path: filepath.Join(dir, "root.yaml"), Data: root}},
+			compilers.Options{Reader: reader.Disk{Client: srv.Client()}, FormatOptions: Options{AllowExternalRefs: allow}})
+		require.NoError(t, err)
+		require.NotNil(t, doc)
+
+		pet, ok := doc.Types[ids.Document{}.ForPointer("/components/schemas/Pet")].(*ir.Model)
+		require.True(t, ok, "Pet is a Model")
+		tag, ok := propByWire(pet, "tag")
+		require.True(t, ok, "Pet declares tag")
+		assert.Equal(t, ids.In("schemas/tag.json").AnonType("/T"), tag.Type.Target, "external references allowed: %v", allow)
+		for _, beside := range []ir.TypeID{ids.In("tag.json").AnonType("/T"), ids.In("b.yaml").AnonType("/B")} {
+			assert.NotContains(t, doc.Types, beside, "the file beside the source is never read")
+		}
+		unresolved := openapitest.HasDiagCodeAt(diags, diag.UnresolvedRef, "/components/schemas/S/properties/b")
+		assert.Equal(t, !allow, unresolved, "the URL is read only when allowed: %v", diags)
+		if !allow {
+			assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.UnresolvedRef, ir.SeverityError,
+				"/components/schemas/S/properties/b"), "external document "+srv.URL+"/x/b.yaml refused: it is on the network")
 		}
 	}
 }

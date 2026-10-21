@@ -3861,10 +3861,9 @@ func vocabularyCore() []vocabCase {
 		},
 		{
 			keyword: "$anchor", write: "$anchor: a", schemas: stringSchema,
-			excluded: "neither carried nor honoured: Milestone 1 resolves same-document JSON " +
-				"pointers only, so $ref: '#a' is reported unresolved rather than resolving " +
-				"through the anchor (GitHub #141). Excluded because the compiler changes " +
-				"nothing for it today, not because dropping it is settled",
+			excluded: "read as a reference target: the binder resolves $ref: '#a' to the schema " +
+				"declaring it (docs/compilers/openapi.md#references), so the reference carries it; " +
+				"declaring one says nothing about the shape",
 		},
 		{
 			keyword: "$dynamicAnchor", write: "$dynamicAnchor: m", schemas: stringSchema,

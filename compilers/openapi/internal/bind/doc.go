@@ -2,10 +2,9 @@
 // immutable table, over the decoded YAML trees and never through the parser's
 // resolver: for each reference, where its own $ref lands and where its chain
 // ends, or why it does not. Every answer is a function of the documents alone,
-// whatever was asked before, and one work budget bounds the whole table.
+// and one work budget bounds the whole table.
 //
-// A reference is read as docs/compilers/openapi.md#references states:
-// a JSON pointer trimmed and percent-decoded, nothing else, the $defs rule, a
-// role for each position from the OpenAPI grammar, and neither $anchor nor
-// $id as a target.
+// A reference is read as docs/compilers/openapi.md#references states: against
+// its schema resource's base, by pointer, plain name or identifier, with the
+// $defs rule and a role for each position from the OpenAPI grammar.
 package bind
