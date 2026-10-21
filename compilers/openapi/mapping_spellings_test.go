@@ -91,7 +91,7 @@ func TestMappingTargets_EverySpellingAndPositionIsOrderFree(t *testing.T) {
 		{"in a directory of its own", func(p string) string { return "sub/root.yaml#" + p }, false, false},
 		{"in another document", func(p string) string { return "other.yaml#" + p }, false, true},
 		{"a component's name", func(string) string { return "T" }, true, false},
-		{"an anchor", func(string) string { return "#Anch" }, false, false},
+		{"an anchor", func(string) string { return "#Anch" }, true, false},
 		{"the whole document", func(string) string { return "#" }, false, false},
 		{"a relative definition", func(string) string { return "#/$defs/D" }, false, false},
 	}

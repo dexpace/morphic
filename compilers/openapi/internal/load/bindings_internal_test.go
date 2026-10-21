@@ -210,8 +210,8 @@ func TestExternal_DocumentReportsAReadWithNoTreeAsAFault(t *testing.T) {
 // TestLoad_ASchemaRefIsUnresolvedWhereItsDocumentCannotBeRead pins what a
 // schema $ref reports when the document it names cannot be read, by the reason
 // the read gave: a URL that answers an error, 300 being the least, and a
-// location the source's own URL gives no document for; and when it was read
-// and is no YAML, by the parser's reason, its line included.
+// location the source's own URL, or its own path, gives no document for; and
+// when it was read and is no YAML, by the parser's reason, its line included.
 func TestLoad_ASchemaRefIsUnresolvedWhereItsDocumentCannotBeRead(t *testing.T) {
 	t.Parallel()
 	srv := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
@@ -235,6 +235,8 @@ func TestLoad_ASchemaRefIsUnresolvedWhereItsDocumentCannotBeRead(t *testing.T) {
 		{"a URL serving no YAML", "", srv.URL + "/garbage.yaml#/x", unparsed, "did not find expected node content"},
 		{"a file holding no YAML", "", "./bad.yaml#/x", unparsed, "did not find expected node content"},
 		{"a location the source's URL cannot be joined with", "https://example.com/api/spec.yaml", "%zz.yaml#/x",
+			unread, "it names no document a reference can"},
+		{"a source whose path is no URL reference", "spec%zz.yaml", "./other.yaml#/x",
 			unread, "it names no document a reference can"},
 	} {
 		t.Run(c.name, func(t *testing.T) {

@@ -61,6 +61,17 @@ func (d *docs) locate(uri, base string) (string, bool) {
 	return d.cfg.Locate(uri, base)
 }
 
+// refusal is why Config.Refuse refuses a reference whose document part is
+// spelled uri, unread, or empty where it refuses none.
+func (d *docs) refusal(uri string) string {
+	if refuse := d.cfg.Refuse; refuse != nil {
+		if err := refuse(uri); err != nil {
+			return err.Error()
+		}
+	}
+	return ""
+}
+
 // open returns the document named name, reading it through Config.Open the
 // first time it is asked for, and the same answer every later time.
 func (d *docs) open(name string) (DocID, error) {

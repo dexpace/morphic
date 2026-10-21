@@ -261,10 +261,27 @@ two nodes. An operation and a parameter keep the IDs of the mount that lowers th
 A schema `$ref`, and a discriminator mapping value spelled as one, is bound by the compiler itself,
 never by the parser's resolver
 ([`schema-cycle-overflow`](../parser-library.md#schema-cycle-overflow)), and the answer depends on
-nothing read before it. Its fragment is trimmed of the white space around it and percent-decoded,
-nothing else, so a `+` names itself, and read as RFC 6901 reads a pointer: an index is a decimal
-with no leading zero, a pointer ending in `/` names a member whose key is empty, and a fragment
-holding a second `#` names nothing. A pointer passing a reference object reads on where the resolver
+nothing read before it. It is read against the base URI of the schema resource it is written in
+(JSON Schema 2020-12 §8.2.1): the document, for a schema under no `$id`, as OAS 3.1 reads one, or
+the nearest schema above it, itself included, whose `$id` names another URI. Its fragment is trimmed
+of the white space around it and percent-decoded, nothing else, so a `+` names itself. A pointer is
+read from the root of that resource, as RFC 6901 reads one: an index is a decimal with no leading
+zero, a pointer ending in `/` names a member whose key is empty, and a fragment holding a second `#`
+names nothing. Under an `$id` a pointer names a position of the resource, with no fallback, and `#`
+names the schema writing the `$id`; under none, `#` names the document's root. A plain-name
+fragment names the schema of that resource declaring it as its `$anchor` or `$dynamicAnchor`, and a
+URI an `$id` declares names that schema, as one a `$ref`'s document part names; a name or a URI two
+schemas declare names neither. Identifiers are read only where the OpenAPI grammar places a schema
+in the source, so one in an example, an extension, the fields beside a reference object's `$ref`, or
+another document declares none. An `$id` names the URI its part before the `#` resolves to
+against the base above it, by RFC 3986 where that base is a URI and as a `$ref`'s document is placed
+where it is a file's path, and identifiers match as RFC 3986 §6.2.2 normalizes them. One with a
+fragment that is not empty names none, as 2020-12 admits none, one naming the URI of the resource
+holding it starts no resource, and one naming the source, however spelled, returns to the
+document's. A URI no schema declares names the document at that URI, read as any other is: one read
+against an `$id` is the URI the `$id` makes of it, never the file of that name beside the source,
+and is judged for refusal as written while only relative paths moved its base, and as that URI once
+an absolute `$id` did. A pointer passing a reference object reads on where the resolver
 resolved that, in whichever document, and a `$ref` written in another document's content is read in
 that document. What a `$ref` lands on in another document lowers where that document declares it;
 one in the source lowers at the pointer the `$ref` spells. A use site takes what its schema `$ref`'s
@@ -280,41 +297,41 @@ lowers. A key written twice in one mapping is read as its last occurrence, raw Y
 parser's model reads one ([`duplicate-key`](../parser-library.md#duplicate-key)).
 
 A reference that resolves to nothing — a pointer naming no node, a position holding no schema, a
-component its section does not hold, another document the compile may not read, an `$anchor` — is
-reported as an `openapi/unresolved-ref` error at the referencing position, with why, and the
-position lowers without it: a schema position to the top type, any other position to nothing at all,
-so the parameter, response or body it would have named is absent. Each is reported once, where it is
-written, in whichever document, and a schema `$ref` whose chain ends on another failing `$ref` is
-not reported for it, as that one is. What a reference object resolved to is read at the node the
-resolver's chain reached ([`trailing-empty-token`](../parser-library.md#trailing-empty-token)), and
-where no position holds that node, as for the first of a key written twice in raw YAML
+component its section does not hold, another document the compile may not read, a plain name or a
+URI no schema declares, or two do — is reported as an `openapi/unresolved-ref` error at the
+referencing position, with why, and the position lowers without it: a schema position to the top
+type, any other position to nothing at all, so the parameter, response or body it would have named
+is absent. Each is reported once, where it is written, in whichever document, and a schema `$ref`
+whose chain ends on another failing `$ref` is not reported for it, as that one is. What a reference
+object resolved to is read at the node the resolver's chain reached
+([`trailing-empty-token`](../parser-library.md#trailing-empty-token)), and where no position holds
+that node, as for the first of a key written twice in raw YAML
 ([`duplicate-key`](../parser-library.md#duplicate-key)), it lowers at the use site, and each schema
 `$ref` and mapping value in it is reported unresolved, saying so.
 
-A same-document `#/$defs/...` pointer is read by a rule of its own, in an order no declaration
-changes: the `$defs` of the schema writing the `$ref` where an `$id` makes that schema a resource of
-its own, as its own `$id` does, or one between it and the outermost schema holding it that gives it
-another base, else the position the pointer names from the document's root, raw YAML included, so a
-root `$defs` answers though the OpenAPI Object does not define the key
+A same-document `#/$defs/...` pointer in the document's own resource is read by a rule of its own,
+in an order no declaration changes: the position the pointer names from the document's root, raw
+YAML included, so a root `$defs` answers though the OpenAPI Object does not define the key
 ([`unknown-keys`](#unknown-keys) still reports it) and before any schema's own
 ([`root-defs`](../parser-library.md#root-defs)), else the definitions of the nearest schema of the
 model above it holding the path, where raw YAML answers too. That object may be a map of schemas,
 such as `properties` or `components.schemas`, whose entry keyed `$defs` holds the path, as the
-parser's resolver reads one. The base an `$id` gives is the document its part before any `#` names,
-placed as a `$ref`'s document is: a fragment alone moves no base, and any spelling of the source
-keeps the source's. Raw YAML holds no schema of the model, so a schema under an extension answers no
-such pointer from its own `$defs` unless it writes an `$id` itself, and an `$id` raw YAML writes
-above it makes it no resource of its own: as OAS 3.1 reads a schema with no `$id`, the document is
-its base, and its root holds none.
+parser's resolver reads one. A schema's own `$defs` answer only where an `$id` makes it a resource
+of its own, which the pointer is then read from as any other is. Raw YAML holds no schema of the
+model, so a schema under an extension answers no such pointer from its own `$defs` unless it writes
+an `$id` itself, and an `$id` raw YAML writes above it makes it no resource of its own: as OAS 3.1
+reads a schema with no `$id`, the document is its base, and its root holds none.
 
 Binding is held to one work budget, reported as an `openapi/budget-exceeded` error once it runs out,
 the `$ref`s past it left unresolved. A `<<` merge chain deeper than the levels a mapping's merges
 are expanded to (`nodeview.MergeDepthLimit`) is reported as an `openapi/degraded-construct` warning,
 and a `$ref` past it is left unresolved, as is one that reads a key past it: a key its pointer
-names, or, for a `#/$defs/...` pointer, an `$id` or a definition the rule reads before the one that
-would answer. A chain of references that closes on itself is
-[`reference-cycles`](#reference-cycles)'.
+names, an `$id` that may give the base it is read against, or, for a `#/$defs/...` pointer, a
+definition the rule reads before the one that would answer. So is a plain name no schema declares
+where a schema merging past the bound may; a URI is read as a location all the same. A chain of
+references that closes on itself is [`reference-cycles`](#reference-cycles)'.
 
+- Cases: `schema-identifiers`
 - Codes: `openapi/unresolved-ref`, `openapi/budget-exceeded`, `openapi/degraded-construct`
 - Tests: `openapi.TestCompile_ExternalFileRefIsNotReadByDefault`,
   `openapi.TestGolden_SplitSpec`, `openapi.TestExternalContent_ARefInItNamesItsOwnDocument`,
@@ -331,6 +348,10 @@ would answer. A chain of references that closes on itself is
   `openapi.TestCompile_ByDefaultOnlyARelativeReferenceIsFollowed`,
   `openapi.TestCompile_ByDefaultEachReferenceIsJudgedByItsOwnSpelling`,
   `openapi.TestCompile_AURLNoReaderReadsIsRefusedUnread`,
+  `openapi.TestCompile_ARefAnIDAnswersIsNeverRefusedUnread`,
+  `openapi.TestCompile_ARelativeRefUnderAnIDReadsWhereTheIDPlacesIt`,
+  `bind.TestBind_ReadsARelativeURIUnderAnIDWhereTheIDPlacesIt`,
+  `bind.TestBind_RefusesAReadUnderAnIDAsItsSpellingsWould`,
   `openapi.TestCompile_OneFileUnderTwoNamesIsOneDocument`,
   `openapi.TestExternalContent_ASchemaRefPastARefNamesItsContent`,
   `openapi.TestExternalContent_ASourcePositionItNamesByFileResolvesInEitherOrder`,
@@ -353,12 +374,12 @@ would answer. A chain of references that closes on itself is
   `bind.TestBind_TakesNoDefinitionPastAReadTheMergeBoundStopped`,
   `canary.TestBindingOracle_AgreesWithTheLibrary`
 - Status: partly built: an `encoding` entry naming no part of its body is dropped with no record
-  (#604). An `$anchor` or an `$id` is not honoured as a reference target (#1015). An absolute-path
-  `$ref` in a remote document is read as a local path (#936); a remote document can make the
-  compiler request a private address (#937); and a remote document reaching a local file is refused
-  naming only its last such `$ref` (#940). A reference object's pointer holding a character above
-  U+FFFF is refused as malformed (#516), and an unresolved reference object's message ends in the
-  resolver's own wording (#809).
+  (#604). Another document's identifiers are not read, so a plain name naming one of its resources
+  is reported unresolved (#1049). An absolute-path `$ref` in a remote document is read as a local
+  path (#936); a remote document can make the compiler request a private address (#937); and a
+  remote document reaching a local file is refused naming only its last such `$ref` (#940). A
+  reference object's pointer holding a character above U+FFFF is refused as malformed (#516), and an
+  unresolved reference object's message ends in the resolver's own wording (#809).
 
 ### `reference-cycles`
 
@@ -1504,31 +1525,29 @@ under `no_ir_home`, each under `openapi:<keyword>` and each reported as an info
 identifies every type by a synthetic ID derived from its source pointer rather than by `$id` (§3),
 and describes one API surface rather than a resource graph, so it has no dialect axis and none is
 coming: each is kept verbatim under `openapi:<keyword>` (`out_of_scope`), with an info
-`openapi/degraded-construct` at it, and `$id` is explicitly *not* honoured as a base URI for
-reference resolution: a `$ref` under one reads against the document. It is read only for where a
-schema resource begins, which decides whether a schema's own `$defs` answer a `#/$defs/...` pointer
-it writes ([`references`](#references)), and stops a `$dynamicRef` expanding across it
-([`dynamic-ref`](#dynamic-ref)). A document's `jsonSchemaDialect`,
-the default `$schema` of its schemas, is kept on the Document the same way, every schema read in the
-OpenAPI dialect whatever it names. `$comment` is dropped outright — 2020-12 §8.3 forbids presenting
-it to end users, so no emitter may see it. `$dynamicAnchor` is consumed as a reference target rather
-than carried as content — it is what lets a `$dynamicRef` expand ([`dynamic-ref`](#dynamic-ref)).
-`$anchor` is neither: a `$ref` naming an anchor is reported unresolved rather than resolving through
-it ([`references`](#references)). It is excluded here because the compiler does nothing with it
-today, not because dropping it is settled.
+`openapi/degraded-construct` at it. `$id` is read besides, as the identifier and base URI a `$ref`
+resolves against where [`references`](#references) reads one, and it stops a `$dynamicRef` expanding
+across it ([`dynamic-ref`](#dynamic-ref)); a reference to it lowers to the schema's type, whose ID
+its pointer gives, so nothing of the identifier reaches the IR beyond the verbatim copy. A
+document's `jsonSchemaDialect`, the default `$schema` of its schemas, is kept on the Document the
+same way, every schema read in the OpenAPI dialect whatever it names. `$comment` is dropped outright
+— 2020-12 §8.3 forbids presenting it to end users, so no emitter may see it. `$dynamicAnchor` is
+consumed as a reference target rather than carried as content — it is what lets a `$dynamicRef`
+expand ([`dynamic-ref`](#dynamic-ref)), and a `$ref` naming it reads it as an `$anchor`. `$anchor`
+is consumed the same way: a `$ref` naming one that [`references`](#references) reads resolves to the
+schema declaring it.
 
 - Cases: `dialect-keywords`
 - Codes: `openapi/degraded-construct`
 - Tests: `schema.TestDialectKeywords_KeptOutOfScope`, `openapi.TestMeta_JSONSchemaDialectIsKept`
-- Status: partly built: `$anchor` is not honoured as a reference target (#1015).
 
 ### `vocabulary-coverage`
 
 Every keyword of the JSON Schema 2020-12 vocabularies reaches the compiled IR, lowered by a rule of
 this document or kept verbatim, its presence and its value both, with four exceptions that change
 nothing by design: `$comment`, which the specification forbids surfacing; `$defs`, whose members
-lower where a `$ref` reaches them; `$dynamicAnchor`, read as a reference target; and `$anchor`,
-which the compiler does not yet honour ([`dialect-keywords`](#dialect-keywords)). The keyword lists
+lower where a `$ref` reaches them; and `$dynamicAnchor` and `$anchor`, each consumed as a reference
+target rather than carried as content ([`dialect-keywords`](#dialect-keywords)). The keyword lists
 of §4.7 and of this section are held to that rather than merely asserted:
 `TestVocabulary2020_12_EveryKeywordIsLoweredOrKept` enumerates the vocabularies keyword by keyword
 and, for each, compiles three documents — the keyword absent, written with one value, written with a

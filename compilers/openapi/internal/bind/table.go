@@ -106,14 +106,16 @@ func (w *budget) over() bool { return w.spent > w.limit }
 
 // binder is the state of one table's building.
 type binder struct {
-	cfg    Config
-	docs   *docs
-	work   *budget
-	defs   definitions
-	find   *finder
-	hops   map[Position]Hop
-	chains map[Position]Chain
-	loops  []Loop
+	cfg       Config
+	docs      *docs
+	work      *budget
+	defs      definitions
+	resources resources
+	find      *finder
+	ids       *identifiers
+	hops      map[Position]Hop
+	chains    map[Position]Chain
+	loops     []Loop
 }
 
 // Bind reads every schema reference the source tree src holds, and every
@@ -124,9 +126,10 @@ func Bind(src *yaml.Node, cfg Config) *Table {
 	}
 	work := &budget{limit: cfg.Limit}
 	d := newDocs(src, cfg, work)
-	b := &binder{cfg: cfg, docs: d, work: work, defs: definitions{docs: d, work: work}, find: newFinder(d, work),
-		hops: map[Position]Hop{}, chains: map[Position]Chain{}}
+	b := &binder{cfg: cfg, docs: d, work: work, defs: definitions{docs: d, work: work}, resources: resources{d},
+		find: newFinder(d, work), hops: map[Position]Hop{}, chains: map[Position]Chain{}}
 	b.find.walk(rootOf(Source, sDocument), false)
+	b.ids = b.find.ids
 	t := &Table{entries: map[Position]Entry{}, mappings: map[mappingKey]Mapping{}}
 	for more := true; more && !work.over(); more = b.find.walkPending() {
 		b.settle(t)
