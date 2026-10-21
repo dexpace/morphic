@@ -86,8 +86,7 @@ func bindSchemas(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, self sour
 }
 
 // siteIn is the site of the reference at pointer in the document bind names
-// name: the source's, or another's, keyed as a request reads it (readKey), so
-// that a URL the binder and the resolver spell apart is one document.
+// name: the source's, or another's, keyed as refSite keys it.
 func (s sourceDocument) siteIn(name string, pointer jsontext.Pointer) refSite {
 	if name == s.path {
 		return refSite{pointer: pointer}
@@ -95,14 +94,14 @@ func (s sourceDocument) siteIn(name string, pointer jsontext.Pointer) refSite {
 	return refSite{doc: readKey(name), pointer: pointer}
 }
 
-// positionOf is the position of site in table, and false for a site in a
-// document the table did not read.
+// positionOf is the position of site in table, whose documents are matched as
+// refSite keys them, and false for a site in a document the table did not read.
 func (s sourceDocument) positionOf(table *bind.Table, site refSite) (bind.Position, bool) {
 	if site.inSource() {
 		return bind.Position{Doc: bind.Source, Pointer: site.pointer}, true
 	}
-	for _, name := range []string{site.doc, readKey(site.doc)} {
-		if id, ok := table.Find(name); ok {
+	for id := range bind.DocID(table.Documents()) {
+		if readKey(table.Document(id).Name) == readKey(site.doc) {
 			return bind.Position{Doc: id, Pointer: site.pointer}, true
 		}
 	}

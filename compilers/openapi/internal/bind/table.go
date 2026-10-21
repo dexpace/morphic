@@ -286,17 +286,6 @@ func (t *Table) Landings() []Landing { return slices.Clone(t.landings) }
 // Document returns the document id names.
 func (t *Table) Document(id DocID) Document { return t.docs[id] }
 
-// Find returns the document the table read under name, and false for a name
-// it read none under.
-func (t *Table) Find(name string) (DocID, bool) {
-	for id, d := range t.docs {
-		if d.Name == name {
-			return DocID(id), true
-		}
-	}
-	return 0, false
-}
-
 // compare orders positions as the table reads them: the source's first,
 // another document's by its name, then by pointer (comparePositions).
 func (t *Table) compare(p, q Position) int {

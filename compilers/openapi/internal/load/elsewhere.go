@@ -16,7 +16,8 @@ import (
 
 // refSite is where a reference object is written: a pointer of the source,
 // whose doc is empty, or of another document, named as bind names it
-// (sourceDocument.nameOf).
+// (sourceDocument.nameOf) and keyed as a request reads a URL (readKey), so
+// that one the resolver and the binder spell apart is one document.
 type refSite struct {
 	doc     string
 	pointer jsontext.Pointer
@@ -113,7 +114,7 @@ func (w *elsewhere) reach(site refSite, c chain, opts references.ResolveOptions,
 	}
 	w.walked[last.object] = true
 	opts.TargetLocation, opts.TargetDocument = *last.documentPath, *last.document
-	w.queue = append(w.queue, reachedEnd{at: refSite{doc: nameOf(last.path), pointer: last.pointer},
+	w.queue = append(w.queue, reachedEnd{at: refSite{doc: readKey(nameOf(last.path)), pointer: last.pointer},
 		walk: last.walk, opts: opts})
 }
 

@@ -148,8 +148,8 @@ const (
 	// item's $ref, as any definition it can name is; Hop.Use and Hop.Key name
 	// them.
 	BesideDefs
-	// Unpassable is a pointer through a reference object that resolves to
-	// nothing, or one in another document's content, which is not resolved.
+	// Unpassable is a pointer through a reference object, in whichever
+	// document, that resolves to nothing the compiler reads.
 	Unpassable
 	// MergeBound is a read that stopped at a mapping merging through `<<`
 	// deeper than nodeview.MergeDepthLimit, so a key it needs may lie past the

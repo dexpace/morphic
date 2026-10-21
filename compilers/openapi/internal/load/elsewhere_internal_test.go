@@ -52,34 +52,36 @@ func TestSitePlacer_PlacesASiteInItsDocument(t *testing.T) {
 
 // TestPositionOf_PlacesASiteInTheDocumentTheTableRead pins positionOf and
 // siteIn: a source site is the source's position, another document's is found
-// by its name or by the key a request reads a URL by (readKey), and one in a
-// document the table never read is placed nowhere.
+// by the key a request reads a URL by (readKey), however the table or the site
+// spells it, and one in a document the table never read is placed nowhere.
 func TestPositionOf_PlacesASiteInTheDocumentTheTableRead(t *testing.T) {
 	t.Parallel()
 	_, root := buildDoc(t, "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\ncomponents:\n  schemas:\n"+
-		"    A: {$ref: 'other.yaml#/T'}\n    B: {$ref: 'http://h/a%20b.yaml#/T'}\n")
+		"    A: {$ref: 'other.yaml#/T'}\n    B: {$ref: 'http://h/a%20b.yaml#/T'}\n    C: {$ref: 'http://h/c d.yaml#/T'}\n")
 	table := bind.Bind(root, bind.Config{Self: "spec.yaml", Open: func(string) (*yaml.Node, error) {
 		var n yaml.Node
 		return &n, yaml.Unmarshal([]byte("T: {type: string}\n"), &n)
 	}})
-	other, ok := table.Find("other.yaml")
-	require.True(t, ok)
-	remote, ok := table.Find("http://h/a%20b.yaml")
-	require.True(t, ok)
+	require.Equal(t, 4, table.Documents(), "the source, other.yaml and the two URLs")
+	other, remote, spaced := bind.DocID(1), bind.DocID(2), bind.DocID(3)
+	require.Equal(t, "other.yaml", table.Document(other).Name)
+	require.Equal(t, "http://h/a%20b.yaml", table.Document(remote).Name)
+	require.Equal(t, "http://h/c d.yaml", table.Document(spaced).Name)
 	self := sourceDocument{path: "spec.yaml"}
 
 	for site, want := range map[refSite]bind.Position{
-		{pointer: "/x"}:                           {Doc: bind.Source, Pointer: "/x"},
-		{doc: "other.yaml", pointer: "/y"}:        {Doc: other, Pointer: "/y"},
-		{doc: "http://h/a b.yaml", pointer: "/z"}: {Doc: remote, Pointer: "/z"},
-		self.siteIn("spec.yaml", "/w"):            {Doc: bind.Source, Pointer: "/w"},
-		self.siteIn("http://h/a b.yaml", "/v"):    {Doc: remote, Pointer: "/v"},
+		{pointer: "/x"}:                             {Doc: bind.Source, Pointer: "/x"},
+		{doc: "other.yaml", pointer: "/y"}:          {Doc: other, Pointer: "/y"},
+		{doc: "http://h/a b.yaml", pointer: "/z"}:   {Doc: remote, Pointer: "/z"},
+		self.siteIn("spec.yaml", "/w"):              {Doc: bind.Source, Pointer: "/w"},
+		self.siteIn("http://h/a b.yaml", "/v"):      {Doc: remote, Pointer: "/v"},
+		{doc: "http://h/c%20d.yaml", pointer: "/u"}: {Doc: spaced, Pointer: "/u"},
 	} {
 		got, ok := self.positionOf(table, site)
 		require.True(t, ok, "%+v", site)
 		assert.Equal(t, want, got, "%+v", site)
 	}
-	_, ok = self.positionOf(table, refSite{doc: "gone.yaml", pointer: "/x"})
+	_, ok := self.positionOf(table, refSite{doc: "gone.yaml", pointer: "/x"})
 	assert.False(t, ok, "a document the table never read")
 }
 
