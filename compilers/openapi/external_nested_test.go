@@ -107,6 +107,38 @@ paths:
 	}
 }
 
+// TestExternalContent_AFindingTwoTargetsShareLandsAtTheLeastSite pins the order
+// the objects references reach are checked in (compareSites): c.yaml's
+// parameter, read as a header by the source and as a parameter by a.yaml,
+// holds one bad schema, which each check finds, and the finding lands at the
+// source's $ref, though a.yaml writes its own at a lesser pointer.
+func TestExternalContent_AFindingTwoTargetsShareLandsAtTheLeastSite(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	layout(t, dir, map[string]string{
+		"a.yaml": "openapi: 3.1.0\ninfo: {title: A, version: \"1\"}\npaths:\n  /a:\n    get:\n" +
+			"      parameters: [{$ref: 'c.yaml#/components/parameters/N'}]\n" +
+			"      responses: {\"200\": {description: ok}}\n",
+		"c.yaml": "openapi: 3.1.0\ninfo: {title: C, version: \"1\"}\npaths: {}\ncomponents:\n  parameters:\n" +
+			"    N: {name: n, in: query, schema: {type: bogus}}\n",
+	})
+	root := "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n  /a: {$ref: 'a.yaml#/paths/~1a'}\n" +
+		"  /z:\n    get:\n      responses:\n        \"200\":\n          description: ok\n" +
+		"          headers: {H: {$ref: 'c.yaml#/components/parameters/N'}}\n"
+
+	_, diags := compileOnDisk(t, filepath.Join(dir, "root.yaml"), root, false)
+
+	var found []ir.Diagnostic
+	for _, d := range diags {
+		if strings.HasPrefix(d.Code, diag.Validation+"/") {
+			found = append(found, d)
+		}
+	}
+	require.Len(t, found, 1, "%+v", diags)
+	assert.Equal(t, ir.Provenance{Source: 0, Pointer: "/paths/~1z/get/responses/200/headers/H"}, found[0].Provenance)
+	assert.Contains(t, found[0].Message, `Schema Object field "type" must be one of`)
+}
+
 // TestExternalContent_WhatAReferenceItWritesReachesIsValidated pins that an
 // object only another document's $ref reaches is validated as one the
 // source's reaches (GitHub #751): b.yaml's parameter, whose in is no location,

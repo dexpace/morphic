@@ -208,10 +208,10 @@ func Load(ctx context.Context, srcIndex int, src compilers.Source, opts Options)
 }
 
 // build turns the decoded tree of a source's first document into a Document:
-// the pre-parse refusals, the overlay, the node budget, the model build, the
-// version check, then validation findings, reference resolution and the source
-// checks as diagnostics. A nil document with error diagnostics is a refusal to
-// lower.
+// the pre-parse refusals, the overlay, the node budget, the rule table's
+// judgment of the tree, the model build, the version check, then reference
+// resolution and the source checks as diagnostics. A nil document with error
+// diagnostics is a refusal to lower.
 //
 // It is what Load does after the decode, split from it so that what the decode
 // found past the first document is reported on every return path — a refusal
