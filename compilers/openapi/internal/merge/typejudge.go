@@ -213,10 +213,13 @@ func (j typeJudge) containers(at, bt ir.TypeDef, depth int) relation {
 // contained is the verdict on two containers whose members are ae and be. A
 // narrower member narrows the container only when the winner admits null no
 // more widely than the loser, and the loser holds nothing the winner lacks.
+// Disjoint members still overlap in a shared value: the empty container, or a
+// null both members admit.
 func (j typeJudge) contained(ae, be ir.TypeRef, ax, bx extras, depth int) relation {
 	rel := j.relateAt(ae, be, depth+1)
-	if rel == relDisjoint && admitsEmpty(ax) && admitsEmpty(bx) {
-		// An empty list or map is a value of both, so disjoint members overlap.
+	if rel == relDisjoint && (ae.Nullable && be.Nullable || admitsEmpty(ax) && admitsEmpty(bx)) {
+		// An empty list or map, or one of nulls where both members admit null, is a
+		// value of both, so disjoint members overlap.
 		return relOverlap
 	}
 	if rel == relSame {

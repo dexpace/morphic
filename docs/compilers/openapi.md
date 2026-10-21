@@ -743,54 +743,54 @@ about the composed node instead, stated with the `false`-schema rule
 first declaration wins its shape (§4.3) unless the other narrows it. One judgment compares the two
 types and returns one verdict, whichever branch is written first. `{}` loses to anything but the
 node a degraded lowering mints (an enum past its member budget, an unconvertible const), which is
-unrelated to every type, and the winner's own null admission stands alone, since `{}` admits null
-yet lowers non-nullable. Two bare
-primitives compare by value domain and spelling (`integer` against `number`, `uuid` against
-`string`, `int32` against `int64`). A `Scalar` or `Enum` against a bare primitive wins over a kind
-it equals or narrows (`string` against `format: byte`, or an unknown format over bare `string`) and
-overlaps a kind strictly narrower than its own. A `const` wins when the kind admits its value, and
-is disjoint from the kind when it does not. Two lists, or two maps with one key, compare by element
-or value, nested up to a bound, and the narrower one wins only where it admits null no more widely
-than the other and the other holds no constraint, encoding, documentation or `Unmodeled` the winner
-lacks. A narrower type wins in either order, the intersection being that type, and is no drop.
-Anything else between distinct targets is unrelated and dropped. A `default` or `examples` the
-broader declaration gives is adopted only when the winning type admits it, judged per keyword and
-all or nothing; one it does not admit is reported in an info `openapi/degraded-construct` and the
-declaration that wrote it is kept verbatim beside the field, in either order. The IR has no
-combinator for "string here, integer there", nor a second slot for a default, title, description,
-external link, examples, deprecation or XML hint the first declaration already fills, so whatever of
-the redeclaration the fold cannot carry has nowhere to sit on the merged property, and with nowhere
-to sit it would go nowhere at all: a release in which a losing branch's type or default changed
-would produce no change in the document, which a consumer diffing two versions reads as nothing
-having happened. The losing declaration is therefore kept verbatim, as the document wrote it, in
-`Unmodeled["openapi:conflicting-redeclaration<pointer>"]` under `degraded_lowering`, keyed by its
-own JSON Pointer so a field three branches type three incompatible ways keeps all three entries, and
-with the entry's `Provenance` locating that declaration rather than the merged property. The source
-node is kept rather than the IR values the merge dropped: §12 defines an `Unmodeled` value as the
-source construct, a `TypeID` is a compiler-minted registry ID that `irverify`'s reference walk
-cannot see dangle inside a byte slice, and one node keeps everything the redeclaration said at once
-— a `$ref` as the `$ref` written, a nullability, a default.
+unrelated to every type. Where `{}` loses, the winner's own null admission stands alone, since `{}`
+admits null yet lowers non-nullable. Two bare primitives compare by value domain and spelling
+(`integer` against `number`, `uuid` against `string`, `int32` against `int64`). A `Scalar` or `Enum`
+against a bare primitive wins over a kind it equals or narrows (`string` against `format: byte`, or
+an unknown format over bare `string`) and overlaps a kind strictly narrower than its own. A `const`
+wins when the kind admits its value, and is disjoint from the kind when it does not. Two lists, or
+two maps with one key, compare by element or value, nested up to a bound, and the narrower one wins
+only where it admits null no more widely than the other and the other holds no constraint, encoding,
+documentation or `Unmodeled` the winner lacks. A narrower type wins in either order, the
+intersection being that type, and is no drop. Anything else between distinct targets is unrelated
+and dropped. A `default` or `examples` the broader declaration gives is adopted only when the
+winning type admits it, judged per keyword and all or nothing; one it does not admit is reported in
+an info `openapi/degraded-construct` and the declaration that wrote it is kept verbatim beside the
+field, in either order. The IR has no combinator for "string here, integer there", nor a second slot
+for a default, title, description, external link, examples, deprecation or XML hint the first
+declaration already fills, so whatever of the redeclaration the fold cannot carry has nowhere to sit
+on the merged property, and with nowhere to sit it would go nowhere at all: a release in which a
+losing branch's type or default changed would produce no change in the document, which a consumer
+diffing two versions reads as nothing having happened. The losing declaration is therefore kept
+verbatim, as the document wrote it, in `Unmodeled["openapi:conflicting-redeclaration<pointer>"]`
+under `degraded_lowering`, keyed by its own JSON Pointer so a field three branches type three
+incompatible ways keeps all three entries, and with the entry's `Provenance` locating that
+declaration rather than the merged property. The source node is kept rather than the IR values the
+merge dropped: §12 defines an `Unmodeled` value as the source construct, a `TypeID` is a
+compiler-minted registry ID that `irverify`'s reference walk cannot see dangle inside a byte slice,
+and one node keeps everything the redeclaration said at once — a `$ref` as the `$ref` written, a
+nullability, a default.
 
 Preservation is owed wherever something is dropped, which is wider than the disagreements worth a
 warning. The two declarations are reported as an `openapi/conflicting-redeclaration` warning where
 their types are incompatible — disjoint primitive kinds (`string` against `integer`, `uuid` against
-`date-time`), a scalar against a structure, or two different kinds of structure — or where one
-constraint keyword is pinned to two values; types that share values but that the merge does not
-narrow to one (`int32` against `uint32`, an enum of `integer` against `int32`, two enums of one
-kind, two lists or maps whose members share no value but that both admit the empty one, a `const`
-against a kind with no judge or against any other value-holding node) are named in an info
-`openapi/degraded-construct`, and only
-the first declaration's type is kept; a detail the first declaration already holds differently is
-named in an info `openapi/degraded-construct`; and two composites of one kind the judgment does not
-compare (two models, a model and a map) and an unresolvable target are dropped without any
-diagnostic and kept all the same. The loser's `default`, constraints and examples go with its type
-rather than folding onto the winner — they describe the shape that lost, and adopting them would
-leave one field asserting two contradictory things, with nothing downstream comparing a value's kind
-to its property's type; this is keyed on the type being dropped, not on the drop being called a
-conflict. Two declarations naming the same target, or one narrowing the other, are not a drop, and
-differing only in nullability they take no entry: the merged field admits null only where both
-branches do, which is the same conjunction a single schema's null verdicts fold under
-([`nullable`](#nullable)).
+`date-time`), a scalar against a structure, or two different kinds of structure, two lists or maps
+whose members share no value where one is never empty — or where one constraint keyword is pinned to
+two values; types that share values but that the merge does not narrow to one (`int32` against
+`uint32`, an enum of `integer` against `int32`, two enums of one kind, two lists or maps whose
+members share no value but that both admit the empty one, or whose members both admit null, a
+`const` against a kind with no judge or against any other value-holding node) are named in an info
+`openapi/degraded-construct`, and only the first declaration's type is kept; a detail the first
+declaration already holds differently is named in an info `openapi/degraded-construct`; and two
+composites of one kind the judgment does not compare (two models, a model and a map) and an
+unresolvable target are dropped without any diagnostic and kept all the same. The loser's `default`,
+constraints and examples go with its type rather than folding onto the winner — they describe the
+shape that lost, and adopting them would leave one field asserting two contradictory things, with
+nothing downstream comparing a value's kind to its property's type; this is keyed on the type being
+dropped, not on the drop being called a conflict. Two declarations naming the same target, or one
+narrowing the other, are not a drop, and differing only in nullability they take no entry: the
+merged field admits null only where both branches do, which is the same conjunction a single
+schema's null verdicts fold under ([`nullable`](#nullable)).
 
 - Cases: `allof-conflicting-type`, `allof-narrowing-redeclaration`
 - Codes: `openapi/conflicting-redeclaration`, `openapi/degraded-construct`

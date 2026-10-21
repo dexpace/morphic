@@ -19,6 +19,7 @@ func judgeRegistry() map[ir.TypeID]ir.TypeDef {
 	i32, integer := primRef(ir.PrimInt32), primRef(ir.PrimInteger)
 	nullable := func(r ir.TypeRef) ir.TypeRef { r.Nullable = true; return r }
 	minItems := int64(1)
+	zero := int64(0)
 	reg["t/enum-int"] = &ir.Enum{ID: "t/enum-int", ValueType: ir.PrimInteger}
 	reg["t/enum-str"] = &ir.Enum{ID: "t/enum-str", ValueType: ir.PrimString}
 	reg["t/lit-a"] = &ir.Literal{ID: "t/lit-a", Value: str("a")}
@@ -40,10 +41,16 @@ func judgeRegistry() map[ir.TypeID]ir.TypeDef {
 	reg["t/list-i32-min"] = &ir.List{ID: "t/list-i32-min", Elem: i32, Constraints: &ir.Constraints{MinItems: &minItems}}
 	reg["t/list-int-min"] = &ir.List{ID: "t/list-int-min", Elem: integer, Constraints: &ir.Constraints{MinItems: &minItems}}
 	reg["t/list-i32-twin"] = &ir.List{ID: "t/list-i32-twin", Elem: i32}
+	reg["t/list-int-min0"] = &ir.List{ID: "t/list-int-min0", Elem: integer, Constraints: &ir.Constraints{MinItems: &zero}}
+	reg["t/list-str-null"] = &ir.List{ID: "t/list-str-null", Elem: nullable(primRef(ir.PrimString))}
+	reg["t/list-int-null-min"] = &ir.List{ID: "t/list-int-null-min", Elem: nullable(integer),
+		Constraints: &ir.Constraints{MinItems: &minItems}}
 	reg["t/list-str"] = &ir.List{ID: "t/list-str", Elem: primRef(ir.PrimString)}
 	reg["t/list-list-int"] = &ir.List{ID: "t/list-list-int", Elem: ir.TypeRef{Target: "t/list-int"}}
 	reg["t/list-list-i32"] = &ir.List{ID: "t/list-list-i32", Elem: ir.TypeRef{Target: "t/list-i32"}}
 	reg["t/map-int"] = &ir.MapT{ID: "t/map-int", Value: integer}
+	reg["t/map-str"] = &ir.MapT{ID: "t/map-str", Value: primRef(ir.PrimString)}
+	reg["t/map-int-min"] = &ir.MapT{ID: "t/map-int-min", Value: integer, Constraints: &ir.Constraints{MinProps: &minItems}}
 	reg["t/map-i32"] = &ir.MapT{ID: "t/map-i32", Value: i32}
 	reg["t/map-i32-keyed"] = &ir.MapT{ID: "t/map-i32-keyed", Key: &ir.TypeRef{Target: "t/prim/uuid"}, Value: i32}
 	reg["t/cycle"] = &ir.List{ID: "t/cycle", Elem: ir.TypeRef{Target: "t/cycle2"}}
@@ -103,6 +110,9 @@ func TestTypeJudge_RelateArms(t *testing.T) {
 		{"two lists of one element, one constrained", "t/list-i32", "t/list-i32-min", relOverlap},
 		{"disjoint elements overlap in the empty list", "t/list-str", "t/list-i32", relOverlap},
 		{"disjoint elements where one list is never empty", "t/list-str", "t/list-int-min", relDisjoint},
+		{"a minItems of zero admits the empty list", "t/list-str", "t/list-int-min0", relOverlap},
+		{"disjoint values where one map is never empty", "t/map-str", "t/map-int-min", relDisjoint},
+		{"disjoint elements that both admit null overlap", "t/list-str-null", "t/list-int-null-min", relOverlap},
 		{"nested lists", "t/list-list-int", "t/list-list-i32", relBNarrower},
 		{"a list against a map", "t/list-int", "t/map-int", relUnrelated},
 		{"a map value", "t/map-int", "t/map-i32", relBNarrower},
