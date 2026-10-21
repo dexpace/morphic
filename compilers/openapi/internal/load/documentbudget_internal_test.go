@@ -210,10 +210,10 @@ func resolveCounting(t *testing.T, spec, path string, opts Options) ([]ir.Diagno
 	}
 	opts.Reader = reader.Disk{}
 	at := pointerAt(0, overlay.Origin{})
-	_, _, ext, pass, extra, err := resolveExternal(t.Context(), at, doc, Siblings{},
+	_, _, ext, pass, missed, err := resolveExternal(t.Context(), doc, Siblings{},
 		newSourceDocument(path, data, root, nil, newSourceTree(0, overlay.Origin{}, root), nil), opts, rebuild)
 	require.NoError(t, err)
-	return append(passDiags(at, pass, extra), crossed(at, ext)...), rebuilds
+	return append(passDiags(at, pass, missed), crossed(at, ext)...), rebuilds
 }
 
 // TestResolveExternal_BothPassesShareOneDocumentBudget pins that GitHub #538's

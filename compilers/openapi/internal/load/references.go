@@ -118,6 +118,20 @@ func (p *resolution) elsewhere(place func(refSite) ir.Provenance) []awayRef {
 	return out
 }
 
+// used returns every document each reference object the pass visited read, at
+// every hop of its resolution, in the order visited, with the site writing it:
+// those the source writes, and those written in other documents, which no walk
+// of the source shows (see elsewhere).
+func (p *resolution) used() []usedDocument {
+	var used []usedDocument
+	for _, v := range p.visited {
+		for _, key := range resolutionTrail(v.r).docs {
+			used = append(used, usedDocument{key: key, site: v.site})
+		}
+	}
+	return used
+}
+
 // awayRef is a reference object written in another document, and where a
 // finding at a pointer of that document is placed.
 type awayRef struct {

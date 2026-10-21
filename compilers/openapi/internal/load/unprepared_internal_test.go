@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -45,31 +46,30 @@ func resolveSpec(t *testing.T, spec, path string) (*soa.OpenAPI, []ir.Diagnostic
 		again, _, err := unmarshal(t.Context(), data, root)
 		return again, err
 	}
-	at := pointerAt(0, overlay.Origin{})
-	resolved, _, _, pass, extra, err := resolveExternal(t.Context(), at, doc, Siblings{},
+	resolved, _, _, pass, missed, err := resolveExternal(t.Context(), doc, Siblings{},
 		newSourceDocument(path, data, root, nil, newSourceTree(0, overlay.Origin{}, root), nil),
 		Options{Reader: reader.Disk{}}, rebuild)
-	return resolved, passDiags(at, pass, extra), err
+	return resolved, passDiags(pointerAt(0, overlay.Origin{}), pass, missed), err
 }
 
 // resolveSpecWith is resolveSpec at root.yaml with a caller-supplied rebuild, for
 // the tests that need to observe or fail whether it is called.
 func resolveSpecWith(t *testing.T, spec string, rebuild func() (*soa.OpenAPI, error)) (*soa.OpenAPI, []ir.Diagnostic, error) {
 	t.Helper()
-	at := pointerAt(0, overlay.Origin{})
-	resolved, _, _, pass, extra, err := resolveExternal(t.Context(), at, modelOf(t, spec),
+	resolved, _, _, pass, missed, err := resolveExternal(t.Context(), modelOf(t, spec),
 		Siblings{}, sourceDocument{path: "root.yaml"}, Options{Reader: reader.Disk{}}, rebuild)
-	return resolved, passDiags(at, pass, extra), err
+	return resolved, passDiags(pointerAt(0, overlay.Origin{}), pass, missed), err
 }
 
-// passDiags is what pass and the faults beside it report, a finding in another
-// document placed at the source's root, as no document is listed: nil for no
-// pass, as a failed rebuild leaves.
-func passDiags(at func(jsontext.Pointer) ir.Provenance, pass *resolution, extra []ir.Diagnostic) []ir.Diagnostic {
+// passDiags is what pass reports, and the documents missed it found
+// unprepared, a finding in another document placed at the source's root, as no
+// document is listed: nil for no pass, as a failed rebuild leaves.
+func passDiags(at func(jsontext.Pointer) ir.Provenance, pass *resolution, missed []usedDocument) []ir.Diagnostic {
 	if pass == nil {
-		return extra
+		return nil
 	}
-	return append(pass.diags(sitePlacer(at, Others{})), extra...)
+	place := sitePlacer(at, Others{})
+	return append(pass.diags(place), stillUnprepared(place, missed)...)
 }
 
 // rootReferencing is a minimal source document whose one path is a reference to
@@ -663,6 +663,82 @@ paths:
 	assert.Equal(t, int32(1), requests.Load(), "the second pass fetched nothing again")
 }
 
+// TestLoad_RecoversARespelledURLOnlyANestedReferenceReads pins the rebuild for
+// a document only a reference another document writes reads (GitHub #751):
+// ext.yaml's callback names other.yaml by a respelled URL, and no walk of the
+// source shows that reference, so the documents the pass resolved, not those
+// a walk of the source shows, decide whether the anchored operations the
+// resolver's own parse would skip are recovered.
+func TestLoad_RecoversARespelledURLOnlyANestedReferenceReads(t *testing.T) {
+	t.Parallel()
+	other, requests := countingServer(t, anchoredExternalDoc)
+	otherURL := "HTTP://" + strings.TrimPrefix(other.URL, "http://") + "/other.yaml"
+	ext, _ := countingServer(t, `openapi: 3.1.0
+info: {title: E, version: "1"}
+paths:
+  /x:
+    get:
+      callbacks:
+        cb:
+          '{$request.body#/u}': {$ref: '`+otherURL+`#/paths/~1x'}
+      responses: {"200": {description: ok}}
+`)
+	src := compilers.Source{Path: "root.yaml", Data: []byte(rootReferencing(ext.URL + "/ext.yaml"))}
+
+	got, diags, err := Load(t.Context(), 0, src, Options{Reader: reader.Disk{}})
+
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	assert.Empty(t, diags)
+	x, ok := got.Doc.Paths.Get("/x")
+	require.True(t, ok)
+	require.NotNil(t, x.GetObject(), "the source's $ref resolved")
+	cb, ok := x.GetObject().Get().GetCallbacks().Get("cb")
+	require.True(t, ok)
+	expr, ok := cb.GetObject().Get("{$request.body#/u}")
+	require.True(t, ok)
+	item := expr.GetObject()
+	require.NotNil(t, item, "ext.yaml's $ref resolved")
+	require.NotNil(t, item.Get(), "the anchored GET entry was folded, not skipped")
+	assert.Equal(t, "EXTGET", item.Get().GetOperationID())
+	require.NotNil(t, item.Put(), "the anchored PUT entry was folded, not skipped")
+	assert.Equal(t, "EXTPUT", item.Put().GetOperationID())
+	assert.Equal(t, int32(1), requests.Load(), "the second pass fetched nothing again")
+}
+
+// TestLoad_ReportsAnUnpreparedReadWhereAnotherDocumentWritesItsReference pins
+// that Load reports a document the second pass read unprepared, placed in the
+// document writing the reference: the rebuild has /y reach mid.yaml, whose
+// callback names other.yaml by a respelled URL the first pass never read.
+func TestLoad_ReportsAnUnpreparedReadWhereAnotherDocumentWritesItsReference(t *testing.T) {
+	t.Parallel()
+	ext, _ := countingServer(t, anchoredExternalDoc)
+	other, _ := countingServer(t, anchoredExternalDoc)
+	extURL := "HTTP://" + strings.TrimPrefix(ext.URL, "http://") + "/ext.yaml"
+	otherURL := "HTTP://" + strings.TrimPrefix(other.URL, "http://") + "/other.yaml"
+	mid, _ := countingServer(t, "openapi: 3.1.0\ninfo: {title: M, version: \"1\"}\npaths:\n  /x:\n    get:\n"+
+		"      callbacks: {cb: {'{$request.body#/u}': {$ref: '"+otherURL+"#/paths/~1x'}}}\n"+
+		"      responses: {\"200\": {description: ok}}\n")
+	_, rebuild := secondPassSpecs(t, extURL, mid.URL+"/mid.yaml")
+	src := compilers.Source{Path: "root.yaml", Data: []byte(rootReferencing(extURL))}
+	opts := Options{Reader: reader.Disk{}, rebuildDoc: func(context.Context, []byte, *yaml.Node) (*soa.OpenAPI, []error, error) {
+		again, err := rebuild()
+		return again, nil, err
+	}}
+
+	got, diags, err := Load(t.Context(), 0, src, opts)
+
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	require.Len(t, diags, 1, "%+v", diags)
+	assert.Equal(t, diag.InternalInvariant, diags[0].Code)
+	assert.Contains(t, diags[0].Message, otherURL)
+	i := slices.IndexFunc(got.Others.List(), func(o Other) bool { return strings.HasSuffix(o.Label, "/mid.yaml") })
+	require.GreaterOrEqual(t, i, 0, "%+v", got.Others.List())
+	assert.Equal(t, ir.Provenance{Source: got.Others.List()[i].Index, Pointer: "/paths/~1x/get/callbacks/cb/{$request.body#~1u}"},
+		diags[0].Provenance, "reported at mid.yaml's $ref")
+}
+
 // TestLoad_ARebuildFailureIsWrappedAsRebuildSource drives build's wrap of a
 // rebuild failure through the rebuildDoc seam, since the real rebuild repeats an
 // unmarshal that already succeeded and cannot fail.
@@ -689,32 +765,36 @@ func TestLoad_ARebuildFailureIsWrappedAsRebuildSource(t *testing.T) {
 }
 
 // TestStillUnprepared is a unit test of the report itself. No document makes
-// the second pass read one the first did not, since the resolver never follows
-// a reference inside a resolved object, so it is driven with fabricated
-// usedDocuments. The tests after it reach it through resolveExternal with a
-// rebuild that differs from the first model.
+// the second pass read one the first did not, as both passes walk alike, so it
+// is driven with fabricated usedDocuments. The tests after it reach it through
+// resolveExternal with a rebuild that differs from the first model.
 func TestStillUnprepared(t *testing.T) {
 	t.Parallel()
-	at := pointerAt(3, overlay.Origin{})
+	place := func(s refSite) ir.Provenance {
+		if s.inSource() {
+			return ir.Provenance{Source: 3, Pointer: s.pointer}
+		}
+		return ir.Provenance{Source: 4, Pointer: s.pointer}
+	}
 	missed := []usedDocument{
-		{key: "http://a/1.yaml", site: jsontext.Pointer("/paths/~1x")},
-		{key: "http://a/1.yaml", site: jsontext.Pointer("/paths/~1y")}, // same key: reported once
-		{key: "http://a/2.yaml", site: jsontext.Pointer("/paths/~1z")},
+		{key: "http://a/1.yaml", site: refSite{pointer: "/paths/~1x"}},
+		{key: "http://a/1.yaml", site: refSite{pointer: "/paths/~1y"}}, // same key: reported once
+		{key: "http://a/2.yaml", site: refSite{doc: "b.yaml", pointer: "/paths/~1z"}},
 	}
 
-	diags := stillUnprepared(at, missed)
+	diags := stillUnprepared(place, missed)
 
 	require.Len(t, diags, 2, "one report per distinct key")
 	for _, d := range diags {
 		assert.Equal(t, ir.SeverityError, d.Severity)
 		assert.Equal(t, diag.InternalInvariant, d.Code)
-		assert.Equal(t, 3, d.Provenance.Source)
 	}
 	assert.Contains(t, diags[0].Message, "http://a/1.yaml")
-	assert.Equal(t, jsontext.Pointer("/paths/~1x"), diags[0].Provenance.Pointer,
+	assert.Equal(t, ir.Provenance{Source: 3, Pointer: "/paths/~1x"}, diags[0].Provenance,
 		"reported at the first reference that read it, not at the second one to the same key")
 	assert.Contains(t, diags[1].Message, "http://a/2.yaml")
-	assert.Equal(t, jsontext.Pointer("/paths/~1z"), diags[1].Provenance.Pointer)
+	assert.Equal(t, ir.Provenance{Source: 4, Pointer: "/paths/~1z"}, diags[1].Provenance,
+		"a reference another document writes is placed in that document")
 }
 
 // modelOf builds spec's model the way build does before resolving it.
@@ -1004,29 +1084,6 @@ components:
 		assert.Zero(t, resolutionTrail(nil))
 		assert.Zero(t, resolutionTrail(oas3.NewJSONSchemaFromReference("#/components/schemas/S")), "a schema's $ref is bound, not resolved")
 	})
-}
-
-// TestHopsUsed_StopsOnMatchError pins hopsUsed's early return, which only a
-// fabricated WalkItem reaches: a Match error ends the walk with what was
-// collected so far.
-func TestHopsUsed_StopsOnMatchError(t *testing.T) {
-	t.Parallel()
-	visited := 0
-	failing := soa.WalkItem{Match: func(soa.Matcher) error { return errors.New("walk stopped") }}
-	after := soa.WalkItem{Match: func(soa.Matcher) error {
-		visited++
-		return nil
-	}}
-
-	got := hopsUsed(func(yield func(soa.WalkItem) bool) {
-		if !yield(failing) {
-			return
-		}
-		yield(after)
-	})
-
-	assert.Nil(t, got, "a failed match ends the walk with what it collected so far — nothing, here")
-	assert.Zero(t, visited, "the item after the failure is never reached")
 }
 
 // TestResolutionTrail_StopsAtMaxResolutionHops proves the bounded-everything

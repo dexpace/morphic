@@ -407,10 +407,10 @@ func resolve(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *
 ) (*soa.OpenAPI, Siblings, bound, []ir.Diagnostic, error) {
 	var reader *external
 	var pass *resolution
-	var unprepared []ir.Diagnostic
+	var missed []usedDocument
 	if opts.Reader != nil {
 		var err error
-		doc, sibs, reader, pass, unprepared, err = resolveExternal(ctx, at, doc, sibs, self, opts, rebuild)
+		doc, sibs, reader, pass, missed, err = resolveExternal(ctx, doc, sibs, self, opts, rebuild)
 		if err != nil {
 			return nil, Siblings{}, bound{}, nil, err
 		}
@@ -422,7 +422,7 @@ func resolve(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *
 		b.others = newOthers(reader.read, beside.first, beside.format)
 	}
 	place, placeSite := b.placer(at), sitePlacer(at, b.others)
-	diags := append(pass.diags(placeSite), unprepared...)
+	diags := append(pass.diags(placeSite), stillUnprepared(placeSite, missed)...)
 	reached := validateReached(ctx, at, b, doc, sibs, opts, self, pass.elsewhere(placeSite))
 	site, err := self.escapes.restore(ctx, doc, sibs, b.built)
 	diags = append(diags, restoreFault(at, site, err)...)

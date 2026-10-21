@@ -386,15 +386,15 @@ func (r *externalReads) handOver(doc *soa.OpenAPI, used []usedDocument) {
 // resolver parsed holds an anchor, or a $ref the prepared tree respells (see
 // escapes), doc is rebuilt and resolved again, handed every prepared tree (see
 // handOver) and answered from the first pass's reads. That reaches no new
-// document, as both passes walk alike; one found unprepared is an internal
-// fault.
-func resolveExternal(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI, sibs Siblings,
-	self sourceDocument, opts Options, rebuild func() (*soa.OpenAPI, error),
-) (*soa.OpenAPI, Siblings, *external, *resolution, []ir.Diagnostic, error) {
+// document, as both passes walk alike; one found unprepared is returned, an
+// internal fault (stillUnprepared).
+func resolveExternal(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, self sourceDocument, opts Options,
+	rebuild func() (*soa.OpenAPI, error),
+) (*soa.OpenAPI, Siblings, *external, *resolution, []usedDocument, error) {
 	read := newExternalReads(self)
 	reader := newExternal(ctx, doc, opts, read)
 	pass := resolveWith(ctx, doc, sibs, self, opts, &reader)
-	used := documentsUsed(ctx, doc, sibs)
+	used := pass.used()
 	first := unprepared(doc, read, used)
 	if !anyAnchored(doc, first) && !anyRewritable(doc, first, self.escapes) {
 		return doc, sibs, &reader, pass, nil, nil
@@ -411,8 +411,7 @@ func resolveExternal(ctx context.Context, at func(jsontext.Pointer) ir.Provenanc
 	read.handOver(again, used)
 	reader = newExternal(ctx, again, opts, read)
 	pass = resolveWith(ctx, again, sibs, self, opts, &reader)
-	missed := unprepared(again, read, documentsUsed(ctx, again, sibs))
-	return again, sibs, &reader, pass, stillUnprepared(at, missed), nil
+	return again, sibs, &reader, pass, unprepared(again, read, pass.used()), nil
 }
 
 // anyAnchored reports whether any document in missed, as the resolver parsed
@@ -455,8 +454,8 @@ func hasAnchor(root *yaml.Node) bool {
 }
 
 // stillUnprepared reports each document the second resolution found
-// unprepared, once, at the first reference that read it.
-func stillUnprepared(at func(jsontext.Pointer) ir.Provenance, missed []usedDocument) []ir.Diagnostic {
+// unprepared, once, at the first reference that read it, placed by place.
+func stillUnprepared(place func(refSite) ir.Provenance, missed []usedDocument) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	reported := map[string]bool{}
 	for _, m := range missed {
@@ -464,7 +463,7 @@ func stillUnprepared(at func(jsontext.Pointer) ir.Provenance, missed []usedDocum
 			continue
 		}
 		reported[m.key] = true
-		diags = append(diags, diag.Newf(ir.SeverityError, diag.InternalInvariant, at(m.site),
+		diags = append(diags, diag.Newf(ir.SeverityError, diag.InternalInvariant, place(m.site),
 			"internal: the second resolution read %s itself; "+
 				"anchored entries in it may be missing (GitHub #538)", m.key))
 	}
@@ -472,35 +471,10 @@ func stillUnprepared(at func(jsontext.Pointer) ir.Provenance, missed []usedDocum
 }
 
 // usedDocument is a document the resolver read for a reference, under the key
-// it looked it up by, and the pointer that writes the reference.
+// it looked it up by, and the site that writes the reference.
 type usedDocument struct {
 	key  string
-	site jsontext.Pointer
-}
-
-// documentsUsed returns every document a resolved reference in doc read, at
-// every hop of its resolution, in walk order.
-func documentsUsed(ctx context.Context, doc *soa.OpenAPI, sibs Siblings) []usedDocument {
-	return hopsUsed(walkSource(ctx, doc, sibs))
-}
-
-// hopsUsed is documentsUsed over walk items rather than a document, so a test
-// can reach its early return: Match returns only what its callback returns,
-// which here is always nil, so no real walk stops early.
-func hopsUsed(items iter.Seq[soa.WalkItem]) []usedDocument {
-	var used []usedDocument
-	for item := range items {
-		if err := item.Match(soa.Matcher{Any: func(model any) error {
-			site := jsontext.Pointer(item.Location.ToJSONPointer())
-			for _, key := range resolutionTrail(model).docs {
-				used = append(used, usedDocument{key: key, site: site})
-			}
-			return nil
-		}}); err != nil {
-			return used
-		}
-	}
-	return used
+	site refSite
 }
 
 // unprepared returns the documents among used whose tree the resolver parsed
