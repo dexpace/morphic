@@ -109,8 +109,10 @@ func TestBind_ReadsEachHop(t *testing.T) {
 			bind.NoTarget, "", bind.NoRole},
 		{"an index", "    A: {$ref: '#/components/schemas/B/allOf/10'}\n    B: {allOf: [{}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}]}\n",
 			bind.NoReason, "/components/schemas/B/allOf/10", bind.Schema},
-		{"an anchor", "    A: {$ref: '#a'}\n    B: {$anchor: a}\n", bind.AnchorTarget, "", bind.NoRole},
-		{"an anchor of every character one may hold", "    A: {$ref: '#_a-1.b'}\n", bind.AnchorTarget, "", bind.NoRole},
+		{"an anchor", "    A: {$ref: '#a'}\n    B: {$anchor: a}\n", bind.NoReason, "/components/schemas/B", bind.Schema},
+		{"an anchor of every character one may hold", "    A: {$ref: '#_a-1.b'}\n    B: {$anchor: _a-1.b}\n",
+			bind.NoReason, "/components/schemas/B", bind.Schema},
+		{"an anchor no schema declares", "    A: {$ref: '#a'}\n", bind.NoAnchor, "", bind.NoRole},
 		{"a fragment no anchor can be named", "    A: {$ref: '#a/b'}\n", bind.BadPointer, "", bind.NoRole},
 		{"one opening with a digit", "    A: {$ref: '#1a'}\n", bind.BadPointer, "", bind.NoRole},
 		{"one holding a character no anchor may", "    A: {$ref: '#a+b'}\n", bind.BadPointer, "", bind.NoRole},
@@ -140,14 +142,14 @@ func TestBind_ReadsEachHop(t *testing.T) {
 	}
 }
 
-// TestBind_ReadsADefinitionByTheDefsRule pins the $defs rule: a resource's own
-// definitions, then the document's root, then the nearest object above holding
+// TestBind_ReadsADefinitionByTheDefsRule pins the $defs rule: in an $id's
+// resource, its root's definitions alone, as JSON Schema 2020-12 §8.2.1 reads
+// a pointer; in the document's, its root, then the nearest object above holding
 // "$defs" in the model, whatever was resolved before. An ancestor answers raw
 // YAML at the path too (GitHub #997), and the root answers before the schema
-// spelling the pointer, which needs no $id to be shadowed (GitHub #995). Raw
-// YAML holds no object of the model, so a schema under an extension answers
-// nothing from its own definitions, as OAS 3.1 reads one with no $id (GitHub
-// #570). Where none answers, the reason says which definition went unread.
+// spelling the pointer (GitHub #995). A schema under an extension answers
+// nothing from its own definitions unless its own $id makes it a resource
+// (GitHub #570). Where none answers, the reason says which went unread.
 func TestBind_ReadsADefinitionByTheDefsRule(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -163,21 +165,25 @@ func TestBind_ReadsADefinitionByTheDefsRule(t *testing.T) {
 			"/components/schemas/B", "/$defs/A", 0},
 		{"a resource's own first", "$defs:\n  A: {}\ncomponents:\n  schemas:\n    B: {$id: 'https://x.test/b', $ref: '#/$defs/A', $defs: {A: {}}}\n",
 			"/components/schemas/B", "/components/schemas/B/$defs/A", 0},
-		{"a resource with none of its own", "$defs:\n  A: {}\ncomponents:\n  schemas:\n    B: {$id: 'https://x.test/b', $ref: '#/$defs/A'}\n",
-			"/components/schemas/B", "/$defs/A", 0},
+		{"a resource with none of its own, read from its root alone", "$defs:\n  A: {}\ncomponents:\n  schemas:\n" +
+			"    B: {$id: 'https://x.test/b', $ref: '#/$defs/A'}\n", "/components/schemas/B", "", bind.NoResourceTarget},
 		{"a resource's own under an escaped name", "components:\n  schemas:\n    B: {$id: 'https://x.test/b', " +
 			"allOf: [{$ref: '#/$defs/a~1b'}, {$ref: '#/$defs/x~0y'}], $defs: {a/b: {}, x~y: {}}}\n",
 			"/components/schemas/B/allOf/0", "/components/schemas/B/$defs/a~1b", 0},
 		{"no schema's own without an $id", "components:\n  schemas:\n    B: {$ref: '#/$defs/A', $defs: {A: {}}}\n",
 			"/components/schemas/B", "", bind.OwnDefinition},
-		{"one sitting in a nested resource", "components:\n  schemas:\n    B: {$id: 'https://x.test/b', $defs: {A: {}}, properties: {p: {$id: 'p', " +
+		{"one sitting in a nested resource reads its root's", "components:\n  schemas:\n    B: {$id: 'https://x.test/b', " +
+			"$defs: {A: {}}, properties: {p: {$id: 'p', $defs: {A: {}}, properties: {q: {$ref: '#/$defs/A', $defs: {A: {}}}}}}}\n",
+			"/components/schemas/B/properties/p/properties/q", "/components/schemas/B/properties/p/$defs/A", 0},
+		{"one sitting in a nested resource reads neither its own nor an outer one's", "components:\n  schemas:\n" +
+			"    B: {$id: 'https://x.test/b', $defs: {A: {}}, properties: {p: {$id: 'p', " +
 			"properties: {q: {$ref: '#/$defs/A', $defs: {A: {}}}}}}}\n",
-			"/components/schemas/B/properties/p/properties/q", "/components/schemas/B/properties/p/properties/q/$defs/A", 0},
+			"/components/schemas/B/properties/p/properties/q", "", bind.NoResourceTarget},
 		{"one in the outermost resource, which is none of its own", "components:\n  schemas:\n    B: {$id: 'https://x.test/b', $defs: {A: {}}, " +
 			"properties: {p: {$ref: '#/$defs/A', $defs: {A: {}}}}}\n",
 			"/components/schemas/B/properties/p", "/components/schemas/B/$defs/A", 0},
-		{"an $id of a fragment alone still makes a resource", "components:\n  schemas:\n    B: {$id: '#f', $ref: '#/$defs/A', $defs: {A: {}}}\n",
-			"/components/schemas/B", "/components/schemas/B/$defs/A", 0},
+		{"an $id with a fragment makes no resource", "components:\n  schemas:\n    B: {$id: '#f', $ref: '#/$defs/A', $defs: {A: {}}}\n",
+			"/components/schemas/B", "", bind.OwnDefinition},
 		{"a nested $id of a fragment alone moves no base", "components:\n  schemas:\n    B: {$id: 'https://x.test/b', $defs: {A: {}}, properties: {p: {$id: '#f', " +
 			"properties: {q: {$ref: '#/$defs/A', $defs: {A: {}}}}}}}\n",
 			"/components/schemas/B/properties/p/properties/q", "/components/schemas/B/$defs/A", 0},
@@ -190,8 +196,10 @@ func TestBind_ReadsADefinitionByTheDefsRule(t *testing.T) {
 			"/components/schemas/H/properties/p", "/components/schemas/H/$defs/A/example", 0},
 		{"past an ancestor holding no schema there", "components:\n  schemas:\n    H: {$defs: {A: {type: [string]}}, properties: {p: {$ref: '#/$defs/A/type'}}}\n",
 			"/components/schemas/H/properties/p", "", bind.NoDefinition},
-		{"a trailing slash names no single key", "components:\n  schemas:\n    B: {$id: 'https://x.test/b', $ref: '#/$defs/A/', $defs: {A: {}}}\n",
+		{"a trailing slash names no single key", "components:\n  schemas:\n    B: {$ref: '#/$defs/A/', $defs: {A: {}}}\n",
 			"/components/schemas/B", "", bind.NoDefinition},
+		{"a trailing slash in a resource names an empty key", "components:\n  schemas:\n" +
+			"    B: {$id: 'https://x.test/b', $ref: '#/$defs/A/', $defs: {A: {}}}\n", "/components/schemas/B", "", bind.NoResourceTarget},
 		{"an ancestor that is a map holding $defs", "components:\n  schemas:\n    H: {properties: {$defs: {properties: {x: {}}}, p: {$ref: '#/$defs/properties/x'}}}\n",
 			"/components/schemas/H/properties/p", "/components/schemas/H/properties/$defs/properties/x", 0},
 		{"an object of the model whose $defs is no definitions", "components:\n  $defs: {K: {}}\n  schemas:\n    B: {$ref: '#/$defs/K'}\n",
@@ -204,25 +212,25 @@ func TestBind_ReadsADefinitionByTheDefsRule(t *testing.T) {
 			"/components/schemas/B", "", bind.OwnDefinition},
 		{"a relative $id repeated below its own base moves none", "$defs:\n  K: {}\ncomponents:\n  schemas:\n" +
 			"    B: {$id: a.json, properties: {p: {$id: a.json, properties: {q: {$ref: '#/$defs/K', $defs: {K: {}}}}}}}\n",
-			"/components/schemas/B/properties/p/properties/q", "/$defs/K", 0},
+			"/components/schemas/B/properties/p/properties/q", "", bind.NoResourceTarget},
 		{"a relative $id resolved against a relative base moves none", "$defs:\n  K: {}\ncomponents:\n  schemas:\n" +
 			"    B: {$id: dir/c.json, properties: {p: {$id: c.json, properties: {q: {$ref: '#/$defs/K', $defs: {K: {}}}}}}}\n",
-			"/components/schemas/B/properties/p/properties/q", "/$defs/K", 0},
+			"/components/schemas/B/properties/p/properties/q", "", bind.NoResourceTarget},
 		{"a nested $id of a dot segment names another base", "components:\n  schemas:\n    B: {$defs: {A: {}}, properties: {p: {$id: '.', " +
 			"properties: {q: {$ref: '#/$defs/A', $defs: {A: {}}}}}}}\n",
-			"/components/schemas/B/properties/p/properties/q", "/components/schemas/B/properties/p/properties/q/$defs/A", 0},
+			"/components/schemas/B/properties/p/properties/q", "", bind.NoResourceTarget},
 		{"a nested $id of the root path names another base", "components:\n  schemas:\n    B: {$defs: {A: {}}, properties: {p: {$id: '/', " +
 			"properties: {q: {$ref: '#/$defs/A', $defs: {A: {}}}}}}}\n",
-			"/components/schemas/B/properties/p/properties/q", "/components/schemas/B/properties/p/properties/q/$defs/A", 0},
+			"/components/schemas/B/properties/p/properties/q", "", bind.NoResourceTarget},
 		{"a nested $id with an empty fragment moves the base", "components:\n  schemas:\n    B: {$defs: {A: {}}, properties: {p: {$id: 'x.json#', " +
 			"properties: {q: {$ref: '#/$defs/A', $defs: {A: {}}}}}}}\n",
-			"/components/schemas/B/properties/p/properties/q", "/components/schemas/B/properties/p/properties/q/$defs/A", 0},
+			"/components/schemas/B/properties/p/properties/q", "", bind.NoResourceTarget},
 		{"a nested $id naming the document itself moves none", "components:\n  schemas:\n    B: {$defs: {A: {}}, properties: {p: {$id: './spec.yaml#', " +
 			"properties: {q: {$ref: '#/$defs/A', $defs: {A: {}}}}}}}\n",
 			"/components/schemas/B/properties/p/properties/q", "/components/schemas/B/$defs/A", 0},
 		{"a relative $id naming another resource", "components:\n  schemas:\n" +
 			"    B: {$id: a.json, properties: {p: {$id: b.json, properties: {q: {$ref: '#/$defs/K', $defs: {K: {}}}}}}}\n",
-			"/components/schemas/B/properties/p/properties/q", "/components/schemas/B/properties/p/properties/q/$defs/K", 0},
+			"/components/schemas/B/properties/p/properties/q", "", bind.NoResourceTarget},
 		{"no ancestor in raw YAML", "x-lib:\n  $defs: {n: {}}\n  S: {$ref: '#/$defs/n'}\ncomponents:\n  schemas:\n    U: {$ref: '#/x-lib/S'}\n",
 			"/x-lib/S", "", bind.RawDefinition},
 		{"no definition of a schema under an extension", "x-lib:\n  S: {properties: {p: {$ref: '#/$defs/n'}}, $defs: {n: {}}}\n" +
@@ -450,8 +458,8 @@ func withDocuments(docs map[string]string) bind.Config {
 // TestBind_RefuseJudgesEachReferenceByItsSpelling pins Config.Refuse: a $ref
 // whose document part it refuses fails unread with its reason, though another
 // $ref names the same document and it is read. It is handed the document part
-// as written, spaces trimmed, and never an $id, which Locate places but which
-// reads nothing.
+// as written, spaces trimmed, and never an $id, nor a $ref one answers: Locate
+// places both, but neither reads anything.
 func TestBind_RefuseJudgesEachReferenceByItsSpelling(t *testing.T) {
 	t.Parallel()
 	cfg := withDocuments(map[string]string{"/other.yaml": "X: {type: string}\n"})
@@ -477,6 +485,7 @@ func TestBind_RefuseJudgesEachReferenceByItsSpelling(t *testing.T) {
     Rel: {$ref: 'other.yaml#/X'}
     Abs: {$ref: ' /other.yaml #/X'}
     Res: {$id: '/elsewhere/b', $ref: '#/$defs/A', $defs: {A: {}}}
+    Id: {$ref: '/elsewhere/b'}
 `, cfg)
 
 	rel := entryAt(t, table, "/components/schemas/Rel")
@@ -487,7 +496,8 @@ func TestBind_RefuseJudgesEachReferenceByItsSpelling(t *testing.T) {
 	assert.Equal(t, 1, opened["/other.yaml"], "read for the relative $ref alone")
 	assert.ElementsMatch(t, []string{"other.yaml", "/other.yaml"}, refused)
 	assert.Contains(t, located, "/elsewhere/b", "the $id is placed")
-	assert.NotContains(t, located, "/other.yaml", "a refused $ref is placed nowhere")
+	id := entryAt(t, table, "/components/schemas/Id")
+	assert.Equal(t, bind.Position{Pointer: "/components/schemas/Res"}, id.Hop.Target, id.Hop.Why())
 }
 
 // TestIsEmpty_HoldsNoNode pins what an empty document is: one parsed to no

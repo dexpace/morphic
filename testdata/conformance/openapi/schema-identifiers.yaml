@@ -1,0 +1,32 @@
+openapi: 3.1.0
+info: {title: SchemaIdentifiers, version: "1.0.0"}
+paths: {}
+components:
+  schemas:
+    Pet:
+      type: object
+      properties:
+        owner: {$ref: '#person'}
+        tag: {$ref: '#tag'}
+        address: {$ref: 'https://example.com/schemas/address'}
+    Person:
+      $anchor: person
+      type: object
+      properties:
+        name: {type: string}
+    Tag:
+      $dynamicAnchor: tag
+      type: string
+    Address:
+      $id: 'https://example.com/schemas/address'
+      type: object
+      properties:
+        street: {type: string}
+        country: {$ref: country}
+        next: {$ref: '#'}
+        zip: {$ref: '#/$defs/zip'}
+      $defs:
+        zip: {type: string, pattern: '^[0-9]{5}$'}
+    Country:
+      $id: 'https://example.com/schemas/country'
+      type: string

@@ -1,0 +1,456 @@
+{
+  "idSpaces": {
+    "auth": [
+      "openapi"
+    ],
+    "e": [
+      "anon",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
+  "name": "SchemaIdentifiers",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "SchemaIdentifiers",
+        "canonical": "schema_identifiers"
+      },
+      "docs": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/components/schemas/Address/$defs/zip": {
+      "kind": "scalar",
+      "id": "t/anon/components/schemas/Address/$defs/zip",
+      "name": {
+        "hint": "zip"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Address/$defs/zip"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      },
+      "constraints": {
+        "pattern": "^[0-9]{5}$",
+        "uniqueItems": false
+      }
+    },
+    "t/openapi/components/schemas/Address": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Address",
+      "name": {
+        "source": "Address",
+        "canonical": "address"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:$id": {
+          "reason": "out_of_scope",
+          "value": "https://example.com/schemas/address",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Address/$id"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Address"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Address/properties/street",
+          "name": {
+            "source": "street",
+            "canonical": "street"
+          },
+          "wireName": "street",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Address/properties/street"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Address/properties/country",
+          "name": {
+            "source": "country",
+            "canonical": "country"
+          },
+          "wireName": "country",
+          "type": {
+            "target": "t/openapi/components/schemas/Country",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Address/properties/country"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Address/properties/next",
+          "name": {
+            "source": "next",
+            "canonical": "next"
+          },
+          "wireName": "next",
+          "type": {
+            "target": "t/openapi/components/schemas/Address",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Address/properties/next"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Address/properties/zip",
+          "name": {
+            "source": "zip",
+            "canonical": "zip"
+          },
+          "wireName": "zip",
+          "type": {
+            "target": "t/anon/components/schemas/Address/$defs/zip",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Address/properties/zip"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Country": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/Country",
+      "name": {
+        "source": "Country",
+        "canonical": "country"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:$id": {
+          "reason": "out_of_scope",
+          "value": "https://example.com/schemas/country",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Country/$id"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Country"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/Person": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Person",
+      "name": {
+        "source": "Person",
+        "canonical": "person"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Person"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Person/properties/name",
+          "name": {
+            "source": "name",
+            "canonical": "name"
+          },
+          "wireName": "name",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Person/properties/name"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Pet": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Pet",
+      "name": {
+        "source": "Pet",
+        "canonical": "pet"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Pet"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Pet/properties/owner",
+          "name": {
+            "source": "owner",
+            "canonical": "owner"
+          },
+          "wireName": "owner",
+          "type": {
+            "target": "t/openapi/components/schemas/Person",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Pet/properties/owner"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Pet/properties/tag",
+          "name": {
+            "source": "tag",
+            "canonical": "tag"
+          },
+          "wireName": "tag",
+          "type": {
+            "target": "t/openapi/components/schemas/Tag",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Pet/properties/tag"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Pet/properties/address",
+          "name": {
+            "source": "address",
+            "canonical": "address"
+          },
+          "wireName": "address",
+          "type": {
+            "target": "t/openapi/components/schemas/Address",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Pet/properties/address"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Tag": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/Tag",
+      "name": {
+        "source": "Tag",
+        "canonical": "tag"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Tag"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "string"
+    }
+  },
+  "servers": [
+    {
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {}
+    }
+  ],
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "$id identifies or configures a JSON Schema resource rather than describing data; the IR models no such axis, so it is kept verbatim under Unmodeled and is read only for reference resolution",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Address/$id"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "$id identifies or configures a JSON Schema resource rather than describing data; the IR models no such axis, so it is kept verbatim under Unmodeled and is read only for reference resolution",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Country/$id"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "schema-identifiers.yaml",
+      "hash": "ec323c2365ba68e8173b06012ee3c84308d03c317e519868c199e5206686efd3"
+    }
+  ]
+}
