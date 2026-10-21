@@ -22,8 +22,10 @@ type Compiled struct {
 	// Document is the lowered document, or nil when the compiler refused the
 	// source.
 	Document *ir.Document
-	// Diagnostics is the list Compile returned. A Document may carry findings
-	// of its own as well, and a caller unions the two (see Compiler).
+	// Diagnostics is every finding the compile reported: the Document's own,
+	// then each one Compile returned that the Document does not hold. A
+	// compiler may fill either channel (see Compiler), so reading one alone
+	// would lose what only the other holds.
 	Diagnostics []ir.Diagnostic
 	// Sources is the table every Provenance.Source in both lists indexes: the
 	// Document's, or the compiler's SourceTable for a refusal.
@@ -53,6 +55,9 @@ func (d Detection) Compile(ctx context.Context, src Source) (Compiled, error) {
 	}
 	if err := d.check(out, table, src); err != nil {
 		return Compiled{}, fmt.Errorf("compilers: compile as %s: %w", d.Recognition.Format, err)
+	}
+	if doc != nil {
+		out.Diagnostics = ir.MergeDiagnostics(doc.Diagnostics, diags)
 	}
 	return out, nil
 }

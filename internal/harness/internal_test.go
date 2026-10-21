@@ -577,3 +577,19 @@ func TestSpecFiles_AFileThatCannotBeReadIsAnError(t *testing.T) {
 	assert.Contains(t, err.Error(), "harness: read")
 	assert.Contains(t, err.Error(), "read boom")
 }
+
+// TestCheck_AFindingOnTheDocumentAloneIsRead pins that the sweep reads both of
+// a compiler's channels: one storing its error on the document alone is
+// classified by it, as the engine judges the run by it.
+func TestCheck_AFindingOnTheDocumentAloneIsRead(t *testing.T) {
+	withCompilers(t, stubCompiler{lower: func(sources []compilers.Source) (*ir.Document, []ir.Diagnostic, error) {
+		doc := stubDocument(sources, false)
+		doc.Diagnostics = []ir.Diagnostic{ir.NewDiagnostic(ir.SeverityError, "stub/broken", "stored only", ir.Provenance{})}
+		return doc, nil, nil
+	}})
+
+	r := Check(context.Background(), "spec", []byte(stubSource))
+
+	assert.Equal(t, OutcomeErrorDiag, r.Outcome, r.Detail)
+	assert.Contains(t, r.Detail, "stub/broken")
+}

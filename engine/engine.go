@@ -205,23 +205,22 @@ func (e *Engine) compile(
 	if err != nil {
 		return nil, fmt.Errorf("engine: compile %q: %w", source.Path, err)
 	}
-	doc, diags := out.Document, out.Diagnostics
+	doc, compiled := out.Document, out.Diagnostics
 	if doc == nil {
-		return &Result{Diagnostics: diags, Format: format, Sources: out.Sources}, nil
+		return &Result{Diagnostics: compiled, Format: format, Sources: out.Sources}, nil
 	}
 	// Both channels end up carrying the whole list: the Result is what a caller
 	// gates on, and the document is what gets persisted (golden snapshots, IR
-	// diff, caches, emitters). Merging rather than picking one is what keeps a
-	// finding its compiler put on only one of them — see mergeDiagnostics. The
-	// compiler's list is taken before any pass runs, since the passes' contract
-	// leaves Document.Diagnostics to the engine: a transform that builds a
-	// fresh document cannot lose what the compiler stored on the old one.
-	compiled := mergeDiagnostics(doc.Diagnostics, diags)
+	// diff, caches, emitters). The compiler's findings, both of its channels
+	// already merged by the detection, are taken before any pass runs, since the
+	// passes' contract leaves Document.Diagnostics to the engine: a transform
+	// that builds a fresh document cannot lose what the compiler stored on the
+	// old one.
 	doc, found, err := runPasses(ctx, doc, passes)
 	if err != nil {
 		return nil, err
 	}
-	doc.Diagnostics = mergeDiagnostics(compiled, found)
+	doc.Diagnostics = ir.MergeDiagnostics(compiled, found)
 	return &Result{Document: doc, Diagnostics: doc.Diagnostics, Sources: doc.Sources, Format: format}, nil
 }
 

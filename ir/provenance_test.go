@@ -241,3 +241,35 @@ func TestSourceHash_IsTheLowercaseHexSHA256(t *testing.T) {
 	assert.Equal(t, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", ir.SourceHash(nil))
 	assert.Equal(t, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad", ir.SourceHash([]byte("abc")))
 }
+
+// TestMergeDiagnostics_KeepsEachFindingOnceInOrder pins the union both of a
+// compiler's channels are read through: the stored list first, then each
+// produced finding it does not hold, a repeat within produced kept as it is.
+func TestMergeDiagnostics_KeepsEachFindingOnceInOrder(t *testing.T) {
+	t.Parallel()
+	a := ir.NewDiagnostic(ir.SeverityError, "x/a", "a", ir.Provenance{})
+	b := ir.NewDiagnostic(ir.SeverityWarning, "x/b", "b", ir.Provenance{})
+	c := ir.NewDiagnostic(ir.SeverityInfo, "x/c", "c", ir.Provenance{Source: 1})
+
+	assert.Equal(t, []ir.Diagnostic{a, b, c}, ir.MergeDiagnostics([]ir.Diagnostic{a, b}, []ir.Diagnostic{b, c}))
+	assert.Equal(t, []ir.Diagnostic{c, a}, ir.MergeDiagnostics(nil, []ir.Diagnostic{c, a}))
+	stored := []ir.Diagnostic{a}
+	assert.Equal(t, stored, ir.MergeDiagnostics(stored, nil), "nothing produced leaves the stored list as it is")
+}
+
+// TestMergeDiagnostics_NeverWritesThroughAnAliasedList covers the two lists
+// sharing one backing array, as a compiler returning the slice it stored makes
+// them: appending to stored in place would overwrite produced before it is read.
+// produced opens with a finding stored holds, so a write in place lands on an
+// entry that differs from what it writes.
+func TestMergeDiagnostics_NeverWritesThroughAnAliasedList(t *testing.T) {
+	t.Parallel()
+	a := ir.NewDiagnostic(ir.SeverityError, "x/a", "a", ir.Provenance{})
+	c := ir.NewDiagnostic(ir.SeverityError, "x/c", "c", ir.Provenance{})
+	backing := []ir.Diagnostic{a, a, c}
+
+	merged := ir.MergeDiagnostics(backing[:1], backing[1:])
+
+	assert.Equal(t, []ir.Diagnostic{a, c}, merged)
+	assert.Equal(t, []ir.Diagnostic{a, a, c}, backing, "the lists merged from are left as they were")
+}

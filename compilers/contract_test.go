@@ -78,6 +78,22 @@ func TestDetectionCompile_AKeptContractComesBackWhole(t *testing.T) {
 	assert.Equal(t, spec.Data, c.got.Data)
 }
 
+// TestDetectionCompile_BothChannelsComeBackAsOne pins that a caller reads a
+// compiler's findings from one list whichever channel it filled: the
+// Document's first, then each returned one it does not hold.
+func TestDetectionCompile_BothChannelsComeBackAsOne(t *testing.T) {
+	t.Parallel()
+	stored, both, returned := at(0, ir.SeverityError), at(0, ir.SeverityWarning), at(ir.NoSource, ir.SeverityInfo)
+	c := keeping()
+	c.doc.Diagnostics = []ir.Diagnostic{stored, both}
+	c.diags = []ir.Diagnostic{both, returned}
+
+	out, err := detected(c, nil).Compile(t.Context(), spec)
+
+	require.NoError(t, err)
+	assert.Equal(t, []ir.Diagnostic{stored, both, returned}, out.Diagnostics)
+}
+
 func TestDetectionCompile_ARefusalComesBackWithItsTable(t *testing.T) {
 	t.Parallel()
 	c := keeping()

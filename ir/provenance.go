@@ -121,6 +121,34 @@ func HasError(diags []Diagnostic) bool {
 	return ok
 }
 
+// MergeDiagnostics returns stored followed by every diagnostic of produced
+// that stored does not already hold, identity being the whole value, the one
+// compilers/compile dedupes on. A compiler hands its findings back on two
+// channels and need fill only one, so taking either list over the other loses
+// what the other held.
+//
+// The result is freshly allocated when there is anything to merge: the two
+// lists routinely alias, and appending into a shared backing array would
+// overwrite entries still to be read.
+func MergeDiagnostics(stored, produced []Diagnostic) []Diagnostic {
+	if len(produced) == 0 {
+		return stored
+	}
+	held := make(map[Diagnostic]struct{}, len(stored))
+	for _, d := range stored {
+		held[d] = struct{}{}
+	}
+	merged := make([]Diagnostic, len(stored), len(stored)+len(produced))
+	copy(merged, stored)
+	for _, d := range produced {
+		if _, dup := held[d]; dup {
+			continue
+		}
+		merged = append(merged, d)
+	}
+	return merged
+}
+
 // SourceInfo describes one input file of a Document. The table a refused
 // compile's findings index names files nothing read, so it sets Path alone.
 type SourceInfo struct {

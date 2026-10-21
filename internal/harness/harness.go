@@ -126,8 +126,8 @@ func newRegistry() (*compilers.Registry, error) {
 
 // compile lowers one in-memory source with the compiler that claims it, under
 // default options and without the passes, and holds the outcome to the compiler
-// contract. It returns the diagnostics Compile returned; findings a compiler
-// stores on the Document alone are not read. It is a package-level seam:
+// contract. It returns every finding the compile reported, on either of the
+// compiler's channels. It is a package-level seam:
 // production always uses the registry wired here, while tests replace it to
 // drive the oracle-failure paths a correct compiler never produces — a panic, a
 // document with structural violations, a non-round-tripping document, or a
