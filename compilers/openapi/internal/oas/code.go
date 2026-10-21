@@ -401,7 +401,7 @@ func encodingApplies(r ruler, rule Rule) {
 	name = strings.ToLower(strings.TrimSpace(name))
 	multipart := strings.HasPrefix(name, "multipart/")
 	for _, field := range []string{"encoding", "prefixEncoding", "itemEncoding"} {
-		if _, ok := r.f.byKey[field]; !ok {
+		if !r.f.writes(field, r.w.minor) {
 			continue
 		}
 		scope := ""

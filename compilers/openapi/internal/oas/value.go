@@ -98,6 +98,23 @@ func (f frame) nullRead(fld Field, m Minor) nullReading {
 	return leftOut
 }
 
+// writes reports whether the object writes the field name at minor m. A null
+// the field's own check reads as left out, or as a field missing (nullRead),
+// writes nothing, so no rule holds it against the object either; one the field
+// takes as its value, as only a field of any shape does, or as a value of the
+// wrong shape, is written.
+func (f frame) writes(name string, m Minor) bool {
+	node := nodeview.Deref(f.byKey[name])
+	switch {
+	case node == nil:
+		return false
+	case !isNull(node):
+		return true
+	}
+	fld := f.obj.fieldAt(name, m)
+	return matches(fld.Shape, node) || f.nullRead(fld, m) == wrongValue
+}
+
 // isNull reports whether the node is a null.
 func isNull(node *yaml.Node) bool {
 	return node != nil && node.Kind == yaml.ScalarNode && node.Tag == "!!null"

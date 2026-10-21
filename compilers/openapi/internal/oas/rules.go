@@ -120,7 +120,7 @@ func (r ruler) fail(rule Rule, class string, ptr jsontext.Pointer, detail string
 func (r ruler) present(names []string) []string {
 	var out []string
 	for _, n := range names {
-		if _, ok := r.f.byKey[n]; ok {
+		if r.f.writes(n, r.w.minor) {
 			out = append(out, n)
 		}
 	}
@@ -319,7 +319,7 @@ func (r ruler) keysOf(node *yaml.Node) map[string]*yaml.Node {
 
 // inapplicable warns of a field written where the conditions give it no effect.
 func (r ruler) inapplicable(rule Rule) {
-	if _, ok := r.f.byKey[rule.Field]; !ok || r.f.test(rule.When) != yes {
+	if !r.f.writes(rule.Field, r.w.minor) || r.f.test(rule.When) != yes {
 		return
 	}
 	ptr := r.f.at.ptr.AppendToken(rule.Field)

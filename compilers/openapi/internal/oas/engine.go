@@ -270,6 +270,25 @@ func (w *walker) patternHeld(obj Object) (Pattern, bool) {
 	return Pattern{}, false
 }
 
+// fieldAt returns the field of o named name that minor m defines, else the
+// first so named, which a later minor added, else the zero Field, whose Any
+// shape admits every value.
+func (o Object) fieldAt(name string, m Minor) Field {
+	var found Field
+	for _, fld := range o.Fields {
+		if fld.Name != name {
+			continue
+		}
+		if fld.Defined.Holds(m) {
+			return fld
+		}
+		if found.Name == "" {
+			found = fld
+		}
+	}
+	return found
+}
+
 // defines reports whether the object names key as a field at any minor.
 func (f frame) defines(key string) bool {
 	for _, fld := range f.obj.Fields {

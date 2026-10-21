@@ -198,6 +198,36 @@ func TestCheck_NullIsReadAsAbsentWhereTheFieldIsOptional(t *testing.T) {
 	}
 }
 
+// TestCheck_ANullReadAsLeftOutIsNoFieldToARule pins that a rule reads a null
+// as the field's own check does: one read as left out writes nothing, so it
+// excludes no other field, satisfies no choice, and is barred or idle nowhere,
+// leaving only the null's own warning. A null a field takes as its value, as
+// an example does, or reads as a value of the wrong shape, as a schema does, is
+// written.
+func TestCheck_ANullReadAsLeftOutIsNoFieldToARule(t *testing.T) {
+	verify(t, []scenario{
+		{"an exclusion", "3.1.0", oas.Parameter, `{name: a, in: query, schema: {}, content: ~}`,
+			[]finding{at(mismatch, "/content")}},
+		{"a choice", "3.1.0", oas.Parameter, `{name: a, in: query, content: ~}`,
+			[]finding{at(mismatch, "/content"), at(required, "")}},
+		{"a section", "3.1.0", oas.Document, "{openapi: 3.1.0, info: {title: t, version: v}, paths: ~}",
+			[]finding{at(mismatch, "/paths"), at(required, "")}},
+		{"a field barred", "3.2.0", oas.Parameter, `{name: a, in: querystring, content: {a/b: {}}, explode: ~}`,
+			[]finding{at(mismatch, "/explode")}},
+		{"a field idle", "3.1.0", oas.Parameter, `{name: a, in: path, required: true, schema: {}, allowReserved: ~}`,
+			[]finding{at(mismatch, "/allowReserved")}},
+		{"an encoding idle", "3.2.0", oas.Response, `{description: d, content: {application/json: {encoding: ~}}}`,
+			[]finding{at(mismatch, "/content/application~1json/encoding")}},
+		{"a field a later minor added", "3.1.0", oas.RequestBody, `{content: {application/json: {prefixEncoding: ~}}}`,
+			[]finding{at(later, "/content/application~1json/prefixEncoding"),
+				at(mismatch, "/content/application~1json/prefixEncoding")}},
+		{"a null of the wrong shape is written", "3.1.0", oas.Parameter, `{name: a, in: query, schema: ~, content: {a/b: {}}}`,
+			[]finding{at(mismatch, "/schema"), at(exclusive, "")}},
+		{"a null example is a value", "3.1.0", oas.MediaType, `{example: ~, examples: {}}`,
+			[]finding{at(exclusive, "")}},
+	})
+}
+
 // TestCheck_ComponentNameAndKeyFindingsAreWarnings pins the severity of a key
 // outside the pattern the specification gives, whose entry lowers as written.
 func TestCheck_ComponentNameAndKeyFindingsAreWarnings(t *testing.T) {

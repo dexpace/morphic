@@ -151,9 +151,10 @@ name a token grammar the specification cites refuses. It is a warning where the 
 rule of its version and still says what it means: a key outside the pattern the specification
 gives, a key a mapping writes twice, a number or a boolean where a string belongs, a field written
 where the specification gives it no effect (`validation-no-effect`), or a `null` written for an
-optional field, which is read as the field left out. A `null` inside a Schema Object, or where a
-schema belongs, is an error, since the schema lowering does not read it as left out; one written
-for a field whose requirement another rule reports is left to that rule.
+optional field, which is read as the field left out, by the rules that bind it to other fields as
+well. A `null` inside a Schema Object, or where a schema belongs, is an error, since the schema
+lowering does not read it as left out; one written for a field whose requirement another rule
+reports is left to that rule.
 
 The source is read as it writes it, an applied overlay's patch included, each object as the kind
 its position gives it. An object a `$ref` reaches that the source's own reading did not take as
@@ -176,7 +177,8 @@ gives it no effect is [`allow-reserved-locations`](#allow-reserved-locations)' a
 
 - Codes: `openapi/validation`
 - Tests: `oas.TestCheck_RulesGradeByLevel`,
-  `oas.TestCheck_NullIsReadAsAbsentWhereTheFieldIsOptional`, `oas.TestCheck_ShapesFollowTheField`,
+  `oas.TestCheck_NullIsReadAsAbsentWhereTheFieldIsOptional`,
+  `oas.TestCheck_ANullReadAsLeftOutIsNoFieldToARule`, `oas.TestCheck_ShapesFollowTheField`,
   `oas.TestCheck_PathTemplatesAnswerToPathParameters`,
   `oas.TestCheck_AServerURLNamesOnlyItsVariables`,
   `oas.TestCheck_EncodingsApplyWhereTheSpecificationSays`,
