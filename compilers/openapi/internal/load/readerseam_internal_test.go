@@ -268,3 +268,43 @@ func TestExternal_OpenServesWhatTheReaderReturned(t *testing.T) {
 	_, cached := doc.GetCachedExternalDocument("virtual/a.yaml")
 	assert.True(t, cached)
 }
+
+// TestExternal_AConfinedReadFollowsRelativeReferencesOnly pins what a read
+// confined to the source's directory refuses before asking the reader: a
+// document a file URI names, and one only absolute paths name, each with its
+// reason. A document a relative $ref names too is read, and an unconfined read
+// refuses neither.
+func TestExternal_AConfinedReadFollowsRelativeReferencesOnly(t *testing.T) {
+	t.Parallel()
+	const allowed = ", which a read follows only when external references are allowed"
+	for _, tc := range []struct {
+		name, key, within, want string
+		spelled                 []bool // each $ref naming key: true for an absolute path
+	}{
+		{"a file URI", "file:///r/a.yaml", "/r", "it is named by a file URI" + allowed, nil},
+		{"a file URI in capitals", "FILE:///r/a.yaml", "/r", "it is named by a file URI" + allowed, nil},
+		{"an absolute path alone", "/r/a.yaml", "/r", "it is named only by an absolute path" + allowed, []bool{true}},
+		{"an absolute path and a relative one", "/r/a.yaml", "/r", "", []bool{true, false}},
+		{"a relative path", "a.yaml", "/r", "", []bool{false}},
+		{"a file URI, unconfined", "file:///r/a.yaml", "", "", nil},
+		{"an absolute path alone, unconfined", "/r/a.yaml", "", "", []bool{true}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ext, _ := externalOver(t.Context(), Options{Within: tc.within}, &fakeReader{data: []byte("X: {}\n")})
+			for _, absolute := range tc.spelled {
+				ext.read.noteName(tc.key, absolute)
+			}
+
+			a := ext.fetch(t.Context(), tc.key, tc.key)
+
+			if tc.want == "" {
+				require.NoError(t, a.err)
+				assert.Equal(t, "X: {}\n", string(a.body))
+				return
+			}
+			require.Error(t, a.err)
+			assert.Contains(t, a.err.Error(), tc.want)
+		})
+	}
+}

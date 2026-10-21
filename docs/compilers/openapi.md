@@ -230,9 +230,11 @@ A `$ref` resolves within the source, as a JSON pointer. One naming another docum
 the reader the caller supplies (`compilers.Options.Reader`), against the directory of the source's
 path, each file or URL read once however many references name it, and held to the source's budgets
 and refusals ([`source-budgets`](#source-budgets)), where a document past one fails each reference
-naming it. The read stays inside the directory of the source's path, symbolic links included,
-unless `Options.AllowExternalRefs` lets it reach any file and http(s) URLs; a document outside fails
-each reference naming it, and with no reader no document is read.
+naming it. The read stays inside the directory of the source's path, symbolic links included, and
+follows relative references alone, unless `Options.AllowExternalRefs` lets it reach any file and
+http(s) URLs: a document named only by an absolute path, or by a `file:` URI, is not read, so what
+the default reads never depends on how the working directory is spelled. A document outside, or
+named that way, fails each reference naming it, and with no reader no document is read.
 
 Each document read is a `Document.Sources` entry after the source and its overlay, ordered by its
 location from the source's directory, and what it declares lowers there, as the source's own lowers

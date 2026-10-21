@@ -60,8 +60,8 @@ reference resolution, format-version normalization, and lowering into IR nodes. 
 documents is not a compiler's. It does no I/O, and reads every document beyond its sources through
 the `compilers.DocumentReader` the engine hands it in `compilers.Options.Reader`. The compiler says
 how far a read may go, as a directory it must stay inside, and the reader enforces it, symbolic
-links included: the OpenAPI compiler keeps every read inside the spec's directory unless
-`allow-external-refs` lifts that.
+links included: the OpenAPI compiler keeps every read inside the spec's directory, following
+relative references alone, unless `allow-external-refs` lifts that.
 
 Contract, abridged from `compilers.Compiler`, whose doc comments state each method's duties:
 

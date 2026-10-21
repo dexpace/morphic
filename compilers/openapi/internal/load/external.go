@@ -240,8 +240,9 @@ func (e external) holdObject(key string, o heldObject) {
 // against base as the resolver reads it, names the source by, before the
 // resolver looks one up: for each such $ref, the object it names. Spelled
 // otherwise, a back reference is not found held, and the resolver builds a copy
-// of what it names (see Open). It visits each node of tree once, following an
-// alias only to read a $ref's key and value, as the model does.
+// of what it names (see Open). It also notes how each $ref spells the document
+// it names (see unnamed). It visits each node of tree once, following an alias
+// only to read a $ref's key and value, as the model does.
 func (e external) holdSpellings(tree *yaml.Node, base string) {
 	stack := []*yaml.Node{tree}
 	for len(stack) > 0 {
@@ -259,11 +260,18 @@ func (e external) holdSpellings(tree *yaml.Node, base string) {
 // holdSpelling holds the source under the key ref, read against base, names a
 // document by, for the pointer ref writes, when that document is the source.
 func (e external) holdSpelling(ref references.Reference, base string) {
-	if ref.GetURI() == "" {
+	uri := ref.GetURI()
+	if uri == "" {
 		return
 	}
 	abs, err := references.ResolveAbsoluteReference(ref, base)
-	if err != nil || !e.read.self.names(abs.AbsoluteReference) {
+	if err != nil {
+		return
+	}
+	if !refscope.IsURL(uri) {
+		e.read.noteName(abs.AbsoluteReference, filepath.IsAbs(uri))
+	}
+	if !e.read.self.names(abs.AbsoluteReference) {
 		return
 	}
 	e.holdSite(abs.AbsoluteReference, fragment.Pointer(string(ref)))
@@ -353,6 +361,9 @@ func (e external) fetch(ctx context.Context, key, location string) answer {
 	if e.opts.Reader == nil {
 		return answer{err: refused(key, "no reader was supplied to read it")}
 	}
+	if why, refuse := e.unnamed(key); refuse {
+		return answer{err: refused(key, why)}
+	}
 	data, err := e.opts.Reader.ReadDocument(ctx, compilers.DocumentRequest{
 		Location: location, Within: e.opts.Within, Limit: e.opts.MaxSourceBytes,
 	})
@@ -364,6 +375,26 @@ func (e external) fetch(ctx context.Context, key, location string) answer {
 		return answer{err: err}
 	}
 	return answer{body: data}
+}
+
+// unnamed returns why a read confined to Options.Within refuses the document
+// under key unread: a file URI names it, or absolute paths alone do. Such a
+// read follows relative references, so what it reaches never depends on how
+// the working directory is spelled (GitHub #780). A document a relative $ref
+// names is read however others spell it; an absolute $ref names that same key
+// only where the source was named by an absolute path too.
+func (e external) unnamed(key string) (string, bool) {
+	const allowed = ", which a read follows only when external references are allowed"
+	switch {
+	case e.opts.Within == "":
+		return "", false
+	case len(key) >= len("file:") && strings.EqualFold(key[:len("file:")], "file:"):
+		return "it is named by a file URI" + allowed, true
+	case e.read.absoluteOnly(key):
+		return "it is named only by an absolute path" + allowed, true
+	default:
+		return "", false
+	}
 }
 
 // readFailure returns the error a reference into the document under key fails

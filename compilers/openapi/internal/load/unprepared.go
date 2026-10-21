@@ -57,6 +57,38 @@ type externalReads struct {
 	// spelled holds what the source is held under besides its own keys, for a
 	// second resolution to hold again.
 	spelled *heldSpellings
+	// named holds how the $refs naming each document's key spell it (see
+	// external.unnamed).
+	named map[string]namedBy
+}
+
+// namedBy is how the $refs naming one document spell its location: by a
+// relative path, by an absolute one, or both.
+type namedBy struct {
+	relative, absolute bool
+}
+
+// noteName records that a $ref spelling its location relative, or absolute,
+// names the document under key.
+func (r *externalReads) noteName(key string, absolute bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	n := r.named[key]
+	if absolute {
+		n.absolute = true
+	} else {
+		n.relative = true
+	}
+	r.named[key] = n
+}
+
+// absoluteOnly reports whether the document under key is named by an absolute
+// path and by no relative one.
+func (r *externalReads) absoluteOnly(key string) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	n := r.named[key]
+	return n.absolute && !n.relative
 }
 
 // digest is the SHA-256 of a document's bytes.
@@ -83,6 +115,7 @@ func newExternalReads(self sourceDocument) *externalReads {
 		mended:   map[string]treeAnswer{},
 		stood:    map[any]resolvable{},
 		spelled:  newHeldSpellings(),
+		named:    map[string]namedBy{},
 	}
 	for _, key := range self.keys() {
 		r.recordTree(key, self.root, self.data)
