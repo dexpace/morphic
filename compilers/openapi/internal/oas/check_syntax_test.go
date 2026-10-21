@@ -105,6 +105,8 @@ func TestCheck_AnEncodingContentTypeListsMediaTypes(t *testing.T) {
 		{"any", "3.1.0", oas.Encoding, enc("*/*"), nil},
 		{"a list with parameters", "3.1.0", oas.Encoding, enc("text/plain; charset=utf-8, application/json"), nil},
 		{"an empty element", "3.1.0", oas.Encoding, enc("text/plain,"), nil},
+		{"empty", "3.1.0", oas.Encoding, enc(""), []finding{at(empty, "/contentType")}},
+		{"no element", "3.1.0", oas.Encoding, enc(", ,"), []finding{at(badFormat, "/contentType")}},
 		{"no subtype", "3.1.0", oas.Encoding, enc("text"), []finding{at(badFormat, "/contentType")}},
 		{"prose", "3.1.0", oas.Encoding, enc("not a media type"), []finding{at(badFormat, "/contentType")}},
 		{"one bad element", "3.1.0", oas.Encoding, enc("image/png, png"), []finding{at(badFormat, "/contentType")}},

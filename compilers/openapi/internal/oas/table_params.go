@@ -199,7 +199,7 @@ func encodingObject() Object {
 		Fields: []Field{
 			field("contentType", String, c(V30, "The `Content-Type` for encoding a specific property."),
 				c(V30, "The value is a comma-separated list, each element of which is either a specific media type")).
-				formatted(MediaRanges),
+				formatted(MediaRanges).nonEmpty(Always()),
 			mapOf("headers", Header, c(V30, "A map allowing additional information to be provided as headers.")),
 			mapOf("encoding", Encoding, c(V32, "Applies nested Encoding Objects in the same manner as the")).during(From(V32)),
 			listOf("prefixEncoding", Encoding, c(V32, "Applies nested Encoding Objects in the same manner as the")).during(From(V32)),

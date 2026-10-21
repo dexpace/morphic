@@ -2000,19 +2000,19 @@ An Encoding Object of a `multipart/*` or `application/x-www-form-urlencoded` Con
 `PartEncoding` in `Content.Encoding`, keyed by the `PropID` of the body property its key names,
 wherever the body declares that property: on the schema, in an `allOf` branch with the first
 declaration of a name winning, or on a `Base` or `Mixin` it composes. `contentType` lowers to
-`ContentTypes`, split on `,` and trimmed with empty items dropped; `headers` to `Headers`, lowered
-as a response's are; and `style` and `explode` to `Style` and `Explode` as declared, nothing
-defaulted. `Multi` and `Filename` come from the part's own schema and never from the `encoding` map:
-`Multi` where it is an array, `Filename` where it is a `string` with `format` `binary` or `byte`. A
-part is entered only when its `PartEncoding` holds something, so a body that declares no encoding
-still gets entries for its array and file parts, and an entry declaring nothing leaves none. What an
-Encoding Object writes beyond those fields is
-[`encoding-allow-reserved`](#encoding-allow-reserved)'. An encoding written where OpenAPI gives it
-no effect is reported as an `openapi/validation` warning, of the class `validation-no-effect`, at
-the field ([`validation`](#validation)): an `encoding` under a media type that is neither multipart
-nor form, which lowers nowhere, or before 3.2 outside a request body, and a 3.2 `prefixEncoding` or
-`itemEncoding` under one that is not multipart. A media type is read without its parameters and in
-any case.
+`ContentTypes`, split on `,` and trimmed with empty items dropped, and one naming no media type is
+an `openapi/validation` error ([`validation`](#validation)); `headers` to `Headers`, lowered as a
+response's are; and `style` and `explode` to `Style` and `Explode` as declared, nothing defaulted.
+`Multi` and `Filename` come from the part's own schema and never from the `encoding` map: `Multi`
+where it is an array, `Filename` where it is a `string` with `format` `binary` or `byte`. A part is
+entered only when its `PartEncoding` holds something, so a body that declares no encoding still gets
+entries for its array and file parts, and an entry declaring nothing leaves none. What an Encoding
+Object writes beyond those fields is [`encoding-allow-reserved`](#encoding-allow-reserved)'. An
+encoding written where OpenAPI gives it no effect is reported as an `openapi/validation` warning, of
+the class `validation-no-effect`, at the field ([`validation`](#validation)): an `encoding` under a
+media type that is neither multipart nor form, which lowers nowhere, or before 3.2 outside a request
+body, and a 3.2 `prefixEncoding` or `itemEncoding` under one that is not multipart. A media type is
+read without its parameters and in any case.
 
 - Cases: `multipart-encoding`
 - Codes: `openapi/validation`

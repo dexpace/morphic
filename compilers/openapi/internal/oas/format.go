@@ -78,8 +78,9 @@ func isHex(c byte) bool {
 
 // validMediaRanges reports whether s is a comma-separated list of media types
 // (RFC 9110 §8.3.1) or ranges of them (§12.5.1). An empty element names
-// nothing and is read past.
+// nothing and is read past, as an HTTP list's is, but a list must name one.
 func validMediaRanges(s string) bool {
+	named := false
 	for element := range strings.SplitSeq(s, ",") {
 		element = strings.TrimSpace(element)
 		if element == "" {
@@ -89,8 +90,9 @@ func validMediaRanges(s string) bool {
 		if err != nil || !strings.Contains(mediaType, "/") {
 			return false
 		}
+		named = true
 	}
-	return true
+	return named
 }
 
 // validURI parses s as a URI reference, or returns nil when it holds a space
