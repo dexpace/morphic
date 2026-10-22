@@ -247,15 +247,6 @@ func hoistDeclarationHome(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, ref
 	return out, diags
 }
 
-// refSiteHomesNothing reports whether a $ref position written as s holds
-// nothing an alias would: no keyword beside the $ref that refSiteRef keeps on
-// one (refSiteUnhomedKeywords, declaresUnion), and none hoistDeclarationHome
-// homes on one (declaresPositionScoped). Such a position lowers to its
-// target's type alone.
-func refSiteHomesNothing(s *oas3.Schema) bool {
-	return len(refSiteUnhomedKeywords(s, nil)) == 0 && !declaresUnion(s) && !declaresPositionScoped(s)
-}
-
 // declaresPositionScoped reports whether s writes anything that binds the
 // position it is written at rather than the shape it lowers to — an annotation
 // attachDeclaredAnnotations records, a value constraint internAlias carries, or

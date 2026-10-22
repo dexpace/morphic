@@ -1,9 +1,6 @@
 package schema
 
 import (
-	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
-
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/merge"
 	"github.com/dexpace/morphic/ir"
 )
@@ -27,12 +24,4 @@ func requireMembers(m *ir.Model, required []string) {
 			m.Requires = append(m.Requires, name)
 		}
 	}
-}
-
-// onLoop reports whether the $ref at b lies on a loop of $refs, which the load
-// phase reports once and the lowering drops to any without a report of its
-// own.
-func onLoop(c lowering.Ctx, b *oas3.JSONSchema[oas3.Referenceable]) bool {
-	e, ok := c.Bindings().Entry(b)
-	return ok && e.Chain.Member
 }

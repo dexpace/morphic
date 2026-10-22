@@ -282,3 +282,20 @@ func hoistSubSchema(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, dec
 	// so the annotations Ref had nowhere to put now have a home.
 	return append(diags, attachDeclaredAnnotations(c, ts, anchors, s.Node, pointer)...)
 }
+
+// onLoop reports whether the $ref at b lies on a loop of $refs, which the load
+// phase reports once and the lowering drops to any without a report of its
+// own.
+func onLoop(c lowering.Ctx, b *oas3.JSONSchema[oas3.Referenceable]) bool {
+	e, ok := c.Bindings().Entry(b)
+	return ok && e.Chain.Member
+}
+
+// refSiteHomesNothing reports whether a $ref position written as s holds
+// nothing an alias would: no keyword beside the $ref that refSiteRef keeps on
+// one (refSiteUnhomedKeywords, declaresUnion), and none hoistDeclarationHome
+// homes on one (declaresPositionScoped). Such a position lowers to its
+// target's type alone.
+func refSiteHomesNothing(s *oas3.Schema) bool {
+	return len(refSiteUnhomedKeywords(s, nil)) == 0 && !declaresUnion(s) && !declaresPositionScoped(s)
+}
