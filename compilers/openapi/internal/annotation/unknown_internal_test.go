@@ -39,6 +39,32 @@ func TestUnknownKeywordsIn_KeepsWhatTheModelDoesNotName(t *testing.T) {
 	assert.Contains(t, diags[0].Message, `"notAKeyword"`)
 }
 
+// TestUndefinedKeywordsIn_KeepsWhatTheCallerNames pins the census of keywords
+// the model names and the dialect does not define: each one the caller names is
+// kept under its own key, located at itself and announced at info as an unknown
+// keyword, whatever its value, and naming none keeps nothing.
+func TestUndefinedKeywordsIn_KeepsWhatTheCallerNames(t *testing.T) {
+	t.Parallel()
+	s := schemaFromYAML(t, "type: string\nnullable: false\n")
+
+	var got ir.Unmodeled
+	diags := UndefinedKeywordsIn(&got, s, []string{"nullable"}, "/components/schemas/A", sourced(2))
+
+	require.Len(t, got, 1)
+	entry := got["openapi:nullable"]
+	assert.Equal(t, ir.ReasonOutOfScope, entry.Reason)
+	assert.Equal(t, ir.RawValue("false"), entry.Value)
+	assert.Equal(t, ir.Provenance{Source: 2, Pointer: "/components/schemas/A/nullable"}, entry.Provenance)
+	require.Len(t, diags, 1)
+	assert.Equal(t, ir.SeverityInfo, diags[0].Severity)
+	assert.Equal(t, diag.UnknownSchemaKeyword, diags[0].Code)
+	assert.Contains(t, diags[0].Message, `"nullable" is not defined by the dialect`)
+
+	var none ir.Unmodeled
+	assert.Empty(t, UndefinedKeywordsIn(&none, s, nil, "/components/schemas/A", sourced(2)))
+	assert.Empty(t, none)
+}
+
 // TestUnknownKeywordsIn_DecidedKeywordsAreLeftAlone holds the census to the
 // decisions already recorded elsewhere. Each of these has no field in the schema
 // model, so the census would otherwise claim all three and overrule a

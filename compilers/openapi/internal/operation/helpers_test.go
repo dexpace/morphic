@@ -65,7 +65,7 @@ func serviceWithGrouping(t *testing.T, src string, grouping lowering.GroupingStr
 
 	types := compile.NewTypes()
 	c := lowering.New(0, loadedDoc.Doc, loadedDoc.Source, grouping, lowering.Limits{}, lowering.StreamingMedia{},
-		lowering.ExtensionPromotions{}, overlay.Origin{}).WithLoaded(loadedDoc)
+		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}).WithLoaded(loadedDoc)
 	var anchors schema.AnchorIndex
 	var acc compile.Diags
 	acc.AppendAll(schema.LowerComponentSchemas(t.Context(), c, types, &anchors))

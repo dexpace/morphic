@@ -247,6 +247,11 @@ testdata/conformance/openapi/querystring-forbidden-keywords.yaml	28:26	invalid-l
 testdata/conformance/openapi/relaxed-required-fields.yaml	9:7	validation-required-field	library	relaxed-requirement
 testdata/conformance/openapi/relaxed-required-fields.yaml	13:16	validation-required-field	library	relaxed-requirement
 testdata/conformance/openapi/relaxed-required-fields.yaml	18:7	validation-required-field	library	relaxed-requirement
+testdata/conformance/openapi/schema-ref-siblings-30.yaml	12:63	later-version-construct	compiler	ref-siblings
+testdata/conformance/openapi/schema-ref-siblings-30.yaml	16:67	later-version-construct	compiler	ref-siblings
+testdata/conformance/openapi/schema-ref-siblings-30.yaml	16:95	later-version-construct	compiler	ref-siblings
+testdata/conformance/openapi/schema-ref-siblings-30.yaml	16:111	later-version-construct	compiler	ref-siblings
+testdata/conformance/openapi/schema-ref-siblings-30.yaml	17:84	later-version-construct	compiler	ref-siblings
 testdata/conformance/openapi/security-schemes.yaml	46:21	validation-allowed-values	library	over-strict
 testdata/conformance/openapi/xml-nodetype-32.yaml	7:7	validation-invalid-schema	library	old-grammar
 testdata/conformance/openapi/xml-nodetype-32.yaml	7:7	validation-invalid-schema	library	old-grammar

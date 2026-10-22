@@ -1,0 +1,491 @@
+{
+  "idSpaces": {
+    "auth": [
+      "openapi"
+    ],
+    "e": [
+      "anon",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
+  "name": "NullableKeyword30",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "NullableKeyword30",
+        "canonical": "nullable_keyword_30"
+      },
+      "docs": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/components/schemas/Holder/properties/composed": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Holder/properties/composed",
+      "name": {
+        "hint": "composed"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder/properties/composed"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Pet",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/Holder/properties/listed": {
+      "kind": "enum",
+      "id": "t/anon/components/schemas/Holder/properties/listed",
+      "name": {
+        "hint": "listed"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder/properties/listed"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "id": "e/anon/components/schemas/Holder/properties/listed/s:red",
+          "name": {
+            "source": "red",
+            "canonical": "red"
+          },
+          "value": {
+            "kind": "string",
+            "str": "red"
+          },
+          "docs": {}
+        },
+        {
+          "id": "e/anon/components/schemas/Holder/properties/listed/s:green",
+          "name": {
+            "source": "green",
+            "canonical": "green"
+          },
+          "value": {
+            "kind": "string",
+            "str": "green"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/anon/components/schemas/Holder/properties/typedComposed": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Holder/properties/typedComposed",
+      "name": {
+        "hint": "typed_composed"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder/properties/typedComposed"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Pet",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/Holder/properties/unlisted": {
+      "kind": "enum",
+      "id": "t/anon/components/schemas/Holder/properties/unlisted",
+      "name": {
+        "hint": "unlisted"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder/properties/unlisted"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "id": "e/anon/components/schemas/Holder/properties/unlisted/s:red",
+          "name": {
+            "source": "red",
+            "canonical": "red"
+          },
+          "value": {
+            "kind": "string",
+            "str": "red"
+          },
+          "docs": {}
+        },
+        {
+          "id": "e/anon/components/schemas/Holder/properties/unlisted/s:green",
+          "name": {
+            "source": "green",
+            "canonical": "green"
+          },
+          "value": {
+            "kind": "string",
+            "str": "green"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/openapi/components/schemas/Holder": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Holder",
+      "name": {
+        "source": "Holder",
+        "canonical": "holder"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/typed",
+          "name": {
+            "source": "typed",
+            "canonical": "typed"
+          },
+          "wireName": "typed",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": true
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/typed"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/untyped",
+          "name": {
+            "source": "untyped",
+            "canonical": "untyped"
+          },
+          "wireName": "untyped",
+          "type": {
+            "target": "t/prim/any",
+            "nullable": true,
+            "inferred": "nullable-widening"
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/untyped"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/composed",
+          "name": {
+            "source": "composed",
+            "canonical": "composed"
+          },
+          "wireName": "composed",
+          "type": {
+            "target": "t/anon/components/schemas/Holder/properties/composed",
+            "nullable": true,
+            "inferred": "nullable-widening"
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/composed"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/unlisted",
+          "name": {
+            "source": "unlisted",
+            "canonical": "unlisted"
+          },
+          "wireName": "unlisted",
+          "type": {
+            "target": "t/anon/components/schemas/Holder/properties/unlisted",
+            "nullable": true,
+            "inferred": "nullable-widening"
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/unlisted"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/listed",
+          "name": {
+            "source": "listed",
+            "canonical": "listed"
+          },
+          "wireName": "listed",
+          "type": {
+            "target": "t/anon/components/schemas/Holder/properties/listed",
+            "nullable": true
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/listed"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/typedComposed",
+          "name": {
+            "source": "typedComposed",
+            "canonical": "typed_composed"
+          },
+          "wireName": "typedComposed",
+          "type": {
+            "target": "t/anon/components/schemas/Holder/properties/typedComposed",
+            "nullable": true,
+            "inferred": "nullable-widening"
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/typedComposed"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Pet": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Pet",
+      "name": {
+        "source": "Pet",
+        "canonical": "pet"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Pet"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Pet/properties/name",
+          "name": {
+            "source": "name",
+            "canonical": "name"
+          },
+          "wireName": "name",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Pet/properties/name"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/any": {
+      "kind": "primitive",
+      "id": "t/prim/any",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "any"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "string"
+    }
+  },
+  "servers": [
+    {
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {}
+    }
+  ],
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/inferred-nullable",
+      "message": "nullable: true is read as admitting null under the nullable-widening policy, though OpenAPI 3.0 applies nullable only to a type written in the same Schema Object, and this schema writes none; a reference whose null rests on it is marked inferred",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder/properties/untyped/nullable"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/inferred-nullable",
+      "message": "nullable: true is read as admitting null under the nullable-widening policy, though OpenAPI 3.0 applies nullable only to a type written in the same Schema Object, and this schema writes none; a reference whose null rests on it is marked inferred",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder/properties/composed/nullable"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/inferred-nullable",
+      "message": "nullable: true is read as admitting null under the nullable-widening policy, though this schema's enum lists no null, and OpenAPI 3.0's nullable does not override it; a reference whose null rests on it is marked inferred",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder/properties/unlisted/nullable"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/inferred-nullable",
+      "message": "nullable: true is read as admitting null under the nullable-widening policy, though an allOf branch of this schema excludes null, and OpenAPI 3.0's nullable does not override it; a reference whose null rests on it is marked inferred",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder/properties/typedComposed/nullable"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.0",
+      "path": "nullable-keyword-30.yaml",
+      "hash": "58a2d3f772d66df3fbf0c5a0c4cbd8fdcd51a6b5c8707614d3b1465b2869a996"
+    }
+  ]
+}

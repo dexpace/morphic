@@ -177,7 +177,10 @@ func (w *walker) notMapping(obj Object, node *yaml.Node, ptr jsontext.Pointer) {
 // reference reads a mapping that writes $ref as a Reference Object where the
 // object's kind admits one, and reports whether it did. Its target is checked
 // where the target is written. A kind that admits the reference only from a
-// later minor draws the later-version warning for the $ref.
+// later minor draws the later-version warning for the $ref, and one whose
+// $ref takes siblings only from a later minor (RefSiblings) draws it for each
+// key beside the $ref, which the declared minor ignores and the later one
+// applies.
 func (w *walker) reference(f frame, depth int) bool {
 	if _, ok := f.byKey["$ref"]; !ok {
 		return false
@@ -186,6 +189,13 @@ func (w *walker) reference(f frame, depth int) bool {
 	case f.obj.Referenceable.Holds(w.minor):
 	case f.obj.Referenceable.Later(w.minor):
 		w.later(f.obj, "$ref", "", f.obj.Referenceable.Since, f.at.ptr.AppendToken("$ref"))
+	case f.obj.RefSiblings.Later(w.minor):
+		for _, p := range f.pairs {
+			if p.Key != "$ref" {
+				w.laterSibling(f.obj, p.Key, w.minor, f.obj.RefSiblings.Since, f.at.ptr.AppendToken(p.Key))
+			}
+		}
+		return false
 	default:
 		return false
 	}

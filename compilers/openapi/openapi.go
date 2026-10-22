@@ -265,7 +265,7 @@ func loadOptions(o Options, reader compilers.DocumentReader, src compilers.Sourc
 func loweringCtx(doc *load.Document, o Options) lowering.Ctx {
 	limits := lowering.Limits{MaxEnumMembers: bounded(o.Limits.MaxEnumMembers)}
 	return lowering.New(rootSrcIndex, doc.Doc, doc.Source, o.Grouping, limits,
-		o.StreamingMedia, o.Promotions, doc.Overlay).WithLoaded(doc)
+		o.StreamingMedia, o.Promotions, o.NullableWidening, doc.Overlay).WithLoaded(doc)
 }
 
 // undecodable reports a source this compiler recognized and could not read.

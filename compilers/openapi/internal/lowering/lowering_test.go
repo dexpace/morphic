@@ -86,7 +86,7 @@ func TestNew_DerivesTheDeclaredSchemaNames(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			c := lowering.New(0, tc.doc, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, overlay.Origin{})
+			c := lowering.New(0, tc.doc, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{})
 			for _, n := range tc.declares {
 				assert.True(t, c.DeclaresSchema(n), "%q is declared", n)
 			}
@@ -115,7 +115,7 @@ func TestNew_KeepsTheDocumentItWasGiven(t *testing.T) {
 	doc := openapitest.DocDeclaring("User")
 	src := ir.SourceInfo{Format: "openapi@3.1", Path: "spec.yaml", Hash: "abc"}
 
-	c := lowering.New(7, doc, src, lowering.GroupByPathPrefix, lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, overlay.Origin{})
+	c := lowering.New(7, doc, src, lowering.GroupByPathPrefix, lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{})
 
 	assert.Same(t, doc, c.Doc, "the document is referenced, never copied")
 	assert.Equal(t, src, c.Source)
@@ -132,7 +132,7 @@ func TestWithAuth_ExtendsACopy(t *testing.T) {
 	t.Parallel()
 	doc := openapitest.DocDeclaring("User")
 	src := ir.SourceInfo{Format: "openapi@3.1", Path: "spec.yaml", Hash: "abc"}
-	before := lowering.New(7, doc, src, lowering.GroupByPathPrefix, lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, overlay.Origin{})
+	before := lowering.New(7, doc, src, lowering.GroupByPathPrefix, lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{})
 	schemes := map[ir.AuthID]ir.AuthScheme{"a/apiKey": {ID: "a/apiKey"}}
 
 	after := before.WithAuth(schemes)
@@ -193,7 +193,7 @@ func TestIs30_FollowsTheDeclaredVersion(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.version, func(t *testing.T) {
 			t.Parallel()
-			c := lowering.New(0, &soa.OpenAPI{OpenAPI: tc.version}, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, overlay.Origin{})
+			c := lowering.New(0, &soa.OpenAPI{OpenAPI: tc.version}, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{})
 			assert.Equal(t, tc.want, c.Is30())
 		})
 	}
@@ -206,7 +206,7 @@ func TestIs30_FollowsTheDeclaredVersion(t *testing.T) {
 func TestReached_IsSharedByTheContextAndItsScope(t *testing.T) {
 	t.Parallel()
 	c := lowering.New(0, &soa.OpenAPI{}, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{},
-		lowering.ExtensionPromotions{}, overlay.Origin{})
+		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{})
 	require.NotNil(t, c.RefScope().Reached)
 	assert.Same(t, c.RefScope().Reached, c.WithAuth(nil).RefScope().Reached, "copies share one record")
 	assert.False(t, c.Reached("/components/parameters/P"), "nothing has been resolved yet")
@@ -220,7 +220,7 @@ func TestReached_IsSharedByTheContextAndItsScope(t *testing.T) {
 // decides whether an internal pointer names anything.
 func TestRefScope_IsTheContextSeenAsAScope(t *testing.T) {
 	t.Parallel()
-	c := lowering.New(0, openapitest.DocDeclaring("User"), ir.SourceInfo{Path: "spec.yaml"}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, overlay.Origin{})
+	c := lowering.New(0, openapitest.DocDeclaring("User"), ir.SourceInfo{Path: "spec.yaml"}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{})
 
 	scope := c.RefScope()
 
@@ -271,7 +271,7 @@ func TestRefScope_CarriesTheBindingsItWasGiven(t *testing.T) {
 	alias, ok := loaded.Doc.Components.Schemas.Get("Alias")
 	require.True(t, ok)
 
-	bare := lowering.New(0, loaded.Doc, loaded.Source, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, loaded.Overlay)
+	bare := lowering.New(0, loaded.Doc, loaded.Source, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, loaded.Overlay)
 	assert.Nil(t, bare.Bindings(), "a context given no load result knows no binding")
 	assert.Nil(t, bare.RefScope().Bindings)
 	_, ok = bare.RefScope().Target(alias)
@@ -318,7 +318,7 @@ x-lib:
 	d := pet.GetSchema().GetDiscriminator()
 	require.NotNil(t, d)
 
-	bare := lowering.New(0, loaded.Doc, loaded.Source, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, loaded.Overlay)
+	bare := lowering.New(0, loaded.Doc, loaded.Source, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, loaded.Overlay)
 	_, _, ok = bare.RefScope().MappingTarget(d, "#/x-lib/Cat")
 	assert.False(t, ok, "so a context without the bindings finds no target")
 
@@ -352,7 +352,7 @@ func TestTypePosition_IsReadOncePerScope(t *testing.T) {
 		Data: []byte(root)}, load.Options{Reader: reader.Disk{}})
 	require.NoError(t, err)
 	c := lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{}, lowering.StreamingMedia{},
-		lowering.ExtensionPromotions{}, overlay.Origin{})
+		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{})
 	reads := 0
 	ask := func(c lowering.Ctx, pointer jsontext.Pointer) {
 		t.Helper()
@@ -410,7 +410,7 @@ func TestRefScope_EndsReadsEachReferenceKind(t *testing.T) {
 	doc, _, err := load.Load(t.Context(), 0, compilers.Source{Path: path, Data: []byte(referenceKinds)}, load.Options{})
 	require.NoError(t, err)
 	c := lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{}, lowering.StreamingMedia{},
-		lowering.ExtensionPromotions{}, overlay.Origin{})
+		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{})
 	ends := c.RefScope().Ends
 	require.NotNil(t, ends)
 	cs := doc.Doc.Components
@@ -492,7 +492,7 @@ func TestSources_ListsTheOverlayAfterTheSourceItPatched(t *testing.T) {
 		"overlay: 1.0.0\ninfo: {title: O, version: \"1\"}\nactions:\n"+
 			"  - target: $.info\n    update: {description: d}\n")
 
-	c := lowering.New(0, openapitest.DocDeclaring(), src, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, origin)
+	c := lowering.New(0, openapitest.DocDeclaring(), src, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, origin)
 
 	require.Len(t, c.Sources(), 2)
 	assert.Equal(t, src, c.Sources()[0], "the source being lowered comes first")
@@ -507,7 +507,7 @@ func TestSources_ListsOnlyTheSourceWhenNoOverlayApplied(t *testing.T) {
 	t.Parallel()
 	src := ir.SourceInfo{Format: "openapi@3.1", Path: "spec.yaml"}
 
-	c := lowering.New(0, openapitest.DocDeclaring(), src, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, overlay.Origin{})
+	c := lowering.New(0, openapitest.DocDeclaring(), src, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{})
 
 	assert.Equal(t, []ir.SourceInfo{src}, c.Sources())
 }
@@ -523,7 +523,7 @@ func TestProvenanceAt_NamesTheOverlayForThePositionsItIntroduced(t *testing.T) {
 		"overlay: 1.0.0\ninfo: {title: O, version: \"1\"}\nactions:\n"+
 			"  - target: $.info\n    update: {description: d}\n")
 
-	c := lowering.New(0, openapitest.DocDeclaring(), ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, origin)
+	c := lowering.New(0, openapitest.DocDeclaring(), ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, origin)
 
 	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/info/description"},
 		c.ProvenanceAt("/info/description"), "the overlay introduced this position")
@@ -549,7 +549,7 @@ func TestWithLoaded_CarriesTheSiblingsOnACopy(t *testing.T) {
 	require.NoError(t, err)
 	openapitest.RequireNoErrorDiags(t, diags)
 	base := lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{}, lowering.StreamingMedia{},
-		lowering.ExtensionPromotions{}, overlay.Origin{})
+		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{})
 	carrying := base.WithLoaded(doc)
 	rp, ok := doc.Doc.GetPaths().Get("/a")
 	require.True(t, ok)
@@ -574,7 +574,7 @@ func TestWithLoaded_ReadsRawYAMLThroughTheLoadIndex(t *testing.T) {
 	require.NoError(t, err)
 	openapitest.RequireNoErrorDiags(t, diags)
 	base := lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{}, lowering.StreamingMedia{},
-		lowering.ExtensionPromotions{}, overlay.Origin{})
+		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{})
 
 	assert.Nil(t, base.RefScope().Holds)
 	assert.NotNil(t, base.WithLoaded(doc).RefScope().Holds)
@@ -587,7 +587,7 @@ func TestWithLoaded_ReadsRawYAMLThroughTheLoadIndex(t *testing.T) {
 func TestCtx_DeclareHintKeepsTheFirstRecordForEveryCopy(t *testing.T) {
 	t.Parallel()
 	c := lowering.New(0, &soa.OpenAPI{}, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{},
-		lowering.ExtensionPromotions{}, overlay.Origin{})
+		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{})
 	_, recorded := c.HintAt("/x")
 	assert.False(t, recorded, "nothing is recorded before a lowering reaches the position")
 

@@ -261,7 +261,7 @@ func TestMappingTargetID(t *testing.T) {
 	// (issue #14, f31). It gets a context of its own rather than being added to the
 	// one above: the declared set is derived from the document now, so saying "and
 	// also this one" means saying it to a document.
-	empty := lowering.New(0, openapitest.DocDeclaring(""), ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, overlay.Origin{})
+	empty := lowering.New(0, openapitest.DocDeclaring(""), ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{})
 	id, ok = mappingTargetID(empty, empty.RefScope(), &oas3.Discriminator{}, "")
 	require.True(t, ok)
 	assert.Equal(t, ids.Document{}.AnonType(ids.Ptr("components", "schemas", "")), id)
