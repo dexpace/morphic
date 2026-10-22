@@ -59,6 +59,7 @@ func TestObject_NilEntryIsNil(t *testing.T) {
 		rp  *soa.ReferencedParameter
 		rrb *soa.ReferencedRequestBody
 		re  *soa.ReferencedExample
+		rl  *soa.ReferencedLink
 		rss *soa.ReferencedSecurityScheme
 	)
 	assert.Nil(t, resolve.Object[soa.PathItem](rpi))
@@ -68,6 +69,7 @@ func TestObject_NilEntryIsNil(t *testing.T) {
 	assert.Nil(t, resolve.Object[soa.Parameter](rp))
 	assert.Nil(t, resolve.Object[soa.RequestBody](rrb))
 	assert.Nil(t, resolve.Object[soa.Example](re))
+	assert.Nil(t, resolve.Object[soa.Link](rl))
 	assert.Nil(t, resolve.Object[soa.SecurityScheme](rss))
 }
 
