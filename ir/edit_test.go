@@ -195,9 +195,10 @@ func TestEditor_TypeReadsTheEdit(t *testing.T) {
 	assert.False(t, absentHeld)
 }
 
-// TestEditor_RefusesWritesOnlyABugMakes pins every refusal: the one message
-// Done reports, and that the refused write leaves the edit's document as a
-// control edit making only the writes before it leaves its own.
+// TestEditor_RefusesWritesOnlyABugMakes pins each write refused for what it
+// asks alone: the one message Done reports, and that the refused write leaves
+// the edit's document as a control edit making only the writes before it
+// leaves its own. The tests after it pin the refusals that need more context.
 func TestEditor_RefusesWritesOnlyABugMakes(t *testing.T) {
 	t.Parallel()
 	removeScalar := func(e *ir.Editor, _ *ir.Document) { e.RemoveType("t/scalar") }

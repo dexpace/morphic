@@ -120,8 +120,8 @@ func (e *Editor) copyFor(id TypeID, change func(TypeDef)) (TypeDef, bool) {
 // built afresh, of any kind, which the edit takes as it is: it shares nothing
 // anyone changes with the edited document, and is not changed once taken.
 // UpdateType changes a node instead. It refuses a nil td, an ID the edit holds
-// no node at, and the edited document's own node at that ID, which can only be
-// one changed in place.
+// no node at, and the edited document's own node at that ID, which is either
+// unchanged or changed in place.
 func (e *Editor) ReplaceType(td TypeDef) {
 	if IsNilTypeDef(td) {
 		e.refuse("replace rejected: nil type definition")
@@ -151,7 +151,7 @@ func (e *Editor) RemoveType(id TypeID) {
 
 // Done ends the edit and returns the edited document: a new Document sharing
 // every field with the document edited, the registry until the first write. A
-// caller may set its fields but writes neither registry.
+// caller sets its fields but writes into none.
 //
 // It reports an EditRefused error for each refused call, in order, then for
 // each node the edit took that has since moved off its key, putting the edited

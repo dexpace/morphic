@@ -122,9 +122,9 @@ a transform returns a new one. A transform changes types through `ir.Edit`: `Upd
 deep copy of a node to change, `ReplaceType` puts a node built afresh in place of the one at its ID,
 `RemoveType` removes one, and `Done` returns the new document, sharing everything the edit left
 alone, beside an `ir/edit-refused` error for each call the editor refused, such as a write at an ID
-the document does not hold. Building a type registry, or writing one of its entries, any other way fails
-the `registrywrites` rule (`internal/lintrules`, run by `make vet`). No rule sees a node of the
-input changed in place, which `UpdateType`'s copy is there to make needless.
+the document does not hold. Building a type registry, or writing one of its entries, any other way
+fails the `registrywrites` rule (`internal/lintrules`, run by `make vet`). No rule sees a node of
+the input changed in place, which `UpdateType`'s copy is there to make needless.
 
 1. **Implement `pass.Pass`** in a file of its own under `pass/`, shaped as `Validator` and
    `ValidateName` are in `pass/pass.go`: an exported type, and a constant holding its stable

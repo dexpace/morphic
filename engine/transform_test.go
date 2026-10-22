@@ -41,8 +41,8 @@ components:
         age: {type: integer}
 `
 
-// pruneUnused is a filter of the simplest kind: it removes every type no
-// operation, message, channel or auth scheme reaches, through ir.Edit, so it
+// pruneUnused is a filter of the simplest kind: it removes every type nothing
+// on the API surface reaches, an irfacts.Usage of 0, through ir.Edit, so it
 // writes no registry of its own.
 type pruneUnused struct{}
 

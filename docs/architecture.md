@@ -189,13 +189,13 @@ to a compiler: its way into the type registry. The edit copies the registry at i
 never writes the document it edits, hands `UpdateType` a deep copy of the node to change, keeps each
 node it takes at the key that node's own ID names, and adds no ID, so every ID stays in a namespace
 the document already declares (invariant 3). A write that would break either, or that only a bug
-makes, is refused, and `Done` returns each refusal as an `ir/edit-refused` error beside the document, so it fails the
-run at the default threshold instead of passing unseen. Whether a removal leaves a reference
-dangling is not the edit's to judge: `validate` reports one. Adding a type is not an edit's either:
-the first pass to mint one, `link`, brings that, with a namespace of its own (invariant 3's
-corollary). The `registrywrites` rule (`internal/lintrules`) refuses building a registry, or writing
-one of its entries, anywhere but `ir` and `compilers/compile`; no rule sees a node changed in place,
-which the deep copy makes needless.
+makes, is refused, and `Done` returns each refusal as an `ir/edit-refused` error beside the
+document, so it fails the run at the default threshold instead of passing unseen. Whether a removal
+leaves a reference dangling is not the edit's to judge: `validate` reports one. Adding a type is not
+an edit's either: the first pass to mint one, `link`, brings that, with a namespace of its own
+(invariant 3's corollary). The `registrywrites` rule (`internal/lintrules`) refuses building a
+registry, or writing one of its entries, anywhere but `ir` and `compilers/compile`; no rule sees a
+node changed in place, which the deep copy makes needless.
 
 A pass that takes settings, as `filter`, `version-slice` and `overlay` will, holds them on its own
 value, so `Run` keeps one signature for every pass. A caller supplies them through a typed field on

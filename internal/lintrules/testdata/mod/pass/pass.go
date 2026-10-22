@@ -17,7 +17,7 @@ func Rewrite(doc *ir.Document, def ir.TypeDef) error {
 	return err
 }
 
-// Prune removes a type and changes another through ir.Edit, the way a pass
+// Prune removes, changes and replaces types through ir.Edit, the way a pass
 // writes the registry, which draws nothing.
 func Prune(doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
 	e := ir.Edit(doc)
