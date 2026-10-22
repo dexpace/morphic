@@ -114,8 +114,9 @@ func TestNew_RefusesWhatARunCouldNotAddress(t *testing.T) {
 		{"a typed nil pass", []engine.Option{stub, engine.WithPasses((*notePass)(nil))}, "engine: pass 0 is nil"},
 		{"an unnamed pass", []engine.Option{stub, engine.WithPasses(notePass("a"), notePass(""))},
 			"engine: pass 1 has no name, which a run turns it off by"},
-		{"two passes of one name", []engine.Option{stub, engine.WithPasses(notePass("a"), notePass("b"), notePass("a"))},
-			`engine: passes 0 and 2 are both named "a"; turning one off would turn off both`},
+		{"two passes of one name", []engine.Option{stub,
+			engine.WithPasses(notePass("x"), notePass("a"), notePass("b"), notePass("a"))},
+			`engine: passes 1 and 3 are both named "a"; turning one off would turn off both`},
 		{"a default pass twice", []engine.Option{engine.WithPasses(append(engine.Passes(), pass.Validator{})...)},
 			`engine: passes 0 and 1 are both named "validate"`},
 	}
