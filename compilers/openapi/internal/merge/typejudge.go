@@ -1,7 +1,6 @@
 package merge
 
 import (
-	"encoding/json/jsontext"
 	"reflect"
 	"strings"
 
@@ -58,8 +57,9 @@ type typeJudge struct {
 	Resolve func(ir.TypeID) (ir.TypeDef, bool)
 	// written is where the declarations a and b were written. A node is a
 	// hoisted copy only where it was written at or under its declaration's
-	// pointer; one a $ref reached elsewhere was declared apart.
-	written [2]jsontext.Pointer
+	// pointer, in the same document; one a $ref reached elsewhere was declared
+	// apart.
+	written [2]ir.Provenance
 }
 
 // relate compares a with b. The winner never depends on which is which:
@@ -117,13 +117,16 @@ func (j typeJudge) relateAt(a, b ir.TypeRef, depth int) relation {
 	return rel
 }
 
-// hoistedAt reports whether td is a hoisted node written at or under pointer,
-// the declaration that holds it. A hoisted node a $ref reached from elsewhere,
-// another schema's property or a parameter's schema, was declared apart.
-func hoistedAt(td ir.TypeDef, pointer jsontext.Pointer) bool {
+// hoistedAt reports whether td is a hoisted node written at or under at, the
+// declaration that holds it: in its document, at or below its pointer. A
+// hoisted node a $ref reached from elsewhere, another schema's property, a
+// parameter's schema or a position of another document that happens to share
+// the pointer, was declared apart.
+func hoistedAt(td ir.TypeDef, at ir.Provenance) bool {
 	c := td.Common()
 	p := c.Provenance.Pointer
-	return c.Anonymous && (p == pointer || strings.HasPrefix(string(p), string(pointer)+"/"))
+	return c.Anonymous && c.Provenance.Source == at.Source &&
+		(p == at.Pointer || strings.HasPrefix(string(p), string(at.Pointer)+"/"))
 }
 
 // sameNodes judges two nodes sameNode holds equal. Two hoisted copies are one

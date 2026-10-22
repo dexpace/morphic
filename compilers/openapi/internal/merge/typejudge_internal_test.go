@@ -55,6 +55,8 @@ func judgeRegistry() map[ir.TypeID]ir.TypeDef {
 	for _, id := range []ir.TypeID{"t/list-i32-h1", "t/list-i32-h2"} {
 		reg[id] = &ir.List{ID: id, Anonymous: true, Elem: i32}
 	}
+	reg["t/list-i32-other"] = &ir.List{ID: "t/list-i32-other", Anonymous: true, Elem: i32,
+		Provenance: ir.Provenance{Source: 1}}
 	reg["t/list-int-min0"] = &ir.List{ID: "t/list-int-min0", Elem: integer, Constraints: &ir.Constraints{MinItems: &zero}}
 	reg["t/list-str-null"] = &ir.List{ID: "t/list-str-null", Elem: nullable(primRef(ir.PrimString))}
 	reg["t/list-int-null-min"] = &ir.List{ID: "t/list-int-null-min", Elem: nullable(integer),
@@ -138,6 +140,7 @@ func TestTypeJudge_RelateArms(t *testing.T) {
 		{"two hoisted copies of one list", "t/list-i32-h1", "t/list-i32-h2", relSame},
 		{"a list declared apart against a hoisted copy", "t/list-i32", "t/list-i32-h1", relANarrower},
 		{"a map declared apart against a hoisted copy", "t/map-int", "t/map-int-h", relANarrower},
+		{"a list another document hoists at the declaration's pointer", "t/list-i32-other", "t/list-i32-h1", relANarrower},
 		{"two lists of one element, one constrained", "t/list-i32", "t/list-i32-min", relOverlap},
 		{"disjoint elements overlap in the empty list", "t/list-str", "t/list-i32", relOverlap},
 		{"disjoint elements where one list is never empty", "t/list-str", "t/list-int-min", relDisjoint},

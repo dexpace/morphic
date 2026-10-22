@@ -380,7 +380,7 @@ func TestRecordRedeclarationConflict_ConstraintDisagreementIsReported(t *testing
 		Constraints: &ir.Constraints{Min: bigVal("20")},
 	}
 
-	g.recordRedeclarationConflict(&dst, &src, dst.Provenance.Pointer)
+	g.recordRedeclarationConflict(&dst, &src, dst.Provenance)
 
 	require.Len(t, *recorded, 1)
 	assert.Equal(t, ir.SeverityWarning, (*recorded)[0].Severity)
@@ -1079,7 +1079,7 @@ func TestFoldTypeTargets_ANarrowingIsNoDrop(t *testing.T) {
 		dst := ir.Property{WireName: "x", Type: primRef(order[0])}
 		src := ir.Property{WireName: "x", Type: primRef(order[1]), Provenance: ptrAt("/allOf/1/properties/x")}
 
-		rel, _ := g.foldTypeTargets(&dst, &src, dst.Provenance.Pointer)
+		rel, _ := g.foldTypeTargets(&dst, &src, dst.Provenance)
 		assert.False(t, rel.dropped(), "a narrowing is no drop (order %d)", i)
 		assert.Equal(t, primRef(ir.PrimInteger).Target, dst.Type.Target, "the narrower target wins (order %d)", i)
 
@@ -1089,7 +1089,7 @@ func TestFoldTypeTargets_ANarrowingIsNoDrop(t *testing.T) {
 		src2 := ir.Property{WireName: "x", Type: primRef(order[1]), Provenance: ptrAt("/allOf/1/properties/x")}
 		require.NotEqual(t, dst2.Type.Target, src2.Type.Target, "the pair is a narrowing (order %d)", i)
 
-		dropped, lost, _ := g.recordRedeclarationConflict(&dst2, &src2, dst2.Provenance.Pointer)
+		dropped, lost, _ := g.recordRedeclarationConflict(&dst2, &src2, dst2.Provenance)
 
 		assert.False(t, dropped, "order %d", i)
 		assert.False(t, lost, "order %d", i)
@@ -1787,7 +1787,7 @@ func TestReconcileProperty_IdenticalNodesAreOneType(t *testing.T) {
 					}
 				}
 
-				g.reconcileProperty(&dst, &origins{typeAt: dst.Provenance.Pointer}, src, written(`{"type":"x"}`))
+				g.reconcileProperty(&dst, &origins{typeAt: dst.Provenance}, src, written(`{"type":"x"}`))
 
 				want := tc.win
 				if want == "" {

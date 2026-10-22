@@ -836,3 +836,89 @@ Z: {type: object, properties: {bin: {type: string, format: binary}}}
 	assert.True(t, part.Filename, "a file part, as the settled type says")
 	assert.False(t, part.Multi)
 }
+
+// TestExternalContent_ANodeAnotherDocumentHoistsIsNoCopyOfAnInlineOne pins
+// that the copy rule reads a hoisted node's document as well as its pointer. A
+// field redeclared as a $ref to an enum another document writes inline, at the
+// very pointer the root writes its own copy at, and as that copy inline: the
+// referenced enum was declared apart, so it wins in either branch order, with
+// nothing reported or kept.
+func TestExternalContent_ANodeAnotherDocumentHoistsIsNoCopyOfAnInlineOne(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "other.yaml"), []byte(`openapi: 3.1.0
+info: {title: O, version: "1"}
+paths: {}
+components:
+  schemas:
+    T:
+      allOf:
+        - {}
+        - {type: object, properties: {p: {type: string, enum: [a, b]}}}
+`), 0o600))
+	ref := "{type: object, properties: {p: {$ref: './other.yaml#/components/schemas/T/allOf/1/properties/p'}}}"
+	inline := "{type: object, properties: {p: {type: string, enum: [a, b]}}}"
+	want := ids.In("other.yaml").AnonType("/components/schemas/T/allOf/1/properties/p")
+	for _, branches := range [][2]string{{ref, inline}, {inline, ref}} {
+		root := "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\ncomponents:\n  schemas:\n" +
+			"    T:\n      allOf:\n        - " + branches[0] + "\n        - " + branches[1] + "\n"
+		path := filepath.Join(dir, "root.yaml")
+		require.NoError(t, os.WriteFile(path, []byte(root), 0o600))
+
+		doc, diags, err := openapi.New().Compile(t.Context(), []compilers.Source{{Path: path, Data: []byte(root)}},
+			compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
+
+		require.NoError(t, err)
+		assert.Empty(t, diags, "first branch %s", branches[0])
+		m, ok := doc.Types["t/openapi/components/schemas/T"].(*ir.Model)
+		require.True(t, ok)
+		require.Len(t, m.Properties, 1)
+		assert.Equal(t, want, m.Properties[0].Type.Target, "the referenced enum wins: first branch %s", branches[0])
+		assert.Empty(t, m.Properties[0].Unmodeled, "first branch %s", branches[0])
+	}
+}
+
+// TestExternalContent_ACopyInAnotherDocumentIsJudgedThere pins that the copy
+// rule reads a declaration's document as well as its pointer when the
+// composing model is itself another document's. F2 writes an enum inline and
+// then a $ref to an equal component; F3 narrows a string to that inline enum
+// first, which moves the declaration the rule reads to the enum's own. Each
+// inline enum is a copy where it is written, so the component wins, with
+// nothing reported or kept.
+func TestExternalContent_ACopyInAnotherDocumentIsJudgedThere(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "other.yaml"), []byte(`openapi: 3.1.0
+info: {title: O, version: "1"}
+paths: {}
+components:
+  schemas:
+    E: {type: string, enum: [a, b]}
+    F2:
+      allOf:
+        - {type: object, properties: {p: {type: string, enum: [a, b]}}}
+        - {type: object, properties: {p: {$ref: '#/components/schemas/E'}}}
+    F3:
+      allOf:
+        - {type: object, properties: {p: {type: string}}}
+        - {type: object, properties: {p: {type: string, enum: [a, b]}}}
+        - {type: object, properties: {p: {$ref: '#/components/schemas/E'}}}
+`), 0o600))
+	const root = "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\ncomponents:\n  schemas:\n" +
+		"    R2: {$ref: './other.yaml#/components/schemas/F2'}\n    R3: {$ref: './other.yaml#/components/schemas/F3'}\n"
+	path := filepath.Join(dir, "root.yaml")
+	require.NoError(t, os.WriteFile(path, []byte(root), 0o600))
+
+	doc, diags, err := openapi.New().Compile(t.Context(), []compilers.Source{{Path: path, Data: []byte(root)}},
+		compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
+
+	require.NoError(t, err)
+	assert.Empty(t, diags)
+	for _, name := range []string{"F2", "F3"} {
+		m, ok := doc.Types[ir.TypeID("t/openapi@other.yaml/components/schemas/"+name)].(*ir.Model)
+		require.True(t, ok, name)
+		require.Len(t, m.Properties, 1, name)
+		assert.Equal(t, ir.TypeID("t/openapi@other.yaml/components/schemas/E"), m.Properties[0].Type.Target, name)
+		assert.Empty(t, m.Properties[0].Unmodeled, name)
+	}
+}
