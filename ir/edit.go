@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"maps"
 	"slices"
-	"strconv"
 )
 
 // EditRefused is the code of the error [Editor.Done] reports for each call an
@@ -78,7 +77,7 @@ func (e *Editor) UpdateType(id TypeID, change func(TypeDef)) {
 	case e.intruded:
 		e.refuse("update rejected: the change of %q wrote to the edit or ended it; a change alters its node alone", id)
 	case moved != id:
-		e.refuse("update rejected: the change moved %q to %s; a type keeps its ID", id, strconv.Quote(string(moved)))
+		e.refuse("update rejected: the change moved %q to %q; a type keeps its ID", id, moved)
 	default:
 		e.write()[id] = next
 	}
@@ -107,8 +106,7 @@ func (e *Editor) copyFor(id TypeID, change func(TypeDef)) (TypeDef, bool) {
 		e.refuse("update rejected: %q holds a nil type definition, which has nothing to change", id)
 		return nil, false
 	case current.Common().ID != id:
-		e.refuse("update rejected: %q holds the node of %s, which belongs at its own ID",
-			id, strconv.Quote(string(current.Common().ID)))
+		e.refuse("update rejected: %q holds the node of %q, which belongs at its own ID", id, current.Common().ID)
 		return nil, false
 	}
 	next, copied := cloneTypeDef(current)
@@ -200,8 +198,8 @@ func (e *Editor) refuseMoved() {
 			continue
 		}
 		if moved := td.Common().ID; moved != id {
-			e.refuse("done: %q holds a node moved to %s after the edit took it, so the edited document's node "+
-				"stays; a type keeps its ID", id, strconv.Quote(string(moved)))
+			e.refuse("done: %q holds a node moved to %q after the edit took it, so the edited document's node "+
+				"stays; a type keeps its ID", id, moved)
 			e.out.Types[id] = e.doc.Types[id] // an edit adds no ID, so doc holds one here
 		}
 	}
