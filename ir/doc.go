@@ -4,11 +4,10 @@
 // docs/ir-design.md specifies the shapes normatively; field names and struct
 // layouts must match it. Named entities live in flat registries on
 // [Document], keyed and cross-referenced by ID, and a Document round-trips
-// through JSON deterministically.
+// through JSON deterministically. A pass changes types through [Edit].
 //
-// It also owns the shared traversals and helpers: [WalkValues], the bounded,
-// cycle-guarded, deterministically ordered reflection walk;
-// [DocumentRegistries], read off Document's shape; the typed
+// It also owns shared traversals and helpers: [WalkValues], the bounded,
+// cycle-guarded, deterministic reflection walk; [DocumentRegistries]; the typed
 // [ForEachOperation] and [TypeEdges]; [AliasBase], [Supertypes], [IsSubtype]
 // and [ExposedProps] for composition; and [AsMap].
 //

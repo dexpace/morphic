@@ -116,7 +116,7 @@ in the docs.
 ## Package layout & layering (enforced by an architecture test)
 
 ```
-ir/          Layer 0 — IR nodes, IDs, traversal, JSON round-trip. Imports ONLY the stdlib.
+ir/          Layer 0 — IR nodes, IDs, traversal, editing, JSON round-trip. Imports ONLY the stdlib.
   irfacts/   Layer 0 — what a Document implies and does not state (subtypes, exposed properties,
              usage, recursion), derived on demand and never stored. Imports ir only.
   irverify/  Layer 0 — structural-invariant checks over a compiled Document. Imports ir only.

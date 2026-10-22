@@ -272,7 +272,7 @@ entry in that test allows, and nothing from a layer above its own.
 
 | Package | Layer | Imports |
 |---|---|---|
-| `ir/` | 0: IR nodes, IDs, traversal, JSON round-trip | stdlib only |
+| `ir/` | 0: IR nodes, IDs, traversal, editing, JSON round-trip | stdlib only |
 | `ir/irfacts/` | 0: what a document implies and does not state (subtypes, exposed properties, usage, recursion), never stored | `ir` only |
 | `ir/irverify/`, `ir/irtest/` | 0: structural-invariant checker; golden-snapshot and fixture helpers | `ir` (`irtest` also `go-cmp`) |
 | `compilers/` | 1: the `Compiler` contract and the format-keyed registry | `ir` only |
