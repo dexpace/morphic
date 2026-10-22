@@ -154,8 +154,8 @@ func newAliasWeigher(allowance int64) *aliasWeigher {
 // past the first, since which comes first is the document's declaration order.
 //
 // A node is expanded once at most: a weighed node's frame pops unexpanded, and
-// pushChildren skips one in flight. Each node depending on it may push it, so
-// Content entries and aliases bound the stack.
+// pushChildren skips one in flight. So the stack holds root's frame and at most
+// one per Content entry or alias.
 func (w *aliasWeigher) weigh(root *yaml.Node) []*yaml.Node {
 	if root == nil {
 		return nil
