@@ -2060,9 +2060,8 @@ func TestAllOf_CompatibleConstraintRedeclarationsStaySilent(t *testing.T) {
 	// not a conflict — and the merge must genuinely carry both keywords
 	// forward on the reconciled property, not just stay quiet about the one it
 	// used to drop; one magnitude spelled two ways is one value, whether or not
-	// it is one a rational will build; and an unknown-format scalar resolves
-	// through its Base to the same primitive as the plain type, so it is not a
-	// type conflict.
+	// it is one a rational will build; and an unknown-format scalar narrows the
+	// plain type it is based on, so it wins with nothing to report.
 	cases := []struct {
 		name         string
 		a, b         string
@@ -2124,16 +2123,13 @@ func TestAllOf_CompatibleConstraintRedeclarationsStaySilent(t *testing.T) {
 			a:    "{type: number, multipleOf: 1e1000001}",
 			b:    "{type: number, multipleOf: 10e1000000}",
 		},
-		// Transitional: draws the overlap info until the bare/scalar narrowing
-		// lands; only the absence of a conflict is asserted here.
 		{name: "custom format over base", a: "{type: string, format: weird}", b: "{type: string}"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			doc, diags := lowerSpec(t, allOfConflictSpec(tc.a, tc.b))
-			openapitest.RequireNoErrorDiags(t, diags)
-			assert.Empty(t, conflictDiags(diags), "%s must not be reported as a conflict", tc.name)
+			assert.Empty(t, diags, "%s draws no diagnostic", tc.name)
 			if tc.assertMerged == nil {
 				return
 			}
