@@ -2815,10 +2815,10 @@ components:
 	return ir.PartEncoding{}
 }
 
-// nestedPartSpec spells a multipart body whose parts sit wrapped deep inside n
-// inline allOf wrappers, each optionally carrying a description, with the
-// encoding map and the two parts written in the order given.
-func nestedPartSpec(n int, residue bool, shape string, parts, encoding []string) string {
+// nestedPartSpec spells a form body of media type media whose parts sit wrapped
+// deep inside n inline allOf wrappers, each optionally carrying a description,
+// with the encoding map and the two parts written in the order given.
+func nestedPartSpec(n int, residue bool, shape, media string, parts, encoding []string) string {
 	partLine := map[string]string{
 		"file": "file: {type: string, format: binary}",
 		"meta": "meta: {type: string}",
@@ -2857,7 +2857,7 @@ func nestedPartSpec(n int, residue bool, shape string, parts, encoding []string)
       operationId: up
       requestBody:
         content:
-          multipart/form-data:
+          ` + media + `:
             schema: ` + schemaSrc + `
             encoding: {` + strings.Join(encs, ", ") + `}
       responses: {"200": {description: ok}}
@@ -2876,47 +2876,52 @@ const (
 // composition the schema lowering flattens (docs/compilers/openapi.md#allof-classification),
 // in both declaration orders of the parts and of the encoding map. A part
 // nested n wrappers deep is keyed on the property the lowering models there, or
-// a diagnostic names the bound that cut the walk short; one that is neither
-// drops its encoding with no word.
+// a warning at the body schema names the bound that cut the walk short; one
+// that is neither drops its encoding with no word.
 func TestPartEncodings_ReadsTheFlattenedComposition(t *testing.T) {
 	t.Parallel()
-	const bodyPtr = "/paths/~1u/post/requestBody/content/multipart~1form-data/schema"
+	const multipart, urlencoded = "multipart/form-data", "application/x-www-form-urlencoded"
 	cases := []struct {
 		name    string
 		n       int
 		residue bool
 		shape   string
+		media   string
 		capped  bool
 	}{
-		{"15 wrappers", 15, false, shapeInline, false},
-		{"16 wrappers", 16, false, shapeInline, false},
-		{"17 wrappers", 17, false, shapeInline, false},
-		{"20 wrappers", 20, false, shapeInline, false},
-		{"past the flattening depth", schema.MaxAllOfFlattenDepth + 2, false, shapeInline, true},
-		{"past the flattening depth behind a $ref", schema.MaxAllOfFlattenDepth + 2, false, shapeViaRef, true},
-		{"a part beside the cut", schema.MaxAllOfFlattenDepth + 2, false, shapeBesideNote, true},
-		{"residue wrapper", 1, true, shapeInline, false},
+		{"15 wrappers", 15, false, shapeInline, multipart, false},
+		{"16 wrappers", 16, false, shapeInline, multipart, false},
+		{"17 wrappers", 17, false, shapeInline, multipart, false},
+		{"20 wrappers", 20, false, shapeInline, multipart, false},
+		{"20 wrappers, urlencoded", 20, false, shapeInline, urlencoded, false},
+		{"past the flattening depth", schema.MaxAllOfFlattenDepth + 2, false, shapeInline, multipart, true},
+		{"past the flattening depth, urlencoded", schema.MaxAllOfFlattenDepth + 2, false, shapeInline, urlencoded, true},
+		{"past the flattening depth behind a $ref", schema.MaxAllOfFlattenDepth + 2, false, shapeViaRef, multipart, true},
+		{"a part beside the cut", schema.MaxAllOfFlattenDepth + 2, false, shapeBesideNote, multipart, true},
+		{"residue wrapper", 1, true, shapeInline, multipart, false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			forward := nestedPartSpec(tc.n, tc.residue, tc.shape, []string{"file", "meta"}, []string{"file", "meta"})
-			reversed := nestedPartSpec(tc.n, tc.residue, tc.shape, []string{"meta", "file"}, []string{"meta", "file"})
+			bodyPtr := ids.Ptr("paths", "/u", "post", "requestBody", "content", tc.media, "schema")
+			forward := nestedPartSpec(tc.n, tc.residue, tc.shape, tc.media, []string{"file", "meta"}, []string{"file", "meta"})
+			reversed := nestedPartSpec(tc.n, tc.residue, tc.shape, tc.media, []string{"meta", "file"}, []string{"meta", "file"})
 			var got [2]map[ir.PropID]ir.PartEncoding
 			for i, src := range []string{forward, reversed} {
 				_, svc, diags := lowerServiceSpec(t, src)
 				openapitest.RequireNoErrorDiags(t, diags)
 				got[i] = openapitest.FirstOp(t, svc).Request.Contents[0].Encoding
 				if tc.capped {
-					assert.Contains(t, diagMessages(diags), "multipart body composition is nested past the flattening depth of 32",
-						"a walk cut short by the bound says so")
+					msg := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityWarning, string(bodyPtr))
+					assert.Equal(t, "form body composition is nested past the flattening depth of 32, "+
+						"so a part reached only below it has no encoding entry", msg, "a walk cut short by the bound says so")
 					if tc.shape == shapeBesideNote {
-						note := ir.PropID("p/openapi" + jsontext.Pointer(bodyPtr) + ids.Ptr("properties", "note"))
+						note := ir.PropID("p/openapi" + bodyPtr + ids.Ptr("properties", "note"))
 						assert.Contains(t, got[i], note, "the part the body declares is keyed beside the cut")
 					}
 					continue
 				}
-				prefix := bodyPtr + strings.Repeat("/allOf/0", tc.n)
+				prefix := string(bodyPtr) + strings.Repeat("/allOf/0", tc.n)
 				for _, part := range []string{"file", "meta"} {
 					id := ir.PropID("p/openapi" + jsontext.Pointer(prefix) + ids.Ptr("properties", part))
 					assert.Contains(t, got[i], id, "the %s part is keyed on the property nested %d wrappers down", part, tc.n)
@@ -2965,7 +2970,10 @@ components:
 ` + comps.String())
 	_, svc, diags := lowerServiceSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	assert.Contains(t, diagMessages(diags), "follows $refs past 16 hops", "the bound is named")
+	msg := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityWarning,
+		"/paths/~1u/post/requestBody/content/multipart~1form-data/schema")
+	assert.Equal(t, "form body composition follows $refs past 16 hops, "+
+		"so a part reached only beyond them has no encoding entry", msg, "the bound is named at the body schema")
 	assert.Empty(t, openapitest.FirstOp(t, svc).Request.Contents[0].Encoding, "the part beyond it has no entry")
 }
 
@@ -3014,22 +3022,33 @@ components:
 	}
 }
 
-// TestPartEncodings_CappedEntryReachedByAnotherPath nests an object under more
-// inline allOf wrappers than the lowering flattens, and reaches that object a
-// second time by a JSON Pointer $ref. Whichever the body names first, both
-// parts are keyed on the object, so no cap is reported.
+// TestPartEncodings_CappedEntryReachedByAnotherPath nests an entry under more
+// inline allOf wrappers than the lowering flattens, and reaches what it names a
+// second time by another path: an object, by a JSON Pointer $ref to it, and a
+// $ref entry of the branch the cap stops at, by the same $ref written at the
+// top, whose target the cap's record must follow as the walk does. Whichever
+// the body names first, both parts are keyed, so no cap is reported.
 func TestPartEncodings_CappedEntryReachedByAnotherPath(t *testing.T) {
 	t.Parallel()
 	const n = schema.MaxAllOfFlattenDepth + 2
-	deep := "{type: object, properties: {file: {type: string, format: binary}, meta: {type: string}}}"
+	obj := "{type: object, properties: {file: {type: string, format: binary}, meta: {type: string}}}"
+	deep := obj
 	for range n {
 		deep = "{allOf: [" + deep + "]}"
 	}
-	direct := "{$ref: '#/components/schemas/Deep" + strings.Repeat("/allOf/0", n) + "'}"
+	leaf := "Deep" + strings.Repeat("/allOf/0", n)
+	direct := "{$ref: '#/components/schemas/" + leaf + "'}"
 	viaDeep := "{$ref: '#/components/schemas/Deep'}"
-	cases := []struct{ name, allOf string }{
-		{"Deep first", "[" + viaDeep + ", " + direct + "]"},
-		{"pointer first", "[" + direct + ", " + viaDeep + "]"},
+	viaForm := "{$ref: '#/components/schemas/Form'}"
+	formBelowCap := viaForm
+	for range schema.MaxAllOfFlattenDepth + 1 {
+		formBelowCap = "{allOf: [" + formBelowCap + "]}"
+	}
+	cases := []struct{ name, allOf, keyedAt string }{
+		{"Deep first", "[" + viaDeep + ", " + direct + "]", leaf},
+		{"pointer first", "[" + direct + ", " + viaDeep + "]", leaf},
+		{"Form first", "[" + viaForm + ", " + formBelowCap + "]", "Form"},
+		{"Form below the cap first", "[" + formBelowCap + ", " + viaForm + "]", "Form"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -3048,16 +3067,17 @@ func TestPartEncodings_CappedEntryReachedByAnotherPath(t *testing.T) {
 components:
   schemas:
     Deep: ` + deep + `
+    Form: ` + obj + `
 `)
 			_, svc, diags := lowerServiceSpec(t, spec)
 			openapitest.RequireNoErrorDiags(t, diags)
 			got := openapitest.FirstOp(t, svc).Request.Contents[0].Encoding
 			for _, part := range []string{"file", "meta"} {
-				id := ir.PropID("p/openapi/components/schemas/Deep" + strings.Repeat("/allOf/0", n) + string(ids.Ptr("properties", part)))
+				id := ir.PropID("p/openapi/components/schemas/" + tc.keyedAt + string(ids.Ptr("properties", part)))
 				assert.Contains(t, got, id, "the %s part is keyed at the object both paths reach", part)
 			}
-			assert.NotContains(t, diagMessages(diags), "multipart body composition is nested past",
-				"a path enters the capped branch's entry, so no cap is reported")
+			assert.NotContains(t, diagMessages(diags), "form body composition is nested past",
+				"a path enters what the capped branch's entry names, so no cap is reported")
 		})
 	}
 }
@@ -3112,7 +3132,9 @@ components:
 				id := ir.PropID("p/openapi/components/schemas/" + tc.keyedAt + string(ids.Ptr("properties", part)))
 				assert.Contains(t, got, id, "the %s part is keyed at the object the shorter path reaches", part)
 			}
-			assert.Contains(t, diagMessages(diags), tc.bound, "the warning claims a loss only for a part the cut alone reaches")
+			msg := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityWarning,
+				"/paths/~1u/post/requestBody/content/multipart~1form-data/schema")
+			assert.Contains(t, msg, tc.bound, "the warning at the body schema claims a loss only for a part the cut alone reaches")
 		})
 	}
 }
@@ -3122,7 +3144,6 @@ components:
 // target's properties and no bound is reported: a cycle costs one visit.
 func TestPartEncodings_CycleEntersEachTargetOnce(t *testing.T) {
 	t.Parallel()
-	const bodyPtr = "/paths/~1u/post/requestBody/content/multipart~1form-data/schema"
 	cases := []struct{ name, allOf string }{
 		{"direct", "[{$ref: '#/components/schemas/A'}]"},
 		{"wrapper", "[{allOf: [{$ref: '#/components/schemas/A'}]}]"},
@@ -3154,12 +3175,8 @@ components:
 				id := ir.PropID("p/openapi/components/schemas/A" + ids.Ptr("properties", part))
 				assert.Contains(t, got, id, "the %s part is keyed at the target's own property", part)
 			}
-			for _, d := range diags {
-				if d.Code == diag.DegradedConstruct && d.Severity == ir.SeverityWarning {
-					assert.NotEqual(t, jsontext.Pointer(bodyPtr), d.Provenance.Pointer,
-						"a cycle spends no bound, so nothing is reported at the body schema: %s", d.Message)
-				}
-			}
+			assert.NotContains(t, diagMessages(diags), "form body composition",
+				"a cycle spends no bound, so no cut is reported anywhere")
 		})
 	}
 }
