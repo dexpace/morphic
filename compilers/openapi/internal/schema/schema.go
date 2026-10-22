@@ -1128,7 +1128,7 @@ func lowerModel(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 		cons, consDiags := ConstraintsOf(c, &common.Unmodeled, s, pointer)
 		diags = append(diags, consDiags...)
 		m := &ir.Model{TypeCommon: common, Constraints: cons}
-		diags = append(diags, fillModelProperties(c, ts, anchors, depth, m, merge.NewPropIndex(), s, pointer)...)
+		diags = append(diags, fillModelProperties(c, ts, anchors, depth, propIndex(c, ts, m), s, pointer)...)
 		requireMembers(m, s.GetRequired())
 		diags = append(diags, fillAdditional(c, ts, anchors, depth, m, s, pointer, hint)...)
 		d, discDiags := lowerDiscriminator(c, ts, anchors, s, m, nil, pointer)
@@ -1158,7 +1158,7 @@ func objectNode(m *ir.Model) ir.TypeDef {
 // fillModelProperties lowers a model's own properties in source order, each with
 // its full property-level detail (constraints, visibility, defaults, docs, ...).
 // Which are required is requireMembers' to say, once every property is in.
-func fillModelProperties(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, m *ir.Model, idx *merge.PropIndex, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
+func fillModelProperties(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, idx *merge.PropIndex, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	props := s.GetProperties()
 	if props == nil {
 		return nil
@@ -1176,10 +1176,7 @@ func fillModelProperties(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex
 			Provenance: c.ProvenanceAt(ppointer),
 		}
 		diags = append(diags, FillPropertyDetail(c, ts, anchors, &p, js, ppointer)...)
-		var mergeDiags []ir.Diagnostic
-		mg := merger(c, ts, &mergeDiags)
-		mg.MergeProperty(m, idx, p, redeclarationSource(js))
-		diags = append(diags, mergeDiags...)
+		idx.MergeProperty(p, redeclarationSource(js))
 	}
 	return diags
 }
@@ -1231,8 +1228,8 @@ func FillPropertyDetail(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex,
 // fillPropertyVisibility lowers readOnly/writeOnly onto the property and reports
 // the pairing that leaves it visible nowhere.
 //
-// The report is made here rather than inside the reader for the reason
-// merge.reconcileProperty reports its own disjoint intersection from outside
+// The report is made here rather than inside the reader for the reason the
+// allOf merge reports its own disjoint intersection from outside
 // mergeVisibility: provenance is built in one place (lowering.Ctx), and this is
 // the caller that knows the position being filled. It is the same finding under
 // the same code as the allOf spelling, so a consumer filtering on
@@ -2131,32 +2128,20 @@ func collectionConstraints(s *oas3.Schema) *ir.Constraints {
 	return c
 }
 
-// merger builds the allOf property reconciler over an explicit diagnostic sink.
-//
-// Merger.Report records rather than returns, which is the one place this package
-// still hands diagnostics to a callback. diags is the caller's own slice, so what
-// the reconciler reports travels out the way everything else does; the callback
-// is the merge package's contract, not accumulation surviving here. A fold that
-// reads a node no lowering has built yet is settled once every node exists
-// (settledMerge). It is closures over state already at hand, so building it
-// per use costs nothing worth measuring.
-func merger(c lowering.Ctx, ts *compile.Types, diags *[]ir.Diagnostic) merge.Merger {
-	return merge.Merger{
-		Resolve: ts.Node,
-		Report: func(sev ir.Severity, code string, pointer jsontext.Pointer, format string, args ...any) {
-			*diags = append(*diags, c.DiagAt(sev, code, pointer, format, args...))
-		},
-		Defer: func(run merge.Settle) { ts.Complete(settledMerge{c: c, run: run}) },
-	}
+// propIndex returns the index the walk fills m's properties through. A field
+// declared more than once folds once every lowering has returned
+// (merge.PropIndex), as a completion (compile.Types.Complete): a settlement
+// that reads the merged field, such as a form part's flags, finds it folded.
+func propIndex(c lowering.Ctx, ts *compile.Types, m *ir.Model) *merge.PropIndex {
+	return merge.NewPropIndex(m, func(fold merge.Settle) { ts.Complete(settledMerge{c: c, fold: fold}) })
 }
 
-// settledMerge is a redeclaration fold deferred until every node exists
-// (compile.Settlement). Its judgment reads a node no lowering had built when the
-// walk reached it, and judging then would follow the order declarations lower
-// in (GitHub #898).
+// settledMerge is the folds of one model's redeclared fields, taken once every
+// node exists (compile.Settlement): a fold compares the nodes the declarations
+// name, so mid-walk it would follow the order they lower in (GitHub #898).
 type settledMerge struct {
-	c   lowering.Ctx
-	run merge.Settle
+	c    lowering.Ctx
+	fold merge.Settle
 }
 
 // Settle takes the fold against reg and returns what it reports. The fold
@@ -2164,7 +2149,7 @@ type settledMerge struct {
 // node count.
 func (s settledMerge) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	s.run(reg, func(sev ir.Severity, code string, pointer jsontext.Pointer, format string, args ...any) {
+	s.fold(reg, func(sev ir.Severity, code string, pointer jsontext.Pointer, format string, args ...any) {
 		diags = append(diags, s.c.DiagAt(sev, code, pointer, format, args...))
 	})
 	return diags

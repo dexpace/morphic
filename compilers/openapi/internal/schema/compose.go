@@ -44,9 +44,9 @@ func lowerAllOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 		cons, consDiags := ConstraintsOf(c, &common.Unmodeled, s, pointer)
 		diags = append(diags, consDiags...)
 		m := &ir.Model{TypeCommon: common, Constraints: cons}
-		idx := merge.NewPropIndex()
+		idx := propIndex(c, ts, m)
 		diags = append(diags, fillAllOf(c, ts, anchors, depth, m, idx, s, pointer)...)
-		diags = append(diags, fillModelProperties(c, ts, anchors, depth, m, idx, s, pointer)...)
+		diags = append(diags, fillModelProperties(c, ts, anchors, depth, idx, s, pointer)...)
 		requireMembers(m, compositionRequired(s))
 		diags = append(diags, fillAdditional(c, ts, anchors, depth, m, s, pointer, hint)...)
 		diags = append(diags, applyFalseBranches(c, m, s, pointer)...)
@@ -127,7 +127,7 @@ func fillAllOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth in
 	for i, b := range branches {
 		bptr := pointer + ids.Ptr("allOf", strconv.Itoa(i))
 		if !isRefBranch(b) {
-			diags = append(diags, fillModelProperties(c, ts, anchors, depth, m, idx, b.GetSchema(), bptr)...)
+			diags = append(diags, fillModelProperties(c, ts, anchors, depth, idx, b.GetSchema(), bptr)...)
 			diags = append(diags, preserveUnmergedBranch(c, m, b.GetSchema(), i, bptr)...)
 			continue
 		}
@@ -975,9 +975,9 @@ func composedVariantRef(c lowering.Ctx, id ir.TypeID, body *oas3.Schema, branch 
 func buildComposedVariant(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, body composedBody, branch ir.TypeID, common ir.TypeCommon) (ir.TypeDef, []ir.Diagnostic) {
 	cons, diags := ConstraintsOf(c, &common.Unmodeled, body.schema, body.pointer)
 	m := &ir.Model{TypeCommon: common, Constraints: cons}
-	idx := merge.NewPropIndex()
+	idx := propIndex(c, ts, m)
 	diags = append(diags, fillAllOf(c, ts, anchors, depth, m, idx, body.schema, body.pointer)...)
-	diags = append(diags, fillModelProperties(c, ts, anchors, depth, m, idx, body.schema, body.pointer)...)
+	diags = append(diags, fillModelProperties(c, ts, anchors, depth, idx, body.schema, body.pointer)...)
 	requireMembers(m, compositionRequired(body.schema))
 	diags = append(diags, fillAdditional(c, ts, anchors, depth, m, body.schema, body.pointer, body.hint)...)
 	conjoinBranch(m, branch)

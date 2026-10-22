@@ -41,16 +41,17 @@ func TestMergeProperty_AppendsThenFolds(t *testing.T) {
 	t.Parallel()
 	g, recorded := stubMerger(nil)
 	m := &ir.Model{}
-	byWire := NewPropIndex()
+	idx, settle := indexOver(m, nil, g)
 
-	g.MergeProperty(m, byWire, ir.Property{WireName: "id", Required: true, Provenance: ptrAt("/p")}, unread(t))
-	g.MergeProperty(m, byWire, ir.Property{WireName: "name", Provenance: ptrAt("/p")}, unread(t))
+	idx.MergeProperty(ir.Property{WireName: "id", Required: true, Provenance: ptrAt("/p")}, unread(t))
+	idx.MergeProperty(ir.Property{WireName: "name", Provenance: ptrAt("/p")}, unread(t))
 
 	require.Len(t, m.Properties, 2, "two distinct wire names are two properties")
-	assert.Equal(t, 0, byWire.byWire["id"].pos)
-	assert.Equal(t, 1, byWire.byWire["name"].pos)
+	assert.Equal(t, 0, idx.byWire["id"].pos)
+	assert.Equal(t, 1, idx.byWire["name"].pos)
 
-	g.MergeProperty(m, byWire, ir.Property{WireName: "id", Secret: true, Provenance: ptrAt("/other")}, unread(t))
+	idx.MergeProperty(ir.Property{WireName: "id", Secret: true, Provenance: ptrAt("/other")}, unread(t))
+	settle()
 
 	require.Len(t, m.Properties, 2, "a redeclaration folds rather than appending")
 	assert.True(t, m.Properties[0].Required, "required is kept from the first declaration")
@@ -58,16 +59,16 @@ func TestMergeProperty_AppendsThenFolds(t *testing.T) {
 	assert.Empty(t, *recorded, "agreeing declarations are not a conflict")
 }
 
-// TestReconcileProperty_DifferingDescriptionsKeepTheFirst pins a merge outcome
+// TestFold_DifferingDescriptionsKeepTheFirst pins a merge outcome
 // that is reported without being a conflict: two branches describing the same
 // field differently cannot both be kept, so the first wins, the loss is
 // announced rather than silent, and the losing declaration is kept whole.
-func TestReconcileProperty_DifferingDescriptionsKeepTheFirst(t *testing.T) {
+func TestFold_DifferingDescriptionsKeepTheFirst(t *testing.T) {
 	t.Parallel()
 	g, recorded := stubMerger(nil)
 	dst := ir.Property{WireName: "id", Docs: ir.Docs{Description: "first"}}
 
-	g.reconcileProperty(&dst, new(origins), ir.Property{WireName: "id", Docs: ir.Docs{Description: "second"}, Provenance: ptrAt("/other")},
+	dst = foldTwo(g, dst, ir.Property{WireName: "id", Docs: ir.Docs{Description: "second"}, Provenance: ptrAt("/other")},
 		written(`{"description":"second"}`))
 
 	assert.Equal(t, "first", dst.Docs.Description)
@@ -79,25 +80,25 @@ func TestReconcileProperty_DifferingDescriptionsKeepTheFirst(t *testing.T) {
 	assert.Equal(t, ir.RawValue(`{"description":"second"}`), dst.Unmodeled[losingDeclarationKey+"/other"].Value)
 }
 
-// TestReconcileProperty_AnIdenticalDescriptionIsNotADisagreement pins the other
+// TestFold_AnIdenticalDescriptionIsNotADisagreement pins the other
 // side of that check: repeating the same description in both branches is one
 // construct written twice, not two that disagree.
-func TestReconcileProperty_AnIdenticalDescriptionIsNotADisagreement(t *testing.T) {
+func TestFold_AnIdenticalDescriptionIsNotADisagreement(t *testing.T) {
 	t.Parallel()
 	g, recorded := stubMerger(nil)
 	dst := ir.Property{WireName: "id", Docs: ir.Docs{Description: "same"}}
 
-	g.reconcileProperty(&dst, new(origins), ir.Property{WireName: "id", Docs: ir.Docs{Description: "same"}, Provenance: ptrAt("/other")}, unread(t))
+	dst = foldTwo(g, dst, ir.Property{WireName: "id", Docs: ir.Docs{Description: "same"}, Provenance: ptrAt("/other")}, unread(t))
 
 	assert.Equal(t, "same", dst.Docs.Description)
 	assert.Empty(t, *recorded)
 }
 
-// TestReconcileProperty_TitleAndExternalDocsFoldLikeDescription pins that a
+// TestFold_TitleAndExternalDocsFoldLikeDescription pins that a
 // summary and external links fold as a description does: an empty side adopts
 // the other, equal sides are one construct written twice, and differing sides
 // keep the first and the redeclaration whole, in either declaration order.
-func TestReconcileProperty_TitleAndExternalDocsFoldLikeDescription(t *testing.T) {
+func TestFold_TitleAndExternalDocsFoldLikeDescription(t *testing.T) {
 	t.Parallel()
 	linkA := []ir.Link{{URL: "https://a.example"}}
 	linkB := []ir.Link{{URL: "https://b.example"}}
@@ -132,7 +133,7 @@ func TestReconcileProperty_TitleAndExternalDocsFoldLikeDescription(t *testing.T)
 				source = written(`{"x":1}`)
 			}
 
-			g.reconcileProperty(&dst, new(origins), src, source)
+			dst = foldTwo(g, dst, src, source)
 
 			assert.Empty(t, cmp.Diff(tt.want, dst.Docs))
 			if tt.detail == "" {
@@ -155,11 +156,11 @@ func TestReconcileProperty_TitleAndExternalDocsFoldLikeDescription(t *testing.T)
 	}
 }
 
-// TestReconcileProperty_EveryDocsDisagreementIsReported pins that foldDocs
+// TestFold_EveryDocsDisagreementIsReported pins that foldDocs
 // judges each docs field rather than stopping at the first that differs: a
 // redeclaration giving all three differently is reported three times, and
 // kept once.
-func TestReconcileProperty_EveryDocsDisagreementIsReported(t *testing.T) {
+func TestFold_EveryDocsDisagreementIsReported(t *testing.T) {
 	t.Parallel()
 	g, recorded := stubMerger(nil)
 	first := ir.Docs{Summary: "A", Description: "dA", ExternalDocs: []ir.Link{{URL: "https://a.example"}}}
@@ -167,7 +168,7 @@ func TestReconcileProperty_EveryDocsDisagreementIsReported(t *testing.T) {
 	src := ir.Property{WireName: "id", Provenance: ptrAt("/other"),
 		Docs: ir.Docs{Summary: "B", Description: "dB", ExternalDocs: []ir.Link{{URL: "https://b.example"}}}}
 
-	g.reconcileProperty(&dst, new(origins), src, written(`{"x":1}`))
+	dst = foldTwo(g, dst, src, written(`{"x":1}`))
 
 	assert.Empty(t, cmp.Diff(first, dst.Docs))
 	require.Len(t, *recorded, 3)
@@ -296,34 +297,34 @@ func TestMergeVisibility_ReorderedBranchesAgree(t *testing.T) {
 	assert.False(t, forward.None, "a non-empty intersection is a restriction, not invisibility")
 }
 
-// TestReconcileProperty_VisibilityAdoptedFromRedeclaration pins the issue's
+// TestFold_VisibilityAdoptedFromRedeclaration pins the issue's
 // own reproduction at the reconcile layer (GitHub #34): a property left
 // unrestricted by its first declaration must adopt a later branch's readOnly
 // rather than silently keep the first, empty Visibility.
-func TestReconcileProperty_VisibilityAdoptedFromRedeclaration(t *testing.T) {
+func TestFold_VisibilityAdoptedFromRedeclaration(t *testing.T) {
 	t.Parallel()
 	g, _ := stubMerger(nil)
 	dst := ir.Property{WireName: "id"}
 
-	g.reconcileProperty(&dst, new(origins), ir.Property{WireName: "id", Visibility: readOnlyVisibility, Provenance: ptrAt("/other")}, unread(t))
+	dst = foldTwo(g, dst, ir.Property{WireName: "id", Visibility: readOnlyVisibility, Provenance: ptrAt("/other")}, unread(t))
 
 	assert.Equal(t, readOnlyVisibility, dst.Visibility)
 }
 
-// TestReconcileProperty_DisjointVisibilityIsARestrictionNotAConflict pins both
+// TestFold_DisjointVisibilityIsARestrictionNotAConflict pins both
 // halves of the choice for an allOf pairing that admits no lifecycle at all
 // (readOnly against writeOnly on the same field). mergeVisibility represents it
-// exactly as None, so it is recorded rather than routed through
-// recordRedeclarationConflict — nothing is arbitrarily discarded, as it would
-// be for an incompatible-type redeclaration. But exact is not unremarkable: a
+// exactly as None, so it is recorded rather than dropped and kept — nothing is
+// arbitrarily discarded, as it would be for an incompatible-type
+// redeclaration. But exact is not unremarkable: a
 // field neither a request nor a response can carry is a composition that cannot
 // take effect, so it is warned about under its own code.
-func TestReconcileProperty_DisjointVisibilityIsARestrictionNotAConflict(t *testing.T) {
+func TestFold_DisjointVisibilityIsARestrictionNotAConflict(t *testing.T) {
 	t.Parallel()
 	g, recorded := stubMerger(nil)
 	dst := ir.Property{WireName: "id", Visibility: readOnlyVisibility}
 
-	g.reconcileProperty(&dst, new(origins), ir.Property{WireName: "id", Visibility: writeOnlyVisibility, Provenance: ptrAt("/other")}, unread(t))
+	dst = foldTwo(g, dst, ir.Property{WireName: "id", Visibility: writeOnlyVisibility, Provenance: ptrAt("/other")}, unread(t))
 
 	assert.Equal(t, ir.Visibility{None: true}, dst.Visibility)
 	require.Len(t, *recorded, 1, "an emptied visibility set is reported, not passed over in silence")
@@ -332,14 +333,14 @@ func TestReconcileProperty_DisjointVisibilityIsARestrictionNotAConflict(t *testi
 	assert.Equal(t, ir.SeverityWarning, (*recorded)[0].Severity)
 }
 
-// TestReconcileProperty_AlreadyInvisibleVisibilityIsNotReAnnounced pins the half
+// TestFold_AlreadyInvisibleVisibilityIsNotReAnnounced pins the half
 // of the report guard the disjoint case above cannot reach. The warning is about
 // the transition — two restricted branches whose intersection empties — not
 // about the state of being invisible, so a side that was already None merges
 // quietly. Drop that half of the condition and every later redeclaration of an
 // invisible field re-announces a fact the document has already been told, which
 // no assertion in the disjoint case would notice.
-func TestReconcileProperty_AlreadyInvisibleVisibilityIsNotReAnnounced(t *testing.T) {
+func TestFold_AlreadyInvisibleVisibilityIsNotReAnnounced(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name     string
@@ -354,7 +355,7 @@ func TestReconcileProperty_AlreadyInvisibleVisibilityIsNotReAnnounced(t *testing
 			g, recorded := stubMerger(nil)
 			dst := ir.Property{WireName: "id", Visibility: tc.dst}
 
-			g.reconcileProperty(&dst, new(origins), ir.Property{WireName: "id", Visibility: tc.src, Provenance: ptrAt("/other")}, unread(t))
+			dst = foldTwo(g, dst, ir.Property{WireName: "id", Visibility: tc.src, Provenance: ptrAt("/other")}, unread(t))
 
 			assert.Equal(t, ir.Visibility{None: true}, dst.Visibility)
 			assert.Empty(t, *recorded, "None was already the answer; this merge announced nothing new")
@@ -362,11 +363,11 @@ func TestReconcileProperty_AlreadyInvisibleVisibilityIsNotReAnnounced(t *testing
 	}
 }
 
-// TestRecordRedeclarationConflict_ConstraintDisagreementIsReported pins the
-// second of the two conflict routes. Two branches that agree on type but pin one
-// keyword to different values produce a merge that keeps dst's bound, so the
-// stricter one is discarded and must be announced.
-func TestRecordRedeclarationConflict_ConstraintDisagreementIsReported(t *testing.T) {
+// TestFold_AConstraintDisagreementIsReported pins the second of the two
+// conflict routes. Two declarations that agree on type but pin one keyword to
+// different values fold to the first one's bound, so the other, which may be
+// the stricter, is discarded and must be announced.
+func TestFold_AConstraintDisagreementIsReported(t *testing.T) {
 	t.Parallel()
 	g, recorded := stubMerger(nil)
 	dst := ir.Property{
@@ -380,9 +381,10 @@ func TestRecordRedeclarationConflict_ConstraintDisagreementIsReported(t *testing
 		Constraints: &ir.Constraints{Min: bigVal("20")},
 	}
 
-	g.recordRedeclarationConflict(&dst, &src, dst.Provenance)
+	dst = foldTwo(g, dst, src, written(`{"minimum":20}`))
 
 	require.Len(t, *recorded, 1)
+	assert.Equal(t, bigVal("10"), dst.Constraints.Min, "the first bound is kept")
 	assert.Equal(t, ir.SeverityWarning, (*recorded)[0].Severity)
 	assert.Equal(t, diag.ConflictingRedecl, (*recorded)[0].Code)
 	assert.Contains(t, (*recorded)[0].Message, "conflicting minimum (10 and 20)")
@@ -514,7 +516,7 @@ func TestKeepLosingDeclaration_RecordsTheDiscardedDeclaration(t *testing.T) {
 		Provenance: ir.Provenance{Source: 2, Pointer: "/components/schemas/S/allOf/1/properties/id"},
 	}
 
-	g.reconcileProperty(&dst, new(origins), src, written(`{"type":"integer","nullable":true}`))
+	dst = foldTwo(g, dst, src, written(`{"type":"integer","nullable":true}`))
 
 	require.Len(t, *recorded, 1, "the conflict is still diagnosed")
 	assert.Equal(t, ir.TypeID("t/str"), dst.Type.Target, "the first declaration still wins the shape")
@@ -535,17 +537,19 @@ func TestKeepLosingDeclaration_RecordsTheDiscardedDeclaration(t *testing.T) {
 // the same silent overwrite the entry exists to prevent.
 func TestKeepLosingDeclaration_EveryLoserSurvivesItsSiblings(t *testing.T) {
 	t.Parallel()
-	g, _ := stubMerger(map[ir.TypeID]ir.TypeDef{
+	reg := map[ir.TypeID]ir.TypeDef{
 		"t/str":  &ir.Primitive{ID: "t/str", Prim: ir.PrimString},
 		"t/int":  &ir.Primitive{ID: "t/int", Prim: ir.PrimInt32},
 		"t/bool": &ir.Primitive{ID: "t/bool", Prim: ir.PrimBool},
-	})
+	}
+	g, _ := stubMerger(reg)
 	m := &ir.Model{}
-	byWire := NewPropIndex()
+	idx, settle := indexOver(m, reg, g)
 
-	g.MergeProperty(m, byWire, ir.Property{WireName: "id", Type: ir.TypeRef{Target: "t/str"}, Provenance: ptrAt("/a")}, unread(t))
-	g.MergeProperty(m, byWire, ir.Property{WireName: "id", Type: ir.TypeRef{Target: "t/int"}, Provenance: ptrAt("/b")}, written(`{"type":"integer"}`))
-	g.MergeProperty(m, byWire, ir.Property{WireName: "id", Type: ir.TypeRef{Target: "t/bool"}, Provenance: ptrAt("/c")}, written(`{"type":"boolean"}`))
+	idx.MergeProperty(ir.Property{WireName: "id", Type: ir.TypeRef{Target: "t/str"}, Provenance: ptrAt("/a")}, unread(t))
+	idx.MergeProperty(ir.Property{WireName: "id", Type: ir.TypeRef{Target: "t/int"}, Provenance: ptrAt("/b")}, written(`{"type":"integer"}`))
+	idx.MergeProperty(ir.Property{WireName: "id", Type: ir.TypeRef{Target: "t/bool"}, Provenance: ptrAt("/c")}, written(`{"type":"boolean"}`))
+	settle()
 
 	require.Len(t, m.Properties, 1, "three declarations still reconcile to one property")
 	assert.Equal(t, ir.Unmodeled{
@@ -577,7 +581,7 @@ func TestKeepLosingDeclaration_AgreeingDeclarationsKeepNothing(t *testing.T) {
 	ten, twenty := int64(10), int64(20)
 	agreeing := ir.Property{WireName: "id", Type: ir.TypeRef{Target: "t/str"}}
 
-	g.reconcileProperty(&agreeing, new(origins), ir.Property{WireName: "id", Type: ir.TypeRef{Target: "t/str"}, Provenance: ptrAt("/b")}, unread(t))
+	agreeing = foldTwo(g, agreeing, ir.Property{WireName: "id", Type: ir.TypeRef{Target: "t/str"}, Provenance: ptrAt("/b")}, unread(t))
 
 	assert.Empty(t, *recorded, "agreeing declarations are not a conflict")
 	assert.Empty(t, agreeing.Unmodeled, "and nothing was discarded to keep")
@@ -586,7 +590,7 @@ func TestKeepLosingDeclaration_AgreeingDeclarationsKeepNothing(t *testing.T) {
 		WireName: "code", Type: ir.TypeRef{Target: "t/str"},
 		Constraints: &ir.Constraints{MaxLength: &ten},
 	}
-	g.reconcileProperty(&bounded, new(origins), ir.Property{
+	bounded = foldTwo(g, bounded, ir.Property{
 		WireName: "code", Type: ir.TypeRef{Target: "t/str"},
 		Constraints: &ir.Constraints{MaxLength: &twenty},
 		Provenance:  ptrAt("/b"),
@@ -603,7 +607,7 @@ func TestKeepLosingDeclaration_AgreeingDeclarationsKeepNothing(t *testing.T) {
 	}, bounded.Unmodeled, "the keyword the merge dropped is kept with the declaration that wrote it")
 }
 
-// TestReconcileProperty_AConflictingTypeTakesNothingWithIt pins that a
+// TestFold_AConflictingTypeTakesNothingWithIt pins that a
 // discarded declaration is discarded whole. The type conflict is diagnosed and
 // the loser's type kept under Unmodeled, but the fold below it used to run to
 // completion regardless, adopting the loser's default, constraints and examples
@@ -611,7 +615,7 @@ func TestKeepLosingDeclaration_AgreeingDeclarationsKeepNothing(t *testing.T) {
 // about one field — an integer carrying a string default — and nothing in
 // pass/validate or irverify compares a Value's kind to its property's type, so
 // an emitter renders it into non-compiling code.
-func TestReconcileProperty_AConflictingTypeTakesNothingWithIt(t *testing.T) {
+func TestFold_AConflictingTypeTakesNothingWithIt(t *testing.T) {
 	t.Parallel()
 	g, recorded := stubMerger(map[ir.TypeID]ir.TypeDef{
 		"t/str": &ir.Primitive{ID: "t/str", Prim: ir.PrimString},
@@ -626,7 +630,7 @@ func TestReconcileProperty_AConflictingTypeTakesNothingWithIt(t *testing.T) {
 		Examples:    []ir.Example{{Value: &ir.Value{Kind: ir.ValueString, Str: "abc"}}},
 	}
 
-	g.reconcileProperty(&dst, new(origins), src, written(`{"type":"string"}`))
+	dst = foldTwo(g, dst, src, written(`{"type":"string"}`))
 
 	require.Len(t, *recorded, 1, "the conflict is diagnosed")
 	assert.Equal(t, ir.TypeID("t/int"), dst.Type.Target, "the first declaration wins the shape")
@@ -635,14 +639,14 @@ func TestReconcileProperty_AConflictingTypeTakesNothingWithIt(t *testing.T) {
 	assert.Empty(t, dst.Examples, "the examples are of the discarded shape")
 }
 
-// TestReconcileProperty_NullabilityIntersectsWhenTargetsAgree pins the case
+// TestFold_NullabilityIntersectsWhenTargetsAgree pins the case
 // typesConflict returns on before it reads Nullable: one branch admits null and
 // the other does not, so the intersection forbids it. Neither reconciled nor
 // preserved before, and the answer flipped with branch order — the same source
 // compiled to nullable: true or false depending on which branch was written
 // first. foldNullVerdicts already states the conjunction rule for the
 // single-schema case; this is the same rule across a redeclaration.
-func TestReconcileProperty_NullabilityIntersectsWhenTargetsAgree(t *testing.T) {
+func TestFold_NullabilityIntersectsWhenTargetsAgree(t *testing.T) {
 	t.Parallel()
 	reg := map[ir.TypeID]ir.TypeDef{
 		"t/str": &ir.Primitive{ID: "t/str", Prim: ir.PrimString},
@@ -663,7 +667,7 @@ func TestReconcileProperty_NullabilityIntersectsWhenTargetsAgree(t *testing.T) {
 			dst := ir.Property{WireName: "x", Type: ir.TypeRef{Target: "t/str", Nullable: tc.dstNull}}
 			src := ir.Property{WireName: "x", Type: ir.TypeRef{Target: "t/str", Nullable: tc.srcNull}}
 
-			g.reconcileProperty(&dst, new(origins), src, unread(t))
+			dst = foldTwo(g, dst, src, unread(t))
 
 			assert.Equal(t, tc.want, dst.Type.Nullable, "the merged field admits null only where both branches do")
 			assert.Empty(t, *recorded, "an intersection the IR can express is not a conflict")
@@ -701,15 +705,15 @@ func TestIntersectNull_TheMarkerFollowsTheBit(t *testing.T) {
 	}
 }
 
-// TestReconcileProperty_ADroppedTypeIsKeptEvenWhenItDoesNotConflict pins the
-// gap between what the merge drops and what it used to record. typesConflict
-// deliberately answers false for two composites of one kind and for the top type
-// against anything — it does not guess — but reconcileProperty keeps dst.Type
-// regardless, so in every one of those the redeclaration vanished with neither a
-// diagnostic nor an entry. That is #424's own failure: a consumer diffing two
-// versions sees no change. Preservation is owed wherever a type is dropped;
-// the diagnostic stays with the conflict, which is a narrower claim.
-func TestReconcileProperty_ADroppedTypeIsKeptEvenWhenItDoesNotConflict(t *testing.T) {
+// TestFold_ADroppedTypeIsKeptEvenWhenItDoesNotConflict pins the
+// gap between what the merge drops and what it calls a conflict. typesConflict
+// does not guess about two composites of one kind or an opaque scalar, but the
+// fold keeps the winner's type regardless, so the redeclaration once vanished
+// with neither a diagnostic nor an entry: #424's own failure, a consumer diffing
+// two versions seeing no change. It is kept, and reported as a pair the merge
+// does not compare, an info rather than a conflict: which type the field keeps
+// then follows declaration order, and only the report says so.
+func TestFold_ADroppedTypeIsKeptEvenWhenItDoesNotConflict(t *testing.T) {
 	t.Parallel()
 	reg := map[ir.TypeID]ir.TypeDef{
 		"t/A":   &ir.Model{ID: "t/A"},
@@ -736,10 +740,13 @@ func TestReconcileProperty_ADroppedTypeIsKeptEvenWhenItDoesNotConflict(t *testin
 				Provenance: ir.Provenance{Source: 1, Pointer: "/p/allOf/1/properties/id"},
 			}
 
-			g.reconcileProperty(&dst, new(origins), src, written(`{"type":"object"}`))
+			dst = foldTwo(g, dst, src, written(`{"type":"object"}`))
 
 			assert.Equal(t, tc.dstTarget, dst.Type.Target, "the first declaration still wins")
-			assert.Empty(t, *recorded, "a drop the predicate does not call a conflict is not diagnosed")
+			require.Len(t, *recorded, 1)
+			assert.Equal(t, ir.SeverityInfo, (*recorded)[0].Severity, "a drop not called a conflict is no warning")
+			assert.Equal(t, diag.DegradedConstruct, (*recorded)[0].Code)
+			assert.Contains(t, (*recorded)[0].Message, "that the merge does not compare")
 			entry, ok := dst.Unmodeled[losingDeclarationKey+"/p/allOf/1/properties/id"]
 			require.True(t, ok, "the dropped declaration is kept; got %v", dst.Unmodeled)
 			assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
@@ -747,14 +754,14 @@ func TestReconcileProperty_ADroppedTypeIsKeptEvenWhenItDoesNotConflict(t *testin
 	}
 }
 
-// TestReconcileProperty_ADroppedTypeTakesNothingWithItEvenUnjudged is
-// TestReconcileProperty_AConflictingTypeTakesNothingWithIt for the drops
+// TestFold_ADroppedTypeTakesNothingWithItEvenUnjudged is
+// TestFold_AConflictingTypeTakesNothingWithIt for the drops
 // typesConflict declines to judge. The skip was keyed on the conflict
 // diagnostic rather than on the drop, so two Models — never called a conflict —
 // still folded the loser's default and constraints onto a winner whose type
 // could not hold them, beside an entry saying that type was dropped: the
 // contradiction the skip exists to prevent, on the one path it did not cover.
-func TestReconcileProperty_ADroppedTypeTakesNothingWithItEvenUnjudged(t *testing.T) {
+func TestFold_ADroppedTypeTakesNothingWithItEvenUnjudged(t *testing.T) {
 	t.Parallel()
 	g, recorded := stubMerger(map[ir.TypeID]ir.TypeDef{
 		"t/A": &ir.Model{ID: "t/A"},
@@ -770,16 +777,17 @@ func TestReconcileProperty_ADroppedTypeTakesNothingWithItEvenUnjudged(t *testing
 		Provenance:  ptrAt("/allOf/1/properties/x"),
 	}
 
-	g.reconcileProperty(&dst, new(origins), src, written(`{"type":"object","default":{},"minProperties":1}`))
+	dst = foldTwo(g, dst, src, written(`{"type":"object","default":{},"minProperties":1}`))
 
-	assert.Empty(t, *recorded, "two models of one kind are still not called a conflict")
+	require.Len(t, *recorded, 1)
+	assert.Equal(t, diag.DegradedConstruct, (*recorded)[0].Code, "two models of one kind are still not called a conflict")
 	assert.Nil(t, dst.Default, "the default describes the shape that was dropped")
 	assert.Nil(t, dst.Constraints, "so does minProperties")
 	assert.Empty(t, dst.Examples, "and so do the examples")
 	assert.Contains(t, dst.Unmodeled, losingDeclarationKey+"/allOf/1/properties/x", "the whole declaration is kept instead")
 }
 
-// TestReconcileProperty_ALosingDetailIsKeptAndReported sweeps the fold's
+// TestFold_ALosingDetailIsKeptAndReported sweeps the fold's
 // adopt-if-absent fields. Each of them took the first declaration's value and
 // dropped a present, different value from the redeclaration with nothing said
 // and nothing kept — a consumer diffing two revisions that change the second
@@ -787,7 +795,7 @@ func TestReconcileProperty_ADroppedTypeTakesNothingWithItEvenUnjudged(t *testing
 // and keeps the losing declaration verbatim, under the same key a losing type
 // is kept under, since it is the same event: a redeclaration the merge could
 // not fold whole.
-func TestReconcileProperty_ALosingDetailIsKeptAndReported(t *testing.T) {
+func TestFold_ALosingDetailIsKeptAndReported(t *testing.T) {
 	t.Parallel()
 	one, two := &ir.Value{Kind: ir.ValueNumber, Num: "1"}, &ir.Value{Kind: ir.ValueNumber, Num: "2"}
 	cases := []struct {
@@ -812,7 +820,7 @@ func TestReconcileProperty_ALosingDetailIsKeptAndReported(t *testing.T) {
 			src.Provenance = ir.Provenance{Source: 1, Pointer: "/allOf/1/properties/id"}
 			want := tc.dst
 
-			g.reconcileProperty(&dst, new(origins), src, written(`{"type":"integer","x":2}`))
+			dst = foldTwo(g, dst, src, written(`{"type":"integer","x":2}`))
 
 			assert.Equal(t, want.Default, dst.Default, "the first declaration keeps its default")
 			assert.Equal(t, want.Examples, dst.Examples, "and its examples")
@@ -836,10 +844,10 @@ func TestReconcileProperty_ALosingDetailIsKeptAndReported(t *testing.T) {
 	}
 }
 
-// TestReconcileProperty_AnIdenticalDetailIsNotADisagreement is the other half:
+// TestFold_AnIdenticalDetailIsNotADisagreement is the other half:
 // two branches writing the same default have not disagreed, and reporting or
 // keeping one would be noise. The source is unread, which is the proof.
-func TestReconcileProperty_AnIdenticalDetailIsNotADisagreement(t *testing.T) {
+func TestFold_AnIdenticalDetailIsNotADisagreement(t *testing.T) {
 	t.Parallel()
 	g, recorded := stubMerger(map[ir.TypeID]ir.TypeDef{
 		"t/int": &ir.Primitive{ID: "t/int", Prim: ir.PrimInt32},
@@ -857,17 +865,17 @@ func TestReconcileProperty_AnIdenticalDetailIsNotADisagreement(t *testing.T) {
 	}
 	dst := detail()
 
-	g.reconcileProperty(&dst, new(origins), detail(), unread(t))
+	dst = foldTwo(g, dst, detail(), unread(t))
 
 	assert.Empty(t, *recorded)
 	assert.Empty(t, dst.Unmodeled)
 }
 
-// TestReconcileProperty_AnUnrenderableLoserIsAnError pins the one way keeping
+// TestFold_AnUnrenderableLoserIsAnError pins the one way keeping
 // the declaration can fail. The merge has already said the redeclaration is
 // kept, so a source that will not render is reported as an error — the
 // construct reached the IR in no form — rather than left to the announcement.
-func TestReconcileProperty_AnUnrenderableLoserIsAnError(t *testing.T) {
+func TestFold_AnUnrenderableLoserIsAnError(t *testing.T) {
 	t.Parallel()
 	g, recorded := stubMerger(map[ir.TypeID]ir.TypeDef{
 		"t/str": &ir.Primitive{ID: "t/str", Prim: ir.PrimString},
@@ -876,7 +884,7 @@ func TestReconcileProperty_AnUnrenderableLoserIsAnError(t *testing.T) {
 	dst := ir.Property{WireName: "id", Type: ir.TypeRef{Target: "t/str"}}
 	src := ir.Property{WireName: "id", Type: ir.TypeRef{Target: "t/int"}, Provenance: ptrAt("/b")}
 
-	g.reconcileProperty(&dst, new(origins), src, func() (ir.RawValue, error) { return nil, errors.New("no such node") })
+	dst = foldTwo(g, dst, src, func() (ir.RawValue, error) { return nil, errors.New("no such node") })
 
 	require.Len(t, *recorded, 2, "the conflict, and then the failure to keep it; got %v", *recorded)
 	assert.Equal(t, diag.ConflictingRedecl, (*recorded)[0].Code)
@@ -901,11 +909,11 @@ func narrowingRegistry() map[ir.TypeID]ir.TypeDef {
 
 func primRef(k ir.PrimKind) ir.TypeRef { return ir.TypeRef{Target: ir.TypeID("t/prim/" + string(k))} }
 
-// TestReconcileProperty_ANarrowerPrimitiveWinsInEitherOrder pins the refinement
+// TestFold_ANarrowerPrimitiveWinsInEitherOrder pins the refinement
 // rule: a redeclaration that narrows a bare primitive loses nothing, so the
 // narrower target wins whichever branch is written first, with no diagnostic
 // and no kept declaration.
-func TestReconcileProperty_ANarrowerPrimitiveWinsInEitherOrder(t *testing.T) {
+func TestFold_ANarrowerPrimitiveWinsInEitherOrder(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
 		name          string
@@ -928,7 +936,7 @@ func TestReconcileProperty_ANarrowerPrimitiveWinsInEitherOrder(t *testing.T) {
 				dst := ir.Property{WireName: "x", Type: primRef(order[0])}
 				src := ir.Property{WireName: "x", Type: primRef(order[1]), Provenance: ptrAt("/allOf/1/properties/x")}
 
-				g.reconcileProperty(&dst, new(origins), src, unread(t))
+				dst = foldTwo(g, dst, src, unread(t))
 
 				assert.Equal(t, primRef(tc.narrow).Target, dst.Type.Target, "the narrower target wins (order %d)", i)
 				assert.Empty(t, *recorded, "a refinement is not a conflict (order %d)", i)
@@ -940,10 +948,10 @@ func TestReconcileProperty_ANarrowerPrimitiveWinsInEitherOrder(t *testing.T) {
 	}
 }
 
-// TestReconcileProperty_AUint8NarrowsInt16InEitherOrder pins a containment the
+// TestFold_AUint8NarrowsInt16InEitherOrder pins a containment the
 // old chain omitted: every uint8 is an int16, so int16 declared beside uint8
 // keeps uint8 whichever branch is written first, with nothing reported or kept.
-func TestReconcileProperty_AUint8NarrowsInt16InEitherOrder(t *testing.T) {
+func TestFold_AUint8NarrowsInt16InEitherOrder(t *testing.T) {
 	t.Parallel()
 	var merged [2]ir.TypeRef
 	for i, order := range [][2]ir.PrimKind{{ir.PrimInt16, ir.PrimUint8}, {ir.PrimUint8, ir.PrimInt16}} {
@@ -951,7 +959,7 @@ func TestReconcileProperty_AUint8NarrowsInt16InEitherOrder(t *testing.T) {
 		dst := ir.Property{WireName: "x", Type: primRef(order[0])}
 		src := ir.Property{WireName: "x", Type: primRef(order[1]), Provenance: ptrAt("/allOf/1/properties/x")}
 
-		g.reconcileProperty(&dst, new(origins), src, unread(t))
+		dst = foldTwo(g, dst, src, unread(t))
 
 		assert.Equal(t, primRef(ir.PrimUint8).Target, dst.Type.Target, "uint8 wins (order %d)", i)
 		assert.Empty(t, *recorded, "a containment is not a conflict (order %d)", i)
@@ -961,11 +969,11 @@ func TestReconcileProperty_AUint8NarrowsInt16InEitherOrder(t *testing.T) {
 	assert.Empty(t, cmp.Diff(merged[0], merged[1]), "the merged type does not depend on branch order")
 }
 
-// TestReconcileProperty_ANarrowingIntersectsNullability pins that the swap
+// TestFold_ANarrowingIntersectsNullability pins that the swap
 // keeps the conjunction the equal-target case already states: over every pair
 // of null admissions, in both orders, the merged field admits null only where
 // both branches do.
-func TestReconcileProperty_ANarrowingIntersectsNullability(t *testing.T) {
+func TestFold_ANarrowingIntersectsNullability(t *testing.T) {
 	t.Parallel()
 	for _, broadFirst := range []bool{true, false} {
 		for _, broadNull := range []bool{true, false} {
@@ -984,7 +992,7 @@ func TestReconcileProperty_ANarrowingIntersectsNullability(t *testing.T) {
 					}
 					p := ir.Property{WireName: "x", Type: dst}
 
-					g.reconcileProperty(&p, new(origins), ir.Property{WireName: "x", Type: src, Provenance: ptrAt("/p")}, unread(t))
+					p = foldTwo(g, p, ir.Property{WireName: "x", Type: src, Provenance: ptrAt("/p")}, unread(t))
 
 					assert.Equal(t, narrow.Target, p.Type.Target)
 					assert.Equal(t, broadNull && narrowNull, p.Type.Nullable,
@@ -996,11 +1004,11 @@ func TestReconcileProperty_ANarrowingIntersectsNullability(t *testing.T) {
 	}
 }
 
-// TestReconcileProperty_ADroppedTargetKeepsTheFirstNullAdmission pins the drop
-// arm of foldTypeTargets: an unrelated redeclaration's type is lost whole, so
+// TestFold_ADroppedTargetKeepsTheFirstNullAdmission pins a drop:
+// an unrelated redeclaration's type is lost whole, so
 // the merged field keeps the first declaration's null admission, not the
 // conjunction a same-referent or narrowing pair takes.
-func TestReconcileProperty_ADroppedTargetKeepsTheFirstNullAdmission(t *testing.T) {
+func TestFold_ADroppedTargetKeepsTheFirstNullAdmission(t *testing.T) {
 	t.Parallel()
 	for _, firstNull := range []bool{true, false} {
 		t.Run(fmt.Sprintf("firstNullable=%v", firstNull), func(t *testing.T) {
@@ -1011,7 +1019,7 @@ func TestReconcileProperty_ADroppedTargetKeepsTheFirstNullAdmission(t *testing.T
 			src := ir.Property{WireName: "x", Type: primRef(ir.PrimInteger), Provenance: ptrAt("/allOf/1/properties/x")}
 			src.Type.Nullable = !firstNull
 
-			g.reconcileProperty(&dst, new(origins), src, written(`{"type":"integer"}`))
+			dst = foldTwo(g, dst, src, written(`{"type":"integer"}`))
 
 			assert.Equal(t, primRef(ir.PrimString).Target, dst.Type.Target, "the first declaration keeps the shape")
 			assert.Equal(t, firstNull, dst.Type.Nullable, "a dropped type takes its null admission with it")
@@ -1021,10 +1029,10 @@ func TestReconcileProperty_ADroppedTargetKeepsTheFirstNullAdmission(t *testing.T
 	}
 }
 
-// TestReconcileProperty_ANarrowingAdoptsTheBroaderDeclarationsDetail pins that
+// TestFold_ANarrowingAdoptsTheBroaderDeclarationsDetail pins that
 // nothing is dropped, so the broader declaration's constraints and default are
 // folded as for any agreeing pair.
-func TestReconcileProperty_ANarrowingAdoptsTheBroaderDeclarationsDetail(t *testing.T) {
+func TestFold_ANarrowingAdoptsTheBroaderDeclarationsDetail(t *testing.T) {
 	t.Parallel()
 	for _, broadFirst := range []bool{true, false} {
 		t.Run(fmt.Sprintf("broadFirst=%v", broadFirst), func(t *testing.T) {
@@ -1043,7 +1051,7 @@ func TestReconcileProperty_ANarrowingAdoptsTheBroaderDeclarationsDetail(t *testi
 				dst, src = narrow, broad
 			}
 
-			g.reconcileProperty(&dst, new(origins), src, unread(t))
+			dst = foldTwo(g, dst, src, unread(t))
 
 			assert.Equal(t, primRef(ir.PrimInteger).Target, dst.Type.Target)
 			require.NotNil(t, dst.Constraints)
@@ -1069,38 +1077,68 @@ func TestTypesConflict_UnrelatedPrimitivesStillConflict(t *testing.T) {
 		"overlapping kinds are no conflict")
 }
 
-// TestFoldTypeTargets_ANarrowingIsNoDrop pins that a bare narrowing settles on
-// one target in either order and is no drop, so the redeclaration is neither
-// classified nor reported nor kept.
-func TestFoldTypeTargets_ANarrowingIsNoDrop(t *testing.T) {
+// TestFold_ANarrowingIsNoDrop pins that a bare narrowing settles on one target
+// in either order and is no drop, so the redeclaration is neither classified
+// nor reported nor kept.
+func TestFold_ANarrowingIsNoDrop(t *testing.T) {
 	t.Parallel()
 	for i, order := range [][2]ir.PrimKind{{ir.PrimInteger, ir.PrimNumber}, {ir.PrimNumber, ir.PrimInteger}} {
 		g, recorded := stubMerger(narrowingRegistry())
 		dst := ir.Property{WireName: "x", Type: primRef(order[0])}
 		src := ir.Property{WireName: "x", Type: primRef(order[1]), Provenance: ptrAt("/allOf/1/properties/x")}
 
-		rel, _ := g.foldTypeTargets(&dst, &src, dst.Provenance)
-		assert.False(t, rel.dropped(), "a narrowing is no drop (order %d)", i)
-		assert.Equal(t, primRef(ir.PrimInteger).Target, dst.Type.Target, "the narrower target wins (order %d)", i)
+		got := foldTwo(g, dst, src, unread(t))
 
-		// Build the pair afresh: in order 1 the fold above has already made
-		// the targets equal, and the classifier must meet a narrowing in both orders.
-		dst2 := ir.Property{WireName: "x", Type: primRef(order[0])}
-		src2 := ir.Property{WireName: "x", Type: primRef(order[1]), Provenance: ptrAt("/allOf/1/properties/x")}
-		require.NotEqual(t, dst2.Type.Target, src2.Type.Target, "the pair is a narrowing (order %d)", i)
-
-		dropped, lost, _ := g.recordRedeclarationConflict(&dst2, &src2, dst2.Provenance)
-
-		assert.False(t, dropped, "order %d", i)
-		assert.False(t, lost, "order %d", i)
+		assert.Equal(t, primRef(ir.PrimInteger), got.Type, "the narrower target wins (order %d)", i)
 		assert.Empty(t, *recorded, "a narrowing draws no diagnostic (order %d)", i)
+		assert.Empty(t, got.Unmodeled, "and keeps nothing (order %d)", i)
 	}
 }
 
-// TestReconcileProperty_TheJudgmentsVerdictIsWhatIsReported pins the three
+// TestFold_ANarrowingCarriesTheNullMarkers pins TypeRef.Inferred through a
+// narrowing: the field's null rests on a heuristic wherever either side's did
+// (intersectNull), whichever side wins, except where the loser is the top
+// type, whose null bit and marker say nothing, so the winner's stand alone.
+func TestFold_ANarrowingCarriesTheNullMarkers(t *testing.T) {
+	t.Parallel()
+	nullRef := func(k ir.PrimKind, nullable bool, inferred string) ir.TypeRef {
+		r := primRef(k)
+		r.Nullable, r.Inferred = nullable, inferred
+		return r
+	}
+	for _, tc := range []struct {
+		name           string
+		dst, src, want ir.TypeRef
+	}{
+		{"the narrower redeclaration takes the first's marker",
+			nullRef(ir.PrimString, true, "h"), nullRef(ir.PrimURL, true, ""), nullRef(ir.PrimURL, true, "h")},
+		{"the narrower first declaration takes the redeclaration's marker",
+			nullRef(ir.PrimURL, true, ""), nullRef(ir.PrimString, true, "h"), nullRef(ir.PrimURL, true, "h")},
+		{"both markers, the first's first",
+			nullRef(ir.PrimString, true, "a"), nullRef(ir.PrimURL, true, "b"), nullRef(ir.PrimURL, true, "a,b")},
+		{"a side admitting no null drops the marker",
+			nullRef(ir.PrimString, true, "h"), nullRef(ir.PrimURL, false, ""), nullRef(ir.PrimURL, false, "")},
+		{"the top type's marker says nothing",
+			nullRef(ir.PrimAny, true, "h"), nullRef(ir.PrimURL, true, "w"), nullRef(ir.PrimURL, true, "w")},
+		{"nor does its missing null",
+			nullRef(ir.PrimURL, true, "w"), nullRef(ir.PrimAny, false, ""), nullRef(ir.PrimURL, true, "w")},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			g, recorded := stubMerger(narrowingRegistry())
+			got := foldTwo(g, ir.Property{WireName: "x", Type: tc.dst},
+				ir.Property{WireName: "x", Type: tc.src, Provenance: ptrAt("/allOf/1/properties/x")}, unread(t))
+
+			assert.Equal(t, tc.want, got.Type)
+			assert.Empty(t, *recorded)
+		})
+	}
+}
+
+// TestFold_TheJudgmentsVerdictIsWhatIsReported pins the three
 // paths of the fold: a disjoint pair warns, an overlapping pair draws an info,
 // and one target declared twice judges null alone and adopts a default.
-func TestReconcileProperty_TheJudgmentsVerdictIsWhatIsReported(t *testing.T) {
+func TestFold_TheJudgmentsVerdictIsWhatIsReported(t *testing.T) {
 	t.Parallel()
 	d := str("x")
 	for _, tc := range []struct {
@@ -1126,7 +1164,7 @@ func TestReconcileProperty_TheJudgmentsVerdictIsWhatIsReported(t *testing.T) {
 				dst.Default, src.Default = src.Default, nil
 			}
 
-			g.reconcileProperty(&dst, new(origins), src, written(`{"type":"x"}`))
+			dst = foldTwo(g, dst, src, written(`{"type":"x"}`))
 
 			if tc.keptEntry {
 				require.Len(t, *recorded, 1, "%s (order %d)", tc.name, i)
@@ -1152,17 +1190,17 @@ func reconcileBothOrders(t *testing.T, a, b ir.PrimKind) (dsts [2]ir.Property, d
 		dst := ir.Property{WireName: "x", Type: primRef(order[0]), Provenance: ptrAt("/allOf/0/properties/x")}
 		src := ir.Property{WireName: "x", Type: primRef(order[1]), Provenance: ptrAt("/allOf/1/properties/x")}
 
-		g.reconcileProperty(&dst, new(origins), src, written(`{"type":"x"}`))
+		dst = foldTwo(g, dst, src, written(`{"type":"x"}`))
 
 		dsts[i], diags[i] = dst, *recorded
 	}
 	return dsts, diags
 }
 
-// TestReconcileProperty_OverlappingKindsAreKeptAndReportedAsInfo pins that
+// TestFold_OverlappingKindsAreKeptAndReportedAsInfo pins that
 // kinds sharing values with neither holding the other keep the first
 // declaration's kind, draw an info, and keep the redeclaration, in both orders.
-func TestReconcileProperty_OverlappingKindsAreKeptAndReportedAsInfo(t *testing.T) {
+func TestFold_OverlappingKindsAreKeptAndReportedAsInfo(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
 		name string
@@ -1188,9 +1226,9 @@ func TestReconcileProperty_OverlappingKindsAreKeptAndReportedAsInfo(t *testing.T
 	}
 }
 
-// TestReconcileProperty_DisjointKindsStillWarn pins that kinds no value shares
+// TestFold_DisjointKindsStillWarn pins that kinds no value shares
 // keep the conflicting-redeclaration warning, in both orders.
-func TestReconcileProperty_DisjointKindsStillWarn(t *testing.T) {
+func TestFold_DisjointKindsStillWarn(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
 		name string
@@ -1230,13 +1268,13 @@ func enumRegistry() map[ir.TypeID]ir.TypeDef {
 	return reg
 }
 
-// TestReconcileProperty_EnumPairsAreJudgedByKind pins, in both orders, what an
+// TestFold_EnumPairsAreJudgedByKind pins, in both orders, what an
 // enum side draws: an enum over a bare kind or a Scalar node it equals or
 // narrows wins; a bare kind or a Scalar node that admits one of its members
 // overlaps it, which is info and keeps the first declaration, as does a kind
 // with no judge; a kind that admits none of them warns, as does another
 // family; and two enums of one kind, each with members, overlap.
-func TestReconcileProperty_EnumPairsAreJudgedByKind(t *testing.T) {
+func TestFold_EnumPairsAreJudgedByKind(t *testing.T) {
 	t.Parallel()
 	enum := func(id ir.TypeID) ir.TypeRef { return ir.TypeRef{Target: id} }
 	cases := []struct {
@@ -1264,7 +1302,7 @@ func TestReconcileProperty_EnumPairsAreJudgedByKind(t *testing.T) {
 				dst := ir.Property{WireName: "x", Type: order[0], Provenance: ptrAt("/allOf/0/properties/x")}
 				src := ir.Property{WireName: "x", Type: order[1], Provenance: ptrAt("/allOf/1/properties/x")}
 
-				g.reconcileProperty(&dst, new(origins), src, written(`{"type":"x"}`))
+				dst = foldTwo(g, dst, src, written(`{"type":"x"}`))
 
 				wantTarget := order[0].Target
 				if tc.winner != "" {
@@ -1284,7 +1322,7 @@ func TestReconcileProperty_EnumPairsAreJudgedByKind(t *testing.T) {
 	}
 }
 
-// TestReconcileProperty_AnInadmissibleValueIsKeptNotAdopted pins that no
+// TestFold_AnInadmissibleValueIsKeptNotAdopted pins that no
 // declaration of a fold lands a default or example the merged field does not
 // admit: the field carries no such value, and one info and one Unmodeled entry
 // sit at each declaration that wrote it, identical whichever comes first. The
@@ -1292,7 +1330,7 @@ func TestReconcileProperty_EnumPairsAreJudgedByKind(t *testing.T) {
 // out-of-range default, a non-UUID example) and a null the merged field no
 // longer admits; the helpers add every writer, late writers, and a null on
 // either side of a fold.
-func TestReconcileProperty_AnInadmissibleValueIsKeptNotAdopted(t *testing.T) {
+func TestFold_AnInadmissibleValueIsKeptNotAdopted(t *testing.T) {
 	t.Parallel()
 	const broadPtr, narrowPtr = "/allOf/0/properties/p", "/allOf/1/properties/p"
 	half, big, hello := num("1.5"), num("5000000000"), str("hello")
@@ -1326,12 +1364,13 @@ func TestReconcileProperty_AnInadmissibleValueIsKeptNotAdopted(t *testing.T) {
 		var merged [2]ir.Property
 		var diags [2][]ir.Diagnostic
 		for i, broadFirst := range []bool{true, false} {
-			g, recorded := stubMerger(narrowingRegistry())
+			reg := narrowingRegistry()
+			g, recorded := stubMerger(reg)
 			broad := ir.Property{WireName: "p", Type: primRef(tc.broad), Provenance: ptrAt(broadPtr)}
 			tc.decorate(&broad)
 			narrow := ir.Property{WireName: "p", Type: primRef(tc.narrow), Provenance: ptrAt(narrowPtr)}
 			m := &ir.Model{}
-			idx := NewPropIndex()
+			idx, settle := indexOver(m, reg, g)
 			first, second := broad, narrow
 			firstSrc, secondSrc := written(tc.raw), unread(t)
 			if !broadFirst {
@@ -1339,8 +1378,9 @@ func TestReconcileProperty_AnInadmissibleValueIsKeptNotAdopted(t *testing.T) {
 				firstSrc, secondSrc = unread(t), written(tc.raw)
 				first.Provenance, second.Provenance = ptrAt(narrowPtr), ptrAt(broadPtr)
 			}
-			g.MergeProperty(m, idx, first, firstSrc)
-			g.MergeProperty(m, idx, second, secondSrc)
+			idx.MergeProperty(first, firstSrc)
+			idx.MergeProperty(second, secondSrc)
+			settle()
 
 			require.Len(t, m.Properties, 1, "%s", tc.name)
 			merged[i], diags[i] = m.Properties[0], *recorded
@@ -1471,17 +1511,19 @@ type decl struct {
 // property and the diagnostics recorded.
 func mergeDecls(t *testing.T, decls ...decl) (ir.Property, []ir.Diagnostic) {
 	t.Helper()
-	g, recorded := stubMerger(narrowingRegistry())
+	reg := narrowingRegistry()
+	g, recorded := stubMerger(reg)
 	m := &ir.Model{}
-	idx := NewPropIndex()
+	idx, settle := indexOver(m, reg, g)
 	for _, d := range decls {
 		p := ir.Property{WireName: "p", Type: primRef(d.kind), Default: d.def, Provenance: ptrAt(d.ptr)}
 		p.Type.Nullable = d.nullable
 		for i := range d.examples {
 			p.Examples = append(p.Examples, ir.Example{Value: &d.examples[i]})
 		}
-		g.MergeProperty(m, idx, p, written(d.raw))
+		idx.MergeProperty(p, written(d.raw))
 	}
+	settle()
 	require.Len(t, m.Properties, 1)
 	return m.Properties[0], *recorded
 }
@@ -1616,10 +1658,10 @@ func assertRefusedValuesAreKeptAtTheirOwnDeclarations(t *testing.T) {
 	assert.Equal(t, jsontext.Pointer("/allOf/1"), diags[1].Provenance.Pointer)
 }
 
-// TestReconcileProperty_ALowerCaseDateTimeIsAdopted pins that RFC 3339 admits
+// TestFold_ALowerCaseDateTimeIsAdopted pins that RFC 3339 admits
 // a lower-case T and Z, so a string default of that spelling lands on a
 // datetime_offset field rather than being refused.
-func TestReconcileProperty_ALowerCaseDateTimeIsAdopted(t *testing.T) {
+func TestFold_ALowerCaseDateTimeIsAdopted(t *testing.T) {
 	t.Parallel()
 	lower := str("2024-01-01t00:00:00z")
 	got, diags := mergeDecls(t,
@@ -1631,30 +1673,29 @@ func TestReconcileProperty_ALowerCaseDateTimeIsAdopted(t *testing.T) {
 	assert.Empty(t, got.Unmodeled)
 }
 
-// TestReconcileProperty_ARefusedValueFromAnIndexlessDeclarationIsReported pins
-// that a broader first declaration with no recorded source is reported
-// unkeepable rather than dropped silently.
-func TestReconcileProperty_ARefusedValueFromAnIndexlessDeclarationIsReported(t *testing.T) {
+// TestFold_ADeclarationWithNoSourceIsReportedUnkeepable pins that a
+// declaration the fold must keep but has no source for is reported as kept in
+// no form, rather than dropped silently.
+func TestFold_ADeclarationWithNoSourceIsReportedUnkeepable(t *testing.T) {
 	t.Parallel()
 	g, recorded := stubMerger(narrowingRegistry())
 	half := num("1.5")
-	m := &ir.Model{Properties: []ir.Property{{WireName: "p", Type: primRef(ir.PrimNumber), Default: &half, Provenance: ptrAt("/a")}}}
-	at := origin{prov: ptrAt("/a")}
-	idx := &PropIndex{byWire: map[string]*indexed{"p": {pos: 0, origins: origins{def: []origin{at}, examples: []origin{at}}}}}
 
-	g.MergeProperty(m, idx, ir.Property{WireName: "p", Type: primRef(ir.PrimInteger), Provenance: ptrAt("/b")}, unread(t))
+	got := foldTwo(g,
+		ir.Property{WireName: "p", Type: primRef(ir.PrimNumber), Default: &half, Provenance: ptrAt("/a")},
+		ir.Property{WireName: "p", Type: primRef(ir.PrimInteger), Provenance: ptrAt("/b")}, unread(t))
 
 	require.Len(t, *recorded, 2)
 	assert.Equal(t, diag.DegradedConstruct, (*recorded)[0].Code)
 	assert.Equal(t, diag.UnpreservableConstruct, (*recorded)[1].Code)
 	assert.Contains(t, (*recorded)[1].Message, errNoSource.Error())
-	assert.Empty(t, m.Properties[0].Unmodeled)
+	assert.Empty(t, got.Unmodeled)
 }
 
-// TestReconcileProperty_AScalarOverANarrowerKindWins pins that a Scalar over a
+// TestFold_AScalarOverANarrowerKindWins pins that a Scalar over a
 // kind the bare side equals or contains wins in either order, with no
 // diagnostic and no kept declaration.
-func TestReconcileProperty_AScalarOverANarrowerKindWins(t *testing.T) {
+func TestFold_AScalarOverANarrowerKindWins(t *testing.T) {
 	t.Parallel()
 	reg := judgeRegistry()
 	for i, order := range [][2]ir.TypeRef{
@@ -1665,7 +1706,7 @@ func TestReconcileProperty_AScalarOverANarrowerKindWins(t *testing.T) {
 		dst := ir.Property{WireName: "x", Type: order[0], Provenance: ptrAt("/allOf/0/properties/x")}
 		src := ir.Property{WireName: "x", Type: order[1], Provenance: ptrAt("/allOf/1/properties/x")}
 
-		g.reconcileProperty(&dst, new(origins), src, unread(t))
+		dst = foldTwo(g, dst, src, unread(t))
 
 		assert.Equal(t, ir.TypeID("t/scalar-int"), dst.Type.Target, "order %d", i)
 		assert.Empty(t, *recorded, "order %d", i)
@@ -1673,11 +1714,11 @@ func TestReconcileProperty_AScalarOverANarrowerKindWins(t *testing.T) {
 	}
 }
 
-// TestReconcileProperty_TheTopTypeTakesTheOtherSidesNullAdmission pins that a
+// TestFold_TheTopTypeTakesTheOtherSidesNullAdmission pins that a
 // narrower type over the top type keeps its own null admission rather than the
 // conjunction with the top type's, since the top type admits null yet lowers
 // non-nullable.
-func TestReconcileProperty_TheTopTypeTakesTheOtherSidesNullAdmission(t *testing.T) {
+func TestFold_TheTopTypeTakesTheOtherSidesNullAdmission(t *testing.T) {
 	t.Parallel()
 	nullable := func(r ir.TypeRef) ir.TypeRef { r.Nullable = true; return r }
 	for i, order := range [][2]ir.TypeRef{
@@ -1688,7 +1729,7 @@ func TestReconcileProperty_TheTopTypeTakesTheOtherSidesNullAdmission(t *testing.
 		dst := ir.Property{WireName: "x", Type: order[0], Provenance: ptrAt("/allOf/0/properties/x")}
 		src := ir.Property{WireName: "x", Type: order[1], Provenance: ptrAt("/allOf/1/properties/x")}
 
-		g.reconcileProperty(&dst, new(origins), src, unread(t))
+		dst = foldTwo(g, dst, src, unread(t))
 
 		assert.Equal(t, nullable(primRef(ir.PrimInteger)), dst.Type, "nullable integer (order %d)", i)
 		assert.Empty(t, *recorded, "order %d", i)
@@ -1750,12 +1791,12 @@ func twinRegistry() map[ir.TypeID]ir.TypeDef {
 	return reg
 }
 
-// TestReconcileProperty_IdenticalNodesAreOneType pins, in both orders, that two
+// TestFold_IdenticalNodesAreOneType pins, in both orders, that two
 // hoisted Enum, Literal or Scalar nodes equal but for what names their site are
 // one type: no diagnostic and nothing kept aside. A named node wins over a
 // hoisted copy of itself, and two named ones, or a pair that differs in a
 // field, member order included, are an overlap reported as info.
-func TestReconcileProperty_IdenticalNodesAreOneType(t *testing.T) {
+func TestFold_IdenticalNodesAreOneType(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name string
@@ -1787,7 +1828,7 @@ func TestReconcileProperty_IdenticalNodesAreOneType(t *testing.T) {
 					}
 				}
 
-				g.reconcileProperty(&dst, &origins{typeAt: dst.Provenance}, src, written(`{"type":"x"}`))
+				dst = foldTwo(g, dst, src, written(`{"type":"x"}`))
 
 				want := tc.win
 				if want == "" {

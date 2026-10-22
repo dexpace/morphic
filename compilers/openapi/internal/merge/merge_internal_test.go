@@ -46,6 +46,26 @@ func stubMerger(reg map[ir.TypeID]ir.TypeDef) (*Merger, *[]ir.Diagnostic) {
 	return g, recorded
 }
 
+// foldTwo folds src, rendered by source, into dst, a first declaration with
+// no source recorded: the pair the walk hands over for one redeclared field.
+func foldTwo(g *Merger, dst, src ir.Property, source Source) ir.Property {
+	return g.fold([]declaration{{prop: dst}, {prop: src, source: source}})
+}
+
+// indexOver returns an index filling m, and settle, which folds what the index
+// queued against reg and reports through g, as Finish takes the compiler's
+// completions once every lowering has returned.
+func indexOver(m *ir.Model, reg map[ir.TypeID]ir.TypeDef, g *Merger) (idx *PropIndex, settle func()) {
+	var queued []Settle
+	idx = NewPropIndex(m, func(s Settle) { queued = append(queued, s) })
+	return idx, func() {
+		for _, s := range queued {
+			s(reg, g.Report)
+		}
+		queued = nil
+	}
+}
+
 func TestMerger_TypesConflictComparesReferentsNotReferences(t *testing.T) {
 	t.Parallel()
 	g, _ := stubMerger(map[ir.TypeID]ir.TypeDef{
@@ -61,7 +81,7 @@ func TestMerger_TypesConflictComparesReferentsNotReferences(t *testing.T) {
 		"two distinct nodes of one primitive kind are compared by kind, and the fold left them apart")
 	assert.Equal(t, verdictConflict, g.typesConflict(ref("t/a"), ref("t/i")),
 		"string and integer cannot both be satisfied")
-	assert.Equal(t, verdictSilent, g.typesConflict(ref("t/any"), ref("t/i")),
+	assert.Equal(t, verdictUncompared, g.typesConflict(ref("t/any"), ref("t/i")),
 		"the top type absorbs anything, so it conflicts with nothing")
 	assert.Equal(t, verdictConflict, g.typesConflict(ref("t/m"), ref("t/a")),
 		"a structural type and a primitive are different kinds")
@@ -80,7 +100,7 @@ func TestMerger_ReconcileReportsDisagreementAndKeepsAWinner(t *testing.T) {
 	src := ir.Property{Name: ir.Naming{Source: "id"}, WireName: "id", Type: ir.TypeRef{Target: "t/int"},
 		Provenance: ptrAt("/components/schemas/S/properties/id")}
 
-	g.reconcileProperty(&dst, new(origins), src, written(`{"type":"integer"}`))
+	dst = foldTwo(g, dst, src, written(`{"type":"integer"}`))
 
 	require.Len(t, *recorded, 1, "one disagreement, one diagnostic")
 	d := (*recorded)[0]

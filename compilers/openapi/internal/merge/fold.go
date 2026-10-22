@@ -1,0 +1,390 @@
+package merge
+
+import (
+	"encoding/json/jsontext"
+	"fmt"
+	"reflect"
+	"slices"
+	"strings"
+
+	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/ir"
+)
+
+// Merger folds the declarations of one field into the property they make
+// together. It reads the registry through Resolve and reports through Report,
+// so a fold can be driven against a map and a recorder rather than a document.
+// PropIndex runs it once every node exists.
+type Merger struct {
+	// Resolve looks a type up in the registry. The judgment compares what two
+	// references point at, not the references themselves.
+	Resolve func(ir.TypeID) (ir.TypeDef, bool)
+	// Report records one diagnostic a fold draws.
+	Report Reporter
+}
+
+// declaration is one declaration of a field, as the walk lowered it, and how
+// to render it verbatim.
+type declaration struct {
+	prop   ir.Property
+	source Source
+}
+
+// fold returns the property decls make together under allOf intersection
+// (ir-design §4.3, docs/compilers/openapi.md#allof-redeclared-property). decls
+// is every declaration of one wire name, at least two, in declaration order;
+// the field keeps the first one's identity. Every fact is decided from the
+// whole set, so declaration order decides only a tie, and the merge reports
+// each one. What a declaration says that the field does not carry is reported
+// at that declaration, which is kept verbatim beside the field.
+func (g *Merger) fold(decls []declaration) ir.Property {
+	f := newFolding(g, decls)
+	f.foldType()
+	f.foldConstraints()
+	f.foldValues()
+	f.foldUse()
+	f.foldDocs()
+	f.foldAnnotations()
+	return f.finish()
+}
+
+// folding is one fold in progress.
+type folding struct {
+	g     *Merger
+	decls []declaration
+	// rel[i][j] is the judgment of decls[i]'s type against decls[j]'s.
+	rel [][]relation
+	// winner is the declaration whose type the field takes, and cone marks
+	// each declaration whose type is the same as the winner's or broader: the
+	// field's type holds every one of them, so it adopts their shape detail.
+	winner int
+	cone   []bool
+	merged ir.Property
+	// notes holds what the fold reports at each declaration, in order, and
+	// lost marks each declaration something of which the field does not carry.
+	notes [][]note
+	lost  []bool
+}
+
+// note is one diagnostic the fold reports at a declaration.
+type note struct {
+	sev  ir.Severity
+	code string
+	msg  string
+}
+
+// newFolding judges every pair of decls once, picks the winner (widestCone),
+// and starts the field from the first declaration, whose identity it keeps.
+func newFolding(g *Merger, decls []declaration) *folding {
+	n := len(decls)
+	f := &folding{
+		g: g, decls: decls, rel: make([][]relation, n), cone: make([]bool, n),
+		notes: make([][]note, n), lost: make([]bool, n), merged: decls[0].prop,
+	}
+	for i := range n {
+		f.rel[i] = make([]relation, n)
+		f.rel[i][i] = relSame
+	}
+	for i := range n {
+		for j := i + 1; j < n; j++ {
+			judge := typeJudge{Resolve: g.Resolve, written: [2]ir.Provenance{decls[i].prop.Provenance, decls[j].prop.Provenance}}
+			rel := judge.relate(decls[i].prop.Type, decls[j].prop.Type)
+			f.rel[i][j], f.rel[j][i] = rel, rel.flipped()
+		}
+	}
+	f.winner = f.widestCone()
+	for i := range n {
+		f.cone[i] = f.holds(f.winner, i)
+	}
+	return f
+}
+
+// holds reports whether decls[i]'s type is the same as decls[j]'s or narrower:
+// a field of decls[i]'s type loses nothing decls[j] says of its type.
+func (f *folding) holds(i, j int) bool {
+	return f.rel[i][j] == relSame || f.rel[i][j] == relANarrower
+}
+
+// widestCone returns the declaration whose type holds the most declarations'
+// types, the first of them on a tie. Where one type holds every other, it is
+// the intersection and wins whatever the order; otherwise the field keeps the
+// type that loses the fewest declarations, and each it loses is reported.
+func (f *folding) widestCone() int {
+	best, widest := 0, 0
+	for i := range f.decls {
+		width := 0
+		for j := range f.decls {
+			if f.holds(i, j) {
+				width++
+			}
+		}
+		if width > widest {
+			best, widest = i, width
+		}
+	}
+	return best
+}
+
+// foldType settles the field's type: the winner's target, admitting null only
+// where every declaration in its cone does (intersectNull), as foldNullVerdicts
+// states for a single schema. The top type admits null whatever its bit says,
+// so a cone member that is the top type below a winner that is not says nothing
+// of null. Every declaration outside the cone loses its type (drop).
+func (f *folding) foldType() {
+	var merged ir.TypeRef
+	seeded := false
+	for i, d := range f.decls {
+		switch {
+		case !f.cone[i]:
+			f.drop(i)
+		case f.rel[f.winner][i] != relSame && f.targetsTop(d.prop.Type):
+		case !seeded:
+			merged, seeded = d.prop.Type, true
+		default:
+			merged = intersectNull(merged, d.prop.Type)
+		}
+	}
+	merged.Target = f.decls[f.winner].prop.Type.Target
+	f.merged.Type = merged
+}
+
+// targetsTop reports whether ref targets the schemaless top type, a bare
+// PrimAny (isTop).
+func (f *folding) targetsTop(ref ir.TypeRef) bool {
+	td, ok := f.g.Resolve(ref.Target)
+	return ok && isTop(td)
+}
+
+// drop reports how decls[i]'s type, which the field does not hold, relates to
+// the winner's (dropVerdict), even where nothing says how, since the type the
+// field keeps then follows declaration order; and it marks the declaration
+// lost. Its default, constraints and examples go with its type: they describe
+// the shape that lost, and nothing downstream compares a Value's kind to its
+// property's type, so adopting them would leave one field asserting two
+// contradictory things.
+func (f *folding) drop(i int) {
+	f.lost[i] = true
+	w, d := f.decls[f.winner].prop.Type, f.decls[i].prop.Type
+	switch f.g.dropVerdict(f.rel[f.winner][i], w, d) {
+	case verdictConflict:
+		f.disagree(i, f.winner, fmt.Sprintf("incompatible types %s and %s", w.Target, d.Target))
+	case verdictOverlap:
+		f.note(i, ir.SeverityInfo, diag.DegradedConstruct,
+			"declarations of field %q give types %s and %s whose values overlap but that the merge does not "+
+				"narrow to one; kept the type the declaration at %s gives over the one at %s, which is kept "+
+				"verbatim under Unmodeled",
+			f.merged.WireName, w.Target, d.Target, f.at(f.winner), f.at(i))
+	case verdictUncompared:
+		f.note(i, ir.SeverityInfo, diag.DegradedConstruct,
+			"declarations of field %q give types %s and %s that the merge does not compare; kept the type the "+
+				"declaration at %s gives over the one at %s, which is kept verbatim under Unmodeled",
+			f.merged.WireName, w.Target, d.Target, f.at(f.winner), f.at(i))
+	}
+}
+
+// disagree notes the conflicting-redeclaration warning at decls[i], which says
+// something of the field, detail, that decls[kept] says otherwise, and marks it
+// lost. Warning, not info: the two cannot both hold, or the merge kept one over
+// the true intersection (#10), which may loosen what the spec intended. It says
+// "declarations", not "allOf branches", because a declaration can sit beside
+// allOf rather than inside a branch.
+func (f *folding) disagree(i, kept int, detail string) {
+	f.lost[i] = true
+	f.note(i, ir.SeverityWarning, diag.ConflictingRedecl,
+		"declarations of field %q disagree: %s; kept what the declaration at %s says over the one at %s, "+
+			"which is kept verbatim under Unmodeled", f.merged.WireName, detail, f.at(kept), f.at(i))
+}
+
+// at is where decls[i] was written.
+func (f *folding) at(i int) jsontext.Pointer { return f.decls[i].prop.Provenance.Pointer }
+
+// foldConstraints merges the constraint keywords of the cone in declaration
+// order: the first declaration to set a keyword keeps it (mergeConstraints),
+// and one pinning a kept keyword to another value is reported against the
+// declaration it was kept from, and kept. The merge starts from a copy, so no
+// declaration's constraints are written to.
+func (f *folding) foldConstraints() {
+	keywords := constraintKeywords()
+	setBy := make([]int, len(keywords))
+	var kept *ir.Constraints
+	for i, d := range f.decls {
+		c := d.prop.Constraints
+		if !f.cone[i] || c == nil {
+			continue
+		}
+		if k, detail, conflict := constraintsConflict(kept, c); conflict {
+			f.disagree(i, setBy[k], detail)
+		}
+		for k, kw := range keywords {
+			if kw.set(c) && (kept == nil || !kw.set(kept)) {
+				setBy[k] = i
+			}
+		}
+		if kept == nil {
+			own := *c
+			kept = &own
+			continue
+		}
+		kept = mergeConstraints(kept, c)
+	}
+	f.merged.Constraints = kept
+}
+
+// foldValues settles the default and the examples from the cone. A value the
+// field does not take (takes) is refused, reported and kept at the declaration
+// that wrote it; of the rest, the first written is kept, and a declaration
+// writing another is reported and kept. Refusing first means a value the field
+// takes is kept whichever order the declarations come in.
+func (f *folding) foldValues() {
+	nullable := f.merged.Type.Nullable || f.g.isAnyType(f.merged.Type)
+	takesDefault := make([]bool, len(f.decls))
+	takesExamples := make([]bool, len(f.decls))
+	for i, d := range f.decls {
+		if !f.cone[i] {
+			continue
+		}
+		var refused []string
+		takesDefault[i] = d.prop.Default == nil || f.takes(i, *d.prop.Default, nullable)
+		if !takesDefault[i] {
+			refused = append(refused, "default")
+		}
+		takesExamples[i] = !slices.ContainsFunc(d.prop.Examples, func(e ir.Example) bool {
+			return e.Value != nil && !f.takes(i, *e.Value, nullable)
+		})
+		if !takesExamples[i] {
+			refused = append(refused, "examples")
+		}
+		if len(refused) > 0 {
+			f.lost[i] = true
+			f.note(i, ir.SeverityInfo, diag.DegradedConstruct,
+				"the type the declarations of field %q merge it to does not admit the %s this declaration "+
+					"gives; not adopted, with this declaration verbatim under Unmodeled",
+				f.merged.WireName, strings.Join(refused, " and "))
+		}
+	}
+	f.merged.Default = firstWritten(f, "default", func(i int, p *ir.Property) (*ir.Value, bool) {
+		return p.Default, takesDefault[i] && p.Default != nil
+	}, func(a, b *ir.Value) bool { return reflect.DeepEqual(a, b) })
+	f.merged.Examples = firstWritten(f, "examples", func(i int, p *ir.Property) ([]ir.Example, bool) {
+		return p.Examples, takesExamples[i] && len(p.Examples) > 0
+	}, func(a, b []ir.Example) bool { return reflect.DeepEqual(a, b) })
+}
+
+// takes reports whether the field takes v, which decls[i] wrote: a null where
+// the field admits null, which the top type always does (nullable), and any
+// other value where decls[i]'s own type is the field's or the field's type
+// admits it. A value a declaration writes against its own type is that
+// declaration's to answer for, not the fold's.
+func (f *folding) takes(i int, v ir.Value, nullable bool) bool {
+	if v.Kind == ir.ValueNull {
+		return nullable
+	}
+	if f.rel[f.winner][i] == relSame {
+		return true
+	}
+	ref := f.merged.Type
+	ref.Nullable = nullable
+	return typeJudge{Resolve: f.g.Resolve}.admits(ref, v)
+}
+
+// foldUse settles who sends the field and sees it: required and secret where
+// any declaration says so, and visible only in the lifecycles every
+// declaration admits (mergeVisibility). Declarations that empty a set none had
+// emptied on its own are reported where the last of them is written; nothing
+// is discarded, so nothing is kept.
+func (f *folding) foldUse() {
+	for i, d := range f.decls {
+		f.merged.Required = f.merged.Required || d.prop.Required
+		f.merged.Secret = f.merged.Secret || d.prop.Secret
+		if i == 0 {
+			continue
+		}
+		visibility := mergeVisibility(f.merged.Visibility, d.prop.Visibility)
+		if visibility.None && !f.merged.Visibility.None && !d.prop.Visibility.None {
+			f.note(i, ir.SeverityWarning, diag.DisjointVisibility,
+				"allOf branches restrict field %q to disjoint lifecycles; the merged field is visible in none",
+				f.merged.WireName)
+		}
+		f.merged.Visibility = visibility
+	}
+}
+
+// foldDocs settles the field's title, description and external links, each the
+// first declaration's to give one (firstWritten), from every declaration: docs
+// describe the field, not a shape, so a dropped declaration's count too.
+func (f *folding) foldDocs() {
+	same := func(a, b string) bool { return a == b }
+	f.merged.Docs.Summary = firstWritten(f, "title", func(_ int, p *ir.Property) (string, bool) {
+		return p.Docs.Summary, p.Docs.Summary != ""
+	}, same)
+	f.merged.Docs.Description = firstWritten(f, "description", func(_ int, p *ir.Property) (string, bool) {
+		return p.Docs.Description, p.Docs.Description != ""
+	}, same)
+	f.merged.Docs.ExternalDocs = firstWritten(f, "external docs", func(_ int, p *ir.Property) ([]ir.Link, bool) {
+		return p.Docs.ExternalDocs, len(p.Docs.ExternalDocs) > 0
+	}, slices.Equal[[]ir.Link])
+}
+
+// foldAnnotations settles the field's deprecation and XML hints as foldDocs
+// settles its docs: neither is bound to a shape.
+func (f *folding) foldAnnotations() {
+	f.merged.Deprecation = firstWritten(f, "deprecation", func(_ int, p *ir.Property) (*ir.Deprecation, bool) {
+		return p.Deprecation, p.Deprecation != nil
+	}, func(a, b *ir.Deprecation) bool { return *a == *b })
+	f.merged.XML = firstWritten(f, "xml", func(_ int, p *ir.Property) (*ir.XMLHints, bool) {
+		return p.XML, p.XML != nil
+	}, func(a, b *ir.XMLHints) bool { return *a == *b })
+}
+
+// firstWritten returns the first value of detail a declaration gives (of), or
+// the zero value when none gives one. A later declaration giving a value that
+// is not the same is reported and kept: the field has one slot for it.
+//
+// Each caller says what is the same. A Value or an example list compares
+// deeply, which tells a nil slice from an empty one, but every declaration was
+// lowered by the same code, so two spellings the source wrote alike cannot land
+// on opposite sides.
+func firstWritten[T any](f *folding, detail string, of func(i int, p *ir.Property) (T, bool), same func(a, b T) bool) T {
+	var kept T
+	at := -1
+	for i := range f.decls {
+		v, gives := of(i, &f.decls[i].prop)
+		switch {
+		case !gives:
+		case at < 0:
+			kept, at = v, i
+		case !same(kept, v):
+			f.lost[i] = true
+			f.note(i, ir.SeverityInfo, diag.DegradedConstruct,
+				"declarations of field %q give its %s differently; kept the one the declaration at %s gives "+
+					"over the one at %s, which is kept verbatim under Unmodeled",
+				f.merged.WireName, detail, f.at(at), f.at(i))
+		}
+	}
+	return kept
+}
+
+// note records a diagnostic for decls[i], reported when the fold finishes.
+func (f *folding) note(i int, sev ir.Severity, code, format string, args ...any) {
+	f.notes[i] = append(f.notes[i], note{sev: sev, code: code, msg: fmt.Sprintf(format, args...)})
+}
+
+// finish unions every declaration's Unmodeled into the field's, a later
+// declaration winning a key two share, and then reports, declaration by
+// declaration, what the fold noted there, keeping each declaration it lost
+// something of verbatim (keepLosingDeclaration).
+func (f *folding) finish() ir.Property {
+	for _, d := range f.decls[1:] {
+		f.merged.Unmodeled = annotation.MergeUnmodeled(f.merged.Unmodeled, d.prop.Unmodeled)
+	}
+	for i, d := range f.decls {
+		for _, n := range f.notes[i] {
+			f.g.Report(n.sev, n.code, f.at(i), "%s", n.msg)
+		}
+		if f.lost[i] {
+			f.g.keepLosingDeclaration(&f.merged, d.prop.Provenance, d.source)
+		}
+	}
+	return f.merged
+}

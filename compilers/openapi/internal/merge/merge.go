@@ -1,10 +1,11 @@
 // Package merge reconciles the properties more than one allOf branch declares:
-// either folding two declarations into one or reporting that they disagree.
+// either folding the declarations into one or reporting that they disagree.
 //
 // It is the compiler's most intricate logic and the part least tied to the walk
-// that drives it. Everything it needs from the rest of lowering arrives as the
-// function fields on Merger, so the conflict lattice can be exercised
-// against a map and a recorder rather than a document.
+// that drives it. The walk hands it each declaration through a PropIndex, and a
+// Merger folds a field's declarations once the registry is whole, reading it
+// through a function, so the conflict lattice can be exercised against a map
+// and a recorder rather than a document.
 package merge
 
 import (
@@ -12,7 +13,6 @@ import (
 	"encoding/json/jsontext"
 	"errors"
 	"fmt"
-	"reflect"
 	"slices"
 	"strings"
 
@@ -22,37 +22,22 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// Merger reconciles properties that more than one allOf branch declares:
-// either merging the two declarations or reporting that they disagree.
-//
-// Which type a redeclaration settles on, and whether the two conflict, reads
-// the nodes both declarations name, and a walk may not have built one yet. A
-// fold that would read a node the registry lacks is deferred whole until every
-// node exists (Defer), so neither what is folded nor what is reported follows
-// declaration order (GitHub #898).
-type Merger struct {
-	// Resolve looks a type up in the registry. Conflict detection compares what
-	// two references point at, not the references themselves.
-	Resolve func(ir.TypeID) (ir.TypeDef, bool)
-	// Report records the diagnostics a decision taken now draws.
-	Report Reporter
-	// Defer queues a decision for once every node exists. It may be nil, and a
-	// redeclaration is then always judged against the registry as it stands.
-	Defer func(Settle)
-}
-
 // Reporter records one diagnostic at pointer, attributed to the input document
 // that supplied that position.
 type Reporter func(sev ir.Severity, code string, pointer jsontext.Pointer, format string, args ...any)
 
-// Settle is a decision taken against the registry the walk left. It reports
-// through report, not through the Merger it was queued by, whose sink belongs
-// to a walk that has returned.
+// Source renders the construct a declaration was written as, verbatim. It is a
+// function because nearly every property is declared once, and rendering a node
+// nobody will keep is a cost the merge asks for only when it has something to
+// keep.
+type Source func() (ir.RawValue, error)
+
+// Settle folds what a PropIndex queued against reg, the registry every
+// lowering left, reporting through report.
 type Settle func(reg ir.TypeRegistry, report Reporter)
 
 // WireNameIndex maps each property's wire name to its position in props, so a
-// redeclaration reconciles in one lookup rather than a rescan (fillModelProperties
-// runs once per allOf branch, so a linear scan would be quadratic in a wide model).
+// lookup by name is one map read rather than a rescan of a wide model.
 func WireNameIndex(props []ir.Property) map[string]int {
 	idx := make(map[string]int, len(props))
 	for i := range props {
@@ -61,252 +46,77 @@ func WireNameIndex(props []ir.Property) map[string]int {
 	return idx
 }
 
-// Source renders the construct a declaration was written as, verbatim. It is a
-// function because nearly every property is declared once, and rendering a node
-// nobody will keep is a cost the merge asks for only when it has something to
-// keep.
-type Source func() (ir.RawValue, error)
-
-// PropIndex finds, for each wire name of one Model, the position of the
-// property that holds it and every declaration that wrote its default and
-// examples. An origin's Source is what lets a declaration whose value the merge
-// refuses be kept verbatim beside the merged field, as a redeclaration is
-// (keepLosingDeclaration).
+// PropIndex is the properties of one Model as the walk declares them. The
+// first declaration of a wire name lands on the model at once, so the walk can
+// read its ID and mark it required; every later one is recorded, and the
+// model's fields fold once the registry is whole (Settle). Which type a field
+// folds to compares the nodes its declarations name, which the walk may not
+// have built yet, so a fold mid-walk would follow declaration order (GitHub
+// #898).
 type PropIndex struct {
-	byWire map[string]*indexed
+	m      *ir.Model
+	later  func(Settle)
+	byWire map[string]*field
+	// redeclared lists the fields declared more than once, in the order of
+	// their first redeclaration.
+	redeclared []*field
 }
 
-// indexed is one property's position in its Model and the origins of its values.
-type indexed struct {
-	pos int
-	origins
-	// pending holds the redeclarations queued for Settle, once one was. Every
-	// later one joins it, so no fold compares against a property an earlier
-	// fold has not produced.
-	pending *deferredFold
+// field is one wire name of the model: where its property sits, how to render
+// the declaration that put it there, and each declaration after that one.
+type field struct {
+	pos   int
+	first Source
+	rest  []declaration
 }
 
-// origin is one declaration: where it was written and how to render it.
-type origin struct {
-	prov   ir.Provenance
-	source Source
+// NewPropIndex returns an empty index of m's properties; m holds none yet, so
+// every property reaches it through MergeProperty. later queues the model's
+// folds, once, at its first redeclaration, for once every lowering has
+// returned; it must not be nil.
+func NewPropIndex(m *ir.Model, later func(Settle)) *PropIndex {
+	return &PropIndex{m: m, later: later, byWire: map[string]*field{}}
 }
 
-// origins lists, for the default and for the examples a property holds, every
-// declaration that wrote that value, equal values included. A value the field
-// newly holds replaces its list. Once a refusal empties the field the list is
-// stale and unread, and the next value written replaces it.
-type origins struct {
-	def, examples []origin
-	// typeAt is where the declaration whose type the property holds was
-	// written, its document and pointer, which a narrowing moves to the
-	// redeclaration that won.
-	typeAt ir.Provenance
-}
-
-// NewPropIndex returns an empty index. A Model fills from empty, so every
-// property reaches it through MergeProperty.
-func NewPropIndex() *PropIndex {
-	return &PropIndex{byWire: map[string]*indexed{}}
-}
-
-// MergeProperty appends p to m and records it in idx, or folds it into the
-// property that already carries the same wire name — overlapping allOf branches
-// (and properties co-declared alongside allOf) redeclare one logical field under
-// allOf's intersection semantics (ir-design §4.3). Callers must set p.WireName
-// (fillModelProperties always does); it keys idx directly.
+// MergeProperty appends p to the model, or records it as one more declaration
+// of the field that already carries its wire name: overlapping allOf branches
+// (and properties co-declared alongside allOf) redeclare one logical field
+// under allOf's intersection semantics (ir-design §4.3). Callers must set
+// p.WireName (fillModelProperties always does); it keys idx directly.
 //
 // p.Provenance locates the declaration, and is the only source of that fact
 // here. It used to arrive twice — as a parameter and on p — equal by
 // construction at the one call site, which left nothing able to catch them
 // disagreeing.
-func (g *Merger) MergeProperty(m *ir.Model, idx *PropIndex, p ir.Property, source Source) {
-	if e, ok := idx.byWire[p.WireName]; ok {
-		foldOrDefer(g, m, e, p, source)
+func (idx *PropIndex) MergeProperty(p ir.Property, source Source) {
+	f, ok := idx.byWire[p.WireName]
+	if !ok {
+		idx.byWire[p.WireName] = &field{pos: len(idx.m.Properties), first: source}
+		idx.m.Properties = append(idx.m.Properties, p)
 		return
 	}
-	at := []origin{{prov: p.Provenance, source: source}}
-	e := &indexed{pos: len(m.Properties)}
-	e.def, e.examples, e.typeAt = at, at, p.Provenance
-	idx.byWire[p.WireName] = e
-	m.Properties = append(m.Properties, p)
+	if len(f.rest) == 0 {
+		if len(idx.redeclared) == 0 {
+			idx.later(idx.settle)
+		}
+		idx.redeclared = append(idx.redeclared, f)
+	}
+	f.rest = append(f.rest, declaration{prop: p, source: source})
 }
 
-// adopted moves each of the default and examples origins after a fold that
-// src took part in; had says whether dst held the keyword before it.
-func (o *origins) adopted(dst, src *ir.Property, hadDefault, hadExamples bool, at origin) {
-	o.def = moveOrigin(o.def, hadDefault, dst.Default != nil, reflect.DeepEqual(dst.Default, src.Default), at)
-	o.examples = moveOrigin(o.examples, hadExamples, len(dst.Examples) != 0, reflect.DeepEqual(dst.Examples, src.Examples), at)
-}
-
-// moveOrigin returns the writers of a value after src's fold. A value dst did
-// not hold but holds now was written by src alone; one dst held that src wrote
-// equal gains src as a writer; any other list is unchanged.
-func moveOrigin(list []origin, had, holds, equal bool, at origin) []origin {
-	switch {
-	case !holds:
-		return list
-	case !had:
-		return []origin{at}
-	case equal:
-		return append(slices.Clone(list), at)
-	default:
-		return list
+// settle folds each field declared more than once against reg, in the order of
+// its first redeclaration. A field's first declaration is read off the model as
+// the walk left it, required flag included. A fold reads only nodes the walk
+// built and writes only its own field, so no fold reads another's result.
+func (idx *PropIndex) settle(reg ir.TypeRegistry, report Reporter) {
+	g := Merger{
+		Resolve: func(id ir.TypeID) (ir.TypeDef, bool) { td, ok := reg[id]; return td, ok },
+		Report:  report,
 	}
-}
-
-// reconcileProperty folds a redeclaration src into the property dst already
-// holds, under allOf intersection semantics: required and secret are OR-ed,
-// visibility narrows to what both branches admit (mergeVisibility), and
-// optional details dst lacks are adopted from src. dst, the first declaration,
-// keeps its identity, and its type unless src narrows it. Unmodeled unions.
-//
-// What the fold cannot carry is reported where it is dropped, and the
-// redeclaration is kept whole beside the winner (keepLosingDeclaration). So is
-// a default or examples the merged type refuses (judgeAdopted), at every
-// declaration that wrote it.
-func (g *Merger) reconcileProperty(dst *ir.Property, org *origins, src ir.Property, source Source) {
-	pointer := src.Provenance.Pointer
-	dropped, lost, narrowed := g.recordRedeclarationConflict(dst, &src, org.typeAt)
-	if narrowed.broad == dst {
-		org.typeAt = src.Provenance
+	for _, f := range idx.redeclared {
+		decls := append([]declaration{{prop: idx.m.Properties[f.pos], source: f.first}}, f.rest...)
+		idx.m.Properties[f.pos] = g.fold(decls)
 	}
-	srcLost, keptDst := g.judgeAdopted(dst, &src, narrowed, dropped, org)
-	lost = lost || srcLost
-
-	dst.Required = dst.Required || src.Required
-	dst.Secret = dst.Secret || src.Secret
-
-	// Reported off mergeVisibility's inputs and result rather than from inside
-	// it: "the branches emptied a set neither had already emptied" is a fact
-	// about the intersection's arguments, so stating it here cannot drift from
-	// how the intersection is computed, and mergeVisibility stays a pure set
-	// operation with no diagnostic channel of its own.
-	visibility := mergeVisibility(dst.Visibility, src.Visibility)
-	if visibility.None && !dst.Visibility.None && !src.Visibility.None {
-		g.Report(ir.SeverityWarning, diag.DisjointVisibility, pointer,
-			"allOf branches restrict field %q to disjoint lifecycles; the merged field is visible in none", dst.WireName)
-	}
-	dst.Visibility = visibility
-
-	lost = g.foldDocs(dst, &src) || lost
-	// Skipped when src's type was dropped: default, constraints and examples
-	// describe the shape that lost, so folding them onto the winner makes the
-	// document assert two contradictory things about one field — an integer
-	// carrying a string default, beside an Unmodeled entry saying the string
-	// declaration was dropped. Nothing downstream compares a Value's kind to its
-	// property's type, so an emitter renders that pair into code that does not
-	// compile. Keyed on the drop, not on the conflict diagnostic: two Models are
-	// dropped without being called a conflict, and folded the loser's default
-	// onto the winner all the same. Deprecation and XML are not shape bound
-	// and are adopted either way.
-	if !dropped {
-		hadDefault, hadExamples := dst.Default != nil, len(dst.Examples) != 0
-		lost = g.foldShapeDetail(dst, &src) || lost
-		org.adopted(dst, &src, hadDefault, hadExamples, origin{prov: src.Provenance, source: source})
-	}
-	lost = g.foldAnnotations(dst, &src) || lost
-	dst.Unmodeled = annotation.MergeUnmodeled(dst.Unmodeled, src.Unmodeled)
-
-	if lost {
-		g.keepLosingDeclaration(dst, src.Provenance, source)
-	}
-	for _, at := range keptDst {
-		g.keepLosingDeclaration(dst, at.prov, at.source)
-	}
-}
-
-// foldDocs adopts src's summary, description and external links where dst has
-// none, and reports whether the two declarations gave any of them differently
-// — in which case dst's stands and src's is lost. Every field is judged, so
-// each disagreement is reported.
-func (g *Merger) foldDocs(dst, src *ir.Property) bool {
-	lost := false
-	if foldString(&dst.Docs.Summary, src.Docs.Summary) {
-		g.detailDiffersDiag(dst, src.Provenance.Pointer, "title")
-		lost = true
-	}
-	if foldString(&dst.Docs.Description, src.Docs.Description) {
-		g.detailDiffersDiag(dst, src.Provenance.Pointer, "description")
-		lost = true
-	}
-	if len(dst.Docs.ExternalDocs) == 0 {
-		dst.Docs.ExternalDocs = src.Docs.ExternalDocs
-	} else if len(src.Docs.ExternalDocs) > 0 && !slices.Equal(dst.Docs.ExternalDocs, src.Docs.ExternalDocs) {
-		g.detailDiffersDiag(dst, src.Provenance.Pointer, "external docs")
-		lost = true
-	}
-	return lost
-}
-
-// foldString adopts src into an empty dst and reports whether both are set and
-// differ, in which case dst's stands.
-func foldString(dst *string, src string) bool {
-	if *dst == "" {
-		*dst = src
-		return false
-	}
-	return src != "" && src != *dst
-}
-
-// foldShapeDetail adopts src's default, constraints and examples where dst
-// lacks them, and reports whether a default or examples dst already held were
-// held differently by src, so src's are lost. A constraint keyword both declare
-// differently is recordRedeclarationConflict's to report; mergeConstraints
-// keeps dst's.
-//
-// "Held differently" is a deep comparison, since a Value is a tree.
-// reflect.DeepEqual tells a nil slice from an empty one, but both sides were
-// lowered by the same code, so two spellings the source wrote alike cannot land
-// on opposite sides.
-func (g *Merger) foldShapeDetail(dst, src *ir.Property) bool {
-	lost := false
-	if dst.Default == nil {
-		dst.Default = src.Default
-	} else if src.Default != nil && !reflect.DeepEqual(dst.Default, src.Default) {
-		g.detailDiffersDiag(dst, src.Provenance.Pointer, "default")
-		lost = true
-	}
-	dst.Constraints = mergeConstraints(dst.Constraints, src.Constraints)
-	if len(dst.Examples) == 0 {
-		// Examples is a slice, not comparable, so it cannot go through
-		// cmp.Or like its neighbors; the len()==0 predicate is the rule.
-		dst.Examples = src.Examples
-	} else if len(src.Examples) != 0 && !reflect.DeepEqual(dst.Examples, src.Examples) {
-		g.detailDiffersDiag(dst, src.Provenance.Pointer, "examples")
-		lost = true
-	}
-	return lost
-}
-
-// foldAnnotations adopts src's deprecation and XML hints where dst has none,
-// and reports whether dst already held either differently — in which case
-// dst's stands and src's is lost.
-func (g *Merger) foldAnnotations(dst, src *ir.Property) bool {
-	lost := false
-	if dst.Deprecation == nil {
-		dst.Deprecation = src.Deprecation
-	} else if src.Deprecation != nil && *src.Deprecation != *dst.Deprecation {
-		g.detailDiffersDiag(dst, src.Provenance.Pointer, "deprecation")
-		lost = true
-	}
-	if dst.XML == nil {
-		dst.XML = src.XML
-	} else if src.XML != nil && *src.XML != *dst.XML {
-		g.detailDiffersDiag(dst, src.Provenance.Pointer, "xml")
-		lost = true
-	}
-	return lost
-}
-
-// detailDiffersDiag reports a detail both declarations of a field write and
-// write differently. Info, not warning: the merged field is complete and
-// consistent, and what a reader is told is only that the first declaration's
-// spelling was the one kept, with the other beside it under Unmodeled.
-func (g *Merger) detailDiffersDiag(dst *ir.Property, pointer jsontext.Pointer, detail string) {
-	g.Report(ir.SeverityInfo, diag.DegradedConstruct, pointer,
-		"declarations of field %q give its %s differently; kept the first declaration's, "+
-			"with the redeclaration verbatim under Unmodeled", dst.WireName, detail)
 }
 
 // mergeConstraints folds src's constraint keywords into dst under allOf
@@ -351,7 +161,7 @@ func mergeConstraints(dst, src *ir.Constraints) *ir.Constraints {
 // An empty Only (None false) means visible in every lifecycle, not none, so
 // each side is read as the set it admits before intersecting. Disjoint sets
 // (readOnly with writeOnly) intersect to none, recorded as None rather than a
-// conflict because nothing is discarded; reconcileProperty adds a warning.
+// conflict because nothing is discarded; the fold adds a warning (foldUse).
 //
 // The result is the same whichever branch arrives as dst, down to the order of
 // Only, since allOf gives branch order no meaning (intersectLifecycles).
@@ -404,39 +214,8 @@ func intersectLifecycles(a, b []ir.Lifecycle) []ir.Lifecycle {
 // guards a pathological or malformed registry.
 const maxTypeResolveDepth = 64
 
-// recordRedeclarationConflict folds src's type into dst (foldTypeTargets) and
-// diagnoses what the fold could not represent: a conflicting or overlapping
-// target type, or a contradictory constraint keyword. At most one diagnostic
-// fires, a type verdict subsuming a constraint one.
-//
-// dropped reports that src's type was lost. lost reports that src's type or a
-// constraint keyword was lost, so the redeclaration is kept whole (GitHub #424).
-// narrowed says which declaration a narrowing left broader, for judgeAdopted.
-func (g *Merger) recordRedeclarationConflict(dst, src *ir.Property, typeAt ir.Provenance) (dropped, lost bool, narrowed narrowing) {
-	pointer := src.Provenance.Pointer
-	rel, narrowed := g.foldTypeTargets(dst, src, typeAt)
-	dropped = rel.dropped()
-	if dropped {
-		switch g.dropVerdict(rel, dst.Type, src.Type) {
-		case verdictConflict:
-			g.redeclarationConflictDiag(dst, pointer,
-				fmt.Sprintf("incompatible types %s and %s", dst.Type.Target, src.Type.Target))
-			return true, true, narrowed
-		case verdictOverlap:
-			g.overlappingTypesDiag(dst, pointer, src.Type)
-			return true, true, narrowed
-		case verdictSilent:
-		}
-	}
-	if detail, ok := constraintsConflict(dst.Constraints, src.Constraints); ok {
-		g.redeclarationConflictDiag(dst, pointer, detail)
-		return dropped, true, narrowed
-	}
-	return dropped, dropped, narrowed
-}
-
 // dropVerdict classifies a drop: the judgment's own disjoint and overlap
-// verdicts stand, and a pair it had no arm for goes to typesConflict.
+// verdicts stand, and typesConflict classifies any other pair.
 func (g *Merger) dropVerdict(rel relation, a, b ir.TypeRef) redeclVerdict {
 	if rel == relDisjoint {
 		return verdictConflict
@@ -445,145 +224,6 @@ func (g *Merger) dropVerdict(rel relation, a, b ir.TypeRef) redeclVerdict {
 		return verdictOverlap
 	}
 	return g.typesConflict(a, b)
-}
-
-// narrowing says which declaration a fold that settled on the narrower of two
-// types left behind. The zero value is no narrowing.
-type narrowing struct {
-	// broad is the declaration whose type lost to the narrower one; its
-	// default and examples ride onto a type that may not admit them.
-	broad *ir.Property
-}
-
-// foldTypeTargets settles which target dst keeps and returns the judgment on
-// the two (typeJudge.relate). A narrower target wins in either order, and the
-// narrowing it returns names the broader declaration. Any other differing
-// target is a drop, and dst keeps its own null admission. Where the referent is
-// the same or one narrows the other, null is admitted only where both
-// branches admit it (intersectNull); when the loser is the top type, which
-// admits null whatever the bit says, the winner's admission stands alone.
-func (g *Merger) foldTypeTargets(dst, src *ir.Property, typeAt ir.Provenance) (rel relation, nw narrowing) {
-	j := typeJudge{Resolve: g.Resolve, written: [2]ir.Provenance{typeAt, src.Provenance}}
-	rel = j.relate(dst.Type, src.Type)
-	if rel.dropped() {
-		return rel, nw
-	}
-	winner, loser := dst.Type, src.Type
-	nw.broad = src
-	if rel == relBNarrower {
-		winner, loser = src.Type, dst.Type
-		nw.broad = dst
-	}
-	if rel == relSame {
-		nw.broad = nil
-	}
-	dst.Type = intersectNull(winner, loser)
-	if td, ok := j.Resolve(loser.Target); ok && rel != relSame && isTop(td) {
-		dst.Type = winner
-	}
-	return rel, nw
-}
-
-// judgeAdopted holds both declarations of a fold to the type it settled on. The
-// broader side of a narrowing loses a default or example the winner does not
-// admit; either side of a fold that kept one type loses a null the merged
-// field refuses. Each is reported once per declaration, never adopted.
-// Constraints adopted from the broader side are not judged: a bound the winning
-// kind cannot meet (`minimum: 0.5, maximum: 0.7` on `int32`) still lands.
-//
-// dropped says the fold lost src's type: nothing is judged. srcLost says
-// src is to be kept verbatim; keptDst lists dst's writers to keep.
-func (g *Merger) judgeAdopted(dst, src *ir.Property, nw narrowing, dropped bool, org *origins) (srcLost bool, keptDst []origin) {
-	// The top type admits null whatever the bit says: `{}` admits every
-	// instance, and a single schema keeps `default: null` on it.
-	nullable := dst.Type.Nullable || g.isAnyType(dst.Type)
-	nullOnly := func(v ir.Value) bool { return v.Kind != ir.ValueNull || nullable }
-	at := []origin{{prov: src.Provenance}}
-	srcOwn := origins{def: at, examples: at}
-	var refused []refusal
-	switch {
-	case nw.broad != nil:
-		winner := dst.Type
-		winner.Nullable = nullable
-		kind := func(v ir.Value) bool { return typeJudge{Resolve: g.Resolve}.admits(winner, v) }
-		dstAdmit, srcAdmit := nullOnly, kind
-		if nw.broad == dst {
-			dstAdmit, srcAdmit = kind, nullOnly
-		}
-		refused = refuseFrom(refused, dst, *org, false, dstAdmit)
-		refused = refuseFrom(refused, src, srcOwn, true, srcAdmit)
-	case !dropped:
-		refused = refuseFrom(refused, dst, *org, false, nullOnly)
-		refused = refuseFrom(refused, src, srcOwn, true, nullOnly)
-	}
-	for _, grp := range groupRefusals(refused) {
-		g.Report(ir.SeverityInfo, diag.DegradedConstruct, grp.at.prov.Pointer,
-			"the type the declarations of field %q merge it to does not admit the %s one declaration gives; "+
-				"not adopted, with that declaration verbatim under Unmodeled",
-			dst.WireName, strings.Join(grp.keywords, " and "))
-		if grp.fromSrc {
-			srcLost = true
-			continue
-		}
-		keptDst = append(keptDst, grp.at)
-	}
-	return srcLost, keptDst
-}
-
-// refuseFrom removes the default and the examples of side that admit does not
-// admit, and adds a refusal for each declaration in own that wrote them. An
-// example with no Value says nothing a type could refuse.
-func refuseFrom(refused []refusal, side *ir.Property, own origins, fromSrc bool, admit func(ir.Value) bool) []refusal {
-	if d := side.Default; d != nil && !admit(*d) {
-		side.Default = nil
-		refused = appendRefusals(refused, "default", own.def, fromSrc)
-	}
-	refuses := func(e ir.Example) bool { return e.Value != nil && !admit(*e.Value) }
-	if slices.ContainsFunc(side.Examples, refuses) {
-		side.Examples = nil
-		refused = appendRefusals(refused, "examples", own.examples, fromSrc)
-	}
-	return refused
-}
-
-// appendRefusals adds a refusal of keyword for each declaration that wrote it.
-func appendRefusals(refused []refusal, keyword string, writers []origin, fromSrc bool) []refusal {
-	for _, at := range writers {
-		refused = append(refused, refusal{keyword: keyword, at: at, fromSrc: fromSrc})
-	}
-	return refused
-}
-
-// refusal is a keyword the folded type refused and the declaration that wrote it.
-type refusal struct {
-	keyword string
-	at      origin
-	// fromSrc says the writer is the redeclaration being folded in, not one dst holds.
-	fromSrc bool
-}
-
-// refusalGroup is the keywords one declaration wrote that were refused.
-type refusalGroup struct {
-	keywords []string
-	at       origin
-	fromSrc  bool
-}
-
-// groupRefusals gathers refusals by the declaration that wrote them, in order
-// of first appearance.
-func groupRefusals(refused []refusal) []refusalGroup {
-	var groups []refusalGroup
-	for _, r := range refused {
-		i := slices.IndexFunc(groups, func(g refusalGroup) bool {
-			return g.at.prov.Pointer == r.at.prov.Pointer && g.fromSrc == r.fromSrc
-		})
-		if i < 0 {
-			groups = append(groups, refusalGroup{keywords: []string{r.keyword}, at: r.at, fromSrc: r.fromSrc})
-			continue
-		}
-		groups[i].keywords = append(groups[i].keywords, r.keyword)
-	}
-	return groups
 }
 
 // intersectNull returns dst admitting null only where both references do, the
@@ -667,31 +307,15 @@ func render(source Source) (ir.RawValue, error) {
 	return source()
 }
 
-// redeclarationConflictDiag emits the shared conflicting-redeclaration warning,
-// naming the field and both declaration sites (dst's own, and the redeclaration
-// at pointer). detail is the caller-formatted disagreement, so one wording
-// serves both callers.
-//
-// It says "declarations", not "allOf branches", because dst's declaration can
-// sit directly beside allOf rather than inside a branch. Severity is warning,
-// as the merged model is still usable, leaving escalation to the consumer via
-// the stable code. The message says the redeclaration is kept whole beside the
-// winner (keepLosingDeclaration), so a reader knows where to look.
-func (g *Merger) redeclarationConflictDiag(dst *ir.Property, pointer jsontext.Pointer, detail string) {
-	g.Report(ir.SeverityWarning, diag.ConflictingRedecl, pointer,
-		"declarations of field %q disagree: %s; kept what the first declaration (%s) says over the redeclaration (%s), "+
-			"which is kept verbatim under Unmodeled",
-		dst.WireName, detail, dst.Provenance.Pointer, pointer)
-}
-
-// redeclVerdict classifies two differing property types that foldTypeTargets
-// could not narrow.
+// redeclVerdict classifies a declaration's type the fold drops, against the
+// type the field keeps.
 type redeclVerdict int
 
 const (
-	// verdictSilent is a pair the merge does not guess about: composites of one
-	// kind, an unresolvable target, or the top type.
-	verdictSilent redeclVerdict = iota
+	// verdictUncompared is a pair the merge does not guess about: composites of
+	// one kind, an unresolvable target, or a degraded node standing for the top
+	// type. Nothing says what their intersection holds.
+	verdictUncompared redeclVerdict = iota
 	// verdictConflict is a pair reported as incompatible: a scalar against a
 	// structure, two structure kinds, or disjoint primitive kinds.
 	verdictConflict
@@ -699,18 +323,6 @@ const (
 	// a literal, but which the merge does not narrow to one.
 	verdictOverlap
 )
-
-// overlappingTypesDiag reports that two declarations of a field give types
-// whose kinds share values but which the merge does not narrow to one. Info,
-// not warning: their kinds share values, and the first declaration's kind
-// stays, with the redeclaration kept verbatim under Unmodeled.
-func (g *Merger) overlappingTypesDiag(dst *ir.Property, pointer jsontext.Pointer, other ir.TypeRef) {
-	g.Report(ir.SeverityInfo, diag.DegradedConstruct, pointer,
-		"declarations of field %q give types %s and %s whose kinds share values but that the merge "+
-			"does not narrow to one; kept the first declaration's type (%s), with the redeclaration "+
-			"verbatim under Unmodeled",
-		dst.WireName, dst.Type.Target, other.Target, dst.Provenance.Pointer)
-}
 
 // typesConflict classifies the drop of two reconciled property types the
 // judgment had no arm for. Identical targets and the schemaless top type are
@@ -723,7 +335,7 @@ func (g *Merger) overlappingTypesDiag(dst *ir.Property, pointer jsontext.Pointer
 // they are silent.
 func (g *Merger) typesConflict(a, b ir.TypeRef) redeclVerdict {
 	if a.Target == b.Target || g.isAnyType(a) || g.isAnyType(b) {
-		return verdictSilent
+		return verdictUncompared
 	}
 	ak, aok := g.resolvePrimKind(a)
 	bk, bok := g.resolvePrimKind(b)
@@ -767,12 +379,12 @@ func (g *Merger) isLiteral(ref ir.TypeRef) bool {
 }
 
 // conflictIf maps a pair reported as incompatible to verdictConflict, and any
-// other pair to verdictSilent.
+// other pair to verdictUncompared.
 func conflictIf(incompatible bool) redeclVerdict {
 	if incompatible {
 		return verdictConflict
 	}
-	return verdictSilent
+	return verdictUncompared
 }
 
 // isAnyType reports whether ref targets a type the merge does not compare: the
@@ -855,44 +467,77 @@ func (g *Merger) isStructuralType(ref ir.TypeRef) bool {
 	}
 }
 
-// constraintsConflict reports whether two constraint sets pin the same keyword
-// to different values, describing the keyword and both values (for example
-// "conflicting maxLength (10 and 20)"). A keyword set on one side only is not a
-// conflict, since mergeConstraints adopts it. Numeric bounds compare by
-// magnitude, so 10 and 10.0 do not conflict. UniqueItems is never compared: a
-// plain bool cannot tell false from unset. Keywords are checked in a fixed
-// order, so the one named when several conflict is deterministic.
-func constraintsConflict(a, b *ir.Constraints) (string, bool) {
+// constraintKeyword is one constraint keyword the merge compares across
+// declarations: whether a constraint set sets it, and whether two sets that
+// both do pin it to different values, described as "conflicting maxLength (10
+// and 20)".
+type constraintKeyword struct {
+	set    func(c *ir.Constraints) bool
+	differ func(a, b *ir.Constraints) (string, bool)
+}
+
+// constraintKeywords lists the keywords the merge compares, in the fixed order
+// constraintsConflict tries them, so the one named when several conflict is
+// deterministic. UniqueItems is absent: a plain bool cannot tell false from
+// unset, and under intersection a true from either side is always right.
+func constraintKeywords() []constraintKeyword {
+	return []constraintKeyword{
+		bigValKeyword("minimum", func(c *ir.Constraints) *ir.BigVal { return c.Min }),
+		bigValKeyword("exclusiveMinimum", func(c *ir.Constraints) *ir.BigVal { return c.ExclusiveMin }),
+		bigValKeyword("maximum", func(c *ir.Constraints) *ir.BigVal { return c.Max }),
+		bigValKeyword("exclusiveMaximum", func(c *ir.Constraints) *ir.BigVal { return c.ExclusiveMax }),
+		bigValKeyword("multipleOf", func(c *ir.Constraints) *ir.BigVal { return c.MultipleOf }),
+		intKeyword("precision", func(c *ir.Constraints) *int64 { return c.Precision }),
+		intKeyword("scale", func(c *ir.Constraints) *int64 { return c.Scale }),
+		intKeyword("minLength", func(c *ir.Constraints) *int64 { return c.MinLength }),
+		intKeyword("maxLength", func(c *ir.Constraints) *int64 { return c.MaxLength }),
+		intKeyword("minItems", func(c *ir.Constraints) *int64 { return c.MinItems }),
+		intKeyword("maxItems", func(c *ir.Constraints) *int64 { return c.MaxItems }),
+		intKeyword("minProps", func(c *ir.Constraints) *int64 { return c.MinProps }),
+		intKeyword("maxProps", func(c *ir.Constraints) *int64 { return c.MaxProps }),
+		strKeyword("pattern", func(c *ir.Constraints) string { return c.Pattern }),
+		strKeyword("patternMessage", func(c *ir.Constraints) string { return c.PatternMessage }),
+	}
+}
+
+// bigValKeyword is the arbitrary-precision keyword name, read by of.
+func bigValKeyword(name string, of func(*ir.Constraints) *ir.BigVal) constraintKeyword {
+	return constraintKeyword{
+		set:    func(c *ir.Constraints) bool { return of(c) != nil },
+		differ: func(a, b *ir.Constraints) (string, bool) { return bigValConflictDetail(name, of(a), of(b)) },
+	}
+}
+
+// intKeyword is the integer keyword name, read by of.
+func intKeyword(name string, of func(*ir.Constraints) *int64) constraintKeyword {
+	return constraintKeyword{
+		set:    func(c *ir.Constraints) bool { return of(c) != nil },
+		differ: func(a, b *ir.Constraints) (string, bool) { return intConflictDetail(name, of(a), of(b)) },
+	}
+}
+
+// strKeyword is the string keyword name, read by of.
+func strKeyword(name string, of func(*ir.Constraints) string) constraintKeyword {
+	return constraintKeyword{
+		set:    func(c *ir.Constraints) bool { return of(c) != "" },
+		differ: func(a, b *ir.Constraints) (string, bool) { return strConflictDetail(name, of(a), of(b)) },
+	}
+}
+
+// constraintsConflict reports the first keyword of constraintKeywords that two
+// constraint sets pin to different values: its index and the disagreement. A
+// keyword set on one side only is not a conflict, since mergeConstraints adopts
+// it. Numeric bounds compare by magnitude, so 10 and 10.0 do not conflict.
+func constraintsConflict(a, b *ir.Constraints) (keyword int, detail string, conflict bool) {
 	if a == nil || b == nil {
-		return "", false
+		return 0, "", false
 	}
-	checks := []func() (string, bool){
-		func() (string, bool) { return bigValConflictDetail("minimum", a.Min, b.Min) },
-		func() (string, bool) {
-			return bigValConflictDetail("exclusiveMinimum", a.ExclusiveMin, b.ExclusiveMin)
-		},
-		func() (string, bool) { return bigValConflictDetail("maximum", a.Max, b.Max) },
-		func() (string, bool) {
-			return bigValConflictDetail("exclusiveMaximum", a.ExclusiveMax, b.ExclusiveMax)
-		},
-		func() (string, bool) { return bigValConflictDetail("multipleOf", a.MultipleOf, b.MultipleOf) },
-		func() (string, bool) { return intConflictDetail("precision", a.Precision, b.Precision) },
-		func() (string, bool) { return intConflictDetail("scale", a.Scale, b.Scale) },
-		func() (string, bool) { return intConflictDetail("minLength", a.MinLength, b.MinLength) },
-		func() (string, bool) { return intConflictDetail("maxLength", a.MaxLength, b.MaxLength) },
-		func() (string, bool) { return intConflictDetail("minItems", a.MinItems, b.MinItems) },
-		func() (string, bool) { return intConflictDetail("maxItems", a.MaxItems, b.MaxItems) },
-		func() (string, bool) { return intConflictDetail("minProps", a.MinProps, b.MinProps) },
-		func() (string, bool) { return intConflictDetail("maxProps", a.MaxProps, b.MaxProps) },
-		func() (string, bool) { return strConflictDetail("pattern", a.Pattern, b.Pattern) },
-		func() (string, bool) { return strConflictDetail("patternMessage", a.PatternMessage, b.PatternMessage) },
-	}
-	for _, check := range checks {
-		if detail, ok := check(); ok {
-			return detail, ok
+	for i, kw := range constraintKeywords() {
+		if detail, conflict := kw.differ(a, b); conflict {
+			return i, detail, true
 		}
 	}
-	return "", false
+	return 0, "", false
 }
 
 // bigValConflictDetail reports whether both branches pin the same
@@ -903,8 +548,9 @@ func constraintsConflict(a, b *ir.Constraints) (string, bool) {
 //
 // A disagreement is usually still satisfiable (minimum 10 in one branch and 20
 // in the other together mean 20), but it is diagnosed anyway: the merge keeps
-// dst's value over the true intersection, and the discarded one may be the
-// stricter, so silence would loosen the validation the spec intended.
+// the first declaration's value over the true intersection, and the discarded
+// one may be the stricter, so silence would loosen the validation the spec
+// intended.
 func bigValConflictDetail(keyword string, a, b *ir.BigVal) (string, bool) {
 	if a == nil || b == nil || annotation.BigValEqual(*a, *b) {
 		return "", false

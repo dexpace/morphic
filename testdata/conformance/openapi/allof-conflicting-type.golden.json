@@ -389,7 +389,7 @@
     {
       "severity": "warning",
       "code": "openapi/conflicting-redeclaration",
-      "message": "declarations of field \"clone_url\" disagree: incompatible types t/prim/url and t/prim/integer; kept what the first declaration (/components/schemas/Repository/allOf/0/properties/clone_url) says over the redeclaration (/components/schemas/Repository/allOf/1/properties/clone_url), which is kept verbatim under Unmodeled",
+      "message": "declarations of field \"clone_url\" disagree: incompatible types t/prim/url and t/prim/integer; kept what the declaration at /components/schemas/Repository/allOf/0/properties/clone_url says over the one at /components/schemas/Repository/allOf/1/properties/clone_url, which is kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Repository/allOf/1/properties/clone_url"
@@ -398,7 +398,7 @@
     {
       "severity": "warning",
       "code": "openapi/conflicting-redeclaration",
-      "message": "declarations of field \"id\" disagree: incompatible types t/prim/integer and t/prim/string; kept what the first declaration (/components/schemas/Identified/allOf/0/properties/id) says over the redeclaration (/components/schemas/Identified/allOf/1/properties/id), which is kept verbatim under Unmodeled",
+      "message": "declarations of field \"id\" disagree: incompatible types t/prim/integer and t/prim/string; kept what the declaration at /components/schemas/Identified/allOf/0/properties/id says over the one at /components/schemas/Identified/allOf/1/properties/id, which is kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Identified/allOf/1/properties/id"
@@ -407,7 +407,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "declarations of field \"id\" give its title differently; kept the first declaration's, with the redeclaration verbatim under Unmodeled",
+      "message": "declarations of field \"id\" give its default differently; kept the one the declaration at /components/schemas/Described/allOf/0/properties/id gives over the one at /components/schemas/Described/allOf/1/properties/id, which is kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Described/allOf/1/properties/id"
@@ -416,7 +416,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "declarations of field \"id\" give its description differently; kept the first declaration's, with the redeclaration verbatim under Unmodeled",
+      "message": "declarations of field \"id\" give its examples differently; kept the one the declaration at /components/schemas/Described/allOf/0/properties/id gives over the one at /components/schemas/Described/allOf/1/properties/id, which is kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Described/allOf/1/properties/id"
@@ -425,7 +425,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "declarations of field \"id\" give its external docs differently; kept the first declaration's, with the redeclaration verbatim under Unmodeled",
+      "message": "declarations of field \"id\" give its title differently; kept the one the declaration at /components/schemas/Described/allOf/0/properties/id gives over the one at /components/schemas/Described/allOf/1/properties/id, which is kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Described/allOf/1/properties/id"
@@ -434,7 +434,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "declarations of field \"id\" give its default differently; kept the first declaration's, with the redeclaration verbatim under Unmodeled",
+      "message": "declarations of field \"id\" give its description differently; kept the one the declaration at /components/schemas/Described/allOf/0/properties/id gives over the one at /components/schemas/Described/allOf/1/properties/id, which is kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Described/allOf/1/properties/id"
@@ -443,7 +443,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "declarations of field \"id\" give its examples differently; kept the first declaration's, with the redeclaration verbatim under Unmodeled",
+      "message": "declarations of field \"id\" give its external docs differently; kept the one the declaration at /components/schemas/Described/allOf/0/properties/id gives over the one at /components/schemas/Described/allOf/1/properties/id, which is kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Described/allOf/1/properties/id"
@@ -452,7 +452,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "declarations of field \"n\" give types t/prim/int32 and t/prim/uint32 whose kinds share values but that the merge does not narrow to one; kept the first declaration's type (/components/schemas/Overlapping/allOf/0/properties/n), with the redeclaration verbatim under Unmodeled",
+      "message": "declarations of field \"n\" give types t/prim/int32 and t/prim/uint32 whose values overlap but that the merge does not narrow to one; kept the type the declaration at /components/schemas/Overlapping/allOf/0/properties/n gives over the one at /components/schemas/Overlapping/allOf/1/properties/n, which is kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Overlapping/allOf/1/properties/n"

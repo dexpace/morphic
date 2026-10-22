@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/ir"
 )
@@ -222,13 +223,13 @@ func TestTypeJudge_NullIsJudgedByNullability(t *testing.T) {
 	assert.True(t, j.admits(primRef(ir.PrimAny), null), "the top type admits null whatever the bit says")
 }
 
-func TestRefuseFrom_ExamplesAreJudgedAsOneKeyword(t *testing.T) {
+// TestFold_ExamplesAreJudgedAsOneKeyword pins that a broader declaration's
+// examples are adopted all or nothing: one example the narrower type refuses
+// refuses the keyword, and an example with no value says nothing a type could
+// refuse.
+func TestFold_ExamplesAreJudgedAsOneKeyword(t *testing.T) {
 	t.Parallel()
 	one, half := num("1"), num("1.5")
-	admit := func(v ir.Value) bool { return admits(ir.PrimInteger, v) }
-	at := []origin{{prov: ptrAt("/a")}}
-	own := origins{def: at, examples: at}
-
 	for _, tc := range []struct {
 		name     string
 		examples []ir.Example
@@ -238,13 +239,21 @@ func TestRefuseFrom_ExamplesAreJudgedAsOneKeyword(t *testing.T) {
 		{"an example with no value says nothing", []ir.Example{{Value: &one}, {Summary: "no value"}}, false},
 		{"one refused example refuses the keyword", []ir.Example{{Value: &one}, {Value: &half}}, true},
 	} {
-		side := &ir.Property{Examples: tc.examples}
-		got := refuseFrom(nil, side, own, true, admit)
-		assert.Equal(t, tc.refused, len(got) == 1, tc.name)
-		assert.Equal(t, tc.refused, side.Examples == nil && len(tc.examples) != 0, tc.name)
-		if tc.refused {
-			assert.Equal(t, []refusal{{keyword: "examples", at: at[0], fromSrc: true}}, got, tc.name)
+		g, recorded := stubMerger(narrowingRegistry())
+		broad := ir.Property{WireName: "p", Type: primRef(ir.PrimNumber), Examples: tc.examples, Provenance: ptrAt("/b")}
+		narrow := ir.Property{WireName: "p", Type: primRef(ir.PrimInteger), Provenance: ptrAt("/a")}
+
+		got := foldTwo(g, narrow, broad, written(`{"examples":[1]}`))
+
+		if !tc.refused {
+			assert.Equal(t, tc.examples, got.Examples, "%s: adopted whole", tc.name)
+			assert.Empty(t, *recorded, tc.name)
+			continue
 		}
+		assert.Nil(t, got.Examples, "%s: refused whole", tc.name)
+		require.Len(t, *recorded, 1, tc.name)
+		assert.Contains(t, (*recorded)[0].Message, "does not admit the examples", tc.name)
+		assert.Contains(t, got.Unmodeled, losingDeclarationKey+"/b", "%s: the writer is kept", tc.name)
 	}
 }
 
