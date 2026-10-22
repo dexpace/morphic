@@ -1,0 +1,564 @@
+{
+  "group": "B",
+  "clusters": [
+    {
+      "key": "no-equivalence-that-erases-the-distinction",
+      "title": "Do not let an oracle's equality options or exclusions hide the difference it exists to catch",
+      "rule": "An equality, round-trip or order-invariance oracle must not use an equivalence option (EquateEmpty and similar) or exclude a field unless a probe shows the exclusion is needed. Any option or exclusion that erases the distinction the oracle guards turns that oracle blind to exactly its defect.",
+      "why": "The round-trip oracle compared with EquateEmpty and so hid null-versus-[] flips, and the order-invariance oracle excluded Naming.Hint, the very field the order-dependent hint bug lived in.",
+      "probe": "For each cmpopts option or ignored field in an oracle, remove it and rerun the corpus; then plant the flip the oracle guards (null vs [], a differing Hint) and confirm the oracle goes red with the option in place.",
+      "claude_md": "Break what a test claims to catch.",
+      "finding_ids": [
+        "F0014",
+        "F0613"
+      ],
+      "exemplars": [
+        "F0014",
+        "F0613"
+      ]
+    },
+    {
+      "key": "fix-must-move-a-golden",
+      "title": "Revert the fix and require a committed fixture to redden; if none does, add the triggering shape",
+      "rule": "A fix whose golden regeneration changes nothing, or whose revert leaves every oracle green, is evidence the corpus lacks the input shape the fix changes. Before pushing, add a committed fixture containing that exact shape (and, for a conflict rule, one where old and new behaviour disagree) and confirm reverting the fix reddens it.",
+      "why": "Defects in encoded fragments, constraints beside verbatim unions, outside $refs to inline positions, timestamp rewrites and new lowering branches all survived because no committed spec held the triggering shape, so the goldens stayed green across the bug.",
+      "probe": "git stash the fix's production hunk, run go test ./... and the harness over testdata/; if nothing reddens, write the minimal spec with the triggering shape, -update, restore the fix and confirm the golden diff is exactly the fix's effect.",
+      "claude_md": "A corpus shares the blind spots of the code it covers, so confirm a deliberate deletion from a source spec reddens the suite.",
+      "finding_ids": [
+        "F0104",
+        "F0142",
+        "F0306",
+        "F0324",
+        "F0397",
+        "F0562",
+        "F0574",
+        "F0611",
+        "F0662"
+      ],
+      "exemplars": [
+        "F0574",
+        "F0104",
+        "F0662"
+      ]
+    },
+    {
+      "key": "corpus-witnesses-every-site",
+      "title": "Enumerate every kind, position, site and field a lowering handles and show a corpus witness for each",
+      "rule": "For a lowering or convention, list the domain it branches over (literal kinds, keyword positions, reference-writing sites, compiler-assigned fields, edge kinds, both halves of a rule, every type a convention governs, every option an encoder pins) and confirm the committed corpus contains an input reaching each member. Per-capability presence is not per-branch coverage.",
+      "why": "Keywords were dropped at declaration level because the corpus only wrote them on properties, a dangling ref at encoding headers was invisible to the closure check, and many compiler-assigned fields were never non-zero, so the code writing them had no witness.",
+      "probe": "Grep the compiler for every site that writes the construct (TypeRef writes, keyword reads, field assignments), then grep testdata/ (or the compiled corpus IR) for an input reaching each one; any site with zero hits gets a fixture, confirmed by a planted mutation at that site.",
+      "claude_md": "an input class no committed fixture produces",
+      "finding_ids": [
+        "F0023",
+        "F0026",
+        "F0141",
+        "F0153",
+        "F0171",
+        "F0208",
+        "F0580",
+        "F0702",
+        "F0703",
+        "F0816"
+      ],
+      "exemplars": [
+        "F0153",
+        "F0141",
+        "F0171"
+      ]
+    },
+    {
+      "key": "inputs-at-the-edges-the-code-transforms",
+      "title": "Include inputs the transformation actually changes and that a plausible wrong implementation mishandles",
+      "rule": "A table, property or fuzz test must contain inputs at the representation's edges and in the classes a wrong implementation would get wrong: characters that need escaping, numbers float64 or int cannot hold, non-UTF-8 bytes, wrong-case or substring matches, partial overlaps, refused grammars, forbidden spellings, zero values, and the exact seed that broke the property. Where two readers must agree, diff them over a generated space, not only hand-written rows.",
+      "why": "Removing escaping, bounding IsIndex by Atoi, widening an acceptor or intersecting to one side all left suites green because no row exercised the edge where the implementations diverge.",
+      "probe": "For each transformation under test, delete it (or swap in the naive version: substring match, strconv.Atoi, return-one-input) and run the table; if it stays green, add the edge input and repeat until the naive version reddens.",
+      "claude_md": "Disagreement has to enter from outside: a planted mutation, a probe, the opposite order.",
+      "finding_ids": [
+        "F0207",
+        "F0312",
+        "F0321",
+        "F0342",
+        "F0362",
+        "F0400",
+        "F0587",
+        "F0674",
+        "F0825",
+        "F0851",
+        "F0853"
+      ],
+      "exemplars": [
+        "F0825",
+        "F0851",
+        "F0362"
+      ]
+    },
+    {
+      "key": "distinct-values-for-competing-sources",
+      "title": "Give competing sources, symmetric fields and interacting rules distinct values so each reading differs",
+      "rule": "When the result depends on which of two sources, sides, arms, keywords or rules wins, the fixture must make them disagree: set the attribute on both sides with distinct values, set one of a symmetric pair alone, set one keyword without its companion, satisfy both rules' preconditions, and force two orders to contend for the same node. With equal or co-set values every reading passes.",
+      "why": "Swapped exclusive bounds, wrong reply channels, losing precedence and order-dependent hints all passed because fixtures set both fields together, used the same channel on both sides, or used a bare branch that never contended for the pointer.",
+      "probe": "Plant the swap (min for max, reply for operation channel, overlay order reversed, read moved below the check) and run the test; if green, change the fixture so the sources carry distinct values or only one is set, and rerun until the swap reddens.",
+      "claude_md": "Order-dependence needs a two-order diff.",
+      "finding_ids": [
+        "F0117",
+        "F0385",
+        "F0386",
+        "F0399",
+        "F0434",
+        "F0497",
+        "F0506",
+        "F0545",
+        "F0577"
+      ],
+      "exemplars": [
+        "F0399",
+        "F0434",
+        "F0386"
+      ]
+    },
+    {
+      "key": "negative-fixture-isolates-the-guard",
+      "title": "Build a negative fixture where the guarded condition is the only thing that changes the result",
+      "rule": "A guard or regression case needs an input the guarded code would mishandle without the guard: a typed nil rather than an untyped one, a callee that does not tolerate the input, a document truly over budget, structure for the mutation to land on, every input class the check claims, nodes of the kind the name says, rows of the shape a sizing or selection rule must exclude, and an outcome that differs between buggy and fixed code. A case both readings answer the same way guards nothing.",
+      "why": "Nil-guard tests planted untyped nils that failed a type assertion first, a budget test's fixture fit the remaining budget, and a fallback assertion passed either way, so deleting each guard left the suite green.",
+      "probe": "Delete or neutralise the guard and run the test; if it stays green, inspect why the input never needed the guard (tolerant callee, earlier failure, fits budget) and redesign the fixture until removing the guard reddens it.",
+      "claude_md": "A negative fixture must be reachable.",
+      "finding_ids": [
+        "F0189",
+        "F0279",
+        "F0298",
+        "F0340",
+        "F0532",
+        "F0540",
+        "F0563",
+        "F0783",
+        "F0815",
+        "F0881"
+      ],
+      "exemplars": [
+        "F0540",
+        "F0783",
+        "F0279"
+      ]
+    },
+    {
+      "key": "boundary-cases-at-the-boundary",
+      "title": "Test caps and thresholds exactly at, below and above the boundary, and assert the counted amount",
+      "rule": "Any cap, depth bound, budget or threshold needs cases exactly at the boundary, one below and one above, with the whole output compared; where a bound is charged, assert the charged amount itself, not only which side of the limit it landed on.",
+      "why": "An alias placed one level beyond a depth bound and a 30-gap listing let off-by-one mutants of the comparison pass, and a refusal charge counted wrongly still landed on the same side of the limit.",
+      "probe": "Mutate each comparison by one (<= to <, > to >=) and each charge amount, run the tests, and add the at-boundary case until every mutant reddens.",
+      "claude_md": "",
+      "finding_ids": [
+        "F0485",
+        "F0784",
+        "F0842"
+      ],
+      "exemplars": [
+        "F0485",
+        "F0842"
+      ]
+    },
+    {
+      "key": "assert-the-value-not-a-proxy",
+      "title": "Assert the value itself, never only its count, length, existence, a negation, or non-panic",
+      "rule": "A test must compare the actual value or identity it is about against an expectation: not only Len, digest length, the entry's existence, that nothing panicked, that the outcome is not X, or count-plus-membership (each expected key exactly once), and never a compiled value discarded with _ =. A proxy that a wrong value also satisfies asserts nothing.",
+      "why": "Wrong example values, dangling derived keys, path-derived hashes and empty stand-ins for skipped refs all passed tests that checked only count, existence, length or no-panic.",
+      "probe": "For each assertion, plant a mutant that keeps the proxy true but changes the value (wrong example, different key, fresh hash, duplicate at one key and none at another) and confirm the test reddens; grep tests for `_ = ` on compiled results.",
+      "claude_md": "a test that passes without asserting what its name claims",
+      "finding_ids": [
+        "F0079",
+        "F0085",
+        "F0283",
+        "F0284",
+        "F0341",
+        "F0757",
+        "F0776"
+      ],
+      "exemplars": [
+        "F0283",
+        "F0284",
+        "F0079"
+      ]
+    },
+    {
+      "key": "assert-every-output-the-change-touches",
+      "title": "Assert every field, key and side effect the code writes or must preserve, across every sibling case",
+      "rule": "When code fills several outputs, merges several fields, writes several structural keys, or promises to leave its input or a copy untouched, assert each of them, and give sibling cases the same guard set. Every element a fixture declares should be deletable only by reddening some test.",
+      "why": "A $ref docs merge narrowed to description alone, an alias losing its co-declared keyword, a builder dropping paths, and an in-place sort of the caller's slice all passed because only one projection was asserted.",
+      "probe": "Delete each field the code writes (or each element of the fixture) one at a time and run the suite; for no-mutation promises, plant an in-place sort or fresh construction and assert on the caller's own value after the call.",
+      "claude_md": "",
+      "finding_ids": [
+        "F0086",
+        "F0139",
+        "F0462",
+        "F0531",
+        "F0569",
+        "F0608"
+      ],
+      "exemplars": [
+        "F0139",
+        "F0569",
+        "F0531"
+      ]
+    },
+    {
+      "key": "assertion-must-be-able-to-fail",
+      "title": "Check that the assertion itself can fail: selector specificity, zero-match, type agreement, reachable bounds",
+      "rule": "An assertion is vacuous when its form cannot fail: a path selector that matches every map, a predicate wrong on its zero-match case, Equal/NotEqual between mismatched types, a bound a derived set can never exceed, or a grid whose axes cannot name the missing cell. Test the checker on its degenerate cases before trusting it. A completeness check must count the same units the fixture is built from (occurrences, not deduplicated sets).",
+      "why": "A bare .Unmodeled selector admitted any carrier, Equal between a string and a jsontext.Pointer always failed and NotEqual always passed, and an enters-once test bounded the walk by the node count it could never exceed.",
+      "probe": "Feed each assertion helper its zero-match, all-match and wrong-type inputs and confirm it reports failure; grep assertions on retyped fields for mismatched argument types; remove one cell from the grid and confirm completeness reports it.",
+      "claude_md": "Assertions that look correct on the page find nothing.",
+      "finding_ids": [
+        "F0226",
+        "F0467",
+        "F0498",
+        "F0503",
+        "F0751",
+        "F0761"
+      ],
+      "exemplars": [
+        "F0751",
+        "F0498",
+        "F0761"
+      ]
+    },
+    {
+      "key": "assert-diagnostics-by-identity-and-completely",
+      "title": "Assert diagnostics by code, severity, subject and count, and assert the complete set the call emits",
+      "rule": "Assert each diagnostic by its stable code, severity, pointer or named subject and per-site count, not by message substring or a generic 'something degraded'; assert the full diagnostic list a call returns (never discard the error or leave diagnostics unasserted), give every emitted diagnostic a case that triggers it, and when matching an external tool's message match only the fragment the code controls.",
+      "why": "Reworded or duplicated announcements passed substring tests, a dropped constraint-reporting call left the suite green, and count-based tests silently changed meaning when a split changed the count.",
+      "probe": "Delete each diagnostic-emitting call and reword each message; the first must redden a test and the second must not. Compile the fixture and diff the full diagnostic list against the test's expectation.",
+      "claude_md": "Compile the input; inspect the emitted IR *and* the full diagnostic list.",
+      "finding_ids": [
+        "F0170",
+        "F0252",
+        "F0309",
+        "F0553",
+        "F0663",
+        "F0692",
+        "F0852",
+        "F0882"
+      ],
+      "exemplars": [
+        "F0663",
+        "F0852",
+        "F0252"
+      ]
+    },
+    {
+      "key": "assertion-targets-what-the-name-names",
+      "title": "Make each test assert the exact field, location, direction or property its name and comment claim",
+      "rule": "Read each test name and fixture comment as a claim and check the assertions pin it: a gap cell asserts the field the gap names (not neighbours), a location test fails when the location is remapped, a direction fixture traverses that direction, a row named for a code path reaches it, a copy test asserts preserved state, and claimed-distinct values are distinct. Rename or split a case whose input has a different property.",
+      "why": "Gap cells asserted Extensions and Usage instead of the named field, querystring tests stayed green with the location remapped, and a fixture named for one traversal direction ran the other way.",
+      "probe": "For each test, write the one-line mutation its name describes (remap the location, apply the named fix, fresh-construct instead of copy) and confirm that test, specifically, reddens; apply an unrelated change and confirm it stays green.",
+      "claude_md": "a test that passes without asserting what its name claims",
+      "finding_ids": [
+        "F0078",
+        "F0080",
+        "F0081",
+        "F0272",
+        "F0299",
+        "F0410",
+        "F0554",
+        "F0579",
+        "F0777"
+      ],
+      "exemplars": [
+        "F0080",
+        "F0579",
+        "F0272"
+      ]
+    },
+    {
+      "key": "expected-value-is-not-the-bug",
+      "title": "Validate an expected value independently before pinning it, so the test does not enshrine a defect",
+      "rule": "Before accepting an expected output, check it against something outside the code: run a 'clean' fixture under the bounds the code enforces, parse emitted output with the next stage, confirm a 'nothing to keep' input really has nothing, update every test that pinned an edge case's old meaning, and classify a new differential oracle's failures against the reference's raw output.",
+      "why": "Tests pinned a memory-exhausting fan-out as clean, YAML with an alias above its anchor as correct, and the loss of a summary and description as silence, so each test guarded the bug.",
+      "probe": "Run each expected 'clean' fixture under the time and memory caps; feed expected output to the next parser; grep the input for content the expected output omits; print the reference's raw result for each failing differential row.",
+      "claude_md": "Reading the code, reading the test, regenerating the golden, compiling one declaration order",
+      "finding_ids": [
+        "F0061",
+        "F0303",
+        "F0317",
+        "F0567",
+        "F0650"
+      ],
+      "exemplars": [
+        "F0061",
+        "F0317",
+        "F0650"
+      ]
+    },
+    {
+      "key": "goldens-record-not-verify",
+      "title": "Do not let a golden stand in for an assertion of a decision, a layout rule, or a non-empty result",
+      "rule": "A golden records what happened, not what is correct, and regeneration absorbs any change. Where a golden carries a design decision (field placement), a layout rule (column width) or is cited as pinning a behaviour, add a direct assertion; never hard-code a layout constant; and a golden writer must refuse trivially empty outputs such as nil.",
+      "why": "A literal column width of 9 misaligned longer commands and the regeneration accepted it, and a golden for a nil document matched every later nil document, asserting nothing.",
+      "probe": "Delete the behaviour the golden is cited for from the input and confirm the golden bytes change; lengthen a rendered name past any constant width; call the golden writer with nil and confirm it errors.",
+      "claude_md": "A regeneration that changes nothing looks exactly like a broken `-update`.",
+      "finding_ids": [
+        "F0234",
+        "F0372",
+        "F0436",
+        "F0456"
+      ],
+      "exemplars": [
+        "F0436",
+        "F0456",
+        "F0234"
+      ]
+    },
+    {
+      "key": "expectation-from-an-independent-authority",
+      "title": "Take a test's expectation from an outside authority, not from the data or parser under test",
+      "rule": "An expected count or grammar must come from a source that cannot shrink or drift with the code: the specification, the library's own behaviour, the raw text or delimiter structure. An expectation derived from the same table, or restated by hand from the same rule, agrees with the implementation even when both are wrong.",
+      "why": "A style table and its fixture shrank in step, a row-count check used the same table reader that dropped the last row, and an IsIndex table restated the library grammar by hand.",
+      "probe": "Delete one entry from both the production table and the fixture together and confirm a test reddens; compare the helper against the library function on the same inputs rather than a hand-written table.",
+      "claude_md": "asking a question whose answer the thing under test already controls",
+      "finding_ids": [
+        "F0475",
+        "F0478",
+        "F0850"
+      ],
+      "exemplars": [
+        "F0475",
+        "F0478",
+        "F0850"
+      ]
+    },
+    {
+      "key": "derive-enumerations-from-source",
+      "title": "Derive member lists, file sets and table rows from source, and hold paired lists to each other both ways",
+      "rule": "A completeness test, sealed-sum guard or golden list must derive its member set from the declarations, the production table or one shared file walk, never a hand-written slice; a fixture directory and its capability table must each fail on an entry the other lacks; a test claiming 'the only X' must enumerate every X.",
+      "why": "Hand-written kind slices let a new variant ship without its kind tag or a float64 field, a new CLI command shipped with untested help, and a .yml spec counted as witnessed by one check and was ignored by another.",
+      "probe": "In a scratch copy, add a new kind, command, fixture file or recursion cycle without touching any list and confirm a test reddens; diff the file sets two checks over the same corpus walk.",
+      "claude_md": "so adding a kind without updating a list reddens there instead of quietly narrowing what a test covers",
+      "finding_ids": [
+        "F0165",
+        "F0166",
+        "F0188",
+        "F0193",
+        "F0261",
+        "F0435"
+      ],
+      "exemplars": [
+        "F0165",
+        "F0435",
+        "F0188"
+      ]
+    },
+    {
+      "key": "test-guards-fail-closed",
+      "title": "Make test-side guards, globs and oracles fail on what they cannot classify, never skip or log",
+      "rule": "A guard over declarations, a self-check, a glob, a benchmark fixture path or an oracle that can decline must fail on input it cannot classify or find: no silent skip of unparsed spellings or aliases, no log-only self-check, no glob matching zero files, no t.Skip on a missing fixture in a gate run, no oracle returning ok without comparing, no guard keyed to a file path that moved.",
+      "why": "Const-block guards skipped conversions, aliases and untyped literals, a benchmark read a nonexistent path and exited 0, and the order oracle returned ok without comparing on anchor-bearing specs, so each looked like coverage while checking nothing.",
+      "probe": "Feed each guard one unclassifiable input (an alias, a conversion, an untyped constant, a blank reason) and confirm it fails; assert every glob matches at least one file; count executed comparisons and fail when zero.",
+      "claude_md": "Never accept garbage silently.",
+      "finding_ids": [
+        "F0082",
+        "F0091",
+        "F0092",
+        "F0093",
+        "F0110",
+        "F0185",
+        "F0492",
+        "F0568",
+        "F0817"
+      ],
+      "exemplars": [
+        "F0091",
+        "F0492",
+        "F0568"
+      ]
+    },
+    {
+      "key": "fixture-still-reaches-its-stage",
+      "title": "After any change upstream of a fixture, confirm it still reaches the check, branch or oracle it names",
+      "rule": "A new earlier check, a moved validation, a classifier change or a setup change can make a fixture stop earlier and pass for the wrong reason. Confirm each affected fixture reaches its target stage past every earlier error return, assert the precondition (it parses, it reached the oracle) before the outcome, and re-plant a neutralisation of each refusal arm the earlier check may now shadow.",
+      "why": "Fixtures meant for the round-trip and order oracles stopped at an unrelated earlier error, a grammar check moved ahead of ParseFloat shadowed the IsInf arm, and a classifier change rerouted a row to the wrong branch, all while green.",
+      "probe": "Run harness.Check on each fixture and read which oracle fired first; for each refusal arm downstream of the change, neutralise it and confirm a test reddens; count the target branch's hits in the test.",
+      "claude_md": "A check that runs is not a check that reaches.",
+      "finding_ids": [
+        "F0314",
+        "F0320",
+        "F0359",
+        "F0375",
+        "F0401",
+        "F0409",
+        "F0691",
+        "F0694",
+        "F0748",
+        "F0779"
+      ],
+      "exemplars": [
+        "F0748",
+        "F0375",
+        "F0314"
+      ]
+    },
+    {
+      "key": "exercise-the-production-path",
+      "title": "Test a consumer on the producing stage's real output and through the entry point production calls",
+      "rule": "A verifier, pass or oracle must meet the real output of the stage that feeds it, built by production constructors and read from the same tree the system read; a cached or reused path must be diffed against the fresh path over the corpus. Tests on hand-built documents, hand-set internal fields, hand-written literals or test-only wrappers do not show the real path works.",
+      "why": "The Preserved verifier ran only on hand-built fixtures so an empty reason passed everything, a reused parse dropped the stream tail on every CLI run with the suite green, and a lazy-init branch was reachable only by setting a field by hand.",
+      "probe": "Plant the defect in the producing stage (empty reason, dropped field in the cache) and confirm the consumer's test reddens; grep tests for struct literals of internal state and for helpers no production caller reaches.",
+      "claude_md": "A verifier can be complete, well-tested and wired into CI while never meeting the output it exists to check",
+      "finding_ids": [
+        "F0112",
+        "F0210",
+        "F0268",
+        "F0412",
+        "F0675",
+        "F0677",
+        "F0818"
+      ],
+      "exemplars": [
+        "F0112",
+        "F0675",
+        "F0210"
+      ]
+    },
+    {
+      "key": "prove-which-path-answered",
+      "title": "When two paths give the same answer, assert which path ran or plant a disagreement between them",
+      "rule": "A test of a fast path, cache, rebuild branch, reuse check or stop point must show which path produced the result, by asserting the path was taken (index populated, counter, hook, distinct sentinel) or by planting a value only one path would return. Comparing results alone passes when the path is bypassed.",
+      "why": "An index-versus-scan test compared the scan with itself when the index was disabled, a reuse test passed under content equality, and a cancellation row passed whichever boundary fired.",
+      "probe": "Disable the fast path or weaken the identity check (sameBytes to content equality, skip the rebuild) and confirm the test reddens; if not, add the path-taken assertion or plant the divergence.",
+      "claude_md": "Disagreement has to enter from outside: a planted mutation, a probe, the opposite order.",
+      "finding_ids": [
+        "F0510",
+        "F0635",
+        "F0639",
+        "F0676",
+        "F0771"
+      ],
+      "exemplars": [
+        "F0635",
+        "F0639",
+        "F0676"
+      ]
+    },
+    {
+      "key": "perf-guards-measure-the-defect",
+      "title": "Make a performance guard time only the code under test and measure the quantity the regression moves",
+      "rule": "A cost test or benchmark must time only the function under test with inputs built outside the clock, pin the code path when input size is near a path-selecting threshold, and measure the quantity the defect changes (walk steps, not allocations); confirm it reddens on the reverted code.",
+      "why": "An allocation-ratio guard could not see a read-only quadratic walk, a timing test measured the parser instead of the walk, and a benchmark crossed the sniff size cap and timed the byte scanner.",
+      "probe": "Revert the fix and confirm the guard fails; add a counter or probe inside the timed region to confirm the target function, on the intended path, is what runs.",
+      "claude_md": "",
+      "finding_ids": [
+        "F0679",
+        "F0680",
+        "F0681"
+      ],
+      "exemplars": [
+        "F0679",
+        "F0681"
+      ]
+    },
+    {
+      "key": "ordering-tests-pin-the-order",
+      "title": "Pin the expected order literally; never compare a run with itself or rely on map order",
+      "rule": "A test asserting a sort or an order-invariant result must pin the expected order or positions literally; a run compared with its own first output, or two orders compared only with each other, passes for any deterministic wrong answer, and an input whose order comes from a map passes a broken comparator by chance.",
+      "why": "A comparator returning 0 passed sort tests, a two-order test passed when every finding was dropped, and a missing version tiebreak passed about one run in five.",
+      "probe": "Plant a comparator returning 0 and a dropped tiebreak, run the test with -count=50, and confirm every run fails; plant a uniformly wrong result and confirm the two-order test fails.",
+      "claude_md": "the oracle proves order-independence only for the constructs its inputs happen to contain",
+      "finding_ids": [
+        "F0113",
+        "F0775",
+        "F0837"
+      ],
+      "exemplars": [
+        "F0113",
+        "F0775",
+        "F0837"
+      ]
+    },
+    {
+      "key": "one-reddening-case-per-member",
+      "title": "Give every route, kind, row, call site, condition, clause and exemption its own reddening case",
+      "rule": "When code handles a family (routes sharing a loop, kinds through a dispatch arm, rows of a classification table, call sites of a helper, conditions of a predicate, narrowing clauses of a copied predicate, shapes of a construct, branches of a verifier, exemptions of a check), each member needs a case that fails when that member alone is mutated; incidental coverage from a shared fixture or the real tree is not enough.",
+      "why": "Webhook callbacks, six object kinds through a generic arm, ID classification rows, and recursion shapes leaving through a free function all passed when removed, because only one member of each family was tested.",
+      "probe": "List the family's members by grep, mutate each one alone (skip the route, drop the clause, widen the exemption, pass no argument at that call site) and run the package's own tests; every mutant must redden.",
+      "claude_md": "Sweep every site of the mechanism before closing it.",
+      "finding_ids": [
+        "F0395",
+        "F0449",
+        "F0601",
+        "F0616",
+        "F0787",
+        "F0823",
+        "F0832",
+        "F0839",
+        "F0854",
+        "F0855",
+        "F0859"
+      ],
+      "exemplars": [
+        "F0787",
+        "F0854",
+        "F0823"
+      ]
+    },
+    {
+      "key": "every-guard-has-a-reddening-test",
+      "title": "Show every guard and branch is load-bearing by deleting it; coverage is not assertion",
+      "rule": "For each guard, skip, decoder check, refusal path or edge branch added or moved, delete or loosen it and confirm a test in its own package reddens; statement coverage only proves reachability, and a case that changes no mutation's outcome adds no coverage. If no fixture can reach a guard, record the gap beside it rather than presenting it as tested.",
+      "why": "The ir package reported full coverage while omitempty on Required or Nullable passed, decoder guards loosened to len(data)==4 passed, and moved cycle guards and refactored branches lost every test that held them.",
+      "probe": "For each new or moved guard, replace its condition with false (or a looser form), run go test for its package, and require red; for refactors, plant a mutation per edge branch before moving the code.",
+      "claude_md": "Assertions that look correct on the page find nothing.",
+      "finding_ids": [
+        "F0046",
+        "F0127",
+        "F0173",
+        "F0276",
+        "F0291",
+        "F0356",
+        "F0578",
+        "F0690",
+        "F0714",
+        "F0719"
+      ],
+      "exemplars": [
+        "F0046",
+        "F0356",
+        "F0276"
+      ]
+    },
+    {
+      "key": "bite-claims-are-executed",
+      "title": "Run every mutation a docstring or PR body cites, and read each subtest's result",
+      "rule": "Before a test docstring or PR body says a test catches a mutation, plant exactly that mutation, confirm it applies once and only at its site, and read per-subtest results with -v; passing and closing a coverage gap are not evidence a test bites, and neither is a test that was green on both branches before the change.",
+      "why": "A PR body claimed a mutation reddened every package and none went red, a claimed three-subtest bite reddened two, and a mutation self-test first counted broken-file mutants as caught.",
+      "probe": "Apply each cited mutation with a one-site patch, diff it against the original to confirm one hunk, run go test -v -count=1 on the cited test, and paste the per-subtest outcome into the claim.",
+      "claude_md": "Plant the defect and watch it go red.",
+      "finding_ids": [
+        "F0278",
+        "F0308",
+        "F0634",
+        "F0651",
+        "F0699"
+      ],
+      "exemplars": [
+        "F0651",
+        "F0634",
+        "F0278"
+      ]
+    },
+    {
+      "key": "environment-independent-tests",
+      "title": "Do not let a test's verdict depend on the host platform or the runner's privilege",
+      "rule": "A fix that changes behaviour only on a platform CI does not run must inject that platform's reading as an input and test it on the current host; a fixture whose failure mode a privileged runner can bypass (chmod under root) must be replaced with one nobody can bypass.",
+      "why": "A rooted-path fix was indistinguishable from the check it replaced on every CI host, and a chmod-based test skipped under root, leaving a statement uncovered and failing the coverage gate.",
+      "probe": "Revert the platform-specific fix and confirm the injected-reading test reddens on Linux; run the coverage gate once as root (or in a root container) and confirm no test skips.",
+      "claude_md": "",
+      "finding_ids": [
+        "F0493",
+        "F0845"
+      ],
+      "exemplars": [
+        "F0845",
+        "F0493"
+      ]
+    }
+  ]
+}
