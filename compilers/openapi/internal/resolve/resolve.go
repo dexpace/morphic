@@ -147,6 +147,6 @@ func (s Scope) turned(end End, turns int) Scope {
 // on an absurd alias chain. Past it, ObjectAt keeps the use site, and what the
 // chain reaches is read in no document's scope.
 //
-// It stays unexported: only tests read it, and those outside the package reach
-// it through export_test.go.
+// It stays unexported: no code outside the package reads it, and the tests
+// outside it reach it through export_test.go.
 const maxRefChain = 32
