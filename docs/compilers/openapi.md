@@ -1160,8 +1160,8 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   broader side carries detail the narrower lacks, are reported as an overlap and never narrowed
   (#1042); two models, or a model and a map, are reported as types the merge does not compare, even
   where they are alike in every property (#1083); a property redeclared as a list and as a tuple is
-  reported as a conflict (#899). Open: intersecting the redeclared bounds and defaults rather than keeping
-  one, and judging an adopted value against the constraints written on the property (#10).
+  reported as a conflict (#899). Open: intersecting the redeclared bounds and defaults rather than
+  keeping one, and judging an adopted value against the constraints written on the property (#10).
 
 ### `allof-required`
 

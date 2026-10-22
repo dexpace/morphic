@@ -193,10 +193,11 @@ func (f *folding) targetsTop(ref ir.TypeRef) bool {
 // drop reports how decls[i]'s type, which the field does not hold, relates to
 // the winner's (typeJudge.relate), even where nothing says how, since the type
 // the field keeps then follows declaration order; and it marks the declaration
-// lost. A type narrower than the winner that still lost shares its values. Its default, constraints and examples go with its type: they describe
-// the shape that lost, and nothing downstream compares a Value's kind to its
-// property's type, so adopting them would leave one field asserting two
-// contradictory things.
+// lost. A type narrower than the winner that still lost shares its values. Its
+// default, constraints and examples go with its type: they describe the shape
+// that lost, and nothing downstream compares a Value's kind to its property's
+// type, so adopting them would leave one field asserting two contradictory
+// things.
 func (f *folding) drop(i int) {
 	f.lost[i] = true
 	w, d := f.decls[f.winner].prop.Type, f.decls[i].prop.Type

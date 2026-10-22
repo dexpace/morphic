@@ -13,9 +13,11 @@ import (
 type relation int
 
 const (
-	// relUnrelated is a pair nothing relates: two composites of one kind, the
-	// top type spelled as an alias, a degraded node, or a type the registry
-	// does not hold. The fold drops the second and says it does not compare.
+	// relUnrelated is a pair nothing relates, such as two composites of one
+	// kind, a union or an opaque scalar against a kind, the top type spelled
+	// as an alias, a degraded node, nesting past maxJudgeDepth, or a type the
+	// registry does not hold. The fold drops the second and says it does not
+	// compare.
 	relUnrelated relation = iota
 	// relDisjoint is a pair no value satisfies together, but a null both sides
 	// admit.
@@ -143,7 +145,7 @@ func (j typeJudge) classify(a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.Typ
 		return relUnrelated
 	case aok && bok:
 		if spelling.Relate(ak, bk) == spelling.Disjoint ||
-			enumMisses(j.Resolve, a, bk, b.Nullable) || enumMisses(j.Resolve, b, ak, a.Nullable) {
+			j.enumMisses(a, bk, b.Nullable) || j.enumMisses(b, ak, a.Nullable) {
 			return relDisjoint
 		}
 		return relOverlap
@@ -412,8 +414,8 @@ func noMemberMeets(en *ir.Enum, kind ir.PrimKind, nullable bool) bool {
 // enumMisses reports whether ref targets an Enum no member of which kind
 // admits, judging each member as literalAgainst does: an enum with no members
 // is vacuously disjoint, and a kind with no judge refuses nothing.
-func enumMisses(resolve func(ir.TypeID) (ir.TypeDef, bool), ref ir.TypeRef, kind ir.PrimKind, nullable bool) bool {
-	td, ok := resolve(ref.Target)
+func (j typeJudge) enumMisses(ref ir.TypeRef, kind ir.PrimKind, nullable bool) bool {
+	td, ok := j.Resolve(ref.Target)
 	en, isEnum := td.(*ir.Enum)
 	return ok && isEnum && noMemberMeets(en, kind, nullable)
 }
