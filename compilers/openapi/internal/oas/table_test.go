@@ -76,6 +76,7 @@ func TestTable_SpansAreWellFormed(t *testing.T) {
 	for _, o := range oas.Table().Objects() {
 		assert.True(t, o.Referenceable.Valid(), o.Name)
 		assert.True(t, o.Boolean.Valid(), o.Name)
+		assert.True(t, o.RefSiblings.Valid(), o.Name)
 		for _, f := range o.Fields {
 			where := o.Name + "." + f.Name
 			assert.False(t, f.Defined.Empty(), where+": a field is defined at some minor")

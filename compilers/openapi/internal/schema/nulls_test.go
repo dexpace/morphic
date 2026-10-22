@@ -162,6 +162,28 @@ func TestNullableWidening_EachShapeReadsByItsVersion(t *testing.T) {
 		{"3.0 beside a $ref and a type, over an untyped target", "3.0.3",
 			"{$ref: '#/components/schemas/Free', type: string, nullable: true}", "    Free: {}\n",
 			inferred(componentID("Free")), ir.TypeRef{Target: componentID("Free")}, at + "/nullable", "beside a $ref", ""},
+		{"3.1 in an allOf branch of the target a $ref lands on", "3.1.0", "{$ref: '#/components/schemas/N'}",
+			"    N: {allOf: [{type: string, nullable: true}]}\n",
+			inferred(componentID("N")), ir.TypeRef{Target: componentID("N")}, "/components/schemas/N/allOf/0/nullable",
+			"declares OpenAPI 3.1.0", ""},
+		{"3.1 a type array beside a $ref to a target admitting null", "3.1.0",
+			`{$ref: '#/components/schemas/N', type: [string, "null"]}`, "    N: {type: [string, \"null\"]}\n",
+			ir.TypeRef{Target: componentID("N"), Nullable: true}, ir.TypeRef{Target: componentID("N"), Nullable: true}, "", "", ""},
+		{"3.1 beside an alias's $ref, over an alias narrowing what it lands on", "3.1.0",
+			"{$ref: '#/components/schemas/Outer'}",
+			"    Outer: {$ref: '#/components/schemas/Inner', nullable: true}\n" +
+				"    Inner: {$ref: '#/components/schemas/End', type: [string]}\n    End: {type: [string, \"null\"]}\n",
+			inferred(componentID("Outer")), ir.TypeRef{Target: componentID("Outer")}, "/components/schemas/Outer/nullable",
+			"beside a $ref", ""},
+		{"3.1 beside an expanded $dynamicRef", "3.1.0", "{$dynamicRef: '#node', nullable: true}",
+			"    Node: {$dynamicAnchor: node, type: string}\n",
+			inferred(componentID("Node")), ir.TypeRef{Target: componentID("Node")}, at + "/nullable", "declares OpenAPI 3.1.0", ""},
+		{"3.1 beside a union", "3.1.0", "{nullable: true, oneOf: [{type: string}, {type: integer}]}", "",
+			inferred(anon), ir.TypeRef{Target: anon}, at + "/nullable", "declares OpenAPI 3.1.0", ""},
+		{"3.1 beside a union and the properties it intersects with", "3.1.0",
+			"{type: object, nullable: true, properties: {k: {type: string}}, " +
+				"oneOf: [{$ref: '#/components/schemas/Pet'}, {type: object}]}", "",
+			inferred(anon), ir.TypeRef{Target: anon}, at + "/nullable", "declares OpenAPI 3.1.0", ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

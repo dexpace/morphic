@@ -20,3 +20,4 @@ components:
         notNullable: {type: string, nullable: false}
         counts: {type: array, items: {type: integer, nullable: true}}
         described: {type: array, items: {type: integer, nullable: true, description: A count.}}
+        shaped: {type: array, items: {type: object, nullable: true, description: A shape., properties: {x: {type: string}}}}

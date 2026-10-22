@@ -67,12 +67,17 @@ func assertNullableKeyword31(t *testing.T, doc *ir.Document, diags []ir.Diagnost
 	require.True(t, ok)
 	alias := ir.TypeID("t/anon/components/schemas/Holder/properties/described/items")
 	assert.Equal(t, inferred(alias), described.Elem, "an alias homing the element's docs keeps the marker")
+	shaped, ok := doc.Types[props["shaped"].Type.Target].(*ir.List)
+	require.True(t, ok)
+	assert.Equal(t, inferred("t/anon/components/schemas/Holder/properties/shaped/items"), shaped.Elem,
+		"an element whose own node homes its docs keeps the marker")
 
 	assert.Equal(t, []jsontext.Pointer{
 		"/components/schemas/Holder/properties/besideRef/nullable",
 		"/components/schemas/Holder/properties/counts/items/nullable",
 		"/components/schemas/Holder/properties/described/items/nullable",
 		"/components/schemas/Holder/properties/inline/nullable",
+		"/components/schemas/Holder/properties/shaped/items/nullable",
 		"/components/schemas/Name/nullable",
 	}, pointersOf(diags, diag.InferredNullable))
 	assert.Empty(t, pointersOf(diags, diag.UnknownSchemaKeyword), "the policy reads the keyword, so none is unknown")
@@ -314,7 +319,8 @@ func TestNullableWidening_DisabledKeepsWhatTheDialectDoesNotDefine(t *testing.T)
 // compositionSpec composes N, whose nullable 3.1 does not define, two ways: an
 // allOf whose branches redeclare one property, the first through nullable and
 // the second through a type array, and a union beside properties, which
-// distributes over its branches.
+// distributes over its branches. Narrowed distributes over D, whose type array
+// admits null, beside a type that excludes it.
 const compositionSpec = `openapi: 3.1.0
 info: {title: t, version: "1"}
 paths: {}
@@ -322,6 +328,7 @@ components:
   schemas:
     N: {type: object, nullable: true, properties: {x: {type: string}}}
     M: {type: object, properties: {y: {type: string}}}
+    D: {type: [object, "null"], properties: {x: {type: string}}}
     Merged:
       type: object
       allOf:
@@ -330,13 +337,18 @@ components:
     Distributed:
       properties: {kind: {type: string}}
       oneOf: [{$ref: '#/components/schemas/N'}, {$ref: '#/components/schemas/M'}]
+    Narrowed:
+      type: object
+      properties: {kind: {type: string}}
+      oneOf: [{$ref: '#/components/schemas/D'}, {$ref: '#/components/schemas/M'}]
 `
 
 // TestNullableWidening_ACompositionKeepsTheMarker pins the two lowerings that
 // build a reference out of others. An allOf redeclaration admits null where
 // both branches do, so it rests on the policy where either branch's null did,
-// and a distributed variant admits it where its branch does, so it keeps the
-// branch's marker. With the policy off neither admits null.
+// and a distributed variant admits it where its branch does and the body
+// does not exclude it, so it keeps the branch's marker. With the policy off
+// neither admits null, and a body excluding null takes even a declared one out.
 func TestNullableWidening_ACompositionKeepsTheMarker(t *testing.T) {
 	t.Parallel()
 	for _, off := range []bool{false, true} {
@@ -345,6 +357,11 @@ func TestNullableWidening_ACompositionKeepsTheMarker(t *testing.T) {
 		require.True(t, ok)
 		a, ok := propByWire(merged, "a")
 		require.True(t, ok)
+		narrowed, ok := doc.Types[namedID("Narrowed")].(*ir.Union)
+		require.True(t, ok)
+		require.Len(t, narrowed.Variants, 2)
+		assert.Equal(t, ir.TypeRef{Target: "t/composed/components/schemas/Narrowed/oneOf/0"}, narrowed.Variants[0].Type,
+			"off: %v", off)
 		union, ok := doc.Types[namedID("Distributed")].(*ir.Union)
 		require.True(t, ok)
 		require.Len(t, union.Variants, 2)
