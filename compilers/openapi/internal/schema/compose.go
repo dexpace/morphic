@@ -549,7 +549,9 @@ func unvisitedRefTargets(refs *typed.Bindings, s *oas3.Schema, visited map[*oas3
 func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer jsontext.Pointer, hint string) (ir.TypeRef, []ir.Diagnostic) {
 	if inner, ip, i, ok := nullUnionCollapse(s, pointer); ok {
 		ref, diags := Ref(c, ts, anchors, depth, inner, ip, branchHint(c.Bindings(), inner, i))
-		ref.Nullable = true
+		// The null branch declares the null, so no heuristic's marker the
+		// branch's own reference carried says anything of it.
+		ref.Nullable, ref.Inferred = true, ""
 		return ref, diags
 	}
 	if allNullUnion(s) {
@@ -566,7 +568,8 @@ func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, de
 		diags = append(diags, unionDiags...)
 		return def
 	})
-	return ir.TypeRef{Target: tid, Nullable: schemaAdmitsNull(c, s)}, diags
+	ref, nullDiags := schemaNullRef(c, tid, s, siteAt(pointer))
+	return ref, append(diags, nullDiags...)
 }
 
 // lowerNullOnlyUnion lowers a oneOf/anyOf every one of whose branches is a bare
@@ -970,21 +973,23 @@ func composedVariant(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, de
 	common := commonFor(c, id, vptr, compile.SubHint(body.hint, vhint))
 	def, variantDiags := buildComposedVariant(c, ts, anchors, depth, body, branch.Target, common)
 	ts.Register(id, def)
-	return ir.TypeRef{Target: id, Nullable: composedVariantNullable(c, body.schema, branch)},
-		append(diags, variantDiags...)
+	return composedVariantRef(c, id, body.schema, branch), append(diags, variantDiags...)
 }
 
-// composedVariantNullable reports whether a union variant naming a synthesized
-// variant admits null. The variant conjoins the enclosing body with the branch,
-// so it admits null exactly when the branch does and the body does not forbid
-// it: schemaNullVerdict's allOf rule, applied to a conjunction the source does
-// not spell as an allOf. The bit lives on this TypeRef, not on the variant's
-// Base or Mixins, for the reason conjoinBranch records.
-func composedVariantNullable(c lowering.Ctx, body *oas3.Schema, branch ir.TypeRef) bool {
+// composedVariantRef returns the reference a union variant naming the
+// synthesized variant id takes. The variant conjoins the enclosing body with
+// the branch, so it admits null exactly when the branch does and the body does
+// not forbid it: the allOf rule, applied to a conjunction the source does not
+// spell as an allOf, under each reading of nullable. The branch's declared
+// reading is its bit with no marker. The bit lives on this TypeRef, not on the
+// variant's Base or Mixins, for the reason conjoinBranch records.
+func composedVariantRef(c lowering.Ctx, id ir.TypeID, body *oas3.Schema, branch ir.TypeRef) ir.TypeRef {
 	if !branch.Nullable {
-		return false
+		return ir.TypeRef{Target: id}
 	}
-	return newNulls(c.Bindings()).schemaVerdict(body) != nullForbidden
+	n := newNulls(c)
+	r := n.schema(body, nullSite{})
+	return nullRef(c, id, branch.Inferred == "" && r.declared != nullForbidden, r.lenient != nullForbidden)
 }
 
 // buildComposedVariant assembles the variant Model itself. Every fill reads the
@@ -1020,7 +1025,7 @@ func buildComposedVariant(c lowering.Ctx, ts *compile.Types, anchors *AnchorInde
 // ref's Nullable bit — fillAllOf drops it for an allOf entry on the same
 // reasoning: Base and Mixins name a conjunct, and nullability is a property of
 // the usage that names the conjunction, not of one side of it. The usage here is
-// the union variant, and composedVariantNullable is what puts the bit on it.
+// the union variant, and composedVariantRef is what puts the bit on it.
 func conjoinBranch(m *ir.Model, branch ir.TypeID) {
 	target := ir.TypeRef{Target: branch}
 	if m.Base == nil && len(m.Mixins) == 0 {

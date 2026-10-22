@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"reflect"
 	"slices"
+	"strings"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
@@ -342,12 +343,41 @@ func (g *Merger) recordRedeclarationConflict(dst, src *ir.Property) (dropped, lo
 	// both branches admit it — the rule foldNullVerdicts already states for a
 	// single schema. Without this the answer came from whichever branch was
 	// written first, so reordering two allOf branches changed the merged field.
-	dst.Type.Nullable = dst.Type.Nullable && src.Type.Nullable
+	dst.Type = intersectNull(dst.Type, src.Type)
 	if constrained {
 		g.Report(ir.SeverityWarning, diag.ConflictingRedecl, pointer, "%s",
 			conflictMessage(dst.WireName, detail, dst.Provenance.Pointer, pointer))
 	}
 	return false, constrained
+}
+
+// intersectNull returns dst admitting null only where both references do. The
+// result's null rests on a heuristic wherever either side's did, since the
+// declared reading admits it only where both declare it, so it names every
+// marker either side carries, dst's first and none twice.
+func intersectNull(dst, src ir.TypeRef) ir.TypeRef {
+	dst.Nullable = dst.Nullable && src.Nullable
+	if !dst.Nullable {
+		dst.Inferred = ""
+		return dst
+	}
+	for marker := range strings.SplitSeq(src.Inferred, ",") {
+		dst.Inferred = joinMarker(dst.Inferred, marker)
+	}
+	return dst
+}
+
+// joinMarker adds marker to the comma-separated list of heuristic names in
+// list, unless it is empty or already there.
+func joinMarker(list, marker string) string {
+	switch {
+	case marker == "" || slices.Contains(strings.Split(list, ","), marker):
+		return list
+	case list == "":
+		return marker
+	default:
+		return list + "," + marker
+	}
 }
 
 // losingDeclarationKey prefixes the Unmodeled entry a redeclaration the merge could not

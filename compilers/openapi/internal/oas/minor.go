@@ -32,14 +32,18 @@ func (m Minor) String() string {
 }
 
 // ParseMinor returns the minor of an OpenAPI version string such as "3.0.3",
-// and whether the table covers it.
+// and whether the table covers it. The major.minor prefix it compares is a
+// slice of version, so the answer allocates nothing: the lowering asks it of
+// every schema whose null it reads (lowering.Ctx.Is30).
 func ParseMinor(version string) (Minor, bool) {
-	parts := strings.SplitN(version, ".", 3)
-	if len(parts) < 2 {
+	major, rest, ok := strings.Cut(version, ".")
+	if !ok {
 		return 0, false
 	}
+	minor, _, _ := strings.Cut(rest, ".")
+	prefix := version[:len(major)+1+len(minor)]
 	for _, m := range minors() {
-		if parts[0]+"."+parts[1] == m.String() {
+		if prefix == m.String() {
 			return m, true
 		}
 	}

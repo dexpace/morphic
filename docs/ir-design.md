@@ -315,6 +315,11 @@ it sees. Changes made together in one bump are listed together under it.
   (`t/openapi@common.yaml/...`). It had lowered no schema another document holds and placed a
   parameter, response or other object read from one at the source's use site. A consumer pinned to
   0.16.0 reads `Sources` as the source and its overlay alone.
+- **0.18.0** — a reference says when its null was inferred (§3.3): `TypeRef` gained `Inferred`,
+  naming the heuristic that read null in, and empty where the source declares it. The OpenAPI
+  compiler sets it where its nullable-widening policy reads a null in, from `nullable: true` or
+  beside a `$ref`, and the document's version does not. A consumer pinned to 0.17.0 reads every
+  nullable reference as declared.
 
 ---
 
@@ -574,6 +579,7 @@ An alias can also collide with *another* entity's name, and that is not a rule o
 type TypeRef struct {
     Target   TypeID
     Nullable bool     // this *usage* admits null on the wire
+    Inferred string   // "" = the source declares the null; else the heuristic that read it in
 }
 ```
 
@@ -594,6 +600,14 @@ keywords (JSON Schema), a compiler reads them together: a value set that omits `
 that names it — `{type: [string, "null"], enum: [red, green]}` — does not admit null, one that lists
 `null` with no type beside it does, and a composition admits what its conjuncts jointly admit. So
 every spelling of one constraint reaches the same bit, which is the only thing an emitter reads.
+
+A bit a heuristic set rather than the source declared names that heuristic in `Inferred` (invariant
+6). It is the reference's own marker because a reference has no `Provenance` (§13) and the node
+holding one may hold several, so marking the holder would not say which bit was guessed. The marker
+is set only where the heuristic admits null and the source's own reading does not, so `Nullable &&
+Inferred == ""` is the bit that reading sets. `irverify` reports a marker on a reference that admits
+no null (`ir/type-ref-inferred-not-nullable`). The OpenAPI compiler's one such heuristic is its
+nullable-widening policy ([`nullable`](./compilers/openapi.md#nullable)).
 
 Protobuf field *presence* is **not** nullability — protobuf has no null. Presence disciplines
 lower to `Property.Presence` (§5.1), keeping `Nullable` strictly about wire-null.
@@ -2239,11 +2253,15 @@ this from `Unmodeled` and no two derive it differently:
    provenance of its own, so no key maps into either until one of them gains one.
 
 What the OpenAPI compiler's default mapping reads, and what it does with a value the field cannot
-hold, is its rule [`extension-promotion`](./compilers/openapi.md#extension-promotion). Three more
-of its rules decide what reaches the IR from a document of a given minor —
+hold, is its rule [`extension-promotion`](./compilers/openapi.md#extension-promotion). Others of
+its rules decide what reaches the IR from a document of a given minor —
 [`unmodeled-dialect-fields`](./compilers/openapi.md#unmodeled-dialect-fields),
-[`later-version-construct`](./compilers/openapi.md#later-version-construct) and
-[`minor-required-fields`](./compilers/openapi.md#minor-required-fields) — and
+[`later-version-construct`](./compilers/openapi.md#later-version-construct), which reads the keys
+beside a 3.0 schema's `$ref` as 3.1 does,
+[`minor-required-fields`](./compilers/openapi.md#minor-required-fields), and
+[`nullable`](./compilers/openapi.md#nullable), whose policy reads `nullable` wherever it is written,
+though 3.0 confines it to a `type` beside it and 3.1 removed it, and keywords beside a `$ref` that
+admit null as a nullable reference — and
 [`unreferenced-components`](./compilers/openapi.md#unreferenced-components) keeps the component
 entries no reference reaches.
 
@@ -2340,6 +2358,8 @@ type Diagnostic struct {
 ```
 
 Everything heuristic is auditable; everything broken is reportable with an exact source location.
+A reference has no `Provenance`, so a heuristic that sets a reference's `Nullable` names itself in
+the reference's own `TypeRef.Inferred` (§3.3).
 
 The one exception is what `NoSource` exists for. A pass reporting on the document it was handed has
 no input file to name, and every real index — `0` included — names a file the document loaded, so

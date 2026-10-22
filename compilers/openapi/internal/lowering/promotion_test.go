@@ -18,7 +18,7 @@ import (
 
 // promotionCtx builds a context carrying nothing but the promotion policy.
 func promotionCtx(policy lowering.ExtensionPromotions) lowering.Ctx {
-	return lowering.New(0, &soa.OpenAPI{}, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, policy, overlay.Origin{})
+	return lowering.New(0, &soa.OpenAPI{}, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, policy, lowering.NullableWidening{}, overlay.Origin{})
 }
 
 // vendorExtension is one preserved x-* entry, as ExtensionsFrom writes it.

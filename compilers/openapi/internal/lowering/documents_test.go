@@ -45,7 +45,7 @@ func loadSplit(t *testing.T, ext string) (lowering.Ctx, *load.Document) {
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 	return lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{}, lowering.StreamingMedia{},
-		lowering.ExtensionPromotions{}, overlay.Origin{}).WithLoaded(doc), doc
+		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}).WithLoaded(doc), doc
 }
 
 // extDoc returns the bindings' number for ext.yaml: where A's $ref lands.
@@ -99,7 +99,7 @@ func TestInDocument_PlacesWhatAnotherDocumentDeclares(t *testing.T) {
 	none := *doc
 	none.Others = load.Others{}
 	unread := lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{}, lowering.StreamingMedia{},
-		lowering.ExtensionPromotions{}, overlay.Origin{}).WithLoaded(&none)
+		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}).WithLoaded(&none)
 	same, ok := lowering.InDocument(unread, id)
 	assert.False(t, ok, "a document the compile did not list")
 	assert.Equal(t, ids.Document{}, same.IDs(), "and the context is left as it was")
@@ -165,7 +165,7 @@ func TestOperationIDAt_ReadsTheDeclaringDocument(t *testing.T) {
 		load.Options{})
 	require.NoError(t, err)
 	source := lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{}, lowering.StreamingMedia{},
-		lowering.ExtensionPromotions{}, overlay.Origin{}).WithLoaded(doc)
+		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}).WithLoaded(doc)
 	assert.Equal(t, "getA", lowering.OperationIDAt(source, "/paths/~1a/get"), "the source's, read where it is written")
 	assert.Equal(t, "putP", lowering.OperationIDAt(source, "/paths/~1b/put"), "and in its model past a $ref")
 	assert.Empty(t, lowering.OperationIDAt(lowering.Ctx{}, "/paths/~1a/get"), "a context given no document")

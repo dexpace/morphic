@@ -67,6 +67,10 @@ var validationReasons = map[string]string{
 		"later-version-construct, of one that only " +
 		"a later minor's Fixed Fields define, such as an Info Object summary (3.1.2 §Info Object) or a Server Object " +
 		"name (3.2.0 §Server Object), and lowers it as that minor does",
+	"ref-siblings": "the library reads a 3.0 schema's $ref and the keywords beside it and says nothing of them; " +
+		"3.0 reads the position as a Reference Object (3.0.4 §Reference Object: 'This object cannot be extended " +
+		"with additional properties, and any properties added SHALL be ignored'), while 3.1 applies them as the " +
+		"schema's keywords, so the table warns of each, as later-version-construct, and lowers it as 3.1 does",
 	"later-refused": "the library refuses a construct a later minor added as an error (additionalOperations before " +
 		"3.2, a cookie parameter's style: cookie before 3.2, a discriminator's defaultMapping or an xml nodeType " +
 		"before 3.2, which its 3.1 meta-schema closes); the table reports " +
