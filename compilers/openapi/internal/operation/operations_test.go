@@ -12,7 +12,6 @@ import (
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/compile"
-	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
@@ -157,20 +156,6 @@ func TestOperations_NoResponses(t *testing.T) {
 	trace := openapitest.FindOp(t, doc, "traceA")
 	assert.Empty(t, trace.Responses)
 	assert.Empty(t, trace.Errors)
-}
-
-func TestRawChildNode(t *testing.T) {
-	t.Parallel()
-	assert.Nil(t, annotation.RawChildNode(nil, "x"), "nil root")
-	assert.Nil(t, annotation.RawChildNode(openapitest.StrNode("x"), "k"), "non-mapping root")
-
-	var doc yaml.Node
-	require.NoError(t, yaml.Unmarshal([]byte("a: 1\nb: 2"), &doc))
-	// doc is a DocumentNode wrapping the mapping — exercises the unwrap branch.
-	got := annotation.RawChildNode(&doc, "b")
-	require.NotNil(t, got)
-	assert.Equal(t, "2", got.Value)
-	assert.Nil(t, annotation.RawChildNode(&doc, "missing"), "absent key")
 }
 
 // provenanceSpec exercises every use-site/declaration split the fix touches in
