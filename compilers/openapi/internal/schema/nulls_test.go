@@ -2,7 +2,9 @@ package schema_test
 
 import (
 	"encoding/json/jsontext"
+	"fmt"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -207,3 +209,35 @@ func TestNullableWidening_AnEnumsNullMemberFollowsTheReadingInForce(t *testing.T
 	_, isUnion := off.Types[at].(*ir.Union)
 	assert.True(t, isUnion, "the null member stays a member")
 }
+
+// chainSpec is a document of the version whose Holder.p reaches end through n
+// aliases, each a bare $ref to the one before.
+func chainSpec(version, end string, n int) string {
+	var b strings.Builder
+	b.WriteString("    End: " + end + "\n")
+	prev := "End"
+	for i := range n {
+		fmt.Fprintf(&b, "    A%d: {$ref: '#/components/schemas/%s'}\n", i, prev)
+		prev = fmt.Sprintf("A%d", i)
+	}
+	return holderSpec(version, "{$ref: '#/components/schemas/"+prev+"'}", b.String())
+}
+
+// TestNullableWidening_ALongChainOfAliasesReadsAsAShortOne pins how a $ref's
+// chain is read: hop by hop, so each alias's keywords count, but in a loop
+// the chain's own length bounds rather than from the walk's budget. Charged
+// per hop, a chain longer than the budget would read as silent and drop the
+// null its end admits.
+func TestNullableWidening_ALongChainOfAliasesReadsAsAShortOne(t *testing.T) {
+	t.Parallel()
+	for _, n := range []int{1, maxChainProbe} {
+		last := componentID(fmt.Sprintf("A%d", n-1))
+		doc, _ := compileNullable(t, chainSpec("3.0.3", "{type: string, nullable: true}", n), true)
+		assert.Equal(t, ir.TypeRef{Target: last, Nullable: true}, holderP(t, doc), "a 3.0 end through %d aliases", n)
+		doc, _ = compileNullable(t, chainSpec("3.1.0", "{type: string, nullable: true}", n), false)
+		assert.Equal(t, inferred(last), holderP(t, doc), "a 3.1 end through %d aliases", n)
+	}
+}
+
+// maxChainProbe is a chain longer than the walk's whole budget.
+const maxChainProbe = 300

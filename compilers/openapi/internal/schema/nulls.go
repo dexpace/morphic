@@ -9,6 +9,7 @@ import (
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	"github.com/speakeasy-api/openapi/values"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
@@ -35,11 +36,12 @@ const (
 )
 
 // maxNullConjuncts bounds the walk below (styleguide bounded-recursion rule).
-// One budget unit is spent per schema visited, each hop of a $ref chain
-// included, so it caps the walk's depth as well as its breadth: an `allOf`
-// naming its own schema, a diamond of conjunctions or a loop of $refs
-// terminates on it rather than on the shape of the source. A walk deeper or
-// wider than this reads as silent, the answer that claims the least.
+// One budget unit is spent per schema visited as a conjunct or a $ref site, so
+// it caps the walk's depth as well as its breadth: an `allOf` naming its own
+// schema, or a diamond of conjunctions, terminates on it rather than on the
+// shape of the source. A walk deeper or wider than this reads as silent, the
+// answer that claims the least. A $ref chain's hops are bounded by the chain
+// instead (lands).
 const maxNullConjuncts = 256
 
 // nullReading is what a schema says about null under each reading
@@ -139,8 +141,8 @@ func (s nullSite) child(tokens ...string) nullSite {
 	return siteAt(s.at + ids.Ptr(tokens...))
 }
 
-// nulls reads what schemas say about null: across each $ref one hop at a time,
-// within one budget for the whole read.
+// nulls reads what schemas say about null: across each $ref along its chain,
+// an alias's own keywords included, within one budget for the whole read.
 type nulls struct {
 	refs   *typed.Bindings
 	is30   bool
@@ -192,21 +194,47 @@ func (n *nulls) schema(s *oas3.Schema, site nullSite) nullReading {
 }
 
 // ref reads a $ref usage as JSON Schema reads it: the keywords beside the $ref
-// conjoined with what it lands on, which is read one hop at a time, so an
-// alias's own keywords count as well as those of the schema its chain ends on.
-// The target is read here because one interned at its own ID discards the
-// reference its definition produced. The lenient reading widens the usage
-// where the keywords beside the $ref admit null (widenRef), or write
-// `nullable: true` (widen).
+// conjoined with what it lands on (lands). The target is read here because one
+// interned at its own ID discards the reference its definition produced.
 func (n *nulls) ref(js *oas3.JSONSchema[oas3.Referenceable], site nullSite) nullReading {
 	s := js.GetSchema()
 	if s == nil || n.budget <= 0 {
 		return alike(nullSilent)
 	}
 	n.budget--
+	return n.usage(s, n.lands(js), site)
+}
+
+// usage is s, a schema writing a $ref, read over target, what the $ref lands
+// on: s's own keywords conjoined with it, which the lenient reading widens
+// where they admit null (widenRef) or write `nullable: true` (widen).
+func (n *nulls) usage(s *oas3.Schema, target nullReading, site nullSite) nullReading {
 	own := n.keywords(s, site)
-	target := n.conjunct(n.refs.Declared(js), nullSite{})
 	return n.widen(s, n.widenRef(own, foldNullReadings(own, target), site), site)
+}
+
+// lands reads what js's $ref lands on along the chain the bindings resolved:
+// the schema it ends on, read over by each alias it passes on the way, so an
+// alias's own keywords count as well as the end's. A chain that ends on no
+// schema says nothing. The hops are walked in a loop the chain's own length
+// bounds, not from the read's budget, so a long chain of aliases reads as a
+// short one does; what each alias conjoins still spends it.
+func (n *nulls) lands(js *oas3.JSONSchema[oas3.Referenceable]) nullReading {
+	e, ok := n.refs.Entry(js)
+	if !ok || e.Chain.Status != bind.Resolved {
+		return alike(nullSilent)
+	}
+	var aliases []*oas3.Schema
+	hop := n.refs.Declared(js)
+	for i := 1; i < e.Chain.Hops && hop != nil && resolve.IsRefSite(hop, hop.GetSchema()); i++ {
+		aliases = append(aliases, hop.GetSchema())
+		hop = n.refs.Declared(hop)
+	}
+	r := n.conjunct(n.refs.At(e.Chain.End), nullSite{})
+	for _, s := range slices.Backward(aliases) {
+		r = n.usage(s, r, nullSite{})
+	}
+	return r
 }
 
 // widenRef is the lenient reading of keywords beside a $ref that admit null

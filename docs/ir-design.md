@@ -2358,6 +2358,8 @@ type Diagnostic struct {
 ```
 
 Everything heuristic is auditable; everything broken is reportable with an exact source location.
+A reference has no `Provenance`, so a heuristic that sets a reference's `Nullable` names itself in
+the reference's own `TypeRef.Inferred` (§3.3).
 
 The one exception is what `NoSource` exists for. A pass reporting on the document it was handed has
 no input file to name, and every real index — `0` included — names a file the document loaded, so

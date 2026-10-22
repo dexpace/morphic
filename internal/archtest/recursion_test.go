@@ -40,9 +40,10 @@ var loweringRecursions = [][]string{
 	// reports what they find — but they live in the same package and the call
 	// graph reads it whole, so the cycle is pinned here with the rest. It is
 	// bounded by an explicit budget (maxNullConjuncts), which is what stops a
-	// self-referential allOf or a loop of $refs rather than anything in this
-	// shape.
-	{"nulls.allOf", "nulls.conjunct", "nulls.keywords", "nulls.ref", "nulls.schema"},
+	// self-referential allOf rather than anything in this shape. A $ref's hops
+	// are walked in a loop its chain's length bounds, and a loop of $refs has no
+	// end to walk to.
+	{"nulls.allOf", "nulls.conjunct", "nulls.keywords", "nulls.lands", "nulls.ref", "nulls.schema", "nulls.usage"},
 	// Callbacks. An operation may declare callbacks, each of which is a path item
 	// holding operations of its own (ir-design §8.1), so the operation lowering
 	// reaches itself through them.
