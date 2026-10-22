@@ -359,8 +359,8 @@ B: {$ref}
 - Verified at: v1.25.5
 - Pinned by: `TestLibraryBehaviour/recoverable-panic`
 - Code:
-  - `load.recovered` turns a panic in resolution, a walk or validation into an error naming what
-    was running.
+  - `load.recovered` turns a panic in resolution, in a walk, or in building the fields beside a
+    path item's `$ref` into an error naming what was running.
   - `load.unmarshal` turns a panic in decoding into an `ErrParse` error.
   - `bind/typed.Builder.decodeRecovered` turns a panic in decoding raw YAML as a schema into a
     failure to build it.
