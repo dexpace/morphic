@@ -196,6 +196,12 @@ reports one. Adding a type is not an edit's either: the first pass to mint one, 
 with a namespace of its own (invariant 3's corollary). The `registrywrites` rule
 (`internal/lintrules`) refuses building a registry, or writing one of its entries, anywhere but `ir`
 and `compilers/compile`; no rule sees a node changed in place, which the deep copy makes needless.
+The editor covers the type registry alone. A transform that changes another part of the document, an
+operation, a message, a channel or an auth scheme, sets that field of `Finish`'s document to a copy
+it built, copying each container on the path to what it changes and writing into nothing the input
+holds. The editor gains a method for another registry, on the same terms, with the first pass that
+needs one: `filter` and `version-slice` remove operations, and `dedup` rewrites the type references
+operations hold.
 
 A pass that takes settings, as `filter`, `version-slice` and `overlay` will, holds them on its own
 value, so `Run` keeps one signature for every pass. A caller supplies them through a typed field on
@@ -229,7 +235,11 @@ carries is a Go error (`engine.ErrUnknownPass`), not a diagnostic, because it na
 spec. A pass whose output a consumer relies on is not a caller's to turn off: from the first such
 pass, the engine refuses its name as it refuses an unknown one. Turning a pass *on* by name is for
 one that has no settings and is off by default, as the convenience simplifications of
-reference-learnings.md §B0 are to be, and it lands with the first of them.
+reference-learnings.md §B0 are to be, and it lands with the first of them. `engine.WithPasses`
+replaces the default list whole, so an embedder's list can leave out a pass `DisablePasses` may not
+turn off, and `RunOptions` can carry settings for a pass the list does not hold. Neither can happen
+yet: the first pass that cannot be turned off, and the first with settings, each decide what the
+engine refuses there.
 
 Built, and in the default list:
 
