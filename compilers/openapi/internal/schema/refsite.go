@@ -131,23 +131,6 @@ func PreserveRefSiteKeywords(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled,
 	return append(diags, preserveUnionSiblingsAt(c, p, s, pointer, ir.ReasonDegradedLowering, refSiteUnionWhy)...)
 }
 
-// homeDeclaration gives what s writes at this position a home and returns the
-// reference the position resolves to — an alias over target where the keywords
-// need a node of their own, target itself where the position declares none.
-//
-// It is the one statement of that step, so every schema position keeps its
-// declaration the same way: a $ref site, a lowered body, and an allOf branch's
-// $ref, which reached none of it until it was routed here. A position that
-// skips it drops what was written at it without a word — which is what both
-// GitHub #116 and #143 were.
-func homeDeclaration(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, s *oas3.Schema, target ir.TypeRef, pointer jsontext.Pointer, hint string, home annotation.Home, unhomed bool) (ir.TypeRef, []ir.Diagnostic) {
-	ref, diags := hoistDeclarationHome(c, ts, s, target, pointer, hint, home, unhomed)
-	if s != nil {
-		diags = append(diags, attachDeclaredAnnotations(c, ts, anchors, s, pointer)...)
-	}
-	return ref, append(diags, recordDeclarationResidue(c, ts, s, pointer, home)...)
-}
-
 // refTypeRef resolves a $ref position to its target's stable ID, carrying the
 // combined ref-site and target nullability. A top-level component target keeps
 // its stable named ID (lowered where it is defined); an internal sub-schema
