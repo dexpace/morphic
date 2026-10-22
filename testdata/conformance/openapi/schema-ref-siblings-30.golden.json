@@ -267,7 +267,11 @@
       "message": "keyword \"description\" beside the $ref of a Schema Object is ignored by OpenAPI 3.0 and applied by OpenAPI 3.1, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.1 document",
       "provenance": {
         "source": 0,
-        "pointer": "/components/schemas/Owner/description"
+        "pointer": "/components/schemas/Owner/description",
+        "position": {
+          "line": 12,
+          "column": 63
+        }
       }
     },
     {
@@ -276,7 +280,11 @@
       "message": "keyword \"description\" beside the $ref of a Schema Object is ignored by OpenAPI 3.0 and applied by OpenAPI 3.1, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.1 document",
       "provenance": {
         "source": 0,
-        "pointer": "/components/schemas/Pet/properties/owner/description"
+        "pointer": "/components/schemas/Pet/properties/owner/description",
+        "position": {
+          "line": 16,
+          "column": 67
+        }
       }
     },
     {
@@ -285,7 +293,11 @@
       "message": "keyword \"nullable\" beside the $ref of a Schema Object is ignored by OpenAPI 3.0 and applied by OpenAPI 3.1, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.1 document",
       "provenance": {
         "source": 0,
-        "pointer": "/components/schemas/Pet/properties/owner/nullable"
+        "pointer": "/components/schemas/Pet/properties/owner/nullable",
+        "position": {
+          "line": 16,
+          "column": 95
+        }
       }
     },
     {
@@ -294,7 +306,11 @@
       "message": "keyword \"readOnly\" beside the $ref of a Schema Object is ignored by OpenAPI 3.0 and applied by OpenAPI 3.1, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.1 document",
       "provenance": {
         "source": 0,
-        "pointer": "/components/schemas/Pet/properties/owner/readOnly"
+        "pointer": "/components/schemas/Pet/properties/owner/readOnly",
+        "position": {
+          "line": 16,
+          "column": 111
+        }
       }
     },
     {
@@ -303,7 +319,11 @@
       "message": "keyword \"title\" beside the $ref of a Schema Object is ignored by OpenAPI 3.0 and applied by OpenAPI 3.1, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.1 document",
       "provenance": {
         "source": 0,
-        "pointer": "/components/schemas/Pet/properties/keepers/items/title"
+        "pointer": "/components/schemas/Pet/properties/keepers/items/title",
+        "position": {
+          "line": 17,
+          "column": 84
+        }
       }
     },
     {

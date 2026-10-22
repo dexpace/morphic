@@ -55,7 +55,7 @@ func TestRun_ExplainListsALoaderFindingAtItsDeclaration(t *testing.T) {
 	out := stdout.String()
 	assert.Contains(t, out, "diagnostics (1)")
 	assert.Contains(t, out, "error openapi/validation/validation-required-field: "+
-		"`securityScheme.flows` is required for type=oauth2")
+		`Security Scheme Object field "flows" is REQUIRED when type=oauth2`)
 }
 
 // TestRun_ExplainTakesTheWholeDocumentAsTheEmptyPointer pins that an empty

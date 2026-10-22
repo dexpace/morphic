@@ -107,12 +107,53 @@ paths:
 	}
 }
 
+// TestExternalContent_AFindingTwoTargetsShareIsReportedOnceAtItsNode pins a
+// finding two checks make about one node: c.yaml's parameter, read as a header
+// by the source and as a parameter by a.yaml, holds one bad schema, which each
+// check finds. It is reported once, in c.yaml's entry at the keyword, whichever
+// of the two the source declares first.
+func TestExternalContent_AFindingTwoTargetsShareIsReportedOnceAtItsNode(t *testing.T) {
+	t.Parallel()
+	const viaA = "  /a: {$ref: 'a.yaml#/paths/~1a'}\n"
+	const viaHeader = "  /z:\n    get:\n      responses:\n        \"200\":\n          description: ok\n" +
+		"          headers: {H: {$ref: 'c.yaml#/components/parameters/N'}}\n"
+	for name, paths := range map[string]string{"a.yaml first": viaA + viaHeader, "the header first": viaHeader + viaA} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			dir := t.TempDir()
+			layout(t, dir, map[string]string{
+				"a.yaml": "openapi: 3.1.0\ninfo: {title: A, version: \"1\"}\npaths:\n  /a:\n    get:\n" +
+					"      parameters: [{$ref: 'c.yaml#/components/parameters/N'}]\n" +
+					"      responses: {\"200\": {description: ok}}\n",
+				"c.yaml": "openapi: 3.1.0\ninfo: {title: C, version: \"1\"}\npaths: {}\ncomponents:\n  parameters:\n" +
+					"    N: {name: n, in: query, schema: {type: bogus}}\n",
+			})
+			root := "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n" + paths
+
+			doc, diags := compileOnDisk(t, filepath.Join(dir, "root.yaml"), root, false)
+
+			var found []ir.Diagnostic
+			for _, d := range diags {
+				if strings.HasPrefix(d.Code, diag.Validation+"/") {
+					found = append(found, d)
+				}
+			}
+			require.Len(t, found, 1, "%+v", diags)
+			assert.Equal(t, ir.Provenance{
+				Source: 2, Pointer: "/components/parameters/N/schema/type", Position: ir.Position{Line: 6, Column: 44},
+			}, found[0].Provenance)
+			assert.Contains(t, found[0].Message, `Schema Object field "type" must be one of`)
+			require.Len(t, doc.Sources, 3)
+			assert.Equal(t, "c.yaml", filepath.Base(doc.Sources[2].Path))
+		})
+	}
+}
+
 // TestExternalContent_WhatAReferenceItWritesReachesIsValidated pins that an
 // object only another document's $ref reaches is validated as one the
 // source's reaches (GitHub #751): b.yaml's parameter, whose in is no location,
-// is reported at a.yaml's $ref, naming its position in b.yaml. Reached from
-// the source too, it is reported once, at the source's $ref, whichever
-// document is read first.
+// is reported in b.yaml's entry at the keyword (GitHub #1030). Reached from the
+// source too, it is reported once, there, whichever document is read first.
 func TestExternalContent_WhatAReferenceItWritesReachesIsValidated(t *testing.T) {
 	t.Parallel()
 	const direct = `  /direct:
@@ -120,16 +161,10 @@ func TestExternalContent_WhatAReferenceItWritesReachesIsValidated(t *testing.T) 
       parameters: [{$ref: 'b.yaml#/components/parameters/Bad'}]
       responses: {"200": {description: ok}}
 `
-	for name, tc := range map[string]struct {
-		paths string
-		at    ir.Provenance
-	}{
-		"reached only from a.yaml":    {"", ir.Provenance{Source: 1, Pointer: "/paths/~1x/get/parameters/0"}},
-		"reached from the source too": {direct, ir.Provenance{Source: 0, Pointer: "/paths/~1direct/get/parameters/0"}},
-		"reached from the source first": {
-			direct + "  /z: {$ref: 'a.yaml#/paths/~1x'}\n",
-			ir.Provenance{Source: 0, Pointer: "/paths/~1direct/get/parameters/0"},
-		},
+	for name, paths := range map[string]string{
+		"reached only from a.yaml":      "",
+		"reached from the source too":   direct,
+		"reached from the source first": direct + "  /z: {$ref: 'a.yaml#/paths/~1x'}\n",
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -142,9 +177,9 @@ func TestExternalContent_WhatAReferenceItWritesReachesIsValidated(t *testing.T) 
 					"    Bad: {name: bad, in: nowhere, schema: {type: string}}\n",
 			})
 			root := "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n  /p: {$ref: 'a.yaml#/paths/~1x'}\n" +
-				tc.paths
+				paths
 
-			_, diags := compileOnDisk(t, filepath.Join(dir, "root.yaml"), root, false)
+			doc, diags := compileOnDisk(t, filepath.Join(dir, "root.yaml"), root, false)
 
 			var found []ir.Diagnostic
 			for _, d := range diags {
@@ -153,9 +188,13 @@ func TestExternalContent_WhatAReferenceItWritesReachesIsValidated(t *testing.T) 
 				}
 			}
 			require.Len(t, found, 1, "%+v", diags)
-			assert.Equal(t, tc.at, found[0].Provenance)
-			assert.Contains(t, found[0].Message, "parameter.in must be one of")
-			assert.True(t, strings.HasSuffix(found[0].Message, string(filepath.Separator)+"b.yaml"), found[0].Message)
+			assert.Equal(t, ir.Provenance{
+				Source: 2, Pointer: "/components/parameters/Bad/in", Position: ir.Position{Line: 6, Column: 26},
+			}, found[0].Provenance)
+			assert.Equal(t, diag.Validation+"/validation-allowed-values", found[0].Code)
+			assert.Contains(t, found[0].Message, `Parameter Object field "in" must be one of`)
+			require.Len(t, doc.Sources, 3)
+			assert.Equal(t, "b.yaml", filepath.Base(doc.Sources[2].Path))
 		})
 	}
 }

@@ -406,8 +406,8 @@ func resolveExternal(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, self 
 	}
 	again.InitCache()
 	// Modelled again, since the first models hold what the first pass resolved.
-	// Their findings are the first models', reported already.
-	sibs, _, _ = modelSiblings(ctx, again, nowhere)
+	// Their faults are the first models', reported already.
+	sibs, _ = modelSiblings(ctx, again, nowhere)
 	read.handOver(again, used)
 	reader = newExternal(ctx, again, opts, read)
 	pass = resolveWith(ctx, again, sibs, self, opts, &reader)

@@ -405,7 +405,11 @@
       "message": "parameter field explode is not allowed for in=querystring; lowered as declared",
       "provenance": {
         "source": 0,
-        "pointer": "/paths/~1reports~1raw/get/parameters/0/explode"
+        "pointer": "/paths/~1reports~1raw/get/parameters/0/explode",
+        "position": {
+          "line": 43,
+          "column": 20
+        }
       }
     }
   ],

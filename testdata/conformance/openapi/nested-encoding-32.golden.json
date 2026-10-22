@@ -222,6 +222,19 @@
   ],
   "diagnostics": [
     {
+      "severity": "warning",
+      "code": "openapi/validation/validation-mutually-exclusive-fields",
+      "message": "Encoding Object fields \"encoding\", \"prefixEncoding\" are mutually exclusive in OpenAPI 3.2 (Encoding Object)",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1upload/post/requestBody/content/multipart~1form-data/encoding/note",
+        "position": {
+          "line": 19,
+          "column": 17
+        }
+      }
+    },
+    {
       "severity": "info",
       "code": "openapi/degraded-construct",
       "message": "encoding encoding has no ir.PartEncoding home; kept verbatim under Unmodeled",

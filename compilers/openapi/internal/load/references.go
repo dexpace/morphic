@@ -12,8 +12,6 @@ import (
 
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/speakeasy-api/openapi/references"
-	"github.com/speakeasy-api/openapi/validation"
-	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
@@ -38,11 +36,8 @@ type resolvable interface {
 // resolveWith resolves every reference object in doc, reading external
 // documents through reader when one is given, and every reference object in
 // what those reach in other documents (GitHub #751). It reports each failure at
-// the $ref that failed (GitHub #385), and each finding in what a reference
-// names where reachedFinding places it (GitHub #537), once the pass's diags
-// are asked for. It runs ResolveAllReferences' own walk, since that call names
-// no reference for either. A finding is reported once (see reachedFindings),
-// and not where the source's own validation reported it.
+// the $ref that failed (GitHub #385), once the pass's diags are asked for. It
+// runs ResolveAllReferences' own walk, since that call names no reference.
 func resolveWith(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, self sourceDocument, opts Options,
 	reader *external,
 ) *resolution {
@@ -78,7 +73,7 @@ func (p *resolution) diags(place func(refSite) ir.Provenance) []ir.Diagnostic {
 			out = append(out, d)
 		}
 	}
-	return append(out, p.found.diags(place)...)
+	return out
 }
 
 // ends returns where the chain of each reference object the pass visited
@@ -159,7 +154,6 @@ type resolution struct {
 	// name, the source's under "", each at the pointer its Provenance holds
 	// (pointerOnly), placed once the documents are listed (see diags).
 	failures map[string][]ir.Diagnostic
-	found    reachedFindings
 	// away is what the pass has still to resolve in other documents, and
 	// visited every reference object it resolved, in either.
 	away    *elsewhere
@@ -174,12 +168,6 @@ type resolution struct {
 	// esc holds the $refs rewritten for the resolver to read, which a message
 	// quotes as the source writes them (GitHub #911).
 	esc *escapes
-	// version and validateOpts are the source's declared version and what its
-	// validation hands each object, which a resolution's findings are judged by
-	// (unrequired), in another document as well, as a reached schema's are
-	// (GitHub #839).
-	version      string
-	validateOpts []validation.Option
 }
 
 // newResolution returns the pass over doc, the model of self, holding self
@@ -197,51 +185,33 @@ func newResolution(ctx context.Context, doc *soa.OpenAPI, sibs Siblings,
 		resolveOpts.HTTPClient = *reader
 		reader.hold(ctx, sibs)
 	}
-	return &resolution{opts: resolveOpts, reader: reader, sibs: sibs, esc: self.escapes,
-		version: doc.OpenAPI, validateOpts: documentOptions(doc), away: newElsewhere(), failures: map[string][]ir.Diagnostic{},
-		selfPath: self.path, nameOf: self.nameOf,
-		found: reachedFindings{sites: map[references.Reference]refSite{}, known: self.found,
-			tree: self.tree}}
+	return &resolution{opts: resolveOpts, reader: reader, sibs: sibs, esc: self.escapes, away: newElsewhere(),
+		failures: map[string][]ir.Diagnostic{}, selfPath: self.path, nameOf: self.nameOf}
 }
 
 // visit resolves r, the reference written at site, under opts, which read it
-// against the document writing it, and notes what the resolution found and
+// against the document writing it, reports a failure to resolve it, and notes
 // where it ended (see elsewhere). A reference an earlier $ref's chain resolved
-// is only noted. The library counts one resolved once a chain that failed
-// passed through it, so which members of a failing chain are reported follows
-// the walk's order (GitHub #767). A message quotes the $ref as the document
-// writes it.
+// is not resolved again. The library counts one resolved once a chain that
+// failed passed through it, so which members of a failing chain are reported
+// follows the walk's order (GitHub #767). A message quotes the $ref as the
+// document writes it. What is wrong with the object a resolution reaches is the
+// table's to say (validateReached).
 func (p *resolution) visit(ctx context.Context, site refSite, r resolvable, opts references.ResolveOptions) {
-	var vErrs []error
 	var err error
 	if !r.IsResolved() {
-		vErrs, err = r.Resolve(ctx, opts)
+		_, err = r.Resolve(ctx, opts)
 	}
 	if p.reader != nil {
-		vErrs, err = p.reader.settle(ctx, r, opts, vErrs, err)
+		err = p.reader.settle(ctx, r, opts, err)
 	}
 	c := resolutionChain(r)
 	p.away.reach(site, c, opts, p.nameOf)
 	p.visited = append(p.visited, visitedRef{site: site, r: r})
-	t := p.esc.trailOf(c)
-	p.found.note(site, t, p.unrequired(ctx, site, r, vErrs))
 	if err != nil {
-		p.failures[site.doc] = append(p.failures[site.doc], failureDiag(pointerOnly(site.pointer), p.esc.writtenOf(r), t, err))
+		p.failures[site.doc] = append(p.failures[site.doc],
+			failureDiag(pointerOnly(site.pointer), p.esc.writtenOf(r), p.esc.trailOf(c), err))
 	}
-}
-
-// unrequired returns vErrs, the findings resolving r at site drew, less the
-// REQUIRED-field rule's artifacts in the object r reached (requiredArtifacts),
-// and reports a panic finding them at site. A schema's resolution draws no
-// artifact of the rule, but is judged alike rather than told apart.
-func (p *resolution) unrequired(ctx context.Context, site refSite, r resolvable, vErrs []error) []error {
-	obj, _, ok := reachedObject(r)
-	if !ok {
-		return vErrs
-	}
-	required := findRequiredArtifacts(ctx, vErrs, reachedWalk(ctx, obj), p.version, p.validateOpts).reportedAt(site.pointer)
-	p.failures[site.doc] = append(p.failures[site.doc], required.faults(pointerOnly)...)
-	return required.without(vErrs)
 }
 
 // fail reports the fault a walk ended on, at the reference it ended at, and
@@ -320,103 +290,6 @@ func recovered(err *error, what string) {
 	}
 }
 
-// reachedFindings holds the findings resolveWith's resolutions draw until it
-// reports them, and for each target the least pointer among the $refs whose
-// trails end at it. Which $ref draws a finding depends on declaration order:
-// the library hands a later $ref the object an earlier one built, and with it
-// no findings. The set of $refs reaching a target does not, so a finding
-// placed at a $ref is placed by that.
-type reachedFindings struct {
-	sites   map[references.Reference]refSite
-	pending []pendingFinding
-	// known holds the findings the source's own validation reported, which are
-	// not reported again.
-	known map[findingKey]bool
-	// tree places a finding about a node of the source (see reachedFinding).
-	tree sourceTree
-}
-
-// pendingFinding is a finding as the $ref at site drew it, along a trail ending
-// at target, or at no target.
-type pendingFinding struct {
-	site   refSite
-	target references.Reference
-	place  string
-	err    error
-}
-
-// note records that the $ref at site has trail t, and the findings vErrs its
-// resolution drew, less any the source's own findings would drop (dropped).
-func (f *reachedFindings) note(site refSite, t trail, vErrs []error) {
-	if t.target != "" {
-		if least, ok := f.sites[t.target]; !ok || compareSites(site, least) < 0 {
-			f.sites[t.target] = site
-		}
-	}
-	if len(vErrs) == 0 {
-		return
-	}
-	place := findingPlace(t)
-	for _, ve := range vErrs {
-		if verr, ok := asValidationError(ve); ok && dropped(verr) {
-			continue
-		}
-		f.pending = append(f.pending, pendingFinding{site: site, target: t.target, place: place, err: ve})
-	}
-}
-
-// diags reports each finding once, where reachedFinding places it: at the node
-// of the source it is about, or else at its target's least $ref, or its own
-// $ref when its trail ended at no target, each $ref placed by place. None that
-// is known is reported. A finding drawn more than once is kept at the least of
-// its places: the library caches no object it builds from a document whose
-// bytes it already holds, so it builds a target again for each $ref once
-// another read that document.
-func (f *reachedFindings) diags(place func(refSite) ir.Provenance) []ir.Diagnostic {
-	placed := make([]refSite, len(f.pending))
-	kept := make(map[findingKey]int, len(f.pending))
-	for i, p := range f.pending {
-		placed[i] = p.site
-		if least, ok := f.sites[p.target]; ok {
-			placed[i] = least
-		}
-		key := keyOf(p.err, placed[i])
-		if j, seen := kept[key]; !seen || compareSites(placed[i], placed[j]) < 0 {
-			kept[key] = i
-		}
-	}
-	out := make([]ir.Diagnostic, 0, len(kept))
-	for i, p := range f.pending {
-		if key := keyOf(p.err, placed[i]); kept[key] == i && !f.known[key] {
-			out = append(out, reachedFinding(f.tree, place(placed[i]), p.place, p.err))
-		}
-	}
-	return out
-}
-
-// findingKey identifies a finding by the node it is about and what it says.
-// The node is the parsed node itself, which two documents cannot share. A
-// finding at no node is told apart by where it is placed as well.
-type findingKey struct {
-	node    *yaml.Node
-	site    refSite
-	rule    string
-	message string
-}
-
-// keyOf returns the key of a finding placed at site.
-func keyOf(err error, site refSite) findingKey {
-	verr, ok := asValidationError(err)
-	switch {
-	case !ok:
-		return findingKey{site: site, message: err.Error()}
-	case verr.Node == nil:
-		return findingKey{site: site, rule: verr.Rule, message: validationMessage(verr)}
-	default:
-		return findingKey{node: verr.Node, rule: verr.Rule, message: validationMessage(verr)}
-	}
-}
-
 // failureDiag reports that the reference ref could not be resolved, quoting it
 // as written, with the resolver's reason. When t got past it and stopped at
 // another reference, that one is quoted too: the reason is about it, and need
@@ -475,28 +348,4 @@ func quotedStop(t trail) string {
 		return strconv.Quote(string(t.stopped))
 	}
 	return strconv.Quote(string(t.stopped)) + " in " + t.docs[len(t.docs)-1]
-}
-
-// reachedFinding converts a finding the resolver or validation made about the
-// object a reference names. A structured finding keeps its rule and severity,
-// as validationDiag keeps them for the source's own.
-//
-// One about a node of the source's tree is placed as the source's own findings
-// are, at the node (GitHub #879). Any other is placed at site, the $ref that
-// reached it, and its message names its position in the document place names:
-// the resolution draws it before the documents Document.Sources lists are all
-// read, so it is not yet placed in its own (GitHub #1030).
-func reachedFinding(tree sourceTree, site ir.Provenance, place string, err error) ir.Diagnostic {
-	verr, ok := asValidationError(err)
-	if !ok {
-		return diag.Newf(ir.SeverityError, diag.Validation, site, "%s", err.Error())
-	}
-	if _, held := tree.pointer(verr.Node); held {
-		return validationDiag(tree.locate, err)
-	}
-	msg := validationMessage(verr)
-	if verr.Node != nil {
-		msg = fmt.Sprintf("%s, at %d:%d of %s", msg, verr.Node.Line, verr.Node.Column, place)
-	}
-	return diag.Newf(mapSeverity(verr.Severity), diag.Validation+"/"+verr.Rule, site, "%s", msg)
 }

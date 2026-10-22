@@ -22,7 +22,7 @@ func TestBuild_ReportsAFailureAndHoldsNothing(t *testing.T) {
 	require.NoError(t, yaml.Unmarshal([]byte("openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\n"+
 		"components:\n  schemas:\n    A: {$ref: '#/x-lib/S'}\nx-lib: {S: {}}\n"), &root))
 	bd := NewBuilder(bind.Bind(&root, bind.Config{Self: "spec.yaml"}))
-	bd.decode = func(context.Context, *yaml.Node, *schemaRef) ([]error, error) { return nil, errors.New("planted") }
+	bd.decode = func(context.Context, *yaml.Node, *schemaRef) error { return errors.New("planted") }
 
 	built := bd.Build(t.Context())
 	require.Len(t, built, 1)
@@ -36,7 +36,7 @@ func TestBuild_ReportsAFailureAndHoldsNothing(t *testing.T) {
 	assert.ErrorIs(t, gone.Err, errNothingThere)
 
 	bd = NewBuilder(bind.Bind(&root, bind.Config{Self: "spec.yaml"}))
-	bd.decode = func(context.Context, *yaml.Node, *schemaRef) ([]error, error) { panic("planted") }
+	bd.decode = func(context.Context, *yaml.Node, *schemaRef) error { panic("planted") }
 	built = bd.Build(t.Context())
 	require.Len(t, built, 1)
 	require.Error(t, built[0].Err, "a panic in the decoder is a failure to build, not one that escapes")

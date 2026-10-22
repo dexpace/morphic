@@ -231,15 +231,14 @@ func tokenless(scheme ir.AuthScheme) bool {
 	return scheme.Kind == ir.AuthKindOAuth2 && len(scheme.Flows) == 0 && scheme.OAuth2MetadataURL == ""
 }
 
-// flowsMissing reports whether ss fails the parser library's REQUIRED-field
-// rule for flows, restating the library's own condition over the fields it
-// reads: absent, not an object, or holding a flow that does not decode, which
-// leaves the object not Present. The loader reports each scheme that fails the
-// rule wherever it is written, one a $ref reaches under an x-* key included
-// (GitHub #872), so the lowering stands aside. A library release that moves
-// the rule reddens TestLowerSecuritySchemes_AnOAuth2SchemeWithNoFlowIsReportedOnce.
+// flowsMissing reports whether ss writes no flows object: flows absent, null,
+// or a value that is no mapping, which the parser models as no object. The rule
+// table reports each, as a REQUIRED field missing or a value of the wrong type,
+// wherever the scheme is written (GitHub #872), so the lowering stands aside. A
+// mapping lowering no flow, one whose only flow is null included, is the
+// lowering's to report.
 func flowsMissing(ss *soa.SecurityScheme) bool {
-	return !ss.GetCore().Flows.Present || ss.GetFlows() == nil
+	return ss.GetFlows() == nil
 }
 
 // oauthNoFlowDiag reports a flows object declaring no flow; the design record

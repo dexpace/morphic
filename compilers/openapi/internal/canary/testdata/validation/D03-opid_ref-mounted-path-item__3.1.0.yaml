@@ -1,0 +1,8 @@
+openapi: 3.1.0
+info: {title: t, version: '1'}
+paths:
+  /a: {$ref: '#/components/pathItems/P'}
+  /b: {$ref: '#/components/pathItems/P'}
+components:
+  pathItems:
+    P: {get: {operationId: x, responses: {'200': {description: ok}}}}
