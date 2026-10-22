@@ -121,8 +121,8 @@ A pass is an IR-to-IR step the engine runs after a compile
 a transform returns a new one. A transform changes types through `ir.Edit`: `UpdateType` hands it a
 deep copy of a node to change, `ReplaceType` puts a node built afresh in place of the one at its ID,
 `RemoveType` removes one, and `Done` returns the new document, sharing everything the edit left
-alone, beside an `ir/edit-refused` error for each write the editor refused, such as one at an ID the
-document does not hold. Building a type registry, or writing one of its entries, any other way fails
+alone, beside an `ir/edit-refused` error for each call the editor refused, such as a write at an ID
+the document does not hold. Building a type registry, or writing one of its entries, any other way fails
 the `registrywrites` rule (`internal/lintrules`, run by `make vet`). No rule sees a node of the
 input changed in place, which `UpdateType`'s copy is there to make needless.
 
