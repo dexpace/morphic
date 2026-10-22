@@ -191,7 +191,9 @@ func (r ruler) named(field string) string {
 
 // entryCount counts the entries of the field, where it is a map or a list of
 // the shape the field takes; a value of another is the field's own check's to
-// report. An entry written null is read as left out, so it is not counted.
+// report. A map's entry written null is read as left out, so it is not counted.
+// A list's is: the counted lists whose shape admits a null hold schemas, and
+// the schema lowering reads one as the empty schema.
 func (r ruler) entryCount(field string) (int, jsontext.Pointer, bool) {
 	if field == "" {
 		return written(r.f.pairs, func(p nodeview.Pair) bool { return !strings.HasPrefix(p.Key, "x-") }), r.f.at.ptr, true
@@ -208,13 +210,7 @@ func (r ruler) entryCount(field string) (int, jsontext.Pointer, bool) {
 	case yaml.MappingNode:
 		return written(r.w.view.MappingPairs(node), func(nodeview.Pair) bool { return true }), ptr, true
 	case yaml.SequenceNode:
-		n := 0
-		for _, item := range node.Content {
-			if !isNull(nodeview.Deref(item)) {
-				n++
-			}
-		}
-		return n, ptr, true
+		return len(node.Content), ptr, true
 	}
 	return 0, ptr, false
 }

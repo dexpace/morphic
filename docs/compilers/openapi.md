@@ -166,9 +166,11 @@ its version and still says what it means: a key outside the pattern the specific
 mapping writes twice, a number or a boolean where a string belongs, a field written where the
 specification gives it no effect (`validation-no-effect`), or a `null` written for an optional
 field, which is read as the field left out, by the rules that bind it to other fields as well. A
-`null` inside a Schema Object, or where a schema belongs, is an error, since the schema lowering
-does not read it as left out; one written for a field whose requirement another rule reports is left
-to that rule.
+Schema Object's keyword whose value is a schema is such a field, since the schema lowering reads its
+`null` as left out too ([`null-schema`](#null-schema)). A `null` written for another object's schema
+is an error, since that lowering reads it as the empty schema, a value, and so is one in a list of
+schemas, which counts as an entry; one for a Schema Object's other keywords is an error as well. One
+written for a field whose requirement another rule reports is left to that rule.
 
 The source is read as it writes it, an applied overlay's patch included, each object as the kind
 its position gives it. An object a `$ref` reaches that the source's own reading did not take as
@@ -211,7 +213,8 @@ gives it no effect is [`allow-reserved-locations`](#allow-reserved-locations)' a
   `openapi.TestCompile_AFindingInAnExternalDocumentKeepsItsRule`,
   `canary.TestValidationOracle_AgreesWithTheLibrary`
 - Status: partly built: a document a reference reaches is held to the source's minor until which
-  minor governs it is settled (#839).
+  minor governs it is settled (#839), and a `null` for a Schema Object's keyword whose value is no
+  schema is an error however the schema lowering reads it, which is several ways (#1069).
 
 ### `minor-required-fields`
 
@@ -1512,17 +1515,18 @@ schema written, never as the `false` schema the parser decodes it as
 ([`null-schema-is-false`](../parser-library.md#null-schema-is-false)), which admits no value. An
 entry, which exists whatever its value — a property, a composition branch, a component, a
 `prefixItems` position, a parameter's, header's or media type's `schema` — lowers as the empty
-schema does, to the top type, and a `$ref` naming it as one naming `{}` does. A keyword, whose
-absence states something its empty schema may not, is read as left out: `additionalProperties: null`
-writes no catch-all, `contentSchema: null` no `Encoding.Schema`, a `null` `allOf` branch composes
-nothing, and a `null` `not`, `if`, `then`, `else`, `contains`, `propertyNames`, `unevaluatedItems`
-or `unevaluatedProperties` is kept nowhere. `items: null` lowers as an absent `items` does, and a
-`null` `items` or `additionalProperties` a node has no home for is not kept for want of one
-([`shape-applicator`](#shape-applicator)). Nothing is kept verbatim, since a `null` means nothing a
-consumer could recover, and the lowering reports nothing, since reading it so loses nothing: the
-load phase reports each such `null` as the error it is, at the node
-([`validation`](#validation)). One inside a value the IR keeps verbatim whole, a
-`dependentSchemas` entry, stays in that value, since nothing reads it as a schema.
+schema does: to the top type, or as an `allOf` branch to nothing composed, and a `$ref` naming it
+as one naming `{}` does. A keyword whose value is a schema, whose absence states something its empty
+schema may not, is read as left out: `additionalProperties: null` writes no catch-all,
+`contentSchema: null` no `Encoding.Schema`, and a `null` `not`, `if`, `then`, `else`, `contains`,
+`propertyNames`, `unevaluatedItems` or `unevaluatedProperties` is kept nowhere. `items: null` lowers
+as an absent `items` does, and a `null` `items` or `additionalProperties` a node has no home for is
+not kept for want of one ([`shape-applicator`](#shape-applicator)). Nothing is kept verbatim, since
+a `null` means nothing a consumer could recover, and the lowering reports nothing, since reading it
+so loses nothing: the load phase reports each such `null` at the node ([`validation`](#validation)),
+an entry's as an error and a keyword's as the warning a field left out draws. One inside a value
+the IR keeps verbatim whole, a `dependentSchemas` entry, stays in that value, since nothing reads it
+as a schema.
 
 - Tests: `openapi.TestCompile_ANullWhereASchemaBelongsIsNoSchema`,
   `schema.TestNullSchema_AnEntryIsTheEmptySchemaAndAKeywordIsLeftOut`,

@@ -15,11 +15,11 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// assertOnlyLoadReportsNull requires an error of the load phase's validation at
-// pointer, where the document breaks its own grammar by writing the null, and
-// nothing else there: reading it as no schema loses nothing, so the lowering
-// adds no report of its own.
-func assertOnlyLoadReportsNull(t *testing.T, diags []ir.Diagnostic, pointer jsontext.Pointer) {
+// assertOnlyLoadReportsNull requires a finding of the load phase's validation
+// at pointer, where the document breaks its own grammar by writing the null, of
+// severity want, and nothing else there: reading it as no schema loses nothing,
+// so the lowering adds no report of its own.
+func assertOnlyLoadReportsNull(t *testing.T, diags []ir.Diagnostic, pointer jsontext.Pointer, want ir.Severity) {
 	t.Helper()
 	var at []ir.Diagnostic
 	for _, d := range diags {
@@ -27,9 +27,9 @@ func assertOnlyLoadReportsNull(t *testing.T, diags []ir.Diagnostic, pointer json
 			at = append(at, d)
 		}
 	}
-	require.NotEmpty(t, at, "no validation error at %q: %+v", pointer, diags)
+	require.NotEmpty(t, at, "no validation finding at %q: %+v", pointer, diags)
 	for _, d := range at {
-		assert.Equal(t, ir.SeverityError, d.Severity, "%+v", d)
+		assert.Equal(t, want, d.Severity, "%+v", d)
 		assert.True(t, strings.HasPrefix(d.Code, diag.Validation+"/"), "only the load phase reports here: %+v", d)
 	}
 }
@@ -38,9 +38,9 @@ func assertOnlyLoadReportsNull(t *testing.T, diags []ir.Diagnostic, pointer json
 // compiler's public surface. The parser decodes a null written where a schema
 // belongs as the `false` schema, which would close a model, give a component a
 // body that matches nothing, and report a false-schema the document never
-// wrote. The compile reads it as no schema written, leaves the report to the
-// load phase's error, and lowers an entry as the empty schema does, in
-// components and in operations alike.
+// wrote. The compile reads it as no schema written and leaves the report to the
+// load phase: an error at an entry, which lowers as the empty schema does, in
+// components and in operations alike, and a warning at a keyword left out.
 func TestCompile_ANullWhereASchemaBelongsIsNoSchema(t *testing.T) {
 	t.Parallel()
 
@@ -56,14 +56,14 @@ components:
     C: null
     L: {type: array, items: null}
 `)
-		pointers := []jsontext.Pointer{
-			"/components/schemas/A/properties/p", "/components/schemas/B/allOf/0",
-			"/components/schemas/C", "/components/schemas/L/items",
+		entries := []jsontext.Pointer{
+			"/components/schemas/A/properties/p", "/components/schemas/B/allOf/0", "/components/schemas/C",
 		}
 		assert.False(t, openapitest.HasDiag(diags, diag.FalseSchema), "no false schema was written: %+v", diags)
-		for _, pointer := range pointers {
-			assertOnlyLoadReportsNull(t, diags, pointer)
+		for _, pointer := range entries {
+			assertOnlyLoadReportsNull(t, diags, pointer, ir.SeverityError)
 		}
+		assertOnlyLoadReportsNull(t, diags, "/components/schemas/L/items", ir.SeverityWarning)
 
 		top := ir.TypeRef{Target: "t/prim/any"}
 		a, ok := typeByName(doc, "A").(*ir.Model)
@@ -112,7 +112,7 @@ paths:
 		}
 		assert.False(t, openapitest.HasDiag(diags, diag.FalseSchema), "%+v", diags)
 		for _, pointer := range pointers {
-			assertOnlyLoadReportsNull(t, diags, pointer)
+			assertOnlyLoadReportsNull(t, diags, pointer, ir.SeverityError)
 		}
 		assert.Empty(t, twinDiags, "the twin writes no null, and draws nothing")
 

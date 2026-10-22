@@ -72,7 +72,8 @@ func TestCheck_AtLeastOneSectionStandsInADocument(t *testing.T) {
 	_ = head
 }
 
-// TestCheck_CountsBoundTheEntries pins the rules that count a map or list.
+// TestCheck_CountsBoundTheEntries pins the rules that count a map or list. A
+// map's null entry is none, and a list's is one, read as the empty schema.
 func TestCheck_CountsBoundTheEntries(t *testing.T) {
 	verify(t, []scenario{
 		{"no responses", "3.1.0", oas.Responses, `{}`, []finding{at(entries, "")}},
@@ -89,6 +90,8 @@ func TestCheck_CountsBoundTheEntries(t *testing.T) {
 		{"empty enum in 3.1", "3.1.0", oas.ServerVariable, `{default: a, enum: []}`, []finding{at(entries, "/enum")}},
 		{"enum that is no list", "3.1.0", oas.ServerVariable, `{default: a, enum: x}`, []finding{at(mismatch, "/enum")}},
 		{"enum with entries", "3.1.0", oas.ServerVariable, `{default: a, enum: [a]}`, nil},
+		{"a null schema entry is one", "3.1.0", oas.Schema, `{prefixItems: [~]}`, []finding{at(mismatch, "/prefixItems/0")}},
+		{"a null branch is one", "3.0.3", oas.Schema, `{oneOf: [~]}`, []finding{at(mismatch, "/oneOf/0")}},
 		{"request body content is the load package's", "3.1.0", oas.RequestBody, `{content: {}}`, nil},
 	})
 }
