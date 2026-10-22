@@ -132,66 +132,6 @@ func lowerContent(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex
 		annotation.UnknownKeysIn(&content.Unmodeled, media, c.ProvenanceAt, mediaPtr)...)
 }
 
-// fillSequential lowers 3.2 sequential-media fields: itemSchema becomes the
-// element type, and itemEncoding becomes Content.ItemEncoding, with Multi set
-// because the construct describes a repeated tail by definition.
-//
-// That lowering only holds when no prefixEncoding accompanies it: prefixes make
-// itemEncoding govern the items *after* them rather than every item, which a
-// single every-item encoding would misstate. Those documents take
-// positionalEncoding instead.
-func fillSequential(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, content *ir.Content, media *soa.MediaType, mediaPtr jsontext.Pointer, hint string) []ir.Diagnostic {
-	var diags []ir.Diagnostic
-	if item := media.GetItemSchema(); item != nil {
-		ref, itemDiags := schema.Ref(c, ts, anchors, schema.TopLevelDepth, item, mediaPtr+ids.Ptr("itemSchema"), compile.SubHint(hint, "item"))
-		diags = append(diags, itemDiags...)
-		content.Item = &ref
-	}
-	if len(media.GetPrefixEncoding()) > 0 {
-		return append(diags, positionalEncoding(c, content, media, mediaPtr)...)
-	}
-	enc := media.GetItemEncoding()
-	if enc == nil {
-		return diags
-	}
-	pe, unmodeled, encDiags := encodingConfig(c, ts, anchors, enc, mediaPtr+ids.Ptr("itemEncoding"), "itemEncoding")
-	pe.Multi = true
-	content.ItemEncoding = &pe
-	content.Unmodeled = annotation.MergeUnmodeled(content.Unmodeled, unmodeled)
-	return append(diags, encDiags...)
-}
-
-// positionalEncoding keeps 3.2 positional prefixEncoding — and the itemEncoding
-// that governs the tail after it — verbatim, with one info diagnostic.
-// Content.ItemEncoding states one encoding for every item, so it cannot say
-// "these two in order, then the rest alike": lowering only the tail into it
-// would drop the prefixes and assert their encoding governs every item. The
-// ordinals a positional form needs are a gap the IR can close later, so the
-// entries carry ReasonNoIRHome rather than a degraded lowering.
-func positionalEncoding(c lowering.Ctx, content *ir.Content, media *soa.MediaType, mediaPtr jsontext.Pointer) []ir.Diagnostic {
-	root := media.GetRootNode()
-	// The announcement follows prefixEncoding, the construct that brought this
-	// lowering here: an itemEncoding beside it is optional, so its absence must not
-	// suppress the message, and its own conversion failure reports separately.
-	at := mediaPtr + ids.Ptr("prefixEncoding")
-	kept, diags := annotation.PreserveNodeInto(&content.Unmodeled, "openapi:prefixEncoding",
-		annotation.RawChildNode(root, "prefixEncoding"), ir.ReasonNoIRHome, c.ProvenanceAt(at))
-	_, itemDiags := annotation.PreserveNodeInto(&content.Unmodeled, "openapi:itemEncoding",
-		annotation.RawChildNode(root, "itemEncoding"), ir.ReasonNoIRHome, c.ProvenanceAt(mediaPtr+ids.Ptr("itemEncoding")))
-	diags = append(diags, itemDiags...)
-	if !kept {
-		// Reaching here means prefixEncoding is declared — that is the only reason
-		// this lowering runs — yet nothing of it was written. Unlike every other
-		// preservation site, an empty payload here cannot mean "there was no
-		// construct", so it is reported rather than passed over (GitHub #144).
-		return append(diags, c.DiagAt(ir.SeverityError, diag.UnpreservableConstruct, at,
-			"prefixEncoding is declared but its source node could not be read; it is "+
-				"represented in the IR in no form at all"))
-	}
-	return append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, mediaPtr,
-		"prefixEncoding is positional and has no per-item IR home; it and any itemEncoding are kept under Unmodeled"))
-}
-
 // isFormContent reports whether a media type is multipart or url-encoded form
 // content, whose parts carry per-property encoding.
 func isFormContent(mt string) bool {
