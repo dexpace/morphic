@@ -4383,6 +4383,50 @@ func TestAllOf_ADefaultTheNarrowerNodeRefusesIsKeptInEitherOrder(t *testing.T) {
 	}
 }
 
+// TestAllOf_AWinnersConstraintsRefuseADefaultInEitherOrder pins that the
+// winning node holds the broader declaration's default to its constraints as
+// well as its kind: a string past a component's maxLength, or a list past its
+// maxItems, is not adopted, and the declaration that wrote it is kept at its
+// own pointer, whichever branch it is and wherever the component is declared.
+func TestAllOf_AWinnersConstraintsRefuseADefaultInEitherOrder(t *testing.T) {
+	t.Parallel()
+	named := "{$ref: '#/components/schemas/C'}"
+	lowerings := map[string]func(extra, a, b string) (*ir.Document, []ir.Diagnostic){
+		"declared before": func(extra, a, b string) (*ir.Document, []ir.Diagnostic) {
+			return lowerSpec(t, nonBareSpec(extra, a, b))
+		},
+		"declared after": func(extra, a, b string) (*ir.Document, []ir.Diagnostic) { return settledSpec(t, extra, a, b) },
+	}
+	for _, tc := range []struct{ name, component, broad string }{
+		{"a string past maxLength", "    C: {type: string, maxLength: 3}\n", "{type: string, default: hello}"},
+		{"a list past maxItems", "    C: {type: array, items: {type: integer, format: int32}, maxItems: 2}\n",
+			"{type: array, items: {type: integer}, default: [1, 2, 3, 4]}"},
+	} {
+		for where, lower := range lowerings {
+			for _, order := range []struct{ a, b, kept string }{
+				{named, tc.broad, "/components/schemas/T/allOf/1/properties/v"},
+				{tc.broad, named, "/components/schemas/T/allOf/0/properties/v"},
+			} {
+				doc, diags := lower(tc.component, order.a, order.b)
+				at := tc.name + ", " + where + ", kept " + order.kept
+				openapitest.RequireNoErrorDiags(t, diags)
+				m, ok := doc.Types[componentID("T")].(*ir.Model)
+				require.True(t, ok, at)
+				require.Len(t, m.Properties, 1, at)
+				p := m.Properties[0]
+
+				assert.Equal(t, componentID("C"), p.Type.Target, "the component wins: %s", at)
+				assert.Nil(t, p.Default, "the refused default is not adopted: %s", at)
+				require.Len(t, p.Unmodeled, 1, at)
+				assert.Contains(t, p.Unmodeled, "openapi:conflicting-redeclaration"+order.kept, at)
+				require.Len(t, diags, 1, at)
+				assert.Equal(t, diag.DegradedConstruct, diags[0].Code, at)
+				assert.Equal(t, jsontext.Pointer(order.kept), diags[0].Provenance.Pointer, at)
+			}
+		}
+	}
+}
+
 // TestAllOf_TwoEqualListsRefuseANullTheMergeDoesNotAdmit pins that two lists of
 // one element, which are two targets, settle on a non-nullable list, so a null
 // default the nullable declaration wrote is not adopted and the declaration is

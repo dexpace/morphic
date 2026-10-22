@@ -308,3 +308,41 @@ func TestCompareBigVal_OrdersByValue(t *testing.T) {
 	_, ok = CompareBigVal("1", "1p4")
 	assert.False(t, ok)
 }
+
+// TestIsMultipleOf_JudgesExactly pins the multipleOf judgment the merge holds a
+// value to. Each row is one a float division gets wrong or one where no answer
+// is claimed: a decimal step float64 cannot hold, values far apart in scale,
+// and the pairs ok refuses, a zero step, a scale past the shift budget and a
+// literal outside the grammar.
+func TestIsMultipleOf_JudgesExactly(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name         string
+		v, m         ir.BigVal
+		multiple, ok bool
+	}{
+		{"an integer multiple", "10", "5", true, true},
+		{"an integer that is not one", "7", "2", false, true},
+		{"a decimal step float64 cannot hold", "0.3", "0.1", true, true},
+		{"a decimal off the step", "0.35", "0.1", false, true},
+		{"a fraction against an integral step", "2.5", "2", false, true},
+		{"a fraction against a fractional step", "2.5", "0.5", true, true},
+		{"zero, a multiple of anything", "0", "3", true, true},
+		{"a negative multiple", "-6", "3", true, true},
+		{"a step larger than the value", "2", "5", false, true},
+		{"magnitudes far apart within the budget", "1e100", "5", true, true},
+		{"a step far below the value", "1", "1e-100", true, true},
+		{"magnitudes past the budget", "1e5000", "2", false, false},
+		{"a zero step, which divides nothing", "4", "0", false, false},
+		{"a value outside the grammar", "1p4", "2", false, false},
+		{"a step outside the grammar", "4", "2p1", false, false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			multiple, ok := IsMultipleOf(tc.v, tc.m)
+			assert.Equal(t, tc.ok, ok)
+			assert.Equal(t, tc.multiple, multiple)
+		})
+	}
+}

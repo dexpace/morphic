@@ -166,6 +166,11 @@ func TestTypeJudge_AdmitsPerNode(t *testing.T) {
 		Members: []ir.EnumMember{{Value: num("1")}, {Value: num("2")}}}
 	reg["t/list-1"] = &ir.List{ID: "t/list-1", Elem: ref("t/enum-1")}
 	reg["t/map-1"] = &ir.MapT{ID: "t/map-1", Value: ref("t/enum-1")}
+	short, two := int64(3), int64(2)
+	reg["t/scalar-short"] = &ir.Scalar{ID: "t/scalar-short", Base: &ir.TypeRef{Target: "t/prim/string"},
+		Constraints: &ir.Constraints{MaxLength: &short}}
+	reg["t/list-pair"] = &ir.List{ID: "t/list-pair", Elem: ref("t/enum-1"), Constraints: &ir.Constraints{MaxItems: &two}}
+	reg["t/map-pair"] = &ir.MapT{ID: "t/map-pair", Value: ref("t/enum-1"), Constraints: &ir.Constraints{MaxProps: &two}}
 	j := typeJudge{Resolve: stubResolve(reg)}
 	list := func(vs ...ir.Value) ir.Value { return ir.Value{Kind: ir.ValueList, List: vs} }
 	obj := func(v ir.Value) ir.Value {
@@ -188,6 +193,12 @@ func TestTypeJudge_AdmitsPerNode(t *testing.T) {
 	assert.True(t, j.admits(ref("t/map-1"), obj(num("2"))))
 	assert.False(t, j.admits(ref("t/map-1"), obj(num("3"))))
 	assert.False(t, j.admits(ref("t/map-1"), list(num("1"))))
+	assert.True(t, j.admits(ref("t/scalar-short"), str("abc")), "a scalar's constraints admit what meets them")
+	assert.False(t, j.admits(ref("t/scalar-short"), str("abcd")), "and refuse what does not")
+	assert.False(t, j.admits(ref("t/list-pair"), list(num("1"), num("2"), num("1"))), "a list's constraints are judged")
+	pairs := ir.Value{Kind: ir.ValueObject, Object: []ir.Field{{Name: "a", Value: num("1")}, {Name: "b", Value: num("1")},
+		{Name: "c", Value: num("2")}}}
+	assert.False(t, j.admits(ref("t/map-pair"), pairs), "and so are a map's")
 	assert.False(t, j.admits(ref("t/cycle"), list(list(list(list(list(list(list(list(list(list())))))))))),
 		"a list nested past the cap is refused")
 }

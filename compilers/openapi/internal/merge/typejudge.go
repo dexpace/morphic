@@ -437,7 +437,8 @@ func (j typeJudge) primKind(ref ir.TypeRef) (ir.PrimKind, bool) {
 // against ref.Nullable, or the top type; any other value against the type: a
 // bare primitive by its kind, an Enum by its members, a Literal by its value, a
 // Scalar by its base unless it has an Encoding (which admits nothing, since the
-// wire form is not the value's), and a list or map by each member. Nesting past
+// wire form is not the value's), and a list or map by each member. A Scalar,
+// list or map also holds v to its Constraints (admitsConstraints). Nesting past
 // maxJudgeDepth is refused.
 func (j typeJudge) admits(ref ir.TypeRef, v ir.Value) bool { return j.admitsAt(ref, v, 0) }
 
@@ -464,11 +465,13 @@ func (j typeJudge) admitsAt(ref ir.TypeRef, v ir.Value, depth int) bool {
 	case *ir.Literal:
 		return sameValue(t.Value, v)
 	case *ir.Scalar:
-		return t.Encoding == nil && t.Base != nil && j.admitsAt(*t.Base, v, depth+1)
+		return t.Encoding == nil && t.Base != nil && admitsConstraints(t.Constraints, v, depth) &&
+			j.admitsAt(*t.Base, v, depth+1)
 	case *ir.List:
-		return v.Kind == ir.ValueList && j.admitsAll(t.Elem, v.List, depth)
+		return v.Kind == ir.ValueList && admitsConstraints(t.Constraints, v, depth) && j.admitsAll(t.Elem, v.List, depth)
 	case *ir.MapT:
-		return v.Kind == ir.ValueObject && j.admitsFields(t.Value, v.Object, depth)
+		return v.Kind == ir.ValueObject && admitsConstraints(t.Constraints, v, depth) &&
+			j.admitsFields(t.Value, v.Object, depth)
 	default:
 		return false
 	}

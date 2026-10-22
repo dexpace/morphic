@@ -1013,9 +1013,12 @@ field admits null only where both declarations do, and a null either declaration
 against that: a `default: null` or a null example is refused on any fold, a same-target fold
 included, where the merged field does not admit null, and the top type admits null whatever its bit
 says. A `default` or `examples` the broader declaration gives is adopted only when the winning type
-admits it, judged per keyword and all or nothing; one it does not admit is reported in an info
-`openapi/degraded-construct`, and the declaration that wrote it is kept verbatim beside the field,
-in either order. When several declarations wrote the refused value, each is kept, at its own
+admits it, judged per keyword and all or nothing. The winning type admits a value by its kind and by
+the constraints its node carries: each bound, `multipleOf`, a length counted in code points, an item
+or property count and `uniqueItems`, while a `pattern`, which nothing here evaluates, admits no
+string. Constraints written on the property rather than the node are not judged. A value
+the winning type does not admit is reported in an info `openapi/degraded-construct`, and the
+declaration that wrote it is kept verbatim beside the field, in either order. When several declarations wrote the refused value, each is kept, at its own
 pointer, and reported, so a broad declaration written first is kept as the narrow one written first
 would have kept it. The IR has no combinator for "string here, integer there", nor a second slot
 for a default, title, description, external link, examples, deprecation or XML hint the first
@@ -1075,6 +1078,9 @@ what the field holds or what is reported.
   `schema.TestAllOf_EnumPairsAreJudgedByKind`,
   `merge.TestTypeJudge_RelateArms`,
   `merge.TestTypeJudge_AdmitsPerNode`,
+  `merge.TestAdmitsConstraints_JudgesEachKeyword`,
+  `annotation.TestIsMultipleOf_JudgesExactly`,
+  `schema.TestAllOf_AWinnersConstraintsRefuseADefaultInEitherOrder`,
   `merge.TestTypesConflict_ALiteralOverlapsWhatHoldsValues`,
   `schema.TestAllOf_NonBareNarrowingIsOrderInvariant`,
   `merge.TestReconcileProperty_AScalarOverANarrowerKindWins`,
@@ -1109,7 +1115,8 @@ what the field holds or what is reported.
   two enums whose members fit each other's kind, two different literals), and a list or map whose
   broader side carries detail the narrower lacks, are reported as an overlap and never narrowed
   (#1042); a property redeclared as a list and as a tuple is reported as a conflict (#899). Open:
-  intersecting the redeclared bounds and defaults rather than keeping one (#10).
+  intersecting the redeclared bounds and defaults rather than keeping one, and judging an adopted
+  value against the constraints written on the property (#10).
 
 ### `allof-required`
 

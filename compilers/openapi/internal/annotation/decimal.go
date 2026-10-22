@@ -235,3 +235,44 @@ func CompareBigVal(a, b ir.BigVal) (order int, ok bool) {
 	}
 	return compareDecimalBounds(aDec, bDec), true
 }
+
+// maxMultipleOfShift bounds the power of ten IsMultipleOf materializes to put
+// the two literals on one scale. A literal reads in constant space however
+// large its exponent, but the quotient's integrality needs both as integers.
+const maxMultipleOfShift = 4096
+
+// IsMultipleOf reports whether v is an integral multiple of m, exactly. ok is
+// false when either is outside the decimal grammar, when m is zero, which
+// divides nothing, or when the two are more than maxMultipleOfShift powers of
+// ten apart, where the answer is not worth the integers it would build.
+func IsMultipleOf(v, m ir.BigVal) (multiple, ok bool) {
+	vd, vOK := parseDecimalBound(v)
+	md, mOK := parseDecimalBound(m)
+	if !vOK || !mOK || md.digits == "" {
+		return false, false
+	}
+	if vd.digits == "" {
+		return true, true
+	}
+	num, vExp := vd.integer()
+	den, mExp := md.integer()
+	shift := vExp.Sub(vExp, mExp)
+	if shift.CmpAbs(big.NewInt(maxMultipleOfShift)) > 0 {
+		return false, false
+	}
+	scale := new(big.Int).Exp(big.NewInt(10), new(big.Int).Abs(shift), nil)
+	if shift.Sign() >= 0 {
+		num.Mul(num, scale)
+	} else {
+		den.Mul(den, scale)
+	}
+	return new(big.Int).Rem(num, den).Sign() == 0, true
+}
+
+// integer returns d's significant digits read as an integer, and the power of
+// ten its last digit carries, so d is the one times ten to the other. d is not
+// zero.
+func (d decimalBound) integer() (*big.Int, *big.Int) {
+	digits, _ := new(big.Int).SetString(d.digits, 10)
+	return digits, new(big.Int).Sub(d.msdExp, big.NewInt(int64(len(d.digits)-1)))
+}
