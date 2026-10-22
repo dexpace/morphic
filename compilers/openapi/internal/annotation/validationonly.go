@@ -57,21 +57,21 @@ func combine(s *oas3.Schema, keys ...string) (ir.RawValue, []string, error) {
 }
 
 // presentMembers collects the given keywords that are present on s as raw JSON
-// members, preserving the requested order, and names the keywords present.
+// members, preserving the requested order, and names the keywords present. A
+// keyword written as `null` states nothing, so it is read as left out.
 //
 // A member that cannot be converted fails the whole combination rather than
-// being skipped. The entry these build is one object presented as the verbatim
-// source, so dropping a member from it would restate GitHub #144 in miniature:
-// an object labelled verbatim that silently omits one of its keywords. The
-// error names the first such member, and the keywords present are returned in
-// full even then, since the report of the failure is attributed by all of them.
+// being skipped: the entry is presented as the verbatim source, so dropping a
+// member would restate GitHub #144 in miniature. The error names the first such
+// member, and the keywords present are returned in full even then, since the
+// report of the failure is attributed by all of them.
 func presentMembers(s *oas3.Schema, keys ...string) ([]rawMember, []string, error) {
 	var members []rawMember
 	var present []string
 	var failed error
 	for _, k := range keys {
 		node := RawPropertyNode(s, k)
-		if node == nil {
+		if node == nil || IsNullNode(node) {
 			continue
 		}
 		present = append(present, k)
@@ -154,7 +154,7 @@ func validationOnlyAt(s *oas3.Schema, pointer jsontext.Pointer, locate Locator) 
 		keep("openapi:"+keyword, raw, err, pointer+ids.Ptr(keyword), keyword)
 	}
 
-	if s.GetNot() != nil {
+	if Written(s.GetNot()) {
 		keepKeyword("not")
 	}
 	ite, iteKeys, iteErr := IfThenElseRaw(s)
@@ -171,7 +171,7 @@ func validationOnlyAt(s *oas3.Schema, pointer jsontext.Pointer, locate Locator) 
 	if dr != nil || drErr != nil {
 		keep("openapi:dependentRequired", dr, drErr, pointer+ids.Ptr("dependentRequired"), "dependentRequired")
 	}
-	if s.GetPropertyNames() != nil {
+	if Written(s.GetPropertyNames()) {
 		keepKeyword("propertyNames")
 	}
 	craw, cKeys, cErr := ContainsRaw(s)

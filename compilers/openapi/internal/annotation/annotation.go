@@ -7,6 +7,7 @@ import (
 
 	"github.com/speakeasy-api/openapi/extensions"
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
+	"github.com/speakeasy-api/openapi/yml"
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
@@ -216,9 +217,33 @@ func SchemaOf(js *oas3.JSONSchema[oas3.Referenceable]) *oas3.Schema {
 	return js.GetSchema()
 }
 
-// IsFalseSchema reports whether js is the boolean `false` schema.
+// IsFalseSchema reports whether js is the boolean `false` schema, which a
+// `null` written in its place is not, though the parser decodes one as `false`
+// (docs/parser-library.md#null-schema-is-false).
 func IsFalseSchema(js *oas3.JSONSchema[oas3.Referenceable]) bool {
-	return js != nil && js.IsBool() && js.GetBool() != nil && !*js.GetBool()
+	return js != nil && js.IsBool() && js.GetBool() != nil && !*js.GetBool() && !IsNullLiteral(js)
+}
+
+// IsNullLiteral reports whether js is a `null` written where a schema belongs.
+// The parser reads one as the boolean `false` schema
+// (docs/parser-library.md#null-schema-is-false), so only its node tells the
+// two apart.
+func IsNullLiteral(js *oas3.JSONSchema[oas3.Referenceable]) bool {
+	return js != nil && js.IsBool() && IsNullNode(js.GetCore().GetRootNode())
+}
+
+// IsNullNode reports whether n, read through an alias, is a YAML null.
+func IsNullNode(n *yaml.Node) bool {
+	n = yml.ResolveAlias(n)
+	return n != nil && n.Kind == yaml.ScalarNode && n.ShortTag() == "!!null"
+}
+
+// Written reports whether js is a schema written at its position: present,
+// and no `null`, which states nothing about the values there (IsNullLiteral).
+// The load phase reports the null; every reader takes it as left out
+// (docs/compilers/openapi.md#null-schema).
+func Written(js *oas3.JSONSchema[oas3.Referenceable]) bool {
+	return js != nil && !IsNullLiteral(js)
 }
 
 // Home names where the annotations a schema position declares are

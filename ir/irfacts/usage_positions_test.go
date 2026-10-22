@@ -45,6 +45,7 @@ func usageRootPositions() map[string]irfacts.UsageFlags {
 		"Operation.RequestStream/StreamDetail.Initial":           in,
 		"Operation.Bindings/OpBindings.RPC/RPCBinding.InputType": in,
 		"Operation.Responses/Response.Headers/Property.Type":     out,
+		"Operation.Default/Response.Headers/Property.Type":       out,
 		"Operation.ResponseStream/StreamDetail.Events":           out,
 		"Operation.ResponseStream/StreamDetail.Initial":          out,
 		"Operation.LongRunning/LongRunning.PollingType":          out,
@@ -57,6 +58,7 @@ func usageRootPositions() map[string]irfacts.UsageFlags {
 	}
 	for header, flags := range map[string]irfacts.UsageFlags{
 		"Operation.Responses/Response.Headers":   out,
+		"Operation.Default/Response.Headers":     out,
 		"Operation.Errors/ErrorCase.Headers":     failure,
 		"Service.CommonErrors/ErrorCase.Headers": failure,
 	} {
@@ -65,6 +67,7 @@ func usageRootPositions() map[string]irfacts.UsageFlags {
 	for payload, flags := range map[string]irfacts.UsageFlags{
 		"Operation.Request":                      in,
 		"Operation.Responses/Response.Payload":   out,
+		"Operation.Default/Response.Payload":     out,
 		"Operation.Errors/ErrorCase.Payload":     failure,
 		"Service.CommonErrors/ErrorCase.Payload": failure,
 		"Document.Messages/Message.Payload":      in,

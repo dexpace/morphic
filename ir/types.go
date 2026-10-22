@@ -129,6 +129,12 @@ type Model struct {
 	TypeCommon
 	// Properties are the model's own properties, in source order.
 	Properties []Property `json:"properties,omitempty"`
+	// Requires names, by wire name and in the order the source lists them, each
+	// member an instance must carry that no property of the model's own
+	// declares: one its Base, Implements or Mixins declare, which it makes
+	// required, or one only its catch-all governs. A name an own property
+	// declares is that property's Required instead, so no name is in both.
+	Requires []string `json:"requires,omitempty"`
 	// Base is the declared single inheritance parent (TypeSpec extends,
 	// allOf-as-inheritance).
 	Base *TypeRef `json:"base,omitzero"`

@@ -77,12 +77,15 @@ const (
 )
 
 // nullRead says how a null written for the field is read at minor m. The schema
-// lowering reads a Schema Object's keywords off the node, where a null is not
-// left out, nor is one written where a schema belongs. A null for an optional
-// field of an object the parser models is left out; for a required field it is
-// the value that is missing, reported by whichever package owns the rule.
+// lowering reads one for a keyword whose value is a schema as left out, and one
+// for another object's schema as the empty schema, a value. It reads one for a
+// Schema Object's other keywords several ways, so that is the wrong value
+// (GitHub #1069). A null for an optional field is otherwise left out; for a
+// required field it is the value that is missing, reported by whichever package
+// owns the rule.
 func (f frame) nullRead(fld Field, m Minor) nullReading {
-	if f.obj.Kind == Schema || (fld.Shape == Nested && fld.Of == Schema) {
+	holdsSchema := fld.Shape == Nested && fld.Of == Schema
+	if holdsSchema != (f.obj.Kind == Schema) {
 		return wrongValue
 	}
 	if fld.Required.Holds(m) {

@@ -151,6 +151,7 @@ func conformanceCases() []conformanceCase {
 		{"allof-mixins", assertAllOfMixins},
 		{"allof-inline-merge", assertAllOfInlineMerge},
 		{"allof-required-only", assertAllOfRequiredOnly},
+		{"required-members", assertRequiredMembers},
 		{"allof-oneof-cooccurrence", assertAllOfOneOfCooccurrence},
 		{"allof-inline-residue", assertAllOfInlineResidue},
 		{"allof-ref-branch-siblings", assertAllOfRefBranchSiblings},
@@ -171,6 +172,7 @@ func conformanceCases() []conformanceCase {
 		{"codeclared-keywords", assertCoDeclaredKeywords},
 		{"codeclared-schema-content", assertCoDeclaredSchemaContent},
 		{"anyof-untagged", assertAnyOfUntagged},
+		{"union-decorated-branch", assertUnionDecoratedBranch},
 		{"negation-not", assertNegationNot},
 		{"dependent-required", assertDependentRequired},
 		{"dialect-keywords", assertDialectKeywords},
@@ -225,6 +227,7 @@ func conformanceCases() []conformanceCase {
 		{"streaming-media-30", assertStreamingMedia30},
 		{"streaming-media-31", assertStreamingMedia31},
 		{"per-status-errors", assertPerStatusErrors},
+		{"default-response", assertDefaultResponse},
 		{"response-links", assertResponseLinks},
 		{"webhooks", assertWebhooks},
 		{"callbacks", assertCallbacks},
@@ -817,6 +820,57 @@ func assertAllOfRequiredOnly(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) 
 		"a required-only allOf branch attaches across the whole composition, not just its own properties map (issue #29)")
 }
 
+// assertRequiredMembers pins where a `required` name lands when no property of
+// the object it is written for declares it (ir-design §4.3): in Model.Requires,
+// once, beside the Required on the properties it does name. The four shapes are
+// four ways an object lowers: a plain object, an allOf making a property its
+// base declares required, an object whose catch-all governs the name, which
+// stays a Model rather than becoming a map since a map requires no key, and the
+// object variant of a multi-typed schema.
+func assertRequiredMembers(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	plain, ok := doc.Types[namedID("Plain")].(*ir.Model)
+	require.True(t, ok)
+	id, ok := propByWire(plain, "id")
+	require.True(t, ok)
+	assert.True(t, id.Required, "a declared name is Required on its property")
+	assert.Equal(t, []string{"ghost"}, plain.Requires, "an undeclared one is listed, and the declared one is not")
+
+	created, ok := doc.Types[namedID("CreatedUser")].(*ir.Model)
+	require.True(t, ok)
+	require.NotNil(t, created.Base)
+	assert.Equal(t, namedID("User"), created.Base.Target)
+	assert.Empty(t, created.Properties, "the base declares id, so the composed model has no property for it")
+	assert.Equal(t, []string{"id"}, created.Requires, "the inherited property it makes required")
+	user, ok := doc.Types[namedID("User")].(*ir.Model)
+	require.True(t, ok)
+	assert.Empty(t, user.Requires, "the base is not made to require what only its subtype does")
+	userID, ok := propByWire(user, "id")
+	require.True(t, ok)
+	assert.False(t, userID.Required, "and its own property stays optional")
+
+	tagged, ok := doc.Types[namedID("Tagged")].(*ir.Model)
+	require.True(t, ok, "a required name beside a catch-all keeps the object a Model, not a map")
+	assert.NotNil(t, tagged.AdditionalProps)
+	assert.Empty(t, tagged.Properties)
+	assert.Equal(t, []string{"a"}, tagged.Requires, "required only because the catch-all governs it")
+	_, isMap := ir.AsMap(tagged)
+	assert.False(t, isMap, "AsMap keeps a model that requires a member a Model")
+
+	either, ok := doc.Types[namedID("Either")].(*ir.Union)
+	require.True(t, ok)
+	var object *ir.Model
+	for _, v := range either.Variants {
+		if m, isModel := doc.Types[v.Type.Target].(*ir.Model); isModel {
+			object = m
+		}
+	}
+	require.NotNil(t, object, "the object variant is a Model")
+	variantID, ok := propByWire(object, "id")
+	require.True(t, ok)
+	assert.True(t, variantID.Required)
+	assert.Equal(t, []string{"extra"}, object.Requires, "the variant lists what it declares nowhere")
+}
+
 // assertAllOfOneOfCooccurrence pins both halves of the co-declared composition
 // rule: §4.3 distributes a union whose branches all name referents, and the
 // rule docs/compilers/openapi.md#union-beside-structure keeps one with an
@@ -1153,6 +1207,26 @@ func assertAnyOfUntagged(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.False(t, u.WireTagged, "with no discriminator, validation infers the variant")
 	assert.Nil(t, u.Discriminator)
 	assert.Len(t, u.Variants, 2)
+}
+
+// assertUnionDecoratedBranch pins a union branch annotated the only way 3.0
+// can, by wrapping its $ref (GitHub #1018). The wrapper lowers to a decorator
+// over Pet that keeps the description, so no information is lost, and its
+// variant is named for Pet while the node keeps the positional hint.
+func assertUnionDecoratedBranch(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	u, ok := doc.Types[namedID("U")].(*ir.Union)
+	require.True(t, ok)
+	require.Len(t, u.Variants, 2)
+	assert.Equal(t, "user", u.Variants[0].Name.Hint)
+	assert.Equal(t, "pet", u.Variants[1].Name.Hint, "named for the $ref it wraps, as 3.1's sibling spelling is")
+
+	branch, ok := doc.Types[u.Variants[1].Type.Target].(*ir.Model)
+	require.True(t, ok, "the wrapped branch is a node of its own")
+	base, decorates := ir.Decorated(branch)
+	require.True(t, decorates, "a description beside the wrapped $ref is an annotation, not a shape")
+	assert.Equal(t, namedID("Pet"), base.Target)
+	assert.Equal(t, "a pet", branch.Docs.Description, "the annotation is kept")
+	assert.Equal(t, "variant_1", branch.Name.Hint, "the node keeps the positional hint")
 }
 
 func assertNegationNot(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
@@ -3143,8 +3217,10 @@ func assertPerStatusErrors(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 		{From: 404, To: 404}: "client",
 		{From: 429, To: 429}: "client",
 		{From: 500, To: 599}: "server",
-		{}:                   "",
-	}, faults, "each range classified from its own status; the default catch-all unclassified")
+	}, faults, "each range classified from its own status")
+	require.NotNil(t, op.Default, "the default is classed neither way, so it is no error case")
+	assert.Equal(t, []ir.StatusRange{{}}, op.Default.Conditions.StatusCodes, "the catch-all alone")
+	assert.Equal(t, "default", op.Default.Name.Hint)
 
 	assertErrorCaseIsAResponse(t, byRange)
 }
@@ -3166,8 +3242,7 @@ func assertErrorCaseIsAResponse(t *testing.T, byRange map[ir.StatusRange]ir.Erro
 		{From: 404, To: 404}: "404",
 		{From: 429, To: 429}: "429",
 		{From: 500, To: 599}: "5_xx",
-		{}:                   "default",
-	}, hints, "the key as declared, then neutralized; only \"default\" round-trips unchanged")
+	}, hints, "the key as declared, then neutralized")
 
 	notFound, ok := byRange[ir.StatusRange{From: 404, To: 404}]
 	require.True(t, ok)
@@ -3198,6 +3273,48 @@ func assertErrorCaseIsAResponse(t *testing.T, byRange map[ir.StatusRange]ir.Erro
 		assert.NotContains(t, ec.Unmodeled, "openapi:content", "%v keeps no content map", rng)
 		assert.NotContains(t, ec.Unmodeled, "openapi:headers", "%v keeps no headers map", rng)
 	}
+}
+
+// assertDefaultResponse pins that a `default` response lowers to the operation's
+// Default, whole, in the three shapes it takes: the operation's only response,
+// the fallback beside a success, and a bare one with no body. In none is the
+// catch-all among Errors, since `default` answers successes and failures alike
+// and the compiler classes it as neither (ir-design §7.2). The control is the
+// 200 beside the default, which stays a Response.
+func assertDefaultResponse(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	catchAll := []ir.StatusRange{{From: 0, To: 0}}
+	byOp := map[string]ir.Operation{}
+	for _, name := range []string{"purgeCache", "getItem", "ping"} {
+		op, ok := opByName(doc, name)
+		require.True(t, ok, "operation %s", name)
+		require.NotNil(t, op.Default, "%s: the default is kept as Default", name)
+		assert.Empty(t, op.Errors, "%s: the catch-all is no error case", name)
+		assert.Equal(t, catchAll, op.Default.Conditions.StatusCodes, "%s: the catch-all alone", name)
+		assert.Equal(t, "default", op.Default.Name.Hint, "%s: the key as written", name)
+		byOp[name] = op
+	}
+
+	purge := byOp["purgeCache"]
+	assert.Empty(t, purge.Responses, "a lone default is the operation's whole description of the outcome")
+	require.NotNil(t, purge.Default.Payload)
+	require.Len(t, purge.Default.Payload.Contents, 1)
+	assert.Equal(t, "application/json", purge.Default.Payload.Contents[0].MediaType)
+	assert.Equal(t, "the cache was purged, or it was not", purge.Default.Docs.Description)
+
+	item := byOp["getItem"]
+	require.Len(t, item.Responses, 1, "the 200 stays a Response beside the default")
+	assert.Equal(t, []ir.StatusRange{{From: 200, To: 200}}, item.Responses[0].Conditions.StatusCodes)
+	require.NotNil(t, item.Default.Payload)
+	require.Len(t, item.Default.Payload.Contents, 1)
+	assert.Equal(t, namedID("Problem"), item.Default.Payload.Contents[0].Type.Target,
+		"the default keeps its own body, apart from the success one")
+	require.NotNil(t, item.Responses[0].Payload)
+	assert.Equal(t, namedID("Item"), item.Responses[0].Payload.Contents[0].Type.Target)
+
+	ping := byOp["ping"]
+	assert.Empty(t, ping.Responses)
+	assert.Nil(t, ping.Default.Payload, "a default declaring no content gets no payload")
+	assert.Equal(t, "pong", ping.Default.Docs.Description)
 }
 
 func assertWebhooks(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {

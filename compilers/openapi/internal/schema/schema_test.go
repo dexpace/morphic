@@ -977,43 +977,28 @@ func TestObject_MapKeepsItsDeclaration(t *testing.T) {
 	assert.Contains(t, mt.Unmodeled, "openapi:x-owner")
 }
 
-// TestObject_MapKeepsARequiredListVerbatim pins the one census keyword a MapT
-// cannot hold: a map requires no key, so `required` naming one is kept verbatim
-// and announced rather than dropped.
-func TestObject_MapKeepsARequiredListVerbatim(t *testing.T) {
+// TestObject_ACatchAllBesideARequiredNameStaysAModel pins an object whose one
+// member fact beside its catch-all is a required name, plain or composed: the
+// name lands in Model.Requires, which keeps it a Model, since a map requires no
+// key, and nothing is kept verbatim or reported.
+func TestObject_ACatchAllBesideARequiredNameStaysAModel(t *testing.T) {
 	t.Parallel()
-	doc, diags := lowerSpec(t, openapitest.ComponentSpec(`    S:
-      type: object
-      required: [a]
-      additionalProperties: {type: string}
-`))
-	mt, ok := doc.Types[componentID("S")].(*ir.MapT)
-	require.True(t, ok, "got %T", doc.Types[componentID("S")])
-	entry, kept := mt.Unmodeled["openapi:required"]
-	require.True(t, kept, "required has no home on a map, so it is kept verbatim")
-	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
-	assert.JSONEq(t, `["a"]`, string(entry.Value))
-	assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/S"),
-		"required", "the keeping is announced once, naming the keyword")
-}
-
-// TestObject_ComposedMapReportsItsRequiredOnce pins the allOf counterpart: the
-// composition reads the position's `required` itself and reports each name it
-// cannot attach, so the census of the map it leaves does not report the
-// keyword a second time.
-func TestObject_ComposedMapReportsItsRequiredOnce(t *testing.T) {
-	t.Parallel()
-	doc, diags := lowerSpec(t, openapitest.ComponentSpec(
-		"    S: {allOf: [{type: object}], additionalProperties: {type: string}, required: [a]}\n"))
-	_, ok := doc.Types[componentID("S")].(*ir.MapT)
-	require.True(t, ok, "got %T", doc.Types[componentID("S")])
-	var codes []string
-	for _, d := range diags {
-		if d.Provenance.Pointer == "/components/schemas/S" {
-			codes = append(codes, d.Code)
-		}
+	for name, spec := range map[string]string{
+		"plain":    "    S: {type: object, required: [a], additionalProperties: {type: string}}\n",
+		"composed": "    S: {allOf: [{type: object}], additionalProperties: {type: string}, required: [a]}\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := lowerSpec(t, openapitest.ComponentSpec(spec))
+			m, ok := doc.Types[componentID("S")].(*ir.Model)
+			require.True(t, ok, "got %T", doc.Types[componentID("S")])
+			assert.Equal(t, []string{"a"}, m.Requires)
+			require.NotNil(t, m.AdditionalProps)
+			assert.Equal(t, ir.TypeRef{Target: "t/prim/string"}, m.AdditionalProps.Value)
+			assert.NotContains(t, m.Unmodeled, "openapi:required")
+			assert.Empty(t, diags)
+		})
 	}
-	assert.Equal(t, []string{diag.UnattachableRequired}, codes)
 }
 
 // TestObject_MapRedeclaredAsAModelIsNoConflict pins that an allOf branch
@@ -5497,9 +5482,9 @@ func TestUnhomedKeywords_ArrayBoundsKeepWhatCollectionConstraintsDoesNotRead(t *
 // census at the third $ref site: an allOf branch spelled as a reference, which
 // homes its siblings on an alias exactly as a component does.
 //
-// `required` is the branch keyword this composition does read —
-// applyCompositionRequired ORs every branch's list onto the composed model — so
-// it must not be kept, or one keyword would be reported twice.
+// `required` is the branch keyword this composition does read — requireMembers
+// lands every branch's list on the composed model — so it must not be kept, or
+// one keyword would be read twice.
 func TestRefSiteKeywords_AllOfBranchKeepsWhatTheAliasCannotHold(t *testing.T) {
 	t.Parallel()
 	doc, diags := lowerSpec(t, keywordCensusSpec(

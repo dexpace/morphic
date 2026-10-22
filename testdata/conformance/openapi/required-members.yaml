@@ -1,0 +1,28 @@
+openapi: 3.1.0
+info: {title: RequiredMembers, version: "1.0.0"}
+paths: {}
+components:
+  schemas:
+    Plain:
+      type: object
+      required: [id, ghost]
+      properties:
+        id: {type: string}
+    User:
+      type: object
+      properties:
+        id: {type: string}
+        name: {type: string}
+    CreatedUser:
+      allOf:
+        - {$ref: '#/components/schemas/User'}
+        - required: [id]
+    Tagged:
+      type: object
+      additionalProperties: {type: string}
+      required: [a]
+    Either:
+      type: [object, string]
+      required: [id, extra]
+      properties:
+        id: {type: string}

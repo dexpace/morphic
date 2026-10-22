@@ -128,64 +128,62 @@
                   }
                 }
               ],
-              "errors": [
-                {
-                  "name": {
-                    "hint": "default"
-                  },
-                  "conditions": {
-                    "statusCodes": [
-                      {
-                        "from": 0,
-                        "to": 0
-                      }
-                    ]
-                  },
-                  "payload": {
-                    "contents": [
-                      {
-                        "mediaType": "application/json",
-                        "type": {
-                          "target": "t/openapi@common.yaml/components/schemas/Error",
-                          "nullable": false
-                        }
-                      }
-                    ]
-                  },
-                  "headers": [
+              "default": {
+                "name": {
+                  "hint": "default"
+                },
+                "conditions": {
+                  "statusCodes": [
                     {
-                      "id": "p/openapi@common.yaml/components/responses/Error/headers/X-Request-Id",
-                      "name": {
-                        "source": "X-Request-Id",
-                        "canonical": "x_request_id"
-                      },
-                      "wireName": "X-Request-Id",
+                      "from": 0,
+                      "to": 0
+                    }
+                  ]
+                },
+                "payload": {
+                  "contents": [
+                    {
+                      "mediaType": "application/json",
                       "type": {
-                        "target": "t/prim/uuid",
+                        "target": "t/openapi@common.yaml/components/schemas/Error",
                         "nullable": false
-                      },
-                      "required": false,
-                      "clientOptional": false,
-                      "defaultAdded": false,
-                      "visibility": {
-                        "none": false
-                      },
-                      "flatten": false,
-                      "eventHeader": false,
-                      "eventPayload": false,
-                      "secret": false,
-                      "docs": {},
-                      "provenance": {
-                        "source": 1,
-                        "pointer": "/components/responses/Error/headers/X-Request-Id"
                       }
                     }
-                  ],
-                  "docs": {
-                    "description": "an error"
+                  ]
+                },
+                "headers": [
+                  {
+                    "id": "p/openapi@common.yaml/components/responses/Error/headers/X-Request-Id",
+                    "name": {
+                      "source": "X-Request-Id",
+                      "canonical": "x_request_id"
+                    },
+                    "wireName": "X-Request-Id",
+                    "type": {
+                      "target": "t/prim/uuid",
+                      "nullable": false
+                    },
+                    "required": false,
+                    "clientOptional": false,
+                    "defaultAdded": false,
+                    "visibility": {
+                      "none": false
+                    },
+                    "flatten": false,
+                    "eventHeader": false,
+                    "eventPayload": false,
+                    "secret": false,
+                    "docs": {},
+                    "provenance": {
+                      "source": 1,
+                      "pointer": "/components/responses/Error/headers/X-Request-Id"
+                    }
                   }
+                ],
+                "docs": {
+                  "description": "an error"
                 }
-              ],
+              },
               "oneWay": false,
               "idempotency": {},
               "bindings": {
@@ -262,64 +260,62 @@
                   }
                 }
               ],
-              "errors": [
-                {
-                  "name": {
-                    "hint": "default"
-                  },
-                  "conditions": {
-                    "statusCodes": [
-                      {
-                        "from": 0,
-                        "to": 0
-                      }
-                    ]
-                  },
-                  "payload": {
-                    "contents": [
-                      {
-                        "mediaType": "application/json",
-                        "type": {
-                          "target": "t/openapi@common.yaml/components/schemas/Error",
-                          "nullable": false
-                        }
-                      }
-                    ]
-                  },
-                  "headers": [
+              "default": {
+                "name": {
+                  "hint": "default"
+                },
+                "conditions": {
+                  "statusCodes": [
                     {
-                      "id": "p/openapi@common.yaml/components/responses/Error/headers/X-Request-Id",
-                      "name": {
-                        "source": "X-Request-Id",
-                        "canonical": "x_request_id"
-                      },
-                      "wireName": "X-Request-Id",
+                      "from": 0,
+                      "to": 0
+                    }
+                  ]
+                },
+                "payload": {
+                  "contents": [
+                    {
+                      "mediaType": "application/json",
                       "type": {
-                        "target": "t/prim/uuid",
+                        "target": "t/openapi@common.yaml/components/schemas/Error",
                         "nullable": false
-                      },
-                      "required": false,
-                      "clientOptional": false,
-                      "defaultAdded": false,
-                      "visibility": {
-                        "none": false
-                      },
-                      "flatten": false,
-                      "eventHeader": false,
-                      "eventPayload": false,
-                      "secret": false,
-                      "docs": {},
-                      "provenance": {
-                        "source": 1,
-                        "pointer": "/components/responses/Error/headers/X-Request-Id"
                       }
                     }
-                  ],
-                  "docs": {
-                    "description": "an error"
+                  ]
+                },
+                "headers": [
+                  {
+                    "id": "p/openapi@common.yaml/components/responses/Error/headers/X-Request-Id",
+                    "name": {
+                      "source": "X-Request-Id",
+                      "canonical": "x_request_id"
+                    },
+                    "wireName": "X-Request-Id",
+                    "type": {
+                      "target": "t/prim/uuid",
+                      "nullable": false
+                    },
+                    "required": false,
+                    "clientOptional": false,
+                    "defaultAdded": false,
+                    "visibility": {
+                      "none": false
+                    },
+                    "flatten": false,
+                    "eventHeader": false,
+                    "eventPayload": false,
+                    "secret": false,
+                    "docs": {},
+                    "provenance": {
+                      "source": 1,
+                      "pointer": "/components/responses/Error/headers/X-Request-Id"
+                    }
                   }
+                ],
+                "docs": {
+                  "description": "an error"
                 }
-              ],
+              },
               "oneWay": false,
               "idempotency": {},
               "bindings": {
@@ -417,64 +413,62 @@
                   }
                 }
               ],
-              "errors": [
-                {
-                  "name": {
-                    "hint": "default"
-                  },
-                  "conditions": {
-                    "statusCodes": [
-                      {
-                        "from": 0,
-                        "to": 0
-                      }
-                    ]
-                  },
-                  "payload": {
-                    "contents": [
-                      {
-                        "mediaType": "application/json",
-                        "type": {
-                          "target": "t/openapi@common.yaml/components/schemas/Error",
-                          "nullable": false
-                        }
-                      }
-                    ]
-                  },
-                  "headers": [
+              "default": {
+                "name": {
+                  "hint": "default"
+                },
+                "conditions": {
+                  "statusCodes": [
                     {
-                      "id": "p/openapi@common.yaml/components/responses/Error/headers/X-Request-Id",
-                      "name": {
-                        "source": "X-Request-Id",
-                        "canonical": "x_request_id"
-                      },
-                      "wireName": "X-Request-Id",
+                      "from": 0,
+                      "to": 0
+                    }
+                  ]
+                },
+                "payload": {
+                  "contents": [
+                    {
+                      "mediaType": "application/json",
                       "type": {
-                        "target": "t/prim/uuid",
+                        "target": "t/openapi@common.yaml/components/schemas/Error",
                         "nullable": false
-                      },
-                      "required": false,
-                      "clientOptional": false,
-                      "defaultAdded": false,
-                      "visibility": {
-                        "none": false
-                      },
-                      "flatten": false,
-                      "eventHeader": false,
-                      "eventPayload": false,
-                      "secret": false,
-                      "docs": {},
-                      "provenance": {
-                        "source": 1,
-                        "pointer": "/components/responses/Error/headers/X-Request-Id"
                       }
                     }
-                  ],
-                  "docs": {
-                    "description": "an error"
+                  ]
+                },
+                "headers": [
+                  {
+                    "id": "p/openapi@common.yaml/components/responses/Error/headers/X-Request-Id",
+                    "name": {
+                      "source": "X-Request-Id",
+                      "canonical": "x_request_id"
+                    },
+                    "wireName": "X-Request-Id",
+                    "type": {
+                      "target": "t/prim/uuid",
+                      "nullable": false
+                    },
+                    "required": false,
+                    "clientOptional": false,
+                    "defaultAdded": false,
+                    "visibility": {
+                      "none": false
+                    },
+                    "flatten": false,
+                    "eventHeader": false,
+                    "eventPayload": false,
+                    "secret": false,
+                    "docs": {},
+                    "provenance": {
+                      "source": 1,
+                      "pointer": "/components/responses/Error/headers/X-Request-Id"
+                    }
                   }
+                ],
+                "docs": {
+                  "description": "an error"
                 }
-              ],
+              },
               "oneWay": false,
               "idempotency": {},
               "bindings": {
@@ -595,6 +589,9 @@
         "source": 0,
         "pointer": "/components/schemas/NewPet"
       },
+      "requires": [
+        "name"
+      ],
       "base": {
         "target": "t/openapi@schemas~1pet.yaml/components/schemas/Pet",
         "nullable": false
@@ -908,17 +905,6 @@
       },
       "urlTemplate": "/",
       "description": {}
-    }
-  ],
-  "diagnostics": [
-    {
-      "severity": "warning",
-      "code": "openapi/unattachable-required",
-      "message": "required \"name\" matches no property declared here; a base or mixin may declare it, and the requirement cannot be carried across composition",
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/NewPet/allOf/1"
-      }
     }
   ],
   "sources": [
