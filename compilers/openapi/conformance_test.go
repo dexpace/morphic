@@ -840,8 +840,11 @@ func assertAllOfNestedInline(t *testing.T, doc *ir.Document, diags []ir.Diagnost
 	mc, ok := propByWire(mixed, "c")
 	require.True(t, ok)
 	assert.True(t, mc.Required, "the wrapper's required list reaches the property inside it")
-	_, ok = propByWire(mixed, "w")
-	assert.True(t, ok, "the wrapper's own property merges")
+	wires := make([]string, 0, len(mixed.Properties))
+	for _, p := range mixed.Properties {
+		wires = append(wires, p.WireName)
+	}
+	assert.Equal(t, []string{"c", "w"}, wires, "the wrapper's own property merges after its branches'")
 
 	closed, ok := doc.Types[namedID("Closed")].(*ir.Model)
 	require.True(t, ok)
@@ -856,6 +859,16 @@ func assertAllOfNestedInline(t *testing.T, doc *ir.Document, diags []ir.Diagnost
 	assert.Equal(t, namedID("A"), described.Mixins[0].Target)
 	assert.Equal(t, namedID("B"), described.Mixins[1].Target)
 	assert.Contains(t, described.Unmodeled, "openapi:allOf/0", "the wrapper is kept whole")
+
+	for _, id := range []ir.TypeID{"t/composed/components/schemas/U/oneOf/0", "t/composed/components/schemas/U/oneOf/1"} {
+		variant, ok := doc.Types[id].(*ir.Model)
+		require.True(t, ok, "%s should be a composed variant", id)
+		assert.Equal(t, ir.AdditionalClosed, variant.Additional, "%s: a false nested beside a oneOf closes every variant", id)
+		assert.Contains(t, variant.Unmodeled, "openapi:allOf/0/allOf/2/allOf/0", "%s keeps the false at its path", id)
+		a, ok := propByWire(variant, "a")
+		require.True(t, ok, id)
+		assert.True(t, a.Required, "%s: the wrapper's required list reaches the variant's property", id)
+	}
 
 	for _, d := range diags {
 		if d.Code == diag.DegradedConstruct && d.Provenance.Pointer == "/components/schemas/Described/allOf/0" {
