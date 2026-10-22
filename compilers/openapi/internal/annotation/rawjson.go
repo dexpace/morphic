@@ -19,10 +19,10 @@ import (
 // that never happened (GitHub #144).
 //
 // Conversion fails on a non-string or repeated mapping key (an aliased repeat
-// aside, GitHub #1072), .nan or .inf, a scalar whose text does not satisfy its
-// tag (a !!null aside, GitHub #245), invalid UTF-8, and an alias that cycles or
-// expands past the node budget. A tag yaml.v3 leaves untyped is kept. Numeric
-// literals stay exact (GitHub #32).
+// aside, GitHub #1072), a `<<` merging no mapping, .nan or .inf, a scalar whose
+// text does not satisfy its tag (a !!null aside, GitHub #245), invalid UTF-8,
+// and an alias that cycles or expands past the node budget. A tag yaml.v3
+// leaves untyped is kept. Numeric literals stay exact (GitHub #32).
 func RawFromNode(node *yaml.Node) (ir.RawValue, error) {
 	if node == nil {
 		return nil, nil
