@@ -599,3 +599,25 @@ func TestRawFromNode_ResolvesAnUntaggedScalarByItsValue(t *testing.T) {
 		})
 	}
 }
+
+// TestRawFromNode_DistinguishesAbsentFromUnconvertible pins the three outcomes
+// the reader exists to keep apart. Collapsing the first two into one nil return
+// is what let a diagnostic announce a preservation that never happened.
+func TestRawFromNode_DistinguishesAbsentFromUnconvertible(t *testing.T) {
+	t.Parallel()
+	got, err := RawFromNode(nil)
+	require.NoError(t, err)
+	assert.Nil(t, got, "an absent node is not a failure")
+
+	got, err = RawFromNode(openapitest.YAMLNode(t, "{a: 1}"))
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"a":1}`, string(got))
+
+	got, err = RawFromNode(openapitest.YAMLNode(t, ".nan"))
+	require.Error(t, err, "a value that decodes but does not marshal is a failure")
+	assert.Nil(t, got)
+
+	got, err = RawFromNode(openapitest.YAMLNode(t, "{? [1, 2]\n: v}"))
+	require.Error(t, err, "a mapping with a non-string key does not decode into the JSON model")
+	assert.Nil(t, got)
+}

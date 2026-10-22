@@ -2,6 +2,7 @@ package annotation
 
 import (
 	"encoding/json/jsontext"
+	"slices"
 	"strings"
 	"testing"
 
@@ -93,22 +94,6 @@ func TestAnnotations_ReadsEverySiteLocalAspect(t *testing.T) {
 	assert.Empty(t, diags)
 }
 
-// TestValidationOnlyAt_NeedsTheRawNode records a real limit of reading these
-// purely: the §4.7 keywords are preserved byte-faithfully from the source YAML,
-// so the facet reads the schema's raw root node rather than its parsed fields. A
-// schema built in Go carries no root node, so there is nothing to preserve —
-// which is the correct answer, not a gap. The parsed-source path is covered by
-// the retention suite.
-func TestValidationOnlyAt_NeedsTheRawNode(t *testing.T) {
-	t.Parallel()
-	built := &oas3.Schema{Not: oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{})}
-
-	got, diags := validationOnlyAt(built, "/p", sourced(0))
-
-	assert.Nil(t, got, "no raw bytes to keep, so nothing is kept")
-	assert.Empty(t, diags, "and nothing is announced for a keyword that was not kept")
-}
-
 // TestSchemaExamplesAt_UnconvertibleValueIsReportedNotDropped pins that a facet
 // returns its findings rather than swallowing them — the property that lets a
 // pure reader replace one that reached into a lowerer to report.
@@ -123,40 +108,6 @@ func TestSchemaExamplesAt_UnconvertibleValueIsReportedNotDropped(t *testing.T) {
 	assert.Equal(t, diag.DegradedConstruct, diags[0].Code)
 	assert.Equal(t, 3, diags[0].Provenance.Source, "stamped with the source it was handed")
 	assert.Equal(t, jsontext.Pointer("/p/example"), diags[0].Provenance.Pointer)
-}
-
-func TestPreserveKeywordInto_EmptyPayloadRecordsAndAnnouncesNothing(t *testing.T) {
-	t.Parallel()
-	for name, raw := range map[string]ir.RawValue{"nil": nil, "empty non-nil": {}} {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-			var p ir.Unmodeled
-			diags := PreserveKeywordInto(&p, "openapi:not", raw, sourced(0)("/p/not"), sourced(0)("/p"), "not")
-			assert.Nil(t, p)
-			assert.Empty(t, diags, "nothing was kept, so nothing is announced")
-		})
-	}
-}
-
-// TestValidationOnlyAt_DependentRequiredJoinsItsSiblings pins the keyword the
-// §4.7 family was missing. dependentRequired is pure validation logic exactly as
-// dependentSchemas is, and oas3.Schema has no field for it, which is the whole
-// reason it was dropped where its sibling was kept.
-func TestValidationOnlyAt_DependentRequiredJoinsItsSiblings(t *testing.T) {
-	t.Parallel()
-	s := schemaFromYAML(t, "type: object\ndependentRequired:\n  a: [b]\n")
-
-	got, diags := validationOnlyAt(s, "/components/schemas/S", sourced(7))
-
-	entry, ok := got["openapi:dependentRequired"]
-	require.True(t, ok, "dependentRequired must be kept verbatim")
-	assert.JSONEq(t, `{"a":["b"]}`, string(entry.Value))
-	assert.Equal(t, ir.ReasonValidationOnly, entry.Reason)
-	assert.Equal(t, jsontext.Pointer("/components/schemas/S/dependentRequired"), entry.Provenance.Pointer)
-
-	require.Len(t, diags, 1, "and is announced exactly once")
-	assert.Equal(t, diag.ValidationOnlyKeyword, diags[0].Code)
-	assert.Equal(t, 7, diags[0].Provenance.Source)
 }
 
 // TestDialectAt_KeepsEachKeywordOutOfScope pins that the resource and dialect
@@ -221,22 +172,6 @@ func TestKind_String(t *testing.T) {
 	assert.Equal(t, "Declaration", Declaration.String())
 	assert.Equal(t, "Reference", Reference.String())
 	assert.Equal(t, "Kind(99)", Kind(99).String())
-}
-
-// TestJSONObject_PropagatesAQuoteFailure covers jsonObject's one failure mode:
-// a member key that is not valid UTF-8. Every caller in this package passes a
-// fixed JSON Schema keyword as the key, so no real schema reaches this — it is
-// exercised directly, the same way rawjson_internal_test.go's
-// TestSpliceNumber_RefusesANonJSONNumber exercises a check its own caller can
-// no longer fail, guarding against a future member key that is not a
-// compile-time constant.
-func TestJSONObject_PropagatesAQuoteFailure(t *testing.T) {
-	t.Parallel()
-	got, err := jsonObject([]rawMember{{key: "\xff", val: ir.RawValue("1")}})
-
-	require.Error(t, err)
-	assert.Nil(t, got)
-	assert.Contains(t, err.Error(), "invalid UTF-8")
 }
 
 // TestRead_NodeTypeIsReadFromTheRawXMLObject pins the one key this reader
@@ -311,5 +246,319 @@ func TestRead_NodeTypeOnlyADefinedValueIsPlaced(t *testing.T) {
 			require.Len(t, diags, 1, "got %v", diags)
 			assert.Equal(t, tc.code, diags[0].Code)
 		})
+	}
+}
+
+// jsonSchemaFromYAML unmarshals body as a JSONSchema, keeping the reference and
+// boolean forms a bare *oas3.Schema cannot represent.
+func jsonSchemaFromYAML(t *testing.T, body string) *oas3.JSONSchema[oas3.Referenceable] {
+	t.Helper()
+	js := &oas3.JSONSchema[oas3.Referenceable]{}
+	valErrs, err := marshaller.Unmarshal(t.Context(), strings.NewReader(body), js)
+	require.NoError(t, err)
+	require.Empty(t, valErrs, "the fixture parses cleanly")
+	return js
+}
+
+// TestAt_ClassifiesEveryPositionShape pins the classification every annotation
+// read starts from. A declaration misread as a reference would fall back to a
+// referent that does not describe it, and a reference misread as a declaration
+// would lose the fallback entirely. At classifies the position alone and asks
+// nothing of where a $ref lands, so no site it builds holds a Referent: that is
+// the readers that inherit, which build their own from the end of the chain.
+func TestAt_ClassifiesEveryPositionShape(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name     string
+		body     string
+		wantKind Kind
+		wantNode bool
+	}{
+		{name: "a written body is a declaration", body: "type: string\n", wantKind: Declaration, wantNode: true},
+		{name: "a boolean schema has no body", body: "true\n", wantKind: Declaration},
+		{
+			name: "a $ref is a reference, whether or not it lands",
+			body: "{$ref: '#/$defs/Missing'}\n", wantKind: Reference, wantNode: true,
+		},
+		{
+			name: "a $ref with a body beside it is still a reference",
+			body: "{$ref: '#/$defs/T', description: d}\n", wantKind: Reference, wantNode: true,
+		},
+		{
+			name: "an empty $ref resolves nowhere, so it is a declaration",
+			body: "{$ref: ''}\n", wantKind: Declaration, wantNode: true,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := At(jsonSchemaFromYAML(t, tc.body))
+			assert.Equal(t, tc.wantKind, got.Kind)
+			assert.Equal(t, tc.wantNode, got.Node != nil, "Node presence")
+			assert.Nil(t, got.Referent, "At fills no Referent")
+		})
+	}
+
+	t.Run("a nil position is an empty declaration", func(t *testing.T) {
+		t.Parallel()
+		got := At(nil)
+		assert.Equal(t, Declaration, got.Kind)
+		assert.Nil(t, got.Node)
+		assert.Nil(t, got.Referent)
+	})
+}
+
+// TestAt_ReferenceSiteKeepsTheBodyWrittenBesideTheRef pins that a reference
+// site's Node is the body written at the position, the $ref and what sits
+// beside it, and not what the $ref names. The referent is no part of the site
+// At builds (see TestAt_ClassifiesEveryPositionShape).
+func TestAt_ReferenceSiteKeepsTheBodyWrittenBesideTheRef(t *testing.T) {
+	t.Parallel()
+	got := At(jsonSchemaFromYAML(t, "{$ref: '#/$defs/Target', description: fromSite}\n"))
+
+	require.Equal(t, Reference, got.Kind)
+	require.NotNil(t, got.Node, "the body written beside the $ref is the site's own")
+	assert.Equal(t, "fromSite", got.Node.GetDescription())
+	assert.Nil(t, got.Referent, "and the schema the $ref names is not read here")
+}
+
+// TestSchemaOf_ReturnsOnlyAWrittenBody pins the one nil-safe reader every site
+// goes through: a position with no body written at it must report none, because
+// a boolean schema and a nil position both admit no annotations at all.
+func TestSchemaOf_ReturnsOnlyAWrittenBody(t *testing.T) {
+	t.Parallel()
+	assert.Nil(t, SchemaOf(nil), "a nil position writes no body")
+	assert.Nil(t, SchemaOf(jsonSchemaFromYAML(t, "true\n")), "a boolean schema writes no body")
+	assert.Nil(t, SchemaOf(jsonSchemaFromYAML(t, "false\n")), "including the false one")
+
+	s := SchemaOf(jsonSchemaFromYAML(t, "type: string\ntitle: T\n"))
+	require.NotNil(t, s)
+	assert.Equal(t, "T", s.GetTitle())
+}
+
+// TestEffectiveVisibility_MapsTheFlagsToLifecycles pins the readOnly/writeOnly
+// mapping of ir-design §5.2, the precedence a site holds over its referent, and
+// the answer for the pairing that admits nothing.
+//
+// Precedence is per flag (the uniform merge of
+// docs/compilers/openapi.md#ref-use-site): a site's readOnly settles readOnly
+// only, so it does not cancel a referent's writeOnly. Both are in force, admit
+// disjoint lifecycle sets, and leave the position visible in none. Until GitHub
+// #276 that case read as plain readOnly, dropping the flag arriving second.
+func TestEffectiveVisibility_MapsTheFlagsToLifecycles(t *testing.T) {
+	t.Parallel()
+	read := ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleRead, ir.LifecycleDelete, ir.LifecycleQuery}}
+	write := ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleCreate, ir.LifecycleUpdate}}
+	none := ir.Visibility{None: true}
+
+	tests := []struct {
+		name         string
+		ref, tgt     string
+		want         ir.Visibility
+		wantDisjoint bool
+	}{
+		{name: "readOnly at the site", ref: "readOnly: true\n", want: read},
+		{name: "writeOnly at the site", ref: "writeOnly: true\n", want: write},
+		{name: "readOnly inherited from the referent", ref: "type: string\n", tgt: "readOnly: true\n", want: read},
+		{name: "writeOnly inherited from the referent", ref: "type: string\n", tgt: "writeOnly: true\n", want: write},
+		{name: "the site wins over the referent for the flag it writes", ref: "readOnly: true\n", tgt: "readOnly: false\n", want: read},
+		{name: "a false flag is still the site's answer", ref: "readOnly: false\n", tgt: "readOnly: true\n"},
+		{name: "both flags on one schema", ref: "readOnly: true\nwriteOnly: true\n", want: none, wantDisjoint: true},
+		{name: "both flags on the referent", ref: "type: string\n", tgt: "readOnly: true\nwriteOnly: true\n", want: none, wantDisjoint: true},
+		{name: "the site's readOnly leaves the referent's writeOnly in force", ref: "readOnly: true\n", tgt: "writeOnly: true\n", want: none, wantDisjoint: true},
+		{name: "and the same the other way round", ref: "writeOnly: true\n", tgt: "readOnly: true\n", want: none, wantDisjoint: true},
+		{name: "neither declares one", ref: "type: string\n", tgt: "type: string\n"},
+		{name: "nothing at all", want: ir.Visibility{}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var ref, tgt *oas3.Schema
+			if tc.ref != "" {
+				ref = schemaFromYAML(t, tc.ref)
+			}
+			if tc.tgt != "" {
+				tgt = schemaFromYAML(t, tc.tgt)
+			}
+			got, disjoint := EffectiveVisibility(ref, tgt)
+			assert.Equal(t, tc.want, got)
+			assert.Equal(t, tc.wantDisjoint, disjoint, "whether the flags left no lifecycle at all")
+		})
+	}
+}
+
+// TestEffectiveDeprecated_UseSiteOverridesReferent pins the same precedence for
+// the deprecated flag, including the case the nil-safe read exists for: a site
+// that writes no flag at all must fall through to the referent rather than
+// reading its own absence as false.
+func TestEffectiveDeprecated_UseSiteOverridesReferent(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name     string
+		ref, tgt string
+		want     bool
+	}{
+		{name: "the site says so", ref: "deprecated: true\n", want: true},
+		{name: "the site says not, over a referent that does", ref: "deprecated: false\n", tgt: "deprecated: true\n"},
+		{name: "an absent flag falls through", ref: "type: string\n", tgt: "deprecated: true\n", want: true},
+		{name: "neither says anything", ref: "type: string\n", tgt: "type: string\n"},
+		{name: "no schemas at all"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var ref, tgt *oas3.Schema
+			if tc.ref != "" {
+				ref = schemaFromYAML(t, tc.ref)
+			}
+			if tc.tgt != "" {
+				tgt = schemaFromYAML(t, tc.tgt)
+			}
+			assert.Equal(t, tc.want, EffectiveDeprecated(ref, tgt))
+		})
+	}
+}
+
+// TestFillTypeDocs_AssignsRatherThanAccumulates pins the "every field is
+// assigned" rule. A pointer read twice — lowered in place and again through a
+// $ref that hoists it — must not end up with two copies of its externalDocs.
+func TestFillTypeDocs_AssignsRatherThanAccumulates(t *testing.T) {
+	t.Parallel()
+	s := schemaFromYAML(t, "title: T\ndescription: D\nexternalDocs: {url: 'https://x', description: E}\n")
+
+	var d ir.Docs
+	FillTypeDocs(&d, s)
+	FillTypeDocs(&d, s)
+
+	assert.Equal(t, "T", d.Summary)
+	assert.Equal(t, "D", d.Description)
+	assert.Equal(t, []ir.Link{{URL: "https://x", Description: "E"}}, d.ExternalDocs)
+}
+
+// TestFillTypeDocs_AnAbsentFieldOverwritesNothing pins the other half: a schema
+// that writes no title must leave one already read from a referent standing,
+// which is what makes the field-by-field merge in FillCarrierDocs work.
+func TestFillTypeDocs_AnAbsentFieldOverwritesNothing(t *testing.T) {
+	t.Parallel()
+	d := ir.Docs{Summary: "kept", Description: "kept", ExternalDocs: []ir.Link{{URL: "kept"}}}
+
+	FillTypeDocs(&d, schemaFromYAML(t, "type: string\n"))
+
+	assert.Equal(t, ir.Docs{Summary: "kept", Description: "kept", ExternalDocs: []ir.Link{{URL: "kept"}}}, d)
+}
+
+// TestFillCarrierDocs_MergesFieldByField pins the rule
+// docs/compilers/openapi.md#ref-use-site at the carrier: the referent's
+// documentation arrives first and the site's overrides it one field at a time,
+// so a site that writes only a description still inherits the referent's title
+// rather than replacing the whole set.
+func TestFillCarrierDocs_MergesFieldByField(t *testing.T) {
+	t.Parallel()
+	var d ir.Docs
+
+	FillCarrierDocs(&d, schemaFromYAML(t, "description: fromSite\n"),
+		schemaFromYAML(t, "title: fromTarget\ndescription: fromTarget\n"))
+
+	assert.Equal(t, "fromTarget", d.Summary, "the title has no site-local answer")
+	assert.Equal(t, "fromSite", d.Description, "the site wrote one, so it wins")
+}
+
+// TestXMLHints_ReadsEveryFieldDirectly pins the fields read off the XML object
+// and the nil guard. The fields are read directly rather than through getters
+// that dereference unset pointers, so a schema writing only some of them must
+// not crash or invent the rest.
+func TestXMLHints_ReadsEveryFieldDirectly(t *testing.T) {
+	t.Parallel()
+	assert.Nil(t, XMLHints(nil))
+
+	s := schemaFromYAML(t, "type: string\nxml: {name: n, namespace: ns, prefix: p, wrapped: true, attribute: true}\n")
+	assert.Equal(t, &ir.XMLHints{Name: "n", Namespace: "ns", Prefix: "p", Wrapped: true, NodeType: "attribute"},
+		XMLHints(s.GetXML()))
+
+	bare := schemaFromYAML(t, "type: string\nxml: {}\n")
+	assert.Equal(t, &ir.XMLHints{}, XMLHints(bare.GetXML()), "an empty xml object invents nothing")
+
+	notAttr := schemaFromYAML(t, "type: string\nxml: {attribute: false}\n")
+	assert.Empty(t, XMLHints(notAttr.GetXML()).NodeType, "attribute: false is not the attribute node type")
+}
+
+// TestSchemaExamplesAt_ReadsBothKeywordsInOrder pins that `example` and each
+// entry of `examples` are read, since a position may write either and the two
+// are separate keywords rather than aliases.
+func TestSchemaExamplesAt_ReadsBothKeywordsInOrder(t *testing.T) {
+	t.Parallel()
+	s := schemaFromYAML(t, "type: string\nexample: one\nexamples: [two, three]\n")
+
+	got, diags := schemaExamplesAt(s, "/components/schemas/S", sourced(0))
+
+	assert.Empty(t, diags)
+	require.Len(t, got, 3)
+	for i, want := range []string{"one", "two", "three"} {
+		require.NotNil(t, got[i].Value)
+		assert.Equal(t, want, got[i].Value.Str, "example %d", i)
+	}
+}
+
+// TestSchemaExamplesAt_AttributesAnUnconvertibleExampleAtItsPointer pins
+// GitHub #522 on the warning route: an overlay that rewrites `example` into
+// something unconvertible is named by the diagnostic reporting the failure,
+// because the diagnostic is located at the example's own pointer.
+func TestSchemaExamplesAt_AttributesAnUnconvertibleExampleAtItsPointer(t *testing.T) {
+	t.Parallel()
+	s := schemaFromYAML(t, "type: number\nexample: .nan\n")
+
+	got, diags := schemaExamplesAt(s, "/S", overlaid("/S/example"))
+
+	assert.Empty(t, got, "an unconvertible example yields no value")
+	require.Len(t, diags, 1)
+	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/S/example"}, diags[0].Provenance)
+}
+
+// sourced is the Locator for a compile with no overlay: every position belongs
+// to the one source at index.
+func sourced(index int) Locator {
+	return func(pointer jsontext.Pointer, _ ...jsontext.Pointer) ir.Provenance {
+		return ir.Provenance{Source: index, Pointer: pointer}
+	}
+}
+
+// overlaid is the Locator for a compile where an overlay touched exactly
+// pointers: each resolves to source 1, as ProvenanceAt resolves a position the
+// overlay introduced or rewrote, and every other pointer resolves to source 0,
+// the base document. It answers for a position alone and ignores from, so a test
+// of a combined record uses recording instead.
+func overlaid(pointers ...jsontext.Pointer) Locator {
+	return func(pointer jsontext.Pointer, _ ...jsontext.Pointer) ir.Provenance {
+		if slices.Contains(pointers, pointer) {
+			return ir.Provenance{Source: 1, Pointer: pointer}
+		}
+		return ir.Provenance{Source: 0, Pointer: pointer}
+	}
+}
+
+// recordedCall is one (pointer, from) pair a recording Locator was asked
+// about.
+type recordedCall struct {
+	pointer jsontext.Pointer
+	from    []jsontext.Pointer
+}
+
+// recording is a Locator that appends every call it receives to calls, in call
+// order, and answers source 1 when from is non-empty and source 0 otherwise —
+// enough to tell a combined entry's call, made with the keywords it holds,
+// apart from a single position's, made with none. It exists to let a test
+// assert what a reader asked a Locator, rather than only what answer came
+// back. An empty from is recorded as nil, so a call made with none compares
+// equal to a recordedCall that names none.
+func recording(calls *[]recordedCall) Locator {
+	return func(pointer jsontext.Pointer, from ...jsontext.Pointer) ir.Provenance {
+		call := recordedCall{pointer: pointer}
+		source := 0
+		if len(from) > 0 {
+			call.from = slices.Clone(from)
+			source = 1
+		}
+		*calls = append(*calls, call)
+		return ir.Provenance{Source: source, Pointer: pointer}
 	}
 }
