@@ -42,16 +42,14 @@ func TestNullSchema_AnEntryIsTheEmptySchemaAndAKeywordIsLeftOut(t *testing.T) {
 		version string // the OpenAPI version, 3.1.0 where empty
 		null    string // the schemas, with a null written
 		twin    string // the same, as the reading above states it
-		suffix  string // where the null is, under /components/schemas/A
 		shape   nullShape
 		kept    map[string]string // what A keeps under Unmodeled, by key, as JSON
 	}
 	tests := []nullRow{
 		{
-			name:   "a property",
-			null:   "    A:\n      type: object\n      properties:\n        p: null\n",
-			twin:   "    A:\n      type: object\n      properties:\n        p: {}\n",
-			suffix: "/properties/p",
+			name: "a property",
+			null: "    A:\n      type: object\n      properties:\n        p: null\n",
+			twin: "    A:\n      type: object\n      properties:\n        p: {}\n",
 			shape: func(t *testing.T, td ir.TypeDef) {
 				m := asKind[*ir.Model](t, td)
 				require.Len(t, m.Properties, 1)
@@ -59,10 +57,9 @@ func TestNullSchema_AnEntryIsTheEmptySchemaAndAKeywordIsLeftOut(t *testing.T) {
 			},
 		},
 		{
-			name:   "an allOf branch",
-			null:   "    A:\n      allOf:\n        - null\n        - {type: object, properties: {q: {type: string}}}\n",
-			twin:   "    A:\n      allOf:\n        - true\n        - {type: object, properties: {q: {type: string}}}\n",
-			suffix: "/allOf/0",
+			name: "an allOf branch",
+			null: "    A:\n      allOf:\n        - null\n        - {type: object, properties: {q: {type: string}}}\n",
+			twin: "    A:\n      allOf:\n        - true\n        - {type: object, properties: {q: {type: string}}}\n",
 			shape: func(t *testing.T, td ir.TypeDef) {
 				m := asKind[*ir.Model](t, td)
 				assert.Empty(t, m.Additional, "the composed model is not closed")
@@ -71,10 +68,9 @@ func TestNullSchema_AnEntryIsTheEmptySchemaAndAKeywordIsLeftOut(t *testing.T) {
 			},
 		},
 		{
-			name:   "a oneOf branch",
-			null:   "    A:\n      oneOf:\n        - null\n        - {type: string}\n",
-			twin:   "    A:\n      oneOf:\n        - {}\n        - {type: string}\n",
-			suffix: "/oneOf/0",
+			name: "a oneOf branch",
+			null: "    A:\n      oneOf:\n        - null\n        - {type: string}\n",
+			twin: "    A:\n      oneOf:\n        - {}\n        - {type: string}\n",
 			shape: func(t *testing.T, td ir.TypeDef) {
 				u := asKind[*ir.Union](t, td)
 				require.Len(t, u.Variants, 2)
@@ -82,29 +78,26 @@ func TestNullSchema_AnEntryIsTheEmptySchemaAndAKeywordIsLeftOut(t *testing.T) {
 			},
 		},
 		{
-			name:   "a component",
-			null:   "    A: null\n",
-			twin:   "    A: {}\n",
-			suffix: "",
+			name: "a component",
+			null: "    A: null\n",
+			twin: "    A: {}\n",
 			shape: func(t *testing.T, td ir.TypeDef) {
 				s := asKind[*ir.Scalar](t, td)
 				assert.Equal(t, &top, s.Base, "a scalar alias over the top type")
 			},
 		},
 		{
-			name:   "items",
-			null:   "    A:\n      type: array\n      items: null\n",
-			twin:   "    A:\n      type: array\n",
-			suffix: "/items",
+			name: "items",
+			null: "    A:\n      type: array\n      items: null\n",
+			twin: "    A:\n      type: array\n",
 			shape: func(t *testing.T, td ir.TypeDef) {
 				assert.Equal(t, top, asKind[*ir.List](t, td).Elem, "as an absent items")
 			},
 		},
 		{
-			name:   "a prefixItems entry",
-			null:   "    A:\n      type: array\n      prefixItems: [{type: string}, null]\n",
-			twin:   "    A:\n      type: array\n      prefixItems: [{type: string}, {}]\n",
-			suffix: "/prefixItems/1",
+			name: "a prefixItems entry",
+			null: "    A:\n      type: array\n      prefixItems: [{type: string}, null]\n",
+			twin: "    A:\n      type: array\n      prefixItems: [{type: string}, {}]\n",
 			shape: func(t *testing.T, td ir.TypeDef) {
 				tup := asKind[*ir.Tuple](t, td)
 				require.Len(t, tup.Elems, 2)
@@ -112,10 +105,9 @@ func TestNullSchema_AnEntryIsTheEmptySchemaAndAKeywordIsLeftOut(t *testing.T) {
 			},
 		},
 		{
-			name:   "the rest of a tuple, written as items",
-			null:   "    A:\n      type: array\n      prefixItems: [{type: string}]\n      items: null\n",
-			twin:   "    A:\n      type: array\n      prefixItems: [{type: string}]\n",
-			suffix: "/items",
+			name: "the rest of a tuple, written as items",
+			null: "    A:\n      type: array\n      prefixItems: [{type: string}]\n      items: null\n",
+			twin: "    A:\n      type: array\n      prefixItems: [{type: string}]\n",
 			shape: func(t *testing.T, td ir.TypeDef) {
 				tup := asKind[*ir.Tuple](t, td)
 				assert.Equal(t, &top, tup.Rest, "an absent items admits anything after; false would admit nothing")
@@ -125,8 +117,7 @@ func TestNullSchema_AnEntryIsTheEmptySchemaAndAKeywordIsLeftOut(t *testing.T) {
 			name: "additionalProperties",
 			null: "    A:\n      type: object\n      properties: {a: {type: string}}\n" +
 				"      additionalProperties: null\n",
-			twin:   "    A:\n      type: object\n      properties: {a: {type: string}}\n",
-			suffix: "/additionalProperties",
+			twin: "    A:\n      type: object\n      properties: {a: {type: string}}\n",
 			shape: func(t *testing.T, td ir.TypeDef) {
 				m := asKind[*ir.Model](t, td)
 				assert.Empty(t, m.Additional, "the model stays open")
@@ -134,10 +125,9 @@ func TestNullSchema_AnEntryIsTheEmptySchemaAndAKeywordIsLeftOut(t *testing.T) {
 			},
 		},
 		{
-			name:   "a patternProperties value",
-			null:   "    A:\n      type: object\n      patternProperties:\n        '^x': null\n",
-			twin:   "    A:\n      type: object\n      patternProperties:\n        '^x': {}\n",
-			suffix: "/patternProperties/^x",
+			name: "a patternProperties value",
+			null: "    A:\n      type: object\n      patternProperties:\n        '^x': null\n",
+			twin: "    A:\n      type: object\n      patternProperties:\n        '^x': {}\n",
 			shape: func(t *testing.T, td ir.TypeDef) {
 				m := asKind[*ir.Model](t, td)
 				require.NotNil(t, m.AdditionalProps)
@@ -148,7 +138,7 @@ func TestNullSchema_AnEntryIsTheEmptySchemaAndAKeywordIsLeftOut(t *testing.T) {
 		{
 			name: "contentSchema",
 			null: "    A:\n      type: string\n      contentMediaType: application/json\n      contentSchema: null\n",
-			twin: "    A:\n      type: string\n      contentMediaType: application/json\n", suffix: "/contentSchema",
+			twin: "    A:\n      type: string\n      contentMediaType: application/json\n",
 			shape: func(t *testing.T, td ir.TypeDef) {
 				s := asKind[*ir.Scalar](t, td)
 				require.NotNil(t, s.Encoding, "the media type is still written")
@@ -157,66 +147,62 @@ func TestNullSchema_AnEntryIsTheEmptySchemaAndAKeywordIsLeftOut(t *testing.T) {
 			},
 		},
 		{
-			name:   "unevaluatedProperties",
-			null:   "    A:\n      type: object\n      unevaluatedProperties: null\n",
-			twin:   "    A:\n      type: object\n",
-			suffix: "/unevaluatedProperties",
+			name: "unevaluatedProperties",
+			null: "    A:\n      type: object\n      unevaluatedProperties: null\n",
+			twin: "    A:\n      type: object\n",
 			shape: func(t *testing.T, td ir.TypeDef) {
 				assert.Empty(t, asKind[*ir.Model](t, td).Additional, "the model stays open")
 			},
 		},
 		{
-			name:   "unevaluatedItems",
-			null:   "    A:\n      type: array\n      unevaluatedItems: null\n",
-			twin:   "    A:\n      type: array\n",
-			suffix: "/unevaluatedItems",
+			name: "unevaluatedItems",
+			null: "    A:\n      type: array\n      unevaluatedItems: null\n",
+			twin: "    A:\n      type: array\n",
 			shape: func(t *testing.T, td ir.TypeDef) {
 				assert.Equal(t, top, asKind[*ir.List](t, td).Elem)
 			},
 		},
 		{
-			name:   "not",
-			null:   "    A:\n      type: string\n      not: null\n",
-			twin:   "    A:\n      type: string\n",
-			suffix: "/not",
+			name: "not",
+			null: "    A:\n      type: string\n      not: null\n",
+			twin: "    A:\n      type: string\n",
 			shape: func(t *testing.T, td ir.TypeDef) {
 				assert.Equal(t, &ir.TypeRef{Target: "t/prim/string"}, asKind[*ir.Scalar](t, td).Base)
 			},
 		},
 		{
-			name:   "propertyNames",
-			null:   "    A:\n      type: object\n      propertyNames: null\n",
-			twin:   "    A:\n      type: object\n",
-			suffix: "/propertyNames",
+			name: "propertyNames",
+			null: "    A:\n      type: object\n      propertyNames: null\n",
+			twin: "    A:\n      type: object\n",
 			shape: func(t *testing.T, td ir.TypeDef) {
 				assert.Empty(t, asKind[*ir.Model](t, td).Additional)
 			},
 		},
 		{
-			name: "an if beside a then",
-			null: "    A:\n      type: string\n      if: null\n      then: {minLength: 2}\n",
-			twin: "    A:\n      type: string\n      then: {minLength: 2}\n", suffix: "/if",
+			name:  "an if beside a then",
+			null:  "    A:\n      type: string\n      if: null\n      then: {minLength: 2}\n",
+			twin:  "    A:\n      type: string\n      then: {minLength: 2}\n",
 			shape: func(*testing.T, ir.TypeDef) {},
 			kept:  map[string]string{"openapi:if-then-else": `{"then":{"minLength":2}}`},
 		},
 		{
-			name: "a then beside a real if and else, which alone are kept",
-			null: "    A:\n      type: string\n      if: {minLength: 2}\n      then: null\n      else: {maxLength: 9}\n",
-			twin: "    A:\n      type: string\n      if: {minLength: 2}\n      else: {maxLength: 9}\n", suffix: "/then",
+			name:  "a then beside a real if and else, which alone are kept",
+			null:  "    A:\n      type: string\n      if: {minLength: 2}\n      then: null\n      else: {maxLength: 9}\n",
+			twin:  "    A:\n      type: string\n      if: {minLength: 2}\n      else: {maxLength: 9}\n",
 			shape: func(*testing.T, ir.TypeDef) {},
 			kept:  map[string]string{"openapi:if-then-else": `{"if":{"minLength":2},"else":{"maxLength":9}}`},
 		},
 		{
-			name: "an else beside an if",
-			null: "    A:\n      type: string\n      if: {minLength: 2}\n      else: null\n",
-			twin: "    A:\n      type: string\n      if: {minLength: 2}\n", suffix: "/else",
+			name:  "an else beside an if",
+			null:  "    A:\n      type: string\n      if: {minLength: 2}\n      else: null\n",
+			twin:  "    A:\n      type: string\n      if: {minLength: 2}\n",
 			shape: func(*testing.T, ir.TypeDef) {},
 			kept:  map[string]string{"openapi:if-then-else": `{"if":{"minLength":2}}`},
 		},
 		{
 			name: "contains beside minContains, which alone is kept",
 			null: "    A:\n      type: array\n      contains: null\n      minContains: 2\n",
-			twin: "    A:\n      type: array\n      minContains: 2\n", suffix: "/contains",
+			twin: "    A:\n      type: array\n      minContains: 2\n",
 			shape: func(t *testing.T, td ir.TypeDef) {
 				assert.Equal(t, top, asKind[*ir.List](t, td).Elem)
 			},
@@ -228,7 +214,6 @@ func TestNullSchema_AnEntryIsTheEmptySchemaAndAKeywordIsLeftOut(t *testing.T) {
 				"            - null\n            - {type: [string, 'null']}\n",
 			twin: "    A:\n      type: object\n      properties:\n        p:\n          allOf:\n" +
 				"            - true\n            - {type: [string, 'null']}\n",
-			suffix: "/properties/p/allOf/0",
 			shape: func(t *testing.T, td ir.TypeDef) {
 				m := asKind[*ir.Model](t, td)
 				require.Len(t, m.Properties, 1)
@@ -241,7 +226,6 @@ func TestNullSchema_AnEntryIsTheEmptySchemaAndAKeywordIsLeftOut(t *testing.T) {
 				"            - {$ref: '#/components/schemas/N'}\n            - {type: [string, 'null']}\n",
 			twin: "    N: {}\n    A:\n      type: object\n      properties:\n        p:\n          allOf:\n" +
 				"            - {$ref: '#/components/schemas/N'}\n            - {type: [string, 'null']}\n",
-			suffix: "/properties/p/allOf/0",
 			shape: func(t *testing.T, td ir.TypeDef) {
 				m := asKind[*ir.Model](t, td)
 				require.Len(t, m.Properties, 1)
@@ -253,7 +237,6 @@ func TestNullSchema_AnEntryIsTheEmptySchemaAndAKeywordIsLeftOut(t *testing.T) {
 			version: "3.0.3",
 			null:    "    A:\n      type: array\n      items: null\n",
 			twin:    "    A:\n      type: array\n",
-			suffix:  "/items",
 			shape: func(t *testing.T, td ir.TypeDef) {
 				assert.Equal(t, top, asKind[*ir.List](t, td).Elem)
 			},
@@ -267,10 +250,9 @@ func TestNullSchema_AnEntryIsTheEmptySchemaAndAKeywordIsLeftOut(t *testing.T) {
 	for _, keyword := range keywords {
 		const target = "    B: {type: string}\n    A:\n      type: object\n      properties:\n        p: "
 		besideRef = append(besideRef, nullRow{
-			name:   "a " + keyword + " beside a $ref",
-			null:   target + "{$ref: '#/components/schemas/B', " + keyword + ": null}\n",
-			twin:   target + "{$ref: '#/components/schemas/B'}\n",
-			suffix: "/properties/p/" + keyword,
+			name: "a " + keyword + " beside a $ref",
+			null: target + "{$ref: '#/components/schemas/B', " + keyword + ": null}\n",
+			twin: target + "{$ref: '#/components/schemas/B'}\n",
 			shape: func(t *testing.T, td ir.TypeDef) {
 				m := asKind[*ir.Model](t, td)
 				require.Len(t, m.Properties, 1)
