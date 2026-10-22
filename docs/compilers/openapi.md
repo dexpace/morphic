@@ -1074,10 +1074,12 @@ folded declaration does, which is the conjunction a single schema's null verdict
 ([`nullable`](#nullable)). The fold waits for every type to lower because the judgment reads the
 nodes the declarations name, a component declared after the schema composing it or a node a `$ref`
 into another document promises among them; it finishes the model before any other decision reads it
-(`compile.Types.Complete`), so a form part's flags read the merged field.
+(`compile.Types.Complete`), so a form part's flags read the merged field. A fold judges every pair of
+declarations, so it judges a field's first 64 at most; each later one is kept verbatim, unjudged,
+under an `openapi/budget-exceeded` error at the first of them.
 
 - Cases: `allof-conflicting-type`, `allof-narrowing-redeclaration`
-- Codes: `openapi/conflicting-redeclaration`, `openapi/degraded-construct`
+- Codes: `openapi/conflicting-redeclaration`, `openapi/degraded-construct`, `openapi/budget-exceeded`
 - Tests: `merge.TestFold_NullabilityIntersectsWhenTargetsAgree`,
   `merge.TestFold_ADroppedTypeIsKeptEvenWhenItDoesNotConflict`,
   `merge.TestFold_ALosingDetailIsKeptAndReported`,
@@ -1125,6 +1127,7 @@ into another document promises among them; it finishes the model before any othe
   `merge.TestFold_ATieGoesToTheFirstAndIsReported`,
   `merge.TestFold_ADroppedFirstDeclarationIsKept`,
   `merge.TestFold_AConstraintConflictNamesTheDeclarationKeptFrom`,
+  `merge.TestFold_DeclarationsPastTheBoundAreKeptUnjudged`,
   `schema.TestAllOf_ARefToAnInlineNodeIsDeclaredApart`,
   `schema.TestAllOf_ACopyANarrowingKeptIsStillACopy`,
   `schema.TestAllOf_AListOfAComponentWinsOverAListOfItsCopy`,

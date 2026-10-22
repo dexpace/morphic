@@ -38,15 +38,47 @@ type declaration struct {
 // whole set, so declaration order decides only a tie, and the merge reports
 // each one. What a declaration says that the field does not carry is reported
 // at that declaration, which is kept verbatim beside the field.
+//
+// A fold judges every pair of declarations, so it judges at most
+// maxFoldDeclarations of them (keepUnjudged).
 func (g *Merger) fold(decls []declaration) ir.Property {
-	f := newFolding(g, decls)
+	judged, past := decls, []declaration(nil)
+	if len(decls) > maxFoldDeclarations {
+		judged, past = decls[:maxFoldDeclarations], decls[maxFoldDeclarations:]
+	}
+	f := newFolding(g, judged)
 	f.foldType()
 	f.foldConstraints()
 	f.foldValues()
 	f.foldUse()
 	f.foldDocs()
 	f.foldAnnotations()
-	return f.finish()
+	merged := f.finish()
+	g.keepUnjudged(&merged, past)
+	return merged
+}
+
+// maxFoldDeclarations bounds the declarations of one field a fold judges
+// (styleguide bounded-everything rule). Judging every pair costs the square of
+// their number, which a document of many allOf branches redeclaring one field
+// could drive past any time budget; a real one declares a field a handful of
+// times.
+const maxFoldDeclarations = 64
+
+// keepUnjudged keeps each declaration past the bound verbatim beside merged,
+// and reports at the first of them that the fold judged none: what they say is
+// kept, not folded.
+func (g *Merger) keepUnjudged(merged *ir.Property, past []declaration) {
+	if len(past) == 0 {
+		return
+	}
+	g.Report(ir.SeverityError, diag.BudgetExceeded, past[0].prop.Provenance.Pointer,
+		"field %q is declared %d times, past the %d declarations one fold judges; the %d after them are "+
+			"kept verbatim under Unmodeled, unjudged",
+		merged.WireName, maxFoldDeclarations+len(past), maxFoldDeclarations, len(past))
+	for _, d := range past {
+		g.keepLosingDeclaration(merged, d.prop.Provenance, d.source)
+	}
 }
 
 // folding is one fold in progress.

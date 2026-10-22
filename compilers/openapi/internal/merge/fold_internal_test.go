@@ -2,6 +2,7 @@ package merge
 
 import (
 	"encoding/json/jsontext"
+	"fmt"
 	"maps"
 	"slices"
 	"testing"
@@ -257,4 +258,33 @@ func TestFold_UnmodeledUnionsLaterWinning(t *testing.T) {
 
 	assert.Equal(t, ir.Unmodeled{"x-a": entry(`1`), "x-b": entry(`2`), "x-shared": entry(`"second"`)}, got.Unmodeled)
 	assert.Empty(t, *recorded)
+}
+
+// TestFold_DeclarationsPastTheBoundAreKeptUnjudged pins the bound on one fold:
+// the first maxFoldDeclarations declarations fold as a set, and each later one,
+// whatever it says, is kept verbatim under one budget error at the first of
+// them, so a document cannot drive the pairwise judgment past any time budget.
+func TestFold_DeclarationsPastTheBoundAreKeptUnjudged(t *testing.T) {
+	t.Parallel()
+	g, recorded := stubMerger(narrowingRegistry())
+	at := func(i int) jsontext.Pointer { return jsontext.Pointer(fmt.Sprintf("/allOf/%d/properties/p", i)) }
+	decls := make([]declaration, 0, maxFoldDeclarations+2)
+	for i := range maxFoldDeclarations {
+		decls = append(decls, declaration{prop: ir.Property{WireName: "p", Type: primRef(ir.PrimString), Provenance: ptrAt(at(i))}, source: unread(t)})
+	}
+	for i := maxFoldDeclarations; i < maxFoldDeclarations+2; i++ {
+		decls = append(decls, declaration{prop: ir.Property{WireName: "p", Type: primRef(ir.PrimURL), Provenance: ptrAt(at(i))},
+			source: written(`{"type":"string","format":"uri"}`)})
+	}
+
+	got := g.fold(decls)
+
+	assert.Equal(t, primRef(ir.PrimString), got.Type, "a declaration past the bound narrows nothing")
+	require.Len(t, *recorded, 1)
+	assert.Equal(t, ir.SeverityError, (*recorded)[0].Severity)
+	assert.Equal(t, diag.BudgetExceeded, (*recorded)[0].Code)
+	assert.Equal(t, at(maxFoldDeclarations), (*recorded)[0].Provenance.Pointer)
+	assert.Contains(t, (*recorded)[0].Message, "declared 66 times, past the 64")
+	assert.Equal(t, []string{losingDeclarationKey + string(at(maxFoldDeclarations)), losingDeclarationKey + string(at(maxFoldDeclarations+1))},
+		slices.Sorted(maps.Keys(got.Unmodeled)), "each is kept")
 }
