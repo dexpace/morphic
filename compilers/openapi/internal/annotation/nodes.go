@@ -122,8 +122,8 @@ func RawChildNodes(root *yaml.Node) map[string]*yaml.Node {
 }
 
 // DeclaresAny reports whether s writes any of keywords. It reads the raw nodes
-// rather than the model fields for the reason declaresValueConstraints does: the
-// recorders these gate (recordResidue, dialectAt) read them there, and a
+// rather than the model fields because the recorders reading the same keyword
+// lists read them there (recordResidue, dialectAt, declaredConstraints), and a
 // predicate consulting a different source could disagree with them in either
 // direction.
 func DeclaresAny(s *oas3.Schema, keywords []string) bool {

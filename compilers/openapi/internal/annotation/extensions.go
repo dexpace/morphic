@@ -28,9 +28,9 @@ func ExtensionsFrom(ext *extensions.Extensions, locate Locator, owner jsontext.P
 // from the carrier down to it, or its own keyword where it is not beneath the
 // carrier.
 //
-// Keys cannot collide: a scope segment never begins with "x-" and an extension
-// name always does, so the first "x-" segment ends the scope. The same gap
-// separates them from non-extension keys under these scopes.
+// Keys cannot collide: an extension name begins with "x-", and a scope extending
+// another on its carrier first adds a keyword the compiler writes, which never
+// does. The same gap separates them from non-extension keys.
 func ExtensionsUnder(ext *extensions.Extensions, locate Locator, owner jsontext.Pointer, scope string) (ir.Unmodeled, []ir.Diagnostic) {
 	if ext == nil || ext.Len() == 0 {
 		return nil, nil
@@ -71,8 +71,8 @@ type ExtensionSite struct {
 
 // ExtensionsAt folds every site into one Unmodeled map, for the carriers that
 // hold more than one object's extensions. Sites are applied in the order given,
-// which is source order at every caller; distinct scopes cannot collide, so the
-// order decides nothing but is fixed anyway.
+// which orders their diagnostics; distinct scopes cannot collide, so no entry
+// depends on it.
 func ExtensionsAt(locate Locator, sites ...ExtensionSite) (ir.Unmodeled, []ir.Diagnostic) {
 	var out ir.Unmodeled
 	var diags []ir.Diagnostic
