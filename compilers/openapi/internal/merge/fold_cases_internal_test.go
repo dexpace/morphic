@@ -461,20 +461,19 @@ func TestResolvePrimKind_EnumResolvesThroughItsValueType(t *testing.T) {
 		},
 	})
 
-	kind, ok := g.resolvePrimKind(ir.TypeRef{Target: "t/enum"})
+	kind, ok := judge(g).primKind(ir.TypeRef{Target: "t/enum"})
 	require.True(t, ok)
 	assert.Equal(t, ir.PrimString, kind)
 
-	kind, ok = g.resolvePrimKind(ir.TypeRef{Target: "t/alias"})
+	kind, ok = judge(g).primKind(ir.TypeRef{Target: "t/alias"})
 	require.True(t, ok, "a scalar's Base chain is followed to the enum behind it")
 	assert.Equal(t, ir.PrimString, kind)
 }
 
-// TestDifferentTypeKind_ComparesResolvedKinds pins the last-resort comparison
-// typesConflict falls back to when neither side resolves a primitive. Two
-// composites of the same kind are not provably contradictory; two of different
-// kinds are.
-func TestDifferentTypeKind_ComparesResolvedKinds(t *testing.T) {
+// TestClassify_ComparesResolvedKinds pins the last-resort comparison classify
+// makes when neither side ends in a primitive kind. Two composites of the same
+// kind are not provably contradictory; two of different kinds are disjoint.
+func TestClassify_ComparesResolvedKinds(t *testing.T) {
 	t.Parallel()
 	g, _ := stubMerger(map[ir.TypeID]ir.TypeDef{
 		"t/model":  &ir.Model{ID: "t/model"},
@@ -483,12 +482,12 @@ func TestDifferentTypeKind_ComparesResolvedKinds(t *testing.T) {
 		"t/opaque": &ir.Scalar{ID: "t/opaque"},
 	})
 
-	assert.False(t, g.differentTypeKind(ir.TypeRef{Target: "t/model"}, ir.TypeRef{Target: "t/other"}),
+	assert.Equal(t, relUnrelated, judge(g).relate(ir.TypeRef{Target: "t/model"}, ir.TypeRef{Target: "t/other"}),
 		"two models are the same kind, so not provably contradictory")
-	assert.True(t, g.differentTypeKind(ir.TypeRef{Target: "t/model"}, ir.TypeRef{Target: "t/union"}),
+	assert.Equal(t, relDisjoint, judge(g).relate(ir.TypeRef{Target: "t/model"}, ir.TypeRef{Target: "t/union"}),
 		"a model and a union are different kinds")
-	assert.Equal(t, verdictConflict, g.typesConflict(ir.TypeRef{Target: "t/opaque"}, ir.TypeRef{Target: "t/union"}),
-		"and typesConflict reaches that comparison when neither side is a primitive")
+	assert.Equal(t, relDisjoint, judge(g).relate(ir.TypeRef{Target: "t/opaque"}, ir.TypeRef{Target: "t/union"}),
+		"and the comparison is reached when neither side is a primitive")
 }
 
 // TestKeepLosingDeclaration_RecordsTheDiscardedDeclaration pins what the fix for
@@ -640,7 +639,7 @@ func TestFold_AConflictingTypeTakesNothingWithIt(t *testing.T) {
 }
 
 // TestFold_NullabilityIntersectsWhenTargetsAgree pins the case
-// typesConflict returns on before it reads Nullable: one branch admits null and
+// the judgment settles before it reads Nullable: one branch admits null and
 // the other does not, so the intersection forbids it. Neither reconciled nor
 // preserved before, and the answer flipped with branch order — the same source
 // compiled to nullable: true or false depending on which branch was written
@@ -706,7 +705,7 @@ func TestIntersectNull_TheMarkerFollowsTheBit(t *testing.T) {
 }
 
 // TestFold_ADroppedTypeIsKeptEvenWhenItDoesNotConflict pins the
-// gap between what the merge drops and what it calls a conflict. typesConflict
+// gap between what the merge drops and what it calls a conflict. The judgment
 // does not guess about two composites of one kind or an opaque scalar, but the
 // fold keeps the winner's type regardless, so the redeclaration once vanished
 // with neither a diagnostic nor an entry: #424's own failure, a consumer diffing
@@ -756,7 +755,7 @@ func TestFold_ADroppedTypeIsKeptEvenWhenItDoesNotConflict(t *testing.T) {
 
 // TestFold_ADroppedTypeTakesNothingWithItEvenUnjudged is
 // TestFold_AConflictingTypeTakesNothingWithIt for the drops
-// typesConflict declines to judge. The skip was keyed on the conflict
+// the judgment declines to classify. The skip was keyed on the conflict
 // diagnostic rather than on the drop, so two Models — never called a conflict —
 // still folded the loser's default and constraints onto a winner whose type
 // could not hold them, beside an entry saying that type was dropped: the
@@ -1063,17 +1062,17 @@ func TestFold_ANarrowingAdoptsTheBroaderDeclarationsDetail(t *testing.T) {
 	}
 }
 
-// TestTypesConflict_UnrelatedPrimitivesStillConflict pins the pairs the
-// relation calls disjoint, and the enum against a bare kind of another family.
-func TestTypesConflict_UnrelatedPrimitivesStillConflict(t *testing.T) {
+// TestTypeJudge_UnrelatedPrimitivesAreDisjoint pins the pairs the relation
+// calls disjoint, and the enum against a bare kind of another family.
+func TestTypeJudge_UnrelatedPrimitivesAreDisjoint(t *testing.T) {
 	t.Parallel()
 	reg := narrowingRegistry()
 	reg["t/enm"] = &ir.Enum{ID: "t/enm", ValueType: ir.PrimString}
 	g, _ := stubMerger(reg)
 
-	assert.Equal(t, verdictConflict, g.typesConflict(primRef(ir.PrimUUID), primRef(ir.PrimDatetimeOffset)))
-	assert.Equal(t, verdictConflict, g.typesConflict(ir.TypeRef{Target: "t/enm"}, primRef(ir.PrimInteger)))
-	assert.Equal(t, verdictOverlap, g.typesConflict(primRef(ir.PrimInt32), primRef(ir.PrimUint32)),
+	assert.Equal(t, relDisjoint, judge(g).relate(primRef(ir.PrimUUID), primRef(ir.PrimDatetimeOffset)))
+	assert.Equal(t, relDisjoint, judge(g).relate(ir.TypeRef{Target: "t/enm"}, primRef(ir.PrimInteger)))
+	assert.Equal(t, relOverlap, judge(g).relate(primRef(ir.PrimInt32), primRef(ir.PrimUint32)),
 		"overlapping kinds are no conflict")
 }
 

@@ -14,23 +14,23 @@ import (
 // a base-less opaque scalar, and a cyclic base chain. These exercise those
 // guards directly.
 
-func TestResolvePrimKind_DanglingTargetIsNotResolved(t *testing.T) {
+func TestPrimKind_DanglingTargetIsNotResolved(t *testing.T) {
 	t.Parallel()
 	g, _ := stubMerger(nil)
-	_, ok := g.resolvePrimKind(ir.TypeRef{Target: "t/missing"})
+	_, ok := judge(g).primKind(ir.TypeRef{Target: "t/missing"})
 	assert.False(t, ok, "a target absent from the registry resolves to no primitive")
 }
 
-func TestResolvePrimKind_BaselessScalarIsNotResolved(t *testing.T) {
+func TestPrimKind_BaselessScalarIsNotResolved(t *testing.T) {
 	t.Parallel()
 	g, _ := stubMerger(map[ir.TypeID]ir.TypeDef{
 		"t/opaque": &ir.Scalar{ID: "t/opaque"},
 	})
-	_, ok := g.resolvePrimKind(ir.TypeRef{Target: "t/opaque"})
+	_, ok := judge(g).primKind(ir.TypeRef{Target: "t/opaque"})
 	assert.False(t, ok, "a base-less opaque scalar has no underlying primitive")
 }
 
-func TestResolvePrimKind_CyclicBaseChainTerminates(t *testing.T) {
+func TestPrimKind_CyclicBaseChainTerminates(t *testing.T) {
 	t.Parallel()
 	// A scalar whose Base points back at itself: the bounded walk must terminate
 	// and report no primitive rather than spin.
@@ -38,32 +38,31 @@ func TestResolvePrimKind_CyclicBaseChainTerminates(t *testing.T) {
 	g, _ := stubMerger(map[ir.TypeID]ir.TypeDef{
 		"t/cycle": &ir.Scalar{ID: "t/cycle", Base: &self},
 	})
-	_, ok := g.resolvePrimKind(self)
+	_, ok := judge(g).primKind(self)
 	assert.False(t, ok, "a cyclic base chain terminates without resolving")
 }
 
-func TestIsAnyType_DanglingTargetIsNotAny(t *testing.T) {
+func TestTypeJudge_IsAnyTypeDanglingTargetIsNotAny(t *testing.T) {
 	t.Parallel()
 	g, _ := stubMerger(nil)
-	assert.False(t, g.isAnyType(ir.TypeRef{Target: "t/missing"}),
+	assert.False(t, judge(g).isAnyType(ir.TypeRef{Target: "t/missing"}),
 		"an unresolvable target is not classified as the top type")
 }
 
-func TestDifferentTypeKind_UnresolvableTargetIsNotAConflict(t *testing.T) {
+func TestClassify_AnUnresolvableTargetIsUnrelated(t *testing.T) {
 	t.Parallel()
 	g, _ := stubMerger(map[ir.TypeID]ir.TypeDef{
 		"t/model": &ir.Model{ID: "t/model"},
 	})
-	assert.False(t,
-		g.differentTypeKind(ir.TypeRef{Target: "t/model"}, ir.TypeRef{Target: "t/missing"}),
-		"an unresolvable target is not treated as a differing kind")
+	assert.Equal(t, relUnrelated, judge(g).relate(ir.TypeRef{Target: "t/model"}, ir.TypeRef{Target: "t/missing"}),
+		"an unresolvable target is not judged disjoint from anything")
 }
 
-// TestDifferentTypeKind_MapAndModelAreOneObjectKind pins that a map and a model
-// are no differing kinds: both are objects, so a redeclaration naming one
-// beside the other is satisfiable. Kinds that are different shapes still
-// differ, a map against a list included.
-func TestDifferentTypeKind_MapAndModelAreOneObjectKind(t *testing.T) {
+// TestClassify_MapAndModelAreOneObjectKind pins that a map and a model are no
+// differing kinds: both are objects, so a redeclaration naming one beside the
+// other is satisfiable. Kinds that are different shapes are disjoint, a map
+// against a list included.
+func TestClassify_MapAndModelAreOneObjectKind(t *testing.T) {
 	t.Parallel()
 	g, _ := stubMerger(map[ir.TypeID]ir.TypeDef{
 		"t/map":   &ir.MapT{ID: "t/map"},
@@ -72,10 +71,10 @@ func TestDifferentTypeKind_MapAndModelAreOneObjectKind(t *testing.T) {
 	})
 	ref := func(id ir.TypeID) ir.TypeRef { return ir.TypeRef{Target: id} }
 
-	assert.False(t, g.differentTypeKind(ref("t/map"), ref("t/model")), "map against model")
-	assert.False(t, g.differentTypeKind(ref("t/model"), ref("t/map")), "model against map")
-	assert.True(t, g.differentTypeKind(ref("t/map"), ref("t/list")), "map against list")
-	assert.True(t, g.differentTypeKind(ref("t/list"), ref("t/model")), "list against model")
+	assert.Equal(t, relUnrelated, judge(g).relate(ref("t/map"), ref("t/model")), "map against model")
+	assert.Equal(t, relUnrelated, judge(g).relate(ref("t/model"), ref("t/map")), "model against map")
+	assert.Equal(t, relDisjoint, judge(g).relate(ref("t/map"), ref("t/list")), "map against list")
+	assert.Equal(t, relDisjoint, judge(g).relate(ref("t/list"), ref("t/model")), "list against model")
 }
 
 // Every BigVal keyword rests on the same magnitude comparison, so it is driven
@@ -119,50 +118,37 @@ func TestBigValConflictDetails_CompareMagnitudesAtAnyScale(t *testing.T) {
 	}
 }
 
-func TestIsStructuralType_DistinguishesCompositeFromOpaque(t *testing.T) {
+func TestIsStructural_DistinguishesCompositeFromOpaque(t *testing.T) {
 	t.Parallel()
-	g, _ := stubMerger(map[ir.TypeID]ir.TypeDef{
-		"t/model":  &ir.Model{ID: "t/model"},
-		"t/list":   &ir.List{ID: "t/list"},
-		"t/opaque": &ir.Scalar{ID: "t/opaque"},
-		"t/string": &ir.Primitive{ID: "t/string", Prim: ir.PrimString},
-	})
-
-	assert.True(t, g.isStructuralType(ir.TypeRef{Target: "t/model"}),
-		"model is a structural type")
-	assert.True(t, g.isStructuralType(ir.TypeRef{Target: "t/list"}),
-		"list is a structural type")
-	assert.False(t, g.isStructuralType(ir.TypeRef{Target: "t/opaque"}),
-		"base-less opaque scalar is not structural")
-	assert.False(t, g.isStructuralType(ir.TypeRef{Target: "t/string"}),
-		"primitive is not structural")
-	assert.False(t, g.isStructuralType(ir.TypeRef{Target: "t/missing"}),
-		"unresolvable target is not structural")
+	assert.True(t, isStructural(&ir.Model{ID: "t/model"}), "model is a structural type")
+	assert.True(t, isStructural(&ir.List{ID: "t/list"}), "list is a structural type")
+	assert.False(t, isStructural(&ir.Scalar{ID: "t/opaque"}), "base-less opaque scalar is not structural")
+	assert.False(t, isStructural(&ir.Primitive{ID: "t/string", Prim: ir.PrimString}), "primitive is not structural")
 }
 
-func TestTypesConflict_OpaqueScalarVsPrimitiveIsNotConflict(t *testing.T) {
+func TestClassify_OpaqueScalarVsPrimitiveIsUnrelated(t *testing.T) {
 	t.Parallel()
 	g, _ := stubMerger(map[ir.TypeID]ir.TypeDef{
 		"t/opaque": &ir.Scalar{ID: "t/opaque"},
 		"t/string": &ir.Primitive{ID: "t/string", Prim: ir.PrimString},
 	})
 
-	assert.Equal(t, verdictUncompared, g.typesConflict(ir.TypeRef{Target: "t/opaque"}, ir.TypeRef{Target: "t/string"}),
+	assert.Equal(t, relUnrelated, judge(g).relate(ir.TypeRef{Target: "t/opaque"}, ir.TypeRef{Target: "t/string"}),
 		"opaque scalar vs primitive is not flagged (never guess)")
-	assert.Equal(t, verdictUncompared, g.typesConflict(ir.TypeRef{Target: "t/string"}, ir.TypeRef{Target: "t/opaque"}),
+	assert.Equal(t, relUnrelated, judge(g).relate(ir.TypeRef{Target: "t/string"}, ir.TypeRef{Target: "t/opaque"}),
 		"primitive vs opaque scalar is not flagged (never guess)")
 }
 
-func TestTypesConflict_StructuralVsPrimitiveIsConflict(t *testing.T) {
+func TestClassify_StructuralVsPrimitiveIsDisjoint(t *testing.T) {
 	t.Parallel()
 	g, _ := stubMerger(map[ir.TypeID]ir.TypeDef{
 		"t/model":  &ir.Model{ID: "t/model"},
 		"t/string": &ir.Primitive{ID: "t/string", Prim: ir.PrimString},
 	})
 
-	assert.Equal(t, verdictConflict, g.typesConflict(ir.TypeRef{Target: "t/model"}, ir.TypeRef{Target: "t/string"}),
+	assert.Equal(t, relDisjoint, judge(g).relate(ir.TypeRef{Target: "t/model"}, ir.TypeRef{Target: "t/string"}),
 		"model vs primitive is a provable conflict")
-	assert.Equal(t, verdictConflict, g.typesConflict(ir.TypeRef{Target: "t/string"}, ir.TypeRef{Target: "t/model"}),
+	assert.Equal(t, relDisjoint, judge(g).relate(ir.TypeRef{Target: "t/string"}, ir.TypeRef{Target: "t/model"}),
 		"primitive vs model is a provable conflict")
 }
 
@@ -305,18 +291,18 @@ func TestConstraintsConflict_DeterministicKeywordOrder(t *testing.T) {
 	assert.NotContains(t, detail, "maxLength", "the later-checked keyword is not also reported")
 }
 
-// TestTypesConflict_ALiteralOverlapsWhatHoldsValues pins that a literal against
+// TestClassify_ALiteralOverlapsWhatHoldsValues pins that a literal against
 // another literal or against a type with a primitive kind is an overlap, never
 // silent, while a literal against a structure still conflicts and a dangling
 // target stays silent.
-func TestTypesConflict_ALiteralOverlapsWhatHoldsValues(t *testing.T) {
+func TestClassify_ALiteralOverlapsWhatHoldsValues(t *testing.T) {
 	t.Parallel()
 	g, _ := stubMerger(judgeRegistry())
 
-	assert.Equal(t, verdictOverlap, g.typesConflict(ref("t/lit-a"), ref("t/lit-x")))
-	assert.Equal(t, verdictOverlap, g.typesConflict(ref("t/lit-1"), ref("t/enum-int")))
-	assert.Equal(t, verdictOverlap, g.typesConflict(ref("t/scalar-str"), ref("t/lit-a")))
-	assert.Equal(t, verdictConflict, g.typesConflict(ref("t/lit-a"), ref("t/model")))
-	assert.Equal(t, verdictUncompared, g.typesConflict(ref("t/absent"), ref("t/prim/string")))
-	assert.Equal(t, verdictUncompared, g.typesConflict(ref("t/prim/string"), ref("t/absent")))
+	assert.Equal(t, relOverlap, judge(g).relate(ref("t/lit-a"), ref("t/lit-x")))
+	assert.Equal(t, relOverlap, judge(g).relate(ref("t/lit-1"), ref("t/enum-int")))
+	assert.Equal(t, relOverlap, judge(g).relate(ref("t/scalar-str"), ref("t/lit-a")))
+	assert.Equal(t, relDisjoint, judge(g).relate(ref("t/lit-a"), ref("t/model")))
+	assert.Equal(t, relUnrelated, judge(g).relate(ref("t/absent"), ref("t/prim/string")))
+	assert.Equal(t, relUnrelated, judge(g).relate(ref("t/prim/string"), ref("t/absent")))
 }

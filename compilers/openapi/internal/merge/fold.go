@@ -191,25 +191,25 @@ func (f *folding) targetsTop(ref ir.TypeRef) bool {
 }
 
 // drop reports how decls[i]'s type, which the field does not hold, relates to
-// the winner's (dropVerdict), even where nothing says how, since the type the
-// field keeps then follows declaration order; and it marks the declaration
-// lost. Its default, constraints and examples go with its type: they describe
+// the winner's (typeJudge.relate), even where nothing says how, since the type
+// the field keeps then follows declaration order; and it marks the declaration
+// lost. A type narrower than the winner that still lost shares its values. Its default, constraints and examples go with its type: they describe
 // the shape that lost, and nothing downstream compares a Value's kind to its
 // property's type, so adopting them would leave one field asserting two
 // contradictory things.
 func (f *folding) drop(i int) {
 	f.lost[i] = true
 	w, d := f.decls[f.winner].prop.Type, f.decls[i].prop.Type
-	switch f.g.dropVerdict(f.rel[f.winner][i], w, d) {
-	case verdictConflict:
+	switch f.rel[f.winner][i] {
+	case relDisjoint:
 		f.disagree(i, f.winner, fmt.Sprintf("incompatible types %s and %s", w.Target, d.Target))
-	case verdictOverlap:
+	case relOverlap, relBNarrower:
 		f.note(i, ir.SeverityInfo, diag.DegradedConstruct,
 			"declarations of field %q give types %s and %s whose values overlap but that the merge does not "+
 				"narrow to one; kept the type the declaration at %s gives over the one at %s, which is kept "+
 				"verbatim under Unmodeled",
 			f.merged.WireName, w.Target, d.Target, f.at(f.winner), f.at(i))
-	case verdictUncompared:
+	default:
 		f.note(i, ir.SeverityInfo, diag.DegradedConstruct,
 			"declarations of field %q give types %s and %s that the merge does not compare; kept the type the "+
 				"declaration at %s gives over the one at %s, which is kept verbatim under Unmodeled",
@@ -271,7 +271,7 @@ func (f *folding) foldConstraints() {
 // writing another is reported and kept. Refusing first means a value the field
 // takes is kept whichever order the declarations come in.
 func (f *folding) foldValues() {
-	nullable := f.merged.Type.Nullable || f.g.isAnyType(f.merged.Type)
+	nullable := f.merged.Type.Nullable || typeJudge{Resolve: f.g.Resolve}.isAnyType(f.merged.Type)
 	takesDefault := make([]bool, len(f.decls))
 	takesExamples := make([]bool, len(f.decls))
 	for i, d := range f.decls {

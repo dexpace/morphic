@@ -13,8 +13,9 @@ import (
 type relation int
 
 const (
-	// relUnrelated is a pair the judgment has no arm for; the fold drops the
-	// second and typesConflict classifies the drop.
+	// relUnrelated is a pair nothing relates: two composites of one kind, the
+	// top type spelled as an alias, a degraded node, or a type the registry
+	// does not hold. The fold drops the second and says it does not compare.
 	relUnrelated relation = iota
 	// relDisjoint is a pair no value satisfies together, but a null both sides
 	// admit.
@@ -65,10 +66,9 @@ type typeJudge struct {
 // swapping the arguments, and written's two pointers with them, flips a
 // narrowing and leaves any other verdict as it was. The arms, in order: the
 // same target; a degraded Any node, which is unrelated to every type; the top
-// type, which loses to anything else; two bare primitives (spelling.Relate); a
-// Scalar, Enum or Literal against a bare primitive; two identical such nodes;
-// two lists or two maps, two alike in every member and detail taking the copy
-// rule identical nodes take (sameNodes); anything else is unrelated.
+// type, which loses to anything else; then arms, and classify for a pair arms
+// leaves unrelated. Every pair gets its verdict here, a field's types and two
+// containers' members alike.
 func (j typeJudge) relate(a, b ir.TypeRef) relation { return j.relateAt(a, b, 0) }
 
 // relateAt is relate at a nesting depth.
@@ -94,6 +94,18 @@ func (j typeJudge) relateAt(a, b ir.TypeRef, depth int) relation {
 	case bTop:
 		return relANarrower
 	}
+	if rel := j.arms(a, at, b, bt, depth); rel != relUnrelated {
+		return rel
+	}
+	return j.classify(a, at, b, bt)
+}
+
+// arms relates two resolved types, neither the top type nor degraded, that it
+// can narrow: two bare primitives (spelling.Relate); a Scalar, Enum or Literal
+// against a bare primitive; two identical such nodes; two lists or two maps,
+// two alike in every member and detail taking the copy rule identical nodes
+// take (sameNodes). Any other pair is unrelated here.
+func (j typeJudge) arms(a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.TypeDef, depth int) relation {
 	ap, aBare := at.(*ir.Primitive)
 	bp, bBare := bt.(*ir.Primitive)
 	switch {
@@ -103,8 +115,7 @@ func (j typeJudge) relateAt(a, b ir.TypeRef, depth int) relation {
 		return j.nodeAgainstBare(a, at, b, bp.Prim)
 	case aBare:
 		return j.nodeAgainstBare(b, bt, a, ap.Prim).flipped()
-	}
-	if sameNode(at, bt) {
+	case sameNode(at, bt):
 		return sameNodes(a, b, hoistedAt(at, j.written[0]), hoistedAt(bt, j.written[1]))
 	}
 	rel := j.containers(at, bt, depth)
@@ -114,6 +125,98 @@ func (j typeJudge) relateAt(a, b ir.TypeRef, depth int) relation {
 		return sameNodes(a, b, hoistedAt(at, j.written[0]), hoistedAt(bt, j.written[1]))
 	}
 	return rel
+}
+
+// classify judges a pair arms cannot narrow by what each type holds. Two that
+// end in primitive kinds go through spelling.Relate: disjoint kinds, or an enum
+// none of whose members the other kind admits, are disjoint, and any other
+// pair overlaps. A literal against anything that holds values overlaps, since
+// which values meet is not decided here. A value type against a structure is
+// disjoint, and so are two kinds of structure. Two composites of one kind, or
+// the top type spelled as an alias, stay unrelated: nothing says what their
+// intersection holds.
+func (j typeJudge) classify(a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.TypeDef) relation {
+	ak, aok := j.primKind(a)
+	bk, bok := j.primKind(b)
+	switch {
+	case aok && ak == ir.PrimAny, bok && bk == ir.PrimAny:
+		return relUnrelated
+	case aok && bok:
+		if spelling.Relate(ak, bk) == spelling.Disjoint ||
+			enumMisses(j.Resolve, a, bk, b.Nullable) || enumMisses(j.Resolve, b, ak, a.Nullable) {
+			return relDisjoint
+		}
+		return relOverlap
+	case aok:
+		return againstKind(bt)
+	case bok:
+		return againstKind(at)
+	case isLiteral(at) && isLiteral(bt):
+		return relOverlap
+	default:
+		return disjointIf(objectKind(at.Kind()) != objectKind(bt.Kind()))
+	}
+}
+
+// againstKind judges td, which ends in no primitive kind, against a type that
+// does: a literal overlaps it, a structure is disjoint from it, and anything
+// else, a union or an opaque scalar, is unrelated to it.
+func againstKind(td ir.TypeDef) relation {
+	if isLiteral(td) {
+		return relOverlap
+	}
+	return disjointIf(isStructural(td))
+}
+
+// disjointIf maps a pair that cannot share a value but null to relDisjoint,
+// and any other to relUnrelated.
+func disjointIf(disjoint bool) relation {
+	if disjoint {
+		return relDisjoint
+	}
+	return relUnrelated
+}
+
+// isLiteral reports whether td is a Literal.
+func isLiteral(td ir.TypeDef) bool {
+	_, ok := td.(*ir.Literal)
+	return ok
+}
+
+// isStructural reports whether td can never be a value type under allOf
+// intersection: a model, list, map or tuple. An Enum, Union or External is
+// not, since a member or variant can itself be a value of the kind against it,
+// nor is a base-less opaque scalar, which says nothing of its values.
+func isStructural(td ir.TypeDef) bool {
+	switch td.(type) {
+	case *ir.Model, *ir.List, *ir.MapT, *ir.Tuple:
+		return true
+	default:
+		return false
+	}
+}
+
+// objectKind folds a MapT into the Model kind: both are objects, and one
+// instance can satisfy a map and a struct at once. Which of the two a position
+// lowers to depends on what else it declares about its members (ir-design
+// §4.6), not on a shape that could contradict the other.
+func objectKind(k ir.TypeKind) ir.TypeKind {
+	if k == ir.KindMap {
+		return ir.KindModel
+	}
+	return k
+}
+
+// isAnyType reports whether ref targets a type that admits every value: the
+// schemaless top type, bare or an alias over it, or an Any node a degraded
+// lowering minted. It follows the Base chain, since a position writing
+// something only a node can hold gets an alias over the top type.
+func (j typeJudge) isAnyType(ref ir.TypeRef) bool {
+	if k, ok := j.primKind(ref); ok {
+		return k == ir.PrimAny
+	}
+	td, ok := j.Resolve(ref.Target)
+	return ok && td.Kind() == ir.KindAny
 }
 
 // hoistedAt reports whether td is a hoisted node written at or under at, the
@@ -409,6 +512,12 @@ func narrowedBy(win, lose ir.TypeRef, wx, lx extras, rel relation) relation {
 	}
 	return rel
 }
+
+// maxTypeResolveDepth bounds the Base chain primKind follows (styleguide
+// bounded-recursion rule). A scalar Base chain is far shorter than this in a
+// well-formed document, so the cap only guards a pathological or malformed
+// registry.
+const maxTypeResolveDepth = 64
 
 // primKind follows ref through the registry to its underlying primitive kind,
 // reporting false when the target does not end in a single one (a model, union,

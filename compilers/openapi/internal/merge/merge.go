@@ -18,7 +18,6 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/spelling"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -208,24 +207,6 @@ func intersectLifecycles(a, b []ir.Lifecycle) []ir.Lifecycle {
 	return out
 }
 
-// maxTypeResolveDepth bounds Base-chain resolution when classifying a property
-// type for conflict detection (styleguide bounded-recursion rule). A scalar Base
-// chain is far shorter than this in a well-formed document, so the cap only
-// guards a pathological or malformed registry.
-const maxTypeResolveDepth = 64
-
-// dropVerdict classifies a drop: the judgment's own disjoint and overlap
-// verdicts stand, and typesConflict classifies any other pair.
-func (g *Merger) dropVerdict(rel relation, a, b ir.TypeRef) redeclVerdict {
-	if rel == relDisjoint {
-		return verdictConflict
-	}
-	if rel == relOverlap {
-		return verdictOverlap
-	}
-	return g.typesConflict(a, b)
-}
-
 // intersectNull returns dst admitting null only where both references do, the
 // rule foldNullVerdicts states for a single schema. The result's null rests on
 // a heuristic wherever either side's did, since the declared reading admits it
@@ -312,166 +293,6 @@ func render(source Source) (ir.RawValue, error) {
 		return nil, errNoSource
 	}
 	return source()
-}
-
-// redeclVerdict classifies a declaration's type the fold drops, against the
-// type the field keeps.
-type redeclVerdict int
-
-const (
-	// verdictUncompared is a pair the merge does not guess about: composites of
-	// one kind, an unresolvable target, or a degraded node standing for the top
-	// type. Nothing says what their intersection holds.
-	verdictUncompared redeclVerdict = iota
-	// verdictConflict is a pair reported as incompatible: a scalar against a
-	// structure, two structure kinds, or disjoint primitive kinds.
-	verdictConflict
-	// verdictOverlap is a pair whose primitive kinds share values, or that holds
-	// a literal, but which the merge does not narrow to one.
-	verdictOverlap
-)
-
-// typesConflict classifies the drop of two reconciled property types the
-// judgment had no arm for. Identical targets and the schemaless top type are
-// silent. Two targets that resolve to primitive kinds go through
-// spelling.Relate: disjoint kinds, or an enum none of whose members the other
-// kind admits, conflict, and anything else overlaps. A literal against
-// anything that holds values overlaps, since which values meet is not decided
-// here. A scalar against a structural type conflicts, and so do two structure
-// kinds. Two distinct composites of one kind are not provably contradictory, so
-// they are silent.
-func (g *Merger) typesConflict(a, b ir.TypeRef) redeclVerdict {
-	if a.Target == b.Target || g.isAnyType(a) || g.isAnyType(b) {
-		return verdictUncompared
-	}
-	ak, aok := g.resolvePrimKind(a)
-	bk, bok := g.resolvePrimKind(b)
-	switch {
-	case aok && bok:
-		if spelling.Relate(ak, bk) == spelling.Disjoint ||
-			enumMisses(g.Resolve, a, bk, b.Nullable) || enumMisses(g.Resolve, b, ak, a.Nullable) {
-			return verdictConflict
-		}
-		return verdictOverlap
-	case aok && !bok:
-		return g.againstUnresolved(b)
-	case !aok && bok:
-		return g.againstUnresolved(a)
-	default:
-		if g.isLiteral(a) && g.isLiteral(b) {
-			return verdictOverlap
-		}
-		return conflictIf(g.differentTypeKind(a, b))
-	}
-}
-
-// againstUnresolved classifies a type that resolves to no primitive kind,
-// against one that does: a literal overlaps it, a structure conflicts with it,
-// and anything else is silent.
-func (g *Merger) againstUnresolved(ref ir.TypeRef) redeclVerdict {
-	if g.isLiteral(ref) {
-		return verdictOverlap
-	}
-	return conflictIf(g.isStructuralType(ref))
-}
-
-// isLiteral reports whether ref targets a Literal.
-func (g *Merger) isLiteral(ref ir.TypeRef) bool {
-	td, ok := g.Resolve(ref.Target)
-	if !ok {
-		return false
-	}
-	_, ok = td.(*ir.Literal)
-	return ok
-}
-
-// conflictIf maps a pair reported as incompatible to verdictConflict, and any
-// other pair to verdictUncompared.
-func conflictIf(incompatible bool) redeclVerdict {
-	if incompatible {
-		return verdictConflict
-	}
-	return verdictUncompared
-}
-
-// isAnyType reports whether ref targets a type the merge does not compare: the
-// schemaless top type (a PrimAny primitive or an alias over it), or an Any node
-// a degraded lowering minted. Neither conflicts with a sibling redeclaration, so
-// a drop against either is silent and kept.
-//
-// It follows the Base chain rather than reading only the target node: a
-// position that wrote something only a node can hold gets an alias over the top
-// type, and reading the alias alone would compare PrimAny unequal to the
-// sibling's kind and report the top type as a conflict.
-func (g *Merger) isAnyType(ref ir.TypeRef) bool {
-	if k, ok := g.resolvePrimKind(ref); ok {
-		return k == ir.PrimAny
-	}
-	td, ok := g.Resolve(ref.Target)
-	return ok && td.Kind() == ir.KindAny
-}
-
-// resolvePrimKind follows ref through the registry to its underlying primitive
-// kind, returning ok=false when the target doesn't ultimately resolve to a
-// single one (a model, union, list, tuple, literal, external, or a base-less
-// opaque scalar). The Base chain is bounded against a malformed registry.
-//
-// An Enum resolves via its already-computed ValueType (ir-design §4.5), so a
-// string enum conflicts with an integer redeclaration and, where no member
-// fits, with a string one. A Literal is deliberately left unresolved:
-// Value.Kind doesn't map cleanly to one PrimKind (a ValueNumber literal spans
-// integer/number/float/decimal), so rather than guess it is excluded from
-// isStructuralType below too.
-func (g *Merger) resolvePrimKind(ref ir.TypeRef) (ir.PrimKind, bool) {
-	return typeJudge{Resolve: g.Resolve}.primKind(ref)
-}
-
-// differentTypeKind reports whether two registry targets carry different
-// TypeDef kinds (a model vs a union); an unresolvable target is never treated
-// as a conflict. Reached only from typesConflict's default case, when neither
-// side resolved a PrimKind — e.g. a base-less opaque scalar against a Union.
-func (g *Merger) differentTypeKind(a, b ir.TypeRef) bool {
-	at, aok := g.Resolve(a.Target)
-	bt, bok := g.Resolve(b.Target)
-	if !aok || !bok {
-		return false
-	}
-	return objectKind(at.Kind()) != objectKind(bt.Kind())
-}
-
-// objectKind folds a MapT into the Model kind: both are objects, and one
-// instance can satisfy a map and a struct at once. Which of the two a position
-// lowers to depends on what else it declares about its members (ir-design
-// §4.6), not on a shape that could contradict the other.
-func objectKind(k ir.TypeKind) ir.TypeKind {
-	if k == ir.KindMap {
-		return ir.KindModel
-	}
-	return k
-}
-
-// isStructuralType reports whether ref targets a type that can never be a
-// scalar under allOf intersection: a model, list, map, or tuple — the only
-// shapes provably incompatible with a scalar redeclaration.
-//
-// Enum, Union, and External are deliberately excluded: an enum member or union
-// variant can itself be a scalar of the kind being redeclared, so a bare
-// scalar sibling isn't provably contradictory. Enum instead resolves via its
-// ValueType in resolvePrimKind above; Union/External/Literal stay unresolved
-// (Literal for the same reason as in resolvePrimKind), and a base-less opaque
-// scalar is likewise unknown, not structural — none of these count as
-// conflicts.
-func (g *Merger) isStructuralType(ref ir.TypeRef) bool {
-	td, ok := g.Resolve(ref.Target)
-	if !ok {
-		return false
-	}
-	switch td.(type) {
-	case *ir.Model, *ir.List, *ir.MapT, *ir.Tuple:
-		return true
-	default:
-		return false
-	}
 }
 
 // constraintKeyword is one constraint keyword the merge compares across

@@ -26,6 +26,10 @@ func judgeRegistry() map[ir.TypeID]ir.TypeDef {
 	reg["t/enum-bytes"] = &ir.Enum{ID: "t/enum-bytes", ValueType: ir.PrimBytes, Members: []ir.EnumMember{{Value: ir.Value{Kind: ir.ValueBytes, Bytes: []byte("hi")}}}}
 	reg["t/enum-str"] = &ir.Enum{ID: "t/enum-str", ValueType: ir.PrimString, Members: []ir.EnumMember{{Value: str("a")}}}
 	reg["t/lit-a"] = &ir.Literal{ID: "t/lit-a", Value: str("a")}
+	reg["t/list-enum-str-min"] = &ir.List{ID: "t/list-enum-str-min", Elem: ir.TypeRef{Target: "t/enum-str"},
+		Constraints: &ir.Constraints{MinItems: &minItems}}
+	reg["t/list-enum-str"] = &ir.List{ID: "t/list-enum-str", Elem: ir.TypeRef{Target: "t/enum-str"}}
+	reg["t/list-enum-int"] = &ir.List{ID: "t/list-enum-int", Elem: ir.TypeRef{Target: "t/enum-int"}}
 	reg["t/lit-a-twin"] = &ir.Literal{ID: "t/lit-a-twin", Value: str("a")}
 	reg["t/enum-str-twin"] = &ir.Enum{ID: "t/enum-str-twin", ValueType: ir.PrimString, Members: []ir.EnumMember{{ID: "twin/a", Value: str("a")}}}
 	reg["t/scalar-str-twin"] = &ir.Scalar{ID: "t/scalar-str-twin", Base: &ir.TypeRef{Target: "t/prim/string"}}
@@ -119,16 +123,17 @@ func TestTypeJudge_RelateArms(t *testing.T) {
 		{"a literal 1.5 against integer", "t/lit-1.5", prim(ir.PrimInteger), relDisjoint},
 		{"a literal against a kind with no judge", "t/lit-x", prim(ir.PrimBytes), relOverlap},
 		{"a null literal against a bare integer", "t/lit-null", prim(ir.PrimInteger), relDisjoint},
-		{"a model against a bare kind", "t/model", prim(ir.PrimInteger), relUnrelated},
-		{"two literals", "t/lit-a", "t/lit-x", relUnrelated},
+		{"a model against a bare kind", "t/model", prim(ir.PrimInteger), relDisjoint},
+		{"the top type spelled as an alias against a model", "t/scalar-any", "t/model", relUnrelated},
+		{"two literals", "t/lit-a", "t/lit-x", relOverlap},
 		{"two identical hoisted literals", "t/lit-a-h1", "t/lit-a-h2", relSame},
 		{"a named enum against a hoisted copy", "t/enum-str", "t/enum-str-h", relANarrower},
 		{"two identical named literals", "t/lit-a", "t/lit-a-twin", relOverlap},
 		{"two identical named enums", "t/enum-str", "t/enum-str-twin", relOverlap},
 		{"two identical named scalars", "t/scalar-str", "t/scalar-str-twin", relOverlap},
-		{"a literal against an enum", "t/lit-a", "t/enum-str", relUnrelated},
-		{"a scalar against an enum", "t/scalar-str", "t/enum-str", relUnrelated},
-		{"a scalar against a literal", "t/scalar-str", "t/lit-a", relUnrelated},
+		{"a literal against an enum", "t/lit-a", "t/enum-str", relOverlap},
+		{"a scalar against an enum", "t/scalar-str", "t/enum-str", relOverlap},
+		{"a scalar against a literal", "t/scalar-str", "t/lit-a", relOverlap},
 		{"a narrower element", "t/list-int-null", "t/list-i32", relBNarrower},
 		{"a narrower element, the other way", "t/list-i32", "t/list-int-null", relANarrower},
 		{"a narrower element that admits null the broader does not", "t/list-int", "t/list-i32-null", relOverlap},
@@ -149,7 +154,9 @@ func TestTypeJudge_RelateArms(t *testing.T) {
 		{"disjoint elements that both admit null overlap", "t/list-str-null", "t/list-int-null-min", relOverlap},
 		{"disjoint elements where only one admits null", "t/list-str-null", "t/list-int-min", relDisjoint},
 		{"nested lists", "t/list-list-int", "t/list-list-i32", relBNarrower},
-		{"a list against a map", "t/list-int", "t/map-int", relUnrelated},
+		{"a list against a map", "t/list-int", "t/map-int", relDisjoint},
+		{"enum members sharing no value, one list never empty", "t/list-enum-str-min", "t/list-enum-int", relDisjoint},
+		{"enum members sharing no value, both lists admitting the empty one", "t/list-enum-str", "t/list-enum-int", relOverlap},
 		{"a map value", "t/map-int", "t/map-i32", relBNarrower},
 		{"maps with different keys", "t/map-i32", "t/map-i32-keyed", relUnrelated},
 		{"nesting past the cap", "t/cycle", "t/cycle-b", relUnrelated},

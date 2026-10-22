@@ -384,6 +384,24 @@ func TestFold_DeclarationsPastTheBoundAreKeptUnjudged(t *testing.T) {
 		slices.Sorted(maps.Keys(got.Unmodeled)), "each is kept")
 }
 
+// TestFold_ANarrowerTypeThatLosesIsAnOverlap pins how the fold reports a type
+// narrower than the winner's that still lost. The judgment's narrowing is
+// transitive, so such a type holds every type the winner holds and wins; were
+// it ever to lose, it shares the winner's values, and is reported as an
+// overlap, never as a pair the merge does not compare.
+func TestFold_ANarrowerTypeThatLosesIsAnOverlap(t *testing.T) {
+	t.Parallel()
+	g, _ := stubMerger(narrowingRegistry())
+	f := newFolding(g, []declaration{stringAt("/allOf/0/properties/p", `{}`), stringAt("/allOf/1/properties/p", `{}`)})
+	f.rel[f.winner][1] = relBNarrower
+
+	f.drop(1)
+
+	require.Len(t, f.notes[1], 1)
+	assert.Contains(t, f.notes[1][0].msg, "whose values overlap")
+	assert.True(t, f.lost[1])
+}
+
 // TestSameValue_ComparesJSONValues pins the value equality the fold and the
 // enum judgment share: one JSON value spelled two ways is one, and a value
 // with no JSON instance, which canonicalValue cannot spell, compares deeply.

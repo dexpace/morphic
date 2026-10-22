@@ -1001,8 +1001,12 @@ more widely than the other and the other holds no constraint, encoding, document
 `Unmodeled` the winner lacks; disjoint members still overlap where both admit null, or where both
 containers admit the empty one. Two alike in every member and in that detail are judged as two
 equal enums are: one type where both were written inline, the one declared elsewhere winning over
-an inline copy in either order, and two declared elsewhere overlapping. Anything else between
-distinct targets is unrelated.
+an inline copy in either order, and two declared elsewhere overlapping. Any other pair is judged by
+what the two types hold: disjoint where their kinds share no value, or a value type meets a
+structure, or two kinds of structure meet; an overlap where their kinds share values or a `const`
+meets anything that holds values; and unrelated where nothing says what they share, as between two
+models, a model and a map, or an opaque scalar and a kind. A pair gets the same verdict as a field's
+types and as two containers' members.
 
 The field takes the type of the declaration whose type is the same as, or narrower than, the most
 declarations' types, the first of them on a tie. Where one declaration's type is within every other's
@@ -1108,7 +1112,7 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   `merge.TestAdmitsConstraints_JudgesEachKeyword`,
   `annotation.TestIsMultipleOf_JudgesExactly`,
   `schema.TestAllOf_AWinnersConstraintsRefuseADefaultInEitherOrder`,
-  `merge.TestTypesConflict_ALiteralOverlapsWhatHoldsValues`,
+  `merge.TestClassify_ALiteralOverlapsWhatHoldsValues`,
   `schema.TestAllOf_NonBareNarrowingIsOrderInvariant`,
   `merge.TestFold_AScalarOverANarrowerKindWins`,
   `merge.TestFold_TheTopTypeTakesTheOtherSidesNullAdmission`,
@@ -1141,6 +1145,8 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   `merge.TestFold_AValueSpelledTwoWaysIsOneValue`,
   `merge.TestFold_ThePromotionMarkerFollowsTheDeprecationKept`,
   `schema.TestAllOf_WhatAFieldKeepsOfItsDetailIsOrderFree`,
+  `schema.TestAllOf_ContainerMembersAreJudgedAsFieldsAre`,
+  `merge.TestClassify_ComparesResolvedKinds`,
   `schema.TestAllOf_ARefToAnInlineNodeIsDeclaredApart`,
   `schema.TestAllOf_ACopyANarrowingKeptIsStillACopy`,
   `schema.TestAllOf_AListOfAComponentWinsOverAListOfItsCopy`,

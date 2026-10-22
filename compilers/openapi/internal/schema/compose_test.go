@@ -4728,3 +4728,31 @@ func TestAllOf_WhatAFieldKeepsOfItsDetailIsOrderFree(t *testing.T) {
 		assert.Contains(t, diags[0].Message, "openapi:x-foo differently")
 	}
 }
+
+// TestAllOf_ContainerMembersAreJudgedAsFieldsAre pins that two lists' members
+// get the verdict two fields of those types get. Enums sharing no value, one
+// list never empty, are a conflict; the same lists both admitting the empty one
+// overlap in it. Members judged only as a fallback for top-level fields were
+// once left unrelated, which the merge reported as a pair it does not compare.
+func TestAllOf_ContainerMembersAreJudgedAsFieldsAre(t *testing.T) {
+	t.Parallel()
+	str, num := "{type: array, items: {type: string, enum: [a]}%s}", "{type: array, items: {type: integer, enum: [1]}}"
+	for _, tc := range []struct {
+		name, min string
+		code      string
+		sev       ir.Severity
+	}{
+		{"one list never empty", ", minItems: 1", diag.ConflictingRedecl, ir.SeverityWarning},
+		{"both lists admitting the empty one", "", diag.DegradedConstruct, ir.SeverityInfo},
+	} {
+		for _, order := range [][2]string{{fmt.Sprintf(str, tc.min), num}, {num, fmt.Sprintf(str, tc.min)}} {
+			_, diags := lowerSpec(t, nonBareSpec("", order[0], order[1]))
+			require.Len(t, diags, 1, "%s, order %v: %+v", tc.name, order, diags)
+			assert.Equal(t, tc.code, diags[0].Code, "%s, order %v", tc.name, order)
+			assert.Equal(t, tc.sev, diags[0].Severity, "%s, order %v", tc.name, order)
+			if tc.code == diag.DegradedConstruct {
+				assert.Contains(t, diags[0].Message, "whose values overlap", "%s, order %v", tc.name, order)
+			}
+		}
+	}
+}
