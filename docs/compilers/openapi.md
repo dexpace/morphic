@@ -913,8 +913,26 @@ own `Properties`, each property keeping its own provenance
 [`allof-redeclared-property`](#allof-redeclared-property)). So every branch stays reconstructible
 from the composition.
 
-- Cases: `allof-inheritance`, `allof-mixins`, `allof-inline-merge`
-- Tests: `schema.TestAllOf_DiscriminatorHierarchy`, `schema.TestAllOf_SoleRefBecomesBase`
+`allOf` is associative, so an inline entry writing a non-empty `allOf` is flattened into the
+enclosing list before the entries are classified: its own entries take its place, in source order
+and depth first, each keeping the pointer it was written at, and its `properties` and `required`
+merge after them, as a composing schema's own merge after its entries'. So `allOf: [{allOf: [A,
+B]}]` classifies as `allOf: [A, B]`, and nothing is reported. Whatever else the entry writes that
+the merge does not consume is kept beside the composition as residue
+([`allof-inline-residue`](#allof-inline-residue)), so `{description: d, allOf: [A, B]}` composes `A`
+and `B` and is also kept whole. Flattening stops 32 levels down: an entry nested inside 32 flattened
+entries is not flattened itself, so its `allOf` is residue, and it is reported as nested past the
+flattening depth of 32. This is not the flattening ir-design §1 leaves to emitters: every `$ref`
+entry still composes as a `Base` or `Mixin`, and all that goes is a grouping no instance can
+observe, which an inline entry owns no node to keep
+([`allof-inline-residue`](#allof-inline-residue)).
+
+- Cases: `allof-inheritance`, `allof-mixins`, `allof-inline-merge`, `allof-nested-inline`
+- Tests: `schema.TestAllOf_DiscriminatorHierarchy`, `schema.TestAllOf_SoleRefBecomesBase`,
+  `schema.TestAllOf_NestedInlineWrapperFlattens`, `schema.TestAllOf_NestedWrapperBaseSelection`,
+  `schema.TestAllOfBranches_DepthCapKeepsWrapperVerbatim`,
+  `schema.TestAllOfBranches_DepthCapNamesWhatElseTheWrapperWrites`,
+  `schema.TestAllOf_NestedWrapperWithResidueKeptVerbatim`, `schema.TestAllOf_NestedLowersAsFlat`
 - Status: partly built: a `$ref` to a subtype of a discriminated base, which declares no
   discriminator itself, is composed as a `Mixin` rather than the `Base` (#986).
 
@@ -934,39 +952,49 @@ the `allOf` verbatim under `openapi:allOf` (`degraded_lowering`), with an info
 
 A branch written inline rather than as a `$ref` owns no node, so §4.3's composition has nowhere to
 point and the branch is merged into the composing model in place. That merge consumes the branch's
-`properties`, its `required` list, and a `type` that is exactly `object` — which the composed
-`Model` already restates — and nothing else. The IR could hold every other keyword a branch writes,
-and does hold them one level up — the same keywords on the composing schema lower to `Docs`,
-`Model.Additional`, `Model.Constraints` and `Unmodeled` — but attributing them to the composition
-means either giving the branch a node (changing the composition shape) or merging them upward with a
-precedence rule for branches that disagree. So a branch declaring anything the merge does not
-consume is kept verbatim in `Unmodeled["openapi:allOf/<index>"]` under `degraded_lowering` — the
-*whole* branch, consumed keywords included, so the source stays reconstructable rather than having
-to be reassembled from two places — keyed by branch index so siblings cannot overwrite each other,
-and reported by an `openapi/degraded-construct` at the branch naming the keywords that made it
-residue. Which keywords those are is derived from the branch's own declared key set rather than from
-a fixed list, so a keyword the dialect gains later is residue without anyone maintaining an
-enumeration. The key set is read through YAML aliases and merge keys, so a branch written
-`[*shared]` or `[{<<: *shared}]` derives the same residue as one written out. The diagnostic is an
-info, and a warning where the branch declares a `type` that excludes `object`, because the composing
-`Model` then asserts a shape the source contradicts — `allOf: [{type: string, maxLength: 3}]`
-composes an empty model of kind `model` over a source that says `string`. Two branch kinds are
-outside this rule rather than limits of it: a `$ref` branch owns a node, so what is written beside
-the `$ref` is *modeled* on the branch alias §4.3 describes rather than kept as residue, and a
-boolean branch declares no keywords at all, so there is no residue to derive — it is a decision
-about the composed node instead, stated with the `false`-schema rule
+`properties`, its `required` list, a `type` that is exactly `object` — which the composed `Model`
+already restates — and, for an entry flattened under
+[`allof-classification`](#allof-classification), its `allOf` — and nothing else. The IR could hold
+every other keyword a branch writes, and does hold them one level up — the same keywords on the
+composing schema lower to `Docs`, `Model.Additional`, `Model.Constraints` and `Unmodeled` — but
+attributing them to the composition means either giving the branch a node (changing the composition
+shape) or merging them upward with a precedence rule for branches that disagree. So a branch
+declaring anything the merge does not consume is kept verbatim in `Unmodeled["openapi:<path>"]`
+under `degraded_lowering` — the *whole* branch, consumed keywords included, so the source stays
+reconstructable rather than having to be reassembled from two places — keyed by its path from the
+composed schema (`allOf/1`, or `allOf/1/allOf/0` for an entry of a flattened one) so siblings cannot
+overwrite each other, and reported by an `openapi/degraded-construct` at the branch naming the
+keywords that made it residue. Which keywords those are is derived from the branch's own declared
+key set rather than from a fixed list, so a keyword the dialect gains later is residue without
+anyone maintaining an enumeration. The key set is read through YAML aliases and merge keys, so a
+branch written `[*shared]` or `[{<<: *shared}]` derives the same residue as one written out. The
+diagnostic is an info, and a warning where the branch declares a `type` that excludes `object`,
+because the composing `Model` then asserts a shape the source contradicts — `allOf: [{type: string,
+maxLength: 3}]` composes an empty model of kind `model` over a source that says `string`. Two branch
+kinds are outside this rule rather than limits of it: a `$ref` branch owns a node, so what is
+written beside the `$ref` is *modeled* on the branch alias §4.3 describes rather than kept as
+residue, and a boolean branch declares no keywords at all, so there is no residue to derive — it is
+a decision about the composed node instead, stated with the `false`-schema rule
 [`allof-false-branch`](#allof-false-branch).
+
+A flattened entry kept as residue is whole too, its own entries included, so an entry inside it that
+is kept on its own account, or a `false` one ([`allof-false-branch`](#allof-false-branch)), is in
+`Unmodeled` twice: inside the flattened entry's copy and under its own path. A consumer that reads
+every entry reads that one twice.
 
 - Cases: `allof-inline-residue`
 - Codes: `openapi/degraded-construct`
 - Tests: `schema.TestAllOf_BranchWrittenByReferenceStillDerivesResidue`,
   `schema.TestAllOf_MergedBranchKeywordsAreNotResidue`,
-  `schema.TestAllOf_UnpreservableBranchIsNotAnnounced`
-- Status: partly built: a nested inline `allOf` is kept as residue rather than flattened into the
-  composition, so the composed model has no base, mixins or properties (#599), and an `allOf` of one
-  `$ref` and an annotation-only branch keeps none of the branch's annotations typed (#660). An
-  `allOf` whose branches are all primitives lowers to a model with no properties, each branch kept
-  as residue (#1043).
+  `schema.TestAllOf_UnpreservableBranchIsNotAnnounced`,
+  `schema.TestAllOf_NestedInlineBranchKeyedByPointer`,
+  `schema.TestAllOf_NestedWrapperWithResidueKeptVerbatim`,
+  `schema.TestAllOf_NestedEmptyAllOfKeptVerbatim`,
+  `schema.TestAllOf_EmptyAllOfBesideNonObjectTypeNamesBoth`,
+  `schema.TestAllOf_KeptEntryOfAKeptWrapperIsKeptTwice`
+- Status: partly built: an `allOf` of one `$ref` and an annotation-only branch keeps none of the
+  branch's annotations typed (#660). An `allOf` whose branches are all primitives lowers to a model
+  with no properties, each branch kept as residue (#1043).
 
 ### `allof-redeclared-property`
 
@@ -1165,33 +1193,41 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
 
 ### `allof-required`
 
-A `required` name written on an `allOf` branch, inline or beside a branch's `$ref`, or beside the
-`allOf` itself lands on the composed `Model` by [`required-members`](#required-members), whichever
-branch declares the property: a branch holding nothing but `required` attaches across the whole
-composition, not only its own `properties`. A branch is read from its local schema, never from its
-`$ref` target, whose `required` list belongs to the target's own model. A name only a `Base` or
-`Mixin` declares, or one nothing declares, is in `Model.Requires`, since a `Model` stores its own
-properties and no flattened view across `Base` and `Mixins` (§4.3): the composed model makes an
-inherited property required without declaring it a second time.
+A `required` name written on an `allOf` branch, inline or beside a branch's `$ref` (a flattened
+entry's own and its entries' included), or beside the `allOf` itself lands on the composed `Model`
+by [`required-members`](#required-members), whichever branch declares the property: a branch holding
+nothing but `required` attaches across the whole composition, not only its own `properties`. A
+branch is read from its local schema, never from its `$ref` target, whose `required` list belongs to
+the target's own model. A name only a `Base` or `Mixin` declares, or one nothing declares, is in
+`Model.Requires`, since a `Model` stores its own properties and no flattened view across `Base` and
+`Mixins` (§4.3): the composed model makes an inherited property required without declaring it a
+second time.
 
 - Cases: `allof-required-only`
 - Tests: `schema.TestAllOf_CompositionRequiredAttaches`,
   `schema.TestAllOf_RequiredOnlyBranchNamingBaseOwnedPropertyLandsInRequires`,
-  `schema.TestAllOf_RequiredNameNothingDeclaresLandsInRequires`
+  `schema.TestAllOf_RequiredNameNothingDeclaresLandsInRequires`,
+  `schema.TestAllOf_NestedWrapperRequiredAttaches`,
+  `schema.TestAllOf_NestedWrapperRequiredAttachesBesideUnion`
 
 ### `allof-false-branch`
 
 The `false` rule ([`whole-schema-fallbacks`](#whole-schema-fallbacks)) holds wherever the schema
 appears, composition included. A `false` conjunct (`allOf: [false, …]`) admits nothing, so the
 composition admits nothing: the composed `Model` is closed and the branch is kept verbatim beside
-it, under `openapi:allOf/<index>` (`degraded_lowering`), which is what distinguishes it from a model
-that merely wrote `additionalProperties: false`, and reported as an info `openapi/false-schema` at
-the branch. What the other branches contributed stays — closing is the nearest shape the IR has, and
-emptying the model would trade one silent loss for another. A `true` conjunct admits everything, so
-contributing nothing from it is exact and nothing is reported.
+it, under `openapi:<path>` as [`allof-inline-residue`](#allof-inline-residue) keys a branch
+(`degraded_lowering`), which is what distinguishes it from a model that merely wrote
+`additionalProperties: false`, and reported as an info `openapi/false-schema` at the branch. What
+the other branches contributed stays — closing is the nearest shape the IR has, and emptying the
+model would trade one silent loss for another. A `true` conjunct admits everything, so contributing
+nothing from it is exact and nothing is reported. Where a `oneOf` or `anyOf` beside the `allOf` is
+distributed ([`union-beside-structure`](#union-beside-structure)), every composed variant is closed
+and keeps the branch, and the branch is reported once.
 
-- Cases: `allof-boolean-branch`
+- Cases: `allof-boolean-branch`, `allof-nested-inline`
 - Codes: `openapi/false-schema`
+- Tests: `schema.TestAllOf_NestedFalseBranchClosesModel`,
+  `schema.TestAllOf_FalseBranchBesideUnionClosesEveryVariant`
 
 ### `union`
 
@@ -1270,8 +1306,10 @@ cannot state "conjoined with a union", and §15 records why none was added. Targ
 the constraint here; TypeScript writes `{a: string} & (X | Y)` directly. Where the conjunction
 *distributes*, §4.3 gives the rule: the body is composed into each variant, and the result is an
 ordinary `Union` of composed `Model`s, reported as an info `openapi/composition-lowering` at the
-schema, since nothing is lost but the IR's shape no longer mirrors the source's. Five shapes
-distribution cannot reach:
+schema, since nothing is lost but the IR's shape no longer mirrors the source's, bar one thing: a
+`false` in the `allOf` states that the composition admits nothing, which every composed variant
+then holds only as the closed model [`allof-false-branch`](#allof-false-branch) gives it, with the
+branch kept on each. Five shapes distribution cannot reach:
 
 1. the structural body is not a `Model` (a `const`, an `enum`, a scalar, or a bare
    `required`/`items`/`prefixItems`/`additionalProperties`/`patternProperties` with neither
@@ -2270,7 +2308,11 @@ an `itemSchema` declares, and `MediaTypes` replaces the default list instead of 
 An Encoding Object of a `multipart/*` or `application/x-www-form-urlencoded` Content lowers to a
 `PartEncoding` in `Content.Encoding`, keyed by the `PropID` of the body property its key names,
 wherever the body declares that property: on the schema, in an `allOf` branch with the first
-declaration of a name winning, or on a `Base` or `Mixin` it composes. `contentType` lowers to
+declaration of a name winning, or on a `Base` or `Mixin` it composes. The `allOf` is read as
+[`allof-classification`](#allof-classification) flattens it, with the same cap, and a `$ref` entry
+is followed up to a bound of its own, and entered again only by a shorter path. A bound that cuts a
+target no path enters is reported as a warning `openapi/degraded-construct` at the body schema,
+since a part reached only past it has no entry. `contentType` lowers to
 `ContentTypes`, split on `,` and trimmed with empty items dropped, and one naming no media type is
 an `openapi/validation` error ([`validation`](#validation)); `headers` to `Headers`, lowered as a
 response's are; and `style` and `explode` to `Style` and `Explode` as declared, nothing defaulted.
@@ -2292,7 +2334,7 @@ form, which lowers nowhere, or before 3.2 outside a request body, and a 3.2 `pre
 any case.
 
 - Cases: `multipart-encoding`
-- Codes: `openapi/validation`
+- Codes: `openapi/degraded-construct`, `openapi/validation`
 - Tests: `operation.TestContent_MultipartPartEncoding`,
   `oas.TestCheck_EncodingsApplyWhereTheSpecificationSays`,
   `operation.TestContent_ArrayMultipartPartMulti`,
@@ -2302,7 +2344,12 @@ any case.
   `operation.TestPartEncoding_FlagsOfABodyWithNoModelPropertyComeFromTheSchema`,
   `operation.TestPartEncoding_FlagsOfAnUndecidedMergedTypeComeFromEveryDeclaration`,
   `operation.TestPartEncoding_ADecidedTypeNeverFallsBack`,
-  `operation.TestContent_MultipartRedeclaredPartFlagsComeFromTheSettledType`
+  `operation.TestContent_MultipartRedeclaredPartFlagsComeFromTheSettledType`,
+  `operation.TestPartEncodings_ReadsTheFlattenedComposition`,
+  `operation.TestPartEncodings_RefHopBoundIsReported`,
+  `operation.TestPartEncodings_ShorterPathReentersTarget`,
+  `operation.TestPartEncodings_CappedEntryReachedByAnotherPath`,
+  `operation.TestPartEncodings_CutPastReachedPart`
 - Status: partly built: an `encoding` key that names no property, or one declared only inside a
   `oneOf` or `anyOf` branch, is dropped with no diagnostic (#604); on a multi-typed body the entry
   is keyed by a property no node holds, which validation then refuses (#744); an array of files is

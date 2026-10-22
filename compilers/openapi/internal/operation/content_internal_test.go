@@ -280,14 +280,16 @@ func TestPropByWire_DeadEnds(t *testing.T) {
 	}
 }
 
-// TestBodyParts_DepthBound covers the composition walk's bound. A $ref cycle
-// compiles rather than being refused at load, so the bound is what keeps the
-// walk terminating whatever the document holds.
-func TestBodyParts_DepthBound(t *testing.T) {
+// TestBodyParts_RefHopBound covers the walk's $ref hop bound: past it the walk
+// stops and says so.
+func TestBodyParts_RefHopBound(t *testing.T) {
 	t.Parallel()
 	js := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{})
-	assert.Nil(t, bodyParts(nil, js, maxPartCompositionDepth+1),
+	v := partVisits{entered: map[*oas3.Schema]int{}, cut: map[*oas3.Schema]bool{}}
+	w := bodyParts(js, maxPartRefHops+1, v)
+	assert.Nil(t, w.parts,
 		"past the bound the walk stops rather than descending further")
+	assert.Len(t, v.cut, 1, "and records the target it stopped at")
 }
 
 // TestPartTypeFlags_DecidesOnlyTheKindsItReads holds the type walk to what it

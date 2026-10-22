@@ -1,0 +1,79 @@
+openapi: 3.1.0
+info: {title: AllOfNestedInline, version: "1.0.0"}
+paths: {}
+components:
+  schemas:
+    # allOf is associative, so a branch that wraps another allOf classifies as
+    # if its branches were written beside it
+    # (docs/compilers/openapi.md#allof-classification): two refs, so no Base
+    # and both are Mixins, as the flat spelling gives.
+    M:
+      allOf:
+        - allOf:
+            - {$ref: '#/components/schemas/A'}
+            - {$ref: '#/components/schemas/B'}
+    # Two wrappers deep. The sole ref is the Base, and the inline branch's
+    # property keeps the pointer it was written at, not a flat index.
+    Nested2:
+      allOf:
+        - allOf:
+            - allOf:
+                - {$ref: '#/components/schemas/A'}
+            - type: object
+              properties:
+                c: {type: string}
+    # A wrapper's own required list attaches to a property a branch inside it
+    # declares, and the wrapper's own property merges after its branches.
+    Mixed:
+      allOf:
+        - required: [c]
+          properties:
+            w: {type: string}
+          allOf:
+            - {$ref: '#/components/schemas/A'}
+            - type: object
+              properties:
+                c: {type: string}
+        - {$ref: '#/components/schemas/B'}
+    # A `false` inside a wrapper still closes the composition, and is kept at
+    # the nested path it was written at.
+    Closed:
+      allOf:
+        - allOf: [false]
+    # A `false` nested in a wrapper beside a oneOf closes every variant.
+    U:
+      oneOf:
+        - {$ref: '#/components/schemas/P'}
+        - {$ref: '#/components/schemas/Q'}
+      allOf:
+        - required: [a]
+          allOf:
+            - {$ref: '#/components/schemas/A'}
+            - properties:
+                a: {type: string}
+            - allOf: [false]
+    # A wrapper that also writes a keyword the merge does not consume is
+    # flattened, so A and B are Mixins, and is kept whole under
+    # openapi:allOf/0 with one degraded-construct naming description.
+    Described:
+      allOf:
+        - description: grouped
+          allOf:
+            - {$ref: '#/components/schemas/A'}
+            - {$ref: '#/components/schemas/B'}
+    P:
+      type: object
+      properties:
+        p: {type: string}
+    Q:
+      type: object
+      properties:
+        q: {type: string}
+    A:
+      type: object
+      properties:
+        a: {type: string}
+    B:
+      type: object
+      properties:
+        b: {type: string}

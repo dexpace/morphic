@@ -63,7 +63,7 @@ var loweringRecursions = [][]string{
 	{"propByWire", "propInComposition"},
 	// Multipart body parts. A body may compose with allOf instead of declaring
 	// properties, and each branch is a schema whose parts are read the same way.
-	// Bounded by maxPartCompositionDepth.
+	// Bounded by maxPartRefHops.
 	{"bodyParts"},
 }
 
@@ -79,7 +79,8 @@ var schemaRecursion = []string{
 	"CarriedRef", "Ref", "buildComposedVariant", "buildTuple", "buildUnion",
 	"composedVariant", "contentSchemaRef", "discriminatorDefault",
 	"discriminatorMapping", "fillAdditional", "fillAllOf",
-	"fillModelProperties", "hoistScalar", "hoistSubSchema", "lower", "lowerAllOf",
+	"fillModelProperties", "fillRefBranch", "hoistScalar", "hoistSubSchema", "lower",
+	"lowerAllOf",
 	"lowerArray", "lowerBesideUnmodeledUnion", "lowerCoDeclaredUnion",
 	"lowerDiscriminator", "lowerDistributedUnion", "lowerModel",
 	"lowerOneOfAnyOf", "lowerSchemaBody", "lowerTyped", "lowerUnion",
