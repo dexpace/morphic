@@ -12,7 +12,7 @@ import (
 // registryWrites refuses building or writing a type registry outside ir and
 // compilers/compile. A compiler goes through compile.Types, which makes one
 // node per source coordinate (invariant 3) mechanical rather than a convention,
-// and any other package through ir.Edit.
+// and any other package through an ir.Editor.
 //
 // A registry is any map from ir.TypeID to ir.TypeDef, whatever its type is
 // named: an unnamed one converts to ir.TypeRegistry without a conversion to see,
@@ -72,7 +72,7 @@ type registryCheck struct {
 type ways struct{ built, written string }
 
 // ways returns how the package at path reaches the registry: a compiler
-// through compile.Types, and every other package through ir.Edit.
+// through compile.Types, and every other package through an ir.Editor.
 func (l layout) ways(path string) ways {
 	if l.within(path, "compilers") {
 		return ways{
@@ -80,7 +80,7 @@ func (l layout) ways(path string) ways {
 			written: "go through compile.Types, or rewrite a node in a compile.Settlement",
 		}
 	}
-	const edit = "edit a document's registry through ir.Edit"
+	const edit = "edit a document's registry through an ir.Editor"
 	return ways{built: edit, written: edit}
 }
 

@@ -131,9 +131,9 @@ func TestEditor_WritesTheEditedRegistryAndNotTheDocument(t *testing.T) {
 			doc := editedDoc()
 			before, nodes := encoded(t, doc), maps.Clone(doc.Types)
 
-			e := ir.Edit(doc)
+			e := ir.NewEditor(doc)
 			tt.write(e)
-			out, diags := e.Done()
+			out, diags := e.Finish()
 
 			assert.Empty(t, diags)
 			tt.want(t, out.Types)
@@ -149,18 +149,18 @@ func TestEditor_WritesTheEditedRegistryAndNotTheDocument(t *testing.T) {
 	}
 }
 
-// TestEditor_DoneSharesWhatTheEditLeft pins Done's document: new, so a caller
-// may set its fields, sharing every field but the registry with the document
-// edited, and the registry itself until a write.
-func TestEditor_DoneSharesWhatTheEditLeft(t *testing.T) {
+// TestEditor_FinishSharesWhatTheEditLeft pins Finish's document: new, so a
+// caller may set its fields, sharing every field but the registry with the
+// document edited, and the registry itself until a write.
+func TestEditor_FinishSharesWhatTheEditLeft(t *testing.T) {
 	t.Parallel()
 	doc := editedDoc()
 	doc.Services = []ir.Service{{ID: "s/x"}}
 
-	untouched, _ := ir.Edit(doc).Done()
-	e := ir.Edit(doc)
+	untouched, _ := ir.NewEditor(doc).Finish()
+	e := ir.NewEditor(doc)
 	e.RemoveType("t/scalar")
-	edited, _ := e.Done()
+	edited, _ := e.Finish()
 	edited.Name = "renamed"
 
 	require.NotSame(t, doc, untouched)
@@ -169,7 +169,7 @@ func TestEditor_DoneSharesWhatTheEditLeft(t *testing.T) {
 	assert.NotEqual(t, reflect.ValueOf(doc.Types).Pointer(), reflect.ValueOf(edited.Types).Pointer())
 	assert.Same(t, &doc.Services[0], &edited.Services[0], "a field the edit does not write is shared")
 	assert.Same(t, doc.Types["t/model"], edited.Types["t/model"], "a node the edit does not write is shared")
-	assert.Equal(t, "edited", doc.Name, "setting a field of Done's document set the edited one's")
+	assert.Equal(t, "edited", doc.Name, "setting a field of Finish's document set the edited one's")
 }
 
 // TestEditor_TypeReadsTheEdit pins that Type answers with what the edit holds:
@@ -179,7 +179,7 @@ func TestEditor_TypeReadsTheEdit(t *testing.T) {
 	doc := editedDoc()
 	replacement := &ir.Any{ID: "t/list"}
 
-	e := ir.Edit(doc)
+	e := ir.NewEditor(doc)
 	e.ReplaceType(replacement)
 	e.RemoveType("t/scalar")
 	listed, listHeld := e.Type("t/list")
@@ -196,7 +196,7 @@ func TestEditor_TypeReadsTheEdit(t *testing.T) {
 }
 
 // TestEditor_RefusesWritesOnlyABugMakes pins each write refused for what it
-// asks alone: the one message Done reports, and that the refused write leaves
+// asks alone: the one message Finish reports, and that the refused write leaves
 // the edit's document as a control edit making only the writes before it
 // leaves its own. The tests after it pin the refusals that need more context.
 func TestEditor_RefusesWritesOnlyABugMakes(t *testing.T) {
@@ -252,15 +252,15 @@ func TestEditor_RefusesWritesOnlyABugMakes(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			doc, control := editedDoc(), editedDoc()
-			e, c := ir.Edit(doc), ir.Edit(control)
+			e, c := ir.NewEditor(doc), ir.NewEditor(control)
 			if tt.before != nil {
 				tt.before(e, doc)
 				tt.before(c, control)
 			}
 			tt.refused(e, doc)
 
-			out, diags := e.Done()
-			want, ctrl := c.Done()
+			out, diags := e.Finish()
+			want, ctrl := c.Finish()
 
 			require.Empty(t, ctrl, "a write before the refused one was refused as well, so the case tests the wrong write")
 			got := refusals(t, diags)
@@ -275,7 +275,7 @@ func TestEditor_RefusesWritesOnlyABugMakes(t *testing.T) {
 // TestEditor_UpdateRefusesAChangeWritingOrEndingTheEdit pins that such a
 // change is refused whole: the call it made, then the update. The edit goes on
 // as a control without that update does, writes and updates alike, and a
-// refusal made before the change reaches the Done that ends the edit.
+// refusal made before the change reaches the Finish that ends the edit.
 func TestEditor_UpdateRefusesAChangeWritingOrEndingTheEdit(t *testing.T) {
 	t.Parallel()
 	const inside = "called from inside an UpdateType change"
@@ -293,14 +293,14 @@ func TestEditor_UpdateRefusesAChangeWritingOrEndingTheEdit(t *testing.T) {
 		{"an update", func(e *ir.Editor) {
 			e.UpdateType("t/list", func(td ir.TypeDef) { td.Common().Access = "internal" })
 		}, `update rejected: ` + inside + ` ("t/list")`},
-		{"done", func(e *ir.Editor) { e.Done() },
-			`done rejected: ` + inside + `; a change alters its node alone`},
+		{"finish", func(e *ir.Editor) { e.Finish() },
+			`finish rejected: ` + inside + `; a change alters its node alone`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			doc := editedDoc()
-			e, c := ir.Edit(doc), ir.Edit(editedDoc())
+			e, c := ir.NewEditor(doc), ir.NewEditor(editedDoc())
 			e.RemoveType("t/absent")
 			e.UpdateType("t/model", func(td ir.TypeDef) {
 				td.Common().Docs.Summary = "changed"
@@ -311,8 +311,8 @@ func TestEditor_UpdateRefusesAChangeWritingOrEndingTheEdit(t *testing.T) {
 				ed.UpdateType("t/list", func(td ir.TypeDef) { td.Common().Tags = append(td.Common().Tags, "after") })
 			}
 
-			out, diags := e.Done()
-			want, ctrl := c.Done()
+			out, diags := e.Finish()
+			want, ctrl := c.Finish()
 
 			require.Empty(t, ctrl)
 			got := refusals(t, diags)
@@ -327,33 +327,34 @@ func TestEditor_UpdateRefusesAChangeWritingOrEndingTheEdit(t *testing.T) {
 	}
 }
 
-// TestEditor_DoneInsideAChangeEndsNothing pins what Done returns from inside
-// an UpdateType change, which a pass could return as its own result: every
-// refusal not yet reported, its own among them, beside the edit's document,
-// with the edit still open. The Done that ends the edit reports them again.
-func TestEditor_DoneInsideAChangeEndsNothing(t *testing.T) {
+// TestEditor_FinishInsideAChangeEndsNothing pins what Finish returns from
+// inside an UpdateType change, which a pass could return as its own result:
+// every refusal not yet reported, its own among them, beside the edit's
+// document, with the edit still open. The Finish that ends the edit reports
+// them again.
+func TestEditor_FinishInsideAChangeEndsNothing(t *testing.T) {
 	t.Parallel()
-	e := ir.Edit(editedDoc())
+	e := ir.NewEditor(editedDoc())
 	e.RemoveType("t/absent")
 	var (
 		inner      *ir.Document
 		innerDiags []ir.Diagnostic
 	)
-	e.UpdateType("t/model", func(ir.TypeDef) { inner, innerDiags = e.Done() })
+	e.UpdateType("t/model", func(ir.TypeDef) { inner, innerDiags = e.Finish() })
 	e.RemoveType("t/scalar")
 
-	out, diags := e.Done()
+	out, diags := e.Finish()
 
 	const (
 		absent = `internal: type edit: remove rejected: no type "t/absent" to remove; an edit adds no type`
-		done   = `internal: type edit: done rejected: called from inside an UpdateType change; ` +
+		finish = `internal: type edit: finish rejected: called from inside an UpdateType change; ` +
 			`a change alters its node alone`
 		update = `internal: type edit: update rejected: the change of "t/model" wrote to the edit or ended it; ` +
 			`a change alters its node alone`
 	)
-	assert.Equal(t, []string{absent, done}, refusals(t, innerDiags))
+	assert.Equal(t, []string{absent, finish}, refusals(t, innerDiags))
 	assert.Same(t, out, inner)
-	assert.Equal(t, []string{absent, done, update}, refusals(t, diags))
+	assert.Equal(t, []string{absent, finish, update}, refusals(t, diags))
 	assert.NotContains(t, out.Types, ir.TypeID("t/scalar"), "the edit refused a write after the change")
 }
 
@@ -363,7 +364,7 @@ func TestEditor_DoneInsideAChangeEndsNothing(t *testing.T) {
 func TestEditor_UpdateLeavesTheEditUsableAfterAPanickingChange(t *testing.T) {
 	t.Parallel()
 	doc := editedDoc()
-	e := ir.Edit(doc)
+	e := ir.NewEditor(doc)
 	assert.PanicsWithValue(t, "change failed", func() {
 		e.UpdateType("t/model", func(td ir.TypeDef) {
 			td.Common().Docs.Summary = "changed"
@@ -372,7 +373,7 @@ func TestEditor_UpdateLeavesTheEditUsableAfterAPanickingChange(t *testing.T) {
 	})
 	e.RemoveType("t/scalar")
 
-	out, diags := e.Done()
+	out, diags := e.Finish()
 
 	assert.Empty(t, diags)
 	assert.NotContains(t, out.Types, ir.TypeID("t/scalar"), "a write after the panic was refused")
@@ -388,12 +389,12 @@ func TestEditor_NilEntryIsReplacedNotUpdated(t *testing.T) {
 	doc := &ir.Document{Types: ir.TypeRegistry{"t/a": nil, "t/b": (*ir.Model)(nil)}}
 	replacement := &ir.Any{ID: "t/a"}
 
-	e := ir.Edit(doc)
+	e := ir.NewEditor(doc)
 	e.UpdateType("t/a", func(ir.TypeDef) {})
 	e.UpdateType("t/b", func(ir.TypeDef) {})
 	e.ReplaceType(replacement)
 	e.RemoveType("t/b")
-	out, diags := e.Done()
+	out, diags := e.Finish()
 
 	assert.Equal(t, []string{
 		`internal: type edit: update rejected: "t/a" holds a nil type definition, which has nothing to change`,
@@ -405,26 +406,26 @@ func TestEditor_NilEntryIsReplacedNotUpdated(t *testing.T) {
 
 // TestEditor_UpdateRefusesANodeAtAnotherIDsKey pins the update of an entry
 // whose node names another ID, which irverify reports: it is refused as what it
-// is, not as a change that moved the node, and Done reports nothing for the
+// is, not as a change that moved the node, and Finish reports nothing for the
 // entry the edit never took.
 func TestEditor_UpdateRefusesANodeAtAnotherIDsKey(t *testing.T) {
 	t.Parallel()
 	doc := &ir.Document{Types: ir.TypeRegistry{"t/a": &ir.Any{ID: "t/b"}, "t/c": &ir.Any{ID: "t/c"}}}
 
-	e := ir.Edit(doc)
+	e := ir.NewEditor(doc)
 	e.UpdateType("t/a", func(ir.TypeDef) {})
 	e.RemoveType("t/c")
-	_, diags := e.Done()
+	_, diags := e.Finish()
 
 	assert.Equal(t, []string{`internal: type edit: update rejected: ` +
 		`"t/a" holds the node of "t/b", which belongs at its own ID`}, refusals(t, diags))
 }
 
-// TestEditor_DoneRefusesANodeMovedAfterTheEditTookIt pins that a node the
+// TestEditor_FinishRefusesANodeMovedAfterTheEditTookIt pins that a node the
 // edit took and its caller changed afterwards, off the key its ID named, is
 // reported when the edit ends, and the edited document's node put back at that
 // key: one value replaced at two IDs, and a node an update's change kept.
-func TestEditor_DoneRefusesANodeMovedAfterTheEditTookIt(t *testing.T) {
+func TestEditor_FinishRefusesANodeMovedAfterTheEditTookIt(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name  string
@@ -437,24 +438,24 @@ func TestEditor_DoneRefusesANodeMovedAfterTheEditTookIt(t *testing.T) {
 			e.ReplaceType(n)
 			n.ID = "t/scalar"
 			e.ReplaceType(n)
-		}, "t/list", `done: "t/list" holds a node moved to "t/scalar" after the edit took it, ` +
+		}, "t/list", `finish: "t/list" holds a node moved to "t/scalar" after the edit took it, ` +
 			`so the edited document's node stays; a type keeps its ID`},
 		{"an updated node kept", func(e *ir.Editor) {
 			var kept ir.TypeDef
 			e.UpdateType("t/model", func(td ir.TypeDef) { kept = td })
 			kept.Common().ID = "t/moved"
-		}, "t/model", `done: "t/model" holds a node moved to "t/moved" after the edit took it, ` +
+		}, "t/model", `finish: "t/model" holds a node moved to "t/moved" after the edit took it, ` +
 			`so the edited document's node stays`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			doc := editedDoc()
-			e := ir.Edit(doc)
+			e := ir.NewEditor(doc)
 			tt.write(e)
 
-			out, diags := e.Done()
-			_, again := e.Done()
+			out, diags := e.Finish()
+			_, again := e.Finish()
 
 			got := refusals(t, diags)
 			require.Len(t, got, 1, "one moved node, one refusal: %v", got)
@@ -493,43 +494,43 @@ func TestEditor_UpdateKeepsEmptyApartFromAbsent(t *testing.T) {
 	assert.Empty(t, node.WireNameByFormat, "the copy wrote into the node's map")
 }
 
-// TestEditor_DoneReportsEachRefusalOnce pins that Done ends the edit: a later
-// call returns the same document, with only the refusals made since, and every
-// write after the first call is refused, the document unchanged.
-func TestEditor_DoneReportsEachRefusalOnce(t *testing.T) {
+// TestEditor_FinishReportsEachRefusalOnce pins that Finish ends the edit: a
+// later call returns the same document, with only the refusals made since, and
+// every write after the first call is refused, the document unchanged.
+func TestEditor_FinishReportsEachRefusalOnce(t *testing.T) {
 	t.Parallel()
-	e := ir.Edit(editedDoc())
+	e := ir.NewEditor(editedDoc())
 	e.RemoveType("t/absent")
-	first, firstDiags := e.Done()
+	first, firstDiags := e.Finish()
 	before := encoded(t, first)
 
 	e.RemoveType("t/scalar")
 	e.ReplaceType(&ir.Any{ID: "t/list"})
 	e.UpdateType("t/model", func(td ir.TypeDef) { td.Common().Access = "internal" })
-	second, secondDiags := e.Done()
-	third, thirdDiags := e.Done()
+	second, secondDiags := e.Finish()
+	third, thirdDiags := e.Finish()
 
 	assert.Equal(t, []string{`internal: type edit: remove rejected: ` +
 		`no type "t/absent" to remove; an edit adds no type`}, refusals(t, firstDiags))
 	assert.Equal(t, []string{
-		`internal: type edit: remove rejected: the edit is done ("t/scalar")`,
-		`internal: type edit: replace rejected: the edit is done ("t/list")`,
-		`internal: type edit: update rejected: the edit is done ("t/model")`,
+		`internal: type edit: remove rejected: the edit is finished ("t/scalar")`,
+		`internal: type edit: replace rejected: the edit is finished ("t/list")`,
+		`internal: type edit: update rejected: the edit is finished ("t/model")`,
 	}, refusals(t, secondDiags))
 	assert.Empty(t, thirdDiags)
 	assert.Same(t, first, second)
 	assert.Same(t, first, third)
-	assert.Equal(t, before, encoded(t, first), "a write after Done changed its document")
+	assert.Equal(t, before, encoded(t, first), "a write after Finish changed its document")
 }
 
-// TestEdit_NilDocumentIsRefused pins that an edit of no document still ends in
-// one, an empty one, beside the refusal saying why.
-func TestEdit_NilDocumentIsRefused(t *testing.T) {
+// TestNewEditor_NilDocumentIsRefused pins that an edit of no document still
+// ends in one, an empty one, beside the refusal saying why.
+func TestNewEditor_NilDocumentIsRefused(t *testing.T) {
 	t.Parallel()
-	e := ir.Edit(nil)
+	e := ir.NewEditor(nil)
 	e.RemoveType("t/x")
 
-	out, diags := e.Done()
+	out, diags := e.Finish()
 
 	require.NotNil(t, out)
 	assert.Empty(t, cmp.Diff(&ir.Document{}, out))
@@ -565,9 +566,9 @@ func references(v any) map[uintptr]string {
 func updatedCopy(t *testing.T, td ir.TypeDef) ir.TypeDef {
 	t.Helper()
 	id := td.Common().ID
-	e := ir.Edit(&ir.Document{Types: ir.TypeRegistry{id: td}})
+	e := ir.NewEditor(&ir.Document{Types: ir.TypeRegistry{id: td}})
 	e.UpdateType(id, func(ir.TypeDef) {})
-	out, diags := e.Done()
+	out, diags := e.Finish()
 	require.Empty(t, diags)
 	return out.Types[id]
 }
@@ -706,9 +707,9 @@ func TestEditor_UpdateRefusesANodeTooDeepToCopy(t *testing.T) {
 				Properties: []ir.Property{{ID: "t/deep/p", Default: nestedValue(tc.depth)}}}
 			doc := &ir.Document{Types: ir.TypeRegistry{"t/deep": node}}
 
-			e := ir.Edit(doc)
+			e := ir.NewEditor(doc)
 			e.UpdateType("t/deep", func(td ir.TypeDef) { td.Common().Access = "internal" })
-			out, diags := e.Done()
+			out, diags := e.Finish()
 
 			walkCut := ir.WalkValues(node, "node", func(reflect.Value, string) bool { return true })
 			require.Equal(t, tc.refused, walkCut, "the fixture is not on the cap the walk keeps")
@@ -725,9 +726,9 @@ func TestEditor_UpdateRefusesANodeTooDeepToCopy(t *testing.T) {
 	}
 }
 
-// ExampleEdit removes the types nothing references, as a filter pass would:
-// the document it edits keeps them, and the one Done returns does not.
-func ExampleEdit() {
+// ExampleNewEditor removes the types nothing references, as a filter pass
+// would: the document it edits keeps them, and the one Finish returns does not.
+func ExampleNewEditor() {
 	doc := &ir.Document{Types: ir.TypeRegistry{
 		"t/kept": &ir.List{ID: "t/kept", Elem: ir.TypeRef{Target: "t/elem"}},
 		"t/elem": &ir.Primitive{ID: "t/elem", Prim: ir.PrimString},
@@ -740,13 +741,13 @@ func ExampleEdit() {
 		}
 	}
 
-	e := ir.Edit(doc)
+	e := ir.NewEditor(doc)
 	for _, id := range slices.Sorted(maps.Keys(doc.Types)) {
 		if !referenced[id] {
 			e.RemoveType(id)
 		}
 	}
-	out, diags := e.Done()
+	out, diags := e.Finish()
 
 	fmt.Println(slices.Sorted(maps.Keys(out.Types)), len(diags))
 	fmt.Println(slices.Sorted(maps.Keys(doc.Types)))

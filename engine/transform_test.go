@@ -42,21 +42,21 @@ components:
 `
 
 // pruneUnused is a filter of the simplest kind: it removes every type nothing
-// on the API surface reaches, an irfacts.Usage of 0, through ir.Edit, so it
-// writes no registry of its own.
+// on the API surface reaches, an irfacts.Usage of 0, through an ir.Editor, so
+// it writes no registry of its own.
 type pruneUnused struct{}
 
 func (pruneUnused) Name() string { return "prune-unused" }
 
 func (pruneUnused) Run(doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
 	facts := irfacts.New(doc)
-	e := ir.Edit(doc)
+	e := ir.NewEditor(doc)
 	for _, id := range slices.Sorted(maps.Keys(doc.Types)) {
 		if facts.Usage(id) == 0 {
 			e.RemoveType(id)
 		}
 	}
-	return e.Done()
+	return e.Finish()
 }
 
 // misusedEdit is a transform with a bug: it removes a type the document does
@@ -66,9 +66,9 @@ type misusedEdit struct{}
 func (misusedEdit) Name() string { return "misused-edit" }
 
 func (misusedEdit) Run(doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
-	e := ir.Edit(doc)
+	e := ir.NewEditor(doc)
 	e.RemoveType("t/absent")
-	return e.Done()
+	return e.Finish()
 }
 
 // holdsType reports whether doc holds a type its source names name.
@@ -133,7 +133,7 @@ func TestEngine_RunDocumentKeepsTheCallersDocumentThroughAnEdit(t *testing.T) {
 	assert.Equal(t, string(before), string(after), "the caller's document changed")
 }
 
-// TestEngine_RunFailsOnARefusedEdit pins that a transform's misuse of ir.Edit
+// TestEngine_RunFailsOnARefusedEdit pins that a transform's misuse of an editor
 // fails the run at the default threshold: the refusal reaches the Result as an
 // error, beside the document the transform returned.
 func TestEngine_RunFailsOnARefusedEdit(t *testing.T) {

@@ -215,9 +215,9 @@ morphic compile openapi.yaml --opt grouping=path-prefix --opt overlay=patch.yaml
 The same pipeline is available as a Go package. `engine.New` builds the default engine: every
 built-in compiler and the default IR passes. `engine.WithCompilers` and `engine.WithPasses` replace
 either set, so an embedder can run a pass of its own, composed with `engine.Passes`, the default
-list in order; a pass changes types through `ir.Edit`. `Run` reads the spec, asks the registered
-compilers which one recognizes it, compiles, and runs the passes in order, each over the document
-the one before it returned. `RunOptions.DisablePasses` turns passes off by name
+list in order; a pass changes types through an `ir.Editor`. `Run` reads the spec, asks the
+registered compilers which one recognizes it, compiles, and runs the passes in order, each over the
+document the one before it returned. `RunOptions.DisablePasses` turns passes off by name
 (`engine.ValidatePass` names the referential-integrity check), and a name no pass carries fails the
 run with `engine.ErrUnknownPass`. A compiler breaking its contract, say by returning a document
 whose source table does not describe the spec, fails the run with an error wrapping

@@ -6,7 +6,7 @@ import (
 	"slices"
 )
 
-// EditRefused is the code of the error [Editor.Done] reports for each call an
+// EditRefused is the code of the error [Editor.Finish] reports for each call an
 // [Editor] refused and each node it put back. It names a bug in the code
 // editing the document, which no source can produce, so it locates nothing in a
 // source.
@@ -18,11 +18,11 @@ const EditRefused = "ir/edit-refused"
 // It never writes the document it edits, puts each node it takes at the key
 // its own ID names, and adds no ID, so every ID stays in a namespace the
 // document already declares (invariant 3). A write breaking either, or one only
-// a bug makes, is refused, and [Editor.Done] reports each refusal, as
+// a bug makes, is refused, and [Editor.Finish] reports each refusal, as
 // compile.Types reports its own.
 //
-// Build one with [Edit]; it refuses every write after [Editor.Done], and is
-// not safe for concurrent use.
+// Build one with [NewEditor]; it refuses every write after [Editor.Finish],
+// and is not safe for concurrent use.
 type Editor struct {
 	// doc is the document edited, which nothing here writes.
 	doc *Document
@@ -30,18 +30,18 @@ type Editor struct {
 	// reports whether its registry is the edit's own yet rather than doc's.
 	out   *Document
 	owned bool
-	// refused holds the refusals made since Done last reported them.
+	// refused holds the refusals made since Finish last reported them.
 	refused []error
 	// changing records that an UpdateType change is running, which may read the
 	// edit but neither write to it nor end it, and intruded that a call it made
 	// was refused.
-	// done records that Done has returned out, which ends the edit.
-	changing, intruded, done bool
+	// finished records that Finish has returned out, which ends the edit.
+	changing, intruded, finished bool
 }
 
-// Edit starts an edit of doc. A nil doc is refused, and the edit then stands
-// for an empty document, so Done still returns one.
-func Edit(doc *Document) *Editor {
+// NewEditor starts an edit of doc. A nil doc is refused, and the edit then
+// stands for an empty document, so Finish still returns one.
+func NewEditor(doc *Document) *Editor {
 	if doc == nil {
 		e := &Editor{doc: &Document{}, out: &Document{}}
 		e.refuse("edit rejected: no document to edit")
@@ -149,7 +149,7 @@ func (e *Editor) RemoveType(id TypeID) {
 	delete(e.write(), id)
 }
 
-// Done ends the edit and returns the edited document: a new Document sharing
+// Finish ends the edit and returns the edited document: a new Document sharing
 // every field with the document edited, the registry until the first write. A
 // caller sets its fields but writes into none.
 //
@@ -159,13 +159,13 @@ func (e *Editor) RemoveType(id TypeID) {
 // refusals made since. Inside an UpdateType change it ends nothing, returning
 // the refusals not yet reported, its own included, which the next call reports
 // again.
-func (e *Editor) Done() (*Document, []Diagnostic) {
+func (e *Editor) Finish() (*Document, []Diagnostic) {
 	if e.changing {
-		e.refuse("done rejected: called from inside an UpdateType change; a change alters its node alone")
+		e.refuse("finish rejected: called from inside an UpdateType change; a change alters its node alone")
 		return e.out, e.diagnostics()
 	}
-	if !e.done {
-		e.done = true
+	if !e.finished {
+		e.finished = true
 		e.refuseMoved()
 	}
 	diags := e.diagnostics()
@@ -198,7 +198,7 @@ func (e *Editor) refuseMoved() {
 			continue
 		}
 		if moved := td.Common().ID; moved != id {
-			e.refuse("done: %q holds a node moved to %q after the edit took it, so the edited document's node "+
+			e.refuse("finish: %q holds a node moved to %q after the edit took it, so the edited document's node "+
 				"stays; a type keeps its ID", id, moved)
 			e.out.Types[id] = e.doc.Types[id] // an edit adds no ID, so doc holds one here
 		}
@@ -206,12 +206,12 @@ func (e *Editor) refuseMoved() {
 }
 
 // writable returns the node the edit holds at id for a write verb names, and
-// refuses one after Done, one from inside an UpdateType change, and one at an
+// refuses one after Finish, one from inside an UpdateType change, and one at an
 // id the edit holds no node at: an edit adds no ID.
 func (e *Editor) writable(verb string, id TypeID) (TypeDef, bool) {
 	switch {
-	case e.done:
-		e.refuse("%s rejected: the edit is done (%q)", verb, id)
+	case e.finished:
+		e.refuse("%s rejected: the edit is finished (%q)", verb, id)
 	case e.changing:
 		e.refuse("%s rejected: called from inside an UpdateType change (%q); a change alters its node alone", verb, id)
 	default:
@@ -233,7 +233,7 @@ func (e *Editor) write() TypeRegistry {
 	return e.out.Types
 }
 
-// refuse records why the edit refused a call or put a node back, for Done to
+// refuse records why the edit refused a call or put a node back, for Finish to
 // report. The edit declines the call rather than returning an error, since its
 // caller has no recovery but to stop, and recording it keeps the refusal from
 // being lost. A refusal while an UpdateType change runs is of a call the

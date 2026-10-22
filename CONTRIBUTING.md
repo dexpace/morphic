@@ -118,13 +118,13 @@ A lowering rule says how one OpenAPI construct reaches the IR: the field it fill
 
 A pass is an IR-to-IR step the engine runs after a compile
 ([`architecture.md`](docs/architecture.md) §2.2). An analysis reports on the document it is handed;
-a transform returns a new one. A transform changes types through `ir.Edit`: `UpdateType` hands it a
-deep copy of a node to change, `ReplaceType` puts a node built afresh in place of the one at its ID,
-`RemoveType` removes one, and `Done` returns the new document, sharing everything the edit left
-alone, beside an `ir/edit-refused` error for each call the editor refused, such as a write at an ID
-the document does not hold. Building a type registry, or writing one of its entries, any other way
-fails the `registrywrites` rule (`internal/lintrules`, run by `make vet`). No rule sees a node of
-the input changed in place, which `UpdateType`'s copy is there to make needless.
+a transform returns a new one. A transform changes types through an `ir.Editor` (`ir.NewEditor`):
+`UpdateType` hands it a deep copy of a node to change, `ReplaceType` puts a node built afresh in
+place of the one at its ID, `RemoveType` removes one, and `Finish` returns the new document, sharing
+everything the edit left alone, beside an `ir/edit-refused` error for each call the editor refused,
+such as a write at an ID the document does not hold. Building a type registry, or writing one of its
+entries, any other way fails the `registrywrites` rule (`internal/lintrules`, run by `make vet`). No
+rule sees a node of the input changed in place, which `UpdateType`'s copy is there to make needless.
 
 1. **Implement `pass.Pass`** in a file of its own under `pass/`, shaped as `Validator` and
    `ValidateName` are in `pass/pass.go`: an exported type, and a constant holding its stable
@@ -132,10 +132,10 @@ the input changed in place, which `UpdateType`'s copy is there to make needless.
    it only analyses, and reports through its diagnostics alone. `ir.ForEachOperation` walks the
    operations, and the package's `diag` helper in `pass/validate.go` builds a diagnostic on a node.
    A code names the defect, as `pass/doc.go` says: `pass/<defect>` for a finding the pass owns,
-   `ir/<defect>` for a structural one `irverify` reports too. A transform returns what `Done`
+   `ir/<defect>` for a structural one `irverify` reports too. A transform returns what `Finish`
    returns, its own findings appended.
    *Fails if missed:* the build, once step 3 lists the pass, for a method `pass.Pass` requires, and
-   `make vet` for a registry built, or an entry of one written, other than through `ir.Edit`.
+   `make vet` for a registry built, or an entry of one written, other than through an `ir.Editor`.
 2. **Test it** beside it in `pass/`, table-driven, against documents built in the test.
    `pass/validate_test.go` has builders (`validDoc`, `docWithOperation`) and readers (`codes`,
    `countCode`) to reuse.
