@@ -350,8 +350,8 @@ func TestEditor_DoneRefusesANodeMovedAfterTheEditTookIt(t *testing.T) {
 
 // TestEditor_UpdateKeepsEmptyApartFromAbsent pins that the copy keeps an empty
 // slice or map empty and an absent one absent, which an omitzero field tells
-// apart, and gives an empty slice an array of its own, so appending to the
-// copy's writes nothing the node can see.
+// apart, and shares neither empty one with the node, so appending to the
+// copy's slice or setting a key in its map writes nothing the node can see.
 func TestEditor_UpdateKeepsEmptyApartFromAbsent(t *testing.T) {
 	t.Parallel()
 	node := &ir.Model{ID: "t/m", Tags: make([]string, 0, 4), WireNameByFormat: map[string]string{}}
@@ -366,8 +366,10 @@ func TestEditor_UpdateKeepsEmptyApartFromAbsent(t *testing.T) {
 	assert.Nil(t, cp.Namespace)
 	assert.Nil(t, cp.Properties)
 	cp.Tags = append(cp.Tags, "appended")
+	cp.WireNameByFormat["json"] = "written"
 	require.Equal(t, []string{"appended"}, cp.Tags)
 	assert.Empty(t, node.Tags[:1][0], "the copy appended into the node's array")
+	assert.Empty(t, node.WireNameByFormat, "the copy wrote into the node's map")
 }
 
 // TestEditor_DoneReportsEachRefusalOnce pins that Done ends the edit: a later
