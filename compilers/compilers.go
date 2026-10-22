@@ -150,7 +150,7 @@ type Compiler interface {
 // Concurrent Lookup is safe once registration is complete. Register is not: it
 // writes an unsynchronized map, so every Register must happen before the first
 // concurrent Lookup. Compose a Registry fully before publishing it, the way
-// engine.NewWith registers into a fresh one and only then wraps it.
+// engine.New registers into a fresh one and only then wraps it.
 type Registry struct {
 	// byFormat finds a compiler by format. ordered is registration order, the one
 	// order a caller controls and the order Detect asks in; ranging byFormat would

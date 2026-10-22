@@ -77,7 +77,7 @@ type Result struct {
 // An Engine is safe for concurrent use, and concurrent runs over one spec yield
 // identical documents, not merely uncorrupted ones. Each run builds a fresh
 // compilers.Source, so the state a compiler leaves on one (Source.Parsed) is
-// never shared between runs. NewWith finishes the registry and the pass list
+// never shared between runs. New finishes the registry and the pass list
 // before the Engine exists, and a run only reads them. The rest is the purity
 // of compilers and passes: one holding mutable state breaks both.
 //
@@ -95,33 +95,64 @@ func Compilers() []compilers.Compiler {
 	return []compilers.Compiler{openapi.New()}
 }
 
-// New composes the default engine: a registry with every built-in compiler
-// registered (Compilers), and the default passes.
-func New() (*Engine, error) {
-	return NewWith(Compilers()...)
+// Option configures the Engine New builds. Options apply in order, so a later
+// one setting what an earlier one set wins.
+type Option func(*config)
+
+// config is what New builds an Engine from: the built-in compilers and the
+// default passes, as the options leave them.
+type config struct {
+	compilers []compilers.Compiler
+	passes    []pass.Pass
 }
 
-// NewWith registers the given compilers into a fresh registry and wraps it in
-// an Engine running the default passes, for tests and embedders that need a
-// custom compiler set. A nil compiler and a register failure (a compiler
-// reporting no formats, or two claiming the same format) surface as a Go error
-// rather than a panic, naming the argument position.
+// WithCompilers registers cs, in order, in place of the built-in compilers, for
+// a test or an embedder composing a set of its own. The list is copied.
+func WithCompilers(cs ...compilers.Compiler) Option {
+	cs = slices.Clone(cs)
+	return func(c *config) { c.compilers = cs }
+}
+
+// WithPasses runs ps, in order, in place of the default passes. An embedder
+// adding a pass of its own composes the list from Passes, putting a transform
+// before validate so validate judges what the transform returns. The list is
+// copied, and an empty one runs no pass.
+func WithPasses(ps ...pass.Pass) Option {
+	ps = slices.Clone(ps)
+	return func(c *config) { c.passes = ps }
+}
+
+// New builds an Engine registering every built-in compiler (Compilers) and
+// running the default passes (Passes), unless opts say otherwise. A nil option,
+// a compiler the registry refuses, and a pass list a run could not address by
+// name (a nil pass, an unnamed one, two sharing a name) are each a Go error
+// naming the position, rather than a panic.
 //
-// An empty set is refused. A built engine cannot gain a compiler, so one with
-// none could compile nothing and would report every source as unrecognized,
-// blaming the document for the caller's misconfiguration.
-func NewWith(cs ...compilers.Compiler) (*Engine, error) {
-	if len(cs) == 0 {
+// An empty compiler set is refused too. A built engine cannot gain a compiler,
+// so one with none could compile nothing and would report every source as
+// unrecognized, blaming the document for the caller's misconfiguration.
+func New(opts ...Option) (*Engine, error) {
+	cfg := config{compilers: Compilers(), passes: Passes()}
+	for i, opt := range opts {
+		if opt == nil {
+			return nil, fmt.Errorf("engine: option %d is nil", i)
+		}
+		opt(&cfg)
+	}
+	if len(cfg.compilers) == 0 {
 		return nil, errors.New("engine: no compilers; an engine with none can compile nothing")
 	}
 
 	reg := compilers.NewRegistry()
-	for i, c := range cs {
+	for i, c := range cfg.compilers {
 		if err := reg.Register(c); err != nil {
 			return nil, fmt.Errorf("engine: register compiler %d: %w", i, err)
 		}
 	}
-	return &Engine{registry: reg, passes: defaultPasses()}, nil
+	if err := checkPasses(cfg.passes); err != nil {
+		return nil, err
+	}
+	return &Engine{registry: reg, passes: cfg.passes}, nil
 }
 
 // Run executes the pipeline for the spec at specPath: read it, compile it with
@@ -182,13 +213,13 @@ func (e *Engine) RunSources(ctx context.Context, sources []compilers.Source, opt
 	return failOn.judge(res)
 }
 
-// RunDocument runs the passes not named in opts.DisablePasses over doc, an IR
+// RunDocument runs the passes not named in opts.DisablePasses over doc, a
 // document already compiled, such as one decoded from a file, and judges the
 // Result at opts.FailOn. No compiler runs, so opts may name no compiler option
 // and Result.Format is the zero format; Result.Diagnostics holds doc's own
 // findings and the passes'.
 //
-// doc is not modified. The Result's document shares all of doc but its
+// doc is not modified. The Result's document may share any field of doc but
 // Diagnostics, so neither may change while the other is read. A nil doc, one
 // whose IRVersion this build cannot read, one holding a finding indexing none
 // of its Sources, and compiler options are Go errors.
@@ -245,7 +276,7 @@ func (e *Engine) RunDocument(ctx context.Context, doc *ir.Document, opts RunOpti
 // asked to resolve options no compiler could.
 func (e *Engine) prepare(opts RunOptions) ([]pass.Pass, threshold, error) {
 	if e == nil || e.registry == nil {
-		return nil, 0, errors.New("engine: uninitialized; build one with New or NewWith")
+		return nil, 0, errors.New("engine: uninitialized; build one with New")
 	}
 	if opts.FormatOptions != nil && len(opts.CompilerOptions) > 0 {
 		return nil, 0, errOptionChannels
@@ -342,7 +373,7 @@ func (e *Engine) Formats() []compilers.SourceFormat {
 // have worked leaves the next step to guesswork, and the engine can answer it
 // from its own registry without knowing what any of the names mean.
 //
-// NewWith builds every Engine and refuses an empty compiler set, so there is
+// New builds every Engine and refuses an empty compiler set, so there is
 // always at least one format to name and the sentence never trails off.
 func (e *Engine) served() string {
 	formats := e.Formats()

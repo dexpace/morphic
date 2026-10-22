@@ -117,10 +117,14 @@ A lowering rule says how one OpenAPI construct reaches the IR: the field it fill
 ## Add a pass
 
 A pass is an IR-to-IR step the engine runs after a compile
-([`architecture.md`](docs/architecture.md) §2.2). Today a pass can analyse a document and report on
-it, or return a new document built from it, but it cannot replace or remove a type: writing the type
-registry outside `compilers/compile` and `ir` fails the `registrywrites` rule
-(`internal/lintrules`, run by `make vet`), and the sanctioned way for a pass to do it is #966's.
+([`architecture.md`](docs/architecture.md) §2.2). An analysis reports on the document it is handed;
+a transform returns a new one. A transform changes types through an `ir.Editor` (`ir.NewEditor`):
+`UpdateType` hands it a deep copy of a node to change, `ReplaceType` puts a node built afresh in
+place of the one at its ID, `RemoveType` removes one, and `Finish` returns the new document, sharing
+everything the edit left alone, beside an `ir/edit-refused` error for each call the editor refused,
+such as a write at an ID the document does not hold. Building a type registry, or writing one of its
+entries, any other way fails the `registrywrites` rule (`internal/lintrules`, run by `make vet`). No
+rule sees a node of the input changed in place, which `UpdateType`'s copy is there to make needless.
 
 1. **Implement `pass.Pass`** in a file of its own under `pass/`, shaped as `Validator` and
    `ValidateName` are in `pass/pass.go`: an exported type, and a constant holding its stable
@@ -128,17 +132,20 @@ registry outside `compilers/compile` and `ir` fails the `registrywrites` rule
    it only analyses, and reports through its diagnostics alone. `ir.ForEachOperation` walks the
    operations, and the package's `diag` helper in `pass/validate.go` builds a diagnostic on a node.
    A code names the defect, as `pass/doc.go` says: `pass/<defect>` for a finding the pass owns,
-   `ir/<defect>` for a structural one `irverify` reports too.
-   *Fails if missed:* the build, once step 3 lists the pass, for a method `pass.Pass` requires.
+   `ir/<defect>` for a structural one `irverify` reports too. A transform returns what `Finish`
+   returns, its own findings appended.
+   *Fails if missed:* the build, once step 3 lists the pass, for a method `pass.Pass` requires, and
+   `make vet` for a registry built, or an entry of one written, other than through an `ir.Editor`.
 2. **Test it** beside it in `pass/`, table-driven, against documents built in the test.
    `pass/validate_test.go` has builders (`validDoc`, `docWithOperation`) and readers (`codes`,
    `countCode`) to reuse.
    *Fails if missed:* `make coverage`.
-3. **Add it to the default list** in `engine/passes.go`, before `validate`, which stays last, and
-   update the tests that pin the list: `TestDefaultPasses_Order`, and `TestRun_UnknownPassIsMisuse`
-   in `cmd/morphic` for the names a refusal lists. Nothing fails if the pass never joins the list,
-   where it simply never runs; the pins catch a list changed without them, and a pass placed after
-   `validate`.
+3. **Add it to the default list**, `engine.Passes` in `engine/passes.go`, before `validate`, which
+   stays last. No test restates the list: `TestPasses_ValidateRunsLast` holds `validate` to the end,
+   `engine.New` refuses a name two passes share, and `TestRun_UnknownPassIsMisuse` in `cmd/morphic`
+   reads the names a refusal lists from the list itself. Nothing fails if the pass never joins the
+   list, where it simply never runs. An embedder runs a pass of its own without editing the list,
+   through `engine.WithPasses`.
    A default pass runs on every CLI test's spec. One that reports on the shared specs in
    `internal/testspec` breaks the `cmd/morphic` tests that expect a clean run, such as
    `TestRun_ValidateExitCodes/clean_spec`, so keep those specs clean of what it reports.

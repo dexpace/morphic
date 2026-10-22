@@ -184,23 +184,45 @@ returns its input beside its diagnostics. `Run` has no error result, for the rea
 diagnostic, and anything else is a bug in the pass. It takes no context either: a pass works on a
 document already in memory, and the engine checks for cancellation before each one.
 
+A transform replaces and removes types through an `ir.Editor` (`ir.NewEditor`), which is to a pass
+what `compile.Types` is to a compiler: its way into the type registry. The edit copies the registry
+at its first write and never writes the document it edits, hands `UpdateType` a deep copy of the
+node to change, keeps each node it takes at the key that node's own ID names, and adds no ID, so
+every ID stays in a namespace the document already declares (invariant 3). A write that would break
+either, or that only a bug makes, is refused, and `Finish` returns each refusal as an
+`ir/edit-refused` error beside the document, so it fails the run at the default threshold instead of
+passing unseen. Whether a removal leaves a reference dangling is not the edit's to judge: `validate`
+reports one. Adding a type is not an edit's either: the first pass to mint one, `link`, brings that,
+with a namespace of its own (invariant 3's corollary). The `registrywrites` rule
+(`internal/lintrules`) refuses building a registry, or writing one of its entries, anywhere but `ir`
+and `compilers/compile`; no rule sees a node changed in place, which the deep copy makes needless.
+The editor covers the type registry alone. A transform that changes another part of the document, an
+operation, a message, a channel or an auth scheme, sets that field of `Finish`'s document to a copy
+it built, copying each container on the path to what it changes and writing into nothing the input
+holds. The editor gains a method for another registry, on the same terms, with the first pass that
+needs one: `filter` and `version-slice` remove operations, and `dedup` rewrites the type references
+operations hold.
+
 A pass that takes settings, as `filter`, `version-slice` and `overlay` will, holds them on its own
 value, so `Run` keeps one signature for every pass. A caller supplies them through a typed field on
 `RunOptions`, and the CLI through flags of the pass's own, both added with the pass. Where the
 settings have no neutral default, as those three's have none, supplying them is what turns the pass
 on. The compilers' textual option map is the wrong model here: it serves a set of formats the engine
-knows nothing about, while the passes are a closed set the engine composes, so each setting can be
-typed, checked and documented where it is declared.
+knows nothing about, while the built-in passes are a closed set the engine composes, so each setting
+can be typed, checked and documented where it is declared. An embedder's own pass takes its
+settings where the embedder builds it.
 
-The order lives in the `engine` package's default list, not in `pass/`: composing passes is
-orchestration, which only the engine does. The engine runs the list after any compile that produced
-a document, errors reported or not, and over a document already compiled that a caller hands it
-(`RunDocument`), and threads each pass's output into the next. An analysis that judges the document
-runs after every transform, so `validate` comes last. It then checks what the run returns, every
-transform's output included, and its findings, whose `Provenance.Node` is spelled against the
-document it was handed, locate in that document. Running it first would give the transforms no
-guarantee, since a caller can turn it off: each pass must cope with a document that fails it
-whatever the order.
+The order lives in the `engine` package's default list, `engine.Passes`, not in `pass/`: composing
+passes is orchestration, which only the engine does. An embedder runs a list of its own,
+`engine.WithPasses`, composed from that one, and `engine.New` refuses a list a run could not
+address: a nil pass, an unnamed one, or two sharing a name, which turning one off would turn off
+together. The engine runs the list after any compile that produced a document, errors reported or
+not, and over a document already compiled that a caller hands it (`RunDocument`), and threads each
+pass's output into the next. An analysis that judges the document runs after every transform, so
+`validate` comes last. It then checks what the run returns, every transform's output included, and
+its findings, whose `Provenance.Node` is spelled against the document it was handed, locate in that
+document. Running it first would give the transforms no guarantee, since a caller can turn it off:
+each pass must cope with a document that fails it whatever the order.
 
 The engine owns `Document.Diagnostics`, writing the compiler's findings and every pass's onto the
 document it returns, so a transform that builds a fresh document cannot lose any. Those findings
@@ -213,7 +235,11 @@ carries is a Go error (`engine.ErrUnknownPass`), not a diagnostic, because it na
 spec. A pass whose output a consumer relies on is not a caller's to turn off: from the first such
 pass, the engine refuses its name as it refuses an unknown one. Turning a pass *on* by name is for
 one that has no settings and is off by default, as the convenience simplifications of
-reference-learnings.md §B0 are to be, and it lands with the first of them.
+reference-learnings.md §B0 are to be, and it lands with the first of them. `engine.WithPasses`
+replaces the default list whole, so an embedder's list can leave out a pass `DisablePasses` may not
+turn off, and `RunOptions` can carry settings for a pass the list does not hold. Neither can happen
+yet: the first pass that cannot be turned off, and the first with settings, each decide what the
+engine refuses there.
 
 Built, and in the default list:
 
@@ -346,7 +372,7 @@ it in its own change.
 
 ```
 morphic/
-├── ir/                     # Layer 0 — IR node types, IDs, shared traversals, JSON round-trip.
+├── ir/                     # Layer 0 — IR node types, IDs, shared traversals, editing, JSON round-trip.
 │   ├── irfacts/            #           Derived facts of a document, never stored (ir-design §4.9).
 │   ├── irtest/             #           Golden-snapshot and fixture helpers for IR documents.
 │   └── irverify/           #           Structural-invariant oracle (dangling refs, IDs, naming).

@@ -132,9 +132,9 @@ func TestEngine_RunDocumentAgreesWithRun(t *testing.T) {
 		// passCode is a code the validate pass reported, or "" for none.
 		passCode string
 	}{
-		{"the compiler's findings", engine.New, findingsSpec, ""},
+		{"the compiler's findings", func() (*engine.Engine, error) { return engine.New() }, findingsSpec, ""},
 		{"the validate pass's findings", func() (*engine.Engine, error) {
-			return engine.NewWith(notedDanglingCompiler{})
+			return engine.New(engine.WithCompilers(notedDanglingCompiler{}))
 		}, testspec.Tiny, "ir/dangling-type-ref"},
 	}
 	for _, tt := range tests {
@@ -291,7 +291,7 @@ func TestEngine_RunDocumentFailsOnAPassBreakingItsContract(t *testing.T) {
 			t.Parallel()
 			ctx, cancel := context.WithCancel(t.Context())
 			t.Cleanup(cancel)
-			eng, err := engine.NewWithPasses(tt.passes(t, cancel), collidingCompiler{})
+			eng, err := engine.New(engine.WithCompilers(collidingCompiler{}), engine.WithPasses(tt.passes(t, cancel)...))
 			require.NoError(t, err)
 
 			res, err := eng.RunDocument(ctx, danglingDocument(), engine.RunOptions{})

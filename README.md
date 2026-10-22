@@ -213,12 +213,15 @@ morphic compile openapi.yaml --opt grouping=path-prefix --opt overlay=patch.yaml
 ### Library
 
 The same pipeline is available as a Go package. `engine.New` builds the default engine: every
-built-in compiler and the default IR passes. `Run` reads the spec, asks the registered compilers
-which one recognizes it, compiles, and runs the passes in order, each over the document the one
-before it returned. `RunOptions.DisablePasses` turns passes off by name (`engine.ValidatePass`
-names the referential-integrity check), and a name no pass carries fails the run with
-`engine.ErrUnknownPass`. A compiler breaking its contract, say by returning a document whose source
-table does not describe the spec, fails the run with an error wrapping `compilers.ErrContract`.
+built-in compiler and the default IR passes. `engine.WithCompilers` and `engine.WithPasses` replace
+either set, so an embedder can run a pass of its own, composed with `engine.Passes`, the default
+list in order; a pass changes types through an `ir.Editor`. `Run` reads the spec, asks the
+registered compilers which one recognizes it, compiles, and runs the passes in order, each over the
+document the one before it returned. `RunOptions.DisablePasses` turns passes off by name
+(`engine.ValidatePass` names the referential-integrity check), and a name no pass carries fails the
+run with `engine.ErrUnknownPass`. A compiler breaking its contract, say by returning a document
+whose source table does not describe the spec, fails the run with an error wrapping
+`compilers.ErrContract`.
 
 ```go
 eng, err := engine.New()
@@ -269,7 +272,7 @@ entry in that test allows, and nothing from a layer above its own.
 
 | Package | Layer | Imports |
 |---|---|---|
-| `ir/` | 0: IR nodes, IDs, traversal, JSON round-trip | stdlib only |
+| `ir/` | 0: IR nodes, IDs, traversal, editing, JSON round-trip | stdlib only |
 | `ir/irfacts/` | 0: what a document implies and does not state (subtypes, exposed properties, usage, recursion), never stored | `ir` only |
 | `ir/irverify/`, `ir/irtest/` | 0: structural-invariant checker; golden-snapshot and fixture helpers | `ir` (`irtest` also `go-cmp`) |
 | `compilers/` | 1: the `Compiler` contract and the format-keyed registry | `ir` only |

@@ -13,7 +13,7 @@ import (
 	"github.com/dexpace/morphic/engine"
 )
 
-// TestDefaultPasses_KeepTheContractOverTheCorpus holds every pass a default
+// TestPasses_KeepTheContractOverTheCorpus holds every pass a default
 // engine runs, whichever are added later, to the half of the Pass contract the
 // engine cannot check as it runs: each leaves the document it was handed
 // unchanged. A transform that copies a Document and writes into a map or slice
@@ -22,9 +22,9 @@ import (
 // The specs run one after another so the count of those that reached a pass
 // needs no synchronisation; a corpus that compiled to nothing would otherwise
 // pass for want of anything to check.
-func TestDefaultPasses_KeepTheContractOverTheCorpus(t *testing.T) {
+func TestPasses_KeepTheContractOverTheCorpus(t *testing.T) {
 	t.Parallel()
-	compiler, err := engine.NewWithPasses(nil, openapi.New())
+	compiler, err := engine.New(engine.WithCompilers(openapi.New()), engine.WithPasses())
 	require.NoError(t, err)
 
 	reached := 0
@@ -38,7 +38,7 @@ func TestDefaultPasses_KeepTheContractOverTheCorpus(t *testing.T) {
 			reached++
 
 			doc := res.Document
-			for _, p := range engine.DefaultPasses() {
+			for _, p := range engine.Passes() {
 				before, err := json.Marshal(doc)
 				require.NoError(t, err)
 

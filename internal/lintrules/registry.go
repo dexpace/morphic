@@ -2,6 +2,7 @@ package lintrules
 
 import (
 	"go/ast"
+	"go/token"
 	"go/types"
 
 	"golang.org/x/tools/go/analysis"
@@ -9,9 +10,9 @@ import (
 )
 
 // registryWrites refuses building or writing a type registry outside ir and
-// compilers/compile. Reaching the registry only through compile.Types is what
-// makes one node per source coordinate (invariant 3) mechanical rather than a
-// convention each compiler re-honours.
+// compilers/compile. A compiler goes through compile.Types, which makes one
+// node per source coordinate (invariant 3) mechanical rather than a convention,
+// and any other package through an ir.Editor.
 //
 // A registry is any map from ir.TypeID to ir.TypeDef, whatever its type is
 // named: an unnamed one converts to ir.TypeRegistry without a conversion to see,
@@ -27,8 +28,8 @@ func (l layout) registryWrites() *analysis.Analyzer {
 }
 
 const (
-	builtMessage   = "builds a type registry (a map from ir.TypeID to ir.TypeDef) outside ir and compilers/compile; go through compile.Types"
-	writtenMessage = "writes a type registry outside ir and compilers/compile; go through compile.Types, or rewrite a node in a compile.Settlement"
+	builtMessage   = "builds a type registry (a map from ir.TypeID to ir.TypeDef) outside ir and compilers/compile; "
+	writtenMessage = "writes a type registry outside ir and compilers/compile; "
 	genericMessage = "instantiates a generic with a type registry or ir.TypeDef, whose registry writes this rule cannot read; keep registry writes in ir and compilers/compile"
 	closureMessage = "writes the registry Settle is handed from a function literal, which can run after Settle returns; write it in Settle itself"
 	reboundMessage = "writes through the registry parameter Settle rebinds, which may name a registry it was not handed; leave the parameter bound"
@@ -43,7 +44,7 @@ func (l layout) runRegistryWrites(pass *analysis.Pass) (any, error) {
 		return nil, nil // a package that reaches no ir holds none of its registries
 	}
 	core, _ := reg.Type().Underlying().(*types.Map) // ir declares it a map
-	c := registryCheck{l: l, pass: pass, core: core, settled: settlements(pass)}
+	c := registryCheck{l: l, pass: pass, core: core, settled: settlements(pass), ways: l.ways(pass.Pkg.Path())}
 	for _, f := range productionFiles(pass) {
 		for n := range ast.Preorder(f) {
 			c.node(n)
@@ -62,6 +63,33 @@ type registryCheck struct {
 	core *types.Map
 	// settled is what the package's Settle methods may write.
 	settled settlement
+	// ways is how the package under check reaches the registry instead.
+	ways ways
+}
+
+// ways is how a package reaches the registry, which ends the message a build
+// draws and the one a write draws.
+type ways struct{ built, written string }
+
+// ways returns how the package at path reaches the registry: a compiler
+// through compile.Types, and every other package through an ir.Editor.
+func (l layout) ways(path string) ways {
+	if l.within(path, "compilers") {
+		return ways{
+			built:   "go through compile.Types",
+			written: "go through compile.Types, or rewrite a node in a compile.Settlement",
+		}
+	}
+	const edit = "edit a document's registry through an ir.Editor"
+	return ways{built: edit, written: edit}
+}
+
+// built reports a registry built at pos.
+func (c registryCheck) built(pos token.Pos) { c.pass.Reportf(pos, "%s%s", builtMessage, c.ways.built) }
+
+// written reports a registry written at pos.
+func (c registryCheck) written(pos token.Pos) {
+	c.pass.Reportf(pos, "%s%s", writtenMessage, c.ways.written)
 }
 
 // isRegistry reports whether t is a map from ir.TypeID to ir.TypeDef, or a
@@ -84,7 +112,7 @@ func (c registryCheck) node(n ast.Node) {
 	switch n := n.(type) {
 	case *ast.CompositeLit:
 		if c.isRegistry(c.pass.TypesInfo.TypeOf(n)) {
-			c.pass.Reportf(n.Pos(), builtMessage)
+			c.built(n.Pos())
 		}
 	case *ast.CallExpr:
 		if fn, isBuiltin := typeutil.Callee(c.pass.TypesInfo, n).(*types.Builtin); isBuiltin {
@@ -115,7 +143,7 @@ func (c registryCheck) target(e ast.Expr) {
 	bound, settled := c.settled.params[c.pass.TypesInfo.Uses[id]]
 	switch {
 	case !settled:
-		c.pass.Reportf(ix.Pos(), writtenMessage)
+		c.written(ix.Pos())
 	case !bound:
 		c.pass.Reportf(ix.Pos(), reboundMessage)
 	case c.settled.inClosure(ix.Pos()):
@@ -130,9 +158,9 @@ func (c registryCheck) builtin(call *ast.CallExpr, name string) {
 	}
 	switch name {
 	case "make":
-		c.pass.Reportf(call.Pos(), builtMessage)
+		c.built(call.Pos())
 	case "delete", "clear":
-		c.pass.Reportf(call.Pos(), writtenMessage)
+		c.written(call.Pos())
 	default:
 	}
 }
@@ -153,10 +181,10 @@ func (c registryCheck) instance(id *ast.Ident) {
 	sig, isFunc := inst.Type.(*types.Signature)
 	switch {
 	case path == "maps" && mapsWriter(generic.Name()) && c.isRegistry(inst.TypeArgs.At(0)):
-		c.pass.Reportf(id.Pos(), writtenMessage) // each writes the map its first type argument is
+		c.written(id.Pos()) // each writes the map its first type argument is
 	case c.l.framework(path): // trusted, as its functions are
 	case isFunc && c.anyRegistry(sig.Results()):
-		c.pass.Reportf(id.Pos(), builtMessage) // maps.Clone and maps.Collect among them
+		c.built(id.Pos()) // maps.Clone and maps.Collect among them
 	case c.l.inModule(path) && c.registryArgs(inst.TypeArgs):
 		c.pass.Reportf(id.Pos(), genericMessage)
 	default:

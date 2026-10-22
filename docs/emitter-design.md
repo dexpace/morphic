@@ -191,7 +191,7 @@ Keyed by `TargetKey`, and composed by the engine exactly as the compiler registr
 (`compilers.Registry`, architecture.md §2.1): a plain value, with no package-level default and no
 `init()`-time self-registration, either of which would be the mutable global INV5 rules out. The
 engine's default constructor registers every built-in target in one place, beside the built-in
-compilers, and a test or an embedder composes a set of its own, as `engine.NewWith` does for
+compilers, and a test or an embedder composes a set of its own, as `engine.WithCompilers` does for
 compilers. Registration finishes before the engine exists, so concurrent runs only read it.
 
 ```go
@@ -269,8 +269,7 @@ none is stable by omission.
   of a full run. Scope is never a filtered `Document`.
 - **Snapshots only.** The engine runs `version-slice` before any emitter; the emitter receives a
   single version snapshot and never interprets `Availability`. The pass is designed, not built
-  (architecture.md §2.2), and needs a way for a pass to replace types (#966); until it lands, no
-  pass slices a document.
+  (architecture.md §2.2); until it is, no pass slices a document.
 
 ### 2.5 Target options
 

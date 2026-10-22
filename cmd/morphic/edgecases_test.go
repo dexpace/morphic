@@ -88,7 +88,7 @@ func TestRun_CompileNilDocumentReturnsOne(t *testing.T) {
 	orig := newEngine
 	t.Cleanup(func() { newEngine = orig })
 	newEngine = func() (*engine.Engine, error) {
-		return engine.NewWith(nilDocCompiler{})
+		return engine.New(engine.WithCompilers(nilDocCompiler{}))
 	}
 
 	spec := writeFile(t, "spec.yaml", testspec.Tiny)
@@ -259,7 +259,7 @@ func (danglingDocCompiler) Compile(_ context.Context, sources []compilers.Source
 func TestRun_PassFlagsSilenceTheValidatePass(t *testing.T) {
 	orig := newEngine
 	t.Cleanup(func() { newEngine = orig })
-	newEngine = func() (*engine.Engine, error) { return engine.NewWith(danglingDocCompiler{}) }
+	newEngine = func() (*engine.Engine, error) { return engine.New(engine.WithCompilers(danglingDocCompiler{})) }
 	spec := writeFile(t, "spec.yaml", testspec.Tiny)
 
 	commands := [][]string{
