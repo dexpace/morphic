@@ -520,10 +520,13 @@ stands for every later one and no answer follows declaration order. Three mechan
 2. A lowering that mounts an object another position declares, a request body or a header written
    elsewhere, lowers it in its declaration's document and names it by where it is declared, never
    by where it is mounted, so every mount builds the node the declaration builds.
-3. A decision that reads a node another lowering interns, such as whether two redeclared types
-   conflict or which property a form part names, is a `compile.Settlement`, taken once the registry
-   is whole. Its diagnostics follow the walk's, an order no golden may be updated over unexplained
-   (§6.1).
+3. A decision that reads a node another lowering interns, such as which property a form part names,
+   is a `compile.Settlement`, taken once the registry is whole. Its diagnostics follow the walk's, an
+   order no golden may be updated over unexplained (§6.1). The `allOf` merge judges a redeclaration
+   mid-walk only where every node the judgment reads is built already, and defers the whole fold
+   where one is not. A settlement that reads what another rewrites, as a form part's flags read the
+   merged property, is deferred as a reader (`compile.Types.DeferReader`), which Finish takes after
+   the rest.
 
 The alternative #917 drafted assigned each coordinate a role in the binding table. The table knows
 what a position is (a schema, raw YAML, another object), not the context its declaration lowers it
