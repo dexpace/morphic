@@ -233,8 +233,8 @@ func TestLeast_FollowsEveryValueOfARepeatedKey(t *testing.T) {
 	assert.Same(t, k2, Least(root, []*yaml.Node{z1, k2, k1}), "one pointer: the first given of those sharing it")
 }
 
-// bothOrders is a document declaring members as given and reversed, each
-// member one or more whole lines.
+// bothOrders is two documents declaring members, one as given and one
+// reversed, each member one or more whole lines.
 func bothOrders(members []string) map[string][]byte {
 	reversed := slices.Clone(members)
 	slices.Reverse(reversed)
