@@ -2249,9 +2249,12 @@ them, and which entry survives follows the order the two were declared in, silen
 orders. That is the failure §4.3 describes for a minted node reusing a pointer, reached by a
 different route.
 
-Scoped and unscoped keys stay apart on top of that, because no scope segment begins with `x-` and
-every vendor-extension name does — the same gap that separates both from the non-extension entries
-a shared carrier holds under those scopes, such as `openapi:encoding/<part>/allowReserved`.
+Scoped and unscoped keys stay apart on top of that, because every vendor-extension name begins with
+`x-` and no scope does. A scope opens with a keyword the compiler writes, and where one scope on a
+carrier extends another, what it adds opens with one too. A segment the document names may begin
+with `x-`, as a callback named `x-hook` keeps its extensions under `openapi:callbacks/x-hook/`, but
+only after such a keyword. The same gap separates both from the non-extension entries a shared
+carrier holds under those scopes, such as `openapi:encoding/<part>/allowReserved`.
 
 | Reason | Meaning |
 |---|---|
