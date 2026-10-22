@@ -17,7 +17,6 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
@@ -165,14 +164,6 @@ func TestAttachDeclaredAnnotations_MissingNode(t *testing.T) {
 	assertInternalInvariant(t, diags)
 }
 
-func TestPreserveKeyword_NilRaw(t *testing.T) {
-	t.Parallel()
-	var ext ir.Unmodeled
-	diags := preserveKeyword(lowering.Ctx{}, &ext, "openapi:not", nil, "/p", "/p/not", "not")
-	assert.Nil(t, ext, "nil raw is a no-op")
-	assert.Empty(t, diags)
-}
-
 // TestConstraintsOf_NonSchemaInputs covers annotation.SchemaOf's nil and
 // boolean early return, plus a well-formed reference besides: none of the three
 // leaves a body with constraint keywords on it, so ConstraintsOf reports none
@@ -287,36 +278,6 @@ func TestHoistSubSchema_BodyInternsAtPointer(t *testing.T) {
 func TestIsRefBranch_Nil(t *testing.T) {
 	t.Parallel()
 	assert.False(t, isRefBranch(nil))
-}
-
-// TestPreserve_EmptyRawIsRejectedLikeNil pins both halves of the guard. nil and a
-// zero-length slice are distinct states, and only nil was screened — so an empty
-// payload was written into Unmodeled, where it makes json.Marshal fail for the
-// whole document rather than for the entry that carried it.
-//
-// No committed spec reaches this: every call site passes a value re-encoded from
-// a parsed YAML node, which is never zero-length. The guard is exercised directly
-// because the hazard is a second compiler copying an asymmetric screen, not a
-// live defect in this one.
-func TestPreserve_EmptyRawIsRejectedLikeNil(t *testing.T) {
-	t.Parallel()
-	for name, raw := range map[string]ir.RawValue{
-		"nil":           nil,
-		"empty non-nil": {},
-	} {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-			l := &lowerer{}
-			var p ir.Unmodeled
-			preserve(l.ctx, &p, "openapi:k", raw, ir.ReasonVendorExtension, "/p/k")
-			assert.Nil(t, p, "a payload with no bytes preserves no construct")
-
-			var q ir.Unmodeled
-			kwDiags := preserveKeyword(lowering.Ctx{}, &q, "openapi:not", raw, "/p", "/p/not", "not")
-			assert.Nil(t, q, "and the validation-only wrapper screens the same states")
-			assert.Empty(t, kwDiags, "nothing was preserved, so nothing is announced")
-		})
-	}
 }
 
 // TestDeclaresResourceIDAbove_WithoutARawTree pins the guard on the path walk.

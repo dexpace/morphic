@@ -8,6 +8,7 @@ import (
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 
 	"github.com/dexpace/morphic/compilers/compile"
+	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
@@ -113,7 +114,8 @@ func (d besideUnionDiscriminator) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
 		return nil
 	}
 	at := d.pointer + ids.Ptr("discriminator")
-	kept, diags := PreserveSchemaKeyword(d.c, &owner.Common().Unmodeled, d.s, "discriminator", ir.ReasonDegradedLowering, at)
+	kept, diags := annotation.PreserveSchemaKeyword(&owner.Common().Unmodeled, d.s, "discriminator",
+		ir.ReasonDegradedLowering, d.pointer, d.c.ProvenanceAt)
 	if !kept {
 		return diags
 	}

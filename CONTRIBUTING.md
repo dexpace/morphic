@@ -168,13 +168,15 @@ A compiler lowers one source format into an IR document ([`architecture.md`](doc
    *Fails if missed:* `make lint` for a package with no package comment, and the build, once step 4
    registers the compiler, for a missing method.
 2. **Rule its imports.** Add `compilers/<format>` to the `rules` map in
-   `internal/archtest/arch_test.go`, allowing `ir`, `compilers` and `compilers/compile` by exact
-   path, its own internal tree, and its format libraries. Give each package under its `internal/`
-   an entry of its own. Run `gofmt -w` on the file afterwards: a longer key realigns its neighbours.
+   `internal/archtest/arch_test.go`, allowing what it imports and nothing more: `ir`, `compilers`
+   and `compilers/compile` by exact path, its own internal tree once it has one, and its format
+   libraries. Give each package under its `internal/` an entry of its own. Run `gofmt -w` on the
+   file afterwards: a longer key realigns its neighbours.
    *Fails if missed:* `TestImportGraph_EveryPackageIsRuledOrExempt`, which requires every package
    under `compilers/` to carry an entry of its own and names the one that does not, and
    `TestImportGraph_LayeringHolds` for an import an entry does not allow, whose message says when
-   the package is audited under an ancestor's entry for want of its own.
+   the package is audited under an ancestor's entry for want of its own, and for an entry no
+   production file the rule audits imports.
 3. **Mint IDs and names through the framework.** Intern types through `compile.Types`, derive IDs
    and canonical names with `compilers/compile`, declare in `Document.IDSpaces` every namespace an
    ID lives in, source-addressed as well as minted (`ir-design.md` §3.1), and stamp

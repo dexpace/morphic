@@ -74,8 +74,8 @@ func keepMediaTypeFields(c lowering.Ctx, u *ir.Unmodeled, media *soa.MediaType, 
 // with an info. ir.Content has no docs field, hence ReasonNoIRHome.
 func keepMediaTypeDescription(c lowering.Ctx, u *ir.Unmodeled, root *yaml.Node, mediaPtr jsontext.Pointer, scope string) []ir.Diagnostic {
 	at := mediaPtr + ids.Ptr("description")
-	kept, diags := schema.PreserveNode(c, u, annotation.EntryKey(scope, "description"),
-		annotation.RawChildNode(root, "description"), ir.ReasonNoIRHome, at)
+	kept, diags := annotation.PreserveNodeInto(u, annotation.EntryKey(scope, "description"),
+		annotation.RawChildNode(root, "description"), ir.ReasonNoIRHome, c.ProvenanceAt(at))
 	if !kept {
 		return diags
 	}
@@ -91,12 +91,13 @@ func keepMediaTypeDescription(c lowering.Ctx, u *ir.Unmodeled, root *yaml.Node, 
 func keepMediaTypeRef(c lowering.Ctx, u *ir.Unmodeled, root, ref *yaml.Node, mediaPtr jsontext.Pointer, scope string) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for _, sibling := range []string{"summary", "description"} {
-		_, siblingDiags := schema.PreserveNode(c, u, annotation.EntryKey(scope, sibling),
-			annotation.RawChildNode(root, sibling), ir.ReasonNoIRHome, mediaPtr+ids.Ptr(sibling))
+		_, siblingDiags := annotation.PreserveNodeInto(u, annotation.EntryKey(scope, sibling),
+			annotation.RawChildNode(root, sibling), ir.ReasonNoIRHome, c.ProvenanceAt(mediaPtr+ids.Ptr(sibling)))
 		diags = append(diags, siblingDiags...)
 	}
 	at := mediaPtr + ids.Ptr("$ref")
-	kept, refDiags := schema.PreserveNode(c, u, annotation.EntryKey(scope, "$ref"), ref, ir.ReasonDegradedLowering, at)
+	kept, refDiags := annotation.PreserveNodeInto(u, annotation.EntryKey(scope, "$ref"), ref,
+		ir.ReasonDegradedLowering, c.ProvenanceAt(at))
 	diags = append(diags, refDiags...)
 	if !kept {
 		return diags
@@ -133,7 +134,7 @@ func lowerContent(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex
 		content.Unmodeled = annotation.MergeUnmodeled(content.Unmodeled, encUnmodeled)
 	}
 	diags = append(diags, fillSequential(c, ts, anchors, &content, media, mediaPtr, hint)...)
-	ext, extDiags := schema.ExtensionsOf(c, media.GetExtensions(), mediaPtr)
+	ext, extDiags := annotation.ExtensionsFrom(media.GetExtensions(), c.ProvenanceAt, mediaPtr)
 	diags = append(diags, extDiags...)
 	if len(ext) > 0 {
 		content.Unmodeled = annotation.MergeUnmodeled(content.Unmodeled, ext)
@@ -185,10 +186,10 @@ func positionalEncoding(c lowering.Ctx, content *ir.Content, media *soa.MediaTyp
 	// lowering here: an itemEncoding beside it is optional, so its absence must not
 	// suppress the message, and its own conversion failure reports separately.
 	at := mediaPtr + ids.Ptr("prefixEncoding")
-	kept, diags := schema.PreserveNode(c, &content.Unmodeled, "openapi:prefixEncoding",
-		annotation.RawChildNode(root, "prefixEncoding"), ir.ReasonNoIRHome, at)
-	_, itemDiags := schema.PreserveNode(c, &content.Unmodeled, "openapi:itemEncoding",
-		annotation.RawChildNode(root, "itemEncoding"), ir.ReasonNoIRHome, mediaPtr+ids.Ptr("itemEncoding"))
+	kept, diags := annotation.PreserveNodeInto(&content.Unmodeled, "openapi:prefixEncoding",
+		annotation.RawChildNode(root, "prefixEncoding"), ir.ReasonNoIRHome, c.ProvenanceAt(at))
+	_, itemDiags := annotation.PreserveNodeInto(&content.Unmodeled, "openapi:itemEncoding",
+		annotation.RawChildNode(root, "itemEncoding"), ir.ReasonNoIRHome, c.ProvenanceAt(mediaPtr+ids.Ptr("itemEncoding")))
 	diags = append(diags, itemDiags...)
 	if !kept {
 		// Reaching here means prefixEncoding is declared — that is the only reason
@@ -609,14 +610,14 @@ func encodingConfig(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 func encodingUnmodeled(c lowering.Ctx, enc *soa.Encoding, encPtr jsontext.Pointer, scope string) (ir.Unmodeled, []ir.Diagnostic) {
 	var out ir.Unmodeled
 	at := encPtr + ids.Ptr("allowReserved")
-	kept, diags := schema.PreserveNode(c, &out, "openapi:"+scope+"/allowReserved",
-		annotation.RawChildNode(enc.GetRootNode(), "allowReserved"), ir.ReasonNoIRHome, at)
+	kept, diags := annotation.PreserveNodeInto(&out, "openapi:"+scope+"/allowReserved",
+		annotation.RawChildNode(enc.GetRootNode(), "allowReserved"), ir.ReasonNoIRHome, c.ProvenanceAt(at))
 	if kept {
 		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
 			"encoding allowReserved has no ir.PartEncoding home; kept verbatim under Unmodeled"))
 	}
 	diags = append(diags, nestedEncodings(c, &out, enc, encPtr, scope)...)
-	ext, extDiags := schema.ExtensionsIn(c, enc.GetExtensions(), encPtr, scope)
+	ext, extDiags := annotation.ExtensionsUnder(enc.GetExtensions(), c.ProvenanceAt, encPtr, scope)
 	out = annotation.MergeUnmodeled(out, ext)
 	diags = append(diags, extDiags...)
 	return out, append(diags, annotation.UnknownKeysUnder(&out, enc, c.ProvenanceAt, encPtr, scope)...)
@@ -641,8 +642,8 @@ func nestedEncodings(c lowering.Ctx, out *ir.Unmodeled, enc *soa.Encoding, encPt
 	var diags []ir.Diagnostic
 	for _, keyword := range nestedEncodingFields {
 		at := encPtr + ids.Ptr(keyword)
-		kept, keptDiags := schema.PreserveNode(c, out, annotation.EntryKey(scope, keyword),
-			annotation.RawChildNode(enc.GetRootNode(), keyword), ir.ReasonNoIRHome, at)
+		kept, keptDiags := annotation.PreserveNodeInto(out, annotation.EntryKey(scope, keyword),
+			annotation.RawChildNode(enc.GetRootNode(), keyword), ir.ReasonNoIRHome, c.ProvenanceAt(at))
 		diags = append(diags, keptDiags...)
 		if !kept {
 			continue
@@ -750,8 +751,8 @@ func preserveHeaderSerialization(c lowering.Ctx, p *ir.Property, h *soa.Header, 
 	var diags []ir.Diagnostic
 	for _, keyword := range []string{"style", "explode"} {
 		at := hdecl + ids.Ptr(keyword)
-		kept, keptDiags := schema.PreserveNode(c, &p.Unmodeled, "openapi:"+keyword,
-			annotation.RawChildNode(h.GetRootNode(), keyword), ir.ReasonNoIRHome, at)
+		kept, keptDiags := annotation.PreserveNodeInto(&p.Unmodeled, "openapi:"+keyword,
+			annotation.RawChildNode(h.GetRootNode(), keyword), ir.ReasonNoIRHome, c.ProvenanceAt(at))
 		diags = append(diags, keptDiags...)
 		if !kept {
 			continue
@@ -808,13 +809,13 @@ func contentEntryFields(c lowering.Ctx, media *soa.MediaType, mediaPtr jsontext.
 ) ([]ir.Example, ir.Unmodeled, []ir.Diagnostic) {
 	examples, diags := exampleList(c, media.GetExample(), media.GetExamples(), mediaPtr)
 	var unmodeled ir.Unmodeled
-	ext, extDiags := schema.ExtensionsIn(c, media.GetExtensions(), mediaPtr, scope)
+	ext, extDiags := annotation.ExtensionsUnder(media.GetExtensions(), c.ProvenanceAt, mediaPtr, scope)
 	unmodeled = annotation.MergeUnmodeled(unmodeled, ext)
 	diags = append(diags, extDiags...)
 	for _, field := range contentOnlyFields(media) {
 		at := mediaPtr + ids.Ptr(field.keyword)
-		kept, keptDiags := schema.PreserveNode(c, &unmodeled,
-			annotation.EntryKey(scope, field.keyword), field.node, ir.ReasonNoIRHome, at)
+		kept, keptDiags := annotation.PreserveNodeInto(&unmodeled,
+			annotation.EntryKey(scope, field.keyword), field.node, ir.ReasonNoIRHome, c.ProvenanceAt(at))
 		diags = append(diags, keptDiags...)
 		if !kept {
 			continue
@@ -901,8 +902,8 @@ func electTypeSpelling(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable],
 // first error diagnostic, hiding later findings.
 func passedOverSpelling(c lowering.Ctx, u *ir.Unmodeled, root *yaml.Node, passed, elected string, at jsontext.Pointer) []ir.Diagnostic {
 	pointer := at + ids.Ptr(passed)
-	kept, diags := schema.PreserveNode(c, u, "openapi:"+passed,
-		annotation.RawChildNode(root, passed), ir.ReasonDegradedLowering, pointer)
+	kept, diags := annotation.PreserveNodeInto(u, "openapi:"+passed,
+		annotation.RawChildNode(root, passed), ir.ReasonDegradedLowering, c.ProvenanceAt(pointer))
 	if !kept {
 		return diags
 	}
@@ -957,7 +958,7 @@ func applyHeaderAnnotations(c lowering.Ctx, p *ir.Property, h *soa.Header, hdecl
 	if ex := positionExamples(own, media); len(ex) > 0 {
 		p.Examples = ex
 	}
-	hExt, extDiags := schema.ExtensionsOf(c, h.GetExtensions(), hdecl)
+	hExt, extDiags := annotation.ExtensionsFrom(h.GetExtensions(), c.ProvenanceAt, hdecl)
 	diags = append(diags, extDiags...)
 	p.Unmodeled = annotation.MergeUnmodeled(p.Unmodeled, hExt)
 	diags = append(diags, annotation.UnknownKeysIn(&p.Unmodeled, h, c.ProvenanceAt, hdecl)...)
@@ -973,7 +974,7 @@ func exampleList(c lowering.Ctx, single *yaml.Node, plural *sequencedmap.Map[str
 	var diags []ir.Diagnostic
 	if single != nil {
 		var exDiags []ir.Diagnostic
-		out, exDiags = schema.AppendExample(c, out, ir.Example{}, single, pointer, "example")
+		out, exDiags = annotation.AppendExample(out, ir.Example{}, single, c.ProvenanceAt, pointer, "example")
 		diags = append(diags, exDiags...)
 	}
 	if plural == nil {
@@ -1004,7 +1005,7 @@ func appendPluralExample(c lowering.Ctx, out []ir.Example, re *soa.ReferencedExa
 	if ex == nil {
 		return out, nil
 	}
-	ext, diags := schema.ExtensionsOf(dc, ex.GetExtensions(), decl)
+	ext, diags := annotation.ExtensionsFrom(ex.GetExtensions(), dc.ProvenanceAt, decl)
 	diags = append(diags, annotation.UnknownKeysIn(&ext, ex, dc.ProvenanceAt, decl)...)
 	// A summary or description beside a $ref of the entry's chain documents this
 	// use of the example (GitHub #610).
@@ -1060,9 +1061,9 @@ func appendExampleData(c lowering.Ctx, out []ir.Example, proto ir.Example,
 	re *soa.ReferencedExample, node *yaml.Node, pointer jsontext.Pointer, name, keyword string,
 ) ([]ir.Example, []ir.Diagnostic) {
 	if re.IsReference() {
-		return schema.AppendExample(c, out, proto, node, pointer, "examples", name)
+		return annotation.AppendExample(out, proto, node, c.ProvenanceAt, pointer, "examples", name)
 	}
-	return schema.AppendExample(c, out, proto, node, pointer, "examples", name, keyword)
+	return annotation.AppendExample(out, proto, node, c.ProvenanceAt, pointer, "examples", name, keyword)
 }
 
 // keepExampleSpelling keeps the node an Example Object writes under keyword
@@ -1074,7 +1075,7 @@ func keepExampleSpelling(c lowering.Ctx, u *ir.Unmodeled, node *yaml.Node, keywo
 	reason ir.UnmodeledReason, decl jsontext.Pointer, why string,
 ) (bool, []ir.Diagnostic) {
 	at := decl + ids.Ptr(keyword)
-	kept, diags := schema.PreserveNode(c, u, annotation.EntryKey("", keyword), node, reason, at)
+	kept, diags := annotation.PreserveNodeInto(u, annotation.EntryKey("", keyword), node, reason, c.ProvenanceAt(at))
 	if !kept {
 		return false, diags
 	}
@@ -1112,7 +1113,7 @@ func lowerRequestBody(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorI
 	payload.Required = new(rb.GetRequired())
 	// soa.RequestBody exposes no GetExtensions at this library version, so the
 	// field is read directly — as XMLHints already reads its own.
-	bodyExt, bodyExtDiags := schema.ExtensionsOf(dc, rb.Extensions, bodyPtr)
+	bodyExt, bodyExtDiags := annotation.ExtensionsFrom(rb.Extensions, dc.ProvenanceAt, bodyPtr)
 	payload.Unmodeled = annotation.MergeUnmodeled(payload.Unmodeled, bodyExt)
 	diags = append(diags, bodyExtDiags...)
 	diags = append(diags, annotation.UnknownKeysIn(&payload.Unmodeled, rb, dc.ProvenanceAt, bodyPtr)...)

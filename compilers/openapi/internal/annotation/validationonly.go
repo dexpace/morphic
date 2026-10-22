@@ -126,32 +126,31 @@ func validationOnlyAt(s *oas3.Schema, pointer jsontext.Pointer, locate Locator) 
 	var p ir.Unmodeled
 	var diags []ir.Diagnostic
 
-	// keep takes the conversion's error alongside its payload so a keyword that
+	// A keyword kept at its own node goes through PreserveValidationOnlyKeyword.
+	// The entries combining several keywords into one object — if/then/else,
+	// contains, unevaluated — go through keep, because no single keyword names
+	// those.
+	keepKeyword := func(keyword string) {
+		diags = append(diags, PreserveValidationOnlyKeyword(&p, s, keyword, pointer, locate)...)
+	}
+	// keep takes the conversion's error alongside its payload so an entry that
 	// could not be converted is reported rather than passed on as an absent one —
 	// the two were indistinguishable here before GitHub #144.
 	//
-	// combined names the keywords an entry folds together, when it folds several.
-	// Such an entry is located at the schema and attributed by those keywords,
-	// and so is the report that stands in for it when it cannot be kept.
-	keep := func(key string, raw ir.RawValue, err error, entryPtr jsontext.Pointer, label string, combined ...string) {
+	// The entry is located at the schema and attributed by combined, the keywords
+	// it folds together, and so is the report that stands in for it when it
+	// cannot be kept.
+	keep := func(key string, raw ir.RawValue, err error, label string, combined ...string) {
 		from := make([]jsontext.Pointer, 0, len(combined))
 		for _, keyword := range combined {
 			from = append(from, pointer+ids.Ptr(keyword))
 		}
-		entry := locate(entryPtr, from...)
+		entry := locate(pointer, from...)
 		if err != nil {
-			diags = append(diags, UnpreservableDiag(key, entry, err))
+			diags = append(diags, unpreservableDiag(key, entry, err))
 			return
 		}
-		diags = append(diags, PreserveKeywordInto(&p, key, raw, entry, locate(pointer), label)...)
-	}
-	// A keyword whose entry is its own node needs no label of its own: the
-	// keyword names it. The §4.7 entries combining several keywords into one
-	// object — if/then/else, contains, unevaluated — reach keep directly, because
-	// no single keyword names those.
-	keepKeyword := func(keyword string) {
-		raw, err := RawFromNode(RawPropertyNode(s, keyword))
-		keep("openapi:"+keyword, raw, err, pointer+ids.Ptr(keyword), keyword)
+		diags = append(diags, preserveValidationOnlyInto(&p, key, raw, entry, locate(pointer), label)...)
 	}
 
 	if Written(s.GetNot()) {
@@ -159,28 +158,26 @@ func validationOnlyAt(s *oas3.Schema, pointer jsontext.Pointer, locate Locator) 
 	}
 	ite, iteKeys, iteErr := IfThenElseRaw(s)
 	if ite != nil || iteErr != nil {
-		keep("openapi:if-then-else", ite, iteErr, pointer, "if/then/else", iteKeys...)
+		keep("openapi:if-then-else", ite, iteErr, "if/then/else", iteKeys...)
 	}
 	if ds := s.GetDependentSchemas(); ds != nil && ds.Len() > 0 {
 		keepKeyword("dependentSchemas")
 	}
-	// dependentRequired is read off the raw node because oas3.Schema has no field
-	// for it (docs/parser-library.md#unmodeled-keywords), which is why it was once
-	// silently dropped where its sibling dependentSchemas was kept.
-	dr, drErr := RawFromNode(RawPropertyNode(s, "dependentRequired"))
-	if dr != nil || drErr != nil {
-		keep("openapi:dependentRequired", dr, drErr, pointer+ids.Ptr("dependentRequired"), "dependentRequired")
-	}
+	// dependentRequired has no oas3.Schema field to gate on
+	// (docs/parser-library.md#unmodeled-keywords), which is why it was once
+	// silently dropped where its sibling dependentSchemas was kept. Its raw node
+	// is the only reading, and an absent one keeps nothing.
+	keepKeyword("dependentRequired")
 	if Written(s.GetPropertyNames()) {
 		keepKeyword("propertyNames")
 	}
 	craw, cKeys, cErr := ContainsRaw(s)
 	if craw != nil || cErr != nil {
-		keep("openapi:contains", craw, cErr, pointer, "contains", cKeys...)
+		keep("openapi:contains", craw, cErr, "contains", cKeys...)
 	}
 	u, uKeys, uErr := UnevaluatedRaw(s)
 	if u != nil || uErr != nil {
-		keep("openapi:unevaluated", u, uErr, pointer, "unevaluated", uKeys...)
+		keep("openapi:unevaluated", u, uErr, "unevaluated", uKeys...)
 	}
 	return p, diags
 }
