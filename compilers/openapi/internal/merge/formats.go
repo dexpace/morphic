@@ -180,6 +180,10 @@ func twoDigits(s string) int {
 	return int(s[0]-'0')*10 + int(s[1]-'0')
 }
 
+// uuidLength is the length of the 8-4-4-4-12 form isUUID reads: 32
+// hexadecimal digits and four hyphens.
+const uuidLength = 36
+
 // isUUID reports whether s is the 8-4-4-4-12 hexadecimal form.
 func isUUID(s string) bool {
 	if len(s) != uuidLength {

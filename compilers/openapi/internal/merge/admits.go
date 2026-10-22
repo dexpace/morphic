@@ -33,7 +33,6 @@ const (
 	float32MaxExp       = 128
 	float64Mantissa     = 53
 	float64MaxExp       = 1024
-	uuidLength          = 36
 )
 
 // admits reports whether v is a value of the primitive kind k, judged exactly:
