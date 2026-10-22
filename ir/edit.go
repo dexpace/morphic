@@ -30,7 +30,9 @@ type Editor struct {
 	// reports whether its registry is the edit's own yet rather than doc's.
 	out   *Document
 	owned bool
-	// refused holds the refusals made since Finish last reported them.
+	// refused holds the refusals made since Finish last reported them, as errors
+	// rather than strings: irverify holds every []string ir declares to what a
+	// document keeps in it, and this is no part of a document.
 	refused []error
 	// changing records that an UpdateType change is running, which may read the
 	// edit but neither write to it nor end it, and intruded that a call it made
