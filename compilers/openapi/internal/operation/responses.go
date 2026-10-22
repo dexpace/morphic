@@ -31,10 +31,11 @@ const (
 )
 
 // lowerResponses splits an operation's responses into success responses
-// (status < 400) and error cases (>= 400 and the default), each in source order
-// with the default last (ir-design §7.2). opDeclPtr is the operation's own
-// declaration pointer, so a $ref'd response interns its content once at its
-// component pointer rather than once per mount site (issue #107).
+// (status < 400, or a key naming no status) and error cases (>= 400 and the
+// default), each in source order with the default last (ir-design §7.2).
+// opDeclPtr is the operation's own declaration pointer, so a $ref'd response
+// interns its content once at its component pointer rather than once per mount
+// site (issue #107).
 func lowerResponses(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, src *soa.Operation, opDeclPtr jsontext.Pointer) ([]ir.Response, []ir.ErrorCase, []ir.Diagnostic) {
 	// GetResponses never returns nil (it addresses an always-present map), so the
 	// loop simply yields nothing when no responses are declared.

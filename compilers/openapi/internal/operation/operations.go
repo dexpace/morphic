@@ -56,12 +56,13 @@ func LowerService(ctx context.Context, c lowering.Ctx, ts *compile.Types, anchor
 }
 
 // opPointers pairs the two pointers every operation lowering needs. mount is
-// where the operation is written into the document and fixes its identity —
-// OpID, provenance, and the root its callback operations hang from. decl is
-// where its body is declared: the same node for an inline operation, the
-// component's own pointer when the operation was reached through a $ref'd path
-// item or callback (issue #107). Passing them as one value is what keeps two
-// same-typed pointer arguments from being transposed at a call site.
+// where the operation is mounted and fixes its identity — OpID, its parameters'
+// IDs, and the root its callback operations hang from. decl is where its body
+// is declared, which its provenance names: the same node for an inline
+// operation, the component's own pointer when the operation was reached through
+// a $ref'd path item or callback (issue #107). Passing them as one value is
+// what keeps two same-typed pointer arguments from being transposed at a call
+// site.
 type opPointers struct {
 	mount jsontext.Pointer
 	decl  jsontext.Pointer
@@ -176,9 +177,6 @@ func lowerOperation(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 // The Responses Object contributes extensions but no census: its keys are the
 // status codes the document chooses, so an undeclared key there reads as one
 // more response.
-//
-// It merges rather than assigns, because the operation's map already carries
-// whatever its parameters or callbacks wrote.
 func applyOperationAnnotations(c lowering.Ctx, op *ir.Operation, src *soa.Operation, decl jsontext.Pointer) []ir.Diagnostic {
 	docsPtr := decl + ids.Ptr("externalDocs")
 	ext, diags := annotation.ExtensionsAt(c.ProvenanceAt,

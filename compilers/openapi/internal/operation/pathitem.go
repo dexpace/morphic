@@ -334,9 +334,10 @@ var pathItemFields = []string{"summary", "description", "servers", "parameters",
 // the model, or an x- extension.
 //
 // A method held nowhere in the map is still declared: naming a standard method
-// is enough. `get: &g {...}` would be skipped by the anchor rule and not
-// lowered, but the specification defines the key, so the census cannot
-// truthfully call it one the document may not write.
+// is enough. Where its anchor is left in place (see undeclaredPathItemKeys),
+// `get: &g {...}` is skipped by the anchor rule and not lowered, but the
+// specification defines the key, so the census cannot truthfully call it one
+// the document may not write.
 func pathItemDeclares(pi *soa.PathItem, key string) bool {
 	return pi.Has(soa.HTTPMethod(key)) || soa.IsStandardMethod(key) ||
 		strings.HasPrefix(key, "x-") || slices.Contains(pathItemFields, key)

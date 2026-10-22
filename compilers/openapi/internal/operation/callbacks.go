@@ -108,8 +108,8 @@ func lowerWebhooks(ctx context.Context, c lowering.Ctx, ts *compile.Types, ancho
 		for _, m := range mounted {
 			grp := groups.group(ids.WebhookGroup(), func() ir.OperationGroup {
 				// A hint, not a source name: no document declares this group. The
-				// compiler synthesizes it to hold webhook operations, exactly as it
-				// synthesizes the "default" group above, and Naming.Source is the
+				// compiler synthesizes it to hold webhook operations, exactly as
+				// groupFor synthesizes the "default" group, and Naming.Source is the
 				// spelling the source used (GitHub #184).
 				return ir.OperationGroup{Name: compile.NamingHint("webhooks")}
 			})
