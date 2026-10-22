@@ -1268,6 +1268,8 @@ the referent.
   `schema.TestAllOf_RequiresIsTheSameInEitherComponentOrder`,
   `schema.TestAllOf_ARequiredNameWrittenInSeveralListsIsListedOnce`,
   `schema.TestDistributedUnion_EachVariantCarriesTheRequiresOfItsBody`
+- Status: partly built: a `required` beside a 3.1 `$ref` stays verbatim on the alias that `$ref`
+  hoists, with every other structural keyword written there (#1067).
 
 ### `pattern-properties`
 
