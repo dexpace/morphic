@@ -706,8 +706,8 @@ func fileViolations(p, dir string, allowed []string, used []bool) ([]string, err
 }
 
 // admit reports whether allowed covers the import path ip, marking in used
-// every entry that does rather than the first, so which of two entries is
-// reported unused never depends on the order the allowlist lists them in.
+// every entry that does, not only the first: whether an entry counts as used
+// must not depend on where the allowlist lists it.
 func admit(ip string, allowed []string, used []bool) bool {
 	admitted := false
 	for i, entry := range allowed {
