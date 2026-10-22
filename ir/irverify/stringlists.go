@@ -36,6 +36,10 @@ const (
 	// listVersions holds version labels, which answer to Document.Versions as
 	// a whole rather than to a rule of their own list (GitHub #860).
 	listVersions
+	// listMembers names members by wire name, which checkRequires holds: one
+	// may be blank, as a property's may, but none repeats or names one of the
+	// model's own properties.
+	listMembers
 )
 
 // stringLists records the decision for every []string field the ir sources
@@ -64,6 +68,8 @@ var stringLists = map[string]listRule{
 	"Server.Tags":                     listVerbatim,
 	"ServerVariable.Enum":             listVerbatim,
 	"TypeCommon.Tags":                 listVerbatim,
+
+	"Model.Requires": listMembers,
 
 	"Availability.Added":   listVersions,
 	"Availability.Removed": listVersions,

@@ -166,9 +166,12 @@ its version and still says what it means: a key outside the pattern the specific
 mapping writes twice, a number or a boolean where a string belongs, a field written where the
 specification gives it no effect (`validation-no-effect`), or a `null` written for an optional
 field, which is read as the field left out, by the rules that bind it to other fields as well. A
-`null` inside a Schema Object, or where a schema belongs, is an error, since the schema lowering
-does not read it as left out; one written for a field whose requirement another rule reports is left
-to that rule.
+Schema Object's keyword whose value is a schema is such a field, since the schema lowering reads its
+`null` as left out too ([`null-schema`](#null-schema)). A `null` written as a schema entry, which is
+another object's `schema`, a component, or an entry of a map or a list of schemas, is an error,
+since that lowering reads it as the empty schema, a value, and a list counts it among its entries;
+so is one for a Schema Object's other keywords. One written for a field whose requirement another
+rule reports is left to that rule.
 
 The source is read as it writes it, an applied overlay's patch included, each object as the kind
 its position gives it. An object a `$ref` reaches that the source's own reading did not take as
@@ -193,7 +196,7 @@ gives it no effect is [`allow-reserved-locations`](#allow-reserved-locations)' a
 
 - Codes: `openapi/validation`
 - Tests: `oas.TestCheck_RulesGradeByLevel`,
-  `oas.TestCheck_NullIsReadAsAbsentWhereTheFieldIsOptional`,
+  `oas.TestCheck_NullIsReadAsAbsentWhereTheFieldIsOptional`, `oas.TestCheck_CountsBoundTheEntries`,
   `oas.TestCheck_ANullReadAsLeftOutIsNoFieldToARule`, `oas.TestCheck_ShapesFollowTheField`,
   `oas.TestCheck_PathTemplatesAnswerToPathParameters`,
   `oas.TestCheck_AServerURLNamesOnlyItsVariables`,
@@ -211,7 +214,8 @@ gives it no effect is [`allow-reserved-locations`](#allow-reserved-locations)' a
   `openapi.TestCompile_AFindingInAnExternalDocumentKeepsItsRule`,
   `canary.TestValidationOracle_AgreesWithTheLibrary`
 - Status: partly built: a document a reference reaches is held to the source's minor until which
-  minor governs it is settled (#839).
+  minor governs it is settled (#839), and a `null` for a Schema Object's keyword whose value is no
+  schema is an error however the schema lowering reads it, which is several ways (#1069).
 
 ### `minor-required-fields`
 
@@ -363,8 +367,13 @@ URI no schema declares, or two do — is reported as an `openapi/unresolved-ref`
 referencing position, with why, and the position lowers without it: a schema position to the top
 type, any other position to nothing at all, so the parameter, response or body it would have named
 is absent. Each is reported once, where it is written, in whichever document, and a schema `$ref`
-whose chain ends on another failing `$ref` is not reported for it, as that one is. What a reference
-object resolved to is read at the node the resolver's chain reached
+whose chain ends on another failing `$ref` is not reported for it, as that one is. A reference
+object whose chain ends on a position holding no object of its kind, such as a string or a `null`
+under an extension, draws that error alone, and nothing is reported at the position, whichever
+reference reaches it first. Its reason is worded as a schema `$ref`'s is (`it names a position that
+holds no parameter`), and where the chain passed through another reference it quotes the `$ref`
+written at the hop before, naming the document that writes it where that is not the source. What a
+reference object resolved to is read at the node the resolver's chain reached
 ([`trailing-empty-token`](../parser-library.md#trailing-empty-token)), and where no position holds
 that node, as for the first of a key written twice in raw YAML
 ([`duplicate-key`](../parser-library.md#duplicate-key)), it lowers at the use site, and each schema
@@ -433,14 +442,18 @@ references that closes on itself is [`reference-cycles`](#reference-cycles)'.
   `bind.TestTable_SaysWhyARefWentUnread`,
   `bind.TestBind_SaysAKeyMayLiePastTheMergeBound`,
   `bind.TestBind_TakesNoDefinitionPastAReadTheMergeBoundStopped`,
-  `canary.TestBindingOracle_AgreesWithTheLibrary`
+  `canary.TestBindingOracle_AgreesWithTheLibrary`,
+  `load.TestResolve_AFindingNamesTheDocumentItIsIn`,
+  `load.TestResolve_ReachedFindingsDoNotDependOnDeclarationOrder`,
+  `openapi.TestCompile_AReferenceObjectToANonObjectIsReportedOnce`
 - Status: partly built: an `encoding` entry naming no part of its body is dropped with no record
   (#604). Another document's identifiers are not read, so a plain name naming one of its resources
   is reported unresolved (#1049). An absolute-path `$ref` in a remote document is read as a local
   path (#936); a remote document can make the compiler request a private address (#937); and a
   remote document reaching a local file is refused naming only its last such `$ref` (#940). A
   reference object's pointer holding a character above U+FFFF is refused as malformed (#516), and an
-  unresolved reference object's message ends in the resolver's own wording (#809).
+  unresolved reference object's message ends in the resolver's own wording, unless its chain ends
+  on a position holding no object of its kind (#809).
 
 ### `reference-cycles`
 
@@ -1003,25 +1016,18 @@ order decides it; what is folded and kept never turns on it.
 ### `allof-required`
 
 A `required` name written on an `allOf` branch, inline or beside a branch's `$ref`, or beside the
-`allOf` itself lowers to `Property.Required` (§5.1) on the composed `Model`'s own property of that
-wire name, whichever branch declares the property: a branch holding nothing but `required` attaches
-across the whole composition, not only its own `properties`, and an attachment never clears a
-`Required` already set. A branch is read from its local schema, never from its `$ref` target, whose
-`required` list belongs to the target's own model. A name that matches no property the composed
-`Model` declares — one only a `Base` or `Mixin` declares, or one nothing declares — has no field to
-land on, because a `Model` stores its own properties and no flattened view across `Base`/`Mixins`
-(§4.3). It is reported as an `openapi/unattachable-required` at the branch or schema that wrote it,
-a warning where the `Model` composes a `Base` or `Mixin` that may declare it, an info where it
-composes none.
+`allOf` itself lands on the composed `Model` by [`required-members`](#required-members), whichever
+branch declares the property: a branch holding nothing but `required` attaches across the whole
+composition, not only its own `properties`. A branch is read from its local schema, never from its
+`$ref` target, whose `required` list belongs to the target's own model. A name only a `Base` or
+`Mixin` declares, or one nothing declares, is in `Model.Requires`, since a `Model` stores its own
+properties and no flattened view across `Base` and `Mixins` (§4.3): the composed model makes an
+inherited property required without declaring it a second time.
 
 - Cases: `allof-required-only`
-- Codes: `openapi/unattachable-required`
 - Tests: `schema.TestAllOf_CompositionRequiredAttaches`,
-  `schema.TestAllOf_RequiredOnlyBranchNamingBaseOwnedPropertyDiagnosed`,
-  `schema.TestAllOf_RequiredOnlyBranchNoBaseOrMixinDiagnosedInfo`
-- Status: partly built: the unattached name is reported and kept nowhere, where a map keeps its
-  `required` verbatim (#896), and an inherited property a composing schema makes required has no IR
-  home (#663).
+  `schema.TestAllOf_RequiredOnlyBranchNamingBaseOwnedPropertyLandsInRequires`,
+  `schema.TestAllOf_RequiredNameNothingDeclaresLandsInRequires`
 
 ### `allof-false-branch`
 
@@ -1051,7 +1057,16 @@ combinator ([`union-beside-structure`](#union-beside-structure),
 [`union-beside-ref`](#union-beside-ref), [`competing-keywords`](#competing-keywords)) lower
 otherwise.
 
-- Cases: `oneof-discriminated`, `anyof-discriminated`, `anyof-untagged`
+Each variant's `Name.Hint` is its branch's: a `$ref` branch's is its target's name, and an inline
+branch's its position (`variant_1`). An inline branch whose node is a decorator
+(ir-design §4.10) over a `$ref` its `allOf` names, the one way 3.0 annotates a branch, takes the
+hint that `$ref` takes as a branch of its own, as 3.1's spelling of the same branch, `{$ref: X,
+description: …}`, does, and the position's where that names nothing. Its node keeps the positional
+hint, which an outside `$ref` to the branch derives too; no emitter renders it, since a decorator
+collapses into its reference.
+
+- Cases: `oneof-discriminated`, `anyof-discriminated`, `anyof-untagged`, `union-decorated-branch`
+- Tests: `schema.TestUnion_ADecoratedBranchIsHintedAsItsRef`
 
 ### `type-arrays`
 
@@ -1328,6 +1343,31 @@ That object stays a `Model`, since a `MapT` has no field for a pattern-scoped va
   `unevaluatedProperties: false` that a catch-all beside it makes inert in JSON Schema still lowers
   to a closure, which keeps the object a `Model` (#862).
 
+### `required-members`
+
+Each name a `required` list writes lands on the object it is written for: as `Property.Required`
+(§5.1) on the `Model`'s own property of that wire name, which is never cleared once set, or else in
+`Model.Requires` (§4.3), once, in the order the lists name it, an `allOf`'s branches before the
+schema's own. A name in `Requires` is one a `Base` or `Mixin` declares, which the object makes
+required (`allOf: [{$ref: User}, {required: [id]}]`), or one only its catch-all governs, which JSON
+Schema requires whether or not a schema declares it. The rule is one for every way an object lowers
+— a plain object, an `allOf` ([`allof-required`](#allof-required)), the object variant of a
+multi-typed schema, a distributed union's variant — and reports nothing, since nothing is lost. An
+object writing a catch-all beside a name its properties do not declare is a `Model`, not a `MapT`,
+since a map requires no key, and stays one when a discriminator moves off it. A `required` beside a
+`$ref` is kept on the alias the `$ref` site hoists ([`shape-applicator`](#shape-applicator)), as any
+keyword is there that composes the referent.
+
+- Cases: `allof-required-only`, `required-members`
+- Tests: `schema.TestModel_PlainRequiredUndeclaredPropertyLandsInRequires`,
+  `schema.TestObject_ACatchAllBesideARequiredNameStaysAModel`,
+  `schema.TestDiscriminatorBesideUnion_ARequiredNameKeepsTheBodyAModel`,
+  `schema.TestAllOf_RequiresIsTheSameInEitherComponentOrder`,
+  `schema.TestAllOf_ARequiredNameWrittenInSeveralListsIsListedOnce`,
+  `schema.TestDistributedUnion_EachVariantCarriesTheRequiresOfItsBody`
+- Status: partly built: a `required` beside a 3.1 `$ref` stays verbatim on the alias that `$ref`
+  hoists, with every other structural keyword written there (#1067).
+
 ### `pattern-properties`
 
 Each `patternProperties` entry lowers to one `AdditionalProps.Patterns` entry, in source order: its
@@ -1375,17 +1415,18 @@ them stays the verbatim entry [`validation-only`](#validation-only) keeps, as it
 each constrain an instance whether or not a `type` is written beside them, and each has exactly one
 IR home: a `Model`'s property set, openness and pattern bindings, or a `List`'s element and a
 `Tuple`'s positions and rest. A `MapT` homes an object's catch-all and the empty `properties`,
-`patternProperties` and `required` lists that left it a map (§4.6), but not a `required` that names
-a key. A position whose lowering produced none of these — an `Enum`, a `Literal`, a `Scalar`, or the
-top type — has nowhere to put them, and so does a position whose lowering produced the other of the
-two shapes (`{type: object, properties: {…}, items: {…}}` lowers to a `Model`, which holds no
-element type). This covers both a contradictory schema, where one half is taken and the other must
-stay recoverable (`{type: string, enum: [a, b], properties: {f: …}}` is not satisfiable, so lowering
-to the enum is a reasonable degradation), and an applicator written with no type at all, where the
-position lowers to the top type, which says strictly less than the applicator does
-(`{items: {type: string}}` constrains every array instance). The IR could model the untyped case by
-reading the applicator as the shape it implies — an untyped `items` as a list — but that is a
-lowering decision this document has not taken, and keeping the source leaves it open.
+`patternProperties` and `required` lists that left it a map (§4.6), and a `required` naming a key
+keeps it a `Model` ([`required-members`](#required-members)). A position whose lowering produced
+none of these — an `Enum`, a `Literal`, a `Scalar`, or the top type — has nowhere to put them, and
+so does a position whose lowering produced the other of the two shapes
+(`{type: object, properties: {…}, items: {…}}` lowers to a `Model`, which holds no element type).
+This covers both a contradictory schema, where one half is taken and the other must stay recoverable
+(`{type: string, enum: [a, b], properties: {f: …}}` is not satisfiable, so lowering to the enum is a
+reasonable degradation), and an applicator written with no type at all, where the position lowers to
+the top type, which says strictly less than the applicator does (`{items: {type: string}}`
+constrains every array instance). The IR could model the untyped case by reading the applicator as
+the shape it implies — an untyped `items` as a list — but that is a lowering decision this document
+has not taken, and keeping the source leaves it open.
 
 Each unhomed keyword is kept verbatim in `Unmodeled["openapi:<keyword>"]` under `degraded_lowering`,
 reported as one info `openapi/degraded-construct` at the position naming the kind it lowered to and
@@ -1407,7 +1448,7 @@ schema and the homes are the variants'.
 
 - Cases: `unhomed-keywords`, `empty-enum`
 - Codes: `openapi/degraded-construct`
-- Tests: `schema.TestObject_MapKeepsARequiredListVerbatim`,
+- Tests: `schema.TestObject_ACatchAllBesideARequiredNameStaysAModel`,
   `schema.TestUnhomedApplicator_KeptOnAListAndAnnounced`,
   `schema.TestUnhomedApplicator_FormatWithNoTypeIsKept`
 - Status: partly built: a keyword beside a multi-typed schema that no variant holds is dropped in
@@ -1505,6 +1546,31 @@ needs to produce it.
   `openapi.TestMaxNesting_AdmitsWhatTheLoweringLowersInFull`,
   `openapi.TestCompile_ARefToABooleanSchemaResolvesInEitherOrder`,
   `openapi.TestCompile_AReferenceLeavesItsTargetToItsOwnerInEitherOrder`
+
+### `null-schema`
+
+A `null` written where a schema belongs states nothing about the values there, so it is read as no
+schema written, never as the `false` schema the parser decodes it as
+([`null-schema-is-false`](../parser-library.md#null-schema-is-false)), which admits no value. An
+entry, which exists whatever its value — a property, a composition branch, a component, a
+`prefixItems` position, a parameter's, header's or media type's `schema` — lowers as the empty
+schema does: to the top type, or as an `allOf` branch to nothing composed, and a `$ref` naming it as
+one naming `{}` does. A keyword whose value is a schema, whose absence states something its empty
+schema may not, is read as left out: `additionalProperties: null` writes no catch-all,
+`contentSchema: null` no `Encoding.Schema`, and a `null` `not`, `if`, `then`, `else`, `contains`,
+`propertyNames`, `unevaluatedItems` or `unevaluatedProperties` is kept nowhere. `items: null` lowers
+as an absent `items` does, and a `null` `items` or `additionalProperties` a node has no home for is
+not kept for want of one ([`shape-applicator`](#shape-applicator)). Nothing is kept verbatim, since
+a `null` means nothing a consumer could recover, and the lowering reports nothing of its own, since
+reading it so loses nothing: the load phase reports each such `null` at the node
+([`validation`](#validation)), an entry's as an error and a keyword's as the warning a field left
+out draws, but for `items` beside a 3.0 `type: array`, whose absence
+[`missing-array-items`](#missing-array-items) reports instead. One inside a value the IR keeps
+verbatim whole, a `dependentSchemas` entry, stays in that value, since nothing reads it as a schema.
+
+- Tests: `openapi.TestCompile_ANullWhereASchemaBelongsIsNoSchema`,
+  `schema.TestNullSchema_AnEntryIsTheEmptySchemaAndAKeywordIsLeftOut`,
+  `annotation.TestIsNullLiteral_TellsANullFromFalse`
 
 ## 7. Schemas: keywords beyond the shape
 
@@ -2033,9 +2099,10 @@ it streams on any media type with `Events` the `Item` type and no marker, and wi
 media-type reading at its own Content. Streaming Contents that name different element types leave
 `Events` unset on a direction that still streams, every Content kept, reported as an info
 `openapi/degraded-construct` at the `requestBody` or `responses` pointer; Contents that name the
-same element elect it. Error responses are not read. The policy is the Go option
-`Options.StreamingMedia`: `Disabled` turns the media-type reading off, leaving only what an
-`itemSchema` declares, and `MediaTypes` replaces the default list instead of extending it.
+same element elect it. Error responses and the default are not read: whether the default answers a
+success is the plan's to decide ([`response-conditions`](#response-conditions)). The policy is the
+Go option `Options.StreamingMedia`: `Disabled` turns the media-type reading off, leaving only what
+an `itemSchema` declares, and `MediaTypes` replaces the default list instead of extending it.
 
 - Cases: `streaming-media-30`, `streaming-media-31`
 - Codes: `openapi/degraded-construct`
@@ -2099,21 +2166,26 @@ to.
 ### `response-conditions`
 
 Each entry of an operation's `responses` lowers to a `Response`, for a status below 400 or a range
-below `4XX`, or to an `ErrorCase`, for a status from 400, a `4XX` or `5XX` range, or `default`
-(§7.2). Its `Conditions` state the statuses its key names: a code as that code, a range, in either
-case, as its hundred codes, and `default` as the catch-all. The key, as declared and then
-neutralized, is the `Name.Hint` of either (`404`, `5_xx`, `default`), which records the spelling a
-range cannot state, though neutralizing a range folds its case (`5XX` and `5xx` both give `5_xx`). A
-key naming no status — not a code from 100 to 599, not a range, not `default` — lowers to a
-`Response` with no status condition, rather than the catch-all `default` alone denotes, reported as
-an `openapi/invalid-status-key` warning at the operation's entry for it.
+below `4XX`, or to an `ErrorCase`, for a status from 400 or a `4XX` or `5XX` range, its `Fault`
+`client` or `server` by the class (§7.2): RFC 9110 gives a status code its class, so the split
+states what the key means. `default` lowers to `Operation.Default`, in neither list: it answers
+every status the map does not name, successes and failures alike, and is the operation's only
+description of success where the map names none, so the compiler classes it neither way and leaves
+the reading to the plan's policy (emitter-design §3.5). The `Conditions` of each state the statuses
+its key names: a code as that code, a range, in either case, as its hundred codes, and `default` as
+the catch-all alone. The key, as declared and then neutralized, is the `Name.Hint` of each (`404`,
+`5_xx`, `default`), which records the spelling a range cannot state, though neutralizing a range
+folds its case (`5XX` and `5xx` both give `5_xx`). A key naming no status — not a code from 100 to
+599, not a range, not `default` — lowers to a `Response` with no status condition, rather than the
+catch-all `default` alone denotes, reported as an `openapi/invalid-status-key` warning at the
+operation's entry for it.
 
-- Cases: `per-status-errors`
+- Cases: `per-status-errors`, `default-response`
 - Codes: `openapi/invalid-status-key`
 - Tests: `operation.TestResponses_NamedByStatusKey`,
-  `operation.TestResponses_InvalidStatusKeyIsReported`
-- Status: partly built: an operation whose only response is `default` has no success response
-  (#608).
+  `operation.TestResponses_InvalidStatusKeyIsReported`,
+  `operation.TestResponses_ErrorSplitAndRanges`,
+  `operation.TestResponses_ALoneDefaultIsNeitherClass`
 
 ### `duplicate-status-key`
 
@@ -2131,11 +2203,11 @@ every key that collided.
 
 ### `error-responses`
 
-An error response lowers exactly as a success one: its `headers` to `ErrorCase.Headers` and every
-media type of its `content` to `ErrorCase.Payload.Contents`, neither degraded and neither kept under
-`Unmodeled`, and the payload's naming hint derived from the declaration pointer on both sides, so
-that one `components/responses` entry mounted at a success and an error status interns one type
-whichever side reaches it first.
+An error response lowers exactly as a success one and a default do: its `headers` to
+`ErrorCase.Headers` and every media type of its `content` to `ErrorCase.Payload.Contents`, neither
+degraded and neither kept under `Unmodeled`, and the payload's naming hint derived from the
+declaration pointer on every side, so that one `components/responses` entry mounted at a success
+status, an error status and `default` interns one type whichever reaches it first.
 
 - Cases: `per-status-errors`, `shared-response-across-status`
 

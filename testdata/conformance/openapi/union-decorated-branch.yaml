@@ -1,0 +1,15 @@
+openapi: 3.0.3
+info: {title: t, version: "1"}
+paths: {}
+components:
+  schemas:
+    User: {type: object, properties: {id: {type: string}}}
+    Pet: {type: object, properties: {name: {type: string}}}
+    # 3.0 cannot write a keyword beside a $ref, so the second branch is
+    # annotated by wrapping its $ref in an allOf. Its variant is named for Pet
+    # as 3.1's `{$ref: Pet, description: a pet}` names it, not by position
+    # (GitHub #1018).
+    U:
+      oneOf:
+        - {$ref: '#/components/schemas/User'}
+        - {allOf: [{$ref: '#/components/schemas/Pet'}], description: a pet}

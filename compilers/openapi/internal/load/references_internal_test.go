@@ -324,10 +324,11 @@ paths:
 			assert.False(t, strings.HasPrefix(d.Code, diag.Validation+"/"), "a reference that fails reaches no object to check: %+v", d)
 		}
 	}
-	assert.Equal(t, `unresolved $ref "ext.yaml#/components/responses/Broken": `+
-		"unable to resolve reference: sub/ext2.yaml#/components/responses/Scalar",
+	ext := filepath.Join(dir, "ext.yaml")
+	assert.Equal(t, `unresolved $ref "ext.yaml#/components/responses/Broken", `+
+		`through "sub/ext2.yaml#/components/responses/Scalar" in `+ext+": it names a position that holds no response",
 		openapitest.DiagMessageAt(t, diags, diag.UnresolvedRef, ir.SeverityError, "/paths/~1a/get/responses/202"),
-		"a resolution that recorded where it ended stopped at no other reference to quote")
+		"a chain ending on a position that holds no object names the reference that reached it, where it is written")
 }
 
 // TestResolve_AFileSpelledTwoWaysPlacesAFindingOnce pins a node of a file the
@@ -502,6 +503,10 @@ func TestResolve_ReachedFindingsDoNotDependOnDeclarationOrder(t *testing.T) {
 		"/components/responses/R",  // reached from /x, /y, /c and the alias itself
 		"/components/responses/R2", // reached at /m, which /z's chain resolves first as written
 	}, findingSites, "each finding at its node in ext.yaml, once")
+	for _, site := range []string{"/paths/~1s1/get/responses/200", "/paths/~1s2/get/responses/200"} {
+		assert.Contains(t, asWritten, diag.UnresolvedRef+" "+site+` unresolved $ref "ext.yaml#/components/responses/Scalar": `+
+			"it names a position that holds no response", "Scalar fails each $ref alike, whichever reaches it first")
+	}
 }
 
 // TestResolve_ABoundInAnotherDocumentIsTheSchemaLowerings pins that a numeric
@@ -787,6 +792,69 @@ func TestFailureDiag_WordsAFailedReadAsTheBinderDoes(t *testing.T) {
 			assert.Equal(t, tc.want, d.Message)
 		})
 	}
+}
+
+// TestObjectKind_NamesEachReferenceObjectKind pins the word a reference
+// object's failure to reach an object uses for the kind of object it asked
+// for, one for each kind of reference object the library has, and the word for
+// a resolvable that is none of them.
+func TestObjectKind_NamesEachReferenceObjectKind(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name string
+		r    resolvable
+		want string
+	}{
+		{"a path item", &soa.ReferencedPathItem{}, "path item"},
+		{"a parameter", &soa.ReferencedParameter{}, "parameter"},
+		{"a header", &soa.ReferencedHeader{}, "header"},
+		{"a request body", &soa.ReferencedRequestBody{}, "request body"},
+		{"a response", &soa.ReferencedResponse{}, "response"},
+		{"an example", &soa.ReferencedExample{}, "example"},
+		{"a link", &soa.ReferencedLink{}, "link"},
+		{"a callback", &soa.ReferencedCallback{}, "callback"},
+		{"a security scheme", &soa.ReferencedSecurityScheme{}, "security scheme"},
+		{"a kind this package does not name", fakeResolvable{}, "object"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, objectKind(tc.r))
+		})
+	}
+}
+
+// TestNotObjectError_UnwrapsToTheParsersFailure pins the error a failed
+// resolution's reason travels in: it reads as the parser's failure and unwraps
+// to it, so a caller asking errors.Is of that failure still finds it.
+func TestNotObjectError_UnwrapsToTheParsersFailure(t *testing.T) {
+	t.Parallel()
+	base := errors.New("unable to resolve reference: #/x-lib/S")
+	err := notObjectError{kind: "parameter", err: base}
+	assert.Equal(t, base.Error(), err.Error())
+	assert.ErrorIs(t, err, base)
+}
+
+// TestResolve_AChainInTheSourceQuotesTheRefItWentThrough pins the reason a
+// reference object's chain through another one takes where both are written
+// in the source: it quotes the $ref written at the hop before the position
+// holding no object, naming no document, since the source is the one read.
+func TestResolve_AChainInTheSourceQuotesTheRefItWentThrough(t *testing.T) {
+	t.Parallel()
+	l := loadPlus(t, `openapi: 3.1.0
+info: {title: t, version: "1"}
+paths:
+  /x:
+    get:
+      parameters: [{$ref: '#/components/parameters/P'}]
+      responses: {'204': {description: ok}}
+components:
+  parameters:
+    P: {$ref: '#/x-lib/S'}
+x-lib: {S: just a string}
+`, Options{})
+
+	assert.Equal(t, []string{`unresolved $ref "#/components/parameters/P", through "#/x-lib/S": ` +
+		"it names a position that holds no parameter"}, errorsOf(l.diags))
 }
 
 // resolvedDiags is what a resolver pass over doc, at path and with no reader,

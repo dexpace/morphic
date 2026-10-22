@@ -46,7 +46,7 @@ func lowerAllOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 		m := &ir.Model{TypeCommon: common, Constraints: cons}
 		diags = append(diags, fillAllOf(c, ts, anchors, depth, m, s, pointer)...)
 		diags = append(diags, fillModelProperties(c, ts, anchors, depth, m, s, pointer)...)
-		diags = append(diags, applyCompositionRequired(c, m, s, pointer)...)
+		requireMembers(m, compositionRequired(s))
 		diags = append(diags, fillAdditional(c, ts, anchors, depth, m, s, pointer, hint)...)
 		diags = append(diags, applyFalseBranches(c, m, s, pointer)...)
 		d, discDiags := lowerDiscriminator(c, ts, anchors, s, m, nil, pointer)
@@ -64,81 +64,52 @@ func lowerAllOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 
 // compositionCensusHandled names the census keywords an allOf composition
 // reads itself, so neither the census of a $ref branch nor that of the composed
-// position reports them again: applyCompositionRequired ORs every required list
-// onto the composed model and reports each name it cannot attach.
+// position reports them again: lowerAllOf lands every required list on the
+// composed model (requireMembers).
 var compositionCensusHandled = []string{"required"}
-
-// requiredEntry is one `required` name declared somewhere in an allOf
-// composition, paired with the pointer of the schema that declared it (an
-// allOf branch, or the composed schema itself) so a diagnostic can point the
-// author at the right site.
-type requiredEntry struct {
-	name    string
-	pointer jsontext.Pointer
-}
 
 // compositionRequired collects every required-property name declared across an
 // allOf composition, in source order: each branch's required list, then the
 // composed schema's own. A branch is read from its local schema, never its
 // resolved $ref target — that required list belongs to the target's own
 // model (issue #29).
-func compositionRequired(s *oas3.Schema, pointer jsontext.Pointer) []requiredEntry {
-	var out []requiredEntry
-	for i, b := range s.GetAllOf() {
+func compositionRequired(s *oas3.Schema) []string {
+	var out []string
+	for _, b := range s.GetAllOf() {
 		bs := b.GetSchema() // the branch's own local schema; nil for a bare `false`
 		if bs == nil {
 			continue
 		}
-		bptr := pointer + ids.Ptr("allOf", strconv.Itoa(i))
-		for _, name := range bs.GetRequired() {
-			out = append(out, requiredEntry{name: name, pointer: bptr})
-		}
+		out = append(out, bs.GetRequired()...)
 	}
-	for _, name := range s.GetRequired() {
-		out = append(out, requiredEntry{name: name, pointer: pointer})
-	}
-	return out
+	return append(out, s.GetRequired()...)
 }
 
-// applyCompositionRequired OR-s every composition-scope required name onto m's
-// own properties, matching by wire name; it never clears a Required already
-// set. An entry matching no own property has no IR home (ir-design §4.3) and
-// is diagnosed via diagUnattachableRequired instead of dropped silently.
-func applyCompositionRequired(c lowering.Ctx, m *ir.Model, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
-	entries := compositionRequired(s, pointer)
-	if len(entries) == 0 {
-		return nil
-	}
+// requireMembers lands each name of required on m, once m holds every own
+// property: as Required on the property of that wire name, never cleared once
+// set, and otherwise in m.Requires, once, in the order required names it. A
+// name no own property declares is one a Base or Mixin declares, or one only
+// the catch-all governs, and JSON Schema requires it all the same (ir-design
+// §4.3). Each object lowering calls it once, on a model that lists none yet.
+func requireMembers(m *ir.Model, required []string) {
 	byWire := merge.WireNameIndex(m.Properties)
-	var diags []ir.Diagnostic
-	for _, e := range entries {
-		if i, ok := byWire[e.name]; ok {
+	listed := make(map[string]bool, len(required))
+	for _, name := range required {
+		if i, ok := byWire[name]; ok {
 			m.Properties[i].Required = true
 			continue
 		}
-		diags = append(diags, diagUnattachableRequired(c, m, e))
+		if !listed[name] {
+			listed[name] = true
+			m.Requires = append(m.Requires, name)
+		}
 	}
-	return diags
-}
-
-// diagUnattachableRequired builds the diagnostic for a composition-scope
-// required name matching no own property; the caller records it. It is a warning when m composes a ref (Base or a Mixin):
-// the requirement plausibly belongs to that base/mixin's own property, so real
-// fidelity is lost. Otherwise it is info: the spec just names a property
-// nothing declares, which is legal JSON Schema with nothing to lose.
-func diagUnattachableRequired(c lowering.Ctx, m *ir.Model, e requiredEntry) ir.Diagnostic {
-	if m.Base != nil || len(m.Mixins) > 0 {
-		return c.DiagAt(ir.SeverityWarning, diag.UnattachableRequired, e.pointer,
-			"required %q matches no property declared here; a base or mixin may declare it, and the requirement cannot be carried across composition", e.name)
-	}
-	return c.DiagAt(ir.SeverityInfo, diag.UnattachableRequired, e.pointer,
-		"required %q matches no property declared here", e.name)
 }
 
 // fillAllOf classifies and lowers the allOf branches into m.
 //
 // An inline branch merges in place: only its `properties` and `required`
-// (applyCompositionRequired) merge, the rest staying verbatim beside the model
+// (requireMembers) merge, the rest staying verbatim beside the model
 // (preserveUnmergedBranch, GitHub #123). Merging more would need a precedence
 // rule between branches, and Model.Constraints has no home for a scalar
 // branch's maxLength.
@@ -198,11 +169,8 @@ func fillAllOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth in
 func applyFalseBranches(c lowering.Ctx, m *ir.Model, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for i, b := range s.GetAllOf() {
-		if b == nil || !b.IsBool() {
-			continue
-		}
-		if v := b.GetBool(); v == nil || *v {
-			continue // `true` constrains nothing.
+		if !annotation.IsFalseSchema(b) {
+			continue // `true`, a null and any schema with a body close nothing.
 		}
 		bptr := pointer + ids.Ptr("allOf", strconv.Itoa(i))
 		m.Additional = ir.AdditionalClosed
@@ -288,7 +256,7 @@ func mergeConsumes(bs *oas3.Schema, key string) bool {
 	case "properties":
 		return true // fillModelProperties merges these onto m
 	case "required":
-		return true // applyCompositionRequired ORs these onto m's properties
+		return true // requireMembers lands these on m
 	case "type":
 		return declaresObjectOnly(bs) // a bare `object` only restates the composed Model
 	default:
@@ -857,9 +825,10 @@ func buildUnion(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, s *oas3
 		}
 		vh := branchHint(c.Bindings(), b, i)
 		vptr := pointer + ids.Ptr(key, strconv.Itoa(i))
+		t := variantType(b, vptr, vh)
 		variants = append(variants, ir.Variant{
-			Name: compile.NamingHint(vh),
-			Type: variantType(b, vptr, vh),
+			Name: compile.NamingHint(decoratedBranchHint(c, ts, b, t, vh)),
+			Type: t,
 		})
 	}
 	u := &ir.Union{
@@ -1007,7 +976,7 @@ func buildComposedVariant(c lowering.Ctx, ts *compile.Types, anchors *AnchorInde
 	m := &ir.Model{TypeCommon: common, Constraints: cons}
 	diags = append(diags, fillAllOf(c, ts, anchors, depth, m, body.schema, body.pointer)...)
 	diags = append(diags, fillModelProperties(c, ts, anchors, depth, m, body.schema, body.pointer)...)
-	diags = append(diags, applyCompositionRequired(c, m, body.schema, body.pointer)...)
+	requireMembers(m, compositionRequired(body.schema))
 	diags = append(diags, fillAdditional(c, ts, anchors, depth, m, body.schema, body.pointer, body.hint)...)
 	conjoinBranch(m, branch)
 	// The tag is the enclosing schema's: it is what a base's mapping names, and
@@ -1053,6 +1022,35 @@ func branchHint(refs *typed.Bindings, b *oas3.JSONSchema[oas3.Referenceable], i 
 		}
 	}
 	return positionalBranchHint(strconv.Itoa(i))
+}
+
+// decoratedBranchHint is the hint a union variant takes for b, which lowered
+// to t: hint, unless b is written inline and t is a decorator (ir.Decorated)
+// over the $ref b's allOf names, when it is the hint that $ref takes as a
+// branch of its own (branchHint). 3.0 annotates a branch only by wrapping its
+// $ref, so `{allOf: [{$ref: X}], description: …}` names its variant as 3.1's
+// `{$ref: X, description: …}` does (GitHub #1018). The node t keeps hint: a
+// decorator collapses into its reference wherever it is used.
+func decoratedBranchHint(c lowering.Ctx, ts *compile.Types, b *oas3.JSONSchema[oas3.Referenceable], t ir.TypeRef, hint string) string {
+	s := annotation.SchemaOf(b)
+	if s == nil || isRefBranch(b) {
+		return hint
+	}
+	branches := s.GetAllOf()
+	base := selectAllOfBase(c.Bindings(), branches)
+	if base < 0 {
+		return hint
+	}
+	if td, ok := ts.Node(t.Target); !ok || !decorates(td) {
+		return hint
+	}
+	return cmp.Or(targetHint(c.Bindings(), branches[base]), hint)
+}
+
+// decorates reports whether td is a decorator (ir.Decorated).
+func decorates(td ir.TypeDef) bool {
+	_, ok := ir.Decorated(td)
+	return ok
 }
 
 // compositionKeywords are the schema keywords whose numbered children are

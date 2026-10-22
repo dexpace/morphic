@@ -211,24 +211,24 @@
                   "docs": {
                     "description": "server error"
                   }
-                },
-                {
-                  "name": {
-                    "hint": "default"
-                  },
-                  "conditions": {
-                    "statusCodes": [
-                      {
-                        "from": 0,
-                        "to": 0
-                      }
-                    ]
-                  },
-                  "docs": {
-                    "description": "fallback"
-                  }
                 }
               ],
+              "default": {
+                "name": {
+                  "hint": "default"
+                },
+                "conditions": {
+                  "statusCodes": [
+                    {
+                      "from": 0,
+                      "to": 0
+                    }
+                  ]
+                },
+                "docs": {
+                  "description": "fallback"
+                }
+              },
               "oneWay": false,
               "idempotency": {},
               "bindings": {

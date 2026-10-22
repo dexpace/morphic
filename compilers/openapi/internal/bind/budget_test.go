@@ -345,6 +345,7 @@ func TestSpellings(t *testing.T) {
 	for text, hop := range map[string]bind.Hop{
 		"it names nothing in the document it points into": {Reason: bind.NoTarget},
 		"it names a position that holds no schema":        {Reason: bind.NotSchema},
+		"it names a position that holds no parameter":     {Reason: bind.NotObject, Detail: "parameter"},
 		"it names nothing in the schema resource u, whose root its pointer is read from": {
 			Reason: bind.NoResourceTarget, Detail: "u"},
 		"two or more schemas of the resource it names declare that name as their $anchor or $dynamicAnchor, " +
