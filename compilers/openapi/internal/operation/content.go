@@ -232,7 +232,7 @@ func partEncodings(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInde
 		keys.parts = append(keys.parts, keyedPart{name: part.name, encoding: pe})
 	}
 	keys.out = make(map[ir.PropID]ir.PartEncoding, len(keys.parts))
-	ts.DeferReader(keys)
+	ts.Defer(keys)
 	return keys.out, unmodeled, diags
 }
 
@@ -262,8 +262,8 @@ type keyedPart struct {
 }
 
 // Settle keys each part's encoding, writing no node of reg. It reads the
-// property each part names as the merge settled it, so it is deferred with
-// DeferReader, after every fold that may rewrite that property.
+// property each part names as the merge settled it, which Finish has done by
+// then: a fold is a completion (compile.Types.Complete).
 func (k partKeys) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
 	node := func(id ir.TypeID) (ir.TypeDef, bool) {
 		td, ok := reg[id]

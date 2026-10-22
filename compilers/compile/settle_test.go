@@ -45,11 +45,12 @@ func TestTypes_SettleTakesEachDeferredSettlementOnceInOrder(t *testing.T) {
 	assert.Empty(t, types.Violations())
 }
 
-// TestTypes_SettleTakesReadersAfterEveryOtherSettlement pins the order a
-// reader relies on: a settlement DeferReader queued runs after every one Defer
-// queued, even one deferred after it, so it reads the node that one rewrites as
-// rewritten. Each group keeps the order deferred.
-func TestTypes_SettleTakesReadersAfterEveryOtherSettlement(t *testing.T) {
+// TestTypes_SettleTakesEveryCompletionFirst pins the order a settlement relies
+// on to read a node finished: one Complete queued runs before every one Defer
+// queued, even one deferred before it, so a settlement that reads the node, or
+// rewrites it, meets what the completion made of it. Each kind keeps the order
+// queued.
+func TestTypes_SettleTakesEveryCompletionFirst(t *testing.T) {
 	t.Parallel()
 	types := compile.NewTypes()
 	types.Intern("/p", "t/x", func() ir.TypeDef { return &ir.Model{ID: "t/x"} })
@@ -60,27 +61,27 @@ func TestTypes_SettleTakesReadersAfterEveryOtherSettlement(t *testing.T) {
 			return []ir.Diagnostic{{Code: name}}
 		})
 	}
-	rewrite := func(name string) compile.Settlement {
+	complete := func(name string) compile.Settlement {
 		return settleFunc(func(reg ir.TypeRegistry) []ir.Diagnostic {
 			runs = append(runs, name)
 			reg["t/x"].Common().Docs.Description += name
 			return []ir.Diagnostic{{Code: name}}
 		})
 	}
-	types.DeferReader(read("r1"))
-	types.Defer(rewrite("w1"))
-	types.DeferReader(read("r2"))
-	types.Defer(rewrite("w2"))
+	types.Defer(read("r1"))
+	types.Complete(complete("c1"))
+	types.Defer(read("r2"))
+	types.Complete(complete("c2"))
 
 	diags := types.Settle(t.Context())
 
-	assert.Equal(t, []string{"w1", "w2", "r1 read w1w2", "r2 read w1w2"}, runs)
+	assert.Equal(t, []string{"c1", "c2", "r1 read c1c2", "r2 read c1c2"}, runs)
 	codes := make([]string, 0, len(diags))
 	for _, d := range diags {
 		codes = append(codes, d.Code)
 	}
-	assert.Equal(t, []string{"w1", "w2", "r1", "r2"}, codes, "diagnostics follow the order settled")
-	assert.Empty(t, types.Settle(t.Context()), "a reader taken is not taken again")
+	assert.Equal(t, []string{"c1", "c2", "r1", "r2"}, codes, "diagnostics follow the order settled")
+	assert.Empty(t, types.Settle(t.Context()), "a settlement taken is not taken again")
 	assert.Empty(t, types.Violations())
 }
 
@@ -153,8 +154,9 @@ func TestTypes_SettleWithNothingDeferredReturnsNothing(t *testing.T) {
 }
 
 // TestTypes_DeferRefusesWhatSettleWouldNeverTake pins the two settlements
-// Defer refuses rather than drops: one deferred after Settle ran, which no
-// later Settle is promised to take, and a nil one, which cannot be taken.
+// Defer and Complete refuse rather than drop: one queued after Settle ran,
+// which no later Settle is promised to take, and a nil one, which cannot be
+// taken.
 func TestTypes_DeferRefusesWhatSettleWouldNeverTake(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
@@ -166,11 +168,11 @@ func TestTypes_DeferRefusesWhatSettleWouldNeverTake(t *testing.T) {
 			types.Defer(s)
 		}},
 		{"nil", func(types *compile.Types, _ compile.Settlement) { types.Defer(nil) }},
-		{"reader after settling", func(types *compile.Types, s compile.Settlement) {
+		{"completion after settling", func(types *compile.Types, s compile.Settlement) {
 			types.Settle(t.Context())
-			types.DeferReader(s)
+			types.Complete(s)
 		}},
-		{"nil reader", func(types *compile.Types, _ compile.Settlement) { types.DeferReader(nil) }},
+		{"nil completion", func(types *compile.Types, _ compile.Settlement) { types.Complete(nil) }},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

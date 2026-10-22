@@ -2146,7 +2146,7 @@ func merger(c lowering.Ctx, ts *compile.Types, diags *[]ir.Diagnostic) merge.Mer
 		Report: func(sev ir.Severity, code string, pointer jsontext.Pointer, format string, args ...any) {
 			*diags = append(*diags, c.DiagAt(sev, code, pointer, format, args...))
 		},
-		Defer: func(run merge.Settle) { ts.Defer(settledMerge{c: c, run: run}) },
+		Defer: func(run merge.Settle) { ts.Complete(settledMerge{c: c, run: run}) },
 	}
 }
 
