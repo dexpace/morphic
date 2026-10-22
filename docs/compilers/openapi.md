@@ -997,7 +997,9 @@ which overlap. Two lists, or two maps with one key, compare by element or value,
 bound, and the narrower one wins only where it admits null no more widely than the other and the
 other holds no constraint, encoding, documentation, examples or `Unmodeled` the winner lacks;
 disjoint members still overlap where both admit null, or where both containers admit the empty one.
-Anything else between distinct targets is unrelated and dropped.
+Two alike in every member and in that detail are judged as two equal enums are: one type where both
+were written inline, the one declared elsewhere winning over an inline copy in either order, and two
+declared elsewhere overlapping. Anything else between distinct targets is unrelated and dropped.
 
 The relation between kinds is stated over JSON instances, so that a narrowing, which is adopted
 silently, holds in every reading. Its value-domain half is `PrimKind.StrictlyWithin` (§4.1) and its

@@ -52,6 +52,9 @@ func judgeRegistry() map[ir.TypeID]ir.TypeDef {
 	reg["t/list-i32-min"] = &ir.List{ID: "t/list-i32-min", Elem: i32, Constraints: &ir.Constraints{MinItems: &minItems}}
 	reg["t/list-int-min"] = &ir.List{ID: "t/list-int-min", Elem: integer, Constraints: &ir.Constraints{MinItems: &minItems}}
 	reg["t/list-i32-twin"] = &ir.List{ID: "t/list-i32-twin", Elem: i32}
+	for _, id := range []ir.TypeID{"t/list-i32-h1", "t/list-i32-h2"} {
+		reg[id] = &ir.List{ID: id, Anonymous: true, Elem: i32}
+	}
 	reg["t/list-int-min0"] = &ir.List{ID: "t/list-int-min0", Elem: integer, Constraints: &ir.Constraints{MinItems: &zero}}
 	reg["t/list-str-null"] = &ir.List{ID: "t/list-str-null", Elem: nullable(primRef(ir.PrimString))}
 	reg["t/list-int-null-min"] = &ir.List{ID: "t/list-int-null-min", Elem: nullable(integer),
@@ -60,6 +63,7 @@ func judgeRegistry() map[ir.TypeID]ir.TypeDef {
 	reg["t/list-list-int"] = &ir.List{ID: "t/list-list-int", Elem: ir.TypeRef{Target: "t/list-int"}}
 	reg["t/list-list-i32"] = &ir.List{ID: "t/list-list-i32", Elem: ir.TypeRef{Target: "t/list-i32"}}
 	reg["t/map-int"] = &ir.MapT{ID: "t/map-int", Value: integer}
+	reg["t/map-int-h"] = &ir.MapT{ID: "t/map-int-h", Anonymous: true, Value: integer}
 	reg["t/map-str"] = &ir.MapT{ID: "t/map-str", Value: primRef(ir.PrimString)}
 	reg["t/map-int-min"] = &ir.MapT{ID: "t/map-int-min", Value: integer, Constraints: &ir.Constraints{MinProps: &minItems}}
 	reg["t/map-i32"] = &ir.MapT{ID: "t/map-i32", Value: i32}
@@ -130,7 +134,10 @@ func TestTypeJudge_RelateArms(t *testing.T) {
 		{"a loser-only constraint", "t/list-int-min", "t/list-i32", relOverlap},
 		{"a winner-only constraint", "t/list-int", "t/list-i32-min", relBNarrower},
 		{"the same constraint on both", "t/list-int-min", "t/list-i32-min", relBNarrower},
-		{"two lists of one element", "t/list-i32", "t/list-i32-twin", relSame},
+		{"two lists alike, declared apart", "t/list-i32", "t/list-i32-twin", relOverlap},
+		{"two hoisted copies of one list", "t/list-i32-h1", "t/list-i32-h2", relSame},
+		{"a list declared apart against a hoisted copy", "t/list-i32", "t/list-i32-h1", relANarrower},
+		{"a map declared apart against a hoisted copy", "t/map-int", "t/map-int-h", relANarrower},
 		{"two lists of one element, one constrained", "t/list-i32", "t/list-i32-min", relOverlap},
 		{"disjoint elements overlap in the empty list", "t/list-str", "t/list-i32", relOverlap},
 		{"disjoint elements where one list is never empty", "t/list-str", "t/list-int-min", relDisjoint},

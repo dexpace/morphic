@@ -4473,6 +4473,8 @@ func TestAllOf_IdenticalNodesAreOneType(t *testing.T) {
 		"{const: a}",
 		"{type: string, format: hex}",
 		"{type: string, enum: [a, b], x-foo: 1}",
+		"{type: array, items: {type: integer, format: int32}}",
+		"{type: object, additionalProperties: {type: integer}}",
 	} {
 		t.Run(schema, func(t *testing.T) {
 			t.Parallel()

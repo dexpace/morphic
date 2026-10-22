@@ -68,7 +68,8 @@ type typeJudge struct {
 // same target; a degraded Any node, which is unrelated to every type; the top
 // type, which loses to anything else; two bare primitives (spelling.Relate); a
 // Scalar, Enum or Literal against a bare primitive; two identical such nodes;
-// two lists or two maps; anything else is unrelated.
+// two lists or two maps, two alike in every member and detail taking the copy
+// rule identical nodes take (sameNodes); anything else is unrelated.
 func (j typeJudge) relate(a, b ir.TypeRef) relation { return j.relateAt(a, b, 0) }
 
 // relateAt is relate at a nesting depth.
@@ -107,7 +108,13 @@ func (j typeJudge) relateAt(a, b ir.TypeRef, depth int) relation {
 	if sameNode(at, bt) {
 		return sameNodes(a, b, hoistedAt(at, j.written[0]), hoistedAt(bt, j.written[1]))
 	}
-	return j.containers(at, bt, depth)
+	rel := j.containers(at, bt, depth)
+	if rel == relSame {
+		// Two distinct containers alike in member and detail: copies, by the
+		// rule sameNodes states for the other nodes.
+		return sameNodes(a, b, hoistedAt(at, j.written[0]), hoistedAt(bt, j.written[1]))
+	}
+	return rel
 }
 
 // hoistedAt reports whether td is a hoisted node written at or under pointer,
