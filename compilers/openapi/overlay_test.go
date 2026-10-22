@@ -910,8 +910,8 @@ func TestCompile_OverlayIsCreditedWithTheKeysItAdds(t *testing.T) {
 		{"operation extension (operations.go applyOperationAnnotations)", "openapi:x-op", 1},
 		{"operation unknown key (operations.go applyOperationAnnotations)", "openapi:opBogus", 1},
 		{"externalDocs unknown key (operations.go applyOperationAnnotations)", "openapi:externalDocs/edBogus", 1},
-		{"response unknown key (operations.go preserveResponseExtras)", "openapi:bogus", 1},
-		{"response extension (operations.go preserveResponseExtras)", "openapi:x-resp", 1},
+		{"response unknown key (responses.go preserveResponseExtras)", "openapi:bogus", 1},
+		{"response extension (responses.go preserveResponseExtras)", "openapi:x-resp", 1},
 		{"media type unknown key (content.go lowerContent)", "openapi:mediaBogus", 1},
 		{"header unknown key (content.go applyHeaderAnnotations)", "openapi:headerBogus", 1},
 		{"example unknown key (content.go appendPluralExample)", "openapi:exBogus", 1},
@@ -932,9 +932,9 @@ func TestCompile_OverlayIsCreditedWithTheKeysItAdds(t *testing.T) {
 		{"server unknown key (meta.go lowerServer)", "openapi:srvBogus", 1},
 		{"server variable extension (meta.go serverVariables)", "openapi:x-var", 1},
 		{"server variable unknown key (meta.go serverVariables)", "openapi:varBogus", 1},
-		{"unmounted path item's servers (operations.go applyPathServers)", "openapi:pathItem/paths/~1empty/servers", 1},
-		{"unmounted path item's own extension (operations.go applyPathItem)", "openapi:pathItem/paths/~1empty/x-pi", 1},
-		{"unmounted path item's undeclared key (operations.go applyPathItem)", "openapi:pathItem/paths/~1empty/piBogus", 1},
+		{"unmounted path item's servers (pathitem.go applyPathServers)", "openapi:pathItem/paths/~1empty/servers", 1},
+		{"unmounted path item's own extension (pathitem.go applyPathItem)", "openapi:pathItem/paths/~1empty/x-pi", 1},
+		{"unmounted path item's undeclared key (pathitem.go applyPathItem)", "openapi:pathItem/paths/~1empty/piBogus", 1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			entry := entryKeyed(t, entries, tc.key)
