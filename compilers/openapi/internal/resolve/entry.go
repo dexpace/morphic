@@ -4,11 +4,12 @@ import (
 	"encoding/json/jsontext"
 	"slices"
 
-	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/speakeasy-api/openapi/references"
+	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/fragment"
+	"github.com/dexpace/morphic/compilers/openapi/internal/navigation"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -22,6 +23,7 @@ import (
 // GetReferenceResolutionInfo to follow a chain of component aliases.
 type Referenced[T, S any] interface {
 	GetObject() *T
+	GetObjectAny() any
 	GetResolvedObject() *T
 	GetReference() references.Reference
 	GetReferenceResolutionInfo() *references.ResolveResult[S]
@@ -220,8 +222,9 @@ func Hops[T, S any, R interface {
 // ScopeOf returns the scope what the entry ref resolves to is read in, which is
 // where the last hop of its chain found it (see reached): a Foreign scope over
 // the document the resolver read it by, or, when that hop resolved against the
-// source, the scope the position it names there is read in (Scope.At). An
-// inline entry, and one that resolved nothing, are read in scope itself.
+// source, the scope the position it names there is read in, past any $ref the
+// walk to it passes. An inline entry, and one that resolved nothing, are read
+// in scope itself.
 func ScopeOf[T, S any, R interface {
 	*S
 	Referenced[T, S]
@@ -252,16 +255,19 @@ func EndOf[T, S any, R interface {
 	return endOf[S](ref)
 }
 
-// chained is what endOf reads of a reference: the one it is written as, and
-// what its resolution recorded. A schema holds both, though it is no Referenced.
+// chained is what endOf reads of a reference object: the one it is written as,
+// and what its resolution recorded. A schema has no object of its own to name
+// (GetObjectAny), so none is chained: the compiler binds a schema's $ref
+// itself, and the library's resolution of one is never read.
 type chained[S any] interface {
 	GetReference() references.Reference
 	GetReferenceResolutionInfo() *references.ResolveResult[S]
+	GetObjectAny() any
 }
 
-// endOf is EndOf for any reference, a schema's included. A chain still going
-// after maxRefChain hops ends nowhere it read, so it is cut, not taken to end at
-// the last hop read: that hop's document need not be the one holding its end.
+// endOf is EndOf for a reference object of any kind. A chain still going after
+// maxRefChain hops ends nowhere it read, so it is cut, not taken to end at the
+// last hop read: that hop's document need not be the one holding its end.
 func endOf[S any, R interface {
 	*S
 	chained[S]
@@ -285,12 +291,11 @@ func endOf[S any, R interface {
 		Pointer: fragment.Pointer(string(written))}, true
 }
 
-// ReferenceEnd is EndOf for a reference of each of the library's kinds, a
-// schema's included, which a walk through the document meets as values of any
-// type, and false for any other value. It is the one place this package lists
-// them, for the readers of a chain that cannot name its kind: the load phase
-// and the lowering each ask where the walk to a pointer passes into another
-// document.
+// ReferenceEnd is EndOf for a reference object of each of the library's kinds,
+// which a walk through the document meets as values of any type, and false for
+// any other value, a schema included. It is the one place this package lists
+// them, for the readers of a chain that cannot name its kind: the lowering
+// asks where the walk to a pointer passes into another document.
 func ReferenceEnd(node any) (End, bool) {
 	switch r := node.(type) {
 	case *soa.ReferencedPathItem:
@@ -311,9 +316,66 @@ func ReferenceEnd(node any) (End, bool) {
 		return endOf[soa.ReferencedCallback](r)
 	case *soa.ReferencedSecurityScheme:
 		return endOf[soa.ReferencedSecurityScheme](r)
-	case *oas3.JSONSchema[oas3.Referenceable]:
-		return endOf[oas3.JSONSchema[oas3.Referenceable]](r)
 	default:
 		return End{}, false
 	}
+}
+
+// OperationIDAt returns the operationId of the operation written at pointer,
+// and "" where none is there or it names none. raw is the document's YAML,
+// read as the library's pointer walk reads it (navigation.Step): a mapping
+// written there is the operation, as a reference resolves to it, siblings of a
+// path item's $ref included. model, the source's, answers only a pointer raw
+// holds nothing at, one that reaches its operation through a reference. Either
+// reads any scalar but null as text.
+func OperationIDAt(raw *yaml.Node, model *soa.OpenAPI, pointer jsontext.Pointer) string {
+	tokens, ok := navigation.Tokens(pointer)
+	if !ok {
+		return ""
+	}
+	if raw != nil {
+		if written, ok := walk(raw, tokens); ok {
+			return rawOperationID(written)
+		}
+	}
+	if model == nil {
+		return ""
+	}
+	written, ok := walk(model, tokens)
+	if !ok {
+		return ""
+	}
+	op, _ := written.(*soa.Operation)
+	return op.GetOperationID()
+}
+
+// walk steps tokens down from root as navigation.Step does, which reads
+// through a raw YAML alias, and returns what it reaches, or false where a
+// token finds nothing.
+func walk(root any, tokens []string) (any, bool) {
+	node := root
+	for _, token := range tokens {
+		next, ok := navigation.Step(node, token)
+		if !ok {
+			return nil, false
+		}
+		node = next
+	}
+	return node, true
+}
+
+// rawOperationID is the operationId written in what raw YAML holds at an
+// operation's position, and "" where it writes none: only a mapping has one.
+// A value written as an alias reads as its anchored scalar, which one hop
+// reaches, since yaml.v3 parses no alias of an alias.
+func rawOperationID(written any) string {
+	id, _ := navigation.Step(written, "operationId")
+	scalar, ok := id.(*yaml.Node)
+	if ok && scalar.Kind == yaml.AliasNode {
+		scalar = scalar.Alias
+	}
+	if !ok || scalar.Kind != yaml.ScalarNode || scalar.ShortTag() == "!!null" {
+		return ""
+	}
+	return scalar.Value
 }

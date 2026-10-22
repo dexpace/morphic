@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	"github.com/speakeasy-api/openapi/jsonpointer"
-	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/speakeasy-api/openapi/references"
 	"github.com/stretchr/testify/assert"
@@ -18,75 +17,74 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
+	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
 
 // resumedOver resolves root, written as root.yaml in dir, as resolveExternal's
-// first pass does, with settle's work bounded by limit, and returns the model,
-// that work, and what the pass reported.
-func resumedOver(t *testing.T, dir, root string, limit int) (*soa.OpenAPI, *resumeWork, []ir.Diagnostic) {
+// first pass does, with settle's work bounded by limit, and returns that work
+// and what the pass reported.
+func resumedOver(t *testing.T, dir, root string, limit int) (*resumeWork, []ir.Diagnostic) {
 	t.Helper()
 	tree, _, err := decodeStream([]byte(root))
 	require.NoError(t, err)
 	releaseAnchors(tree)
-	doc, valErrs, err := unmarshal(t.Context(), []byte(root), tree)
+	doc, err := unmarshal(t.Context(), []byte(root), tree)
 	require.NoError(t, err)
-	self := newSourceDocument(filepath.Join(dir, "root.yaml"), []byte(root), tree, valErrs, newSourceTree(0, overlay.Origin{}, tree), nil)
-	opts := Options{AllowExternalRefs: true}
-	reader := newExternal(doc, opts, newExternalReads(self))
-	reader.work.limit = limit
-	_, diags := newResolution(t.Context(), pointerAt(0, overlay.Origin{}), doc, Siblings{}, self, opts, &reader).run(t.Context(), doc)
-	return doc, reader.work, diags
+	self := newSourceDocument(filepath.Join(dir, "root.yaml"), []byte(root), tree, judgment{}, newSourceTree(0, overlay.Origin{}, tree), nil)
+	opts := Options{Reader: reader.Disk{}}
+	ext := newExternal(t.Context(), doc, opts, newExternalReads(self))
+	ext.work.limit = limit
+	at := pointerAt(0, overlay.Origin{})
+	pass := newResolution(t.Context(), doc, Siblings{}, self, opts, &ext)
+	pass.run(t.Context(), doc)
+	return ext.work, append(pass.diags(sitePlacer(at, Others{})), crossed(at, &ext)...)
 }
 
 // TestSettle_TheResumedWorkIsBounded pins maxResumeWork's bound. Two chains
-// take a further hop in another document after an earlier $ref read it, so
-// each is resumed; they end on different schemas, since a hop the library has
-// resolved once is answered from its cache, and never stalls. Every bound short
-// of the work they take is tried: past it no chain is resumed, each one left
-// reports why at its $ref, and the crossing is reported once, at the document,
-// since which chain crosses it follows the walk's order.
+// leave the source and come back to a response of its own naming raw YAML,
+// ahead of the response being resolved, so each stalls on the source's bytes
+// and is resumed; they name different YAML, since a hop the library has
+// resolved once never stalls. Every bound short of the work they take is
+// tried: past it no chain is resumed, each one left reports why at its $ref,
+// and the crossing is reported once, at the document.
 func TestSettle_TheResumedWorkIsBounded(t *testing.T) {
 	t.Parallel()
-	dir := externalDir(t, map[string]string{"other.yaml": `components:
-  schemas:
-    Base: {type: object}
-    BaseA: {type: object}
-    BaseB: {type: object}
-    A: {$ref: '#/components/schemas/BaseA'}
-    B: {$ref: '#/components/schemas/BaseB'}
-`})
-	root := rootOfSchemas("    First: {$ref: './other.yaml#/components/schemas/Base'}\n",
-		"    SA: {$ref: './other.yaml#/components/schemas/A'}\n",
-		"    SB: {$ref: './other.yaml#/components/schemas/B'}\n")
-	_, unbounded, diags := resumedOver(t, dir, root, maxResumeWork)
+	dir := t.TempDir()
+	root := rootOfResponses(
+		responseRef("OutA", "./root.yaml#/components/responses/MidA"),
+		responseRef("OutB", "./root.yaml#/components/responses/MidB"),
+		responseRef("MidA", "#/x-lib/R"),
+		responseRef("MidB", "#/x-lib/N/a/b"))
+	unbounded, diags := resumedOver(t, dir, root, maxResumeWork)
 	require.Empty(t, diags)
 	require.Positive(t, unbounded.spent)
 
 	resumedAt := map[int]bool{}
 	for limit := range unbounded.spent {
-		doc, _, diags := resumedOver(t, dir, root, limit)
-		var left []string
-		for _, name := range []string{"SA", "SB"} {
-			schema, _ := doc.Components.Schemas.Get(name)
-			if trail := resolutionTrail(schema); trail.stopped != "" {
-				left = append(left, "/components/schemas/"+name+" "+diag.UnresolvedRef)
-			}
-		}
-		resumedAt[2-len(left)] = true
-		require.NotEmpty(t, left, "limit %d", limit)
-		require.Equal(t, append([]string{" " + diag.BudgetExceeded}, left...), diagLines(diags), "limit %d", limit)
-
+		_, diags := resumedOver(t, dir, root, limit)
+		budgets, left := 0, map[string]bool{}
 		for _, d := range diags {
-			if d.Code == diag.BudgetExceeded {
+			switch d.Code {
+			case diag.BudgetExceeded:
+				budgets++
 				assert.Equal(t, ir.SeverityError, d.Severity)
 				assert.Equal(t, fmt.Sprintf("resolving reference chains through referenced documents takes more "+
 					"than %d steps; the $refs past them are reported unresolved", limit), d.Message)
-				continue
+				assert.Empty(t, d.Provenance.Pointer, "reported at the document")
+			case diag.UnresolvedRef:
+				left[string(d.Provenance.Pointer)] = true
+				assert.Contains(t, []string{"/components/responses/OutA", "/components/responses/OutB"},
+					string(d.Provenance.Pointer), "limit %d", limit)
+				assert.True(t, strings.HasSuffix(d.Message, fmt.Sprintf(": resolving it further takes more than the "+
+					"%d steps budgeted for chains through referenced documents", limit)), "limit %d: %s", limit, d.Message)
+			default:
+				require.Fail(t, "an unexpected report", "limit %d: %s %s", limit, d.Code, d.Message)
 			}
-			assert.True(t, strings.HasSuffix(d.Message, fmt.Sprintf(": resolving it further takes more than the "+
-				"%d steps budgeted for chains through referenced documents", limit)), "limit %d: %s", limit, d.Message)
 		}
+		require.NotEmpty(t, left, "limit %d", limit)
+		require.Equal(t, 1, budgets, "the crossing is reported once, limit %d", limit)
+		resumedAt[2-len(left)] = true
 	}
 	assert.Equal(t, map[int]bool{0: true, 1: true}, resumedAt,
 		"some bound stops the work before each chain, and none short of both")
@@ -101,28 +99,29 @@ func TestSettle_AResumedReadIsChargedTheKeysItScans(t *testing.T) {
 	t.Parallel()
 	// spent returns the work n chains take in the layout named.
 	spent := func(n int, layout string) int {
-		var other strings.Builder
-		other.WriteString("components:\n  schemas:\n")
-		roots := make([]string, 0, 1+n)
-		roots = append(roots, "    First: {$ref: './other.yaml#/components/schemas/C0'}\n")
+		var lib strings.Builder
+		lib.WriteString("x-d:\n")
+		entries := make([]string, 0, 2*n)
 		for i := range n {
-			target := fmt.Sprintf("#/d/D%d", i)
+			entries = append(entries, responseRef(fmt.Sprintf("Out%d", i), fmt.Sprintf("./root.yaml#/components/responses/Mid%d", i)))
+		}
+		for i := range n {
+			target := fmt.Sprintf("#/x-d/D%d", i)
 			if layout == "tree" {
-				target = fmt.Sprintf("#/d/%d/%d/%d/%d", i/64, i/16%4, i/4%4, i%4)
+				target = fmt.Sprintf("#/x-d/%d/%d/%d/%d", i/64, i/16%4, i/4%4, i%4)
 			}
-			fmt.Fprintf(&other, "    C%d: {$ref: '%s'}\n", i, target)
-			roots = append(roots, fmt.Sprintf("    S%d: {$ref: './other.yaml#/components/schemas/C%d'}\n", i, i))
+			entries = append(entries, responseRef(fmt.Sprintf("Mid%d", i), target))
 		}
+		root := strings.Replace(rootOfResponses(entries...), libraryYAML, "", 1)
 		if layout == "tree" {
-			other.WriteString(schemaTree(n))
+			root += responseTree(n)
 		} else {
-			other.WriteString("d:\n")
+			root += "x-d:\n"
 			for i := range n {
-				fmt.Fprintf(&other, "  D%d: {type: object}\n", i)
+				root += fmt.Sprintf("  D%d: {description: d}\n", i)
 			}
 		}
-		dir := externalDir(t, map[string]string{"other.yaml": other.String()})
-		_, work, diags := resumedOver(t, dir, rootOfSchemas(roots...), maxResumeWork)
+		work, diags := resumedOver(t, t.TempDir(), root, maxResumeWork)
 		require.Empty(t, diags, "%s %d", layout, n)
 		return work.spent
 	}
@@ -131,11 +130,11 @@ func TestSettle_AResumedReadIsChargedTheKeysItScans(t *testing.T) {
 	assert.LessOrEqual(t, 4*spent(2*n, "tree"), 9*spent(n, "tree"), "mappings four keys wide")
 }
 
-// schemaTree writes the mapping d, holding a schema at /d/a/b/c/e for each of the
-// n numbers whose base-four digits are a, b, c and e.
-func schemaTree(n int) string {
+// responseTree writes the mapping x-d, holding a response at /x-d/a/b/c/e for
+// each of the n numbers whose base-four digits are a, b, c and e.
+func responseTree(n int) string {
 	var b strings.Builder
-	b.WriteString("d:\n")
+	b.WriteString("x-d:\n")
 	for a := range (n + 63) / 64 {
 		fmt.Fprintf(&b, "  %d:\n", a)
 		for c := range 4 {
@@ -143,7 +142,7 @@ func schemaTree(n int) string {
 			for e := range 4 {
 				fmt.Fprintf(&b, "      %d:\n", e)
 				for f := range 4 {
-					fmt.Fprintf(&b, "        %d: {type: object}\n", f)
+					fmt.Fprintf(&b, "        %d: {description: d}\n", f)
 				}
 			}
 		}
@@ -158,7 +157,7 @@ func schemaTree(n int) string {
 // so.
 func TestResumeWork_Charge(t *testing.T) {
 	t.Parallel()
-	tree, parsed := parseTree([]byte(`components:
+	tree, err := parseTree([]byte(`components:
   schemas:
     Base: {type: object}
     Alias: {$ref: '#/components/schemas/Base'}
@@ -168,7 +167,7 @@ func TestResumeWork_Charge(t *testing.T) {
     Back: {$ref: '#/components/schemas/Out'}
     Plus+Key: {$ref: '#/components/schemas/Base'}
 `))
-	require.True(t, parsed)
+	require.NoError(t, err)
 	cost := func(name string) int {
 		steps, _ := newTreeReads().cost(tree, "/components/schemas/"+name, math.MaxInt)
 		return steps
@@ -222,52 +221,46 @@ func TestResumeWork_Charge(t *testing.T) {
 func TestResumable_TheBudgetStopsWhatItWouldResume(t *testing.T) {
 	t.Parallel()
 	data := []byte("components:\n  schemas:\n    Base: {type: object}\n")
-	tree, parsed := parseTree(data)
-	require.True(t, parsed)
+	tree, err := parseTree(data)
+	require.NoError(t, err)
 	read := newExternalReads(sourceDocument{})
 	read.recordTree("other.yaml", tree, data)
 	walked := jsonpointer.ErrInvalidPath.Wrap(errors.New("expected index, got key at /components"))
-	hop := func(document any, reached bool, object any) record {
-		return record{path: "other.yaml", document: &document, reached: reached, object: object}
+	hop := func(document any, object any) record {
+		return record{path: "other.yaml", document: &document, object: object}
 	}
 	stand, ok := read.standIn(&soa.ReferencedParameter{})
 	require.True(t, ok)
-	schema := oas3.NewJSONSchemaFromReference("./other.yaml#/components/schemas/Alias")
-	other := fakeResolvable{ref: "./other.yaml#/components/parameters/P"}
 	base, _ := newTreeReads().cost(tree, "/components/schemas/Base", math.MaxInt)
 	const indexed = 3 // the pairs of the root, components and schemas
 	stalls := []struct {
 		name  string
-		r     resolvable
 		c     chain
 		spent int
 	}{
-		{"a schema's stall, read by ends and the library", schema, chain{stopped: "#/components/schemas/Base",
-			records: []record{hop(slices.Clone(data), true, nil), hop(slices.Clone(data), false, nil)}},
-			1 + 1 + 2*base + indexed},
-		{"another kind's stall, read by the library", other, chain{stopped: "#/components/schemas/Base",
-			records: []record{hop(slices.Clone(data), true, nil)}}, 1 + 1 + base + indexed},
-		{"a stand-in reached", other, chain{records: []record{hop(slices.Clone(data), true, stand)}}, 1},
+		{"a stall, read by the library", chain{stopped: "#/components/schemas/Base",
+			records: []record{hop(slices.Clone(data), nil)}}, 1 + 1 + base + indexed},
+		{"a stand-in reached", chain{records: []record{hop(slices.Clone(data), stand)}}, 1},
 	}
 	for _, c := range stalls {
-		reader := newExternal(&soa.OpenAPI{}, Options{}, read)
-		resume, refused := reader.resumable(c.r, c.c, walked)
+		ext := newExternal(t.Context(), &soa.OpenAPI{}, Options{}, read)
+		resume, refused := ext.resumable(c.c, walked)
 		require.True(t, resume, "%s: resumed within the budget", c.name)
 		require.NoError(t, refused)
-		assert.Equal(t, c.spent, reader.work.spent, c.name)
+		assert.Equal(t, c.spent, ext.work.spent, c.name)
 
-		reader.work.limit = reader.work.spent
-		resume, refused = reader.resumable(c.r, c.c, walked)
+		ext.work.limit = ext.work.spent
+		resume, refused = ext.resumable(c.c, walked)
 		assert.False(t, resume, c.name)
 		require.Error(t, refused, c.name)
 		assert.Equal(t, fmt.Sprintf("resolving it further takes more than the %d steps budgeted "+
-			"for chains through referenced documents", reader.work.limit), refused.Error())
+			"for chains through referenced documents", ext.work.limit), refused.Error())
 	}
 
-	reader := newExternal(&soa.OpenAPI{}, Options{}, read)
-	reader.work.limit = 0
-	reader.work.spend(1)
-	resume, refused := reader.resumable(schema, stalls[0].c, errors.New("circular reference detected"))
+	ext := newExternal(t.Context(), &soa.OpenAPI{}, Options{}, read)
+	ext.work.limit = 0
+	ext.work.spend(1)
+	resume, refused := ext.resumable(stalls[0].c, errors.New("circular reference detected"))
 	assert.False(t, resume)
 	assert.NoError(t, refused, "a failure settle would not resume keeps its own error")
 }

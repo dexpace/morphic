@@ -8,6 +8,7 @@ import (
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 
 	"github.com/dexpace/morphic/compilers/compile"
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
@@ -58,11 +59,11 @@ func namedBranches(c lowering.Ctx, s *oas3.Schema) []ir.TypeID {
 	branches, _, _ := unionBranches(s)
 	var named []ir.TypeID
 	for _, b := range branches {
-		pointer, internal := scope.TargetPointer(b, b.GetRef().String())
-		if !internal {
+		at, ok := scope.Target(b)
+		if !ok || at.Doc != bind.Source {
 			continue
 		}
-		if id, declared, component := scope.ComponentRef(pointer); component && declared {
+		if id, declared, component := scope.ComponentRef(at.Pointer); component && declared {
 			named = append(named, id)
 		}
 	}
@@ -95,8 +96,8 @@ type besideUnionDiscriminator struct {
 // merged in through a `<<` the raw readers miss (GitHub #395), stays on the
 // model rather than vanish, where pass/validate reports the routes it fails.
 //
-// A move leaving a map swaps in its MapT (ir.AsMap) and keeps what that cannot
-// hold (rehome); a later settlement leaves the map alone.
+// A move leaving a map swaps in its MapT (ir.AsMap), which homes all the model
+// did; a later settlement leaves the map alone.
 func (d besideUnionDiscriminator) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
 	owner := reg[d.owner]
 	if mt, settled := reg[d.model].(*ir.MapT); settled && mt != nil && !ir.IsNilTypeDef(owner) {
@@ -119,29 +120,10 @@ func (d besideUnionDiscriminator) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
 	m.Discriminator = nil
 	if mt, isMap := ir.AsMap(m); isMap {
 		reg[d.model] = mt
-		diags = append(diags, d.rehome(m, mt)...)
 	}
 	return append(diags, d.c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
 		"the discriminator routes to a type that is not a subtype of the model holding it, so it cannot "+
 			"stay there; kept verbatim under Unmodeled beside the union it was written for"))
-}
-
-// rehome keeps verbatim each census keyword the model homed and the MapT
-// replacing it does not, a `required` naming keys among them. The census ran
-// when the position lowered, while the discriminator still kept the node a
-// Model, so without this the keyword would reach no home and no report. m has
-// already lost its discriminator, which Settle keeps itself. A variant of a
-// multi-typed body ran no census (GitHub #852), so nothing is redone for one.
-func (d besideUnionDiscriminator) rehome(m *ir.Model, mt *ir.MapT) []ir.Diagnostic {
-	if d.model != d.owner {
-		return nil
-	}
-	handled := censusHandled(dispatchOf(d.s))
-	before := unhomedKeywords(d.s, m, handled)
-	lost := slices.DeleteFunc(unhomedKeywords(d.s, mt, handled), func(keyword string) bool {
-		return slices.Contains(before, keyword)
-	})
-	return recordUnhomedAt(d.c, &mt.Unmodeled, d.s, lost, nodeShape(ir.KindMap), d.pointer)
 }
 
 // routesToSubtypes reports whether every type m's discriminator routes to is a

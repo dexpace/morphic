@@ -12,20 +12,22 @@ import (
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ynode"
+	"github.com/dexpace/morphic/ir"
 )
 
 // nodesAt returns the nodes of root's tree at pointers, read through the
-// mapping view the way a $ref is.
+// mapping view.
 func nodesAt(t *testing.T, root *yaml.Node, pointers []jsontext.Pointer) []*yaml.Node {
 	t.Helper()
 	view := nodeview.New()
 	nodes := make([]*yaml.Node, 0, len(pointers))
 	for _, p := range pointers {
-		n, landed := view.PointerTarget(root, p)
-		require.True(t, landed, "%s names nothing", p)
-		nodes = append(nodes, n)
+		path, complete := view.DocumentPath(root, p)
+		require.True(t, complete, "%s names nothing", p)
+		nodes = append(nodes, path[len(path)-1])
 	}
 	return nodes
 }
@@ -229,4 +231,107 @@ func TestLeast_FollowsEveryValueOfARepeatedKey(t *testing.T) {
 	a1, a2 := root.Content[1].Content[1], root.Content[1].Content[3]
 	k1, z1, k2 := a1.Content[1], a1.Content[3], a2.Content[1]
 	assert.Same(t, k2, Least(root, []*yaml.Node{z1, k2, k1}), "one pointer: the first given of those sharing it")
+}
+
+// bothOrders is two documents declaring members, one as given and one
+// reversed, each member one or more whole lines.
+func bothOrders(members []string) map[string][]byte {
+	reversed := slices.Clone(members)
+	slices.Reverse(reversed)
+	return map[string][]byte{
+		"as written": []byte(strings.Join(members, "")),
+		"reversed":   []byte(strings.Join(reversed, "")),
+	}
+}
+
+// onlyRefusal runs the scan over data and returns its one refusal, which it
+// requires.
+func onlyRefusal(t *testing.T, data []byte) ir.Diagnostic {
+	t.Helper()
+	diags := scanPlaced(t, data)
+	require.Len(t, diags, 1, "in\n%s", data)
+	require.Equal(t, ir.SeverityError, diags[0].Severity)
+	return diags[0]
+}
+
+// TestAliases_NamesTheLeastRecursiveAlias pins the site of a recursive anchor
+// when a document holds several: the alias with the least pointer, in either
+// order. Each anchor stays above its own alias, so both orders parse.
+func TestAliases_NamesTheLeastRecursiveAlias(t *testing.T) {
+	t.Parallel()
+	members := []string{"b: &x {k: [*x]}\n", "a: &y {k: [*y]}\n"}
+	for order, data := range bothOrders(members) {
+		t.Run(order, func(t *testing.T) {
+			t.Parallel()
+			d := onlyRefusal(t, data)
+			assert.Equal(t, diag.CyclicRef, d.Code)
+			assert.Equal(t, jsontext.Pointer("/a/k/0"), d.Provenance.Pointer)
+			assert.Equal(t, `recursive YAML anchor "y" references an ancestor node`, d.Message)
+		})
+	}
+}
+
+// laughs is a billion-laughs bomb named prefix: eight anchors, the first a list
+// of ten scalars and each after it a list of ten aliases to the one before.
+func laughs(prefix string) string {
+	const levels = 8
+	var b strings.Builder
+	fmt.Fprintf(&b, "%s:\n  l0: &%s0 [x, x, x, x, x, x, x, x, x, x]\n", prefix, prefix)
+	for i := 1; i < levels; i++ {
+		aliases := strings.TrimSuffix(strings.Repeat(fmt.Sprintf("*%s%d, ", prefix, i-1), 10), ", ")
+		fmt.Fprintf(&b, "  l%d: &%s%d [%s]\n", i, prefix, i, aliases)
+	}
+	return b.String()
+}
+
+// TestAliasAmplification_NamesTheLeastInnermostAmplifier pins the site of an
+// alias bomb: the smallest structure already past the allowance, l4 of laughs'
+// eight levels, not the bomb or the level holding it; and of two bombs, the one
+// with the least pointer, in either order.
+func TestAliasAmplification_NamesTheLeastInnermostAmplifier(t *testing.T) {
+	t.Parallel()
+	for order, data := range bothOrders([]string{laughs("b"), laughs("a")}) {
+		t.Run(order, func(t *testing.T) {
+			t.Parallel()
+			d := onlyRefusal(t, data)
+			assert.Equal(t, diag.AliasAmplification, d.Code)
+			assert.Equal(t, jsontext.Pointer("/a/l4"), d.Provenance.Pointer)
+		})
+	}
+}
+
+// fanned is an anchor of ten scalars under name, aliased twenty times in a
+// list beside it.
+func fanned(name string) string {
+	return fmt.Sprintf("%s: {x: &%s [1, 1, 1, 1, 1, 1, 1, 1, 1, 1], u: [%s]}\n", name, name,
+		strings.TrimSuffix(strings.Repeat("*"+name+", ", 20), ", "))
+}
+
+// TestAliasAmplification_NamesTheLeastSiteUnderABudget pins the two budgeted
+// branches, in either order: two lists each adding more than the budget allows
+// but staying inside the ratio, named for the budget; and, under the same
+// budget, two bombs past the ratio, named for their shape.
+func TestAliasAmplification_NamesTheLeastSiteUnderABudget(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		members []string
+		code    string
+		want    jsontext.Pointer
+	}{
+		{"past the budget", []string{fanned("b"), fanned("a")}, diag.BudgetExceeded, "/a/u"},
+		{"past the ratio", []string{laughs("b"), laughs("a")}, diag.AliasAmplification, "/a/l4"},
+	}
+	for _, tc := range tests {
+		for order, data := range bothOrders(tc.members) {
+			t.Run(tc.name+"/"+order, func(t *testing.T) {
+				t.Parallel()
+				root := indexOf(t, data).Root()
+				d, refused := aliasAmplification(InTree(0, Pointers(root)), root, rawNodes(root), 100)
+				require.True(t, refused)
+				assert.Equal(t, tc.code, d.Code)
+				assert.Equal(t, tc.want, d.Provenance.Pointer)
+			})
+		}
+	}
 }

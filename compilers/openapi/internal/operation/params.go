@@ -2,6 +2,7 @@ package operation
 
 import (
 	"encoding/json/jsontext"
+	"strconv"
 	"strings"
 
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
@@ -36,15 +37,15 @@ func lowerParameters(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIn
 	for _, sp := range params {
 		pc := c
 		if sp.in != nil {
-			pc = c.InScope(*sp.in)
+			pc = *sp.in
 		}
-		p, pptr := resolve.ObjectAt[soa.Parameter](pc.RefScope(), sp.ref, sp.pointer)
+		p, dc, pptr := lowering.Declared[soa.Parameter](pc, sp.ref, sp.pointer)
 		if p == nil {
 			continue
 		}
 		id, repeatDiags := ledger.next(pc, p.GetName(), string(p.GetIn()), sp.pointer)
 		diags = append(diags, repeatDiags...)
-		param, binding, paramDiags := lowerParameter(lowering.Within[soa.Parameter](pc, sp.ref), ts, anchors, id, p, pptr)
+		param, binding, paramDiags := lowerParameter(dc, ts, anchors, id, p, pptr)
 		diags = append(diags, paramDiags...)
 		// A summary or description beside a $ref of the entry's chain documents
 		// this use of the parameter, over what its declaration says (GitHub #610).
@@ -77,35 +78,7 @@ func lowerParameter(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 	}
 	media, diags := fillParamType(c, ts, anchors, &param, &binding, p, pptr, name)
 	diags = append(diags, reservedHeaderParamDiag(c, name, in, pptr)...)
-	diags = append(diags, querystringKeywordDiags(c, in, p, pptr)...)
 	return param, binding, append(diags, fillParamDetail(c, &param, p, pptr, media)...)
-}
-
-// querystringKeywordDiags reports explode and allowReserved when they are
-// declared on a parameter at in: querystring. OpenAPI 3.2 forbids both there
-// alongside style — the location binds the whole query string from the
-// parameter's content, so its serialization is stated by the media type alone
-// and neither keyword has anything left to qualify. The bundled parser
-// enforces the rule for style but not for these two (GitHub #408), so this
-// compiler reports the gap itself; resolveStyleExplode already lowers each
-// value as declared regardless; see diag.InvalidLocationKeyword for why this
-// is a warning rather than the error style gets from the parser.
-func querystringKeywordDiags(c lowering.Ctx, in soa.ParameterIn, p *soa.Parameter, pptr jsontext.Pointer) []ir.Diagnostic {
-	if in != soa.ParameterInQueryString {
-		return nil
-	}
-	var diags []ir.Diagnostic
-	if p.Explode != nil {
-		diags = append(diags, c.DiagAt(ir.SeverityWarning, diag.InvalidLocationKeyword,
-			pptr+ids.Ptr("explode"),
-			"parameter field explode is not allowed for in=querystring; lowered as declared"))
-	}
-	if p.AllowReserved != nil {
-		diags = append(diags, c.DiagAt(ir.SeverityWarning, diag.InvalidLocationKeyword,
-			pptr+ids.Ptr("allowReserved"),
-			"parameter field allowReserved is not allowed for in=querystring; lowered as declared"))
-	}
-	return diags
 }
 
 // reservedHeaderParamDiag reports a header parameter OpenAPI §4.8.12 reserves —
@@ -167,10 +140,10 @@ func fillParamSchema(c lowering.Ctx, ts *compile.Types, param *ir.Parameter, js 
 	if s == nil {
 		return nil
 	}
-	// resolve.TargetSchema, not annotation.At's Referent: the fallback must read the
-	// end of a $ref chain, since one hop would take the default and description
-	// off an intermediate reference instead of the schema that declares them.
-	tgt := resolve.TargetSchema(js, s)
+	// resolve.Scope.TargetSchema reads the end of a $ref chain, since one hop
+	// would take the default and description off an intermediate reference
+	// instead of the schema that declares them.
+	tgt := c.RefScope().TargetSchema(js, s)
 	def, diags := schema.DefaultOf(c, s, tgt, pointer)
 	param.Default = def
 
@@ -204,7 +177,7 @@ func fillParamSchemaAnnotations(c lowering.Ctx, ts *compile.Types, param *ir.Par
 	// drop them for exactly the parameters whose schema owns a node — an object,
 	// an enum, an array.
 	diags := preserveParamVisibility(c, param, s, pointer)
-	if schema.LoweredToOwnNode(ts, pointer, param.Type) {
+	if schema.LoweredToOwnNode(c, ts, pointer, param.Type) {
 		return diags
 	}
 	a, readDiags := annotation.Read(annotation.Site{Kind: annotation.Reference, Node: s, Referent: tgt}, pointer, c.ProvenanceAt)
@@ -354,7 +327,8 @@ func preserveAllowEmptyValue(c lowering.Ctx, param *ir.Parameter, p *soa.Paramet
 // resolveStyleExplode materializes a parameter's resolved serialization style
 // and explode flag: an explicit value wins, else the OpenAPI per-location
 // default (query/cookie → form/true, path/header → simple/false, querystring →
-// neither). The result is declared facts, not policy.
+// neither). Explode defaults to true under form and under 3.2's cookie style,
+// false under any other. The result is declared facts, not policy.
 func resolveStyleExplode(p *soa.Parameter, in soa.ParameterIn) (string, *bool) {
 	style := defaultParamStyle(in)
 	if p.Style != nil {
@@ -373,8 +347,12 @@ func resolveStyleExplode(p *soa.Parameter, in soa.ParameterIn) (string, *bool) {
 	if style == "" {
 		return "", nil
 	}
-	return style, new(style == string(soa.SerializationStyleForm))
+	return style, new(style == string(soa.SerializationStyleForm) || style == styleCookie)
 }
+
+// styleCookie is the serialization style 3.2 added for in: cookie, which the
+// parser library names no constant for.
+const styleCookie = "cookie"
 
 // defaultParamStyle returns the OpenAPI default serialization style for a
 // parameter location, and "" for one that has none: 3.2 binds in: querystring
@@ -405,4 +383,123 @@ func httpLocation(in soa.ParameterIn) ir.HTTPLocation {
 	default:
 		return ir.HTTPLocationQuery
 	}
+}
+
+// sourcedParam pairs a parameter with its declaring list entry's pointer,
+// because path-item parameters merge into every operation on the path item and
+// so cannot borrow the operation's index space (issue #36). A $ref entry's own
+// declaration lies one hop further on, resolved in lowerParameters.
+type sourcedParam struct {
+	ref     *soa.ReferencedParameter
+	pointer jsontext.Pointer
+	// in is the context a path-item entry is lowered in, its layer's (see
+	// itemParams), whose document its pointer is in, or nil for an
+	// operation's own entry, which is lowered in the operation's.
+	in *lowering.Ctx
+}
+
+// mergeParameters merges a mount's path-item parameters with an operation's own
+// using use-site precedence: an operation parameter with the same (name, in)
+// overrides the path-item one; unshadowed path-item parameters follow in source
+// order. Each entry keeps the pointer of its own declaration site rather than a
+// position recomputed from the merged slice (issue #36), and a $ref'd path
+// item's are under its own declaration pointer, not the path it is mounted at
+// (issue #107).
+func mergeParameters(pathParams []sourcedParam, opParams []*soa.ReferencedParameter, opDeclPtr jsontext.Pointer) []sourcedParam {
+	merged := make([]sourcedParam, 0, len(opParams)+len(pathParams))
+	merged = appendSourced(merged, opParams, opDeclPtr, nil, nil)
+	if len(pathParams) == 0 {
+		return merged
+	}
+	shadowed := shadowedKeys(opParams)
+	for _, p := range pathParams {
+		if key, ok := paramKey(p.ref); ok && shadowed[key] {
+			continue
+		}
+		merged = append(merged, p)
+	}
+	return merged
+}
+
+// appendSourced appends params to dst, pairing each with the pointer of its own
+// declaration position under base and the context in it is lowered in, and
+// skipping any whose (name, in) key is in shadowed. A nil shadowed map reads as
+// all-false, which is what the operation side passes: operation parameters are
+// never shadowed, and are lowered in the operation's own context (a nil in).
+func appendSourced(dst []sourcedParam, params []*soa.ReferencedParameter, base jsontext.Pointer,
+	shadowed map[string]bool, in *lowering.Ctx,
+) []sourcedParam {
+	for i, p := range params {
+		if key, ok := paramKey(p); ok && shadowed[key] {
+			continue
+		}
+		dst = append(dst, sourcedParam{ref: p, pointer: base + ids.Ptr("parameters", strconv.Itoa(i)), in: in})
+	}
+	return dst
+}
+
+// shadowedKeys returns the (in, name) identities declared by opParams, so a
+// path-item parameter sharing one is left out of the merge as a duplicate.
+func shadowedKeys(opParams []*soa.ReferencedParameter) map[string]bool {
+	shadowed := make(map[string]bool, len(opParams))
+	for _, p := range opParams {
+		if key, ok := paramKey(p); ok {
+			shadowed[key] = true
+		}
+	}
+	return shadowed
+}
+
+// paramKey builds the (in, name) identity of a parameter for merge dedup.
+func paramKey(rp *soa.ReferencedParameter) (string, bool) {
+	p := resolve.Object[soa.Parameter](rp)
+	if p == nil {
+		return "", false
+	}
+	return string(p.GetIn()) + "\x00" + p.GetName(), true
+}
+
+// paramSlot is what OpenAPI identifies a parameter by: its name and location.
+// It holds exactly what ids.Param mints from, so parameters in two slots never
+// share an ID. Names compare as written, header names included, as the merge's
+// paramKey compares them (#635).
+type paramSlot struct {
+	name, in string
+}
+
+// paramLedger counts how often each slot has been declared on one operation, so
+// a repeat is numbered. The count follows the merged list, in order, and so
+// never the iteration order of a map.
+//
+// A repeat in a list the source writes is load's to report, once, where it is
+// written (paramRepeats). One in another document's content, which that
+// walk does not reach, is reported here, at the entry it was lowered from.
+type paramLedger struct {
+	mount   jsontext.Pointer
+	seen    map[paramSlot]int
+	firstAt map[paramSlot]jsontext.Pointer
+}
+
+// newParamLedger returns a ledger for the operation mounted at mount.
+func newParamLedger(mount jsontext.Pointer) *paramLedger {
+	return &paramLedger{mount: mount, seen: map[paramSlot]int{}, firstAt: map[paramSlot]jsontext.Pointer{}}
+}
+
+// next returns the ID of the parameter holding name in in, written by the list
+// entry at entry, and the error a repeat raises there when c lowers another
+// document's content. The first holder has the bare ID and no error.
+func (l *paramLedger) next(c lowering.Ctx, name, in string, entry jsontext.Pointer) (ir.ParamID, []ir.Diagnostic) {
+	slot := paramSlot{name: name, in: in}
+	l.seen[slot]++
+	occurrence := l.seen[slot]
+	id := ids.Param(l.mount, name, in, occurrence)
+	if occurrence == 1 {
+		l.firstAt[slot] = entry
+		return id, nil
+	}
+	if !c.RefScope().Foreign {
+		return id, nil
+	}
+	return id, []ir.Diagnostic{c.DiagAt(ir.SeverityError, diag.DuplicateParameter, entry,
+		"parameter %q in %q repeats the entry at %s", name, in, l.firstAt[slot])}
 }

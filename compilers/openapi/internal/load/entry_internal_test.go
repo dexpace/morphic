@@ -3,11 +3,9 @@ package load
 import (
 	"encoding/json/jsontext"
 	"os"
+	"strings"
 	"testing"
 
-	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
-	soa "github.com/speakeasy-api/openapi/openapi"
-	"github.com/speakeasy-api/openapi/validation"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
@@ -20,11 +18,12 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// TestLoad_DegenerateCycleIsRefusedBeforeParsing pins the first gate in the
-// load path. A document whose references close a cycle is refused with a
-// diagnostic rather than handed to a parser that would fault on it, so the
-// refusal is a spec problem and not a crash.
-func TestLoad_DegenerateCycleIsRefusedBeforeParsing(t *testing.T) {
+// TestLoad_ADegenerateCycleLoadsAndIsReportedOnce pins the first gate in the
+// load path. A document whose schema $refs close a cycle loads: no schema $ref
+// reaches the parser's resolver, which is what faulted on one, so the loop is a
+// spec problem reported once, at its least member, and not a crash or a
+// refusal.
+func TestLoad_ADegenerateCycleLoadsAndIsReportedOnce(t *testing.T) {
 	t.Parallel()
 	data, err := os.ReadFile("../../../../testdata/openapi/cycle_self_ref.yaml")
 	require.NoError(t, err)
@@ -32,8 +31,9 @@ func TestLoad_DegenerateCycleIsRefusedBeforeParsing(t *testing.T) {
 	doc, diags, err := Load(t.Context(), 0, compilers.Source{Path: "cycle.yaml", Data: data}, Options{})
 
 	require.NoError(t, err, "a cyclic document is a spec problem, not a Go error")
-	assert.Nil(t, doc, "nothing is lowered")
-	require.True(t, diag.HasError(diags), "and the refusal is reported: %+v", diags)
+	require.NotNil(t, doc, "the document is lowered: %+v", diags)
+	assert.Equal(t, []jsontext.Pointer{"/components/schemas/A"}, errorSites(diags, diag.CyclicRef))
+	assert.Equal(t, 1, countErrors(diags), "and the loop is the only error: %+v", diags)
 }
 
 // TestLoad_UnparseableSourceIsAGoError pins the other side of that split: bytes
@@ -52,9 +52,7 @@ func TestLoad_UnparseableSourceIsAGoError(t *testing.T) {
 }
 
 // defaultMapping32Spec is a 3.2 document whose discriminator uses the 3.2-only
-// defaultMapping keyword. The library validates every schema object against the
-// 3.1 meta-schema unless told the document's version, so this is exactly the
-// finding metaSchemaVersionArtifacts exists to drop.
+// defaultMapping keyword, which the 3.1 grammar has no room for.
 const defaultMapping32Spec = `openapi: 3.2.0
 info: {title: T, version: "1"}
 paths: {}
@@ -72,57 +70,17 @@ components:
     Cat: {allOf: [{$ref: '#/components/schemas/Pet'}]}
 `
 
-// TestLoad_32KeywordIsNotAnInvalidSchema pins the meta-schema reconciliation
-// end to end. A keyword the document's own version defines must not be reported
-// as invalid merely because the library checked it against an older
-// meta-schema — the finding appears in the library's run and not in the
-// document-version run, which is what makes it an artifact rather than a defect.
-func TestLoad_32KeywordIsNotAnInvalidSchema(t *testing.T) {
+// TestLoad_A32KeywordIn32DocumentDrawsNoFinding pins that a schema is held to
+// the minor its document declares: a keyword that minor defines is no finding,
+// though an older grammar would refuse it.
+func TestLoad_A32KeywordIn32DocumentDrawsNoFinding(t *testing.T) {
 	t.Parallel()
 	doc, diags, err := Load(t.Context(), 0, openapitest.SourceOf(defaultMapping32Spec), Options{})
 
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 	assert.Equal(t, "openapi@3.2", doc.Source.Format)
-	assert.Zero(t, countErrorsAt(diags, diag.Validation+"/validation-invalid-schema"),
-		"a 3.2 keyword in a 3.2 document is not an invalid schema: %+v", diags)
-}
-
-// TestMetaSchemaVersionArtifacts_ReconcilesOnlyWhatTheTwoRunsDisagreeOn pins the
-// difference the reconciliation is: a finding both runs raise is real and stays,
-// so the set returned holds only findings the library raised and the document's
-// own version did not.
-func TestMetaSchemaVersionArtifacts_ReconcilesOnlyWhatTheTwoRunsDisagreeOn(t *testing.T) {
-	t.Parallel()
-	doc, _ := parseSpec(t, defaultMapping32Spec)
-
-	dropped := metaSchemaVersionArtifacts(t.Context(), doc, Siblings{}, "3.2", false)
-	assert.NotEmpty(t, dropped, "the 3.2-only keyword is a finding the library raises alone")
-
-	atVersion := schemaFindings(t.Context(), soa.Walk(t.Context(), doc))
-	for site := range dropped {
-		assert.Contains(t, atVersion, site,
-			"a dropped finding is one the library's own run raised")
-	}
-}
-
-// TestMetaSchemaVersionArtifacts_AFindingBothRunsRaiseIsKept pins the other half
-// of the difference. A schema that is invalid at the document's own version is a
-// real defect, so it must survive the reconciliation rather than being dropped
-// alongside the version artifact beside it.
-func TestMetaSchemaVersionArtifacts_AFindingBothRunsRaiseIsKept(t *testing.T) {
-	t.Parallel()
-	spec := defaultMapping32Spec + "    Broken: {type: 42}\n"
-	doc, _ := parseSpec(t, spec)
-
-	atVersion := schemaFindings(t.Context(), soa.Walk(t.Context(), doc),
-		validation.WithContextObject(&oas3.ParentDocumentVersion{OpenAPI: &doc.OpenAPI}))
-	require.NotEmpty(t, atVersion, "the invalid schema is a finding at 3.2 too")
-
-	dropped := metaSchemaVersionArtifacts(t.Context(), doc, Siblings{}, "3.2", false)
-	for site := range atVersion {
-		assert.NotContains(t, dropped, site, "a real finding is never dropped as an artifact")
-	}
+	assert.Empty(t, diags, "a 3.2 keyword in a 3.2 document is no finding")
 }
 
 // TestLoad_ResolverFaultBecomesADiagnostic pins the last refusal in the load
@@ -146,12 +104,11 @@ func TestLoad_ResolverFaultBecomesADiagnostic(t *testing.T) {
 	}
 }
 
-// TestLoad_RecoverableLiteralIsNotAnInvalidSyntaxFinding pins the numeric-literal
-// half of the artifact suppression. The library reports a document carrying .5 as
-// invalid JSON, but Morphic reads that bound off the raw node and represents it
-// exactly, so the finding describes a limitation of the library rather than a
-// problem with the spec.
-func TestLoad_RecoverableLiteralIsNotAnInvalidSyntaxFinding(t *testing.T) {
+// TestLoad_RecoverableLiteralIsNotAFinding pins that a numeric bound YAML writes
+// as .5 is a number, as the table reads it: the library checks the schema as
+// JSON text and refuses it, but Morphic reads that bound off the raw node and
+// represents it exactly, so it is no problem with the spec.
+func TestLoad_RecoverableLiteralIsNotAFinding(t *testing.T) {
 	t.Parallel()
 	spec := `openapi: 3.1.0
 info: {title: T, version: "1"}
@@ -161,9 +118,9 @@ components: {schemas: {S: {type: number, minimum: .5}}}
 	_, diags, err := Load(t.Context(), 0, openapitest.SourceOf(spec), Options{})
 
 	require.NoError(t, err)
-	assert.Zero(t, countErrorsAt(diags,
-		diag.Validation+"/"+string(validation.RuleValidationInvalidSyntax)),
-		"a finding a recoverable literal explains stays suppressed: %+v", diags)
+	for _, d := range diags {
+		assert.False(t, strings.HasPrefix(d.Code, diag.Validation), "a recoverable literal draws no finding: %+v", d)
+	}
 }
 
 // TestSupportedMinor_AcceptsOnlyTheThreeMinors pins the version gate. A version
@@ -184,6 +141,8 @@ func TestSupportedMinor_AcceptsOnlyTheThreeMinors(t *testing.T) {
 		{version: "4.0.0"},
 		{version: "3"},
 		{version: ""},
+		{version: "3..1"},
+		{version: ".1"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.version, func(t *testing.T) {
@@ -193,6 +152,14 @@ func TestSupportedMinor_AcceptsOnlyTheThreeMinors(t *testing.T) {
 			assert.Equal(t, tc.want, got)
 		})
 	}
+}
+
+// TestSupportedMinor_AllocatesNothing pins what the lowering's dialect check
+// costs: it asks this of every schema whose null it reads, so the minor is
+// read off the version (oas.ParseMinor) and named by a constant. It is not run
+// in parallel: AllocsPerRun refuses to be.
+func TestSupportedMinor_AllocatesNothing(t *testing.T) {
+	assert.Zero(t, testing.AllocsPerRun(100, func() { _, _ = SupportedMinor("3.1.0") }))
 }
 
 // overlayHeader is the preamble every overlay document below needs.
@@ -244,12 +211,12 @@ func TestLoad_RefusesToLowerAfterAnOverlayFails(t *testing.T) {
 	require.True(t, diag.HasError(diags), "and the refusal is reported: %+v", diags)
 }
 
-// TestLoad_RefusesACycleAnOverlayIntroduced pins that the pre-parse refusals
-// cover the tree the parser is handed rather than only the bytes on disk. The
-// source alone is acyclic, so the scan that runs before the overlay cannot see
-// this; without the second scan the cycle reaches the third-party resolver,
-// which is the crash those refusals exist to prevent.
-func TestLoad_RefusesACycleAnOverlayIntroduced(t *testing.T) {
+// TestLoad_ACycleAnOverlayIntroducedIsReportedOnce pins that the schema $refs
+// are bound over the tree the parser is handed rather than only the bytes on
+// disk. The source alone is acyclic, so a loop found only in the patched
+// document is one the overlay introduced; it is reported once, at its least
+// member.
+func TestLoad_ACycleAnOverlayIntroducedIsReportedOnce(t *testing.T) {
 	t.Parallel()
 	const acyclic = `openapi: 3.1.0
 info: {title: T, version: "1"}
@@ -259,16 +226,18 @@ components:
     A: {$ref: '#/components/schemas/B'}
     B: {type: string}
 `
-	clean, _, err := Load(t.Context(), 0, openapitest.SourceOf(acyclic), Options{})
+	clean, cleanDiags, err := Load(t.Context(), 0, openapitest.SourceOf(acyclic), Options{})
 	require.NoError(t, err)
-	require.NotNil(t, clean, "the source alone gives the scan nothing to find")
+	require.NotNil(t, clean, "the source alone gives the binder nothing to find")
+	assert.Empty(t, errorSites(cleanDiags, diag.CyclicRef))
 
 	got, diags, err := Load(t.Context(), 0, openapitest.SourceOf(acyclic),
 		overlayOptions("  - target: $.components.schemas.B\n    update: {$ref: '#/components/schemas/A'}\n"))
 
 	require.NoError(t, err)
-	assert.Nil(t, got, "the patched document is refused before the resolver sees it")
-	assert.Equal(t, 1, countErrorsAt(diags, diag.CyclicRef), "the introduced cycle is what refused it")
+	require.NotNil(t, got, "the patched document is lowered: %+v", diags)
+	assert.Equal(t, []jsontext.Pointer{"/components/schemas/A"}, errorSites(diags, diag.CyclicRef),
+		"the introduced loop is reported once, at its least member")
 }
 
 // TestLoad_ADocumentThatFailsToBuildIsAGoError pins the split between the two
@@ -313,8 +282,8 @@ func TestLoad_RejectsAnOverlaySharingTheSourceIndex(t *testing.T) {
 }
 
 // TestLoad_ADocumentTooLargeToIndexIsRefused drives the refusal a document draws
-// before the cycle scan reads a single reference: one with more YAML nodes than
-// the source index walks.
+// before the alias scan reads a single alias: one with more YAML nodes than the
+// source index walks.
 //
 // The bound is reached by shrinking it rather than by building a document of
 // sourceindex.MaxIndexedNodes nodes — that would be several gigabytes of
@@ -395,11 +364,10 @@ func TestLoad_IndexesAPatchedTreeAgain(t *testing.T) {
 	assert.Equal(t, 3, *built, "the source, the overlay document, then the tree the overlay left behind")
 }
 
-// TestLoad_A32KeywordBesideAPathItemRefIsNotAnInvalidSchema pins the
-// reconciliation over the fields beside a Path Item's $ref: a 3.2 keyword in a
-// schema written there is checked as the document's own schemas are, so the
-// finding only the library's 3.1 meta-schema raises is dropped there too.
-func TestLoad_A32KeywordBesideAPathItemRefIsNotAnInvalidSchema(t *testing.T) {
+// TestLoad_A32KeywordBesideAPathItemRefDrawsNoFinding pins that the fields
+// beside a Path Item's $ref are held to the document's minor as its own: a 3.2
+// keyword in a schema written there is no finding.
+func TestLoad_A32KeywordBesideAPathItemRefDrawsNoFinding(t *testing.T) {
 	t.Parallel()
 	_, diags, err := Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(`openapi: 3.2.0
 info: {title: T, version: "1"}
@@ -423,4 +391,26 @@ components:
 `)}, Options{})
 	require.NoError(t, err)
 	openapitest.RequireNoErrorDiags(t, diags)
+}
+
+// errorSites returns where each error of the given code is reported, in order.
+func errorSites(diags []ir.Diagnostic, code string) []jsontext.Pointer {
+	var sites []jsontext.Pointer
+	for _, d := range diags {
+		if d.Code == code && d.Severity == ir.SeverityError {
+			sites = append(sites, d.Provenance.Pointer)
+		}
+	}
+	return sites
+}
+
+// countErrors counts the errors among diags, whatever their code.
+func countErrors(diags []ir.Diagnostic) int {
+	var n int
+	for _, d := range diags {
+		if d.Severity == ir.SeverityError {
+			n++
+		}
+	}
+	return n
 }

@@ -95,20 +95,20 @@ func TestRun_NoArgsExitsTwoWithUsage(t *testing.T) {
 	assert.Contains(t, stderr.String(), "usage:\n  morphic-census <path>...")
 }
 
-// TestRun_UnreadableSpecExitsTwo gives run a spec the directory walk lists and
-// the engine cannot read: a link whose target is gone. It needs no permission
-// bits, which root ignores.
-func TestRun_UnreadableSpecExitsTwo(t *testing.T) {
+// TestRun_CanceledRunExitsTwo gives run a spec it is listed as whatever it is,
+// and a context that is done by the time the engine asks for it: the failure
+// count returns rather than counts as a spec that lowered to no document.
+func TestRun_CanceledRunExitsTwo(t *testing.T) {
 	t.Parallel()
-	dir := t.TempDir()
-	require.NoError(t, os.Symlink(filepath.Join(dir, "gone"), filepath.Join(dir, "spec.yaml")))
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
 
 	var stdout, stderr bytes.Buffer
-	code := run(context.Background(), []string{dir}, &stdout, &stderr)
+	code := run(ctx, []string{"testdata/specs/pets.yaml"}, &stdout, &stderr)
 
 	assert.Equal(t, 2, code)
 	assert.Empty(t, stdout.String())
-	assert.Contains(t, stderr.String(), "morphic-census: engine: read spec")
+	assert.Contains(t, stderr.String(), "morphic-census: engine: detect")
 }
 
 func TestRun_OutsideTheModuleExitsTwo(t *testing.T) {

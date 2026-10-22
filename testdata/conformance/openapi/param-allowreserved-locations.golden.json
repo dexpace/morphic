@@ -235,7 +235,11 @@
       "message": "parameter field allowReserved has no effect for in=path in OpenAPI 3.1, which applies it to in=query alone; lowered as declared",
       "provenance": {
         "source": 0,
-        "pointer": "/paths/~1reports~1{id}/get/parameters/0/allowReserved"
+        "pointer": "/paths/~1reports~1{id}/get/parameters/0/allowReserved",
+        "position": {
+          "line": 16,
+          "column": 63
+        }
       }
     },
     {
@@ -244,7 +248,11 @@
       "message": "parameter field allowReserved has no effect for in=header in OpenAPI 3.1, which applies it to in=query alone; lowered as declared",
       "provenance": {
         "source": 0,
-        "pointer": "/paths/~1reports~1{id}/get/parameters/1/allowReserved"
+        "pointer": "/paths/~1reports~1{id}/get/parameters/1/allowReserved",
+        "position": {
+          "line": 17,
+          "column": 54
+        }
       }
     },
     {
@@ -253,7 +261,11 @@
       "message": "parameter field allowReserved has no effect for in=cookie in OpenAPI 3.1, which applies it to in=query alone; lowered as declared",
       "provenance": {
         "source": 0,
-        "pointer": "/paths/~1reports~1{id}/get/parameters/2/allowReserved"
+        "pointer": "/paths/~1reports~1{id}/get/parameters/2/allowReserved",
+        "position": {
+          "line": 18,
+          "column": 54
+        }
       }
     }
   ],

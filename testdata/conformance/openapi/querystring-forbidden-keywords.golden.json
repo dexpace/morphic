@@ -253,7 +253,11 @@
       "message": "parameter field explode is not allowed for in=querystring; lowered as declared",
       "provenance": {
         "source": 0,
-        "pointer": "/paths/~1a/get/parameters/0/explode"
+        "pointer": "/paths/~1a/get/parameters/0/explode",
+        "position": {
+          "line": 17,
+          "column": 20
+        }
       }
     },
     {
@@ -262,7 +266,11 @@
       "message": "parameter field allowReserved is not allowed for in=querystring; lowered as declared",
       "provenance": {
         "source": 0,
-        "pointer": "/paths/~1b/get/parameters/0/allowReserved"
+        "pointer": "/paths/~1b/get/parameters/0/allowReserved",
+        "position": {
+          "line": 28,
+          "column": 26
+        }
       }
     }
   ],

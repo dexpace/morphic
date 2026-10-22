@@ -65,12 +65,26 @@ func serviceWithGrouping(t *testing.T, src string, grouping lowering.GroupingStr
 
 	types := compile.NewTypes()
 	c := lowering.New(0, loadedDoc.Doc, loadedDoc.Source, grouping, lowering.Limits{}, lowering.StreamingMedia{},
-		lowering.ExtensionPromotions{}, overlay.Origin{}).WithLoaded(loadedDoc)
+		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}).WithLoaded(loadedDoc)
 	var anchors schema.AnchorIndex
 	var acc compile.Diags
 	acc.AppendAll(schema.LowerComponentSchemas(t.Context(), c, types, &anchors))
 
 	svc, _, svcDiags := operation.LowerService(t.Context(), c, types, &anchors)
 	acc.AppendAll(svcDiags)
+	_, finished := types.Finish(t.Context())
+	acc.AppendAll(finished)
 	return svc, append(loadDiags, acc.List()...)
+}
+
+// errorFindings spells each error in diags as its code and pointer, in the order
+// reported.
+func errorFindings(diags []ir.Diagnostic) []string {
+	var out []string
+	for _, d := range diags {
+		if d.Severity == ir.SeverityError {
+			out = append(out, d.Code+" at "+string(d.Provenance.Pointer))
+		}
+	}
+	return out
 }

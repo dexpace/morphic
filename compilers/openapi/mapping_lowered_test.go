@@ -18,6 +18,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
+	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -233,13 +234,13 @@ func TestMappingTargets_ARawReferenceResolvesInEitherOrder(t *testing.T) {
 	assert.Contains(t, types[0], ir.TypeID("t/anon/x-defs/Dog"))
 }
 
-// TestMappingTargets_AReferenceTheLoadPhaseRefusedIsReportedInEitherOrder pins
-// that the schema walked at a raw position answers only a $ref that reached a
-// copy of it: C's $ref, spelled with the file's name and external references
-// off, is refused, and whether the load phase reports it follows whether M's
-// chain passed it first. Answered by the walked schema, C resolved in the
-// order where the load phase reported nothing, so its report followed order.
-func TestMappingTargets_AReferenceTheLoadPhaseRefusedIsReportedInEitherOrder(t *testing.T) {
+// TestMappingTargets_ALoopThroughARawPositionIsReportedInEitherOrder pins a
+// loop of $refs through raw YAML: C's $ref, spelled with the file's name,
+// names the source, and H's default, a position the model reads no schema at,
+// names C back. The loop is reported once, at C, in either order of the
+// components, wherever M's chain enters it. When the load phase refused C's
+// spelling, whether it reported C followed whether M's chain passed it first.
+func TestMappingTargets_ALoopThroughARawPositionIsReportedInEitherOrder(t *testing.T) {
 	t.Parallel()
 	schemas := []string{"    C: {$ref: 'spec.yaml#/components/schemas/H/default'}\n",
 		"    H: {default: {$ref: '#/components/schemas/C', description: d}}\n",
@@ -263,7 +264,7 @@ func TestMappingTargets_AReferenceTheLoadPhaseRefusedIsReportedInEitherOrder(t *
 		reports = append(reports, errs)
 	}
 	assert.Empty(t, cmp.Diff(reports[0], reports[1]), "declaration order changed the report")
-	assert.Contains(t, reports[1], "/components/schemas/C openapi/unresolved-ref")
+	assert.Equal(t, []string{"/components/schemas/C openapi/cyclic-ref"}, reports[1])
 }
 
 // TestMappingTargets_AReferenceInACopyResolvesInEitherOrder pins a $ref inside
@@ -287,7 +288,7 @@ func TestMappingTargets_AReferenceInACopyResolvesInEitherOrder(t *testing.T) {
 			"components:\n  schemas:\n" + strings.Join(order, "") + rest
 		_, diags, err := openapi.New().Compile(t.Context(),
 			[]compilers.Source{{Path: filepath.Join(dir, "root.yaml"), Data: []byte(src)}},
-			compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: true}})
+			compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
 		require.NoError(t, err)
 		for _, d := range diags {
 			assert.NotEqual(t, "/x-lib/Y/properties/q", string(d.Provenance.Pointer), "%s: %s", d.Code, d.Message)
@@ -329,7 +330,7 @@ func TestMappingTargets_ARawPositionACopyReachesResolvesInEitherOrder(t *testing
 					strings.Join(order, "") + lib
 				doc, diags, err := openapi.New().Compile(t.Context(),
 					[]compilers.Source{{Path: filepath.Join(dir, "spec.yaml"), Data: []byte(src)}},
-					compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: true}})
+					compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
 				require.NoError(t, err)
 				for _, d := range diags {
 					if strings.HasSuffix(string(d.Provenance.Pointer), "/properties/friend") {
@@ -341,5 +342,37 @@ func TestMappingTargets_ARawPositionACopyReachesResolvesInEitherOrder(t *testing
 			assert.Empty(t, cmp.Diff(types[0], types[1]), "declaration order changed the registry")
 			assert.Contains(t, types[0], ir.TypeID("t/anon/x-lib/Dog"))
 		})
+	}
+}
+
+// TestMappingTargets_ADiscriminatorAReferenceReachesIsBoundWhereItSits pins a
+// discriminator inside a path item or a callback that a reference reaches: its
+// mapping is bound at the discriminator's own position under the object the
+// reference names, where the lowering looks it up, so the entry names T and
+// nothing reports it unresolved. A position read with an empty segment before
+// the method or the expression matched no lookup (GitHub #886).
+func TestMappingTargets_ADiscriminatorAReferenceReachesIsBoundWhereItSits(t *testing.T) {
+	t.Parallel()
+	response := "{description: x, content: {application/json: {schema: " + namesT + "}}}"
+	for _, c := range []readCase{
+		{name: "a path item a path's $ref reaches", paths: "  /a: {$ref: '#/x-lib/I'}",
+			lib: "  I: {get: {responses: {'200': " + response + "}}}\n"},
+		{name: "a callback an operation's $ref reaches", paths: "  /a: {post: {responses: {'200': {description: ok}}, " +
+			"callbacks: {c: {$ref: '#/x-lib/C'}}}}", lib: "  C: {'{$url}': {post: {responses: {'200': " + response + "}}}}\n"},
+	} {
+		doc, diags, err := openapi.New().Compile(t.Context(),
+			[]compilers.Source{{Path: "spec.yaml", Data: []byte(c.doc())}}, compilers.Options{})
+		require.NoError(t, err, c.name)
+		require.NotNil(t, doc, c.name)
+		var mapped []ir.TypeID
+		for _, def := range doc.Types {
+			if m, ok := def.(*ir.Model); ok && m.Discriminator != nil {
+				mapped = append(mapped, m.Discriminator.Mapping["x"])
+			}
+		}
+		assert.Equal(t, []ir.TypeID{"t/anon/x-lib/T"}, mapped, c.name)
+		for _, d := range diags {
+			assert.NotEqual(t, "openapi/unresolved-ref", d.Code, "%s: %+v", c.name, d)
+		}
 	}
 }

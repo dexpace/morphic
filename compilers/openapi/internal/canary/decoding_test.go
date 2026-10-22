@@ -525,49 +525,32 @@ func unmodeledKeywords(t *testing.T) {
 	assert.Equal(t, "#n", scalarAt(t, a.GetSchema().GetRootNode(), "/$dynamicRef"), revisit(t, result{}))
 }
 
-// bareWalkPanics returns what soa.Walk panicked with, started from start not
-// wrapped in its owner, or nil.
-func bareWalkPanics[T any](ctx context.Context, start *T) (panicked any) {
-	defer func() { panicked = recover() }()
-	for range soa.Walk(ctx, start) {
-	}
-	return nil
-}
+// nullSchemaIsFalse pins null-schema-is-false: a null written where a schema
+// belongs, at a keyword or an entry, decodes as the boolean false schema, and
+// only its node, tagged null, tells it from a written false.
+func nullSchemaIsFalse(t *testing.T) {
+	doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(schemas(
+		"A: {properties: {p: null, f: false}, additionalProperties: null, items: ~}", "C: null")))
+	require.NoError(t, err)
+	a, ok := doc.Components.Schemas.Get("A")
+	require.True(t, ok)
+	c, ok := doc.Components.Schemas.Get("C")
+	require.True(t, ok)
+	p, _ := a.GetSchema().GetProperties().Get("p")
+	f, _ := a.GetSchema().GetProperties().Get("f")
 
-// bareWalkPanic pins bare-walk-panic: Walk started from a reference object, or
-// from a schema not wrapped as a referenceable one, panics; wrapped, it walks.
-func bareWalkPanic(t *testing.T) {
-	ctx := t.Context()
-	bare := map[string]any{
-		"PathItem":       bareWalkPanics(ctx, &soa.PathItem{}),
-		"Parameter":      bareWalkPanics(ctx, &soa.Parameter{}),
-		"Header":         bareWalkPanics(ctx, &soa.Header{}),
-		"RequestBody":    bareWalkPanics(ctx, &soa.RequestBody{}),
-		"Response":       bareWalkPanics(ctx, &soa.Response{}),
-		"Callback":       bareWalkPanics(ctx, &soa.Callback{}),
-		"Example":        bareWalkPanics(ctx, &soa.Example{}),
-		"Link":           bareWalkPanics(ctx, &soa.Link{}),
-		"SecurityScheme": bareWalkPanics(ctx, &soa.SecurityScheme{}),
-		"concrete JSONSchema": bareWalkPanics(ctx,
-			oas3.NewJSONSchemaFromSchema[oas3.Concrete](&oas3.Schema{})),
-	}
-	for name, got := range bare {
-		assert.Contains(t, fmt.Sprint(got), "no match handler registered", "%s: %s", name, revisit(t, result{}))
-	}
-	wrapped := map[string]any{
-		"PathItem":       bareWalkPanics(ctx, &soa.ReferencedPathItem{Object: &soa.PathItem{}}),
-		"Parameter":      bareWalkPanics(ctx, &soa.ReferencedParameter{Object: &soa.Parameter{}}),
-		"Header":         bareWalkPanics(ctx, &soa.ReferencedHeader{Object: &soa.Header{}}),
-		"RequestBody":    bareWalkPanics(ctx, &soa.ReferencedRequestBody{Object: &soa.RequestBody{}}),
-		"Response":       bareWalkPanics(ctx, &soa.ReferencedResponse{Object: &soa.Response{}}),
-		"Callback":       bareWalkPanics(ctx, &soa.ReferencedCallback{Object: &soa.Callback{}}),
-		"Example":        bareWalkPanics(ctx, &soa.ReferencedExample{Object: &soa.Example{}}),
-		"Link":           bareWalkPanics(ctx, &soa.ReferencedLink{Object: &soa.Link{}}),
-		"SecurityScheme": bareWalkPanics(ctx, &soa.ReferencedSecurityScheme{Object: &soa.SecurityScheme{}}),
-		"referenceable JSONSchema": bareWalkPanics(ctx,
-			oas3.ConcreteToReferenceable(oas3.NewJSONSchemaFromSchema[oas3.Concrete](&oas3.Schema{}))),
-	}
-	for name, got := range wrapped {
-		assert.Nil(t, got, "%s: %s", name, revisit(t, result{}))
+	for name, js := range map[string]*oas3.JSONSchema[oas3.Referenceable]{
+		"a property": p, "additionalProperties": a.GetSchema().GetAdditionalProperties(),
+		"items": a.GetSchema().GetItems(), "a component": c, "a written false": f,
+	} {
+		require.NotNil(t, js, name)
+		assert.True(t, js.IsBool(), revisit(t, result{report: name + " decodes as no boolean"}))
+		require.NotNil(t, js.GetBool(), name)
+		assert.False(t, *js.GetBool(), revisit(t, result{report: name + " decodes as true"}))
+		wantTag := "!!null"
+		if js == f {
+			wantTag = "!!bool"
+		}
+		assert.Equal(t, wantTag, js.GetCore().GetRootNode().ShortTag(), revisit(t, result{report: name}))
 	}
 }

@@ -6,8 +6,8 @@ import (
 
 	soa "github.com/speakeasy-api/openapi/openapi"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -46,31 +46,24 @@ func besideRefs(at func(jsontext.Pointer) ir.Provenance, sibs Siblings, items it
 	return diags
 }
 
-// besideRef reports the reference model written at site when a hop of its chain
-// passes beside a path item's $ref and finds something other than the field
-// written there (Siblings.Writes). The chain is read as the lowering reads it
-// (resolve.ObjectAt): hop by hop while each lands in the source, and for a
-// schema's $ref, whose target is lowered as a schema of its own, the first hop
-// alone.
+// besideRef reports the reference object model written at site when a hop of
+// its chain passes beside a path item's $ref and finds something other than
+// the field written there (Siblings.Writes). The chain is read as the lowering
+// reads it (resolve.ObjectAt): hop by hop while each lands in the source. A
+// schema's $ref is no reference object; the binding reports its own (bind.Hop).
 func besideRef(at func(jsontext.Pointer) ir.Provenance, site jsontext.Pointer, sibs Siblings, model any,
 ) (ir.Diagnostic, bool) {
 	r, isRef := model.(resolvable)
 	if !isRef || !r.IsReference() {
 		return ir.Diagnostic{}, false
 	}
-	_, schema := model.(*schemaRef)
 	for _, hop := range resolutionChain(model).records {
 		if _, source := (*hop.document).(*soa.OpenAPI); !source {
 			break
 		}
-		// Writes names no schema, so a schema's hop is refused by its pointer,
-		// as resolve.Scope.TargetPointer refuses it.
 		if use, key, beside := sibs.Beside(hop.pointer); beside && !sibs.Writes(hop.pointer, hop.object) {
 			return diag.Newf(ir.SeverityError, diag.UnresolvedRef, at(site), "unresolved $ref %q: it reaches %s; %s",
-				r.GetReference(), hop.pointer, refscope.BesideReason(use, key)), true
-		}
-		if schema {
-			break
+				r.GetReference(), hop.pointer, bind.BesideReason(use, key)), true
 		}
 	}
 	return ir.Diagnostic{}, false

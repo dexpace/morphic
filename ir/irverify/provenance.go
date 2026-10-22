@@ -93,14 +93,11 @@ func appendLocatorViolations(vs []Violation, prov reflect.Value, src int, path s
 // other negative index is admitted: a second, undeclared sentinel is the drift
 // this check exists to catch.
 //
-// A document declaring no sources is held only to the zero value, since
-// hand-built fixtures are that shape.
+// With no sources declared only the zero value is admitted; ir/sources-absent
+// reports the empty table once, not per node.
 func sourceOutOfRange(index, declared int) bool {
-	if index == ir.NoSource {
-		return false
-	}
 	if declared == 0 {
-		return index != 0
+		return index != 0 && index != ir.NoSource
 	}
-	return index < 0 || index >= declared
+	return !ir.Provenance{Source: index}.InTable(declared)
 }

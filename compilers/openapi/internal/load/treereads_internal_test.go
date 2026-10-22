@@ -1,7 +1,6 @@
 package load
 
 import (
-	"encoding/json/jsontext"
 	"errors"
 	"fmt"
 	"math"
@@ -140,7 +139,7 @@ func TestTreeReads_CountsWhatTheLibraryReadTakes(t *testing.T) {
 				}
 				assert.Equal(t, want.steps, steps, "seed %d %q", seed, pointer)
 				assert.Same(t, end, target, "seed %d %q", seed, pointer)
-				_, read := reads.read(tree, pointer, math.MaxInt)
+				_, read := reads.read(tree, pointer)
 				assert.Same(t, end, read, "seed %d %q: a read counting its own steps finds the same node", seed, pointer)
 			}
 		}
@@ -163,7 +162,7 @@ func FuzzTreeReads_ReadEndsWhereGetTargetEnds(f *testing.F) {
 		for range 25 {
 			pointer := g.pointer(tree)
 			lib, libErr := jsonpointer.GetTarget(tree, jsonpointer.JSONPointer(pointer), jsonpointer.WithStructTags("key"))
-			_, read := reads.read(tree, pointer, math.MaxInt)
+			_, read := reads.read(tree, pointer)
 			_, priced := reads.cost(tree, pointer, math.MaxInt)
 			if libErr != nil {
 				require.Nil(t, read, "seed %d %q: %v", seed, pointer, libErr)
@@ -316,13 +315,13 @@ func derefAll(n *yaml.Node) *yaml.Node {
 // and one for each pair it compares, or passes on its way to a `<<` key.
 func TestTreeReads_Cost(t *testing.T) {
 	t.Parallel()
-	tree, parsed := parseTree([]byte(`a: 1
+	tree, err := parseTree([]byte(`a: 1
 b: {c: 2}
 b: 3
 <<: {d: 4}
 s: [x, y]
 `))
-	require.True(t, parsed)
+	require.NoError(t, err)
 	b := tree.Content[0].Content[3]
 	for _, c := range []struct {
 		pointer string
@@ -397,7 +396,7 @@ func TestTreeReads_ReadsAMergeChainAsDeepAsTheLibrary(t *testing.T) {
 		assert.Same(t, end, target, "%q", pointer)
 		assert.Equal(t, want.steps, steps, "%q", pointer)
 		assert.Less(t, steps, 3*levels, "%q", pointer)
-		_, read := newTreeReads().read(chain, pointer, math.MaxInt)
+		_, read := newTreeReads().read(chain, pointer)
 		assert.Same(t, end, read, "%q", pointer)
 	}
 }
@@ -449,7 +448,7 @@ func TestTreeReads_ReadsAMergeCycleTheLibraryEnds(t *testing.T) {
 		steps, target := newTreeReads().cost(a, pointer, math.MaxInt)
 		assert.Same(t, end, target, "%q", pointer)
 		assert.Equal(t, want.steps, steps, "%q", pointer)
-		_, read := newTreeReads().read(a, pointer, math.MaxInt)
+		_, read := newTreeReads().read(a, pointer)
 		assert.Same(t, end, read, "%q", pointer)
 	}
 }
@@ -500,8 +499,8 @@ func holdsTokens(n *yaml.Node) []string {
 // however many reads follow.
 func TestTreeReads_IndexesAMappingOnce(t *testing.T) {
 	t.Parallel()
-	tree, parsed := parseTree([]byte("x: {a: 1, b: 2, c: 3}\ny: 4\n"))
-	require.True(t, parsed)
+	tree, err := parseTree([]byte("x: {a: 1, b: 2, c: 3}\ny: 4\n"))
+	require.NoError(t, err)
 	reads := newTreeReads()
 	for _, pointer := range []string{"/x/a", "/x/c", "/x/missing", "/y"} {
 		reads.cost(tree, pointer, math.MaxInt)
@@ -510,29 +509,6 @@ func TestTreeReads_IndexesAMappingOnce(t *testing.T) {
 	assert.Len(t, reads.keys, 2)
 	reads.cost(tree, "/x/b", math.MaxInt)
 	assert.Zero(t, reads.drain(), "drained once, and nothing indexed since")
-}
-
-// TestTreeReads_ModelCostReadsOnThroughAStructHeldByValue pins that a read
-// priced in the model goes on past a struct the model holds by value, as the
-// library does: an operation's responses, whose default response only its
-// address answers, below which the response's raw extension of n keys is
-// scanned for a key it does not hold.
-func TestTreeReads_ModelCostReadsOnThroughAStructHeldByValue(t *testing.T) {
-	t.Parallel()
-	const n = 64
-	var ext strings.Builder
-	for i := range n {
-		fmt.Fprintf(&ext, "k%d: %d, ", i, i)
-	}
-	spec := "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n  /a:\n    get:\n      responses:\n" +
-		"        default: {description: ok, x-wide: {" + strings.TrimSuffix(ext.String(), ", ") + "}}\n"
-	root, _, err := decodeStream([]byte(spec))
-	require.NoError(t, err)
-	doc, _, err := unmarshal(t.Context(), []byte(spec), root)
-	require.NoError(t, err)
-
-	steps := newTreeReads().modelCost(doc, "/paths/~1a/get/responses/default/x-wide/missing", math.MaxInt)
-	assert.Greater(t, steps, 2*n, "the wide extension's keys are compared, then passed for a merge key")
 }
 
 // TestPartsOf pins how a pointer is split as the library splits it: a token is
@@ -573,123 +549,19 @@ func TestTreeReads_ReadCostsItsDepthNotItsWidth(t *testing.T) {
 		wide.Content = append(wide.Content, ynode.Scalar(fmt.Sprint("k", i)), ynode.Scalar("v"))
 	}
 	reads := newTreeReads()
-	first, _ := reads.read(wide, "/k0", math.MaxInt)
-	last, target := reads.read(wide, fmt.Sprint("/k", n-1), math.MaxInt)
+	first, _ := reads.read(wide, "/k0")
+	last, target := reads.read(wide, fmt.Sprint("/k", n-1))
 	require.NotNil(t, target)
 	assert.Equal(t, first, last, "the last key costs what the first does")
-	missing, _ := reads.read(wide, "/missing", math.MaxInt)
+	missing, _ := reads.read(wide, "/missing")
 	assert.Equal(t, first, missing, "and so does a key the mapping lacks")
 	library, _ := reads.cost(wide, fmt.Sprint("/k", n-1), math.MaxInt)
 	assert.Greater(t, library, n, "where the library compares every key")
 
 	merged := ynode.Map(ynode.Merge(), ynode.Map(), ynode.Merge(), ynode.Scalar("x"), ynode.Merge(), wide)
-	past, target := reads.read(merged, fmt.Sprint("/k", n-1), math.MaxInt)
+	past, target := reads.read(merged, fmt.Sprint("/k", n-1))
 	require.NotNil(t, target)
 	assert.Equal(t, first+2+3, past, "a lookup in each merged mapping, and three merges tried, the last holding it")
-	none, _ := reads.read(merged, "/missing", math.MaxInt)
+	none, _ := reads.read(merged, "/missing")
 	assert.Equal(t, past, none, "and the same where none holds it")
-}
-
-// specHead opens every document these tests price model reads in.
-const specHead = "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\n"
-
-// wideKeys is how many keys wideMapping spells.
-const wideKeys = 64
-
-// wideMapping spells a flow mapping of wideKeys keys, k0 first.
-func wideMapping() string {
-	keys := make([]string, wideKeys)
-	for i := range keys {
-		keys[i] = fmt.Sprintf("k%d: 0", i)
-	}
-	return "{" + strings.Join(keys, ", ") + "}"
-}
-
-// TestTreeReads_ModelCostPricesARefusedPointerAtNothing pins that a pointer the
-// library refuses before reading, an invalid escape, is priced at nothing,
-// though the key its tokens decode to would be scanned for in a wide extension.
-func TestTreeReads_ModelCostPricesARefusedPointerAtNothing(t *testing.T) {
-	t.Parallel()
-	const n = wideKeys
-	doc := modelOf(t, specHead+"x-lib: "+wideMapping()+"\n")
-	for _, pointer := range []jsontext.Pointer{"/x-lib/D~2", "/x-lib/D~"} {
-		_, err := jsonpointer.GetTarget(doc, jsonpointer.JSONPointer(pointer), jsonpointer.WithStructTags("key"))
-		require.ErrorIs(t, err, jsonpointer.ErrValidation, "%q: the library reads nothing", pointer)
-		assert.Zero(t, newTreeReads().modelCost(doc, pointer, math.MaxInt), "%q", pointer)
-	}
-	assert.Greater(t, newTreeReads().modelCost(doc, "/x-lib/D", math.MaxInt), n, "a key it lacks is scanned for")
-}
-
-// TestTreeReads_ModelCostChargesTheMergeTheLibraryScans pins that a read leaving
-// the model is priced along the library's own read of the token and the rest
-// together: where the first `<<` merge holds the token but not the rest, the
-// library goes on to the next and scans its n keys, which a decoy cannot steer
-// the price off. Past a field holding raw YAML, an enum member, the read below
-// it is charged as well.
-func TestTreeReads_ModelCostChargesTheMergeTheLibraryScans(t *testing.T) {
-	t.Parallel()
-	const n = wideKeys
-	last := jsontext.Pointer(fmt.Sprintf("/x-lib/k%d", n-1))
-	decoy := modelOf(t, specHead+"x-decoy: &decoy {x-lib: {k: 0}}\nx-hit: &hit {x-lib: "+wideMapping()+"}\n"+
-		"<<: *decoy\n<<: *hit\n")
-	_, err := jsonpointer.GetTarget(decoy, jsonpointer.JSONPointer(last), jsonpointer.WithStructTags("key"))
-	require.NoError(t, err, "the library finds it past the decoy")
-	assert.Greater(t, newTreeReads().modelCost(decoy, last, math.MaxInt), n, "the merged mapping's keys are charged")
-
-	enum := modelOf(t, specHead+"components:\n  schemas:\n    E: {enum: ["+wideMapping()+"]}\n")
-	member := jsontext.Pointer(fmt.Sprintf("/components/schemas/E/enum/0/k%d", n-1))
-	assert.Greater(t, newTreeReads().modelCost(enum, member, math.MaxInt), n, "the member's keys are charged")
-}
-
-// TestTreeReads_ModelCostReadsNothingPastItsLimit pins that pricing a model
-// read past its limit reads no raw YAML: the mapping the read leaves for is
-// never indexed, so a bound spent bounds the work of its own pricing.
-func TestTreeReads_ModelCostReadsNothingPastItsLimit(t *testing.T) {
-	t.Parallel()
-	doc := modelOf(t, specHead+"x-lib: "+wideMapping()+"\n")
-	reads := newTreeReads()
-	steps := reads.modelCost(doc, "/x-lib/k63", -1)
-	assert.Positive(t, steps, "a count past the limit says so")
-	assert.Zero(t, reads.drain(), "and indexes nothing")
-	assert.Greater(t, reads.modelCost(doc, "/x-lib/k63", math.MaxInt), wideKeys)
-	assert.Positive(t, reads.drain(), "a count within it indexes what it reads")
-}
-
-// TestJoinTokens_KeepsTheBytesTheLibraryReads holds joinTokens to the library's
-// reading of the pointer it spells. Each row's tokens are the keys of a tree,
-// nested one to a level, and the library must land on the node they name. A
-// byte that is no UTF-8 and a key spelled as an escape are among them. An empty
-// token that ends a pointer answers the node before it, and no tokens spell a
-// pointer the library refuses to read.
-func TestJoinTokens_KeepsTheBytesTheLibraryReads(t *testing.T) {
-	t.Parallel()
-	for _, tc := range []struct {
-		tokens []string
-		named  int // how many leading tokens name the node the library lands on
-	}{
-		{[]string{"a"}, 1},
-		{[]string{"a/b"}, 1},
-		{[]string{"~x"}, 1},
-		{[]string{"~1"}, 1},
-		{[]string{"a/b", "~x"}, 2},
-		{[]string{"a\xffb", "k"}, 2},
-		{[]string{"k", "\xc0\xaf"}, 2},
-		{[]string{"a/b", "~x", ""}, 2},
-		{[]string{""}, 0},
-	} {
-		nodes := make([]*yaml.Node, len(tc.tokens)+1)
-		nodes[len(tc.tokens)] = ynode.Scalar("leaf")
-		for i := len(tc.tokens) - 1; i >= 0; i-- {
-			nodes[i] = ynode.Map(ynode.Scalar(tc.tokens[i]), nodes[i+1])
-		}
-
-		got, err := jsonpointer.GetTarget(nodes[0], jsonpointer.JSONPointer(joinTokens(tc.tokens)))
-
-		require.NoError(t, err, "%q", tc.tokens)
-		assert.Same(t, nodes[tc.named], got, "%q", tc.tokens)
-	}
-
-	_, err := jsonpointer.GetTarget(ynode.Map(ynode.Scalar(""), ynode.Scalar("leaf")), jsonpointer.JSONPointer(joinTokens(nil)))
-
-	assert.ErrorIs(t, err, jsonpointer.ErrValidation, "no tokens spell a pointer the library reads")
 }

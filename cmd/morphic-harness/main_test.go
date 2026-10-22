@@ -44,6 +44,31 @@ func TestRun_AnyFailureExitsOne(t *testing.T) {
 	assert.Equal(t, 1, code, "a failing spec must gate the exit code")
 }
 
+func TestRun_SpecNoCompilerServesExitsOne(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	writeSpec(t, dir, "swagger.yaml", "swagger: \"2.0\"\n")
+
+	var stdout, stderr bytes.Buffer
+	code := run(context.Background(), []string{dir}, &stdout, &stderr)
+
+	assert.Equal(t, 1, code, "a recognized format nobody serves is a finding")
+	assert.Contains(t, stdout.String(), "unrecognized")
+	assert.Contains(t, stdout.String(), "swagger@2.0")
+}
+
+func TestRun_FilesNoCompilerRecognizesAreNotSwept(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	writeSpec(t, dir, "notes.txt", "not a spec")
+
+	var stdout, stderr bytes.Buffer
+	code := run(context.Background(), []string{dir}, &stdout, &stderr)
+
+	assert.Equal(t, 0, code, "stderr: %s", stderr.String())
+	assert.Empty(t, stdout.String(), "nothing in the directory is a spec, so there is nothing to report")
+}
+
 func TestRun_MissingPathExitsTwo(t *testing.T) {
 	t.Parallel()
 	var stdout, stderr bytes.Buffer

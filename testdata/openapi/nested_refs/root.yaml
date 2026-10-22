@@ -1,0 +1,10 @@
+openapi: 3.1.0
+info: {title: Nested references, version: "1"}
+paths:
+  /p: {$ref: 'a.yaml#/paths/~1x'}
+  /q: {$ref: 'a.yaml#/paths/~1x'}
+components:
+  parameters:
+    Back: {name: back, in: query, schema: {type: string}}
+  schemas:
+    Through: {$ref: '#/paths/~1p/get/parameters/0/schema'}

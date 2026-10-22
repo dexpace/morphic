@@ -71,9 +71,8 @@ type paramSlot struct {
 
 // paramRepeats reports each entry of the parameter list held by the object at
 // owner that repeats an earlier entry's slot, which OpenAPI forbids, at the
-// repeat, naming the first holder. The compiler owns the rule (compilerOwned):
-// the library read only entries written inline, so it missed a repeat through
-// a $ref.
+// repeat, naming the first holder. The rule table states the rule and leaves
+// it here, where every entry is read through its $ref.
 //
 // An entry is read as the lowering reads it (refscope.Object), so a repeat
 // reported here is one the lowering numbers; one whose $ref resolved to nothing

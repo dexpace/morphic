@@ -12,7 +12,6 @@ import (
 	"slices"
 	"sync"
 
-	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/speakeasy-api/openapi/references"
 	yaml "gopkg.in/yaml.v3"
@@ -91,21 +90,20 @@ func newExternalReads(self sourceDocument) *externalReads {
 	return r
 }
 
-// answer is how a request was answered: the error it failed with, or a status
-// and the body read for it.
+// answer is how a read was answered: the error it failed with, or the body
+// read.
 type answer struct {
-	status int
-	body   []byte
-	err    error
+	body []byte
+	err  error
 }
 
-// response returns a as the client returned it: its error, or a response to req
-// with its status and body.
+// response returns a as the client returned it: its error, or a successful
+// response to req carrying its body.
 func (a answer) response(req *http.Request) (*http.Response, error) {
 	if a.err != nil {
-		return nil, a.err
+		return nil, unread{a.err}
 	}
-	return &http.Response{StatusCode: a.status, Body: io.NopCloser(bytes.NewReader(a.body)), Request: req}, nil
+	return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(bytes.NewReader(a.body)), Request: req}, nil
 }
 
 // reading is one document's read: the answer it got, set once.
@@ -388,33 +386,32 @@ func (r *externalReads) handOver(doc *soa.OpenAPI, used []usedDocument) {
 // resolver parsed holds an anchor, or a $ref the prepared tree respells (see
 // escapes), doc is rebuilt and resolved again, handed every prepared tree (see
 // handOver) and answered from the first pass's reads. That reaches no new
-// document: the walk never descends into those trees; one found
-// unprepared is an internal fault.
-func resolveExternal(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI, sibs Siblings,
-	self sourceDocument, opts Options, rebuild func() (*soa.OpenAPI, error),
-) (*soa.OpenAPI, Siblings, MappingTargets, []ir.Diagnostic, error) {
+// document, as both passes walk alike; one found unprepared is returned, an
+// internal fault (stillUnprepared).
+func resolveExternal(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, self sourceDocument, opts Options,
+	rebuild func() (*soa.OpenAPI, error),
+) (*soa.OpenAPI, Siblings, *external, *resolution, []usedDocument, error) {
 	read := newExternalReads(self)
-	reader := newExternal(doc, opts, read)
-	targets, diags := resolveWith(ctx, at, doc, sibs, self, opts, &reader)
-	used := documentsUsed(ctx, doc, sibs)
+	reader := newExternal(ctx, doc, opts, read)
+	pass := resolveWith(ctx, doc, sibs, self, opts, &reader)
+	used := pass.used()
 	first := unprepared(doc, read, used)
-	if !anyAnchored(doc, first) && !anyRewritable(doc, first) {
-		return doc, sibs, targets, diags, nil
+	if !anyAnchored(doc, first) && !anyRewritable(doc, first, self.escapes) {
+		return doc, sibs, &reader, pass, nil, nil
 	}
 
 	again, err := rebuild()
 	if err != nil {
-		return nil, Siblings{}, MappingTargets{}, nil, err
+		return nil, Siblings{}, nil, nil, nil, err
 	}
 	again.InitCache()
 	// Modelled again, since the first models hold what the first pass resolved.
-	// Their findings are the first models', reported already.
-	sibs, _, _ = modelSiblings(ctx, again, nowhere)
+	// Their faults are the first models', reported already.
+	sibs, _ = modelSiblings(ctx, again, nowhere)
 	read.handOver(again, used)
-	reader = newExternal(again, opts, read)
-	targets, diags = resolveWith(ctx, at, again, sibs, self, opts, &reader)
-	missed := unprepared(again, read, documentsUsed(ctx, again, sibs))
-	return again, sibs, targets, append(diags, stillUnprepared(at, missed)...), nil
+	reader = newExternal(ctx, again, opts, read)
+	pass = resolveWith(ctx, again, sibs, self, opts, &reader)
+	return again, sibs, &reader, pass, unprepared(again, read, pass.used()), nil
 }
 
 // anyAnchored reports whether any document in missed, as the resolver parsed
@@ -424,10 +421,11 @@ func anyAnchored(doc *soa.OpenAPI, missed []usedDocument) bool {
 }
 
 // anyRewritable reports whether any document in missed, as the resolver parsed
-// it, holds a $ref the resolver reads a '+' of as a space, which the prepared
-// tree has spelled otherwise (GitHub #911).
-func anyRewritable(doc *soa.OpenAPI, missed []usedDocument) bool {
-	return anyParsed(doc, missed, rewritable)
+// it, holds a $ref esc would respell, which the prepared tree has spelled
+// otherwise: one the resolver reads a '+' of as a space (GitHub #911), or one
+// a read refuses by its spelling.
+func anyRewritable(doc *soa.OpenAPI, missed []usedDocument, esc *escapes) bool {
+	return anyParsed(doc, missed, esc.rewritable)
 }
 
 // anyParsed reports whether the tree the resolver parsed for any document in
@@ -456,8 +454,8 @@ func hasAnchor(root *yaml.Node) bool {
 }
 
 // stillUnprepared reports each document the second resolution found
-// unprepared, once, at the first reference that read it.
-func stillUnprepared(at func(jsontext.Pointer) ir.Provenance, missed []usedDocument) []ir.Diagnostic {
+// unprepared, once, at the first reference that read it, placed by place.
+func stillUnprepared(place func(refSite) ir.Provenance, missed []usedDocument) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	reported := map[string]bool{}
 	for _, m := range missed {
@@ -465,7 +463,7 @@ func stillUnprepared(at func(jsontext.Pointer) ir.Provenance, missed []usedDocum
 			continue
 		}
 		reported[m.key] = true
-		diags = append(diags, diag.Newf(ir.SeverityError, diag.InternalInvariant, at(m.site),
+		diags = append(diags, diag.Newf(ir.SeverityError, diag.InternalInvariant, place(m.site),
 			"internal: the second resolution read %s itself; "+
 				"anchored entries in it may be missing (GitHub #538)", m.key))
 	}
@@ -473,35 +471,10 @@ func stillUnprepared(at func(jsontext.Pointer) ir.Provenance, missed []usedDocum
 }
 
 // usedDocument is a document the resolver read for a reference, under the key
-// it looked it up by, and the pointer that writes the reference.
+// it looked it up by, and the site that writes the reference.
 type usedDocument struct {
 	key  string
-	site jsontext.Pointer
-}
-
-// documentsUsed returns every document a resolved reference in doc read, at
-// every hop of its resolution, in walk order.
-func documentsUsed(ctx context.Context, doc *soa.OpenAPI, sibs Siblings) []usedDocument {
-	return hopsUsed(walkSource(ctx, doc, sibs))
-}
-
-// hopsUsed is documentsUsed over walk items rather than a document, so a test
-// can reach its early return: Match returns only what its callback returns,
-// which here is always nil, so no real walk stops early.
-func hopsUsed(items iter.Seq[soa.WalkItem]) []usedDocument {
-	var used []usedDocument
-	for item := range items {
-		if err := item.Match(soa.Matcher{Any: func(model any) error {
-			site := jsontext.Pointer(item.Location.ToJSONPointer())
-			for _, key := range resolutionTrail(model).docs {
-				used = append(used, usedDocument{key: key, site: site})
-			}
-			return nil
-		}}); err != nil {
-			return used
-		}
-	}
-	return used
+	site refSite
 }
 
 // unprepared returns the documents among used whose tree the resolver parsed
@@ -540,10 +513,7 @@ func resolutionTrail(model any) trail {
 
 // chain is every record a reference's resolution holds, first hop first, and
 // the reference it stopped at, if it stopped at one, with the hop that holds
-// it. The last record holds no object when the library gave the reference it
-// stopped at one of its own: a $ref inside a resolved schema gets one holding
-// only the base it resolves against. cut marks a chain followed only as far as
-// maxResolutionHops.
+// it. cut marks a chain followed only as far as maxResolutionHops.
 type chain struct {
 	records   []record
 	stopped   references.Reference
@@ -568,21 +538,39 @@ type record struct {
 	walk         func(context.Context) iter.Seq[soa.WalkItem]
 	document     *any
 	documentPath *string
-	reached      bool
 	replace      func(obj any) bool
+	// node is the root node of the object the chain ends on from this hop:
+	// the hop's reference reports its chain's end, not its own target.
+	node *yaml.Node
 }
 
-// trail reads what c's records say about where the resolution went. A record
-// holding no object is no hop.
+// inSource reports whether r's hop resolved against the source, which the
+// resolver reads as the model rather than as a parsed tree, whatever name its
+// path gives it: a document's $self is one (GitHub #863).
+func (r record) inSource() bool {
+	_, ok := (*r.document).(*soa.OpenAPI)
+	return ok
+}
+
+// endsOnNothing reports whether c reached the position its last hop names yet
+// built no object there. The parser builds one from any mapping, so that
+// position holds a value that is no object of the kind the reference asks
+// for. It reads the records, not what the resolution reported: only the first
+// $ref to reach a position is handed the parser's findings there.
+func (c chain) endsOnNothing() bool {
+	if c.cut || c.stopped != "" || len(c.records) == 0 {
+		return false
+	}
+	return c.records[len(c.records)-1].node == nil
+}
+
+// trail reads what c's records say about where the resolution went.
 func (c chain) trail() trail {
 	t := trail{stopped: c.stopped, cut: c.cut}
 	var last references.Reference
 	for _, r := range c.records {
-		if !r.reached {
-			continue
-		}
 		t.docs = append(t.docs, r.path)
-		_, t.endsInSource = (*r.document).(*soa.OpenAPI)
+		t.endsInSource = r.inSource()
 		last = r.target
 	}
 	if !c.cut && t.stopped == "" {
@@ -613,46 +601,39 @@ func resolutionChain(model any) chain {
 		return recordsOf(r)
 	case *soa.ReferencedSecurityScheme:
 		return recordsOf(r)
-	case *oas3.JSONSchema[oas3.Referenceable]:
-		return recordsOf(r)
 	default:
 		return chain{}
 	}
 }
 
-// recordsOf follows a reference through each record its resolution holds. S is
-// the reference's own type, a schema or a Referenced* alias's Reference[T, V,
+// recordsOf follows a reference object through each record its resolution
+// holds. S is the reference's own type, a Referenced* alias's Reference[T, V,
 // C], named through S as resolve.Referenced does because the library's V
-// constraint is internal.
-//
-// It walks forward from the reference, each hop owning its record. A schema's
-// GetReferenceChain would not do: it hangs off the target's parent, which the
-// last reference to resolve a shared target overwrites.
+// constraint is internal; GetObjectAny is what a schema lacks, whose $ref the
+// library never resolves. It walks forward from the reference, each hop owning
+// its record.
 func recordsOf[S any, R interface {
 	*S
 	GetReference() references.Reference
 	GetReferenceResolutionInfo() *references.ResolveResult[S]
+	GetObjectAny() any
+	GetRootNode() *yaml.Node
 }](ref R) chain {
 	var c chain
 	hop := ref
 	for hop != nil {
 		info := hop.GetReferenceResolutionInfo()
-		if info == nil {
-			break
-		}
-		r := record{path: info.AbsoluteDocumentPath, target: info.AbsoluteReference,
-			pointer: fragment.Pointer(string(hop.GetReference())), document: &info.ResolvedDocument,
-			documentPath: &info.AbsoluteDocumentPath, replace: replacing(info)}
-		if info.Object == nil {
-			c.records = append(c.records, r)
+		if info == nil || info.Object == nil {
 			break
 		}
 		if len(c.records) == maxResolutionHops {
 			c.cut = true
 			return c
 		}
-		r.object, r.walk, r.reached = info.Object, walkOf(info.Object), true
-		c.records = append(c.records, r)
+		c.records = append(c.records, record{path: info.AbsoluteDocumentPath, target: info.AbsoluteReference,
+			pointer: fragment.Pointer(string(hop.GetReference())), object: info.Object,
+			node: R(info.Object).GetRootNode(), walk: walkOf(info.Object),
+			document: &info.ResolvedDocument, documentPath: &info.AbsoluteDocumentPath, replace: replacing(info)})
 		hop = info.Object
 	}
 	if hop != nil {

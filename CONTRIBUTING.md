@@ -74,11 +74,12 @@ A lowering rule says how one OpenAPI construct reaches the IR: the field it fill
    `TestDocComments_StayUnderTheCap`, `TestSuppressions_NoDirectiveStandsInTheSource`.
 4. **Add a conformance case and a unit test.** Write a minimal spec at
    `testdata/conformance/openapi/<name>.yaml` that exercises the rule, add an entry to
-   `conformanceCases()` in `compilers/openapi/conformance_test.go` naming its assertion and the
-   [`ir-spec-matrix.md`](docs/ir-spec-matrix.md) rows it witnesses (none, for a case that pins only
-   a diagnostic), write the assertion, and name the case in the rule's Cases field. Then write its
-   golden alone, since a run that also reaches `TestConformance_TableNamesEveryCorpusSpec` reads the
-   directory before the golden exists:
+   `conformanceCases()` in `compilers/openapi/conformance_test.go` naming its assertion, list it
+   under each [`ir-spec-matrix.md`](docs/ir-spec-matrix.md) row it witnesses in
+   `testdata/conformance/openapi/matrix.md` (none, for a case that pins only a diagnostic), write
+   the assertion, and name the case in the rule's Cases field. Then write its golden alone, since
+   a run that also reaches `TestConformance_TableNamesEveryCorpusSpec` reads the directory before
+   the golden exists:
 
    ```bash
    go test ./compilers/openapi -run '^TestConformance$/^<name>$' -update
@@ -89,7 +90,10 @@ A lowering rule says how one OpenAPI construct reaches the IR: the field it fill
    rule's Tests field then names.
    *Fails if missed:* `TestConformance_TableNamesEveryCorpusSpec` for a spec with no entry,
    `TestConformance/<name>` for a golden that does not match, `TestLoweringSpec_CasesAreTheCorpus`
-   for a case no rule names, and `make coverage` for a statement only the case reaches.
+   for a case no rule names, `TestConformance_EveryRegisteredFormatIsHeldToItsColumn` for a name in
+   `matrix.md` that is no spec and for a row that has both a witness and a reason, and
+   `make coverage` for a statement only the case reaches. Nothing fails for a spec that witnesses a
+   row but is not listed under it.
 5. **Regenerate what the change moves, and read the diff.** Other goldens may change too:
 
    ```bash
@@ -106,7 +110,7 @@ A lowering rule says how one OpenAPI construct reaches the IR: the field it fill
    misspelt key, or a rule renamed without its citations. Nothing requires a citation.
 7. **Run the gate:** `make gate`. A statement only a fault-injection seam reaches still needs a test
    that reaches it; `make coverage` names the file and line it misses. On a loaded machine
-   `TestLibraryBehaviour` and `TestResolverOracle_RefusalMatchesResolverBehavior` can read a slow
+   `TestLibraryBehaviour` and `TestResolverOracle_VerdictMatchesResolverBehavior` can read a slow
    child as hung under `make coverage` (#1010); rerun before reading that failure as yours, and
    before recording it with `-update`.
 
@@ -151,40 +155,55 @@ A compiler lowers one source format into an IR document ([`architecture.md`](doc
 §2.1). `compilers.Compiler`'s doc comments are its contract; read them before writing any of it.
 
 1. **Create the package** `compilers/<format>`, with a `doc.go`, a `Compiler` implementing all five
-   methods of `compilers.Compiler`, and the `Options` type its `FormatOptions` holds.
+   methods of `compilers.Compiler`, and the `Options` type its `FormatOptions` holds. Before writing
+   a YAML reader, a version sniff or a test of document identity of its own, read what
+   [`architecture.md`](docs/architecture.md) §2.1 says stays in the OpenAPI compiler, and why.
    *Fails if missed:* `make lint` for a package with no package comment, and the build, once step 4
    registers the compiler, for a missing method.
 2. **Rule its imports.** Add `compilers/<format>` to the `rules` map in
    `internal/archtest/arch_test.go`, allowing `ir`, `compilers` and `compilers/compile` by exact
    path, its own internal tree, and its format libraries. Give each package under its `internal/`
-   an entry of its own; nothing enforces that yet, and an unkeyed one is audited under its
-   compiler's allowlist (#993). Run `gofmt -w` on the file afterwards: a longer key realigns its
-   neighbours.
-   *Fails if missed:* `TestImportGraph_LayeringHolds`. A package with no entry falls back to the
-   `compilers` rule, which allows only `ir`, so its first import of `compilers` or
-   `compilers/compile` fails with a message naming that allowlist.
-   `TestImportGraph_EveryPackageIsRuledOrExempt` does not fire for a package under `compilers/`.
+   an entry of its own. Run `gofmt -w` on the file afterwards: a longer key realigns its neighbours.
+   *Fails if missed:* `TestImportGraph_EveryPackageIsRuledOrExempt`, which requires every package
+   under `compilers/` to carry an entry of its own and names the one that does not, and
+   `TestImportGraph_LayeringHolds` for an import an entry does not allow, whose message says when
+   the package is audited under an ancestor's entry for want of its own.
 3. **Mint IDs and names through the framework.** Intern types through `compile.Types`, derive IDs
    and canonical names with `compilers/compile`, declare in `Document.IDSpaces` every namespace an
    ID lives in, source-addressed as well as minted (`ir-design.md` §3.1), and stamp
-   `ir.IRVersion`. Call `compile.Types.Violations()` after interning and report what it returns, as
-   the OpenAPI compiler does; take the `*compile.Types` as a parameter, as that compiler's `run`
-   does, so a test can drive the refusal no source provokes.
+   `ir.IRVersion`. Once the last lowering returns, take the registry from `compile.Types.Finish` and
+   report the diagnostics it returns beside it, as the OpenAPI compiler's `run` does: they carry a
+   `compile/registry-refused` error for each entry the registry refused. Take the `*compile.Types`
+   as a parameter, as `run` does, so a test can drive the refusal no source provokes. Name each
+   source in `Document.Sources` with the format it was recognized as and `ir.SourceHash` of its
+   bytes, in `SourceTable`'s order, and after them each document a reference read through
+   `compilers.Options.Reader`.
    *Fails if missed:* the `namechannels`, `idderivations` and `registrywrites` rules in
-   `internal/lintrules` (`make vet`) for the framework. Nothing in the repository checks
-   the namespaces, the version or the violations (#967): step 5's `irverify` tests do, and
-   `irtest.SpacesUsed` holds `IDSpaces` to what the output uses.
-4. **Register it** in `engine.New` (`engine/engine.go`), the one place built-in compilers are
-   listed, and add the package to the `engine` entry of the `rules` map.
-   *Fails if missed:* `TestImportGraph_LayeringHolds/engine` for the allowlist. Nothing fails if the
-   compiler is never registered, so add an engine test that compiles a document of the format.
-5. **Test it** with golden snapshots through `ir/irtest` and `irverify` over its output. Keep its
-   fixtures and goldens under `compilers/<format>/testdata/`: the harness sweeps the repository's
-   `testdata/` through the OpenAPI compiler alone, and its determinism and order-invariance oracles
-   reach no other compiler yet (#968), so write those checks yourself. A goroutine needs
-   `internal/leakcheck` in the package's `TestMain`.
-   *Fails if missed:* `TestHarness_InRepoCorpus` for a fixture under the root `testdata/`, and
-   `TestGoroutineLeak_EveryGoStatementHasALeakCheck`.
+   `internal/lintrules` (`make vet`) for the framework; `irverify`, in step 5's tests, for the
+   namespaces, the version, the services and a malformed source table, with `irtest.SpacesUsed`
+   holding `IDSpaces` to what the output uses; and `compilers.Detection.Compile`, which every engine
+   run compiles through, for a source table that does not describe the inputs. The refusals cannot
+   be dropped apart from what settling reports, since `Finish` returns the two as one list.
+4. **Register it** in `engine.Compilers` (`engine/engine.go`), the one place built-in compilers are
+   listed, and add the package to the `engine` entry of the `rules` map. A registered compiler is
+   also held to its column of [`ir-spec-matrix.md`](docs/ir-spec-matrix.md): end the format's
+   column header with its registered name in code, and write
+   `testdata/conformance/<format>/matrix.md`, one entry for each row the column marks expressible,
+   as `testdata/conformance/openapi/matrix.md` does.
+   *Fails if missed:* `TestConformance_EveryRegisteredFormatIsHeldToItsColumn` for the column and
+   the document, and `TestImportGraph_LayeringHolds/engine` for the allowlist. Nothing fails here
+   if the compiler is never registered, though step 5's `TestHarness_InRepoCorpus` does once its
+   fixtures are under `testdata/`, so add an engine test that compiles a document of the format.
+5. **Test it** with golden snapshots through `ir/irtest` and `irverify` over its output. Put its
+   corpus under the repository's `testdata/` (the conformance corpus is
+   `testdata/conformance/<format>/`): the harness sweeps every spec there through whichever
+   registered compiler takes it, with every oracle, so registering the compiler in step 4 is all
+   it takes to be swept. Order-invariance permutes YAML and JSON mappings, so a source that is
+   neither is not permuted; write that check yourself. A goroutine needs `internal/leakcheck` in
+   the package's `TestMain`.
+   *Fails if missed:* `TestHarness_InRepoCorpus`, which sweeps the corpus and requires every
+   fixture in it to be listed, so one that no registered compiler recognizes fails there instead of
+   dropping out of the sweep, and `TestGoroutineLeak_EveryGoStatementHasALeakCheck`.
 6. **Write its lowering specification** at `docs/compilers/<format>.md`, and link it from
    `ir-design.md` §14: move the format's list there into the new document, or add a row for a
    format §14 does not list. The `TestLoweringSpec` tests read `docs/compilers/openapi.md` alone, so

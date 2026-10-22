@@ -12,8 +12,6 @@ package overlay
 
 import (
 	"bytes"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json/jsontext"
 	"strconv"
 
@@ -243,11 +241,10 @@ func failed(at ir.Provenance, err error) ir.Diagnostic {
 // carries the overlay dialect the document declares, so a reader of
 // Document.Sources can tell an overlay entry from the spec beside it.
 func sourceInfo(doc *soaoverlay.Overlay, opts Options) ir.SourceInfo {
-	sum := sha256.Sum256(opts.Data)
 	return ir.SourceInfo{
-		Format: "overlay@" + doc.Version,
+		Format: ir.OverlayFormat + "@" + doc.Version,
 		Path:   opts.Path,
-		Hash:   hex.EncodeToString(sum[:]),
+		Hash:   ir.SourceHash(opts.Data),
 	}
 }
 
@@ -256,7 +253,7 @@ func sourceInfo(doc *soaoverlay.Overlay, opts Options) ir.SourceInfo {
 //
 // The library's clone copies an alias's target too, leaving an alias to a node
 // in no Content list (docs/parser-library.md#overlay-alias-clone). Readers here
-// walk Content and treat an alias as a leaf, so the budget, cycle scan and
+// walk Content and treat an alias as a leaf, so the budget, alias scan and
 // attribution miss that content while the parser follows it (GitHub #477).
 //
 // normalized reports whether the tree was walked within budget; if not,

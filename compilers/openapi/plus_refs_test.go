@@ -16,6 +16,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -50,7 +51,7 @@ paths:
 `)
 
 	openapitest.RequireNoErrorDiags(t, diags)
-	want := ids.ForPointer(ids.Ptr(responseSchema("/a+b")...))
+	want := ids.Document{}.ForPointer(ids.Ptr(responseSchema("/a+b")...))
 	assert.Contains(t, string(want), "~1a+b")
 	require.NotNil(t, doc.Types[want], "the type is interned at the key the pointer names")
 	assert.Equal(t, want, openapitest.BodyTarget(t, openapitest.FindOp(t, doc, "h").Responses[0].Payload))
@@ -131,8 +132,8 @@ func viewOf(t *testing.T, src string) plusView {
 // compiled and compared.
 func TestCompile_APlusAndAnEscapedPlusAndASpaceKeepTheirOwnTypesInEveryOrder(t *testing.T) {
 	t.Parallel()
-	plusType := ids.ForPointer(ids.Ptr(responseSchema("/a+b")...))
-	spaceType := ids.ForPointer(ids.Ptr(responseSchema("/a b")...))
+	plusType := ids.Document{}.ForPointer(ids.Ptr(responseSchema("/a+b")...))
+	spaceType := ids.Document{}.ForPointer(ids.Ptr(responseSchema("/a b")...))
 	orders := []struct {
 		name        string
 		paths, uses []string
@@ -160,8 +161,8 @@ func TestCompile_APlusAndAnEscapedPlusAndASpaceKeepTheirOwnTypesInEveryOrder(t *
 
 // TestCompile_AnUnresolvedPlusReferenceIsQuotedAsWritten pins that no stage of
 // the compile spells a '+' the source wrote as "%2B" in what it reports: the
-// load phase for a $ref the model holds, the lowering for one inside an object
-// built from raw YAML and for a discriminator mapping value.
+// load phase for a reference object and for a schema $ref, one inside raw YAML
+// a $ref reaches included, and the lowering for a discriminator mapping value.
 func TestCompile_AnUnresolvedPlusReferenceIsQuotedAsWritten(t *testing.T) {
 	t.Parallel()
 	_, diags := parseFull(t, `openapi: 3.1.0
@@ -192,9 +193,11 @@ x-defs:
 		assert.NotContains(t, d.Message, "%2B", "%s", d.Provenance.Pointer)
 	}
 	assert.True(t, strings.HasPrefix(messages["/paths/~1a/get/parameters/0"], `unresolved $ref "#/paths/~1nope+x/get": `))
-	assert.Equal(t, `unresolved $ref "#/x-defs/nope+x"`, messages["/x-defs/A/properties/p"])
-	assert.Equal(t, `unresolved $ref "other.yaml#/x+y"`, messages["/x-defs/A/properties/q"])
-	assert.Equal(t, `discriminator mapping "k" references unresolved schema "#/x-defs/nope+x"`,
+	const nothing = ": it names nothing in the document it points into"
+	assert.Equal(t, `unresolved $ref "#/x-defs/nope+x"`+nothing, messages["/x-defs/A/properties/p"])
+	assert.Equal(t, `unresolved $ref "other.yaml#/x+y": it names another document, and external references are not read`,
+		messages["/x-defs/A/properties/q"])
+	assert.Equal(t, `discriminator mapping "k" references unresolved schema "#/x-defs/nope+x"`+nothing,
 		messages["/components/schemas/Pet/discriminator/mapping/k"])
 }
 
@@ -233,7 +236,7 @@ components:
 			openapitest.RequireNoErrorDiags(t, diags)
 			plus, ok := typeByName(doc, "Plus").(*ir.Scalar)
 			require.True(t, ok, "Plus is an alias of the type its $ref names")
-			assert.Equal(t, ids.ForPointer(ids.Ptr(responseSchema("/a+b")...)), plus.Base.Target)
+			assert.Equal(t, ids.Document{}.ForPointer(ids.Ptr(responseSchema("/a+b")...)), plus.Base.Target)
 			for _, name := range []string{"Named", "Text"} {
 				assert.Equal(t, text, typeByName(doc, name).Common().Docs.Description, name)
 			}
@@ -258,7 +261,7 @@ func TestCompile_AReferenceOfEveryKindThroughAPlusKeyIsLoweredWhereItIsDeclared(
 	require.Len(t, relay.Responses, 1)
 	require.Len(t, relay.Responses[0].Headers, 1)
 	assert.Equal(t, ir.PropID("p/openapi/paths/~1a+b/get/responses/200/headers/H"), relay.Responses[0].Headers[0].ID, "the header")
-	assert.Equal(t, ids.ForPointer(ids.Ptr(responseSchema("/a+b")...)),
+	assert.Equal(t, ids.Document{}.ForPointer(ids.Ptr(responseSchema("/a+b")...)),
 		openapitest.BodyTarget(t, &ir.Payload{Contents: relay.Responses[0].Payload.Contents[:1]}), "the response")
 
 	var mounted []string
@@ -274,11 +277,11 @@ func TestCompile_AReferenceOfEveryKindThroughAPlusKeyIsLoweredWhereItIsDeclared(
 
 // TestCompile_APointerPastAPathItemRefThroughAPlusKeyNamesTheOtherDocument pins
 // GitHub #762 for a key with a plus: a reference whose pointer passes the $ref
-// of the path item "/a+b" into ext.yaml names what ext.yaml holds there, so the
-// $ref written in it, which names ext.yaml's own Pet, is unresolved in the source
-// that reached it, where read through a key spelled with a space it would name
-// the source's Pet without a word. The references are declared first in one
-// order and last in the other, the first being the order that went wrong.
+// of the path item "/a+b" into ext.yaml names what ext.yaml holds there, lowered
+// once where ext.yaml declares it, so the $ref written in it names ext.yaml's
+// own Pet, where read through a key spelled with a space it would name the
+// source's Pet without a word. The references are declared first in one order
+// and last in the other, the first being the order that went wrong.
 func TestCompile_APointerPastAPathItemRefThroughAPlusKeyNamesTheOtherDocument(t *testing.T) {
 	t.Parallel()
 	const (
@@ -326,6 +329,8 @@ components:
 	// /0 names /a+b first, so the resolver has followed its $ref before any
 	// pointer passes it, in either order.
 	const first = "  /0: {$ref: '#/paths/~1a+b'}\n"
+	const schema = "/paths/~1a/get/responses/200/content/application~1json/schema"
+	theirs := ids.In("ext.yaml")
 	reported := make([][]string, 0, 2)
 	for _, paths := range []string{first + uses + item, first + item + uses} {
 		dir := t.TempDir()
@@ -334,7 +339,7 @@ components:
 
 		doc, diags, err := New().Compile(t.Context(),
 			[]compilers.Source{{Path: filepath.Join(dir, "root.yaml"), Data: []byte(root)}},
-			compilers.Options{FormatOptions: Options{AllowExternalRefs: true}})
+			compilers.Options{Reader: reader.Disk{}, FormatOptions: Options{AllowExternalRefs: true}})
 
 		require.NoError(t, err)
 		require.NotNil(t, doc)
@@ -344,11 +349,13 @@ components:
 		}
 		slices.Sort(got)
 		reported = append(reported, got)
+		body, ok := doc.Types[theirs.AnonType(schema)].(*ir.Model)
+		require.True(t, ok, "ext.yaml's /a schema is lowered where ext.yaml declares it")
+		pet, ok := propByWire(body, "pet")
+		require.True(t, ok)
+		assert.Equal(t, theirs.NamedType("/components/schemas/Pet"), pet.Type.Target, "ext.yaml's Pet, not the source's")
 	}
-	const why = `unresolved $ref "#/components/schemas/Pet": it names a position in the other document holding it, which is not lowered`
-	const pet = "/get/responses/200/content/application~1json/schema/properties/pet"
-	assert.Equal(t, []string{"/paths/~10" + pet + " " + why, "/paths/~1a+b" + pet + " " + why}, reported[0],
-		"each copy of ext.yaml's /a reports its Pet, and the references reach nothing of the source's")
+	assert.Empty(t, reported[0], "every reference resolves")
 	assert.Equal(t, reported[0], reported[1], "whichever order the references are declared in")
 }
 
@@ -383,7 +390,7 @@ paths:
 
 	doc, diags, err := New().Compile(t.Context(),
 		[]compilers.Source{{Path: filepath.Join(dir, "root.yaml"), Data: []byte(root)}},
-		compilers.Options{FormatOptions: Options{AllowExternalRefs: true}})
+		compilers.Options{Reader: reader.Disk{}, FormatOptions: Options{AllowExternalRefs: true}})
 
 	require.NoError(t, err)
 	require.NotNil(t, doc)

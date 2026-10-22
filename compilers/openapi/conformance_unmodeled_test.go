@@ -9,11 +9,14 @@ package openapi_test // external test package — exercises only the public API
 import (
 	"encoding/json/jsontext"
 	"fmt"
+	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
@@ -316,7 +319,7 @@ func assertAllOfInlineResidue(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 }
 
 // assertAllOfConflictingType pins what an unsatisfiable redeclaration leaves in
-// the document. A field one allOf branch types `uri` and another `string` has
+// the document. A field one allOf branch types `uri` and another `integer` has
 // no IR combinator, so the merge keeps the first declaration and, under
 // docs/compilers/openapi.md#allof-redeclared-property, the loser verbatim
 // (GitHub #424). The entry holds the declaration as written, not the dropped IR
@@ -334,7 +337,7 @@ func assertAllOfConflictingType(t *testing.T, doc *ir.Document, diags []ir.Diagn
 	assert.Equal(t, ir.TypeID("t/prim/url"), clone.Type.Target, "the first declaration wins the shape")
 
 	const cloneKey = "openapi:conflicting-redeclaration/components/schemas/Repository/allOf/1/properties/clone_url"
-	assertKeptRaw(t, clone.Unmodeled, cloneKey, `{"type":"string"}`)
+	assertKeptRaw(t, clone.Unmodeled, cloneKey, `{"type":"integer"}`)
 	assert.Equal(t, jsontext.Pointer("/components/schemas/Repository/allOf/1/properties/clone_url"),
 		unmodeledEntry(t, clone.Unmodeled, cloneKey).Provenance.Pointer,
 		"the entry locates the losing declaration, not the merged property")
@@ -362,12 +365,163 @@ func assertAllOfConflictingType(t *testing.T, doc *ir.Document, diags []ir.Diagn
 	assert.Equal(t, "first", did.Docs.Description)
 	const describedPtr = "/components/schemas/Described/allOf/1/properties/id"
 	assertKeptRaw(t, did.Unmodeled, "openapi:conflicting-redeclaration"+describedPtr,
-		`{"type":"integer","default":2,"description":"second","example":2}`)
+		`{"type":"integer","default":2,"title":"second title","description":"second",`+
+			`"externalDocs":{"url":"https://example.com/second"},"example":2}`)
 	assert.Empty(t, diagsAt(diags, "openapi/conflicting-redeclaration", describedPtr),
 		"agreeing types are not a conflict")
-	assert.Equal(t, []ir.Severity{ir.SeverityInfo, ir.SeverityInfo, ir.SeverityInfo},
+	assert.Equal(t, []ir.Severity{ir.SeverityInfo, ir.SeverityInfo, ir.SeverityInfo, ir.SeverityInfo, ir.SeverityInfo},
 		diagsAt(diags, "openapi/degraded-construct", describedPtr),
-		"the description, the default and the example are each named as differing")
+		"the title, the description, the external link, the default and the example are each named as differing")
+
+	overlapping, ok := doc.Types[namedID("Overlapping")].(*ir.Model)
+	require.True(t, ok)
+	n, ok := propByWire(overlapping, "n")
+	require.True(t, ok)
+	assert.Equal(t, ir.TypeID("t/prim/int32"), n.Type.Target, "the first declaration stands")
+	const overlapPtr = "/components/schemas/Overlapping/allOf/1/properties/n"
+	assertKeptRaw(t, n.Unmodeled, "openapi:conflicting-redeclaration"+overlapPtr, `{"type":"integer","format":"uint32"}`)
+	assert.Equal(t, []ir.Severity{ir.SeverityInfo}, diagsAt(diags, "openapi/degraded-construct", overlapPtr),
+		"overlapping widths are reported as info")
+	assert.Empty(t, diagsAt(diags, "openapi/conflicting-redeclaration", overlapPtr), "and are no conflict")
+}
+
+// assertAllOfNarrowingRedeclaration pins that a redeclaration narrowing a bare
+// primitive is lossless (GitHub #598, #446): each pair, in both branch orders,
+// merges to the narrower target with no diagnostic and nothing kept under
+// Unmodeled, and the two orders agree on the type. The Nullable pair adds the
+// nullability intersection and the broad branch's adopted minimum, and the
+// InadmissibleDefault pair the broad default the narrow kind refuses.
+func assertAllOfNarrowingRedeclaration(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	pairs := []struct {
+		name   string
+		narrow ir.TypeID
+	}{
+		{"NumberInteger", "t/prim/integer"},
+		{"IntegerInt32", "t/prim/int32"},
+		{"StringDatetime", "t/prim/datetime_offset"},
+		{"Int32Int64", "t/prim/int32"},
+		{"UriString", "t/prim/url"},
+		{"DoubleNumber", "t/prim/float64"},
+		{"UuidString", "t/prim/uuid"},
+		{"Uint8Int16", "t/prim/uint8"},
+		{"Top", "t/prim/integer"},
+	}
+	for _, pair := range pairs {
+		var types [2]ir.TypeRef
+		for i, order := range []string{"BroadFirst", "NarrowFirst"} {
+			model := pair.name + order
+			p := narrowedProp(t, doc, model)
+			assert.Equal(t, pair.narrow, p.Type.Target, "%s: the narrower target wins", model)
+			for key := range p.Unmodeled {
+				assert.NotContains(t, key, "openapi:conflicting-redeclaration", "%s: nothing is kept", model)
+			}
+			assert.Empty(t, diagsUnder(diags, "/components/schemas/"+model+"/"), "%s: a narrowing draws no diagnostic", model)
+			types[i] = p.Type
+		}
+		assert.Empty(t, cmp.Diff(types[0], types[1]), "%s: the merged type does not depend on branch order", pair.name)
+	}
+
+	for _, model := range []string{"NullableBroadFirst", "NullableNarrowFirst"} {
+		t.Run(model, func(t *testing.T) {
+			p := narrowedProp(t, doc, model)
+			assert.Equal(t, ir.TypeID("t/prim/integer"), p.Type.Target, "%s: the narrower target wins", model)
+			assert.False(t, p.Type.Nullable, "null is admitted only where both branches admit it")
+			require.NotNil(t, p.Constraints)
+			require.NotNil(t, p.Constraints.Min, "the broad branch's minimum is adopted")
+			assert.Equal(t, ir.BigVal("0"), *p.Constraints.Min)
+			assert.Empty(t, p.Unmodeled, "%s: nothing is kept", model)
+			assert.Empty(t, diagsUnder(diags, "/components/schemas/"+model+"/"), "%s: no diagnostic", model)
+		})
+	}
+
+	assertInadmissibleDefault(t, doc, diags)
+	assertNarrowingChainsAndScalars(t, doc, diags)
+	assertRefusedLateDefault(t, doc, diags)
+}
+
+// assertNarrowingChainsAndScalars pins the three-branch chain with its
+// narrowest member in each position, and the unknown-format scalar that wins
+// over its bare kind in either order. Each is lossless: no diagnostic names a
+// property of these models and nothing is kept.
+func assertNarrowingChainsAndScalars(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	for _, model := range []string{"ChainNarrowestFirst", "ChainNarrowestMiddle", "ChainNarrowestLast"} {
+		p := narrowedProp(t, doc, model)
+		assert.Equal(t, ir.TypeID("t/prim/int32"), p.Type.Target, "%s: the narrowest member wins", model)
+		assert.Empty(t, p.Unmodeled, "%s: nothing is kept", model)
+		assert.Empty(t, diagsUnder(diags, "/components/schemas/"+model+"/"), "%s: no diagnostic", model)
+	}
+
+	for _, model := range []string{"HexBroadFirst", "HexNarrowFirst"} {
+		p := narrowedProp(t, doc, model)
+		scalar, ok := doc.Types[p.Type.Target].(*ir.Scalar)
+		require.True(t, ok, "%s: the unknown format stays a scalar", model)
+		require.NotNil(t, scalar.Base, "%s: the scalar extends its bare kind", model)
+		assert.Equal(t, ir.TypeID("t/prim/string"), scalar.Base.Target, "%s: over string, in either order", model)
+		assert.False(t, p.Type.Nullable, "%s: null is admitted by neither branch", model)
+		assert.Empty(t, p.Unmodeled, "%s: nothing is kept", model)
+		assert.Empty(t, diagsUnder(diags, "/components/schemas/"+model+"/"), "%s: no diagnostic", model)
+	}
+}
+
+// assertRefusedLateDefault pins a broad default the winning integer refuses,
+// with the integer declaration first, in the middle and last. Declared after
+// the integer, the default is refused as it arrives; declared before it, it is
+// adopted from a non-first branch and refused when the integer arrives. Either
+// way the entry is keyed at the branch that wrote the default, with one info.
+func assertRefusedLateDefault(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	for _, tc := range []struct{ model, branch string }{
+		{"RefusedLateDefaultFirst", "2"}, {"RefusedLateDefaultMiddle", "2"}, {"RefusedLateDefaultLast", "1"},
+	} {
+		t.Run(tc.model, func(t *testing.T) {
+			p := narrowedProp(t, doc, tc.model)
+			ptr := "/components/schemas/" + tc.model + "/allOf/" + tc.branch + "/properties/p"
+			assert.Equal(t, ir.TypeID("t/prim/integer"), p.Type.Target, "the integer wins")
+			assert.Nil(t, p.Default, "the refused default does not land")
+			assertKeptRaw(t, p.Unmodeled, "openapi:conflicting-redeclaration"+ptr, `{"type":"number","default":1.5}`)
+			assert.Len(t, p.Unmodeled, 1, "only the declaration that wrote the default is kept")
+			assert.Equal(t, []ir.Severity{ir.SeverityInfo}, diagsAt(diags, "openapi/degraded-construct", ptr),
+				"one info at the declaration that wrote the default")
+			assert.Empty(t, diagsAt(diags, "openapi/conflicting-redeclaration", ptr), "no warning")
+		})
+	}
+}
+
+// diagsUnder returns the diagnostics whose pointer starts with prefix.
+func diagsUnder(diags []ir.Diagnostic, prefix string) []ir.Diagnostic {
+	var out []ir.Diagnostic
+	for _, d := range diags {
+		if strings.HasPrefix(string(d.Provenance.Pointer), prefix) {
+			out = append(out, d)
+		}
+	}
+	return out
+}
+
+// assertInadmissibleDefault pins that a broad branch's default the narrow kind
+// refuses lands nowhere on the merged field: the narrow type wins in either
+// order, and the broad branch is kept whole at its own pointer with one info.
+func assertInadmissibleDefault(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	for model, broadBranch := range map[string]string{"InadmissibleDefaultBroadFirst": "0", "InadmissibleDefaultNarrowFirst": "1"} {
+		p := narrowedProp(t, doc, model)
+		ptr := "/components/schemas/" + model + "/allOf/" + broadBranch + "/properties/p"
+		assert.Equal(t, ir.TypeID("t/prim/integer"), p.Type.Target, "%s: the narrow type wins", model)
+		assert.Nil(t, p.Default, "%s: the refused default does not land", model)
+		assertKeptRaw(t, p.Unmodeled, "openapi:conflicting-redeclaration"+ptr, `{"type":"number","default":1.5}`)
+		assert.Len(t, p.Unmodeled, 1, "%s: only the broad branch is kept", model)
+		assert.Equal(t, []ir.Severity{ir.SeverityInfo}, diagsAt(diags, "openapi/degraded-construct", ptr),
+			"%s: one info at the broad branch", model)
+		assert.Empty(t, diagsAt(diags, "openapi/conflicting-redeclaration", ptr), "%s: no warning", model)
+	}
+}
+
+// narrowedProp returns property p of the named component model.
+func narrowedProp(t *testing.T, doc *ir.Document, model string) ir.Property {
+	t.Helper()
+	m, ok := doc.Types[namedID(model)].(*ir.Model)
+	require.True(t, ok, "%s is a model", model)
+	p, ok := propByWire(m, "p")
+	require.True(t, ok, "%s reconciles to one property", model)
+	return p
 }
 
 // assertAllOfRefBranchSiblings covers the other branch kind: keywords written
@@ -572,8 +726,37 @@ func assertDialectKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic
 	assert.JSONEq(t, `"https://example.com/schemas/resource"`, string(declared.Value))
 	for id := range doc.Types {
 		assert.NotContains(t, string(id), "example.com",
-			"$id is kept, never honoured: no type is keyed by the identity it declares")
+			"$id is kept, and read only to resolve references: no type is keyed by the identity it declares")
 	}
+}
+
+// assertSchemaIdentifiers pins a $ref naming a schema by an identifier, as JSON
+// Schema 2020-12 §8.2 reads one (docs/compilers/openapi.md#references): a plain
+// name a $anchor or a $dynamicAnchor declares, every schema under no $id being
+// in the document's resource; a URI an $id declares, and one relative to the
+// $id above the $ref; and, under an $id, a pointer read from the resource's
+// root, "#" naming the schema writing it.
+func assertSchemaIdentifiers(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	for _, d := range diags {
+		assert.NotEqual(t, ir.SeverityError, d.Severity, "every identifier resolves: %s", d.Message)
+	}
+	for model, props := range map[string]map[string]ir.TypeID{
+		"Pet": {"owner": namedID("Person"), "tag": namedID("Tag"), "address": namedID("Address")},
+		"Address": {"country": namedID("Country"), "next": namedID("Address"),
+			"zip": ids.Document{}.ForPointer("/components/schemas/Address/$defs/zip")},
+	} {
+		m, ok := doc.Types[namedID(model)].(*ir.Model)
+		require.True(t, ok, model)
+		for wire, want := range props {
+			p, ok := propByWire(m, wire)
+			require.True(t, ok, "%s.%s", model, wire)
+			assert.Equal(t, want, p.Type.Target, "%s.%s", model, wire)
+		}
+	}
+	zip, ok := doc.Types[ids.Document{}.ForPointer("/components/schemas/Address/$defs/zip")].(*ir.Scalar)
+	require.True(t, ok, "the definition a pointer under the $id names lowers where it is written")
+	require.NotNil(t, zip.Constraints)
+	assert.Equal(t, "^[0-9]{5}$", zip.Constraints.Pattern)
 }
 
 // assertDynamicRef pins both halves of $dynamicRef lowering (GitHub #125). A name

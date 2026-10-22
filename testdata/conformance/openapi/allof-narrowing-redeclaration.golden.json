@@ -1,0 +1,1784 @@
+{
+  "idSpaces": {
+    "auth": [
+      "openapi"
+    ],
+    "e": [
+      "anon",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
+  "name": "AllOfNarrowingRedeclaration",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "AllOfNarrowingRedeclaration",
+        "canonical": "all_of_narrowing_redeclaration"
+      },
+      "docs": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/components/schemas/HexBroadFirst/allOf/1/properties/p": {
+      "kind": "scalar",
+      "id": "t/anon/components/schemas/HexBroadFirst/allOf/1/properties/p",
+      "name": {
+        "hint": "p"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/HexBroadFirst/allOf/1/properties/p"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      },
+      "encoding": {
+        "name": "hex"
+      }
+    },
+    "t/anon/components/schemas/HexNarrowFirst/allOf/0/properties/p": {
+      "kind": "scalar",
+      "id": "t/anon/components/schemas/HexNarrowFirst/allOf/0/properties/p",
+      "name": {
+        "hint": "p"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/HexNarrowFirst/allOf/0/properties/p"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      },
+      "encoding": {
+        "name": "hex"
+      }
+    },
+    "t/openapi/components/schemas/ChainNarrowestFirst": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/ChainNarrowestFirst",
+      "name": {
+        "source": "ChainNarrowestFirst",
+        "canonical": "chain_narrowest_first"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ChainNarrowestFirst"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/ChainNarrowestFirst/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/prim/int32",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/ChainNarrowestFirst/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/ChainNarrowestLast": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/ChainNarrowestLast",
+      "name": {
+        "source": "ChainNarrowestLast",
+        "canonical": "chain_narrowest_last"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ChainNarrowestLast"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/ChainNarrowestLast/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/prim/int32",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/ChainNarrowestLast/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/ChainNarrowestMiddle": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/ChainNarrowestMiddle",
+      "name": {
+        "source": "ChainNarrowestMiddle",
+        "canonical": "chain_narrowest_middle"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ChainNarrowestMiddle"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/ChainNarrowestMiddle/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/prim/int32",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/ChainNarrowestMiddle/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/DoubleNumberBroadFirst": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/DoubleNumberBroadFirst",
+      "name": {
+        "source": "DoubleNumberBroadFirst",
+        "canonical": "double_number_broad_first"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/DoubleNumberBroadFirst"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/DoubleNumberBroadFirst/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/prim/float64",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/DoubleNumberBroadFirst/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/DoubleNumberNarrowFirst": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/DoubleNumberNarrowFirst",
+      "name": {
+        "source": "DoubleNumberNarrowFirst",
+        "canonical": "double_number_narrow_first"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/DoubleNumberNarrowFirst"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/DoubleNumberNarrowFirst/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/prim/float64",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/DoubleNumberNarrowFirst/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/HexBroadFirst": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/HexBroadFirst",
+      "name": {
+        "source": "HexBroadFirst",
+        "canonical": "hex_broad_first"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/HexBroadFirst"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/HexBroadFirst/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/anon/components/schemas/HexBroadFirst/allOf/1/properties/p",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/HexBroadFirst/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/HexNarrowFirst": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/HexNarrowFirst",
+      "name": {
+        "source": "HexNarrowFirst",
+        "canonical": "hex_narrow_first"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/HexNarrowFirst"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/HexNarrowFirst/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/anon/components/schemas/HexNarrowFirst/allOf/0/properties/p",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/HexNarrowFirst/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/InadmissibleDefaultBroadFirst": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/InadmissibleDefaultBroadFirst",
+      "name": {
+        "source": "InadmissibleDefaultBroadFirst",
+        "canonical": "inadmissible_default_broad_first"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/InadmissibleDefaultBroadFirst"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/InadmissibleDefaultBroadFirst/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/prim/integer",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "unmodeled": {
+            "openapi:conflicting-redeclaration/components/schemas/InadmissibleDefaultBroadFirst/allOf/0/properties/p": {
+              "reason": "degraded_lowering",
+              "value": {
+                "default": 1.5,
+                "type": "number"
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/components/schemas/InadmissibleDefaultBroadFirst/allOf/0/properties/p"
+              }
+            }
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/InadmissibleDefaultBroadFirst/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/InadmissibleDefaultNarrowFirst": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/InadmissibleDefaultNarrowFirst",
+      "name": {
+        "source": "InadmissibleDefaultNarrowFirst",
+        "canonical": "inadmissible_default_narrow_first"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/InadmissibleDefaultNarrowFirst"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/InadmissibleDefaultNarrowFirst/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/prim/integer",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "unmodeled": {
+            "openapi:conflicting-redeclaration/components/schemas/InadmissibleDefaultNarrowFirst/allOf/1/properties/p": {
+              "reason": "degraded_lowering",
+              "value": {
+                "default": 1.5,
+                "type": "number"
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/components/schemas/InadmissibleDefaultNarrowFirst/allOf/1/properties/p"
+              }
+            }
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/InadmissibleDefaultNarrowFirst/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Int32Int64BroadFirst": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Int32Int64BroadFirst",
+      "name": {
+        "source": "Int32Int64BroadFirst",
+        "canonical": "int_32_int_64_broad_first"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Int32Int64BroadFirst"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Int32Int64BroadFirst/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/prim/int32",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Int32Int64BroadFirst/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Int32Int64NarrowFirst": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Int32Int64NarrowFirst",
+      "name": {
+        "source": "Int32Int64NarrowFirst",
+        "canonical": "int_32_int_64_narrow_first"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Int32Int64NarrowFirst"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Int32Int64NarrowFirst/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/prim/int32",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Int32Int64NarrowFirst/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/IntegerInt32BroadFirst": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/IntegerInt32BroadFirst",
+      "name": {
+        "source": "IntegerInt32BroadFirst",
+        "canonical": "integer_int_32_broad_first"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/IntegerInt32BroadFirst"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/IntegerInt32BroadFirst/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/prim/int32",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/IntegerInt32BroadFirst/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/IntegerInt32NarrowFirst": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/IntegerInt32NarrowFirst",
+      "name": {
+        "source": "IntegerInt32NarrowFirst",
+        "canonical": "integer_int_32_narrow_first"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/IntegerInt32NarrowFirst"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/IntegerInt32NarrowFirst/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/prim/int32",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/IntegerInt32NarrowFirst/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/NullableBroadFirst": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/NullableBroadFirst",
+      "name": {
+        "source": "NullableBroadFirst",
+        "canonical": "nullable_broad_first"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/NullableBroadFirst"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/NullableBroadFirst/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/prim/integer",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "constraints": {
+            "min": "0",
+            "uniqueItems": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/NullableBroadFirst/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/NullableNarrowFirst": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/NullableNarrowFirst",
+      "name": {
+        "source": "NullableNarrowFirst",
+        "canonical": "nullable_narrow_first"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/NullableNarrowFirst"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/NullableNarrowFirst/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/prim/integer",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "constraints": {
+            "min": "0",
+            "uniqueItems": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/NullableNarrowFirst/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/NumberIntegerBroadFirst": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/NumberIntegerBroadFirst",
+      "name": {
+        "source": "NumberIntegerBroadFirst",
+        "canonical": "number_integer_broad_first"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/NumberIntegerBroadFirst"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/NumberIntegerBroadFirst/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/prim/integer",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/NumberIntegerBroadFirst/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/NumberIntegerNarrowFirst": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/NumberIntegerNarrowFirst",
+      "name": {
+        "source": "NumberIntegerNarrowFirst",
+        "canonical": "number_integer_narrow_first"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/NumberIntegerNarrowFirst"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/NumberIntegerNarrowFirst/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/prim/integer",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/NumberIntegerNarrowFirst/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/RefusedLateDefaultFirst": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/RefusedLateDefaultFirst",
+      "name": {
+        "source": "RefusedLateDefaultFirst",
+        "canonical": "refused_late_default_first"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/RefusedLateDefaultFirst"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/RefusedLateDefaultFirst/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/prim/integer",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "unmodeled": {
+            "openapi:conflicting-redeclaration/components/schemas/RefusedLateDefaultFirst/allOf/2/properties/p": {
+              "reason": "degraded_lowering",
+              "value": {
+                "default": 1.5,
+                "type": "number"
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/components/schemas/RefusedLateDefaultFirst/allOf/2/properties/p"
+              }
+            }
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/RefusedLateDefaultFirst/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/RefusedLateDefaultLast": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/RefusedLateDefaultLast",
+      "name": {
+        "source": "RefusedLateDefaultLast",
+        "canonical": "refused_late_default_last"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/RefusedLateDefaultLast"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/RefusedLateDefaultLast/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/prim/integer",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "unmodeled": {
+            "openapi:conflicting-redeclaration/components/schemas/RefusedLateDefaultLast/allOf/1/properties/p": {
+              "reason": "degraded_lowering",
+              "value": {
+                "default": 1.5,
+                "type": "number"
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/components/schemas/RefusedLateDefaultLast/allOf/1/properties/p"
+              }
+            }
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/RefusedLateDefaultLast/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/RefusedLateDefaultMiddle": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/RefusedLateDefaultMiddle",
+      "name": {
+        "source": "RefusedLateDefaultMiddle",
+        "canonical": "refused_late_default_middle"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/RefusedLateDefaultMiddle"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/RefusedLateDefaultMiddle/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/prim/integer",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "unmodeled": {
+            "openapi:conflicting-redeclaration/components/schemas/RefusedLateDefaultMiddle/allOf/2/properties/p": {
+              "reason": "degraded_lowering",
+              "value": {
+                "default": 1.5,
+                "type": "number"
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/components/schemas/RefusedLateDefaultMiddle/allOf/2/properties/p"
+              }
+            }
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/RefusedLateDefaultMiddle/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/StringDatetimeBroadFirst": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/StringDatetimeBroadFirst",
+      "name": {
+        "source": "StringDatetimeBroadFirst",
+        "canonical": "string_datetime_broad_first"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/StringDatetimeBroadFirst"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/StringDatetimeBroadFirst/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/prim/datetime_offset",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/StringDatetimeBroadFirst/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/StringDatetimeNarrowFirst": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/StringDatetimeNarrowFirst",
+      "name": {
+        "source": "StringDatetimeNarrowFirst",
+        "canonical": "string_datetime_narrow_first"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/StringDatetimeNarrowFirst"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/StringDatetimeNarrowFirst/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/prim/datetime_offset",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/StringDatetimeNarrowFirst/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/TopBroadFirst": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/TopBroadFirst",
+      "name": {
+        "source": "TopBroadFirst",
+        "canonical": "top_broad_first"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/TopBroadFirst"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/TopBroadFirst/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/prim/integer",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/TopBroadFirst/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/TopNarrowFirst": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/TopNarrowFirst",
+      "name": {
+        "source": "TopNarrowFirst",
+        "canonical": "top_narrow_first"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/TopNarrowFirst"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/TopNarrowFirst/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/prim/integer",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/TopNarrowFirst/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Uint8Int16BroadFirst": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Uint8Int16BroadFirst",
+      "name": {
+        "source": "Uint8Int16BroadFirst",
+        "canonical": "uint_8_int_16_broad_first"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Uint8Int16BroadFirst"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Uint8Int16BroadFirst/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/prim/uint8",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Uint8Int16BroadFirst/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Uint8Int16NarrowFirst": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Uint8Int16NarrowFirst",
+      "name": {
+        "source": "Uint8Int16NarrowFirst",
+        "canonical": "uint_8_int_16_narrow_first"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Uint8Int16NarrowFirst"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Uint8Int16NarrowFirst/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/prim/uint8",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Uint8Int16NarrowFirst/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/UriStringBroadFirst": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/UriStringBroadFirst",
+      "name": {
+        "source": "UriStringBroadFirst",
+        "canonical": "uri_string_broad_first"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/UriStringBroadFirst"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/UriStringBroadFirst/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/prim/url",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/UriStringBroadFirst/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/UriStringNarrowFirst": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/UriStringNarrowFirst",
+      "name": {
+        "source": "UriStringNarrowFirst",
+        "canonical": "uri_string_narrow_first"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/UriStringNarrowFirst"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/UriStringNarrowFirst/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/prim/url",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/UriStringNarrowFirst/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/UuidStringBroadFirst": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/UuidStringBroadFirst",
+      "name": {
+        "source": "UuidStringBroadFirst",
+        "canonical": "uuid_string_broad_first"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/UuidStringBroadFirst"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/UuidStringBroadFirst/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/prim/uuid",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/UuidStringBroadFirst/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/UuidStringNarrowFirst": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/UuidStringNarrowFirst",
+      "name": {
+        "source": "UuidStringNarrowFirst",
+        "canonical": "uuid_string_narrow_first"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/UuidStringNarrowFirst"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/UuidStringNarrowFirst/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/prim/uuid",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/UuidStringNarrowFirst/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/any": {
+      "kind": "primitive",
+      "id": "t/prim/any",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "any"
+    },
+    "t/prim/datetime_offset": {
+      "kind": "primitive",
+      "id": "t/prim/datetime_offset",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "datetime_offset"
+    },
+    "t/prim/float64": {
+      "kind": "primitive",
+      "id": "t/prim/float64",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "float64"
+    },
+    "t/prim/int16": {
+      "kind": "primitive",
+      "id": "t/prim/int16",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "int16"
+    },
+    "t/prim/int32": {
+      "kind": "primitive",
+      "id": "t/prim/int32",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "int32"
+    },
+    "t/prim/int64": {
+      "kind": "primitive",
+      "id": "t/prim/int64",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "int64"
+    },
+    "t/prim/integer": {
+      "kind": "primitive",
+      "id": "t/prim/integer",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "integer"
+    },
+    "t/prim/number": {
+      "kind": "primitive",
+      "id": "t/prim/number",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "number"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "string"
+    },
+    "t/prim/uint8": {
+      "kind": "primitive",
+      "id": "t/prim/uint8",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "uint8"
+    },
+    "t/prim/url": {
+      "kind": "primitive",
+      "id": "t/prim/url",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "url"
+    },
+    "t/prim/uuid": {
+      "kind": "primitive",
+      "id": "t/prim/uuid",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "uuid"
+    }
+  },
+  "servers": [
+    {
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {}
+    }
+  ],
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "the type the declarations of field \"p\" merge it to does not admit the default this declaration gives; not adopted, with this declaration verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/InadmissibleDefaultBroadFirst/allOf/0/properties/p"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "the type the declarations of field \"p\" merge it to does not admit the default this declaration gives; not adopted, with this declaration verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/InadmissibleDefaultNarrowFirst/allOf/1/properties/p"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "the type the declarations of field \"p\" merge it to does not admit the default this declaration gives; not adopted, with this declaration verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/RefusedLateDefaultFirst/allOf/2/properties/p"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "the type the declarations of field \"p\" merge it to does not admit the default this declaration gives; not adopted, with this declaration verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/RefusedLateDefaultMiddle/allOf/2/properties/p"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "the type the declarations of field \"p\" merge it to does not admit the default this declaration gives; not adopted, with this declaration verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/RefusedLateDefaultLast/allOf/1/properties/p"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "allof-narrowing-redeclaration.yaml",
+      "hash": "1a6116cb210d73f2bfa6af66ead7ee5f275699e66b063efde8599113194ece83"
+    }
+  ]
+}

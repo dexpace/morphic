@@ -15,7 +15,9 @@ import (
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/ir/irverify"
 )
@@ -199,9 +201,12 @@ func TestPathItemRefSiblings_ExternalRefFollowsTheCompilesPolicy(t *testing.T) {
 
 	compiled := func(allow bool) (*ir.Document, []ir.Diagnostic) {
 		t.Helper()
+		opts := compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: allow}}
+		if allow {
+			opts.Reader = reader.Disk{}
+		}
 		doc, diags, err := openapi.New().Compile(t.Context(),
-			[]compilers.Source{{Path: pathItemRefSiblingsExternalFixture, Data: append([]byte(nil), data...)}},
-			compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: allow}})
+			[]compilers.Source{{Path: pathItemRefSiblingsExternalFixture, Data: append([]byte(nil), data...)}}, opts)
 		require.NoError(t, err)
 		require.NotNil(t, doc)
 		return doc, diags
@@ -272,7 +277,7 @@ func TestPathItemRefSiblings_EachSideReadsInItsOwnDocument(t *testing.T) {
 	use := filepath.Join(dir, "main.yaml")
 	doc, _, err := openapi.New().Compile(t.Context(),
 		[]compilers.Source{{Path: use, Data: []byte(crossDocumentUse)}},
-		compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: true}})
+		compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 
@@ -1062,7 +1067,7 @@ components:
 info: {title: T, version: "1"}
 paths:
   /a: {$ref: './other.yaml#/paths/~1x'}
-`)}}, compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: true}})
+`)}}, compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 
@@ -1142,7 +1147,7 @@ func TestPathItemRefSiblings_AnExpressionBesideACallbackRefIsIgnored(t *testing.
 	for _, at := range []string{"", "./other.yaml"} {
 		doc, _, err := openapi.New().Compile(t.Context(),
 			[]compilers.Source{{Path: filepath.Join(dir, "main.yaml"), Data: []byte(strings.Replace(pathItemRefCallbackSiblingSpec, "%s", at, 1))}},
-			compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: true}})
+			compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
 		require.NoError(t, err)
 		require.NotNil(t, doc)
 		openapitest.FindOp(t, doc, "cbPost")
@@ -1154,18 +1159,16 @@ func TestPathItemRefSiblings_AnExpressionBesideACallbackRefIsIgnored(t *testing.
 	}
 }
 
-// TestPathItemRefSiblings_AForeignReferentKeepsItsOwnPositions pins the one
-// mount where both declarations would share pointers: a use site writing item
-// parameters beside a $ref to another document's path item, whose content is
-// placed at the use site because no pointer here addresses it. Each parameter
-// keeps the type its own schema declares.
+// TestPathItemRefSiblings_AForeignReferentKeepsItsOwnPositions pins a use site
+// writing item parameters beside a $ref to another document's path item: each
+// parameter keeps the type its own schema declares, the referent's lowered
+// where that document declares it. Where the bindings' table places no end, as
+// for a key that document writes twice, the referent is lowered at the use
+// site, under its "$ref", so the two still share no pointer. A finding names
+// the referent's positions by the reference.
 func TestPathItemRefSiblings_AForeignReferentKeepsItsOwnPositions(t *testing.T) {
 	t.Parallel()
-	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "target.yaml"), []byte(`openapi: 3.1.0
-info: {title: Target, version: "1"}
-paths:
-  /b:
+	const item = `
     parameters:
       - {name: refP, in: header, schema: {type: object, properties: {fromRef: {type: integer}}}}
     get:
@@ -1174,42 +1177,51 @@ paths:
     post:
       operationId: postB
       responses: {"200": {description: OK}}
-`), 0o600))
-	doc, diags, err := openapi.New().Compile(t.Context(),
-		[]compilers.Source{{Path: filepath.Join(dir, "main.yaml"), Data: []byte(`openapi: 3.1.0
+`
+	for name, tc := range map[string]struct {
+		target, ref string
+		refType     ir.TypeID
+	}{
+		"declared once": {
+			target:  "openapi: 3.1.0\ninfo: {title: Target, version: \"1\"}\npaths:\n  /b:" + item,
+			ref:     "./target.yaml#/paths/~1b",
+			refType: ids.In("target.yaml").AnonType("/paths/~1b/parameters/0/schema"),
+		},
+		"a key written twice": {
+			target:  "B:" + strings.ReplaceAll(item, "\n    ", "\n  ") + "B: {}\n",
+			ref:     "./target.yaml#/B",
+			refType: ids.Document{}.AnonType("/paths/~1a/$ref/parameters/0/schema"),
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			dir := t.TempDir()
+			require.NoError(t, os.WriteFile(filepath.Join(dir, "target.yaml"), []byte(tc.target), 0o600))
+			doc, diags, err := openapi.New().Compile(t.Context(),
+				[]compilers.Source{{Path: filepath.Join(dir, "main.yaml"), Data: []byte(`openapi: 3.1.0
 info: {title: Main, version: "1"}
 paths:
   /a:
-    $ref: './target.yaml#/paths/~1b'
+    $ref: '` + tc.ref + `'
     parameters:
       - {name: useP, in: query, schema: {type: object, properties: {fromUse: {type: string}}}}
     get:
       operationId: useGet
       responses: {"200": {description: OK}}
-`)}}, compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: true}})
-	require.NoError(t, err)
-	require.NotNil(t, doc)
-	assert.Empty(t, irverify.Verify(doc))
+`)}}, compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
+			require.NoError(t, err)
+			require.NotNil(t, doc)
+			assert.Empty(t, irverify.Verify(doc))
 
-	props := func(p ir.Parameter) []string {
-		t.Helper()
-		def, ok := doc.Types[p.Type.Target]
-		require.True(t, ok, "%s has a type", p.Name.Source)
-		model, ok := def.(*ir.Model)
-		require.True(t, ok)
-		names := make([]string, 0, len(model.Properties))
-		for _, prop := range model.Properties {
-			names = append(names, prop.Name.Source)
-		}
-		return names
+			for _, op := range []ir.Operation{opByPath(t, doc, "GET", "/a"), opByPath(t, doc, "POST", "/a")} {
+				assert.Equal(t, ids.Document{}.AnonType("/paths/~1a/parameters/0/schema"), paramNamed(t, op, "useP").Type.Target)
+				assert.Equal(t, tc.refType, paramNamed(t, op, "refP").Type.Target,
+					"the referent's parameter keeps its own schema, not the use site's at the same index")
+			}
+			message := openapitest.DiagMessageAt(t, diags, diag.PathItemRefCollision, ir.SeverityWarning, "/paths/~1a/get")
+			assert.Contains(t, message, tc.ref+"/get", "another document's position is named by the reference")
+		})
 	}
-	for _, op := range []ir.Operation{opByPath(t, doc, "GET", "/a"), opByPath(t, doc, "POST", "/a")} {
-		assert.Equal(t, []string{"fromUse"}, props(paramNamed(t, op, "useP")))
-		assert.Equal(t, []string{"fromRef"}, props(paramNamed(t, op, "refP")),
-			"the referent's parameter keeps its own schema, not the use site's at the same index")
-	}
-	message := openapitest.DiagMessageAt(t, diags, diag.PathItemRefCollision, ir.SeverityWarning, "/paths/~1a/get")
-	assert.Contains(t, message, "./target.yaml#/paths/~1b/get", "another document's position is named by the reference")
 }
 
 // TestPathItemRefSiblings_AWholeDocumentReferentIsNamedByItsFragment pins how a
@@ -1232,7 +1244,7 @@ paths:
     get:
       operationId: useGet
       responses: {"200": {description: OK}}
-`)}}, compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: true}})
+`)}}, compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 
@@ -1368,4 +1380,421 @@ func methodsAt(doc *ir.Document, uri string) []string {
 		}
 	}
 	return methods
+}
+
+// TestContent_ASharedBodyOrHeaderIsNamedForItsDeclaration pins how a request
+// body or a header two operations reach by reference is named: for its
+// declaration, never for whichever reference lowered first, a body for the
+// operation declaring it whether or not that operation is lowered, and built in
+// the document declaring it. Each spec is compiled with the two referencing
+// operations in both orders, and the type registries must match: another
+// document's declaration, one there at the pointer a referencing operation has
+// in the source, and one the source writes under no operation.
+func TestContent_ASharedBodyOrHeaderIsNamedForItsDeclaration(t *testing.T) {
+	t.Parallel()
+	const other = `openapi: 3.1.0
+info: {title: O, version: "1"}
+paths:
+  /x:
+    post:
+      operationId: otherPost
+      requestBody:
+        content: {application/json: {schema: {type: object, properties: {v: {type: string}}}}}
+      responses:
+        "200":
+          description: ok
+          headers: {X-H: {schema: {type: object, properties: {h: {type: integer}}}}}
+`
+	const local = `x-bodies:
+  b: {content: {application/json: {schema: {type: object, properties: {v: {type: string}}}}}}
+x-headers:
+  h: {schema: {type: object, properties: {h: {type: integer}}}}
+`
+	op := func(path, id, body, header string) string {
+		return "  " + path + ":\n    post:\n      operationId: " + id + "\n      requestBody: {$ref: '" + body + "'}\n" +
+			"      responses:\n        \"200\":\n          description: ok\n          headers: {X-" + id +
+			": {$ref: '" + header + "'}}\n"
+	}
+	for name, tc := range map[string]struct {
+		extra, path, body, header string
+		nodes                     []string // each node's ID and hint, sorted
+	}{
+		"another document's": {"", "/a", "other.yaml#/paths/~1x/post/requestBody",
+			"other.yaml#/paths/~1x/post/responses/200/headers/X-H", []string{
+				"t/anon@other.yaml/paths/~1x/post/requestBody/content/application~1json/schema other_post_request",
+				"t/anon@other.yaml/paths/~1x/post/responses/200/headers/X-H/schema x_h"}},
+		"another document's, at the source's own pointer": {"", "/x", "other.yaml#/paths/~1x/post/requestBody",
+			"other.yaml#/paths/~1x/post/responses/200/headers/X-H", []string{
+				"t/anon@other.yaml/paths/~1x/post/requestBody/content/application~1json/schema other_post_request",
+				"t/anon@other.yaml/paths/~1x/post/responses/200/headers/X-H/schema x_h"}},
+		"the source's, under no operation": {local, "/a", "#/x-bodies/b", "#/x-headers/h", []string{
+			"t/anon/x-bodies/b/content/application~1json/schema request", "t/anon/x-headers/h/schema h"}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			compile := func(first, second string) ir.TypeRegistry {
+				t.Helper()
+				dir := t.TempDir()
+				require.NoError(t, os.WriteFile(filepath.Join(dir, "other.yaml"), []byte(other), 0o600))
+				doc, diags, err := openapi.New().Compile(t.Context(), []compilers.Source{{
+					Path: filepath.Join(dir, "root.yaml"),
+					Data: []byte("openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\n" + tc.extra + "paths:\n" + first + second),
+				}}, compilers.Options{Reader: reader.Disk{}})
+				require.NoError(t, err)
+				openapitest.RequireNoErrorDiags(t, diags)
+				return doc.Types
+			}
+			alpha, bravo := op(tc.path, "alpha", tc.body, tc.header), op("/b", "bravo", tc.body, tc.header)
+
+			forward, backward := compile(alpha, bravo), compile(bravo, alpha)
+
+			assert.Empty(t, cmp.Diff(forward, backward), "the names must not follow the declaration order")
+			var nodes []string
+			for _, td := range forward {
+				if td.Common().Provenance.Source != ir.NoSource {
+					nodes = append(nodes, string(td.Common().ID)+" "+td.Common().Name.Hint)
+				}
+			}
+			slices.Sort(nodes)
+			assert.Equal(t, tc.nodes, nodes, "each built in its declaration's document, under its name")
+		})
+	}
+}
+
+// besideRefPaths are /a and /b of every case below: /a writes get, put and its
+// item parameters beside a $ref to /b, which declares a get and parameters too,
+// so the resolver reads a pointer through /a's $ref to /b's, while /a's mount
+// declares its own at the pointer the reference spells. /a is anchored for an
+// alias to bring the same fields to a second path.
+const besideRefPaths = `  /a: &a
+    $ref: '#/paths/~1b'
+    parameters: [{name: near, in: query, schema: {type: string}}]
+    get:
+      operationId: getA
+      requestBody: {content: {application/json: {schema: {type: object, properties: {near: {type: string}}}}}}
+      responses: {"200": {description: OK}}
+    put:
+      operationId: putA
+      requestBody: {content: {application/json: {schema: {type: object, properties: {nearPut: {type: string}}}}}}
+      responses: {"200": {description: OK}}
+  /b:
+    parameters: [{name: far, in: query, schema: {type: integer}}]
+    get:
+      operationId: getB
+      requestBody: {content: {application/json: {schema: {type: object, properties: {far: {type: string}}}}}}
+      responses: {"200": {description: OK}}
+    post:
+      operationId: postB
+      requestBody: {content: {application/json: {schema: {type: object, properties: {farPost: {type: string}}}}}}
+      responses: {"200": {description: OK}}
+`
+
+// besideRefSpec returns a document holding besideRefPaths, then paths, then
+// rest, whose top-level keys follow.
+func besideRefSpec(paths, rest string) string {
+	return "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n" + besideRefPaths + paths + rest
+}
+
+// besideRefChain is /c taking its request body through a component that names
+// /a's get request body, which the component walk resolves after the paths, so
+// the reference resolves whichever path the document declares first.
+const besideRefChain = `  /c:
+    post:
+      operationId: postC
+      requestBody: {$ref: '#/components/requestBodies/X'}
+      responses: {"200": {description: OK}}
+`
+
+// TestPathItemRefSiblings_APointerPastTheRefIsRefusedInEitherOrder pins the
+// refusal of a reference into the fields beside a $ref (GitHub #824). The
+// resolver read #/paths/~1a/get/requestBody as /b's, and the mount declares
+// /a's own at that pointer, so whichever lowered first gave both its type: /c's
+// body took /a's schema when /a came first. Refused, neither order lowers one,
+// both report it where it is written, and both keep X, which nothing lowers,
+// verbatim.
+func TestPathItemRefSiblings_APointerPastTheRefIsRefusedInEitherOrder(t *testing.T) {
+	t.Parallel()
+	const components = "components:\n  requestBodies:\n    X: {$ref: '#/paths/~1a/get/requestBody'}\n"
+	first, firstDiags := parseFull(t, besideRefSpec(besideRefChain, components))
+	second, secondDiags := parseFull(t, "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n"+
+		besideRefChain+besideRefPaths+components)
+
+	for name, doc := range map[string]*ir.Document{"/a first": first, "/c first": second} {
+		postC := openapitest.FindOp(t, doc, "postC")
+		assert.Nil(t, postC.Request, "%s: /c takes no body through the refused reference", name)
+		getA := openapitest.FindOp(t, doc, "getA")
+		require.NotNil(t, getA.Request, name)
+		body, ok := doc.Types[getA.Request.Contents[0].Type.Target].(*ir.Model)
+		require.True(t, ok, name)
+		assert.Equal(t, "near", body.Properties[0].WireName, "%s: /a keeps its own body", name)
+		assert.Equal(t, ir.ReasonNoIRHome, doc.Unmodeled["openapi:components/requestBodies/X"].Reason,
+			"%s: the component only the refused chain passes through is kept", name)
+	}
+	assert.Empty(t, cmp.Diff(first.Types, second.Types), "the registry does not depend on the order")
+	for name, diags := range map[string][]ir.Diagnostic{"/a first": firstDiags, "/c first": secondDiags} {
+		errs := errorsAt(diags)
+		assert.Len(t, errs["/paths/~1c/post/requestBody"], 1, "%s: reported once at /c", name)
+		assert.Len(t, errs["/components/requestBodies/X"], 1, "%s: and once at the component", name)
+	}
+	assert.Contains(t, errorsAt(firstDiags)["/paths/~1c/post/requestBody"][0], "GitHub #824")
+}
+
+// TestPathItemRefSiblings_AnAnswerWrittenThereIsTakenInEitherOrder pins the one
+// answer the refusal takes. With external references allowed, the load phase
+// holds the source for the resolver, so the chain through X finds the body /a's
+// get writes, by a pointer or by the source's file name, and through /z, which
+// aliases /a, a copy of it. It finds put's too, which only /a writes and which
+// without them the resolver finds nowhere (GitHub #824). Each is the
+// declaration the mount interns at the same pointer, so /c lowers it in both
+// declaration orders with nothing reported.
+func TestPathItemRefSiblings_AnAnswerWrittenThereIsTakenInEitherOrder(t *testing.T) {
+	t.Parallel()
+	compile := func(src string) (*ir.Document, []ir.Diagnostic) {
+		doc, diags, err := openapi.New().Compile(t.Context(), []compilers.Source{{Path: "spec.yaml", Data: []byte(src)}},
+			compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
+		require.NoError(t, err)
+		require.NotNil(t, doc)
+		return doc, diags
+	}
+	for _, tc := range []struct{ ref, method, mount, wire string }{
+		{"#/paths/~1a/get/requestBody", "GET", "/a", "near"},
+		{"spec.yaml#/paths/~1a/get/requestBody", "GET", "/a", "near"},
+		{"spec.yaml#/paths/~1z/get/requestBody", "GET", "/z", "near"},
+		{"#/paths/~1a/put/requestBody", "PUT", "/a", "nearPut"},
+	} {
+		ref := tc.ref
+		components := "components:\n  requestBodies:\n    X: {$ref: '" + ref + "'}\n"
+		first, firstDiags := compile(besideRefSpec("  /z: *a\n"+besideRefChain, components))
+		second, secondDiags := compile("openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n" +
+			besideRefChain + besideRefPaths + "  /z: *a\n" + components)
+
+		for name, doc := range map[string]*ir.Document{"/a first": first, "/c first": second} {
+			own := openapitest.BodyTarget(t, opByPath(t, doc, tc.method, tc.mount).Request)
+			body, ok := doc.Types[own].(*ir.Model)
+			require.True(t, ok, "%s %s", ref, name)
+			assert.Equal(t, tc.wire, body.Properties[0].WireName, "%s %s: %s keeps its own body", ref, name, tc.mount)
+			assert.Equal(t, own, openapitest.BodyTarget(t, openapitest.FindOp(t, doc, "postC").Request),
+				"%s %s: /c takes the same one", ref, name)
+		}
+		assert.Empty(t, cmp.Diff(first.Types, second.Types), "%s: the registry does not depend on the order", ref)
+		assert.Empty(t, errorsAt(firstDiags), ref)
+		assert.Empty(t, errorsAt(secondDiags), ref)
+	}
+}
+
+// TestPathItemRefSiblings_AReferenceIntoTheFieldsBesideARefIsRefused pins the
+// refusal on every route a reference reaches a pointer by: a $ref of each kind,
+// a discriminator mapping value, a reference written inside the fields
+// themselves, and an alias's second position. A "#/$defs/..." pointer written
+// in those fields is one too, since its definition is read through the $ref.
+// Each is one error at the reference saying why, and nothing interned for it. A
+// pointer to a key nothing writes beside the $ref is left as main reads it, and
+// one only those fields write fails in the resolver, reported once there.
+func TestPathItemRefSiblings_AReferenceIntoTheFieldsBesideARefIsRefused(t *testing.T) {
+	t.Parallel()
+	const discriminated = `      requestBody:
+        content:
+          application/json:
+            schema:
+              oneOf: [{$ref: '#/components/schemas/Cat'}]
+              discriminator: {propertyName: k, mapping: {cat: '#/components/schemas/Cat', near: %s}}
+      responses: {"200": {description: OK}}
+components:
+  schemas:
+    Cat: {type: object, properties: {k: {type: string}}}
+`
+	const (
+		refused    = "refused"    // reported here, at the reference, saying why
+		unresolved = "unresolved" // reported by the resolver, which found nothing
+		resolved   = "resolved"   // nothing to report
+	)
+	// leaked reports whether /c lowered the construct the refused reference
+	// names, as the resolver read it.
+	bodyAt := func(method string) func(*ir.Document) bool {
+		return func(doc *ir.Document) bool { return opByPath(t, doc, method, "/c").Request != nil }
+	}
+	cases := []struct {
+		name, paths string
+		site        jsontext.Pointer
+		want        string
+		leaked      func(*ir.Document) bool
+	}{
+		{"schema", `  /c:
+    post:
+      requestBody: {content: {application/json: {schema: {$ref: '#/paths/~1a/get/requestBody/content/application~1json/schema'}}}}
+      responses: {"200": {description: OK}}
+`, "/paths/~1c/post/requestBody/content/application~1json/schema", refused,
+			func(doc *ir.Document) bool {
+				return openapitest.BodyTarget(t, opByPath(t, doc, "POST", "/c").Request) != ir.PrimTypeID(ir.PrimAny)
+			}},
+		{"a schema's $ref to a refused one", `  /c:
+    post:
+      requestBody: {content: {application/json: {schema: {$ref: '#/components/schemas/X'}}}}
+      responses: {"200": {description: OK}}
+components:
+  schemas:
+    X: {$ref: '#/paths/~1a/get/requestBody/content/application~1json/schema'}
+`, "/components/schemas/X", refused, func(doc *ir.Document) bool {
+			x, ok := doc.Types["t/openapi/components/schemas/X"].(*ir.Scalar)
+			return !ok || x.Base == nil || x.Base.Target != ir.PrimTypeID(ir.PrimAny)
+		}},
+		{"parameter by index", `  /c:
+    post:
+      parameters: [{$ref: '#/paths/~1a/parameters/0'}]
+      responses: {"200": {description: OK}}
+`, "/paths/~1c/post/parameters/0", refused,
+			func(doc *ir.Document) bool { return len(opByPath(t, doc, "POST", "/c").Params) > 0 }},
+		{"mapping value", "  /c:\n    post:\n" +
+			strings.Replace(discriminated, "%s", "'#/paths/~1a/get/requestBody/content/application~1json/schema'", 1),
+			"/paths/~1c/post/requestBody/content/application~1json/schema/discriminator/mapping/near", refused,
+			func(doc *ir.Document) bool { return mapsTag(doc, "near") }},
+		{"inside the fields", `  /c:
+    $ref: '#/paths/~1b'
+    get:
+      requestBody: {$ref: '#/paths/~1a/get/requestBody'}
+      responses: {"200": {description: OK}}
+`, "/paths/~1c/get/requestBody", refused, bodyAt("GET")},
+		{"a key not written beside", `  /c:
+    post:
+      requestBody: {$ref: '#/paths/~1a/post/requestBody'}
+      responses: {"200": {description: OK}}
+`, "/paths/~1c/post/requestBody", resolved, nil},
+		{"an alias's position", `  /d: *a
+  /c:
+    post:
+      requestBody: {$ref: '#/paths/~1d/get/requestBody'}
+      responses: {"200": {description: OK}}
+`, "/paths/~1c/post/requestBody", refused, bodyAt("POST")},
+		{"a key only written beside", `  /c:
+    post:
+      requestBody: {$ref: '#/paths/~1a/put/requestBody'}
+      responses: {"200": {description: OK}}
+`, "/paths/~1c/post/requestBody", unresolved, bodyAt("POST")},
+	}
+	for _, tc := range cases {
+		doc, diags := parseFull(t, besideRefSpec(tc.paths, ""))
+		errs := errorsAt(diags)
+		if tc.want == resolved {
+			assert.Empty(t, errs, "%s: resolved as main resolves it", tc.name)
+			continue
+		}
+		require.Len(t, errs[tc.site], 1, "%s: one report at the reference: %v", tc.name, errs)
+		assert.Len(t, errs, 1, "%s: and no other: %v", tc.name, errs)
+		assert.Equal(t, tc.want == refused, strings.Contains(errs[tc.site][0], "GitHub #824"),
+			"%s: %s", tc.name, errs[tc.site][0])
+		assert.False(t, tc.leaked(doc), "%s: nothing is lowered for the reference", tc.name)
+	}
+}
+
+// TestPathItemRefSiblings_ADefsPointerBesideARefIsRefused pins a "#/$defs/..."
+// pointer written in the fields beside a $ref, for a $ref and for a mapping
+// value. Its definitions are read from where it is written, so through /a's
+// $ref: the mapping's took /b's Y, hoisted at /a's own position with /b's
+// properties, and the $ref found none. Each is now one error saying why.
+func TestPathItemRefSiblings_ADefsPointerBesideARefIsRefused(t *testing.T) {
+	t.Parallel()
+	const schema = `            schema:
+              $defs: {Y: {type: object, properties: {k: {type: string}, %s: {type: string}}}}
+              type: object
+              properties: {y: {$ref: '#/$defs/Y'}}
+              oneOf: [{$ref: '#/components/schemas/Cat'}]
+              discriminator: {propertyName: k, mapping: {cat: '#/components/schemas/Cat', y: '#/$defs/Y'}}
+`
+	spec := `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    $ref: '#/paths/~1b'
+    get:
+      requestBody:
+        content:
+          application/json:
+` + strings.Replace(schema, "%s", "near", 1) + `      responses: {"200": {description: OK}}
+  /b:
+    get:
+      requestBody:
+        content:
+          application/json:
+` + strings.Replace(schema, "%s", "far", 1) + `      responses: {"200": {description: OK}}
+components:
+  schemas:
+    Cat: {type: object, properties: {k: {type: string}}}
+`
+	doc, diags := parseFull(t, spec)
+
+	const at = "/paths/~1a/get/requestBody/content/application~1json/schema"
+	errs := errorsAt(diags)
+	for _, site := range []jsontext.Pointer{at + "/properties/y", at + "/discriminator/mapping/y"} {
+		require.Len(t, errs[site], 1, "one report at %s: %v", site, errs)
+		assert.Contains(t, errs[site][0], "as is any definition it can name", site)
+	}
+	assert.NotContains(t, doc.Types, ir.TypeID("t/anon"+at+"/$defs/Y"),
+		"nothing is hoisted at /a's position from /b's definitions")
+}
+
+// mapsTag reports whether a discriminator anywhere in doc maps tag.
+func mapsTag(doc *ir.Document, tag string) bool {
+	for _, td := range doc.Types {
+		var d *ir.Discriminator
+		switch n := td.(type) {
+		case *ir.Union:
+			d = n.Discriminator
+		case *ir.Model:
+			d = n.Discriminator
+		default:
+			continue
+		}
+		if d == nil {
+			continue
+		}
+		if _, mapped := d.Mapping[tag]; mapped {
+			return true
+		}
+	}
+	return false
+}
+
+// errorsAt returns the messages of the unresolved-ref errors in diags by
+// position.
+func errorsAt(diags []ir.Diagnostic) map[jsontext.Pointer][]string {
+	out := map[jsontext.Pointer][]string{}
+	for _, d := range diags {
+		if d.Severity == ir.SeverityError && d.Code == diag.UnresolvedRef {
+			out[d.Provenance.Pointer] = append(out[d.Provenance.Pointer], d.Message)
+		}
+	}
+	return out
+}
+
+// TestPathItemRefSiblings_APointerIntoAnotherDocumentIsNotRefused pins that the
+// refusal reads a pointer in the source only. /c names ext.yaml's /a, whose
+// pointer spells a position /a here writes beside its $ref, so a check reading
+// the pointer alone would refuse a reference the resolver read correctly.
+func TestPathItemRefSiblings_APointerIntoAnotherDocumentIsNotRefused(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "ext.yaml"), []byte(`openapi: 3.1.0
+info: {title: E, version: "1"}
+paths:
+  /a:
+    get:
+      requestBody: {content: {application/json: {schema: {type: object, properties: {ext: {type: string}}}}}}
+      responses: {"200": {description: OK}}
+`), 0o600))
+	root := filepath.Join(dir, "root.yaml")
+	src := besideRefSpec(`  /c:
+    post:
+      operationId: postC
+      requestBody: {$ref: 'ext.yaml#/paths/~1a/get/requestBody'}
+      responses: {"200": {description: OK}}
+`, "")
+	doc, diags, err := openapi.New().Compile(t.Context(), []compilers.Source{{Path: root, Data: []byte(src)}},
+		compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
+	require.NoError(t, err)
+	require.NotNil(t, doc)
+
+	assert.Empty(t, errorsAt(diags))
+	body, ok := doc.Types[openapitest.BodyTarget(t, openapitest.FindOp(t, doc, "postC").Request)].(*ir.Model)
+	require.True(t, ok, "/c lowers the other document's body")
+	assert.Equal(t, "ext", body.Properties[0].WireName)
 }

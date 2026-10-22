@@ -4,7 +4,6 @@ import (
 	"encoding/json/jsontext"
 	"path/filepath"
 
-	"github.com/speakeasy-api/openapi/references"
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
@@ -14,20 +13,18 @@ import (
 
 // sourceDocument is the source as its references' resolution reads it: the
 // path they are relative to, the bytes and the tree its model was built from,
-// the findings its own validation made, and where a finding about a node of
-// that tree is placed.
+// what the table found in it, and where a finding about a node of that tree is
+// placed.
 //
 // A $ref from another document back into the source is answered from here,
 // not from the file, so it reaches what the compile holds: the tree an overlay
 // patched, and nodes a finding is reported for once (GitHub #759).
-// One that spells $id is not held (see keys).
 type sourceDocument struct {
-	path     string
-	data     []byte
-	root     *yaml.Node
-	found    map[findingKey]bool
-	tree     sourceTree
-	holdless bool
+	path   string
+	data   []byte
+	root   *yaml.Node
+	judged judgment
+	tree   sourceTree
 	// escapes holds the $ref values rewritten in the source's tree and in the
 	// trees of the documents it reads, or is nil for none (GitHub #911).
 	escapes *escapes
@@ -36,7 +33,7 @@ type sourceDocument struct {
 // sourceTree places a finding about a node of the source's patched tree as the
 // source's own findings are placed (see locator), and names the node's pointer
 // there. Its zero value holds no node, so every finding is placed at the $ref
-// that reached it, as another document's are.
+// that reached it, as one in a document no entry lists is.
 type sourceTree struct {
 	locate   scan.Locator
 	pointers func(*yaml.Node) (jsontext.Pointer, bool)
@@ -49,68 +46,29 @@ func newSourceTree(srcIndex int, origin overlay.Origin, root *yaml.Node) sourceT
 	return sourceTree{locate: locator(srcIndex, origin, pointers), pointers: pointers}
 }
 
-// pointer returns n's pointer in the tree, or false when the tree does not hold
-// n.
-func (t sourceTree) pointer(n *yaml.Node) (jsontext.Pointer, bool) {
+// has reports whether the tree holds n.
+func (t sourceTree) has(n *yaml.Node) bool {
 	if t.pointers == nil {
-		return "", false
+		return false
 	}
-	return t.pointers(n)
+	_, held := t.pointers(n)
+	return held
 }
 
 // newSourceDocument returns the source at path, built from data into root,
-// whose own validation found valErrs, and whose findings tree places. Only a
-// finding at a node is kept: one at none is told apart by where it is placed,
-// which a $ref reaching it changes. esc holds the $refs rewritten in root.
-func newSourceDocument(path string, data []byte, root *yaml.Node, valErrs []error, tree sourceTree, esc *escapes,
+// which the table judged as judged, and whose findings tree places. esc holds
+// the $refs rewritten in root.
+func newSourceDocument(path string, data []byte, root *yaml.Node, judged judgment, tree sourceTree, esc *escapes,
 ) sourceDocument {
-	found := make(map[findingKey]bool, len(valErrs))
-	for _, ve := range valErrs {
-		if verr, ok := asValidationError(ve); ok && verr.Node != nil {
-			found[keyOf(ve, "")] = true
-		}
-	}
-	return sourceDocument{path: path, data: data, root: root, found: found, tree: tree,
-		holdless: anyScalar(root, isID) || spellsManyRefs(root), escapes: esc}
+	return sourceDocument{path: path, data: data, root: root, judged: judged, tree: tree, escapes: esc}
 }
-
-// maxHeldRefs is the most $ref scalars a source held under its file name may
-// write. loops reads each hop of their chains once, and a pending one again per
-// reference, so about three reads a $ref; at this many, maxLoopWork still
-// affords reads of over a thousand steps each before the guard runs out and
-// answers nothing, and a held source lets a cycle through its file name run the
-// stack out (GitHub #768). A larger source is not held, so a reference naming
-// its file reads the file.
-const maxHeldRefs = 1 << 16
-
-// spellsManyRefs reports whether the tree under root writes more than
-// maxHeldRefs scalars spelling $ref, as a key or otherwise: counted widely, a
-// source is only held less.
-func spellsManyRefs(root *yaml.Node) bool {
-	n := 0
-	return anyScalar(root, func(v string) bool {
-		if v == "$ref" {
-			n++
-		}
-		return n > maxHeldRefs
-	})
-}
-
-// isID reports whether a scalar is the keyword that rebases the references
-// under it. Any scalar of that text counts, written as a key, a value, or an
-// anchor an alias supplies as a key: reading the tree as the parser does is
-// not certain, and a match that is too wide only holds the source less.
-func isID(v string) bool { return v == "$id" }
 
 // keys returns the keys the resolver looks the source up by: its path, as an
 // internal $ref resolves against it, and its path cleaned, as a relative $ref
 // from another document reaches it. A source with no path or no tree is held
-// under none, and one named by a URL is kept as spelled. So is one that spells
-// $id, which rebases the references under it in a way loops does not read, or
-// more $refs than its reads bound (maxHeldRefs): a chain through the source's
-// file would go unchecked, so a reference naming that file reads it instead.
+// under none, and one named by a URL is kept as spelled.
 func (s sourceDocument) keys() []string {
-	if s.holdless || s.path == "" || s.root == nil {
+	if s.path == "" || s.root == nil {
 		return nil
 	}
 	clean := filepath.Clean(s.path)
@@ -129,12 +87,4 @@ func (s sourceDocument) keys() []string {
 // reads the file it names (see fileNamed).
 func (s sourceDocument) names(name string) bool {
 	return len(s.keys()) > 0 && refscope.SameDocument(s.path, name)
-}
-
-// within is withinDocument for the source, where a reference naming it by its
-// file name names a position in it too, as the lowering reads it
-// (sourcePointer).
-func (s sourceDocument) within(ref references.Reference) (string, bool) {
-	pointer, ok := sourcePointer(s.path, string(ref))
-	return string(pointer), ok
 }

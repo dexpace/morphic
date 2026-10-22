@@ -204,10 +204,13 @@ func (r *Registry) Targets() []TargetKey               // sorted — determinism
 ```
 
 The engine is the only caller of `Lookup`, the only thing that runs `Generate`, and the only thing
-that touches the filesystem, prunes, and renders diagnostics. Emitters are I/O-free. The engine runs
-`Generate` only for a run that has not failed (`engine.Result.Failed`, architecture.md §4): at the
-default threshold a document carrying an error diagnostic reaches no emitter, and a caller that
-wants one built from it anyway says so with the `none` threshold.
+that touches the filesystem, prunes, and renders diagnostics. Emitters are I/O-free. Reading,
+rendering and writing the IR document have homes already: `engine/reader` reads what a run's
+references name, `engine/report` renders, and `engine/output` writes, replacing a file through the
+atomic replace in `engine/internal/atomicfile`. Writing artifacts and pruning land with §11. The
+engine runs `Generate` only for a run that has not failed (`engine.Result.Failed`, architecture.md
+§4): at the default threshold a document carrying an error diagnostic reaches no emitter, and a
+caller that wants one built from it anyway says so with the `none` threshold.
 
 ### 2.2 Who computes the plan
 
@@ -520,13 +523,12 @@ type ReturnShape string              // "value" | "void" | "raw" | "stream"
 `ReturnType`, and every type kind already has a lowering (§4.2), so a shape per kind would repeat
 the type in a second channel. The first rule that applies decides:
 
-1. **`stream`** — the operation streams its response (`Streaming` is `server` or `bidi`): events are
-   read one at a time, as `Stream` describes (§8.4).
-2. **`void`** — nothing is read: the operation has no success response, or its primary response
-   carries no payload. An operation with no success response returns only an error, and which
-   statuses fail it is the error taxonomy's (`Errors`, §8.5). The IR does not yet say whether a
-   lone `default` response is the success response (#608); once it does, this rule reads that
-   response as any other.
+1. **`stream`** — the operation streams its response (`Streaming` is `server` or `bidi`, or its
+   primary response is a `Default` one of whose contents declares an `Item`, §3.5): events are read
+   one at a time, as `Stream` describes (§8.4).
+2. **`void`** — nothing is read: the operation has no primary response (§3.5), or its primary
+   response carries no payload. An operation with no primary response returns only an error, and
+   which statuses fail it is the error taxonomy's (`Errors`, §8.5).
 3. **`raw`** — the primary content is a file (`Content.File`, ir-design §7.2): the body reaches the
    caller unread, a byte stream beside the media type it arrived as, and nothing decodes it.
 4. **`value`** — otherwise: the primary content's codec decodes the body into `ReturnType`, whatever
@@ -562,6 +564,10 @@ negotiation` default (`json > form > multipart > binary`) is a shared, overridab
 ```go
 type TypePlan struct {
     Flattened  []ir.PropID          // FlattenedProperties() over Base+Implements+Mixins+own — COMPUTED
+    Required   []ir.PropID          // the flattened properties an instance must carry: each one's
+                                    // own Required, and each Requires names along the way
+    Undeclared []string             // the names Requires lists that no flattened property declares,
+                                    // in order: members only the catch-all governs
     Union      UnionShape           // a union's wire shape, one of four (§4.4); "" = not a union
     Discrim    *DiscrimFacts        // a union's or hierarchy's discriminator, as variant IDs
     Scalar     *ScalarChain         // a scalar's Base chain, walked once; nil = not a scalar
@@ -604,6 +610,15 @@ not case anything, does not resolve reserved words, and does not copy a fact the
 distinct beside it, so a class-based target can map `Base→extends` / `Implements→interfaces` /
 `Mixins→inline` where the three first targets flatten (§8.8). The plan does not decide which — that
 is per-language (§4).
+
+`Required` and `Undeclared` read what a model requires over the same walk (ir-design §4.3): a
+flattened property is required where it says so itself, or where this model or one it composes
+lists its wire name in `Requires`, as `allOf: [{$ref: User}, {required: [id]}]` makes `User`'s `id`
+required on the composed model. A name `Requires` lists that no flattened property declares is
+`Undeclared`: a member only the catch-all governs, whose value the catch-all types —
+`AdditionalProps.Value`, or the top type where the model has no catch-all or scopes values by
+`Patterns`, since which pattern governs a name is ECMA-262's to say and no target's matcher is held
+to it.
 
 ### 3.3 ModelShape — visibility projection
 
@@ -694,13 +709,24 @@ Everything the plan *infers* rather than reads is a knob here; every inferred ou
 ```go
 type Policy struct {
     ContentRanking      []string                        // default: json > form > multipart > binary
-    PrimaryResponse     func([]ir.Response) *ir.Response // default: lowest 2xx
+    PrimaryResponse     func(*ir.Operation) *ir.Response // default: lowest 2xx, else the Default
     EnvelopeDetect      EnvelopePolicy                   // off unless explicitly enabled
 }
 ```
 
 A test asserts that disabling a heuristic removes the corresponding `Inferred` plan field — the
 guard against a heuristic silently defaulting on and quietly making the plan non-neutral.
+
+**The default response is classed here.** The IR states an operation's `Default` — OpenAPI's
+`default` — as neither a success nor a failure, since it answers every status the others do not name
+(ir-design §7.2). `PrimaryResponse` reads the whole operation for that reason, and its default takes
+the lowest 2xx `Response`, or the `Default` where the operation declares none, since a `default`
+answering every status is then the operation's only description of a success. A `Default` that is
+not the primary response is the catch-all of `Errors`, with its condition. Either use is marked
+`Inferred`, and a policy may take it as neither or both. Disabling the heuristic leaves an operation
+with no success response `void` (§3.1) and its `Default` in no plan field. `Streaming` summarizes
+only the streams an operation's success responses declare, so a primary `Default` streams where one
+of its contents declares an `Item` (§3.1).
 
 ### 3.6 Plan fact or refine fact
 
@@ -736,10 +762,11 @@ The procedure decided every existing field:
 1. **Choices under `plan.Policy`** stay: `PrimaryResponse`, `PrimaryContent`, the unwrap behind
    `ReturnType`, and `PagePlan`, an inferred one included.
 2. **Derivations several artifacts expose** stay: `Return`, `Errors`, `Auth`, `Bindings`, `Stream`
-   and `LRO`; and `Flattened`, `Union`, `Discrim`, `Scalar`, `Shapes`, `Alias` and `Reach`. `Alias`
-   classifies a decorator over several of its fields and resolves its chain (§4.15), and `Reach`
-   walks every operation (§4.17); SDKs and docs that disagreed on either would name a field's type
-   or a type's home differently.
+   and `LRO`; and `Flattened`, `Required`, `Undeclared`, `Union`, `Discrim`, `Scalar`, `Shapes`,
+   `Alias` and `Reach`. `Required` and `Undeclared` read `Requires` along the flattening walk
+   (§3.2), `Alias` classifies a decorator over several of its fields and resolves its chain (§4.15),
+   and `Reach` walks every operation (§4.17); SDKs and docs that disagreed on any of them would mark
+   a member optional, name a field's type or place a type differently.
 3. **Copies of what the IR states** are gone: whether there is a body, one-way-ness and idempotency
    (§3.1), a model's `Base`, `Implements` and `Mixins`, an enum's openness, value type, flags and
    fallback member, a union's variant list, and the operation-group tree (§3.4). `Union` replaces a
@@ -831,7 +858,7 @@ snapshot pins the whole lowering deterministically.
 | `ResolveScalarChains` | `plan.ScalarChain` (the `Base` chain walked once, constraints merged), `Ctx.Types` | a defined type over a root with no methods, an alias over any other (§4.9), the root typed by the type table (§2.6), + merged constraints; nil-base → newtype (opaque-scalar strategy) | §4.2 |
 | `LowerContainers` | `List/MapT/Tuple` nodes (with IDs) | `[]T` / `map[K]V` / positional struct, its positions past `MinItems` optional and a `Rest` as a trailing slice; a nil `MapT.Key` is `string`, and a non-string key → custom-key map or diagnostic | §4.6 |
 | `LowerLiterals` | `Literal{Value}` | typed constant / single-value newtype (incl. `symbol`) | §4.6 |
-| `LowerModels` | `TypePlan.Flattened`, `Base`/`Implements`/`Mixins`, `AdditionalProps`, `Additional`, `Positional` | struct over the flattened properties, catch-all map as the embedded fallback, unknown members rejected on `closed` (§8.1) | §4.3 |
+| `LowerModels` | `TypePlan.Flattened`, `Required`, `Undeclared`, `Base`/`Implements`/`Mixins`, `AdditionalProps`, `Additional`, `Positional` | struct over the flattened properties, an `Undeclared` member a required field typed as the catch-all types it, catch-all map as the embedded fallback, unknown members rejected on `closed` (§8.1) | §4.3 |
 | `ProjectVisibilityShapes` | `plan.ModelShape` per lifecycle | `User` / `UserCreate` / `UserPatch` structs | §5.2 |
 | `LowerOptionality` | `Property.Required` ⊥ `TypeRef.Nullable` ⊥ `Property.Presence`; `Facts.Component` | the four+ states → `T` / `*T` / `Opt[T]`/`Nil[T]`/`OptNil[T]` / `omitzero` + presence bit; a reference on a cycle the target holds by value held through a pointer (§4.16) | §5.1; INV8 |
 | `LowerConstraints` | `Constraints` on properties/scalars/lists/maps | field-level `validate` tags + a refine-built `Validate()` method structure | §5.3 |
@@ -845,7 +872,7 @@ snapshot pins the whole lowering deterministically.
 | `LowerPagination` | `plan.PagePlan` (item unwrap, cursor paths) | auto-pager yielding `iter.Seq2[T, error]`; pacing left to policy | §7.3 |
 | `LowerStreaming` | `plan.StreamPlan` (direction, event union) | `EventStream.Recv()`/`Send()` over the event union; terminal ends | §7.3 |
 | `LowerLRO` | `plan.LROPlan` (final-state-via, poll/final ops, result path) | poller type + `Poll()/PollUntilDone()` returning the final type | §7.3 |
-| `LowerErrors` | `plan.PlannedError`, `irfacts.UsageError`, `Fault` | error type tree (`APIError` → client/server → concrete) | §7.2 |
+| `LowerErrors` | `plan.PlannedError`, `irfacts.UsageError`, `Fault` | error type tree (`APIError` → client/server → concrete), over the types `UsageError` marks and those a `PlannedError` the policy made of a `Default` names, which no IR fact marks (§3.5) | §7.2 |
 | `PlaceDeclarations` | `Provenance.Source`, `TypePlan.Reach`, the target's placement options | the output unit each declaration lands in: one package unless a partition or a group split moves it (§4.17) | §13 |
 | `ComputeImports` | what each file's declarations reference: another unit's declarations, a type-table row's `Imports`, the runtime | per-file import sets, each import by its path; the name a file gives it is settled with every other name (§4.12) | — |
 | `RenderCasing` | neutral `Ident` (= `naming.Words`: the canonical words beside their source spellings; a name with none named by its characters) + the options' naming tables | cased identifiers, the units' among them — the ONLY place names get cased (§4.12) | §3.2; INV4 |
@@ -991,6 +1018,11 @@ wrapper; `explicit` protobuf presence → pointer/hazzer, `implicit` → `omitze
 zero is not serialized. `ClientOptional` relaxes the client-side type even when `Required=true`;
 `DefaultAdded` may be suppressed for back-compat. Where Go's zero value would force a *deliberate*
 collapse of two states, a `Diagnostic` is emitted — never a silent conflation (§13 test T-3).
+
+A nullable reference whose `TypeRef.Inferred` names a heuristic renders as nullable like any
+other: the compiler's policy already chose to read null in, and the marker is there so that choice
+stays auditable (INV6). A configuration that wants only what the source declares reads
+`Nullable && Inferred == ""` instead, which is the declared bit (ir-design §3.3).
 
 Presence is stated in `encoding/json/v2` terms, and `omitempty` never keeps a presence state. v2
 defines `omitempty` by the encoded JSON — a field is dropped when it would encode as `null`, `""`,
@@ -1307,22 +1339,16 @@ example: x}`. None of these nodes says anything about a value that its `Base` do
 written, each would be a type of its own — a struct repeating a wrapped model's fields, or a second
 name for a wrapped enum (§4.9), named from a hint — where every user expects the type it wraps.
 
-**What a decorator is.** An anonymous type whose `Base` is set, and which is
-
-- a `Model` with every other field of its own zero, or a `Scalar` with no `Constraints` and no
-  `Encoding`; and
-- sets nothing in `TypeCommon` beyond its identity (`ID`, `Name`, `Namespace`, `Anonymous`,
-  `Provenance`), the annotations a use site can hold (`Docs`, `Deprecation`, `Examples`),
-  `Availability`, which no emitter interprets (§2.4), and `Unmodeled`, whose entries an SDK acts on
-  by reason, none of them by changing a type (§4.14) — T-15 requires as much, since an entry that
-  kept a node from collapsing would change the artifacts.
-
-The rule lists what may be set rather than what may not, so a field the IR gains keeps a node from
-collapsing until a change decides otherwise; the plan's test enumerates the fields by reflection,
-which turns that decision into a failing test rather than a review catch. Anything else a node sets
-— a property, a constraint, `Sensitive`, an XML name, a media-type hint — says something about
-values at its position, and the node lowers as it would without this section. A named type is never
-a decorator: its name is public surface, lowered by §9's rows.
+**What a decorator is** is the IR's rule, stated by `ir.Decorated` (ir-design §4.10): an anonymous
+`Model` or `Scalar` whose `Base` is set and which sets nothing beyond its identity, the annotations
+a use site can hold, `Availability`, which no emitter interprets (§2.4), and `Unmodeled`, whose
+entries an SDK acts on by reason, none of them by changing a type (§4.14) — T-15 requires as much,
+since an entry that kept a node from collapsing would change the artifacts. The plan reads it
+through that function, so the compiler, which names a union variant holding one by it, and the plan
+cannot disagree about which nodes collapse. Anything else a node sets — a property, a required
+member, a constraint, `Sensitive`, an XML name, a media-type hint — says something about values at
+its position, and the node lowers as it would without this section. A named type is never a
+decorator: its name is public surface, lowered by §9's rows.
 
 **What the plan records.** A decorator's `TypePlan.Alias` is the first type along its `Base` chain
 that is not one, found by a walk bounded by the size of the registry. A chain that returns to a
@@ -1355,8 +1381,9 @@ it stands for does:
 The fold is a shared refine helper in `emitters/refine`, reading only the IR facts `Alias` points
 along. T-16 holds it to the compiler's merge: a 3.0 decorator and the 3.1 `$ref` carrying the same
 annotations beside it generate identical artifacts at every kind of position, so moving a document
-from one spelling to the other changes no SDK. A union variant is the exception until the compiler
-hints a decorated branch as it hints a bare `$ref` (#1018).
+from one spelling to the other changes no SDK. A union variant is one such position: the compiler
+names a variant whose branch is a decorator over a `$ref` as it names the `$ref`'s
+([`union`](./compilers/openapi.md#union)).
 
 ### 4.16 Recursive references
 
@@ -1414,8 +1441,9 @@ applies decides.
    - an import cycle between units is an error, since neither a Go package nor a Gradle module
      admits one, naming the units and one reference that closes the cycle.
 
-   Until the compiler loads a spec split across files into one document (#74), `Sources` names the
-   entry document and its overlay alone, so every other key names no source.
+   Each document a spec's references read is a `Sources` entry after the entry document and its
+   overlay, and a type it declares, inline in a parameter or response it holds included, names that
+   entry (ir-design §3.1), so a key names a file the references read.
 2. **Split by group.** With `SplitByGroup`, each top-level operation group is a unit, holding the
    group's operations, its sub-client and every type only its operations reach, as `TypePlan.Reach`
    says; `Reach` spreads from each operation's roots along the type graph as usage does (ir-design
@@ -1963,10 +1991,13 @@ behind a pager and a poller, and §8.4 a `stream`; the kinds a `value` holds bes
   the body, so a large download streams.
 - **No body** (`DELETE /pet/{id}` → `204`). **plan.** `Return:void`. **refine.** Go returns `error`
   alone, Kotlin `Unit`.
-- **No success response** (`POST /purge`, whose only response is `default`). **plan.**
-  `Return:void`: the method returns only an error, and a status no declared response or error case
-  matches is the error taxonomy's to classify (§8.5). Once the IR says whether a lone `default` is a
-  success response (#608), this line reads it as any other.
+- **A lone default** (`POST /purge`, whose only response is `default`). **plan.** The IR lowers it
+  to `Operation.Default`, classed neither way (ir-design §7.2), and the default `PrimaryResponse`
+  takes it for the primary response, marked `Inferred` (§3.5), so `Return` reads it as any other:
+  `value` with its body, `void` without one. **refine.** As the line for the body it carries.
+- **No success response** (`POST /purge` declaring only `4XX`). **plan.** `Return:void`: the method
+  returns only an error, and a status no declared response or error case matches is the error
+  taxonomy's to classify (§8.5).
 - **An anonymous decorator** (`200 → {allOf: [{$ref: Zone}], description: …}`). **plan.**
   `Return:value`, `ReturnType` the decorator, as the content names it, whose `TypePlan.Alias` is
   `Zone` (§4.15). **refine.** `CollapseAliases` lowers the reference to `Zone`, so the method
@@ -2187,8 +2218,9 @@ throughout this document.
 16. **T-16 · Decorator spellings agree** — a 3.0 `allOf` decorator and the 3.1 `$ref` carrying the
     same annotations beside it, at a property, a parameter, a header, a union variant, a list
     element, a map value and a content, generate byte-identical artifacts (§4.15), a variant's name
-    excepted until #1018 lands. Beside it, the plan's test enumerates the fields of `Model`,
-    `Scalar` and `TypeCommon` by reflection and fails on one §4.15 has not classified.
+    included. Which nodes are decorators is `ir.Decorated`'s, whose own test enumerates the
+    fields of `Model`, `Scalar` and `TypeCommon` by reflection and fails on one ir-design §4.10
+    has not classified.
 17. **T-17 · Type table** — each target's built-in table has, at every options version, a row for
     every `PrimKind` `ir` declares, read through `internal/decls`; a user row replaces the built-in
     row under its key whole; an encoding with no row falls back to its primitive's and is reported

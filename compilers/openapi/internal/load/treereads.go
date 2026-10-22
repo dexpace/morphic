@@ -17,8 +17,8 @@ import (
 // for the first matching a token, then tries each `<<` key's mapping in turn.
 // Each mapping is answered from an index built once (see mappingKeys), so a
 // read costs treeReads its depth, not the widths it passes. It prices the
-// library's reads (cost), reads for loops, which charges its own (read), and
-// answers resolve.Scope.Holds (holds).
+// library's reads (cost), and answers resolve.Scope.Holds (holds) by a read
+// that counts its own work (read).
 //
 // TestTreeReads_CountsWhatTheLibraryReadTakes holds where it ends to
 // GetTarget's, so a library change that moves it turns that test red.
@@ -63,8 +63,9 @@ func (t *treeReads) cost(root *yaml.Node, pointer string, limit int) (int, *yaml
 // read is cost counting this reader's own steps rather than the library's: a
 // step for each node visited, each key looked up in a mapping's index and each
 // `<<` key tried, so a wide mapping costs a read no more than a narrow one.
-func (t *treeReads) read(root *yaml.Node, pointer string, limit int) (int, *yaml.Node) {
-	return t.tally(root, pointer, limit, true)
+// Nothing bounds it: holds answers in full.
+func (t *treeReads) read(root *yaml.Node, pointer string) (int, *yaml.Node) {
+	return t.tally(root, pointer, math.MaxInt, true)
 }
 
 // tally is cost, or read where own. The limit is held below math.MaxInt, so a
@@ -79,43 +80,12 @@ func (t *treeReads) tally(root *yaml.Node, pointer string, limit int, own bool) 
 	return s.steps, target
 }
 
-// modelCost returns the steps GetTarget's read of pointer in doc, the source's
-// model, takes: none for a pointer the library refuses before reading, one for
-// each token the model answers or fails, and where the read leaves the model
-// (navigation.Walk), one more and the library's read of the tokens left in the
-// raw YAML it goes on in, which it reads together there (see cost). Counting
-// stops once past limit.
-func (t *treeReads) modelCost(doc any, pointer jsontext.Pointer, limit int) int {
-	tokens, ok := navigation.Tokens(pointer)
-	if !ok {
-		return 0
-	}
-	at, rest, err := navigation.Walk(doc, tokens)
-	steps := len(tokens) - len(rest)
-	if err != nil {
-		return steps + 1
-	}
-	raw, leaves := at.(*yaml.Node)
-	if !leaves || len(rest) == 0 {
-		return steps
-	}
-	scan, _ := t.cost(raw, joinTokens(rest), limit-steps-1)
-	return steps + 1 + scan
-}
-
 // holds reports whether the library's read of token in raw finds a node, read
 // through the index (see resolve.Scope.Holds), so asking it of one wide mapping
 // once per reference costs its width once.
 func (t *treeReads) holds(raw *yaml.Node, token string) bool {
-	_, target := t.read(raw, "/"+jsonpointer.EscapeString(token), math.MaxInt)
+	_, target := t.read(raw, "/"+jsonpointer.EscapeString(token))
 	return target != nil
-}
-
-// target is defs.RawRead, answered from the index: the node the library's read
-// of tokens finds in raw, and false where it finds none.
-func (t *treeReads) target(raw *yaml.Node, tokens []string) (*yaml.Node, bool) {
-	_, n := t.read(raw, joinTokens(tokens), math.MaxInt)
-	return n, n != nil
 }
 
 // drain returns the pairs indexed since it last answered.
@@ -145,13 +115,6 @@ func (t *treeReads) index(n *yaml.Node) *mappingKeys {
 	t.keys[n] = k
 	t.indexed += k.pairs
 	return k
-}
-
-// joinTokens returns the pointer naming tokens, or "" for none, which reads
-// nothing. It keeps each token's bytes, as the library reads them: jsontext
-// would spell a byte that is no UTF-8 as U+FFFD, a key the read never compares.
-func joinTokens(tokens []string) string {
-	return string(jsonpointer.PartsToJSONPointer(tokens))
 }
 
 // partsOf returns the tokens of pointer as the library's walk reads them

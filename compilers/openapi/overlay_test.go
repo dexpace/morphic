@@ -555,14 +555,11 @@ actions:
 	}
 }
 
-// TestCompile_RejectsAnOverlayThatIntroducesAReferenceCycle pins the refusals
-// that run before the parser against the tree the parser is actually handed.
-//
-// The spec on its own is acyclic and the overlay is what closes the loop, so the
-// pre-parse scan over the source bytes cannot see it. Without a second scan over
-// the patched tree the cycle reaches the third-party resolver, which is the
-// crash those refusals exist to prevent.
-func TestCompile_RejectsAnOverlayThatIntroducesAReferenceCycle(t *testing.T) {
+// TestCompile_ReportsAReferenceCycleAnOverlayIntroduces pins that the $refs
+// are bound in the tree the parser is handed, not the source bytes: the spec
+// on its own is acyclic, and the overlay is what closes the loop. The loop is
+// reported once, at its least member, and each member lowers to any.
+func TestCompile_ReportsAReferenceCycleAnOverlayIntroduces(t *testing.T) {
 	t.Parallel()
 	const acyclic = `openapi: 3.1.0
 info: {title: T, version: "1"}
@@ -578,25 +575,36 @@ actions:
   - target: $.components.schemas.B
     update: {$ref: '#/components/schemas/A'}
 `
-	clean, _, err := openapi.New().Compile(t.Context(),
+	clean, diags, err := openapi.New().Compile(t.Context(),
 		[]compilers.Source{{Path: "spec.yaml", Data: []byte(acyclic)}}, compilers.Options{})
 	require.NoError(t, err)
-	require.NotNil(t, clean, "the source alone is acyclic, so the scan has nothing to find")
+	require.NotNil(t, clean)
+	assert.False(t, ir.HasError(diags), "the source alone is acyclic: %+v", diags)
 
 	doc, diags, err := openapi.New().Compile(t.Context(),
 		[]compilers.Source{{Path: "spec.yaml", Data: []byte(acyclic)}},
 		compilers.Options{FormatOptions: openapi.Options{
 			Overlay: &openapi.Overlay{Data: []byte(closesTheLoop)},
 		}})
-
 	require.NoError(t, err)
-	assert.Nil(t, doc, "the patched document is refused before it reaches the resolver")
+	require.NotNil(t, doc)
 
-	// The code, not merely the presence of an error: an overlay has several ways
-	// to fail, and a refusal for any of the others would satisfy a bare
-	// HasError while leaving the cycle this test is named for unexercised.
-	found, _ := ir.FirstError(diags)
-	assert.Equal(t, diag.CyclicRef, found.Code, "the introduced cycle is what refused it: %+v", diags)
+	var errs []ir.Diagnostic
+	for _, d := range diags {
+		if d.Severity == ir.SeverityError {
+			errs = append(errs, d)
+		}
+	}
+	want := []ir.Diagnostic{{Severity: ir.SeverityError, Code: diag.CyclicRef,
+		Message: "cyclic $ref: the chain of $refs through #/components/schemas/A, #/components/schemas/B " +
+			"comes back to where it started and never reaches a schema",
+		Provenance: ir.Provenance{Pointer: "/components/schemas/A"}}}
+	assert.Empty(t, cmp.Diff(want, errs))
+	for _, name := range []string{"A", "B"} {
+		alias, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/"+name)].(*ir.Scalar)
+		require.True(t, ok, name)
+		assert.Equal(t, ir.TypeID("t/prim/any"), alias.Base.Target, name)
+	}
 }
 
 // provenanceSpec and provenancePatch exercise GitHub #522's fix on every
@@ -902,8 +910,8 @@ func TestCompile_OverlayIsCreditedWithTheKeysItAdds(t *testing.T) {
 		{"operation extension (operations.go applyOperationAnnotations)", "openapi:x-op", 1},
 		{"operation unknown key (operations.go applyOperationAnnotations)", "openapi:opBogus", 1},
 		{"externalDocs unknown key (operations.go applyOperationAnnotations)", "openapi:externalDocs/edBogus", 1},
-		{"response unknown key (operations.go preserveResponseExtras)", "openapi:bogus", 1},
-		{"response extension (operations.go preserveResponseExtras)", "openapi:x-resp", 1},
+		{"response unknown key (responses.go preserveResponseExtras)", "openapi:bogus", 1},
+		{"response extension (responses.go preserveResponseExtras)", "openapi:x-resp", 1},
 		{"media type unknown key (content.go lowerContent)", "openapi:mediaBogus", 1},
 		{"header unknown key (content.go applyHeaderAnnotations)", "openapi:headerBogus", 1},
 		{"example unknown key (content.go appendPluralExample)", "openapi:exBogus", 1},
@@ -920,13 +928,13 @@ func TestCompile_OverlayIsCreditedWithTheKeysItAdds(t *testing.T) {
 		{"OAuth flow unknown key (auth.go applyFlowAnnotations)", "openapi:flowBogus", 1},
 		{"document info extension (meta.go documentExtensions)", "openapi:info/x-info", 1},
 		{"document info unknown key (meta.go documentUnknownKeys)", "openapi:info/infoBogus", 1},
-		{"server extension (meta.go lowerServer)", "openapi:x-srv", 1},
-		{"server unknown key (meta.go lowerServer)", "openapi:srvBogus", 1},
-		{"server variable extension (meta.go serverVariables)", "openapi:x-var", 1},
-		{"server variable unknown key (meta.go serverVariables)", "openapi:varBogus", 1},
-		{"unmounted path item's servers (operations.go applyPathServers)", "openapi:pathItem/paths/~1empty/servers", 1},
-		{"unmounted path item's own extension (operations.go applyPathItem)", "openapi:pathItem/paths/~1empty/x-pi", 1},
-		{"unmounted path item's undeclared key (operations.go applyPathItem)", "openapi:pathItem/paths/~1empty/piBogus", 1},
+		{"server extension (servers.go lowerServer)", "openapi:x-srv", 1},
+		{"server unknown key (servers.go lowerServer)", "openapi:srvBogus", 1},
+		{"server variable extension (servers.go serverVariables)", "openapi:x-var", 1},
+		{"server variable unknown key (servers.go serverVariables)", "openapi:varBogus", 1},
+		{"unmounted path item's servers (pathitem.go applyPathServers)", "openapi:pathItem/paths/~1empty/servers", 1},
+		{"unmounted path item's own extension (pathitem.go applyPathItem)", "openapi:pathItem/paths/~1empty/x-pi", 1},
+		{"unmounted path item's undeclared key (pathitem.go applyPathItem)", "openapi:pathItem/paths/~1empty/piBogus", 1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			entry := entryKeyed(t, entries, tc.key)

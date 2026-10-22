@@ -110,21 +110,34 @@ func TestCheckPath_UnreadableFileIsError(t *testing.T) {
 	assert.Contains(t, err.Error(), "harness: read")
 }
 
-func TestSpecFiles_ListsADirectorysSpecsInWalkOrder(t *testing.T) {
+// brokenOpenAPI declares its version and cannot be read, so detection declines
+// it with a diagnostic of its own instead of in silence.
+const brokenOpenAPI = "openapi: 3.1.0\ninfo: [unclosed\n"
+
+// swagger2 is recognized by the OpenAPI compiler as swagger@2.0, a format no
+// registered compiler serves.
+const swagger2 = `{"swagger": "2.0", "info": {"title": "t", "version": "1"}, "paths": {}}`
+
+func TestSpecFiles_ListsWhatARegisteredCompilerClaims(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	// A directory named like a spec is walked into, not listed.
 	require.NoError(t, os.Mkdir(filepath.Join(dir, "nested.yaml"), 0o750))
-	b := writeSpec(t, dir, "b.yaml", testspec.Minimal)
-	a := writeSpec(t, dir, "a.json", "{}")
-	c := writeSpec(t, filepath.Join(dir, "nested.yaml"), "c.yml", testspec.Minimal)
-	// A golden snapshot and a file of another kind are not specs.
-	writeSpec(t, dir, "a.golden.json", "{}")
-	writeSpec(t, dir, "notes.txt", "x")
+	taken := writeSpec(t, filepath.Join(dir, "nested.yaml"), "taken.yml", testspec.Minimal)
+	broken := writeSpec(t, dir, "broken.yaml", brokenOpenAPI)
+	unserved := writeSpec(t, dir, "swagger.json", swagger2)
+	// None of these is a spec: a file no compiler recognizes, a JSON file that
+	// declares nothing, a snapshot named like the spec it holds, and a spec in a
+	// dot-directory.
+	writeSpec(t, dir, "notes.txt", "not a spec")
+	writeSpec(t, dir, "data.json", `{"a": 1}`)
+	writeSpec(t, dir, "taken.golden.json", testspec.Minimal)
+	require.NoError(t, os.Mkdir(filepath.Join(dir, ".hidden"), 0o750))
+	writeSpec(t, filepath.Join(dir, ".hidden"), "spec.yaml", testspec.Minimal)
 
-	files, err := harness.SpecFiles(dir)
+	files, err := harness.SpecFiles(context.Background(), dir)
 	require.NoError(t, err)
-	assert.Equal(t, []string{a, b, c}, files)
+	assert.Equal(t, []string{broken, taken, unserved}, files, "in walk order, the nested spec between its neighbours")
 
 	results, err := harness.CheckPath(context.Background(), dir)
 	require.NoError(t, err)
@@ -135,11 +148,56 @@ func TestSpecFiles_ListsADirectorysSpecsInWalkOrder(t *testing.T) {
 	assert.Equal(t, files, checked, "CheckPath checks what SpecFiles lists, in that order")
 }
 
+// TestSpecFiles_ReadsPastTheExtension pins that listing asks the compilers and
+// not the file name: a spec is listed whatever it is called, and a name that
+// looks like one lists nothing the compilers do not claim.
+func TestSpecFiles_ReadsPastTheExtension(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	spec := writeSpec(t, dir, "api.txt", testspec.Minimal)
+	writeSpec(t, dir, "api.yaml", "just: words\n")
+
+	files, err := harness.SpecFiles(context.Background(), dir)
+	require.NoError(t, err)
+	assert.Equal(t, []string{spec}, files)
+}
+
+// TestSpecFiles_FollowsLinksToFilesAndSkipsWhatItCannotRead covers the entries
+// that are not plain files. A link to a spec is a spec and a root that is a link
+// to a directory is walked. A link to a directory is not descended into, and a
+// socket is never opened: reading one may not return.
+func TestSpecFiles_FollowsLinksToFilesAndSkipsWhatItCannotRead(t *testing.T) {
+	t.Parallel()
+	// A short prefix rather than t.TempDir: a unix socket path is capped near
+	// 104 bytes, and t.TempDir spells this test's whole name into it.
+	dir, err := os.MkdirTemp("", "harness")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+
+	target := writeSpec(t, dir, "target.txt", testspec.Minimal)
+	link := filepath.Join(dir, "link.yaml")
+	require.NoError(t, os.Symlink(target, link))
+	require.NoError(t, os.Symlink(dir, filepath.Join(dir, "loop")))
+	ln, err := net.Listen("unix", filepath.Join(dir, "sock.yaml"))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = ln.Close() })
+
+	root := filepath.Join(t.TempDir(), "root")
+	require.NoError(t, os.Symlink(dir, root))
+
+	files, err := harness.SpecFiles(context.Background(), root)
+	require.NoError(t, err)
+	assert.Equal(t, []string{
+		filepath.Join(root, "link.yaml"),
+		filepath.Join(root, "target.txt"),
+	}, files)
+}
+
 func TestSpecFiles_ListsARegularFileWhateverItsExtension(t *testing.T) {
 	t.Parallel()
 	notes := writeSpec(t, t.TempDir(), "notes.txt", "x")
 
-	files, err := harness.SpecFiles(notes)
+	files, err := harness.SpecFiles(context.Background(), notes)
 	require.NoError(t, err)
 	assert.Equal(t, []string{notes}, files)
 }
@@ -154,10 +212,33 @@ func TestSpecFiles_Refusals(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			files, err := harness.SpecFiles(tc.path)
+			files, err := harness.SpecFiles(context.Background(), tc.path)
 			require.Error(t, err)
 			assert.Nil(t, files)
 			assert.Contains(t, err.Error(), tc.want)
 		})
 	}
+}
+
+func TestSpecFiles_NilContextIsRefused(t *testing.T) {
+	t.Parallel()
+	var noContext context.Context // deliberately nil, to exercise the boundary guard
+	files, err := harness.SpecFiles(noContext, t.TempDir())
+	require.Error(t, err)
+	assert.Nil(t, files)
+	assert.Contains(t, err.Error(), "nil context")
+}
+
+// TestSpecFiles_CanceledContextStopsTheWalk holds the walk to its caller's
+// deadline: listing reads every file, so it is as long as the tree it is given.
+func TestSpecFiles_CanceledContextStopsTheWalk(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	writeSpec(t, dir, "spec.yaml", testspec.Minimal)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	files, err := harness.SpecFiles(ctx, dir)
+	require.ErrorIs(t, err, context.Canceled)
+	assert.Nil(t, files)
 }

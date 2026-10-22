@@ -250,6 +250,45 @@
   ],
   "diagnostics": [
     {
+      "severity": "error",
+      "code": "openapi/validation/validation-mutually-exclusive-fields",
+      "message": "Parameter Object fields \"schema\", \"content\" are mutually exclusive in OpenAPI 3.1 (Parameter Object)",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1x/get/parameters/0",
+        "position": {
+          "line": 17,
+          "column": 11
+        }
+      }
+    },
+    {
+      "severity": "error",
+      "code": "openapi/validation/validation-mutually-exclusive-fields",
+      "message": "Parameter Object fields \"schema\", \"content\" are mutually exclusive in OpenAPI 3.1 (Parameter Object)",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1x/get/parameters/1",
+        "position": {
+          "line": 25,
+          "column": 11
+        }
+      }
+    },
+    {
+      "severity": "error",
+      "code": "openapi/validation/validation-mutually-exclusive-fields",
+      "message": "Header Object fields \"schema\", \"content\" are mutually exclusive in OpenAPI 3.1 (Header Object)",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1x/get/responses/200/headers/X-H",
+        "position": {
+          "line": 35,
+          "column": 15
+        }
+      }
+    },
+    {
       "severity": "warning",
       "code": "openapi/degraded-construct",
       "message": "a parameter or header declares either schema or content, not both; this one declares both, so it lowered as its content, with schema kept verbatim under Unmodeled",

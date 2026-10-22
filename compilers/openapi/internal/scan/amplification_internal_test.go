@@ -12,9 +12,17 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
+	"github.com/dexpace/morphic/compilers/openapi/internal/sourceindex"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ynode"
 	"github.com/dexpace/morphic/ir"
 )
+
+// rawNodes is a tree's own node count, before any alias is substituted, as the
+// source index derives it.
+func rawNodes(n *yaml.Node) int64 {
+	return sourceindex.Build(n, sourceindex.MaxIndexedNodes).Nodes()
+}
 
 const amplificationBombFixture = "../../../../testdata/openapi/amplification_alias_bomb.yaml"
 
@@ -41,7 +49,7 @@ func bigAliasFreeSpec(n int) string {
 	return b.String()
 }
 
-func TestDetectCycles_LargeAliasFreeDocumentIsClean(t *testing.T) {
+func TestAliases_LargeAliasFreeDocumentIsClean(t *testing.T) {
 	t.Parallel()
 	src := bigAliasFreeSpec(bigDocSchemaCount)
 
@@ -53,7 +61,7 @@ func TestDetectCycles_LargeAliasFreeDocumentIsClean(t *testing.T) {
 		"a large alias-free document must never be refused: what it costs is what its own bytes already bought")
 }
 
-func TestDetectCycles_AnchorReuseWithinBudgetIsClean(t *testing.T) {
+func TestAliases_AnchorReuseWithinBudgetIsClean(t *testing.T) {
 	t.Parallel()
 	var b strings.Builder
 	b.WriteString("openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\n")
@@ -92,7 +100,7 @@ func wideBaseReuseSpec(props, siblings int) string {
 	return b.String()
 }
 
-func TestDetectCycles_RealWorldAnchorReuseIsClean(t *testing.T) {
+func TestAliases_RealWorldAnchorReuseIsClean(t *testing.T) {
 	t.Parallel()
 	const props = 20
 	const siblings = 900
@@ -117,7 +125,7 @@ func TestDetectCycles_RealWorldAnchorReuseIsClean(t *testing.T) {
 		"ordinary DRY reuse of one shared base across many sibling schemas, at least as demanding as the worst real spec measured, is not amplification")
 }
 
-func TestDetectCycles_SyntheticWideBaseReuseIsNowRefused(t *testing.T) {
+func TestAliases_SyntheticWideBaseReuseIsNowRefused(t *testing.T) {
 	t.Parallel()
 	const props = 200
 	const siblings = 500
@@ -133,7 +141,7 @@ func TestDetectCycles_SyntheticWideBaseReuseIsNowRefused(t *testing.T) {
 	assert.Equal(t, diag.AliasAmplification, diags[0].Code)
 	assert.Equal(t, ir.SeverityError, diags[0].Severity)
 
-	unbounded := Cycles(InSource(0), indexOf(t, []byte(src)), 0)
+	unbounded := Aliases(InSource(0), indexOf(t, []byte(src)), 0)
 	require.NotEmpty(t, unbounded, "turning the alias budget off leaves the ratio rule standing")
 	assert.Equal(t, diag.AliasAmplification, unbounded[0].Code)
 }
@@ -171,7 +179,7 @@ func flatFanOutSpec(n int) string {
 	return b.String()
 }
 
-func TestDetectCycles_FlatFanOutOfModestAnchorIsEventuallyRefused(t *testing.T) {
+func TestAliases_FlatFanOutOfModestAnchorIsEventuallyRefused(t *testing.T) {
 	t.Parallel()
 	const under = 9_000
 	assert.Empty(t, scanBytes(t, []byte(flatFanOutSpec(under))),
@@ -196,9 +204,9 @@ func TestDetectCycles_FlatFanOutOfModestAnchorIsEventuallyRefused(t *testing.T) 
 	assert.Equal(t, ir.SeverityError, diags[0].Severity)
 	assert.Contains(t, diags[0].Message, fmt.Sprintf("past the %d-node alias budget", defaultSurplus))
 
-	assert.Empty(t, Cycles(InSource(0), indexOf(t, []byte(src)), 2*defaultSurplus),
+	assert.Empty(t, Aliases(InSource(0), indexOf(t, []byte(src)), 2*defaultSurplus),
 		"a caller who raised the budget has the document admitted")
-	assert.Empty(t, Cycles(InSource(0), indexOf(t, []byte(src)), 0),
+	assert.Empty(t, Aliases(InSource(0), indexOf(t, []byte(src)), 0),
 		"a caller who turned the budget off has the document admitted")
 }
 
@@ -236,7 +244,7 @@ func TestAliasAmplification_ABombIsNamedForItsShapeWhateverTheBudget(t *testing.
 	require.NoError(t, err)
 
 	for _, surplus := range []int64{1, defaultSurplus, 0} {
-		diags := Cycles(InSource(0), indexOf(t, data), surplus)
+		diags := Aliases(InSource(0), indexOf(t, data), surplus)
 		require.Len(t, diags, 1, "surplus %d", surplus)
 		assert.Equal(t, diag.AliasAmplification, diags[0].Code, "surplus %d", surplus)
 	}
@@ -288,6 +296,95 @@ func TestAliases_HoldsAnOverlayToTheBudgetItIsGiven(t *testing.T) {
 	require.Len(t, diags, 1)
 	assert.Equal(t, diag.BudgetExceeded, diags[0].Code)
 	assert.Empty(t, Aliases(InSource(0), indexOf(t, []byte(src)), 0), "no budget, and well inside the ratio")
+}
+
+// chainedAliasSpec writes a document whose Root schema is the top of a chain
+// of levels anchors, each an allOf naming the one below it twice, so its alias
+// expansion doubles with each level.
+func chainedAliasSpec(levels int) string {
+	var b strings.Builder
+	b.WriteString("openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\nx-anchors:\n")
+	b.WriteString("  a0: &a0 {type: string}\n")
+	for i := 1; i <= levels; i++ {
+		fmt.Fprintf(&b, "  a%d: &a%d {allOf: [*a%d, *a%d]}\n", i, i, i-1, i-1)
+	}
+	fmt.Fprintf(&b, "components:\n  schemas:\n    Root: *a%d\n", levels)
+	return b.String()
+}
+
+// TestAliases_ChainedAliasFanOutIsRefused refuses a millionfold
+// expansion. Twenty levels keep this test finite even for a walk that lost its
+// memo, a defect TestAliases_AllocatesLinearlyInItsInput reports.
+func TestAliases_ChainedAliasFanOutIsRefused(t *testing.T) {
+	t.Parallel()
+	diags := scanBytes(t, []byte(chainedAliasSpec(20)))
+	require.Len(t, diags, 1, "a fan-out this deep is refused, not silently accepted")
+	assert.Equal(t, diag.AliasAmplification, diags[0].Code)
+	assert.Equal(t, ir.SeverityError, diags[0].Severity)
+}
+
+func TestAliases_MergeChainWithinBoundIsClean(t *testing.T) {
+	t.Parallel()
+	diags := scanBytes(t, []byte(ynode.MergeChainSpec(nodeview.MergeDepthLimit)))
+	assert.Empty(t, diags, "a merge chain of this depth is clean")
+}
+
+// TestAliases_MergeChainPastBoundIsRefused pins a merge chain longer than
+// nodeview.MergeDepthLimit and past the alias allowance with room to spare. The
+// scan does not read merge keys through the mapping view, whose depth bound
+// would make it report an incomplete scan beside the refusal, so the refusal
+// stands alone.
+func TestAliases_MergeChainPastBoundIsRefused(t *testing.T) {
+	t.Parallel()
+	diags := scanBytes(t, []byte(ynode.MergeChainSpec(500)))
+	require.Len(t, diags, 1, "the amplification refusal, and no incomplete-scan warning beside it")
+	assert.Equal(t, diag.AliasAmplification, diags[0].Code)
+	assert.Equal(t, ir.SeverityError, diags[0].Severity,
+		"the document's alias expansion is refused outright")
+}
+
+// TestAliases_AllocatesLinearlyInItsInput holds Aliases to a cost linear in its
+// input, on each shape a weigher without its memo blows up on. A row is
+// measured at n, 2n and 4n, which must take one path through the scan, and the
+// second doubling may add at most 2.5 times what the first did: a linear walk
+// adds twice as much, a quadratic one four times, and the fixed cost cancels.
+// Allocations do not move with load. It runs serially, since AllocsPerRun
+// counts the whole process.
+func TestAliases_AllocatesLinearlyInItsInput(t *testing.T) {
+	rows := []struct {
+		name string
+		spec func(n int) string
+		n    int
+	}{
+		// Sizes the expansion ratio admits keep one path, and a weigher that
+		// lost its memo finite.
+		{"chained aliases", chainedAliasSpec, 2},
+		{"merge chain", ynode.MergeChainSpec, 80},
+	}
+	for _, row := range rows {
+		t.Run(row.name, func(t *testing.T) {
+			sizes := []int{row.n, 2 * row.n, 4 * row.n}
+			allocs := make([]float64, len(sizes))
+			paths := make([][]string, len(sizes))
+			for i, size := range sizes {
+				idx := indexOf(t, []byte(row.spec(size)))
+				var diags []ir.Diagnostic
+				// No alias budget, so only the expansion ratio refuses, and it
+				// refuses none of these sizes.
+				allocs[i] = testing.AllocsPerRun(1, func() { diags = Aliases(InSource(0), idx, 0) })
+				for _, d := range diags {
+					paths[i] = append(paths[i], d.Code)
+				}
+			}
+			require.Equal(t, paths[0], paths[1], "sizes %v must take one path through the scan", sizes)
+			require.Equal(t, paths[0], paths[2], "sizes %v must take one path through the scan", sizes)
+
+			first, second := allocs[1]-allocs[0], allocs[2]-allocs[1]
+			require.Positive(t, first, "a doubling that adds nothing measures nothing")
+			assert.LessOrEqual(t, second, 2.5*first,
+				"sizes %v took %v allocations: the second doubling added over 2.5 times the first", sizes, allocs)
+		})
+	}
 }
 
 func TestShapeAllowance_FloorsTheRatio(t *testing.T) {
@@ -436,7 +533,7 @@ func TestAliasWeigher_InFlightCycleSaturates(t *testing.T) {
 }
 
 // TestYAMLUnmarshal_IntoANodeSpendsNoAliasBudget pins the yaml.v3 fact the alias
-// weigher's reason for existing rests on, and that Cycles's comment states: the
+// weigher's reason for existing rests on, and that Aliases's comment states: the
 // library's excessive-aliasing guard counts expansions, and decoding into a
 // yaml.Node performs none, so the bomb this package refuses decodes into a tree
 // without a word from the library. The Go-value decode beside it is the control

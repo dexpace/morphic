@@ -189,3 +189,90 @@ func isDigits(s string) bool {
 	}
 	return true
 }
+
+// DecimalReading is what a numeric literal denotes, read without
+// materializing it: enough to judge it against a range, an integrality or a
+// digit budget however large its exponent.
+type DecimalReading struct {
+	// Zero reports the value zero.
+	Zero bool
+	// Integral reports a value with no fractional part; zero is integral.
+	Integral bool
+	// Digits is the count of significant digits, trailing zeros excluded.
+	Digits int
+	// MsdExp is the power of ten the leading significant digit carries. It is
+	// zero for the value zero.
+	MsdExp *big.Int
+}
+
+// ReadDecimal reads v as BigValEqual does, never materializing the exponent,
+// so 1e1000001 reads in constant space. ok is false outside the decimal
+// grammar.
+func ReadDecimal(v ir.BigVal) (DecimalReading, bool) {
+	d, ok := parseDecimalBound(v)
+	if !ok {
+		return DecimalReading{}, false
+	}
+	if d.digits == "" {
+		return DecimalReading{Zero: true, Integral: true, MsdExp: new(big.Int)}, true
+	}
+	digits := len(strings.TrimRight(d.digits, "0"))
+	return DecimalReading{
+		Integral: d.msdExp.Cmp(big.NewInt(int64(digits-1))) >= 0,
+		Digits:   digits,
+		MsdExp:   d.msdExp,
+	}, true
+}
+
+// CompareBigVal orders two numeric literals by value, returning -1, 0 or +1
+// as a is less than, equal to, or greater than b. ok is false when either is
+// outside the decimal grammar, where no order is claimed.
+func CompareBigVal(a, b ir.BigVal) (order int, ok bool) {
+	aDec, aOK := parseDecimalBound(a)
+	bDec, bOK := parseDecimalBound(b)
+	if !aOK || !bOK {
+		return 0, false
+	}
+	return compareDecimalBounds(aDec, bDec), true
+}
+
+// maxMultipleOfShift bounds the power of ten IsMultipleOf materializes to put
+// the two literals on one scale. A literal reads in constant space however
+// large its exponent, but the quotient's integrality needs both as integers.
+const maxMultipleOfShift = 4096
+
+// IsMultipleOf reports whether v is an integral multiple of m, exactly. ok is
+// false when either is outside the decimal grammar, when m is zero, which
+// divides nothing, or when the two are more than maxMultipleOfShift powers of
+// ten apart, where the answer is not worth the integers it would build.
+func IsMultipleOf(v, m ir.BigVal) (multiple, ok bool) {
+	vd, vOK := parseDecimalBound(v)
+	md, mOK := parseDecimalBound(m)
+	if !vOK || !mOK || md.digits == "" {
+		return false, false
+	}
+	if vd.digits == "" {
+		return true, true
+	}
+	num, vExp := vd.integer()
+	den, mExp := md.integer()
+	shift := vExp.Sub(vExp, mExp)
+	if shift.CmpAbs(big.NewInt(maxMultipleOfShift)) > 0 {
+		return false, false
+	}
+	scale := new(big.Int).Exp(big.NewInt(10), new(big.Int).Abs(shift), nil)
+	if shift.Sign() >= 0 {
+		num.Mul(num, scale)
+	} else {
+		den.Mul(den, scale)
+	}
+	return new(big.Int).Rem(num, den).Sign() == 0, true
+}
+
+// integer returns d's significant digits read as an integer, and the power of
+// ten its last digit carries, so d is the one times ten to the other. d is not
+// zero.
+func (d decimalBound) integer() (*big.Int, *big.Int) {
+	digits, _ := new(big.Int).SetString(d.digits, 10)
+	return digits, new(big.Int).Sub(d.msdExp, big.NewInt(int64(len(d.digits)-1)))
+}

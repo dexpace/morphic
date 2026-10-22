@@ -2,11 +2,14 @@ package operation_test
 
 import (
 	"encoding/json/jsontext"
+	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 
-	"github.com/speakeasy-api/openapi/validation"
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -14,6 +17,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -221,9 +225,9 @@ func TestParams_QueryStringLocation(t *testing.T) {
 
 // TestParams_QueryStringDeclaredStyleIsKeptAndReported pins the other half of
 // the same rule: the compiler stopped inventing a style at that location, it did
-// not start erasing one. A document declaring style there is invalid and the
-// parser says so; what it declared still lowers, because dropping declared
-// content is an emitter's call rather than a compiler's.
+// not start erasing one. A document declaring style there breaks 3.2's rule and
+// is warned of, as explode is; what it declared still lowers, because dropping
+// declared content is an emitter's call rather than a compiler's.
 func TestParams_QueryStringDeclaredStyleIsKeptAndReported(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.PathsSpecVer("3.2.0", `  /q:
@@ -241,7 +245,12 @@ func TestParams_QueryStringDeclaredStyleIsKeptAndReported(t *testing.T) {
         "200": {description: ok}
 `)
 	doc, diags := parseFull(t, spec)
-	openapitest.AssertHasCode(t, diags, diag.Validation+"/"+string(validation.RuleValidationAllowedValues), ir.SeverityError)
+	openapitest.RequireNoErrorDiags(t, diags)
+	for _, keyword := range []string{"style", "explode"} {
+		assert.Equal(t, "parameter field "+keyword+" is not allowed for in=querystring; lowered as declared",
+			openapitest.DiagMessageAt(t, diags, diag.InvalidLocationKeyword, ir.SeverityWarning,
+				"/paths/~1q/get/parameters/0/"+keyword))
+	}
 	op := openapitest.FindOp(t, doc, "q")
 	require.Len(t, op.Bindings.HTTP, 1)
 	require.Len(t, op.Bindings.HTTP[0].ParamBindings, 1)
@@ -259,11 +268,9 @@ func TestParams_QueryStringDeclaredStyleIsKeptAndReported(t *testing.T) {
 // keywords: an explode written without a style beside it.
 //
 // Suppressing the invented style must not take a declared explode with it. 3.2
-// forbids explode at this location as it forbids style, but the bundled parser
-// enforces only the style half — so this reaches the compiler unrefused, and
-// erasing it would be the same silent drop the invented style was, in the other
-// direction. See diag.InvalidLocationKeyword's GoDoc for why this compiler's
-// own report is the only diagnostic naming it, and why it is a warning.
+// forbids explode at this location as it forbids style, and erasing it would be
+// the same silent drop the invented style was, in the other direction. See
+// diag.InvalidLocationKeyword's GoDoc for why the report is a warning.
 func TestParams_QueryStringDeclaredExplodeAloneIsKeptAndReported(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.PathsSpecVer("3.2.0", `  /q:
@@ -300,8 +307,7 @@ func TestParams_QueryStringDeclaredExplodeAloneIsKeptAndReported(t *testing.T) {
 
 // TestParams_QueryStringDeclaredAllowReservedIsKeptAndReported is the third
 // keyword 3.2 forbids at this location alongside style and explode; see
-// diag.InvalidLocationKeyword's GoDoc for why the parser enforces none of it
-// and why this compiler's report is a warning.
+// diag.InvalidLocationKeyword's GoDoc for why the report is a warning.
 func TestParams_QueryStringDeclaredAllowReservedIsKeptAndReported(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.PathsSpecVer("3.2.0", `  /q:
@@ -1322,9 +1328,8 @@ func TestParams_RepeatedNameAndLocationKeepsEveryParameter(t *testing.T) {
 			assert.Equal(t, []ir.ParamID{op.Params[0].ID, op.Params[1].ID},
 				[]ir.ParamID{bindings[0].Param, bindings[1].Param}, "each binding names its own parameter")
 
-			assert.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.DuplicateParameter, ir.SeverityError))
-			assert.Zero(t, openapitest.CountDiagsAt(diags, diag.Validation+"/"+validation.RuleValidationOperationParameters, ir.SeverityError),
-				"the parser's own report is dropped, so an inline repeat is one error")
+			assert.Equal(t, []string{diag.DuplicateParameter + " at " + tc.repeat}, errorFindings(diags),
+				"the repeat is one error, whatever spells its entries")
 			msg := openapitest.DiagMessageAt(t, diags, diag.DuplicateParameter, ir.SeverityError, tc.repeat)
 			assert.Contains(t, msg, tc.first, "the report names the entry the repeat collides with")
 		})
@@ -1395,10 +1400,11 @@ components:
 }
 
 // TestParams_RepeatInAnotherDocumentIsReportedOnce covers the two places a
-// repeat is reported. A list the source writes is load's, even when its entries
-// $ref another document; a list another document writes, which load's walk of
-// the source does not reach, is the lowering's, at the entry it lowered. Each
-// repeat is reported once.
+// repeat is reported, each at the entry where its list is written. A list the
+// source writes is load's, even when its entries $ref another document; a list
+// another document writes, which load's walk of the source does not reach, is
+// the lowering's, at the entry it lowered, in that document. Each repeat is
+// reported once.
 func TestParams_RepeatInAnotherDocumentIsReportedOnce(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
@@ -1429,20 +1435,263 @@ paths:
 	path := filepath.Join(dir, "root.yaml")
 	require.NoError(t, os.WriteFile(path, []byte(root), 0o600))
 
-	_, diags, err := openapi.New().Compile(t.Context(),
+	doc, diags, err := openapi.New().Compile(t.Context(),
 		[]compilers.Source{{Path: path, Data: []byte(root)}},
-		compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: true}})
+		compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
 	require.NoError(t, err)
 
-	got := map[jsontext.Pointer]int{}
+	require.Len(t, doc.Sources, 2)
+	assert.Equal(t, filepath.Join(dir, "other.yaml"), doc.Sources[1].Path)
+	repeat := func(source int, pointer jsontext.Pointer, name, in string, first jsontext.Pointer) ir.Diagnostic {
+		return ir.Diagnostic{Severity: ir.SeverityError, Code: diag.DuplicateParameter,
+			Message:    fmt.Sprintf("parameter %q in %q repeats the entry at %s", name, in, first),
+			Provenance: ir.Provenance{Source: source, Pointer: pointer}}
+	}
+	var got []ir.Diagnostic
 	for _, d := range diags {
 		if d.Code == diag.DuplicateParameter {
-			got[d.Provenance.Pointer]++
+			got = append(got, d)
 		}
 	}
-	assert.Equal(t, map[jsontext.Pointer]int{
-		"/paths/~1x/get/parameters/2": 1,
-		"/paths/~1x/parameters/1":     1,
-		"/paths/~1y/get/parameters/1": 1,
-	}, got)
+	slices.SortFunc(got, func(x, y ir.Diagnostic) int {
+		return strings.Compare(string(x.Provenance.Pointer), string(y.Provenance.Pointer))
+	})
+	want := []ir.Diagnostic{
+		repeat(1, "/X/get/parameters/2", "q", "query", "/X/get/parameters/0"),
+		repeat(1, "/X/parameters/1", "limit", "query", "/X/parameters/0"),
+		repeat(0, "/paths/~1y/get/parameters/1", "limit", "query", "/paths/~1y/get/parameters/0"),
+	}
+	assert.Empty(t, cmp.Diff(want, got))
+}
+
+// TestParameters_PathItemSharedAcrossOperationsInternsOnce is the fix's core
+// scenario (issue #36): a path-item-level parameter merged into two sibling
+// operations must intern its schema once, at the path item's own pointer —
+// not once per operation under a pointer fabricated from that operation's
+// unrelated parameter count.
+func TestParameters_PathItemSharedAcrossOperationsInternsOnce(t *testing.T) {
+	t.Parallel()
+	spec := openapitest.PathsSpec(`  /pets/{petId}:
+    parameters:
+      - name: petId
+        in: path
+        required: true
+        schema: {type: string, enum: [a, b]}
+    get:
+      operationId: getPet
+      responses: {"200": {description: ok}}
+    delete:
+      operationId: deletePet
+      parameters:
+        - {name: force, in: query, schema: {type: boolean}}
+      responses: {"200": {description: ok}}
+`)
+	doc, _, diags := lowerServiceSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	getPet := openapitest.FindOp(t, doc, "getPet")
+	deletePet := openapitest.FindOp(t, doc, "deletePet")
+	require.Len(t, getPet.Params, 1, "get inherits only the shared path-item parameter")
+	require.Len(t, deletePet.Params, 2, "delete gets its own force plus the shared path-item parameter")
+
+	wantID := ir.TypeID("t/anon/paths/~1pets~1{petId}/parameters/0/schema")
+	assert.Equal(t, wantID, getPet.Params[0].Type.Target, "get resolves the shared path-item schema")
+
+	byName := openapitest.IndexBy(deletePet.Params, func(p ir.Parameter) string { return p.Name.Source })
+	assert.Equal(t, wantID, byName["petId"].Type.Target, "delete resolves the same shared schema, not a copy")
+
+	typeDef, ok := doc.Types[wantID]
+	require.True(t, ok, "the shared schema is registered under the path item's own pointer")
+	assert.Equal(t, jsontext.Pointer("/paths/~1pets~1{petId}/parameters/0/schema"), typeDef.Common().Provenance.Pointer)
+
+	_, fabricatedGet := doc.Types[ir.TypeID("t/anon/paths/~1pets~1{petId}/get/parameters/0/schema")]
+	_, fabricatedDelete := doc.Types[ir.TypeID("t/anon/paths/~1pets~1{petId}/delete/parameters/1/schema")]
+	assert.False(t, fabricatedGet, "no fabricated per-operation ID for get")
+	assert.False(t, fabricatedDelete, "no fabricated per-operation ID for delete")
+}
+
+// TestParameters_PathItemSchemaIDStableAcrossOperationParamChanges guards the
+// specific regression from issue #36: adding an unrelated operation-level
+// parameter must not shift the TypeID already handed out for a sibling
+// path-item-level parameter's schema.
+func TestParameters_PathItemSchemaIDStableAcrossOperationParamChanges(t *testing.T) {
+	t.Parallel()
+	before := openapitest.PathsSpec(`  /pets/{petId}:
+    parameters:
+      - name: petId
+        in: path
+        required: true
+        schema: {type: string, enum: [a, b]}
+    get:
+      operationId: getPet
+      responses: {"200": {description: ok}}
+`)
+	after := openapitest.PathsSpec(`  /pets/{petId}:
+    parameters:
+      - name: petId
+        in: path
+        required: true
+        schema: {type: string, enum: [a, b]}
+    get:
+      operationId: getPet
+      parameters:
+        - {name: verbose, in: query, schema: {type: boolean}}
+      responses: {"200": {description: ok}}
+`)
+	_, svcBefore, diagsBefore := lowerServiceSpec(t, before)
+	openapitest.RequireNoErrorDiags(t, diagsBefore)
+	_, svcAfter, diagsAfter := lowerServiceSpec(t, after)
+	openapitest.RequireNoErrorDiags(t, diagsAfter)
+
+	opBefore := openapitest.FirstOp(t, svcBefore)
+	opAfter := openapitest.FirstOp(t, svcAfter)
+	require.Len(t, opBefore.Params, 1)
+	require.Len(t, opAfter.Params, 2, "the unrelated verbose parameter adds a second entry")
+
+	byName := openapitest.IndexBy(opAfter.Params, func(p ir.Parameter) string { return p.Name.Source })
+	assert.Equal(t, opBefore.Params[0].Type.Target, byName["petId"].Type.Target,
+		"an unrelated operation-level parameter must not shift the shared path-item schema's ID")
+}
+
+// TestParameters_WebhookPathItemParameterPointer covers the same merge through
+// lowerWebhooks: a webhook path-item-level parameter must hoist at the webhook
+// path item's own pointer.
+func TestParameters_WebhookPathItemParameterPointer(t *testing.T) {
+	t.Parallel()
+	spec := `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+webhooks:
+  petEvent:
+    parameters:
+      - name: kind
+        in: query
+        schema: {type: string, enum: [created, deleted]}
+    post:
+      operationId: onPetEvent
+      responses: {"200": {description: ok}}
+`
+	doc, _, diags := lowerServiceSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	op := openapitest.FindOp(t, doc, "onPetEvent")
+	require.Len(t, op.Params, 1)
+
+	wantID := ir.TypeID("t/anon/webhooks/petEvent/parameters/0/schema")
+	assert.Equal(t, wantID, op.Params[0].Type.Target)
+	typeDef, ok := doc.Types[wantID]
+	require.True(t, ok)
+	assert.Equal(t, jsontext.Pointer("/webhooks/petEvent/parameters/0/schema"), typeDef.Common().Provenance.Pointer)
+}
+
+// TestParameters_CallbackPathItemParameterPointer covers the same merge
+// through lowerCallbackOps: a callback path-item-level parameter must hoist at
+// the callback path item's own pointer, nested under the parent operation and
+// callback expression.
+func TestParameters_CallbackPathItemParameterPointer(t *testing.T) {
+	t.Parallel()
+	spec := openapitest.PathsSpec(`  /subscribe:
+    post:
+      operationId: subscribe
+      callbacks:
+        onEvent:
+          '{$request.body#/callbackUrl}':
+            parameters:
+              - name: token
+                in: query
+                schema: {type: string, enum: [a, b]}
+            post:
+              operationId: onEvent
+              responses: {"200": {description: ok}}
+      responses: {"200": {description: ok}}
+`)
+	doc, _, diags := lowerServiceSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	cbOp := openapitest.FindOp(t, doc, "onEvent")
+	require.Len(t, cbOp.Params, 1)
+
+	wantPointer := "/paths/~1subscribe/post/callbacks/onEvent/{$request.body#~1callbackUrl}/parameters/0/schema"
+	wantID := ir.TypeID("t/anon" + wantPointer)
+	assert.Equal(t, wantID, cbOp.Params[0].Type.Target)
+	typeDef, ok := doc.Types[wantID]
+	require.True(t, ok)
+	assert.Equal(t, jsontext.Pointer(wantPointer), typeDef.Common().Provenance.Pointer)
+}
+
+// TestParameters_ShadowedPathItemParamUsesOperationPointer covers the other
+// side of the merge: when the operation redeclares a path-item parameter, the
+// operation's own schema must be used and lowered at the operation's own
+// pointer — the shadowed path-item schema is never lowered at all.
+func TestParameters_ShadowedPathItemParamUsesOperationPointer(t *testing.T) {
+	t.Parallel()
+	spec := openapitest.PathsSpec(`  /pets/{petId}:
+    parameters:
+      - name: petId
+        in: path
+        required: true
+        schema: {type: string, enum: [a, b]}
+    get:
+      operationId: getPet
+      parameters:
+        - name: petId
+          in: path
+          required: true
+          schema: {type: string, enum: [c, d]}
+      responses: {"200": {description: ok}}
+`)
+	doc, svc, diags := lowerServiceSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	op := openapitest.FirstOp(t, svc)
+	require.Len(t, op.Params, 1, "the operation parameter shadows the path-item one; no duplicate")
+
+	wantID := ir.TypeID("t/anon/paths/~1pets~1{petId}/get/parameters/0/schema")
+	assert.Equal(t, wantID, op.Params[0].Type.Target, "the operation's own schema wins, at the operation's pointer")
+
+	enum, ok := doc.Types[wantID].(*ir.Enum)
+	require.True(t, ok)
+	require.Len(t, enum.Members, 2)
+	assert.Equal(t, "c", enum.Members[0].Value.Str, "the operation-level schema's own values are used")
+
+	_, atPathLevel := doc.Types[ir.TypeID("t/anon/paths/~1pets~1{petId}/parameters/0/schema")]
+	assert.False(t, atPathLevel, "the shadowed path-item schema is never lowered")
+}
+
+// TestRefSiteDocs_MountsKeepTheirOwnInEitherOrder is the hand-rolled two-order
+// diff for GitHub #610. A use-site summary or description is neither part of the
+// type registry nor a diagnostic, so the in-package order-invariance oracle does
+// not reach it. One component referenced by two operations with different
+// overrides, declared in both orders, must give each mount its own docs.
+func TestRefSiteDocs_MountsKeepTheirOwnInEitherOrder(t *testing.T) {
+	t.Parallel()
+	const first = `  /a:
+    get:
+      operationId: a
+      parameters: [{$ref: '#/components/parameters/Limit', description: from a}]
+      responses: {"200": {description: ok}}
+`
+	const second = `  /b:
+    get:
+      operationId: b
+      parameters: [{$ref: '#/components/parameters/Limit', description: from b}]
+      responses: {"200": {description: ok}}
+`
+	projection := func(paths string) map[string]string {
+		t.Helper()
+		spec := `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+` + paths + `components:
+  parameters:
+    Limit: {name: limit, in: query, description: declared, schema: {type: integer}}
+`
+		doc, _, diags := lowerServiceSpec(t, spec)
+		openapitest.RequireNoErrorDiags(t, diags)
+		out := map[string]string{}
+		for _, name := range []string{"a", "b"} {
+			p, ok := paramBySource(openapitest.FindOp(t, doc, name), "limit")
+			require.True(t, ok)
+			out[name] = p.Docs.Description
+		}
+		return out
+	}
+	assert.Empty(t, cmp.Diff(projection(first+second), projection(second+first)),
+		"each mount keeps its own override whichever was lowered first")
 }

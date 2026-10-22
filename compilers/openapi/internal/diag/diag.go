@@ -21,8 +21,10 @@ import (
 // The stable codes the OpenAPI compiler reports under. They are stable strings
 // so CI can allowlist them (ir-design §13).
 const (
-	// Validation reports a speakeasy validation finding; it is suffixed with the
-	// library rule name (e.g. "openapi/validation/duplicate-tag").
+	// Validation reports a document breaking a rule of the OpenAPI Specification
+	// at its declared minor, which the load phase's rule table finds; it is
+	// suffixed with the finding's class (e.g.
+	// "openapi/validation/validation-required-field").
 	Validation = "openapi/validation"
 	// UnsupportedVersion reports an OpenAPI version the compiler cannot lower.
 	UnsupportedVersion = "openapi/unsupported-version"
@@ -31,25 +33,20 @@ const (
 	// item $ref, which the resolver reads in the item that $ref names (GitHub
 	// #824).
 	UnresolvedRef = "openapi/unresolved-ref"
-	// CyclicRef reports a degenerate reference cycle, refused before the parser
-	// library overflows its stack on it (docs/parser-library.md#schema-cycle-overflow,
-	// docs/parser-library.md#alias-cycle). A pre-parse scan finds a recursive
-	// YAML anchor or a loop of schema $refs joined by same-document pointers;
-	// load's reach, one closing through $anchor, $id or $defs-relative
-	// resolution (GitHub #557). Each names the cycle's reference with the least
-	// pointer, never one only leading in (GitHub #912). Load's chain read, for
-	// one closing through the source's file name, names every reference whose
-	// chain loops (GitHub #768). The resolver reports a chain of reference
-	// objects itself, as UnresolvedRef (docs/parser-library.md#reference-object-cycle).
+	// CyclicRef reports a degenerate cycle. A recursive YAML anchor is refused
+	// before the parser library overflows its stack on it
+	// (docs/parser-library.md#alias-cycle). A loop of schema $refs that never
+	// reaches a schema is reported once, at its least member the source writes,
+	// else at the least source $ref leading into it (GitHub #912), and the
+	// document still compiles: the compiler binds schema $refs itself
+	// (docs/parser-library.md#schema-cycle-overflow). The resolver reports a
+	// chain of reference objects itself, as UnresolvedRef
+	// (docs/parser-library.md#reference-object-cycle).
 	CyclicRef = "openapi/cyclic-ref"
-	// CycleScanFailed reports that a cycle check did not run to completion,
-	// leaving its stack-overflow protection incomplete for the source: the
-	// pre-parse scan, load's reach, or load's reading of schema chains for one
-	// closing through the source's file name either aborted (a detector bug) or
-	// hit one of its bounds. It is a warning: the compile still proceeds, and
-	// every cycle the check did classify is still caught. Past the chain read's
-	// bound, a $ref it did not read is left unresolved where the source is held,
-	// since its chain could close through the held file and run the stack out.
+	// CycleScanFailed reports that the pre-parse alias scan aborted on a fault
+	// of its own (scan.Aliases), leaving its protection against a recursive
+	// anchor incomplete for the source. It is a warning: the compile still
+	// proceeds.
 	CycleScanFailed = "openapi/cycle-scan-failed"
 	// SourceTooLarge reports a document with more YAML nodes than the pre-parse
 	// scan indexes (sourceindex.MaxIndexedNodes). Every answer the index gives
@@ -166,13 +163,13 @@ const (
 	DuplicateStatusKey = "openapi/duplicate-status-key"
 	// DuplicateParameter reports a parameter list entry repeating the name and
 	// location of an earlier entry in the same list, its $refs resolved, which
-	// OpenAPI forbids. The compiler owns the rule, dropping the bundled parser's
-	// report, which saw only inline entries: every list the source writes is
+	// OpenAPI forbids. The rule table states the rule and leaves it here, where
+	// every entry is read through its $ref: every list the source writes is
 	// checked whether or not it lowers (load), and a list another document
 	// writes where it lowers (the parameter lowering). A lowered list keeps
 	// every occurrence, each repeat's ID ending in its occurrence number.
 	//
-	// Error, as the parser's report was.
+	// An error, as the specification forbids the repeat.
 	DuplicateParameter = "openapi/duplicate-parameter"
 	// DuplicateServerName reports a servers list entry whose name an earlier
 	// entry in the same list already has, compared as written, at the repeat's
@@ -215,16 +212,15 @@ const (
 	// rather than left to evaluation.
 	DynamicRefExpanded = "openapi/dynamic-ref-expanded"
 	// ConflictingRedecl reports that inline allOf branches redeclare one field
-	// with disagreeing values. An incompatible target type (string vs. integer) is
-	// unsatisfiable; a conflicting constraint keyword (minimum: 10 vs.
-	// exclusiveMinimum: 10) is usually satisfiable but not representable by a
-	// simple merge, so the merge keeps an arbitrary source-order winner, possibly
-	// the looser bound.
+	// with disagreeing values. The judgment finds the types narrower (no
+	// diagnostic), overlapping (a DegradedConstruct: shared values the merge does
+	// not narrow) or disjoint; only disjoint types, a scalar against a structure
+	// and two structure kinds conflict. A conflicting constraint keyword
+	// (minimum: 10 vs. exclusiveMinimum: 10) is usually satisfiable, but no
+	// simple merge states it, so the merge keeps a source-order winner.
 	//
 	// Either way the losing declaration is kept whole under the merged property's
-	// Unmodeled (merge.keepLosingDeclaration), so a consumer reading the document
-	// finds it. Intersecting the bounds instead is the recorded direction (GitHub
-	// #10).
+	// Unmodeled (merge.keepLosingDeclaration); #10 records intersecting bounds.
 	ConflictingRedecl = "openapi/conflicting-redeclaration"
 	// DisjointVisibility reports one field restricted to lifecycle sets that
 	// share nothing — readOnly against writeOnly — so no lifecycle admits it at
@@ -250,30 +246,23 @@ const (
 	// is this.
 	AliasAmplification = "openapi/alias-amplification"
 	// BudgetExceeded reports an input that crossed a budget. openapi.Limits sets
-	// most: a document past the byte or node budget (or an overlay building it
-	// past one), aliases adding more nodes than the alias budget, an enum past
-	// the member budget (GitHub #75), more external documents than the document
-	// budget. Load bounds two kinds of work: resolving mapping targets, and
-	// resuming chains through other documents.
+	// most: a document's bytes or nodes (an overlay's included), alias nodes, an
+	// enum's members (GitHub #75), external documents. Fixed bounds cover load's
+	// schema $refs, chains through other documents and rule checks, detection's
+	// merges, and the declarations of one field the allOf merge judges.
 	//
-	// Unlike AliasAmplification's bomb, these are documents legitimately that
-	// large. Every site reports an error: the document is refused, its
-	// validation stops, an enum loses its members (UnpreservableConstruct), or
-	// what the work did not reach is left unresolved.
+	// None is the input's fault, unlike AliasAmplification's bomb. Each is an
+	// error: the document is refused, validation stops, an enum loses its members
+	// (UnpreservableConstruct), what was not reached is unresolved, or what is
+	// past the bound is kept verbatim, unlowered.
 	BudgetExceeded = "openapi/budget-exceeded"
-	// UnattachableRequired reports a composition-scope `required` name (an allOf
-	// branch's own required list, or the composed schema's own) that matches none
-	// of the model's own properties, so it has no IR home to attach to
-	// (ir-design §4.3: Properties holds only own properties, and flattening
-	// across Base/Mixins is computed, never stored).
-	UnattachableRequired = "openapi/unattachable-required"
 	// InternalInvariant reports that one of the compiler's own invariants broke:
-	// a pointer named a type ID the registry does not hold, the registry refused
-	// an entry, a second resolution read a document load never prepared, or the
-	// library faulted while load put the $refs it respelled back as written. It
-	// is a compiler bug, not a problem with the source, but it is reported rather
-	// than dropped in silence, since the alternative is losing constructs with no
-	// trace at all.
+	// a pointer named a type ID the registry does not hold, a second resolution
+	// read a document load never prepared, or the library faulted while load put
+	// the $refs it respelled back as written. It is a compiler bug, not a problem
+	// with the source, but it is reported rather than dropped in silence, since
+	// the alternative is losing constructs with no trace at all. An entry the
+	// registry refused is compile.RegistryRefused instead.
 	InternalInvariant = "openapi/internal-invariant"
 	// DuplicateOperationID reports an operationId that one declaration claims
 	// more than once because it is mounted more than once: a path item or an
@@ -350,13 +339,14 @@ const (
 	// DegradedConstruct's constructs survive in a weaker shape, and these survive
 	// in none (GitHub #144).
 	UnpreservableConstruct = "openapi/unpreservable-construct"
-	// UnknownSchemaKeyword reports a JSON Schema keyword no field of the schema
-	// model names, kept verbatim under Unmodeled.
+	// UnknownSchemaKeyword reports a JSON Schema keyword the schema model does
+	// not name, or names but the schema's dialect does not define (`nullable`
+	// with the nullable-widening policy off), kept verbatim under Unmodeled.
 	//
 	// Info, because the document did nothing wrong: JSON Schema requires an
 	// implementation to ignore a keyword it does not recognize, and says such a
-	// keyword may carry meaning for other tooling, so an unrecognized keyword is
-	// legal input rather than a defect. What is recorded is this compiler's own
+	// keyword may carry meaning for other tooling, so it is legal input rather
+	// than a defect. What is recorded is this compiler's own
 	// decision — that it read no meaning from the keyword and kept the text — which
 	// is the same thing ValidationOnlyKeyword records beside it.
 	UnknownSchemaKeyword = "openapi/unknown-schema-keyword"
@@ -399,18 +389,14 @@ const (
 	// than error because the document is otherwise lowered whole, and the entry
 	// that did survive is in it.
 	UnknownKeyEntryTaken = "openapi/unknown-key-entry-taken"
-	// InvalidLocationKeyword reports explode or allowReserved at in: querystring.
-	// OpenAPI 3.2 binds the whole query string from the parameter's content there
-	// and states its serialization through the media type alone, so neither
-	// keyword has anything left to qualify.
+	// InvalidLocationKeyword reports a style, explode or allowReserved at in:
+	// querystring, at the keyword. OpenAPI 3.2 binds the whole query string from
+	// the parameter's content there and states its serialization through the
+	// media type alone, so none of the three has anything left to qualify.
 	//
-	// The bundled parser enforces this for style at that location but not for
-	// these two (GitHub #408), so the compiler reports the gap itself. The value
-	// still lowers as declared: dropping stated content is an emitter's call
-	// (invariant 2).
-	//
-	// Warning, not the error style gets: that is the parser's own validation
-	// refusal, whereas here the compiler has already kept the value.
+	// A warning, though 3.2 says MUST NOT: the value lowers as declared, since
+	// dropping stated content is an emitter's call (invariant 2), and what the
+	// parameter means is the content's to say, which it does.
 	InvalidLocationKeyword = "openapi/invalid-location-keyword"
 	// InapplicableLocationKeyword reports a Parameter Object's allowReserved
 	// written where its document's version gives it no effect, at the keyword.
@@ -431,9 +417,10 @@ const (
 	MissingArrayItems = "openapi/missing-array-items"
 	// LaterVersionConstruct reports a field, or a value of one, that a later
 	// OpenAPI minor than the document declares added to the object it is written
-	// on. It is lowered as in a document declaring that minor, the reading that
-	// loses the least: from the lowering and this diagnostic a consumer can still
-	// set it aside, while from a verbatim copy it could not recover the lowering
+	// on, or a keyword beside a 3.0 schema's $ref, which 3.1 applies. It is
+	// lowered as in a document declaring that minor, the reading that loses the
+	// least: from the lowering and this diagnostic a consumer can set it aside,
+	// while from a verbatim copy it could not recover the lowering
 	// (docs/compilers/openapi.md#later-version-construct).
 	//
 	// Warning, as UnknownObjectKey is: an object's key set is closed, so the
@@ -450,6 +437,15 @@ const (
 	// #602's to report, so nothing from it on is read, and matching the
 	// expressions to path parameters is #640's.
 	InvalidPathKey = "openapi/invalid-path-key"
+	// InferredNullable reports a null the nullable-widening policy reads in
+	// where the document's version does not: a `nullable: true` in a 3.1 or 3.2
+	// schema, beside a $ref, or in a 3.0 schema with no type beside it or a
+	// keyword that excludes null, at the keyword; or keywords beside a $ref that
+	// admit null over a target that does not, at the schema writing them. Each
+	// is reported once, and each reference whose null rests on it is marked
+	// Inferred (docs/compilers/openapi.md#nullable). Info: the reading is the
+	// document's evident intent, and the mark keeps the declared one.
+	InferredNullable = "openapi/inferred-nullable"
 )
 
 // Newf builds an ir.Diagnostic with a formatted message. It is the single

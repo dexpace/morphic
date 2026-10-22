@@ -95,6 +95,24 @@ func UnknownKeywordsIn(p *ir.Unmodeled, s *oas3.Schema, pointer jsontext.Pointer
 	})
 }
 
+// UndefinedKeywordsIn records on p each of keys, keywords s writes that the
+// schema model names but the dialect s is read in does not define and nothing
+// reads, and announces each as UnknownKeywordsIn announces a keyword the model
+// does not name: JSON Schema 2020-12 ignores the two alike. The caller says
+// which keywords those are, since only it knows the dialect and the policies.
+func UndefinedKeywordsIn(p *ir.Unmodeled, s *oas3.Schema, keys []string, pointer jsontext.Pointer, locate Locator) []ir.Diagnostic {
+	if len(keys) == 0 {
+		return nil
+	}
+	_, root := undeclaredKeys(s)
+	return census(p, keys, root, locate, pointer, "", keyClass{
+		code:     diag.UnknownSchemaKeyword,
+		severity: ir.SeverityInfo,
+		message: "keyword %q is not defined by the dialect this schema is read in, and no policy reads it " +
+			"here; kept verbatim under Unmodeled",
+	})
+}
+
 // UnknownKeysIn records on p the keys an OpenAPI object writes that the
 // specification neither defines nor admits as an extension, for an object
 // lowering to a node with an Unmodeled map of its own. owner is the object's

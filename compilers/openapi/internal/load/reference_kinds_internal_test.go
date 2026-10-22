@@ -5,7 +5,6 @@ import (
 	"strings"
 	"testing"
 
-	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -16,14 +15,16 @@ import (
 )
 
 // TestReferenceKinds_EveryKindTheLibraryHasIsRead pins that the places this
-// package and the lowering list the library's kinds of reference, each of which
-// reads a reference through its own type, name every one of them. The kinds
-// are read off the walk's own matcher, so one the library comes to hold
+// package and the lowering list the library's kinds of reference object, each
+// of which reads a reference through its own type, name every one of them. The
+// kinds are read off the walk's own matcher, so one the library comes to hold
 // reddens this until the source holds a reference of it: a default arm
-// would otherwise read it as no reference at all.
+// would otherwise read it as no reference at all. A schema is none of them: the
+// compiler binds a schema's $ref itself.
 func TestReferenceKinds_EveryKindTheLibraryHasIsRead(t *testing.T) {
 	t.Parallel()
 	want := libraryReferenceKinds(t)
+	delete(want, reflect.TypeFor[*schemaRef]())
 
 	got, diags, err := Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(openapitest.EveryKindOfReference)},
 		Options{})
@@ -37,7 +38,7 @@ func TestReferenceKinds_EveryKindTheLibraryHasIsRead(t *testing.T) {
 			if !ok || !r.IsReference() || !r.IsResolved() {
 				return nil
 			}
-			if _, isSchema := model.(*oas3.JSONSchema[oas3.Referenceable]); !isSchema && !want[reflect.TypeOf(model)] {
+			if !want[reflect.TypeOf(model)] {
 				return nil
 			}
 			name := reflect.TypeOf(model).String()
@@ -47,7 +48,7 @@ func TestReferenceKinds_EveryKindTheLibraryHasIsRead(t *testing.T) {
 			_, ends := refscope.ReferenceEnd(model)
 			assert.True(t, ends, "%s: the lowering reads where its chain ends", name)
 			_, stands := emptyOf(r)
-			assert.Equal(t, !isSchemaModel(model), stands, "%s: a stand-in is held for each kind but the schema", name)
+			assert.True(t, stands, "%s: a stand-in is held for each kind", name)
 			_, _, copies := refCopies(model)
 			assert.True(t, copies, "%s: load puts back a $ref it respelled", name)
 			return nil
@@ -70,20 +71,11 @@ func libraryReferenceKinds(t *testing.T) map[reflect.Type]bool {
 	return kinds
 }
 
-// isSchemaModel reports whether model is a schema.
-func isSchemaModel(model any) bool {
-	_, ok := model.(*schemaRef)
-	return ok
-}
-
-// resolutionChainEnd reports the last record model's chain reached.
+// resolutionChainEnd reports the last record model's chain holds.
 func resolutionChainEnd(model any) (record, bool) {
-	var last record
-	reached := false
-	for _, r := range resolutionChain(model).records {
-		if r.reached {
-			last, reached = r, true
-		}
+	records := resolutionChain(model).records
+	if len(records) == 0 {
+		return record{}, false
 	}
-	return last, reached
+	return records[len(records)-1], true
 }

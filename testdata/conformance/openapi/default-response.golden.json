@@ -1,0 +1,417 @@
+{
+  "idSpaces": {
+    "auth": [
+      "openapi"
+    ],
+    "e": [
+      "anon",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
+  "name": "DefaultResponse",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "DefaultResponse",
+        "canonical": "default_response"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "id": "g/default",
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1purge/post",
+              "name": {
+                "source": "purgeCache",
+                "canonical": "purge_cache"
+              },
+              "docs": {},
+              "default": {
+                "name": {
+                  "hint": "default"
+                },
+                "conditions": {
+                  "statusCodes": [
+                    {
+                      "from": 0,
+                      "to": 0
+                    }
+                  ]
+                },
+                "payload": {
+                  "contents": [
+                    {
+                      "mediaType": "application/json",
+                      "type": {
+                        "target": "t/anon/paths/~1purge/post/responses/default/content/application~1json/schema",
+                        "nullable": false
+                      }
+                    }
+                  ]
+                },
+                "docs": {
+                  "description": "the cache was purged, or it was not"
+                }
+              },
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "uriTemplate": "/purge",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1purge/post"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1item/get",
+              "name": {
+                "source": "getItem",
+                "canonical": "get_item"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "payload": {
+                    "contents": [
+                      {
+                        "mediaType": "application/json",
+                        "type": {
+                          "target": "t/openapi/components/schemas/Item",
+                          "nullable": false
+                        }
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "the item"
+                  }
+                }
+              ],
+              "default": {
+                "name": {
+                  "hint": "default"
+                },
+                "conditions": {
+                  "statusCodes": [
+                    {
+                      "from": 0,
+                      "to": 0
+                    }
+                  ]
+                },
+                "payload": {
+                  "contents": [
+                    {
+                      "mediaType": "application/json",
+                      "type": {
+                        "target": "t/openapi/components/schemas/Problem",
+                        "nullable": false
+                      }
+                    }
+                  ]
+                },
+                "docs": {
+                  "description": "anything else"
+                }
+              },
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/item",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1item/get"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1ping/get",
+              "name": {
+                "source": "ping",
+                "canonical": "ping"
+              },
+              "docs": {},
+              "default": {
+                "name": {
+                  "hint": "default"
+                },
+                "conditions": {
+                  "statusCodes": [
+                    {
+                      "from": 0,
+                      "to": 0
+                    }
+                  ]
+                },
+                "docs": {
+                  "description": "pong"
+                }
+              },
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/ping",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1ping/get"
+              }
+            }
+          ]
+        }
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/paths/~1purge/post/responses/default/content/application~1json/schema": {
+      "kind": "model",
+      "id": "t/anon/paths/~1purge/post/responses/default/content/application~1json/schema",
+      "name": {
+        "hint": "response"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1purge/post/responses/default/content/application~1json/schema"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/paths/~1purge/post/responses/default/content/application~1json/schema/properties/purged",
+          "name": {
+            "source": "purged",
+            "canonical": "purged"
+          },
+          "wireName": "purged",
+          "type": {
+            "target": "t/prim/integer",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1purge/post/responses/default/content/application~1json/schema/properties/purged"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Item": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Item",
+      "name": {
+        "source": "Item",
+        "canonical": "item"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Item"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Item/properties/id",
+          "name": {
+            "source": "id",
+            "canonical": "id"
+          },
+          "wireName": "id",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Item/properties/id"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Problem": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Problem",
+      "name": {
+        "source": "Problem",
+        "canonical": "problem"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Problem"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Problem/properties/message",
+          "name": {
+            "source": "message",
+            "canonical": "message"
+          },
+          "wireName": "message",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Problem/properties/message"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/integer": {
+      "kind": "primitive",
+      "id": "t/prim/integer",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "integer"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "string"
+    }
+  },
+  "servers": [
+    {
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {}
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "default-response.yaml",
+      "hash": "5630a721cced1ad38e4b7fce5c6b2080dcee94251036430ce65ea5edecc1d29f"
+    }
+  ]
+}

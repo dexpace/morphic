@@ -32,6 +32,10 @@ import (
 // ir-spec-matrix.md, addressed relative to this test file.
 const conformanceDir = "../../testdata/conformance/openapi"
 
+// witnessDoc is the file in the corpus directory that names the matrix rows each
+// spec witnesses. It is no spec, and internal/conformance reads it.
+const witnessDoc = "matrix.md"
+
 // TestConformance drives one minimal spec per OpenAPI-expressible capability
 // through the full compiler and asserts lossless capture: a focused
 // capability-specific assertion plus a byte-exact golden IR snapshot. Regenerate
@@ -47,7 +51,7 @@ func TestConformance(t *testing.T) {
 		t.Run(tc.file, func(t *testing.T) {
 			t.Parallel()
 			doc, diags := parseCorpus(t, tc.file)
-			assertNoErrorDiags(t, diags)
+			assertOnlyErrorDiags(t, diags, invalidCases()[tc.file])
 			tc.assert(t, doc, diags)
 			// A failed capability assertion must not reach the golden. require
 			// aborts, but assert does not, and under -update a non-fatal failure
@@ -83,7 +87,8 @@ func TestConformance_TableNamesEveryCorpusSpec(t *testing.T) {
 }
 
 // corpusSpecNames returns the base name of every spec in the corpus directory,
-// failing on any file that is neither a .yaml spec nor a golden beside one.
+// failing on any file that is neither a .yaml spec, a golden beside one nor the
+// witness document.
 //
 // The .yaml-only restriction is asserted rather than left to a narrower glob.
 // parseCorpus reads only "<name>.yaml", so a spec committed as .yml or .json
@@ -101,6 +106,7 @@ func corpusSpecNames(t *testing.T) []string {
 		name := e.Name()
 		require.False(t, e.IsDir(), "corpus directory holds a subdirectory %q; no sweep descends into one", name)
 		switch {
+		case name == witnessDoc: // names rows, not a spec
 		case strings.HasSuffix(name, ".golden.json"):
 			goldens = append(goldens, strings.TrimSuffix(name, ".golden.json"))
 		case strings.HasSuffix(name, ".yaml"):
@@ -120,143 +126,145 @@ func corpusSpecNames(t *testing.T) []string {
 }
 
 // conformanceCase pairs one corpus spec with the assertion that its capability
-// is captured losslessly, and with the ir-spec-matrix.md rows it witnesses.
+// is captured losslessly.
 //
-// rows may be empty: a spec pinning a construct the matrix has no row for, such
-// as a dialect keyword, needs none, since an invented row would make the matrix
-// describe the corpus. The contract runs row to spec, checked in
-// conformance_matrix_test.go; TestConformance_TableNamesEveryCorpusSpec covers
-// the reverse.
-//
-// Naming a row claims the golden shows that capability captured, which only a
-// person reading the golden can check. Touching a construct on the way to
-// another subject is not witnessing it.
+// Which ir-spec-matrix.md rows a spec witnesses is data, not a field here: it
+// lives in testdata/conformance/openapi/matrix.md, which a test outside this
+// package can read. A spec pinning a construct the matrix has no row for, such
+// as a dialect keyword, appears under no row there.
 type conformanceCase struct {
 	file   string
 	assert func(*testing.T, *ir.Document, []ir.Diagnostic)
-	rows   []string
 }
 
-// conformanceCases is the corpus table: one row per spec, each naming the file,
-// the assertion that reads it, and the matrix rows it witnesses.
+// conformanceCases is the corpus table: one row per spec, each naming the file
+// and the assertion that reads it.
 func conformanceCases() []conformanceCase {
 	return []conformanceCase{
-		{"named-types", assertNamedTypes, []string{"named-objects"}},
-		{"neutral-naming", assertNeutralNaming, []string{"wire-name-distinct"}},
-		{"empty-names", assertEmptyNames, []string{"wire-name-distinct"}},
-		{"inline-types", assertInlineTypes, []string{"inline-anonymous"}},
-		{"component-reuse", assertComponentReuse, []string{"named-objects", "inline-anonymous"}},
-		{"shared-response-across-status", assertSharedResponseAcrossStatus, []string{"named-objects", "inline-anonymous"}},
-		{"allof-inheritance", assertAllOfInheritance, []string{"inheritance"}},
-		{"allof-mixins", assertAllOfMixins, []string{"intersection"}},
-		{"allof-inline-merge", assertAllOfInlineMerge, []string{"intersection"}},
-		{"allof-required-only", assertAllOfRequiredOnly, []string{"intersection"}},
-		{"allof-oneof-cooccurrence", assertAllOfOneOfCooccurrence, []string{"intersection", "untagged-unions"}},
-		{"allof-inline-residue", assertAllOfInlineResidue, []string{"intersection"}},
-		{"allof-nested-inline", assertAllOfNestedInline, []string{"intersection"}},
-		{"allof-ref-branch-siblings", assertAllOfRefBranchSiblings, []string{"intersection", "untagged-unions"}},
-		{"allof-boolean-branch", assertAllOfBooleanBranch, []string{"intersection"}},
-		{"allof-conflicting-type", assertAllOfConflictingType, nil},
-		{"allof-position-constraints", assertAllOfPositionConstraints, []string{"intersection"}},
-		{"oneof-discriminated", assertOneOfDiscriminated, []string{"tagged-unions"}},
-		{"anyof-discriminated", assertAnyOfDiscriminated, []string{"tagged-unions"}},
-		{"discriminator-inheritance", assertDiscriminatorInheritance, []string{"tagged-unions", "inheritance"}},
-		{"discriminator-inline-subtype", assertDiscriminatorInlineSubtype, []string{"tagged-unions", "inheritance"}},
-		{"discriminator-default-mapping", assertDiscriminatorDefaultMapping, []string{"tagged-unions"}},
-		{"discriminator-transitive", assertDiscriminatorTransitive, []string{"tagged-unions", "inheritance"}},
-		{"discriminator-alias-mapping", assertDiscriminatorAliasMapping, []string{"tagged-unions"}},
-		{"discriminated-union-beside-model", assertDiscriminatedUnionBesideModel, []string{"tagged-unions", "inheritance"}},
-		{"nullable-union-discriminator", assertNullableUnionDiscriminator, []string{"tagged-unions", "optionality-vs-nullability"}},
-		{"unhomed-keywords", assertUnhomedKeywords, nil},
-		{"union-beside-ref", assertUnionBesideRef, []string{"untagged-unions"}},
-		{"codeclared-keywords", assertCoDeclaredKeywords, []string{"intersection", "literal-types", "enums-string"}},
-		{"codeclared-schema-content", assertCoDeclaredSchemaContent, nil},
-		{"anyof-untagged", assertAnyOfUntagged, []string{"untagged-unions"}},
-		{"negation-not", assertNegationNot, []string{"negation"}},
-		{"dependent-required", assertDependentRequired, nil},
-		{"dialect-keywords", assertDialectKeywords, nil},
-		{"dynamic-ref", assertDynamicRef, nil},
-		{"enum-string", assertEnumString, []string{"enums-string"}},
-		{"enum-numeric", assertEnumNumeric, []string{"enums-numeric"}},
-		{"empty-enum", assertEmptyEnum, nil},
-		{"missing-array-items", assertMissingArrayItems, nil},
-		{"scalar-format", assertScalarFormat, []string{"custom-scalars"}},
-		{"secret-format", assertSecretFormat, []string{"redaction"}},
-		{"encoding-byte", assertEncodingByte, []string{"encoding-hints"}},
-		{"content-vocabulary", assertContentVocabulary, []string{"encoding-hints"}},
-		{"xml-hints", assertXMLHints, nil},
-		{"nullability-four-states", assertNullabilityFourStates, []string{"optionality-vs-nullability"}},
-		{"nullable-30", assertNullable30, []string{"optionality-vs-nullability"}},
-		{"nullable-31-ref", assertNullable31Ref, []string{"optionality-vs-nullability"}},
-		{"nullable-enum-31", assertNullableEnum31, []string{"optionality-vs-nullability", "enums-string"}},
-		{"nullability-conjunction", assertNullabilityConjunction, []string{"optionality-vs-nullability"}},
-		{"null-only-union", assertNullOnlyUnion, []string{"optionality-vs-nullability"}},
-		{"defaults", assertDefaults, []string{"defaults"}},
-		{"yaml-timestamp-scalars", assertYAMLTimestampScalars, []string{"defaults", "literal-types"}},
-		{"constraints", assertConstraints, []string{"constraints"}},
-		{"numeric-precision", assertNumericPrecision, []string{"constraints", "defaults", "literal-types"}},
-		{"readonly-writeonly", assertReadOnlyWriteOnly, []string{"visibility"}},
-		{"recursive", assertRecursive, []string{"recursive-types"}},
-		{"maps", assertMaps, []string{"maps"}},
-		{"tuples-prefixitems", assertTuples, []string{"tuples", "tuple-rest", "positional-encoding"}},
-		{"literal-const", assertLiteralConst, []string{"literal-types"}},
-		{"tags-grouping", assertTagsGrouping, []string{"operation-grouping"}},
-		{"group-identity", assertGroupIdentity, []string{"operation-grouping"}},
-		{"param-identity", assertParamIdentity, []string{"http-binding"}},
-		{"enum-member-identity", assertEnumMemberIdentity, []string{"enums-string", "enums-numeric"}},
-		{"http-binding", assertHTTPBinding, []string{"http-binding"}},
-		{"param-styles", assertParamStyles, []string{"param-styles"}},
-		{"param-style-matrix", assertParamStyleMatrix, []string{"param-styles"}},
-		{"param-querystring", assertParamQuerystring, nil},
-		{"querystring-forbidden-keywords", assertQuerystringForbiddenKeywords, nil},
-		{"param-allowreserved-locations", assertParamAllowReservedLocations, nil},
-		{laterVersionCase, assertLaterVersionConstructs, nil},
-		{"param-xml-residue", assertParamXMLResidue, nil},
-		{"param-ref-inheritance", assertParamRefInheritance, []string{"defaults", "deprecation", "docs-summary-description"}},
-		{"header-content-schema", assertHeaderContentSchema, nil},
-		{"multi-content", assertMultiContent, []string{"multi-content"}},
-		{"multipart-encoding", assertMultipartEncoding, []string{"multipart-encoding"}},
-		{"file-body", assertFileBody, nil},
-		{"media-type-spelling", assertMediaTypeSpelling, []string{"multipart-encoding"}},
-		{"sequential-media", assertSequentialMedia, []string{"streaming-server"}},
-		{"streaming-media-30", assertStreamingMedia30, []string{"streaming-server"}},
-		{"streaming-media-31", assertStreamingMedia31, []string{"streaming-server", "streaming-client"}},
-		{"per-status-errors", assertPerStatusErrors, []string{"per-status-errors"}},
-		{"response-links", assertResponseLinks, nil},
-		{"webhooks", assertWebhooks, []string{"events-channels", "server-initiated-messages"}},
-		{"callbacks", assertCallbacks, []string{"callbacks"}},
-		{"inline-hoist-positions", assertInlineHoistPositions, []string{"inline-anonymous"}},
-		{"path-item-docs", assertPathItemDocs, []string{"docs-summary-description"}},
-		{"path-item-operations", assertPathItemOperations, []string{"http-binding"}},
-		{"path-item-anchored-key", assertPathItemAnchoredKey, nil},
-		{"path-item-ref-siblings", assertPathItemRefSiblings, nil},
-		{"deprecation", assertDeprecation, []string{"deprecation"}},
-		{"extension-promotion", assertExtensionPromotion, []string{"deprecation", "open-enums"}},
-		{"examples", assertExamples, []string{"examples"}},
-		{"docs-summary-desc", assertDocsSummaryDesc, []string{"docs-summary-description"}},
-		{"request-body-docs", assertRequestBodyDocs, []string{"docs-summary-description"}},
-		{"ref-site-docs", assertRefSiteDocs, []string{"docs-summary-description", "named-objects"}},
-		{"param-content-fields", assertParamContentFields, []string{"multi-content"}},
-		{"examples-32", assertExamples32, []string{"examples"}},
-		{"tags-grouping-32", assertTagsGrouping32, []string{"operation-grouping"}},
-		{"response-summary-32", assertResponseSummary32, []string{"docs-summary-description"}},
-		{"component-media-types-32", assertComponentMediaTypes32, nil},
-		{"xml-nodetype-32", assertXMLNodeType32, nil},
-		{"nested-encoding-32", assertNestedEncoding32, []string{"multipart-encoding"}},
-		{"unreferenced-components", assertUnreferencedComponents, nil},
-		{"self-uri", assertSelfURI, nil},
-		{"extensions-x", assertExtensionsX, []string{"vendor-extensions"}},
-		{"inline-annotations", assertInlineAnnotations, []string{"vendor-extensions", "inline-anonymous"}},
-		{"inline-residue", assertInlineResidue, []string{"inline-anonymous"}},
-		{"servers-variables", assertServersVariables, []string{"servers"}},
-		{"security-schemes", assertSecuritySchemes, []string{"auth-schemes"}},
-		{"oauth2-no-flow", assertOAuth2NoFlow, nil},
-		{"empty-required-values", assertEmptyRequiredValues, nil},
-		{"relaxed-required-fields", assertRelaxedRequiredFields, nil},
-		{"empty-request-content", assertEmptyRequestContent, nil},
-		{"oauth-flow-fields", assertOAuthFlowFields, []string{"auth-schemes"}},
-		{"reached-outside-model", assertReachedOutsideModel, nil},
-		{"security-or-and", assertSecurityOrAnd, []string{"per-op-auth"}},
+		{"named-types", assertNamedTypes},
+		{"neutral-naming", assertNeutralNaming},
+		{"empty-names", assertEmptyNames},
+		{"inline-types", assertInlineTypes},
+		{"component-reuse", assertComponentReuse},
+		{"shared-response-across-status", assertSharedResponseAcrossStatus},
+		{"allof-inheritance", assertAllOfInheritance},
+		{"allof-mixins", assertAllOfMixins},
+		{"allof-inline-merge", assertAllOfInlineMerge},
+		{"allof-required-only", assertAllOfRequiredOnly},
+		{"required-members", assertRequiredMembers},
+		{"allof-oneof-cooccurrence", assertAllOfOneOfCooccurrence},
+		{"allof-inline-residue", assertAllOfInlineResidue},
+		{"allof-nested-inline", assertAllOfNestedInline},
+		{"allof-ref-branch-siblings", assertAllOfRefBranchSiblings},
+		{"allof-boolean-branch", assertAllOfBooleanBranch},
+		{"allof-conflicting-type", assertAllOfConflictingType},
+		{"allof-narrowing-redeclaration", assertAllOfNarrowingRedeclaration},
+		{"allof-position-constraints", assertAllOfPositionConstraints},
+		{"oneof-discriminated", assertOneOfDiscriminated},
+		{"anyof-discriminated", assertAnyOfDiscriminated},
+		{"discriminator-inheritance", assertDiscriminatorInheritance},
+		{"discriminator-inline-subtype", assertDiscriminatorInlineSubtype},
+		{"discriminator-default-mapping", assertDiscriminatorDefaultMapping},
+		{"discriminator-transitive", assertDiscriminatorTransitive},
+		{"discriminator-alias-mapping", assertDiscriminatorAliasMapping},
+		{"discriminated-union-beside-model", assertDiscriminatedUnionBesideModel},
+		{"nullable-union-discriminator", assertNullableUnionDiscriminator},
+		{"unhomed-keywords", assertUnhomedKeywords},
+		{"union-beside-ref", assertUnionBesideRef},
+		{"codeclared-keywords", assertCoDeclaredKeywords},
+		{"codeclared-schema-content", assertCoDeclaredSchemaContent},
+		{"anyof-untagged", assertAnyOfUntagged},
+		{"union-decorated-branch", assertUnionDecoratedBranch},
+		{"negation-not", assertNegationNot},
+		{"dependent-required", assertDependentRequired},
+		{"dialect-keywords", assertDialectKeywords},
+		{"dynamic-ref", assertDynamicRef},
+		{"schema-identifiers", assertSchemaIdentifiers},
+		{"enum-string", assertEnumString},
+		{"enum-numeric", assertEnumNumeric},
+		{"empty-enum", assertEmptyEnum},
+		{"missing-array-items", assertMissingArrayItems},
+		{"scalar-format", assertScalarFormat},
+		{"secret-format", assertSecretFormat},
+		{"encoding-byte", assertEncodingByte},
+		{"content-vocabulary", assertContentVocabulary},
+		{"xml-hints", assertXMLHints},
+		{"nullability-four-states", assertNullabilityFourStates},
+		{"nullable-30", assertNullable30},
+		{"nullable-31-ref", assertNullable31Ref},
+		{"nullable-enum-31", assertNullableEnum31},
+		{"nullable-keyword-30", assertNullableKeyword30},
+		{"nullable-keyword-31", assertNullableKeyword31},
+		{"schema-ref-siblings-30", assertSchemaRefSiblings30},
+		{"nullability-conjunction", assertNullabilityConjunction},
+		{"null-only-union", assertNullOnlyUnion},
+		{"defaults", assertDefaults},
+		{"yaml-timestamp-scalars", assertYAMLTimestampScalars},
+		{"constraints", assertConstraints},
+		{"numeric-precision", assertNumericPrecision},
+		{"readonly-writeonly", assertReadOnlyWriteOnly},
+		{"recursive", assertRecursive},
+		{"maps", assertMaps},
+		{"tuples-prefixitems", assertTuples},
+		{"literal-const", assertLiteralConst},
+		{"tags-grouping", assertTagsGrouping},
+		{"group-identity", assertGroupIdentity},
+		{"param-identity", assertParamIdentity},
+		{"enum-member-identity", assertEnumMemberIdentity},
+		{"http-binding", assertHTTPBinding},
+		{"param-styles", assertParamStyles},
+		{"param-style-matrix", assertParamStyleMatrix},
+		{"param-querystring", assertParamQuerystring},
+		{"querystring-forbidden-keywords", assertQuerystringForbiddenKeywords},
+		{"param-allowreserved-locations", assertParamAllowReservedLocations},
+		{laterVersionCase, assertLaterVersionConstructs},
+		{"param-xml-residue", assertParamXMLResidue},
+		{"param-ref-inheritance", assertParamRefInheritance},
+		{"header-content-schema", assertHeaderContentSchema},
+		{"multi-content", assertMultiContent},
+		{"multipart-encoding", assertMultipartEncoding},
+		{"file-body", assertFileBody},
+		{"media-type-spelling", assertMediaTypeSpelling},
+		{"sequential-media", assertSequentialMedia},
+		{"streaming-media-30", assertStreamingMedia30},
+		{"streaming-media-31", assertStreamingMedia31},
+		{"per-status-errors", assertPerStatusErrors},
+		{"default-response", assertDefaultResponse},
+		{"response-links", assertResponseLinks},
+		{"webhooks", assertWebhooks},
+		{"callbacks", assertCallbacks},
+		{"inline-hoist-positions", assertInlineHoistPositions},
+		{"path-item-docs", assertPathItemDocs},
+		{"path-item-operations", assertPathItemOperations},
+		{"path-item-anchored-key", assertPathItemAnchoredKey},
+		{"path-item-ref-siblings", assertPathItemRefSiblings},
+		{"deprecation", assertDeprecation},
+		{"extension-promotion", assertExtensionPromotion},
+		{"examples", assertExamples},
+		{"docs-summary-desc", assertDocsSummaryDesc},
+		{"request-body-docs", assertRequestBodyDocs},
+		{"ref-site-docs", assertRefSiteDocs},
+		{"param-content-fields", assertParamContentFields},
+		{"examples-32", assertExamples32},
+		{"tags-grouping-32", assertTagsGrouping32},
+		{"response-summary-32", assertResponseSummary32},
+		{"component-media-types-32", assertComponentMediaTypes32},
+		{"xml-nodetype-32", assertXMLNodeType32},
+		{"nested-encoding-32", assertNestedEncoding32},
+		{"unreferenced-components", assertUnreferencedComponents},
+		{"self-uri", assertSelfURI},
+		{"extensions-x", assertExtensionsX},
+		{"inline-annotations", assertInlineAnnotations},
+		{"inline-residue", assertInlineResidue},
+		{"servers-variables", assertServersVariables},
+		{"security-schemes", assertSecuritySchemes},
+		{"oauth2-no-flow", assertOAuth2NoFlow},
+		{"empty-required-values", assertEmptyRequiredValues},
+		{"relaxed-required-fields", assertRelaxedRequiredFields},
+		{"empty-request-content", assertEmptyRequestContent},
+		{"oauth-flow-fields", assertOAuthFlowFields},
+		{"reached-outside-model", assertReachedOutsideModel},
+		{"security-or-and", assertSecurityOrAnd},
 	}
 }
 
@@ -292,11 +300,36 @@ func assertJSONRoundTrip(t *testing.T, doc *ir.Document) {
 	assert.Equal(t, string(first), string(second), "round-trip must preserve the document")
 }
 
+// invalidCases lists the corpus specs that write a construct the specification
+// forbids, because what they pin is how such a document lowers: each draws
+// errors of the codes listed, and of no other.
+func invalidCases() map[string][]string {
+	return map[string][]string{
+		// A parameter and a header writing both schema and content: "but not both".
+		"codeclared-schema-content": {"openapi/validation/validation-mutually-exclusive-fields"},
+	}
+}
+
 // assertNoErrorDiags fails when any diagnostic has error severity.
 func assertNoErrorDiags(t *testing.T, diags []ir.Diagnostic) {
 	t.Helper()
+	assertOnlyErrorDiags(t, diags, nil)
+}
+
+// assertOnlyErrorDiags fails when a diagnostic has error severity and a code
+// outside want, or when a code of want draws no error.
+func assertOnlyErrorDiags(t *testing.T, diags []ir.Diagnostic, want []string) {
+	t.Helper()
+	drawn := map[string]bool{}
 	for _, d := range diags {
-		assert.NotEqual(t, ir.SeverityError, d.Severity, "unexpected error diagnostic: %+v", d)
+		if d.Severity != ir.SeverityError {
+			continue
+		}
+		drawn[d.Code] = true
+		assert.Contains(t, want, d.Code, "unexpected error diagnostic: %+v", d)
+	}
+	for _, code := range want {
+		assert.True(t, drawn[code], "the spec is listed as invalid but draws no %s", code)
 	}
 }
 
@@ -842,6 +875,57 @@ func assertAllOfRequiredOnly(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) 
 		"a required-only allOf branch attaches across the whole composition, not just its own properties map (issue #29)")
 }
 
+// assertRequiredMembers pins where a `required` name lands when no property of
+// the object it is written for declares it (ir-design §4.3): in Model.Requires,
+// once, beside the Required on the properties it does name. The four shapes are
+// four ways an object lowers: a plain object, an allOf making a property its
+// base declares required, an object whose catch-all governs the name, which
+// stays a Model rather than becoming a map since a map requires no key, and the
+// object variant of a multi-typed schema.
+func assertRequiredMembers(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	plain, ok := doc.Types[namedID("Plain")].(*ir.Model)
+	require.True(t, ok)
+	id, ok := propByWire(plain, "id")
+	require.True(t, ok)
+	assert.True(t, id.Required, "a declared name is Required on its property")
+	assert.Equal(t, []string{"ghost"}, plain.Requires, "an undeclared one is listed, and the declared one is not")
+
+	created, ok := doc.Types[namedID("CreatedUser")].(*ir.Model)
+	require.True(t, ok)
+	require.NotNil(t, created.Base)
+	assert.Equal(t, namedID("User"), created.Base.Target)
+	assert.Empty(t, created.Properties, "the base declares id, so the composed model has no property for it")
+	assert.Equal(t, []string{"id"}, created.Requires, "the inherited property it makes required")
+	user, ok := doc.Types[namedID("User")].(*ir.Model)
+	require.True(t, ok)
+	assert.Empty(t, user.Requires, "the base is not made to require what only its subtype does")
+	userID, ok := propByWire(user, "id")
+	require.True(t, ok)
+	assert.False(t, userID.Required, "and its own property stays optional")
+
+	tagged, ok := doc.Types[namedID("Tagged")].(*ir.Model)
+	require.True(t, ok, "a required name beside a catch-all keeps the object a Model, not a map")
+	assert.NotNil(t, tagged.AdditionalProps)
+	assert.Empty(t, tagged.Properties)
+	assert.Equal(t, []string{"a"}, tagged.Requires, "required only because the catch-all governs it")
+	_, isMap := ir.AsMap(tagged)
+	assert.False(t, isMap, "AsMap keeps a model that requires a member a Model")
+
+	either, ok := doc.Types[namedID("Either")].(*ir.Union)
+	require.True(t, ok)
+	var object *ir.Model
+	for _, v := range either.Variants {
+		if m, isModel := doc.Types[v.Type.Target].(*ir.Model); isModel {
+			object = m
+		}
+	}
+	require.NotNil(t, object, "the object variant is a Model")
+	variantID, ok := propByWire(object, "id")
+	require.True(t, ok)
+	assert.True(t, variantID.Required)
+	assert.Equal(t, []string{"extra"}, object.Requires, "the variant lists what it declares nowhere")
+}
+
 // assertAllOfOneOfCooccurrence pins both halves of the co-declared composition
 // rule: §4.3 distributes a union whose branches all name referents, and the
 // rule docs/compilers/openapi.md#union-beside-structure keeps one with an
@@ -896,8 +980,8 @@ func assertAllOfOneOfCooccurrence(t *testing.T, doc *ir.Document, _ []ir.Diagnos
 
 // assertInlineBranchHint pins the hint an inline composition branch takes when
 // an outside reference names its pointer too. The union reaches that node
-// through its composition and the reference through hoistSubSchema, and only the
-// first to arrive interns it, so both must derive the same hint. An inline
+// through its composition, and the reference builds it (hoistSubSchema) only
+// where nothing else did, under the hint the composition recorded. An inline
 // branch has only its position to be named by, and the reference path once used
 // the bare ordinal "0" (GitHub #181). The value is asserted because the golden
 // records whichever hint won without saying the two agree, and the corpus
@@ -1178,6 +1262,26 @@ func assertAnyOfUntagged(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.False(t, u.WireTagged, "with no discriminator, validation infers the variant")
 	assert.Nil(t, u.Discriminator)
 	assert.Len(t, u.Variants, 2)
+}
+
+// assertUnionDecoratedBranch pins a union branch annotated the only way 3.0
+// can, by wrapping its $ref (GitHub #1018). The wrapper lowers to a decorator
+// over Pet that keeps the description, so no information is lost, and its
+// variant is named for Pet while the node keeps the positional hint.
+func assertUnionDecoratedBranch(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	u, ok := doc.Types[namedID("U")].(*ir.Union)
+	require.True(t, ok)
+	require.Len(t, u.Variants, 2)
+	assert.Equal(t, "user", u.Variants[0].Name.Hint)
+	assert.Equal(t, "pet", u.Variants[1].Name.Hint, "named for the $ref it wraps, as 3.1's sibling spelling is")
+
+	branch, ok := doc.Types[u.Variants[1].Type.Target].(*ir.Model)
+	require.True(t, ok, "the wrapped branch is a node of its own")
+	base, decorates := ir.Decorated(branch)
+	require.True(t, decorates, "a description beside the wrapped $ref is an annotation, not a shape")
+	assert.Equal(t, namedID("Pet"), base.Target)
+	assert.Equal(t, "a pet", branch.Docs.Description, "the annotation is kept")
+	assert.Equal(t, "variant_1", branch.Name.Hint, "the node keeps the positional hint")
 }
 
 func assertNegationNot(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
@@ -2332,7 +2436,7 @@ func assertParamIdentity(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.Equal(t, map[ir.OpID][]ir.ParamID{
 		"op/openapi/paths/~1items~1{id}/get": {
 			"param/openapi/paths/~1items~1{id}/get/parameters/id/query",
-			"param/openapi/paths/~1items~1{id}/get/parameters/a~1b/header",
+			"param/openapi/paths/~1items~1{id}/get/parameters/a~1b/query",
 			"param/openapi/paths/~1items~1{id}/get/parameters/id/path",
 		},
 		"op/openapi/paths/~1items~1{id}/post": {
@@ -2500,12 +2604,8 @@ func upperFirst(s string) string {
 // paramStyleLegalPairs is OpenAPI's (in, style) table, read off the
 // specification rather than off the fixture: path takes simple|label|matrix,
 // query form|spaceDelimited|pipeDelimited|deepObject, header simple, cookie
-// form. querystring is a fifth location that takes no style at all, so it has no
-// pair here and assertQuerystringParam covers it instead.
-//
-// 3.2 adds a tenth pair — a `cookie` style at in: cookie — which this compiler
-// rejects with a hard error, so no fixture can declare it; GitHub #389 tracks
-// that and the explode default 3.2 gives it.
+// form|cookie. querystring is a fifth location that takes no style at all, so
+// it has no pair here and assertQuerystringParam covers it instead.
 func paramStyleLegalPairs() []paramStylePair {
 	return []paramStylePair{
 		{ir.HTTPLocationPath, "simple"},
@@ -2517,6 +2617,7 @@ func paramStyleLegalPairs() []paramStylePair {
 		{ir.HTTPLocationQuery, "deepObject"},
 		{ir.HTTPLocationHeader, "simple"},
 		{ir.HTTPLocationCookie, "form"},
+		{ir.HTTPLocationCookie, "cookie"},
 	}
 }
 
@@ -2532,10 +2633,10 @@ func paramStyleDefaultStyles() []paramStylePair {
 }
 
 // paramStyleExplodeDefault is what `explode` means when omitted: true under
-// form, false under every other style a location pairs with. (3.2 gives its
-// `cookie` style the form default too — see paramStyleLegalPairs.)
+// form and under 3.2's cookie style, false under every other style a location
+// pairs with.
 func paramStyleExplodeDefault(style string) bool {
-	return style == "form"
+	return style == "form" || style == "cookie"
 }
 
 // paramStyleMatrixWant generates what param-style-matrix.yaml must resolve to
@@ -2580,9 +2681,8 @@ func paramStyleMatrixWant() map[paramSlot]paramWire {
 func TestParamStyleTable_MatchesTheSpecification(t *testing.T) {
 	t.Parallel()
 	pairs := paramStyleLegalPairs()
-	require.Len(t, pairs, 9,
-		"3.2 permits ten (in, style) pairs and this compiler rejects one of them, the cookie "+
-			"style (GitHub #389); a different number here is a claim about OpenAPI, not about the fixture")
+	require.Len(t, pairs, 10,
+		"3.2 permits ten (in, style) pairs; a different number here is a claim about OpenAPI, not about the fixture")
 
 	legal := make(map[paramStylePair]bool, len(pairs))
 	for _, p := range pairs {
@@ -2972,7 +3072,7 @@ func assertComposedPartEncoding(t *testing.T, doc *ir.Document) {
 	file, ok := enc[inherited]
 	require.True(t, ok, "the inherited part is keyed on the Base that holds it; got keys %v", enc)
 	assert.Equal(t, []string{"image/png"}, file.ContentTypes)
-	assert.True(t, file.Filename, "the structural flag still comes from the part's own schema")
+	assert.True(t, file.Filename, "the structural flag is read off the merged type of the inherited part")
 
 	// Every key must name a property some type in the document declares. A part
 	// keyed by a PropID nothing holds is the failure this lowering can produce
@@ -3013,7 +3113,7 @@ func assertFormPartStyle(t *testing.T, doc *ir.Document) {
 		assert.Equal(t, "form", pe.Style)
 		require.NotNil(t, pe.Explode)
 		assert.True(t, *pe.Explode)
-		assert.True(t, pe.Multi, "the structural flag still comes from the part's own schema")
+		assert.True(t, pe.Multi, "the structural flag is read off the part")
 	}
 	// allowReserved has no PartEncoding field, and PartEncoding has no Unmodeled
 	// map, so it is kept on the content keyed by the part it governs. Two
@@ -3172,8 +3272,10 @@ func assertPerStatusErrors(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 		{From: 404, To: 404}: "client",
 		{From: 429, To: 429}: "client",
 		{From: 500, To: 599}: "server",
-		{}:                   "",
-	}, faults, "each range classified from its own status; the default catch-all unclassified")
+	}, faults, "each range classified from its own status")
+	require.NotNil(t, op.Default, "the default is classed neither way, so it is no error case")
+	assert.Equal(t, []ir.StatusRange{{}}, op.Default.Conditions.StatusCodes, "the catch-all alone")
+	assert.Equal(t, "default", op.Default.Name.Hint)
 
 	assertErrorCaseIsAResponse(t, byRange)
 }
@@ -3195,8 +3297,7 @@ func assertErrorCaseIsAResponse(t *testing.T, byRange map[ir.StatusRange]ir.Erro
 		{From: 404, To: 404}: "404",
 		{From: 429, To: 429}: "429",
 		{From: 500, To: 599}: "5_xx",
-		{}:                   "default",
-	}, hints, "the key as declared, then neutralized; only \"default\" round-trips unchanged")
+	}, hints, "the key as declared, then neutralized")
 
 	notFound, ok := byRange[ir.StatusRange{From: 404, To: 404}]
 	require.True(t, ok)
@@ -3227,6 +3328,48 @@ func assertErrorCaseIsAResponse(t *testing.T, byRange map[ir.StatusRange]ir.Erro
 		assert.NotContains(t, ec.Unmodeled, "openapi:content", "%v keeps no content map", rng)
 		assert.NotContains(t, ec.Unmodeled, "openapi:headers", "%v keeps no headers map", rng)
 	}
+}
+
+// assertDefaultResponse pins that a `default` response lowers to the operation's
+// Default, whole, in the three shapes it takes: the operation's only response,
+// the fallback beside a success, and a bare one with no body. In none is the
+// catch-all among Errors, since `default` answers successes and failures alike
+// and the compiler classes it as neither (ir-design §7.2). The control is the
+// 200 beside the default, which stays a Response.
+func assertDefaultResponse(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	catchAll := []ir.StatusRange{{From: 0, To: 0}}
+	byOp := map[string]ir.Operation{}
+	for _, name := range []string{"purgeCache", "getItem", "ping"} {
+		op, ok := opByName(doc, name)
+		require.True(t, ok, "operation %s", name)
+		require.NotNil(t, op.Default, "%s: the default is kept as Default", name)
+		assert.Empty(t, op.Errors, "%s: the catch-all is no error case", name)
+		assert.Equal(t, catchAll, op.Default.Conditions.StatusCodes, "%s: the catch-all alone", name)
+		assert.Equal(t, "default", op.Default.Name.Hint, "%s: the key as written", name)
+		byOp[name] = op
+	}
+
+	purge := byOp["purgeCache"]
+	assert.Empty(t, purge.Responses, "a lone default is the operation's whole description of the outcome")
+	require.NotNil(t, purge.Default.Payload)
+	require.Len(t, purge.Default.Payload.Contents, 1)
+	assert.Equal(t, "application/json", purge.Default.Payload.Contents[0].MediaType)
+	assert.Equal(t, "the cache was purged, or it was not", purge.Default.Docs.Description)
+
+	item := byOp["getItem"]
+	require.Len(t, item.Responses, 1, "the 200 stays a Response beside the default")
+	assert.Equal(t, []ir.StatusRange{{From: 200, To: 200}}, item.Responses[0].Conditions.StatusCodes)
+	require.NotNil(t, item.Default.Payload)
+	require.Len(t, item.Default.Payload.Contents, 1)
+	assert.Equal(t, namedID("Problem"), item.Default.Payload.Contents[0].Type.Target,
+		"the default keeps its own body, apart from the success one")
+	require.NotNil(t, item.Responses[0].Payload)
+	assert.Equal(t, namedID("Item"), item.Responses[0].Payload.Contents[0].Type.Target)
+
+	ping := byOp["ping"]
+	assert.Empty(t, ping.Responses)
+	assert.Nil(t, ping.Default.Payload, "a default declaring no content gets no payload")
+	assert.Equal(t, "pong", ping.Default.Docs.Description)
 }
 
 func assertWebhooks(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
@@ -3945,7 +4088,8 @@ func assertXMLNodeType32(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) 
 	require.True(t, ok)
 	require.NotNil(t, body.XML)
 	assert.Equal(t, "text", body.XML.NodeType)
-	assert.True(t, body.XML.Wrapped, "the object's other fields still lower as they did")
+	assert.Equal(t, "B", body.XML.Name, "the object's other fields still lower as they did")
+	assert.Equal(t, "p", body.XML.Prefix)
 
 	assert.Empty(t, diagsAt(diags, diag.UnknownObjectKey, "/components/schemas/Report/properties/id/xml/nodeType"),
 		"a key 3.2 defines is not an undefined key")
@@ -4311,12 +4455,12 @@ func assertOAuth2NoFlow(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 		byPointer["/components/securitySchemes/metadataOnly"].OAuth2MetadataURL, "the control's metadata URL is kept")
 }
 
-// assertNoParserFinding requires that the parser's validation reported nothing
+// assertNoValidationFinding requires that the rule table reported nothing
 // about the document, which is what the required-field cases below are about.
-func assertNoParserFinding(t *testing.T, diags []ir.Diagnostic) {
+func assertNoValidationFinding(t *testing.T, diags []ir.Diagnostic) {
 	t.Helper()
 	for _, d := range diags {
-		assert.False(t, strings.HasPrefix(d.Code, diag.Validation+"/"), "unexpected parser finding: %+v", d)
+		assert.False(t, strings.HasPrefix(d.Code, diag.Validation+"/"), "unexpected validation finding: %+v", d)
 	}
 }
 
@@ -4326,7 +4470,7 @@ func assertNoParserFinding(t *testing.T, diags []ir.Diagnostic) {
 // security scheme with an empty name or URL (GitHub #622).
 func assertEmptyRequiredValues(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	t.Helper()
-	assertNoParserFinding(t, diags)
+	assertNoValidationFinding(t, diags)
 	require.Len(t, doc.Servers, 2)
 	assert.Empty(t, doc.Servers[0].URLTemplate)
 	require.Len(t, doc.Servers[1].Variables, 2)
@@ -4351,7 +4495,7 @@ func assertEmptyRequiredValues(t *testing.T, doc *ir.Document, diags []ir.Diagno
 // and as a component alike (GitHub #622).
 func assertRelaxedRequiredFields(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	t.Helper()
-	assertNoParserFinding(t, diags)
+	assertNoValidationFinding(t, diags)
 	byName := map[string]ir.Operation{}
 	for _, op := range allOperations(doc) {
 		byName[op.Name.Source] = op
@@ -4477,8 +4621,8 @@ func assertSecurityOrAnd(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 // checked as one the model declares when a $ref reaches it, a discriminator
 // mapping names it, or a $ref nested in such an object does (GitHub #872):
 // each construct OpenAPI 3.2 added draws its warning once, at the pointer it is
-// written at, and the parser's own finding about a scheme reached that way is
-// placed where its field is written, as for the scheme written inline (#879).
+// written at, and a finding about a scheme reached that way is placed where its
+// field is written, as for the scheme written inline (#879).
 func assertReachedOutsideModel(t *testing.T, _ *ir.Document, diags []ir.Diagnostic) {
 	t.Helper()
 	const later = "openapi/later-version-construct"
@@ -4496,6 +4640,6 @@ func assertReachedOutsideModel(t *testing.T, _ *ir.Document, diags []ir.Diagnost
 	}
 	assert.Equal(t, len(written), n, "one warning per construct, none elsewhere: %+v", diags)
 	assert.Equal(t, []ir.Severity{ir.SeverityWarning},
-		diagsAt(diags, "openapi/validation/validation-allowed-values", "/x-schemes/key/bearerFormat"),
-		"the parser's finding on the reached scheme, where the field is written (GitHub #879)")
+		diagsAt(diags, "openapi/validation/validation-type-mismatch", "/x-schemes/key/description"),
+		"the table's finding on the reached scheme, where the field is written (GitHub #879)")
 }

@@ -35,13 +35,15 @@ var loweringRecursions = [][]string{
 	schemaRecursion,
 	// The nullability predicate. JSON Schema conjoins keywords, so whether a
 	// schema admits null is decided by its allOf conjuncts as much as by its own
-	// type set, and a conjunct is reached through a $ref whose target is a schema
-	// asked the same question. These four are not lowerings — they build no node
-	// and report no diagnostic — but they live in the same package and the call
+	// type set, and a conjunct or a $ref lands on a schema asked the same
+	// question. These are not lowerings — they build no node, and their caller
+	// reports what they find — but they live in the same package and the call
 	// graph reads it whole, so the cycle is pinned here with the rest. It is
 	// bounded by an explicit budget (maxNullConjuncts), which is what stops a
-	// self-referential allOf rather than anything in this shape.
-	{"allOfNullVerdict", "conjunctNullVerdict", "refNullVerdict", "schemaNullVerdict"},
+	// self-referential allOf rather than anything in this shape. A $ref's hops
+	// are walked in a loop its chain's length bounds, and a loop of $refs has no
+	// end to walk to.
+	{"nulls.allOf", "nulls.conjunct", "nulls.keywords", "nulls.lands", "nulls.ref", "nulls.schema", "nulls.usage"},
 	// Callbacks. An operation may declare callbacks, each of which is a path item
 	// holding operations of its own (ir-design §8.1), so the operation lowering
 	// reaches itself through them.
@@ -55,14 +57,10 @@ var loweringRecursions = [][]string{
 	// refuses past maxDynamicAnchorDepth or a spent node budget and records the
 	// refusal, so a caller learns the index is partial.
 	{"anchorWalk.walk", "anchorWalk.walkMapping"},
-	// Format detection's read of a root mapping's merge keys. A `<<` may name a
-	// mapping that merges another, so following one is following a chain the
-	// document's size does not bound. Bounded by maxMergeDepth.
-	{"probeFromMapping", "probeFromMerge"},
 	// Property lookup through a composition. Finding a property by wire name
 	// descends into a model's base and mixins, each of which is a model whose
 	// properties are looked up the same way.
-	{"propIDByWire", "propIDInComposition"},
+	{"propByWire", "propInComposition"},
 	// Multipart body parts. A body may compose with allOf instead of declaring
 	// properties, and each branch is a schema whose parts are read the same way.
 	// Bounded by maxPartRefHops.
@@ -87,7 +85,7 @@ var schemaRecursion = []string{
 	"lowerDiscriminator", "lowerDistributedUnion", "lowerModel",
 	"lowerOneOfAnyOf", "lowerSchemaBody", "lowerTyped", "lowerUnion",
 	"lowerUntyped", "patternProps", "refSiteRef", "refTypeRef",
-	"resolveMappingTarget", "resolvePointer", "resolveSchemaRef",
+	"resolveAt", "resolveMappingTarget", "resolvePointer", "resolveSchemaRef",
 	"scalarEncoding", "scalarTypeID", "schemaBody", "schemaRefHomed",
 }
 
@@ -478,8 +476,8 @@ func TestLoweringCallGraph_RecordsAMethodEdge(t *testing.T) {
 // GitHub #323 on the tree. Each edge names a method and so decides which
 // lowering runs; a graph resolving only the declaring method's own receiver
 // described every one as absent. The bases cover the shapes these packages
-// write: a constructor's local, a pointer parameter, a composite literal, a
-// multi-result bind.
+// write: a constructor's local, a pointer parameter, a composite literal; the
+// multi-result bind they no longer write is planted beside them.
 //
 // Not every selector reaches a node: anchorWalk.walkMapping reads its pairs
 // through w.view.MappingPairs, a method of a type nodeview declares, and no
@@ -489,14 +487,13 @@ func TestLoweringCallGraph_ResolvesAMethodOnAValue(t *testing.T) {
 	graph := loweringCallGraph(t)
 
 	edges := [][2]string{
-		{"dynamicAnchors", "anchorWalk.walk"},       // w := newAnchorWalk(…)
-		{"LowerService", "serviceGroups.finalize"},  // groups := newServiceGroups()
-		{"lowerPathItem", "serviceGroups.place"},    // a *serviceGroups parameter
-		{"lowerWebhooks", "serviceGroups.group"},    // the same, in the other caller
-		{"soleAnchorSite", "AnchorIndex.sites"},     // an *AnchorIndex parameter
-		{"dynamicHop", "AnchorIndex.sites"},         // the same, in the other caller
-		{"optionsFrom", "Options.withDefaults"},     // Options{}.withDefaults()
-		{"probeFromMapping", "sniffProbe.fillFrom"}, // probe, merges, err := …
+		{"dynamicAnchors", "anchorWalk.walk"},      // w := newAnchorWalk(…)
+		{"LowerService", "serviceGroups.finalize"}, // groups := newServiceGroups()
+		{"lowerPathItem", "serviceGroups.place"},   // a *serviceGroups parameter
+		{"lowerWebhooks", "serviceGroups.group"},   // the same, in the other caller
+		{"soleAnchorSite", "AnchorIndex.sites"},    // an *AnchorIndex parameter
+		{"dynamicHop", "AnchorIndex.sites"},        // the same, in the other caller
+		{"optionsFrom", "Options.withDefaults"},    // Options{}.withDefaults()
 	}
 	for _, e := range edges {
 		_, held := graph[e[0]]

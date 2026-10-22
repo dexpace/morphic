@@ -1,22 +1,17 @@
 package main
 
 import (
-	"bytes"
 	"context"
-	"encoding/json/jsontext"
-	"encoding/json/v2"
-	"errors"
 	"fmt"
 	"io"
-	"math/rand/v2"
-	"os"
-	"path/filepath"
 	"slices"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
 	"github.com/dexpace/morphic/engine"
+	"github.com/dexpace/morphic/engine/output"
+	"github.com/dexpace/morphic/engine/report"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -27,48 +22,11 @@ import (
 // that returns a nil Document.
 var newEngine = engine.New
 
-// outputFile is the temp file that -o writes through. Sync is part of the
-// contract rather than an implementation detail: Close returns once the bytes
-// reach the page cache, so without an explicit Sync the publishing rename can
-// expose a file the filesystem has not taken yet.
-type outputFile interface {
-	io.WriteCloser
-	Sync() error
-}
-
-// createOutput creates the temp file that -o writes through. It is a package var
-// so tests can inject an outputFile whose Write, Sync or Close fails; a real
-// *os.File's Close does not fail after a successful write on the platforms
-// Morphic targets.
-var createOutput = func(path string, perm os.FileMode) (outputFile, error) {
-	return os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, perm)
-}
-
-// chmodOutput restores a replaced destination's mode onto the temp file. It is a
-// package var so tests can inject a chmod failure, which is otherwise reachable
-// only by racing the filesystem.
-var chmodOutput = os.Chmod
-
-// renameOutput publishes a fully written temp file over the destination. It is a
-// package var so tests can inject a rename failure, which is otherwise reachable
-// only by racing the filesystem.
-var renameOutput = os.Rename
-
-// maxTempAttempts bounds the search for an unused temp-file name. Each attempt
-// draws a fresh random suffix, so exhausting it means the destination directory
-// is unusable rather than that the names happened to collide.
-const maxTempAttempts = 10
-
-// newFilePerm is the mode a temp file is created with: the same 0666 os.Create
-// requests, so the umask narrows it identically. A destination that already
-// exists overrides this via chmodOutput — see destMode.
-const newFilePerm os.FileMode = 0o666
-
 // compileLong is compile's description. cobra prints it as written, so it is
 // wrapped by hand.
-const compileLong = `Lower an API spec (OpenAPI 3.x) into Morphic IR JSON on stdout, and write
-diagnostics to stderr. Output to stdout is indented for reading; a file written
-with --output is compact unless --pretty asks for the indented form.
+const compileLong = `Lower an API spec into Morphic IR JSON on stdout, and write diagnostics to
+stderr. Output to stdout is indented for reading; a file written with --output
+is compact unless --pretty asks for the indented form.
 
 --explain reports what compiling produced at one source coordinate — the type
 node interned there, the coordinates interned beneath it, and the diagnostics
@@ -109,8 +67,8 @@ func newCompileCmd() *cobra.Command {
 	var opts compileOptions
 	cmd := &cobra.Command{
 		Use:     "compile <spec-file>",
-		Short:   "lower an API spec (OpenAPI 3.x) into Morphic IR JSON",
-		Long:    compileLong,
+		Short:   "lower an API spec into Morphic IR JSON",
+		Long:    withFormats(compileLong),
 		Example: compileExample,
 		Args:    compileArgs(&opts),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -217,16 +175,17 @@ func specArgs(cmd *cobra.Command, args []string) error {
 // runPipeline runs the engine over specPath and renders every diagnostic the
 // run produced to stderr.
 //
-// A non-nil err means the run could not happen — the engine could not be built
-// or failed — and is an exit-2 failure. Otherwise code is the exit code the
-// engine's verdict calls for, and res holds the document, or is nil when the
-// spec lowered to none.
+// A non-nil err ends the run with its exit code: 2 when the run could not
+// happen, the engine not built or failed, and a refused diagnostics write as
+// writeFailureExit says, so no document follows findings nobody saw.
+// Otherwise code is the exit code the engine's verdict calls for, and res
+// holds the document, or is nil when the spec lowered to none.
 func runPipeline(
 	ctx context.Context, specPath string, opts specOptions, stderr io.Writer,
 ) (res *engine.Result, code int, err error) {
 	eng, err := newEngine()
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, failure(err)
 	}
 
 	res, err = eng.Run(ctx, specPath, engine.RunOptions{
@@ -235,12 +194,14 @@ func runPipeline(
 		FailOn:          engine.FailOn(opts.failOn),
 	})
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, failure(err)
 	}
 
-	renderDiagnostics(stderr, res)
 	if res.Failed {
 		code = exitFindings
+	}
+	if err := report.WriteDiagnostics(stderr, res.Diagnostics, res.Sources); err != nil {
+		return nil, 0, &exitError{code: writeFailureExit(code), err: fmt.Errorf("write diagnostics: %w", err)}
 	}
 	if res.Document == nil {
 		return nil, code, nil
@@ -253,14 +214,17 @@ func runPipeline(
 func compileSpec(cmd *cobra.Command, specPath string, opts compileOptions) error {
 	res, code, err := runPipeline(cmd.Context(), specPath, opts.specOptions, cmd.ErrOrStderr())
 	if err != nil {
-		return failure(err)
+		return err
 	}
 	if res == nil {
 		return exitWith(code)
 	}
 
 	if opts.explain.set {
-		explainDocument(cmd.OutOrStdout(), res.Document, res.Diagnostics, opts.explain.pointer)
+		e := report.Explain(res.Document, res.Diagnostics, res.Sources, opts.explain.pointer)
+		if err := report.WriteExplanation(cmd.OutOrStdout(), e); err != nil {
+			return &exitError{code: writeFailureExit(code), err: fmt.Errorf("write explanation: %w", err)}
+		}
 		return exitWith(code)
 	}
 	if err := writeCompiled(opts, cmd.OutOrStdout(), res.Document); err != nil {
@@ -274,9 +238,9 @@ func compileSpec(cmd *cobra.Command, specPath string, opts compileOptions) error
 //
 // A failed write does not overwrite a non-zero code. Whether a destination can
 // be written is a property of the destination (/dev/null and a read-only
-// directory both refuse replaceFile's temp file), not of the spec, so the
-// verdict on the spec keeps the exit code and 2 is left for runs that failed
-// for a reason outside the spec.
+// directory both refuse output.ReplaceDocument's temporary file), not of the
+// spec, so the verdict on the spec keeps the exit code and 2 is left for runs
+// that failed for a reason outside the spec.
 func writeFailureExit(code int) int {
 	if code != 0 {
 		return code
@@ -284,179 +248,16 @@ func writeFailureExit(code int) int {
 	return exitFailure
 }
 
-// writeCompiled emits doc's IR JSON to opts.outPath, or to stdout when it is
+// writeCompiled writes doc's IR JSON to opts.outPath, or to stdout when it is
 // empty. Stdout is indented because a person is reading it; a file is compact
 // unless --pretty asks for the indented form.
-//
-// A file is encoded straight into replaceFile's temp file, which saves a copy
-// of the output; a document that will not marshal still leaves outPath
-// untouched, since only the rename reaches it. Stdout has no rename to
-// withhold, so it is encoded whole into a buffer and receives the document
-// entirely or not at all.
 func writeCompiled(opts compileOptions, stdout io.Writer, doc *ir.Document) error {
 	if opts.outPath == "" {
-		var buf bytes.Buffer
-		if err := encodeDocument(&buf, doc, true); err != nil {
-			return err
-		}
-		return writeRaw(stdout, buf.Bytes())
+		return output.WriteDocument(stdout, doc, output.Indented)
 	}
-	return replaceFile(opts.outPath, func(w io.Writer) error {
-		return encodeDocument(w, doc, opts.pretty)
-	})
-}
-
-// replaceFile atomically replaces outPath with what fill produces: it writes a
-// temp file in outPath's directory, which keeps the rename on one filesystem,
-// then renames it over outPath. A failure leaves the previous content.
-//
-// Costs of never writing in place: the directory must accept a new entry
-// (-o /dev/null fails; see writeFailureExit); a symlink or FIFO at outPath is
-// replaced, not written through; other hard links keep the old content. The
-// temp name is 21 characters longer, so a near-limit basename can fail to
-// create. The directory is not synced: a crash can leave the previous content,
-// never a partial one.
-func replaceFile(outPath string, fill func(io.Writer) error) error {
-	perm, replacing, err := destMode(outPath)
-	if err != nil {
-		return err
+	layout := output.Compact
+	if opts.pretty {
+		layout = output.Indented
 	}
-
-	tmp, err := writeTemp(outPath, fill)
-	if err != nil {
-		return err
-	}
-
-	// A brand-new file keeps the umask-narrowed mode it was created with; one
-	// that replaces an existing destination inherits that destination's mode,
-	// which is what truncating it in place would have preserved.
-	if replacing {
-		if err := chmodOutput(tmp, perm); err != nil {
-			_ = os.Remove(tmp)
-			return fmt.Errorf("chmod output %q: %w", outPath, err)
-		}
-	}
-
-	if err := renameOutput(tmp, outPath); err != nil {
-		_ = os.Remove(tmp)
-		return fmt.Errorf("replace output %q: %w", outPath, err)
-	}
-	return nil
-}
-
-// destMode reports the mode an existing destination carries, and whether there
-// is one at all. A missing destination is the ordinary case, not an error.
-func destMode(outPath string) (os.FileMode, bool, error) {
-	info, err := os.Stat(outPath)
-	if errors.Is(err, os.ErrNotExist) {
-		return 0, false, nil
-	}
-	if err != nil {
-		return 0, false, fmt.Errorf("stat output %q: %w", outPath, err)
-	}
-	return info.Mode().Perm(), true, nil
-}
-
-// writeTemp runs fill into a newly created file beside outPath and returns that
-// file's path. Creation is O_EXCL under a random name, so it neither clobbers an
-// existing file nor follows a symlink planted at the name it drew; that makes the
-// unpredictability of the suffix a convenience, not a security boundary.
-func writeTemp(outPath string, fill func(io.Writer) error) (string, error) {
-	dir := filepath.Dir(outPath)
-	base := filepath.Base(outPath)
-
-	for range maxTempAttempts {
-		tmp := filepath.Join(dir, fmt.Sprintf(".%s.tmp%016x", base, rand.Uint64()))
-		f, err := createOutput(tmp, newFilePerm)
-		if errors.Is(err, os.ErrExist) {
-			continue
-		}
-		if err != nil {
-			return "", fmt.Errorf("create output %q: %w", outPath, err)
-		}
-		if err := fillTemp(f, tmp, fill); err != nil {
-			return "", err
-		}
-		return tmp, nil
-	}
-	return "", fmt.Errorf("create output %q: no unused temp name in %d attempts",
-		outPath, maxTempAttempts)
-}
-
-// fillTemp runs fill into f, flushes it to the filesystem, and closes it,
-// removing tmp if any step fails so a failed run leaves no debris beside the
-// destination — including a fill that fails after writing part of its output.
-//
-// The Sync is what lets replaceFile's caller believe the rename publishes
-// durable bytes: without it the rename can expose a file whose contents are
-// still only in the page cache, and a crash before writeback leaves the
-// destination short or empty — the same loss writing through a temp file exists
-// to prevent.
-func fillTemp(f outputFile, tmp string, fill func(io.Writer) error) error {
-	if err := fill(f); err != nil {
-		_ = f.Close()
-		_ = os.Remove(tmp)
-		return err
-	}
-	if err := f.Sync(); err != nil {
-		_ = f.Close()
-		_ = os.Remove(tmp)
-		return fmt.Errorf("sync output %q: %w", tmp, err)
-	}
-	if err := f.Close(); err != nil {
-		_ = os.Remove(tmp)
-		return fmt.Errorf("close output %q: %w", tmp, err)
-	}
-	return nil
-}
-
-// destWriter passes writes through to w and records the error w returned. It is
-// what keeps a destination that refused the bytes distinguishable from a
-// document that would not marshal: json.MarshalWrite reports both as one error,
-// and they are different things to tell a user about.
-type destWriter struct {
-	w   io.Writer
-	err error
-}
-
-func (d *destWriter) Write(p []byte) (int, error) {
-	n, err := d.w.Write(p)
-	if err != nil {
-		d.err = err
-	}
-	return n, err
-}
-
-// encodeDocument writes doc's IR JSON to w, ending in a newline either way.
-//
-// Both forms go through json.MarshalWrite, which streams the encoded bytes
-// straight to w rather than building them in a slice first; indenting is just
-// an encode option on that same call, not a separate route. MarshalWrite ends
-// no value with a newline, so this writes one, which makes the indented form
-// byte-for-byte what irtest.WriteGolden writes, but for the irVersion member a
-// golden leaves out.
-func encodeDocument(w io.Writer, doc *ir.Document, indent bool) error {
-	dest := &destWriter{w: w}
-
-	var err error
-	if indent {
-		err = json.MarshalWrite(dest, doc, jsontext.WithIndent("  "))
-	} else {
-		err = json.MarshalWrite(dest, doc)
-	}
-	if err != nil {
-		if dest.err != nil {
-			return fmt.Errorf("write ir document: %w", dest.err)
-		}
-		return fmt.Errorf("marshal ir document: %w", err)
-	}
-	return writeRaw(w, []byte("\n"))
-}
-
-// writeRaw writes raw to w, wrapping any error with context.
-func writeRaw(w io.Writer, raw []byte) error {
-	if _, err := w.Write(raw); err != nil {
-		return fmt.Errorf("write ir document: %w", err)
-	}
-	return nil
+	return output.ReplaceDocument(opts.outPath, doc, layout)
 }

@@ -59,7 +59,7 @@ func lowererOver(ctx lowering.Ctx) *lowerer {
 	types := compile.NewTypes()
 	return &lowerer{
 		ctx:   ctx,
-		out:   &ir.Document{Types: types.Registry()},
+		out:   &ir.Document{},
 		types: types,
 	}
 }
@@ -72,7 +72,7 @@ func loweredFor(t *testing.T, src string) (*lowerer, []ir.Diagnostic) {
 	require.NoError(t, err)
 	require.NotNil(t, loadedDoc, "load returned no document: %+v", diags)
 	return lowererOver(lowering.New(0, loadedDoc.Doc, loadedDoc.Source,
-		lowering.GroupByTags, lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, overlay.Origin{}).
+		lowering.GroupByTags, lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}).
 		WithLoaded(loadedDoc)), diags
 }
 
@@ -82,27 +82,29 @@ func lowerSpec(t *testing.T, src string) (*ir.Document, []ir.Diagnostic) {
 	t.Helper()
 	l, diags := loweredFor(t, src)
 	l.diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.ctx, l.types, &l.anchors))
-	return l.out, append(diags, l.diags.List()...)
+	doc := l.document(t)
+	return doc, append(diags, l.diags.List()...)
 }
 
 // lowerSpecOnly is lowerSpec without the load phase's diagnostics mixed in. A
 // $ref the lowering cannot follow is reported both by the load phase, which
-// resolves it and names the reason, and by the lowering itself, at the same
-// pointer but without one (compilers/openapi's withoutRereported drops the
-// second once both reach the compiler). A test that wants to pin what the
+// binds it, and by the lowering itself, at the same pointer
+// (compilers/openapi's withoutRereported drops the second once both reach the
+// compiler). A test that wants to pin what the
 // lowering itself reports — not what a full compile does with the two reports
 // after deduplication — needs the lowering's diagnostics on their own.
 func lowerSpecOnly(t *testing.T, src string) (*ir.Document, []ir.Diagnostic) {
 	t.Helper()
 	l, _ := loweredFor(t, src)
 	l.diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.ctx, l.types, &l.anchors))
-	return l.out, l.diags.List()
+	doc := l.document(t)
+	return doc, l.diags.List()
 }
 
 // newRawLowerer builds a fixture over a hand-constructed document, bypassing the
 // parser so nil slice/map entries (which the parser panics on) can be exercised.
 func newRawLowerer(doc *soa.OpenAPI) *lowerer {
-	return lowererOver(lowering.New(0, doc, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, overlay.Origin{}))
+	return lowererOver(lowering.New(0, doc, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}))
 }
 
 // componentID is the stable TypeID of a components-named schema, or of a
@@ -127,4 +129,29 @@ func conflictDiags(diags []ir.Diagnostic) []ir.Diagnostic {
 		}
 	}
 	return out
+}
+
+// document finishes the registry as run does once every lowering has
+// returned, and returns the document under construction holding it. What the
+// settling reports joins the fixture's diagnostics; a refusal is a compiler bug
+// no fixture provokes, so one fails the test.
+func (l *lowerer) document(t *testing.T) *ir.Document {
+	t.Helper()
+	reg, settled := l.types.Finish(t.Context())
+	for _, d := range settled {
+		require.NotEqual(t, compile.RegistryRefused, d.Code, "the registry refused an entry: %s", d.Message)
+	}
+	l.diags.AppendAll(settled)
+	l.out.Types = reg
+	return l.out
+}
+
+// settledSpec is nonBareSpec with the components after the schema composing
+// them, so a redeclaration naming one is judged once the registry is whole.
+func settledSpec(t *testing.T, extra, schemaA, schemaB string) (*ir.Document, []ir.Diagnostic) {
+	t.Helper()
+	return lowerSpec(t, openapitest.ComponentSpec(
+		"    T:\n      allOf:\n"+
+			"        - type: object\n          properties: {v: "+schemaA+"}\n"+
+			"        - type: object\n          properties: {v: "+schemaB+"}\n"+extra))
 }

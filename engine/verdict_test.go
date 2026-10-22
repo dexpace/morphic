@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/engine"
 	"github.com/dexpace/morphic/internal/decls"
 	"github.com/dexpace/morphic/internal/testspec"
@@ -187,6 +188,40 @@ func TestEngine_RunWithoutADocumentFails(t *testing.T) {
 	}
 }
 
+// TestEngine_EveryEntryPointJudgesItsRun pins that RunSources and RunDocument
+// judge their Result as Run does: a run whose findings hold an error fails at
+// the default threshold and passes at FailOnNone. RunSources compiles a spec
+// with a reference to a document no source holds; RunDocument runs validate
+// over a dangling reference.
+func TestEngine_EveryEntryPointJudgesItsRun(t *testing.T) {
+	t.Parallel()
+	eng, err := engine.New()
+	require.NoError(t, err)
+	for _, tc := range []struct {
+		failOn engine.FailOn
+		want   bool
+	}{{"", true}, {engine.FailOnNone, false}} {
+		opts := engine.RunOptions{FailOn: tc.failOn}
+		t.Run(fmt.Sprintf("fail-on=%q/RunSources", tc.failOn), func(t *testing.T) {
+			t.Parallel()
+			res, err := eng.RunSources(t.Context(), []compilers.Source{{Path: "root.yaml", Data: []byte(splitRoot)}}, opts)
+
+			require.NoError(t, err)
+			require.NotNil(t, res.Document)
+			require.NotEmpty(t, unresolved(res.Diagnostics), "the row must hold an error, or it proves nothing")
+			assert.Equal(t, tc.want, res.Failed)
+		})
+		t.Run(fmt.Sprintf("fail-on=%q/RunDocument", tc.failOn), func(t *testing.T) {
+			t.Parallel()
+			res, err := eng.RunDocument(t.Context(), danglingDocument(), opts)
+
+			require.NoError(t, err)
+			require.True(t, hasDiagCode(res.Diagnostics, "ir/dangling-type-ref"), "the row must hold an error")
+			assert.Equal(t, tc.want, res.Failed)
+		})
+	}
+}
+
 // reportPass is an analysis that reports what reported holds.
 type reportPass struct{ reported []ir.Diagnostic }
 
@@ -211,8 +246,11 @@ func TestEngine_RunRefusesAnUnknownSeverity(t *testing.T) {
 		{"the compiler, with a document", func(diags []ir.Diagnostic) (*engine.Engine, error) {
 			return engine.NewWith(splitDiagCompiler{stored: diags})
 		}},
+		// A refusal states why, so its list leads with an error: one holding only
+		// the unknown severity breaks the contract before the verdict reads it.
 		{"the compiler, with none", func(diags []ir.Diagnostic) (*engine.Engine, error) {
-			return engine.NewWith(nilDocCompiler{reported: diags})
+			why := ir.Diagnostic{Severity: ir.SeverityError, Code: "x/refused"}
+			return engine.NewWith(nilDocCompiler{reported: append([]ir.Diagnostic{why}, diags...)})
 		}},
 		{"a pass", func(diags []ir.Diagnostic) (*engine.Engine, error) {
 			return engine.NewWithPasses([]pass.Pass{reportPass{diags}}, splitDiagCompiler{})
@@ -262,4 +300,34 @@ func diagnosticsAt(sevs ...ir.Severity) []ir.Diagnostic {
 		diags = append(diags, ir.Diagnostic{Severity: sev, Code: "x/finding", Message: fmt.Sprint(i)})
 	}
 	return diags
+}
+
+// TestEngine_RunDocumentIsJudgedAsRunIs pins that RunDocument judges a run by
+// Run's rule: over a document carrying the findings a compile stored, the two
+// reach one verdict at every threshold, and both refuse a severity the IR does
+// not define. Validate is off, so the findings are the document's alone.
+func TestEngine_RunDocumentIsJudgedAsRunIs(t *testing.T) {
+	t.Parallel()
+	eng, err := engine.New()
+	require.NoError(t, err)
+	for _, failOn := range thresholds {
+		for _, sev := range []ir.Severity{ir.SeverityInfo, ir.SeverityWarning, ir.SeverityError, "fatal"} {
+			t.Run(fmt.Sprintf("fail-on=%q/%s", failOn, sev), func(t *testing.T) {
+				t.Parallel()
+				doc := danglingDocument()
+				doc.Diagnostics = diagnosticsAt(sev)
+				opts := engine.RunOptions{FailOn: failOn, DisablePasses: []string{engine.ValidatePass}}
+
+				res, err := eng.RunDocument(t.Context(), doc, opts)
+
+				if sev == "fatal" {
+					require.ErrorIs(t, err, engine.ErrUnknownSeverity)
+					assert.Nil(t, res)
+					return
+				}
+				require.NoError(t, err)
+				assert.Equal(t, runStored(t, failOn, diagnosticsAt(sev)).Failed, res.Failed)
+			})
+		}
+	}
 }

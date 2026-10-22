@@ -5,10 +5,8 @@ import (
 	"encoding/json/jsontext"
 	"iter"
 
-	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	"github.com/speakeasy-api/openapi/marshaller"
 	soa "github.com/speakeasy-api/openapi/openapi"
-	"github.com/speakeasy-api/openapi/validation"
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
@@ -166,21 +164,20 @@ func useSite(rp *soa.ReferencedPathItem) *yaml.Node {
 }
 
 // siblingBuild models the fields of one use site, or reports why it could not.
-type siblingBuild func(ctx context.Context, node *yaml.Node) (*soa.PathItem, []error, error)
+type siblingBuild func(ctx context.Context, node *yaml.Node) (*soa.PathItem, error)
 
 // modelSiblings models the fields beside every path item $ref the walk of doc
-// reaches, and beside every one inside what it models, returning the findings
-// their model build and validation made, and an error diagnostic for each use
-// site the parser faulted on.
+// reaches, and beside every one inside what it models, returning an error
+// diagnostic for each use site the parser faulted on.
 //
 // A tree in which no mapping keys $ref beside another key holds no use site and
 // is not walked: that is nearly every document, and the walk is a pass over the
 // whole model.
-func modelSiblings(ctx context.Context, doc *soa.OpenAPI, locate scan.Locator) (Siblings, []error, []ir.Diagnostic) {
+func modelSiblings(ctx context.Context, doc *soa.OpenAPI, locate scan.Locator) (Siblings, []ir.Diagnostic) {
 	if !anyNode(doc.GetRootNode(), refBeside) {
-		return Siblings{}, nil, nil
+		return Siblings{}, nil
 	}
-	return siblingsFrom(ctx, soa.Walk(ctx, doc), locate, siblingModel(doc))
+	return siblingsFrom(ctx, soa.Walk(ctx, doc), locate, buildSibling)
 }
 
 // refBeside reports whether n is a mapping keying $ref beside another key, as
@@ -203,32 +200,6 @@ func refBeside(n *yaml.Node) bool {
 	return false
 }
 
-// unreported returns the findings of errs that valErrs, the document's own
-// validation's, does not already make at the same node under the same rule.
-// The library reads the summary and description beside a path item's $ref as
-// its Reference Object's and validates them there, so a model holding them too
-// would report one malformed value twice.
-func unreported(errs, valErrs []error) []error {
-	type finding struct {
-		node *yaml.Node
-		rule string
-	}
-	made := make(map[finding]bool, len(valErrs))
-	for _, e := range valErrs {
-		if verr, ok := asValidationError(e); ok && verr.Node != nil {
-			made[finding{verr.Node, verr.Rule}] = true
-		}
-	}
-	out := make([]error, 0, len(errs))
-	for _, e := range errs {
-		if verr, ok := asValidationError(e); ok && made[finding{verr.Node, verr.Rule}] {
-			continue
-		}
-		out = append(out, e)
-	}
-	return out
-}
-
 // siblingsFrom is modelSiblings over a walk and a model build the caller
 // supplies, so a test can hand it a walk that panics, or a build that faults.
 //
@@ -238,15 +209,12 @@ func unreported(errs, valErrs []error) []error {
 // bound caps. A walk that panics stops the search where it stands; the
 // resolution walk meets the same fault at the same model, and reports it.
 func siblingsFrom(ctx context.Context, items iter.Seq[soa.WalkItem], locate scan.Locator, build siblingBuild,
-) (Siblings, []error, []ir.Diagnostic) {
+) (Siblings, []ir.Diagnostic) {
 	s := Siblings{byNode: map[*yaml.Node]int{}, faulted: map[*yaml.Node]bool{}, at: &sites{},
 		writtenAs: map[jsontext.Pointer]*yaml.Node{}}
-	var errs []error
 	var faults []ir.Diagnostic
 	met := func(site jsontext.Pointer, rp *soa.ReferencedPathItem) {
-		built, fault := s.add(ctx, site, rp, build, locate)
-		errs = append(errs, built...)
-		faults = append(faults, fault...)
+		faults = append(faults, s.add(ctx, site, rp, build, locate)...)
 	}
 	// A model's walk also records what each reference object in it is written
 	// as; the document's matches its path items alone.
@@ -267,7 +235,7 @@ func siblingsFrom(ctx context.Context, items iter.Seq[soa.WalkItem], locate scan
 	for i := 0; err == nil && i < len(s.list) && i < sourceindex.MaxIndexedNodes; i++ {
 		_, err = eachModel(s.modelWalk(ctx, i), "sibling search", inModel)
 	}
-	return s, errs, faults
+	return s, faults
 }
 
 // write records the mapping w, met at site in a model's walk, is written as.
@@ -278,39 +246,39 @@ func (s *Siblings) write(site jsontext.Pointer, w referenceWrapper) {
 	}
 }
 
-// add models the fields rp's use site writes beside its $ref, at site, and
-// returns the findings the model build made. It does nothing for an rp that is
-// no reference, nor for a mapping holding nothing beside the $ref; a mapping
-// already met is only noted at site. A mapping the parser faulted on holds no
-// model, and its fault is returned as an error diagnostic instead.
+// add models the fields rp's use site writes beside its $ref, at site. It does
+// nothing for an rp that is no reference, nor for a mapping holding nothing
+// beside the $ref; a mapping already met is only noted at site. A mapping the
+// parser faulted on holds no model, and its fault is returned as an error
+// diagnostic instead.
 func (s *Siblings) add(ctx context.Context, site jsontext.Pointer, rp *soa.ReferencedPathItem, build siblingBuild,
 	locate scan.Locator,
-) ([]error, []ir.Diagnostic) {
+) []ir.Diagnostic {
 	if !rp.IsReference() {
-		return nil, nil
+		return nil
 	}
 	node := useSite(rp)
 	if s.faulted[node] {
-		return nil, nil
+		return nil
 	}
 	if i, seen := s.byNode[node]; seen {
 		s.at.insert(site, i)
-		return nil, nil
+		return nil
 	}
 	fields, ok := withoutRef(node)
 	if !ok {
-		return nil, nil
+		return nil
 	}
-	item, errs, err := build(ctx, fields)
+	item, err := build(ctx, fields)
 	if err != nil {
 		s.faulted[node] = true
-		return nil, []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.Validation, locate(node),
+		return []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.Validation, locate(node),
 			"the fields written beside this path item's $ref could not be read: %s", err.Error())}
 	}
 	s.byNode[node] = len(s.list)
 	s.at.insert(site, len(s.list))
 	s.list = append(s.list, Sibling{Item: item, Pointer: site, keys: writtenKeys(fields)})
-	return errs, nil
+	return nil
 }
 
 // writtenKeys returns the keys the mapping fields, a use site less its $ref, is
@@ -369,19 +337,12 @@ func isRefKey(key *yaml.Node) bool {
 	return k != nil && k.Value == refKey
 }
 
-// siblingModel builds the fields beside a $ref into a Path Item and validates it
-// as the source's own path items are, with the document as its context: the
-// version selects the rules a 3.2 field is checked under.
-func siblingModel(doc *soa.OpenAPI) siblingBuild {
-	version := doc.OpenAPI
-	opts := []validation.Option{
-		validation.WithContextObject(doc),
-		validation.WithContextObject(&oas3.ParentDocumentVersion{OpenAPI: &version}),
-	}
-	return func(ctx context.Context, node *yaml.Node) (item *soa.PathItem, errs []error, err error) {
-		defer recovered(&err, "parser")
-		item = soa.NewPathItem()
-		errs, err = marshaller.UnmarshalNode(ctx, "", node, item)
-		return item, append(errs, item.Validate(ctx, opts...)...), err
-	}
+// buildSibling builds the fields beside a $ref into a Path Item, as the source's
+// own path items are built. Nothing is validated: the table judges them as the
+// item's own fields.
+func buildSibling(ctx context.Context, node *yaml.Node) (item *soa.PathItem, err error) {
+	defer recovered(&err, "parser")
+	item = soa.NewPathItem()
+	_, err = marshaller.UnmarshalNode(ctx, "", node, item)
+	return item, err
 }

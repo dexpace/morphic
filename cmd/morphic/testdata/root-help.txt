@@ -5,7 +5,7 @@ Usage:
   morphic [command]
 
 Available Commands:
-  compile     lower an API spec (OpenAPI 3.x) into Morphic IR JSON
+  compile     lower an API spec into Morphic IR JSON
   completion  Generate the autocompletion script for the specified shell
   help        show help for a command
   validate    check an API spec and report its diagnostics, writing no IR

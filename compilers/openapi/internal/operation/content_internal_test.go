@@ -2,24 +2,33 @@ package operation
 
 import (
 	"encoding/json/jsontext"
+	"os"
+	"path/filepath"
 	"testing"
 
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/speakeasy-api/openapi/sequencedmap"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
+	"github.com/dexpace/morphic/compilers/openapi/internal/load"
+	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
 
 // TestBodyModelPointer_NoModelBehindBody covers the walk's dead ends on a
 // hand-built registry: an ID nothing declares, an opaque scalar, a kind that is
 // no model, and an alias chain that closes on itself. The last is what the bound
-// is for — a $ref cycle is refused at load, so no document can spell one, and a
-// walk that relied on that would loop forever the day one arrived by another
-// route.
+// is for: a $ref cycle compiles rather than being refused at load, so nothing
+// upstream keeps a chain from closing, and a walk that relied on that would loop
+// forever.
 func TestBodyModelPointer_NoModelBehindBody(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
@@ -44,33 +53,91 @@ func TestBodyModelPointer_NoModelBehindBody(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			pointer, ok := bodyModelPointer(l.types, tc.body)
+			model, ok := bodyModel(l.types.Node, tc.body)
 			assert.False(t, ok, "no model stands behind this body")
-			assert.Empty(t, pointer, "and no pointer is invented for one")
+			assert.Zero(t, model, "and no position is invented for one")
 		})
 	}
 }
 
-// TestBodySchemaPointer_LocalRefFragment pins the fallback's own ref hop, which
-// the production path reaches only for a body standing for no model.
-func TestBodySchemaPointer_LocalRefFragment(t *testing.T) {
-	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
-	js := oas3.NewJSONSchemaFromReference("#/components/schemas/Form")
-	assert.Equal(t, jsontext.Pointer("/components/schemas/Form"), bodySchemaPointer(l.ctx, js, "/local"))
+// refSite loads a source declaring a component Ref whose $ref spells ref, and
+// the object schema Form it may name, and returns the lowerer over it with the
+// schema Ref: the position bodySchemaPointer is asked about.
+func refSite(t *testing.T, ref string) (*lowerer, *oas3.JSONSchema[oas3.Referenceable]) {
+	t.Helper()
+	l, _ := loweredFor(t, openapitest.ComponentSpec("    Form: {type: object}\n    Ref: {$ref: '"+ref+"'}\n"))
+	return l, refComponent(t, l)
 }
 
-// TestBodySchemaPointer_ForeignDocumentRefStaysLocal pins the document half of a
-// $ref deciding the pointer. Cutting the fragment off blindly turned another
-// document's property into an identity in this one, silently naming whichever
-// local schema shared the path.
-func TestBodySchemaPointer_ForeignDocumentRefStaysLocal(t *testing.T) {
+// keyed is where bodySchemaPointer keys an encoding entry: a document and a
+// pointer there.
+type keyed struct {
+	doc     ids.Document
+	pointer jsontext.Pointer
+}
+
+// local is the source's "/local", the pointer every keyedAt below falls back to.
+var local = keyed{pointer: "/local"}
+
+// keyedAt is bodySchemaPointer's answer for js under c, falling back to
+// "/local", as one comparable value.
+func keyedAt(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) keyed {
+	d, p := bodySchemaPointer(c, js, "/local")
+	return keyed{doc: d, pointer: p}
+}
+
+// refComponent returns the component Ref of the document l holds.
+func refComponent(t *testing.T, l *lowerer) *oas3.JSONSchema[oas3.Referenceable] {
+	t.Helper()
+	js, ok := l.ctx.Doc.Components.Schemas.Get("Ref")
+	require.True(t, ok, "the fixture declares component Ref")
+	return js
+}
+
+// TestBodySchemaPointer_LocalRefFragment pins the fallback's own ref hop, which
+// the production path reaches only for a body standing for no model: a $ref the
+// compiler resolved to a position in the source is keyed by that position.
+func TestBodySchemaPointer_LocalRefFragment(t *testing.T) {
 	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
-	l.ctx.Source = ir.SourceInfo{Path: "spec.yaml"}
-	js := oas3.NewJSONSchemaFromReference("./ext-form.yaml#/components/schemas/Form")
-	assert.Equal(t, jsontext.Pointer("/local"), bodySchemaPointer(l.ctx, js, "/local"),
-		"a fragment from another document must not become a pointer into this one")
+	l, js := refSite(t, "#/components/schemas/Form")
+	assert.Equal(t, keyed{pointer: "/components/schemas/Form"}, keyedAt(l.ctx, js))
+}
+
+// TestBodySchemaPointer_AnotherDocumentsRefKeysInThatDocument pins the document
+// half of a $ref deciding the key. Cutting the fragment off blindly turned
+// another document's property into an identity in this one, silently naming
+// whichever local schema shared the path. A document that is read keys the
+// entry in that document, whose IDs it qualifies; one that is not read, or
+// that the compile does not list, lands nowhere, so the local pointer stands.
+func TestBodySchemaPointer_AnotherDocumentsRefKeysInThatDocument(t *testing.T) {
+	t.Parallel()
+	t.Run("not read", func(t *testing.T) {
+		t.Parallel()
+		l, js := refSite(t, "./ext-form.yaml#/components/schemas/Form")
+		assert.Equal(t, local, keyedAt(l.ctx, js),
+			"a fragment from another document must not become a pointer into this one")
+	})
+
+	t.Run("read", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "ext-form.yaml"),
+			[]byte("components:\n  schemas:\n    Form: {type: object}\n"), 0o600))
+		src := openapitest.ComponentSpec("    Form: {type: object}\n    Ref: {$ref: './ext-form.yaml#/components/schemas/Form'}\n")
+		l, _ := loweredAt(t, compilers.Source{Path: filepath.Join(dir, "spec.yaml"), Data: []byte(src)},
+			load.Options{Reader: reader.Disk{}})
+		js := refComponent(t, l)
+		e, ok := l.ctx.Bindings().Entry(js)
+		require.True(t, ok)
+		require.Equal(t, bind.Resolved, e.Hop.Status, "the $ref lands in the other document")
+
+		assert.Equal(t, keyed{doc: ids.In("ext-form.yaml"), pointer: "/components/schemas/Form"}, keyedAt(l.ctx, js),
+			"the other document's position, in its own IDs")
+
+		unlisted := l.ctx.WithLoaded(&load.Document{Doc: l.ctx.Doc, Bindings: l.ctx.Bindings()})
+		assert.Equal(t, local, keyedAt(unlisted, js),
+			"a landing in a document the compile did not list keeps the local pointer")
+	})
 }
 
 // TestBodySchemaPointer_SelfNamedRefFollowsFragment pins the other half: a ref
@@ -78,10 +145,8 @@ func TestBodySchemaPointer_ForeignDocumentRefStaysLocal(t *testing.T) {
 // pointer here after all.
 func TestBodySchemaPointer_SelfNamedRefFollowsFragment(t *testing.T) {
 	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
-	l.ctx.Source = ir.SourceInfo{Path: "spec.yaml"}
-	js := oas3.NewJSONSchemaFromReference("spec.yaml#/components/schemas/Form")
-	assert.Equal(t, jsontext.Pointer("/components/schemas/Form"), bodySchemaPointer(l.ctx, js, "/local"))
+	l, js := refSite(t, "spec.yaml#/components/schemas/Form")
+	assert.Equal(t, keyed{pointer: "/components/schemas/Form"}, keyedAt(l.ctx, js))
 }
 
 // TestBodySchemaPointer_NonUTF8FragmentStaysLocal pins another reason a $ref
@@ -91,10 +156,20 @@ func TestBodySchemaPointer_SelfNamedRefFollowsFragment(t *testing.T) {
 // (GitHub #520).
 func TestBodySchemaPointer_NonUTF8FragmentStaysLocal(t *testing.T) {
 	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
-	js := oas3.NewJSONSchemaFromReference("#/components/schemas/%FF")
-	assert.Equal(t, jsontext.Pointer("/local"), bodySchemaPointer(l.ctx, js, "/local"),
-		"a fragment that is not UTF-8 must not become a pointer")
+	l, js := refSite(t, "#/components/schemas/%FF")
+	assert.Equal(t, local, keyedAt(l.ctx, js), "a fragment that is not UTF-8 must not become a pointer")
+}
+
+// TestBodySchemaPointer_UnresolvedRefStaysLocal pins the last reason: a $ref
+// naming nothing lands nowhere, so it keys no encoding entry by a position the
+// document does not hold. A scope with no bindings lands none either.
+func TestBodySchemaPointer_UnresolvedRefStaysLocal(t *testing.T) {
+	t.Parallel()
+	l, js := refSite(t, "#/components/schemas/Missing")
+	assert.Equal(t, local, keyedAt(l.ctx, js))
+
+	bare := newRawLowerer(&soa.OpenAPI{})
+	assert.Equal(t, local, keyedAt(bare.ctx, js), "a context that was given no bindings resolves no $ref")
 }
 
 func TestContentTypeKeys_Nil(t *testing.T) {
@@ -141,17 +216,18 @@ func TestPositionalEncoding_WithoutRootNode(t *testing.T) {
 		"nothing was kept, so nothing announces that it was")
 }
 
+// TestBodySchemaPointer_ExternalRefNoFragment pins that a $ref naming another
+// document with no fragment falls back to the local pointer.
 func TestBodySchemaPointer_ExternalRefNoFragment(t *testing.T) {
 	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
-	js := oas3.NewJSONSchemaFromReference("external.yaml")
-	assert.Equal(t, jsontext.Pointer("/local"), bodySchemaPointer(l.ctx, js, "/local"), "a fragmentless ref falls back to the local pointer")
+	l, js := refSite(t, "external.yaml")
+	assert.Equal(t, local, keyedAt(l.ctx, js), "a fragmentless ref falls back to the local pointer")
 }
 
 func TestBodySchemaPointer_NilSchema(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
-	assert.Equal(t, jsontext.Pointer("/local"), bodySchemaPointer(l.ctx, nil, "/local"))
+	assert.Equal(t, local, keyedAt(l.ctx, nil))
 }
 
 func TestLowerPayload_NilMediaEntriesYieldNil(t *testing.T) {
@@ -165,11 +241,11 @@ func TestLowerPayload_NilMediaEntriesYieldNil(t *testing.T) {
 	assert.Empty(t, diags)
 }
 
-// TestPropIDByWire_DeadEnds mirrors TestBodyModelPointer_NoModelBehindBody for
+// TestPropByWire_DeadEnds mirrors TestBodyModelPointer_NoModelBehindBody for
 // the property walk: the same dead ends, asked for a part name rather than a
 // pointer. Neither may invent an ID — a part keyed by a PropID nothing declares
 // is a dangling reference the encoding map would carry silently.
-func TestPropIDByWire_DeadEnds(t *testing.T) {
+func TestPropByWire_DeadEnds(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
 	l.types.Register("t/opaque", &ir.Scalar{ID: "t/opaque"})
@@ -197,9 +273,9 @@ func TestPropIDByWire_DeadEnds(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			id, ok := propIDByWire(l.types, tc.body, "file", 0)
+			prop, ok := propByWire(l.types.Node, tc.body, "file", 0)
 			assert.False(t, ok, "no property with that wire name stands behind this body")
-			assert.Empty(t, id, "and no ID is invented for one")
+			assert.Nil(t, prop, "and no property is invented for one")
 		})
 	}
 }
@@ -214,4 +290,44 @@ func TestBodyParts_RefHopBound(t *testing.T) {
 	assert.Nil(t, w.parts,
 		"past the bound the walk stops rather than descending further")
 	assert.Len(t, v.cut, 1, "and records the target it stopped at")
+}
+
+// TestPartTypeFlags_DecidesOnlyTheKindsItReads holds the type walk to what it
+// decides at each end: a tuple repeats; a string primitive, an opaque scalar
+// and an alias cycle that exhausts the bound decide neither flag; an ID
+// nothing declares, a model and a union are left to the caller's schema
+// reading.
+func TestPartTypeFlags_DecidesOnlyTheKindsItReads(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{})
+	l.types.Register("t/opaque", &ir.Scalar{ID: "t/opaque"})
+	l.types.Register("t/cycle/a", &ir.Scalar{
+		ID: "t/cycle/a", Base: &ir.TypeRef{Target: "t/cycle/b"},
+	})
+	l.types.Register("t/cycle/b", &ir.Scalar{
+		ID: "t/cycle/b", Base: &ir.TypeRef{Target: "t/cycle/a"},
+	})
+	l.types.Register("t/model", &ir.Model{ID: "t/model"})
+	l.types.Register("t/tuple", &ir.Tuple{ID: "t/tuple"})
+	l.types.Register("t/union", &ir.Union{ID: "t/union"})
+
+	cases := []struct {
+		target  ir.TypeID
+		multi   bool
+		decided bool
+	}{
+		{"t/absent", false, false},
+		{"t/opaque", false, true},
+		{"t/model", false, false},
+		{"t/union", false, false},
+		{"t/tuple", true, true},
+		{"t/cycle/a", false, true},
+		{l.types.PrimID(ir.PrimString), false, true},
+	}
+	for _, tc := range cases {
+		multi, file, decided := partTypeFlags(l.types.Node, ir.TypeRef{Target: tc.target})
+		assert.Equal(t, tc.multi, multi, "%s multi", tc.target)
+		assert.False(t, file, "%s is not bytes", tc.target)
+		assert.Equal(t, tc.decided, decided, "%s decided", tc.target)
+	}
 }

@@ -112,6 +112,9 @@ func setNonZero(t *testing.T, v reflect.Value) {
 		v.Set(reflect.New(v.Type().Elem()))
 	case reflect.Slice:
 		v.Set(reflect.MakeSlice(v.Type(), 1, 1))
+	case reflect.Map:
+		v.Set(reflect.MakeMapWithSize(v.Type(), 1))
+		v.SetMapIndex(reflect.Zero(v.Type().Key()), reflect.Zero(v.Type().Elem()))
 	default:
 		require.Failf(t, "no non-zero value", "field of kind %s; extend setNonZero", v.Kind())
 	}

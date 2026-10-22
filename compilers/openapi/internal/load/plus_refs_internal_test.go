@@ -8,7 +8,6 @@ import (
 	"strings"
 	"testing"
 
-	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/speakeasy-api/openapi/references"
 	"github.com/stretchr/testify/assert"
@@ -16,9 +15,11 @@ import (
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
+	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -35,9 +36,15 @@ type loadedPlus struct {
 // the tree it was handed, and every model the lowering reads.
 func loadPlus(t *testing.T, spec string, opts Options) loadedPlus {
 	t.Helper()
+	return loadPlusAt(t, "spec.yaml", spec, opts)
+}
+
+// loadPlusAt is loadPlus of the source at path.
+func loadPlusAt(t *testing.T, path, spec string, opts Options) loadedPlus {
+	t.Helper()
 	parsed, err := Decode([]byte(spec))
 	require.NoError(t, err)
-	src := compilers.Source{Path: "spec.yaml", Data: []byte(spec), Parsed: parsed}
+	src := compilers.Source{Path: path, Data: []byte(spec), Parsed: parsed}
 	doc, diags, err := Load(t.Context(), 0, src, opts)
 	require.NoError(t, err)
 	require.NotNil(t, doc, "%v", diags)
@@ -51,8 +58,8 @@ func loadPlus(t *testing.T, spec string, opts Options) loadedPlus {
 
 // assertModelsAsWritten requires every reference model the lowering can read to
 // hold the $ref its scalar spells, in the model and in its core, whatever the
-// resolver was handed. It finds them by a walk of its own: the source's, what
-// the mapping targets hold, and everything each chain reached.
+// resolver was handed. It finds them by a walk of its own: the source's, the
+// schemas built for the bindings' landings, and everything each chain reached.
 func (l loadedPlus) assertModelsAsWritten(t *testing.T) {
 	t.Helper()
 	ctx := t.Context()
@@ -70,14 +77,10 @@ func (l loadedPlus) assertModelsAsWritten(t *testing.T) {
 		}
 	}
 	walk(walkSource(ctx, l.doc.Doc, l.doc.Siblings))
-	for _, s := range l.doc.Targets.resolved {
-		add(s.ref)
-	}
-	for _, js := range l.doc.Targets.byPointer {
-		walk(walkOf(js)(ctx))
-	}
-	for _, js := range l.doc.Targets.built {
-		walk(walkOf(js)(ctx))
+	for _, landing := range l.doc.Bindings.Table().Landings() {
+		if js := l.doc.Bindings.At(landing.At); js != nil {
+			walk(walkOf(js)(ctx))
+		}
 	}
 	checked := 0
 	for len(queue) > 0 {
@@ -90,9 +93,6 @@ func (l loadedPlus) assertModelsAsWritten(t *testing.T) {
 		require.Equal(t, written, *coreRefOf(t, model), "%T's core copy of %q", model, written)
 		checked++
 		for _, rec := range resolutionChain(model).records {
-			if !rec.reached {
-				continue
-			}
 			walk(rec.walk(ctx))
 		}
 	}
@@ -119,20 +119,43 @@ func assertNoRewrittenSpelling(t *testing.T, diags []ir.Diagnostic) {
 	}
 }
 
-// refAt returns the reference the source writes at site.
-func (l loadedPlus) refAt(t *testing.T, site jsontext.Pointer) resolvable {
+// refAt returns the reference the source writes at site: a reference object,
+// or a schema writing a $ref.
+func (l loadedPlus) refAt(t *testing.T, site jsontext.Pointer) any {
 	t.Helper()
-	var found resolvable
+	var found any
 	for item := range walkSource(t.Context(), l.doc.Doc, l.doc.Siblings) {
 		require.NoError(t, item.Match(soa.Matcher{Any: func(model any) error {
-			if r, ok := model.(resolvable); ok && r.IsReference() && jsontext.Pointer(item.Location.ToJSONPointer()) == site {
-				found = r
+			r, ok := model.(interface{ IsReference() bool })
+			if ok && r.IsReference() && jsontext.Pointer(item.Location.ToJSONPointer()) == site {
+				found = model
 			}
 			return nil
 		}}))
 	}
 	require.NotNil(t, found, "no reference is written at %s", site)
 	return found
+}
+
+// reachedNode returns the node the reference written at site reaches: where a
+// schema's chain of $refs ends, as the bindings read it, or the node a
+// reference object's resolution built its object from.
+func (l loadedPlus) reachedNode(t *testing.T, site jsontext.Pointer) *yaml.Node {
+	t.Helper()
+	model := l.refAt(t, site)
+	js, schema := model.(*schemaRef)
+	if !schema {
+		node, ok := reachedNode(model.(resolvable))
+		require.True(t, ok, "the $ref at %s resolves to an object", site)
+		return node
+	}
+	e, ok := l.doc.Bindings.Entry(js)
+	require.True(t, ok, "the bindings read the $ref at %s", site)
+	require.Equal(t, bind.Resolved, e.Chain.Status, "the $ref at %s resolves", site)
+	doc := l.doc.Bindings.Table().Document(e.Chain.End.Doc)
+	path, complete := nodeview.New().DocumentPath(doc.Root, e.Chain.End.Pointer)
+	require.True(t, complete)
+	return path[len(path)-1]
 }
 
 // nodeAt returns the node the source's tree holds at pointer.
@@ -147,9 +170,7 @@ func (l loadedPlus) nodeAt(t *testing.T, pointer jsontext.Pointer) *yaml.Node {
 // the tree holds at target.
 func (l loadedPlus) assertReaches(t *testing.T, site, target jsontext.Pointer) {
 	t.Helper()
-	_, node, ok := reachedObject(l.refAt(t, site))
-	require.True(t, ok, "the $ref at %s resolves to an object", site)
-	assert.Same(t, l.nodeAt(t, target), node, "the $ref at %s names %s", site, target)
+	assert.Same(t, l.nodeAt(t, target), l.reachedNode(t, site), "the $ref at %s names %s", site, target)
 }
 
 const plusIssueSpec = `openapi: 3.1.0
@@ -294,6 +315,10 @@ paths:
 	}
 }
 
+// TestLoad_APlusKeyOfRawYAMLIsReached pins that a $ref naming a key spelled
+// with a plus in raw YAML reaches it, and that a $ref inside a schema built
+// from raw YAML is bound too: one into another document, with external
+// references off, is reported unresolved, quoted as written.
 func TestLoad_APlusKeyOfRawYAMLIsReached(t *testing.T) {
 	t.Parallel()
 	l := loadPlus(t, `openapi: 3.1.0
@@ -310,18 +335,20 @@ x-a: {$ref: '#/x-b+c'}
 x-b+c: {type: integer}
 `, Options{})
 
-	assert.Empty(t, errorsOf(l.diags))
+	assert.Equal(t, []string{`unresolved $ref "other.yaml#/x+y": it names another document, and external references are not read`},
+		errorsOf(l.diags), "the one $ref that leaves the document")
+	assertNoRewrittenSpelling(t, l.diags)
 	l.assertReaches(t, "/components/schemas/T", "/x-b+c")
-	obj, _, ok := reachedObject(l.refAt(t, "/components/schemas/S"))
-	require.True(t, ok)
-	props := obj.(*oas3.JSONSchema[oas3.Concrete]).GetSchema().GetProperties()
+	obj := l.doc.Bindings.End(l.refAt(t, "/components/schemas/S").(*schemaRef))
+	require.NotNil(t, obj)
+	props := obj.GetSchema().GetProperties()
 	p, _ := props.Get("p")
-	_, node, ok := reachedObject(p)
-	require.True(t, ok, "a $ref inside an object built from raw YAML resolves too")
-	assert.Same(t, l.nodeAt(t, "/x-defs/B+C"), node)
+	e, ok := l.doc.Bindings.Entry(p)
+	require.True(t, ok, "a $ref inside a schema built from raw YAML is bound too")
+	assert.Equal(t, bind.Position{Pointer: "/x-defs/B+C"}, e.Chain.End)
 	q, _ := props.Get("q")
 	assert.Equal(t, references.Reference("other.yaml#/x+y"), q.GetRef(),
-		"and one the load phase never resolves is put back as written as well")
+		"and one that is left unresolved is put back as written as well")
 }
 
 func TestLoad_AReferenceThroughAnAliasIsReached(t *testing.T) {
@@ -370,6 +397,10 @@ paths:
 	assertNoRewrittenSpelling(t, l.diags)
 }
 
+// TestLoad_AHeldReferenceThroughAPlusResolvesToItsOwnDefinition pins that a
+// "#/$defs/..." reference naming a key spelled with a plus resolves to the
+// definition its schema holds, and that one the $defs rule finds nothing for is
+// reported unresolved, quoted as written.
 func TestLoad_AHeldReferenceThroughAPlusResolvesToItsOwnDefinition(t *testing.T) {
 	t.Parallel()
 	l := loadPlus(t, `openapi: 3.1.0
@@ -389,10 +420,14 @@ components:
 	l.assertReaches(t, "/components/schemas/A/properties/p", "/components/schemas/A/$defs/a+b")
 	errs := errorsOf(l.diags)
 	require.Len(t, errs, 1, "the definition that is not there")
-	assert.Equal(t, `unresolved $ref "#/$defs/nope+x": definition not found: #/$defs/nope+x`, errs[0])
+	assert.Equal(t, `unresolved $ref "#/$defs/nope+x": no definition answers it: neither the document's root nor a schema of the model above it holds one by that name`, errs[0])
 	assertNoRewrittenSpelling(t, l.diags)
 }
 
+// TestLoad_ADiscriminatorMappingToAPlusKeyIsResolved pins that a discriminator
+// mapping value naming a key spelled with a plus resolves to the schema built
+// from the raw YAML there, whose own $ref is bound too: one into another
+// document, with external references off, is reported unresolved.
 func TestLoad_ADiscriminatorMappingToAPlusKeyIsResolved(t *testing.T) {
 	t.Parallel()
 	l := loadPlus(t, `openapi: 3.1.0
@@ -413,8 +448,9 @@ x-defs:
     properties: {other: {$ref: 'other.yaml#/x+y'}}
 `, Options{})
 
-	assert.Empty(t, errorsOf(l.diags))
-	target := l.doc.Targets.At("/x-defs/B+C")
+	assert.Equal(t, []string{`unresolved $ref "other.yaml#/x+y": it names another document, and external references are not read`},
+		errorsOf(l.diags), "the one $ref that leaves the document")
+	target := l.doc.Bindings.At(bind.Position{Pointer: "/x-defs/B+C"})
 	require.NotNil(t, target, "the mapping target is resolved")
 	assert.Same(t, l.nodeAt(t, "/x-defs/B+C"), target.GetSchema().GetRootNode())
 	other, _ := target.GetSchema().GetProperties().Get("other")
@@ -448,9 +484,10 @@ func TestLoad_AnUnresolvedReferenceIsQuotedAsTheSourceWritesIt(t *testing.T) {
 }
 
 // TestLoad_TheLibrarysOwnTextQuotesAReferenceAsWritten covers the text the
-// library writes about the model it was resolving: a reason naming the
-// reference, and a value it could not use, dumped whole with each $ref inside
-// it, one of them a spelling its JSON encoder escapes.
+// library writes about the model it was resolving, a value it could not use,
+// dumped whole with each $ref inside it, one of them a spelling its JSON
+// encoder escapes; and the reason load words for a reference whose target
+// holds no object, which quotes the reference as written too.
 func TestLoad_TheLibrarysOwnTextQuotesAReferenceAsWritten(t *testing.T) {
 	t.Parallel()
 	l := loadPlus(t, `openapi: 3.1.0
@@ -473,7 +510,7 @@ x-s: {L+1&<x>: {type: string}, M+1: {type: string}}
 `, Options{})
 
 	errs := strings.Join(errorsOf(l.diags), "\n")
-	assert.Contains(t, errs, "unable to resolve reference: #/x-null/a+b", "a reason")
+	assert.Contains(t, errs, `unresolved $ref "#/x-null/a+b": it names a position that holds no request body`, "a reason")
 	assert.Contains(t, errs, `"Ref":"#/x-s/M+1"`, "a value")
 	assert.Contains(t, errs, `"Ref":"#/x-s/L+1\u0026\u003cx\u003e"`, "a value the encoder escaped")
 	assertNoRewrittenSpelling(t, l.diags)
@@ -481,7 +518,9 @@ x-s: {L+1&<x>: {type: string}, M+1: {type: string}}
 
 // TestLoad_TheLibrarysTextKeepsASpellingTheSourceWrites pins that a reference
 // the source writes with "%2B" is quoted so, in the library's text as well,
-// though another site spells the same one with '+'.
+// though another site spells the same one with '+': the value it could not
+// use quotes both $refs inside it as "%2B". A message load words quotes each
+// site's own spelling.
 func TestLoad_TheLibrarysTextKeepsASpellingTheSourceWrites(t *testing.T) {
 	t.Parallel()
 	l := loadPlus(t, `openapi: 3.1.0
@@ -490,21 +529,34 @@ paths:
   /x:
     get:
       requestBody: {$ref: '#/x-null/a+b'}
-      responses: {"200": {description: ok}}
+      responses:
+        "200": {$ref: '#/components/schemas/Good'}
   /y:
     get:
       requestBody: {$ref: '#/x-null/a%2Bb'}
       responses: {"200": {description: ok}}
+components:
+  schemas:
+    Good:
+      type: object
+      properties:
+        l: {$ref: '#/x-s/M+1'}
+        m: {$ref: '#/x-s/M%2B1'}
 x-null: {a+b: null}
+x-s: {M+1: {type: string}}
 `, Options{})
 
-	var escaped string
+	messages := map[jsontext.Pointer]string{}
 	for _, d := range l.diags {
-		if d.Provenance.Pointer == "/paths/~1y/get/requestBody" {
-			escaped = d.Message
-		}
+		messages[d.Provenance.Pointer] = d.Message
 	}
-	assert.Equal(t, `unresolved $ref "#/x-null/a%2Bb": unable to resolve reference: #/x-null/a%2Bb`, escaped)
+	assert.Equal(t, `unresolved $ref "#/x-null/a%2Bb": it names a position that holds no request body`,
+		messages["/paths/~1y/get/requestBody"])
+	assert.Equal(t, `unresolved $ref "#/x-null/a+b": it names a position that holds no request body`,
+		messages["/paths/~1x/get/requestBody"])
+	dump := messages["/paths/~1x/get/responses/200"]
+	assert.Equal(t, 2, strings.Count(dump, `"Ref":"#/x-s/M%2B1"`), dump)
+	assert.NotContains(t, dump, `"Ref":"#/x-s/M+1"`, dump)
 }
 
 // TestLoad_ARefusalAfterTheRespellingLeavesTheTreeAsWritten covers a load that
@@ -526,32 +578,108 @@ func TestLoad_ARefusalAfterTheRespellingLeavesTheTreeAsWritten(t *testing.T) {
 	assertSameTree(t, decodeRoot(t, spec), parsed.Root())
 }
 
+// TestLoad_AChainThatStopsAtAPlusReferenceQuotesItAsWritten pins that the
+// reference at which a chain through another document stops is quoted as the
+// source's document writes it, never as the resolver was handed it. The
+// resolver follows reference objects, and reports its own reason for it.
 func TestLoad_AChainThatStopsAtAPlusReferenceQuotesItAsWritten(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	writeFile(t, dir, "other.yaml", `components:
-  schemas:
-    X: {$ref: '#/components/schemas/Y+Z'}
+  responses:
+    X: {$ref: '#/components/responses/Y+Z'}
 `)
 	spec := `openapi: 3.1.0
 info: {title: t, version: "1"}
 paths: {}
 components:
-  schemas:
-    A: {$ref: 'other.yaml#/components/schemas/X'}
+  responses:
+    A: {$ref: 'other.yaml#/components/responses/X'}
 `
 	parsed, err := Decode([]byte(spec))
 	require.NoError(t, err)
 
 	_, diags, err := Load(t.Context(), 0, compilers.Source{Path: filepath.Join(dir, "root.yaml"), Data: []byte(spec), Parsed: parsed},
-		Options{AllowExternalRefs: true})
+		Options{Reader: reader.Disk{}})
 
 	require.NoError(t, err)
 	errs := errorsOf(diags)
 	require.Len(t, errs, 1)
-	assert.True(t, strings.HasPrefix(errs[0], `unresolved $ref "other.yaml#/components/schemas/X", through "#/components/schemas/Y+Z" in `+
+	assert.True(t, strings.HasPrefix(errs[0], `unresolved $ref "other.yaml#/components/responses/X", through "#/components/responses/Y+Z" in `+
 		filepath.Join(dir, "other.yaml")+": "), errs[0])
 	assertNoRewrittenSpelling(t, diags)
+}
+
+// TestLoad_WhatAReferenceReachesQuotesAPlusAsWritten pins that a diagnostic
+// about what the references reach quotes a '+' in a component name as the source
+// writes it, not as the parser was handed it: the library reads it as a space.
+// Each target is one the source's own check never read, an object or a schema in
+// another document or a schema under an x-* key; the name is either dangling,
+// which the binding reports, or declared, which the table reports at its key.
+func TestLoad_WhatAReferenceReachesQuotesAPlusAsWritten(t *testing.T) {
+	t.Parallel()
+	const head = "openapi: 3.1.0\ninfo: {title: t, version: \"1\"}\n"
+	const plusRef = "{$ref: '#/components/schemas/Y+Z'}"
+	tests := []struct {
+		name, other, spec string
+		named             bool // whether a diagnostic names the component
+	}{
+		{"an object in another document",
+			"components:\n  responses:\n    R: {description: ok, content: {application/json: {schema: " + plusRef + "}}}\n",
+			head + "paths:\n  /a: {get: {responses: {'200': {$ref: 'other.yaml#/components/responses/R'}}}}\n", false},
+		{"a schema in another document", "components:\n  schemas:\n    X: " + plusRef + "\n",
+			head + "paths: {}\ncomponents:\n  schemas:\n    A: {$ref: 'other.yaml#/components/schemas/X'}\n", true},
+		{"a schema under an x-* key", "",
+			head + "paths: {}\ncomponents:\n  schemas:\n    A: {$ref: '#/x-lib/S'}\n    Y+Z: {type: string}\n" +
+				"x-lib:\n  S: " + plusRef + "\n", true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			dir := t.TempDir()
+			writeFile(t, dir, "other.yaml", tc.other)
+
+			l := loadPlusAt(t, filepath.Join(dir, "root.yaml"), tc.spec, Options{Reader: reader.Disk{}})
+
+			var quoting int
+			for _, d := range l.diags {
+				if strings.Contains(d.Message, "Y+Z") {
+					quoting++
+				}
+			}
+			if tc.named {
+				assert.Positive(t, quoting, "a diagnostic names the component: %v", l.diags)
+			}
+			assertNoRewrittenSpelling(t, l.diags)
+		})
+	}
+}
+
+// TestLoad_TheBindingQuotesAReferenceAsWrittenBesideAnotherSpelling pins that
+// the binding reads a schema's $ref as the source writes it, while the tree
+// holds the spelling the parser was handed. Where the source writes both, no
+// rewriting of the text can tell them apart (see asWritten).
+func TestLoad_TheBindingQuotesAReferenceAsWrittenBesideAnotherSpelling(t *testing.T) {
+	t.Parallel()
+	l := loadPlus(t, `openapi: 3.1.0
+info: {title: t, version: "1"}
+paths: {}
+components:
+  schemas:
+    A: {$ref: '#/components/schemas/No+pe'}
+    B: {$ref: '#/components/schemas/No%2Bpe'}
+`, Options{})
+
+	quoted := map[jsontext.Pointer]string{}
+	for _, d := range l.diags {
+		if d.Code == diag.UnresolvedRef {
+			quoted[d.Provenance.Pointer] = d.Message
+		}
+	}
+	assert.True(t, strings.HasPrefix(quoted["/components/schemas/A"], `unresolved $ref "#/components/schemas/No+pe": `),
+		quoted["/components/schemas/A"])
+	assert.True(t, strings.HasPrefix(quoted["/components/schemas/B"], `unresolved $ref "#/components/schemas/No%2Bpe": `),
+		quoted["/components/schemas/B"])
 }
 
 func TestLoad_APlusInAnotherDocumentIsReached(t *testing.T) {
@@ -573,7 +701,7 @@ components:
 	require.NoError(t, err)
 
 	got, diags, err := Load(t.Context(), 0, compilers.Source{Path: filepath.Join(dir, "root.yaml"), Data: []byte(spec), Parsed: parsed},
-		Options{AllowExternalRefs: true})
+		Options{Reader: reader.Disk{}})
 
 	require.NoError(t, err)
 	require.NotNil(t, got)
@@ -584,11 +712,11 @@ components:
 func TestExternal_PrepareRewritesTheTreeItStoresAndRestoreTreesPutsItBack(t *testing.T) {
 	t.Parallel()
 	const body = "a: &x '#/p+q'\nb: {$ref: *x}\nc: {$ref: 'o.yaml#/r+s'}\n"
-	esc := newEscapes()
+	esc := newEscapes(nil)
 	doc := &soa.OpenAPI{}
-	reader := newExternal(doc, Options{}, newExternalReads(sourceDocument{escapes: esc}))
+	ext := newExternal(t.Context(), doc, Options{}, newExternalReads(sourceDocument{escapes: esc}))
 
-	_, err := reader.prepare("k", strings.NewReader(body))
+	_, err := ext.prepare("k", []byte(body))
 
 	require.NoError(t, err)
 	cached, ok := doc.GetCachedExternalDocument("k")
@@ -684,8 +812,8 @@ paths:
         "200": {description: ok}
 `, filepath.Join(dir, "root.yaml"))
 	unclean := dir + "/./root.yaml"
-	tree, ok := parseTree([]byte("a: {$ref: '" + unclean + "#/paths/~1a+b/get/responses/200'}\n"))
-	require.True(t, ok)
+	tree, err := parseTree([]byte("a: {$ref: '" + unclean + "#/paths/~1a+b/get/responses/200'}\n"))
+	require.NoError(t, err)
 
 	pass.reader.holdSpellings(tree, filepath.Join(dir, "sub", "doc.yaml"))
 
@@ -699,7 +827,9 @@ paths:
 // resolved a second time over the prepared tree when it holds a $ref whose '+'
 // the resolver would read as a space: its own parse keeps the written spelling.
 // The document holds no anchor, which is the other thing that sends it round
-// again, and is fetched once whichever way its URL is spelled.
+// again, and is fetched once whichever way its URL is spelled. The $ref is a
+// response's: the resolver follows reference objects, and the compiler binds a
+// schema's itself.
 func TestLoad_ARespelledURLHoldingAPlusReferenceIsReadAsTheTreeIs(t *testing.T) {
 	t.Parallel()
 	spellings := append([]struct {
@@ -709,16 +839,19 @@ func TestLoad_ARespelledURLHoldingAPlusReferenceIsReadAsTheTreeIs(t *testing.T) 
 	for _, tc := range spellings {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			srv, requests := countingServer(t, "x-start: {$ref: '#/x-p+q'}\nx-p+q: {type: integer}\n")
-			spec := "openapi: 3.1.0\ninfo: {title: t, version: \"1\"}\npaths: {}\ncomponents:\n  schemas:\n" +
+			srv, requests := countingServer(t, "x-start: {$ref: '#/x-p+q'}\nx-p+q: {description: ok}\n")
+			spec := "openapi: 3.1.0\ninfo: {title: t, version: \"1\"}\npaths: {}\ncomponents:\n  responses:\n" +
 				"    A: {$ref: '" + tc.spell(srv.URL+"/ext.yaml") + "#/x-start'}\n"
 
 			got, diags, err := Load(t.Context(), 0, compilers.Source{Path: "root.yaml", Data: []byte(spec)},
-				Options{AllowExternalRefs: true})
+				Options{Reader: reader.Disk{}})
 
 			require.NoError(t, err)
 			require.NotNil(t, got)
 			assert.Empty(t, diags)
+			a, ok := got.Doc.Components.Responses.Get("A")
+			require.True(t, ok)
+			assert.Equal(t, "ok", a.GetObject().GetDescription(), "the chain reaches the response the plus names")
 			assert.Equal(t, int32(1), requests.Load(), "the document is fetched once")
 		})
 	}

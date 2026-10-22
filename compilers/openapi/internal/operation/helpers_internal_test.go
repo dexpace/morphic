@@ -6,6 +6,7 @@ import (
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/auth"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
@@ -39,7 +40,7 @@ func lowererOver(ctx lowering.Ctx) *lowerer {
 	types := compile.NewTypes()
 	return &lowerer{
 		ctx:   ctx,
-		out:   &ir.Document{Types: types.Registry()},
+		out:   &ir.Document{},
 		types: types,
 	}
 }
@@ -48,18 +49,25 @@ func lowererOver(ctx lowering.Ctx) *lowerer {
 // yet, plus the load diagnostics.
 func loweredFor(t *testing.T, src string) (*lowerer, []ir.Diagnostic) {
 	t.Helper()
-	loadedDoc, diags, err := load.Load(t.Context(), 0, openapitest.SourceOf(src), load.Options{})
+	return loweredAt(t, openapitest.SourceOf(src), load.Options{})
+}
+
+// loweredAt is loweredFor for a source with a path of its own, loaded under
+// opts, which a test needs when the document names another one.
+func loweredAt(t *testing.T, src compilers.Source, opts load.Options) (*lowerer, []ir.Diagnostic) {
+	t.Helper()
+	loadedDoc, diags, err := load.Load(t.Context(), 0, src, opts)
 	require.NoError(t, err)
 	require.NotNil(t, loadedDoc, "load returned no document: %+v", diags)
 	return lowererOver(lowering.New(0, loadedDoc.Doc, loadedDoc.Source,
-		lowering.GroupByTags, lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, overlay.Origin{}).
+		lowering.GroupByTags, lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}).
 		WithLoaded(loadedDoc)), diags
 }
 
 // newRawLowerer builds a fixture over a hand-constructed document, bypassing
 // the parser so nil slice/map entries can be exercised.
 func newRawLowerer(doc *soa.OpenAPI) *lowerer {
-	return lowererOver(lowering.New(0, doc, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, overlay.Origin{}))
+	return lowererOver(lowering.New(0, doc, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}))
 }
 
 // lowerServiceSpec loads src and runs the phases the service walk needs beneath
@@ -79,5 +87,7 @@ func lowerServiceSpec(t *testing.T, src string) (ir.Service, []ir.Diagnostic) {
 
 	svc, _, svcDiags := LowerService(t.Context(), l.ctx.WithAuth(schemes), l.types, &l.anchors)
 	l.diags.AppendAll(svcDiags)
+	_, finished := l.types.Finish(t.Context())
+	l.diags.AppendAll(finished)
 	return svc, append(loadDiags, l.diags.List()...)
 }

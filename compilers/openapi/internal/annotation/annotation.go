@@ -1,21 +1,9 @@
-// Package annotation reads the documentation-adjacent facts a schema or a
-// carrier declares — descriptions, deprecation, redaction, visibility, XML
-// hints, extensions — and the validation-only JSON Schema keywords the IR keeps
-// verbatim rather than models.
-//
-// It exists because those two jobs share one question: given a $ref, does the
-// fact belong to the referenced declaration or to the site that references it?
-// Site and Home answer it once, and every reader here routes through them, so a
-// new annotation cannot quietly pick the other answer.
 package annotation
 
 import (
 	"encoding/json/jsontext"
 	"fmt"
-	"maps"
-	"slices"
 	"strconv"
-	"strings"
 
 	"github.com/speakeasy-api/openapi/extensions"
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
@@ -38,29 +26,6 @@ import (
 // from is for a record no single position addresses, and names the positions it
 // was assembled from (see lowering.Ctx.ProvenanceAt).
 type Locator func(pointer jsontext.Pointer, from ...jsontext.Pointer) ir.Provenance
-
-// RawFromNode converts a YAML node to the canonical JSON an Unmodeled entry
-// holds. An absent node yields (nil, nil): no construct was there. One that
-// cannot be represented yields an error, so no caller announces a preservation
-// that never happened (GitHub #144).
-//
-// Conversion fails on a non-string or repeated mapping key, .nan or .inf, a
-// scalar whose text does not satisfy its tag, invalid UTF-8, and an alias that
-// cycles or expands past the node budget. A tag yaml.v3 leaves untyped is kept.
-//
-// It walks the node tree, not a decode into `any`, which rounds numeric
-// literals through float64 (GitHub #32).
-func RawFromNode(node *yaml.Node) (ir.RawValue, error) {
-	if node == nil {
-		return nil, nil
-	}
-	var conv rawConv
-	data, err := conv.node(node, 0)
-	if err != nil {
-		return nil, fmt.Errorf("render yaml node as json: %w", err)
-	}
-	return data, nil
-}
 
 // EffectiveDeprecated reports the deprecated flag, use-site over referent.
 func EffectiveDeprecated(ref, tgt *oas3.Schema) bool {
@@ -175,215 +140,6 @@ func XMLHints(x *oas3.XML) *ir.XMLHints {
 	return h
 }
 
-// ExtensionsFrom lowers an x-* extension map into namespaced ir.Unmodeled, keys
-// prefixed "openapi:" and values serialized to raw JSON. owner is the pointer of
-// the object the extensions were written on; each entry is located at its own
-// key beneath it and marked ReasonVendorExtension, since the format assigns an
-// x-* key no semantics at all.
-func ExtensionsFrom(ext *extensions.Extensions, locate Locator, owner jsontext.Pointer) (ir.Unmodeled, []ir.Diagnostic) {
-	return ExtensionsUnder(ext, locate, owner, "")
-}
-
-// ExtensionsUnder is ExtensionsFrom with every entry keyed beneath scope, for
-// objects whose extensions have no Unmodeled map of their own.
-//
-// Those objects ride on the nearest node that has one, where "openapi:x-id"
-// from two objects would be one key, so scope names the writer: the source path
-// from the carrier down to it, or its own keyword where it is not beneath the
-// carrier.
-//
-// Keys cannot collide: a scope segment never begins with "x-" and an extension
-// name always does, so the first "x-" segment ends the scope. The same gap
-// separates them from non-extension keys under these scopes.
-func ExtensionsUnder(ext *extensions.Extensions, locate Locator, owner jsontext.Pointer, scope string) (ir.Unmodeled, []ir.Diagnostic) {
-	if ext == nil || ext.Len() == 0 {
-		return nil, nil
-	}
-	prefix := "openapi:"
-	if scope != "" {
-		prefix += scope + "/"
-	}
-	out := ir.Unmodeled{}
-	var diags []ir.Diagnostic
-	for name, node := range ext.All() {
-		raw, err := RawFromNode(node)
-		if err != nil || raw == nil {
-			diags = append(diags, diag.Newf(ir.SeverityWarning, diag.DegradedConstruct,
-				locate(owner), "extension %q could not be serialized", name))
-			continue
-		}
-		out[prefix+name] = ir.UnmodeledEntry{
-			Reason:     ir.ReasonVendorExtension,
-			Value:      raw,
-			Provenance: locate(owner + ids.Ptr(name)),
-		}
-	}
-	if len(out) == 0 {
-		return nil, diags
-	}
-	return out, diags
-}
-
-// ExtensionSite is one object's x-* map paired with where it was written: Owner
-// is the object's own source pointer, and Scope is what its entries key under on
-// the carrier that ends up holding them (see ExtensionsUnder).
-type ExtensionSite struct {
-	Scope string
-	Owner jsontext.Pointer
-	Ext   *extensions.Extensions
-}
-
-// ExtensionsAt folds every site into one Unmodeled map, for the carriers that
-// hold more than one object's extensions. Sites are applied in the order given,
-// which is source order at every caller; distinct scopes cannot collide, so the
-// order decides nothing but is fixed anyway.
-func ExtensionsAt(locate Locator, sites ...ExtensionSite) (ir.Unmodeled, []ir.Diagnostic) {
-	var out ir.Unmodeled
-	var diags []ir.Diagnostic
-	for _, site := range sites {
-		ext, extDiags := ExtensionsUnder(site.Ext, locate, site.Owner, site.Scope)
-		out = MergeUnmodeled(out, ext)
-		diags = append(diags, extDiags...)
-	}
-	return out, diags
-}
-
-// MergeUnmodeled overlays src onto dst, allocating dst on first write.
-func MergeUnmodeled(dst, src ir.Unmodeled) ir.Unmodeled {
-	if len(src) == 0 {
-		return dst
-	}
-	if dst == nil {
-		dst = ir.Unmodeled{}
-	}
-	maps.Copy(dst, src)
-	return dst
-}
-
-// IsFalseSchema reports whether js is the boolean `false` schema.
-func IsFalseSchema(js *oas3.JSONSchema[oas3.Referenceable]) bool {
-	return js != nil && js.IsBool() && js.GetBool() != nil && !*js.GetBool()
-}
-
-// IfThenElseRaw combines the present if/then/else arms into one raw JSON
-// object, and names the arms it combines.
-func IfThenElseRaw(s *oas3.Schema) (ir.RawValue, []string, error) {
-	return combine(s, "if", "then", "else")
-}
-
-// ContainsRaw combines contains/minContains/maxContains into one raw JSON
-// object, and names the keywords it combines.
-func ContainsRaw(s *oas3.Schema) (ir.RawValue, []string, error) {
-	if s.GetContains() == nil && s.GetMinContains() == nil && s.GetMaxContains() == nil {
-		return nil, nil, nil
-	}
-	return combine(s, "contains", "minContains", "maxContains")
-}
-
-// UnevaluatedRaw combines a non-false unevaluatedProperties and any
-// unevaluatedItems into one raw JSON object (a false unevaluatedProperties is a
-// structural mode, handled in fillAdditional), and names the keywords it
-// combines.
-func UnevaluatedRaw(s *oas3.Schema) (ir.RawValue, []string, error) {
-	var want []string
-	if up := s.GetUnevaluatedProperties(); up != nil && !IsFalseSchema(up) {
-		want = append(want, "unevaluatedProperties")
-	}
-	if s.GetUnevaluatedItems() != nil {
-		want = append(want, "unevaluatedItems")
-	}
-	return combine(s, want...)
-}
-
-// combine renders the keys s writes, of those given, as one raw JSON object,
-// and names the keys written; nothing written yields no object rather than an
-// empty one. The entry built from it has no position of its own, so those keys
-// are what its provenance is asked about (GitHub #534). They are named beside a
-// conversion error as well, because the report that stands in for an entry that
-// could not be kept is attributed as the entry would have been.
-func combine(s *oas3.Schema, keys ...string) (ir.RawValue, []string, error) {
-	members, written, err := presentMembers(s, keys...)
-	if err != nil || len(members) == 0 {
-		return nil, written, err
-	}
-	raw, err := jsonObject(members)
-	return raw, written, err
-}
-
-// presentMembers collects the given keywords that are present on s as raw JSON
-// members, preserving the requested order, and names the keywords present.
-//
-// A member that cannot be converted fails the whole combination rather than
-// being skipped. The entry these build is one object presented as the verbatim
-// source, so dropping a member from it would restate GitHub #144 in miniature:
-// an object labelled verbatim that silently omits one of its keywords. The
-// error names the first such member, and the keywords present are returned in
-// full even then, since the report of the failure is attributed by all of them.
-func presentMembers(s *oas3.Schema, keys ...string) ([]rawMember, []string, error) {
-	var members []rawMember
-	var present []string
-	var failed error
-	for _, k := range keys {
-		node := RawPropertyNode(s, k)
-		if node == nil {
-			continue
-		}
-		present = append(present, k)
-		raw, err := RawFromNode(node)
-		switch {
-		case err == nil:
-			members = append(members, rawMember{key: k, val: raw})
-		case failed == nil:
-			failed = fmt.Errorf("%s: %w", k, err)
-		}
-	}
-	if failed != nil {
-		return nil, present, failed
-	}
-	return members, present, nil
-}
-
-// RawPropertyNode returns the raw YAML value node of a top-level schema
-// keyword, or nil when absent. The library's GetPropertyNode resolves Go core
-// field names and returns key nodes; this scans the schema's root mapping for
-// the on-wire keyword and returns its value node, which is where exact literals
-// live.
-func RawPropertyNode(s *oas3.Schema, key string) *yaml.Node {
-	if s == nil {
-		return nil
-	}
-	return RawChildNode(s.GetRootNode(), key)
-}
-
-// rawMember is one key/raw-JSON pair of a combined validation-only object.
-type rawMember struct {
-	key string
-	val ir.RawValue
-}
-
-// jsonObject renders ordered raw members into a JSON object; combine is what
-// keeps an empty set from reaching it. Unlike rawConv.mapping, member order here
-// is the caller's — a fixed handful of JSON Schema keywords in keyword order —
-// and is preserved rather than sorted.
-func jsonObject(members []rawMember) (ir.RawValue, error) {
-	var b strings.Builder
-	b.WriteByte('{')
-	for i, m := range members {
-		if i > 0 {
-			b.WriteByte(',')
-		}
-		key, err := jsontext.AppendQuote(nil, m.key)
-		if err != nil {
-			return nil, fmt.Errorf("member %q: %w", m.key, err)
-		}
-		b.Write(key)
-		b.WriteByte(':')
-		b.Write(m.val)
-	}
-	b.WriteByte('}')
-	return ir.RawValue(b.String()), nil
-}
-
 // The two site kinds. Declaration is a position that writes a schema of its
 // own; Reference is one that points at another and may still annotate the
 // pointer.
@@ -411,43 +167,34 @@ const (
 type Kind int
 
 // Site is what a schema position declares: Node is the schema written there,
-// and Referent — set only for a reference site — is the schema exactly one
-// hop away, never the end of a $ref chain.
+// and Referent — set only for a reference site — is the schema the $ref's
+// chain ends on, the referent a use site's annotations fall back to.
 //
-// Production reads only Node from a Site At builds: a declaration's annotations
-// bind the position they are written at (attachDeclaredAnnotations), and a
-// component that aliases another keeps the target's annotations reachable
-// through its Base. A reader that inherits, FillPropertyDetail (schema.go) or
-// fillParamSchema, builds its own Site with Referent from resolve.TargetSchema,
-// which follows the chain to its end; the two differ on a ref-to-ref chain.
+// A Site At builds carries no Referent: a declaration's annotations bind the
+// position they are written at (attachDeclaredAnnotations), and a component
+// that aliases another keeps the target's annotations reachable through its
+// Base. A reader that inherits, FillPropertyDetail (schema.go) or
+// fillParamSchema, builds its own Site with Referent from
+// resolve.Scope.TargetSchema.
 type Site struct {
 	Kind Kind
 	Node *oas3.Schema
-	// Referent is nil when Kind is Reference but the $ref does not
-	// resolve; refTypeRef is what diagnoses that, not this.
+	// Referent is nil when Kind is Reference but the $ref's chain ends on no
+	// schema; refTypeRef is what diagnoses that, not this.
 	Referent *oas3.Schema
 }
 
-// At builds the site for js. A $ref position resolves Referent exactly one hop
-// through DeclaredSchema, never the full chain (see Site).
+// At builds the site for js, a reference site's without its Referent (see
+// Site).
 //
 // A schema whose $ref is present but empty ({$ref: ""}) is a declaration, not a
-// reference site: an empty ref resolves nowhere, so IsReference is false. That
-// keeps Referent's nil guarantee: a reference site's $ref was genuinely
-// attempted, so an unresolved target is the only reason Referent is nil.
+// reference site: an empty ref resolves nowhere, so IsReference is false.
 //
 // At trusts its caller that js is the schema at the position being modeled.
 func At(js *oas3.JSONSchema[oas3.Referenceable]) Site {
 	s := Site{Kind: Declaration, Node: SchemaOf(js)}
-	if js == nil || js.IsBool() {
-		return s
-	}
-	if !js.IsReference() {
-		return s
-	}
-	s.Kind = Reference
-	if decl := DeclaredSchema(js); decl != nil {
-		s.Referent = SchemaOf(decl)
+	if js != nil && !js.IsBool() && js.IsReference() {
+		s.Kind = Reference
 	}
 	return s
 }
@@ -461,7 +208,7 @@ func At(js *oas3.JSONSchema[oas3.Referenceable]) Site {
 //
 // Every position modeled as a site reads it through At: a named component
 // (lowerComponentSchema) and a $ref'd internal sub-schema (hoistSubSchema, fed
-// one hop at a time by DeclaredSchema).
+// one hop at a time by the schema bindings).
 func SchemaOf(js *oas3.JSONSchema[oas3.Referenceable]) *oas3.Schema {
 	if js == nil || js.IsBool() {
 		return nil
@@ -469,127 +216,34 @@ func SchemaOf(js *oas3.JSONSchema[oas3.Referenceable]) *oas3.Schema {
 	return js.GetSchema()
 }
 
+// IsFalseSchema reports whether js is the boolean `false` schema, which a
+// `null` written in its place is not, though the parser decodes one as `false`
+// (docs/parser-library.md#null-schema-is-false).
+func IsFalseSchema(js *oas3.JSONSchema[oas3.Referenceable]) bool {
+	return js != nil && js.IsBool() && js.GetBool() != nil && !*js.GetBool() && !IsNullLiteral(js)
+}
+
+// IsNullLiteral reports whether js is a `null` written where a schema belongs.
+// The parser reads one as the boolean `false` schema
+// (docs/parser-library.md#null-schema-is-false), so only its node tells the
+// two apart.
+func IsNullLiteral(js *oas3.JSONSchema[oas3.Referenceable]) bool {
+	return js != nil && js.IsBool() && IsNullNode(js.GetCore().GetRootNode())
+}
+
+// Written reports whether js is a schema written at its position: present,
+// and no `null`, which states nothing about the values there (IsNullLiteral).
+// The load phase reports the null; every reader takes it as left out
+// (docs/compilers/openapi.md#null-schema).
+func Written(js *oas3.JSONSchema[oas3.Referenceable]) bool {
+	return js != nil && !IsNullLiteral(js)
+}
+
 // Home names where the annotations a schema position declares are
 // kept. It is what decides whether a position that lowered to a shared node
 // hoists one of its own, so the two homes can never both hold the same
 // declaration (GitHub #116).
 type Home int
-
-// DeclaredSchema returns the schema written at the position js references — one
-// hop, not the end of the chain. GetResolvedSchema follows a reference to a
-// reference all the way through, which is the wrong node to hoist at that
-// position: a sub-schema spelled {$ref: Other, minimum: 7} would be read as
-// Other, and the bound written beside the $ref would be gone before anything
-// could record it.
-func DeclaredSchema(js *oas3.JSONSchema[oas3.Referenceable]) *oas3.JSONSchema[oas3.Referenceable] {
-	info := js.GetReferenceResolutionInfo()
-	if info == nil {
-		return nil
-	}
-	return info.Object
-}
-
-// RawChildNode returns the raw YAML value node of a mapping child keyed by the
-// on-wire name, unwrapping a document node first; nil when absent. It reads
-// exact literals the high-level model does not preserve (links, servers,
-// content maps).
-//
-// The last pair spelling the key wins, as for the parser, which skips every
-// earlier occurrence (docs/parser-library.md#duplicate-key). An explicit pair
-// and an aliased one are one key to the parser and two nodes here, so the first
-// would describe a mapping by a value nothing else in the compiler uses.
-func RawChildNode(root *yaml.Node, key string) *yaml.Node {
-	if root == nil {
-		return nil
-	}
-	if root.Kind == yaml.DocumentNode && len(root.Content) > 0 {
-		root = root.Content[0]
-	}
-	if root.Kind != yaml.MappingNode {
-		return nil
-	}
-	var found *yaml.Node
-	for i := 0; i+1 < len(root.Content); i += 2 {
-		if keyName(root.Content[i]) == key {
-			found = root.Content[i+1]
-		}
-	}
-	return found
-}
-
-// RawMappingKeys returns the on-wire names a raw mapping writes, each once, in
-// first-written order, unwrapping a document node first; nil for a node that is
-// not a mapping or writes no key. Each name resolves through RawChildNode.
-//
-// It exists for a Path Item Object, whose unmarshaller skips a key with an
-// anchored value (GitHub #412). Anchors are cleared first (GitHub #459, #501,
-// #538), so it is needed only past #538's hop bound.
-//
-// A `<<` merge key is left out and its merged pairs are not read (GitHub #395).
-// A repeated key is returned once, so a census does not report a collision the
-// document lacks.
-func RawMappingKeys(root *yaml.Node) []string {
-	if root == nil {
-		return nil
-	}
-	if root.Kind == yaml.DocumentNode && len(root.Content) > 0 {
-		root = root.Content[0]
-	}
-	if root.Kind != yaml.MappingNode {
-		return nil
-	}
-	var keys []string
-	seen := make(map[string]bool, len(root.Content)/2)
-	for i := 0; i+1 < len(root.Content); i += 2 {
-		k := root.Content[i]
-		if isMergeKey(k) {
-			continue
-		}
-		name := keyName(k)
-		if seen[name] {
-			continue
-		}
-		seen[name] = true
-		keys = append(keys, name)
-	}
-	return keys
-}
-
-// keyName is the on-wire name a mapping key node spells, following an alias to
-// the scalar it stands for.
-//
-// yaml.v3 leaves an alias node's own Value as the anchor name, so a key written
-// as an alias matches nothing when read raw — while the parser reads that key
-// under the name it resolves to, which is the name every caller here looks up.
-// Comparing the two spellings is what let a key the model reported as
-// undeclared reach no Unmodeled entry at all (GitHub #297).
-func keyName(n *yaml.Node) string {
-	if n.Kind == yaml.AliasNode && n.Alias != nil {
-		return n.Alias.Value
-	}
-	return n.Value
-}
-
-// RawChildNodes is RawChildNode for every key of a mapping at once: each name
-// the mapping writes, to the node RawChildNode returns for it. A caller looking
-// up many keys of one large mapping reads its pairs once rather than once per
-// key. It is nil for a missing node and for one that is not a mapping.
-func RawChildNodes(root *yaml.Node) map[string]*yaml.Node {
-	if root == nil {
-		return nil
-	}
-	if root.Kind == yaml.DocumentNode && len(root.Content) > 0 {
-		root = root.Content[0]
-	}
-	if root.Kind != yaml.MappingNode {
-		return nil
-	}
-	children := make(map[string]*yaml.Node, len(root.Content)/2)
-	for i := 0; i+1 < len(root.Content); i += 2 {
-		children[keyName(root.Content[i])] = root.Content[i+1]
-	}
-	return children
-}
 
 // The readers below consume a Site the caller supplies rather than resolving
 // one themselves. Obtaining a referent is reference resolution — walk work —
@@ -763,9 +417,18 @@ func unmodeledAt(s *oas3.Schema, pointer jsontext.Pointer, locate Locator) (ir.U
 // `$schema`/`$vocabulary` to land on and none is coming — ReasonOutOfScope rather
 // than ReasonNoIRHome (§12).
 //
-// `$id` is kept, not honoured: reference resolution addresses same-document JSON
-// pointers, never an `$id` base URI.
+// `$id` is kept and read besides, where docs/compilers/openapi.md#references
+// reads one, as the identifier and base URI a $ref resolves against.
 var DialectKeywords = []string{"$id", "$schema", "$vocabulary"}
+
+// dialectRead is what keyword, one of DialectKeywords, is read for beyond
+// being kept: $id for reference resolution alone, any other for nothing.
+func dialectRead(keyword string) string {
+	if keyword == "$id" {
+		return "is read only for reference resolution"
+	}
+	return "is not honoured for reference resolution"
+}
 
 // dialectAt keeps each dialect keyword s declares verbatim and announces it, so
 // the exclusion is visible in the output rather than only in this comment.
@@ -782,8 +445,8 @@ func dialectAt(s *oas3.Schema, pointer jsontext.Pointer, locate Locator) (ir.Unm
 		}
 		diags = append(diags, diag.Newf(ir.SeverityInfo, diag.DegradedConstruct, prov,
 			"%s identifies or configures a JSON Schema resource rather than describing data; "+
-				"the IR models no such axis, so it is kept verbatim under Unmodeled and is not "+
-				"honoured for reference resolution", keyword))
+				"the IR models no such axis, so it is kept verbatim under Unmodeled and %s", keyword,
+			dialectRead(keyword)))
 	}
 	return p, diags
 }
@@ -817,151 +480,6 @@ func appendExampleAt(out []ir.Example, diags []ir.Diagnostic, node *yaml.Node,
 	return append(out, ir.Example{Value: &v}), diags
 }
 
-// validationOnlyAt collects the §4.7 keywords a schema declares that the IR does
-// not model, keeping each verbatim and announcing it.
-//
-// Site-only: these constrain the value at the position that wrote them.
-func validationOnlyAt(s *oas3.Schema, pointer jsontext.Pointer, locate Locator) (ir.Unmodeled, []ir.Diagnostic) {
-	var p ir.Unmodeled
-	var diags []ir.Diagnostic
-
-	// keep takes the conversion's error alongside its payload so a keyword that
-	// could not be converted is reported rather than passed on as an absent one —
-	// the two were indistinguishable here before GitHub #144.
-	//
-	// combined names the keywords an entry folds together, when it folds several.
-	// Such an entry is located at the schema and attributed by those keywords,
-	// and so is the report that stands in for it when it cannot be kept.
-	keep := func(key string, raw ir.RawValue, err error, entryPtr jsontext.Pointer, label string, combined ...string) {
-		from := make([]jsontext.Pointer, 0, len(combined))
-		for _, keyword := range combined {
-			from = append(from, pointer+ids.Ptr(keyword))
-		}
-		entry := locate(entryPtr, from...)
-		if err != nil {
-			diags = append(diags, UnpreservableDiag(key, entry, err))
-			return
-		}
-		diags = append(diags, PreserveKeywordInto(&p, key, raw, entry, locate(pointer), label)...)
-	}
-	// A keyword whose entry is its own node needs no label of its own: the
-	// keyword names it. The §4.7 entries combining several keywords into one
-	// object — if/then/else, contains, unevaluated — reach keep directly, because
-	// no single keyword names those.
-	keepKeyword := func(keyword string) {
-		raw, err := RawFromNode(RawPropertyNode(s, keyword))
-		keep("openapi:"+keyword, raw, err, pointer+ids.Ptr(keyword), keyword)
-	}
-
-	if s.GetNot() != nil {
-		keepKeyword("not")
-	}
-	ite, iteKeys, iteErr := IfThenElseRaw(s)
-	if ite != nil || iteErr != nil {
-		keep("openapi:if-then-else", ite, iteErr, pointer, "if/then/else", iteKeys...)
-	}
-	if ds := s.GetDependentSchemas(); ds != nil && ds.Len() > 0 {
-		keepKeyword("dependentSchemas")
-	}
-	// dependentRequired is read off the raw node because oas3.Schema has no field
-	// for it (docs/parser-library.md#unmodeled-keywords), which is why it was once
-	// silently dropped where its sibling dependentSchemas was kept.
-	dr, drErr := RawFromNode(RawPropertyNode(s, "dependentRequired"))
-	if dr != nil || drErr != nil {
-		keep("openapi:dependentRequired", dr, drErr, pointer+ids.Ptr("dependentRequired"), "dependentRequired")
-	}
-	if s.GetPropertyNames() != nil {
-		keepKeyword("propertyNames")
-	}
-	craw, cKeys, cErr := ContainsRaw(s)
-	if craw != nil || cErr != nil {
-		keep("openapi:contains", craw, cErr, pointer, "contains", cKeys...)
-	}
-	u, uKeys, uErr := UnevaluatedRaw(s)
-	if u != nil || uErr != nil {
-		keep("openapi:unevaluated", u, uErr, pointer, "unevaluated", uKeys...)
-	}
-	return p, diags
-}
-
-// PreserveInto records raw under key in p, located at prov, or records nothing
-// when there are no bytes to record.
-//
-// len rather than a nil comparison: nil and a zero-length slice are distinct
-// states, and an empty payload is the worse of the two. It preserves no
-// construct, and it fails the encoding of the whole document that carries it.
-func PreserveInto(p *ir.Unmodeled, key string, raw ir.RawValue,
-	reason ir.UnmodeledReason, prov ir.Provenance,
-) {
-	if len(raw) == 0 {
-		return
-	}
-	if *p == nil {
-		*p = ir.Unmodeled{}
-	}
-	(*p)[key] = ir.UnmodeledEntry{
-		Reason:     reason,
-		Value:      raw,
-		Provenance: prov,
-	}
-}
-
-// PreserveNodeInto converts node and records it under key, reporting a
-// construct that reached the IR in no form at all rather than leaving its
-// caller to announce a preservation that did not happen (GitHub #144).
-//
-// It reports whether an entry was written, which is what a caller with an
-// announcement to make gates on. The three outcomes it distinguishes are the
-// point: an absent node writes nothing and says nothing, because there was no
-// construct; a converted one writes the entry; an unconvertible one writes
-// nothing and yields the diagnostic that says so.
-func PreserveNodeInto(p *ir.Unmodeled, key string, node *yaml.Node,
-	reason ir.UnmodeledReason, prov ir.Provenance,
-) (bool, []ir.Diagnostic) {
-	raw, err := RawFromNode(node)
-	if err != nil {
-		return false, []ir.Diagnostic{UnpreservableDiag(key, prov, err)}
-	}
-	if len(raw) == 0 {
-		return false, nil
-	}
-	PreserveInto(p, key, raw, reason, prov)
-	return true, nil
-}
-
-// UnpreservableDiag reports a construct the compiler could neither model nor
-// keep verbatim, so nothing of it reached the IR.
-//
-// Error rather than the degradation severity its callers otherwise use: a
-// degraded lowering still describes the source in a weaker shape, while this one
-// leaves no trace at all, which is a losslessness failure rather than a
-// compromise (GitHub #144).
-//
-// The vendor-extension reader (ExtensionsFrom) reports the same conversion
-// failure as a warning and is deliberately left alone: it already branches on the
-// error and never claimed to have kept anything, so it is not the defect this
-// code exists for.
-func UnpreservableDiag(key string, prov ir.Provenance, err error) ir.Diagnostic {
-	return diag.Newf(ir.SeverityError, diag.UnpreservableConstruct, prov,
-		"%s could not be kept verbatim under Unmodeled and is represented in the IR "+
-			"in no form at all: %s", key, err.Error())
-}
-
-// PreserveKeywordInto records a validation-only keyword at entry and returns the
-// one diagnostic announcing it at note, the schema that wrote it. An absent
-// payload records nothing and announces nothing; an unconvertible one never
-// reaches here, because its caller reports it through UnpreservableDiag first.
-func PreserveKeywordInto(p *ir.Unmodeled, key string, raw ir.RawValue,
-	entry, note ir.Provenance, label string,
-) []ir.Diagnostic {
-	if len(raw) == 0 {
-		return nil
-	}
-	PreserveInto(p, key, raw, ir.ReasonValidationOnly, entry)
-	return []ir.Diagnostic{diag.Newf(ir.SeverityInfo, diag.ValidationOnlyKeyword, note,
-		"validation-only keyword %q kept verbatim under Unmodeled", label)}
-}
-
 // String renders k by name; an assertion failure or test diff over a bare
 // Kind would otherwise print the underlying int (0 or 1).
 func (k Kind) String() string {
@@ -973,13 +491,4 @@ func (k Kind) String() string {
 	default:
 		return fmt.Sprintf("Kind(%d)", int(k))
 	}
-}
-
-// DeclaresAny reports whether s writes any of keywords. It reads the raw nodes
-// rather than the model fields for the reason declaresValueConstraints does: the
-// recorders these gate (recordResidue, dialectAt) read them there, and a
-// predicate consulting a different source could disagree with them in either
-// direction.
-func DeclaresAny(s *oas3.Schema, keywords []string) bool {
-	return slices.ContainsFunc(keywords, func(keyword string) bool { return RawPropertyNode(s, keyword) != nil })
 }

@@ -45,6 +45,78 @@ func TestTypes_SettleTakesEachDeferredSettlementOnceInOrder(t *testing.T) {
 	assert.Empty(t, types.Violations())
 }
 
+// TestTypes_SettleTakesEveryCompletionFirst pins the order a settlement relies
+// on to read a node finished: one Complete queued runs before every one Defer
+// queued, even one deferred before it, so a settlement that reads the node, or
+// rewrites it, meets what the completion made of it. Each kind keeps the order
+// queued.
+func TestTypes_SettleTakesEveryCompletionFirst(t *testing.T) {
+	t.Parallel()
+	types := compile.NewTypes()
+	types.Intern("/p", "t/x", func() ir.TypeDef { return &ir.Model{ID: "t/x"} })
+	var runs []string
+	read := func(name string) compile.Settlement {
+		return settleFunc(func(reg ir.TypeRegistry) []ir.Diagnostic {
+			runs = append(runs, name+" read "+reg["t/x"].Common().Docs.Description)
+			return []ir.Diagnostic{{Code: name}}
+		})
+	}
+	complete := func(name string) compile.Settlement {
+		return settleFunc(func(reg ir.TypeRegistry) []ir.Diagnostic {
+			runs = append(runs, name)
+			reg["t/x"].Common().Docs.Description += name
+			return []ir.Diagnostic{{Code: name}}
+		})
+	}
+	types.Defer(read("r1"))
+	types.Complete(complete("c1"))
+	types.Defer(read("r2"))
+	types.Complete(complete("c2"))
+
+	diags := types.Settle(t.Context())
+
+	assert.Equal(t, []string{"c1", "c2", "r1 read c1c2", "r2 read c1c2"}, runs)
+	codes := make([]string, 0, len(diags))
+	for _, d := range diags {
+		codes = append(codes, d.Code)
+	}
+	assert.Equal(t, []string{"c1", "c2", "r1", "r2"}, codes, "diagnostics follow the order settled")
+	assert.Empty(t, types.Settle(t.Context()), "a settlement taken is not taken again")
+	assert.Empty(t, types.Violations())
+}
+
+// TestTypes_FinishReportsEveryRefusalWithTheRegistry pins the one hand-over a
+// compiler gets: the live registry the Document holds, settled, and one list to
+// report, what settling said and then an error for each entry refused, so the
+// refusals cannot be taken apart from what the compiler reports anyway.
+func TestTypes_FinishReportsEveryRefusalWithTheRegistry(t *testing.T) {
+	t.Parallel()
+	types := compile.NewTypes()
+	types.Intern("/p", "t/x", func() ir.TypeDef { return &ir.Model{ID: "t/x"} })
+	types.Register("", &ir.Any{})
+	types.Defer(settleFunc(func(reg ir.TypeRegistry) []ir.Diagnostic {
+		reg["t/x"].Common().Docs.Description = "settled"
+		return []ir.Diagnostic{{Code: "settled"}}
+	}))
+
+	reg, diags := types.Finish(t.Context())
+
+	require.Contains(t, reg, ir.TypeID("t/x"))
+	assert.Equal(t, "settled", reg["t/x"].Common().Docs.Description, "the registry comes back settled")
+	require.Len(t, diags, 2)
+	assert.Equal(t, ir.Diagnostic{Code: "settled"}, diags[0], "what settling reported comes first")
+	refusal := diags[1]
+	assert.Equal(t, compile.RegistryRefused, refusal.Code)
+	assert.Equal(t, ir.SeverityError, refusal.Severity)
+	assert.Equal(t, ir.Provenance{Source: ir.NoSource}, refusal.Provenance, "a compiler bug locates nothing in a source")
+	assert.Contains(t, refusal.Message, "empty type id")
+
+	types.Defer(settleFunc(func(ir.TypeRegistry) []ir.Diagnostic { return nil }))
+	_, again := types.Finish(t.Context())
+	require.Len(t, again, 1, "a refusal already reported is not reported again")
+	assert.Contains(t, again[0].Message, "defer rejected", "a deferral after finishing is refused, and a later Finish says so")
+}
+
 // TestTypes_SettleStopsBetweenSettlementsOnCancellation pins that Settle
 // honours ctx as the walks do: once it is done, no further settlement is
 // taken, and what the ones before it reported is returned.
@@ -82,8 +154,9 @@ func TestTypes_SettleWithNothingDeferredReturnsNothing(t *testing.T) {
 }
 
 // TestTypes_DeferRefusesWhatSettleWouldNeverTake pins the two settlements
-// Defer refuses rather than drops: one deferred after Settle ran, which no
-// later Settle is promised to take, and a nil one, which cannot be taken.
+// Defer and Complete refuse rather than drop: one queued after Settle ran,
+// which no later Settle is promised to take, and a nil one, which cannot be
+// taken.
 func TestTypes_DeferRefusesWhatSettleWouldNeverTake(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
@@ -95,6 +168,11 @@ func TestTypes_DeferRefusesWhatSettleWouldNeverTake(t *testing.T) {
 			types.Defer(s)
 		}},
 		{"nil", func(types *compile.Types, _ compile.Settlement) { types.Defer(nil) }},
+		{"completion after settling", func(types *compile.Types, s compile.Settlement) {
+			types.Settle(t.Context())
+			types.Complete(s)
+		}},
+		{"nil completion", func(types *compile.Types, _ compile.Settlement) { types.Complete(nil) }},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -108,6 +186,28 @@ func TestTypes_DeferRefusesWhatSettleWouldNeverTake(t *testing.T) {
 			assert.Len(t, types.Violations(), 1, "the refusal is recorded, not dropped")
 		})
 	}
+}
+
+// TestTypes_FinishBuildsPromisesBeforeSettling pins the order Finish keeps: a
+// settlement reads the registry whole, so it runs only once every promised
+// node is built, and what the builds reported comes before what settling did.
+func TestTypes_FinishBuildsPromisesBeforeSettling(t *testing.T) {
+	t.Parallel()
+	types := compile.NewTypes()
+	types.Promise("/a", func() []ir.Diagnostic {
+		types.Intern("/a", "t/anon/a", func() ir.TypeDef { return &ir.Model{ID: "t/anon/a"} })
+		return []ir.Diagnostic{{Code: "built"}}
+	})
+	types.Defer(settleFunc(func(reg ir.TypeRegistry) []ir.Diagnostic {
+		if _, built := reg["t/anon/a"]; !built {
+			return []ir.Diagnostic{{Code: "unbuilt"}}
+		}
+		return []ir.Diagnostic{{Code: "settled"}}
+	}))
+
+	_, diags := types.Finish(t.Context())
+
+	assert.Equal(t, []ir.Diagnostic{{Code: "built"}, {Code: "settled"}}, diags)
 }
 
 // TestTypes_SettlementThatAddsOrRemovesANodeIsRefused pins the writes a

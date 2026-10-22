@@ -158,7 +158,7 @@ func TestContent_MixedCaseURLEncodedKeepsPartEncoding(t *testing.T) {
 			tagsProp := ir.PropID("p/openapi" + ids.Ptr("paths", "/submit", "post", "requestBody", "content", tc.mt, "schema", "properties", "tags"))
 			enc, ok := content.Encoding[tagsProp]
 			require.True(t, ok, "a repeated part carries a PartEncoding keyed by its PropID; got keys %v", content.Encoding)
-			assert.True(t, enc.Multi, "the structural flag comes from the part's own schema")
+			assert.True(t, enc.Multi, "the structural flag is read off the part")
 		})
 	}
 }
@@ -284,6 +284,63 @@ components:
 	fileEnc, ok := content.Encoding[fileProp]
 	require.True(t, ok, "binary part gets a synthesized file PartEncoding")
 	assert.True(t, fileEnc.Filename)
+}
+
+// TestContent_MultipartRedeclaredPartFlagsComeFromTheSettledType holds a part
+// the body's allOf redeclares to a $ref, whose target may be declared after the
+// body, to the flag of the type the merge settled on, whichever component
+// comes first. The operation walk reads the property's type, so it must read it
+// after the redeclaration is judged and not at its first declaration.
+func TestContent_MultipartRedeclaredPartFlagsComeFromTheSettledType(t *testing.T) {
+	t.Parallel()
+	const body = `    T:
+      allOf:
+        - {type: object, properties: {f: {}}}
+        - {type: object, properties: {f: {$ref: "#/components/schemas/Q"}}}
+`
+	cases := []struct {
+		name     string
+		q        string
+		filename bool
+		multi    bool
+	}{
+		{"binary", `{type: string, format: binary}`, true, false},
+		{"array", `{type: array, items: {type: string}}`, false, true},
+	}
+	for _, tc := range cases {
+		for _, qFirst := range []bool{false, true} {
+			t.Run(tc.name+map[bool]string{false: " declared after", true: " declared before"}[qFirst], func(t *testing.T) {
+				t.Parallel()
+				q := "    Q: " + tc.q + "\n"
+				components := body + q
+				if qFirst {
+					components = q + body
+				}
+				doc, svc, diags := lowerServiceSpec(t, openapitest.PathsSpec(`  /u:
+    post:
+      requestBody:
+        content:
+          multipart/form-data:
+            schema: {$ref: "#/components/schemas/T"}
+      responses: {"204": {description: ok}}
+components:
+  schemas:
+`+components))
+				openapitest.RequireNoErrorDiags(t, diags)
+				enc := multipartEncoding(t, openapitest.FirstOp(t, svc))
+				model, ok := typeByName(doc, "T").(*ir.Model)
+				require.True(t, ok, "T lowers to a model")
+				require.Len(t, model.Properties, 1)
+				prop := model.Properties[0]
+				assert.Equal(t, ir.TypeID("t/openapi/components/schemas/Q"), prop.Type.Target,
+					"the settled type of f is Q")
+				pe, ok := enc[prop.ID]
+				require.True(t, ok, "the part is entered; got %v", enc)
+				assert.Equal(t, tc.filename, pe.Filename, "filename")
+				assert.Equal(t, tc.multi, pe.Multi, "multi")
+			})
+		}
+	}
 }
 
 // aliasedMultipartSpec is a multipart body whose media schema is written as
@@ -802,7 +859,7 @@ components:
 	assert.True(t, slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {
 		return d.Code == diag.Validation+"/validation-required-field" &&
 			d.Provenance.Pointer == "/paths/~1missing/post/requestBody"
-	}), "the parser reports the content left out: %+v", diags)
+	}), "the rule table reports the content left out: %+v", diags)
 }
 
 // encodingSpec declares one form part per position an Encoding Object reaches:
@@ -1921,9 +1978,10 @@ func TestExample_ExternalValueOnlyIsCarried(t *testing.T) {
 // TestElectTypeSpelling_CoDeclaredSpellingsElectContent covers the invalid
 // document OpenAPI forbids at the two positions one rule governs: a parameter,
 // and a header which follows the parameter rules, declaring `schema` and
-// `content` together. Each holds one type, so one spelling is elected and the
-// other kept verbatim beside it — where both positions used to take one in
-// silence, and in opposite directions (GitHub #320).
+// `content` together. The table reports the rule broken, and each position
+// holds one type, so one spelling is elected and the other kept verbatim beside
+// it — where both positions used to take one in silence, and in opposite
+// directions (GitHub #320).
 func TestElectTypeSpelling_CoDeclaredSpellingsElectContent(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -1970,7 +2028,8 @@ func TestElectTypeSpelling_CoDeclaredSpellingsElectContent(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			doc, diags := parseFull(t, tc.spec)
-			openapitest.RequireNoErrorDiags(t, diags)
+			assert.Equal(t, []string{"openapi/validation/validation-mutually-exclusive-fields at " + tc.at},
+				errorFindings(diags))
 			target, mediaType, unmodeled := tc.elected(t, doc)
 
 			assert.Equal(t, ir.TypeID("t/prim/string"), target,
@@ -2594,6 +2653,166 @@ func TestEncoding_NestedEncodingsAreKeptAtEveryVersion(t *testing.T) {
 				"only a document older than 3.2 is told the field is a later version's")
 		})
 	}
+}
+
+// TestPartEncoding_FlagsComeFromTheMergedType holds a part's Multi and Filename
+// to the type the allOf merge settled on, not to whichever branch declared the
+// name first. The merge keeps the narrower declaration in either order, so a
+// flag read from the first declaration differs between the two orders.
+func TestPartEncoding_FlagsComeFromTheMergedType(t *testing.T) {
+	t.Parallel()
+	const binary = `{type: string, format: binary}`
+	cases := []struct {
+		name     string
+		a, b     string
+		filename bool
+		multi    bool
+	}{
+		{"string and binary", `{type: string}`, binary, true, false},
+		{"untyped and binary", `{description: the file}`, binary, true, false},
+		{"untyped and a list of binary", `{description: the files}`,
+			`{type: array, items: ` + binary + `}`, false, true},
+		{"untyped and byte", `{description: the file}`, `{type: string, format: byte}`, true, false},
+		{"untyped and a hoisted binary", `{description: the file}`,
+			`{$ref: "#/components/schemas/Blob", description: the blob}`, true, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var got [2]ir.PartEncoding
+			for i, branches := range [2][2]string{{tc.a, tc.b}, {tc.b, tc.a}} {
+				got[i] = onlyPartEncoding(t, `{allOf: [`+
+					`{type: object, properties: {file: `+branches[0]+`}}, `+
+					`{type: object, properties: {file: `+branches[1]+`}}]}`)
+			}
+			assert.Empty(t, cmp.Diff(got[0], got[1]), "the two branch orders agree")
+			assert.Equal(t, tc.filename, got[0].Filename, "filename")
+			assert.Equal(t, tc.multi, got[0].Multi, "multi")
+		})
+	}
+}
+
+// TestPartEncoding_FlagsOfAnUndecidedMergedTypeComeFromEveryDeclaration holds a
+// part whose merged type the type walk cannot answer for to the flags every
+// declaration of its name gives, in either branch order, and a redeclared part
+// that is not the first to its own entry.
+func TestPartEncoding_FlagsOfAnUndecidedMergedTypeComeFromEveryDeclaration(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name     string
+		a, b     string
+		filename bool
+		multi    bool
+	}{
+		{"untyped and a binary enum", `{description: d}`,
+			`{type: string, format: binary, enum: [a, b]}`, true, false},
+		{"untyped and a union with an array", `{description: d}`,
+			`{type: [array, string], items: {type: string}}`, false, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var got [2]ir.PartEncoding
+			for i, branches := range [2][2]string{{tc.a, tc.b}, {tc.b, tc.a}} {
+				got[i] = onlyPartEncoding(t, `{allOf: [`+
+					`{type: object, properties: {file: `+branches[0]+`}}, `+
+					`{type: object, properties: {file: `+branches[1]+`}}]}`)
+			}
+			assert.Empty(t, cmp.Diff(got[0], got[1]), "the two branch orders agree")
+			assert.Equal(t, tc.filename, got[0].Filename, "filename")
+			assert.Equal(t, tc.multi, got[0].Multi, "multi")
+		})
+	}
+
+	pe := onlyPartEncoding(t, `{allOf: [{type: object, properties: {name: {type: string}, file: {description: d}}}, `+
+		`{type: object, properties: {file: {type: string, format: binary, enum: [a, b]}}}]}`)
+	assert.True(t, pe.Filename, "the second part collects its own redeclaration")
+}
+
+// TestPartEncoding_ADecidedTypeNeverFallsBack holds a part whose merged type
+// decides it is not bytes to no flag, though another declaration is binary.
+func TestPartEncoding_ADecidedTypeNeverFallsBack(t *testing.T) {
+	t.Parallel()
+	spec := openapitest.PathsSpec(`  /upload:
+    post:
+      operationId: upload
+      requestBody:
+        content:
+          multipart/form-data:
+            schema: {allOf: [{type: object, properties: {file: {type: integer}}}, ` +
+		`{type: object, properties: {file: {type: string, format: binary}}}]}
+      responses: {"200": {description: ok}}
+`)
+	_, svc, diags := lowerServiceSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	assert.Empty(t, openapitest.FirstOp(t, svc).Request.Contents[0].Encoding, "the kept integer decides: not a file")
+}
+
+// TestPartEncoding_FlagsOfAnUndecidedTypeComeFromTheSchema holds a part whose
+// single declaration lowers to a kind the type walk cannot answer for to the
+// flags its schema gives, and a tuple to the type's own answer.
+func TestPartEncoding_FlagsOfAnUndecidedTypeComeFromTheSchema(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name     string
+		part     string
+		filename bool
+		multi    bool
+	}{
+		{"union of binary", `{type: [string, integer], format: binary}`, true, false},
+		{"union with an array", `{type: [array, string], items: {type: string}}`, false, true},
+		{"tuple", `{type: array, prefixItems: [{type: string}]}`, false, true},
+		{"enum of binary", `{type: string, format: binary, enum: [a, b]}`, true, false},
+		{"literal of binary", `{type: string, format: binary, const: a}`, true, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			pe := onlyPartEncoding(t, `{type: object, properties: {file: `+tc.part+`}}`)
+			assert.Equal(t, tc.filename, pe.Filename, "filename")
+			assert.Equal(t, tc.multi, pe.Multi, "multi")
+		})
+	}
+}
+
+// TestPartEncoding_FlagsOfABodyWithNoModelPropertyComeFromTheSchema covers the
+// schema reading, which stays for a body the IR holds no model for.
+func TestPartEncoding_FlagsOfABodyWithNoModelPropertyComeFromTheSchema(t *testing.T) {
+	t.Parallel()
+	file := onlyPartEncoding(t, `{enum: [x], properties: {file: {type: string, format: binary}}}`)
+	assert.True(t, file.Filename, "a binary part is a file")
+	assert.False(t, file.Multi)
+
+	files := onlyPartEncoding(t,
+		`{enum: [x], properties: {file: {type: array, items: {type: string, format: binary}}}}`)
+	assert.True(t, files.Multi, "an array part repeats")
+	assert.False(t, files.Filename)
+}
+
+// onlyPartEncoding lowers a multipart body with the given schema and returns
+// the one part encoding it keeps. The part is named file.
+func onlyPartEncoding(t *testing.T, mediaSchema string) ir.PartEncoding {
+	t.Helper()
+	spec := openapitest.PathsSpec(`  /upload:
+    post:
+      operationId: upload
+      requestBody:
+        content:
+          multipart/form-data:
+            schema: ` + mediaSchema + `
+      responses: {"200": {description: ok}}
+components:
+  schemas:
+    Blob: {type: string, format: binary}
+`)
+	_, svc, diags := lowerServiceSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	enc := openapitest.FirstOp(t, svc).Request.Contents[0].Encoding
+	require.Len(t, enc, 1, "one part carries a flag: %v", enc)
+	for _, pe := range enc {
+		return pe
+	}
+	return ir.PartEncoding{}
 }
 
 // nestedPartSpec spells a multipart body whose parts sit wrapped deep inside n
