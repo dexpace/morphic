@@ -271,8 +271,8 @@ func TestAliases_NamesTheLeastRecursiveAlias(t *testing.T) {
 	}
 }
 
-// laughs is a billion-laughs bomb named prefix: eight anchors, each a list of
-// ten aliases to the one before.
+// laughs is a billion-laughs bomb named prefix: eight anchors, the first a list
+// of ten scalars and each after it a list of ten aliases to the one before.
 func laughs(prefix string) string {
 	const levels = 8
 	var b strings.Builder
@@ -285,9 +285,9 @@ func laughs(prefix string) string {
 }
 
 // TestAliasAmplification_NamesTheLeastInnermostAmplifier pins the site of an
-// alias bomb: the smallest structure already past the allowance, l4 of ten
-// levels each ten times the last, not the bomb or the level holding it; and of
-// two bombs, the one with the least pointer, in either order.
+// alias bomb: the smallest structure already past the allowance, l4 of laughs'
+// eight levels, not the bomb or the level holding it; and of two bombs, the one
+// with the least pointer, in either order.
 func TestAliasAmplification_NamesTheLeastInnermostAmplifier(t *testing.T) {
 	t.Parallel()
 	for order, data := range bothOrders("", []string{laughs("b"), laughs("a")}) {

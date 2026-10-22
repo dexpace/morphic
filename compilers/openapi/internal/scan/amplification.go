@@ -23,9 +23,9 @@ const maxAliasAmplification = 128
 
 // minExpandedNodes is the expansion granted regardless of source size, so a
 // small document with ordinary anchor reuse is never refused on a noisy ratio.
-// It binds only under 256 raw nodes; at or above that,
-// maxAliasAmplification*rawNodeCount already exceeds it. Real specs that small
-// carry surpluses in the low hundreds, nowhere near this floor.
+// It binds only under 256 raw nodes; from 256 up, maxAliasAmplification times
+// the raw count reaches it. Real specs that small carry surpluses in the low
+// hundreds, nowhere near this floor.
 const minExpandedNodes = 1 << 15 // 32768
 
 // aliasAmplification reports whether root's alias-substituted form, what the
