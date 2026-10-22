@@ -30,7 +30,7 @@ witnessing it.
 ### `untagged-unions`
 
 - Witnesses: `allof-oneof-cooccurrence`, `allof-ref-branch-siblings`, `union-beside-ref`,
-  `anyof-untagged`
+  `anyof-untagged`, `union-decorated-branch`
 
 ### `intersection`
 

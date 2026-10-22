@@ -2413,6 +2413,201 @@ func TestUnion_VariantHints(t *testing.T) {
 	assert.Contains(t, hints, "variant_1", "inline branch positional hint")
 }
 
+// TestUnion_ADecoratedBranchIsHintedAsItsRef pins GitHub #1018. OpenAPI 3.0
+// cannot write keywords beside a $ref, so a document annotates a union branch by
+// wrapping it, and the wrapped branch names its variant for the $ref as 3.1's
+// `{$ref: X, description: …}` does. A branch that says anything about a value
+// beyond its annotations is a type of its own and keeps the positional hint.
+// Each row also holds the branch's own node to its positional hint, which an
+// outside $ref to the branch derives as well.
+func TestUnion_ADecoratedBranchIsHintedAsItsRef(t *testing.T) {
+	t.Parallel()
+	const pet = "'#/components/schemas/Pet'"
+	for _, tc := range []struct {
+		name         string
+		version      string // 3.0.3 unless the row is a 3.1 spelling
+		keyword      string // oneOf unless the row is an anyOf
+		branch       string // the second branch, beside a plain $ref to User
+		extra        string // components the branch needs beyond User and Pet
+		bare         string // a third branch, the same $ref written bare, which want is then not read for
+		want         string // the second variant's hint
+		wantNode     string // the second branch's own node's hint; variant_1 unless set
+		wantNullable bool
+		wantDangling bool // the branch holds a $ref that names nothing
+	}{
+		{
+			name:   "a description beside the wrapped ref",
+			branch: "{allOf: [{$ref: " + pet + "}], description: a pet}",
+			want:   "pet",
+		},
+		{
+			name:     "3.1 writes the description beside the ref itself",
+			version:  "3.1.0",
+			branch:   "{$ref: " + pet + ", description: a pet}",
+			want:     "pet",
+			wantNode: "pet",
+		},
+		{
+			name:   "a type beside the wrapped ref",
+			branch: "{allOf: [{$ref: " + pet + "}], type: object, description: a pet}",
+			want:   "pet",
+		},
+		{
+			name:         "nullable beside the wrapped ref",
+			branch:       "{allOf: [{$ref: " + pet + "}], nullable: true}",
+			want:         "pet",
+			wantNullable: true,
+		},
+		{
+			name:    "a sibling on the wrapped ref itself",
+			version: "3.1.0",
+			branch:  "{allOf: [{$ref: " + pet + ", description: x}], description: y}",
+			want:    "pet",
+		},
+		{
+			name:   "an empty schema before the wrapped ref",
+			branch: "{allOf: [{}, {$ref: " + pet + "}]}",
+			want:   "pet",
+		},
+		{
+			name:    "under anyOf",
+			keyword: "anyOf",
+			branch:  "{allOf: [{$ref: " + pet + "}], description: a pet}",
+			want:    "pet",
+		},
+		{
+			name:   "a ref to a position inside another schema",
+			branch: "{allOf: [{$ref: '#/components/schemas/Holder/properties/inner'}], description: d}",
+			extra:  "    Holder: {type: object, properties: {inner: {type: object, properties: {x: {type: string}}}}}\n",
+			bare:   "{$ref: '#/components/schemas/Holder/properties/inner'}",
+		},
+		{
+			name:   "a ref to a schema whose name is empty",
+			branch: "{allOf: [{$ref: '#/components/schemas/'}], description: d}",
+			extra:  "    '': {type: object, properties: {x: {type: string}}}\n",
+			want:   "variant_1",
+		},
+		{
+			name:    "a ref with an allOf written beside it",
+			version: "3.1.0",
+			branch:  "{$ref: '#/components/schemas/User', allOf: [{$ref: " + pet + "}]}",
+			want:    "user", wantNode: "user",
+		},
+		{
+			name:   "a property beside the wrapped ref",
+			branch: "{allOf: [{$ref: " + pet + "}], properties: {extra: {type: string}}}",
+			want:   "variant_1",
+		},
+		{
+			name:   "a constraint beside the wrapped ref",
+			branch: "{allOf: [{$ref: " + pet + "}], minProperties: 1}",
+			want:   "variant_1",
+		},
+		{
+			name:   "a required name beside the wrapped ref",
+			branch: "{allOf: [{$ref: " + pet + "}], required: [name]}",
+			want:   "variant_1",
+		},
+		{
+			name:   "two refs in the allOf",
+			branch: "{allOf: [{$ref: '#/components/schemas/User'}, {$ref: " + pet + "}], description: both}",
+			want:   "variant_1",
+		},
+		{
+			name:         "a wrapped ref that names nothing",
+			branch:       "{allOf: [{$ref: '#/components/schemas/Ghost'}], description: a ghost}",
+			want:         "variant_1",
+			wantDangling: true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			version, keyword := "3.0.3", "oneOf"
+			if tc.version != "" {
+				version = tc.version
+			}
+			if tc.keyword != "" {
+				keyword = tc.keyword
+			}
+			spec := `    User: {type: object, properties: {id: {type: string}}}
+    Pet: {type: object, properties: {name: {type: string}}}
+` + tc.extra + "    U:\n      " + keyword + ":\n        - {$ref: '#/components/schemas/User'}\n        - " + tc.branch + "\n"
+			wantVariants := 2
+			if tc.bare != "" {
+				spec += "        - " + tc.bare + "\n"
+				wantVariants = 3
+			}
+			doc, diags := lowerSpec(t, openapitest.ComponentSpecVer(version, spec))
+			if tc.wantDangling {
+				assert.True(t, openapitest.HasDiagAt(diags, diag.UnresolvedRef, ir.SeverityError),
+					"the dangling ref is reported: %+v", diags)
+			} else {
+				openapitest.RequireNoErrorDiags(t, diags)
+			}
+
+			u, ok := typeByName(doc, "U").(*ir.Union)
+			require.True(t, ok, "U should be a union")
+			require.Len(t, u.Variants, wantVariants)
+			assert.Equal(t, "user", u.Variants[0].Name.Hint, "a bare $ref names its variant for its target")
+			if tc.bare != "" {
+				assert.Equal(t, u.Variants[2].Name.Hint, u.Variants[1].Name.Hint,
+					"the wrapped ref is named as the same ref written bare")
+				assert.NotEqual(t, "variant_1", u.Variants[1].Name.Hint, "and as what it names, not where it sits")
+			} else {
+				assert.Equal(t, tc.want, u.Variants[1].Name.Hint)
+			}
+			assert.Equal(t, tc.wantNullable, u.Variants[1].Type.Nullable)
+
+			nodeID := ir.TypeID("t/anon/components/schemas/U/" + keyword + "/1")
+			assert.Equal(t, nodeID, u.Variants[1].Type.Target, "the variant holds the branch's own node")
+			node, ok := doc.Types[nodeID]
+			require.True(t, ok, "the branch lowers to a node of its own")
+			wantNode := tc.wantNode
+			if wantNode == "" {
+				wantNode = "variant_1"
+			}
+			assert.Equal(t, wantNode, node.Common().Name.Hint)
+		})
+	}
+}
+
+// TestUnion_ADecoratedBranchIsHintedTheSameInEitherOrder pins that naming a
+// variant for its wrapped $ref (GitHub #1018) leaves the branch's own node
+// alone. A $ref elsewhere to the branch hoists that node from its pointer, so a
+// node hinted for the variant would read one way when the union lowers first and
+// another when the $ref does. Declared before the union and after it, the
+// variant, the union and the node must agree.
+func TestUnion_ADecoratedBranchIsHintedTheSameInEitherOrder(t *testing.T) {
+	t.Parallel()
+	const members = `    User: {type: object, properties: {id: {type: string}}}
+    Pet: {type: object, properties: {name: {type: string}}}
+`
+	const host = `    U:
+      oneOf:
+        - {$ref: '#/components/schemas/User'}
+        - {allOf: [{$ref: '#/components/schemas/Pet'}], description: a pet}
+`
+	const outsider = "    Outside: {$ref: '#/components/schemas/U/oneOf/1'}\n"
+	first, diags := parseFull(t, openapitest.ComponentSpecVer("3.0.3", members+outsider+host))
+	openapitest.RequireNoErrorDiags(t, diags)
+	last, diags := parseFull(t, openapitest.ComponentSpecVer("3.0.3", members+host+outsider))
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	branch := ir.TypeID("t/anon/components/schemas/U/oneOf/1")
+	for _, doc := range []*ir.Document{first, last} {
+		u, ok := typeByName(doc, "U").(*ir.Union)
+		require.True(t, ok, "U should be a union")
+		require.Len(t, u.Variants, 2)
+		assert.Equal(t, "pet", u.Variants[1].Name.Hint)
+		require.Equal(t, branch, u.Variants[1].Type.Target)
+		node, ok := doc.Types[branch]
+		require.True(t, ok, "the branch lowers to a node of its own")
+		assert.Equal(t, "variant_1", node.Common().Name.Hint)
+	}
+	assert.Empty(t, cmp.Diff(first.Types[componentID("U")], last.Types[componentID("U")]), "the union")
+	assert.Empty(t, cmp.Diff(first.Types[branch], last.Types[branch]), "the branch's node")
+}
+
 func TestAllOf_UnresolvedRefBranch(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    Bad:

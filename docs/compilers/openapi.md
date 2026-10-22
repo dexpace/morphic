@@ -959,7 +959,16 @@ combinator ([`union-beside-structure`](#union-beside-structure),
 [`union-beside-ref`](#union-beside-ref), [`competing-keywords`](#competing-keywords)) lower
 otherwise.
 
-- Cases: `oneof-discriminated`, `anyof-discriminated`, `anyof-untagged`
+Each variant's `Name.Hint` is its branch's: a `$ref` branch's is its target's name, and an inline
+branch's its position (`variant_1`). An inline branch whose node is a decorator
+(ir-design §4.10) over a `$ref` its `allOf` names, the one way 3.0 annotates a branch, takes the
+hint that `$ref` takes as a branch of its own, as 3.1's spelling of the same branch, `{$ref: X,
+description: …}`, does, and the position's where that names nothing. Its node keeps the positional
+hint, which an outside `$ref` to the branch derives too; no emitter renders it, since a decorator
+collapses into its reference.
+
+- Cases: `oneof-discriminated`, `anyof-discriminated`, `anyof-untagged`, `union-decorated-branch`
+- Tests: `schema.TestUnion_ADecoratedBranchIsHintedAsItsRef`
 
 ### `type-arrays`
 

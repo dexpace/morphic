@@ -172,6 +172,7 @@ func conformanceCases() []conformanceCase {
 		{"codeclared-keywords", assertCoDeclaredKeywords},
 		{"codeclared-schema-content", assertCoDeclaredSchemaContent},
 		{"anyof-untagged", assertAnyOfUntagged},
+		{"union-decorated-branch", assertUnionDecoratedBranch},
 		{"negation-not", assertNegationNot},
 		{"dependent-required", assertDependentRequired},
 		{"dialect-keywords", assertDialectKeywords},
@@ -1177,6 +1178,26 @@ func assertAnyOfUntagged(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.False(t, u.WireTagged, "with no discriminator, validation infers the variant")
 	assert.Nil(t, u.Discriminator)
 	assert.Len(t, u.Variants, 2)
+}
+
+// assertUnionDecoratedBranch pins a union branch annotated the only way 3.0
+// can, by wrapping its $ref (GitHub #1018). The wrapper lowers to a decorator
+// over Pet that keeps the description, so no information is lost, and its
+// variant is named for Pet while the node keeps the positional hint.
+func assertUnionDecoratedBranch(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	u, ok := doc.Types[namedID("U")].(*ir.Union)
+	require.True(t, ok)
+	require.Len(t, u.Variants, 2)
+	assert.Equal(t, "user", u.Variants[0].Name.Hint)
+	assert.Equal(t, "pet", u.Variants[1].Name.Hint, "named for the $ref it wraps, as 3.1's sibling spelling is")
+
+	branch, ok := doc.Types[u.Variants[1].Type.Target].(*ir.Model)
+	require.True(t, ok, "the wrapped branch is a node of its own")
+	base, decorates := ir.Decorated(branch)
+	require.True(t, decorates, "a description beside the wrapped $ref is an annotation, not a shape")
+	assert.Equal(t, namedID("Pet"), base.Target)
+	assert.Equal(t, "a pet", branch.Docs.Description, "the annotation is kept")
+	assert.Equal(t, "variant_1", branch.Name.Hint, "the node keeps the positional hint")
 }
 
 func assertNegationNot(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {

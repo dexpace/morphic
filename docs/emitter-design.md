@@ -1323,22 +1323,16 @@ example: x}`. None of these nodes says anything about a value that its `Base` do
 written, each would be a type of its own — a struct repeating a wrapped model's fields, or a second
 name for a wrapped enum (§4.9), named from a hint — where every user expects the type it wraps.
 
-**What a decorator is.** An anonymous type whose `Base` is set, and which is
-
-- a `Model` with every other field of its own zero, or a `Scalar` with no `Constraints` and no
-  `Encoding`; and
-- sets nothing in `TypeCommon` beyond its identity (`ID`, `Name`, `Namespace`, `Anonymous`,
-  `Provenance`), the annotations a use site can hold (`Docs`, `Deprecation`, `Examples`),
-  `Availability`, which no emitter interprets (§2.4), and `Unmodeled`, whose entries an SDK acts on
-  by reason, none of them by changing a type (§4.14) — T-15 requires as much, since an entry that
-  kept a node from collapsing would change the artifacts.
-
-The rule lists what may be set rather than what may not, so a field the IR gains keeps a node from
-collapsing until a change decides otherwise; the plan's test enumerates the fields by reflection,
-which turns that decision into a failing test rather than a review catch. Anything else a node sets
-— a property, a constraint, `Sensitive`, an XML name, a media-type hint — says something about
-values at its position, and the node lowers as it would without this section. A named type is never
-a decorator: its name is public surface, lowered by §9's rows.
+**What a decorator is** is the IR's rule, stated by `ir.Decorated` (ir-design §4.10): an anonymous
+`Model` or `Scalar` whose `Base` is set and which sets nothing beyond its identity, the annotations
+a use site can hold, `Availability`, which no emitter interprets (§2.4), and `Unmodeled`, whose
+entries an SDK acts on by reason, none of them by changing a type (§4.14) — T-15 requires as much,
+since an entry that kept a node from collapsing would change the artifacts. The plan reads it
+through that function, so the compiler, which names a union variant holding one by it, and the plan
+cannot disagree about which nodes collapse. Anything else a node sets — a property, a required
+member, a constraint, `Sensitive`, an XML name, a media-type hint — says something about values at
+its position, and the node lowers as it would without this section. A named type is never a
+decorator: its name is public surface, lowered by §9's rows.
 
 **What the plan records.** A decorator's `TypePlan.Alias` is the first type along its `Base` chain
 that is not one, found by a walk bounded by the size of the registry. A chain that returns to a
@@ -1371,8 +1365,9 @@ it stands for does:
 The fold is a shared refine helper in `emitters/refine`, reading only the IR facts `Alias` points
 along. T-16 holds it to the compiler's merge: a 3.0 decorator and the 3.1 `$ref` carrying the same
 annotations beside it generate identical artifacts at every kind of position, so moving a document
-from one spelling to the other changes no SDK. A union variant is the exception until the compiler
-hints a decorated branch as it hints a bare `$ref` (#1018).
+from one spelling to the other changes no SDK. A union variant is one such position: the compiler
+names a variant whose branch is a decorator over a `$ref` as it names the `$ref`'s
+([`union`](./compilers/openapi.md#union)).
 
 ### 4.16 Recursive references
 
@@ -2204,8 +2199,9 @@ throughout this document.
 16. **T-16 · Decorator spellings agree** — a 3.0 `allOf` decorator and the 3.1 `$ref` carrying the
     same annotations beside it, at a property, a parameter, a header, a union variant, a list
     element, a map value and a content, generate byte-identical artifacts (§4.15), a variant's name
-    excepted until #1018 lands. Beside it, the plan's test enumerates the fields of `Model`,
-    `Scalar` and `TypeCommon` by reflection and fails on one §4.15 has not classified.
+    included. Which nodes are decorators is `ir.Decorated`'s, whose own test enumerates the fields of
+    `Model`, `Scalar` and `TypeCommon` by reflection and fails on one ir-design §4.10 has not
+    classified.
 17. **T-17 · Type table** — each target's built-in table has, at every options version, a row for
     every `PrimKind` `ir` declares, read through `internal/decls`; a user row replaces the built-in
     row under its key whole; an encoding with no row falls back to its primitive's and is reported

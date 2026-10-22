@@ -825,9 +825,10 @@ func buildUnion(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, s *oas3
 		}
 		vh := branchHint(c.Bindings(), b, i)
 		vptr := pointer + ids.Ptr(key, strconv.Itoa(i))
+		t := variantType(b, vptr, vh)
 		variants = append(variants, ir.Variant{
-			Name: compile.NamingHint(vh),
-			Type: variantType(b, vptr, vh),
+			Name: compile.NamingHint(decoratedBranchHint(c, ts, b, t, vh)),
+			Type: t,
 		})
 	}
 	u := &ir.Union{
@@ -1019,6 +1020,35 @@ func branchHint(refs *typed.Bindings, b *oas3.JSONSchema[oas3.Referenceable], i 
 		}
 	}
 	return positionalBranchHint(strconv.Itoa(i))
+}
+
+// decoratedBranchHint is the hint a union variant takes for b, which lowered
+// to t: hint, unless b is written inline and t is a decorator (ir.Decorated)
+// over the $ref b's allOf names, when it is the hint that $ref takes as a
+// branch of its own (branchHint). 3.0 annotates a branch only by wrapping its
+// $ref, so `{allOf: [{$ref: X}], description: …}` names its variant as 3.1's
+// `{$ref: X, description: …}` does (GitHub #1018). The node t keeps hint: a
+// decorator collapses into its reference wherever it is used.
+func decoratedBranchHint(c lowering.Ctx, ts *compile.Types, b *oas3.JSONSchema[oas3.Referenceable], t ir.TypeRef, hint string) string {
+	s := annotation.SchemaOf(b)
+	if s == nil || isRefBranch(b) {
+		return hint
+	}
+	branches := s.GetAllOf()
+	base := selectAllOfBase(c.Bindings(), branches)
+	if base < 0 {
+		return hint
+	}
+	if td, ok := ts.Node(t.Target); !ok || !decorates(td) {
+		return hint
+	}
+	return cmp.Or(targetHint(c.Bindings(), branches[base]), hint)
+}
+
+// decorates reports whether td is a decorator (ir.Decorated).
+func decorates(td ir.TypeDef) bool {
+	_, ok := ir.Decorated(td)
+	return ok
 }
 
 // compositionKeywords are the schema keywords whose numbered children are

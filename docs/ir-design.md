@@ -798,8 +798,8 @@ on the composed model, or a member only the catch-all governs, which JSON Schema
 or not a schema declares it. A consumer reads it as it reads `Base`, over the flattened shape, and
 the IR asserts nothing about which of these a name is, since that needs the hierarchy walked. A name
 an own property declares is never listed (`irverify` refuses it as `ir/requires-own-property`), so
-required-ness has one home per member. A model that requires a member is never a map (§4.6),
-since a map requires no key.
+required-ness has one home per member. A model that requires a member is neither a map (§4.6) nor
+a decorator (§4.10), since a map requires no key and a decorator says nothing its `Base` does not.
 
 Which `allOf` entry becomes `Base` and which a `Mixin` is the OpenAPI compiler's rule
 [`allof-classification`](./compilers/openapi.md#allof-classification).
@@ -1208,6 +1208,31 @@ value of exactly that type can hold, at any depth, one of the same shape — and
 the types whose shapes share its strongly connected component. A reference to a polymorphic base
 counts every subtype it may hold, so a subtype holding its own discriminated base is recursive. A
 cycle through composition alone, which the IR permits, is reported too.
+
+### 4.10 Decorators — a reference with annotations
+
+A format that admits nothing beside a reference annotates one use of a shared type by wrapping it:
+OpenAPI 3.0 writes `state: {allOf: [{$ref: Status}], description: the widget state}`, and keeps it
+losslessly as an anonymous `Model` whose `Base` is `Status`. 3.1 writes the same use `{$ref: Status,
+description: …}`, which hoists an anonymous `Scalar` alias over `Status` wherever no carrier holds
+the annotations (§12.1). Neither node says anything about a value that its `Base` does not. Such a
+node is a **decorator**, and `ir.Decorated` is the one statement of the rule: an anonymous type
+whose `Base` is set, and which is
+
+- a `Model` with every other field of its own zero, or a `Scalar` with no `Constraints` and no
+  `Encoding`; and
+- sets nothing in `TypeCommon` beyond its identity (`ID`, `Name`, `Namespace`, `Anonymous`,
+  `Provenance`), the annotations a use site can hold (`Docs`, `Deprecation`, `Examples`),
+  `Availability`, which no emitter interprets, and `Unmodeled`, whose entries an SDK acts on by
+  reason, none of them by changing a type.
+
+The rule lists what may be set rather than what may not, so a field the IR gains keeps a node from
+being a decorator until a change decides otherwise; `ir`'s test sets every other field in turn by
+reflection, which turns that decision into a failing test rather than a review catch. A named type
+is never a decorator: its name is public surface. An emitter collapses a decorator into the
+reference it decorates (emitter-design §4.15), and a compiler names what holds one as it names what
+holds that reference, so the two spellings of one use name it alike
+([`union`](./compilers/openapi.md#union)).
 
 ---
 
