@@ -210,6 +210,7 @@ func schemaSeeds() []string {
 		`{"type":"object","properties":{"a":{"type":"string"}},"required":["a"]}`,
 		`{"type":"array","items":{"type":"number"}}`,
 		`{"allOf":[{"type":"object"},{"type":"object"}]}`,
+		`{"allOf":[{"allOf":[{"$ref":"#/components/schemas/Fuzzed"},{"type":"object","properties":{"a":{"type":"string"}}}]}]}`,
 		`{"oneOf":[{"type":"string"},{"type":"integer"}]}`,
 		`{"anyOf":[{"type":"boolean"},{"type":"null"}]}`,
 		`{"anyOf":[{"type":"null"}]}`,

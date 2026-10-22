@@ -213,11 +213,13 @@ func positionalEncoding(c lowering.Ctx, content *ir.Content, media *soa.MediaTyp
 // (compile.Types.Promise), so partKeys settles both once every node exists. It
 // is nil where the body declares no part; one left with no key reads alike.
 func partEncodings(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, media *soa.MediaType, mediaPtr jsontext.Pointer, body ir.TypeID) (map[ir.PropID]ir.PartEncoding, ir.Unmodeled, []ir.Diagnostic) {
-	parts := bodyParts(c.Bindings(), media.GetSchema(), 0)
+	walk := walkBodyParts(c.Bindings(), media.GetSchema())
+	parts := walk.parts
+	cutDiags := diagPartWalkCut(c, walk, mediaPtr+ids.Ptr("schema"))
 	if len(parts) == 0 {
-		return nil, nil, nil
+		return nil, nil, cutDiags
 	}
-	var diags []ir.Diagnostic
+	diags := cutDiags
 	var unmodeled ir.Unmodeled
 	encMap := media.GetEncoding()
 	fallbackDoc, fallback := bodySchemaPointer(c, media.GetSchema(), mediaPtr+ids.Ptr("schema"))
@@ -292,38 +294,132 @@ type bodyPart struct {
 	schemas []*oas3.JSONSchema[oas3.Referenceable]
 }
 
-// maxPartCompositionDepth bounds the allOf walk bodyParts makes (styleguide
-// bounded-everything rule): a composition that reaches itself through a $ref
-// stops there, whatever else the document holds.
-const maxPartCompositionDepth = 16
+// maxPartRefHops bounds how many $ref targets bodyParts follows down a
+// composition. Inline wrappers are not counted: schema.FlattenedAllOf reads them,
+// with the cap the lowering uses. A target is entered again only when a shorter
+// path reaches it, so an allOf cycle (GitHub #642) costs one visit, and the
+// bound is reported only for a target no path reaches within it.
+const maxPartRefHops = 16
+
+// partWalk is what bodyParts found, and which bound cut it short.
+type partWalk struct {
+	parts []bodyPart
+	// capped marks an inline branch nested past schema.MaxAllOfFlattenDepth
+	// whose own allOf entries no path entered.
+	capped bool
+	// hopsSpent marks a $ref target past maxPartRefHops that no path entered.
+	hopsSpent bool
+}
+
+// partVisits is what one body's part walk has met: the fewest hops each target
+// was entered at, and the targets met past a bound.
+type partVisits struct {
+	// refs says where each $ref ends, as the lowering read it (schemaOf).
+	refs    *typed.Bindings
+	entered map[*oas3.Schema]int
+	cut     map[*oas3.Schema]bool
+	// capped holds the allOf entries of an inline branch past the flattening
+	// depth, which the walk did not follow.
+	capped map[*oas3.Schema]bool
+}
+
+// markCapped records the allOf entries of b, an inline branch past the
+// flattening depth, as targets the walk did not follow.
+func (v partVisits) markCapped(b *oas3.Schema) {
+	for _, c := range b.GetAllOf() {
+		if cs := schemaOf(v.refs, c); cs != nil {
+			v.capped[cs] = true
+		}
+	}
+}
+
+// walkBodyParts runs bodyParts over one body, whose $refs end where refs says,
+// and reports a bound only for a target that no path entered.
+func walkBodyParts(refs *typed.Bindings, js *oas3.JSONSchema[oas3.Referenceable]) partWalk {
+	v := partVisits{
+		refs:    refs,
+		entered: map[*oas3.Schema]int{},
+		cut:     map[*oas3.Schema]bool{},
+		capped:  map[*oas3.Schema]bool{},
+	}
+	w := bodyParts(js, 0, v)
+	for s := range v.cut {
+		if _, ok := v.entered[s]; !ok {
+			w.hopsSpent = true
+		}
+	}
+	for s := range v.capped {
+		if _, ok := v.entered[s]; !ok {
+			w.capped = true
+		}
+	}
+	return w
+}
 
 // bodyParts returns the parts a multipart body declares, in source order: the
 // properties written on the schema itself, then those each allOf branch
-// contributes. The first declaration of a name wins its encoding key; every
-// declaration is kept for the structural flags.
-//
-// A body that composes rather than declares — `allOf: [{$ref: Form}]` — has no
-// properties of its own, so reading only those found nothing to key against and
-// discarded the whole encoding block without a word (GitHub #140). The two
-// spellings describe the same wire format, so they must enumerate the same parts.
-func bodyParts(refs *typed.Bindings, js *oas3.JSONSchema[oas3.Referenceable], depth int) []bodyPart {
-	if depth > maxPartCompositionDepth {
-		return nil
-	}
-	s := schemaOf(refs, js)
+// contributes. The first declaration of a name wins its encoding key; every one
+// is kept for the structural flags (dedupeParts). The branches are the
+// lowering's own (schema.FlattenedAllOf); a $ref branch is followed here, up to
+// maxPartRefHops. v records the fewest hops each target was entered at, so one
+// met again by no shorter path yields no parts, and the bounds that cut the
+// walk. `allOf: [{$ref: Form}]` enumerates Form's parts (GitHub #140).
+func bodyParts(js *oas3.JSONSchema[oas3.Referenceable], hops int, v partVisits) partWalk {
+	s := schemaOf(v.refs, js)
 	if s == nil {
+		return partWalk{}
+	}
+	if hops > maxPartRefHops {
+		v.cut[s] = true
+		return partWalk{}
+	}
+	if prev, ok := v.entered[s]; ok && prev <= hops {
+		return partWalk{}
+	}
+	v.entered[s] = hops
+	w := partWalk{parts: propertyParts(s)}
+	for _, br := range schema.FlattenedAllOf(s) {
+		if br.Ref {
+			sub := bodyParts(br.Schema, hops+1, v)
+			w.parts = append(w.parts, sub.parts...)
+			continue
+		}
+		w.parts = append(w.parts, propertyParts(schemaOf(v.refs, br.Schema))...)
+		if br.Capped {
+			v.markCapped(schemaOf(v.refs, br.Schema))
+		}
+	}
+	w.parts = dedupeParts(w.parts)
+	return w
+}
+
+// propertyParts returns the properties s declares itself, in source order.
+func propertyParts(s *oas3.Schema) []bodyPart {
+	if s == nil || s.GetProperties() == nil {
 		return nil
 	}
 	var out []bodyPart
-	if props := s.GetProperties(); props != nil {
-		for name, pjs := range props.All() {
-			out = append(out, bodyPart{name: name, schemas: []*oas3.JSONSchema[oas3.Referenceable]{pjs}})
-		}
+	for name, pjs := range s.GetProperties().All() {
+		out = append(out, bodyPart{name: name, schemas: []*oas3.JSONSchema[oas3.Referenceable]{pjs}})
 	}
-	for _, branch := range s.GetAllOf() {
-		out = append(out, bodyParts(refs, branch, depth+1)...)
+	return out
+}
+
+// diagPartWalkCut reports the bounds that cut a body's part walk short, so an
+// encoding entry for a part past one is not dropped without a word.
+func diagPartWalkCut(c lowering.Ctx, w partWalk, at jsontext.Pointer) []ir.Diagnostic {
+	var out []ir.Diagnostic
+	if w.capped {
+		out = append(out, c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, at,
+			"form body composition is nested past the flattening depth of %d, so a part reached only below it has no encoding entry",
+			schema.MaxAllOfFlattenDepth))
 	}
-	return dedupeParts(out)
+	if w.hopsSpent {
+		out = append(out, c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, at,
+			"form body composition follows $refs past %d hops, so a part reached only beyond them has no encoding entry",
+			maxPartRefHops))
+	}
+	return out
 }
 
 // dedupeParts keeps the first entry of each part name, in order, and collects

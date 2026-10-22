@@ -154,6 +154,7 @@ func conformanceCases() []conformanceCase {
 		{"required-members", assertRequiredMembers},
 		{"allof-oneof-cooccurrence", assertAllOfOneOfCooccurrence},
 		{"allof-inline-residue", assertAllOfInlineResidue},
+		{"allof-nested-inline", assertAllOfNestedInline},
 		{"allof-ref-branch-siblings", assertAllOfRefBranchSiblings},
 		{"allof-boolean-branch", assertAllOfBooleanBranch},
 		{"allof-conflicting-type", assertAllOfConflictingType},
@@ -809,6 +810,72 @@ func assertAllOfInlineMerge(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.Equal(t, namedID("Base"), m.Base.Target)
 	_, ok = propByWire(m, "name")
 	assert.True(t, ok, "inline allOf branch contributes its properties")
+}
+
+// assertAllOfNestedInline pins the flattening of
+// docs/compilers/openapi.md#allof-classification: a nested spelling classifies
+// as the flat one does and keeps each property's own pointer. A wrapper writing
+// nothing else is kept nowhere; one that also writes a keyword is kept whole,
+// with one diagnostic.
+func assertAllOfNestedInline(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	m, ok := doc.Types[namedID("M")].(*ir.Model)
+	require.True(t, ok)
+	assert.Nil(t, m.Base, "two refs and no hierarchy: none is Base")
+	require.Len(t, m.Mixins, 2)
+	assert.Equal(t, namedID("A"), m.Mixins[0].Target)
+	assert.Equal(t, namedID("B"), m.Mixins[1].Target)
+	assert.Empty(t, m.Unmodeled, "the wrapper is flattened, not kept verbatim")
+
+	n, ok := doc.Types[namedID("Nested2")].(*ir.Model)
+	require.True(t, ok)
+	require.NotNil(t, n.Base, "the sole ref two wrappers down is the Base")
+	assert.Equal(t, namedID("A"), n.Base.Target)
+	c, ok := propByWire(n, "c")
+	require.True(t, ok)
+	assert.Equal(t, jsontext.Pointer("/components/schemas/Nested2/allOf/0/allOf/1/properties/c"),
+		c.Provenance.Pointer)
+
+	mixed, ok := doc.Types[namedID("Mixed")].(*ir.Model)
+	require.True(t, ok)
+	mc, ok := propByWire(mixed, "c")
+	require.True(t, ok)
+	assert.True(t, mc.Required, "the wrapper's required list reaches the property inside it")
+	wires := make([]string, 0, len(mixed.Properties))
+	for _, p := range mixed.Properties {
+		wires = append(wires, p.WireName)
+	}
+	assert.Equal(t, []string{"c", "w"}, wires, "the wrapper's own property merges after its branches'")
+
+	closed, ok := doc.Types[namedID("Closed")].(*ir.Model)
+	require.True(t, ok)
+	assert.Equal(t, ir.AdditionalClosed, closed.Additional, "a false inside a wrapper still closes")
+	assert.Contains(t, closed.Unmodeled, "openapi:allOf/0/allOf/0")
+	assert.NotContains(t, closed.Unmodeled, "openapi:allOf/0")
+
+	described, ok := doc.Types[namedID("Described")].(*ir.Model)
+	require.True(t, ok)
+	assert.Nil(t, described.Base)
+	require.Len(t, described.Mixins, 2, "the wrapper's refs compose despite its description")
+	assert.Equal(t, namedID("A"), described.Mixins[0].Target)
+	assert.Equal(t, namedID("B"), described.Mixins[1].Target)
+	assert.Contains(t, described.Unmodeled, "openapi:allOf/0", "the wrapper is kept whole")
+
+	for _, id := range []ir.TypeID{"t/composed/components/schemas/U/oneOf/0", "t/composed/components/schemas/U/oneOf/1"} {
+		variant, ok := doc.Types[id].(*ir.Model)
+		require.True(t, ok, "%s should be a composed variant", id)
+		assert.Equal(t, ir.AdditionalClosed, variant.Additional, "%s: a false nested beside a oneOf closes every variant", id)
+		assert.Contains(t, variant.Unmodeled, "openapi:allOf/0/allOf/2/allOf/0", "%s keeps the false at its path", id)
+		a, ok := propByWire(variant, "a")
+		require.True(t, ok, id)
+		assert.True(t, a.Required, "%s: the wrapper's required list reaches the variant's property", id)
+	}
+
+	for _, d := range diags {
+		if d.Code == diag.DegradedConstruct && d.Provenance.Pointer == "/components/schemas/Described/allOf/0" {
+			continue // the one kept wrapper
+		}
+		assert.NotEqual(t, diag.DegradedConstruct, d.Code, "flattening is exact: %+v", d)
+	}
 }
 
 func assertAllOfRequiredOnly(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
