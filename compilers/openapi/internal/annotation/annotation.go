@@ -7,7 +7,6 @@ import (
 
 	"github.com/speakeasy-api/openapi/extensions"
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
-	"github.com/speakeasy-api/openapi/yml"
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
@@ -230,12 +229,6 @@ func IsFalseSchema(js *oas3.JSONSchema[oas3.Referenceable]) bool {
 // two apart.
 func IsNullLiteral(js *oas3.JSONSchema[oas3.Referenceable]) bool {
 	return js != nil && js.IsBool() && IsNullNode(js.GetCore().GetRootNode())
-}
-
-// IsNullNode reports whether n, read through an alias, is a YAML null.
-func IsNullNode(n *yaml.Node) bool {
-	n = yml.ResolveAlias(n)
-	return n != nil && n.Kind == yaml.ScalarNode && n.ShortTag() == "!!null"
 }
 
 // Written reports whether js is a schema written at its position: present,

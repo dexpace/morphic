@@ -4,6 +4,7 @@ import (
 	"slices"
 
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
+	"github.com/speakeasy-api/openapi/yml"
 	yaml "gopkg.in/yaml.v3"
 )
 
@@ -128,4 +129,10 @@ func RawChildNodes(root *yaml.Node) map[string]*yaml.Node {
 // direction.
 func DeclaresAny(s *oas3.Schema, keywords []string) bool {
 	return slices.ContainsFunc(keywords, func(keyword string) bool { return RawPropertyNode(s, keyword) != nil })
+}
+
+// IsNullNode reports whether n, read through an alias, is a YAML null.
+func IsNullNode(n *yaml.Node) bool {
+	n = yml.ResolveAlias(n)
+	return n != nil && n.Kind == yaml.ScalarNode && n.ShortTag() == "!!null"
 }
