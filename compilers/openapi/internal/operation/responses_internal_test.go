@@ -96,9 +96,11 @@ func TestFaultFor(t *testing.T) {
 func TestLowerResponses_NoResponses(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
-	responses, errs, diags := lowerResponses(l.ctx, l.types, &l.anchors, &soa.Operation{}, "/op")
-	assert.Nil(t, responses)
-	assert.Nil(t, errs)
+	op := &ir.Operation{}
+	diags := lowerResponses(l.ctx, l.types, &l.anchors, op, &soa.Operation{}, "/op")
+	assert.Nil(t, op.Responses)
+	assert.Nil(t, op.Errors)
+	assert.Nil(t, op.Default)
 	assert.Empty(t, diags)
 }
 
@@ -121,7 +123,7 @@ func TestFaultFor_ClassifiesAtTheClassBoundaries(t *testing.T) {
 		{name: "the last server code", from: 599, want: "server"},
 		{name: "a success is neither", from: 200, want: ""},
 		{name: "past the server class", from: 600, want: ""},
-		{name: "the catch-all default range is unclassified", from: 0, want: ""},
+		{name: "the catch-all range, which no ErrorCase holds", from: 0, want: ""},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

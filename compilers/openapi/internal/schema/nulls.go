@@ -9,6 +9,7 @@ import (
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	"github.com/speakeasy-api/openapi/values"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
@@ -428,13 +429,15 @@ func (n *nulls) allOf(s *oas3.Schema, site nullSite) nullReading {
 }
 
 // conjunct reads one allOf branch, or what a $ref lands on. A `false` schema
-// admits no instance whatever, null included; a `true` one constrains nothing.
+// admits no instance whatever, null included; a `true` one constrains nothing,
+// nor does a `null` written for one, which is no `false`
+// (annotation.IsFalseSchema).
 func (n *nulls) conjunct(b *oas3.JSONSchema[oas3.Referenceable], site nullSite) nullReading {
 	if b == nil {
 		return alike(nullSilent)
 	}
 	if b.IsBool() {
-		if v := b.GetBool(); v != nil && !*v {
+		if annotation.IsFalseSchema(b) {
 			return alike(nullForbidden)
 		}
 		return alike(nullSilent)

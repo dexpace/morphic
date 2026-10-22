@@ -131,9 +131,7 @@ func lowerOperation(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 	params, bindings, paramDiags := lowerParameters(c, ts, anchors, mount, opCtx.params)
 	diags = append(diags, paramDiags...)
 	op.Params = params
-	responses, errs, responseDiags := lowerResponses(c, ts, anchors, src, decl)
-	diags = append(diags, responseDiags...)
-	op.Responses, op.Errors = responses, errs
+	diags = append(diags, lowerResponses(c, ts, anchors, &op, src, decl)...)
 	if opCtx.method == "" {
 		diags = append(diags, c.DiagAt(ir.SeverityWarning, diag.InvalidMethodKey, decl,
 			"additionalOperations key names no method; the operation lowers with an empty "+

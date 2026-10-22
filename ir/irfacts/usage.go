@@ -178,6 +178,12 @@ func (r usageRoots) operation(doc *ir.Document, op *ir.Operation, inbound bool) 
 		r.payload(op.Responses[i].Payload, response)
 		r.headers(op.Responses[i].Headers, response)
 	}
+	if def := op.Default; def != nil {
+		// The default comes back like any response; whether it is an error the
+		// IR does not say (ir-design §7.2), so it is not marked one.
+		r.payload(def.Payload, response)
+		r.headers(def.Headers, response)
+	}
 	r.stream(op.ResponseStream, response)
 	if lro := op.LongRunning; lro != nil {
 		r.ref(lro.PollingType, response)

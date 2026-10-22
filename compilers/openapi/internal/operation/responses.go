@@ -30,18 +30,17 @@ const (
 	statusKeyLen = 3
 )
 
-// lowerResponses splits an operation's responses into success responses
-// (status < 400, or a key naming no status) and error cases (>= 400 and the
-// default), each in source order with the default last (ir-design §7.2).
-// opDeclPtr is the operation's own declaration pointer, so a $ref'd response
-// interns its content once at its component pointer rather than once per mount
-// site (issue #107).
-func lowerResponses(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, src *soa.Operation, opDeclPtr jsontext.Pointer) ([]ir.Response, []ir.ErrorCase, []ir.Diagnostic) {
+// lowerResponses lowers an operation's responses onto op (ir-design §7.2): each
+// status below 400, or a key naming no status, to Responses and each from 400
+// to Errors, in source order, as RFC 9110 classes them, and the default, which
+// answers every status the others leave and so states neither class, to
+// Default. opDeclPtr is the operation's own declaration pointer, so a $ref'd
+// response interns its content once at its component pointer rather than once
+// per mount site (issue #107).
+func lowerResponses(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, op *ir.Operation, src *soa.Operation, opDeclPtr jsontext.Pointer) []ir.Diagnostic {
 	// GetResponses never returns nil (it addresses an always-present map), so the
 	// loop simply yields nothing when no responses are declared.
 	resps := src.GetResponses()
-	var responses []ir.Response
-	var errs []ir.ErrorCase
 	var diags []ir.Diagnostic
 	// Every key read, by the range it resolved to: the map is keyed by the
 	// spelling, so two spellings of one range are two entries here and one
@@ -74,20 +73,34 @@ func lowerResponses(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 		if isErrorRange(rng) {
 			ec, ecDiags := lowerErrorCase(rc, ts, anchors, r, code, rng, rptr, rr)
 			diags = append(diags, ecDiags...)
-			errs = append(errs, ec)
+			op.Errors = append(op.Errors, ec)
 		} else {
 			resp, respDiags := lowerResponse(rc, ts, anchors, r, code, statusConditions(rng, named), rptr, rr)
 			diags = append(diags, respDiags...)
-			responses = append(responses, resp)
+			op.Responses = append(op.Responses, resp)
 		}
 	}
+	diags = append(diags, lowerDefaultResponse(c, ts, anchors, op, resps, opDeclPtr)...)
+	return append(diags, duplicateStatusKeyDiags(c, byRange, opDeclPtr+ids.Ptr("responses"))...)
+}
+
+// lowerDefaultResponse lowers the responses map's default, if it declares one,
+// to op.Default, whose conditions are the catch-all. OpenAPI says it answers
+// every status no other key names, which takes in successes and failures alike
+// (ir-design §7.2), so the compiler classes it as neither: whether it is the
+// success response, an error, or both is a reading of the API, which the plan
+// makes under its policy.
+func lowerDefaultResponse(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, op *ir.Operation,
+	resps *soa.Responses, opDeclPtr jsontext.Pointer,
+) []ir.Diagnostic {
 	def, dc, dptr := lowering.Declared[soa.Response](c, resps.GetDefault(), opDeclPtr+ids.Ptr("responses", defaultResponseKey))
-	if def != nil {
-		ec, ecDiags := lowerErrorCase(dc, ts, anchors, def, defaultResponseKey, ir.StatusRange{}, dptr, resps.GetDefault())
-		diags = append(diags, ecDiags...)
-		errs = append(errs, ec)
+	if def == nil {
+		return nil
 	}
-	return responses, errs, append(diags, duplicateStatusKeyDiags(c, byRange, opDeclPtr+ids.Ptr("responses"))...)
+	resp, diags := lowerResponse(dc, ts, anchors, def, defaultResponseKey,
+		statusConditions(statusRange(defaultResponseKey)), dptr, resps.GetDefault())
+	op.Default = &resp
+	return diags
 }
 
 // duplicateStatusKeyDiags reports each status range more than one responses-map
@@ -109,13 +122,13 @@ func duplicateStatusKeyDiags(c lowering.Ctx, byRange map[ir.StatusRange][]string
 	return diags
 }
 
-// lowerResponse lowers one success response: its naming, status condition,
-// payload (all media types), headers, docs, and any raw links preserved for
-// later promotion. code is the responses-map key the response is declared under
-// and conds is what that key resolved to, which is nothing at all when it named
-// no status (see statusConditions). ref is the entry the document wrote there,
-// which carries the summary and description a Reference Object may put beside
-// its $ref.
+// lowerResponse lowers one success or default response: its naming, status
+// condition, payload (all media types), headers, docs, and any raw links
+// preserved for later promotion. code is the responses-map key the response is
+// declared under and conds is what that key resolved to, which is nothing at
+// all when it named no status (see statusConditions). ref is the entry the
+// document wrote there, which carries the summary and description a Reference
+// Object may put beside its $ref.
 func lowerResponse(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, r *soa.Response, code string, conds ir.ResponseConditions, rptr jsontext.Pointer, ref *soa.ReferencedResponse) (ir.Response, []ir.Diagnostic) {
 	parts, diags := lowerResponseParts(c, ts, anchors, r, code, rptr, ref)
 	resp := ir.Response{
@@ -238,9 +251,9 @@ func lowerErrorCase(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 // defines exactly the wildcards 1XX through 5XX and HTTP codes 100 through 599,
 // and every character is checked, so "1XY" and "9XX" are refused (GitHub #262).
 //
-// "default" is answered although no caller asks it today (soa.Responses carries
-// it on its own Default field), so the function stays right for a caller that
-// does.
+// "default" names the catch-all, the zero range, which lowerDefaultResponse
+// asks for: soa.Responses carries it on its own Default field, apart from the
+// keys the map loop reads.
 func statusRange(code string) (ir.StatusRange, bool) {
 	if code == defaultResponseKey {
 		return ir.StatusRange{}, true
@@ -321,11 +334,14 @@ func duplicateStatusKeyDiag(c lowering.Ctx, keys []string, mapPtr jsontext.Point
 			"and they reach the IR with the same name and condition", strings.Join(quoted, ", "))
 }
 
-// isErrorRange reports whether a status range denotes an error (>= 400).
+// isErrorRange reports whether a status range denotes an error: from 400, the
+// client and server error classes of RFC 9110 §15.5 and §15.6.
 func isErrorRange(r ir.StatusRange) bool { return r.From >= 400 }
 
-// faultFor classifies a status range as a client or server fault; the catch-all
-// default range ({0,0}) is unclassified (ir-design §7.2).
+// faultFor classifies a status range as RFC 9110 classes it: a 4xx status is a
+// client error and a 5xx one a server error, the status code's own meaning
+// rather than a reading of the API (ir-design §7.2). Any other range, which no
+// ErrorCase holds, is neither.
 func faultFor(r ir.StatusRange) string {
 	switch {
 	case r.From >= 400 && r.From <= 499:

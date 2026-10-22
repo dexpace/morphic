@@ -118,35 +118,33 @@
                   }
                 }
               ],
-              "errors": [
-                {
-                  "name": {
-                    "hint": "default"
-                  },
-                  "conditions": {
-                    "statusCodes": [
-                      {
-                        "from": 0,
-                        "to": 0
+              "default": {
+                "name": {
+                  "hint": "default"
+                },
+                "conditions": {
+                  "statusCodes": [
+                    {
+                      "from": 0,
+                      "to": 0
+                    }
+                  ]
+                },
+                "payload": {
+                  "contents": [
+                    {
+                      "mediaType": "application/json",
+                      "type": {
+                        "target": "t/openapi/components/schemas/Error",
+                        "nullable": false
                       }
-                    ]
-                  },
-                  "payload": {
-                    "contents": [
-                      {
-                        "mediaType": "application/json",
-                        "type": {
-                          "target": "t/openapi/components/schemas/Error",
-                          "nullable": false
-                        }
-                      }
-                    ]
-                  },
-                  "docs": {
-                    "description": "Unexpected error"
-                  }
+                    }
+                  ]
+                },
+                "docs": {
+                  "description": "Unexpected error"
                 }
-              ],
+              },
               "oneWay": false,
               "idempotency": {},
               "tags": [

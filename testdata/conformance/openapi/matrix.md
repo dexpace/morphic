@@ -19,7 +19,7 @@ witnessing it.
 ### `inheritance`
 
 - Witnesses: `allof-inheritance`, `discriminator-inheritance`, `discriminator-inline-subtype`,
-  `discriminator-transitive`, `discriminated-union-beside-model`
+  `discriminator-transitive`, `discriminated-union-beside-model`, `required-members`
 
 ### `tagged-unions`
 
@@ -30,7 +30,7 @@ witnessing it.
 ### `untagged-unions`
 
 - Witnesses: `allof-oneof-cooccurrence`, `allof-ref-branch-siblings`, `union-beside-ref`,
-  `anyof-untagged`
+  `anyof-untagged`, `union-decorated-branch`
 
 ### `intersection`
 
@@ -94,7 +94,7 @@ witnessing it.
 
 ### `maps`
 
-- Witnesses: `maps`
+- Witnesses: `maps`, `required-members`
 
 ### `tuples`
 
@@ -130,7 +130,7 @@ witnessing it.
 
 ### `per-status-errors`
 
-- Witnesses: `per-status-errors`
+- Witnesses: `per-status-errors`, `default-response`
 
 ### `streaming-server`
 

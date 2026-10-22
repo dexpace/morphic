@@ -320,6 +320,18 @@ it sees. Changes made together in one bump are listed together under it.
   compiler sets it where its nullable-widening policy reads a null in, from `nullable: true` or
   beside a `$ref`, and the document's version does not. A consumer pinned to 0.17.0 reads every
   nullable reference as declared.
+- **0.19.0** — two members, each a home for something the OpenAPI compiler had classed or dropped:
+  - `Operation` gained `Default`, the response that answers every status no entry of `Responses` or
+    `Errors` names (§7.2). The compiler had lowered OpenAPI's `default` to `Errors`, classing it a
+    failure, which the document does not say: an operation whose only response is `default` had no
+    success response. A consumer pinned to 0.18.0 finds no `default` member and no longer finds the
+    response among the errors.
+  - `Model` gained `Requires`, the members an instance must carry that no property of its own
+    declares: one a `Base` or `Mixin` declares, which a composing schema makes required, or one only
+    its catch-all governs (§4.3). The compiler had dropped such a name, reporting it only on an
+    `allOf`, and kept a map's verbatim, so an object writing a catch-all and a `required` name is
+    now a `Model` where it had been a `MapT`. A consumer pinned to 0.18.0 reads those members as
+    optional.
 
 ---
 
@@ -726,6 +738,10 @@ restriction chain; `Constraints` and annotations on such a node bind the positio
 type Model struct {
     TypeCommon
     Properties     []Property
+    Requires       []string        // wire names of members an instance must carry that no own
+                                   // property declares: one Base, Implements or Mixins declare,
+                                   // which this model makes required, or one only the catch-all
+                                   // governs (JSON Schema `required`); none names an own property
     Base           *TypeRef        // declared single inheritance (TypeSpec extends, allOf-as-inheritance)
     Implements     []TypeRef       // interface conformance, N-ary (GraphQL `implements A & B`); targets are Abstract models
     Mixins         []TypeRef       // composition without subtyping (Smithy mixins, TypeSpec spread provenance, extra allOf entries)
@@ -792,6 +808,18 @@ what oagen and Kiota lose: the difference between "inherits from", "conforms to"
 "declares". `Base` is single (subtype identity); `Implements` is N-ary conformance to `Abstract`
 models — the distinction matters because GraphQL allows multiple interfaces while every class-based
 target language allows at most one base class.
+
+**Required members beyond the own properties.** Whether an own property must be present is its
+`Required` (§5.1). A member the model requires that none of its own properties declares is in
+`Requires`, by wire name and once (`irverify` refuses a repeat as `ir/requires-duplicate`), in the
+order the source's `required` lists name it: an inherited property the model makes required, as
+`allOf: [{$ref: User}, {required: [id]}]` makes `User`'s `id` required on the composed model, or a
+member only the catch-all governs, which JSON Schema requires whether or not a schema declares it.
+A consumer resolves each name over the flattened shape, as it reads `Base`, and the IR asserts
+nothing about which of these a name is, since saying so needs the hierarchy walked. A name an own
+property declares is never listed (`irverify` refuses it as `ir/requires-own-property`), so
+required-ness has one home per member. A model that requires a member is neither a map (§4.6) nor
+a decorator (§4.10), since a map requires no key and a decorator says nothing its `Base` does not.
 
 Which `allOf` entry becomes `Base` and which a `Mixin` is the OpenAPI compiler's rule
 [`allof-classification`](./compilers/openapi.md#allof-classification).
@@ -1028,13 +1056,11 @@ way, so `irverify` rejects it (`ir/map-key-string`), and a `Key` that is set nam
 another `Model` field keeps the node a model with no second predicate to update, and `irverify`
 holds every document to the same function (`ir/map-as-model`). The conversion keeps the model's
 `TypeCommon` — its ID, name, docs and unmodeled entries — and takes the catch-all's key and value
-and the model's `Constraints`, which on a map bound how many entries an instance may carry. What a
-map has no field for is kept the way any keyword without a home is: an OpenAPI `required` naming
-keys stays verbatim ([`shape-applicator`](./compilers/openapi.md#shape-applicator)), also where a
-discriminator's move makes the object a map after its census ran, and `propertyNames` stays the
-validation-only entry §4.7 makes it, since it constrains keys without being a key type. An `allOf`
-that leaves a map is the exception so far: the composition reads its `required` itself and reports
-each name it cannot attach without keeping it, as it does for a model (#896).
+and the model's `Constraints`, which on a map bound how many entries an instance may carry. A map
+requires no key, so an object whose `required` names one is a `Model` whose `Requires` lists it
+(§4.3), never a `MapT`, however it is composed. What a map has no field for is kept the way any
+keyword without a home is: `propertyNames` stays the validation-only entry §4.7 makes it, since it
+constrains keys without being a key type.
 
 A `Tuple` states three independent things, one field each. `Elems` types the leading positions.
 `Rest` types every element past them, as `List.Elem` types every element of a list; nil means no
@@ -1183,7 +1209,7 @@ what role, so a type in an error payload carries the side it travels on beside `
 | Root | Flags |
 |---|---|
 | an operation's parameters, request, request stream and RPC input type | `Input` |
-| its responses' payloads and headers, its response stream, its long-running polling and final types | `Output` |
+| its responses' and its default's payloads and headers, its response stream, its long-running polling and final types | `Output` |
 | its errors' and each service's common errors' payloads and headers | `Output` and `Error` |
 | the messages a messaging binding sends, or receives; its reply's travel the other way | `Input`, or `Output`; both for a direction neither send nor receive |
 | each channel's parameters, each auth scheme's credentials | `Input` |
@@ -1194,7 +1220,8 @@ webhook, or an operation an HTTP binding names among its callbacks — swaps `In
 its errors included. A flag spreads from a root's vertex along every edge, and a property's field
 arguments (`Property.Args`) make the types they name `Input`, since a client writes them to select
 the field whatever it reads back. `Multipart` marks only a multipart body's own type and the types
-its alias scalars stand for, not the types nested in it. An operation nested past
+its alias scalars stand for, not the types nested in it. An operation's `Default` is classed neither
+a success nor a failure (§7.2), so its types are not marked `Error`. An operation nested past
 `ir.MaxGroupDepth` is not read, and a type no root reaches has usage 0.
 
 **Recursion.** `Recursive(id)` reports whether a type's shape lies on a cycle of the graph — a
@@ -1202,6 +1229,31 @@ value of exactly that type can hold, at any depth, one of the same shape — and
 the types whose shapes share its strongly connected component. A reference to a polymorphic base
 counts every subtype it may hold, so a subtype holding its own discriminated base is recursive. A
 cycle through composition alone, which the IR permits, is reported too.
+
+### 4.10 Decorators — a reference with annotations
+
+A format that admits nothing beside a reference annotates one use of a shared type by wrapping it:
+OpenAPI 3.0 writes `state: {allOf: [{$ref: Status}], description: the widget state}`, and keeps it
+losslessly as an anonymous `Model` whose `Base` is `Status`. 3.1 writes the same use `{$ref: Status,
+description: …}`, which hoists an anonymous `Scalar` alias over `Status` wherever no carrier holds
+the annotations (§12.1). Neither node says anything about a value that its `Base` does not. Such a
+node is a **decorator**, and `ir.Decorated` is the one statement of the rule: an anonymous type
+whose `Base` is set, and which is
+
+- a `Model` with every other field of its own zero, or a `Scalar` with no `Constraints` and no
+  `Encoding`; and
+- sets nothing in `TypeCommon` beyond its identity (`ID`, `Name`, `Namespace`, `Anonymous`,
+  `Provenance`), the annotations a use site can hold (`Docs`, `Deprecation`, `Examples`),
+  `Availability`, which no emitter interprets, and `Unmodeled`, whose entries an SDK acts on by
+  reason, none of them by changing a type.
+
+The rule lists what may be set rather than what may not, so a field the IR gains keeps a node from
+being a decorator until a change decides otherwise; `ir`'s test sets every other field in turn by
+reflection, which turns that decision into a failing test rather than a review catch. A named type
+is never a decorator: its name is public surface. An emitter collapses a decorator into the
+reference it decorates (emitter-design §4.15), and a compiler names what holds one as it names what
+holds that reference, so the two spellings of one use name it alike
+([`union`](./compilers/openapi.md#union)).
 
 ---
 
@@ -1480,6 +1532,10 @@ type Operation struct {
     Request    *Payload           // body/message content, nil = none
     Responses  []Response         // ordered; success + alternative successes
     Errors     []ErrorCase        // declared failure shapes
+    Default    *Response          // the response for every outcome no entry of Responses or Errors
+                                  // names, which the source classes neither a success nor a failure
+                                  // (OpenAPI `default`); Conditions hold the catch-all alone;
+                                  // nil = none
 
     OneWay     bool               // fire-and-forget: no response EVER exists (OTP cast, AsyncAPI
                                   // send-without-reply, Thrift oneway, JSON-RPC notifications).
@@ -1641,6 +1697,19 @@ Design notes:
 - **Errors reference error models**, which `irfacts.Index.Usage` marks `UsageError` (§4.9), with
   status conditions and range collapsing exactly as Kiota's error mappings (`404`, `4XX`,
   catch-all).
+- **A status's class is the protocol's; a catch-all's is no one's.** An HTTP status code states its
+  own class (RFC 9110 §15): a status below 400 lowers to a `Response`, and one from 400 to an
+  `ErrorCase` whose `Fault` is `client` for 4xx and `server` for 5xx, since that is what the code
+  means rather than a reading of the API. OpenAPI's `default` states none: it answers every status
+  the map does not name, successes and failures alike, and is an operation's only description of
+  success where the map names no success. So it lowers to `Default`, never to either list, and which
+  it answers — the success response where the operation declares none, the error fallback beside a
+  success, or both — is the plan's to decide under its policy (emitter-design §3.5), where every
+  other choice of a primary response is made (invariants 2 and 6). A format whose catch-all is
+  declared an error, as TypeSpec's `@error` model with no status code is, lowers it to an
+  `ErrorCase` with the catch-all condition instead. `pass/validate` holds `Default.Conditions` to
+  the catch-all alone (`ir/default-response-conditions`), and a `OneWay` operation to having no
+  `Default` either.
 - **`OneWay` is on the neutral core**, like `Streaming` and `Idempotency`, because
   fire-and-forget is protocol-independent — an SDK that blocks awaiting a reply on a cast is
   wrong regardless of transport. The AsyncAPI compiler sets it for send-operations without a

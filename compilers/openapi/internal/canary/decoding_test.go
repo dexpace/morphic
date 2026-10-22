@@ -524,3 +524,33 @@ func unmodeledKeywords(t *testing.T) {
 		a.GetSchema().GetCore().GetUnknownProperties(), revisit(t, result{}))
 	assert.Equal(t, "#n", scalarAt(t, a.GetSchema().GetRootNode(), "/$dynamicRef"), revisit(t, result{}))
 }
+
+// nullSchemaIsFalse pins null-schema-is-false: a null written where a schema
+// belongs, at a keyword or an entry, decodes as the boolean false schema, and
+// only its node, tagged null, tells it from a written false.
+func nullSchemaIsFalse(t *testing.T) {
+	doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(schemas(
+		"A: {properties: {p: null, f: false}, additionalProperties: null, items: ~}", "C: null")))
+	require.NoError(t, err)
+	a, ok := doc.Components.Schemas.Get("A")
+	require.True(t, ok)
+	c, ok := doc.Components.Schemas.Get("C")
+	require.True(t, ok)
+	p, _ := a.GetSchema().GetProperties().Get("p")
+	f, _ := a.GetSchema().GetProperties().Get("f")
+
+	for name, js := range map[string]*oas3.JSONSchema[oas3.Referenceable]{
+		"a property": p, "additionalProperties": a.GetSchema().GetAdditionalProperties(),
+		"items": a.GetSchema().GetItems(), "a component": c, "a written false": f,
+	} {
+		require.NotNil(t, js, name)
+		assert.True(t, js.IsBool(), revisit(t, result{report: name + " decodes as no boolean"}))
+		require.NotNil(t, js.GetBool(), name)
+		assert.False(t, *js.GetBool(), revisit(t, result{report: name + " decodes as true"}))
+		wantTag := "!!null"
+		if js == f {
+			wantTag = "!!bool"
+		}
+		assert.Equal(t, wantTag, js.GetCore().GetRootNode().ShortTag(), revisit(t, result{report: name}))
+	}
+}

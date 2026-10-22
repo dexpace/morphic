@@ -224,7 +224,7 @@ func schemaBody(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 // $ref site, whose siblings 3.0 ignores, nor a subschema kept verbatim, such as
 // one under `not`, reaches it.
 func missingArrayItems(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
-	if s.GetItems() != nil || !slices.Contains(s.GetType(), oas3.SchemaTypeArray) || !c.Is30() {
+	if annotation.Written(s.GetItems()) || !slices.Contains(s.GetType(), oas3.SchemaTypeArray) || !c.Is30() {
 		return nil
 	}
 	return []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.MissingArrayItems, pointer,
@@ -345,10 +345,11 @@ func declaredConstraints(s *oas3.Schema) []string {
 // unevaluatedProperties is excluded on purpose: fillAdditional lowers it into
 // the model's openness, so it is structure rather than a preserved keyword.
 func declaresValidationOnly(s *oas3.Schema) bool {
-	if s.GetNot() != nil || s.GetContains() != nil || s.GetPropertyNames() != nil {
+	if annotation.Written(s.GetNot()) || annotation.Written(s.GetContains()) ||
+		annotation.Written(s.GetPropertyNames()) {
 		return true
 	}
-	if s.GetIf() != nil || s.GetThen() != nil || s.GetElse() != nil {
+	if annotation.Written(s.GetIf()) || annotation.Written(s.GetThen()) || annotation.Written(s.GetElse()) {
 		return true
 	}
 	if s.GetMinContains() != nil || s.GetMaxContains() != nil {
@@ -361,7 +362,7 @@ func declaresValidationOnly(s *oas3.Schema) bool {
 		return true
 	}
 	up := s.GetUnevaluatedProperties()
-	return s.GetUnevaluatedItems() != nil || (up != nil && !annotation.IsFalseSchema(up))
+	return annotation.Written(s.GetUnevaluatedItems()) || (annotation.Written(up) && !annotation.IsFalseSchema(up))
 }
 
 // lowerSchemaBody lowers the body itself, handling the $dynamicRef expansion and
@@ -406,7 +407,7 @@ func hasUnionSiblings(s *oas3.Schema) bool {
 // element type, so `{oneOf: [...], items: {...}}` loses the `items` as surely as
 // it would lose a co-declared property set.
 func narrowsInstance(s *oas3.Schema) bool {
-	return len(s.GetRequired()) > 0 || s.GetItems() != nil || len(s.GetPrefixItems()) > 0
+	return len(s.GetRequired()) > 0 || annotation.Written(s.GetItems()) || len(s.GetPrefixItems()) > 0
 }
 
 // declaresShape reports whether a schema declares data shape — a type, a
@@ -420,7 +421,7 @@ func declaresShape(s *oas3.Schema) bool {
 	if s.GetConst() != nil || enumWritten(s) || len(s.GetAllOf()) > 0 {
 		return true
 	}
-	if s.GetAdditionalProperties() != nil {
+	if annotation.Written(s.GetAdditionalProperties()) {
 		return true
 	}
 	if pp := s.GetPatternProperties(); pp != nil && pp.Len() > 0 {
@@ -710,7 +711,9 @@ func keywordHome(td ir.TypeDef, s *oas3.Schema, keyword string) bool {
 		// only because the other two declared no member (ir.AsMap).
 		return isKind(td, ir.KindModel) || isKind(td, ir.KindMap)
 	case "required":
-		// A MapT has no key to require, so it homes only an empty list.
+		// A MapT has no key to require, so it homes only an empty list. A name
+		// lands on a property or in Model.Requires (requireMembers), either of
+		// which keeps the node a Model, so a MapT never meets a longer one.
 		return isKind(td, ir.KindModel) || (isKind(td, ir.KindMap) && len(s.GetRequired()) == 0)
 	case "items", "prefixItems":
 		return isKind(td, ir.KindList) || isKind(td, ir.KindTuple)
@@ -859,6 +862,18 @@ func constraintsHome(td ir.TypeDef) bool {
 	}
 }
 
+// censusSchemaKeywords are the census keywords whose value is one schema, so a
+// null written for one states nothing (docs/compilers/openapi.md#null-schema).
+// Elsewhere a null may be a value: `const: null` writes one.
+var censusSchemaKeywords = map[string]bool{"additionalProperties": true, "items": true}
+
+// censusWrote reports whether s writes keyword for the census to read: its raw
+// node is present and, where the value is a schema, no null.
+func censusWrote(s *oas3.Schema, keyword string) bool {
+	node := annotation.RawPropertyNode(s, keyword)
+	return node != nil && (!censusSchemaKeywords[keyword] || !annotation.IsNullNode(node))
+}
+
 // unhomedKeywords returns the census keywords s declares that td has nowhere to
 // carry, in censusKeywords order. It reads the raw nodes for the reason
 // declaresValueConstraints does: a keyword the model layer failed to parse is
@@ -867,12 +882,11 @@ func constraintsHome(td ir.TypeDef) bool {
 // handled names keywords another reader at this position already accounts for:
 // the families lower()'s election passed over go to recordSkippedFamilies, which
 // knows why they lost, and an allOf branch's `required` is consumed by
-// applyCompositionRequired. Recording them here too would report one keyword
-// twice.
+// requireMembers. Recording them here too would report one keyword twice.
 func unhomedKeywords(s *oas3.Schema, td ir.TypeDef, handled []string) []string {
 	out := make([]string, 0, len(censusKeywords))
 	for _, keyword := range censusKeywords {
-		if annotation.RawPropertyNode(s, keyword) == nil || keywordHome(td, s, keyword) {
+		if !censusWrote(s, keyword) || keywordHome(td, s, keyword) {
 			continue
 		}
 		if slices.Contains(handled, keyword) {
@@ -885,7 +899,7 @@ func unhomedKeywords(s *oas3.Schema, td ir.TypeDef, handled []string) []string {
 
 // refSiteUnhomedKeywords is unhomedKeywords for a $ref site (td is always nil),
 // plus allOf. handled passes through so an allOf branch spelled as a $ref still
-// routes its own `required` to applyCompositionRequired.
+// routes its own `required` to requireMembers.
 //
 // allOf is as homeless here as every census keyword, because none of the
 // $ref-site callers goes through dispatchOf, so it never wins an election.
@@ -945,7 +959,7 @@ func preserveUnhomedKeywords(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, 
 		return id, diags
 	}
 	owns, _ := ts.Lookup(c.IDs().Coordinate(pointer))
-	unhomed := unhomedKeywords(s, td, censusHandled(d))
+	unhomed := unhomedKeywords(s, td, d.skipped)
 	if owns == id && !constraintsHome(td) {
 		// No alias will be hoisted over a node the position already owns, so the
 		// bounds it wrote reach no Constraints field anywhere.
@@ -962,18 +976,6 @@ func preserveUnhomedKeywords(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, 
 	}
 	diags = append(diags, recordUnhomedKeywords(c, ts, owner, s, unhomed, nodeShape(td.Kind()), pointer)...)
 	return owner, append(diags, recordSkippedFamilies(c, ts, owner, s, d, pointer)...)
-}
-
-// censusHandled names the census keywords another reader at a position whose
-// election d records accounts for: the families passed over, which
-// recordSkippedFamilies keeps, and where allOf won, what the composition reads
-// (compositionCensusHandled). A map an allOf leaves would otherwise report its
-// `required` twice.
-func censusHandled(d dispatch) []string {
-	if d.won != "allOf" {
-		return d.skipped
-	}
-	return append(slices.Clone(d.skipped), compositionCensusHandled...)
 }
 
 // recordSkippedFamilies keeps verbatim the keyword families lower()'s election
@@ -1126,6 +1128,7 @@ func lowerModel(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 		diags = append(diags, consDiags...)
 		m := &ir.Model{TypeCommon: common, Constraints: cons}
 		diags = append(diags, fillModelProperties(c, ts, anchors, depth, m, s, pointer)...)
+		requireMembers(m, s.GetRequired())
 		diags = append(diags, fillAdditional(c, ts, anchors, depth, m, s, pointer, hint)...)
 		d, discDiags := lowerDiscriminator(c, ts, anchors, s, m, nil, pointer)
 		diags = append(diags, discDiags...)
@@ -1153,13 +1156,13 @@ func objectNode(m *ir.Model) ir.TypeDef {
 
 // fillModelProperties lowers a model's own properties in source order, each with
 // its full property-level detail (constraints, visibility, defaults, docs, ...).
+// Which are required is requireMembers' to say, once every property is in.
 func fillModelProperties(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, m *ir.Model, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	props := s.GetProperties()
 	if props == nil {
 		return nil
 	}
 	var diags []ir.Diagnostic
-	required := requiredSet(s.GetRequired())
 	byWire := merge.WireNameIndex(m.Properties)
 	for name, js := range props.All() {
 		ppointer := pointer + ids.Ptr("properties", name)
@@ -1170,7 +1173,6 @@ func fillModelProperties(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex
 			Name:       compile.NamingFor(name),
 			WireName:   name,
 			Type:       ref,
-			Required:   required[name],
 			Provenance: c.ProvenanceAt(ppointer),
 		}
 		diags = append(diags, FillPropertyDetail(c, ts, anchors, &p, js, ppointer)...)
@@ -1193,6 +1195,9 @@ func fillModelProperties(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex
 // out; a `$ref` is rendered as the `$ref` the position wrote, not the target.
 func redeclarationSource(js *oas3.JSONSchema[oas3.Referenceable]) func() (ir.RawValue, error) {
 	return func() (ir.RawValue, error) {
+		if annotation.IsNullLiteral(js) {
+			return ir.RawValue("null"), nil
+		}
 		if b := js.GetBool(); b != nil {
 			return ir.RawValue(strconv.FormatBool(*b)), nil
 		}
@@ -1394,9 +1399,11 @@ func fillAdditional(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, dep
 	var diags []ir.Diagnostic
 	ap := s.GetAdditionalProperties()
 	switch {
+	case !annotation.Written(ap):
+		// Left out, or a null, which states nothing: no catch-all is written.
 	case annotation.IsFalseSchema(ap):
 		m.Additional = ir.AdditionalClosed
-	case ap != nil:
+	default:
 		ref, refDiags := Ref(c, ts, anchors, depth, ap, pointer+ids.Ptr("additionalProperties"), compile.SubHint(hint, "value"))
 		diags = append(diags, refDiags...)
 		m.AdditionalProps = &ir.AdditionalProps{Value: ref}
@@ -1566,7 +1573,7 @@ func encodingName(c lowering.Ctx, s *oas3.Schema, formatName string, common *ir.
 // declaration can name, so the node needs no namespace of its own (§4.3).
 func contentSchemaRef(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer jsontext.Pointer, hint string) (*ir.TypeRef, []ir.Diagnostic) {
 	cs := s.GetContentSchema()
-	if cs == nil {
+	if !annotation.Written(cs) {
 		return nil, nil
 	}
 	ref, diags := Ref(c, ts, anchors, depth, cs, pointer+ids.Ptr("contentSchema"), compile.SubHint(hint, "content"))
@@ -1585,7 +1592,7 @@ var contentKeywords = []string{"contentEncoding", "contentMediaType", "contentSc
 // keyword, so a position that wrote one owns a node to keep it on.
 func declaresContentVocabulary(s *oas3.Schema) bool {
 	return s.GetContentEncoding() != "" || s.GetContentMediaType() != "" ||
-		s.GetContentSchema() != nil
+		annotation.Written(s.GetContentSchema())
 }
 
 // recordUnplacedContent keeps each content keyword verbatim on p, for a position
@@ -2167,18 +2174,6 @@ func collectionConstraints(s *oas3.Schema) *ir.Constraints {
 		c.UniqueItems = *s.UniqueItems
 	}
 	return c
-}
-
-// requiredSet builds a lookup of a model's required property names.
-func requiredSet(required []string) map[string]bool {
-	if len(required) == 0 {
-		return nil
-	}
-	set := make(map[string]bool, len(required))
-	for _, r := range required {
-		set[r] = true
-	}
-	return set
 }
 
 // merger builds the allOf property reconciler over an explicit diagnostic sink.

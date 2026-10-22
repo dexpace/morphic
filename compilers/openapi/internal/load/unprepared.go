@@ -552,6 +552,18 @@ func (r record) inSource() bool {
 	return ok
 }
 
+// endsOnNothing reports whether c reached the position its last hop names yet
+// built no object there. The parser builds one from any mapping, so that
+// position holds a value that is no object of the kind the reference asks
+// for. It reads the records, not what the resolution reported: only the first
+// $ref to reach a position is handed the parser's findings there.
+func (c chain) endsOnNothing() bool {
+	if c.cut || c.stopped != "" || len(c.records) == 0 {
+		return false
+	}
+	return c.records[len(c.records)-1].node == nil
+}
+
 // trail reads what c's records say about where the resolution went.
 func (c chain) trail() trail {
 	t := trail{stopped: c.stopped, cut: c.cut}

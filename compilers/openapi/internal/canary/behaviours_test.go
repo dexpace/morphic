@@ -29,6 +29,7 @@ func canaries() map[string]func(t *testing.T) {
 		"embedded-map-keys":      embeddedMapKeys,
 		"duplicate-key":          duplicateKey,
 		"unmodeled-keywords":     unmodeledKeywords,
+		"null-schema-is-false":   nullSchemaIsFalse,
 		"overlay-alias-clone":    overlayAliasClone,
 		"trailing-empty-token":   trailingEmptyToken,
 	}
