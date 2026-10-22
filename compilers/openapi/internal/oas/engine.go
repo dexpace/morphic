@@ -189,12 +189,14 @@ func (w *walker) reference(f frame, depth int) bool {
 	case f.obj.Referenceable.Holds(w.minor):
 	case f.obj.Referenceable.Later(w.minor):
 		w.later(f.obj, "$ref", "", f.obj.Referenceable.Since, f.at.ptr.AppendToken("$ref"))
-	default:
+	case f.obj.RefSiblings.Later(w.minor):
 		for _, p := range f.pairs {
-			if p.Key != "$ref" && f.obj.RefSiblings.Later(w.minor) {
+			if p.Key != "$ref" {
 				w.laterSibling(f.obj, p.Key, w.minor, f.obj.RefSiblings.Since, f.at.ptr.AppendToken(p.Key))
 			}
 		}
+		return false
+	default:
 		return false
 	}
 	rf := f

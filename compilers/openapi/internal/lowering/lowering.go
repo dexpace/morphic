@@ -423,10 +423,9 @@ func (c Ctx) DeclaresAuth(id ir.AuthID) bool { _, ok := c.auth[id]; return ok }
 // 2020-12 dialect of 3.1 and 3.2. A reading that differs between the two, such
 // as a boolean exclusiveMinimum, a required `items` or the effect `nullable`
 // has, asks this rather than parsing the version itself. An unrecognized
-// version, and a context with no document,
-// answer false. It reads the entry document's version, whichever document
-// holds the schema, so a 3.1 file reached by $ref from a 3.0 root is read as
-// 3.0 (GitHub #839).
+// version, and a context with no document, answer false. It reads the entry
+// document's version, whichever document holds the schema, so a 3.1 file
+// reached by $ref from a 3.0 root is read as 3.0 (GitHub #839).
 func (c Ctx) Is30() bool {
 	minor, _ := load.SupportedMinor(c.Doc.GetOpenAPI())
 	return minor == "3.0"
