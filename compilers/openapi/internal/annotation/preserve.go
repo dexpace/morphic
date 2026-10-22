@@ -75,27 +75,21 @@ func PreserveSchemaKeyword(p *ir.Unmodeled, s *oas3.Schema, keyword string,
 	return PreserveNodeInto(p, EntryKey("", keyword), node, reason, locate(pointer+ids.Ptr(keyword)))
 }
 
-// PreserveValidationOnlyKeyword keeps a §4.7 keyword written by s, the schema at
-// pointer, and announces it at pointer. The entry is located at the keyword's
-// own node, which is what a validation emitter reports against. A §4.7 entry
-// combining several keywords has no such node and is not kept here but by Read,
-// which attributes it by the keywords it holds (GitHub #534).
-//
-// An unconvertible payload is reported at the entry instead. An absent keyword
-// is no construct: it keeps, announces and asks locate nothing.
+// PreserveValidationOnlyKeyword is PreserveSchemaKeyword for a §4.7 keyword: it
+// keeps the keyword under ReasonValidationOnly, at its own node, which is what a
+// validation emitter reports against, and announces it at pointer, the schema
+// that wrote it. What PreserveSchemaKeyword keeps nothing of, it announces
+// nothing of. A §4.7 entry combining several keywords has no such node and is
+// not kept here but by Read, which attributes it by the keywords it holds
+// (GitHub #534).
 func PreserveValidationOnlyKeyword(p *ir.Unmodeled, s *oas3.Schema, keyword string,
 	pointer jsontext.Pointer, locate Locator,
 ) []ir.Diagnostic {
-	node := RawPropertyNode(s, keyword)
-	if node == nil {
-		return nil
+	kept, diags := PreserveSchemaKeyword(p, s, keyword, ir.ReasonValidationOnly, pointer, locate)
+	if !kept {
+		return diags
 	}
-	key, entry := EntryKey("", keyword), locate(pointer+ids.Ptr(keyword))
-	raw, err := RawFromNode(node)
-	if err != nil {
-		return []ir.Diagnostic{unpreservableDiag(key, entry, err)}
-	}
-	return preserveValidationOnlyInto(p, key, raw, entry, locate(pointer), keyword)
+	return append(diags, validationOnlyNote(locate(pointer), keyword))
 }
 
 // unpreservableDiag reports a construct the compiler could neither model nor
@@ -128,8 +122,14 @@ func preserveValidationOnlyInto(p *ir.Unmodeled, key string, raw ir.RawValue,
 		return nil
 	}
 	PreserveInto(p, key, raw, ir.ReasonValidationOnly, entry)
-	return []ir.Diagnostic{diag.Newf(ir.SeverityInfo, diag.ValidationOnlyKeyword, note,
-		"validation-only keyword %q kept verbatim under Unmodeled", label)}
+	return []ir.Diagnostic{validationOnlyNote(note, label)}
+}
+
+// validationOnlyNote announces the §4.7 entry named label at note, the schema
+// that wrote it: one info per entry kept, whichever keeper kept it.
+func validationOnlyNote(note ir.Provenance, label string) ir.Diagnostic {
+	return diag.Newf(ir.SeverityInfo, diag.ValidationOnlyKeyword, note,
+		"validation-only keyword %q kept verbatim under Unmodeled", label)
 }
 
 // MergeUnmodeled overlays src onto dst, allocating dst on first write.
