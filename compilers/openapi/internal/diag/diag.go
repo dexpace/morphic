@@ -346,13 +346,14 @@ const (
 	// DegradedConstruct's constructs survive in a weaker shape, and these survive
 	// in none (GitHub #144).
 	UnpreservableConstruct = "openapi/unpreservable-construct"
-	// UnknownSchemaKeyword reports a JSON Schema keyword no field of the schema
-	// model names, kept verbatim under Unmodeled.
+	// UnknownSchemaKeyword reports a JSON Schema keyword the schema model does
+	// not name, or names but the schema's dialect does not define (`nullable`
+	// with the nullable-widening policy off), kept verbatim under Unmodeled.
 	//
 	// Info, because the document did nothing wrong: JSON Schema requires an
 	// implementation to ignore a keyword it does not recognize, and says such a
-	// keyword may carry meaning for other tooling, so an unrecognized keyword is
-	// legal input rather than a defect. What is recorded is this compiler's own
+	// keyword may carry meaning for other tooling, so it is legal input rather
+	// than a defect. What is recorded is this compiler's own
 	// decision — that it read no meaning from the keyword and kept the text — which
 	// is the same thing ValidationOnlyKeyword records beside it.
 	UnknownSchemaKeyword = "openapi/unknown-schema-keyword"

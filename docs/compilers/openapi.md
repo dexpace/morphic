@@ -853,7 +853,8 @@ schema, or beside a `$ref`, is then a keyword its dialect does not define, kept 
   `merge.TestIntersectNull_TheMarkerFollowsTheBit`
 - Status: partly built: a `nullable` its dialect does not define, read with the policy off, is kept
   nowhere at a position that lowers to a shared node and carries no property or parameter, as no
-  keyword the schema model does not name is there (#1053).
+  keyword the schema model does not name is there (#1053), and a 3.0 `nullable` with no `type`
+  beside it, which has no effect, draws no report once the policy is off (#1070).
 
 ### `schema-examples`
 
