@@ -34,7 +34,8 @@ type Editor struct {
 	// refused holds the refusals made since Done last reported them.
 	refused []error
 	// changing records that an UpdateType change is running, which may read the
-	// edit but neither write to it nor end it, and intruded that it tried to.
+	// edit but neither write to it nor end it, and intruded that a call it made
+	// was refused.
 	// done records that Done has returned out, which ends the edit.
 	changing, intruded, done bool
 }
@@ -61,20 +62,18 @@ func (e *Editor) Type(id TypeID) (TypeDef, bool) {
 
 // UpdateType hands change a deep copy of the node at id, to alter in any part
 // but its ID, and holds the copy in its place. change may read the edit
-// through Type, but must not write to it, end it or keep the node.
+// through Type but not write to it, end it or keep the node.
 //
 // It refuses an id holding no node, a nil change, a node that is nil, too deep
 // to copy or off its own ID's key, and a change moving the node; one writing
-// to or ending the edit is refused with the call it made. A refused update
-// leaves the node as it was.
+// to or ending the edit is refused with the call it made. A refused or
+// panicking update leaves the node as it was.
 func (e *Editor) UpdateType(id TypeID, change func(TypeDef)) {
 	next, ok := e.copyFor(id, change)
 	if !ok {
 		return
 	}
-	e.changing, e.intruded = true, false
-	change(next)
-	e.changing = false
+	e.apply(change, next)
 	switch moved := next.Common().ID; {
 	case e.intruded:
 		e.refuse("update rejected: the change of %q wrote to the edit or ended it; a change alters its node alone", id)
@@ -83,6 +82,15 @@ func (e *Editor) UpdateType(id TypeID, change func(TypeDef)) {
 	default:
 		e.write()[id] = next
 	}
+}
+
+// apply runs change over next, the edit counting as inside a change until it
+// returns, by a panic too: a caller recovering one finds the edit as it was
+// rather than refusing every call as made from inside a change.
+func (e *Editor) apply(change func(TypeDef), next TypeDef) {
+	e.changing, e.intruded = true, false
+	defer func() { e.changing = false }()
+	change(next)
 }
 
 // copyFor returns a copy of the node the edit holds at id, for change to
@@ -155,7 +163,6 @@ func (e *Editor) RemoveType(id TypeID) {
 // again.
 func (e *Editor) Done() (*Document, []Diagnostic) {
 	if e.changing {
-		e.intruded = true
 		e.refuse("done rejected: called from inside an UpdateType change; a change alters its node alone")
 		return e.out, e.diagnostics()
 	}
@@ -208,7 +215,6 @@ func (e *Editor) writable(verb string, id TypeID) (TypeDef, bool) {
 	case e.done:
 		e.refuse("%s rejected: the edit is done (%q)", verb, id)
 	case e.changing:
-		e.intruded = true
 		e.refuse("%s rejected: called from inside an UpdateType change (%q); a change alters its node alone", verb, id)
 	default:
 		if td, held := e.Type(id); held {
@@ -232,7 +238,11 @@ func (e *Editor) write() TypeRegistry {
 // refuse records why the edit refused a call or put a node back, for Done to
 // report. The edit declines the call rather than returning an error, since its
 // caller has no recovery but to stop, and recording it keeps the refusal from
-// being lost.
+// being lost. A refusal while an UpdateType change runs is of a call the
+// change made, so the update is refused with it, whichever check refused it.
 func (e *Editor) refuse(format string, args ...any) {
 	e.refused = append(e.refused, fmt.Errorf(format, args...))
+	if e.changing {
+		e.intruded = true
+	}
 }

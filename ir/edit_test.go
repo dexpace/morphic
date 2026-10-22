@@ -287,6 +287,8 @@ func TestEditor_UpdateRefusesAChangeWritingOrEndingTheEdit(t *testing.T) {
 			`remove rejected: ` + inside + ` ("t/scalar"); a change alters its node alone`},
 		{"a replace", func(e *ir.Editor) { e.ReplaceType(&ir.Any{ID: "t/list"}) },
 			`replace rejected: ` + inside + ` ("t/list")`},
+		{"a replace refused for itself", func(e *ir.Editor) { e.ReplaceType(nil) },
+			`replace rejected: nil type definition`},
 		{"an update", func(e *ir.Editor) {
 			e.UpdateType("t/list", func(td ir.TypeDef) { td.Common().Access = "internal" })
 		}, `update rejected: ` + inside + ` ("t/list")`},
@@ -352,6 +354,28 @@ func TestEditor_DoneInsideAChangeEndsNothing(t *testing.T) {
 	assert.Same(t, out, inner)
 	assert.Equal(t, []string{absent, done, update}, refusals(t, diags))
 	assert.NotContains(t, out.Types, ir.TypeID("t/scalar"), "the edit refused a write after the change")
+}
+
+// TestEditor_UpdateLeavesTheEditUsableAfterAPanickingChange pins that a
+// change panicking out of UpdateType applies nothing, and leaves an edit that,
+// for a caller recovering the panic, takes writes and ends with no refusal.
+func TestEditor_UpdateLeavesTheEditUsableAfterAPanickingChange(t *testing.T) {
+	t.Parallel()
+	doc := editedDoc()
+	e := ir.Edit(doc)
+	assert.PanicsWithValue(t, "change failed", func() {
+		e.UpdateType("t/model", func(td ir.TypeDef) {
+			td.Common().Docs.Summary = "changed"
+			panic("change failed")
+		})
+	})
+	e.RemoveType("t/scalar")
+
+	out, diags := e.Done()
+
+	assert.Empty(t, diags)
+	assert.NotContains(t, out.Types, ir.TypeID("t/scalar"), "a write after the panic was refused")
+	assert.Same(t, doc.Types["t/model"], out.Types["t/model"], "the panicking change was applied")
 }
 
 // TestEditor_NilEntryIsReplacedNotUpdated pins the edit of a registry entry
