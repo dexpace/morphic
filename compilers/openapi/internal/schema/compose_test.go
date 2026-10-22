@@ -4693,3 +4693,66 @@ func TestAllOf_ARedeclarationIsJudgedOnceTheComponentsHaveLowered(t *testing.T) 
 		})
 	}
 }
+
+// TestAllOf_WhatAFieldKeepsOfItsDetailIsOrderFree compiles a field whose two
+// declarations give an extension differently, alike in another, one promoting
+// a deprecation from an extension, and one default spelled two ways. In either
+// branch order the field keeps the first value of the extension and reports
+// the other, names the heuristic behind its deprecation, and takes the default
+// as the one value it is.
+func TestAllOf_WhatAFieldKeepsOfItsDetailIsOrderFree(t *testing.T) {
+	t.Parallel()
+	a := "{type: number, default: 1, x-foo: 1, x-same: s}"
+	b := "{type: number, default: 1.0, x-foo: 2, x-same: s, deprecated: true, x-deprecated-reason: use q}"
+	for _, order := range [][2]string{{a, b}, {b, a}} {
+		doc, diags := lowerSpec(t, nonBareSpec("", order[0], order[1]))
+		m, ok := doc.Types[componentID("T")].(*ir.Model)
+		require.True(t, ok)
+		require.Len(t, m.Properties, 1)
+		p := m.Properties[0]
+		first := "1"
+		if order[0] == b {
+			first = "2"
+		}
+
+		require.Contains(t, p.Unmodeled, "openapi:x-foo", "order %v", order)
+		assert.Equal(t, ir.RawValue(first), p.Unmodeled["openapi:x-foo"].Value, "the first value stands")
+		assert.Contains(t, p.Unmodeled, "openapi:x-same")
+		assert.Contains(t, p.Unmodeled, "openapi:conflicting-redeclaration/components/schemas/T/allOf/1/properties/v",
+			"the other declaration is kept verbatim")
+		require.NotNil(t, p.Deprecation)
+		assert.Equal(t, "use q", p.Deprecation.Message)
+		assert.Equal(t, "extension-promotion", p.Provenance.Inferred, "the promoted deprecation stays marked")
+		require.NotNil(t, p.Default)
+		require.Len(t, diags, 1, "only the extension given differently is reported: %+v", diags)
+		assert.Contains(t, diags[0].Message, "openapi:x-foo differently")
+	}
+}
+
+// TestAllOf_ContainerMembersAreJudgedAsFieldsAre pins that two lists' members
+// get the verdict two fields of those types get. Enums sharing no value, one
+// list never empty, are a conflict; the same lists both admitting the empty one
+// overlap in it. Members judged only as a fallback for top-level fields were
+// once left unrelated, which the merge reported as a pair it does not compare.
+func TestAllOf_ContainerMembersAreJudgedAsFieldsAre(t *testing.T) {
+	t.Parallel()
+	str, num := "{type: array, items: {type: string, enum: [a]}%s}", "{type: array, items: {type: integer, enum: [1]}}"
+	for _, tc := range []struct {
+		name, min string
+		code      string
+		sev       ir.Severity
+	}{
+		{"one list never empty", ", minItems: 1", diag.ConflictingRedecl, ir.SeverityWarning},
+		{"both lists admitting the empty one", "", diag.DegradedConstruct, ir.SeverityInfo},
+	} {
+		for _, order := range [][2]string{{fmt.Sprintf(str, tc.min), num}, {num, fmt.Sprintf(str, tc.min)}} {
+			_, diags := lowerSpec(t, nonBareSpec("", order[0], order[1]))
+			require.Len(t, diags, 1, "%s, order %v: %+v", tc.name, order, diags)
+			assert.Equal(t, tc.code, diags[0].Code, "%s, order %v", tc.name, order)
+			assert.Equal(t, tc.sev, diags[0].Severity, "%s, order %v", tc.name, order)
+			if tc.code == diag.DegradedConstruct {
+				assert.Contains(t, diags[0].Message, "whose values overlap", "%s, order %v", tc.name, order)
+			}
+		}
+	}
+}

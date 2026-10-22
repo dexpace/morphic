@@ -32,6 +32,9 @@ func written(source string) func() (ir.RawValue, error) {
 	return func() (ir.RawValue, error) { return ir.RawValue(source), nil }
 }
 
+// judge is the type judgment over the registry g reads.
+func judge(g *Merger) typeJudge { return typeJudge{Resolve: g.Resolve} }
+
 // stubMerger returns a Merger backed by a plain map and a diagnostic recorder,
 // with no lowerer, parser or document in the setup, so the conflict lattice can
 // be driven directly.
@@ -66,7 +69,9 @@ func indexOver(m *ir.Model, reg map[ir.TypeID]ir.TypeDef, g *Merger) (idx *PropI
 	}
 }
 
-func TestMerger_TypesConflictComparesReferentsNotReferences(t *testing.T) {
+// TestTypeJudge_ComparesReferentsNotReferences pins that the judgment reads
+// the nodes two references name, not the references.
+func TestTypeJudge_ComparesReferentsNotReferences(t *testing.T) {
 	t.Parallel()
 	g, _ := stubMerger(map[ir.TypeID]ir.TypeDef{
 		"t/a":   &ir.Primitive{ID: "t/a", Prim: ir.PrimString},
@@ -77,13 +82,13 @@ func TestMerger_TypesConflictComparesReferentsNotReferences(t *testing.T) {
 	})
 	ref := func(id ir.TypeID) ir.TypeRef { return ir.TypeRef{Target: id} }
 
-	assert.Equal(t, verdictOverlap, g.typesConflict(ref("t/a"), ref("t/b")),
-		"two distinct nodes of one primitive kind are compared by kind, and the fold left them apart")
-	assert.Equal(t, verdictConflict, g.typesConflict(ref("t/a"), ref("t/i")),
+	assert.Equal(t, relSame, judge(g).relate(ref("t/a"), ref("t/b")),
+		"two distinct nodes of one primitive kind are compared by kind")
+	assert.Equal(t, relDisjoint, judge(g).relate(ref("t/a"), ref("t/i")),
 		"string and integer cannot both be satisfied")
-	assert.Equal(t, verdictUncompared, g.typesConflict(ref("t/any"), ref("t/i")),
-		"the top type absorbs anything, so it conflicts with nothing")
-	assert.Equal(t, verdictConflict, g.typesConflict(ref("t/m"), ref("t/a")),
+	assert.Equal(t, relUnrelated, judge(g).relate(ref("t/any"), ref("t/i")),
+		"a degraded node stands for a declaration the judgment cannot see")
+	assert.Equal(t, relDisjoint, judge(g).relate(ref("t/m"), ref("t/a")),
 		"a structural type and a primitive are different kinds")
 }
 
@@ -130,10 +135,10 @@ func TestMerger_ResolvePrimKindReportsUnresolvableTargets(t *testing.T) {
 		"t/str": &ir.Primitive{ID: "t/str", Prim: ir.PrimString},
 	})
 
-	kind, ok := g.resolvePrimKind(ir.TypeRef{Target: "t/str"})
+	kind, ok := judge(g).primKind(ir.TypeRef{Target: "t/str"})
 	require.True(t, ok)
 	assert.Equal(t, ir.PrimString, kind)
 
-	_, ok = g.resolvePrimKind(ir.TypeRef{Target: "t/absent"})
+	_, ok = judge(g).primKind(ir.TypeRef{Target: "t/absent"})
 	assert.False(t, ok, "a target the registry does not hold resolves to no kind")
 }
