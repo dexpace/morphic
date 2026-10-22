@@ -2,6 +2,7 @@ package load
 
 import (
 	"encoding/json/jsontext"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -267,5 +268,129 @@ func TestJudgeSource_RefusesTheAnchorsNoReferenceCanName(t *testing.T) {
 			unresolved = unresolved || d.Code == diag.UnresolvedRef
 		}
 		assert.Equal(t, unresolved, refused, "%q: %+v", name, diags)
+	}
+}
+
+// TestLoad_ValidationErrorsBecomeDiagnostics pins that what the rule table
+// finds reaches the caller as a diagnostic at the node it is about: responses
+// written as a string is a field of the wrong type, placed by pointer and by
+// position.
+func TestLoad_ValidationErrorsBecomeDiagnostics(t *testing.T) {
+	t.Parallel()
+	src := compilers.Source{Path: "bad.yaml", Data: []byte("openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {/x: {get: {responses: \"nope\"}}}\n")}
+	_, diags, err := Load(t.Context(), 0, src, Options{})
+	require.NoError(t, err)
+	require.Len(t, diags, 1, "%+v", diags)
+	assert.Equal(t, diag.Validation+"/validation-type-mismatch", diags[0].Code)
+	assert.Equal(t, ir.Provenance{Pointer: "/paths/~1x/get/responses", Position: ir.Position{Line: 3, Column: 31}},
+		diags[0].Provenance)
+}
+
+// TestLoad_OperationIDAndParameterUniquenessAreOthersToReport pins the two
+// rules the table states and leaves to others: a repeated operationId is judged
+// by the service lowering once it has seen every claim (GitHub #502), a repeated
+// parameter by the load phase's check of every parameter list, which reports it
+// once. The table adds no report of either, for the alias form the library read
+// as a repeat or for a true one.
+func TestLoad_OperationIDAndParameterUniquenessAreOthersToReport(t *testing.T) {
+	t.Parallel()
+	const (
+		aliasedOperationID = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a: &item
+    get:
+      operationId: dup
+      responses: {"200": {description: ok}}
+  /b: *item
+`
+		repeatedOperationID = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a: {get: {operationId: dup, responses: {"200": {description: ok}}}}
+  /b: {get: {operationId: dup, responses: {"200": {description: ok}}}}
+`
+		duplicateParameter = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    get:
+      parameters:
+        - {name: q, in: query, schema: {type: string}}
+        - {name: q, in: query, schema: {type: integer}}
+      responses: {"200": {description: ok}}
+`
+	)
+	for _, spec := range []string{aliasedOperationID, repeatedOperationID, duplicateParameter} {
+		_, diags, err := Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(spec)}, Options{})
+		require.NoError(t, err)
+		for _, d := range diags {
+			assert.False(t, strings.HasPrefix(d.Code, diag.Validation+"/"), "no finding of the table: %+v", d)
+		}
+	}
+	_, diags, err := Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(duplicateParameter)}, Options{})
+	require.NoError(t, err)
+	assert.Equal(t, 1, countErrorsAt(diags, diag.DuplicateParameter), "%+v", diags)
+}
+
+// TestLoad_AnUnownedRuleIsReported is the control for the test above: the table
+// leaves two rules to others, not every one inside an operation, so a path
+// parameter not marked required must still surface.
+func TestLoad_AnUnownedRuleIsReported(t *testing.T) {
+	t.Parallel()
+	const optionalPathParameter = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a/{id}:
+    get:
+      parameters:
+        - {name: id, in: path, schema: {type: string}}
+      responses: {"200": {description: ok}}
+`
+	src := compilers.Source{Path: "spec.yaml", Data: []byte(optionalPathParameter)}
+	_, diags, err := Load(t.Context(), 0, src, Options{})
+	require.NoError(t, err)
+	assert.Equal(t, 1, countErrorsAt(diags, diag.Validation+"/validation-required-field"),
+		"a rule the table does not leave to others must still surface: %+v", diags)
+}
+
+// TestLoad_AFindingOnASourceNodeCarriesItsPointer pins that a finding on a node
+// of the source is placed at the node's JSON pointer as well as its position
+// (GitHub #803), the source it came from included. A node written under a
+// `<<` merge key keeps its position and has no pointer: the pairs it merges
+// are held at other pointers. A mapping that merely holds a merge keeps its own.
+func TestLoad_AFindingOnASourceNodeCarriesItsPointer(t *testing.T) {
+	t.Parallel()
+	const header = "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\n"
+	const (
+		required = "openapi/validation/validation-required-field"
+		allowed  = "openapi/validation/validation-allowed-values"
+		inline   = header + "paths:\n  /x:\n    get:\n      parameters:\n        - %s\n      responses: {\"200\": {description: ok}}\n"
+	)
+	for _, c := range []struct {
+		name, spec, marker, code string
+		pointer                  jsontext.Pointer
+	}{
+		{"a mapping", header + "paths: {}\ncomponents:\n  securitySchemes:\n    s: {type: oauth2}\n",
+			"{type: oauth2}", required, "/components/securitySchemes/s"},
+		{"a value", fmt.Sprintf(inline, "{name: q, in: sideways, schema: {type: string}}"),
+			"sideways", allowed, "/paths/~1x/get/parameters/0/in"},
+		{"a value under a merge key", fmt.Sprintf(inline, "<<: {name: q, in: sideways, schema: {type: string}}"),
+			"sideways", allowed, ""},
+		{"a mapping holding a merge key", header + "paths: {}\ncomponents:\n  securitySchemes:\n    s:\n      <<: {type: oauth2}\n",
+			"<<: {type: oauth2}", required, "/components/securitySchemes/s"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			line, col := markerPosition(t, c.spec, c.marker)
+
+			_, diags, err := Load(t.Context(), 2, openapitest.SourceOf(c.spec), Options{})
+
+			require.NoError(t, err)
+			require.Len(t, diags, 1, "%+v", diags)
+			assert.Equal(t, c.code, diags[0].Code)
+			assert.Empty(t, cmp.Diff(ir.Provenance{Source: 2, Pointer: c.pointer, Position: ir.Position{Line: line, Column: col}},
+				diags[0].Provenance))
+		})
 	}
 }

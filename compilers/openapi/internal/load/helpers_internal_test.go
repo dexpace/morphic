@@ -58,3 +58,23 @@ func readingIf(external bool) Options {
 	}
 	return Options{}
 }
+
+// resolverPanicSpec is a document the parser accepts and the resolver faults on:
+// `B: {$ref}` is a mapping whose $ref key carries no value, so populating the
+// response reference that points at it nil-dereferences inside speakeasy.
+// FuzzCycleDetector found it; the same bytes are committed as a corpus entry.
+const resolverPanicSpec = "openapi: 3.0\ncomponents:\n responses:\n  000: {$ref: '#/B'}\nB: {$ref}"
+
+// countErrorsAt counts the error-severity diagnostics carrying code. Severity is
+// fixed rather than a parameter because every refusal this package reports is an
+// error, and a lower severity here would be a different assertion than any test
+// makes.
+func countErrorsAt(diags []ir.Diagnostic, code string) int {
+	var n int
+	for _, d := range diags {
+		if d.Code == code && d.Severity == ir.SeverityError {
+			n++
+		}
+	}
+	return n
+}
