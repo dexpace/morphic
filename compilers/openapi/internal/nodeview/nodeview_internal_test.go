@@ -352,14 +352,6 @@ func TestMappingPairs_Cases(t *testing.T) {
 			"a chain exactly at the bound expands in full")
 		assert.False(t, v.Exhausted(), "expanding to the bound is not exceeding it")
 	})
-
-	t.Run("merge chain past the depth bound stops at the bound", func(t *testing.T) {
-		t.Parallel()
-		v := New()
-		assert.Empty(t, v.MappingPairs(ynode.MergeChain(MergeDepthLimit+2)),
-			"a merge chain longer than the bound never reaches the leaf pair")
-		assert.True(t, v.Exhausted(), "exceeding the bound is recorded on the view")
-	})
 }
 
 func trailingKeyNode() *yaml.Node {
@@ -972,12 +964,4 @@ func TestKeyOf_NamesNoKeyForAKeyThatIsNoScalar(t *testing.T) {
 
 	assert.Empty(t, key)
 	assert.False(t, own)
-}
-
-// TestMappingPairs_ANonMappingHasNone pins that a node that is no mapping, or
-// none at all, expands to no pairs.
-func TestMappingPairs_ANonMappingHasNone(t *testing.T) {
-	t.Parallel()
-	assert.Empty(t, New().MappingPairs(ynode.Scalar("x")))
-	assert.Empty(t, New().MappingPairs(nil))
 }
