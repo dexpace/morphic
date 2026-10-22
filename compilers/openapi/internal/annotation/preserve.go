@@ -58,10 +58,11 @@ func PreserveNodeInto(p *ir.Unmodeled, key string, node *yaml.Node,
 }
 
 // PreserveSchemaKeyword is PreserveNodeInto addressed by keyword: it keeps what
-// s, the schema at pointer, writes under keyword, keyed as the census keys it
-// (EntryKey) and located at the keyword's own node. Deriving both here, rather
-// than taking them, leaves no caller a way to key the entry where the census
-// would not find it, or to place it anywhere but the node that wrote it.
+// s, the schema at pointer, writes under keyword, keyed by EntryKey and located
+// at the keyword itself. Those are the key and the position the census checks
+// before keeping a keyword on its own (unrecorded). Deriving both here leaves
+// no caller a way to have the census keep the keyword again under another key,
+// or report a collision with this entry.
 //
 // An absent keyword is no construct: it keeps nothing and asks locate nothing.
 func PreserveSchemaKeyword(p *ir.Unmodeled, s *oas3.Schema, keyword string,

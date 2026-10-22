@@ -62,9 +62,9 @@ func EffectiveVisibility(ref, tgt *oas3.Schema) (ir.Visibility, bool) {
 }
 
 // EffectiveDefault returns the default ref writes, or else the one its referent
-// tgt writes, use-site over referent, for the carrier at pointer to keep: a
-// property or a parameter. A schema writing none yields nothing; an
-// unconvertible node yields a warning at pointer and no value.
+// tgt writes, for the carrier at pointer to keep: a property or a parameter. A
+// schema writing none yields nothing; an unconvertible node yields a warning at
+// pointer and no value.
 func EffectiveDefault(ref, tgt *oas3.Schema, pointer jsontext.Pointer, locate Locator) (*ir.Value, []ir.Diagnostic) {
 	node := ref.GetDefault()
 	if node == nil && tgt != nil {
@@ -477,13 +477,16 @@ func dialectAt(s *oas3.Schema, pointer jsontext.Pointer, locate Locator) (ir.Unm
 func schemaExamplesAt(s *oas3.Schema, pointer jsontext.Pointer, locate Locator) ([]ir.Example, []ir.Diagnostic) {
 	var out []ir.Example
 	var diags []ir.Diagnostic
+	add := func(node *yaml.Node, seg ...string) {
+		var exDiags []ir.Diagnostic
+		out, exDiags = AppendExample(out, ir.Example{}, node, locate, pointer, seg...)
+		diags = append(diags, exDiags...)
+	}
 	if node := s.GetExample(); node != nil {
-		out, diags = AppendExample(out, ir.Example{}, node, locate, pointer, "example")
+		add(node, "example")
 	}
 	for i, node := range s.GetExamples() {
-		var exDiags []ir.Diagnostic
-		out, exDiags = AppendExample(out, ir.Example{}, node, locate, pointer, "examples", strconv.Itoa(i))
-		diags = append(diags, exDiags...)
+		add(node, "examples", strconv.Itoa(i))
 	}
 	return out, diags
 }

@@ -475,7 +475,7 @@ func TestWalkImports_AnInheritingPackageIsNamed(t *testing.T) {
 // TestWalkImports_AnUnusedAllowanceIsReported plants a tree that imports one of
 // three allowed entries directly and a second through its subtree, and holds
 // the walk to naming the third alone. A subtree entry is used by any import
-// beneath it, as importAllowed admits one; an entry only an unaudited test file
+// beneath it, as entryAdmits admits one; an entry only an unaudited test file
 // imports is still unused.
 func TestWalkImports_AnUnusedAllowanceIsReported(t *testing.T) {
 	t.Parallel()

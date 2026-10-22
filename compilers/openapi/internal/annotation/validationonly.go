@@ -126,9 +126,10 @@ func validationOnlyAt(s *oas3.Schema, pointer jsontext.Pointer, locate Locator) 
 	var p ir.Unmodeled
 	var diags []ir.Diagnostic
 
-	// A keyword whose entry is its own node is kept by keyword. The entries
-	// combining several keywords into one object — if/then/else, contains,
-	// unevaluated — are kept by keep, because no single keyword names those.
+	// A keyword kept at its own node goes through PreserveValidationOnlyKeyword.
+	// The entries combining several keywords into one object — if/then/else,
+	// contains, unevaluated — go through keep, because no single keyword names
+	// those.
 	keepKeyword := func(keyword string) {
 		diags = append(diags, PreserveValidationOnlyKeyword(&p, s, keyword, pointer, locate)...)
 	}

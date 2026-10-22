@@ -97,6 +97,26 @@ func TestPreserveSchemaKeyword_ReportsAnUnkeptKeywordAtItsNode(t *testing.T) {
 	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/S/default"}, diags[0].Provenance)
 }
 
+// TestPreserveSchemaKeyword_TheCensusLeavesItsEntryAlone holds the function to
+// the reason it derives its key and position: the census, run after it as the
+// schema lowering runs it, finds the entry it wrote and adds nothing. A key it
+// does not recognise would be kept a second time, and a position it does not
+// recognise reported as a collision.
+func TestPreserveSchemaKeyword_TheCensusLeavesItsEntryAlone(t *testing.T) {
+	t.Parallel()
+	s := schemaFromYAML(t, "type: string\nnullable: true\n")
+	var p ir.Unmodeled
+	kept, diags := PreserveSchemaKeyword(&p, s, "nullable", ir.ReasonDegradedLowering, "/S", sourced(0))
+	require.True(t, kept)
+	require.Empty(t, diags)
+
+	census := UndefinedKeywordsIn(&p, s, []string{"nullable"}, "/S", sourced(0))
+
+	assert.Empty(t, census, "the census announces nothing it did not keep")
+	require.Len(t, p, 1, "and keeps no second entry")
+	assert.Equal(t, ir.ReasonDegradedLowering, p[EntryKey("", "nullable")].Reason, "nor rewrites this one")
+}
+
 // TestPreserveValidationOnlyKeyword_SplitsTheEntryFromItsAnnouncement pins the
 // two positions it derives: the entry at the keyword's own node, which a
 // validation emitter reports against, and the announcement at the schema that

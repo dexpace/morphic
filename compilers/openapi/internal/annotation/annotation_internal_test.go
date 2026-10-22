@@ -661,9 +661,11 @@ func TestAppendExample_ConvertsAndAppends(t *testing.T) {
 
 	assert.Empty(t, diags, "a convertible node is announced by nothing")
 	require.Len(t, out, 1)
-	assert.Equal(t, "n", out[0].Name, "the prototype's own fields survive")
 	require.NotNil(t, out[0].Value)
 	assert.Equal(t, "hello", out[0].Value.Str)
+	got := out[0]
+	got.Value = nil
+	assert.Equal(t, proto, got, "the prototype's own fields survive unchanged")
 }
 
 // TestAppendExample_UnconvertibleValueIsReported pins the other half: a node
