@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -1528,4 +1529,45 @@ func TestResolve_AReachedObjectIsHeldToTheLaterVersionTable(t *testing.T) {
 		require.Len(t, diags, 1)
 		assert.Equal(t, 1, diags[0].Provenance.Source, "placed in other.yaml's entry")
 	})
+}
+
+// TestLoad_ExternalRefResolutionErrors pins how a finding inside a document an
+// external reference names is reported: under its own rule and severity, in
+// that document's Document.Sources entry, at the node it is about (GitHub #537,
+// #1030). Findings come in the table's order: an object's missing fields, then
+// the fields it holds.
+func TestLoad_ExternalRefResolutionErrors(t *testing.T) {
+	t.Parallel()
+	path := "../../../../testdata/openapi/resolve_main_external.yaml"
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+	ld, diags, loadErr := Load(t.Context(), 0, compilers.Source{Path: path, Data: data},
+		Options{Reader: reader.Disk{}})
+	require.NoError(t, loadErr)
+	require.NotNil(t, ld)
+
+	want := []struct {
+		severity ir.Severity
+		code     string
+		at       ir.Provenance
+		message  string
+	}{
+		{ir.SeverityError, "openapi/validation/validation-required-field",
+			ir.Provenance{Source: 1, Pointer: "/components/responses/Bad", Position: ir.Position{Line: 7, Column: 7}},
+			"Response Object field \"description\" is REQUIRED in OpenAPI 3.1 (Response Object)"},
+		{ir.SeverityError, "openapi/validation/validation-type-mismatch",
+			ir.Provenance{Source: 1, Pointer: "/components/responses/Bad/headers/X/required",
+				Position: ir.Position{Line: 10, Column: 21}},
+			"Header Object field \"required\" must be a boolean in OpenAPI 3.1 (Header Object)"},
+	}
+	require.Len(t, diags, len(want), "%+v", diags)
+	for i, w := range want {
+		assert.Equal(t, w.severity, diags[i].Severity, "entry %d", i)
+		assert.Equal(t, w.code, diags[i].Code, "entry %d", i)
+		assert.Equal(t, w.at, diags[i].Provenance, "entry %d", i)
+		assert.Equal(t, w.message, diags[i].Message, "entry %d", i)
+	}
+	other, ok := ld.Others.At(1)
+	require.True(t, ok)
+	assert.Equal(t, "resolve_target_invalid.yaml", other.Label, "the document the $ref names")
 }

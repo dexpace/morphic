@@ -382,3 +382,25 @@ components:
 	require.NoError(t, err)
 	openapitest.RequireNoErrorDiags(t, diags)
 }
+
+// errorSites returns where each error of the given code is reported, in order.
+func errorSites(diags []ir.Diagnostic, code string) []jsontext.Pointer {
+	var sites []jsontext.Pointer
+	for _, d := range diags {
+		if d.Code == code && d.Severity == ir.SeverityError {
+			sites = append(sites, d.Provenance.Pointer)
+		}
+	}
+	return sites
+}
+
+// countErrors counts the errors among diags, whatever their code.
+func countErrors(diags []ir.Diagnostic) int {
+	var n int
+	for _, d := range diags {
+		if d.Severity == ir.SeverityError {
+			n++
+		}
+	}
+	return n
+}
