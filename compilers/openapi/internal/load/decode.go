@@ -55,10 +55,10 @@ type Parsed struct {
 func (p *Parsed) Root() *yaml.Node { return p.root }
 
 // Decode parses source bytes into the document the compile lowers and what
-// follows it. It is decode under an exported name, for detection to read the
-// same document the compile will (GitHub #481) and to leave the parse behind
-// for it (Parsed). The error is the parser's own, unwrapped, since detection
-// quotes it; the compile wraps it as ErrParse.
+// follows it. It is decodeStream under an exported name, for detection to read
+// the same document the compile will (GitHub #481) and to leave the parse
+// behind for it (Parsed). The error is the parser's own, unwrapped, since
+// detection quotes it; the compile wraps it as ErrParse.
 func Decode(data []byte) (*Parsed, error) {
 	root, rest, err := decodeStream(data)
 	if err != nil {
@@ -75,8 +75,8 @@ func Decode(data []byte) (*Parsed, error) {
 // into a pooled buffer hands back the same backing array with different bytes,
 // and the compile would lower a tree the source no longer holds while stamping
 // SourceInfo.Hash from the bytes it does, breaking the identity that snapshots,
-// IR diffing and caching key on (ir-design §7). The digest costs nothing extra:
-// SourceInfo.Hash records it anyway.
+// IR diffing and caching key on (architecture.md §1). The digest costs nothing
+// extra: SourceInfo.Hash records it anyway.
 func parsedFor(src compilers.Source) (*Parsed, error) {
 	// A nil *Parsed stored in the interface is not a nil interface, so the
 	// assertion succeeds and hands back nothing to read; ir.IsNilTypeDef and
@@ -125,9 +125,9 @@ func firstWithContent(dec *yaml.Decoder) (*yaml.Node, error) {
 	return first, nil
 }
 
-// maxStreamDocuments bounds how many documents decode reads past the one it
-// takes, to count them, and how many it reads to find one. Each is parsed into
-// a tree that is never lowered, so the bound caps what a stream can cost
+// maxStreamDocuments bounds how many documents decodeStream reads past the one
+// it takes, to count them, and how many it reads to find one. Each is parsed
+// into a tree that is never lowered, so the bound caps what a stream can cost
 // beyond the byte budget it already fits; a stream past it is reported as
 // holding at least that many, never as fewer.
 const maxStreamDocuments = 1024
@@ -148,16 +148,15 @@ type tail struct {
 	// is a floor.
 	capped bool
 	// unparsed reports that the stream continued with content yaml.v3 could
-	// not parse — bytes yaml.Unmarshal never read, since it parses one document
-	// per call. What it could not parse is not always malformed: a later
+	// not parse. What it could not parse is not always malformed: a later
 	// document opening with a %YAML directive is refused as "incompatible", as
 	// it would be as the first document too.
 	unparsed bool
 }
 
-// readTail reads the documents that follow the one decode took, counting those
-// that hold content. A document that holds nothing — a bare separator, an
-// explicit null — is what a trailing `---` produces, and skipping it drops
+// readTail reads the documents that follow the one decodeStream took, counting
+// those that hold content. A document that holds nothing — a bare separator,
+// an explicit null — is what a trailing `---` produces, and skipping it drops
 // nothing, on the same reading firstWithContent skips a leading one by.
 func readTail(dec *yaml.Decoder) tail {
 	var t tail

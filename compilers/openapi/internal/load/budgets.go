@@ -8,8 +8,8 @@ import (
 )
 
 // exceeds reports whether an observed count crosses limit, treating a zero or
-// negative limit as unbounded. Both budgets are read through it so that "no
-// budget set" cannot be spelled two ways.
+// negative limit as unbounded. The byte, node and external-document budgets
+// are all read through it, so that "no budget set" cannot be spelled two ways.
 func exceeds(observed, limit int) bool {
 	return limit > 0 && observed > limit
 }
@@ -39,10 +39,10 @@ func OverByteBudget(prov ir.Provenance, data []byte, limit int) (ir.Diagnostic, 
 // alias node has empty Content in yaml.v3 and its edge is never followed, so
 // the iterative walk visits each node once.
 //
-// The alias-amplification budget in scan takes the same measure of the same
-// tree. The two walks are deliberately not shared: ten lines over a third-party
-// node type are not worth a dependency between two packages with different
-// jobs.
+// sourceindex.Index.Nodes, which scan's alias-amplification bound reads, takes
+// the same measure of the document's content, leaving the document node out.
+// The node budget does not read it, since refusals builds that index and keeps
+// none of it.
 func nodeCount(root *yaml.Node) int {
 	if root == nil {
 		return 0

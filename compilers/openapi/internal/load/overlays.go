@@ -11,8 +11,9 @@ import (
 )
 
 // patch applies the caller's overlay to the decoded tree, or does nothing when
-// there is none. The overlay document is refused first if the library would
-// follow its aliases without end (overlayRefusals); applyOverlay does the rest.
+// there is none. The overlay document is refused first if it is too large, too
+// deep, or aliased past what the library can follow (overlayRefusals);
+// applyOverlay does the rest.
 func patch(srcIndex int, root *yaml.Node, opts Options) (overlay.Origin, []ir.Diagnostic) {
 	if opts.Overlay == nil {
 		return overlay.Origin{}, nil
@@ -27,9 +28,9 @@ func patch(srcIndex int, root *yaml.Node, opts Options) (overlay.Origin, []ir.Di
 // from the library is incomplete.
 //
 // It re-runs the pre-parse refusals afterwards, because an overlay action can
-// graft a $ref cycle onto a document that had none. They locate through the
-// attribution the application produced, so a refusal on a grafted node names
-// the overlay, not a position the node lacks.
+// graft what they refuse, such as nesting past the bound. They locate through
+// the attribution the application produced, so a refusal on a grafted node
+// names the overlay, not a position the node lacks.
 func applyOverlay(srcIndex int, root *yaml.Node, opts Options, pre []ir.Diagnostic) (overlay.Origin, []ir.Diagnostic) {
 	if diag.HasError(pre) {
 		return overlay.Origin{}, pre
