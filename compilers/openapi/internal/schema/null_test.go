@@ -236,6 +236,19 @@ func TestNullSchema_AnEntryIsTheEmptySchemaAndAKeywordIsLeftOut(t *testing.T) {
 			},
 		},
 		{
+			name: "a conjunct whose $ref lands on a null component, beside one admitting null",
+			null: "    N: null\n    A:\n      type: object\n      properties:\n        p:\n          allOf:\n" +
+				"            - {$ref: '#/components/schemas/N'}\n            - {type: [string, 'null']}\n",
+			twin: "    N: {}\n    A:\n      type: object\n      properties:\n        p:\n          allOf:\n" +
+				"            - {$ref: '#/components/schemas/N'}\n            - {type: [string, 'null']}\n",
+			suffix: "/properties/p/allOf/0",
+			shape: func(t *testing.T, td ir.TypeDef) {
+				m := asKind[*ir.Model](t, td)
+				require.Len(t, m.Properties, 1)
+				assert.True(t, m.Properties[0].Type.Nullable, "what the $ref lands on no longer forbids null")
+			},
+		},
+		{
 			name:    "items on an array of 3.0, which still warns that it has none",
 			version: "3.0.3",
 			null:    "    A:\n      type: array\n      items: null\n",
