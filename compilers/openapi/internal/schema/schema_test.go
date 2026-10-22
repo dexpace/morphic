@@ -1421,7 +1421,7 @@ func TestSchema_RefNullableAcrossSpellings(t *testing.T) {
 			msg:          "3.1 type-array null on a nullable scalar component lifts to the ref",
 		},
 		{
-			name:    "3.1 ref-site sibling type array lifts nullability",
+			name:    "3.1 ref-site sibling type array widens a target excluding null",
 			version: "3.1.0",
 			schemas: `    Owner:
       type: object
@@ -1431,7 +1431,33 @@ func TestSchema_RefNullableAcrossSpellings(t *testing.T) {
 `,
 			wantNullable: true,
 			wantTarget:   targetID,
-			msg:          "3.1 type-array null as a $ref-site sibling lifts to the ref",
+			msg:          "the nullable-widening policy reads a null beside the $ref as a nullable reference",
+		},
+		{
+			name:    "3.1 ref-site sibling type array conjoins with a target admitting null",
+			version: "3.1.0",
+			schemas: `    Owner:
+      type: object
+      properties:
+        p: {$ref: '#/components/schemas/Target', type: [string, "null"]}
+    Target: {type: [string, "null"]}
+`,
+			wantNullable: true,
+			wantTarget:   targetID,
+			msg:          "both conjuncts admit null, so the usage does",
+		},
+		{
+			name:    "3.1 ref-site sibling type narrows a target admitting null",
+			version: "3.1.0",
+			schemas: `    Owner:
+      type: object
+      properties:
+        p: {$ref: '#/components/schemas/Target', type: [string]}
+    Target: {type: [string, "null"]}
+`,
+			wantNullable: false,
+			wantTarget:   targetID,
+			msg:          "a sibling type without null takes it out of what the target admits",
 		},
 		{
 			name:    "3.1 non-null ref-site sibling type array (negative control)",
@@ -4729,7 +4755,7 @@ func TestDynamicRef_NonScalarValueIsKeptNotExpanded(t *testing.T) {
 // prototype changes, so a site that fills in a name or a description keeps it.
 func TestAppendExample_ConvertsAndAppends(t *testing.T) {
 	t.Parallel()
-	c := lowering.New(0, &soa.OpenAPI{}, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, overlay.Origin{})
+	c := lowering.New(0, &soa.OpenAPI{}, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{})
 	proto := ir.Example{Name: "n", Summary: "s", Description: "d"}
 
 	out, diags := schema.AppendExample(c, nil, proto, openapitest.StrNode("hello"), "/p", "examples", "n")
@@ -4747,7 +4773,7 @@ func TestAppendExample_ConvertsAndAppends(t *testing.T) {
 // that joins them, so a wrong join shows up nowhere else.
 func TestAppendExample_UnconvertibleValueIsReported(t *testing.T) {
 	t.Parallel()
-	c := lowering.New(0, &soa.OpenAPI{}, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, overlay.Origin{})
+	c := lowering.New(0, &soa.OpenAPI{}, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{})
 	nan := &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!float", Value: ".nan"}
 
 	out, diags := schema.AppendExample(c, nil, ir.Example{}, nan, "/p", "examples", "n")

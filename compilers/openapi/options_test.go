@@ -52,6 +52,7 @@ func TestDecodeOptions_TextReachesEveryField(t *testing.T) {
 			"allow-external-refs":    "true",
 			"overlay":                "patch.yaml",
 			"overlay-lax":            "true",
+			"nullable-widening":      "false",
 			"max-source-bytes":       "11",
 			"max-source-nodes":       "-1",
 			"max-enum-members":       "0",
@@ -70,6 +71,7 @@ func TestDecodeOptions_TextReachesEveryField(t *testing.T) {
 	assert.Equal(t, "patch.yaml", opts.Overlay.Path)
 	assert.Equal(t, overlayDoc, string(opts.Overlay.Data))
 	assert.True(t, opts.Overlay.Lax)
+	assert.True(t, opts.NullableWidening.Disabled, "nullable-widening=false turns the policy off")
 	assert.Equal(t, Limits{MaxSourceBytes: 11, MaxSourceNodes: -1, MaxAliasSurplus: 13, MaxExternalDocuments: 14},
 		opts.Limits, "each budget as the Go field reads it, 0 left for the default")
 }
@@ -114,7 +116,8 @@ func TestDecodeOptions_Refusals(t *testing.T) {
 	}{
 		{"unknown name", map[string]string{"gruoping": "tags"}, nil,
 			`unknown option "gruoping" (known: allow-external-refs, grouping, max-alias-surplus, ` +
-				`max-enum-members, max-external-documents, max-source-bytes, max-source-nodes, overlay, overlay-lax)`},
+				`max-enum-members, max-external-documents, max-source-bytes, max-source-nodes, nullable-widening, overlay, ` +
+				`overlay-lax)`},
 		{"non-integer budget", map[string]string{"max-source-bytes": "64MiB"}, nil,
 			`"max-source-bytes": want an integer (0 for the default, negative for none), got "64MiB"`},
 		{"budget past an int", map[string]string{"max-source-nodes": "99999999999999999999"}, nil,
@@ -123,6 +126,8 @@ func TestDecodeOptions_Refusals(t *testing.T) {
 			`"max-external-documents": want an integer`},
 		{"unknown grouping", map[string]string{"grouping": "alphabetical"}, nil,
 			`want "tags" or "path-prefix", got "alphabetical"`},
+		{"non-boolean policy", map[string]string{"nullable-widening": "maybe"}, nil,
+			`option "nullable-widening": want a boolean, got "maybe"`},
 		{"non-boolean", map[string]string{"allow-external-refs": "yes please"}, nil,
 			`want a boolean, got "yes please"`},
 		{"non-boolean laxness", map[string]string{"overlay": "p.yaml", "overlay-lax": "sort of"},

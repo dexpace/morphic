@@ -93,6 +93,15 @@ func (r *reporter) later(obj Object, key, value string, since Minor, ptr jsontex
 		what, obj.Name, since, r.declared, since), ptr)
 }
 
+// laterSibling adds the warning for key, written beside the $ref of obj in a
+// document declaring minor, which ignores it, where since applies it.
+func (r *reporter) laterSibling(obj Object, key string, minor, since Minor, ptr jsontext.Pointer) {
+	r.add(diag.Newf(ir.SeverityWarning, diag.LaterVersionConstruct, r.locate(ptr),
+		"keyword %q beside the $ref of a %s is ignored by OpenAPI %s and applied by OpenAPI %s, "+
+			"and this document declares %s; it is lowered as in an OpenAPI %s document",
+		key, obj.Name, minor, since, r.declared, since), ptr)
+}
+
 // repeated warns of each key the mapping at ptr writes more than once: the
 // model reads the last copy and drops the rest without a word. what names the
 // mapping in the message.

@@ -209,3 +209,73 @@ func TestVerify_SchemeCredentialsAreReferences(t *testing.T) {
 	assert.Equal(t, "ir/dangling-type-ref", got[0].Code)
 	assert.Equal(t, "doc.Auth[auth/x/s].Credentials.Target", got[0].Path)
 }
+
+// inferredViolations returns the ir/type-ref-inferred-not-nullable violations
+// in doc.
+func inferredViolations(t *testing.T, doc *ir.Document) []irverify.Violation {
+	t.Helper()
+	var out []irverify.Violation
+	for _, v := range verifyDeclared(doc) {
+		if v.Code == "ir/type-ref-inferred-not-nullable" {
+			out = append(out, v)
+		}
+	}
+	return out
+}
+
+// TestVerify_AnInferredMarkerOnANonNullableReferenceIsAViolation holds a
+// TypeRef's Inferred to the bit it qualifies. A reference that admits null
+// carries the marker cleanly, and one that admits none is reported at the
+// marker, wherever the reference sits: under Types and under Services alike.
+func TestVerify_AnInferredMarkerOnANonNullableReferenceIsAViolation(t *testing.T) {
+	t.Parallel()
+	model := func(ref ir.TypeRef) *ir.Document {
+		return closedDoc(&ir.Model{
+			ID:   "t/x/M",
+			Name: ir.Naming{Source: "M", Canonical: "m"},
+			Properties: []ir.Property{{
+				ID: "p/x/M/f", Name: ir.Naming{Source: "f", Canonical: "f"}, Type: ref,
+			}},
+		})
+	}
+	param := func(ref ir.TypeRef) *ir.Document {
+		return operationDoc(ir.Parameter{ID: "prm/x/S/op/q", Name: named("q"), Type: ref})
+	}
+	for _, tc := range []struct {
+		name string
+		doc  *ir.Document
+		path string
+	}{
+		{
+			name: "a property's marked reference that admits no null",
+			doc:  model(ir.TypeRef{Target: "t/x/Leaf", Inferred: "nullable-widening"}),
+			path: "doc.Types[t/x/M].Properties[0].Type.Inferred",
+		},
+		{
+			name: "a parameter's marked reference that admits no null",
+			doc:  param(ir.TypeRef{Target: "t/x/Leaf", Inferred: "nullable-widening"}),
+			path: "doc.Services[0].Groups[0].Operations[0].Params[0].Type.Inferred",
+		},
+		{
+			name: "a property's marked reference that admits null",
+			doc:  model(ir.TypeRef{Target: "t/x/Leaf", Nullable: true, Inferred: "nullable-widening"}),
+		},
+		{
+			name: "a parameter's unmarked reference that admits no null",
+			doc:  param(ir.TypeRef{Target: "t/x/Leaf"}),
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := inferredViolations(t, tc.doc)
+			if tc.path == "" {
+				assert.Empty(t, got)
+				return
+			}
+			require.Len(t, got, 1, "the marker is reported exactly once")
+			assert.Equal(t, tc.path, got[0].Path)
+			assert.Contains(t, got[0].Message, "nullable-widening")
+			assert.Empty(t, typeRefViolations(t, tc.doc), "a marked reference names its target")
+		})
+	}
+}

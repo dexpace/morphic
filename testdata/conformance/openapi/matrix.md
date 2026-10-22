@@ -69,7 +69,8 @@ witnessing it.
 ### `optionality-vs-nullability`
 
 - Witnesses: `nullable-union-discriminator`, `nullability-four-states`, `nullable-30`,
-  `nullable-31-ref`, `nullable-enum-31`, `nullability-conjunction`, `null-only-union`
+  `nullable-31-ref`, `nullable-enum-31`, `nullability-conjunction`, `null-only-union`,
+  `nullable-keyword-30`, `nullable-keyword-31`
 
 ### `defaults`
 

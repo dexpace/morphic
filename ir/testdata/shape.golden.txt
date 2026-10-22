@@ -805,6 +805,7 @@ type TypeKind string
 	const "union"
 
 type TypeRef struct
+	"inferred" string omitempty
 	"nullable" bool
 	"target" TypeID
 

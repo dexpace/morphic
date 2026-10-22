@@ -1019,6 +1019,11 @@ zero is not serialized. `ClientOptional` relaxes the client-side type even when 
 `DefaultAdded` may be suppressed for back-compat. Where Go's zero value would force a *deliberate*
 collapse of two states, a `Diagnostic` is emitted — never a silent conflation (§13 test T-3).
 
+A nullable reference whose `TypeRef.Inferred` names a heuristic renders as nullable like any
+other: the compiler's policy already chose to read null in, and the marker is there so that choice
+stays auditable (INV6). A configuration that wants only what the source declares reads
+`Nullable && Inferred == ""` instead, which is the declared bit (ir-design §3.3).
+
 Presence is stated in `encoding/json/v2` terms, and `omitempty` never keeps a presence state. v2
 defines `omitempty` by the encoded JSON — a field is dropped when it would encode as `null`, `""`,
 `{}` or `[]` — so it keeps a zero number or `false` and drops a pointer to an empty struct: a set

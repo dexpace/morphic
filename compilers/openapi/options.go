@@ -62,6 +62,16 @@ const (
 	TargetEnumOpen = lowering.TargetEnumOpen
 )
 
+// NullableWidening is the nullable-widening policy: whether a null a schema
+// spells, by `nullable: true` or beside a $ref, widens what it is written on. It
+// is another injectable-policy seam (architecture principle 6), and is named
+// here rather than restated for the reason GroupingStrategy is.
+type NullableWidening = lowering.NullableWidening
+
+// NullableWideningHeuristic is the name ir.TypeRef.Inferred carries on a
+// reference whose null the nullable-widening policy read in.
+const NullableWideningHeuristic = lowering.NullableWideningHeuristic
+
 // DefaultExtensionPromotions returns the extension-to-field mapping applied
 // when the caller names none. It is exported so a caller changing the mapping
 // can start from it rather than transcribe it.
@@ -89,6 +99,10 @@ type Options struct {
 	// The zero value is the default mapping, on; a caller who wants extensions
 	// kept verbatim and nothing more disables it.
 	Promotions ExtensionPromotions `json:"promotions"`
+	// NullableWidening selects whether a null a schema spells widens what it is
+	// written on, a reference it decides marked as inferred. The zero value is
+	// on; a caller who wants only what the document's version says disables it.
+	NullableWidening NullableWidening `json:"nullableWidening"`
 	// AllowExternalRefs lets a read of another document leave the directory of
 	// Source.Path, against which references resolve, for any file and http(s)
 	// URLs. Off by default, since a spec is untrusted: reads stay inside that
@@ -286,6 +300,7 @@ const (
 	optAllowExternalRefs = "allow-external-refs"
 	optOverlay           = "overlay"
 	optOverlayLax        = "overlay-lax"
+	optNullableWidening  = "nullable-widening"
 )
 
 // limitOptions maps the name of each budget in l to the field it sets, so a
@@ -304,7 +319,7 @@ func limitOptions(l *Limits) map[string]*int {
 // outside it. Deriving the list from one place is what keeps the error honest
 // as the vocabulary grows.
 func optionNames() []string {
-	names := []string{optGrouping, optAllowExternalRefs, optOverlay, optOverlayLax}
+	names := []string{optGrouping, optAllowExternalRefs, optOverlay, optOverlayLax, optNullableWidening}
 	names = slices.AppendSeq(names, maps.Keys(limitOptions(&Limits{})))
 	slices.Sort(names)
 	return names
@@ -357,6 +372,13 @@ func (d *optionDecode) set(key, value string) error {
 	case optOverlayLax:
 		d.laxSet = true
 		return decodeBool(&d.lax, key, value)
+	case optNullableWidening:
+		// The text names the policy as on or off, and the Go field its being off,
+		// as the other policies' Disabled does.
+		on := true
+		err := decodeBool(&on, key, value)
+		d.opts.NullableWidening.Disabled = !on
+		return err
 	}
 	if budget, ok := limitOptions(&d.opts.Limits)[key]; ok {
 		return decodeBudget(budget, key, value)

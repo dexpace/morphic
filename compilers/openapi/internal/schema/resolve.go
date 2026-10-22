@@ -161,7 +161,7 @@ func refTypeRef(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, js *oas
 	ref := js.GetRef().String()
 	id, ok := resolveSchemaRef(c, ts, anchors, js)
 	if ok {
-		return ir.TypeRef{Target: id, Nullable: refNullable(c, js)}, nil
+		return refNullRef(c, id, js, siteAt(pointer))
 	}
 	if onLoop(c, js) {
 		return ts.PrimRef(ir.PrimAny), nil
@@ -393,12 +393,4 @@ var structuralRoles = map[string]string{
 // positionStep takes it separately.
 var keyedSchemaMaps = map[string]bool{
 	"properties": true, "$defs": true, "definitions": true, "dependentSchemas": true, "dependencies": true,
-}
-
-// refNullable reports whether a $ref usage admits null: the reference site or
-// its resolved target admits null in any spelling. It is schemaAdmitsNull read
-// across the reference (refNullVerdict), so the two cannot answer one schema
-// differently.
-func refNullable(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) bool {
-	return newNulls(c.Bindings()).refVerdict(js) == nullAdmitted
 }
