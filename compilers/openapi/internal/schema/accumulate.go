@@ -75,17 +75,32 @@ func PreserveSchemaKeyword(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, keyw
 }
 
 // PreserveUnknownKeywords records every keyword s writes that no field of the
-// schema model names and no reader above it already kept (GitHub #297).
+// schema model names, or that the model names and the dialect does not define
+// (undefinedKeywords), and no reader above it already kept (GitHub #297).
 //
-// It is the last thing an attachment does, which is the contract
-// annotation.UnknownKeywordsIn states and the reason it is called here rather
-// than from inside annotation.Read with the other readers: $dynamicRef has no
-// field in the schema model either and is decided by recordUnexpandedDynamicRef,
-// which runs after Read and deliberately keeps nothing once the reference has
-// expanded. A census running before it could not tell that from an unread
-// keyword.
+// It is the last thing an attachment does, as annotation.UnknownKeywordsIn
+// requires, so it is called here rather than inside annotation.Read:
+// $dynamicRef has no field in the schema model either and is decided by
+// recordUnexpandedDynamicRef, which runs after Read and keeps nothing once the
+// reference has expanded. A census running before it could not tell that from
+// an unread keyword.
 func PreserveUnknownKeywords(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
-	return annotation.UnknownKeywordsIn(p, s, pointer, c.ProvenanceAt)
+	diags := annotation.UnknownKeywordsIn(p, s, pointer, c.ProvenanceAt)
+	return append(diags, annotation.UndefinedKeywordsIn(p, s, undefinedKeywords(c, s), pointer, c.ProvenanceAt)...)
+}
+
+// undefinedKeywords returns the keywords s writes that the schema model names
+// but nothing reads, because the dialect s is read in does not define them:
+// `nullable` while the nullable-widening policy is off, in a schema read as
+// JSON Schema 2020-12, which is every 3.1 or 3.2 schema and the keywords
+// beside a 3.0 $ref. A 3.0 schema's own nullable is read by its declared
+// effect (docs/compilers/openapi.md#nullable), and the policy reads it
+// everywhere.
+func undefinedKeywords(c lowering.Ctx, s *oas3.Schema) []string {
+	if c.NullableWidening.Honours() || (c.Is30() && s.Ref == nil) || annotation.RawPropertyNode(s, "nullable") == nil {
+		return nil
+	}
+	return []string{"nullable"}
 }
 
 // preserveKeyword records a validation-only keyword's raw payload under key in

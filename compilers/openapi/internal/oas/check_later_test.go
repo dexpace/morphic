@@ -2,6 +2,8 @@ package oas_test
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -104,4 +106,72 @@ func TestCheck_JSONSchemaKeywordsOfALaterMinorAreLeftToTheSchemaLowering(t *test
 		{"const in 3.0", "3.0.3", oas.Schema, `{const: 1, $defs: {a: {}}, prefixItems: [{}], examples: [1]}`, nil},
 		{"unknown keys are not reported", "3.1.0", oas.Schema, `{madeUp: 1, x-ext: 2}`, nil},
 	})
+}
+
+// schemaRefSiblings writes keys beside a schema's $ref at each kind of position
+// a schema stands at, one $ref with nothing beside it, and a $ref beside which
+// a schema is written that has a $ref of its own.
+const schemaRefSiblings = `info: {title: T, version: "1"}
+paths:
+  /a:
+    get:
+      parameters:
+        - {name: q, in: query, schema: {$ref: '#/components/schemas/S', default: x}}
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/S'}
+components:
+  schemas:
+    S: {type: string}
+    Alias: {$ref: '#/components/schemas/S', description: d, x-note: n}
+    M:
+      type: object
+      properties:
+        p: {$ref: '#/components/schemas/S', nullable: true, readOnly: true}
+        l: {type: array, items: {$ref: '#/components/schemas/S', type: string}}
+        c: {allOf: [{$ref: '#/components/schemas/S', title: t}]}
+        o:
+          $ref: '#/components/schemas/S'
+          properties:
+            z: {$ref: '#/components/schemas/S', minLength: 1}
+`
+
+// TestCheck_EveryKeyBesideA30SchemaRefIsALaterConstruct pins GitHub #871: in
+// 3.0 a schema written as a $ref is a Reference Object, which ignores every key
+// beside the $ref, while 3.1 applies them as the schema's keywords. The
+// lowering reads them as 3.1 does, so below 3.1 each key beside the $ref is
+// warned of at its own pointer, whatever the position and the key, and the
+// $ref itself never is.
+func TestCheck_EveryKeyBesideA30SchemaRefIsALaterConstruct(t *testing.T) {
+	laterAt := func(version string) map[string]string {
+		got := map[string]string{}
+		for _, d := range run(t, version, oas.Document, "openapi: "+version+"\n"+schemaRefSiblings) {
+			if d.Code == diag.LaterVersionConstruct {
+				assert.Equal(t, ir.SeverityWarning, d.Severity)
+				got[string(d.Provenance.Pointer)] = d.Message
+			}
+		}
+		return got
+	}
+	got := laterAt("3.0.3")
+	assert.ElementsMatch(t, []string{
+		"/components/schemas/Alias/description",
+		"/components/schemas/Alias/x-note",
+		"/components/schemas/M/properties/c/allOf/0/title",
+		"/components/schemas/M/properties/l/items/type",
+		"/components/schemas/M/properties/o/properties",
+		"/components/schemas/M/properties/o/properties/z/minLength",
+		"/components/schemas/M/properties/p/nullable",
+		"/components/schemas/M/properties/p/readOnly",
+		"/paths/~1a/get/parameters/0/schema/default",
+	}, slices.Collect(maps.Keys(got)))
+	assert.Equal(t, `keyword "readOnly" beside the $ref of a Schema Object is ignored by OpenAPI 3.0 and applied by `+
+		`OpenAPI 3.1, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.1 document`,
+		got["/components/schemas/M/properties/p/readOnly"])
+	for _, version := range []string{"3.1.0", "3.2.0"} {
+		assert.Empty(t, laterAt(version), version)
+	}
 }

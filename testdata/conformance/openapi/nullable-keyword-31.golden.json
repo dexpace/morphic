@@ -1,0 +1,552 @@
+{
+  "idSpaces": {
+    "auth": [
+      "openapi"
+    ],
+    "e": [
+      "anon",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
+  "name": "NullableKeyword31",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "NullableKeyword31",
+        "canonical": "nullable_keyword_31"
+      },
+      "docs": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/components/schemas/Holder/properties/counts": {
+      "kind": "list",
+      "id": "t/anon/components/schemas/Holder/properties/counts",
+      "name": {
+        "hint": "counts"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder/properties/counts"
+      },
+      "elem": {
+        "target": "t/prim/integer",
+        "nullable": true,
+        "inferred": "nullable-widening"
+      }
+    },
+    "t/anon/components/schemas/Holder/properties/described": {
+      "kind": "list",
+      "id": "t/anon/components/schemas/Holder/properties/described",
+      "name": {
+        "hint": "described"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder/properties/described"
+      },
+      "elem": {
+        "target": "t/anon/components/schemas/Holder/properties/described/items",
+        "nullable": true,
+        "inferred": "nullable-widening"
+      }
+    },
+    "t/anon/components/schemas/Holder/properties/described/items": {
+      "kind": "scalar",
+      "id": "t/anon/components/schemas/Holder/properties/described/items",
+      "name": {
+        "hint": "described_item"
+      },
+      "anonymous": true,
+      "docs": {
+        "description": "A count."
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder/properties/described/items"
+      },
+      "base": {
+        "target": "t/prim/integer",
+        "nullable": true,
+        "inferred": "nullable-widening"
+      }
+    },
+    "t/anon/components/schemas/Holder/properties/shaped": {
+      "kind": "list",
+      "id": "t/anon/components/schemas/Holder/properties/shaped",
+      "name": {
+        "hint": "shaped"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder/properties/shaped"
+      },
+      "elem": {
+        "target": "t/anon/components/schemas/Holder/properties/shaped/items",
+        "nullable": true,
+        "inferred": "nullable-widening"
+      }
+    },
+    "t/anon/components/schemas/Holder/properties/shaped/items": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Holder/properties/shaped/items",
+      "name": {
+        "hint": "shaped_item"
+      },
+      "anonymous": true,
+      "docs": {
+        "description": "A shape."
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder/properties/shaped/items"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/shaped/items/properties/x",
+          "name": {
+            "source": "x",
+            "canonical": "x"
+          },
+          "wireName": "x",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/shaped/items/properties/x"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Holder": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Holder",
+      "name": {
+        "source": "Holder",
+        "canonical": "holder"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/inline",
+          "name": {
+            "source": "inline",
+            "canonical": "inline"
+          },
+          "wireName": "inline",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": true,
+            "inferred": "nullable-widening"
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/inline"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/viaRef",
+          "name": {
+            "source": "viaRef",
+            "canonical": "via_ref"
+          },
+          "wireName": "viaRef",
+          "type": {
+            "target": "t/openapi/components/schemas/Name",
+            "nullable": true,
+            "inferred": "nullable-widening"
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/viaRef"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/besideRef",
+          "name": {
+            "source": "besideRef",
+            "canonical": "beside_ref"
+          },
+          "wireName": "besideRef",
+          "type": {
+            "target": "t/openapi/components/schemas/Plain",
+            "nullable": true,
+            "inferred": "nullable-widening"
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/besideRef"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/declared",
+          "name": {
+            "source": "declared",
+            "canonical": "declared"
+          },
+          "wireName": "declared",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": true
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/declared"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/notNullable",
+          "name": {
+            "source": "notNullable",
+            "canonical": "not_nullable"
+          },
+          "wireName": "notNullable",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/notNullable"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/counts",
+          "name": {
+            "source": "counts",
+            "canonical": "counts"
+          },
+          "wireName": "counts",
+          "type": {
+            "target": "t/anon/components/schemas/Holder/properties/counts",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/counts"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/described",
+          "name": {
+            "source": "described",
+            "canonical": "described"
+          },
+          "wireName": "described",
+          "type": {
+            "target": "t/anon/components/schemas/Holder/properties/described",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/described"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/shaped",
+          "name": {
+            "source": "shaped",
+            "canonical": "shaped"
+          },
+          "wireName": "shaped",
+          "type": {
+            "target": "t/anon/components/schemas/Holder/properties/shaped",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/shaped"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Name": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/Name",
+      "name": {
+        "source": "Name",
+        "canonical": "name"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Name"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": true,
+        "inferred": "nullable-widening"
+      }
+    },
+    "t/openapi/components/schemas/Plain": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/Plain",
+      "name": {
+        "source": "Plain",
+        "canonical": "plain"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Plain"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/prim/integer": {
+      "kind": "primitive",
+      "id": "t/prim/integer",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "integer"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "string"
+    }
+  },
+  "servers": [
+    {
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {}
+    }
+  ],
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/inferred-nullable",
+      "message": "nullable: true is read as admitting null under the nullable-widening policy, though this document declares OpenAPI 3.1.0, whose schemas define no nullable keyword; a reference whose null rests on it is marked inferred",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Name/nullable"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/inferred-nullable",
+      "message": "nullable: true is read as admitting null under the nullable-widening policy, though this document declares OpenAPI 3.1.0, whose schemas define no nullable keyword; a reference whose null rests on it is marked inferred",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder/properties/inline/nullable"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/inferred-nullable",
+      "message": "nullable: true is read as admitting null under the nullable-widening policy, though no OpenAPI version gives it an effect beside a $ref: 3.0 ignores every keyword there, and 3.1, which applies them, defines no nullable; a reference whose null rests on it is marked inferred",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder/properties/besideRef/nullable"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/inferred-nullable",
+      "message": "nullable: true is read as admitting null under the nullable-widening policy, though this document declares OpenAPI 3.1.0, whose schemas define no nullable keyword; a reference whose null rests on it is marked inferred",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder/properties/counts/items/nullable"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/inferred-nullable",
+      "message": "nullable: true is read as admitting null under the nullable-widening policy, though this document declares OpenAPI 3.1.0, whose schemas define no nullable keyword; a reference whose null rests on it is marked inferred",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder/properties/described/items/nullable"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/inferred-nullable",
+      "message": "nullable: true is read as admitting null under the nullable-widening policy, though this document declares OpenAPI 3.1.0, whose schemas define no nullable keyword; a reference whose null rests on it is marked inferred",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder/properties/shaped/items/nullable"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "nullable-keyword-31.yaml",
+      "hash": "01780384b77dfa8d55e46a08515d91bbfbe4371ae08ebcf20e9a54580072b492"
+    }
+  ]
+}

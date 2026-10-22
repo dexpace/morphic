@@ -347,7 +347,7 @@ components:
 	unlisted.Others = load.Others{}
 
 	l := lowererOver(lowering.New(0, unlisted.Doc, unlisted.Source, lowering.GroupByTags, lowering.Limits{},
-		lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, overlay.Origin{}).WithLoaded(&unlisted))
+		lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}).WithLoaded(&unlisted))
 	l.diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.ctx, l.types, &l.anchors))
 	doc := l.document(t)
 

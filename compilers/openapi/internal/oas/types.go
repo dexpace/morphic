@@ -283,6 +283,11 @@ type Object struct {
 	// Boolean is the minors at which true or false may stand in the
 	// object's place.
 	Boolean Span
+	// RefSiblings is the minors at which the keys a mapping writes beside a
+	// $ref are the object's own, applied beside the reference. Before it each
+	// such key is a later minor's construct; empty for an object whose $ref
+	// no minor gives siblings.
+	RefSiblings Span
 }
 
 // Spec is the table: every object of the specification.

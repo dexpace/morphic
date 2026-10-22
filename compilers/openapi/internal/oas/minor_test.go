@@ -25,12 +25,21 @@ func TestParseMinor_ReadsTheMajorMinorPrefix(t *testing.T) {
 		{"2.0", 0, false},
 		{"3", 0, false},
 		{"", 0, false},
+		{"3..1", 0, false},
+		{".1", 0, false},
 	}
 	for _, tc := range tests {
 		got, ok := oas.ParseMinor(tc.version)
 		assert.Equal(t, tc.ok, ok, tc.version)
 		assert.Equal(t, tc.want, got, tc.version)
 	}
+}
+
+// TestParseMinor_AllocatesNothing pins what the lowering's dialect check costs:
+// it asks this of every schema whose null it reads, so the prefix it compares
+// is a slice of the version rather than a string built from its parts.
+func TestParseMinor_AllocatesNothing(t *testing.T) {
+	assert.Zero(t, testing.AllocsPerRun(100, func() { _, _ = oas.ParseMinor("3.1.0") }))
 }
 
 // TestMinor_StringSpellsTheMinor pins the spelling the messages use.

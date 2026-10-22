@@ -46,9 +46,9 @@ type Ctx struct {
 	// Provenance.
 	SrcIndex int
 	// Grouping selects how operations are grouped into OperationGroups. It is one
-	// of the caller policies the context carries — the budgets, the streaming
-	// media list and the promotion mapping are the others; everything else here
-	// is a fact about the document.
+	// of the caller policies the context carries, beside the budgets, the
+	// streaming media list, the promotion mapping and NullableWidening; everything
+	// else here is a fact about the document.
 	//
 	// It arrives as the caller wrote it, normalized or not — the compiler's
 	// Options fills an unset one in before building a context, but nothing here
@@ -84,6 +84,11 @@ type Ctx struct {
 	// rather than merely discouraged, which is what TestCtx_HasNoExportedMap
 	// holds the struct to.
 	schemas map[string]bool
+
+	// NullableWidening is the nullable-widening policy. It sits before foreign so
+	// the two share a word: RefScope copies the whole context into a closure,
+	// whose size class a field more would move.
+	NullableWidening NullableWidening
 
 	// foreign marks a lowering of content another document holds, read in that
 	// document's scope, and holder is the path the resolver read it by (see
@@ -183,17 +188,18 @@ type scopedPosition struct {
 //
 // The $dynamicAnchor index is built on first use instead (GitHub #172): its
 // bounds diagnostic would warn about documents that never write $dynamicRef.
-func New(srcIndex int, doc *soa.OpenAPI, src ir.SourceInfo, grouping GroupingStrategy, limits Limits, streaming StreamingMedia, promotions ExtensionPromotions, origin overlay.Origin) Ctx {
+func New(srcIndex int, doc *soa.OpenAPI, src ir.SourceInfo, grouping GroupingStrategy, limits Limits, streaming StreamingMedia, promotions ExtensionPromotions, nullable NullableWidening, origin overlay.Origin) Ctx {
 	return Ctx{
-		Doc:        doc,
-		Source:     src,
-		SrcIndex:   srcIndex,
-		Grouping:   grouping,
-		Limits:     limits,
-		schemas:    declaredSchemaNames(doc),
-		streaming:  streamingSet(streaming),
-		promotions: promotionSet(promotions),
-		overlay:    origin,
+		Doc:              doc,
+		Source:           src,
+		SrcIndex:         srcIndex,
+		Grouping:         grouping,
+		Limits:           limits,
+		schemas:          declaredSchemaNames(doc),
+		streaming:        streamingSet(streaming),
+		promotions:       promotionSet(promotions),
+		NullableWidening: nullable,
+		overlay:          origin,
 
 		typePositions: map[scopedPosition]bind.Position{},
 		hints:         map[scopedPosition]string{},
@@ -415,12 +421,11 @@ func (c Ctx) DeclaresAuth(id ir.AuthID) bool { _, ok := c.auth[id]; return ok }
 
 // Is30 reports whether this document's dialect is OpenAPI 3.0 rather than the
 // 2020-12 dialect of 3.1 and 3.2. A reading that differs between the two, such
-// as a boolean exclusiveMinimum or a required `items`, asks this rather than
-// parsing the version itself; `nullable` is still read in every dialect
-// (GitHub #632). An unrecognized version, and a context with no document,
-// answer false. It reads the entry document's version, whichever document
-// holds the schema, so a 3.1 file reached by $ref from a 3.0 root is read as
-// 3.0 (GitHub #839).
+// as a boolean exclusiveMinimum, a required `items` or the effect `nullable`
+// has, asks this rather than parsing the version itself. An unrecognized
+// version, and a context with no document, answer false. It reads the entry
+// document's version, whichever document holds the schema, so a 3.1 file
+// reached by $ref from a 3.0 root is read as 3.0 (GitHub #839).
 func (c Ctx) Is30() bool {
 	minor, _ := load.SupportedMinor(c.Doc.GetOpenAPI())
 	return minor == "3.0"

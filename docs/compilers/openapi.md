@@ -253,9 +253,13 @@ document does not write. It is a warning, as an undefined key is ([`unknown-keys
 an OpenAPI object's key set is closed, so the document is invalid for the version it declares, but
 it still lowers, and a consumer that wants it refused has `--fail-on warning`. The rule covers
 constructs a minor *added*, including the Reference Object's `summary` and `description`, which 3.1
-added and which [`reference-object-siblings`](#reference-object-siblings) folds at every version.
-That is the one case: 3.0 admits no key beside a `$ref` and says one SHALL be ignored, so a 3.0
-document writing one is warned that it was read as 3.1 reads it. A keyword whose meaning differs
+added and which [`reference-object-siblings`](#reference-object-siblings) folds at every version,
+and every keyword beside a Schema Object's `$ref`, which 3.1 applies alongside the reference as JSON
+Schema 2020-12 conjoins them ([`ref-use-site`](#ref-use-site)). That is the one case: 3.0 reads
+either position as a Reference Object, which admits no key beside its `$ref` and says one SHALL be
+ignored, so a 3.0 document writing one is warned that it was read as 3.1 reads it. What the keyword
+then means is the 3.1 dialect's, so a `nullable` there, which no minor gives an effect beside a
+`$ref`, is read by the policy [`nullable`](#nullable) sets out. A keyword whose meaning differs
 between minors, such as `exclusiveMinimum`, follows the declared one
 ([`constraints`](#constraints)).
 
@@ -265,25 +269,27 @@ so no field's treatment can depend on whether the parser happens to model it. Th
 is held to the shape its table row gives it, and any object inside it to the table like any other.
 The keys beside a `$ref` are judged as the object they belong to: a Reference Object's, a Path
 Item's own fields beside its `$ref`, or a schema's keywords, which the schema lowering reads beside a
-3.0 `$ref` too. An object a `$ref` reaches is judged as the source's own are,
-wherever it is written, and reported where [`validation`](#validation) places a finding about it. A
+3.0 `$ref` too. Those are held to 3.0's keywords as written and, since 3.0 ignores them, each is
+warned of as a later minor's construct as well, whatever it is, so no row of the table names them.
+An object a `$ref` reaches is judged as the source's own are, wherever it is written, and reported
+where [`validation`](#validation) places a finding about it. A
 Path Item's `additionalOperations` before 3.2, and a field 3.2 added to a Discriminator or XML
 Object, draw the warning as any other construct does. A keyword a later minor's JSON Schema dialect
 added is read by the schema lowering as it finds it, so the table leaves it alone. The same table
 judges a Parameter Object's `allowReserved` against where the declared minor applies it
 ([`allow-reserved-locations`](#allow-reserved-locations)).
 
-- Cases: `later-version-constructs`, `reached-outside-model`
+- Cases: `later-version-constructs`, `reached-outside-model`, `schema-ref-siblings-30`
 - Codes: `openapi/later-version-construct`
 - Tests: `openapi.TestLaterVersionConstructs_LowerAsInTheVersionThatAddedThem`,
+  `openapi.TestSchemaRefSiblings_LowerAsIn31`,
   `oas.TestCheck_LaterConstructsAreWarnedOfInTheCompilersWords`,
+  `oas.TestCheck_EveryKeyBesideA30SchemaRefIsALaterConstruct`,
   `oas.TestCheck_ValuesAddedLaterAreWarnedOf`,
   `oas.TestTable_AgreesWithTheConstructsLaterMinorsAdded`,
   `load.TestResolve_AReachedObjectIsHeldToTheLaterVersionTable`
-- Status: partly built: a 3.0 schema's `$ref` siblings are read as 3.1 reads them, each held to
-  3.0's keywords, and nothing reports that 3.0 ignores them (#871), and a JSON Schema 2020-12 keyword
-  in a 3.0 schema lowers with no diagnostic (#820). Open: how a keyword a later minor removed, such as
-  3.1's `nullable`, is read (#632), and which minor governs a document a reference reaches (#839).
+- Status: partly built: a JSON Schema 2020-12 keyword in a 3.0 schema lowers with no diagnostic
+  (#820). Open: which minor governs a document a reference reaches (#839).
 
 ### `references`
 
@@ -697,7 +703,8 @@ a cycle with no schema in it, which [`reference-cycles`](#reference-cycles) repo
 
 ### `ref-use-site`
 
-The keywords written beside a schema's `$ref`, which 3.1 admits, and the annotations its target
+The keywords written beside a schema's `$ref`, which 3.1 admits and which are read the same way in a
+3.0 document ([`later-version-construct`](#later-version-construct)), and the annotations its target
 declares — documentation, deprecation, visibility and `default` — merge onto the property, parameter
 or header that references the target, field by field, a keyword the use site writes winning over the
 target's (§12.2), and by the same rule at every carrier. At a position that carries no property,
@@ -706,7 +713,8 @@ beside the `$ref` bind an alias hoisted at that position instead (§4.3). Constr
 exception: bounds conjoin rather than override, so each position keeps the ones it declared and none
 is copied to a use site (§12.2).
 
-- Cases: `param-ref-inheritance`, `allof-ref-branch-siblings`, `readonly-writeonly`
+- Cases: `param-ref-inheritance`, `allof-ref-branch-siblings`, `readonly-writeonly`,
+  `schema-ref-siblings-30`
 - Tests: `openapi.TestAnnotationRetention`, `schema.TestModel_RefSiblingDescriptionWins`,
   `schema.TestSchemaExamples_ComponentRefSiblingKeepsThem`
 
@@ -803,19 +811,51 @@ each property that references it.
 Whether a position admits null is a question about its whole schema, since JSON Schema conjoins
 keywords, and the answer lowers to `TypeRef.Nullable` on the reference that names the position's
 type — a property's, a parameter's, a list's element, a union variant — never to a node of its own
-(§3.3). A schema admits null where 3.0's `nullable: true` says so or 3.1's `type` names `null`, and
-only where the keywords beside agree: an `enum` admits null only where it lists `null`, which then
-names no member, so a non-empty `enum` listing `null` admits it with no `type` beside it, and one
-not listing it takes a `type: [string, "null"]` back out; an `allOf` admits null only where every
-conjunct does, the null sitting on the reference that names the composition rather than on its
-`Base` or a `Mixin`; and a union's variant that admits null is marked on that variant's reference.
-Whether a property must be present is `Property.Required`, apart from this (§5.1), so required and
-nullable make four distinct lowerings. A union of one branch and `null` collapses to a nullable
-reference ([`union-null-variant`](#union-null-variant)).
+(§3.3). A schema admits null where its `type` names `null`, and only where the keywords beside
+agree: an `enum` admits null only where it lists `null`, which then names no member, so a non-empty
+`enum` listing `null` admits it with no `type` beside it, and one not listing it takes a
+`type: [string, "null"]` back out; an `allOf` admits null only where every conjunct does, the null
+sitting on the reference that names the composition rather than on its `Base` or a `Mixin`; a
+`$ref` admits it only where the keywords beside it and what it lands on both do, read one hop at a
+time so that an alias's own keywords count; and a union's variant that admits null is marked on
+that variant's reference. Whether a property must be present is `Property.Required`, apart from
+this (§5.1), so required and nullable make four distinct lowerings. A union of one branch and
+`null` collapses to a nullable reference ([`union-null-variant`](#union-null-variant)).
+
+OpenAPI 3.0's `nullable: true` adds `null` to the `type` written in the same Schema Object, as
+`type: [T, "null"]` does from 3.1, and then conjoins as that does: 3.0.3 and 3.0.4 state it, as a
+clarification of every 3.0 release. With no `type` beside it, or beside a `$ref`, it has no effect,
+and 3.1 removed the keyword. Documents written to 3.0.0's looser wording, or carried to 3.1, still
+use it to say that a schema admits null, and write `{$ref: T, type: [object, "null"]}` for the
+nullable reference that `{$ref: T, nullable: true}` was meant to be. So the nullable-widening
+policy, on by default, reads such a null as widening what it is written on rather than conjoining
+with it: `nullable: true` admits null for the whole schema it is written on, whatever else that
+schema says, and keywords beside a `$ref` that admit null by themselves admit it for the whole
+reference. A `type` without `null` beside a `$ref` still narrows what it lands on. A reference whose
+null only that reading admits names `nullable-widening` in `TypeRef.Inferred` (invariant 6), so
+`Nullable` with no marker is the declared reading, and each such null is reported once as an info
+`openapi/inferred-nullable`, at the `nullable` keyword or, for keywords beside a `$ref`, at the
+schema that writes them, saying why its version does not admit it, whatever references its schema.
+The policy is the Go option `Options.NullableWidening`, whose `Disabled` reads the keywords only as
+their version defines them, and the text option `nullable-widening`, which `false` turns off. A
+`nullable` in a 3.1 or 3.2 schema, or beside a `$ref`, is then a keyword its dialect does not
+define, kept verbatim under `openapi:nullable` (`out_of_scope`) with an info
+`openapi/unknown-schema-keyword`, where [`unknown-keys`](#unknown-keys) keeps a keyword the schema
+model does not name.
 
 - Cases: `nullable-30`, `nullable-31-ref`, `nullable-enum-31`, `nullability-four-states`,
-  `nullability-conjunction`
-- Tests: `schema.TestSchemaRef_NullableNormalization`
+  `nullability-conjunction`, `nullable-keyword-30`, `nullable-keyword-31`
+- Codes: `openapi/inferred-nullable`, `openapi/unknown-schema-keyword`
+- Tests: `schema.TestSchemaRef_NullableNormalization`,
+  `schema.TestNullableWidening_EachShapeReadsByItsVersion`,
+  `openapi.TestNullableWidening_AKeywordIsReportedOnceAtItself`,
+  `openapi.TestNullableWidening_DisabledKeepsWhatTheDialectDoesNotDefine`,
+  `openapi.TestNullableWidening_ACompositionKeepsTheMarker`,
+  `merge.TestIntersectNull_TheMarkerFollowsTheBit`
+- Status: partly built: a `nullable` its dialect does not define, read with the policy off, is kept
+  nowhere at a position that lowers to a shared node and carries no property or parameter, as no
+  keyword the schema model does not name is there (#1053), and a 3.0 `nullable` with no `type`
+  beside it, which has no effect, draws no report once the policy is off (#1070).
 
 ### `schema-examples`
 
@@ -2292,7 +2332,9 @@ beneath the scope its extensions use (`openapi:info/<key>`, `openapi:pathItem/<k
 a YAML anchor included. A schema keyword no field of the schema model names is kept the same way,
 reported as an info `openapi/unknown-schema-keyword`, because JSON Schema obliges an implementation
 to ignore a keyword it does not know; `$comment`, `$dynamicAnchor` and `$dynamicRef` are decided
-elsewhere and left out. One object contributes at most `annotation.MaxUnknownKeys` keys, taken in
+elsewhere and left out. So is a keyword the model names and the dialect the schema is read in does
+not define, which only `nullable` is, with the nullable-widening policy off
+([`nullable`](#nullable)). One object contributes at most `annotation.MaxUnknownKeys` keys, taken in
 byte order after the keys another reader already kept at the same pointer are set aside, and the
 rest reach the IR in no form, reported as one `openapi/unknown-key-budget` warning at the object.
 Two other outcomes also keep nothing and warn: `openapi/unknown-key-entry-taken`, where
@@ -2306,9 +2348,12 @@ no pair for it.
   `openapi/unknown-key-budget`, `openapi/unknown-key-entry-taken`, `openapi/unknown-key-unreachable`
 - Tests: `openapi.TestUnknownKeys_KeptAtEveryObject`,
   `openapi.TestUnknownKeys_SchemaAndObjectAreGradedApart`,
-  `annotation.TestUnknownKeysIn_BudgetBoundsWhatOneObjectContributes`
+  `annotation.TestUnknownKeysIn_BudgetBoundsWhatOneObjectContributes`,
+  `annotation.TestUndefinedKeywordsIn_KeepsWhatTheCallerNames`
 - Status: partly built: a parameter's key and its schema's keyword of one spelling share an entry
-  (#396), and a key merged in through `<<` is reported and kept nowhere (#395).
+  (#396), a key merged in through `<<` is reported and kept nowhere (#395), and a schema keyword at a
+  position that lowers to a shared node and carries no property or parameter is kept nowhere and
+  reported by nothing (#1053).
 
 ### `extension-promotion`
 

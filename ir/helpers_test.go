@@ -342,9 +342,9 @@ func populatedXMLHints() *ir.XMLHints {
 	}
 }
 
-// populatedTypeRef returns a non-zero TypeRef.
+// populatedTypeRef returns a TypeRef with every field set.
 func populatedTypeRef() ir.TypeRef {
-	return ir.TypeRef{Target: "t/openapi/components/schemas/User", Nullable: true}
+	return ir.TypeRef{Target: "t/openapi/components/schemas/User", Nullable: true, Inferred: "nullable-widening"}
 }
 
 // errorPayload returns the one-media-type body an ir.ErrorCase fixture carries,
