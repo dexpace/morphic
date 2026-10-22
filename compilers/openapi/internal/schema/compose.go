@@ -70,11 +70,13 @@ func lowerAllOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 // composed model (requireMembers).
 var compositionCensusHandled = []string{"required"}
 
-// maxAllOfFlattenDepth bounds how many levels of nested inline allOf wrappers
-// allOfBranches flattens (styleguide bounded-everything rule). A wrapper at
-// this depth is kept verbatim like any other branch with residue, so a source
-// nesting deeper than any author writes still lowers, with nothing dropped.
-const maxAllOfFlattenDepth = 32
+// MaxAllOfFlattenDepth bounds how many levels of nested inline allOf wrappers
+// the lowering flattens, and FlattenedAllOf with it (styleguide
+// bounded-everything rule). A wrapper inside this many flattened ones is not
+// flattened: it is kept verbatim like any other branch with residue, so a
+// source nesting deeper than any author writes still lowers, with nothing
+// dropped.
+const MaxAllOfFlattenDepth = 32
 
 // allOfBranch is one inline-or-ref branch of an allOf composition after nested
 // wrappers are flattened into the list (GitHub #599).
@@ -88,7 +90,7 @@ type allOfBranch struct {
 	// required list, and is kept verbatim only for what else it writes.
 	wrapper bool
 	// capped marks an inline branch whose allOf was not flattened because it sits
-	// past maxAllOfFlattenDepth, so the diagnostic can say why it was kept.
+	// past MaxAllOfFlattenDepth, so the diagnostic can say why it was kept.
 	capped bool
 }
 
@@ -196,10 +198,6 @@ func allOfRefBranches(s *oas3.Schema) iter.Seq[*oas3.JSONSchema[oas3.Referenceab
 	}
 }
 
-// AllOfFlattenDepth is the depth FlattenedAllOf flattens to, for a reader that
-// names the bound in a diagnostic.
-const AllOfFlattenDepth = maxAllOfFlattenDepth
-
 // FlatBranch is one branch of the allOf FlattenedAllOf reads.
 type FlatBranch struct {
 	// Schema is the branch as written, or the wrapper a run of its own entries
@@ -208,8 +206,9 @@ type FlatBranch struct {
 	// Ref marks a branch that names its schema by $ref, which the reader follows
 	// itself and bounds on its own.
 	Ref bool
-	// Capped marks an inline branch whose own allOf sits past AllOfFlattenDepth
-	// and was not flattened, so the reader has not reached what it declares.
+	// Capped marks an inline branch whose own allOf sits past
+	// MaxAllOfFlattenDepth and was not flattened, so the reader has not reached
+	// what it declares.
 	Capped bool
 }
 
@@ -244,7 +243,7 @@ func pointerIndex(bptr jsontext.Pointer) string {
 // is no concern of this predicate: the merge keeps that as residue
 // (preserveUnmergedBranch).
 func flattensInto(b *oas3.JSONSchema[oas3.Referenceable], depth int) bool {
-	return depth < maxAllOfFlattenDepth && wrapsAllOf(b)
+	return depth < MaxAllOfFlattenDepth && wrapsAllOf(b)
 }
 
 // wrapsAllOf reports whether b is inline and declares a non-empty allOf. An empty
@@ -418,7 +417,7 @@ func diagUnmergedBranch(c lowering.Ctx, bs *oas3.Schema, residue []string, e all
 		msg := "inline allOf branch declares a type that is not an object, which the composed model asserts it is; the branch (" +
 			strings.Join(keptKeywords(residue, e), ", ") + ") is kept verbatim under Unmodeled"
 		if e.capped {
-			msg += ", and its own allOf, nested past the flattening depth of " + strconv.Itoa(maxAllOfFlattenDepth) + ", was not flattened"
+			msg += ", and its own allOf, nested past the flattening depth of " + strconv.Itoa(MaxAllOfFlattenDepth) + ", was not flattened"
 		}
 		return c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, e.pointer, "%s", msg)
 	}
@@ -446,7 +445,7 @@ func unmergedWhy(residue []string, e allOfBranch) string {
 			strings.Join(residue, ", ") + ")" + keptTail
 	case e.capped:
 		rest := keptKeywords(residue, e)
-		why := "inline allOf branch is nested past the flattening depth of " + strconv.Itoa(maxAllOfFlattenDepth) +
+		why := "inline allOf branch is nested past the flattening depth of " + strconv.Itoa(MaxAllOfFlattenDepth) +
 			", so its own allOf was not flattened; only its properties and required list compose, and the branch"
 		if len(rest) > 0 {
 			why += " (" + strings.Join(rest, ", ") + ")"

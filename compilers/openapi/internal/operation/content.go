@@ -304,8 +304,8 @@ const maxPartRefHops = 16
 // partWalk is what bodyParts found, and which bound cut it short.
 type partWalk struct {
 	parts []bodyPart
-	// capped marks an inline branch nested past schema.AllOfFlattenDepth whose
-	// own allOf entries no path entered.
+	// capped marks an inline branch nested past schema.MaxAllOfFlattenDepth
+	// whose own allOf entries no path entered.
 	capped bool
 	// hopsSpent marks a $ref target past maxPartRefHops that no path entered.
 	hopsSpent bool
@@ -412,7 +412,7 @@ func diagPartWalkCut(c lowering.Ctx, w partWalk, at jsontext.Pointer) []ir.Diagn
 	if w.capped {
 		out = append(out, c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, at,
 			"multipart body composition is nested past the flattening depth of %d, so a part reached only below it has no encoding entry",
-			schema.AllOfFlattenDepth))
+			schema.MaxAllOfFlattenDepth))
 	}
 	if w.hopsSpent {
 		out = append(out, c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, at,

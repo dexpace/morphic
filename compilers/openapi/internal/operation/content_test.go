@@ -2892,9 +2892,9 @@ func TestPartEncodings_ReadsTheFlattenedComposition(t *testing.T) {
 		{"16 wrappers", 16, false, shapeInline, false},
 		{"17 wrappers", 17, false, shapeInline, false},
 		{"20 wrappers", 20, false, shapeInline, false},
-		{"past the flattening depth", schema.AllOfFlattenDepth + 2, false, shapeInline, true},
-		{"past the flattening depth behind a $ref", schema.AllOfFlattenDepth + 2, false, shapeViaRef, true},
-		{"a part beside the cut", schema.AllOfFlattenDepth + 2, false, shapeBesideNote, true},
+		{"past the flattening depth", schema.MaxAllOfFlattenDepth + 2, false, shapeInline, true},
+		{"past the flattening depth behind a $ref", schema.MaxAllOfFlattenDepth + 2, false, shapeViaRef, true},
+		{"a part beside the cut", schema.MaxAllOfFlattenDepth + 2, false, shapeBesideNote, true},
 		{"residue wrapper", 1, true, shapeInline, false},
 	}
 	for _, tc := range cases {
@@ -3020,7 +3020,7 @@ components:
 // parts are keyed on the object, so no cap is reported.
 func TestPartEncodings_CappedEntryReachedByAnotherPath(t *testing.T) {
 	t.Parallel()
-	const n = schema.AllOfFlattenDepth + 2
+	const n = schema.MaxAllOfFlattenDepth + 2
 	deep := "{type: object, properties: {file: {type: string, format: binary}, meta: {type: string}}}"
 	for range n {
 		deep = "{allOf: [" + deep + "]}"
@@ -3076,7 +3076,7 @@ func TestPartEncodings_CutPastReachedPart(t *testing.T) {
 		chain.WriteString("    L" + strconv.Itoa(i) + ": {allOf: [{$ref: '#/components/schemas/L" + strconv.Itoa(i+1) + "'}]}\n")
 	}
 	chain.WriteString("    L" + strconv.Itoa(partRefHops+1) + ": " + obj + "\n")
-	const n = schema.AllOfFlattenDepth + 3
+	const n = schema.MaxAllOfFlattenDepth + 3
 	deep := obj
 	for range n {
 		deep = "{allOf: [" + deep + "]}"

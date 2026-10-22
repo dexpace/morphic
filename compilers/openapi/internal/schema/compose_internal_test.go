@@ -870,8 +870,8 @@ func TestAllOfBranches_DepthCapKeepsWrapperVerbatim(t *testing.T) {
 		wrappers int
 		flat     bool
 	}{
-		{"at the cap", maxAllOfFlattenDepth, true},
-		{"one past the cap", maxAllOfFlattenDepth + 1, false},
+		{"at the cap", MaxAllOfFlattenDepth, true},
+		{"one past the cap", MaxAllOfFlattenDepth + 1, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -893,14 +893,14 @@ func TestAllOfBranches_DepthCapKeepsWrapperVerbatim(t *testing.T) {
 				return
 			}
 			assert.Nil(t, m.Base, "the ref sits inside the wrapper kept verbatim")
-			path := strings.TrimSuffix(strings.Repeat("allOf/0/", maxAllOfFlattenDepth+1), "/")
+			path := strings.TrimSuffix(strings.Repeat("allOf/0/", MaxAllOfFlattenDepth+1), "/")
 			entry, ok := m.Unmodeled["openapi:"+path]
 			require.True(t, ok, "the wrapper at the cap is kept under its path; got %v", m.Unmodeled)
 			assert.Equal(t, jsontext.Pointer("/components/schemas/M/"+path), entry.Provenance.Pointer)
 			assert.Len(t, m.Unmodeled, 1)
 			msg := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct,
 				ir.SeverityInfo, "/components/schemas/M/"+path)
-			assert.Equal(t, "inline allOf branch is nested past the flattening depth of "+strconv.Itoa(maxAllOfFlattenDepth)+
+			assert.Equal(t, "inline allOf branch is nested past the flattening depth of "+strconv.Itoa(MaxAllOfFlattenDepth)+
 				", so its own allOf was not flattened; only its properties and required list compose, and the branch is kept verbatim under Unmodeled", msg)
 		})
 	}
@@ -1035,19 +1035,19 @@ func TestAllOfBranches_DepthCapNamesWhatElseTheWrapperWrites(t *testing.T) {
 			t.Parallel()
 			var b strings.Builder
 			b.WriteString("    A: {type: object, properties: {a: {type: string}}}\n    M:\n      allOf:\n")
-			for i := range maxAllOfFlattenDepth {
+			for i := range MaxAllOfFlattenDepth {
 				b.WriteString(strings.Repeat("  ", i) + "        - allOf:\n")
 			}
-			pad := strings.Repeat("  ", maxAllOfFlattenDepth)
+			pad := strings.Repeat("  ", MaxAllOfFlattenDepth)
 			b.WriteString(pad + "        - " + tc.sibling + "\n" + pad + "          allOf:\n" +
 				pad + "            - {$ref: '#/components/schemas/A'}\n")
 
 			_, diags := lowerSpec(t, openapitest.ComponentSpec(b.String()))
 			openapitest.RequireNoErrorDiags(t, diags)
-			path := strings.TrimSuffix(strings.Repeat("allOf/0/", maxAllOfFlattenDepth+1), "/")
+			path := strings.TrimSuffix(strings.Repeat("allOf/0/", MaxAllOfFlattenDepth+1), "/")
 			msg := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct,
 				tc.severity, "/components/schemas/M/"+path)
-			assert.Contains(t, msg, "nested past the flattening depth of "+strconv.Itoa(maxAllOfFlattenDepth))
+			assert.Contains(t, msg, "nested past the flattening depth of "+strconv.Itoa(MaxAllOfFlattenDepth))
 			assert.Contains(t, msg, "was not flattened")
 			assert.Contains(t, msg, tc.want)
 			assert.NotContains(t, msg, "allOf)", "allOf is not listed as a kept keyword")

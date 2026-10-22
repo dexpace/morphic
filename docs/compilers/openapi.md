@@ -920,18 +920,19 @@ merge after them, as a composing schema's own merge after its entries'. So `allO
 B]}]` classifies as `allOf: [A, B]`, and nothing is reported. Whatever else the entry writes that
 the merge does not consume is kept beside the composition as residue
 ([`allof-inline-residue`](#allof-inline-residue)), so `{description: d, allOf: [A, B]}` composes `A`
-and `B` and is also kept whole. An entry nested past `maxAllOfFlattenDepth` flattened entries is not
-flattened, is kept as residue, and is reported as nested past the flattening depth. This is not the
-flattening ir-design §1 leaves to emitters: every `$ref` entry still composes as a `Base` or
-`Mixin`, and all that goes is a grouping no instance can observe, which an inline entry owns no node
-to keep ([`allof-inline-residue`](#allof-inline-residue)).
+and `B` and is also kept whole. Flattening stops 32 levels down: an entry nested inside 32 flattened
+entries is not flattened itself, so its `allOf` is residue, and it is reported as nested past the
+flattening depth of 32. This is not the flattening ir-design §1 leaves to emitters: every `$ref`
+entry still composes as a `Base` or `Mixin`, and all that goes is a grouping no instance can
+observe, which an inline entry owns no node to keep
+([`allof-inline-residue`](#allof-inline-residue)).
 
 - Cases: `allof-inheritance`, `allof-mixins`, `allof-inline-merge`, `allof-nested-inline`
 - Tests: `schema.TestAllOf_DiscriminatorHierarchy`, `schema.TestAllOf_SoleRefBecomesBase`,
   `schema.TestAllOf_NestedInlineWrapperFlattens`, `schema.TestAllOf_NestedWrapperBaseSelection`,
   `schema.TestAllOfBranches_DepthCapKeepsWrapperVerbatim`,
   `schema.TestAllOfBranches_DepthCapNamesWhatElseTheWrapperWrites`,
-  `schema.TestAllOf_NestedWrapperWithResidueKeptVerbatim`
+  `schema.TestAllOf_NestedWrapperWithResidueKeptVerbatim`, `schema.TestAllOf_NestedLowersAsFlat`
 - Status: partly built: a `$ref` to a subtype of a discriminated base, which declares no
   discriminator itself, is composed as a `Mixin` rather than the `Base` (#986).
 
