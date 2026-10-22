@@ -1,7 +1,6 @@
 package bind
 
 import (
-	"encoding/json/jsontext"
 	"slices"
 	"strconv"
 
@@ -18,21 +17,29 @@ type root struct {
 	state state
 }
 
-// frame is one position a walk has yet to read.
+// frame is one position a walk has yet to read. In the source's own walk,
+// which reads the identifiers its schemas declare, res indexes the resource
+// its parent's content is in (identifiers.resources), and inert marks the
+// fields beside a reference object's $ref, which the model ignores, so no
+// identifier is read there.
 type frame struct {
 	node  *yaml.Node
 	at    Position
 	state state
+	res   int32
+	inert bool
 }
 
 // finder finds the positions a table answers for: the schema sites, the
-// discriminator mapping values, the landings, and where each of the source's
-// reference objects resolves to, walking each root as it is noted. It keeps
-// what it has found, and which of that is new since the table last settled.
+// discriminator mapping values, the landings, and where each reference object
+// resolves to, walking each root as it is noted, and, in the source's own
+// walk, the identifiers its schemas declare. It keeps what it has found, and
+// which of that is new since the table last settled.
 type finder struct {
 	docs          *docs
+	ids           *identifiers
 	work          *budget
-	ends          map[jsontext.Pointer]Position
+	ends          map[Position]Position
 	sites         map[Position]bool
 	mappingSites  map[mappingKey]bool
 	fresh         []Position
@@ -44,17 +51,18 @@ type finder struct {
 
 // newFinder returns a finder over docs that has found nothing.
 func newFinder(d *docs, work *budget) *finder {
-	return &finder{docs: d, work: work, ends: map[jsontext.Pointer]Position{}, sites: map[Position]bool{},
-		mappingSites: map[mappingKey]bool{}, landings: map[Position]bool{}, covered: map[root]bool{}}
+	return &finder{docs: d, ids: newIdentifiers(resources{d}.document(Source)), work: work, ends: map[Position]Position{},
+		sites: map[Position]bool{}, mappingSites: map[mappingKey]bool{}, landings: map[Position]bool{},
+		covered: map[root]bool{}}
 }
 
-// walk reads every position below r by the grammar, noting each schema
-// position that writes a $ref (a site), each discriminator mapping value that
-// can name a position (mapping), and what each of the source's reference
-// objects resolved to (a root to walk in turn). A node an alias places at
-// several positions is read at each, as the parser reads it. With mark, each
-// position read at a state is noted, so a later root inside one already read
-// is not read again; the source's own walk from its root needs no notes.
+// walk reads every position below r by the grammar, noting each schema position
+// that writes a $ref (a site), each discriminator mapping value that can name a
+// position (mapping), and what each reference object resolved to (a root to
+// walk in turn). A node an alias places at several positions is read at each,
+// as the parser reads it. With mark, each position read at a state is noted, so
+// a later root inside one already read is not read again; the source's own walk
+// from its root, which reads identifiers, notes none.
 func (w *finder) walk(r root, mark bool) {
 	stack := []frame{{node: w.docs.node(r.at), at: r.at, state: r.state}}
 	for len(stack) > 0 && w.work.spend(1) {
@@ -71,8 +79,26 @@ func (w *finder) walk(r root, mark bool) {
 			w.covered[root{f.at, f.state}] = true
 		}
 		w.visit(n, f)
+		if !mark {
+			f = w.declared(n, f)
+		}
 		stack = append(stack, w.children(n, f)...)
 	}
+}
+
+// declared notes the identifiers the source's schema at f, holding n,
+// declares, and returns f as its children read it: in the resource its
+// content is in, and inert below a reference object's $ref other than a path
+// item's, whose fields beside it are read (Config.Beside).
+func (w *finder) declared(n *yaml.Node, f frame) frame {
+	switch {
+	case f.inert:
+	case f.state == sSchema:
+		f.res = w.ids.declare(resources{w.docs}, f.res, f.at, n)
+	case referenceKinds[f.state] && f.state != sPathItem:
+		_, f.inert = w.docs.refOf(f.at.Doc, n)
+	}
+	return f
 }
 
 // visit notes what the position f, holding n, gives the table.
@@ -84,9 +110,9 @@ func (w *finder) visit(n *yaml.Node, f frame) {
 			w.fresh = append(w.fresh, f.at)
 		}
 		w.mappingsOf(n, f.at)
-	case referenceKinds[f.state] && f.at.Doc == Source:
+	case referenceKinds[f.state]:
 		if r, reason := w.docs.through(reading{at: f.at, node: n, state: f.state}, 0); reason == NoReason && r.at != f.at {
-			w.ends[f.at.Pointer] = r.at
+			w.ends[f.at] = r.at
 			w.pending = append(w.pending, root{at: r.at, state: f.state})
 		}
 	}
@@ -132,12 +158,14 @@ func (w *finder) children(n *yaml.Node, f frame) []frame {
 	switch n.Kind {
 	case yaml.MappingNode:
 		for _, p := range w.docs.list[f.at.Doc].view.MappingPairs(n) {
-			out = append(out, frame{node: p.Val, at: f.at.below(p.Key), state: step(f.state, p.Key)})
+			out = append(out, frame{node: p.Val, at: f.at.below(p.Key), state: step(f.state, p.Key), res: f.res,
+				inert: f.inert})
 		}
 	case yaml.SequenceNode:
 		for i, c := range n.Content {
 			token := strconv.Itoa(i)
-			out = append(out, frame{node: c, at: f.at.below(token), state: step(f.state, token)})
+			out = append(out, frame{node: c, at: f.at.below(token), state: step(f.state, token), res: f.res,
+				inert: f.inert})
 		}
 	}
 	return out
@@ -163,7 +191,7 @@ func (w *finder) walkPending() bool {
 	roots := w.pending
 	w.pending = nil
 	slices.SortFunc(roots, func(x, y root) int {
-		if c := comparePositions(x.at, y.at); c != 0 {
+		if c := w.docs.compare(x.at, y.at); c != 0 {
 			return c
 		}
 		return int(x.state) - int(y.state)
@@ -188,7 +216,9 @@ type mappingKey struct {
 // mapping is where the mapping value k names, read as a $ref written at the
 // discriminator: a hop, and the chain on from where it lands.
 func (b *binder) mapping(k mappingKey) Mapping {
-	m := Mapping{At: k.at, Value: k.value, Hop: b.resolve(k.at, k.value, false)}
+	// A discriminator is a position its document holds, so the path reaches it.
+	path, _ := b.docs.path(k.at)
+	m := Mapping{At: k.at, Value: k.value, Hop: b.resolve(k.at, path, k.value, false)}
 	if b.work.over() {
 		m.Hop = Hop{Ref: k.value, Status: OverBudget}
 	}
@@ -198,13 +228,12 @@ func (b *binder) mapping(k mappingKey) Mapping {
 	}
 	b.find.landed(m.Hop)
 	if !b.holdsRef(m.Hop.Target) {
-		m.Chain = Chain{Status: Resolved, End: m.Hop.Target, Role: m.Hop.Role, Hops: 1, Named: m.Hop.Named}
+		m.Chain = Chain{Status: Resolved, End: m.Hop.Target, Role: m.Hop.Role, Hops: 1}
 		return m
 	}
 	m.Chain = b.chain(m.Hop.Target)
 	if m.Chain.Status == Resolved {
 		m.Chain.Hops++
-		m.Chain.Named = m.Chain.Named && m.Hop.Named
 	}
 	return m
 }

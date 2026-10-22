@@ -231,15 +231,30 @@ func TestStampConstraintDiags_RelocatesEveryDiagnosticToTheReadingPointer(t *tes
 	assert.Equal(t, diag.NumericPrecision, got[1].Code, "only the provenance changes")
 }
 
-func TestResolvePointer_ReusesInternedSubSchema(t *testing.T) {
+// TestResolvePointer_PromisesWhatItNames pins that a $ref never builds what it
+// names: it takes the ID the target's pointer derives and promises the node,
+// which Finish builds only where no lowering interned one, and a target it
+// cannot hoist resolves to nothing.
+func TestResolvePointer_PromisesWhatItNames(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
-	l.types.Intern(deepPointer, "t/anon/prev", func() ir.TypeDef { return &ir.Any{} })
+	object := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](
+		&oas3.Schema{Type: oas3.NewTypeFromString(oas3.SchemaTypeObject)})
 
-	id, ok, diags := resolvePointer(l.ctx, l.types, &l.anchors, TopLevelDepth, deepPointer, nil)
-	require.True(t, ok, "a $ref to an already-hoisted sub-schema reuses its ID")
-	assert.Equal(t, ir.TypeID("t/anon/prev"), id)
-	assert.Empty(t, diags, "reusing an interned node reports nothing")
+	id, ok := resolvePointer(l.ctx, l.types, &l.anchors, deepPointer, object)
+	require.True(t, ok)
+	assert.Equal(t, ids.Document{}.AnonType(deepPointer), id)
+	_, built := l.types.Lookup(deepPointer)
+	assert.False(t, built, "the reference builds nothing itself")
+
+	_, finished := l.types.Finish(t.Context())
+	assert.Empty(t, finished, "an object body hoists cleanly, and nothing is refused")
+	seeded, built := l.types.Lookup(deepPointer)
+	require.True(t, built, "Finish builds what no lowering interned")
+	assert.Equal(t, id, seeded)
+
+	_, ok = resolvePointer(l.ctx, l.types, &l.anchors, deepPointer, nil)
+	assert.False(t, ok, "a target the bindings hold no schema at cannot be hoisted")
 }
 
 func TestResolveSchemaRef_UnboundDeepRefDropped(t *testing.T) {
@@ -249,33 +264,24 @@ func TestResolveSchemaRef_UnboundDeepRefDropped(t *testing.T) {
 	// nothing the bindings know it lands on, so the reference is dropped.
 	js := oas3.NewJSONSchemaFromReference("#" + deepPointer)
 
-	_, ok, diags := resolveSchemaRef(l.ctx, l.types, &l.anchors, TopLevelDepth, js)
+	_, ok := resolveSchemaRef(l.ctx, l.types, &l.anchors, js)
 	assert.False(t, ok, "an unresolved deep sub-schema $ref is dropped, not synthesized")
-	assert.Empty(t, diags, "the drop is reported by refTypeRef, which owns the pointer to report it at")
-}
-
-func TestHoistSubSchema_NilSchema(t *testing.T) {
-	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
-	_, ok, diags := hoistSubSchema(l.ctx, l.types, &l.anchors, TopLevelDepth, nil, deepPointer)
-	assert.False(t, ok, "a nil resolved sub-schema cannot be hoisted")
-	assert.Empty(t, diags)
 }
 
 func TestHoistSubSchema_BodyInternsAtPointer(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
 	// An object body interns a node at the sub-schema's own pointer, so the
-	// pointer-owns-a-node branch returns that node rather than aliasing it.
+	// pointer-owns-a-node branch keeps that node rather than aliasing it.
 	object := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](
 		&oas3.Schema{Type: oas3.NewTypeFromString(oas3.SchemaTypeObject)})
 
-	id, ok, diags := hoistSubSchema(l.ctx, l.types, &l.anchors, TopLevelDepth, object, deepPointer)
-	require.True(t, ok)
-	assert.Empty(t, diags, "an object body hoists cleanly")
-	assert.Equal(t, ids.AnonType(deepPointer), id)
+	assert.Empty(t, hoistSubSchema(l.ctx, l.types, &l.anchors, object, deepPointer), "an object body hoists cleanly")
 	seeded, _ := l.types.Lookup(deepPointer)
-	assert.Equal(t, ids.AnonType(deepPointer), seeded)
+	assert.Equal(t, ids.Document{}.AnonType(deepPointer), seeded)
+	td, ok := l.types.NodeAt(deepPointer)
+	require.True(t, ok)
+	assert.Equal(t, ir.KindModel, td.Kind(), "the body's own node, not an alias over it")
 }
 
 func TestIsRefBranch_Nil(t *testing.T) {
@@ -609,11 +615,11 @@ func TestDeclaresFamily_AnUnknownNameDeclaresNothing(t *testing.T) {
 	assert.False(t, declaresFamily(&oas3.Schema{}, "nosuchfamily"))
 }
 
-// TestRefNullable_AnUnresolvedRefIsNotNullable pins the guard on the second half
-// of the question. A $ref site admits null when its own spelling says so or when
-// its target does; a reference no binding resolved has no target to ask, and
-// must read as not-nullable rather than dereference nothing.
-func TestRefNullable_AnUnresolvedRefIsNotNullable(t *testing.T) {
+// TestRefNullRef_AnUnresolvedRefIsNotNullable pins the guard on the second half
+// of the question. A $ref site admits null as its own keywords and its target
+// jointly say; a reference no binding resolved has no target to ask, and must
+// read as not-nullable rather than dereference nothing.
+func TestRefNullRef_AnUnresolvedRefIsNotNullable(t *testing.T) {
 	t.Parallel()
 	js := &oas3.JSONSchema[oas3.Referenceable]{}
 	valErrs, err := marshaller.Unmarshal(t.Context(),
@@ -621,7 +627,9 @@ func TestRefNullable_AnUnresolvedRefIsNotNullable(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, valErrs, "the fixture parses cleanly")
 
-	assert.False(t, refNullable(newRawLowerer(&soa.OpenAPI{}).ctx, js))
+	ref, diags := refNullRef(newRawLowerer(&soa.OpenAPI{}).ctx, "t/x", js, siteAt("/x"))
+	assert.Equal(t, ir.TypeRef{Target: "t/x"}, ref)
+	assert.Empty(t, diags)
 }
 
 // TestNulls_TheConjunctWalkIsBounded pins the budget the conjunct
@@ -638,10 +646,10 @@ func TestNulls_TheConjunctWalkIsBounded(t *testing.T) {
 		Type: oas3.NewTypeFromArray([]oas3.SchemaType{oas3.SchemaTypeString, oas3.SchemaTypeNull}),
 	}
 
-	require.Equal(t, nullAdmitted, (&nulls{budget: 1}).schemaVerdict(nullable),
+	require.Equal(t, alike(nullAdmitted), (&nulls{budget: 1}).schema(nullable, nullSite{}),
 		"the fixture admits null while there is budget to read it")
 
-	assert.Equal(t, nullSilent, (&nulls{budget: 0}).schemaVerdict(nullable),
+	assert.Equal(t, alike(nullSilent), (&nulls{budget: 0}).schema(nullable, nullSite{}),
 		"an exhausted budget stops the walk without claiming anything")
 	assert.Positive(t, maxNullConjuncts, "the cap is a real bound, not zero")
 }
@@ -653,8 +661,9 @@ func TestNulls_TheConjunctWalkIsBounded(t *testing.T) {
 // missing entry strip a sibling's null.
 func TestNulls_ABranchWithNoSchemaSaysNothing(t *testing.T) {
 	t.Parallel()
-	assert.Equal(t, nullSilent, newNulls(nil).conjunctVerdict(nil))
-	assert.Equal(t, nullSilent, newNulls(nil).conjunctVerdict(openapitest.EmptyEitherSchema()),
+	n := &nulls{budget: maxNullConjuncts}
+	assert.Equal(t, alike(nullSilent), n.conjunct(nil, nullSite{}))
+	assert.Equal(t, alike(nullSilent), n.conjunct(openapitest.EmptyEitherSchema(), nullSite{}),
 		"a branch whose either-value holds neither schema nor bool says nothing either")
 }
 

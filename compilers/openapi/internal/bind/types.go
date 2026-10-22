@@ -22,15 +22,24 @@ type Position struct {
 	Pointer jsontext.Pointer
 }
 
-// less reports whether p orders before q (comparePositions).
-func (p Position) less(q Position) bool { return comparePositions(p, q) < 0 }
-
-// comparePositions orders positions by document, then pointer.
+// comparePositions orders positions by document, then pointer: the order a
+// table reads them in where they share a document or one is the source's.
+// Two other documents are ordered by name (docs.compare): a DocID numbers them
+// in the order the table first needed them, which a declaration order changes.
 func comparePositions(p, q Position) int {
 	if c := cmp.Compare(p.Doc, q.Doc); c != 0 {
 		return c
 	}
 	return cmp.Compare(p.Pointer, q.Pointer)
+}
+
+// byName orders p and q, positions in two documents neither of which is the
+// source, by the names name gives those documents.
+func byName(p, q Position, name func(DocID) string) (int, bool) {
+	if p.Doc == q.Doc || p.Doc == Source || q.Doc == Source {
+		return 0, false
+	}
+	return cmp.Compare(name(p.Doc), name(q.Doc)), true
 }
 
 // Role is what a reference reads at the position it lands on.
@@ -99,12 +108,28 @@ const (
 	NoReason Reason = iota
 	// NoTarget is a pointer that names no node of its document.
 	NoTarget
+	// NoResourceTarget is a pointer that names no node of the schema resource
+	// an $id names, which it is read from; Hop.Detail is the resource's URI.
+	NoResourceTarget
 	// NotSchema is a node no schema reference may name: an object of the
 	// grammar, or a value that is neither a mapping nor a boolean.
 	NotSchema
-	// AnchorTarget is a fragment naming a $anchor, which is not read as a
-	// target (docs/compilers/openapi.md#references).
-	AnchorTarget
+	// NotObject is a node a reference object's $ref names that is no object of
+	// the kind Hop.Detail names. The parser resolves those, not the binder, so
+	// only load words a failure by it, as a schema's NotSchema is worded.
+	NotObject
+	// NoAnchor is a plain-name fragment no schema of the resource it names
+	// declares as its $anchor or $dynamicAnchor.
+	NoAnchor
+	// DuplicateAnchor is a plain-name fragment two or more schemas of the
+	// resource it names declare, so it names none.
+	DuplicateAnchor
+	// AnchorUnread is a plain-name fragment naming a resource of another
+	// document, whose identifiers are not read (GitHub #1049).
+	AnchorUnread
+	// DuplicateID is a URI two or more schemas declare as their $id, so it
+	// names none; Hop.Detail is the URI.
+	DuplicateID
 	// BadPointer is a fragment that is no JSON pointer and no $anchor name: an
 	// invalid escape, bytes that are not UTF-8, or a second '#', which RFC
 	// 3986 admits in no fragment.
@@ -114,8 +139,9 @@ const (
 	NoDefinition
 	// OwnDefinition is a "#/$defs/..." pointer the $defs rule finds nothing
 	// for, which the schema writing it defines: its own definitions answer
-	// only where an $id makes it a resource of its own (definitions.ownResource),
-	// as OAS 3.1 reads one with none against the document.
+	// only where an $id makes it a resource of its own, whose root the pointer
+	// is then read from (resources.holding), as OAS 3.1 reads one with none
+	// against the document.
 	OwnDefinition
 	// RawDefinition is a "#/$defs/..." pointer the $defs rule finds nothing
 	// for, which raw YAML above it defines: raw YAML holds no schema of the
@@ -126,6 +152,12 @@ const (
 	// Unreadable is a reference to another document that could not be read;
 	// Hop.Detail says why.
 	Unreadable
+	// Unparsable is a reference to another document that was read and does
+	// not parse; Hop.Detail is the parser's account of where.
+	Unparsable
+	// Empty is a reference to another document that was read and holds
+	// nothing (IsEmpty).
+	Empty
 	// BesideRef is a pointer through the fields beside a path item's $ref;
 	// Hop.Use and Hop.Key name them.
 	BesideRef
@@ -133,13 +165,14 @@ const (
 	// item's $ref, as any definition it can name is; Hop.Use and Hop.Key name
 	// them.
 	BesideDefs
-	// Unpassable is a pointer through a reference object that resolves to
-	// nothing, or one in another document's content, which is not resolved.
+	// Unpassable is a pointer through a reference object, in whichever
+	// document, that resolves to nothing the compiler reads.
 	Unpassable
 	// MergeBound is a read that stopped at a mapping merging through `<<`
 	// deeper than nodeview.MergeDepthLimit, so a key it needs may lie past the
-	// bound: one the pointer names, or an $id or a definition the $defs rule
-	// reads before the one that would answer.
+	// bound: one the pointer names, an $id that may give the base it is read
+	// against, an identifier it names, or a definition the $defs rule reads
+	// before the one that would answer.
 	MergeBound
 )
 
@@ -150,7 +183,8 @@ type Hop struct {
 	Ref    string
 	Status Status
 	Reason Reason
-	// Detail is a read error, for Unreadable.
+	// Detail is a read error, for Unreadable, a parse error, for Unparsable,
+	// and the URI named, for NoResourceTarget and DuplicateID.
 	Detail string
 	// Use and Key are the path item $ref and the key written beside it, for
 	// BesideRef.
@@ -182,10 +216,6 @@ type Chain struct {
 	// position itself lies on that loop rather than leading into it.
 	Loop   int
 	Member bool
-	// Named reports, when Resolved, whether every $ref of the chain names the
-	// source (Hop.Named): only then does the lowering, which lowers no schema
-	// another document holds (GitHub #74), reach End.
-	Named bool
 }
 
 // Entry is one position writing a schema $ref: its hop and its chain.
@@ -196,21 +226,18 @@ type Entry struct {
 }
 
 // Loop is a cycle of $refs: its members, ordered, and Site, where it is
-// reported: the least member in the source, or, when no member is, the least
-// source position whose chain leads into it. Reported is false when neither
-// exists, for a loop only another document's content reaches.
+// reported: the least of them, in whichever document.
 type Loop struct {
-	Members  []Position
-	Site     Position
-	Reported bool
+	Members []Position
+	Site    Position
 }
 
 // Landing is a position some hop reads as a schema though the parser's model
 // holds none there, which a schema has to be built for: raw YAML in the
 // source, or a node of another document, whose Name it is in. Site is the
-// least source position whose chain reaches it, a $ref's or a mapping
-// value's; Reached is false when none does, and only another document's
-// content leads there.
+// least position whose chain reaches it, a $ref's or a mapping value's, in
+// whichever document; Reached is false when none does, as where the budget
+// cut the reading.
 type Landing struct {
 	At      Position
 	Name    string
@@ -236,10 +263,21 @@ func (h Hop) Why() string {
 	switch h.Reason {
 	case NoTarget:
 		return "it names nothing in the document it points into"
+	case NoResourceTarget:
+		return "it names nothing in the schema resource " + h.Detail + ", whose root its pointer is read from"
 	case NotSchema:
 		return "it names a position that holds no schema"
-	case AnchorTarget:
-		return "it names a $anchor, which the compiler does not read as a reference target"
+	case NotObject:
+		return "it names a position that holds no " + h.Detail
+	case NoAnchor:
+		return "no schema of the resource it names declares that name as its $anchor or $dynamicAnchor"
+	case DuplicateAnchor:
+		return "two or more schemas of the resource it names declare that name as their $anchor or " +
+			"$dynamicAnchor, so it names none of them"
+	case AnchorUnread:
+		return "it names a plain name in another document, whose identifiers are not read (GitHub #1049)"
+	case DuplicateID:
+		return "two or more schemas declare " + h.Detail + " as their $id, so it names none of them"
 	case BadPointer:
 		return "its fragment is no JSON pointer"
 	case NoDefinition:
@@ -257,6 +295,10 @@ func (h Hop) Why() string {
 		return "it names another document, and external references are not read"
 	case Unreadable:
 		return "the document it names could not be read: " + h.Detail
+	case Unparsable:
+		return "the document it names does not parse as YAML: " + h.Detail
+	case Empty:
+		return "the document it names is empty"
 	case BesideRef:
 		return "it reaches " + string(h.Spelled) + "; " + BesideReason(h.Use, h.Key)
 	case BesideDefs:

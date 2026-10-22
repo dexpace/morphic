@@ -3,15 +3,15 @@
 # verify-atomic-output.sh checks, against a real filesystem, that `morphic
 # compile -o` publishes its output atomically.
 #
-# The unit tests in cmd/morphic cover these paths by injecting failures through
-# package vars. This script is the end-to-end counterpart: it drives the built
-# binary, fails the write for real, and inspects what is left on disk. The two
-# answer different questions — the unit tests ask whether the code takes the
-# right branch, this asks whether the destination actually survives.
+# The unit tests in engine/internal/atomicfile pin the replace itself. This
+# script is the end-to-end counterpart: it drives the built binary, fails the
+# write for real, and inspects what is left on disk. The two answer different
+# questions — the unit tests ask whether the replace keeps its contract, this
+# asks whether the CLI's destination actually survives.
 #
-# It also pins the four limitations that publishing-by-rename brings, so a later
-# change cannot alter them without a test going red. See replaceFile in
-# cmd/morphic/compile.go, where the same four are recorded.
+# It also pins the limitations that publishing-by-rename brings, so a later
+# change cannot alter them without a check going red. See Replace in
+# engine/internal/atomicfile/atomicfile.go, where they are recorded.
 #
 # Usage:
 #   scripts/verify-atomic-output.sh                     # check the working tree
@@ -106,7 +106,8 @@ atomicity_case() {
     >/dev/null 2>&1 || true
   after="$(file_hash "$dir/ir.json")"
 
-  if [[ -n "$(find "$dir" -name '*.tmp*' -print -quit)" ]]; then
+  # Anything beside ir.json is debris, whatever the temporary file was named.
+  if (( $(find "$dir" -mindepth 1 | wc -l) != 1 )); then
     printf 'DEBRIS'
   elif [[ "$before" == "$after" ]]; then
     printf 'PRESERVED'
@@ -149,9 +150,9 @@ else
   fail "a temp file survived a successful write"
 fi
 
-# The four checks below pin the limitations publishing by rename brings. They
-# assert the documented outcome, so a change to any of them is a change to the
-# contract recorded on replaceFile, not a silent drift.
+# The checks below pin the limitations publishing by rename brings. They assert
+# the documented outcome, so a change to any of them is a change to the
+# contract recorded on Replace, not a silent drift.
 printf '\n3. documented limitations of publishing by rename\n'
 
 ro_dir="$work/readonly"
@@ -194,20 +195,21 @@ else
   fail "expected the hard link to be broken, keeping its old content"
 fi
 
-# The temp name adds 21 characters to the destination's basename, so a name
-# within 21 of the filesystem's limit cannot be written at all. The check
+# The temp name is the basename behind a dot and before a random number, so it
+# is always at least 2 characters longer, and a name 1 short of the
+# filesystem's 255-character limit cannot be written at all. The check
 # establishes that a plain write to the same name succeeds first, so a failure
 # here is the temp name and not the destination.
 nm_dir="$work/namemax"
 mkdir -p "$nm_dir"
-long_base="$(printf 'a%.0s' $(seq 235)).json"
+long_base="$(printf 'a%.0s' $(seq 249)).json"
 if printf 'PREVIOUS\n' >"$nm_dir/$long_base" 2>/dev/null; then
   set +e
   "$work/current" compile "$spec" -o "$nm_dir/$long_base" >/dev/null 2>&1
   nm_status=$?
   set -e
   if ((nm_status != 0)) && [[ "$(cat "$nm_dir/$long_base")" == PREVIOUS ]]; then
-    pass "a destination within 21 chars of the name limit fails, leaving it alone"
+    pass "a destination 1 char short of the name limit fails, leaving it alone"
   else
     fail "expected a near-limit destination name to fail with the destination intact"
   fi

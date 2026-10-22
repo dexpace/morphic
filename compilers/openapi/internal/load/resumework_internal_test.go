@@ -17,6 +17,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
+	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -28,15 +29,16 @@ func resumedOver(t *testing.T, dir, root string, limit int) (*resumeWork, []ir.D
 	tree, _, err := decodeStream([]byte(root))
 	require.NoError(t, err)
 	releaseAnchors(tree)
-	doc, valErrs, err := unmarshal(t.Context(), []byte(root), tree)
+	doc, err := unmarshal(t.Context(), []byte(root), tree)
 	require.NoError(t, err)
-	self := newSourceDocument(filepath.Join(dir, "root.yaml"), []byte(root), tree, valErrs, newSourceTree(0, overlay.Origin{}, tree), nil)
-	opts := Options{AllowExternalRefs: true}
-	reader := newExternal(doc, opts, newExternalReads(self))
-	reader.work.limit = limit
+	self := newSourceDocument(filepath.Join(dir, "root.yaml"), []byte(root), tree, judgment{}, newSourceTree(0, overlay.Origin{}, tree), nil)
+	opts := Options{Reader: reader.Disk{}}
+	ext := newExternal(t.Context(), doc, opts, newExternalReads(self))
+	ext.work.limit = limit
 	at := pointerAt(0, overlay.Origin{})
-	diags := newResolution(t.Context(), at, doc, Siblings{}, self, opts, &reader).run(t.Context(), doc)
-	return reader.work, append(diags, crossed(at, &reader)...)
+	pass := newResolution(t.Context(), doc, Siblings{}, self, opts, &ext)
+	pass.run(t.Context(), doc)
+	return ext.work, append(pass.diags(sitePlacer(at, Others{})), crossed(at, &ext)...)
 }
 
 // TestSettle_TheResumedWorkIsBounded pins maxResumeWork's bound. Two chains
@@ -155,7 +157,7 @@ func responseTree(n int) string {
 // so.
 func TestResumeWork_Charge(t *testing.T) {
 	t.Parallel()
-	tree, parsed := parseTree([]byte(`components:
+	tree, err := parseTree([]byte(`components:
   schemas:
     Base: {type: object}
     Alias: {$ref: '#/components/schemas/Base'}
@@ -165,7 +167,7 @@ func TestResumeWork_Charge(t *testing.T) {
     Back: {$ref: '#/components/schemas/Out'}
     Plus+Key: {$ref: '#/components/schemas/Base'}
 `))
-	require.True(t, parsed)
+	require.NoError(t, err)
 	cost := func(name string) int {
 		steps, _ := newTreeReads().cost(tree, "/components/schemas/"+name, math.MaxInt)
 		return steps
@@ -219,8 +221,8 @@ func TestResumeWork_Charge(t *testing.T) {
 func TestResumable_TheBudgetStopsWhatItWouldResume(t *testing.T) {
 	t.Parallel()
 	data := []byte("components:\n  schemas:\n    Base: {type: object}\n")
-	tree, parsed := parseTree(data)
-	require.True(t, parsed)
+	tree, err := parseTree(data)
+	require.NoError(t, err)
 	read := newExternalReads(sourceDocument{})
 	read.recordTree("other.yaml", tree, data)
 	walked := jsonpointer.ErrInvalidPath.Wrap(errors.New("expected index, got key at /components"))
@@ -241,24 +243,24 @@ func TestResumable_TheBudgetStopsWhatItWouldResume(t *testing.T) {
 		{"a stand-in reached", chain{records: []record{hop(slices.Clone(data), stand)}}, 1},
 	}
 	for _, c := range stalls {
-		reader := newExternal(&soa.OpenAPI{}, Options{}, read)
-		resume, refused := reader.resumable(c.c, walked)
+		ext := newExternal(t.Context(), &soa.OpenAPI{}, Options{}, read)
+		resume, refused := ext.resumable(c.c, walked)
 		require.True(t, resume, "%s: resumed within the budget", c.name)
 		require.NoError(t, refused)
-		assert.Equal(t, c.spent, reader.work.spent, c.name)
+		assert.Equal(t, c.spent, ext.work.spent, c.name)
 
-		reader.work.limit = reader.work.spent
-		resume, refused = reader.resumable(c.c, walked)
+		ext.work.limit = ext.work.spent
+		resume, refused = ext.resumable(c.c, walked)
 		assert.False(t, resume, c.name)
 		require.Error(t, refused, c.name)
 		assert.Equal(t, fmt.Sprintf("resolving it further takes more than the %d steps budgeted "+
-			"for chains through referenced documents", reader.work.limit), refused.Error())
+			"for chains through referenced documents", ext.work.limit), refused.Error())
 	}
 
-	reader := newExternal(&soa.OpenAPI{}, Options{}, read)
-	reader.work.limit = 0
-	reader.work.spend(1)
-	resume, refused := reader.resumable(stalls[0].c, errors.New("circular reference detected"))
+	ext := newExternal(t.Context(), &soa.OpenAPI{}, Options{}, read)
+	ext.work.limit = 0
+	ext.work.spend(1)
+	resume, refused := ext.resumable(stalls[0].c, errors.New("circular reference detected"))
 	assert.False(t, resume)
 	assert.NoError(t, refused, "a failure settle would not resume keeps its own error")
 }

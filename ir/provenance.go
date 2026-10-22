@@ -1,6 +1,8 @@
 package ir
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json/jsontext"
 	"slices"
 	"strings"
@@ -47,6 +49,14 @@ type Provenance struct {
 	// Inferred is "" for declared facts; otherwise it names the heuristic that
 	// produced this node (e.g. "pagination-name-match").
 	Inferred string `json:"inferred,omitempty"`
+}
+
+// InTable reports whether p.Source addresses one of a source table's n entries,
+// or is NoSource, the one value outside every table the IR declares. It is the
+// test each holder of a table applies to what indexes it, so none reads the
+// sentinel apart from the others.
+func (p Provenance) InTable(n int) bool {
+	return p.Source == NoSource || 0 <= p.Source && p.Source < n
 }
 
 // Position is a 1-based line and column inside a source. The zero value is no
@@ -119,15 +129,56 @@ func HasError(diags []Diagnostic) bool {
 	return ok
 }
 
+// FirstOutsideTable returns the first diagnostic in diags whose provenance
+// indexes none of a source table's n entries (Provenance.InTable) and true, or
+// the zero Diagnostic and false if each indexes one. A holder of a table asks
+// it of the findings that will be read against the table.
+func FirstOutsideTable(diags []Diagnostic, n int) (Diagnostic, bool) {
+	i := slices.IndexFunc(diags, func(d Diagnostic) bool { return !d.Provenance.InTable(n) })
+	if i < 0 {
+		return Diagnostic{}, false
+	}
+	return diags[i], true
+}
+
+// MergeDiagnostics returns stored followed by every diagnostic of produced
+// that stored does not already hold, identity being the whole value, the one
+// compilers/compile dedupes on. A compiler hands its findings back on two
+// channels and need fill only one, so taking either list over the other loses
+// what the other held.
+//
+// The result is freshly allocated when there is anything to merge: the two
+// lists routinely alias, and appending into a shared backing array would
+// overwrite entries still to be read.
+func MergeDiagnostics(stored, produced []Diagnostic) []Diagnostic {
+	if len(produced) == 0 {
+		return stored
+	}
+	held := make(map[Diagnostic]struct{}, len(stored))
+	for _, d := range stored {
+		held[d] = struct{}{}
+	}
+	merged := make([]Diagnostic, len(stored), len(stored)+len(produced))
+	copy(merged, stored)
+	for _, d := range produced {
+		if _, dup := held[d]; dup {
+			continue
+		}
+		merged = append(merged, d)
+	}
+	return merged
+}
+
 // SourceInfo describes one input file of a Document. The table a refused
 // compile's findings index names files nothing read, so it sets Path alone.
 type SourceInfo struct {
 	// Format names the format and version the file was read as, such as
-	// "openapi@3.2" or "overlay@1.0.0".
+	// "openapi@3.2", or "overlay@1.0.0" for an overlay (IsOverlay).
 	Format string `json:"format"`
 	// Path is the path the file was handed to the compiler under.
 	Path string `json:"path"`
-	// Hash is the hex SHA-256 of the file's bytes.
+	// Hash is the lowercase hex SHA-256 of the file's bytes, as SourceHash
+	// spells it.
 	Hash string `json:"hash"`
 	// SelfURI is the URI the document declared for itself, OpenAPI's `$self`,
 	// as written: a relative reference is not resolved against Path. It is
@@ -138,4 +189,25 @@ type SourceInfo struct {
 	// It is the value the compiler lowered, so a `$self` an overlay writes is
 	// recorded here, on the patched document's entry, not on the overlay's.
 	SelfURI string `json:"selfURI,omitempty"`
+}
+
+// SourceHash returns the SourceInfo.Hash of a file whose bytes are data: their
+// SHA-256 in lowercase hex. It is the one spelling a producer writes and a
+// caller holding the bytes checks, so the two cannot drift apart.
+func SourceHash(data []byte) string {
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:])
+}
+
+// OverlayFormat is the format an overlay applied to the source is read as,
+// before the "@" and the overlay version its Format carries.
+const OverlayFormat = "overlay"
+
+// IsOverlay reports whether s is an overlay applied to the source. A construct
+// an overlay wrote into the document it patched is credited to the overlay at
+// its position in that document, so a Provenance naming an overlay can spell
+// a position of either document. Another document a split source reads names
+// its own positions alone.
+func (s SourceInfo) IsOverlay() bool {
+	return strings.HasPrefix(s.Format, OverlayFormat+"@")
 }

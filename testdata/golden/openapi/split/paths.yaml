@@ -1,0 +1,24 @@
+openapi: 3.1.0
+info: {title: Split Petstore paths, version: "1.0.0"}
+paths:
+  /pets/{petId}:
+    parameters:
+      - $ref: '#/components/parameters/PetId'
+    get:
+      operationId: showPet
+      parameters:
+        - $ref: './root.yaml#/components/parameters/Trace'
+      responses:
+        "200":
+          description: the pet
+          content:
+            application/json:
+              schema: {$ref: './schemas/pet.yaml#/components/schemas/Pet'}
+        default: {$ref: './common.yaml#/components/responses/Error'}
+components:
+  parameters:
+    PetId:
+      name: petId
+      in: path
+      required: true
+      schema: {type: string, pattern: '^[0-9]+$'}

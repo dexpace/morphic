@@ -161,7 +161,9 @@ func (v *View) expand(n *yaml.Node, depth int) expansion {
 		return cached
 	}
 	// A merge cycle needs no bound of its own: it requires an alias to an
-	// ancestor, which the alias pre-scan refuses before any view reads the tree.
+	// ancestor, which the alias pre-scan refuses before a compile's views read
+	// the tree. Detection reads the root before that scan, and inFlight closes
+	// a cycle there having read every mapping on it.
 	if v.inFlight[n] {
 		return expansion{}
 	}
@@ -268,6 +270,30 @@ func KeyOf(raw *yaml.Node) (string, bool) {
 		return "", false
 	}
 	return key.Value, true
+}
+
+// RepeatedKeys returns the keys a mapping writes more than once, each once, in
+// the order their second copies appear. A key an explicit pair shares with a
+// `<<` merge is the merge's precedence rule at work, not a repeat, so merged
+// pairs are not counted. n is dereferenced; a node that is no mapping repeats
+// nothing.
+func RepeatedKeys(n *yaml.Node) []string {
+	n = Deref(n)
+	if n == nil || n.Kind != yaml.MappingNode {
+		return nil
+	}
+	copies := make(map[string]int, len(n.Content)/2)
+	var out []string
+	for i := 0; i+1 < len(n.Content); i += 2 {
+		key, own := KeyOf(n.Content[i])
+		if !own {
+			continue
+		}
+		if copies[key]++; copies[key] == 2 {
+			out = append(out, key)
+		}
+	}
+	return out
 }
 
 // dedupeLastWins keeps the last pair for each key, at that last occurrence's

@@ -857,7 +857,7 @@ components:
 	assert.True(t, slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {
 		return d.Code == diag.Validation+"/validation-required-field" &&
 			d.Provenance.Pointer == "/paths/~1missing/post/requestBody"
-	}), "the parser reports the content left out: %+v", diags)
+	}), "the rule table reports the content left out: %+v", diags)
 }
 
 // encodingSpec declares one form part per position an Encoding Object reaches:
@@ -1976,9 +1976,10 @@ func TestExample_ExternalValueOnlyIsCarried(t *testing.T) {
 // TestElectTypeSpelling_CoDeclaredSpellingsElectContent covers the invalid
 // document OpenAPI forbids at the two positions one rule governs: a parameter,
 // and a header which follows the parameter rules, declaring `schema` and
-// `content` together. Each holds one type, so one spelling is elected and the
-// other kept verbatim beside it — where both positions used to take one in
-// silence, and in opposite directions (GitHub #320).
+// `content` together. The table reports the rule broken, and each position
+// holds one type, so one spelling is elected and the other kept verbatim beside
+// it — where both positions used to take one in silence, and in opposite
+// directions (GitHub #320).
 func TestElectTypeSpelling_CoDeclaredSpellingsElectContent(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -2025,7 +2026,8 @@ func TestElectTypeSpelling_CoDeclaredSpellingsElectContent(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			doc, diags := parseFull(t, tc.spec)
-			openapitest.RequireNoErrorDiags(t, diags)
+			assert.Equal(t, []string{"openapi/validation/validation-mutually-exclusive-fields at " + tc.at},
+				errorFindings(diags))
 			target, mediaType, unmodeled := tc.elected(t, doc)
 
 			assert.Equal(t, ir.TypeID("t/prim/string"), target,

@@ -2,6 +2,7 @@ package openapi
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -10,21 +11,9 @@ import (
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/ir"
 )
-
-// maxMergeDepth bounds how far a root mapping's merge keys are followed. A `<<`
-// value may be an alias to a mapping that merges another, and an anchor may name
-// a mapping that reaches itself, so the chain is not bounded by the document.
-// Detection reads two keys off the root, which a document that merges at all
-// reaches in one step; eight leaves room for a written chain and none for a
-// crafted one.
-const maxMergeDepth = 8
-
-// mergeTag is the tag YAML resolves `<<` to. The tag is read rather than the
-// key's text, because a mapping may legitimately hold a key spelled "<<" that
-// was quoted into a plain string and merges nothing.
-const mergeTag = "!!merge"
 
 // sniffProbe holds the two discriminating top-level keys. Which one is present
 // is the whole of the format question: an OpenAPI 3.x document declares
@@ -35,6 +24,10 @@ const mergeTag = "!!merge"
 type sniffProbe struct {
 	OpenAPI string
 	Swagger string
+	// Cut reports a root mapping that merges through `<<` past
+	// nodeview.MergeDepthLimit without settling the answer, so a key the read
+	// did not reach may outrank what it found.
+	Cut bool
 }
 
 // Detect implements compilers.Compiler. It reports the dialect src declares by
@@ -59,6 +52,12 @@ func (*Compiler) Detect(src compilers.Source, opts compilers.Options) (compilers
 
 	probe, parsed, err := sniff(src.Data)
 	switch {
+	case probe.Cut:
+		// Declining in silence would let the bound pass for an answer.
+		return compilers.Recognition{}, []ir.Diagnostic{diag.Newf(
+			ir.SeverityError, diag.BudgetExceeded, atSource,
+			"source cannot be recognized: its root mapping merges through `<<` deeper than %d levels, "+
+				"past which a version it declares is not read", nodeview.MergeDepthLimit)}, false
 	case probe.OpenAPI != "":
 		return recognized("openapi", probe.OpenAPI, parsed), nil, true
 	case probe.Swagger != "":
@@ -378,7 +377,7 @@ func decodeYAML(data []byte) (sniffProbe, *load.Parsed, error) {
 	case root.Kind != yaml.MappingNode:
 		return sniffProbe{}, nil, fmt.Errorf("document root is %s, not a mapping", root.ShortTag())
 	default:
-		probe, err := probeFromMapping(root, maxMergeDepth, map[*yaml.Node]bool{})
+		probe, err := probeFromMapping(root)
 		return probe, parsed, err
 	}
 }
@@ -396,96 +395,51 @@ func documentRoot(doc *yaml.Node) *yaml.Node {
 	return doc.Content[0]
 }
 
-// probeFromMapping reads the probe keys off a root mapping, following its merge
-// keys for a key the mapping does not write itself.
+// probeFromMapping reads the probe keys off a root mapping through nodeview,
+// the one reading of a mapping the compile's parser gives: through aliases, its
+// `<<` merges expanded as the library expands them, and a key written twice at
+// its last value (docs/parser-library.md#duplicate-key). A second reading
+// would let detection name a version the compile does not read, which
+// compilers.Detection.Compile checks.
 //
-// A key written directly wins over one merged in, per YAML. A key written twice
-// takes its last spelling, as the compile's parser does
-// (docs/parser-library.md#duplicate-key), so detection and load never disagree.
-//
-// depth bounds the recursion. seen bounds the width depth does not: without it,
-// one anchor merged k times walks its own k merges each time, a product rather
-// than a sum (GitHub #487). Skipping a node already entered changes no answer:
-// fillFrom keeps the first contribution.
-func probeFromMapping(root *yaml.Node, depth int, seen map[*yaml.Node]bool) (sniffProbe, error) {
-	probe, merges, err := probeFromEntries(root)
-	if err != nil || depth <= 0 {
-		return probe, err
-	}
-
-	for _, merge := range merges {
-		merged, err := probeFromMerge(merge, depth-1, seen)
-		if err != nil {
-			return sniffProbe{}, err
-		}
-		probe.fillFrom(merged)
-	}
-	return probe, nil
-}
-
-// probeFromEntries reads a mapping's own entries, and returns the values of its
-// merge keys separately for the caller to follow. A mapping may write more than
-// one `<<`, and their order is the order they are answered in.
-func probeFromEntries(root *yaml.Node) (sniffProbe, []*yaml.Node, error) {
+// Only a key's effective value is read, so a value it overrides cannot fail
+// the probe. Only the depth bound hides a key (View.Exhausted): a merge cycle,
+// which the compile refuses, closes having read every mapping on it.
+func probeFromMapping(root *yaml.Node) (sniffProbe, error) {
+	view := nodeview.New()
 	var probe sniffProbe
-	var merges []*yaml.Node
-
-	for i := 0; i+1 < len(root.Content); i += 2 {
-		key, value := root.Content[i], root.Content[i+1]
-		if key.Tag == mergeTag {
-			merges = append(merges, value)
-			continue
-		}
-		field := probe.fieldFor(key)
+	for _, pair := range view.MappingPairs(root) {
+		field := probe.fieldFor(pair.Key)
 		if field == nil {
 			continue
 		}
-		version, err := probeVersion(value)
+		version, err := probeVersion(pair.Val)
 		if err != nil {
-			return sniffProbe{}, nil, err
+			return sniffProbe{}, err
 		}
 		*field = version
 	}
-	return probe, merges, nil
+	probe.Cut = view.Exhausted() && !settledByOwnPairs(root, probe)
+	return probe, nil
 }
 
-// probeFromMerge reads the probe keys out of one `<<` value, which YAML admits
-// as an alias to a mapping, a mapping written out, or a sequence of either.
-// Anything else merges nothing, which is the source's problem to be reported by
-// the parser that reads it and not a reason for detection to refuse.
-func probeFromMerge(merge *yaml.Node, depth int, seen map[*yaml.Node]bool) (sniffProbe, error) {
-	if depth <= 0 || seen[merge] {
-		return sniffProbe{}, nil
-	}
-	seen[merge] = true
-
-	switch merge.Kind {
-	case yaml.AliasNode:
-		if merge.Alias == nil {
-			return sniffProbe{}, nil
+// settledByOwnPairs reports whether probe, read off root, decides detection
+// although root's merges were cut short. A mapping's own pair outranks every
+// merge, so a key root writes itself holds the value read: `openapi` settles it
+// when that value is a version, and with `swagger` written too whatever it is.
+// A key root leaves to its merges may lie past the bound.
+func settledByOwnPairs(root *yaml.Node, probe sniffProbe) bool {
+	own := map[string]bool{}
+	for i := 0; i+1 < len(root.Content); i += 2 {
+		if key, ok := nodeview.KeyOf(root.Content[i]); ok {
+			own[key] = true
 		}
-		return probeFromMerge(merge.Alias, depth-1, seen)
-	case yaml.MappingNode:
-		return probeFromMapping(merge, depth-1, seen)
-	case yaml.SequenceNode:
-		// A sequence merges each of its entries, earlier ones winning over later,
-		// which is the precedence YAML gives them.
-		var probe sniffProbe
-		for _, item := range merge.Content {
-			merged, err := probeFromMerge(item, depth-1, seen)
-			if err != nil {
-				return sniffProbe{}, err
-			}
-			probe.fillFrom(merged)
-		}
-		return probe, nil
-	default:
-		return sniffProbe{}, nil
 	}
+	return own["openapi"] && (isVersion(probe.OpenAPI) || own["swagger"])
 }
 
 // probeVersion returns the version string a probe key's value declares, and an
-// error for a value that is not a scalar at all.
+// error for a value that is no scalar, or none at all.
 //
 // The scalar's text is taken as written rather than decoded, because the two
 // disagree only for tags no version carries — a version key is not !!binary —
@@ -493,6 +447,9 @@ func probeFromMerge(merge *yaml.Node, depth int, seen map[*yaml.Node]bool) (snif
 // the decoder is the quadratic path decodeYAML exists to avoid, and a probe
 // key's own value is the last place one could still be handed to it.
 func probeVersion(value *yaml.Node) (string, error) {
+	if value == nil {
+		return "", errors.New("version key has no value")
+	}
 	if value.Kind != yaml.ScalarNode {
 		return "", fmt.Errorf("version key is %s, not a scalar", value.ShortTag())
 	}
@@ -500,30 +457,15 @@ func probeVersion(value *yaml.Node) (string, error) {
 }
 
 // fieldFor returns the probe field that key names, or nil for a key that names
-// neither. Only a scalar names one: a mapping or sequence used as a key is legal
-// YAML and is not one of the two spellings this looks for.
-func (p *sniffProbe) fieldFor(key *yaml.Node) *string {
-	if key.Kind != yaml.ScalarNode {
-		return nil
-	}
-	switch key.Value {
+// neither.
+func (p *sniffProbe) fieldFor(key string) *string {
+	switch key {
 	case "openapi":
 		return &p.OpenAPI
 	case "swagger":
 		return &p.Swagger
 	default:
 		return nil
-	}
-}
-
-// fillFrom takes from other only what p does not already declare, which is what
-// makes a merged key lose to a written one.
-func (p *sniffProbe) fillFrom(other sniffProbe) {
-	if p.OpenAPI == "" {
-		p.OpenAPI = other.OpenAPI
-	}
-	if p.Swagger == "" {
-		p.Swagger = other.Swagger
 	}
 }
 

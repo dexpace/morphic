@@ -19,9 +19,9 @@ import (
 // each claim arrives. Judging on arrival reported whichever claim was lowered
 // second, so where the finding landed depended on declaration order.
 //
-// It owns the rule. The loader drops the parser validator's own check, which
-// sees only some of these operations and reads an alias's reuse as a repeat
-// (load's compilerOwned, GitHub #502).
+// It owns the rule: the load phase's rule table states it and leaves it here,
+// since only the lowering sees every operation, and tells an alias's reuse
+// from a repeat (GitHub #502).
 type operationIDClaims struct {
 	names  []string // each operationId, in the order it was first claimed
 	claims map[string][]operationIDClaim

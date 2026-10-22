@@ -1,8 +1,8 @@
 package compile
 
 import (
+	"context"
 	"fmt"
-	"slices"
 
 	"github.com/dexpace/morphic/ir"
 )
@@ -17,7 +17,10 @@ import (
 type Types struct {
 	reg       ir.TypeRegistry
 	byPointer map[string]ir.TypeID
-	refused   []string
+	// refused holds why each rejected entry was rejected, and reported how many
+	// of them Finish has reported.
+	refused  []string
+	reported int
 	// spaces records how each namespace is addressed — true for minted, false
 	// for source-addressed — so claimSpace can catch one namespace used both
 	// ways whichever way round it happens.
@@ -25,43 +28,50 @@ type Types struct {
 	// byID is byPointer read backwards, so a derivation that maps two distinct
 	// coordinates onto one ID is caught rather than silently overwriting.
 	byID map[ir.TypeID]string
-	// provisional holds the coordinates whose node was named by a lowering that
-	// reached them through a reference rather than through the declaration that
-	// owns them. See InternProvisional.
-	provisional map[string]bool
-	// declared holds the hint a declaration gave each coordinate it reached
-	// without finding a placeholder there. See NameFromDeclaration.
-	declared map[string]string
-	// byReference holds the coordinates whose node a reference built and the
-	// declaration that owns them has not rebuilt yet. See InternDeclared.
-	byReference map[string]bool
-	// pending holds the settlements Defer queued for the next Settle. See
-	// Settlement.
+	// promised holds every coordinate Promise queued, and promises those not
+	// yet taken; fulfilled records that Finish has built them. See Promise.
+	promised  map[string]bool
+	promises  map[string]func() []ir.Diagnostic
+	fulfilled bool
+	// pending holds the settlements Defer queued for Finish, and settled
+	// records that Finish has taken them. See Settlement.
 	pending []Settlement
+	settled bool
 }
 
 // refuse records why an entry was rejected. The registry declines to hold it
 // rather than returning an error, because the caller is mid-walk with no useful
 // recovery — but declining silently would make this type the one place able to
 // manufacture the malformed states irverify and pass.Validate exist to report.
-// Violations surfaces them.
+// Finish reports them.
 func (t *Types) refuse(format string, args ...any) {
 	t.refused = append(t.refused, fmt.Sprintf(format, args...))
 }
 
-// Violations returns the invariant breaches the registry refused to record, in
-// the order they were attempted, and then one entry counting the settlements
-// deferred that no Settle took.
+// RegistryRefused is the code of the error Finish reports for an entry the
+// registry refused. It names a compiler bug no source can produce, so it
+// locates nothing in a source.
+const RegistryRefused = "compile/registry-refused"
+
+// Finish ends a compile's use of t, after its last lowering. It builds each
+// promised node no lowering built (Promise), takes every deferred Settlement,
+// then hands over the Document's registry and the diagnostics to report: what
+// building and settling reported, then a RegistryRefused error for each entry
+// t refused, in order. The refusals ride in the list a compiler reports
+// anyway, so it cannot take the registry and lose them.
 //
-// A non-empty result is a compiler bug, not a spec problem: no source can
-// produce one. The owning compiler surfaces them as internal-invariant
-// diagnostics rather than dropping them.
-func (t *Types) Violations() []string {
-	if len(t.pending) == 0 {
-		return t.refused
+// Each refusal is reported once, and one made after Finish only by a later
+// call. A cancelled ctx stops it between steps, leaving a registry the caller
+// must not assemble.
+func (t *Types) Finish(ctx context.Context) (ir.TypeRegistry, []ir.Diagnostic) {
+	diags := t.fulfil(ctx)
+	diags = append(diags, t.settle(ctx)...)
+	for _, why := range t.refused[t.reported:] {
+		diags = append(diags, ir.NewDiagnostic(ir.SeverityError, RegistryRefused,
+			"internal: the type registry refused an entry: "+why, ir.Provenance{Source: ir.NoSource}))
 	}
-	return append(slices.Clip(t.refused),
-		fmt.Sprintf("settlements deferred and never taken by a Settle: %d", len(t.pending)))
+	t.reported = len(t.refused)
+	return t.reg, diags
 }
 
 // NewTypes returns an empty registry.
@@ -71,10 +81,8 @@ func NewTypes() *Types {
 		byPointer: make(map[string]ir.TypeID),
 		spaces:    make(map[Space]bool),
 		byID:      make(map[ir.TypeID]string),
-
-		provisional: make(map[string]bool),
-		declared:    make(map[string]string),
-		byReference: make(map[string]bool),
+		promised:  make(map[string]bool),
+		promises:  make(map[string]func() []ir.Diagnostic),
 	}
 }
 
@@ -155,99 +163,6 @@ func (t *Types) Intern(pointer string, id ir.TypeID, build func() ir.TypeDef) ir
 	}
 	t.reg[id] = td
 	return id
-}
-
-// InternProvisional is Intern for a lowering that reached pointer through a
-// reference rather than the declaration that owns it, and records that the
-// node's name is a placeholder.
-//
-// Either can arrive first at a coordinate inside another declaration's body,
-// and Intern builds for the first. The declaration names it better, so
-// NameFromDeclaration replaces the name and InternDeclared rebuilds the node
-// when it arrives.
-//
-// An interned coordinate is not marked: its name may be settled. One the
-// declaration reached before any node existed takes the declared hint instead
-// (GitHub #519).
-func (t *Types) InternProvisional(pointer string, id ir.TypeID, build func() ir.TypeDef) ir.TypeID {
-	_, before := t.byPointer[pointer]
-	interned := t.Intern(pointer, id, build)
-	if _, after := t.byPointer[pointer]; !after || before {
-		return interned
-	}
-	if hint, ok := t.declared[pointer]; ok {
-		t.reg[interned].Common().Name.Hint = neutralHint(hint)
-		return interned
-	}
-	t.provisional[pointer] = true
-	t.byReference[pointer] = true
-	return interned
-}
-
-// InternDeclared is Intern for the declaration that owns pointer. Where a
-// reference built the node first, it builds it again under the same ID.
-//
-// Renaming only that node would leave the nodes the reference interned beneath
-// it named from its guess, which a pointer under /paths cannot replay (GitHub
-// #529). The build lowers the same schema at the same pointers, so each one
-// takes the declaration's name. It replaces what the reference built, not what
-// it reported (GitHub #750).
-//
-// A coordinate is rebuilt once. A build yielding nothing is refused, keeping
-// the reference's node so IDs other nodes hold still resolve.
-func (t *Types) InternDeclared(pointer string, id ir.TypeID, build func() ir.TypeDef) ir.TypeID {
-	if !t.byReference[pointer] {
-		return t.Intern(pointer, id, build)
-	}
-	delete(t.byReference, pointer)
-	existing := t.byPointer[pointer]
-	if existing != id {
-		t.refuse("rebuild rejected: %q is interned as %q, not %q", pointer, existing, id)
-		return existing
-	}
-	if build == nil {
-		t.refuse("rebuild rejected: nil build for id=%q at %q", id, pointer)
-		return existing
-	}
-	td := build()
-	if ir.IsNilTypeDef(td) {
-		t.refuse("rebuild rejected: build returned a nil type definition for id=%q at %q", id, pointer)
-		return existing
-	}
-	t.reg[id] = td
-	return id
-}
-
-// NameFromDeclaration gives the node at pointer its declaration's hint,
-// replacing a placeholder a reference left first.
-//
-// Without a placeholder the declaration came first, and the hint is recorded
-// for InternProvisional. A declaration may intern nothing at a position, such
-// as a $ref resolved straight to its target; a reference naming the position
-// later hoists a node the declaration never made, whose name would otherwise
-// depend on declaration order (GitHub #519).
-//
-// A position has one declaration hint however many lowerings reach it (GitHub
-// #433), so a second call is harmless: a named node keeps its name, and the
-// rewritten record is never read.
-func (t *Types) NameFromDeclaration(pointer, hint string) {
-	if !t.provisional[pointer] {
-		t.declared[pointer] = hint
-		return
-	}
-	delete(t.provisional, pointer)
-	// The coordinate resolves and its node is present: InternProvisional marks a
-	// coordinate only once its build has returned a node, and Intern is what
-	// removes the pair again when a build yields nothing — so there is no state
-	// here in which one exists without the other, and a branch for one would be
-	// untestable.
-	//
-	// Neutralized on the way in, because this writes the field NamingHint would
-	// have written and has to write it the same way. A raw hint here would leave
-	// the node holding the caller's spelling — "A" where interning the same hint
-	// gives "a" — so the name would depend on whether a reference got there
-	// first, which is the dependence this whole path exists to remove.
-	t.reg[t.byPointer[pointer]].Common().Name.Hint = neutralHint(hint)
 }
 
 // Register records td under id without associating it with any source
@@ -347,15 +262,6 @@ func (t *Types) PrimRef(k ir.PrimKind) ir.TypeRef {
 
 // PrimID interns the primitive of kind k and returns its ID.
 func (t *Types) PrimID(k ir.PrimKind) ir.TypeID { return t.PrimRef(k).Target }
-
-// Registry returns the built registry for assembly into an ir.Document.
-//
-// It hands over the live map rather than a copy: the caller is the compiler that
-// owns this Types, the value goes straight into a Document it is assembling, and
-// copying a registry per compile to guard against a caller that has no reason to
-// mutate it would cost the whole walk's allocation for nothing. Callers outside
-// the owning compile must treat the result as read-only.
-func (t *Types) Registry() ir.TypeRegistry { return t.reg }
 
 // Len reports how many types are interned.
 func (t *Types) Len() int { return len(t.reg) }

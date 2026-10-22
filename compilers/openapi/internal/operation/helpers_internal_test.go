@@ -40,7 +40,7 @@ func lowererOver(ctx lowering.Ctx) *lowerer {
 	types := compile.NewTypes()
 	return &lowerer{
 		ctx:   ctx,
-		out:   &ir.Document{Types: types.Registry()},
+		out:   &ir.Document{},
 		types: types,
 	}
 }
@@ -60,14 +60,14 @@ func loweredAt(t *testing.T, src compilers.Source, opts load.Options) (*lowerer,
 	require.NoError(t, err)
 	require.NotNil(t, loadedDoc, "load returned no document: %+v", diags)
 	return lowererOver(lowering.New(0, loadedDoc.Doc, loadedDoc.Source,
-		lowering.GroupByTags, lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, overlay.Origin{}).
+		lowering.GroupByTags, lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}).
 		WithLoaded(loadedDoc)), diags
 }
 
 // newRawLowerer builds a fixture over a hand-constructed document, bypassing
 // the parser so nil slice/map entries can be exercised.
 func newRawLowerer(doc *soa.OpenAPI) *lowerer {
-	return lowererOver(lowering.New(0, doc, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, overlay.Origin{}))
+	return lowererOver(lowering.New(0, doc, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}))
 }
 
 // lowerServiceSpec loads src and runs the phases the service walk needs beneath
@@ -87,5 +87,7 @@ func lowerServiceSpec(t *testing.T, src string) (ir.Service, []ir.Diagnostic) {
 
 	svc, _, svcDiags := LowerService(t.Context(), l.ctx.WithAuth(schemes), l.types, &l.anchors)
 	l.diags.AppendAll(svcDiags)
+	_, finished := l.types.Finish(t.Context())
+	l.diags.AppendAll(finished)
 	return svc, append(loadDiags, l.diags.List()...)
 }

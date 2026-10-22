@@ -33,9 +33,9 @@ type Bindings struct {
 	discs map[*oas3.Discriminator]bind.Position
 	// held is the schema at each position: the model's own, or one built.
 	held map[bind.Position]*schemaRef
-	// unplaced is the source's reference object each schema and discriminator
-	// of an end the table could not place was read under (Builder.Unplaced).
-	unplaced map[any]jsontext.Pointer
+	// unplaced is the reference object each schema and discriminator of an end
+	// the table could not place was read under, as spelled (Builder.Unplaced).
+	unplaced map[any]string
 }
 
 // Table returns the table b answers from.
@@ -76,14 +76,11 @@ func (b *Bindings) Declared(js *schemaRef) *schemaRef {
 	return b.held[e.Hop.Target]
 }
 
-// End returns the schema the chain of $refs from js ends on, or nil where it
-// does not end on one or a $ref of it names another document (bind.Chain.Named).
-// The lowering lowers no schema there (GitHub #74), so what such a chain ends
-// on lends the use site holding it nothing: no annotation, form part, file
-// body or discriminator its type does not also hold.
+// End returns the schema the chain of $refs from js ends on, in whichever
+// document, or nil where it does not end on one.
 func (b *Bindings) End(js *schemaRef) *schemaRef {
 	e, ok := b.Entry(js)
-	if !ok || e.Chain.Status != bind.Resolved || !e.Chain.Named {
+	if !ok || e.Chain.Status != bind.Resolved {
 		return nil
 	}
 	return b.held[e.Chain.End]
@@ -111,11 +108,12 @@ func (b *Bindings) Mapping(d *oas3.Discriminator, value string) (bind.Mapping, b
 	return b.table.Mapping(at, value)
 }
 
-// Unplaced returns the pointer of the source's reference object in whose
-// content model, a schema or a discriminator, was read, where the table could
-// not place what the parser resolved that object to (bind.Table.Through), so
-// no $ref in it is bound. It is false for any other model.
-func (b *Bindings) Unplaced(model any) (jsontext.Pointer, bool) {
+// Unplaced returns the reference object in whose content model, a schema or a
+// discriminator, was read, spelled as its pointer and, outside the source, its
+// document, where the table could not place what the parser resolved that
+// object to (bind.Table.Through), so no $ref in it is bound. It is false for
+// any other model.
+func (b *Bindings) Unplaced(model any) (string, bool) {
 	if b == nil {
 		return "", false
 	}
@@ -132,30 +130,32 @@ type Builder struct {
 	view *nodeview.View
 	// decode builds a schema from YAML: the parser's own decoder, which a test
 	// replaces to reach its failure.
-	decode func(ctx context.Context, n *yaml.Node, js *schemaRef) ([]error, error)
+	decode func(ctx context.Context, n *yaml.Node, js *schemaRef) error
 }
 
 // NewBuilder returns a Builder over table, knowing no schema yet.
 func NewBuilder(table *bind.Table) *Builder {
 	return &Builder{decode: decodeSchema, view: nodeview.New(), b: &Bindings{table: table, at: map[*schemaRef]bind.Position{},
 		discs: map[*oas3.Discriminator]bind.Position{}, held: map[bind.Position]*schemaRef{},
-		unplaced: map[any]jsontext.Pointer{}}}
+		unplaced: map[any]string{}}}
 }
 
-// decodeSchema decodes n into js as the parser decodes a schema of its model,
-// returning the findings decoding it raises.
-func decodeSchema(ctx context.Context, n *yaml.Node, js *schemaRef) ([]error, error) {
-	return marshaller.UnmarshalNode(ctx, "", n, js)
+// decodeSchema decodes n into js as the parser decodes a schema of its model.
+// What decoding finds wrong with the schema is not kept: the load phase's rule
+// table judges the source, and what a reference reaches, itself.
+func decodeSchema(ctx context.Context, n *yaml.Node, js *schemaRef) error {
+	_, err := marshaller.UnmarshalNode(ctx, "", n, js)
+	return err
 }
 
 // decodeRecovered is bd.decode with a panic on the caller's goroutine turned
 // into an error: the decoder reads YAML no one checked was a schema, and the
 // parser panics on some shapes it accepts
 // (docs/parser-library.md#recoverable-panic).
-func (bd *Builder) decodeRecovered(ctx context.Context, n *yaml.Node, js *schemaRef) (findings []error, err error) {
+func (bd *Builder) decodeRecovered(ctx context.Context, n *yaml.Node, js *schemaRef) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			findings, err = nil, fmt.Errorf("the parser panicked: %v", r)
+			err = fmt.Errorf("the parser panicked: %v", r)
 		}
 	}()
 	return bd.decode(ctx, n, js)
@@ -181,9 +181,9 @@ func (bd *Builder) Discriminator(d *oas3.Discriminator, p bind.Position) {
 }
 
 // Unplaced records that model, a schema or a discriminator, was read in what
-// the source's reference object at site resolved to, where the table could
-// not place it.
-func (bd *Builder) Unplaced(model any, site jsontext.Pointer) {
+// the reference object site spells resolved to, where the table could not
+// place it.
+func (bd *Builder) Unplaced(model any, site string) {
 	bd.b.unplaced[model] = site
 }
 
@@ -231,14 +231,12 @@ func appendToken(b []byte, token string) []byte {
 // holds nothing at its position, which no table reports.
 var errNothingThere = errors.New("the document holds nothing there")
 
-// Built is a schema built for a landing: where, the least position whose $ref
-// lands there, and what decoding it found; Schema is nil where it failed, and
-// Err says why.
+// Built is a schema built for a landing: where, and the least position whose
+// $ref lands there; Schema is nil where it failed, and Err says why.
 type Built struct {
-	Landing  bind.Landing
-	Schema   *schemaRef
-	Findings []error
-	Err      error
+	Landing bind.Landing
+	Schema  *schemaRef
+	Err     error
 }
 
 // Build builds a schema for each of the table's landings, in order, records
@@ -267,12 +265,11 @@ func (bd *Builder) build(ctx context.Context, l bind.Landing) Built {
 		return built
 	}
 	js := &schemaRef{}
-	findings, err := bd.decodeRecovered(ctx, path[len(path)-1], js)
-	if err != nil {
+	if err := bd.decodeRecovered(ctx, path[len(path)-1], js); err != nil {
 		built.Err = err
 		return built
 	}
-	built.Schema, built.Findings = js, findings
+	built.Schema = js
 	bd.Walk(ctx, js, l.At)
 	return built
 }

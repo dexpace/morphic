@@ -2,7 +2,6 @@ package load
 
 import (
 	"encoding/json/jsontext"
-	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -16,14 +15,13 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	soa "github.com/speakeasy-api/openapi/openapi"
-	"github.com/speakeasy-api/openapi/references"
-	"github.com/speakeasy-api/openapi/validation"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
+	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -162,7 +160,7 @@ func TestHold_EverySpellingOfTheSourceReachesIt(t *testing.T) {
 				backPath("/b", name+"#/components/responses/Alias")),
 				"components:\n  responses:\n", "components:\n  responses:\n    RA: {$ref: '#/components/responses/R'}\n", 1)
 			got, diags, err := Load(t.Context(), 0,
-				compilers.Source{Path: c.source, Data: []byte(root)}, Options{AllowExternalRefs: true})
+				compilers.Source{Path: c.source, Data: []byte(root)}, Options{Reader: reader.Disk{}})
 			require.NoError(t, err)
 			require.NotNil(t, got, "%+v", diags)
 
@@ -217,7 +215,7 @@ components:
     R: {description: ok}
 `
 			got, diags, err := Load(t.Context(), 0,
-				compilers.Source{Path: "root.yaml", Data: []byte(root)}, Options{AllowExternalRefs: true})
+				compilers.Source{Path: "root.yaml", Data: []byte(root)}, Options{Reader: reader.Disk{}})
 			require.NoError(t, err)
 			require.NotNil(t, got, "%+v", diags)
 
@@ -287,7 +285,7 @@ func TestHold_APanicStopsTheWalkWhereItStands(t *testing.T) {
 	t.Parallel()
 	doc := &soa.OpenAPI{}
 	root := &yaml.Node{Kind: yaml.DocumentNode}
-	reader := newExternal(doc, Options{}, newExternalReads(sourceDocument{path: "root.yaml", data: []byte("x"), root: root}))
+	ext := newExternal(t.Context(), doc, Options{}, newExternalReads(sourceDocument{path: "root.yaml", data: []byte("x"), root: root}))
 	first := fakeResolvable{ref: "#/first"}
 	items := func(yield func(soa.WalkItem) bool) {
 		if !yield(fakeWalkItem("first", first)) {
@@ -296,7 +294,7 @@ func TestHold_APanicStopsTheWalkWhereItStands(t *testing.T) {
 		panic("boom")
 	}
 
-	require.NotPanics(t, func() { reader.holdWalked(items) })
+	require.NotPanics(t, func() { ext.holdWalked(items) })
 
 	tree, ok := doc.GetCachedExternalDocument("root.yaml")
 	require.True(t, ok)
@@ -317,7 +315,7 @@ func TestHold_APanicStillHoldsTheSpellingsRecorded(t *testing.T) {
 	read := newExternalReads(sourceDocument{path: "root.yaml", data: []byte("x"), root: root})
 	read.spelled.note("spelled.yaml", "/first")
 	read.spelled.note("spelled.yaml", "/second")
-	reader := newExternal(doc, Options{}, read)
+	ext := newExternal(t.Context(), doc, Options{}, read)
 	items := func(yield func(soa.WalkItem) bool) {
 		if !yield(fakeWalkItem("first", fakeResolvable{ref: "#/first"})) {
 			return
@@ -325,7 +323,7 @@ func TestHold_APanicStillHoldsTheSpellingsRecorded(t *testing.T) {
 		panic("boom")
 	}
 
-	require.NotPanics(t, func() { reader.holdWalked(items) })
+	require.NotPanics(t, func() { ext.holdWalked(items) })
 
 	_, ok := doc.GetCachedExternalDocument("spelled.yaml")
 	assert.True(t, ok, "the spelling's document")
@@ -340,8 +338,8 @@ func TestHold_APanicStillHoldsTheSpellingsRecorded(t *testing.T) {
 func TestHold_ASourceWithNoKeyIsNotHeld(t *testing.T) {
 	t.Parallel()
 	doc := &soa.OpenAPI{}
-	reader := newExternal(doc, Options{}, newExternalReads(sourceDocument{root: &yaml.Node{}}))
-	reader.holdWalked(func(func(soa.WalkItem) bool) { t.Fatal("walked for a source held under no key") })
+	ext := newExternal(t.Context(), doc, Options{}, newExternalReads(sourceDocument{root: &yaml.Node{}}))
+	ext.holdWalked(func(func(soa.WalkItem) bool) { t.Fatal("walked for a source held under no key") })
 	_, ok := doc.GetCachedExternalDocument("")
 	assert.False(t, ok)
 }
@@ -395,25 +393,11 @@ func TestSourceDocument_Names(t *testing.T) {
 	}
 }
 
-// TestNewSourceDocument_KeepsOnlyFindingsAtANode pins which of the source's
-// own findings a $ref's are measured against: one at a node, never one at
-// none, which is told apart by where it is placed.
-func TestNewSourceDocument_KeepsOnlyFindingsAtANode(t *testing.T) {
-	t.Parallel()
-	node := &yaml.Node{}
-	atNode := &validation.Error{Rule: "r", UnderlyingError: errors.New("m"), Node: node}
-	atNone := &validation.Error{Rule: "r", UnderlyingError: errors.New("n")}
-
-	self := newSourceDocument("root.yaml", nil, nil, []error{atNode, atNone, errors.New("plain")}, sourceTree{}, nil)
-
-	assert.Equal(t, map[findingKey]bool{keyOf(atNode, ""): true}, self.found)
-}
-
 // TestHold_ARelativeSourceResolvesItsComponentAsItDoesInEitherOrder pins that
 // the source's own component is resolved as the source resolves it when a back
 // reference spelling the source otherwise reaches it first. Resolved against
 // that spelling, its $ref named the file beside it otherwise, so the file was
-// read twice, and a finding in it was named by whichever spelling came first.
+// read twice, and a finding in it was placed by whichever spelling came first.
 //
 // Not run in parallel: the source's path is relative to the working directory.
 func TestHold_ARelativeSourceResolvesItsComponentAsItDoesInEitherOrder(t *testing.T) {
@@ -433,12 +417,19 @@ func TestHold_ARelativeSourceResolvesItsComponentAsItDoesInEitherOrder(t *testin
 
 	for _, spec := range []string{root(back + internal), root(internal + back)} {
 		got, diags, err := Load(t.Context(), 0,
-			compilers.Source{Path: "root.yaml", Data: []byte(spec)}, Options{AllowExternalRefs: true})
+			compilers.Source{Path: "root.yaml", Data: []byte(spec)}, Options{Reader: reader.Disk{}})
 		require.NoError(t, err)
 		require.NotNil(t, got, "%+v", diags)
 		require.Len(t, diags, 1, "%+v", diags)
-		assert.Equal(t, jsontext.Pointer("/components/responses/P"), diags[0].Provenance.Pointer)
-		assert.Contains(t, diags[0].Message, "of other.yaml", "named as the source names it")
+		assert.Equal(t, jsontext.Pointer("/components/responses/Q/links/L"), diags[0].Provenance.Pointer)
+		other, ok := got.Others.At(diags[0].Provenance.Source)
+		require.True(t, ok, "placed in a document read beside the source: %+v", diags[0])
+		assert.Equal(t, "other.yaml", other.Label, "named as the source names it")
+		labels := make([]string, 0, 2)
+		for _, o := range got.Others.List() {
+			labels = append(labels, o.Label)
+		}
+		assert.Equal(t, []string{"../x.yaml", "other.yaml"}, labels, "each file read once")
 	}
 }
 
@@ -451,12 +442,12 @@ func heldResolution(t *testing.T, spec, path string) (*soa.OpenAPI, *resolution)
 	root, _, err := decodeStream(data)
 	require.NoError(t, err)
 	releaseAnchors(root)
-	doc, valErrs, err := unmarshal(t.Context(), data, root)
+	doc, err := unmarshal(t.Context(), data, root)
 	require.NoError(t, err)
-	self := newSourceDocument(path, data, root, valErrs, newSourceTree(0, overlay.Origin{}, root), nil)
-	opts := Options{AllowExternalRefs: true}
-	reader := newExternal(doc, opts, newExternalReads(self))
-	return doc, newResolution(t.Context(), pointerAt(0, overlay.Origin{}), doc, Siblings{}, self, opts, &reader)
+	self := newSourceDocument(path, data, root, judgment{}, newSourceTree(0, overlay.Origin{}, root), nil)
+	opts := Options{Reader: reader.Disk{}}
+	ext := newExternal(t.Context(), doc, opts, newExternalReads(self))
+	return doc, newResolution(t.Context(), doc, Siblings{}, self, opts, &ext)
 }
 
 // TestExternal_OpenHoldsTheSourceItIsAskedFor pins what Open does with the
@@ -500,13 +491,13 @@ func TestHold_EachSpellingADocumentUsesIsHeldAhead(t *testing.T) {
 	path := filepath.Join(dir, "root.yaml")
 	doc, pass := heldResolution(t, backRoot(backPath("/a", "#/components/responses/R")), path)
 	unclean := dir + "/./root.yaml"
-	tree, ok := parseTree([]byte(`a: {$ref: '#/components/responses/R'}
+	tree, err := parseTree([]byte(`a: {$ref: '#/components/responses/R'}
 b: {$ref: [root.yaml]}
 c: {$ref: 'other.yaml#/x'}
 d: {$ref: 'https://example.com/root.yaml#/x'}
 e: [{$ref: '` + unclean + `#/components/responses/R'}, {$ref: '` + unclean + `'}, {$ref: '../root.yaml'}]
 `))
-	require.True(t, ok)
+	require.NoError(t, err)
 
 	pass.reader.holdSpellings(tree, filepath.Join(dir, "sub", "doc.yaml"))
 
@@ -623,8 +614,8 @@ func TestHold_ASecondResolutionHoldsTheSpellingsTheFirstFound(t *testing.T) {
 	pass.reader.holdSite(spelled, "/components/responses/R")
 
 	again, _ := heldResolution(t, backRoot(backPath("/a", "#/components/responses/R")), filepath.Join(dir, "root.yaml"))
-	reader := newExternal(again, Options{}, pass.reader.read)
-	reader.hold(t.Context(), Siblings{})
+	ext := newExternal(t.Context(), again, Options{}, pass.reader.read)
+	ext.hold(t.Context(), Siblings{})
 
 	_, ok := again.GetCachedReferencedObject(spelled + "#/components/responses/R")
 	assert.True(t, ok, "held under the spelling the first resolution found")
@@ -646,9 +637,9 @@ func TestHold_AReferenceNamingTheSourceCopiesNoBytesOfIt(t *testing.T) {
 		"components:\n  responses:\n    B: {description: ok}\n", path)
 	a := response200(t, doc, "/a")
 
-	pass.visit(t.Context(), "/paths/~1a/get/responses/200", a)
+	pass.visit(t.Context(), refSite{pointer: "/paths/~1a/get/responses/200"}, a, pass.opts)
 
-	require.Empty(t, pass.failures)
+	require.Empty(t, pass.diags(sitePlacer(pointerAt(0, overlay.Origin{}), Others{})))
 	assert.Equal(t, "ok", a.GetObject().Description)
 	cached, ok := doc.GetCachedReferenceDocument(path)
 	require.True(t, ok)
@@ -757,16 +748,4 @@ func TestStandIn(t *testing.T) {
 	assert.False(t, ok, "a kind of no known stand-in is held as none")
 	_, ok = read.stoodFor(&soa.ReferencedResponse{})
 	assert.False(t, ok, "an object made elsewhere stands for nothing")
-}
-
-// TestReachedFindings_DropsAKnownFinding pins the known findings at the one
-// place they act: a finding the walk draws at a node the source's own
-// validation already reported is dropped there.
-func TestReachedFindings_DropsAKnownFinding(t *testing.T) {
-	t.Parallel()
-	node := &yaml.Node{Line: 1, Column: 1}
-	finding := &validation.Error{Severity: validation.SeverityError, Rule: "r", UnderlyingError: errors.New("m"), Node: node}
-	found := reachedFindings{sites: map[references.Reference]jsontext.Pointer{}, known: map[findingKey]bool{keyOf(finding, ""): true}}
-	found.note("/a", trail{}, []error{finding})
-	assert.Empty(t, found.diags(pointerAt(0, overlay.Origin{})))
 }

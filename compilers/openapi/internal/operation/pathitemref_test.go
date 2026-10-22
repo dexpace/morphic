@@ -15,7 +15,9 @@ import (
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/ir/irverify"
 )
@@ -199,9 +201,12 @@ func TestPathItemRefSiblings_ExternalRefFollowsTheCompilesPolicy(t *testing.T) {
 
 	compiled := func(allow bool) (*ir.Document, []ir.Diagnostic) {
 		t.Helper()
+		opts := compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: allow}}
+		if allow {
+			opts.Reader = reader.Disk{}
+		}
 		doc, diags, err := openapi.New().Compile(t.Context(),
-			[]compilers.Source{{Path: pathItemRefSiblingsExternalFixture, Data: append([]byte(nil), data...)}},
-			compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: allow}})
+			[]compilers.Source{{Path: pathItemRefSiblingsExternalFixture, Data: append([]byte(nil), data...)}}, opts)
 		require.NoError(t, err)
 		require.NotNil(t, doc)
 		return doc, diags
@@ -272,7 +277,7 @@ func TestPathItemRefSiblings_EachSideReadsInItsOwnDocument(t *testing.T) {
 	use := filepath.Join(dir, "main.yaml")
 	doc, _, err := openapi.New().Compile(t.Context(),
 		[]compilers.Source{{Path: use, Data: []byte(crossDocumentUse)}},
-		compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: true}})
+		compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 
@@ -1062,7 +1067,7 @@ components:
 info: {title: T, version: "1"}
 paths:
   /a: {$ref: './other.yaml#/paths/~1x'}
-`)}}, compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: true}})
+`)}}, compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 
@@ -1142,7 +1147,7 @@ func TestPathItemRefSiblings_AnExpressionBesideACallbackRefIsIgnored(t *testing.
 	for _, at := range []string{"", "./other.yaml"} {
 		doc, _, err := openapi.New().Compile(t.Context(),
 			[]compilers.Source{{Path: filepath.Join(dir, "main.yaml"), Data: []byte(strings.Replace(pathItemRefCallbackSiblingSpec, "%s", at, 1))}},
-			compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: true}})
+			compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
 		require.NoError(t, err)
 		require.NotNil(t, doc)
 		openapitest.FindOp(t, doc, "cbPost")
@@ -1154,18 +1159,16 @@ func TestPathItemRefSiblings_AnExpressionBesideACallbackRefIsIgnored(t *testing.
 	}
 }
 
-// TestPathItemRefSiblings_AForeignReferentKeepsItsOwnPositions pins the one
-// mount where both declarations would share pointers: a use site writing item
-// parameters beside a $ref to another document's path item, whose content is
-// placed at the use site because no pointer here addresses it. Each parameter
-// keeps the type its own schema declares.
+// TestPathItemRefSiblings_AForeignReferentKeepsItsOwnPositions pins a use site
+// writing item parameters beside a $ref to another document's path item: each
+// parameter keeps the type its own schema declares, the referent's lowered
+// where that document declares it. Where the bindings' table places no end, as
+// for a key that document writes twice, the referent is lowered at the use
+// site, under its "$ref", so the two still share no pointer. A finding names
+// the referent's positions by the reference.
 func TestPathItemRefSiblings_AForeignReferentKeepsItsOwnPositions(t *testing.T) {
 	t.Parallel()
-	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "target.yaml"), []byte(`openapi: 3.1.0
-info: {title: Target, version: "1"}
-paths:
-  /b:
+	const item = `
     parameters:
       - {name: refP, in: header, schema: {type: object, properties: {fromRef: {type: integer}}}}
     get:
@@ -1174,42 +1177,51 @@ paths:
     post:
       operationId: postB
       responses: {"200": {description: OK}}
-`), 0o600))
-	doc, diags, err := openapi.New().Compile(t.Context(),
-		[]compilers.Source{{Path: filepath.Join(dir, "main.yaml"), Data: []byte(`openapi: 3.1.0
+`
+	for name, tc := range map[string]struct {
+		target, ref string
+		refType     ir.TypeID
+	}{
+		"declared once": {
+			target:  "openapi: 3.1.0\ninfo: {title: Target, version: \"1\"}\npaths:\n  /b:" + item,
+			ref:     "./target.yaml#/paths/~1b",
+			refType: ids.In("target.yaml").AnonType("/paths/~1b/parameters/0/schema"),
+		},
+		"a key written twice": {
+			target:  "B:" + strings.ReplaceAll(item, "\n    ", "\n  ") + "B: {}\n",
+			ref:     "./target.yaml#/B",
+			refType: ids.Document{}.AnonType("/paths/~1a/$ref/parameters/0/schema"),
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			dir := t.TempDir()
+			require.NoError(t, os.WriteFile(filepath.Join(dir, "target.yaml"), []byte(tc.target), 0o600))
+			doc, diags, err := openapi.New().Compile(t.Context(),
+				[]compilers.Source{{Path: filepath.Join(dir, "main.yaml"), Data: []byte(`openapi: 3.1.0
 info: {title: Main, version: "1"}
 paths:
   /a:
-    $ref: './target.yaml#/paths/~1b'
+    $ref: '` + tc.ref + `'
     parameters:
       - {name: useP, in: query, schema: {type: object, properties: {fromUse: {type: string}}}}
     get:
       operationId: useGet
       responses: {"200": {description: OK}}
-`)}}, compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: true}})
-	require.NoError(t, err)
-	require.NotNil(t, doc)
-	assert.Empty(t, irverify.Verify(doc))
+`)}}, compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
+			require.NoError(t, err)
+			require.NotNil(t, doc)
+			assert.Empty(t, irverify.Verify(doc))
 
-	props := func(p ir.Parameter) []string {
-		t.Helper()
-		def, ok := doc.Types[p.Type.Target]
-		require.True(t, ok, "%s has a type", p.Name.Source)
-		model, ok := def.(*ir.Model)
-		require.True(t, ok)
-		names := make([]string, 0, len(model.Properties))
-		for _, prop := range model.Properties {
-			names = append(names, prop.Name.Source)
-		}
-		return names
+			for _, op := range []ir.Operation{opByPath(t, doc, "GET", "/a"), opByPath(t, doc, "POST", "/a")} {
+				assert.Equal(t, ids.Document{}.AnonType("/paths/~1a/parameters/0/schema"), paramNamed(t, op, "useP").Type.Target)
+				assert.Equal(t, tc.refType, paramNamed(t, op, "refP").Type.Target,
+					"the referent's parameter keeps its own schema, not the use site's at the same index")
+			}
+			message := openapitest.DiagMessageAt(t, diags, diag.PathItemRefCollision, ir.SeverityWarning, "/paths/~1a/get")
+			assert.Contains(t, message, tc.ref+"/get", "another document's position is named by the reference")
+		})
 	}
-	for _, op := range []ir.Operation{opByPath(t, doc, "GET", "/a"), opByPath(t, doc, "POST", "/a")} {
-		assert.Equal(t, []string{"fromUse"}, props(paramNamed(t, op, "useP")))
-		assert.Equal(t, []string{"fromRef"}, props(paramNamed(t, op, "refP")),
-			"the referent's parameter keeps its own schema, not the use site's at the same index")
-	}
-	message := openapitest.DiagMessageAt(t, diags, diag.PathItemRefCollision, ir.SeverityWarning, "/paths/~1a/get")
-	assert.Contains(t, message, "./target.yaml#/paths/~1b/get", "another document's position is named by the reference")
 }
 
 // TestPathItemRefSiblings_AWholeDocumentReferentIsNamedByItsFragment pins how a
@@ -1232,7 +1244,7 @@ paths:
     get:
       operationId: useGet
       responses: {"200": {description: OK}}
-`)}}, compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: true}})
+`)}}, compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 
@@ -1368,4 +1380,83 @@ func methodsAt(doc *ir.Document, uri string) []string {
 		}
 	}
 	return methods
+}
+
+// TestContent_ASharedBodyOrHeaderIsNamedForItsDeclaration pins how a request
+// body or a header two operations reach by reference is named: for its
+// declaration, never for whichever reference lowered first, a body for the
+// operation declaring it whether or not that operation is lowered, and built in
+// the document declaring it. Each spec is compiled with the two referencing
+// operations in both orders, and the type registries must match: another
+// document's declaration, one there at the pointer a referencing operation has
+// in the source, and one the source writes under no operation.
+func TestContent_ASharedBodyOrHeaderIsNamedForItsDeclaration(t *testing.T) {
+	t.Parallel()
+	const other = `openapi: 3.1.0
+info: {title: O, version: "1"}
+paths:
+  /x:
+    post:
+      operationId: otherPost
+      requestBody:
+        content: {application/json: {schema: {type: object, properties: {v: {type: string}}}}}
+      responses:
+        "200":
+          description: ok
+          headers: {X-H: {schema: {type: object, properties: {h: {type: integer}}}}}
+`
+	const local = `x-bodies:
+  b: {content: {application/json: {schema: {type: object, properties: {v: {type: string}}}}}}
+x-headers:
+  h: {schema: {type: object, properties: {h: {type: integer}}}}
+`
+	op := func(path, id, body, header string) string {
+		return "  " + path + ":\n    post:\n      operationId: " + id + "\n      requestBody: {$ref: '" + body + "'}\n" +
+			"      responses:\n        \"200\":\n          description: ok\n          headers: {X-" + id +
+			": {$ref: '" + header + "'}}\n"
+	}
+	for name, tc := range map[string]struct {
+		extra, path, body, header string
+		nodes                     []string // each node's ID and hint, sorted
+	}{
+		"another document's": {"", "/a", "other.yaml#/paths/~1x/post/requestBody",
+			"other.yaml#/paths/~1x/post/responses/200/headers/X-H", []string{
+				"t/anon@other.yaml/paths/~1x/post/requestBody/content/application~1json/schema other_post_request",
+				"t/anon@other.yaml/paths/~1x/post/responses/200/headers/X-H/schema x_h"}},
+		"another document's, at the source's own pointer": {"", "/x", "other.yaml#/paths/~1x/post/requestBody",
+			"other.yaml#/paths/~1x/post/responses/200/headers/X-H", []string{
+				"t/anon@other.yaml/paths/~1x/post/requestBody/content/application~1json/schema other_post_request",
+				"t/anon@other.yaml/paths/~1x/post/responses/200/headers/X-H/schema x_h"}},
+		"the source's, under no operation": {local, "/a", "#/x-bodies/b", "#/x-headers/h", []string{
+			"t/anon/x-bodies/b/content/application~1json/schema request", "t/anon/x-headers/h/schema h"}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			compile := func(first, second string) ir.TypeRegistry {
+				t.Helper()
+				dir := t.TempDir()
+				require.NoError(t, os.WriteFile(filepath.Join(dir, "other.yaml"), []byte(other), 0o600))
+				doc, diags, err := openapi.New().Compile(t.Context(), []compilers.Source{{
+					Path: filepath.Join(dir, "root.yaml"),
+					Data: []byte("openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\n" + tc.extra + "paths:\n" + first + second),
+				}}, compilers.Options{Reader: reader.Disk{}})
+				require.NoError(t, err)
+				openapitest.RequireNoErrorDiags(t, diags)
+				return doc.Types
+			}
+			alpha, bravo := op(tc.path, "alpha", tc.body, tc.header), op("/b", "bravo", tc.body, tc.header)
+
+			forward, backward := compile(alpha, bravo), compile(bravo, alpha)
+
+			assert.Empty(t, cmp.Diff(forward, backward), "the names must not follow the declaration order")
+			var nodes []string
+			for _, td := range forward {
+				if td.Common().Provenance.Source != ir.NoSource {
+					nodes = append(nodes, string(td.Common().ID)+" "+td.Common().Name.Hint)
+				}
+			}
+			slices.Sort(nodes)
+			assert.Equal(t, tc.nodes, nodes, "each built in its declaration's document, under its name")
+		})
+	}
 }

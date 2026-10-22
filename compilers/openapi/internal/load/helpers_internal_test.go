@@ -9,6 +9,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -21,7 +22,7 @@ func buildDoc(t *testing.T, spec string) (*soa.OpenAPI, *yaml.Node) {
 	parsed, err := parsedFor(compilers.Source{Path: "spec.yaml", Data: []byte(spec)})
 	require.NoError(t, err)
 	releaseAnchors(parsed.root)
-	doc, _, err := unmarshal(t.Context(), []byte(spec), parsed.root)
+	doc, err := unmarshal(t.Context(), []byte(spec), parsed.root)
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 	return doc, parsed.root
@@ -43,8 +44,17 @@ func petMapping(mapping string) string {
 func loadTargets(t *testing.T, path, spec string, external bool) (*Document, []ir.Diagnostic) {
 	t.Helper()
 	got, diags, err := Load(t.Context(), 0, compilers.Source{Path: path, Data: []byte(spec)},
-		Options{AllowExternalRefs: external})
+		readingIf(external))
 	require.NoError(t, err)
 	require.NotNil(t, got, "%+v", diags)
 	return got, diags
+}
+
+// readingIf returns the Options of a compile that reads the documents its
+// references name from disk when external is set, and reads none otherwise.
+func readingIf(external bool) Options {
+	if external {
+		return Options{Reader: reader.Disk{}}
+	}
+	return Options{}
 }

@@ -25,18 +25,19 @@ import (
 // Merger reconciles properties that more than one allOf branch declares:
 // either merging the two declarations or reporting that they disagree.
 //
-// It is not pure — deciding whether two TypeRefs conflict needs the registry —
-// but that dependency is narrow enough to arrive as a function, so the conflict
-// lattice stays testable against a stub.
+// Which type a redeclaration settles on, and whether the two conflict, reads
+// the nodes both declarations name, and a walk may not have built one yet. A
+// fold that would read a node the registry lacks is deferred whole until every
+// node exists (Defer), so neither what is folded nor what is reported follows
+// declaration order (GitHub #898).
 type Merger struct {
 	// Resolve looks a type up in the registry. Conflict detection compares what
 	// two references point at, not the references themselves.
 	Resolve func(ir.TypeID) (ir.TypeDef, bool)
 	// Report records the diagnostics a decision taken now draws.
 	Report Reporter
-	// Defer queues a decision for once the walk lowering the model has
-	// returned. It may be nil, and a redeclaration is then always
-	// judged against the registry as it stands.
+	// Defer queues a decision for once every node exists. It may be nil, and a
+	// redeclaration is then always judged against the registry as it stands.
 	Defer func(Settle)
 }
 
@@ -458,9 +459,8 @@ type narrowing struct {
 // narrowing it returns names the broader declaration. Any other differing
 // target is a drop, and dst keeps its own null admission. Where the referent is
 // the same or one narrows the other, null is admitted only where both
-// branches admit it, as foldNullVerdicts states for a single schema; when the
-// loser is the top type, which admits null whatever the bit says, the winner's
-// admission stands alone.
+// branches admit it (intersectNull); when the loser is the top type, which
+// admits null whatever the bit says, the winner's admission stands alone.
 func (g *Merger) foldTypeTargets(dst, src *ir.Property, typeAt jsontext.Pointer) (rel relation, nw narrowing) {
 	j := typeJudge{Resolve: g.Resolve, written: [2]jsontext.Pointer{typeAt, src.Provenance.Pointer}}
 	rel = j.relate(dst.Type, src.Type)
@@ -476,10 +476,9 @@ func (g *Merger) foldTypeTargets(dst, src *ir.Property, typeAt jsontext.Pointer)
 	if rel == relSame {
 		nw.broad = nil
 	}
-	dst.Type.Target = winner.Target
-	dst.Type.Nullable = winner.Nullable && loser.Nullable
+	dst.Type = intersectNull(winner, loser)
 	if td, ok := j.Resolve(loser.Target); ok && rel != relSame && isTop(td) {
-		dst.Type.Nullable = winner.Nullable
+		dst.Type = winner
 	}
 	return rel, nw
 }
@@ -584,6 +583,36 @@ func groupRefusals(refused []refusal) []refusalGroup {
 		groups[i].keywords = append(groups[i].keywords, r.keyword)
 	}
 	return groups
+}
+
+// intersectNull returns dst admitting null only where both references do, the
+// rule foldNullVerdicts states for a single schema. The result's null rests on
+// a heuristic wherever either side's did, since the declared reading admits it
+// only where both declare it, so it names every marker either side carries,
+// dst's first and none twice.
+func intersectNull(dst, src ir.TypeRef) ir.TypeRef {
+	dst.Nullable = dst.Nullable && src.Nullable
+	if !dst.Nullable {
+		dst.Inferred = ""
+		return dst
+	}
+	for marker := range strings.SplitSeq(src.Inferred, ",") {
+		dst.Inferred = joinMarker(dst.Inferred, marker)
+	}
+	return dst
+}
+
+// joinMarker adds marker to the comma-separated list of heuristic names in
+// list, unless it is empty or already there.
+func joinMarker(list, marker string) string {
+	switch {
+	case marker == "" || slices.Contains(strings.Split(list, ","), marker):
+		return list
+	case list == "":
+		return marker
+	default:
+		return list + "," + marker
+	}
 }
 
 // losingDeclarationKey prefixes the Unmodeled entry a redeclaration the merge could not

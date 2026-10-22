@@ -21,6 +21,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -282,7 +283,7 @@ func TestBounded_TranslatesTheCallersSpellingOfUnbounded(t *testing.T) {
 
 func TestLoadOptions_CarriesTheResolvedSizeBudgets(t *testing.T) {
 	t.Parallel()
-	got := loadOptions(Options{Limits: Limits{MaxSourceBytes: 11, MaxSourceNodes: -1}}.withDefaults())
+	got := loadOptions(Options{Limits: Limits{MaxSourceBytes: 11, MaxSourceNodes: -1}}.withDefaults(), nil, compilers.Source{Path: "spec.yaml"})
 
 	assert.Equal(t, 11, got.MaxSourceBytes)
 	assert.Equal(t, 0, got.MaxSourceNodes, "an unbounded budget reaches the loader as no budget")
@@ -290,11 +291,11 @@ func TestLoadOptions_CarriesTheResolvedSizeBudgets(t *testing.T) {
 
 	assert.Equal(t, DefaultMaxExternalDocuments, got.MaxExternalDocuments)
 
-	got = loadOptions(Options{Limits: Limits{MaxAliasSurplus: -1, MaxExternalDocuments: -1}}.withDefaults())
+	got = loadOptions(Options{Limits: Limits{MaxAliasSurplus: -1, MaxExternalDocuments: -1}}.withDefaults(), nil, compilers.Source{Path: "spec.yaml"})
 	assert.Equal(t, 0, got.MaxAliasSurplus, "an unbounded alias budget reaches the loader as no budget")
 	assert.Equal(t, 0, got.MaxExternalDocuments, "an unbounded document budget reaches the loader as no budget")
 
-	got = loadOptions(Options{Limits: Limits{MaxExternalDocuments: 3}}.withDefaults())
+	got = loadOptions(Options{Limits: Limits{MaxExternalDocuments: 3}}.withDefaults(), nil, compilers.Source{Path: "spec.yaml"})
 	assert.Equal(t, 3, got.MaxExternalDocuments)
 }
 
@@ -315,7 +316,7 @@ func TestCompile_TheDocumentBudgetIsTheCallersToSet(t *testing.T) {
 		"components:\n  schemas:\n    A: {$ref: '" + srv.URL + "/0.yaml#/x'}\n"
 
 	_, diags, err := New().Compile(t.Context(), []compilers.Source{{Path: "spec.yaml", Data: []byte(src)}},
-		compilers.Options{FormatOptions: Options{AllowExternalRefs: true, Limits: Limits{MaxExternalDocuments: 3}}})
+		compilers.Options{Reader: reader.Disk{}, FormatOptions: Options{AllowExternalRefs: true, Limits: Limits{MaxExternalDocuments: 3}}})
 
 	require.NoError(t, err)
 	assert.Equal(t, int32(3), requests.Load())
@@ -405,8 +406,8 @@ components:
     Cat: {type: object}
 `
 	runUntil := func(live int) (int, []ir.Diagnostic, error) {
-		loaded, _, err := load.Load(t.Context(), 0,
-			compilers.Source{Path: "spec.yaml", Data: []byte(src)}, loadOptions(Options{}.withDefaults()))
+		source := compilers.Source{Path: "spec.yaml", Data: []byte(src)}
+		loaded, _, err := load.Load(t.Context(), 0, source, loadOptions(Options{}.withDefaults(), nil, source))
 		require.NoError(t, err)
 		left, seen := live, 0
 		_, diags, err := run(liveForCalls{Context: t.Context(), left: &left, seen: &seen},
@@ -416,22 +417,18 @@ components:
 	moved := func(diags []ir.Diagnostic) bool {
 		return openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/Pet/discriminator")
 	}
-	// Pet's is the one settlement, and the early settling takes it directly
-	// after the component walk: it asks once, third to last, and the boundary
-	// after it asks next to last. The operation walk and the final Settle, which
-	// has nothing queued, ask nothing, so the last call is the boundary after
-	// them, which a compile cancelled earlier never reaches.
+	// Pet's is the one settlement, so the settling asks once, second to last,
+	// and the boundary after it asks last.
 	calls, diags, err := runUntil(math.MaxInt)
 	require.NoError(t, err)
 	require.True(t, moved(diags), "uncancelled, the settlement moves the discriminator")
 
-	seen, diags, err := runUntil(calls - 3)
+	seen, diags, err := runUntil(calls - 2)
 	require.ErrorIs(t, err, context.Canceled)
 	assert.False(t, moved(diags), "a cancelled settling takes no settlement")
-	assert.Equal(t, calls-1, seen, "and the boundary after it still asks")
+	assert.Equal(t, calls, seen, "and the boundary after it still asks")
 
-	seen, diags, err = runUntil(calls - 2)
+	_, diags, err = runUntil(calls - 1)
 	require.ErrorIs(t, err, context.Canceled)
 	assert.True(t, moved(diags), "one call later the settlement ran and only the boundary refused")
-	assert.Equal(t, calls-1, seen, "and it is the same boundary that stopped the compile")
 }

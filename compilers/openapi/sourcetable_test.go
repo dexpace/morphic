@@ -1,6 +1,7 @@
 package openapi_test
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -9,6 +10,7 @@ import (
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -16,35 +18,53 @@ import (
 // to SourceTable asks about the compile compileWith actually ran.
 var sourceTableSources = []compilers.Source{{Path: "spec.yaml", Data: []byte(overlaySpec)}}
 
-// TestCompiler_SourceTableAgreesWithDocumentSourcesOnSuccess pins the contract
+// TestCompiler_SourceTableBeginsDocumentSourcesOnSuccess pins the contract
 // half that matters most for a caller reading a successful compile:
-// SourceTable is not just a fallback for a refusal, it is the same table
-// Document.Sources ends up holding, so a caller cannot observe compiling twice
-// and getting two different answers for what a Provenance.Source indexes.
-func TestCompiler_SourceTableAgreesWithDocumentSourcesOnSuccess(t *testing.T) {
+// SourceTable is not just a fallback for a refusal, it is the table
+// Document.Sources begins with, in order, so a caller cannot observe compiling
+// twice and getting two answers for what an index into it names. Past it
+// come only the documents the compile read, here one a reference names.
+func TestCompiler_SourceTableBeginsDocumentSourcesOnSuccess(t *testing.T) {
 	t.Parallel()
+	const split = overlaySpec + "    Thing: {$ref: 'other.yaml#/Thing'}\n"
+	other := compilers.Source{Path: "other.yaml", Data: []byte("Thing: {type: string}\n")}
 	tests := []struct {
 		name string
+		spec string
 		opts openapi.Options
+		read []string
 	}{
-		{"no overlay", openapi.Options{}},
-		{"an overlay that applies", openapi.Options{
+		{"no overlay", overlaySpec, openapi.Options{}, nil},
+		{"an overlay that applies", overlaySpec, openapi.Options{
 			Overlay: &openapi.Overlay{Path: "patch.yaml", Data: []byte(addTagProperty)},
-		}},
-		{"a lax overlay that matches nothing", openapi.Options{
+		}, nil},
+		{"a lax overlay that matches nothing", overlaySpec, openapi.Options{
 			Overlay: &openapi.Overlay{Path: "patch.yaml", Data: []byte(noMatch), Lax: true},
-		}},
+		}, nil},
+		{"a reference into another document", split, openapi.Options{}, []string{"other.yaml"}},
+		{"an overlay and a reference", split, openapi.Options{
+			Overlay: &openapi.Overlay{Path: "patch.yaml", Data: []byte(addTagProperty)},
+		}, []string{"other.yaml"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			doc, _ := compileWith(t, tt.opts)
+			sources := []compilers.Source{{Path: "spec.yaml", Data: []byte(tt.spec)}}
+			docs, err := reader.NewMemory(append(slices.Clone(sources), other))
+			require.NoError(t, err)
+			opts := compilers.Options{FormatOptions: tt.opts, Reader: docs}
+			doc, diags, err := openapi.New().Compile(t.Context(), sources, opts)
+			require.NoError(t, err)
+			require.NotNil(t, doc, "compile refused: %+v", diags)
 
-			table := openapi.New().SourceTable(sourceTableSources, compilers.Options{FormatOptions: tt.opts})
+			table := openapi.New().SourceTable(sources, opts)
 
-			require.Len(t, table, len(doc.Sources), "table: %+v, doc.Sources: %+v", table, doc.Sources)
-			for i := range table {
-				assert.Equal(t, doc.Sources[i].Path, table[i].Path, "entry %d", i)
+			require.Len(t, doc.Sources, len(table)+len(tt.read), "table: %+v, doc.Sources: %+v", table, doc.Sources)
+			for i, entry := range table {
+				assert.Equal(t, entry.Path, doc.Sources[i].Path, "entry %d", i)
+			}
+			for i, path := range tt.read {
+				assert.Equal(t, path, doc.Sources[len(table)+i].Path, "read %d", i)
 			}
 		})
 	}

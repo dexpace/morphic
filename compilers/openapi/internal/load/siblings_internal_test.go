@@ -20,6 +20,7 @@ import (
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
+	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -65,9 +66,8 @@ func pathEntry(t *testing.T, doc *soa.OpenAPI, path string) *soa.ReferencedPathI
 func TestModelSiblings_ModelsWhatTheLibraryReadsAsAReference(t *testing.T) {
 	t.Parallel()
 	doc := modelOf(t, siblingSpec)
-	sibs, errs, faults := modelSiblings(t.Context(), doc, scan.InSource(0))
+	sibs, faults := modelSiblings(t.Context(), doc, scan.InSource(0))
 	require.Empty(t, faults)
-	require.Empty(t, errs, "the fields beside the $refs are valid")
 
 	a, ok := sibs.Of(pathEntry(t, doc, "/a"))
 	require.True(t, ok)
@@ -96,39 +96,11 @@ func TestModelSiblings_ModelsWhatTheLibraryReadsAsAReference(t *testing.T) {
 	assert.NotNil(t, inner.Item.Delete())
 }
 
-// TestModelSiblings_ValidatesAsTheSourceIs pins that the fields beside a $ref
-// are validated as the document's own are: a value of the wrong type is a
-// finding at the node that wrote it, which the model build alone does not make.
-func TestModelSiblings_ValidatesAsTheSourceIs(t *testing.T) {
-	t.Parallel()
-	doc := modelOf(t, `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths:
-  /a:
-    $ref: '#/paths/~1b'
-    put:
-      deprecated: notabool
-      parameters: [{name: q, in: query, schema: {type: string}}]
-  /b:
-    get: {responses: {"200": {description: ok}}}
-`)
-	_, errs, _ := modelSiblings(t.Context(), doc, scan.InSource(0))
-	rules := make([]string, 0, len(errs))
-	for _, e := range errs {
-		verr, ok := asValidationError(e)
-		require.True(t, ok)
-		rules = append(rules, verr.Rule)
-	}
-	assert.Contains(t, rules, "validation-type-mismatch", "the model build reads the value as the source's is read")
-	assert.Contains(t, rules, "validation-required-field", "and validation finds what the build cannot: no responses")
-}
-
-// TestLoad_AFieldTheReferenceAlsoReadsIsReportedOnce pins one finding per
-// malformed value beside a path item's $ref: the library validates the summary
-// and description there as its Reference Object's, so the model's own reading
-// of them adds nothing, while a finding only the model makes, the operation's,
-// is still reported.
-func TestLoad_AFieldTheReferenceAlsoReadsIsReportedOnce(t *testing.T) {
+// TestLoad_TheFieldsBesideAReferenceAreTheItemsOwnToTheTable pins that the
+// fields beside a path item's $ref are held to the table as the item's own: a
+// value of the wrong type is a finding at the node that wrote it, once however
+// the library models it.
+func TestLoad_TheFieldsBesideAReferenceAreTheItemsOwnToTheTable(t *testing.T) {
 	t.Parallel()
 	for _, version := range []string{"3.0.3", "3.1.0"} {
 		doc, diags, err := Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(`openapi: ` + version + `
@@ -162,11 +134,10 @@ paths:
 func TestSiblingsFrom_AParserFaultIsReportedOnce(t *testing.T) {
 	t.Parallel()
 	doc := modelOf(t, siblingSpec)
-	faulting := func(context.Context, *yaml.Node) (*soa.PathItem, []error, error) {
-		return nil, nil, errors.New("parser panicked: boom")
+	faulting := func(context.Context, *yaml.Node) (*soa.PathItem, error) {
+		return nil, errors.New("parser panicked: boom")
 	}
-	sibs, errs, faults := siblingsFrom(t.Context(), soa.Walk(t.Context(), doc), scan.InSource(0), faulting)
-	assert.Empty(t, errs)
+	sibs, faults := siblingsFrom(t.Context(), soa.Walk(t.Context(), doc), scan.InSource(0), faulting)
 	require.Len(t, faults, 1, "/a and its alias /d are one mapping")
 	assert.Equal(t, diag.Validation, faults[0].Code)
 	assert.Equal(t, ir.SeverityError, faults[0].Severity)
@@ -197,20 +168,19 @@ func TestSiblingsFrom_StopsWhereAWalkPanics(t *testing.T) {
 	}
 	var sibs Siblings
 	require.NotPanics(t, func() {
-		sibs, _, _ = siblingsFrom(t.Context(), panicking, scan.InSource(0), siblingModel(doc))
+		sibs, _ = siblingsFrom(t.Context(), panicking, scan.InSource(0), buildSibling)
 	})
 	_, ok := sibs.Of(pathEntry(t, doc, "/a"))
 	assert.True(t, ok, "what it found before the fault is kept")
 	assert.Len(t, sibs.list, 1, "and nothing after it is searched")
 }
 
-// TestSiblingModel_FaultsAreErrorsNotPanics pins that the library failing on
+// TestBuildSibling_FaultsAreErrorsNotPanics pins that the library failing on
 // the fields beside a $ref returns as an error rather than escaping.
-func TestSiblingModel_FaultsAreErrorsNotPanics(t *testing.T) {
+func TestBuildSibling_FaultsAreErrorsNotPanics(t *testing.T) {
 	t.Parallel()
-	build := siblingModel(modelOf(t, siblingSpec))
 	var err error
-	require.NotPanics(t, func() { _, _, err = build(t.Context(), nil) })
+	require.NotPanics(t, func() { _, err = buildSibling(t.Context(), nil) })
 	require.Error(t, err, "a nil node faults the parser")
 }
 
@@ -229,7 +199,7 @@ func TestSiblings_UnreadIsFieldsNoModelHolds(t *testing.T) {
 	_, ok := none.Of(nil)
 	assert.False(t, ok)
 
-	sibs, _, _ := modelSiblings(t.Context(), doc, scan.InSource(0))
+	sibs, _ := modelSiblings(t.Context(), doc, scan.InSource(0))
 	assert.False(t, sibs.Unread(pathEntry(t, doc, "/a")), "a modelled use site is read")
 }
 
@@ -332,7 +302,6 @@ func walkSites(items iter.Seq[soa.WalkItem]) []string {
 func TestLoad_AFieldTheParserFaultsOnIsReported(t *testing.T) {
 	t.Parallel()
 	for _, beside := range []string{
-		"servers: [null]",
 		"parameters: [{$ref: null}]",
 		"put: {requestBody: {$ref: null}, responses: {'200': {description: ok}}}",
 	} {
@@ -392,7 +361,7 @@ func loadSiblingFixture(t *testing.T, main, target string, opts Options) []ir.Di
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "target.yaml"), []byte(target), 0o600))
 	path := filepath.Join(dir, "main.yaml")
-	opts.AllowExternalRefs = true
+	opts.Reader = reader.Disk{}
 	_, diags, err := Load(t.Context(), 0, compilers.Source{Path: path, Data: []byte(main)}, opts)
 	require.NoError(t, err)
 	return diags
@@ -415,36 +384,38 @@ paths:
 // TestLoad_ASiblingsExternalReferenceIsReadAsAnyOther pins that a reference
 // written beside a path item's $ref leaves the document through the load
 // phase's own reader: refused for a recursive anchor and past the byte budget,
-// and its findings kept at their own severity, each reported once, at the
-// reference.
+// each reported once at the reference, and a finding in what it reaches kept at
+// its own severity, reported once, in the document it is in.
 func TestLoad_ASiblingsExternalReferenceIsReadAsAnyOther(t *testing.T) {
 	t.Parallel()
-	const site = jsontext.Pointer("/paths/~1a/put/parameters/0")
+	site := ir.Provenance{Pointer: "/paths/~1a/put/parameters/0"}
 	param := "openapi: 3.1.0\ninfo: {title: X, version: \"1\"}\npaths: {}\ncomponents:\n  parameters:\n    Ext:\n"
 	cases := []struct {
 		name, target string
 		opts         Options
+		at           ir.Provenance
 		code         string
 		severity     ir.Severity
 		says         string
 	}{
 		{"recursive anchor", param + "      name: q\n      in: query\n      schema: &s {type: object, properties: {self: *s}}\n",
-			Options{}, diag.UnresolvedRef, ir.SeverityError, "recursive YAML anchor"},
+			Options{}, site, diag.UnresolvedRef, ir.SeverityError, "recursive YAML anchor"},
 		{"byte budget", param + "      name: q\n      in: query\n      description: " + strings.Repeat("x", len(siblingExternalMain)) + "\n",
-			Options{MaxSourceBytes: len(siblingExternalMain)}, diag.UnresolvedRef, ir.SeverityError, "byte budget"},
-		{"duplicate key", param + "      name: q\n      in: query\n      description: one\n      description: two\n",
-			Options{}, diag.Validation + "/validation-duplicate-key", ir.SeverityWarning, "duplicate"},
+			Options{MaxSourceBytes: len(siblingExternalMain)}, site, diag.UnresolvedRef, ir.SeverityError, "byte budget"},
+		{"duplicate key", param + "      name: q\n      in: query\n      schema: {type: string}\n      description: one\n      description: two\n",
+			Options{}, ir.Provenance{Source: 1, Pointer: "/components/parameters/Ext/description"},
+			diag.Validation + "/validation-duplicate-key", ir.SeverityWarning, "more than once"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			var at []ir.Diagnostic
 			for _, d := range loadSiblingFixture(t, siblingExternalMain, tc.target, tc.opts) {
-				if d.Provenance.Pointer == site {
+				if d.Provenance.Source == tc.at.Source && d.Provenance.Pointer == tc.at.Pointer {
 					at = append(at, d)
 				}
 			}
-			require.Len(t, at, 1, "one finding, at the reference written beside the $ref")
+			require.Len(t, at, 1, "one finding, where it is placed")
 			assert.Equal(t, tc.code, at[0].Code)
 			assert.Equal(t, tc.severity, at[0].Severity)
 			assert.Contains(t, at[0].Message, tc.says)
@@ -470,7 +441,7 @@ x-shared:
   /b:
     get: {responses: {"200": {description: ok}}}
 `)
-	sibs, _, _ := modelSiblings(t.Context(), doc, scan.InSource(0))
+	sibs, _ := modelSiblings(t.Context(), doc, scan.InSource(0))
 	_, err := pathEntry(t, doc, "/a").Resolve(t.Context(), soa.ResolveOptions{TargetLocation: "spec.yaml", RootDocument: doc, TargetDocument: doc})
 	require.NoError(t, err)
 	hop := pathEntry(t, doc, "/a").GetReferenceResolutionInfo().Object

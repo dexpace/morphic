@@ -22,7 +22,6 @@ import (
 	"github.com/speakeasy-api/openapi/references"
 	yaml "gopkg.in/yaml.v3"
 
-	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
@@ -57,7 +56,7 @@ type Scope struct {
 	// that document holds it (GitHub #762). A reference there is internal only
 	// when its document part, resolved against Holder as the resolver resolves
 	// it, names the source. Any other names a position in that document or a
-	// third, which this compile cannot address (GitHub #74).
+	// third.
 	Foreign bool
 	// Holder is the path the resolver read that document by.
 	Holder string
@@ -142,15 +141,24 @@ func (s Scope) InSource() Scope {
 }
 
 // InDocumentOf returns s for reading what js holds, a schema the bindings
-// know: the source's own content (InSource), unless the bindings place js in
-// another document, whose content it then is (GitHub #762), as where a
-// pointer the source spells passes a reference object into one.
+// know, in the document they place it in (InDocument), as where a pointer the
+// source spells passes a reference object into another (GitHub #762); a
+// schema they do not know is read in the source.
 func (s Scope) InDocumentOf(js *oas3.JSONSchema[oas3.Referenceable]) Scope {
 	p, ok := s.Bindings.Site(js)
-	if !ok || p.Doc == bind.Source {
+	if !ok {
 		return s.InSource()
 	}
-	s.Foreign, s.Holder = true, s.Bindings.Table().Document(p.Doc).Name
+	return s.InDocument(p.Doc)
+}
+
+// InDocument returns s for reading what document id of the bindings' table
+// holds: the source's own content (InSource), or that document's.
+func (s Scope) InDocument(id bind.DocID) Scope {
+	if id == bind.Source {
+		return s.InSource()
+	}
+	s.Foreign, s.Holder = true, s.Bindings.Table().Document(id).Name
 	return s
 }
 
@@ -246,35 +254,40 @@ func held(holds func(*yaml.Node, string) bool, node any, raw *yaml.Node, token s
 	return found
 }
 
-// TargetPointer returns the pointer of the position the $ref at js lands on
-// in the source, as the compiler resolved it (bind.Hop.Spelled): a
-// "#/$defs/..." pointer's definition, read by the $defs rule, or the position
-// any other names from the source's root. ok is false for a $ref that lands on
-// no schema, one that lands in another document, and one on a loop of $refs,
-// which lands nowhere a type can be read.
-func (s Scope) TargetPointer(js *oas3.JSONSchema[oas3.Referenceable]) (jsontext.Pointer, bool) {
+// Target returns where the lowering places what the $ref at js names, as the
+// compiler resolved it (placed). ok is false for a $ref that lands on no
+// schema, and one on a loop of $refs, which lands nowhere a type can be read.
+func (s Scope) Target(js *oas3.JSONSchema[oas3.Referenceable]) (bind.Position, bool) {
 	e, ok := s.Bindings.Entry(js)
-	if !ok || !lands(e.Hop) || e.Chain.Member {
-		return "", false
+	if !ok || e.Hop.Status != bind.Resolved || e.Chain.Member {
+		return bind.Position{}, false
 	}
-	return e.Hop.Spelled, true
+	return placed(e.Hop), true
 }
 
-// lands reports whether h lands on a schema in the source.
-func lands(h bind.Hop) bool {
-	return h.Status == bind.Resolved && h.Named
+// placed is where the lowering places what h, a hop that resolved, names. In
+// the source it is the pointer h spells there (bind.Hop.Spelled): a
+// "#/$defs/..." pointer's definition, read by the $defs rule, or the position
+// any other names from the source's root. Elsewhere it is the position h lands
+// on, which that document declares.
+func placed(h bind.Hop) bind.Position {
+	if h.Named && h.Target.Doc == bind.Source {
+		return bind.Position{Doc: bind.Source, Pointer: h.Spelled}
+	}
+	return h.Target
 }
 
-// MappingTarget returns the pointer the mapping value of the discriminator d
-// names, read as a $ref written at d is (bind.Mapping), and the schema written
-// there. ok is false for a value that lands on no schema in the source.
+// MappingTarget returns where the lowering places what the mapping value of
+// the discriminator d names, read as a $ref written at d is (bind.Mapping),
+// and the schema written there. ok is false for a value that lands on no
+// schema.
 func (s Scope) MappingTarget(d *oas3.Discriminator, value string,
-) (jsontext.Pointer, *oas3.JSONSchema[oas3.Referenceable], bool) {
+) (bind.Position, *oas3.JSONSchema[oas3.Referenceable], bool) {
 	m, ok := s.Bindings.Mapping(d, value)
-	if !ok || !lands(m.Hop) {
-		return "", nil, false
+	if !ok || m.Hop.Status != bind.Resolved {
+		return bind.Position{}, nil, false
 	}
-	return m.Hop.Spelled, s.Bindings.At(m.Hop.Target), true
+	return placed(m.Hop), s.Bindings.At(m.Hop.Target), true
 }
 
 // FragmentPointer returns the JSON pointer a $ref's fragment spells, whatever
@@ -438,48 +451,33 @@ func (s Scope) ComponentRef(pointer jsontext.Pointer) (id ir.TypeID, ok, handled
 		return "", false, false
 	}
 	if s.Declares(name) {
-		return ids.NamedType(ids.Ptr("components", "schemas", name)), true, true
+		return ids.Document{}.NamedType(ids.Ptr("components", "schemas", name)), true, true
 	}
 	return "", false, true
 }
 
-// InternedID returns the TypeID a node was interned under at pointer, when one
-// already exists there — either a previously hoisted sub-schema (via byPointer)
-// or a node registered directly under its pointer-derived ID.
-func InternedID(ts *compile.Types, pointer jsontext.Pointer) (ir.TypeID, bool) {
-	if id, ok := ts.Lookup(string(pointer)); ok {
-		return id, true
-	}
-	id := ids.ForPointer(pointer)
-	if _, ok := ts.Node(id); ok {
-		return id, true
-	}
-	return "", false
-}
-
 // NamesReferent reports whether the $ref at js names a schema this
 // compilation can point a TypeRef at, answering what resolveSchemaRef answers
-// without interning anything on the way, since deciding how to lower a schema
-// must not hoist nodes as a side effect of asking.
-//
-// It must stay in step with resolveSchemaRef, and mirrors it minus the two
-// steps that are not pure lookups: hoistSubSchema, which interns and fails
-// only where Hoistable does, and the InternedID hit, which would make the
-// answer depend on which schema lowered first.
+// without promising anything on the way, since deciding how to lower a schema
+// must not queue nodes as a side effect of asking. resolveSchemaRef reads the
+// registry no more than it does, so the two answer alike in any order.
 func (s Scope) NamesReferent(js *oas3.JSONSchema[oas3.Referenceable]) bool {
-	pointer, ok := s.TargetPointer(js)
+	at, ok := s.Target(js)
 	if !ok {
 		return false
 	}
-	if _, resolved, handled := s.ComponentRef(pointer); handled {
-		return resolved
+	if at.Doc == bind.Source {
+		if _, resolved, handled := s.ComponentRef(at.Pointer); handled {
+			return resolved
+		}
 	}
 	return Hoistable(s.Bindings.Declared(js))
 }
 
 // Hoistable reports whether decl, the schema a $ref lands on, can be hoisted
 // where it is written: one with a body, or a boolean one (GitHub #861).
-// hoistSubSchema and NamesReferent both ask it, so they cannot part.
+// The schema lowering's resolvePointer and NamesReferent both ask it, so they
+// cannot part.
 func Hoistable(decl *oas3.JSONSchema[oas3.Referenceable]) bool {
 	return decl != nil && (decl.IsBool() || annotation.At(decl).Node != nil)
 }

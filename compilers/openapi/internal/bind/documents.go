@@ -61,6 +61,17 @@ func (d *docs) locate(uri, base string) (string, bool) {
 	return d.cfg.Locate(uri, base)
 }
 
+// refusal is why Config.Refuse refuses a reference whose document part is
+// spelled uri, unread, or empty where it refuses none.
+func (d *docs) refusal(uri string) string {
+	if refuse := d.cfg.Refuse; refuse != nil {
+		if err := refuse(uri); err != nil {
+			return err.Error()
+		}
+	}
+	return ""
+}
+
 // open returns the document named name, reading it through Config.Open the
 // first time it is asked for, and the same answer every later time.
 func (d *docs) open(name string) (DocID, error) {
@@ -75,8 +86,8 @@ func (d *docs) open(name string) (DocID, error) {
 	}
 	d.work.spend(1)
 	tree, err := d.cfg.Open(name)
-	if root := nodeview.DocumentRoot(tree); err == nil && (root == nil || root.Kind == 0) {
-		err = errors.New("the document is empty")
+	if err == nil && IsEmpty(tree) {
+		err = ErrEmptyDocument
 	}
 	if err != nil {
 		d.failed[name] = err
@@ -105,6 +116,18 @@ func (d *docs) node(p Position) *yaml.Node {
 	}
 	return path[len(path)-1]
 }
+
+// compare orders positions as a table reads them: the source's first,
+// another document's by its name, then by pointer (comparePositions).
+func (d *docs) compare(p, q Position) int {
+	if c, ok := byName(p, q, d.name); ok {
+		return c
+	}
+	return comparePositions(p, q)
+}
+
+// name returns the name of the document id names.
+func (d *docs) name(id DocID) string { return d.list[id].name }
 
 // rootState is the state a document's root is read at.
 func (d *docs) rootState(id DocID) state {
@@ -237,16 +260,15 @@ func isIndex(token string) bool {
 // read as any pointer is, through the reference objects it lies past, up to
 // the node the chain reached (ReferenceEnd, and
 // docs/parser-library.md#trailing-empty-token). An object writing no $ref is read
-// where it is. Only the source's reference objects are resolved; one in
-// another document is not (GitHub #751).
+// where it is, in whichever document.
 func (d *docs) through(r reading, passes int) (reading, Reason) {
 	if !d.writesRef(r) {
 		return r, NoReason
 	}
-	if r.at.Doc != Source || d.cfg.Through == nil || passes >= maxPasses {
+	if d.cfg.Through == nil || passes >= maxPasses {
 		return r, Unpassable
 	}
-	e, ok := d.cfg.Through(r.at.Pointer)
+	e, ok := d.cfg.Through(d.list[r.at.Doc].name, r.at.Pointer)
 	if !ok {
 		return r, Unpassable
 	}

@@ -24,6 +24,11 @@ func redeclared(target ir.TypeID, at string) ir.Property {
 	return ir.Property{WireName: "v", Type: ir.TypeRef{Target: target}, Provenance: ptrAt(jsontext.Pointer("/allOf/" + at + "/properties/v"))}
 }
 
+// TestMergeProperty_AMissedTypeDefersEveryRedeclarationOfTheProperty pins what
+// keeps the fold order free (GitHub #898): a redeclaration whose judgment reads
+// a node the registry lacks mid-walk is neither folded nor reported, and nor is
+// any later one of the property; the settlement judges each against the whole
+// registry, in order.
 func TestMergeProperty_AMissedTypeDefersEveryRedeclarationOfTheProperty(t *testing.T) {
 	t.Parallel()
 	reg := map[ir.TypeID]ir.TypeDef{

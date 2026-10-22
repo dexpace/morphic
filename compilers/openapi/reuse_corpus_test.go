@@ -83,7 +83,7 @@ const corpusRoot = "../../testdata"
 // lists a directory.
 func corpusSpecs(t *testing.T) []string {
 	t.Helper()
-	out, err := harness.SpecFiles(corpusRoot)
+	out, err := harness.SpecFiles(t.Context(), corpusRoot)
 	require.NoError(t, err)
 	require.NotEmpty(t, out, "corpus sweep found no specs")
 	return out

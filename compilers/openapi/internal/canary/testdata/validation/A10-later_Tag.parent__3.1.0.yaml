@@ -1,0 +1,4 @@
+openapi: 3.1.0
+info: {title: t, version: '1'}
+tags: [{name: a}, {name: b, parent: a}]
+paths: {}

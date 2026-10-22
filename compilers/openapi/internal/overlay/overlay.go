@@ -12,8 +12,6 @@ package overlay
 
 import (
 	"bytes"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json/jsontext"
 	"strconv"
 
@@ -243,11 +241,10 @@ func failed(at ir.Provenance, err error) ir.Diagnostic {
 // carries the overlay dialect the document declares, so a reader of
 // Document.Sources can tell an overlay entry from the spec beside it.
 func sourceInfo(doc *soaoverlay.Overlay, opts Options) ir.SourceInfo {
-	sum := sha256.Sum256(opts.Data)
 	return ir.SourceInfo{
-		Format: "overlay@" + doc.Version,
+		Format: ir.OverlayFormat + "@" + doc.Version,
 		Path:   opts.Path,
-		Hash:   hex.EncodeToString(sum[:]),
+		Hash:   ir.SourceHash(opts.Data),
 	}
 }
 

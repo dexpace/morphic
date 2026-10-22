@@ -1,7 +1,9 @@
-Check an API spec (OpenAPI 3.x) and write its diagnostics to stderr, writing no
-IR anywhere. validate is compile's pipeline with the document dropped instead of
-marshalled, for a gate that wants the diagnostics and the exit code and would
-throw the document away.
+Check an API spec and write its diagnostics to stderr, writing no IR anywhere.
+validate is compile's pipeline with the document dropped instead of marshalled,
+for a gate that wants the diagnostics and the exit code and would throw the
+document away.
+
+This build compiles openapi@3.0, openapi@3.1, openapi@3.2.
 
 The diagnostics and the exit code are compile's: 0 when nothing reaches
 --fail-on, 1 when something does or the spec lowered to no document at all, 2

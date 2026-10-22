@@ -18,6 +18,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
+	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -199,20 +200,20 @@ func resolveCounting(t *testing.T, spec, path string, opts Options) ([]ir.Diagno
 	root, _, err := decodeStream(data)
 	require.NoError(t, err)
 	releaseAnchors(root)
-	doc, _, err := unmarshal(t.Context(), data, root)
+	doc, err := unmarshal(t.Context(), data, root)
 	require.NoError(t, err)
 	rebuilds := 0
 	rebuild := func() (*soa.OpenAPI, error) {
 		rebuilds++
-		again, _, err := unmarshal(t.Context(), data, root)
+		again, err := unmarshal(t.Context(), data, root)
 		return again, err
 	}
-	opts.AllowExternalRefs = true
+	opts.Reader = reader.Disk{}
 	at := pointerAt(0, overlay.Origin{})
-	_, _, reader, diags, err := resolveExternal(t.Context(), at, doc, Siblings{},
-		newSourceDocument(path, data, root, nil, newSourceTree(0, overlay.Origin{}, root), nil), opts, rebuild)
+	_, _, ext, pass, missed, err := resolveExternal(t.Context(), doc, Siblings{},
+		newSourceDocument(path, data, root, judgment{}, newSourceTree(0, overlay.Origin{}, root), nil), opts, rebuild)
 	require.NoError(t, err)
-	return append(diags, crossed(at, reader)...), rebuilds
+	return append(passDiags(at, pass, missed), crossed(at, ext)...), rebuilds
 }
 
 // TestResolveExternal_BothPassesShareOneDocumentBudget pins that GitHub #538's

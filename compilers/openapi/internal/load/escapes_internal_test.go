@@ -4,6 +4,7 @@ import (
 	"errors"
 	"iter"
 	"maps"
+	"net/http"
 	"net/url"
 	"reflect"
 	"slices"
@@ -113,6 +114,7 @@ func TestEscapes_RewritesOnlyWhatTheResolverMisreads(t *testing.T) {
 		{"another document's fragment", "{$ref: 'o.yaml#/a+b'}", []string{"o.yaml#/a%2Bb"}, 1},
 		{"nothing to rewrite", "{$ref: '#/a b'}", []string{"#/a b"}, 0},
 		{"a plus in the document part", "{$ref: 'a+b.yaml#/c'}", []string{"a+b.yaml#/c"}, 0},
+		{"an absolute path, where none is refused", "{$ref: '/r/a.yaml#/c'}", []string{"/r/a.yaml#/c"}, 0},
 		{"an escaped plus", "{$ref: '#/a%2Bb'}", []string{"#/a%2Bb"}, 0},
 		{"a fragment the resolver cannot decode", "{$ref: '#/a+b%zz'}", []string{"#/a+b%zz"}, 0},
 		{"a mapping where a value is expected", "{$ref: {a: '#/a+b'}}", nil, 0},
@@ -136,7 +138,7 @@ func TestEscapes_RewritesOnlyWhatTheResolverMisreads(t *testing.T) {
 				}
 			}
 			require.Equal(t, tc.recorded, misread, "the values the resolver misreads in %q", written)
-			esc := newEscapes()
+			esc := newEscapes(nil)
 
 			esc.escape(root)
 
@@ -159,7 +161,7 @@ func TestEscapes_LeavesAnAnchoredValueAlone(t *testing.T) {
 	aliases := []*yaml.Node{root.Content[0].Content[3].Content[1], root.Content[0].Content[5].Content[1]}
 	at := [][2]int{{aliases[0].Line, aliases[0].Column}, {aliases[1].Line, aliases[1].Column}}
 	require.NotEqual(t, [2]int{anchored.Line, anchored.Column}, at[0])
-	esc := newEscapes()
+	esc := newEscapes(nil)
 
 	esc.escape(root)
 
@@ -182,7 +184,7 @@ func TestEscapes_KeepsTextAnAliasSharesWithARefAsWritten(t *testing.T) {
 	anchored := root.Content[0].Content[1].Content[1]
 	text := root.Content[0].Content[3].Content[1]
 	key := root.Content[0].Content[3].Content[2]
-	esc := newEscapes()
+	esc := newEscapes(nil)
 
 	esc.escape(root)
 
@@ -204,7 +206,7 @@ func TestEscapes_RewritesAValueAMergeKeySupplies(t *testing.T) {
 	t.Parallel()
 	const src = "base: &m {$ref: '#/x+y'}\nuse: {<<: *m, other: 1}\n"
 	root := decodeRoot(t, src)
-	esc := newEscapes()
+	esc := newEscapes(nil)
 
 	esc.escape(root)
 
@@ -253,7 +255,7 @@ c: {$ref: '#/p+q', x-e: {$ref: 'o.yaml#/r+s'}}
 d: [{$ref: '#/t+u'}]
 `
 	root := decodeRoot(t, src)
-	esc := newEscapes()
+	esc := newEscapes(nil)
 	esc.escape(root)
 	require.NotEmpty(t, esc.written)
 	require.NotEqual(t, refValues(decodeRoot(t, src)), refValues(root), "the tree was rewritten")
@@ -270,7 +272,7 @@ func TestEscapes_LeavesATreeWithNoCandidateAlone(t *testing.T) {
 	t.Parallel()
 	const src = "a: {$ref: '#/b'}\nc: '+'\nd: '#'\n"
 	root := decodeRoot(t, src)
-	esc := newEscapes()
+	esc := newEscapes(nil)
 
 	esc.escape(root)
 
@@ -298,13 +300,103 @@ func TestEscapes_NilRegistryDoesNothing(t *testing.T) {
 	assert.Equal(t, trail{stopped: "#/a+b"}, esc.trailOf(chain{stopped: "#/a+b", stoppedAt: built}))
 	text := []ir.Diagnostic{{Message: "unable to resolve reference: #/a%2Bb"}}
 	assert.Equal(t, text, esc.asWritten(slices.Clone(text)))
+	assert.False(t, esc.rewritable(decodeRoot(t, "{$ref: '/r/a.yaml'}")), "a nil registry respells no document part")
+	assert.Nil(t, esc.refusal(), "and refuses none")
+}
+
+// refuseAbsolute is a refusal of every absolute path, by its own reason.
+func refuseAbsolute(uri string) error {
+	if strings.HasPrefix(uri, "/") {
+		return errors.New("refused " + uri)
+	}
+	return nil
+}
+
+// TestEscapes_RespellsADocumentPartTheReadRefuses pins the respelling of a
+// document part a read refuses by its spelling: under refusedScheme, its
+// fragment as ForResolver spells it, as one opaque URL that net/url spells back
+// unchanged, minted with the refusal of the part exactly as written, whatever
+// it holds. A part refuses refuses not is left as it is.
+func TestEscapes_RespellsADocumentPartTheReadRefuses(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ name, ref, want, path string }{
+		{"an absolute path", "/r/a.yaml#/X", "x-morphic-refused:%2Fr%2Fa.yaml#/X", "/r/a.yaml"},
+		{"no fragment", "/r/a.yaml", "x-morphic-refused:%2Fr%2Fa.yaml", "/r/a.yaml"},
+		{"spaces around it", " /r/a b.yaml #/X", "x-morphic-refused:%2Fr%2Fa%20b.yaml#/X", "/r/a b.yaml"},
+		{"a plus in the fragment", "/r/a.yaml#/a+b", "x-morphic-refused:%2Fr%2Fa.yaml#/a%2Bb", "/r/a.yaml"},
+		{"what a URL reads otherwise", "/r/a?b=%41:c;d.yaml", "x-morphic-refused:%2Fr%2Fa%3Fb=%2541:c%3Bd.yaml", "/r/a?b=%41:c;d.yaml"},
+		{"a relative path", "a.yaml#/a+b", "a.yaml#/a%2Bb", ""},
+		{"a fragment alone", "#/X", "#/X", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			src := "{$ref: '" + tc.ref + "'}"
+			esc := newEscapes(refuseAbsolute)
+
+			assert.Equal(t, tc.want != tc.ref, esc.rewritable(decodeRoot(t, src)))
+			root := decodeRoot(t, src)
+			esc.escape(root)
+
+			assert.Equal(t, []string{tc.want}, refValues(root))
+			key, _, _ := strings.Cut(tc.want, "#")
+			if tc.path == "" {
+				assert.NoError(t, esc.refusalOf(key))
+				return
+			}
+			assert.EqualError(t, esc.refusalOf(key), "refused "+tc.path)
+			req, err := http.NewRequest(http.MethodGet, key, nil)
+			require.NoError(t, err)
+			assert.Equal(t, key, req.URL.String(), "the key the resolver asks for")
+			quoted := []ir.Diagnostic{{Message: `unresolved $ref "` + tc.want + `"`}}
+			assert.Equal(t, `unresolved $ref "`+tc.ref+`"`, esc.asWritten(quoted)[0].Message)
+		})
+	}
+}
+
+// TestEscapes_ASourcesOwnRefusedSchemeIsRespelledApart pins that a $ref the
+// source writes in refusedScheme itself, which the read refuses as a URL no
+// reader reads, is respelled apart from the part it spells, so each keeps its
+// own refusal and each message its own $ref as written.
+func TestEscapes_ASourcesOwnRefusedSchemeIsRespelledApart(t *testing.T) {
+	t.Parallel()
+	esc := newEscapes(refusedByName(Options{Within: "/r", Reader: &fakeReader{}}, "/r/root.yaml"))
+	root := decodeRoot(t, "[{$ref: '/r/a.yaml#/X'}, {$ref: 'x-morphic-refused:%2Fr%2Fa.yaml#/X'}]")
+
+	esc.escape(root)
+
+	got := refValues(root)
+	require.Len(t, got, 2)
+	assert.NotEqual(t, got[0], got[1])
+	for i, want := range []string{"external document /r/a.yaml refused: the $ref names it by an absolute path",
+		`external document x-morphic-refused:%2Fr%2Fa.yaml refused: it is named by a URL with the scheme "x-morphic-refused"`,
+	} {
+		key, _, _ := strings.Cut(got[i], "#")
+		require.Error(t, esc.refusalOf(key), got[i])
+		assert.True(t, strings.HasPrefix(esc.refusalOf(key).Error(), want), esc.refusalOf(key).Error())
+	}
+	quoted := esc.asWritten([]ir.Diagnostic{{Message: `"` + got[0] + `"`}, {Message: `"` + got[1] + `"`}})
+	assert.Equal(t, `"/r/a.yaml#/X"`, quoted[0].Message)
+	assert.Equal(t, `"x-morphic-refused:%2Fr%2Fa.yaml#/X"`, quoted[1].Message)
+	assert.NoError(t, (*escapes)(nil).refusalOf(strings.SplitN(got[0], "#", 2)[0]), "a nil registry minted none")
+}
+
+// TestEscapes_RefusalIsTheReadsOwn pins bind.Config.Refuse as the registry
+// answers it: the refusal it respells by, and none where it refuses none.
+func TestEscapes_RefusalIsTheReadsOwn(t *testing.T) {
+	t.Parallel()
+	refuse := newEscapes(refuseAbsolute).refusal()
+	require.NotNil(t, refuse)
+
+	require.NoError(t, refuse("a.yaml"))
+	assert.EqualError(t, refuse("/r/a.yaml"), "refused /r/a.yaml")
+	assert.Nil(t, newEscapes(nil).refusal(), "a registry refusing none refuses nothing")
 }
 
 // escapedMessages returns each message in turn as asWritten renders it, once
 // escape has rewritten src.
 func escapedMessages(t *testing.T, src string, messages ...string) []string {
 	t.Helper()
-	esc := newEscapes()
+	esc := newEscapes(nil)
 	esc.escape(decodeRoot(t, src))
 	diags := make([]ir.Diagnostic, 0, len(messages))
 	for _, m := range messages {
@@ -379,13 +471,11 @@ func TestJSONQuoted_ReportsOnlyAnEscapedSpelling(t *testing.T) {
 
 // escapedSource is a source as load holds it once it has rewritten the tree:
 // the tree, its anchors released and its $refs respelled for the resolver, the
-// model built from it with the library's findings, and the registry that
-// rewrote it.
+// model built from it, and the registry that rewrote it.
 type escapedSource struct {
-	root    *yaml.Node
-	doc     *soa.OpenAPI
-	valErrs []error
-	esc     *escapes
+	root *yaml.Node
+	doc  *soa.OpenAPI
+	esc  *escapes
 }
 
 // escapeSource decodes src and rewrites its tree as load does, then builds the
@@ -394,11 +484,11 @@ func escapeSource(t *testing.T, src string) escapedSource {
 	t.Helper()
 	root := decodeRoot(t, src)
 	releaseAnchors(root)
-	esc := newEscapes()
+	esc := newEscapes(nil)
 	esc.escape(root)
-	doc, valErrs, err := unmarshal(t.Context(), []byte(src), root)
+	doc, err := unmarshal(t.Context(), []byte(src), root)
 	require.NoError(t, err)
-	return escapedSource{root: root, doc: doc, valErrs: valErrs, esc: esc}
+	return escapedSource{root: root, doc: doc, esc: esc}
 }
 
 // escapedDoc builds the model of src from a tree rewritten as load rewrites it,
@@ -591,7 +681,7 @@ func TestEscapes_RestoreFromWalksNothingWhenNothingWasRewritten(t *testing.T) {
 	t.Parallel()
 	panicking := iter.Seq[soa.WalkItem](func(func(soa.WalkItem) bool) { panic("walked") })
 
-	site, err := newEscapes().restoreFrom(t.Context(), panicking, nil)
+	site, err := newEscapes(nil).restoreFrom(t.Context(), panicking, nil)
 
 	require.NoError(t, err)
 	assert.Empty(t, site)
@@ -607,7 +697,7 @@ components:
     P: {$ref: '#/paths/~1a+b'}
 `
 	root := decodeRoot(t, src)
-	esc := newEscapes()
+	esc := newEscapes(nil)
 	esc.escape(root)
 	require.Equal(t, []string{"#/paths/~1a%2Bb"}, refValues(root))
 	panicking := iter.Seq[soa.WalkItem](func(func(soa.WalkItem) bool) { panic("walk fault") })
@@ -642,7 +732,7 @@ func TestRestorer_FinishReportsAWalkOfAnObjectThatFaults(t *testing.T) {
 	// faults, and the barrier turns that into the error.
 	hop := &soa.ReferencedParameter{}
 	hop.GetCore().Reference.ValueNode = &yaml.Node{Kind: yaml.ScalarNode, Value: "#/x"}
-	r := &restorer{esc: newEscapes(), seen: map[any]bool{}, walked: map[any]bool{},
+	r := &restorer{esc: newEscapes(nil), seen: map[any]bool{}, walked: map[any]bool{},
 		queue: []record{{object: hop}}}
 
 	err := r.finish(t.Context(), nil)

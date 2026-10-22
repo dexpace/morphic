@@ -55,8 +55,13 @@ between stages. The IR itself is specified in [`ir-design.md`](./ir-design.md).
 
 ### 2.1 Compilers (spec → IR)
 
-One compiler per source format. Each owns its format completely: file loading, reference
-resolution, format-version normalization, and lowering into IR nodes.
+One compiler per source format. Each owns its format: which documents a source's references name,
+reference resolution, format-version normalization, and lowering into IR nodes. Reading those
+documents is not a compiler's. It does no I/O, and reads every document beyond its sources through
+the `compilers.DocumentReader` the engine hands it in `compilers.Options.Reader`. The compiler says
+how far a read may go, as a directory it must stay inside, and the reader enforces it, symbolic
+links included: the OpenAPI compiler keeps every read inside the spec's directory, following
+relative references alone, unless `allow-external-refs` lifts that.
 
 Contract, abridged from `compilers.Compiler`, whose doc comments state each method's duties:
 
@@ -69,16 +74,22 @@ type Compiler interface {
     DecodeOptions(set OptionSet) (any, error)
     // Compile lowers sources into a Document, or refuses them with a nil one.
     Compile(ctx context.Context, sources []Source, opts Options) (*ir.Document, []ir.Diagnostic, error)
-    // SourceTable names the inputs a compile reads: the table a refusal's diagnostics index.
+    // SourceTable names the inputs its arguments name: the table a refusal's diagnostics index.
     SourceTable(sources []Source, opts Options) []ir.SourceInfo
 }
 ```
 
+A returned `Document`'s `Sources` begins with the table `SourceTable` gives, in order and filled
+in, and may go on to name each further document the compile read, such as one a reference names.
+`SourceTable` reads no input, so it names only what the caller supplies; a refusal reads no other
+document, so the table is what its diagnostics index.
+
 Internal phases every compiler follows (each format implements them its own way):
 
-1. **Load & bundle** — read all source files, resolve external references, produce one in-memory
-   source document. Original pointers (file + JSON pointer / line-col) are preserved for
-   provenance.
+1. **Load & bundle** — read every document the source's references name, through the caller's
+   reader, and resolve references across them. Each document read is a `Document.Sources` entry,
+   and original positions (document + JSON pointer / line-col) are preserved for provenance, so
+   what another document declares is lowered where it declares it.
 2. **Normalize within the format** — collapse format-version differences before IR construction:
    Swagger 2.0 is lifted to the OpenAPI 3.x shape (`body`/`formData` params → request body,
    `host`+`basePath` → servers); OpenAPI 3.0 `nullable` and 3.1 `type: [T, "null"]` both become
@@ -98,12 +109,14 @@ must agree on. That is the type registry with the source-coordinate map behind s
 rule that a minted node takes a namespace no source coordinate addresses), diagnostic accumulation,
 the canonical naming grammar, and the identifier grammar — the kind prefix and the namespace after
 it, with the declaration of the namespaces a compiler mints in. The registry also holds the
-decisions about a node that read nodes other lowerings intern (`compile.Settlement`), deferred until
-the walk ends: a walk lowers one declaration at a time, so taken mid-walk they would follow
-declaration order. They live on the registry, though only OpenAPI defers one yet, because the
-registry is the one handle a lowering holds (micro-compiler-design §4). What stays with the
-compiler is what only it can compute: the path an ID derives from, since a JSON Pointer, a GraphQL
-structural path and a protobuf fully-qualified name are different things.
+decisions that read nodes other lowerings intern (`compile.Settlement`), deferred until the walk
+ends, and the nodes a reference names, promised to the lowering that owns them
+(`compile.Types.Promise`): a walk lowers one declaration at a time, so a decision taken mid-walk, or
+a node a reference built, would follow declaration order (micro-compiler-design §6.2). They live on
+the registry, though only OpenAPI uses them yet, because the registry is the one handle a lowering
+holds (micro-compiler-design §4). What stays with the compiler is what only it can compute: the
+path an ID derives from, since a JSON Pointer, a GraphQL structural path and a protobuf
+fully-qualified name are different things.
 
 The split is enforced rather than documented: lint rules (`internal/lintrules`, run by `make vet`)
 fail a package outside the framework that builds or writes the type registry, derives a canonical
@@ -123,6 +136,34 @@ rather than a Go error. Time is bounded by the caller instead of by a constant: 
 work proportional to the document, and the settling after them, honour the `context.Context` a
 compile is given, so a deadline or a cancellation stops one between items and the error reaches the
 caller unwrapped.
+
+**The contract is checked, not trusted.** Each duty `compilers.Compiler`'s doc comments state is
+held where its data is. `Registry.Register` refuses a format naming no dialect, and
+`Registry.Detect` a claim naming none and a decline that indexes a source detection was not handed
+or speaks with no error. `Detection.Compile`, which the engine compiles through, refuses a refusal
+that gives no error, a source table that does not open with the one `SourceTable` names, a source
+read as a format other than the one it was recognized as or hashed from other bytes, and a finding
+indexing no source. Entries past that opening name what else the compile read, such as a document a
+reference names, which `SourceTable` reads no input to know of. Each breach is a Go error wrapping
+`compilers.ErrContract`: a compiler bug, never the spec's. What a document holds whatever produced
+it, the schema stamp, the namespaces, a service and a well-formed source table among them, is
+`irverify`'s, and `compile.Types.Finish` hands a compiler its registry with the diagnostics it
+reports, a `compile/registry-refused` error for each entry the registry refused among them.
+
+**What stays in the OpenAPI compiler.** Three of its pieces read as if any format could use them:
+the YAML view (`internal/nodeview`), version sniffing (`detect.go`) and document identity
+(`resolve.SameDocument`, `resolve.IsURL`). None moves into `compilers/compile`, because what each
+owes is agreement with the OpenAPI parser library, not with YAML or RFC 3986. The view reads a
+mapping as the library's unmarshaller does, its `<<` merges and repeated keys included, which
+yaml.v3's own decoder reads differently. Sniffing reads the parse the compile lowers, through that
+view, and claims a broken document by OpenAPI's discriminating keys. Identity classifies a location
+as the library's resolver does. A compiler parsing through the same library is the evidence that
+would move the view or identity, and one wanting the byte probe for a key of its own would move
+that probe; any other needs a reading that agrees with its own parser, since a shared reading would
+disagree with it as detection disagreed with the compile before it read through the view. What does
+cross formats is a duty rather than code, a recognition naming the version the compile reads, and
+`Detection.Compile` holds every compiler to it. The one piece every compiler spelled alike, the
+digest a source table records, is `ir.SourceHash`.
 
 Compilers are registered in a registry keyed by the formats they report, and detection belongs to
 them too: the registry asks each compiler in registration order whether it recognizes a source, and
@@ -153,12 +194,13 @@ typed, checked and documented where it is declared.
 
 The order lives in the `engine` package's default list, not in `pass/`: composing passes is
 orchestration, which only the engine does. The engine runs the list after any compile that produced
-a document, errors reported or not, and threads each pass's output into the next. An analysis that
-judges the document runs after every transform, so `validate` comes last. It then checks what the
-run returns, every transform's output included, and its findings, whose `Provenance.Node` is spelled
-against the document it was handed, locate in that document. Running it first would give the
-transforms no guarantee, since a caller can turn it off: each pass must cope with a document that
-fails it whatever the order.
+a document, errors reported or not, and over a document already compiled that a caller hands it
+(`RunDocument`), and threads each pass's output into the next. An analysis that judges the document
+runs after every transform, so `validate` comes last. It then checks what the run returns, every
+transform's output included, and its findings, whose `Provenance.Node` is spelled against the
+document it was handed, locate in that document. Running it first would give the transforms no
+guarantee, since a caller can turn it off: each pass must cope with a document that fails it
+whatever the order.
 
 The engine owns `Document.Diagnostics`, writing the compiler's findings and every pass's onto the
 document it returns, so a transform that builds a fresh document cannot lose any. Those findings
@@ -322,6 +364,7 @@ morphic/
 │   │       ├── scan/       #             pre-parse refusals (alias cycles and fan-out, nesting)
 │   │       ├── bind/       #             every schema $ref bound where it lands, loops found
 │   │       ├── annotation/ #             what a schema says about itself, not its shape
+│   │       ├── oas/        #             the OpenAPI Specification's rules by minor, and their check
 │   │       ├── load/       #             parse, validate, resolve
 │   │       ├── resolve/    #             what a $ref names; reference-or-inline entries
 │   │       ├── merge/      #             allOf property reconciliation
@@ -333,8 +376,12 @@ morphic/
 ├── pass/                   # Layer 1 — IR → IR passes (validate, dedup, filter, slice, overlay).
 ├── emitters/               # Layer 2 — emitter contract, plan layer, registry (future).
 ├── engine/                 # Layer 3 — orchestration: detect format, run compiler, passes, emitters.
+│   ├── reader/             #           Reads what a run's references name: disk, network or memory.
+│   ├── report/             #           Renders diagnostics and --explain for a person.
+│   └── output/             #           Writes the IR document to a stream, or to a file atomically.
 ├── internal/archtest/      #           Import layering, the recursion pin and the caps (tooling).
 ├── internal/census/        #           Counts which IR facts a set of documents sets (tooling).
+├── internal/conformance/   #           Holds each registered format to its matrix column (tooling, tests only).
 ├── internal/decls/         #           Type-checked reads of declarations, for tests (tooling).
 ├── internal/harness/       #           Bug-catching oracle sweep over a spec corpus (tooling).
 ├── internal/jsonshape/     #           The IR's JSON shape: IRVersion's pin and the census read it (tooling).
@@ -375,6 +422,15 @@ Dependency rules, enforced by an architecture test as in oagen:
 - `emitters/*` imports `ir`, `ir/irfacts` and the contract package `emitters` — never a compiler.
 - `engine` imports everything below it; `cmd` imports `engine`.
 
+The engine owns every read, every write and every rendering for a person, so a second driver — an
+editor integration, an emitter driver, a test harness — reads, writes and reports exactly as the CLI
+does without importing it. It takes its input three ways: a spec file (`Run`), sources already in
+memory (`RunSources`, which reads nothing else), and a document already compiled (`RunDocument`,
+which runs the passes alone). `engine/reader` reads what a source's references name, `engine/output`
+writes the document to a stream or replaces a file atomically, and `engine/report` renders
+diagnostics and `--explain`. The CLI parses flags, picks the streams and turns a run into an exit
+code.
+
 Two caps guard the shape rather than the graph, both in `internal/archtest` and `.golangci.yml`:
 no type under `compilers/` may carry more than 20 methods, and no function may exceed 70 lines or
 a cognitive complexity of 20. The method cap exists because the god object that
@@ -397,7 +453,8 @@ IR-space `Node` instead. Every stage returns
 can allowlist. A mature allowlist entry is keyed by (diagnostic code × entity ID), requires a
 human rationale, supports expiry tied to a release, and rejects wildcards — narrowness is
 validated, so approvals cannot rot into blanket suppressions. Nothing in the pipeline writes to
-stderr; the CLI renders diagnostics.
+stderr. The engine renders diagnostics (`engine/report`), and a driver such as the CLI chooses the
+stream they go to.
 
 **What fails a run.** A stage reports severities; whether the run fails is the engine's verdict,
 taken once the passes have reported, and recorded as `Result.Failed`, so the CLI's exit status
@@ -421,11 +478,12 @@ something a caller asks for with `none`, never a default.
 - **Capability conformance corpus**: one minimal spec per row of `ir-spec-matrix.md` per format
   that can express it, asserting the IR captures it losslessly. This is the regression net that
   keeps "lossless by default" honest as compilers are added. Row and spec are tied to each other
-  rather than left to prose: every matrix row carries a stable key, each corpus spec names the keys
-  it witnesses, and a row the OpenAPI column marks expressible must be witnessed by a spec or
-  listed as not-yet-covered with a reason (`compilers/openapi/conformance_matrix_test.go`). What
-  stays a reviewer's job is the claim inside that link — a spec naming a row has to *exercise* that
-  capability, and no test can read a golden and tell you whether it does.
+  rather than left to prose: every matrix row and format column carries a stable key, each
+  format's `testdata/conformance/<format>/matrix.md` names the specs that witness every row its
+  column marks expressible or why none does yet, and `internal/conformance` holds each format the
+  engine registers a compiler for to that column. What stays a reviewer's job is the claim inside
+  that link — a spec naming a row has to *exercise* that capability, and no test can read a golden
+  and tell you whether it does.
 - **Round-trip property**: `parse → serialize → deserialize → deep-equal` for every corpus
   document.
 - **Oracle sweep** (`internal/harness`): every corpus spec is driven through the oracles in order

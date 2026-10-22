@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"slices"
 
 	"github.com/dexpace/morphic/compilers"
@@ -65,7 +66,15 @@ func (c *Compiler) Compile(ctx context.Context, sources []compilers.Source, opts
 	if err != nil {
 		return nil, nil, err
 	}
-	loadedDoc, diags, err := load.Load(ctx, rootSrcIndex, sources[0], loadOptions(formatOpts))
+	loadedDoc, loadDiags, err := load.Load(ctx, rootSrcIndex, sources[0], loadOptions(formatOpts, opts.Reader, sources[0]))
+	// The load phase reads a document once under each name a reference spells
+	// it by, as a relative and an absolute path to one file where external
+	// references are allowed, so what it finds there it finds once per name,
+	// at one position: one finding, kept once, as compile.Diags keeps the
+	// lowering's.
+	var loaded compile.Diags
+	loaded.AppendAll(loadDiags)
+	diags := loaded.List()
 	if errors.Is(err, load.ErrParse) {
 		// ErrParse is a source Load could not read: bytes that will not parse,
 		// which reach here only from a caller compiling directly — detection
@@ -95,10 +104,10 @@ func (c *Compiler) Compile(ctx context.Context, sources []compilers.Source, opts
 //
 // The load phase reports a failure at the $ref, and a cycle once, with the
 // reason. The lowering reports a schema or security-scheme $ref it could not
-// follow at that pointer, and also where the load phase did not: a $ref into a
-// document it does not lower (GitHub #74), one the binding never read, or one a
-// resolver panic hid. So only a report the load phase made at that exact
-// provenance is dropped; kept, one failure would read as two (#385).
+// follow at that pointer, and also where the load phase did not: a $ref the
+// binding never read, or one a resolver panic hid. So only a report the load
+// phase made at that exact provenance, in whichever document, is dropped; kept,
+// one failure would read as two (#385).
 func withoutRereported(lowered, loaded []ir.Diagnostic) []ir.Diagnostic {
 	reported := make(map[ir.Provenance]bool)
 	for _, d := range loaded {
@@ -137,20 +146,20 @@ func (*Compiler) SourceTable(sources []compilers.Source, opts compilers.Options)
 
 // run drives the four-phase pipeline over one loaded document (architecture
 // §2.1) and assembles the Document. Order matters: named component schemas
-// first, so refs from operations find interned IDs, then the settlements they
-// deferred; then security schemes, so requirements reference registered IDs;
-// then the service walk and the settlements it deferred; then document
-// metadata.
+// first, so refs from operations find interned IDs; then security schemes, so
+// requirements reference registered IDs; then the service walk; then the
+// deferred settlements; then document metadata.
 //
-// It reports cancellation as a Go error, not a diagnostic: the caller stopped
-// asking. The document is dropped with it, since the phases that honour ctx
-// stop mid-registry and what is left references types never interned or
-// settled, but the diagnostics gathered before the stop are returned.
+// It reports cancellation as a Go error, not a diagnostic: nothing about the
+// document is wrong, the caller stopped asking. The document is dropped with it,
+// since the phases that honour ctx stop mid-registry and what is left
+// references types never interned or settled, but the diagnostics gathered
+// before the stop are returned.
 func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, []ir.Diagnostic, error) {
 	// out and the anchor memo are this function's, not a struct's: a document
 	// being built and a memo (micro-compiler-design §4.1). Nothing below
 	// allocates them.
-	out := &ir.Document{Types: ts.Registry()}
+	out := &ir.Document{}
 	var anchors schema.AnchorIndex
 
 	// acc is what makes the identity dedup still hold. Every lowering returns its
@@ -159,11 +168,6 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, 
 	// whole stream to do it.
 	var acc compile.Diags
 	acc.AppendAll(schema.LowerComponentSchemas(ctx, c, ts, &anchors))
-	// The operation walk reads merged property types (a multipart part's
-	// filename and multi flags), and every component is a node now, so what the
-	// component walk deferred is taken before it. Inline schemas in the
-	// operations can still defer; the Settle below takes those.
-	acc.AppendAll(ts.Settle(ctx))
 	// The checks in this function sit after the phases that honour ctx. Each
 	// stops between items and returns what it had, so a non-nil ctx.Err() here
 	// is the only way to tell a phase that finished from one that was cut short —
@@ -183,13 +187,19 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, 
 	out.Services = []ir.Service{svc}
 	out.TagDefs = tagDefs
 	acc.AppendAll(svcDiags)
-	// Every lowering has returned, so what was deferred until the registry is
-	// whole is decided now (compile.Settlement), before the check that refuses
-	// a registry either phase left cut short.
-	acc.AppendAll(ts.Settle(ctx))
+	// Every lowering has returned, so the registry is finished: a coordinate a
+	// $ref named and none built is built now, in its own context
+	// (compile.Types.Promise), and what was deferred until the registry is whole
+	// is decided (compile.Settlement), before the check that refuses a registry
+	// either phase left cut short. What Finish reports carries each entry the
+	// registry refused, a compiler bug that would otherwise leave every reference
+	// to it dangling with nothing said.
+	reg, settled := ts.Finish(ctx)
+	acc.AppendAll(settled)
 	if err := ctx.Err(); err != nil {
 		return nil, acc.List(), err
 	}
+	out.Types = reg
 
 	m, metaDiags := lowerMeta(c)
 	out.Name, out.Version = m.Name, m.Version
@@ -203,14 +213,8 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, 
 	}
 	acc.AppendAll(metaDiags)
 	out.IRVersion = ir.IRVersion
-	out.IDSpaces = ids.Namespaces().Declaration()
+	out.IDSpaces = ids.Namespaces(lowering.OtherIDs(c)...).Declaration()
 	out.Sources = c.Sources()
-	// An entry the registry refused is a compiler bug no source can provoke, and
-	// a refusal nothing reports hides the bug rather than the symptom: the node is
-	// simply absent and every reference to it dangles.
-	for _, v := range ts.Violations() {
-		acc.Append(c.DiagAt(ir.SeverityError, diag.InternalInvariant, "", "internal: %s", v))
-	}
 	return out, acc.List(), nil
 }
 
@@ -228,17 +232,22 @@ func optionsFrom(opts compilers.Options) (Options, error) {
 	}
 }
 
-// loadOptions projects Options onto the subset the load phase reads. It exists
-// so the mapping lives in one place: load.Options is that package's own input,
-// deliberately not this public type, whose shape is a published contract (see
-// Options) and most of which describes lowering the loader cannot see.
-func loadOptions(o Options) load.Options {
+// loadOptions projects Options onto the subset the load phase reads, with the
+// caller's reader and the confinement Options.AllowExternalRefs sets for it:
+// the directory of src's path unless it is on. It exists so the mapping lives
+// in one place: load.Options is that package's own input, deliberately not this
+// public type, whose shape is a published contract (see Options) and most of
+// which describes lowering the loader cannot see.
+func loadOptions(o Options, reader compilers.DocumentReader, src compilers.Source) load.Options {
 	out := load.Options{
-		AllowExternalRefs:    o.AllowExternalRefs,
+		Reader:               reader,
 		MaxSourceBytes:       bounded(o.Limits.MaxSourceBytes),
 		MaxSourceNodes:       bounded(o.Limits.MaxSourceNodes),
 		MaxAliasSurplus:      bounded(o.Limits.MaxAliasSurplus),
 		MaxExternalDocuments: bounded(o.Limits.MaxExternalDocuments),
+	}
+	if !o.AllowExternalRefs {
+		out.Within = filepath.Dir(src.Path)
 	}
 	if o.Overlay != nil {
 		out.Overlay = &overlay.Options{Path: o.Overlay.Path, Data: o.Overlay.Data, Lax: o.Overlay.Lax}
@@ -256,7 +265,7 @@ func loadOptions(o Options) load.Options {
 func loweringCtx(doc *load.Document, o Options) lowering.Ctx {
 	limits := lowering.Limits{MaxEnumMembers: bounded(o.Limits.MaxEnumMembers)}
 	return lowering.New(rootSrcIndex, doc.Doc, doc.Source, o.Grouping, limits,
-		o.StreamingMedia, o.Promotions, doc.Overlay).WithLoaded(doc)
+		o.StreamingMedia, o.Promotions, o.NullableWidening, doc.Overlay).WithLoaded(doc)
 }
 
 // undecodable reports a source this compiler recognized and could not read.

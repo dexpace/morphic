@@ -39,6 +39,9 @@ var rules = map[string][]string{
 	"ir/irtest":   {module + "/ir", "github.com/google/go-cmp" + subtreeSuffix},
 	"ir/irverify": {module + "/ir"},
 	"compilers":   {module + "/ir"},
+	// What every compiler shares: the type registry, diagnostics and the naming
+	// and ID grammars. It reaches ir alone, so no compiler's vocabulary rides in.
+	"compilers/compile": {module + "/ir"},
 	"compilers/openapi": {module + "/ir", module + "/compilers", module + "/compilers/compile",
 		module + "/compilers/openapi/internal" + subtreeSuffix,
 		"github.com/speakeasy-api/openapi" + subtreeSuffix, "gopkg.in/yaml.v3"},
@@ -64,6 +67,13 @@ var rules = map[string][]string{
 	// included: an internal test file cannot import a package that imports its
 	// own.
 	"compilers/openapi/internal/ynode": {"gopkg.in/yaml.v3"},
+	// The OpenAPI Specification's rules as data, and the engine that checks a
+	// source tree against them at the minor it declares. It reads the tree
+	// through nodeview, reports through diag and reaches nothing that loads or
+	// lowers: the table is the compiler's own authority on the specification,
+	// so it depends on no parser library.
+	"compilers/openapi/internal/oas": {module + "/ir", module + "/compilers/openapi/internal/diag",
+		module + "/compilers/openapi/internal/nodeview", "gopkg.in/yaml.v3"},
 	// The one reading of a $ref fragment, and the spelling the resolver is handed
 	// for it (GitHub #911). It reaches the library's reference type for the
 	// resolver's own reading and nothing of the compiler, so the scans, the loader
@@ -133,16 +143,15 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/ids",
 		module + "/compilers/openapi/internal/nodeview",
 		"github.com/speakeasy-api/openapi/overlay", "gopkg.in/yaml.v3"},
-	// The entry side: parse, validate, resolve. It indexes the tree its one decode
+	// The entry side: parse, check, resolve. It indexes the tree its one decode
 	// produced through sourceindex, runs the pre-lowering refusals over that index
-	// through scan, applies the caller's overlay through overlay, and reads value
-	// only to tell a real numeric-literal problem from a library artifact. It
-	// reaches resolve to read which mapping values name a position in the source
-	// as the lowering will, and the library's pointer walk, directly and through
-	// navigation, to tell a hop that walked a document's bytes and to walk a
-	// document as it does, and the library's ordered map to validate a server
-	// again over copies of its variables. It reaches nothing that lowers — at
-	// this point there is no document to lower.
+	// through scan, applies the caller's overlay through overlay, and holds the
+	// tree, and what its references reach, to the specification's rules through
+	// oas. It reaches resolve to read which mapping values name a position in the
+	// source as the lowering will, and the library's pointer walk, directly and
+	// through navigation, to tell a hop that walked a document's bytes and to
+	// walk a document as it does. It reaches nothing that lowers — at this point
+	// there is no document to lower.
 	"compilers/openapi/internal/load": {module + "/ir", module + "/compilers",
 		module + "/compilers/openapi/internal/bind",
 		module + "/compilers/openapi/internal/bind/typed",
@@ -150,18 +159,16 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/fragment",
 		module + "/compilers/openapi/internal/navigation",
 		module + "/compilers/openapi/internal/nodeview",
+		module + "/compilers/openapi/internal/oas",
 		module + "/compilers/openapi/internal/overlay",
 		module + "/compilers/openapi/internal/resolve",
 		module + "/compilers/openapi/internal/scan",
 		module + "/compilers/openapi/internal/sourceindex",
-		module + "/compilers/openapi/internal/value",
 		"github.com/speakeasy-api/openapi/jsonpointer",
 		"github.com/speakeasy-api/openapi/jsonschema/oas3",
 		"github.com/speakeasy-api/openapi/marshaller",
 		"github.com/speakeasy-api/openapi/openapi",
 		"github.com/speakeasy-api/openapi/references",
-		"github.com/speakeasy-api/openapi/sequencedmap",
-		"github.com/speakeasy-api/openapi/validation",
 		"github.com/speakeasy-api/openapi/yml", "gopkg.in/yaml.v3"},
 	// What a $ref names: the pointer it addresses, the schema declared there and
 	// the type already interned there. It reaches bind for where a schema $ref
@@ -172,7 +179,7 @@ var rules = map[string][]string{
 	// at raw YAML, which holds none. It reaches nothing that lowers — following a
 	// reference far enough to lower its target recurses back into the schema
 	// walk, so that stays with the walk.
-	"compilers/openapi/internal/resolve": {module + "/ir", module + "/compilers/compile",
+	"compilers/openapi/internal/resolve": {module + "/ir",
 		module + "/compilers/openapi/internal/annotation",
 		module + "/compilers/openapi/internal/bind",
 		module + "/compilers/openapi/internal/bind/typed",
@@ -204,8 +211,10 @@ var rules = map[string][]string{
 	// of the document, and the grammar that answers it is the loader's — and for
 	// the schema bindings the load phase built, which its scope reads.
 	"compilers/openapi/internal/lowering": {module + "/ir",
+		module + "/compilers/openapi/internal/bind",
 		module + "/compilers/openapi/internal/bind/typed",
 		module + "/compilers/openapi/internal/diag",
+		module + "/compilers/openapi/internal/ids",
 		module + "/compilers/openapi/internal/load",
 		module + "/compilers/openapi/internal/overlay",
 		module + "/compilers/openapi/internal/resolve",
@@ -282,12 +291,28 @@ var rules = map[string][]string{
 	// The orchestration. It reaches the compiler package to compose the default
 	// registry and nothing of any source format: what a spec looks like and what
 	// its options are called are answered through the contract, so no parser is
-	// named here.
+	// named here. It reads a run's documents through its own reader package.
 	"engine": {module + "/ir", module + "/compilers", module + "/compilers/openapi",
-		module + "/pass"},
+		module + "/engine/reader", module + "/pass"},
+	// What a run's references and settings name, read from disk, the network or
+	// memory. It reaches the contract whose reader it implements and nothing
+	// else, so a caller compiling directly reads as the engine does without
+	// composing a pipeline.
+	"engine/reader": {module + "/compilers"},
+	// The one renderer of a run's findings for a person. It reaches ir alone: it
+	// renders what a run returned and nothing of how the run was composed.
+	"engine/report": {module + "/ir"},
+	// The engine's writer: the IR document to a stream or a file, published
+	// through the atomic replace beneath it.
+	"engine/output": {module + "/ir", module + "/engine/internal/atomicfile"},
+	// The atomic replace every file the engine writes goes through. It reaches
+	// renameio, which creates, syncs and renames the file, and nothing of the
+	// module, so each writer the engine grows can stand on it.
+	"engine/internal/atomicfile": {"github.com/google/renameio/v2"},
 	// The CLI. Beyond the pipeline it reaches its command framework: cobra
-	// dispatches the commands and renders help, on pflag's parse.
-	"cmd/morphic": {module + "/ir", module + "/engine",
+	// dispatches the commands and renders help, on pflag's parse. What it prints
+	// it asks the engine's renderer and writer for.
+	"cmd/morphic": {module + "/ir", module + "/engine", module + "/engine/output", module + "/engine/report",
 		"github.com/spf13/cobra", "github.com/spf13/pflag"},
 	"cmd/morphic-harness": {module + "/internal/harness"},
 	// The census command: tooling outside the pipeline, like the harness command
@@ -355,7 +380,7 @@ var rules = map[string][]string{
 // to neither fails, which is what stops both lists rotting.
 var exempt = map[string]string{
 	"internal/harness": "test/tooling infrastructure that drives specs through the oracles, " +
-		"so it legitimately imports the Layer-1 compilers/openapi package",
+		"so it legitimately imports the Layer-3 engine for the compilers it registers",
 }
 
 // TestImportGraph_LayeringHolds parses every non-test Go file under each ruled
@@ -428,6 +453,39 @@ func TestWalkImports_NestedLookAlikeIsAudited(t *testing.T) {
 	assert.Contains(t, violations[0], filepath.Join("sub", "irtest", "nested.go"))
 }
 
+// TestWalkImports_AnInheritingPackageIsNamed plants the package a new compiler
+// starts as: a directory under compilers/ with no entry of its own, importing
+// the contract package its inherited allowlist forbids. The message must name
+// the missing entry, which is the fix, rather than the import alone.
+func TestWalkImports_AnInheritingPackageIsNamed(t *testing.T) {
+	t.Parallel()
+	base := t.TempDir()
+	writeImporter(t, filepath.Join(base, "newformat", "newformat.go"), module+"/compilers/compile")
+
+	violations, err := walkImports("compilers", base, rules["compilers"])
+	require.NoError(t, err)
+	require.Len(t, violations, 1)
+	assert.Contains(t, violations[0], "compilers/newformat has no rules entry of its own")
+}
+
+// TestOwnEntryRequired_HoldsEveryPackageUnderCompilers pins the subtree the
+// stricter rule covers: each package under compilers/, at any depth, and
+// nothing outside it, where nearest-ancestor inheritance is deliberate.
+func TestOwnEntryRequired_HoldsEveryPackageUnderCompilers(t *testing.T) {
+	t.Parallel()
+	for dir, want := range map[string]bool{
+		"compilers":                       true,
+		"compilers/newformat":             true,
+		"compilers/openapi/internal/zz":   true,
+		"compilers/openapi/internal/a/b":  true,
+		"compilersx":                      false,
+		"internal/harness":                false,
+		"internal/lintrules/testdata/mod": false,
+	} {
+		assert.Equal(t, want, ownEntryRequired(dir), dir)
+	}
+}
+
 // writeImporter writes a minimal parseable Go file at file importing imp, so a
 // planted tree exercises walkImports without a buildable package.
 func writeImporter(t *testing.T, file, imp string) {
@@ -438,8 +496,9 @@ func writeImporter(t *testing.T, file, imp string) {
 }
 
 // TestImportGraph_EveryPackageIsRuledOrExempt requires every directory holding
-// production Go files to be reached by rules — through itself or an ancestor —
-// or named in exempt with its reason.
+// production Go files to be reached by rules — through itself or an ancestor,
+// and under compilers/ through itself (ownEntryRequired) — or named in exempt
+// with its reason.
 //
 // A package in neither is audited by nothing, and looks no different from one
 // deliberately left out: the layering gate stays green while that package
@@ -459,10 +518,24 @@ func TestImportGraph_EveryPackageIsRuledOrExempt(t *testing.T) {
 		assert.True(t, coveredByRule(dir),
 			"%s holds production Go files but no import rule reaches it; "+
 				"add it to rules, or name it in exempt with the reason it is out", dir)
+		_, own := rules[dir]
+		assert.False(t, ownEntryRequired(dir) && !own,
+			"%s has no rules entry of its own: a package under compilers/ needs one, since an inherited "+
+				"allowlist says nothing about where it sits (CONTRIBUTING.md, Add a compiler, step 2)", dir)
 	}
 	for dir := range exempt {
 		assert.Contains(t, pkgs, dir, "exempt names %s, which holds no production Go files", dir)
 	}
+}
+
+// ownEntryRequired reports whether dir must carry a rules entry of its own
+// rather than inherit an ancestor's. Under compilers/ an inherited allowlist is
+// never the intended one: a new compiler would inherit the contract package's,
+// which forbids the two packages every compiler imports, and a compiler's
+// internal package its compiler's, which admits every sibling the ordering
+// among them exists to keep out.
+func ownEntryRequired(dir string) bool {
+	return dir == "compilers" || strings.HasPrefix(dir, "compilers/")
 }
 
 // coveredByRule reports whether dir or one of its ancestors carries an import
@@ -534,7 +607,7 @@ func walkImports(dir, base string, allowed []string) ([]string, error) {
 		if !isProductionGoFile(d.Name()) {
 			return nil
 		}
-		found, ferr := fileViolations(p, dir, allowed)
+		found, ferr := fileViolations(p, inheritedBy(dir, base, filepath.Dir(p)), allowed)
 		if ferr != nil {
 			return ferr
 		}
@@ -565,8 +638,21 @@ func skipIfRuled(dir, base, p string) error {
 	return nil
 }
 
+// inheritedBy names the rule a file in pkgDir is audited under: dir itself when
+// pkgDir is base, the directory dir's entry keys, and otherwise dir with a note
+// that the package has no entry of its own. A violation in an inheriting
+// package is most often that missing entry rather than a wrong import, and a
+// message naming only the ancestor's allowlist sends its reader to the import.
+func inheritedBy(dir, base, pkgDir string) string {
+	rel, err := filepath.Rel(base, pkgDir)
+	if err != nil || rel == "." {
+		return dir
+	}
+	return dir + " (" + path.Join(dir, filepath.ToSlash(rel)) + " has no rules entry of its own and inherits it)"
+}
+
 // fileViolations parses one file's import declarations and returns a message for
-// each disallowed non-stdlib import.
+// each disallowed non-stdlib import. dir names the rule it is audited under.
 func fileViolations(p, dir string, allowed []string) ([]string, error) {
 	f, err := parser.ParseFile(token.NewFileSet(), p, nil, parser.ImportsOnly)
 	if err != nil {

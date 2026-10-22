@@ -5,10 +5,10 @@ import (
 )
 
 // validateLong is validate's description, wrapped by hand — see compileLong.
-const validateLong = `Check an API spec (OpenAPI 3.x) and write its diagnostics to stderr, writing no
-IR anywhere. validate is compile's pipeline with the document dropped instead of
-marshalled, for a gate that wants the diagnostics and the exit code and would
-throw the document away.
+const validateLong = `Check an API spec and write its diagnostics to stderr, writing no IR anywhere.
+validate is compile's pipeline with the document dropped instead of marshalled,
+for a gate that wants the diagnostics and the exit code and would throw the
+document away.
 
 The diagnostics and the exit code are compile's: 0 when nothing reaches
 --fail-on, 1 when something does or the spec lowered to no document at all, 2
@@ -36,7 +36,7 @@ func newValidateCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "validate <spec-file>",
 		Short:   "check an API spec and report its diagnostics, writing no IR",
-		Long:    validateLong,
+		Long:    withFormats(validateLong),
 		Example: validateExample,
 		Args:    specArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -60,7 +60,7 @@ func newValidateCmd() *cobra.Command {
 func validateSpec(cmd *cobra.Command, specPath string, opts specOptions) error {
 	_, code, err := runPipeline(cmd.Context(), specPath, opts, cmd.ErrOrStderr())
 	if err != nil {
-		return failure(err)
+		return err
 	}
 	return exitWith(code)
 }

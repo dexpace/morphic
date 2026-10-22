@@ -493,6 +493,9 @@ func TestLower_MissingArrayItems(t *testing.T) {
 		version string
 		schemas string
 		want    []string // report pointers, in order; nil when silent
+		// invalid is the error the load phase reports, the case writing what its
+		// version does not allow; "" for none.
+		invalid string
 	}{
 		{name: "a bare array", version: "3.0.3",
 			schemas: "    L: {type: array}\n", want: []string{"/components/schemas/L"}},
@@ -503,7 +506,8 @@ func TestLower_MissingArrayItems(t *testing.T) {
 		{name: "an array as another's items", version: "3.0.3",
 			schemas: "    L: {type: array, items: {type: array}}\n", want: []string{"/components/schemas/L/items"}},
 		{name: "a type list holding array", version: "3.0.3",
-			schemas: "    T: {type: [array, string]}\n", want: []string{"/components/schemas/T"}},
+			schemas: "    T: {type: [array, string]}\n", want: []string{"/components/schemas/T"},
+			invalid: "openapi/validation/validation-type-mismatch"},
 		{name: "a tuple", version: "3.0.3",
 			schemas: "    L: {type: array, prefixItems: [{type: string}]}\n", want: []string{"/components/schemas/L"}},
 		{name: "an enum of arrays", version: "3.0.3",
@@ -535,40 +539,41 @@ func TestLower_MissingArrayItems(t *testing.T) {
 			t.Parallel()
 			l, loadDiags := loweredFor(t, openapitest.ComponentSpecVer(tc.version, tc.schemas))
 			raw := schema.LowerComponentSchemas(t.Context(), l.ctx, l.types, &l.anchors)
-			openapitest.RequireNoErrorDiags(t, append(loadDiags, raw...))
+			openapitest.RequireNoErrorDiags(t, raw)
+			var invalid []string
+			for _, d := range loadDiags {
+				if d.Severity == ir.SeverityError {
+					invalid = append(invalid, d.Code)
+				}
+			}
+			assert.Equal(t, tc.invalid, strings.Join(invalid, ", "), "the load phase's errors: %+v", loadDiags)
 			assert.Equal(t, tc.want, missingItemsAt(t, raw))
 		})
 	}
 }
 
-// TestLower_MissingArrayItemsLoweredTwiceWarnsOnce pins the path that lowers a
-// declaration twice: a $ref naming a coordinate inside another declaration (a
-// property here; an `items` or a parameter's schema takes the same path),
-// lowered before that declaration, lowers the body, and the declaration lowers
-// it again (Types.InternDeclared). The lowering reports each time, and
-// compile.Diags drops the identical repeat, so the caller sees one warning in
-// both orders.
-func TestLower_MissingArrayItemsLoweredTwiceWarnsOnce(t *testing.T) {
+// TestLower_MissingArrayItemsAtAReferencedPositionWarnsOnce pins that a $ref
+// naming a coordinate inside another declaration (a property here; an `items`
+// or a parameter's schema takes the same path) leaves lowering it to that
+// declaration: the body is lowered once, by its owner, and warned of once, in
+// either order, and promising it builds nothing more once every declaration
+// has lowered (compile.Types.Finish).
+func TestLower_MissingArrayItemsAtAReferencedPositionWarnsOnce(t *testing.T) {
 	t.Parallel()
 	const (
 		ref    = "    A:\n      type: object\n      properties:\n        copy: {$ref: '#/components/schemas/Holder/properties/tags'}\n"
 		holder = "    Holder:\n      type: object\n      properties:\n        tags: {type: array}\n"
 		tags   = "/components/schemas/Holder/properties/tags"
 	)
-	cases := []struct {
-		name    string
-		schemas string
-		raw     int // reports the lowering returns before compile.Diags
-	}{
-		{name: "ref first", schemas: ref + holder, raw: 2},
-		{name: "declaration first", schemas: holder + ref, raw: 1},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
+	for name, schemas := range map[string]string{"ref first": ref + holder, "declaration first": holder + ref} {
+		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			l, _ := loweredFor(t, openapitest.ComponentSpecVer("3.0.3", tc.schemas))
+			l, _ := loweredFor(t, openapitest.ComponentSpecVer("3.0.3", schemas))
 			raw := schema.LowerComponentSchemas(t.Context(), l.ctx, l.types, &l.anchors)
-			require.Len(t, missingItemsAt(t, raw), tc.raw, "this order lowers the property that many times")
+			require.Len(t, missingItemsAt(t, raw), 1, "the declaration lowers the property once")
+			_, finished := l.types.Finish(t.Context())
+			raw = append(raw, finished...)
+			require.Len(t, missingItemsAt(t, raw), 1, "and the reference's promise lowers it no more")
 
 			l.diags.AppendAll(raw)
 			assert.Equal(t, []string{tags}, missingItemsAt(t, l.diags.List()))
@@ -972,43 +977,28 @@ func TestObject_MapKeepsItsDeclaration(t *testing.T) {
 	assert.Contains(t, mt.Unmodeled, "openapi:x-owner")
 }
 
-// TestObject_MapKeepsARequiredListVerbatim pins the one census keyword a MapT
-// cannot hold: a map requires no key, so `required` naming one is kept verbatim
-// and announced rather than dropped.
-func TestObject_MapKeepsARequiredListVerbatim(t *testing.T) {
+// TestObject_ACatchAllBesideARequiredNameStaysAModel pins an object whose one
+// member fact beside its catch-all is a required name, plain or composed: the
+// name lands in Model.Requires, which keeps it a Model, since a map requires no
+// key, and nothing is kept verbatim or reported.
+func TestObject_ACatchAllBesideARequiredNameStaysAModel(t *testing.T) {
 	t.Parallel()
-	doc, diags := lowerSpec(t, openapitest.ComponentSpec(`    S:
-      type: object
-      required: [a]
-      additionalProperties: {type: string}
-`))
-	mt, ok := doc.Types[componentID("S")].(*ir.MapT)
-	require.True(t, ok, "got %T", doc.Types[componentID("S")])
-	entry, kept := mt.Unmodeled["openapi:required"]
-	require.True(t, kept, "required has no home on a map, so it is kept verbatim")
-	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
-	assert.JSONEq(t, `["a"]`, string(entry.Value))
-	assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/S"),
-		"required", "the keeping is announced once, naming the keyword")
-}
-
-// TestObject_ComposedMapReportsItsRequiredOnce pins the allOf counterpart: the
-// composition reads the position's `required` itself and reports each name it
-// cannot attach, so the census of the map it leaves does not report the
-// keyword a second time.
-func TestObject_ComposedMapReportsItsRequiredOnce(t *testing.T) {
-	t.Parallel()
-	doc, diags := lowerSpec(t, openapitest.ComponentSpec(
-		"    S: {allOf: [{type: object}], additionalProperties: {type: string}, required: [a]}\n"))
-	_, ok := doc.Types[componentID("S")].(*ir.MapT)
-	require.True(t, ok, "got %T", doc.Types[componentID("S")])
-	var codes []string
-	for _, d := range diags {
-		if d.Provenance.Pointer == "/components/schemas/S" {
-			codes = append(codes, d.Code)
-		}
+	for name, spec := range map[string]string{
+		"plain":    "    S: {type: object, required: [a], additionalProperties: {type: string}}\n",
+		"composed": "    S: {allOf: [{type: object}], additionalProperties: {type: string}, required: [a]}\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := lowerSpec(t, openapitest.ComponentSpec(spec))
+			m, ok := doc.Types[componentID("S")].(*ir.Model)
+			require.True(t, ok, "got %T", doc.Types[componentID("S")])
+			assert.Equal(t, []string{"a"}, m.Requires)
+			require.NotNil(t, m.AdditionalProps)
+			assert.Equal(t, ir.TypeRef{Target: "t/prim/string"}, m.AdditionalProps.Value)
+			assert.NotContains(t, m.Unmodeled, "openapi:required")
+			assert.Empty(t, diags)
+		})
 	}
-	assert.Equal(t, []string{diag.UnattachableRequired}, codes)
 }
 
 // TestObject_MapRedeclaredAsAModelIsNoConflict pins that an allOf branch
@@ -1431,7 +1421,7 @@ func TestSchema_RefNullableAcrossSpellings(t *testing.T) {
 			msg:          "3.1 type-array null on a nullable scalar component lifts to the ref",
 		},
 		{
-			name:    "3.1 ref-site sibling type array lifts nullability",
+			name:    "3.1 ref-site sibling type array widens a target excluding null",
 			version: "3.1.0",
 			schemas: `    Owner:
       type: object
@@ -1441,7 +1431,33 @@ func TestSchema_RefNullableAcrossSpellings(t *testing.T) {
 `,
 			wantNullable: true,
 			wantTarget:   targetID,
-			msg:          "3.1 type-array null as a $ref-site sibling lifts to the ref",
+			msg:          "the nullable-widening policy reads a null beside the $ref as a nullable reference",
+		},
+		{
+			name:    "3.1 ref-site sibling type array conjoins with a target admitting null",
+			version: "3.1.0",
+			schemas: `    Owner:
+      type: object
+      properties:
+        p: {$ref: '#/components/schemas/Target', type: [string, "null"]}
+    Target: {type: [string, "null"]}
+`,
+			wantNullable: true,
+			wantTarget:   targetID,
+			msg:          "both conjuncts admit null, so the usage does",
+		},
+		{
+			name:    "3.1 ref-site sibling type narrows a target admitting null",
+			version: "3.1.0",
+			schemas: `    Owner:
+      type: object
+      properties:
+        p: {$ref: '#/components/schemas/Target', type: [string]}
+    Target: {type: [string, "null"]}
+`,
+			wantNullable: false,
+			wantTarget:   targetID,
+			msg:          "a sibling type without null takes it out of what the target admits",
 		},
 		{
 			name:    "3.1 non-null ref-site sibling type array (negative control)",
@@ -2776,10 +2792,9 @@ func TestInlinePosition_HintIsTheSameInBothOrders(t *testing.T) {
 //
 // The enclosing hint under /paths comes from a response, an operationId or a
 // media-type key, none of which the pointer records, so no pointer-derived
-// spelling reproduces it and a reference can only offer a placeholder. The name
-// is taken from the declaration rather than from whichever lowering interned the
-// node first, so the position is "response_item" whether or not an unrelated
-// schema points at it, and in either declaration order.
+// spelling reproduces it. A reference never builds a position its declaration
+// lowers, so the position is "response_item" whether or not an unrelated schema
+// points at it, and in either declaration order.
 func TestInlinePosition_UnderPathsIsNamedByItsDeclaration(t *testing.T) {
 	t.Parallel()
 	const id = ir.TypeID("t/anon/paths/~1x/get/responses/200/content/application~1json/schema/items")
@@ -3008,11 +3023,11 @@ func TestPureRefPosition_IsNamedByItsDeclarationInBothOrders(t *testing.T) {
 // TestPureRefPosition_UnderPathsIsNamedByItsDeclaration is
 // TestPureRefPosition_IsNamedByItsDeclarationInBothOrders's counterpart under
 // /paths, modelled on TestInlinePosition_UnderPathsIsNamedByItsDeclaration:
-// positionHint cannot replay the enclosing hint there, so a reference can only
-// offer a placeholder ("schema_item") where the declaration says
-// "response_item". /b's declaration is the only lowering that ever knows that
-// name, and recording it before anything is interned there is what lets it
-// survive whichever of /b or /a lowers first.
+// positionHint cannot replay the enclosing hint there, so it offers
+// "schema_item" where the declaration says "response_item". /b's declaration,
+// which interns nothing at the pure $ref, records the name it gives the
+// position, and the alias a reference hoists there once every declaration has
+// lowered takes it, whichever of /b or /a lowers first.
 func TestPureRefPosition_UnderPathsIsNamedByItsDeclaration(t *testing.T) {
 	t.Parallel()
 	const id = ir.TypeID("t/anon/paths/~1b/get/responses/200/content/application~1json/schema/items")
@@ -3261,16 +3276,15 @@ func TestUndeclaredRegion_TwoReferencesAgreeInBothOrders(t *testing.T) {
 	}
 }
 
-// TestCrossPathReference_ComposedMultipartKeepsItsEncodingKeys pins that the
-// referenced body's node exists while the reference itself lowers, in either
-// declaration order, which is why a declaration rebuilds the node rather than
-// the reference deferring.
+// TestCrossPathReference_ComposedMultipartKeepsItsEncodingKeys pins that a
+// multipart body naming another operation's composed body keys its parts by
+// the properties that body's model holds, in either declaration order.
 //
 // /b's multipart body composes Base through allOf, so the property "file" that
-// /a's encoding key names lives on Base. partEncodings resolves the key by
-// walking the composition (propByWire), which needs /b's node interned when
-// /a's operation lowers; otherwise the key falls back to a property ID that
-// exists nowhere.
+// /a's encoding key names lives on Base. The key is found by walking the
+// composition (propByWire), which needs /b's node, and /a's reference leaves
+// building it to /b, so the keys are settled once every node exists (partKeys);
+// read earlier, the key would fall back to a property ID that exists nowhere.
 func TestCrossPathReference_ComposedMultipartKeepsItsEncodingKeys(t *testing.T) {
 	t.Parallel()
 	const preamble = "openapi: 3.1.0\ninfo: {title: t, version: \"1\"}\npaths:\n"
@@ -3344,14 +3358,13 @@ func sortedDiagStrings(diags []ir.Diagnostic) []string {
 	return out
 }
 
-// TestCrossPathReference_RebuildDoesNotDuplicateADiagnostic checks the risk
-// InternDeclared's rebuild carries: it lowers the same schema again, so a
-// diagnostic the reference's build reported fires a second time, and only
-// compile.Diags's whole-value dedup keeps it from doubling. A message built
-// from naming state would differ between the two builds and defeat that, so the
-// fixture co-declares oneOf and anyOf at the referenced position, a message that
-// names only those fixed keywords (preserveUnusedCombinator).
-func TestCrossPathReference_RebuildDoesNotDuplicateADiagnostic(t *testing.T) {
+// TestCrossPathReference_ADiagnosticIsReportedOnce pins that a $ref naming a
+// position under another operation, declared before it, adds no diagnostic to
+// what the position reports lowered alone: the reference leaves lowering it to
+// its declaration, so it is lowered, and reports, once. The fixture
+// co-declares oneOf and anyOf at the referenced position, which reports a
+// message naming only those keywords (preserveUnusedCombinator).
+func TestCrossPathReference_ADiagnosticIsReportedOnce(t *testing.T) {
 	t.Parallel()
 	const preamble = "openapi: 3.1.0\ninfo: {title: O, version: \"1.0.0\"}\npaths:\n"
 	const ownerSchema = "{type: object, oneOf: [{type: object, properties: {x: {type: string}}}], " +
@@ -3372,19 +3385,18 @@ func TestCrossPathReference_RebuildDoesNotDuplicateADiagnostic(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, refFirstDiags)
 
 	assert.Equal(t, sortedDiagStrings(aloneDiags), sortedDiagStrings(refFirstDiags),
-		"the declaration's rebuild must not leave a second copy of a diagnostic "+
-			"the reference's build already reported")
+		"the reference adds no copy of a diagnostic the declaration reports")
 }
 
-// TestComponentBody_SubtreeIsNamedByItsDeclaration is #529 for a schema inside a
-// component response or parameter. Components lower before operations, so a
-// schema's $ref into the body always arrives first and interns the subtree
-// under its own names; the component, used from /u, must still name it.
+// TestComponentBody_SubtreeIsNamedByItsDeclaration is #529 for a schema inside
+// a component response, parameter, request body or header. Components lower
+// before operations, so a schema's $ref into the body always reaches it first;
+// it builds nothing, and the component, used from /u, names the subtree
+// (GitHub #747).
 //
 // Each row compiles the owner alone and with a $ref from components/schemas to
 // its items, the components declared in both orders. The registry at the
-// owner's schema pointer must come out identical. A request body or header
-// does not yet (GitHub #747).
+// owner's schema pointer must come out identical.
 func TestComponentBody_SubtreeIsNamedByItsDeclaration(t *testing.T) {
 	t.Parallel()
 	const preamble = "openapi: 3.1.0\ninfo: {title: O, version: \"1.0.0\"}\n"
@@ -3396,6 +3408,14 @@ func TestComponentBody_SubtreeIsNamedByItsDeclaration(t *testing.T) {
 		{"parameter", "/components/parameters/P/schema",
 			"paths:\n  /u:\n    get:\n      operationId: useP\n      parameters: [{$ref: '#/components/parameters/P'}]\n      responses: {\"204\": {description: ok}}\n",
 			"  parameters:\n    P: {name: q, in: query, schema: " + ownerSchema + "}\n"},
+		{"request body", "/components/requestBodies/B/content/application~1json/schema",
+			"paths:\n  /u:\n    post:\n      operationId: useB\n      requestBody: {$ref: '#/components/requestBodies/B'}\n" +
+				"      responses: {\"204\": {description: ok}}\n",
+			"  requestBodies:\n    B: {content: {application/json: {schema: " + ownerSchema + "}}}\n"},
+		{"header", "/components/headers/H/schema",
+			"paths:\n  /u:\n    get:\n      operationId: useH\n      responses:\n        \"200\":\n" +
+				"          description: ok\n          headers: {X-H: {$ref: '#/components/headers/H'}}\n",
+			"  headers:\n    H: {schema: " + ownerSchema + "}\n"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -3454,7 +3474,8 @@ func TestInlinePosition_OutsideRefDoesNotMoveTheHome(t *testing.T) {
 
 // orderInvariantIR compares two whole IR documents, minus what differs by
 // construction when the same components are declared in two orders:
-// SourceInfo.Hash digests the source bytes, which are what is permuted.
+// SourceInfo.Hash digests the source bytes, which are what is permuted, and a
+// Provenance.Position is a line and column of those bytes.
 //
 // Naming.Hint is deliberately not excluded. The namers that can reach a pointer
 // (the enclosing declaration and an outside $ref's pointer walk) agree at every
@@ -3464,6 +3485,7 @@ func TestInlinePosition_OutsideRefDoesNotMoveTheHome(t *testing.T) {
 func orderInvariantIR() []cmp.Option {
 	return []cmp.Option{
 		cmpopts.IgnoreFields(ir.SourceInfo{}, "Hash"),
+		cmpopts.IgnoreFields(ir.Provenance{}, "Position"),
 	}
 }
 
@@ -3891,10 +3913,9 @@ func vocabularyCore() []vocabCase {
 		},
 		{
 			keyword: "$anchor", write: "$anchor: a", schemas: stringSchema,
-			excluded: "neither carried nor honoured: Milestone 1 resolves same-document JSON " +
-				"pointers only, so $ref: '#a' is reported unresolved rather than resolving " +
-				"through the anchor (GitHub #141). Excluded because the compiler changes " +
-				"nothing for it today, not because dropping it is settled",
+			excluded: "read as a reference target: the binder resolves $ref: '#a' to the schema " +
+				"declaring it (docs/compilers/openapi.md#references), so the reference carries it; " +
+				"declaring one says nothing about the shape",
 		},
 		{
 			keyword: "$dynamicAnchor", write: "$dynamicAnchor: m", schemas: stringSchema,
@@ -4429,10 +4450,12 @@ func TestDynamicRef_IrreducibleIsKeptAndSaysWhy(t *testing.T) {
 		"    M2: {$dynamicAnchor: dup, type: integer}\n" +
 		"    Deep: {type: object, properties: {i: {$dynamicAnchor: deep, type: string}}}\n"
 	const anchor = "    M: {$dynamicAnchor: m, type: string}\n"
-	// at is the node keeping the reference, defaulting to the component A itself.
+	// at is the node keeping the reference, defaulting to the component A itself;
+	// invalid is the error the load phase reports of a reference that is no URI
+	// reference, "" for none.
 	cases := []struct {
-		name, schemas, wantWhy string
-		at                     ir.TypeID
+		name, schemas, wantWhy, invalid string
+		at                              ir.TypeID
 	}{
 		{name: "no such anchor", schemas: "    A: {$dynamicRef: '#nope'}\n",
 			wantWhy: "no $dynamicAnchor \"nope\" is declared"},
@@ -4441,7 +4464,8 @@ func TestDynamicRef_IrreducibleIsKeptAndSaysWhy(t *testing.T) {
 		{name: "a pointer, not an anchor", schemas: "    A: {$dynamicRef: '#/components/schemas/M1'}\n",
 			wantWhy: "not a plain same-document fragment"},
 		{name: "an invalid percent escape", schemas: "    A: {$dynamicRef: '#my%zzanchor'}\n",
-			wantWhy: `"#my%zzanchor" is not valid percent-encoded text: invalid URL escape "%zz"`},
+			wantWhy: `"#my%zzanchor" is not valid percent-encoded text: invalid URL escape "%zz"`,
+			invalid: "openapi/validation/validation-invalid-format at /components/schemas/A/$dynamicRef"},
 		{name: "an escaped percent decodes to the character", schemas: "    A: {$dynamicRef: '#pct%25name'}\n",
 			wantWhy: `no $dynamicAnchor "pct%name" is declared`},
 		// The anchor here is what a second decode would land on: it would read
@@ -4527,7 +4551,13 @@ func TestDynamicRef_IrreducibleIsKeptAndSaysWhy(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			doc, diags := parseFull(t, openapitest.ComponentSpec(tc.schemas))
-			openapitest.RequireNoErrorDiags(t, diags)
+			var invalid []string
+			for _, d := range diags {
+				if d.Severity == ir.SeverityError {
+					invalid = append(invalid, d.Code+" at "+string(d.Provenance.Pointer))
+				}
+			}
+			assert.Equal(t, tc.invalid, strings.Join(invalid, "; "), "the errors: %+v", diags)
 
 			at := tc.at
 			if at == "" {
@@ -4768,7 +4798,7 @@ func TestDynamicRef_NonScalarValueIsKeptNotExpanded(t *testing.T) {
 // prototype changes, so a site that fills in a name or a description keeps it.
 func TestAppendExample_ConvertsAndAppends(t *testing.T) {
 	t.Parallel()
-	c := lowering.New(0, &soa.OpenAPI{}, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, overlay.Origin{})
+	c := lowering.New(0, &soa.OpenAPI{}, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{})
 	proto := ir.Example{Name: "n", Summary: "s", Description: "d"}
 
 	out, diags := schema.AppendExample(c, nil, proto, openapitest.StrNode("hello"), "/p", "examples", "n")
@@ -4786,7 +4816,7 @@ func TestAppendExample_ConvertsAndAppends(t *testing.T) {
 // that joins them, so a wrong join shows up nowhere else.
 func TestAppendExample_UnconvertibleValueIsReported(t *testing.T) {
 	t.Parallel()
-	c := lowering.New(0, &soa.OpenAPI{}, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, overlay.Origin{})
+	c := lowering.New(0, &soa.OpenAPI{}, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{})
 	nan := &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!float", Value: ".nan"}
 
 	out, diags := schema.AppendExample(c, nil, ir.Example{}, nan, "/p", "examples", "n")
@@ -5495,9 +5525,9 @@ func TestUnhomedKeywords_ArrayBoundsKeepWhatCollectionConstraintsDoesNotRead(t *
 // census at the third $ref site: an allOf branch spelled as a reference, which
 // homes its siblings on an alias exactly as a component does.
 //
-// `required` is the branch keyword this composition does read —
-// applyCompositionRequired ORs every branch's list onto the composed model — so
-// it must not be kept, or one keyword would be reported twice.
+// `required` is the branch keyword this composition does read — requireMembers
+// lands every branch's list on the composed model — so it must not be kept, or
+// one keyword would be read twice.
 func TestRefSiteKeywords_AllOfBranchKeepsWhatTheAliasCannotHold(t *testing.T) {
 	t.Parallel()
 	doc, diags := lowerSpec(t, keywordCensusSpec(

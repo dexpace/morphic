@@ -9,6 +9,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
+
+	"github.com/dexpace/morphic/engine/reader"
 )
 
 // TestOverNetwork pins which keys are a network fetch: http and https, in any
@@ -94,7 +96,7 @@ func TestExternal_DoRefusesANetworkDocumentReachingALocalFile(t *testing.T) {
 			require.NoError(t, err)
 			doc := &soa.OpenAPI{}
 
-			_, err = newExternal(doc, Options{}, newExternalReads(sourceDocument{})).Do(req)
+			_, err = newExternal(t.Context(), doc, Options{Reader: reader.Disk{}}, newExternalReads(sourceDocument{})).Do(req)
 
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), "external document "+key+" refused: it is fetched over the network and "+tc.reason)
@@ -140,7 +142,7 @@ func TestExternal_DoReadsANetworkDocumentStayingOnTheHost(t *testing.T) {
 	require.NoError(t, err)
 	doc := &soa.OpenAPI{}
 
-	resp, err := newExternal(doc, Options{}, newExternalReads(sourceDocument{})).Do(req)
+	resp, err := newExternal(t.Context(), doc, Options{Reader: reader.Disk{}}, newExternalReads(sourceDocument{})).Do(req)
 
 	require.NoError(t, err)
 	t.Cleanup(func() { assert.NoError(t, resp.Body.Close()) })

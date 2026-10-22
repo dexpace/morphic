@@ -297,6 +297,19 @@
   ],
   "diagnostics": [
     {
+      "severity": "warning",
+      "code": "openapi/validation/validation-invalid-syntax",
+      "message": "Components Object field \"schemas\" has the key \"\", which must be a name of letters, digits, '.', '-' and '_' in OpenAPI 3.1 (Components Object)",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/",
+        "position": {
+          "line": 33,
+          "column": 7
+        }
+      }
+    },
+    {
       "severity": "info",
       "code": "openapi/dynamic-ref-expanded",
       "message": "$dynamicRef expanded to \"t/openapi/components/schemas/Node\", the one matching $dynamicAnchor in this document",
@@ -326,7 +339,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "$id identifies or configures a JSON Schema resource rather than describing data; the IR models no such axis, so it is kept verbatim under Unmodeled and is not honoured for reference resolution",
+      "message": "$id identifies or configures a JSON Schema resource rather than describing data; the IR models no such axis, so it is kept verbatim under Unmodeled and is read only for reference resolution",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas//$id"

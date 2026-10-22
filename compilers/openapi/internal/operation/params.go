@@ -36,15 +36,15 @@ func lowerParameters(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIn
 	for _, sp := range params {
 		pc := c
 		if sp.in != nil {
-			pc = c.InScope(*sp.in)
+			pc = *sp.in
 		}
-		p, pptr := resolve.ObjectAt[soa.Parameter](pc.RefScope(), sp.ref, sp.pointer)
+		p, dc, pptr := lowering.Declared[soa.Parameter](pc, sp.ref, sp.pointer)
 		if p == nil {
 			continue
 		}
 		id, repeatDiags := ledger.next(pc, p.GetName(), string(p.GetIn()), sp.pointer)
 		diags = append(diags, repeatDiags...)
-		param, binding, paramDiags := lowerParameter(lowering.Within[soa.Parameter](pc, sp.ref), ts, anchors, id, p, pptr)
+		param, binding, paramDiags := lowerParameter(dc, ts, anchors, id, p, pptr)
 		diags = append(diags, paramDiags...)
 		// A summary or description beside a $ref of the entry's chain documents
 		// this use of the parameter, over what its declaration says (GitHub #610).
@@ -77,35 +77,7 @@ func lowerParameter(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 	}
 	media, diags := fillParamType(c, ts, anchors, &param, &binding, p, pptr, name)
 	diags = append(diags, reservedHeaderParamDiag(c, name, in, pptr)...)
-	diags = append(diags, querystringKeywordDiags(c, in, p, pptr)...)
 	return param, binding, append(diags, fillParamDetail(c, &param, p, pptr, media)...)
-}
-
-// querystringKeywordDiags reports explode and allowReserved when they are
-// declared on a parameter at in: querystring. OpenAPI 3.2 forbids both there
-// alongside style — the location binds the whole query string from the
-// parameter's content, so its serialization is stated by the media type alone
-// and neither keyword has anything left to qualify. The bundled parser
-// enforces the rule for style but not for these two (GitHub #408), so this
-// compiler reports the gap itself; resolveStyleExplode already lowers each
-// value as declared regardless; see diag.InvalidLocationKeyword for why this
-// is a warning rather than the error style gets from the parser.
-func querystringKeywordDiags(c lowering.Ctx, in soa.ParameterIn, p *soa.Parameter, pptr jsontext.Pointer) []ir.Diagnostic {
-	if in != soa.ParameterInQueryString {
-		return nil
-	}
-	var diags []ir.Diagnostic
-	if p.Explode != nil {
-		diags = append(diags, c.DiagAt(ir.SeverityWarning, diag.InvalidLocationKeyword,
-			pptr+ids.Ptr("explode"),
-			"parameter field explode is not allowed for in=querystring; lowered as declared"))
-	}
-	if p.AllowReserved != nil {
-		diags = append(diags, c.DiagAt(ir.SeverityWarning, diag.InvalidLocationKeyword,
-			pptr+ids.Ptr("allowReserved"),
-			"parameter field allowReserved is not allowed for in=querystring; lowered as declared"))
-	}
-	return diags
 }
 
 // reservedHeaderParamDiag reports a header parameter OpenAPI §4.8.12 reserves —
@@ -204,7 +176,7 @@ func fillParamSchemaAnnotations(c lowering.Ctx, ts *compile.Types, param *ir.Par
 	// drop them for exactly the parameters whose schema owns a node — an object,
 	// an enum, an array.
 	diags := preserveParamVisibility(c, param, s, pointer)
-	if schema.LoweredToOwnNode(ts, pointer, param.Type) {
+	if schema.LoweredToOwnNode(c, ts, pointer, param.Type) {
 		return diags
 	}
 	a, readDiags := annotation.Read(annotation.Site{Kind: annotation.Reference, Node: s, Referent: tgt}, pointer, c.ProvenanceAt)
@@ -354,7 +326,8 @@ func preserveAllowEmptyValue(c lowering.Ctx, param *ir.Parameter, p *soa.Paramet
 // resolveStyleExplode materializes a parameter's resolved serialization style
 // and explode flag: an explicit value wins, else the OpenAPI per-location
 // default (query/cookie → form/true, path/header → simple/false, querystring →
-// neither). The result is declared facts, not policy.
+// neither). Explode defaults to true under form and under 3.2's cookie style,
+// false under any other. The result is declared facts, not policy.
 func resolveStyleExplode(p *soa.Parameter, in soa.ParameterIn) (string, *bool) {
 	style := defaultParamStyle(in)
 	if p.Style != nil {
@@ -373,8 +346,12 @@ func resolveStyleExplode(p *soa.Parameter, in soa.ParameterIn) (string, *bool) {
 	if style == "" {
 		return "", nil
 	}
-	return style, new(style == string(soa.SerializationStyleForm))
+	return style, new(style == string(soa.SerializationStyleForm) || style == styleCookie)
 }
+
+// styleCookie is the serialization style 3.2 added for in: cookie, which the
+// parser library names no constant for.
+const styleCookie = "cookie"
 
 // defaultParamStyle returns the OpenAPI default serialization style for a
 // parameter location, and "" for one that has none: 3.2 binds in: querystring

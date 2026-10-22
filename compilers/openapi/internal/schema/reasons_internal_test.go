@@ -27,7 +27,7 @@ func TestRefTypeRef_SaysWhyAnUnboundRefIsUnresolved(t *testing.T) {
 	t.Parallel()
 	message := func(t *testing.T, l *lowerer, js *oas3.JSONSchema[oas3.Referenceable]) string {
 		t.Helper()
-		ref, diags := refTypeRef(l.ctx, l.types, &l.anchors, TopLevelDepth, js, "/components/schemas/A")
+		ref, diags := refTypeRef(l.ctx, l.types, &l.anchors, js, "/components/schemas/A")
 		assert.Equal(t, ir.TypeID("t/prim/any"), ref.Target)
 		require.Len(t, diags, 1)
 		return diags[0].Message
@@ -56,7 +56,7 @@ func TestRefTypeRef_SaysWhyAnUnboundRefIsUnresolved(t *testing.T) {
 	bd := typed.NewBuilder(bind.Bind(unheld.ctx.Doc.GetRootNode(), bind.Config{Self: "spec.yaml"}))
 	bd.Unplaced(a, "/paths/~1a/get/parameters/0")
 	unplaced := lowererOver(lowering.New(0, unheld.ctx.Doc, ir.SourceInfo{}, "", lowering.Limits{},
-		lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, overlay.Origin{}).WithLoaded(
+		lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}).WithLoaded(
 		&load.Document{Doc: unheld.ctx.Doc, Bindings: bd.Bindings()}))
 	assert.Equal(t, `unresolved $ref "#/components/schemas/H/properties/p": it is in what the reference at `+
 		"/paths/~1a/get/parameters/0 resolved to, which the compiler cannot read where the parser placed it",
@@ -121,6 +121,6 @@ func unheldLowerer(t *testing.T) *lowerer {
 	require.True(t, ok)
 	bd.Schema(a, bind.Position{Pointer: "/components/schemas/A"})
 	ctx := lowering.New(0, doc, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{},
-		lowering.ExtensionPromotions{}, overlay.Origin{}).WithLoaded(&load.Document{Doc: doc, Bindings: bd.Bindings()})
+		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}).WithLoaded(&load.Document{Doc: doc, Bindings: bd.Bindings()})
 	return lowererOver(ctx)
 }

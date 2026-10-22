@@ -12,6 +12,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
@@ -49,14 +50,14 @@ func schemaRefHomed(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, dep
 		return ts.PrimRef(ir.PrimAny), []ir.Diagnostic{c.DiagAt(ir.SeverityError, diag.DegradedConstruct, pointer,
 			"schema nesting exceeds %d; lowered as any", maxSchemaDepth)}
 	}
-	if !c.NamesByReference() {
-		// This is the declaration reaching its own coordinate, so its hint is the
-		// node's name even when a $ref interned the node there first (GitHub #372).
-		// It sits here rather than only at intern because a position whose node
-		// already exists resolves to it and returns before interning anything.
-		ts.NameFromDeclaration(string(pointer), hint)
-	}
-	if js == nil {
+	// The hint this lowering names the position by stands for any node a $ref
+	// later hoists here, where the position itself interned none (hoistSubSchema).
+	c.DeclareHint(pointer, hint)
+	if !annotation.Written(js) {
+		// None, or a null, which states nothing: an entry written so — a
+		// property, a branch, a component, items — lowers as the empty schema.
+		// A keyword whose absence differs from the empty schema reads a null as
+		// left out before it gets here (docs/compilers/openapi.md#null-schema).
 		return ts.PrimRef(ir.PrimAny), nil
 	}
 	if js.IsBool() {
@@ -70,7 +71,7 @@ func schemaRefHomed(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, dep
 	// either reads as a bool), so GetSchema never returns nil here.
 	schema := js.GetSchema()
 	if resolve.IsRefSite(js, schema) {
-		return refSiteRef(c, ts, anchors, depth, js, schema, pointer, hint, home)
+		return refSiteRef(c, ts, anchors, js, schema, pointer, hint, home)
 	}
 	return schemaBody(c, ts, anchors, depth, schema, pointer, hint, home)
 }
@@ -85,8 +86,8 @@ func schemaRefHomed(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, dep
 //
 // At an annotation.HomeCarrier position no alias is hoisted: the carrier keeps
 // them through PreserveRefSiteKeywords (GitHub #114).
-func refSiteRef(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, js *oas3.JSONSchema[oas3.Referenceable], s *oas3.Schema, pointer jsontext.Pointer, hint string, home annotation.Home) (ir.TypeRef, []ir.Diagnostic) {
-	target, diags := refTypeRef(c, ts, anchors, depth, js, pointer)
+func refSiteRef(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, js *oas3.JSONSchema[oas3.Referenceable], s *oas3.Schema, pointer jsontext.Pointer, hint string, home annotation.Home) (ir.TypeRef, []ir.Diagnostic) {
+	target, diags := refTypeRef(c, ts, anchors, js, pointer)
 	unhomed := refSiteUnhomedKeywords(s, nil)
 	hasUnion := declaresUnion(s)
 	ref, homeDiags := homeDeclaration(c, ts, anchors, s, target, pointer, hint, home, len(unhomed) > 0 || hasUnion)
@@ -118,7 +119,7 @@ func PreserveRefSiteKeywords(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled,
 	// GetSchema is nil-safe and yields nil for a boolean schema too, so the one
 	// check covers an absent position, a boolean one, and a caller passing nil.
 	s := js.GetSchema()
-	if s == nil || LoweredToOwnNode(ts, pointer, t) {
+	if s == nil || LoweredToOwnNode(c, ts, pointer, t) {
 		return nil
 	}
 	if !resolve.IsRefSite(js, s) {
@@ -156,28 +157,27 @@ func homeDeclaration(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, s 
 // genuinely external or unresolvable target is diagnosed and dropped to any. A
 // $ref on a loop of $refs is dropped to any too, with nothing of its own to
 // report: the load phase reports the loop once.
-func refTypeRef(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, js *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer) (ir.TypeRef, []ir.Diagnostic) {
+func refTypeRef(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, js *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer) (ir.TypeRef, []ir.Diagnostic) {
 	ref := js.GetRef().String()
-	id, ok, diags := resolveSchemaRef(c, ts, anchors, depth, js)
+	id, ok := resolveSchemaRef(c, ts, anchors, js)
 	if ok {
-		return ir.TypeRef{Target: id, Nullable: refNullable(c, js)}, diags
+		return refNullRef(c, id, js, siteAt(pointer))
 	}
 	if onLoop(c, js) {
-		return ts.PrimRef(ir.PrimAny), diags
+		return ts.PrimRef(ir.PrimAny), nil
 	}
-	return ts.PrimRef(ir.PrimAny), append(diags, c.DiagAt(ir.SeverityError, diag.UnresolvedRef, pointer,
-		"unresolved $ref %q%s", ref, unresolvedWhy(c, js)))
+	return ts.PrimRef(ir.PrimAny), []ir.Diagnostic{c.DiagAt(ir.SeverityError, diag.UnresolvedRef, pointer,
+		"unresolved $ref %q%s", ref, unresolvedWhy(c, js))}
 }
 
 // unresolvedWhy is the reason the $ref at js reports when it resolves to no
-// type here: why its own hop lands on no schema (bind.Hop.Why), that it lands
-// in another document, which is not lowered (GitHub #74), or why the table
-// never read it (unreadWhy). It is empty for any other, a target declaring
-// nothing to lower. The position may well exist, so without it the report
-// reads as though it named nothing.
+// type here: why its own hop lands on no schema (bind.Hop.Why), or why the
+// table never read it (unreadWhy). It is empty for any other, a target
+// declaring nothing to lower. The position may well exist, so without it the
+// report reads as though it named nothing.
 func unresolvedWhy(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) string {
 	if e, ok := c.Bindings().Entry(js); ok {
-		return hopWhy(c.Bindings().Table(), e.Hop, e.Site)
+		return hopWhy(e.Hop)
 	}
 	return unreadWhy(c.Bindings(), js)
 }
@@ -188,7 +188,7 @@ func unresolvedWhy(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) stri
 // merge bound stopped the reading (bind.Table.Unread).
 func unreadWhy(refs *typed.Bindings, model any) string {
 	if site, ok := refs.Unplaced(model); ok {
-		return ": it is in what the reference at " + string(site) + " resolved to, which the compiler " +
+		return ": it is in what the reference at " + site + " resolved to, which the compiler " +
 			"cannot read where the parser placed it"
 	}
 	if why := refs.Table().Unread(); why != "" {
@@ -197,103 +197,102 @@ func unreadWhy(refs *typed.Bindings, model any) string {
 	return ""
 }
 
-// hopWhy is unresolvedWhy's reason for the hop h of a reference written at
-// site. A failure in another document's content names that document, since
-// the use site in the source says nothing of it.
-func hopWhy(table *bind.Table, h bind.Hop, site bind.Position) string {
-	switch {
-	case h.Status == bind.Resolved && !h.Named && h.Target.Doc == site.Doc:
-		return ": it names a position in the other document holding it, which is not lowered"
-	case h.Status == bind.Resolved && !h.Named:
-		return ": it names a schema in another document, which is not lowered"
-	case h.Status == bind.Resolved:
+// hopWhy is unresolvedWhy's reason for the hop h, or nothing for one that
+// resolved. It names no document: a finding about a reference is placed in
+// the document that writes it.
+func hopWhy(h bind.Hop) string {
+	if h.Status == bind.Resolved {
 		return ""
-	case site.Doc != bind.Source:
-		return ": in " + table.Document(site.Doc).Name + ", " + h.Why()
-	default:
-		return ": " + h.Why()
 	}
+	return ": " + h.Why()
 }
 
-// resolveSchemaRef resolves a schema-position $ref to an interned TypeID, never
-// synthesizing an ID that nothing backs. A top-level component keeps its stable
-// named ID; an already-interned target reuses it; an internal sub-schema the
-// $ref lands on is hoisted at its pointer-derived ID. It returns ok=false for a
-// $ref that lands on no schema in the source (resolve.Scope.TargetPointer) and
-// for a reference to an undeclared component.
-func resolveSchemaRef(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, js *oas3.JSONSchema[oas3.Referenceable]) (ir.TypeID, bool, []ir.Diagnostic) {
-	pointer, ok := c.RefScope().TargetPointer(js)
+// resolveSchemaRef resolves a schema-position $ref to the TypeID of what it
+// names, in whichever document (resolveAt). It returns ok=false for a $ref that
+// lands on no schema (resolve.Scope.Target) and for a reference to an
+// undeclared component.
+func resolveSchemaRef(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, js *oas3.JSONSchema[oas3.Referenceable]) (ir.TypeID, bool) {
+	at, ok := c.RefScope().Target(js)
 	if !ok {
-		return "", false, nil
+		return "", false
 	}
-	return resolvePointer(c, ts, anchors, depth, pointer, c.Bindings().Declared(js))
+	return resolveAt(c, ts, anchors, at, c.Bindings().Declared(js))
 }
 
-// resolvePointer resolves a same-document pointer to the ID of the schema it
-// addresses: a component by its stable ID, an interned node by its own, and
-// otherwise decl, the schema the bindings hold there, hoisted at the pointer.
-// A nil decl declares nothing to hoist.
-//
-// It is where a $ref and a discriminator mapping target meet once each has its
-// pointer: they differ only in how decl is found, so they cannot drift apart.
-func resolvePointer(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, pointer jsontext.Pointer, decl *oas3.JSONSchema[oas3.Referenceable]) (ir.TypeID, bool, []ir.Diagnostic) {
-	if id, resolved, handled := c.RefScope().ComponentRef(pointer); handled {
-		return id, resolved, nil
+// resolveAt is resolvePointer at a position of the bindings' table, read at
+// its own document's coordinates (lowering.InDocument).
+func resolveAt(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, at bind.Position, decl *oas3.JSONSchema[oas3.Referenceable]) (ir.TypeID, bool) {
+	c, ok := lowering.InDocument(c, at.Doc)
+	if !ok {
+		return "", false
 	}
-	if id, ok := resolve.InternedID(ts, pointer); ok {
-		return id, true, nil
-	}
-	if decl == nil {
-		return "", false, nil
-	}
-	return hoistSubSchema(c, ts, anchors, depth, decl, pointer)
+	return resolvePointer(c, ts, anchors, at.Pointer, decl)
 }
 
-// hoistSubSchema lowers the internal sub-schema declared at pointer and
-// guarantees a node exists at its pointer-derived ID, aliasing when the body
-// reduces to a shared target, so a $ref to the sub-schema always resolves
-// (invariants 1, 2), a boolean one included (GitHub #861). The alias carries
-// the position's value constraints and examples, as a named scalar component
-// does, so a $ref to {type: number, minimum: 5} keeps them.
+// resolvePointer resolves a pointer in c's document to the ID of the schema it
+// addresses: a source component by its stable ID, any other position by the ID
+// its pointer derives there. A reference never builds what it names, so no node
+// is built in a reference's context: it promises the node
+// (compile.Types.Promise), which hoistSubSchema builds from decl, the schema
+// the bindings hold there, only where no declaration interned one. A decl it
+// cannot hoist resolves to nothing.
 //
-// decl is the declaration itself, not its resolved form, so a sub-schema that
-// is a $ref carrying siblings aliases its target while keeping them.
-func hoistSubSchema(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, decl *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer) (ir.TypeID, bool, []ir.Diagnostic) {
+// A $ref and a discriminator mapping target meet here once each has its
+// pointer, so they cannot drift apart.
+func resolvePointer(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, pointer jsontext.Pointer, decl *oas3.JSONSchema[oas3.Referenceable]) (ir.TypeID, bool) {
+	// The source's components alone are lowered whole and named by name;
+	// another document's are hoisted where a reference reaches them, as any
+	// other position of it is.
+	if c.IDs() == (ids.Document{}) {
+		if id, resolved, handled := c.RefScope().ComponentRef(pointer); handled {
+			return id, resolved
+		}
+	}
 	if !resolve.Hoistable(decl) {
-		return "", false, nil
+		return "", false
 	}
-	s := annotation.At(decl)
-	// Everything lowered from here is reached through a $ref that named this
-	// coordinate, not through the declaration that owns it, so the names minted
-	// below are placeholders the declaration replaces (GitHub #372). It covers the
-	// subtree rather than this coordinate alone: a reference to an object body
-	// interns its children too, and their names hang off this one. It is read
-	// where the bindings place decl, whichever document's content held the
-	// reference: the source's own, or another document's past a $ref the pointer
-	// passes.
-	c = c.InScope(c.RefScope().InDocumentOf(decl)).NamingByReference()
+	ts.Promise(c.IDs().Coordinate(pointer), func() []ir.Diagnostic { return hoistSubSchema(c, ts, anchors, decl, pointer) })
+	return c.IDs().ForPointer(pointer), true
+}
 
-	hint := subSchemaHint(c.Bindings(), decl, pointer)
-	ref, diags := Ref(c, ts, anchors, depth, decl, pointer, hint)
-	if owned, ok := ts.Lookup(string(pointer)); ok {
-		return owned, true, diags
+// hoistSubSchema builds the node at pointer from decl, the schema written there,
+// where a $ref names a position no declaration interned a node at, once every
+// declaration has lowered (compile.Types.Finish). It aliases where the body
+// reduces to a shared target, so a $ref always resolves (invariants 1, 2), a
+// boolean schema included (GitHub #861), keeping the position's constraints
+// and examples.
+//
+// It lowers in the position's own context, whichever reference promised it:
+// from TopLevelDepth, as a walk of its own, in decl's document, and under the
+// hint the position's lowering recorded, else subSchemaHint. A $ref with
+// siblings is aliased, keeping them.
+func hoistSubSchema(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, decl *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer) []ir.Diagnostic {
+	s := annotation.At(decl)
+	// c reads the document that declares pointer already (resolveAt), which is
+	// where the bindings place decl.
+	hint, declared := c.HintAt(pointer)
+	if !declared {
+		hint = subSchemaHint(c.Bindings(), decl, pointer)
 	}
-	id, aliasDiags := internAlias(c, ts, s.Node, pointer, hint, ref)
+	ref, diags := Ref(c, ts, anchors, TopLevelDepth, decl, pointer, hint)
+	if _, ok := ts.Lookup(c.IDs().Coordinate(pointer)); ok {
+		return diags
+	}
+	_, aliasDiags := internAlias(c, ts, s.Node, pointer, hint, ref)
 	diags = append(diags, aliasDiags...)
 	// As in lowerComponentSchema: this alias is the first node the pointer owns,
 	// so the annotations Ref had nowhere to put now have a home.
-	return id, true, append(diags, attachDeclaredAnnotations(c, ts, anchors, s.Node, pointer)...)
+	return append(diags, attachDeclaredAnnotations(c, ts, anchors, s.Node, pointer)...)
 }
 
 // subSchemaHint names the node a $ref'd sub-schema pointer owns: the hint the
 // position takes for where it is (ownHint), or, at a position that takes its
 // target's name, the hint of the node its own $ref resolves to (targetHint).
 //
-// The enclosing schema's own body and an outside $ref both lower this pointer,
-// and only the first to arrive interns the node. Beneath /components/schemas
-// positionHint replays the declaration's hint exactly; elsewhere the reference's
-// names are placeholders that InternDeclared replaces when the declaration
-// arrives.
+// It names a position no declaration reached: where one did, hoistSubSchema
+// takes the hint that declaration recorded. Beneath /components/schemas
+// positionHint replays the declaration's hint exactly; elsewhere it names the
+// position by the tokens it can read.
 func subSchemaHint(refs *typed.Bindings, decl *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer) string {
 	hint, follow := ownHint(decl, pointer)
 	if !follow {
@@ -325,9 +324,9 @@ const componentSchemaTokens = 3
 // compile.SubHint(enclosing, "item"), so only a walk from the root tells the
 // keyword from a property named items (GitHub #518). Beneath /components/schemas
 // the replay is exact. Elsewhere the enclosing hint is not in the pointer, so
-// the walk resets at every token it does not know: a placeholder the declaration
-// replaces, or the name itself for a position only references reach (GitHub
-// #529). Each step consumes a token, bounding the walk.
+// the walk resets at every token it does not know, the name a position only
+// references reach takes (GitHub #529). Each step consumes a token, bounding
+// the walk.
 func positionHint(pointer jsontext.Pointer) (hint string, branch bool) {
 	tokens := slices.Collect(pointer.Tokens())
 	start := min(1, len(tokens))
@@ -394,12 +393,4 @@ var structuralRoles = map[string]string{
 // positionStep takes it separately.
 var keyedSchemaMaps = map[string]bool{
 	"properties": true, "$defs": true, "definitions": true, "dependentSchemas": true, "dependencies": true,
-}
-
-// refNullable reports whether a $ref usage admits null: the reference site or
-// its resolved target admits null in any spelling. It is schemaAdmitsNull read
-// across the reference (refNullVerdict), so the two cannot answer one schema
-// differently.
-func refNullable(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) bool {
-	return newNulls(c.Bindings()).refVerdict(js) == nullAdmitted
 }

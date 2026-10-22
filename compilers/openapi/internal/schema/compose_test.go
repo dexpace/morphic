@@ -458,8 +458,8 @@ func TestAllOf_PropertyAlongsideAllOfReconciles(t *testing.T) {
 // intersection, so a `required` list constrains the whole composed object
 // regardless of which branch declares the named property, or whether it is
 // paired with a properties map at all. Each case names a wire property that
-// must end up Required=true, and none of them should produce an
-// unattachable-required diagnostic — every name matches an own property.
+// must end up Required=true, which leaves Requires empty, since every name
+// matches an own property.
 func TestAllOf_CompositionRequiredAttaches(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -547,20 +547,18 @@ func TestAllOf_CompositionRequiredAttaches(t *testing.T) {
 			p, ok := openapitest.PropsByWire(m.Properties)[tc.wire]
 			require.True(t, ok, "%s should have a %q property", tc.model, tc.wire)
 			assert.True(t, p.Required, "%s.%s should be required via composition-scope required", tc.model, tc.wire)
-			assert.False(t, openapitest.HasDiag(diags, diag.UnattachableRequired),
-				"every required name matches an own property; no unattachable-required diagnostic expected")
+			assert.Empty(t, m.Requires, "every required name matches an own property, so none is listed beside them")
 		})
 	}
 }
 
-// TestAllOf_RequiredOnlyBranchNamingBaseOwnedPropertyDiagnosed mirrors
-// openapi-generator's SuperBaby fixture: an allOf composed of a sole $ref
-// (becomes Base) plus a required-only branch naming a property that only the
-// base declares. ir-design §4.3 stores only a model's own properties — never a
-// flattened view across Base/Mixins — so the requirement has no IR home to
-// attach to; it must be diagnosed rather than dropped silently or misattached
-// to an unrelated property.
-func TestAllOf_RequiredOnlyBranchNamingBaseOwnedPropertyDiagnosed(t *testing.T) {
+// TestAllOf_RequiredOnlyBranchNamingBaseOwnedPropertyLandsInRequires pins an
+// allOf composed of a sole $ref (its Base) and a required-only branch naming a
+// property only the base declares. ir-design §4.3 stores a model's own
+// properties, never a flattened view, so the name lands in Model.Requires: the
+// composed model makes the inherited property required, and nothing is
+// misattached to an unrelated property or reported as lost.
+func TestAllOf_RequiredOnlyBranchNamingBaseOwnedPropertyLandsInRequires(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    Human:
       type: object
@@ -582,31 +580,19 @@ func TestAllOf_RequiredOnlyBranchNamingBaseOwnedPropertyDiagnosed(t *testing.T) 
 
 	_, hasLevel := openapitest.PropsByWire(m.Properties)["level"]
 	assert.False(t, hasLevel, "level belongs to the base, not to SuperBaby's own properties")
-	_, hasGender := openapitest.PropsByWire(m.Properties)["gender"]
-	assert.True(t, hasGender, "gender is SuperBaby's own property")
-
-	var unattachable []ir.Diagnostic
-	for _, d := range diags {
-		if d.Code == diag.UnattachableRequired {
-			unattachable = append(unattachable, d)
-		}
-	}
-	require.Len(t, unattachable, 1, "exactly one unattachable-required diagnostic")
-	assert.Equal(t, ir.SeverityWarning, unattachable[0].Severity,
-		"SuperBaby composes a ref, so the requirement plausibly belongs to a base property: real fidelity is lost")
-	assert.Contains(t, unattachable[0].Message, `"level"`, "the diagnostic names the unattached property")
-	assert.Contains(t, unattachable[0].Provenance.Pointer, "/allOf/1",
-		"the diagnostic points at the branch that declared the requirement")
+	gender, hasGender := openapitest.PropsByWire(m.Properties)["gender"]
+	require.True(t, hasGender, "gender is SuperBaby's own property")
+	assert.False(t, gender.Required, "level's requiredness never misattaches to gender")
+	assert.Equal(t, []string{"level"}, m.Requires, "SuperBaby makes the level Human declares required")
+	assert.Empty(t, diags, "the requirement is carried, so nothing is reported")
 }
 
-// TestAllOf_RequiredOnlyBranchNoBaseOrMixinDiagnosedInfo covers the other side
-// of diagUnattachableRequired's severity split: an allOf with no $ref branch at
-// all, so nothing becomes Base or a Mixin. Unlike
-// TestAllOf_RequiredOnlyBranchNamingBaseOwnedPropertyDiagnosed, there is no
-// base/mixin the missing name could plausibly belong to — the spec just names a
-// property nothing declares, which is legal JSON Schema with nothing lost — so
-// the diagnostic is info, not warning.
-func TestAllOf_RequiredOnlyBranchNoBaseOrMixinDiagnosedInfo(t *testing.T) {
+// TestAllOf_RequiredNameNothingDeclaresLandsInRequires covers an allOf with no
+// $ref branch at all, so nothing becomes Base or a Mixin and the required name
+// is one no schema declares: legal JSON Schema, which requires the member
+// whatever its value. It lands in Model.Requires as the inherited one does,
+// with no property invented for it.
+func TestAllOf_RequiredNameNothingDeclaresLandsInRequires(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    Thing:
       allOf:
@@ -627,18 +613,8 @@ func TestAllOf_RequiredOnlyBranchNoBaseOrMixinDiagnosedInfo(t *testing.T) {
 	assert.False(t, id.Required, "ghost's requiredness never misattaches to id")
 	_, hasGhost := openapitest.PropsByWire(m.Properties)["ghost"]
 	assert.False(t, hasGhost, "ghost is never invented as a property")
-
-	require.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.UnattachableRequired, ir.SeverityInfo),
-		"exactly one info-severity unattachable-required diagnostic")
-	var unattachable ir.Diagnostic
-	for _, d := range diags {
-		if d.Code == diag.UnattachableRequired {
-			unattachable = d
-		}
-	}
-	assert.Contains(t, unattachable.Message, `"ghost"`, "the diagnostic names the unattached property")
-	assert.Contains(t, unattachable.Provenance.Pointer, "/allOf/1",
-		"the diagnostic points at the branch that declared the requirement")
+	assert.Equal(t, []string{"ghost"}, m.Requires)
+	assert.Empty(t, diags, "the requirement is carried, so nothing is reported")
 }
 
 // TestAllOf_RefBranchWithSiblingRequired31 pins the real behavior of a $ref
@@ -933,26 +909,120 @@ func TestAllOf_BranchResidueRidesEveryDistributedVariant(t *testing.T) {
 		"one branch, one diagnostic, however many variants carry it; got %+v", diags)
 }
 
-// TestModel_PlainRequiredUndeclaredPropertyUnaffected is a regression guard:
-// fillModelProperties (the plain, non-allOf path) is untouched by this fix. A
-// required name matching no declared property on a plain object schema is
-// legal JSON Schema (required doesn't imply declaration) and must stay silent,
-// exactly as before — this path never reaches applyCompositionRequired.
-func TestModel_PlainRequiredUndeclaredPropertyUnaffected(t *testing.T) {
+// TestModel_PlainRequiredUndeclaredPropertyLandsInRequires pins the plain,
+// non-allOf path to the composition's rule: a required name no declared
+// property matches is legal JSON Schema (required does not imply declaration),
+// so it lands in Model.Requires, silently, with no property invented for it,
+// while one a property declares marks that property.
+func TestModel_PlainRequiredUndeclaredPropertyLandsInRequires(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    Plain:
       type: object
-      required: [ghost]
+      required: [ghost, id, ghost]
       properties:
         id: {type: integer}
 `)
 	doc, diags := lowerSpec(t, spec)
-	openapitest.RequireNoErrorDiags(t, diags)
 	m, ok := doc.Types[componentID("Plain")].(*ir.Model)
 	require.True(t, ok, "Plain should be a model")
 	require.Len(t, m.Properties, 1)
-	assert.False(t, openapitest.HasDiag(diags, diag.UnattachableRequired),
-		"the plain (non-allOf) path is untouched by this fix; no new diagnostic")
+	assert.True(t, m.Properties[0].Required, "id is declared, so it is required on its property")
+	assert.Equal(t, []string{"ghost"}, m.Requires, "ghost is listed once, however often it is written")
+	for _, d := range diags {
+		assert.True(t, strings.HasPrefix(d.Code, diag.Validation),
+			"the repeat draws the validation's finding, and the lowering adds none: %+v", d)
+	}
+}
+
+// TestAllOf_RequiresIsTheSameInEitherComponentOrder pins that an allOf making
+// an inherited property required, and naming one nothing declares, lands both
+// names in Model.Requires whichever of the composed model and its base is
+// declared first. The composed model has no property of its own to hold either
+// name, and the names come from the composition's required lists alone, so
+// nothing about the base's declaration may reach them.
+func TestAllOf_RequiresIsTheSameInEitherComponentOrder(t *testing.T) {
+	t.Parallel()
+	const (
+		user    = "    User: {type: object, properties: {id: {type: string}}}\n"
+		created = `    CreatedUser:
+      allOf:
+        - {$ref: '#/components/schemas/User'}
+        - {required: [id, extra]}
+`
+	)
+	nodes := make([]*ir.Model, 0, 2)
+	for _, src := range []string{user + created, created + user} {
+		doc, diags := lowerSpec(t, openapitest.ComponentSpec(src))
+		openapitest.RequireNoErrorDiags(t, diags)
+		m, ok := typeByName(doc, "CreatedUser").(*ir.Model)
+		require.True(t, ok, "CreatedUser is a model")
+		nodes = append(nodes, m)
+	}
+
+	assert.Empty(t, cmp.Diff(nodes[0], nodes[1]), "declaration order must not change the composed model")
+	for i, m := range nodes {
+		assert.Equal(t, []string{"id", "extra"}, m.Requires, "order %d: in source order, the inherited name included", i)
+		assert.Empty(t, m.Properties, "order %d: neither name is declared here, so no property holds one", i)
+		require.NotNil(t, m.Base, "order %d", i)
+		assert.Equal(t, componentID("User"), m.Base.Target)
+	}
+}
+
+// TestAllOf_ARequiredNameWrittenInSeveralListsIsListedOnce pins that a name an
+// allOf writes in more than one required list, a branch's and the composed
+// schema's own, is in Model.Requires once, where it is first written. Each list
+// is free of repeats, so the validation reports nothing, and only the lowering
+// that gathers them can list a name twice.
+func TestAllOf_ARequiredNameWrittenInSeveralListsIsListedOnce(t *testing.T) {
+	t.Parallel()
+	spec := openapitest.ComponentSpec(`    User: {type: object, properties: {id: {type: string}}}
+    CreatedUser:
+      allOf:
+        - {$ref: '#/components/schemas/User'}
+        - {required: [id, extra]}
+        - {required: [extra, other]}
+      required: [extra, id]
+`)
+	doc, diags := lowerSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	assert.Empty(t, diags, "no list repeats a name, so nothing is reported")
+
+	m, ok := typeByName(doc, "CreatedUser").(*ir.Model)
+	require.True(t, ok, "CreatedUser is a model")
+	assert.Equal(t, []string{"id", "extra", "other"}, m.Requires, "once each, in the order first written")
+}
+
+// TestDistributedUnion_EachVariantCarriesTheRequiresOfItsBody pins that every
+// variant model a union is distributed into takes the whole body's required
+// list: a declared name is Required on the variant's copy of the property, and
+// one nothing declares is in the variant's Requires. Each variant is a model of
+// its own, so a variant that lowered the body's properties but not its
+// required list would leave a name required on one reading and not the other.
+func TestDistributedUnion_EachVariantCarriesTheRequiresOfItsBody(t *testing.T) {
+	t.Parallel()
+	spec := openapitest.ComponentSpec(`    X: {type: object, properties: {x: {type: string}}}
+    Y: {type: object, properties: {y: {type: string}}}
+    Shape:
+      properties: {a: {type: string}}
+      required: [a, z]
+      oneOf:
+        - {$ref: '#/components/schemas/X'}
+        - {$ref: '#/components/schemas/Y'}
+`)
+	doc, diags := lowerSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	u, ok := typeByName(doc, "Shape").(*ir.Union)
+	require.True(t, ok, "Shape distributes into a union")
+	require.Len(t, u.Variants, 2)
+	for i, v := range u.Variants {
+		m, ok := doc.Types[v.Type.Target].(*ir.Model)
+		require.True(t, ok, "variant %d is a composed model", i)
+		require.Len(t, m.Properties, 1, "variant %d keeps the body's property", i)
+		assert.Equal(t, "a", m.Properties[0].WireName)
+		assert.True(t, m.Properties[0].Required, "variant %d: a is declared, so it is required on its property", i)
+		assert.Equal(t, []string{"z"}, m.Requires, "variant %d: z is declared nowhere, so it is listed", i)
+	}
 }
 
 func TestAllOf_ExtraRefsBecomeMixins(t *testing.T) {
@@ -2434,6 +2504,201 @@ func TestUnion_VariantHints(t *testing.T) {
 	assert.Contains(t, hints, "variant_1", "inline branch positional hint")
 }
 
+// TestUnion_ADecoratedBranchIsHintedAsItsRef pins GitHub #1018. OpenAPI 3.0
+// cannot write keywords beside a $ref, so a document annotates a union branch by
+// wrapping it, and the wrapped branch names its variant for the $ref as 3.1's
+// `{$ref: X, description: …}` does. A branch that says anything about a value
+// beyond its annotations is a type of its own and keeps the positional hint.
+// Each row also holds the branch's own node to its positional hint, which an
+// outside $ref to the branch derives as well.
+func TestUnion_ADecoratedBranchIsHintedAsItsRef(t *testing.T) {
+	t.Parallel()
+	const pet = "'#/components/schemas/Pet'"
+	for _, tc := range []struct {
+		name         string
+		version      string // 3.0.3 unless the row is a 3.1 spelling
+		keyword      string // oneOf unless the row is an anyOf
+		branch       string // the second branch, beside a plain $ref to User
+		extra        string // components the branch needs beyond User and Pet
+		bare         string // a third branch, the same $ref written bare, which want is then not read for
+		want         string // the second variant's hint
+		wantNode     string // the second branch's own node's hint; variant_1 unless set
+		wantNullable bool
+		wantDangling bool // the branch holds a $ref that names nothing
+	}{
+		{
+			name:   "a description beside the wrapped ref",
+			branch: "{allOf: [{$ref: " + pet + "}], description: a pet}",
+			want:   "pet",
+		},
+		{
+			name:     "3.1 writes the description beside the ref itself",
+			version:  "3.1.0",
+			branch:   "{$ref: " + pet + ", description: a pet}",
+			want:     "pet",
+			wantNode: "pet",
+		},
+		{
+			name:   "a type beside the wrapped ref",
+			branch: "{allOf: [{$ref: " + pet + "}], type: object, description: a pet}",
+			want:   "pet",
+		},
+		{
+			name:         "nullable beside the wrapped ref",
+			branch:       "{allOf: [{$ref: " + pet + "}], nullable: true}",
+			want:         "pet",
+			wantNullable: true,
+		},
+		{
+			name:    "a sibling on the wrapped ref itself",
+			version: "3.1.0",
+			branch:  "{allOf: [{$ref: " + pet + ", description: x}], description: y}",
+			want:    "pet",
+		},
+		{
+			name:   "an empty schema before the wrapped ref",
+			branch: "{allOf: [{}, {$ref: " + pet + "}]}",
+			want:   "pet",
+		},
+		{
+			name:    "under anyOf",
+			keyword: "anyOf",
+			branch:  "{allOf: [{$ref: " + pet + "}], description: a pet}",
+			want:    "pet",
+		},
+		{
+			name:   "a ref to a position inside another schema",
+			branch: "{allOf: [{$ref: '#/components/schemas/Holder/properties/inner'}], description: d}",
+			extra:  "    Holder: {type: object, properties: {inner: {type: object, properties: {x: {type: string}}}}}\n",
+			bare:   "{$ref: '#/components/schemas/Holder/properties/inner'}",
+		},
+		{
+			name:   "a ref to a schema whose name is empty",
+			branch: "{allOf: [{$ref: '#/components/schemas/'}], description: d}",
+			extra:  "    '': {type: object, properties: {x: {type: string}}}\n",
+			want:   "variant_1",
+		},
+		{
+			name:    "a ref with an allOf written beside it",
+			version: "3.1.0",
+			branch:  "{$ref: '#/components/schemas/User', allOf: [{$ref: " + pet + "}]}",
+			want:    "user", wantNode: "user",
+		},
+		{
+			name:   "a property beside the wrapped ref",
+			branch: "{allOf: [{$ref: " + pet + "}], properties: {extra: {type: string}}}",
+			want:   "variant_1",
+		},
+		{
+			name:   "a constraint beside the wrapped ref",
+			branch: "{allOf: [{$ref: " + pet + "}], minProperties: 1}",
+			want:   "variant_1",
+		},
+		{
+			name:   "a required name beside the wrapped ref",
+			branch: "{allOf: [{$ref: " + pet + "}], required: [name]}",
+			want:   "variant_1",
+		},
+		{
+			name:   "two refs in the allOf",
+			branch: "{allOf: [{$ref: '#/components/schemas/User'}, {$ref: " + pet + "}], description: both}",
+			want:   "variant_1",
+		},
+		{
+			name:         "a wrapped ref that names nothing",
+			branch:       "{allOf: [{$ref: '#/components/schemas/Ghost'}], description: a ghost}",
+			want:         "variant_1",
+			wantDangling: true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			version, keyword := "3.0.3", "oneOf"
+			if tc.version != "" {
+				version = tc.version
+			}
+			if tc.keyword != "" {
+				keyword = tc.keyword
+			}
+			spec := `    User: {type: object, properties: {id: {type: string}}}
+    Pet: {type: object, properties: {name: {type: string}}}
+` + tc.extra + "    U:\n      " + keyword + ":\n        - {$ref: '#/components/schemas/User'}\n        - " + tc.branch + "\n"
+			wantVariants := 2
+			if tc.bare != "" {
+				spec += "        - " + tc.bare + "\n"
+				wantVariants = 3
+			}
+			doc, diags := lowerSpec(t, openapitest.ComponentSpecVer(version, spec))
+			if tc.wantDangling {
+				assert.True(t, openapitest.HasDiagAt(diags, diag.UnresolvedRef, ir.SeverityError),
+					"the dangling ref is reported: %+v", diags)
+			} else {
+				openapitest.RequireNoErrorDiags(t, diags)
+			}
+
+			u, ok := typeByName(doc, "U").(*ir.Union)
+			require.True(t, ok, "U should be a union")
+			require.Len(t, u.Variants, wantVariants)
+			assert.Equal(t, "user", u.Variants[0].Name.Hint, "a bare $ref names its variant for its target")
+			if tc.bare != "" {
+				assert.Equal(t, u.Variants[2].Name.Hint, u.Variants[1].Name.Hint,
+					"the wrapped ref is named as the same ref written bare")
+				assert.NotEqual(t, "variant_1", u.Variants[1].Name.Hint, "and as what it names, not where it sits")
+			} else {
+				assert.Equal(t, tc.want, u.Variants[1].Name.Hint)
+			}
+			assert.Equal(t, tc.wantNullable, u.Variants[1].Type.Nullable)
+
+			nodeID := ir.TypeID("t/anon/components/schemas/U/" + keyword + "/1")
+			assert.Equal(t, nodeID, u.Variants[1].Type.Target, "the variant holds the branch's own node")
+			node, ok := doc.Types[nodeID]
+			require.True(t, ok, "the branch lowers to a node of its own")
+			wantNode := tc.wantNode
+			if wantNode == "" {
+				wantNode = "variant_1"
+			}
+			assert.Equal(t, wantNode, node.Common().Name.Hint)
+		})
+	}
+}
+
+// TestUnion_ADecoratedBranchIsHintedTheSameInEitherOrder pins that naming a
+// variant for its wrapped $ref (GitHub #1018) leaves the branch's own node
+// alone. A $ref elsewhere to the branch hoists that node from its pointer, so a
+// node hinted for the variant would read one way when the union lowers first and
+// another when the $ref does. Declared before the union and after it, the
+// variant, the union and the node must agree.
+func TestUnion_ADecoratedBranchIsHintedTheSameInEitherOrder(t *testing.T) {
+	t.Parallel()
+	const members = `    User: {type: object, properties: {id: {type: string}}}
+    Pet: {type: object, properties: {name: {type: string}}}
+`
+	const host = `    U:
+      oneOf:
+        - {$ref: '#/components/schemas/User'}
+        - {allOf: [{$ref: '#/components/schemas/Pet'}], description: a pet}
+`
+	const outsider = "    Outside: {$ref: '#/components/schemas/U/oneOf/1'}\n"
+	first, diags := parseFull(t, openapitest.ComponentSpecVer("3.0.3", members+outsider+host))
+	openapitest.RequireNoErrorDiags(t, diags)
+	last, diags := parseFull(t, openapitest.ComponentSpecVer("3.0.3", members+host+outsider))
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	branch := ir.TypeID("t/anon/components/schemas/U/oneOf/1")
+	for _, doc := range []*ir.Document{first, last} {
+		u, ok := typeByName(doc, "U").(*ir.Union)
+		require.True(t, ok, "U should be a union")
+		require.Len(t, u.Variants, 2)
+		assert.Equal(t, "pet", u.Variants[1].Name.Hint)
+		require.Equal(t, branch, u.Variants[1].Type.Target)
+		node, ok := doc.Types[branch]
+		require.True(t, ok, "the branch lowers to a node of its own")
+		assert.Equal(t, "variant_1", node.Common().Name.Hint)
+	}
+	assert.Empty(t, cmp.Diff(first.Types[componentID("U")], last.Types[componentID("U")]), "the union")
+	assert.Empty(t, cmp.Diff(first.Types[branch], last.Types[branch]), "the branch's node")
+}
+
 func TestAllOf_UnresolvedRefBranch(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    Bad:
@@ -2581,8 +2846,7 @@ func TestAllOf_BoolBranchSkippedInCompositionRequired(t *testing.T) {
 	id, hasID := openapitest.PropsByWire(m.Properties)["id"]
 	require.True(t, hasID, "the object branch's own property still lowers despite the sibling bool branch")
 	assert.True(t, id.Required, "the object branch's own required still attaches to its own property")
-	assert.False(t, openapitest.HasDiag(diags, diag.UnattachableRequired),
-		"the boolean branch contributes no required names, so nothing goes unattached")
+	assert.Empty(t, m.Requires, "the boolean branch contributes no required names, so nothing goes unattached")
 }
 
 func TestEnum_NonScalarAndMidListMismatch(t *testing.T) {
@@ -3118,8 +3382,15 @@ func TestOneOf_CoDeclaredNotDistributedReasons(t *testing.T) {
 	nullBranch := typeByName(doc, "NullBranch").(*ir.Model)
 	assert.Contains(t, string(nullBranch.Unmodeled["openapi:oneOf"].Value), `"null"`,
 		"a null branch is written inline, so it blocks distribution rather than lifting to Nullable")
-	assert.Equal(t, 5, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
-		"each declined shape is reported once; got %+v", diags)
+	// The sixth is settling's, once the registry is whole: Discriminated's
+	// discriminator routes to no subtype of its model, so it stays beside the
+	// union it was written for.
+	assert.Contains(t,
+		openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo,
+			"/components/schemas/Discriminated/discriminator"),
+		"not a subtype of the model holding it")
+	assert.Equal(t, 6, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
+		"each declined shape is reported once, and the kept discriminator once; got %+v", diags)
 }
 
 // TestUnionCombinators_CoDeclaredKeepsTheBoundsWrittenBesideIt pins that
@@ -4260,7 +4531,7 @@ func TestAllOf_ACopyANarrowingKeptIsStillACopy(t *testing.T) {
 			if colorLast {
 				schemas = composed + color
 			}
-			doc, diags := lowerSettled(t, openapitest.ComponentSpec(schemas))
+			doc, diags := lowerSpec(t, openapitest.ComponentSpec(schemas))
 			m, ok := doc.Types[componentID("T")].(*ir.Model)
 			require.True(t, ok, "order %v, Color last %t", order, colorLast)
 			require.Len(t, m.Properties, 1, "order %v, Color last %t", order, colorLast)

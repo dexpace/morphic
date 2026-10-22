@@ -63,7 +63,9 @@ func TestGrouping_PathPrefixGroupsAreIdentifiedByTheirSegment(t *testing.T) {
 	spec := `openapi: 3.1.0
 info: {title: T, version: "1"}
 paths:
-  /users/{id}: {get: {operationId: getUser, responses: {"200": {description: ok}}}}
+  /users/{id}:
+    parameters: [{name: id, in: path, required: true, schema: {type: string}}]
+    get: {operationId: getUser, responses: {"200": {description: ok}}}
   /users: {get: {operationId: listUsers, responses: {"200": {description: ok}}}}
   /webhooks/register: {post: {operationId: register, responses: {"200": {description: ok}}}}
   /: {get: {operationId: root, responses: {"200": {description: ok}}}}

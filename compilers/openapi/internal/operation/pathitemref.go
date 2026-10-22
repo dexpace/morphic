@@ -35,7 +35,7 @@ type layer struct {
 // its chain that the load phase did not model are reported rather than dropped
 // in silence (see unreadFields).
 func pathItemLayers(use lowering.Ctx, rp *soa.ReferencedPathItem, usePtr jsontext.Pointer) ([]layer, []ir.Diagnostic) {
-	pi, declPtr := resolve.ObjectAt[soa.PathItem](use.RefScope(), rp, usePtr)
+	pi, dc, declPtr := lowering.Declared[soa.PathItem](use, rp, usePtr)
 	if pi == nil {
 		return nil, nil
 	}
@@ -68,13 +68,13 @@ func pathItemLayers(use lowering.Ctx, rp *soa.ReferencedPathItem, usePtr jsontex
 			last = hop.Ref
 		}
 	}
-	return append(layers, referent(use, rp, last, pi, declPtr, layers)), diags
+	return append(layers, referent(use, dc, last, pi, declPtr, layers)), diags
 }
 
 // unreadFields reports, at the mount's use site, the fields written beside the
 // $ref of the path item at reached that the load phase did not model: another
-// document's, which it does not walk, or those at a position of this one its
-// walk does not reach, such as under an x-* key (GitHub #823).
+// document's, as it models only the source's, or those at a position of the
+// source its walk does not reach, such as under an x-* key (GitHub #823).
 func unreadFields(use lowering.Ctx, usePtr jsontext.Pointer, reached string, foreign bool) ir.Diagnostic {
 	where := "at a position the compiler's walk of this document does not reach"
 	if foreign {
@@ -84,26 +84,37 @@ func unreadFields(use lowering.Ctx, usePtr jsontext.Pointer, reached string, for
 		"the path item at %s writes fields beside its $ref %s; they are not lowered at this mount", reached, where)
 }
 
-// referent returns the layer of pi, the item rp's chain ends at through last,
-// declared at declPtr. A nearer layer declaring at declPtr too is the use site
-// of an item another document holds, which no pointer here addresses: the item
-// is then declared under the use site's "$ref", a position the source cannot
-// name, so the two never intern a type at one pointer (invariant 3). A finding
-// names its positions by the reference, given a fragment when it has none so a
-// pointer appended to it reads as one.
-func referent(use lowering.Ctx, rp, last *soa.ReferencedPathItem, pi *soa.PathItem, declPtr jsontext.Pointer,
+// referent returns the layer of pi, the item a chain ends at through last,
+// declared at declPtr in dc's document (lowering.Declared). A finding made in
+// use's document names a position in another by the reference (referenceName).
+// A nearer layer declaring at that position too is the use site of an item the
+// compile cannot place where it is declared, as past the longest chain it
+// follows or at a key its document writes twice: the item is then declared
+// under the use site's "$ref", which no document names, so the two never
+// intern a type at one pointer (invariant 3).
+func referent(use, dc lowering.Ctx, last *soa.ReferencedPathItem, pi *soa.PathItem, declPtr jsontext.Pointer,
 	nearer []layer,
 ) layer {
-	ref := layer{item: pi, decl: declPtr, name: string(declPtr), in: lowering.Within[soa.PathItem](use, rp)}
-	if !slices.ContainsFunc(nearer, func(l layer) bool { return l.decl == declPtr }) {
+	ref := layer{item: pi, decl: declPtr, name: string(declPtr), in: dc}
+	if dc.IDs() != use.IDs() {
+		ref.name = referenceName(last)
+	}
+	if !slices.ContainsFunc(nearer, func(l layer) bool { return l.decl == declPtr && l.in.IDs() == dc.IDs() }) {
 		return ref
 	}
 	ref.decl += ids.Ptr("$ref")
-	ref.name = string(last.GetReference())
-	if !last.GetReference().HasJSONPointer() {
-		ref.name += "#"
-	}
+	ref.name = referenceName(last)
 	return ref
+}
+
+// referenceName is how a finding names the position the $ref of hop names: the
+// reference as written, with an empty fragment when it has none.
+func referenceName(hop *soa.ReferencedPathItem) string {
+	name := string(hop.GetReference())
+	if !hop.GetReference().HasJSONPointer() {
+		name += "#"
+	}
+	return name
 }
 
 // construct keys name what a layer declares that a nearer one can take over.
@@ -250,8 +261,8 @@ func firstDeclared(decls []itemConstruct) map[string]itemConstruct {
 
 // itemParams is a mount's path-item parameter list: each layer's entries,
 // nearest first, less any (in, name) a nearer layer declares, each paired with
-// the pointer of its own declaration and the scope its layer is read in, since
-// one operation lowers every layer's.
+// the pointer of its own declaration and its layer's context, whose document
+// that pointer is in, since one operation lowers every layer's.
 func itemParams(layers []layer) []sourcedParam {
 	if len(layers) == 1 {
 		// One layer's entries are read in its operations' own scope.
@@ -260,8 +271,7 @@ func itemParams(layers []layer) []sourcedParam {
 	var params []sourcedParam
 	shadowed := map[string]bool{}
 	for _, l := range layers {
-		scope := l.in.RefScope()
-		params = appendSourced(params, l.item.GetParameters(), l.decl, shadowed, &scope)
+		params = appendSourced(params, l.item.GetParameters(), l.decl, shadowed, &l.in)
 		for key := range shadowedKeys(l.item.GetParameters()) {
 			shadowed[key] = true
 		}

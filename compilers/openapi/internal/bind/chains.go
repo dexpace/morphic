@@ -17,7 +17,6 @@ func (b *binder) chain(site Position) Chain {
 	for _, p := range slices.Backward(path) {
 		if end.Status == Resolved {
 			end.Hops++
-			end.Named = end.Named && b.hops[p].Named
 		}
 		b.chains[p] = end
 	}
@@ -47,7 +46,7 @@ func (b *binder) follow(p Position, path *[]Position, on map[Position]int) Chain
 		case h.Status != Resolved:
 			return Chain{Status: Unresolved, Failed: p}
 		case !b.holdsRef(h.Target):
-			return Chain{Status: Resolved, End: h.Target, Role: h.Role, Named: true}
+			return Chain{Status: Resolved, End: h.Target, Role: h.Role}
 		}
 		p = h.Target
 	}
@@ -64,7 +63,7 @@ func (b *binder) holdsRef(p Position) bool {
 // returns the loop's index.
 func (b *binder) closeLoop(members []Position) int {
 	id := len(b.loops)
-	sorted := slices.SortedFunc(slices.Values(members), comparePositions)
+	sorted := slices.SortedFunc(slices.Values(members), b.docs.compare)
 	b.loops = append(b.loops, Loop{Members: sorted})
 	for _, m := range members {
 		b.chains[m] = Chain{Status: Cyclic, Loop: id, Member: true}
@@ -72,25 +71,10 @@ func (b *binder) closeLoop(members []Position) int {
 	return id
 }
 
-// placeLoops sets where each loop is reported: its least member in the source,
-// or, when none is, the least source position whose chain leads into it. A
-// loop neither reaches is not reported.
+// placeLoops sets where each loop is reported: its least member, which is
+// written where the defect is, in whichever document holds it.
 func (b *binder) placeLoops() {
-	leadIn := map[int]Position{}
-	for p, c := range b.chains {
-		if c.Status != Cyclic || c.Member || p.Doc != Source {
-			continue
-		}
-		if least, seen := leadIn[c.Loop]; !seen || p.less(least) {
-			leadIn[c.Loop] = p
-		}
-	}
 	for i := range b.loops {
-		l := &b.loops[i]
-		if first := l.Members[0]; first.Doc == Source {
-			l.Site, l.Reported = first, true
-			continue
-		}
-		l.Site, l.Reported = leadIn[i]
+		b.loops[i].Site = b.loops[i].Members[0]
 	}
 }

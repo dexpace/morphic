@@ -2,11 +2,14 @@ package operation_test
 
 import (
 	"encoding/json/jsontext"
+	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 
-	"github.com/speakeasy-api/openapi/validation"
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -14,6 +17,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -221,9 +225,9 @@ func TestParams_QueryStringLocation(t *testing.T) {
 
 // TestParams_QueryStringDeclaredStyleIsKeptAndReported pins the other half of
 // the same rule: the compiler stopped inventing a style at that location, it did
-// not start erasing one. A document declaring style there is invalid and the
-// parser says so; what it declared still lowers, because dropping declared
-// content is an emitter's call rather than a compiler's.
+// not start erasing one. A document declaring style there breaks 3.2's rule and
+// is warned of, as explode is; what it declared still lowers, because dropping
+// declared content is an emitter's call rather than a compiler's.
 func TestParams_QueryStringDeclaredStyleIsKeptAndReported(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.PathsSpecVer("3.2.0", `  /q:
@@ -241,7 +245,12 @@ func TestParams_QueryStringDeclaredStyleIsKeptAndReported(t *testing.T) {
         "200": {description: ok}
 `)
 	doc, diags := parseFull(t, spec)
-	openapitest.AssertHasCode(t, diags, diag.Validation+"/"+string(validation.RuleValidationAllowedValues), ir.SeverityError)
+	openapitest.RequireNoErrorDiags(t, diags)
+	for _, keyword := range []string{"style", "explode"} {
+		assert.Equal(t, "parameter field "+keyword+" is not allowed for in=querystring; lowered as declared",
+			openapitest.DiagMessageAt(t, diags, diag.InvalidLocationKeyword, ir.SeverityWarning,
+				"/paths/~1q/get/parameters/0/"+keyword))
+	}
 	op := openapitest.FindOp(t, doc, "q")
 	require.Len(t, op.Bindings.HTTP, 1)
 	require.Len(t, op.Bindings.HTTP[0].ParamBindings, 1)
@@ -259,11 +268,9 @@ func TestParams_QueryStringDeclaredStyleIsKeptAndReported(t *testing.T) {
 // keywords: an explode written without a style beside it.
 //
 // Suppressing the invented style must not take a declared explode with it. 3.2
-// forbids explode at this location as it forbids style, but the bundled parser
-// enforces only the style half — so this reaches the compiler unrefused, and
-// erasing it would be the same silent drop the invented style was, in the other
-// direction. See diag.InvalidLocationKeyword's GoDoc for why this compiler's
-// own report is the only diagnostic naming it, and why it is a warning.
+// forbids explode at this location as it forbids style, and erasing it would be
+// the same silent drop the invented style was, in the other direction. See
+// diag.InvalidLocationKeyword's GoDoc for why the report is a warning.
 func TestParams_QueryStringDeclaredExplodeAloneIsKeptAndReported(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.PathsSpecVer("3.2.0", `  /q:
@@ -300,8 +307,7 @@ func TestParams_QueryStringDeclaredExplodeAloneIsKeptAndReported(t *testing.T) {
 
 // TestParams_QueryStringDeclaredAllowReservedIsKeptAndReported is the third
 // keyword 3.2 forbids at this location alongside style and explode; see
-// diag.InvalidLocationKeyword's GoDoc for why the parser enforces none of it
-// and why this compiler's report is a warning.
+// diag.InvalidLocationKeyword's GoDoc for why the report is a warning.
 func TestParams_QueryStringDeclaredAllowReservedIsKeptAndReported(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.PathsSpecVer("3.2.0", `  /q:
@@ -1322,9 +1328,8 @@ func TestParams_RepeatedNameAndLocationKeepsEveryParameter(t *testing.T) {
 			assert.Equal(t, []ir.ParamID{op.Params[0].ID, op.Params[1].ID},
 				[]ir.ParamID{bindings[0].Param, bindings[1].Param}, "each binding names its own parameter")
 
-			assert.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.DuplicateParameter, ir.SeverityError))
-			assert.Zero(t, openapitest.CountDiagsAt(diags, diag.Validation+"/"+validation.RuleValidationOperationParameters, ir.SeverityError),
-				"the parser's own report is dropped, so an inline repeat is one error")
+			assert.Equal(t, []string{diag.DuplicateParameter + " at " + tc.repeat}, errorFindings(diags),
+				"the repeat is one error, whatever spells its entries")
 			msg := openapitest.DiagMessageAt(t, diags, diag.DuplicateParameter, ir.SeverityError, tc.repeat)
 			assert.Contains(t, msg, tc.first, "the report names the entry the repeat collides with")
 		})
@@ -1395,10 +1400,11 @@ components:
 }
 
 // TestParams_RepeatInAnotherDocumentIsReportedOnce covers the two places a
-// repeat is reported. A list the source writes is load's, even when its entries
-// $ref another document; a list another document writes, which load's walk of
-// the source does not reach, is the lowering's, at the entry it lowered. Each
-// repeat is reported once.
+// repeat is reported, each at the entry where its list is written. A list the
+// source writes is load's, even when its entries $ref another document; a list
+// another document writes, which load's walk of the source does not reach, is
+// the lowering's, at the entry it lowered, in that document. Each repeat is
+// reported once.
 func TestParams_RepeatInAnotherDocumentIsReportedOnce(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
@@ -1429,20 +1435,31 @@ paths:
 	path := filepath.Join(dir, "root.yaml")
 	require.NoError(t, os.WriteFile(path, []byte(root), 0o600))
 
-	_, diags, err := openapi.New().Compile(t.Context(),
+	doc, diags, err := openapi.New().Compile(t.Context(),
 		[]compilers.Source{{Path: path, Data: []byte(root)}},
-		compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: true}})
+		compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
 	require.NoError(t, err)
 
-	got := map[jsontext.Pointer]int{}
+	require.Len(t, doc.Sources, 2)
+	assert.Equal(t, filepath.Join(dir, "other.yaml"), doc.Sources[1].Path)
+	repeat := func(source int, pointer jsontext.Pointer, name, in string, first jsontext.Pointer) ir.Diagnostic {
+		return ir.Diagnostic{Severity: ir.SeverityError, Code: diag.DuplicateParameter,
+			Message:    fmt.Sprintf("parameter %q in %q repeats the entry at %s", name, in, first),
+			Provenance: ir.Provenance{Source: source, Pointer: pointer}}
+	}
+	var got []ir.Diagnostic
 	for _, d := range diags {
 		if d.Code == diag.DuplicateParameter {
-			got[d.Provenance.Pointer]++
+			got = append(got, d)
 		}
 	}
-	assert.Equal(t, map[jsontext.Pointer]int{
-		"/paths/~1x/get/parameters/2": 1,
-		"/paths/~1x/parameters/1":     1,
-		"/paths/~1y/get/parameters/1": 1,
-	}, got)
+	slices.SortFunc(got, func(x, y ir.Diagnostic) int {
+		return strings.Compare(string(x.Provenance.Pointer), string(y.Provenance.Pointer))
+	})
+	want := []ir.Diagnostic{
+		repeat(1, "/X/get/parameters/2", "q", "query", "/X/get/parameters/0"),
+		repeat(1, "/X/parameters/1", "limit", "query", "/X/parameters/0"),
+		repeat(0, "/paths/~1y/get/parameters/1", "limit", "query", "/paths/~1y/get/parameters/0"),
+	}
+	assert.Empty(t, cmp.Diff(want, got))
 }

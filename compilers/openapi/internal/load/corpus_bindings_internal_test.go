@@ -1,6 +1,7 @@
 package load
 
 import (
+	"encoding/json/jsontext"
 	"os"
 	"testing"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 )
 
@@ -28,16 +30,22 @@ func TestBindSchemas_PlacesEveryEndAndBindsEveryRefInTheCorpus(t *testing.T) {
 		require.NoError(t, err, path)
 		for _, external := range []bool{false, true} {
 			doc, _, err := Load(t.Context(), 0, compilers.Source{Path: path, Data: data},
-				Options{AllowExternalRefs: external})
+				readingIf(external))
 			if err != nil || doc == nil || doc.Bindings == nil {
 				continue
 			}
 			checked++
 			table := doc.Bindings.Table()
-			for site := range referenceEnds(t.Context(), doc.Doc, doc.Siblings, sourceDocument{path: path}) {
-				_, placed := table.Through(site)
-				assert.True(t, placed, "%s (external %v): the end of the reference at %s", path, external, site)
-			}
+			_, err = eachReference(walkSource(t.Context(), doc.Doc, doc.Siblings), "test",
+				func(site jsontext.Pointer, r resolvable) error {
+					if c := resolutionChain(r); c.cut || c.stopped != "" || len(c.records) == 0 {
+						return nil
+					}
+					_, placed := table.Through(bind.Position{Pointer: site})
+					assert.True(t, placed, "%s (external %v): the end of the reference at %s", path, external, site)
+					return nil
+				})
+			require.NoError(t, err, path)
 			if table.Exhausted() || table.Truncated() {
 				continue
 			}

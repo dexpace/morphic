@@ -38,8 +38,8 @@ func parseFull(t *testing.T, src string) (*ir.Document, []ir.Diagnostic) {
 // time. lowerSpec builds on this same load path to also lower components.
 func loweredFor(t *testing.T, src string) (*lowerer, []ir.Diagnostic) {
 	t.Helper()
-	loadedDoc, diags, err := load.Load(t.Context(), 0,
-		compilers.Source{Path: "spec.yaml", Data: []byte(src)}, loadOptions(Options{}.withDefaults()))
+	source := compilers.Source{Path: "spec.yaml", Data: []byte(src)}
+	loadedDoc, diags, err := load.Load(t.Context(), 0, source, loadOptions(Options{}.withDefaults(), nil, source))
 	require.NoError(t, err)
 	require.NotNil(t, loadedDoc, "load returned no document: %+v", diags)
 	return newLowerer(loadedDoc, Options{}.withDefaults()), diags
@@ -52,14 +52,16 @@ func lowerSpec(t *testing.T, src string) (*ir.Document, []ir.Diagnostic) {
 	t.Helper()
 	l, diags := loweredFor(t, src)
 	l.diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.ctx, l.types, &l.anchors)) // named components; the entry Compile's run() calls first
-	return l.out, append(diags, l.diags.List()...)
+	doc := l.document(t)
+	return doc, append(diags, l.diags.List()...)
 }
 
 // lowerServiceSpec lowers components and the service layer of src.
 func lowerServiceSpec(t *testing.T, src string) (*ir.Document, ir.Service, []ir.Diagnostic) {
 	t.Helper()
 	doc, diags := func() (*ir.Document, []ir.Diagnostic) {
-		loadedDoc, loadDiags, err := load.Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(src)}, loadOptions(Options{}.withDefaults()))
+		source := compilers.Source{Path: "spec.yaml", Data: []byte(src)}
+		loadedDoc, loadDiags, err := load.Load(t.Context(), 0, source, loadOptions(Options{}.withDefaults(), nil, source))
 		require.NoError(t, err)
 		require.NotNil(t, loadedDoc)
 		l := newLowerer(loadedDoc, Options{}.withDefaults())
@@ -71,7 +73,8 @@ func lowerServiceSpec(t *testing.T, src string) (*ir.Document, ir.Service, []ir.
 		l.out.TagDefs = tagDefs
 		l.diags.AppendAll(svcDiags)
 		l.out.Services = []ir.Service{svc}
-		return l.out, append(loadDiags, l.diags.List()...)
+		doc := l.document(t)
+		return doc, append(loadDiags, l.diags.List()...)
 	}()
 	require.Len(t, doc.Services, 1)
 	return doc, doc.Services[0], diags
@@ -98,7 +101,7 @@ func lowererOver(ctx lowering.Ctx) *lowerer {
 	types := compile.NewTypes()
 	return &lowerer{
 		ctx:   ctx,
-		out:   &ir.Document{Types: types.Registry()},
+		out:   &ir.Document{},
 		types: types,
 	}
 }
@@ -113,7 +116,7 @@ func newLowerer(doc *load.Document, opts Options) *lowerer {
 // newRawLowerer builds a lowerer over a hand-constructed document, bypassing the
 // parser so nil slice/map entries (which the parser panics on) can be exercised.
 func newRawLowerer(doc *soa.OpenAPI) *lowerer {
-	return lowererOver(lowering.New(0, doc, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, overlay.Origin{}))
+	return lowererOver(lowering.New(0, doc, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}))
 }
 
 // componentID is the stable TypeID of a components-named schema, or of a
@@ -139,4 +142,19 @@ func typeByName(doc *ir.Document, name string) ir.TypeDef {
 func assertHasErrorCode(t *testing.T, diags []ir.Diagnostic, code string) {
 	t.Helper()
 	openapitest.AssertHasCode(t, diags, code, ir.SeverityError)
+}
+
+// document finishes the registry as run does once every lowering has
+// returned, and returns the document under construction holding it. What the
+// settling reports joins the fixture's diagnostics; a refusal is a compiler bug
+// no fixture provokes, so one fails the test.
+func (l *lowerer) document(t *testing.T) *ir.Document {
+	t.Helper()
+	reg, settled := l.types.Finish(t.Context())
+	for _, d := range settled {
+		require.NotEqual(t, compile.RegistryRefused, d.Code, "the registry refused an entry: %s", d.Message)
+	}
+	l.diags.AppendAll(settled)
+	l.out.Types = reg
+	return l.out
 }

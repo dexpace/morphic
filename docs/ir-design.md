@@ -62,13 +62,14 @@ type Document struct {
     IRVersion   string                 // version of the IR schema itself, semver
     IDSpaces    map[string][]string    // the namespaces the document's IDs live in, by kind prefix (§3.1);
                                        // a producer states it as it stamps IRVersion
-    Name        string                 // API title
+    Name        string                 // API title, as declared; "" when the source declares none
     Version     string                 // API version string (source-declared)
     Docs        Docs
     Contact     *Contact               // {Name, URL, Email} (OpenAPI/AsyncAPI info.contact)
     License     *License               // {Name, Identifier, URL} (OpenAPI/AsyncAPI info.license)
     TermsOfService string
-    Services    []Service              // ≥1; multi-service documents are normal (TypeSpec, stitching)
+    Services    []Service              // ≥1 (irverify); multi-service documents are normal (TypeSpec,
+                                       // stitching)
     Types       map[TypeID]TypeDef     // the type registry — the only owner of TypeDefs
     Channels    map[ChannelID]Channel  // event/messaging layer (AsyncAPI, webhooks, subscriptions, OTP processes)
     Messages    map[MessageID]Message  // message registry — messages are reused across channels and
@@ -81,7 +82,7 @@ type Document struct {
     Versions    []string               // ordered version labels when availability metadata is used
     Unmodeled   Unmodeled
     Diagnostics []Diagnostic           // accumulated by compiler + passes; not part of API meaning
-    Sources     []SourceInfo           // one entry per input file
+    Sources     []SourceInfo           // ≥1 (irverify), one entry per input file
 }
 
 type Contact struct { Name, URL, Email string }
@@ -95,9 +96,10 @@ type TagDef  struct {
                                   // interpretation is grouping policy (§7.1), never read here
 }
 type SourceInfo struct {
-    Format  string   // format and version the file was read as: "openapi@3.2", "overlay@1.0.0"
+    Format  string   // format and version the file was read as, name@version: "openapi@3.2",
+                     // "overlay@1.0.0"
     Path    string   // the path the file was handed to the compiler under
-    Hash    string   // hex SHA-256 of the file's bytes
+    Hash    string   // lowercase hex SHA-256 of the file's bytes (ir.SourceHash)
     SelfURI string   // the URI the document declared for itself (OpenAPI `$self`), as written;
                      // "" = none declared
 }
@@ -306,6 +308,30 @@ it sees. Changes made together in one bump are listed together under it.
   moved to `ir/irfacts`, whose `Index.Usage` derives it. No compiler or pass ever wrote the member,
   so every document carried none, and a consumer pinned to 0.15.0 loses nothing it read; the
   version check refuses it a 0.16.0 document all the same.
+- **0.17.0** — a spec split across files is one document (§3.1, §13). The shape is unchanged, but
+  the OpenAPI compiler lists every document a reference reads in `Sources`, after the source and
+  its overlay, and lowers what each declares where it declares it: its `Provenance.Source` names
+  that entry, and its IDs are in namespaces qualified by the document's location
+  (`t/openapi@common.yaml/...`). It had lowered no schema another document holds and placed a
+  parameter, response or other object read from one at the source's use site. A consumer pinned to
+  0.16.0 reads `Sources` as the source and its overlay alone.
+- **0.18.0** — a reference says when its null was inferred (§3.3): `TypeRef` gained `Inferred`,
+  naming the heuristic that read null in, and empty where the source declares it. The OpenAPI
+  compiler sets it where its nullable-widening policy reads a null in, from `nullable: true` or
+  beside a `$ref`, and the document's version does not. A consumer pinned to 0.17.0 reads every
+  nullable reference as declared.
+- **0.19.0** — two members, each a home for something the OpenAPI compiler had classed or dropped:
+  - `Operation` gained `Default`, the response that answers every status no entry of `Responses` or
+    `Errors` names (§7.2). The compiler had lowered OpenAPI's `default` to `Errors`, classing it a
+    failure, which the document does not say: an operation whose only response is `default` had no
+    success response. A consumer pinned to 0.18.0 finds no `default` member and no longer finds the
+    response among the errors.
+  - `Model` gained `Requires`, the members an instance must carry that no property of its own
+    declares: one a `Base` or `Mixin` declares, which a composing schema makes required, or one only
+    its catch-all governs (§4.3). The compiler had dropped such a name, reporting it only on an
+    `allOf`, and kept a map's verbatim, so an object writing a catch-all and a `required` name is
+    now a `Model` where it had been a `MapT`. A consumer pinned to 0.18.0 reads those members as
+    optional.
 
 ---
 
@@ -333,6 +359,16 @@ records the path as an RFC 6901 pointer, and the ID's path is that pointer witho
 a protobuf full name is one segment, so `acme.v1.UserId` is recorded as `/acme.v1.UserId`. A node a
 lowering *mints* rather than finds takes a namespace of its own, so no pointer a reference can spell
 ever reaches it — the general form of the rule §4.3 states for distributed unions.
+
+A source can span documents: an OpenAPI description split across files is one. A node another
+document declares lives in that document's namespaces, which are the source's own qualified by the
+document, so one pointer in two documents is two IDs and each ID's path is still the pointer its
+node records; its `Provenance.Source` names that document's `Sources` entry (§13). The qualifier is
+an `@` and the document's location from the source's directory, as one segment, escaped as RFC 6901
+escapes a token: `t/openapi@schemas~1pet.yaml/components/schemas/Pet` is the `Pet` component that
+`schemas/pet.yaml` declares. The location, not the entry's index, qualifies it, so an ID moves only
+when its document does. Operations, parameters and security schemes are named by where the source
+mounts or names them, so they take the source's namespace whichever document declares them.
 
 Primitives are the one exception, and only because the rule's premise does not hold for them: a
 primitive occupies no source position, so there is no path for a format to own. Its identity is
@@ -417,8 +453,9 @@ namespace left out, each list sorted by the byte order of its UTF-8 spelling and
 no empty namespace and none carrying the separator (`ir/id-spaces-unknown-kind`,
 `ir/id-spaces-not-canonical`, `ir/id-space-invalid`). It is a vocabulary and not a usage report, so
 a namespace no ID uses is not an error here; a compiler's own test holds its vocabulary to what its
-corpus uses, in both directions. In this repository an architecture test also holds a compiler to
-building a namespace only from a literal, which is where a path gets glued on. Channels and messages
+corpus uses, in both directions. In this repository a lint rule also holds a compiler to building a
+namespace only from a literal, which is where a path gets glued on, or through the framework's
+qualifier for another document (`compile.Space.Qualified`). Channels and messages
 have no prefix yet and are held to none of this.
 
 An ID held as a reference — a field, a slice element, a map key or value, anywhere but the
@@ -554,6 +591,7 @@ An alias can also collide with *another* entity's name, and that is not a rule o
 type TypeRef struct {
     Target   TypeID
     Nullable bool     // this *usage* admits null on the wire
+    Inferred string   // "" = the source declares the null; else the heuristic that read it in
 }
 ```
 
@@ -574,6 +612,14 @@ keywords (JSON Schema), a compiler reads them together: a value set that omits `
 that names it — `{type: [string, "null"], enum: [red, green]}` — does not admit null, one that lists
 `null` with no type beside it does, and a composition admits what its conjuncts jointly admit. So
 every spelling of one constraint reaches the same bit, which is the only thing an emitter reads.
+
+A bit a heuristic set rather than the source declared names that heuristic in `Inferred` (invariant
+6). It is the reference's own marker because a reference has no `Provenance` (§13) and the node
+holding one may hold several, so marking the holder would not say which bit was guessed. The marker
+is set only where the heuristic admits null and the source's own reading does not, so `Nullable &&
+Inferred == ""` is the bit that reading sets. `irverify` reports a marker on a reference that admits
+no null (`ir/type-ref-inferred-not-nullable`). The OpenAPI compiler's one such heuristic is its
+nullable-widening policy ([`nullable`](./compilers/openapi.md#nullable)).
 
 Protobuf field *presence* is **not** nullability — protobuf has no null. Presence disciplines
 lower to `Property.Presence` (§5.1), keeping `Nullable` strictly about wire-null.
@@ -717,6 +763,10 @@ restriction chain; `Constraints` and annotations on such a node bind the positio
 type Model struct {
     TypeCommon
     Properties     []Property
+    Requires       []string        // wire names of members an instance must carry that no own
+                                   // property declares: one Base, Implements or Mixins declare,
+                                   // which this model makes required, or one only the catch-all
+                                   // governs (JSON Schema `required`); none names an own property
     Base           *TypeRef        // declared single inheritance (TypeSpec extends, allOf-as-inheritance)
     Implements     []TypeRef       // interface conformance, N-ary (GraphQL `implements A & B`); targets are Abstract models
     Mixins         []TypeRef       // composition without subtyping (Smithy mixins, TypeSpec spread provenance, extra allOf entries)
@@ -783,6 +833,18 @@ what oagen and Kiota lose: the difference between "inherits from", "conforms to"
 "declares". `Base` is single (subtype identity); `Implements` is N-ary conformance to `Abstract`
 models — the distinction matters because GraphQL allows multiple interfaces while every class-based
 target language allows at most one base class.
+
+**Required members beyond the own properties.** Whether an own property must be present is its
+`Required` (§5.1). A member the model requires that none of its own properties declares is in
+`Requires`, by wire name and once (`irverify` refuses a repeat as `ir/requires-duplicate`), in the
+order the source's `required` lists name it: an inherited property the model makes required, as
+`allOf: [{$ref: User}, {required: [id]}]` makes `User`'s `id` required on the composed model, or a
+member only the catch-all governs, which JSON Schema requires whether or not a schema declares it.
+A consumer resolves each name over the flattened shape, as it reads `Base`, and the IR asserts
+nothing about which of these a name is, since saying so needs the hierarchy walked. A name an own
+property declares is never listed (`irverify` refuses it as `ir/requires-own-property`), so
+required-ness has one home per member. A model that requires a member is neither a map (§4.6) nor
+a decorator (§4.10), since a map requires no key and a decorator says nothing its `Base` does not.
 
 Which `allOf` entry becomes `Base` and which a `Mixin` is the OpenAPI compiler's rule
 [`allof-classification`](./compilers/openapi.md#allof-classification).
@@ -1019,13 +1081,11 @@ way, so `irverify` rejects it (`ir/map-key-string`), and a `Key` that is set nam
 another `Model` field keeps the node a model with no second predicate to update, and `irverify`
 holds every document to the same function (`ir/map-as-model`). The conversion keeps the model's
 `TypeCommon` — its ID, name, docs and unmodeled entries — and takes the catch-all's key and value
-and the model's `Constraints`, which on a map bound how many entries an instance may carry. What a
-map has no field for is kept the way any keyword without a home is: an OpenAPI `required` naming
-keys stays verbatim ([`shape-applicator`](./compilers/openapi.md#shape-applicator)), also where a
-discriminator's move makes the object a map after its census ran, and `propertyNames` stays the
-validation-only entry §4.7 makes it, since it constrains keys without being a key type. An `allOf`
-that leaves a map is the exception so far: the composition reads its `required` itself and reports
-each name it cannot attach without keeping it, as it does for a model (#896).
+and the model's `Constraints`, which on a map bound how many entries an instance may carry. A map
+requires no key, so an object whose `required` names one is a `Model` whose `Requires` lists it
+(§4.3), never a `MapT`, however it is composed. What a map has no field for is kept the way any
+keyword without a home is: `propertyNames` stays the validation-only entry §4.7 makes it, since it
+constrains keys without being a key type.
 
 A `Tuple` states three independent things, one field each. `Elems` types the leading positions.
 `Rest` types every element past them, as `List.Elem` types every element of a list; nil means no
@@ -1174,7 +1234,7 @@ what role, so a type in an error payload carries the side it travels on beside `
 | Root | Flags |
 |---|---|
 | an operation's parameters, request, request stream and RPC input type | `Input` |
-| its responses' payloads and headers, its response stream, its long-running polling and final types | `Output` |
+| its responses' and its default's payloads and headers, its response stream, its long-running polling and final types | `Output` |
 | its errors' and each service's common errors' payloads and headers | `Output` and `Error` |
 | the messages a messaging binding sends, or receives; its reply's travel the other way | `Input`, or `Output`; both for a direction neither send nor receive |
 | each channel's parameters, each auth scheme's credentials | `Input` |
@@ -1185,7 +1245,8 @@ webhook, or an operation an HTTP binding names among its callbacks — swaps `In
 its errors included. A flag spreads from a root's vertex along every edge, and a property's field
 arguments (`Property.Args`) make the types they name `Input`, since a client writes them to select
 the field whatever it reads back. `Multipart` marks only a multipart body's own type and the types
-its alias scalars stand for, not the types nested in it. An operation nested past
+its alias scalars stand for, not the types nested in it. An operation's `Default` is classed neither
+a success nor a failure (§7.2), so its types are not marked `Error`. An operation nested past
 `ir.MaxGroupDepth` is not read, and a type no root reaches has usage 0.
 
 **Recursion.** `Recursive(id)` reports whether a type's shape lies on a cycle of the graph — a
@@ -1193,6 +1254,31 @@ value of exactly that type can hold, at any depth, one of the same shape — and
 the types whose shapes share its strongly connected component. A reference to a polymorphic base
 counts every subtype it may hold, so a subtype holding its own discriminated base is recursive. A
 cycle through composition alone, which the IR permits, is reported too.
+
+### 4.10 Decorators — a reference with annotations
+
+A format that admits nothing beside a reference annotates one use of a shared type by wrapping it:
+OpenAPI 3.0 writes `state: {allOf: [{$ref: Status}], description: the widget state}`, and keeps it
+losslessly as an anonymous `Model` whose `Base` is `Status`. 3.1 writes the same use `{$ref: Status,
+description: …}`, which hoists an anonymous `Scalar` alias over `Status` wherever no carrier holds
+the annotations (§12.1). Neither node says anything about a value that its `Base` does not. Such a
+node is a **decorator**, and `ir.Decorated` is the one statement of the rule: an anonymous type
+whose `Base` is set, and which is
+
+- a `Model` with every other field of its own zero, or a `Scalar` with no `Constraints` and no
+  `Encoding`; and
+- sets nothing in `TypeCommon` beyond its identity (`ID`, `Name`, `Namespace`, `Anonymous`,
+  `Provenance`), the annotations a use site can hold (`Docs`, `Deprecation`, `Examples`),
+  `Availability`, which no emitter interprets, and `Unmodeled`, whose entries an SDK acts on by
+  reason, none of them by changing a type.
+
+The rule lists what may be set rather than what may not, so a field the IR gains keeps a node from
+being a decorator until a change decides otherwise; `ir`'s test sets every other field in turn by
+reflection, which turns that decision into a failing test rather than a review catch. A named type
+is never a decorator: its name is public surface. An emitter collapses a decorator into the
+reference it decorates (emitter-design §4.15), and a compiler names what holds one as it names what
+holds that reference, so the two spellings of one use name it alike
+([`union`](./compilers/openapi.md#union)).
 
 ---
 
@@ -1471,6 +1557,10 @@ type Operation struct {
     Request    *Payload           // body/message content, nil = none
     Responses  []Response         // ordered; success + alternative successes
     Errors     []ErrorCase        // declared failure shapes
+    Default    *Response          // the response for every outcome no entry of Responses or Errors
+                                  // names, which the source classes neither a success nor a failure
+                                  // (OpenAPI `default`); Conditions hold the catch-all alone;
+                                  // nil = none
 
     OneWay     bool               // fire-and-forget: no response EVER exists (OTP cast, AsyncAPI
                                   // send-without-reply, Thrift oneway, JSON-RPC notifications).
@@ -1632,6 +1722,19 @@ Design notes:
 - **Errors reference error models**, which `irfacts.Index.Usage` marks `UsageError` (§4.9), with
   status conditions and range collapsing exactly as Kiota's error mappings (`404`, `4XX`,
   catch-all).
+- **A status's class is the protocol's; a catch-all's is no one's.** An HTTP status code states its
+  own class (RFC 9110 §15): a status below 400 lowers to a `Response`, and one from 400 to an
+  `ErrorCase` whose `Fault` is `client` for 4xx and `server` for 5xx, since that is what the code
+  means rather than a reading of the API. OpenAPI's `default` states none: it answers every status
+  the map does not name, successes and failures alike, and is an operation's only description of
+  success where the map names no success. So it lowers to `Default`, never to either list, and which
+  it answers — the success response where the operation declares none, the error fallback beside a
+  success, or both — is the plan's to decide under its policy (emitter-design §3.5), where every
+  other choice of a primary response is made (invariants 2 and 6). A format whose catch-all is
+  declared an error, as TypeSpec's `@error` model with no status code is, lowers it to an
+  `ErrorCase` with the catch-all condition instead. `pass/validate` holds `Default.Conditions` to
+  the catch-all alone (`ir/default-response-conditions`), and a `OneWay` operation to having no
+  `Default` either.
 - **`OneWay` is on the neutral core**, like `Streaming` and `Idempotency`, because
   fire-and-forget is protocol-independent — an SDK that blocks awaiting a reply on a cast is
   wrong regardless of transport. The AsyncAPI compiler sets it for send-operations without a
@@ -2171,9 +2274,12 @@ them, and which entry survives follows the order the two were declared in, silen
 orders. That is the failure §4.3 describes for a minted node reusing a pointer, reached by a
 different route.
 
-Scoped and unscoped keys stay apart on top of that, because no scope segment begins with `x-` and
-every vendor-extension name does — the same gap that separates both from the non-extension entries
-a shared carrier holds under those scopes, such as `openapi:encoding/<part>/allowReserved`.
+Scoped and unscoped keys stay apart on top of that, because every vendor-extension name begins with
+`x-` and no scope does. A scope opens with a keyword the compiler writes, and where one scope on a
+carrier extends another, what it adds opens with one too. A segment the document names may begin
+with `x-`, as a callback named `x-hook` keeps its extensions under `openapi:callbacks/x-hook/`, but
+only after such a keyword. The same gap separates both from the non-extension entries a shared
+carrier holds under those scopes, such as `openapi:encoding/<part>/allowReserved`.
 
 | Reason | Meaning |
 |---|---|
@@ -2244,11 +2350,15 @@ this from `Unmodeled` and no two derive it differently:
    provenance of its own, so no key maps into either until one of them gains one.
 
 What the OpenAPI compiler's default mapping reads, and what it does with a value the field cannot
-hold, is its rule [`extension-promotion`](./compilers/openapi.md#extension-promotion). Three more
-of its rules decide what reaches the IR from a document of a given minor —
+hold, is its rule [`extension-promotion`](./compilers/openapi.md#extension-promotion). Others of
+its rules decide what reaches the IR from a document of a given minor —
 [`unmodeled-dialect-fields`](./compilers/openapi.md#unmodeled-dialect-fields),
-[`later-version-construct`](./compilers/openapi.md#later-version-construct) and
-[`minor-required-fields`](./compilers/openapi.md#minor-required-fields) — and
+[`later-version-construct`](./compilers/openapi.md#later-version-construct), which reads the keys
+beside a 3.0 schema's `$ref` as 3.1 does,
+[`minor-required-fields`](./compilers/openapi.md#minor-required-fields), and
+[`nullable`](./compilers/openapi.md#nullable), whose policy reads `nullable` wherever it is written,
+though 3.0 confines it to a `type` beside it and 3.1 removed it, and keywords beside a `$ref` that
+admit null as a nullable reference — and
 [`unreferenced-components`](./compilers/openapi.md#unreferenced-components) keeps the component
 entries no reference reaches.
 
@@ -2345,6 +2455,8 @@ type Diagnostic struct {
 ```
 
 Everything heuristic is auditable; everything broken is reportable with an exact source location.
+A reference has no `Provenance`, so a heuristic that sets a reference's `Nullable` names itself in
+the reference's own `TypeRef.Inferred` (§3.3).
 
 The one exception is what `NoSource` exists for. A pass reporting on the document it was handed has
 no input file to name, and every real index — `0` included — names a file the document loaded, so
@@ -2355,7 +2467,8 @@ that addresses no declared source, so a producer inventing a second sentinel is 
 tolerated.
 
 **A refusal still has a table.** A compile that refuses returns no `Document`, yet its diagnostics
-index the table that document would have carried. The compiler names it without reading anything
+index the table that document's `Sources` would have begun with, the inputs the compile was handed,
+which a document a reference names follows. The compiler names it without reading anything
 (`compilers.Compiler.SourceTable`), and the engine returns it beside the findings as
 `engine.Result.Sources`. A finding about a whole source carries its index and no locator, even one
 made before any compiler claimed the spec, which names it as source `0`: it is about a file the

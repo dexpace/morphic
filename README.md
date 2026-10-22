@@ -61,9 +61,10 @@ and [IR design](docs/ir-design.md) give the reasoning.
 - **Heuristics are policy.** Anything inferred rather than declared, such as which media types
   imply a stream or which vendor extensions fill typed fields, is an injectable policy the caller
   can change or switch off, and what it produces is marked as inferred in the IR's provenance.
-- **Untrusted input is bounded.** External `$ref`s are off unless enabled, and budgets on source
-  size, parsed nodes, enum members and YAML alias expansion turn a pathological document into a
-  diagnostic instead of an exhausted host.
+- **Untrusted input is bounded.** Unless `allow-external-refs` is set, a `$ref` reads only files
+  inside the spec's directory, and only through relative references. Budgets on source size, parsed
+  nodes, enum members and YAML alias expansion turn a pathological document into a diagnostic
+  instead of an exhausted host.
 
 ## Pipeline
 
@@ -192,9 +193,10 @@ OpenAPI compiler accepts:
 | Option | Values | Meaning |
 |---|---|---|
 | `grouping` | `tags` (default), `path-prefix` | How operations are grouped into operation groups. |
-| `allow-external-refs` | `true`, `false` (default) | Let `$ref` resolution leave the source document, reading files (by path or local `file:` URI) and fetching URLs. |
+| `allow-external-refs` | `true`, `false` (default) | Let `$ref` resolution read documents outside the spec's directory: files anywhere (by path or local `file:` URI) and http(s) URLs. Off, only a relative `$ref` into another document is read, and only a regular file inside the spec's directory tree, symbolic links included; any other, an absolute path or `file:` URI among them, is reported unresolved, whatever another `$ref` names the same file by. |
 | `overlay` | a file path | Apply an [OpenAPI Overlay](https://spec.openapis.org/overlay/latest.html) document to the source before lowering. |
 | `overlay-lax` | `true`, `false` (default) | Do not refuse when an overlay action's selector matches nothing. |
+| `nullable-widening` | `true` (default), `false` | Read `nullable: true` as admitting null wherever a schema writes it, and keywords beside a `$ref` that admit null as a nullable reference, marking each reference only that reading makes nullable as inferred. `false` reads them only as the document's OpenAPI version does. |
 | `max-source-bytes` | an integer | The byte budget for one document. |
 | `max-source-nodes` | an integer | The budget on the YAML nodes one document parses to. |
 | `max-enum-members` | an integer | The budget on the members of one enum. |
@@ -215,7 +217,8 @@ built-in compiler and the default IR passes. `Run` reads the spec, asks the regi
 which one recognizes it, compiles, and runs the passes in order, each over the document the one
 before it returned. `RunOptions.DisablePasses` turns passes off by name (`engine.ValidatePass`
 names the referential-integrity check), and a name no pass carries fails the run with
-`engine.ErrUnknownPass`.
+`engine.ErrUnknownPass`. A compiler breaking its contract, say by returning a document whose source
+table does not describe the spec, fails the run with an error wrapping `compilers.ErrContract`.
 
 ```go
 eng, err := engine.New()
@@ -227,18 +230,27 @@ res, err := eng.Run(ctx, "openapi.yaml", engine.RunOptions{
     CompilerOptions: map[string]string{"grouping": "path-prefix"},
 })
 if err != nil {
-    return err // misuse or I/O; problems in the spec arrive as diagnostics
+    return err // misuse, I/O or a broken contract; problems in the spec arrive as diagnostics
 }
 
-for _, d := range res.Diagnostics {
-    fmt.Println(d.Severity, d.Code, d.Message)
+// The CLI's own rendering, one diagnostic per line.
+if err := report.WriteDiagnostics(os.Stderr, res.Diagnostics, res.Sources); err != nil {
+    return err
 }
 if res.Failed {
     return errors.New("the spec has problems") // no document, or a diagnostic at FailOn
 }
 
-data, err := json.Marshal(res.Document) // encoding/json/v2; canonical, deterministic bytes
+// Canonical, deterministic bytes, replacing the file atomically as `-o` does.
+return output.ReplaceDocument("api.ir.json", res.Document, output.Compact)
 ```
+
+`RunSources` compiles sources already in memory: the first is the spec, every source is a document
+its references or its settings may name by its `Path`, and nothing else is read, so a spec split
+across files compiles without a file written. `RunDocument` runs the passes over a document already
+compiled, such as one decoded from a file. `engine/report` renders diagnostics and `--explain`
+(`report.Explain`) exactly as the CLI prints them, and `engine/output` writes a document as the CLI
+does: to a stream whole or not at all, or to a file replaced atomically.
 
 A Go error from `Run` means misuse or I/O. Everything wrong with the spec itself, including a spec
 no compiler can lower, is a diagnostic in the result, with a nil `Document` when nothing could be
@@ -266,7 +278,8 @@ entry in that test allows, and nothing from a layer above its own.
 | `pass/` | 1: IR → IR passes | `ir` + `ir/irfacts` |
 | `emitters/*` | 2: IR → artifacts (not built yet) | `ir` + emitter contract |
 | `engine/` | 3: orchestration | everything below |
-| `cmd/morphic/` | 4: CLI | `engine` + `ir` + its command framework (`cobra`, `pflag`) |
+| `engine/reader/`, `engine/report/`, `engine/output/` | 3: what the engine reads, renders and writes | `compilers`; `ir`; `ir` + `engine/internal/atomicfile` (over `renameio`) |
+| `cmd/morphic/` | 4: CLI | `engine` (and its `report` and `output`) + `ir` + its command framework (`cobra`, `pflag`) |
 | `cmd/morphic-harness/`, `cmd/morphic-census/`, `cmd/morphic-covergate/`, `cmd/morphic-vet/`, `internal/*` | tooling outside the pipeline: the oracle sweep, the census of IR facts, the coverage gate's judge, the go vet tool and the lint rules it runs, the architecture rules, the goroutine leak check, type-checked reads of declarations for tests, the IR's JSON shape that the IRVersion pin and the census read, the reader of the keyed documents, shared fixtures | as their entries allow; `internal/harness` is exempt |
 
 Compilers and emitters never import each other. A compiler's own `internal/` packages each carry
@@ -306,11 +319,12 @@ Run a single test with `go test ./ir -run TestName`. Beyond that:
 - **Conformance corpus.** Each case in `testdata/conformance/openapi/` is a minimal spec that
   witnesses one or more rows of the [spec capability matrix](docs/ir-spec-matrix.md). To add one,
   write `<name>.yaml`, add an entry to `conformanceCases()` in
-  `compilers/openapi/conformance_test.go` naming its assertion and the matrix row keys it
-  witnesses, then run the command above to write `<name>.golden.json`, and name the case in the
-  rule of the [OpenAPI lowering specification](docs/compilers/openapi.md) it pins. The suite fails
-  on a spec with no entry, on a case no rule names, and on a matrix row OpenAPI can express that no
-  case witnesses, unless the row is listed as uncovered with a reason.
+  `compilers/openapi/conformance_test.go` naming its assertion, list it under the matrix rows it
+  witnesses in `testdata/conformance/openapi/matrix.md`, then run the command above to write
+  `<name>.golden.json`, and name the case in the rule of the
+  [OpenAPI lowering specification](docs/compilers/openapi.md) it pins. The suite fails on a spec
+  with no entry, on a case no rule names, and on a matrix row OpenAPI can express that no case
+  witnesses, unless `matrix.md` lists the row as uncovered with a reason.
 - **Oracle harness.** `go run ./cmd/morphic-harness <file|dir>` sweeps specs through the
   bug-catching oracles, stopping at the first that fires for each: no panic, no error diagnostic,
   the `ir/irverify` structural invariants, JSON round-trip, determinism, and order-invariance. It

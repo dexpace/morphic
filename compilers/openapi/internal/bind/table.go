@@ -3,6 +3,7 @@ package bind
 import (
 	"cmp"
 	"encoding/json/jsontext"
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
@@ -28,12 +29,18 @@ type Config struct {
 	// names none. Nil names each document by its uri.
 	Locate func(uri, base string) (string, bool)
 	// Open returns the tree of the document named name, read under the
-	// compile's budgets. Nil reads no other document.
+	// compile's budgets, or an *UnparsableError for one that was read and does
+	// not parse, or ErrEmptyDocument for one that holds nothing. Nil reads no
+	// other document.
 	Open func(name string) (*yaml.Node, error)
-	// Through returns where the chain of the source's reference object at a
-	// pointer ends, as the parser's resolver followed it. Nil, or false, is a
-	// reference that resolved to nothing.
-	Through func(pointer jsontext.Pointer) (ReferenceEnd, bool)
+	// Refuse returns why a reference whose document part is uri, as written,
+	// is refused unread by that spelling alone, however another reference
+	// names the same document, or nil. Nil refuses none.
+	Refuse func(uri string) error
+	// Through returns where the chain of the reference object at a pointer of
+	// the document named name ends, as the parser's resolver followed it. Nil,
+	// or false, is a reference that resolved to nothing.
+	Through func(name string, pointer jsontext.Pointer) (ReferenceEnd, bool)
 	// Beside returns the path item $ref, and the key written beside it, whose
 	// fields a pointer passes through. Nil passes none.
 	Beside func(pointer jsontext.Pointer) (use jsontext.Pointer, key string, ok bool)
@@ -45,6 +52,30 @@ type Config struct {
 	// Limit bounds the work; zero is DefaultLimit.
 	Limit int
 }
+
+// ErrEmptyDocument is the failure of Config.Open, or of the tree it returns,
+// for a document that was read and holds nothing (see IsEmpty).
+var ErrEmptyDocument = errors.New("the document is empty")
+
+// IsEmpty reports whether tree, a document as parsed, holds nothing: no node,
+// though it may hold white space and comments. A document holding null is not
+// empty.
+func IsEmpty(tree *yaml.Node) bool {
+	root := nodeview.DocumentRoot(tree)
+	return root == nil || root.Kind == 0
+}
+
+// UnparsableError is the failure of Config.Open for a document that was read
+// and does not parse: Err is the parser's reason, which says where.
+type UnparsableError struct {
+	Err error
+}
+
+// Error says the document does not parse, and the parser's reason.
+func (e *UnparsableError) Error() string { return "it does not parse as YAML: " + e.Err.Error() }
+
+// Unwrap returns the parser's reason.
+func (e *UnparsableError) Unwrap() error { return e.Err }
 
 // ReferenceEnd is where the parser's resolver ended a reference object's
 // chain: the name of the document, the pointer its last $ref writes there, and
@@ -75,14 +106,16 @@ func (w *budget) over() bool { return w.spent > w.limit }
 
 // binder is the state of one table's building.
 type binder struct {
-	cfg    Config
-	docs   *docs
-	work   *budget
-	defs   definitions
-	find   *finder
-	hops   map[Position]Hop
-	chains map[Position]Chain
-	loops  []Loop
+	cfg       Config
+	docs      *docs
+	work      *budget
+	defs      definitions
+	resources resources
+	find      *finder
+	ids       *identifiers
+	hops      map[Position]Hop
+	chains    map[Position]Chain
+	loops     []Loop
 }
 
 // Bind reads every schema reference the source tree src holds, and every
@@ -93,9 +126,10 @@ func Bind(src *yaml.Node, cfg Config) *Table {
 	}
 	work := &budget{limit: cfg.Limit}
 	d := newDocs(src, cfg, work)
-	b := &binder{cfg: cfg, docs: d, work: work, defs: definitions{docs: d, work: work}, find: newFinder(d, work),
-		hops: map[Position]Hop{}, chains: map[Position]Chain{}}
+	b := &binder{cfg: cfg, docs: d, work: work, defs: definitions{docs: d, work: work}, resources: resources{d},
+		find: newFinder(d, work), hops: map[Position]Hop{}, chains: map[Position]Chain{}}
 	b.find.walk(rootOf(Source, sDocument), false)
+	b.ids = b.find.ids
 	t := &Table{entries: map[Position]Entry{}, mappings: map[mappingKey]Mapping{}}
 	for more := true; more && !work.over(); more = b.find.walkPending() {
 		b.settle(t)
@@ -117,13 +151,13 @@ func (b *binder) settle(t *Table) {
 	sites, keys := b.find.fresh, b.find.freshMappings
 	b.find.fresh, b.find.freshMappings = nil, nil
 	b.work.spend(len(sites) + len(keys))
-	slices.SortFunc(sites, comparePositions)
+	slices.SortFunc(sites, b.docs.compare)
 	for _, site := range sites {
 		c := b.chain(site)
 		t.entries[site] = Entry{Site: site, Hop: b.hops[site], Chain: c}
 	}
 	slices.SortFunc(keys, func(x, y mappingKey) int {
-		if c := comparePositions(x.at, y.at); c != 0 {
+		if c := b.docs.compare(x.at, y.at); c != 0 {
 			return c
 		}
 		return cmp.Compare(x.value, y.value)
@@ -153,21 +187,22 @@ func (b *binder) table(t *Table) *Table {
 		site, reached := reach[at]
 		t.landings = append(t.landings, Landing{At: at, Name: t.docs[at.Doc].Name, Site: site, Reached: reached})
 	}
-	slices.SortFunc(t.landings, func(x, y Landing) int { return comparePositions(x.At, y.At) })
+	slices.SortFunc(t.landings, func(x, y Landing) int { return t.compare(x.At, y.At) })
 	return t
 }
 
-// attribute returns, for each position some source $ref's or mapping value's
-// chain reaches, the least such source position. Starting from each in order,
-// a chain is followed until it meets a position a lesser start reached, whose
-// chain on from there that start has marked, so each position is marked once.
+// attribute returns, for each position some $ref's or mapping value's chain
+// reaches, the least such position, in whichever document. Starting from each
+// in order, a chain is followed until it meets a position a lesser start
+// reached, whose chain on from there that start has marked, so each position
+// is marked once.
 func (b *binder) attribute(t *Table) map[Position]Position {
 	type start struct {
 		from, first Position
 	}
 	var starts []start
 	add := func(from Position, h Hop) {
-		if from.Doc == Source && h.Status == Resolved {
+		if h.Status == Resolved {
 			starts = append(starts, start{from: from, first: h.Target})
 		}
 	}
@@ -178,10 +213,10 @@ func (b *binder) attribute(t *Table) map[Position]Position {
 		add(m.At, m.Hop)
 	}
 	slices.SortFunc(starts, func(x, y start) int {
-		if c := comparePositions(x.from, y.from); c != 0 {
+		if c := b.docs.compare(x.from, y.from); c != 0 {
 			return c
 		}
-		return comparePositions(x.first, y.first)
+		return b.docs.compare(x.first, y.first)
 	})
 	reach := map[Position]Position{}
 	for _, s := range starts {
@@ -215,7 +250,7 @@ type Table struct {
 	loops     []Loop
 	landings  []Landing
 	docs      []Document
-	ends      map[jsontext.Pointer]Position
+	ends      map[Position]Position
 	steps     int
 	limit     int
 	exhausted bool
@@ -233,7 +268,7 @@ func (t *Table) Entry(site Position) (Entry, bool) {
 // Entries returns every entry, ordered by site.
 func (t *Table) Entries() []Entry {
 	out := slices.Collect(maps.Values(t.entries))
-	slices.SortFunc(out, func(x, y Entry) int { return comparePositions(x.Site, y.Site) })
+	slices.SortFunc(out, func(x, y Entry) int { return t.compare(x.Site, y.Site) })
 	return out
 }
 
@@ -254,15 +289,28 @@ func (t *Table) Landings() []Landing { return slices.Clone(t.landings) }
 // Document returns the document id names.
 func (t *Table) Document(id DocID) Document { return t.docs[id] }
 
+// compare orders positions as the table reads them: the source's first,
+// another document's by its name, then by pointer (comparePositions).
+func (t *Table) compare(p, q Position) int {
+	if c, ok := byName(p, q, t.name); ok {
+		return c
+	}
+	return comparePositions(p, q)
+}
+
+// name returns the name of the document id names.
+func (t *Table) name(id DocID) string { return t.docs[id].Name }
+
 // Documents reports how many documents the table read, the source included.
 func (t *Table) Documents() int { return len(t.docs) }
 
-// Through returns where the source's reference object at pointer resolves
-// to: where the parser's resolver ended its chain (Config.Through), read on
-// through any reference object that end lies past. It is false for a position
-// writing no $ref, or one whose end the table could not read.
-func (t *Table) Through(pointer jsontext.Pointer) (Position, bool) {
-	at, ok := t.ends[pointer]
+// Through returns where the reference object at site resolves to, in
+// whichever document: where the parser's resolver ended its chain
+// (Config.Through), read on through any reference object that end lies past.
+// It is false for a position writing no $ref, or one whose end the table could
+// not read.
+func (t *Table) Through(site Position) (Position, bool) {
+	at, ok := t.ends[site]
 	return at, ok
 }
 

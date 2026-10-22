@@ -280,11 +280,11 @@ func (claimsNothing) Detect(compilers.Source, compilers.Options) (compilers.Reco
 	return compilers.Recognition{}, nil, true
 }
 
-// TestRegistry_DetectSkipsACompilerThatClaimsWithoutNaming pins that a compiler
-// answering "mine" while naming no format does not end the search. Ending it
-// there would make a source the next compiler would have taken come back
-// unrecognized, with nothing in the output naming the compiler that swallowed it.
-func TestRegistry_DetectSkipsACompilerThatClaimsWithoutNaming(t *testing.T) {
+// TestRegistry_DetectRefusesAClaimNamingNoFormat pins that a compiler answering
+// "mine" while naming no format ends the search with an error naming it, rather
+// than being passed over: passing over it hid which compiler had swallowed a
+// source, and ending the search in silence hides the source from the next one.
+func TestRegistry_DetectRefusesAClaimNamingNoFormat(t *testing.T) {
 	t.Parallel()
 	broken := &claimsNothing{stubCompiler{
 		formats: []compilers.SourceFormat{{Name: "alpha", Version: "1"}},
@@ -297,11 +297,11 @@ func TestRegistry_DetectSkipsACompilerThatClaimsWithoutNaming(t *testing.T) {
 	require.NoError(t, reg.Register(broken))
 	require.NoError(t, reg.Register(claims))
 
-	got, rec, _, ok := detect(t, reg, compilers.Source{Path: "s.txt", Data: []byte("beta")})
+	_, ok, err := reg.Detect(t.Context(), compilers.Source{Path: "s.txt", Data: []byte("beta")}, nil)
 
-	require.True(t, ok, "the compiler after the broken one must still be asked")
-	assert.Same(t, compilers.Compiler(claims), got)
-	assert.Equal(t, compilers.SourceFormat{Name: "beta", Version: "2"}, rec.Format)
+	require.ErrorIs(t, err, compilers.ErrContract)
+	assert.Contains(t, err.Error(), "alpha@1", "the error names the compiler that broke the contract")
+	assert.False(t, ok)
 }
 
 // TestRegistry_FormatsAreSortedNotRegistrationOrder pins both halves of what

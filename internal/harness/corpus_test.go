@@ -2,7 +2,9 @@ package harness_test
 
 import (
 	"context"
+	"io/fs"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -22,22 +24,9 @@ func knownInvalid() map[string]bool {
 		// A response with no description and a header whose required is the
 		// string "notabool": two schema violations.
 		filepath.FromSlash("../../testdata/openapi/resolve_target_invalid.yaml"): true,
-		// $refs the malformed target above across files, and external refs are
-		// refused by default, so it is an unresolved-ref error.
+		// $refs the malformed target above across files, so its schema
+		// violations are reported as errors.
 		filepath.FromSlash("../../testdata/openapi/resolve_main_external.yaml"): true,
-		// Well-formed, unlike every other entry here. Both $ref a sibling
-		// document, which the compiler opens only under AllowExternalRefs; the
-		// sweep leaves it off (#31). Tests of their cross-document lowering opt
-		// in. They compile clean, and come off this list, once external targets
-		// load as sources (#74).
-		filepath.FromSlash("../../testdata/openapi/resolve_main_external_valid.yaml"):       true,
-		filepath.FromSlash("../../testdata/openapi/resolve_main_alias_external_valid.yaml"): true,
-		// A path item's $ref with an operation written beside it, whose
-		// parameter $refs resolve_target_path_item_sibling.yaml. The sweep's
-		// default refuses external refs, so the load phase reports it
-		// unresolved rather than dropping it (#577); the test of the
-		// cross-document lowering opts in.
-		filepath.FromSlash("../../testdata/openapi/resolve_main_path_item_sibling.yaml"): true,
 		// Degenerate ref cycles that never reach a concrete schema node. The
 		// pre-parse detector reports cyclic-ref instead of letting the parser
 		// stack-overflow (#12).
@@ -140,6 +129,10 @@ func knownInvalid() map[string]bool {
 		// node, but the loader reports the malformed JSON pointer as an
 		// unresolved-ref error first (#14).
 		filepath.FromSlash("../../testdata/dangling/openapi/f32-ref-noncanonical-escape.yaml"): true,
+		// A parameter and a header writing both schema and content, which the
+		// specification bars ("but not both"); the case pins how such a document
+		// lowers.
+		filepath.FromSlash("../../testdata/conformance/openapi/codeclared-schema-content.yaml"): true,
 		// The other dangling reproducers (f07, f08, f10, f11, f13, f28, f31)
 		// intern their targets and compile clean, so they are absent. f08 and
 		// f13 map a tag to a sub-schema that is not a subtype; it resolves as
@@ -148,15 +141,58 @@ func knownInvalid() map[string]bool {
 	}
 }
 
+// fixtureFiles returns every regular file under root that is a fixture rather
+// than a snapshot (a name containing ".golden.") or a document (".md"). Names
+// that begin with a dot are left out, as the sweep leaves out dot-directories,
+// so a file a tool drops beside the fixtures, such as .DS_Store, is not one.
+func fixtureFiles(t *testing.T, root string) []string {
+	t.Helper()
+	var files []string
+	require.NoError(t, filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		name := d.Name()
+		if p != root && strings.HasPrefix(name, ".") {
+			if d.IsDir() {
+				return fs.SkipDir
+			}
+			return nil
+		}
+		if d.Type().IsRegular() && !strings.Contains(name, ".golden.") && filepath.Ext(name) != ".md" {
+			files = append(files, p)
+		}
+		return nil
+	}))
+	return files
+}
+
 // TestHarness_InRepoCorpus sweeps every committed spec through all oracles. Any
 // non-OK outcome on a spec that is not a known-invalid fixture is a finding; the
 // failure message is the full report so the offending specs are named at once.
+//
+// The sweep lists a file only when a registered compiler claims it, so a fixture
+// that stops being recognized would drop out of it with every oracle green. It
+// also requires every fixture to be listed.
 func TestHarness_InRepoCorpus(t *testing.T) {
 	t.Parallel()
 	const root = "../../testdata"
 	swept, err := harness.CheckPath(context.Background(), root)
 	require.NoError(t, err)
 	require.NotEmpty(t, swept, "corpus sweep found no specs under %s", root)
+
+	listed := make(map[string]bool, len(swept))
+	for _, r := range swept {
+		listed[r.Spec] = true
+	}
+	var unlisted []string
+	for _, f := range fixtureFiles(t, root) {
+		if !listed[f] {
+			unlisted = append(unlisted, f)
+		}
+	}
+	assert.Empty(t, unlisted, "fixtures no registered compiler claims are not swept; "+
+		"fix the fixture, or if it is deliberately not a spec, move it out of testdata")
 
 	invalid := knownInvalid()
 	seenInvalid := make(map[string]bool, len(invalid))
