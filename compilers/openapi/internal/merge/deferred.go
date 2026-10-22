@@ -3,6 +3,7 @@ package merge
 import (
 	"encoding/json/jsontext"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -40,12 +41,16 @@ func foldOrDefer(g *Merger, m *ir.Model, e *indexed, src ir.Property, source Sou
 	e.pending.decls = append(e.pending.decls, declaration{prop: src, source: source})
 }
 
-// settle replays the redeclarations in order against the registry the walk
-// left. It does nothing when m is no longer the node registered under its ID:
-// a $ref reached it first and its declaration built it again, and the
-// settlement that build queued holds the node now registered.
+// settle replays the redeclarations in order against the whole registry. No
+// lowering builds a model twice, so m is the node registered under its ID; one
+// that is not is a compiler bug, reported rather than folded into a node the
+// document does not hold.
 func (d *deferredFold) settle(reg ir.TypeRegistry, report Reporter) {
 	if reg[d.m.ID] != ir.TypeDef(d.m) {
+		at := d.decls[0].prop
+		report(ir.SeverityError, diag.InternalInvariant, at.Provenance.Pointer,
+			"internal: %q is not the node registered under its ID, so the redeclarations of field %q deferred on it are not folded",
+			d.m.ID, at.WireName)
 		return
 	}
 	g := Merger{

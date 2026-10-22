@@ -85,7 +85,11 @@ func TestMergeProperty_AValueJudgedAgainstAMissedTypeDefers(t *testing.T) {
 	assert.NotNil(t, m.Properties[0].Default, "nothing is refused before the settlement runs")
 }
 
-func TestMergeProperty_ASettlementOfAReplacedModelDoesNothing(t *testing.T) {
+// TestMergeProperty_ASettlementOfAReplacedModelIsAnInvariantBreach pins that a
+// fold deferred on a model the registry no longer holds under its ID is
+// reported as a compiler bug and not taken. No lowering rebuilds a model, so no
+// document reaches it; folding silently into the orphan would hide the bug.
+func TestMergeProperty_ASettlementOfAReplacedModelIsAnInvariantBreach(t *testing.T) {
 	t.Parallel()
 	g, queued, _ := deferring(map[ir.TypeID]ir.TypeDef{"t/str": &ir.Primitive{ID: "t/str", Prim: ir.PrimString}})
 	m, idx := &ir.Model{ID: "t/m"}, NewPropIndex()
@@ -94,10 +98,15 @@ func TestMergeProperty_ASettlementOfAReplacedModelDoesNothing(t *testing.T) {
 	require.Len(t, *queued, 1)
 
 	reg := ir.TypeRegistry{"t/m": &ir.Model{ID: "t/m"}, "t/int": &ir.Primitive{ID: "t/int", Prim: ir.PrimInt32}}
-	(*queued)[0](reg, func(ir.Severity, string, jsontext.Pointer, string, ...any) {
-		t.Fatal("a settlement of a node no longer registered reports nothing")
+	var settled []ir.Diagnostic
+	(*queued)[0](reg, func(sev ir.Severity, code string, pointer jsontext.Pointer, format string, args ...any) {
+		settled = append(settled, diag.Newf(sev, code, ir.Provenance{Pointer: pointer}, format, args...))
 	})
 
+	require.Len(t, settled, 1)
+	assert.Equal(t, diag.InternalInvariant, settled[0].Code)
+	assert.Equal(t, ir.SeverityError, settled[0].Severity)
+	assert.Equal(t, jsontext.Pointer("/allOf/1/properties/v"), settled[0].Provenance.Pointer, "at the first redeclaration deferred")
 	assert.Empty(t, m.Properties[0].Unmodeled, "the replaced model is left as it was")
 }
 
