@@ -4,7 +4,6 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/spelling"
 	"github.com/dexpace/morphic/ir"
 )
@@ -507,12 +506,15 @@ func (j typeJudge) admitsFields(elem ir.TypeRef, fs []ir.Field, depth int) bool 
 	return true
 }
 
-// sameValue reports whether a and b are one value; numbers compare by
-// magnitude, so 1 and 1.0 are one.
+// sameValue reports whether a and b are one JSON value: canonicalValue spells
+// them alike, so a number compares by magnitude, 1 and 1.0 being one, and an
+// object by its members whatever their order. A value canonicalValue cannot
+// spell compares deeply.
 func sameValue(a, b ir.Value) bool {
-	if a.Kind == ir.ValueNumber && b.Kind == ir.ValueNumber {
-		order, ok := annotation.CompareBigVal(a.Num, b.Num)
-		return ok && order == 0
+	ak, aok := canonicalValue(a, 0)
+	bk, bok := canonicalValue(b, 0)
+	if aok && bok {
+		return ak == bk
 	}
 	return reflect.DeepEqual(a, b)
 }

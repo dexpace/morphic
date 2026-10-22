@@ -243,21 +243,116 @@ func TestFold_ADroppedDeclarationStillSaysWhatIsNotShape(t *testing.T) {
 	assert.Contains(t, got.Unmodeled, losingDeclarationKey+"/k/integer")
 }
 
-// TestFold_UnmodeledUnionsLaterWinning pins what the field keeps of every
-// declaration's Unmodeled: each entry, since the keys are namespaced, and a
-// later declaration's on a key two share.
-func TestFold_UnmodeledUnionsLaterWinning(t *testing.T) {
+// stringAt returns a declaration of field p typed string, written at pointer,
+// whose source renders as raw.
+func stringAt(pointer, raw string) declaration {
+	return declaration{
+		prop:   ir.Property{WireName: "p", Type: primRef(ir.PrimString), Provenance: ptrAt(jsontext.Pointer(pointer))},
+		source: written(raw),
+	}
+}
+
+// TestFold_UnmodeledKeepsTheFirstOfAKeyAndReportsAnother pins what the field
+// keeps of every declaration's Unmodeled. Each entry lands, since the keys are
+// namespaced, and one two declarations give alike lands once, unreported. A
+// key a later declaration gives another value is the first one's; the later
+// one is reported and kept verbatim, as a detail given differently is, so the
+// field does not follow branch order and nothing goes without a word.
+func TestFold_UnmodeledKeepsTheFirstOfAKeyAndReportsAnother(t *testing.T) {
 	t.Parallel()
-	g, recorded := stubMerger(narrowingRegistry())
 	entry := func(v string) ir.UnmodeledEntry { return ir.UnmodeledEntry{Value: ir.RawValue(v)} }
-	first, second := kindDecl(ir.PrimString, nil), kindDecl(ir.PrimString, nil)
-	first.prop.Unmodeled = ir.Unmodeled{"x-a": entry(`1`), "x-shared": entry(`"first"`)}
-	second.prop.Unmodeled = ir.Unmodeled{"x-b": entry(`2`), "x-shared": entry(`"second"`)}
+	first, second := stringAt("/allOf/0/properties/p", `{"x":0}`), stringAt("/allOf/1/properties/p", `{"x":1}`)
+	first.prop.Unmodeled = ir.Unmodeled{"x-a": entry(`1`), "x-alike": entry(`"s"`), "x-shared": entry(`"first"`)}
+	second.prop.Unmodeled = ir.Unmodeled{"x-b": entry(`2`), "x-alike": entry(`"s"`), "x-shared": entry(`"second"`)}
 
-	got := g.fold([]declaration{first, second})
+	for _, order := range [][]declaration{{first, second}, {second, first}} {
+		g, recorded := stubMerger(narrowingRegistry())
+		kept, other := order[0], order[1]
 
-	assert.Equal(t, ir.Unmodeled{"x-a": entry(`1`), "x-b": entry(`2`), "x-shared": entry(`"second"`)}, got.Unmodeled)
-	assert.Empty(t, *recorded)
+		got := g.fold(order)
+
+		assert.Equal(t, kept.prop.Unmodeled["x-shared"], got.Unmodeled["x-shared"], "the first declaration's value stands")
+		for _, key := range []string{"x-a", "x-b", "x-alike"} {
+			assert.Contains(t, got.Unmodeled, key)
+		}
+		assert.Contains(t, got.Unmodeled, losingDeclarationKey+string(other.prop.Provenance.Pointer), "the other is kept verbatim")
+		require.Len(t, *recorded, 1, "only the key given differently is reported")
+		assert.Equal(t, diag.DegradedConstruct, (*recorded)[0].Code)
+		assert.Equal(t, other.prop.Provenance.Pointer, (*recorded)[0].Provenance.Pointer)
+		assert.Contains(t, (*recorded)[0].Message, "give its x-shared differently")
+	}
+}
+
+// TestFold_AValueSpelledTwoWaysIsOneValue pins that a default and examples
+// compare as JSON values: a number by magnitude and an object by its members
+// whatever their order, so two declarations writing one value two ways agree,
+// with nothing reported or kept.
+func TestFold_AValueSpelledTwoWaysIsOneValue(t *testing.T) {
+	t.Parallel()
+	obj := func(fs ...ir.Field) *ir.Value { return &ir.Value{Kind: ir.ValueObject, Object: fs} }
+	field := func(name, n string) ir.Field { return ir.Field{Name: name, Value: num(n)} }
+	cases := []struct {
+		name string
+		a, b func(p *ir.Property)
+	}{
+		{"a number default", func(p *ir.Property) { v := num("1"); p.Default = &v },
+			func(p *ir.Property) { v := num("1.0"); p.Default = &v }},
+		{"an object default in two member orders", func(p *ir.Property) { p.Default = obj(field("a", "1"), field("b", "2")) },
+			func(p *ir.Property) { p.Default = obj(field("b", "2e0"), field("a", "1")) }},
+		{"examples", func(p *ir.Property) { v := num("2"); p.Examples = []ir.Example{{Name: "e", Value: &v}} },
+			func(p *ir.Property) { v := num("20e-1"); p.Examples = []ir.Example{{Name: "e", Value: &v}} }},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			g, recorded := stubMerger(narrowingRegistry())
+			first := declaration{prop: ir.Property{WireName: "p", Type: primRef(ir.PrimAny), Provenance: ptrAt("/allOf/0/properties/p")}, source: unread(t)}
+			second := declaration{prop: ir.Property{WireName: "p", Type: primRef(ir.PrimAny), Provenance: ptrAt("/allOf/1/properties/p")}, source: unread(t)}
+			tc.a(&first.prop)
+			tc.b(&second.prop)
+
+			got := g.fold([]declaration{first, second})
+
+			assert.Empty(t, *recorded)
+			assert.Empty(t, got.Unmodeled)
+		})
+	}
+	g, recorded := stubMerger(narrowingRegistry())
+	one, two := num("1"), num("2")
+	first := declaration{prop: ir.Property{WireName: "p", Type: primRef(ir.PrimAny), Default: &one, Provenance: ptrAt("/a")}, source: written(`{}`)}
+	second := declaration{prop: ir.Property{WireName: "p", Type: primRef(ir.PrimAny), Default: &two, Provenance: ptrAt("/b")}, source: written(`{}`)}
+	g.fold([]declaration{first, second})
+	require.Len(t, *recorded, 1, "two values are still two")
+}
+
+// TestFold_ThePromotionMarkerFollowsTheDeprecationKept pins that the field
+// names the heuristic that promoted its deprecation whichever declaration gave
+// it: a deprecation promoted from an extension is marked on that declaration's
+// provenance, and the field keeps the first declaration's provenance.
+func TestFold_ThePromotionMarkerFollowsTheDeprecationKept(t *testing.T) {
+	t.Parallel()
+	const marker = "extension-promotion"
+	plain := stringAt("/allOf/0/properties/p", `{}`)
+	promoted := stringAt("/allOf/1/properties/p", `{}`)
+	promoted.prop.Deprecation = &ir.Deprecation{Message: "use q"}
+	promoted.prop.Provenance.Inferred = marker
+	declared := stringAt("/allOf/2/properties/p", `{"deprecated":true}`)
+	declared.prop.Deprecation = &ir.Deprecation{Message: "gone"}
+
+	for _, order := range [][]declaration{{plain, promoted}, {promoted, plain}} {
+		g, recorded := stubMerger(narrowingRegistry())
+		got := g.fold(order)
+		assert.Equal(t, &ir.Deprecation{Message: "use q"}, got.Deprecation)
+		assert.Equal(t, marker, got.Provenance.Inferred, "the promoted deprecation stays marked")
+		assert.Empty(t, *recorded)
+	}
+
+	g, recorded := stubMerger(narrowingRegistry())
+	got := g.fold([]declaration{plain, declared, promoted})
+	assert.Equal(t, &ir.Deprecation{Message: "gone"}, got.Deprecation, "the first deprecation written is kept")
+	assert.Empty(t, got.Provenance.Inferred, "a declared deprecation kept carries no heuristic's name")
+	require.Len(t, *recorded, 1)
+	assert.Equal(t, promoted.prop.Provenance.Pointer, (*recorded)[0].Provenance.Pointer)
 }
 
 // TestFold_DeclarationsPastTheBoundAreKeptUnjudged pins the bound on one fold:
@@ -287,4 +382,46 @@ func TestFold_DeclarationsPastTheBoundAreKeptUnjudged(t *testing.T) {
 	assert.Contains(t, (*recorded)[0].Message, "declared 66 times, past the 64")
 	assert.Equal(t, []string{losingDeclarationKey + string(at(maxFoldDeclarations)), losingDeclarationKey + string(at(maxFoldDeclarations+1))},
 		slices.Sorted(maps.Keys(got.Unmodeled)), "each is kept")
+}
+
+// TestSameValue_ComparesJSONValues pins the value equality the fold and the
+// enum judgment share: one JSON value spelled two ways is one, and a value
+// with no JSON instance, which canonicalValue cannot spell, compares deeply.
+func TestSameValue_ComparesJSONValues(t *testing.T) {
+	t.Parallel()
+	obj := func(fs ...ir.Field) ir.Value { return ir.Value{Kind: ir.ValueObject, Object: fs} }
+	sym := func(s string) ir.Value { return ir.Value{Kind: ir.ValueSymbol, Str: s} }
+	for _, tc := range []struct {
+		name string
+		a, b ir.Value
+		same bool
+	}{
+		{"one number, two spellings", num("1"), num("1.0"), true},
+		{"two numbers", num("1"), num("2"), false},
+		{"one object, two member orders", obj(ir.Field{Name: "a", Value: num("1")}, ir.Field{Name: "b", Value: str("x")}),
+			obj(ir.Field{Name: "b", Value: str("x")}, ir.Field{Name: "a", Value: num("1e0")}), true},
+		{"a number and a string", num("1"), str("1"), false},
+		{"one symbol, compared deeply", sym("s"), sym("s"), true},
+		{"two symbols, compared deeply", sym("s"), sym("t"), false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.same, sameValue(tc.a, tc.b))
+			assert.Equal(t, tc.same, sameValue(tc.b, tc.a))
+		})
+	}
+}
+
+// TestSameExamples_ComparesEachExampleWhole pins that two example lists agree
+// only where each example agrees whole: its value as one JSON value, and its
+// name, summary and description as written, a missing value included.
+func TestSameExamples_ComparesEachExampleWhole(t *testing.T) {
+	t.Parallel()
+	two, twoAgain := num("2"), num("2.0")
+	base := []ir.Example{{Name: "e", Value: &two}}
+	assert.True(t, sameExamples(base, []ir.Example{{Name: "e", Value: &twoAgain}}), "one value spelled two ways")
+	assert.False(t, sameExamples(base, []ir.Example{{Name: "f", Value: &two}}), "a name apart")
+	assert.False(t, sameExamples(base, []ir.Example{{Name: "e"}}), "a value against none")
+	assert.True(t, sameExamples([]ir.Example{{Name: "e"}}, []ir.Example{{Name: "e"}}), "no value on either")
+	assert.False(t, sameExamples(base, nil), "a list against none")
 }

@@ -237,10 +237,17 @@ func intersectNull(dst, src ir.TypeRef) ir.TypeRef {
 		dst.Inferred = ""
 		return dst
 	}
-	for marker := range strings.SplitSeq(src.Inferred, ",") {
-		dst.Inferred = joinMarker(dst.Inferred, marker)
-	}
+	dst.Inferred = joinMarkers(dst.Inferred, src.Inferred)
 	return dst
+}
+
+// joinMarkers adds each marker of the comma-separated list more to list, in
+// order, unless it is empty or already there (joinMarker).
+func joinMarkers(list, more string) string {
+	for marker := range strings.SplitSeq(more, ",") {
+		list = joinMarker(list, marker)
+	}
+	return list
 }
 
 // joinMarker adds marker to the comma-separated list of heuristic names in

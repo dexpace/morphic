@@ -1032,10 +1032,14 @@ each bound, `multipleOf`, a length counted in code points, an item or property c
 written on the property rather than the node are not judged. A value the field does not take is
 reported in an info `openapi/degraded-construct` at each declaration that wrote it, which is kept
 verbatim beside the field. Of the values it takes, the first written is kept, and a declaration
-giving another is reported and kept; values are refused before one is kept, so a value the field
-takes is never lost to a refused one written before it. Constraint keywords merge over the
-declarations folded into the field, the first to set a keyword keeping it; the title, description,
-external links, deprecation and XML hints over every declaration, the first to give one keeping it.
+giving another is reported and kept; two values are one where they are one JSON value, a number by
+its magnitude and an object by its members in any order. Values are refused before one is kept, so a
+value the field takes is never lost to a refused one written before it. Constraint keywords merge
+over the declarations folded into the field, the first to set a keyword keeping it; the title,
+description, external links, deprecation, XML hints and each `Unmodeled` key over every declaration,
+the first to give one keeping it, and a declaration giving one differently is reported and kept. The
+field keeps the first declaration's provenance, joined by the heuristic that promoted its
+deprecation from an extension wherever the deprecation it keeps came from.
 
 The IR has no combinator for "string here, integer there", nor a second slot for a default, title,
 description, external link, examples, deprecation or XML hint another declaration already fills, so
@@ -1133,7 +1137,10 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   `merge.TestFold_AConstraintConflictNamesTheDeclarationKeptFrom`,
   `merge.TestFold_DeclarationsPastTheBoundAreKeptUnjudged`,
   `merge.TestFold_ADroppedDeclarationStillSaysWhatIsNotShape`,
-  `merge.TestFold_UnmodeledUnionsLaterWinning`,
+  `merge.TestFold_UnmodeledKeepsTheFirstOfAKeyAndReportsAnother`,
+  `merge.TestFold_AValueSpelledTwoWaysIsOneValue`,
+  `merge.TestFold_ThePromotionMarkerFollowsTheDeprecationKept`,
+  `schema.TestAllOf_WhatAFieldKeepsOfItsDetailIsOrderFree`,
   `schema.TestAllOf_ARefToAnInlineNodeIsDeclaredApart`,
   `schema.TestAllOf_ACopyANarrowingKeptIsStillACopy`,
   `schema.TestAllOf_AListOfAComponentWinsOverAListOfItsCopy`,
@@ -1146,8 +1153,8 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   two enums whose members fit each other's kind, two different literals), and a list or map whose
   broader side carries detail the narrower lacks, are reported as an overlap and never narrowed
   (#1042); two models, or a model and a map, are reported as types the merge does not compare, even
-  where they are alike in every property; a property redeclared as a list and as a tuple is reported
-  as a conflict (#899). Open: intersecting the redeclared bounds and defaults rather than keeping
+  where they are alike in every property (#1083); a property redeclared as a list and as a tuple is
+  reported as a conflict (#899). Open: intersecting the redeclared bounds and defaults rather than keeping
   one, and judging an adopted value against the constraints written on the property (#10).
 
 ### `allof-required`

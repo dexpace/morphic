@@ -4693,3 +4693,38 @@ func TestAllOf_ARedeclarationIsJudgedOnceTheComponentsHaveLowered(t *testing.T) 
 		})
 	}
 }
+
+// TestAllOf_WhatAFieldKeepsOfItsDetailIsOrderFree compiles a field whose two
+// declarations give an extension differently, alike in another, one promoting
+// a deprecation from an extension, and one default spelled two ways. In either
+// branch order the field keeps the first value of the extension and reports
+// the other, names the heuristic behind its deprecation, and takes the default
+// as the one value it is.
+func TestAllOf_WhatAFieldKeepsOfItsDetailIsOrderFree(t *testing.T) {
+	t.Parallel()
+	a := "{type: number, default: 1, x-foo: 1, x-same: s}"
+	b := "{type: number, default: 1.0, x-foo: 2, x-same: s, deprecated: true, x-deprecated-reason: use q}"
+	for _, order := range [][2]string{{a, b}, {b, a}} {
+		doc, diags := lowerSpec(t, nonBareSpec("", order[0], order[1]))
+		m, ok := doc.Types[componentID("T")].(*ir.Model)
+		require.True(t, ok)
+		require.Len(t, m.Properties, 1)
+		p := m.Properties[0]
+		first := "1"
+		if order[0] == b {
+			first = "2"
+		}
+
+		require.Contains(t, p.Unmodeled, "openapi:x-foo", "order %v", order)
+		assert.Equal(t, ir.RawValue(first), p.Unmodeled["openapi:x-foo"].Value, "the first value stands")
+		assert.Contains(t, p.Unmodeled, "openapi:x-same")
+		assert.Contains(t, p.Unmodeled, "openapi:conflicting-redeclaration/components/schemas/T/allOf/1/properties/v",
+			"the other declaration is kept verbatim")
+		require.NotNil(t, p.Deprecation)
+		assert.Equal(t, "use q", p.Deprecation.Message)
+		assert.Equal(t, "extension-promotion", p.Provenance.Inferred, "the promoted deprecation stays marked")
+		require.NotNil(t, p.Default)
+		require.Len(t, diags, 1, "only the extension given differently is reported: %+v", diags)
+		assert.Contains(t, diags[0].Message, "openapi:x-foo differently")
+	}
+}
