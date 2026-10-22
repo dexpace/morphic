@@ -33,9 +33,10 @@ x-lib:
 x-responses:
   Listed: {description: The pets, summary: Pets}
 x-schemes:
-  # bearerFormat is for http schemes: the parser's warning, and the field
-  # kept under Unmodeled where it is written.
-  key: {type: apiKey, in: header, name: X-Key, bearerFormat: JWT}
+  # bearerFormat is for http schemes: the field is kept under Unmodeled where
+  # it is written. A null description is read as the field left out, a warning
+  # placed where it is written.
+  key: {type: apiKey, in: header, name: X-Key, bearerFormat: JWT, description: ~}
 x-paths:
   Pets:
     get:

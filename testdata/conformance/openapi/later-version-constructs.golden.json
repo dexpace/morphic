@@ -898,28 +898,14 @@
     {
       "severity": "warning",
       "code": "openapi/later-version-construct",
-      "message": "field \"$self\" of the OpenAPI Object was added in OpenAPI 3.2, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.2 document",
+      "message": "field \"identifier\" of the License Object was added in OpenAPI 3.1, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.1 document",
       "provenance": {
         "source": 0,
-        "pointer": "/$self"
-      }
-    },
-    {
-      "severity": "warning",
-      "code": "openapi/later-version-construct",
-      "message": "field \"jsonSchemaDialect\" of the OpenAPI Object was added in OpenAPI 3.1, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.1 document",
-      "provenance": {
-        "source": 0,
-        "pointer": "/jsonSchemaDialect"
-      }
-    },
-    {
-      "severity": "warning",
-      "code": "openapi/later-version-construct",
-      "message": "field \"webhooks\" of the OpenAPI Object was added in OpenAPI 3.1, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.1 document",
-      "provenance": {
-        "source": 0,
-        "pointer": "/webhooks"
+        "pointer": "/info/license/identifier",
+        "position": {
+          "line": 13,
+          "column": 36
+        }
       }
     },
     {
@@ -928,43 +914,11 @@
       "message": "field \"summary\" of the Info Object was added in OpenAPI 3.1, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.1 document",
       "provenance": {
         "source": 0,
-        "pointer": "/info/summary"
-      }
-    },
-    {
-      "severity": "warning",
-      "code": "openapi/later-version-construct",
-      "message": "field \"identifier\" of the License Object was added in OpenAPI 3.1, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.1 document",
-      "provenance": {
-        "source": 0,
-        "pointer": "/info/license/identifier"
-      }
-    },
-    {
-      "severity": "warning",
-      "code": "openapi/later-version-construct",
-      "message": "field \"summary\" of the Tag Object was added in OpenAPI 3.2, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.2 document",
-      "provenance": {
-        "source": 0,
-        "pointer": "/tags/0/summary"
-      }
-    },
-    {
-      "severity": "warning",
-      "code": "openapi/later-version-construct",
-      "message": "field \"parent\" of the Tag Object was added in OpenAPI 3.2, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.2 document",
-      "provenance": {
-        "source": 0,
-        "pointer": "/tags/0/parent"
-      }
-    },
-    {
-      "severity": "warning",
-      "code": "openapi/later-version-construct",
-      "message": "field \"kind\" of the Tag Object was added in OpenAPI 3.2, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.2 document",
-      "provenance": {
-        "source": 0,
-        "pointer": "/tags/0/kind"
+        "pointer": "/info/summary",
+        "position": {
+          "line": 12,
+          "column": 12
+        }
       }
     },
     {
@@ -973,25 +927,11 @@
       "message": "field \"name\" of the Server Object was added in OpenAPI 3.2, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.2 document",
       "provenance": {
         "source": 0,
-        "pointer": "/servers/0/name"
-      }
-    },
-    {
-      "severity": "warning",
-      "code": "openapi/later-version-construct",
-      "message": "field \"query\" of the Path Item Object was added in OpenAPI 3.2, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.2 document",
-      "provenance": {
-        "source": 0,
-        "pointer": "/paths/~1books/query"
-      }
-    },
-    {
-      "severity": "warning",
-      "code": "openapi/later-version-construct",
-      "message": "field \"additionalOperations\" of the Path Item Object was added in OpenAPI 3.2, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.2 document",
-      "provenance": {
-        "source": 0,
-        "pointer": "/paths/~1books/additionalOperations"
+        "pointer": "/servers/0/name",
+        "position": {
+          "line": 15,
+          "column": 44
+        }
       }
     },
     {
@@ -1000,34 +940,11 @@
       "message": "value \"querystring\" of field \"in\" of the Parameter Object was added in OpenAPI 3.2, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.2 document",
       "provenance": {
         "source": 0,
-        "pointer": "/paths/~1books/get/parameters/0/in"
-      }
-    },
-    {
-      "severity": "warning",
-      "code": "openapi/later-version-construct",
-      "message": "field \"summary\" of the Response Object was added in OpenAPI 3.2, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.2 document",
-      "provenance": {
-        "source": 0,
-        "pointer": "/paths/~1books/get/responses/200/summary"
-      }
-    },
-    {
-      "severity": "warning",
-      "code": "openapi/later-version-construct",
-      "message": "field \"description\" of the Media Type Object was added in OpenAPI 3.2, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.2 document",
-      "provenance": {
-        "source": 0,
-        "pointer": "/paths/~1books/get/responses/200/content/application~1jsonl/description"
-      }
-    },
-    {
-      "severity": "warning",
-      "code": "openapi/later-version-construct",
-      "message": "field \"itemSchema\" of the Media Type Object was added in OpenAPI 3.2, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.2 document",
-      "provenance": {
-        "source": 0,
-        "pointer": "/paths/~1books/get/responses/200/content/application~1jsonl/itemSchema"
+        "pointer": "/paths/~1books/get/parameters/0/in",
+        "position": {
+          "line": 34,
+          "column": 15
+        }
       }
     },
     {
@@ -1036,7 +953,11 @@
       "message": "field \"dataValue\" of the Example Object was added in OpenAPI 3.2, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.2 document",
       "provenance": {
         "source": 0,
-        "pointer": "/paths/~1books/get/responses/200/content/application~1jsonl/examples/one/dataValue"
+        "pointer": "/paths/~1books/get/responses/200/content/application~1jsonl/examples/one/dataValue",
+        "position": {
+          "line": 47,
+          "column": 34
+        }
       }
     },
     {
@@ -1045,7 +966,50 @@
       "message": "field \"serializedValue\" of the Example Object was added in OpenAPI 3.2, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.2 document",
       "provenance": {
         "source": 0,
-        "pointer": "/paths/~1books/get/responses/200/content/application~1jsonl/examples/one/serializedValue"
+        "pointer": "/paths/~1books/get/responses/200/content/application~1jsonl/examples/one/serializedValue",
+        "position": {
+          "line": 47,
+          "column": 66
+        }
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/later-version-construct",
+      "message": "field \"description\" of the Media Type Object was added in OpenAPI 3.2, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.2 document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1books/get/responses/200/content/application~1jsonl/description",
+        "position": {
+          "line": 44,
+          "column": 28
+        }
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/later-version-construct",
+      "message": "field \"itemSchema\" of the Media Type Object was added in OpenAPI 3.2, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.2 document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1books/get/responses/200/content/application~1jsonl/itemSchema",
+        "position": {
+          "line": 45,
+          "column": 27
+        }
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/later-version-construct",
+      "message": "field \"summary\" of the Response Object was added in OpenAPI 3.2, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.2 document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1books/get/responses/200/summary",
+        "position": {
+          "line": 41,
+          "column": 20
+        }
       }
     },
     {
@@ -1054,7 +1018,11 @@
       "message": "field \"summary\" of the Reference Object was added in OpenAPI 3.1, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.1 document",
       "provenance": {
         "source": 0,
-        "pointer": "/paths/~1books/get/responses/404/summary"
+        "pointer": "/paths/~1books/get/responses/404/summary",
+        "position": {
+          "line": 48,
+          "column": 67
+        }
       }
     },
     {
@@ -1063,7 +1031,11 @@
       "message": "field \"itemEncoding\" of the Media Type Object was added in OpenAPI 3.2, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.2 document",
       "provenance": {
         "source": 0,
-        "pointer": "/paths/~1books/post/requestBody/content/multipart~1mixed/itemEncoding"
+        "pointer": "/paths/~1books/post/requestBody/content/multipart~1mixed/itemEncoding",
+        "position": {
+          "line": 54,
+          "column": 27
+        }
       }
     },
     {
@@ -1072,7 +1044,11 @@
       "message": "field \"prefixEncoding\" of the Media Type Object was added in OpenAPI 3.2, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.2 document",
       "provenance": {
         "source": 0,
-        "pointer": "/paths/~1books/post/requestBody/content/multipart~1related/prefixEncoding"
+        "pointer": "/paths/~1books/post/requestBody/content/multipart~1related/prefixEncoding",
+        "position": {
+          "line": 56,
+          "column": 29
+        }
       }
     },
     {
@@ -1081,7 +1057,11 @@
       "message": "field \"encoding\" of the Encoding Object was added in OpenAPI 3.2, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.2 document",
       "provenance": {
         "source": 0,
-        "pointer": "/paths/~1books/post/requestBody/content/multipart~1form-data/encoding/cover/encoding"
+        "pointer": "/paths/~1books/post/requestBody/content/multipart~1form-data/encoding/cover/encoding",
+        "position": {
+          "line": 62,
+          "column": 27
+        }
       }
     },
     {
@@ -1090,7 +1070,11 @@
       "message": "field \"prefixEncoding\" of the Encoding Object was added in OpenAPI 3.2, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.2 document",
       "provenance": {
         "source": 0,
-        "pointer": "/paths/~1books/post/requestBody/content/multipart~1form-data/encoding/cover/prefixEncoding"
+        "pointer": "/paths/~1books/post/requestBody/content/multipart~1form-data/encoding/cover/prefixEncoding",
+        "position": {
+          "line": 63,
+          "column": 33
+        }
       }
     },
     {
@@ -1099,7 +1083,11 @@
       "message": "field \"itemEncoding\" of the Encoding Object was added in OpenAPI 3.2, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.2 document",
       "provenance": {
         "source": 0,
-        "pointer": "/paths/~1books/post/requestBody/content/multipart~1form-data/encoding/cover/itemEncoding"
+        "pointer": "/paths/~1books/post/requestBody/content/multipart~1form-data/encoding/cover/itemEncoding",
+        "position": {
+          "line": 64,
+          "column": 31
+        }
       }
     },
     {
@@ -1108,7 +1096,11 @@
       "message": "field \"$ref\" of the Media Type Object was added in OpenAPI 3.2, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.2 document",
       "provenance": {
         "source": 0,
-        "pointer": "/paths/~1books/post/requestBody/content/application~1json/$ref"
+        "pointer": "/paths/~1books/post/requestBody/content/application~1json/$ref",
+        "position": {
+          "line": 66,
+          "column": 19
+        }
       }
     },
     {
@@ -1117,25 +1109,37 @@
       "message": "field \"description\" of the Reference Object was added in OpenAPI 3.1, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.1 document",
       "provenance": {
         "source": 0,
-        "pointer": "/paths/~1books/post/requestBody/content/application~1json/description"
+        "pointer": "/paths/~1books/post/requestBody/content/application~1json/description",
+        "position": {
+          "line": 67,
+          "column": 26
+        }
       }
     },
     {
       "severity": "warning",
       "code": "openapi/later-version-construct",
-      "message": "field \"pathItems\" of the Components Object was added in OpenAPI 3.1, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.1 document",
+      "message": "field \"query\" of the Path Item Object was added in OpenAPI 3.2, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.2 document",
       "provenance": {
         "source": 0,
-        "pointer": "/components/pathItems"
+        "pointer": "/paths/~1books/query",
+        "position": {
+          "line": 22,
+          "column": 7
+        }
       }
     },
     {
       "severity": "warning",
       "code": "openapi/later-version-construct",
-      "message": "field \"mediaTypes\" of the Components Object was added in OpenAPI 3.2, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.2 document",
+      "message": "field \"additionalOperations\" of the Path Item Object was added in OpenAPI 3.2, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.2 document",
       "provenance": {
         "source": 0,
-        "pointer": "/components/mediaTypes"
+        "pointer": "/paths/~1books/additionalOperations",
+        "position": {
+          "line": 26,
+          "column": 7
+        }
       }
     },
     {
@@ -1144,7 +1148,11 @@
       "message": "field \"defaultMapping\" of the Discriminator Object was added in OpenAPI 3.2, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.2 document",
       "provenance": {
         "source": 0,
-        "pointer": "/components/schemas/Item/discriminator/defaultMapping"
+        "pointer": "/components/schemas/Item/discriminator/defaultMapping",
+        "position": {
+          "line": 98,
+          "column": 25
+        }
       }
     },
     {
@@ -1153,7 +1161,11 @@
       "message": "field \"nodeType\" of the XML Object was added in OpenAPI 3.2, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.2 document",
       "provenance": {
         "source": 0,
-        "pointer": "/components/schemas/Item/xml/nodeType"
+        "pointer": "/components/schemas/Item/xml/nodeType",
+        "position": {
+          "line": 95,
+          "column": 23
+        }
       }
     },
     {
@@ -1162,25 +1174,11 @@
       "message": "value \"mutualTLS\" of field \"type\" of the Security Scheme Object was added in OpenAPI 3.1, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.1 document",
       "provenance": {
         "source": 0,
-        "pointer": "/components/securitySchemes/clientCert/type"
-      }
-    },
-    {
-      "severity": "warning",
-      "code": "openapi/later-version-construct",
-      "message": "field \"oauth2MetadataUrl\" of the Security Scheme Object was added in OpenAPI 3.2, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.2 document",
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/securitySchemes/device/oauth2MetadataUrl"
-      }
-    },
-    {
-      "severity": "warning",
-      "code": "openapi/later-version-construct",
-      "message": "field \"deprecated\" of the Security Scheme Object was added in OpenAPI 3.2, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.2 document",
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/securitySchemes/device/deprecated"
+        "pointer": "/components/securitySchemes/clientCert/type",
+        "position": {
+          "line": 102,
+          "column": 24
+        }
       }
     },
     {
@@ -1189,7 +1187,154 @@
       "message": "field \"deviceAuthorization\" of the OAuth Flows Object was added in OpenAPI 3.2, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.2 document",
       "provenance": {
         "source": 0,
-        "pointer": "/components/securitySchemes/device/flows/deviceAuthorization"
+        "pointer": "/components/securitySchemes/device/flows/deviceAuthorization",
+        "position": {
+          "line": 109,
+          "column": 11
+        }
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/later-version-construct",
+      "message": "field \"deviceAuthorizationUrl\" of the OAuth Flow Object was added in OpenAPI 3.2, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.2 document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/securitySchemes/device/flows/deviceAuthorization/deviceAuthorizationUrl",
+        "position": {
+          "line": 109,
+          "column": 35
+        }
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/later-version-construct",
+      "message": "field \"oauth2MetadataUrl\" of the Security Scheme Object was added in OpenAPI 3.2, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.2 document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/securitySchemes/device/oauth2MetadataUrl",
+        "position": {
+          "line": 105,
+          "column": 26
+        }
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/later-version-construct",
+      "message": "field \"deprecated\" of the Security Scheme Object was added in OpenAPI 3.2, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.2 document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/securitySchemes/device/deprecated",
+        "position": {
+          "line": 106,
+          "column": 19
+        }
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/later-version-construct",
+      "message": "field \"pathItems\" of the Components Object was added in OpenAPI 3.1, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.1 document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/pathItems",
+        "position": {
+          "line": 76,
+          "column": 5
+        }
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/later-version-construct",
+      "message": "field \"mediaTypes\" of the Components Object was added in OpenAPI 3.2, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.2 document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/mediaTypes",
+        "position": {
+          "line": 83,
+          "column": 5
+        }
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/later-version-construct",
+      "message": "field \"summary\" of the Tag Object was added in OpenAPI 3.2, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.2 document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/tags/0/summary",
+        "position": {
+          "line": 17,
+          "column": 28
+        }
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/later-version-construct",
+      "message": "field \"parent\" of the Tag Object was added in OpenAPI 3.2, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.2 document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/tags/0/parent",
+        "position": {
+          "line": 17,
+          "column": 43
+        }
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/later-version-construct",
+      "message": "field \"kind\" of the Tag Object was added in OpenAPI 3.2, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.2 document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/tags/0/kind",
+        "position": {
+          "line": 17,
+          "column": 58
+        }
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/later-version-construct",
+      "message": "field \"$self\" of the OpenAPI Object was added in OpenAPI 3.2, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.2 document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/$self",
+        "position": {
+          "line": 7,
+          "column": 8
+        }
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/later-version-construct",
+      "message": "field \"jsonSchemaDialect\" of the OpenAPI Object was added in OpenAPI 3.1, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.1 document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/jsonSchemaDialect",
+        "position": {
+          "line": 8,
+          "column": 20
+        }
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/later-version-construct",
+      "message": "field \"webhooks\" of the OpenAPI Object was added in OpenAPI 3.1, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.1 document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/webhooks",
+        "position": {
+          "line": 70,
+          "column": 3
+        }
       }
     },
     {

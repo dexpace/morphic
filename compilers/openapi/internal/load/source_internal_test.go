@@ -2,7 +2,6 @@ package load
 
 import (
 	"encoding/json/jsontext"
-	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -16,8 +15,6 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	soa "github.com/speakeasy-api/openapi/openapi"
-	"github.com/speakeasy-api/openapi/references"
-	"github.com/speakeasy-api/openapi/validation"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
@@ -396,25 +393,11 @@ func TestSourceDocument_Names(t *testing.T) {
 	}
 }
 
-// TestNewSourceDocument_KeepsOnlyFindingsAtANode pins which of the source's
-// own findings a $ref's are measured against: one at a node, never one at
-// none, which is told apart by where it is placed.
-func TestNewSourceDocument_KeepsOnlyFindingsAtANode(t *testing.T) {
-	t.Parallel()
-	node := &yaml.Node{}
-	atNode := &validation.Error{Rule: "r", UnderlyingError: errors.New("m"), Node: node}
-	atNone := &validation.Error{Rule: "r", UnderlyingError: errors.New("n")}
-
-	self := newSourceDocument("root.yaml", nil, nil, []error{atNode, atNone, errors.New("plain")}, sourceTree{}, nil)
-
-	assert.Equal(t, map[findingKey]bool{keyOf(atNode, refSite{}): true}, self.found)
-}
-
 // TestHold_ARelativeSourceResolvesItsComponentAsItDoesInEitherOrder pins that
 // the source's own component is resolved as the source resolves it when a back
 // reference spelling the source otherwise reaches it first. Resolved against
 // that spelling, its $ref named the file beside it otherwise, so the file was
-// read twice, and a finding in it was named by whichever spelling came first.
+// read twice, and a finding in it was placed by whichever spelling came first.
 //
 // Not run in parallel: the source's path is relative to the working directory.
 func TestHold_ARelativeSourceResolvesItsComponentAsItDoesInEitherOrder(t *testing.T) {
@@ -438,8 +421,15 @@ func TestHold_ARelativeSourceResolvesItsComponentAsItDoesInEitherOrder(t *testin
 		require.NoError(t, err)
 		require.NotNil(t, got, "%+v", diags)
 		require.Len(t, diags, 1, "%+v", diags)
-		assert.Equal(t, jsontext.Pointer("/components/responses/P"), diags[0].Provenance.Pointer)
-		assert.Contains(t, diags[0].Message, "of other.yaml", "named as the source names it")
+		assert.Equal(t, jsontext.Pointer("/components/responses/Q/links/L"), diags[0].Provenance.Pointer)
+		other, ok := got.Others.At(diags[0].Provenance.Source)
+		require.True(t, ok, "placed in a document read beside the source: %+v", diags[0])
+		assert.Equal(t, "other.yaml", other.Label, "named as the source names it")
+		labels := make([]string, 0, 2)
+		for _, o := range got.Others.List() {
+			labels = append(labels, o.Label)
+		}
+		assert.Equal(t, []string{"../x.yaml", "other.yaml"}, labels, "each file read once")
 	}
 }
 
@@ -452,9 +442,9 @@ func heldResolution(t *testing.T, spec, path string) (*soa.OpenAPI, *resolution)
 	root, _, err := decodeStream(data)
 	require.NoError(t, err)
 	releaseAnchors(root)
-	doc, valErrs, err := unmarshal(t.Context(), data, root)
+	doc, err := unmarshal(t.Context(), data, root)
 	require.NoError(t, err)
-	self := newSourceDocument(path, data, root, valErrs, newSourceTree(0, overlay.Origin{}, root), nil)
+	self := newSourceDocument(path, data, root, judgment{}, newSourceTree(0, overlay.Origin{}, root), nil)
 	opts := Options{Reader: reader.Disk{}}
 	ext := newExternal(t.Context(), doc, opts, newExternalReads(self))
 	return doc, newResolution(t.Context(), doc, Siblings{}, self, opts, &ext)
@@ -758,16 +748,4 @@ func TestStandIn(t *testing.T) {
 	assert.False(t, ok, "a kind of no known stand-in is held as none")
 	_, ok = read.stoodFor(&soa.ReferencedResponse{})
 	assert.False(t, ok, "an object made elsewhere stands for nothing")
-}
-
-// TestReachedFindings_DropsAKnownFinding pins the known findings at the one
-// place they act: a finding the walk draws at a node the source's own
-// validation already reported is dropped there.
-func TestReachedFindings_DropsAKnownFinding(t *testing.T) {
-	t.Parallel()
-	node := &yaml.Node{Line: 1, Column: 1}
-	finding := &validation.Error{Severity: validation.SeverityError, Rule: "r", UnderlyingError: errors.New("m"), Node: node}
-	found := reachedFindings{sites: map[references.Reference]refSite{}, known: map[findingKey]bool{keyOf(finding, refSite{}): true}}
-	found.note(refSite{pointer: "/a"}, trail{}, []error{finding})
-	assert.Empty(t, found.diags(sitePlacer(pointerAt(0, overlay.Origin{}), Others{})))
 }

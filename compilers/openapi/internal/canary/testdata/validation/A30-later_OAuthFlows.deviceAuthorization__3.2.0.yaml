@@ -1,0 +1,4 @@
+openapi: 3.2.0
+info: {title: t, version: '1'}
+paths: {}
+components: {securitySchemes: {o: {type: oauth2, flows: {deviceAuthorization: {deviceAuthorizationUrl: 'https://a.example/d', tokenUrl: 'https://a.example/t', scopes: {}}}}}}

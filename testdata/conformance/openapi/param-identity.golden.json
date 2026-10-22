@@ -218,7 +218,7 @@
                   }
                 },
                 {
-                  "id": "param/openapi/paths/~1items~1{id}/get/parameters/a~1b/header",
+                  "id": "param/openapi/paths/~1items~1{id}/get/parameters/a~1b/query",
                   "name": {
                     "source": "a/b",
                     "canonical": "a_b"
@@ -288,11 +288,11 @@
                         "allowReserved": false
                       },
                       {
-                        "param": "param/openapi/paths/~1items~1{id}/get/parameters/a~1b/header",
-                        "location": "header",
+                        "param": "param/openapi/paths/~1items~1{id}/get/parameters/a~1b/query",
+                        "location": "query",
                         "wireName": "a/b",
-                        "style": "simple",
-                        "explode": false,
+                        "style": "form",
+                        "explode": true,
                         "allowReserved": false
                       },
                       {
@@ -433,7 +433,7 @@
     {
       "format": "openapi@3.1",
       "path": "param-identity.yaml",
-      "hash": "734d4bbd6f7a77059a63d90c2c2d57a9077fed1655aaad3d8298c1cb47ede920"
+      "hash": "fe096857f926ffe6edad5fffb26570970364df401942bbaef06661e59e5b7cf0"
     }
   ]
 }

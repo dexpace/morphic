@@ -1,0 +1,7 @@
+openapi: 3.2.0
+info: {title: t, version: '1'}
+paths:
+  /a:
+    get:
+      responses: {'200': {$ref: '#/components/responses/R', summary: s}}
+components: {responses: {R: {description: ok}}}

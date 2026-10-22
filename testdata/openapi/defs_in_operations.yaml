@@ -30,6 +30,8 @@ paths:
   "/a~b/{x y}/ü%41+1":
     get:
       operationId: getWeird
+      parameters:
+        - {name: x y, in: path, required: true, schema: {type: string}}
       responses:
         "200":
           description: ok

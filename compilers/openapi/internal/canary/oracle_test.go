@@ -47,10 +47,10 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 )
 
-// update rewrites oracleDisagreements from what the oracle finds now,
-// keeping each reason a disagreement still has and marking a new one
-// unclassified, which fails until a reason is written for it.
-var update = flag.Bool("update", false, "rewrite "+oracleDisagreements+" from what the oracle finds")
+// update rewrites oracleDisagreements and validationDisagreements from what
+// each oracle finds now, keeping each reason a disagreement still has and
+// marking a new one unclassified, which fails until a reason is written for it.
+var update = flag.Bool("update", false, "rewrite the oracles' disagreement lists from what they find")
 
 const (
 	// oracleDisagreements lists every disagreement and its reason.
