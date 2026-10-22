@@ -19,6 +19,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/merge"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
+	"github.com/dexpace/morphic/compilers/openapi/internal/spelling"
 	"github.com/dexpace/morphic/compilers/openapi/internal/value"
 	"github.com/dexpace/morphic/ir"
 )
@@ -434,8 +435,8 @@ func declaresShape(s *oas3.Schema) bool {
 // co-declares oneOf/anyOf and keeps the union verbatim beside it, so neither the
 // structural shape nor the union is dropped. reason says which kind of union it
 // is and why says what stopped a classified lowering; classifyUnionSiblings
-// picks both. A discriminator the body's model holds is settled once every node
-// is interned (deferDiscriminatorBesideUnion).
+// picks both. A discriminator the body's model holds is settled once the walk
+// lowering it has returned (deferDiscriminatorBesideUnion).
 func lowerBesideUnmodeledUnion(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer jsontext.Pointer, hint string, reason ir.UnmodeledReason, why string) (ir.TypeID, []ir.Diagnostic) {
 	inner, diags := lower(c, ts, anchors, depth, s, pointer, hint)
 	owner := inner
@@ -771,7 +772,7 @@ func isKind(td ir.TypeDef, k ir.TypeKind) bool {
 }
 
 // formatHome reports whether the position's `format` reached a field. A Scalar
-// hoisted for it carries it in Encoding; a (type, format) pairing formatTable
+// hoisted for it carries it in Encoding; a (type, format) pairing the spelling table
 // knows selects a primitive, which carries the pairing in the primitive kind
 // itself. With no type declared there was no pairing to make and nothing read it,
 // and a node of any other kind has no Encoding field at all.
@@ -1127,7 +1128,7 @@ func lowerModel(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 		cons, consDiags := ConstraintsOf(c, &common.Unmodeled, s, pointer)
 		diags = append(diags, consDiags...)
 		m := &ir.Model{TypeCommon: common, Constraints: cons}
-		diags = append(diags, fillModelProperties(c, ts, anchors, depth, m, s, pointer)...)
+		diags = append(diags, fillModelProperties(c, ts, anchors, depth, propIndex(c, ts, m), s, pointer)...)
 		requireMembers(m, s.GetRequired())
 		diags = append(diags, fillAdditional(c, ts, anchors, depth, m, s, pointer, hint)...)
 		d, discDiags := lowerDiscriminator(c, ts, anchors, s, m, nil, pointer)
@@ -1157,13 +1158,12 @@ func objectNode(m *ir.Model) ir.TypeDef {
 // fillModelProperties lowers a model's own properties in source order, each with
 // its full property-level detail (constraints, visibility, defaults, docs, ...).
 // Which are required is requireMembers' to say, once every property is in.
-func fillModelProperties(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, m *ir.Model, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
+func fillModelProperties(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, idx *merge.PropIndex, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	props := s.GetProperties()
 	if props == nil {
 		return nil
 	}
 	var diags []ir.Diagnostic
-	byWire := merge.WireNameIndex(m.Properties)
 	for name, js := range props.All() {
 		ppointer := pointer + ids.Ptr("properties", name)
 		ref, refDiags := CarriedRef(c, ts, anchors, depth, js, ppointer, name)
@@ -1176,10 +1176,7 @@ func fillModelProperties(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex
 			Provenance: c.ProvenanceAt(ppointer),
 		}
 		diags = append(diags, FillPropertyDetail(c, ts, anchors, &p, js, ppointer)...)
-		var mergeDiags []ir.Diagnostic
-		mg := merger(c, ts, &mergeDiags)
-		mg.MergeProperty(m, byWire, p, redeclarationSource(js))
-		diags = append(diags, mergeDiags...)
+		idx.MergeProperty(p, redeclarationSource(js))
 	}
 	return diags
 }
@@ -1193,7 +1190,7 @@ func fillModelProperties(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex
 //
 // A boolean schema has no node of its own to render, so its value is spelled
 // out; a `$ref` is rendered as the `$ref` the position wrote, not the target.
-func redeclarationSource(js *oas3.JSONSchema[oas3.Referenceable]) func() (ir.RawValue, error) {
+func redeclarationSource(js *oas3.JSONSchema[oas3.Referenceable]) merge.Source {
 	return func() (ir.RawValue, error) {
 		if annotation.IsNullLiteral(js) {
 			return ir.RawValue("null"), nil
@@ -1231,8 +1228,8 @@ func FillPropertyDetail(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex,
 // fillPropertyVisibility lowers readOnly/writeOnly onto the property and reports
 // the pairing that leaves it visible nowhere.
 //
-// The report is made here rather than inside the reader for the reason
-// merge.reconcileProperty reports its own disjoint intersection from outside
+// The report is made here rather than inside the reader for the reason the
+// allOf merge reports its own disjoint intersection from outside
 // mergeVisibility: provenance is built in one place (lowering.Ctx), and this is
 // the caller that knows the position being filled. It is the same finding under
 // the same code as the allOf spelling, so a consumer filtering on
@@ -1465,7 +1462,7 @@ func buildTuple(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 	return t, diags
 }
 
-// scalarTypeID maps a scalar (type, format) pair to a TypeID via formatTable: a
+// scalarTypeID maps a scalar (type, format) pair to a TypeID via spelling.Lookup: a
 // known pairing interns the shared primitive; byte, a pairing the table does
 // not list, and the 2020-12 content vocabulary each hoist a named Scalar
 // wrapping the base primitive with an Encoding, so what the position wrote
@@ -1483,7 +1480,7 @@ func scalarTypeID(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth
 	if format != "" {
 		key += "/" + format
 	}
-	prim, known := formatTable[key]
+	prim, known := spelling.Lookup(key)
 	if !known {
 		return hoistScalar(c, ts, anchors, depth, s, baseForType(st), format, nil, pointer, hint)
 	}
@@ -2020,51 +2017,6 @@ func (w *anchorWalk) charge(depth int) bool {
 	return true
 }
 
-// formatTable maps a scalar "type" or "type/format" key to its IR primitive.
-//
-// An integer width maps under either numeric type, since OpenAPI applies a
-// format to integers and other numbers alike (3.1.1 §4.4.1). float, double,
-// decimal and decimal128 map under number alone: under integer they admit only
-// the integral values, which no primitive narrower than integer holds. Any
-// pairing absent here hoists a Scalar that keeps the format, byte excepted:
-// scalarTypeID reads it before the table, as base64-encoded bytes.
-//
-// No row maps to the kind its bare type selects, which would leave the format
-// nowhere (TestFormatTable_EveryRowDistinguishesTheBareType).
-var formatTable = map[string]ir.PrimKind{
-	"string":            ir.PrimString,
-	"string/date":       ir.PrimDate,
-	"string/time":       ir.PrimTime,
-	"string/duration":   ir.PrimDuration,
-	"string/uuid":       ir.PrimUUID,
-	"string/uri":        ir.PrimURL,
-	"string/date-time":  ir.PrimDatetimeOffset,
-	"string/binary":     ir.PrimBytes,
-	"integer":           ir.PrimInteger,
-	"integer/int8":      ir.PrimInt8,
-	"integer/int16":     ir.PrimInt16,
-	"integer/int32":     ir.PrimInt32,
-	"integer/int64":     ir.PrimInt64,
-	"integer/uint8":     ir.PrimUint8,
-	"integer/uint16":    ir.PrimUint16,
-	"integer/uint32":    ir.PrimUint32,
-	"integer/uint64":    ir.PrimUint64,
-	"number":            ir.PrimNumber,
-	"number/int8":       ir.PrimInt8,
-	"number/int16":      ir.PrimInt16,
-	"number/int32":      ir.PrimInt32,
-	"number/int64":      ir.PrimInt64,
-	"number/uint8":      ir.PrimUint8,
-	"number/uint16":     ir.PrimUint16,
-	"number/uint32":     ir.PrimUint32,
-	"number/uint64":     ir.PrimUint64,
-	"number/float":      ir.PrimFloat32,
-	"number/double":     ir.PrimFloat64,
-	"number/decimal":    ir.PrimDecimal,
-	"number/decimal128": ir.PrimDecimal128,
-	"boolean":           ir.PrimBool,
-}
-
 // baseForType returns the base primitive for an unknown-format scalar of type st.
 func baseForType(st oas3.SchemaType) ir.PrimKind {
 	switch st {
@@ -2176,41 +2128,29 @@ func collectionConstraints(s *oas3.Schema) *ir.Constraints {
 	return c
 }
 
-// merger builds the allOf property reconciler over an explicit diagnostic sink.
-//
-// Merger.Report records rather than returns, which is the one place this package
-// still hands diagnostics to a callback. diags is the caller's own slice, so what
-// the reconciler reports travels out the way everything else does; the callback
-// is the merge package's contract, not accumulation surviving here. A conflict
-// that reads the types it compares is reported once the registry is whole
-// (redeclaration). It is two closures over state already at hand, so building
-// it per use costs nothing worth measuring.
-func merger(c lowering.Ctx, ts *compile.Types, diags *[]ir.Diagnostic) merge.Merger {
-	return merge.Merger{
-		Report: func(sev ir.Severity, code string, pointer jsontext.Pointer, format string, args ...any) {
-			*diags = append(*diags, c.DiagAt(sev, code, pointer, format, args...))
-		},
-		Later: func(conflict merge.Conflict) { ts.Defer(redeclaration{c: c, conflict: conflict}) },
-	}
+// propIndex returns the index the walk fills m's properties through. A field
+// declared more than once folds once every lowering has returned
+// (merge.PropIndex), as a completion (compile.Types.Complete): a settlement
+// that reads the merged field, such as a form part's flags, finds it folded.
+func propIndex(c lowering.Ctx, ts *compile.Types, m *ir.Model) *merge.PropIndex {
+	return merge.NewPropIndex(m, func(fold merge.Settle) { ts.Complete(settledMerge{c: c, fold: fold}) })
 }
 
-// redeclaration reports a merge.Conflict once every node exists
-// (compile.Settlement): whether two redeclared types conflict reads the nodes
-// they name, and mid-walk a node another declaration owns may not be built
-// yet, which made the report follow declaration order (GitHub #898).
-type redeclaration struct {
-	c        lowering.Ctx
-	conflict merge.Conflict
+// settledMerge is the folds of one model's redeclared fields, taken once every
+// node exists (compile.Settlement): a fold compares the nodes the declarations
+// name, so mid-walk it would follow the order they lower in (GitHub #898).
+type settledMerge struct {
+	c    lowering.Ctx
+	fold merge.Settle
 }
 
-// Settle reports the conflict, writing no node of reg.
-func (r redeclaration) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
-	pointer, message, conflicts := r.conflict.Report(func(id ir.TypeID) (ir.TypeDef, bool) {
-		td, ok := reg[id]
-		return td, ok
+// Settle takes the fold against reg and returns what it reports. The fold
+// rewrites the model's property and interns nothing, so the registry keeps its
+// node count.
+func (s settledMerge) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
+	var diags []ir.Diagnostic
+	s.fold(reg, func(sev ir.Severity, code string, pointer jsontext.Pointer, format string, args ...any) {
+		diags = append(diags, s.c.DiagAt(sev, code, pointer, format, args...))
 	})
-	if !conflicts {
-		return nil
-	}
-	return []ir.Diagnostic{r.c.DiagAt(ir.SeverityWarning, diag.ConflictingRedecl, pointer, "%s", message)}
+	return diags
 }

@@ -32,67 +32,38 @@ func written(source string) func() (ir.RawValue, error) {
 	return func() (ir.RawValue, error) { return ir.RawValue(source), nil }
 }
 
-// stub is a Merger and the conflict lattice over one plain map.
-type stub struct {
-	*Merger
-	Nodes
-}
-
 // stubMerger returns a Merger backed by a plain map and a diagnostic recorder,
 // with no lowerer, parser or document in the setup, so the conflict lattice can
-// be driven directly. Its Later reports each conflict at once against the map,
-// as the compiler's settlement does once the registry is whole.
-func stubMerger(reg map[ir.TypeID]ir.TypeDef) (*stub, *[]ir.Diagnostic) {
+// be driven directly.
+func stubMerger(reg map[ir.TypeID]ir.TypeDef) (*Merger, *[]ir.Diagnostic) {
 	recorded := &[]ir.Diagnostic{}
-	nodes := Nodes(func(id ir.TypeID) (ir.TypeDef, bool) { td, ok := reg[id]; return td, ok })
-	report := func(sev ir.Severity, code string, pointer jsontext.Pointer, format string, args ...any) {
-		*recorded = append(*recorded, diag.Newf(sev, code, ir.Provenance{Pointer: pointer}, format, args...))
+	g := &Merger{
+		Resolve: func(id ir.TypeID) (ir.TypeDef, bool) { td, ok := reg[id]; return td, ok },
+		Report: func(sev ir.Severity, code string, pointer jsontext.Pointer, format string, args ...any) {
+			*recorded = append(*recorded, diag.Newf(sev, code, ir.Provenance{Pointer: pointer}, format, args...))
+		},
 	}
-	g := &Merger{Report: report, Later: func(c Conflict) {
-		if pointer, message, ok := c.Report(nodes); ok {
-			report(ir.SeverityWarning, diag.ConflictingRedecl, pointer, "%s", message)
-		}
-	}}
-	return &stub{Merger: g, Nodes: nodes}, recorded
+	return g, recorded
 }
 
-// TestMerger_ATypeConflictWaitsForTheRegistry pins what makes the report order
-// free (GitHub #898): a redeclaration of another type reports nothing while the
-// walk runs and goes to Later, still folded as one that lost its type, and
-// whether it conflicts is read from the registry it is reported against, which
-// may lack a node mid-walk.
-func TestMerger_ATypeConflictWaitsForTheRegistry(t *testing.T) {
-	t.Parallel()
-	var later []Conflict
-	var reported []string
-	g := &Merger{
-		Report: func(_ ir.Severity, code string, _ jsontext.Pointer, _ string, _ ...any) {
-			reported = append(reported, code)
-		},
-		Later: func(c Conflict) { later = append(later, c) },
+// foldTwo folds src, rendered by source, into dst, a first declaration with
+// no source recorded: the pair the walk hands over for one redeclared field.
+func foldTwo(g *Merger, dst, src ir.Property, source Source) ir.Property {
+	return g.fold([]declaration{{prop: dst}, {prop: src, source: source}})
+}
+
+// indexOver returns an index filling m, and settle, which folds what the index
+// queued against reg and reports through g, as Finish takes the compiler's
+// completions once every lowering has returned.
+func indexOver(m *ir.Model, reg map[ir.TypeID]ir.TypeDef, g *Merger) (idx *PropIndex, settle func()) {
+	var queued []Settle
+	idx = NewPropIndex(m, func(s Settle) { queued = append(queued, s) })
+	return idx, func() {
+		for _, s := range queued {
+			s(reg, g.Report)
+		}
+		queued = nil
 	}
-	dst := ir.Property{WireName: "m", Type: ir.TypeRef{Target: "t/list"}, Provenance: ptrAt("/a")}
-	src := ir.Property{WireName: "m", Type: ir.TypeRef{Target: "t/model"}, Provenance: ptrAt("/b")}
-
-	dropped, lost := g.recordRedeclarationConflict(&dst, &src)
-
-	assert.True(t, dropped, "the redeclaration's type is lost whatever the nodes say")
-	assert.True(t, lost)
-	assert.Empty(t, reported, "nothing is reported mid-walk")
-	require.Len(t, later, 1)
-
-	whole := Nodes(func(id ir.TypeID) (ir.TypeDef, bool) {
-		td, ok := map[ir.TypeID]ir.TypeDef{"t/list": &ir.List{ID: "t/list"}, "t/model": &ir.Model{ID: "t/model"}}[id]
-		return td, ok
-	})
-	pointer, message, ok := later[0].Report(whole)
-	require.True(t, ok, "a list against a model conflicts")
-	assert.Equal(t, jsontext.Pointer("/b"), pointer)
-	assert.Contains(t, message, "incompatible types t/list and t/model")
-
-	partial := Nodes(func(ir.TypeID) (ir.TypeDef, bool) { return nil, false })
-	_, _, ok = later[0].Report(partial)
-	assert.False(t, ok, "read before the model exists, the same pair would have reported nothing")
 }
 
 func TestMerger_TypesConflictComparesReferentsNotReferences(t *testing.T) {
@@ -106,13 +77,13 @@ func TestMerger_TypesConflictComparesReferentsNotReferences(t *testing.T) {
 	})
 	ref := func(id ir.TypeID) ir.TypeRef { return ir.TypeRef{Target: id} }
 
-	assert.False(t, g.typesConflict(ref("t/a"), ref("t/b")),
-		"two references to the same primitive kind agree, however they are named")
-	assert.True(t, g.typesConflict(ref("t/a"), ref("t/i")),
+	assert.Equal(t, verdictOverlap, g.typesConflict(ref("t/a"), ref("t/b")),
+		"two distinct nodes of one primitive kind are compared by kind, and the fold left them apart")
+	assert.Equal(t, verdictConflict, g.typesConflict(ref("t/a"), ref("t/i")),
 		"string and integer cannot both be satisfied")
-	assert.False(t, g.typesConflict(ref("t/any"), ref("t/i")),
+	assert.Equal(t, verdictUncompared, g.typesConflict(ref("t/any"), ref("t/i")),
 		"the top type absorbs anything, so it conflicts with nothing")
-	assert.True(t, g.typesConflict(ref("t/m"), ref("t/a")),
+	assert.Equal(t, verdictConflict, g.typesConflict(ref("t/m"), ref("t/a")),
 		"a structural type and a primitive are different kinds")
 }
 
@@ -129,7 +100,7 @@ func TestMerger_ReconcileReportsDisagreementAndKeepsAWinner(t *testing.T) {
 	src := ir.Property{Name: ir.Naming{Source: "id"}, WireName: "id", Type: ir.TypeRef{Target: "t/int"},
 		Provenance: ptrAt("/components/schemas/S/properties/id")}
 
-	g.reconcileProperty(&dst, src, written(`{"type":"integer"}`))
+	dst = foldTwo(g, dst, src, written(`{"type":"integer"}`))
 
 	require.Len(t, *recorded, 1, "one disagreement, one diagnostic")
 	d := (*recorded)[0]

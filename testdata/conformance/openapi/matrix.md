@@ -36,7 +36,8 @@ witnessing it.
 
 - Witnesses: `allof-mixins`, `allof-inline-merge`, `allof-required-only`,
   `allof-oneof-cooccurrence`, `allof-inline-residue`, `allof-ref-branch-siblings`,
-  `allof-boolean-branch`, `allof-position-constraints`, `codeclared-keywords`
+  `allof-boolean-branch`, `allof-narrowing-redeclaration`, `allof-position-constraints`,
+  `codeclared-keywords`
 
 ### `negation`
 

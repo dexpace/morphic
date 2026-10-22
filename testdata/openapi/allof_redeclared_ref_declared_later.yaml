@@ -1,0 +1,30 @@
+# Two allOf branches redeclare a field with a $ref each, and the components
+# they name are declared after the schema composing them. A $ref names its
+# component without lowering it, so the redeclaration is judged once the
+# component walk has returned, not against whatever had lowered when the walk
+# reached it: the merged type and the redeclaration kept beside it must not
+# follow the order the components are declared in
+# (docs/compilers/openapi.md#allof-redeclared-property). `same` pairs two
+# named enums declared alike, and `overlap` a number with an integer: the merge
+# reports each pair as an overlap.
+openapi: 3.0.3
+info:
+  title: redeclared ref declared later
+  version: "1"
+paths: {}
+components:
+  schemas:
+    Composed:
+      allOf:
+        - type: object
+          properties:
+            same: {$ref: '#/components/schemas/EnumA'}
+            overlap: {$ref: '#/components/schemas/Number'}
+        - type: object
+          properties:
+            same: {$ref: '#/components/schemas/EnumB'}
+            overlap: {$ref: '#/components/schemas/Integer'}
+    EnumA: {type: string, enum: [a, b]}
+    EnumB: {type: string, enum: [a, b]}
+    Number: {type: number}
+    Integer: {type: integer}

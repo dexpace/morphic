@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -131,8 +132,7 @@ func TestAllOf_ReconcileAccumulatesRicherDetailWhateverTheOrder(t *testing.T) {
 // survives the fold in both declaration orders, and that it costs the fold
 // nothing else: `format: password` names no shape, so both declarations share
 // the bare string's target and every detail folds rather than the losing one
-// being dropped whole (the order-dependent drop GitHub #782 tracks for a
-// format that does name one).
+// being dropped whole.
 func TestAllOf_RedeclarationOrsSecret(t *testing.T) {
 	t.Parallel()
 	secret := "            token: {type: string, format: password}\n"
@@ -231,10 +231,101 @@ func TestAllOf_ConflictingRedeclaredTypeDiagnosedAndKept(t *testing.T) {
 	assert.Equal(t, jsontext.Pointer("/components/schemas/Conflictish/allOf/1/properties/id"), lost.Provenance.Pointer)
 }
 
+// TestAllOf_OverlappingPrimitivesAreReportedNotConflicting pins that two
+// formats whose kinds share values draw one info at the redeclaration, instead
+// of the unsatisfiable-type warning, keep the first declaration's kind and keep
+// the redeclaration, in either branch order.
+func TestAllOf_OverlappingPrimitivesAreReportedNotConflicting(t *testing.T) {
+	t.Parallel()
+	const at = "/components/schemas/Overlapish/allOf/1/properties/n"
+	for _, order := range [][2]string{{"int32", "uint32"}, {"uint32", "int32"}} {
+		t.Run(order[0]+" first", func(t *testing.T) {
+			t.Parallel()
+			bounds := [2]int{10, 20}
+			if order[0] == "uint32" {
+				bounds = [2]int{20, 10}
+			}
+			spec := openapitest.ComponentSpec(fmt.Sprintf(`    Overlapish:
+      allOf:
+        - type: object
+          properties:
+            n: {type: integer, format: %s, minimum: %d}
+        - type: object
+          properties:
+            n: {type: integer, format: %s, minimum: %d}
+`, order[0], bounds[0], order[1], bounds[1]))
+			doc, diags := lowerSpec(t, spec)
+			openapitest.RequireNoErrorDiags(t, diags)
+			m, ok := doc.Types[componentID("Overlapish")].(*ir.Model)
+			require.True(t, ok, "Overlapish should be a model")
+			require.Len(t, m.Properties, 1)
+			assert.Equal(t, ir.TypeID("t/prim/"+order[0]), m.Properties[0].Type.Target, "the first declaration's kind stays")
+
+			assert.Empty(t, conflictDiags(diags), "overlapping kinds are not an unsatisfiable type")
+			assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, at),
+				"the overlap is reported at the redeclaration")
+			var atProperty []ir.Diagnostic
+			for _, d := range diags {
+				if d.Provenance.Pointer == at {
+					atProperty = append(atProperty, d)
+				}
+			}
+			assert.Len(t, atProperty, 1, "exactly one diagnostic at the property; got %v", atProperty)
+			assert.Contains(t, m.Properties[0].Unmodeled,
+				"openapi:conflicting-redeclaration"+at, "and the redeclaration is kept")
+		})
+	}
+}
+
+// TestAllOf_EnumPairsAreJudgedByKind pins what an enum side draws at the schema
+// level, in either order: an enum over a bare kind it equals or narrows wins
+// with no diagnostic; a bare kind that admits one of its members overlaps it,
+// which is info; a kind that admits none of them warns, as does another family;
+// and two enums of one kind, each with members, overlap. A Scalar node of a
+// judged kind is judged by member too, and one with no judge refuses nothing.
+func TestAllOf_EnumPairsAreJudgedByKind(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name, a, b string
+		info, warn bool
+	}{
+		{"enum against uuid", "{type: string, enum: [a]}", "{type: string, format: uuid}", false, true},
+		{"enum against int32", "{type: integer, enum: [3000000000]}", "{type: integer, format: int32}", false, true},
+		{"enum against a date it admits", `{type: string, enum: ["2024-01-01"]}`, "{type: string, format: date}", true, false},
+		{"enum against a uuid scalar", "{type: string, enum: [a]}", "{type: string, format: uuid, contentMediaType: text/plain}", false, true},
+		{"enum against a date scalar it admits", `{type: string, enum: ["2024-01-01"]}`, "{type: string, format: date, contentMediaType: text/plain}", true, false},
+		{"empty enum against byte", "{type: string, enum: []}", "{type: string, format: byte}", false, true},
+		{"enum against byte", "{type: string, enum: [a]}", "{type: string, format: byte}", true, false},
+		{"enum against integer", "{type: string, enum: [a]}", "{type: integer}", false, true},
+		{"enum against enum", "{type: string, enum: [a]}", "{type: string, enum: [b]}", true, false},
+		{"enum against string", "{type: string, enum: [a]}", "{type: string}", false, false},
+	}
+	for _, tc := range cases {
+		for _, swap := range []bool{false, true} {
+			a, b := tc.a, tc.b
+			if swap {
+				a, b = b, a
+			}
+			t.Run(fmt.Sprintf("%s swapped=%t", tc.name, swap), func(t *testing.T) {
+				t.Parallel()
+				_, diags := lowerSpec(t, allOfConflictSpec(a, b))
+				openapitest.RequireNoErrorDiags(t, diags)
+				assert.Equal(t, tc.info, openapitest.HasDiagAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
+					"the overlap info")
+				if tc.warn {
+					assert.Len(t, conflictDiags(diags), 1, "one conflict warning")
+					return
+				}
+				assert.Empty(t, conflictDiags(diags), "no conflict")
+			})
+		}
+	}
+}
+
 // TestAllOf_ALosingRedeclarationIsKeptAsWritten pins what the entry holds at
 // the two property shapes that have no schema node of their own to speak of: a
 // `$ref` is kept as the `$ref` the position wrote, not as the target it names,
-// and a boolean schema — which has no node at all — is kept as its value.
+// and a boolean schema — which has no source node to render — is kept as its value.
 func TestAllOf_ALosingRedeclarationIsKeptAsWritten(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    Str: {type: string}
@@ -246,21 +337,21 @@ func TestAllOf_ALosingRedeclarationIsKeptAsWritten(t *testing.T) {
         - type: object
           properties:
             id: {$ref: '#/components/schemas/Str'}
-    Anything:
+    Nothing:
       allOf:
         - type: object
           properties:
             id: {type: integer}
         - type: object
           properties:
-            id: true
+            id: false
 `)
 	doc, diags := lowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	for _, tc := range []struct{ model, want string }{
 		{"Referred", `{"$ref":"#/components/schemas/Str"}`},
-		{"Anything", `true`},
+		{"Nothing", `false`},
 	} {
 		m, ok := doc.Types[componentID(tc.model)].(*ir.Model)
 		require.True(t, ok, "%s should be a model", tc.model)
@@ -4042,5 +4133,563 @@ func TestDiscriminatorMapping_HoistedTargetKeepsItsDiagnostics(t *testing.T) {
 	for _, pointer := range []string{"/components/schemas/Kennel/not", "/components/schemas/Kennel/if"} {
 		assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, pointer),
 			"the format beside the model hoisted at %s is reported", pointer)
+	}
+}
+
+// TestAllOf_AnInadmissibleBroadValueIsKeptInEitherOrder pins that the broader
+// branch of a narrowing, whichever comes first, never lands a default the
+// narrower kind refuses on the merged field: it is kept verbatim at its own
+// branch with one info, so the two orders give the same field and the same
+// diagnostics.
+func TestAllOf_AnInadmissibleBroadValueIsKeptInEitherOrder(t *testing.T) {
+	t.Parallel()
+	const broad = "            p: {type: number, default: 1.5}\n"
+	const narrow = "            p: {type: integer}\n"
+	branch := "        - type: object\n          properties:\n"
+	for _, tc := range []struct{ name, first, second, broadPtr string }{
+		{"broad first", broad, narrow, "/components/schemas/Ranged/allOf/0/properties/p"},
+		{"narrow first", narrow, broad, "/components/schemas/Ranged/allOf/1/properties/p"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := lowerSpec(t, openapitest.ComponentSpec("    Ranged:\n      allOf:\n"+
+				branch+tc.first+branch+tc.second))
+			openapitest.RequireNoErrorDiags(t, diags)
+			m, ok := doc.Types[componentID("Ranged")].(*ir.Model)
+			require.True(t, ok, "Ranged should be a model")
+			require.Len(t, m.Properties, 1)
+
+			p := m.Properties[0]
+			assert.Equal(t, ir.TypeID("t/prim/integer"), p.Type.Target)
+			assert.Nil(t, p.Default, "the refused default does not land")
+			require.Len(t, diags, 1, "one info and nothing else")
+			assert.Equal(t, ir.SeverityInfo, diags[0].Severity)
+			assert.Equal(t, diag.DegradedConstruct, diags[0].Code)
+			assert.Equal(t, jsontext.Pointer(tc.broadPtr), diags[0].Provenance.Pointer)
+			entry, ok := p.Unmodeled["openapi:conflicting-redeclaration"+tc.broadPtr]
+			require.True(t, ok, "the broad branch is kept at its own pointer; got %v", p.Unmodeled)
+			assert.JSONEq(t, `{"type":"number","default":1.5}`, string(entry.Value))
+			assert.Len(t, p.Unmodeled, 1)
+		})
+	}
+}
+
+// TestAllOf_ANullOnARefOverTheTopTypeIsKept folds two $refs to a scalar over
+// the top type, one writing default: null. The top type admits null, a fact
+// only the Base walk reaches, so the default lands and nothing is reported or
+// kept aside, in either order.
+func TestAllOf_ANullOnARefOverTheTopTypeIsKept(t *testing.T) {
+	t.Parallel()
+	const withNull = "            p: {$ref: '#/components/schemas/Y', default: null}\n"
+	const plain = "            p: {$ref: '#/components/schemas/Y'}\n"
+	branch := "        - type: object\n          properties:\n"
+	for _, tc := range []struct{ name, first, second string }{
+		{"null first", withNull, plain},
+		{"null second", plain, withNull},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := lowerSpec(t, openapitest.ComponentSpec("    Y: {description: free}\n    Held:\n      allOf:\n"+
+				branch+tc.first+branch+tc.second))
+			assert.Empty(t, diags, "nothing is refused")
+			m, ok := doc.Types[componentID("Held")].(*ir.Model)
+			require.True(t, ok, "Held should be a model")
+			require.Len(t, m.Properties, 1)
+			p := m.Properties[0]
+			require.NotNil(t, p.Default, "the null default lands")
+			assert.Equal(t, ir.ValueNull, p.Default.Kind)
+			assert.Empty(t, p.Unmodeled)
+		})
+	}
+}
+
+// nonBareSpec declares T with one property v written as schemaA in the first
+// branch and schemaB in the second, after the components in extra.
+func nonBareSpec(extra, schemaA, schemaB string) string {
+	return openapitest.ComponentSpec(extra +
+		"    T:\n" +
+		"      allOf:\n" +
+		"        - type: object\n" +
+		"          properties: {v: " + schemaA + "}\n" +
+		"        - type: object\n" +
+		"          properties: {v: " + schemaB + "}\n")
+}
+
+// TestAllOf_NonBareNarrowingIsOrderInvariant pins that a redeclaration whose
+// narrower side is not a bare primitive settles on that side whichever branch
+// is written first, with no diagnostic and nothing kept.
+func TestAllOf_NonBareNarrowingIsOrderInvariant(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, extra, narrow, broad string
+		kind                       ir.TypeKind
+	}{
+		{"an enum over its kind", "", "{type: integer, enum: [1, 2]}", "{type: integer}", ir.KindEnum},
+		{"a const over its kind", "", "{const: 1}", "{type: integer}", ir.KindLiteral},
+		{"an untyped, described schema", "", "{description: the id}", "{type: integer}", ir.KindPrimitive},
+		{"a list of a narrower kind", "", "{type: array, items: {type: integer, format: int32}}",
+			"{type: array, items: {type: integer}}", ir.KindList},
+		{"a map of a narrower kind", "", "{type: object, additionalProperties: {type: integer, format: int32}}",
+			"{type: object, additionalProperties: {type: integer}}", ir.KindMap},
+		{"an unknown format over its kind", "", "{type: string, format: hex-token}", "{type: string}", ir.KindScalar},
+		{"a ref declared before the schema", "    Id: {type: integer, format: int32}\n",
+			"{$ref: '#/components/schemas/Id'}", "{type: integer}", ir.KindScalar},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			types := make([]ir.TypeDef, 0, 2)
+			for _, order := range [][2]string{{tc.narrow, tc.broad}, {tc.broad, tc.narrow}} {
+				doc, diags := lowerSpec(t, nonBareSpec(tc.extra, order[0], order[1]))
+				openapitest.RequireNoErrorDiags(t, diags)
+				m, ok := doc.Types[componentID("T")].(*ir.Model)
+				require.True(t, ok)
+				require.Len(t, m.Properties, 1)
+				p := m.Properties[0]
+				types = append(types, doc.Types[p.Type.Target])
+				assert.Equal(t, tc.kind, doc.Types[p.Type.Target].Kind(), "the narrower declaration's type wins")
+				assert.Empty(t, p.Unmodeled, "nothing is kept")
+				for _, d := range diags {
+					assert.NotContains(t, []string{diag.ConflictingRedecl, diag.DegradedConstruct}, d.Code, d.Message)
+				}
+			}
+			assert.Empty(t, cmp.Diff(types[0], types[1],
+				cmpopts.IgnoreFields(ir.TypeCommon{}, "ID", "Name", "Provenance"),
+				cmpopts.IgnoreFields(ir.EnumMember{}, "ID")),
+				"the winner does not depend on branch order")
+		})
+	}
+}
+
+// TestAllOf_AnUnknownFormatWinsInEitherOrder pins GitHub #782: a format that
+// hoists a Scalar over the bare kind narrows it whichever branch is first, and
+// the plain branch's details fold in rather than the format's being parked.
+func TestAllOf_AnUnknownFormatWinsInEitherOrder(t *testing.T) {
+	t.Parallel()
+	plain := "{type: string}"
+	formatted := "{type: string, format: hex-token, minLength: 8, default: x, description: the token}"
+	for i, order := range [][2]string{{plain, formatted}, {formatted, plain}} {
+		doc, diags := lowerSpec(t, nonBareSpec("", order[0], order[1]))
+		openapitest.RequireNoErrorDiags(t, diags)
+		m, ok := doc.Types[componentID("T")].(*ir.Model)
+		require.True(t, ok)
+		require.Len(t, m.Properties, 1)
+		p := m.Properties[0]
+
+		assert.Equal(t, ir.KindScalar, doc.Types[p.Type.Target].Kind(), "the format's scalar types the field (order %d)", i)
+		require.NotNil(t, p.Default, "order %d", i)
+		assert.Equal(t, "x", p.Default.Str, "order %d", i)
+		require.NotNil(t, p.Constraints, "order %d", i)
+		require.NotNil(t, p.Constraints.MinLength, "order %d", i)
+		assert.Equal(t, int64(8), *p.Constraints.MinLength, "order %d", i)
+		sc, ok := doc.Types[p.Type.Target].(*ir.Scalar)
+		require.True(t, ok, "order %d", i)
+		assert.Equal(t, "the token", sc.Docs.Description, "the description stays on the scalar that wrote it (order %d)", i)
+		assert.Empty(t, p.Unmodeled, "nothing is parked (order %d)", i)
+		assert.Empty(t, diags, "order %d", i)
+	}
+}
+
+// TestAllOf_ReconcileAccumulatesRicherDetailForAnUnknownFormat is
+// TestAllOf_ReconcileAccumulatesRicherDetailWhateverTheOrder with a format that
+// hoists, in the richer branch.
+func TestAllOf_ReconcileAccumulatesRicherDetailForAnUnknownFormat(t *testing.T) {
+	t.Parallel()
+	spec := openapitest.ComponentSpec(`    Tokenish:
+      allOf:
+        - type: object
+          properties:
+            token: {type: string}
+        - type: object
+          required: [token]
+          properties:
+            token:
+              type: string
+              format: hex-token
+              description: the access token
+              default: none
+              minLength: 1
+              deprecated: true
+              examples: [abc]
+              xml: {name: tok}
+`)
+	doc, diags := lowerSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	m, ok := doc.Types[componentID("Tokenish")].(*ir.Model)
+	require.True(t, ok, "Tokenish should be a model")
+	require.Len(t, m.Properties, 1, "token reconciles to a single property")
+
+	tok := m.Properties[0]
+	assert.Equal(t, ir.KindScalar, doc.Types[tok.Type.Target].Kind(), "the format's scalar types the field")
+	assert.True(t, tok.Required)
+	sc, ok := doc.Types[tok.Type.Target].(*ir.Scalar)
+	require.True(t, ok)
+	assert.Equal(t, "the access token", sc.Docs.Description, "the description stays on the scalar that wrote it")
+	assert.NotNil(t, sc.Deprecation, "so does the deprecation")
+	assert.Len(t, sc.Examples, 1, "and the examples")
+	require.NotNil(t, tok.Default)
+	require.NotNil(t, tok.Constraints)
+	require.NotNil(t, tok.Constraints.MinLength)
+	require.NotNil(t, sc.XML)
+	assert.Empty(t, tok.Unmodeled)
+}
+
+// TestAllOf_TheTopTypeAndANullableKindMeetAsNullableInEitherOrder pins that `{}`
+// against `type: [integer, "null"]` is a nullable integer whichever is first.
+func TestAllOf_TheTopTypeAndANullableKindMeetAsNullableInEitherOrder(t *testing.T) {
+	t.Parallel()
+	top, nullable := "{}", `{type: [integer, "null"]}`
+	for i, order := range [][2]string{{top, nullable}, {nullable, top}} {
+		doc, diags := lowerSpec(t, nonBareSpec("", order[0], order[1]))
+		openapitest.RequireNoErrorDiags(t, diags)
+		m, ok := doc.Types[componentID("T")].(*ir.Model)
+		require.True(t, ok)
+		require.Len(t, m.Properties, 1)
+		p := m.Properties[0]
+
+		assert.Equal(t, ir.TypeRef{Target: "t/prim/integer", Nullable: true}, p.Type, "order %d", i)
+		assert.Empty(t, p.Unmodeled, "order %d", i)
+		assert.Empty(t, diags, "order %d", i)
+	}
+}
+
+// TestAllOf_ADefaultTheNarrowerNodeRefusesIsKeptInEitherOrder pins that the
+// broader declaration's default is judged against a winner that is not a bare
+// primitive: one the enum does not admit is not adopted, and the declaration
+// that wrote it is kept at its own pointer, whichever branch it is.
+func TestAllOf_ADefaultTheNarrowerNodeRefusesIsKeptInEitherOrder(t *testing.T) {
+	t.Parallel()
+	enum, broad := "{type: integer, enum: [1, 2]}", "{type: integer, default: 5}"
+	for i, tc := range []struct {
+		order [2]string
+		kept  string
+	}{
+		{[2]string{enum, broad}, "/components/schemas/T/allOf/1/properties/v"},
+		{[2]string{broad, enum}, "/components/schemas/T/allOf/0/properties/v"},
+	} {
+		doc, diags := lowerSpec(t, nonBareSpec("", tc.order[0], tc.order[1]))
+		openapitest.RequireNoErrorDiags(t, diags)
+		m, ok := doc.Types[componentID("T")].(*ir.Model)
+		require.True(t, ok)
+		require.Len(t, m.Properties, 1)
+		p := m.Properties[0]
+
+		assert.Equal(t, ir.KindEnum, doc.Types[p.Type.Target].Kind(), "the enum wins (order %d)", i)
+		assert.Nil(t, p.Default, "the refused default is not adopted (order %d)", i)
+		require.Len(t, p.Unmodeled, 1, "order %d", i)
+		assert.Contains(t, p.Unmodeled, "openapi:conflicting-redeclaration"+tc.kept, "order %d", i)
+		require.Len(t, diags, 1, "order %d", i)
+		assert.Equal(t, diag.DegradedConstruct, diags[0].Code, "order %d", i)
+		assert.Equal(t, ir.SeverityInfo, diags[0].Severity, "order %d", i)
+	}
+}
+
+// TestAllOf_AWinnersConstraintsRefuseADefaultInEitherOrder pins that the
+// winning node holds the broader declaration's default to its constraints as
+// well as its kind: a string past a component's maxLength, or a list past its
+// maxItems, is not adopted, and the declaration that wrote it is kept at its
+// own pointer, whichever branch it is and wherever the component is declared.
+func TestAllOf_AWinnersConstraintsRefuseADefaultInEitherOrder(t *testing.T) {
+	t.Parallel()
+	named := "{$ref: '#/components/schemas/C'}"
+	lowerings := map[string]func(extra, a, b string) (*ir.Document, []ir.Diagnostic){
+		"declared before": func(extra, a, b string) (*ir.Document, []ir.Diagnostic) {
+			return lowerSpec(t, nonBareSpec(extra, a, b))
+		},
+		"declared after": func(extra, a, b string) (*ir.Document, []ir.Diagnostic) { return settledSpec(t, extra, a, b) },
+	}
+	for _, tc := range []struct{ name, component, broad string }{
+		{"a string past maxLength", "    C: {type: string, maxLength: 3}\n", "{type: string, default: hello}"},
+		{"a list past maxItems", "    C: {type: array, items: {type: integer, format: int32}, maxItems: 2}\n",
+			"{type: array, items: {type: integer}, default: [1, 2, 3, 4]}"},
+	} {
+		for where, lower := range lowerings {
+			for _, order := range []struct{ a, b, kept string }{
+				{named, tc.broad, "/components/schemas/T/allOf/1/properties/v"},
+				{tc.broad, named, "/components/schemas/T/allOf/0/properties/v"},
+			} {
+				doc, diags := lower(tc.component, order.a, order.b)
+				at := tc.name + ", " + where + ", kept " + order.kept
+				openapitest.RequireNoErrorDiags(t, diags)
+				m, ok := doc.Types[componentID("T")].(*ir.Model)
+				require.True(t, ok, at)
+				require.Len(t, m.Properties, 1, at)
+				p := m.Properties[0]
+
+				assert.Equal(t, componentID("C"), p.Type.Target, "the component wins: %s", at)
+				assert.Nil(t, p.Default, "the refused default is not adopted: %s", at)
+				require.Len(t, p.Unmodeled, 1, at)
+				assert.Contains(t, p.Unmodeled, "openapi:conflicting-redeclaration"+order.kept, at)
+				require.Len(t, diags, 1, at)
+				assert.Equal(t, diag.DegradedConstruct, diags[0].Code, at)
+				assert.Equal(t, jsontext.Pointer(order.kept), diags[0].Provenance.Pointer, at)
+			}
+		}
+	}
+}
+
+// TestAllOf_TwoEqualListsRefuseANullTheMergeDoesNotAdmit pins that two lists of
+// one element, which are two targets, settle on a non-nullable list, so a null
+// default the nullable declaration wrote is not adopted and the declaration is
+// kept at its own pointer, whichever branch it is.
+func TestAllOf_TwoEqualListsRefuseANullTheMergeDoesNotAdmit(t *testing.T) {
+	t.Parallel()
+	nullable := `{type: [array, "null"], items: {type: integer}, default: null}`
+	plain := "{type: array, items: {type: integer}}"
+	for i, tc := range []struct {
+		order [2]string
+		kept  string
+	}{
+		{[2]string{nullable, plain}, "/components/schemas/T/allOf/0/properties/v"},
+		{[2]string{plain, nullable}, "/components/schemas/T/allOf/1/properties/v"},
+	} {
+		doc, diags := lowerSpec(t, nonBareSpec("", tc.order[0], tc.order[1]))
+		openapitest.RequireNoErrorDiags(t, diags)
+		m, ok := doc.Types[componentID("T")].(*ir.Model)
+		require.True(t, ok)
+		require.Len(t, m.Properties, 1)
+		p := m.Properties[0]
+
+		require.Equal(t, ir.KindList, doc.Types[p.Type.Target].Kind(), "order %d", i)
+		assert.False(t, p.Type.Nullable, "order %d", i)
+		assert.Nil(t, p.Default, "the refused null is not adopted (order %d)", i)
+		require.Len(t, p.Unmodeled, 1, "order %d", i)
+		assert.Contains(t, p.Unmodeled, "openapi:conflicting-redeclaration"+tc.kept, "order %d", i)
+		require.Len(t, diags, 1, "order %d", i)
+		assert.Equal(t, diag.DegradedConstruct, diags[0].Code, "order %d", i)
+		assert.Equal(t, ir.SeverityInfo, diags[0].Severity, "order %d", i)
+		assert.Equal(t, jsontext.Pointer(tc.kept), diags[0].Provenance.Pointer, "order %d", i)
+	}
+}
+
+// TestAllOf_IdenticalNodesAreOneType compiles a field written twice with the
+// same enum, const or format, in either order. Two inline copies are one type,
+// and a component wins over an inline copy of itself: no diagnostic and nothing
+// kept. Two components declared alike are two types the source named apart: an
+// info, with the first kept and the second's $ref kept verbatim.
+func TestAllOf_IdenticalNodesAreOneType(t *testing.T) {
+	t.Parallel()
+	for _, schema := range []string{
+		"{type: string, enum: [a, b]}",
+		"{const: a}",
+		"{type: string, format: hex}",
+		"{type: string, enum: [a, b], x-foo: 1}",
+		"{type: array, items: {type: integer, format: int32}}",
+		"{type: object, additionalProperties: {type: integer}}",
+	} {
+		t.Run(schema, func(t *testing.T) {
+			t.Parallel()
+			extra := "    P: " + schema + "\n    Q: " + schema + "\n"
+			p, q := "{$ref: '#/components/schemas/P'}", "{$ref: '#/components/schemas/Q'}"
+			for i, tc := range []struct {
+				order [2]string
+				win   ir.TypeID // the type that stands
+				same  bool
+			}{
+				{[2]string{schema, schema}, "t/anon/components/schemas/T/allOf/0/properties/v", true},
+				{[2]string{p, schema}, componentID("P"), true},
+				{[2]string{schema, p}, componentID("P"), true},
+				{[2]string{p, q}, componentID("P"), false},
+				{[2]string{q, p}, componentID("Q"), false},
+			} {
+				doc, diags := lowerSpec(t, nonBareSpec(extra, tc.order[0], tc.order[1]))
+				m, ok := doc.Types[componentID("T")].(*ir.Model)
+				require.True(t, ok, "order %d", i)
+				require.Len(t, m.Properties, 1, "order %d", i)
+				prop := m.Properties[0]
+				assert.Equal(t, tc.win, prop.Type.Target, "order %d", i)
+				if tc.same {
+					assert.Empty(t, diags, "order %d", i)
+					assert.Empty(t, prop.Unmodeled, "order %d", i)
+				} else {
+					require.Len(t, diags, 1, "order %d", i)
+					assert.Equal(t, diag.DegradedConstruct, diags[0].Code, "order %d", i)
+					assert.Len(t, prop.Unmodeled, 1, "the second $ref is kept (order %d)", i)
+				}
+				for _, name := range []string{"P", "Q"} {
+					td, ok := doc.Types[componentID(name)]
+					require.True(t, ok, "%s (order %d)", name, i)
+					for key, e := range td.Common().Unmodeled {
+						assert.True(t, strings.HasPrefix(string(e.Provenance.Pointer), "/components/schemas/"+name+"/"),
+							"%s keeps where its %s came from, got %q (order %d)", name, key, e.Provenance.Pointer, i)
+					}
+				}
+			}
+		})
+	}
+}
+
+// TestAllOf_ARefToAnInlineNodeIsDeclaredApart compiles a field redeclared as
+// a $ref to a node written inline elsewhere (X/properties/c), in either order.
+// That node was declared apart from the field, as a component is: it wins over
+// an inline copy of itself, and against a $ref to its twin (X/properties/d) the
+// pair is an info, with the first kept and the second's $ref kept verbatim.
+func TestAllOf_ARefToAnInlineNodeIsDeclaredApart(t *testing.T) {
+	t.Parallel()
+	const enum = "{type: string, enum: [a, b]}"
+	extra := "    X: {type: object, properties: {c: " + enum + ", d: " + enum + "}}\n"
+	c, d := "{$ref: '#/components/schemas/X/properties/c'}", "{$ref: '#/components/schemas/X/properties/d'}"
+	at := func(p string) ir.TypeID { return ir.TypeID("t/anon/components/schemas/X/properties/" + p) }
+	for i, tc := range []struct {
+		order [2]string
+		win   ir.TypeID
+		same  bool
+	}{
+		{[2]string{c, enum}, at("c"), true},
+		{[2]string{enum, c}, at("c"), true},
+		{[2]string{c, d}, at("c"), false},
+		{[2]string{d, c}, at("d"), false},
+	} {
+		doc, diags := lowerSpec(t, nonBareSpec(extra, tc.order[0], tc.order[1]))
+		m, ok := doc.Types[componentID("T")].(*ir.Model)
+		require.True(t, ok, "order %d", i)
+		require.Len(t, m.Properties, 1, "order %d", i)
+		prop := m.Properties[0]
+		assert.Equal(t, tc.win, prop.Type.Target, "order %d", i)
+		if tc.same {
+			assert.Empty(t, diags, "order %d", i)
+			assert.Empty(t, prop.Unmodeled, "order %d", i)
+			continue
+		}
+		require.Len(t, diags, 1, "order %d", i)
+		assert.Equal(t, diag.DegradedConstruct, diags[0].Code, "order %d", i)
+		assert.Len(t, prop.Unmodeled, 1, "the second $ref is kept (order %d)", i)
+	}
+}
+
+// TestAllOf_ACopyANarrowingKeptIsStillACopy compiles a field declared as {},
+// an inline enum and a $ref to a component of the same enum, in every order,
+// with the component declared before the composing schema and after it.
+// Where {} comes first, the inline enum narrows it and the property holds a node
+// written at the second declaration, not the first; it is still an inline copy,
+// so the component wins in all six orders with nothing reported or kept.
+func TestAllOf_ACopyANarrowingKeptIsStillACopy(t *testing.T) {
+	t.Parallel()
+	const enum = "{type: string, enum: [a, b]}"
+	decls := []string{"{}", enum, "{$ref: '#/components/schemas/Color'}"}
+	for _, colorLast := range []bool{false, true} {
+		for _, order := range [][3]int{{0, 1, 2}, {0, 2, 1}, {1, 0, 2}, {1, 2, 0}, {2, 0, 1}, {2, 1, 0}} {
+			var branches strings.Builder
+			for _, i := range order {
+				branches.WriteString("        - type: object\n          properties: {v: " + decls[i] + "}\n")
+			}
+			color, composed := "    Color: "+enum+"\n", "    T:\n      allOf:\n"+branches.String()
+			schemas := color + composed
+			if colorLast {
+				schemas = composed + color
+			}
+			doc, diags := lowerSpec(t, openapitest.ComponentSpec(schemas))
+			m, ok := doc.Types[componentID("T")].(*ir.Model)
+			require.True(t, ok, "order %v, Color last %t", order, colorLast)
+			require.Len(t, m.Properties, 1, "order %v, Color last %t", order, colorLast)
+			assert.Equal(t, componentID("Color"), m.Properties[0].Type.Target, "order %v, Color last %t", order, colorLast)
+			assert.Empty(t, diags, "order %v, Color last %t", order, colorLast)
+			assert.Empty(t, m.Properties[0].Unmodeled, "order %v, Color last %t", order, colorLast)
+		}
+	}
+}
+
+// TestAllOf_AListOfAComponentWinsOverAListOfItsCopy compiles a field redeclared
+// as a list of a component and as a list of an inline copy of it, in either
+// order. The copy is written under the field's own declaration, so the list
+// holding the component wins in both orders with nothing reported or kept.
+func TestAllOf_AListOfAComponentWinsOverAListOfItsCopy(t *testing.T) {
+	t.Parallel()
+	const enum = "{type: string, enum: [a, b]}"
+	ofRef, ofCopy := "{type: array, items: {$ref: '#/components/schemas/Color'}}", "{type: array, items: "+enum+"}"
+	for i, order := range [][2]string{{ofRef, ofCopy}, {ofCopy, ofRef}} {
+		doc, diags := lowerSpec(t, nonBareSpec("    Color: "+enum+"\n", order[0], order[1]))
+		m, ok := doc.Types[componentID("T")].(*ir.Model)
+		require.True(t, ok, "order %d", i)
+		require.Len(t, m.Properties, 1, "order %d", i)
+		list, ok := doc.Types[m.Properties[0].Type.Target].(*ir.List)
+		require.True(t, ok, "the field is a list (order %d)", i)
+		assert.Equal(t, componentID("Color"), list.Elem.Target, "order %d", i)
+		assert.Empty(t, diags, "order %d", i)
+		assert.Empty(t, m.Properties[0].Unmodeled, "order %d", i)
+	}
+}
+
+// TestAllOf_ARefToASiblingFieldIsDeclaredApart compiles a field v redeclared as
+// a $ref to its branch's sibling field vx and as an inline copy of vx, in either
+// order. vx's pointer begins with v's but is not under it, so vx was declared
+// apart and wins in both orders with nothing reported or kept.
+func TestAllOf_ARefToASiblingFieldIsDeclaredApart(t *testing.T) {
+	t.Parallel()
+	const enum = "{type: string, enum: [a, b]}"
+	for i := range 2 {
+		vx := fmt.Sprintf("/components/schemas/T/allOf/%d/properties/vx", i)
+		branches := [2]string{
+			"        - type: object\n          properties: {vx: " + enum + ", v: {$ref: '#" + vx + "'}}\n",
+			"        - type: object\n          properties: {v: " + enum + "}\n",
+		}
+		if i == 1 {
+			branches[0], branches[1] = branches[1], branches[0]
+		}
+		doc, diags := lowerSpec(t, openapitest.ComponentSpec("    T:\n      allOf:\n"+branches[0]+branches[1]))
+		m, ok := doc.Types[componentID("T")].(*ir.Model)
+		require.True(t, ok, "order %d", i)
+		var v *ir.Property
+		for k := range m.Properties {
+			if m.Properties[k].WireName == "v" {
+				v = &m.Properties[k]
+			}
+		}
+		require.NotNil(t, v, "order %d", i)
+		assert.Equal(t, ir.TypeID("t/anon"+vx), v.Type.Target, "order %d", i)
+		assert.Empty(t, diags, "order %d", i)
+		assert.Empty(t, v.Unmodeled, "order %d", i)
+	}
+}
+
+// TestAllOf_ARedeclarationIsJudgedOnceTheComponentsHaveLowered pins that a
+// field redeclared as two $refs to components declared after the composing
+// schema is judged as it is when they are declared before it: two components
+// declared alike, or a pair the merge does not narrow, are reported and kept. It
+// compiles three arms: the components declared before the schema, and after it
+// in either order of the two (#898).
+func TestAllOf_ARedeclarationIsJudgedOnceTheComponentsHaveLowered(t *testing.T) {
+	t.Parallel()
+	p, q := "{$ref: '#/components/schemas/P'}", "{$ref: '#/components/schemas/Q'}"
+	for _, tc := range []struct {
+		name, pdecl, qdecl string
+		items              bool
+		kind               ir.TypeKind
+		code               string // the one diagnostic, or "" for none
+	}{
+		{"enums declared alike", "{type: string, enum: [a, b]}", "{type: string, enum: [a, b]}", false, ir.KindEnum, diag.DegradedConstruct},
+		{"an integer beside a number", "{type: number}", "{type: integer}", false, ir.KindScalar, diag.DegradedConstruct},
+		{"a string against an integer", "{type: string}", "{type: integer}", false, ir.KindScalar, diag.ConflictingRedecl},
+		{"enums declared alike as list items", "{type: string, enum: [a, b]}", "{type: string, enum: [a, b]}", true, ir.KindList, diag.DegradedConstruct},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			a, b := p, q
+			if tc.items {
+				a, b = "{type: array, items: "+p+"}", "{type: array, items: "+q+"}"
+			}
+			pq := "    P: " + tc.pdecl + "\n    Q: " + tc.qdecl + "\n"
+			qp := "    Q: " + tc.qdecl + "\n    P: " + tc.pdecl + "\n"
+			for i, lower := range []func() (*ir.Document, []ir.Diagnostic){
+				func() (*ir.Document, []ir.Diagnostic) { return lowerSpec(t, nonBareSpec(pq, a, b)) },
+				func() (*ir.Document, []ir.Diagnostic) { return settledSpec(t, pq, a, b) },
+				func() (*ir.Document, []ir.Diagnostic) { return settledSpec(t, qp, a, b) },
+			} {
+				doc, diags := lower()
+				m, ok := doc.Types[componentID("T")].(*ir.Model)
+				require.True(t, ok, "order %d", i)
+				require.Len(t, m.Properties, 1, "order %d", i)
+				prop := m.Properties[0]
+
+				assert.Equal(t, tc.kind, doc.Types[prop.Type.Target].Kind(), "order %d", i)
+				if tc.code == "" {
+					assert.Empty(t, diags, "order %d", i)
+					assert.Empty(t, prop.Unmodeled, "order %d", i)
+					continue
+				}
+				require.Len(t, diags, 1, "order %d", i)
+				assert.Equal(t, tc.code, diags[0].Code, "order %d", i)
+				assert.Len(t, prop.Unmodeled, 1, "the losing declaration is kept (order %d)", i)
+			}
+		})
 	}
 }

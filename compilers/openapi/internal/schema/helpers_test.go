@@ -145,3 +145,13 @@ func (l *lowerer) document(t *testing.T) *ir.Document {
 	l.out.Types = reg
 	return l.out
 }
+
+// settledSpec is nonBareSpec with the components after the schema composing
+// them, so a redeclaration naming one is judged once the registry is whole.
+func settledSpec(t *testing.T, extra, schemaA, schemaB string) (*ir.Document, []ir.Diagnostic) {
+	t.Helper()
+	return lowerSpec(t, openapitest.ComponentSpec(
+		"    T:\n      allOf:\n"+
+			"        - type: object\n          properties: {v: "+schemaA+"}\n"+
+			"        - type: object\n          properties: {v: "+schemaB+"}\n"+extra))
+}

@@ -1,6 +1,7 @@
 package schema_test
 
 import (
+	"fmt"
 	"maps"
 	"slices"
 	"testing"
@@ -11,7 +12,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -320,15 +323,38 @@ func TestNullSchema_AnEntryIsTheEmptySchemaAndAKeywordIsLeftOut(t *testing.T) {
 		})
 	}
 
-	t.Run("a property redeclared as a null keeps the losing declaration as a null", func(t *testing.T) {
+	// A null redeclaration is the top type, which loses to the string with
+	// nothing to keep, as `{}` would. One is kept only beside a node the merge
+	// cannot judge, such as the top type an enum past its member budget lowers
+	// to, and then as the null it was written as.
+	t.Run("a property redeclared as a null over a string is the string, as with {}", func(t *testing.T) {
 		t.Parallel()
-		doc, diags := lowerSpecOnly(t, openapitest.ComponentSpec("    A:\n      allOf:\n"+
-			"        - {type: object, properties: {p: {type: string}}}\n"+
-			"        - {type: object, properties: {p: null}}\n"))
+		const spec = "    A:\n      allOf:\n" +
+			"        - {type: object, properties: {p: {type: string}}}\n" +
+			"        - {type: object, properties: {p: %s}}\n"
+		doc, diags := lowerSpecOnly(t, openapitest.ComponentSpec(fmt.Sprintf(spec, "null")))
+		twin, twinDiags := lowerSpecOnly(t, openapitest.ComponentSpec(fmt.Sprintf(spec, "{}")))
 
 		m := asKind[*ir.Model](t, typeByName(doc, "A"))
 		require.Len(t, m.Properties, 1)
-		assert.Equal(t, ir.TypeRef{Target: "t/prim/string"}, m.Properties[0].Type, "the first declaration stands")
+		assert.Equal(t, ir.TypeRef{Target: "t/prim/string"}, m.Properties[0].Type)
+		assert.Empty(t, m.Properties[0].Unmodeled, "the top type says nothing the string loses")
+		assert.Empty(t, cmp.Diff(twin.Types, doc.Types))
+		assert.Empty(t, cmp.Diff(twinDiags, diags, cmpopts.EquateEmpty()))
+	})
+
+	t.Run("a property redeclared as a null keeps the losing declaration as a null", func(t *testing.T) {
+		t.Parallel()
+		l, _ := loweredFor(t, openapitest.ComponentSpec("    A:\n      allOf:\n"+
+			"        - {type: object, properties: {p: {type: string, enum: [a, b]}}}\n"+
+			"        - {type: object, properties: {p: null}}\n"))
+		l.ctx.Limits = lowering.Limits{MaxEnumMembers: 1}
+		diags := schema.LowerComponentSchemas(t.Context(), l.ctx, l.types, &l.anchors)
+
+		m := asKind[*ir.Model](t, typeByName(l.document(t), "A"))
+		require.Len(t, m.Properties, 1)
+		assert.Equal(t, ir.TypeID("t/anon/components/schemas/A/allOf/0/properties/p"), m.Properties[0].Type.Target,
+			"the first declaration stands")
 		const loser = "openapi:conflicting-redeclaration/components/schemas/A/allOf/1/properties/p"
 		assert.Equal(t, []string{loser}, unmodeledKeys(m.Properties[0].Unmodeled))
 		kept := m.Properties[0].Unmodeled[loser]

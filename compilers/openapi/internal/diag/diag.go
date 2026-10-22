@@ -212,16 +212,15 @@ const (
 	// rather than left to evaluation.
 	DynamicRefExpanded = "openapi/dynamic-ref-expanded"
 	// ConflictingRedecl reports that inline allOf branches redeclare one field
-	// with disagreeing values. An incompatible target type (string vs. integer) is
-	// unsatisfiable; a conflicting constraint keyword (minimum: 10 vs.
-	// exclusiveMinimum: 10) is usually satisfiable but not representable by a
-	// simple merge, so the merge keeps an arbitrary source-order winner, possibly
-	// the looser bound.
+	// with disagreeing values. The judgment finds the types narrower (no
+	// diagnostic), overlapping (a DegradedConstruct: shared values the merge does
+	// not narrow) or disjoint; only disjoint types, a scalar against a structure
+	// and two structure kinds conflict. A conflicting constraint keyword
+	// (minimum: 10 vs. exclusiveMinimum: 10) is usually satisfiable, but no
+	// simple merge states it, so the merge keeps a source-order winner.
 	//
 	// Either way the losing declaration is kept whole under the merged property's
-	// Unmodeled (merge.keepLosingDeclaration), so a consumer reading the document
-	// finds it. Intersecting the bounds instead is the recorded direction (GitHub
-	// #10).
+	// Unmodeled (merge.keepLosingDeclaration); #10 records intersecting bounds.
 	ConflictingRedecl = "openapi/conflicting-redeclaration"
 	// DisjointVisibility reports one field restricted to lifecycle sets that
 	// share nothing — readOnly against writeOnly — so no lifecycle admits it at
@@ -247,15 +246,15 @@ const (
 	// is this.
 	AliasAmplification = "openapi/alias-amplification"
 	// BudgetExceeded reports an input that crossed a budget. openapi.Limits sets
-	// most: a document past the byte or node budget (or an overlay building it
-	// past one), aliases adding more nodes than the alias budget, an enum past
-	// the member budget (GitHub #75), more external documents than the document
-	// budget. Load bounds binding schema $refs, resuming chains through other
-	// documents and the rule table's checks; detection, a root's merges.
+	// most: a document's bytes or nodes (an overlay's included), alias nodes, an
+	// enum's members (GitHub #75), external documents. Fixed bounds cover load's
+	// schema $refs, chains through other documents and rule checks, detection's
+	// merges, and the declarations of one field the allOf merge judges.
 	//
-	// Unlike AliasAmplification's bomb, none is a fault of the input. Each is an
-	// error: the document is refused, validation stops, an enum loses its
-	// members (UnpreservableConstruct), or what was not reached is unresolved.
+	// None is the input's fault, unlike AliasAmplification's bomb. Each is an
+	// error: the document is refused, validation stops, an enum loses its members
+	// (UnpreservableConstruct), what was not reached is unresolved, or what is
+	// past the bound is kept verbatim, unlowered.
 	BudgetExceeded = "openapi/budget-exceeded"
 	// InternalInvariant reports that one of the compiler's own invariants broke:
 	// a pointer named a type ID the registry does not hold, a second resolution

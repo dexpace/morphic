@@ -817,7 +817,7 @@ each property that references it.
 - Codes: `openapi/disjoint-visibility`
 - Tests: `schema.TestModel_ReadOnlyAndWriteOnlyTogetherAreVisibleNowhere`,
   `openapi.TestAllOfVisibilityMerge_DisjointRestrictionsAreInvisibleNotAConflict`,
-  `merge.TestReconcileProperty_AlreadyInvisibleVisibilityIsNotReAnnounced`
+  `merge.TestFold_AlreadyInvisibleVisibilityIsNotReAnnounced`
 
 ### `nullable`
 
@@ -964,15 +964,80 @@ about the composed node instead, stated with the `false`-schema rule
   `schema.TestAllOf_UnpreservableBranchIsNotAnnounced`
 - Status: partly built: a nested inline `allOf` is kept as residue rather than flattened into the
   composition, so the composed model has no base, mixins or properties (#599), and an `allOf` of one
-  `$ref` and an annotation-only branch keeps none of the branch's annotations typed (#660).
+  `$ref` and an annotation-only branch keeps none of the branch's annotations typed (#660). An
+  `allOf` whose branches are all primitives lowers to a model with no properties, each branch kept
+  as residue (#1043).
 
 ### `allof-redeclared-property`
 
-`allOf` intersection folds a field declared in more than one branch into one `Property`, and the
-first declaration wins its shape (§4.3). The IR has no combinator for "string here, integer there",
-nor a second slot for a default, description, examples, deprecation or XML hint the first
-declaration already fills, so whatever of the redeclaration the fold cannot carry has nowhere to sit
-on the merged property, and with nowhere to sit it would go nowhere at all: a release in which a
+`allOf` intersection folds a field declared in more than one branch into one `Property` (§4.3),
+which keeps the first declaration's identity. The fold reads every declaration of the field at once,
+once every type has lowered, and decides each fact from the whole set, so neither the order of the
+branches nor where a component is declared decides what the field holds; declaration order breaks
+only a tie, and the merge reports each one. One judgment compares two declarations' types and
+returns one of six verdicts: the same type, either one narrower, an overlap, disjoint, or unrelated.
+A disjoint pair is unsatisfiable but for a null both declarations admit: no other value satisfies
+both. An overlap shares values and is merely not narrowed to one. The arms are tried in this order.
+`{}` loses to anything but the node a degraded lowering mints (an enum past its member budget, an
+unconvertible const), which is unrelated to every type; where `{}` loses, the winner's own null
+admission stands alone, since `{}` admits null yet lowers non-nullable. Two bare primitives compare
+by value domain and spelling (`integer` against `number`, `uuid` against `string`, `int32` against
+`int64`). A `Scalar` or `Enum` against a bare primitive wins over a kind it equals or narrows
+(`string` against `format: byte`, or an unknown format over bare `string`), is disjoint from a kind
+of another family, or from another string format where neither is `bytes` (`uuid` against
+`format: date`), and overlaps any other kind (`uuid` against `format: byte`); for an `Enum`, that
+overlap is disjoint where the kind's judge refuses every member. An enum with no members is refused
+vacuously, so it is disjoint from any kind it would otherwise overlap, `bytes` included; an enum
+with members against `bytes` stays an overlap. A `const` wins when the kind admits its value; where
+it does not, it is disjoint from a kind with a judge and overlaps `bytes`, which has none. Two
+enums, two `const`s or two `Scalar`s equal in every field but where they were declared (IDs, names,
+whether hoisted inline, and the provenance of the node and of what it keeps under `Unmodeled`) are
+one type where both were written inline at the field's own declarations, in their document, as the
+same declaration written twice; a node declared elsewhere, a component or a schema a `$ref` reaches
+in this document or another, wins over an inline copy of itself in either order, and two such nodes
+are two types the source declared apart, which overlap. Two lists, or two maps with one key, compare
+by element or value, nested up to a bound, and the narrower one wins only where it admits null no
+more widely than the other and the other holds no constraint, encoding, documentation, examples or
+`Unmodeled` the winner lacks; disjoint members still overlap where both admit null, or where both
+containers admit the empty one. Two alike in every member and in that detail are judged as two
+equal enums are: one type where both were written inline, the one declared elsewhere winning over
+an inline copy in either order, and two declared elsewhere overlapping. Anything else between
+distinct targets is unrelated.
+
+The field takes the type of the declaration whose type is the same as, or narrower than, the most
+declarations' types, the first of them on a tie. Where one declaration's type is within every other's
+it is the intersection, and it wins whatever the order. Each declaration whose type the winner's is
+the same as or narrower than folds into the field, which adopts its shape detail; every other one is
+dropped. So `int32`, `uint32` and `uint16` fold to `uint16` with nothing dropped, in every order,
+while `int32` and `uint32` alone keep the first declared and report the other.
+
+The relation between kinds is stated over JSON instances, so that a narrowing, which is adopted
+silently, holds in every reading. Its value-domain half is `PrimKind.StrictlyWithin` (§4.1) and its
+spelling half is the string rows of `formatTable` (`string-formats`): a format refines `string`.
+Only exact containments are edges. OpenAPI floats round, so `format: float` admits every finite
+number in its range; a bounded integer width sits inside either float width by rounding, while
+`integer` merely shares the values a float width holds. That containment holds of instances and not
+of values, so `int32`, `uint32`, `int64`, `uint64` and `integer` against `float32`, and `int64`,
+`uint64` and `integer` against `float64`, are overlaps, reported with the first declaration kept.
+
+A narrower type wins in either order, the intersection being that type, and is no drop. The merged
+field admits null only where every declaration folded into it does, and a null any of them writes is
+judged against that: a `default: null` or a null example is refused, a same-target fold included,
+where the merged field does not admit null. The top type admits null whatever its bit says, and one
+folded under another type says nothing of null. A `default` or `examples` a broader declaration
+gives is adopted only when the winning type admits it, judged per keyword and all or nothing. The winning type admits a value by its kind and by
+the constraints its node carries: each bound, `multipleOf`, a length counted in code points, an item
+or property count and `uniqueItems`, while a `pattern`, which nothing here evaluates, admits no
+string. Constraints written on the property rather than the node are not judged. A value the field
+does not take is reported in an info `openapi/degraded-construct` at each declaration that wrote it,
+which is kept verbatim beside the field. Of the values it takes, the first written is kept, and a
+declaration giving another is reported and kept; values are refused before one is kept, so a value
+the field takes is never lost to a refused one written before it. Constraint keywords merge over the
+declarations folded into the field, the first to set a keyword keeping it; the title, description,
+external links, deprecation and XML hints over every declaration, the first to give one keeping it.
+The IR has no combinator for "string here, integer there", nor a second slot for a default, title,
+description, external link, examples, deprecation or XML hint another declaration already fills, so
+whatever of a declaration the fold cannot carry has nowhere to sit on the merged property, and with nowhere to sit it would go nowhere at all: a release in which a
 losing branch's type or default changed would produce no change in the document, which a consumer
 diffing two versions reads as nothing having happened. The losing declaration is therefore kept
 verbatim, as the document wrote it, in `Unmodeled["openapi:conflicting-redeclaration<pointer>"]`
@@ -985,33 +1050,100 @@ and one node keeps everything the redeclaration said at once — a `$ref` as the
 nullability, a default.
 
 Preservation is owed wherever something is dropped, which is wider than the disagreements worth a
-warning. The two declarations are reported as an `openapi/conflicting-redeclaration` warning only
-where they are genuinely unsatisfiable — an incompatible type, or one constraint keyword pinned to
-two values; a detail the first declaration already holds differently is named in an info
-`openapi/degraded-construct`; and two composites of one kind, an unresolvable target, and the top
-type against anything are dropped without any diagnostic and kept all the same. The loser's
-`default`, constraints and examples go with its type rather than folding onto the winner — they
-describe the shape that lost, and adopting them would leave one field asserting two contradictory
-things, with nothing downstream comparing a value's kind to its property's type; this is keyed on
-the type being dropped, not on the drop being called a conflict. Two declarations naming the same
-target and differing only in nullability are not a drop and take no entry: the merged field admits
-null only where both branches do, which is the same conjunction a single schema's null verdicts fold
-under ([`nullable`](#nullable)). Whether two types conflict is read from the nodes they name once
-every type has lowered, so the warning follows the walk's diagnostics and neither declaration's
-order decides it; what is folded and kept never turns on it.
+warning. Each diagnostic sits at the declaration that lost and names the one whose say the field
+kept. A dropped declaration is reported against the winner as an `openapi/conflicting-redeclaration`
+warning where their types are incompatible — disjoint primitive kinds (`string` against `integer`, `uuid` against
+`date-time`), an enum none of whose members the other kind admits, a scalar against a structure, two
+different kinds of structure, or two lists or maps whose members share no value where one is never
+empty — or where one constraint keyword is pinned to two values; types that share values but that
+the merge does not narrow to one (`int32` against `uint32`, an enum of `integer` against an `int32`
+that admits one of its members, two enums of one kind, each with members, a `const` against a kind
+with no judge or against any other value-holding node, or two lists or maps whose members share only
+null or share nothing while both admit the empty one) are named in an info
+`openapi/degraded-construct`, and only the winner's type is kept; a detail a declaration gives
+differently from the one kept is named in an info `openapi/degraded-construct`; and so are two
+types the judgment does not compare (two models, a model and a map, an opaque scalar or a node a
+degraded lowering minted), since which of them the field keeps then follows declaration order. No
+declaration is dropped without a diagnostic. The loser's `default`,
+constraints and examples go with its type rather than folding onto the winner — they describe the
+shape that lost, and adopting them would leave one field asserting two contradictory things, with
+nothing downstream comparing a value's kind to its property's type; this is keyed on the type being
+dropped, not on the drop being called a conflict. A declaration folded into the field is no drop,
+and differing only in nullability it takes no entry: the merged field admits null only where every
+folded declaration does, which is the conjunction a single schema's null verdicts fold under
+([`nullable`](#nullable)). The fold waits for every type to lower because the judgment reads the
+nodes the declarations name, a component declared after the schema composing it or a node a `$ref`
+into another document promises among them; it finishes the model before any other decision reads it
+(`compile.Types.Complete`), so a form part's flags read the merged field. A fold judges every pair of
+declarations, so it judges a field's first 64 at most; each later one is kept verbatim, unjudged,
+under an `openapi/budget-exceeded` error at the first of them.
 
-- Cases: `allof-conflicting-type`
-- Codes: `openapi/conflicting-redeclaration`, `openapi/degraded-construct`
-- Tests: `merge.TestReconcileProperty_NullabilityIntersectsWhenTargetsAgree`,
-  `merge.TestReconcileProperty_ADroppedTypeIsKeptEvenWhenItDoesNotConflict`,
-  `merge.TestReconcileProperty_ALosingDetailIsKeptAndReported`,
-  `merge.TestMerger_ATypeConflictWaitsForTheRegistry`,
+- Cases: `allof-conflicting-type`, `allof-narrowing-redeclaration`
+- Codes: `openapi/conflicting-redeclaration`, `openapi/degraded-construct`, `openapi/budget-exceeded`
+- Tests: `merge.TestFold_NullabilityIntersectsWhenTargetsAgree`,
+  `merge.TestFold_ADroppedTypeIsKeptEvenWhenItDoesNotConflict`,
+  `merge.TestFold_ALosingDetailIsKeptAndReported`,
+  `merge.TestFold_TitleAndExternalDocsFoldLikeDescription`,
+  `merge.TestFold_ANarrowingIntersectsNullability`,
+  `merge.TestFold_ADroppedTargetKeepsTheFirstNullAdmission`,
+  `merge.TestFold_TheJudgmentsVerdictIsWhatIsReported`,
+  `merge.TestFold_ANarrowingIsNoDrop`,
+  `merge.TestFold_ANarrowingCarriesTheNullMarkers`,
+  `merge.TestIntersectNull_TheMarkerFollowsTheBit`,
+  `merge.TestFold_OverlappingKindsAreKeptAndReportedAsInfo`,
+  `merge.TestFold_DisjointKindsStillWarn`,
+  `schema.TestAllOf_OverlappingPrimitivesAreReportedNotConflicting`,
+  `merge.TestFold_EnumPairsAreJudgedByKind`,
+  `schema.TestAllOf_EnumPairsAreJudgedByKind`,
+  `merge.TestTypeJudge_RelateArms`,
+  `merge.TestTypeJudge_AdmitsPerNode`,
+  `merge.TestAdmitsConstraints_JudgesEachKeyword`,
+  `annotation.TestIsMultipleOf_JudgesExactly`,
+  `schema.TestAllOf_AWinnersConstraintsRefuseADefaultInEitherOrder`,
+  `merge.TestTypesConflict_ALiteralOverlapsWhatHoldsValues`,
+  `schema.TestAllOf_NonBareNarrowingIsOrderInvariant`,
+  `merge.TestFold_AScalarOverANarrowerKindWins`,
+  `merge.TestFold_TheTopTypeTakesTheOtherSidesNullAdmission`,
+  `schema.TestAllOf_TheTopTypeAndANullableKindMeetAsNullableInEitherOrder`,
+  `schema.TestAllOf_ADefaultTheNarrowerNodeRefusesIsKeptInEitherOrder`,
+  `schema.TestAllOf_TwoEqualListsRefuseANullTheMergeDoesNotAdmit`,
+  `schema.TestAllOf_AnUnknownFormatWinsInEitherOrder`,
+  `schema.TestAllOf_ReconcileAccumulatesRicherDetailForAnUnknownFormat`,
+  `merge.TestFold_AUint8NarrowsInt16InEitherOrder`,
+  `spelling.TestNarrows_HoldsEveryContainment`,
+  `spelling.TestNarrows_OmitsRoundingContainments`,
+  `spelling.TestRelate_ClassifiesEveryVerdict`,
+  `spelling.TestFormatTable_EveryRowNarrowsItsBareType`,
+  `merge.TestAdmits_JudgesEachKindExactly`,
+  `merge.TestAdmits_ReadsAHugeExponentWithoutMaterializingIt`,
+  `merge.TestTypeJudge_NullIsJudgedByNullability`,
+  `merge.TestFold_ExamplesAreJudgedAsOneKeyword`,
+  `merge.TestFold_AnInadmissibleValueIsKeptNotAdopted`,
+  `schema.TestAllOf_ANullOnARefOverTheTopTypeIsKept`,
+  `merge.TestFold_IdenticalNodesAreOneType`,
+  `schema.TestAllOf_IdenticalNodesAreOneType`,
+  `merge.TestPropIndex_ARedeclarationFoldsOnceTheRegistryIsWhole`,
+  `merge.TestFold_TheSetDecidesWhateverTheOrder`,
+  `merge.TestFold_ATieGoesToTheFirstAndIsReported`,
+  `merge.TestFold_ADroppedFirstDeclarationIsKept`,
+  `merge.TestFold_AConstraintConflictNamesTheDeclarationKeptFrom`,
+  `merge.TestFold_DeclarationsPastTheBoundAreKeptUnjudged`,
+  `schema.TestAllOf_ARefToAnInlineNodeIsDeclaredApart`,
+  `schema.TestAllOf_ACopyANarrowingKeptIsStillACopy`,
+  `schema.TestAllOf_AListOfAComponentWinsOverAListOfItsCopy`,
+  `schema.TestAllOf_ARefToASiblingFieldIsDeclaredApart`,
+  `openapi.TestExternalContent_ANodeAnotherDocumentHoistsIsNoCopyOfAnInlineOne`,
+  `openapi.TestExternalContent_ACopyInAnotherDocumentIsJudgedThere`,
+  `schema.TestAllOf_ARedeclarationIsJudgedOnceTheComponentsHaveLowered`,
   `openapi.TestCompile_AReferenceLeavesItsTargetToItsOwnerInEitherOrder`
-- Status: partly built: a primitive a `format` narrows is reported as conflicting with the bare
-  primitive, which it does not contradict (#446); an `allOf` that narrows a property's type is
-  reported as a conflict and resolved by branch order (#598), as is a redeclaration with an unknown
-  format (#782); and a property redeclared as a list and as a tuple is reported as a conflict
-  (#899). Open: intersecting the redeclared bounds and defaults rather than keeping one (#10).
+- Status: partly built: two distinct nodes of related kinds (`format: hex` against `format: byte`,
+  two enums whose members fit each other's kind, two different literals), and a list or map whose
+  broader side carries detail the narrower lacks, are reported as an overlap and never narrowed
+  (#1042); two models, or a model and a map, are reported as types the merge does not compare, even
+  where they are alike in every property; a property redeclared as a list and as a tuple is
+  reported as a conflict (#899). Open:
+  intersecting the redeclared bounds and defaults rather than keeping one, and judging an adopted
+  value against the constraints written on the property (#10).
 
 ### `allof-required`
 
@@ -1160,11 +1292,11 @@ union, with an info `openapi/degraded-construct` at the discriminator; a subtype
 a body the move leaves holding a map and nothing else lowers to that map's `MapT` (§4.6). A union
 whose branches declare no shape (`validation_only`) is held to the same rule, and so is a
 multi-typed body, which lowers to a `Union` whose object variant, built from the same schema, holds
-the discriminator. The compiler decides once every node is interned (`compile.Settlement`), because
-neither the walk nor the source schemas can answer it: a subtype declared after the `Model` has no
-`Base` while the `Model` lowers, and a schema whose `allOf` names the `Model` may still lower to no
-subtype — an `enum`, a `const`, an alias over a `$ref` beside it, or a union its `allOf` is
-distributed across.
+the discriminator. The compiler decides once the walk lowering the `Model` has returned
+(`compile.Settlement`), because neither the walk nor the source schemas can answer it: a subtype
+declared after the `Model` has no `Base` while the `Model` lowers, and a schema whose `allOf` names
+the `Model` may still lower to no subtype — an `enum`, a `const`, an alias over a `$ref` beside it,
+or a union its `allOf` is distributed across.
 
 A union whose branches declare no shape at all (`oneOf: [{required: [a]}, {required: [b]}]`) is not
 a degradation and is not one of the five: it narrows the body without reshaping it, which is
@@ -1472,7 +1604,7 @@ pairing of `format` with another `type` is [`numeric-formats`](#numeric-formats)
 - Codes: `openapi/degraded-construct`
 - Tests: `schema.TestScalar_UnknownFormatPerBaseType`,
   `schema.TestLower_NamedScalarComponentResolves`,
-  `schema.TestFormatTable_EveryRowDistinguishesTheBareType`
+  `spelling.TestFormatTable_EveryRowDistinguishesTheBareType`
 - Status: partly built: `date-time-local` and `time-local` hoist over `string`, and `time`'s offset
   has no home (#869), and a `byte` string and a string-carried number put the logical and the wire
   type on opposite fields (#637).
@@ -2124,10 +2256,16 @@ declaration of a name winning, or on a `Base` or `Mixin` it composes. `contentTy
 `ContentTypes`, split on `,` and trimmed with empty items dropped, and one naming no media type is
 an `openapi/validation` error ([`validation`](#validation)); `headers` to `Headers`, lowered as a
 response's are; and `style` and `explode` to `Style` and `Explode` as declared, nothing defaulted.
-`Multi` and `Filename` come from the part's own schema and never from the `encoding` map: `Multi`
-where it is an array, `Filename` where it is a `string` with `format` `binary` or `byte`. A part is
-entered only when its `PartEncoding` holds something, so a body that declares no encoding still gets
-entries for its array and file parts, and an entry declaring nothing leaves none. What an Encoding
+`Multi` and `Filename` come from the part and never from the `encoding` map, read once every type
+has lowered. Where the body model has the property and its type is a list, a tuple, a primitive, or
+a scalar whose bases end in one of those or in no base, they are read off that type, the one the
+`allOf` merge settled on: `Multi` where it ends in a list or tuple, `Filename` where it ends in
+`bytes` (`format` `binary` or `byte`). For a property of any other kind, such as a union, enum,
+literal, model or map, and for a body with no model, they are read from every declaration of the
+part's name: `Multi` where any is an array, `Filename` where any is a `string` with `format`
+`binary` or `byte`. A part is entered only when its `PartEncoding` holds something, so a body that
+declares no encoding still gets entries for its array and file parts, and an entry declaring
+nothing leaves none. What an Encoding
 Object writes beyond those fields is [`encoding-allow-reserved`](#encoding-allow-reserved)'. An
 encoding written where OpenAPI gives it no effect is reported as an `openapi/validation` warning, of
 the class `validation-no-effect`, at the field ([`validation`](#validation)): an `encoding` under a
@@ -2140,7 +2278,13 @@ read without its parameters and in any case.
 - Tests: `operation.TestContent_MultipartPartEncoding`,
   `oas.TestCheck_EncodingsApplyWhereTheSpecificationSays`,
   `operation.TestContent_ArrayMultipartPartMulti`,
-  `operation.TestPartEncodings_MixinPartIsKeyedOnTheMixin`
+  `operation.TestPartEncodings_MixinPartIsKeyedOnTheMixin`,
+  `operation.TestPartEncoding_FlagsComeFromTheMergedType`,
+  `operation.TestPartEncoding_FlagsOfAnUndecidedTypeComeFromTheSchema`,
+  `operation.TestPartEncoding_FlagsOfABodyWithNoModelPropertyComeFromTheSchema`,
+  `operation.TestPartEncoding_FlagsOfAnUndecidedMergedTypeComeFromEveryDeclaration`,
+  `operation.TestPartEncoding_ADecidedTypeNeverFallsBack`,
+  `operation.TestContent_MultipartRedeclaredPartFlagsComeFromTheSettledType`
 - Status: partly built: an `encoding` key that names no property, or one declared only inside a
   `oneOf` or `anyOf` branch, is dropped with no diagnostic (#604); on a multi-typed body the entry
   is keyed by a property no node holds, which validation then refuses (#744); an array of files is

@@ -247,3 +247,102 @@ func FuzzCanonicalDecimal_AgreesWithBigValEqual(f *testing.F) {
 		require.Equal(t, BigValEqual(va, vb), ca == cb, "%q (%s) and %q (%s)", va, ca, vb, cb)
 	})
 }
+
+// TestReadDecimal_ReadsWithoutMaterializing pins the reading admits judges a
+// value by: integrality, significant digits and the leading power of ten, for
+// literals no machine type holds.
+func TestReadDecimal_ReadsWithoutMaterializing(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		in       ir.BigVal
+		neg      bool
+		zero     bool
+		integral bool
+		digits   int
+		msd      string
+	}{
+		{"0", false, true, true, 0, "0"},
+		{"-0.0", false, true, true, 0, "0"},
+		{"1500", false, false, true, 2, "3"},
+		{"-1.5", true, false, false, 2, "0"},
+		{"5.0", false, false, true, 1, "0"},
+		{"0.05", false, false, false, 1, "-2"},
+		{"1e1000001", false, false, true, 1, "1000001"},
+		{"1e-1000001", false, false, false, 1, "-1000001"},
+	} {
+		got, ok := ReadDecimal(tc.in)
+		require.True(t, ok, "%s", tc.in)
+		order, ordered := CompareBigVal(tc.in, "0")
+		require.True(t, ordered, "%s", tc.in)
+		assert.Equal(t, tc.neg, order < 0, "%s", tc.in)
+		assert.Equal(t, tc.zero, got.Zero, "%s", tc.in)
+		assert.Equal(t, tc.integral, got.Integral, "%s", tc.in)
+		assert.Equal(t, tc.digits, got.Digits, "%s", tc.in)
+		assert.Equal(t, tc.msd, got.MsdExp.String(), "%s", tc.in)
+	}
+
+	_, ok := ReadDecimal("1p4")
+	assert.False(t, ok, "a literal outside the decimal grammar is not read")
+}
+
+// TestCompareBigVal_OrdersByValue pins the order admits bounds a value by.
+func TestCompareBigVal_OrdersByValue(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		a, b ir.BigVal
+		want int
+	}{
+		{"1", "2", -1},
+		{"2.0", "2", 0},
+		{"-5", "-6", 1},
+		{"1e1000001", "9223372036854775807", 1},
+		{"-1e1000001", "-9223372036854775808", -1},
+	} {
+		got, ok := CompareBigVal(tc.a, tc.b)
+		require.True(t, ok)
+		assert.Equal(t, tc.want, got, "%s against %s", tc.a, tc.b)
+	}
+
+	_, ok := CompareBigVal("1p4", "1")
+	assert.False(t, ok, "no order is claimed outside the grammar")
+	_, ok = CompareBigVal("1", "1p4")
+	assert.False(t, ok)
+}
+
+// TestIsMultipleOf_JudgesExactly pins the multipleOf judgment the merge holds a
+// value to. Each row is one a float division gets wrong or one where no answer
+// is claimed: a decimal step float64 cannot hold, values far apart in scale,
+// and the pairs ok refuses, a zero step, a scale past the shift budget and a
+// literal outside the grammar.
+func TestIsMultipleOf_JudgesExactly(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name         string
+		v, m         ir.BigVal
+		multiple, ok bool
+	}{
+		{"an integer multiple", "10", "5", true, true},
+		{"an integer that is not one", "7", "2", false, true},
+		{"a decimal step float64 cannot hold", "0.3", "0.1", true, true},
+		{"a decimal off the step", "0.35", "0.1", false, true},
+		{"a fraction against an integral step", "2.5", "2", false, true},
+		{"a fraction against a fractional step", "2.5", "0.5", true, true},
+		{"zero, a multiple of anything", "0", "3", true, true},
+		{"a negative multiple", "-6", "3", true, true},
+		{"a step larger than the value", "2", "5", false, true},
+		{"magnitudes far apart within the budget", "1e100", "5", true, true},
+		{"a step far below the value", "1", "1e-100", true, true},
+		{"magnitudes past the budget", "1e5000", "2", false, false},
+		{"a zero step, which divides nothing", "4", "0", false, false},
+		{"a value outside the grammar", "1p4", "2", false, false},
+		{"a step outside the grammar", "4", "2p1", false, false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			multiple, ok := IsMultipleOf(tc.v, tc.m)
+			assert.Equal(t, tc.ok, ok)
+			assert.Equal(t, tc.multiple, multiple)
+		})
+	}
+}

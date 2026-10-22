@@ -1,4 +1,4 @@
-// This file regression-tests GitHub #34: reconcileProperty folded every other
+// This file regression-tests GitHub #34: the allOf merge folded every other
 // redeclared property detail (required, docs, default, constraints, ...) but
 // never Visibility, so a readOnly/writeOnly declared on the allOf branch that
 // redeclares a shared field was silently lost.
@@ -38,10 +38,10 @@ components:
 // swapped, so readOnly is now the *first* declaration and the plain
 // redeclaration comes second.
 //
-// Before the fix, reconcileProperty kept whichever branch it saw first and
-// dropped the other's Visibility entirely. That happened to produce the
-// right answer in this direction, purely because the first branch
-// (reconcileProperty's dst) was already the readOnly one — so a single-order
+// Before the fix, the merge kept whichever branch it saw first and dropped the
+// other's Visibility entirely. That happened to produce the right answer in
+// this direction, purely because the first branch was already the readOnly
+// one — so a single-order
 // test written only against this spec would have passed on the broken code.
 // TestAllOfVisibilityMerge_OrderIndependent compiles both directions and
 // diffs them, which is what actually catches that accident rather than

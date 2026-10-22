@@ -241,11 +241,11 @@ func TestLowerPayload_NilMediaEntriesYieldNil(t *testing.T) {
 	assert.Empty(t, diags)
 }
 
-// TestPropIDByWire_DeadEnds mirrors TestBodyModelPointer_NoModelBehindBody for
+// TestPropByWire_DeadEnds mirrors TestBodyModelPointer_NoModelBehindBody for
 // the property walk: the same dead ends, asked for a part name rather than a
 // pointer. Neither may invent an ID — a part keyed by a PropID nothing declares
 // is a dangling reference the encoding map would carry silently.
-func TestPropIDByWire_DeadEnds(t *testing.T) {
+func TestPropByWire_DeadEnds(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
 	l.types.Register("t/opaque", &ir.Scalar{ID: "t/opaque"})
@@ -273,9 +273,9 @@ func TestPropIDByWire_DeadEnds(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			id, ok := propIDByWire(l.types.Node, tc.body, "file", 0)
+			prop, ok := propByWire(l.types.Node, tc.body, "file", 0)
 			assert.False(t, ok, "no property with that wire name stands behind this body")
-			assert.Empty(t, id, "and no ID is invented for one")
+			assert.Nil(t, prop, "and no property is invented for one")
 		})
 	}
 }
@@ -288,4 +288,44 @@ func TestBodyParts_DepthBound(t *testing.T) {
 	js := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{})
 	assert.Nil(t, bodyParts(nil, js, maxPartCompositionDepth+1),
 		"past the bound the walk stops rather than descending further")
+}
+
+// TestPartTypeFlags_DecidesOnlyTheKindsItReads holds the type walk to what it
+// decides at each end: a tuple repeats; a string primitive, an opaque scalar
+// and an alias cycle that exhausts the bound decide neither flag; an ID
+// nothing declares, a model and a union are left to the caller's schema
+// reading.
+func TestPartTypeFlags_DecidesOnlyTheKindsItReads(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{})
+	l.types.Register("t/opaque", &ir.Scalar{ID: "t/opaque"})
+	l.types.Register("t/cycle/a", &ir.Scalar{
+		ID: "t/cycle/a", Base: &ir.TypeRef{Target: "t/cycle/b"},
+	})
+	l.types.Register("t/cycle/b", &ir.Scalar{
+		ID: "t/cycle/b", Base: &ir.TypeRef{Target: "t/cycle/a"},
+	})
+	l.types.Register("t/model", &ir.Model{ID: "t/model"})
+	l.types.Register("t/tuple", &ir.Tuple{ID: "t/tuple"})
+	l.types.Register("t/union", &ir.Union{ID: "t/union"})
+
+	cases := []struct {
+		target  ir.TypeID
+		multi   bool
+		decided bool
+	}{
+		{"t/absent", false, false},
+		{"t/opaque", false, true},
+		{"t/model", false, false},
+		{"t/union", false, false},
+		{"t/tuple", true, true},
+		{"t/cycle/a", false, true},
+		{l.types.PrimID(ir.PrimString), false, true},
+	}
+	for _, tc := range cases {
+		multi, file, decided := partTypeFlags(l.types.Node, ir.TypeRef{Target: tc.target})
+		assert.Equal(t, tc.multi, multi, "%s multi", tc.target)
+		assert.False(t, file, "%s is not bytes", tc.target)
+		assert.Equal(t, tc.decided, decided, "%s decided", tc.target)
+	}
 }

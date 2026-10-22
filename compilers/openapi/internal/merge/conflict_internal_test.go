@@ -147,9 +147,9 @@ func TestTypesConflict_OpaqueScalarVsPrimitiveIsNotConflict(t *testing.T) {
 		"t/string": &ir.Primitive{ID: "t/string", Prim: ir.PrimString},
 	})
 
-	assert.False(t, g.typesConflict(ir.TypeRef{Target: "t/opaque"}, ir.TypeRef{Target: "t/string"}),
+	assert.Equal(t, verdictUncompared, g.typesConflict(ir.TypeRef{Target: "t/opaque"}, ir.TypeRef{Target: "t/string"}),
 		"opaque scalar vs primitive is not flagged (never guess)")
-	assert.False(t, g.typesConflict(ir.TypeRef{Target: "t/string"}, ir.TypeRef{Target: "t/opaque"}),
+	assert.Equal(t, verdictUncompared, g.typesConflict(ir.TypeRef{Target: "t/string"}, ir.TypeRef{Target: "t/opaque"}),
 		"primitive vs opaque scalar is not flagged (never guess)")
 }
 
@@ -160,9 +160,9 @@ func TestTypesConflict_StructuralVsPrimitiveIsConflict(t *testing.T) {
 		"t/string": &ir.Primitive{ID: "t/string", Prim: ir.PrimString},
 	})
 
-	assert.True(t, g.typesConflict(ir.TypeRef{Target: "t/model"}, ir.TypeRef{Target: "t/string"}),
+	assert.Equal(t, verdictConflict, g.typesConflict(ir.TypeRef{Target: "t/model"}, ir.TypeRef{Target: "t/string"}),
 		"model vs primitive is a provable conflict")
-	assert.True(t, g.typesConflict(ir.TypeRef{Target: "t/string"}, ir.TypeRef{Target: "t/model"}),
+	assert.Equal(t, verdictConflict, g.typesConflict(ir.TypeRef{Target: "t/string"}, ir.TypeRef{Target: "t/model"}),
 		"primitive vs model is a provable conflict")
 }
 
@@ -178,7 +178,7 @@ func TestConstraintsConflict_PatternMessageConflictReported(t *testing.T) {
 	t.Parallel()
 	a := &ir.Constraints{PatternMessage: "must be alphanumeric"}
 	b := &ir.Constraints{PatternMessage: "must match the legacy format"}
-	detail, ok := constraintsConflict(a, b)
+	_, detail, ok := constraintsConflict(a, b)
 	require.True(t, ok, "differing patternMessage is a conflict")
 	assert.Contains(t, detail, "patternMessage")
 	assert.Contains(t, detail, "must be alphanumeric")
@@ -200,7 +200,7 @@ func TestConstraintsConflict_UniqueItemsNeverConflicts(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			_, ok := constraintsConflict(&ir.Constraints{UniqueItems: tc.a}, &ir.Constraints{UniqueItems: tc.b})
+			_, _, ok := constraintsConflict(&ir.Constraints{UniqueItems: tc.a}, &ir.Constraints{UniqueItems: tc.b})
 			assert.False(t, ok, "differing uniqueItems must not be reported as a conflict")
 		})
 	}
@@ -268,7 +268,7 @@ func TestMergeConstraints_LeavesSetKeywordsUntouched(t *testing.T) {
 	t.Parallel()
 	// dst already sets every keyword exercised here; src's differing values
 	// must never overwrite dst's — first declaration wins, same as every
-	// other reconcileProperty field.
+	// other field the fold keeps first.
 	dstMin, srcMin := ir.BigVal("1"), ir.BigVal("99")
 	dst := &ir.Constraints{Min: &dstMin, Pattern: "^dst$", PatternMessage: "dst message", UniqueItems: true}
 	src := &ir.Constraints{Min: &srcMin, Pattern: "^src$", PatternMessage: "src message", UniqueItems: false}
@@ -299,8 +299,24 @@ func TestConstraintsConflict_DeterministicKeywordOrder(t *testing.T) {
 	twenty, thirty := int64(20), int64(30)
 	a := &ir.Constraints{MinLength: &two, MaxLength: &twenty}
 	b := &ir.Constraints{MinLength: &three, MaxLength: &thirty}
-	detail, ok := constraintsConflict(a, b)
+	_, detail, ok := constraintsConflict(a, b)
 	require.True(t, ok)
 	assert.Contains(t, detail, "minLength", "the earlier-checked keyword is reported")
 	assert.NotContains(t, detail, "maxLength", "the later-checked keyword is not also reported")
+}
+
+// TestTypesConflict_ALiteralOverlapsWhatHoldsValues pins that a literal against
+// another literal or against a type with a primitive kind is an overlap, never
+// silent, while a literal against a structure still conflicts and a dangling
+// target stays silent.
+func TestTypesConflict_ALiteralOverlapsWhatHoldsValues(t *testing.T) {
+	t.Parallel()
+	g, _ := stubMerger(judgeRegistry())
+
+	assert.Equal(t, verdictOverlap, g.typesConflict(ref("t/lit-a"), ref("t/lit-x")))
+	assert.Equal(t, verdictOverlap, g.typesConflict(ref("t/lit-1"), ref("t/enum-int")))
+	assert.Equal(t, verdictOverlap, g.typesConflict(ref("t/scalar-str"), ref("t/lit-a")))
+	assert.Equal(t, verdictConflict, g.typesConflict(ref("t/lit-a"), ref("t/model")))
+	assert.Equal(t, verdictUncompared, g.typesConflict(ref("t/absent"), ref("t/prim/string")))
+	assert.Equal(t, verdictUncompared, g.typesConflict(ref("t/prim/string"), ref("t/absent")))
 }

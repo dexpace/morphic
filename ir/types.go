@@ -82,6 +82,78 @@ func (k PrimKind) Valid() bool {
 	}
 }
 
+// maxDomainDepth bounds the walk up domainParents. It exceeds the longest
+// chain, int8 up to number, so it only guards a table edited into a cycle.
+const maxDomainDepth = 8
+
+// domainParents returns the immediate supertypes of k by value domain: the
+// kinds that hold every finite value of k, with no kind between (ir-design
+// §4.1). A kind with none is a root. PrimAny is the top of every kind without
+// being an edge; see StrictlyWithin. The result is fresh, so a caller may keep it.
+func (k PrimKind) domainParents() []PrimKind {
+	switch k {
+	case PrimInt8:
+		return []PrimKind{PrimInt16}
+	case PrimInt16:
+		return []PrimKind{PrimInt32, PrimFloat32}
+	case PrimInt32:
+		return []PrimKind{PrimInt64, PrimFloat64}
+	case PrimInt64, PrimUint64:
+		return []PrimKind{PrimInteger, PrimDecimal128}
+	case PrimUint8:
+		return []PrimKind{PrimUint16, PrimInt16}
+	case PrimUint16:
+		return []PrimKind{PrimUint32, PrimInt32, PrimFloat32}
+	case PrimUint32:
+		return []PrimKind{PrimUint64, PrimInt64, PrimFloat64}
+	case PrimInteger:
+		return []PrimKind{PrimFloat}
+	case PrimFloat32:
+		return []PrimKind{PrimFloat64}
+	case PrimFloat64:
+		return []PrimKind{PrimFloat}
+	case PrimFloat:
+		return []PrimKind{PrimDecimal}
+	case PrimDecimal:
+		return []PrimKind{PrimNumber}
+	case PrimDecimal128:
+		return []PrimKind{PrimDecimal}
+	case PrimBool, PrimString, PrimBytes, PrimNumber,
+		PrimDate, PrimTime, PrimDatetime, PrimDatetimeOffset, PrimDuration,
+		PrimURL, PrimUUID, PrimAny:
+		return nil
+	default:
+		return nil
+	}
+}
+
+// StrictlyWithin reports whether every finite value of k is a value of broad and the
+// kinds differ: broad is reached by walking domainParents up from k, or is
+// PrimAny and k is another valid kind. It is a strict partial order, and the
+// walk is bounded by maxDomainDepth.
+func (k PrimKind) StrictlyWithin(broad PrimKind) bool {
+	if k == broad || !k.Valid() || !broad.Valid() {
+		return false
+	}
+	if broad == PrimAny {
+		return true
+	}
+	frontier := []PrimKind{k}
+	for depth := 0; depth < maxDomainDepth && len(frontier) > 0; depth++ {
+		var next []PrimKind
+		for _, kind := range frontier {
+			for _, parent := range kind.domainParents() {
+				if parent == broad {
+					return true
+				}
+				next = append(next, parent)
+			}
+		}
+		frontier = next
+	}
+	return false
+}
+
 // AdditionalMode describes the openness of a model's property set beyond its
 // declared properties and AdditionalProps (ir-design §4.3).
 type AdditionalMode string

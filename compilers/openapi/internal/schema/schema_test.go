@@ -1936,7 +1936,7 @@ func TestAllOf_ConstraintAndFormatConflictsDiagnosed(t *testing.T) {
 	// Each way a redeclaration can contradict across branches: an inclusive vs
 	// exclusive bound of equal magnitude, a differing pattern, a differing
 	// multipleOf, a bound and a multipleOf that differ past the magnitude a
-	// rational will build, and two format-derived primitives (string vs uuid).
+	// rational will build, and two format-derived primitives (uuid vs date-time).
 	// Each keeps the first declaration but surfaces exactly one conflict naming
 	// the field, both branch sites, and — for the constraint cases — the
 	// offending keyword with both of its conflicting values, so the author
@@ -1988,9 +1988,9 @@ func TestAllOf_ConstraintAndFormatConflictsDiagnosed(t *testing.T) {
 			wantDetail: "conflicting multipleOf (1e1000001 and 1e1000002)",
 		},
 		{
-			name: "string vs uuid",
-			a:    "{type: string}",
-			b:    "{type: string, format: uuid}",
+			name: "uuid vs date-time",
+			a:    "{type: string, format: uuid}",
+			b:    "{type: string, format: date-time}",
 			// A type conflict, not a constraint one — checked via the
 			// type-conflict message shape in TestAllOf_TypeConflictMessageNamesBothTypes.
 			wantDetail: "incompatible types",
@@ -2012,6 +2012,47 @@ func TestAllOf_ConstraintAndFormatConflictsDiagnosed(t *testing.T) {
 	}
 }
 
+// TestAllOf_PrimitiveNarrowingIsLosslessInEitherOrder pins that a redeclaration
+// narrowing a bare primitive (GitHub #598, #446) loses nothing: the narrower
+// target wins in both branch orders, with no diagnostic and no kept entry, and
+// the two orders merge to the same type.
+func TestAllOf_PrimitiveNarrowingIsLosslessInEitherOrder(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name, broad, narrow string
+		want                ir.TypeID
+	}{
+		{"number and integer", "{type: number}", "{type: integer}", "t/prim/integer"},
+		{"integer and int32", "{type: integer}", "{type: integer, format: int32}", "t/prim/int32"},
+		{"string and date-time", "{type: string}", "{type: string, format: date-time}", "t/prim/datetime_offset"},
+		{"int32 and int64", "{type: integer, format: int64}", "{type: integer, format: int32}", "t/prim/int32"},
+		{"uri and string", "{type: string}", "{type: string, format: uri}", "t/prim/url"},
+		{"double and number", "{type: number}", "{type: number, format: double}", "t/prim/float64"},
+		{"uuid and string", "{type: string}", "{type: string, format: uuid}", "t/prim/uuid"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var merged [2]ir.TypeRef
+			for i, spec := range []string{allOfConflictSpec(tc.broad, tc.narrow), allOfConflictSpec(tc.narrow, tc.broad)} {
+				doc, diags := lowerSpec(t, spec)
+				openapitest.RequireNoErrorDiags(t, diags)
+				assert.Empty(t, diags, "a narrowing draws no diagnostic (order %d)", i)
+				model, ok := doc.Types[componentID("T")].(*ir.Model)
+				require.True(t, ok)
+				require.Len(t, model.Properties, 1)
+				prop := model.Properties[0]
+				assert.Equal(t, tc.want, prop.Type.Target, "the narrower target wins (order %d)", i)
+				for key := range prop.Unmodeled {
+					assert.NotContains(t, key, "openapi:conflicting-redeclaration", "nothing is kept (order %d)", i)
+				}
+				merged[i] = prop.Type
+			}
+			assert.Empty(t, cmp.Diff(merged[0], merged[1]), "the merged type does not depend on branch order")
+		})
+	}
+}
+
 func TestAllOf_CompatibleConstraintRedeclarationsStaySilent(t *testing.T) {
 	t.Parallel()
 	// The false-positive guards for the constraint path: a keyword present on
@@ -2019,9 +2060,8 @@ func TestAllOf_CompatibleConstraintRedeclarationsStaySilent(t *testing.T) {
 	// not a conflict — and the merge must genuinely carry both keywords
 	// forward on the reconciled property, not just stay quiet about the one it
 	// used to drop; one magnitude spelled two ways is one value, whether or not
-	// it is one a rational will build; and an unknown-format scalar resolves
-	// through its Base to the same primitive as the plain type, so it is not a
-	// type conflict.
+	// it is one a rational will build; and an unknown-format scalar narrows the
+	// plain type it is based on, so it wins with nothing to report.
 	cases := []struct {
 		name         string
 		a, b         string
@@ -2089,8 +2129,7 @@ func TestAllOf_CompatibleConstraintRedeclarationsStaySilent(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			doc, diags := lowerSpec(t, allOfConflictSpec(tc.a, tc.b))
-			openapitest.RequireNoErrorDiags(t, diags)
-			assert.Empty(t, conflictDiags(diags), "%s must not be reported as a conflict", tc.name)
+			assert.Empty(t, diags, "%s draws no diagnostic", tc.name)
 			if tc.assertMerged == nil {
 				return
 			}
@@ -3239,7 +3278,7 @@ func TestUndeclaredRegion_TwoReferencesAgreeInBothOrders(t *testing.T) {
 //
 // /b's multipart body composes Base through allOf, so the property "file" that
 // /a's encoding key names lives on Base. The key is found by walking the
-// composition (propIDByWire), which needs /b's node, and /a's reference leaves
+// composition (propByWire), which needs /b's node, and /a's reference leaves
 // building it to /b, so the keys are settled once every node exists (partKeys);
 // read earlier, the key would fall back to a property ID that exists nowhere.
 func TestCrossPathReference_ComposedMultipartKeepsItsEncodingKeys(t *testing.T) {

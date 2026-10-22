@@ -196,7 +196,14 @@ var rules = map[string][]string{
 	// fields, which is what keeps the conflict lattice drivable without a walk.
 	"compilers/openapi/internal/merge": {module + "/ir",
 		module + "/compilers/openapi/internal/annotation",
-		module + "/compilers/openapi/internal/diag"},
+		module + "/compilers/openapi/internal/diag",
+		module + "/compilers/openapi/internal/spelling"},
+	// The table that maps a (type, format) pair to a primitive kind, and the
+	// relation between two kinds that table and ir's value domains give. It is its
+	// own package because merge reads the relation and may not import schema,
+	// whose walk reads the table, and the table is no part of merge's fold. It
+	// reaches ir alone.
+	"compilers/openapi/internal/spelling": {module + "/ir"},
 	// What is being lowered: the parsed document, the identity of the source, and
 	// the indexes derived from them at entry. It is the substrate both walks share
 	// and so must reach neither, which is why it sits here rather than with either
@@ -238,6 +245,7 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/merge",
 		module + "/compilers/openapi/internal/nodeview",
 		module + "/compilers/openapi/internal/resolve",
+		module + "/compilers/openapi/internal/spelling",
 		module + "/compilers/openapi/internal/value",
 		"github.com/speakeasy-api/openapi/extensions",
 		"github.com/speakeasy-api/openapi/jsonschema/oas3",
