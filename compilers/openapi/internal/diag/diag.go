@@ -257,8 +257,7 @@ const (
 	// members (UnpreservableConstruct), or what was not reached is unresolved.
 	BudgetExceeded = "openapi/budget-exceeded"
 	// InternalInvariant reports that one of the compiler's own invariants broke:
-	// a pointer named a type ID the registry does not hold, a fold the merge
-	// deferred found another node registered for its model, a second resolution
+	// a pointer named a type ID the registry does not hold, a second resolution
 	// read a document load never prepared, or the library faulted while load put
 	// the $refs it respelled back as written. It is a compiler bug, not a problem
 	// with the source, but it is reported rather than dropped in silence, since
