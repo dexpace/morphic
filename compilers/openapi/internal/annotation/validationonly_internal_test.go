@@ -2,6 +2,7 @@ package annotation
 
 import (
 	"encoding/json/jsontext"
+	"slices"
 	"strings"
 	"testing"
 
@@ -324,4 +325,31 @@ func TestValidationOnlyAt_DependentRequiredJoinsItsSiblings(t *testing.T) {
 	require.Len(t, diags, 1, "and is announced exactly once")
 	assert.Equal(t, diag.ValidationOnlyKeyword, diags[0].Code)
 	assert.Equal(t, 7, diags[0].Provenance.Source)
+}
+
+// recordedCall is one (pointer, from) pair a recording Locator was asked
+// about.
+type recordedCall struct {
+	pointer jsontext.Pointer
+	from    []jsontext.Pointer
+}
+
+// recording is a Locator that appends every call it receives to calls, in call
+// order, and answers source 1 when from is non-empty and source 0 otherwise —
+// enough to tell a combined entry's call, made with the keywords it holds,
+// apart from a single position's, made with none. It exists to let a test
+// assert what a reader asked a Locator, rather than only what answer came
+// back. An empty from is recorded as nil, so a call made with none compares
+// equal to a recordedCall that names none.
+func recording(calls *[]recordedCall) Locator {
+	return func(pointer jsontext.Pointer, from ...jsontext.Pointer) ir.Provenance {
+		call := recordedCall{pointer: pointer}
+		source := 0
+		if len(from) > 0 {
+			call.from = slices.Clone(from)
+			source = 1
+		}
+		*calls = append(*calls, call)
+		return ir.Provenance{Source: source, Pointer: pointer}
+	}
 }
