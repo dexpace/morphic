@@ -61,6 +61,26 @@ func EffectiveVisibility(ref, tgt *oas3.Schema) (ir.Visibility, bool) {
 	}
 }
 
+// EffectiveDefault returns the default ref writes, or else the one its referent
+// tgt writes, use-site over referent, for the carrier at pointer to keep: a
+// property or a parameter. A schema writing none yields nothing; an
+// unconvertible node yields a warning at pointer and no value.
+func EffectiveDefault(ref, tgt *oas3.Schema, pointer jsontext.Pointer, locate Locator) (*ir.Value, []ir.Diagnostic) {
+	node := ref.GetDefault()
+	if node == nil && tgt != nil {
+		node = tgt.GetDefault()
+	}
+	if node == nil {
+		return nil, nil
+	}
+	v, err := value.FromNode(node)
+	if err != nil {
+		return nil, []ir.Diagnostic{diag.Newf(ir.SeverityWarning, diag.DegradedConstruct, locate(pointer),
+			"default: %s", err.Error())}
+	}
+	return &v, nil
+}
+
 // pickFlag returns the bool field extracted by accessor from ref when present,
 // else from tgt, else false. It is the single nil-safe "use-site overrides
 // referent" primitive for boolean schema flags (readOnly, writeOnly, deprecated).

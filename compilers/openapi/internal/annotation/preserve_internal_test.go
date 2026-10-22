@@ -152,6 +152,9 @@ func TestUnpreservableDiag_IsAnErrorNotADegradation(t *testing.T) {
 	assert.Contains(t, got.Message, "in no form at all")
 }
 
+// TestPreserveValidationOnlyInto_EmptyPayloadRecordsAndAnnouncesNothing pins the
+// recorder's len check: a nil and a zero-length payload both keep no entry, so
+// neither may be announced as kept.
 func TestPreserveValidationOnlyInto_EmptyPayloadRecordsAndAnnouncesNothing(t *testing.T) {
 	t.Parallel()
 	for name, raw := range map[string]ir.RawValue{"nil": nil, "empty non-nil": {}} {

@@ -12,11 +12,13 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// Keeping a construct verbatim is annotation's job, and this package calls it
-// directly with c.ProvenanceAt. A preservation function is defined here only
-// when its decision needs what the lowering holds: PreserveUnknownKeywords reads
-// the dialect a schema is read in, which annotation sits below and cannot ask.
-// One that needs nothing of the lowering but a provenance belongs in
+// How a construct is kept verbatim is annotation's: the key its entry takes, the
+// position it is located at, the conversion of its value, and the report when
+// it cannot be kept. This package calls annotation for that directly, with
+// c.ProvenanceAt. What it decides is what a position keeps and why: which
+// keywords, under which reason, announced how. PreserveUnknownKeywords is one
+// such decision, reading the dialect a schema is read in. A preservation
+// function that decides nothing and only keys, locates or converts belongs in
 // annotation, or the same call gains a second spelling.
 
 // PreserveUnknownKeywords records every keyword s writes that no field of the

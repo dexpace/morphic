@@ -122,8 +122,9 @@ func fillParamType(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInde
 }
 
 // fillParamSchema reads a parameter schema's default value and scalar
-// constraints through the readers a property's go through (schema.DefaultOf,
-// schema.ConstraintsOf), so the two carriers cannot read one schema apart.
+// constraints through the readers a property's go through
+// (annotation.EffectiveDefault, schema.ConstraintsOf), so the two carriers
+// cannot read one schema apart.
 //
 // A schema spelled {$ref: …} resolves its target so the annotations that
 // inherit from it still reach the parameter
@@ -144,7 +145,7 @@ func fillParamSchema(c lowering.Ctx, ts *compile.Types, param *ir.Parameter, js 
 	// would take the default and description off an intermediate reference
 	// instead of the schema that declares them.
 	tgt := c.RefScope().TargetSchema(js, s)
-	def, diags := schema.DefaultOf(c, s, tgt, pointer)
+	def, diags := annotation.EffectiveDefault(s, tgt, pointer, c.ProvenanceAt)
 	param.Default = def
 
 	cons, consDiags := schema.ConstraintsOf(c, &param.Unmodeled, s, pointer)

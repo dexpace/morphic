@@ -468,6 +468,61 @@ func TestEffectiveVisibility_MapsTheFlagsToLifecycles(t *testing.T) {
 	}
 }
 
+// TestEffectiveDefault_UseSiteOverridesReferent pins the precedence the carriers
+// read a default by: the site's own default wins, and a site writing none falls
+// through to its referent rather than reading its own absence as no default.
+func TestEffectiveDefault_UseSiteOverridesReferent(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name     string
+		ref, tgt string
+		want     string // "" when no default is returned
+	}{
+		{name: "the site writes one", ref: "default: site\n", want: "site"},
+		{name: "the site's wins over the referent's", ref: "default: site\n", tgt: "default: referent\n", want: "site"},
+		{name: "an absent default falls through", ref: "type: string\n", tgt: "default: referent\n", want: "referent"},
+		{name: "neither writes one", ref: "type: string\n", tgt: "type: string\n"},
+		{name: "no referent", ref: "type: string\n"},
+		{name: "no schemas at all"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var ref, tgt *oas3.Schema
+			if tc.ref != "" {
+				ref = schemaFromYAML(t, tc.ref)
+			}
+			if tc.tgt != "" {
+				tgt = schemaFromYAML(t, tc.tgt)
+			}
+			got, diags := EffectiveDefault(ref, tgt, "/p", sourced(0))
+			assert.Empty(t, diags)
+			if tc.want == "" {
+				assert.Nil(t, got)
+				return
+			}
+			require.NotNil(t, got)
+			assert.Equal(t, tc.want, got.Str)
+		})
+	}
+}
+
+// TestEffectiveDefault_UnconvertibleIsReportedAtTheCarrier pins the failure
+// half: a default no value can hold yields no value and one warning, located
+// at the carrier the default was read for rather than dropped.
+func TestEffectiveDefault_UnconvertibleIsReportedAtTheCarrier(t *testing.T) {
+	t.Parallel()
+	ref := schemaFromYAML(t, "type: number\ndefault: .nan\n")
+
+	got, diags := EffectiveDefault(ref, nil, "/p", sourced(2))
+
+	assert.Nil(t, got)
+	require.Len(t, diags, 1)
+	assert.Equal(t, ir.SeverityWarning, diags[0].Severity)
+	assert.Equal(t, diag.DegradedConstruct, diags[0].Code)
+	assert.Equal(t, ir.Provenance{Source: 2, Pointer: "/p"}, diags[0].Provenance)
+}
+
 // TestEffectiveDeprecated_UseSiteOverridesReferent pins the same precedence for
 // the deprecated flag, including the case the nil-safe read exists for: a site
 // that writes no flag at all must fall through to the referent rather than

@@ -20,7 +20,6 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/merge"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/spelling"
-	"github.com/dexpace/morphic/compilers/openapi/internal/value"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -1213,7 +1212,7 @@ func FillPropertyDetail(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex,
 		return nil
 	}
 	tgt := c.RefScope().TargetSchema(js, ref)
-	def, diags := DefaultOf(c, ref, tgt, pointer)
+	def, diags := annotation.EffectiveDefault(ref, tgt, pointer, c.ProvenanceAt)
 	p.Default = def
 	diags = append(diags, fillPropertyVisibility(c, p, ref, tgt, pointer)...)
 	diags = append(diags, fillPropertyConstraints(c, p, ref, pointer)...)
@@ -1293,26 +1292,6 @@ func fillPropertyAnnotations(c lowering.Ctx, ts *compile.Types, anchors *AnchorI
 func LoweredToOwnNode(c lowering.Ctx, ts *compile.Types, pointer jsontext.Pointer, t ir.TypeRef) bool {
 	id, owned := ts.Lookup(c.IDs().Coordinate(pointer))
 	return owned && id == t.Target
-}
-
-// DefaultOf returns the default s writes, or else the one its $ref target tgt
-// writes, for the carrier at pointer to keep: a property or a parameter. A
-// schema writing none yields nothing; an unconvertible node yields a
-// diagnostic and no value.
-func DefaultOf(c lowering.Ctx, s, tgt *oas3.Schema, pointer jsontext.Pointer) (*ir.Value, []ir.Diagnostic) {
-	node := s.GetDefault()
-	if node == nil && tgt != nil {
-		node = tgt.GetDefault()
-	}
-	if node == nil {
-		return nil, nil
-	}
-	v, err := value.FromNode(node)
-	if err != nil {
-		return nil, []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, pointer,
-			"default: %s", err.Error())}
-	}
-	return &v, nil
 }
 
 // fillPropertyConstraints attaches the property's scalar constraints, and the
