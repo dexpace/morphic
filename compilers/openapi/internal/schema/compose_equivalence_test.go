@@ -27,6 +27,7 @@ type composedView struct {
 	Base       string
 	Mixins     []string
 	Props      []propView
+	Requires   []string
 	Additional ir.AdditionalMode
 	DiscValue  string
 	Variants   []composedView
@@ -70,9 +71,12 @@ func viewOf(doc *ir.Document, id ir.TypeID, depth int) composedView {
 	return v
 }
 
-// modelView projects a model's composition, properties and openness.
+// modelView projects a model's composition, properties, the required names it
+// holds no property for, and its openness.
 func modelView(doc *ir.Document, m *ir.Model) composedView {
-	v := composedView{Additional: m.Additional, DiscValue: m.DiscriminatorValue, Kept: len(m.Unmodeled)}
+	v := composedView{
+		Requires: m.Requires, Additional: m.Additional, DiscValue: m.DiscriminatorValue, Kept: len(m.Unmodeled),
+	}
 	if m.Base != nil {
 		v.Base = string(m.Base.Target)
 	}
@@ -194,6 +198,14 @@ var equivalencePairs = []struct {
         - required: [w]
           properties: {w: {type: string}}
 `},
+	{"a required name only the base declares", `    M:
+      allOf:
+        - allOf:
+            - {$ref: '#/components/schemas/A'}
+            - {required: [a]}
+`, `    M:
+      allOf: [{$ref: '#/components/schemas/A'}, {required: [a]}]
+`},
 	{"a true branch", `    M:
       allOf:
         - allOf: [{$ref: '#/components/schemas/A'}, true]
@@ -235,8 +247,9 @@ var equivalencePairs = []struct {
 // TestAllOf_NestedLowersAsFlat holds the claim of the flattening itself: a
 // nested spelling of a composition lowers as its flat one does. It compares the
 // composed models with pointers, provenance and hoisted IDs projected away —
-// base, mixins, properties in order with their type and required flag, openness,
-// discriminator value, variants — and the codes reported. The per-case rows of
+// base, mixins, properties in order with their type and required flag, the
+// required names held for no property, openness, discriminator value, variants —
+// and the codes reported. The per-case rows of
 // TestAllOf_NestedInlineWrapperFlattens each pin one consequence; this holds the
 // property for every reader of the list.
 func TestAllOf_NestedLowersAsFlat(t *testing.T) {
@@ -256,8 +269,9 @@ func TestAllOf_NestedLowersAsFlat(t *testing.T) {
 // TestAllOf_NestedLowersAsFlat_ReachesWhatItCompares pins that the projection
 // sees the distinctions the pairs rely on, so a pair that agrees does so for a
 // reason: a distributed union has variants, the discriminated subtype has its
-// tag, and a false branch closes the model. The residue and the false branch
-// are also kept, which only a positive Kept shows.
+// tag, a false branch closes the model, and a required name the base declares
+// is held in Requires. The residue and the false branch are also kept, which
+// only a positive Kept shows.
 func TestAllOf_NestedLowersAsFlat_ReachesWhatItCompares(t *testing.T) {
 	t.Parallel()
 	byName := map[string]string{}
@@ -272,6 +286,9 @@ func TestAllOf_NestedLowersAsFlat_ReachesWhatItCompares(t *testing.T) {
 	closed, _ := compileView(t, byName["a false branch"])
 	assert.Equal(t, ir.AdditionalClosed, closed.Additional)
 	assert.Positive(t, closed.Kept, "the false branch is kept beside closing the model")
+
+	required, _ := compileView(t, byName["a required name only the base declares"])
+	assert.Equal(t, []string{"a"}, required.Requires, "the name is required of the composition, not of a property it holds")
 
 	residue, _ := compileView(t, byName["a residue description"])
 	assert.Positive(t, residue.Kept, "the residue is kept")
