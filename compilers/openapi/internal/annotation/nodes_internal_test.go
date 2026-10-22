@@ -14,9 +14,9 @@ import (
 )
 
 // TestRawChildNode_ReadsOnlyAMappingChild pins the raw reader every verbatim
-// keyword goes through. Reading a key off something that is not a mapping, or
-// failing to step through a document node, would report a keyword as absent that
-// the source did write.
+// keyword goes through. Reading pairs off a sequence would take one item for a
+// key and the next for its value, and failing to step through a document node
+// would report a keyword as absent that the source did write.
 func TestRawChildNode_ReadsOnlyAMappingChild(t *testing.T) {
 	t.Parallel()
 	var doc yaml.Node

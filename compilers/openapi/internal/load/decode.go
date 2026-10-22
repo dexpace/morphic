@@ -128,8 +128,9 @@ func firstWithContent(dec *yaml.Decoder) (*yaml.Node, error) {
 // maxStreamDocuments bounds how many documents decodeStream reads past the one
 // it takes, to count them, and how many it reads to find one. Each is parsed
 // into a tree that is never lowered, so the bound caps what a stream can cost
-// beyond the byte budget it already fits; a stream past it is reported as
-// holding at least that many, never as fewer.
+// beyond the byte budget it already fits. A stream with that many documents
+// past the one taken is reported with those it counted holding content as a
+// floor, and not at all when none of them does (GitHub #1078).
 const maxStreamDocuments = 1024
 
 // tail is what a source carries past the document the compiler lowers. Its
