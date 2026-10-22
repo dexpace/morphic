@@ -213,13 +213,13 @@ func (e *Engine) RunSources(ctx context.Context, sources []compilers.Source, opt
 	return failOn.judge(res)
 }
 
-// RunDocument runs the passes not named in opts.DisablePasses over doc, an IR
+// RunDocument runs the passes not named in opts.DisablePasses over doc, a
 // document already compiled, such as one decoded from a file, and judges the
 // Result at opts.FailOn. No compiler runs, so opts may name no compiler option
 // and Result.Format is the zero format; Result.Diagnostics holds doc's own
 // findings and the passes'.
 //
-// doc is not modified. The Result's document shares all of doc but its
+// doc is not modified. The Result's document may share any field of doc but
 // Diagnostics, so neither may change while the other is read. A nil doc, one
 // whose IRVersion this build cannot read, one holding a finding indexing none
 // of its Sources, and compiler options are Go errors.
