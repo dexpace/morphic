@@ -45,6 +45,45 @@ func TestTypes_SettleTakesEachDeferredSettlementOnceInOrder(t *testing.T) {
 	assert.Empty(t, types.Violations())
 }
 
+// TestTypes_SettleTakesReadersAfterEveryOtherSettlement pins the order a
+// reader relies on: a settlement DeferReader queued runs after every one Defer
+// queued, even one deferred after it, so it reads the node that one rewrites as
+// rewritten. Each group keeps the order deferred.
+func TestTypes_SettleTakesReadersAfterEveryOtherSettlement(t *testing.T) {
+	t.Parallel()
+	types := compile.NewTypes()
+	types.Intern("/p", "t/x", func() ir.TypeDef { return &ir.Model{ID: "t/x"} })
+	var runs []string
+	read := func(name string) compile.Settlement {
+		return settleFunc(func(reg ir.TypeRegistry) []ir.Diagnostic {
+			runs = append(runs, name+" read "+reg["t/x"].Common().Docs.Description)
+			return []ir.Diagnostic{{Code: name}}
+		})
+	}
+	rewrite := func(name string) compile.Settlement {
+		return settleFunc(func(reg ir.TypeRegistry) []ir.Diagnostic {
+			runs = append(runs, name)
+			reg["t/x"].Common().Docs.Description += name
+			return []ir.Diagnostic{{Code: name}}
+		})
+	}
+	types.DeferReader(read("r1"))
+	types.Defer(rewrite("w1"))
+	types.DeferReader(read("r2"))
+	types.Defer(rewrite("w2"))
+
+	diags := types.Settle(t.Context())
+
+	assert.Equal(t, []string{"w1", "w2", "r1 read w1w2", "r2 read w1w2"}, runs)
+	codes := make([]string, 0, len(diags))
+	for _, d := range diags {
+		codes = append(codes, d.Code)
+	}
+	assert.Equal(t, []string{"w1", "w2", "r1", "r2"}, codes, "diagnostics follow the order settled")
+	assert.Empty(t, types.Settle(t.Context()), "a reader taken is not taken again")
+	assert.Empty(t, types.Violations())
+}
+
 // TestTypes_FinishReportsEveryRefusalWithTheRegistry pins the one hand-over a
 // compiler gets: the live registry the Document holds, settled, and one list to
 // report, what settling said and then an error for each entry refused, so the
@@ -127,6 +166,11 @@ func TestTypes_DeferRefusesWhatSettleWouldNeverTake(t *testing.T) {
 			types.Defer(s)
 		}},
 		{"nil", func(types *compile.Types, _ compile.Settlement) { types.Defer(nil) }},
+		{"reader after settling", func(types *compile.Types, s compile.Settlement) {
+			types.Settle(t.Context())
+			types.DeferReader(s)
+		}},
+		{"nil reader", func(types *compile.Types, _ compile.Settlement) { types.DeferReader(nil) }},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

@@ -797,3 +797,42 @@ components:
 		assert.Equal(t, name, model.DiscriminatorValue, "%s: a discriminator through a composed schema", name)
 	}
 }
+
+// TestExternalContent_APartFlagReadsAFoldSettledLast pins the order Finish
+// settles in. A form body another document declares is built only once every
+// lowering has returned, after its part keys were queued, and its part `file`
+// is redeclared over a node built later still, so the fold waits too. The
+// part's Filename is read off the type that fold settles on, bytes; read
+// before it, the first declaration's string would leave the part unflagged.
+func TestExternalContent_APartFlagReadsAFoldSettledLast(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "lib.yaml"), []byte(`Form:
+  allOf:
+    - {type: object, properties: {file: {type: string}}}
+    - {type: object, properties: {file: {$ref: '#/Z/properties/bin'}}}
+Z: {type: object, properties: {bin: {type: string, format: binary}}}
+`), 0o600))
+	root := "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n  /up:\n    post:\n" +
+		"      operationId: up\n      requestBody:\n        content:\n          multipart/form-data:\n" +
+		"            schema: {$ref: './lib.yaml#/Form'}\n      responses: {'204': {description: ok}}\n"
+	path := filepath.Join(dir, "root.yaml")
+	require.NoError(t, os.WriteFile(path, []byte(root), 0o600))
+
+	doc, diags, err := openapi.New().Compile(t.Context(), []compilers.Source{{Path: path, Data: []byte(root)}},
+		compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
+
+	require.NoError(t, err)
+	openapitest.RequireNoErrorDiags(t, diags)
+	assert.False(t, slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {
+		return d.Code == "openapi/conflicting-redeclaration"
+	}), "the binary narrows the string: %+v", diags)
+	op := operationAt(t, doc, "POST", "/up")
+	require.NotNil(t, op.Request)
+	require.Len(t, op.Request.Contents, 1)
+	enc := op.Request.Contents[0].Encoding
+	part, ok := enc[ids.In("lib.yaml").Prop("/Form/allOf/0/properties/file")]
+	require.True(t, ok, "the part is keyed on the property the fold kept: %v", enc)
+	assert.True(t, part.Filename, "a file part, as the settled type says")
+	assert.False(t, part.Multi)
+}

@@ -33,9 +33,11 @@ type Types struct {
 	promised  map[string]bool
 	promises  map[string]func() []ir.Diagnostic
 	fulfilled bool
-	// pending holds the settlements Defer queued for Finish, and settled
-	// records that Finish has taken them. See Settlement.
+	// pending holds the settlements Defer queued for Finish, readers those
+	// DeferReader queued, and settled records that Finish has taken them. See
+	// Settlement.
 	pending []Settlement
+	readers []Settlement
 	settled bool
 }
 
