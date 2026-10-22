@@ -929,13 +929,13 @@ func duplicateStatusKeyDiags(c lowering.Ctx, byRange map[ir.StatusRange][]string
 	return diags
 }
 
-// lowerResponse lowers one success or default response: its naming, status condition,
-// payload (all media types), headers, docs, and any raw links preserved for
-// later promotion. code is the responses-map key the response is declared under
-// and conds is what that key resolved to, which is nothing at all when it named
-// no status (see statusConditions). ref is the entry the document wrote there,
-// which carries the summary and description a Reference Object may put beside
-// its $ref.
+// lowerResponse lowers one success or default response: its naming, status
+// condition, payload (all media types), headers, docs, and any raw links
+// preserved for later promotion. code is the responses-map key the response is
+// declared under and conds is what that key resolved to, which is nothing at
+// all when it named no status (see statusConditions). ref is the entry the
+// document wrote there, which carries the summary and description a Reference
+// Object may put beside its $ref.
 func lowerResponse(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, r *soa.Response, code string, conds ir.ResponseConditions, rptr jsontext.Pointer, ref *soa.ReferencedResponse) (ir.Response, []ir.Diagnostic) {
 	parts, diags := lowerResponseParts(c, ts, anchors, r, code, rptr, ref)
 	resp := ir.Response{
