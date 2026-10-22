@@ -233,14 +233,14 @@ func TestLeast_FollowsEveryValueOfARepeatedKey(t *testing.T) {
 	assert.Same(t, k2, Least(root, []*yaml.Node{z1, k2, k1}), "one pointer: the first given of those sharing it")
 }
 
-// bothOrders is a document declaring members under header as given and
-// reversed, each member one or more whole lines.
-func bothOrders(header string, members []string) map[string][]byte {
+// bothOrders is a document declaring members as given and reversed, each
+// member one or more whole lines.
+func bothOrders(members []string) map[string][]byte {
 	reversed := slices.Clone(members)
 	slices.Reverse(reversed)
 	return map[string][]byte{
-		"as written": []byte(header + strings.Join(members, "")),
-		"reversed":   []byte(header + strings.Join(reversed, "")),
+		"as written": []byte(strings.Join(members, "")),
+		"reversed":   []byte(strings.Join(reversed, "")),
 	}
 }
 
@@ -260,7 +260,7 @@ func onlyRefusal(t *testing.T, data []byte) ir.Diagnostic {
 func TestAliases_NamesTheLeastRecursiveAlias(t *testing.T) {
 	t.Parallel()
 	members := []string{"b: &x {k: [*x]}\n", "a: &y {k: [*y]}\n"}
-	for order, data := range bothOrders("", members) {
+	for order, data := range bothOrders(members) {
 		t.Run(order, func(t *testing.T) {
 			t.Parallel()
 			d := onlyRefusal(t, data)
@@ -290,7 +290,7 @@ func laughs(prefix string) string {
 // with the least pointer, in either order.
 func TestAliasAmplification_NamesTheLeastInnermostAmplifier(t *testing.T) {
 	t.Parallel()
-	for order, data := range bothOrders("", []string{laughs("b"), laughs("a")}) {
+	for order, data := range bothOrders([]string{laughs("b"), laughs("a")}) {
 		t.Run(order, func(t *testing.T) {
 			t.Parallel()
 			d := onlyRefusal(t, data)
@@ -323,7 +323,7 @@ func TestAliasAmplification_NamesTheLeastSiteUnderABudget(t *testing.T) {
 		{"past the ratio", []string{laughs("b"), laughs("a")}, diag.AliasAmplification, "/a/l4"},
 	}
 	for _, tc := range tests {
-		for order, data := range bothOrders("", tc.members) {
+		for order, data := range bothOrders(tc.members) {
 			t.Run(tc.name+"/"+order, func(t *testing.T) {
 				t.Parallel()
 				root := indexOf(t, data).Root()
