@@ -673,12 +673,9 @@ func TestOperations_ServersKeysAreIndependent(t *testing.T) {
 		"and an operation declaring none of its own records none")
 }
 
-// TestOperations_OwnServersSurviveBesideExtensions pins an ordering constraint
-// inside lowerOperation that nothing else reaches. The operation's extensions
-// are assigned to op.Unmodeled wholesale, so preserving the servers before that
-// assignment discards them — a map replacement, not a merge. No other fixture
-// declares both on one operation, so without this the constraint is a comment
-// that a later edit can silently break.
+// TestOperations_OwnServersSurviveBesideExtensions pins that an operation's own
+// servers and its extensions are both kept in op.Unmodeled, each under its own
+// key, when one operation declares both.
 func TestOperations_OwnServersSurviveBesideExtensions(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.PathsSpec(`  /x:
