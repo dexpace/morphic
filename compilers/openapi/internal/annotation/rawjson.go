@@ -10,7 +10,31 @@ import (
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/value"
+	"github.com/dexpace/morphic/ir"
 )
+
+// RawFromNode converts a YAML node to the canonical JSON an Unmodeled entry
+// holds. An absent node yields (nil, nil): no construct was there. One that
+// cannot be represented yields an error, so no caller announces a preservation
+// that never happened (GitHub #144).
+//
+// Conversion fails on a non-string or repeated mapping key, .nan or .inf, a
+// scalar whose text does not satisfy its tag, invalid UTF-8, and an alias that
+// cycles or expands past the node budget. A tag yaml.v3 leaves untyped is kept.
+//
+// It walks the node tree, not a decode into `any`, which rounds numeric
+// literals through float64 (GitHub #32).
+func RawFromNode(node *yaml.Node) (ir.RawValue, error) {
+	if node == nil {
+		return nil, nil
+	}
+	var conv rawConv
+	data, err := conv.node(node, 0)
+	if err != nil {
+		return nil, fmt.Errorf("render yaml node as json: %w", err)
+	}
+	return data, nil
+}
 
 // Bounds on one conversion, a backstop. A YAML node is a graph, not a tree: an
 // alias may point at an ancestor, and a chain of aliases each naming the one
