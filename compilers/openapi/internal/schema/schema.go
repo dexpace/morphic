@@ -13,6 +13,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -71,6 +72,111 @@ func lowerComponentSchema(c lowering.Ctx, ts *compile.Types, anchors *AnchorInde
 	return diags
 }
 
+// TopLevelDepth is the nesting a schema position outside the walk starts at.
+// The walk counts its own frames, so every entry point into it begins at zero;
+// naming it keeps a bare 0 out of the call sites that only pass it through.
+const TopLevelDepth = 0
+
+// maxSchemaDepth caps schema-lowering recursion (styleguide bounded-recursion
+// rule). Interning by pointer is what terminates recursive and diamond schemas;
+// this bound only guards pathologically deep inline nesting. It counts from where
+// the lowering owning a position enters, and from TopLevelDepth for a node only
+// a $ref's promise builds (hoistSubSchema): a $ref never lowers what it names
+// (resolvePointer), so a position meets the bound at one depth, whichever
+// reaches it first (GitHub #748).
+const maxSchemaDepth = 256
+
+// Ref is THE schema entry point: every schema position (property, items,
+// params, bodies) flows through it, yielding a TypeRef into the type registry.
+// It normalizes the two nullability dialects onto the single IR bit and never
+// lowers a $ref target from the reference site.
+//
+// It defaults to annotation.HomeOwnNode deliberately: a position added later
+// inherits the lossless behaviour, and only a caller that can prove it already
+// carries the annotations opts out through CarriedRef.
+func Ref(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, js *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer, hint string) (ir.TypeRef, []ir.Diagnostic) {
+	return schemaRefHomed(c, ts, anchors, depth, js, pointer, hint, annotation.HomeOwnNode)
+}
+
+// CarriedRef lowers a schema whose annotations the calling position
+// already carries — a model property, a header, a parameter. Those callers
+// copy the declaration onto their own ir.Property/ir.Parameter, so the pointer
+// must not also hoist a node to hold it: one home per declaration.
+func CarriedRef(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, js *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer, hint string) (ir.TypeRef, []ir.Diagnostic) {
+	return schemaRefHomed(c, ts, anchors, depth, js, pointer, hint, annotation.HomeCarrier)
+}
+
+// schemaRefHomed is the shared body of the two entry points above; home only
+// reaches the two places that can hoist an annotation-holding alias.
+func schemaRefHomed(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, js *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer, hint string, home annotation.Home) (ir.TypeRef, []ir.Diagnostic) {
+	// depth counts the active frames of this function, which is where every
+	// recursive descent re-enters. Incrementing on entry and passing the result
+	// down is the parameter form of a counter that used to live on a shared
+	// struct, back when one held the whole compile.
+	depth++
+	if depth > maxSchemaDepth {
+		return ts.PrimRef(ir.PrimAny), []ir.Diagnostic{c.DiagAt(ir.SeverityError, diag.DegradedConstruct, pointer,
+			"schema nesting exceeds %d; lowered as any", maxSchemaDepth)}
+	}
+	// The hint this lowering names the position by stands for any node a $ref
+	// later hoists here, where the position itself interned none (hoistSubSchema).
+	c.DeclareHint(pointer, hint)
+	if !annotation.Written(js) {
+		// None, or a null, which states nothing: an entry written so — a
+		// property, a branch, a component, items — lowers as the empty schema.
+		// A keyword whose absence differs from the empty schema reads a null as
+		// left out before it gets here (docs/compilers/openapi.md#null-schema).
+		return ts.PrimRef(ir.PrimAny), nil
+	}
+	if js.IsBool() {
+		if b := js.GetBool(); b != nil && !*b {
+			id, diags := falseSchema(c, ts, pointer, hint)
+			return ir.TypeRef{Target: id}, diags
+		}
+		return ts.PrimRef(ir.PrimAny), nil
+	}
+	// Past the IsBool check, the either's left schema is always set (an empty
+	// either reads as a bool), so GetSchema never returns nil here.
+	schema := js.GetSchema()
+	if resolve.IsRefSite(js, schema) {
+		return refSiteRef(c, ts, anchors, js, schema, pointer, hint, home)
+	}
+	return schemaBody(c, ts, anchors, depth, schema, pointer, hint, home)
+}
+
+// falseSchema hoists a boolean `false` schema as a closed empty model (it
+// matches nothing), returning the interned ID and the one info diagnostic that
+// announces it.
+func falseSchema(c lowering.Ctx, ts *compile.Types, pointer jsontext.Pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
+	// Captured from inside the build rather than reported around it, which keeps
+	// the report tied to the node actually being constructed. Reporting eagerly
+	// would be indistinguishable today — a second visit produces the identical
+	// diagnostic, which Diags.Append drops — so nothing observable rests on this;
+	// it is the honest place for it, not a load-bearing one.
+	var diags []ir.Diagnostic
+	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
+		// Kept verbatim beside the approximation, which is what §4.8 asks of
+		// every degraded lowering that loses something, and what the composition
+		// half of this same rule already did. Without it a `false` schema and a
+		// schema that merely wrote `additionalProperties: false` are the same
+		// node, so nothing downstream can tell "no instance" from "the empty
+		// object" — the diagnostic says which one it was, but a diagnostic is not
+		// part of the document.
+		//
+		// The key names the position rather than a keyword, because a boolean
+		// schema writes none. Nothing can collide with it: a schema that is a
+		// boolean has no other keywords to preserve.
+		annotation.PreserveInto(&common.Unmodeled, "openapi:schema",
+			ir.RawValue("false"), ir.ReasonDegradedLowering, c.ProvenanceAt(pointer))
+
+		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.FalseSchema, pointer,
+			"boolean false schema matches nothing; lowered as a closed empty model "+
+				"with the schema kept verbatim under Unmodeled"))
+		return &ir.Model{TypeCommon: common, Additional: ir.AdditionalClosed}
+	})
+	return id, diags
+}
+
 // schemaBody lowers a concrete (non-reference) schema body to a TypeRef and
 // records the schema's own annotations on whatever node the lowering hoisted at
 // pointer. It is shared by Ref and by sub-schema hoisting
@@ -117,69 +223,69 @@ func lowerSchemaBody(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, de
 	return ref, slices.Concat(diags, bodyDiags, nullDiags)
 }
 
-// narrowsInstance reports whether s writes a keyword that constrains an instance
-// without declaring a shape to build: `required`, `items`, `prefixItems`.
+// lower interns the inline schema at pointer and returns its TypeID. const,
+// enum and allOf composition take precedence over the structural type, which
+// is otherwise dispatched on the effective (null-stripped) type set.
 //
-// These sit on the narrowing side of declaresShape's line, and that line is about
-// what to *build*. Wherever the question is instead whether a lowering can carry
-// what the position wrote, the distinction does not apply: an ir.Union has no
-// element type, so `{oneOf: [...], items: {...}}` loses the `items` as surely as
-// it would lose a co-declared property set.
-func narrowsInstance(s *oas3.Schema) bool {
-	return len(s.GetRequired()) > 0 || annotation.Written(s.GetItems()) || len(s.GetPrefixItems()) > 0
+// The families are conjoined where a schema writes more than one, so electing
+// a winner is a degradation (docs/compilers/openapi.md#competing-keywords): the
+// ones passed over are kept verbatim beside it (recordSkippedFamilies). A
+// keyword the elected lowering never reads, such as `type: string` beside an
+// allOf, goes through preserveUnhomedKeywords, which asks the built node
+// whether it has a field for it.
+func lower(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer jsontext.Pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
+	d := dispatchOf(s)
+	unhomed := func(id ir.TypeID, diags []ir.Diagnostic) (ir.TypeID, []ir.Diagnostic) {
+		owner, ownDiags := preserveUnhomedKeywords(c, ts, s, pointer, hint, id, d)
+		return owner, append(diags, ownDiags...)
+	}
+	switch d.won {
+	case "const":
+		return unhomed(hoistLiteral(c, ts, s.GetConst(), pointer, hint))
+	case "enum":
+		return unhomed(lowerEnum(c, ts, s, pointer, hint))
+	case "allOf":
+		return unhomed(lowerAllOf(c, ts, anchors, depth, s, pointer, hint))
+	}
+	// won is "" — the schema declares no family, so the type set decides.
+	types := effectiveTypes(s)
+	switch {
+	case len(types) > 1:
+		// A multi-typed schema lowers one variant per declared type, each from
+		// this same schema, so an applicator with no home in one variant has one
+		// in another: `{type: [string, object], properties: {...}}` puts the
+		// property set on the object variant. The homes here are the variants',
+		// not the Union's, so the applicator check does not apply. A keyword no
+		// declared type's variant holds, such as a discriminator with no object
+		// variant, is dropped (GitHub #852).
+		return lowerUnion(c, ts, anchors, depth, s, pointer, hint, types)
+	case len(types) == 1:
+		return unhomed(lowerTyped(c, ts, anchors, depth, s, pointer, hint, types[0]))
+	default:
+		return unhomed(lowerUntyped(c, ts, anchors, depth, s, pointer, hint))
+	}
 }
 
-// declaresShape reports whether a schema declares data shape — a type, a
-// property set, a value set, composition, or a catch-all — rather than only
-// narrowing what an already-declared shape accepts. The narrowing keywords are
-// narrowsInstance's, which is why the callers combine the two (ir-design §4.7).
-func declaresShape(s *oas3.Schema) bool {
+// lowerTyped dispatches a single-typed schema to its structural or scalar form.
+func lowerTyped(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer jsontext.Pointer, hint string, st oas3.SchemaType) (ir.TypeID, []ir.Diagnostic) {
+	switch st {
+	case oas3.SchemaTypeObject:
+		return lowerModel(c, ts, anchors, depth, s, pointer, hint)
+	case oas3.SchemaTypeArray:
+		return lowerArray(c, ts, anchors, depth, s, pointer, hint)
+	default:
+		return scalarTypeID(c, ts, anchors, depth, s, st, pointer, hint)
+	}
+}
+
+// lowerUntyped handles a schema with no declared type: a property set makes it a
+// model; enum/const and composition are lowered by later passes; anything else
+// is schemaless.
+func lowerUntyped(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer jsontext.Pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
 	if props := s.GetProperties(); props != nil && props.Len() > 0 {
-		return true
+		return lowerModel(c, ts, anchors, depth, s, pointer, hint)
 	}
-	if s.GetConst() != nil || enumWritten(s) || len(s.GetAllOf()) > 0 {
-		return true
-	}
-	if annotation.Written(s.GetAdditionalProperties()) {
-		return true
-	}
-	if pp := s.GetPatternProperties(); pp != nil && pp.Len() > 0 {
-		return true
-	}
-	return len(effectiveTypes(s)) > 0
-}
-
-// falseSchema hoists a boolean `false` schema as a closed empty model (it
-// matches nothing), returning the interned ID and the one info diagnostic that
-// announces it.
-func falseSchema(c lowering.Ctx, ts *compile.Types, pointer jsontext.Pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
-	// Captured from inside the build rather than reported around it, which keeps
-	// the report tied to the node actually being constructed. Reporting eagerly
-	// would be indistinguishable today — a second visit produces the identical
-	// diagnostic, which Diags.Append drops — so nothing observable rests on this;
-	// it is the honest place for it, not a load-bearing one.
-	var diags []ir.Diagnostic
-	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
-		// Kept verbatim beside the approximation, which is what §4.8 asks of
-		// every degraded lowering that loses something, and what the composition
-		// half of this same rule already did. Without it a `false` schema and a
-		// schema that merely wrote `additionalProperties: false` are the same
-		// node, so nothing downstream can tell "no instance" from "the empty
-		// object" — the diagnostic says which one it was, but a diagnostic is not
-		// part of the document.
-		//
-		// The key names the position rather than a keyword, because a boolean
-		// schema writes none. Nothing can collide with it: a schema that is a
-		// boolean has no other keywords to preserve.
-		annotation.PreserveInto(&common.Unmodeled, "openapi:schema",
-			ir.RawValue("false"), ir.ReasonDegradedLowering, c.ProvenanceAt(pointer))
-
-		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.FalseSchema, pointer,
-			"boolean false schema matches nothing; lowered as a closed empty model "+
-				"with the schema kept verbatim under Unmodeled"))
-		return &ir.Model{TypeCommon: common, Additional: ir.AdditionalClosed}
-	})
-	return id, diags
+	return ts.PrimID(ir.PrimAny), nil
 }
 
 // familyOrder is the order lower() tries the keyword families that outrank the
@@ -254,49 +360,6 @@ func dispatchOf(s *oas3.Schema) dispatch {
 	return d
 }
 
-// lower interns the inline schema at pointer and returns its TypeID. const,
-// enum and allOf composition take precedence over the structural type, which
-// is otherwise dispatched on the effective (null-stripped) type set.
-//
-// The families are conjoined where a schema writes more than one, so electing
-// a winner is a degradation (docs/compilers/openapi.md#competing-keywords): the
-// ones passed over are kept verbatim beside it (recordSkippedFamilies). A
-// keyword the elected lowering never reads, such as `type: string` beside an
-// allOf, goes through preserveUnhomedKeywords, which asks the built node
-// whether it has a field for it.
-func lower(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer jsontext.Pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
-	d := dispatchOf(s)
-	unhomed := func(id ir.TypeID, diags []ir.Diagnostic) (ir.TypeID, []ir.Diagnostic) {
-		owner, ownDiags := preserveUnhomedKeywords(c, ts, s, pointer, hint, id, d)
-		return owner, append(diags, ownDiags...)
-	}
-	switch d.won {
-	case "const":
-		return unhomed(hoistLiteral(c, ts, s.GetConst(), pointer, hint))
-	case "enum":
-		return unhomed(lowerEnum(c, ts, s, pointer, hint))
-	case "allOf":
-		return unhomed(lowerAllOf(c, ts, anchors, depth, s, pointer, hint))
-	}
-	// won is "" — the schema declares no family, so the type set decides.
-	types := effectiveTypes(s)
-	switch {
-	case len(types) > 1:
-		// A multi-typed schema lowers one variant per declared type, each from
-		// this same schema, so an applicator with no home in one variant has one
-		// in another: `{type: [string, object], properties: {...}}` puts the
-		// property set on the object variant. The homes here are the variants',
-		// not the Union's, so the applicator check does not apply. A keyword no
-		// declared type's variant holds, such as a discriminator with no object
-		// variant, is dropped (GitHub #852).
-		return lowerUnion(c, ts, anchors, depth, s, pointer, hint, types)
-	case len(types) == 1:
-		return unhomed(lowerTyped(c, ts, anchors, depth, s, pointer, hint, types[0]))
-	default:
-		return unhomed(lowerUntyped(c, ts, anchors, depth, s, pointer, hint))
-	}
-}
-
 // recordSkippedFamilies keeps verbatim the keyword families lower()'s election
 // passed over, and reports them once.
 //
@@ -336,28 +399,6 @@ func recordSkippedFamilies(c lowering.Ctx, ts *compile.Types, owner ir.TypeID, s
 		skipped, d.won, d.won, skipped))
 }
 
-// lowerTyped dispatches a single-typed schema to its structural or scalar form.
-func lowerTyped(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer jsontext.Pointer, hint string, st oas3.SchemaType) (ir.TypeID, []ir.Diagnostic) {
-	switch st {
-	case oas3.SchemaTypeObject:
-		return lowerModel(c, ts, anchors, depth, s, pointer, hint)
-	case oas3.SchemaTypeArray:
-		return lowerArray(c, ts, anchors, depth, s, pointer, hint)
-	default:
-		return scalarTypeID(c, ts, anchors, depth, s, st, pointer, hint)
-	}
-}
-
-// lowerUntyped handles a schema with no declared type: a property set makes it a
-// model; enum/const and composition are lowered by later passes; anything else
-// is schemaless.
-func lowerUntyped(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer jsontext.Pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
-	if props := s.GetProperties(); props != nil && props.Len() > 0 {
-		return lowerModel(c, ts, anchors, depth, s, pointer, hint)
-	}
-	return ts.PrimID(ir.PrimAny), nil
-}
-
 // effectiveTypes returns a schema's declared types with the JSON Schema "null"
 // member removed; nullability is normalized onto the TypeRef, not the type set.
 func effectiveTypes(s *oas3.Schema) []oas3.SchemaType {
@@ -370,4 +411,36 @@ func effectiveTypes(s *oas3.Schema) []oas3.SchemaType {
 		out = append(out, t)
 	}
 	return out
+}
+
+// declaresShape reports whether a schema declares data shape — a type, a
+// property set, a value set, composition, or a catch-all — rather than only
+// narrowing what an already-declared shape accepts. The narrowing keywords are
+// narrowsInstance's, which is why the callers combine the two (ir-design §4.7).
+func declaresShape(s *oas3.Schema) bool {
+	if props := s.GetProperties(); props != nil && props.Len() > 0 {
+		return true
+	}
+	if s.GetConst() != nil || enumWritten(s) || len(s.GetAllOf()) > 0 {
+		return true
+	}
+	if annotation.Written(s.GetAdditionalProperties()) {
+		return true
+	}
+	if pp := s.GetPatternProperties(); pp != nil && pp.Len() > 0 {
+		return true
+	}
+	return len(effectiveTypes(s)) > 0
+}
+
+// narrowsInstance reports whether s writes a keyword that constrains an instance
+// without declaring a shape to build: `required`, `items`, `prefixItems`.
+//
+// These sit on the narrowing side of declaresShape's line, and that line is about
+// what to *build*. Wherever the question is instead whether a lowering can carry
+// what the position wrote, the distinction does not apply: an ir.Union has no
+// element type, so `{oneOf: [...], items: {...}}` loses the `items` as surely as
+// it would lose a co-declared property set.
+func narrowsInstance(s *oas3.Schema) bool {
+	return len(s.GetRequired()) > 0 || annotation.Written(s.GetItems()) || len(s.GetPrefixItems()) > 0
 }

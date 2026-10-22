@@ -21,20 +21,6 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// maxSchemaDepth caps schema-lowering recursion (styleguide bounded-recursion
-// rule). Interning by pointer is what terminates recursive and diamond schemas;
-// this bound only guards pathologically deep inline nesting. It counts from where
-// the lowering owning a position enters, and from TopLevelDepth for a node only
-// a $ref's promise builds (hoistSubSchema): a $ref never lowers what it names
-// (resolvePointer), so a position meets the bound at one depth, whichever
-// reaches it first (GitHub #748).
-const maxSchemaDepth = 256
-
-// TopLevelDepth is the nesting a schema position outside the walk starts at.
-// The walk counts its own frames, so every entry point into it begins at zero;
-// naming it keeps a bare 0 out of the call sites that only pass it through.
-const TopLevelDepth = 0
-
 // registeredNode returns the node interning registered under id, and ok=false
 // when there is none yet.
 //

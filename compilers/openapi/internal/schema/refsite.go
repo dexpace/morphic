@@ -16,64 +16,6 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// Ref is THE schema entry point: every schema position (property, items,
-// params, bodies) flows through it, yielding a TypeRef into the type registry.
-// It normalizes the two nullability dialects onto the single IR bit and never
-// lowers a $ref target from the reference site.
-//
-// It defaults to annotation.HomeOwnNode deliberately: a position added later
-// inherits the lossless behaviour, and only a caller that can prove it already
-// carries the annotations opts out through CarriedRef.
-func Ref(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, js *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer, hint string) (ir.TypeRef, []ir.Diagnostic) {
-	return schemaRefHomed(c, ts, anchors, depth, js, pointer, hint, annotation.HomeOwnNode)
-}
-
-// CarriedRef lowers a schema whose annotations the calling position
-// already carries — a model property, a header, a parameter. Those callers
-// copy the declaration onto their own ir.Property/ir.Parameter, so the pointer
-// must not also hoist a node to hold it: one home per declaration.
-func CarriedRef(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, js *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer, hint string) (ir.TypeRef, []ir.Diagnostic) {
-	return schemaRefHomed(c, ts, anchors, depth, js, pointer, hint, annotation.HomeCarrier)
-}
-
-// schemaRefHomed is the shared body of the two entry points above; home only
-// reaches the two places that can hoist an annotation-holding alias.
-func schemaRefHomed(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, js *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer, hint string, home annotation.Home) (ir.TypeRef, []ir.Diagnostic) {
-	// depth counts the active frames of this function, which is where every
-	// recursive descent re-enters. Incrementing on entry and passing the result
-	// down is the parameter form of a counter that used to live on a shared
-	// struct, back when one held the whole compile.
-	depth++
-	if depth > maxSchemaDepth {
-		return ts.PrimRef(ir.PrimAny), []ir.Diagnostic{c.DiagAt(ir.SeverityError, diag.DegradedConstruct, pointer,
-			"schema nesting exceeds %d; lowered as any", maxSchemaDepth)}
-	}
-	// The hint this lowering names the position by stands for any node a $ref
-	// later hoists here, where the position itself interned none (hoistSubSchema).
-	c.DeclareHint(pointer, hint)
-	if !annotation.Written(js) {
-		// None, or a null, which states nothing: an entry written so — a
-		// property, a branch, a component, items — lowers as the empty schema.
-		// A keyword whose absence differs from the empty schema reads a null as
-		// left out before it gets here (docs/compilers/openapi.md#null-schema).
-		return ts.PrimRef(ir.PrimAny), nil
-	}
-	if js.IsBool() {
-		if b := js.GetBool(); b != nil && !*b {
-			id, diags := falseSchema(c, ts, pointer, hint)
-			return ir.TypeRef{Target: id}, diags
-		}
-		return ts.PrimRef(ir.PrimAny), nil
-	}
-	// Past the IsBool check, the either's left schema is always set (an empty
-	// either reads as a bool), so GetSchema never returns nil here.
-	schema := js.GetSchema()
-	if resolve.IsRefSite(js, schema) {
-		return refSiteRef(c, ts, anchors, js, schema, pointer, hint, home)
-	}
-	return schemaBody(c, ts, anchors, depth, schema, pointer, hint, home)
-}
-
 // refSiteRef resolves a $ref position and keeps whatever is written beside the
 // $ref. In JSON Schema 2020-12 those siblings are conjoined with the $ref, so
 // they bind the position, not the referent, and cannot go on the target's
