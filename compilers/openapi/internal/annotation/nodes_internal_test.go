@@ -29,7 +29,8 @@ func TestRawChildNode_ReadsOnlyAMappingChild(t *testing.T) {
 
 	assert.Nil(t, RawChildNode(nil, "a"))
 	assert.Nil(t, RawChildNode(&doc, "absent"))
-	assert.Nil(t, RawChildNode(openapitest.YAMLNode(t, "[1, 2]"), "a"), "a sequence has no keyed children")
+	assert.Nil(t, RawChildNode(openapitest.YAMLNode(t, "[a, 1]"), "a"),
+		"a sequence has no keyed children, even one whose items spell the key")
 	assert.Nil(t, RawChildNode(openapitest.YAMLNode(t, "plain"), "a"), "nor does a scalar")
 	assert.Nil(t, RawChildNode(&yaml.Node{Kind: yaml.DocumentNode}, "a"), "nor an empty document")
 }
