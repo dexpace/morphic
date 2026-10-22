@@ -1,17 +1,8 @@
-// Package auth lowers what a document says about authentication: the security
-// schemes it declares, and the requirements that name them.
-//
-// It is a package of its own because both halves of the compiler reach it and
-// neither may reach the other. The document walk lowers the schemes once, before
-// anything references them; the service and operation walks lower requirements
-// against the result. Putting either half's lowering with its caller would make
-// the other import it.
 package auth
 
 import (
 	"encoding/json/jsontext"
 	"slices"
-	"strconv"
 	"strings"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
@@ -158,52 +149,6 @@ func applySchemeAnnotations(c lowering.Ctx, scheme *ir.AuthScheme, ss *soa.Secur
 	return append(diags, applyFlowAnnotations(c, scheme.Flows, flows, flowsPtr)...)
 }
 
-// applyFlowAnnotations writes each declared flow's own x-*, undeclared keys and
-// the fields its kind does not define onto the ir.OAuthFlow it lowered to. Both
-// lists are one ordered reading of the same object — scheme.Flows came from
-// oauthFlows, which walks presentFlows — so the i-th lowered flow is the i-th
-// declared one and the two cannot differ in length.
-func applyFlowAnnotations(c lowering.Ctx, lowered []ir.OAuthFlow, flows *soa.OAuthFlows, flowsPtr jsontext.Pointer) []ir.Diagnostic {
-	var diags []ir.Diagnostic
-	for i, f := range presentFlows(flows) {
-		fptr := flowsPtr + ids.Ptr(f.keyword)
-		ext, extDiags := annotation.ExtensionsFrom(f.src.GetExtensions(), c.ProvenanceAt, fptr)
-		lowered[i].Unmodeled = annotation.MergeUnmodeled(lowered[i].Unmodeled, ext)
-		diags = append(diags, extDiags...)
-		diags = append(diags, preserveUndefinedFlowFields(c, &lowered[i], f, fptr)...)
-		diags = append(diags, annotation.UnknownKeysIn(&lowered[i].Unmodeled, f.src, c.ProvenanceAt, fptr)...)
-	}
-	return diags
-}
-
-// preserveUndefinedFlowFields keeps each field of flowFields the flow wrote but
-// its kind does not define verbatim under the flow's Unmodeled (GitHub #865),
-// as preserveUnreadFields does for a scheme. oauthFlow lowered none of them, so
-// without this they would be lost: the parser models every field on every flow,
-// and the unknown-key census never sees one.
-//
-// It reads the flow's own mapping, as every preservation site does, so a field
-// merged in through a `<<` key is not kept (GitHub #384).
-func preserveUndefinedFlowFields(c lowering.Ctx, fl *ir.OAuthFlow, f sourceFlow, fptr jsontext.Pointer) []ir.Diagnostic {
-	defined := flowFieldsDefinedBy(f.keyword)
-	var diags []ir.Diagnostic
-	for _, field := range flowFields() {
-		if slices.Contains(defined, field.name) {
-			continue
-		}
-		at := fptr + ids.Ptr(field.name)
-		kept, keptDiags := annotation.PreserveNodeInto(&fl.Unmodeled, "openapi:"+field.name,
-			annotation.RawChildNode(f.src.GetRootNode(), field.name), ir.ReasonDegradedLowering, c.ProvenanceAt(at))
-		diags = append(diags, keptDiags...)
-		if !kept {
-			continue
-		}
-		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
-			"oauth flow %s does not define %s; kept verbatim under Unmodeled", f.keyword, field.name))
-	}
-	return diags
-}
-
 // mechanismRefusalDiag reports a securitySchemes entry that omits missing, the
 // field that would name its mechanism.
 //
@@ -222,37 +167,6 @@ func mechanismRefusalDiag(c lowering.Ctx, name, missing string, entry jsontext.P
 	return c.DiagAt(ir.SeverityError, diag.IncompleteSecurityScheme, entry,
 		"security scheme %q has no %s, so it names no authentication mechanism: "+
 			"no scheme is interned for it, and every requirement naming it is dropped", name, missing)
-}
-
-// tokenless reports whether scheme is an oauth2 scheme that states no way to
-// obtain a token: it lowered no flow, and names no metadata URL to discover its
-// authorization server from (RFC 8414).
-func tokenless(scheme ir.AuthScheme) bool {
-	return scheme.Kind == ir.AuthKindOAuth2 && len(scheme.Flows) == 0 && scheme.OAuth2MetadataURL == ""
-}
-
-// flowsMissing reports whether ss writes no flows object: flows absent, null,
-// or a value that is no mapping, which the parser models as no object. The rule
-// table reports each, as a REQUIRED field missing or a value of the wrong type,
-// wherever the scheme is written (GitHub #872), so the lowering stands aside. A
-// mapping lowering no flow, one whose only flow is null included, is the
-// lowering's to report.
-func flowsMissing(ss *soa.SecurityScheme) bool {
-	return ss.GetFlows() == nil
-}
-
-// oauthNoFlowDiag reports a flows object declaring no flow; the design record
-// is on diag.OAuth2NoFlow.
-//
-// decl places it, not entry: a flowless declaration is a fact about the text at
-// decl, and a $ref entry holds no flows either way. The message names no entry,
-// so the copies every alias of one declaration draws dedup to one report. A
-// declaration in another document has no pointer here, so each entry naming it
-// carries its own copy, as every finding placed at decl does (GitHub #874).
-func oauthNoFlowDiag(c lowering.Ctx, decl jsontext.Pointer) ir.Diagnostic {
-	return c.DiagAt(ir.SeverityWarning, diag.OAuth2NoFlow, decl,
-		"oauth2 security scheme declares no flow and no oauth2MetadataUrl, "+
-			"so it states no way to obtain a token")
 }
 
 // fillSchemeKind sets the mechanism kind and its per-kind fields (ir-design §9).
@@ -295,8 +209,8 @@ func fillSchemeKind(scheme *ir.AuthScheme, ss *soa.SecurityScheme) (missing stri
 //
 // `type: http` without a scheme is the second shape that names no mechanism: a
 // custom kind carrying an empty token says no more than a typeless entry. A
-// token the RFC would reject still interns; checking it against the grammar is
-// validation this compiler does not do, and trimming it would guess.
+// token the RFC would reject still interns: the load phase reports it against
+// the grammar, and trimming it would guess.
 func fillHTTPScheme(scheme *ir.AuthScheme, ss *soa.SecurityScheme) (missing string, ok bool) {
 	token := ss.GetScheme()
 	if token == "" {
@@ -387,206 +301,4 @@ func preserveUnreadFields(c lowering.Ctx, scheme *ir.AuthScheme, ss *soa.Securit
 			field, ss.GetType()))
 	}
 	return diags
-}
-
-// sourceFlow is one declared OAuth2 flow: the IR kind it lowers to, the keyword
-// it is written under, and the object itself.
-type sourceFlow struct {
-	kind    string
-	keyword string
-	src     *soa.OAuthFlow
-}
-
-// presentFlows returns the flows an OAuthFlows object declares, in a fixed,
-// deterministic order. It is the single ordered reading of that object: the
-// lowering and the extension reader both walk it, which is what lets the i-th
-// ir.OAuthFlow be matched back to the i-th declaration without a second, and
-// possibly divergent, enumeration.
-func presentFlows(flows *soa.OAuthFlows) []sourceFlow {
-	candidates := []sourceFlow{
-		{"authorization_code", "authorizationCode", flows.GetAuthorizationCode()},
-		{"client_credentials", "clientCredentials", flows.GetClientCredentials()},
-		{"implicit", "implicit", flows.GetImplicit()},
-		{"password", "password", flows.GetPassword()},
-		{"device", "deviceAuthorization", flows.GetDeviceAuthorization()},
-	}
-	var out []sourceFlow
-	for _, cand := range candidates {
-		if cand.src != nil {
-			out = append(out, cand)
-		}
-	}
-	return out
-}
-
-// oauthFlows lowers each present OAuth2 flow in a fixed, deterministic order.
-func oauthFlows(flows *soa.OAuthFlows) []ir.OAuthFlow {
-	present := presentFlows(flows)
-	if len(present) == 0 {
-		return nil
-	}
-	out := make([]ir.OAuthFlow, 0, len(present))
-	for _, f := range present {
-		out = append(out, oauthFlow(f))
-	}
-	return out
-}
-
-// oauthFlow lowers one OAuth2 flow, reading only the fields of flowFields its
-// kind defines; preserveUndefinedFlowFields keeps the rest. The device flow's
-// deviceAuthorizationUrl rides OAuthFlow.AuthorizationURL (ir-design §9).
-func oauthFlow(f sourceFlow) ir.OAuthFlow {
-	fl := ir.OAuthFlow{
-		Kind:       f.kind,
-		RefreshURL: f.src.GetRefreshURL(),
-		Scopes:     scopes(f.src),
-	}
-	for _, field := range flowFields() {
-		if slices.Contains(flowFieldsDefinedBy(f.keyword), field.name) {
-			*field.slot(&fl) = field.read(f.src)
-		}
-	}
-	return fl
-}
-
-// flowField is one field of the OAuth Flow Object that only some flows define:
-// its name, how the model reads it, and the field of ir.OAuthFlow it lowers to
-// where it is defined.
-type flowField struct {
-	name string
-	read func(*soa.OAuthFlow) string
-	slot func(*ir.OAuthFlow) *string
-}
-
-// flowFields returns the OAuth Flow Object fields only some flows define,
-// sorted by name. refreshUrl and scopes are absent because every flow defines
-// them; TestFlowFields_AccountForEverySourceField holds the split to the source
-// model.
-func flowFields() []flowField {
-	authorization := func(fl *ir.OAuthFlow) *string { return &fl.AuthorizationURL }
-	return []flowField{
-		{name: "authorizationUrl", read: (*soa.OAuthFlow).GetAuthorizationURL, slot: authorization},
-		{name: "deviceAuthorizationUrl", read: (*soa.OAuthFlow).GetDeviceAuthorizationURL, slot: authorization},
-		{name: "tokenUrl", read: (*soa.OAuthFlow).GetTokenURL, slot: func(fl *ir.OAuthFlow) *string { return &fl.TokenURL }},
-	}
-}
-
-// flowFieldsDefinedBy returns the fields of flowFields that OpenAPI gives the
-// flow written under keyword a meaning for (3.2.0 §4.8.30; 3.0 and 3.1 alike,
-// without the device flow): the authorization endpoint for the flows that
-// redirect a user agent, the token endpoint for every flow that requests a
-// token from one, and the device authorization endpoint for the device flow.
-func flowFieldsDefinedBy(keyword string) []string {
-	switch keyword {
-	case "implicit":
-		return []string{"authorizationUrl"}
-	case "authorizationCode":
-		return []string{"authorizationUrl", "tokenUrl"}
-	case "deviceAuthorization":
-		return []string{"deviceAuthorizationUrl", "tokenUrl"}
-	default: // password, clientCredentials
-		return []string{"tokenUrl"}
-	}
-}
-
-// scopes lowers a flow's scopes in the order the document writes them, or nil
-// when it declares none.
-func scopes(f *soa.OAuthFlow) []ir.OAuthScope {
-	declared := f.GetScopes()
-	if declared == nil || declared.Len() == 0 {
-		return nil
-	}
-	out := make([]ir.OAuthScope, 0, declared.Len())
-	for name, description := range declared.All() {
-		out = append(out, ir.OAuthScope{Name: name, Description: description})
-	}
-	return out
-}
-
-// LowerSecurityRequirements lowers an OR-of-ANDs security list (ir-design §9)
-// declared under base: "" at the root, else an operation's own declaration,
-// never its mount. A nil list inherits the enclosing default; an empty one
-// stays []. A non-nil list yields one AuthRequirement per surviving option,
-// diagnosed at base+/security/<index>; an empty option {} means "no auth is one
-// acceptable choice".
-//
-// If every option of a non-empty list drops, it collapses to nil, with an
-// error: the IR cannot say "auth required, scheme undeclared", #14 forbids an
-// unbacked AuthID, and nil never turns a demanded requirement into explicitly
-// public []. Dropped names stay out of Unmodeled as document defects.
-func LowerSecurityRequirements(c lowering.Ctx, reqs []*soa.SecurityRequirement, base jsontext.Pointer) ([]ir.AuthRequirement, []ir.Diagnostic) {
-	if reqs == nil {
-		return nil, nil
-	}
-	out := make([]ir.AuthRequirement, 0, len(reqs))
-	var diags []ir.Diagnostic
-	for i, req := range reqs {
-		pointer := base + ids.Ptr("security", strconv.Itoa(i))
-		r, ok, reqDiags := lowerSecurityRequirement(c, req, pointer)
-		diags = append(diags, reqDiags...)
-		if ok {
-			out = append(out, r)
-		}
-	}
-	if len(reqs) > 0 && len(out) == 0 {
-		// Every option dropped: nil, not [], which would read as explicitly
-		// public. The IR cannot say "auth is required but its scheme is
-		// undeclared" and #14 forbids minting an AuthID nothing backs, so the
-		// carrier inherits the enclosing default, or is unauthenticated where
-		// there is none; both misstate the source, but nil is the one spelling
-		// that never reduces a demanded requirement to public. Each collapse
-		// carries an error diagnostic.
-		return nil, diags
-	}
-	return out, diags
-}
-
-// lowerSecurityRequirement lowers one requirement option declared at pointer:
-// each member is a scheme reference plus its scopes. ok reports whether the
-// option survives.
-//
-// A requirement is a conjunction, so a member naming a scheme the auth registry
-// does not hold invalidates the whole option, which is dropped in full: never a
-// dangling AuthID (issue #14), never the empty option, which would read "no
-// auth is also fine" (issue #41). An entry that is no object drops for the
-// second reason alone (issue #284), with no report of its own: the loader's
-// type-mismatch already names it. Every unresolved member is still diagnosed.
-func lowerSecurityRequirement(c lowering.Ctx, req *soa.SecurityRequirement, pointer jsontext.Pointer,
-) (r ir.AuthRequirement, ok bool, diags []ir.Diagnostic) {
-	if !writtenAsObject(req) {
-		return ir.AuthRequirement{}, false, nil
-	}
-	var uses []ir.SchemeUse
-	ok = true
-	for name, scopes := range req.All() {
-		id := ids.Auth(name)
-		if !c.DeclaresAuth(id) {
-			// "Unresolved", not "undeclared": the name may be declared as a $ref
-			// resolving to nothing, or as an entry naming no mechanism (#294).
-			diags = append(diags, c.DiagAt(ir.SeverityError, diag.UnresolvedRef, pointer,
-				"security requirement references unresolved scheme %q", name))
-			ok = false
-			continue
-		}
-		uses = append(uses, ir.SchemeUse{Scheme: id, Scopes: scopes})
-	}
-	if !ok {
-		return ir.AuthRequirement{}, false, diags
-	}
-	return ir.AuthRequirement{Schemes: uses}, true, diags
-}
-
-// writtenAsObject reports whether the document wrote req as an object, the only
-// shape a requirement has.
-//
-// Null, a scalar and a sequence all unmarshal to a requirement with no members,
-// like the {} meaning "no auth is one acceptable choice" (issue #284). The node
-// it was read from separates them: the marshaller records a root node only for
-// a value it could read as a mapping, so {} carries one inline or through an
-// alias. Being library behavior, it is tested through compiled documents.
-//
-// A nil req is unreachable from a parsed document; that guard is for a
-// hand-built slice, as in unresolvableSchemeDiags.
-func writtenAsObject(req *soa.SecurityRequirement) bool {
-	return req != nil && req.GetRootNode() != nil
 }

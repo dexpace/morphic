@@ -10,13 +10,11 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	"github.com/speakeasy-api/openapi/marshaller"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/speakeasy-api/openapi/references"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
@@ -28,12 +26,11 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// These tests drive whole documents through the compiler rather than calling
-// ObjectAt directly, and that is not a shortcut: a chain of component aliases
-// only exists once speakeasy's resolver has built the resolution info each hop
-// reads, which no hand-constructed value reproduces. Driving the compiler is
-// what makes the fixture real. It costs an import of the package that imports
-// this one, which only an external test package may have.
+// The tests of an alias chain read documents the parser's resolver has run
+// over, through the whole compiler or the loader, rather than hand-built values:
+// a chain only exists once that resolver has built the resolution info each hop
+// reads, which no hand-constructed value reproduces. Both import a package that
+// imports this one, which only an external test package may.
 
 // parseFull runs the whole public compiler pipeline over src. That reach back
 // through openapi is also why openapitest cannot hold it — see that package's
@@ -62,6 +59,7 @@ func TestObject_NilEntryIsNil(t *testing.T) {
 		rp  *soa.ReferencedParameter
 		rrb *soa.ReferencedRequestBody
 		re  *soa.ReferencedExample
+		rl  *soa.ReferencedLink
 		rss *soa.ReferencedSecurityScheme
 	)
 	assert.Nil(t, resolve.Object[soa.PathItem](rpi))
@@ -71,11 +69,13 @@ func TestObject_NilEntryIsNil(t *testing.T) {
 	assert.Nil(t, resolve.Object[soa.Parameter](rp))
 	assert.Nil(t, resolve.Object[soa.RequestBody](rrb))
 	assert.Nil(t, resolve.Object[soa.Example](re))
+	assert.Nil(t, resolve.Object[soa.Link](rl))
 	assert.Nil(t, resolve.Object[soa.SecurityScheme](rss))
 }
 
 // TestObjectAt_CrossDocumentInternsAtTheDeclarationThere is the
-// cross-document counterpart to the same-document sharing tests above. The
+// cross-document counterpart to internal/operation's same-document sharing
+// tests, such as TestParams_ComponentRefSharedAcrossOperationsInternsOnce. The
 // fixture's operation $refs a parameter and a response into a sibling
 // document, and both are lowered at their declaration there: their schemas
 // intern under that document's label, with provenance naming it.
@@ -165,89 +165,6 @@ func TestObjectAt_AliasChainBeyondBoundFallsBackToUseSite(t *testing.T) {
 		"an over-long chain keeps the one pointer that is certainly addressable")
 }
 
-// TestScopeOf_AChainPastTheBoundIsReadAsNoDocuments pins the scope of an entry
-// whose chain outruns maxRefChain: none, so no reference in what it reaches
-// reads as internal. Taken to end at the last hop read, it was read in that
-// hop's document, which need not hold the end (GitHub #762).
-func TestScopeOf_AChainPastTheBoundIsReadAsNoDocuments(t *testing.T) {
-	t.Parallel()
-	for hops, foreign := range map[int]bool{resolve.MaxRefChain - 1: false, resolve.MaxRefChain + 4: true} {
-		doc, _, err := load.Load(t.Context(), 0, openapitest.SourceOf(chainedAliasSpec(hops)), load.Options{})
-		require.NoError(t, err)
-		require.NotNil(t, doc)
-		op, ok := doc.Doc.Paths.Get("/a")
-		require.True(t, ok)
-		params := op.GetObject().Get().GetParameters()
-		require.Len(t, params, 1)
-
-		scope := resolve.ScopeOf[soa.Parameter](resolve.Scope{Doc: doc.Doc, SelfPath: doc.Source.Path}, params[0])
-
-		assert.Equal(t, foreign, scope.Foreign, "%d hops", hops)
-		assert.Empty(t, scope.Holder, "%d hops", hops)
-	}
-}
-
-// TestHops_ListsTheReferencesAChainPassesThrough pins Hops over an alias
-// chain: each alias the chain passes after the entry's own $ref, nearest first
-// and read as this document's, none for the declaration it ends at or for an
-// inline entry, and no more than the bound reads.
-func TestHops_ListsTheReferencesAChainPassesThrough(t *testing.T) {
-	t.Parallel()
-	for hops, want := range map[int]int{0: 0, 3: 3, resolve.MaxRefChain + 4: resolve.MaxRefChain} {
-		doc, _, err := load.Load(t.Context(), 0, openapitest.SourceOf(chainedAliasSpec(hops)), load.Options{})
-		require.NoError(t, err)
-		require.NotNil(t, doc)
-		scope := resolve.Scope{Doc: doc.Doc, SelfPath: doc.Source.Path}
-		item, ok := doc.Doc.Paths.Get("/a")
-		require.True(t, ok)
-		assert.Empty(t, resolve.Hops[soa.PathItem](scope, item), "an inline entry has no hops")
-		param := item.GetObject().Get().GetParameters()[0]
-
-		got := resolve.Hops[soa.Parameter](scope, param)
-
-		require.Len(t, got, want, "%d hops", hops)
-		for i, hop := range got {
-			assert.Equal(t, "#/components/parameters/P"+strconv.Itoa(i+1), string(hop.Ref.GetReference()),
-				"hop %d is P%d, written as a $ref to the next", i, i)
-			assert.False(t, hop.Foreign, "hop %d is written in this document", i)
-		}
-	}
-}
-
-// TestHops_AHopAnotherDocumentHoldsIsForeign pins where Hops reads a hop: past
-// a $ref into another document, the hop written there is that document's, and
-// a $ref from it back into the source reads the next hop as the source's.
-func TestHops_AHopAnotherDocumentHoldsIsForeign(t *testing.T) {
-	t.Parallel()
-	dir := t.TempDir()
-	mainPath := filepath.Join(dir, "main.yaml")
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "other.yaml"), []byte(`openapi: 3.1.0
-info: {title: O, version: "1"}
-paths:
-  /x: {$ref: 'main.yaml#/paths/~1b'}
-`), 0o600))
-	src := compilers.Source{Path: mainPath, Data: []byte(`openapi: 3.1.0
-info: {title: T, version: "1"}
-paths:
-  /a: {$ref: './other.yaml#/paths/~1x'}
-  /b: {$ref: '#/paths/~1c'}
-  /c: {get: {responses: {"200": {description: OK}}}}
-`)}
-	doc, _, err := load.Load(t.Context(), 0, src, load.Options{Reader: reader.Disk{}})
-	require.NoError(t, err)
-	require.NotNil(t, doc)
-	item, ok := doc.Doc.Paths.Get("/a")
-	require.True(t, ok)
-
-	got := resolve.Hops[soa.PathItem](resolve.Scope{Doc: doc.Doc, SelfPath: mainPath}, item)
-
-	require.Len(t, got, 2, "other.yaml's /x, then the source's /b")
-	assert.Equal(t, "main.yaml#/paths/~1b", string(got[0].Ref.GetReference()))
-	assert.True(t, got[0].Foreign, "/x is written in other.yaml")
-	assert.Equal(t, "#/paths/~1c", string(got[1].Ref.GetReference()))
-	assert.False(t, got[1].Foreign, "/b is written in the source")
-}
-
 // chainedAliasSpec builds a spec whose operation $refs P0 at the head of an
 // alias chain P0 -> P1 -> ... -> P<hops>, where only P<hops> is a real
 // parameter declaration. The walk therefore takes hops+1 steps: one from the
@@ -310,8 +227,8 @@ components:
 // cross-document reference is resolved by the loader either way.
 //
 // The opt-in is the point rather than boilerplate: only the two cross-document
-// cases below call this, and without it the loader refuses to leave the
-// document, so both would assert on a $ref that was never followed.
+// cases call this, and without it the loader refuses to leave the document, so
+// both would assert on a $ref that was never followed.
 func compileFixture(t *testing.T, path string) *ir.Document {
 	t.Helper()
 	data, err := os.ReadFile(path)
@@ -393,9 +310,9 @@ func TestObject_UnresolvedReferenceHasNoObject(t *testing.T) {
 // the entries it lists cannot tell the two apart.
 //
 // This one can. Nothing about the constraint promises nil-tolerance, and Object
-// declines to depend on it two lines further down for the resolved-object
-// fallback ("rather than coupling this compiler to that undocumented
-// nil-tolerance"); the guard is what makes that stance hold at the top too.
+// declines to depend on it further down, for the resolved-object fallback
+// ("rather than coupling this compiler to that undocumented nil-tolerance");
+// the guard is what makes that stance hold at the top too.
 type brittleEntry struct{ obj int }
 
 func (b *brittleEntry) GetObject() *int         { return &b.obj }
@@ -409,8 +326,8 @@ func (b *brittleEntry) GetReferenceResolutionInfo() *references.ResolveResult[br
 	return nil
 }
 
-// TestObject_NilEntryIsNotDereferenced holds the guard itself, which the
-// aliased-type test above cannot: an entry that does not tolerate a nil
+// TestObject_NilEntryIsNotDereferenced holds the guard itself, which
+// TestObject_NilEntryIsNil cannot: an entry that does not tolerate a nil
 // receiver must still answer nil rather than panic.
 func TestObject_NilEntryIsNotDereferenced(t *testing.T) {
 	t.Parallel()
@@ -419,51 +336,6 @@ func TestObject_NilEntryIsNotDereferenced(t *testing.T) {
 		"the fixture must be brittle, or this asserts nothing")
 
 	assert.Nil(t, resolve.Object[int, brittleEntry](ref))
-}
-
-// TestUseDocs_UseSiteSiblingsOverrideTheDeclaration pins the fold at one hop: a
-// summary or description written beside a $ref wins field by field over the
-// declaration's, and one the entry omits leaves the declaration's standing. A
-// hand-built Reference resolves nothing, so it is a chain of one; the parser's
-// longer chains are pinned where a document builds them.
-func TestUseDocs_UseSiteSiblingsOverrideTheDeclaration(t *testing.T) {
-	t.Parallel()
-	summary, description := "use-site summary", "use-site description"
-	declared := ir.Docs{Summary: "declared summary", Description: "declared description"}
-
-	for _, tc := range []struct {
-		name string
-		ref  *soa.ReferencedParameter
-		want ir.Docs
-	}{
-		{
-			name: "both siblings win",
-			ref:  &soa.ReferencedParameter{Summary: &summary, Description: &description},
-			want: ir.Docs{Summary: "use-site summary", Description: "use-site description"},
-		},
-		{
-			// The parser fills these two only for an entry that really is a $ref
-			// (Reference.Populate), so an inline entry arrives with both nil.
-			name: "an inline entry writes neither",
-			ref:  &soa.ReferencedParameter{},
-			want: declared,
-		},
-		{
-			name: "a description alone leaves the declaration's summary standing",
-			ref:  &soa.ReferencedParameter{Description: &description},
-			want: ir.Docs{Summary: "declared summary", Description: "use-site description"},
-		},
-		{
-			name: "a nil wrapper reports nothing",
-			ref:  nil,
-			want: declared,
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			assert.Empty(t, cmp.Diff(tc.want, resolve.UseDocs[soa.Parameter](tc.ref, declared)))
-		})
-	}
 }
 
 // elsewhereRoot is a source whose path items are reached each way an entry can
@@ -510,73 +382,6 @@ func loadElsewhere(t *testing.T) (*load.Document, string) {
 	return doc, ext
 }
 
-// TestScopeOf pins the scope each entry's object is read in, given a Foreign
-// scope over another document, which tells every answer apart. One whose chain
-// ends in ext.yaml is read there. One whose chain ends in the source, however
-// it got there, is read as the source's. One written inline, and one that
-// resolved nothing, keep the scope given.
-func TestScopeOf(t *testing.T) {
-	t.Parallel()
-	doc, ext := loadElsewhere(t)
-	given := resolve.Scope{Doc: doc.Doc, Foreign: true, Holder: "other.yaml"}
-
-	for path, want := range map[string]string{
-		"/inline": "other.yaml", "/internal": "", "/ext": ext, "/back": "", "/hop": "", "/missing": "other.yaml",
-	} {
-		rp, ok := doc.Doc.Paths.Get(path)
-		require.True(t, ok, path)
-		scope := resolve.ScopeOf[soa.PathItem](given, rp)
-		assert.Equal(t, want, scope.Holder, path)
-		assert.Equal(t, want != "", scope.Foreign, path)
-		assert.Same(t, doc.Doc, scope.Doc, path)
-	}
-}
-
-// pathItemEnds is the Ends of a scope whose walks meet path items alone, as
-// those through elsewhereRoot do.
-func pathItemEnds(node any) (resolve.End, bool) {
-	rp, ok := node.(*soa.ReferencedPathItem)
-	if !ok {
-		return resolve.End{}, false
-	}
-	return resolve.EndOf[soa.PathItem](rp)
-}
-
-// TestScopeOf_PastARefReadsWhereItsChainEnds pins the scope of an entry whose
-// pointer passes a $ref, which the resolver's walk follows to what it resolved
-// to, though it reports the source as what the pointer resolved against. Past
-// /ext's, the response is ext.yaml's, read as /ext's own entry reads it, and
-// ObjectAt names it by the pointer /ext's own lowering reaches it at, so both
-// lowerings read one position alike (GitHub #762). Past /back's or
-// /internal's, whose chains end in the source, it is the source's.
-func TestScopeOf_PastARefReadsWhereItsChainEnds(t *testing.T) {
-	t.Parallel()
-	doc, ext := loadElsewhere(t)
-	given := resolve.Scope{SelfPath: doc.Source.Path, Doc: doc.Doc, Foreign: true, Holder: "other.yaml",
-		Ends: pathItemEnds}
-	through, ok := doc.Doc.Paths.Get("/through")
-	require.True(t, ok)
-	responses := through.GetObject().Get().GetResponses()
-	rp, ok := doc.Doc.Paths.Get("/ext")
-	require.True(t, ok)
-	own := resolve.ScopeOf[soa.PathItem](given, rp)
-	require.Equal(t, ext, own.Holder, "/ext's own entry is read where ext.yaml sits")
-
-	for code, want := range map[string]string{"200": ext, "201": "", "202": ""} {
-		rr, ok := responses.Get(code)
-		require.True(t, ok, code)
-		require.NotNil(t, resolve.Object[soa.Response](rr), "%s: the resolver walked through the $ref", code)
-		scope := resolve.ScopeOf[soa.Response](given, rr)
-		assert.Equal(t, want, scope.Holder, code)
-		assert.Equal(t, want != "", scope.Foreign, code)
-	}
-	rr, ok := responses.Get("200")
-	require.True(t, ok)
-	_, pointer := resolve.ObjectAt[soa.Response](given.InSource(), rr, "/paths/~1through/get/responses/200")
-	assert.Equal(t, jsontext.Pointer("/paths/~1ext/get/responses/200"), pointer,
-		"named where /ext's own lowering reaches it, in the scope that lowering reads it in")
-}
-
 // TestObjectAt_AHopIntoTheSourceReadsOnAsTheSources pins the scope ObjectAt
 // reads each hop in. The entry is ext.yaml's, read where ext.yaml sits: its
 // $ref names the source's Q, a $ref written in the source, so the next hop
@@ -595,92 +400,4 @@ func TestObjectAt_AHopIntoTheSourceReadsOnAsTheSources(t *testing.T) {
 	obj, pointer := resolve.ObjectAt[soa.PathItem](scope, info.Object, "/use")
 	require.NotNil(t, obj)
 	assert.Equal(t, jsontext.Pointer("/components/pathItems/P"), pointer)
-}
-
-// TestReferenceEnd_NamesWhereEachKindOfReferenceEnds pins ReferenceEnd for a
-// resolved reference of each kind the library resolves, reached as a walk meets
-// one, as a value of any type: each ends at the component it names, in the
-// source, and nothing else is a reference. A schema's $ref is no such kind any
-// more: the compiler resolves it (internal/bind) and the library never does, so
-// the one the document writes ends nowhere the library read. Driving the
-// compiler is what makes the resolution info real (see parseFull).
-func TestReferenceEnd_NamesWhereEachKindOfReferenceEnds(t *testing.T) {
-	t.Parallel()
-	got, diags, err := load.Load(t.Context(), 0, openapitest.SourceOf(openapitest.EveryKindOfReference), load.Options{})
-	require.NoError(t, err)
-	require.NotNil(t, got, "%+v", diags)
-
-	ends := map[jsontext.Pointer]bool{}
-	schemaRefs := 0
-	for item := range soa.Walk(t.Context(), got.Doc) {
-		_ = item.Match(soa.Matcher{Any: func(model any) error {
-			if js, ok := model.(*oas3.JSONSchema[oas3.Referenceable]); ok && js.IsReference() {
-				schemaRefs++
-				_, ended := resolve.ReferenceEnd(js)
-				assert.False(t, ended, "the library resolved no schema $ref")
-				return nil
-			}
-			if end, ok := resolve.ReferenceEnd(model); ok {
-				assert.Same(t, got.Doc, end.Document, "%T ends in the source's model", model)
-				ends[end.Pointer] = true
-			}
-			return nil
-		}})
-	}
-
-	assert.Equal(t, map[jsontext.Pointer]bool{
-		"/components/pathItems/P": true, "/components/parameters/Q": true, "/components/requestBodies/B": true,
-		"/components/callbacks/C": true, "/components/headers/H": true, "/components/links/L": true,
-		"/components/examples/E": true, "/components/responses/R": true, "/components/securitySchemes/K": true,
-	}, ends)
-	assert.Positive(t, schemaRefs, "the document writes a schema $ref")
-	_, ok := resolve.ReferenceEnd(got.Doc)
-	assert.False(t, ok, "a document is no reference")
-}
-
-// TestOperationIDAt_ReadsTheOperationWrittenAtAPointer pins the read a mounted
-// request body is named by: the operationId of the operation written at a
-// pointer, as a reference to its body resolves there. Raw YAML answers where a
-// mapping is written, a path item's $ref siblings and aliases included, and
-// the model only where nothing is, through a reference. Any scalar but null
-// reads as its text; nothing else names one.
-func TestOperationIDAt_ReadsTheOperationWrittenAtAPointer(t *testing.T) {
-	t.Parallel()
-	const spec = "openapi: 3.1.0\ninfo: {title: t, version: '1'}\nx-op: &op {operationId: aliased}\n" +
-		"x-item: &item {post: {operationId: viaItem}}\nx-name: &name named\npaths:\n" +
-		"  /a: {post: {operationId: postA}, get: {summary: s}, put: {operationId: 7}, patch: {operationId: ~}}\n" +
-		"  /b: {$ref: '#/components/pathItems/P', put: {operationId: besidePut}, post: {operationId: besidePost}}\n" +
-		"  /c: {$ref: '#/components/pathItems/P'}\n" +
-		"  /d: {get: *op, post: {<<: *op}, put: {operationId: *name}}\n  /f: *item\n" +
-		"components:\n  pathItems:\n    P: {put: {operationId: putP}}\n"
-	doc, _, err := load.Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(spec)}, load.Options{})
-	require.NoError(t, err)
-	var file yaml.Node
-	require.NoError(t, yaml.Unmarshal([]byte(spec), &file))
-	raw := file.Content[0]
-	for pointer, want := range map[jsontext.Pointer]string{
-		"/paths/~1a/post":             "postA",
-		"/components/pathItems/P/put": "putP",
-		"/paths/~1a/put":              "7",
-		"/paths/~1b/post":             "besidePost",
-		"/paths/~1b/put":              "besidePut",
-		"/paths/~1c/put":              "putP",
-		"/paths/~1d/get":              "aliased",
-		"/paths/~1d/post":             "aliased",
-		"/paths/~1f/post":             "viaItem",
-		"/paths/~1d/put":              "named",
-		"/x-name":                     "",
-		"/paths/~1a":                  "",
-		"/paths/~1a/get":              "",
-		"/paths/~1a/patch":            "",
-		"/paths/~1a/post/operationId": "",
-		"/paths/~1e/post":             "",
-		"/paths/~1a/post/~2":          "",
-	} {
-		assert.Equal(t, want, resolve.OperationIDAt(raw, doc.Doc, pointer), pointer)
-	}
-	assert.Equal(t, "putP", resolve.OperationIDAt(nil, doc.Doc, "/paths/~1c/put"), "the model alone")
-	assert.Equal(t, "besidePut", resolve.OperationIDAt(raw, nil, "/paths/~1b/put"), "the YAML alone")
-	assert.Empty(t, resolve.OperationIDAt(raw, nil, "/paths/~1c/put"), "a reference only the model follows")
-	assert.Empty(t, resolve.OperationIDAt(nil, nil, "/paths/~1a/post"))
 }
