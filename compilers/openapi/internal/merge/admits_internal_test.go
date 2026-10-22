@@ -303,6 +303,9 @@ func TestAdmitsConstraints_JudgesEachKeyword(t *testing.T) {
 		{"maxProps, past it", &ir.Constraints{MaxProps: n(1)}, obj(field("a", num("1")), field("b", num("2"))), false},
 		{"minProps, at it", &ir.Constraints{MinProps: n(1)}, obj(field("a", num("1"))), true},
 		{"a count on a bool", &ir.Constraints{MaxItems: n(0)}, ir.Value{Kind: ir.ValueBool}, true},
+		{"a kind the IR does not declare", &ir.Constraints{}, ir.Value{Kind: "unknown"}, false},
+		{"uniqueItems, a member of a kind the IR does not declare", &ir.Constraints{UniqueItems: true},
+			list(ir.Value{Kind: "unknown"}), false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

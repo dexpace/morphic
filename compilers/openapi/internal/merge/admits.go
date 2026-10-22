@@ -418,8 +418,12 @@ func admitsConstraints(c *ir.Constraints, v ir.Value, depth int) bool {
 		return within(int64(len(v.List)), c.MinItems, c.MaxItems) && (!c.UniqueItems || distinct(v.List, depth))
 	case ir.ValueObject:
 		return within(int64(len(v.Object)), c.MinProps, c.MaxProps)
-	default:
+	case ir.ValueNull, ir.ValueBool, ir.ValueSymbol, ir.ValueRefKind, ir.ValueCtor:
+		// No keyword constrains a null or a bool, and the kind judge refuses the
+		// rest before any keyword is read.
 		return true
+	default:
+		return false
 	}
 }
 
@@ -502,6 +506,8 @@ func canonicalValue(v ir.Value, depth int) (string, bool) {
 			member, ok := canonicalValue(fields[i].Value, depth+1)
 			return strconv.Quote(fields[i].Name) + ":" + member, ok
 		})
+	case ir.ValueBytes, ir.ValueSymbol, ir.ValueRefKind, ir.ValueCtor:
+		return "", false
 	default:
 		return "", false
 	}
