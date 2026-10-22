@@ -2255,9 +2255,10 @@ func (n *nulls) allOfVerdict(s *oas3.Schema) nullVerdict {
 }
 
 // conjunctVerdict reads one allOf branch. A `false` branch admits no instance
-// whatever, null included; a `true` branch constrains nothing.
+// whatever, null included; a `true` branch constrains nothing, nor does a `null`
+// written for one, which is no `false` (annotation.IsFalseSchema).
 func (n *nulls) conjunctVerdict(b *oas3.JSONSchema[oas3.Referenceable]) nullVerdict {
-	if !annotation.Written(b) {
+	if b == nil {
 		return nullSilent
 	}
 	if b.IsBool() {

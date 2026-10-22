@@ -125,9 +125,6 @@ func fillAllOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth in
 	baseIdx := selectAllOfBase(c.Bindings(), branches)
 	for i, b := range branches {
 		bptr := pointer + ids.Ptr("allOf", strconv.Itoa(i))
-		if annotation.IsNullLiteral(b) {
-			continue // a null conjunct states nothing, so it composes nothing, as `true` does
-		}
 		if !isRefBranch(b) {
 			diags = append(diags, fillModelProperties(c, ts, anchors, depth, m, b.GetSchema(), bptr)...)
 			diags = append(diags, preserveUnmergedBranch(c, m, b.GetSchema(), i, bptr)...)

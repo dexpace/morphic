@@ -299,7 +299,7 @@ func IfThenElseRaw(s *oas3.Schema) (ir.RawValue, []string, error) {
 // ContainsRaw combines contains/minContains/maxContains into one raw JSON
 // object, and names the keywords it combines.
 func ContainsRaw(s *oas3.Schema) (ir.RawValue, []string, error) {
-	if !Written(s.GetContains()) && s.GetMinContains() == nil && s.GetMaxContains() == nil {
+	if s.GetContains() == nil && s.GetMinContains() == nil && s.GetMaxContains() == nil {
 		return nil, nil, nil
 	}
 	return combine(s, "contains", "minContains", "maxContains")
@@ -311,10 +311,10 @@ func ContainsRaw(s *oas3.Schema) (ir.RawValue, []string, error) {
 // combines.
 func UnevaluatedRaw(s *oas3.Schema) (ir.RawValue, []string, error) {
 	var want []string
-	if up := s.GetUnevaluatedProperties(); Written(up) && !IsFalseSchema(up) {
+	if up := s.GetUnevaluatedProperties(); up != nil && !IsFalseSchema(up) {
 		want = append(want, "unevaluatedProperties")
 	}
-	if Written(s.GetUnevaluatedItems()) {
+	if s.GetUnevaluatedItems() != nil {
 		want = append(want, "unevaluatedItems")
 	}
 	return combine(s, want...)
