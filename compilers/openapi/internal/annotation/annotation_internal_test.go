@@ -336,6 +336,17 @@ func TestSchemaOf_ReturnsOnlyAWrittenBody(t *testing.T) {
 	assert.Equal(t, "T", s.GetTitle())
 }
 
+// TestIsFalseSchema_OnlyTheFalseBoolean pins the predicate that distinguishes a
+// structural mode from a schema. Reading `true` or an object schema as the false
+// one would turn a permissive position into a forbidding one.
+func TestIsFalseSchema_OnlyTheFalseBoolean(t *testing.T) {
+	t.Parallel()
+	assert.True(t, IsFalseSchema(jsonSchemaFromYAML(t, "false\n")))
+	assert.False(t, IsFalseSchema(jsonSchemaFromYAML(t, "true\n")))
+	assert.False(t, IsFalseSchema(jsonSchemaFromYAML(t, "type: string\n")))
+	assert.False(t, IsFalseSchema(nil))
+}
+
 // TestEffectiveVisibility_MapsTheFlagsToLifecycles pins the readOnly/writeOnly
 // mapping of ir-design §5.2, the precedence a site holds over its referent, and
 // the answer for the pairing that admits nothing.

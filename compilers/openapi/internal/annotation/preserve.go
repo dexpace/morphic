@@ -1,6 +1,8 @@
 package annotation
 
 import (
+	"maps"
+
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
@@ -83,4 +85,16 @@ func PreserveKeywordInto(p *ir.Unmodeled, key string, raw ir.RawValue,
 	PreserveInto(p, key, raw, ir.ReasonValidationOnly, entry)
 	return []ir.Diagnostic{diag.Newf(ir.SeverityInfo, diag.ValidationOnlyKeyword, note,
 		"validation-only keyword %q kept verbatim under Unmodeled", label)}
+}
+
+// MergeUnmodeled overlays src onto dst, allocating dst on first write.
+func MergeUnmodeled(dst, src ir.Unmodeled) ir.Unmodeled {
+	if len(src) == 0 {
+		return dst
+	}
+	if dst == nil {
+		dst = ir.Unmodeled{}
+	}
+	maps.Copy(dst, src)
+	return dst
 }

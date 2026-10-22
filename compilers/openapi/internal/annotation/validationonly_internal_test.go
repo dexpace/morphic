@@ -13,17 +13,6 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// TestIsFalseSchema_OnlyTheFalseBoolean pins the predicate that distinguishes a
-// structural mode from a schema. Reading `true` or an object schema as the false
-// one would turn a permissive position into a forbidding one.
-func TestIsFalseSchema_OnlyTheFalseBoolean(t *testing.T) {
-	t.Parallel()
-	assert.True(t, IsFalseSchema(jsonSchemaFromYAML(t, "false\n")))
-	assert.False(t, IsFalseSchema(jsonSchemaFromYAML(t, "true\n")))
-	assert.False(t, IsFalseSchema(jsonSchemaFromYAML(t, "type: string\n")))
-	assert.False(t, IsFalseSchema(nil))
-}
-
 // TestCombinedRaw_JoinsOnlyWhatIsWritten pins the three combining readers. Each
 // keyword present goes into one object in the requested order, and a
 // combination with nothing written yields nothing rather than an empty object.

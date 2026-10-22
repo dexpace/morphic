@@ -216,6 +216,11 @@ func SchemaOf(js *oas3.JSONSchema[oas3.Referenceable]) *oas3.Schema {
 	return js.GetSchema()
 }
 
+// IsFalseSchema reports whether js is the boolean `false` schema.
+func IsFalseSchema(js *oas3.JSONSchema[oas3.Referenceable]) bool {
+	return js != nil && js.IsBool() && js.GetBool() != nil && !*js.GetBool()
+}
+
 // Home names where the annotations a schema position declares are
 // kept. It is what decides whether a position that lowered to a shared node
 // hoists one of its own, so the two homes can never both hold the same

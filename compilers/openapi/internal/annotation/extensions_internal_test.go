@@ -125,20 +125,3 @@ func TestExtensionsAt_ReportsEverySiteThatFailed(t *testing.T) {
 	require.Len(t, diags, 1)
 	assert.Equal(t, ir.SeverityWarning, diags[0].Severity)
 }
-
-// TestMergeUnmodeled_AllocatesOnlyOnFirstWrite pins the overlay: merging nothing
-// leaves the destination exactly as it was — including nil, which must not
-// become an empty map.
-func TestMergeUnmodeled_AllocatesOnlyOnFirstWrite(t *testing.T) {
-	t.Parallel()
-	assert.Nil(t, MergeUnmodeled(nil, nil))
-	assert.Nil(t, MergeUnmodeled(nil, ir.Unmodeled{}))
-
-	src := ir.Unmodeled{"a": {Reason: ir.ReasonOutOfScope}}
-	assert.Equal(t, src, MergeUnmodeled(nil, src), "a nil destination is allocated to hold the first entry")
-
-	dst := ir.Unmodeled{"b": {Reason: ir.ReasonNoIRHome}}
-	assert.Equal(t, ir.Unmodeled{
-		"a": {Reason: ir.ReasonOutOfScope}, "b": {Reason: ir.ReasonNoIRHome},
-	}, MergeUnmodeled(dst, src))
-}

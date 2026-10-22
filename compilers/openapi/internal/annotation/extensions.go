@@ -2,7 +2,6 @@ package annotation
 
 import (
 	"encoding/json/jsontext"
-	"maps"
 
 	"github.com/speakeasy-api/openapi/extensions"
 
@@ -82,16 +81,4 @@ func ExtensionsAt(locate Locator, sites ...ExtensionSite) (ir.Unmodeled, []ir.Di
 		diags = append(diags, extDiags...)
 	}
 	return out, diags
-}
-
-// MergeUnmodeled overlays src onto dst, allocating dst on first write.
-func MergeUnmodeled(dst, src ir.Unmodeled) ir.Unmodeled {
-	if len(src) == 0 {
-		return dst
-	}
-	if dst == nil {
-		dst = ir.Unmodeled{}
-	}
-	maps.Copy(dst, src)
-	return dst
 }

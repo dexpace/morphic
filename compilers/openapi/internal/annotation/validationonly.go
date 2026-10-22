@@ -11,11 +11,6 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// IsFalseSchema reports whether js is the boolean `false` schema.
-func IsFalseSchema(js *oas3.JSONSchema[oas3.Referenceable]) bool {
-	return js != nil && js.IsBool() && js.GetBool() != nil && !*js.GetBool()
-}
-
 // IfThenElseRaw combines the present if/then/else arms into one raw JSON
 // object, and names the arms it combines.
 func IfThenElseRaw(s *oas3.Schema) (ir.RawValue, []string, error) {
