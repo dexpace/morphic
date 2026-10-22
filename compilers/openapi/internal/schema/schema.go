@@ -435,8 +435,8 @@ func declaresShape(s *oas3.Schema) bool {
 // co-declares oneOf/anyOf and keeps the union verbatim beside it, so neither the
 // structural shape nor the union is dropped. reason says which kind of union it
 // is and why says what stopped a classified lowering; classifyUnionSiblings
-// picks both. A discriminator the body's model holds is settled once the walk
-// lowering it has returned (deferDiscriminatorBesideUnion).
+// picks both. A discriminator the body's model holds is settled once every node
+// is interned (deferDiscriminatorBesideUnion).
 func lowerBesideUnmodeledUnion(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer jsontext.Pointer, hint string, reason ir.UnmodeledReason, why string) (ir.TypeID, []ir.Diagnostic) {
 	inner, diags := lower(c, ts, anchors, depth, s, pointer, hint)
 	owner := inner
@@ -772,10 +772,11 @@ func isKind(td ir.TypeDef, k ir.TypeKind) bool {
 }
 
 // formatHome reports whether the position's `format` reached a field. A Scalar
-// hoisted for it carries it in Encoding; a (type, format) pairing the spelling table
-// knows selects a primitive, which carries the pairing in the primitive kind
-// itself. With no type declared there was no pairing to make and nothing read it,
-// and a node of any other kind has no Encoding field at all.
+// hoisted for it carries it in Encoding; a (type, format) pairing
+// spelling.Lookup knows selects a primitive, which carries the pairing in the
+// primitive kind itself. With no type declared there was no pairing to make
+// and nothing read it, and a node of any other kind has no Encoding field at
+// all.
 func formatHome(td ir.TypeDef, s *oas3.Schema) bool {
 	// The redaction format names no shape, so no node kind is its home: the
 	// annotation readers hold it, as Sensitive on the node the position owns or
@@ -1182,8 +1183,8 @@ func fillModelProperties(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex
 }
 
 // redeclarationSource renders the schema written at a property position
-// verbatim, as the merge keeps it when the position redeclares a field and
-// not all of the redeclaration folds onto the first declaration. It is a
+// verbatim, as the merge keeps it when the position declares a field another
+// declares too and the fold cannot carry all of what it says. It is a
 // function rather than the bytes because nearly every property is declared
 // once, and rendering a node nobody will keep is the cost the merge asks for
 // only when it has something to keep.
