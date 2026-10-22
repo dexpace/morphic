@@ -5,9 +5,7 @@ import (
 
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 
-	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
-	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/ir"
 )
@@ -48,25 +46,4 @@ func undefinedKeywords(c lowering.Ctx, s *oas3.Schema) []string {
 		return nil
 	}
 	return []string{"nullable"}
-}
-
-// lowerArray hoists an array schema as a Tuple when prefixItems is present, else
-// a List over its item schema, each with the collection bounds it declares.
-func lowerArray(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer jsontext.Pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
-	var diags []ir.Diagnostic
-	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
-		if prefix := s.GetPrefixItems(); len(prefix) > 0 {
-			t, tupleDiags := buildTuple(c, ts, anchors, depth, s, common, pointer, hint, prefix)
-			diags = append(diags, tupleDiags...)
-			return t
-		}
-		elem, elemDiags := Ref(c, ts, anchors, depth, s.GetItems(), pointer+ids.Ptr("items"), compile.SubHint(hint, "item"))
-		diags = append(diags, elemDiags...)
-		return &ir.List{
-			TypeCommon:  common,
-			Elem:        elem,
-			Constraints: collectionConstraints(s),
-		}
-	})
-	return id, diags
 }
