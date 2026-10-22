@@ -123,10 +123,11 @@ func placeAt(d ir.Diagnostic, site ir.Provenance, place string) ir.Diagnostic {
 }
 
 // identity is what tells a finding from another about the same node however
-// many references reach it: the finding as placed in its document, or, for one
-// marked foreign, the finding with the place it names, whichever reference it
-// is placed at.
+// many references reach it: the finding as placed in its document, whichever
+// position read it (oas.AsPlaced), or, for one marked foreign, the finding with
+// the place it names, whichever reference it is placed at.
 func identity(d ir.Diagnostic, place string) ir.Diagnostic {
+	d = oas.AsPlaced(d)
 	if !holds(d) {
 		d.Message += " of " + place
 	}

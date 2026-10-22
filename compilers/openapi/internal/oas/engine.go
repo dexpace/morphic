@@ -42,8 +42,11 @@ type Options struct {
 	Seen func(kind Kind, node *yaml.Node)
 	// ReadAt, when set, has a finding Locate places elsewhere than the
 	// pointer it was read at, through an alias or a merge key, name that
-	// pointer. It holds where Locate answers in the root's own pointers.
+	// pointer, under Root.
 	ReadAt bool
+	// Root is the pointer the root is read at in the document Locate answers
+	// in, empty for that document's own root.
+	Root jsontext.Pointer
 }
 
 // Checker judges documents against the table.
@@ -64,7 +67,7 @@ func (c Checker) Check(root *yaml.Node, declared string, opts Options) []ir.Diag
 	}
 	w := &walker{spec: c.spec, minor: minor, view: nodeview.New(), budget: opts.Budget}
 	w.locate, w.declared, w.seen = opts.Locate, declared, opts.Seen
-	w.readAt, w.said = opts.ReadAt, map[ir.Diagnostic]bool{}
+	w.readAt, w.rootAt, w.said = opts.ReadAt, opts.Root, map[ir.Diagnostic]bool{}
 	if w.budget <= 0 {
 		w.budget = DefaultBudget
 	}

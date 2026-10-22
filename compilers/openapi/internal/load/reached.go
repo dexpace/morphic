@@ -50,10 +50,10 @@ type reached struct {
 
 // reachedTarget is an object the source's references reach: the least pointer
 // among the $refs reaching it, the kind they expect it to be, the node it is
-// written as, the document it is in, as findingPlace names it, and whether that
-// is the source, or else the name a reference reads it by (held). place places
-// a finding at site where another document writes that $ref, named siteDoc,
-// and is nil where the source does.
+// written as, the document it is in, as findingPlace names it, whether that is
+// the source, and where it is read, as a reference names that document and the
+// pointer it reads there (home). place places a finding at site where another
+// document writes that $ref, named siteDoc, and is nil where the source does.
 type reachedTarget struct {
 	site     jsontext.Pointer
 	siteDoc  string
@@ -61,7 +61,7 @@ type reachedTarget struct {
 	node     *yaml.Node
 	doc      string
 	inSource bool
-	held     string
+	home     refSite
 	place    func(jsontext.Pointer) ir.Provenance
 }
 
@@ -72,8 +72,8 @@ func (t reachedTarget) at() refSite { return refSite{doc: t.siteDoc, pointer: t.
 // source's own check did not read as that kind (see dropSeen), in doc, walked
 // with the fields beside its path item $refs, or in away, another document's
 // (GitHub #751), and every schema built for a landing of b. Each finding is
-// reported once, where it is placed (see reachedLocator), and none the
-// source's own check made.
+// reported once, where it is placed (see locatorFor), and none the source's
+// own check made.
 func validateReached(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, b bound, doc *soa.OpenAPI,
 	sibs Siblings, opts Options, self sourceDocument, away []awayRef,
 ) []ir.Diagnostic {
@@ -102,11 +102,9 @@ func builtTargets(built []typed.Built, place func(bind.Position) ir.Provenance, 
 			continue
 		}
 		node := nodeview.Deref(b.Schema.GetSchema().GetRootNode())
+		at := b.Landing.At
 		t := reachedTarget{site: b.Landing.Site.Pointer, kind: oas.Schema, node: node,
-			doc: b.Landing.Name, inSource: b.Landing.At.Doc == bind.Source}
-		if at := b.Landing.At; at.Doc != bind.Source {
-			t.held = name(at.Doc)
-		}
+			doc: b.Landing.Name, inSource: at.Doc == bind.Source, home: refSite{doc: name(at.Doc), pointer: at.Pointer}}
 		if site := b.Landing.Site; site.Doc != bind.Source {
 			t.siteDoc = name(site.Doc)
 			t.place = func(p jsontext.Pointer) ir.Provenance { return place(bind.Position{Doc: site.Doc, Pointer: p}) }
@@ -193,7 +191,7 @@ func targetOf(site jsontext.Pointer, r resolvable, esc *escapes) (reachedTarget,
 	}
 	target := reachedTarget{site: site, kind: kind, node: node, doc: findingPlace(t), inSource: t.endsInSource}
 	if n := len(c.records); n > 0 {
-		target.held = c.records[n-1].path
+		target.home = refSite{doc: c.records[n-1].path, pointer: c.records[n-1].pointer}
 	}
 	return target, true
 }
@@ -250,15 +248,18 @@ func (v *reached) checkAll(at func(jsontext.Pointer) ir.Provenance, targets map[
 	return diags
 }
 
-// check judges t's object and reports what it finds at site, the $ref that
-// reached it, or where the source's tree holds the node a finding is about. One
-// already reported is not reported again, as the source reports a finding once
-// however many references share its node.
+// check judges t's object and reports each finding where locatorFor places it,
+// naming the pointer it was read at where that is elsewhere, as the source's
+// own check does (oas.Options.ReadAt). One already reported is not reported
+// again, as the source reports a finding once however many references share
+// its node; one about a node of a document no entry lists goes to site, the
+// $ref that reached it.
 func (v *reached) check(site ir.Provenance, t reachedTarget) []ir.Diagnostic {
 	if d, over := v.charge(site, t.doc, t.node); over {
 		return d
 	}
-	found := v.checker.Check(t.node, v.version, oas.Options{Start: t.kind, Budget: v.limit, Locate: v.locatorFor(t)})
+	found := v.checker.Check(t.node, v.version, oas.Options{Start: t.kind, Budget: v.limit, Locate: v.locatorFor(t),
+		ReadAt: true, Root: t.home.pointer})
 	var diags []ir.Diagnostic
 	for _, d := range found {
 		if key := identity(d, t.doc); !v.reported[key] {
@@ -275,7 +276,7 @@ func (v *reached) check(site ir.Provenance, t reachedTarget) []ir.Diagnostic {
 // #1030); and, for a document no entry lists, nowhere yet, marked foreign for
 // placeAt to put at the $ref.
 func (v *reached) locatorFor(t reachedTarget) oas.Locator {
-	if locate, listed := v.others.locator(t.held); listed && !t.inSource {
+	if locate, listed := v.others.locator(t.home.doc); listed && !t.inSource {
 		return walkedFrom(t.node, locate)
 	}
 	return v.tree.reachedLocator(t.node)

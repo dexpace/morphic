@@ -230,9 +230,9 @@ func TestBindSchemas_AChainEndsInTheDocumentItEndsIn(t *testing.T) {
 
 // TestBuiltTargets covers which schemas built for the bindings' landings are
 // validated, and where: one a $ref's chain reaches, at the least such $ref and
-// named by its document, in the source or not, and placed in the document
-// writing that $ref. One no $ref reaches, one that failed to build and a
-// boolean schema are none.
+// named by its document, in the source or not, placed in the document writing
+// that $ref, and read where it lands. One no $ref reaches, one that failed to
+// build and a boolean schema are none.
 func TestBuiltTargets(t *testing.T) {
 	t.Parallel()
 	built := buildRaw(t, "{type: object}")
@@ -251,8 +251,9 @@ func TestBuiltTargets(t *testing.T) {
 
 	require.Len(t, got, 3)
 	assert.Equal(t, reachedTarget{site: "/s", kind: oas.Schema, node: built.GetSchema().GetRootNode(), doc: "spec.yaml",
-		inSource: true}, got[0])
+		inSource: true, home: refSite{doc: "doc0.yaml", pointer: "/x-lib/A"}}, got[0])
 	assert.Equal(t, jsontext.Pointer("/t"), got[1].site)
+	assert.Equal(t, refSite{doc: "doc1.yaml", pointer: "/B"}, got[1].home, "read where it lands, in that document")
 	assert.Equal(t, "other.yaml", got[1].doc)
 	assert.False(t, got[1].inSource)
 	assert.Nil(t, got[1].place, "a $ref the source writes is placed as the source's")

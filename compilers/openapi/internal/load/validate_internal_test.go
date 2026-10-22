@@ -163,13 +163,13 @@ func TestSourceTree_LocatorsAnswerAtTheLastNodeTheyReach(t *testing.T) {
 	foreign := sourceTree{}.reachedLocator(root)("/info")
 	assert.Equal(t, ir.Provenance{Source: foreign.Source, Position: foreign.Position}, foreign)
 	assert.Equal(t, 2, foreign.Position.Line)
-	assert.False(t, holds(ir.Diagnostic{Provenance: foreign}), "marked as another document's")
+	assert.False(t, holds(ir.Diagnostic{Provenance: foreign}), "marked foreign")
 }
 
 // TestPlaceAt_PutsForeignFindingsAtTheReference pins where a finding about an
-// object a reference reaches is reported: one the source's tree holds stays
-// where it is, and any other goes to the reference with the place it lies in
-// named in its message.
+// object a reference reaches is reported: one placed in a document stays where
+// it is, and one marked foreign goes to the reference with the place it lies
+// in named in its message.
 func TestPlaceAt_PutsForeignFindingsAtTheReference(t *testing.T) {
 	t.Parallel()
 	site := ir.Provenance{Source: 2, Pointer: "/paths/~1a"}
@@ -183,17 +183,20 @@ func TestPlaceAt_PutsForeignFindingsAtTheReference(t *testing.T) {
 }
 
 // TestIdentity_NamesTheDocumentOfAForeignFinding pins what makes two findings
-// one: for another document's, taken before it is placed at a reference, the
-// finding with the document it lies in; for the source's, the finding as
-// placed.
+// one: for one marked foreign, taken before it is placed at a reference, the
+// finding with the document it lies in; for one placed in a document, the
+// finding as placed, whichever position read it.
 func TestIdentity_NamesTheDocumentOfAForeignFinding(t *testing.T) {
 	t.Parallel()
 	other := ir.Diagnostic{Message: "m", Provenance: ir.Provenance{Source: foreign, Position: ir.Position{Line: 1, Column: 2}}}
-	held := ir.Diagnostic{Message: "m", Provenance: ir.Provenance{Source: 0, Pointer: "/x"}}
+	held := ir.Diagnostic{Message: "m", Provenance: ir.Provenance{Source: 1, Pointer: "/x"}}
+	readAt := held
+	readAt.Message = "m; read at /y"
 
 	assert.Equal(t, "m of a.yaml", identity(other, "a.yaml").Message)
 	assert.NotEqual(t, identity(other, "a.yaml"), identity(other, "b.yaml"))
 	assert.Equal(t, held, identity(held, "a.yaml"))
+	assert.Equal(t, held, identity(readAt, "a.yaml"), "the position that read it is no part of it")
 }
 
 // TestLoad_WhatAnAliasMountsIsReportedOnce pins that a defect in a mapping two

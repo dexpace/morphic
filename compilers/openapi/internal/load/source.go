@@ -33,7 +33,7 @@ type sourceDocument struct {
 // sourceTree places a finding about a node of the source's patched tree as the
 // source's own findings are placed (see locator), and names the node's pointer
 // there. Its zero value holds no node, so every finding is placed at the $ref
-// that reached it, as another document's are.
+// that reached it, as one in a document no entry lists is.
 type sourceTree struct {
 	locate   scan.Locator
 	pointers func(*yaml.Node) (jsontext.Pointer, bool)

@@ -41,8 +41,9 @@ type reporter struct {
 	declared string
 	diags    []ir.Diagnostic
 	// readAt says whether a finding placed elsewhere than it was read names
-	// where it was read (Options.ReadAt).
+	// where it was read (Options.ReadAt), under rootAt (Options.Root).
 	readAt bool
+	rootAt jsontext.Pointer
 	// said holds each finding made, as placed, before readAt adds to it.
 	said map[ir.Diagnostic]bool
 }
@@ -61,8 +62,8 @@ func (r *reporter) add(d ir.Diagnostic, ptr jsontext.Pointer) {
 		return
 	}
 	r.said[d] = true
-	if r.readAt && d.Provenance.Pointer != "" && d.Provenance.Pointer != ptr {
-		d.Message += readAtClause + string(ptr)
+	if read := r.rootAt + ptr; r.readAt && d.Provenance.Pointer != "" && d.Provenance.Pointer != read {
+		d.Message += readAtClause + string(read)
 	}
 	r.diags = append(r.diags, d)
 }

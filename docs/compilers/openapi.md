@@ -178,7 +178,7 @@ expects and held to the source's minor. A finding about it is placed at its node
 one document. One about a node of a document no entry lists goes to the least `$ref` reaching it,
 its message naming where in that document it lies. Each finding is made once: a node an alias or a
 merge key mounts at several positions draws one, placed where the node is written and naming the
-position that first read it.
+position in that document that first read it.
 
 A rule another lowering reports is stated in the table and left to it, so a document draws one
 report: [`operation-ids`](#operation-ids), a repeated parameter ([`parameters`](#parameters)), a
@@ -207,6 +207,7 @@ gives it no effect is [`allow-reserved-locations`](#allow-reserved-locations)' a
   `load.TestLoad_WhatAnAliasMountsIsReportedOnce`,
   `load.TestResolve_AnObjectReachedTwiceIsReportedOnce`,
   `load.TestResolve_AFileSpelledTwoWaysPlacesAFindingOnce`,
+  `load.TestResolve_AReachedFindingNamesThePositionThatReadIt`,
   `openapi.TestCompile_AFindingInAnExternalDocumentKeepsItsRule`,
   `canary.TestValidationOracle_AgreesWithTheLibrary`
 - Status: partly built: a document a reference reaches is held to the source's minor until which

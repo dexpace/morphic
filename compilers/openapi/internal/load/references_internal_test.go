@@ -379,6 +379,60 @@ paths:
 	}
 }
 
+// TestResolve_AReachedFindingNamesThePositionThatReadIt pins the read
+// position a finding about another document's node names, as the source's own
+// do: a parameter and a schema property ext.yaml mounts through aliases are each
+// reported once, at the anchor, naming the position the least $ref reaching
+// them reads them at in ext.yaml, whichever path the source declares first. A
+// parameter a chain of two $refs reaches is read where the last one lands, so
+// it names none.
+func TestResolve_AReachedFindingNamesThePositionThatReadIt(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	writeFile(t, dir, "ext.yaml", `x-param: &p {name: n, in: nowhere, schema: {type: string}}
+x-schema: &s {type: bogus}
+paths:
+  /x: {get: {parameters: [*p], responses: {"200": {description: ok}}}}
+  /y: {get: {parameters: [*p], responses: {"200": {description: ok}}}}
+components:
+  schemas:
+    S: {properties: {s: *s}}
+  parameters:
+    Hop: {$ref: '#/components/parameters/Bad'}
+    Bad: {name: b, in: inside, schema: {type: string}}
+`)
+	const a, b = "  /a: {$ref: 'ext.yaml#/paths/~1x'}\n", "  /b: {$ref: 'ext.yaml#/paths/~1y'}\n"
+	for name, paths := range map[string]string{"a declared first": a + b, "b declared first": b + a} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			src := compilers.Source{Path: filepath.Join(dir, "root.yaml"), Data: []byte("openapi: 3.1.0\n" +
+				"info: {title: T, version: \"1\"}\npaths:\n" + paths +
+				"  /c: {get: {parameters: [{$ref: 'ext.yaml#/components/parameters/Hop'}], responses: {\"200\": {description: ok}}}}\n" +
+				"components: {schemas: {R: {$ref: 'ext.yaml#/components/schemas/S'}}}\n")}
+
+			_, diags, err := Load(t.Context(), 0, src, Options{Reader: reader.Disk{}})
+			require.NoError(t, err)
+
+			read := map[jsontext.Pointer]string{}
+			found := 0
+			for _, d := range diags {
+				if strings.HasPrefix(d.Code, diag.Validation+"/") {
+					require.Equal(t, 1, d.Provenance.Source, "%+v", d)
+					_, at, _ := strings.Cut(d.Message, "; read at ")
+					read[d.Provenance.Pointer] = at
+					found++
+				}
+			}
+			assert.Equal(t, map[jsontext.Pointer]string{
+				"/x-param/in":                   "/paths/~1x/get/parameters/0/in",
+				"/x-schema/type":                "/components/schemas/S/properties/s/type",
+				"/components/parameters/Bad/in": "",
+			}, read, "%+v", diags)
+			assert.Equal(t, 3, found, "each node once: %+v", diags)
+		})
+	}
+}
+
 // TestResolve_ReachedFindingsDoNotDependOnDeclarationOrder compiles one source
 // as written and with its paths reversed, and requires the same reports.
 // The library hands a later $ref the object an earlier one built, so which $ref
