@@ -20,7 +20,7 @@ import (
 // compiler into a fresh registry, so neither of Register's failure modes (no
 // formats reported, a format collision) can actually fire — and a stub engine
 // that returns a nil Document.
-var newEngine = engine.New
+var newEngine = func() (*engine.Engine, error) { return engine.New() }
 
 // compileLong is compile's description. cobra prints it as written, so it is
 // wrapped by hand.

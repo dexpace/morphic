@@ -164,7 +164,7 @@ func TestEngine_RunWithoutADocumentFails(t *testing.T) {
 	t.Parallel()
 	unclaimed, err := engine.New()
 	require.NoError(t, err)
-	declined, err := engine.NewWith(nilDocCompiler{reported: diagnosticsAt(ir.SeverityError)})
+	declined, err := engine.New(engine.WithCompilers(nilDocCompiler{reported: diagnosticsAt(ir.SeverityError)}))
 	require.NoError(t, err)
 
 	for _, failOn := range thresholds {
@@ -244,16 +244,16 @@ func TestEngine_RunRefusesAnUnknownSeverity(t *testing.T) {
 		build func([]ir.Diagnostic) (*engine.Engine, error)
 	}{
 		{"the compiler, with a document", func(diags []ir.Diagnostic) (*engine.Engine, error) {
-			return engine.NewWith(splitDiagCompiler{stored: diags})
+			return engine.New(engine.WithCompilers(splitDiagCompiler{stored: diags}))
 		}},
 		// A refusal states why, so its list leads with an error: one holding only
 		// the unknown severity breaks the contract before the verdict reads it.
 		{"the compiler, with none", func(diags []ir.Diagnostic) (*engine.Engine, error) {
 			why := ir.Diagnostic{Severity: ir.SeverityError, Code: "x/refused"}
-			return engine.NewWith(nilDocCompiler{reported: append([]ir.Diagnostic{why}, diags...)})
+			return engine.New(engine.WithCompilers(nilDocCompiler{reported: append([]ir.Diagnostic{why}, diags...)}))
 		}},
 		{"a pass", func(diags []ir.Diagnostic) (*engine.Engine, error) {
-			return engine.NewWithPasses([]pass.Pass{reportPass{diags}}, splitDiagCompiler{})
+			return engine.New(engine.WithCompilers(splitDiagCompiler{}), engine.WithPasses(reportPass{diags}))
 		}},
 	}
 	for _, failOn := range thresholds {
@@ -281,7 +281,7 @@ func TestEngine_RunRefusesAnUnknownSeverity(t *testing.T) {
 // judges the run at failOn.
 func runStored(t *testing.T, failOn engine.FailOn, diags []ir.Diagnostic) *engine.Result {
 	t.Helper()
-	eng, err := engine.NewWith(splitDiagCompiler{stored: diags})
+	eng, err := engine.New(engine.WithCompilers(splitDiagCompiler{stored: diags}))
 	require.NoError(t, err)
 
 	res, err := eng.Run(t.Context(), writeSpec(t, testspec.Tiny), engine.RunOptions{

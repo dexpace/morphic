@@ -254,14 +254,14 @@ func TestEngine_RunResultSourcesOnARefusedOverlay(t *testing.T) {
 	}), "the refusal names the overlay, source 1: %+v", res.Diagnostics)
 }
 
-// TestNewWith_RefusesAnEmptyCompilerSet pins that an engine which can compile
+// TestNew_RefusesAnEmptyCompilerSet pins that an engine which can compile
 // nothing cannot be built. There is no way to add a compiler to a built engine,
 // so the alternative is one that reports every source it is handed as
 // unrecognized — blaming the document for a misconfiguration of the caller.
-func TestNewWith_RefusesAnEmptyCompilerSet(t *testing.T) {
+func TestNew_RefusesAnEmptyCompilerSet(t *testing.T) {
 	t.Parallel()
 
-	eng, err := engine.NewWith()
+	eng, err := engine.New(engine.WithCompilers())
 
 	require.Error(t, err)
 	assert.Nil(t, eng, "nothing usable comes back from a refused construction")
@@ -324,28 +324,28 @@ func sourcesOf(format string, sources []compilers.Source) []ir.SourceInfo {
 }
 
 // collidingCompiler claims a single fixed format. Two of them registered
-// together make the second Register call fail, driving NewWith's error path.
+// together make the second Register call fail, driving New's error path.
 type collidingCompiler struct{ stubFront }
 
 func (collidingCompiler) Compile(context.Context, []compilers.Source, compilers.Options) (*ir.Document, []ir.Diagnostic, error) {
 	return nil, nil, nil
 }
 
-func TestNewWith_RegisterError(t *testing.T) {
+func TestNew_RegisterError(t *testing.T) {
 	t.Parallel()
-	eng, err := engine.NewWith(collidingCompiler{}, collidingCompiler{})
+	eng, err := engine.New(engine.WithCompilers(collidingCompiler{}, collidingCompiler{}))
 	require.Error(t, err)
 	assert.Nil(t, eng)
 	assert.Contains(t, err.Error(), "engine: register compiler 1")
 }
 
-// TestNewWith_NilCompiler passes the nil second so the reported position proves
+// TestNew_NilCompiler passes the nil second so the reported position proves
 // the index is the argument's own and not a constant. Reaching the assertions at
 // all is the point: a nil compiler must come back as an error the caller can
 // handle, not a panic escaping the registry.
-func TestNewWith_NilCompiler(t *testing.T) {
+func TestNew_NilCompiler(t *testing.T) {
 	t.Parallel()
-	eng, err := engine.NewWith(collidingCompiler{}, nil)
+	eng, err := engine.New(engine.WithCompilers(collidingCompiler{}, nil))
 	require.Error(t, err)
 	assert.Nil(t, eng)
 	assert.Contains(t, err.Error(), "engine: register compiler 1")
@@ -364,7 +364,7 @@ func (errCompiler) Compile(context.Context, []compilers.Source, compilers.Option
 // the run with a Go error naming the compile, from a file and from memory.
 func TestEngine_RunCompileError(t *testing.T) {
 	t.Parallel()
-	eng, err := engine.NewWith(errCompiler{})
+	eng, err := engine.New(engine.WithCompilers(errCompiler{}))
 	require.NoError(t, err)
 
 	_, fromFile := eng.Run(t.Context(), writeSpec(t, testspec.Tiny), engine.RunOptions{})
@@ -397,9 +397,9 @@ func (c nilDocCompiler) Compile(context.Context, []compilers.Source, compilers.O
 
 func TestEngine_RunNilDocument(t *testing.T) {
 	t.Parallel()
-	eng, err := engine.NewWith(nilDocCompiler{
+	eng, err := engine.New(engine.WithCompilers(nilDocCompiler{
 		reported: []ir.Diagnostic{{Severity: ir.SeverityError, Code: "x/none"}},
-	})
+	}))
 	require.NoError(t, err)
 	// No pass is disabled, but a nil Document must still short-circuit the passes.
 	res, err := eng.Run(t.Context(), writeSpec(t, testspec.Tiny), engine.RunOptions{})
@@ -461,7 +461,7 @@ func TestEngine_RunKeepsDiagnosticsFromEitherChannel(t *testing.T) {
 		for _, disable := range [][]string{nil, {engine.ValidatePass}} {
 			t.Run(fmt.Sprintf("%s/disable=%v", tt.name, disable), func(t *testing.T) {
 				t.Parallel()
-				eng, err := engine.NewWith(tt.comp)
+				eng, err := engine.New(engine.WithCompilers(tt.comp))
 				require.NoError(t, err)
 
 				res, err := eng.Run(t.Context(), writeSpec(t, testspec.Tiny),
@@ -514,7 +514,7 @@ func TestEngine_ValidateRuns(t *testing.T) {
 	// A stub compiler yields a Document with a dangling type ref. The validate
 	// pass must surface it when enabled and stay silent when skipped — so removing
 	// the pass.Validate call from Run would break this test.
-	eng, err := engine.NewWith(danglingCompiler{})
+	eng, err := engine.New(engine.WithCompilers(danglingCompiler{}))
 	require.NoError(t, err)
 	path := writeSpec(t, testspec.Tiny)
 
@@ -583,7 +583,7 @@ func (*smithyCompiler) Compile(_ context.Context, sources []compilers.Source, op
 // show it.
 func TestEngine_RunHandsDetectionsParseToCompile(t *testing.T) {
 	t.Parallel()
-	eng, err := engine.NewWith(&smithyCompiler{})
+	eng, err := engine.New(engine.WithCompilers(&smithyCompiler{}))
 	require.NoError(t, err)
 	path := writeNamed(t, "svc.smithy", "$version: \"2.0\"\n")
 
@@ -602,7 +602,7 @@ func TestEngine_RunHandsDetectionsParseToCompile(t *testing.T) {
 // other file under engine/ — mentions neither smithy nor its options.
 func TestEngine_RunNewFormatNeedsNoEngineEdit(t *testing.T) {
 	t.Parallel()
-	eng, err := engine.NewWith(&smithyCompiler{})
+	eng, err := engine.New(engine.WithCompilers(&smithyCompiler{}))
 	require.NoError(t, err)
 
 	res, err := eng.Run(t.Context(), writeNamed(t, "model.smithy", "$version: \"2\"\nnamespace demo\n"),
@@ -619,7 +619,7 @@ func TestEngine_RunNewFormatNeedsNoEngineEdit(t *testing.T) {
 func TestEngine_RunCompilerOptionsAreLoadedByTheEngine(t *testing.T) {
 	t.Parallel()
 	comp := &smithyCompiler{}
-	eng, err := engine.NewWith(comp)
+	eng, err := engine.New(engine.WithCompilers(comp))
 	require.NoError(t, err)
 	spec := writeNamed(t, "model.smithy", "$version: \"2\"\n")
 
@@ -639,7 +639,7 @@ func TestEngine_RunCompilerOptionsAreLoadedByTheEngine(t *testing.T) {
 // a run configured two ways.
 func TestEngine_RunRefusesTwoOptionChannelsWhateverTheSource(t *testing.T) {
 	t.Parallel()
-	eng, err := engine.NewWith(&smithyCompiler{})
+	eng, err := engine.New(engine.WithCompilers(&smithyCompiler{}))
 	require.NoError(t, err)
 
 	_, err = eng.Run(t.Context(), writeNamed(t, "notes.txt", "nobody's format\n"), engine.RunOptions{
@@ -690,7 +690,7 @@ func TestEngine_RunOptionRefusals(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			eng, err := engine.NewWith(&smithyCompiler{})
+			eng, err := engine.New(engine.WithCompilers(&smithyCompiler{}))
 			require.NoError(t, err)
 			_, err = eng.Run(t.Context(), writeNamed(t, "model.smithy", "$version: \"2\"\n"), tc.opts)
 			require.Error(t, err)
@@ -881,7 +881,7 @@ func (c throwawayCompiler) Compile(_ context.Context, sources []compilers.Source
 }
 
 // TestEngine_RunHoldsAThrowawayCompilerToItsContract registers a compiler
-// through NewWith whose output breaks one duty at a time, and requires each
+// through New whose output breaks one duty at a time, and requires each
 // breach to come out named: a Go error wrapping compilers.ErrContract for what
 // relates the document to its input, and an irverify violation for what the
 // document holds whatever produced it. It is what shows Run compiles through
@@ -901,7 +901,7 @@ func TestEngine_RunHoldsAThrowawayCompilerToItsContract(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			eng, err := engine.NewWith(throwawayCompiler{shape: tc.shape})
+			eng, err := engine.New(engine.WithCompilers(throwawayCompiler{shape: tc.shape}))
 			require.NoError(t, err)
 
 			res, err := eng.Run(t.Context(), writeSpec(t, testspec.Tiny),

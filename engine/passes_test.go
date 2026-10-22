@@ -125,7 +125,7 @@ func runWith(
 	t *testing.T, comp compilers.Compiler, passes []pass.Pass, disabled ...string,
 ) (*engine.Result, []string) {
 	t.Helper()
-	eng, err := engine.NewWithPasses(passes, comp)
+	eng, err := engine.New(engine.WithCompilers(comp), engine.WithPasses(passes...))
 	require.NoError(t, err)
 
 	res, err := eng.Run(t.Context(), writeSpec(t, testspec.Tiny), engine.RunOptions{DisablePasses: disabled})
@@ -141,27 +141,21 @@ func runWith(
 	return res, codes
 }
 
-// TestDefaultPasses_Order pins the passes a default engine runs and their
-// order, which a change to either has to restate here on purpose. The names are
-// literals because callers type them, and they must be distinct, since
-// disabling one would otherwise disable both. validate stays last whatever the
-// list becomes: it judges the document the run returns.
-func TestDefaultPasses_Order(t *testing.T) {
+// TestPasses_ValidateRunsLast holds the default list, read rather than
+// restated, to what its order means: validate last, since it judges the
+// document the run returns, under the name engine.ValidatePass spells. Each
+// call builds the list afresh, so a caller composing its own from it cannot
+// change the next.
+func TestPasses_ValidateRunsLast(t *testing.T) {
 	t.Parallel()
+	passes := engine.Passes()
+	require.NotEmpty(t, passes)
+	names := passNames(passes)
+	passes[0] = nil
 
-	passes := engine.DefaultPasses()
-	order := make([]string, 0, len(passes))
-	distinct := make(map[string]struct{}, len(passes))
-	for _, p := range passes {
-		order = append(order, p.Name())
-		distinct[p.Name()] = struct{}{}
-	}
-
-	assert.Empty(t, cmp.Diff([]string{"validate"}, order))
-	assert.Len(t, distinct, len(order), "pass names must be distinct: %v", order)
-	require.NotEmpty(t, order)
-	assert.Equal(t, "validate", order[len(order)-1], "validate runs after every transform")
+	assert.Equal(t, pass.ValidateName, names[len(names)-1], "validate runs after every transform")
 	assert.Equal(t, pass.ValidateName, engine.ValidatePass)
+	assert.Equal(t, names, passNames(engine.Passes()), "a caller's change to the list reached the next")
 }
 
 // TestEngine_RunThreadsEachPassIntoTheNext shows each pass reads the document
@@ -218,7 +212,7 @@ func TestEngine_RunDisablesPassesByName(t *testing.T) {
 // property of one run: the next run over the same engine runs it again.
 func TestEngine_RunLeavesItsPassesForTheNextRun(t *testing.T) {
 	t.Parallel()
-	eng, err := engine.NewWithPasses([]pass.Pass{notePass("first"), notePass("second")}, splitDiagCompiler{})
+	eng, err := engine.New(engine.WithCompilers(splitDiagCompiler{}), engine.WithPasses(notePass("first"), notePass("second")))
 	require.NoError(t, err)
 	path := writeSpec(t, testspec.Tiny)
 
@@ -253,7 +247,7 @@ func TestEngine_RunRefusesAnUnknownPass(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			eng, err := engine.NewWithPasses(passes, splitDiagCompiler{})
+			eng, err := engine.New(engine.WithCompilers(splitDiagCompiler{}), engine.WithPasses(passes...))
 			require.NoError(t, err)
 
 			res, err := eng.Run(t.Context(), "/no/such/spec.yaml",
@@ -271,7 +265,7 @@ func TestEngine_RunRefusesAnUnknownPass(t *testing.T) {
 // contract fails the run, naming the pass, rather than being papered over.
 func TestEngine_RunRefusesAPassReturningNoDocument(t *testing.T) {
 	t.Parallel()
-	eng, err := engine.NewWithPasses([]pass.Pass{notePass("first"), nilPass{}}, splitDiagCompiler{})
+	eng, err := engine.New(engine.WithCompilers(splitDiagCompiler{}), engine.WithPasses(notePass("first"), nilPass{}))
 	require.NoError(t, err)
 
 	res, err := eng.Run(t.Context(), writeSpec(t, testspec.Tiny), engine.RunOptions{})
@@ -334,7 +328,7 @@ func TestEngine_RunKeepsOneCopyOfAFindingAPassRepeats(t *testing.T) {
 func TestEngine_RunHoldsPassesToTheSourceTable(t *testing.T) {
 	t.Parallel()
 	path := writeSpec(t, testspec.Tiny)
-	plain, err := engine.NewWithPasses(nil, openapi.New())
+	plain, err := engine.New(engine.WithCompilers(openapi.New()), engine.WithPasses())
 	require.NoError(t, err)
 	compiled, err := plain.Run(t.Context(), path, engine.RunOptions{})
 	require.NoError(t, err)
@@ -355,8 +349,7 @@ func TestEngine_RunHoldsPassesToTheSourceTable(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			eng, err := engine.NewWithPasses(
-				[]pass.Pass{notePass("before"), sourcesPass{tt.edit}, notePass("after")}, openapi.New())
+			eng, err := engine.New(engine.WithCompilers(openapi.New()), engine.WithPasses(notePass("before"), sourcesPass{tt.edit}, notePass("after")))
 			require.NoError(t, err)
 
 			res, err := eng.Run(t.Context(), path, engine.RunOptions{})
@@ -391,7 +384,7 @@ func TestEngine_RunHoldsPassDiagnosticsToTheSourceTable(t *testing.T) {
 		t.Run(fmt.Sprint(tc.source), func(t *testing.T) {
 			t.Parallel()
 			finding := ir.NewDiagnostic(ir.SeverityWarning, "x/finding", "m", ir.Provenance{Source: tc.source})
-			eng, err := engine.NewWithPasses([]pass.Pass{reportPass{[]ir.Diagnostic{finding}}}, splitDiagCompiler{})
+			eng, err := engine.New(engine.WithCompilers(splitDiagCompiler{}), engine.WithPasses(reportPass{[]ir.Diagnostic{finding}}))
 			require.NoError(t, err)
 
 			res, err := eng.Run(t.Context(), writeSpec(t, testspec.Tiny), engine.RunOptions{})
@@ -434,7 +427,7 @@ func TestEngine_RunStopsBeforeTheNextPassOnceCancelled(t *testing.T) {
 			ctx, cancel := context.WithCancel(t.Context())
 			t.Cleanup(cancel)
 			comp, passes := tt.setup(t, cancel)
-			eng, err := engine.NewWithPasses(passes, comp)
+			eng, err := engine.New(engine.WithCompilers(comp), engine.WithPasses(passes...))
 			require.NoError(t, err)
 
 			res, err := eng.Run(ctx, writeSpec(t, testspec.Tiny), engine.RunOptions{})

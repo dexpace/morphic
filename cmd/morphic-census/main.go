@@ -18,7 +18,7 @@ var osExit = os.Exit
 // newEngine constructs the pipeline engine. It is a package var so tests can
 // inject a construction failure, which the real engine.New cannot produce: it
 // registers one compiler into a fresh registry.
-var newEngine = engine.New
+var newEngine = func() (*engine.Engine, error) { return engine.New() }
 
 func main() {
 	osExit(run(context.Background(), os.Args[1:], os.Stdout, os.Stderr))

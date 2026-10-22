@@ -226,7 +226,7 @@ func TestRun_ValidateEngineFailures(t *testing.T) {
 func TestRun_ValidateNilDocumentReturnsOne(t *testing.T) {
 	orig := newEngine
 	t.Cleanup(func() { newEngine = orig })
-	newEngine = func() (*engine.Engine, error) { return engine.NewWith(nilDocCompiler{}) }
+	newEngine = func() (*engine.Engine, error) { return engine.New(engine.WithCompilers(nilDocCompiler{})) }
 
 	spec := writeFile(t, "spec.yaml", testspec.Tiny)
 	var stdout, stderr bytes.Buffer
@@ -343,17 +343,21 @@ func TestRun_ValidateReportsAnOverlayRefusalWithTheOverlaysFile(t *testing.T) {
 
 // TestRun_UnknownPassIsMisuse pins that a --disable-pass name no pass carries
 // is refused with exit 2 by both commands rather than ignored, and that the
-// refusal names the passes there are.
+// refusal names the passes there are, which it reads from the engine's list.
 func TestRun_UnknownPassIsMisuse(t *testing.T) {
 	t.Parallel()
 	spec := writeFile(t, "spec.yaml", testspec.Tiny)
+	known := make([]string, 0, len(engine.Passes()))
+	for _, p := range engine.Passes() {
+		known = append(known, p.Name())
+	}
 
 	for _, cmd := range []string{"compile", "validate"} {
 		var stdout, stderr bytes.Buffer
 		code := run([]string{cmd, spec, "--disable-pass", "no-such-pass"}, &stdout, &stderr)
 
 		assert.Equal(t, exitFailure, code, cmd)
-		assert.Contains(t, stderr.String(), `"no-such-pass" (known: validate)`, cmd)
+		assert.Contains(t, stderr.String(), `"no-such-pass" (known: `+strings.Join(known, ", ")+`)`, cmd)
 		assert.Empty(t, stdout.String(), cmd)
 	}
 }

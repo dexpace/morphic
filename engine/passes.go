@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"slices"
 	"strings"
 
@@ -35,12 +36,46 @@ var errSourcesMoved = errors.New("moved, replaced or dropped an entry of Documen
 // carries does (Result.Sources).
 var errSourceOutOfRange = errors.New("reported a diagnostic indexing no source")
 
-// defaultPasses returns the passes every engine runs, in the order it runs
-// them; no other code holds that order. An analysis that judges the document,
-// validate among them, goes after every transform, so it checks what the run
-// returns. architecture.md §2.2 gives the reasons.
-func defaultPasses() []pass.Pass {
+// Passes returns the default passes in the order a run takes them, in a list
+// of the caller's own: the list New runs, and the one an embedder composes its
+// own from (WithPasses). No other code holds that order. An analysis that
+// judges the document, validate among them, goes after every transform, so it
+// checks what the run returns; architecture.md §2.2 gives the reasons.
+func Passes() []pass.Pass {
 	return []pass.Pass{pass.Validator{}}
+}
+
+// checkPasses refuses a pass list a run could not address by name: a nil pass,
+// one with no name, and two sharing a name, which turning one off would turn
+// off together. Each is a Go error naming the position, as a refused compiler
+// is.
+func checkPasses(ps []pass.Pass) error {
+	at := make(map[string]int, len(ps))
+	for i, p := range ps {
+		if isNilPass(p) {
+			return fmt.Errorf("engine: pass %d is nil", i)
+		}
+		name := p.Name()
+		if name == "" {
+			return fmt.Errorf("engine: pass %d has no name, which a run turns it off by", i)
+		}
+		if first, taken := at[name]; taken {
+			return fmt.Errorf("engine: passes %d and %d are both named %q; turning one off would turn off both",
+				first, i, name)
+		}
+		at[name] = i
+	}
+	return nil
+}
+
+// isNilPass reports whether p is unsafe to call: an untyped nil interface or a
+// typed nil pointer, which a method with a value receiver dereferences.
+func isNilPass(p pass.Pass) bool {
+	if p == nil {
+		return true
+	}
+	rv := reflect.ValueOf(p)
+	return rv.Kind() == reflect.Pointer && rv.IsNil()
 }
 
 // enabledPasses returns, in run order, those of e's passes that disabled does
