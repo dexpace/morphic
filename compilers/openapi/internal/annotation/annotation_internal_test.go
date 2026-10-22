@@ -508,8 +508,10 @@ func TestEffectiveDefault_UseSiteOverridesReferent(t *testing.T) {
 }
 
 // TestEffectiveDefault_UnconvertibleIsReportedAtTheCarrier pins the failure
-// half: a default no value can hold yields no value and one warning, located
-// at the carrier the default was read for rather than dropped.
+// half: a default no value can hold yields no value and one warning rather
+// than being dropped silently. The warning is located at the carrier the
+// default was read for, which departs from the values rule (GitHub #1101), so
+// a fix moves this assertion with it.
 func TestEffectiveDefault_UnconvertibleIsReportedAtTheCarrier(t *testing.T) {
 	t.Parallel()
 	ref := schemaFromYAML(t, "type: number\ndefault: .nan\n")

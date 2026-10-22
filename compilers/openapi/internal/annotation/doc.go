@@ -8,5 +8,6 @@
 // Site and Home answer it once, and every reader here routes through them, so a
 // new annotation cannot quietly pick the other answer.
 //
-// It is also where every package keeps a construct verbatim.
+// It is also how this compiler keeps a construct verbatim, once a lowering
+// decides to keep it.
 package annotation

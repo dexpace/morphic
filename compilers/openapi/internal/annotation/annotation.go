@@ -63,8 +63,10 @@ func EffectiveVisibility(ref, tgt *oas3.Schema) (ir.Visibility, bool) {
 
 // EffectiveDefault returns the default ref writes, or else the one its referent
 // tgt writes, for the carrier at pointer to keep: a property or a parameter. A
-// schema writing none yields nothing; an unconvertible node yields a warning at
-// pointer and no value.
+// schema writing none yields nothing; an unconvertible node yields a warning
+// and no value. The warning is at pointer, not at the default's own position
+// as docs/compilers/openapi.md#values asks, since tgt arrives without one
+// (GitHub #1101).
 func EffectiveDefault(ref, tgt *oas3.Schema, pointer jsontext.Pointer, locate Locator) (*ir.Value, []ir.Diagnostic) {
 	node := ref.GetDefault()
 	if node == nil && tgt != nil {
