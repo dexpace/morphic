@@ -5,6 +5,8 @@ import (
 	"maps"
 	"reflect"
 	"slices"
+	"strconv"
+	"strings"
 
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/ir/irfacts"
@@ -879,10 +881,31 @@ func checkDefaultResponses(doc *ir.Document) []ir.Diagnostic {
 		}
 		where := string(op.ID) + "/default"
 		diags = append(diags, diag(ir.SeverityError, "ir/default-response-conditions",
-			fmt.Sprintf("default response at %s answers %v, where a default answers the catch-all alone",
-				where, op.Default.Conditions.StatusCodes), where))
+			fmt.Sprintf("default response at %s answers %s, where a default answers the catch-all alone",
+				where, statusNames(op.Default.Conditions.StatusCodes)), where))
 	})
 	return diags
+}
+
+// statusNames names the statuses rs answers, for a message: a code as itself, a
+// range by its bounds, the zero range as the catch-all, and an empty list as no
+// status.
+func statusNames(rs []ir.StatusRange) string {
+	if len(rs) == 0 {
+		return "no status"
+	}
+	names := make([]string, 0, len(rs))
+	for _, r := range rs {
+		switch {
+		case r == (ir.StatusRange{}):
+			names = append(names, "the catch-all")
+		case r.From == r.To:
+			names = append(names, strconv.Itoa(r.From))
+		default:
+			names = append(names, strconv.Itoa(r.From)+"-"+strconv.Itoa(r.To))
+		}
+	}
+	return strings.Join(names, " and ")
 }
 
 // answersCatchAllOnly reports whether c is the catch-all condition alone: one

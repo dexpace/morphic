@@ -67,12 +67,14 @@ func TestValidate_ADefaultAnswersTheCatchAllAlone(t *testing.T) {
 	}{
 		{"the catch-all alone", catchAll(), ""},
 		{"a named status", ir.ResponseConditions{StatusCodes: []ir.StatusRange{{From: 200, To: 200}}},
-			"default response at op/default answers [{200 200}], where a default answers the catch-all alone"},
+			"default response at op/default answers 200, where a default answers the catch-all alone"},
+		{"a range", ir.ResponseConditions{StatusCodes: []ir.StatusRange{{From: 500, To: 599}}},
+			"default response at op/default answers 500-599, where a default answers the catch-all alone"},
 		{"no condition", ir.ResponseConditions{},
-			"default response at op/default answers [], where a default answers the catch-all alone"},
+			"default response at op/default answers no status, where a default answers the catch-all alone"},
 		{"the catch-all beside a status", ir.ResponseConditions{
 			StatusCodes: []ir.StatusRange{{From: 0, To: 0}, {From: 404, To: 404}},
-		}, "default response at op/default answers [{0 0} {404 404}], where a default answers the catch-all alone"},
+		}, "default response at op/default answers the catch-all and 404, where a default answers the catch-all alone"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
