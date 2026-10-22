@@ -3,7 +3,6 @@ package operation
 import (
 	"context"
 	"encoding/json/jsontext"
-	"strconv"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
 
@@ -13,7 +12,6 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
 )
@@ -240,78 +238,4 @@ func fillOperationDocs(d *ir.Docs, src *soa.Operation) {
 	if ed := src.GetExternalDocs(); ed != nil {
 		d.ExternalDocs = append(d.ExternalDocs, ir.Link{URL: ed.GetURL(), Description: ed.GetDescription()})
 	}
-}
-
-// sourcedParam pairs a parameter with its declaring list entry's pointer,
-// because path-item parameters merge into every operation on the path item and
-// so cannot borrow the operation's index space (issue #36). A $ref entry's own
-// declaration lies one hop further on, resolved in lowerParameters.
-type sourcedParam struct {
-	ref     *soa.ReferencedParameter
-	pointer jsontext.Pointer
-	// in is the context a path-item entry is lowered in, its layer's (see
-	// itemParams), whose document its pointer is in, or nil for an
-	// operation's own entry, which is lowered in the operation's.
-	in *lowering.Ctx
-}
-
-// mergeParameters merges a mount's path-item parameters with an operation's own
-// using use-site precedence: an operation parameter with the same (name, in)
-// overrides the path-item one; unshadowed path-item parameters follow in source
-// order. Each entry keeps the pointer of its own declaration site rather than a
-// position recomputed from the merged slice (issue #36), and a $ref'd path
-// item's are under its own declaration pointer, not the path it is mounted at
-// (issue #107).
-func mergeParameters(pathParams []sourcedParam, opParams []*soa.ReferencedParameter, opDeclPtr jsontext.Pointer) []sourcedParam {
-	merged := make([]sourcedParam, 0, len(opParams)+len(pathParams))
-	merged = appendSourced(merged, opParams, opDeclPtr, nil, nil)
-	if len(pathParams) == 0 {
-		return merged
-	}
-	shadowed := shadowedKeys(opParams)
-	for _, p := range pathParams {
-		if key, ok := paramKey(p.ref); ok && shadowed[key] {
-			continue
-		}
-		merged = append(merged, p)
-	}
-	return merged
-}
-
-// appendSourced appends params to dst, pairing each with the pointer of its own
-// declaration position under base and the context in it is lowered in, and
-// skipping any whose (name, in) key is in shadowed. A nil shadowed map reads as
-// all-false, which is what the operation side passes: operation parameters are
-// never shadowed, and are lowered in the operation's own context (a nil in).
-func appendSourced(dst []sourcedParam, params []*soa.ReferencedParameter, base jsontext.Pointer,
-	shadowed map[string]bool, in *lowering.Ctx,
-) []sourcedParam {
-	for i, p := range params {
-		if key, ok := paramKey(p); ok && shadowed[key] {
-			continue
-		}
-		dst = append(dst, sourcedParam{ref: p, pointer: base + ids.Ptr("parameters", strconv.Itoa(i)), in: in})
-	}
-	return dst
-}
-
-// shadowedKeys returns the (in, name) identities declared by opParams, so a
-// path-item parameter sharing one is left out of the merge as a duplicate.
-func shadowedKeys(opParams []*soa.ReferencedParameter) map[string]bool {
-	shadowed := make(map[string]bool, len(opParams))
-	for _, p := range opParams {
-		if key, ok := paramKey(p); ok {
-			shadowed[key] = true
-		}
-	}
-	return shadowed
-}
-
-// paramKey builds the (in, name) identity of a parameter for merge dedup.
-func paramKey(rp *soa.ReferencedParameter) (string, bool) {
-	p := resolve.Object[soa.Parameter](rp)
-	if p == nil {
-		return "", false
-	}
-	return string(p.GetIn()) + "\x00" + p.GetName(), true
 }
