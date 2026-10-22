@@ -62,6 +62,11 @@ paths:
 	require.Len(t, doc.TagDefs, 1) // declared tag metadata registered once
 }
 
+// TestResponses_ErrorSplitAndRanges pins how a responses map splits: a status
+// below 400 is a Response and one from 400 an ErrorCase, faulted by its class
+// as RFC 9110 gives it, and the default, which classes nothing, is
+// Operation.Default with the catch-all condition, in neither list (GitHub
+// #608).
 func TestResponses_ErrorSplitAndRanges(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.PathsSpec(`  /w:
@@ -80,7 +85,7 @@ func TestResponses_ErrorSplitAndRanges(t *testing.T) {
 	op := openapitest.FirstOp(t, svc)
 	require.Len(t, op.Responses, 1)
 	assert.Equal(t, []ir.StatusRange{{From: 200, To: 200}}, op.Responses[0].Conditions.StatusCodes)
-	require.Len(t, op.Errors, 3)
+	require.Len(t, op.Errors, 2)
 	assert.Equal(t, []ir.StatusRange{{From: 404, To: 404}}, op.Errors[0].Conditions.StatusCodes)
 	assert.Equal(t, "client", op.Errors[0].Fault)
 	require.NotNil(t, op.Errors[0].Payload)
@@ -88,8 +93,43 @@ func TestResponses_ErrorSplitAndRanges(t *testing.T) {
 	assert.NotEmpty(t, op.Errors[0].Payload.Contents[0].Type.Target, "404 error model lowered and referenced")
 	assert.Equal(t, []ir.StatusRange{{From: 500, To: 599}}, op.Errors[1].Conditions.StatusCodes)
 	assert.Equal(t, "server", op.Errors[1].Fault)
-	assert.Equal(t, []ir.StatusRange{{From: 0, To: 0}}, op.Errors[2].Conditions.StatusCodes)
-	assert.Empty(t, op.Errors[2].Fault)
+	require.NotNil(t, op.Default, "the default is the operation's catch-all")
+	assert.Equal(t, []ir.StatusRange{{From: 0, To: 0}}, op.Default.Conditions.StatusCodes)
+	assert.Equal(t, "default", op.Default.Name.Hint)
+	assert.Equal(t, "anything else", op.Default.Docs.Description)
+}
+
+// TestResponses_ALoneDefaultIsNeitherClass pins the operation #608 is about:
+// its only response is `default`, which OpenAPI says answers every status, so
+// the operation's one description of success is it. It lowers to Default whole,
+// with its body, and Responses and Errors stay empty, so a reader is not told
+// the operation has no success response or only an error.
+func TestResponses_ALoneDefaultIsNeitherClass(t *testing.T) {
+	t.Parallel()
+	spec := openapitest.PathsSpec(`  /w:
+    get:
+      operationId: w
+      responses:
+        default:
+          description: result
+          headers: {X-Rate: {schema: {type: integer}}}
+          content: {application/json: {schema: {type: object, properties: {v: {type: string}}}}}
+`)
+	_, svc, diags := lowerServiceSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	op := openapitest.FirstOp(t, svc)
+
+	assert.Empty(t, op.Responses)
+	assert.Empty(t, op.Errors)
+	require.NotNil(t, op.Default)
+	assert.Equal(t, []ir.StatusRange{{}}, op.Default.Conditions.StatusCodes)
+	require.NotNil(t, op.Default.Payload)
+	require.Len(t, op.Default.Payload.Contents, 1)
+	assert.Equal(t, ir.TypeID("t/anon/paths/~1w/get/responses/default/content/application~1json/schema"),
+		op.Default.Payload.Contents[0].Type.Target)
+	require.Len(t, op.Default.Headers, 1)
+	assert.Equal(t, "X-Rate", op.Default.Headers[0].WireName)
+	assert.Equal(t, "result", op.Default.Docs.Description)
 }
 
 // TestResponses_NamedByStatusKey pins the only naming OpenAPI gives a response.
@@ -97,10 +137,10 @@ func TestResponses_ErrorSplitAndRanges(t *testing.T) {
 // carries the hint ir-design §7.2 calls for, derived from that key; without it
 // an emitter has nothing to name a per-response result type from (GitHub #259).
 //
-// The error half of the map is named the same way, by the same function (GitHub
-// #422), as "404" and "default" assert: the spelling of a wildcard or catch-all
-// key is recorded nowhere else, since StatusRange renders {500,599} and {0,0}
-// without it.
+// The error half of the map and the default are named the same way, by the
+// same function (GitHub #422), as "404" and "default" assert: the spelling of
+// a wildcard or catch-all key is recorded nowhere else, since StatusRange
+// renders {500,599} and {0,0} without it.
 func TestResponses_NamedByStatusKey(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.PathsSpec(`  /w:
@@ -126,14 +166,12 @@ func TestResponses_NamedByStatusKey(t *testing.T) {
 	assert.Equal(t, []string{"200", "2_xx", "empty"}, hints,
 		"the key as declared, neutralized; a key with no word in it takes the mint")
 
-	require.Len(t, op.Errors, 2)
-	errHints := make([]string, 0, len(op.Errors))
-	for _, ec := range op.Errors {
-		assert.Empty(t, ec.Name.Source, "OpenAPI declares no error name either, so Source stays empty")
-		errHints = append(errHints, ec.Name.Hint)
-	}
-	assert.Equal(t, []string{"404", "default"}, errHints,
-		"an error case records the responses-map key its range cannot state")
+	require.Len(t, op.Errors, 1)
+	assert.Empty(t, op.Errors[0].Name.Source, "OpenAPI declares no error name either, so Source stays empty")
+	assert.Equal(t, "404", op.Errors[0].Name.Hint)
+	require.NotNil(t, op.Default)
+	assert.Empty(t, op.Default.Name.Source)
+	assert.Equal(t, "default", op.Default.Name.Hint, "the default records the key its range cannot state")
 }
 
 // TestResponses_InvalidStatusKeyIsReported is the whole of GitHub #262 at the
@@ -173,8 +211,9 @@ func TestResponses_InvalidStatusKeyIsReported(t *testing.T) {
 	require.NotNil(t, unreadable.Payload, "the body is real and is not dropped over a bad key")
 	assert.NotEmpty(t, unreadable.Payload.Contents)
 
-	require.Len(t, op.Errors, 1, "the declared default is still the only catch-all")
-	assert.Equal(t, []ir.StatusRange{{From: 0, To: 0}}, op.Errors[0].Conditions.StatusCodes)
+	assert.Empty(t, op.Errors)
+	require.NotNil(t, op.Default, "the declared default is still the only catch-all")
+	assert.Equal(t, []ir.StatusRange{{From: 0, To: 0}}, op.Default.Conditions.StatusCodes)
 }
 
 // TestResponses_ValidStatusKeysAreNotReported is the overreach guard: a check
@@ -1234,19 +1273,19 @@ components:
           schema: {type: object, properties: {msg: {type: string}}}
 `
 
-// TestResponses_RefdErrorAndDefaultInternAtDeclaration covers the two error
-// arms of lowerResponses, which the success-response test does not reach: a
-// $ref'd 4XX response (the isErrorRange branch) and a $ref'd default response,
-// which resolves outside the status loop entirely. Both must intern their
-// error models at the component's own pointer, once for the two operations.
+// TestResponses_RefdErrorAndDefaultInternAtDeclaration covers the arms of
+// lowerResponses the success-response test does not reach: a $ref'd 4XX
+// response (the isErrorRange branch) and a $ref'd default response, which
+// resolves outside the status loop entirely. Both must intern their models at
+// the component's own pointer, once for the two operations.
 func TestResponses_RefdErrorAndDefaultInternAtDeclaration(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, refdErrorResponseSpec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	getA := openapitest.FindOp(t, doc, "getA")
 	getB := openapitest.FindOp(t, doc, "getB")
-	require.Len(t, getA.Errors, 2)
-	require.Len(t, getB.Errors, 2)
+	require.Len(t, getA.Errors, 1)
+	require.Len(t, getB.Errors, 1)
 
 	byFault := func(op ir.Operation) map[string]ir.ErrorCase {
 		return openapitest.IndexBy(op.Errors, func(ec ir.ErrorCase) string { return ec.Fault })
@@ -1262,10 +1301,15 @@ func TestResponses_RefdErrorAndDefaultInternAtDeclaration(t *testing.T) {
 	assert.Equal(t, wantNotFound, errType(aErrs["client"]))
 	assert.Equal(t, wantNotFound, errType(bErrs["client"]), "the shared 4XX error model interns once")
 
-	// The default response is the unclassified catch-all, so it keys on "".
+	defType := func(op ir.Operation) ir.TypeID {
+		require.NotNil(t, op.Default)
+		require.NotNil(t, op.Default.Payload)
+		require.Len(t, op.Default.Payload.Contents, 1)
+		return op.Default.Payload.Contents[0].Type.Target
+	}
 	wantFallback := ir.TypeID("t/anon/components/responses/Fallback/content/application~1json/schema")
-	assert.Equal(t, wantFallback, errType(aErrs[""]))
-	assert.Equal(t, wantFallback, errType(bErrs[""]), "the shared default error model interns once")
+	assert.Equal(t, wantFallback, defType(getA))
+	assert.Equal(t, wantFallback, defType(getB), "the shared default model interns once")
 
 	for id := range doc.Types {
 		assert.NotContains(t, string(id), "/responses/404", "no fabricated per-operation error ID")

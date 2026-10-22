@@ -47,6 +47,7 @@ func Validate(doc *ir.Document) []ir.Diagnostic {
 	diags = append(diags, checkIdempotency(doc)...)
 	diags = append(diags, checkMessageBindings(doc)...)
 	diags = append(diags, checkOneWay(doc)...)
+	diags = append(diags, checkDefaultResponses(doc)...)
 	diags = append(diags, checkArgsOutsideGraphQL(doc)...)
 	return diags
 }
@@ -256,8 +257,9 @@ type payloadSite struct {
 // who owns one, so a new one has to be added by hand: Operation.Request,
 // Response.Payload, ErrorCase.Payload and Message.Payload.
 // TestEncodingCarriers_NameEveryPayloadFieldInTheIR fails the moment a
-// Payload-bearing field in the IR is not walked here. ErrorCase.Payload is
-// reached at both error positions, an operation's Errors and its service's
+// Payload-bearing field in the IR is not walked here. Response.Payload is
+// reached at both its positions, an operation's Responses and its Default, and
+// ErrorCase.Payload at both of its, an operation's Errors and its service's
 // CommonErrors, since a walk of only the first would leave the second unjudged.
 func forEachPayload(doc *ir.Document, fn func(payloadSite)) {
 	for _, svc := range doc.Services {
@@ -273,6 +275,9 @@ func forEachPayload(doc *ir.Document, fn func(payloadSite)) {
 			}
 		}
 		forEachErrorPayload(op.Errors, string(op.ID)+"/errors", fn)
+		if op.Default != nil && op.Default.Payload != nil {
+			fn(payloadSite{payload: op.Default.Payload, where: string(op.ID) + "/default"})
+		}
 	})
 	for _, id := range slices.Sorted(maps.Keys(doc.Messages)) {
 		msg := doc.Messages[id]
@@ -845,17 +850,45 @@ func appendUncarriedMessageDiags(dst []ir.Diagnostic, doc *ir.Document,
 	return dst
 }
 
-// checkOneWay reports one-way operations that nonetheless declare responses.
+// checkOneWay reports one-way operations that nonetheless declare responses,
+// a Default among them: it is a response, whichever class the plan gives it.
 func checkOneWay(doc *ir.Document) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	ir.ForEachOperation(doc, func(op ir.Operation) {
-		if op.OneWay && len(op.Responses) > 0 {
+		declared := len(op.Responses)
+		if op.Default != nil {
+			declared++
+		}
+		if op.OneWay && declared > 0 {
 			diags = append(diags, diag(ir.SeverityError, "pass/oneway-with-responses",
-				fmt.Sprintf("operation %s is one-way but declares %d response(s)", op.ID, len(op.Responses)),
+				fmt.Sprintf("operation %s is one-way but declares %d response(s)", op.ID, declared),
 				string(op.ID)))
 		}
 	})
 	return diags
+}
+
+// checkDefaultResponses reports an operation whose Default answers anything but
+// the catch-all, the one condition the field holds: a status the source names
+// is a Response or an ErrorCase (ir-design §7.2).
+func checkDefaultResponses(doc *ir.Document) []ir.Diagnostic {
+	var diags []ir.Diagnostic
+	ir.ForEachOperation(doc, func(op ir.Operation) {
+		if op.Default == nil || answersCatchAllOnly(op.Default.Conditions) {
+			return
+		}
+		where := string(op.ID) + "/default"
+		diags = append(diags, diag(ir.SeverityError, "ir/default-response-conditions",
+			fmt.Sprintf("default response at %s answers %v, where a default answers the catch-all alone",
+				where, op.Default.Conditions.StatusCodes), where))
+	})
+	return diags
+}
+
+// answersCatchAllOnly reports whether c is the catch-all condition alone: one
+// range, the zero one (ir-design §7.2).
+func answersCatchAllOnly(c ir.ResponseConditions) bool {
+	return len(c.StatusCodes) == 1 && c.StatusCodes[0] == ir.StatusRange{}
 }
 
 // checkGroupWalkTruncated reports that operation-group nesting exceeded the

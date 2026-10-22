@@ -47,7 +47,7 @@ var generations = []generation{
 	{version: "0.16.0", format: 1, shape: "95adc76be7af90d5f2565395147095a7c1f504338663ba22bcf7fd3b61c9a9f4"},
 	{version: "0.17.0", format: 1, shape: "95adc76be7af90d5f2565395147095a7c1f504338663ba22bcf7fd3b61c9a9f4",
 		meaning: "Sources lists every document a reference reads, and what each declares is lowered there"},
-	{version: "0.18.0", format: 1, shape: "d6f30dd2590c7b56c44ca30ffd04e7dbe94a38571f8c447d7b131dc6f22f30fe"},
+	{version: "0.18.0", format: 1, shape: "6f2ddd1fa2b1400096f090a22ae11e4f8b6fc8ae9810863d8d7ca550c32c5af8"},
 }
 
 // shapeGolden holds the description the newest row's shape hashes, so a change

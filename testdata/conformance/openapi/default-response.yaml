@@ -1,0 +1,45 @@
+openapi: 3.1.0
+info: {title: DefaultResponse, version: "1.0.0"}
+paths:
+  /purge:
+    post:
+      operationId: purgeCache
+      responses:
+        default:
+          description: the cache was purged, or it was not
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  purged: {type: integer}
+  /item:
+    get:
+      operationId: getItem
+      responses:
+        "200":
+          description: the item
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Item'}
+        default:
+          description: anything else
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Problem'}
+  /ping:
+    get:
+      operationId: ping
+      responses:
+        default:
+          description: pong
+components:
+  schemas:
+    Item:
+      type: object
+      properties:
+        id: {type: string}
+    Problem:
+      type: object
+      properties:
+        message: {type: string}

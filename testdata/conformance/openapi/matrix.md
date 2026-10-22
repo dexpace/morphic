@@ -129,7 +129,7 @@ witnessing it.
 
 ### `per-status-errors`
 
-- Witnesses: `per-status-errors`
+- Witnesses: `per-status-errors`, `default-response`
 
 ### `streaming-server`
 

@@ -1989,9 +1989,10 @@ it streams on any media type with `Events` the `Item` type and no marker, and wi
 media-type reading at its own Content. Streaming Contents that name different element types leave
 `Events` unset on a direction that still streams, every Content kept, reported as an info
 `openapi/degraded-construct` at the `requestBody` or `responses` pointer; Contents that name the
-same element elect it. Error responses are not read. The policy is the Go option
-`Options.StreamingMedia`: `Disabled` turns the media-type reading off, leaving only what an
-`itemSchema` declares, and `MediaTypes` replaces the default list instead of extending it.
+same element elect it. Error responses and the default are not read: whether the default answers a
+success is the plan's to decide ([`response-conditions`](#response-conditions)). The policy is the
+Go option `Options.StreamingMedia`: `Disabled` turns the media-type reading off, leaving only what
+an `itemSchema` declares, and `MediaTypes` replaces the default list instead of extending it.
 
 - Cases: `streaming-media-30`, `streaming-media-31`
 - Codes: `openapi/degraded-construct`
@@ -2048,21 +2049,26 @@ to.
 ### `response-conditions`
 
 Each entry of an operation's `responses` lowers to a `Response`, for a status below 400 or a range
-below `4XX`, or to an `ErrorCase`, for a status from 400, a `4XX` or `5XX` range, or `default`
-(§7.2). Its `Conditions` state the statuses its key names: a code as that code, a range, in either
-case, as its hundred codes, and `default` as the catch-all. The key, as declared and then
-neutralized, is the `Name.Hint` of either (`404`, `5_xx`, `default`), which records the spelling a
-range cannot state, though neutralizing a range folds its case (`5XX` and `5xx` both give `5_xx`). A
-key naming no status — not a code from 100 to 599, not a range, not `default` — lowers to a
-`Response` with no status condition, rather than the catch-all `default` alone denotes, reported as
-an `openapi/invalid-status-key` warning at the operation's entry for it.
+below `4XX`, or to an `ErrorCase`, for a status from 400 or a `4XX` or `5XX` range, its `Fault`
+`client` or `server` by the class (§7.2): RFC 9110 gives a status code its class, so the split
+states what the key means. `default` lowers to `Operation.Default`, in neither list: it answers
+every status the map does not name, successes and failures alike, and is the operation's only
+description of success where the map names none, so the compiler classes it neither way and leaves
+the reading to the plan's policy (emitter-design §3.5). The `Conditions` of each state the statuses
+its key names: a code as that code, a range, in either case, as its hundred codes, and `default` as
+the catch-all alone. The key, as declared and then neutralized, is the `Name.Hint` of each (`404`,
+`5_xx`, `default`), which records the spelling a range cannot state, though neutralizing a range
+folds its case (`5XX` and `5xx` both give `5_xx`). A key naming no status — not a code from 100 to
+599, not a range, not `default` — lowers to a `Response` with no status condition, rather than the
+catch-all `default` alone denotes, reported as an `openapi/invalid-status-key` warning at the
+operation's entry for it.
 
-- Cases: `per-status-errors`
+- Cases: `per-status-errors`, `default-response`
 - Codes: `openapi/invalid-status-key`
 - Tests: `operation.TestResponses_NamedByStatusKey`,
-  `operation.TestResponses_InvalidStatusKeyIsReported`
-- Status: partly built: an operation whose only response is `default` has no success response
-  (#608).
+  `operation.TestResponses_InvalidStatusKeyIsReported`,
+  `operation.TestResponses_ErrorSplitAndRanges`,
+  `operation.TestResponses_ALoneDefaultIsNeitherClass`
 
 ### `duplicate-status-key`
 
@@ -2080,11 +2086,11 @@ every key that collided.
 
 ### `error-responses`
 
-An error response lowers exactly as a success one: its `headers` to `ErrorCase.Headers` and every
-media type of its `content` to `ErrorCase.Payload.Contents`, neither degraded and neither kept under
-`Unmodeled`, and the payload's naming hint derived from the declaration pointer on both sides, so
-that one `components/responses` entry mounted at a success and an error status interns one type
-whichever side reaches it first.
+An error response lowers exactly as a success one and a default do: its `headers` to
+`ErrorCase.Headers` and every media type of its `content` to `ErrorCase.Payload.Contents`, neither
+degraded and neither kept under `Unmodeled`, and the payload's naming hint derived from the
+declaration pointer on every side, so that one `components/responses` entry mounted at a success
+status, an error status and `default` interns one type whichever reaches it first.
 
 - Cases: `per-status-errors`, `shared-response-across-status`
 

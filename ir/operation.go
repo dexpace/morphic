@@ -22,6 +22,11 @@ type Operation struct {
 	Responses []Response `json:"responses,omitempty"`
 	// Errors are the declared failure shapes.
 	Errors []ErrorCase `json:"errors,omitempty"`
+	// Default is the response for every outcome no entry of Responses or Errors
+	// names, which the source declares without classing it a success or a
+	// failure (OpenAPI's `default`); nil = none. Its Conditions hold the
+	// catch-all alone. Whether it answers a success is the plan's to decide.
+	Default *Response `json:"default,omitzero"`
 	// OneWay marks fire-and-forget operations for which no response ever exists
 	// (OTP cast, AsyncAPI send-without-reply, Thrift oneway, JSON-RPC
 	// notifications). Distinct from a response with no body (an ack still

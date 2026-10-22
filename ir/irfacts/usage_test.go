@@ -560,3 +560,40 @@ func TestIndex_UsageIgnoresPositionsThatNameNoType(t *testing.T) {
 	doc.Auth = map[ir.AuthID]ir.AuthScheme{"key": {}}
 	assert.Empty(t, usageOf(doc))
 }
+
+// TestUsage_ADefaultTravelsAsOutputAndNoError pins that the payload and a header
+// of an operation's Default are the response side's, and carry no error flag:
+// the IR does not class a default as a failure (ir-design §7.2), so the type
+// reads back as plain output. Bound as a webhook, the sides swap and the same
+// types are input.
+func TestUsage_ADefaultTravelsAsOutputAndNoError(t *testing.T) {
+	t.Parallel()
+	op := ir.Operation{
+		ID: "op",
+		Default: &ir.Response{
+			Conditions: ir.ResponseConditions{StatusCodes: []ir.StatusRange{{From: 0, To: 0}}},
+			Payload:    useBody("application/json", "t"),
+			Headers:    []ir.Property{useProp("h")},
+		},
+	}
+	defs := func() []ir.TypeDef { return []ir.TypeDef{compModel("t", nil), useType("h")} }
+
+	for name, tc := range map[string]struct {
+		bindings []ir.HTTPBinding
+		want     irfacts.UsageFlags
+	}{
+		"a path operation": {[]ir.HTTPBinding{{Method: "GET", URITemplate: "/pets"}}, useOut},
+		"a webhook":        {[]ir.HTTPBinding{{IsWebhook: true}}, useIn},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			bound := op
+			bound.Bindings.HTTP = tc.bindings
+			doc := useDoc(bound, defs()...)
+			facts := irfacts.New(doc)
+
+			assert.Equal(t, tc.want, facts.Usage("t"), "the Default's payload type, with no error flag")
+			assert.Equal(t, tc.want, facts.Usage("h"), "the Default's header type, with no error flag")
+		})
+	}
+}

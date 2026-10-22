@@ -224,6 +224,7 @@ func conformanceCases() []conformanceCase {
 		{"streaming-media-30", assertStreamingMedia30},
 		{"streaming-media-31", assertStreamingMedia31},
 		{"per-status-errors", assertPerStatusErrors},
+		{"default-response", assertDefaultResponse},
 		{"response-links", assertResponseLinks},
 		{"webhooks", assertWebhooks},
 		{"callbacks", assertCallbacks},
@@ -3192,8 +3193,10 @@ func assertPerStatusErrors(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 		{From: 404, To: 404}: "client",
 		{From: 429, To: 429}: "client",
 		{From: 500, To: 599}: "server",
-		{}:                   "",
-	}, faults, "each range classified from its own status; the default catch-all unclassified")
+	}, faults, "each range classified from its own status")
+	require.NotNil(t, op.Default, "the default is classed neither way, so it is no error case")
+	assert.Equal(t, []ir.StatusRange{{}}, op.Default.Conditions.StatusCodes, "the catch-all alone")
+	assert.Equal(t, "default", op.Default.Name.Hint)
 
 	assertErrorCaseIsAResponse(t, byRange)
 }
@@ -3215,8 +3218,7 @@ func assertErrorCaseIsAResponse(t *testing.T, byRange map[ir.StatusRange]ir.Erro
 		{From: 404, To: 404}: "404",
 		{From: 429, To: 429}: "429",
 		{From: 500, To: 599}: "5_xx",
-		{}:                   "default",
-	}, hints, "the key as declared, then neutralized; only \"default\" round-trips unchanged")
+	}, hints, "the key as declared, then neutralized")
 
 	notFound, ok := byRange[ir.StatusRange{From: 404, To: 404}]
 	require.True(t, ok)
@@ -3247,6 +3249,48 @@ func assertErrorCaseIsAResponse(t *testing.T, byRange map[ir.StatusRange]ir.Erro
 		assert.NotContains(t, ec.Unmodeled, "openapi:content", "%v keeps no content map", rng)
 		assert.NotContains(t, ec.Unmodeled, "openapi:headers", "%v keeps no headers map", rng)
 	}
+}
+
+// assertDefaultResponse pins that a `default` response lowers to the operation's
+// Default, whole, in the three shapes it takes: the operation's only response,
+// the fallback beside a success, and a bare one with no body. In none is the
+// catch-all among Errors, since `default` answers successes and failures alike
+// and the compiler classes it as neither (ir-design §7.2). The control is the
+// 200 beside the default, which stays a Response.
+func assertDefaultResponse(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	catchAll := []ir.StatusRange{{From: 0, To: 0}}
+	byOp := map[string]ir.Operation{}
+	for _, name := range []string{"purgeCache", "getItem", "ping"} {
+		op, ok := opByName(doc, name)
+		require.True(t, ok, "operation %s", name)
+		require.NotNil(t, op.Default, "%s: the default is kept as Default", name)
+		assert.Empty(t, op.Errors, "%s: the catch-all is no error case", name)
+		assert.Equal(t, catchAll, op.Default.Conditions.StatusCodes, "%s: the catch-all alone", name)
+		assert.Equal(t, "default", op.Default.Name.Hint, "%s: the key as written", name)
+		byOp[name] = op
+	}
+
+	purge := byOp["purgeCache"]
+	assert.Empty(t, purge.Responses, "a lone default is the operation's whole description of the outcome")
+	require.NotNil(t, purge.Default.Payload)
+	require.Len(t, purge.Default.Payload.Contents, 1)
+	assert.Equal(t, "application/json", purge.Default.Payload.Contents[0].MediaType)
+	assert.Equal(t, "the cache was purged, or it was not", purge.Default.Docs.Description)
+
+	item := byOp["getItem"]
+	require.Len(t, item.Responses, 1, "the 200 stays a Response beside the default")
+	assert.Equal(t, []ir.StatusRange{{From: 200, To: 200}}, item.Responses[0].Conditions.StatusCodes)
+	require.NotNil(t, item.Default.Payload)
+	require.Len(t, item.Default.Payload.Contents, 1)
+	assert.Equal(t, namedID("Problem"), item.Default.Payload.Contents[0].Type.Target,
+		"the default keeps its own body, apart from the success one")
+	require.NotNil(t, item.Responses[0].Payload)
+	assert.Equal(t, namedID("Item"), item.Responses[0].Payload.Contents[0].Type.Target)
+
+	ping := byOp["ping"]
+	assert.Empty(t, ping.Responses)
+	assert.Nil(t, ping.Default.Payload, "a default declaring no content gets no payload")
+	assert.Equal(t, "pong", ping.Default.Docs.Description)
 }
 
 func assertWebhooks(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {

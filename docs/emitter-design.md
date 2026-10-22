@@ -523,13 +523,12 @@ type ReturnShape string              // "value" | "void" | "raw" | "stream"
 `ReturnType`, and every type kind already has a lowering (§4.2), so a shape per kind would repeat
 the type in a second channel. The first rule that applies decides:
 
-1. **`stream`** — the operation streams its response (`Streaming` is `server` or `bidi`): events are
-   read one at a time, as `Stream` describes (§8.4).
-2. **`void`** — nothing is read: the operation has no success response, or its primary response
-   carries no payload. An operation with no success response returns only an error, and which
-   statuses fail it is the error taxonomy's (`Errors`, §8.5). The IR does not yet say whether a
-   lone `default` response is the success response (#608); once it does, this rule reads that
-   response as any other.
+1. **`stream`** — the operation streams its response (`Streaming` is `server` or `bidi`, or its
+   primary response is a `Default` a content of which declares an `Item`, §3.5): events are read
+   one at a time, as `Stream` describes (§8.4).
+2. **`void`** — nothing is read: the operation has no primary response (§3.5), or its primary
+   response carries no payload. An operation with no primary response returns only an error, and
+   which statuses fail it is the error taxonomy's (`Errors`, §8.5).
 3. **`raw`** — the primary content is a file (`Content.File`, ir-design §7.2): the body reaches the
    caller unread, a byte stream beside the media type it arrived as, and nothing decodes it.
 4. **`value`** — otherwise: the primary content's codec decodes the body into `ReturnType`, whatever
@@ -710,13 +709,24 @@ Everything the plan *infers* rather than reads is a knob here; every inferred ou
 ```go
 type Policy struct {
     ContentRanking      []string                        // default: json > form > multipart > binary
-    PrimaryResponse     func([]ir.Response) *ir.Response // default: lowest 2xx
+    PrimaryResponse     func(*ir.Operation) *ir.Response // default: lowest 2xx, else the Default
     EnvelopeDetect      EnvelopePolicy                   // off unless explicitly enabled
 }
 ```
 
 A test asserts that disabling a heuristic removes the corresponding `Inferred` plan field — the
 guard against a heuristic silently defaulting on and quietly making the plan non-neutral.
+
+**The default response is classed here.** The IR states an operation's `Default` — OpenAPI's
+`default` — as neither a success nor a failure, since it answers every status the others do not name
+(ir-design §7.2). `PrimaryResponse` reads the whole operation for that reason, and its default takes
+the lowest 2xx `Response`, or the `Default` where the operation declares none, since a `default`
+answering every status is then the operation's only description of a success. A `Default` that is
+not the primary response is the catch-all of `Errors`, with its condition. Either use is marked
+`Inferred`, and a policy may take it as neither or both. Disabling the heuristic leaves an operation
+with no success response `void` (§3.1) and its `Default` in no plan field. `Streaming` summarizes
+only the streams an operation's success responses declare, so a primary `Default` streams where a
+content of it declares an `Item` (§3.1).
 
 ### 3.6 Plan fact or refine fact
 
@@ -861,7 +871,7 @@ snapshot pins the whole lowering deterministically.
 | `LowerPagination` | `plan.PagePlan` (item unwrap, cursor paths) | auto-pager yielding `iter.Seq2[T, error]`; pacing left to policy | §7.3 |
 | `LowerStreaming` | `plan.StreamPlan` (direction, event union) | `EventStream.Recv()`/`Send()` over the event union; terminal ends | §7.3 |
 | `LowerLRO` | `plan.LROPlan` (final-state-via, poll/final ops, result path) | poller type + `Poll()/PollUntilDone()` returning the final type | §7.3 |
-| `LowerErrors` | `plan.PlannedError`, `irfacts.UsageError`, `Fault` | error type tree (`APIError` → client/server → concrete) | §7.2 |
+| `LowerErrors` | `plan.PlannedError`, `irfacts.UsageError`, `Fault` | error type tree (`APIError` → client/server → concrete), over the types `UsageError` marks and those a `PlannedError` the policy made of a `Default` names, which no IR fact marks (§3.5) | §7.2 |
 | `PlaceDeclarations` | `Provenance.Source`, `TypePlan.Reach`, the target's placement options | the output unit each declaration lands in: one package unless a partition or a group split moves it (§4.17) | §13 |
 | `ComputeImports` | what each file's declarations reference: another unit's declarations, a type-table row's `Imports`, the runtime | per-file import sets, each import by its path; the name a file gives it is settled with every other name (§4.12) | — |
 | `RenderCasing` | neutral `Ident` (= `naming.Words`: the canonical words beside their source spellings; a name with none named by its characters) + the options' naming tables | cased identifiers, the units' among them — the ONLY place names get cased (§4.12) | §3.2; INV4 |
@@ -1975,10 +1985,13 @@ behind a pager and a poller, and §8.4 a `stream`; the kinds a `value` holds bes
   the body, so a large download streams.
 - **No body** (`DELETE /pet/{id}` → `204`). **plan.** `Return:void`. **refine.** Go returns `error`
   alone, Kotlin `Unit`.
-- **No success response** (`POST /purge`, whose only response is `default`). **plan.**
-  `Return:void`: the method returns only an error, and a status no declared response or error case
-  matches is the error taxonomy's to classify (§8.5). Once the IR says whether a lone `default` is a
-  success response (#608), this line reads it as any other.
+- **A lone default** (`POST /purge`, whose only response is `default`). **plan.** The IR lowers it
+  to `Operation.Default`, classed neither way (ir-design §7.2), and the default `PrimaryResponse`
+  takes it for the primary response, marked `Inferred` (§3.5), so `Return` reads it as any other:
+  `value` with its body, `void` without one. **refine.** As the line for the body it carries.
+- **No success response** (`POST /purge` declaring only `4XX`). **plan.** `Return:void`: the method
+  returns only an error, and a status no declared response or error case matches is the error
+  taxonomy's to classify (§8.5).
 - **An anonymous decorator** (`200 → {allOf: [{$ref: Zone}], description: …}`). **plan.**
   `Return:value`, `ReturnType` the decorator, as the content names it, whose `TypePlan.Alias` is
   `Zone` (§4.15). **refine.** `CollapseAliases` lowers the reference to `Zone`, so the method

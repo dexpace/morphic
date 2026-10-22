@@ -315,12 +315,18 @@ it sees. Changes made together in one bump are listed together under it.
   (`t/openapi@common.yaml/...`). It had lowered no schema another document holds and placed a
   parameter, response or other object read from one at the source's use site. A consumer pinned to
   0.16.0 reads `Sources` as the source and its overlay alone.
-- **0.18.0** — `Model` gained `Requires`, the members an instance must carry that no property of its
-  own declares: one a `Base` or `Mixin` declares, which a composing schema makes required, or one
-  only its catch-all governs (§4.3). The OpenAPI compiler had dropped such a name, reporting it only
-  on an `allOf`, and kept a map's verbatim, so an object writing a catch-all and a `required` name is
-  now a `Model` where it had been a `MapT`. A consumer pinned to 0.17.0 reads those members as
-  optional.
+- **0.18.0** — two members, each a home for something the OpenAPI compiler had classed or dropped:
+  - `Operation` gained `Default`, the response that answers every status no entry of `Responses` or
+    `Errors` names (§7.2). The compiler had lowered OpenAPI's `default` to `Errors`, classing it a
+    failure, which the document does not say: an operation whose only response is `default` had no
+    success response. A consumer pinned to 0.17.0 finds no `default` member and no longer finds the
+    response among the errors.
+  - `Model` gained `Requires`, the members an instance must carry that no property of its own
+    declares: one a `Base` or `Mixin` declares, which a composing schema makes required, or one only
+    its catch-all governs (§4.3). The compiler had dropped such a name, reporting it only on an
+    `allOf`, and kept a map's verbatim, so an object writing a catch-all and a `required` name is
+    now a `Model` where it had been a `MapT`. A consumer pinned to 0.17.0 reads those members as
+    optional.
 
 ---
 
@@ -1189,7 +1195,7 @@ what role, so a type in an error payload carries the side it travels on beside `
 | Root | Flags |
 |---|---|
 | an operation's parameters, request, request stream and RPC input type | `Input` |
-| its responses' payloads and headers, its response stream, its long-running polling and final types | `Output` |
+| its responses' and its default's payloads and headers, its response stream, its long-running polling and final types | `Output` |
 | its errors' and each service's common errors' payloads and headers | `Output` and `Error` |
 | the messages a messaging binding sends, or receives; its reply's travel the other way | `Input`, or `Output`; both for a direction neither send nor receive |
 | each channel's parameters, each auth scheme's credentials | `Input` |
@@ -1200,7 +1206,8 @@ webhook, or an operation an HTTP binding names among its callbacks — swaps `In
 its errors included. A flag spreads from a root's vertex along every edge, and a property's field
 arguments (`Property.Args`) make the types they name `Input`, since a client writes them to select
 the field whatever it reads back. `Multipart` marks only a multipart body's own type and the types
-its alias scalars stand for, not the types nested in it. An operation nested past
+its alias scalars stand for, not the types nested in it. An operation's `Default` is classed neither
+a success nor a failure (§7.2), so its types are not marked `Error`. An operation nested past
 `ir.MaxGroupDepth` is not read, and a type no root reaches has usage 0.
 
 **Recursion.** `Recursive(id)` reports whether a type's shape lies on a cycle of the graph — a
@@ -1511,6 +1518,10 @@ type Operation struct {
     Request    *Payload           // body/message content, nil = none
     Responses  []Response         // ordered; success + alternative successes
     Errors     []ErrorCase        // declared failure shapes
+    Default    *Response          // the response for every outcome no entry of Responses or Errors
+                                  // names, which the source classes neither a success nor a failure
+                                  // (OpenAPI `default`); Conditions hold the catch-all alone;
+                                  // nil = none
 
     OneWay     bool               // fire-and-forget: no response EVER exists (OTP cast, AsyncAPI
                                   // send-without-reply, Thrift oneway, JSON-RPC notifications).
@@ -1672,6 +1683,19 @@ Design notes:
 - **Errors reference error models**, which `irfacts.Index.Usage` marks `UsageError` (§4.9), with
   status conditions and range collapsing exactly as Kiota's error mappings (`404`, `4XX`,
   catch-all).
+- **A status's class is the protocol's; a catch-all's is no one's.** An HTTP status code states its
+  own class (RFC 9110 §15): a status below 400 lowers to a `Response`, and one from 400 to an
+  `ErrorCase` whose `Fault` is `client` for 4xx and `server` for 5xx, since that is what the code
+  means rather than a reading of the API. OpenAPI's `default` states none: it answers every status
+  the map does not name, successes and failures alike, and is an operation's only description of
+  success where the map names no success. So it lowers to `Default`, never to either list, and which
+  it answers — the success response where the operation declares none, the error fallback beside a
+  success, or both — is the plan's to decide under its policy (emitter-design §3.5), where every
+  other choice of a primary response is made (invariants 2 and 6). A format whose catch-all is
+  declared an error, as TypeSpec's `@error` model with no status code is, lowers it to an
+  `ErrorCase` with the catch-all condition instead. `pass/validate` holds `Default.Conditions` to
+  the catch-all alone (`ir/default-response-conditions`), and a `OneWay` operation to having no
+  `Default` either.
 - **`OneWay` is on the neutral core**, like `Streaming` and `Idempotency`, because
   fire-and-forget is protocol-independent — an SDK that blocks awaiting a reply on a cast is
   wrong regardless of transport. The AsyncAPI compiler sets it for send-operations without a
