@@ -15,6 +15,11 @@ import (
 // the object the extensions were written on; each entry is located at its own
 // key beneath it and marked ReasonVendorExtension, since the format assigns an
 // x-* key no semantics at all.
+//
+// A caller records the diagnostics whether or not it keeps the entries: an
+// object whose every extension failed to serialize returns warnings and no
+// entries, so gating them on the entries drops each one exactly when it matters
+// (TestAuth_UnserializableExtensionStillWarns and its twins).
 func ExtensionsFrom(ext *extensions.Extensions, locate Locator, owner jsontext.Pointer) (ir.Unmodeled, []ir.Diagnostic) {
 	return ExtensionsUnder(ext, locate, owner, "")
 }

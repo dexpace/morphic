@@ -209,7 +209,7 @@ func fillParamSchemaAnnotations(c lowering.Ctx, ts *compile.Types, param *ir.Par
 // gap by adding the field (GitHub #124).
 func preserveParamXML(c lowering.Ctx, param *ir.Parameter, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	at := pointer + ids.Ptr("xml")
-	kept, diags := schema.PreserveSchemaKeyword(c, &param.Unmodeled, s, "xml", ir.ReasonNoIRHome, at)
+	kept, diags := annotation.PreserveSchemaKeyword(&param.Unmodeled, s, "xml", ir.ReasonNoIRHome, pointer, c.ProvenanceAt)
 	if kept {
 		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
 			"parameter schema xml hints have no ir.Parameter home; kept verbatim under Unmodeled"))
@@ -228,7 +228,7 @@ func preserveParamRedaction(c lowering.Ctx, param *ir.Parameter, s *oas3.Schema,
 		return nil
 	}
 	at := pointer + ids.Ptr("format")
-	kept, diags := schema.PreserveSchemaKeyword(c, &param.Unmodeled, s, "format", ir.ReasonNoIRHome, at)
+	kept, diags := annotation.PreserveSchemaKeyword(&param.Unmodeled, s, "format", ir.ReasonNoIRHome, pointer, c.ProvenanceAt)
 	if kept {
 		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
 			"parameter schema format: password asks for redaction, which has no ir.Parameter home; "+
@@ -255,7 +255,7 @@ func preserveParamVisibility(c lowering.Ctx, param *ir.Parameter, s *oas3.Schema
 			continue
 		}
 		at := pointer + ids.Ptr(keyword)
-		kept, keptDiags := schema.PreserveSchemaKeyword(c, &param.Unmodeled, s, keyword, ir.ReasonNoIRHome, at)
+		kept, keptDiags := annotation.PreserveSchemaKeyword(&param.Unmodeled, s, keyword, ir.ReasonNoIRHome, pointer, c.ProvenanceAt)
 		diags = append(diags, keptDiags...)
 		if !kept {
 			continue
@@ -294,7 +294,7 @@ func fillParamDetail(c lowering.Ctx, param *ir.Parameter, p *soa.Parameter, pptr
 	if ex := positionExamples(own, media); len(ex) > 0 {
 		param.Examples = ex
 	}
-	pExt, extDiags := schema.ExtensionsOf(c, p.GetExtensions(), pptr)
+	pExt, extDiags := annotation.ExtensionsFrom(p.GetExtensions(), c.ProvenanceAt, pptr)
 	diags = append(diags, extDiags...)
 	param.Unmodeled = annotation.MergeUnmodeled(param.Unmodeled, pExt)
 	diags = append(diags, annotation.UnknownKeysIn(&param.Unmodeled, p, c.ProvenanceAt, pptr)...)
@@ -315,8 +315,8 @@ func fillParamDetail(c lowering.Ctx, param *ir.Parameter, p *soa.Parameter, pptr
 // and keeping only the true spelling would decide which declarations count.
 func preserveAllowEmptyValue(c lowering.Ctx, param *ir.Parameter, p *soa.Parameter, pptr jsontext.Pointer) []ir.Diagnostic {
 	at := pptr + ids.Ptr("allowEmptyValue")
-	kept, diags := schema.PreserveNode(c, &param.Unmodeled, "openapi:allowEmptyValue",
-		annotation.RawChildNode(p.GetRootNode(), "allowEmptyValue"), ir.ReasonNoIRHome, at)
+	kept, diags := annotation.PreserveNodeInto(&param.Unmodeled, "openapi:allowEmptyValue",
+		annotation.RawChildNode(p.GetRootNode(), "allowEmptyValue"), ir.ReasonNoIRHome, c.ProvenanceAt(at))
 	if !kept {
 		return diags
 	}

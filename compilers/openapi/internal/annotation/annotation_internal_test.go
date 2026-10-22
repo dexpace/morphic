@@ -595,6 +595,38 @@ func TestSchemaExamplesAt_AttributesAnUnconvertibleExampleAtItsPointer(t *testin
 	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/S/example"}, diags[0].Provenance)
 }
 
+// TestAppendExample_ConvertsAndAppends pins the converter every example site
+// shares. The example's value is the converted node and nothing else about the
+// prototype changes, so a site that fills in a name or a description keeps it.
+func TestAppendExample_ConvertsAndAppends(t *testing.T) {
+	t.Parallel()
+	proto := ir.Example{Name: "n", Summary: "s", Description: "d"}
+
+	out, diags := AppendExample(nil, proto, openapitest.StrNode("hello"), sourced(0), "/p", "examples", "n")
+
+	assert.Empty(t, diags, "a convertible node is announced by nothing")
+	require.Len(t, out, 1)
+	assert.Equal(t, "n", out[0].Name, "the prototype's own fields survive")
+	require.NotNil(t, out[0].Value)
+	assert.Equal(t, "hello", out[0].Value.Str)
+}
+
+// TestAppendExample_UnconvertibleValueIsReported pins the other half: a node
+// that cannot become a value adds nothing to the list, and the pointer it is
+// reported at is built from the base and the segments — which is the only path
+// that joins them, so a wrong join shows up nowhere else.
+func TestAppendExample_UnconvertibleValueIsReported(t *testing.T) {
+	t.Parallel()
+	nan := &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!float", Value: ".nan"}
+
+	out, diags := AppendExample(nil, ir.Example{}, nan, sourced(0), "/p", "examples", "n")
+
+	assert.Empty(t, out, "nothing is appended when the value does not convert")
+	require.Len(t, diags, 1)
+	assert.Equal(t, diag.DegradedConstruct, diags[0].Code)
+	assert.Equal(t, jsontext.Pointer("/p/examples/n"), diags[0].Provenance.Pointer)
+}
+
 // sourced is the Locator for a compile with no overlay: every position belongs
 // to the one source at index.
 func sourced(index int) Locator {

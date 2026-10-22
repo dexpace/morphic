@@ -120,12 +120,13 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/nodeview",
 		module + "/compilers/openapi/internal/sourceindex", "gopkg.in/yaml.v3"},
 	// What a schema or a carrier says about itself rather than about its shape,
-	// plus the validation-only keywords the IR keeps verbatim. It reads the
-	// parsed model and the raw nodes behind it, and holds no opinion about
-	// lowering — so it sits below the schema lowering that asks it questions and
-	// above nothing that asks it any. It reaches the library's yml package for
-	// the tags its decoder accepts as a string, so a field read off a raw node
-	// decodes as the parser decodes the fields it models.
+	// plus how the IR keeps a construct verbatim, the validation-only keywords
+	// among them. It reads the parsed model and the raw nodes behind it, and
+	// holds no opinion about lowering — so it sits below the schema lowering that
+	// asks it questions and above nothing that asks it any. It reaches the
+	// library's yml package for the tags its decoder accepts as a string, so a
+	// field read off a raw node decodes as the parser decodes the fields it
+	// models.
 	"compilers/openapi/internal/annotation": {module + "/ir",
 		module + "/compilers/openapi/internal/diag",
 		module + "/compilers/openapi/internal/ids",
@@ -247,7 +248,6 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/resolve",
 		module + "/compilers/openapi/internal/spelling",
 		module + "/compilers/openapi/internal/value",
-		"github.com/speakeasy-api/openapi/extensions",
 		"github.com/speakeasy-api/openapi/jsonschema/oas3",
 		"github.com/speakeasy-api/openapi/values", "gopkg.in/yaml.v3"},
 	// The operation walk: path items, webhooks and callbacks, the parameters
@@ -264,7 +264,6 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/lowering",
 		module + "/compilers/openapi/internal/resolve",
 		module + "/compilers/openapi/internal/schema",
-		module + "/compilers/openapi/internal/value",
 		"github.com/speakeasy-api/openapi" + subtreeSuffix, "gopkg.in/yaml.v3"},
 	// The canaries that pin docs/parser-library.md. Its one production file is
 	// the package doc: the tests call the library directly, and test files are

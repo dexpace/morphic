@@ -3,76 +3,21 @@ package schema
 import (
 	"encoding/json/jsontext"
 
-	"github.com/speakeasy-api/openapi/extensions"
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
-	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
-	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/value"
 	"github.com/dexpace/morphic/ir"
 )
 
-// The lowering's shared plumbing: how a diagnostic is stamped and recorded, and
-// how a construct the IR keeps verbatim is written down.
-//
-// It lived in schema.go, which made every file that reports a diagnostic look
-// like it depended on schema lowering. Most did not: with it moved, operations
-// reaches nothing in schema.go, and content and parameters reach one symbol each
-// — FillPropertyDetail and LoweredToOwnNode. Naming them rather than counting
-// them is deliberate: the count was two when this was written and went stale
-// silently when residueKeywords was deleted. Those are real schema lowering and
-// are what the upper layer still waits on; the rest of the apparent coupling was
-// this, filed in the wrong place.
-
-// AppendExample converts node into proto's value and appends the result to out.
-// An unconvertible node is skipped and yields a warning diagnostic for the
-// caller to record: an example is an annotation, not a structural hole, so
-// losing it is fine as long as it is not silent. proto carries the surrounding
-// annotations (name, summary, description); base and seg locate the node,
-// joined into a pointer only on the failure path. The media type, header and
-// parameter example sites share it through exampleList.
-func AppendExample(c lowering.Ctx, out []ir.Example, proto ir.Example, node *yaml.Node,
-	base jsontext.Pointer, seg ...string,
-) ([]ir.Example, []ir.Diagnostic) {
-	v, err := value.FromNode(node)
-	if err != nil {
-		return out, []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct,
-			base+ids.Ptr(seg...), "example: %s", err.Error())}
-	}
-	proto.Value = &v
-	return append(out, proto), nil
-}
-
-// preserve records raw under key in *p with why it was kept and where it was
-// written, allocating the map on first write. An absent or unconvertible
-// payload records nothing, so no caller needs a nil guard of its own.
-func preserve(c lowering.Ctx, p *ir.Unmodeled, key string, raw ir.RawValue,
-	reason ir.UnmodeledReason, pointer jsontext.Pointer,
-) {
-	annotation.PreserveInto(p, key, raw, reason, c.ProvenanceAt(pointer))
-}
-
-// PreserveNode records the construct written at node under key in *p, reporting
-// one that could not be converted at all. It returns whether an entry was
-// written, so a caller announces only what it actually kept (GitHub #144).
-func PreserveNode(c lowering.Ctx, p *ir.Unmodeled, key string, node *yaml.Node,
-	reason ir.UnmodeledReason, pointer jsontext.Pointer,
-) (bool, []ir.Diagnostic) {
-	return annotation.PreserveNodeInto(p, key, node, reason, c.ProvenanceAt(pointer))
-}
-
-// PreserveSchemaKeyword records the top-level keyword s writes under key. It is
-// PreserveNode addressed by keyword rather than by node, which is how all but a
-// handful of preservation sites reach their payload.
-func PreserveSchemaKeyword(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, keyword string,
-	reason ir.UnmodeledReason, pointer jsontext.Pointer,
-) (bool, []ir.Diagnostic) {
-	return PreserveNode(c, p, "openapi:"+keyword, annotation.RawPropertyNode(s, keyword), reason, pointer)
-}
+// Keeping a construct verbatim is annotation's job, and this package calls it
+// directly with c.ProvenanceAt. A preservation function is defined here only
+// when its decision needs what the lowering holds: PreserveUnknownKeywords reads
+// the dialect a schema is read in, which annotation sits below and cannot ask.
+// One that needs nothing of the lowering but a provenance belongs in
+// annotation, or the same call gains a second spelling.
 
 // PreserveUnknownKeywords records every keyword s writes that no field of the
 // schema model names, or that the model names and the dialect does not define
@@ -103,21 +48,6 @@ func undefinedKeywords(c lowering.Ctx, s *oas3.Schema) []string {
 	return []string{"nullable"}
 }
 
-// preserveKeyword records a validation-only keyword's raw payload under key in
-// p and returns the one info diagnostic naming it at declPtr, the schema that
-// wrote it. An absent or unconvertible payload records nothing and returns
-// nothing.
-//
-// entryPtr locates the entry itself, which is what a validation emitter reports
-// against: the keyword's own node. A §4.7 entry combining several keywords has
-// no such node and is not recorded here but by annotation.Read, which attributes
-// it by the keywords it holds (GitHub #534).
-func preserveKeyword(c lowering.Ctx, p *ir.Unmodeled, key string, raw ir.RawValue,
-	declPtr, entryPtr jsontext.Pointer, label string,
-) []ir.Diagnostic {
-	return annotation.PreserveKeywordInto(p, key, raw, c.ProvenanceAt(entryPtr), c.ProvenanceAt(declPtr), label)
-}
-
 // lowerArray hoists an array schema as a Tuple when prefixItems is present, else
 // a List over its item schema, each with the collection bounds it declares.
 func lowerArray(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer jsontext.Pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
@@ -137,26 +67,4 @@ func lowerArray(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 		}
 	})
 	return id, diags
-}
-
-// ExtensionsOf lowers ext's x-* extensions into namespaced Unmodeled, returning
-// the entries and any serialization-failure diagnostics separately. It is named
-// for what it returns rather than for the construct, because this package also
-// imports the extensions library.
-//
-// The two returns are independent on purpose, and a caller must record the
-// diagnostics whether or not it keeps the entries: gating the append behind the
-// same "len(ext) > 0" that guards the assignment drops every warning on an
-// object whose extensions all failed to serialize — exactly when the result is
-// empty. TestOperation_UnserializableExtensionStillWarns and its security-scheme
-// twin hold two of the callers to that.
-func ExtensionsOf(c lowering.Ctx, ext *extensions.Extensions, owner jsontext.Pointer) (ir.Unmodeled, []ir.Diagnostic) {
-	return annotation.ExtensionsFrom(ext, c.ProvenanceAt, owner)
-}
-
-// ExtensionsIn is ExtensionsOf for an object with no Unmodeled map of its own,
-// whose entries ride on an enclosing node's under scope — see
-// annotation.ExtensionsUnder for what scope names and why it is needed.
-func ExtensionsIn(c lowering.Ctx, ext *extensions.Extensions, owner jsontext.Pointer, scope string) (ir.Unmodeled, []ir.Diagnostic) {
-	return annotation.ExtensionsUnder(ext, c.ProvenanceAt, owner, scope)
 }

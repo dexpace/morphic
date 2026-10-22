@@ -41,7 +41,7 @@ func LowerService(ctx context.Context, c lowering.Ctx, ts *compile.Types, anchor
 	// lowers to no node — its entries become operations. The service is the
 	// nearest node holding an Unmodeled map, so they are kept there under the
 	// keyword they were written at.
-	pathsExt, pathsDiags := schema.ExtensionsIn(c, c.Doc.GetPaths().GetExtensions(), ids.Ptr("paths"), "paths")
+	pathsExt, pathsDiags := annotation.ExtensionsUnder(c.Doc.GetPaths().GetExtensions(), c.ProvenanceAt, ids.Ptr("paths"), "paths")
 	svc.Unmodeled = annotation.MergeUnmodeled(svc.Unmodeled, pathsExt)
 	diags = append(diags, pathsDiags...)
 	groups := newServiceGroups(c.Doc.GetTags())
@@ -206,8 +206,8 @@ func applyOperationServers(c lowering.Ctx, op *ir.Operation, src *soa.Operation,
 	if len(src.GetServers()) == 0 {
 		return nil
 	}
-	kept, diags := schema.PreserveNode(c, &op.Unmodeled, "openapi:operationServers",
-		annotation.RawChildNode(src.GetRootNode(), "servers"), ir.ReasonNoIRHome, declPtr+ids.Ptr("servers"))
+	kept, diags := annotation.PreserveNodeInto(&op.Unmodeled, "openapi:operationServers",
+		annotation.RawChildNode(src.GetRootNode(), "servers"), ir.ReasonNoIRHome, c.ProvenanceAt(declPtr+ids.Ptr("servers")))
 	if !kept {
 		return diags
 	}

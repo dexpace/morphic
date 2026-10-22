@@ -436,14 +436,13 @@ func dialectAt(s *oas3.Schema, pointer jsontext.Pointer, locate Locator) (ir.Unm
 	var p ir.Unmodeled
 	var diags []ir.Diagnostic
 	for _, keyword := range DialectKeywords {
-		prov := locate(pointer + ids.Ptr(keyword))
-		kept, keptDiags := PreserveNodeInto(&p, "openapi:"+keyword, RawPropertyNode(s, keyword),
-			ir.ReasonOutOfScope, prov)
+		kept, keptDiags := PreserveSchemaKeyword(&p, s, keyword, ir.ReasonOutOfScope, pointer, locate)
 		diags = append(diags, keptDiags...)
 		if !kept {
 			continue
 		}
-		diags = append(diags, diag.Newf(ir.SeverityInfo, diag.DegradedConstruct, prov,
+		at := locate(pointer + ids.Ptr(keyword))
+		diags = append(diags, diag.Newf(ir.SeverityInfo, diag.DegradedConstruct, at,
 			"%s identifies or configures a JSON Schema resource rather than describing data; "+
 				"the IR models no such axis, so it is kept verbatim under Unmodeled and %s", keyword,
 			dialectRead(keyword)))
@@ -459,25 +458,32 @@ func schemaExamplesAt(s *oas3.Schema, pointer jsontext.Pointer, locate Locator) 
 	var out []ir.Example
 	var diags []ir.Diagnostic
 	if node := s.GetExample(); node != nil {
-		out, diags = appendExampleAt(out, diags, node, locate, pointer, "example")
+		out, diags = AppendExample(out, ir.Example{}, node, locate, pointer, "example")
 	}
 	for i, node := range s.GetExamples() {
-		out, diags = appendExampleAt(out, diags, node, locate, pointer, "examples", strconv.Itoa(i))
+		var exDiags []ir.Diagnostic
+		out, exDiags = AppendExample(out, ir.Example{}, node, locate, pointer, "examples", strconv.Itoa(i))
+		diags = append(diags, exDiags...)
 	}
 	return out, diags
 }
 
-// appendExampleAt converts one example node, reporting an unconvertible value
-// rather than dropping it.
-func appendExampleAt(out []ir.Example, diags []ir.Diagnostic, node *yaml.Node,
+// AppendExample converts node into proto's value and appends the result to out.
+// An unconvertible node is skipped and yields a warning diagnostic for the
+// caller to record: an example is an annotation, not a structural hole, so
+// losing it is fine as long as it is not silent. proto carries the annotations
+// around the value (name, summary, description); base and seg locate the node,
+// joined into a pointer only on the failure path.
+func AppendExample(out []ir.Example, proto ir.Example, node *yaml.Node,
 	locate Locator, base jsontext.Pointer, seg ...string,
 ) ([]ir.Example, []ir.Diagnostic) {
 	v, err := value.FromNode(node)
 	if err != nil {
-		return out, append(diags, diag.Newf(ir.SeverityWarning, diag.DegradedConstruct,
-			locate(base+ids.Ptr(seg...)), "example: %s", err.Error()))
+		return out, []ir.Diagnostic{diag.Newf(ir.SeverityWarning, diag.DegradedConstruct,
+			locate(base+ids.Ptr(seg...)), "example: %s", err.Error())}
 	}
-	return append(out, ir.Example{Value: &v}), diags
+	proto.Value = &v
+	return append(out, proto), nil
 }
 
 // String renders k by name; an assertion failure or test diff over a bare

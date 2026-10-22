@@ -7,4 +7,6 @@
 // fact belong to the referenced declaration or to the site that references it?
 // Site and Home answer it once, and every reader here routes through them, so a
 // new annotation cannot quietly pick the other answer.
+//
+// It is also where every package keeps a construct verbatim.
 package annotation

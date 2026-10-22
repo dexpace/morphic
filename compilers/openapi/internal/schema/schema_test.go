@@ -19,9 +19,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
-	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/pass"
@@ -4787,40 +4785,6 @@ func TestDynamicRef_NonScalarValueIsKeptNotExpanded(t *testing.T) {
 			assertDiagContains(t, diags, string(entry.Provenance.Pointer), "not a reference string")
 		})
 	}
-}
-
-// TestAppendExample_ConvertsAndAppends pins the accumulator every example site
-// shares. The example's value is the converted node and nothing else about the
-// prototype changes, so a site that fills in a name or a description keeps it.
-func TestAppendExample_ConvertsAndAppends(t *testing.T) {
-	t.Parallel()
-	c := lowering.New(0, &soa.OpenAPI{}, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{})
-	proto := ir.Example{Name: "n", Summary: "s", Description: "d"}
-
-	out, diags := schema.AppendExample(c, nil, proto, openapitest.StrNode("hello"), "/p", "examples", "n")
-
-	assert.Empty(t, diags, "a convertible node is announced by nothing")
-	require.Len(t, out, 1)
-	assert.Equal(t, "n", out[0].Name, "the prototype's own fields survive")
-	require.NotNil(t, out[0].Value)
-	assert.Equal(t, "hello", out[0].Value.Str)
-}
-
-// TestAppendExample_UnconvertibleValueIsReported pins the other half: a node
-// that cannot become a value adds nothing to the list, and the pointer it is
-// reported at is built from the base and the segments — which is the only path
-// that joins them, so a wrong join shows up nowhere else.
-func TestAppendExample_UnconvertibleValueIsReported(t *testing.T) {
-	t.Parallel()
-	c := lowering.New(0, &soa.OpenAPI{}, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{})
-	nan := &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!float", Value: ".nan"}
-
-	out, diags := schema.AppendExample(c, nil, ir.Example{}, nan, "/p", "examples", "n")
-
-	assert.Empty(t, out, "nothing is appended when the value does not convert")
-	require.Len(t, diags, 1)
-	assert.Equal(t, diag.DegradedConstruct, diags[0].Code)
-	assert.Equal(t, jsontext.Pointer("/p/examples/n"), diags[0].Provenance.Pointer)
 }
 
 // TestAllOf_FalseBranchClosesTheComposition pins what a `false` allOf branch

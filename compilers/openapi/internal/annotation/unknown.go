@@ -24,7 +24,7 @@ import (
 // merge-expanded view (internal/nodeview), which no raw-node reader here has
 // (GitHub #395).
 //
-// A warning, not the error UnpreservableDiag gives: merging keys is legal input
+// A warning, not the error unpreservableDiag gives: merging keys is legal input
 // that still lowers, and an error would refuse it under the default --fail-on.
 func unreachableKeyDiag(entry string, at ir.Provenance) ir.Diagnostic {
 	return diag.Newf(ir.SeverityWarning, diag.UnknownKeyUnreachable, at,

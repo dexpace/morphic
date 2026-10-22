@@ -136,7 +136,7 @@ func ResidueKeywords() []string { return slices.Clone(residueKeywords) }
 func recordResidue(c lowering.Ctx, common *ir.TypeCommon, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for _, keyword := range residueKeywords {
-		kept, keptDiags := PreserveSchemaKeyword(c, &common.Unmodeled, s, keyword, ir.ReasonNoIRHome, pointer+ids.Ptr(keyword))
+		kept, keptDiags := annotation.PreserveSchemaKeyword(&common.Unmodeled, s, keyword, ir.ReasonNoIRHome, pointer, c.ProvenanceAt)
 		diags = append(diags, keptDiags...)
 		if !kept {
 			continue
@@ -342,7 +342,7 @@ func declaredConstraints(s *oas3.Schema) []string {
 }
 
 // declaresValidationOnly reports whether s writes a §4.7 validation-only
-// keyword that preserveKeyword keeps verbatim under Unmodeled. A `false`
+// keyword that annotation.Read keeps verbatim under Unmodeled. A `false`
 // unevaluatedProperties is excluded on purpose: fillAdditional lowers it into
 // the model's openness, so it is structure rather than a preserved keyword.
 func declaresValidationOnly(s *oas3.Schema) bool {
@@ -482,10 +482,10 @@ func preserveUnionSiblingsAt(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, po
 
 // preserveBranchSets stores s's declared oneOf/anyOf verbatim under p, in
 // keyword order, reporting one it cannot convert. ir.ReasonValidationOnly
-// routes each through §4.7's keyword-family reporting (preserveKeyword) and
-// returns no keywords. Every other reason goes through plain preserve and
-// returns the keywords kept, so a caller with a message of its own knows what
-// to name.
+// routes each through §4.7's keyword-family reporting
+// (annotation.PreserveValidationOnlyKeyword) and returns no keywords. Every
+// other reason keeps each plainly (annotation.PreserveSchemaKeyword) and returns
+// the keywords kept, so a caller with a message of its own knows what to name.
 //
 // preserveUnionSiblingsAt and preserveNullOnlyUnion share this loop: they keep
 // the same keywords because the node they attach to has no branch set of its
@@ -494,18 +494,13 @@ func preserveBranchSets(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, reason 
 	var diags []ir.Diagnostic
 	var kept []string
 	for _, kw := range []string{"oneOf", "anyOf"} {
-		raw, err := annotation.RawFromNode(annotation.RawPropertyNode(s, kw))
-		if err != nil {
-			diags = append(diags, annotation.UnpreservableDiag("openapi:"+kw, c.ProvenanceAt(pointer+ids.Ptr(kw)), err))
-			continue
-		}
 		if reason == ir.ReasonValidationOnly {
-			diags = append(diags, preserveKeyword(c, p, "openapi:"+kw, raw,
-				pointer, pointer+ids.Ptr(kw), kw)...)
+			diags = append(diags, annotation.PreserveValidationOnlyKeyword(p, s, kw, pointer, c.ProvenanceAt)...)
 			continue
 		}
-		preserve(c, p, "openapi:"+kw, raw, reason, pointer+ids.Ptr(kw))
-		if len(raw) > 0 {
+		ok, keptDiags := annotation.PreserveSchemaKeyword(p, s, kw, reason, pointer, c.ProvenanceAt)
+		diags = append(diags, keptDiags...)
+		if ok {
 			kept = append(kept, kw)
 		}
 	}
@@ -550,8 +545,8 @@ func falseSchema(c lowering.Ctx, ts *compile.Types, pointer jsontext.Pointer, hi
 		// The key names the position rather than a keyword, because a boolean
 		// schema writes none. Nothing can collide with it: a schema that is a
 		// boolean has no other keywords to preserve.
-		preserve(c, &common.Unmodeled, "openapi:schema",
-			ir.RawValue("false"), ir.ReasonDegradedLowering, pointer)
+		annotation.PreserveInto(&common.Unmodeled, "openapi:schema",
+			ir.RawValue("false"), ir.ReasonDegradedLowering, c.ProvenanceAt(pointer))
 
 		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.FalseSchema, pointer,
 			"boolean false schema matches nothing; lowered as a closed empty model "+
@@ -1002,8 +997,8 @@ func recordSkippedFamilies(c lowering.Ctx, ts *compile.Types, owner ir.TypeID, s
 	common := td.Common()
 	kept := make([]string, 0, len(d.skipped))
 	for _, keyword := range d.skipped {
-		stored, storedDiags := PreserveSchemaKeyword(c, &common.Unmodeled, s, keyword,
-			ir.ReasonDegradedLowering, pointer+ids.Ptr(keyword))
+		stored, storedDiags := annotation.PreserveSchemaKeyword(&common.Unmodeled, s, keyword,
+			ir.ReasonDegradedLowering, pointer, c.ProvenanceAt)
 		diags = append(diags, storedDiags...)
 		if stored {
 			kept = append(kept, keyword)
@@ -1049,8 +1044,8 @@ func recordUnhomedAt(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, unhomed []
 	var diags []ir.Diagnostic
 	kept := make([]string, 0, len(unhomed))
 	for _, keyword := range unhomed {
-		ok, keptDiags := PreserveSchemaKeyword(c, p, s, keyword,
-			ir.ReasonDegradedLowering, pointer+ids.Ptr(keyword))
+		ok, keptDiags := annotation.PreserveSchemaKeyword(p, s, keyword,
+			ir.ReasonDegradedLowering, pointer, c.ProvenanceAt)
 		diags = append(diags, keptDiags...)
 		if ok {
 			kept = append(kept, keyword)
@@ -1552,7 +1547,7 @@ func encodingName(c lowering.Ctx, s *oas3.Schema, formatName string, common *ir.
 		return content, nil
 	}
 	at := pointer + ids.Ptr("format")
-	kept, diags := PreserveSchemaKeyword(c, &common.Unmodeled, s, "format", ir.ReasonNoIRHome, at)
+	kept, diags := annotation.PreserveSchemaKeyword(&common.Unmodeled, s, "format", ir.ReasonNoIRHome, pointer, c.ProvenanceAt)
 	if kept {
 		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
 			"format and contentEncoding both name an encoding and ir.Encoding holds one; "+
@@ -1608,7 +1603,7 @@ func recordUnplacedContent(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, td i
 	}
 	var diags []ir.Diagnostic
 	for _, keyword := range contentKeywords {
-		kept, keptDiags := PreserveSchemaKeyword(c, p, s, keyword, ir.ReasonNoIRHome, pointer+ids.Ptr(keyword))
+		kept, keptDiags := annotation.PreserveSchemaKeyword(p, s, keyword, ir.ReasonNoIRHome, pointer, c.ProvenanceAt)
 		diags = append(diags, keptDiags...)
 		if !kept {
 			continue
@@ -1881,7 +1876,7 @@ func recordUnexpandedDynamicRef(c lowering.Ctx, anchors *AnchorIndex, p *ir.Unmo
 		return diags
 	}
 	at := pointer + ids.Ptr("$dynamicRef")
-	kept, keptDiags := PreserveSchemaKeyword(c, p, s, "$dynamicRef", ir.ReasonDegradedLowering, at)
+	kept, keptDiags := annotation.PreserveSchemaKeyword(p, s, "$dynamicRef", ir.ReasonDegradedLowering, pointer, c.ProvenanceAt)
 	diags = append(diags, keptDiags...)
 	if kept {
 		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
