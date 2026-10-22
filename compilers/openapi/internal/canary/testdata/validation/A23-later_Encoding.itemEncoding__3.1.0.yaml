@@ -1,0 +1,7 @@
+openapi: 3.1.0
+info: {title: t, version: '1'}
+paths:
+  /a:
+    post:
+      requestBody: {content: {multipart/form-data: {schema: {type: object, properties: {a: {type: array}}}, encoding: {a: {itemEncoding: {contentType: text/plain}}}}}}
+      responses: {'200': {description: ok}}

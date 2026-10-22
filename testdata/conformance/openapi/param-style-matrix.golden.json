@@ -569,6 +569,57 @@
                   }
                 },
                 {
+                  "id": "param/openapi/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/cookieCookieExplode/cookie",
+                  "name": {
+                    "source": "cookieCookieExplode",
+                    "canonical": "cookie_cookie_explode"
+                  },
+                  "type": {
+                    "target": "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/30/schema",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {},
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/30"
+                  }
+                },
+                {
+                  "id": "param/openapi/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/cookieCookieNoExplode/cookie",
+                  "name": {
+                    "source": "cookieCookieNoExplode",
+                    "canonical": "cookie_cookie_no_explode"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {},
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/31"
+                  }
+                },
+                {
+                  "id": "param/openapi/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/cookieCookieDefaultExplode/cookie",
+                  "name": {
+                    "source": "cookieCookieDefaultExplode",
+                    "canonical": "cookie_cookie_default_explode"
+                  },
+                  "type": {
+                    "target": "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/32/schema",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {},
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/32"
+                  }
+                },
+                {
                   "id": "param/openapi/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/cookieDefaulted/cookie",
                   "name": {
                     "source": "cookieDefaulted",
@@ -582,7 +633,7 @@
                   "docs": {},
                   "provenance": {
                     "source": 0,
-                    "pointer": "/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/30"
+                    "pointer": "/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/33"
                   }
                 }
               ],
@@ -850,6 +901,30 @@
                         "location": "cookie",
                         "wireName": "cookieFormDefaultExplode",
                         "style": "form",
+                        "explode": true,
+                        "allowReserved": false
+                      },
+                      {
+                        "param": "param/openapi/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/cookieCookieExplode/cookie",
+                        "location": "cookie",
+                        "wireName": "cookieCookieExplode",
+                        "style": "cookie",
+                        "explode": true,
+                        "allowReserved": false
+                      },
+                      {
+                        "param": "param/openapi/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/cookieCookieNoExplode/cookie",
+                        "location": "cookie",
+                        "wireName": "cookieCookieNoExplode",
+                        "style": "cookie",
+                        "explode": false,
+                        "allowReserved": false
+                      },
+                      {
+                        "param": "param/openapi/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/cookieCookieDefaultExplode/cookie",
+                        "location": "cookie",
+                        "wireName": "cookieCookieDefaultExplode",
+                        "style": "cookie",
                         "explode": true,
                         "allowReserved": false
                       },
@@ -1290,6 +1365,40 @@
         "nullable": false
       }
     },
+    "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/30/schema": {
+      "kind": "model",
+      "id": "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/30/schema",
+      "name": {
+        "hint": "cookie_cookie_explode"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/30/schema"
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/32/schema": {
+      "kind": "model",
+      "id": "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/32/schema",
+      "name": {
+        "hint": "cookie_cookie_default_explode"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/32/schema"
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/4/schema": {
       "kind": "list",
       "id": "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/4/schema",
@@ -1423,7 +1532,7 @@
     {
       "format": "openapi@3.2",
       "path": "param-style-matrix.yaml",
-      "hash": "d69cdb328acd7955ade7be448ff7fa487366f5eef887bb41750bcc7a2d1eec08"
+      "hash": "1d4c7b09f8c6d6c103f1b4f6f22eaa4c0ad1fe4f25eeba300962cab62a9ccfc0"
     }
   ]
 }

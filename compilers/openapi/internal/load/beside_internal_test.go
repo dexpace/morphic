@@ -8,6 +8,7 @@ import (
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
@@ -29,7 +30,7 @@ func TestSiblings_BesideNamesTheFieldAPointerPasses(t *testing.T) {
     $ref: '#/paths/~1b'
     <<: {patch: {responses: {"200": {description: ok}}}}
 `)
-	sibs, _, faults := modelSiblings(t.Context(), doc, scan.InSource(0))
+	sibs, faults := modelSiblings(t.Context(), doc, scan.InSource(0))
 	require.Empty(t, faults)
 
 	cases := []struct {
@@ -225,7 +226,7 @@ paths:
 // crashed compile.
 func TestBesideRefs_AWalkThatPanicsIsReported(t *testing.T) {
 	t.Parallel()
-	sibs, _, _ := modelSiblings(t.Context(), modelOf(t, siblingSpec), scan.InSource(0))
+	sibs, _ := modelSiblings(t.Context(), modelOf(t, siblingSpec), scan.InSource(0))
 	require.NotEmpty(t, sibs.list, "a registry holding a model is walked")
 	panics := func(func(soa.WalkItem) bool) { panic("walk fault") }
 	at := func(p jsontext.Pointer) ir.Provenance { return ir.Provenance{Pointer: p} }
@@ -245,7 +246,7 @@ func TestBesideRefs_AWalkThatPanicsIsReported(t *testing.T) {
 // quadratic in the pointer's length. Allocations count the work, since they do
 // not depend on the machine.
 func TestSiblings_BesideReadsAPointerInBoundedWork(t *testing.T) {
-	sibs, _, _ := modelSiblings(t.Context(), modelOf(t, siblingSpec), scan.InSource(0))
+	sibs, _ := modelSiblings(t.Context(), modelOf(t, siblingSpec), scan.InSource(0))
 	long := func(head string, tokens int) jsontext.Pointer {
 		return jsontext.Pointer(head + strings.Repeat("/x", tokens))
 	}
@@ -254,4 +255,27 @@ func TestSiblings_BesideReadsAPointerInBoundedWork(t *testing.T) {
 		longer := testing.AllocsPerRun(20, func() { sibs.Beside(long(head, 100_000)) })
 		assert.Equal(t, short, longer, "%s: a hundred times the tokens, the same work", head)
 	}
+}
+
+// bareReference is a $ref model with no core to read, and coredReference one
+// whose core holds no mapping: shapes no library model takes, which ownRoot
+// must still answer for rather than fault on.
+type (
+	bareReference  struct{}
+	coredReference struct{ core any }
+)
+
+func (bareReference) GetRootNode() *yaml.Node  { return nil }
+func (bareReference) IsReference() bool        { return true }
+func (coredReference) GetRootNode() *yaml.Node { return nil }
+func (coredReference) IsReference() bool       { return true }
+func (r coredReference) GetCoreAny() any       { return r.core }
+
+// TestOwnRoot_AModelWithNoReadableCoreHasNone pins ownRoot's two guards: a $ref
+// whose own mapping cannot be read has none to answer with, rather than the
+// target's.
+func TestOwnRoot_AModelWithNoReadableCoreHasNone(t *testing.T) {
+	t.Parallel()
+	assert.Nil(t, ownRoot(bareReference{}))
+	assert.Nil(t, ownRoot(coredReference{core: 42}))
 }

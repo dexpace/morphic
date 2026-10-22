@@ -965,3 +965,30 @@ func TestKeyOf_NamesNoKeyForAKeyThatIsNoScalar(t *testing.T) {
 	assert.Empty(t, key)
 	assert.False(t, own)
 }
+
+func TestRepeatedKeys_NamesEachRepeatedKeyOnce(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name, doc string
+		want      []string
+	}{
+		{"no repeat", "{a: 1, b: 2}", nil},
+		{"one repeat", "{a: 1, b: 2, a: 3}", []string{"a"}},
+		{"three copies", "{a: 1, a: 2, a: 3}", []string{"a"}},
+		{"two keys repeated", "{a: 1, b: 1, b: 2, a: 2}", []string{"b", "a"}},
+		{"a key shared with a merge is no repeat", "{<<: {a: 1}, a: 2}", nil},
+		{"a merge key twice is no repeat", "{<<: {a: 1}, <<: {b: 1}}", nil},
+		{"a key that is no scalar names nothing", "{? [x] : 1, ? [x] : 2}", nil},
+		{"a sequence repeats nothing", "[a, a]", nil},
+		{"a scalar repeats nothing", "a", nil},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var doc yaml.Node
+			require.NoError(t, yaml.Unmarshal([]byte(tc.doc), &doc))
+			assert.Equal(t, tc.want, RepeatedKeys(doc.Content[0]))
+		})
+	}
+	assert.Nil(t, RepeatedKeys(nil))
+}

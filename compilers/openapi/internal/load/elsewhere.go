@@ -9,6 +9,7 @@ import (
 
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/speakeasy-api/openapi/references"
+	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/ir"
@@ -79,14 +80,22 @@ type reachedEnd struct {
 // object a source reference reached is walked even when another was kept for
 // its node, since the lowering reads it as it was reached.
 type elsewhere struct {
-	canonical map[targetKey]any
+	canonical map[endKey]any
 	walked    map[any]bool
 	queue     []reachedEnd
 }
 
+// endKey identifies an object a resolution ended on by the node it was built
+// from and the kind of model built: a node one $ref reads as a response and
+// another as a parameter is two objects.
+type endKey struct {
+	node *yaml.Node
+	kind reflect.Type
+}
+
 // newElsewhere returns the work, holding nothing.
 func newElsewhere() *elsewhere {
-	return &elsewhere{canonical: map[targetKey]any{}, walked: map[any]bool{}}
+	return &elsewhere{canonical: map[endKey]any{}, walked: map[any]bool{}}
 }
 
 // reach notes the end of c, the chain of the reference at site resolved under
@@ -102,7 +111,7 @@ func (w *elsewhere) reach(site refSite, c chain, opts references.ResolveOptions,
 	if last.inSource() || last.node == nil {
 		return
 	}
-	key := targetKey{node: last.node, kind: reflect.TypeOf(last.object)}
+	key := endKey{node: last.node, kind: reflect.TypeOf(last.object)}
 	if kept, ok := w.canonical[key]; ok && !site.inSource() && last.replace(kept) {
 		return
 	}

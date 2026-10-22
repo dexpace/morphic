@@ -9,9 +9,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -24,16 +26,20 @@ func (servedReader) ReadDocument(context.Context, compilers.DocumentRequest) ([]
 }
 
 // loadReferencing loads a source at /r/root.yaml whose component A is a $ref
-// to ref, reading every other document through servedReader.
-func loadReferencing(t *testing.T, ref string) *Document {
+// to ref, reading every other document through servedReader, and returns it
+// with the code of each diagnostic the load reported.
+func loadReferencing(t *testing.T, ref string) (*Document, []string) {
 	t.Helper()
 	doc, diags, err := Load(t.Context(), 0, compilers.Source{Path: "/r/root.yaml", Data: []byte(
 		"openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\ncomponents:\n  schemas:\n    A: {$ref: '" + ref + "'}\n",
 	)}, Options{Reader: servedReader{}})
 	require.NoError(t, err)
-	require.Empty(t, diags)
 	require.NotNil(t, doc)
-	return doc
+	codes := make([]string, 0, len(diags))
+	for _, d := range diags {
+		codes = append(codes, d.Code)
+	}
+	return doc, codes
 }
 
 // TestOthers_NamesADocumentByEverySpellingItIsReadUnder pins how a document a
@@ -41,9 +47,12 @@ func loadReferencing(t *testing.T, ref string) *Document {
 // for a URL is as written, and by the key its request was read under, which
 // escapes what the URL's syntax requires. A name no read answered, or one no
 // request could be built from, finds nothing; nor does an index past the list.
+// A space is no URI reference, which validation reports, and the document is
+// read all the same.
 func TestOthers_NamesADocumentByEverySpellingItIsReadUnder(t *testing.T) {
 	t.Parallel()
-	doc := loadReferencing(t, "http://h/a b.yaml#/X")
+	doc, codes := loadReferencing(t, "http://h/a b.yaml#/X")
+	require.Equal(t, []string{diag.Validation + "/validation-invalid-format"}, codes)
 	others := doc.Others.List()
 	require.Len(t, others, 1)
 	ext := others[0]
@@ -70,6 +79,32 @@ func TestOthers_NamesADocumentByEverySpellingItIsReadUnder(t *testing.T) {
 	}
 	_, ok := Others{}.At(1)
 	assert.False(t, ok, "an empty list holds no index")
+}
+
+// TestPointersIn_PlacesANodeInWhicheverTreeHoldsIt pins the pointers of a
+// document read prepared under two keys, each its own tree: a node of either is
+// placed where it is written, an alias's target where the anchor is, and a
+// node neither holds has no pointer, so it is placed by its position alone.
+func TestPointersIn_PlacesANodeInWhicheverTreeHoldsIt(t *testing.T) {
+	t.Parallel()
+	trees := map[string]*yaml.Node{}
+	for _, key := range []string{"a.yaml", "./a.yaml"} {
+		var tree yaml.Node
+		require.NoError(t, yaml.Unmarshal([]byte("A: &a {x: 1}\nB: *a\n"), &tree))
+		trees[key] = &tree
+	}
+	trees["/r/a.yaml"] = trees["a.yaml"]
+	held := pointersIn(trees, []string{"./a.yaml", "/r/a.yaml", "a.yaml"})
+
+	for key, tree := range trees {
+		x := tree.Content[0].Content[3].Alias.Content[1]
+		p, ok := held(x)
+		assert.True(t, ok, key)
+		assert.Equal(t, jsontext.Pointer("/A/x"), p, key)
+	}
+	p, ok := held(&yaml.Node{Kind: yaml.ScalarNode, Value: "1"})
+	assert.False(t, ok)
+	assert.Empty(t, p)
 }
 
 // TestLabelOf_IsTheLocationTheSourcesDirectoryReachesADocumentBy pins the
@@ -121,7 +156,8 @@ func TestLabelOf_IsTheLocationTheSourcesDirectoryReachesADocumentBy(t *testing.T
 // source's root rather than nowhere.
 func TestPlacer_PlacesAFindingInTheDocumentThatHoldsIt(t *testing.T) {
 	t.Parallel()
-	doc := loadReferencing(t, "./ext.yaml#/X")
+	doc, codes := loadReferencing(t, "./ext.yaml#/X")
+	require.Empty(t, codes)
 	at := func(p jsontext.Pointer) ir.Provenance { return ir.Provenance{Pointer: "/at" + p} }
 	ext := bind.Position{Doc: 1, Pointer: "/X"}
 

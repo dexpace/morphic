@@ -116,8 +116,10 @@
           "eventPayload": false,
           "secret": false,
           "xml": {
+            "name": "B",
+            "prefix": "p",
             "nodeType": "text",
-            "wrapped": true
+            "wrapped": false
           },
           "docs": {},
           "provenance": {
@@ -156,7 +158,7 @@
     {
       "format": "openapi@3.2",
       "path": "xml-nodetype-32.yaml",
-      "hash": "d341aea6d2b8cf952809526d42ffb3af0f3e72e665115fbd54faacaeb753e761"
+      "hash": "4e4b53e55cb6d2e6713be47089386a26f07d916da3816b67a02454ea3f427040"
     }
   ]
 }

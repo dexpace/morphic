@@ -13,4 +13,4 @@ components:
           xml: {nodeType: attribute}
         body:
           type: string
-          xml: {nodeType: text, wrapped: true}
+          xml: {nodeType: text, name: B, prefix: p}

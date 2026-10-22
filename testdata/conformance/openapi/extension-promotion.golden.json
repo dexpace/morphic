@@ -656,7 +656,11 @@
       "message": "field \"deprecated\" of the Security Scheme Object was added in OpenAPI 3.2, and this document declares 3.1.0; it is lowered as in an OpenAPI 3.2 document",
       "provenance": {
         "source": 0,
-        "pointer": "/components/securitySchemes/k/deprecated"
+        "pointer": "/components/securitySchemes/k/deprecated",
+        "position": {
+          "line": 63,
+          "column": 19
+        }
       }
     },
     {

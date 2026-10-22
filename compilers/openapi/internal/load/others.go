@@ -1,12 +1,16 @@
 package load
 
 import (
+	"encoding/json/jsontext"
 	"maps"
 	"net/url"
 	"path/filepath"
 	"slices"
 
+	yaml "gopkg.in/yaml.v3"
+
 	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
+	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -24,10 +28,25 @@ type Other struct {
 }
 
 // Others is every document the compile read beside the source, in the order
-// Document.Sources lists them, and the names a reference reads each by.
+// Document.Sources lists them, the names a reference reads each by, and where
+// each one's trees write a node (see locator).
 type Others struct {
-	list   []Other
-	byName map[string]int
+	list     []Other
+	byName   map[string]int
+	pointers []func(*yaml.Node) (jsontext.Pointer, bool)
+}
+
+// locator returns the Locator for the nodes of the document a reference reads
+// by name, which places one as the source's tree places its own (scan.InTree):
+// in that document's Document.Sources entry, at the node's line and column,
+// and at its pointer in whichever of the document's trees holds it. It returns
+// false for a document the compile did not read beside the source.
+func (o Others) locator(name string) (scan.Locator, bool) {
+	i, ok := o.index(name)
+	if !ok {
+		return nil, false
+	}
+	return scan.InTree(o.list[i].Index, o.pointers[i]), true
 }
 
 // List returns the documents, in the order Document.Sources lists them.
@@ -50,14 +69,20 @@ func (o Others) At(index int) (Other, bool) {
 // resolver or the binder spells it, and false for one the compile did not
 // read beside the source.
 func (o Others) Named(name string) (Other, bool) {
-	i, ok := o.byName[name]
-	if !ok {
-		i, ok = o.byName[readKey(name)]
-	}
+	i, ok := o.index(name)
 	if !ok {
 		return Other{}, false
 	}
 	return o.list[i], true
+}
+
+// index returns where in list the document a reference reads by name is.
+func (o Others) index(name string) (int, bool) {
+	if i, ok := o.byName[name]; ok {
+		return i, true
+	}
+	i, ok := o.byName[readKey(name)]
+	return i, ok
 }
 
 // newOthers lists the documents read prepares beside the source, the first at
@@ -85,11 +110,34 @@ func newOthers(read *externalReads, first int, format string) Others {
 		o.list = append(o.list, Other{Index: first + i, Label: label, Info: ir.SourceInfo{
 			Format: format, Path: sourcePathOf(keys[0]), Hash: ir.SourceHash(data),
 		}})
+		o.pointers = append(o.pointers, pointersIn(read.trees, keys))
 		for _, key := range keys {
 			o.byName[key] = i
 		}
 	}
 	return o
+}
+
+// pointersIn returns scan.Pointers over the trees read prepared under keys, all
+// one document's: a file spelled two ways is prepared under each spelling, and
+// a node of any of them is placed where the tree holding it writes it.
+func pointersIn(trees map[string]*yaml.Node, keys []string) func(*yaml.Node) (jsontext.Pointer, bool) {
+	var finds []func(*yaml.Node) (jsontext.Pointer, bool)
+	var indexed []*yaml.Node
+	for _, key := range keys {
+		if tree := trees[key]; !slices.Contains(indexed, tree) {
+			indexed = append(indexed, tree)
+			finds = append(finds, scan.Pointers(tree))
+		}
+	}
+	return func(n *yaml.Node) (jsontext.Pointer, bool) {
+		for _, find := range finds {
+			if p, held := find(n); held {
+				return p, true
+			}
+		}
+		return "", false
+	}
 }
 
 // labelOf is the label of the document read under key, from the source at

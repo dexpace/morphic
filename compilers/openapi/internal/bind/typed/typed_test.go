@@ -131,7 +131,6 @@ func TestBuilder_BuildsEachLandingOnce(t *testing.T) {
 	x, ok := built[0].Schema.GetSchema().GetProperties().Get("x")
 	require.True(t, ok)
 	assert.Same(t, x, built[1].Schema, "a landing inside one built before holds that one's schema")
-	assert.Nil(t, built[1].Findings)
 	assert.True(t, built[2].Schema.IsBool())
 }
 

@@ -471,13 +471,11 @@ func TestJSONQuoted_ReportsOnlyAnEscapedSpelling(t *testing.T) {
 
 // escapedSource is a source as load holds it once it has rewritten the tree:
 // the tree, its anchors released and its $refs respelled for the resolver, the
-// model built from it with the library's findings, and the registry that
-// rewrote it.
+// model built from it, and the registry that rewrote it.
 type escapedSource struct {
-	root    *yaml.Node
-	doc     *soa.OpenAPI
-	valErrs []error
-	esc     *escapes
+	root *yaml.Node
+	doc  *soa.OpenAPI
+	esc  *escapes
 }
 
 // escapeSource decodes src and rewrites its tree as load does, then builds the
@@ -488,9 +486,9 @@ func escapeSource(t *testing.T, src string) escapedSource {
 	releaseAnchors(root)
 	esc := newEscapes(nil)
 	esc.escape(root)
-	doc, valErrs, err := unmarshal(t.Context(), []byte(src), root)
+	doc, err := unmarshal(t.Context(), []byte(src), root)
 	require.NoError(t, err)
-	return escapedSource{root: root, doc: doc, valErrs: valErrs, esc: esc}
+	return escapedSource{root: root, doc: doc, esc: esc}
 }
 
 // escapedDoc builds the model of src from a tree rewritten as load rewrites it,

@@ -3,6 +3,7 @@ package load
 import (
 	"encoding/json/jsontext"
 	"fmt"
+	"strings"
 	"testing"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
@@ -31,7 +32,7 @@ func repeatsAt(t *testing.T, src string) map[jsontext.Pointer]string {
 	require.NoError(t, err)
 	got := map[jsontext.Pointer]string{}
 	for _, d := range diags {
-		assert.NotEqual(t, diag.Validation+"/validation-operation-parameters", d.Code, "the library's report is dropped")
+		assert.False(t, strings.HasPrefix(d.Code, diag.Validation), "the table leaves the rule to this check: %+v", d)
 		if d.Code == diag.DuplicateParameter {
 			assert.Equal(t, ir.SeverityError, d.Severity)
 			got[d.Provenance.Pointer] = d.Message

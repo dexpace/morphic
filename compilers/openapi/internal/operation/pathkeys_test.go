@@ -14,12 +14,20 @@ import (
 )
 
 // pathKeySpec wraps one Paths Object key in a minimal document of the given
-// version. The key is Go-quoted, which YAML reads as the same double-quoted
-// scalar, so a key with a space, a control byte or a quote stays one key.
-func pathKeySpec(version, key string) string {
+// version, its operation declaring a path parameter of each name in params. The
+// key is Go-quoted, which YAML reads as the same double-quoted scalar, so a key
+// with a space, a control byte or a quote stays one key.
+func pathKeySpec(version, key string, params ...string) string {
+	declared := ""
+	for _, name := range params {
+		declared += fmt.Sprintf("        - {name: %s, in: path, required: true, schema: {type: string}}\n", strconv.Quote(name))
+	}
+	if declared != "" {
+		declared = "      parameters:\n" + declared
+	}
 	return openapitest.PathsSpecVer(version, fmt.Sprintf(
-		"  %s:\n    get:\n      operationId: op\n      responses: {\"200\": {description: ok}}\n",
-		strconv.Quote(key)))
+		"  %s:\n    get:\n      operationId: op\n%s      responses: {\"200\": {description: ok}}\n",
+		strconv.Quote(key), declared))
 }
 
 // TestPathKeys_MalformedKeyIsReportedOnce is GitHub #641: a Paths Object key
@@ -30,6 +38,7 @@ func TestPathKeys_MalformedKeyIsReportedOnce(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		key, ptr, msg string
+		params        []string
 	}{
 		{
 			key: "a/b c?x",
@@ -49,6 +58,7 @@ func TestPathKeys_MalformedKeyIsReportedOnce(t *testing.T) {
 			ptr: "/paths/~1users~1{id}~1issues~1{id}",
 			msg: `path key "/users/{id}/issues/{id}" is not a valid path template: repeats "{id}"; ` +
 				`the key is used as written`,
+			params: []string{"id"},
 		},
 		{
 			key: "/a\tb",
@@ -60,7 +70,7 @@ func TestPathKeys_MalformedKeyIsReportedOnce(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.key, func(t *testing.T) {
 			t.Parallel()
-			_, svc, diags := lowerServiceSpec(t, pathKeySpec("3.1.0", tc.key))
+			_, svc, diags := lowerServiceSpec(t, pathKeySpec("3.1.0", tc.key, tc.params...))
 			openapitest.RequireNoErrorDiags(t, diags)
 
 			msg := openapitest.DiagMessageAt(t, diags, diag.InvalidPathKey, ir.SeverityWarning, tc.ptr)
@@ -78,10 +88,13 @@ func TestPathKeys_MalformedKeyIsReportedOnce(t *testing.T) {
 // such as a template name with a space, which the grammar admits.
 func TestPathKeys_ValidKeysAreNotReported(t *testing.T) {
 	t.Parallel()
-	for _, key := range []string{"/", "/a/b", "/a/", "/a/{id}", "/a/%20", "/a/{test id}", "/{a}{b}"} {
+	for key, params := range map[string][]string{
+		"/": nil, "/a/b": nil, "/a/": nil, "/a/{id}": {"id"}, "/a/%20": nil, "/a/{test id}": {"test id"},
+		"/{a}{b}": {"a", "b"},
+	} {
 		t.Run(key, func(t *testing.T) {
 			t.Parallel()
-			_, svc, diags := lowerServiceSpec(t, pathKeySpec("3.1.0", key))
+			_, svc, diags := lowerServiceSpec(t, pathKeySpec("3.1.0", key, params...))
 			openapitest.RequireNoErrorDiags(t, diags)
 			assert.False(t, openapitest.HasDiag(diags, diag.InvalidPathKey), "%q is a path template; got %+v", key, diags)
 			assert.Equal(t, key, openapitest.FirstOp(t, svc).Bindings.HTTP[0].URITemplate)
@@ -98,7 +111,7 @@ func TestPathKeys_RulesAreNotVersionGated(t *testing.T) {
 	for _, version := range []string{"3.0.3", "3.1.0", "3.2.0"} {
 		t.Run(version, func(t *testing.T) {
 			t.Parallel()
-			_, _, diags := lowerServiceSpec(t, pathKeySpec(version, "/a//{id}/{id}"))
+			_, _, diags := lowerServiceSpec(t, pathKeySpec(version, "/a//{id}/{id}", "id"))
 			openapitest.RequireNoErrorDiags(t, diags)
 			msg := openapitest.DiagMessageAt(t, diags, diag.InvalidPathKey, ir.SeverityWarning,
 				"/paths/~1a~1~1{id}~1{id}")

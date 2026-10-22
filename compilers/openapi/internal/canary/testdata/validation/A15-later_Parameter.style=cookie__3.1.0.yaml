@@ -1,0 +1,7 @@
+openapi: 3.1.0
+info: {title: t, version: '1'}
+paths:
+  /a:
+    get:
+      parameters: [{name: c, in: cookie, style: cookie, schema: {type: string}}]
+      responses: {'200': {description: ok}}

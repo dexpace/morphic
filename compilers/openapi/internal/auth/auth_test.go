@@ -11,7 +11,6 @@ import (
 	gocmp "github.com/google/go-cmp/cmp"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/speakeasy-api/openapi/sequencedmap"
-	"github.com/speakeasy-api/openapi/validation"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -476,12 +475,11 @@ components:
 
 // TestLowerSecuritySchemes_AnOAuth2SchemeWithNoFlowIsReportedOnce pins who
 // reports an oauth2 scheme that states no way to obtain a token (GitHub #646):
-// the loader, wherever its REQUIRED-field rule finds `flows` missing, and this
+// the loader's rule table, where `flows` is missing or no object, and this
 // lowering otherwise. Never both, and neither for a scheme stating a flow or a
-// metadata URL. Each row compiles through the real loader, so a library release
-// that moves its rule reddens a row rather than doubling or dropping a report.
-// Every interned entry keeps the requirement naming it, and the loader's report
-// is placed at the declaration.
+// metadata URL. Each row compiles through the real loader. Every interned entry
+// keeps the requirement naming it, and the table's report is placed where the
+// scheme or its flows is written.
 func TestLowerSecuritySchemes_AnOAuth2SchemeWithNoFlowIsReportedOnce(t *testing.T) {
 	t.Parallel()
 	const (
@@ -497,43 +495,44 @@ func TestLowerSecuritySchemes_AnOAuth2SchemeWithNoFlowIsReportedOnce(t *testing.
 		entry    string
 		kind     ir.AuthKind
 		reporter int
+		// at is where the table reports flows, below the declaration.
+		at string
 	}{
-		{"flows written empty (the issue repro)", "", `{type: oauth2, flows: {}}`, ir.AuthKindOAuth2, byLowering},
-		{"flows holding only an extension", "", `{type: oauth2, flows: {x-note: n}}`, ir.AuthKindOAuth2, byLowering},
+		{"flows written empty (the issue repro)", "", `{type: oauth2, flows: {}}`, ir.AuthKindOAuth2, byLowering, ""},
+		{"flows holding only an extension", "", `{type: oauth2, flows: {x-note: n}}`, ir.AuthKindOAuth2, byLowering, ""},
 		{
 			"flows naming only a key no flow has", "",
-			`{type: oauth2, flows: {application: {tokenUrl: 'https://t', scopes: {}}}}`, ir.AuthKindOAuth2, byLowering,
+			`{type: oauth2, flows: {application: {tokenUrl: 'https://t', scopes: {}}}}`, ir.AuthKindOAuth2, byLowering, "",
 		},
 		{
 			"an empty metadata url names no server", "3.2.0",
-			`{type: oauth2, flows: {}, oauth2MetadataUrl: ''}`, ir.AuthKindOAuth2, byLowering,
+			`{type: oauth2, flows: {}, oauth2MetadataUrl: ''}`, ir.AuthKindOAuth2, byLowering, "",
 		},
-		{"flows absent", "", `{type: oauth2}`, ir.AuthKindOAuth2, byLoader},
-		{"flows null", "", `{type: oauth2, flows: null}`, ir.AuthKindOAuth2, byLoader},
-		{"flows not an object", "", `{type: oauth2, flows: []}`, ir.AuthKindOAuth2, byLoader},
-		// The library reads a flows object whose only flow fails to decode as
-		// missing, and says so; a second report here would repeat it.
-		{"flows holding a flow that does not decode", "", `{type: oauth2, flows: {implicit: null}}`, ir.AuthKindOAuth2, byLoader},
+		{"flows absent", "", `{type: oauth2}`, ir.AuthKindOAuth2, byLoader, ""},
+		{"flows null", "", `{type: oauth2, flows: null}`, ir.AuthKindOAuth2, byLoader, "/flows"},
+		{"flows not an object", "", `{type: oauth2, flows: []}`, ir.AuthKindOAuth2, byLoader, "/flows"},
+		// The null is read as the flow left out, so the scheme declares none.
+		{"flows holding only a null flow", "", `{type: oauth2, flows: {implicit: null}}`, ir.AuthKindOAuth2, byLowering, ""},
 		{
 			"flows empty beside a 3.2 metadata url", "3.2.0",
-			`{type: oauth2, flows: {}, oauth2MetadataUrl: 'https://meta'}`, ir.AuthKindOAuth2, byNobody,
+			`{type: oauth2, flows: {}, oauth2MetadataUrl: 'https://meta'}`, ir.AuthKindOAuth2, byNobody, "",
 		},
 		{
 			"flows empty beside a metadata url a 3.1 document writes", "3.1.0",
-			`{type: oauth2, flows: {}, oauth2MetadataUrl: 'https://meta'}`, ir.AuthKindOAuth2, byNobody,
+			`{type: oauth2, flows: {}, oauth2MetadataUrl: 'https://meta'}`, ir.AuthKindOAuth2, byNobody, "",
 		},
 		{
 			"one declared flow", "",
-			`{type: oauth2, flows: {implicit: {authorizationUrl: 'https://a', scopes: {}}}}`, ir.AuthKindOAuth2, byNobody,
+			`{type: oauth2, flows: {implicit: {authorizationUrl: 'https://a', scopes: {}}}}`, ir.AuthKindOAuth2, byNobody, "",
 		},
 		{
 			"one declared device flow", "3.2.0",
 			`{type: oauth2, flows: {deviceAuthorization: {deviceAuthorizationUrl: 'https://d', tokenUrl: 'https://t', scopes: {}}}}`,
-			ir.AuthKindOAuth2, byNobody,
+			ir.AuthKindOAuth2, byNobody, "",
 		},
 		// Pins the kind guard: a flows object on an apiKey scheme is a stray
 		// field, kept beside it, not a flowless oauth2 scheme.
-		{"an apiKey scheme carrying an empty flows object", "", `{type: apiKey, name: k, in: header, flows: {}}`, ir.AuthKindAPIKey, byNobody},
+		{"an apiKey scheme carrying an empty flows object", "", `{type: apiKey, name: k, in: header, flows: {}}`, ir.AuthKindAPIKey, byNobody, ""},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -561,8 +560,8 @@ components:
 			findings := loaderFlowsFindings(diags)
 			assert.Len(t, findings, wantLoader, "the loader's report of a missing flows: %+v", diags)
 			for _, f := range findings {
-				assert.Equal(t, jsontext.Pointer("/components/securitySchemes/s"), f.Provenance.Pointer,
-					"the loader places its report at the declaration, not by position alone (GitHub #803)")
+				assert.Equal(t, jsontext.Pointer("/components/securitySchemes/s"+tc.at), f.Provenance.Pointer,
+					"the loader places its report where it is written, not by position alone (GitHub #803)")
 			}
 			if tc.reporter != byLowering {
 				assert.Empty(t, messagesAt(diags, diag.OAuth2NoFlow), "no report from the lowering: %+v", diags)
@@ -577,14 +576,14 @@ components:
 	}
 }
 
-// loaderFlowsFindings returns the loader's reports that an oauth2 scheme's
-// flows is missing. The library's REQUIRED-field rule names the field only in
-// its message, so that is what identifies the finding.
+// loaderFlowsFindings returns the loader's errors that an oauth2 scheme's flows
+// is missing or no object. Each names the field only in its message, so that is
+// what identifies the finding.
 func loaderFlowsFindings(diags []ir.Diagnostic) []ir.Diagnostic {
 	var out []ir.Diagnostic
 	for _, d := range diags {
-		if d.Code == diag.Validation+"/"+validation.RuleValidationRequiredField &&
-			strings.Contains(d.Message, "`securityScheme.flows`") {
+		if d.Severity == ir.SeverityError && strings.HasPrefix(d.Code, diag.Validation) &&
+			strings.Contains(d.Message, `Security Scheme Object field "flows"`) {
 			out = append(out, d)
 		}
 	}
@@ -850,9 +849,8 @@ components:
   securitySchemes:
     s: {type: mutualTLS, in: header}
 `)
-	assert.Equal(t, []string{diag.DegradedConstruct, "openapi/validation/validation-allowed-values"},
-		codesAtPointer(diags, "/components/securitySchemes/s/in"),
-		"the kept field is announced exactly once, beside the loader's finding that the type does not use it: %+v", diags)
+	assert.Equal(t, []string{diag.DegradedConstruct}, codesAtPointer(diags, "/components/securitySchemes/s/in"),
+		"the kept field is announced exactly once, the one report of a field OpenAPI bars from no type: %+v", diags)
 	d, ok := firstDiagAt(diags, diag.DegradedConstruct)
 	require.True(t, ok)
 	assert.Contains(t, d.Message, "in")
@@ -896,8 +894,7 @@ components:
 	}
 	assert.Empty(t, messagesAtPointer(diags, "/components/securitySchemes/alias"),
 		"nothing is reported against a position the alias does not hold: %+v", diags)
-	assert.Equal(t, []string{diag.DegradedConstruct, "openapi/validation/validation-allowed-values"},
-		codesAtPointer(diags, declared+"/bearerFormat"),
+	assert.Equal(t, []string{diag.DegradedConstruct}, codesAtPointer(diags, declared+"/bearerFormat"),
 		"two aliases of one declaration report it once: %+v", diags)
 }
 
@@ -905,8 +902,8 @@ components:
 // outcome of keeping a field: one whose value JSON cannot hold reaches the IR in
 // no form at all, so it is reported as the losslessness failure it is rather
 // than announced as kept (GitHub #144). `.nan` is such a value, and a scheme
-// declaring it is enough to reach this — the loader parses the entry, warns that
-// the field is not used for the type, and hands it here intact.
+// declaring it is enough to reach this: the loader parses the entry, warns that
+// a number stands where a string belongs, and hands it here intact.
 func TestLowerSecuritySchemes_AnUnkeepableFieldIsReportedNotDropped(t *testing.T) {
 	t.Parallel()
 	doc, _, diags := serviceSpec(t, `openapi: 3.1.0
@@ -923,9 +920,10 @@ components:
 	d, ok := firstDiagAt(diags, diag.UnpreservableConstruct)
 	require.True(t, ok, "the loss is reported: %+v", diags)
 	assert.Equal(t, ir.SeverityError, d.Severity)
-	require.Equal(t, []string{diag.UnpreservableConstruct, "openapi/validation/validation-allowed-values"},
+	require.Equal(t, []string{diag.UnpreservableConstruct, "openapi/validation/validation-type-mismatch"},
 		codesAtPointer(diags, "/components/securitySchemes/s/name"),
-		"reported at the field exactly once, and not also announced as kept: %+v", diags)
+		"the loss reported at the field exactly once, beside the loader's typing warning, and not also "+
+			"announced as kept: %+v", diags)
 	assert.Equal(t, jsontext.Pointer("/components/securitySchemes/s/name"), d.Provenance.Pointer)
 }
 
@@ -953,8 +951,10 @@ components:
 	assert.Empty(t, s.Flows[0].Unmodeled, "nothing was kept, so nothing claims to have been")
 
 	const at = "/components/securitySchemes/s/flows/implicit/tokenUrl"
-	assert.Equal(t, []string{diag.UnpreservableConstruct}, codesAtPointer(diags, at),
-		"reported at the field once, and not also announced as kept: %+v", diags)
+	assert.Equal(t, []string{diag.UnpreservableConstruct, "openapi/validation/validation-type-mismatch"},
+		codesAtPointer(diags, at),
+		"the loss reported at the field once, beside the loader's typing warning, and not also announced as "+
+			"kept: %+v", diags)
 }
 
 // unmodeledKeys returns u's keys sorted, so a caller pins the whole set rather
@@ -1284,8 +1284,9 @@ components:
 				assert.Empty(t, loaderErrors(diags), "a document with nothing wrong with it: %+v", diags)
 				return
 			}
-			assert.Contains(t, strings.Join(loaderErrors(diags), "\n"), "openapi.security.1",
-				"the entry is dropped here without a report, so the loader's must place it: %+v", diags)
+			assert.Contains(t, strings.Join(loaderErrors(diags), "\n"), "/security/1",
+				"the entry is dropped here without a report, so the loader's must place it, or name where an "+
+					"alias reads it: %+v", diags)
 		})
 	}
 }
@@ -1331,7 +1332,7 @@ components:
 				assert.Empty(t, op.Auth[1].Schemes, "the empty option the operation wrote is kept")
 				return
 			}
-			assert.Contains(t, strings.Join(loaderErrors(diags), "\n"), "operation.security.1",
+			assert.Contains(t, strings.Join(loaderErrors(diags), "\n"), "/paths/~1x/get/security/1: ",
 				"the entry is dropped here without a report, so the loader's must place it: %+v", diags)
 		})
 	}
@@ -1374,15 +1375,15 @@ func onlyOperation(t *testing.T, svc ir.Service) ir.Operation {
 	return ops[0]
 }
 
-// loaderErrors returns the message of every error the load phase's validation
-// produced, in report order. It matches on the code prefix every such finding
-// carries rather than on one rule, so a test asserts that the entry was placed
-// without pinning which library rule placed it.
+// loaderErrors returns every error the load phase's validation produced, in
+// report order, as its pointer and message. It matches on the code prefix every
+// such finding carries rather than on one rule, so a test asserts where the
+// entry was placed without pinning which rule placed it.
 func loaderErrors(diags []ir.Diagnostic) []string {
 	var out []string
 	for _, d := range diags {
 		if d.Severity == ir.SeverityError && strings.HasPrefix(d.Code, diag.Validation+"/") {
-			out = append(out, d.Message)
+			out = append(out, string(d.Provenance.Pointer)+": "+d.Message)
 		}
 	}
 	return out
@@ -1442,7 +1443,7 @@ components:
 	const declared = "/components/securitySchemes/target"
 	var required []ir.Diagnostic
 	for _, d := range diags {
-		if d.Code == diag.Validation+"/"+validation.RuleValidationRequiredField {
+		if d.Code == diag.Validation+"/validation-required-field" {
 			required = append(required, d)
 		}
 	}

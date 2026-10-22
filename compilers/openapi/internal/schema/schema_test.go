@@ -493,6 +493,9 @@ func TestLower_MissingArrayItems(t *testing.T) {
 		version string
 		schemas string
 		want    []string // report pointers, in order; nil when silent
+		// invalid is the error the load phase reports, the case writing what its
+		// version does not allow; "" for none.
+		invalid string
 	}{
 		{name: "a bare array", version: "3.0.3",
 			schemas: "    L: {type: array}\n", want: []string{"/components/schemas/L"}},
@@ -503,7 +506,8 @@ func TestLower_MissingArrayItems(t *testing.T) {
 		{name: "an array as another's items", version: "3.0.3",
 			schemas: "    L: {type: array, items: {type: array}}\n", want: []string{"/components/schemas/L/items"}},
 		{name: "a type list holding array", version: "3.0.3",
-			schemas: "    T: {type: [array, string]}\n", want: []string{"/components/schemas/T"}},
+			schemas: "    T: {type: [array, string]}\n", want: []string{"/components/schemas/T"},
+			invalid: "openapi/validation/validation-type-mismatch"},
 		{name: "a tuple", version: "3.0.3",
 			schemas: "    L: {type: array, prefixItems: [{type: string}]}\n", want: []string{"/components/schemas/L"}},
 		{name: "an enum of arrays", version: "3.0.3",
@@ -535,7 +539,14 @@ func TestLower_MissingArrayItems(t *testing.T) {
 			t.Parallel()
 			l, loadDiags := loweredFor(t, openapitest.ComponentSpecVer(tc.version, tc.schemas))
 			raw := schema.LowerComponentSchemas(t.Context(), l.ctx, l.types, &l.anchors)
-			openapitest.RequireNoErrorDiags(t, append(loadDiags, raw...))
+			openapitest.RequireNoErrorDiags(t, raw)
+			var invalid []string
+			for _, d := range loadDiags {
+				if d.Severity == ir.SeverityError {
+					invalid = append(invalid, d.Code)
+				}
+			}
+			assert.Equal(t, tc.invalid, strings.Join(invalid, ", "), "the load phase's errors: %+v", loadDiags)
 			assert.Equal(t, tc.want, missingItemsAt(t, raw))
 		})
 	}
@@ -3409,7 +3420,8 @@ func TestInlinePosition_OutsideRefDoesNotMoveTheHome(t *testing.T) {
 
 // orderInvariantIR compares two whole IR documents, minus what differs by
 // construction when the same components are declared in two orders:
-// SourceInfo.Hash digests the source bytes, which are what is permuted.
+// SourceInfo.Hash digests the source bytes, which are what is permuted, and a
+// Provenance.Position is a line and column of those bytes.
 //
 // Naming.Hint is deliberately not excluded. The namers that can reach a pointer
 // (the enclosing declaration and an outside $ref's pointer walk) agree at every
@@ -3419,6 +3431,7 @@ func TestInlinePosition_OutsideRefDoesNotMoveTheHome(t *testing.T) {
 func orderInvariantIR() []cmp.Option {
 	return []cmp.Option{
 		cmpopts.IgnoreFields(ir.SourceInfo{}, "Hash"),
+		cmpopts.IgnoreFields(ir.Provenance{}, "Position"),
 	}
 }
 
@@ -4383,10 +4396,12 @@ func TestDynamicRef_IrreducibleIsKeptAndSaysWhy(t *testing.T) {
 		"    M2: {$dynamicAnchor: dup, type: integer}\n" +
 		"    Deep: {type: object, properties: {i: {$dynamicAnchor: deep, type: string}}}\n"
 	const anchor = "    M: {$dynamicAnchor: m, type: string}\n"
-	// at is the node keeping the reference, defaulting to the component A itself.
+	// at is the node keeping the reference, defaulting to the component A itself;
+	// invalid is the error the load phase reports of a reference that is no URI
+	// reference, "" for none.
 	cases := []struct {
-		name, schemas, wantWhy string
-		at                     ir.TypeID
+		name, schemas, wantWhy, invalid string
+		at                              ir.TypeID
 	}{
 		{name: "no such anchor", schemas: "    A: {$dynamicRef: '#nope'}\n",
 			wantWhy: "no $dynamicAnchor \"nope\" is declared"},
@@ -4395,7 +4410,8 @@ func TestDynamicRef_IrreducibleIsKeptAndSaysWhy(t *testing.T) {
 		{name: "a pointer, not an anchor", schemas: "    A: {$dynamicRef: '#/components/schemas/M1'}\n",
 			wantWhy: "not a plain same-document fragment"},
 		{name: "an invalid percent escape", schemas: "    A: {$dynamicRef: '#my%zzanchor'}\n",
-			wantWhy: `"#my%zzanchor" is not valid percent-encoded text: invalid URL escape "%zz"`},
+			wantWhy: `"#my%zzanchor" is not valid percent-encoded text: invalid URL escape "%zz"`,
+			invalid: "openapi/validation/validation-invalid-format at /components/schemas/A/$dynamicRef"},
 		{name: "an escaped percent decodes to the character", schemas: "    A: {$dynamicRef: '#pct%25name'}\n",
 			wantWhy: `no $dynamicAnchor "pct%name" is declared`},
 		// The anchor here is what a second decode would land on: it would read
@@ -4481,7 +4497,13 @@ func TestDynamicRef_IrreducibleIsKeptAndSaysWhy(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			doc, diags := parseFull(t, openapitest.ComponentSpec(tc.schemas))
-			openapitest.RequireNoErrorDiags(t, diags)
+			var invalid []string
+			for _, d := range diags {
+				if d.Severity == ir.SeverityError {
+					invalid = append(invalid, d.Code+" at "+string(d.Provenance.Pointer))
+				}
+			}
+			assert.Equal(t, tc.invalid, strings.Join(invalid, "; "), "the errors: %+v", diags)
 
 			at := tc.at
 			if at == "" {

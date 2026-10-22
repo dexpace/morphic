@@ -22,7 +22,7 @@ func buildDoc(t *testing.T, spec string) (*soa.OpenAPI, *yaml.Node) {
 	parsed, err := parsedFor(compilers.Source{Path: "spec.yaml", Data: []byte(spec)})
 	require.NoError(t, err)
 	releaseAnchors(parsed.root)
-	doc, _, err := unmarshal(t.Context(), []byte(spec), parsed.root)
+	doc, err := unmarshal(t.Context(), []byte(spec), parsed.root)
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 	return doc, parsed.root

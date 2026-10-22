@@ -11,7 +11,6 @@ import (
 	"testing/fstest"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/speakeasy-api/openapi/validation"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -125,8 +124,8 @@ func TestCompile_AResolutionFailureIsReportedOnceAtItsRef(t *testing.T) {
 // TestCompile_AFindingInASchemaOnlyAnotherDocumentReachesIsPlacedThere pins
 // where the validation of a schema built for raw YAML is reported when only
 // another document's content reaches it, through a parameter that document
-// declares: at that document's $ref reaching it, in its Document.Sources
-// entry, never at the same pointer in the source, which holds nothing there.
+// declares: in that document's Document.Sources entry, at the keyword it is
+// about, never at the same pointer in the source, which holds nothing there.
 func TestCompile_AFindingInASchemaOnlyAnotherDocumentReachesIsPlacedThere(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
@@ -144,17 +143,17 @@ func TestCompile_AFindingInASchemaOnlyAnotherDocumentReachesIsPlacedThere(t *tes
 
 	require.NotEmpty(t, diags)
 	for _, d := range diags {
-		assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/components/parameters/P/schema"}, d.Provenance, "%+v", d)
+		assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/x-lib/B/minLength", Position: ir.Position{Line: 5, Column: 32}},
+			d.Provenance, "%+v", d)
 		assert.True(t, strings.HasPrefix(d.Code, diag.Validation+"/"), "%+v", d)
 	}
 }
 
-// TestCompile_AFindingInAnExternalDocumentKeepsItsRule is the #537 repro: a
-// finding the parser's validation makes inside a document reached only through
-// an external $ref keeps its own rule and severity, reported at the $ref rather
-// than as an unresolved reference, with its position in that document in the
-// message. Placing it in that document's own Document.Sources entry is GitHub
-// #1030.
+// TestCompile_AFindingInAnExternalDocumentKeepsItsRule is the #537 and #1030
+// repro: a finding inside a document reached only through an external $ref
+// keeps its own rule and severity, rather than reading as an unresolved
+// reference, and is placed in that document's own Document.Sources entry, at
+// the node it is about.
 func TestCompile_AFindingInAnExternalDocumentKeepsItsRule(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
@@ -172,22 +171,31 @@ func TestCompile_AFindingInAnExternalDocumentKeepsItsRule(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 
-	msg := openapitest.DiagMessageAt(t, diags, diag.Validation+"/validation-required-field", ir.SeverityError, "/paths/~1x")
-	assert.Contains(t, msg, "`parameter.in` is required")
-	assert.True(t, strings.HasSuffix(msg, ", at 7:11 of "+filepath.Join(dir, "other.yaml")),
-		"its position, in the document it is in: %q", msg)
+	var found []ir.Diagnostic
+	for _, d := range diags {
+		if d.Code == diag.Validation+"/validation-required-field" {
+			found = append(found, d)
+		}
+	}
+	require.Len(t, found, 1, "%+v", diags)
+	assert.Equal(t, ir.SeverityError, found[0].Severity)
+	assert.Equal(t, `Parameter Object field "in" is REQUIRED in OpenAPI 3.1 (Parameter Object)`, found[0].Message)
+	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/paths/~1y/get/parameters/0", Position: ir.Position{Line: 7, Column: 11}},
+		found[0].Provenance)
+	require.Len(t, doc.Sources, 2)
+	assert.Equal(t, filepath.Join(dir, "other.yaml"), doc.Sources[1].Path, "the document it is in")
 }
 
-// TestLoad_RecoverableLiteralSuppressesFindingAmongOtherScalars pins the
-// end-to-end shape the candidacy rule has to preserve. The library reports this
-// document as invalid JSON because of the .5, and names that character in the
-// message; the unconvertible custom tag beside it is a bystander that converts
-// fine on its own, so the finding is still an artifact and must not surface.
-func TestLoad_RecoverableLiteralSuppressesFindingAmongOtherScalars(t *testing.T) {
+// TestLoad_RecoverableLiteralAmongOtherScalarsIsNotAFinding pins that a schema
+// writing a number JSON does not spell (.5) beside a custom-tagged scalar draws
+// no validation finding: the table reads the YAML nodes, and both are values a
+// default and an example may hold.
+func TestLoad_RecoverableLiteralAmongOtherScalarsIsNotAFinding(t *testing.T) {
 	t.Parallel()
 	_, diags := parseFull(t, openapitest.ComponentSpec(`    S: {type: string, default: !custom foo, example: .5}`))
-	assert.False(t, openapitest.HasDiag(diags, diag.Validation+"/"+string(validation.RuleValidationInvalidSyntax)),
-		"a finding a recoverable literal explains stays suppressed: %+v", diags)
+	for _, d := range diags {
+		assert.False(t, strings.HasPrefix(d.Code, diag.Validation), "no finding: %+v", d)
+	}
 }
 
 // TestCompile_OneFileUnderTwoNamesIsOneDocument pins that, with external

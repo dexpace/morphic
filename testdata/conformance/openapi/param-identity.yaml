@@ -12,7 +12,7 @@ paths:
       operationId: getItem
       parameters:
         - {name: id, in: query, schema: {type: string}}
-        - {name: a/b, in: header, schema: {type: string}}
+        - {name: a/b, in: query, schema: {type: string}}
       responses: {"200": {description: ok}}
     post:
       operationId: updateItem
