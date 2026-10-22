@@ -9,9 +9,9 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// TestApplyOperationServers_WithoutRootNode is the operation half of the test
-// above: a declared list whose source node cannot be read keeps nothing, and
-// announces nothing it did not keep.
+// TestApplyOperationServers_WithoutRootNode is the operation half of
+// TestApplyPathServers_WithoutRootNode: a declared list whose source node
+// cannot be read keeps nothing, and announces nothing it did not keep.
 func TestApplyOperationServers_WithoutRootNode(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})

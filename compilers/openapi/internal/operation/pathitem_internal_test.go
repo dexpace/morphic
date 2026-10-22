@@ -29,9 +29,10 @@ func TestApplyPathServers_WithoutRootNode(t *testing.T) {
 	assert.Empty(t, diags)
 }
 
-// TestApplyPathItemDocs_WithoutRootNode is the documentation counterpart of the
-// two tests above: a declared pair whose source node cannot be read keeps
-// nothing, and announces nothing it did not keep.
+// TestApplyPathItemDocs_WithoutRootNode is the documentation counterpart of
+// TestApplyPathServers_WithoutRootNode and
+// TestApplyOperationServers_WithoutRootNode: a declared pair whose source node
+// cannot be read keeps nothing, and announces nothing it did not keep.
 //
 // The input is synthetic, but the branch is not hypothetical — RawChildNode does
 // not expand a merge key, so a real document supplying the pair through one
