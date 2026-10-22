@@ -226,8 +226,8 @@ func responseName(code string) ir.Naming {
 // Everything but the condition and the fault is lowerResponseParts' work, the
 // helper the success side calls, so a shared declaration lowers one way (GitHub
 // #422). code is the responses-map key, the only record of how the source
-// spelled a status its range cannot state ("4XX" or "default"); ref is the
-// entry written here.
+// spelled a status its range cannot state ("4XX"); ref is the entry written
+// here.
 func lowerErrorCase(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, r *soa.Response, code string, rng ir.StatusRange, rptr jsontext.Pointer, ref *soa.ReferencedResponse) (ir.ErrorCase, []ir.Diagnostic) {
 	parts, diags := lowerResponseParts(c, ts, anchors, r, code, rptr, ref)
 	ec := ir.ErrorCase{

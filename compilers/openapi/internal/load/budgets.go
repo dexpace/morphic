@@ -8,8 +8,9 @@ import (
 )
 
 // exceeds reports whether an observed count crosses limit, treating a zero or
-// negative limit as unbounded. The byte, node and external-document budgets
-// are all read through it, so that "no budget set" cannot be spelled two ways.
+// negative limit as unbounded. Every comparison of a count against the byte,
+// node or external-document budget in this package goes through it, so none of
+// them can read "no budget set" another way.
 func exceeds(observed, limit int) bool {
 	return limit > 0 && observed > limit
 }

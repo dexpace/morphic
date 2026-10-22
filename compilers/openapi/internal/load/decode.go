@@ -149,8 +149,8 @@ type tail struct {
 	capped bool
 	// unparsed reports that the stream continued with content yaml.v3 could
 	// not parse. What it could not parse is not always malformed: a later
-	// document opening with a %YAML directive is refused as "incompatible", as
-	// it would be as the first document too.
+	// document opening with a %YAML 1.2 directive is refused as "incompatible",
+	// as it would be as the first document too.
 	unparsed bool
 }
 
