@@ -389,15 +389,6 @@ func lowerSchemaBody(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, de
 	return ref, slices.Concat(diags, bodyDiags, nullDiags)
 }
 
-// hasUnionSiblings reports whether a oneOf/anyOf schema also carries structural
-// keywords (a type, properties, allOf, const/enum, additionalProperties, ...) or
-// a keyword that narrows an instance without declaring one. When it does, the
-// union alone cannot represent the schema, so the sibling body must be lowered
-// too rather than dropped (invariant 2, ir-design §4.3).
-func hasUnionSiblings(s *oas3.Schema) bool {
-	return narrowsInstance(s) || declaresShape(s)
-}
-
 // narrowsInstance reports whether s writes a keyword that constrains an instance
 // without declaring a shape to build: `required`, `items`, `prefixItems`.
 //
@@ -429,98 +420,6 @@ func declaresShape(s *oas3.Schema) bool {
 	}
 	return len(effectiveTypes(s)) > 0
 }
-
-// lowerBesideUnmodeledUnion lowers the structural body of a schema that
-// co-declares oneOf/anyOf and keeps the union verbatim beside it, so neither the
-// structural shape nor the union is dropped. reason says which kind of union it
-// is and why says what stopped a classified lowering; classifyUnionSiblings
-// picks both. A discriminator the body's model holds is settled once every node
-// is interned (deferDiscriminatorBesideUnion).
-func lowerBesideUnmodeledUnion(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer jsontext.Pointer, hint string, reason ir.UnmodeledReason, why string) (ir.TypeID, []ir.Diagnostic) {
-	inner, diags := lower(c, ts, anchors, depth, s, pointer, hint)
-	owner := inner
-	if got, _ := ts.Lookup(c.IDs().Coordinate(pointer)); got != inner {
-		// The structural body reduced to a shared/aliased target; hoist an alias
-		// so the preserved union attaches to a node this pointer owns, never to a
-		// shared primitive.
-		var aliasDiags []ir.Diagnostic
-		owner, aliasDiags = internAlias(c, ts, s, pointer, hint, ir.TypeRef{Target: inner})
-		diags = append(diags, aliasDiags...)
-	}
-	deferDiscriminatorBesideUnion(c, ts, owner, s, pointer)
-	return owner, append(diags, preserveUnionSiblings(c, ts, owner, s, pointer, reason, why)...)
-}
-
-// preserveUnionSiblings stores the raw oneOf/anyOf of s under the owning node's
-// Unmodeled. A validation-only union joins §4.7's keyword family and is reported
-// with it; anything else is a §4.8 degradation and says so.
-func preserveUnionSiblings(c lowering.Ctx, ts *compile.Types, id ir.TypeID, s *oas3.Schema, pointer jsontext.Pointer, reason ir.UnmodeledReason, why string) []ir.Diagnostic {
-	td, ok, diags := registeredNode(c, ts, id, pointer)
-	if !ok {
-		return diags
-	}
-	return append(diags, preserveUnionSiblingsAt(c, &td.Common().Unmodeled, s, pointer, reason, why)...)
-}
-
-// preserveUnionSiblingsAt is preserveUnionSiblings' body, addressed by the
-// Unmodeled map to write into. PreserveRefSiteKeywords calls it directly to
-// keep a $ref site's union on a carrier's Unmodeled, where there is no node to
-// look up by ID (GitHub #406).
-//
-// why is the caller's complete sentence, not a clause in a shared frame:
-// lowerCoDeclaredUnion's reasons presuppose a structural body at the position,
-// and a $ref site has none, so a shared template would contradict itself there.
-func preserveUnionSiblingsAt(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, pointer jsontext.Pointer, reason ir.UnmodeledReason, why string) []ir.Diagnostic {
-	kept, diags := preserveBranchSets(c, p, s, reason, pointer)
-	if reason == ir.ReasonValidationOnly || len(kept) == 0 {
-		return diags
-	}
-	return append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer,
-		"%s; union branches kept verbatim under Unmodeled", why))
-}
-
-// preserveBranchSets stores s's declared oneOf/anyOf verbatim under p, in
-// keyword order, reporting one it cannot convert. ir.ReasonValidationOnly
-// routes each through §4.7's keyword-family reporting
-// (annotation.PreserveValidationOnlyKeyword) and returns no keywords. Every
-// other reason keeps each plainly (annotation.PreserveSchemaKeyword) and returns
-// the keywords kept, so a caller with a message of its own knows what to name.
-//
-// preserveUnionSiblingsAt and preserveNullOnlyUnion share this loop: they keep
-// the same keywords because the node they attach to has no branch set of its
-// own, and differ only in the sentence that explains why.
-func preserveBranchSets(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, reason ir.UnmodeledReason, pointer jsontext.Pointer) ([]string, []ir.Diagnostic) {
-	var diags []ir.Diagnostic
-	var kept []string
-	for _, kw := range []string{"oneOf", "anyOf"} {
-		if reason == ir.ReasonValidationOnly {
-			diags = append(diags, annotation.PreserveValidationOnlyKeyword(p, s, kw, pointer, c.ProvenanceAt)...)
-			continue
-		}
-		ok, keptDiags := annotation.PreserveSchemaKeyword(p, s, kw, reason, pointer, c.ProvenanceAt)
-		diags = append(diags, keptDiags...)
-		if ok {
-			kept = append(kept, kw)
-		}
-	}
-	return kept, diags
-}
-
-// declaresUnion reports whether s writes oneOf or anyOf at all. It is the one
-// predicate every $ref-site union keeper — a component or inline sub-schema
-// (refSiteRef), a carrier (PreserveRefSiteKeywords), an allOf branch spelled
-// as a $ref (fillAllOf) — gates hoisting a home for the union on, so the
-// three cannot drift into checking it three different ways.
-func declaresUnion(s *oas3.Schema) bool {
-	return len(s.GetOneOf()) > 0 || len(s.GetAnyOf()) > 0
-}
-
-// refSiteUnionWhy is preserveUnionSiblingsAt's why at every $ref site: a
-// complete sentence in its own right (see preserveUnionSiblingsAt's doc for
-// why it cannot share lowerCoDeclaredUnion's framing), because a $ref site's
-// own declaration is the reference alone — there is no structural body at
-// that position for the union to distribute its composition across.
-const refSiteUnionWhy = "oneOf/anyOf beside a $ref conjoin with it rather than composing into a structural body, so there is nothing at this position to distribute the union's composition across"
 
 // falseSchema hoists a boolean `false` schema as a closed empty model (it
 // matches nothing), returning the interned ID and the one info diagnostic that
@@ -1078,34 +977,6 @@ func lowerUntyped(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth
 		return lowerModel(c, ts, anchors, depth, s, pointer, hint)
 	}
 	return ts.PrimID(ir.PrimAny), nil
-}
-
-// lowerUnion hoists a multi-typed schema (e.g. type: [string, integer]) as an
-// exclusive, untagged union with one variant per declared type.
-//
-// KNOWN GAP (GitHub #868): every integer is a number, so a type array naming
-// both admits values that match two variants, which Exclusive rejects; with an
-// integer width both variants are the same primitive.
-func lowerUnion(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer jsontext.Pointer, hint string, types []oas3.SchemaType) (ir.TypeID, []ir.Diagnostic) {
-	var diags []ir.Diagnostic
-	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
-		variants := make([]ir.Variant, 0, len(types))
-		for i, st := range types {
-			vptr := pointer + ids.Ptr("type", strconv.Itoa(i))
-			vid, vDiags := lowerTyped(c, ts, anchors, depth, s, vptr, hint, st)
-			diags = append(diags, vDiags...)
-			variants = append(variants, ir.Variant{
-				Name: compile.NamingHint(string(st)),
-				Type: ir.TypeRef{Target: vid},
-			})
-		}
-		return &ir.Union{
-			TypeCommon: common,
-			Variants:   variants,
-			Exclusive:  true,
-		}
-	})
-	return id, diags
 }
 
 // lowerModel hoists an object schema as a Model, or as a MapT when the object
@@ -2018,73 +1889,6 @@ func effectiveTypes(s *oas3.Schema) []oas3.SchemaType {
 		out = append(out, t)
 	}
 	return out
-}
-
-// nullUnionCollapse detects a oneOf/anyOf with exactly one non-null branch
-// beside `type: null` branches, and returns that branch's schema, pointer and
-// index, so it lowers as nullable X, not a union node (ir-design §3.3).
-//
-// It is named by the branch's own hint (branchHint), which an outside $ref
-// naming the same pointer also derives. Whichever lowers first interns the
-// node, so any other hint would make the document depend on declaration order
-// (GitHub #281).
-//
-// A schema declaring both combinators collapses neither: the co-declared anyOf
-// conjoins, so the position is not nullable X. The Union keeps the unused
-// combinator (preserveUnusedCombinator), which X's shared node cannot.
-func nullUnionCollapse(s *oas3.Schema, pointer jsontext.Pointer) (*oas3.JSONSchema[oas3.Referenceable], jsontext.Pointer, int, bool) {
-	if len(s.GetOneOf()) > 0 && len(s.GetAnyOf()) > 0 {
-		return nil, "", 0, false
-	}
-	variants, key, _ := unionBranches(s)
-	var nonNull *oas3.JSONSchema[oas3.Referenceable]
-	nonNullIdx, nonNullCount, nullCount := -1, 0, 0
-	for i, v := range variants {
-		if isNullSchema(v) {
-			nullCount++
-			continue
-		}
-		nonNull, nonNullIdx = v, i
-		nonNullCount++
-	}
-	if nullCount == 0 || nonNullCount != 1 {
-		return nil, "", 0, false
-	}
-	return nonNull, pointer + ids.Ptr(key, strconv.Itoa(nonNullIdx)), nonNullIdx, true
-}
-
-// isNullSchema reports whether a variant schema is the bare null-typed schema.
-func isNullSchema(js *oas3.JSONSchema[oas3.Referenceable]) bool {
-	if js == nil || !js.IsSchema() {
-		return false
-	}
-	s := js.GetSchema()
-	if s == nil {
-		return false
-	}
-	types := s.GetType()
-	return len(types) == 1 && types[0] == oas3.SchemaTypeNull
-}
-
-// allNullUnion reports whether every branch of the oneOf/anyOf combinator
-// unionBranches elects is a bare `type: null` schema. nullUnionCollapse has no
-// non-null branch to collapse a set like this onto, so without this check
-// lowerOneOfAnyOf's buildUnion fallback strips every branch as a null marker
-// and interns a Union with none left — the empty value space irverify's
-// ir/union-no-variants rejects (GitHub #416). The branch set still admits
-// exactly one value, the same one a bare `{type: null}` schema at this
-// position admits, so lowerOneOfAnyOf lowers it the same way instead.
-func allNullUnion(s *oas3.Schema) bool {
-	variants, _, _ := unionBranches(s)
-	if len(variants) == 0 {
-		return false
-	}
-	for _, v := range variants {
-		if !isNullSchema(v) {
-			return false
-		}
-	}
-	return true
 }
 
 // collectionConstraints reads an array schema's collection bounds, which bound
