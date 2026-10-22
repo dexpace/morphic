@@ -3,6 +3,7 @@ package schema_test
 import (
 	"encoding/json/jsontext"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"testing"
@@ -5084,6 +5085,34 @@ func TestAllOf_NestedWrapperWithResidueKeptVerbatim(t *testing.T) {
 				assert.NotContains(t, msg, "(allOf")
 			}
 		})
+	}
+}
+
+// TestAllOf_KeptEntryOfAKeptWrapperIsKeptTwice pins the trade-off
+// docs/compilers/openapi.md#allof-inline-residue states: a wrapper kept for
+// its residue is kept whole, its entries included, so an entry kept itself, or
+// a false one, is in Unmodeled twice, inside the wrapper's copy and under its
+// own path.
+func TestAllOf_KeptEntryOfAKeptWrapperIsKeptTwice(t *testing.T) {
+	t.Parallel()
+	m := `    M:
+      allOf:
+        - description: grouped
+          allOf:
+            - {$ref: '#/components/schemas/A'}
+            - {title: inner, properties: {p: {type: string}}}
+            - false
+`
+	for _, doc := range nestedOrders(t, m, nestedAB) {
+		model, ok := typeByName(doc, "M").(*ir.Model)
+		require.True(t, ok, "M should be a model")
+		assert.Equal(t, []string{"openapi:allOf/0", "openapi:allOf/0/allOf/1", "openapi:allOf/0/allOf/2"},
+			slices.Sorted(maps.Keys(model.Unmodeled)), "the wrapper and each entry kept itself, each under its own path")
+		wrapper := string(model.Unmodeled["openapi:allOf/0"].Value)
+		assert.Contains(t, wrapper, `"title":"inner"`, "the wrapper's copy holds the kept entry")
+		assert.Contains(t, wrapper, `,false]`, "and the false one")
+		assert.Contains(t, string(model.Unmodeled["openapi:allOf/0/allOf/1"].Value), `"title":"inner"`)
+		assert.Equal(t, "false", string(model.Unmodeled["openapi:allOf/0/allOf/2"].Value))
 	}
 }
 

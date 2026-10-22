@@ -977,6 +977,11 @@ residue, and a boolean branch declares no keywords at all, so there is no residu
 a decision about the composed node instead, stated with the `false`-schema rule
 [`allof-false-branch`](#allof-false-branch).
 
+A flattened entry kept as residue is whole too, its own entries included, so an entry inside it that
+is kept on its own account, or a `false` one ([`allof-false-branch`](#allof-false-branch)), is in
+`Unmodeled` twice: inside the flattened entry's copy and under its own path. A consumer that reads
+every entry reads that one twice.
+
 - Cases: `allof-inline-residue`
 - Codes: `openapi/degraded-construct`
 - Tests: `schema.TestAllOf_BranchWrittenByReferenceStillDerivesResidue`,
@@ -985,7 +990,8 @@ a decision about the composed node instead, stated with the `false`-schema rule
   `schema.TestAllOf_NestedInlineBranchKeyedByPointer`,
   `schema.TestAllOf_NestedWrapperWithResidueKeptVerbatim`,
   `schema.TestAllOf_NestedEmptyAllOfKeptVerbatim`,
-  `schema.TestAllOf_EmptyAllOfBesideNonObjectTypeNamesBoth`
+  `schema.TestAllOf_EmptyAllOfBesideNonObjectTypeNamesBoth`,
+  `schema.TestAllOf_KeptEntryOfAKeptWrapperIsKeptTwice`
 - Status: partly built: an `allOf` of one `$ref` and an annotation-only branch keeps none of the
   branch's annotations typed (#660). An `allOf` whose branches are all primitives lowers to a model
   with no properties, each branch kept as residue (#1043).
@@ -1210,13 +1216,13 @@ The `false` rule ([`whole-schema-fallbacks`](#whole-schema-fallbacks)) holds whe
 appears, composition included. A `false` conjunct (`allOf: [false, …]`) admits nothing, so the
 composition admits nothing: the composed `Model` is closed and the branch is kept verbatim beside
 it, under `openapi:<path>` as [`allof-inline-residue`](#allof-inline-residue) keys a branch
-(`degraded_lowering`), which is what distinguishes it from a model
-that merely wrote `additionalProperties: false`, and reported as an info `openapi/false-schema` at
-the branch. What the other branches contributed stays — closing is the nearest shape the IR has, and
-emptying the model would trade one silent loss for another. A `true` conjunct admits everything, so
-contributing nothing from it is exact and nothing is reported. Where a `oneOf` or `anyOf` beside the
-`allOf` is distributed ([`union-beside-structure`](#union-beside-structure)), every composed
-variant is closed and keeps the branch, and the branch is reported once.
+(`degraded_lowering`), which is what distinguishes it from a model that merely wrote
+`additionalProperties: false`, and reported as an info `openapi/false-schema` at the branch. What
+the other branches contributed stays — closing is the nearest shape the IR has, and emptying the
+model would trade one silent loss for another. A `true` conjunct admits everything, so contributing
+nothing from it is exact and nothing is reported. Where a `oneOf` or `anyOf` beside the `allOf` is
+distributed ([`union-beside-structure`](#union-beside-structure)), every composed variant is closed
+and keeps the branch, and the branch is reported once.
 
 - Cases: `allof-boolean-branch`, `allof-nested-inline`
 - Codes: `openapi/false-schema`

@@ -255,9 +255,9 @@ func wrapsAllOf(b *oas3.JSONSchema[oas3.Referenceable]) bool {
 
 // compositionRequired collects every required-property name declared across an
 // allOf composition, in source order: each branch's required list (a flattened
-// wrapper's included), then own, the composed schema's. A branch is read from
-// its local schema, never its resolved $ref target — that required list
-// belongs to the target's own model (issue #29).
+// wrapper's included), then own, the list the composed schema writes itself. A
+// branch is read from its local schema, never its resolved $ref target — that
+// required list belongs to the target's own model (issue #29).
 func compositionRequired(own []string, comp allOfComposition) []string {
 	var out []string
 	for _, e := range comp.branches {
