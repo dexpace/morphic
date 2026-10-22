@@ -36,12 +36,12 @@ const (
 )
 
 // maxNullConjuncts bounds the walk below (styleguide bounded-recursion rule).
-// One budget unit is spent per schema visited as a conjunct or a $ref site, so
-// it caps the walk's depth as well as its breadth: an `allOf` naming its own
-// schema, or a diamond of conjunctions, terminates on it rather than on the
-// shape of the source. A walk deeper or wider than this reads as silent, the
-// answer that claims the least. A $ref chain's hops are bounded by the chain
-// instead (lands).
+// One budget unit is spent per schema the walk reads, each conjunct and $ref
+// site among them, so it caps the walk's depth as well as its breadth: an
+// `allOf` naming its own schema, or a diamond of conjunctions, terminates on it
+// rather than on the shape of the source. A walk deeper or wider than this
+// reads as silent, the answer that claims the least. The aliases a $ref chain
+// passes are read without it, in a loop the chain bounds (lands).
 const maxNullConjuncts = 256
 
 // nullReading is what a schema says about null under each reading
@@ -260,9 +260,9 @@ func (n *nulls) widenRef(own, r nullReading, site nullSite) nullReading {
 }
 
 // keywords conjoins what s's own keyword families say, its allOf conjuncts
-// among them but not a $ref it writes. Only `type` reads differently by
-// reading, through the nullable keyword's declared effect on it
-// (declaredTypeVerdict).
+// among them but not a $ref it writes. Only `type` has a rule of its own for
+// each reading, the nullable keyword's declared effect on it
+// (declaredTypeVerdict); the conjuncts differ only as each is read.
 func (n *nulls) keywords(s *oas3.Schema, site nullSite) nullReading {
 	c, e, u := constNullVerdict(s), enumNullVerdict(s), unionNullVerdict(s)
 	all := n.allOf(s, site)

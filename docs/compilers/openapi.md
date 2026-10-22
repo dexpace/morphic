@@ -703,8 +703,8 @@ a cycle with no schema in it, which [`reference-cycles`](#reference-cycles) repo
 
 ### `ref-use-site`
 
-The keywords written beside a schema's `$ref`, which 3.1 admits, and which a 3.0 document's are
-read as too ([`later-version-construct`](#later-version-construct)), and the annotations its target
+The keywords written beside a schema's `$ref`, which 3.1 admits and which are read the same way in a
+3.0 document ([`later-version-construct`](#later-version-construct)), and the annotations its target
 declares — documentation, deprecation, visibility and `default` — merge onto the property, parameter
 or header that references the target, field by field, a keyword the use site writes winning over the
 target's (§12.2), and by the same rule at every carrier. At a position that carries no property,
@@ -834,13 +834,14 @@ schema says, and keywords beside a `$ref` that admit null by themselves admit it
 reference. A `type` without `null` beside a `$ref` still narrows what it lands on. A reference whose
 null only that reading admits names `nullable-widening` in `TypeRef.Inferred` (invariant 6), so
 `Nullable` with no marker is the declared reading, and each such null is reported once as an info
-`openapi/inferred-nullable`, at the `nullable` keyword or at the `$ref` the keywords sit beside,
-saying why its version does not admit it, whatever references its schema. The policy is the Go
-option `Options.NullableWidening`, whose `Disabled` reads the keywords only as their version defines
-them, and the text option `nullable-widening`, which `false` turns off. A `nullable` in a 3.1 or 3.2
-schema, or beside a `$ref`, is then a keyword its dialect does not define, kept verbatim under
-`openapi:nullable` (`out_of_scope`) with an info `openapi/unknown-schema-keyword`, where
-[`unknown-keys`](#unknown-keys) keeps a keyword the schema model does not name.
+`openapi/inferred-nullable`, at the `nullable` keyword or, for keywords beside a `$ref`, at the
+schema that writes them, saying why its version does not admit it, whatever references its schema.
+The policy is the Go option `Options.NullableWidening`, whose `Disabled` reads the keywords only as
+their version defines them, and the text option `nullable-widening`, which `false` turns off. A
+`nullable` in a 3.1 or 3.2 schema, or beside a `$ref`, is then a keyword its dialect does not
+define, kept verbatim under `openapi:nullable` (`out_of_scope`) with an info
+`openapi/unknown-schema-keyword`, where [`unknown-keys`](#unknown-keys) keeps a keyword the schema
+model does not name.
 
 - Cases: `nullable-30`, `nullable-31-ref`, `nullable-enum-31`, `nullability-four-states`,
   `nullability-conjunction`, `nullable-keyword-30`, `nullable-keyword-31`
