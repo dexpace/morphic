@@ -524,7 +524,7 @@ type ReturnShape string              // "value" | "void" | "raw" | "stream"
 the type in a second channel. The first rule that applies decides:
 
 1. **`stream`** — the operation streams its response (`Streaming` is `server` or `bidi`, or its
-   primary response is a `Default` a content of which declares an `Item`, §3.5): events are read
+   primary response is a `Default` one of whose contents declares an `Item`, §3.5): events are read
    one at a time, as `Stream` describes (§8.4).
 2. **`void`** — nothing is read: the operation has no primary response (§3.5), or its primary
    response carries no payload. An operation with no primary response returns only an error, and
@@ -725,8 +725,8 @@ answering every status is then the operation's only description of a success. A 
 not the primary response is the catch-all of `Errors`, with its condition. Either use is marked
 `Inferred`, and a policy may take it as neither or both. Disabling the heuristic leaves an operation
 with no success response `void` (§3.1) and its `Default` in no plan field. `Streaming` summarizes
-only the streams an operation's success responses declare, so a primary `Default` streams where a
-content of it declares an `Item` (§3.1).
+only the streams an operation's success responses declare, so a primary `Default` streams where one
+of its contents declares an `Item` (§3.1).
 
 ### 3.6 Plan fact or refine fact
 
@@ -2213,9 +2213,9 @@ throughout this document.
 16. **T-16 · Decorator spellings agree** — a 3.0 `allOf` decorator and the 3.1 `$ref` carrying the
     same annotations beside it, at a property, a parameter, a header, a union variant, a list
     element, a map value and a content, generate byte-identical artifacts (§4.15), a variant's name
-    included. Which nodes are decorators is `ir.Decorated`'s, whose own test enumerates the fields of
-    `Model`, `Scalar` and `TypeCommon` by reflection and fails on one ir-design §4.10 has not
-    classified.
+    included. Which nodes are decorators is `ir.Decorated`'s, whose own test enumerates the
+    fields of `Model`, `Scalar` and `TypeCommon` by reflection and fails on one ir-design §4.10
+    has not classified.
 17. **T-17 · Type table** — each target's built-in table has, at every options version, a row for
     every `PrimKind` `ir` declares, read through `internal/decls`; a user row replaces the built-in
     row under its key whole; an encoding with no row falls back to its primitive's and is reported

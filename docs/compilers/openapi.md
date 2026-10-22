@@ -167,10 +167,11 @@ mapping writes twice, a number or a boolean where a string belongs, a field writ
 specification gives it no effect (`validation-no-effect`), or a `null` written for an optional
 field, which is read as the field left out, by the rules that bind it to other fields as well. A
 Schema Object's keyword whose value is a schema is such a field, since the schema lowering reads its
-`null` as left out too ([`null-schema`](#null-schema)). A `null` written for another object's schema
-is an error, since that lowering reads it as the empty schema, a value, and so is one in a list of
-schemas, which counts as an entry; one for a Schema Object's other keywords is an error as well. One
-written for a field whose requirement another rule reports is left to that rule.
+`null` as left out too ([`null-schema`](#null-schema)). A `null` written as a schema entry, which is
+another object's `schema`, a component, or an entry of a map or a list of schemas, is an error,
+since that lowering reads it as the empty schema, a value, and a list counts it among its entries;
+so is one for a Schema Object's other keywords. One written for a field whose requirement another
+rule reports is left to that rule.
 
 The source is read as it writes it, an applied overlay's patch included, each object as the kind
 its position gives it. An object a `$ref` reaches that the source's own reading did not take as
@@ -195,7 +196,7 @@ gives it no effect is [`allow-reserved-locations`](#allow-reserved-locations)' a
 
 - Codes: `openapi/validation`
 - Tests: `oas.TestCheck_RulesGradeByLevel`,
-  `oas.TestCheck_NullIsReadAsAbsentWhereTheFieldIsOptional`,
+  `oas.TestCheck_NullIsReadAsAbsentWhereTheFieldIsOptional`, `oas.TestCheck_CountsBoundTheEntries`,
   `oas.TestCheck_ANullReadAsLeftOutIsNoFieldToARule`, `oas.TestCheck_ShapesFollowTheField`,
   `oas.TestCheck_PathTemplatesAnswerToPathParameters`,
   `oas.TestCheck_AServerURLNamesOnlyItsVariables`,
@@ -359,15 +360,14 @@ component its section does not hold, another document the compile may not read, 
 URI no schema declares, or two do — is reported as an `openapi/unresolved-ref` error at the
 referencing position, with why, and the position lowers without it: a schema position to the top
 type, any other position to nothing at all, so the parameter, response or body it would have named
-is absent. A reference object whose chain ends on a position holding no object of its kind, such as
-a string or a `null` under an extension, is that report alone, its reason worded as a schema
-`$ref`'s is (`it names a position that holds no parameter`), and quoting the reference written at
-the hop before, and the document it is written in where that is not the source, when the chain
-passed through others. Nothing is reported at the position the chain ends on, whichever reference
-reaches it first.
-Each is reported once, where it is written, in whichever document, and a schema `$ref` whose chain
-ends on another failing `$ref` is not reported for it, as that one is. What a reference object
-resolved to is read at the node the resolver's chain reached
+is absent. Each is reported once, where it is written, in whichever document, and a schema `$ref`
+whose chain ends on another failing `$ref` is not reported for it, as that one is. A reference
+object whose chain ends on a position holding no object of its kind, such as a string or a `null`
+under an extension, draws that error alone, and nothing is reported at the position, whichever
+reference reaches it first. Its reason is worded as a schema `$ref`'s is (`it names a position that
+holds no parameter`), and where the chain passed through another reference it quotes the `$ref`
+written at the hop before, naming the document that writes it where that is not the source. What a
+reference object resolved to is read at the node the resolver's chain reached
 ([`trailing-empty-token`](../parser-library.md#trailing-empty-token)), and where no position holds
 that node, as for the first of a key written twice in raw YAML
 ([`duplicate-key`](../parser-library.md#duplicate-key)), it lowers at the use site, and each schema
@@ -1308,16 +1308,15 @@ That object stays a `Model`, since a `MapT` has no field for a pattern-scoped va
 Each name a `required` list writes lands on the object it is written for: as `Property.Required`
 (§5.1) on the `Model`'s own property of that wire name, which is never cleared once set, or else in
 `Model.Requires` (§4.3), once, in the order the lists name it, an `allOf`'s branches before the
-schema's own. A name in `Requires` is one a `Base` or
-`Mixin` declares, which the object makes required (`allOf: [{$ref: User}, {required: [id]}]`), or
-one only its catch-all governs, which JSON Schema requires whether or not a schema declares it. The
-rule is one for every way an object lowers — a plain object, an `allOf`
-([`allof-required`](#allof-required)), the object variant of a multi-typed schema, a distributed
-union's variant — and reports nothing, since nothing is lost. An object writing a catch-all beside a
-name its properties do not declare is a `Model`, not a `MapT`, since a map requires no key, and
-stays one when a discriminator moves off it. A `required` beside a `$ref` is kept on the alias the
-`$ref` site hoists ([`shape-applicator`](#shape-applicator)), as any keyword is there that composes
-the referent.
+schema's own. A name in `Requires` is one a `Base` or `Mixin` declares, which the object makes
+required (`allOf: [{$ref: User}, {required: [id]}]`), or one only its catch-all governs, which JSON
+Schema requires whether or not a schema declares it. The rule is one for every way an object lowers
+— a plain object, an `allOf` ([`allof-required`](#allof-required)), the object variant of a
+multi-typed schema, a distributed union's variant — and reports nothing, since nothing is lost. An
+object writing a catch-all beside a name its properties do not declare is a `Model`, not a `MapT`,
+since a map requires no key, and stays one when a discriminator moves off it. A `required` beside a
+`$ref` is kept on the alias the `$ref` site hoists ([`shape-applicator`](#shape-applicator)), as any
+keyword is there that composes the referent.
 
 - Cases: `allof-required-only`, `required-members`
 - Tests: `schema.TestModel_PlainRequiredUndeclaredPropertyLandsInRequires`,
@@ -1378,16 +1377,16 @@ IR home: a `Model`'s property set, openness and pattern bindings, or a `List`'s 
 `Tuple`'s positions and rest. A `MapT` homes an object's catch-all and the empty `properties`,
 `patternProperties` and `required` lists that left it a map (§4.6), and a `required` naming a key
 keeps it a `Model` ([`required-members`](#required-members)). A position whose lowering produced
-none of these — an `Enum`, a `Literal`, a `Scalar`, or the
-top type — has nowhere to put them, and so does a position whose lowering produced the other of the
-two shapes (`{type: object, properties: {…}, items: {…}}` lowers to a `Model`, which holds no
-element type). This covers both a contradictory schema, where one half is taken and the other must
-stay recoverable (`{type: string, enum: [a, b], properties: {f: …}}` is not satisfiable, so lowering
-to the enum is a reasonable degradation), and an applicator written with no type at all, where the
-position lowers to the top type, which says strictly less than the applicator does
-(`{items: {type: string}}` constrains every array instance). The IR could model the untyped case by
-reading the applicator as the shape it implies — an untyped `items` as a list — but that is a
-lowering decision this document has not taken, and keeping the source leaves it open.
+none of these — an `Enum`, a `Literal`, a `Scalar`, or the top type — has nowhere to put them, and
+so does a position whose lowering produced the other of the two shapes
+(`{type: object, properties: {…}, items: {…}}` lowers to a `Model`, which holds no element type).
+This covers both a contradictory schema, where one half is taken and the other must stay recoverable
+(`{type: string, enum: [a, b], properties: {f: …}}` is not satisfiable, so lowering to the enum is a
+reasonable degradation), and an applicator written with no type at all, where the position lowers to
+the top type, which says strictly less than the applicator does (`{items: {type: string}}`
+constrains every array instance). The IR could model the untyped case by reading the applicator as
+the shape it implies — an untyped `items` as a list — but that is a lowering decision this document
+has not taken, and keeping the source leaves it open.
 
 Each unhomed keyword is kept verbatim in `Unmodeled["openapi:<keyword>"]` under `degraded_lowering`,
 reported as one info `openapi/degraded-construct` at the position naming the kind it lowered to and
@@ -1515,18 +1514,19 @@ schema written, never as the `false` schema the parser decodes it as
 ([`null-schema-is-false`](../parser-library.md#null-schema-is-false)), which admits no value. An
 entry, which exists whatever its value — a property, a composition branch, a component, a
 `prefixItems` position, a parameter's, header's or media type's `schema` — lowers as the empty
-schema does: to the top type, or as an `allOf` branch to nothing composed, and a `$ref` naming it
-as one naming `{}` does. A keyword whose value is a schema, whose absence states something its empty
+schema does: to the top type, or as an `allOf` branch to nothing composed, and a `$ref` naming it as
+one naming `{}` does. A keyword whose value is a schema, whose absence states something its empty
 schema may not, is read as left out: `additionalProperties: null` writes no catch-all,
 `contentSchema: null` no `Encoding.Schema`, and a `null` `not`, `if`, `then`, `else`, `contains`,
 `propertyNames`, `unevaluatedItems` or `unevaluatedProperties` is kept nowhere. `items: null` lowers
 as an absent `items` does, and a `null` `items` or `additionalProperties` a node has no home for is
 not kept for want of one ([`shape-applicator`](#shape-applicator)). Nothing is kept verbatim, since
-a `null` means nothing a consumer could recover, and the lowering reports nothing, since reading it
-so loses nothing: the load phase reports each such `null` at the node ([`validation`](#validation)),
-an entry's as an error and a keyword's as the warning a field left out draws. One inside a value
-the IR keeps verbatim whole, a `dependentSchemas` entry, stays in that value, since nothing reads it
-as a schema.
+a `null` means nothing a consumer could recover, and the lowering reports nothing of its own, since
+reading it so loses nothing: the load phase reports each such `null` at the node
+([`validation`](#validation)), an entry's as an error and a keyword's as the warning a field left
+out draws, but for `items` beside a 3.0 `type: array`, whose absence
+[`missing-array-items`](#missing-array-items) reports instead. One inside a value the IR keeps
+verbatim whole, a `dependentSchemas` entry, stays in that value, since nothing reads it as a schema.
 
 - Tests: `openapi.TestCompile_ANullWhereASchemaBelongsIsNoSchema`,
   `schema.TestNullSchema_AnEntryIsTheEmptySchemaAndAKeywordIsLeftOut`,
