@@ -358,7 +358,8 @@ func recovered(err *error, what string) {
 // as written, with the resolver's reason. When t got past it and stopped at
 // another reference, that one is quoted too: the reason is about it, and need
 // not fit ref, as "external reference not allowed" does not fit a $ref to
-// #/components.
+// #/components. A chain ending on no object of its kind is worded as the binder
+// words one (notObjectError), quoting the reference it went through, if any.
 func failureDiag(site ir.Provenance, ref references.Reference, t trail, err error) ir.Diagnostic {
 	reason := err.Error()
 	var unparsable *bind.UnparsableError

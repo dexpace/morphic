@@ -262,7 +262,7 @@ type StatusRange struct {
 type ErrorCase struct {
 	// Name is the error naming for formats with named errors; Hint elsewhere —
 	// for OpenAPI, the responses-map key as declared and then neutralized ("404",
-	// "5_xx", "default"). Only a key that neutralizes to itself round-trips.
+	// "5_xx"). Only a key that neutralizes to itself round-trips.
 	Name Naming `json:"name"`
 	// Conditions are the status codes/ranges this error maps to.
 	Conditions ResponseConditions `json:"conditions"`

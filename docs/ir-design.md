@@ -797,11 +797,10 @@ target language allows at most one base class.
 
 **Required members beyond the own properties.** Whether an own property must be present is its
 `Required` (§5.1). A member the model requires that none of its own properties declares is in
-`Requires`, by wire name and once, in the order the source's `required` lists name it: an inherited
-property
-the model makes required, as `allOf: [{$ref: User}, {required: [id]}]` makes `User`'s `id` required
-on the composed model, or a member only the catch-all governs, which JSON Schema requires whether
-or not a schema declares it. A consumer reads it as it reads `Base`, over the flattened shape, and
+`Requires`, by wire name and once (`irverify` refuses a repeat as `ir/requires-duplicate`), in the
+order the source's `required` lists name it: an inherited property the model makes required, as
+`allOf: [{$ref: User}, {required: [id]}]` makes `User`'s `id` required on the composed model, or a
+member only the catch-all governs, which JSON Schema requires whether or not a schema declares it. A consumer reads it as it reads `Base`, over the flattened shape, and
 the IR asserts nothing about which of these a name is, since that needs the hierarchy walked. A name
 an own property declares is never listed (`irverify` refuses it as `ir/requires-own-property`), so
 required-ness has one home per member. A model that requires a member is neither a map (§4.6) nor

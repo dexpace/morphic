@@ -367,8 +367,8 @@ func TestAllOf_PropertyAlongsideAllOfReconciles(t *testing.T) {
 // intersection, so a `required` list constrains the whole composed object
 // regardless of which branch declares the named property, or whether it is
 // paired with a properties map at all. Each case names a wire property that
-// must end up Required=true, and none of them should produce an
-// unattachable-required diagnostic — every name matches an own property.
+// must end up Required=true, which leaves Requires empty, since every name
+// matches an own property.
 func TestAllOf_CompositionRequiredAttaches(t *testing.T) {
 	t.Parallel()
 	tests := []struct {

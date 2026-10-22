@@ -5456,9 +5456,9 @@ func TestUnhomedKeywords_ArrayBoundsKeepWhatCollectionConstraintsDoesNotRead(t *
 // census at the third $ref site: an allOf branch spelled as a reference, which
 // homes its siblings on an alias exactly as a component does.
 //
-// `required` is the branch keyword this composition does read —
-// applyCompositionRequired ORs every branch's list onto the composed model — so
-// it must not be kept, or one keyword would be reported twice.
+// `required` is the branch keyword this composition does read — requireMembers
+// lands every branch's list on the composed model — so it must not be kept, or
+// one keyword would be read twice.
 func TestRefSiteKeywords_AllOfBranchKeepsWhatTheAliasCannotHold(t *testing.T) {
 	t.Parallel()
 	doc, diags := lowerSpec(t, keywordCensusSpec(

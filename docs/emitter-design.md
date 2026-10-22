@@ -762,10 +762,11 @@ The procedure decided every existing field:
 1. **Choices under `plan.Policy`** stay: `PrimaryResponse`, `PrimaryContent`, the unwrap behind
    `ReturnType`, and `PagePlan`, an inferred one included.
 2. **Derivations several artifacts expose** stay: `Return`, `Errors`, `Auth`, `Bindings`, `Stream`
-   and `LRO`; and `Flattened`, `Union`, `Discrim`, `Scalar`, `Shapes`, `Alias` and `Reach`. `Alias`
-   classifies a decorator over several of its fields and resolves its chain (§4.15), and `Reach`
-   walks every operation (§4.17); SDKs and docs that disagreed on either would name a field's type
-   or a type's home differently.
+   and `LRO`; and `Flattened`, `Required`, `Undeclared`, `Union`, `Discrim`, `Scalar`, `Shapes`,
+   `Alias` and `Reach`. `Required` and `Undeclared` read `Requires` along the flattening walk
+   (§3.2), `Alias` classifies a decorator over several of its fields and resolves its chain (§4.15),
+   and `Reach` walks every operation (§4.17); SDKs and docs that disagreed on any of them would mark
+   a member optional, name a field's type or place a type differently.
 3. **Copies of what the IR states** are gone: whether there is a body, one-way-ness and idempotency
    (§3.1), a model's `Base`, `Implements` and `Mixins`, an enum's openness, value type, flags and
    fallback member, a union's variant list, and the operation-group tree (§3.4). `Union` replaces a
