@@ -11,8 +11,9 @@ import (
 // TestLowerSecurityRequirement_Nil covers the half of the object guard a parsed
 // document cannot reach: a hand-built slice holding a nil entry. It is refused
 // like any other entry that is no object, rather than surviving as the empty
-// option that reads as "no auth is one acceptable choice" — and silently, since
-// there is no document position to place a report at.
+// option that reads as "no auth is one acceptable choice" — and silently: an
+// entry that is no object is the loader's to report, and a nil one is in no
+// document at all.
 func TestLowerSecurityRequirement_Nil(t *testing.T) {
 	t.Parallel()
 	got, ok, diags := lowerSecurityRequirement(lowering.Ctx{}, nil, "/security/0")

@@ -26,9 +26,8 @@ func TestInternalPointer(t *testing.T) {
 		{"", "", false},
 		{"#", "", false}, // empty fragment
 		// A fragment that is not a JSON pointer names a JSON Schema $anchor, not a
-		// coordinate. Milestone 1 resolves no anchors, and returning the anchor name
-		// as though it were a pointer derived IDs from a path no source coordinate
-		// spells (GitHub #141).
+		// coordinate, and returning the anchor name as though it were a pointer
+		// derived IDs from a path no source coordinate spells (GitHub #141).
 		{"#addr", "", false},
 		{"m.yaml#addr", "", false},
 		{"#a/b", "", false}, // pointer-shaped only from the second segment on
@@ -45,9 +44,7 @@ func TestInternalPointer(t *testing.T) {
 // (fragment.ForResolver), which is what makes a reference this compiler calls
 // unresolved one the resolver also failed to resolve. A $ref is a URI, so `%2D`
 // in the fragment is a hyphen and '+' is a plus; comparing the raw text against
-// declared names failed every spec-correct escape (GitHub #40). It carries the
-// same name as nodeview's test of the same two accessors, so the pair is one
-// grep apart — a dependency bump has to satisfy both.
+// declared names failed every spec-correct escape (GitHub #40).
 func TestInternalPointer_AgreesWithTheResolverOnWhatItIsHanded(t *testing.T) {
 	t.Parallel()
 	sc := Scope{SelfPath: "m.yaml", Declares: func(string) bool { return false }}

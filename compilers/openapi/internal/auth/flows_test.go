@@ -167,10 +167,10 @@ func loaderFlowsFindings(diags []ir.Diagnostic) []ir.Diagnostic {
 }
 
 // TestLowerSecuritySchemes_AnUnkeepableFlowFieldIsReportedNotDropped is the
-// flow-level twin of the scheme-level test above: a field the flow's kind does
-// not define, holding a value JSON cannot represent, reaches the IR in no form,
-// so it is reported as lost rather than announced as kept, and the slot it
-// would have been misread into stays empty.
+// flow-level twin of TestLowerSecuritySchemes_AnUnkeepableFieldIsReportedNotDropped:
+// a field the flow's kind does not define, holding a value JSON cannot
+// represent, reaches the IR in no form, so it is reported as lost rather than
+// announced as kept, and the slot it would have been misread into stays empty.
 func TestLowerSecuritySchemes_AnUnkeepableFlowFieldIsReportedNotDropped(t *testing.T) {
 	t.Parallel()
 	doc, _, diags := serviceSpec(t, `openapi: 3.2.0

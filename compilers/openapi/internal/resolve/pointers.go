@@ -29,18 +29,17 @@ func FragmentPointer(ref string) (jsontext.Pointer, bool) {
 	return pointer, true
 }
 
-// InternalPointer returns the same-document JSON pointer a $ref (or
-// discriminator mapping) target addresses, and ok=false for a cross-document
-// reference, a bare schema name or a malformed ref. A document part naming this
-// source file is internal (see namesSelf).
+// InternalPointer returns the same-document JSON pointer a $ref target
+// addresses, and ok=false for a cross-document reference, a bare schema name or
+// a malformed ref. A document part naming this source file is internal (see
+// namesSelf).
 //
 // It decodes the fragment (fragment.Pointer), since fragments are
 // percent-encoded: comparing them raw missed resolvable references and interned
-// a second node at a named position (GitHub #40). nodeview.InternalPointer
-// reads the same fragment.
+// a second node at a named position (GitHub #40).
 //
-// A `#addr` fragment names a $anchor, which only the library resolves, and an
-// ID derived from it would be a path no coordinate spells (GitHub #141).
+// A `#addr` fragment names a $anchor, not a position, and an ID derived from it
+// would be a path no coordinate spells (GitHub #141).
 func (s Scope) InternalPointer(ref string) (jsontext.Pointer, bool) {
 	pointer, ok := FragmentPointer(ref)
 	if !ok || !s.namesSelf(references.Reference(ref)) {

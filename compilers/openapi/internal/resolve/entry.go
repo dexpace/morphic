@@ -6,13 +6,12 @@ import (
 	"github.com/speakeasy-api/openapi/references"
 )
 
-// Referenced is the method set every soa "Referenced*" alias exposes: it
-// is the generic form of speakeasy's Reference[T, V, C], which underlies
-// ReferencedPathItem, ReferencedResponse, ReferencedHeader, ReferencedCallback,
-// ReferencedParameter, ReferencedRequestBody, ReferencedExample, and
-// ReferencedSecurityScheme alike. Naming the shape once here lets Object stand
-// in for what would otherwise be one resolver per aliased type. S is the
-// reference's own type, Reference[T, V, C]; ObjectAt walks it through
+// Referenced is the method set every soa "Referenced*" alias exposes: it is
+// the generic form of speakeasy's Reference[T, V, C], which underlies each of
+// them, ReferencedPathItem and ReferencedSecurityScheme alike; ReferenceEnd
+// lists them all. Naming the shape once here lets Object stand in for what
+// would otherwise be one resolver per aliased type. S is the reference's own
+// type, Reference[T, V, C]; ObjectAt walks it through
 // GetReferenceResolutionInfo to follow a chain of component aliases.
 type Referenced[T, S any] interface {
 	GetObject() *T

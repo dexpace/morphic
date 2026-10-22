@@ -5,7 +5,7 @@
 //
 // It is only that. Following a reference far enough to lower its target
 // recurses into the schema walk, so it stays with the walk. What is here needs
-// only the document, its path, its declared names and a registry.
+// only the document, its path, its declared names and its bindings.
 //
 // Reference resolution is not promoted to compilers/compile: not every compiler
 // needs it, and those that do reach it by different mechanisms

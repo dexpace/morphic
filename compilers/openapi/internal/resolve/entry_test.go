@@ -26,12 +26,11 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// These tests drive whole documents through the compiler rather than calling
-// ObjectAt directly, and that is not a shortcut: a chain of component aliases
-// only exists once speakeasy's resolver has built the resolution info each hop
-// reads, which no hand-constructed value reproduces. Driving the compiler is
-// what makes the fixture real. It costs an import of the package that imports
-// this one, which only an external test package may have.
+// The tests of an alias chain read documents the parser's resolver has run
+// over, through the whole compiler or the loader, rather than hand-built values:
+// a chain only exists once that resolver has built the resolution info each hop
+// reads, which no hand-constructed value reproduces. Both import a package that
+// imports this one, which only an external test package may.
 
 // parseFull runs the whole public compiler pipeline over src. That reach back
 // through openapi is also why openapitest cannot hold it — see that package's
@@ -73,7 +72,8 @@ func TestObject_NilEntryIsNil(t *testing.T) {
 }
 
 // TestObjectAt_CrossDocumentInternsAtTheDeclarationThere is the
-// cross-document counterpart to the same-document sharing tests above. The
+// cross-document counterpart to internal/operation's same-document sharing
+// tests, such as TestParams_ComponentRefSharedAcrossOperationsInternsOnce. The
 // fixture's operation $refs a parameter and a response into a sibling
 // document, and both are lowered at their declaration there: their schemas
 // intern under that document's label, with provenance naming it.
@@ -225,8 +225,8 @@ components:
 // cross-document reference is resolved by the loader either way.
 //
 // The opt-in is the point rather than boilerplate: only the two cross-document
-// cases below call this, and without it the loader refuses to leave the
-// document, so both would assert on a $ref that was never followed.
+// cases call this, and without it the loader refuses to leave the document, so
+// both would assert on a $ref that was never followed.
 func compileFixture(t *testing.T, path string) *ir.Document {
 	t.Helper()
 	data, err := os.ReadFile(path)
@@ -308,9 +308,9 @@ func TestObject_UnresolvedReferenceHasNoObject(t *testing.T) {
 // the entries it lists cannot tell the two apart.
 //
 // This one can. Nothing about the constraint promises nil-tolerance, and Object
-// declines to depend on it two lines further down for the resolved-object
-// fallback ("rather than coupling this compiler to that undocumented
-// nil-tolerance"); the guard is what makes that stance hold at the top too.
+// declines to depend on it further down, for the resolved-object fallback
+// ("rather than coupling this compiler to that undocumented nil-tolerance");
+// the guard is what makes that stance hold at the top too.
 type brittleEntry struct{ obj int }
 
 func (b *brittleEntry) GetObject() *int         { return &b.obj }
@@ -324,8 +324,8 @@ func (b *brittleEntry) GetReferenceResolutionInfo() *references.ResolveResult[br
 	return nil
 }
 
-// TestObject_NilEntryIsNotDereferenced holds the guard itself, which the
-// aliased-type test above cannot: an entry that does not tolerate a nil
+// TestObject_NilEntryIsNotDereferenced holds the guard itself, which
+// TestObject_NilEntryIsNil cannot: an entry that does not tolerate a nil
 // receiver must still answer nil rather than panic.
 func TestObject_NilEntryIsNotDereferenced(t *testing.T) {
 	t.Parallel()

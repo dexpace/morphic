@@ -154,11 +154,9 @@ components:
 }
 
 // TestAuth_UnserializableExtensionStillWarns pins that a security scheme whose
-// sole x-* extension fails to serialize still surfaces the warning:
-// lowerSecurityScheme returns the diagnostic unconditionally, so a caller must
-// not gate it behind the same "if len(ext) > 0" that guards the assignment —
-// that guard is exactly false in the all-unserializable case, which used to
-// drop the warning silently.
+// sole x-* extension fails to serialize still surfaces the warning, although
+// nothing reaches the scheme's Unmodeled: a warning gated on there being an
+// extension to keep would be dropped in exactly this case.
 func TestAuth_UnserializableExtensionStillWarns(t *testing.T) {
 	t.Parallel()
 	spec := `openapi: 3.1.0

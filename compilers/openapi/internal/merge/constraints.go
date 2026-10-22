@@ -118,9 +118,9 @@ func constraintsConflict(a, b *ir.Constraints) (keyword int, detail string, conf
 
 // bigValConflictDetail reports whether both branches pin the same
 // arbitrary-precision keyword to different magnitudes, formatting the
-// disagreement when they do. Every numeric keyword of ir.Constraints has this
-// shape, each bound stating its own restriction, so one comparison serves them
-// all.
+// disagreement when they do. Every arbitrary-precision keyword of
+// ir.Constraints has this shape: each states its own restriction, with no
+// exclusivity flag to carry beside it, so one comparison serves them all.
 //
 // A disagreement is usually still satisfiable (minimum 10 in one branch and 20
 // in the other together mean 20), but it is diagnosed anyway: the merge keeps

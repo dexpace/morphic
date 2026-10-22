@@ -68,10 +68,8 @@ func NewPropIndex(m *ir.Model, later func(Settle)) *PropIndex {
 // under allOf's intersection semantics (ir-design §4.3). Callers must set
 // p.WireName (fillModelProperties always does); it keys idx directly.
 //
-// p.Provenance locates the declaration, and is the only source of that fact
-// here. It used to arrive twice — as a parameter and on p — equal by
-// construction at the one call site, which left nothing able to catch them
-// disagreeing.
+// p.Provenance locates the declaration and is the only source of that fact
+// here, so no second copy of it can disagree.
 func (idx *PropIndex) MergeProperty(p ir.Property, source Source) {
 	f, ok := idx.byWire[p.WireName]
 	if !ok {

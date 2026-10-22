@@ -209,8 +209,8 @@ func fillSchemeKind(scheme *ir.AuthScheme, ss *soa.SecurityScheme) (missing stri
 //
 // `type: http` without a scheme is the second shape that names no mechanism: a
 // custom kind carrying an empty token says no more than a typeless entry. A
-// token the RFC would reject still interns; checking it against the grammar is
-// validation this compiler does not do, and trimming it would guess.
+// token the RFC would reject still interns: the load phase reports it against
+// the grammar, and trimming it would guess.
 func fillHTTPScheme(scheme *ir.AuthScheme, ss *soa.SecurityScheme) (missing string, ok bool) {
 	token := ss.GetScheme()
 	if token == "" {

@@ -277,9 +277,9 @@ func operationsByDeclaration(svc ir.Service) map[string]ir.Operation {
 // between a document that says nothing about security and one that says
 // explicitly that none is required.
 //
-// ir.Service.Auth and ir.Operation.Auth carry no omitempty, so the IR spells the
-// two apart — null for "inherit whatever encloses this", [] for "no auth is an
-// acceptable option" (ir-design §9). Collapsing them makes an explicitly public
+// ir.Service.Auth and ir.Operation.Auth are omitzero, so the IR spells the two
+// apart — an absent key for "inherit whatever encloses this", [] for
+// "explicitly public" (ir-design §9). Collapsing them makes an explicitly public
 // operation read as one that never mentioned security, which is the opposite
 // claim.
 func TestSecurityRequirements_AnEmptyListIsNotAnAbsentOne(t *testing.T) {

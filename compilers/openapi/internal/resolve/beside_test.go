@@ -16,8 +16,8 @@ import (
 )
 
 // besideSpec writes get beside /a's $ref to /b, which declares one too, and
-// reaches it from /c by a pointer through /a, by a schema $ref and by a mapping
-// value. The resolver reads all three as /b's.
+// reaches it from /c by a pointer through /a, which the resolver reads as /b's.
+// besideSchemasSpec reaches the schemas by a schema $ref and a mapping value.
 const besideSpec = `openapi: 3.1.0
 info: {title: T, version: "1"}
 paths:

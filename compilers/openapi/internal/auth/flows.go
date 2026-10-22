@@ -96,7 +96,7 @@ func flowFields() []flowField {
 }
 
 // flowFieldsDefinedBy returns the fields of flowFields that OpenAPI gives the
-// flow written under keyword a meaning for (3.2.0 §4.8.30; 3.0 and 3.1 alike,
+// flow written under keyword a meaning for (3.2.0 §4.29; 3.0 and 3.1 alike,
 // without the device flow): the authorization endpoint for the flows that
 // redirect a user agent, the token endpoint for every flow that requests a
 // token from one, and the device authorization endpoint for the device flow.
@@ -149,9 +149,8 @@ func flowsMissing(ss *soa.SecurityScheme) bool {
 //
 // decl places it, not entry: a flowless declaration is a fact about the text at
 // decl, and a $ref entry holds no flows either way. The message names no entry,
-// so the copies every alias of one declaration draws dedup to one report. A
-// declaration in another document has no pointer here, so each entry naming it
-// carries its own copy, as every finding placed at decl does (GitHub #874).
+// so the copies every alias of one declaration draws dedup to one report, placed
+// in whichever document holds the declaration (GitHub #874).
 func oauthNoFlowDiag(c lowering.Ctx, decl jsontext.Pointer) ir.Diagnostic {
 	return c.DiagAt(ir.SeverityWarning, diag.OAuth2NoFlow, decl,
 		"oauth2 security scheme declares no flow and no oauth2MetadataUrl, "+
