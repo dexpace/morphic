@@ -76,3 +76,15 @@ func serviceWithGrouping(t *testing.T, src string, grouping lowering.GroupingStr
 	acc.AppendAll(finished)
 	return svc, append(loadDiags, acc.List()...)
 }
+
+// errorFindings spells each error in diags as its code and pointer, in the order
+// reported.
+func errorFindings(diags []ir.Diagnostic) []string {
+	var out []string
+	for _, d := range diags {
+		if d.Severity == ir.SeverityError {
+			out = append(out, d.Code+" at "+string(d.Provenance.Pointer))
+		}
+	}
+	return out
+}

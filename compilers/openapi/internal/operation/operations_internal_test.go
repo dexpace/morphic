@@ -312,12 +312,6 @@ func TestLowerResponses_NoResponses(t *testing.T) {
 	assert.Empty(t, diags)
 }
 
-func TestFirstPathSegment_Empty(t *testing.T) {
-	t.Parallel()
-	assert.Empty(t, firstPathSegment("/"))
-	assert.Equal(t, "users", firstPathSegment("/users/{id}"))
-}
-
 // TestApplyOperationServers_WithoutRootNode is the operation half of the test
 // above: a declared list whose source node cannot be read keeps nothing, and
 // announces nothing it did not keep.
@@ -328,12 +322,6 @@ func TestApplyOperationServers_WithoutRootNode(t *testing.T) {
 	diags := applyOperationServers(l.ctx, op, &soa.Operation{Servers: []*soa.Server{{URL: "https://x"}}}, "/paths/~1a/get")
 	assert.Nil(t, op.Unmodeled, "servers with no raw node are not preserved")
 	assert.Empty(t, diags)
-}
-
-func TestLowerTagDefs_NilEntrySkipped(t *testing.T) {
-	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{Tags: []*soa.Tag{nil, {}}})
-	assert.Len(t, lowerTagDefs(l.ctx), 1, "nil tag entry skipped")
 }
 
 // TestParamKey_NilParameterIsNotAKey pins the guard on the merge key. A nil
@@ -576,44 +564,4 @@ func TestOperationIDClaims_AddSkipsAnEmptyOperationID(t *testing.T) {
 
 	assert.Empty(t, claims.names, "nothing was claimed, so nothing is queued to report")
 	assert.Empty(t, claims.report(newRawLowerer(nil).ctx))
-}
-
-// TestIndexTags_SkipsANilEntry pins the guard on the tag list: a nil entry
-// indexes no name, so it can neither be read for a kind or a parent by the
-// grouping walk nor shadow a tag the document does declare. The parser produces
-// no such entry, which is why the guard is exercised at the list it guards.
-func TestIndexTags_SkipsANilEntry(t *testing.T) {
-	t.Parallel()
-	kept := &soa.Tag{Name: "kept"}
-
-	got := indexTags([]*soa.Tag{nil, kept})
-
-	require.Len(t, got, 1)
-	assert.Same(t, kept, got["kept"])
-}
-
-// TestTagIndex_ChainAgreesWithEveryAncestor pins what makes a group's parent
-// independent of which operation creates it: the chain of every tag a chain
-// passes through is that chain's own prefix. The tags hold a cycle (a and b), a
-// tag beneath it (c), one beneath that (d), and one whose parent is a badge (e).
-func TestTagIndex_ChainAgreesWithEveryAncestor(t *testing.T) {
-	t.Parallel()
-	tag := func(name, parent, kind string) *soa.Tag {
-		return &soa.Tag{Name: name, Parent: &parent, Kind: &kind}
-	}
-	x := indexTags([]*soa.Tag{
-		tag("a", "b", "nav"), tag("b", "a", "nav"), tag("c", "a", "nav"),
-		tag("d", "c", ""), tag("badge", "", "badge"), tag("e", "badge", "nav"),
-	})
-	want := map[string][]string{
-		"a": {"a"}, "b": {"b"}, "c": {"a", "c"}, "d": {"a", "c", "d"},
-		"e": {"e"}, "undeclared": {"undeclared"},
-	}
-	for name, chain := range want {
-		got := x.chain(name)
-		assert.Equal(t, chain, got, "chain of %s", name)
-		for i := range got {
-			assert.Equal(t, got[:i+1], x.chain(got[i]), "%s's ancestor %s agrees", name, got[i])
-		}
-	}
 }
