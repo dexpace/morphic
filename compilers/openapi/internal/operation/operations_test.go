@@ -698,6 +698,36 @@ func TestOperations_OwnServersSurviveBesideExtensions(t *testing.T) {
 		"and the extensions survive beside them, so neither overwrote the other")
 }
 
+// TestOperations_OwnServersFindingIsNotInferred pins that the finding reporting
+// an operation's own servers names no heuristic. Path-prefix grouping marks the
+// operation, and the finding used to take that marker from the operation's
+// provenance although the servers are declared.
+func TestOperations_OwnServersFindingIsNotInferred(t *testing.T) {
+	t.Parallel()
+	svc, diags := serviceWithGrouping(t, openapitest.PathsSpec(`  /x:
+    get:
+      operationId: getX
+      servers: [{url: 'https://operation.example'}]
+      responses: {"200": {description: ok}}
+`), lowering.GroupByPathPrefix)
+	openapitest.RequireNoErrorDiags(t, diags)
+	require.Len(t, svc.Groups, 1)
+	require.Len(t, svc.Groups[0].Operations, 1)
+	op := svc.Groups[0].Operations[0]
+	require.Equal(t, "group-path-prefix", op.Provenance.Inferred,
+		"the operation is marked, so the finding had a marker to take")
+
+	var found []ir.Diagnostic
+	for _, d := range diags {
+		if d.Code == diag.DegradedConstruct && strings.HasPrefix(d.Message, "operation servers kept") {
+			found = append(found, d)
+		}
+	}
+	require.Len(t, found, 1)
+	assert.Empty(t, found[0].Provenance.Inferred, "the servers are declared, not inferred")
+	assert.Equal(t, op.Provenance.Pointer, found[0].Provenance.Pointer, "and still reported at the operation")
+}
+
 // TestXML_NodeTypeIsReadAtEveryVersion pins the 3.2 XML nodeType:
 // ir.XMLHints.NodeType already existed and its GoDoc already named the version,
 // so this is the wiring. Below 3.2 it reads the same, and load adds that the

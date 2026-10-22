@@ -211,9 +211,18 @@ func applyOperationServers(c lowering.Ctx, op *ir.Operation, src *soa.Operation,
 	if !kept {
 		return diags
 	}
-	return append(diags, diag.Newf(ir.SeverityInfo, diag.DegradedConstruct, op.Provenance,
+	return append(diags, diag.Newf(ir.SeverityInfo, diag.DegradedConstruct, withoutInferred(op.Provenance),
 		"operation servers kept under Unmodeled; an operation has no server-scope list to bind "+
 			"them to, and these override any path-item servers kept beside them"))
+}
+
+// withoutInferred returns p with no Inferred marker, for a finding about what an
+// operation declares. op.Provenance names the heuristics that shaped the
+// operation, such as path-prefix grouping or inferred streaming, and a finding
+// about its declared servers or documentation owes nothing to any of them.
+func withoutInferred(p ir.Provenance) ir.Provenance {
+	p.Inferred = ""
+	return p
 }
 
 // operationName builds an operation's neutral naming: the operationId when

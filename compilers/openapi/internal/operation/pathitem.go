@@ -234,7 +234,7 @@ type carrier struct {
 func onOperation(op *ir.Operation) carrier {
 	return carrier{
 		unmodeled:  &op.Unmodeled,
-		provenance: op.Provenance,
+		provenance: withoutInferred(op.Provenance),
 		scope:      "pathItem",
 		serversKey: "openapi:servers",
 		keepsDocs:  true,

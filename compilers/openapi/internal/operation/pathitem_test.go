@@ -136,6 +136,40 @@ func TestOperations_PathItemServersKeptOnEveryRoute(t *testing.T) {
 	}
 }
 
+// TestPathItem_KeptFindingsAreNotInferred pins that the findings reporting a
+// path item's servers and documentation, kept on each operation it mounts, name
+// no heuristic. Path-prefix grouping marks the operation, and both findings used
+// to take that marker from the operation's provenance although the path item
+// declares what they report.
+func TestPathItem_KeptFindingsAreNotInferred(t *testing.T) {
+	t.Parallel()
+	svc, diags := serviceWithGrouping(t, openapitest.PathsSpec(`  /x:
+    summary: path summary
+    servers: [{url: 'https://path.example'}]
+    get:
+      operationId: getX
+      responses: {"200": {description: ok}}
+`), lowering.GroupByPathPrefix)
+	openapitest.RequireNoErrorDiags(t, diags)
+	require.Len(t, svc.Groups, 1)
+	require.Len(t, svc.Groups[0].Operations, 1)
+	op := svc.Groups[0].Operations[0]
+	require.Equal(t, "group-path-prefix", op.Provenance.Inferred,
+		"the operation is marked, so the findings had a marker to take")
+
+	for _, prefix := range []string{"path-item servers kept", "path-item documentation kept"} {
+		var found []ir.Diagnostic
+		for _, d := range diags {
+			if d.Code == diag.DegradedConstruct && strings.HasPrefix(d.Message, prefix) {
+				found = append(found, d)
+			}
+		}
+		require.Len(t, found, 1, prefix)
+		assert.Empty(t, found[0].Provenance.Inferred, "%s: the path item declares it", prefix)
+		assert.Equal(t, op.Provenance.Pointer, found[0].Provenance.Pointer, "%s: reported at the operation", prefix)
+	}
+}
+
 // pathItemUnknownKeySpec writes one key the Path Item Object does not define on
 // each of the three path items a document can declare, valued with its route so
 // an entry recovered from the wrong item cannot pass for the right one.
