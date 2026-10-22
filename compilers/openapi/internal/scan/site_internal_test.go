@@ -234,7 +234,7 @@ func TestLeast_FollowsEveryValueOfARepeatedKey(t *testing.T) {
 }
 
 // bothOrders is a document declaring members under header as given and
-// reversed, each member one line.
+// reversed, each member one or more whole lines.
 func bothOrders(header string, members []string) map[string][]byte {
 	reversed := slices.Clone(members)
 	slices.Reverse(reversed)

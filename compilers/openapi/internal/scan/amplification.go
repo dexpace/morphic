@@ -78,12 +78,12 @@ func shapeAllowance(raw int64) int64 {
 }
 
 // aliasAmplificationDiag builds a diag.AliasAmplification error diagnostic
-// anchored where locate puts the node whose expansion first crossed allowance.
-// The reported node count is a lower bound ("at least"), not the exact
-// expansion: aliasWeigher saturates its arithmetic at the allowance, so the
-// true expansion of a severe bomb (the 10-level x 10-way fixture expands past
-// 37 billion nodes) is never actually computed, only proven to exceed the
-// allowance.
+// anchored where locate puts n, the innermost node past allowance that
+// aliasAmplification names. The reported node count is a lower bound ("at
+// least"), not the exact expansion: aliasWeigher saturates its arithmetic one
+// past the allowance, so the true expansion of a severe bomb (the 10-level x
+// 10-way fixture expands past 37 billion nodes) is never actually computed,
+// only proven to exceed the allowance.
 func aliasAmplificationDiag(locate Locator, n *yaml.Node, allowance, raw int64) ir.Diagnostic {
 	return diag.Newf(ir.SeverityError, diag.AliasAmplification, locate(n),
 		"YAML alias expansion reaches at least %d nodes, past the %d-node allowance for a %d-node document",
@@ -107,10 +107,10 @@ type weighFrame struct {
 	expanded bool
 }
 
-// aliasWeigher computes expandedWeight(n) for every node reachable from a
-// root, stopping once one node's weight exceeds its allowance. A nil node
-// weighs 0, an alias weighs what its target weighs, and any other node weighs 1
-// plus the weight of its Content.
+// aliasWeigher computes expandedWeight(n), held to at most one past its
+// allowance, for every node reachable from a root. A nil node weighs 0, an
+// alias weighs what its target weighs, and any other node weighs 1 plus the
+// weight of its Content.
 //
 // That is what soa.Unmarshal pays: it builds a model subtree for every path
 // reaching a node (docs/parser-library.md#alias-expansion). The count is exact
@@ -153,9 +153,9 @@ func newAliasWeigher(allowance int64) *aliasWeigher {
 // too large. It returns none for a document within the allowance. It weighs on
 // past the first, since which comes first is the document's declaration order.
 //
-// Each distinct node enters the stack at most once, because pushChildren skips
-// one whose weight is known or that is in flight, so the stack is bounded by
-// the distinct nodes reachable from root.
+// A node is expanded once at most: a weighed node's frame pops unexpanded, and
+// pushChildren skips one in flight. Each node depending on it may push it, so
+// Content entries and aliases bound the stack.
 func (w *aliasWeigher) weigh(root *yaml.Node) []*yaml.Node {
 	if root == nil {
 		return nil
@@ -247,9 +247,9 @@ func (w *aliasWeigher) computeWeight(n *yaml.Node) int64 {
 
 // childrenOf returns the nodes n's expandedWeight depends on: an alias node
 // depends only on its target, never on its own (always empty) Content, and
-// every other node depends on its Content. This is the one place the two node
-// kinds are told apart, so every other method can treat "the nodes n depends
-// on" uniformly.
+// every other node depends on its Content. pushChildren and dependsOnAmplifier
+// read dependencies through it, so only it and computeWeight, which weighs an
+// alias as its target alone, tell the two kinds apart.
 func childrenOf(n *yaml.Node) []*yaml.Node {
 	if n.Kind == yaml.AliasNode {
 		if n.Alias == nil {
