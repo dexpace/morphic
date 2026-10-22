@@ -427,13 +427,14 @@ func TestImportGraph_ContractEntryAdmitsNoSiblingCompiler(t *testing.T) {
 	t.Parallel()
 	allowed := rules["compilers/openapi"]
 	require.NotEmpty(t, allowed, "rules must still carry the compilers/openapi entry")
-	assert.True(t, importAllowed(module+"/compilers", allowed), "the contract package")
-	assert.True(t, importAllowed(module+"/compilers/compile", allowed), "the shared framework package")
-	assert.True(t, importAllowed("github.com/speakeasy-api/openapi/jsonschema/oas3", allowed),
+	allows := func(ip string) bool { return admit(ip, allowed, make([]bool, len(allowed))) }
+	assert.True(t, allows(module+"/compilers"), "the contract package")
+	assert.True(t, allows(module+"/compilers/compile"), "the shared framework package")
+	assert.True(t, allows("github.com/speakeasy-api/openapi/jsonschema/oas3"),
 		"a subtree entry still admits the packages under it")
-	assert.False(t, importAllowed(module+"/compilers/graphql", allowed),
+	assert.False(t, allows(module+"/compilers/graphql"),
 		"a sibling compiler must not ride in on the contract entry")
-	assert.False(t, importAllowed(module+"/engine", allowed), "nor a layer above")
+	assert.False(t, allows(module+"/engine"), "nor a layer above")
 }
 
 // TestWalkImports_NestedLookAlikeIsAudited plants the tree the skip decision
@@ -472,11 +473,12 @@ func TestWalkImports_AnInheritingPackageIsNamed(t *testing.T) {
 	assert.Contains(t, violations[0], "compilers/newformat has no rules entry of its own")
 }
 
-// TestWalkImports_AnUnusedAllowanceIsReported plants a tree that imports one of
-// three allowed entries directly and a second through its subtree, and holds
-// the walk to naming the third alone. A subtree entry is used by any import
-// beneath it, as entryAdmits admits one; an entry only an unaudited test file
-// imports is still unused.
+// TestWalkImports_AnUnusedAllowanceIsReported plants a tree that imports one
+// allowed entry directly and another both exactly and through its subtree, and
+// holds the walk to naming the remaining entry alone. A subtree entry is used
+// by any import beneath it, as entryAdmits admits one, and an import two
+// entries admit uses both; an entry only an unaudited test file imports is
+// still unused.
 func TestWalkImports_AnUnusedAllowanceIsReported(t *testing.T) {
 	t.Parallel()
 	base := t.TempDir()
@@ -484,8 +486,8 @@ func TestWalkImports_AnUnusedAllowanceIsReported(t *testing.T) {
 	writeImporter(t, filepath.Join(base, "b.go"), "example.com/tree/leaf")
 	writeImporter(t, filepath.Join(base, "c_test.go"), "example.com/unused")
 
-	violations, unused, err := walkImports("planted", base,
-		[]string{"example.com/used", "example.com/tree" + subtreeSuffix, "example.com/unused"})
+	violations, unused, err := walkImports("planted", base, []string{"example.com/used",
+		"example.com/tree" + subtreeSuffix, "example.com/tree/leaf", "example.com/unused"})
 	require.NoError(t, err)
 	assert.Empty(t, violations)
 	assert.Equal(t, []string{"example.com/unused"}, unused)
@@ -695,13 +697,7 @@ func fileViolations(p, dir string, allowed []string, used []bool) ([]string, err
 			continue // stdlib: first path element has no dot
 		}
 		// An empty allowlist (the "ir" rule) forbids every non-stdlib import.
-		admitted := false
-		for i, entry := range allowed {
-			if entryAdmits(entry, ip) {
-				used[i], admitted = true, true
-			}
-		}
-		if !admitted {
+		if !admit(ip, allowed, used) {
 			violations = append(violations,
 				fmt.Sprintf("%s imports %q: not allowed for %s (allowed: %v)", p, ip, dir, allowed))
 		}
@@ -709,15 +705,23 @@ func fileViolations(p, dir string, allowed []string, used []bool) ([]string, err
 	return violations, nil
 }
 
-// importAllowed reports whether the import path ip is covered by allowed: an
-// entry matches ip exactly, or — written with the subtree suffix — matches ip
-// and everything under it. Matching a subtree on segment boundaries is what
-// keeps "ir" from admitting "irtest".
-func importAllowed(ip string, allowed []string) bool {
-	return slices.ContainsFunc(allowed, func(entry string) bool { return entryAdmits(entry, ip) })
+// admit reports whether allowed covers the import path ip, marking in used
+// every entry that does rather than the first, so which of two entries is
+// reported unused never depends on the order the allowlist lists them in.
+func admit(ip string, allowed []string, used []bool) bool {
+	admitted := false
+	for i, entry := range allowed {
+		if entryAdmits(entry, ip) {
+			used[i], admitted = true, true
+		}
+	}
+	return admitted
 }
 
-// entryAdmits reports whether one allowlist entry covers the import path ip.
+// entryAdmits reports whether one allowlist entry covers the import path ip:
+// the entry matches ip exactly, or — written with the subtree suffix — matches
+// ip and everything under it. Matching a subtree on segment boundaries is what
+// keeps "ir" from admitting "irtest".
 func entryAdmits(entry, ip string) bool {
 	root, subtree := strings.CutSuffix(entry, subtreeSuffix)
 	return ip == root || (subtree && strings.HasPrefix(ip, root+"/"))

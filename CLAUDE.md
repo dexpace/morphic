@@ -166,8 +166,8 @@ is out), because `TestImportGraph_EveryPackageIsRuledOrExempt` fails otherwise; 
 unkeyed subdirectory is audited under its nearest keyed ancestor's allowlist, so nesting is not a
 way to widen one; and give it its own entry rather than letting it inherit a wider one, since an
 inherited allowlist says nothing about where the package sits. `TestImportGraph_LayeringHolds` also
-fails on an entry no production file under it imports, so a change that drops a package's last
-import of something drops the entry with it.
+fails on an entry that no production file the rule audits imports, so a change that drops a
+package's last import of something drops the entry with it.
 
 Caps also guard shape rather than the graph. No type under `compilers/` may carry more than 20
 methods (`internal/archtest`), and no function may exceed 70 lines or a cognitive complexity of 20
