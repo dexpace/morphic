@@ -1,18 +1,21 @@
 # Parser library behaviours
 
 The OpenAPI compiler reads a document through `github.com/speakeasy-api/openapi`, the parser
-library. Its decoder builds the typed model from the YAML tree, its resolver follows `$ref`s, its
-validator reports what the model breaks, and its overlay applier patches a YAML tree. This page
-records what the compiler depends on the library doing, defects included: each behaviour the
-compiler refuses input over or works around. Each entry gives the behaviour, the smallest input
-that shows it, the compiler code that exists because of it, and the test that pins it.
+library. Its decoder builds the typed model from the YAML tree, its resolver follows `$ref`s, and
+its overlay applier patches a YAML tree. This page records what the compiler depends on the library
+doing, defects included: each behaviour the compiler refuses input over or works around. Each entry
+gives the behaviour, the smallest input that shows it, the compiler code that exists because of it,
+and the test that pins it.
 
 Not every reading the compiler shares with the library is an entry. Where the compiler reproduces
 one, such as how the resolver reads a JSON pointer, a test beside the reproduction asks the library
 the same question. The resolver oracle in `internal/harness` pins, in a golden of its own, what the
 resolver does with each reference shape it generates. The binding oracle in
 `compilers/openapi/internal/canary` holds what the compiler binds each schema `$ref` to against what
-the resolver resolves it to, and lists every disagreement with its reason.
+the resolver resolves it to, and lists every disagreement with its reason. The validation oracle
+beside it does the same for the library's validator, which the compiler does not call: it holds the
+validator's findings to the compiler's own table of the specification's rules
+([`validation`](compilers/openapi.md#validation)).
 
 Code that depends on a behaviour cites its entry, as `docs/parser-library.md#<key>`, instead of
 restating it. It never names a library version: the entry says what holds at the version it was
@@ -356,8 +359,8 @@ B: {$ref}
 - Verified at: v1.25.5
 - Pinned by: `TestLibraryBehaviour/recoverable-panic`
 - Code:
-  - `load.recovered` turns a panic in resolution, a walk or validation into an error naming what
-    was running.
+  - `load.recovered` turns a panic in resolution, in a walk, or in building the fields beside a
+    path item's `$ref` into an error naming what was running.
   - `load.unmarshal` turns a panic in decoding into an `ErrParse` error.
   - `bind/typed.Builder.decodeRecovered` turns a panic in decoding raw YAML as a schema into a
     failure to build it.
@@ -466,22 +469,6 @@ components:
   - `annotation.IsNullLiteral` tells a `null` from `false` by its node.
   - `annotation.IsFalseSchema` excludes a `null`, so no reader takes one for `false`.
 
-### `bare-walk-panic`
-
-`soa.Walk` panics with `no match handler registered` when started from a reference object that is
-not wrapped in its `Referenced` type: a path item, parameter, header, request body, response,
-callback, example, link or security scheme. It does the same for a `JSONSchema[Concrete]`. Each
-walks once wrapped, or converted to a `JSONSchema[Referenceable]`.
-
-```go
-soa.Walk(ctx, &soa.PathItem{}) // panics
-```
-
-- Verified at: v1.25.5
-- Pinned by: `TestLibraryBehaviour/bare-walk-panic`
-- Code:
-  - `load.reachedWalk` wraps each kind before walking it.
-
 ## Overlays
 
 ### `overlay-alias-clone`
@@ -505,50 +492,3 @@ actions:
   - `load.overlayRefusals` runs it before the overlay is applied.
   - `overlay.repairGrafts` replaces each alias the application leaves naming a copy with what it
     stands for.
-
-## Validation
-
-### `validation-version`
-
-Validation does not gate a construct by the declared version, with one exception: it refuses
-`additionalOperations` before 3.2. A construct a later minor version added passes at an earlier
-one, such as `webhooks` at 3.0.3. A field a later minor stopped requiring is required even where
-it is optional: an operation's `responses` (optional from 3.1) and a response's `description`
-(optional from 3.2). And three constructs 3.2 added fail at 3.2.0: `style: cookie` on a cookie
-parameter, `discriminator.defaultMapping` and `xml.nodeType`. The last two are findings of the 3.1
-meta-schema: a schema's own `Validate` discards the version it is handed, which the package-level
-`oas3.Validate` reads.
-
-```yaml
-openapi: 3.2.0
-components:
-  schemas:
-    Q: {type: object, xml: {nodeType: element}}   # refused
-```
-
-- Verified at: v1.25.5
-- Pinned by: `TestLibraryBehaviour/validation-version`
-- Code:
-  - `load.versionCheck` reports a later minor's construct at an earlier version.
-  - `load.metaSchemaVersionArtifacts` drops the 3.1 meta-schema's findings in a 3.2 document.
-  - `load.findRequiredArtifacts` drops a required-field finding for a field the version does not
-    require.
-
-`style: cookie` is still reported (#389).
-
-### `empty-is-missing`
-
-Validation reports a required field written as the empty string, or as an empty map, as missing:
-`title: ''` draws `` `info.title` is required ``, and a request body's `content: {}` draws
-`` `requestBody.content` is required ``. The specification requires the field to be present, and
-every minor's schema admits the empty value.
-
-```yaml
-info: {title: '', version: '1'}
-```
-
-- Verified at: v1.25.5
-- Pinned by: `TestLibraryBehaviour/empty-is-missing`
-- Code:
-  - `load.findRequiredArtifacts` drops such a finding where the field is written.
-  - `load.emptyValues` names the fields it concerns.

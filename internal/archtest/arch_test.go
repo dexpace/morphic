@@ -67,6 +67,13 @@ var rules = map[string][]string{
 	// included: an internal test file cannot import a package that imports its
 	// own.
 	"compilers/openapi/internal/ynode": {"gopkg.in/yaml.v3"},
+	// The OpenAPI Specification's rules as data, and the engine that checks a
+	// source tree against them at the minor it declares. It reads the tree
+	// through nodeview, reports through diag and reaches nothing that loads or
+	// lowers: the table is the compiler's own authority on the specification,
+	// so it depends on no parser library.
+	"compilers/openapi/internal/oas": {module + "/ir", module + "/compilers/openapi/internal/diag",
+		module + "/compilers/openapi/internal/nodeview", "gopkg.in/yaml.v3"},
 	// The one reading of a $ref fragment, and the spelling the resolver is handed
 	// for it (GitHub #911). It reaches the library's reference type for the
 	// resolver's own reading and nothing of the compiler, so the scans, the loader
@@ -136,16 +143,15 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/ids",
 		module + "/compilers/openapi/internal/nodeview",
 		"github.com/speakeasy-api/openapi/overlay", "gopkg.in/yaml.v3"},
-	// The entry side: parse, validate, resolve. It indexes the tree its one decode
+	// The entry side: parse, check, resolve. It indexes the tree its one decode
 	// produced through sourceindex, runs the pre-lowering refusals over that index
-	// through scan, applies the caller's overlay through overlay, and reads value
-	// only to tell a real numeric-literal problem from a library artifact. It
-	// reaches resolve to read which mapping values name a position in the source
-	// as the lowering will, and the library's pointer walk, directly and through
-	// navigation, to tell a hop that walked a document's bytes and to walk a
-	// document as it does, and the library's ordered map to validate a server
-	// again over copies of its variables. It reaches nothing that lowers — at
-	// this point there is no document to lower.
+	// through scan, applies the caller's overlay through overlay, and holds the
+	// tree, and what its references reach, to the specification's rules through
+	// oas. It reaches resolve to read which mapping values name a position in the
+	// source as the lowering will, and the library's pointer walk, directly and
+	// through navigation, to tell a hop that walked a document's bytes and to
+	// walk a document as it does. It reaches nothing that lowers — at this point
+	// there is no document to lower.
 	"compilers/openapi/internal/load": {module + "/ir", module + "/compilers",
 		module + "/compilers/openapi/internal/bind",
 		module + "/compilers/openapi/internal/bind/typed",
@@ -153,18 +159,16 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/fragment",
 		module + "/compilers/openapi/internal/navigation",
 		module + "/compilers/openapi/internal/nodeview",
+		module + "/compilers/openapi/internal/oas",
 		module + "/compilers/openapi/internal/overlay",
 		module + "/compilers/openapi/internal/resolve",
 		module + "/compilers/openapi/internal/scan",
 		module + "/compilers/openapi/internal/sourceindex",
-		module + "/compilers/openapi/internal/value",
 		"github.com/speakeasy-api/openapi/jsonpointer",
 		"github.com/speakeasy-api/openapi/jsonschema/oas3",
 		"github.com/speakeasy-api/openapi/marshaller",
 		"github.com/speakeasy-api/openapi/openapi",
 		"github.com/speakeasy-api/openapi/references",
-		"github.com/speakeasy-api/openapi/sequencedmap",
-		"github.com/speakeasy-api/openapi/validation",
 		"github.com/speakeasy-api/openapi/yml", "gopkg.in/yaml.v3"},
 	// What a $ref names: the pointer it addresses, the schema declared there and
 	// the type already interned there. It reaches bind for where a schema $ref

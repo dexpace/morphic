@@ -1,0 +1,5 @@
+openapi: 3.1.0
+info: {title: t, version: '1'}
+paths:
+  /a:
+    get: {operationId: g, bogusKey: 1, responses: {'200': {description: ok}}}

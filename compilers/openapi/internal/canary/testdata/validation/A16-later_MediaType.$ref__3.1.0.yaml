@@ -1,0 +1,8 @@
+openapi: 3.1.0
+info: {title: t, version: '1'}
+paths:
+  /a:
+    post:
+      requestBody: {content: {application/json: {$ref: '#/components/mediaTypes/M'}}}
+      responses: {'200': {description: ok}}
+components: {mediaTypes: {M: {schema: {type: string}}}}

@@ -4,11 +4,9 @@ paths: {}
 components:
   schemas:
     # defaultMapping is a 3.2 addition to the discriminator object, and the only
-    # source Discriminator.Default has. It lives on a schema object, which the
-    # parser checks against the 3.1 meta-schema whatever the document says
-    # (docs/parser-library.md#validation-version) — so this spec is also the
-    # witness that the compiler reconciles those findings against the version
-    # the document declares.
+    # source Discriminator.Default has. It lives on a schema object, so this
+    # spec is also the witness that a schema is held to the rules of the version
+    # the document declares, which define it.
     Pet:
       type: object
       required: [petType]

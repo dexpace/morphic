@@ -30,9 +30,6 @@ func canaries() map[string]func(t *testing.T) {
 		"duplicate-key":          duplicateKey,
 		"unmodeled-keywords":     unmodeledKeywords,
 		"null-schema-is-false":   nullSchemaIsFalse,
-		"bare-walk-panic":        bareWalkPanic,
-		"validation-version":     validationVersion,
-		"empty-is-missing":       emptyIsMissing,
 		"overlay-alias-clone":    overlayAliasClone,
 		"trailing-empty-token":   trailingEmptyToken,
 	}

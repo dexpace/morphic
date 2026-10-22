@@ -45,6 +45,8 @@ func Constraints(s *oas3.Schema, exclusiveBoolean bool, pointer jsontext.Pointer
 	diags := numericBounds(c, s)
 	diags = append(diags, applyExclusive(c, s, minBound, &residue, exclusiveBoolean)...)
 	diags = append(diags, applyExclusive(c, s, maxBound, &residue, exclusiveBoolean)...)
+	// The parser's model holds these four as int64, and a literal past that as 0,
+	// which nothing reports yet (GitHub #1050).
 	c.MinLength = s.MinLength
 	c.MaxLength = s.MaxLength
 	c.Pattern = s.GetPattern()
