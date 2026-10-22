@@ -15,6 +15,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -460,4 +461,25 @@ components:
 	assert.Equal(t, "declared", byName["BaseKey"],
 		"the aliasing entry's siblings do not reach the declaration")
 	require.Empty(t, messagesAt(diags, diag.UnresolvedRef))
+}
+
+// TestAuth_UnserializableExtensionStillWarns pins that a security scheme whose
+// sole x-* extension fails to serialize still surfaces the warning, although
+// nothing reaches the scheme's Unmodeled: a warning gated on there being an
+// extension to keep would be dropped in exactly this case.
+func TestAuth_UnserializableExtensionStillWarns(t *testing.T) {
+	t.Parallel()
+	spec := `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  securitySchemes:
+    s: {type: apiKey, in: header, name: X-Key, x-bad: {1: intkey}}
+`
+	doc, _, diags := serviceSpec(t, spec)
+	assert.Positive(t, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning),
+		"an entirely unserializable extension still warns even though the scheme's own Unmodeled ends up empty")
+	scheme, ok := doc.Auth[ids.Auth("s")]
+	require.True(t, ok)
+	assert.Empty(t, scheme.Unmodeled, "the unserializable extension is dropped, not stored")
 }

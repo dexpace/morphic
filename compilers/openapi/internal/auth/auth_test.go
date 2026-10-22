@@ -8,7 +8,6 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
-	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
@@ -151,27 +150,6 @@ components:
 	assert.Equal(t, keyID, svc.Auth[1].Schemes[0].Scheme)
 	require.Len(t, svc.Auth[2].Schemes, 2, "one option, two schemes ANDed")
 	assert.Equal(t, []string{"read", "write"}, svc.Auth[2].Schemes[0].Scopes)
-}
-
-// TestAuth_UnserializableExtensionStillWarns pins that a security scheme whose
-// sole x-* extension fails to serialize still surfaces the warning, although
-// nothing reaches the scheme's Unmodeled: a warning gated on there being an
-// extension to keep would be dropped in exactly this case.
-func TestAuth_UnserializableExtensionStillWarns(t *testing.T) {
-	t.Parallel()
-	spec := `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths: {}
-components:
-  securitySchemes:
-    s: {type: apiKey, in: header, name: X-Key, x-bad: {1: intkey}}
-`
-	doc, _, diags := serviceSpec(t, spec)
-	assert.Positive(t, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning),
-		"an entirely unserializable extension still warns even though the scheme's own Unmodeled ends up empty")
-	scheme, ok := doc.Auth[ids.Auth("s")]
-	require.True(t, ok)
-	assert.Empty(t, scheme.Unmodeled, "the unserializable extension is dropped, not stored")
 }
 
 const authSpec = `openapi: 3.1.0
