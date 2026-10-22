@@ -2,6 +2,7 @@ package annotation
 
 import (
 	"encoding/json/jsontext"
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -142,7 +143,8 @@ func TestJSONObject_PropagatesAQuoteFailure(t *testing.T) {
 
 // TestValidationOnlyAt_KeepsEveryKeywordItClaims pins the §4.7 family as a set.
 // A keyword missing from this list is one the IR neither models nor keeps, which
-// is the silent-drop class of defect the family exists to prevent.
+// is the silent-drop class of defect the family exists to prevent. Each entry is
+// announced once, by the name it was kept under, whichever keeper kept it.
 func TestValidationOnlyAt_KeepsEveryKeywordItClaims(t *testing.T) {
 	t.Parallel()
 	s := schemaFromYAML(t, "type: object\n"+
@@ -166,7 +168,19 @@ func TestValidationOnlyAt_KeepsEveryKeywordItClaims(t *testing.T) {
 		assert.Equal(t, ir.ReasonValidationOnly, entry.Reason, "%s", key)
 		assert.NotEmpty(t, entry.Value, "%s must carry bytes", key)
 	}
-	assert.Len(t, diags, len(got), "each kept keyword is announced exactly once")
+	announced := make([]string, 0, len(diags))
+	for _, d := range diags {
+		announced = append(announced, d.Message)
+	}
+	labels := []string{
+		"not", "if/then/else", "dependentSchemas", "dependentRequired", "propertyNames", "contains", "unevaluated",
+	}
+	want := make([]string, 0, len(labels))
+	for _, label := range labels {
+		want = append(want, fmt.Sprintf("validation-only keyword %q kept verbatim under Unmodeled", label))
+	}
+	assert.Equal(t, want, announced)
+	assert.Len(t, got, len(announced), "no entry goes unannounced")
 }
 
 // TestValidationOnlyAt_AnUnconvertibleKeywordIsReportedNotKept pins the error

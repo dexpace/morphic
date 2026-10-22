@@ -365,8 +365,8 @@ func applyFalseBranches(c lowering.Ctx, m *ir.Model, comp allOfComposition) []ir
 			continue // `true`, a null and any schema with a body close nothing.
 		}
 		m.Additional = ir.AdditionalClosed
-		preserve(c, &m.Unmodeled, comp.branchKey(e.pointer),
-			ir.RawValue("false"), ir.ReasonDegradedLowering, e.pointer)
+		annotation.PreserveInto(&m.Unmodeled, comp.branchKey(e.pointer),
+			ir.RawValue("false"), ir.ReasonDegradedLowering, c.ProvenanceAt(e.pointer))
 
 		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.FalseSchema, e.pointer,
 			"boolean false allOf branch matches nothing, so the composition matches nothing; "+
@@ -394,8 +394,8 @@ func preserveUnmergedBranch(c lowering.Ctx, m *ir.Model, e allOfBranch, key stri
 	if len(residue) == 0 {
 		return nil
 	}
-	kept, keptDiags := PreserveNode(c, &m.Unmodeled, key,
-		bs.GetRootNode(), ir.ReasonDegradedLowering, e.pointer)
+	kept, keptDiags := annotation.PreserveNodeInto(&m.Unmodeled, key,
+		bs.GetRootNode(), ir.ReasonDegradedLowering, c.ProvenanceAt(e.pointer))
 	if !kept {
 		return keptDiags
 	}
@@ -1110,7 +1110,7 @@ func preserveUnusedCombinator(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, w
 		return nil
 	}
 	unused := otherCombinator[won]
-	kept, diags := PreserveSchemaKeyword(c, p, s, unused, ir.ReasonDegradedLowering, pointer+ids.Ptr(unused))
+	kept, diags := annotation.PreserveSchemaKeyword(p, s, unused, ir.ReasonDegradedLowering, pointer, c.ProvenanceAt)
 	if !kept {
 		return diags
 	}

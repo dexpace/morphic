@@ -670,7 +670,8 @@ with an `openapi/degraded-construct` warning at its position, and a `const` or a
 - Tests: `value.TestNumericLiteral_YAMLBases`, `value.TestValueFromNode_Timestamp`,
   `annotation.TestSchemaExamplesAt_UnconvertibleValueIsReportedNotDropped`
 - Status: partly built: a `<<` merge key in a mapping value stays a member named `<<`, where a
-  verbatim payload merges it (#395).
+  verbatim payload merges it (#395), and an unconvertible default is reported at the schema of the
+  property or parameter that reads it rather than at its own position (#1101).
 
 ## 4. Schemas: identity, references and annotations
 

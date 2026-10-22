@@ -1,11 +1,14 @@
 package annotation
 
 import (
+	"encoding/json/jsontext"
 	"maps"
 
+	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -45,7 +48,7 @@ func PreserveNodeInto(p *ir.Unmodeled, key string, node *yaml.Node,
 ) (bool, []ir.Diagnostic) {
 	raw, err := RawFromNode(node)
 	if err != nil {
-		return false, []ir.Diagnostic{UnpreservableDiag(key, prov, err)}
+		return false, []ir.Diagnostic{unpreservableDiag(key, prov, err)}
 	}
 	if len(raw) == 0 {
 		return false, nil
@@ -54,7 +57,42 @@ func PreserveNodeInto(p *ir.Unmodeled, key string, node *yaml.Node,
 	return true, nil
 }
 
-// UnpreservableDiag reports a construct the compiler could neither model nor
+// PreserveSchemaKeyword is PreserveNodeInto addressed by keyword: it keeps what
+// s, the schema at pointer, writes under keyword, keyed by EntryKey and located
+// at the keyword itself. Those are the key and the position the census checks
+// before keeping a keyword on its own (unrecorded). Deriving both here leaves
+// no caller a way to have the census keep the keyword again under another key,
+// or report a collision with this entry.
+//
+// An absent keyword is no construct: it keeps nothing and asks locate nothing.
+func PreserveSchemaKeyword(p *ir.Unmodeled, s *oas3.Schema, keyword string,
+	reason ir.UnmodeledReason, pointer jsontext.Pointer, locate Locator,
+) (bool, []ir.Diagnostic) {
+	node := RawPropertyNode(s, keyword)
+	if node == nil {
+		return false, nil
+	}
+	return PreserveNodeInto(p, EntryKey("", keyword), node, reason, locate(pointer+ids.Ptr(keyword)))
+}
+
+// PreserveValidationOnlyKeyword is PreserveSchemaKeyword for a §4.7 keyword: it
+// keeps the keyword under ReasonValidationOnly, at its own node, which is what a
+// validation emitter reports against, and announces it at pointer, the schema
+// that wrote it. What PreserveSchemaKeyword keeps nothing of, it announces
+// nothing of. A §4.7 entry combining several keywords has no such node and is
+// not kept here but by Read, which attributes it by the keywords it holds
+// (GitHub #534).
+func PreserveValidationOnlyKeyword(p *ir.Unmodeled, s *oas3.Schema, keyword string,
+	pointer jsontext.Pointer, locate Locator,
+) []ir.Diagnostic {
+	kept, diags := PreserveSchemaKeyword(p, s, keyword, ir.ReasonValidationOnly, pointer, locate)
+	if !kept {
+		return diags
+	}
+	return append(diags, validationOnlyNote(locate(pointer), keyword))
+}
+
+// unpreservableDiag reports a construct the compiler could neither model nor
 // keep verbatim, so nothing of it reached the IR.
 //
 // Error rather than the degradation severity its callers otherwise use: a
@@ -66,25 +104,32 @@ func PreserveNodeInto(p *ir.Unmodeled, key string, node *yaml.Node,
 // failure as a warning and is deliberately left alone: it already branches on the
 // error and never claimed to have kept anything, so it is not the defect this
 // code exists for.
-func UnpreservableDiag(key string, prov ir.Provenance, err error) ir.Diagnostic {
+func unpreservableDiag(key string, prov ir.Provenance, err error) ir.Diagnostic {
 	return diag.Newf(ir.SeverityError, diag.UnpreservableConstruct, prov,
 		"%s could not be kept verbatim under Unmodeled and is represented in the IR "+
 			"in no form at all: %s", key, err.Error())
 }
 
-// PreserveKeywordInto records a validation-only keyword at entry and returns the
-// one diagnostic announcing it at note, the schema that wrote it. An absent
-// payload records nothing and announces nothing; an unconvertible one never
-// reaches here, because its caller reports it through UnpreservableDiag first.
-func PreserveKeywordInto(p *ir.Unmodeled, key string, raw ir.RawValue,
+// preserveValidationOnlyInto records a validation-only payload at entry and
+// returns the one diagnostic announcing it at note, the schema that wrote it,
+// naming it by label. An absent payload records nothing and announces nothing;
+// an unconvertible one never reaches here, because its caller reports it
+// through unpreservableDiag first.
+func preserveValidationOnlyInto(p *ir.Unmodeled, key string, raw ir.RawValue,
 	entry, note ir.Provenance, label string,
 ) []ir.Diagnostic {
 	if len(raw) == 0 {
 		return nil
 	}
 	PreserveInto(p, key, raw, ir.ReasonValidationOnly, entry)
-	return []ir.Diagnostic{diag.Newf(ir.SeverityInfo, diag.ValidationOnlyKeyword, note,
-		"validation-only keyword %q kept verbatim under Unmodeled", label)}
+	return []ir.Diagnostic{validationOnlyNote(note, label)}
+}
+
+// validationOnlyNote announces the §4.7 entry named label at note, the schema
+// that wrote it: one info per entry kept, whichever keeper kept it.
+func validationOnlyNote(note ir.Provenance, label string) ir.Diagnostic {
+	return diag.Newf(ir.SeverityInfo, diag.ValidationOnlyKeyword, note,
+		"validation-only keyword %q kept verbatim under Unmodeled", label)
 }
 
 // MergeUnmodeled overlays src onto dst, allocating dst on first write.

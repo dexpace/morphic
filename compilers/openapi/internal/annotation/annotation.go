@@ -61,6 +61,28 @@ func EffectiveVisibility(ref, tgt *oas3.Schema) (ir.Visibility, bool) {
 	}
 }
 
+// EffectiveDefault returns the default ref, the schema at pointer, writes, or
+// else the one its referent tgt writes, for the property or parameter ref
+// describes to keep. A schema writing none yields nothing; an unconvertible
+// node yields a warning at pointer and no value, rather than a warning at the
+// default's own position as docs/compilers/openapi.md#values asks (GitHub
+// #1101).
+func EffectiveDefault(ref, tgt *oas3.Schema, pointer jsontext.Pointer, locate Locator) (*ir.Value, []ir.Diagnostic) {
+	node := ref.GetDefault()
+	if node == nil && tgt != nil {
+		node = tgt.GetDefault()
+	}
+	if node == nil {
+		return nil, nil
+	}
+	v, err := value.FromNode(node)
+	if err != nil {
+		return nil, []ir.Diagnostic{diag.Newf(ir.SeverityWarning, diag.DegradedConstruct, locate(pointer),
+			"default: %s", err.Error())}
+	}
+	return &v, nil
+}
+
 // pickFlag returns the bool field extracted by accessor from ref when present,
 // else from tgt, else false. It is the single nil-safe "use-site overrides
 // referent" primitive for boolean schema flags (readOnly, writeOnly, deprecated).
@@ -436,14 +458,13 @@ func dialectAt(s *oas3.Schema, pointer jsontext.Pointer, locate Locator) (ir.Unm
 	var p ir.Unmodeled
 	var diags []ir.Diagnostic
 	for _, keyword := range DialectKeywords {
-		prov := locate(pointer + ids.Ptr(keyword))
-		kept, keptDiags := PreserveNodeInto(&p, "openapi:"+keyword, RawPropertyNode(s, keyword),
-			ir.ReasonOutOfScope, prov)
+		kept, keptDiags := PreserveSchemaKeyword(&p, s, keyword, ir.ReasonOutOfScope, pointer, locate)
 		diags = append(diags, keptDiags...)
 		if !kept {
 			continue
 		}
-		diags = append(diags, diag.Newf(ir.SeverityInfo, diag.DegradedConstruct, prov,
+		at := locate(pointer + ids.Ptr(keyword))
+		diags = append(diags, diag.Newf(ir.SeverityInfo, diag.DegradedConstruct, at,
 			"%s identifies or configures a JSON Schema resource rather than describing data; "+
 				"the IR models no such axis, so it is kept verbatim under Unmodeled and %s", keyword,
 			dialectRead(keyword)))
@@ -458,26 +479,36 @@ func dialectAt(s *oas3.Schema, pointer jsontext.Pointer, locate Locator) (ir.Unm
 func schemaExamplesAt(s *oas3.Schema, pointer jsontext.Pointer, locate Locator) ([]ir.Example, []ir.Diagnostic) {
 	var out []ir.Example
 	var diags []ir.Diagnostic
+	add := func(node *yaml.Node, seg ...string) {
+		var exDiags []ir.Diagnostic
+		out, exDiags = AppendExample(out, ir.Example{}, node, locate, pointer, seg...)
+		diags = append(diags, exDiags...)
+	}
 	if node := s.GetExample(); node != nil {
-		out, diags = appendExampleAt(out, diags, node, locate, pointer, "example")
+		add(node, "example")
 	}
 	for i, node := range s.GetExamples() {
-		out, diags = appendExampleAt(out, diags, node, locate, pointer, "examples", strconv.Itoa(i))
+		add(node, "examples", strconv.Itoa(i))
 	}
 	return out, diags
 }
 
-// appendExampleAt converts one example node, reporting an unconvertible value
-// rather than dropping it.
-func appendExampleAt(out []ir.Example, diags []ir.Diagnostic, node *yaml.Node,
+// AppendExample converts node into proto's value and appends the result to out.
+// An unconvertible node is skipped and yields a warning diagnostic for the
+// caller to record: an example is an annotation, not a structural hole, so
+// losing it is fine as long as it is not silent. proto carries the annotations
+// around the value (name, summary, description); base and seg locate the node,
+// joined into a pointer only on the failure path.
+func AppendExample(out []ir.Example, proto ir.Example, node *yaml.Node,
 	locate Locator, base jsontext.Pointer, seg ...string,
 ) ([]ir.Example, []ir.Diagnostic) {
 	v, err := value.FromNode(node)
 	if err != nil {
-		return out, append(diags, diag.Newf(ir.SeverityWarning, diag.DegradedConstruct,
-			locate(base+ids.Ptr(seg...)), "example: %s", err.Error()))
+		return out, []ir.Diagnostic{diag.Newf(ir.SeverityWarning, diag.DegradedConstruct,
+			locate(base+ids.Ptr(seg...)), "example: %s", err.Error())}
 	}
-	return append(out, ir.Example{Value: &v}), diags
+	proto.Value = &v
+	return append(out, proto), nil
 }
 
 // String renders k by name; an assertion failure or test diff over a bare

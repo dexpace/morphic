@@ -120,12 +120,13 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/nodeview",
 		module + "/compilers/openapi/internal/sourceindex", "gopkg.in/yaml.v3"},
 	// What a schema or a carrier says about itself rather than about its shape,
-	// plus the validation-only keywords the IR keeps verbatim. It reads the
-	// parsed model and the raw nodes behind it, and holds no opinion about
-	// lowering — so it sits below the schema lowering that asks it questions and
-	// above nothing that asks it any. It reaches the library's yml package for
-	// the tags its decoder accepts as a string, so a field read off a raw node
-	// decodes as the parser decodes the fields it models.
+	// plus how a construct is kept verbatim under Unmodeled, the validation-only
+	// keywords among them. It reads the parsed model and the raw nodes behind
+	// it, and holds no opinion about lowering — so it sits below the schema
+	// lowering that asks it questions and above nothing that asks it any. It
+	// reaches the library's yml package for the tags its decoder accepts as a
+	// string, so a field read off a raw node decodes as the parser decodes the
+	// fields it models.
 	"compilers/openapi/internal/annotation": {module + "/ir",
 		module + "/compilers/openapi/internal/diag",
 		module + "/compilers/openapi/internal/ids",
@@ -247,7 +248,6 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/resolve",
 		module + "/compilers/openapi/internal/spelling",
 		module + "/compilers/openapi/internal/value",
-		"github.com/speakeasy-api/openapi/extensions",
 		"github.com/speakeasy-api/openapi/jsonschema/oas3",
 		"github.com/speakeasy-api/openapi/values", "gopkg.in/yaml.v3"},
 	// The operation walk: path items, webhooks and callbacks, the parameters
@@ -264,7 +264,6 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/lowering",
 		module + "/compilers/openapi/internal/resolve",
 		module + "/compilers/openapi/internal/schema",
-		module + "/compilers/openapi/internal/value",
 		"github.com/speakeasy-api/openapi" + subtreeSuffix, "gopkg.in/yaml.v3"},
 	// The canaries that pin docs/parser-library.md. Its one production file is
 	// the package doc: the tests call the library directly, and test files are
@@ -385,7 +384,9 @@ var exempt = map[string]string{
 
 // TestImportGraph_LayeringHolds parses every non-test Go file under each ruled
 // directory (imports only) and fails on any import whose path is neither stdlib
-// nor covered by that directory's allowlist.
+// nor covered by that directory's allowlist, and on any allowlist entry no such
+// import uses: an entry left behind when a package stops importing something
+// keeps admitting it, so the allowlist no longer says what the package reaches.
 //
 // It stays a test rather than linter configuration (#796): depguard matches raw
 // string prefixes and applies every list a file matches at once, so
@@ -401,10 +402,13 @@ func TestImportGraph_LayeringHolds(t *testing.T) {
 			if _, err := os.Stat(base); errors.Is(err, fs.ErrNotExist) {
 				t.Skipf("directory %s does not exist yet", dir)
 			}
-			violations, err := walkImports(dir, base, allowed)
+			violations, unused, err := walkImports(dir, base, allowed)
 			require.NoError(t, err)
 			for _, v := range violations {
 				t.Error(v)
+			}
+			for _, entry := range unused {
+				t.Errorf("%s allows %q, which no production file it audits imports; drop the entry", dir, entry)
 			}
 		})
 	}
@@ -423,13 +427,14 @@ func TestImportGraph_ContractEntryAdmitsNoSiblingCompiler(t *testing.T) {
 	t.Parallel()
 	allowed := rules["compilers/openapi"]
 	require.NotEmpty(t, allowed, "rules must still carry the compilers/openapi entry")
-	assert.True(t, importAllowed(module+"/compilers", allowed), "the contract package")
-	assert.True(t, importAllowed(module+"/compilers/compile", allowed), "the shared framework package")
-	assert.True(t, importAllowed("github.com/speakeasy-api/openapi/jsonschema/oas3", allowed),
+	allows := func(ip string) bool { return admit(ip, allowed, make([]bool, len(allowed))) }
+	assert.True(t, allows(module+"/compilers"), "the contract package")
+	assert.True(t, allows(module+"/compilers/compile"), "the shared framework package")
+	assert.True(t, allows("github.com/speakeasy-api/openapi/jsonschema/oas3"),
 		"a subtree entry still admits the packages under it")
-	assert.False(t, importAllowed(module+"/compilers/graphql", allowed),
+	assert.False(t, allows(module+"/compilers/graphql"),
 		"a sibling compiler must not ride in on the contract entry")
-	assert.False(t, importAllowed(module+"/engine", allowed), "nor a layer above")
+	assert.False(t, allows(module+"/engine"), "nor a layer above")
 }
 
 // TestWalkImports_NestedLookAlikeIsAudited plants the tree the skip decision
@@ -447,7 +452,7 @@ func TestWalkImports_NestedLookAlikeIsAudited(t *testing.T) {
 	writeImporter(t, filepath.Join(root, "sub", "irtest", "nested.go"), "github.com/google/go-cmp/cmp")
 	writeImporter(t, filepath.Join(root, "irtest", "child.go"), "github.com/google/go-cmp/cmp")
 
-	violations, err := walkImports("ir", root, rules["ir"])
+	violations, _, err := walkImports("ir", root, rules["ir"])
 	require.NoError(t, err)
 	require.Len(t, violations, 1, "exactly the nested look-alike is audited: %v", violations)
 	assert.Contains(t, violations[0], filepath.Join("sub", "irtest", "nested.go"))
@@ -462,10 +467,30 @@ func TestWalkImports_AnInheritingPackageIsNamed(t *testing.T) {
 	base := t.TempDir()
 	writeImporter(t, filepath.Join(base, "newformat", "newformat.go"), module+"/compilers/compile")
 
-	violations, err := walkImports("compilers", base, rules["compilers"])
+	violations, _, err := walkImports("compilers", base, rules["compilers"])
 	require.NoError(t, err)
 	require.Len(t, violations, 1)
 	assert.Contains(t, violations[0], "compilers/newformat has no rules entry of its own")
+}
+
+// TestWalkImports_AnUnusedAllowanceIsReported plants a tree that imports one
+// allowed entry directly and another both exactly and through its subtree, and
+// holds the walk to naming the remaining entry alone. A subtree entry is used
+// by any import beneath it, as entryAdmits admits one, and an import two
+// entries admit uses both; an entry only an unaudited test file imports is
+// still unused.
+func TestWalkImports_AnUnusedAllowanceIsReported(t *testing.T) {
+	t.Parallel()
+	base := t.TempDir()
+	writeImporter(t, filepath.Join(base, "a.go"), "example.com/used")
+	writeImporter(t, filepath.Join(base, "b.go"), "example.com/tree/leaf")
+	writeImporter(t, filepath.Join(base, "c_test.go"), "example.com/unused")
+
+	violations, unused, err := walkImports("planted", base, []string{"example.com/used",
+		"example.com/tree" + subtreeSuffix, "example.com/tree/leaf", "example.com/unused"})
+	require.NoError(t, err)
+	assert.Empty(t, violations)
+	assert.Equal(t, []string{"example.com/unused"}, unused)
 }
 
 // TestOwnEntryRequired_HoldsEveryPackageUnderCompilers pins the subtree the
@@ -589,15 +614,16 @@ func isProductionGoFile(name string) bool {
 }
 
 // walkImports traverses base and returns one message per production Go file
-// import that allowed does not cover. It excludes nested directories that carry
-// their own rule so each subtree is checked exactly once under its most specific
-// rule.
+// import that allowed does not cover, and the entries of allowed that no such
+// import uses. It excludes nested directories that carry their own rule so each
+// subtree is checked exactly once under its most specific rule.
 //
-// It returns violations rather than reporting them, so the planted-tree tests
-// above can assert what a walk finds instead of only that a real walk is clean.
-func walkImports(dir, base string, allowed []string) ([]string, error) {
-	var violations []string
-	err := filepath.WalkDir(base, func(p string, d fs.DirEntry, err error) error {
+// It returns both rather than reporting them, so the planted-tree tests above
+// can assert what a walk finds instead of only that a real walk is clean. One
+// walk answers both, so they cannot disagree about which files they audit.
+func walkImports(dir, base string, allowed []string) (violations, unused []string, err error) {
+	used := make([]bool, len(allowed))
+	err = filepath.WalkDir(base, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -607,14 +633,19 @@ func walkImports(dir, base string, allowed []string) ([]string, error) {
 		if !isProductionGoFile(d.Name()) {
 			return nil
 		}
-		found, ferr := fileViolations(p, inheritedBy(dir, base, filepath.Dir(p)), allowed)
+		found, ferr := fileViolations(p, inheritedBy(dir, base, filepath.Dir(p)), allowed, used)
 		if ferr != nil {
 			return ferr
 		}
 		violations = append(violations, found...)
 		return nil
 	})
-	return violations, err
+	for i, entry := range allowed {
+		if !used[i] {
+			unused = append(unused, entry)
+		}
+	}
+	return violations, unused, err
 }
 
 // skipIfRuled reports filepath.SkipDir for a directory carrying its own rules
@@ -652,8 +683,9 @@ func inheritedBy(dir, base, pkgDir string) string {
 }
 
 // fileViolations parses one file's import declarations and returns a message for
-// each disallowed non-stdlib import. dir names the rule it is audited under.
-func fileViolations(p, dir string, allowed []string) ([]string, error) {
+// each disallowed non-stdlib import, marking in used each entry of allowed that
+// admits any of its imports. dir names the rule it is audited under.
+func fileViolations(p, dir string, allowed []string, used []bool) ([]string, error) {
 	f, err := parser.ParseFile(token.NewFileSet(), p, nil, parser.ImportsOnly)
 	if err != nil {
 		return nil, err
@@ -665,7 +697,7 @@ func fileViolations(p, dir string, allowed []string) ([]string, error) {
 			continue // stdlib: first path element has no dot
 		}
 		// An empty allowlist (the "ir" rule) forbids every non-stdlib import.
-		if !importAllowed(ip, allowed) {
+		if !admit(ip, allowed, used) {
 			violations = append(violations,
 				fmt.Sprintf("%s imports %q: not allowed for %s (allowed: %v)", p, ip, dir, allowed))
 		}
@@ -673,21 +705,26 @@ func fileViolations(p, dir string, allowed []string) ([]string, error) {
 	return violations, nil
 }
 
-// importAllowed reports whether the import path ip is covered by allowed: an
-// entry matches ip exactly, or — written with the subtree suffix — matches ip
-// and everything under it. Matching a subtree on segment boundaries is what
-// keeps "ir" from admitting "irtest".
-func importAllowed(ip string, allowed []string) bool {
-	for _, entry := range allowed {
-		root, subtree := strings.CutSuffix(entry, subtreeSuffix)
-		if ip == root {
-			return true
-		}
-		if subtree && strings.HasPrefix(ip, root+"/") {
-			return true
+// admit reports whether allowed covers the import path ip, marking in used
+// every entry that does, not only the first: whether an entry counts as used
+// must not depend on where the allowlist lists it.
+func admit(ip string, allowed []string, used []bool) bool {
+	admitted := false
+	for i, entry := range allowed {
+		if entryAdmits(entry, ip) {
+			used[i], admitted = true, true
 		}
 	}
-	return false
+	return admitted
+}
+
+// entryAdmits reports whether one allowlist entry covers the import path ip:
+// the entry matches ip exactly, or — written with the subtree suffix — matches
+// ip and everything under it. Matching a subtree on segment boundaries is what
+// keeps "ir" from admitting "irtest".
+func entryAdmits(entry, ip string) bool {
+	root, subtree := strings.CutSuffix(entry, subtreeSuffix)
+	return ip == root || (subtree && strings.HasPrefix(ip, root+"/"))
 }
 
 // repoRoot walks up from the working directory, which go test sets to this

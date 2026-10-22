@@ -5,6 +5,9 @@
 //
 // It exists because those two jobs share one question: given a $ref, does the
 // fact belong to the referenced declaration or to the site that references it?
-// Site and Home answer it once, and every reader here routes through them, so a
-// new annotation cannot quietly pick the other answer.
+// Site and Home answer it once: no reader here resolves a referent of its own,
+// so a new annotation cannot quietly pick another referent.
+//
+// It is also how this compiler keeps a construct verbatim, once a lowering
+// decides to keep it.
 package annotation

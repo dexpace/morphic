@@ -195,7 +195,7 @@ func applyPathItem(c lowering.Ctx, into carrier, pi *soa.PathItem, declPtr jsont
 ) []ir.Diagnostic {
 	diags := applyPathServers(c, into, pi, declPtr, cedes)
 	diags = append(diags, applyPathItemDocs(c, into, pi, declPtr, cedes)...)
-	ext, extDiags := schema.ExtensionsIn(c, keptExtensions(pi.GetExtensions(), cedes), declPtr, into.scope)
+	ext, extDiags := annotation.ExtensionsUnder(keptExtensions(pi.GetExtensions(), cedes), c.ProvenanceAt, declPtr, into.scope)
 	*into.unmodeled = annotation.MergeUnmodeled(*into.unmodeled, ext)
 	diags = append(diags, extDiags...)
 	return append(diags, annotation.UnknownKeysNamed(into.unmodeled, keptKeys(undeclaredPathItemKeys(pi), cedes),
@@ -376,9 +376,9 @@ func applyPathItemDocs(c lowering.Ctx, into carrier, pi *soa.PathItem, declPtr j
 		if cedes(constructOf(constructDoc, f.keyword)) {
 			continue
 		}
-		wrote, fieldDiags := schema.PreserveNode(c, into.unmodeled, f.key,
+		wrote, fieldDiags := annotation.PreserveNodeInto(into.unmodeled, f.key,
 			annotation.RawChildNode(pi.GetRootNode(), f.keyword), ir.ReasonNoIRHome,
-			declPtr+ids.Ptr(f.keyword))
+			c.ProvenanceAt(declPtr+ids.Ptr(f.keyword)))
 		diags = append(diags, fieldDiags...)
 		kept = kept || wrote
 	}
@@ -404,8 +404,8 @@ func applyPathServers(c lowering.Ctx, into carrier, pi *soa.PathItem, declPtr js
 	if len(pi.GetServers()) == 0 || cedes(constructOf(constructServers, "")) {
 		return nil
 	}
-	kept, diags := schema.PreserveNode(c, into.unmodeled, into.serversKey,
-		annotation.RawChildNode(pi.GetRootNode(), "servers"), ir.ReasonNoIRHome, declPtr+ids.Ptr("servers"))
+	kept, diags := annotation.PreserveNodeInto(into.unmodeled, into.serversKey,
+		annotation.RawChildNode(pi.GetRootNode(), "servers"), ir.ReasonNoIRHome, c.ProvenanceAt(declPtr+ids.Ptr("servers")))
 	if !kept {
 		return diags
 	}

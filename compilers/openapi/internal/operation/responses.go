@@ -196,9 +196,9 @@ func responseSummary(c lowering.Ctx, p *ir.Unmodeled, r *soa.Response, rptr json
 // the node above. A components/links entry it names is kept on the document
 // (GitHub #616).
 func preserveResponseExtras(c lowering.Ctx, p *ir.Unmodeled, r *soa.Response, rptr jsontext.Pointer, taken ...string) []ir.Diagnostic {
-	_, diags := schema.PreserveNode(c, p, "openapi:links",
-		annotation.RawChildNode(r.GetRootNode(), "links"), ir.ReasonNoIRHome, rptr+ids.Ptr("links"))
-	ext, extDiags := schema.ExtensionsOf(c, r.GetExtensions(), rptr)
+	_, diags := annotation.PreserveNodeInto(p, "openapi:links",
+		annotation.RawChildNode(r.GetRootNode(), "links"), ir.ReasonNoIRHome, c.ProvenanceAt(rptr+ids.Ptr("links")))
+	ext, extDiags := annotation.ExtensionsFrom(r.GetExtensions(), c.ProvenanceAt, rptr)
 	*p = annotation.MergeUnmodeled(*p, ext)
 	diags = append(diags, extDiags...)
 	return append(diags, annotation.UnknownKeysIn(p, r, c.ProvenanceAt, rptr, taken...)...)
