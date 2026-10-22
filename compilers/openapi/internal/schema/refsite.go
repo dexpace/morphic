@@ -1,9 +1,7 @@
 package schema
 
 import (
-	"cmp"
 	"encoding/json/jsontext"
-	"slices"
 
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 
@@ -283,114 +281,4 @@ func hoistSubSchema(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, dec
 	// As in lowerComponentSchema: this alias is the first node the pointer owns,
 	// so the annotations Ref had nowhere to put now have a home.
 	return append(diags, attachDeclaredAnnotations(c, ts, anchors, s.Node, pointer)...)
-}
-
-// subSchemaHint names the node a $ref'd sub-schema pointer owns: the hint the
-// position takes for where it is (ownHint), or, at a position that takes its
-// target's name, the hint of the node its own $ref resolves to (targetHint).
-//
-// It names a position no declaration reached: where one did, hoistSubSchema
-// takes the hint that declaration recorded. Beneath /components/schemas
-// positionHint replays the declaration's hint exactly; elsewhere it names the
-// position by the tokens it can read.
-func subSchemaHint(refs *typed.Bindings, decl *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer) string {
-	hint, follow := ownHint(decl, pointer)
-	if !follow {
-		return hint
-	}
-	return cmp.Or(targetHint(refs, decl), hint)
-}
-
-// ownHint returns the hint the position at pointer takes for where it is, and
-// whether a $ref written there names it after its target instead. decl is the
-// schema written there, if known.
-//
-// Only a composition branch holding a $ref is named after its target, as the
-// composition names it (branchHint); every other position is named for where it
-// is, as positionHint replays it.
-func ownHint(decl *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer) (hint string, follow bool) {
-	hint, branch := positionHint(pointer)
-	return hint, branch && decl != nil && decl.IsReference()
-}
-
-// componentSchemaTokens is the length of /components/schemas/<name>, the
-// pointer positionHint roots a component's walk at: the component itself.
-const componentSchemaTokens = 3
-
-// positionHint returns the hint the structural lowering gives the schema
-// position at pointer, and whether it is a composition branch.
-//
-// It replays the lowering because the hint is composed: items is
-// compile.SubHint(enclosing, "item"), so only a walk from the root tells the
-// keyword from a property named items (GitHub #518). Beneath /components/schemas
-// the replay is exact. Elsewhere the enclosing hint is not in the pointer, so
-// the walk resets at every token it does not know, the name a position only
-// references reach takes (GitHub #529). Each step consumes a token, bounding
-// the walk.
-func positionHint(pointer jsontext.Pointer) (hint string, branch bool) {
-	tokens := slices.Collect(pointer.Tokens())
-	start := min(1, len(tokens))
-	if len(tokens) >= componentSchemaTokens && tokens[0] == "components" && tokens[1] == "schemas" {
-		start = componentSchemaTokens
-	}
-	if start > 0 {
-		hint = tokens[start-1]
-	}
-	for i := start; i < len(tokens); {
-		var step int
-		hint, branch, step = positionStep(hint, tokens[i:])
-		i += step
-	}
-	return hint, branch
-}
-
-// positionStep applies the keyword at rest[0] to the enclosing hint, returning
-// the hint of the position it leads to, whether that position is a composition
-// branch, and how many tokens the step consumed: two for a keyword whose
-// children are keyed or indexed, one otherwise. A keyword the lowering does not
-// walk (not, if, then, else, an unknown one) is named after its own token: only
-// a reference reaches it, so any stable spelling keeps its name independent of
-// declaration order.
-func positionStep(enclosing string, rest []string) (hint string, branch bool, step int) {
-	keyword := rest[0]
-	if role, ok := structuralRoles[keyword]; ok {
-		return compile.SubHint(enclosing, role), false, 1
-	}
-	if len(rest) < 2 {
-		return keyword, false, 1
-	}
-	child := rest[1]
-	switch {
-	case keyedSchemaMaps[keyword]:
-		return child, false, 2
-	case keyword == "patternProperties":
-		return compile.SubHint(enclosing, "pattern"), false, 2
-	case keyword == "prefixItems" && isDecimalIndex(child):
-		return compile.SubHint(enclosing, child), false, 2
-	case compositionKeywords[keyword] && isDecimalIndex(child):
-		return positionalBranchHint(child), true, 2
-	}
-	return keyword, false, 1
-}
-
-// structuralRoles maps each keyword whose one schema the structural lowering
-// names by role to that role: the suffixes its compile.SubHint call sites pass. A
-// change to one of them has to be made here too, and
-// TestInlinePosition_HintIsTheSameInBothOrders is what fails when they drift,
-// provided its row aims the outside $ref above the node it asserts (see the
-// refAt column there): a reference aimed at the node itself is renamed by the
-// declaration in either order and cannot see a role missing here.
-var structuralRoles = map[string]string{
-	"items":                "item",
-	"additionalProperties": "value",
-	"contentSchema":        "content",
-}
-
-// keyedSchemaMaps are the keywords whose value maps a key to a schema that is
-// named by the key alone: a property by its name, and the $defs, definitions,
-// dependentSchemas and dependencies entries by theirs, as the pointer's last
-// token always named them. patternProperties is keyed too but names by role, so
-// positionStep takes it separately.
-var keyedSchemaMaps = map[string]bool{
-	"properties": true, "$defs": true, "definitions": true, "dependentSchemas": true, "dependencies": true,
 }

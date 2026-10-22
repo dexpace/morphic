@@ -175,23 +175,6 @@ func stampConstraintDiags(c lowering.Ctx, diags []ir.Diagnostic, pointer jsontex
 	return diags
 }
 
-// internAlias interns a named Scalar at pointer whose Base is target, so a
-// component (or a sibling-carrying schema) whose body lowered to a shared or
-// referenced target still owns a resolvable node at its own TypeID. It carries
-// the value constraints s writes, and the co-declared bound keyword no
-// Constraints field holds, for the reason hoistScalar records.
-func internAlias(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsontext.Pointer, hint string,
-	target ir.TypeRef,
-) (ir.TypeID, []ir.Diagnostic) {
-	var kept ir.Unmodeled
-	cons, diags := ConstraintsOf(c, &kept, s, pointer)
-	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
-		common.Unmodeled = annotation.MergeUnmodeled(common.Unmodeled, kept)
-		return &ir.Scalar{TypeCommon: common, Base: new(target), Constraints: cons}
-	})
-	return id, diags
-}
-
 // schemaBody lowers a concrete (non-reference) schema body to a TypeRef and
 // records the schema's own annotations on whatever node the lowering hoisted at
 // pointer. It is shared by Ref and by sub-schema hoisting
