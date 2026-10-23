@@ -118,3 +118,34 @@ func TestSubHint_IsItselfANeutralHint(t *testing.T) {
 	assert.Equal(t, "combo_a_2_item", nested)
 	assert.Equal(t, nested, ir.CanonicalWords(nested), "the grammar leaves a composed hint alone")
 }
+
+// TestSubHints_IsAFoldOfSubHint pins SubHints to the SubHint chain it
+// shortens, over parents and suffixes that neutralize to nothing, carry case,
+// digits and separators, and are already composed, and to the parent alone
+// for an empty chain.
+func TestSubHints_IsAFoldOfSubHint(t *testing.T) {
+	t.Parallel()
+	parts := []string{"", "***", "Combo_A", "userID", "2", "item", "x-ext", "empty_item", "HTTPServer2Go"}
+	for _, parent := range parts {
+		assert.Equal(t, parent, compile.SubHints(parent), "an empty chain leaves the parent as it is")
+		for _, a := range parts {
+			for _, b := range parts {
+				assert.Equal(t, compile.SubHint(compile.SubHint(parent, a), b), compile.SubHints(parent, a, b),
+					"%q, %q, %q", parent, a, b)
+			}
+		}
+	}
+}
+
+// FuzzSubHints_IsAFoldOfSubHint holds SubHints to the SubHint chain on any
+// three parts.
+func FuzzSubHints_IsAFoldOfSubHint(f *testing.F) {
+	f.Add("Combo_A", "2", "item")
+	f.Add("", "***", "éA")
+	f.Fuzz(func(t *testing.T, parent, a, b string) {
+		want := compile.SubHint(compile.SubHint(compile.SubHint(parent, a), b), a)
+		if got := compile.SubHints(parent, a, b, a); got != want {
+			t.Fatalf("SubHints(%q, %q, %q, %q) = %q, the chain %q", parent, a, b, a, got, want)
+		}
+	})
+}

@@ -15,13 +15,28 @@ import (
 // that position is a composition branch, which branch names further. Each
 // step consumes a token, bounding the walk.
 func steps(enclosing string, rest []string) (hint string, branch bool) {
-	hint = enclosing
+	c := chain{base: enclosing}
 	for i := 0; i < len(rest); {
 		var step int
-		hint, branch, step = stepOf(hint, rest[i:])
+		c, branch, step = stepOf(c, rest[i:])
 		i += step
 	}
-	return hint, branch
+	return compile.SubHints(c.base, c.parts...), branch
+}
+
+// chain is a hint being composed: base, then each part compile.SubHint would
+// append to it, joined once (compile.SubHints) rather than at every step, so a
+// position n roles deep costs n parts rather than n² bytes.
+type chain struct {
+	base  string
+	parts []string
+}
+
+// then is c with part composed onto it. steps keeps only the chain a step
+// returns, so appending in place shares nothing still read.
+func (c chain) then(part string) chain {
+	c.parts = append(c.parts, part)
+	return c
 }
 
 // stepOf applies the keyword at rest[0] to the enclosing hint, returning the
@@ -31,32 +46,32 @@ func steps(enclosing string, rest []string) (hint string, branch bool) {
 // walk (not, if, then, else, an unknown one) is named after its own token: only
 // a reference reaches it, so any stable spelling keeps its name independent of
 // declaration order.
-func stepOf(enclosing string, rest []string) (hint string, branch bool, step int) {
+func stepOf(enclosing chain, rest []string) (hint chain, branch bool, step int) {
 	keyword := rest[0]
 	if role, ok := structuralRoles[keyword]; ok {
-		return compile.SubHint(enclosing, role), false, 1
+		return enclosing.then(role), false, 1
 	}
 	if len(rest) < 2 {
-		return keyword, false, 1
+		return chain{base: keyword}, false, 1
 	}
 	child := rest[1]
 	switch {
 	case keyedSchemaMaps[keyword]:
-		return child, false, 2
+		return chain{base: child}, false, 2
 	case keyword == "patternProperties":
-		return compile.SubHint(enclosing, "pattern"), false, 2
+		return enclosing.then("pattern"), false, 2
 	case (keyword == "prefixItems" || keyword == "enum") && isDecimalIndex(child):
 		// A tuple's positional item, or the literal a member of an enum no
 		// enumeration holds is lowered to.
-		return compile.SubHint(enclosing, child), false, 2
+		return enclosing.then(child), false, 2
 	case compositionKeywords[keyword] && isDecimalIndex(child):
-		return positionalBranch(child), true, 2
+		return chain{base: positionalBranch(child)}, true, 2
 	case keyword == "type" && isDecimalIndex(child):
 		// One variant of a multi-typed schema, built from that schema itself,
 		// so it is named as the schema is.
 		return enclosing, false, 2
 	}
-	return keyword, false, 1
+	return chain{base: keyword}, false, 1
 }
 
 // structuralRoles maps each keyword whose one schema the lowering names by role
