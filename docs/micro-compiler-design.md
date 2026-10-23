@@ -295,9 +295,9 @@ the claim as written does not admit it.
 *Later:* a second shared record does accumulate decisions. `resolve.Reached`, held
 by `Ctx` and written by every reference resolution, records where each one landed,
 so the compiler can keep the component entries no lowering reached (GitHub #616).
-It is not a handle in the sense rejected above for diagnostics: no lowering reads
-it, so it cannot change a lowering's answer, and it is read once, after the last
-lowering returns, as a set whose contents do not depend on the order they were
+It is not a handle in the sense rejected above for diagnostics: only the document's
+lowering reads it, once every other lowering has returned, so it cannot change their
+answers, and it is read as a set whose contents do not depend on the order they were
 written in. Only the lowering knows what it followed, so the alternatives were a
 reading of the source that guesses — which dropped entries and gave others two
 homes — or threading a return value through every lowering.
@@ -448,10 +448,12 @@ go list -f '{{$p := .ImportPath}}{{range .Imports}}{{$p}} -> {{.}}
 
 *As landed:* `operation/` took neither `auth` nor `meta`. `auth` founded a package of its own,
 because both halves of the compiler reach it and neither may reach the other. Document-level
-metadata, its servers included, stayed in the root, as did detection's reading of a source, until
-#1091 gave each a package: `document`, which is no part of lowering an operation and runs after both
-walks, reaching neither, and `detect`, which runs before anything has decided a source is this
-compiler's. The root now holds the face this layout names, with `Detect` a call into `detect`.
+metadata, its servers included, stayed in the root, as did detection's reading of a source.
+
+*Later:* #1091 gave each of those a package: `document`, which is no part of lowering an operation
+and runs after both walks, reaching neither, and `detect`, which runs before anything has decided a
+source is this compiler's. The root now holds the face this layout names, with `Detect` a call into
+`detect`.
 
 `diag` sits at the bottom because its constructor is the single one that populates severity, code and
 provenance, and eight files call it. The OpenAPI diagnostic codes are format-specific strings, so

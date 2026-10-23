@@ -147,9 +147,9 @@ type Ctx struct {
 	hints map[scopedPosition]string
 
 	// reached records where each reference a lowering resolved landed in the
-	// source. Copies share it on purpose: no lowering reads it, so it cannot
-	// change any lowering's answer, and the compiler reads it once the last one
-	// has returned (Reached). Nil in a zero context, which records nothing.
+	// source. Copies share it on purpose: only the document's lowering reads it,
+	// once every other lowering has returned (Reached), so it cannot change their
+	// answers. Nil in a zero context, which records nothing.
 	reached *resolve.Reached
 }
 
