@@ -202,7 +202,7 @@ linters:
       # liveForCalls is a context.Context: it embeds the one it wraps to answer Err
       # on a schedule, which is how a context decorator is written, not a context
       # held for later.
-      - path: compilers/openapi/budgets_test\.go
+      - path: compilers/openapi/budgets_internal_test\.go
         linters:
           - containedctx
         source: ^\s*context\.Context$

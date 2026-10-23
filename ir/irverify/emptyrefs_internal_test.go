@@ -72,7 +72,7 @@ func mentionsIDClass(classes map[*types.TypeName]bool, typ types.Type) bool {
 
 // declaredIDFields returns "Type.Field" for every struct field in the ir package
 // whose type is, or is a pointer/slice/map (key or value) of, one of idTypes'
-// identity classes. Modeled on declaredIntegerFields in indices_test.go.
+// identity classes. Modeled on declaredIntegerFields in indices_internal_test.go.
 func declaredIDFields(t *testing.T) []string {
 	t.Helper()
 	classes := idClassTypes(t)
@@ -159,7 +159,7 @@ func identityOnBothSides(classes map[*types.TypeName]bool, typ types.Type) bool 
 }
 
 // TestIDTypes_MatchTheIdentityClasses holds idTypes to naming exactly the
-// types identityClasses (duplicates_test.go) already calls an identity, so
+// types identityClasses (duplicates_internal_test.go) already calls an identity, so
 // this package's second table of reference classes cannot silently drift from
 // the first: idTypes is what checkEmptyRefs classifies by, identityClasses is
 // what the rest of the walk-based checks were audited against.
