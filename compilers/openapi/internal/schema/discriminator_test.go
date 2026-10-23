@@ -13,6 +13,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/pass"
 )
@@ -40,7 +41,7 @@ func TestAllOf_DiscriminatorSubtypeValue(t *testing.T) {
           properties:
             bark: {type: string}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	pet, ok := doc.Types[componentID("Pet")].(*ir.Model)
@@ -100,7 +101,7 @@ func TestAllOf_InlineSubtypeHasNoImplicitDiscriminatorValue(t *testing.T) {
           properties:
             meow: {type: string}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	kennelDog := ir.TypeID("t/anon/components/schemas/Kennel/properties/Dog")
@@ -152,7 +153,7 @@ func TestAllOf_InlineSubtypeDiscriminatorValueFromMapping(t *testing.T) {
       properties:
         bark: {type: string}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	kennelDog := ir.TypeID("t/anon/components/schemas/Kennel/properties/Dog")
@@ -199,7 +200,7 @@ func TestAllOf_DiscriminatorValueFromDistantMapping(t *testing.T) {
         - {$ref: '#/components/schemas/Dog'}
       properties: {weeks: {type: integer}}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	dog := typeByName(doc, "Dog").(*ir.Model)
@@ -242,7 +243,7 @@ func TestAllOf_DiscriminatorValueFromNearestAncestor(t *testing.T) {
         - {$ref: '#/components/schemas/Near'}
       properties: {l: {type: string}}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	leaf := typeByName(doc, "Leaf").(*ir.Model)
@@ -268,7 +269,7 @@ func TestAllOf_DiscriminatorValueUndiscriminatedChain(t *testing.T) {
         - {$ref: '#/components/schemas/Shrub'}
       properties: {rings: {type: integer}}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	for _, name := range []string{"Shrub", "Sapling"} {
@@ -301,7 +302,7 @@ func TestAllOf_DiscriminatorValueCyclicComposition(t *testing.T) {
 		fmt.Fprintf(&b, "    X%d:\n      allOf: [%s]\n      properties: {p%d: {type: string}}\n",
 			i, strings.Join(refs, ", "), i)
 	}
-	doc, diags := lowerSpec(t, openapitest.ComponentSpec(b.String()))
+	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(b.String()))
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	for i := range n {
@@ -331,7 +332,7 @@ func TestAllOf_DiscriminatorValueSelfAncestorInCycle(t *testing.T) {
       allOf: [{$ref: '#/components/schemas/A'}]
       properties: {b: {type: string}}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	a, ok := typeByName(doc, "A").(*ir.Model)
@@ -374,7 +375,7 @@ func TestAllOf_DiscriminatorValueChainDeeperThanCap(t *testing.T) {
 					"      properties: {p%d: {type: string}}\n", i, prev, i)
 				prev = fmt.Sprintf("S%d", i)
 			}
-			doc, diags := lowerSpec(t, openapitest.ComponentSpec(b.String()))
+			doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(b.String()))
 			openapitest.RequireNoErrorDiags(t, diags)
 
 			leaf := typeByName(doc, prev).(*ir.Model)
@@ -394,7 +395,7 @@ func TestModelDiscriminator_UndeclaredPropertyAndBadMapping(t *testing.T) {
           car: '#'
       properties: {name: {type: string}}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	v := typeByName(doc, "Vehicle").(*ir.Model)
 	require.NotNil(t, v.Discriminator)
 	assert.Empty(t, v.Discriminator.Property, "undeclared property")
@@ -415,7 +416,7 @@ func TestOneOf_DiscriminatorWithDefault(t *testing.T) {
     Circle: {type: object, properties: {r: {type: number}}}
     Square: {type: object, properties: {s: {type: number}}}
 `)
-	doc, _ := lowerSpec(t, spec)
+	doc, _ := schema.LowerSpec(t, spec)
 	u := typeByName(doc, "Shape").(*ir.Union)
 	require.NotNil(t, u.Discriminator)
 	assert.Equal(t, "shapeType", u.Discriminator.PropertyName)
@@ -431,7 +432,7 @@ func TestAllOf_ModelWithOwnDiscriminator(t *testing.T) {
       properties: {kind: {type: string}}
     Common: {type: object, properties: {id: {type: string}}}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	base := typeByName(doc, "Base").(*ir.Model)
 	require.NotNil(t, base.Discriminator, "allOf model may declare its own discriminator")
@@ -446,7 +447,7 @@ func TestAllOf_BoolRefBranchHasNoDiscriminator(t *testing.T) {
         - {$ref: '#/components/schemas/BoolComp'}
         - {type: object, properties: {a: {type: string}}}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	require.NotNil(t, doc)
 	sub := typeByName(doc, "Sub").(*ir.Model)
 	assert.Empty(t, sub.DiscriminatorValue, "a bool-schema ref target anchors no hierarchy")
@@ -483,7 +484,7 @@ func TestAllOf_DiscriminatorAliasTagIsOrderInvariant(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			doc, diags := lowerSpec(t, openapitest.ComponentSpec(base+tc.mapping+sub))
+			doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(base+tc.mapping+sub))
 			openapitest.RequireNoErrorDiags(t, diags)
 
 			dog, ok := doc.Types[componentID("Dog")].(*ir.Model)

@@ -24,7 +24,7 @@ func TestContent_NonRequiredRequestBody(t *testing.T) {
           application/json: {schema: {type: object, properties: {n: {type: string}}}}
       responses: {"200": {description: ok}}
 `)
-	_, svc, diags := lowerServiceSpec(t, spec)
+	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	op := openapitest.FirstOp(t, svc)
 	require.NotNil(t, op.Request, "a non-required body still lowers to a present Payload")
@@ -52,7 +52,7 @@ func TestContent_RequiredRequestBody(t *testing.T) {
           application/json: {schema: {type: object, properties: {n: {type: string}}}}
       responses: {"200": {description: ok}}
 `)
-	_, svc, diags := lowerServiceSpec(t, spec)
+	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	op := openapitest.FirstOp(t, svc)
 	require.NotNil(t, op.Request)
@@ -74,7 +74,7 @@ func TestContent_ResponsePayloadStatesNoOptionality(t *testing.T) {
           content:
             application/json: {schema: {type: object, properties: {n: {type: string}}}}
 `)
-	_, svc, diags := lowerServiceSpec(t, spec)
+	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	op := openapitest.FirstOp(t, svc)
 	require.Len(t, op.Responses, 1)
@@ -96,7 +96,7 @@ func TestContent_RequestBodyDocsReachThePayload(t *testing.T) {
           application/json: {schema: {type: object, properties: {n: {type: string}}}}
       responses: {"200": {description: ok}}
 `)
-	_, svc, diags := lowerServiceSpec(t, spec)
+	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	op := openapitest.FirstOp(t, svc)
 	require.NotNil(t, op.Request)
@@ -117,7 +117,7 @@ func TestContent_ResponsePayloadStatesNoDocs(t *testing.T) {
           content:
             application/json: {schema: {type: object, properties: {n: {type: string}}}}
 `)
-	_, svc, diags := lowerServiceSpec(t, spec)
+	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	op := openapitest.FirstOp(t, svc)
 	require.Len(t, op.Responses, 1)
@@ -163,7 +163,7 @@ paths:
         application/json:
           schema: {type: object, properties: {sku: {type: string}}}
 `
-		doc, _, diags := lowerServiceSpec(t, spec)
+		doc, _, diags := compileService(t, spec)
 		openapitest.RequireNoErrorDiags(t, diags)
 		out := map[string]string{}
 		for _, name := range []string{"createOrder", "replaceOrder"} {
@@ -288,7 +288,7 @@ components:
       content:
         application/json: {schema: {type: object, properties: {n: {type: string}}}}
 `
-	_, svc, diags := lowerServiceSpec(t, spec)
+	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	op := openapitest.FirstOp(t, svc)
 	require.NotNil(t, op.Request)

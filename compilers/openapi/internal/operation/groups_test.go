@@ -43,7 +43,7 @@ paths:
   /tagged: {get: {operationId: tagged, tags: [default], responses: {"200": {description: ok}}}}
   /untagged: {get: {operationId: untagged, responses: {"200": {description: ok}}}}
 `
-	_, svc, diags := lowerServiceSpec(t, spec)
+	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	require.Len(t, svc.Groups, 2)
@@ -97,7 +97,7 @@ tags:
 paths:
   /pets: {get: {operationId: listPets, tags: [pets], responses: {"200": {description: ok}}}}
 `
-	_, svc, _ := lowerServiceSpec(t, spec)
+	_, svc, _ := compileService(t, spec)
 
 	require.Len(t, svc.Groups, 1)
 	assert.Equal(t, ir.GroupID("g/tags/pets"), svc.Groups[0].ID)
@@ -121,8 +121,8 @@ func TestGrouping_IDsDoNotDependOnDeclarationOrder(t *testing.T) {
 	forward := head + tagsAscending + "paths:\n" + pathA + pathB + pathC
 	reverse := head + tagsDescending + "paths:\n" + pathC + pathB + pathA
 
-	_, first, _ := lowerServiceSpec(t, forward)
-	_, second, _ := lowerServiceSpec(t, reverse)
+	_, first, _ := compileService(t, forward)
+	_, second, _ := compileService(t, reverse)
 
 	require.Len(t, first.Groups, 3)
 	assert.Empty(t, cmp.Diff(opsByGroup(t, first.Groups), opsByGroup(t, second.Groups)),
@@ -146,7 +146,7 @@ paths:
       operationId: misc
       responses: {"200": {description: ok}}
 `
-	doc, svc, diags := lowerServiceSpec(t, spec)
+	doc, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	require.Len(t, svc.Groups, 2)
 	byName := openapitest.IndexBy(svc.Groups, func(g ir.OperationGroup) string { return g.Name.Source })
@@ -236,7 +236,7 @@ paths:
       tags: [beta, books]
       responses: {"200": {description: ok}}
 `
-	_, svc, diags := lowerServiceSpec(t, spec)
+	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	require.Len(t, svc.Groups, 1, "the badge tag contributes no group")
 	books, ok := groupBySource(svc.Groups, "books")
@@ -263,7 +263,7 @@ paths:
       tags: [beta]
       responses: {"200": {description: ok}}
 `
-	_, svc, diags := lowerServiceSpec(t, spec)
+	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	require.Len(t, svc.Groups, 1)
 	assert.Equal(t, "default", svc.Groups[0].Name.Hint)
@@ -290,7 +290,7 @@ paths:
       tags: [books]
       responses: {"200": {description: ok}}
 `
-	_, svc, diags := lowerServiceSpec(t, spec)
+	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	require.Len(t, svc.Groups, 1, "the child is nested, not a second top-level group")
 	catalog := svc.Groups[0]
@@ -333,7 +333,7 @@ paths:
 `
 	tree := func(spec string) []ir.OperationGroup {
 		t.Helper()
-		_, svc, diags := lowerServiceSpec(t, spec)
+		_, svc, diags := compileService(t, spec)
 		openapitest.RequireNoErrorDiags(t, diags)
 		return svc.Groups
 	}
@@ -358,7 +358,7 @@ paths:
       tags: [books]
       responses: {"200": {description: ok}}
 `
-	_, svc, diags := lowerServiceSpec(t, spec)
+	_, svc, diags := compileService(t, spec)
 	assert.Equal(t, []string{"openapi/validation/validation-invalid-reference at /tags/0/parent"}, errorFindings(diags))
 	require.Len(t, svc.Groups, 1)
 	assert.Equal(t, "books", svc.Groups[0].Name.Source, "the group is top-level")
@@ -381,7 +381,7 @@ paths:
       tags: [books]
       responses: {"200": {description: ok}}
 `
-	_, svc, diags := lowerServiceSpec(t, spec)
+	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	require.Len(t, svc.Groups, 1)
 	assert.Equal(t, "books", svc.Groups[0].Name.Source)
@@ -416,7 +416,7 @@ paths:
       tags: [c]
       responses: {"200": {description: ok}}
 `
-	_, svc, diags := lowerServiceSpec(t, spec)
+	_, svc, diags := compileService(t, spec)
 	assert.Equal(t, []string{
 		"openapi/validation/validation-circular-reference at /tags/0/parent",
 		"openapi/validation/validation-circular-reference at /tags/1/parent",
@@ -436,7 +436,7 @@ paths:
 // 3.1 tag does and stays top-level.
 func TestGrouping_UndeclaredTagIsNavigational(t *testing.T) {
 	t.Parallel()
-	_, svc, diags := lowerServiceSpec(t, openapitest.PathsSpec(`  /x:
+	_, svc, diags := compileService(t, openapitest.PathsSpec(`  /x:
     get:
       operationId: x
       tags: [adHoc]
@@ -467,7 +467,7 @@ paths:
       tags: [books]
       responses: {"200": {description: ok}}
 `
-	_, svc, diags := lowerServiceSpec(t, spec)
+	_, svc, diags := compileService(t, spec)
 	assert.Equal(t, []string{"openapi/validation/validation-duplicate-key at /tags/1/name"}, errorFindings(diags))
 	require.Len(t, svc.Groups, 1, "the first declaration wins for both the kind and the parent")
 	assert.Equal(t, "books", svc.Groups[0].Name.Source)
@@ -486,7 +486,7 @@ tags:
   - {name: catalog}
 paths: {}
 `
-	doc, _, diags := lowerServiceSpec(t, spec)
+	doc, _, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	require.Len(t, doc.TagDefs, 3)
 	assert.Equal(t, ir.TagDef{Name: "books", Docs: ir.Docs{}, Parent: "catalog", Kind: "nav"}, doc.TagDefs[0])
@@ -532,7 +532,7 @@ tags:
 ` + paths
 	tree := func(spec string) []ir.OperationGroup {
 		t.Helper()
-		_, svc, diags := lowerServiceSpec(t, spec)
+		_, svc, diags := compileService(t, spec)
 		openapitest.RequireNoErrorDiags(t, diags)
 		return svc.Groups
 	}

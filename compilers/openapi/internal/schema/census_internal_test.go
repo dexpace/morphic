@@ -17,8 +17,8 @@ import (
 // rather than preserving them onto nothing.
 func TestPreserveUnhomedKeywords_MissingNode(t *testing.T) {
 	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
-	got, diags := preserveUnhomedKeywords(l.ctx, l.types, &oas3.Schema{}, "/p", "t/anon/missing", dispatch{})
+	l := NewRawLowerer(&soa.OpenAPI{})
+	got, diags := preserveUnhomedKeywords(l.Ctx, l.Types, &oas3.Schema{}, "/p", "t/anon/missing", dispatch{})
 	assert.Equal(t, ir.TypeID("t/anon/missing"), got, "the lowering's own ID still stands")
 	assertInternalInvariant(t, diags)
 }
@@ -29,8 +29,8 @@ func TestPreserveUnhomedKeywords_MissingNode(t *testing.T) {
 // interned — so it is reached directly, as preserveUnionSiblings' guard is.
 func TestRecordUnhomedKeywords_MissingOwner(t *testing.T) {
 	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
-	diags := recordUnhomedKeywords(l.ctx, l.types, "t/anon/missing", &oas3.Schema{}, []string{"items"}, nodeShape(ir.KindPrimitive), "/p")
+	l := NewRawLowerer(&soa.OpenAPI{})
+	diags := recordUnhomedKeywords(l.Ctx, l.Types, "t/anon/missing", &oas3.Schema{}, []string{"items"}, nodeShape(ir.KindPrimitive), "/p")
 	assertInternalInvariant(t, diags)
 }
 

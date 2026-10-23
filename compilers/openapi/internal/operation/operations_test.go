@@ -30,7 +30,7 @@ func TestOperation_ExplicitlyPublicSecurity(t *testing.T) {
       operationId: inherits
       responses: {"200": {description: ok}}
 `)
-	_, svc, diags := lowerServiceSpec(t, spec)
+	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	ops := map[string]ir.Operation{}
 	for _, g := range svc.Groups {
@@ -49,7 +49,7 @@ func TestOperation_NoOperationIdHint(t *testing.T) {
     get:
       responses: {"200": {description: ok}}
 `)
-	_, svc, diags := lowerServiceSpec(t, spec)
+	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	op := openapitest.FirstOp(t, svc)
 	assert.Empty(t, op.Name.Source, "no operationId leaves an empty source name")
@@ -733,7 +733,7 @@ func TestOperations_OwnServersFindingIsNotInferred(t *testing.T) {
 // encoding — here the response's own content schema.
 func TestLowerService_PercentEncodedEntryRefKeepsTheDeclaredCoordinate(t *testing.T) {
 	t.Parallel()
-	doc, _, diags := lowerServiceSpec(t, `openapi: 3.1.0
+	doc, _, diags := compileService(t, `openapi: 3.1.0
 info: {title: T, version: "1"}
 paths:
   /a:

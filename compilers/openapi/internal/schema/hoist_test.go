@@ -9,6 +9,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -61,7 +62,7 @@ func TestEscapedComponentName_DecodesInDiscriminatorValueAndHints(t *testing.T) 
     UsesInner:
       $ref: '#/components/schemas/Host/$defs/inner'
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	catDog, ok := doc.Types[componentID("Cat~1Dog")].(*ir.Model)
@@ -131,7 +132,7 @@ func TestLower_InlineSchemaHoistedOnce(t *testing.T) {
             properties:
               name: {type: string}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	itemsID := ir.TypeID("t/anon/components/schemas/S/properties/tags/items")
 	item, ok := doc.Types[itemsID].(*ir.Model)
@@ -423,7 +424,7 @@ func TestAlias_CarriesTheBoundsWrittenBesideIt(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			doc, diags := lowerSpec(t, openapitest.ComponentSpec("    A: "+tc.schema+"\n"))
+			doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec("    A: "+tc.schema+"\n"))
 			openapitest.RequireNoErrorDiags(t, diags)
 			sc, ok := typeByName(doc, "A").(*ir.Scalar)
 			require.True(t, ok, "the position hoists an alias of its own")

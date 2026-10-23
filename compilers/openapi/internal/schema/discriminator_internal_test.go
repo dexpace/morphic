@@ -31,7 +31,7 @@ func TestPropIDByName_NotFound(t *testing.T) {
 
 func TestMappingTargetID(t *testing.T) {
 	t.Parallel()
-	l, _ := loweredFor(t, openapitest.ComponentSpec(`    Cat: {type: object}
+	l, _ := LoweredFor(t, openapitest.ComponentSpec(`    Cat: {type: object}
     Dog: {type: object}
     A/B: {type: object}
     Pet:
@@ -42,25 +42,25 @@ func TestMappingTargetID(t *testing.T) {
 `))
 	d := petDiscriminator(t, l)
 	// A $ref to a declared component.
-	id, ok := mappingTargetID(l.ctx, l.ctx.RefScope(), d, "#/components/schemas/Cat")
+	id, ok := mappingTargetID(l.Ctx, l.Ctx.RefScope(), d, "#/components/schemas/Cat")
 	require.True(t, ok)
 	assert.Equal(t, ids.Document{}.NamedType("/components/schemas/Cat"), id)
 	// A bare schema name.
-	id, ok = mappingTargetID(l.ctx, l.ctx.RefScope(), d, "Dog")
+	id, ok = mappingTargetID(l.Ctx, l.Ctx.RefScope(), d, "Dog")
 	require.True(t, ok)
 	assert.Equal(t, ids.Document{}.NamedType(ids.Ptr("components", "schemas", "Dog")), id)
 	// A bare name that contains '/' but names an existing schema must resolve, not
 	// dangle as a misclassified external $ref (issue #14, f07).
-	id, ok = mappingTargetID(l.ctx, l.ctx.RefScope(), d, "A/B")
+	id, ok = mappingTargetID(l.Ctx, l.Ctx.RefScope(), d, "A/B")
 	require.True(t, ok)
 	assert.Equal(t, ids.Document{}.NamedType(ids.Ptr("components", "schemas", "A/B")), id)
 	// An undeclared component and a genuine external ref are dropped, never
 	// synthesized into a dangling ID.
-	_, ok = mappingTargetID(l.ctx, l.ctx.RefScope(), d, "#/components/schemas/Ghost")
+	_, ok = mappingTargetID(l.Ctx, l.Ctx.RefScope(), d, "#/components/schemas/Ghost")
 	assert.False(t, ok, "undeclared component target dropped")
-	_, ok = mappingTargetID(l.ctx, l.ctx.RefScope(), d, "a.yaml#/A")
+	_, ok = mappingTargetID(l.Ctx, l.Ctx.RefScope(), d, "a.yaml#/A")
 	assert.False(t, ok, "external target dropped")
-	_, ok = mappingTargetID(l.ctx, l.ctx.RefScope(), &oas3.Discriminator{}, "#/components/schemas/Cat")
+	_, ok = mappingTargetID(l.Ctx, l.Ctx.RefScope(), &oas3.Discriminator{}, "#/components/schemas/Cat")
 	assert.False(t, ok, "a discriminator the document does not hold maps nothing")
 	// A declared but empty-named component ("") is interned anonymously, so its
 	// bare mapping name must resolve to that anon ID, not an unbacked ids.NamedType
@@ -76,22 +76,22 @@ func TestMappingTargetID(t *testing.T) {
 
 func TestDiscriminatorDefault_ResolvesDeclaredComponent(t *testing.T) {
 	t.Parallel()
-	l := newRawLowerer(openapitest.DocDeclaring("Cat"))
+	l := NewRawLowerer(openapitest.DocDeclaring("Cat"))
 	d := &oas3.Discriminator{PropertyName: "kind", DefaultMapping: new("Cat")}
 
-	id, diags := discriminatorDefault(l.ctx, l.types, d, nil, "/components/schemas/Pet")
+	id, diags := discriminatorDefault(l.Ctx, l.Types, d, nil, "/components/schemas/Pet")
 	assert.Equal(t, ids.Document{}.NamedType("/components/schemas/Cat"), id)
 	assert.Empty(t, diags, "a resolvable defaultMapping produces no diagnostic")
 }
 
 func TestDiscriminatorDefault_DroppedWhenUnresolved(t *testing.T) {
 	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
+	l := NewRawLowerer(&soa.OpenAPI{})
 	// "Missing" is neither a declared component nor an internal pointer, so the
 	// defaultMapping does not resolve and is dropped with one error diagnostic.
 	d := &oas3.Discriminator{PropertyName: "kind", DefaultMapping: new("Missing")}
 
-	id, diags := discriminatorDefault(l.ctx, l.types, d, nil, "/components/schemas/Pet")
+	id, diags := discriminatorDefault(l.Ctx, l.Types, d, nil, "/components/schemas/Pet")
 	assert.Empty(t, id, "an unresolved defaultMapping yields no target")
 	require.Len(t, diags, 1)
 	assert.Equal(t, diag.UnresolvedRef, diags[0].Code)
@@ -99,8 +99,8 @@ func TestDiscriminatorDefault_DroppedWhenUnresolved(t *testing.T) {
 
 func TestDiscriminatorDefault_EmptyIsNoOp(t *testing.T) {
 	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
-	id, diags := discriminatorDefault(l.ctx, l.types, &oas3.Discriminator{PropertyName: "kind"}, nil, "/components/schemas/Pet")
+	l := NewRawLowerer(&soa.OpenAPI{})
+	id, diags := discriminatorDefault(l.Ctx, l.Types, &oas3.Discriminator{PropertyName: "kind"}, nil, "/components/schemas/Pet")
 	assert.Empty(t, id)
 	assert.Empty(t, diags)
 }
@@ -115,7 +115,7 @@ func TestDiscriminatorDefault_EmptyIsNoOp(t *testing.T) {
 // own until every declaration has lowered.
 func TestResolveMappingTarget_Branches(t *testing.T) {
 	t.Parallel()
-	l, _ := loweredFor(t, openapitest.ComponentSpec(`    Cat: {type: string}
+	l, _ := LoweredFor(t, openapitest.ComponentSpec(`    Cat: {type: string}
     Pet:
       type: object
       properties: {kind: {type: string}}
@@ -130,7 +130,7 @@ func TestResolveMappingTarget_Branches(t *testing.T) {
 `))
 	d := petDiscriminator(t, l)
 	resolveTarget := func(target string) (ir.TypeID, bool) {
-		return resolveMappingTarget(l.ctx, l.types, d, target, nil)
+		return resolveMappingTarget(l.Ctx, l.Types, d, target, nil)
 	}
 
 	cat := ids.Document{}.NamedType(ids.Ptr("components", "schemas", "Cat"))
@@ -140,7 +140,7 @@ func TestResolveMappingTarget_Branches(t *testing.T) {
 		assert.Equal(t, cat, id)
 	}
 
-	before := l.types.Len()
+	before := l.Types.Len()
 	for target, why := range map[string]string{
 		"other.yaml#/A":                               "an external reference never resolves",
 		"#/components/schemas/Ghost":                  "an undeclared component is refused, not hoisted as an inline position",
@@ -149,22 +149,22 @@ func TestResolveMappingTarget_Branches(t *testing.T) {
 		_, ok := resolveTarget(target)
 		assert.False(t, ok, why)
 	}
-	assert.Equal(t, before, l.types.Len(), "a refused target interns nothing")
+	assert.Equal(t, before, l.Types.Len(), "a refused target interns nothing")
 
 	const scalarTarget = "#/components/schemas/Pet/properties/kind"
 	kind := ids.Document{}.ForPointer("/components/schemas/Pet/properties/kind")
-	got, mappingOK := mappingTargetID(l.ctx, l.ctx.RefScope(), d, scalarTarget)
+	got, mappingOK := mappingTargetID(l.Ctx, l.Ctx.RefScope(), d, scalarTarget)
 	require.True(t, mappingOK, "mappingTargetID names an un-interned scalar position by its pointer")
 	assert.Equal(t, kind, got)
 
 	id, ok := resolveTarget(scalarTarget)
 	require.True(t, ok, "resolveMappingTarget promises it")
 	assert.Equal(t, kind, id)
-	_, interned := l.types.Node(id)
+	_, interned := l.Types.Node(id)
 	assert.False(t, interned, "a promise builds nothing until every declaration has lowered")
-	_, finished := l.types.Finish(t.Context())
+	_, finished := l.Types.Finish(t.Context())
 	assert.Empty(t, finished)
-	_, interned = l.types.Node(id)
+	_, interned = l.Types.Node(id)
 	assert.True(t, interned, "the hoisted alias is registered in the type registry")
 }
 
@@ -177,25 +177,25 @@ func TestMappingTargetID_NamesAPositionByItsPointer(t *testing.T) {
 	t.Parallel()
 	const sub = "#/components/schemas/Pet/properties/kind"
 
-	empty := newRawLowerer(openapitest.DocDeclaring("Pet"))
-	_, ok := mappingTargetID(empty.ctx, empty.ctx.RefScope(), &oas3.Discriminator{}, sub)
+	empty := NewRawLowerer(openapitest.DocDeclaring("Pet"))
+	_, ok := mappingTargetID(empty.Ctx, empty.Ctx.RefScope(), &oas3.Discriminator{}, sub)
 	assert.False(t, ok, "with no bindings the target lands nowhere, so it does not resolve")
 
-	l, _ := loweredFor(t, openapitest.ComponentSpec("    Pet:\n      type: object\n"+
+	l, _ := LoweredFor(t, openapitest.ComponentSpec("    Pet:\n      type: object\n"+
 		"      properties: {kind: {type: object, properties: {a: {type: string}}}}\n"+
 		"      discriminator: {propertyName: k, mapping: {s: '"+sub+"'}}\n"))
 	want := ids.Document{}.ForPointer("/components/schemas/Pet/properties/kind")
-	before, ok := mappingTargetID(l.ctx, l.ctx.RefScope(), petDiscriminator(t, l), sub)
+	before, ok := mappingTargetID(l.Ctx, l.Ctx.RefScope(), petDiscriminator(t, l), sub)
 	require.True(t, ok, "nothing is interned yet, and the position is named all the same")
 	assert.Equal(t, want, before)
 
-	l.diags.AppendAll(LowerComponentSchemas(t.Context(), l.ctx, l.types))
-	_, finished := l.types.Finish(t.Context())
-	l.diags.AppendAll(finished)
-	after, ok := mappingTargetID(l.ctx, l.ctx.RefScope(), petDiscriminator(t, l), sub)
+	l.Diags.AppendAll(LowerComponentSchemas(t.Context(), l.Ctx, l.Types))
+	_, finished := l.Types.Finish(t.Context())
+	l.Diags.AppendAll(finished)
+	after, ok := mappingTargetID(l.Ctx, l.Ctx.RefScope(), petDiscriminator(t, l), sub)
 	require.True(t, ok)
 	assert.Equal(t, want, after, "the node interned there has the ID it was named by")
-	_, interned := l.types.Node(want)
+	_, interned := l.Types.Node(want)
 	assert.True(t, interned)
 }
 
@@ -205,15 +205,15 @@ func TestMappingTargetID_NamesAPositionByItsPointer(t *testing.T) {
 // with n subtypes read each of its positions n times.
 func TestMappingTargetID_ReadsEachPositionOnce(t *testing.T) {
 	t.Parallel()
-	l, _ := loweredFor(t, openapitest.ComponentSpec("    Cat: {type: object}\n"+
+	l, _ := LoweredFor(t, openapitest.ComponentSpec("    Cat: {type: object}\n"+
 		"    Hold: {type: object, properties: {p: {$ref: '#/components/schemas/Cat'}}}\n"+
 		"    Pet: {discriminator: {propertyName: k, mapping: {p: '#/components/schemas/Hold/properties/p'}}}\n"))
 
-	id, ok := mappingTargetID(l.ctx, l.ctx.RefScope(), petDiscriminator(t, l),
+	id, ok := mappingTargetID(l.Ctx, l.Ctx.RefScope(), petDiscriminator(t, l),
 		"#/components/schemas/Hold/properties/p")
 	require.True(t, ok)
 	assert.Equal(t, componentIDByName("Cat"), id, "the position reads through to Cat")
-	at := l.ctx.TypePosition(bind.Position{Pointer: "/components/schemas/Hold/properties/p"}, func() bind.Position {
+	at := l.Ctx.TypePosition(bind.Position{Pointer: "/components/schemas/Hold/properties/p"}, func() bind.Position {
 		t.Error("the position was read again")
 		return bind.Position{}
 	})
@@ -228,7 +228,7 @@ func TestMappingTargetID_ReadsEachPositionOnce(t *testing.T) {
 // each tag keeps its own shape (GitHub #557).
 func TestResolveMappingTarget_DefsValueNamesItsOwnInternedSibling(t *testing.T) {
 	t.Parallel()
-	doc, diags := lowerSpec(t, openapitest.ComponentSpec(defsSiblingMappingSchemas))
+	doc, diags := LowerSpec(t, openapitest.ComponentSpec(defsSiblingMappingSchemas))
 	for _, d := range diags {
 		assert.NotEqual(t, ir.SeverityError, d.Severity, "unexpected error diagnostic: %+v", d)
 	}
@@ -274,7 +274,7 @@ func TestResolveMappingTarget_DefsValueNothingInternedIsHoistedAtItsOwnPosition(
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			doc, diags := lowerSpec(t, openapitest.ComponentSpec(blocks))
+			doc, diags := LowerSpec(t, openapitest.ComponentSpec(blocks))
 			openapitest.RequireNoErrorDiags(t, diags)
 
 			for _, owner := range []string{"Pet", "Toy"} {
@@ -344,13 +344,13 @@ func TestMappingWhy_GivesAComponentNameNoReasonOfTheTable(t *testing.T) {
 	}
 	deep.WriteString("components:\n  schemas:\n    T: {type: string}\n    A: {<<: *c70}\n" +
 		"    P: {oneOf: [{$ref: '#/components/schemas/T'}], discriminator: {propertyName: k, mapping: {u: Undeclared}}}\n")
-	l, _ := loweredFor(t, deep.String())
-	require.True(t, l.ctx.Bindings().Table().Truncated(), "the merge bound cut a read")
-	p, ok := l.ctx.Doc.Components.GetSchemas().Get("P")
+	l, _ := LoweredFor(t, deep.String())
+	require.True(t, l.Ctx.Bindings().Table().Truncated(), "the merge bound cut a read")
+	p, ok := l.Ctx.Doc.Components.GetSchemas().Get("P")
 	require.True(t, ok)
 	d := p.GetSchema().GetDiscriminator()
 	require.NotNil(t, d)
-	assert.Empty(t, mappingWhy(l.ctx, d, "Undeclared"))
+	assert.Empty(t, mappingWhy(l.Ctx, d, "Undeclared"))
 }
 
 // TestMappingWhy_GivesAnUnreadReferenceTheTablesReason pins that a mapping
@@ -367,20 +367,20 @@ func TestMappingWhy_GivesAnUnreadReferenceTheTablesReason(t *testing.T) {
 		fmt.Fprintf(&deep, "x-c%d: &c%d {<<: *c%d}\n", i, i, i-1)
 	}
 	deep.WriteString("components:\n  schemas:\n    T: {properties: {k: {type: string}}}\n    P: {<<: *c70}\n")
-	l, _ := loweredFor(t, deep.String())
-	p, ok := l.ctx.Doc.Components.GetSchemas().Get("P")
+	l, _ := LoweredFor(t, deep.String())
+	p, ok := l.Ctx.Doc.Components.GetSchemas().Get("P")
 	require.True(t, ok)
 	d := p.GetSchema().GetDiscriminator()
 	require.NotNil(t, d, "the parser expands the whole chain")
 	assert.Equal(t, ": it is past a `<<` merge chain deeper than the 64 levels the compiler expands",
-		mappingWhy(l.ctx, d, "#/components/schemas/T"))
+		mappingWhy(l.Ctx, d, "#/components/schemas/T"))
 }
 
 // petDiscriminator returns the discriminator the component schema Pet holds
 // in l's document.
-func petDiscriminator(t *testing.T, l *lowerer) *oas3.Discriminator {
+func petDiscriminator(t *testing.T, l *Lowerer) *oas3.Discriminator {
 	t.Helper()
-	js, ok := l.ctx.Doc.Components.GetSchemas().Get("Pet")
+	js, ok := l.Ctx.Doc.Components.GetSchemas().Get("Pet")
 	require.True(t, ok)
 	d := js.GetSchema().GetDiscriminator()
 	require.NotNil(t, d)

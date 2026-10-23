@@ -15,6 +15,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/pass"
 )
@@ -86,7 +87,7 @@ func TestAllOf_SoleRefBecomesBase(t *testing.T) {
           properties:
             bark: {type: string}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	dog, ok := doc.Types[componentID("Dog")].(*ir.Model)
 	require.True(t, ok, "Dog should be a model")
@@ -117,7 +118,7 @@ func TestAllOf_OverlappingInlineBranchesReconcile(t *testing.T) {
             id: {type: integer}
             url: {type: string}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	m, ok := doc.Types[componentID("Forkish")].(*ir.Model)
 	require.True(t, ok, "Forkish should be a model")
@@ -165,7 +166,7 @@ func TestAllOf_ReconcileAccumulatesRicherDetailWhateverTheOrder(t *testing.T) {
               examples: [abc]
               xml: {name: tok}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	m, ok := doc.Types[componentID("Tokenish")].(*ir.Model)
 	require.True(t, ok, "Tokenish should be a model")
@@ -201,7 +202,7 @@ func TestAllOf_RedeclarationOrsSecret(t *testing.T) {
 			t.Parallel()
 			spec := openapitest.ComponentSpec("    Tokenish:\n      allOf:\n" +
 				branch + tc.first + branch + tc.second)
-			doc, diags := lowerSpec(t, spec)
+			doc, diags := schema.LowerSpec(t, spec)
 			assert.Empty(t, diags, "nothing conflicts")
 			m, ok := doc.Types[componentID("Tokenish")].(*ir.Model)
 			require.True(t, ok, "Tokenish should be a model")
@@ -231,7 +232,7 @@ func TestAllOf_ConflictingRedeclaredDescriptionDiagnosed(t *testing.T) {
           properties:
             id: {type: integer, description: a different meaning}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags) // a description clash is info-level, never an error
 	m, ok := doc.Types[componentID("Clashish")].(*ir.Model)
 	require.True(t, ok, "Clashish should be a model")
@@ -258,7 +259,7 @@ func TestAllOf_ConflictingRedeclaredTypeDiagnosedAndKept(t *testing.T) {
           properties:
             id: {type: integer}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags) // a redeclaration conflict is a warning, not a refusal
 	m, ok := doc.Types[componentID("Conflictish")].(*ir.Model)
 	require.True(t, ok, "Conflictish should be a model")
@@ -309,7 +310,7 @@ func TestAllOf_OverlappingPrimitivesAreReportedNotConflicting(t *testing.T) {
           properties:
             n: {type: integer, format: %s, minimum: %d}
 `, order[0], bounds[0], order[1], bounds[1]))
-			doc, diags := lowerSpec(t, spec)
+			doc, diags := schema.LowerSpec(t, spec)
 			openapitest.RequireNoErrorDiags(t, diags)
 			m, ok := doc.Types[componentID("Overlapish")].(*ir.Model)
 			require.True(t, ok, "Overlapish should be a model")
@@ -363,7 +364,7 @@ func TestAllOf_EnumPairsAreJudgedByKind(t *testing.T) {
 			}
 			t.Run(fmt.Sprintf("%s swapped=%t", tc.name, swap), func(t *testing.T) {
 				t.Parallel()
-				_, diags := lowerSpec(t, allOfConflictSpec(a, b))
+				_, diags := schema.LowerSpec(t, allOfConflictSpec(a, b))
 				openapitest.RequireNoErrorDiags(t, diags)
 				assert.Equal(t, tc.info, openapitest.HasDiagAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
 					"the overlap info")
@@ -401,7 +402,7 @@ func TestAllOf_ALosingRedeclarationIsKeptAsWritten(t *testing.T) {
           properties:
             id: false
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	for _, tc := range []struct{ model, want string }{
@@ -432,7 +433,7 @@ func TestAllOf_ConflictingRedeclaredConstraintDiagnosed(t *testing.T) {
           properties:
             code: {type: string, maxLength: 20}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	m, ok := doc.Types[componentID("Boundish")].(*ir.Model)
 	require.True(t, ok, "Boundish should be a model")
@@ -466,7 +467,7 @@ func TestAllOf_CompatibleRedeclarationStaysSilent(t *testing.T) {
           properties:
             id: {type: integer}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	m, ok := doc.Types[componentID("Compatish")].(*ir.Model)
 	require.True(t, ok, "Compatish should be a model")
@@ -492,7 +493,7 @@ func TestAllOf_PropertyAlongsideAllOfReconciles(t *testing.T) {
             id: {type: integer, description: the identifier}
             name: {type: string}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	m, ok := doc.Types[componentID("Mixish")].(*ir.Model)
 	require.True(t, ok, "Mixish should be a model")
@@ -595,7 +596,7 @@ func TestAllOf_CompositionRequiredAttaches(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			doc, diags := lowerSpec(t, tc.spec)
+			doc, diags := schema.LowerSpec(t, tc.spec)
 			openapitest.RequireNoErrorDiags(t, diags)
 			m, ok := doc.Types[componentID(tc.model)].(*ir.Model)
 			require.True(t, ok, "%s should be a model", tc.model)
@@ -627,7 +628,7 @@ func TestAllOf_RequiredOnlyBranchNamingBaseOwnedPropertyLandsInRequires(t *testi
           properties:
             gender: {type: string}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	m, ok := doc.Types[componentID("SuperBaby")].(*ir.Model)
 	require.True(t, ok, "SuperBaby should be a model")
 	require.NotNil(t, m.Base, "the sole $ref still becomes Base")
@@ -656,7 +657,7 @@ func TestAllOf_RequiredNameNothingDeclaresLandsInRequires(t *testing.T) {
             id: {type: integer}
         - required: [ghost]
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	m, ok := doc.Types[componentID("Thing")].(*ir.Model)
 	require.True(t, ok, "Thing should be a model")
@@ -693,7 +694,7 @@ func TestAllOf_RefBranchWithSiblingRequired31(t *testing.T) {
           properties:
             level: {type: integer}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	m, ok := doc.Types[componentID("SuperBoyLike")].(*ir.Model)
 	require.True(t, ok, "SuperBoyLike should be a model")
@@ -722,7 +723,7 @@ func TestAllOf_InlineBranchResidueKeptVerbatim(t *testing.T) {
           description: BranchDoc
           x-vendor: keepme
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	m, ok := typeByName(doc, "S").(*ir.Model)
 	require.True(t, ok, "S should be a model")
@@ -759,7 +760,7 @@ func TestAllOf_InlineBranchNonObjectTypeWarns(t *testing.T) {
       allOf:
         - {type: string, maxLength: 3}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	m, ok := typeByName(doc, "T").(*ir.Model)
 	require.True(t, ok, "the composed node is still a model")
@@ -790,7 +791,7 @@ func TestAllOf_BranchWrittenByReferenceStillDerivesResidue(t *testing.T) {
     Merged: {allOf: [{<<: *br}]}
     Overridden: {allOf: [{<<: *br, type: object, properties: {a: {type: string}}}]}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	cases := []struct {
@@ -848,7 +849,7 @@ func TestAllOf_MergedBranchKeywordsAreNotResidue(t *testing.T) {
           properties: {name: {type: string}}
         - required: [name]
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	for _, name := range []string{"TypedBranch", "UntypedBranch", "RequiredOnlyBranch"} {
 		m, ok := typeByName(doc, name).(*ir.Model)
@@ -878,7 +879,7 @@ func TestAllOf_BranchResidueDerivedFromDeclaredKeys(t *testing.T) {
         - type: [object, 'null']
           properties: {a: {type: string}}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	for name, want := range map[string]string{
@@ -911,7 +912,7 @@ func TestAllOf_EachInlineBranchKeyedSeparately(t *testing.T) {
           properties: {b: {type: string}}
           minProperties: 1
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	m, ok := typeByName(doc, "Multi").(*ir.Model)
 	require.True(t, ok, "Multi should be a model")
@@ -947,7 +948,7 @@ func TestAllOf_BranchResidueRidesEveryDistributedVariant(t *testing.T) {
         - {$ref: '#/components/schemas/A'}
         - {$ref: '#/components/schemas/B'}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	u, ok := typeByName(doc, "Distributed").(*ir.Union)
 	require.True(t, ok, "Distributed distributes into a union")
@@ -982,7 +983,7 @@ func TestAllOf_RequiresIsTheSameInEitherComponentOrder(t *testing.T) {
 	)
 	nodes := make([]*ir.Model, 0, 2)
 	for _, src := range []string{user + created, created + user} {
-		doc, diags := lowerSpec(t, openapitest.ComponentSpec(src))
+		doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(src))
 		openapitest.RequireNoErrorDiags(t, diags)
 		m, ok := typeByName(doc, "CreatedUser").(*ir.Model)
 		require.True(t, ok, "CreatedUser is a model")
@@ -1013,7 +1014,7 @@ func TestAllOf_ARequiredNameWrittenInSeveralListsIsListedOnce(t *testing.T) {
         - {required: [extra, other]}
       required: [extra, id]
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	assert.Empty(t, diags, "no list repeats a name, so nothing is reported")
 
@@ -1040,7 +1041,7 @@ func TestAllOf_ExtraRefsBecomeMixins(t *testing.T) {
           properties:
             c: {type: string}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	c, ok := doc.Types[componentID("C")].(*ir.Model)
 	require.True(t, ok, "C should be a model")
@@ -1075,7 +1076,7 @@ func TestAllOf_DiscriminatorHierarchy(t *testing.T) {
         - {$ref: '#/components/schemas/Extra'}
         - {type: object, properties: {bark: {type: boolean}}}
 `)
-	doc, _ := lowerSpec(t, spec)
+	doc, _ := schema.LowerSpec(t, spec)
 
 	pet := typeByName(doc, "Pet").(*ir.Model)
 	require.NotNil(t, pet.Discriminator)
@@ -1100,7 +1101,7 @@ func TestAllOf_UnresolvedRefBranch(t *testing.T) {
         - {$ref: '#'}
         - {type: object, properties: {a: {type: string}}}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	require.NotNil(t, doc)
 	assert.True(t, openapitest.HasDiag(diags, diag.UnresolvedRef))
 }
@@ -1117,7 +1118,7 @@ func TestAllOf_MultiRefWithUnresolvedDoesNotAnchor(t *testing.T) {
         - {$ref: '#/components/schemas/Base'}
         - {type: object, properties: {a: {type: string}}}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	require.NotNil(t, doc)
 	sub := typeByName(doc, "Sub").(*ir.Model)
 	require.NotNil(t, sub.Base, "the discriminator-anchoring Base becomes base despite an unresolved sibling ref")
@@ -1140,7 +1141,7 @@ func TestAllOf_BoolBranchSkippedInCompositionRequired(t *testing.T) {
             id: {type: integer}
         - true
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	m, ok := doc.Types[componentID("Thing")].(*ir.Model)
 	require.True(t, ok, "Thing should be a model")
@@ -1169,7 +1170,7 @@ func TestAllOf_AnInadmissibleBroadValueIsKeptInEitherOrder(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			doc, diags := lowerSpec(t, openapitest.ComponentSpec("    Ranged:\n      allOf:\n"+
+			doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec("    Ranged:\n      allOf:\n"+
 				branch+tc.first+branch+tc.second))
 			openapitest.RequireNoErrorDiags(t, diags)
 			m, ok := doc.Types[componentID("Ranged")].(*ir.Model)
@@ -1206,7 +1207,7 @@ func TestAllOf_ANullOnARefOverTheTopTypeIsKept(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			doc, diags := lowerSpec(t, openapitest.ComponentSpec("    Y: {description: free}\n    Held:\n      allOf:\n"+
+			doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec("    Y: {description: free}\n    Held:\n      allOf:\n"+
 				branch+tc.first+branch+tc.second))
 			assert.Empty(t, diags, "nothing is refused")
 			m, ok := doc.Types[componentID("Held")].(*ir.Model)
@@ -1245,7 +1246,7 @@ func TestAllOf_NonBareNarrowingIsOrderInvariant(t *testing.T) {
 			t.Parallel()
 			types := make([]ir.TypeDef, 0, 2)
 			for _, order := range [][2]string{{tc.narrow, tc.broad}, {tc.broad, tc.narrow}} {
-				doc, diags := lowerSpec(t, nonBareSpec(tc.extra, order[0], order[1]))
+				doc, diags := schema.LowerSpec(t, nonBareSpec(tc.extra, order[0], order[1]))
 				openapitest.RequireNoErrorDiags(t, diags)
 				m, ok := doc.Types[componentID("T")].(*ir.Model)
 				require.True(t, ok)
@@ -1274,7 +1275,7 @@ func TestAllOf_AnUnknownFormatWinsInEitherOrder(t *testing.T) {
 	plain := "{type: string}"
 	formatted := "{type: string, format: hex-token, minLength: 8, default: x, description: the token}"
 	for i, order := range [][2]string{{plain, formatted}, {formatted, plain}} {
-		doc, diags := lowerSpec(t, nonBareSpec("", order[0], order[1]))
+		doc, diags := schema.LowerSpec(t, nonBareSpec("", order[0], order[1]))
 		openapitest.RequireNoErrorDiags(t, diags)
 		m, ok := doc.Types[componentID("T")].(*ir.Model)
 		require.True(t, ok)
@@ -1318,7 +1319,7 @@ func TestAllOf_ReconcileAccumulatesRicherDetailForAnUnknownFormat(t *testing.T) 
               examples: [abc]
               xml: {name: tok}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	m, ok := doc.Types[componentID("Tokenish")].(*ir.Model)
 	require.True(t, ok, "Tokenish should be a model")
@@ -1345,7 +1346,7 @@ func TestAllOf_TheTopTypeAndANullableKindMeetAsNullableInEitherOrder(t *testing.
 	t.Parallel()
 	top, nullable := "{}", `{type: [integer, "null"]}`
 	for i, order := range [][2]string{{top, nullable}, {nullable, top}} {
-		doc, diags := lowerSpec(t, nonBareSpec("", order[0], order[1]))
+		doc, diags := schema.LowerSpec(t, nonBareSpec("", order[0], order[1]))
 		openapitest.RequireNoErrorDiags(t, diags)
 		m, ok := doc.Types[componentID("T")].(*ir.Model)
 		require.True(t, ok)
@@ -1372,7 +1373,7 @@ func TestAllOf_ADefaultTheNarrowerNodeRefusesIsKeptInEitherOrder(t *testing.T) {
 		{[2]string{enum, broad}, "/components/schemas/T/allOf/1/properties/v"},
 		{[2]string{broad, enum}, "/components/schemas/T/allOf/0/properties/v"},
 	} {
-		doc, diags := lowerSpec(t, nonBareSpec("", tc.order[0], tc.order[1]))
+		doc, diags := schema.LowerSpec(t, nonBareSpec("", tc.order[0], tc.order[1]))
 		openapitest.RequireNoErrorDiags(t, diags)
 		m, ok := doc.Types[componentID("T")].(*ir.Model)
 		require.True(t, ok)
@@ -1399,7 +1400,7 @@ func TestAllOf_AWinnersConstraintsRefuseADefaultInEitherOrder(t *testing.T) {
 	named := "{$ref: '#/components/schemas/C'}"
 	lowerings := map[string]func(extra, a, b string) (*ir.Document, []ir.Diagnostic){
 		"declared before": func(extra, a, b string) (*ir.Document, []ir.Diagnostic) {
-			return lowerSpec(t, nonBareSpec(extra, a, b))
+			return schema.LowerSpec(t, nonBareSpec(extra, a, b))
 		},
 		"declared after": func(extra, a, b string) (*ir.Document, []ir.Diagnostic) { return settledSpec(t, extra, a, b) },
 	}
@@ -1448,7 +1449,7 @@ func TestAllOf_TwoEqualListsRefuseANullTheMergeDoesNotAdmit(t *testing.T) {
 		{[2]string{nullable, plain}, "/components/schemas/T/allOf/0/properties/v"},
 		{[2]string{plain, nullable}, "/components/schemas/T/allOf/1/properties/v"},
 	} {
-		doc, diags := lowerSpec(t, nonBareSpec("", tc.order[0], tc.order[1]))
+		doc, diags := schema.LowerSpec(t, nonBareSpec("", tc.order[0], tc.order[1]))
 		openapitest.RequireNoErrorDiags(t, diags)
 		m, ok := doc.Types[componentID("T")].(*ir.Model)
 		require.True(t, ok)
@@ -1474,7 +1475,7 @@ func TestAllOf_TwoEqualListsRefuseANullTheMergeDoesNotAdmit(t *testing.T) {
 // info, with the first kept and the second's $ref kept verbatim.
 func TestAllOf_IdenticalNodesAreOneType(t *testing.T) {
 	t.Parallel()
-	for _, schema := range []string{
+	for _, body := range []string{
 		"{type: string, enum: [a, b]}",
 		"{const: a}",
 		"{type: string, format: hex}",
@@ -1482,22 +1483,22 @@ func TestAllOf_IdenticalNodesAreOneType(t *testing.T) {
 		"{type: array, items: {type: integer, format: int32}}",
 		"{type: object, additionalProperties: {type: integer}}",
 	} {
-		t.Run(schema, func(t *testing.T) {
+		t.Run(body, func(t *testing.T) {
 			t.Parallel()
-			extra := "    P: " + schema + "\n    Q: " + schema + "\n"
+			extra := "    P: " + body + "\n    Q: " + body + "\n"
 			p, q := "{$ref: '#/components/schemas/P'}", "{$ref: '#/components/schemas/Q'}"
 			for i, tc := range []struct {
 				order [2]string
 				win   ir.TypeID // the type that stands
 				same  bool
 			}{
-				{[2]string{schema, schema}, "t/anon/components/schemas/T/allOf/0/properties/v", true},
-				{[2]string{p, schema}, componentID("P"), true},
-				{[2]string{schema, p}, componentID("P"), true},
+				{[2]string{body, body}, "t/anon/components/schemas/T/allOf/0/properties/v", true},
+				{[2]string{p, body}, componentID("P"), true},
+				{[2]string{body, p}, componentID("P"), true},
 				{[2]string{p, q}, componentID("P"), false},
 				{[2]string{q, p}, componentID("Q"), false},
 			} {
-				doc, diags := lowerSpec(t, nonBareSpec(extra, tc.order[0], tc.order[1]))
+				doc, diags := schema.LowerSpec(t, nonBareSpec(extra, tc.order[0], tc.order[1]))
 				m, ok := doc.Types[componentID("T")].(*ir.Model)
 				require.True(t, ok, "order %d", i)
 				require.Len(t, m.Properties, 1, "order %d", i)
@@ -1545,7 +1546,7 @@ func TestAllOf_ARefToAnInlineNodeIsDeclaredApart(t *testing.T) {
 		{[2]string{c, d}, at("c"), false},
 		{[2]string{d, c}, at("d"), false},
 	} {
-		doc, diags := lowerSpec(t, nonBareSpec(extra, tc.order[0], tc.order[1]))
+		doc, diags := schema.LowerSpec(t, nonBareSpec(extra, tc.order[0], tc.order[1]))
 		m, ok := doc.Types[componentID("T")].(*ir.Model)
 		require.True(t, ok, "order %d", i)
 		require.Len(t, m.Properties, 1, "order %d", i)
@@ -1583,7 +1584,7 @@ func TestAllOf_ACopyANarrowingKeptIsStillACopy(t *testing.T) {
 			if colorLast {
 				schemas = composed + color
 			}
-			doc, diags := lowerSpec(t, openapitest.ComponentSpec(schemas))
+			doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(schemas))
 			m, ok := doc.Types[componentID("T")].(*ir.Model)
 			require.True(t, ok, "order %v, Color last %t", order, colorLast)
 			require.Len(t, m.Properties, 1, "order %v, Color last %t", order, colorLast)
@@ -1603,7 +1604,7 @@ func TestAllOf_AListOfAComponentWinsOverAListOfItsCopy(t *testing.T) {
 	const enum = "{type: string, enum: [a, b]}"
 	ofRef, ofCopy := "{type: array, items: {$ref: '#/components/schemas/Color'}}", "{type: array, items: "+enum+"}"
 	for i, order := range [][2]string{{ofRef, ofCopy}, {ofCopy, ofRef}} {
-		doc, diags := lowerSpec(t, nonBareSpec("    Color: "+enum+"\n", order[0], order[1]))
+		doc, diags := schema.LowerSpec(t, nonBareSpec("    Color: "+enum+"\n", order[0], order[1]))
 		m, ok := doc.Types[componentID("T")].(*ir.Model)
 		require.True(t, ok, "order %d", i)
 		require.Len(t, m.Properties, 1, "order %d", i)
@@ -1631,7 +1632,7 @@ func TestAllOf_ARefToASiblingFieldIsDeclaredApart(t *testing.T) {
 		if i == 1 {
 			branches[0], branches[1] = branches[1], branches[0]
 		}
-		doc, diags := lowerSpec(t, openapitest.ComponentSpec("    T:\n      allOf:\n"+branches[0]+branches[1]))
+		doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec("    T:\n      allOf:\n"+branches[0]+branches[1]))
 		m, ok := doc.Types[componentID("T")].(*ir.Model)
 		require.True(t, ok, "order %d", i)
 		var v *ir.Property
@@ -1676,7 +1677,7 @@ func TestAllOf_ARedeclarationIsJudgedOnceTheComponentsHaveLowered(t *testing.T) 
 			pq := "    P: " + tc.pdecl + "\n    Q: " + tc.qdecl + "\n"
 			qp := "    Q: " + tc.qdecl + "\n    P: " + tc.pdecl + "\n"
 			for i, lower := range []func() (*ir.Document, []ir.Diagnostic){
-				func() (*ir.Document, []ir.Diagnostic) { return lowerSpec(t, nonBareSpec(pq, a, b)) },
+				func() (*ir.Document, []ir.Diagnostic) { return schema.LowerSpec(t, nonBareSpec(pq, a, b)) },
 				func() (*ir.Document, []ir.Diagnostic) { return settledSpec(t, pq, a, b) },
 				func() (*ir.Document, []ir.Diagnostic) { return settledSpec(t, qp, a, b) },
 			} {
@@ -1711,7 +1712,7 @@ func TestAllOf_WhatAFieldKeepsOfItsDetailIsOrderFree(t *testing.T) {
 	a := "{type: number, default: 1, x-foo: 1, x-same: s}"
 	b := "{type: number, default: 1.0, x-foo: 2, x-same: s, deprecated: true, x-deprecated-reason: use q}"
 	for _, order := range [][2]string{{a, b}, {b, a}} {
-		doc, diags := lowerSpec(t, nonBareSpec("", order[0], order[1]))
+		doc, diags := schema.LowerSpec(t, nonBareSpec("", order[0], order[1]))
 		m, ok := doc.Types[componentID("T")].(*ir.Model)
 		require.True(t, ok)
 		require.Len(t, m.Properties, 1)
@@ -1752,7 +1753,7 @@ func TestAllOf_ContainerMembersAreJudgedAsFieldsAre(t *testing.T) {
 		{"both lists admitting the empty one", "", diag.DegradedConstruct, ir.SeverityInfo},
 	} {
 		for _, order := range [][2]string{{fmt.Sprintf(str, tc.min), num}, {num, fmt.Sprintf(str, tc.min)}} {
-			_, diags := lowerSpec(t, nonBareSpec("", order[0], order[1]))
+			_, diags := schema.LowerSpec(t, nonBareSpec("", order[0], order[1]))
 			require.Len(t, diags, 1, "%s, order %v: %+v", tc.name, order, diags)
 			assert.Equal(t, tc.code, diags[0].Code, "%s, order %v", tc.name, order)
 			assert.Equal(t, tc.sev, diags[0].Severity, "%s, order %v", tc.name, order)
@@ -2281,7 +2282,7 @@ func TestAllOf_UntypedRedeclarationDoesNotConflict(t *testing.T) {
           properties:
             id: {type: integer}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	m, ok := typeByName(doc, "Anyish").(*ir.Model)
 	require.True(t, ok, "Anyish should be a model")
@@ -2303,7 +2304,7 @@ func TestAllOf_EquivalentNumericBoundsDoNotConflict(t *testing.T) {
           properties:
             n: {type: number, minimum: 10.0}
 `)
-	_, diags := lowerSpec(t, spec)
+	_, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	assert.Empty(t, conflictDiags(diags),
 		"10 and 10.0 are the same numeric bound, not a conflict")
@@ -2322,7 +2323,7 @@ func TestAllOf_DifferingNumericBoundsConflict(t *testing.T) {
           properties:
             n: {type: integer, minimum: 10}
 `)
-	_, diags := lowerSpec(t, spec)
+	_, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	conflicts := conflictDiags(diags)
 	require.Len(t, conflicts, 1, "differing numeric bounds are diagnosed once")
@@ -2344,7 +2345,7 @@ func TestAllOf_ScalarVersusObjectRedeclarationConflicts(t *testing.T) {
               properties:
                 x: {type: string}
 `)
-	_, diags := lowerSpec(t, spec)
+	_, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	conflicts := conflictDiags(diags)
 	require.Len(t, conflicts, 1, "a scalar against an object is diagnosed once")
@@ -2372,7 +2373,7 @@ func TestAllOf_DistinctInlineObjectsDoNotConflict(t *testing.T) {
               properties:
                 x: {type: string}
 `)
-	_, diags := lowerSpec(t, spec)
+	_, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	assert.Empty(t, conflictDiags(diags),
 		"two distinct inline objects for one field are not a provable conflict")
@@ -2446,7 +2447,7 @@ func TestAllOf_ConstraintAndFormatConflictsDiagnosed(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			_, diags := lowerSpec(t, allOfConflictSpec(tc.a, tc.b))
+			_, diags := schema.LowerSpec(t, allOfConflictSpec(tc.a, tc.b))
 			openapitest.RequireNoErrorDiags(t, diags)
 			conflicts := conflictDiags(diags)
 			require.Len(t, conflicts, 1, "%s is diagnosed exactly once", tc.name)
@@ -2482,7 +2483,7 @@ func TestAllOf_PrimitiveNarrowingIsLosslessInEitherOrder(t *testing.T) {
 			t.Parallel()
 			var merged [2]ir.TypeRef
 			for i, spec := range []string{allOfConflictSpec(tc.broad, tc.narrow), allOfConflictSpec(tc.narrow, tc.broad)} {
-				doc, diags := lowerSpec(t, spec)
+				doc, diags := schema.LowerSpec(t, spec)
 				openapitest.RequireNoErrorDiags(t, diags)
 				assert.Empty(t, diags, "a narrowing draws no diagnostic (order %d)", i)
 				model, ok := doc.Types[componentID("T")].(*ir.Model)
@@ -2575,7 +2576,7 @@ func TestAllOf_CompatibleConstraintRedeclarationsStaySilent(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			doc, diags := lowerSpec(t, allOfConflictSpec(tc.a, tc.b))
+			doc, diags := schema.LowerSpec(t, allOfConflictSpec(tc.a, tc.b))
 			assert.Empty(t, diags, "%s draws no diagnostic", tc.name)
 			if tc.assertMerged == nil {
 				return
@@ -2602,7 +2603,7 @@ func TestAllOf_OpaqueScalarVsPrimitiveNoConflict(t *testing.T) {
           properties:
             id: {format: custom}
 `)
-	_, diags := lowerSpec(t, spec)
+	_, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	assert.Empty(t, conflictDiags(diags),
 		"opaque scalar vs primitive is not flagged as a conflict")
@@ -2625,7 +2626,7 @@ func TestAllOf_ThreeWayRedeclarationProducesTwoDiagnostics(t *testing.T) {
           properties:
             id: {type: boolean}
 `)
-	_, diags := lowerSpec(t, spec)
+	_, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	conflicts := conflictDiags(diags)
 	require.Len(t, conflicts, 2, "three-way redeclaration produces two diagnostics")
@@ -2647,7 +2648,7 @@ func TestAllOf_ThreeWayCompatibleRedeclarationStaysSilent(t *testing.T) {
           properties:
             id: {type: string}
 `)
-	_, diags := lowerSpec(t, spec)
+	_, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	assert.Empty(t, conflictDiags(diags),
 		"three-way compatible redeclaration stays silent")
@@ -2670,7 +2671,7 @@ func TestAllOf_SatisfiableNarrowingsStaySilent(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			_, diags := lowerSpec(t, allOfConflictSpec(tc.a, tc.b))
+			_, diags := schema.LowerSpec(t, allOfConflictSpec(tc.a, tc.b))
 			openapitest.RequireNoErrorDiags(t, diags)
 			assert.Empty(t, conflictDiags(diags), "%s must not be reported as a conflict", tc.name)
 		})
@@ -2682,7 +2683,7 @@ func TestAllOf_EnumVersusIncompatibleTypeStillConflicts(t *testing.T) {
 	// Guard against over-correcting the enum false-positive fix: an enum whose
 	// declared ValueType is string still provably conflicts with an
 	// incompatible primitive (integer).
-	_, diags := lowerSpec(t, allOfConflictSpec(
+	_, diags := schema.LowerSpec(t, allOfConflictSpec(
 		"{type: string, enum: [active, inactive]}", "{type: integer}"))
 	openapitest.RequireNoErrorDiags(t, diags)
 	conflicts := conflictDiags(diags)
@@ -2695,7 +2696,7 @@ func TestAllOf_TypeConflictMessageNamesBothTypes(t *testing.T) {
 	// The type-conflict diagnostic must say what actually differs, not just
 	// that something did: the two conflicting type identities, so the author
 	// can see at a glance what disagreed without cross-referencing the spec.
-	_, diags := lowerSpec(t, allOfConflictSpec("{type: string}", "{type: integer}"))
+	_, diags := schema.LowerSpec(t, allOfConflictSpec("{type: string}", "{type: integer}"))
 	openapitest.RequireNoErrorDiags(t, diags)
 	conflicts := conflictDiags(diags)
 	require.Len(t, conflicts, 1)
@@ -2720,7 +2721,7 @@ func TestAllOf_PropertyAlongsideAllOfConflictMessageIsAccurate(t *testing.T) {
           properties:
             id: {type: integer}
 `)
-	_, diags := lowerSpec(t, spec)
+	_, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	conflicts := conflictDiags(diags)
 	require.Len(t, conflicts, 1, "the co-declared property conflict is diagnosed once")
@@ -2738,7 +2739,7 @@ func TestAllOf_PropertyAlongsideAllOfConflictMessageIsAccurate(t *testing.T) {
 // the same answer a bare `false` schema gets in its own right.
 func TestAllOf_FalseBranchClosesTheComposition(t *testing.T) {
 	t.Parallel()
-	doc, diags := lowerSpec(t, openapitest.ComponentSpec(`    Never:
+	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(`    Never:
       allOf:
         - false
         - type: object
@@ -2762,7 +2763,7 @@ func TestAllOf_FalseBranchClosesTheComposition(t *testing.T) {
 // happen either.
 func TestAllOf_UnpreservableBranchIsNotAnnounced(t *testing.T) {
 	t.Parallel()
-	doc, diags := lowerSpec(t, openapitest.ComponentSpec(`    M:
+	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(`    M:
       allOf:
         - {type: string, maxLength: 3, x-t: `+unpreservableValue+`}
 `))

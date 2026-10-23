@@ -37,7 +37,7 @@ func TestContent_MultipartPartEncoding(t *testing.T) {
                   X-Part: {schema: {type: string}}
       responses: {"200": {description: ok}}
 `)
-	_, svc, diags := lowerServiceSpec(t, spec)
+	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	content := openapitest.FirstOp(t, svc).Request.Contents[0]
 	metaProp := ir.PropID("p/openapi" + ids.Ptr("paths", "/upload", "post", "requestBody", "content", "multipart/form-data", "schema", "properties", "meta"))
@@ -76,7 +76,7 @@ components:
         meta: {type: object, properties: {k: {type: string}}}
         file: {type: string, format: binary}
 `)
-	_, svc, diags := lowerServiceSpec(t, spec)
+	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	content := openapitest.FirstOp(t, svc).Request.Contents[0]
 	require.NotNil(t, content.Encoding, "referenced multipart body keeps per-part encoding")
@@ -122,7 +122,7 @@ func TestContent_MultipartRedeclaredPartFlagsComeFromTheSettledType(t *testing.T
 				if qFirst {
 					components = q + body
 				}
-				doc, svc, diags := lowerServiceSpec(t, openapitest.PathsSpec(`  /u:
+				doc, svc, diags := compileService(t, openapitest.PathsSpec(`  /u:
     post:
       requestBody:
         content:
@@ -171,7 +171,7 @@ func TestContent_MultipartAliasBodyKeyedByAliasedModel(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			doc, svc, diags := lowerServiceSpec(t, aliasedMultipartSpec(tc.mediaSchema))
+			doc, svc, diags := compileService(t, aliasedMultipartSpec(tc.mediaSchema))
 			openapitest.RequireNoErrorDiags(t, diags)
 			content := openapitest.FirstOp(t, svc).Request.Contents[0]
 			form, isModel := typeByName(doc, "Form").(*ir.Model)
@@ -234,7 +234,7 @@ components:
   schemas:
     NotAModel: {enum: [x], properties: {file: {type: string, format: binary}}}
 `)
-			_, svc, diags := lowerServiceSpec(t, spec)
+			_, svc, diags := compileService(t, spec)
 			openapitest.RequireNoErrorDiags(t, diags)
 			content := openapitest.FirstOp(t, svc).Request.Contents[0]
 			require.Contains(t, content.Encoding, tc.want,
@@ -257,7 +257,7 @@ func TestContent_ArrayMultipartPartMulti(t *testing.T) {
                 tags: {type: array, items: {type: string}}
       responses: {"200": {description: ok}}
 `)
-	_, svc, diags := lowerServiceSpec(t, spec)
+	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	content := openapitest.FirstOp(t, svc).Request.Contents[0]
 	tagsProp := ir.PropID("p/openapi" + ids.Ptr("paths", "/bulk", "post", "requestBody", "content", "multipart/form-data", "schema", "properties", "tags"))
@@ -308,7 +308,7 @@ components:
       type: object
       properties: {note: {type: string}}
 `)
-	_, svc, diags := lowerServiceSpec(t, spec)
+	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	enc := openapitest.FirstOp(t, svc).Request.Contents[0].Encoding
 
@@ -337,7 +337,7 @@ func TestBodyParts_RedeclaredNameIsOnePart(t *testing.T) {
               note: {contentType: text/plain}
       responses: {"200": {description: ok}}
 `)
-	_, svc, diags := lowerServiceSpec(t, spec)
+	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	enc := openapitest.FirstOp(t, svc).Request.Contents[0].Encoding
 	assert.Len(t, enc, 1, "one wire part is one encoding entry; got %v", enc)
@@ -484,7 +484,7 @@ func TestPartEncoding_ADecidedTypeNeverFallsBack(t *testing.T) {
 		`{type: object, properties: {file: {type: string, format: binary}}}]}
       responses: {"200": {description: ok}}
 `)
-	_, svc, diags := lowerServiceSpec(t, spec)
+	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	assert.Empty(t, openapitest.FirstOp(t, svc).Request.Contents[0].Encoding, "the kept integer decides: not a file")
 }
@@ -566,7 +566,7 @@ func TestPartEncodings_ReadsTheFlattenedComposition(t *testing.T) {
 			reversed := nestedPartSpec(tc.n, tc.residue, tc.shape, tc.media, []string{"meta", "file"}, []string{"meta", "file"})
 			var got [2]map[ir.PropID]ir.PartEncoding
 			for i, src := range []string{forward, reversed} {
-				_, svc, diags := lowerServiceSpec(t, src)
+				_, svc, diags := compileService(t, src)
 				openapitest.RequireNoErrorDiags(t, diags)
 				got[i] = openapitest.FirstOp(t, svc).Request.Contents[0].Encoding
 				if tc.capped {
@@ -617,7 +617,7 @@ func TestPartEncodings_RefHopBoundIsReported(t *testing.T) {
 components:
   schemas:
 ` + comps.String())
-	_, svc, diags := lowerServiceSpec(t, spec)
+	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	msg := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityWarning,
 		"/paths/~1u/post/requestBody/content/multipart~1form-data/schema")
@@ -658,7 +658,7 @@ func TestPartEncodings_ShorterPathReentersTarget(t *testing.T) {
 components:
   schemas:
 ` + comps.String())
-			_, svc, diags := lowerServiceSpec(t, spec)
+			_, svc, diags := compileService(t, spec)
 			openapitest.RequireNoErrorDiags(t, diags)
 			got := openapitest.FirstOp(t, svc).Request.Contents[0].Encoding
 			for _, part := range []string{"file", "meta"} {
@@ -718,7 +718,7 @@ components:
     Deep: ` + deep + `
     Form: ` + obj + `
 `)
-			_, svc, diags := lowerServiceSpec(t, spec)
+			_, svc, diags := compileService(t, spec)
 			openapitest.RequireNoErrorDiags(t, diags)
 			got := openapitest.FirstOp(t, svc).Request.Contents[0].Encoding
 			for _, part := range []string{"file", "meta"} {
@@ -774,7 +774,7 @@ func TestPartEncodings_CutPastReachedPart(t *testing.T) {
 components:
   schemas:
 ` + tc.comps)
-			_, svc, diags := lowerServiceSpec(t, spec)
+			_, svc, diags := compileService(t, spec)
 			openapitest.RequireNoErrorDiags(t, diags)
 			got := openapitest.FirstOp(t, svc).Request.Contents[0].Encoding
 			for _, part := range []string{"file", "meta"} {
@@ -817,7 +817,7 @@ components:
       type: object
       properties: {file: {type: string, format: binary}, meta: {type: string}}
       allOf: ` + tc.allOf + "\n")
-			_, svc, diags := lowerServiceSpec(t, spec)
+			_, svc, diags := compileService(t, spec)
 			openapitest.RequireNoErrorDiags(t, diags)
 			got := openapitest.FirstOp(t, svc).Request.Contents[0].Encoding
 			for _, part := range []string{"file", "meta"} {
@@ -872,7 +872,7 @@ components:
   schemas:
     Blob: {type: string, format: binary}
 `)
-	_, svc, diags := lowerServiceSpec(t, spec)
+	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	enc := openapitest.FirstOp(t, svc).Request.Contents[0].Encoding
 	require.Len(t, enc, 1, "one part carries a flag: %v", enc)

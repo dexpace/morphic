@@ -11,6 +11,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -20,7 +21,7 @@ func TestEnum_StringClosed(t *testing.T) {
       type: string
       enum: [a, b]
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	e, ok := doc.Types[componentID("E")].(*ir.Enum)
 	require.True(t, ok, "E should be an enum")
@@ -110,7 +111,7 @@ func TestEnum_NullMemberNormalizesToNullable(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			doc, diags := lowerSpec(t, enumPropertySpec(tc.version, tc.schema))
+			doc, diags := schema.LowerSpec(t, enumPropertySpec(tc.version, tc.schema))
 			openapitest.RequireNoErrorDiags(t, diags)
 			assert.False(t, openapitest.HasDiag(diags, diag.DegradedConstruct),
 				"a normalized nullable enum is not a degradation; got %+v", diags)
@@ -204,7 +205,7 @@ func TestEnum_NullMemberKeepsUnionFallback(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			doc, diags := lowerSpec(t, enumPropertySpec(tc.version, tc.schema))
+			doc, diags := schema.LowerSpec(t, enumPropertySpec(tc.version, tc.schema))
 			openapitest.RequireNoErrorDiags(t, diags)
 			assert.True(t, openapitest.HasDiagAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
 				"the degraded-enum diagnostic still fires; got %+v", diags)
@@ -298,7 +299,7 @@ func TestEnum_EmptyMemberListMatchesNoValue(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			doc, diags := lowerSpec(t, openapitest.ComponentSpec(tc.schema+"\n"))
+			doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(tc.schema+"\n"))
 			openapitest.RequireNoErrorDiags(t, diags)
 
 			e, ok := typeByName(doc, "S").(*ir.Enum)
@@ -339,7 +340,7 @@ func TestEnum_EmptyMemberListIsAUnionSibling(t *testing.T) {
       enum: []
       oneOf: [{type: string}, {type: integer}]
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	e, ok := typeByName(doc, "S").(*ir.Enum)
@@ -357,7 +358,7 @@ func TestConst_BecomesLiteral(t *testing.T) {
 	spec := openapitest.ComponentSpec(`    K:
       const: "fixed"
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	k, ok := doc.Types[componentID("K")].(*ir.Literal)
 	require.True(t, ok, "K should be a literal")
@@ -370,7 +371,7 @@ func TestHoistLiteral_UnconvertibleConstBecomesAny(t *testing.T) {
 	// it), forcing hoistLiteral's fallback. Before the fix this silently
 	// produced a Literal asserting the value is null, which the spec never said.
 	spec := openapitest.ComponentSpec("    K:\n      const: !foo bar\n")
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	k, ok := doc.Types[componentID("K")].(*ir.Any)
 	require.True(t, ok, "an unconvertible const hoists the schemaless top type at its own pointer")
 	assert.Equal(t, ir.KindAny, k.Kind())
@@ -390,7 +391,7 @@ func TestEnumAsUnion_UnconvertibleMemberBecomesAny(t *testing.T) {
 	// The convertible member ("ok") must still hoist a real Literal; only the
 	// genuinely unconvertible member ("!foo bar") falls back to the top type.
 	spec := openapitest.ComponentSpec("    M:\n      enum: [ok, !foo bar]\n")
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	u, ok := doc.Types[componentID("M")].(*ir.Union)
 	require.True(t, ok, "heterogeneous enum still lowers to a union of literals")
 	require.Len(t, u.Variants, 2)
@@ -427,7 +428,7 @@ func TestEnum_UnquotedDatesStayClosedEnum(t *testing.T) {
       default: 2021-01-01
       enum: [2021-01-01, 2022-02-02]
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	require.Len(t, diags, 2, "the dates convert cleanly: neither diagnostic is about a member")
 	assert.Equal(t, []jsontext.Pointer{"/components/schemas/D", "/components/schemas/D/default"},
 		[]jsontext.Pointer{diags[0].Provenance.Pointer, diags[1].Provenance.Pointer})
@@ -450,7 +451,7 @@ func TestEnum_ValueTypeVariants(t *testing.T) {
     ENoTypeStr: {enum: [a, b]}
     EBytes: {enum: [!!binary aGk=, !!binary Ynll]}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	want := map[string]ir.PrimKind{
 		"EInt": ir.PrimInteger, "ENum": ir.PrimNumber, "EBool": ir.PrimBool,
@@ -472,7 +473,7 @@ func TestEnum_ValueTypeVariants(t *testing.T) {
 func TestEnum_ByteMembersAreNamedAndTyped(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec("    EBytes: {enum: [!!binary aGk=, !!binary Ynll]}\n")
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	e, ok := typeByName(doc, "EBytes").(*ir.Enum)
@@ -489,7 +490,7 @@ func TestEnum_ByteMembersAreNamedAndTyped(t *testing.T) {
 func TestEnum_HeterogeneousBecomesUnionWithBadValue(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec("    Mixed:\n      enum: [active, .inf]\n")
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	u, ok := typeByName(doc, "Mixed").(*ir.Union)
 	require.True(t, ok, "heterogeneous enum lowers to a union of literals")
 	assert.Len(t, u.Variants, 2)
@@ -508,7 +509,7 @@ func TestEnum_NonScalarAndMidListMismatch(t *testing.T) {
     MidMismatch:
       enum: [alpha, beta, 3]
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	require.NotNil(t, doc)
 	_, objIsUnion := typeByName(doc, "ObjEnum").(*ir.Union)
 	assert.True(t, objIsUnion, "object-valued enum degrades to a union")
@@ -519,7 +520,7 @@ func TestEnum_NonScalarAndMidListMismatch(t *testing.T) {
 
 func TestEnumMemberIDs_SharedCanonicalNameStillDistinct(t *testing.T) {
 	t.Parallel()
-	doc, _ := lowerSpec(t, openapitest.ComponentSpec(`    E:
+	doc, _ := schema.LowerSpec(t, openapitest.ComponentSpec(`    E:
       type: string
       enum: [a-b, a_b, "A B"]
 `))
@@ -532,7 +533,7 @@ func TestEnumMemberIDs_SharedCanonicalNameStillDistinct(t *testing.T) {
 
 func TestEnumMemberIDs_SignedNumbersAreThreeIDs(t *testing.T) {
 	t.Parallel()
-	doc, _ := lowerSpec(t, openapitest.ComponentSpec(`    N:
+	doc, _ := schema.LowerSpec(t, openapitest.ComponentSpec(`    N:
       type: integer
       enum: [-1, 1, 0]
 `))
@@ -544,7 +545,7 @@ func TestEnumMemberIDs_SignedNumbersAreThreeIDs(t *testing.T) {
 // each keeping the spelling it was written with.
 func TestEnumMemberIDs_OneNumberSpelledTwiceIsARepeat(t *testing.T) {
 	t.Parallel()
-	doc, diags := lowerSpec(t, openapitest.ComponentSpec(`    N:
+	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(`    N:
       type: number
       enum: [10, 10.0, 1e1, 100]
 `))
@@ -560,7 +561,7 @@ func TestEnumMemberIDs_OneNumberSpelledTwiceIsARepeat(t *testing.T) {
 
 func TestEnumMemberIDs_NamesThatCanonicalizeToNothingStillGetIDs(t *testing.T) {
 	t.Parallel()
-	doc, _ := lowerSpec(t, openapitest.ComponentSpec(`    E:
+	doc, _ := schema.LowerSpec(t, openapitest.ComponentSpec(`    E:
       type: string
       enum: ["", "-", "!"]
 `))
@@ -574,7 +575,7 @@ func TestEnumMemberIDs_NamesThatCanonicalizeToNothingStillGetIDs(t *testing.T) {
 
 func TestEnumMemberIDs_StringAndNumberOfEqualTextDiffer(t *testing.T) {
 	t.Parallel()
-	doc, _ := lowerSpec(t, openapitest.ComponentSpec(`    S:
+	doc, _ := schema.LowerSpec(t, openapitest.ComponentSpec(`    S:
       type: string
       enum: ["1"]
     N:
@@ -597,7 +598,7 @@ func TestEnumMemberIDs_StringAndNumberOfEqualTextDiffer(t *testing.T) {
 func TestEnumMemberIDs_ReorderKeepsTheIDSet(t *testing.T) {
 	t.Parallel()
 	byValue := func(order string) map[string]ir.EnumMemberID {
-		doc, _ := lowerSpec(t, openapitest.ComponentSpec(`    E:
+		doc, _ := schema.LowerSpec(t, openapitest.ComponentSpec(`    E:
       type: string
       enum: `+order+"\n"))
 		out := map[string]ir.EnumMemberID{}
@@ -611,7 +612,7 @@ func TestEnumMemberIDs_ReorderKeepsTheIDSet(t *testing.T) {
 
 func TestEnumMemberIDs_RepeatedValueIsKeptSuffixedAndWarned(t *testing.T) {
 	t.Parallel()
-	doc, diags := lowerSpec(t, openapitest.ComponentSpec(`    E:
+	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(`    E:
       type: string
       enum: [a, b, a, a]
 `))
@@ -634,7 +635,7 @@ func TestEnumMemberIDs_RepeatedValueIsKeptSuffixedAndWarned(t *testing.T) {
 // it names, are positions in the enum as written, not in the member list.
 func TestEnumMemberIDs_RepeatIsReportedAtItsSourceIndex(t *testing.T) {
 	t.Parallel()
-	doc, diags := lowerSpec(t, openapitest.ComponentSpec(`    E:
+	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(`    E:
       type: [string, "null"]
       enum: [null, a, b, a]
 `))
@@ -650,7 +651,7 @@ func TestEnumMemberIDs_RepeatIsReportedAtItsSourceIndex(t *testing.T) {
 // by its elements' values, an object regardless of member order.
 func TestEnumRepeats_AreReportedWhateverTheSetLowersTo(t *testing.T) {
 	t.Parallel()
-	_, diags := lowerSpec(t, openapitest.ComponentSpec(`    Mixed: {enum: [a, 1, a, 1.0]}
+	_, diags := schema.LowerSpec(t, openapitest.ComponentSpec(`    Mixed: {enum: [a, 1, a, 1.0]}
     Nullable: {type: [string, "null"], enum: [a, null, null]}
     Nulls: {enum: [null, null]}
     Lists: {enum: [[1, 2], [2, 1], [1, 2.0]]}
@@ -674,7 +675,7 @@ func TestEnumRepeats_AreReportedWhateverTheSetLowersTo(t *testing.T) {
 
 func TestEnumMemberIDs_AreScopedToTheirEnum(t *testing.T) {
 	t.Parallel()
-	doc, _ := lowerSpec(t, openapitest.ComponentSpec(`    A:
+	doc, _ := schema.LowerSpec(t, openapitest.ComponentSpec(`    A:
       type: string
       enum: [x]
     B:
@@ -695,11 +696,11 @@ func TestEnumMemberIDs_AreScopedToTheirEnum(t *testing.T) {
 
 // enumPropertySpec puts a schema at one property of a model S, so a test can
 // read both the node the schema lowers to and the reference the position holds.
-func enumPropertySpec(version, schema string) string {
+func enumPropertySpec(version, body string) string {
 	return openapitest.ComponentSpecVer(version, `    S:
       type: object
       properties:
-        p: `+schema+"\n")
+        p: `+body+"\n")
 }
 
 // enumOf returns the members of the enum at id.

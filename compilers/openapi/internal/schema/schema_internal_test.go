@@ -24,7 +24,7 @@ func TestLower_DepthCapExceeded(t *testing.T) {
 		indent += "  "
 	}
 	b.WriteString(indent + "type: string\n")
-	doc, diags := lowerSpec(t, openapitest.ComponentSpec(b.String()))
+	doc, diags := LowerSpec(t, openapitest.ComponentSpec(b.String()))
 	require.NotNil(t, doc)
 	var sawCap bool
 	for _, d := range diags {
@@ -42,8 +42,8 @@ func TestLower_DepthCapExceeded(t *testing.T) {
 // reaches this.
 func TestRecordSkippedFamilies_MissingOwner(t *testing.T) {
 	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
-	diags := recordSkippedFamilies(l.ctx, l.types, "t/anon/missing", &oas3.Schema{},
+	l := NewRawLowerer(&soa.OpenAPI{})
+	diags := recordSkippedFamilies(l.Ctx, l.Types, "t/anon/missing", &oas3.Schema{},
 		dispatch{won: "const", skipped: []string{"enum"}}, "/p")
 	assertInternalInvariant(t, diags)
 }

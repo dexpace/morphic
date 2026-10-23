@@ -10,6 +10,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -23,7 +24,7 @@ func TestScalar_UnknownFormatPerBaseType(t *testing.T) {
         b: {type: boolean, format: weird}
         s: {type: string, format: weird}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	m := typeByName(doc, "S").(*ir.Model)
 	bases := map[string]ir.PrimKind{}
@@ -85,7 +86,7 @@ func TestScalar_NumericFormatPairings(t *testing.T) {
 	} {
 		t.Run(tc.typ+"/"+tc.format, func(t *testing.T) {
 			t.Parallel()
-			doc, diags := lowerSpec(t, openapitest.ComponentSpec(fmt.Sprintf(
+			doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(fmt.Sprintf(
 				"    H:\n      type: object\n      properties:\n        p: {type: %s, format: %s}\n",
 				tc.typ, tc.format)))
 			assert.Empty(t, diags, "the format is homed either way, so nothing is reported")

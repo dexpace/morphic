@@ -10,6 +10,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -26,7 +27,7 @@ func TestModel_PlainRequiredUndeclaredPropertyLandsInRequires(t *testing.T) {
       properties:
         id: {type: integer}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	m, ok := doc.Types[componentID("Plain")].(*ir.Model)
 	require.True(t, ok, "Plain should be a model")
 	require.Len(t, m.Properties, 1)
@@ -49,7 +50,7 @@ func TestModel_FourOptionalityStates(t *testing.T) {
         optPlain: {type: string}
         optNull: {type: [string, "null"]}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	m, ok := doc.Types[componentID("S")].(*ir.Model)
 	require.True(t, ok)
@@ -72,7 +73,7 @@ func TestModel_AdditionalPropertiesFalseClosed(t *testing.T) {
       properties: {a: {type: string}}
       additionalProperties: false
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	m := doc.Types[componentID("S")].(*ir.Model)
 	assert.Equal(t, ir.AdditionalClosed, m.Additional)
@@ -104,7 +105,7 @@ func TestObject_MapAndNothingElseLowersToMapT(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			doc, diags := lowerSpec(t, openapitest.ComponentSpec("    S: "+tc.schema+"\n"))
+			doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec("    S: "+tc.schema+"\n"))
 			assert.Empty(t, diags, "a map holds everything the position declared")
 			mt, ok := doc.Types[componentID("S")].(*ir.MapT)
 			require.True(t, ok, "a map and nothing else is a MapT; got %T", doc.Types[componentID("S")])
@@ -120,7 +121,7 @@ func TestObject_MapAndNothingElseLowersToMapT(t *testing.T) {
 // ride on TypeCommon unchanged.
 func TestObject_MapKeepsItsDeclaration(t *testing.T) {
 	t.Parallel()
-	doc, diags := lowerSpec(t, openapitest.ComponentSpec(`    S:
+	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(`    S:
       type: object
       description: Labels by key.
       deprecated: true
@@ -147,7 +148,7 @@ func TestObject_ACatchAllBesideARequiredNameStaysAModel(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			doc, diags := lowerSpec(t, openapitest.ComponentSpec(spec))
+			doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(spec))
 			m, ok := doc.Types[componentID("S")].(*ir.Model)
 			require.True(t, ok, "got %T", doc.Types[componentID("S")])
 			assert.Equal(t, []string{"a"}, m.Requires)
@@ -188,7 +189,7 @@ func TestObject_CatchAllBesideAnotherFactStaysModel(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			doc, diags := lowerSpec(t, openapitest.ComponentSpec(base+"    S: "+tc.schema+"\n"))
+			doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(base+"    S: "+tc.schema+"\n"))
 			openapitest.RequireNoErrorDiags(t, diags)
 			m, ok := doc.Types[componentID("S")].(*ir.Model)
 			require.True(t, ok, "got %T", doc.Types[componentID("S")])
@@ -205,7 +206,7 @@ func TestModel_PatternPropertiesOrder(t *testing.T) {
         "^x-": {type: string}
         "^y-": {type: integer}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	m := doc.Types[componentID("S")].(*ir.Model)
 	require.NotNil(t, m.AdditionalProps)
@@ -221,7 +222,7 @@ func TestModel_UnevaluatedPropertiesClosedAfterComposition(t *testing.T) {
       properties: {a: {type: string}}
       unevaluatedProperties: false
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	m := doc.Types[componentID("S")].(*ir.Model)
 	assert.Equal(t, ir.AdditionalClosedAfterComposition, m.Additional)

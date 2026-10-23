@@ -9,6 +9,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -171,7 +172,7 @@ func TestConstraints_ExclusiveBoolean30(t *testing.T) {
 	// 3.0 boolean form with a type-mismatch; because those keywords are Morphic's
 	// to own, load suppresses that false positive, so a valid 3.0 boolean exclusive
 	// bound lowers cleanly with the flag set and no error diagnostic.
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	c := propConstraints(t, doc, "S", "n")
 	// The modifier is a spelling of the exclusive bound, so the literal it
@@ -195,7 +196,7 @@ func TestConstraints_ExclusiveNumeric31(t *testing.T) {
           exclusiveMinimum: 1.5
           exclusiveMaximum: 9.5
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	c := propConstraints(t, doc, "S", "n")
 	assert.Nil(t, c.Min)
@@ -214,7 +215,7 @@ func TestConstraints_MalformedNumericLiterals(t *testing.T) {
         a: {type: number, minimum: .inf}
         b: {type: number, exclusiveMinimum: .inf}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	require.NotNil(t, doc)
 	var count int
 	for _, d := range diags {
@@ -237,7 +238,7 @@ func TestConstraints_NumericPrecisionSurvives(t *testing.T) {
           maximum: 9007199254740993
           multipleOf: 0.1
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	m := doc.Types[componentID("S")].(*ir.Model)
 	c := m.Properties[0].Constraints
@@ -267,7 +268,7 @@ func TestConstraints_LosslessNumericLiterals(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			spec := openapitest.ComponentSpec("    S:\n      type: object\n      properties:\n        n: {type: number, minimum: " + tc.literal + "}\n")
-			doc, diags := lowerSpec(t, spec)
+			doc, diags := schema.LowerSpec(t, spec)
 			// A valid number, however spelled, is accepted with no error: the
 			// library's float64/JSON complaint is not surfaced.
 			openapitest.RequireNoErrorDiags(t, diags)
@@ -291,7 +292,7 @@ func TestConstraints_HoistedSubSchemaBadBoundSingleError(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec("    Foo:\n      type: object\n      properties:\n        bar: {type: number, minimum: hello}\n" +
 		"    User:\n      type: object\n      properties:\n        b: {$ref: '#/components/schemas/Foo/properties/bar'}\n")
-	_, diags := lowerSpec(t, spec)
+	_, diags := schema.LowerSpec(t, spec)
 	assert.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.NumericPrecision, ir.SeverityError),
 		"one error for the shared bad bound, got: %+v", diags)
 }
@@ -314,7 +315,7 @@ func TestConstraints_ExclusiveWrongDialectForm(t *testing.T) {
 			t.Parallel()
 			spec := openapitest.ComponentSpecVer(tc.version,
 				"    S:\n      type: object\n      properties:\n        n: {type: number, exclusiveMinimum: "+tc.value+"}\n")
-			doc, diags := lowerSpec(t, spec)
+			doc, diags := schema.LowerSpec(t, spec)
 			require.NotNil(t, doc)
 			assert.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.ExclusiveBoundForm, ir.SeverityError),
 				"one dialect-form error, got: %+v", diags)
@@ -333,7 +334,7 @@ func TestConstraints_ExclusiveWrongDialectForm(t *testing.T) {
 func TestConstraints_TypeWrongBoundYieldsSingleError(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec("    S:\n      type: object\n      properties:\n        n: {type: number, minimum: hello}\n")
-	_, diags := lowerSpec(t, spec)
+	_, diags := schema.LowerSpec(t, spec)
 	// Exactly one diagnostic: Morphic's error with the schema's own provenance.
 	// The library emits two redundant float64 type-mismatch findings on the same
 	// keyword; load suppresses both because Morphic owns numeric-bound keywords.
@@ -346,7 +347,7 @@ func TestConstraints_TypeWrongBoundYieldsSingleError(t *testing.T) {
 func TestConstraints_NonNumericMinimumErrors(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec("    S:\n      type: object\n      properties:\n        n: {type: number, minimum: hello}\n")
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	require.NotNil(t, doc)
 	// A genuinely non-numeric bound is never dropped silently: Morphic owns the
 	// keyword and reports it as an error with the property's exact provenance.
@@ -381,7 +382,7 @@ func propConstraints(t *testing.T, doc *ir.Document, model, wire string) *ir.Con
 func TestComponentConstraints_DiagnosticProvenance(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec("    BadN: {type: number, minimum: hello}\n")
-	_, diags := lowerSpec(t, spec)
+	_, diags := schema.LowerSpec(t, spec)
 	var found bool
 	for _, d := range diags {
 		if d.Code == diag.NumericPrecision {

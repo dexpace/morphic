@@ -33,7 +33,7 @@ func TestResponses_ErrorSplitAndRanges(t *testing.T) {
         "5XX": {description: server oops}
         default: {description: anything else}
 `)
-	_, svc, diags := lowerServiceSpec(t, spec)
+	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	op := openapitest.FirstOp(t, svc)
 	require.Len(t, op.Responses, 1)
@@ -68,7 +68,7 @@ func TestResponses_ALoneDefaultIsNeitherClass(t *testing.T) {
           headers: {X-Rate: {schema: {type: integer}}}
           content: {application/json: {schema: {type: object, properties: {v: {type: string}}}}}
 `)
-	_, svc, diags := lowerServiceSpec(t, spec)
+	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	op := openapitest.FirstOp(t, svc)
 
@@ -106,7 +106,7 @@ func TestResponses_NamedByStatusKey(t *testing.T) {
         "404": {description: missing}
         default: {description: anything else}
 `)
-	_, svc, diags := lowerServiceSpec(t, spec)
+	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	op := openapitest.FirstOp(t, svc)
 
@@ -143,7 +143,7 @@ func TestResponses_InvalidStatusKeyIsReported(t *testing.T) {
           content: {application/json: {schema: {type: object, properties: {a: {type: string}}}}}
         default: {description: anything else}
 `)
-	_, svc, diags := lowerServiceSpec(t, spec)
+	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	op := openapitest.FirstOp(t, svc)
 
@@ -185,7 +185,7 @@ func TestResponses_ValidStatusKeysAreNotReported(t *testing.T) {
         "4xx": {description: lowercase wildcard}
         default: {description: anything else}
 `)
-	_, _, diags := lowerServiceSpec(t, spec)
+	_, _, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	assert.False(t, openapitest.HasDiag(diags, diag.InvalidStatusKey),
 		"every key here names a status; got %+v", diags)
@@ -210,7 +210,7 @@ func TestResponses_ErrorHeadersAreStructural(t *testing.T) {
             Retry-After: {schema: {type: integer}}
             X-RateLimit-Remaining: {schema: {type: integer}}
 `)
-	_, svc, diags := lowerServiceSpec(t, spec)
+	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	op := openapitest.FirstOp(t, svc)
 	require.Len(t, op.Errors, 1)
@@ -243,7 +243,7 @@ func TestResponses_HeadersLowered(t *testing.T) {
           headers:
             X-Rate-Limit: {required: true, schema: {type: integer}}
 `)
-	_, svc, diags := lowerServiceSpec(t, spec)
+	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	op := openapitest.FirstOp(t, svc)
 	require.Len(t, op.Responses, 1)
@@ -266,7 +266,7 @@ func TestResponses_LinksPreserved(t *testing.T) {
           links:
             GetUserByUserId: {operationId: getUser}
 `)
-	_, svc, diags := lowerServiceSpec(t, spec)
+	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	op := openapitest.FirstOp(t, svc)
 	require.Len(t, op.Responses, 1)
@@ -472,7 +472,7 @@ func TestResponses_TwoKeysForOneRangeAreReported(t *testing.T) {
         "4XX": {description: upper}
         "4xx": {description: lower}
 `)
-	_, svc, diags := lowerServiceSpec(t, spec)
+	_, svc, diags := compileService(t, spec)
 	op := openapitest.FirstOp(t, svc)
 
 	require.Len(t, op.Errors, 2, "both are kept: neither key is wrong on its own")
@@ -496,7 +496,7 @@ func TestResponses_ACollisionIsReportedTheSameInEitherOrder(t *testing.T) {
 	diagsFor := func(keys string) []ir.Diagnostic {
 		t.Helper()
 		spec := openapitest.PathsSpec("  /w:\n    get:\n      operationId: w\n      responses:\n" + keys)
-		_, _, diags := lowerServiceSpec(t, spec)
+		_, _, diags := compileService(t, spec)
 		var found []ir.Diagnostic
 		for _, d := range diags {
 			if d.Code == diag.DuplicateStatusKey {
@@ -539,7 +539,7 @@ func TestResponses_ASharedBodyIsNamedAlikeFromEitherStatusClass(t *testing.T) {
 `
 	hintOf := func(paths string) string {
 		t.Helper()
-		doc, _, diags := lowerServiceSpec(t, openapitest.PathsSpec(paths))
+		doc, _, diags := compileService(t, openapitest.PathsSpec(paths))
 		openapitest.RequireNoErrorDiags(t, diags)
 		td, ok := doc.Types["t/anon/paths/~1a/get/responses/200/content/application~1json/schema"]
 		require.True(t, ok, "the shared body is interned once at its declaration pointer; got %v", slices.Sorted(maps.Keys(doc.Types)))
@@ -583,7 +583,7 @@ components:
   responses:
     NF: {description: not found}
 `
-	_, _, diags := lowerServiceSpec(t, spec)
+	_, _, diags := compileService(t, spec)
 
 	for _, op := range []string{"~1a", "~1b"} {
 		responses := "/paths/" + op + "/get/responses"
@@ -630,7 +630,7 @@ components:
       content:
         application/json: {schema: {type: object, properties: {n: {type: string}}}}
 `
-	doc, _, diags := lowerServiceSpec(t, spec)
+	doc, _, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	a := openapitest.FindOp(t, doc, "a")
@@ -665,7 +665,7 @@ func TestResponses_SummaryIsReadAtEveryVersion(t *testing.T) {
 	for _, version := range []string{"3.2.0", "3.1.0", "3.0.3"} {
 		t.Run(version, func(t *testing.T) {
 			t.Parallel()
-			doc, _, diags := lowerServiceSpec(t, "openapi: "+version+"\ninfo: {title: T, version: \"1\"}\npaths:\n"+body)
+			doc, _, diags := compileService(t, "openapi: "+version+"\ninfo: {title: T, version: \"1\"}\npaths:\n"+body)
 			openapitest.RequireNoErrorDiags(t, diags)
 			resp := openapitest.FindOp(t, doc, "a").Responses[0]
 			assert.Equal(t, "The item was deleted", resp.Docs.Summary)
@@ -688,7 +688,7 @@ func TestResponses_SummaryIsReadAtEveryVersion(t *testing.T) {
 // no form. One merged in through `<<` is read as a written one is.
 func TestResponses_SummaryNoReaderTakesIsStillReported(t *testing.T) {
 	t.Parallel()
-	doc, _, diags := lowerServiceSpec(t, openapitest.PathsSpecVer("3.2.0", `  /a:
+	doc, _, diags := compileService(t, openapitest.PathsSpecVer("3.2.0", `  /a:
     get:
       operationId: a
       responses:
@@ -715,7 +715,7 @@ func TestResponses_SummaryNoReaderTakesIsStillReported(t *testing.T) {
 // the $ref describes this mount, so it wins over the declaration's own.
 func TestResponses_SummaryUseSiteBeatsTheDeclaration(t *testing.T) {
 	t.Parallel()
-	doc, _, diags := lowerServiceSpec(t, `openapi: 3.2.0
+	doc, _, diags := compileService(t, `openapi: 3.2.0
 info: {title: T, version: "1"}
 paths:
   /a:

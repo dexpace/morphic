@@ -86,7 +86,7 @@ func TestContent_EncodingHeaderRefInternsAtDeclaration(t *testing.T) {
 // field for each (GitHub #116).
 func TestHeaders_SchemaDetailReachesTheProperty(t *testing.T) {
 	t.Parallel()
-	_, svc, diags := lowerServiceSpec(t, openapitest.PathsSpec(
+	_, svc, diags := compileService(t, openapitest.PathsSpec(
 		"  /x:\n    get:\n      operationId: g\n      responses:\n"+
 			"        \"200\":\n          description: ok\n          headers:\n"+
 			"            X-H: {schema: "+openapitest.InlineProbeBody+"}\n"))
@@ -116,7 +116,7 @@ func TestHeaders_SchemaDetailReachesTheProperty(t *testing.T) {
 // overlay order, so the assertion over it passes whichever side wins.
 func TestHeaders_OwnAnnotationsOverrideTheSchema(t *testing.T) {
 	t.Parallel()
-	_, svc, diags := lowerServiceSpec(t, openapitest.PathsSpec(
+	_, svc, diags := compileService(t, openapitest.PathsSpec(
 		"  /x:\n    get:\n      operationId: g\n      responses:\n"+
 			"        \"200\":\n          description: ok\n          headers:\n"+
 			"            X-H:\n              description: HEADER\n              example: HEADER\n"+
@@ -148,7 +148,7 @@ func TestHeaders_DeprecationUnionsWithTheSchema(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			_, svc, diags := lowerServiceSpec(t, openapitest.PathsSpec(
+			_, svc, diags := compileService(t, openapitest.PathsSpec(
 				"  /x:\n    get:\n      operationId: g\n      responses:\n"+
 					"        \"200\":\n          description: ok\n          headers:\n"+
 					"            X-H:\n              deprecated: "+tc.header+"\n"+
@@ -196,7 +196,7 @@ func TestHeaders_SerializationKeywordsKept(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			_, svc, diags := lowerServiceSpec(t, tc.spec)
+			_, svc, diags := compileService(t, tc.spec)
 			openapitest.RequireNoErrorDiags(t, diags)
 			assertHeaderSerializationKept(t, headerAt(t, openapitest.FirstOp(t, svc)), diags, tc.at)
 		})
@@ -209,7 +209,7 @@ func TestHeaders_SerializationKeywordsKept(t *testing.T) {
 // defaults the accessors would hand back and calling them source facts.
 func TestHeaders_SerializationKeywordsAbsentRecordNothing(t *testing.T) {
 	t.Parallel()
-	_, svc, diags := lowerServiceSpec(t, openapitest.PathsSpec(
+	_, svc, diags := compileService(t, openapitest.PathsSpec(
 		"  /x:\n    get:\n      operationId: g\n      responses:\n"+
 			"        \"200\":\n          description: ok\n          headers:\n"+
 			"            X-H: {schema: {type: string}}\n"))
@@ -246,7 +246,7 @@ func TestHeaders_ReservedContentTypeEntryIsReported(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			_, svc, diags := lowerServiceSpec(t, openapitest.PathsSpec(
+			_, svc, diags := compileService(t, openapitest.PathsSpec(
 				"  /x:\n    get:\n      operationId: g\n      responses:\n"+
 					"        \"200\":\n          description: ok\n          headers:\n"+
 					"            "+tc.header+": {schema: {type: string}}\n"))
@@ -266,7 +266,7 @@ func TestHeaders_ReservedContentTypeEntryIsReported(t *testing.T) {
 // describes Content-Type separately and SHALL ignore an entry for it.
 func TestHeaders_ReservedContentTypeInEncodingIsReported(t *testing.T) {
 	t.Parallel()
-	_, _, diags := lowerServiceSpec(t, openapitest.PathsSpec(
+	_, _, diags := compileService(t, openapitest.PathsSpec(
 		"  /x:\n    post:\n      operationId: g\n      requestBody:\n"+
 			"        content:\n          multipart/form-data:\n"+
 			"            schema: {type: object, properties: {file: {type: string}}}\n"+
@@ -290,7 +290,7 @@ func TestHeaders_ReservedContentTypeInEncodingIsReported(t *testing.T) {
 // reporting at the shared declaration instead would collapse them into one.
 func TestHeaders_ReservedNameIsTheKeyNotTheDeclaration(t *testing.T) {
 	t.Parallel()
-	_, _, diags := lowerServiceSpec(t, `openapi: 3.1.0
+	_, _, diags := compileService(t, `openapi: 3.1.0
 info: {title: T, version: "1"}
 components:
   headers:
@@ -328,7 +328,7 @@ func TestHeaders_RefSiteKeywordsAreKeptOnTheHeader(t *testing.T) {
 		"        \"200\":\n          description: ok\n          headers:\n" +
 		"            X-H: {schema: {$ref: '#/components/schemas/Base', enum: [a, b]}}\n" +
 		"components:\n  schemas:\n    Base: {type: string}\n"
-	_, svc, diags := lowerServiceSpec(t, spec)
+	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	h := headerAt(t, openapitest.FirstOp(t, svc))
@@ -362,7 +362,7 @@ components:
   headers:
     Rate: {description: declared, schema: {type: integer}}
 `
-	_, svc, diags := lowerServiceSpec(t, spec)
+	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	require.Len(t, openapitest.FirstOp(t, svc).Responses, 1)
 	header := openapitest.FirstOp(t, svc).Responses[0].Headers[0]

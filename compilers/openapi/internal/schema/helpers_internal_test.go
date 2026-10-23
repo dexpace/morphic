@@ -3,17 +3,12 @@ package schema
 import (
 	"testing"
 
-	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
 
-	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/load"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
-	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -37,56 +32,6 @@ func useValue(t *testing.T, src string) *yaml.Node {
 	return node
 }
 
-// lowerer is test scaffolding, not a compiler type. The compiler has no such
-// struct: every lowering is a function of the context and the registry, and
-// the caller owns the document being built (#177).
-type lowerer struct {
-	ctx   lowering.Ctx
-	out   *ir.Document
-	types *compile.Types
-	diags compile.Diags
-}
-
-// lowererOver is the only place the fixture's fields are initialised. Both
-// entry points below build on it, so a field added to lowerer cannot reach one
-// of them and miss the other.
-func lowererOver(ctx lowering.Ctx) *lowerer {
-	types := compile.NewTypes()
-	return &lowerer{
-		ctx:   ctx,
-		out:   &ir.Document{},
-		types: types,
-	}
-}
-
-// loweredFor loads src and returns the fixture over it with nothing lowered yet,
-// plus the load diagnostics, so a test can drive one entry point at a time.
-func loweredFor(t *testing.T, src string) (*lowerer, []ir.Diagnostic) {
-	t.Helper()
-	loadedDoc, diags, err := load.Load(t.Context(), 0, openapitest.SourceOf(src), load.Options{})
-	require.NoError(t, err)
-	require.NotNil(t, loadedDoc, "load returned no document: %+v", diags)
-	return lowererOver(lowering.New(0, loadedDoc.Doc, loadedDoc.Source,
-		lowering.GroupByTags, lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}).
-		WithLoaded(loadedDoc)), diags
-}
-
-// lowerSpec loads src and lowers its component schemas, returning the document
-// under construction and all diagnostics.
-func lowerSpec(t *testing.T, src string) (*ir.Document, []ir.Diagnostic) {
-	t.Helper()
-	l, diags := loweredFor(t, src)
-	l.diags.AppendAll(LowerComponentSchemas(t.Context(), l.ctx, l.types))
-	doc := l.document(t)
-	return doc, append(diags, l.diags.List()...)
-}
-
-// newRawLowerer builds a fixture over a hand-constructed document, bypassing the
-// parser so nil slice/map entries (which the parser panics on) can be exercised.
-func newRawLowerer(doc *soa.OpenAPI) *lowerer {
-	return lowererOver(lowering.New(0, doc, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}))
-}
-
 // assertInternalInvariant requires diags to report a broken internal invariant.
 // It is the only diagnostic this half of the suite asserts by code, and that is
 // not a coincidence: these tests drive the states no source document can reach,
@@ -99,19 +44,4 @@ func assertInternalInvariant(t *testing.T, diags []ir.Diagnostic) {
 		}
 	}
 	t.Fatalf("expected an internal-invariant error, got %+v", diags)
-}
-
-// document finishes the registry as run does once every lowering has
-// returned, and returns the document under construction holding it. What the
-// settling reports joins the fixture's diagnostics; a refusal is a compiler bug
-// no fixture provokes, so one fails the test.
-func (l *lowerer) document(t *testing.T) *ir.Document {
-	t.Helper()
-	reg, settled := l.types.Finish(t.Context())
-	for _, d := range settled {
-		require.NotEqual(t, compile.RegistryRefused, d.Code, "the registry refused an entry: %s", d.Message)
-	}
-	l.diags.AppendAll(settled)
-	l.out.Types = reg
-	return l.out
 }

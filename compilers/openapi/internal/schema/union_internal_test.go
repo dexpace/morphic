@@ -27,10 +27,10 @@ func TestAllNullUnion_NoBranchesFalse(t *testing.T) {
 
 func TestPreserveUnionSiblings_MissingNode(t *testing.T) {
 	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
+	l := NewRawLowerer(&soa.OpenAPI{})
 	// No node registered under the id: the union branches have nowhere to go, so
 	// the guard reports the broken invariant instead of dropping them quietly.
-	diags := preserveUnionSiblings(l.ctx, l.types, "t/anon/missing", &oas3.Schema{}, "/p", ir.ReasonDegradedLowering, "why")
+	diags := preserveUnionSiblings(l.Ctx, l.Types, "t/anon/missing", &oas3.Schema{}, "/p", ir.ReasonDegradedLowering, "why")
 	assertInternalInvariant(t, diags)
 }
 
@@ -40,8 +40,8 @@ func TestPreserveUnionSiblings_MissingNode(t *testing.T) {
 // invariant instead of dropping it quietly.
 func TestPreserveNullOnlyUnion_MissingNode(t *testing.T) {
 	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
-	diags := preserveNullOnlyUnion(l.ctx, l.types, "t/anon/missing", &oas3.Schema{}, "/p")
+	l := NewRawLowerer(&soa.OpenAPI{})
+	diags := preserveNullOnlyUnion(l.Ctx, l.Types, "t/anon/missing", &oas3.Schema{}, "/p")
 	assertInternalInvariant(t, diags)
 }
 
@@ -53,10 +53,10 @@ func TestPreserveNullOnlyUnion_MissingNode(t *testing.T) {
 // guard.
 func TestPreserveNullOnlyUnion_NothingToKeep(t *testing.T) {
 	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
-	id := internNode(l.ctx, l.types, "/components/schemas/S", func(cm ir.TypeCommon) ir.TypeDef {
+	l := NewRawLowerer(&soa.OpenAPI{})
+	id := internNode(l.Ctx, l.Types, "/components/schemas/S", func(cm ir.TypeCommon) ir.TypeDef {
 		return &ir.Scalar{TypeCommon: cm}
 	})
-	diags := preserveNullOnlyUnion(l.ctx, l.types, id, &oas3.Schema{}, "/components/schemas/S")
+	diags := preserveNullOnlyUnion(l.Ctx, l.Types, id, &oas3.Schema{}, "/components/schemas/S")
 	assert.Empty(t, diags, "nothing was kept, so nothing is announced")
 }

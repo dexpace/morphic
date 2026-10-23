@@ -14,6 +14,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/pass"
 )
@@ -35,7 +36,7 @@ func TestDistributedUnion_EachVariantCarriesTheRequiresOfItsBody(t *testing.T) {
         - {$ref: '#/components/schemas/X'}
         - {$ref: '#/components/schemas/Y'}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	u, ok := typeByName(doc, "Shape").(*ir.Union)
@@ -84,7 +85,7 @@ func TestDistributedUnion_VariantCarriesTheBranchNullability(t *testing.T) {
         - {$ref: '#/components/schemas/NullableModel'}
         - {$ref: '#/components/schemas/PlainModel'}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	nullableOf := func(name string) []bool {
@@ -125,7 +126,7 @@ func TestUnionVariant_IsNamedAsTheNodeItHolds(t *testing.T) {
     A: {type: array, items: {type: object, properties: {b: {type: string}}}}
     Y: {type: array, items: {type: object, properties: {y: {type: string}}}}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	choice, ok := typeByName(doc, "Choice").(*ir.Union)
@@ -273,7 +274,7 @@ func TestOneOf_WithDiscriminator(t *testing.T) {
         mapping:
           cat: "#/components/schemas/Cat"
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	pet, ok := doc.Types[componentID("Pet")].(*ir.Union)
 	require.True(t, ok, "Pet should be a union")
@@ -293,7 +294,7 @@ func TestAnyOf_IsNonExclusiveUnion(t *testing.T) {
         - {type: string}
         - {type: integer}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	u, ok := doc.Types[componentID("U")].(*ir.Union)
 	require.True(t, ok, "U should be a union")
@@ -312,7 +313,7 @@ func TestOneOf_NullVariantCollapses(t *testing.T) {
             - {type: string}
             - {type: "null"}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	s, ok := doc.Types[componentID("S")].(*ir.Model)
 	require.True(t, ok)
@@ -342,7 +343,7 @@ func TestOneOfAnyOf_NullOnlyLowersToNullableAny(t *testing.T) {
     AnyOfTwoNull:
       anyOf: [{type: "null"}, {type: "null"}]
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	for _, tc := range []struct{ name, key string }{
@@ -380,7 +381,7 @@ func TestOneOf_ThreeVariantsWithNullStripsNullLiftsNullable(t *testing.T) {
             - {type: integer}
             - {type: "null"}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	s := doc.Types[componentID("S")].(*ir.Model)
 	require.Len(t, s.Properties, 1)
@@ -404,7 +405,7 @@ func TestAnyOf_ThreeVariantsWithNull(t *testing.T) {
         - {type: integer}
         - {type: 'null'}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	u := typeByName(doc, "N").(*ir.Union)
 	assert.Len(t, u.Variants, 2, "null branch stripped from variants")
@@ -419,7 +420,7 @@ func TestUnion_VariantHints(t *testing.T) {
         - {type: string}
     Named: {type: object, properties: {a: {type: string}}}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	u := typeByName(doc, "U").(*ir.Union)
 	require.Len(t, u.Variants, 2)
@@ -558,7 +559,7 @@ func TestUnion_ADecoratedBranchIsHintedAsItsRef(t *testing.T) {
 				spec += "        - " + tc.bare + "\n"
 				wantVariants = 3
 			}
-			doc, diags := lowerSpec(t, openapitest.ComponentSpecVer(version, spec))
+			doc, diags := schema.LowerSpec(t, openapitest.ComponentSpecVer(version, spec))
 			if tc.wantDangling {
 				assert.True(t, openapitest.HasDiagAt(diags, diag.UnresolvedRef, ir.SeverityError),
 					"the dangling ref is reported: %+v", diags)
@@ -645,7 +646,7 @@ func TestOneOf_CoDeclaredCompositionDistributes(t *testing.T) {
         - {$ref: '#/components/schemas/A'}
         - {$ref: '#/components/schemas/B'}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	u, ok := typeByName(doc, "Combo").(*ir.Union)
@@ -683,7 +684,7 @@ func TestAnyOf_CoDeclaredPropertiesDistributeAsBase(t *testing.T) {
         - {$ref: '#/components/schemas/A'}
         - {$ref: '#/components/schemas/B'}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	u, ok := typeByName(doc, "Combo").(*ir.Union)
@@ -720,7 +721,7 @@ func TestOneOf_CoDeclaredVariantNotStolenByRefToBranch(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			doc, diags := lowerSpec(t, comboRefStealSpec(tc.branch, tc.outsiderFirst))
+			doc, diags := schema.LowerSpec(t, comboRefStealSpec(tc.branch, tc.outsiderFirst))
 			openapitest.RequireNoErrorDiags(t, diags)
 
 			u, ok := typeByName(doc, "Combo").(*ir.Union)
@@ -817,7 +818,7 @@ func TestNullCollapse_BranchHintIsOrderIndependent(t *testing.T) {
 // the node the mapping names.
 func TestOneOf_CoDeclaredVariantCarriesDiscriminatorValue(t *testing.T) {
 	t.Parallel()
-	doc, diags := lowerSpec(t, comboDiscriminatedSpec(true))
+	doc, diags := schema.LowerSpec(t, comboDiscriminatedSpec(true))
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	u, ok := typeByName(doc, "Combo").(*ir.Union)
@@ -860,7 +861,7 @@ func TestOneOf_InlineCoDeclaredDistributionHasNoImplicitDiscriminatorValue(t *te
             - $ref: '#/components/schemas/A'
             - $ref: '#/components/schemas/B'
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	u, ok := doc.Types[ir.TypeID("t/anon/components/schemas/Kennel/properties/Combo")].(*ir.Union)
@@ -888,7 +889,7 @@ func TestOneOf_CoDeclaredAdditionalPropsHintNamesTheBody(t *testing.T) {
       additionalProperties: {type: object, properties: {v: {type: string}}}
       oneOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	u := typeByName(doc, "Combo").(*ir.Union)
@@ -912,7 +913,7 @@ func TestOneOf_CoDeclaredNonModelBranchIsCarriedAsWritten(t *testing.T) {
       properties: {kind: {type: string}}
       oneOf: [{$ref: '#/components/schemas/Scalar'}, {$ref: '#/components/schemas/Choice'}]
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	u, ok := typeByName(doc, "Combo").(*ir.Union)
@@ -1017,7 +1018,7 @@ func TestOneOf_CoDeclaredNotDistributedReasons(t *testing.T) {
       discriminator: {propertyName: kind}
       oneOf: [{$ref: '#/components/schemas/A'}]
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	for name, reason := range map[string]string{
@@ -1106,7 +1107,7 @@ func TestUnionCombinators_CoDeclaredKeepsTheBoundsWrittenBesideIt(t *testing.T) 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			doc, diags := lowerSpec(t, openapitest.ComponentSpec(tc.schemas))
+			doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(tc.schemas))
 			openapitest.RequireNoErrorDiags(t, diags)
 
 			sc, ok := typeByName(doc, "A").(*ir.Scalar)
@@ -1130,7 +1131,7 @@ func TestUnionCombinators_CoDeclaredKeepsTheBoundsWrittenBesideIt(t *testing.T) 
 // union and the other is kept beside it.
 func TestUnionCombinators_PassedOverBranchSetIsKept(t *testing.T) {
 	t.Parallel()
-	doc, diags := lowerSpec(t, openapitest.ComponentSpec(`    S:
+	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(`    S:
       oneOf: [{type: string}, {type: integer}]
       anyOf: [{type: number}, {type: boolean}]
 `))
@@ -1156,7 +1157,7 @@ func TestUnionCombinators_PassedOverBranchSetIsKept(t *testing.T) {
 // the first place, so it stays a Union and keeps the loser on it.
 func TestUnionCombinators_NullBranchDoesNotCollapsePastTheAnyOf(t *testing.T) {
 	t.Parallel()
-	doc, diags := lowerSpec(t, openapitest.ComponentSpec(`    S:
+	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(`    S:
       oneOf: [{type: string}, {type: "null"}]
       anyOf: [{type: number}, {type: boolean}]
 `))
@@ -1176,7 +1177,7 @@ func TestUnionCombinators_NullBranchDoesNotCollapsePastTheAnyOf(t *testing.T) {
 // at the keyword, and nothing claims the branch set survived.
 func TestUnionCombinators_UnpreservableIsNotAnnounced(t *testing.T) {
 	t.Parallel()
-	doc, diags := lowerSpec(t, openapitest.ComponentSpec(`    S:
+	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(`    S:
       oneOf: [{type: string}, {type: integer}]
       anyOf: [{type: number, x-t: `+unpreservableValue+`}]
 `))
@@ -1242,7 +1243,7 @@ func TestLower_ConstraintOnlyUnionIsValidationOnly(t *testing.T) {
         - {required: [a]}
         - {required: [b]}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	m, ok := doc.Types[componentID("Thing")].(*ir.Model)
@@ -1278,7 +1279,7 @@ func TestLower_BooleanUnionBranchDeclaresNoShape(t *testing.T) {
         - true
         - false
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	m, ok := doc.Types[componentID("Flag")].(*ir.Model)
@@ -1307,7 +1308,7 @@ func TestLower_AllOfWithOneOfKeepsBoth(t *testing.T) {
         - {type: string}
         - {type: integer}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	m, ok := doc.Types[componentID("Combo")].(*ir.Model)
 	require.True(t, ok, "allOf composition survives (Model), oneOf preserved raw")
@@ -1324,7 +1325,7 @@ func TestLower_MultiTypeUnion(t *testing.T) {
       properties: {x: {type: string}}
       items: {type: integer}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	u, ok := typeByName(doc, "MT").(*ir.Union)
 	require.True(t, ok)
@@ -1350,7 +1351,7 @@ func TestLower_UnionWithStructuralSiblingVariants(t *testing.T) {
       type: string
       oneOf: [{$ref: '#/components/schemas/A'}, {type: integer}]
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	for _, name := range []string{"A", "B", "C", "D"} {
 		td := typeByName(doc, name)
@@ -1371,7 +1372,7 @@ func TestSchema_UnionSiblingsAdditionalAndRequired(t *testing.T) {
       required: [x]
       oneOf: [{type: string}, {type: integer}]
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	for _, name := range []string{"A", "B"} {
 		_, ok := typeByName(doc, name).Common().Unmodeled["openapi:oneOf"]
@@ -1386,7 +1387,7 @@ func TestSchema_OneOfWithBoolBranch(t *testing.T) {
         - {type: string}
         - true
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	u, ok := typeByName(doc, "U").(*ir.Union)
 	require.True(t, ok)
@@ -1401,7 +1402,7 @@ func TestSchema_OneOfWithBoolBranch(t *testing.T) {
 // preserved construct that a claim could be about.
 func TestUnionSiblings_UnpreservableIsReportedNotClaimed(t *testing.T) {
 	t.Parallel()
-	_, diags := lowerSpec(t, openapitest.ComponentSpec(`    S:
+	_, diags := schema.LowerSpec(t, openapitest.ComponentSpec(`    S:
       items: {type: string, x-t: `+unpreservableValue+`}
       oneOf: [{type: string, x-t: `+unpreservableValue+`}, {type: integer}]
 `))

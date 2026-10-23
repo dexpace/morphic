@@ -20,14 +20,14 @@ import (
 // either way.
 func TestConstraintsOf_NonSchemaInputs(t *testing.T) {
 	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
+	l := NewRawLowerer(&soa.OpenAPI{})
 	for _, js := range []*oas3.Schema{
 		annotation.SchemaOf(nil),
 		annotation.SchemaOf(oas3.NewJSONSchemaFromBool(true)),
 		annotation.SchemaOf(oas3.NewJSONSchemaFromReference("#/components/schemas/Other")),
 	} {
 		var kept ir.Unmodeled
-		cons, diags := ConstraintsOf(l.ctx, &kept, js, "/p")
+		cons, diags := ConstraintsOf(l.Ctx, &kept, js, "/p")
 		assert.Nil(t, cons)
 		assert.Empty(t, diags)
 		assert.Empty(t, kept)
@@ -41,10 +41,10 @@ func TestConstraintsOf_NonSchemaInputs(t *testing.T) {
 // never emits this shape, so it is built by hand.
 func TestConstraintsOf_EmptyRefSchema(t *testing.T) {
 	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
+	l := NewRawLowerer(&soa.OpenAPI{})
 	js := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{Ref: new(references.Reference(""))})
 	var kept ir.Unmodeled
-	cons, diags := ConstraintsOf(l.ctx, &kept, annotation.SchemaOf(js), "/p")
+	cons, diags := ConstraintsOf(l.Ctx, &kept, annotation.SchemaOf(js), "/p")
 	assert.Nil(t, cons)
 	assert.Empty(t, diags)
 	assert.Empty(t, kept)
@@ -56,13 +56,13 @@ func TestConstraintsOf_EmptyRefSchema(t *testing.T) {
 // it, not at the position that declared it.
 func TestStampConstraintDiags_RelocatesEveryDiagnosticToTheReadingPointer(t *testing.T) {
 	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
+	l := NewRawLowerer(&soa.OpenAPI{})
 	in := []ir.Diagnostic{
 		{Code: diag.DegradedConstruct, Provenance: ir.Provenance{Pointer: "/elsewhere"}},
 		{Code: diag.NumericPrecision, Provenance: ir.Provenance{Source: 9, Pointer: "/other"}},
 	}
 
-	got := stampConstraintDiags(l.ctx, in, "/components/schemas/S")
+	got := stampConstraintDiags(l.Ctx, in, "/components/schemas/S")
 
 	require.Len(t, got, 2)
 	for _, d := range got {

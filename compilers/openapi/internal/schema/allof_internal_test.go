@@ -80,7 +80,7 @@ func TestAllOfBranches_DepthCapKeepsWrapperVerbatim(t *testing.T) {
 			}
 			b.WriteString(strings.Repeat("  ", tc.wrappers) + "        - {$ref: '#/components/schemas/A'}\n")
 
-			doc, diags := lowerSpec(t, openapitest.ComponentSpec(b.String()))
+			doc, diags := LowerSpec(t, openapitest.ComponentSpec(b.String()))
 			openapitest.RequireNoErrorDiags(t, diags)
 			m, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/M")].(*ir.Model)
 			require.True(t, ok, "M should be a model")
@@ -109,7 +109,7 @@ func TestAllOfBranches_DepthCapKeepsWrapperVerbatim(t *testing.T) {
 // composed schema, and that a wrapper follows its own branches.
 func TestAllOfBranches_KeysSpellEachEntrysPath(t *testing.T) {
 	t.Parallel()
-	l, _ := loweredFor(t, openapitest.ComponentSpec(`    M:
+	l, _ := LoweredFor(t, openapitest.ComponentSpec(`    M:
       allOf:
         - {type: object}
         - allOf:
@@ -118,7 +118,7 @@ func TestAllOfBranches_KeysSpellEachEntrysPath(t *testing.T) {
                 - {type: object}
                 - {type: object}
 `))
-	decl, ok := l.ctx.Doc.Components.Schemas.Get("M")
+	decl, ok := l.Ctx.Doc.Components.Schemas.Get("M")
 	require.True(t, ok)
 	comp := allOfBranches(decl.GetSchema(), "/components/schemas/M")
 	entries := comp.branches
@@ -147,7 +147,7 @@ func TestAllOfBranches_KeysSpellEachEntrysPath(t *testing.T) {
 // its entries, and at a $ref branch the view yields.
 func TestWalkAllOf_StopsWhenTheConsumerDoes(t *testing.T) {
 	t.Parallel()
-	l, _ := loweredFor(t, openapitest.ComponentSpec(`    A: {type: object}
+	l, _ := LoweredFor(t, openapitest.ComponentSpec(`    A: {type: object}
     M:
       allOf:
         - allOf:
@@ -158,7 +158,7 @@ func TestWalkAllOf_StopsWhenTheConsumerDoes(t *testing.T) {
         - {$ref: '#/components/schemas/A'}
         - {$ref: '#/components/schemas/A'}
 `))
-	decl, ok := l.ctx.Doc.Components.Schemas.Get("M")
+	decl, ok := l.Ctx.Doc.Components.Schemas.Get("M")
 	require.True(t, ok)
 	m := decl.GetSchema()
 
@@ -186,7 +186,7 @@ func TestWalkAllOf_StopsWhenTheConsumerDoes(t *testing.T) {
 	}
 	assert.Equal(t, 1, refs)
 
-	flatDecl, ok := l.ctx.Doc.Components.Schemas.Get("Flat")
+	flatDecl, ok := l.Ctx.Doc.Components.Schemas.Get("Flat")
 	require.True(t, ok)
 	var flatRefs int
 	for range allOfRefBranches(flatDecl.GetSchema()) {
@@ -222,7 +222,7 @@ func TestAllOfBranches_DepthCapNamesWhatElseTheWrapperWrites(t *testing.T) {
 			b.WriteString(pad + "        - " + tc.sibling + "\n" + pad + "          allOf:\n" +
 				pad + "            - {$ref: '#/components/schemas/A'}\n")
 
-			_, diags := lowerSpec(t, openapitest.ComponentSpec(b.String()))
+			_, diags := LowerSpec(t, openapitest.ComponentSpec(b.String()))
 			openapitest.RequireNoErrorDiags(t, diags)
 			path := strings.TrimSuffix(strings.Repeat("allOf/0/", MaxAllOfFlattenDepth+1), "/")
 			msg := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct,

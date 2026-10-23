@@ -15,6 +15,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -299,7 +300,7 @@ func TestAllOf_NullabilityFollowsTheConjuncts(t *testing.T) {
         viaAllOfPlain: {$ref: '#/components/schemas/WrapPlain'}
         viaAllOfBoth: {$ref: '#/components/schemas/WrapBoth'}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	holder, ok := typeByName(doc, "Holder").(*ir.Model)
 	require.True(t, ok, "Holder is a model")
@@ -341,7 +342,7 @@ func TestConst_FixesWhetherTheValueSpaceHoldsNull(t *testing.T) {
         justNull: {const: null}
         narrowed: {type: [string, "null"], const: "a"}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	m, ok := typeByName(doc, "S").(*ir.Model)
 	require.True(t, ok, "S is a model")
@@ -380,7 +381,7 @@ func TestSchemaRef_NullableNormalization(t *testing.T) {
 				"      type: object\n" +
 				"      properties:\n" +
 				"        p: " + tc.schema + "\n"
-			doc, diags := lowerSpec(t, spec)
+			doc, diags := schema.LowerSpec(t, spec)
 			openapitest.RequireNoErrorDiags(t, diags)
 			model, ok := doc.Types[componentID("S")].(*ir.Model)
 			require.True(t, ok)
@@ -399,7 +400,7 @@ func TestSchema_Ref30NullableSiblings(t *testing.T) {
         p: {$ref: '#/components/schemas/Target', nullable: true}
     Target: {type: string}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	require.NotNil(t, doc)
 	_ = diags
 	m := typeByName(doc, "Owner").(*ir.Model)
@@ -727,7 +728,7 @@ func TestSchema_RefNullableAcrossSpellings(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			spec := openapitest.ComponentSpecVer(tc.version, tc.schemas)
-			doc, diags := lowerSpec(t, spec)
+			doc, diags := schema.LowerSpec(t, spec)
 			openapitest.RequireNoErrorDiags(t, diags)
 			m := typeByName(doc, "Owner").(*ir.Model)
 			require.Len(t, m.Properties, 1)
@@ -760,7 +761,7 @@ func TestSchema_NullabilityAgreesAcrossEnumSpellings(t *testing.T) {
         admittedByType: {type: [string, "null"], enum: [red, green, null]}
         admittedByUnion: {enum: [red, green, null], oneOf: [{type: string}, {type: "null"}]}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	m, ok := typeByName(doc, "S").(*ir.Model)
 	require.True(t, ok, "S is a model")
@@ -807,7 +808,7 @@ oneOf: [{type: string}, {type: "null"}]`
         viaRef: {$ref: '#/components/schemas/Target'}
         inline:
 ` + indent(10))
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	m := typeByName(doc, "Owner").(*ir.Model)
 	props := openapitest.PropsByWire(m.Properties)
@@ -832,7 +833,7 @@ func TestSchema_RefNullableAtNonPropertyPosition(t *testing.T) {
     Target:
       oneOf: [{type: string}, {type: integer}, {type: "null"}]
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	list, ok := doc.Types["t/anon/components/schemas/Owner/properties/p"].(*ir.List)
 	require.True(t, ok)

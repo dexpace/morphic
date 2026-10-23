@@ -154,7 +154,7 @@ func TestUnionVariant_StopsAtTheHopCap(t *testing.T) {
 				spec.WriteString("    S" + strconv.Itoa(i) + ": {oneOf: [{$ref: '" + next + "'}, {type: integer}]}\n")
 			}
 			spec.WriteString("    T: {type: object, properties: {t: {type: string}}}\n")
-			doc, diags := lowerSpec(t, openapitest.ComponentSpec(spec.String()))
+			doc, diags := LowerSpec(t, openapitest.ComponentSpec(spec.String()))
 			openapitest.RequireNoErrorDiags(t, diags)
 
 			choice, ok := doc.Types[ids.Document{}.ForPointer(ids.Ptr("components", "schemas", "Choice"))].(*ir.Union)
