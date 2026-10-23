@@ -233,3 +233,101 @@ func TestRelation_DroppedAndFlipped(t *testing.T) {
 	assert.Equal(t, relBNarrower, relANarrower.flipped())
 	assert.Equal(t, relANarrower, relBNarrower.flipped())
 }
+
+func TestTypeJudge_NullIsJudgedByNullability(t *testing.T) {
+	t.Parallel()
+	null := ir.Value{Kind: ir.ValueNull}
+	j := typeJudge{Resolve: stubResolve(narrowingRegistry())}
+	nullable := func(k ir.PrimKind) ir.TypeRef { r := primRef(k); r.Nullable = true; return r }
+
+	assert.True(t, j.admits(nullable(ir.PrimInteger), null))
+	assert.False(t, j.admits(primRef(ir.PrimInteger), null))
+	assert.False(t, j.admits(nullable(ir.PrimInteger), str("x")))
+	assert.True(t, j.admits(primRef(ir.PrimInteger), num("1")))
+	assert.True(t, j.admits(primRef(ir.PrimAny), null), "the top type admits null whatever the bit says")
+}
+
+// TestClassify_ComparesResolvedKinds pins the last-resort comparison classify
+// makes when neither side ends in a primitive kind. Two composites of the same
+// kind are not provably contradictory; two of different kinds are disjoint.
+func TestClassify_ComparesResolvedKinds(t *testing.T) {
+	t.Parallel()
+	g, _ := stubMerger(map[ir.TypeID]ir.TypeDef{
+		"t/model":  &ir.Model{ID: "t/model"},
+		"t/other":  &ir.Model{ID: "t/other"},
+		"t/union":  &ir.Union{ID: "t/union"},
+		"t/opaque": &ir.Scalar{ID: "t/opaque"},
+	})
+
+	assert.Equal(t, relUnrelated, judge(g).relate(ir.TypeRef{Target: "t/model"}, ir.TypeRef{Target: "t/other"}),
+		"two models are the same kind, so not provably contradictory")
+	assert.Equal(t, relDisjoint, judge(g).relate(ir.TypeRef{Target: "t/model"}, ir.TypeRef{Target: "t/union"}),
+		"a model and a union are different kinds")
+	assert.Equal(t, relDisjoint, judge(g).relate(ir.TypeRef{Target: "t/opaque"}, ir.TypeRef{Target: "t/union"}),
+		"and the comparison is reached when neither side is a primitive")
+}
+
+// TestTypeJudge_UnrelatedPrimitivesAreDisjoint pins the pairs the relation
+// calls disjoint, and the enum against a bare kind of another family.
+func TestTypeJudge_UnrelatedPrimitivesAreDisjoint(t *testing.T) {
+	t.Parallel()
+	reg := narrowingRegistry()
+	reg["t/enm"] = &ir.Enum{ID: "t/enm", ValueType: ir.PrimString}
+	g, _ := stubMerger(reg)
+
+	assert.Equal(t, relDisjoint, judge(g).relate(primRef(ir.PrimUUID), primRef(ir.PrimDatetimeOffset)))
+	assert.Equal(t, relDisjoint, judge(g).relate(ir.TypeRef{Target: "t/enm"}, primRef(ir.PrimInteger)))
+	assert.Equal(t, relOverlap, judge(g).relate(primRef(ir.PrimInt32), primRef(ir.PrimUint32)),
+		"overlapping kinds are no conflict")
+}
+
+// TestSameValue_ComparesJSONValues pins the value equality the fold and the
+// enum judgment share: one JSON value spelled two ways is one, and a value
+// with no JSON instance, which canonicalValue cannot spell, compares deeply.
+func TestSameValue_ComparesJSONValues(t *testing.T) {
+	t.Parallel()
+	obj := func(fs ...ir.Field) ir.Value { return ir.Value{Kind: ir.ValueObject, Object: fs} }
+	sym := func(s string) ir.Value { return ir.Value{Kind: ir.ValueSymbol, Str: s} }
+	for _, tc := range []struct {
+		name string
+		a, b ir.Value
+		same bool
+	}{
+		{"one number, two spellings", num("1"), num("1.0"), true},
+		{"two numbers", num("1"), num("2"), false},
+		{"one object, two member orders", obj(ir.Field{Name: "a", Value: num("1")}, ir.Field{Name: "b", Value: str("x")}),
+			obj(ir.Field{Name: "b", Value: str("x")}, ir.Field{Name: "a", Value: num("1e0")}), true},
+		{"a number and a string", num("1"), str("1"), false},
+		{"one symbol, compared deeply", sym("s"), sym("s"), true},
+		{"two symbols, compared deeply", sym("s"), sym("t"), false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.same, sameValue(tc.a, tc.b))
+			assert.Equal(t, tc.same, sameValue(tc.b, tc.a))
+		})
+	}
+}
+
+// TestTypeJudge_ComparesReferentsNotReferences pins that the judgment reads
+// the nodes two references name, not the references.
+func TestTypeJudge_ComparesReferentsNotReferences(t *testing.T) {
+	t.Parallel()
+	g, _ := stubMerger(map[ir.TypeID]ir.TypeDef{
+		"t/a":   &ir.Primitive{ID: "t/a", Prim: ir.PrimString},
+		"t/b":   &ir.Primitive{ID: "t/b", Prim: ir.PrimString},
+		"t/i":   &ir.Primitive{ID: "t/i", Prim: ir.PrimInt32},
+		"t/any": &ir.Any{ID: "t/any"},
+		"t/m":   &ir.Model{ID: "t/m"},
+	})
+	ref := func(id ir.TypeID) ir.TypeRef { return ir.TypeRef{Target: id} }
+
+	assert.Equal(t, relSame, judge(g).relate(ref("t/a"), ref("t/b")),
+		"two distinct nodes of one primitive kind are compared by kind")
+	assert.Equal(t, relDisjoint, judge(g).relate(ref("t/a"), ref("t/i")),
+		"string and integer cannot both be satisfied")
+	assert.Equal(t, relUnrelated, judge(g).relate(ref("t/any"), ref("t/i")),
+		"a degraded node stands for a declaration the judgment cannot see")
+	assert.Equal(t, relDisjoint, judge(g).relate(ref("t/m"), ref("t/a")),
+		"a structural type and a primitive are different kinds")
+}

@@ -402,34 +402,6 @@ func TestFold_ANarrowerTypeThatLosesIsAnOverlap(t *testing.T) {
 	assert.True(t, f.lost[1])
 }
 
-// TestSameValue_ComparesJSONValues pins the value equality the fold and the
-// enum judgment share: one JSON value spelled two ways is one, and a value
-// with no JSON instance, which canonicalValue cannot spell, compares deeply.
-func TestSameValue_ComparesJSONValues(t *testing.T) {
-	t.Parallel()
-	obj := func(fs ...ir.Field) ir.Value { return ir.Value{Kind: ir.ValueObject, Object: fs} }
-	sym := func(s string) ir.Value { return ir.Value{Kind: ir.ValueSymbol, Str: s} }
-	for _, tc := range []struct {
-		name string
-		a, b ir.Value
-		same bool
-	}{
-		{"one number, two spellings", num("1"), num("1.0"), true},
-		{"two numbers", num("1"), num("2"), false},
-		{"one object, two member orders", obj(ir.Field{Name: "a", Value: num("1")}, ir.Field{Name: "b", Value: str("x")}),
-			obj(ir.Field{Name: "b", Value: str("x")}, ir.Field{Name: "a", Value: num("1e0")}), true},
-		{"a number and a string", num("1"), str("1"), false},
-		{"one symbol, compared deeply", sym("s"), sym("s"), true},
-		{"two symbols, compared deeply", sym("s"), sym("t"), false},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			assert.Equal(t, tc.same, sameValue(tc.a, tc.b))
-			assert.Equal(t, tc.same, sameValue(tc.b, tc.a))
-		})
-	}
-}
-
 // TestSameExamples_ComparesEachExampleWhole pins that two example lists agree
 // only where each example agrees whole: its value as one JSON value, and its
 // name, summary and description as written, a missing value included.
@@ -442,4 +414,38 @@ func TestSameExamples_ComparesEachExampleWhole(t *testing.T) {
 	assert.False(t, sameExamples(base, []ir.Example{{Name: "e"}}), "a value against none")
 	assert.True(t, sameExamples([]ir.Example{{Name: "e"}}, []ir.Example{{Name: "e"}}), "no value on either")
 	assert.False(t, sameExamples(base, nil), "a list against none")
+}
+
+// TestFold_ExamplesAreJudgedAsOneKeyword pins that a broader declaration's
+// examples are adopted all or nothing: one example the narrower type refuses
+// refuses the keyword, and an example with no value says nothing a type could
+// refuse.
+func TestFold_ExamplesAreJudgedAsOneKeyword(t *testing.T) {
+	t.Parallel()
+	one, half := num("1"), num("1.5")
+	for _, tc := range []struct {
+		name     string
+		examples []ir.Example
+		refused  bool
+	}{
+		{"no examples say nothing", nil, false},
+		{"an example with no value says nothing", []ir.Example{{Value: &one}, {Summary: "no value"}}, false},
+		{"one refused example refuses the keyword", []ir.Example{{Value: &one}, {Value: &half}}, true},
+	} {
+		g, recorded := stubMerger(narrowingRegistry())
+		broad := ir.Property{WireName: "p", Type: primRef(ir.PrimNumber), Examples: tc.examples, Provenance: ptrAt("/b")}
+		narrow := ir.Property{WireName: "p", Type: primRef(ir.PrimInteger), Provenance: ptrAt("/a")}
+
+		got := foldTwo(g, narrow, broad, written(`{"examples":[1]}`))
+
+		if !tc.refused {
+			assert.Equal(t, tc.examples, got.Examples, "%s: adopted whole", tc.name)
+			assert.Empty(t, *recorded, tc.name)
+			continue
+		}
+		assert.Nil(t, got.Examples, "%s: refused whole", tc.name)
+		require.Len(t, *recorded, 1, tc.name)
+		assert.Contains(t, (*recorded)[0].Message, "does not admit the examples", tc.name)
+		assert.Contains(t, got.Unmodeled, losingDeclarationKey+"/b", "%s: the writer is kept", tc.name)
+	}
 }

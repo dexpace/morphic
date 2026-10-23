@@ -5,10 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -341,4 +343,116 @@ func inSource(at func(jsontext.Pointer) ir.Provenance) func(bind.Position) ir.Pr
 // under, which indexes Document.Sources in the order these tests read them.
 func byDocument(p bind.Position) ir.Provenance {
 	return ir.Provenance{Source: int(p.Doc), Pointer: p.Pointer}
+}
+
+// TestPositionOf_PlacesASiteInTheDocumentTheTableRead pins positionOf and
+// siteIn: a source site is the source's position, another document's is found
+// by the key a request reads a URL by (readKey), however the table or the site
+// spells it, and one in a document the table never read is placed nowhere.
+func TestPositionOf_PlacesASiteInTheDocumentTheTableRead(t *testing.T) {
+	t.Parallel()
+	_, root := buildDoc(t, "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\ncomponents:\n  schemas:\n"+
+		"    A: {$ref: 'other.yaml#/T'}\n    B: {$ref: 'http://h/a%20b.yaml#/T'}\n    C: {$ref: 'http://h/c d.yaml#/T'}\n")
+	table := bind.Bind(root, bind.Config{Self: "spec.yaml", Open: func(string) (*yaml.Node, error) {
+		var n yaml.Node
+		return &n, yaml.Unmarshal([]byte("T: {type: string}\n"), &n)
+	}})
+	require.Equal(t, 4, table.Documents(), "the source, other.yaml and the two URLs")
+	other, remote, spaced := bind.DocID(1), bind.DocID(2), bind.DocID(3)
+	require.Equal(t, "other.yaml", table.Document(other).Name)
+	require.Equal(t, "http://h/a%20b.yaml", table.Document(remote).Name)
+	require.Equal(t, "http://h/c d.yaml", table.Document(spaced).Name)
+	self := sourceDocument{path: "spec.yaml"}
+
+	for site, want := range map[refSite]bind.Position{
+		{pointer: "/x"}:                             {Doc: bind.Source, Pointer: "/x"},
+		{doc: "other.yaml", pointer: "/y"}:          {Doc: other, Pointer: "/y"},
+		{doc: "http://h/a b.yaml", pointer: "/z"}:   {Doc: remote, Pointer: "/z"},
+		self.siteIn("spec.yaml", "/w"):              {Doc: bind.Source, Pointer: "/w"},
+		self.siteIn("http://h/a b.yaml", "/v"):      {Doc: remote, Pointer: "/v"},
+		{doc: "http://h/c%20d.yaml", pointer: "/u"}: {Doc: spaced, Pointer: "/u"},
+	} {
+		got, ok := self.positionOf(table, site)
+		require.True(t, ok, "%+v", site)
+		assert.Equal(t, want, got, "%+v", site)
+	}
+	_, ok := self.positionOf(table, refSite{doc: "gone.yaml", pointer: "/x"})
+	assert.False(t, ok, "a document the table never read")
+}
+
+// TestUnplaced_NamesTheDocumentOfASiteOutsideTheSource pins how unplaced
+// spells the reference each schema of an end the table could not place was
+// read under: by its pointer in the source, and by its pointer in its document
+// elsewhere.
+func TestUnplaced_NamesTheDocumentOfASiteOutsideTheSource(t *testing.T) {
+	t.Parallel()
+	inSource := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{})
+	inA := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{})
+	bd := typed.NewBuilder(nil)
+
+	unplaced(t.Context(), bd, referenceEnd{walk: walkOf(&soa.ReferencedParameter{Object: &soa.Parameter{Schema: inSource}})},
+		refSite{pointer: "/paths/~1x/get/parameters/0"})
+	unplaced(t.Context(), bd, referenceEnd{walk: walkOf(&soa.ReferencedParameter{Object: &soa.Parameter{Schema: inA}})},
+		refSite{doc: "a.yaml", pointer: "/components/parameters/P"})
+
+	site, ok := bd.Bindings().Unplaced(inSource)
+	require.True(t, ok)
+	assert.Equal(t, "/paths/~1x/get/parameters/0", site)
+	site, ok = bd.Bindings().Unplaced(inA)
+	require.True(t, ok)
+	assert.Equal(t, "/components/parameters/P in a.yaml", site)
+}
+
+// TestPlacer_PlacesAFindingInTheDocumentThatHoldsIt pins where a finding at a
+// position of the bindings' table is placed: the source's at its own
+// Provenance, another document's in that document's Document.Sources entry,
+// and one in a document no entry lists, which a load never produces, at the
+// source's root rather than nowhere.
+func TestPlacer_PlacesAFindingInTheDocumentThatHoldsIt(t *testing.T) {
+	t.Parallel()
+	doc, codes := loadReferencing(t, "./ext.yaml#/X")
+	require.Empty(t, codes)
+	at := func(p jsontext.Pointer) ir.Provenance { return ir.Provenance{Pointer: "/at" + p} }
+	ext := bind.Position{Doc: 1, Pointer: "/X"}
+
+	listed := bound{bindings: doc.Bindings, others: doc.Others}.placer(at)
+	assert.Equal(t, ir.Provenance{Pointer: "/at/components"}, listed(bind.Position{Pointer: "/components"}))
+	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/X"}, listed(ext))
+
+	unlisted := bound{bindings: doc.Bindings}.placer(at)
+	assert.Equal(t, ir.Provenance{Pointer: "/at"}, unlisted(ext))
+}
+
+// TestBindSchemas_AChainEndsInTheDocumentItEndsIn is TestTargetOf for schema
+// $refs, which the bindings read: each chain ends in the document its last
+// hop lands in, not the one it first leaves for, and a schema the model does
+// not hold there is built for the landing, a boolean one included, and lends
+// its use site that schema, whichever documents the chain passes.
+func TestBindSchemas_AChainEndsInTheDocumentItEndsIn(t *testing.T) {
+	t.Parallel()
+	dir := externalDir(t, map[string]string{"other.yaml": reachedFixtureOther, "third.yaml": reachedFixtureThird})
+	got, _ := loadExternal(t, dir, reachedFixtureRoot, Options{})
+	doc, bindings := got.Doc, got.Bindings
+	table := bindings.Table()
+	for name, want := range map[string]struct {
+		doc     string
+		pointer jsontext.Pointer
+	}{
+		"S":       {filepath.Join(dir, "other.yaml"), "/components/schemas/Obj"},
+		"Bool":    {filepath.Join(dir, "other.yaml"), "/components/schemas/AnyBool"},
+		"Chained": {filepath.Join(dir, "third.yaml"), "/components/schemas/Leaf"},
+		"ToS":     {filepath.Join(dir, "other.yaml"), "/components/schemas/Obj"},
+		"ToLocal": {filepath.Join(dir, "root.yaml"), "/components/schemas/Local"},
+	} {
+		js, ok := doc.Components.Schemas.Get(name)
+		require.True(t, ok, name)
+		e, ok := bindings.Entry(js)
+		require.True(t, ok, name)
+		require.Equal(t, bind.Resolved, e.Chain.Status, name)
+		assert.Equal(t, want.doc, table.Document(e.Chain.End.Doc).Name, name)
+		assert.Equal(t, want.pointer, e.Chain.End.Pointer, name)
+		held := bindings.At(e.Chain.End)
+		assert.NotNil(t, held, "%s ends on a schema held for it", name)
+		assert.Same(t, held, bindings.End(js), name)
+	}
 }

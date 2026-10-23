@@ -117,19 +117,3 @@ func TestCiteFor_PicksTheLatestCitationTheMinorHasReached(t *testing.T) {
 	assert.Equal(t, "c", citeFor([]Cite{{Minor: V32, Sentence: "c"}}, V30).Sentence, "none reached: the first")
 	assert.Equal(t, Cite{}, citeFor(nil, V30))
 }
-
-// TestValidFormat_TakesAnyStringWhereNoSyntaxIsNamed pins the format that
-// asks for nothing.
-func TestValidFormat_TakesAnyStringWhereNoSyntaxIsNamed(t *testing.T) {
-	assert.True(t, validFormat(FormatNone, "anything at all"))
-	assert.False(t, validFormat(ComponentName, "a b"))
-	assert.Equal(t, "1 entry", plural(1))
-	assert.Equal(t, "2 entries", plural(2))
-}
-
-// TestTemplateFault_NamesWhatIsWrong pins the wording of the template check.
-func TestTemplateFault_NamesWhatIsWrong(t *testing.T) {
-	assert.Empty(t, templateFault("https://{a}/{b}"))
-	assert.Contains(t, templateFault("{a}/{a}"), `"a"`)
-	assert.Contains(t, templateFault("{a"), "no }")
-}

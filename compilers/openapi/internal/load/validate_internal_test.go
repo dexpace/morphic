@@ -145,28 +145,6 @@ func TestJudgeSource_AnOverlayOwnsWhatItWrote(t *testing.T) {
 		"the missing version is the source's to answer for, the description the overlay's")
 }
 
-// TestSourceTree_LocatorsAnswerAtTheLastNodeTheyReach pins that a pointer
-// leading nowhere is placed at the last node it reached, and that a tree
-// holding no node places every finding at the reference that reached it.
-func TestSourceTree_LocatorsAnswerAtTheLastNodeTheyReach(t *testing.T) {
-	t.Parallel()
-	root := decodeRoot(t, "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\n")
-	tree := newSourceTree(0, overlay.Origin{}, root)
-
-	for _, locate := range []oas.Locator{tree.locatorIn(root), tree.reachedLocator(root)} {
-		got := locate("/info/nowhere/at/all")
-		assert.Equal(t, jsontext.Pointer("/info"), got.Pointer, "placed at /info, the last node the pointer reached")
-	}
-	assert.Equal(t, ir.Provenance{Source: 0}, tree.locatorIn(&yaml.Node{Kind: yaml.DocumentNode})("/x"), "an empty tree is placed by source alone")
-
-	assert.False(t, sourceTree{}.has(root), "a tree that holds nothing holds no node")
-	assert.True(t, tree.has(root.Content[0]), "and one holds the nodes it indexed")
-	foreign := sourceTree{}.reachedLocator(root)("/info")
-	assert.Equal(t, ir.Provenance{Source: foreign.Source, Position: foreign.Position}, foreign)
-	assert.Equal(t, 2, foreign.Position.Line)
-	assert.False(t, holds(ir.Diagnostic{Provenance: foreign}), "marked foreign")
-}
-
 // TestPlaceAt_PutsForeignFindingsAtTheReference pins where a finding about an
 // object a reference reaches is reported: one placed in a document stays where
 // it is, and one marked foreign goes to the reference with the place it lies

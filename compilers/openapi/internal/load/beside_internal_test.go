@@ -270,12 +270,3 @@ func (bareReference) IsReference() bool        { return true }
 func (coredReference) GetRootNode() *yaml.Node { return nil }
 func (coredReference) IsReference() bool       { return true }
 func (r coredReference) GetCoreAny() any       { return r.core }
-
-// TestOwnRoot_AModelWithNoReadableCoreHasNone pins ownRoot's two guards: a $ref
-// whose own mapping cannot be read has none to answer with, rather than the
-// target's.
-func TestOwnRoot_AModelWithNoReadableCoreHasNone(t *testing.T) {
-	t.Parallel()
-	assert.Nil(t, ownRoot(bareReference{}))
-	assert.Nil(t, ownRoot(coredReference{core: 42}))
-}

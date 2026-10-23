@@ -69,29 +69,6 @@ func indexOver(m *ir.Model, reg map[ir.TypeID]ir.TypeDef, g *Merger) (idx *PropI
 	}
 }
 
-// TestTypeJudge_ComparesReferentsNotReferences pins that the judgment reads
-// the nodes two references name, not the references.
-func TestTypeJudge_ComparesReferentsNotReferences(t *testing.T) {
-	t.Parallel()
-	g, _ := stubMerger(map[ir.TypeID]ir.TypeDef{
-		"t/a":   &ir.Primitive{ID: "t/a", Prim: ir.PrimString},
-		"t/b":   &ir.Primitive{ID: "t/b", Prim: ir.PrimString},
-		"t/i":   &ir.Primitive{ID: "t/i", Prim: ir.PrimInt32},
-		"t/any": &ir.Any{ID: "t/any"},
-		"t/m":   &ir.Model{ID: "t/m"},
-	})
-	ref := func(id ir.TypeID) ir.TypeRef { return ir.TypeRef{Target: id} }
-
-	assert.Equal(t, relSame, judge(g).relate(ref("t/a"), ref("t/b")),
-		"two distinct nodes of one primitive kind are compared by kind")
-	assert.Equal(t, relDisjoint, judge(g).relate(ref("t/a"), ref("t/i")),
-		"string and integer cannot both be satisfied")
-	assert.Equal(t, relUnrelated, judge(g).relate(ref("t/any"), ref("t/i")),
-		"a degraded node stands for a declaration the judgment cannot see")
-	assert.Equal(t, relDisjoint, judge(g).relate(ref("t/m"), ref("t/a")),
-		"a structural type and a primitive are different kinds")
-}
-
 // TestMerger_ReconcileReportsDisagreementAndKeepsAWinner pins the documented
 // policy: an unsatisfiable redeclaration is surfaced rather than silently
 // resolved, and the merge still yields one property.

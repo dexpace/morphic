@@ -196,40 +196,6 @@ func TestTargetOf(t *testing.T) {
 	assert.False(t, ok, "/stops reaches no object")
 }
 
-// TestBindSchemas_AChainEndsInTheDocumentItEndsIn is TestTargetOf for schema
-// $refs, which the bindings read: each chain ends in the document its last
-// hop lands in, not the one it first leaves for, and a schema the model does
-// not hold there is built for the landing, a boolean one included, and lends
-// its use site that schema, whichever documents the chain passes.
-func TestBindSchemas_AChainEndsInTheDocumentItEndsIn(t *testing.T) {
-	t.Parallel()
-	dir := externalDir(t, map[string]string{"other.yaml": reachedFixtureOther, "third.yaml": reachedFixtureThird})
-	got, _ := loadExternal(t, dir, reachedFixtureRoot, Options{})
-	doc, bindings := got.Doc, got.Bindings
-	table := bindings.Table()
-	for name, want := range map[string]struct {
-		doc     string
-		pointer jsontext.Pointer
-	}{
-		"S":       {filepath.Join(dir, "other.yaml"), "/components/schemas/Obj"},
-		"Bool":    {filepath.Join(dir, "other.yaml"), "/components/schemas/AnyBool"},
-		"Chained": {filepath.Join(dir, "third.yaml"), "/components/schemas/Leaf"},
-		"ToS":     {filepath.Join(dir, "other.yaml"), "/components/schemas/Obj"},
-		"ToLocal": {filepath.Join(dir, "root.yaml"), "/components/schemas/Local"},
-	} {
-		js, ok := doc.Components.Schemas.Get(name)
-		require.True(t, ok, name)
-		e, ok := bindings.Entry(js)
-		require.True(t, ok, name)
-		require.Equal(t, bind.Resolved, e.Chain.Status, name)
-		assert.Equal(t, want.doc, table.Document(e.Chain.End.Doc).Name, name)
-		assert.Equal(t, want.pointer, e.Chain.End.Pointer, name)
-		held := bindings.At(e.Chain.End)
-		assert.NotNil(t, held, "%s ends on a schema held for it", name)
-		assert.Same(t, held, bindings.End(js), name)
-	}
-}
-
 // TestBuiltTargets covers which schemas built for the bindings' landings are
 // validated, and where: one a $ref's chain reaches, at the least such $ref and
 // named by its document, in the source or not, placed in the document writing

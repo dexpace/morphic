@@ -1606,3 +1606,28 @@ func TestChain_EndsOnNothing(t *testing.T) {
 		})
 	}
 }
+
+// TestStandIn pins the stand-in held for each kind of reference object: an
+// empty object of the kind, which mend knows to stand for the object. A
+// resolvable of no known kind has none.
+func TestStandIn(t *testing.T) {
+	t.Parallel()
+	read := newExternalReads(sourceDocument{})
+	for _, obj := range []resolvable{
+		&soa.ReferencedPathItem{}, &soa.ReferencedParameter{}, &soa.ReferencedHeader{},
+		&soa.ReferencedRequestBody{}, &soa.ReferencedResponse{}, &soa.ReferencedExample{},
+		&soa.ReferencedLink{}, &soa.ReferencedCallback{}, &soa.ReferencedSecurityScheme{},
+	} {
+		stand, ok := read.standIn(obj)
+		require.True(t, ok, "%T", obj)
+		assert.IsType(t, obj, stand)
+		assert.NotSame(t, obj, stand)
+		stood, ok := read.stoodFor(stand)
+		require.True(t, ok, "%T", obj)
+		assert.Same(t, obj, stood)
+	}
+	_, ok := read.standIn(fakeResolvable{})
+	assert.False(t, ok, "a kind of no known stand-in is held as none")
+	_, ok = read.stoodFor(&soa.ReferencedResponse{})
+	assert.False(t, ok, "an object made elsewhere stands for nothing")
+}

@@ -1,6 +1,7 @@
 package load
 
 import (
+	"slices"
 	"testing"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
@@ -77,4 +78,25 @@ func countErrorsAt(diags []ir.Diagnostic, code string) int {
 		}
 	}
 	return n
+}
+
+// diagLines renders diags as "pointer code", sorted, which is what an order
+// comparison and an expectation both need.
+func diagLines(diags []ir.Diagnostic) []string {
+	out := make([]string, 0, len(diags))
+	for _, d := range diags {
+		out = append(out, string(d.Provenance.Pointer)+" "+d.Code)
+	}
+	slices.Sort(out)
+	return out
+}
+
+// response200 returns the 200 response the get operation at path names.
+func response200(t *testing.T, doc *soa.OpenAPI, path string) *soa.ReferencedResponse {
+	t.Helper()
+	item, ok := doc.Paths.Get(path)
+	require.True(t, ok, path)
+	resp, ok := item.GetObject().Get().GetResponses().Get("200")
+	require.True(t, ok, path)
+	return resp
 }

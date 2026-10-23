@@ -12,9 +12,7 @@ import (
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/ir"
 )
 
 // servedReader answers every request with one document declaring X.
@@ -147,24 +145,4 @@ func TestLabelOf_IsTheLocationTheSourcesDirectoryReachesADocumentBy(t *testing.T
 	} {
 		assert.Equal(t, tc.want, labelOf(tc.self, tc.key, tc.abs), "%s from %s", tc.key, tc.self)
 	}
-}
-
-// TestPlacer_PlacesAFindingInTheDocumentThatHoldsIt pins where a finding at a
-// position of the bindings' table is placed: the source's at its own
-// Provenance, another document's in that document's Document.Sources entry,
-// and one in a document no entry lists, which a load never produces, at the
-// source's root rather than nowhere.
-func TestPlacer_PlacesAFindingInTheDocumentThatHoldsIt(t *testing.T) {
-	t.Parallel()
-	doc, codes := loadReferencing(t, "./ext.yaml#/X")
-	require.Empty(t, codes)
-	at := func(p jsontext.Pointer) ir.Provenance { return ir.Provenance{Pointer: "/at" + p} }
-	ext := bind.Position{Doc: 1, Pointer: "/X"}
-
-	listed := bound{bindings: doc.Bindings, others: doc.Others}.placer(at)
-	assert.Equal(t, ir.Provenance{Pointer: "/at/components"}, listed(bind.Position{Pointer: "/components"}))
-	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/X"}, listed(ext))
-
-	unlisted := bound{bindings: doc.Bindings}.placer(at)
-	assert.Equal(t, ir.Provenance{Pointer: "/at"}, unlisted(ext))
 }
