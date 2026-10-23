@@ -1,4 +1,4 @@
-package reader
+package reader_test
 
 import (
 	"errors"
@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/engine/reader"
 )
 
 // scriptedFile is an fs.File whose Stat, Read and Close answer as a test
@@ -63,13 +64,13 @@ func TestReadOpened_JudgesTheFileOpened(t *testing.T) {
 	}{
 		{name: "a directory", file: func(t *testing.T) *scriptedFile {
 			return &scriptedFile{info: infoOf(t, fs.ModeDir)}
-		}, wantIs: []error{errNotRegular}},
+		}, wantIs: []error{reader.ErrNotRegular}},
 		{name: "a FIFO", file: func(t *testing.T) *scriptedFile {
 			return &scriptedFile{info: infoOf(t, fs.ModeNamedPipe)}
-		}, wantIs: []error{errNotRegular}},
+		}, wantIs: []error{reader.ErrNotRegular}},
 		{name: "a device whose close fails", file: func(t *testing.T) *scriptedFile {
 			return &scriptedFile{info: infoOf(t, fs.ModeDevice|fs.ModeCharDevice), closeErr: closeFailed}
-		}, wantIs: []error{errNotRegular, closeFailed}},
+		}, wantIs: []error{reader.ErrNotRegular, closeFailed}},
 		{name: "a file Stat fails on", file: func(*testing.T) *scriptedFile {
 			return &scriptedFile{statErr: statFailed}
 		}, wantIs: []error{statFailed}},
@@ -83,13 +84,13 @@ func TestReadOpened_JudgesTheFileOpened(t *testing.T) {
 			f := tc.file(t)
 			f.body = strings.NewReader("never read")
 
-			got, err := readOpened("p.yaml", f, 0)
+			got, err := reader.ReadOpened("p.yaml", f, 0)
 
 			require.Error(t, err)
 			for _, want := range tc.wantIs {
 				assert.ErrorIs(t, err, want)
 			}
-			if slices.Contains(tc.wantIs, errNotRegular) {
+			if slices.Contains(tc.wantIs, reader.ErrNotRegular) {
 				assert.Contains(t, err.Error(), "p.yaml", "the file refused")
 			}
 			assert.Nil(t, got)
@@ -131,7 +132,7 @@ func TestReadOpened_ReadsAndClosesARegularFile(t *testing.T) {
 			t.Parallel()
 			f := &scriptedFile{info: infoOf(t, 0), body: tc.body, closeErr: tc.closeErr}
 
-			got, err := readOpened("p.yaml", f, tc.limit)
+			got, err := reader.ReadOpened("p.yaml", f, tc.limit)
 
 			assert.Equal(t, 1, f.closes, "closed once, whatever the read did")
 			if len(tc.wantIs) > 0 {
@@ -157,9 +158,9 @@ func TestReadOpened_RefusesAnOpenedDirectory(t *testing.T) {
 	f, err := os.Open(dir)
 	require.NoError(t, err)
 
-	got, err := readOpened(dir, f, 0)
+	got, err := reader.ReadOpened(dir, f, 0)
 
-	require.ErrorIs(t, err, errNotRegular)
+	require.ErrorIs(t, err, reader.ErrNotRegular)
 	assert.Contains(t, err.Error(), dir)
 	assert.Nil(t, got)
 	assert.ErrorIs(t, f.Close(), os.ErrClosed, "the refused file is closed")

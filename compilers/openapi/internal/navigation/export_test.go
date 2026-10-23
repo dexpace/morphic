@@ -42,3 +42,6 @@ func Leaves(node any, token string) (*yaml.Node, bool) {
 	r, raw := ReadingOf(node, token)
 	return raw, r == Leaving
 }
+
+// Keyed is keyed, for the external tests.
+var Keyed = keyed

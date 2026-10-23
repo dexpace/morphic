@@ -4,3 +4,9 @@ package reader
 // socket fails with, so the external tests assert on it rather than on its
 // wording.
 var ErrNotRegular = errNotRegular
+
+// FilePathOf is filePathOf, for the external tests.
+var FilePathOf = filePathOf
+
+// ReadOpened is readOpened, for the external tests.
+var ReadOpened = readOpened

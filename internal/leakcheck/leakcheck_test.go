@@ -1,4 +1,4 @@
-package leakcheck
+package leakcheck_test
 
 import (
 	"bytes"
@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/dexpace/morphic/internal/leakcheck"
 )
 
 // fakeProfile is a profile whose Count and WriteTo behavior are both fixed by
@@ -30,8 +32,8 @@ func (f *fakeProfile) WriteTo(w io.Writer, _ int) error {
 
 // lookupFake returns a lookup function that hands back p regardless of the
 // name asked for.
-func lookupFake(p profile) func(string) profile {
-	return func(string) profile { return p }
+func lookupFake(p leakcheck.Profile) func(string) leakcheck.Profile {
+	return func(string) leakcheck.Profile { return p }
 }
 
 func TestVerdict_NilProfileFailsLoudlyRegardlessOfCode(t *testing.T) {
@@ -41,7 +43,7 @@ func TestVerdict_NilProfileFailsLoudlyRegardlessOfCode(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			var out bytes.Buffer
-			got := verdict(code, lookupFake(nil), &out)
+			got := leakcheck.Verdict(code, lookupFake(nil), &out)
 			assert.NotZero(t, got, "an absent profile must fail loudly, never report green")
 			assert.Contains(t, out.String(), "not registered")
 		})
@@ -52,7 +54,7 @@ func TestVerdict_WriteToErrorFailsLoudly(t *testing.T) {
 	t.Parallel()
 	var out bytes.Buffer
 	wantErr := errors.New("boom")
-	got := verdict(0, lookupFake(&fakeProfile{writeErr: wantErr}), &out)
+	got := leakcheck.Verdict(0, lookupFake(&fakeProfile{writeErr: wantErr}), &out)
 	assert.NotZero(t, got, "a profile that cannot be written must fail loudly")
 	assert.Contains(t, out.String(), "boom")
 }
@@ -64,7 +66,7 @@ func TestVerdict_ZeroLeaksReturnsCodeUnchangedAndPrintsNothing(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			var out bytes.Buffer
-			got := verdict(code, lookupFake(&fakeProfile{count: 0}), &out)
+			got := leakcheck.Verdict(code, lookupFake(&fakeProfile{count: 0}), &out)
 			assert.Equal(t, code, got)
 			assert.Empty(t, out.String(), "a clean run must print nothing")
 		})
@@ -78,7 +80,7 @@ func TestVerdict_LeaksArePrintedAndForceNonZero(t *testing.T) {
 		code int
 		want int
 	}{
-		{name: "a passing run", code: 0, want: forcedExitCode},
+		{name: "a passing run", code: 0, want: leakcheck.ForcedExitCode},
 		{name: "an already-failing run", code: 9, want: 9},
 	}
 	for _, tc := range tests {
@@ -86,7 +88,7 @@ func TestVerdict_LeaksArePrintedAndForceNonZero(t *testing.T) {
 			t.Parallel()
 			var out bytes.Buffer
 			p := &fakeProfile{count: 3, written: "STACKMARKER\n"}
-			got := verdict(tc.code, lookupFake(p), &out)
+			got := leakcheck.Verdict(tc.code, lookupFake(p), &out)
 			assert.Equal(t, tc.want, got)
 			assert.Contains(t, out.String(), "3", "the summary must name the count")
 			assert.Contains(t, out.String(), "STACKMARKER", "the stacks WriteTo wrote must be printed")
@@ -96,20 +98,20 @@ func TestVerdict_LeaksArePrintedAndForceNonZero(t *testing.T) {
 
 func TestForcedCode_ReturnsCodeUnlessZero(t *testing.T) {
 	t.Parallel()
-	assert.Equal(t, forcedExitCode, forcedCode(0))
-	assert.Equal(t, 7, forcedCode(7))
+	assert.Equal(t, leakcheck.ForcedExitCode, leakcheck.ForcedCode(0))
+	assert.Equal(t, 7, leakcheck.ForcedCode(7))
 }
 
 func TestPprofLookup_RegisteredProfileIsNonNil(t *testing.T) {
 	t.Parallel()
-	assert.NotNil(t, pprofLookup(goroutineLeakProfile))
+	assert.NotNil(t, leakcheck.PprofLookup(leakcheck.GoroutineLeakProfile))
 }
 
 // TestPprofLookup_UnregisteredNameIsGenuinelyNilInterface guards the typed-nil
 // trap pprofLookup's doc comment describes.
 func TestPprofLookup_UnregisteredNameIsGenuinelyNilInterface(t *testing.T) {
 	t.Parallel()
-	got := pprofLookup("leakcheck-test-name-nothing-registers")
+	got := leakcheck.PprofLookup("leakcheck-test-name-nothing-registers")
 	// Equal against nil compares the interface itself, not assert.Nil: testify's
 	// Nil reflects through the interface and would report this as nil even if
 	// pprofLookup regressed to "return pprof.Lookup(name)" — a *pprof.Profile(nil)

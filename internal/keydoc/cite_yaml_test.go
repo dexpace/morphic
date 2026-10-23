@@ -1,9 +1,11 @@
-package keydoc
+package keydoc_test
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/dexpace/morphic/internal/keydoc"
 )
 
 // TestYAMLComment_StartsAtAHashOutsideQuotes reads where a YAML line's comment
@@ -28,7 +30,7 @@ func TestYAMLComment_StartsAtAHashOutsideQuotes(t *testing.T) {
 		{"[a, 'b # c'] # after a flow sequence", " after a flow sequence", true},
 	}
 	for _, tc := range tests {
-		got, has := yamlComment(tc.line)
+		got, has := keydoc.YamlComment(tc.line)
 		assert.Equal(t, tc.has, has, tc.line)
 		assert.Equal(t, tc.want, got, tc.line)
 	}

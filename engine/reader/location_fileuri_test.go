@@ -1,4 +1,4 @@
-package reader
+package reader_test
 
 import (
 	"net/url"
@@ -6,6 +6,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/dexpace/morphic/engine/reader"
 )
 
 // TestFilePathOf_NamesTheLocalFileAFileURINames pins how a file URI names a
@@ -62,7 +64,7 @@ func TestFilePathOf_NamesTheLocalFileAFileURINames(t *testing.T) {
 			u, err := url.Parse(tc.uri)
 			require.NoError(t, err)
 
-			got, err := filePathOf(u, tc.windows)
+			got, err := reader.FilePathOf(u, tc.windows)
 
 			if tc.wantErr != "" {
 				require.Error(t, err)

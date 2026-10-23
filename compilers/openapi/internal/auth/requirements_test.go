@@ -454,3 +454,17 @@ func loaderErrors(diags []ir.Diagnostic) []string {
 	}
 	return out
 }
+
+// TestLowerSecurityRequirements_DropsANilEntrySilently covers the half of the
+// object guard a parsed document cannot reach: a hand-built list holding a nil
+// entry. It is dropped like any other entry that is no object, rather than
+// surviving as the empty option that reads as "no auth is one acceptable
+// choice", and silently: an entry that is no object is the loader's to report,
+// and a nil one is in no document at all.
+func TestLowerSecurityRequirements_DropsANilEntrySilently(t *testing.T) {
+	t.Parallel()
+	got, diags := auth.LowerSecurityRequirements(lowering.Ctx{}, []*soa.SecurityRequirement{nil}, "/security")
+
+	assert.Empty(t, got, "a nil entry is no requirement, so it is dropped")
+	assert.Empty(t, diags)
+}

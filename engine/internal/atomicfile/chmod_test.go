@@ -1,4 +1,4 @@
-package atomicfile
+package atomicfile_test
 
 import (
 	"errors"
@@ -12,6 +12,8 @@ import (
 	"github.com/google/renameio/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/dexpace/morphic/engine/internal/atomicfile"
 )
 
 // TestReplace_AChmodFailureLeavesNothingBehind pins a filesystem refusing the
@@ -33,7 +35,7 @@ func TestReplace_AChmodFailureLeavesNothingBehind(t *testing.T) {
 	dest := filepath.Join(dir, "ir.json")
 	require.NoError(t, os.WriteFile(dest, []byte("old\n"), 0o600))
 
-	err := replace(dest, fill, failing)
+	err := atomicfile.ReplaceWithChmod(dest, fill, failing)
 
 	require.ErrorIs(t, err, refused)
 	assert.ErrorContains(t, err, fmt.Sprintf("chmod output %q", dest))
@@ -46,5 +48,5 @@ func TestReplace_AChmodFailureLeavesNothingBehind(t *testing.T) {
 	assert.Equal(t, "old\n", string(raw))
 
 	fresh := filepath.Join(t.TempDir(), "ir.json")
-	require.NoError(t, replace(fresh, fill, failing), "a new destination is not chmod-ed")
+	require.NoError(t, atomicfile.ReplaceWithChmod(fresh, fill, failing), "a new destination is not chmod-ed")
 }

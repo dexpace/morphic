@@ -1,4 +1,4 @@
-package openapi
+package openapi_test
 
 import (
 	"context"
@@ -11,13 +11,14 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 )
 
 func TestCompile_WrongFormatOptions(t *testing.T) {
 	t.Parallel()
-	_, _, err := New().Compile(context.Background(),
+	_, _, err := openapi.New().Compile(context.Background(),
 		[]compilers.Source{openapitest.SourceOf("openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\n")},
 		compilers.Options{FormatOptions: "not-openapi-options"})
 	require.Error(t, err, "wrong FormatOptions type is a programmer error")
@@ -26,8 +27,8 @@ func TestCompile_WrongFormatOptions(t *testing.T) {
 func TestCompile_ExplicitOptions(t *testing.T) {
 	t.Parallel()
 	spec := "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n  /a/b:\n    get: {operationId: ab, responses: {\"200\": {description: ok}}}\n"
-	doc, _, err := New().Compile(context.Background(), []compilers.Source{openapitest.SourceOf(spec)},
-		compilers.Options{FormatOptions: Options{Grouping: GroupByPathPrefix}})
+	doc, _, err := openapi.New().Compile(context.Background(), []compilers.Source{openapitest.SourceOf(spec)},
+		compilers.Options{FormatOptions: openapi.Options{Grouping: openapi.GroupByPathPrefix}})
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 	assert.Equal(t, "a", doc.Services[0].Groups[0].Name.Source)
@@ -47,7 +48,7 @@ func TestDecodeOptions_TextReachesEveryField(t *testing.T) {
 		return []byte(overlayDoc), nil
 	}
 
-	got, err := New().DecodeOptions(compilers.OptionSet{
+	got, err := openapi.New().DecodeOptions(compilers.OptionSet{
 		Settings: map[string]string{
 			"grouping":               "path-prefix",
 			"allow-external-refs":    "true",
@@ -64,16 +65,16 @@ func TestDecodeOptions_TextReachesEveryField(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	opts, ok := got.(Options)
+	opts, ok := got.(openapi.Options)
 	require.True(t, ok, "the decoded value must be this compiler's own options type")
-	assert.Equal(t, GroupByPathPrefix, opts.Grouping)
+	assert.Equal(t, openapi.GroupByPathPrefix, opts.Grouping)
 	assert.True(t, opts.AllowExternalRefs)
 	require.NotNil(t, opts.Overlay)
 	assert.Equal(t, "patch.yaml", opts.Overlay.Path)
 	assert.Equal(t, overlayDoc, string(opts.Overlay.Data))
 	assert.True(t, opts.Overlay.Lax)
 	assert.True(t, opts.NullableWidening.Disabled, "nullable-widening=false turns the policy off")
-	assert.Equal(t, Limits{MaxSourceBytes: 11, MaxSourceNodes: -1, MaxAliasSurplus: 13, MaxExternalDocuments: 14},
+	assert.Equal(t, openapi.Limits{MaxSourceBytes: 11, MaxSourceNodes: -1, MaxAliasSurplus: 13, MaxExternalDocuments: 14},
 		opts.Limits, "each budget as the Go field reads it, 0 left for the default")
 }
 
@@ -83,9 +84,9 @@ func TestDecodeOptions_TextReachesEveryField(t *testing.T) {
 // reach.
 func TestLimitOptions_NameEveryBudget(t *testing.T) {
 	t.Parallel()
-	var l Limits
+	var l openapi.Limits
 	fields := map[*int]string{}
-	for name, field := range limitOptions(&l) {
+	for name, field := range openapi.LimitOptions(&l) {
 		_, dup := fields[field]
 		assert.False(t, dup, "%s sets a field another option sets", name)
 		fields[field] = name
@@ -101,9 +102,9 @@ func TestLimitOptions_NameEveryBudget(t *testing.T) {
 
 func TestDecodeOptions_EmptySetIsDefaults(t *testing.T) {
 	t.Parallel()
-	got, err := New().DecodeOptions(compilers.OptionSet{})
+	got, err := openapi.New().DecodeOptions(compilers.OptionSet{})
 	require.NoError(t, err)
-	assert.Equal(t, Options{}, got)
+	assert.Equal(t, openapi.Options{}, got)
 }
 
 func TestDecodeOptions_Refusals(t *testing.T) {
@@ -151,7 +152,7 @@ func TestDecodeOptions_Refusals(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, err := New().DecodeOptions(compilers.OptionSet{
+			got, err := openapi.New().DecodeOptions(compilers.OptionSet{
 				Settings: tc.settings,
 				ReadFile: tc.readFile,
 			})
@@ -169,19 +170,19 @@ func TestDecodeOptions_OverlayLaxnessIsOrderIndependent(t *testing.T) {
 	t.Parallel()
 	read := func(string) ([]byte, error) { return []byte("overlay: 1.0.0\n"), nil }
 
-	strict, err := New().DecodeOptions(compilers.OptionSet{
+	strict, err := openapi.New().DecodeOptions(compilers.OptionSet{
 		Settings: map[string]string{"overlay": "p.yaml", "overlay-lax": "false"},
 		ReadFile: read,
 	})
 	require.NoError(t, err)
-	lax, err := New().DecodeOptions(compilers.OptionSet{
+	lax, err := openapi.New().DecodeOptions(compilers.OptionSet{
 		Settings: map[string]string{"overlay-lax": "true", "overlay": "p.yaml"},
 		ReadFile: read,
 	})
 	require.NoError(t, err)
 
-	assert.False(t, strict.(Options).Overlay.Lax)
-	assert.True(t, lax.(Options).Overlay.Lax)
+	assert.False(t, strict.(openapi.Options).Overlay.Lax)
+	assert.True(t, lax.(openapi.Options).Overlay.Lax)
 }
 
 // TestDecodeOptions_FeedsCompile closes the loop the CLI walks: what
@@ -190,12 +191,12 @@ func TestDecodeOptions_OverlayLaxnessIsOrderIndependent(t *testing.T) {
 func TestDecodeOptions_FeedsCompile(t *testing.T) {
 	t.Parallel()
 	spec := "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n  /a/b:\n    get: {operationId: ab, tags: [zoo], responses: {\"200\": {description: ok}}}\n"
-	formatOpts, err := New().DecodeOptions(compilers.OptionSet{
+	formatOpts, err := openapi.New().DecodeOptions(compilers.OptionSet{
 		Settings: map[string]string{"grouping": "path-prefix"},
 	})
 	require.NoError(t, err)
 
-	doc, _, err := New().Compile(context.Background(), []compilers.Source{openapitest.SourceOf(spec)},
+	doc, _, err := openapi.New().Compile(context.Background(), []compilers.Source{openapitest.SourceOf(spec)},
 		compilers.Options{FormatOptions: formatOpts})
 	require.NoError(t, err)
 	require.NotNil(t, doc)
@@ -208,12 +209,12 @@ func TestDecodeOptions_FeedsCompile(t *testing.T) {
 // extending it starts from what a compile really uses.
 func TestDefaultStreamingMediaTypes_IsWhatTheLoweringApplies(t *testing.T) {
 	t.Parallel()
-	assert.Equal(t, lowering.DefaultStreamingMediaTypes(), DefaultStreamingMediaTypes())
+	assert.Equal(t, lowering.DefaultStreamingMediaTypes(), openapi.DefaultStreamingMediaTypes())
 }
 
 // TestDefaultExtensionPromotions_IsWhatTheLoweringApplies pins the exported
 // mapping to the one a compile promotes by when Options names none.
 func TestDefaultExtensionPromotions_IsWhatTheLoweringApplies(t *testing.T) {
 	t.Parallel()
-	assert.Equal(t, lowering.DefaultExtensionPromotions(), DefaultExtensionPromotions())
+	assert.Equal(t, lowering.DefaultExtensionPromotions(), openapi.DefaultExtensionPromotions())
 }

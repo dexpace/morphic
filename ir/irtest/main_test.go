@@ -1,4 +1,4 @@
-package irtest
+package irtest_test
 
 import (
 	"testing"

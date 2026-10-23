@@ -1,4 +1,4 @@
-package resolve
+package resolve_test
 
 import (
 	"encoding/json/jsontext"
@@ -8,11 +8,12 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/fragment"
+	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 )
 
 func TestInternalPointer(t *testing.T) {
 	t.Parallel()
-	sc := Scope{SelfPath: "m.yaml", Declares: func(string) bool { return false }}
+	sc := resolve.Scope{SelfPath: "m.yaml", Declares: func(string) bool { return false }}
 	cases := []struct {
 		ref    string
 		want   jsontext.Pointer
@@ -47,7 +48,7 @@ func TestInternalPointer(t *testing.T) {
 // declared names failed every spec-correct escape (GitHub #40).
 func TestInternalPointer_AgreesWithTheResolverOnWhatItIsHanded(t *testing.T) {
 	t.Parallel()
-	sc := Scope{SelfPath: "m.yaml", Declares: func(string) bool { return false }}
+	sc := resolve.Scope{SelfPath: "m.yaml", Declares: func(string) bool { return false }}
 	tests := []struct {
 		name, ref string
 		want      jsontext.Pointer
@@ -123,7 +124,7 @@ func TestFragmentPointer_ReadsTheFragmentOfAnyDocument(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, ok := FragmentPointer(tc.ref)
+			got, ok := resolve.FragmentPointer(tc.ref)
 			assert.Equal(t, tc.wantOK, ok, tc.ref)
 			assert.Equal(t, tc.want, got, tc.ref)
 		})
@@ -168,12 +169,12 @@ func TestInternalPointer_InTheSourcesOwnContent(t *testing.T) {
 		{"dir%/m.yaml", "m.yaml", false},
 		{"100%.yaml", "100%.yaml", false},
 	} {
-		_, ok := Scope{SelfPath: c.self}.InternalPointer(c.doc + "#/components/schemas/A")
+		_, ok := resolve.Scope{SelfPath: c.self}.InternalPointer(c.doc + "#/components/schemas/A")
 		assert.Equal(t, c.internal, ok, "%q written in %q", c.doc, c.self)
 	}
-	_, ok := Scope{SelfPath: "dir/m.yaml"}.InternalPointer("#/components/schemas/A")
+	_, ok := resolve.Scope{SelfPath: "dir/m.yaml"}.InternalPointer("#/components/schemas/A")
 	assert.True(t, ok, "a pointer alone names a position in the source's own content")
-	_, ok = Scope{}.InternalPointer("#/components/schemas/A")
+	_, ok = resolve.Scope{}.InternalPointer("#/components/schemas/A")
 	assert.True(t, ok, "whatever the source is called")
 }
 
@@ -192,8 +193,8 @@ func TestInternalPointer_ReadsOwnContentAsAForeignScopeHeldByTheSource(t *testin
 	for _, self := range selves {
 		for _, doc := range docs {
 			ref := doc + "#/components/schemas/A"
-			_, own := Scope{SelfPath: self}.InternalPointer(ref)
-			_, foreign := Scope{SelfPath: self, Foreign: true, Holder: self}.InternalPointer(ref)
+			_, own := resolve.Scope{SelfPath: self}.InternalPointer(ref)
+			_, foreign := resolve.Scope{SelfPath: self, Foreign: true, Holder: self}.InternalPointer(ref)
 			assert.Equal(t, foreign, own, "%q written in %q", doc, self)
 		}
 	}
@@ -221,7 +222,7 @@ func TestInternalPointer_InAForeignScope(t *testing.T) {
 		{"https://example.com/ext.yaml", "spec.yaml#/components/schemas/A", false},
 		{"", "spec.yaml#/components/schemas/A", false},
 	} {
-		scope := Scope{SelfPath: self, Foreign: true, Holder: c.holder}
+		scope := resolve.Scope{SelfPath: self, Foreign: true, Holder: c.holder}
 		pointer, ok := scope.InternalPointer(c.ref)
 		assert.Equal(t, c.internal, ok, "%s from %s", c.ref, c.holder)
 		if c.internal {
