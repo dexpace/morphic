@@ -151,7 +151,7 @@ it, the schema stamp, the namespaces, a service and a well-formed source table a
 reports, a `compile/registry-refused` error for each entry the registry refused among them.
 
 **What stays in the OpenAPI compiler.** Three of its pieces read as if any format could use them:
-the YAML view (`internal/nodeview`), version sniffing (`detect.go`) and document identity
+the YAML view (`internal/nodeview`), version sniffing (`internal/detect`) and document identity
 (`resolve.SameDocument`, `resolve.IsURL`). None moves into `compilers/compile`, because what each
 owes is agreement with the OpenAPI parser library, not with YAML or RFC 3986. The view reads a
 mapping as the library's unmarshaller does, its `<<` merges and repeated keys included, which
@@ -383,25 +383,34 @@ morphic/
 │   ├── compile/            #           What every compiler shares: type registry + coordinates,
 │   │                       #           diagnostics, and the naming/identifier grammars.
 │   ├── openapi/            #           OpenAPI 3.x → IR (milestone 1). The public face: the
-│   │   │                   #           Compiler, its Options, document metadata, and the run that
-│   │   │                   #           calls the four lowerings below in order.
+│   │   │                   #           Compiler, its Options, and the run that calls the
+│   │   │                   #           lowerings below in order.
 │   │   └── internal/       #             Its own packages, each below that face:
 │   │       ├── diag/       #             diagnostic codes and the constructor
 │   │       ├── ids/        #             pointer construction; pointer → TypeID
+│   │       ├── fragment/   #             a $ref fragment read as a pointer, and spelled for the resolver
+│   │       ├── navigation/ #             a pointer read through the parsed model as the library reads it
+│   │       ├── spelling/   #             the primitive kinds OpenAPI spells
+│   │       ├── nodeview/   #             the raw YAML as the parser reads it, and one bounded walk
 │   │       ├── value/      #             scalar and BigVal lowering
-│   │       ├── nodeview/   #             the raw source as the resolver reads it
+│   │       ├── sourceindex/ #            what one walk of a decoded source tree answers
 │   │       ├── scan/       #             pre-parse refusals (alias cycles and fan-out, nesting)
 │   │       ├── bind/       #             every schema $ref bound where it lands, loops found
 │   │       ├── annotation/ #             what a schema says about itself, not its shape
 │   │       ├── oas/        #             the OpenAPI Specification's rules by minor, and their check
-│   │       ├── load/       #             parse, validate, resolve
+│   │       ├── overlay/    #             an Overlay applied, and the positions it answers for
 │   │       ├── resolve/    #             what a $ref names; reference-or-inline entries
+│   │       ├── load/       #             parse, validate, resolve
+│   │       ├── detect/     #             a source recognized from its bytes, on load's parse
 │   │       ├── merge/      #             allOf property reconciliation
 │   │       ├── naming/     #             each node's name, from its coordinate alone
+│   │       ├── anchors/    #             the $dynamicAnchor index a $dynamicRef expands against
 │   │       ├── lowering/   #             the immutable context every lowering reads
 │   │       ├── schema/     #             the schema walk, composition, preservation
 │   │       ├── auth/       #             security schemes and requirements
-│   │       └── operation/  #             path items, webhooks, callbacks, params, content
+│   │       ├── operation/  #             path items, webhooks, callbacks, params, content
+│   │       ├── document/   #             info, servers, and what the document keeps verbatim
+│   │       └── canary/ openapitest/ ynode/ # tests only: library canaries, fixtures, YAML nodes
 │   ├── typespec/ smithy/ graphql/ asyncapi/ protobuf/ otp/   (future)
 ├── pass/                   # Layer 1 — IR → IR passes (validate, dedup, filter, slice, overlay).
 ├── emitters/               # Layer 2 — emitter contract, plan layer, registry (future).

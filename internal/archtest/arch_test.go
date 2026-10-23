@@ -43,8 +43,7 @@ var rules = map[string][]string{
 	// and ID grammars. It reaches ir alone, so no compiler's vocabulary rides in.
 	"compilers/compile": {module + "/ir"},
 	"compilers/openapi": {module + "/ir", module + "/compilers", module + "/compilers/compile",
-		module + "/compilers/openapi/internal" + subtreeSuffix,
-		"github.com/speakeasy-api/openapi" + subtreeSuffix, "gopkg.in/yaml.v3"},
+		module + "/compilers/openapi/internal" + subtreeSuffix},
 	// The diagnostic vocabulary sits at the bottom of the compiler's own import
 	// graph: every package that reports anything reaches it, so it must reach
 	// nothing but ir. Its own entry says that, rather than letting it inherit the
@@ -190,6 +189,14 @@ var rules = map[string][]string{
 		"github.com/speakeasy-api/openapi/openapi",
 		"github.com/speakeasy-api/openapi/references",
 		"github.com/speakeasy-api/openapi/yml", "gopkg.in/yaml.v3"},
+	// Recognition of a source from its bytes, before the compile. It reaches load
+	// for the parse the compile goes on to lower and nodeview to read the root
+	// mapping as the parser does, and nothing that lowers: it runs before
+	// anything has decided the bytes are this compiler's.
+	"compilers/openapi/internal/detect": {module + "/ir", module + "/compilers",
+		module + "/compilers/openapi/internal/diag",
+		module + "/compilers/openapi/internal/load",
+		module + "/compilers/openapi/internal/nodeview", "gopkg.in/yaml.v3"},
 	// What a $ref names: the pointer it addresses, the schema declared there and
 	// the type already interned there. It reaches bind for where a schema $ref
 	// lands, annotation to ask whether a referenced position declares a body at
@@ -244,10 +251,10 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/resolve",
 		"github.com/speakeasy-api/openapi/openapi"},
 	// The security schemes a document declares and the requirements that name
-	// them. It is its own package because both sides of the compiler reach it and
-	// neither may reach the other: the document walk lowers the schemes, and the
-	// service and operation walks lower the requirements against them. It reads
-	// a field the model names no member for off the raw node, through nodeview.
+	// them. It is its own package because both sides of the compiler reach it:
+	// the compiler's run lowers the schemes, and the service and operation walks
+	// lower the requirements against them. It reads a field the model names no
+	// member for off the raw node, through nodeview.
 	"compilers/openapi/internal/auth": {module + "/ir", module + "/compilers/compile",
 		module + "/compilers/openapi/internal/annotation",
 		module + "/compilers/openapi/internal/diag",
@@ -292,6 +299,18 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/resolve",
 		module + "/compilers/openapi/internal/schema",
 		"github.com/speakeasy-api/openapi" + subtreeSuffix, "gopkg.in/yaml.v3"},
+	// What a document says about itself: its info, its servers, and what the
+	// objects around them write that lowers to no node of its own. It runs after
+	// both walks and reaches neither: the compiler hands it the context and
+	// assigns what it returns onto the Document.
+	"compilers/openapi/internal/document": {module + "/ir", module + "/compilers/compile",
+		module + "/compilers/openapi/internal/annotation",
+		module + "/compilers/openapi/internal/diag",
+		module + "/compilers/openapi/internal/ids",
+		module + "/compilers/openapi/internal/lowering",
+		module + "/compilers/openapi/internal/nodeview",
+		"github.com/speakeasy-api/openapi/extensions",
+		"github.com/speakeasy-api/openapi/openapi"},
 	// The canaries that pin docs/parser-library.md. Its one production file is
 	// the package doc: the tests call the library directly, and test files are
 	// outside these rules.
@@ -457,7 +476,7 @@ func TestImportGraph_ContractEntryAdmitsNoSiblingCompiler(t *testing.T) {
 	allows := func(ip string) bool { return admit(ip, allowed, make([]bool, len(allowed))) }
 	assert.True(t, allows(module+"/compilers"), "the contract package")
 	assert.True(t, allows(module+"/compilers/compile"), "the shared framework package")
-	assert.True(t, allows("github.com/speakeasy-api/openapi/jsonschema/oas3"),
+	assert.True(t, allows(module+"/compilers/openapi/internal/schema"),
 		"a subtree entry still admits the packages under it")
 	assert.False(t, allows(module+"/compilers/graphql"),
 		"a sibling compiler must not ride in on the contract entry")

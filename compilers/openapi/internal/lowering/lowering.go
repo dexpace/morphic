@@ -6,8 +6,10 @@
 // identity, the indexes derived once at entry, and the constructors that stamp
 // provenance.
 //
-// It is a package because the schema walk and the operation walk both need
-// those answers and neither may reach the other (micro-compiler-design §5.1).
+// It is a package because every lowering package needs those answers, and only
+// one beneath them all serves each: the schema walk may not reach the
+// operation walk, which reaches it, and auth and document reach neither
+// (micro-compiler-design §5.1).
 package lowering
 
 import (
@@ -147,9 +149,9 @@ type Ctx struct {
 	anchors *anchorMemo
 
 	// reached records where each reference a lowering resolved landed in the
-	// source. Copies share it on purpose: no lowering reads it, so it cannot
-	// change any lowering's answer, and the compiler reads it once the last one
-	// has returned (Reached). Nil in a zero context, which records nothing.
+	// source. Copies share it on purpose: only the document's lowering reads it,
+	// once every other lowering has returned (Reached), so it cannot change their
+	// answers. Nil in a zero context, which records nothing.
 	reached *resolve.Reached
 }
 
@@ -211,7 +213,8 @@ func New(srcIndex int, doc *soa.OpenAPI, src ir.SourceInfo, grouping GroupingStr
 
 // Reached reports whether a lowering run under this context, or any copy of it,
 // resolved a reference to pointer in the source. It is meant to be asked once
-// every lowering has returned: before that it answers for those that have.
+// every other lowering has returned: before that it answers for those that
+// have.
 func (c Ctx) Reached(pointer jsontext.Pointer) bool {
 	return c.reached.Has(pointer)
 }

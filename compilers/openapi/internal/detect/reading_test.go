@@ -1,8 +1,6 @@
-package openapi
+package detect
 
 import (
-	"context"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -14,7 +12,7 @@ import (
 )
 
 // reading is how detection reads a document: it parses, or it does not and
-// Detect says so, or it does not and Detect is silent.
+// Recognize says so, or it does not and Recognize is silent.
 type reading int
 
 const (
@@ -22,11 +20,11 @@ const (
 	parses reading = iota
 	// unreadable is a document the probe cannot read — it does not parse, or
 	// its version key is no scalar — and that declares no version where a
-	// document declares one, so Detect declines it in silence: its bytes may
+	// document declares one, so Recognize declines it in silence: its bytes may
 	// well be another format's.
 	unreadable
 	// reported is a document the probe cannot read that declares a version
-	// where a document declares one, so Detect reports it as this compiler's
+	// where a document declares one, so Recognize reports it as this compiler's
 	// own and broken.
 	reported
 )
@@ -46,8 +44,8 @@ type declarationRow struct {
 // wrong, and a correct parser is no reason to stop asking.
 //
 // Each row says how it reads, not only what it declares. A row declaring nothing
-// would otherwise pass on a document that never parsed, and Detect's answer to
-// one, a complaint or silence, is part of what the row pins.
+// would otherwise pass on a document that never parsed, and Recognize's answer
+// to one, a complaint or silence, is part of what the row pins.
 func declarations() []declarationRow {
 	const v = "3.1.0"
 	return []declarationRow{
@@ -212,7 +210,7 @@ func declarations() []declarationRow {
 	}
 }
 
-func TestDetect_ReadsWhatADocumentDeclares(t *testing.T) {
+func TestRecognize_ReadsWhatADocumentDeclares(t *testing.T) {
 	t.Parallel()
 	for _, tc := range declarations() {
 		t.Run(tc.name, func(t *testing.T) {
@@ -225,7 +223,7 @@ func TestDetect_ReadsWhatADocumentDeclares(t *testing.T) {
 				require.Error(t, err, "the row reads as a document that does not parse")
 			}
 
-			rec, diags, ok := New().Detect(compilers.Source{Path: "api.yaml", Data: []byte(tc.src)}, compilers.Options{})
+			rec, diags, ok := recognize(tc.src)
 			assert.Equal(t, tc.want != "", ok, "a declared version is what recognizes the source")
 			assert.Equal(t, majorMinor(tc.want), rec.Format.Version)
 			var wantCodes []string
@@ -237,11 +235,11 @@ func TestDetect_ReadsWhatADocumentDeclares(t *testing.T) {
 	}
 }
 
-// TestDetect_BothKeysNameOneFormat pins a document that declares both keys. It
+// TestRecognize_BothKeysNameOneFormat pins a document that declares both keys. It
 // names one format, OpenAPI, whichever key comes first and at any size: a
 // reader that stopped at the first key it met read the same bytes as Swagger
 // once they grew past the point where it took over.
-func TestDetect_BothKeysNameOneFormat(t *testing.T) {
+func TestRecognize_BothKeysNameOneFormat(t *testing.T) {
 	t.Parallel()
 	want := compilers.SourceFormat{Name: "openapi", Version: "3.0"}
 	for name, src := range map[string]string{
@@ -250,18 +248,18 @@ func TestDetect_BothKeysNameOneFormat(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			got, _, ok := New().Detect(compilers.Source{Path: "spec.json", Data: []byte(src)}, compilers.Options{})
+			got, _, ok := recognize(src)
 			assert.True(t, ok)
 			assert.Equal(t, want, got.Format)
 		})
 	}
 }
 
-// TestDetect_AValueThatIsNoVersionIsNoDeclaration pins the other half of whose
+// TestRecognize_AValueThatIsNoVersionIsNoDeclaration pins the other half of whose
 // bytes these are. A key alone does not declare a format: prose sitting beside
 // the word is what a document of another format writes, and claiming it reports
 // this compiler's complaint over a file that was never its own.
-func TestDetect_AValueThatIsNoVersionIsNoDeclaration(t *testing.T) {
+func TestRecognize_AValueThatIsNoVersionIsNoDeclaration(t *testing.T) {
 	t.Parallel()
 	cases := []struct{ name, src string }{
 		{"prose beside the key", "openapi: is a format\n"},
@@ -273,7 +271,7 @@ func TestDetect_AValueThatIsNoVersionIsNoDeclaration(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, diags, ok := New().Detect(compilers.Source{Path: "README.md", Data: []byte(tc.src)}, compilers.Options{})
+			got, diags, ok := recognize(tc.src)
 			assert.False(t, ok, "prose beside the word is not a declaration of this format")
 			assert.Equal(t, compilers.SourceFormat{}, got.Format)
 			assert.Nil(t, codesOf(diags), "another format's file earns no complaint from this one")
@@ -281,13 +279,13 @@ func TestDetect_AValueThatIsNoVersionIsNoDeclaration(t *testing.T) {
 	}
 }
 
-// TestDetect_AVersionThatIsNotServedIsStillADeclaration pins the other edge of
+// TestRecognize_AVersionThatIsNotServedIsStillADeclaration pins the other edge of
 // the prose guard. A prerelease or otherwise unserved version is still one
 // word beside the key, which is what a declaration looks like and prose does
 // not; declining it would hand a document whose first line is `openapi:` to
 // the engine's generic "unrecognized format", where claiming it lets load and
 // the validator say exactly which version was wrong.
-func TestDetect_AVersionThatIsNotServedIsStillADeclaration(t *testing.T) {
+func TestRecognize_AVersionThatIsNotServedIsStillADeclaration(t *testing.T) {
 	t.Parallel()
 	cases := []struct{ name, src, want string }{
 		{"a prerelease suffix", "openapi: 3.1.0-rc1\n", "3.1"},
@@ -298,7 +296,7 @@ func TestDetect_AVersionThatIsNotServedIsStillADeclaration(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, diags, ok := New().Detect(compilers.Source{Path: "api.yaml", Data: []byte(tc.src)}, compilers.Options{})
+			got, diags, ok := recognize(tc.src)
 			assert.True(t, ok, "one word beside the key declares the format, whether or not it is served")
 			assert.Equal(t, compilers.SourceFormat{Name: "openapi", Version: tc.want}, got.Format)
 			assert.Nil(t, codesOf(diags), "which version is wrong is load's to say")
@@ -306,13 +304,13 @@ func TestDetect_AVersionThatIsNotServedIsStillADeclaration(t *testing.T) {
 	}
 }
 
-// TestDetect_ABrokenDocumentIsReportedAtAnySize pins what reading one way
+// TestRecognize_ABrokenDocumentIsReportedAtAnySize pins what reading one way
 // bought. A broken spec that declares a version at column 0 is this
 // compiler's own, and saying so needs the whole document read: the byte scan that stood
 // in for the parse past 64 KiB could not tell such a spec from another format's
 // file naming the word, so the same document drew a complaint when small and
 // silence when large.
-func TestDetect_ABrokenDocumentIsReportedAtAnySize(t *testing.T) {
+func TestRecognize_ABrokenDocumentIsReportedAtAnySize(t *testing.T) {
 	t.Parallel()
 	for name, src := range map[string]string{
 		"small": "openapi: 3.1.0\ninfo: [unterminated\n",
@@ -320,7 +318,7 @@ func TestDetect_ABrokenDocumentIsReportedAtAnySize(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			got, diags, ok := New().Detect(compilers.Source{Path: "api.yaml", Data: []byte(src)}, compilers.Options{})
+			got, diags, ok := recognize(src)
 			assert.False(t, ok)
 			assert.Equal(t, compilers.SourceFormat{}, got.Format)
 			assert.Equal(t, []string{diag.UndecodableSource}, codesOf(diags))
@@ -328,28 +326,11 @@ func TestDetect_ABrokenDocumentIsReportedAtAnySize(t *testing.T) {
 	}
 }
 
-// TestCompile_AnUnreadableSourceIsADiagnostic pins where the complaint about a
-// broken document comes from when nothing detected it: a caller compiling
-// directly hands Compile bytes no parse has read. It has to stay a diagnostic:
-// engine.Run turns a compiler's Go error into its own, and the CLI maps that to
-// exit 2 — the code it uses for being invoked wrong — so a spec it read would
-// be reported as a misuse of itself.
-func TestCompile_AnUnreadableSourceIsADiagnostic(t *testing.T) {
-	t.Parallel()
-	src := "bad: [unterminated\n" + strings.Repeat("filler: x\n", 8000) + "openapi: 3.1.0\n"
-	doc, diags, err := New().Compile(context.Background(),
-		[]compilers.Source{{Path: "api.yaml", Data: []byte(src)}}, compilers.Options{})
-
-	require.NoError(t, err, "a document that will not parse is a finding, not a failure of the compiler")
-	assert.Nil(t, doc)
-	assert.Equal(t, []string{diag.UndecodableSource}, codesOf(diags))
-}
-
-// TestDetect_AnEmptyFirstDocumentIsNotTheDocument pins GitHub #481 at the
-// public face: a stream that opens with a document holding nothing is routed on
-// the document behind it, where it used to be declined as undecodable — with a
-// whole spec two lines further down.
-func TestDetect_AnEmptyFirstDocumentIsNotTheDocument(t *testing.T) {
+// TestRecognize_AnEmptyFirstDocumentIsNotTheDocument pins GitHub #481 where a
+// source is recognized: a stream that opens with a document holding nothing is
+// routed on the document behind it, where it used to be declined as undecodable
+// — with a whole spec two lines further down.
+func TestRecognize_AnEmptyFirstDocumentIsNotTheDocument(t *testing.T) {
 	t.Parallel()
 	want := compilers.SourceFormat{Name: "openapi", Version: "3.1"}
 	for name, lead := range map[string]string{
@@ -360,7 +341,7 @@ func TestDetect_AnEmptyFirstDocumentIsNotTheDocument(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			src := lead + "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\n"
-			got, diags, ok := New().Detect(compilers.Source{Path: "spec.yaml", Data: []byte(src)}, compilers.Options{})
+			got, diags, ok := recognize(src)
 			assert.True(t, ok, "the document behind the empty one is what the source declares")
 			assert.Equal(t, want, got.Format)
 			assert.Nil(t, codesOf(diags))
@@ -368,11 +349,11 @@ func TestDetect_AnEmptyFirstDocumentIsNotTheDocument(t *testing.T) {
 	}
 }
 
-// TestDetect_AByteOrderMarkIsNotAFormat pins a mark before the first byte,
+// TestRecognize_AByteOrderMarkIsNotAFormat pins a mark before the first byte,
 // which the parse reads straight through and the key guard, reading bytes, has
 // to skip itself: a broken spec written by an editor that emits one is as much
 // this compiler's to report as the same spec without it.
-func TestDetect_AByteOrderMarkIsNotAFormat(t *testing.T) {
+func TestRecognize_AByteOrderMarkIsNotAFormat(t *testing.T) {
 	t.Parallel()
 	const bom = "\xef\xbb\xbf"
 	want := compilers.SourceFormat{Name: "openapi", Version: "3.1"}
@@ -382,7 +363,7 @@ func TestDetect_AByteOrderMarkIsNotAFormat(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			got, diags, ok := New().Detect(compilers.Source{Path: "spec.yaml", Data: []byte(bom + body)}, compilers.Options{})
+			got, diags, ok := recognize(bom + body)
 			assert.True(t, ok, "a byte-order mark is not part of what a document declares")
 			assert.Equal(t, want, got.Format)
 			assert.Nil(t, codesOf(diags))
@@ -394,18 +375,18 @@ func TestDetect_AByteOrderMarkIsNotAFormat(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			_, diags, ok := New().Detect(compilers.Source{Path: "spec.yaml", Data: []byte(bom + body)}, compilers.Options{})
+			_, diags, ok := recognize(bom + body)
 			assert.False(t, ok)
 			assert.Equal(t, []string{diag.UndecodableSource}, codesOf(diags), "the mark hides no key")
 		})
 	}
 }
 
-// TestDetect_CarriesTheParseItRead pins what a recognition hands over at any
+// TestRecognize_CarriesTheParseItRead pins what a recognition hands over at any
 // size: the parse that read the keys, which is what the compile lowers. Past
 // 64 KiB detection used to scan and carry nothing, so a large document was
 // parsed twice — once here and again in the compile.
-func TestDetect_CarriesTheParseItRead(t *testing.T) {
+func TestRecognize_CarriesTheParseItRead(t *testing.T) {
 	t.Parallel()
 	const spec = "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\n"
 	for name, src := range map[string]string{
@@ -414,7 +395,7 @@ func TestDetect_CarriesTheParseItRead(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			rec, _, ok := New().Detect(compilers.Source{Path: "spec.yaml", Data: []byte(src)}, compilers.Options{})
+			rec, _, ok := recognize(src)
 			require.True(t, ok)
 			_, isParse := rec.Parsed.(*load.Parsed)
 			assert.True(t, isParse, "the parse that read the keys is the one the compile lowers")
@@ -422,48 +403,13 @@ func TestDetect_CarriesTheParseItRead(t *testing.T) {
 	}
 }
 
-// TestDetect_ReadsTheVersionTheCompileReads holds detection to the compile on
-// the roots where a reading of its own disagreed with the parser's: each is
-// routed as the version its compile lowers, the agreement
-// compilers.Detection.Compile checks. A key repeated over an unreadable value,
-// an alias in either place, a key tagged `!!merge` that is not `<<`, an alias
-// key outranking a merge, and a chain deeper than the old walk followed.
-func TestDetect_ReadsTheVersionTheCompileReads(t *testing.T) {
-	t.Parallel()
-	const tail = "info: {title: t, version: '1'}\npaths: {}\n"
-	cases := map[string]string{
-		"a version over an unreadable value": "openapi: [x]\nopenapi: 3.1.0\n",
-		"an alias as the key":                "k: &k openapi\n*k : 3.1.0\n",
-		"an alias as the value":              "v: &v 3.1.0\nopenapi: *v\n",
-		"a key tagged !!merge that is no <<": "!!merge openapi: 3.1.0\n",
-		"an alias key outranking a merge":    "b: &b {openapi: 3.0.3}\nk: &k openapi\n<<: *b\n*k : 3.1.0\n",
-		"a merge chain ten mappings deep":    string(rootMergeChain(10, "openapi: 3.1.0", "")),
-		"a merge written before its own key": "b: &b {openapi: 3.0.3}\n<<: *b\nopenapi: 3.1.0\n",
-		"the first of two merges that agree": "a: &a {openapi: 3.1.0}\nb: &b {openapi: 3.0.3}\n<<: [*a, *b]\n",
-	}
-	for name, root := range cases {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-			src := compilers.Source{Path: "api.yaml", Data: []byte(root + tail)}
-			rec, diags, ok := New().Detect(src, compilers.Options{})
-			require.True(t, ok, "the compile lowers it, so detection claims it: %v", diags)
-
-			doc, compiled, err := New().Compile(t.Context(), []compilers.Source{src}, compilers.Options{})
-			require.NoError(t, err)
-			require.NotNil(t, doc, "%v", compiled)
-			assert.Equal(t, compilers.SourceFormat{Name: "openapi", Version: "3.1"}, rec.Format)
-			assert.Equal(t, rec.Format.String(), doc.Sources[0].Format, "detection and the compile read one version")
-		})
-	}
-}
-
-// TestDetect_AKeyTaggedMergeThatIsNoScalarMergesNothing pins the other half
+// TestRecognize_AKeyTaggedMergeThatIsNoScalarMergesNothing pins the other half
 // of the merge-key predicate: a mapping key tagged `!!merge` merges nothing,
 // as the parser reads it, so the version under it is no declaration.
-func TestDetect_AKeyTaggedMergeThatIsNoScalarMergesNothing(t *testing.T) {
+func TestRecognize_AKeyTaggedMergeThatIsNoScalarMergesNothing(t *testing.T) {
 	t.Parallel()
 	src := "? !!merge [z]\n: {openapi: 3.1.0}\ninfo: {title: t, version: '1'}\npaths: {}\n"
-	_, diags, ok := New().Detect(compilers.Source{Path: "api.yaml", Data: []byte(src)}, compilers.Options{})
+	_, diags, ok := recognize(src)
 	assert.False(t, ok)
 	assert.Empty(t, diags, "a source that declares nothing is declined in silence")
 }

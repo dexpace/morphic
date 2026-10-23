@@ -8,9 +8,9 @@ import (
 // to, each hop of a chain included: the declarations the IR carries through
 // their uses rather than on a node of their own (GitHub #616).
 //
-// No lowering reads it. The compiler asks it once the last lowering has
-// returned, so what it holds cannot change a lowering's answer, and as a set it
-// cannot depend on the order lowerings ran in. That is why sharing it between
+// Only the document's lowering reads it, and only once every other lowering
+// has returned, so what it holds cannot change their answers, and as a set it
+// cannot depend on the order they ran in. That is why sharing it between
 // copies of a context is safe, as sharing a memo is.
 type Reached struct {
 	at map[jsontext.Pointer]bool

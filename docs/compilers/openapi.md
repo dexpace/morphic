@@ -48,7 +48,7 @@ Document.
 - Tests: `openapi.TestCompile_UnsupportedVersion`,
   `load.TestSupportedMinor_AcceptsOnlyTheThreeMinors`,
   `oas.TestCheck_TheOpenAPIFieldIsAVersionNumber`,
-  `openapi.TestDetect_AVersionThatIsNotServedIsStillADeclaration`
+  `detect.TestRecognize_AVersionThatIsNotServedIsStillADeclaration`
 
 ### `yaml-decoding`
 
@@ -58,21 +58,24 @@ as an `openapi/undecodable-source` error, and nothing compiles. A YAML stream lo
 its documents that holds content; the documents after it that hold content reach the IR in no form,
 reported once as an `openapi/stream-documents-dropped` error at the first of them, and the first
 still lowers. A document holding nothing, a bare separator or an explicit null, is not counted.
-Detection reads the version off the root mapping as the parser does, through aliases, `<<` merges and
-a repeated key's last value, so the compile reads the version the source is routed by. A root that
-merges deeper than that reading expands, writing no version of its own, is declined as an
-`openapi/budget-exceeded` error, since a version past the bound may outrank one found above it. A
-merge cycle hides no key, and is the compile's to refuse. A
-mapping tagged anything but `!!map`, which OpenAPI's limit on YAML tags forbids, refuses the source
-before the parser reads it, as an `openapi/tagged-mapping` error at the tagged mapping with the
-least pointer, and it compiles to no Document. A tagged scalar is not refused here; what it lowers
-to is [`values`](#values)'.
+Detection reads the version off the root mapping as the parser does, through aliases, `<<` merges
+and a repeated key's last value, so the compile reads the version the source is routed by. A root
+that merges deeper than that reading expands is declined as an `openapi/budget-exceeded` error,
+whatever its format, since a version past the bound may outrank one found above it, unless the
+root's own keys settle the version: it writes `openapi` with a version, or writes both keys. A
+`swagger` it writes alone settles nothing, as an `openapi` past the bound would outrank it. A merge
+cycle hides no key, and is the compile's to refuse. A mapping tagged anything but `!!map`, which
+OpenAPI's limit on YAML tags forbids, refuses the source before the parser reads it, as an
+`openapi/tagged-mapping` error at the tagged mapping with the least pointer, and it compiles to no
+Document. A tagged scalar is not refused here; what it lowers to is [`values`](#values)'.
 
 - Codes: `openapi/undecodable-source`, `openapi/stream-documents-dropped`, `openapi/tagged-mapping`,
   `openapi/budget-exceeded`
-- Tests: `openapi.TestDetect_ABrokenDocumentIsReportedAtAnySize`,
-  `openapi.TestDetect_ReadsTheVersionTheCompileReads`, `openapi.TestDetect_AReadCutShortIsReported`,
-  `openapi.TestDetect_AMergeCycleHidesNoKey`,
+- Tests: `detect.TestRecognize_ABrokenDocumentIsReportedAtAnySize`,
+  `openapi.TestDetect_ReadsTheVersionTheCompileReads`,
+  `detect.TestRecognize_AReadCutShortIsReported`,
+  `detect.TestSniff_ReadsAMergeChainAsFarAsTheViewExpandsIt`,
+  `detect.TestRecognize_AMergeCycleHidesNoKey`,
   `load.TestLoad_AStreamLowersItsFirstDocumentAndReportsTheRest`,
   `load.TestLoad_ATaggedMappingIsRefusedBeforeParsing`
 - Status: partly built: a JSON source holding a surrogate-pair escape is refused as undecodable
@@ -503,7 +506,7 @@ of its own is reported as an `openapi/cycle-scan-failed` warning, and the compil
 `info.title` ([`naming`](#naming)).
 
 - Cases: `docs-summary-desc`
-- Tests: `openapi.TestMeta_FullDocumentMetadata`, `openapi.TestCompile_EndToEnd`
+- Tests: `document.TestMeta_FullDocumentMetadata`, `openapi.TestCompile_EndToEnd`
 
 ### `self-uri`
 
@@ -617,9 +620,9 @@ that decision lives (§12), which is what keeps a promotion pass from mistaking 
 
 - Cases: `unreferenced-components`, `component-media-types-32`
 - Codes: `openapi/degraded-construct`
-- Tests: `openapi.TestUnreferencedComponents_ReferenceNothingFollowsKeepsItsTarget`,
-  `openapi.TestUnreferencedComponents_ReadAsTheParserReadsThem`,
-  `openapi.TestUnreferencedComponents_SelfReferenceByFileNameReaches`
+- Tests: `document.TestUnreferencedComponents_ReferenceNothingFollowsKeepsItsTarget`,
+  `document.TestUnreferencedComponents_ReadAsTheParserReadsThem`,
+  `document.TestUnreferencedComponents_SelfReferenceByFileNameReaches`
 - Status: partly built: no reference into `components/mediaTypes` is followed, so the section is
   kept whole however much of it a document uses (#856).
 
@@ -1912,7 +1915,7 @@ schema declaring it.
 
 - Cases: `dialect-keywords`
 - Codes: `openapi/degraded-construct`
-- Tests: `schema.TestDialectKeywords_KeptOutOfScope`, `openapi.TestMeta_JSONSchemaDialectIsKept`
+- Tests: `schema.TestDialectKeywords_KeptOutOfScope`, `document.TestMeta_JSONSchemaDialectIsKept`
 
 ### `vocabulary-coverage`
 
@@ -2588,7 +2591,7 @@ others in the lists [`path-item-servers`](#path-item-servers) keeps, and reporte
 
 - Cases: `servers-variables`
 - Codes: `openapi/duplicate-server-name`
-- Tests: `openapi.TestDuplicateServerName_BothServersLower`,
+- Tests: `document.TestDuplicateServerName_BothServersLower`,
   `load.TestServerRepeats_ReportsEveryListTheSourceWrites`,
   `load.TestServerRepeats_ReportsOnlyANameOneListRepeatsExactly`
 - Status: partly built: the default server the parser injects for a document writing none is lowered

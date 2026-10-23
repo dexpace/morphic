@@ -128,6 +128,21 @@ func TestInlineProbeBody_WritesEveryKeywordTheProbeAssertsOn(t *testing.T) {
 	}
 }
 
+// TestRootMergeChain_MergesEachLevelIntoTheNext pins the shape the merge-depth
+// cases count on: levels anchored mappings, each merging the one before it, the
+// innermost holding leaf, and the root merging the outermost before writing
+// own. A chain one level off would put each case on the wrong side of the bound
+// it tests.
+func TestRootMergeChain_MergesEachLevelIntoTheNext(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, "l0: &a0 {openapi: 3.1.0}\nl1: &a1 {<<: *a0}\nl2: &a2 {<<: *a1}\n<<: *a2\nown: x\n",
+		string(openapitest.RootMergeChain(3, "openapi: 3.1.0", "own: x\n")))
+
+	var doc map[string]any
+	require.NoError(t, yaml.Unmarshal(openapitest.RootMergeChain(3, "openapi: 3.1.0", ""), &doc))
+	assert.Equal(t, "3.1.0", doc["openapi"], "the leaf reaches the root through every level")
+}
+
 // TestNestedMerges_WritesOneMergePerLevel pins the spelling: a body merged in
 // through as many `<<` keys as asked, a level of none being the body itself.
 func TestNestedMerges_WritesOneMergePerLevel(t *testing.T) {

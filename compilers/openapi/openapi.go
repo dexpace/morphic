@@ -12,6 +12,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/auth"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/document"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
@@ -88,7 +89,8 @@ func (c *Compiler) Compile(ctx context.Context, sources []compilers.Source, opts
 	if err != nil || loadedDoc == nil {
 		return nil, diags, err
 	}
-	// components schemas → auth → service/operations → meta; assembles Document
+	// components schemas → auth → service/operations → document metadata;
+	// assembles Document
 	out, lowerDiags, err := run(ctx, loweringCtx(loadedDoc, formatOpts), compile.NewTypes())
 	// Load diagnostics precede lowering diagnostics.
 	all := slices.Concat(diags, withoutRereported(lowerDiags, diags))
@@ -199,7 +201,7 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, 
 	}
 	out.Types = reg
 
-	m, metaDiags := lowerMeta(c)
+	m, metaDiags := document.Lower(c)
 	out.Name, out.Version = m.Name, m.Version
 	out.TermsOfService, out.Docs = m.TermsOfService, m.Docs
 	out.Contact, out.License = m.Contact, m.License

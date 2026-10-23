@@ -20,9 +20,9 @@ import (
 
 // parseFull runs the whole public compiler pipeline over src.
 //
-// It is one of the four copies openapitest cannot hold: a helper that drives the
+// It is one of the copies openapitest cannot hold: a helper that drives the
 // compiler has to import it, and this package's own internal tests could then
-// not import openapitest at all. The four are written identically so a reader
+// not import openapitest at all. The copies are written identically so a reader
 // comparing them finds no difference to account for.
 func parseFull(t *testing.T, src string) (*ir.Document, []ir.Diagnostic) {
 	t.Helper()
