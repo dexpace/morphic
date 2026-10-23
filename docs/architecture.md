@@ -388,22 +388,29 @@ morphic/
 │   │   └── internal/       #             Its own packages, each below that face:
 │   │       ├── diag/       #             diagnostic codes and the constructor
 │   │       ├── ids/        #             pointer construction; pointer → TypeID
+│   │       ├── fragment/   #             a $ref fragment read as a pointer, and spelled for the resolver
+│   │       ├── navigation/ #             a pointer read through the parsed model as the library reads it
+│   │       ├── spelling/   #             the primitive kinds OpenAPI spells
+│   │       ├── nodeview/   #             the raw YAML as the parser reads it, and one bounded walk
 │   │       ├── value/      #             scalar and BigVal lowering
-│   │       ├── nodeview/   #             the raw source as the resolver reads it
+│   │       ├── sourceindex/ #            what one walk of a decoded source tree answers
 │   │       ├── scan/       #             pre-parse refusals (alias cycles and fan-out, nesting)
 │   │       ├── bind/       #             every schema $ref bound where it lands, loops found
 │   │       ├── annotation/ #             what a schema says about itself, not its shape
 │   │       ├── oas/        #             the OpenAPI Specification's rules by minor, and their check
+│   │       ├── overlay/    #             an Overlay applied, and the positions it answers for
+│   │       ├── resolve/    #             what a $ref names; reference-or-inline entries
 │   │       ├── load/       #             parse, validate, resolve
 │   │       ├── detect/     #             a source recognized from its bytes, on load's parse
-│   │       ├── resolve/    #             what a $ref names; reference-or-inline entries
 │   │       ├── merge/      #             allOf property reconciliation
 │   │       ├── naming/     #             each node's name, from its coordinate alone
+│   │       ├── anchors/    #             the $dynamicAnchor index a $dynamicRef expands against
 │   │       ├── lowering/   #             the immutable context every lowering reads
 │   │       ├── schema/     #             the schema walk, composition, preservation
 │   │       ├── auth/       #             security schemes and requirements
 │   │       ├── operation/  #             path items, webhooks, callbacks, params, content
-│   │       └── document/   #             info, servers, and what the document keeps verbatim
+│   │       ├── document/   #             info, servers, and what the document keeps verbatim
+│   │       └── canary/ openapitest/ ynode/ # tests only: library canaries, fixtures, YAML nodes
 │   ├── typespec/ smithy/ graphql/ asyncapi/ protobuf/ otp/   (future)
 ├── pass/                   # Layer 1 — IR → IR passes (validate, dedup, filter, slice, overlay).
 ├── emitters/               # Layer 2 — emitter contract, plan layer, registry (future).
