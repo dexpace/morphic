@@ -10,6 +10,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -434,4 +435,44 @@ type carrierDocKeyword struct {
 	name  string
 	write func(value string) string
 	read  func(ir.Docs) string
+}
+
+// TestFillPropertyExamples_RefSiblingExampleBindsTheSite locks in the
+// $ref-sibling-example behaviour at a property position: an example written
+// beside a $ref binds the property, not the referent, because
+// fillPropertyExamples resolves it directly rather than through site.
+// Property f's $ref targets a named component (Target), so
+// resolve.Scope.ComponentRef resolves it directly without ever calling
+// hoistSubSchema. TestSchemaSiblings_RefdSubSchemaKeepsThem covers the
+// analogous hoistSubSchema path, where the $ref target is an internal
+// sub-schema pointer rather than a named component.
+func TestFillPropertyExamples_RefSiblingExampleBindsTheSite(t *testing.T) {
+	t.Parallel()
+	l, _ := loweredFor(t, `openapi: 3.1.0
+info: {title: t, version: "1"}
+paths: {}
+components:
+  schemas:
+    Target: {type: string}
+    Holder:
+      type: object
+      properties:
+        f:
+          $ref: '#/components/schemas/Target'
+          example: at-reference
+`)
+	l.diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.ctx, l.types))
+
+	target := typeByName(l.document(t), "Target")
+	require.NotNil(t, target)
+	assert.Empty(t, target.Common().Examples,
+		"an example beside a $ref must not attach to the referent")
+
+	holder, ok := typeByName(l.document(t), "Holder").(*ir.Model)
+	require.True(t, ok, "Holder must own a Model node")
+	f, ok := openapitest.PropsByWire(holder.Properties)["f"]
+	require.True(t, ok, "property f must be present")
+	require.Len(t, f.Examples, 1, "the example beside the $ref must bind the property")
+	require.NotNil(t, f.Examples[0].Value)
+	assert.Equal(t, ir.Value{Kind: ir.ValueString, Str: "at-reference"}, *f.Examples[0].Value)
 }

@@ -1814,9 +1814,9 @@ on an object.
 - Cases: `constraints`, `numeric-precision`
 - Codes: `openapi/invalid-numeric-literal`, `openapi/invalid-exclusive-bound`,
   `openapi/degraded-construct`
-- Tests: `openapi.TestConstraints_ExclusiveBoolean30`,
-  `openapi.TestConstraints_ExclusiveWrongDialectForm`,
-  `openapi.TestConstraints_LosslessNumericLiterals`
+- Tests: `schema.TestConstraints_ExclusiveBoolean30`,
+  `schema.TestConstraints_ExclusiveWrongDialectForm`,
+  `schema.TestConstraints_LosslessNumericLiterals`
 - Status: partly built: a bound beside a `oneOf` or `anyOf` that lowers to a `Union` is dropped in
   silence (#848), and so is one beside a multi-typed schema that no carrier holds
   ([`type-arrays`](#type-arrays), #852); and an integer bound past what a 64-bit integer holds

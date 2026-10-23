@@ -756,3 +756,37 @@ func TestXML_NodeTypeIsReadAtEveryVersion(t *testing.T) {
 		})
 	}
 }
+
+// TestLowerService_PercentEncodedEntryRefKeepsTheDeclaredCoordinate covers the
+// same identity defect on the components that are not schemas, where it was
+// wholly silent. Their entries resolve through the library, so the value arrived
+// intact and no unresolved-ref was ever emitted; only the pointer the entry
+// carried stayed encoded, and every ID hoisted beneath it inherited the
+// encoding — here the response's own content schema.
+func TestLowerService_PercentEncodedEntryRefKeepsTheDeclaredCoordinate(t *testing.T) {
+	t.Parallel()
+	doc, _, diags := lowerServiceSpec(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    get:
+      responses:
+        '200': {$ref: '#/components/responses/My%2DResp'}
+components:
+  responses:
+    My-Resp:
+      description: ok
+      content:
+        application/json:
+          schema: {type: object, properties: {q: {type: string}}}
+`)
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	const want = ir.TypeID("t/anon/components/responses/My-Resp/content/application~1json/schema")
+	assert.Contains(t, doc.Types, want,
+		"the response body is hoisted at the coordinate the component declares")
+	for id := range doc.Types {
+		assert.NotContains(t, string(id), "%",
+			"no node is interned at an encoded path")
+	}
+}

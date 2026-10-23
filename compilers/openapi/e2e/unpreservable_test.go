@@ -1,4 +1,4 @@
-package openapi
+package e2e_test
 
 import (
 	"encoding/json/jsontext"
@@ -253,8 +253,10 @@ paths:
         content: {application/json: {schema: {type: string}}}
       responses: {"204": {description: ok}}
 `
-	doc, svc, diags := lowerServiceSpec(t, spec)
+	doc, diags := parseFull(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
+	require.Len(t, doc.Services, 1, "the document declares one service")
+	svc := doc.Services[0]
 
 	// S witnesses vendor_extension, validation_only (its constraint-only union
 	// joins `not` there) and out_of_scope (its $schema); T's items, which its

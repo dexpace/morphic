@@ -324,7 +324,7 @@ reports the identical error twice, printing the two provenances side by side.
 
 ```bash
 # the test that holds it, and what reddens it
-go test ./compilers/openapi -run TestConstraints_HoistedSubSchemaBadBoundSingleError
+go test ./compilers/openapi/internal/schema -run TestConstraints_HoistedSubSchemaBadBoundSingleError
 ```
 
 ## 5. The OpenAPI split

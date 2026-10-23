@@ -829,3 +829,120 @@ func asKind[T ir.TypeDef](t *testing.T, td ir.TypeDef) T {
 	require.True(t, ok, "lowered to %T", td)
 	return got
 }
+
+// TestLowerComponentSchema_RefSiblingConstraintBindsTheSite locks in the
+// $ref-sibling-constraint behaviour at a named component: lowerComponentSchema
+// resolves the component's own site via annotation.At, so a bound written
+// beside the $ref (S: {$ref: Target, minimum: 5}) binds S, not Target.
+func TestLowerComponentSchema_RefSiblingConstraintBindsTheSite(t *testing.T) {
+	t.Parallel()
+	l, _ := loweredFor(t, `openapi: 3.1.0
+info: {title: t, version: "1"}
+paths: {}
+components:
+  schemas:
+    Target: {type: integer}
+    S:
+      $ref: '#/components/schemas/Target'
+      minimum: 5
+`)
+	l.diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.ctx, l.types))
+
+	sc, ok := typeByName(l.document(t), "S").(*ir.Scalar)
+	require.True(t, ok, "S aliases Target and must own a Scalar node")
+	require.NotNil(t, sc.Constraints, "a bound beside a $ref binds S, not Target")
+	require.NotNil(t, sc.Constraints.Min)
+	assert.Equal(t, "5", sc.Constraints.Min.String())
+
+	target := typeByName(l.document(t), "Target")
+	require.NotNil(t, target)
+	tsc, ok := target.(*ir.Scalar)
+	require.True(t, ok, "Target aliases a primitive and must own a Scalar node")
+	assert.Nil(t, tsc.Constraints, "the referent must not acquire the site's bound")
+}
+
+// TestLowerComponentSchemas_PercentEncodedRefResolves pins that a $ref whose
+// fragment is percent-encoded reaches the component it names. A $ref is a URI, so
+// `#/components/schemas/Foo%2DBar` addresses "Foo-Bar", and the resolver reads it
+// that way; comparing the raw fragment against declared names instead called a
+// resolved reference unresolved and left the property as `any`, losing the type
+// from a spec-correct document (GitHub #40). Each name here is legal under
+// OpenAPI's own component-name rule (^[a-zA-Z0-9.\-_]+$), so the escape is the
+// only thing under test.
+func TestLowerComponentSchemas_PercentEncodedRefResolves(t *testing.T) {
+	t.Parallel()
+	cases := []struct{ name, decl, encoded string }{
+		{"hyphen", "Foo-Bar", "Foo%2DBar"},
+		{"underscore", "Foo_Bar", "Foo%5FBar"},
+		{"dot", "Foo.Bar", "Foo%2EBar"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := lowerSpec(t, openapitest.ComponentSpec(
+				"    "+tc.decl+": {type: string}\n"+
+					"    User: {type: object, properties: {x: {$ref: '#/components/schemas/"+tc.encoded+"'}}}\n"))
+			openapitest.RequireNoErrorDiags(t, diags)
+
+			user, ok := typeByName(doc, "User").(*ir.Model)
+			require.True(t, ok, "User must own a Model node")
+			require.Len(t, user.Properties, 1)
+			assert.Equal(t, componentID(tc.decl), user.Properties[0].Type.Target,
+				"the encoded fragment names the declared component")
+		})
+	}
+}
+
+// TestLowerComponentSchemas_PercentEncodedRefHoistsAtTheDeclaredCoordinate pins
+// the identity half of the same fix, which the resolution half hides: a pointer
+// *through* an encoded component name addresses a sub-schema an unencoded
+// pointer also addresses, so the two must intern one node, at the declared
+// coordinate and not at `.../Foo%2DBar/properties/inner`, a path no source
+// coordinate spells (the derivation GitHub #141 refused for anchors). A second
+// node raises no diagnostic. Both spellings appear because the encoded ref
+// alone lands on one node either way, and only its name would be wrong.
+func TestLowerComponentSchemas_PercentEncodedRefHoistsAtTheDeclaredCoordinate(t *testing.T) {
+	t.Parallel()
+	doc, diags := lowerSpec(t, openapitest.ComponentSpec(
+		"    Foo-Bar: {type: object, properties: {inner: {type: object, properties: {n: {type: integer}}}}}\n"+
+			"    User:\n      type: object\n      properties:\n"+
+			"        a: {$ref: '#/components/schemas/Foo-Bar/properties/inner'}\n"+
+			"        b: {$ref: '#/components/schemas/Foo%2DBar/properties/inner'}\n"))
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	user, ok := typeByName(doc, "User").(*ir.Model)
+	require.True(t, ok, "User must own a Model node")
+	props := openapitest.PropsByWire(user.Properties)
+	require.Len(t, props, 2)
+
+	const want = ir.TypeID("t/anon/components/schemas/Foo-Bar/properties/inner")
+	assert.Equal(t, want, props["a"].Type.Target)
+	assert.Equal(t, want, props["b"].Type.Target,
+		"the encoded spelling addresses the position the declaration spells, not one of its own")
+	assert.Contains(t, doc.Types, want, "and that ID is backed by a node")
+	for id := range doc.Types {
+		assert.NotContains(t, string(id), "%",
+			"no node is interned at an encoded path: nothing in this document is named with one")
+	}
+}
+
+// TestLowerComponentSchemas_PercentEncodedDiscriminatorMapping covers the third
+// consumer of the pointer, and the one whose failure is loudest: a mapping entry
+// whose target does not resolve is dropped, so an encoded target silently cost
+// the union a branch of its polymorphic dispatch rather than merely degrading a
+// position's type. InternalPointer's contract has always named discriminator
+// mappings alongside $ref; nothing exercised that half.
+func TestLowerComponentSchemas_PercentEncodedDiscriminatorMapping(t *testing.T) {
+	t.Parallel()
+	doc, diags := lowerSpec(t, openapitest.ComponentSpec(
+		"    Cat-A: {type: object, properties: {kind: {type: string}}}\n"+
+			"    Pet:\n      oneOf: [{$ref: '#/components/schemas/Cat-A'}]\n"+
+			"      discriminator: {propertyName: kind, mapping: {cat: '#/components/schemas/Cat%2DA'}}\n"))
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	pet, ok := typeByName(doc, "Pet").(*ir.Union)
+	require.True(t, ok, "Pet must own a Union node")
+	require.NotNil(t, pet.Discriminator, "the discriminator survives lowering")
+	assert.Equal(t, map[string]ir.TypeID{"cat": componentID("Cat-A")}, pet.Discriminator.Mapping,
+		"the encoded mapping target names the declared component, and the entry is kept")
+}
