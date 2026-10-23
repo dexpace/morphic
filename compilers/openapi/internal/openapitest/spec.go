@@ -1,6 +1,9 @@
 package openapitest
 
 import (
+	"fmt"
+	"strings"
+
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/speakeasy-api/openapi/sequencedmap"
@@ -129,3 +132,15 @@ func ScalarNode(tag, val string) *yaml.Node {
 const InlineProbeBody = `{type: string, title: SUM, description: DOC, ` +
 	`externalDocs: {url: 'https://e.example', description: ED}, deprecated: true, ` +
 	`example: abc, x-vendor: V, xml: {name: X}, not: {const: N}, maxLength: 3}`
+
+// RootMergeChain writes a document whose root merges a chain of levels
+// anchored mappings, the innermost holding leaf, and writes own after the merge.
+func RootMergeChain(levels int, leaf, own string) []byte {
+	var b strings.Builder
+	fmt.Fprintf(&b, "l0: &a0 {%s}\n", leaf)
+	for i := 1; i < levels; i++ {
+		fmt.Fprintf(&b, "l%d: &a%d {<<: *a%d}\n", i, i, i-1)
+	}
+	fmt.Fprintf(&b, "<<: *a%d\n%s", levels-1, own)
+	return []byte(b.String())
+}

@@ -48,7 +48,7 @@ Document.
 - Tests: `openapi.TestCompile_UnsupportedVersion`,
   `load.TestSupportedMinor_AcceptsOnlyTheThreeMinors`,
   `oas.TestCheck_TheOpenAPIFieldIsAVersionNumber`,
-  `openapi.TestDetect_AVersionThatIsNotServedIsStillADeclaration`
+  `detect.TestRecognize_AVersionThatIsNotServedIsStillADeclaration`
 
 ### `yaml-decoding`
 
@@ -70,9 +70,9 @@ to is [`values`](#values)'.
 
 - Codes: `openapi/undecodable-source`, `openapi/stream-documents-dropped`, `openapi/tagged-mapping`,
   `openapi/budget-exceeded`
-- Tests: `openapi.TestDetect_ABrokenDocumentIsReportedAtAnySize`,
-  `openapi.TestDetect_ReadsTheVersionTheCompileReads`, `openapi.TestDetect_AReadCutShortIsReported`,
-  `openapi.TestDetect_AMergeCycleHidesNoKey`,
+- Tests: `detect.TestRecognize_ABrokenDocumentIsReportedAtAnySize`,
+  `openapi.TestDetect_ReadsTheVersionTheCompileReads`,
+  `detect.TestRecognize_AReadCutShortIsReported`, `detect.TestRecognize_AMergeCycleHidesNoKey`,
   `load.TestLoad_AStreamLowersItsFirstDocumentAndReportsTheRest`,
   `load.TestLoad_ATaggedMappingIsRefusedBeforeParsing`
 - Status: partly built: a JSON source holding a surrogate-pair escape is refused as undecodable

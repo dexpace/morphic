@@ -43,7 +43,7 @@ var rules = map[string][]string{
 	// and ID grammars. It reaches ir alone, so no compiler's vocabulary rides in.
 	"compilers/compile": {module + "/ir"},
 	"compilers/openapi": {module + "/ir", module + "/compilers", module + "/compilers/compile",
-		module + "/compilers/openapi/internal" + subtreeSuffix, "gopkg.in/yaml.v3"},
+		module + "/compilers/openapi/internal" + subtreeSuffix},
 	// The diagnostic vocabulary sits at the bottom of the compiler's own import
 	// graph: every package that reports anything reaches it, so it must reach
 	// nothing but ir. Its own entry says that, rather than letting it inherit the
@@ -170,6 +170,14 @@ var rules = map[string][]string{
 		"github.com/speakeasy-api/openapi/openapi",
 		"github.com/speakeasy-api/openapi/references",
 		"github.com/speakeasy-api/openapi/yml", "gopkg.in/yaml.v3"},
+	// Recognition of a source from its bytes, before the compile. It reaches load
+	// for the parse the compile goes on to lower and nodeview to read the root
+	// mapping as the parser does, and nothing that lowers: it runs before
+	// anything has decided the bytes are this compiler's.
+	"compilers/openapi/internal/detect": {module + "/ir", module + "/compilers",
+		module + "/compilers/openapi/internal/diag",
+		module + "/compilers/openapi/internal/load",
+		module + "/compilers/openapi/internal/nodeview", "gopkg.in/yaml.v3"},
 	// What a $ref names: the pointer it addresses, the schema declared there and
 	// the type already interned there. It reaches bind for where a schema $ref
 	// lands, annotation to ask whether a referenced position declares a body at

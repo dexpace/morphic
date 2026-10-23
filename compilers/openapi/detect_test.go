@@ -1,739 +1,102 @@
-package openapi
+package openapi_test
 
 import (
-	"fmt"
-	"strings"
 	"testing"
 
-	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
-	"github.com/dexpace/morphic/compilers/openapi/internal/ynode"
-	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 )
 
-func TestDetect_Formats(t *testing.T) {
+const budgetedSpec = "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\n"
+
+func withBytes(limit int) compilers.Options {
+	return compilers.Options{FormatOptions: openapi.Options{Limits: openapi.Limits{MaxSourceBytes: limit}}}
+}
+
+// TestDetect_DeclinesASourcePastTheCallersByteBudget pins that recognition is
+// held to the budget the compile is. A source past it is declined unread and
+// the decline says why, in the words Compile uses for the same source, since
+// "nothing recognized it" would send the caller to the document rather than to
+// the budget they set.
+func TestDetect_DeclinesASourcePastTheCallersByteBudget(t *testing.T) {
 	t.Parallel()
-	cases := []struct {
-		name, path, src string
-		want            compilers.SourceFormat
-		wantOK          bool
-		// wantCode is the codes of the diagnostics a decline carries. Empty for
-		// every source this compiler recognizes, and for every source that is
-		// another format's business.
-		wantCode []string
-	}{
-		{"openapi 3.1 yaml", "api.yaml", "openapi: 3.1.0\ninfo: {}\n",
-			compilers.SourceFormat{Name: "openapi", Version: "3.1"}, true, nil},
-		{"openapi 3.0 json", "api.json", `{"openapi": "3.0.3"}`,
-			compilers.SourceFormat{Name: "openapi", Version: "3.0"}, true, nil},
-		{"openapi 3.2 yaml", "api.yaml", "openapi: 3.2.0\ninfo: {}\n",
-			compilers.SourceFormat{Name: "openapi", Version: "3.2"}, true, nil},
-		// A version already in major.minor form (single dot) exercises
-		// majorMinor's unchanged-passthrough return.
-		{"openapi major.minor only", "api.yaml", "openapi: \"3.1\"\n",
-			compilers.SourceFormat{Name: "openapi", Version: "3.1"}, true, nil},
-		// A bare-major version (no dot) also reaches the passthrough return.
-		{"openapi bare major", "api.yaml", "openapi: \"4\"\n",
-			compilers.SourceFormat{Name: "openapi", Version: "4"}, true, nil},
-		// Recognized, and deliberately not a format Formats reports: naming it
-		// lets the caller say "unsupported" rather than "unreadable".
-		{"swagger", "api.yaml", "swagger: \"2.0\"\n",
-			compilers.SourceFormat{Name: "swagger", Version: "2.0"}, true, nil},
+	src := compilers.Source{Path: "api.yaml", Data: []byte(budgetedSpec)}
+	limit := len(budgetedSpec) - 1
 
-		// Everything below is another format's input, and none of it is an error
-		// here: three of the five planned compilers take bytes that are not YAML.
-		{"protobuf", "svc.proto", "syntax = \"proto3\";\nservice S { rpc Get (Q) returns (A); }\n",
-			compilers.SourceFormat{}, false, nil},
-		{"typespec", "main.tsp", "import \"@typespec/http\";\nmodel Pet { name: string; }\n",
-			compilers.SourceFormat{}, false, nil},
-		{"graphql", "s.graphql", "type Query {\n  pet(id: ID!): Pet\n}\n",
-			compilers.SourceFormat{}, false, nil},
-		// Valid YAML that declares neither key: whether a source parses is not
-		// the question detection answers.
-		{"graphql that parses as yaml", "s.graphql", "type Query { a: String }\n",
-			compilers.SourceFormat{}, false, nil},
-		{"yaml that is no spec", "junk.yaml", "hello: world\n",
-			compilers.SourceFormat{}, false, nil},
-		// Declares a version and will not parse: this compiler's own source,
-		// broken, which nothing else is in a position to say.
-		{"unparseable yaml", "api.yaml", "openapi: 3.1.0\ninfo: [unterminated\n",
-			compilers.SourceFormat{}, false, []string{diag.UndecodableSource}},
-		// Broken on its own version line, so it declares no version to read, and
-		// is declined like any file that does not say what it is. That is the
-		// price of not claiming prose (GitHub #497).
-		{"unparseable yaml, broken on the version line", "api.yaml", "openapi: [unterminated\n",
-			compilers.SourceFormat{}, false, nil},
-		// The two files #497 is about: the word written where a spec declares its
-		// version, with no version beside it. A README with prose after the key
-		// and a framework's configuration section under it are other formats'
-		// files, and neither is reported as a spec that failed to read.
-		{"a readme that does not parse", "README.md", "# Notes\n\nfiller text\nopenapi: is a format\n",
-			compilers.SourceFormat{}, false, nil},
-		{"a config section that does not parse", "app.yaml", "openapi:\n  enabled: true\nserver: [\n",
-			compilers.SourceFormat{}, false, nil},
-		{"unparseable json", "api.json", `{"openapi": "3.1.0", "info": {`,
-			compilers.SourceFormat{}, false, []string{diag.UndecodableSource}},
-		// A key that is not UTF-8 refuses the whole document, which is what lets
-		// ids.Ptr assume every token it escapes is UTF-8.
-		{"undecodable yaml key", "api.yaml", "openapi: 3.1.0\ninfo: {}\n\xff: x\n",
-			compilers.SourceFormat{}, false, []string{diag.UndecodableSource}},
-		{"undecodable json key", "api.json", "{\"openapi\": \"3.1.0\", \"\xff\": 1}",
-			compilers.SourceFormat{}, false, []string{diag.UndecodableSource}},
-		// Broken, and never this compiler's: the key it names is a value, not a
-		// key, so the parse error describes a parser that was wrong to be asked.
-		{"unparseable, key only mentioned", "svc.proto", "syntax = \"openapi\";\n{[",
-			compilers.SourceFormat{}, false, nil},
-		// A large document is parsed as a small one is, so one that declares the
-		// key and will not parse is reported at any size. Detection used to scan
-		// past 64 KiB instead, and a scan cannot tell a broken spec from another
-		// format's file naming the word, so the same broken spec drew a complaint
-		// or silence depending on its length (GitHub #486).
-		{"unparseable, large", "api.yaml",
-			padTo("openapi: 3.1.0\ninfo: [unterminated\n", "filler: x\n"),
-			compilers.SourceFormat{}, false, []string{diag.UndecodableSource}},
-		// The key written behind a prefix that does not parse. The scan read past
-		// the prefix to the version and named the format, leaving the compile to
-		// find the document broken; the parse finds it broken here, and the
-		// version declared at column 0 makes it this compiler's to say so.
-		{"key behind an unparseable prefix, large", "api.yaml",
-			padTo("bad: [unterminated\n", "filler: x\n") + "openapi: 3.1.0\n",
-			compilers.SourceFormat{}, false, []string{diag.UndecodableSource}},
-		// yaml.v3 refuses a document that follows an explicit end marker without
-		// a `---` of its own, whatever the document's size.
-		{"key after an end-marked empty document", "api.yaml",
-			"---\n...\nopenapi: 3.1.0\n",
-			compilers.SourceFormat{}, false, []string{diag.UndecodableSource}},
-		{"key after an end-marked empty document, large", "api.yaml",
-			"---\n...\n" + padTo("openapi: 3.1.0\n", "filler: x\n"),
-			compilers.SourceFormat{}, false, []string{diag.UndecodableSource}},
-		{"key behind an unterminated quoted scalar, large", "api.yaml",
-			padTo("bad: \"unterminated\n", "filler: x\n") + "openapi: 3.1.0\n",
-			compilers.SourceFormat{}, false, []string{diag.UndecodableSource}},
-		// The same in flow style: the key is one of the root mapping's own
-		// entries, which is what makes a broken document this compiler's.
-		{"key behind an unparseable flow prefix, large", "spec3.json",
-			`{"pad":"` + flowPad() + `","bad" 1,"openapi":"3.1.0"}`,
-			compilers.SourceFormat{}, false, []string{diag.UndecodableSource}},
-		// Another format's document, large, naming the word as a key and broken
-		// besides. It opens no mapping of its own, so the key is not its
-		// declaration of itself and this compiler has nothing to say: reporting a
-		// parse error here would claim bytes that were never its own.
-		{"a broken document of another format names the key", "asyncapi.json",
-			`[{"openapi":"3.1.0"},"` + flowPad() + `"`,
-			compilers.SourceFormat{}, false, nil},
-		// The same, one level down inside a mapping that does open the document.
-		// A nested key names a field, not the format of the file holding it.
-		{"a broken document of another format nests the key", "other.json",
-			`{"pad":"` + flowPad() + `","deep":{"openapi":"3.1.0"},"bad" 1}`,
-			compilers.SourceFormat{}, false, nil},
-		{"empty", "empty.yaml", "", compilers.SourceFormat{}, false, nil},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			got, diags, ok := New().Detect(compilers.Source{Path: tc.path, Data: []byte(tc.src)}, compilers.Options{})
-			assert.Equal(t, tc.wantOK, ok)
-			assert.Equal(t, tc.want, got.Format)
-			assert.Equal(t, tc.wantCode, codesOf(diags),
-				"a decline says something only when the source is recognizably this compiler's")
-		})
-	}
-}
-
-// TestDetect_KeyOrderDoesNotDecideTheFormat pins a published spec whose
-// `components` object runs long and whose `openapi` key sits behind it. A JSON
-// object's keys are unordered, so the same document written with its version
-// key first and with it last is one document, and detection has to answer the
-// same for both. A prefix-only sniff once declined the version-last spellings.
-func TestDetect_KeyOrderDoesNotDecideTheFormat(t *testing.T) {
-	t.Parallel()
-	flow, block := bigComponents()
-	cases := []struct{ name, path, src string }{
-		{"flow json, version first", "spec3.json", `{"openapi":"3.0.3",` + flow + `}`},
-		{"flow json, version last", "spec3.json", `{` + flow + `,"openapi":"3.0.3"}`},
-		{"block yaml, version first", "api.yaml", "openapi: 3.0.3\n" + block},
-		{"block yaml, version last", "api.yaml", block + "openapi: 3.0.3\n"},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			require.Greater(t, len(tc.src), scanCutover, "the case must be large to test it")
-			got, diags, ok := New().Detect(compilers.Source{Path: tc.path, Data: []byte(tc.src)}, compilers.Options{})
-			assert.True(t, ok, "a valid document must not be declined over where it declares its version")
-			assert.Equal(t, compilers.SourceFormat{Name: "openapi", Version: "3.0"}, got.Format)
-			assert.Nil(t, codesOf(diags), "a document this compiler recognizes carries no complaint")
-		})
-	}
-}
-
-// bigComponents returns a `components` entry whose value alone runs past
-// scanCutover, in flow and in block style. It stands in for the schema catalogue a
-// published spec leads with; what matters is only that it is one entry too large
-// to read past.
-func bigComponents() (flow, block string) {
-	var f, b strings.Builder
-	f.WriteString(`"components":{"schemas":{`)
-	b.WriteString("components:\n  schemas:\n")
-	for i := 0; f.Len() <= scanCutover || b.Len() <= scanCutover; i++ {
-		if i > 0 {
-			f.WriteByte(',')
-		}
-		fmt.Fprintf(&f, `"S%d":{"type":"object","description":"a schema"}`, i)
-		fmt.Fprintf(&b, "    S%d:\n      type: object\n      description: a schema\n", i)
-	}
-	f.WriteString(`}}`)
-	return f.String(), b.String()
-}
-
-// scanCutover is the size past which detection used to scan bytes rather than
-// parse, and still the size where the change of reading shows: a case larger
-// than this pins that a large document is read as a small one is.
-const scanCutover = 64 << 10
-
-// flowPad returns a run of bytes long enough that a flow entry holding it puts
-// everything after it past scanCutover.
-func flowPad() string { return strings.Repeat("p", scanCutover) }
-
-// padTo returns src grown past scanCutover by appending filler.
-func padTo(src, filler string) string {
-	var b strings.Builder
-	b.WriteString(src)
-	for b.Len() <= scanCutover {
-		b.WriteString(filler)
-	}
-	return b.String()
-}
-
-// TestSniff_ReadsALargeDocumentWhole pins the reading a large document gets:
-// the parse a small one gets, which finds a key wherever it sits and in either
-// style, because where a writer put a key in a mapping says nothing about what
-// the document is. Each case says whether the document parsed, so a case that
-// expects no declaration cannot pass on bytes that never parsed at all.
-func TestSniff_ReadsALargeDocumentWhole(t *testing.T) {
-	t.Parallel()
-	const filler = "# a line of padding that says nothing about the format\n"
-	pad := strings.Repeat("p", scanCutover)
-	cases := []struct {
-		name, src  string
-		want       sniffProbe
-		unreadable bool
-	}{
-		{"block yaml declaring first",
-			padTo("openapi: 3.1.0\n", filler), sniffProbe{OpenAPI: "3.1.0"}, false},
-		{"block yaml declaring last",
-			padTo("", filler) + "openapi: 3.1.0\n", sniffProbe{OpenAPI: "3.1.0"}, false},
-		{"flow json declaring first",
-			`{"openapi":"3.1.0","x":"` + pad + `"}`, sniffProbe{OpenAPI: "3.1.0"}, false},
-		{"flow json declaring last",
-			`{"x":"` + pad + `","openapi":"3.1.0"}`, sniffProbe{OpenAPI: "3.1.0"}, false},
-		{"flow json swagger first",
-			`{"swagger":"2.0","x":"` + pad + `"}`, sniffProbe{Swagger: "2.0"}, false},
-		{"flow json swagger last",
-			`{"x":"` + pad + `","swagger":"2.0"}`, sniffProbe{Swagger: "2.0"}, false},
-		// Neither YAML nor JSON: the parse fails and declares nothing.
-		{"protobuf, large",
-			padTo("syntax = \"proto3\";\n", "message M { string a = 1; }\n"), sniffProbe{}, true},
-		// The word is there and is not a key: a value is not a declaration.
-		{"the word as a value, large",
-			`{"x":"` + pad + `","note":"openapi"}`, sniffProbe{}, false},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			require.Greater(t, len(tc.src), scanCutover, "the case must be large to test it")
-			probe, parsed, err := sniff([]byte(tc.src))
-			assert.Equal(t, tc.want, probe)
-			if tc.unreadable {
-				assert.Error(t, err)
-				return
-			}
-			require.NoError(t, err)
-			assert.NotNil(t, parsed, "a document that parsed carries its parse")
-		})
-	}
-}
-
-// TestDeclaresProbeKey_ScopesTheNameToItsOwnDocument pins the guard that
-// decides whose bytes these are. A name followed by a colon is a key wherever
-// it sits, so the guard says whose: block style answers with column 0, flow
-// style with the root mapping's own depth. A key there declares the format only
-// with a version beside it (GitHub #497). The cases answering no are documents
-// naming the word where none declares its format, or declaring it with prose, a
-// collection or nothing beside it; saying yes would report this compiler's
-// parse error over a file that was never its own.
-func TestDeclaresProbeKey_ScopesTheNameToItsOwnDocument(t *testing.T) {
-	t.Parallel()
-	cases := []struct {
-		name, src string
-		want      bool
-	}{
-		{"flow mapping declares it", `{"openapi":"3.1.0"}`, true},
-		{"flow mapping declares swagger", `{"swagger":"2.0"}`, true},
-		{"space around the mapping and the colon", "  \n\t{\"openapi\" : \"3.1.0\"}", true},
-		{"an escape hides no key from the scan", `{"a\"b":1,"openapi":"3.1.0"}`, true},
-		{"block style at column 0", "openapi: 3.1.0\n", true},
-		{"block style past a byte-order mark", "\xef\xbb\xbfopenapi: 3.1.0\ninfo: [\n", true},
-		// The version beside the key is read as YAML reads it, on its own line.
-		{"block style, a quoted version", "openapi: \"3.1.0\"\ninfo: [\n", true},
-		{"block style, a version and a comment", "openapi: 3.1.0 # v\ninfo: [\n", true},
-		{"block style, CRLF", "openapi: 3.1.0\r\ninfo: [\r\n", true},
-		{"block style, swagger", "swagger: \"2.0\"\ninfo: [\n", true},
-		{"flow style, a bare version", `{"openapi":3.1,`, true},
-		// And a key with no version beside it declares nothing, in either style.
-		{"block style, prose beside the key", "openapi: is a format\n[\n", false},
-		{"block style, a mapping under the key", "openapi:\n  enabled: true\n[\n", false},
-		{"block style, a collection that does not close", "openapi: [unterminated\n", false},
-		{"block style, no space after the colon", "openapi:3.1.0\n[\n", false},
-		{"block style, a longer key the name begins", "openapi:x: 3.1.0\n[\n", false},
-		{"block style, the version on the next line", "openapi:\n  3.1.0\n[\n", false},
-		{"flow style, a collection for the version", `{"openapi":{"a":"3.1.0"},`, false},
-		{"flow style, prose for the version", `{"openapi":"is a format",`, false},
-		{"flow style, nothing after the colon", `{"openapi":`, false},
-		{"flow style past a byte-order mark", "\xef\xbb\xbf{\"openapi\":\"3.1.0\",", true},
-		// What may stand in front of a root flow mapping: comment lines, and up
-		// to two node properties — an anchor and a tag, in either order.
-		{"flow style behind a comment line", "# c\n  # d\n{\"openapi\":\"3.1.0\",", true},
-		{"flow style behind an anchor", "&x {\"openapi\":\"3.1.0\",", true},
-		{"flow style behind a tag and an anchor", "!!map &x {\"openapi\":\"3.1.0\",", true},
-		{"flow style behind a property ended by a flow indicator", "&x{\"openapi\":\"3.1.0\",", true},
-		{"a comment with nothing after it", "# openapi: 3.1.0", false},
-		{"a property with nothing after it", "&x", false},
-		{"three properties are more than a node carries", "&a &b &c {\"openapi\":\"3.1.0\",", false},
-
-		{"nested one level down", `{"a":{"openapi":"3.1.0"}}`, false},
-		{"nested inside a sequence", `{"a":[{"openapi":"3.1.0"}]}`, false},
-		{"a document that opens a sequence", `[{"openapi":"3.1.0"}]`, false},
-		{"block style indented under another key", "a:\n  openapi: 3.1.0\n", false},
-		{"the name is a value", `{"note":"openapi"}`, false},
-		{"the name in a comment", "x: 1\n# openapi is a format\n", false},
-		{"the name has no colon after it", `{"openapi",1}`, false},
-		{"the name ends the bytes", `{"openapi"`, false},
-		{"a string runs off the end", `{"a":"unterminated`, false},
-		{"nothing but whitespace", "  \n\t ", false},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			assert.Equal(t, tc.want, declaresProbeKey([]byte(tc.src)))
-		})
-	}
-}
-
-func TestMajorMinor(t *testing.T) {
-	t.Parallel()
-	assert.Equal(t, "3.1", majorMinor("3.1.0"))
-	assert.Equal(t, "3.1", majorMinor("3.1"))
-	assert.Equal(t, "4", majorMinor("4"))
-}
-
-// codesOf reduces diagnostics to their codes, which is the whole of what the
-// detection tests assert about them: the message carries a parser's wording and
-// pinning it would test yaml.v3 rather than this package.
-func codesOf(diags []ir.Diagnostic) []string {
-	if len(diags) == 0 {
-		return nil
-	}
-	codes := make([]string, 0, len(diags))
-	for _, d := range diags {
-		codes = append(codes, d.Code)
-	}
-	return codes
-}
-
-// dupRepeats is how many times the fixtures below repeat a root key. It is not a
-// threshold: the wrong answer reproduces at two repeats, and this many only
-// makes the fixture recognizably a document rather than a corner. It is
-// deliberately far below the 6,553 of the report — yaml.v3 raises one error per
-// pair of matching keys, so that count produced 21,467,628 of them and a 1.2 GB
-// message, and a fixture that large turns a revert into an out-of-memory kill
-// instead of a failing assertion. What guards the cost is
-// TestSniff_CostIsNotQuadraticInRepeatedKeys, which measures growth rather than
-// paying for it.
-const dupRepeats = 512
-
-// TestDetect_RepeatedKeysDoNotDecideTheFormat pins the fix for the blow-up. A
-// document that repeats a top-level key has a duplicate key, which the parser
-// this compiler goes on to use reports once per repeat, sited. It is neither
-// another format's nor unreadable, yet decoding the root mapping to read two
-// keys said both, because yaml.v3 abandons a mapping that repeats any key.
-//
-// Both orders are pinned: a fixture that declares the version first cannot see
-// a regression that loses it to the repeats that follow.
-func TestDetect_RepeatedKeysDoNotDecideTheFormat(t *testing.T) {
-	t.Parallel()
-	repeats := strings.Repeat("x: y\n", dupRepeats)
-	cases := []struct{ name, src string }{
-		{"version first", "openapi: 3.0.3\ninfo: {title: t, version: v}\n" + repeats},
-		{"version last", "info: {title: t, version: v}\n" + repeats + "openapi: 3.0.3\n"},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			got, diags, ok := New().Detect(compilers.Source{Path: "api.yaml", Data: []byte(tc.src)}, compilers.Options{})
-			assert.True(t, ok, "a document this compiler can lower must not be declined over a repeated key")
-			assert.Equal(t, compilers.SourceFormat{Name: "openapi", Version: "3.0"}, got.Format)
-			assert.Nil(t, codesOf(diags), "the repeats are the parser's to report, sited, not detection's")
-		})
-	}
-}
-
-// TestDetect_ARepeatedVersionKeyAgreesWithTheParser holds detection to the
-// answer the lowering will reach. load reads the version off the parsed document
-// and records it on ir.SourceInfo, so each case asks that parser which spelling
-// of a repeated key it keeps; detection naming another would give one document
-// two dialects, one routing it and one describing it.
-//
-// The two orders are the test: a single order passes whichever spelling is
-// taken.
-func TestDetect_ARepeatedVersionKeyAgreesWithTheParser(t *testing.T) {
-	t.Parallel()
-	cases := []struct{ first, second, want string }{
-		{"3.1.0", "3.0.3", "3.0"},
-		{"3.0.3", "3.1.0", "3.1"},
-	}
-	for _, tc := range cases {
-		t.Run(tc.first+" then "+tc.second, func(t *testing.T) {
-			t.Parallel()
-			src := "openapi: " + tc.first + "\nopenapi: " + tc.second + "\ninfo: {}\n"
-			parsed, _, err := soa.Unmarshal(t.Context(), strings.NewReader(src))
-			require.NoError(t, err)
-			require.NotNil(t, parsed)
-			assert.Equal(t, tc.want, majorMinor(parsed.OpenAPI), "the spelling the parser keeps")
-
-			got, _, ok := New().Detect(compilers.Source{Path: "api.yaml", Data: []byte(src)}, compilers.Options{})
-			require.True(t, ok)
-			assert.Equal(t, compilers.SourceFormat{Name: "openapi", Version: majorMinor(parsed.OpenAPI)}, got.Format,
-				"detection names the version the parser records")
-		})
-	}
-}
-
-// TestDetect_ReadsAVersionKeyThroughAMergeKey holds the merge cases the decoder
-// this replaced handled for free. A root that merges another mapping declares
-// what that mapping declares, and dropping it would put a new instance of "a
-// field supplied through a merge key reaches the IR in no form" into the one
-// place that decides whether the document is read at all.
-func TestDetect_ReadsAVersionKeyThroughAMergeKey(t *testing.T) {
-	t.Parallel()
-	cases := []struct {
-		name, src, want string
-	}{
-		{"alias", "base: &b\n  openapi: 3.1.0\n<<: *b\ninfo: {}\n", "3.1"},
-		{"mapping written out", "<<: {openapi: 3.1.0}\ninfo: {}\n", "3.1"},
-		{"sequence of aliases", "one: &o\n  unrelated: x\ntwo: &t\n  openapi: 3.1.0\n<<: [*o, *t]\n", "3.1"},
-		{"earlier merge wins", "one: &o\n  openapi: 3.0.3\ntwo: &t\n  openapi: 3.1.0\n<<: [*o, *t]\n", "3.0"},
-		{"a written key beats a merged one", "base: &b\n  openapi: 3.0.3\n<<: *b\nopenapi: 3.1.0\n", "3.1"},
-		{"a quoted << merges nothing", "base: &b\n  openapi: 3.1.0\n\"<<\": *b\ninfo: {}\n", ""},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			got, _, ok := New().Detect(compilers.Source{Path: "api.yaml", Data: []byte(tc.src)}, compilers.Options{})
-			if tc.want == "" {
-				assert.False(t, ok, "a key spelled << as a plain string merges nothing")
-				return
-			}
-			require.True(t, ok)
-			assert.Equal(t, compilers.SourceFormat{Name: "openapi", Version: tc.want}, got.Format)
-		})
-	}
-}
-
-// rootMergeChain writes a document whose root merges a chain of levels
-// anchored mappings, the innermost holding leaf, and writes own after the merge.
-func rootMergeChain(levels int, leaf, own string) []byte {
-	var b strings.Builder
-	fmt.Fprintf(&b, "l0: &a0 {%s}\n", leaf)
-	for i := 1; i < levels; i++ {
-		fmt.Fprintf(&b, "l%d: &a%d {<<: *a%d}\n", i, i, i-1)
-	}
-	fmt.Fprintf(&b, "<<: *a%d\n%s", levels-1, own)
-	return []byte(b.String())
-}
-
-// TestSniff_ReadsAMergeChainAsFarAsTheViewExpandsIt pins where the bound on
-// the root's merges lies, nodeview's, and what a read it cuts short answers. A
-// key past the bound may outrank what the read found, so the answer is
-// unknown, and Detect says the bound stopped it, unless the root's own pairs,
-// which outrank every merge, settle it.
-func TestSniff_ReadsAMergeChainAsFarAsTheViewExpandsIt(t *testing.T) {
-	t.Parallel()
-	const limit = nodeview.MergeDepthLimit
-	cases := map[string]struct {
-		src     []byte
-		version string
-		cut     bool
-	}{
-		"a chain the view expands": {rootMergeChain(limit, "openapi: 3.0.3", ""), "3.0.3", false},
-		"a chain past it":          {rootMergeChain(limit+1, "openapi: 3.0.3", ""), "", true},
-		"a version the root writes itself": {
-			rootMergeChain(limit+1, "openapi: 3.0.3", "openapi: 3.1.0\n"), "3.1.0", false},
-		"a merged version a deeper one may outrank": {
-			[]byte(string(rootMergeChain(limit+1, "openapi: 3.1.0", "")) + "s: &s {openapi: 3.0.3}\n"), "", true},
-		"a root writing no version and a swagger one": {
-			rootMergeChain(limit+1, "openapi: 3.0.3", "openapi: prose words\nswagger: '2.0'\n"), "", false},
-		"a root writing no version and leaving swagger to its merges": {
-			rootMergeChain(limit+1, "swagger: '2.0'", "openapi: prose words\n"), "", true},
-	}
-	for name, tc := range cases {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-			probe, _, err := sniff(tc.src)
-			require.NoError(t, err, "a read cut short is no parse failure")
-			assert.Equal(t, tc.cut, probe.Cut)
-			if tc.cut {
-				return
-			}
-			assert.Equal(t, tc.version, probe.OpenAPI)
-		})
-	}
-}
-
-// TestDetect_AReadCutShortIsReported pins that the bound never passes for a
-// decline: the source may be this compiler's own, so detection says why it
-// could not tell.
-func TestDetect_AReadCutShortIsReported(t *testing.T) {
-	t.Parallel()
-	_, diags, ok := New().Detect(compilers.Source{
-		Path: "api.yaml", Data: rootMergeChain(nodeview.MergeDepthLimit+1, "openapi: 3.1.0", ""),
-	}, compilers.Options{})
+	rec, diags, ok := openapi.New().Detect(src, withBytes(limit))
 
 	assert.False(t, ok)
+	assert.Equal(t, compilers.Recognition{}, rec)
 	require.Len(t, diags, 1)
 	assert.Equal(t, diag.BudgetExceeded, diags[0].Code)
-	assert.Equal(t, ir.SeverityError, diags[0].Severity, "it is the whole reason the source went unclaimed")
-	assert.Contains(t, diags[0].Message, fmt.Sprint(nodeview.MergeDepthLimit))
+	assert.Equal(t, 0, diags[0].Provenance.Source, "detection names the one source it was handed")
+
+	_, compiled, err := openapi.New().Compile(t.Context(), []compilers.Source{src}, withBytes(limit))
+	require.NoError(t, err)
+	require.Len(t, compiled, 1)
+	assert.Equal(t, compiled[0].Message, diags[0].Message, "detection and the compile refuse the source alike")
 }
 
-// TestDetect_AMergeCycleHidesNoKey pins the other way a root's merges can stop
-// short of a complete expansion: a cycle, which the compile's alias pre-scan
-// refuses and detection meets first. It reads every mapping on it, so it cuts
-// no read short, and a root that declares nothing is declined in silence as
-// any other file that is not a spec is, while one that declares a version is
-// claimed for the compile to refuse.
-func TestDetect_AMergeCycleHidesNoKey(t *testing.T) {
+// TestDetect_ReadsASourceWithinTheCallersByteBudget pins the other side,
+// including a caller who turned the budget off. That case is asserted on a
+// small source: the byte budget is the only bound on what detection reads, so
+// off means unbounded, but a source past the 64 MiB default costs 15 s and
+// 1.3 GB under -race, which is what the gate's only test step runs with. It
+// was measured by hand instead when the byte scan was deleted (GitHub #486):
+// with the budget off, a source past 64 MiB is recognized.
+func TestDetect_ReadsASourceWithinTheCallersByteBudget(t *testing.T) {
 	t.Parallel()
-	cases := map[string]struct {
-		src     string
-		version string
-	}{
-		"a root merging itself":                        {"&r\n<<: *r\nfoo: 1\n", ""},
-		"a root merging itself beside its version":     {"&r\n<<: *r\nopenapi: 3.1.0\n", "3.1"},
-		"a root merging a mapping that merges it back": {"&r\nx: &x {<<: *r, openapi: 3.0.3}\n<<: *x\n", "3.0"},
+	src := compilers.Source{Path: "api.yaml", Data: []byte(budgetedSpec)}
+	want := compilers.SourceFormat{Name: "openapi", Version: "3.1"}
+
+	for _, opts := range []compilers.Options{
+		withBytes(len(budgetedSpec)),
+		withBytes(-1),
+		{},
+		{FormatOptions: "another compiler's options"},
+	} {
+		rec, diags, ok := openapi.New().Detect(src, opts)
+		require.True(t, ok, "%+v: %+v", opts, diags)
+		assert.Equal(t, want, rec.Format, "%+v", opts)
 	}
-	for name, tc := range cases {
+}
+
+// TestDetect_ReadsTheVersionTheCompileReads holds detection to the compile on
+// the roots where a reading of its own disagreed with the parser's: each is
+// routed as the version its compile lowers, the agreement
+// compilers.Detection.Compile checks. A key repeated over an unreadable value,
+// an alias in either place, a key tagged `!!merge` that is not `<<`, an alias
+// key outranking a merge, and a chain deeper than the old walk followed.
+func TestDetect_ReadsTheVersionTheCompileReads(t *testing.T) {
+	t.Parallel()
+	const tail = "info: {title: t, version: '1'}\npaths: {}\n"
+	cases := map[string]string{
+		"a version over an unreadable value": "openapi: [x]\nopenapi: 3.1.0\n",
+		"an alias as the key":                "k: &k openapi\n*k : 3.1.0\n",
+		"an alias as the value":              "v: &v 3.1.0\nopenapi: *v\n",
+		"a key tagged !!merge that is no <<": "!!merge openapi: 3.1.0\n",
+		"an alias key outranking a merge":    "b: &b {openapi: 3.0.3}\nk: &k openapi\n<<: *b\n*k : 3.1.0\n",
+		"a merge chain ten mappings deep":    string(openapitest.RootMergeChain(10, "openapi: 3.1.0", "")),
+		"a merge written before its own key": "b: &b {openapi: 3.0.3}\n<<: *b\nopenapi: 3.1.0\n",
+		"the first of two merges that agree": "a: &a {openapi: 3.1.0}\nb: &b {openapi: 3.0.3}\n<<: [*a, *b]\n",
+	}
+	for name, root := range cases {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			probe, _, err := sniff([]byte(tc.src))
+			src := compilers.Source{Path: "api.yaml", Data: []byte(root + tail)}
+			rec, diags, ok := openapi.New().Detect(src, compilers.Options{})
+			require.True(t, ok, "the compile lowers it, so detection claims it: %v", diags)
+
+			doc, compiled, err := openapi.New().Compile(t.Context(), []compilers.Source{src}, compilers.Options{})
 			require.NoError(t, err)
-			assert.False(t, probe.Cut, "a cycle reads every mapping on it")
-
-			rec, diags, ok := New().Detect(compilers.Source{Path: "api.yaml", Data: []byte(tc.src)}, compilers.Options{})
-			assert.Equal(t, tc.version != "", ok)
-			assert.Equal(t, tc.version, rec.Format.Version)
-			assert.Empty(t, diags, "a cycle is no budget, and a file declaring nothing earns no complaint")
+			require.NotNil(t, doc, "%v", compiled)
+			assert.Equal(t, compilers.SourceFormat{Name: "openapi", Version: "3.1"}, rec.Format)
+			assert.Equal(t, rec.Format.String(), doc.Sources[0].Format, "detection and the compile read one version")
 		})
 	}
-}
-
-// TestDecodeYAML_RefusesARootThatIsNoMapping pins the shape complaint. A source
-// with no root mapping has no top-level keys, and saying so is what lets Detect
-// report bytes that declare a key it serves and will not read.
-func TestDecodeYAML_RefusesARootThatIsNoMapping(t *testing.T) {
-	t.Parallel()
-	cases := []struct{ name, src, wantErr string }{
-		{"sequence", "- openapi: 3.1.0\n", "!!seq"},
-		{"scalar", "just a string\n", "!!str"},
-		{"empty", "", ""},
-		{"comment only", "# openapi: 3.1.0\n", ""},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			probe, _, err := decodeYAML([]byte(tc.src))
-			assert.Empty(t, probe.OpenAPI)
-			if tc.wantErr == "" {
-				assert.NoError(t, err, "bytes that carry no document decline rather than fail")
-				return
-			}
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), tc.wantErr, "the complaint names the shape that was read")
-		})
-	}
-}
-
-// TestSniff_CostIsNotQuadraticInRepeatedKeys guards the half of the defect an
-// answer cannot see. Reading two keys off a parsed tree is linear; decoding the
-// root mapping to read them is quadratic in how often a key repeats, since
-// yaml.v3 compares every pair of keys before reading any.
-//
-// Allocation count is the probe because it is deterministic where wall time is
-// not. Doubling the repeats doubles the parse, so the bound sits between that
-// and a quadratic term: at this size the linear reading grows by 1.97 and the
-// quadratic one by 4.64.
-func TestSniff_CostIsNotQuadraticInRepeatedKeys(t *testing.T) {
-	head := "openapi: 3.0.3\ninfo: {}\n"
-	small := []byte(head + strings.Repeat("x: y\n", dupRepeats))
-	large := []byte(head + strings.Repeat("x: y\n", dupRepeats*2))
-
-	smallAllocs := testing.AllocsPerRun(2, func() { _, _, _ = sniff(small) })
-	largeAllocs := testing.AllocsPerRun(2, func() { _, _, _ = sniff(large) })
-
-	require.Positive(t, smallAllocs, "a measurement of nothing bounds nothing")
-	assert.Less(t, largeAllocs, smallAllocs*3,
-		"twice the repeats must cost about twice, not about four times")
-}
-
-// TestDecodeYAML_RefusesAVersionKeyThatIsNoScalar pins the complaint for a
-// version key whose value is a mapping or a sequence, written directly and
-// reached through a `<<`. Such bytes name a key this compiler serves and do not
-// say what dialect, so the probe cannot read them.
-//
-// Whether Detect reports that or declines in silence is declaresProbeKey's
-// answer and not this one's, and it is asserted separately below: a mapping
-// under the key is another tool's configuration as often as a broken spec, and
-// declares no version either way, so Detect declines all of them.
-func TestDecodeYAML_RefusesAVersionKeyThatIsNoScalar(t *testing.T) {
-	t.Parallel()
-	cases := []struct{ name, src, wantErr string }{
-		{"mapping", "openapi: {a: b}\ninfo: {}\n", "!!map"},
-		{"sequence", "openapi: [3.1.0]\ninfo: {}\n", "!!seq"},
-		{"merged mapping", "base: &b\n  openapi: {a: b}\n<<: *b\n", "!!map"},
-		{"merged through a sequence", "base: &b\n  openapi: {a: b}\n<<: [*b]\n", "!!map"},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			probe, _, err := decodeYAML([]byte(tc.src))
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), tc.wantErr, "the complaint names the shape that was read")
-			assert.Empty(t, probe.OpenAPI)
-		})
-	}
-}
-
-// TestDetect_AVersionKeyOfTheWrongShapeIsNoDeclaration pins that a mapping
-// where a version goes declares no version, wherever it sits. Such a document
-// parses, so it is the tree and not the guard that has the key — but a mapping
-// under `openapi` is what another tool's configuration writes, and a spec
-// written that way has no version to route it by either. Detection used to
-// report the column-0 spelling as this compiler's own and unreadable; it
-// declines all three alike now (GitHub #497).
-func TestDetect_AVersionKeyOfTheWrongShapeIsNoDeclaration(t *testing.T) {
-	t.Parallel()
-	cases := []struct {
-		name, src string
-		wantCode  []string
-	}{
-		{"declared at column 0", "openapi: {a: b}\ninfo: {}\n", nil},
-		{"a framework's configuration section", "openapi:\n  path: /docs\n  enabled: true\n", nil},
-		{"reached through a merge", "base: &b\n  openapi: {a: b}\n<<: *b\n", nil},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			_, diags, ok := New().Detect(compilers.Source{Path: "api.yaml", Data: []byte(tc.src)}, compilers.Options{})
-			assert.False(t, ok)
-			assert.Equal(t, tc.wantCode, codesOf(diags))
-		})
-	}
-}
-
-// TestDecodeYAML_PassesOverWhatNamesNoVersion holds the walk to reading only
-// what it came for. A mapping may key an entry with a sequence, and a `<<` may
-// be written with a value that merges nothing; both are the source's business
-// and neither stops the two keys beside them from being read.
-func TestDecodeYAML_PassesOverWhatNamesNoVersion(t *testing.T) {
-	t.Parallel()
-	cases := []struct{ name, src string }{
-		{"a key that is a sequence", "? [a, b]\n: v\nopenapi: 3.1.0\n"},
-		{"a merge of a scalar", "<<: not-a-mapping\nopenapi: 3.1.0\n"},
-		{"a merge of a sequence of scalars", "<<: [x, y]\nopenapi: 3.1.0\n"},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			probe, _, err := decodeYAML([]byte(tc.src))
-			require.NoError(t, err)
-			assert.Equal(t, "3.1.0", probe.OpenAPI)
-		})
-	}
-}
-
-// TestProbeVersion_RefusesAnAliasThatResolvedToNothing covers the guard on a
-// value nodeview could not dereference. A parser resolves every alias it
-// accepts, so the node is built here rather than parsed: the guard exists
-// because reading the value is what the next line does, and a nil there is a
-// panic in detection, which runs before the compiler has decided the bytes are
-// even its own.
-func TestProbeVersion_RefusesAnAliasThatResolvedToNothing(t *testing.T) {
-	t.Parallel()
-	root := ynode.Map(ynode.Scalar("openapi"), &yaml.Node{Kind: yaml.AliasNode})
-	_, err := probeFromMapping(root)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "no value")
-}
-
-// breadthMergeDoc writes a document whose root merges one anchor k times, where
-// that anchor's mapping merges another k times. It is the shape that made the
-// probe's walk quadratic: the inner mapping was entered once per merge key
-// naming it, so the work was the product of the two rather than their sum. The
-// version sits at the innermost anchor, so a walk that stops early is caught by
-// the assertion rather than looking cheap.
-func breadthMergeDoc(k int) []byte {
-	var b strings.Builder
-	b.WriteString("l0: &a0\n  openapi: 3.1.0\n")
-	b.WriteString("l1: &a1\n")
-	for range k {
-		b.WriteString("  <<: *a0\n")
-	}
-	for range k {
-		b.WriteString("<<: *a1\n")
-	}
-	return []byte(b.String())
-}
-
-// TestProbeFromMapping_CostIsLinearInMergeBreadth pins the bound GitHub #487
-// was about: the merge bound limits how deep a chain is followed, not how wide,
-// and a walk entering an anchored mapping once per merge key naming it costs
-// the product of the two. nodeview's memo is what keeps it a sum. It counts
-// allocations, not time, so load cannot move it, and runs serially because
-// AllocsPerRun measures the whole process.
-func TestProbeFromMapping_CostIsLinearInMergeBreadth(t *testing.T) {
-	for _, k := range []int{2000, 4000} {
-		var root yaml.Node
-		require.NoError(t, yaml.Unmarshal(breadthMergeDoc(k), &root))
-		content := documentRoot(&root)
-
-		var probe sniffProbe
-		var err error
-		allocs := testing.AllocsPerRun(1, func() {
-			probe, err = probeFromMapping(content)
-		})
-		require.NoError(t, err)
-		require.Equal(t, "3.1.0", probe.OpenAPI,
-			"the version sits at the innermost anchor, so a walk that stops early fails here rather than looking cheap")
-		assert.Less(t, allocs, float64(k),
-			"a walk of %d merge keys made %.0f allocations, not fewer than the keys", k, allocs)
-	}
-}
-
-// TestDeclaresBlockKey_ReadsABoundedNumberOfLines pins maxVersionLines. The
-// guard parses each line that begins with the key, so a version behind as many
-// lines without one as the bound allows is still found, and one behind a line
-// more is not: the bound is what stops a file of nothing but such lines costing
-// a parse per line.
-func TestDeclaresBlockKey_ReadsABoundedNumberOfLines(t *testing.T) {
-	t.Parallel()
-	behind := func(n int) []byte {
-		return []byte(strings.Repeat("openapi: is prose\n", n) + "openapi: 3.1.0\n[\n")
-	}
-	assert.True(t, declaresBlockKey(behind(maxVersionLines-1), "openapi"), "the last line the bound reads")
-	assert.False(t, declaresBlockKey(behind(maxVersionLines), "openapi"), "one line past the bound")
 }

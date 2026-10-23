@@ -5,6 +5,7 @@ import (
 	"encoding/json/v2"
 	"os"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -169,4 +170,22 @@ func TestCompile_RejectsMultipleSources(t *testing.T) {
 			{Path: "b.yaml", Data: data},
 		}, compilers.Options{})
 	require.Error(t, err)
+}
+
+// TestCompile_AnUnreadableSourceIsADiagnostic pins where the complaint about a
+// broken document comes from when nothing detected it: a caller compiling
+// directly hands Compile bytes no parse has read. It has to stay a diagnostic:
+// engine.Run turns a compiler's Go error into its own, and the CLI maps that to
+// exit 2 — the code it uses for being invoked wrong — so a spec it read would
+// be reported as a misuse of itself.
+func TestCompile_AnUnreadableSourceIsADiagnostic(t *testing.T) {
+	t.Parallel()
+	src := "bad: [unterminated\n" + strings.Repeat("filler: x\n", 8000) + "openapi: 3.1.0\n"
+	doc, diags, err := openapi.New().Compile(context.Background(),
+		[]compilers.Source{{Path: "api.yaml", Data: []byte(src)}}, compilers.Options{})
+
+	require.NoError(t, err, "a document that will not parse is a finding, not a failure of the compiler")
+	assert.Nil(t, doc)
+	require.Len(t, diags, 1)
+	assert.Equal(t, diag.UndecodableSource, diags[0].Code)
 }
