@@ -414,8 +414,8 @@ func TestEnum_UnquotedDatesStayClosedEnum(t *testing.T) {
 	t.Parallel()
 	// The exact issue repro: YAML 1.1 resolves an unquoted date to !!timestamp.
 	// Before the fix, scalarValue had no case for it, so both enum members
-	// failed to convert, enumMembers bailed to enumAsUnion, and valueOrNull
-	// turned every member into a null literal — the actual dates never
+	// failed to convert, enumMembers bailed to enumAsUnion, and the union
+	// fallback turned every member into a null literal — the actual dates never
 	// survived. Two diagnostics stand beside that, neither about a date: the
 	// component-level default is kept as residue (it binds a use of the type, so
 	// the type node has no field for it; see

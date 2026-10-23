@@ -351,8 +351,8 @@ func TestPositionHint_BranchShapes(t *testing.T) {
 // TestBranchHint_AgreesWithThePointerWalk states the property the two
 // derivations exist to share, at the functions rather than through a compile: for
 // an inline branch, what the composition names the node and what a pointer walk
-// names it are the same string. Whichever lowering arrives first, the node ends
-// up with the same hint.
+// names it are the same string, so the node takes one hint whether or not its
+// composition is lowered.
 func TestBranchHint_AgreesWithThePointerWalk(t *testing.T) {
 	t.Parallel()
 	for i := range 3 {
@@ -363,7 +363,7 @@ func TestBranchHint_AgreesWithThePointerWalk(t *testing.T) {
 		fromPointer, branch := positionHint(pointer)
 		require.True(t, branch, "the branch pointer is recognized as one")
 		assert.Equal(t, fromComposition, fromPointer,
-			"branch %d must be named the same whichever lowering interns it first", i)
+			"branch %d is named the same by the composition and by a pointer walk", i)
 		assert.Equal(t, fromComposition, subSchemaHint(nil, inline, pointer),
 			"and subSchemaHint is the path that actually asks")
 	}

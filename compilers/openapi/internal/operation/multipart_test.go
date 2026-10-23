@@ -278,10 +278,12 @@ func TestContent_MultipartEncodingVariants(t *testing.T) {
 	}
 }
 
-// TestPartEncodings_MixinPartIsKeyedOnTheMixin covers the second composition
-// channel. An allOf of two $refs makes the first the Base and the rest Mixins
-// (§4.3), so a part contributed by the second is reachable only by searching
-// them — and its key must be the ID that mixin declares.
+// TestPartEncodings_MixinPartIsKeyedOnTheMixin covers the Mixins channel,
+// beside TestPartEncoding_NamesAPropertyInheritedFromTheBase's Base. Two $ref
+// branches that join no discriminator hierarchy both become Mixins
+// (docs/compilers/openapi.md#allof-classification), so a part either
+// contributes is reachable only by searching them — and its key must be the ID
+// that mixin declares.
 func TestPartEncodings_MixinPartIsKeyedOnTheMixin(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.PathsSpec(`  /upload:

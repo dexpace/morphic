@@ -474,9 +474,9 @@ components:
 }
 
 // TestCrossPathReference_SubtreeIsNamedByItsDeclaration is the #529
-// reproduction. A $ref from one path's schema into another path's body interns
-// the subtree beneath its target when the referencing path lowers first, under
-// names composed from the reference's own guess.
+// reproduction. A $ref from one path's schema into another path's body once
+// interned the subtree beneath its target when the referencing path lowered
+// first, under names composed from the reference's own guess.
 //
 // For each root the owner can declare its schema at, three documents are
 // compiled: the owner alone, the owner with /a's reference declared first, and
@@ -564,7 +564,7 @@ func TestUndeclaredRegion_TwoReferencesAgreeInBothOrders(t *testing.T) {
 				"            application/json: {schema: {$ref: '#" + outer + "'}}\n"
 
 			// /a's reference is aimed one level beneath /c's — declared first,
-			// this is the order that was wrong on main.
+			// this is the order that once named it wrong.
 			innerFirst, diags := parseFull(t, preamble+bBlock+aBlock+cBlock)
 			openapitest.RequireNoErrorDiags(t, diags)
 			outerFirst, diags := parseFull(t, preamble+bBlock+cBlock+aBlock)
@@ -786,8 +786,8 @@ func TestRefSiteKeywords_KeptAtEveryPosition(t *testing.T) {
 // narrows the referenced schema; the union family's one keeper,
 // preserveUnionSiblings, was reached only through the structural-body path
 // (lowerBesideUnmodeledUnion), so a $ref-peeling declaration reached it not
-// at all. Both ref-site positions route through the keeper's body directly
-// (preserveUnionSiblingsAt) instead of a second one.
+// at all. Both ref-site positions reach that keeper, a carrier through its body
+// (preserveUnionSiblingsAt), instead of a second one.
 //
 // Both positions are checked, as TestRefSiteKeywords_KeptAtEveryPosition
 // checks the rest of the census: a component hoists an alias to hold the

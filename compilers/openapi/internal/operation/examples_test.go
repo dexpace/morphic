@@ -29,8 +29,8 @@ func TestContent_ExampleWithoutValueSkipped(t *testing.T) {
 
 func TestContent_UnconvertibleExamplesDiagnosed(t *testing.T) {
 	t.Parallel()
-	// Covers both the single 3.0-style `example` and one entry of the plural
-	// 3.1-style `examples` map — each carries a custom, structurally
+	// Covers both the singular `example` and one entry of the plural `examples`
+	// map — each carries a custom, structurally
 	// unconvertible tag, and each conversion failure must be diagnosed rather
 	// than discarded silently.
 	spec := openapitest.PathsSpec(`  /items:

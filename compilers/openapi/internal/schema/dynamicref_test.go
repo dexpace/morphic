@@ -183,7 +183,9 @@ func TestDynamicRef_ReachesAnAnchorSpelledWithAPercent(t *testing.T) {
 		"an escaped percent addresses the percent itself, so the reference reaches the anchor as declared")
 }
 
-// TestDynamicRef_IrreducibleIsKeptAndSaysWhy pins the other half of that promise.
+// TestDynamicRef_IrreducibleIsKeptAndSaysWhy pins the irreducible half of the
+// docs/compilers/openapi.md#dynamic-ref promise; the resolvable half is
+// TestDynamicRef_ExpandsAgainstTheOneMatchingAnchor.
 // Each case is a reference no static lowering can resolve, and each must survive
 // verbatim with the reason naming which case it was.
 func TestDynamicRef_IrreducibleIsKeptAndSaysWhy(t *testing.T) {
@@ -326,7 +328,8 @@ func TestDynamicRef_IrreducibleIsKeptAndSaysWhy(t *testing.T) {
 // would lift above their anchors.
 //
 // It asserts the orders agree, not which verdict: a chain past the bound
-// expands to nothing, so both currently miss the boundary (GitHub #401).
+// expands to nothing, so in both orders Q currently misses the boundary
+// (GitHub #401).
 func TestDynamicRef_ResourceBoundaryVerdictIsOrderInvariant(t *testing.T) {
 	t.Parallel()
 	first, diags := parseFull(t, mergeBoundOrderSpec(true))
@@ -459,7 +462,7 @@ func dynamicRefNotExpanded(pointer jsontext.Pointer) ir.Diagnostic {
 // mergeBoundOrderSpec writes one document whose resource boundary is reachable
 // only through a YAML merge chain, with the two schemas that walk it declared in
 // the given order. P's chain is 51 links and expands whole; Q's rides on P's tail
-// for 71, past nodeview's MergeDepthLimit of 64.
+// for 72, past nodeview's MergeDepthLimit of 64.
 func mergeBoundOrderSpec(pFirst bool) string {
 	var b strings.Builder
 	b.WriteString("openapi: 3.1.0\ninfo: {title: MergeBound, version: \"1\"}\npaths: {}\n")

@@ -396,8 +396,9 @@ func TestUnion_VariantHints(t *testing.T) {
 // wrapping it, and the wrapped branch names its variant for the $ref as 3.1's
 // `{$ref: X, description: …}` does. A branch that says anything about a value
 // beyond its annotations is a type of its own and keeps the positional hint.
-// Each row also holds the branch's own node to its positional hint, which an
-// outside $ref to the branch derives as well.
+// Each row also holds the branch's own node to the hint an outside $ref to the
+// branch derives: positional, or its target's name where the branch is itself a
+// $ref.
 func TestUnion_ADecoratedBranchIsHintedAsItsRef(t *testing.T) {
 	t.Parallel()
 	const pet = "'#/components/schemas/Pet'"
@@ -744,8 +745,9 @@ func TestOneOf_CoDeclaredDistributionIsOrderIndependent(t *testing.T) {
 	}
 }
 
-// TestNullCollapse_BranchHintIsOrderIndependent is TestComposition_Branch-
-// AliasIsOrderIndependent's rule at the site the collapse takes instead. The
+// TestNullCollapse_BranchHintIsOrderIndependent is
+// TestComposition_BranchAliasIsOrderIndependent's rule at the site the collapse
+// takes instead. The
 // collapse lowers the surviving branch at the branch pointer but used to hand it
 // the *enclosing* schema's hint, while an outside $ref naming that same pointer
 // derives variant_<index> through subSchemaHint — so whichever lowering arrived
@@ -896,7 +898,8 @@ func TestOneOf_CoDeclaredNonModelBranchIsCarriedAsWritten(t *testing.T) {
 // nothing, and each still reports the broken reference.
 //
 // It drives the lowering alone (lowerSpecOnly), so the report checked is the
-// lowering's own, at the branch pointer and without a reason. A full compile
+// lowering's own, at the branch pointer, with the reason the bindings give. A
+// full compile
 // keeps the load phase's report of the same $ref instead; see
 // TestCompile_AResolutionFailureIsReportedOnceAtItsRef.
 func TestOneOf_CoDeclaredUnresolvableBranchIsNotDistributed(t *testing.T) {
@@ -951,7 +954,7 @@ func TestOneOf_CoDeclaredUnresolvableBranchIsNotDistributed(t *testing.T) {
 // in the diagnostic (docs/compilers/openapi.md#union-beside-structure).
 // Half-distributing any of them would leave a Union whose variants disagree
 // about whether they carry the body. The messages are asserted, not just the
-// code: the reasons are the only thing telling four otherwise identical
+// code: the reasons are the only thing telling the otherwise identical
 // diagnostics apart.
 func TestOneOf_CoDeclaredNotDistributedReasons(t *testing.T) {
 	t.Parallel()
@@ -1027,7 +1030,6 @@ func TestUnionCombinators_CoDeclaredKeepsTheBoundsWrittenBesideIt(t *testing.T) 
 		reason                  ir.UnmodeledReason
 		want                    ir.Constraints
 		wantKept                []string
-		wantDiag                string
 	}{
 		{
 			name:     "a validation-only union",
@@ -1078,13 +1080,7 @@ func TestUnionCombinators_CoDeclaredKeepsTheBoundsWrittenBesideIt(t *testing.T) 
 			require.NotNil(t, sc.Constraints, "while keeping the bounds written beside it")
 			assert.Empty(t, cmp.Diff(tc.want, *sc.Constraints))
 			assert.Equal(t, tc.wantKept, unmodeledKeys(sc.Unmodeled),
-				"the bound keyword that reaches no Constraints field is kept on the same node")
-			if tc.wantDiag == "" {
-				return
-			}
-			assert.Contains(t,
-				openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/A"),
-				tc.wantDiag, "reading the bounds is what reports on them")
+				"the union is the only entry kept on the node")
 		})
 	}
 }

@@ -127,8 +127,9 @@ func TestExclusiveModifier_WithNoBoundIsKeptOnTheCarrierThatReadIt(t *testing.T)
 	}
 }
 
-// TestCoDeclaredBound_ASingleKeywordKeepsNothing is the other half of the case
-// above: a side writing one keyword has it in a field, so an entry restating it
+// TestCoDeclaredBound_ASingleKeywordKeepsNothing is the other half of
+// TestCoDeclaredBound_BothKeywordsReachTheCarriersConstraints: a side writing
+// one keyword has it in a field, so an entry restating it
 // would give one bound two homes and make the two source shapes indistinguishable
 // in the opposite direction.
 func TestCoDeclaredBound_ASingleKeywordKeepsNothing(t *testing.T) {

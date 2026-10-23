@@ -60,7 +60,7 @@ func TestKeywordHome_AnUnknownKeywordIsHomedNowhere(t *testing.T) {
 func TestKeywordHome_EveryCensusKeywordHasANodeThatCarriesIt(t *testing.T) {
 	t.Parallel()
 	// A declared scalar type, which is what homes `format` on a primitive and
-	// `type` on anything at all.
+	// `type` on a node of a scalar shape.
 	s := &oas3.Schema{Type: oas3.NewTypeFromString(oas3.SchemaTypeString)}
 	nodes := []ir.TypeDef{
 		&ir.Model{}, &ir.List{}, &ir.Tuple{}, &ir.Literal{}, &ir.Enum{},

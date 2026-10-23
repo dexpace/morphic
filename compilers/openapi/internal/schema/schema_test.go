@@ -127,10 +127,11 @@ const (
 )
 
 // vocabularyCases enumerates every keyword of the JSON Schema 2020-12
-// vocabularies — core (§8), applicator (§10), unevaluated (§11), validation
-// (§6), meta-data (§9), format-annotation (§7) and content (§8.3) — so a keyword
-// the compiler neither lowers nor keeps fails loudly instead of joining the ones
-// GitHub #125 found by hand.
+// vocabularies — core (§8), applicator (§10) and unevaluated (§11) of the core
+// specification, and validation (§6), format-annotation (§7), content (§8) and
+// meta-data (§9) of the validation specification — so a keyword the compiler
+// neither lowers nor keeps fails loudly instead of joining the ones GitHub #125
+// found by hand.
 func vocabularyCases() []vocabCase {
 	return append(append(append(
 		vocabularyCore(), vocabularyApplicator()...), vocabularyValidation()...),
@@ -458,9 +459,9 @@ func TestCoDeclaredFamily_EveryPassedOverKeywordIsKept(t *testing.T) {
 }
 
 // TestCoDeclaredFamily_UnpreservableIsNotAnnounced pins the pairing GitHub #144
-// exists for, at this site: the allOf fails to convert, so the enum lowers, the
-// failure is reported at the keyword, and nothing claims the composition
-// survived.
+// exists for, at this site: the enum is elected over the allOf, the allOf fails
+// to convert, the failure is reported at the keyword, and nothing claims the
+// composition survived.
 func TestCoDeclaredFamily_UnpreservableIsNotAnnounced(t *testing.T) {
 	t.Parallel()
 	doc, diags := lowerSpec(t, openapitest.ComponentSpec(`    S:
@@ -488,9 +489,9 @@ func unmodeledKeys(p ir.Unmodeled) []string {
 // one as the boolean `false` schema, which would close a model, forbid a
 // property and make a conjunct admit nothing; the compiler reads it as no
 // schema written. Each row is compared with its twin: an entry lowers as `{}`
-// does, a keyword as if left out, and a branch as `true` does. The lowering
-// reports what the twin does, and no false-schema: the load phase reports the
-// null itself.
+// does, a keyword as if left out, and a branch as `true` or `{}` does. The
+// lowering reports what the twin does, and no false-schema: the load phase
+// reports the null itself.
 func TestNullSchema_AnEntryIsTheEmptySchemaAndAKeywordIsLeftOut(t *testing.T) {
 	t.Parallel()
 	top := ir.TypeRef{Target: "t/prim/any"}

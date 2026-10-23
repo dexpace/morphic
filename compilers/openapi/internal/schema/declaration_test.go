@@ -157,8 +157,8 @@ func TestSchema_UnserializableExtension(t *testing.T) {
 // TestInlinePosition_DeclarationOwnsANode asserts that a schema declaring
 // position-scoped annotations at an inline position keeps every one of them, at
 // each position that has no carrier to hold them (GitHub #116). Before the fix
-// each of these lowered straight to the shared string primitive and dropped all
-// five plus the constraint, with no diagnostic.
+// each of these lowered straight to the shared string primitive and dropped
+// them all, with no diagnostic.
 func TestInlinePosition_DeclarationOwnsANode(t *testing.T) {
 	t.Parallel()
 	for _, pos := range inlinePositions() {
@@ -256,15 +256,14 @@ func TestInlinePosition_BareRefStaysDirect(t *testing.T) {
 }
 
 // TestInlinePosition_ReachedAgainWhileBuildingIsLeftToItsBuilder is GitHub
-// #749. A reference hoists a position whose body refers back to a position
-// above it that nothing has interned, so lowering that one walks down into the
-// first again while its build is still running. The revisit gets the ID back,
-// but there is no node yet to attach its declaration to: the frame building it
-// does that once its build returns.
+// #749: written reference first, a $ref reaching back above a node still being
+// built once found it unbuilt and attached nothing. A reference now only
+// promises its target, so no walk revisits a node mid-build, and the guards for
+// one are pinned by the LeavesANodeStillBeingBuiltToItsBuilder tests.
 //
-// Each row is written reference first, the order that crashed, and must match
-// the declaration-first order: the revisited node keeps the description,
-// unhomed format and, at a HomeOwnNode position, readOnly it declares.
+// Each row is written reference first and must match the declaration-first
+// order: the node keeps the description, unhomed format and, at a HomeOwnNode
+// position, readOnly it declares.
 func TestInlinePosition_ReachedAgainWhileBuildingIsLeftToItsBuilder(t *testing.T) {
 	t.Parallel()
 	const (
@@ -390,7 +389,7 @@ func TestInlinePosition_ReachedAgainWhileBuildingIsLeftToItsBuilder(t *testing.T
 
 // TestInlinePosition_OutsideRefDoesNotMoveTheHome pins that a $ref naming an
 // inline position does not change what the component lowers to. Such a $ref
-// hoists the position's home before the position is reached, and the position
+// names the position's home ahead of its declaration, and the position
 // must not then take the shared node its body reduced to, which would leave the
 // annotations on a node only the outside reference sees and resolve `items` to
 // the bare primitive: a declaration-order dependence ir-design §4.3 rules out.
@@ -425,8 +424,9 @@ func TestInlinePosition_OutsideRefDoesNotMoveTheHome(t *testing.T) {
 
 // TestInlinePosition_HoistGateFollowsWhatIsKept walks every keyword that only a
 // node of its own can hold, one at a time, and requires each to give the
-// position that node. The gate and the two things that fill it —
-// attachDeclaredAnnotations and internAlias — have to agree keyword for
+// position that node. The gate and the three things that fill it —
+// attachDeclaredAnnotations, internAlias and recordDeclarationResidue — have to
+// agree keyword for
 // keyword: one listed here but stored nowhere hoists an empty node, and one
 // stored but missing here is still dropped.
 func TestInlinePosition_HoistGateFollowsWhatIsKept(t *testing.T) {
@@ -680,10 +680,10 @@ func stolenPositions() []stolenPosition {
 }
 
 // assertResidueKeptAndAnnounced checks one residue keyword's entry and its
-// diagnostic together. The external test package has assertResidueKept and
-// assertResidueDiag for the same job in two calls; this package cannot reach
-// them, so the pairing lives here under a name that is not a transposition of
-// either.
+// diagnostic together. compilers/openapi's annotations_test.go has
+// assertResidueKept and assertResidueDiag for the same job in two calls; this
+// package cannot import them, so the pairing lives here under a name that is
+// not a transposition of either.
 func assertResidueKeptAndAnnounced(t *testing.T, p ir.Unmodeled, diags []ir.Diagnostic, keyword, wantJSON string) {
 	t.Helper()
 	entry, ok := p["openapi:"+keyword]

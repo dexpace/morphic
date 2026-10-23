@@ -219,10 +219,9 @@ func TestEncoding_NestedEncodingsAreKeptAtEveryVersion(t *testing.T) {
 	}
 }
 
-// encodingSpec declares one form part per position an Encoding Object reaches:
-// a multipart part, and a 3.2 sequential itemEncoding. Each writes the two
-// things ir.PartEncoding has no field for, so both positions are exercised by
-// the one fixture.
+// encodingSpec declares one form-urlencoded part, q, whose Encoding Object
+// writes the two things ir.PartEncoding has no field for, allowReserved and an
+// x-* extension, beside a style it does.
 const encodingSpec = `  /form:
     post:
       operationId: postForm

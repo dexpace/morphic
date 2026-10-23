@@ -37,8 +37,9 @@ func TestLower_DepthCapExceeded(t *testing.T) {
 
 // TestRecordSkippedFamilies_MissingOwner drives the same invariant on the
 // keyword families the dispatch passed over. It is reached directly for the
-// reason its unhomed-applicator twin is: the caller hands it either the node it
-// just looked up or one internAlias just interned, so no source reaches this.
+// reason TestRecordUnhomedKeywords_MissingOwner is: the caller hands it either
+// the node it just looked up or one internAlias just interned, so no source
+// reaches this.
 func TestRecordSkippedFamilies_MissingOwner(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
@@ -54,8 +55,8 @@ func TestRecordSkippedFamilies_MissingOwner(t *testing.T) {
 // It guards the direction the default falls. Answering an unknown name from
 // another family's guard would let a familyOrder entry added without a case be
 // elected on schemas that never wrote it — and a winner lower() has no arm for
-// is dropped in silence, which is what this file exists to prevent. Declaring
-// nothing keeps such a name out of the election entirely.
+// is dropped in silence (GitHub #35). Declaring nothing keeps such a name out
+// of the election entirely.
 func TestDeclaresFamily_AnUnknownNameDeclaresNothing(t *testing.T) {
 	t.Parallel()
 	withAllOf := &oas3.Schema{AllOf: []*oas3.JSONSchema[oas3.Referenceable]{

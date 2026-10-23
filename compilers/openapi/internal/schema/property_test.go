@@ -15,9 +15,10 @@ import (
 
 func TestProperty_UnquotedDateDefaultPreserved(t *testing.T) {
 	t.Parallel()
-	// The repro's default sits at the component level, which nothing lowers by
-	// itself; this covers the path that actually surfaces the bug in practice —
-	// a date default declared on an object property.
+	// TestEnum_UnquotedDatesStayClosedEnum's default sits at the component
+	// level, which nothing lowers by itself; this covers the path that actually
+	// surfaces the bug in practice — a date default declared on an object
+	// property.
 	spec := openapitest.ComponentSpec(`    S:
       type: object
       properties:
@@ -231,8 +232,9 @@ func TestSchema_RefTargetReadOnlyVisibility(t *testing.T) {
 	assert.NotEmpty(t, m.Properties[0].Visibility.Only, "readOnly from the ref target applies")
 }
 
-// TestPropertyAnnotations_KeptWhenAnOutsideRefNamesTheProperty covers the same
-// collision at a position that has a carrier. A $ref naming a property's schema
+// TestPropertyAnnotations_KeptWhenAnOutsideRefNamesTheProperty covers
+// TestInlinePosition_OutsideRefDoesNotMoveTheHome's collision at a position
+// that has a carrier. A $ref naming a property's schema
 // pointer hoists a node there, and the property then read that node as its own
 // home and left its annotations to it — on top of the copy it had already
 // written when it lowered first, and instead of any copy at all when it lowered
@@ -351,8 +353,8 @@ func TestPropertyDocs_RefTargetReachesTheCarrier(t *testing.T) {
 
 // TestPropertyDocs_UseSiteWinsKeywordByKeyword pins the other half: a keyword
 // written beside the $ref replaces that field and only that field, the rest
-// still arriving from the referent. Taking either schema whole passes one of
-// these subtests and fails the other two.
+// still arriving from the referent. Taking either schema whole fails every
+// subtest.
 func TestPropertyDocs_UseSiteWinsKeywordByKeyword(t *testing.T) {
 	t.Parallel()
 	for _, written := range carrierDocKeywords() {

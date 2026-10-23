@@ -108,11 +108,11 @@ func TestDiscriminatorDefault_EmptyIsNoOp(t *testing.T) {
 // TestResolveMappingTarget_Branches pins each answer resolveMappingTarget can
 // give. A declared name or component resolves through mappingTargetID. An
 // external reference, an undeclared component and a position the document
-// does not declare are refused, and intern nothing. A declared position is
-// hoisted, a bare scalar property included: its model carries it, so it
-// interns no node of its own until something asks for one, and
-// mappingTargetID alone cannot reach it
-// (TestMappingTargetID_FallsBackToAnInternedPointer pins that side).
+// does not declare are refused, and intern nothing. A declared position, a
+// bare scalar property included, resolves to the ID its pointer derives, as
+// mappingTargetID names it (TestMappingTargetID_NamesAPositionByItsPointer),
+// and its node is promised: its model carries it, so it interns no node of its
+// own until every declaration has lowered.
 func TestResolveMappingTarget_Branches(t *testing.T) {
 	t.Parallel()
 	l, _ := loweredFor(t, openapitest.ComponentSpec(`    Cat: {type: string}
@@ -223,9 +223,9 @@ func TestMappingTargetID_ReadsEachPositionOnce(t *testing.T) {
 // TestResolveMappingTarget_DefsValueNamesItsOwnInternedSibling drives the
 // success path end to end: Pet's discriminator mapping values are
 // "#/$defs/..." pointers naming Pet's own sibling definitions — the same
-// definitions its oneOf branches already interned while lowering Pet — so the
-// mapping and the oneOf branch it tags resolve to the same ID, and each tag
-// keeps its own shape (GitHub #557).
+// definitions its oneOf branches name — so the mapping and the oneOf branch it
+// tags promise the same pointer-derived ID, one node is built for both, and
+// each tag keeps its own shape (GitHub #557).
 func TestResolveMappingTarget_DefsValueNamesItsOwnInternedSibling(t *testing.T) {
 	t.Parallel()
 	doc, diags := lowerSpec(t, openapitest.ComponentSpec(defsSiblingMappingSchemas))
@@ -256,7 +256,7 @@ func TestResolveMappingTarget_DefsValueNamesItsOwnInternedSibling(t *testing.T) 
 
 	require.Len(t, u.Variants, 2)
 	variantTargets := []ir.TypeID{u.Variants[0].Type.Target, u.Variants[1].Type.Target}
-	assert.Contains(t, variantTargets, catID, "the mapping names the same node its oneOf branch interned")
+	assert.Contains(t, variantTargets, catID, "the mapping names the node its oneOf branch names")
 	assert.Contains(t, variantTargets, dogID)
 }
 

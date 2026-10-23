@@ -177,10 +177,7 @@ func TestAllOf_InlineSubtypeDiscriminatorValueFromMapping(t *testing.T) {
 // branch is an intermediate that declares no discriminator, so the key is only
 // reachable by walking past the immediate parent (GitHub #305).
 //
-// This lives here rather than in the conformance corpus because pass.Validate
-// still rejects a transitive mapping target as a missing variant (GitHub #52),
-// and every corpus spec has to clear that sweep. The corpus witnesses the same
-// walk through the implicit-name spelling, which needs no mapping entry.
+// The conformance case discriminator-transitive.yaml witnesses the same walk.
 func TestAllOf_DiscriminatorValueFromDistantMapping(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    Pet:
@@ -884,7 +881,7 @@ func TestDiscriminatorMapping_NamesTheVariantNamingThePosition(t *testing.T) {
 		version    string
 		components []string
 		tail       string
-		variant    ir.TypeID // what the variant names, as on main
+		variant    ir.TypeID // what the variant names
 		isDefault  bool      // the discriminator's defaultMapping, not its mapping c
 	}{
 		{
@@ -1063,11 +1060,11 @@ func TestDiscriminatorBesideUnion_LeavesAMapWhenItMoves(t *testing.T) {
 	}
 }
 
-// TestDiscriminatorBesideUnion_SettlesAMapAReferenceBuiltFirst is
-// TestDiscriminatorBesideUnion_SettlesAPositionAReferenceBuiltFirst over a map
-// body. Of the two settlements deferred for the position, the first moves the
-// discriminator and leaves the MapT; the second finds that map and leaves it.
-func TestDiscriminatorBesideUnion_SettlesAMapAReferenceBuiltFirst(t *testing.T) {
+// TestDiscriminatorBesideUnion_SettlesAMapAReferenceNamesFirst is
+// TestDiscriminatorBesideUnion_SettlesAPositionAReferenceNamesFirst over a map
+// body: the reference builds nothing, so the one settlement the declaration
+// defers moves the discriminator and leaves the MapT, in either order.
+func TestDiscriminatorBesideUnion_SettlesAMapAReferenceNamesFirst(t *testing.T) {
 	t.Parallel()
 	const at = "/components/schemas/Holder/properties/pet"
 	outside := "    Outside: {$ref: '#/components/schemas/Holder/properties/pet'}\n"
@@ -1433,8 +1430,7 @@ components:
 // whichever order the document declares things in (GitHub #757). Each row is
 // written in the order that failed, with the mapping before any $ref to its
 // target, and compiled again reversed. Neither compile may report an error,
-// and both must produce the same registry, except for the row that records why
-// not.
+// and both must produce the same registry.
 func TestDiscriminatorMapping_ToRawTargetsIsOrderInvariant(t *testing.T) {
 	t.Parallel()
 	const (
@@ -1452,8 +1448,6 @@ func TestDiscriminatorMapping_ToRawTargetsIsOrderInvariant(t *testing.T) {
 		components []string
 		tail       string
 		wants      []wantMapping
-		// registryDiffers, when set, is why the two registries may differ.
-		registryDiffers string
 	}{
 		{
 			name:       "an extension's value named by a mapping alone",
@@ -1480,8 +1474,6 @@ func TestDiscriminatorMapping_ToRawTargetsIsOrderInvariant(t *testing.T) {
 			// A member that is an object is lowered to a literal, which no model
 			// subtypes, so only the resolution is pinned here, not a variant.
 			wants: []wantMapping{{pet, "e", anon("components/schemas/Kennel/properties/e/enum/0"), ir.KindLiteral}},
-			registryDiffers: "a reference to an enum member also lowers it as a schema in one order, " +
-				"interning the member's property types too (GitHub #730)",
 		},
 		{
 			name:       "a defaultMapping to an extension's value",
@@ -1543,10 +1535,6 @@ func TestDiscriminatorMapping_ToRawTargetsIsOrderInvariant(t *testing.T) {
 				}
 			}
 
-			if tc.registryDiffers != "" {
-				t.Log(tc.registryDiffers)
-				return
-			}
 			assert.Empty(t, cmp.Diff(first.Types, last.Types),
 				"declaring the mapping before or after what names its target must not change the registry")
 		})

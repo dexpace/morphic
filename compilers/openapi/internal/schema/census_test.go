@@ -134,7 +134,7 @@ func TestUnhomedKeywords_ElectedLoweringKeepsWhatItCannotRead(t *testing.T) {
 		// that carries it.
 		{"unique items on a string", "{type: string, uniqueItems: true}",
 			ir.KindScalar, []string{"openapi:uniqueItems"}},
-		// The control: the one node that does carry them keeps nothing.
+		// The control: a node that does carry them keeps nothing.
 		{"collection bounds on an array", "{type: array, items: {type: string}, minItems: 3, maxItems: 9, uniqueItems: true}",
 			ir.KindList, nil},
 	} {

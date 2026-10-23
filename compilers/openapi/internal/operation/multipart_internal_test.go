@@ -24,9 +24,9 @@ import (
 // TestBodyModelPointer_NoModelBehindBody covers the walk's dead ends on a
 // hand-built registry: an ID nothing declares, an opaque scalar, a kind that is
 // no model, and an alias chain that closes on itself. The last is what the bound
-// is for: a $ref cycle compiles rather than being refused at load, so nothing
-// upstream keeps a chain from closing, and a walk that relied on that would loop
-// forever.
+// is for: no compile builds a closed alias chain, since a loop of $refs lowers
+// to the top type, but the walk reads whatever registry it is handed, and
+// without the bound would loop forever on one.
 func TestBodyModelPointer_NoModelBehindBody(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
@@ -124,7 +124,7 @@ func TestBodySchemaPointer_NonUTF8FragmentStaysLocal(t *testing.T) {
 	assert.Equal(t, local, keyedAt(l.ctx, js), "a fragment that is not UTF-8 must not become a pointer")
 }
 
-// TestBodySchemaPointer_UnresolvedRefStaysLocal pins the last reason: a $ref
+// TestBodySchemaPointer_UnresolvedRefStaysLocal pins another reason: a $ref
 // naming nothing lands nowhere, so it keys no encoding entry by a position the
 // document does not hold. A scope with no bindings lands none either.
 func TestBodySchemaPointer_UnresolvedRefStaysLocal(t *testing.T) {
@@ -151,8 +151,8 @@ func TestBodySchemaPointer_NilSchema(t *testing.T) {
 }
 
 // TestPropByWire_DeadEnds mirrors TestBodyModelPointer_NoModelBehindBody for
-// the property walk: the same dead ends, asked for a part name rather than a
-// pointer. Neither may invent an ID — a part keyed by a PropID nothing declares
+// the property walk: the same dead ends and a Base chain that closes on itself,
+// asked for a part name rather than a pointer. Neither may invent an ID — a part keyed by a PropID nothing declares
 // is a dangling reference the encoding map would carry silently.
 func TestPropByWire_DeadEnds(t *testing.T) {
 	t.Parallel()
@@ -250,7 +250,7 @@ func refSite(t *testing.T, ref string) (*lowerer, *oas3.JSONSchema[oas3.Referenc
 	return l, refComponent(t, l)
 }
 
-// local is the source's "/local", the pointer every keyedAt below falls back to.
+// local is the source's "/local", the pointer keyedAt falls back to.
 var local = keyed{pointer: "/local"}
 
 // keyedAt is bodySchemaPointer's answer for js under c, falling back to

@@ -94,10 +94,10 @@ func TestEscapedComponentName_DecodesInDiscriminatorValueAndHints(t *testing.T) 
 }
 
 // TestComposition_BranchAliasIsOrderIndependent pins the hint on the node a
-// composition branch and an outside $ref both reach. Only the first lowering to
-// arrive interns it, so the two must derive the same hint or the document
-// depends on declaration order — silently, since either spelling is a valid hint
-// and no check compares them.
+// composition branch and an outside $ref both reach, declared in either order.
+// The $ref only promises the node, so the branch's lowering builds it under the
+// hint it recorded; a hint that followed declaration order would pass every
+// other check, since either spelling is a valid hint.
 //
 // The registry is compared on its own, name hints included: the hint *is* what
 // differed.
@@ -142,15 +142,14 @@ func TestLower_InlineSchemaHoistedOnce(t *testing.T) {
 }
 
 // TestInlinePosition_HintIsTheSameInBothOrders pins the spelling each inline
-// position takes, not only that the two orders agree (GitHub #353): agreement
-// alone is satisfied by both namers producing the weaker name. The table says
-// which won, the structural spelling composed from the enclosing node's hint
-// and the position's role.
+// position takes, not only that the two orders agree (GitHub #353): the
+// structural spelling composed from the enclosing node's hint and the
+// position's role, whichever order an outside $ref is declared in.
 //
-// A row with no refAt aims the outside $ref at the node it asserts, and cannot
-// see a role missing from structuralRoles: the declaration renames that node in
-// either order (#372). The collision surfaces one level below, so a row meant
-// to guard a role aims the reference above the node it asserts, per refAt.
+// refAt says where that $ref aims, at the node asserted or above it. A
+// reference only promises a node, so the declaration names each one in either
+// order; the rows pin the spelling the SubHint call sites give, and
+// TestPositionHint_Shapes the one structuralRoles replays.
 func TestInlinePosition_HintIsTheSameInBothOrders(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -183,29 +182,27 @@ func TestInlinePosition_HintIsTheSameInBothOrders(t *testing.T) {
 			openapitest.InlineProbeBody + "}\n",
 			"t/anon/components/schemas/A/contentSchema", "a_content", ""},
 		// The reference is aimed at contentSchema and the assertion at what is
-		// under it: pointed at the asserted node instead, this row passes with the
-		// contentSchema role removed, because the declaration renames that node
-		// itself.
+		// under it.
 		{"items under contentSchema", "    A: {type: string, contentMediaType: application/json, " +
 			"contentSchema: {type: array, items: " + openapitest.InlineProbeBody + "}}\n",
 			"t/anon/components/schemas/A/contentSchema/items", "a_content_item",
 			"t/anon/components/schemas/A/contentSchema"},
-		// Aimed at a tuple's rest for the same reason: a rest named by a role of
-		// its own would part from the /items a reference replays.
+		// Aimed at a tuple's rest: a rest named by a role of its own would part
+		// from the /items a pointer walk replays.
 		{"items under a tuple rest", "    A: {type: array, prefixItems: [{type: string}], items: {type: array, items: " +
 			openapitest.InlineProbeBody + "}}\n",
 			"t/anon/components/schemas/A/items/items", "a_item_item",
 			"t/anon/components/schemas/A/items"},
-		// Aimed at additionalProperties for the same reason.
+		// Aimed at additionalProperties.
 		{"items under additionalProperties", "    A: {type: object, additionalProperties: {type: array, items: " +
 			openapitest.InlineProbeBody + "}}\n",
 			"t/anon/components/schemas/A/additionalProperties/items", "a_value_item",
 			"t/anon/components/schemas/A/additionalProperties"},
 		// The remaining rows put a key spelled like a keyword, or a branch's
 		// ordinal, on the way from the component to refAt (GitHub #518), and
-		// assert a node beneath refAt for the reason above: a reading that takes
-		// the key for the keyword, or the ordinal for the branch's hint, shows
-		// only in the names beneath the node the reference aims at.
+		// assert a node beneath refAt: a reading that takes the key for the
+		// keyword, or the ordinal for the branch's hint, shows in the names
+		// beneath it.
 		{"a property named items is not the items keyword",
 			"    A: {type: object, properties: {items: {type: array, items: " +
 				openapitest.InlineProbeBody + "}}}\n",
@@ -282,8 +279,9 @@ func TestInlinePosition_UnderPathsIsNamedByItsDeclaration(t *testing.T) {
 	refFirst, diags := parseFull(t, "openapi: 3.1.0\ninfo: {title: O, version: \"1.0.0\"}\n"+outsider+op)
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	// The reference lowers first in both spellings — components lower before
-	// paths — so both of these used to read "items".
+	// The reference is a component, which lowers before the path declaring the
+	// position, so it is reached first in both spellings; it only promises the
+	// node, which the declaration names.
 	assert.Equal(t, "response_item", ownerFirst.Types[id].Common().Name.Hint,
 		"the declaration names it, whichever order the two blocks are written in")
 	assert.Equal(t, "response_item", refFirst.Types[id].Common().Name.Hint,
@@ -397,7 +395,7 @@ func TestPureRefPosition_UnderPathsIsNamedByItsDeclaration(t *testing.T) {
 	assert.Equal(t, "response_item", bFirst.Types[id].Common().Name.Hint,
 		"the declaration's hint is recorded and survives even though it interns nothing itself")
 	assert.Equal(t, "response_item", aFirst.Types[id].Common().Name.Hint,
-		"and the other order was already correct, from the declaration replacing the reference's guess")
+		"and in the other order too")
 }
 
 // TestAlias_CarriesTheBoundsWrittenBesideIt pins that an alias a position

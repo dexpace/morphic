@@ -411,8 +411,8 @@ components:
     Rate: {schema: {type: string, enum: [a, b]}}
 `
 
-// headerAt returns the one header the fixtures above declare, whichever of the
-// two positions carries it.
+// headerAt returns the one header a serialization fixture declares, whichever
+// of the two positions carries it.
 func headerAt(t *testing.T, op ir.Operation) ir.Property {
 	t.Helper()
 	if len(op.Responses) > 0 && len(op.Responses[0].Headers) > 0 {

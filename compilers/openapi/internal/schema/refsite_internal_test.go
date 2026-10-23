@@ -22,8 +22,9 @@ import (
 // TestRefTypeRef_SaysWhyAnUnboundRefIsUnresolved pins the reasons refTypeRef
 // gives for a $ref the bindings hold no answer of their own for: none where
 // there are no bindings, why the table never read one past the merge bound,
-// and none for one landing where the bindings hold no schema, as when building
-// one failed, which the load phase reports.
+// none for one landing where the bindings hold no schema, as when building one
+// failed, which the load phase reports, and why the table could not place what
+// a reference object resolved to.
 func TestRefTypeRef_SaysWhyAnUnboundRefIsUnresolved(t *testing.T) {
 	t.Parallel()
 	message := func(t *testing.T, l *lowerer, js *oas3.JSONSchema[oas3.Referenceable]) string {

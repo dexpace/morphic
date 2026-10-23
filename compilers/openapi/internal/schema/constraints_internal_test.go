@@ -35,10 +35,10 @@ func TestConstraintsOf_NonSchemaInputs(t *testing.T) {
 }
 
 // TestConstraintsOf_EmptyRefSchema covers a $ref pointer that is present but
-// empty: IsReference is false for it, so annotation.SchemaOf has no early
-// return here — the Schema body reaches ConstraintsOf, which finds no
-// constraint keywords on a body that carries only Ref. The parser never emits
-// this shape, so it is built by hand.
+// empty: annotation.At reads it as a declaration, since IsReference is false
+// for it, and SchemaOf returns its body like any other, so ConstraintsOf meets
+// a body that carries only Ref and finds no constraint keywords. The parser
+// never emits this shape, so it is built by hand.
 func TestConstraintsOf_EmptyRefSchema(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})

@@ -267,10 +267,12 @@ func TestHoistedScalar_ReportsABoundItCannotConvert(t *testing.T) {
 	}
 }
 
-// TestContentVocabulary_KeptWhereNoEncodingHolds covers the other half: a
-// position that lowered to a shape with no Encoding field to fill keeps every
-// content keyword verbatim, contentSchema included — the three share one home,
-// so they are kept or lowered together.
+// TestContentVocabulary_KeptWhereNoEncodingHolds covers the other half of
+// TestContentVocabulary_LowersToEncoding: a position that lowered to a shape
+// with no Encoding field to fill keeps every content keyword verbatim,
+// contentSchema included — the three share one home, so they are kept or
+// lowered together — and a format that loses Encoding.Name to contentEncoding
+// is kept beside it.
 func TestContentVocabulary_KeptWhereNoEncodingHolds(t *testing.T) {
 	t.Parallel()
 	cases := []struct {

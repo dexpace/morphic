@@ -87,9 +87,8 @@ func TestContent_MixedCaseFormContentKeepsEncoding(t *testing.T) {
 
 // TestContent_MixedCaseURLEncodedKeepsPartEncoding drives the form arm with
 // spellings of application/x-www-form-urlencoded that differ in case, in
-// parameters, or in both. The body declares no explicit encoding: document
-// validation refuses one beside a parameterized key (#623), so the part's
-// encoding is the one the lowering synthesizes for a repeated part.
+// parameters, or in both. The body declares no explicit encoding, so the
+// part's encoding is the one the lowering synthesizes for a repeated part.
 func TestContent_MixedCaseURLEncodedKeepsPartEncoding(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -318,7 +317,7 @@ func TestContent_FullPipeline(t *testing.T) {
 	assert.True(t, hasLinks)
 
 	assert.False(t, openapitest.HasDiag(diags, diag.DegradedConstruct),
-		"every construct this spec declares has a typed home; got %+v", diags)
+		"nothing this spec declares is degraded; links are kept verbatim without a report; got %+v", diags)
 }
 
 func TestContent_OctetAndErrorMulti(t *testing.T) {
@@ -431,7 +430,7 @@ components:
 // component's declaration, so a use-site hint — the referencing operationId for
 // a body, the map key for a header — would name the one shared node after
 // whichever reference happened to lower first. Naming.Hint is what emitters
-// render from, so "postA_request" on a body two operations share is a wrong
+// render from, so "post_a_request" on a body two operations share is a wrong
 // name, not a cosmetic one. The hint is the component name in neutral words,
 // which is what every name channel in the IR carries (invariant 4).
 func TestContent_SharedComponentSchemaTakesItsDeclarationHint(t *testing.T) {

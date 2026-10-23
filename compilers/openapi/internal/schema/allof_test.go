@@ -548,7 +548,7 @@ func TestAllOf_CompositionRequiredAttaches(t *testing.T) {
 			wire:  "id",
 		},
 		{
-			name: "required-only branch, property declared alongside allOf (mirrors allof_required.yaml's Bar)",
+			name: "required-only branch, property declared alongside allOf",
 			spec: openapitest.ComponentSpec(`    Foo:
       type: object
       properties:
@@ -1126,7 +1126,7 @@ func TestAllOf_MultiRefWithUnresolvedDoesNotAnchor(t *testing.T) {
 }
 
 // TestAllOf_BoolBranchSkippedInCompositionRequired covers an allOf branch that
-// is a bare boolean schema (`true` or `false`) rather than a $ref or an inline
+// is a bare boolean schema (`true` here) rather than a $ref or an inline
 // object, so b.GetSchema() returns nil for it. It pins that the bool branch
 // contributes no required names, while the sibling object branch's property and
 // required still lower normally.
@@ -1220,9 +1220,10 @@ func TestAllOf_ANullOnARefOverTheTopTypeIsKept(t *testing.T) {
 	}
 }
 
-// TestAllOf_NonBareNarrowingIsOrderInvariant pins that a redeclaration whose
-// narrower side is not a bare primitive settles on that side whichever branch
-// is written first, with no diagnostic and nothing kept.
+// TestAllOf_NonBareNarrowingIsOrderInvariant pins that a redeclaration with a
+// side that is not a bare primitive settles on its narrower side whichever
+// branch is written first, with no conflict or degradation reported and
+// nothing kept.
 func TestAllOf_NonBareNarrowingIsOrderInvariant(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -1231,7 +1232,7 @@ func TestAllOf_NonBareNarrowingIsOrderInvariant(t *testing.T) {
 	}{
 		{"an enum over its kind", "", "{type: integer, enum: [1, 2]}", "{type: integer}", ir.KindEnum},
 		{"a const over its kind", "", "{const: 1}", "{type: integer}", ir.KindLiteral},
-		{"an untyped, described schema", "", "{description: the id}", "{type: integer}", ir.KindPrimitive},
+		{"an untyped, described schema", "", "{type: integer}", "{description: the id}", ir.KindPrimitive},
 		{"a list of a narrower kind", "", "{type: array, items: {type: integer, format: int32}}",
 			"{type: array, items: {type: integer}}", ir.KindList},
 		{"a map of a narrower kind", "", "{type: object, additionalProperties: {type: integer, format: int32}}",
@@ -1267,7 +1268,7 @@ func TestAllOf_NonBareNarrowingIsOrderInvariant(t *testing.T) {
 
 // TestAllOf_AnUnknownFormatWinsInEitherOrder pins GitHub #782: a format that
 // hoists a Scalar over the bare kind narrows it whichever branch is first, and
-// the plain branch's details fold in rather than the format's being parked.
+// the format's own details land on the field rather than being parked.
 func TestAllOf_AnUnknownFormatWinsInEitherOrder(t *testing.T) {
 	t.Parallel()
 	plain := "{type: string}"
@@ -2380,10 +2381,10 @@ func TestAllOf_DistinctInlineObjectsDoNotConflict(t *testing.T) {
 
 func TestAllOf_ConstraintAndFormatConflictsDiagnosed(t *testing.T) {
 	t.Parallel()
-	// Each way a redeclaration can contradict across branches: an inclusive vs
-	// exclusive bound of equal magnitude, a differing pattern, a differing
-	// multipleOf, a bound and a multipleOf that differ past the magnitude a
-	// rational will build, and two format-derived primitives (uuid vs date-time).
+	// Each way a redeclaration can contradict across branches: a differing
+	// minimum, exclusiveMinimum, pattern or multipleOf, a bound and a multipleOf
+	// that differ past the magnitude a rational will build, and two
+	// format-derived primitives (uuid vs date-time).
 	// Each keeps the first declaration but surfaces exactly one conflict naming
 	// the field, both branch sites, and — for the constraint cases — the
 	// offending keyword with both of its conflicting values, so the author
@@ -2610,9 +2611,9 @@ func TestAllOf_OpaqueScalarVsPrimitiveNoConflict(t *testing.T) {
 
 func TestAllOf_ThreeWayRedeclarationProducesTwoDiagnostics(t *testing.T) {
 	t.Parallel()
-	// When three allOf branches declare the same field with different types,
-	// reconciliation runs twice: branch[1] vs branch[0], then branch[2] vs branch[0].
-	// Each incompatible pair produces one diagnostic, so we expect two total.
+	// Three branches typing one field differently fold as one set: the first
+	// declaration wins, and each other is reported against it, so two
+	// diagnostics, though all three pairs are incompatible.
 	spec := openapitest.ComponentSpec(`    ThreeWay:
       allOf:
         - type: object
@@ -2658,8 +2659,7 @@ func TestAllOf_SatisfiableNarrowingsStaySilent(t *testing.T) {
 	// Each case narrows a base type to a stricter but satisfiable shape under
 	// allOf intersection (enum of the base's own primitive, const pinning a
 	// legal value, a union narrowed to one of its own members) — none is a
-	// provable contradiction. isStructuralType treats Enum, Union, and Literal
-	// as scalar-compatible, so a bare scalar sibling against any of these must
+	// provable contradiction, so a bare scalar sibling against any of these must
 	// not be flagged.
 	cases := []struct {
 		name, a, b string
@@ -2682,9 +2682,7 @@ func TestAllOf_EnumVersusIncompatibleTypeStillConflicts(t *testing.T) {
 	t.Parallel()
 	// Guard against over-correcting the enum false-positive fix: an enum whose
 	// declared ValueType is string still provably conflicts with an
-	// incompatible primitive (integer). Enum now resolves via resolvePrimKind
-	// instead of being treated as opaque structural data, so this comparison
-	// goes through the same aok&&bok path as two plain scalars.
+	// incompatible primitive (integer).
 	_, diags := lowerSpec(t, allOfConflictSpec(
 		"{type: string, enum: [active, inactive]}", "{type: integer}"))
 	openapitest.RequireNoErrorDiags(t, diags)
@@ -2712,8 +2710,8 @@ func TestAllOf_PropertyAlongsideAllOfConflictMessageIsAccurate(t *testing.T) {
 	// field the inline branch also declares. The redeclaration's provenance
 	// pointer here is a plain "properties/id" path, never an "allOf/N" branch,
 	// so the message must not claim "allOf branches redeclare" — it must read
-	// correctly for a co-declared sibling property too (mergeProperty folds
-	// both cases the same way; see its doc comment).
+	// correctly for a co-declared sibling property too (merge.PropIndex's
+	// MergeProperty folds both cases the same way; see its doc comment).
 	spec := openapitest.ComponentSpec(`    Along:
       type: object
       properties:
@@ -2758,7 +2756,8 @@ func TestAllOf_FalseBranchClosesTheComposition(t *testing.T) {
 	assert.True(t, openapitest.HasDiagAt(diags, diag.FalseSchema, ir.SeverityInfo), "and it is announced")
 }
 
-// TestAllOf_UnpreservableBranchIsNotAnnounced is the same pairing on the
+// TestAllOf_UnpreservableBranchIsNotAnnounced is
+// TestUnhomedApplicator_UnpreservableKeywordIsNotAnnounced's pairing on the
 // composition path: a branch the merge does not consume whole is normally kept
 // beside the model and reported, and when the keeping fails the report must not
 // happen either.
@@ -2788,7 +2787,8 @@ func compileView(t *testing.T, m string) (composedView, []string) {
 
 // equivalencePairs are (nested, flat) spellings of one composition M. Each
 // nested spelling must lower as its flat one does
-// (docs/compilers/openapi.md#allof-classification), at any depth.
+// (docs/compilers/openapi.md#allof-classification), at any depth up to
+// MaxAllOfFlattenDepth.
 var equivalencePairs = []struct {
 	name   string
 	nested string
