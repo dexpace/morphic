@@ -331,17 +331,26 @@ func TestRecognize_ReadsAVersionKeyThroughAMergeKey(t *testing.T) {
 
 // TestRecognize_AReadCutShortIsReported pins that the bound never passes for a
 // decline: the source may be this compiler's own, so detection says why it
-// could not tell.
+// could not tell. That holds whatever the chain holds, a version or another
+// format's keys, since what lies past the bound is what went unread.
 func TestRecognize_AReadCutShortIsReported(t *testing.T) {
 	t.Parallel()
-	src := openapitest.RootMergeChain(nodeview.MergeDepthLimit+1, "openapi: 3.1.0", "")
-	_, diags, ok := recognize(string(src))
+	for name, leaf := range map[string]string{
+		"a version past the bound":      "openapi: 3.1.0",
+		"another format past the bound": "kind: Deployment",
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			src := openapitest.RootMergeChain(nodeview.MergeDepthLimit+1, leaf, "")
+			_, diags, ok := recognize(string(src))
 
-	assert.False(t, ok)
-	require.Len(t, diags, 1)
-	assert.Equal(t, diag.BudgetExceeded, diags[0].Code)
-	assert.Equal(t, ir.SeverityError, diags[0].Severity, "it is the whole reason the source went unclaimed")
-	assert.Contains(t, diags[0].Message, fmt.Sprint(nodeview.MergeDepthLimit))
+			assert.False(t, ok)
+			require.Len(t, diags, 1)
+			assert.Equal(t, diag.BudgetExceeded, diags[0].Code)
+			assert.Equal(t, ir.SeverityError, diags[0].Severity, "it is the whole reason the source went unclaimed")
+			assert.Contains(t, diags[0].Message, fmt.Sprint(nodeview.MergeDepthLimit))
+		})
+	}
 }
 
 // TestRecognize_AMergeCycleHidesNoKey pins the other way a root's merges can stop
