@@ -10,12 +10,14 @@ import (
 
 // Recognize reads the dialect data declares, data being the source at srcIndex:
 // the discriminating key it writes and its version's major.minor prefix, with
-// the parse that read them. maxBytes bounds that parse, zero being none: data
-// past it is declined unread, with the refusal Load gives it.
+// the parse that read them. maxBytes bounds that parse, zero being none.
 //
-// A decline says why only when the source is this compiler's own: its root
-// merges past the depth the read expands, or it will not parse and declares a
-// version where a document declares one (declaresProbeKey).
+// Two sources are declined with an error whatever their format: one past
+// maxBytes, unread, with the refusal Load gives it, and one whose root merges
+// past the depth the read expands, its own keys leaving the version open
+// (settledByOwnPairs). Any other decline is silent unless the source is
+// unreadable and declares a version where a document declares one
+// (declaresProbeKey).
 func Recognize(srcIndex int, data []byte, maxBytes int) (compilers.Recognition, []ir.Diagnostic, bool) {
 	atSource := ir.Provenance{Source: srcIndex}
 	if d, over := load.OverByteBudget(atSource, data, maxBytes); over {

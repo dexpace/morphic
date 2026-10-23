@@ -11,13 +11,12 @@ import (
 // serve, so the caller can say unsupported rather than unreadable. The path is
 // not consulted.
 //
-// It parses all of src, whatever its format, and hands Compile the parse in
-// Recognition.Parsed. The byte budget bounds that cost: a source past it is
-// declined unread with Compile's own refusal.
-//
-// Other declines say why only when the source is this compiler's own: it
-// declares a version under a discriminating key and will not parse, or its
-// root merges deeper than detection reads.
+// It parses all of src, handing Compile the parse in Recognition.Parsed. Two
+// sources are declined with an error whatever their format: one past the byte
+// budget, unread, with Compile's own refusal, and one whose root merges deeper
+// than detection reads, its own keys leaving the version open. Any other
+// decline is silent unless src declares a version under a discriminating key
+// and is unreadable.
 func (*Compiler) Detect(src compilers.Source, opts compilers.Options) (compilers.Recognition, []ir.Diagnostic, bool) {
 	// Source 0 is src: the one source detection is handed is the whole of the
 	// table a declined diagnostic can index (compilers.Compiler.Detect).
