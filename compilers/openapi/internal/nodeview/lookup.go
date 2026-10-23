@@ -15,8 +15,10 @@ func Pairs(n *yaml.Node) []Pair {
 
 // Child returns the value the parser reads under key in the mapping n stands
 // for, its alias followed, or nil where it reads none: the value MappingPairs
-// pairs key with, found without building the pairs. n is dereferenced, a
-// document node unwrapped first; a node that is no mapping holds nothing.
+// pairs key with, found without building the pairs
+// (docs/parser-library.md#merge-keys, docs/parser-library.md#duplicate-key).
+// n is dereferenced, a document node unwrapped first; a node that is no
+// mapping holds nothing.
 //
 // It builds no view, and allocates nothing for a mapping that merges nothing,
 // which is what lets every reader of a schema keyword ask it. Its work is the

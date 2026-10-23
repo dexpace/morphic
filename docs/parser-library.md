@@ -426,6 +426,7 @@ components:
 - Pinned by: `TestLibraryBehaviour/duplicate-key`
 - Code:
   - `nodeview.flatten` reads a mapping's repeated key as the model does.
+  - `nodeview.Child` reads one at the copy the model does, a merge source's at its first.
   - `load.mappingKeys` records each key's first pair, as a raw read finds it.
 
 ### `merge-keys`
@@ -452,6 +453,7 @@ components:
 - Code:
   - `nodeview.flatten` orders and settles a mapping's pairs as the decoder does.
   - `nodeview.View.mergeSource` reads each source's pairs as a merge reads them.
+  - `nodeview.Child` looks one key up through the merges by the same order and copies.
   - `oas.CheckFormat` reports a `<<` naming no mapping.
 
 ### `non-scalar-key`
