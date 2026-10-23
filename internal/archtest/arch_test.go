@@ -228,9 +228,9 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/resolve",
 		"github.com/speakeasy-api/openapi/openapi"},
 	// The security schemes a document declares and the requirements that name
-	// them. It is its own package because both sides of the compiler reach it and
-	// neither may reach the other: the document walk lowers the schemes, and the
-	// service and operation walks lower the requirements against them.
+	// them. It is its own package because both sides of the compiler reach it:
+	// the compiler's run lowers the schemes, and the service and operation walks
+	// lower the requirements against them.
 	"compilers/openapi/internal/auth": {module + "/ir", module + "/compilers/compile",
 		module + "/compilers/openapi/internal/annotation",
 		module + "/compilers/openapi/internal/diag",

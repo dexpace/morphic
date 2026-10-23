@@ -447,8 +447,9 @@ go list -f '{{$p := .ImportPath}}{{range .Imports}}{{$p}} -> {{.}}
 ```
 
 *As landed:* `operation/` took neither `auth` nor `meta`. `auth` founded a package of its own,
-because both halves of the compiler reach it and neither may reach the other. Document-level
-metadata, its servers included, stayed in the root, as did detection's reading of a source.
+which the compiler's run reaches for the security schemes and the operation walk for the
+requirements. Document-level metadata, its servers included, stayed in the root, as did detection's
+reading of a source.
 
 *Later:* #1091 gave each of those a package: `document`, which is no part of lowering an operation
 and runs after both walks, reaching neither, and `detect`, which runs before anything has decided a
