@@ -17,10 +17,10 @@ const componentSchemaTokens = 3
 
 // owner returns the hint of the object p belongs to and how many of p's
 // tokens lead to its schema: the schema whose structure holds p
-// (structureRoot), named for what holds it there (ownerOf), or for its
-// document where it is a document's root (documentName). A structure nothing
-// names an owner of, such as one only a $ref reaches under an x- key, is
-// named from its pointer alone (pointerOwner).
+// (structureRoot), named for what holds it there (ownerOf) or, where that
+// schema is a document's root, for the document (documentName). A structure
+// nothing names an owner of, such as one only a $ref reaches under an x- key,
+// is named from its pointer alone (pointerOwner).
 func (n *Namer) owner(p bind.Position, tokens []string) (int, string) {
 	if n.table == nil {
 		return pointerOwner(tokens)

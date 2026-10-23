@@ -4,7 +4,7 @@
 // (docs/parser-library.md#merge-keys, #duplicate-key, #non-scalar-key), and
 // one bounded, iterative walk of a tree as written (Walk).
 //
-// A reader meaning the parser's reading takes it from here, so no two
+// A reader that wants the parser's reading takes it from here, so no two
 // disagree; one mirroring another reader on purpose, as load.treeReads
 // mirrors GetTarget, says so. It is neither a scan nor a lowering, so it sits
 // below both.
