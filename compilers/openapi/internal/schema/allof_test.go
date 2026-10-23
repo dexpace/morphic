@@ -317,8 +317,8 @@ func TestAllOf_OverlappingPrimitivesAreReportedNotConflicting(t *testing.T) {
 			assert.Equal(t, ir.TypeID("t/prim/"+order[0]), m.Properties[0].Type.Target, "the first declaration's kind stays")
 
 			assert.Empty(t, conflictDiags(diags), "overlapping kinds are not an unsatisfiable type")
-			assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, at),
-				"the overlap is reported at the redeclaration")
+			assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, at),
+				"overlap", "the overlap is reported at the redeclaration, as an info")
 			var atProperty []ir.Diagnostic
 			for _, d := range diags {
 				if d.Provenance.Pointer == at {
