@@ -21,8 +21,8 @@ import (
 //
 // The other reachable trigger — a mapping whose key is not a string — fails one
 // step earlier, in the YAML decode, and is covered directly in
-// TestRawFromNode_SeparatesAbsentFromUnconvertible. This one is used for the
-// end-to-end fixtures because the loader accepts it in more positions.
+// annotation.TestRawFromNode_RefusesWhatJSONCannotName. This one is used for
+// the end-to-end fixtures because the loader accepts it in more positions.
 const unpreservableValue = ".nan"
 
 // TestUnpreservable_AnnouncementNeverOutrunsTheEntry is the regression test for

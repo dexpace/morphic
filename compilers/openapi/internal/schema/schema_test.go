@@ -11,13 +11,10 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	yaml "gopkg.in/yaml.v3"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
@@ -100,57 +97,6 @@ func TestSchemaRef_EmptyEitherIsAny(t *testing.T) {
 	ref, diags := schema.Ref(l.ctx, l.types, &l.anchors, schema.TopLevelDepth, openapitest.EmptyEitherSchema(), "/p", "h")
 	assert.Equal(t, ir.TypeID("t/prim/any"), ref.Target)
 	assert.Empty(t, diags, "an empty either lowers to any without complaint")
-}
-
-// TestSiteSchema_BodylessPositions covers the positions that declare no schema
-// body to read annotations from: a nil either and a boolean schema.
-func TestSiteSchema_BodylessPositions(t *testing.T) {
-	t.Parallel()
-	assert.Nil(t, annotation.SchemaOf(nil))
-	assert.Nil(t, annotation.SchemaOf(oas3.NewJSONSchemaFromBool(true)))
-}
-
-// TestRawFromNode_SeparatesAbsentFromUnconvertible pins the distinction the
-// signature exists for (GitHub #144). A caller that cannot tell "there was
-// nothing here" from "there was something and it did not survive" announces a
-// preservation that never happened, so each row states which of the two it is.
-func TestRawFromNode_SeparatesAbsentFromUnconvertible(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name    string
-		node    *yaml.Node
-		want    string
-		wantErr bool
-	}{
-		{name: "absent node is neither raw nor error", node: nil},
-		{name: "undecodable node errors", node: &yaml.Node{Kind: yaml.Kind(99)}, wantErr: true},
-		{name: "non-string key does not decode", node: openapitest.YAMLNode(t, "? [a, b]\n: v"), wantErr: true},
-		{name: "int key does not marshal", node: openapitest.YAMLNode(t, "1: a\n2: b"), wantErr: true},
-		{name: "nan decodes but does not marshal", node: openapitest.YAMLNode(t, "{a: .nan}"), wantErr: true},
-		{name: "convertible node yields json", node: openapitest.YAMLNode(t, "{a: 1}"), want: `{"a":1}`},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			raw, err := annotation.RawFromNode(tc.node)
-			if tc.wantErr {
-				require.Error(t, err, "an unconvertible node must be distinguishable from an absent one")
-				assert.Nil(t, raw, "nothing is recorded for a node that did not convert")
-				return
-			}
-			require.NoError(t, err)
-			if tc.want == "" {
-				assert.Nil(t, raw, "an absent node records nothing and reports nothing")
-				return
-			}
-			assert.JSONEq(t, tc.want, string(raw))
-		})
-	}
-}
-
-func TestRawPropertyNode_NilSchema(t *testing.T) {
-	t.Parallel()
-	assert.Nil(t, annotation.RawPropertyNode(nil, "x"))
 }
 
 // vocabCase is one JSON Schema 2020-12 keyword and the minimal document that
