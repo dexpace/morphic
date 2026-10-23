@@ -128,15 +128,18 @@ rule sees a node of the input changed in place, which `UpdateType`'s copy is the
 
 1. **Implement `pass.Pass`** in a file of its own under `pass/`, shaped as `Validator` and
    `ValidateName` are in `pass/validate.go`: an exported type, and a constant holding its stable
-   `Name()`, unique among the engine's passes. `Run` never mutates its input, returns its input when
-   it only analyses, and reports through its diagnostics alone. `ir.ForEachOperation` walks the
+   `Name()`, unique among the engine's passes. A pass whose rules fall into families keeps each
+   family in a `<name>_<family>.go` beside that file, as `validate` does, and a new rule joins the
+   family it belongs to or starts one. `Run` never mutates its input, returns its input when it only
+   analyses, and reports through its diagnostics alone. `ir.ForEachOperation` walks the
    operations, and the package's `diag` helper in `pass/diag.go` builds a diagnostic on a node.
    A code names the defect, as `pass/doc.go` says: `pass/<defect>` for a finding the pass owns,
    `ir/<defect>` for a structural one `irverify` reports too. A transform returns what `Finish`
    returns, its own findings appended.
    *Fails if missed:* the build, once step 3 lists the pass, for a method `pass.Pass` requires, and
    `make vet` for a registry built, or an entry of one written, other than through an `ir.Editor`.
-2. **Test it** beside it in `pass/`, table-driven, against documents built in the test.
+2. **Test it** beside it in `pass/`, each file's cases in the `_test.go` named after it,
+   table-driven, against documents built in the test.
    `pass/validate_test.go` has builders (`validDoc`, `docWithOperation`) and readers (`codes`,
    `countCode`) to reuse.
    *Fails if missed:* `make coverage`.
