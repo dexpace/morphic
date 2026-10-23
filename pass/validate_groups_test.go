@@ -1,0 +1,77 @@
+package pass_test
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+
+	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/pass"
+)
+
+// TestValidate_GroupWalkTruncationIsReported pins the depth bound itself: a walk
+// that stopped early must say so. Without it every check reaching operations
+// walks a subset while Validate still reports the document consistent.
+func TestValidate_GroupWalkTruncationIsReported(t *testing.T) {
+	t.Parallel()
+	oneway := ir.Operation{ID: "deep", OneWay: true, Responses: []ir.Response{{}}}
+
+	// Pinned at the boundary, not near it. Every leaf recurses once into its own
+	// empty Groups, so a cap reported without checking whether anything was
+	// actually skipped fires at exactly the depth where the last operation still
+	// fits — visible only by testing ir.MaxGroupDepth itself.
+	for _, depth := range []int{1, 127, 128} {
+		within := codes(pass.Validate(nestGroups(depth, oneway)))
+		assert.Contains(t, within, "pass/oneway-with-responses",
+			"at depth %d the operation is still reached", depth)
+		assert.NotContains(t, within, "ir/walk-truncated",
+			"at depth %d nothing was skipped, so nothing may claim truncation", depth)
+	}
+
+	for _, depth := range []int{129, 200} {
+		past := codes(pass.Validate(nestGroups(depth, oneway)))
+		assert.Contains(t, past, "ir/walk-truncated",
+			"at depth %d the walk stopped early and must say so", depth)
+		assert.NotContains(t, past, "pass/oneway-with-responses",
+			"and the operation past the cap genuinely went unvisited")
+	}
+}
+
+// TestValidate_ASelfContainingGroupIsReachedOnceAndIsNotATruncation holds
+// Validate to what a group that is its own subgroup costs an unguarded walk. It
+// follows the cycle to the cap, so the operation's defect is reported once for
+// every lap and the document is called too deeply nested, though nothing was
+// skipped.
+func TestValidate_ASelfContainingGroupIsReachedOnceAndIsNotATruncation(t *testing.T) {
+	t.Parallel()
+	groups := []ir.OperationGroup{{Operations: []ir.Operation{
+		{ID: "loop", OneWay: true, Responses: []ir.Response{{}}},
+	}}}
+	groups[0].Groups = groups
+	doc := validDoc()
+	doc.Services = []ir.Service{{ID: "s", Groups: groups}}
+
+	diags := pass.Validate(doc)
+	assert.NotContains(t, codes(diags), "ir/walk-truncated", "nothing was skipped")
+	assert.Equal(t, 1, countCode(t, diags, "pass/oneway-with-responses"),
+		"the operation is reached once, not once per lap")
+}
+
+// TestValidate_ExcessiveGroupNestingIsTruncated drives the ir.MaxGroupDepth guard
+// in ir.ForEachOperation: an operation buried below the depth cap is never
+// visited, so its one-way violation goes unreported (the recursion stops). The
+// truncation itself is reported instead — see
+// TestValidate_GroupWalkTruncationIsReported.
+func TestValidate_ExcessiveGroupNestingIsTruncated(t *testing.T) {
+	t.Parallel()
+	// A one-way op with responses would normally raise oneway-with-responses.
+	buried := ir.Operation{ID: "deep", OneWay: true, Responses: []ir.Response{{}}}
+	// Nest it 200 levels deep, past ir.MaxGroupDepth (128).
+	group := ir.OperationGroup{Operations: []ir.Operation{buried}}
+	for range 200 {
+		group = ir.OperationGroup{Groups: []ir.OperationGroup{group}}
+	}
+	doc := validDoc()
+	doc.Services = []ir.Service{{ID: "s", Groups: []ir.OperationGroup{group}}}
+	assert.NotContains(t, codes(pass.Validate(doc)), "pass/oneway-with-responses")
+}
