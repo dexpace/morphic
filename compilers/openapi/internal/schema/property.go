@@ -21,7 +21,7 @@ import (
 // has, while its schema may lower to a node of a kind with no Constraints field
 // or to no node of its own at all. Restating them where the node also carries
 // them is the safe half of that trade.
-func FillPropertyDetail(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, p *ir.Property, js *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer) []ir.Diagnostic {
+func FillPropertyDetail(c lowering.Ctx, ts *compile.Types, p *ir.Property, js *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer) []ir.Diagnostic {
 	ref := js.GetSchema()
 	if ref == nil {
 		return nil
@@ -31,7 +31,7 @@ func FillPropertyDetail(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex,
 	p.Default = def
 	diags = append(diags, fillPropertyVisibility(c, p, ref, tgt, pointer)...)
 	diags = append(diags, fillPropertyConstraints(c, p, ref, pointer)...)
-	diags = append(diags, fillPropertyAnnotations(c, ts, anchors, p, ref, tgt, pointer)...)
+	diags = append(diags, fillPropertyAnnotations(c, ts, p, ref, tgt, pointer)...)
 	return append(diags, PreserveRefSiteKeywords(c, ts, &p.Unmodeled, js, p.Type, pointer)...)
 }
 
@@ -82,7 +82,7 @@ func fillPropertyConstraints(c lowering.Ctx, p *ir.Property, ref *oas3.Schema, p
 //
 // A $ref position never hoists a node, so annotations written beside a
 // property's $ref land here (GitHub #114).
-func fillPropertyAnnotations(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, p *ir.Property, ref, tgt *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
+func fillPropertyAnnotations(c lowering.Ctx, ts *compile.Types, p *ir.Property, ref, tgt *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	if LoweredToOwnNode(c, ts, pointer, p.Type) {
 		return nil
 	}
@@ -106,7 +106,7 @@ func fillPropertyAnnotations(c lowering.Ctx, ts *compile.Types, anchors *AnchorI
 	// nil node: this arm runs only when the schema lowered to no node of its own,
 	// so nothing here can be carrying an Encoding.
 	diags = append(diags, recordUnplacedContent(c, &p.Unmodeled, ref, nil, pointer)...)
-	diags = append(diags, recordUnexpandedDynamicRef(c, anchors, &p.Unmodeled, ref, pointer)...)
+	diags = append(diags, recordUnexpandedDynamicRef(c, &p.Unmodeled, ref, pointer)...)
 	return append(diags, PreserveUnknownKeywords(c, &p.Unmodeled, ref, pointer)...)
 }
 

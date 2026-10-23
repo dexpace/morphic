@@ -109,6 +109,21 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/nodeview",
 		"github.com/speakeasy-api/openapi/jsonschema/oas3", "github.com/speakeasy-api/openapi/marshaller",
 		"github.com/speakeasy-api/openapi/walk", "gopkg.in/yaml.v3"},
+	// The name of every node the lowering builds, as a function of the documents
+	// and the node's coordinate (GitHub #981). It reads the grammar through a
+	// bind table, the raw tree through nodeview and a $ref's fragment through
+	// fragment, and composes names in compile's grammar. It reaches nothing that
+	// lowers, so no lowering can make a name depend on the order it runs in.
+	"compilers/openapi/internal/naming": {module + "/compilers/compile",
+		module + "/compilers/openapi/internal/bind",
+		module + "/compilers/openapi/internal/fragment",
+		module + "/compilers/openapi/internal/ids",
+		module + "/compilers/openapi/internal/nodeview", "gopkg.in/yaml.v3"},
+	// The $dynamicAnchor declarations of a source tree, which a $dynamicRef
+	// expands against. It reads the tree through nodeview, as the parser reads
+	// it, spells pointers through ids, and reaches nothing that lowers.
+	"compilers/openapi/internal/anchors": {module + "/compilers/openapi/internal/ids",
+		module + "/compilers/openapi/internal/nodeview", "gopkg.in/yaml.v3"},
 	// One walk over the decoded source tree, answering what the pre-lowering
 	// refusals would otherwise each walk it to ask. It reaches nodeview for the
 	// document root and nothing else: an index of what the source says is not
@@ -214,13 +229,17 @@ var rules = map[string][]string{
 	// and so must reach neither, which is why it sits here rather than with either
 	// one. It reaches load for the version grammar — the dialect question is asked
 	// of the document, and the grammar that answers it is the loader's — and for
-	// the schema bindings the load phase built, which its scope reads.
+	// the schema bindings the load phase built, which its scope reads. It reaches
+	// naming for what each position is called and anchors for the
+	// $dynamicAnchor index it builds on first ask.
 	"compilers/openapi/internal/lowering": {module + "/ir",
+		module + "/compilers/openapi/internal/anchors",
 		module + "/compilers/openapi/internal/bind",
 		module + "/compilers/openapi/internal/bind/typed",
 		module + "/compilers/openapi/internal/diag",
 		module + "/compilers/openapi/internal/ids",
 		module + "/compilers/openapi/internal/load",
+		module + "/compilers/openapi/internal/naming",
 		module + "/compilers/openapi/internal/overlay",
 		module + "/compilers/openapi/internal/resolve",
 		"github.com/speakeasy-api/openapi/openapi"},

@@ -12,7 +12,6 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
-	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -24,13 +23,13 @@ import (
 // second value rather than writing it, because PartEncoding carries no
 // Unmodeled map of its own; scope is where that belongs on the owning Content
 // (see encodingUnmodeled).
-func encodingConfig(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, enc *soa.Encoding, encPtr jsontext.Pointer, scope string) (ir.PartEncoding, ir.Unmodeled, []ir.Diagnostic) {
+func encodingConfig(c lowering.Ctx, ts *compile.Types, enc *soa.Encoding, encPtr jsontext.Pointer, scope string) (ir.PartEncoding, ir.Unmodeled, []ir.Diagnostic) {
 	pe := ir.PartEncoding{}
 	if enc == nil {
 		return pe, nil, nil
 	}
 	pe.ContentTypes = splitContentTypes(enc.GetContentTypeValue())
-	headers, diags := lowerHeaders(c, ts, anchors, enc.GetHeaders(), encPtr)
+	headers, diags := lowerHeaders(c, ts, enc.GetHeaders(), encPtr)
 	pe.Headers = headers
 	if enc.Style != nil {
 		pe.Style = string(*enc.Style)

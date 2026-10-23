@@ -29,20 +29,20 @@ import (
 // with no single model, names it by PropertyName alone. variants are a
 // union's, and nil for a model: what each names decides what the mapping names
 // (readsThrough).
-func lowerDiscriminator(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, s *oas3.Schema, m *ir.Model, variants []ir.Variant, pointer jsontext.Pointer) (*ir.Discriminator, []ir.Diagnostic) {
+func lowerDiscriminator(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, m *ir.Model, variants []ir.Variant, pointer jsontext.Pointer) (*ir.Discriminator, []ir.Diagnostic) {
 	d := s.GetDiscriminator()
 	if d == nil {
 		return nil, nil
 	}
 	variantTypes := variantTargets(variants)
-	mapping, diags := discriminatorMapping(c, ts, anchors, d, variantTypes, pointer)
+	mapping, diags := discriminatorMapping(c, ts, d, variantTypes, pointer)
 	disc := &ir.Discriminator{Mapping: mapping}
 	if pid, ok := propIDByName(m, d.GetPropertyName()); ok {
 		disc.Property = pid
 	} else {
 		disc.PropertyName = d.GetPropertyName()
 	}
-	defaultID, defaultDiags := discriminatorDefault(c, ts, anchors, d, variantTypes, pointer)
+	defaultID, defaultDiags := discriminatorDefault(c, ts, d, variantTypes, pointer)
 	disc.Default = defaultID
 	return disc, append(diags, defaultDiags...)
 }
@@ -66,7 +66,7 @@ func variantTargets(variants []ir.Variant) map[ir.TypeID]bool {
 // error diagnostic and is dropped — never a synthesized ID that nothing backs
 // (issue #14). An all-dropped mapping collapses to nil, preserving infer-by-name
 // semantics and a clean round-trip.
-func discriminatorMapping(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, d *oas3.Discriminator, variantTypes map[ir.TypeID]bool, pointer jsontext.Pointer) (map[string]ir.TypeID, []ir.Diagnostic) {
+func discriminatorMapping(c lowering.Ctx, ts *compile.Types, d *oas3.Discriminator, variantTypes map[ir.TypeID]bool, pointer jsontext.Pointer) (map[string]ir.TypeID, []ir.Diagnostic) {
 	m := d.GetMapping()
 	if m == nil || m.Len() == 0 {
 		return nil, nil
@@ -74,7 +74,7 @@ func discriminatorMapping(c lowering.Ctx, ts *compile.Types, anchors *AnchorInde
 	var diags []ir.Diagnostic
 	out := make(map[string]ir.TypeID, m.Len())
 	for tag, target := range m.All() {
-		id, ok := resolveMappingTarget(c, ts, anchors, d, target, variantTypes)
+		id, ok := resolveMappingTarget(c, ts, d, target, variantTypes)
 		if !ok {
 			diags = append(diags, c.DiagAt(ir.SeverityError, diag.UnresolvedRef,
 				pointer+ids.Ptr("discriminator", "mapping", tag),
@@ -93,12 +93,12 @@ func discriminatorMapping(c lowering.Ctx, ts *compile.Types, anchors *AnchorInde
 // discriminatorDefault resolves an OpenAPI 3.2 defaultMapping to its target ID,
 // dropping it with one diagnostic when it does not resolve, as
 // discriminatorMapping drops an entry.
-func discriminatorDefault(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, d *oas3.Discriminator, variantTypes map[ir.TypeID]bool, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
+func discriminatorDefault(c lowering.Ctx, ts *compile.Types, d *oas3.Discriminator, variantTypes map[ir.TypeID]bool, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
 	dm := d.GetDefaultMapping()
 	if dm == "" {
 		return "", nil
 	}
-	id, ok := resolveMappingTarget(c, ts, anchors, d, dm, variantTypes)
+	id, ok := resolveMappingTarget(c, ts, d, dm, variantTypes)
 	if !ok {
 		return "", []ir.Diagnostic{c.DiagAt(ir.SeverityError, diag.UnresolvedRef,
 			pointer+ids.Ptr("discriminator", "defaultMapping"),
@@ -134,7 +134,7 @@ func mappingWhy(c lowering.Ctx, d *oas3.Discriminator, target string) string {
 // $ref written at the discriminator (resolve.Scope.MappingTarget). Hoisting
 // what it lands on gives the target one pointer-derived ID in either
 // declaration order (GitHub #530). variantTypes is as readsThrough takes it.
-func resolveMappingTarget(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, d *oas3.Discriminator, target string, variantTypes map[ir.TypeID]bool) (ir.TypeID, bool) {
+func resolveMappingTarget(c lowering.Ctx, ts *compile.Types, d *oas3.Discriminator, target string, variantTypes map[ir.TypeID]bool) (ir.TypeID, bool) {
 	if c.DeclaresSchema(target) {
 		return componentIDByName(target), true
 	}
@@ -143,7 +143,7 @@ func resolveMappingTarget(c lowering.Ctx, ts *compile.Types, anchors *AnchorInde
 		return "", false
 	}
 	at, decl = typePosition(c, at, decl, variantTypes)
-	return resolveAt(c, ts, anchors, at, decl)
+	return resolveAt(c, ts, at, decl)
 }
 
 // maxTypePositionHops bounds how many $ref positions typePosition reads

@@ -26,7 +26,7 @@ import (
 // content selection (ir-design §7.2). The pointer is the payload owner (the
 // response or requestBody); each Content's schema hoists under
 // <pointer>/content/<mt>/schema.
-func lowerPayload(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, content *sequencedmap.Map[string, *soa.MediaType], pointer jsontext.Pointer, hint string) (*ir.Payload, []ir.Diagnostic) {
+func lowerPayload(c lowering.Ctx, ts *compile.Types, content *sequencedmap.Map[string, *soa.MediaType], pointer jsontext.Pointer) (*ir.Payload, []ir.Diagnostic) {
 	if content == nil || content.Len() == 0 {
 		return nil, nil
 	}
@@ -36,7 +36,7 @@ func lowerPayload(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex
 		if media == nil {
 			continue
 		}
-		one, contentDiags := lowerContent(c, ts, anchors, mt, media, pointer, hint)
+		one, contentDiags := lowerContent(c, ts, mt, media, pointer)
 		diags = append(diags, contentDiags...)
 		payload.Contents = append(payload.Contents, one)
 	}
@@ -98,9 +98,9 @@ func keepMediaTypeRef(c lowering.Ctx, u *ir.Unmodeled, root, ref *yaml.Node, med
 
 // lowerContent lowers one media-type view: its type graph, examples, binary/
 // form specialization, sequential-media shape, and extensions.
-func lowerContent(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, mt string, media *soa.MediaType, pointer jsontext.Pointer, hint string) (ir.Content, []ir.Diagnostic) {
+func lowerContent(c lowering.Ctx, ts *compile.Types, mt string, media *soa.MediaType, pointer jsontext.Pointer) (ir.Content, []ir.Diagnostic) {
 	mediaPtr := pointer + ids.Ptr("content", mt)
-	mediaType, diags := schema.Ref(c, ts, anchors, schema.TopLevelDepth, media.GetSchema(), mediaPtr+ids.Ptr("schema"), hint)
+	mediaType, diags := schema.Ref(c, ts, schema.TopLevelDepth, media.GetSchema(), mediaPtr+ids.Ptr("schema"))
 	content := ir.Content{
 		MediaType: mt,
 		Type:      mediaType,
@@ -115,14 +115,14 @@ func lowerContent(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex
 		content.File = &ir.FileInfo{IsText: false, ContentTypes: []string{mt}}
 		content.Type = ts.PrimRef(ir.PrimBytes)
 	case isFormContent(mt):
-		enc, encUnmodeled, encDiags := partEncodings(c, ts, anchors, media, mediaPtr, content.Type.Target)
+		enc, encUnmodeled, encDiags := partEncodings(c, ts, media, mediaPtr, content.Type.Target)
 		diags = append(diags, encDiags...)
 		if enc != nil {
 			content.Encoding = enc
 		}
 		content.Unmodeled = annotation.MergeUnmodeled(content.Unmodeled, encUnmodeled)
 	}
-	diags = append(diags, fillSequential(c, ts, anchors, &content, media, mediaPtr, hint)...)
+	diags = append(diags, fillSequential(c, ts, &content, media, mediaPtr)...)
 	ext, extDiags := annotation.ExtensionsFrom(media.GetExtensions(), c.ProvenanceAt, mediaPtr)
 	diags = append(diags, extDiags...)
 	if len(ext) > 0 {

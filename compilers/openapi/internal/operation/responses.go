@@ -17,7 +17,6 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
-	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -38,7 +37,7 @@ const (
 // Default. opDeclPtr is the operation's own declaration pointer, so a $ref'd
 // response interns its content once at its component pointer rather than once
 // per mount site (issue #107).
-func lowerResponses(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, op *ir.Operation, src *soa.Operation, opDeclPtr jsontext.Pointer) []ir.Diagnostic {
+func lowerResponses(c lowering.Ctx, ts *compile.Types, op *ir.Operation, src *soa.Operation, opDeclPtr jsontext.Pointer) []ir.Diagnostic {
 	// GetResponses never returns nil (it addresses an always-present map), so the
 	// loop simply yields nothing when no responses are declared.
 	resps := src.GetResponses()
@@ -72,16 +71,16 @@ func lowerResponses(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 		// statusConditions lets the success side record no status at all.
 		// TestStatusRange_NamesNoStatus is what pins the pairing.
 		if isErrorRange(rng) {
-			ec, ecDiags := lowerErrorCase(rc, ts, anchors, r, code, rng, rptr, rr)
+			ec, ecDiags := lowerErrorCase(rc, ts, r, code, rng, rptr, rr)
 			diags = append(diags, ecDiags...)
 			op.Errors = append(op.Errors, ec)
 		} else {
-			resp, respDiags := lowerResponse(rc, ts, anchors, r, code, statusConditions(rng, named), rptr, rr)
+			resp, respDiags := lowerResponse(rc, ts, r, code, statusConditions(rng, named), rptr, rr)
 			diags = append(diags, respDiags...)
 			op.Responses = append(op.Responses, resp)
 		}
 	}
-	diags = append(diags, lowerDefaultResponse(c, ts, anchors, op, resps, opDeclPtr)...)
+	diags = append(diags, lowerDefaultResponse(c, ts, op, resps, opDeclPtr)...)
 	return append(diags, duplicateStatusKeyDiags(c, byRange, opDeclPtr+ids.Ptr("responses"))...)
 }
 
@@ -91,14 +90,14 @@ func lowerResponses(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 // (ir-design §7.2), so the compiler classes it as neither: whether it is the
 // success response, an error, or both is a reading of the API, which the plan
 // makes under its policy.
-func lowerDefaultResponse(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, op *ir.Operation,
+func lowerDefaultResponse(c lowering.Ctx, ts *compile.Types, op *ir.Operation,
 	resps *soa.Responses, opDeclPtr jsontext.Pointer,
 ) []ir.Diagnostic {
 	def, dc, dptr := lowering.Declared[soa.Response](c, resps.GetDefault(), opDeclPtr+ids.Ptr("responses", defaultResponseKey))
 	if def == nil {
 		return nil
 	}
-	resp, diags := lowerResponse(dc, ts, anchors, def, defaultResponseKey,
+	resp, diags := lowerResponse(dc, ts, def, defaultResponseKey,
 		statusConditions(statusRange(defaultResponseKey)), dptr, resps.GetDefault())
 	op.Default = &resp
 	return diags
@@ -130,8 +129,8 @@ func duplicateStatusKeyDiags(c lowering.Ctx, byRange map[ir.StatusRange][]string
 // all when it named no status (see statusConditions). ref is the entry the
 // document wrote there, which carries the summary and description a Reference
 // Object may put beside its $ref.
-func lowerResponse(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, r *soa.Response, code string, conds ir.ResponseConditions, rptr jsontext.Pointer, ref *soa.ReferencedResponse) (ir.Response, []ir.Diagnostic) {
-	parts, diags := lowerResponseParts(c, ts, anchors, r, code, rptr, ref)
+func lowerResponse(c lowering.Ctx, ts *compile.Types, r *soa.Response, code string, conds ir.ResponseConditions, rptr jsontext.Pointer, ref *soa.ReferencedResponse) (ir.Response, []ir.Diagnostic) {
+	parts, diags := lowerResponseParts(c, ts, r, code, rptr, ref)
 	resp := ir.Response{
 		Name:       parts.name,
 		Conditions: conds,
@@ -163,9 +162,9 @@ type responseParts struct {
 // error interns its body once, so two naming fallbacks would rename it when
 // paths are reordered. The use-site docs fold over ref, the entry written here,
 // must agree across classes for the same reason (GitHub #610).
-func lowerResponseParts(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, r *soa.Response, code string, rptr jsontext.Pointer, ref *soa.ReferencedResponse) (responseParts, []ir.Diagnostic) {
-	headers, diags := lowerHeaders(c, ts, anchors, r.GetHeaders(), rptr)
-	payload, payloadDiags := lowerPayload(c, ts, anchors, r.GetContent(), rptr, ids.DeclarationHint(rptr, "response"))
+func lowerResponseParts(c lowering.Ctx, ts *compile.Types, r *soa.Response, code string, rptr jsontext.Pointer, ref *soa.ReferencedResponse) (responseParts, []ir.Diagnostic) {
+	headers, diags := lowerHeaders(c, ts, r.GetHeaders(), rptr)
+	payload, payloadDiags := lowerPayload(c, ts, r.GetContent(), rptr)
 	diags = append(diags, payloadDiags...)
 	parts := responseParts{name: responseName(code), payload: payload, headers: headers}
 	summary, taken, summaryDiags := responseSummary(c, &parts.unmodeled, r, rptr)
@@ -229,8 +228,8 @@ func responseName(code string) ir.Naming {
 // #422). code is the responses-map key, the only record of how the source
 // spelled a status its range cannot state ("4XX"); ref is the entry written
 // here.
-func lowerErrorCase(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, r *soa.Response, code string, rng ir.StatusRange, rptr jsontext.Pointer, ref *soa.ReferencedResponse) (ir.ErrorCase, []ir.Diagnostic) {
-	parts, diags := lowerResponseParts(c, ts, anchors, r, code, rptr, ref)
+func lowerErrorCase(c lowering.Ctx, ts *compile.Types, r *soa.Response, code string, rng ir.StatusRange, rptr jsontext.Pointer, ref *soa.ReferencedResponse) (ir.ErrorCase, []ir.Diagnostic) {
+	parts, diags := lowerResponseParts(c, ts, r, code, rptr, ref)
 	ec := ir.ErrorCase{
 		Name:       parts.name,
 		Conditions: ir.ResponseConditions{StatusCodes: []ir.StatusRange{rng}},

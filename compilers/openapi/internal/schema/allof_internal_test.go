@@ -104,13 +104,10 @@ func TestAllOfBranches_DepthCapKeepsWrapperVerbatim(t *testing.T) {
 	}
 }
 
-// TestAllOfBranches_EntriesAgreeWithThePointerWalk pins, for the inline entries
-// of a nested composition, the key each is kept under, which spells its path
-// from the composed schema, and the positional hint from its innermost index,
-// which is subSchemaHint's for its pointer. The fixture has no $ref entry, whose
-// hint reads the target's name first:
-// TestAllOf_NestedBranchHintAgreesWithThePointerWalk pins that case.
-func TestAllOfBranches_EntriesAgreeWithThePointerWalk(t *testing.T) {
+// TestAllOfBranches_KeysSpellEachEntrysPath pins, for the entries of a nested
+// composition, the key each is kept under, which spells its path from the
+// composed schema, and that a wrapper follows its own branches.
+func TestAllOfBranches_KeysSpellEachEntrysPath(t *testing.T) {
 	t.Parallel()
 	l, _ := loweredFor(t, openapitest.ComponentSpec(`    M:
       allOf:
@@ -137,11 +134,9 @@ func TestAllOfBranches_EntriesAgreeWithThePointerWalk(t *testing.T) {
 	var inline int
 	for i, e := range entries {
 		assert.Equal(t, wantKeys[i], comp.branchKey(e.pointer))
-		if e.wrapper {
-			continue
+		if !e.wrapper {
+			inline++
 		}
-		inline++
-		assert.Equal(t, subSchemaHint(nil, e.schema, e.pointer), branchHintAt(nil, e.schema, pointerIndex(e.pointer)), e.pointer)
 	}
 	assert.Equal(t, 4, inline)
 	assert.True(t, entries[len(entries)-1].wrapper, "a wrapper follows its own branches")

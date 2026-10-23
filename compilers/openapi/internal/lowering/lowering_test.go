@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
@@ -14,6 +15,7 @@ import (
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/anchors"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
@@ -580,27 +582,57 @@ func TestWithLoaded_ReadsRawYAMLThroughTheLoadIndex(t *testing.T) {
 	assert.NotNil(t, base.WithLoaded(doc).RefScope().Holds)
 }
 
-// TestCtx_DeclareHintKeepsTheFirstRecordForEveryCopy pins the record a hoisted
-// node takes its name from: the first hint recorded for a position stands,
-// every copy of a context reads and writes the one record, except a copy given
-// another load, and a zero context records nothing.
-func TestCtx_DeclareHintKeepsTheFirstRecordForEveryCopy(t *testing.T) {
+// TestDynamicAnchorSites_ReportsATruncatedWalkOnce pins what a reader is told
+// when the $dynamicAnchor index is partial. Truncation only ever drops
+// declarations, and a dropped duplicate reads as "declared exactly once", the
+// count that expands, so an unreported truncation would turn an ambiguous
+// reference into a confident one. The index is built once for every copy of
+// the context, so the warning is too.
+func TestDynamicAnchorSites_ReportsATruncatedWalkOnce(t *testing.T) {
 	t.Parallel()
-	c := lowering.New(0, &soa.OpenAPI{}, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{},
+	// The walk descends into every key, so an extension at the document root
+	// nests the tree past the cap without any schema lowering seeing it.
+	deep := strings.Repeat("{a: ", anchors.MaxDepth) + "1" + strings.Repeat("}", anchors.MaxDepth)
+	src := openapitest.ComponentSpec("    A: {$dynamicAnchor: m, type: string}\n") + "x-deep: " + deep + "\n"
+	doc, diags, err := load.Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(src)}, load.Options{})
+	require.NoError(t, err)
+	openapitest.RequireNoErrorDiags(t, diags)
+	c := lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{}, lowering.StreamingMedia{},
+		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}).WithLoaded(doc)
+
+	sites, got := c.DynamicAnchorSites("m")
+	assert.Equal(t, []jsontext.Pointer{"/components/schemas/A"}, sites, "the index is built even when partial")
+	require.Len(t, got, 1, "the truncation is announced: %+v", got)
+	assert.Equal(t, ir.SeverityWarning, got[0].Severity)
+	assert.Contains(t, got[0].Message, "not verified")
+
+	_, again := c.InScope(c.RefScope()).DynamicAnchorSites("absent")
+	assert.Empty(t, again, "a copy reads the built index and does not announce it again")
+
+	bare := lowering.Ctx{Doc: doc.Doc}
+	_, first := bare.DynamicAnchorSites("m")
+	_, second := bare.DynamicAnchorSites("m")
+	assert.Len(t, first, 1, "a context New did not build keeps no index")
+	assert.Len(t, second, 1, "so it builds one, and announces it, on every ask")
+}
+
+// TestDynamicAnchorSites_ReadsACompleteIndexQuietly pins the ordinary case: a
+// document the walk reads whole names each anchor's sites and reports
+// nothing, and a context holding no document finds none.
+func TestDynamicAnchorSites_ReadsACompleteIndexQuietly(t *testing.T) {
+	t.Parallel()
+	src := openapitest.ComponentSpec("    A: {$dynamicAnchor: m, type: string}\n    B: {$dynamicAnchor: m}\n")
+	doc, diags, err := load.Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(src)}, load.Options{})
+	require.NoError(t, err)
+	openapitest.RequireNoErrorDiags(t, diags)
+	c := lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{}, lowering.StreamingMedia{},
 		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{})
-	_, recorded := c.HintAt("/x")
-	assert.False(t, recorded, "nothing is recorded before a lowering reaches the position")
 
-	c.DeclareHint("/x", "declared")
-	c.InScope(c.RefScope()).DeclareHint("/x", "later")
-	hint, recorded := c.InScope(c.RefScope()).HintAt("/x")
-	require.True(t, recorded, "a copy reads what another recorded")
-	assert.Equal(t, "declared", hint, "and the first record stands")
-	_, recorded = c.WithLoaded(&load.Document{}).HintAt("/x")
-	assert.False(t, recorded, "a copy given another load remembers none of the old one's")
+	sites, got := c.DynamicAnchorSites("m")
+	assert.Equal(t, []jsontext.Pointer{"/components/schemas/A", "/components/schemas/B"}, sites)
+	assert.Empty(t, got)
 
-	var zero lowering.Ctx
-	zero.DeclareHint("/x", "declared")
-	_, recorded = zero.HintAt("/x")
-	assert.False(t, recorded, "a zero context records nothing")
+	sites, got = lowering.Ctx{}.DynamicAnchorSites("m")
+	assert.Empty(t, sites)
+	assert.Empty(t, got)
 }

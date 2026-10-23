@@ -42,7 +42,7 @@ components:
 			l, _ := loweredFor(t, spec)
 			l.ctx.Limits = lowering.Limits{MaxEnumMembers: tc.limit}
 
-			diags := schema.LowerComponentSchemas(t.Context(), l.ctx, l.types, &l.anchors)
+			diags := schema.LowerComponentSchemas(t.Context(), l.ctx, l.types)
 
 			node := typeByName(l.document(t), "E")
 			require.NotNil(t, node)
@@ -93,7 +93,7 @@ components:
 
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	diags := schema.LowerComponentSchemas(ctx, l.ctx, l.types, &l.anchors)
+	diags := schema.LowerComponentSchemas(ctx, l.ctx, l.types)
 
 	assert.Empty(t, diags)
 	assert.Zero(t, l.types.Len(), "a cancelled walk lowers no component")

@@ -47,13 +47,14 @@ type finder struct {
 	landings      map[Position]bool
 	pending       []root
 	covered       map[root]bool
+	roots         map[Position]state
 }
 
 // newFinder returns a finder over docs that has found nothing.
 func newFinder(d *docs, work *budget) *finder {
 	return &finder{docs: d, ids: newIdentifiers(resources{d}.document(Source)), work: work, ends: map[Position]Position{},
 		sites: map[Position]bool{}, mappingSites: map[mappingKey]bool{}, landings: map[Position]bool{},
-		covered: map[root]bool{}}
+		covered: map[root]bool{}, roots: map[Position]state{}}
 }
 
 // walk reads every position below r by the grammar, noting each schema position
@@ -64,6 +65,9 @@ func newFinder(d *docs, work *budget) *finder {
 // a later root inside one already read is not read again; the source's own walk
 // from its root, which reads identifiers, notes none.
 func (w *finder) walk(r root, mark bool) {
+	if prev, seen := w.roots[r.at]; !seen || r.state < prev {
+		w.roots[r.at] = r.state
+	}
 	stack := []frame{{node: w.docs.node(r.at), at: r.at, state: r.state}}
 	for len(stack) > 0 && w.work.spend(1) {
 		f := stack[len(stack)-1]

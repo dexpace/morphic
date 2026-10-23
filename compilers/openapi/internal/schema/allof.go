@@ -30,20 +30,20 @@ import (
 // lowerModel reads a plain object's, so they land on the same field, not
 // Unmodeled (GitHub #407). A composition that leaves only a catch-all is a map,
 // as a plain object's is (objectNode).
-func lowerAllOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer jsontext.Pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
+func lowerAllOf(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
-	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
+	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
 		cons, consDiags := ConstraintsOf(c, &common.Unmodeled, s, pointer)
 		diags = append(diags, consDiags...)
 		m := &ir.Model{TypeCommon: common, Constraints: cons}
 		comp := allOfBranches(s, pointer) // the one flattened list; the readers below take it, not s
 		idx := propIndex(c, ts, m)
-		diags = append(diags, fillAllOf(c, ts, anchors, depth, m, idx, comp)...)
-		diags = append(diags, fillModelProperties(c, ts, anchors, depth, idx, s, pointer)...)
+		diags = append(diags, fillAllOf(c, ts, depth, m, idx, comp)...)
+		diags = append(diags, fillModelProperties(c, ts, depth, idx, s, pointer)...)
 		requireMembers(m, compositionRequired(s.GetRequired(), comp))
-		diags = append(diags, fillAdditional(c, ts, anchors, depth, m, s, pointer, hint)...)
+		diags = append(diags, fillAdditional(c, ts, depth, m, s, pointer)...)
 		diags = append(diags, applyFalseBranches(c, m, comp)...)
-		d, discDiags := lowerDiscriminator(c, ts, anchors, s, m, nil, pointer)
+		d, discDiags := lowerDiscriminator(c, ts, s, m, nil, pointer)
 		diags = append(diags, discDiags...)
 		if d != nil {
 			m.Discriminator = d
@@ -75,8 +75,8 @@ const MaxAllOfFlattenDepth = 32
 type allOfBranch struct {
 	schema *oas3.JSONSchema[oas3.Referenceable]
 	// pointer is where the branch was written, never rewritten to a flat index:
-	// property IDs, provenance, diagnostics, and the branch's Unmodeled key and
-	// index within its own allOf (branchKey, pointerIndex) all derive from it.
+	// property IDs, provenance, diagnostics, the branch's Unmodeled key
+	// (branchKey) and its name (lowering.NameAt) all derive from it.
 	pointer jsontext.Pointer
 	// wrapper marks a flattened wrapper, which contributes its properties and
 	// required list, and is kept verbatim only for what else it writes.
@@ -223,12 +223,6 @@ func (a allOfComposition) branchKey(bptr jsontext.Pointer) string {
 	return "openapi:" + strings.TrimPrefix(string(bptr), string(a.pointer)+"/")
 }
 
-// pointerIndex is the last token of bptr: a branch's index within its own list,
-// which is what branchHint needs to agree with subSchemaHint.
-func pointerIndex(bptr jsontext.Pointer) string {
-	return string(bptr)[strings.LastIndexByte(string(bptr), '/')+1:]
-}
-
 // flattensInto reports whether the allOf branch b, at nesting depth depth, is a
 // wrapper walkAllOf flattens, as
 // docs/compilers/openapi.md#allof-classification states it. What else b writes
@@ -274,16 +268,16 @@ func compositionRequired(own []string, comp allOfComposition) []string {
 // #143). The census every $ref site runs keeps what the alias cannot model,
 // except `required` (compositionCensusHandled); a co-declared oneOf/anyOf is kept
 // too (GitHub #406).
-func fillAllOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, m *ir.Model, idx *merge.PropIndex, comp allOfComposition) []ir.Diagnostic {
+func fillAllOf(c lowering.Ctx, ts *compile.Types, depth int, m *ir.Model, idx *merge.PropIndex, comp allOfComposition) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	baseIdx := selectAllOfBase(c.Bindings(), comp.branches)
 	for i, e := range comp.branches {
 		if !isRefBranch(e.schema) {
-			diags = append(diags, fillModelProperties(c, ts, anchors, depth, idx, e.schema.GetSchema(), e.pointer)...)
+			diags = append(diags, fillModelProperties(c, ts, depth, idx, e.schema.GetSchema(), e.pointer)...)
 			diags = append(diags, preserveUnmergedBranch(c, m, e, comp.branchKey(e.pointer))...)
 			continue
 		}
-		diags = append(diags, fillRefBranch(c, ts, anchors, m, e, i == baseIdx)...)
+		diags = append(diags, fillRefBranch(c, ts, m, e, i == baseIdx)...)
 	}
 	return diags
 }
@@ -291,10 +285,10 @@ func fillAllOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth in
 // fillRefBranch lowers one $ref allOf branch and adds it to m as its Base, when
 // isBase, or as a Mixin. A $ref it cannot resolve adds nothing, and is reported
 // unless it lies on a loop of $refs, which load reports once (onLoop).
-func fillRefBranch(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, m *ir.Model, e allOfBranch, isBase bool) []ir.Diagnostic {
+func fillRefBranch(c lowering.Ctx, ts *compile.Types, m *ir.Model, e allOfBranch, isBase bool) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	b := e.schema
-	id, ok := resolveSchemaRef(c, ts, anchors, b)
+	id, ok := resolveSchemaRef(c, ts, b)
 	if !ok {
 		if !onLoop(c, b) {
 			diags = append(diags, c.DiagAt(ir.SeverityError, diag.UnresolvedRef, e.pointer,
@@ -305,7 +299,7 @@ func fillRefBranch(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, m *i
 	bs := b.GetSchema()
 	unhomed := refSiteUnhomedKeywords(bs, compositionCensusHandled)
 	hasUnion := declaresUnion(bs)
-	ref, homeDiags := homeDeclaration(c, ts, anchors, bs, ir.TypeRef{Target: id}, e.pointer, branchHintAt(c.Bindings(), b, pointerIndex(e.pointer)), annotation.HomeOwnNode, len(unhomed) > 0 || hasUnion)
+	ref, homeDiags := homeDeclaration(c, ts, bs, ir.TypeRef{Target: id}, e.pointer, annotation.HomeOwnNode, len(unhomed) > 0 || hasUnion)
 	diags = append(diags, homeDiags...)
 	diags = append(diags, recordUnhomedKeywords(c, ts, ref.Target, bs, unhomed, refSiteShape, e.pointer)...)
 	if hasUnion {

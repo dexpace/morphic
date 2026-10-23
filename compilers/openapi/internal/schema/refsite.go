@@ -26,11 +26,11 @@ import (
 //
 // At an annotation.HomeCarrier position no alias is hoisted: the carrier keeps
 // them through PreserveRefSiteKeywords (GitHub #114).
-func refSiteRef(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, js *oas3.JSONSchema[oas3.Referenceable], s *oas3.Schema, pointer jsontext.Pointer, hint string, home annotation.Home) (ir.TypeRef, []ir.Diagnostic) {
-	target, diags := refTypeRef(c, ts, anchors, js, pointer)
+func refSiteRef(c lowering.Ctx, ts *compile.Types, js *oas3.JSONSchema[oas3.Referenceable], s *oas3.Schema, pointer jsontext.Pointer, home annotation.Home) (ir.TypeRef, []ir.Diagnostic) {
+	target, diags := refTypeRef(c, ts, js, pointer)
 	unhomed := refSiteUnhomedKeywords(s, nil)
 	hasUnion := declaresUnion(s)
-	ref, homeDiags := homeDeclaration(c, ts, anchors, s, target, pointer, hint, home, len(unhomed) > 0 || hasUnion)
+	ref, homeDiags := homeDeclaration(c, ts, s, target, pointer, home, len(unhomed) > 0 || hasUnion)
 	diags = append(diags, homeDiags...)
 	if home != annotation.HomeOwnNode {
 		return ref, diags
@@ -81,9 +81,9 @@ func PreserveRefSiteKeywords(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled,
 // one landing on no schema, is diagnosed and dropped to any. A $ref on a loop of $refs is
 // dropped to any too, with nothing of its own to report: the load phase reports
 // the loop once.
-func refTypeRef(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, js *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer) (ir.TypeRef, []ir.Diagnostic) {
+func refTypeRef(c lowering.Ctx, ts *compile.Types, js *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer) (ir.TypeRef, []ir.Diagnostic) {
 	ref := js.GetRef().String()
-	id, ok := resolveSchemaRef(c, ts, anchors, js)
+	id, ok := resolveSchemaRef(c, ts, js)
 	if ok {
 		return refNullRef(c, id, js, siteAt(pointer))
 	}
@@ -135,22 +135,22 @@ func hopWhy(h bind.Hop) string {
 // names, in whichever document (resolveAt). It returns ok=false for a $ref that
 // lands on no schema (resolve.Scope.Target) and for a reference to an
 // undeclared component.
-func resolveSchemaRef(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, js *oas3.JSONSchema[oas3.Referenceable]) (ir.TypeID, bool) {
+func resolveSchemaRef(c lowering.Ctx, ts *compile.Types, js *oas3.JSONSchema[oas3.Referenceable]) (ir.TypeID, bool) {
 	at, ok := c.RefScope().Target(js)
 	if !ok {
 		return "", false
 	}
-	return resolveAt(c, ts, anchors, at, c.Bindings().Declared(js))
+	return resolveAt(c, ts, at, c.Bindings().Declared(js))
 }
 
 // resolveAt is resolvePointer at a position of the bindings' table, read at
 // its own document's coordinates (lowering.InDocument).
-func resolveAt(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, at bind.Position, decl *oas3.JSONSchema[oas3.Referenceable]) (ir.TypeID, bool) {
+func resolveAt(c lowering.Ctx, ts *compile.Types, at bind.Position, decl *oas3.JSONSchema[oas3.Referenceable]) (ir.TypeID, bool) {
 	c, ok := lowering.InDocument(c, at.Doc)
 	if !ok {
 		return "", false
 	}
-	return resolvePointer(c, ts, anchors, at.Pointer, decl)
+	return resolvePointer(c, ts, at.Pointer, decl)
 }
 
 // resolvePointer resolves a pointer in c's document to the ID of the schema it
@@ -163,7 +163,7 @@ func resolveAt(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, at bind.
 //
 // A $ref and a discriminator mapping target meet here once each has its
 // pointer, so they cannot drift apart.
-func resolvePointer(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, pointer jsontext.Pointer, decl *oas3.JSONSchema[oas3.Referenceable]) (ir.TypeID, bool) {
+func resolvePointer(c lowering.Ctx, ts *compile.Types, pointer jsontext.Pointer, decl *oas3.JSONSchema[oas3.Referenceable]) (ir.TypeID, bool) {
 	// The source's components alone are lowered whole and named by name;
 	// another document's are hoisted where a reference reaches them, as any
 	// other position of it is.
@@ -175,7 +175,7 @@ func resolvePointer(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, poi
 	if !resolve.Hoistable(decl) {
 		return "", false
 	}
-	ts.Promise(c.IDs().Coordinate(pointer), func() []ir.Diagnostic { return hoistSubSchema(c, ts, anchors, decl, pointer) })
+	ts.Promise(c.IDs().Coordinate(pointer), func() []ir.Diagnostic { return hoistSubSchema(c, ts, decl, pointer) })
 	return c.IDs().ForPointer(pointer), true
 }
 
@@ -187,26 +187,21 @@ func resolvePointer(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, poi
 // and examples.
 //
 // It lowers in the position's own context, whichever reference promised it:
-// from TopLevelDepth, as a walk of its own, in decl's document, and under the
-// hint the position's lowering recorded, else subSchemaHint. A $ref with
+// from TopLevelDepth, as a walk of its own, in decl's document. A $ref with
 // siblings is aliased, keeping them.
-func hoistSubSchema(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, decl *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer) []ir.Diagnostic {
+func hoistSubSchema(c lowering.Ctx, ts *compile.Types, decl *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer) []ir.Diagnostic {
 	s := annotation.At(decl)
 	// c reads the document that declares pointer already (resolveAt), which is
 	// where the bindings place decl.
-	hint, declared := c.HintAt(pointer)
-	if !declared {
-		hint = subSchemaHint(c.Bindings(), decl, pointer)
-	}
-	ref, diags := Ref(c, ts, anchors, TopLevelDepth, decl, pointer, hint)
+	ref, diags := Ref(c, ts, TopLevelDepth, decl, pointer)
 	if _, ok := ts.Lookup(c.IDs().Coordinate(pointer)); ok {
 		return diags
 	}
-	_, aliasDiags := internAlias(c, ts, s.Node, pointer, hint, ref)
+	_, aliasDiags := internAlias(c, ts, s.Node, pointer, ref)
 	diags = append(diags, aliasDiags...)
 	// As in lowerComponentSchema: this alias is the first node the pointer owns,
 	// so the annotations Ref had nowhere to put now have a home.
-	return append(diags, attachDeclaredAnnotations(c, ts, anchors, s.Node, pointer)...)
+	return append(diags, attachDeclaredAnnotations(c, ts, s.Node, pointer)...)
 }
 
 // onLoop reports whether the $ref at b lies on a loop of $refs, which the load

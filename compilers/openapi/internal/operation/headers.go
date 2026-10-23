@@ -22,7 +22,7 @@ import (
 // entry's own pointer stays its ID and Provenance (two keys $ref'ing the same
 // header must not collide), but its schema — and the name hint that schema is
 // hoisted under — follow the ref target's declaration instead (issue #107).
-func lowerHeaders(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, headers *sequencedmap.Map[string, *soa.ReferencedHeader], basePtr jsontext.Pointer) ([]ir.Property, []ir.Diagnostic) {
+func lowerHeaders(c lowering.Ctx, ts *compile.Types, headers *sequencedmap.Map[string, *soa.ReferencedHeader], basePtr jsontext.Pointer) ([]ir.Property, []ir.Diagnostic) {
 	if headers == nil || headers.Len() == 0 {
 		return nil, nil
 	}
@@ -34,7 +34,7 @@ func lowerHeaders(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex
 		if h == nil {
 			continue
 		}
-		p, headerDiags := lowerHeader(c, dc, ts, anchors, h, name, hptr, hdecl)
+		p, headerDiags := lowerHeader(c, dc, ts, h, name, hptr, hdecl)
 		diags = append(diags, headerDiags...)
 		diags = append(diags, reservedHeaderEntryDiag(c, name, hptr)...)
 		// A summary or description beside a $ref of the entry's chain documents
@@ -71,15 +71,14 @@ func reservedHeaderEntryDiag(c lowering.Ctx, name string, hptr jsontext.Pointer)
 // docs, constraints, xml, examples and validation-only keywords the same way,
 // and ir.Property has a field for each, so the header path had no reason to drop
 // them (GitHub #116).
-func lowerHeader(c, dc lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, h *soa.Header, name string, hptr, hdecl jsontext.Pointer) (ir.Property, []ir.Diagnostic) {
+func lowerHeader(c, dc lowering.Ctx, ts *compile.Types, h *soa.Header, name string, hptr, hdecl jsontext.Pointer) (ir.Property, []ir.Diagnostic) {
 	elected, diags := electTypeSpelling(dc, h.GetSchema(), h.GetContent(), h.GetRootNode(), hdecl,
 		"header", "ir.Property")
 	// The schema is named after the key the header is declared under, never
 	// this mount's, and lowered in its declaration's document (dc), so every
 	// response mounting one header builds the same nodes beneath it, in
 	// whichever order they lower (GitHub #433).
-	headerType, headerDiags := schema.CarriedRef(dc, ts, anchors,
-		schema.TopLevelDepth, elected.js, elected.pointer, ids.DeclarationHint(hdecl, hdecl.LastToken()))
+	headerType, headerDiags := schema.CarriedRef(dc, ts, schema.TopLevelDepth, elected.js, elected.pointer)
 	diags = append(diags, headerDiags...)
 	p := ir.Property{
 		ID:         c.IDs().Prop(hptr),
@@ -97,7 +96,7 @@ func lowerHeader(c, dc lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIn
 		// spelling keeps.
 		p.Encoding = &ir.Encoding{MediaType: elected.mediaType}
 	}
-	diags = append(diags, schema.FillPropertyDetail(dc, ts, anchors, &p, elected.js, elected.pointer)...)
+	diags = append(diags, schema.FillPropertyDetail(dc, ts, &p, elected.js, elected.pointer)...)
 	diags = append(diags, applyHeaderAnnotations(dc, &p, h, hdecl, elected.examples)...)
 	return p, append(diags, preserveHeaderSerialization(dc, &p, h, hdecl)...)
 }

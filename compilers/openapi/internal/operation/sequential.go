@@ -23,10 +23,10 @@ import (
 // itemEncoding govern the items *after* them rather than every item, which a
 // single every-item encoding would misstate. Those documents take
 // positionalEncoding instead.
-func fillSequential(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, content *ir.Content, media *soa.MediaType, mediaPtr jsontext.Pointer, hint string) []ir.Diagnostic {
+func fillSequential(c lowering.Ctx, ts *compile.Types, content *ir.Content, media *soa.MediaType, mediaPtr jsontext.Pointer) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	if item := media.GetItemSchema(); item != nil {
-		ref, itemDiags := schema.Ref(c, ts, anchors, schema.TopLevelDepth, item, mediaPtr+ids.Ptr("itemSchema"), compile.SubHint(hint, "item"))
+		ref, itemDiags := schema.Ref(c, ts, schema.TopLevelDepth, item, mediaPtr+ids.Ptr("itemSchema"))
 		diags = append(diags, itemDiags...)
 		content.Item = &ref
 	}
@@ -37,7 +37,7 @@ func fillSequential(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 	if enc == nil {
 		return diags
 	}
-	pe, unmodeled, encDiags := encodingConfig(c, ts, anchors, enc, mediaPtr+ids.Ptr("itemEncoding"), "itemEncoding")
+	pe, unmodeled, encDiags := encodingConfig(c, ts, enc, mediaPtr+ids.Ptr("itemEncoding"), "itemEncoding")
 	pe.Multi = true
 	content.ItemEncoding = &pe
 	content.Unmodeled = annotation.MergeUnmodeled(content.Unmodeled, unmodeled)

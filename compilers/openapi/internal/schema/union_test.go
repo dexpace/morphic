@@ -114,7 +114,7 @@ func TestDistributedUnion_VariantCarriesTheBranchNullability(t *testing.T) {
 // or keyword. Choice/oneOf/0 targets X's inline first branch and Choice/oneOf/1
 // a plain structural position (A's items). The other variants target a branch
 // that is itself a $ref, so naming them chases it on to its own target
-// (targetHint): Choice/oneOf/2 and Z/oneOf/0 take two hops to reach Y's items,
+// (naming.Namer.Through): Choice/oneOf/2 and Z/oneOf/0 take two hops to reach Y's items,
 // and Choice/oneOf/3 three, so a hop cap below three fails that row.
 func TestUnionVariant_IsNamedAsTheNodeItHolds(t *testing.T) {
 	t.Parallel()
@@ -153,16 +153,12 @@ func TestUnionVariant_IsNamedAsTheNodeItHolds(t *testing.T) {
 }
 
 // TestUnionVariant_UnderPathsIsNamedAsTheNodeItHolds is the same property for
-// variants naming positions in a response body, where the pointer does not spell
-// the enclosing hint. A branch is still named by its ordinal, a branch holding
-// a $ref after its target — through a second branch here, for two hops — and a
-// property by its key, so each variant still agrees with the node it holds.
-// Before this held outside /components/schemas the first three variants read
-// 0, 1 and 2.
-//
-// A position the response itself names — the body, or its items — is not
-// covered: its hint comes from the response, which the pointer does not spell
-// (GitHub #729).
+// variants naming positions under /paths, where the pointer does not spell the
+// enclosing hint. A branch is named by its ordinal, a branch holding a $ref
+// after its target — through a second branch here, for two hops — and a
+// property by its key. A position its response or a parameter names, the body
+// itself or a parameter's schema, is named for them (GitHub #729). Each variant
+// agrees with the node it holds.
 func TestUnionVariant_UnderPathsIsNamedAsTheNodeItHolds(t *testing.T) {
 	t.Parallel()
 	const body = "#/paths/~1x/get/responses/200/content/application~1json/schema/properties/"
@@ -172,6 +168,8 @@ paths:
   /x:
     get:
       operationId: getX
+      parameters:
+        - {name: filterBy, in: query, schema: {type: object, properties: {f: {type: string}}}}
       responses:
         "200":
           description: ok
@@ -195,24 +193,30 @@ components:
         - $ref: '`+body+`choice/oneOf/1'
         - $ref: '`+body+`choice/oneOf/2'
         - $ref: '`+body+`held'
+        - $ref: '#/paths/~1x/get/responses/200/content/application~1json/schema'
+        - $ref: '#/paths/~1x/get/parameters/0/schema'
 `)
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	choice, ok := typeByName(doc, "Choice").(*ir.Union)
 	require.True(t, ok, "Choice should be a union")
-	require.Len(t, choice.Variants, 4)
+	require.Len(t, choice.Variants, 6)
 
 	got := variantsNamingTheirNodes(t, doc, map[string]ir.Variant{
 		"an inline branch":               choice.Variants[0],
 		"a branch holding a $ref":        choice.Variants[1],
 		"a branch holding a $ref to one": choice.Variants[2],
 		"a property holding a $ref":      choice.Variants[3],
+		"the response's body":            choice.Variants[4],
+		"a parameter's schema":           choice.Variants[5],
 	})
 	want := map[string]string{
 		"an inline branch":               "variant_0",
 		"a branch holding a $ref":        "t",
 		"a branch holding a $ref to one": "t",
 		"a property holding a $ref":      "held",
+		"the response's body":            "response",
+		"a parameter's schema":           "filter_by",
 	}
 	assert.Empty(t, cmp.Diff(want, got))
 }
@@ -750,7 +754,7 @@ func TestOneOf_CoDeclaredDistributionIsOrderIndependent(t *testing.T) {
 // takes instead. The
 // collapse lowers the surviving branch at the branch pointer but used to hand it
 // the *enclosing* schema's hint, while an outside $ref naming that same pointer
-// derives variant_<index> through subSchemaHint — so whichever lowering arrived
+// derived variant_<index> from the pointer — so whichever lowering arrived
 // first decided the name and the two declaration orders produced two different
 // documents, with no diagnostic on either side (GitHub #281).
 //
@@ -1161,7 +1165,7 @@ func TestUnionCombinators_UnpreservableIsNotAnnounced(t *testing.T) {
 // resolves through the union to the shared primitive, so the outside $ref alone
 // hoists a node at the branch pointer and no hint ever has to agree with
 // another. Pinning the union's own variant to that node puts both lowerings on
-// the pointer (branchHint, subSchemaHint, #181).
+// the pointer (#181).
 func TestUnionCombinators_KeepingIsOrderIndependent(t *testing.T) {
 	t.Parallel()
 	host := `    S:

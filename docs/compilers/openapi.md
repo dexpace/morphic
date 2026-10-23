@@ -634,27 +634,30 @@ key, an enum member's value as text, a 3.2 server `name`, and under `grouping=pa
 path segment. A name with no letter or digit (`***`, `>=`) keeps its `Source` and has no
 `Canonical`; an emitter names it by its characters (emitter-design §4.12). A name spelled as the
 empty string is minted `Hint: "empty"` and no `Source` rather than passed through (an `operationId`
-of `""` is read as absent instead,
-[`operation-ids`](#operation-ids)), and a property's wire name stays `""`. A component schema keyed
-`""` earns no named `TypeID`: it hoists anonymously at its own pointer
-(`t/anon/components/schemas/`) with that hint. An entity the document gives no name — an inline
-schema, a union variant, a response ([`response-conditions`](#response-conditions)), a server with
-no `name` (its URL's words, else `server`), the synthesized `default` and `webhooks` groups —
+of `""` is read as absent instead, [`operation-ids`](#operation-ids)), and a property's wire name
+stays `""`. A component schema keyed `""` earns no named `TypeID`: it hoists anonymously at its own
+pointer (`t/anon/components/schemas/`) with that hint. An entity the document gives no name — an
+inline schema, a union variant, a response ([`response-conditions`](#response-conditions)), a server
+with no `name` (its URL's words, else `server`), the synthesized `default` and `webhooks` groups —
 carries a `Hint` alone, in the same word grammar and composed from its position, each half
 neutralized first so an empty parent gives `empty_item`, never `_item`. A request body or header
 that references reach is named for its declaration, never for whichever reference lowered first: a
 component's name, a header's own key, the `operationId` of the operation declaring the body, in this
 document or another and whether or not that operation is lowered, or `request` for a body no
-operation with an `operationId` declares. `Aliases` is never set.
+operation with an `operationId` declares. Every such name is a function of the documents and the
+position alone, read where the position is written, so no lowering order changes it: a union
+variant, or a composition branch holding a `$ref`, is named as the position the `$ref` lands on, in
+whichever document, and keeps its own name where that names nothing. `Aliases` is never set.
 
 - Cases: `neutral-naming`, `empty-names`
 - Tests: `ids.TestComponentSchemaNamedEmpty_SeparatesAnEmptyNameFromNoEntry`,
   `schema.TestEnumMemberIDs_NamesThatCanonicalizeToNothingStillGetIDs`,
   `schema.TestInlinePosition_HintIsTheSameInBothOrders`,
   `operation.TestContent_ASharedBodyOrHeaderIsNamedForItsDeclaration`,
-  `schema.TestComponentBody_SubtreeIsNamedByItsDeclaration`
-- Status: partly built: union variants and inline schemas ignore their `title` as a hint (#662); and
-  a union variant naming a position in a path's body takes the pointer's name (#729).
+  `schema.TestComponentBody_SubtreeIsNamedByItsDeclaration`,
+  `schema.TestUnionVariant_UnderPathsIsNamedAsTheNodeItHolds`,
+  `naming.TestAt_NamesASchemaAfterItsOwner`, `naming.TestAt_NamesABranchAfterItsTarget`
+- Status: partly built: union variants and inline schemas ignore their `title` as a hint (#662).
 
 ### `values`
 
@@ -1862,8 +1865,8 @@ expansion.
 - Cases: `dynamic-ref`
 - Codes: `openapi/dynamic-ref-expanded`, `openapi/degraded-construct`
 - Tests: `schema.TestDynamicRef_IrreducibleIsKeptAndSaysWhy`,
-  `schema.TestDynamicAnchors_CountsWhatAnAliasBringsIn`,
-  `schema.TestDynamicAnchorIndex_ReportsATruncatedWalk`
+  `anchors.TestBuild_CountsWhatAnAliasBringsIn`,
+  `lowering.TestDynamicAnchorSites_ReportsATruncatedWalkOnce`
 - Status: partly built: a merge chain past the view's merge bound hides an `$id`, so a `$dynamicRef`
   can expand across a resource boundary (#401), and the truncation warning names the walk's own
   bounds when the merge bound stopped it (#454). A `$dynamicRef` written in another document is not

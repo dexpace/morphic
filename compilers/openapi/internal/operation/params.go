@@ -27,7 +27,7 @@ import (
 // entry, else the list entry itself (issue #107). Its ID is rooted at mount, the
 // operation's mount pointer, not at the declaration it was copied from; a
 // repeat of one name and location keeps an ID of its own (paramLedger).
-func lowerParameters(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, mount jsontext.Pointer, params []sourcedParam) ([]ir.Parameter, []ir.HTTPParamBinding, []ir.Diagnostic) {
+func lowerParameters(c lowering.Ctx, ts *compile.Types, mount jsontext.Pointer, params []sourcedParam) ([]ir.Parameter, []ir.HTTPParamBinding, []ir.Diagnostic) {
 	if len(params) == 0 {
 		return nil, nil, nil
 	}
@@ -46,7 +46,7 @@ func lowerParameters(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIn
 		}
 		id, repeatDiags := ledger.next(pc, p.GetName(), string(p.GetIn()), sp.pointer)
 		diags = append(diags, repeatDiags...)
-		param, binding, paramDiags := lowerParameter(dc, ts, anchors, id, p, pptr)
+		param, binding, paramDiags := lowerParameter(dc, ts, id, p, pptr)
 		diags = append(diags, paramDiags...)
 		// A summary or description beside a $ref of the entry's chain documents
 		// this use of the parameter, over what its declaration says (GitHub #610).
@@ -60,7 +60,7 @@ func lowerParameters(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIn
 // lowerParameter lowers one resolved parameter into its logical Parameter and
 // HTTP binding, both naming the parameter by id. Path parameters are always
 // required regardless of the declared flag (OpenAPI requires it).
-func lowerParameter(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, id ir.ParamID, p *soa.Parameter, pptr jsontext.Pointer) (ir.Parameter, ir.HTTPParamBinding, []ir.Diagnostic) {
+func lowerParameter(c lowering.Ctx, ts *compile.Types, id ir.ParamID, p *soa.Parameter, pptr jsontext.Pointer) (ir.Parameter, ir.HTTPParamBinding, []ir.Diagnostic) {
 	name, in := p.GetName(), p.GetIn()
 	param := ir.Parameter{
 		ID:         id,
@@ -77,7 +77,7 @@ func lowerParameter(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 		Explode:       explode,
 		AllowReserved: p.GetAllowReserved(),
 	}
-	media, diags := fillParamType(c, ts, anchors, &param, &binding, p, pptr, name)
+	media, diags := fillParamType(c, ts, &param, &binding, p, pptr)
 	diags = append(diags, reservedHeaderParamDiag(c, name, in, pptr)...)
 	return param, binding, append(diags, fillParamDetail(c, &param, p, pptr, media)...)
 }
@@ -111,10 +111,10 @@ func reservedHeaderParamDiag(c lowering.Ctx, name string, in soa.ParameterIn, pp
 // parameter, whose media type goes on the binding. Constraints come from that
 // same schema position; the default comes from it too, falling back to its $ref
 // target (docs/compilers/openapi.md#ref-use-site).
-func fillParamType(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, param *ir.Parameter, binding *ir.HTTPParamBinding, p *soa.Parameter, pptr jsontext.Pointer, name string) ([]ir.Example, []ir.Diagnostic) {
+func fillParamType(c lowering.Ctx, ts *compile.Types, param *ir.Parameter, binding *ir.HTTPParamBinding, p *soa.Parameter, pptr jsontext.Pointer) ([]ir.Example, []ir.Diagnostic) {
 	elected, diags := electTypeSpelling(c, p.GetSchema(), p.GetContent(), p.GetRootNode(), pptr,
 		"parameter", "ir.Parameter")
-	paramType, typeDiags := schema.CarriedRef(c, ts, anchors, schema.TopLevelDepth, elected.js, elected.pointer, name)
+	paramType, typeDiags := schema.CarriedRef(c, ts, schema.TopLevelDepth, elected.js, elected.pointer)
 	diags = append(diags, typeDiags...)
 	param.Type = paramType
 	param.Unmodeled = annotation.MergeUnmodeled(param.Unmodeled, elected.unmodeled)

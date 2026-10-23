@@ -279,12 +279,17 @@ overwhelming majority that never write `$dynamicRef`. And the walk is not free:
 
 ```bash
 # what deriving it at entry would cost a document that never asks
-go test ./compilers/openapi -run XXX -bench BenchmarkAnchorWalk -benchtime=2000x
+go test ./compilers/openapi/internal/anchors -run XXX -bench BenchmarkBuild -benchtime=2000x
 ```
 
 It measured about 3.7µs and 75 allocations against a compile's 270µs and 2,767 —
 roughly 1.4% of the time and 2.7% of the allocations, spent on a keyword almost
 nothing uses. So it is a memo, built on the first `$dynamicRef` and not before.
+
+*Later:* the memo moved into `Ctx`, which builds it on the first ask and shares it
+with every copy, as it does the answers `TypePosition` reads (`Ctx.DynamicAnchorSites`,
+GitHub #982). It is still built on the first `$dynamicRef` and not before; what
+changed is that no lowering carries it as a parameter.
 
 That makes it the one counterexample to §4's claim that interning is
 "irreducibly shared and stateful; nothing else is". It is a weaker exception than

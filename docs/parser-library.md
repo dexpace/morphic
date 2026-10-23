@@ -487,7 +487,7 @@ components:
 - Verified at: v1.25.5
 - Pinned by: `TestLibraryBehaviour/unmodeled-keywords`
 - Code:
-  - `schema.dynamicAnchors` reads every `$dynamicAnchor` from the raw tree.
+  - `anchors.Build` reads every `$dynamicAnchor` from the raw tree.
   - `annotation.DecidedKeywords` names `$comment`, `$dynamicAnchor` and `$dynamicRef`, which the
     unknown-key census leaves to other readers.
   - `annotation.UnknownKeywordsIn` reads every other unknown keyword's value from the raw node.
