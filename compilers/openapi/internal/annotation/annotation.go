@@ -195,7 +195,7 @@ type Kind int
 // A Site At builds carries no Referent: a declaration's annotations bind the
 // position they are written at (attachDeclaredAnnotations), and a component
 // that aliases another keeps the target's annotations reachable through its
-// Base. A reader that inherits, FillPropertyDetail (schema.go) or
+// Base. A reader that inherits, FillPropertyDetail (schema/property.go) or
 // fillParamSchema, builds its own Site with Referent from
 // resolve.Scope.TargetSchema.
 type Site struct {

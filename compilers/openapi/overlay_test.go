@@ -893,30 +893,30 @@ func TestCompile_OverlayIsCreditedWithTheKeysItAdds(t *testing.T) {
 		key  string
 		want int
 	}{
-		{"schema extension the overlay adds (schema.go attachDeclaredAnnotations)", "openapi:x-added", 1},
+		{"schema extension the overlay adds (declaration.go attachDeclaredAnnotations)", "openapi:x-added", 1},
 		{"schema extension the base declares, control", "openapi:x-base", 0},
 		{"scalar extension the overlay rewrites in place", "openapi:x-rw", 1},
 		{"mapping extension the overlay only merges into", "openapi:x-obj", 0},
 		{"extension removed then re-added by a later action", "openapi:x-gone", 1},
-		{"validation-only keyword the overlay adds (schema.go attachDeclaredAnnotations)", "openapi:not", 1},
+		{"validation-only keyword the overlay adds (declaration.go attachDeclaredAnnotations)", "openapi:not", 1},
 		{"a second validation-only keyword added beside it", "openapi:dependentSchemas", 1},
 		{"combined entry the overlay writes in full (contains + minContains)", "openapi:contains", 1},
 		{"combined entry on an array schema (unevaluatedItems alone)", "openapi:unevaluated", 1},
 		{"dialect keyword the overlay adds", "openapi:$id", 1},
-		{"unknown schema keyword the overlay adds (accumulate.go PreserveUnknownKeywords)", "openapi:frobnicate", 1},
-		{"property extension (schema.go fillPropertyAnnotations)", "openapi:x-prop", 1},
-		{"false allOf branch (compose.go applyFalseBranches)", "openapi:allOf/1", 1},
-		{"validation-only oneOf beside a model (schema.go preserveBranchSets)", "openapi:oneOf", 1},
+		{"unknown schema keyword the overlay adds (preserve.go PreserveUnknownKeywords)", "openapi:frobnicate", 1},
+		{"property extension (property.go fillPropertyAnnotations)", "openapi:x-prop", 1},
+		{"false allOf branch (allof.go applyFalseBranches)", "openapi:allOf/1", 1},
+		{"validation-only oneOf beside a model (union.go preserveBranchSets)", "openapi:oneOf", 1},
 		{"operation extension (operations.go applyOperationAnnotations)", "openapi:x-op", 1},
 		{"operation unknown key (operations.go applyOperationAnnotations)", "openapi:opBogus", 1},
 		{"externalDocs unknown key (operations.go applyOperationAnnotations)", "openapi:externalDocs/edBogus", 1},
 		{"response unknown key (responses.go preserveResponseExtras)", "openapi:bogus", 1},
 		{"response extension (responses.go preserveResponseExtras)", "openapi:x-resp", 1},
 		{"media type unknown key (content.go lowerContent)", "openapi:mediaBogus", 1},
-		{"header unknown key (content.go applyHeaderAnnotations)", "openapi:headerBogus", 1},
-		{"example unknown key (content.go appendPluralExample)", "openapi:exBogus", 1},
-		{"request body unknown key (content.go lowerRequestBody)", "openapi:rbBogus", 1},
-		{"encoding unknown key (content.go encodingUnmodeled)", "openapi:encoding/file/encBogus", 1},
+		{"header unknown key (headers.go applyHeaderAnnotations)", "openapi:headerBogus", 1},
+		{"example unknown key (examples.go appendPluralExample)", "openapi:exBogus", 1},
+		{"request body unknown key (requestbody.go lowerRequestBody)", "openapi:rbBogus", 1},
+		{"encoding unknown key (encoding.go encodingUnmodeled)", "openapi:encoding/file/encBogus", 1},
 		{"parameter unknown key (params.go fillParamDetail)", "openapi:paramBogus", 1},
 		{"parameter schema extension (params.go fillParamSchemaAnnotations)", "openapi:x-ps", 1},
 		{"security scheme extension (schemes.go applySchemeAnnotations)", "openapi:x-scheme", 1},
@@ -1012,9 +1012,9 @@ func TestCompile_OverlayIsCreditedWithTheKeysItAdds(t *testing.T) {
 // call paths provenanceSpec cannot reach. annotation.Constraints keeps a 3.0
 // exclusiveMinimum or exclusiveMaximum that has no bound beside it to modify,
 // which only a 3.0 document reads as a modifier: for a component schema
-// (schema.go hoistDeclarationHome) and for a parameter's schema (params.go
+// (declaration.go hoistDeclarationHome) and for a parameter's schema (params.go
 // fillParamSchema), each through schema.ConstraintsOf. And a oneOf that will
-// not render is reported rather than kept (schema.go preserveBranchSets), which
+// not render is reported rather than kept (union.go preserveBranchSets), which
 // is an error a clean fixture cannot carry.
 func TestCompile_OverlayIsCreditedWithAKeptModifierAndAnUnkeptBranchSet(t *testing.T) {
 	t.Parallel()
@@ -1062,7 +1062,7 @@ actions:
 	entries := unmodeledEntriesByPath(doc)
 	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/components/schemas/Num/exclusiveMinimum"},
 		entryKeyed(t, entries, "openapi:exclusiveMinimum").Provenance,
-		"a component schema's kept modifier (schema.go hoistDeclarationHome)")
+		"a component schema's kept modifier (declaration.go hoistDeclarationHome)")
 	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/paths/~1n/get/parameters/0/schema/exclusiveMaximum"},
 		entryKeyed(t, entries, "openapi:exclusiveMaximum").Provenance,
 		"a parameter schema's kept modifier (params.go fillParamSchema)")
@@ -1070,7 +1070,7 @@ actions:
 	unkept := diagnosticsByCodeAndPointer(diags)[diagKey{diag.UnpreservableConstruct, "/components/schemas/Str/oneOf"}]
 	require.Len(t, unkept, 1, "the oneOf that will not render is reported: %+v", diags)
 	assert.Equal(t, 1, unkept[0].Provenance.Source,
-		"a branch set the overlay added is reported as the overlay's (schema.go preserveBranchSets)")
+		"a branch set the overlay added is reported as the overlay's (union.go preserveBranchSets)")
 }
 
 // TestCompile_OverlayIsCreditedWithAnUnkeptCombinedEntry is the failure half of

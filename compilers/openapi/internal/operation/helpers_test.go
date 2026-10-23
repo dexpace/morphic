@@ -88,3 +88,44 @@ func errorFindings(diags []ir.Diagnostic) []string {
 	}
 	return out
 }
+
+const multipartVariantsSpec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /noschema:
+    post:
+      operationId: noSchema
+      requestBody:
+        content:
+          multipart/form-data: {}
+      responses: {"200": {description: ok}}
+  /noprops:
+    post:
+      operationId: noProps
+      requestBody:
+        content:
+          multipart/form-data:
+            schema: {type: object}
+      responses: {"200": {description: ok}}
+  /plainprops:
+    post:
+      operationId: plainProps
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties: {a: {type: string}, b: {type: integer}}
+      responses: {"200": {description: ok}}
+  /examples:
+    get:
+      operationId: exGet
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema: {type: string}
+              examples:
+                empty: {summary: no value here}
+`

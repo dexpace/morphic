@@ -61,11 +61,11 @@ func Hoistable(decl *oas3.JSONSchema[oas3.Referenceable]) bool {
 // IsReference (a non-empty $ref), or a schema body that carries a Ref field of
 // its own even when empty. That is deliberately broader than annotation.At's
 // classification: schemaRefHomed, TargetSchema, and bodySchemaPointer
-// (content.go) all need "there is a $ref-carrying body here," not "there is a
-// genuine, followable reference," so the degenerate {$ref: ""} shape counts for
-// them even though it does not count as an annotation.Reference. s is the
-// schema body the caller already holds; a nil s (a boolean schema carries none)
-// is never $ref-shaped.
+// (operation/multipart.go) all need "there is a $ref-carrying body here," not
+// "there is a genuine, followable reference," so the degenerate {$ref: ""}
+// shape counts for them even though it does not count as an
+// annotation.Reference. s is the schema body the caller already holds; a nil s
+// (a boolean schema carries none) is never $ref-shaped.
 func IsRefSite(js *oas3.JSONSchema[oas3.Referenceable], s *oas3.Schema) bool {
 	return js.IsReference() || (s != nil && s.Ref != nil)
 }
