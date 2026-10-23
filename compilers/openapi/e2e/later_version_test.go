@@ -14,6 +14,7 @@ import (
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -106,4 +107,36 @@ func TestLaterVersionConstructs_LowerAsInTheVersionThatAddedThem(t *testing.T) {
 	assert.NotEmpty(t, later31)
 	assert.Subset(t, later30, later31, "what 3.2 added is owed to 3.0 as to 3.1")
 	assert.Greater(t, len(later30), len(later31), "and what 3.1 added to 3.0 alone")
+}
+
+// TestXML_NodeTypeIsReadAtEveryVersion pins the 3.2 XML nodeType:
+// ir.XMLHints.NodeType already existed and its GoDoc already named the version,
+// so this is the wiring. Below 3.2 it reads the same, and load adds that the
+// field is a later version's (GitHub #864).
+func TestXML_NodeTypeIsReadAtEveryVersion(t *testing.T) {
+	t.Parallel()
+	const body = `    S:
+      type: object
+      properties:
+        n:
+          type: string
+          xml: {nodeType: text}
+`
+	for _, version := range []string{"3.2.0", "3.1.0", "3.0.3"} {
+		t.Run(version, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := parseFull(t, "openapi: "+version+
+				"\ninfo: {title: T, version: \"1\"}\npaths: {}\ncomponents:\n  schemas:\n"+body)
+			openapitest.RequireNoErrorDiags(t, diags)
+			model, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Model)
+			require.True(t, ok)
+			prop, ok := openapitest.PropsByWire(model.Properties)["n"]
+			require.True(t, ok)
+			require.NotNil(t, prop.XML)
+			assert.Equal(t, "text", prop.XML.NodeType)
+			assert.False(t, openapitest.HasDiag(diags, diag.UnknownObjectKey))
+			assert.Equal(t, version != "3.2.0", openapitest.HasDiagCodeAt(diags, diag.LaterVersionConstruct,
+				"/components/schemas/S/properties/n/xml/nodeType"))
+		})
+	}
 }

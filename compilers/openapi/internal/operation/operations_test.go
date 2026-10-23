@@ -725,38 +725,6 @@ func TestOperations_OwnServersFindingIsNotInferred(t *testing.T) {
 	assert.Equal(t, op.Provenance.Pointer, found[0].Provenance.Pointer, "and still reported at the operation")
 }
 
-// TestXML_NodeTypeIsReadAtEveryVersion pins the 3.2 XML nodeType:
-// ir.XMLHints.NodeType already existed and its GoDoc already named the version,
-// so this is the wiring. Below 3.2 it reads the same, and load adds that the
-// field is a later version's (GitHub #864).
-func TestXML_NodeTypeIsReadAtEveryVersion(t *testing.T) {
-	t.Parallel()
-	const body = `    S:
-      type: object
-      properties:
-        n:
-          type: string
-          xml: {nodeType: text}
-`
-	for _, version := range []string{"3.2.0", "3.1.0", "3.0.3"} {
-		t.Run(version, func(t *testing.T) {
-			t.Parallel()
-			doc, _, diags := lowerServiceSpec(t, "openapi: "+version+
-				"\ninfo: {title: T, version: \"1\"}\npaths: {}\ncomponents:\n  schemas:\n"+body)
-			openapitest.RequireNoErrorDiags(t, diags)
-			model, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Model)
-			require.True(t, ok)
-			prop, ok := openapitest.PropsByWire(model.Properties)["n"]
-			require.True(t, ok)
-			require.NotNil(t, prop.XML)
-			assert.Equal(t, "text", prop.XML.NodeType)
-			assert.False(t, openapitest.HasDiag(diags, diag.UnknownObjectKey))
-			assert.Equal(t, version != "3.2.0", openapitest.HasDiagCodeAt(diags, diag.LaterVersionConstruct,
-				"/components/schemas/S/properties/n/xml/nodeType"))
-		})
-	}
-}
-
 // TestLowerService_PercentEncodedEntryRefKeepsTheDeclaredCoordinate covers the
 // same identity defect on the components that are not schemas, where it was
 // wholly silent. Their entries resolve through the library, so the value arrived
