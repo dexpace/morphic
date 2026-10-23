@@ -18,11 +18,14 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// parsePetstore compiles the shared golden petstore spec (goldenPetstore, in
-// fuzz_test.go) through the public pipeline. Reading the on-disk spec rather
-// than a hand-copied literal keeps this test coupled to the same document the
-// golden snapshot is compared against, so an edit to the fixture cannot leave
-// this test asserting against a stale copy.
+// goldenPetstore is the golden petstore spec, addressed relative to this
+// package.
+const goldenPetstore = "../../testdata/golden/openapi/petstore.yaml"
+
+// parsePetstore compiles the golden petstore spec through the public pipeline.
+// Reading the on-disk spec rather than a hand-copied literal keeps this test
+// coupled to the same document the golden snapshot is compared against, so an
+// edit to the fixture cannot leave this test asserting against a stale copy.
 func parsePetstore(t *testing.T) (*ir.Document, []ir.Diagnostic) {
 	t.Helper()
 	data, err := os.ReadFile(goldenPetstore)

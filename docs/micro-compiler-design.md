@@ -324,7 +324,7 @@ reports the identical error twice, printing the two provenances side by side.
 
 ```bash
 # the test that holds it, and what reddens it
-go test ./compilers/openapi -run TestConstraints_HoistedSubSchemaBadBoundSingleError
+go test ./compilers/openapi/internal/schema -run TestConstraints_HoistedSubSchemaBadBoundSingleError
 ```
 
 ## 5. The OpenAPI split
@@ -483,9 +483,10 @@ grep -h '^package ' $(git ls-files 'compilers/openapi/*_test.go') | sort | uniq 
 Tests move with the code they cover, and an internal test for `value.go` becomes an internal test of
 `internal/value` unchanged. The ones that will bite are the suites spanning concerns —
 `conformance_test.go`, `golden_test.go`, `annotations_test.go`, `fuzz_test.go` — which exercise the
-whole compiler and belong at the top level as external tests against `Compile`. Any test that
-survives only by reaching across a new boundary is evidence the boundary is in the wrong place, and
-should be treated as such rather than worked around with an export.
+whole compiler and belong at the top level as external tests against `Compile`; they now sit in
+`compilers/openapi/e2e`, a package of test files only. Any test that survives only by reaching
+across a new boundary is evidence the boundary is in the wrong place, and should be treated as such
+rather than worked around with an export.
 
 The 100% coverage gate is what makes this safe: a helper stranded on the wrong side of a split shows
 up immediately as an uncovered statement rather than as quietly dead code.

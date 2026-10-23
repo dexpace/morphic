@@ -131,6 +131,8 @@ compilers/   Layer 1 — the Compiler contract and the format-keyed registry. Im
     internal/  Layer 1 — that compiler's own packages, each with its own allowlist rather than
              the compiler's. The ordering among them is real and enforced, from diag (reaches
              only ir) up to operation, document and detect. None may reach the compiler above it.
+    e2e/     Test files only, so outside the layering: that compiler's end-to-end tests, the
+             conformance corpus and goldens among them, compiled through its public face.
 pass/        Layer 1 — IR → IR passes. Imports ir and ir/irfacts.
 emitters/*   Layer 2 — imports ir, ir/irfacts + emitter contract; never compiler. (Not built yet.)
 engine/      Layer 3 — orchestration; imports everything below. It owns every read, write and
@@ -205,11 +207,12 @@ These all exist already — extend them rather than building a parallel mechanis
   `internal/jsonshape` by `internal/census`; `go test ./cmd/morphic-census` holds the file to a
   census of `testdata/`. A case that sets a fact takes its line out, so its change runs `-update`.
 - **Lowering specification**: `docs/compilers/openapi.md` is machine-read like the matrix. Each rule
-  names its evidence, and the `TestLoweringSpec` tests in `compilers/openapi` hold the names to the
-  code both ways, each listed code to the rule's text, and every `docs/compilers/openapi.md#<key>`
-  citation to a rule. It, `docs/parser-library.md` and each format's conformance `matrix.md` are
-  read through `internal/keydoc`, the one reader of the repository's keyed documents, and a test a
-  Markdown document names must exist (`internal/archtest`).
+  names its evidence, and the `TestLoweringSpec` tests in `compilers/openapi/e2e` hold the names to
+  the code both ways, each listed code to the rule's text, and every
+  `docs/compilers/openapi.md#<key>` citation to a rule. It, `docs/parser-library.md` and each
+  format's conformance `matrix.md` are read through `internal/keydoc`, the one reader of the
+  repository's keyed documents, and a test a Markdown document names must exist
+  (`internal/archtest`).
 - **Oracles**: `internal/harness` drives a spec through no-panic → no error diagnostic →
   `irverify` invariants → JSON round-trip → determinism → order-invariance, stopping at the first
   one that fires. `harness.Check` is the list — read it there rather than trusting this sentence;

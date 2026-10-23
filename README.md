@@ -316,13 +316,13 @@ Run a single test with `go test ./ir -run TestName`. Beyond that:
   and review the diff:
 
   ```bash
-  go test ./compilers/openapi -run 'TestGolden|TestConformance' -update
+  go test ./compilers/openapi/e2e -run 'TestGolden|TestConformance' -update
   ```
 
 - **Conformance corpus.** Each case in `testdata/conformance/openapi/` is a minimal spec that
   witnesses one or more rows of the [spec capability matrix](docs/ir-spec-matrix.md). To add one,
   write `<name>.yaml`, add an entry to `conformanceCases()` in
-  `compilers/openapi/conformance_test.go` naming its assertion, list it under the matrix rows it
+  `compilers/openapi/e2e/conformance_test.go` naming its assertion, list it under the matrix rows it
   witnesses in `testdata/conformance/openapi/matrix.md`, then run the command above to write
   `<name>.golden.json`, and name the case in the rule of the
   [OpenAPI lowering specification](docs/compilers/openapi.md) it pins. The suite fails on a spec
@@ -342,7 +342,7 @@ Run a single test with `go test ./ir -run TestName`. Beyond that:
   it reads the IR's declarations through the go command.
 - **Fuzzing.** `make fuzz` runs every fuzz target for 10s each (`make fuzz FUZZTIME=5m` for a
   longer search). One target runs on its own with, for example,
-  `go test ./compilers/openapi -run '^$' -fuzz '^FuzzCompile$' -fuzztime 1m`.
+  `go test ./compilers/openapi/e2e -run '^$' -fuzz '^FuzzCompile$' -fuzztime 1m`.
 
 ## Design docs
 

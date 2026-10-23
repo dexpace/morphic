@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 )
 
@@ -200,4 +201,19 @@ func TestDecodeOptions_FeedsCompile(t *testing.T) {
 	require.NotNil(t, doc)
 	assert.Equal(t, "a", doc.Services[0].Groups[0].Name.Source,
 		"the decoded option must reach the lowering, not merely parse")
+}
+
+// TestDefaultStreamingMediaTypes_IsWhatTheLoweringApplies pins the exported
+// list to the one a compile classifies by when Options names none, so a caller
+// extending it starts from what a compile really uses.
+func TestDefaultStreamingMediaTypes_IsWhatTheLoweringApplies(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, lowering.DefaultStreamingMediaTypes(), DefaultStreamingMediaTypes())
+}
+
+// TestDefaultExtensionPromotions_IsWhatTheLoweringApplies pins the exported
+// mapping to the one a compile promotes by when Options names none.
+func TestDefaultExtensionPromotions_IsWhatTheLoweringApplies(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, lowering.DefaultExtensionPromotions(), DefaultExtensionPromotions())
 }

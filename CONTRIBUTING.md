@@ -34,6 +34,31 @@ Read the documents for your layer, and skip the rest until you need them.
 | The IR | `ir-design.md`, `architecture.md` §2.5, `prior-art.md` | `reference-learnings.md` |
 | An emitter (none exists yet) | [`emitter-design.md`](docs/emitter-design.md), `architecture.md` §2.3 to §2.5 | `prior-art.md` |
 
+### Where a test goes
+
+- **A unit test sits beside the code it tests,** in its package, in the `_test.go` named after the
+  file that declares what the test's name says it tests, as `TestTypes_RegisterTakesNoCoordinate`,
+  of `Types` in `compilers/compile/types.go`, sits in `types_test.go`. Once a file's tests split by
+  topic, each part keeps that prefix, as `load_entry_internal_test.go` does beside `load.go`. A
+  scenario several files of a package decide together goes in a file named for the scenario, as
+  `pass/validate_propids_test.go` is, a check over a whole package in one named for what it checks,
+  as `ir/nofloat_test.go` is, and in a package of one source file a test file needs no prefix.
+  *Fails if missed:* `make coverage`, for a test in another package than its code, since coverage
+  counts only a package's own tests. Nothing fails for a test in the wrong file of its package.
+- **An end-to-end test of the OpenAPI compiler goes in `compilers/openapi/e2e`,** in a file named
+  for the construct or the property it checks: a test of what the compiler does as a whole, which no
+  one package decides, such as the conformance corpus, the goldens, fuzzing, benchmarks and a
+  scenario several packages settle together. A test of one package's code stays in that package even
+  when it compiles a whole spec through `openapi.New` to reach the code, as `internal/schema`'s
+  `parseFull` tests do, since only there does it count toward that package's coverage. The e2e
+  package holds no code, so its tests cover nothing, and the code they reach still needs a unit test
+  beside it; `compilers/openapi` itself holds only the tests of its own files. A helper several of
+  the package's files share is in its `helpers_test.go`, except the corpus's own reader, which
+  `conformance_test.go` declares, and a fixture the files of one construct share, which stays with
+  that construct.
+  *Fails if missed:* `make coverage`, for code only an end-to-end test reaches. Nothing fails for an
+  end-to-end test written in the compiler's own package or in one of its internal packages.
+
 ## Add a lowering rule to the OpenAPI compiler
 
 A lowering rule says how one OpenAPI construct reaches the IR: the field it fills, what it keeps in
@@ -74,20 +99,21 @@ A lowering rule says how one OpenAPI construct reaches the IR: the field it fill
    `TestDocComments_StayUnderTheCap`, `TestSuppressions_NoDirectiveStandsInTheSource`.
 4. **Add a conformance case and a unit test.** Write a minimal spec at
    `testdata/conformance/openapi/<name>.yaml` that exercises the rule, add an entry to
-   `conformanceCases()` in `compilers/openapi/conformance_test.go` naming its assertion, list it
+   `conformanceCases()` in `compilers/openapi/e2e/conformance_test.go` naming its assertion, list it
    under each [`ir-spec-matrix.md`](docs/ir-spec-matrix.md) row it witnesses in
    `testdata/conformance/openapi/matrix.md` (none, for a case that pins only a diagnostic), write
-   the assertion, and name the case in the rule's Cases field. Then write its golden alone, since
+   the assertion in the `conformance_<family>_test.go` of its construct, and name the case in the
+   rule's Cases field. Then write its golden alone, since
    a run that also reaches `TestConformance_TableNamesEveryCorpusSpec` reads the directory before
    the golden exists:
 
    ```bash
-   go test ./compilers/openapi -run '^TestConformance$/^<name>$' -update
+   go test ./compilers/openapi/e2e -run '^TestConformance$/^<name>$' -update
    ```
 
-   Coverage is counted per package, and the case runs in `compilers/openapi`, so it covers nothing
-   under `internal/`: the code you wrote there also needs a test in its own package, which the
-   rule's Tests field then names.
+   Coverage is counted per package, and the case runs in `compilers/openapi/e2e`, which holds no
+   code of its own, so it covers nothing: the code you wrote also needs a test in its own package,
+   which the rule's Tests field then names.
    *Fails if missed:* `TestConformance_TableNamesEveryCorpusSpec` for a spec with no entry,
    `TestConformance/<name>` for a golden that does not match, `TestLoweringSpec_CasesAreTheCorpus`
    for a case no rule names, `TestConformance_EveryRegisteredFormatIsHeldToItsColumn` for a name in
@@ -97,7 +123,7 @@ A lowering rule says how one OpenAPI construct reaches the IR: the field it fill
 5. **Regenerate what the change moves, and read the diff.** Other goldens may change too:
 
    ```bash
-   go test ./compilers/openapi -run 'TestGolden|TestConformance' -update
+   go test ./compilers/openapi/e2e -run 'TestGolden|TestConformance' -update
    git status --short testdata/
    ```
 

@@ -79,8 +79,9 @@ func rootReferencing(url string) string {
 		"paths:\n  /x: {$ref: \"" + url + "#/paths/~1x\"}\n"
 }
 
-// anchoredExternalDoc anchors both of /x's operations, the way anchors_test.go's
-// "an operation" case does: the parser folds a path item's methods into a map
+// anchoredExternalDoc anchors both of /x's operations, the way the "an
+// operation" case of TestCompile_AnAnchoredEntryCompilesAsItsUnanchoredTwin
+// does: the parser folds a path item's methods into a map
 // and skips an entry whose value carries an anchor, so an external document
 // read without this compiler's own anchor release drops whichever of these the
 // resolver parses itself.

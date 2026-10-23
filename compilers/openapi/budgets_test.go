@@ -25,6 +25,10 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
+// amplificationBombFixture is a document whose YAML aliases expand it to many
+// times its own size, which no alias budget admits.
+const amplificationBombFixture = "../../testdata/openapi/amplification_alias_bomb.yaml"
+
 // enumSpec is a minimal document whose one component declares a string enum of
 // n members. The specs these tests need differ only in how large they are, and
 // building them here is what keeps a multi-megabyte fixture out of the corpus.
