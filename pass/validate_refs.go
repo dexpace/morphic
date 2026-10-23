@@ -87,16 +87,6 @@ func checkPropIDRefs(doc *ir.Document) []ir.Diagnostic {
 	return diags
 }
 
-// propIDType and propertyType are the reflect.Types of ir.PropID and the struct
-// that declares one. A PropID references no document-level registry — a property
-// is a position inside its model — so both halves of resolving one come from the
-// walk itself: the sites that carry a PropID, and the ir.Property values that
-// declare them.
-var (
-	propIDType   = reflect.TypeFor[ir.PropID]()
-	propertyType = reflect.TypeFor[ir.Property]()
-)
-
 // refSite is one discovered ID reference: the class that made it a reference,
 // its value, and a human-readable location used for diagnostic provenance.
 type refSite struct {
@@ -144,6 +134,16 @@ func collectWalk(root any, path string, isRef func(reflect.Type) bool, onStruct 
 	})
 	return sites, truncated
 }
+
+// propIDType and propertyType are the reflect.Types of ir.PropID and the struct
+// that declares one. A PropID references no document-level registry — a property
+// is a position inside its model — so both halves of resolving one come from the
+// walk itself: the sites that carry a PropID, and the ir.Property values that
+// declare them.
+var (
+	propIDType   = reflect.TypeFor[ir.PropID]()
+	propertyType = reflect.TypeFor[ir.Property]()
+)
 
 // collectPropIDs returns every ir.PropID reference reachable from root together
 // with the set of PropIDs the same traversal saw declared, on an ir.Property.
