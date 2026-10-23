@@ -12,7 +12,7 @@ import (
 // address no entry of Document.Servers.
 //
 // These are references carried as integer indices, so nothing in their Go type
-// marks them as references and the walk in refs.go cannot reach them — they are
+// marks them as references and the reference walk cannot reach them — they are
 // enumerated here instead, and a new one has to be added by hand; irverify's
 // integerFields test is what notices it. An emitter iterating them to render
 // base URLs indexes out of range on a document that is otherwise referentially

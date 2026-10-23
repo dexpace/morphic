@@ -400,7 +400,7 @@ func TestValidate_EncodingKeyDiagnosticsAreDeterministic(t *testing.T) {
 	}
 }
 
-// payloadType is the node whose carriers this file enumerates.
+// payloadType is the node whose carriers payloadFields enumerates.
 var payloadType = reflect.TypeFor[ir.Payload]()
 
 // maxFieldTypeDepth bounds the walk through one field's type constructors (the
@@ -415,11 +415,11 @@ const maxFieldTypeDepth = 32
 //
 // forEachPayload names the Payload-bearing fields by hand, a coupling the
 // compiler cannot check: a carrier added to the IR would otherwise be walked by
-// neither the checks built on the walk nor the cases below, with the whole
-// suite green. The guard holds both lists in two steps. This test holds
-// encodingCarriers against the IR; TestValidate_EncodingKeyAddressesNoProperty
-// holds forEachPayload against encodingCarriers by requiring a diagnostic from
-// every entry.
+// neither the checks built on the walk nor the cases built on encodingCarriers,
+// with the whole suite green. The guard holds both lists in two steps. This
+// test holds encodingCarriers against the IR;
+// TestValidate_EncodingKeyAddressesNoProperty holds forEachPayload against
+// encodingCarriers by requiring a diagnostic from every entry.
 func TestEncodingCarriers_NameEveryPayloadFieldInTheIR(t *testing.T) {
 	t.Parallel()
 	carriers := encodingCarriers()

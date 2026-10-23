@@ -720,9 +720,8 @@ func TestValidate_DanglingOpRefWithNoOperationDeclared(t *testing.T) {
 // pointer, across every reference class rather than grouped by class.
 //
 // It is written out rather than captured from a first run for the reason
-// sortedRefPointers is (validate_refs_test.go): a captured order proves only
-// that two runs agree, which any deterministic order satisfies, including the
-// walk's own.
+// sortedRefPointers is: a captured order proves only that two runs agree, which
+// any deterministic order satisfies, including the walk's own.
 var sortedIDRefPointers = []string{
 	"doc.Channels[chan/a].Messages[0]",
 	"doc.Services[0].Auth[0].Schemes[0].Scheme",
@@ -767,8 +766,8 @@ func TestValidate_TypedIDDiagnosticOrderIsDeterministic(t *testing.T) {
 // walk that never reached these nodes: an entry filed under a key that
 // disagrees with its own ID leaves that ID resolving to nothing, which must be
 // reported. Keys cannot be driven so, as a key resolves to its own entry by
-// construction; the Service.Renames case in validate_refs_test.go pins that
-// keys are reached.
+// construction; the Service.Renames case in payloadAndVersioningSites pins
+// that keys are reached.
 func TestValidate_RegistryOwnIDsResolveAndMismatchesDangle(t *testing.T) {
 	t.Parallel()
 	cases := []struct {

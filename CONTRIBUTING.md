@@ -127,10 +127,10 @@ entries, any other way fails the `registrywrites` rule (`internal/lintrules`, ru
 rule sees a node of the input changed in place, which `UpdateType`'s copy is there to make needless.
 
 1. **Implement `pass.Pass`** in a file of its own under `pass/`, shaped as `Validator` and
-   `ValidateName` are in `pass/pass.go`: an exported type, and a constant holding its stable
+   `ValidateName` are in `pass/validate.go`: an exported type, and a constant holding its stable
    `Name()`, unique among the engine's passes. `Run` never mutates its input, returns its input when
    it only analyses, and reports through its diagnostics alone. `ir.ForEachOperation` walks the
-   operations, and the package's `diag` helper in `pass/validate.go` builds a diagnostic on a node.
+   operations, and the package's `diag` helper in `pass/diag.go` builds a diagnostic on a node.
    A code names the defect, as `pass/doc.go` says: `pass/<defect>` for a finding the pass owns,
    `ir/<defect>` for a structural one `irverify` reports too. A transform returns what `Finish`
    returns, its own findings appended.

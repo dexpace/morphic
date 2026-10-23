@@ -17,9 +17,10 @@ import (
 // Sites and registries come from reflection over the document's own shape
 // (ir.WalkValues, ir.DocumentRegistries), not a list of field names, which
 // would drift behind the IR unnoticed. Integer-index references are enumerated
-// by hand below, and ir.PropID is checkPropIDRefs's. Provenance.Source is
-// irverify's: a stale index is a compiler bug, and this pass's own ir.NoSource
-// diagnostics would make a document-wide check report its own output.
+// by hand in validate_indices.go, and ir.PropID is checkPropIDRefs's.
+// Provenance.Source is irverify's: a stale index is a compiler bug, and this
+// pass's own ir.NoSource diagnostics would make a document-wide check report
+// its own output.
 func checkDanglingRefs(doc *ir.Document, decls []ir.IDDeclaration, declTruncated bool) []ir.Diagnostic {
 	// Document has no map for OpID, ServiceID or GroupID: an ir.Operation and an
 	// ir.OperationGroup are declared in the Service→OperationGroup tree and an
@@ -87,9 +88,8 @@ func checkPropIDRefs(doc *ir.Document) []ir.Diagnostic {
 	return diags
 }
 
-// typeIDType is the reflect.Type of ir.TypeID, the one reference class the
-// reachability analysis in validate.go needs without a document to resolve
-// against.
+// typeIDType is the reflect.Type of ir.TypeID, the one reference class
+// graphqlReachableTypes needs without a document to resolve against.
 var typeIDType = reflect.TypeFor[ir.TypeID]()
 
 // propIDType and propertyType are the reflect.Types of ir.PropID and the struct
@@ -116,8 +116,8 @@ type refSite struct {
 //
 // The traversal is ir.WalkValues, shared with ir/irverify so that one document
 // has one walk: the same bound, cycle guard, order and path spelling. The
-// integer-index checks in validate.go stay rooted at a stable ID rather than
-// doc, since a spec author reads those and an ID outlives a position.
+// integer-index checks in validate_indices.go stay rooted at a stable ID rather
+// than doc, since a spec author reads those and an ID outlives a position.
 //
 // Determinism (invariant 7) rests on the ordered map walk: sorting cannot
 // repair a site set whose membership varies under a randomized walk of an

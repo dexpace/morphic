@@ -33,8 +33,8 @@ func checkNilTypes(doc *ir.Document) []ir.Diagnostic {
 // Every check that iterates doc.Types dereferences the value it matched, and a
 // typed nil satisfies both a type-switch case and a comma-ok assertion — so the
 // match itself is no evidence the value is safe to read. Screening at each call
-// site instead would leave the next check added here to rediscover the crash;
-// checkNilTypes reports whatever this omits.
+// site instead would leave the next check the pass gains to rediscover the
+// crash; checkNilTypes reports whatever this omits.
 func liveTypeIDs(doc *ir.Document) []ir.TypeID {
 	ids := slices.Sorted(maps.Keys(doc.Types))
 	live := make([]ir.TypeID, 0, len(ids))
