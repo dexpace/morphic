@@ -19,7 +19,7 @@ import (
 
 // TestGolden lowers a full petstore-style document and compares its IR against a
 // byte-exact golden snapshot. Regenerate it with
-// `go test ./compilers/openapi -run TestGolden -update`.
+// `go test ./compilers/openapi/e2e -run TestGolden -update`.
 func TestGolden(t *testing.T) {
 	t.Parallel()
 	data, err := os.ReadFile("../../../testdata/golden/openapi/petstore.yaml")

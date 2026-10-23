@@ -24,12 +24,24 @@ import (
 )
 
 // goldenPetstore is the larger real-ish spec seeded alongside the conformance
-// corpus, addressed relative to this test file.
+// corpus, addressed relative to this package.
 const goldenPetstore = "../../../testdata/golden/openapi/petstore.yaml"
 
 // amplificationBombFixture is a document whose YAML aliases expand it to many
 // times its own size, which no alias budget admits.
 const amplificationBombFixture = "../../../testdata/openapi/amplification_alias_bomb.yaml"
+
+// reproducerDir is where the cycle fixtures live. readReproducer,
+// TestCycleReproducers_EveryFixtureIsExercised and FuzzCycleDetector's seeds
+// all derive their paths from it, so none of them can end up looking somewhere
+// the others are not — which matters most for the seed loader, since it
+// ignores a read error and a wrong path there would cost the fuzzer its seeds
+// in silence.
+const reproducerDir = "../../../testdata/openapi"
+
+// corpusRoot is every committed spec directory, addressed relative to this
+// package.
+const corpusRoot = "../../../testdata"
 
 // parseFull runs the whole public compiler pipeline over src. That reach back
 // through openapi is also why openapitest cannot hold it — see that package's
@@ -126,6 +138,7 @@ func (r *recordingReader) locations() []string {
 	return out
 }
 
+// readReproducer reads the named fixture from reproducerDir.
 func readReproducer(t *testing.T, file string) []byte {
 	t.Helper()
 	data, err := os.ReadFile(filepath.Join(reproducerDir, file+".yaml"))

@@ -74,6 +74,3 @@ func encodeDoc(t *testing.T, doc any) string {
 	require.NoError(t, err)
 	return string(encoded)
 }
-
-// corpusRoot is every committed spec directory, addressed relative to this file.
-const corpusRoot = "../../../testdata"

@@ -163,8 +163,8 @@ func missingParentDest(t *testing.T) string {
 }
 
 // readOnlyDirDest returns a writable file inside a read-only directory — the
-// shape TestWriteCompiled_ReadOnlyDirFails pins, where the destination itself
-// could be rewritten but its directory will not take the temp file.
+// shape atomicfile.TestReplace_ReadOnlyDirFails pins, where the destination
+// itself could be rewritten but its directory will not take the temp file.
 func readOnlyDirDest(t *testing.T) string {
 	t.Helper()
 	if os.Geteuid() == 0 {

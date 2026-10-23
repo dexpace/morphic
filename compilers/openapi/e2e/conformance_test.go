@@ -32,13 +32,15 @@ const witnessDoc = "matrix.md"
 
 // TestConformance drives one minimal spec per OpenAPI-expressible capability
 // through the full compiler and asserts lossless capture: a focused
-// capability-specific assertion plus a byte-exact golden IR snapshot. Regenerate
-// the goldens with `go test ./compilers/openapi -run TestConformance -update`.
+// capability-specific assertion plus a byte-exact golden IR snapshot.
+// Regenerate the goldens with
+// `go test ./compilers/openapi/e2e -run TestConformance -update`.
 //
 // What the corpus does not cover is derived, not described, so nothing about
-// its reach is claimed by hand: TestConformance_UnwitnessedIRFields snapshots
-// every ir field no committed spec drives to a non-zero value. Some of what it
-// lists no spec can reach, such as a field only another source format writes.
+// its reach is claimed by hand: `go test ./cmd/morphic-census` holds
+// testdata/unwitnessed.golden.txt to every IR fact no committed spec sets. Some
+// of what it lists no spec can reach, such as a field only another source
+// format writes.
 func TestConformance(t *testing.T) {
 	t.Parallel()
 	for _, tc := range conformanceCases() {

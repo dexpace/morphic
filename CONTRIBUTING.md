@@ -46,14 +46,18 @@ Read the documents for your layer, and skip the rest until you need them.
   *Fails if missed:* `make coverage`, for a test in another package than its code, since coverage
   counts only a package's own tests. Nothing fails for a test in the wrong file of its package.
 - **An end-to-end test of the OpenAPI compiler goes in `compilers/openapi/e2e`,** in a file named
-  for the construct: a test that compiles a spec through `openapi.New` and reads what comes out,
-  the conformance corpus and the goldens among them. The package holds no code, so such a test
-  covers nothing, and the code it reaches still needs a unit test beside it; `compilers/openapi`
-  itself holds only the tests of its own files. A helper several of the package's files share is
-  in its `helpers_test.go`, except the corpus's own reader, which `conformance_test.go` declares,
-  and a fixture the files of one construct share, which stays with that construct.
+  for the construct or the property it checks: a test of what the compiler does as a whole, which no
+  one package decides, such as the conformance corpus, the goldens, fuzzing, benchmarks and a
+  scenario several packages settle together. A test of one package's code stays in that package even
+  when it compiles a whole spec through `openapi.New` to reach the code, as `internal/schema`'s
+  `parseFull` tests do, since only there does it count toward that package's coverage. The e2e
+  package holds no code, so its tests cover nothing, and the code they reach still needs a unit test
+  beside it; `compilers/openapi` itself holds only the tests of its own files. A helper several of
+  the package's files share is in its `helpers_test.go`, except the corpus's own reader, which
+  `conformance_test.go` declares, and a fixture the files of one construct share, which stays with
+  that construct.
   *Fails if missed:* `make coverage`, for code only an end-to-end test reaches. Nothing fails for an
-  end-to-end test written in the compiler's own package.
+  end-to-end test written in the compiler's own package or in one of its internal packages.
 
 ## Add a lowering rule to the OpenAPI compiler
 

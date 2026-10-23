@@ -385,6 +385,8 @@ morphic/
 │   ├── openapi/            #           OpenAPI 3.x → IR (milestone 1). The public face: the
 │   │   │                   #           Compiler, its Options, and the run that calls the
 │   │   │                   #           lowerings below in order.
+│   │   ├── e2e/            #             Its end-to-end tests: test files only, compiling through
+│   │   │                   #             that face, so they cover no package.
 │   │   └── internal/       #             Its own packages, each below that face:
 │   │       ├── diag/       #             diagnostic codes and the constructor
 │   │       ├── ids/        #             pointer construction; pointer → TypeID

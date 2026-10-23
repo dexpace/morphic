@@ -629,13 +629,6 @@ components:
 	assert.Empty(t, cyclicRefSites(diags), "a pointer that names an undeclared key is unresolved, not cyclic")
 }
 
-// reproducerDir is where the cycle fixtures live. The reader below, the table
-// guard above and the fuzz seeds all derive their paths from it, so none of them
-// can end up looking somewhere the others are not — which matters most for the
-// seed loader, since it ignores a read error and a wrong path there would cost
-// the fuzzer its seeds in silence.
-const reproducerDir = "../../../testdata/openapi"
-
 // TestCompile_MergeChainPastBoundStillCompiles pins that a legal document whose
 // `<<` merge chain runs past the mapping view's depth bound is compiled. The
 // alias scan weighs aliases rather than expanding merges through that view, so
