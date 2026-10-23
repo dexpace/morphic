@@ -10,7 +10,8 @@ import (
 )
 
 // checkDiscriminators reports discriminator mappings whose target either does
-// not exist or is not a legal variant/subtype. facts indexes doc.
+// not exist or is not a legal variant/subtype, and a model discriminator whose
+// tag property the model does not expose. facts indexes doc.
 func checkDiscriminators(doc *ir.Document, facts *irfacts.Index) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for _, id := range liveTypeIDs(doc) {
