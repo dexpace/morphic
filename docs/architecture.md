@@ -96,9 +96,9 @@ Internal phases every compiler follows (each format implements them its own way)
    the IR's nullable bit. The IR never records which dialect a fact came from except in
    provenance.
 3. **Hoist & identify** — every anonymous inline type is hoisted into the type registry exactly
-   once, keyed by its source pointer, with a naming *hint* (not a name) computed from context.
-   This is a single pass; no other code derives inline names (oagen's duplicated-naming failure
-   mode is designed out).
+   once, keyed by its source pointer, with a naming *hint* (not a name) that is a function of the
+   documents and that pointer alone. One function derives every inline name, whichever lowering
+   reaches the position first (oagen's duplicated-naming failure mode is designed out).
 4. **Resolve & lower** — build IR nodes: type graph, services, operations, bindings, auth,
    channels. Declared semantics lower directly; inferred semantics (heuristic pagination
    detection, envelope unwrapping) run only if the corresponding policy is enabled and mark
@@ -397,6 +397,7 @@ morphic/
 │   │       ├── load/       #             parse, validate, resolve
 │   │       ├── resolve/    #             what a $ref names; reference-or-inline entries
 │   │       ├── merge/      #             allOf property reconciliation
+│   │       ├── naming/     #             each node's name, from its coordinate alone
 │   │       ├── lowering/   #             the immutable context every lowering reads
 │   │       ├── schema/     #             the schema walk, composition, preservation
 │   │       ├── auth/       #             security schemes and requirements
