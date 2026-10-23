@@ -1565,7 +1565,7 @@ type Operation struct {
     OneWay     bool               // fire-and-forget: no response EVER exists (OTP cast, AsyncAPI
                                   // send-without-reply, Thrift oneway, JSON-RPC notifications).
                                   // Distinct from a response with no body (an ack still exists);
-                                  // validate rejects OneWay && len(Responses) > 0
+                                  // validate rejects OneWay with any response, Default included
     Streaming  StreamingMode      // none | client | server | bidi (derived summary of the two below)
     RequestStream  *StreamDetail  // client→server streaming semantics, when present
     ResponseStream *StreamDetail  // server→client streaming semantics, when present

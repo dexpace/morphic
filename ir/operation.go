@@ -30,7 +30,7 @@ type Operation struct {
 	// OneWay marks fire-and-forget operations for which no response ever exists
 	// (OTP cast, AsyncAPI send-without-reply, Thrift oneway, JSON-RPC
 	// notifications). Distinct from a response with no body (an ack still
-	// exists); validate rejects OneWay with a non-empty Responses.
+	// exists); validate rejects OneWay with any response, a Default included.
 	OneWay bool `json:"oneWay"`
 	// Streaming is the derived streaming summary: none | client | server | bidi.
 	Streaming StreamingMode `json:"streaming,omitempty"`

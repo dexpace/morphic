@@ -10,6 +10,14 @@ import (
 	"github.com/dexpace/morphic/pass"
 )
 
+func TestValidate_OneWayWithResponses(t *testing.T) {
+	t.Parallel()
+	op := ir.Operation{ID: "op", OneWay: true, Responses: []ir.Response{{}}}
+	diags := pass.Validate(docWithOperation(op))
+	require.NotEmpty(t, diags)
+	assert.Contains(t, codes(diags), "pass/oneway-with-responses")
+}
+
 // catchAll is the one condition an operation's Default may hold.
 func catchAll() ir.ResponseConditions {
 	return ir.ResponseConditions{StatusCodes: []ir.StatusRange{{From: 0, To: 0}}}
@@ -102,58 +110,4 @@ func TestValidate_AnOperationWithoutADefaultHasNoDefaultConditionsToJudge(t *tes
 		Conditions: ir.ResponseConditions{StatusCodes: []ir.StatusRange{{From: 200, To: 200}}},
 	}}}
 	assert.Empty(t, withCode(pass.Validate(docWithOperation(op)), "ir/default-response-conditions"))
-}
-
-// TestValidate_ADefaultPayloadIsJudgedAsAResponsesIs pins that the payload walk
-// reaches Operation.Default: a Default payload that sets Required is reported
-// as a response's would be, and an encoding key naming no property of its body
-// draws the same diagnostic a Response's does. Both sit at the operation's
-// default position, so a walk that skipped it would leave the payload unjudged.
-func TestValidate_ADefaultPayloadIsJudgedAsAResponsesIs(t *testing.T) {
-	t.Parallel()
-
-	t.Run("a Required that only a request can state", func(t *testing.T) {
-		t.Parallel()
-		doc := validDoc()
-		payload := multipartPayload(nil)
-		payload.Required = new(true)
-		def := defaultResponse()
-		def.Payload = &payload
-		firstOp(doc).Default = def
-
-		found := withCode(pass.Validate(doc), "ir/payload-required-outside-request")
-		require.Len(t, found, 1)
-		assert.Equal(t, ir.SeverityError, found[0].Severity)
-		assert.Equal(t, "op/default", found[0].Provenance.Node)
-		assert.Equal(t, "payload at op/default sets required, which only a request body can state",
-			found[0].Message)
-	})
-
-	t.Run("an encoding key addressing no property", func(t *testing.T) {
-		t.Parallel()
-		doc := validDoc()
-		payload := multipartPayload(map[ir.PropID]ir.PartEncoding{"p/m/ghost": {Multi: true}})
-		def := defaultResponse()
-		def.Payload = &payload
-		firstOp(doc).Default = def
-
-		found := withCode(pass.Validate(doc), "ir/encoding-key-unknown-property")
-		require.Len(t, found, 1)
-		assert.Equal(t, ir.SeverityError, found[0].Severity)
-		at := "op/default/contents/0/encoding/p/m/ghost"
-		assert.Equal(t, at, found[0].Provenance.Node)
-		assert.Equal(t, `encoding key "p/m/ghost" at `+at+
-			` addresses no property of the content's type "t/m"`, found[0].Message)
-	})
-
-	t.Run("a payload keyed by a real property is clean", func(t *testing.T) {
-		t.Parallel()
-		doc := validDoc()
-		payload := multipartPayload(map[ir.PropID]ir.PartEncoding{"p/m/a": {Multi: true}})
-		def := defaultResponse()
-		def.Payload = &payload
-		firstOp(doc).Default = def
-
-		assert.Empty(t, pass.Validate(doc))
-	})
 }

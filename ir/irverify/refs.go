@@ -48,10 +48,10 @@ func collectRefs(doc *ir.Document, regs ir.Registries) ([]refSite, bool) {
 // identities (GitHub #50), unless the declaration walk truncated: a partial
 // walk would report a reference to an unreached operation as dangling.
 //
-// ir.PropID stays out: pass.Validate's checkPropIDRefs resolves it against its
-// model. The returned flag, which Verify reports as ir/walk-truncated, folds in
-// decls.truncated rather than relying on collectRefs tripping the cap first
-// (GitHub #55).
+// ir.PropID stays out: pass.Validate's checkPropIDRefs holds it to a declared
+// property. The returned flag, which Verify reports as ir/walk-truncated, folds
+// in decls.truncated rather than relying on collectRefs tripping the cap first
+// (#55).
 func checkReferentialIntegrity(doc *ir.Document, decls declarations) ([]Violation, bool) {
 	regs := ir.DocumentRegistries(doc)
 	if !decls.truncated {
