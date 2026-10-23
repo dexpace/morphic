@@ -539,7 +539,8 @@ func TestContent_MediaTypeRefIsKeptNotFollowed(t *testing.T) {
 // a Media Type Object, which the bundled model names no field for and
 // ir.Content has no docs to hold: at a body's content and at a parameter's, it
 // is kept verbatim with an info rather than called undefined. Below 3.2 it is
-// kept the same, and load adds that the field is a later version's.
+// kept the same, and load adds that the field is a later version's. One merged
+// in through `<<` is kept as a written one is (GitHub #384).
 func TestContent_MediaTypeDescriptionIsKept(t *testing.T) {
 	t.Parallel()
 	const at = "/paths/~1a/get/responses/200/content/application~1json/description"
@@ -560,12 +561,15 @@ func TestContent_MediaTypeDescriptionIsKept(t *testing.T) {
           description: ok
           content:
             application/json: {description: The body., schema: {type: string}}
+            text/plain: {<<: {description: Merged.}, schema: {type: string}}
 `))
 			openapitest.RequireNoErrorDiags(t, diags)
 			op := openapitest.FirstOp(t, svc)
 			kept := op.Responses[0].Payload.Contents[0].Unmodeled["openapi:description"]
 			assert.Equal(t, ir.ReasonNoIRHome, kept.Reason)
 			assert.JSONEq(t, `"The body."`, string(kept.Value))
+			require.Len(t, op.Responses[0].Payload.Contents, 2)
+			assert.JSONEq(t, `"Merged."`, string(op.Responses[0].Payload.Contents[1].Unmodeled["openapi:description"].Value))
 			require.Len(t, op.Params, 1)
 			assert.Equal(t, ir.ReasonNoIRHome,
 				op.Params[0].Unmodeled["openapi:content/application~1json/description"].Reason)

@@ -57,6 +57,35 @@
                 "canonical": "get_merged"
               },
               "docs": {},
+              "params": [
+                {
+                  "id": "param/openapi/paths/~1merged/get/parameters/q/query",
+                  "name": {
+                    "source": "q",
+                    "canonical": "q"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {},
+                  "unmodeled": {
+                    "openapi:allowEmptyValue": {
+                      "reason": "no_ir_home",
+                      "value": true,
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1merged/get/parameters/0/allowEmptyValue"
+                      }
+                    }
+                  },
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1merged/get/parameters/0"
+                  }
+                }
+              ],
               "responses": [
                 {
                   "name": {
@@ -81,8 +110,61 @@
                       }
                     ]
                   },
+                  "headers": [
+                    {
+                      "id": "p/openapi/paths/~1merged/get/responses/200/headers/X-Rate",
+                      "name": {
+                        "source": "X-Rate",
+                        "canonical": "x_rate"
+                      },
+                      "wireName": "X-Rate",
+                      "type": {
+                        "target": "t/prim/integer",
+                        "nullable": false
+                      },
+                      "required": false,
+                      "clientOptional": false,
+                      "defaultAdded": false,
+                      "visibility": {
+                        "none": false
+                      },
+                      "flatten": false,
+                      "eventHeader": false,
+                      "eventPayload": false,
+                      "secret": false,
+                      "docs": {},
+                      "unmodeled": {
+                        "openapi:style": {
+                          "reason": "no_ir_home",
+                          "value": "simple",
+                          "provenance": {
+                            "source": 0,
+                            "pointer": "/paths/~1merged/get/responses/200/headers/X-Rate/style"
+                          }
+                        }
+                      },
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1merged/get/responses/200/headers/X-Rate"
+                      }
+                    }
+                  ],
                   "docs": {
                     "description": "ok"
+                  },
+                  "unmodeled": {
+                    "openapi:links": {
+                      "reason": "no_ir_home",
+                      "value": {
+                        "self": {
+                          "operationId": "getMerged"
+                        }
+                      },
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1merged/get/responses/200/links"
+                      }
+                    }
                   }
                 }
               ],
@@ -94,6 +176,169 @@
                     "method": "GET",
                     "uriTemplate": "/merged",
                     "sharedRoute": false,
+                    "paramBindings": [
+                      {
+                        "param": "param/openapi/paths/~1merged/get/parameters/q/query",
+                        "location": "query",
+                        "wireName": "q",
+                        "style": "form",
+                        "explode": true,
+                        "allowReserved": false
+                      }
+                    ],
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "unmodeled": {
+                "openapi:operationServers": {
+                  "reason": "no_ir_home",
+                  "value": [
+                    {
+                      "url": "https://operation.example"
+                    }
+                  ],
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1merged/get/servers"
+                  }
+                },
+                "openapi:pathItem/mergedBogus": {
+                  "reason": "out_of_scope",
+                  "value": {
+                    "responses": {
+                      "200": {
+                        "description": "MERGED"
+                      }
+                    }
+                  },
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1merged/mergedBogus"
+                  }
+                },
+                "openapi:pathItemDescription": {
+                  "reason": "no_ir_home",
+                  "value": "Shared description",
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1merged/description"
+                  }
+                },
+                "openapi:pathItemSummary": {
+                  "reason": "no_ir_home",
+                  "value": "Shared summary",
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1merged/summary"
+                  }
+                },
+                "openapi:servers": {
+                  "reason": "no_ir_home",
+                  "value": [
+                    {
+                      "url": "https://path.example"
+                    }
+                  ],
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1merged/servers"
+                  }
+                },
+                "openapi:x-big": {
+                  "reason": "vendor_extension",
+                  "value": 1e400,
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1merged/get/x-big"
+                  }
+                },
+                "openapi:x-codes": {
+                  "reason": "vendor_extension",
+                  "value": {
+                    "100": "Continue",
+                    "200": "OK",
+                    "true": "T"
+                  },
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1merged/get/x-codes"
+                  }
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1merged/get"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1merged/post",
+              "name": {
+                "source": "postMerged",
+                "canonical": "post_merged"
+              },
+              "docs": {},
+              "request": {
+                "contents": [
+                  {
+                    "mediaType": "multipart/form-data",
+                    "type": {
+                      "target": "t/anon/paths/~1merged/post/requestBody/content/multipart~1form-data/schema",
+                      "nullable": false
+                    },
+                    "encoding": {
+                      "p/openapi/paths/~1merged/post/requestBody/content/multipart~1form-data/schema/properties/f": {
+                        "contentTypes": [
+                          "text/plain"
+                        ],
+                        "multi": false,
+                        "filename": false
+                      }
+                    },
+                    "unmodeled": {
+                      "openapi:encoding/f/allowReserved": {
+                        "reason": "no_ir_home",
+                        "value": true,
+                        "provenance": {
+                          "source": 0,
+                          "pointer": "/paths/~1merged/post/requestBody/content/multipart~1form-data/encoding/f/allowReserved"
+                        }
+                      }
+                    }
+                  }
+                ],
+                "required": false
+              },
+              "responses": [
+                {
+                  "name": {
+                    "hint": "204"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 204,
+                        "to": 204
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "done"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "uriTemplate": "/merged",
+                    "sharedRoute": false,
+                    "requestContentTypes": [
+                      "multipart/form-data"
+                    ],
                     "checksumRequired": false,
                     "isWebhook": false
                   }
@@ -130,30 +375,22 @@
                     "pointer": "/paths/~1merged/summary"
                   }
                 },
-                "openapi:x-big": {
-                  "reason": "vendor_extension",
-                  "value": 1e400,
+                "openapi:servers": {
+                  "reason": "no_ir_home",
+                  "value": [
+                    {
+                      "url": "https://path.example"
+                    }
+                  ],
                   "provenance": {
                     "source": 0,
-                    "pointer": "/paths/~1merged/get/x-big"
-                  }
-                },
-                "openapi:x-codes": {
-                  "reason": "vendor_extension",
-                  "value": {
-                    "100": "Continue",
-                    "200": "OK",
-                    "true": "T"
-                  },
-                  "provenance": {
-                    "source": 0,
-                    "pointer": "/paths/~1merged/get/x-codes"
+                    "pointer": "/paths/~1merged/servers"
                   }
                 }
               },
               "provenance": {
                 "source": 0,
-                "pointer": "/paths/~1merged/get"
+                "pointer": "/paths/~1merged/post"
               }
             }
           ]
@@ -197,6 +434,20 @@
           }
         }
       ],
+      "unmodeled": {
+        "openapi:not": {
+          "reason": "validation_only",
+          "value": {
+            "required": [
+              "forbidden"
+            ]
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1merged/get/responses/200/content/application~1json/schema/not"
+          }
+        }
+      },
       "provenance": {
         "source": 0,
         "pointer": "/paths/~1merged/get/responses/200/content/application~1json/schema"
@@ -204,6 +455,103 @@
       "abstract": false,
       "positional": false,
       "inputOnly": false
+    },
+    "t/anon/paths/~1merged/post/requestBody/content/multipart~1form-data/schema": {
+      "kind": "model",
+      "id": "t/anon/paths/~1merged/post/requestBody/content/multipart~1form-data/schema",
+      "name": {
+        "hint": "post_merged_request"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1merged/post/requestBody/content/multipart~1form-data/schema"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/paths/~1merged/post/requestBody/content/multipart~1form-data/schema/properties/f",
+          "name": {
+            "source": "f",
+            "canonical": "f"
+          },
+          "wireName": "f",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1merged/post/requestBody/content/multipart~1form-data/schema/properties/f"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/integer": {
+      "kind": "primitive",
+      "id": "t/prim/integer",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "integer"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "string"
+    }
+  },
+  "auth": {
+    "auth/openapi/components/securitySchemes/key": {
+      "id": "auth/openapi/components/securitySchemes/key",
+      "name": {
+        "source": "key",
+        "canonical": "key"
+      },
+      "kind": "apiKey",
+      "docs": {},
+      "in": "header",
+      "keyName": "X-Key",
+      "unmodeled": {
+        "openapi:bearerFormat": {
+          "reason": "degraded_lowering",
+          "value": "JWT",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/securitySchemes/key/bearerFormat"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/securitySchemes/key"
+      }
     }
   },
   "servers": [
@@ -216,6 +564,60 @@
     }
   ],
   "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "security scheme bearerFormat is not defined by type \"apiKey\"; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/securitySchemes/key/bearerFormat"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "parameter allowEmptyValue has no ir.HTTPParamBinding home; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1merged/get/parameters/0/allowEmptyValue"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "header style has no ir.Property home; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1merged/get/responses/200/headers/X-Rate/style"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/validation-only-keyword",
+      "message": "validation-only keyword \"not\" kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1merged/get/responses/200/content/application~1json/schema"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "operation servers kept under Unmodeled; an operation has no server-scope list to bind them to, and these override any path-item servers kept beside them",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1merged/get"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "path-item servers kept under Unmodeled; an operation has no server-scope list to bind them to",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1merged/get"
+      }
+    },
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
@@ -233,13 +635,40 @@
         "source": 0,
         "pointer": "/paths/~1merged/mergedBogus"
       }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "encoding allowReserved has no ir.PartEncoding home; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1merged/post/requestBody/content/multipart~1form-data/encoding/f/allowReserved"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "path-item servers kept under Unmodeled; an operation has no server-scope list to bind them to",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1merged/post"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "path-item documentation kept under Unmodeled; it documents the path rather than this operation, and ir.Docs holds the operation's own summary and description",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1merged/post"
+      }
     }
   ],
   "sources": [
     {
       "format": "openapi@3.1",
       "path": "yaml-merge-keys.yaml",
-      "hash": "c23e5c7c1bb378f36aca91d716f0233b1e4fc982aaca7d24ab775bf8f2f5bd08"
+      "hash": "f2f7c894f515e8d8bf47ce396f7c8fa0f28b007b8f965706d349f9662eeee959"
     }
   ]
 }

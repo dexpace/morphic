@@ -43,6 +43,26 @@ func TestFillSequential_PrefixEncodingWithoutItemEncoding(t *testing.T) {
 	openapitest.AssertHasCode(t, diags, diag.DegradedConstruct, ir.SeverityInfo)
 }
 
+// TestContent_AMergedPositionalEncodingIsPreserved pins that prefixEncoding
+// and itemEncoding merged in through `<<` are kept as written ones are (GitHub
+// #384). The parser reads them, so this lowering runs, and a raw read that
+// missed them would report a declared prefixEncoding it could not find.
+func TestContent_AMergedPositionalEncodingIsPreserved(t *testing.T) {
+	t.Parallel()
+	written := "              prefixEncoding:\n                - contentType: application/json\n" +
+		"                - contentType: application/xml\n              itemEncoding: {contentType: text/plain}\n"
+	merged := "              <<: {prefixEncoding: [{contentType: application/json}, {contentType: application/xml}], " +
+		"itemEncoding: {contentType: text/plain}}\n"
+	require.Contains(t, positionalEncodingSpec, written, "sanity: the spec writes both in place")
+	doc, diags := parseFull(t, strings.Replace(positionalEncodingSpec, written, merged, 1))
+	c := openapitest.FindOp(t, doc, "mixed").Responses[0].Payload.Contents[0]
+
+	assert.False(t, openapitest.HasDiag(diags, diag.UnpreservableConstruct), "%+v", diags)
+	assert.JSONEq(t, `[{"contentType": "application/json"}, {"contentType": "application/xml"}]`,
+		string(c.Unmodeled["openapi:prefixEncoding"].Value))
+	assert.JSONEq(t, `{"contentType": "text/plain"}`, string(c.Unmodeled["openapi:itemEncoding"].Value))
+}
+
 // positionalEncodingSpec declares the 3.2 shape ItemEncoding cannot state:
 // prefixEncoding fixes the encoding of the leading items, so the itemEncoding
 // beside it governs only the tail after them, not every item.
