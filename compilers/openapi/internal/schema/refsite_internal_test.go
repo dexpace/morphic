@@ -12,6 +12,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
+	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
@@ -63,49 +64,57 @@ func TestRefTypeRef_SaysWhyAnUnboundRefIsUnresolved(t *testing.T) {
 		message(t, unplaced, a))
 }
 
-// TestMappingWhy_GivesAComponentNameNoReasonOfTheTable pins that a mapping
-// value naming a component, which the table never reads, takes none of the
-// table's reasons: the merge bound cut a read elsewhere in the document, not
-// the lookup of the name.
-func TestMappingWhy_GivesAComponentNameNoReasonOfTheTable(t *testing.T) {
+// TestResolvePointer_PromisesWhatItNames pins that a $ref never builds what it
+// names: it takes the ID the target's pointer derives and promises the node,
+// which Finish builds only where no lowering interned one, and a target it
+// cannot hoist resolves to nothing.
+func TestResolvePointer_PromisesWhatItNames(t *testing.T) {
 	t.Parallel()
-	var deep strings.Builder
-	deep.WriteString("openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\nx-c0: &c0 {$ref: '#/components/schemas/T'}\n")
-	for i := 1; i <= 70; i++ {
-		fmt.Fprintf(&deep, "x-c%d: &c%d {<<: *c%d}\n", i, i, i-1)
-	}
-	deep.WriteString("components:\n  schemas:\n    T: {type: string}\n    A: {<<: *c70}\n" +
-		"    P: {oneOf: [{$ref: '#/components/schemas/T'}], discriminator: {propertyName: k, mapping: {u: Undeclared}}}\n")
-	l, _ := loweredFor(t, deep.String())
-	require.True(t, l.ctx.Bindings().Table().Truncated(), "the merge bound cut a read")
-	p, ok := l.ctx.Doc.Components.GetSchemas().Get("P")
+	l := newRawLowerer(&soa.OpenAPI{})
+	object := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](
+		&oas3.Schema{Type: oas3.NewTypeFromString(oas3.SchemaTypeObject)})
+
+	id, ok := resolvePointer(l.ctx, l.types, &l.anchors, deepPointer, object)
 	require.True(t, ok)
-	d := p.GetSchema().GetDiscriminator()
-	require.NotNil(t, d)
-	assert.Empty(t, mappingWhy(l.ctx, d, "Undeclared"))
+	assert.Equal(t, ids.Document{}.AnonType(deepPointer), id)
+	_, built := l.types.Lookup(deepPointer)
+	assert.False(t, built, "the reference builds nothing itself")
+
+	_, finished := l.types.Finish(t.Context())
+	assert.Empty(t, finished, "an object body hoists cleanly, and nothing is refused")
+	seeded, built := l.types.Lookup(deepPointer)
+	require.True(t, built, "Finish builds what no lowering interned")
+	assert.Equal(t, id, seeded)
+
+	_, ok = resolvePointer(l.ctx, l.types, &l.anchors, deepPointer, nil)
+	assert.False(t, ok, "a target the bindings hold no schema at cannot be hoisted")
 }
 
-// TestMappingWhy_GivesAnUnreadReferenceTheTablesReason pins that a mapping
-// value spelling a reference, which the table reads, takes the table's reason
-// where it went unread: P's discriminator sits past a merge chain deeper than
-// the compiler expands, so the binder never read its mapping.
-func TestMappingWhy_GivesAnUnreadReferenceTheTablesReason(t *testing.T) {
+func TestResolveSchemaRef_UnboundDeepRefDropped(t *testing.T) {
 	t.Parallel()
-	var deep strings.Builder
-	deep.WriteString("openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\n" +
-		"x-c0: &c0 {oneOf: [{$ref: '#/components/schemas/T'}], " +
-		"discriminator: {propertyName: k, mapping: {t: '#/components/schemas/T'}}}\n")
-	for i := 1; i <= 70; i++ {
-		fmt.Fprintf(&deep, "x-c%d: &c%d {<<: *c%d}\n", i, i, i-1)
-	}
-	deep.WriteString("components:\n  schemas:\n    T: {properties: {k: {type: string}}}\n    P: {<<: *c70}\n")
-	l, _ := loweredFor(t, deep.String())
-	p, ok := l.ctx.Doc.Components.GetSchemas().Get("P")
+	l := newRawLowerer(&soa.OpenAPI{})
+	// A same-file $ref to a deep pointer no binding read: no interned node and
+	// nothing the bindings know it lands on, so the reference is dropped.
+	js := oas3.NewJSONSchemaFromReference("#" + deepPointer)
+
+	_, ok := resolveSchemaRef(l.ctx, l.types, &l.anchors, js)
+	assert.False(t, ok, "an unresolved deep sub-schema $ref is dropped, not synthesized")
+}
+
+func TestHoistSubSchema_BodyInternsAtPointer(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{})
+	// An object body interns a node at the sub-schema's own pointer, so the
+	// pointer-owns-a-node branch keeps that node rather than aliasing it.
+	object := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](
+		&oas3.Schema{Type: oas3.NewTypeFromString(oas3.SchemaTypeObject)})
+
+	assert.Empty(t, hoistSubSchema(l.ctx, l.types, &l.anchors, object, deepPointer), "an object body hoists cleanly")
+	seeded, _ := l.types.Lookup(deepPointer)
+	assert.Equal(t, ids.Document{}.AnonType(deepPointer), seeded)
+	td, ok := l.types.NodeAt(deepPointer)
 	require.True(t, ok)
-	d := p.GetSchema().GetDiscriminator()
-	require.NotNil(t, d, "the parser expands the whole chain")
-	assert.Equal(t, ": it is past a `<<` merge chain deeper than the 64 levels the compiler expands",
-		mappingWhy(l.ctx, d, "#/components/schemas/T"))
+	assert.Equal(t, ir.KindModel, td.Kind(), "the body's own node, not an alias over it")
 }
 
 // unheldLowerer is a lowerer over bindings that know where A's $ref lands but

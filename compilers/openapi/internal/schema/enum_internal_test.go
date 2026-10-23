@@ -11,6 +11,49 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
+// TestEnumMemberForm_ClassifiesEveryValueKind pins the classification arm by
+// arm, including the kinds OpenAPI cannot produce. ValueKind is IR-wide, and
+// the exhaustive linter requires every member of it to be named here — this is
+// what says the naming is a decision rather than a formality.
+func TestEnumMemberForm_ClassifiesEveryValueKind(t *testing.T) {
+	t.Parallel()
+	admissible := []struct {
+		name string
+		val  ir.Value
+		prim ir.PrimKind
+		text string
+	}{
+		{"string", ir.Value{Kind: ir.ValueString, Str: "s"}, ir.PrimString, "s"},
+		{"symbol", ir.Value{Kind: ir.ValueSymbol, Str: "ok"}, ir.PrimString, "ok"},
+		{"number", ir.Value{Kind: ir.ValueNumber, Num: ir.BigVal("1.5")}, ir.PrimNumber, "1.5"},
+		{"bool", ir.Value{Kind: ir.ValueBool, Bool: true}, ir.PrimBool, "true"},
+		{"bytes", ir.Value{Kind: ir.ValueBytes, Bytes: []byte("hi")}, ir.PrimBytes, "aGk="},
+	}
+	for _, tc := range admissible {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			prim, text, ok := enumMemberForm(tc.val)
+			require.True(t, ok, "%s is admissible as an enum member", tc.name)
+			assert.Equal(t, tc.prim, prim)
+			assert.Equal(t, tc.text, text)
+		})
+	}
+
+	refused := []ir.ValueKind{
+		ir.ValueNull, ir.ValueList, ir.ValueObject, ir.ValueRefKind, ir.ValueCtor,
+		ir.ValueKind("a kind ir does not declare"),
+	}
+	for _, kind := range refused {
+		t.Run(string(kind), func(t *testing.T) {
+			t.Parallel()
+			prim, text, ok := enumMemberForm(ir.Value{Kind: kind})
+			assert.False(t, ok, "%q has no place in an Enum", kind)
+			assert.Empty(t, prim, "a refused kind asserts no primitive")
+			assert.Empty(t, text)
+		})
+	}
+}
+
 // TestEnumMemberKey_EncodesEveryAdmissibleKind writes each key out: a tag for
 // the kind of value, a colon, then the value as it is: the ID escapes the whole
 // key as one pointer token.

@@ -1,0 +1,73 @@
+package schema
+
+import (
+	"testing"
+
+	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
+	soa "github.com/speakeasy-api/openapi/openapi"
+	"github.com/speakeasy-api/openapi/references"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/ir"
+)
+
+// TestConstraintsOf_NonSchemaInputs covers annotation.SchemaOf's nil and
+// boolean early return, plus a well-formed reference besides: none of the three
+// leaves a body with constraint keywords on it, so ConstraintsOf reports none
+// either way.
+func TestConstraintsOf_NonSchemaInputs(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{})
+	for _, js := range []*oas3.Schema{
+		annotation.SchemaOf(nil),
+		annotation.SchemaOf(oas3.NewJSONSchemaFromBool(true)),
+		annotation.SchemaOf(oas3.NewJSONSchemaFromReference("#/components/schemas/Other")),
+	} {
+		var kept ir.Unmodeled
+		cons, diags := ConstraintsOf(l.ctx, &kept, js, "/p")
+		assert.Nil(t, cons)
+		assert.Empty(t, diags)
+		assert.Empty(t, kept)
+	}
+}
+
+// TestConstraintsOf_EmptyRefSchema covers a $ref pointer that is present but
+// empty: IsReference is false for it, so annotation.SchemaOf has no early
+// return here — the Schema body reaches ConstraintsOf, which finds no
+// constraint keywords on a body that carries only Ref. The parser never emits
+// this shape, so it is built by hand.
+func TestConstraintsOf_EmptyRefSchema(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{})
+	js := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{Ref: new(references.Reference(""))})
+	var kept ir.Unmodeled
+	cons, diags := ConstraintsOf(l.ctx, &kept, annotation.SchemaOf(js), "/p")
+	assert.Nil(t, cons)
+	assert.Empty(t, diags)
+	assert.Empty(t, kept)
+}
+
+// TestStampConstraintDiags_RelocatesEveryDiagnosticToTheReadingPointer pins what
+// makes two reads of one sub-schema dedup rather than report twice: the
+// diagnostics a constraint read produces are located at the position that read
+// it, not at the position that declared it.
+func TestStampConstraintDiags_RelocatesEveryDiagnosticToTheReadingPointer(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{})
+	in := []ir.Diagnostic{
+		{Code: diag.DegradedConstruct, Provenance: ir.Provenance{Pointer: "/elsewhere"}},
+		{Code: diag.NumericPrecision, Provenance: ir.Provenance{Source: 9, Pointer: "/other"}},
+	}
+
+	got := stampConstraintDiags(l.ctx, in, "/components/schemas/S")
+
+	require.Len(t, got, 2)
+	for _, d := range got {
+		assert.Equal(t, ir.Provenance{Source: 0, Pointer: "/components/schemas/S"}, d.Provenance,
+			"every diagnostic is relocated, not just the first")
+	}
+	assert.Equal(t, diag.NumericPrecision, got[1].Code, "only the provenance changes")
+}
