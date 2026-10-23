@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
-	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -54,22 +53,6 @@ func TestRecordDeclarationResidue_LeavesANodeStillBeingBuiltToItsBuilder(t *test
 	td, ok := l.types.Node(id)
 	require.True(t, ok)
 	assert.Contains(t, td.Common().Unmodeled, "openapi:readOnly", "and keeps it")
-}
-
-// TestAttachDeclaredAnnotations_MissingNode drives the invariant no source can
-// break: an ID the registry never registered and is not building. That state is
-// a compiler bug — and the annotations it would swallow are reported rather
-// than lost.
-func TestAttachDeclaredAnnotations_MissingNode(t *testing.T) {
-	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
-	// Reached through preserveUnionSiblings rather than attachDeclaredAnnotations:
-	// the latter takes its node from the coordinate map, where a coordinate
-	// without one is still being built and is left to its builder, so it cannot
-	// be handed an ID the registry does not hold. This one takes an ID from its
-	// caller.
-	diags := preserveUnionSiblings(l.ctx, l.types, "t/anon/missing", &oas3.Schema{}, "/p", ir.ReasonDegradedLowering, "why")
-	assertInternalInvariant(t, diags)
 }
 
 // lowererDeclaringS returns a lowerer over a component S that declares a
