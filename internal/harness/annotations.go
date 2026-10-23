@@ -53,7 +53,7 @@ const (
 	SiteDeclarationModel SiteKind = "declaration-model"
 	// SiteDeclarationScalar is an annotation on a scalar-shaped component,
 	// which lowers through the compiler's alias path (internAlias in
-	// schema.go).
+	// hoist.go).
 	SiteDeclarationScalar SiteKind = "declaration-scalar"
 	// SiteReference is an annotation written beside a $ref.
 	SiteReference SiteKind = "reference"

@@ -46,7 +46,7 @@ func TestCompile_AliasBombDoesNotExhaustMemory(t *testing.T) {
 }
 
 // TestCompile_SharedCompositionAncestorsDoNotAmplify pins the visited set in the
-// discriminator ancestor walk (compilers/openapi/internal/schema/compose.go) on
+// discriminator ancestor walk (compilers/openapi/internal/schema/discriminator.go) on
 // an acyclic shape: a chain of diamonds, each allOf naming one parent twice.
 // TestAllOf_DiscriminatorValueCyclicComposition covers the cyclic half, but a
 // walk that never returns fails there as a silent package-wide timeout; this
