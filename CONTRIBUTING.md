@@ -74,7 +74,7 @@ A lowering rule says how one OpenAPI construct reaches the IR: the field it fill
    `TestDocComments_StayUnderTheCap`, `TestSuppressions_NoDirectiveStandsInTheSource`.
 4. **Add a conformance case and a unit test.** Write a minimal spec at
    `testdata/conformance/openapi/<name>.yaml` that exercises the rule, add an entry to
-   `conformanceCases()` in `compilers/openapi/conformance_test.go` naming its assertion, list it
+   `conformanceCases()` in `compilers/openapi/e2e/conformance_test.go` naming its assertion, list it
    under each [`ir-spec-matrix.md`](docs/ir-spec-matrix.md) row it witnesses in
    `testdata/conformance/openapi/matrix.md` (none, for a case that pins only a diagnostic), write
    the assertion, and name the case in the rule's Cases field. Then write its golden alone, since
@@ -82,12 +82,12 @@ A lowering rule says how one OpenAPI construct reaches the IR: the field it fill
    the golden exists:
 
    ```bash
-   go test ./compilers/openapi -run '^TestConformance$/^<name>$' -update
+   go test ./compilers/openapi/e2e -run '^TestConformance$/^<name>$' -update
    ```
 
-   Coverage is counted per package, and the case runs in `compilers/openapi`, so it covers nothing
-   under `internal/`: the code you wrote there also needs a test in its own package, which the
-   rule's Tests field then names.
+   Coverage is counted per package, and the case runs in `compilers/openapi/e2e`, which holds no
+   code of its own, so it covers nothing: the code you wrote also needs a test in its own package,
+   which the rule's Tests field then names.
    *Fails if missed:* `TestConformance_TableNamesEveryCorpusSpec` for a spec with no entry,
    `TestConformance/<name>` for a golden that does not match, `TestLoweringSpec_CasesAreTheCorpus`
    for a case no rule names, `TestConformance_EveryRegisteredFormatIsHeldToItsColumn` for a name in
@@ -97,7 +97,7 @@ A lowering rule says how one OpenAPI construct reaches the IR: the field it fill
 5. **Regenerate what the change moves, and read the diff.** Other goldens may change too:
 
    ```bash
-   go test ./compilers/openapi -run 'TestGolden|TestConformance' -update
+   go test ./compilers/openapi/e2e -run 'TestGolden|TestConformance' -update
    git status --short testdata/
    ```
 

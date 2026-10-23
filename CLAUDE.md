@@ -205,11 +205,12 @@ These all exist already — extend them rather than building a parallel mechanis
   `internal/jsonshape` by `internal/census`; `go test ./cmd/morphic-census` holds the file to a
   census of `testdata/`. A case that sets a fact takes its line out, so its change runs `-update`.
 - **Lowering specification**: `docs/compilers/openapi.md` is machine-read like the matrix. Each rule
-  names its evidence, and the `TestLoweringSpec` tests in `compilers/openapi` hold the names to the
-  code both ways, each listed code to the rule's text, and every `docs/compilers/openapi.md#<key>`
-  citation to a rule. It, `docs/parser-library.md` and each format's conformance `matrix.md` are
-  read through `internal/keydoc`, the one reader of the repository's keyed documents, and a test a
-  Markdown document names must exist (`internal/archtest`).
+  names its evidence, and the `TestLoweringSpec` tests in `compilers/openapi/e2e` hold the names to
+  the code both ways, each listed code to the rule's text, and every
+  `docs/compilers/openapi.md#<key>` citation to a rule. It, `docs/parser-library.md` and each
+  format's conformance `matrix.md` are read through `internal/keydoc`, the one reader of the
+  repository's keyed documents, and a test a Markdown document names must exist
+  (`internal/archtest`).
 - **Oracles**: `internal/harness` drives a spec through no-panic → no error diagnostic →
   `irverify` invariants → JSON round-trip → determinism → order-invariance, stopping at the first
   one that fires. `harness.Check` is the list — read it there rather than trusting this sentence;

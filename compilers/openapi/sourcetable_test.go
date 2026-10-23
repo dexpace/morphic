@@ -10,13 +10,28 @@ import (
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
 
-// sourceTableSources is the source compileWith compiles, so a case handing it
-// to SourceTable asks about the compile compileWith actually ran.
-var sourceTableSources = []compilers.Source{{Path: "spec.yaml", Data: []byte(overlaySpec)}}
+// sourceTableSpec is the document the cases compile: one component schema,
+// Pet, whose properties the overlays target, written last so a case can append
+// a schema of its own.
+var sourceTableSpec = openapitest.ComponentSpec("    Pet:\n      type: object\n      properties:\n        name: {type: string}\n")
+
+// tagOverlay adds a property to Pet, so a compile under it applies an action.
+const tagOverlay = "overlay: 1.0.0\ninfo: {title: Patch, version: \"1\"}\n" +
+	"actions:\n  - target: $.components.schemas.Pet.properties\n    update:\n      tag: {type: string}\n"
+
+// missOverlay targets a path the document does not declare, which only a lax
+// overlay lets pass.
+const missOverlay = "overlay: 1.0.0\ninfo: {title: Patch, version: \"1\"}\n" +
+	"actions:\n  - target: $.paths['/nope']\n    update: {description: x}\n"
+
+// sourceTableSources is sourceTableSpec as the one source a case hands to both
+// Compile and SourceTable.
+var sourceTableSources = []compilers.Source{{Path: "spec.yaml", Data: []byte(sourceTableSpec)}}
 
 // TestCompiler_SourceTableBeginsDocumentSourcesOnSuccess pins the contract
 // half that matters most for a caller reading a successful compile:
@@ -26,7 +41,7 @@ var sourceTableSources = []compilers.Source{{Path: "spec.yaml", Data: []byte(ove
 // come only the documents the compile read, here one a reference names.
 func TestCompiler_SourceTableBeginsDocumentSourcesOnSuccess(t *testing.T) {
 	t.Parallel()
-	const split = overlaySpec + "    Thing: {$ref: 'other.yaml#/Thing'}\n"
+	split := sourceTableSpec + "    Thing: {$ref: 'other.yaml#/Thing'}\n"
 	other := compilers.Source{Path: "other.yaml", Data: []byte("Thing: {type: string}\n")}
 	tests := []struct {
 		name string
@@ -34,16 +49,16 @@ func TestCompiler_SourceTableBeginsDocumentSourcesOnSuccess(t *testing.T) {
 		opts openapi.Options
 		read []string
 	}{
-		{"no overlay", overlaySpec, openapi.Options{}, nil},
-		{"an overlay that applies", overlaySpec, openapi.Options{
-			Overlay: &openapi.Overlay{Path: "patch.yaml", Data: []byte(addTagProperty)},
+		{"no overlay", sourceTableSpec, openapi.Options{}, nil},
+		{"an overlay that applies", sourceTableSpec, openapi.Options{
+			Overlay: &openapi.Overlay{Path: "patch.yaml", Data: []byte(tagOverlay)},
 		}, nil},
-		{"a lax overlay that matches nothing", overlaySpec, openapi.Options{
-			Overlay: &openapi.Overlay{Path: "patch.yaml", Data: []byte(noMatch), Lax: true},
+		{"a lax overlay that matches nothing", sourceTableSpec, openapi.Options{
+			Overlay: &openapi.Overlay{Path: "patch.yaml", Data: []byte(missOverlay), Lax: true},
 		}, nil},
 		{"a reference into another document", split, openapi.Options{}, []string{"other.yaml"}},
 		{"an overlay and a reference", split, openapi.Options{
-			Overlay: &openapi.Overlay{Path: "patch.yaml", Data: []byte(addTagProperty)},
+			Overlay: &openapi.Overlay{Path: "patch.yaml", Data: []byte(tagOverlay)},
 		}, []string{"other.yaml"}},
 	}
 	for _, tt := range tests {

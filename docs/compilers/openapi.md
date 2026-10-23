@@ -17,7 +17,7 @@ evidence that pins it, one bullet per field:
 - **Codes** — every diagnostic code it reports. Each is written in the text, where the text says
   when it fires.
 - **Tests** — Go tests that pin what no case reaches, as `package.TestName`: `openapi` for the
-  compiler's own package, an internal package's name otherwise.
+  compiler's own package, `e2e` for its end-to-end tests, an internal package's name otherwise.
 - **Status** — what the rule leaves open: where the compiler does not yet do all the rule says, or a
   question the rule does not settle, each naming the issue that tracks it, or the milestone that
   schedules work not yet begun. An issue is named here and nowhere in a rule's text.
@@ -26,9 +26,9 @@ The fields are the only bullets a rule writes at the margin, since each is read 
 rule's text is numbered.
 
 A rule names a case or a test, or says in its Status what it leaves open. The `TestLoweringSpec`
-tests in `compilers/openapi` hold every field to the code and read it both ways: each conformance
-case is named by a rule, and each code by a rule or by `codesOutsideTheRules`, which gives the
-reason a code has no rule. [`CONTRIBUTING.md`](../../CONTRIBUTING.md) walks adding a rule.
+tests in `compilers/openapi/e2e` hold every field to the code and read it both ways: each
+conformance case is named by a rule, and each code by a rule or by `codesOutsideTheRules`, which
+gives the reason a code has no rule. [`CONTRIBUTING.md`](../../CONTRIBUTING.md) walks adding a rule.
 
 ## 1. Reading a document
 
@@ -137,10 +137,10 @@ the overlay is applied and every position names the source, as with no overlay, 
 - Codes: `openapi/invalid-overlay`, `openapi/overlay-failed`, `openapi/overlay-action`,
   `openapi/overlay-origin-incomplete`
 - Tests: `overlay.TestApply_RejectsAnOverlayItCannotRead`,
-  `openapi.TestCompile_StrictRefusesAnActionThatMatchesNothing`,
+  `e2e.TestCompile_StrictRefusesAnActionThatMatchesNothing`,
   `overlay.TestApply_StrictReportsAnActionThatChangesNothingWithoutRefusing`,
   `overlay.TestApplyWithin_DegradesToTheSourceAtTheNodeBudget`,
-  `openapi.TestCompile_OverlayIsRecordedAsASource`
+  `e2e.TestCompile_OverlayIsRecordedAsASource`
 - Status: partly built: an Overlay 1.0.0 document's RFC 9535 filter selector fails to apply (#651).
   Open: whether lax application should report an action that matches nothing (#652), how an update
   merges a nested array (#653), and whether an overlay that replaces a value the source declares is
@@ -218,7 +218,7 @@ gives it no effect is [`allow-reserved-locations`](#allow-reserved-locations)' a
   `load.TestResolve_AnObjectReachedTwiceIsReportedOnce`,
   `load.TestResolve_AFileSpelledTwoWaysPlacesAFindingOnce`,
   `load.TestResolve_AReachedFindingNamesThePositionThatReadIt`,
-  `openapi.TestCompile_AFindingInAnExternalDocumentKeepsItsRule`,
+  `e2e.TestCompile_AFindingInAnExternalDocumentKeepsItsRule`,
   `canary.TestValidationOracle_AgreesWithTheLibrary`
 - Status: partly built: a document a reference reaches is held to the source's minor until which
   minor governs it is settled (#839), and a `null` for a Schema Object's keyword whose value is no
@@ -292,8 +292,8 @@ judges a Parameter Object's `allowReserved` against where the declared minor app
 
 - Cases: `later-version-constructs`, `reached-outside-model`, `schema-ref-siblings-30`
 - Codes: `openapi/later-version-construct`
-- Tests: `openapi.TestLaterVersionConstructs_LowerAsInTheVersionThatAddedThem`,
-  `openapi.TestSchemaRefSiblings_LowerAsIn31`,
+- Tests: `e2e.TestLaterVersionConstructs_LowerAsInTheVersionThatAddedThem`,
+  `e2e.TestSchemaRefSiblings_LowerAsIn31`,
   `oas.TestCheck_LaterConstructsAreWarnedOfInTheCompilersWords`,
   `oas.TestCheck_EveryKeyBesideA30SchemaRefIsALaterConstruct`,
   `oas.TestCheck_ValuesAddedLaterAreWarnedOf`,
@@ -410,49 +410,49 @@ references that closes on itself is [`reference-cycles`](#reference-cycles)'.
 
 - Cases: `schema-identifiers`
 - Codes: `openapi/unresolved-ref`, `openapi/budget-exceeded`, `openapi/degraded-construct`
-- Tests: `openapi.TestCompile_ExternalFileRefIsNotReadByDefault`,
-  `openapi.TestGolden_SplitSpec`, `openapi.TestExternalContent_ARefInItNamesItsOwnDocument`,
-  `openapi.TestCompile_AResolutionFailureIsReportedOnceAtItsRef`,
+- Tests: `e2e.TestCompile_ExternalFileRefIsNotReadByDefault`,
+  `e2e.TestGolden_SplitSpec`, `e2e.TestExternalContent_ARefInItNamesItsOwnDocument`,
+  `e2e.TestCompile_AResolutionFailureIsReportedOnceAtItsRef`,
   `schema.TestMapping_InAnotherDocumentIsReportedWhereItIsWritten`,
   `lowering.TestInDocument_PlacesWhatAnotherDocumentDeclares`,
   `lowering.TestDeclared_LowersAReferencedObjectWhereItIsDeclared`,
   `lowering.TestDeclared_ReadsTheEndOfTheDocumentWritingTheReference`,
   `bind.TestBind_PassesAReferenceObjectOfAnotherDocument`,
-  `openapi.TestCompile_ASiblingRefResolvesWithinTheSourcesDirectory`,
-  `openapi.TestCompile_ARefOutsideTheSourcesDirectoryIsRefused`,
-  `openapi.TestCompile_ASymlinkOutOfTheSourcesDirectoryIsRefused`,
-  `openapi.TestCompile_ARefOutsideTheSourcesDirectoryResolvesWhenAllowed`,
-  `openapi.TestCompile_ByDefaultOnlyARelativeReferenceIsFollowed`,
-  `openapi.TestCompile_ByDefaultEachReferenceIsJudgedByItsOwnSpelling`,
-  `openapi.TestCompile_AURLNoReaderReadsIsRefusedUnread`,
-  `openapi.TestCompile_ARefAnIDAnswersIsNeverRefusedUnread`,
-  `openapi.TestCompile_ARelativeRefUnderAnIDReadsWhereTheIDPlacesIt`,
+  `e2e.TestCompile_ASiblingRefResolvesWithinTheSourcesDirectory`,
+  `e2e.TestCompile_ARefOutsideTheSourcesDirectoryIsRefused`,
+  `e2e.TestCompile_ASymlinkOutOfTheSourcesDirectoryIsRefused`,
+  `e2e.TestCompile_ARefOutsideTheSourcesDirectoryResolvesWhenAllowed`,
+  `e2e.TestCompile_ByDefaultOnlyARelativeReferenceIsFollowed`,
+  `e2e.TestCompile_ByDefaultEachReferenceIsJudgedByItsOwnSpelling`,
+  `e2e.TestCompile_AURLNoReaderReadsIsRefusedUnread`,
+  `e2e.TestCompile_ARefAnIDAnswersIsNeverRefusedUnread`,
+  `e2e.TestCompile_ARelativeRefUnderAnIDReadsWhereTheIDPlacesIt`,
   `bind.TestBind_ReadsARelativeURIUnderAnIDWhereTheIDPlacesIt`,
   `bind.TestBind_RefusesAReadUnderAnIDAsItsSpellingsWould`,
-  `openapi.TestCompile_OneFileUnderTwoNamesIsOneDocument`,
-  `openapi.TestExternalContent_ASchemaRefPastARefNamesItsContent`,
-  `openapi.TestExternalContent_ASourcePositionItNamesByFileResolvesInEitherOrder`,
-  `openapi.TestCompile_SchemaEmptyPointerSegmentIsUnresolved`,
+  `e2e.TestCompile_OneFileUnderTwoNamesIsOneDocument`,
+  `e2e.TestExternalContent_ASchemaRefPastARefNamesItsContent`,
+  `e2e.TestExternalContent_ASourcePositionItNamesByFileResolvesInEitherOrder`,
+  `e2e.TestCompile_SchemaEmptyPointerSegmentIsUnresolved`,
   `load.TestLoad_ARootDefinitionResolvesAsTheResolverReadsIt`,
   `load.TestLoad_ARootDefinitionAnswersBeforeASchemasOwn`,
   `bind.TestBind_ReadsEachHop`, `bind.TestBind_ReadsADefinitionByTheDefsRule`,
-  `openapi.TestCompile_DefsPointerUnderANestedIDReadsTheBaseItNames`,
-  `openapi.TestExternalContent_ARefLendsItsUseSiteWhatItsTypeReaches`,
+  `e2e.TestCompile_DefsPointerUnderANestedIDReadsTheBaseItNames`,
+  `e2e.TestExternalContent_ARefLendsItsUseSiteWhatItsTypeReaches`,
   `schema.TestSchema_ARefThroughAnEmptyRefLendsNothing`,
   `bind.TestBind_ReadsEachPositionAsTheJSONItSpells`, `bind.TestBind_ReadsARepeatedKeyAsItsLast`,
   `bind.TestBind_StopsAtItsBudget`, `bind.TestBind_CountsWorkLinearInTheDocument`,
   `bind.TestBind_ReadsEveryWebhookAsAPathItem`, `bind.TestBind_PlacesAnEndAtTheNodeItsChainReached`,
-  `openapi.TestReferenceEnds_AnEndingSlashIsReadWhereTheParserResolvedIt`,
-  `openapi.TestReferenceEnds_AnEndInTheSourceIsReadThereUnderSelf`,
+  `e2e.TestReferenceEnds_AnEndingSlashIsReadWhereTheParserResolvedIt`,
+  `e2e.TestReferenceEnds_AnEndInTheSourceIsReadThereUnderSelf`,
   `load.TestBindSchemas_PlacesEveryEndAndBindsEveryRefInTheCorpus`,
-  `openapi.TestReferenceEnds_AnEndTheBinderCannotPlaceSaysWhy`,
+  `e2e.TestReferenceEnds_AnEndTheBinderCannotPlaceSaysWhy`,
   `bind.TestTable_SaysWhyARefWentUnread`,
   `bind.TestBind_SaysAKeyMayLiePastTheMergeBound`,
   `bind.TestBind_TakesNoDefinitionPastAReadTheMergeBoundStopped`,
   `canary.TestBindingOracle_AgreesWithTheLibrary`,
   `load.TestResolve_AFindingNamesTheDocumentItIsIn`,
   `load.TestResolve_ReachedFindingsDoNotDependOnDeclarationOrder`,
-  `openapi.TestCompile_AReferenceObjectToANonObjectIsReportedOnce`
+  `e2e.TestCompile_AReferenceObjectToANonObjectIsReportedOnce`
 - Status: partly built: an `encoding` entry naming no part of its body is dropped with no record
   (#604). Another document's identifiers are not read, so a plain name naming one of its resources
   is reported unresolved (#1049). An absolute-path `$ref` in a remote document is read as a local
@@ -481,15 +481,15 @@ declares is recursion, not a cycle ([`recursion`](#recursion)). An alias scan th
 of its own is reported as an `openapi/cycle-scan-failed` warning, and the compile proceeds.
 
 - Codes: `openapi/cyclic-ref`, `openapi/cycle-scan-failed`
-- Tests: `openapi.TestCompile_SchemaRefCycleIsReportedAndStillCompiles`,
-  `openapi.TestCompile_CycleIsReportedAtItsLeastMemberInEitherOrder`,
-  `openapi.TestCompile_ReentrantPrefixReportsAlikeInBothDeclarationOrders`,
-  `openapi.TestCompile_AliasCycleIsRefused`, `load.TestLoad_ADegenerateCycleLoadsAndIsReportedOnce`,
-  `openapi.TestCompile_ALoopThroughAnotherDocumentIsReportedOnce`,
+- Tests: `e2e.TestCompile_SchemaRefCycleIsReportedAndStillCompiles`,
+  `e2e.TestCompile_CycleIsReportedAtItsLeastMemberInEitherOrder`,
+  `e2e.TestCompile_ReentrantPrefixReportsAlikeInBothDeclarationOrders`,
+  `e2e.TestCompile_AliasCycleIsRefused`, `load.TestLoad_ADegenerateCycleLoadsAndIsReportedOnce`,
+  `e2e.TestCompile_ALoopThroughAnotherDocumentIsReportedOnce`,
   `load.TestBindingDiags_NamesALoopsMembersByTheirDocument`,
   `bind.TestBind_ReportsALoopOutsideTheSourceAtItsLeastMember`,
   `bind.TestBind_ReportsALoopOfDefinitionsAtItsLeastMember`,
-  `openapi.TestCompile_MergeChainPastBoundStillCompiles`, `bind.TestBind_AnswersAlikeInEitherOrder`
+  `e2e.TestCompile_MergeChainPastBoundStillCompiles`, `bind.TestBind_AnswersAlikeInEitherOrder`
 - Status: partly built: a cycle of component Reference Objects is reported as an unresolved
   reference rather than as `openapi/cyclic-ref` (#580), and a reference object on a failing chain is
   reported only where the walk reaches it first (#767).
@@ -735,7 +735,7 @@ a cycle with no schema in it, which [`reference-cycles`](#reference-cycles) repo
 
 - Cases: `recursive`
 - Tests: `schema.TestLower_RecursiveSchemaTerminates`, `scan.TestAliases_LegalRecursionClean`,
-  `openapi.TestCompile_SchemaRefCycleIsReportedAndStillCompiles`
+  `e2e.TestCompile_SchemaRefCycleIsReportedAndStillCompiles`
 - Status: partly built: an `allOf` that names its own schema, or two schemas that are each other's
   `Base`, lowers to a base chain that returns to where it started with no diagnostic, and a cycle of
   required properties that admits no finite value is reported by nothing (#642).
@@ -754,7 +754,7 @@ is copied to a use site (§12.2).
 
 - Cases: `param-ref-inheritance`, `allof-ref-branch-siblings`, `readonly-writeonly`,
   `schema-ref-siblings-30`
-- Tests: `openapi.TestAnnotationRetention`, `schema.TestModel_RefSiblingDescriptionWins`,
+- Tests: `e2e.TestAnnotationRetention`, `schema.TestModel_RefSiblingDescriptionWins`,
   `schema.TestSchemaExamples_ComponentRefSiblingKeepsThem`
 
 ### `reference-object-siblings`
@@ -795,9 +795,9 @@ the position: a `$ref` leaves lowering a position to the declaration that owns i
 
 - Cases: `defaults`, `readonly-writeonly`, `inline-residue`
 - Codes: `openapi/degraded-construct`
-- Tests: `openapi.TestAnnotationRetention_OtherDeclarationShapes`,
+- Tests: `e2e.TestAnnotationRetention_OtherDeclarationShapes`,
   `schema.TestPropertyPosition_ResidueStaysOutOfTheTypeNode`,
-  `openapi.TestCompile_AReferenceLeavesItsTargetToItsOwnerInEitherOrder`
+  `e2e.TestCompile_AReferenceLeavesItsTargetToItsOwnerInEitherOrder`
 
 ### `docs-and-deprecation`
 
@@ -842,7 +842,7 @@ each property that references it.
 - Cases: `readonly-writeonly`
 - Codes: `openapi/disjoint-visibility`
 - Tests: `schema.TestModel_ReadOnlyAndWriteOnlyTogetherAreVisibleNowhere`,
-  `openapi.TestAllOfVisibilityMerge_DisjointRestrictionsAreInvisibleNotAConflict`,
+  `e2e.TestAllOfVisibilityMerge_DisjointRestrictionsAreInvisibleNotAConflict`,
   `merge.TestFold_AlreadyInvisibleVisibilityIsNotReAnnounced`
 
 ### `nullable`
@@ -887,9 +887,9 @@ model does not name.
 - Codes: `openapi/inferred-nullable`, `openapi/unknown-schema-keyword`
 - Tests: `schema.TestSchemaRef_NullableNormalization`,
   `schema.TestNullableWidening_EachShapeReadsByItsVersion`,
-  `openapi.TestNullableWidening_AKeywordIsReportedOnceAtItself`,
-  `openapi.TestNullableWidening_DisabledKeepsWhatTheDialectDoesNotDefine`,
-  `openapi.TestNullableWidening_ACompositionKeepsTheMarker`,
+  `e2e.TestNullableWidening_AKeywordIsReportedOnceAtItself`,
+  `e2e.TestNullableWidening_DisabledKeepsWhatTheDialectDoesNotDefine`,
+  `e2e.TestNullableWidening_ACompositionKeepsTheMarker`,
   `merge.TestIntersectNull_TheMarkerFollowsTheBit`
 - Status: partly built: a `nullable` its dialect does not define, read with the policy off, is kept
   nowhere at a position that lowers to a shared node and carries no property or parameter, as no
@@ -1205,10 +1205,10 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   `schema.TestAllOf_ACopyANarrowingKeptIsStillACopy`,
   `schema.TestAllOf_AListOfAComponentWinsOverAListOfItsCopy`,
   `schema.TestAllOf_ARefToASiblingFieldIsDeclaredApart`,
-  `openapi.TestExternalContent_ANodeAnotherDocumentHoistsIsNoCopyOfAnInlineOne`,
-  `openapi.TestExternalContent_ACopyInAnotherDocumentIsJudgedThere`,
+  `e2e.TestExternalContent_ANodeAnotherDocumentHoistsIsNoCopyOfAnInlineOne`,
+  `e2e.TestExternalContent_ACopyInAnotherDocumentIsJudgedThere`,
   `schema.TestAllOf_ARedeclarationIsJudgedOnceTheComponentsHaveLowered`,
-  `openapi.TestCompile_AReferenceLeavesItsTargetToItsOwnerInEitherOrder`
+  `e2e.TestCompile_AReferenceLeavesItsTargetToItsOwnerInEitherOrder`
 - Status: partly built: two distinct nodes of related kinds (`format: hex` against `format: byte`,
   two enums whose members fit each other's kind, two different literals), and a list or map whose
   broader side carries detail the narrower lacks, are reported as an overlap and never narrowed
@@ -1460,7 +1460,7 @@ written with structure is [`union-beside-structure`](#union-beside-structure)'s.
 - Codes: `openapi/degraded-construct`, `openapi/unresolved-ref`
 - Tests: `schema.TestHomelessDiscriminator_IsKeptBesideEveryOtherNode`,
   `schema.TestUnplacedDiscriminator_IsKeptAtEveryUnionSite`,
-  `openapi.TestMappingTargets_ADiscriminatorAReferenceReachesIsBoundWhereItSits`
+  `e2e.TestMappingTargets_ADiscriminatorAReferenceReachesIsBoundWhereItSits`
 - Status: partly built: an empty `propertyName` lowers to IR that `irverify` refuses (#882); a
   mapping to a component that is a `$ref` to a subtype fails validation (#844), a keyword beside a
   union branch's `$ref` breaks a mapping to its component (#847), and a mapping to a property whose
@@ -1521,7 +1521,7 @@ at that position, whichever is lowered first.
 - Tests: `schema.TestEnum_HeterogeneousBecomesUnionWithBadValue`,
   `schema.TestEnum_NonScalarAndMidListMismatch`,
   `schema.TestEnumAsUnion_UnconvertibleMemberBecomesAny`,
-  `openapi.TestCompile_AReferenceLeavesItsTargetToItsOwnerInEitherOrder`
+  `e2e.TestCompile_AReferenceLeavesItsTargetToItsOwnerInEitherOrder`
 - Status: partly built: an `enum` ignores its `format`, though `Enum.ValueType` can carry it (#607);
   an enum whose members do not match its declared type lowers to a union with only an info
   diagnostic (#619); and a `Literal` carries no value type or format (#668). Open: whether a
@@ -1757,9 +1757,9 @@ needs to produce it.
 - Cases: `allof-boolean-branch`
 - Codes: `openapi/degraded-construct`, `openapi/false-schema`
 - Tests: `schema.TestLower_DepthCapExceeded`,
-  `openapi.TestMaxNesting_AdmitsWhatTheLoweringLowersInFull`,
-  `openapi.TestCompile_ARefToABooleanSchemaResolvesInEitherOrder`,
-  `openapi.TestCompile_AReferenceLeavesItsTargetToItsOwnerInEitherOrder`
+  `e2e.TestMaxNesting_AdmitsWhatTheLoweringLowersInFull`,
+  `e2e.TestCompile_ARefToABooleanSchemaResolvesInEitherOrder`,
+  `e2e.TestCompile_AReferenceLeavesItsTargetToItsOwnerInEitherOrder`
 
 ### `null-schema`
 
@@ -1782,7 +1782,7 @@ out draws, but for `items` beside a 3.0 `type: array`, whose absence
 [`missing-array-items`](#missing-array-items) reports instead. One inside a value the IR keeps
 verbatim whole, a `dependentSchemas` entry, stays in that value, since nothing reads it as a schema.
 
-- Tests: `openapi.TestCompile_ANullWhereASchemaBelongsIsNoSchema`,
+- Tests: `e2e.TestCompile_ANullWhereASchemaBelongsIsNoSchema`,
   `schema.TestNullSchema_AnEntryIsTheEmptySchemaAndAKeywordIsLeftOut`,
   `annotation.TestIsNullLiteral_TellsANullFromFalse`
 
@@ -2654,8 +2654,8 @@ kept and reported as a written one is.
 - Cases: `path-item-anchored-key`
 - Codes: `openapi/unknown-object-key`, `openapi/unknown-schema-keyword`,
   `openapi/unknown-key-budget`, `openapi/unknown-key-entry-taken`, `openapi/unknown-key-unreachable`
-- Tests: `openapi.TestUnknownKeys_KeptAtEveryObject`,
-  `openapi.TestUnknownKeys_SchemaAndObjectAreGradedApart`,
+- Tests: `e2e.TestUnknownKeys_KeptAtEveryObject`,
+  `e2e.TestUnknownKeys_SchemaAndObjectAreGradedApart`,
   `annotation.TestUnknownKeysIn_BudgetBoundsWhatOneObjectContributes`,
   `annotation.TestUndefinedKeywordsIn_KeepsWhatTheCallerNames`
 - Status: partly built: a parameter's key and its schema's keyword of one spelling share an entry
@@ -2697,7 +2697,7 @@ list out of an extension, not a promotion, so the entry is left for a consumer t
 - Codes: `openapi/degraded-construct`
 - Tests: `lowering.TestPromoteDeprecation_ValueThatIsNotTextIsReported`,
   `lowering.TestPromoteEnumOpenness_WritesNothing`,
-  `openapi.TestPromotion_RemovalDateAndVersionAreSeparateFacts`
+  `e2e.TestPromotion_RemovalDateAndVersionAreSeparateFacts`
 - Status: partly built: the default mapping covers only deprecation and extensible enums (#656); two
   keys mapped to one field resolve by sort order in silence (#655); a mapping cannot say which
   extension values state the fact (#654); and an unknown key under a prefix the policy owns is kept
