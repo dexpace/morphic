@@ -247,9 +247,9 @@ func TestAt_AnswersAsAFreshNamerWould(t *testing.T) {
 }
 
 // TestAt_ReadsAnOwnerAsTheParserDoes pins that an owner's name is read from
-// the document as the parser reads it: through an alias and a `<<` merge, and
-// not at all where the field is null, no scalar, or written in a mapping
-// merged from past the depth the parser reads.
+// the document as the parser reads it: through an alias and a `<<` merge, a
+// number as the text it spells, and not at all where the field is null, no
+// scalar, or written in a mapping merged from past the depth the parser reads.
 func TestAt_ReadsAnOwnerAsTheParserDoes(t *testing.T) {
 	t.Parallel()
 	spec := head + `x-names: {id: &id aliased}
@@ -263,12 +263,20 @@ paths:
         - {<<: {name: merged}, in: query, schema: {type: object}}
         - {name: ~, in: query, schema: {type: object}}
         - {name: [a], in: query, schema: {type: object}}
+    put:
+      operationId: 7
+      requestBody: {content: {application/json: {schema: {type: object}}}}
+      responses: {"200": {description: ok}}
+      parameters:
+        - {name: 42, in: query, schema: {type: object}}
 `
 	read := naming.New(table(t, spec, nil))
 	assert.Equal(t, "aliased_request", read.At(at("/paths/~1a/post/requestBody/content/application~1json/schema")))
 	assert.Equal(t, "merged", read.At(at("/paths/~1a/post/parameters/0/schema")))
 	assert.Empty(t, read.At(at("/paths/~1a/post/parameters/1/schema")), "a null name names nothing")
 	assert.Empty(t, read.At(at("/paths/~1a/post/parameters/2/schema")), "nor does one that is no scalar")
+	assert.Equal(t, "7_request", read.At(at("/paths/~1a/put/requestBody/content/application~1json/schema")))
+	assert.Equal(t, "42", read.At(at("/paths/~1a/put/parameters/0/schema")))
 }
 
 // TestAt_NamesABranchAfterItsTarget pins that a composition branch holding a
