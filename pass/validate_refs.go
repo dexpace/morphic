@@ -1,12 +1,91 @@
 package pass
 
 import (
+	"fmt"
 	"reflect"
 	"slices"
 	"strings"
 
 	"github.com/dexpace/morphic/ir"
 )
+
+// checkDanglingRefs reports every typed-ID reference that resolves to no entry
+// in the registry declaring that class of ID — a TypeRef.Target into doc.Types,
+// a SchemeUse.Scheme into doc.Auth — wherever it sits. decls and declTruncated
+// are ir.DeclaredIDs(doc).
+//
+// Sites and registries come from reflection over the document's own shape
+// (ir.WalkValues, ir.DocumentRegistries), not a list of field names, which
+// would drift behind the IR unnoticed. Integer-index references are enumerated
+// by hand below, and ir.PropID is checkPropIDRefs's. Provenance.Source is
+// irverify's: a stale index is a compiler bug, and this pass's own ir.NoSource
+// diagnostics would make a document-wide check report its own output.
+func checkDanglingRefs(doc *ir.Document, decls []ir.IDDeclaration, declTruncated bool) []ir.Diagnostic {
+	// Document has no map for OpID, ServiceID or GroupID: an ir.Operation and an
+	// ir.OperationGroup are declared in the Service→OperationGroup tree and an
+	// ir.Service in a slice (GitHub #50), so their registries come from the
+	// identities the nodes declare.
+	regs := ir.DocumentRegistries(doc)
+	// A registry built from a truncated walk says "not declared" of a node it
+	// never reached, so a legitimate operation past the depth bound would be
+	// reported as dangling. Dropping both classes can only under-report; the
+	// walk-truncated diagnostic below says why nothing is claimed for them.
+	if !declTruncated {
+		regs = regs.WithDeclarations(decls)
+	}
+	sites, truncated := collectRefs(doc, ir.DocumentPath, func(t reflect.Type) bool {
+		_, isRegistry := regs[t]
+		return isRegistry
+	})
+	var diags []ir.Diagnostic
+	if truncated || declTruncated {
+		diags = append(diags, diag(ir.SeverityError, "ir/walk-truncated",
+			"document nests deeper than the bounded reference walk; some references went unchecked",
+			ir.DocumentPath))
+	}
+	for _, s := range sites {
+		// A site whose class this document declares no registry for cannot
+		// resolve; the zero ir.Registry reports so rather than panicking, which
+		// keeps the pass report-only if a caller ever mixes in sites collected
+		// against another document.
+		if regs[s.idType].Has(s.id) {
+			continue
+		}
+		noun := ir.RefNoun(s.idType)
+		diags = append(diags, diag(ir.SeverityError, "ir/dangling-"+noun+"-ref",
+			fmt.Sprintf("%s reference %q at %s resolves to no %s in the registry", noun, s.id, s.where, noun),
+			s.where))
+	}
+	return diags
+}
+
+// checkPropIDRefs reports every PropID a document carries that names no property
+// it declares.
+//
+// A property is a position inside its model and addresses no registry, so the
+// registry-driven checkDanglingRefs cannot see PropPath.Segments,
+// ParamPath.Segments, HTTPParamBinding.ParamPath or Discriminator.Property. The
+// claim is membership: the ID names a property declared somewhere. Reflection
+// supplies the sites but not the root each path is walked from, and
+// checkDiscriminators makes the model-scoped claim for the one carrier whose
+// root is written down.
+//
+// Docs.Description's {t:TypeID} tokens are left unchecked: reaching them needs
+// a token parser, and a false positive in prose is noisier than a missing
+// check.
+func checkPropIDRefs(doc *ir.Document) []ir.Diagnostic {
+	sites, declared := collectPropIDs(doc, ir.DocumentPath)
+	var diags []ir.Diagnostic
+	for _, s := range sites {
+		if declared[ir.PropID(s.id)] {
+			continue
+		}
+		diags = append(diags, diag(ir.SeverityError, "ir/dangling-prop-ref",
+			fmt.Sprintf("prop reference %q at %s resolves to no property declared in the document", s.id, s.where),
+			s.where))
+	}
+	return diags
+}
 
 // typeIDType is the reflect.Type of ir.TypeID, the one reference class the
 // reachability analysis in validate.go needs without a document to resolve
