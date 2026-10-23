@@ -174,8 +174,9 @@ func walkBodyParts(refs *typed.Bindings, js *oas3.JSONSchema[oas3.Referenceable]
 
 // bodyParts returns the parts a multipart body declares, in source order: the
 // properties written on the schema itself, then those each allOf branch
-// contributes. The first declaration of a name wins its encoding key; every one
-// is kept for the structural flags (dedupeParts). The branches are the
+// contributes. A name declared more than once is one part, at its first
+// declaration's place, and every declaration is kept for the structural flags
+// (dedupeParts). The branches are the
 // lowering's own (schema.FlattenedAllOf); a $ref branch is followed here, up to
 // maxPartRefHops. v records the fewest hops each target was entered at, so one
 // met again by no shorter path yields no parts, and the bounds that cut the
@@ -276,7 +277,8 @@ func partPropID(prop *ir.Property, d ids.Document, wire string, schemaPtr jsonte
 // propByWire searches the type body denotes for a property with the given wire
 // name: what it declares itself, then what it inherits through Base and mixes in
 // through Mixins, following the alias scalars a $ref-with-siblings position
-// hoists on the way. depth bounds the walk against a chain no source can spell.
+// hoists on the way. depth bounds the walk, which a Base chain returning to
+// where it started would otherwise never end (GitHub #642).
 func propByWire(node func(ir.TypeID) (ir.TypeDef, bool), body ir.TypeID, wire string, depth int) (*ir.Property, bool) {
 	if depth > maxBodyAliasHops {
 		return nil, false
@@ -401,9 +403,11 @@ func schemaIsArray(s *oas3.Schema) bool {
 	return slices.Contains(s.GetType(), oas3.SchemaTypeArray)
 }
 
-// maxBodyAliasHops bounds every chain of Scalar bases this file's walks follow
-// (styleguide bounded-everything rule). A loop of $refs lowers to no alias
-// chain, so only an absurdly long one reaches it.
+// maxBodyAliasHops bounds every walk this file takes over the IR (styleguide
+// bounded-everything rule): the alias chains bodyModel and partTypeFlags
+// follow, and the alias, Base and Mixin depth propByWire descends. A loop of
+// $refs lowers to no alias chain, but an allOf cycle lowers to a Base chain
+// with no end (GitHub #642), which only this bound stops.
 const maxBodyAliasHops = 64
 
 // bodyModel returns where the model behind body was interned, its document
@@ -441,7 +445,8 @@ func bodyModel(node func(ir.TypeID) (ir.TypeDef, bool), body ir.TypeID) (ir.Prov
 // the media schema's $ref places what it names (resolve.Scope.Target), in
 // whichever document, else localPtr in c's. Such a schema declares properties
 // beside a contradictory `enum` or scalar `type`, so no property was interned
-// under this pointer and the keys address none (see preserveUnhomedKeywords).
+// under this pointer and the keys address none (see
+// schema.preserveUnhomedKeywords).
 func bodySchemaPointer(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable], localPtr jsontext.Pointer,
 ) (ids.Document, jsontext.Pointer) {
 	if js == nil || !resolve.IsRefSite(js, js.GetSchema()) {

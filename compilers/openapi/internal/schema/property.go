@@ -18,9 +18,9 @@ import (
 // $ref use-site override the target's (docs/compilers/openapi.md#ref-use-site).
 //
 // Constraints stay unconditional: ir.Property is the only home every property
-// has, while the node its schema hoists may carry none (a byte or unknown-format
-// Scalar, or no node at all). Restating them where the node also carries them
-// is the safe half of that trade.
+// has, while its schema may lower to a node of a kind with no Constraints field
+// or to no node of its own at all. Restating them where the node also carries
+// them is the safe half of that trade.
 func FillPropertyDetail(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, p *ir.Property, js *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer) []ir.Diagnostic {
 	ref := js.GetSchema()
 	if ref == nil {
@@ -56,7 +56,7 @@ func fillPropertyVisibility(c lowering.Ctx, p *ir.Property, ref, tgt *oas3.Schem
 }
 
 // fillPropertyConstraints attaches the property's scalar constraints, and the
-// co-declared bound keyword that reached none of them, to the property itself.
+// exclusive modifier that reached none of them, to the property itself.
 // ir.Property is the carrier at this position: a property's schema is read
 // through CarriedRef, so it hoists no node of its own to hold either.
 //

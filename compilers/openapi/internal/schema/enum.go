@@ -71,7 +71,8 @@ func lowerEnum(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsonte
 // closed Enum admits only its members, so this is exact.
 //
 // It avoids enumAsUnion, which would yield a Union with no variants: a node
-// nothing rejects and no reader can act on (GitHub #318).
+// irverify rejects as ir/union-no-variants and no reader can act on (GitHub
+// #318).
 //
 // ValueType is the declared scalar type, else the top type. Whether a
 // reference admits null is not settled here: schemaAdmitsNull reads the type

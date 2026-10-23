@@ -76,11 +76,11 @@ func commonFor(c lowering.Ctx, id ir.TypeID, pointer jsontext.Pointer, hint stri
 	return common
 }
 
-// internAlias interns a named Scalar at pointer whose Base is target, so a
-// component (or a sibling-carrying schema) whose body lowered to a shared or
-// referenced target still owns a resolvable node at its own TypeID. It carries
-// the value constraints s writes, and the co-declared bound keyword no
-// Constraints field holds, for the reason hoistScalar records.
+// internAlias interns a Scalar at pointer whose Base is target, so a component
+// (or a sibling-carrying schema) whose body lowered to a shared or referenced
+// target still owns a resolvable node at its own TypeID. It carries the value
+// constraints s writes, and the exclusive modifier no Constraints field holds,
+// for the reason hoistScalar records.
 func internAlias(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsontext.Pointer, hint string,
 	target ir.TypeRef,
 ) (ir.TypeID, []ir.Diagnostic) {

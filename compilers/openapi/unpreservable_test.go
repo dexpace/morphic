@@ -14,15 +14,15 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// unpreservableValue is a value that is legal YAML, decodes, and then cannot be
-// marshalled as JSON. It is the shortest reachable trigger for the conversion
-// failure: json.Marshal rejects NaN, so any preserved payload containing one
+// unpreservableValue is a value that is legal YAML and that JSON cannot spell.
+// It is the shortest reachable trigger for the conversion failure:
+// annotation.RawFromNode refuses NaN, so any preserved payload containing one
 // fails whole.
 //
-// The other reachable trigger — a mapping whose key is not a string — fails one
-// step earlier, in the YAML decode, and is covered directly in
-// annotation.TestRawFromNode_RefusesWhatJSONCannotName. This one is used for
-// the end-to-end fixtures because the loader accepts it in more positions.
+// The other reachable trigger, a mapping whose key is not a string, is covered
+// directly in annotation.TestRawFromNode_RefusesWhatJSONCannotName. This one is
+// used for the end-to-end fixtures because the loader accepts it in more
+// positions.
 const unpreservableValue = ".nan"
 
 // TestUnpreservable_AnnouncementNeverOutrunsTheEntry is the regression test for

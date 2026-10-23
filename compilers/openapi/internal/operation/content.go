@@ -140,7 +140,8 @@ func isFormContent(mt string) bool {
 }
 
 // isBinaryBody reports whether a content entry is a binary file body: a
-// string+binary schema, or an absent schema on application/octet-stream.
+// string+binary schema, or an absent or boolean schema on
+// application/octet-stream.
 func isBinaryBody(refs *typed.Bindings, mt string, js *oas3.JSONSchema[oas3.Referenceable]) bool {
 	s := schemaOf(refs, js)
 	if s == nil {

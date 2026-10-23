@@ -44,7 +44,8 @@ func exampleList(c lowering.Ctx, single *yaml.Node, plural *sequencedmap.Map[str
 // summary and description travel with it. An entry written as a $ref holds no
 // value of its own — the value lives in the referenced component — so its
 // diagnostic is stamped at the reference site rather than at a `value` node this
-// entry never had; an inline entry is stamped at its own `value`. Only this hop
+// entry never had; an inline entry is stamped at its own `value` or
+// `dataValue`. Only this hop
 // is de-referenced: an enclosing $ref'd response or parameter is already
 // flattened into pointer.
 func appendPluralExample(c lowering.Ctx, out []ir.Example, re *soa.ReferencedExample, pointer jsontext.Pointer, name string) ([]ir.Example, []ir.Diagnostic) {

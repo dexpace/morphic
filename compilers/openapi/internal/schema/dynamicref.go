@@ -277,9 +277,9 @@ func declaresDynamicRef(s *oas3.Schema) bool {
 
 // AnchorIndex memoizes the document's $dynamicAnchor index.
 //
-// It is the one thing this compiler shares and mutates besides the interning
-// table, an exception micro-compiler-design §4 did not expect. It is a memo, not
-// an accumulator: the value it caches is a pure function of the document. It
+// It is shared and mutated, which micro-compiler-design §4 expected of nothing
+// but the interning table. It is a memo, not an accumulator: the value it
+// caches is a pure function of the document. It
 // stays out of the immutable context (§4.1) because building it emits a
 // diagnostic, which would report on documents that never write $dynamicRef, and
 // the walk is a poor trade for a keyword almost no document uses.
@@ -324,8 +324,7 @@ const maxDynamicAnchorNodes = 1 << 20
 // dynamicAnchors indexes every $dynamicAnchor in the raw source by name, mapping
 // it to the JSON pointers that declare it, in document order, and reports
 // whether the walk ran to completion. It reads the raw tree because oas3.Schema
-// has no field for the keyword (docs/parser-library.md#unmodeled-keywords),
-// which is why nothing once expanded a $dynamicRef.
+// has no field for the keyword (docs/parser-library.md#unmodeled-keywords).
 func dynamicAnchors(root *yaml.Node) (map[string][]jsontext.Pointer, bool) {
 	w := newAnchorWalk(maxDynamicAnchorNodes)
 	w.walk(root, "", 0)

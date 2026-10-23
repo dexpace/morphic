@@ -33,17 +33,16 @@ var censusKeywords = []string{
 	"required", "type", "uniqueItems",
 }
 
-// keywordHome reports whether td, the node this position's own declaration
+// keywordHome reports whether td, the node this position's declaration
 // lowered to, has the field the named keyword lowers into. It asks the node
-// rather than re-deriving lower()'s dispatch, so the two cannot drift apart
-// (see recordUnplacedContent).
+// rather than re-deriving lower()'s dispatch, so the two cannot drift apart.
 //
 // A nil td is a position lowered to a reference: a $ref site, or a collapsed
 // union (collapsedUnhomedKeywords). Its alias carries only the position's
-// constraints and annotations, and the target's fields belong to the
-// referent's declaration, so a `format` beside a $ref must not read the
-// referent's Encoding as its home. So every keyword is homeless there except
-// a null-only `type`.
+// constraints and annotations, and the target's fields are the referent's, so
+// a `format` beside a $ref must not read the referent's Encoding as its home.
+// Every keyword is homeless there but a null-only `type` and a redaction
+// `format`, which annotation readers hold.
 func keywordHome(td ir.TypeDef, s *oas3.Schema, keyword string) bool {
 	switch keyword {
 	case "properties", "patternProperties", "additionalProperties":
@@ -155,7 +154,8 @@ func typeHome(td ir.TypeDef, s *oas3.Schema) bool {
 // exactly that type set. A Literal carries only its value, so a `type` written
 // beside a const reached no field at all — including the case where the two
 // agree, since the IR then holds the value and nothing about what was declared
-// about it. Any, External and keywordHome's nil td carry no shape.
+// about it. Any admits every shape, so it contradicts none; External and
+// keywordHome's nil td carry no shape.
 func typeShapedBy(td ir.TypeDef, st oas3.SchemaType) bool {
 	switch td.(type) {
 	case *ir.Model, *ir.MapT:

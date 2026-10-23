@@ -25,7 +25,7 @@ import (
 // opDeclPtr is the operation's own declaration pointer. A $ref'd body interns
 // its content once at its declaration, not once per mount site, under the
 // component's name rather than the operationId hint (issue #107). A body $ref'd
-// from another operation has no component name, so it takes the ID of the
+// from another operation has no component name, so it is named for the
 // operation declaring it, never this mount's (requestBodyHint, GitHub #433).
 func lowerRequestBody(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, op *ir.Operation, hb *ir.HTTPBinding, src *soa.Operation, opDeclPtr jsontext.Pointer) []ir.Diagnostic {
 	usePtr := opDeclPtr + ids.Ptr("requestBody")
@@ -46,7 +46,7 @@ func lowerRequestBody(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorI
 	payload.Docs = resolve.UseDocs[soa.RequestBody](src.GetRequestBody(), ir.Docs{Description: rb.GetDescription()})
 	payload.Required = new(rb.GetRequired())
 	// soa.RequestBody exposes no GetExtensions at this library version, so the
-	// field is read directly — as XMLHints already reads its own.
+	// field is read directly — as annotation.XMLHints already reads its own.
 	bodyExt, bodyExtDiags := annotation.ExtensionsFrom(rb.Extensions, dc.ProvenanceAt, bodyPtr)
 	payload.Unmodeled = annotation.MergeUnmodeled(payload.Unmodeled, bodyExt)
 	diags = append(diags, bodyExtDiags...)
@@ -77,8 +77,9 @@ func contentTypeKeys(content *sequencedmap.Map[string, *soa.MediaType]) []string
 }
 
 // requestBodyHint is the hint the request body declared at bodyPtr, in dc's
-// document, is named by: its component's name, else the ID of the operation
-// declaring it there (lowering.OperationIDAt), else elsewhereBodyHint. It is a
+// document, is named by: its component's name, else `<operationId>_request` for
+// the operation declaring it there (lowering.OperationIDAt), else
+// elsewhereBodyHint. It is a
 // function of where the body is written, never of which operation mounts it,
 // so every operation lowering one body builds the same nodes beneath it, in
 // whichever order they lower (GitHub #433, #107).

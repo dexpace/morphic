@@ -18,12 +18,11 @@ import (
 )
 
 // LowerComponentSchemas interns every named component schema in source order.
-// It is the entry Compile's run() calls before any operation lowering so that
-// $refs resolve to already-registered IDs.
+// It is the entry Compile's run() calls before any operation lowering.
 //
 // ctx bounds the walk in time: a document declares as many components as it
-// likes, so this loop is one of the two places a compile does work proportional
-// to nothing the compiler chose. Cancellation stops it between components and
+// likes, so this loop is one of the places a compile does work proportional to
+// nothing the compiler chose. Cancellation stops it between components and
 // returns what was lowered so far; the caller — run — sees ctx.Err() at the
 // phase boundary immediately after and refuses the document there, so a partial
 // registry never becomes a Document.
@@ -86,10 +85,11 @@ const TopLevelDepth = 0
 // reaches it first (GitHub #748).
 const maxSchemaDepth = 256
 
-// Ref is THE schema entry point: every schema position (property, items,
-// params, bodies) flows through it, yielding a TypeRef into the type registry.
-// It normalizes the two nullability dialects onto the single IR bit and never
-// lowers a $ref target from the reference site.
+// Ref is the schema entry point for a position no carrier holds — items, a
+// catch-all, a media type, a union branch — and CarriedRef the one for a
+// property, header or parameter. Either yields a TypeRef into the type
+// registry, normalizes the two nullability dialects onto the single IR bit, and
+// never lowers a $ref target from the reference site.
 //
 // It defaults to annotation.HomeOwnNode deliberately: a position added later
 // inherits the lossless behaviour, and only a caller that can prove it already
@@ -179,10 +179,11 @@ func falseSchema(c lowering.Ctx, ts *compile.Types, pointer jsontext.Pointer, hi
 
 // schemaBody lowers a concrete (non-reference) schema body to a TypeRef and
 // records the schema's own annotations on whatever node the lowering hoisted at
-// pointer. It is shared by Ref and by sub-schema hoisting
-// (resolveSchemaRef), which both reach a body only after peeling off any
-// leading $ref. A rule about the declaration itself is checked here, above the
-// dispatch that picks what it lowers to (missingArrayItems).
+// pointer. Its one caller is schemaRefHomed, the body of Ref and CarriedRef,
+// for a position that is no $ref site (refSiteRef takes those); sub-schema
+// hoisting (hoistSubSchema) arrives through Ref. A rule about the
+// declaration itself is checked here, above the dispatch that picks what it
+// lowers to (missingArrayItems).
 func schemaBody(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, schema *oas3.Schema, pointer jsontext.Pointer, hint string, home annotation.Home) (ir.TypeRef, []ir.Diagnostic) {
 	diags := missingArrayItems(c, schema, pointer)
 	target, bodyDiags := lowerSchemaBody(c, ts, anchors, depth, schema, pointer, hint)
@@ -278,9 +279,9 @@ func lowerTyped(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 	}
 }
 
-// lowerUntyped handles a schema with no declared type: a property set makes it a
-// model; enum/const and composition are lowered by later passes; anything else
-// is schemaless.
+// lowerUntyped handles a schema with no declared type and no const, enum or
+// allOf, which lower() elects first: a property set makes it a model; anything
+// else is schemaless.
 func lowerUntyped(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer jsontext.Pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
 	if props := s.GetProperties(); props != nil && props.Len() > 0 {
 		return lowerModel(c, ts, anchors, depth, s, pointer, hint)
@@ -416,7 +417,8 @@ func effectiveTypes(s *oas3.Schema) []oas3.SchemaType {
 // declaresShape reports whether a schema declares data shape — a type, a
 // property set, a value set, composition, or a catch-all — rather than only
 // narrowing what an already-declared shape accepts. The narrowing keywords are
-// narrowsInstance's, which is why the callers combine the two (ir-design §4.7).
+// narrowsInstance's, which hasUnionSiblings and dynamicRefSiblings add to it
+// (ir-design §4.7).
 func declaresShape(s *oas3.Schema) bool {
 	if props := s.GetProperties(); props != nil && props.Len() > 0 {
 		return true

@@ -354,10 +354,10 @@ func compileVocabIR(t *testing.T, schemas string) string {
 	return string(out)
 }
 
-// unpreservableValue is a value that is legal YAML, decodes, and then cannot be
-// marshalled as JSON: json.Marshal rejects NaN, so any preserved payload
-// containing one fails whole. It is the shortest reachable trigger for the
-// conversion failure the announcement tests need.
+// unpreservableValue is a value that is legal YAML and that JSON cannot spell:
+// annotation.RawFromNode refuses NaN, so any preserved payload containing one
+// fails whole. It is the shortest reachable trigger for the conversion failure
+// the announcement tests need.
 const unpreservableValue = ".nan"
 
 // preservationClaims returns the messages announcing that something was kept

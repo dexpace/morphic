@@ -75,11 +75,12 @@ func PreserveRefSiteKeywords(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled,
 
 // refTypeRef resolves a $ref position to its target's stable ID, carrying the
 // combined ref-site and target nullability. A top-level component target keeps
-// its stable named ID (lowered where it is defined); an internal sub-schema
-// target is hoisted at its pointer-derived ID so the reference never dangles. A
-// genuinely external or unresolvable target is diagnosed and dropped to any. A
-// $ref on a loop of $refs is dropped to any too, with nothing of its own to
-// report: the load phase reports the loop once.
+// its stable named ID (lowered where it is defined); a sub-schema target, in
+// whichever document it lies, is hoisted at its pointer-derived ID so the
+// reference never dangles. A target in no document this compilation read, or
+// one landing on no schema, is diagnosed and dropped to any. A $ref on a loop of $refs is
+// dropped to any too, with nothing of its own to report: the load phase reports
+// the loop once.
 func refTypeRef(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, js *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer) (ir.TypeRef, []ir.Diagnostic) {
 	ref := js.GetRef().String()
 	id, ok := resolveSchemaRef(c, ts, anchors, js)
@@ -120,9 +121,9 @@ func unreadWhy(refs *typed.Bindings, model any) string {
 	return ""
 }
 
-// hopWhy is unresolvedWhy's reason for the hop h, or nothing for one that
-// resolved. It names no document: a finding about a reference is placed in
-// the document that writes it.
+// hopWhy is the reason unresolvedWhy and mappingWhy give for the hop h, or
+// nothing for one that resolved. It names no document: a finding about a
+// reference is placed in the document that writes it.
 func hopWhy(h bind.Hop) string {
 	if h.Status == bind.Resolved {
 		return ""

@@ -22,8 +22,8 @@ import (
 // §3.3); a set with no non-null branch at all (every branch a bare `type:
 // null`) has no X for that collapse to name, so it lowers to nullable `any`
 // instead (lowerNullOnlyUnion, GitHub #416); everything else becomes a Union
-// with one Variant per branch (oneOf exclusive, anyOf not), never collapsing a
-// union into optional fields.
+// with one Variant per non-null branch (oneOf exclusive, anyOf not), never
+// collapsing a union into optional fields.
 func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer jsontext.Pointer, hint string) (ir.TypeRef, []ir.Diagnostic) {
 	if inner, ip, i, ok := nullUnionCollapse(s, pointer); ok {
 		ref, diags := Ref(c, ts, anchors, depth, inner, ip, branchHint(c.Bindings(), inner, i))
@@ -230,9 +230,9 @@ var otherCombinator = map[string]string{"oneOf": "anyOf", "anyOf": "oneOf"}
 // the other stays recoverable beside it, as recordSkippedFamilies does for
 // keyword families (docs/compilers/openapi.md#competing-keywords).
 //
-// Where a structural sibling is written as well, classifyUnionSiblings reaches
-// unionBothCombinators first and neither set is elected
-// (lowerBesideUnmodeledUnion).
+// Where a structural sibling is written as well, classifyUnionSiblings never
+// distributes the schema, so neither set is elected and both are kept beside
+// the body (lowerBesideUnmodeledUnion).
 func preserveUnusedCombinator(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, won string, pointer jsontext.Pointer) []ir.Diagnostic {
 	if len(s.GetOneOf()) == 0 || len(s.GetAnyOf()) == 0 {
 		return nil
@@ -383,8 +383,9 @@ const (
 	// a $ref, so it names no node for Base/Mixins to point at.
 	unionInlineBranch
 	// unionUnresolvedBranch marks a union whose every branch is a $ref but at
-	// least one names nothing this compilation can resolve — a cross-document
-	// target, an undeclared component, a pointer addressing no schema.
+	// least one names nothing this compilation can resolve — a target in a
+	// document it did not read, an undeclared component, a pointer addressing no
+	// schema.
 	unionUnresolvedBranch
 	// unionDiscriminated marks a union whose branches a declared discriminator
 	// binds by name, which distribution would break.
@@ -486,7 +487,7 @@ func branchesNameReferents(c lowering.Ctx, s *oas3.Schema) bool {
 }
 
 // coDeclaredUnionWhyPrefix opens every lowerCoDeclaredUnion why string: at
-// each of its five reasons, a structural body genuinely sits beside the union
+// each of its reasons, a structural body genuinely sits beside the union
 // (that is what routed the schema here rather than to a $ref-site union
 // keeper), so the sentence that follows is always true of it. refSiteUnionWhy
 // does not share this prefix, because at a $ref site it would not be
@@ -527,7 +528,8 @@ func lowerCoDeclaredUnion(c lowering.Ctx, ts *compile.Types, anchors *AnchorInde
 }
 
 // diagUnresolvedBranches returns one diagnostic per union branch whose $ref
-// names nothing this compilation resolves, or none when they all resolve. The
+// names nothing this compilation resolves, but none for a $ref on a loop of
+// $refs, which the load phase reports once (onLoop). The
 // branch text survives verbatim under Unmodeled, so nothing is dropped, but a
 // reference that resolves nowhere is a defect of the document itself, reported
 // at the same severity as everywhere else, with the reason refTypeRef's report
@@ -549,9 +551,9 @@ func diagUnresolvedBranches(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Poi
 // lowerBesideUnmodeledUnion lowers the structural body of a schema that
 // co-declares oneOf/anyOf and keeps the union verbatim beside it, so neither the
 // structural shape nor the union is dropped. reason says which kind of union it
-// is and why says what stopped a classified lowering; classifyUnionSiblings
-// picks both. A discriminator the body's model holds is settled once every node
-// is interned (deferDiscriminatorBesideUnion).
+// is and why says what stopped a classified lowering; lowerCoDeclaredUnion picks
+// both from classifyUnionSiblings' verdict. A discriminator the body's model
+// holds is settled once every node is interned (deferDiscriminatorBesideUnion).
 func lowerBesideUnmodeledUnion(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer jsontext.Pointer, hint string, reason ir.UnmodeledReason, why string) (ir.TypeID, []ir.Diagnostic) {
 	inner, diags := lower(c, ts, anchors, depth, s, pointer, hint)
 	owner := inner

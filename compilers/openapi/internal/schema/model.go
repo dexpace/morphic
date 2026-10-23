@@ -15,10 +15,11 @@ import (
 )
 
 // lowerModel hoists an object schema as a Model, or as a MapT when the object
-// is a map and nothing else (objectNode). This task lowers only the
-// property shape (name, type, required) and the property-set cardinality; a
-// later pass fills the rest. It reads no annotations: attachDeclaredAnnotations
-// does that for every destination.
+// is a map and nothing else (objectNode): its value constraints, the
+// property-set cardinality among them, its own properties and which are
+// required, its catch-all (fillAdditional) and a declared discriminator. It
+// reads no annotations: attachDeclaredAnnotations does that for every
+// destination.
 //
 // Cardinality is read here rather than on lowerComponentSchema's internAlias
 // fallback because an object-shaped schema owns its node before that fallback

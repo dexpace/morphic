@@ -18,9 +18,9 @@ import (
 
 // typeSpelling is how a parameter or header stated its type: the schema node,
 // the pointer that node sits at, the media type serializing it — empty for the
-// `schema` spelling — the examples a content-style entry declares, and whatever
-// the election passed over, for the carrier at this position to merge onto its
-// own Unmodeled.
+// `schema` spelling — the examples a content-style entry declares, and what the
+// elected entry writes beyond its type and the spelling the election passed
+// over, kept for the carrier at this position to merge onto its own Unmodeled.
 type typeSpelling struct {
 	js        *oas3.JSONSchema[oas3.Referenceable]
 	pointer   jsontext.Pointer
@@ -79,12 +79,12 @@ func electTypeSpelling(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable],
 // reports it once, naming both. A document that wrote only the elected one
 // records nothing and says nothing.
 //
-// The reason is ReasonDegradedLowering, as recordSkippedFamilies uses for the
-// keyword families its own election passes over. The severity is warning, not
-// the info announcing a conjunction JSON Schema allows, because OpenAPI forbids
-// this one; it matches singleContentEntry's. It is not an error: the document
-// lowers as well as an election can make it, and harness.Check stops at the
-// first error diagnostic, hiding later findings.
+// The reason is ReasonDegradedLowering, as schema.recordSkippedFamilies uses for
+// the keyword families its own election passes over. The severity is warning,
+// not the info announcing a conjunction JSON Schema allows, because OpenAPI
+// forbids this one; it matches singleContentEntry's. It is not an error: the
+// document lowers as well as an election can make it, and harness.Check stops
+// at the first error diagnostic, hiding later findings.
 func passedOverSpelling(c lowering.Ctx, u *ir.Unmodeled, root *yaml.Node, passed, elected string, at jsontext.Pointer) []ir.Diagnostic {
 	pointer := at + ids.Ptr(passed)
 	kept, diags := annotation.PreserveNodeInto(u, "openapi:"+passed,
@@ -102,9 +102,9 @@ func passedOverSpelling(c lowering.Ctx, u *ir.Unmodeled, root *yaml.Node, passed
 //
 // OpenAPI requires exactly one entry at both positions, so only the first can
 // lower — ir.Property and ir.Parameter each hold a single type. Taking it in
-// silence dropped a declared schema without a word, which is the loss GitHub #139
-// fixed at this position in its other spelling; the extras are named instead so
-// the document's own error is visible rather than absorbed.
+// silence would drop the other entries' schemas without a word, the loss GitHub
+// #139 fixed for the one entry a content-style header declares; the extras are
+// named instead so the document's own error is visible rather than absorbed.
 func singleContentEntry(c lowering.Ctx, content *sequencedmap.Map[string, *soa.MediaType], at jsontext.Pointer) (string, *soa.MediaType, bool, []ir.Diagnostic) {
 	if content == nil || content.Len() == 0 {
 		return "", nil, false, nil
@@ -130,9 +130,9 @@ func singleContentEntry(c lowering.Ctx, content *sequencedmap.Map[string, *soa.M
 
 // contentEntryFields returns everything a Media Type Object declares at a
 // parameter's or header's elected `content` position beyond the one type that
-// position lowers: its example/examples, its x-* and undeclared keys, and the
-// fields contentOnlyFields names. Nothing read them before, so they vanished
-// without a diagnostic (GitHub #611).
+// position lowers: its example/examples, its x-* and undeclared keys, the
+// fields contentOnlyFields names, and what keepMediaTypeFields keeps, none of
+// which may vanish without a diagnostic (GitHub #611).
 //
 // scope is the content entry's own path, so several media types and the
 // enclosing object cannot collide on one key. carrier and home name the

@@ -36,11 +36,10 @@ func homeDeclaration(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, s 
 // (declaresPositionScoped; GitHub #116), since a shared node must never carry
 // one declaration's annotations.
 //
-// A declaration that already has a home resolves to it, checked after that gate
-// so a position declaring nothing still resolves to its target. A $ref naming
-// an inline position hoists that home first (resolveSchemaRef); taking the
-// body's target would make annotations depend on declaration order (ir-design
-// §4.3).
+// A declaration already owning a node at pointer resolves to it, checked after
+// that gate so a position declaring nothing still resolves to its target. A
+// $ref naming the position only promises one (resolvePointer), so no home
+// depends on declaration order (ir-design §4.3).
 //
 // unhomed is the census verdict of a $ref site or a collapsed union, which
 // declaresPositionScoped cannot judge.
@@ -122,9 +121,9 @@ func declaresValidationOnly(s *oas3.Schema) bool {
 // node pointer owns, the one structural home they have (ir.TypeCommon).
 //
 // It is the sole reader of declaration-scoped annotations and runs above
-// lower()'s dispatch: every declaration reaches it through schemaBody or an
-// alias fallback, so a new lowering destination cannot forget to read them
-// (GitHub #114).
+// lower()'s dispatch: every declaration reaches it through homeDeclaration or
+// an alias fallback (lowerComponentSchema, hoistSubSchema), so a new lowering
+// destination cannot forget to read them (GitHub #114).
 //
 // A schema whose body reduced to a shared primitive owns no node; its
 // annotations stay with the declaring property (FillPropertyDetail). Ownership
