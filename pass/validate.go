@@ -20,10 +20,11 @@ func (Validator) Run(doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
 	return doc, Validate(doc)
 }
 
-// Validate checks a Document for referential-integrity violations and returns
-// the diagnostics it finds, most-structural first. It is pure: it never mutates
-// doc and holds no package-level state. An empty result means the document is
-// internally consistent for every rule this pass enforces.
+// Validate checks a Document's referential integrity and the well-formedness
+// rules the IR states, and returns the diagnostics it finds, most-structural
+// first. It is pure: it never mutates doc and holds no package-level state. An
+// empty result means the document is internally consistent for every rule this
+// pass enforces.
 //
 // Purity makes concurrent calls safe, including several over one document — but
 // Validate takes no lock, so nothing may be mutating that document meanwhile.
