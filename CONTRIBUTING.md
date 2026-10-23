@@ -34,6 +34,27 @@ Read the documents for your layer, and skip the rest until you need them.
 | The IR | `ir-design.md`, `architecture.md` §2.5, `prior-art.md` | `reference-learnings.md` |
 | An emitter (none exists yet) | [`emitter-design.md`](docs/emitter-design.md), `architecture.md` §2.3 to §2.5 | `prior-art.md` |
 
+### Where a test goes
+
+- **A unit test sits beside the code it tests,** in its package, in the `_test.go` named after the
+  file that declares what the test's name says it tests, as `TestTypes_RegisterTakesNoCoordinate`,
+  of `Types` in `compilers/compile/types.go`, sits in `types_test.go`. Once a file's tests split by
+  topic, each part keeps that prefix, as `load_entry_internal_test.go` does beside `load.go`. A
+  scenario several files of a package decide together goes in a file named for the scenario, as
+  `pass/validate_propids_test.go` is, a check over a whole package in one named for what it checks,
+  as `ir/nofloat_test.go` is, and in a package of one source file a test file needs no prefix.
+  *Fails if missed:* `make coverage`, for a test in another package than its code, since coverage
+  counts only a package's own tests. Nothing fails for a test in the wrong file of its package.
+- **An end-to-end test of the OpenAPI compiler goes in `compilers/openapi/e2e`,** in a file named
+  for the construct: a test that compiles a spec through `openapi.New` and reads what comes out,
+  the conformance corpus and the goldens among them. The package holds no code, so such a test
+  covers nothing, and the code it reaches still needs a unit test beside it; `compilers/openapi`
+  itself holds only the tests of its own files. A helper several of the package's files share is
+  in its `helpers_test.go`, except the corpus's own reader, which `conformance_test.go` declares,
+  and a fixture the files of one construct share, which stays with that construct.
+  *Fails if missed:* `make coverage`, for code only an end-to-end test reaches. Nothing fails for an
+  end-to-end test written in the compiler's own package.
+
 ## Add a lowering rule to the OpenAPI compiler
 
 A lowering rule says how one OpenAPI construct reaches the IR: the field it fills, what it keeps in
@@ -77,7 +98,8 @@ A lowering rule says how one OpenAPI construct reaches the IR: the field it fill
    `conformanceCases()` in `compilers/openapi/e2e/conformance_test.go` naming its assertion, list it
    under each [`ir-spec-matrix.md`](docs/ir-spec-matrix.md) row it witnesses in
    `testdata/conformance/openapi/matrix.md` (none, for a case that pins only a diagnostic), write
-   the assertion, and name the case in the rule's Cases field. Then write its golden alone, since
+   the assertion in the `conformance_<family>_test.go` of its construct, and name the case in the
+   rule's Cases field. Then write its golden alone, since
    a run that also reaches `TestConformance_TableNamesEveryCorpusSpec` reads the directory before
    the golden exists:
 
