@@ -28,6 +28,47 @@ func TestChild_ReadsOnlyWhatAMappingHolds(t *testing.T) {
 	assert.Same(t, value, Child(ynode.Alias(mapping), "k"), "an alias standing for the mapping is followed")
 }
 
+// TestChild_AnswersAsMappingPairs holds Child to the pair MappingPairs gives
+// each key, on the shapes where a lookup could part from the expansion: a key
+// written twice in the mapping (its last copy) and in a source (its first), a
+// key two sources share (the first's), a list of sources, an own key holding
+// nothing or an alias to nothing, a merge cycle, and a chain at MergeDepthLimit
+// and one level past it, for every key either names and one neither writes.
+// The cycle branches through a list, so a lookup following it would not end.
+func TestChild_AnswersAsMappingPairs(t *testing.T) {
+	t.Parallel()
+	s := ynode.Scalar
+	source := ynode.Map(s("a"), s("src-a1"), s("a"), s("src-a2"), s("b"), s("src-b"))
+	other := ynode.Map(s("b"), s("other-b"), s("c"), s("other-c"))
+	cycle := ynode.Map(s("own"), s("v"))
+	inner := ynode.Map(ynode.Merge(), ynode.Seq(ynode.Alias(cycle), ynode.Alias(cycle)), s("in"), s("w"))
+	cycle.Content = append(cycle.Content, ynode.Merge(), ynode.Alias(inner))
+	cases := map[string]*yaml.Node{
+		"own copies":         ynode.Map(s("k"), s("1"), s("k"), s("2")),
+		"a source's copies":  ynode.Map(ynode.Merge(), ynode.Alias(source)),
+		"own over merged":    ynode.Map(ynode.Merge(), ynode.Alias(source), s("a"), s("own-a")),
+		"two sources":        ynode.Map(ynode.Merge(), ynode.Alias(source), ynode.Merge(), ynode.Alias(other)),
+		"a list of sources":  ynode.Map(ynode.Merge(), ynode.Seq(ynode.Alias(other), ynode.Alias(source))),
+		"own nil over merge": ynode.Map(s("b"), &yaml.Node{Kind: yaml.AliasNode}, ynode.Merge(), ynode.Alias(source)),
+		"own nil value":      ynode.Map(s("b"), nil, ynode.Merge(), ynode.Alias(source)),
+		"a cycle":            cycle,
+		"at the bound":       ynode.MergeChain(MergeDepthLimit),
+		"past the bound":     ynode.MergeChain(MergeDepthLimit + 1),
+	}
+	for name, n := range cases {
+		pairs := New().MappingPairs(n)
+		asked := map[string]*yaml.Node{"absent": nil, "a": nil, "b": nil, "c": nil, "k": nil, "leaf": nil, "in": nil, "own": nil}
+		for _, p := range pairs {
+			asked[p.Key] = p.Val
+		}
+		for key, want := range asked {
+			assert.Same(t, want, Child(n, key), "%s: key %q", name, key)
+		}
+	}
+	assert.NotNil(t, Child(cases["at the bound"], "leaf"), "a chain at the bound is read whole")
+	assert.Nil(t, Child(cases["past the bound"], "leaf"), "one level past it is not")
+}
+
 // TestPairs_IsAFreshViewsReading pins Pairs to MappingPairs read by a view of
 // its own, merges included, a document node unwrapped, and to nothing for a
 // node that is no mapping.

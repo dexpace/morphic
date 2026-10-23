@@ -122,8 +122,7 @@ func New() *View {
 
 // expansion is one mapping's effective pairs with what the memo needs to serve
 // them again. pairs reads a key the mapping writes twice at its last copy;
-// merged, the mapping as a `<<` source, at its first, as the library does, and
-// is nil when no key repeats. repeat is the first such key (View.Repeat).
+// repeated, nil unless a key repeats, holds the rest (see repeated).
 //
 // height is the longest chain of `<<` merges beneath the node, 0 for a mapping
 // that merges nothing. The depth bound truncates from the entry point down, so
@@ -131,25 +130,37 @@ func New() *View {
 // still fits (GitHub #404).
 type expansion struct {
 	pairs    []Pair
-	merged   []Pair
-	repeat   repeat
+	repeated *repeated
 	height   int
 	complete bool
 }
 
-// repeat is a key a mapping writes more than once, and that mapping; the zero
-// value is none.
-type repeat struct {
-	key string
-	in  *yaml.Node
+// repeated is what an expansion holds for a mapping that, or a source of
+// which, writes a key more than once, apart from the pairs every expansion
+// holds: almost no mapping does, so the memo keeps it out of line. merged
+// reads the mapping as a `<<` source does, at a repeated key's first copy as
+// the library does, and is nil when only a source repeats. key is the first
+// such key, and in the mapping writing it (View.Repeat).
+type repeated struct {
+	merged []Pair
+	key    string
+	in     *yaml.Node
 }
 
 // asSource returns the pairs e's mapping contributes to one that merges it.
 func (e expansion) asSource() []Pair {
-	if e.merged != nil {
-		return e.merged
+	if e.repeated != nil && e.repeated.merged != nil {
+		return e.repeated.merged
 	}
 	return e.pairs
+}
+
+// sourceRepeat returns e's repeat alone, as a mapping merging e's inherits it.
+func (e expansion) sourceRepeat() *repeated {
+	if e.repeated == nil {
+		return nil
+	}
+	return &repeated{key: e.repeated.key, in: e.repeated.in}
 }
 
 // MappingPairs returns the effective pairs of a mapping node in the order the
@@ -172,8 +183,11 @@ func (v *View) MappingPairs(n *yaml.Node) []Pair {
 // the library's rules, so a reader that must hold one copy faithfully, as a
 // value does, asks this to refuse instead. n is dereferenced.
 func (v *View) Repeat(n *yaml.Node) (key string, in *yaml.Node, ok bool) {
-	r := v.expand(Deref(n), 0).repeat
-	return r.key, r.in, r.in != nil
+	r := v.expand(Deref(n), 0).repeated
+	if r == nil {
+		return "", nil, false
+	}
+	return r.key, r.in, true
 }
 
 // expand returns n's expansion, incomplete if a merge cycle was broken or
@@ -245,7 +259,10 @@ func (v *View) isEntryPoint(depth int) bool {
 // memoization, so a miss recomputes exactly the same pairs — which makes the
 // budget a memory bound the scan can enforce without touching what it reports.
 func (v *View) memoize(n *yaml.Node, e expansion) {
-	held := len(e.pairs) + len(e.merged)
+	held := len(e.pairs)
+	if e.repeated != nil {
+		held += len(e.repeated.merged)
+	}
 	if v.cachedPairs+held > maxCachedPairs {
 		return
 	}
@@ -274,7 +291,7 @@ func (v *View) expandContent(n *yaml.Node, depth int) expansion {
 			merged = append(merged, got.pairs...)
 			e.complete = e.complete && got.complete
 			e.height = max(e.height, got.height+1)
-			e.repeat = cmp.Or(e.repeat, got.repeat)
+			e.repeated = cmp.Or(e.repeated, got.repeated)
 			continue
 		}
 		key, own := KeyOf(raw)
@@ -284,22 +301,48 @@ func (v *View) expandContent(n *yaml.Node, depth int) expansion {
 		explicit = append(explicit, Pair{Key: key, Val: val})
 	}
 
-	e.pairs, e.merged = flatten(explicit, merged)
-	e.repeat = cmp.Or(firstRepeat(n, explicit), e.repeat)
+	// The mapping's own repeat comes before any a merge source writes.
+	key, repeats := firstRepeat(explicit)
+	if !repeats && len(merged) == 0 {
+		// Most mappings merge nothing and write each key once: their own pairs
+		// are already the answer, in order, and nothing else is allocated.
+		e.pairs = explicit
+		return e
+	}
+	var asSource []Pair
+	e.pairs, asSource = flatten(explicit, merged)
+	if repeats {
+		e.repeated = &repeated{merged: asSource, key: key, in: n}
+	}
 	return e
 }
 
-// firstRepeat returns the key the mapping n writes twice whose second copy
-// comes first among its own pairs, or none.
-func firstRepeat(n *yaml.Node, own []Pair) repeat {
+// smallKeys is the width below which a mapping's keys are compared pair by
+// pair rather than hashed: a document holds a mapping per object, most with a
+// handful of keys, and a map for each is what a read of a large one spends on.
+const smallKeys = 16
+
+// firstRepeat returns the key a mapping's own pairs write twice whose second
+// copy comes first, and whether there is one.
+func firstRepeat(own []Pair) (string, bool) {
+	if len(own) <= smallKeys {
+		for i := 1; i < len(own); i++ {
+			for _, p := range own[:i] {
+				if p.Key == own[i].Key {
+					return own[i].Key, true
+				}
+			}
+		}
+		return "", false
+	}
 	seen := make(map[string]bool, len(own))
 	for _, p := range own {
 		if seen[p.Key] {
-			return repeat{key: p.Key, in: n}
+			return p.Key, true
 		}
 		seen[p.Key] = true
 	}
-	return repeat{}
+	return "", false
 }
 
 // flatten orders a mapping's pairs as the library does: the merged pairs no
@@ -412,7 +455,7 @@ func RepeatedKeys(n *yaml.Node) []string {
 func (v *View) mergeSource(val *yaml.Node, depth int) expansion {
 	if val == nil || val.Kind != yaml.SequenceNode {
 		got := v.expand(val, depth)
-		return expansion{pairs: got.asSource(), repeat: got.repeat, height: got.height, complete: got.complete}
+		return expansion{pairs: got.asSource(), repeated: got.sourceRepeat(), height: got.height, complete: got.complete}
 	}
 	e := expansion{complete: true}
 	for _, item := range val.Content {
@@ -420,7 +463,7 @@ func (v *View) mergeSource(val *yaml.Node, depth int) expansion {
 		e.pairs = append(e.pairs, got.asSource()...)
 		e.complete = e.complete && got.complete
 		e.height = max(e.height, got.height)
-		e.repeat = cmp.Or(e.repeat, got.repeat)
+		e.repeated = cmp.Or(e.repeated, got.sourceRepeat())
 	}
 	return e
 }
