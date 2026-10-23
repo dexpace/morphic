@@ -19,8 +19,8 @@ import (
 
 // TestRecognize_HoldsTheParseToItsByteBudget pins the bound on what recognition
 // reads: the parse is of the whole source, so a source past maxBytes is
-// declined unread, with the refusal Load gives the same source. One at the
-// budget is read, and so is any source under no budget at all.
+// declined unread, with the refusal load.Load gives the same source. One at
+// the budget is read, and so is any source under no budget at all.
 func TestRecognize_HoldsTheParseToItsByteBudget(t *testing.T) {
 	t.Parallel()
 	const src = "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\n"
@@ -40,8 +40,9 @@ func TestRecognize_HoldsTheParseToItsByteBudget(t *testing.T) {
 }
 
 // TestRecognize_ADeclineNamesTheSourceItWasHanded holds every decline that
-// says why to the index its caller passed. Detect passes 0, so a recognition
-// that named source 0 whatever it was handed would pass every other test here.
+// says why to the index its caller passed. The compiler's Detect passes 0, so
+// a recognition that named source 0 whatever it was handed would pass every
+// other test here.
 func TestRecognize_ADeclineNamesTheSourceItWasHanded(t *testing.T) {
 	t.Parallel()
 	const srcIndex = 3

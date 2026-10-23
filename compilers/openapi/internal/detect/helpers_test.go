@@ -7,8 +7,8 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// recognize is Recognize on source 0, the one source Detect hands it, with no
-// byte budget: no case here comes near the default, and
+// recognize is Recognize on source 0, the one source the compiler's Detect
+// hands it, with no byte budget: no case here comes near the default, and
 // TestRecognize_HoldsTheParseToItsByteBudget sets one of its own.
 func recognize(src string) (compilers.Recognition, []ir.Diagnostic, bool) {
 	return Recognize(0, []byte(src), 0)

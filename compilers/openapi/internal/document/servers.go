@@ -61,11 +61,12 @@ func lowerServer(c lowering.Ctx, s *soa.Server, sptr jsontext.Pointer) (ir.Serve
 }
 
 // serverName builds a server's neutral naming: the declared name (only OpenAPI
-// 3.2 has one), else a hint derived from the URL template, as operationName does
-// for an operation with no operationId (GitHub #258). It names by the URL, not
-// the position in servers[], which shifts when the list is reordered, and by the
-// whole template, not a part: choosing a part is a policy and drops what the
-// rest distinguishes, since one host serving /v1 and /v2 is two servers.
+// 3.2 has one), else a hint derived from the URL template, as operation's
+// operationName does for an operation with no operationId (GitHub #258). It
+// names by the URL, not the position in servers[], which shifts when the list
+// is reordered, and by the whole template, not a part: choosing a part is a
+// policy and drops what the rest distinguishes, since one host serving /v1 and
+// /v2 is two servers.
 //
 // Distinct servers can collide (".../v1" and ".../v-1" reduce to one word
 // sequence), as two enum members can; an emitter uniquifies.

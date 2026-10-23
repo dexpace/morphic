@@ -13,9 +13,9 @@ import (
 // the parse that read them. maxBytes bounds that parse, zero being none.
 //
 // Two sources are declined with an error whatever their format: one past
-// maxBytes, unread, with the refusal Load gives it, and one whose root merges
-// past the depth the read expands, its own keys leaving the version open
-// (settledByOwnPairs). Any other decline is silent unless the source is
+// maxBytes, unread, with the refusal load.Load gives it, and one whose root
+// merges past the depth the read expands, its own keys leaving the version
+// open (settledByOwnPairs). Any other decline is silent unless the source is
 // unreadable and declares a version where a document declares one
 // (declaresProbeKey).
 func Recognize(srcIndex int, data []byte, maxBytes int) (compilers.Recognition, []ir.Diagnostic, bool) {

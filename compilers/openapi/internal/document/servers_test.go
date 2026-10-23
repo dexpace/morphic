@@ -14,7 +14,7 @@ import (
 // TestDuplicateServerName_BothServersLower is GitHub #631's repro compiled end
 // to end: the repeat is reported, a warning at its own name naming the first,
 // and nothing is dropped or merged, each server lowering with the name it
-// declares. Load's tests cover every list the rule reads.
+// declares. The load package's tests cover every list the rule reads.
 func TestDuplicateServerName_BothServersLower(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, `openapi: 3.2.0
