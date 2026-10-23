@@ -17,18 +17,3 @@ type Pass interface {
 	Name() string
 	Run(doc *ir.Document) (*ir.Document, []ir.Diagnostic)
 }
-
-// ValidateName is the stable name of the [Validator] pass.
-const ValidateName = "validate"
-
-// Validator is [Validate] as a [Pass]. It is an analysis, so Run hands back the
-// document it was given.
-type Validator struct{}
-
-// Name returns [ValidateName].
-func (Validator) Name() string { return ValidateName }
-
-// Run returns doc unchanged, with what [Validate] reports about it.
-func (Validator) Run(doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
-	return doc, Validate(doc)
-}

@@ -17,10 +17,10 @@ import (
 )
 
 // TestValidate_Corpus walks the capability-conformance corpus through the
-// OpenAPI compiler and asserts every lowered document passes referential-
-// integrity validation with no error-severity diagnostics. It keeps the corpus
-// honest: a compiler change that produces a dangling reference or an invalid
-// discriminator mapping fails here even when the golden still round-trips.
+// OpenAPI compiler and asserts Validate reports no error-severity diagnostic on
+// any lowered document. It keeps the corpus honest: a compiler change that
+// produces a dangling reference or an invalid discriminator mapping fails here
+// even when the golden still round-trips.
 //
 // It also holds Validate to the Pass contract over every construct the corpus
 // lowers: the document must read the same after validation as before.

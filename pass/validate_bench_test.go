@@ -19,10 +19,10 @@ import (
 // addressed relative to this test file.
 const goldenPetstore = "../testdata/golden/openapi/petstore.yaml"
 
-// BenchmarkValidate_Petstore measures a referential-integrity pass over a
-// compiled document. Validate walks every reference in the document, so its cost
-// tracks document size rather than spec size, and it runs on every compile the
-// engine drives — a regression here is paid by every consumer.
+// BenchmarkValidate_Petstore measures Validate over a compiled document.
+// Validate walks every reference in the document, so its cost tracks document
+// size rather than spec size, and it runs on every compile the engine drives —
+// a regression here is paid by every consumer.
 func BenchmarkValidate_Petstore(b *testing.B) {
 	doc := compilePetstore(b)
 

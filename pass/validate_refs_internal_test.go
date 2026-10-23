@@ -1,4 +1,4 @@
-package pass // internal test package — exercises the collectors directly
+package pass // internal test package — exercises the collectors and checkDanglingRefs directly
 
 import (
 	"testing"

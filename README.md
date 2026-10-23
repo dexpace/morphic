@@ -77,8 +77,9 @@ spec ──▶ compiler ──▶ IR ──▶ passes ──▶ IR ──▶ emi
   recognizes its own format from the bytes and owns its options. OpenAPI 3.x is the first; the
   formats planned after it are in [Status](#status).
 - **Passes** (`pass/`) are small, order-explicit IR → IR transforms. `validate` checks referential
-  integrity and runs by default. Deduplication, filtering, version slicing and IR overlays are
-  designed in [Architecture](docs/architecture.md) but not built.
+  integrity and the well-formedness rules the IR states, and runs by default. Deduplication,
+  filtering, version slicing and IR overlays are designed in [Architecture](docs/architecture.md)
+  but not built.
 - **Emitters** (`emitters/*`, not built yet) turn an IR document into the artifacts for one
   target. SDK runtime policy (retries, timeouts, telemetry, the error taxonomy) is a separate
   emitter input, not part of the IR.
@@ -218,10 +219,9 @@ either set, so an embedder can run a pass of its own, composed with `engine.Pass
 list in order; a pass changes types through an `ir.Editor`. `Run` reads the spec, asks the
 registered compilers which one recognizes it, compiles, and runs the passes in order, each over the
 document the one before it returned. `RunOptions.DisablePasses` turns passes off by name
-(`engine.ValidatePass` names the referential-integrity check), and a name no pass carries fails the
-run with `engine.ErrUnknownPass`. A compiler breaking its contract, say by returning a document
-whose source table does not describe the spec, fails the run with an error wrapping
-`compilers.ErrContract`.
+(`engine.ValidatePass` names the `validate` pass), and a name no pass carries fails the run with
+`engine.ErrUnknownPass`. A compiler breaking its contract, say by returning a document whose source
+table does not describe the spec, fails the run with an error wrapping `compilers.ErrContract`.
 
 ```go
 eng, err := engine.New()

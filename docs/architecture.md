@@ -243,13 +243,16 @@ engine refuses there.
 
 Built, and in the default list:
 
-- **validate** — referential integrity (every typed-ID reference resolves to something the document
-  declares: a `TypeRef` target against the type registry, an `OpID` against the operations the
-  service tree declares, and so on for every ID class), discriminator mappings point at actual
-  variants, wire-name uniqueness within a model, and binding completeness: a parameter an HTTP
-  binding places twice at one non-host location is an error, one it places nowhere is a warning,
-  and a `host` binding is additive (ir-design §8.1). Structural problems are errors, which fail the
-  run at the default threshold (§4); style issues are warnings.
+- **validate** — referential integrity and the well-formedness rules the IR states, each rule family
+  in a `pass/validate_<family>.go` of its own. Integrity means every typed-ID reference resolves to
+  something the document declares (a `TypeRef` target against the type registry, an `OpID` against
+  the operations the service tree declares, and so on for every ID class), and every integer index
+  and `PropID` addresses a declared entry. Well-formedness is what the IR asks of a node beyond
+  that, such as discriminator mappings that point at actual variants, wire names and aliases unique
+  within a model, a one-way operation that declares no response, and binding completeness: a
+  parameter an HTTP binding places twice at one non-host location is an error, one it places nowhere
+  is a warning, and a `host` binding is additive (ir-design §8.1). Structural problems are errors,
+  which fail the run at the default threshold (§4); style issues are warnings.
 
 Designed, not yet built:
 

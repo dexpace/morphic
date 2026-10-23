@@ -10,6 +10,38 @@ import (
 	"github.com/dexpace/morphic/pass"
 )
 
+func TestValidate_DuplicateWireName(t *testing.T) {
+	t.Parallel()
+	doc := validDoc()
+	m := doc.Types["t/m"].(*ir.Model)
+	m.Properties = append(m.Properties, ir.Property{
+		ID: "p/m/b", WireName: "a", Type: ir.TypeRef{Target: "t/prim/string"},
+	})
+	diags := pass.Validate(doc)
+	require.NotEmpty(t, diags)
+	assert.Contains(t, codes(diags), "pass/duplicate-wire-name")
+}
+
+// TestValidate_EmptyEffectiveWireNameIsSkipped covers effectiveWireName's
+// source-name fallback and the empty-name continue in checkDuplicateWireNames.
+func TestValidate_EmptyEffectiveWireNameIsSkipped(t *testing.T) {
+	t.Parallel()
+	doc := validDoc()
+	doc.Types["t/blank"] = &ir.Model{
+		ID: "t/blank",
+		Properties: []ir.Property{
+			// No WireName, no Source name -> effective name "" -> skipped.
+			{ID: "p/a", Type: ir.TypeRef{Target: "t/prim/string"}},
+			{ID: "p/b", Type: ir.TypeRef{Target: "t/prim/string"}},
+			// No WireName but a Source name -> effectiveWireName returns Source.
+			{ID: "p/c", Name: ir.Naming{Source: "named"}, Type: ir.TypeRef{Target: "t/prim/string"}},
+		},
+	}
+	// Two blank-named properties must NOT collide (both skipped), and the
+	// source-named one is unique, so no duplicate-wire-name diagnostic fires.
+	assert.NotContains(t, codes(pass.Validate(doc)), "pass/duplicate-wire-name")
+}
+
 // aliasProperty returns a string property of model t/m named source and
 // answering to aliases besides.
 func aliasProperty(source string, aliases ...string) ir.Property {
