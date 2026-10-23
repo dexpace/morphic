@@ -163,10 +163,10 @@ func declaresContentVocabulary(s *oas3.Schema) bool {
 //
 // A string position lowers them (scalarEncoding). An object, an array, a union,
 // an alias over a $ref, or a schema with no declared type at all has no Encoding
-// field — yet 2020-12 §8.3 gives these keywords meaning on whatever instance
-// turns out to be a string, so they are kept rather than dropped. It asks the
-// node the position actually lowered to instead of re-deriving lower()'s
-// dispatch, so the two cannot drift apart.
+// field — yet JSON Schema Validation 2020-12 §8 gives these keywords meaning on
+// whatever instance turns out to be a string, so they are kept rather than
+// dropped. It asks the node the position actually lowered to instead of
+// re-deriving lower()'s dispatch, so the two cannot drift apart.
 func recordUnplacedContent(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, td ir.TypeDef, pointer jsontext.Pointer) []ir.Diagnostic {
 	if !declaresContentVocabulary(s) || scalarHasEncoding(td) {
 		return nil

@@ -263,12 +263,11 @@ func positionStep(enclosing string, rest []string) (hint string, branch bool, st
 }
 
 // structuralRoles maps each keyword whose one schema the structural lowering
-// names by role to that role: the suffixes its compile.SubHint call sites pass. A
-// change to one of them has to be made here too, and
-// TestInlinePosition_HintIsTheSameInBothOrders is what fails when they drift,
-// provided its row aims the outside $ref above the node it asserts (see the
-// refAt column there): a reference aimed at the node itself is renamed by the
-// declaration in either order and cannot see a role missing here.
+// names by role to that role: the suffixes its compile.SubHint call sites pass.
+// A change to one of them has to be made here too.
+// TestInlinePosition_HintIsTheSameInBothOrders pins the spelling the call sites
+// give, and TestPositionHint_Shapes the one this table replays, so a drift on
+// either side fails one of them.
 var structuralRoles = map[string]string{
 	"items":                "item",
 	"additionalProperties": "value",
