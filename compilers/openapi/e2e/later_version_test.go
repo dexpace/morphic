@@ -1,7 +1,6 @@
 package e2e_test
 
 import (
-	"encoding/json/v2"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -107,17 +106,4 @@ func TestLaterVersionConstructs_LowerAsInTheVersionThatAddedThem(t *testing.T) {
 	assert.NotEmpty(t, later31)
 	assert.Subset(t, later30, later31, "what 3.2 added is owed to 3.0 as to 3.1")
 	assert.Greater(t, len(later30), len(later31), "and what 3.1 added to 3.0 alone")
-}
-
-// withoutVersion encodes doc with what records the declared version set aside:
-// its source entries, which name the format and hash the bytes, and its
-// diagnostics, which the test compares apart.
-func withoutVersion(t *testing.T, doc *ir.Document) string {
-	t.Helper()
-	stripped := *doc
-	stripped.Sources = nil
-	stripped.Diagnostics = nil
-	out, err := json.Marshal(&stripped, json.Deterministic(true))
-	require.NoError(t, err)
-	return string(out)
 }

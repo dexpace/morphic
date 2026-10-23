@@ -4,14 +4,12 @@
 package e2e_test // external test package — exercises only the public API
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"runtime"
-	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -21,43 +19,9 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
-	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
-
-// recordingReader reads through inner and records each request it was handed.
-type recordingReader struct {
-	inner compilers.DocumentReader
-
-	mu   sync.Mutex
-	reqs []compilers.DocumentRequest
-}
-
-// ReadDocument records req, then answers it as inner does.
-func (r *recordingReader) ReadDocument(ctx context.Context, req compilers.DocumentRequest) ([]byte, error) {
-	r.mu.Lock()
-	r.reqs = append(r.reqs, req)
-	r.mu.Unlock()
-	return r.inner.ReadDocument(ctx, req)
-}
-
-// requests returns the requests recorded so far, in order.
-func (r *recordingReader) requests() []compilers.DocumentRequest {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return append([]compilers.DocumentRequest(nil), r.reqs...)
-}
-
-// locations returns the document each recorded request named, in order.
-func (r *recordingReader) locations() []string {
-	reqs := r.requests()
-	out := make([]string, 0, len(reqs))
-	for _, req := range reqs {
-		out = append(out, req.Location)
-	}
-	return out
-}
 
 // otherDoc holds the one response and parameter a confinement test's $refs
 // name, each told apart from anything the source declares by its description.
@@ -81,39 +45,6 @@ paths:
       responses:
         "200": {$ref: "` + doc + `#/components/responses/R"}
 `
-}
-
-// layout writes files, named by their slash-separated path under root, creating
-// the directories they sit in.
-func layout(t *testing.T, root string, files map[string]string) {
-	t.Helper()
-	for name, content := range files {
-		path := filepath.Join(root, filepath.FromSlash(name))
-		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o750))
-		require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
-	}
-}
-
-// compileOnDisk compiles source, read from path, through reader.Disk with
-// external references allowed or not.
-func compileOnDisk(t *testing.T, path, source string, allow bool) (*ir.Document, []ir.Diagnostic) {
-	t.Helper()
-	doc, diags, err := openapi.New().Compile(t.Context(), []compilers.Source{{Path: path, Data: []byte(source)}},
-		compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: allow}})
-	require.NoError(t, err)
-	require.NotNil(t, doc)
-	return doc, diags
-}
-
-// unresolvedRefs returns the unresolved-ref findings among diags.
-func unresolvedRefs(diags []ir.Diagnostic) []ir.Diagnostic {
-	var out []ir.Diagnostic
-	for _, d := range diags {
-		if d.Code == diag.UnresolvedRef {
-			out = append(out, d)
-		}
-	}
-	return out
 }
 
 // requireReadFrom requires that GET /a took its parameter and its response

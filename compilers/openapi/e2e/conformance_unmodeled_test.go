@@ -21,25 +21,6 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// unmodeledEntry returns the Unmodeled entry at key, failing when absent.
-func unmodeledEntry(t *testing.T, p ir.Unmodeled, key string) ir.UnmodeledEntry {
-	t.Helper()
-	entry, ok := p[key]
-	require.True(t, ok, "%s kept verbatim; got %v", key, p)
-	return entry
-}
-
-// diagsAt returns the severities of the diagnostics coded code at pointer.
-func diagsAt(diags []ir.Diagnostic, code, pointer string) []ir.Severity {
-	var out []ir.Severity
-	for _, d := range diags {
-		if d.Code == code && d.Provenance.Pointer == jsontext.Pointer(pointer) {
-			out = append(out, d.Severity)
-		}
-	}
-	return out
-}
-
 // assertUnhomedKeywords pins the keywords a position writes that the node its
 // lowering produced has nowhere to carry (GitHub #148, #151).
 //

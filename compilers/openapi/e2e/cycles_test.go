@@ -636,13 +636,6 @@ components:
 // the fuzzer its seeds in silence.
 const reproducerDir = "../../../testdata/openapi"
 
-func readReproducer(t *testing.T, file string) []byte {
-	t.Helper()
-	data, err := os.ReadFile(filepath.Join(reproducerDir, file+".yaml"))
-	require.NoError(t, err)
-	return data
-}
-
 // TestCompile_MergeChainPastBoundStillCompiles pins that a legal document whose
 // `<<` merge chain runs past the mapping view's depth bound is compiled. The
 // alias scan weighs aliases rather than expanding merges through that view, so

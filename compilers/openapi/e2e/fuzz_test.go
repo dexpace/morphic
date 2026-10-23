@@ -23,10 +23,6 @@ import (
 	"github.com/dexpace/morphic/ir/irverify"
 )
 
-// goldenPetstore is the larger real-ish spec seeded alongside the conformance
-// corpus, addressed relative to this test file.
-const goldenPetstore = "../../../testdata/golden/openapi/petstore.yaml"
-
 // cycleFixtureDir holds the cycle-detector reproducer and pointer-resolution
 // fixtures, addressed relative to this test file.
 const cycleFixtureDir = "../../../testdata/openapi"

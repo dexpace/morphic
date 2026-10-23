@@ -193,21 +193,6 @@ func compileReferring(t *testing.T, path, uri string) *ir.Document {
 	return out
 }
 
-// compileBesideExpectingErrors compiles root, written beside ext, with
-// external references allowed, and returns the diagnostics instead of
-// requiring none: the twin comparisons above need a clean compile, and a
-// refused external document needs the diagnostic itself.
-func compileBesideExpectingErrors(t *testing.T, ext, root string) []ir.Diagnostic {
-	t.Helper()
-	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "other.yaml"), []byte(ext), 0o600))
-	_, diags, err := openapi.New().Compile(t.Context(),
-		[]compilers.Source{{Path: filepath.Join(dir, "root.yaml"), Data: []byte(root)}},
-		compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
-	require.NoError(t, err, "a refused external document is a diagnostic, not a Go error")
-	return diags
-}
-
 // TestCompile_ARecursiveAnchorInAnExternalDocumentIsRefused pins GitHub #536.
 // A recursive anchor in an external document, on a folded entry or in a
 // self-referencing schema, would build its model without end. Both are refused
@@ -405,24 +390,4 @@ func operationNamed(doc *ir.Document, name string) (ir.Operation, bool) {
 		return ir.Operation{}, false
 	}
 	return ops[0], true
-}
-
-// operationsNamed returns every operation whose source operationId is name, in
-// any group of any service, in the order the groups are walked.
-func operationsNamed(doc *ir.Document, name string) []ir.Operation {
-	groups := make([]ir.OperationGroup, 0, len(doc.Services))
-	for _, svc := range doc.Services {
-		groups = append(groups, svc.Groups...)
-	}
-	var ops []ir.Operation
-	for len(groups) > 0 {
-		g := groups[0]
-		groups = append(groups[1:], g.Groups...)
-		for _, op := range g.Operations {
-			if op.Name.Source == name {
-				ops = append(ops, op)
-			}
-		}
-	}
-	return ops
 }

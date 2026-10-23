@@ -59,14 +59,6 @@ func compileFile(t *testing.T, dir, file, srcPath string) (*ir.Document, []ir.Di
 	return doc, diags
 }
 
-// hasErrorRef reports whether the diagnostics carry an error-severity
-// unresolved-ref finding — the signal that an offending entry was dropped.
-func hasErrorRef(diags []ir.Diagnostic) bool {
-	return slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {
-		return d.Severity == ir.SeverityError && d.Code == "openapi/unresolved-ref"
-	})
-}
-
 // outcome classifies how a reproducer must be made referentially sound.
 type outcome int
 

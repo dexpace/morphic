@@ -10,7 +10,6 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
-	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -311,12 +310,6 @@ func invalidCases() map[string][]string {
 	}
 }
 
-// assertNoErrorDiags fails when any diagnostic has error severity.
-func assertNoErrorDiags(t *testing.T, diags []ir.Diagnostic) {
-	t.Helper()
-	assertOnlyErrorDiags(t, diags, nil)
-}
-
 // assertOnlyErrorDiags fails when a diagnostic has error severity and a code
 // outside want, or when a code of want draws no error.
 func assertOnlyErrorDiags(t *testing.T, diags []ir.Diagnostic, want []string) {
@@ -332,58 +325,6 @@ func assertOnlyErrorDiags(t *testing.T, diags []ir.Diagnostic, want []string) {
 	for _, code := range want {
 		assert.True(t, drawn[code], "the spec is listed as invalid but draws no %s", code)
 	}
-}
-
-// namedID is the stable TypeID of a components-named schema.
-func namedID(name string) ir.TypeID {
-	return ir.TypeID("t/openapi/components/schemas/" + name)
-}
-
-// allOperations flattens every operation across a document's service groups.
-func allOperations(doc *ir.Document) []ir.Operation {
-	var out []ir.Operation
-	var walk func(gs []ir.OperationGroup)
-	walk = func(gs []ir.OperationGroup) {
-		for _, g := range gs {
-			out = append(out, g.Operations...)
-			walk(g.Groups)
-		}
-	}
-	for _, svc := range doc.Services {
-		walk(svc.Groups)
-	}
-	return out
-}
-
-// opByName finds an operation by its source operationId.
-func opByName(doc *ir.Document, source string) (ir.Operation, bool) {
-	for _, op := range allOperations(doc) {
-		if op.Name.Source == source {
-			return op, true
-		}
-	}
-	return ir.Operation{}, false
-}
-
-// propByWire returns the property of m with the given wire name.
-func propByWire(m *ir.Model, wire string) (ir.Property, bool) {
-	for _, p := range m.Properties {
-		if p.WireName == wire {
-			return p, true
-		}
-	}
-	return ir.Property{}, false
-}
-
-// paramByName returns the operation's logical parameter with the given source
-// name.
-func paramByName(op ir.Operation, name string) (ir.Parameter, bool) {
-	for _, p := range op.Params {
-		if p.Name.Source == name {
-			return p, true
-		}
-	}
-	return ir.Parameter{}, false
 }
 
 func assertNamedTypes(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
@@ -759,23 +700,6 @@ func assertComponentReuse(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.Equal(t, "{$request.body#/callbackUrl}", order.Bindings.HTTP[0].Callbacks[0].Expression)
 	_, ok := opByName(doc, "onShipped")
 	assert.True(t, ok, "the shared callback's operation is registered alongside its parent")
-}
-
-// operationAt finds the operation bound to one HTTP method and URI template.
-// Operations reached through a shared path item have no distinguishing name of
-// their own, so their binding is what tells them apart. A webhook binding has
-// no URI template, so no webhook is found.
-func operationAt(t *testing.T, doc *ir.Document, method, uri string) ir.Operation {
-	t.Helper()
-	for _, op := range allOperations(doc) {
-		for _, hb := range op.Bindings.HTTP {
-			if hb.Method == method && hb.URITemplate == uri {
-				return op
-			}
-		}
-	}
-	t.Fatalf("no operation bound to %s %s", method, uri)
-	return ir.Operation{}
 }
 
 func assertAllOfInheritance(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
@@ -3019,16 +2943,6 @@ func assertHeaderStyleAndExplodeKept(t *testing.T, headers []ir.Property) {
 		"a header that declares neither keyword records neither")
 }
 
-// headerByWire returns the response header with the given wire name.
-func headerByWire(headers []ir.Property, wire string) (ir.Property, bool) {
-	for _, h := range headers {
-		if h.WireName == wire {
-			return h, true
-		}
-	}
-	return ir.Property{}, false
-}
-
 func assertMultiContent(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	op, ok := opByName(doc, "getData")
 	require.True(t, ok)
@@ -3259,15 +3173,6 @@ func assertSequentialMedia(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 		require.True(t, ok, "%s kept verbatim; got %v", key, pc.Unmodeled)
 		assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
 	}
-}
-
-// firstContent returns an operation's single success-response content.
-func firstContent(t *testing.T, op ir.Operation) ir.Content {
-	t.Helper()
-	require.Len(t, op.Responses, 1)
-	require.NotNil(t, op.Responses[0].Payload)
-	require.Len(t, op.Responses[0].Payload.Contents, 1)
-	return op.Responses[0].Payload.Contents[0]
 }
 
 func assertPerStatusErrors(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
@@ -4232,36 +4137,6 @@ func assertEveryObjectKeepsItsExtensions(t *testing.T, doc *ir.Document) {
 	}
 }
 
-// unmodeledSite is one Unmodeled entry paired with the walk path of the map
-// holding it.
-type unmodeledSite struct {
-	key   string
-	path  string
-	entry ir.UnmodeledEntry
-}
-
-// unmodeledSites returns every Unmodeled entry the document holds. It walks the
-// value graph rather than naming carriers so that a test asserting "this is kept
-// somewhere sensible" cannot pass by looking only where it expected to.
-func unmodeledSites(doc *ir.Document) []unmodeledSite {
-	unmodeledType := reflect.TypeFor[ir.Unmodeled]()
-	var out []unmodeledSite
-	ir.WalkValues(doc, ir.DocumentPath, func(v reflect.Value, path string) bool {
-		if v.Type() != unmodeledType || !v.CanInterface() {
-			return true
-		}
-		u, ok := reflect.TypeAssert[ir.Unmodeled](v)
-		if !ok {
-			return true
-		}
-		for key, entry := range u {
-			out = append(out, unmodeledSite{key: key, path: path, entry: entry})
-		}
-		return true
-	})
-	return out
-}
-
 // carrierNarrows reports whether carrier picks out fewer than all of the
 // document's Unmodeled maps. A carrier that matches every one of them makes the
 // assertion beside it unconditionally true, which is how a row can name the
@@ -4279,19 +4154,6 @@ func carrierNarrows(sites []unmodeledSite, carrier string) bool {
 		}
 	}
 	return len(matched) < len(all)
-}
-
-// findUnmodeled returns the site holding key with the given JSON value. The
-// value is part of the match because one key spelling occurs at many carriers —
-// "openapi:x-mark" is written on a dozen objects in this fixture — so matching
-// on the key alone would find a different object's entry and call it a pass.
-func findUnmodeled(sites []unmodeledSite, key, wantJSON string) (unmodeledSite, bool) {
-	for _, site := range sites {
-		if site.key == key && string(site.entry.Value) == wantJSON {
-			return site, true
-		}
-	}
-	return unmodeledSite{}, false
 }
 
 // assertRawPreservedBinary pins what a !!binary extension keeps: the base64 the

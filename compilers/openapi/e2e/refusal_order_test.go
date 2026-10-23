@@ -9,7 +9,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
@@ -69,27 +68,6 @@ func refGraphDoc(r *rand.Rand) string {
 	}
 	b.WriteString("}\n")
 	return b.String()
-}
-
-// reversed is src with every mapping's entries in reverse order.
-func reversed(t *testing.T, src string) []byte {
-	t.Helper()
-	var root yaml.Node
-	require.NoError(t, yaml.Unmarshal([]byte(src), &root))
-	stack := []*yaml.Node{&root}
-	for len(stack) > 0 {
-		n := stack[len(stack)-1]
-		stack = stack[:len(stack)-1]
-		if n.Kind == yaml.MappingNode {
-			pairs := slices.Collect(slices.Chunk(n.Content, 2))
-			slices.Reverse(pairs)
-			n.Content = slices.Concat(pairs...)
-		}
-		stack = append(stack, n.Content...)
-	}
-	out, err := yaml.Marshal(&root)
-	require.NoError(t, err)
-	return out
 }
 
 // cycleRefusals compiles data and returns its cycle refusals and cycle-scan

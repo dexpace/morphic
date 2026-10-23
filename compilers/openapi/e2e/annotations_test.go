@@ -14,8 +14,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/dexpace/morphic/compilers"
-	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/internal/harness"
 	"github.com/dexpace/morphic/ir"
@@ -50,19 +48,6 @@ type retentionCase struct {
 
 	// assertDiags, when set, additionally checks the compile's diagnostics.
 	assertDiags func(*testing.T, []ir.Diagnostic)
-}
-
-// compileAnnotationSpec compiles one in-memory annotation-retention spec.
-// Every spec in this suite is well-formed by construction, so compilation is
-// required to succeed with no Go error; the caller checks diagnostics
-// separately, against what its own cell expects.
-func compileAnnotationSpec(t *testing.T, name, spec string) (*ir.Document, []ir.Diagnostic) {
-	t.Helper()
-	doc, diags, err := openapi.New().Compile(t.Context(),
-		[]compilers.Source{{Path: name + ".yaml", Data: []byte(spec)}}, compilers.Options{})
-	require.NoError(t, err)
-	require.NotNil(t, doc)
-	return doc, diags
 }
 
 func TestAnnotationRetention(t *testing.T) {
@@ -1020,14 +1005,6 @@ func paramUnmodeled(t *testing.T, op ir.Operation) ir.Unmodeled {
 	t.Helper()
 	require.Len(t, op.Params, 1)
 	return op.Params[0].Unmodeled
-}
-
-// requestContent returns an operation's single request-body content.
-func requestContent(t *testing.T, op ir.Operation) ir.Content {
-	t.Helper()
-	require.NotNil(t, op.Request)
-	require.Len(t, op.Request.Contents, 1)
-	return op.Request.Contents[0]
 }
 
 // refSiteAlias returns the node a body position hoisted to hold what was

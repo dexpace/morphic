@@ -16,8 +16,6 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-const amplificationBombFixture = "../../../testdata/openapi/amplification_alias_bomb.yaml"
-
 func TestCompile_AliasBombDoesNotExhaustMemory(t *testing.T) {
 	t.Parallel()
 	data, err := os.ReadFile(amplificationBombFixture)
