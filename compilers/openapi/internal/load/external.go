@@ -245,17 +245,26 @@ func (e external) holdObject(key string, o heldObject) {
 // of what it names (see Open). It visits each node of tree once, following an
 // alias only to read a $ref's key and value, as the model does.
 func (e external) holdSpellings(tree *yaml.Node, base string) {
-	stack := []*yaml.Node{tree}
-	for len(stack) > 0 {
-		n := stack[len(stack)-1]
-		stack = stack[:len(stack)-1]
-		stack = append(stack, n.Content...)
-		for i := 0; n.Kind == yaml.MappingNode && i+1 < len(n.Content); i += 2 {
-			if key, value := nodeview.Deref(n.Content[i]), nodeview.Deref(n.Content[i+1]); key.Value == "$ref" && value.Kind == yaml.ScalarNode {
-				e.holdSpelling(references.Reference(value.Value), base)
-			}
+	nodeview.Walk{Nodes: maxTreeNodes, Visit: func(n *yaml.Node, _ int) nodeview.Step {
+		for _, ref := range writtenAt(n, "$ref") {
+			e.holdSpelling(references.Reference(ref.Value), base)
+		}
+		return nodeview.Descend
+	}}.Run(tree)
+}
+
+// writtenAt returns the scalar values the mapping n writes under key itself,
+// each alias followed: the pairs written in place, every copy, since a walk
+// visiting every node meets whatever a `<<` merges in where it is written.
+func writtenAt(n *yaml.Node, key string) []*yaml.Node {
+	var out []*yaml.Node
+	for i := 0; n.Kind == yaml.MappingNode && i+1 < len(n.Content); i += 2 {
+		k, own := nodeview.KeyOf(n.Content[i])
+		if v := nodeview.Deref(n.Content[i+1]); own && k == key && v != nil && v.Kind == yaml.ScalarNode {
+			out = append(out, v)
 		}
 	}
+	return out
 }
 
 // holdSpelling holds the source under the key ref, read against base, names a
@@ -530,23 +539,32 @@ func reachesLocal(root *yaml.Node, base string) (reason string, refuse bool) {
 	if !overNetwork(base) {
 		return "", false
 	}
-	stack := []*yaml.Node{root}
-	for len(stack) > 0 {
-		n := stack[len(stack)-1]
-		stack = stack[:len(stack)-1]
-		stack = append(stack, n.Content...)
-		for i := 0; n.Kind == yaml.MappingNode && i+1 < len(n.Content); i += 2 {
-			key, value := nodeview.Deref(n.Content[i]), nodeview.Deref(n.Content[i+1])
-			if value.Kind != yaml.ScalarNode || (key.Value != "$ref" && key.Value != "$id") {
-				continue
-			}
-			t, local := localTarget(value.Value, base)
-			if local && key.Value == "$ref" {
-				return fmt.Sprintf("its $ref %q reaches the local file %s", value.Value, t), true
-			}
-			if local {
-				return fmt.Sprintf("its $id %q rebases references onto the local %s", value.Value, t), true
-			}
+	nodeview.Walk{Nodes: maxTreeNodes, Visit: func(n *yaml.Node, _ int) nodeview.Step {
+		reason, refuse = localReach(n, base)
+		if refuse {
+			return nodeview.Stop
+		}
+		return nodeview.Descend
+	}}.Run(root)
+	return reason, refuse
+}
+
+// localReach returns why the mapping n, in a document read from base, takes
+// the resolver to the local file system, and whether it does: through the
+// first $ref or $id it writes itself that names a local location.
+func localReach(n *yaml.Node, base string) (reason string, refuse bool) {
+	for i := 0; n.Kind == yaml.MappingNode && i+1 < len(n.Content); i += 2 {
+		key, own := nodeview.KeyOf(n.Content[i])
+		value := nodeview.Deref(n.Content[i+1])
+		if !own || value == nil || value.Kind != yaml.ScalarNode || (key != "$ref" && key != "$id") {
+			continue
+		}
+		t, local := localTarget(value.Value, base)
+		if local && key == "$ref" {
+			return fmt.Sprintf("its $ref %q reaches the local file %s", value.Value, t), true
+		}
+		if local {
+			return fmt.Sprintf("its $id %q rebases references onto the local %s", value.Value, t), true
 		}
 	}
 	return "", false

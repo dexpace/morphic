@@ -474,7 +474,7 @@ info: {title: T, version: "1"}
 paths: {}
 components:
   securitySchemes:
-    s: {type: apiKey, in: header, name: X-Key, x-bad: {1: intkey}}
+    s: {type: apiKey, in: header, name: X-Key, x-bad: {n: .nan}}
 `
 	doc, _, diags := serviceSpec(t, spec)
 	assert.Positive(t, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning),

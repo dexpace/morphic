@@ -1,6 +1,10 @@
 package compile
 
-import "github.com/dexpace/morphic/ir"
+import (
+	"strings"
+
+	"github.com/dexpace/morphic/ir"
+)
 
 // emptyNameHint is the hint minted for an entity the source left unnamed: an
 // enum member whose value is "", a property or component keyed by it, a tag
@@ -57,6 +61,24 @@ func NamingHint(hint string) ir.Naming {
 // neutral again, so a composed hint can parent the next one.
 func SubHint(parent, suffix string) string {
 	return neutralHint(parent) + "_" + neutralHint(suffix)
+}
+
+// SubHints is SubHint along a chain, each suffix composed onto the hint
+// before it: SubHints(p, a, b) is SubHint(SubHint(p, a), b), and SubHints(p)
+// is p. Since a composed hint is neutral already, the chain is each part
+// neutralized once and joined, so a hint composed of n parts costs n parts,
+// not the n² a fold of SubHint spends re-reading its growing parent.
+func SubHints(parent string, suffixes ...string) string {
+	if len(suffixes) == 0 {
+		return parent
+	}
+	var b strings.Builder
+	b.WriteString(neutralHint(parent))
+	for _, s := range suffixes {
+		b.WriteByte('_')
+		b.WriteString(neutralHint(s))
+	}
+	return b.String()
 }
 
 // neutralHint returns the neutral word sequence of hint, or the minted name when

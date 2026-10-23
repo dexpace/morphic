@@ -22,13 +22,13 @@ func TestAttachDeclaredAnnotations_LeavesANodeStillBeingBuiltToItsBuilder(t *tes
 	l, s, at := lowererDeclaringS(t)
 
 	var midBuild []ir.Diagnostic
-	id := internNode(l.ctx, l.types, at, "s", func(cm ir.TypeCommon) ir.TypeDef {
-		require.NotPanics(t, func() { midBuild = attachDeclaredAnnotations(l.ctx, l.types, &l.anchors, s, at) })
+	id := internNode(l.ctx, l.types, at, func(cm ir.TypeCommon) ir.TypeDef {
+		require.NotPanics(t, func() { midBuild = attachDeclaredAnnotations(l.ctx, l.types, s, at) })
 		return &ir.Model{TypeCommon: cm}
 	})
 	assert.Empty(t, midBuild, "a revisit mid-build reports nothing")
 
-	assert.Empty(t, attachDeclaredAnnotations(l.ctx, l.types, &l.anchors, s, at))
+	assert.Empty(t, attachDeclaredAnnotations(l.ctx, l.types, s, at))
 	td, ok := l.types.Node(id)
 	require.True(t, ok)
 	assert.Equal(t, "kept", td.Common().Docs.Description, "the builder's own pass attaches it")
@@ -42,7 +42,7 @@ func TestRecordDeclarationResidue_LeavesANodeStillBeingBuiltToItsBuilder(t *test
 	l, s, at := lowererDeclaringS(t)
 
 	var midBuild []ir.Diagnostic
-	id := internNode(l.ctx, l.types, at, "s", func(cm ir.TypeCommon) ir.TypeDef {
+	id := internNode(l.ctx, l.types, at, func(cm ir.TypeCommon) ir.TypeDef {
 		require.NotPanics(t, func() { midBuild = recordDeclarationResidue(l.ctx, l.types, s, at, annotation.HomeOwnNode) })
 		return &ir.Model{TypeCommon: cm}
 	})

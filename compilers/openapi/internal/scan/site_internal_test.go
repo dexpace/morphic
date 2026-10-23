@@ -130,20 +130,23 @@ func TestLeast_AgreesWithSortingEveryPointer(t *testing.T) {
 }
 
 // TestLeast_RanksANodeNoPointerReachesLast pins the nodes Pointers gives no
-// pointer: those under a `<<` merge key or a non-scalar key. Any node with a
-// pointer is less than one without, and among those without the first given
-// is taken, the one place left where the caller's order shows.
+// pointer: those under a `<<` merge key, and a key that is no scalar, whose
+// value is held at the empty key. Any node with a pointer is less than one
+// without, and among those without the first given is taken, the one place
+// left where the caller's order shows.
 func TestLeast_RanksANodeNoPointerReachesLast(t *testing.T) {
 	t.Parallel()
 	root := indexOf(t, []byte("z: {}\nm: {<<: {k: {}}, ? [c] : {}}\n")).Root()
 	z := root.Content[1]
 	pairs := root.Content[3].Content
-	merged, complexValue := pairs[1].Content[1], pairs[3]
-	require.Equal(t, yaml.SequenceNode, pairs[2].Kind, "the second pair's key is no scalar")
+	merged, complexKey, complexValue := pairs[1].Content[1], pairs[2], pairs[3]
+	require.Equal(t, yaml.SequenceNode, complexKey.Kind, "the second pair's key is no scalar")
 
-	assert.Same(t, z, Least(root, []*yaml.Node{merged, z, complexValue}))
-	assert.Same(t, merged, Least(root, []*yaml.Node{merged, complexValue}))
-	assert.Same(t, complexValue, Least(root, []*yaml.Node{complexValue, merged}))
+	assert.Same(t, z, Least(root, []*yaml.Node{merged, z, complexKey}))
+	assert.Same(t, merged, Least(root, []*yaml.Node{merged, complexKey}))
+	assert.Same(t, complexKey, Least(root, []*yaml.Node{complexKey, merged}))
+	assert.Same(t, complexValue, Least(root, []*yaml.Node{z, complexValue}),
+		"the value is held at /m/, which sorts before /z")
 }
 
 // TestLeast_EdgeCases pins the answers that need no ordering and the node a

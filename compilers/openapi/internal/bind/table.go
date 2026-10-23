@@ -177,7 +177,7 @@ func (b *binder) table(t *Table) *Table {
 		}
 	}
 	t.loops, t.steps, t.limit, t.exhausted = b.loops, b.work.spent, b.work.limit, b.work.over()
-	t.ends = b.find.ends
+	t.ends, t.roots = b.find.ends, b.find.roots
 	for _, d := range b.docs.list {
 		t.docs = append(t.docs, Document{Name: d.name, Root: d.root})
 		t.truncated = t.truncated || d.view.Exhausted()
@@ -246,6 +246,7 @@ type Document struct {
 // once and never written after.
 type Table struct {
 	entries   map[Position]Entry
+	roots     map[Position]state
 	mappings  map[mappingKey]Mapping
 	loops     []Loop
 	landings  []Landing

@@ -94,7 +94,7 @@ func TestSchemaRef_BooleanAndUntypedShapes(t *testing.T) {
 func TestSchemaRef_EmptyEitherIsAny(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
-	ref, diags := schema.Ref(l.ctx, l.types, &l.anchors, schema.TopLevelDepth, openapitest.EmptyEitherSchema(), "/p", "h")
+	ref, diags := schema.Ref(l.ctx, l.types, schema.TopLevelDepth, openapitest.EmptyEitherSchema(), "/p")
 	assert.Equal(t, ir.TypeID("t/prim/any"), ref.Target)
 	assert.Empty(t, diags, "an empty either lowers to any without complaint")
 }
@@ -167,7 +167,7 @@ func vocabularyCore() []vocabCase {
 		},
 		{
 			keyword: "$dynamicAnchor", write: "$dynamicAnchor: m", schemas: stringSchema,
-			excluded: "read as a reference target by dynamicAnchors, which is what lets a " +
+			excluded: "read as a reference target by anchors.Build, which is what lets a " +
 				"$dynamicRef expand; declaring one says nothing about the shape",
 		},
 		{
@@ -804,7 +804,7 @@ func TestNullSchema_AnEntryIsTheEmptySchemaAndAKeywordIsLeftOut(t *testing.T) {
 			"        - {type: object, properties: {p: {type: string, enum: [a, b]}}}\n"+
 			"        - {type: object, properties: {p: null}}\n"))
 		l.ctx.Limits = lowering.Limits{MaxEnumMembers: 1}
-		diags := schema.LowerComponentSchemas(t.Context(), l.ctx, l.types, &l.anchors)
+		diags := schema.LowerComponentSchemas(t.Context(), l.ctx, l.types)
 
 		m := asKind[*ir.Model](t, typeByName(l.document(t), "A"))
 		require.Len(t, m.Properties, 1)

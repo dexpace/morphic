@@ -425,9 +425,54 @@ components:
 - Verified at: v1.25.5
 - Pinned by: `TestLibraryBehaviour/duplicate-key`
 - Code:
-  - `nodeview.dedupeLastWins` reads a mapping's repeated key as the model does.
-  - `annotation.RawChildNode` does too.
+  - `nodeview.flatten` reads a mapping's repeated key as the model does.
+  - `nodeview.Child` reads one at the copy the model does, a merge source's at its first.
   - `load.mappingKeys` records each key's first pair, as a raw read finds it.
+
+### `merge-keys`
+
+The decoder reads a mapping through every `<<` merge key it writes (`yml.ResolveMergeKeys`). The
+pairs merged in come first, in the order their sources are written, an earlier source winning a key
+two share and none overriding a key the mapping writes itself; the mapping's own pairs follow. A
+source that writes a key twice gives its first copy, where the mapping itself gives its last
+([`duplicate-key`](#duplicate-key)). A `<<` naming anything but a mapping or a list of mappings
+merges nothing, and nothing reports it.
+
+```yaml
+x-base: &base {k: {type: string}, z: {type: string}}
+components:
+  schemas:
+    S:
+      properties: {a: {type: integer}, <<: *base, k: {type: boolean}}   # z, a, then k
+    T:
+      properties: {<<: 5, q: {type: string}}                            # q alone
+```
+
+- Verified at: v1.25.5
+- Pinned by: `TestLibraryBehaviour/merge-keys`
+- Code:
+  - `nodeview.flatten` orders and settles a mapping's pairs as the decoder does.
+  - `nodeview.View.mergeSource` reads each source's pairs as a merge reads them.
+  - `nodeview.Child` looks one key up through the merges by the same order and copies.
+  - `oas.CheckFormat` reports a `<<` naming no mapping.
+
+### `non-scalar-key`
+
+A mapping key that is no scalar, a mapping or a list written as a key, is read as the empty string,
+and nothing reports it. The Format section of the OpenAPI Specification limits a key to a string.
+
+```yaml
+components:
+  responses:
+    ? {k: v}
+    : {description: x}   # read as the response keyed ""
+```
+
+- Verified at: v1.25.5
+- Pinned by: `TestLibraryBehaviour/non-scalar-key`
+- Code:
+  - `nodeview.KeyOf` reads such a key as the empty string.
+  - `oas.CheckFormat` reports it.
 
 ### `unmodeled-keywords`
 
@@ -444,7 +489,7 @@ components:
 - Verified at: v1.25.5
 - Pinned by: `TestLibraryBehaviour/unmodeled-keywords`
 - Code:
-  - `schema.dynamicAnchors` reads every `$dynamicAnchor` from the raw tree.
+  - `anchors.Build` reads every `$dynamicAnchor` from the raw tree.
   - `annotation.DecidedKeywords` names `$comment`, `$dynamicAnchor` and `$dynamicRef`, which the
     unknown-key census leaves to other readers.
   - `annotation.UnknownKeywordsIn` reads every other unknown keyword's value from the raw node.

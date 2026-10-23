@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/url"
 	"slices"
-	"strconv"
 	"strings"
 
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
@@ -32,7 +31,7 @@ import (
 // TypeID is stable whatever lowers first (ir-design §4.3). A $dynamicRef
 // co-declared with a $ref, oneOf/anyOf or a shape is irreducible too, as is
 // one another document holds.
-func dynamicExpansion(c lowering.Ctx, anchors *AnchorIndex, s *oas3.Schema, pointer jsontext.Pointer) (target ir.TypeID, why string, ok bool, diags []ir.Diagnostic) {
+func dynamicExpansion(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) (target ir.TypeID, why string, ok bool, diags []ir.Diagnostic) {
 	name, why, ok := dynamicRefName(s)
 	if !ok {
 		return "", why, false, nil
@@ -44,7 +43,7 @@ func dynamicExpansion(c lowering.Ctx, anchors *AnchorIndex, s *oas3.Schema, poin
 		return "", "it is written in another document, whose $dynamicAnchor it names, and only the source's " +
 			"anchors are indexed", false, nil
 	}
-	at, why, ok, diags := soleAnchorSite(c, anchors, name)
+	at, why, ok, diags := soleAnchorSite(c, name)
 	if !ok {
 		return "", why, false, diags
 	}
@@ -52,7 +51,7 @@ func dynamicExpansion(c lowering.Ctx, anchors *AnchorIndex, s *oas3.Schema, poin
 	if !handled || !resolved {
 		return "", unnamedAnchorSiteWhy(name, at), false, diags
 	}
-	chainWhy, chainOK, chainDiags := dynamicChainVerdict(c, anchors, at, pointer)
+	chainWhy, chainOK, chainDiags := dynamicChainVerdict(c, at, pointer)
 	diags = append(diags, chainDiags...)
 	if !chainOK {
 		return "", chainWhy, false, diags
@@ -136,12 +135,12 @@ func dynamicFragment(ref string) (name, why string, ok bool) {
 // target back under the evaluation path's control, which no static lowering can
 // resolve (docs/compilers/openapi.md#dynamic-ref).
 //
-// The index is a parameter because the memo is state the caller owns. Its
-// diagnostics come back on every path, including the two answering "no single
-// declaration": the walk bound they report is a fact about the document, not
-// about this lookup's verdict, so a failed lookup must not swallow it.
-func soleAnchorSite(c lowering.Ctx, anchors *AnchorIndex, name string) (at jsontext.Pointer, why string, ok bool, diags []ir.Diagnostic) {
-	sites, diags := anchors.sites(c, name)
+// The index's diagnostics come back on every path, including the two answering
+// "no single declaration": the walk bound they report is a fact about the
+// document, not about this lookup's verdict, so a failed lookup must not
+// swallow it.
+func soleAnchorSite(c lowering.Ctx, name string) (at jsontext.Pointer, why string, ok bool, diags []ir.Diagnostic) {
+	sites, diags := c.DynamicAnchorSites(name)
 	if len(sites) == 0 {
 		return "", fmt.Sprintf("no $dynamicAnchor %q is declared in this document", name), false, diags
 	}
@@ -161,7 +160,7 @@ func soleAnchorSite(c lowering.Ctx, anchors *AnchorIndex, name string) (at jsont
 //
 // The loop is bounded: cur only takes anchor-index values, and each turn
 // returns or adds one to seen.
-func dynamicChainVerdict(c lowering.Ctx, anchors *AnchorIndex, at, from jsontext.Pointer) (why string, ok bool, diags []ir.Diagnostic) {
+func dynamicChainVerdict(c lowering.Ctx, at, from jsontext.Pointer) (why string, ok bool, diags []ir.Diagnostic) {
 	if declaresResourceIDAbove(c, from) {
 		return resourceBoundaryWhy(from), false, nil
 	}
@@ -175,7 +174,7 @@ func dynamicChainVerdict(c lowering.Ctx, anchors *AnchorIndex, at, from jsontext
 			return resourceBoundaryWhy(cur), false, diags
 		}
 		seen[cur] = true
-		next, hops, hopDiags := dynamicHop(c, anchors, cur)
+		next, hops, hopDiags := dynamicHop(c, cur)
 		diags = append(diags, hopDiags...)
 		if !hops {
 			break
@@ -201,7 +200,7 @@ func resourceBoundaryWhy(at jsontext.Pointer) string {
 // it carry none. Once it is consulted they come back even if the chain ends
 // there: whether the hop happened and whether the index was complete are
 // independent answers.
-func dynamicHop(c lowering.Ctx, anchors *AnchorIndex, at jsontext.Pointer) (jsontext.Pointer, bool, []ir.Diagnostic) {
+func dynamicHop(c lowering.Ctx, at jsontext.Pointer) (jsontext.Pointer, bool, []ir.Diagnostic) {
 	s := componentSchemaAt(c, at)
 	if s == nil {
 		return "", false, nil
@@ -210,7 +209,7 @@ func dynamicHop(c lowering.Ctx, anchors *AnchorIndex, at jsontext.Pointer) (json
 	if !ok {
 		return "", false, nil
 	}
-	next, nextDiags := anchors.sites(c, name)
+	next, nextDiags := c.DynamicAnchorSites(name)
 	if len(next) != 1 {
 		return "", false, nextDiags
 	}
@@ -254,8 +253,8 @@ func declaresResourceIDAbove(c lowering.Ctx, pointer jsontext.Pointer) bool {
 // (the irreducible half of docs/compilers/openapi.md#dynamic-ref). An expanded
 // one is already the position's type and must not also be preserved — that
 // would tell a consumer the compiler ignored it.
-func recordUnexpandedDynamicRef(c lowering.Ctx, anchors *AnchorIndex, p *ir.Unmodeled, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
-	_, why, expanded, diags := dynamicExpansion(c, anchors, s, pointer)
+func recordUnexpandedDynamicRef(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
+	_, why, expanded, diags := dynamicExpansion(c, s, pointer)
 	if expanded {
 		return diags
 	}
@@ -273,137 +272,4 @@ func recordUnexpandedDynamicRef(c lowering.Ctx, anchors *AnchorIndex, p *ir.Unmo
 // wrote one owns a node to keep an unexpanded reference on.
 func declaresDynamicRef(s *oas3.Schema) bool {
 	return annotation.RawPropertyNode(s, "$dynamicRef") != nil
-}
-
-// AnchorIndex memoizes the document's $dynamicAnchor index.
-//
-// It is shared and mutated, which micro-compiler-design §4 expected of nothing
-// but the interning table. It is a memo, not an accumulator: the value it
-// caches is a pure function of the document. It
-// stays out of the immutable context (§4.1) because building it emits a
-// diagnostic, which would report on documents that never write $dynamicRef, and
-// the walk is a poor trade for a keyword almost no document uses.
-type AnchorIndex struct {
-	byName map[string][]jsontext.Pointer
-}
-
-// sites returns the pointers declaring the named $dynamicAnchor, building the
-// index on first use and announcing once when a bound stopped the walk short.
-//
-// A truncated index can only undercount, and every verdict resting on it reads
-// an undercount as "declared exactly once" — the one count that expands. So the
-// warning is what tells a reader that an expansion reported below was decided
-// against an index nothing verified.
-func (a *AnchorIndex) sites(c lowering.Ctx, name string) ([]jsontext.Pointer, []ir.Diagnostic) {
-	if a.byName != nil {
-		return a.byName[name], nil
-	}
-	index, complete := dynamicAnchors(c.Doc.GetRootNode())
-	a.byName = index
-	if complete {
-		return a.byName[name], nil
-	}
-	return a.byName[name], []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, "",
-		"the $dynamicAnchor index stopped at its walk bounds (%d levels, %d nodes); "+
-			"a $dynamicRef expanded below is not verified to name the document's only anchor of its name",
-		maxDynamicAnchorDepth, maxDynamicAnchorNodes)}
-}
-
-// maxDynamicAnchorDepth bounds the raw-source walk that indexes $dynamicAnchor
-// declarations (styleguide bounded-recursion rule). Document trees nest far
-// shallower — a schema under a media type under a response is about ten levels —
-// so the cap only ever fires on a pathological structure.
-const maxDynamicAnchorDepth = 512
-
-// maxDynamicAnchorNodes bounds how many nodes that walk visits in total. Depth
-// stopped bounding it once the walk began following YAML aliases: an alias graph
-// is a DAG, so a shallow document can present far more paths than it has nodes.
-// Both bounds report the same incomplete-index warning when they fire.
-const maxDynamicAnchorNodes = 1 << 20
-
-// dynamicAnchors indexes every $dynamicAnchor in the raw source by name, mapping
-// it to the JSON pointers that declare it, in document order, and reports
-// whether the walk ran to completion. It reads the raw tree because oas3.Schema
-// has no field for the keyword (docs/parser-library.md#unmodeled-keywords).
-func dynamicAnchors(root *yaml.Node) (map[string][]jsontext.Pointer, bool) {
-	w := newAnchorWalk(maxDynamicAnchorNodes)
-	w.walk(root, "", 0)
-	return w.out, !w.truncated && !w.view.Exhausted()
-}
-
-// anchorWalk is the state of one $dynamicAnchor index build: the source view,
-// the index under construction, and what is left of the visit budget.
-//
-// It reads mappings through a nodeview.View, so a `<<` merge key and a YAML alias
-// contribute the anchors they carry to every position that pulls them in —
-// which is what the parser downstream sees, and what makes "declared exactly
-// once" a count of what the document declares rather than of what it spells
-// out. The count decides whether a $dynamicRef expands, so an anchor reached
-// only through an alias must not be invisible to it.
-type anchorWalk struct {
-	view      *nodeview.View
-	out       map[string][]jsontext.Pointer
-	budget    int
-	truncated bool
-}
-
-// newAnchorWalk returns a walk that will visit at most budget nodes.
-func newAnchorWalk(budget int) *anchorWalk {
-	return &anchorWalk{view: nodeview.New(), out: map[string][]jsontext.Pointer{}, budget: budget}
-}
-
-// walk indexes the anchors n declares, under the pointer of the mapping
-// declaring each.
-func (w *anchorWalk) walk(n *yaml.Node, pointer jsontext.Pointer, depth int) {
-	n = nodeview.Deref(n)
-	if n == nil || !w.charge(depth) {
-		return
-	}
-	switch n.Kind {
-	case yaml.DocumentNode:
-		for _, c := range n.Content {
-			w.walk(c, pointer, depth+1)
-		}
-	case yaml.SequenceNode:
-		for i, c := range n.Content {
-			w.walk(c, pointer+ids.Ptr(strconv.Itoa(i)), depth+1)
-		}
-	case yaml.MappingNode:
-		w.walkMapping(n, pointer, depth)
-	default:
-		// A scalar declares no anchor and has no children; an alias survived
-		// nodeview.Deref only by dangling, so it has nothing to stand in for.
-	}
-}
-
-// walkMapping reads one mapping's effective pairs: a $dynamicAnchor names this
-// mapping, and every other value is walked in turn.
-func (w *anchorWalk) walkMapping(n *yaml.Node, pointer jsontext.Pointer, depth int) {
-	for _, p := range w.view.MappingPairs(n) {
-		if p.Key == "$dynamicAnchor" {
-			w.record(p.Val, pointer)
-			continue
-		}
-		w.walk(p.Val, pointer+ids.Ptr(p.Key), depth+1)
-	}
-}
-
-// record indexes the anchor val names at pointer. A value that is not a
-// non-empty scalar names nothing a $dynamicRef could spell.
-func (w *anchorWalk) record(val *yaml.Node, pointer jsontext.Pointer) {
-	if val == nil || val.Kind != yaml.ScalarNode || val.Value == "" {
-		return
-	}
-	w.out[val.Value] = append(w.out[val.Value], pointer)
-}
-
-// charge reports whether the walk may read one more node, recording the refusal
-// when it may not so the caller of dynamicAnchors learns the index is partial.
-func (w *anchorWalk) charge(depth int) bool {
-	if depth > maxDynamicAnchorDepth || w.budget == 0 {
-		w.truncated = true
-		return false
-	}
-	w.budget--
-	return true
 }

@@ -857,10 +857,9 @@ when it carries no `Property` or `Parameter` of its own to hold them — `items`
 component — so nothing about composition is special here; a `$ref` entry writing nothing beside
 itself composes straight to the target and hoists no node. The alias's name hint is the hint the
 node the `$ref` resolves to carries — a component's name, or, for a position inside a schema, the
-hint its own declaration gives it — which is also what an outside `$ref` naming the branch pointer
-derives, since either may be the lowering that interns the node. A position under `/paths` whose
-hint comes from its operation or response is the exception so far, since the pointer does not
-spell that hint (#729).
+hint its position gives it, an operation's or a response's included. A hint is a function of the
+documents and the position alone, so an outside `$ref` naming the branch pointer gives the same one,
+whichever lowering interns the node.
 
 `Base` and `Mixins` name whatever the source composed with, which in JSON Schema is any schema:
 `allOf: [{$ref: SomeScalar}]` is legal and lowers to a `Base` pointing at a `Scalar`, and the same

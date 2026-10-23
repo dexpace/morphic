@@ -79,7 +79,7 @@ func TestDiscriminatorDefault_ResolvesDeclaredComponent(t *testing.T) {
 	l := newRawLowerer(openapitest.DocDeclaring("Cat"))
 	d := &oas3.Discriminator{PropertyName: "kind", DefaultMapping: new("Cat")}
 
-	id, diags := discriminatorDefault(l.ctx, l.types, &AnchorIndex{}, d, nil, "/components/schemas/Pet")
+	id, diags := discriminatorDefault(l.ctx, l.types, d, nil, "/components/schemas/Pet")
 	assert.Equal(t, ids.Document{}.NamedType("/components/schemas/Cat"), id)
 	assert.Empty(t, diags, "a resolvable defaultMapping produces no diagnostic")
 }
@@ -91,7 +91,7 @@ func TestDiscriminatorDefault_DroppedWhenUnresolved(t *testing.T) {
 	// defaultMapping does not resolve and is dropped with one error diagnostic.
 	d := &oas3.Discriminator{PropertyName: "kind", DefaultMapping: new("Missing")}
 
-	id, diags := discriminatorDefault(l.ctx, l.types, &AnchorIndex{}, d, nil, "/components/schemas/Pet")
+	id, diags := discriminatorDefault(l.ctx, l.types, d, nil, "/components/schemas/Pet")
 	assert.Empty(t, id, "an unresolved defaultMapping yields no target")
 	require.Len(t, diags, 1)
 	assert.Equal(t, diag.UnresolvedRef, diags[0].Code)
@@ -100,7 +100,7 @@ func TestDiscriminatorDefault_DroppedWhenUnresolved(t *testing.T) {
 func TestDiscriminatorDefault_EmptyIsNoOp(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
-	id, diags := discriminatorDefault(l.ctx, l.types, &AnchorIndex{}, &oas3.Discriminator{PropertyName: "kind"}, nil, "/components/schemas/Pet")
+	id, diags := discriminatorDefault(l.ctx, l.types, &oas3.Discriminator{PropertyName: "kind"}, nil, "/components/schemas/Pet")
 	assert.Empty(t, id)
 	assert.Empty(t, diags)
 }
@@ -130,7 +130,7 @@ func TestResolveMappingTarget_Branches(t *testing.T) {
 `))
 	d := petDiscriminator(t, l)
 	resolveTarget := func(target string) (ir.TypeID, bool) {
-		return resolveMappingTarget(l.ctx, l.types, &l.anchors, d, target, nil)
+		return resolveMappingTarget(l.ctx, l.types, d, target, nil)
 	}
 
 	cat := ids.Document{}.NamedType(ids.Ptr("components", "schemas", "Cat"))
@@ -189,7 +189,7 @@ func TestMappingTargetID_NamesAPositionByItsPointer(t *testing.T) {
 	require.True(t, ok, "nothing is interned yet, and the position is named all the same")
 	assert.Equal(t, want, before)
 
-	l.diags.AppendAll(LowerComponentSchemas(t.Context(), l.ctx, l.types, &l.anchors))
+	l.diags.AppendAll(LowerComponentSchemas(t.Context(), l.ctx, l.types))
 	_, finished := l.types.Finish(t.Context())
 	l.diags.AppendAll(finished)
 	after, ok := mappingTargetID(l.ctx, l.ctx.RefScope(), petDiscriminator(t, l), sub)

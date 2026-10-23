@@ -103,7 +103,8 @@ func (c nameCheck) node(n ast.Node) {
 
 // literal reports each name channel a struct literal fills, keyed or by
 // position, with anything but a framework call, an element of a slice or map
-// of them, its type elided, among them.
+// of them, its type elided, among them. A key may name a promoted field, so
+// it is judged in the struct declaring it, not the literal's.
 func (c nameCheck) literal(lit *ast.CompositeLit) {
 	t := c.pass.TypesInfo.TypeOf(lit)
 	if ptr, ok := t.(*types.Pointer); ok {
@@ -114,12 +115,15 @@ func (c nameCheck) literal(lit *ast.CompositeLit) {
 		return
 	}
 	for i, elt := range lit.Elts {
-		name, value := fields.Field(i).Name(), elt
+		owner, name, value := fields, "", elt
 		if kv, keyed := elt.(*ast.KeyValueExpr); keyed {
 			key, _ := kv.Key.(*ast.Ident) // a struct literal's keys are its fields' names
-			name, value = key.Name, kv.Value
+			_, path, _ := types.LookupFieldOrMethod(t, false, c.pass.Pkg, key.Name)
+			owner, name, value = declaringAlong(t, path), key.Name, kv.Value
+		} else {
+			name = fields.Field(i).Name()
 		}
-		if c.isChannel(fields, name) && !frameworkCall(c.pass.TypesInfo, value) {
+		if c.isChannel(owner, name) && !frameworkCall(c.pass.TypesInfo, value) {
 			c.pass.Reportf(value.Pos(), notFramework, name)
 		}
 	}
@@ -182,13 +186,17 @@ func (c nameCheck) channel(e ast.Expr) (string, bool) {
 	return sel.Sel.Name, c.isChannel(declaring(selection), sel.Sel.Name)
 }
 
-// declaring returns the struct that declares the field selection selects,
-// stepping through the embedded fields on its path. Only a field is assigned
-// or has its address taken, so every step is a struct or a pointer to one.
+// declaring returns the struct that declares the field selection selects.
+// Only a field is assigned or has its address taken.
 func declaring(selection *types.Selection) *types.Struct {
-	t := selection.Recv()
-	path := selection.Index()
-	for _, i := range path[:len(path)-1] {
+	return declaringAlong(selection.Recv(), selection.Index())
+}
+
+// declaringAlong returns the struct that declares the field path reaches from
+// t, stepping through the embedded fields before its last index, each a
+// struct or a pointer to one.
+func declaringAlong(t types.Type, path []int) *types.Struct {
+	for _, i := range path[:max(len(path)-1, 0)] {
 		t = structOf(t).Field(i).Type()
 	}
 	return structOf(t)

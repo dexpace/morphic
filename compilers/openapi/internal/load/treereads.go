@@ -96,6 +96,13 @@ func (t *treeReads) drain() int {
 }
 
 // index returns the index of mapping n, building it the first time.
+//
+// It reads the keys as GetTarget does, not as nodeview reads them for the
+// model: the first copy of a key, a key that is no scalar matching no token,
+// and any scalar spelled `<<` taken for a merge whatever its tag, a quoted one
+// included. Pricing the library's read is what this type is for, so it mirrors
+// that reader's rules rather than the parser's
+// (TestTreeReads_CountsWhatTheLibraryReadTakes).
 func (t *treeReads) index(n *yaml.Node) *mappingKeys {
 	if k, ok := t.keys[n]; ok {
 		return k

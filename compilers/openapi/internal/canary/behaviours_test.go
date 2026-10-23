@@ -28,6 +28,8 @@ func canaries() map[string]func(t *testing.T) {
 		"anchored-entry-dropped": anchoredEntryDropped,
 		"embedded-map-keys":      embeddedMapKeys,
 		"duplicate-key":          duplicateKey,
+		"merge-keys":             mergeKeys,
+		"non-scalar-key":         nonScalarKey,
 		"unmodeled-keywords":     unmodeledKeywords,
 		"null-schema-is-false":   nullSchemaIsFalse,
 		"overlay-alias-clone":    overlayAliasClone,

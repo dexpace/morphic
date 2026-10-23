@@ -23,10 +23,10 @@ import (
 // $ref, which reached none of it until it was routed here. A position that
 // skips it drops what was written at it without a word — which is what both
 // GitHub #116 and #143 were.
-func homeDeclaration(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, s *oas3.Schema, target ir.TypeRef, pointer jsontext.Pointer, hint string, home annotation.Home, unhomed bool) (ir.TypeRef, []ir.Diagnostic) {
-	ref, diags := hoistDeclarationHome(c, ts, s, target, pointer, hint, home, unhomed)
+func homeDeclaration(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, target ir.TypeRef, pointer jsontext.Pointer, home annotation.Home, unhomed bool) (ir.TypeRef, []ir.Diagnostic) {
+	ref, diags := hoistDeclarationHome(c, ts, s, target, pointer, home, unhomed)
 	if s != nil {
-		diags = append(diags, attachDeclaredAnnotations(c, ts, anchors, s, pointer)...)
+		diags = append(diags, attachDeclaredAnnotations(c, ts, s, pointer)...)
 	}
 	return ref, append(diags, recordDeclarationResidue(c, ts, s, pointer, home)...)
 }
@@ -43,7 +43,7 @@ func homeDeclaration(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, s 
 //
 // unhomed is the census verdict of a $ref site or a collapsed union, which
 // declaresPositionScoped cannot judge.
-func hoistDeclarationHome(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, ref ir.TypeRef, pointer jsontext.Pointer, hint string, home annotation.Home, unhomed bool) (ir.TypeRef, []ir.Diagnostic) {
+func hoistDeclarationHome(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, ref ir.TypeRef, pointer jsontext.Pointer, home annotation.Home, unhomed bool) (ir.TypeRef, []ir.Diagnostic) {
 	if home != annotation.HomeOwnNode || s == nil {
 		return ref, nil
 	}
@@ -57,7 +57,7 @@ func hoistDeclarationHome(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, ref
 		out.Target = id
 		return out, nil
 	}
-	id, diags := internAlias(c, ts, s, pointer, hint, ref)
+	id, diags := internAlias(c, ts, s, pointer, ref)
 	out.Target = id
 	return out, diags
 }
@@ -129,7 +129,7 @@ func declaresValidationOnly(s *oas3.Schema) bool {
 // annotations stay with the declaring property (FillPropertyDetail). Ownership
 // is checked before conversion because callers cover a pointer in either order,
 // and only the one that finds a node may emit conversion diagnostics.
-func attachDeclaredAnnotations(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
+func attachDeclaredAnnotations(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	// No node here means a position that reduced to a shared primitive, or one
 	// still being built further up this walk, whose builder attaches the same
 	// declaration once its build returns (GitHub #749).
@@ -163,7 +163,7 @@ func attachDeclaredAnnotations(c lowering.Ctx, ts *compile.Types, anchors *Ancho
 		common.Examples = a.Examples
 	}
 	diags = append(diags, recordUnplacedContent(c, &common.Unmodeled, s, td, pointer)...)
-	diags = append(diags, recordUnexpandedDynamicRef(c, anchors, &common.Unmodeled, s, pointer)...)
+	diags = append(diags, recordUnexpandedDynamicRef(c, &common.Unmodeled, s, pointer)...)
 	return append(diags, PreserveUnknownKeywords(c, &common.Unmodeled, s, pointer)...)
 }
 

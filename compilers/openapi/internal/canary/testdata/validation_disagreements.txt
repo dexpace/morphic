@@ -255,6 +255,7 @@ testdata/conformance/openapi/schema-ref-siblings-30.yaml	17:84	later-version-con
 testdata/conformance/openapi/security-schemes.yaml	46:21	validation-allowed-values	library	over-strict
 testdata/conformance/openapi/xml-nodetype-32.yaml	7:7	validation-invalid-schema	library	old-grammar
 testdata/conformance/openapi/xml-nodetype-32.yaml	7:7	validation-invalid-schema	library	old-grammar
+testdata/conformance/openapi/yaml-merge-keys.yaml	41:30	validation-allowed-values	library	over-strict
 testdata/dangling/openapi/f07-discriminator.yaml	13:10	validation-invalid-syntax	compiler	component-names
 testdata/dangling/openapi/f31-discriminator-empty-name.yaml	17:7	validation-invalid-syntax	compiler	component-names
 testdata/dangling/openapi/f32-ref-noncanonical-escape.yaml	7:7	validation-invalid-syntax	compiler	component-names

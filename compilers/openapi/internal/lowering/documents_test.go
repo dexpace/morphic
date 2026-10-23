@@ -121,54 +121,33 @@ func TestIDsAt_NamesEachSourceEntrysDocument(t *testing.T) {
 	assert.Nil(t, lowering.OtherIDs(lowering.Ctx{}))
 }
 
-// TestDeclareHint_KeepsOnePointerInTwoDocumentsApart pins that one pointer in
-// two documents is two positions: a hint recorded at the source's /X names
-// nothing at another document's /X, and each keeps its own. ext.yaml's content
-// read in its scope at the source's coordinates (InScope) is a third, though
-// its scope is ext.yaml's.
-func TestDeclareHint_KeepsOnePointerInTwoDocumentsApart(t *testing.T) {
+// TestNameAt_NamesAPositionInTheContextsDocument pins that one pointer in two
+// documents is two positions: ext.yaml's /P/schema is a parameter's schema,
+// named by the parameter's name, while the source's /P/schema is no schema the
+// grammar reads, named from its pointer. ext.yaml's content read in its scope
+// at the source's coordinates (InScope) names the source's, and a context
+// given no load names every position from its pointer.
+func TestNameAt_NamesAPositionInTheContextsDocument(t *testing.T) {
 	t.Parallel()
-	c, _ := loadSplit(t, "X: {type: string}\nP: {name: p, in: query}\n")
+	c, _ := loadSplit(t, "X: {type: string}\nP: {name: p, in: query, schema: {type: string}}\n")
 	there, ok := lowering.InDocument(c, extDoc(t, c))
 	require.True(t, ok)
 
-	c.DeclareHint("/X", "source")
-	_, recorded := there.HintAt("/X")
-	assert.False(t, recorded, "the source's /X is not ext.yaml's")
-	there.DeclareHint("/X", "ext")
-	hint, _ := c.HintAt("/X")
-	assert.Equal(t, "source", hint)
-	hint, _ = there.HintAt("/X")
-	assert.Equal(t, "ext", hint)
-	_, recorded = there.InScope(there.RefScope()).HintAt("/X")
-	assert.False(t, recorded, "ext.yaml's scope at the source's coordinates is neither")
+	assert.Equal(t, "p", lowering.NameAt(there, "/P/schema"))
+	assert.Equal(t, "schema", lowering.NameAt(c, "/P/schema"))
+	assert.Equal(t, "schema", lowering.NameAt(there.InScope(there.RefScope()), "/P/schema"))
+	assert.Equal(t, "schema", lowering.NameAt(lowering.Ctx{}, "/P/schema"))
 }
 
-// TestOperationIDAt_ReadsTheDeclaringDocument pins where a position's
-// operationId is read: in the source's YAML, and its model where only a
-// reference reaches the position; in another document's YAML alone, never the
-// source's model, for that document's; and nowhere for a context given no
-// document.
-func TestOperationIDAt_ReadsTheDeclaringDocument(t *testing.T) {
+// TestNameThrough_NamesWhereAReferenceLands pins that the name a $ref suggests
+// is that of the position it lands on, in whichever document, and that a
+// position writing no $ref, or a context given no load, suggests none.
+func TestNameThrough_NamesWhereAReferenceLands(t *testing.T) {
 	t.Parallel()
-	c, _ := loadSplit(t, "X: {type: string}\nP: {name: p, in: query}\nO: {operationId: extOp}\n")
-	there, ok := lowering.InDocument(c, extDoc(t, c))
-	require.True(t, ok)
-	assert.Equal(t, "extOp", lowering.OperationIDAt(there, "/O"), "ext.yaml's, read in its YAML")
-	assert.Empty(t, lowering.OperationIDAt(c, "/O"), "the source holds no /O")
-	assert.Equal(t, "getA", lowering.OperationIDAt(c, "/paths/~1a/get"))
-	assert.Empty(t, lowering.OperationIDAt(there, "/paths/~1a/get"), "ext.yaml writes none there, whatever the source does")
-
-	doc, _, err := load.Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(
-		"openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n  /a: {get: {operationId: getA}}\n" +
-			"  /b: {$ref: '#/components/pathItems/P'}\ncomponents:\n  pathItems:\n    P: {put: {operationId: putP}}\n")},
-		load.Options{})
-	require.NoError(t, err)
-	source := lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{}, lowering.StreamingMedia{},
-		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}).WithLoaded(doc)
-	assert.Equal(t, "getA", lowering.OperationIDAt(source, "/paths/~1a/get"), "the source's, read where it is written")
-	assert.Equal(t, "putP", lowering.OperationIDAt(source, "/paths/~1b/put"), "and in its model past a $ref")
-	assert.Empty(t, lowering.OperationIDAt(lowering.Ctx{}, "/paths/~1a/get"), "a context given no document")
+	c, _ := loadSplit(t, "X: {type: string}\nP: {name: p, in: query}\n")
+	assert.Equal(t, "X", lowering.NameThrough(c, "/components/schemas/A"))
+	assert.Empty(t, lowering.NameThrough(c, "/paths/~1a/get"), "nothing is referenced there")
+	assert.Empty(t, lowering.NameThrough(lowering.Ctx{}, "/components/schemas/A"))
 }
 
 // TestDeclared_LowersAReferencedObjectWhereItIsDeclared pins where a reference

@@ -12,8 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
@@ -39,7 +39,7 @@ const writtenFixture = `paths:
 func writtenOp(t *testing.T) (root, op *yaml.Node) {
 	t.Helper()
 	root = openapitest.YAMLNode(t, writtenFixture)
-	op = annotation.RawChildNode(annotation.RawChildNode(annotation.RawChildNode(root, "paths"), "/z"), "get")
+	op = nodeview.WrittenChildren(nodeview.WrittenChildren(nodeview.WrittenChildren(root)["paths"])["/z"])["get"]
 	require.NotNil(t, op, "the fixture writes its operation at /z")
 	return root, op
 }
@@ -60,7 +60,7 @@ func TestWrittenTree_HoldsANodeOnlyWhereTheTextWritesIt(t *testing.T) {
 	assert.False(t, w.holds("/paths/~1s/0", op), "a walk reads mappings only")
 	assert.False(t, newWrittenTree(nil).holds("/paths/~1z/get", op), "a tree with no text holds nothing")
 
-	_, indexed := w.children[annotation.RawChildNode(root, "paths")]
+	_, indexed := w.children[nodeview.WrittenChildren(root)["paths"]]
 	assert.True(t, indexed, "the paths mapping is indexed for the walks after the first")
 }
 
@@ -199,8 +199,8 @@ func TestJudge_ReportsEveryDeclarationAndMountButTheFirst(t *testing.T) {
 func TestDeclaringNode_FollowsAnAliasOneHop(t *testing.T) {
 	t.Parallel()
 	root := openapitest.YAMLNode(t, "a: &op {operationId: x}\nb: *op\n")
-	anchored := annotation.RawChildNode(root, "a")
-	alias := annotation.RawChildNode(root, "b")
+	anchored := nodeview.WrittenChildren(root)["a"]
+	alias := nodeview.WrittenChildren(root)["b"]
 	require.Equal(t, yaml.AliasNode, alias.Kind, "the fixture reuses the mapping through an alias")
 
 	assert.Same(t, anchored, declaringNode(alias))

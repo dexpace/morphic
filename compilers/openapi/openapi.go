@@ -158,18 +158,16 @@ func (*Compiler) SourceTable(sources []compilers.Source, opts compilers.Options)
 // references types never interned or settled, but the diagnostics gathered
 // before the stop are returned.
 func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, []ir.Diagnostic, error) {
-	// out and the anchor memo are this function's, not a struct's: a document
-	// being built and a memo (micro-compiler-design §4.1). Nothing below
-	// allocates them.
+	// out is this function's, not a struct's: a document being built
+	// (micro-compiler-design §4.1). Nothing below allocates it.
 	out := &ir.Document{}
-	var anchors schema.AnchorIndex
 
 	// acc is what makes the identity dedup still hold. Every lowering returns its
 	// diagnostics now, so a shared declaration reported from N use sites returns N
 	// copies; compile.Diags.Append is what collapses them, and it has to see the
 	// whole stream to do it.
 	var acc compile.Diags
-	acc.AppendAll(schema.LowerComponentSchemas(ctx, c, ts, &anchors))
+	acc.AppendAll(schema.LowerComponentSchemas(ctx, c, ts))
 	// The checks in this function sit after the phases that honour ctx. Each
 	// stops between items and returns what it had, so a non-nil ctx.Err() here
 	// is the only way to tell a phase that finished from one that was cut short —
@@ -185,7 +183,7 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, 
 	// one, so no lowering above the schemes can read them as empty.
 	svcCtx := c.WithAuth(schemes)
 
-	svc, tagDefs, svcDiags := operation.LowerService(ctx, svcCtx, ts, &anchors)
+	svc, tagDefs, svcDiags := operation.LowerService(ctx, svcCtx, ts)
 	out.Services = []ir.Service{svc}
 	out.TagDefs = tagDefs
 	acc.AppendAll(svcDiags)

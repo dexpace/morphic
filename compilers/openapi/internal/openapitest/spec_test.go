@@ -142,3 +142,13 @@ func TestRootMergeChain_MergesEachLevelIntoTheNext(t *testing.T) {
 	require.NoError(t, yaml.Unmarshal(openapitest.RootMergeChain(3, "openapi: 3.1.0", ""), &doc))
 	assert.Equal(t, "3.1.0", doc["openapi"], "the leaf reaches the root through every level")
 }
+
+// TestNestedMerges_WritesOneMergePerLevel pins the spelling: a body merged in
+// through as many `<<` keys as asked, a level of none being the body itself.
+func TestNestedMerges_WritesOneMergePerLevel(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, "{k: v}", openapitest.NestedMerges(0, "{k: v}"))
+	assert.Equal(t, "{<<: {<<: {k: v}}}", openapitest.NestedMerges(2, "{k: v}"))
+	var n yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte(openapitest.NestedMerges(3, "{k: v}")), &n), "it parses")
+}

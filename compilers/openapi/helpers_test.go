@@ -51,7 +51,7 @@ func loweredFor(t *testing.T, src string) (*lowerer, []ir.Diagnostic) {
 func lowerSpec(t *testing.T, src string) (*ir.Document, []ir.Diagnostic) {
 	t.Helper()
 	l, diags := loweredFor(t, src)
-	l.diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.ctx, l.types, &l.anchors)) // named components; the entry Compile's run() calls first
+	l.diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.ctx, l.types)) // named components; the entry Compile's run() calls first
 	doc := l.document(t)
 	return doc, append(diags, l.diags.List()...)
 }
@@ -65,11 +65,11 @@ func lowerServiceSpec(t *testing.T, src string) (*ir.Document, ir.Service, []ir.
 		require.NoError(t, err)
 		require.NotNil(t, loadedDoc)
 		l := newLowerer(loadedDoc, Options{}.withDefaults())
-		l.diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.ctx, l.types, &l.anchors))
+		l.diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.ctx, l.types))
 		auth, authDiags := auth.LowerSecuritySchemes(l.ctx)
 		l.out.Auth = auth
 		l.diags.AppendAll(authDiags)
-		svc, tagDefs, svcDiags := operation.LowerService(t.Context(), l.ctx.WithAuth(l.out.Auth), l.types, &l.anchors)
+		svc, tagDefs, svcDiags := operation.LowerService(t.Context(), l.ctx.WithAuth(l.out.Auth), l.types)
 		l.out.TagDefs = tagDefs
 		l.diags.AppendAll(svcDiags)
 		l.out.Services = []ir.Service{svc}
@@ -81,16 +81,15 @@ func lowerServiceSpec(t *testing.T, src string) (*ir.Document, ir.Service, []ir.
 }
 
 // lowerer is test scaffolding, not a compiler type. The compiler has no such
-// struct: every lowering is a function of the context, the registry and the
-// memos, and run owns the document being built (#177). Tests that drive one
-// lowering in isolation still want those five things in one place, and holding
-// them here keeps that convenience out of the production call graph.
+// struct: every lowering is a function of the context and the registry, and
+// run owns the document being built (#177). Tests that drive one lowering in
+// isolation still want those four things in one place, and holding them here
+// keeps that convenience out of the production call graph.
 type lowerer struct {
-	ctx     lowering.Ctx
-	out     *ir.Document
-	types   *compile.Types
-	diags   compile.Diags
-	anchors schema.AnchorIndex
+	ctx   lowering.Ctx
+	out   *ir.Document
+	types *compile.Types
+	diags compile.Diags
 }
 
 // lowererOver is the only place the fixture's fields are initialised. Both

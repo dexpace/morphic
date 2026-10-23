@@ -252,17 +252,23 @@ func TestMappingPairs_Cases(t *testing.T) {
 			map[string]string{"k": "v"},
 		},
 		{
-			"non-scalar key after Deref is skipped",
+			"non-scalar key is read as the empty string",
 			ynode.Map(
-				ynode.Map(ynode.Scalar("x"), ynode.Scalar("1")), ynode.Scalar("ignored"),
+				ynode.Map(ynode.Scalar("x"), ynode.Scalar("1")), ynode.Scalar("empty"),
 				ynode.Scalar("real"), ynode.Scalar("kept"),
 			),
+			map[string]string{"": "empty", "real": "kept"},
+		},
+		{
+			"a nil key, which no parse produces, is skipped",
+			ynode.Map(nil, ynode.Scalar("ignored"), ynode.Scalar("real"), ynode.Scalar("kept")),
 			map[string]string{"real": "kept"},
 		},
 		{
-			"key aliasing a nil target is skipped",
-			ynode.Map(ynode.Alias(nil), ynode.Scalar("ignored"), ynode.Scalar("real"), ynode.Scalar("kept")),
-			map[string]string{"real": "kept"},
+			"key aliasing a nil target is read as its own text",
+			ynode.Map(&yaml.Node{Kind: yaml.AliasNode, Value: "anchor"}, ynode.Scalar("named"),
+				ynode.Scalar("real"), ynode.Scalar("kept")),
+			map[string]string{"anchor": "named", "real": "kept"},
 		},
 		{
 			"odd trailing key without a value is ignored",
@@ -407,9 +413,9 @@ func TestMappingPairs_MergeKeySources(t *testing.T) {
 			want: map[string]string{"a": "1", "b": "2"},
 		},
 		{
-			name: "a non-scalar key names no keyword and is skipped",
+			name: "a non-scalar key is read as the empty string",
 			src:  "use:\n  ? [a, b]\n  : v\n  k: 1\n",
-			want: map[string]string{"k": "1"},
+			want: map[string]string{"": "v", "k": "1"},
 		},
 	}
 	for _, tc := range tests {
@@ -932,13 +938,12 @@ func TestKeyOf_KeysAPairAsTheParserDoes(t *testing.T) {
 	}
 }
 
-// TestKeyOf_NamesNoKeyForAKeyThatIsNoScalar pins a departure from the parser,
+// TestKeyOf_ReadsAKeyThatIsNoScalarAsTheEmptyString holds KeyOf to the parser,
 // which keys a pair whose key is no scalar, aliased or not, with the empty
-// string. KeyOf names none, so the view does not see the entry the parser reads
-// under that key. The parser assertion pins its reading, so a release that stops
-// giving those pairs the empty key is noticed. No node at all is the one row the
-// parser cannot be asked, since it never hands one back.
-func TestKeyOf_NamesNoKeyForAKeyThatIsNoScalar(t *testing.T) {
+// string (docs/parser-library.md#non-scalar-key), so the view reads the entry
+// the parser reads. No node at all is the one row the parser cannot be asked,
+// since it never hands one back, and it names no key.
+func TestKeyOf_ReadsAKeyThatIsNoScalarAsTheEmptyString(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name, pair string
@@ -956,7 +961,7 @@ func TestKeyOf_NamesNoKeyForAKeyThatIsNoScalar(t *testing.T) {
 			key, own := KeyOf(raw)
 
 			assert.Empty(t, key)
-			assert.False(t, own)
+			assert.True(t, own)
 		})
 	}
 
@@ -978,7 +983,7 @@ func TestRepeatedKeys_NamesEachRepeatedKeyOnce(t *testing.T) {
 		{"two keys repeated", "{a: 1, b: 1, b: 2, a: 2}", []string{"b", "a"}},
 		{"a key shared with a merge is no repeat", "{<<: {a: 1}, a: 2}", nil},
 		{"a merge key twice is no repeat", "{<<: {a: 1}, <<: {b: 1}}", nil},
-		{"a key that is no scalar names nothing", "{? [x] : 1, ? [x] : 2}", nil},
+		{"two keys that are no scalar both read as the empty string", "{? [x] : 1, ? [y] : 2}", []string{""}},
 		{"a sequence repeats nothing", "[a, a]", nil},
 		{"a scalar repeats nothing", "a", nil},
 	}

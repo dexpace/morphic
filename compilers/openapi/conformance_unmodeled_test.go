@@ -1072,3 +1072,91 @@ func indexByParam(bindings []ir.HTTPParamBinding) map[string]ir.HTTPParamBinding
 	}
 	return out
 }
+
+// assertYAMLMergeKeys pins that every reader of the source reads a mapping as
+// the parser does (GitHub #1089): a field, a stray key or a keyword merged in
+// through `<<` is kept and announced as a written one is, by each kind of
+// reader that keeps one (GitHub #384, #395), an extension keeps a key YAML
+// types as a number or a boolean as its text (GitHub #617), a plain number
+// past float64's range stays a number (GitHub #783), and an example's members
+// come in the parser's order. The spec writes no alias, so the order oracle
+// can permute it; alias keys are the readers' own tests'.
+func assertYAMLMergeKeys(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	t.Helper()
+	op, ok := opByName(doc, "getMerged")
+	require.True(t, ok)
+	assertKept(t, op.Unmodeled, []keptEntry{
+		{"openapi:pathItemSummary", `"Shared summary"`, "/paths/~1merged/summary"},
+		{"openapi:pathItemDescription", `"Shared description"`, "/paths/~1merged/description"},
+		{"openapi:servers", `[{"url":"https://path.example"}]`, "/paths/~1merged/servers"},
+		{"openapi:pathItem/mergedBogus", `{"responses":{"200":{"description":"MERGED"}}}`, "/paths/~1merged/mergedBogus"},
+		{"openapi:operationServers", `[{"url":"https://operation.example"}]`, "/paths/~1merged/get/servers"},
+		{"openapi:x-codes", `{"100":"Continue","200":"OK","true":"T"}`, "/paths/~1merged/get/x-codes"},
+		{"openapi:x-big", `1e400`, "/paths/~1merged/get/x-big"},
+	})
+	assert.Equal(t, []ir.Severity{ir.SeverityWarning},
+		diagsAt(diags, "openapi/unknown-object-key", "/paths/~1merged/mergedBogus"), "the merged stray key is announced")
+	for _, d := range diags {
+		assert.NotContains(t, d.Message, "could not be serialized", "every extension converts")
+		assert.NotEqual(t, "openapi/unknown-key-unreachable", d.Code, "every merged key is reached")
+	}
+	assertMergedReaders(t, doc, op)
+
+	body, ok := doc.Types["t/anon/paths/~1merged/get/responses/200/content/application~1json/schema"]
+	require.True(t, ok)
+	assertKept(t, body.Common().Unmodeled, []keptEntry{
+		{"openapi:not", `{"required":["forbidden"]}`, "/paths/~1merged/get/responses/200/content/application~1json/schema/not"},
+	})
+	examples := body.Common().Examples
+	require.Len(t, examples, 1)
+	require.NotNil(t, examples[0].Value)
+	members := make([]string, 0, len(examples[0].Value.Object))
+	for _, f := range examples[0].Value.Object {
+		members = append(members, f.Name)
+	}
+	assert.Equal(t, []string{"a", "b"}, members, "the merged member first, as the parser reads it")
+}
+
+// assertMergedReaders pins the merged constructs kept beside the operation:
+// on its parameter, its response and that response's header, the other
+// operation's encoding, and the security scheme.
+func assertMergedReaders(t *testing.T, doc *ir.Document, op ir.Operation) {
+	t.Helper()
+	require.Len(t, op.Params, 1)
+	assertKept(t, op.Params[0].Unmodeled, []keptEntry{
+		{"openapi:allowEmptyValue", `true`, "/paths/~1merged/get/parameters/0/allowEmptyValue"},
+	})
+	require.Len(t, op.Responses, 1)
+	assertKept(t, op.Responses[0].Unmodeled, []keptEntry{
+		{"openapi:links", `{"self":{"operationId":"getMerged"}}`, "/paths/~1merged/get/responses/200/links"},
+	})
+	require.Len(t, op.Responses[0].Headers, 1)
+	assertKept(t, op.Responses[0].Headers[0].Unmodeled, []keptEntry{
+		{"openapi:style", `"simple"`, "/paths/~1merged/get/responses/200/headers/X-Rate/style"},
+	})
+	post, ok := opByName(doc, "postMerged")
+	require.True(t, ok)
+	require.NotNil(t, post.Request)
+	require.Len(t, post.Request.Contents, 1)
+	assertKept(t, post.Request.Contents[0].Unmodeled, []keptEntry{{"openapi:encoding/f/allowReserved", `true`,
+		"/paths/~1merged/post/requestBody/content/multipart~1form-data/encoding/f/allowReserved"}})
+	scheme, ok := doc.Auth["auth/openapi/components/securitySchemes/key"]
+	require.True(t, ok)
+	assertKept(t, scheme.Unmodeled, []keptEntry{
+		{"openapi:bearerFormat", `"JWT"`, "/components/securitySchemes/key/bearerFormat"},
+	})
+}
+
+// keptEntry is an Unmodeled entry expected under key, holding value as JSON,
+// located at the pointer at.
+type keptEntry struct{ key, value, at string }
+
+// assertKept requires each of want in got, with its value and location.
+func assertKept(t *testing.T, got ir.Unmodeled, want []keptEntry) {
+	t.Helper()
+	for _, w := range want {
+		entry := unmodeledEntry(t, got, w.key)
+		assert.Equal(t, w.value, string(entry.Value), w.key)
+		assert.Equal(t, jsontext.Pointer(w.at), entry.Provenance.Pointer, w.key)
+	}
+}

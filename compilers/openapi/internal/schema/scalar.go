@@ -20,13 +20,13 @@ import (
 // wrapping the base primitive with an Encoding, so what the position wrote
 // never leaks onto the shared primitive every other declaration of that type
 // also resolves to.
-func scalarTypeID(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, st oas3.SchemaType, pointer jsontext.Pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
+func scalarTypeID(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, st oas3.SchemaType, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
 	format := s.GetFormat()
 	if annotation.DeclaresRedaction(s) {
 		format = "" // a redaction, not a shape: the annotation readers hold it
 	}
 	if st == oas3.SchemaTypeString && format == "byte" {
-		return hoistScalar(c, ts, anchors, depth, s, ir.PrimBytes, "base64", new(ir.PrimString), pointer, hint)
+		return hoistScalar(c, ts, depth, s, ir.PrimBytes, "base64", new(ir.PrimString), pointer)
 	}
 	key := string(st)
 	if format != "" {
@@ -34,12 +34,12 @@ func scalarTypeID(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth
 	}
 	prim, known := spelling.Lookup(key)
 	if !known {
-		return hoistScalar(c, ts, anchors, depth, s, baseForType(st), format, nil, pointer, hint)
+		return hoistScalar(c, ts, depth, s, baseForType(st), format, nil, pointer)
 	}
 	if !declaresContentVocabulary(s) {
 		return ts.PrimID(prim), nil
 	}
-	return hoistScalar(c, ts, anchors, depth, s, prim, "", nil, pointer, hint)
+	return hoistScalar(c, ts, depth, s, prim, "", nil, pointer)
 }
 
 // baseForType returns the base primitive for an unknown-format scalar of type st.
@@ -65,11 +65,11 @@ func baseForType(st oas3.SchemaType) ir.PrimKind {
 // otherwise carry them: that fallback resolves to whatever node the pointer
 // already owns and returns early. A scalar that hoisted because it wrote a
 // format must not lose the bounds it wrote beside it (invariant 2).
-func hoistScalar(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, base ir.PrimKind, formatName string, wire *ir.PrimKind, pointer jsontext.Pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
+func hoistScalar(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, base ir.PrimKind, formatName string, wire *ir.PrimKind, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
-	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
+	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
 		baseRef := ts.PrimRef(base)
-		enc, encDiags := scalarEncoding(c, ts, anchors, depth, s, formatName, &common, pointer, hint)
+		enc, encDiags := scalarEncoding(c, ts, depth, s, formatName, &common, pointer)
 		diags = append(diags, encDiags...)
 		if wire != nil {
 			wireRef := ts.PrimRef(*wire)
@@ -92,11 +92,11 @@ func hoistScalar(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth 
 // name. formatName is the encoding name the format contributes — "base64" for
 // format: byte, an unrecognized format verbatim, "" when the pairing is already
 // captured by the primitive kind.
-func scalarEncoding(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema,
-	formatName string, common *ir.TypeCommon, pointer jsontext.Pointer, hint string,
+func scalarEncoding(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema,
+	formatName string, common *ir.TypeCommon, pointer jsontext.Pointer,
 ) (*ir.Encoding, []ir.Diagnostic) {
 	name, diags := encodingName(c, s, formatName, common, pointer)
-	content, contentDiags := contentSchemaRef(c, ts, anchors, depth, s, pointer, hint)
+	content, contentDiags := contentSchemaRef(c, ts, depth, s, pointer)
 	enc := &ir.Encoding{Name: name, MediaType: s.GetContentMediaType(), Schema: content}
 	return enc, append(diags, contentDiags...)
 }
@@ -134,12 +134,12 @@ func encodingName(c lowering.Ctx, s *oas3.Schema, formatName string, common *ir.
 //
 // The pointer it hoists at is the one the source wrote it at, which only this
 // declaration can name, so the node needs no namespace of its own (§4.3).
-func contentSchemaRef(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer jsontext.Pointer, hint string) (*ir.TypeRef, []ir.Diagnostic) {
+func contentSchemaRef(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer jsontext.Pointer) (*ir.TypeRef, []ir.Diagnostic) {
 	cs := s.GetContentSchema()
 	if !annotation.Written(cs) {
 		return nil, nil
 	}
-	ref, diags := Ref(c, ts, anchors, depth, cs, pointer+ids.Ptr("contentSchema"), compile.SubHint(hint, "content"))
+	ref, diags := Ref(c, ts, depth, cs, pointer+ids.Ptr("contentSchema"))
 	return &ref, diags
 }
 

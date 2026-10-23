@@ -298,3 +298,25 @@ func TestOrigin_IndexOfNamesTheSourceThatWroteEveryPosition(t *testing.T) {
 		})
 	}
 }
+
+// TestChildren_AddressesEachNodeAsTheParserReadsIt pins the pointers the
+// attribution walk gives a node: a key written through an alias at the key it
+// names, a `<<` merge's value, a mapping or a list of them, at the mapping
+// merging it, since the parser reads its members as that mapping's own, and a
+// list that is no merge's under its indexes.
+func TestChildren_AddressesEachNodeAsTheParserReadsIt(t *testing.T) {
+	t.Parallel()
+	aliased, inPlace := ynode.Scalar("v1"), ynode.Map(ynode.Scalar("m"), ynode.Scalar("v2"))
+	item := ynode.Map(ynode.Scalar("n"), ynode.Scalar("v3"))
+	list := ynode.Seq(item)
+	root := ynode.Map(ynode.Alias(ynode.Scalar("key")), aliased, ynode.Merge(), inPlace, ynode.Merge(), list)
+
+	got := children(frame{node: root, pointer: "/r"})
+	require.Len(t, got, 3)
+	assert.Equal(t, frame{node: aliased, pointer: "/r/key", key: root.Content[0]}, got[0])
+	assert.Equal(t, frame{node: inPlace, pointer: "/r", key: root.Content[2], merged: true}, got[1])
+	assert.Equal(t, frame{node: list, pointer: "/r", key: root.Content[4], merged: true}, got[2])
+
+	assert.Equal(t, []frame{{node: item, pointer: "/r", merged: true}}, children(got[2]))
+	assert.Equal(t, []frame{{node: item, pointer: "/s/0"}}, children(frame{node: list, pointer: "/s"}))
+}

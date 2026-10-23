@@ -45,6 +45,14 @@ func PathsSpecVer(version, paths string) string {
 		"paths:\n" + paths
 }
 
+// NestedMerges writes body, a flow mapping, merged in through levels `<<` keys
+// each naming the next in place: `{<<: {<<: body}}` for two. One level past
+// nodeview.MergeDepthLimit is a mapping the parser reads whole and the
+// compiler's view reads short of body.
+func NestedMerges(levels int, body string) string {
+	return strings.Repeat("{<<: ", levels) + body + strings.Repeat("}", levels)
+}
+
 // EveryKindOfReference is a document holding a resolvable reference of each
 // kind the library has: one in each position its walk meets one, and a schema's.
 // Each names the component of the same kind, whose name is its section's first

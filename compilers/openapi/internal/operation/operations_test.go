@@ -439,7 +439,7 @@ func TestOperation_UnserializableExtensionStillWarns(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.PathsSpec(`  /x:
     get:
-      x-bad: {1: intkey}
+      x-bad: {n: .nan}
       responses: {"200": {description: ok}}
 `)
 	doc, diags := parseFull(t, spec)

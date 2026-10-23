@@ -10,6 +10,7 @@
 package sourceindex
 
 import (
+	"math"
 	"slices"
 
 	yaml "gopkg.in/yaml.v3"
@@ -120,14 +121,6 @@ func (x Index) TaggedMappings() []*yaml.Node { return slices.Clone(x.taggedMappi
 // document.
 func (x Index) Truncated() bool { return x.truncated }
 
-// frame is one entry of the walk's explicit stack: a node to visit at a known
-// depth, or the exit of a node whose children have all been visited.
-type frame struct {
-	n     *yaml.Node
-	depth int
-	exit  bool
-}
-
 // walker is one walk's working state: the ancestors of the node being visited,
 // the deepest nesting met so far under each node still open, and the measure
 // an alias's target is taken from.
@@ -145,72 +138,44 @@ type walker struct {
 // The raw parse tree is a tree: aliasing adds only edges this walk never
 // follows, so no node is reached twice and the ancestor set is exactly the path
 // from the root. An alias nests as its target, which the measure takes once.
-// The walk is iterative and bounded by maxNodes, and it never stops at a
+// The walk is bounded by maxNodes (nodeview.Walk), and it never stops at a
 // finding, or one answer would hide another.
 func (x *Index) walk(maxNodes int64) {
 	w := walker{x: x, ancestors: map[*yaml.Node]bool{}, measure: NewMeasure(maxNodes)}
-	stack := []frame{{n: x.root}}
-
-	for len(stack) > 0 {
-		f := stack[len(stack)-1]
-		stack = stack[:len(stack)-1]
-
-		if f.exit {
-			w.leave(f)
-			continue
-		}
-		if f.n == nil {
-			continue // never produced by a parse; not counted rather than dereferenced
-		}
-
-		x.nodes++
-		if x.nodes > maxNodes {
-			x.truncated = true
-			return
-		}
-		stack = w.visit(stack, f)
-	}
-	x.truncated = w.measure.Truncated()
+	out := nodeview.Walk{Nodes: int(min(maxNodes, math.MaxInt)), Visit: w.visit, Leave: w.leave}.Run(x.root)
+	x.nodes = int64(out.Visited)
+	x.truncated = out.Cut || w.measure.Truncated()
 }
 
-// visit records what f's node answers and returns the stack with its children
-// and its exit pushed, or unchanged for a node with none. An alias is a leaf:
-// yaml.v3 gives it empty Content, and its target is not its child.
-func (w *walker) visit(stack []frame, f frame) []frame {
-	n := f.n
+// visit records what n answers, at depth below the root. An alias is a leaf:
+// yaml.v3 gives it empty Content, and its target is not its child, so it is
+// finished here as the nesting of what it names. Any other node is opened, for
+// leave to close once its children are measured.
+func (w *walker) visit(n *yaml.Node, depth int) nodeview.Step {
 	w.x.recordTag(n)
-	tracked := f.depth <= maxTrackedDepth
+	tracked := depth <= maxTrackedDepth
 	if n.Kind == yaml.AliasNode {
 		if tracked {
 			w.x.recordAlias(n, w.ancestors)
 		}
 		w.finish(w.measure.Of(n))
-		return stack
+		return nodeview.Prune
 	}
-	if len(n.Content) == 0 {
-		w.finish(Level(n))
-		return stack
-	}
-
 	if tracked {
 		w.ancestors[n] = true
 	}
 	w.tallest = append(w.tallest, 0)
-	stack = append(stack, frame{n: n, depth: f.depth, exit: true})
-	for _, c := range slices.Backward(n.Content) {
-		stack = append(stack, frame{n: c, depth: f.depth + 1})
-	}
-	return stack
+	return nodeview.Descend
 }
 
-// leave closes the node f exits once its children are measured.
-func (w *walker) leave(f frame) {
-	if f.depth <= maxTrackedDepth {
-		delete(w.ancestors, f.n)
+// leave closes n once its children are measured.
+func (w *walker) leave(n *yaml.Node, depth int) {
+	if depth <= maxTrackedDepth {
+		delete(w.ancestors, n)
 	}
 	tallest := w.tallest[len(w.tallest)-1]
 	w.tallest = w.tallest[:len(w.tallest)-1]
-	w.finish(tallest + Level(f.n))
+	w.finish(tallest + Level(n))
 }
 
 // finish hands a finished node's nesting to the node holding it, or to the

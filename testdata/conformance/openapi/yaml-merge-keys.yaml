@@ -1,0 +1,41 @@
+openapi: 3.1.0
+info: {title: YAMLMergeKeys, version: "1"}
+# Each construct below reaches the compiler only through a `<<` merge key or a
+# key YAML types as no string, and is read as the parser reads it: merged in,
+# the merged members first, and every key as the text it spells.
+paths:
+  /merged:
+    <<:
+      - {summary: Shared summary, description: Shared description, servers: [{url: "https://path.example"}]}
+      - {mergedBogus: {responses: {"200": {description: MERGED}}}}
+    get:
+      operationId: getMerged
+      <<: {servers: [{url: "https://operation.example"}]}
+      x-codes: {<<: {100: Continue}, 200: OK, true: T}
+      x-big: 1e400
+      parameters:
+        - {<<: {allowEmptyValue: true}, name: q, in: query, schema: {type: string}}
+      responses:
+        "200":
+          description: ok
+          <<: {links: {self: {operationId: getMerged}}}
+          headers:
+            X-Rate: {<<: {style: simple}, schema: {type: integer}}
+          content:
+            application/json:
+              schema:
+                type: object
+                <<: {not: {required: [forbidden]}}
+                example: {<<: {a: 1}, b: 2}
+    post:
+      operationId: postMerged
+      requestBody:
+        content:
+          multipart/form-data:
+            schema: {type: object, properties: {f: {type: string}}}
+            encoding:
+              f: {<<: {allowReserved: true}, contentType: text/plain}
+      responses: {"204": {description: done}}
+components:
+  securitySchemes:
+    key: {<<: {bearerFormat: JWT}, type: apiKey, name: X-Key, in: header}

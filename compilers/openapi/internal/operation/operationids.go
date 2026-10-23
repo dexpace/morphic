@@ -8,9 +8,9 @@ import (
 	soa "github.com/speakeasy-api/openapi/openapi"
 	yaml "gopkg.in/yaml.v3"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -195,8 +195,9 @@ func declaringNode(n *yaml.Node) *yaml.Node {
 }
 
 // writtenTree reads where the document's own text writes a node. Each step
-// reads only the pairs a mapping writes itself, following no $ref, alias or
-// merge key, so a walk ends on a node only at the pointer its text is at.
+// reads only the pairs a mapping writes itself (nodeview.WrittenChildren),
+// following no $ref, alias or merge key, so a walk ends on a node only at the
+// pointer its text is at.
 //
 // A mapping's pairs are indexed the first time a walk passes through it. A walk
 // to a declaration under paths crosses the mapping holding every path, and
@@ -207,7 +208,7 @@ type writtenTree struct {
 }
 
 func newWrittenTree(root *yaml.Node) *writtenTree {
-	return &writtenTree{root: root, children: map[*yaml.Node]map[string]*yaml.Node{}}
+	return &writtenTree{root: nodeview.DocumentRoot(root), children: map[*yaml.Node]map[string]*yaml.Node{}}
 }
 
 // holds reports whether the document's text writes n at pointer.
@@ -216,7 +217,7 @@ func (w *writtenTree) holds(pointer jsontext.Pointer, n *yaml.Node) bool {
 	for token := range pointer.Tokens() {
 		children, indexed := w.children[at]
 		if !indexed {
-			children = annotation.RawChildNodes(at)
+			children = nodeview.WrittenChildren(at)
 			w.children[at] = children
 		}
 		if at = children[token]; at == nil {

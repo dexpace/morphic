@@ -13,7 +13,6 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
-	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -26,14 +25,14 @@ import (
 // its content once at its declaration, not once per mount site, under the
 // component's name rather than the operationId hint (issue #107). A body $ref'd
 // from another operation has no component name, so it is named for the
-// operation declaring it, never this mount's (requestBodyHint, GitHub #433).
-func lowerRequestBody(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, op *ir.Operation, hb *ir.HTTPBinding, src *soa.Operation, opDeclPtr jsontext.Pointer) []ir.Diagnostic {
+// operation declaring it, never this mount's (lowering.NameAt, GitHub #433).
+func lowerRequestBody(c lowering.Ctx, ts *compile.Types, op *ir.Operation, hb *ir.HTTPBinding, src *soa.Operation, opDeclPtr jsontext.Pointer) []ir.Diagnostic {
 	usePtr := opDeclPtr + ids.Ptr("requestBody")
 	rb, dc, bodyPtr := lowering.Declared[soa.RequestBody](c, src.GetRequestBody(), usePtr)
 	if rb == nil {
 		return nil
 	}
-	payload, diags := lowerPayload(dc, ts, anchors, rb.GetContent(), bodyPtr, requestBodyHint(dc, bodyPtr))
+	payload, diags := lowerPayload(dc, ts, rb.GetContent(), bodyPtr)
 	if payload == nil {
 		// A body lowering no media type is still the body: whether it must be
 		// sent, its description and its x-* stay on a Payload with no Contents.
@@ -75,21 +74,3 @@ func contentTypeKeys(content *sequencedmap.Map[string, *soa.MediaType]) []string
 	}
 	return slices.Collect(content.Keys())
 }
-
-// requestBodyHint is the hint the request body declared at bodyPtr, in dc's
-// document, is named by: its component's name, else `<operationId>_request` for
-// the operation declaring it there (lowering.OperationIDAt), else
-// elsewhereBodyHint. It is a
-// function of where the body is written, never of which operation mounts it,
-// so every operation lowering one body builds the same nodes beneath it, in
-// whichever order they lower (GitHub #433, #107).
-func requestBodyHint(dc lowering.Ctx, bodyPtr jsontext.Pointer) string {
-	if id := lowering.OperationIDAt(dc, bodyPtr.Parent()); id != "" {
-		return ids.DeclarationHint(bodyPtr, id+"_request")
-	}
-	return ids.DeclarationHint(bodyPtr, elsewhereBodyHint)
-}
-
-// elsewhereBodyHint names a request body no operationId names: one an
-// operation without an operationId declares, or one no operation declares.
-const elsewhereBodyHint = "request"

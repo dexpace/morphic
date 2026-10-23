@@ -12,6 +12,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
 )
@@ -291,7 +292,7 @@ func preserveUnreadFields(c lowering.Ctx, scheme *ir.AuthScheme, ss *soa.Securit
 		}
 		at := decl + ids.Ptr(field)
 		kept, keptDiags := annotation.PreserveNodeInto(&scheme.Unmodeled, "openapi:"+field,
-			annotation.RawChildNode(ss.GetRootNode(), field), ir.ReasonDegradedLowering, c.ProvenanceAt(at))
+			nodeview.Child(ss.GetRootNode(), field), ir.ReasonDegradedLowering, c.ProvenanceAt(at))
 		diags = append(diags, keptDiags...)
 		if !kept {
 			continue

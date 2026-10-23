@@ -17,11 +17,13 @@ import (
 
 	soa "github.com/speakeasy-api/openapi/openapi"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/anchors"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
+	"github.com/dexpace/morphic/compilers/openapi/internal/naming"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
@@ -140,13 +142,11 @@ type Ctx struct {
 	// Nil in a zero context.
 	typePositions map[scopedPosition]bind.Position
 
-	// hints records the hint each schema position is named by, as the first
-	// lowering to reach it names it. Copies share it on purpose, as
-	// typePositions: a node hoisted where a position's own lowering left none
-	// takes the name that lowering gave the position, which every declaration
-	// has recorded before such a node is built (compile.Types.Finish). Nil in a
-	// zero context, which records none.
-	hints map[scopedPosition]string
+	// anchors is the source's $dynamicAnchor index, built on first use
+	// (DynamicAnchorSites). Copies share it on purpose, as typePositions: it
+	// reads only the document. Nil in a zero context, which builds it on
+	// every ask.
+	anchors *anchorMemo
 
 	// reached records where each reference a lowering resolved landed in the
 	// source. Copies share it on purpose: only the document's lowering reads it,
@@ -162,6 +162,9 @@ type Ctx struct {
 // in RefScope would allocate each time.
 type loadResult struct {
 	siblings load.Siblings
+	// names names the nodes built at the positions of the documents the
+	// bindings read, remembering each name (NameAt).
+	names *naming.Namer
 	// others is every document a reference read beside the source.
 	others load.Others
 	// reads holds those readings in the scope fields they fill: Holds over the
@@ -171,8 +174,7 @@ type loadResult struct {
 }
 
 // scopedPosition is a position, the document it is in, and the scope it is
-// read in (see Within), which a TypePosition answer and a recorded hint
-// (DeclareHint) are kept under.
+// read in (see Within), which a TypePosition answer is kept under.
 type scopedPosition struct {
 	foreign bool
 	holder  string
@@ -204,7 +206,7 @@ func New(srcIndex int, doc *soa.OpenAPI, src ir.SourceInfo, grouping GroupingStr
 		overlay:          origin,
 
 		typePositions: map[scopedPosition]bind.Position{},
-		hints:         map[scopedPosition]string{},
+		anchors:       &anchorMemo{},
 		reached:       resolve.NewReached(),
 	}
 }
@@ -260,12 +262,12 @@ func (c Ctx) WithAuth(auth map[ir.AuthID]ir.AuthScheme) Ctx {
 // being derived from it, since resolving either reads every document the
 // source names, which only the load phase may (GitHub #757). One call sets
 // both, so no context carries one without the other. The copy remembers no
-// TypePosition answer or hint of c's, which read c's bindings and documents.
+// TypePosition answer or name of c's, which read c's bindings and documents.
 func (c Ctx) WithLoaded(doc *load.Document) Ctx {
-	c.loaded = &loadResult{siblings: doc.Siblings, others: doc.Others, reads: resolve.Scope{Holds: doc.Holds,
-		Beside: doc.Siblings.Beside, Writes: doc.Siblings.Writes, Bindings: doc.Bindings}}
+	c.loaded = &loadResult{siblings: doc.Siblings, others: doc.Others, names: naming.New(doc.Bindings.Table()),
+		reads: resolve.Scope{Holds: doc.Holds, Beside: doc.Siblings.Beside, Writes: doc.Siblings.Writes,
+			Bindings: doc.Bindings}}
 	c.typePositions = map[scopedPosition]bind.Position{}
-	c.hints = map[scopedPosition]string{}
 	return c
 }
 
@@ -294,30 +296,6 @@ func (c Ctx) TypePosition(at bind.Position, read func() bind.Position) bind.Posi
 	named := read()
 	c.typePositions[key] = named
 	return named
-}
-
-// DeclareHint records hint as the name the lowering reaching pointer, in c's
-// document and scope, gives it, where none is recorded there yet. Every
-// lowering reaching a position names it alike, so the first record stands for
-// all of them.
-func (c Ctx) DeclareHint(pointer jsontext.Pointer, hint string) {
-	key := hintKey(c, pointer)
-	if _, seen := c.hints[key]; !seen && c.hints != nil {
-		c.hints[key] = hint
-	}
-}
-
-// HintAt returns the hint recorded for pointer in c's document and scope
-// (DeclareHint), and false where none is.
-func (c Ctx) HintAt(pointer jsontext.Pointer) (string, bool) {
-	hint, ok := c.hints[hintKey(c, pointer)]
-	return hint, ok
-}
-
-// hintKey is what a hint for pointer, in c's document and scope, is kept under.
-func hintKey(c Ctx, pointer jsontext.Pointer) scopedPosition {
-	return scopedPosition{foreign: c.foreign, holder: c.holder, home: c.home,
-		at: bind.Position{Doc: c.homeDoc, Pointer: pointer}}
 }
 
 // Siblings returns the fields the load phase modelled beside the document's
@@ -506,20 +484,26 @@ func IDsAt(c Ctx, source int) ids.Document {
 	return ids.Document{}
 }
 
-// OperationIDAt returns the operationId of the operation written at pointer in
-// c's document, and "" where none is there or it names none: read in that
-// document's YAML, and for the source's also in its model, which reaches a
-// position only a reference leads to (resolve.OperationIDAt).
-func OperationIDAt(c Ctx, pointer jsontext.Pointer) string {
-	model := c.Doc
-	if _, other := homeOf(c); other {
-		model = nil
+// NameAt returns the hint the node built at pointer in c's document is named
+// by (naming.Namer.At): a function of the documents and the coordinate alone,
+// whichever lowering builds the node, read once for every copy of c. A
+// context given no bindings names a position by its pointer alone.
+func NameAt(c Ctx, pointer jsontext.Pointer) string {
+	at := bind.Position{Doc: c.homeDoc, Pointer: pointer}
+	if c.loaded == nil {
+		return naming.New(nil).At(at)
 	}
-	table := c.Bindings().Table()
-	if table == nil {
-		return resolve.OperationIDAt(nil, model, pointer)
+	return c.loaded.names.At(at)
+}
+
+// NameThrough returns the name the $ref written at pointer in c's document
+// suggests (naming.Namer.Through), and "" where it suggests none. A context
+// given no bindings resolves no $ref, so it suggests none.
+func NameThrough(c Ctx, pointer jsontext.Pointer) string {
+	if c.loaded == nil {
+		return ""
 	}
-	return resolve.OperationIDAt(table.Document(c.homeDoc).Root, model, pointer)
+	return c.loaded.names.Through(bind.Position{Doc: c.homeDoc, Pointer: pointer})
 }
 
 // homeOf returns the document other than the source whose positions c reads,
@@ -568,4 +552,37 @@ func (c Ctx) ProvenanceAt(pointer jsontext.Pointer, from ...jsontext.Pointer) ir
 		return ir.Provenance{Source: o.Index, Pointer: pointer}
 	}
 	return ir.Provenance{Source: c.overlay.IndexOf(pointer, from, c.SrcIndex), Pointer: pointer}
+}
+
+// anchorMemo holds the source's $dynamicAnchor index once it is built.
+type anchorMemo struct {
+	built bool
+	index anchors.Index
+}
+
+// DynamicAnchorSites returns the pointers of the source declaring the
+// $dynamicAnchor name (anchors.Build), and, the first time any copy of c asks,
+// a warning when the index walk stopped at a bound. It is built on first use
+// rather than at entry because that warning would report on documents that
+// never write $dynamicRef (GitHub #172). A context holding no document finds
+// none.
+func (c Ctx) DynamicAnchorSites(name string) ([]jsontext.Pointer, []ir.Diagnostic) {
+	if c.Doc == nil {
+		return nil, nil
+	}
+	memo := c.anchors
+	if memo == nil {
+		memo = &anchorMemo{}
+	}
+	if memo.built {
+		return memo.index.Sites(name), nil
+	}
+	memo.index, memo.built = anchors.Build(c.Doc.GetRootNode()), true
+	if memo.index.Complete() {
+		return memo.index.Sites(name), nil
+	}
+	return memo.index.Sites(name), []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, "",
+		"the $dynamicAnchor index stopped at its walk bounds (%d levels, %d nodes); "+
+			"a $dynamicRef expanded below is not verified to name the document's only anchor of its name",
+		anchors.MaxDepth, anchors.MaxNodes)}
 }

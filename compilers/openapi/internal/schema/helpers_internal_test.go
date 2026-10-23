@@ -8,10 +8,10 @@ import (
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/compile"
-	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/ir"
@@ -26,41 +26,25 @@ import (
 // exercises the interning-lookup paths rather than the named-component path.
 const deepPointer = "/components/schemas/Obj/properties/inner"
 
-// nestedAnchor builds a mapping chain of the given depth with a $dynamicAnchor
-// at the bottom. It is built rather than parsed because nesting this deep in
-// source text is indentation arithmetic, and duplicate keys at one level would
-// not nest at all.
-func nestedAnchor(depth int) *yaml.Node {
-	n := &yaml.Node{
-		Kind:    yaml.MappingNode,
-		Content: []*yaml.Node{openapitest.StrNode("$dynamicAnchor"), openapitest.StrNode("toodeep")},
-	}
-	for range depth + 1 {
-		n = &yaml.Node{Kind: yaml.MappingNode, Content: []*yaml.Node{openapitest.StrNode("k"), n}}
-	}
-	return n
-}
-
 // useValue parses src — an anchor plus a `use:` key written against it — and
 // returns the raw node at `use` undereferenced, so a value spelled `*anchor`
 // arrives as the alias node a branch reader is really handed rather than as the
 // mapping it stands for.
 func useValue(t *testing.T, src string) *yaml.Node {
 	t.Helper()
-	node := annotation.RawChildNode(openapitest.YAMLNode(t, src), "use")
+	node := nodeview.WrittenChildren(openapitest.YAMLNode(t, src))["use"]
 	require.NotNil(t, node, `src writes no "use" key`)
 	return node
 }
 
 // lowerer is test scaffolding, not a compiler type. The compiler has no such
-// struct: every lowering is a function of the context, the registry and the
-// memos, and the caller owns the document being built (#177).
+// struct: every lowering is a function of the context and the registry, and
+// the caller owns the document being built (#177).
 type lowerer struct {
-	ctx     lowering.Ctx
-	out     *ir.Document
-	types   *compile.Types
-	diags   compile.Diags
-	anchors AnchorIndex
+	ctx   lowering.Ctx
+	out   *ir.Document
+	types *compile.Types
+	diags compile.Diags
 }
 
 // lowererOver is the only place the fixture's fields are initialised. Both
@@ -92,7 +76,7 @@ func loweredFor(t *testing.T, src string) (*lowerer, []ir.Diagnostic) {
 func lowerSpec(t *testing.T, src string) (*ir.Document, []ir.Diagnostic) {
 	t.Helper()
 	l, diags := loweredFor(t, src)
-	l.diags.AppendAll(LowerComponentSchemas(t.Context(), l.ctx, l.types, &l.anchors))
+	l.diags.AppendAll(LowerComponentSchemas(t.Context(), l.ctx, l.types))
 	doc := l.document(t)
 	return doc, append(diags, l.diags.List()...)
 }

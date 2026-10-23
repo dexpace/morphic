@@ -52,11 +52,6 @@ var loweringRecursions = [][]string{
 	// an object's key is built from its elements', each a value keyed the same
 	// way. Bounded by maxValueKeyDepth.
 	{"listKey", "objectKey", "valueKey"},
-	// The $dynamicAnchor index. walk hands a mapping to walkMapping, which walks
-	// each of that mapping's values back through walk. Bounded by charge, which
-	// refuses past maxDynamicAnchorDepth or a spent node budget and records the
-	// refusal, so a caller learns the index is partial.
-	{"anchorWalk.walk", "anchorWalk.walkMapping"},
 	// Property lookup through a composition. Finding a property by wire name
 	// descends into a model's base and mixins, each of which is a model whose
 	// properties are looked up the same way.
@@ -447,21 +442,22 @@ func TestLoweringCallGraph_RecordsAHandoffAsAnEdge(t *testing.T) {
 }
 
 // TestLoweringCallGraph_RecordsAMethodEdge holds the graph to the fix for GitHub
-// #224 on the tree rather than on a planted source. anchorWalk's two methods
-// call each other and the walk descends into itself, and a graph built from free
-// functions alone described every one of those edges as absent.
+// #224 on the tree rather than on a planted source. The nullability reader's
+// methods call each other through their receiver, round the cycle pinned
+// above, and a graph built from free functions alone described every one of
+// those edges as absent.
 //
-// It names charge as well, which closes no cycle: an edge the graph cannot see
+// It names widen as well, which closes no cycle: an edge the graph cannot see
 // is unheld whether or not it currently changes an answer.
 func TestLoweringCallGraph_RecordsAMethodEdge(t *testing.T) {
 	t.Parallel()
 	graph := loweringCallGraph(t)
 
 	edges := [][2]string{
-		{"anchorWalk.walk", "anchorWalk.walkMapping"},
-		{"anchorWalk.walkMapping", "anchorWalk.walk"},
-		{"anchorWalk.walk", "anchorWalk.walk"},
-		{"anchorWalk.walk", "anchorWalk.charge"},
+		{"nulls.schema", "nulls.keywords"},
+		{"nulls.keywords", "nulls.allOf"},
+		{"nulls.allOf", "nulls.conjunct"},
+		{"nulls.schema", "nulls.widen"},
 	}
 	for _, e := range edges {
 		// Membership is read with a comma-ok rather than require.Contains, which
@@ -480,20 +476,18 @@ func TestLoweringCallGraph_RecordsAMethodEdge(t *testing.T) {
 // write: a constructor's local, a pointer parameter, a composite literal; the
 // multi-result bind they no longer write is planted beside them.
 //
-// Not every selector reaches a node: anchorWalk.walkMapping reads its pairs
-// through w.view.MappingPairs, a method of a type nodeview declares, and no
-// package this pin reads holds a node for it. It adds no edge.
+// Not every selector reaches a node: soleAnchorSite reads its sites through
+// c.DynamicAnchorSites, a method of a type lowering declares, and no package
+// this pin reads holds a node for it. It adds no edge.
 func TestLoweringCallGraph_ResolvesAMethodOnAValue(t *testing.T) {
 	t.Parallel()
 	graph := loweringCallGraph(t)
 
 	edges := [][2]string{
-		{"dynamicAnchors", "anchorWalk.walk"},      // w := newAnchorWalk(…)
+		{"composedVariantRef", "nulls.schema"},     // n := newNulls(c)
 		{"LowerService", "serviceGroups.finalize"}, // groups := newServiceGroups()
 		{"lowerPathItem", "serviceGroups.place"},   // a *serviceGroups parameter
 		{"lowerWebhooks", "serviceGroups.group"},   // the same, in the other caller
-		{"soleAnchorSite", "AnchorIndex.sites"},    // an *AnchorIndex parameter
-		{"dynamicHop", "AnchorIndex.sites"},        // the same, in the other caller
 		{"optionsFrom", "Options.withDefaults"},    // Options{}.withDefaults()
 	}
 	for _, e := range edges {
