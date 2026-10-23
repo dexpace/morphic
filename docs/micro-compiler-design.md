@@ -446,6 +446,13 @@ go list -f '{{$p := .ImportPath}}{{range .Imports}}{{$p}} -> {{.}}
 {{end}}' ./compilers/openapi/... | grep -E '> .*internal/(nodeview|load)$'
 ```
 
+*As landed:* `operation/` took neither `auth` nor `meta`. `auth` founded a package of its own,
+because both halves of the compiler reach it and neither may reach the other. Document-level
+metadata, its servers included, stayed in the root, as did detection's reading of a source, until
+#1091 gave each a package: `document`, which is no part of lowering an operation and runs after both
+walks, reaching neither, and `detect`, which runs before anything has decided a source is this
+compiler's. The root now holds the face this layout names, with `Detect` a call into `detect`.
+
 `diag` sits at the bottom because its constructor is the single one that populates severity, code and
 provenance, and eight files call it. The OpenAPI diagnostic codes are format-specific strings, so
 they stay in the compiler rather than moving to `compilers/compile`; whether the constructor itself later
