@@ -89,7 +89,8 @@ func (c *Compiler) Compile(ctx context.Context, sources []compilers.Source, opts
 	if err != nil || loadedDoc == nil {
 		return nil, diags, err
 	}
-	// components schemas → auth → service/operations → meta; assembles Document
+	// components schemas → auth → service/operations → document metadata;
+	// assembles Document
 	out, lowerDiags, err := run(ctx, loweringCtx(loadedDoc, formatOpts), compile.NewTypes())
 	// Load diagnostics precede lowering diagnostics.
 	all := slices.Concat(diags, withoutRereported(lowerDiags, diags))

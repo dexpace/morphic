@@ -94,7 +94,7 @@ func serverVariables(c lowering.Ctx, s *soa.Server, sptr jsontext.Pointer) ([]ir
 		}
 		vptr := sptr + ids.Ptr("variables", name)
 		// ServerVariable exposes no GetExtensions at this library version, so the
-		// field is read directly — as XMLHints already reads its own.
+		// field is read directly — as annotation.XMLHints already reads its own.
 		ext, extDiags := annotation.ExtensionsFrom(v.Extensions, c.ProvenanceAt, vptr)
 		diags = append(diags, extDiags...)
 		one := ir.ServerVariable{

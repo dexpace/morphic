@@ -209,7 +209,8 @@ func New(srcIndex int, doc *soa.OpenAPI, src ir.SourceInfo, grouping GroupingStr
 
 // Reached reports whether a lowering run under this context, or any copy of it,
 // resolved a reference to pointer in the source. It is meant to be asked once
-// every lowering has returned: before that it answers for those that have.
+// every other lowering has returned: before that it answers for those that
+// have.
 func (c Ctx) Reached(pointer jsontext.Pointer) bool {
 	return c.reached.Has(pointer)
 }

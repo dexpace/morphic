@@ -382,7 +382,7 @@ paths: {}
 // entry with no name or an empty one holds none, and a name may recur across
 // lists, since a path item's or an operation's servers replace the ones above
 // them rather than join them. Names equal only once canonicalized are the
-// openapi package's TestDuplicateServerName_CanonicalCollisionsAreNotReported,
+// document package's TestDuplicateServerName_CanonicalCollisionsAreNotReported,
 // which proves each collision is real.
 func TestServerRepeats_ReportsOnlyANameOneListRepeatsExactly(t *testing.T) {
 	t.Parallel()
