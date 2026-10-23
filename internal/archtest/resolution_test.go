@@ -20,6 +20,7 @@ import (
 	"golang.org/x/tools/go/packages"
 
 	"github.com/dexpace/morphic/internal/decls"
+	"github.com/dexpace/morphic/ir/irtest"
 )
 
 // libraryModule is the parser library whose reference resolution the compiler
@@ -598,7 +599,7 @@ func TestResolutionCalls_HeldToTheBaseline(t *testing.T) {
 		}
 	}
 	require.True(t, swept, "the sweep missed the package that drives the resolver, so a clean result proves nothing")
-	for _, finding := range baselineFindings(resolutionBaseline, uses, repoRoot(t)) {
+	for _, finding := range baselineFindings(resolutionBaseline, uses, irtest.RepoRoot(t)) {
 		t.Error(finding)
 	}
 }
@@ -848,7 +849,7 @@ func TestBaselineFindings_EveryDifferenceFails(t *testing.T) {
 // with src added to it as the file named file, and returns it.
 func loadOverlaid(t *testing.T, dir, file, src string) *decls.Package {
 	t.Helper()
-	root := repoRoot(t)
+	root := irtest.RepoRoot(t)
 	planted := filepath.Join(root, filepath.FromSlash(dir), file)
 	cfg := &packages.Config{
 		Mode:    packages.NeedName | packages.NeedFiles | packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo,

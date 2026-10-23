@@ -15,6 +15,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/dexpace/morphic/ir/irtest"
 )
 
 // leakcheckImport is the import path a test file must call Main through for
@@ -28,7 +30,7 @@ const leakcheckImport = module + "/internal/leakcheck"
 // startsGoroutine's to say.
 func TestGoroutineLeak_EveryGoStatementHasALeakCheck(t *testing.T) {
 	t.Parallel()
-	violations, err := goroutineLeakCheckViolations(repoRoot(t))
+	violations, err := goroutineLeakCheckViolations(irtest.RepoRoot(t))
 	require.NoError(t, err)
 	for _, v := range violations {
 		t.Error(v)

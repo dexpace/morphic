@@ -1,10 +1,12 @@
 package openapitest
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
+	"github.com/speakeasy-api/openapi/marshaller"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/speakeasy-api/openapi/sequencedmap"
 	"github.com/stretchr/testify/require"
@@ -119,6 +121,17 @@ func YAMLNode(t TB, src string) *yaml.Node {
 	require.NoError(t, yaml.Unmarshal([]byte(src), &doc))
 	require.Len(t, doc.Content, 1, "expected a single document node")
 	return doc.Content[0]
+}
+
+// SchemaFromYAML unmarshals body as a JSONSchema, keeping the reference and
+// boolean forms a bare *oas3.Schema cannot represent.
+func SchemaFromYAML(ctx context.Context, t TB, body string) *oas3.JSONSchema[oas3.Referenceable] {
+	t.Helper()
+	js := &oas3.JSONSchema[oas3.Referenceable]{}
+	valErrs, err := marshaller.Unmarshal(ctx, strings.NewReader(body), js)
+	require.NoError(t, err)
+	require.Empty(t, valErrs, "the fixture parses cleanly")
+	return js
 }
 
 // StrNode builds a bare string-scalar yaml.Node.

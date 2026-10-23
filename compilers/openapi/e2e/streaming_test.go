@@ -11,7 +11,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
@@ -35,18 +34,6 @@ paths:
 `
 }
 
-// compileStreamingSpec compiles src with opts and requires no error diagnostic.
-func compileStreamingSpec(t *testing.T, src string, opts openapi.Options) *ir.Document {
-	t.Helper()
-	doc, diags, err := openapi.New().Compile(t.Context(),
-		[]compilers.Source{{Path: "spec.yaml", Data: []byte(src)}},
-		compilers.Options{FormatOptions: opts})
-	require.NoError(t, err)
-	require.NotNil(t, doc)
-	assertNoErrorDiags(t, diags)
-	return doc
-}
-
 // TestStreaming_PolicyDisabledLeavesOnlyWhatIsDeclared pins the off switch
 // invariant 6 requires, through the option a caller actually sets. Disabled
 // means the media-type reading stops entirely, while a 3.2 itemSchema — a
@@ -55,7 +42,7 @@ func TestStreaming_PolicyDisabledLeavesOnlyWhatIsDeclared(t *testing.T) {
 	t.Parallel()
 	off := openapi.Options{StreamingMedia: openapi.StreamingMedia{Disabled: true}}
 
-	doc := compileStreamingSpec(t, eventStreamSpec("text/event-stream"), off)
+	doc := compileClean(t, eventStreamSpec("text/event-stream"), off)
 	op, ok := opByName(doc, "getEvents")
 	require.True(t, ok)
 	assert.Empty(t, string(op.Streaming), "the media-type reading is off")
@@ -75,7 +62,7 @@ paths:
             text/event-stream:
               itemSchema: {type: object, properties: {msg: {type: string}}}
 `
-	doc = compileStreamingSpec(t, declared, off)
+	doc = compileClean(t, declared, off)
 	op, ok = opByName(doc, "getEvents")
 	require.True(t, ok)
 	assert.Equal(t, ir.StreamingServer, op.Streaming, "disabling a heuristic does not disable a declaration")
@@ -101,7 +88,7 @@ func TestStreaming_PolicyMediaTypesReplaceTheDefaults(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.mediaType, func(t *testing.T) {
 			t.Parallel()
-			doc := compileStreamingSpec(t, eventStreamSpec(tc.mediaType), own)
+			doc := compileClean(t, eventStreamSpec(tc.mediaType), own)
 			op, ok := opByName(doc, "getEvents")
 			require.True(t, ok)
 			assert.Equal(t, tc.want, op.Streaming)
@@ -119,7 +106,7 @@ func TestStreaming_DefaultMediaTypesAreTheOnesApplied(t *testing.T) {
 	defaults := openapi.DefaultStreamingMediaTypes()
 	require.NotEmpty(t, defaults, "an empty list would make this vacuous")
 	for _, mediaType := range defaults {
-		doc := compileStreamingSpec(t, eventStreamSpec(mediaType), openapi.Options{})
+		doc := compileClean(t, eventStreamSpec(mediaType), openapi.Options{})
 		op, ok := opByName(doc, "getEvents")
 		require.True(t, ok)
 		assert.Equal(t, ir.StreamingServer, op.Streaming, "default media type %q does not stream", mediaType)

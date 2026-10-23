@@ -92,6 +92,24 @@ func TestEmptyEitherSchema_IsASchemaWithNoSchema(t *testing.T) {
 	assert.Nil(t, js.GetSchema())
 }
 
+// TestSchemaFromYAML_KeepsTheReferenceForm checks a schema written as a $ref
+// comes back as a reference, which a bare *oas3.Schema could not hold.
+func TestSchemaFromYAML_KeepsTheReferenceForm(t *testing.T) {
+	t.Parallel()
+	js := openapitest.SchemaFromYAML(t.Context(), t, "{$ref: '#/$defs/T'}")
+	require.NotNil(t, js)
+	assert.True(t, js.IsReference())
+}
+
+// TestSchemaFromYAML_FailsOnAFixtureThatDoesNotParse checks a fixture the
+// library cannot read fails the test rather than handing back an empty schema.
+func TestSchemaFromYAML_FailsOnAFixtureThatDoesNotParse(t *testing.T) {
+	t.Parallel()
+	rec := &recorder{}
+	openapitest.SchemaFromYAML(t.Context(), rec, "{")
+	assert.True(t, rec.failed(), "an unreadable fixture is reported")
+}
+
 // TestYAMLNode_ReturnsTheRootValueNode checks the document node is unwrapped,
 // which is what makes the result comparable to what a parsed schema field
 // exposes.

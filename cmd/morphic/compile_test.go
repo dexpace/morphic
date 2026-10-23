@@ -89,15 +89,7 @@ func TestRun_SpecProblemsExitOne(t *testing.T) {
 
 func TestRun_DiagnosticsGateExitCode(t *testing.T) {
 	t.Parallel()
-	// A parseable spec that produces at least one warning-or-info diagnostic
-	// but no errors: validation-only keyword.
-	spec := writeFile(t, "warn.yaml", `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths: {}
-components:
-  schemas:
-    S: {type: object, not: {required: [x]}}
-`)
+	spec := writeFile(t, "warn.yaml", warnSpec)
 	var stdout, stderr bytes.Buffer
 	require.Equal(t, 0, run([]string{"compile", spec}, &stdout, &stderr),
 		"info diagnostics must not fail the default gate")

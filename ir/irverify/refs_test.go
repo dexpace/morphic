@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/ir/irtest"
 )
 
 // docWithRef builds a model whose property points at target via a TypeRef.
@@ -115,25 +116,6 @@ func TestCheckReferentialIntegrity_DanglingChannelRef(t *testing.T) {
 	assert.Contains(t, got[0].Message, "does not resolve in channels")
 }
 
-// opDocNested returns a document whose first group holds an operation overloading
-// one declared inside depth levels of nested groups, plus the ID they agree on.
-// At a depth past ir.MaxWalkDepth the walk reaches the reference and not the
-// declaration; below it, one walk reaches both.
-func opDocNested(depth int) (*ir.Document, ir.OpID) {
-	target := ir.OpID("op/x/Nested")
-	nested := ir.OperationGroup{Operations: []ir.Operation{{ID: target}}}
-	for range depth {
-		nested = ir.OperationGroup{Groups: []ir.OperationGroup{nested}}
-	}
-	return &ir.Document{Services: []ir.Service{{
-		ID: "s/x",
-		Groups: []ir.OperationGroup{
-			{Operations: []ir.Operation{{ID: "op/x/Overload", OverloadOf: &target}}},
-			nested,
-		},
-	}}}, target
-}
-
 // docWithOverload builds a service whose one operation overloads target.
 func docWithOverload(target ir.OpID) *ir.Document {
 	return &ir.Document{Services: []ir.Service{{
@@ -210,14 +192,14 @@ func TestCheckReferentialIntegrity_DanglingOpRefWithNoOperationDeclared(t *testi
 // registries Document keys maps by are unaffected: they are read off the field,
 // not off the walk.
 func TestCheckReferentialIntegrity_TruncatedWalkClaimsNoDeclarations(t *testing.T) {
-	deep, target := opDocNested(ir.MaxWalkDepth)
+	deep, target := irtest.NestedOverloadDoc(ir.MaxWalkDepth)
 	vs, truncated := checkReferentialIntegrity(deep, readDeclarations(deep))
 	assert.True(t, truncated, "the walk must report that it was cut short")
 	assert.Empty(t, vs, "%s is declared past the cap, not undeclared", target)
 
 	// The other half: the same shape within the cap does resolve, so the case
 	// above is not passing on a walk that collects no reference at all.
-	shallow, _ := opDocNested(0)
+	shallow, _ := irtest.NestedOverloadDoc(0)
 	assert.Empty(t, refViolations(shallow))
 }
 

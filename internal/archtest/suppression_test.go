@@ -10,6 +10,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/dexpace/morphic/ir/irtest"
 )
 
 // suppressionDirectives are the comment forms that silence a linter from inside
@@ -57,7 +59,7 @@ func suppressionOf(text string) (string, bool) {
 // with it, is not one.
 func TestSuppressions_NoDirectiveStandsInTheSource(t *testing.T) {
 	t.Parallel()
-	violations, files, err := suppressionViolations(repoRoot(t))
+	violations, files, err := suppressionViolations(irtest.RepoRoot(t))
 	require.NoError(t, err)
 	require.Positive(t, files, "the walk read no Go file, so it checked nothing")
 	for _, v := range violations {

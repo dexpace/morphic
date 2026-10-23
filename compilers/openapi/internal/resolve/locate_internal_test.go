@@ -14,6 +14,7 @@ import (
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/navigation"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 )
 
 // elsewhere is an Ends that reads every node it is asked about as a reference
@@ -137,7 +138,7 @@ func TestScopeReached_StepsPastAnIndexTheLibraryRetries(t *testing.T) {
 	t.Parallel()
 	var built yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte("{'0': {j: 5}}"), &built))
-	js := schemaFromYAML(t, "type: string\n")
+	js := openapitest.SchemaFromYAML(t.Context(), t, "type: string\n")
 	doc := &indexedDoc{built: built.Content[0], schema: js}
 	for _, ends := range []func(any) (End, bool){nil, elsewhere} {
 		sc := Scope{Doc: doc, Ends: ends}

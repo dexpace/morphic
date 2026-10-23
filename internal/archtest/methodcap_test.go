@@ -12,6 +12,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/dexpace/morphic/ir/irtest"
 )
 
 // maxMethodsPerType caps how many methods one type may carry inside compilers/.
@@ -34,7 +36,7 @@ const maxMethodsPerType = 20
 // short method at a time, and every rule the repo enforced stayed green.
 func TestMethodsPerType_StayUnderTheCap(t *testing.T) {
 	t.Parallel()
-	counts := methodCounts(t, filepath.Join(repoRoot(t), "compilers"))
+	counts := methodCounts(t, filepath.Join(irtest.RepoRoot(t), "compilers"))
 	require.NotEmpty(t, counts, "the sweep found no methods at all, so an empty result proves nothing")
 
 	var over []string

@@ -15,6 +15,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/tools/go/packages"
+
+	"github.com/dexpace/morphic/ir/irtest"
 )
 
 // loweringRecursions are every recursion among the lowerings in
@@ -155,7 +157,7 @@ func loweringCallGraph(t *testing.T) map[string]map[string]bool {
 	cfg := &packages.Config{
 		Mode: packages.NeedName | packages.NeedFiles | packages.NeedSyntax |
 			packages.NeedTypes | packages.NeedTypesInfo | packages.NeedImports,
-		Dir: repoRoot(t),
+		Dir: irtest.RepoRoot(t),
 	}
 	loaded, err := packages.Load(cfg, patterns...)
 	require.NoError(t, err)
@@ -509,7 +511,7 @@ func TestLoweringCallGraph_ResolvesAMethodOnAValue(t *testing.T) {
 // changed for — one level up, in the input rather than the graph.
 func TestLoweringCallGraph_ReadsEveryPackageThatLowers(t *testing.T) {
 	t.Parallel()
-	root := repoRoot(t)
+	root := irtest.RepoRoot(t)
 	found := map[string]bool{}
 	err := filepath.WalkDir(filepath.Join(root, "compilers"), func(p string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() || !isProductionGoFile(d.Name()) {

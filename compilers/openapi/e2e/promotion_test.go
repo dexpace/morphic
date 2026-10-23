@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
@@ -176,24 +175,12 @@ paths:
           description: ok
 `
 
-// compilePromotionSpec compiles src with opts and requires no error diagnostic.
-func compilePromotionSpec(t *testing.T, src string, opts openapi.Options) *ir.Document {
-	t.Helper()
-	doc, diags, err := openapi.New().Compile(t.Context(),
-		[]compilers.Source{{Path: "spec.yaml", Data: []byte(src)}},
-		compilers.Options{FormatOptions: opts})
-	require.NoError(t, err)
-	require.NotNil(t, doc)
-	assertNoErrorDiags(t, diags)
-	return doc
-}
-
 // TestPromotion_DisabledKeepsExtensionsAndNothingElse pins the off switch
 // invariant 6 requires. Disabled means the typed field is not written at all,
 // and the document compiles to exactly what it did before promotion existed.
 func TestPromotion_DisabledKeepsExtensionsAndNothingElse(t *testing.T) {
 	t.Parallel()
-	doc := compilePromotionSpec(t, deprecatedOpSpec,
+	doc := compileClean(t, deprecatedOpSpec,
 		openapi.Options{Promotions: openapi.ExtensionPromotions{Disabled: true}})
 	op, ok := opByName(doc, "getX")
 	require.True(t, ok)
@@ -214,7 +201,7 @@ func TestPromotion_TargetsReplaceTheDefaults(t *testing.T) {
 			"x-gone-in": openapi.TargetDeprecationRemovalVersion,
 		},
 	}}
-	doc := compilePromotionSpec(t, deprecatedOpSpec, own)
+	doc := compileClean(t, deprecatedOpSpec, own)
 	op, ok := opByName(doc, "getX")
 	require.True(t, ok)
 	require.NotNil(t, op.Deprecation)
@@ -255,7 +242,7 @@ components:
       type: string
       enum: [a, b]
 ` + keys
-	doc := compilePromotionSpec(t, spec, openapi.Options{})
+	doc := compileClean(t, spec, openapi.Options{})
 	op, ok := opByName(doc, "getX")
 	require.True(t, ok)
 	require.NotNil(t, op.Deprecation)
@@ -320,7 +307,7 @@ paths:
         "200":
           description: ok
 `
-	doc := compilePromotionSpec(t, spec, both)
+	doc := compileClean(t, spec, both)
 	op, ok := opByName(doc, "getX")
 	require.True(t, ok)
 	require.NotNil(t, op.Deprecation)

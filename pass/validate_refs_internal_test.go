@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/ir/irtest"
 )
 
 // TestCollectTypeIDs_DeepValueTreeIsTruncated drives what this pass does with a
@@ -54,7 +55,7 @@ func TestCollectTypeIDs_UnmodeledBytesYieldNoReference(t *testing.T) {
 // keys maps by are read off the field rather than off the walk and are unaffected.
 func TestCheckDanglingRefs_TruncatedWalkClaimsNoDeclarations(t *testing.T) {
 	t.Parallel()
-	deep, target := opDocNested(ir.MaxWalkDepth)
+	deep, target := irtest.NestedOverloadDoc(ir.MaxWalkDepth)
 	diags := danglingRefs(deep)
 	require.NotEmpty(t, diags)
 	assert.Equal(t, "ir/walk-truncated", diags[0].Code)
@@ -65,27 +66,8 @@ func TestCheckDanglingRefs_TruncatedWalkClaimsNoDeclarations(t *testing.T) {
 
 	// The other half: the same shape within the cap resolves, so the case above
 	// is not passing on a walk that collects no reference at all.
-	shallow, _ := opDocNested(0)
+	shallow, _ := irtest.NestedOverloadDoc(0)
 	assert.Empty(t, danglingRefs(shallow))
-}
-
-// opDocNested returns a document whose first group holds an operation overloading
-// one declared inside depth levels of nested groups, plus the ID they agree on.
-// At a depth past ir.MaxWalkDepth the walk reaches the reference and not the
-// declaration; below it, one walk reaches both.
-func opDocNested(depth int) (*ir.Document, ir.OpID) {
-	target := ir.OpID("op/x/Nested")
-	nested := ir.OperationGroup{Operations: []ir.Operation{{ID: target}}}
-	for range depth {
-		nested = ir.OperationGroup{Groups: []ir.OperationGroup{nested}}
-	}
-	return &ir.Document{Services: []ir.Service{{
-		ID: "s/x",
-		Groups: []ir.OperationGroup{
-			{Operations: []ir.Operation{{ID: "op/x/Overload", OverloadOf: &target}}},
-			nested,
-		},
-	}}}, target
 }
 
 // TestCheckDanglingRefs_NilTypeDefIsNotFollowed pins report-only behaviour on

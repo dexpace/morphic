@@ -411,3 +411,15 @@ func unresolvedRefs(diags []ir.Diagnostic) []ir.Diagnostic {
 	}
 	return out
 }
+
+// compileClean compiles src with opts and requires no error diagnostic.
+func compileClean(t *testing.T, src string, opts openapi.Options) *ir.Document {
+	t.Helper()
+	doc, diags, err := openapi.New().Compile(t.Context(),
+		[]compilers.Source{{Path: "spec.yaml", Data: []byte(src)}},
+		compilers.Options{FormatOptions: opts})
+	require.NoError(t, err)
+	require.NotNil(t, doc)
+	assertNoErrorDiags(t, diags)
+	return doc
+}
