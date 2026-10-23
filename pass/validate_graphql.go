@@ -2,6 +2,7 @@ package pass
 
 import (
 	"fmt"
+	"reflect"
 	"slices"
 
 	"github.com/dexpace/morphic/ir"
@@ -78,4 +79,15 @@ func appendTypeIDs(dst []ir.TypeID, root any) []ir.TypeID {
 		dst = append(dst, ir.TypeID(s.id))
 	}
 	return dst
+}
+
+// typeIDType is the reflect.Type of ir.TypeID, the one reference class
+// graphqlReachableTypes needs without a document to resolve against.
+var typeIDType = reflect.TypeFor[ir.TypeID]()
+
+// collectTypeIDs returns every ir.TypeID reachable from root. Type reachability
+// follows one class, so it names that class rather than resolving against a
+// document it is not handed.
+func collectTypeIDs(root any, path string) ([]refSite, bool) {
+	return collectRefs(root, path, func(t reflect.Type) bool { return t == typeIDType })
 }

@@ -87,10 +87,6 @@ func checkPropIDRefs(doc *ir.Document) []ir.Diagnostic {
 	return diags
 }
 
-// typeIDType is the reflect.Type of ir.TypeID, the one reference class
-// graphqlReachableTypes needs without a document to resolve against.
-var typeIDType = reflect.TypeFor[ir.TypeID]()
-
 // propIDType and propertyType are the reflect.Types of ir.PropID and the struct
 // that declares one. A PropID references no document-level registry — a property
 // is a position inside its model — so both halves of resolving one come from the
@@ -147,13 +143,6 @@ func collectWalk(root any, path string, isRef func(reflect.Type) bool, onStruct 
 		return strings.Compare(a.where, b.where)
 	})
 	return sites, truncated
-}
-
-// collectTypeIDs returns every ir.TypeID reachable from root. Type reachability
-// follows one class, so it names that class rather than resolving against a
-// document it is not handed.
-func collectTypeIDs(root any, path string) ([]refSite, bool) {
-	return collectRefs(root, path, func(t reflect.Type) bool { return t == typeIDType })
 }
 
 // collectPropIDs returns every ir.PropID reference reachable from root together
