@@ -56,22 +56,3 @@ func TestValidate_ASelfContainingGroupIsReachedOnceAndIsNotATruncation(t *testin
 	assert.Equal(t, 1, countCode(t, diags, "pass/oneway-with-responses"),
 		"the operation is reached once, not once per lap")
 }
-
-// TestValidate_ExcessiveGroupNestingIsTruncated drives the ir.MaxGroupDepth guard
-// in ir.ForEachOperation: an operation buried below the depth cap is never
-// visited, so its one-way violation goes unreported (the recursion stops). The
-// truncation itself is reported instead — see
-// TestValidate_GroupWalkTruncationIsReported.
-func TestValidate_ExcessiveGroupNestingIsTruncated(t *testing.T) {
-	t.Parallel()
-	// A one-way op with responses would normally raise oneway-with-responses.
-	buried := ir.Operation{ID: "deep", OneWay: true, Responses: []ir.Response{{}}}
-	// Nest it 200 levels deep, past ir.MaxGroupDepth (128).
-	group := ir.OperationGroup{Operations: []ir.Operation{buried}}
-	for range 200 {
-		group = ir.OperationGroup{Groups: []ir.OperationGroup{group}}
-	}
-	doc := validDoc()
-	doc.Services = []ir.Service{{ID: "s", Groups: []ir.OperationGroup{group}}}
-	assert.NotContains(t, codes(pass.Validate(doc)), "pass/oneway-with-responses")
-}
