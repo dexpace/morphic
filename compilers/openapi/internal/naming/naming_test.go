@@ -198,11 +198,18 @@ func TestAt_NamesASchemaAfterItsOwner(t *testing.T) {
 	}{
 		{"a request body, by its operation", op + "/requestBody" + json, "postA_request"},
 		{"beneath it, off that name", op + "/requestBody" + json + "/properties/x/items", compile.SubHint("x", "item")},
+		{"a pattern's schema beneath it, off that name", op + "/requestBody" + json + "/patternProperties/a",
+			compile.SubHint("postA_request", "pattern")},
+		{"an enum literal of it, off that name", op + "/requestBody" + json + "/enum/1",
+			compile.SubHint("postA_request", "1")},
+		{"a variant of it multi-typed, by that name", op + "/requestBody" + json + "/type/1", "postA_request"},
 		{"an itemSchema, as its media type's item", op + "/requestBody/content/application~1jsonl/itemSchema",
 			compile.SubHint("postA_request", "item")},
 		{"a request body no operationId names", "/paths/~1a/put/requestBody" + json, "request"},
 		{"a component request body, by its key", "/components/requestBodies/Body" + json, "Body"},
 		{"a response", op + "/responses/200" + json, "response"},
+		{"a tuple slot beneath it, off that name", op + "/responses/200" + json + "/prefixItems/1",
+			compile.SubHint("response", "1")},
 		{"a component response, by its key", "/components/responses/Err" + json, "Err"},
 		{"a parameter, by its name", op + "/parameters/0/schema", "limit"},
 		{"a parameter's content", op + "/parameters/1" + json, "filter"},
@@ -266,11 +273,11 @@ paths:
 
 // TestAt_NamesABranchAfterItsTarget pins that a composition branch holding a
 // $ref takes the name of the position the $ref lands on (GitHub #521, #729),
-// beneath a component or not, in this document or another; keeps its own
-// where that names nothing; and, where the $ref lands on no position, takes
-// the name its text suggests: the position a fragment spells, decoded at both
-// layers (GitHub #505), else what follows its last '/', decoded when that is
-// UTF-8 (GitHub #520).
+// beneath a component or not, in this document or another, whose root is
+// named for the document; keeps its own where that names nothing; and, where
+// the $ref lands on no position, takes the name its text suggests: the
+// position a fragment spells, decoded at both layers (GitHub #505), else what
+// follows its last '/', decoded when that is UTF-8 (GitHub #520).
 func TestAt_NamesABranchAfterItsTarget(t *testing.T) {
 	t.Parallel()
 	const under = "/paths/~1x/get/responses/200/content/application~1json/schema"
@@ -284,7 +291,9 @@ func TestAt_NamesABranchAfterItsTarget(t *testing.T) {
 		{"a branch landing on another branch", "/components/schemas/X/oneOf/0", "#/components/schemas/Z/anyOf/0", "Y"},
 		{"a branch whose target names nothing", "/components/schemas/X/oneOf/0", "#/components/schemas/", "variant_0"},
 		{"a branch landing in another document", "/components/schemas/X/oneOf/0", "./other.yaml#/Pet", "Pet"},
-		{"a branch landing on another document's root", "/components/schemas/X/oneOf/0", "./other.yaml", "variant_0"},
+		{"a branch landing on another document's root", "/components/schemas/X/oneOf/0", "./other.yaml", "other.yaml"},
+		{"a branch landing on another document's root by an empty fragment", "/components/schemas/X/oneOf/0",
+			"./other.yaml#", "other.yaml"},
 		{"an unread document, by its fragment", "/components/schemas/X/oneOf/0",
 			"./absent.yaml#/components/schemas/Cat~1Dog", "Cat/Dog"},
 		{"an unread document, a percent escape decoded", "/components/schemas/X/oneOf/0",
@@ -398,8 +407,8 @@ components:
 // TestAt_NamesWhatAReferenceReadsAsASchema pins positions the grammar reads as
 // raw YAML, or in another document, named as the reference reaching them
 // reads them (bind.Table.Kinds): a schema an extension holds is named from
-// its pointer, as no owner names it, a parameter another document holds by its name, and a
-// document a reference reads as a schema from its root, which no owner names.
+// its pointer, as no owner names it, a parameter another document holds by
+// its name, and a document a reference reads as a schema after the document.
 func TestAt_NamesWhatAReferenceReadsAsASchema(t *testing.T) {
 	t.Parallel()
 	tb := table(t, head+`x-lib: {Thing: {type: object, properties: {p: {type: object}}}}
@@ -426,8 +435,47 @@ components:
 	assert.Equal(t, "size", read.At(bind.Position{Doc: params, Pointer: "/Size/schema"}))
 	assert.Equal(t, compile.SubHint("q", "item"),
 		read.At(bind.Position{Doc: params, Pointer: "/Size/schema/properties/q/items"}))
-	assert.Empty(t, read.At(bind.Position{Doc: pet}), "a document's root schema has no owner")
+	assert.Equal(t, "pet.yaml", read.At(bind.Position{Doc: pet}), "a document's root schema is named for the document")
 	assert.Equal(t, compile.SubHint("tag", "item"), read.At(bind.Position{Doc: pet, Pointer: "/properties/tag/items"}))
-	assert.Equal(t, compile.SubHint("", "item"), read.At(bind.Position{Doc: list, Pointer: "/items"}),
+	assert.Equal(t, compile.SubHint("list.yaml", "item"), read.At(bind.Position{Doc: list, Pointer: "/items"}),
 		"the root's items are named by role, not as a key")
+}
+
+// TestAt_NamesAStructureAReferenceReadsInsideRawYAML pins that a reference
+// reading raw YAML as an owner starts a structure of its own: a parameter, a
+// request body or a response kept under a schema's x- key is named as one
+// written in its own place is, not after the schema holding the raw YAML, and
+// so is a parameter in a document another reference reads whole as a schema.
+func TestAt_NamesAStructureAReferenceReadsInsideRawYAML(t *testing.T) {
+	t.Parallel()
+	tb := table(t, head+`paths:
+  /a:
+    post:
+      parameters:
+        - $ref: '#/components/schemas/S/x-param'
+        - $ref: './lib.yaml#/x-params/P'
+      requestBody: {$ref: '#/components/schemas/S/x-body'}
+      responses:
+        "200": {$ref: '#/components/schemas/S/x-resp'}
+components:
+  schemas:
+    S:
+      type: object
+      x-param: {name: foo, in: query, schema: {type: object}}
+      x-body: {content: {application/json: {schema: {type: object}}}}
+      x-resp: {description: r, content: {application/json: {schema: {type: array, items: {type: object}}}}}
+    L: {$ref: './lib.yaml'}
+`, map[string]string{
+		"lib.yaml": "type: object\nx-params:\n  P: {name: page, in: query, schema: {type: object}}\n",
+	})
+	read := naming.New(tb)
+	lib := docNamed(t, tb, "lib.yaml")
+	const json = "/content/application~1json/schema"
+
+	assert.Equal(t, "foo", read.At(at("/components/schemas/S/x-param/schema")))
+	assert.Equal(t, "request", read.At(at("/components/schemas/S/x-body"+json)))
+	assert.Equal(t, compile.SubHint("response", "item"), read.At(at("/components/schemas/S/x-resp"+json+"/items")))
+	assert.Equal(t, "page", read.At(bind.Position{Doc: lib, Pointer: "/x-params/P/schema"}),
+		"a parameter in a document read whole as a schema")
+	assert.Equal(t, "lib.yaml", read.At(bind.Position{Doc: lib}), "the document read whole")
 }

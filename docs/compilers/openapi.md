@@ -644,10 +644,14 @@ neutralized first so an empty parent gives `empty_item`, never `_item`. A reques
 that references reach is named for its declaration, never for whichever reference lowered first: a
 component's name, a header's own key, the `operationId` of the operation declaring the body, in this
 document or another and whether or not that operation is lowered, or `request` for a body no
-operation with an `operationId` declares. Every such name is a function of the documents and the
-position alone, read where the position is written, so no lowering order changes it: a union
-variant, or a composition branch holding a `$ref`, is named as the position the `$ref` lands on, in
-whichever document, and keeps its own name where that names nothing. `Aliases` is never set.
+operation with an `operationId` declares. A schema is named for the nearest object holding it, so
+one a parameter, request body or response holds is named for that object even where the object is
+kept under an extension and read through a `$ref`, and a document a `$ref` reads whole as a schema
+is named for the document (`./Cat.yaml` names its root `cat_yaml`). Every such name is a function of
+the documents and the position alone, read where the position is written, so no lowering order
+changes it: a union variant, or a composition branch holding a `$ref`, is named as the position the
+`$ref` lands on, in whichever document, and keeps its own name where that names nothing. `Aliases`
+is never set.
 
 - Cases: `neutral-naming`, `empty-names`
 - Tests: `ids.TestComponentSchemaNamedEmpty_SeparatesAnEmptyNameFromNoEntry`,
@@ -656,7 +660,8 @@ whichever document, and keeps its own name where that names nothing. `Aliases` i
   `operation.TestContent_ASharedBodyOrHeaderIsNamedForItsDeclaration`,
   `schema.TestComponentBody_SubtreeIsNamedByItsDeclaration`,
   `schema.TestUnionVariant_UnderPathsIsNamedAsTheNodeItHolds`,
-  `naming.TestAt_NamesASchemaAfterItsOwner`, `naming.TestAt_NamesABranchAfterItsTarget`
+  `schema.TestUnionVariant_AWholeDocumentIsNamedForIt`, `naming.TestAt_NamesASchemaAfterItsOwner`,
+  `naming.TestAt_NamesABranchAfterItsTarget`, `naming.TestAt_NamesAStructureAReferenceReadsInsideRawYAML`
 - Status: partly built: union variants and inline schemas ignore their `title` as a hint (#662).
 
 ### `values`

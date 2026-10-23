@@ -221,6 +221,39 @@ components:
 	assert.Empty(t, cmp.Diff(want, got))
 }
 
+// TestUnionVariant_AWholeDocumentIsNamedForIt is the same property for a
+// branch whose $ref names another document whole: the document's root, which
+// no owner holds, is named for the document, so the variant and the node it
+// holds are both named after the file, as is a wrapped branch's variant
+// (GitHub #1018). A position inside the document keeps its own name.
+func TestUnionVariant_AWholeDocumentIsNamedForIt(t *testing.T) {
+	t.Parallel()
+	doc, diags, _ := compileBeside(t, map[string]string{
+		"Cat.yaml": "type: object\nproperties:\n  toy: {type: object, properties: {name: {type: string}}}\n",
+	}, `openapi: 3.0.3
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+    Pet:
+      oneOf:
+        - $ref: './Cat.yaml'
+        - {allOf: [{$ref: './Cat.yaml'}], description: a cat}
+        - $ref: './Cat.yaml#/properties/toy'
+`)
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	pet, ok := typeByName(doc, "Pet").(*ir.Union)
+	require.True(t, ok, "Pet should be a union")
+	require.Len(t, pet.Variants, 3)
+	got := variantsNamingTheirNodes(t, doc, map[string]ir.Variant{
+		"the document":     pet.Variants[0],
+		"a position in it": pet.Variants[2],
+	})
+	assert.Empty(t, cmp.Diff(map[string]string{"the document": "cat_yaml", "a position in it": "toy"}, got))
+	assert.Equal(t, "cat_yaml", pet.Variants[1].Name.Hint, "the wrapped branch is named for its $ref")
+}
+
 func TestOneOf_WithDiscriminator(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    Cat:

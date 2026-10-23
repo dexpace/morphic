@@ -16,30 +16,70 @@ import (
 const componentSchemaTokens = 3
 
 // owner returns the hint of the object p belongs to and how many of p's
-// tokens lead to its schema: the first position on the way the grammar reads
-// as a schema, named for what holds it there (ownerOf). A position whose
-// first schema nothing names an owner of, such as one only a $ref reaches
-// under an x- key, is named from its pointer alone (pointerOwner).
+// tokens lead to its schema: the schema whose structure holds p
+// (structureRoot), named for what holds it there (ownerOf), or for its
+// document where it is a document's root (documentName). A structure nothing
+// names an owner of, such as one only a $ref reaches under an x- key, is
+// named from its pointer alone (pointerOwner).
 func (n *Namer) owner(p bind.Position, tokens []string) (int, string) {
 	if n.table == nil {
 		return pointerOwner(tokens)
 	}
 	kinds := n.table.Kinds(p)
-	if kinds[0] == bind.KindSchema {
-		// A document whose root a reference reads as a schema owns nothing
-		// above it to name it after.
-		return 0, ""
+	root, ok := structureRoot(kinds)
+	switch {
+	case !ok:
+		return pointerOwner(tokens)
+	case root == 0:
+		return 0, n.documentName(p.Doc)
 	}
-	for i := range tokens {
-		if i+1 >= len(kinds) || kinds[i+1] != bind.KindSchema {
-			continue
-		}
-		if hint, ok := n.ownerOf(p.Doc, tokens, kinds, i); ok {
-			return i + 1, hint
-		}
-		break
+	if hint, ok := n.ownerOf(p.Doc, tokens, kinds, root-1); ok {
+		return root, hint
 	}
 	return pointerOwner(tokens)
+}
+
+// structureRoot returns the index in kinds of the schema whose structure
+// holds the last position: the innermost schema on the way, which holds what
+// lies past it, such as an enum literal, then the topmost schema above it that
+// no position outside a structure (inStructure) separates it from. An object
+// a reference reads inside a schema's raw YAML, such as a parameter kept
+// under its x- key, so starts a structure of its own. ok is false where no
+// schema is on the way.
+func structureRoot(kinds []bind.Kind) (int, bool) {
+	root := -1
+	for i, k := range kinds {
+		if k == bind.KindSchema {
+			root = i
+		}
+	}
+	if root < 0 {
+		return 0, false
+	}
+	for i := root - 1; i >= 0 && inStructure(kinds[i]); i-- {
+		if kinds[i] == bind.KindSchema {
+			root = i
+		}
+	}
+	return root, true
+}
+
+// inStructure reports whether a position of kind k can lie inside a schema's
+// structure: a schema, or a map or a list of them, a list being
+// bind.KindOther. That kind covers objects such as a path item too, but each
+// holds a schema only through an owner, which ends a structure as raw YAML
+// does.
+func inStructure(k bind.Kind) bool {
+	return k == bind.KindSchema || k == bind.KindSchemaMap || k == bind.KindOther
+}
+
+// documentName is the hint the root of the document doc is named by where a
+// reference reads it as a schema, which no owner holds: the document's name,
+// what follows its last '/' (refHint), as a $ref spelling the document
+// suggests it. doc is one the table holds, since only a reading the table
+// recorded makes a root a schema (bind.Table.Kinds).
+func (n *Namer) documentName(doc bind.DocID) string {
+	return refHint(n.table.Document(doc).Name)
 }
 
 // ownerOf returns the hint of the schema whose key is tokens[i], held at the
