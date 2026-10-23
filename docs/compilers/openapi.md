@@ -58,21 +58,24 @@ as an `openapi/undecodable-source` error, and nothing compiles. A YAML stream lo
 its documents that holds content; the documents after it that hold content reach the IR in no form,
 reported once as an `openapi/stream-documents-dropped` error at the first of them, and the first
 still lowers. A document holding nothing, a bare separator or an explicit null, is not counted.
-Detection reads the version off the root mapping as the parser does, through aliases, `<<` merges and
-a repeated key's last value, so the compile reads the version the source is routed by. A root that
-merges deeper than that reading expands, writing no version of its own, is declined as an
-`openapi/budget-exceeded` error, since a version past the bound may outrank one found above it. A
-merge cycle hides no key, and is the compile's to refuse. A
-mapping tagged anything but `!!map`, which OpenAPI's limit on YAML tags forbids, refuses the source
-before the parser reads it, as an `openapi/tagged-mapping` error at the tagged mapping with the
-least pointer, and it compiles to no Document. A tagged scalar is not refused here; what it lowers
-to is [`values`](#values)'.
+Detection reads the version off the root mapping as the parser does, through aliases, `<<` merges
+and a repeated key's last value, so the compile reads the version the source is routed by. A root
+that merges deeper than that reading expands is declined as an `openapi/budget-exceeded` error,
+whatever its format, since a version past the bound may outrank one found above it, unless the
+root's own keys settle the version: it writes `openapi` with a version, or writes both keys. A
+`swagger` it writes alone settles nothing, as an `openapi` past the bound would outrank it. A merge
+cycle hides no key, and is the compile's to refuse. A mapping tagged anything but `!!map`, which
+OpenAPI's limit on YAML tags forbids, refuses the source before the parser reads it, as an
+`openapi/tagged-mapping` error at the tagged mapping with the least pointer, and it compiles to no
+Document. A tagged scalar is not refused here; what it lowers to is [`values`](#values)'.
 
 - Codes: `openapi/undecodable-source`, `openapi/stream-documents-dropped`, `openapi/tagged-mapping`,
   `openapi/budget-exceeded`
 - Tests: `detect.TestRecognize_ABrokenDocumentIsReportedAtAnySize`,
   `openapi.TestDetect_ReadsTheVersionTheCompileReads`,
-  `detect.TestRecognize_AReadCutShortIsReported`, `detect.TestRecognize_AMergeCycleHidesNoKey`,
+  `detect.TestRecognize_AReadCutShortIsReported`,
+  `detect.TestSniff_ReadsAMergeChainAsFarAsTheViewExpandsIt`,
+  `detect.TestRecognize_AMergeCycleHidesNoKey`,
   `load.TestLoad_AStreamLowersItsFirstDocumentAndReportsTheRest`,
   `load.TestLoad_ATaggedMappingIsRefusedBeforeParsing`
 - Status: partly built: a JSON source holding a surrogate-pair escape is refused as undecodable
