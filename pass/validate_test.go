@@ -12,8 +12,8 @@ import (
 	"github.com/dexpace/morphic/pass"
 )
 
-// validDoc returns a minimal internally consistent document that every case
-// mutates. Keep it tiny: one model referencing one primitive.
+// validDoc returns a minimal internally consistent document for a case to
+// mutate. Keep it tiny: one model referencing one primitive.
 func validDoc() *ir.Document {
 	return &ir.Document{
 		IRVersion: ir.IRVersion, Name: "t", Version: "1",
