@@ -6,8 +6,10 @@
 // identity, the indexes derived once at entry, and the constructors that stamp
 // provenance.
 //
-// It is a package because the schema walk and the operation walk both need
-// those answers and neither may reach the other (micro-compiler-design §5.1).
+// It is a package because every lowering package needs those answers, and only
+// one beneath them all serves each: the schema walk may not reach the
+// operation walk, which reaches it, and auth and document reach neither
+// (micro-compiler-design §5.1).
 package lowering
 
 import (
