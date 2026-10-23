@@ -11,10 +11,10 @@ import (
 )
 
 // TestMeta_UnserializableExtensionStillWarns pins the document-level twin of
-// TestAuth_UnserializableExtensionStillWarns: when every top-level x-* extension
-// fails to serialize, Lower ends up with an empty Unmodeled map, so the
-// warning must come from the extension reader rather than from a branch guarded
-// on what was kept — the shape that used to drop it silently.
+// auth's TestAuth_UnserializableExtensionStillWarns: when every top-level x-*
+// extension fails to serialize, Lower ends up with an empty Unmodeled map, so
+// the warning must come from the extension reader rather than from a branch
+// guarded on what was kept — the shape that used to drop it silently.
 func TestMeta_UnserializableExtensionStillWarns(t *testing.T) {
 	t.Parallel()
 	spec := `openapi: 3.1.0

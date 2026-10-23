@@ -84,9 +84,9 @@ func TestServerVariables_NilEntrySkipped(t *testing.T) {
 }
 
 // TestLowerServers_EveryEntrySkippedIsNil pins, for the servers, the guard
-// TestLowerSecuritySchemes_NothingLoweredIsNilNotEmpty pins for the schemes:
-// when no entry survives, the field stays unset rather than becoming an empty
-// list the source never declared.
+// auth's TestLowerSecuritySchemes_NothingLoweredIsNilNotEmpty pins for the
+// schemes: when no entry survives, the field stays unset rather than becoming
+// an empty list the source never declared.
 func TestLowerServers_EveryEntrySkippedIsNil(t *testing.T) {
 	t.Parallel()
 	doc := &soa.OpenAPI{Servers: []*soa.Server{nil, nil}}
