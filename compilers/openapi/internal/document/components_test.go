@@ -1,4 +1,4 @@
-package openapi
+package document_test
 
 import (
 	"os"
@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
@@ -233,8 +234,8 @@ components:
     P: {name: p, in: query, schema: {type: string}}
 `
 	require.NoError(t, os.WriteFile(path, []byte(src), 0o600))
-	doc, diags, err := New().Compile(t.Context(), []compilers.Source{{Path: path, Data: []byte(src)}},
-		compilers.Options{Reader: reader.Disk{}, FormatOptions: Options{AllowExternalRefs: true}})
+	doc, diags, err := openapi.New().Compile(t.Context(), []compilers.Source{{Path: path, Data: []byte(src)}},
+		compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
 	require.NoError(t, err)
 	openapitest.RequireNoErrorDiags(t, diags)
 	require.Len(t, openapitest.FindOp(t, doc, "a").Params, 1, "the reference resolves and the parameter lowers")

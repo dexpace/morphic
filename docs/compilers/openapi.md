@@ -499,7 +499,7 @@ of its own is reported as an `openapi/cycle-scan-failed` warning, and the compil
 `info.title` ([`naming`](#naming)).
 
 - Cases: `docs-summary-desc`
-- Tests: `openapi.TestMeta_FullDocumentMetadata`, `openapi.TestCompile_EndToEnd`
+- Tests: `document.TestMeta_FullDocumentMetadata`, `openapi.TestCompile_EndToEnd`
 
 ### `self-uri`
 
@@ -606,9 +606,9 @@ that decision lives (§12), which is what keeps a promotion pass from mistaking 
 
 - Cases: `unreferenced-components`, `component-media-types-32`
 - Codes: `openapi/degraded-construct`
-- Tests: `openapi.TestUnreferencedComponents_ReferenceNothingFollowsKeepsItsTarget`,
-  `openapi.TestUnreferencedComponents_ReadAsTheParserReadsThem`,
-  `openapi.TestUnreferencedComponents_SelfReferenceByFileNameReaches`
+- Tests: `document.TestUnreferencedComponents_ReferenceNothingFollowsKeepsItsTarget`,
+  `document.TestUnreferencedComponents_ReadAsTheParserReadsThem`,
+  `document.TestUnreferencedComponents_SelfReferenceByFileNameReaches`
 - Status: partly built: no reference into `components/mediaTypes` is followed, so the section is
   kept whole however much of it a document uses (#856), and a section entry whose key is no scalar
   is dropped without a diagnostic (#947).
@@ -1890,7 +1890,7 @@ schema declaring it.
 
 - Cases: `dialect-keywords`
 - Codes: `openapi/degraded-construct`
-- Tests: `schema.TestDialectKeywords_KeptOutOfScope`, `openapi.TestMeta_JSONSchemaDialectIsKept`
+- Tests: `schema.TestDialectKeywords_KeptOutOfScope`, `document.TestMeta_JSONSchemaDialectIsKept`
 
 ### `vocabulary-coverage`
 
@@ -2566,7 +2566,7 @@ others in the lists [`path-item-servers`](#path-item-servers) keeps, and reporte
 
 - Cases: `servers-variables`
 - Codes: `openapi/duplicate-server-name`
-- Tests: `openapi.TestDuplicateServerName_BothServersLower`,
+- Tests: `document.TestDuplicateServerName_BothServersLower`,
   `load.TestServerRepeats_ReportsEveryListTheSourceWrites`,
   `load.TestServerRepeats_ReportsOnlyANameOneListRepeatsExactly`
 - Status: partly built: the default server the parser injects for a document writing none is lowered

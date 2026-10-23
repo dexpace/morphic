@@ -97,6 +97,7 @@ var schemaRecursion = []string{
 var loweringPackages = []string{
 	"compilers/openapi",
 	"compilers/openapi/internal/auth",
+	"compilers/openapi/internal/document",
 	"compilers/openapi/internal/operation",
 	"compilers/openapi/internal/schema",
 }

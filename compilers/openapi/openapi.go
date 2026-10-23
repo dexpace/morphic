@@ -12,6 +12,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/auth"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/document"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
@@ -201,7 +202,7 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, 
 	}
 	out.Types = reg
 
-	m, metaDiags := lowerMeta(c)
+	m, metaDiags := document.Lower(c)
 	out.Name, out.Version = m.Name, m.Version
 	out.TermsOfService, out.Docs = m.TermsOfService, m.Docs
 	out.Contact, out.License = m.Contact, m.License
