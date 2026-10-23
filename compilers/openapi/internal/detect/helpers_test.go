@@ -47,9 +47,9 @@ func padTo(src, filler string) string {
 	return b.String()
 }
 
-// dupRepeats is how many times the fixtures below repeat a root key. It is not a
-// threshold: the wrong answer reproduces at two repeats, and this many only
-// makes the fixture recognizably a document rather than a corner. It is
+// dupRepeats is how many times the repeated-key fixtures repeat a root key. It
+// is not a threshold: the wrong answer reproduces at two repeats, and this many
+// only makes the fixture recognizably a document rather than a corner. It is
 // deliberately far below the 6,553 of the report — yaml.v3 raises one error per
 // pair of matching keys, so that count produced 21,467,628 of them and a 1.2 GB
 // message, and a fixture that large turns a revert into an out-of-memory kill

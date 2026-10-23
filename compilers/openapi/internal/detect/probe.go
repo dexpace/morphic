@@ -27,12 +27,12 @@ type sniffProbe struct {
 
 // sniff reads the discriminating keys out of data. For anything it cannot read
 // it returns the zero probe and the parser's error; whether that error is
-// worth reporting is Detect's question.
+// worth reporting is Recognize's question.
 //
 // The document is decoded whole and exactly, the only way to tell one that
 // declares nothing from one that will not parse. The parse is the one the
 // compile lowers, not a second reading beside it that would have to be kept in
-// agreement with it (GitHub #486). The caller's byte budget, which Detect
+// agreement with it (GitHub #486). The caller's byte budget, which Recognize
 // checks first, bounds it.
 func sniff(data []byte) (sniffProbe, *load.Parsed, error) {
 	probe, parsed, err := decodeYAML(data)

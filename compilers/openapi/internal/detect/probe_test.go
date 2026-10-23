@@ -62,11 +62,11 @@ func TestSniff_ReadsALargeDocumentWhole(t *testing.T) {
 	}
 }
 
-// TestSniff_ReadsAMergeChainAsFarAsTheViewExpandsIt pins where the bound on
-// the root's merges lies, nodeview's, and what a read it cuts short answers. A
-// key past the bound may outrank what the read found, so the answer is
-// unknown, and Detect says the bound stopped it, unless the root's own pairs,
-// which outrank every merge, settle it.
+// TestSniff_ReadsAMergeChainAsFarAsTheViewExpandsIt pins where the bound on the
+// root's merges lies, nodeview's, and what a read it cuts short answers. A key
+// past the bound may outrank what the read found, so the answer is unknown, and
+// Recognize says the bound stopped it, unless the root's own pairs, which
+// outrank every merge, settle it.
 func TestSniff_ReadsAMergeChainAsFarAsTheViewExpandsIt(t *testing.T) {
 	t.Parallel()
 	const limit = nodeview.MergeDepthLimit
@@ -101,8 +101,8 @@ func TestSniff_ReadsAMergeChainAsFarAsTheViewExpandsIt(t *testing.T) {
 }
 
 // TestDecodeYAML_RefusesARootThatIsNoMapping pins the shape complaint. A source
-// with no root mapping has no top-level keys, and saying so is what lets Detect
-// report bytes that declare a key it serves and will not read.
+// with no root mapping has no top-level keys, and saying so is what lets
+// Recognize report bytes that declare a key it serves and will not read.
 func TestDecodeYAML_RefusesARootThatIsNoMapping(t *testing.T) {
 	t.Parallel()
 	cases := []struct{ name, src, wantErr string }{
@@ -153,10 +153,11 @@ func TestSniff_CostIsNotQuadraticInRepeatedKeys(t *testing.T) {
 // reached through a `<<`. Such bytes name a key this compiler serves and do not
 // say what dialect, so the probe cannot read them.
 //
-// Whether Detect reports that or declines in silence is declaresProbeKey's
-// answer and not this one's, and it is asserted separately below: a mapping
-// under the key is another tool's configuration as often as a broken spec, and
-// declares no version either way, so Detect declines all of them.
+// Whether Recognize reports that or declines in silence is declaresProbeKey's
+// answer and not this one's, and
+// TestRecognize_AVersionKeyOfTheWrongShapeIsNoDeclaration asserts it: a
+// mapping under the key is another tool's configuration as often as a broken
+// spec, and declares no version either way, so Recognize declines all of them.
 func TestDecodeYAML_RefusesAVersionKeyThatIsNoScalar(t *testing.T) {
 	t.Parallel()
 	cases := []struct{ name, src, wantErr string }{

@@ -11,8 +11,8 @@ import (
 //
 // It exists so the lowering can return what it read instead of writing into the
 // document as it goes. The caller owns the document and does the assigning,
-// which is what lets every function below be checked against a literal context
-// and nothing else.
+// which is what lets every lowering in this package be checked against a
+// literal context and nothing else.
 type Meta struct {
 	Name           string
 	Version        string
@@ -25,8 +25,11 @@ type Meta struct {
 }
 
 // Lower lowers the document-level metadata that is not part of the type or
-// service graph: info, servers, and the extensions of every object around them
-// that lowers to no node of its own (ir-design §10, §12).
+// service graph: info, servers, and what the document writes that lowers to no
+// node of its own, kept verbatim (ir-design §10, §12).
+//
+// It must run after every other lowering: which components it keeps depends on
+// what they reached (lowering.Ctx.Reached).
 func Lower(c lowering.Ctx) (Meta, []ir.Diagnostic) {
 	m := lowerInfo(c)
 

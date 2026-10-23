@@ -7,9 +7,9 @@ import (
 )
 
 // declaresProbeKey reports whether data declares a version under a
-// discriminating key. Detect asks only once the probe cannot read the source,
-// where "not YAML" alone fits a Protobuf or Smithy source too, and only within
-// its byte budget.
+// discriminating key. Recognize asks only once the probe cannot read the
+// source, where "not YAML" alone fits a Protobuf or Smithy source too, and only
+// within its byte budget.
 //
 // Neither reading may widen to "the name occurs before a colon": other formats
 // nest such a key and must not get this compiler's parse error. The version

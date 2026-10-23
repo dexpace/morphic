@@ -151,7 +151,7 @@ it, the schema stamp, the namespaces, a service and a well-formed source table a
 reports, a `compile/registry-refused` error for each entry the registry refused among them.
 
 **What stays in the OpenAPI compiler.** Three of its pieces read as if any format could use them:
-the YAML view (`internal/nodeview`), version sniffing (`detect.go`) and document identity
+the YAML view (`internal/nodeview`), version sniffing (`internal/detect`) and document identity
 (`resolve.SameDocument`, `resolve.IsURL`). None moves into `compilers/compile`, because what each
 owes is agreement with the OpenAPI parser library, not with YAML or RFC 3986. The view reads a
 mapping as the library's unmarshaller does, its `<<` merges and repeated keys included, which
@@ -383,8 +383,8 @@ morphic/
 │   ├── compile/            #           What every compiler shares: type registry + coordinates,
 │   │                       #           diagnostics, and the naming/identifier grammars.
 │   ├── openapi/            #           OpenAPI 3.x → IR (milestone 1). The public face: the
-│   │   │                   #           Compiler, its Options, document metadata, and the run that
-│   │   │                   #           calls the four lowerings below in order.
+│   │   │                   #           Compiler, its Options, and the run that calls the
+│   │   │                   #           lowerings below in order.
 │   │   └── internal/       #             Its own packages, each below that face:
 │   │       ├── diag/       #             diagnostic codes and the constructor
 │   │       ├── ids/        #             pointer construction; pointer → TypeID
@@ -395,12 +395,14 @@ morphic/
 │   │       ├── annotation/ #             what a schema says about itself, not its shape
 │   │       ├── oas/        #             the OpenAPI Specification's rules by minor, and their check
 │   │       ├── load/       #             parse, validate, resolve
+│   │       ├── detect/     #             a source recognized from its bytes, on load's parse
 │   │       ├── resolve/    #             what a $ref names; reference-or-inline entries
 │   │       ├── merge/      #             allOf property reconciliation
 │   │       ├── lowering/   #             the immutable context every lowering reads
 │   │       ├── schema/     #             the schema walk, composition, preservation
 │   │       ├── auth/       #             security schemes and requirements
-│   │       └── operation/  #             path items, webhooks, callbacks, params, content
+│   │       ├── operation/  #             path items, webhooks, callbacks, params, content
+│   │       └── document/   #             info, servers, and what the document keeps verbatim
 │   ├── typespec/ smithy/ graphql/ asyncapi/ protobuf/ otp/   (future)
 ├── pass/                   # Layer 1 — IR → IR passes (validate, dedup, filter, slice, overlay).
 ├── emitters/               # Layer 2 — emitter contract, plan layer, registry (future).

@@ -12,7 +12,7 @@ import (
 )
 
 // reading is how detection reads a document: it parses, or it does not and
-// Detect says so, or it does not and Detect is silent.
+// Recognize says so, or it does not and Recognize is silent.
 type reading int
 
 const (
@@ -20,11 +20,11 @@ const (
 	parses reading = iota
 	// unreadable is a document the probe cannot read — it does not parse, or
 	// its version key is no scalar — and that declares no version where a
-	// document declares one, so Detect declines it in silence: its bytes may
+	// document declares one, so Recognize declines it in silence: its bytes may
 	// well be another format's.
 	unreadable
 	// reported is a document the probe cannot read that declares a version
-	// where a document declares one, so Detect reports it as this compiler's
+	// where a document declares one, so Recognize reports it as this compiler's
 	// own and broken.
 	reported
 )
@@ -44,8 +44,8 @@ type declarationRow struct {
 // wrong, and a correct parser is no reason to stop asking.
 //
 // Each row says how it reads, not only what it declares. A row declaring nothing
-// would otherwise pass on a document that never parsed, and Detect's answer to
-// one, a complaint or silence, is part of what the row pins.
+// would otherwise pass on a document that never parsed, and Recognize's answer
+// to one, a complaint or silence, is part of what the row pins.
 func declarations() []declarationRow {
 	const v = "3.1.0"
 	return []declarationRow{
@@ -326,10 +326,10 @@ func TestRecognize_ABrokenDocumentIsReportedAtAnySize(t *testing.T) {
 	}
 }
 
-// TestRecognize_AnEmptyFirstDocumentIsNotTheDocument pins GitHub #481 at the
-// public face: a stream that opens with a document holding nothing is routed on
-// the document behind it, where it used to be declined as undecodable — with a
-// whole spec two lines further down.
+// TestRecognize_AnEmptyFirstDocumentIsNotTheDocument pins GitHub #481 where a
+// source is recognized: a stream that opens with a document holding nothing is
+// routed on the document behind it, where it used to be declined as undecodable
+// — with a whole spec two lines further down.
 func TestRecognize_AnEmptyFirstDocumentIsNotTheDocument(t *testing.T) {
 	t.Parallel()
 	want := compilers.SourceFormat{Name: "openapi", Version: "3.1"}
