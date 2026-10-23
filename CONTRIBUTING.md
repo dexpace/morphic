@@ -138,10 +138,10 @@ rule sees a node of the input changed in place, which `UpdateType`'s copy is the
    returns, its own findings appended.
    *Fails if missed:* the build, once step 3 lists the pass, for a method `pass.Pass` requires, and
    `make vet` for a registry built, or an entry of one written, other than through an `ir.Editor`.
-2. **Test it** beside it in `pass/`, each file's cases in the `_test.go` named after it,
-   table-driven, against documents built in the test.
-   `pass/validate_test.go` has builders (`validDoc`, `docWithOperation`) and readers (`codes`,
-   `countCode`) to reuse.
+2. **Test it** beside it in `pass/`, table-driven, against documents built in the test: a file's
+   cases in the `_test.go` named after it, and a scenario that several files decide in one named for
+   the scenario, as `validate_propids_test.go` is. `pass/validate_test.go` has builders (`validDoc`,
+   `docWithOperation`) and readers (`codes`, `countCode`) to reuse.
    *Fails if missed:* `make coverage`.
 3. **Add it to the default list**, `engine.Passes` in `engine/passes.go`, before `validate`, which
    stays last. No test restates the list: `TestPasses_ValidateRunsLast` holds `validate` to the end,
