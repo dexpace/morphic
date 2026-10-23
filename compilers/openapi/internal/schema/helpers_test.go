@@ -248,3 +248,32 @@ func marshalForTest(t *testing.T, doc *ir.Document) string {
 	require.NoError(t, err)
 	return string(out)
 }
+
+// allOfConflictSpec builds a component whose two inline allOf branches each
+// declare field v with the given flow-style schemas, for exercising per-keyword
+// redeclaration conflict detection.
+func allOfConflictSpec(schemaA, schemaB string) string {
+	return openapitest.ComponentSpec(
+		"    T:\n" +
+			"      allOf:\n" +
+			"        - type: object\n" +
+			"          properties: {v: " + schemaA + "}\n" +
+			"        - type: object\n" +
+			"          properties: {v: " + schemaB + "}\n")
+}
+
+const (
+	cat = "    Cat: {type: object, properties: {kind: {type: string}, meow: {type: boolean}}}\n"
+	dog = "    Dog: {type: object, properties: {kind: {type: string}, bark: {type: boolean}}}\n"
+
+	// subCat and subDog declare Cat and Dog as allOf subtypes of Pet.
+	subCat   = "    Cat: {allOf: [{$ref: '#/components/schemas/Pet'}, {type: object, properties: {meow: {type: boolean}}}]}\n"
+	subDog   = "    Dog: {allOf: [{$ref: '#/components/schemas/Pet'}, {type: object, properties: {bark: {type: boolean}}}]}\n"
+	subtypes = subCat + subDog
+
+	petBranches = "      oneOf:\n        - $ref: '#/components/schemas/Cat'\n        - $ref: '#/components/schemas/Dog'\n"
+
+	// movedPointer is where the diagnostic for a discriminator kept verbatim
+	// rather than on Pet is reported.
+	movedPointer = "/components/schemas/Pet/discriminator"
+)

@@ -2,6 +2,7 @@ package load
 
 import (
 	"slices"
+	"strings"
 	"testing"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
@@ -99,4 +101,53 @@ func response200(t *testing.T, doc *soa.OpenAPI, path string) *soa.ReferencedRes
 	resp, ok := item.GetObject().Get().GetResponses().Get("200")
 	require.True(t, ok, path)
 	return resp
+}
+
+// markerPosition returns the line and column, both counted from 1, at which
+// marker starts in spec. The marker must occur once, so a fixture edited to
+// repeat it fails here rather than naming the wrong node.
+func markerPosition(t *testing.T, spec, marker string) (line, col int) {
+	t.Helper()
+	require.Equal(t, 1, strings.Count(spec, marker), "the marker %q must occur once in the fixture", marker)
+	at := strings.Index(spec, marker)
+	return 1 + strings.Count(spec[:at], "\n"), at - strings.LastIndex(spec[:at], "\n")
+}
+
+// resolveSpecWith is resolveSpec at root.yaml with a caller-supplied rebuild, for
+// the tests that need to observe or fail whether it is called.
+func resolveSpecWith(t *testing.T, spec string, rebuild func() (*soa.OpenAPI, error)) (*soa.OpenAPI, []ir.Diagnostic, error) {
+	t.Helper()
+	resolved, _, _, pass, missed, err := resolveExternal(t.Context(), modelOf(t, spec),
+		Siblings{}, sourceDocument{path: "root.yaml"}, Options{Reader: reader.Disk{}}, rebuild)
+	return resolved, passDiags(pointerAt(0, overlay.Origin{}), pass, missed), err
+}
+
+// respelled returns url with its scheme spelled scheme, which net/url respells
+// back to "http" in the request built from it.
+func respelled(url, scheme string) string {
+	return scheme + "://" + strings.TrimPrefix(url, "http://")
+}
+
+// respellings is the set of URL spellings net/url respells relative to how
+// http.NewRequest's caller wrote them (GitHub #538): the resolver keys a
+// document by the reference's absolute URL as written, while the reader stores
+// it under req.URL.String().
+//
+// A literal space in the path is absent: url.Parse and http.NewRequest
+// normalize it and its %20 escape to one request key, so the two spellings
+// never produce different keys. An empty port is covered by TestPreparedFor,
+// since a test server cannot listen on the default port.
+var respellings = []struct {
+	name  string
+	spell func(canonical string) string
+}{
+	{"upper-case scheme", func(c string) string {
+		return "HTTP://" + strings.TrimPrefix(c, "http://")
+	}},
+	{"mixed-case scheme", func(c string) string {
+		return "Http://" + strings.TrimPrefix(c, "http://")
+	}},
+	{"escaped userinfo", func(c string) string {
+		return strings.Replace(c, "http://", "http://us%65r@", 1)
+	}},
 }

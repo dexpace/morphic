@@ -128,3 +128,14 @@ paths:
               examples:
                 empty: {summary: no value here}
 `
+
+// paramBySource returns the operation's logical parameter with the given source
+// name.
+func paramBySource(op ir.Operation, name string) (ir.Parameter, bool) {
+	for _, p := range op.Params {
+		if p.Name.Source == name {
+			return p, true
+		}
+	}
+	return ir.Parameter{}, false
+}
