@@ -131,13 +131,10 @@ func probeFromMapping(root *yaml.Node) (sniffProbe, error) {
 // when that value is a version, and with `swagger` written too whatever it is.
 // A key root leaves to its merges may lie past the bound.
 func settledByOwnPairs(root *yaml.Node, probe sniffProbe) bool {
-	own := map[string]bool{}
-	for i := 0; i+1 < len(root.Content); i += 2 {
-		if key, ok := nodeview.KeyOf(root.Content[i]); ok {
-			own[key] = true
-		}
-	}
-	return own["openapi"] && (isVersion(probe.OpenAPI) || own["swagger"])
+	own := nodeview.WrittenChildren(root)
+	_, writesOpenAPI := own["openapi"]
+	_, writesSwagger := own["swagger"]
+	return writesOpenAPI && (isVersion(probe.OpenAPI) || writesSwagger)
 }
 
 // probeVersion returns the version string a probe key's value declares, and an

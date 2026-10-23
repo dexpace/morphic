@@ -1,6 +1,7 @@
 package detect
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -70,6 +71,11 @@ func TestSniff_ReadsALargeDocumentWhole(t *testing.T) {
 func TestSniff_ReadsAMergeChainAsFarAsTheViewExpandsIt(t *testing.T) {
 	t.Parallel()
 	const limit = nodeview.MergeDepthLimit
+	// A version merged in beside the chain, listed after it, so the chain's
+	// keys outrank it: the read finds it, and what the bound hid may still win.
+	beside := strings.Replace(string(openapitest.RootMergeChain(limit+1, "openapi: 3.1.0", "")),
+		fmt.Sprintf("<<: *a%d\n", limit), fmt.Sprintf("s: &s {openapi: 3.0.3}\n<<: [*a%d, *s]\n", limit), 1)
+	require.Contains(t, beside, "<<: [*a", "the root merges the chain and then s")
 	cases := map[string]struct {
 		src     []byte
 		version string
@@ -79,8 +85,7 @@ func TestSniff_ReadsAMergeChainAsFarAsTheViewExpandsIt(t *testing.T) {
 		"a chain past it":          {openapitest.RootMergeChain(limit+1, "openapi: 3.0.3", ""), "", true},
 		"a version the root writes itself": {
 			openapitest.RootMergeChain(limit+1, "openapi: 3.0.3", "openapi: 3.1.0\n"), "3.1.0", false},
-		"a merged version a deeper one may outrank": {
-			[]byte(string(openapitest.RootMergeChain(limit+1, "openapi: 3.1.0", "")) + "s: &s {openapi: 3.0.3}\n"), "", true},
+		"a merged version a deeper one may outrank": {[]byte(beside), "", true},
 		"a root writing no version and a swagger one": {
 			openapitest.RootMergeChain(limit+1, "openapi: 3.0.3", "openapi: prose words\nswagger: '2.0'\n"), "", false},
 		"a root writing no version and leaving swagger to its merges": {
