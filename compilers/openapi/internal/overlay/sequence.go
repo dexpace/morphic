@@ -3,6 +3,7 @@ package overlay
 import (
 	"errors"
 	"fmt"
+	"math"
 	"slices"
 	"strings"
 
@@ -61,7 +62,7 @@ type sequence struct {
 func runSequence(doc *soaoverlay.Overlay, root *yaml.Node, at ir.Provenance, lax bool, maxNodes int) ([]ir.Diagnostic, bool) {
 	s := &sequence{doc: doc, root: root, lax: lax, maxNodes: maxNodes}
 	if s.budgeted() {
-		s.size = countNodes(root)
+		s.size = countNodes(root, s.maxNodes)
 	}
 	for i, action := range doc.Actions {
 		if over, ok := s.charge(action); !ok {
@@ -91,7 +92,7 @@ func (s *sequence) charge(action soaoverlay.Action) (int64, bool) {
 	if s.size+cost > limit {
 		// The running size only ever overstates, so take the real count before
 		// refusing on it.
-		s.size = countNodes(s.root)
+		s.size = countNodes(s.root, s.maxNodes)
 		if s.size+cost > limit {
 			return s.size + cost, false
 		}
@@ -224,20 +225,11 @@ func actionType(action soaoverlay.Action) string {
 	}
 }
 
-// countNodes counts the nodes a Content walk from root reaches.
-func countNodes(root *yaml.Node) int64 {
-	var n int64
-	stack := []*yaml.Node{nodeview.DocumentRoot(root)}
-	for len(stack) > 0 {
-		node := stack[len(stack)-1]
-		stack = stack[:len(stack)-1]
-		if node == nil {
-			continue
-		}
-		n++
-		stack = append(stack, node.Content...)
-	}
-	return n
+// countNodes counts the nodes a Content walk from root reaches, no further than
+// one past limit: a tree past limit is refused at any size, and a refusal
+// already says "at least". A limit of math.MaxInt counts the whole tree.
+func countNodes(root *yaml.Node, limit int) int64 {
+	return int64(nodeview.Walk{Nodes: min(limit, math.MaxInt-1) + 1}.Run(nodeview.DocumentRoot(root)).Visited)
 }
 
 // weigher counts the nodes the library's clone would build from a node: every

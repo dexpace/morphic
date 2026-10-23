@@ -2173,15 +2173,14 @@ func TestAllOf_NestedInlineBranchKeyedByPointer(t *testing.T) {
 	}
 }
 
-// TestAllOf_NestedBranchHintAgreesWithThePointerWalk pins that a $ref branch
-// inside a wrapper is named by its innermost index, as subSchemaHint names the
-// same pointer: an outside $ref to that pointer lowers it from the other side,
-// and the two must agree in either declaration order. The target is the
-// empty-named component because branchHint returns a target's own name before it
-// reads the index, so only a target with an empty hint lets the index reach the IR.
-// The B before the wrapper puts the branch at flat position 2 but innermost
-// index 1, so only the innermost index yields variant_1.
-func TestAllOf_NestedBranchHintAgreesWithThePointerWalk(t *testing.T) {
+// TestAllOf_NestedBranchIsNamedByItsInnermostIndex pins that a $ref branch
+// inside a wrapper is named by its innermost index, in either declaration
+// order: an outside $ref to that pointer lowers it from the other side. The
+// target is the empty-named component because a branch holding a $ref takes
+// its target's name first, so only a target that names nothing lets the index
+// reach the IR. The B before the wrapper puts the branch at flat position 2 but
+// innermost index 1, so only the innermost index yields variant_1.
+func TestAllOf_NestedBranchIsNamedByItsInnermostIndex(t *testing.T) {
 	t.Parallel()
 	m := `    M:
       allOf:

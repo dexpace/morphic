@@ -30,7 +30,7 @@ type judgment struct {
 // "openapi", or "" when it writes none as a scalar. It reads the tree rather
 // than the model, which is built from a respelled copy.
 func declaredVersion(root *yaml.Node) string {
-	for _, p := range nodeview.New().MappingPairs(nodeview.DocumentRoot(root)) {
+	for _, p := range nodeview.Pairs(nodeview.DocumentRoot(root)) {
 		if v := nodeview.Deref(p.Val); p.Key == "openapi" && v != nil && v.Kind == yaml.ScalarNode && v.Tag != "!!null" {
 			return v.Value
 		}
@@ -45,15 +45,26 @@ func declaredVersion(root *yaml.Node) string {
 // check reads (see nodesAdmitted).
 func judgeSource(root *yaml.Node, tree sourceTree, budget int) judgment {
 	j := judgment{seen: map[objectKey]bool{}}
-	j.diags = oas.NewChecker().Check(root, declaredVersion(root), oas.Options{
+	version := declaredVersion(root)
+	opts := oas.Options{
 		Budget: budget,
 		Locate: tree.locatorIn(root),
 		Seen: func(kind oas.Kind, node *yaml.Node) {
 			j.seen[objectKey{node: nodeview.Deref(node), kind: kind}] = true
 		},
 		ReadAt: true,
-	})
+	}
+	j.diags = append(oas.NewChecker().Check(root, version, opts), oas.CheckFormat(root, version, formatOptions(opts))...)
 	return j
+}
+
+// formatOptions returns opts for oas.CheckFormat, which reads each node of a
+// tree once: bounded by the size of a tree the load phase holds rather than
+// by the work budget a check of its objects spends, so a tree the node budget
+// admitted is read whole.
+func formatOptions(opts oas.Options) oas.Options {
+	opts.Budget, opts.Seen = maxTreeNodes, nil
+	return opts
 }
 
 // nodesAdmitted is how many nodes a document opts admits may hold with its

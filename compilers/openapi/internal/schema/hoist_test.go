@@ -148,8 +148,8 @@ func TestLower_InlineSchemaHoistedOnce(t *testing.T) {
 //
 // refAt says where that $ref aims, at the node asserted or above it. A
 // reference only promises a node, so the declaration names each one in either
-// order; the rows pin the spelling the SubHint call sites give, and
-// TestPositionHint_Shapes the one structuralRoles replays.
+// order; the rows pin the spelling each position takes here, and
+// naming.TestAt_NamesASchemaByItsStructure every spelling the namer gives.
 func TestInlinePosition_HintIsTheSameInBothOrders(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -169,8 +169,8 @@ func TestInlinePosition_HintIsTheSameInBothOrders(t *testing.T) {
 			"t/anon/components/schemas/A/prefixItems/0", "a_0", ""},
 		{"tuple rest", "    A: {type: array, prefixItems: [{type: string}], items: " + openapitest.InlineProbeBody + "}\n",
 			"t/anon/components/schemas/A/items", "a_item", ""},
-		// Nested, because the derivation replays the whole chain rather than one
-		// step: the outside $ref used to name this "items", losing both levels.
+		// Nested, because the name is composed along the whole chain rather than
+		// one step: the outside $ref used to name this "items", losing both levels.
 		{"items under items", "    A: {type: array, items: {type: array, items: " + openapitest.InlineProbeBody + "}}\n",
 			"t/anon/components/schemas/A/items/items", "a_item_item", ""},
 		// Rooted at a property rather than at the component, so the enclosing hint
@@ -188,7 +188,7 @@ func TestInlinePosition_HintIsTheSameInBothOrders(t *testing.T) {
 			"t/anon/components/schemas/A/contentSchema/items", "a_content_item",
 			"t/anon/components/schemas/A/contentSchema"},
 		// Aimed at a tuple's rest: a rest named by a role of its own would part
-		// from the /items a pointer walk replays.
+		// from the name its /items pointer gives it.
 		{"items under a tuple rest", "    A: {type: array, prefixItems: [{type: string}], items: {type: array, items: " +
 			openapitest.InlineProbeBody + "}}\n",
 			"t/anon/components/schemas/A/items/items", "a_item_item",
@@ -327,9 +327,8 @@ func TestPureRefPosition_IsNamedByItsDeclarationInBothOrders(t *testing.T) {
 			"t/anon/components/schemas/A/prefixItems/0", "a_0"},
 		{"patternProperties", "    A: {type: object, patternProperties: {\"^x\": {$ref: '#/components/schemas/T'}}}\n" + tDecl,
 			"t/anon/components/schemas/A/patternProperties/^x", "a_pattern"},
-		// A $ref branch is the one position the composition names after its
-		// target rather than its own location, in either order — branchHint
-		// and subSchemaHint agree on that (GitHub #521) — so this row's
+		// A $ref branch is the one position named after its target rather
+		// than its own location (GitHub #521), in either order, so this row's
 		// expectation does not flip between the two orders below.
 		{"a union branch", "    A: {oneOf: [{$ref: '#/components/schemas/T'}, {type: integer}]}\n" + tDecl,
 			"t/anon/components/schemas/A/oneOf/0", "t"},
@@ -354,11 +353,10 @@ func TestPureRefPosition_IsNamedByItsDeclarationInBothOrders(t *testing.T) {
 // TestPureRefPosition_UnderPathsIsNamedByItsDeclaration is
 // TestPureRefPosition_IsNamedByItsDeclarationInBothOrders's counterpart under
 // /paths, modelled on TestInlinePosition_UnderPathsIsNamedByItsDeclaration:
-// positionHint cannot replay the enclosing hint there, so it offers
-// "schema_item" where the declaration says "response_item". /b's declaration,
-// which interns nothing at the pure $ref, records the name it gives the
-// position, and the alias a reference hoists there once every declaration has
-// lowered takes it, whichever of /b or /a lowers first.
+// the pointer alone would name the position "schema_item" where its owner, a
+// response, names it "response_item". /b's declaration interns nothing at the
+// pure $ref, and the alias a reference hoists there takes the owner's name
+// (lowering.NameAt), whichever of /b or /a lowers first.
 func TestPureRefPosition_UnderPathsIsNamedByItsDeclaration(t *testing.T) {
 	t.Parallel()
 	const id = ir.TypeID("t/anon/paths/~1b/get/responses/200/content/application~1json/schema/items")
@@ -393,7 +391,7 @@ func TestPureRefPosition_UnderPathsIsNamedByItsDeclaration(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	assert.Equal(t, "response_item", bFirst.Types[id].Common().Name.Hint,
-		"the declaration's hint is recorded and survives even though it interns nothing itself")
+		"the position is named for its owner though its declaration interns nothing")
 	assert.Equal(t, "response_item", aFirst.Types[id].Common().Name.Hint,
 		"and in the other order too")
 }

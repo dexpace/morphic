@@ -28,7 +28,7 @@ import (
 // behind body, which may be a node a $ref promised and nothing has built yet
 // (compile.Types.Promise), so partKeys settles both once every node exists. It
 // is nil where the body declares no part; one left with no key reads alike.
-func partEncodings(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, media *soa.MediaType, mediaPtr jsontext.Pointer, body ir.TypeID) (map[ir.PropID]ir.PartEncoding, ir.Unmodeled, []ir.Diagnostic) {
+func partEncodings(c lowering.Ctx, ts *compile.Types, media *soa.MediaType, mediaPtr jsontext.Pointer, body ir.TypeID) (map[ir.PropID]ir.PartEncoding, ir.Unmodeled, []ir.Diagnostic) {
 	walk := walkBodyParts(c.Bindings(), media.GetSchema())
 	parts := walk.parts
 	cutDiags := diagPartWalkCut(c, walk, mediaPtr+ids.Ptr("schema"))
@@ -41,7 +41,7 @@ func partEncodings(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInde
 	fallbackDoc, fallback := bodySchemaPointer(c, media.GetSchema(), mediaPtr+ids.Ptr("schema"))
 	keys := partKeys{c: c, body: body, fallbackDoc: fallbackDoc, fallback: fallback}
 	for _, part := range parts {
-		pe, partUnmodeled, partDiags := buildPartEncoding(c, ts, anchors, part, encMap, mediaPtr)
+		pe, partUnmodeled, partDiags := buildPartEncoding(c, ts, part, encMap, mediaPtr)
 		diags = append(diags, partDiags...)
 		// Kept whether or not the part's encoding ends up empty: an entry declaring
 		// only allowReserved or only x-* lowers to an empty PartEncoding that is left
@@ -368,13 +368,13 @@ func partTypeFlags(node func(ir.TypeID) (ir.TypeDef, bool), ref ir.TypeRef) (mul
 // (array part) and Filename (binary/file part), read off every schema declaring
 // the part. partKeys reads them off the part's merged type instead where it can
 // (partFlags).
-func buildPartEncoding(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, part bodyPart, encMap *sequencedmap.Map[string, *soa.Encoding], mediaPtr jsontext.Pointer) (ir.PartEncoding, ir.Unmodeled, []ir.Diagnostic) {
+func buildPartEncoding(c lowering.Ctx, ts *compile.Types, part bodyPart, encMap *sequencedmap.Map[string, *soa.Encoding], mediaPtr jsontext.Pointer) (ir.PartEncoding, ir.Unmodeled, []ir.Diagnostic) {
 	pe := ir.PartEncoding{}
 	var unmodeled ir.Unmodeled
 	var diags []ir.Diagnostic
 	if encMap != nil {
 		if enc, ok := encMap.Get(part.name); ok {
-			pe, unmodeled, diags = encodingConfig(c, ts, anchors, enc,
+			pe, unmodeled, diags = encodingConfig(c, ts, enc,
 				mediaPtr+ids.Ptr("encoding", part.name), ids.Scope("encoding", part.name))
 		}
 	}

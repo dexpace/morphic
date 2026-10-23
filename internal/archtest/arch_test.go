@@ -56,11 +56,14 @@ var rules = map[string][]string{
 	// the compiler would be able to derive one from something other than a
 	// source coordinate.
 	"compilers/openapi/internal/ids": {module + "/ir", module + "/compilers/compile"},
-	// Scalar and BigVal lowering. It reaches ir for the value types and yaml for
-	// the node it reads, and nothing else: a value is decided by its own wire
-	// spelling, so a package that could reach the compiler would be able to let a
-	// surrounding schema type change what a literal means.
-	"compilers/openapi/internal/value": {module + "/ir", "gopkg.in/yaml.v3"},
+	// The one classification of a YAML scalar, and value lowering built on it.
+	// It reaches ir for the value types, yaml for the node it reads and nodeview
+	// for a mapping's members as the parser reads them, and nothing else: a
+	// value is decided by its own wire spelling, so a package that could reach
+	// the compiler would be able to let a surrounding schema type change what a
+	// literal means.
+	"compilers/openapi/internal/value": {module + "/ir",
+		module + "/compilers/openapi/internal/nodeview", "gopkg.in/yaml.v3"},
 	// The yaml.v3 nodes tests build trees from: the constructors for the node
 	// kinds a parse produces, the `<<` merge key among them. It reaches yaml and
 	// nothing else, so any package's internal tests can import it, nodeview's
@@ -79,11 +82,11 @@ var rules = map[string][]string{
 	// resolver's own reading and nothing of the compiler, so the scans, the loader
 	// and the lowering can all reach it.
 	"compilers/openapi/internal/fragment": {"github.com/speakeasy-api/openapi/references"},
-	// A view over the raw source: mappings read the way the resolver reads them,
-	// through aliases and `<<` merge keys. It reaches the library's yml package
-	// for the merge-key predicate the unmarshaller itself uses, and is below the
-	// scan, the schema bindings and the schema lowering, which read alike through
-	// it.
+	// The one reading of the raw source: mappings read the way the parser reads
+	// them, through aliases and `<<` merge keys, and the one bounded walk of a
+	// tree. It reaches the library's yml package for the merge-key predicate the
+	// unmarshaller itself uses, and is below every package that reads raw YAML,
+	// which reads through it rather than by a reading of its own.
 	"compilers/openapi/internal/nodeview": {"github.com/speakeasy-api/openapi/yml", "gopkg.in/yaml.v3"},
 	// How the library's walk reads a pointer through the parsed model, a token at
 	// a time, and where it leaves the model for raw YAML. It reaches the library's
@@ -106,6 +109,21 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/nodeview",
 		"github.com/speakeasy-api/openapi/jsonschema/oas3", "github.com/speakeasy-api/openapi/marshaller",
 		"github.com/speakeasy-api/openapi/walk", "gopkg.in/yaml.v3"},
+	// The name of every node the lowering builds, as a function of the documents
+	// and the node's coordinate (GitHub #981). It reads the grammar through a
+	// bind table, the raw tree through nodeview and a $ref's fragment through
+	// fragment, and composes names in compile's grammar. It reaches nothing that
+	// lowers, so no lowering can make a name depend on the order it runs in.
+	"compilers/openapi/internal/naming": {module + "/compilers/compile",
+		module + "/compilers/openapi/internal/bind",
+		module + "/compilers/openapi/internal/fragment",
+		module + "/compilers/openapi/internal/ids",
+		module + "/compilers/openapi/internal/nodeview", "gopkg.in/yaml.v3"},
+	// The $dynamicAnchor declarations of a source tree, which a $dynamicRef
+	// expands against. It reads the tree through nodeview, as the parser reads
+	// it, spells pointers through ids, and reaches nothing that lowers.
+	"compilers/openapi/internal/anchors": {module + "/compilers/openapi/internal/ids",
+		module + "/compilers/openapi/internal/nodeview", "gopkg.in/yaml.v3"},
 	// One walk over the decoded source tree, answering what the pre-lowering
 	// refusals would otherwise each walk it to ask. It reaches nodeview for the
 	// document root and nothing else: an index of what the source says is not
@@ -122,14 +140,15 @@ var rules = map[string][]string{
 	// What a schema or a carrier says about itself rather than about its shape,
 	// plus how a construct is kept verbatim under Unmodeled, the validation-only
 	// keywords among them. It reads the parsed model and the raw nodes behind
-	// it, and holds no opinion about lowering — so it sits below the schema
-	// lowering that asks it questions and above nothing that asks it any. It
-	// reaches the library's yml package for the tags its decoder accepts as a
-	// string, so a field read off a raw node decodes as the parser decodes the
-	// fields it models.
+	// it, those through nodeview and their scalars through value, and holds no
+	// opinion about lowering — so it sits below the schema lowering that asks it
+	// questions and above nothing that asks it any. It reaches the library's yml
+	// package for the tags its decoder accepts as a string, so a field read off
+	// a raw node decodes as the parser decodes the fields it models.
 	"compilers/openapi/internal/annotation": {module + "/ir",
 		module + "/compilers/openapi/internal/diag",
 		module + "/compilers/openapi/internal/ids",
+		module + "/compilers/openapi/internal/nodeview",
 		module + "/compilers/openapi/internal/value",
 		"github.com/speakeasy-api/openapi/extensions",
 		"github.com/speakeasy-api/openapi/jsonschema/oas3",
@@ -210,25 +229,31 @@ var rules = map[string][]string{
 	// and so must reach neither, which is why it sits here rather than with either
 	// one. It reaches load for the version grammar — the dialect question is asked
 	// of the document, and the grammar that answers it is the loader's — and for
-	// the schema bindings the load phase built, which its scope reads.
+	// the schema bindings the load phase built, which its scope reads. It reaches
+	// naming for what each position is called and anchors for the
+	// $dynamicAnchor index it builds on first ask.
 	"compilers/openapi/internal/lowering": {module + "/ir",
+		module + "/compilers/openapi/internal/anchors",
 		module + "/compilers/openapi/internal/bind",
 		module + "/compilers/openapi/internal/bind/typed",
 		module + "/compilers/openapi/internal/diag",
 		module + "/compilers/openapi/internal/ids",
 		module + "/compilers/openapi/internal/load",
+		module + "/compilers/openapi/internal/naming",
 		module + "/compilers/openapi/internal/overlay",
 		module + "/compilers/openapi/internal/resolve",
 		"github.com/speakeasy-api/openapi/openapi"},
 	// The security schemes a document declares and the requirements that name
 	// them. It is its own package because both sides of the compiler reach it and
 	// neither may reach the other: the document walk lowers the schemes, and the
-	// service and operation walks lower the requirements against them.
+	// service and operation walks lower the requirements against them. It reads
+	// a field the model names no member for off the raw node, through nodeview.
 	"compilers/openapi/internal/auth": {module + "/ir", module + "/compilers/compile",
 		module + "/compilers/openapi/internal/annotation",
 		module + "/compilers/openapi/internal/diag",
 		module + "/compilers/openapi/internal/ids",
 		module + "/compilers/openapi/internal/lowering",
+		module + "/compilers/openapi/internal/nodeview",
 		module + "/compilers/openapi/internal/resolve",
 		"github.com/speakeasy-api/openapi/openapi"},
 	// The schema walk, and everything that recurses with it: composition,
@@ -252,9 +277,10 @@ var rules = map[string][]string{
 		"github.com/speakeasy-api/openapi/values", "gopkg.in/yaml.v3"},
 	// The operation walk: path items, webhooks and callbacks, the parameters
 	// merged onto them, and the content of every body, response and header. It
-	// reaches the schema walk for the positions it hoists and auth for the
-	// requirements it reads, and nothing above itself — the compiler assembles
-	// the document from what this returns rather than the other way round.
+	// reaches the schema walk for the positions it hoists, auth for the
+	// requirements it reads and nodeview for the raw nodes behind the model, and
+	// nothing above itself — the compiler assembles the document from what this
+	// returns rather than the other way round.
 	"compilers/openapi/internal/operation": {module + "/ir", module + "/compilers/compile",
 		module + "/compilers/openapi/internal/annotation",
 		module + "/compilers/openapi/internal/auth",
@@ -262,6 +288,7 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/diag",
 		module + "/compilers/openapi/internal/ids",
 		module + "/compilers/openapi/internal/lowering",
+		module + "/compilers/openapi/internal/nodeview",
 		module + "/compilers/openapi/internal/resolve",
 		module + "/compilers/openapi/internal/schema",
 		"github.com/speakeasy-api/openapi" + subtreeSuffix, "gopkg.in/yaml.v3"},

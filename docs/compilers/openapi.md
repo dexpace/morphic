@@ -161,17 +161,21 @@ absent, a value of the wrong type, a value outside the set the specification all
 exclude each other written together, a path template and its path parameters disagreeing, a list or
 map holding fewer entries than the specification requires or repeating one it requires to be unique,
 as JSON Schema requires of `allOf` and of `required`, or a value a grammar the specification cites
-refuses, such as a token or an anchor's name. It is a warning where the document breaks a rule of
-its version and still says what it means: a key outside the pattern the specification gives, a key a
-mapping writes twice, a number or a boolean where a string belongs, a field written where the
-specification gives it no effect (`validation-no-effect`), or a `null` written for an optional
-field, which is read as the field left out, by the rules that bind it to other fields as well. A
-Schema Object's keyword whose value is a schema is such a field, since the schema lowering reads its
-`null` as left out too ([`null-schema`](#null-schema)). A `null` written as a schema entry, which is
-another object's `schema`, a component, or an entry of a map or a list of schemas, is an error,
-since that lowering reads it as the empty schema, a value, and a list counts it among its entries;
-so is one for a Schema Object's other keywords. One written for a field whose requirement another
-rule reports is left to that rule.
+refuses, such as a token or an anchor's name. Every mapping, values and extensions included, is held
+to the Format section's rule that a key is a string, so a key that is no scalar, which the parser
+reads as the empty string ([`non-scalar-key`](../parser-library.md#non-scalar-key)), is an error,
+and so is a `<<` merge key naming neither a mapping nor a list of mappings, from which the parser
+merges nothing ([`merge-keys`](../parser-library.md#merge-keys)). It is a warning where the document
+breaks a rule of its version and still says what it means: a key outside the pattern the
+specification gives, a key a mapping writes twice, a number or a boolean where a string belongs, a
+field written where the specification gives it no effect (`validation-no-effect`), or a `null`
+written for an optional field, which is read as the field left out, by the rules that bind it to
+other fields as well. A Schema Object's keyword whose value is a schema is such a field, since the
+schema lowering reads its `null` as left out too ([`null-schema`](#null-schema)). A `null` written
+as a schema entry, which is another object's `schema`, a component, or an entry of a map or a list
+of schemas, is an error, since that lowering reads it as the empty schema, a value, and a list
+counts it among its entries; so is one for a Schema Object's other keywords. One written for a field
+whose requirement another rule reports is left to that rule.
 
 The source is read as it writes it, an applied overlay's patch included, each object as the kind
 its position gives it. An object a `$ref` reaches that the source's own reading did not take as
@@ -204,7 +208,7 @@ gives it no effect is [`allow-reserved-locations`](#allow-reserved-locations)' a
   `oas.TestCheck_AFindingIsMadeOnceWhereItIsPlaced`,
   `oas.TestCheck_RulesAnotherPackageOwnsAreNotApplied`,
   `oas.TestCheck_AnAnchorIsANameJSONSchemaAdmits`,
-  `oas.TestCheck_KeywordsHoldWhatJSONSchemaRequires`,
+  `oas.TestCheck_KeywordsHoldWhatJSONSchemaRequires`, `oas.TestCheckFormat_AKeyIsAString`,
   `oas.TestTable_EveryRowCitesTheSpecification`, `load.TestJudgeSource_PlacesEachFindingAtItsNode`,
   `load.TestJudgeSource_RefusesTheAnchorsNoReferenceCanName`,
   `load.TestLoad_WhatAnAliasMountsIsReportedOnce`,
@@ -519,25 +523,31 @@ A construct a rule keeps verbatim becomes an `Unmodeled` entry (§12) on the nod
 owns its position: keyed `openapi:<keyword>` for a keyword or field, or by the scoped key the rule
 names where several objects reach one carrier ([`vendor-extensions`](#vendor-extensions)), under the
 reason the rule gives, and with a `Provenance` locating the construct itself rather than the node
-that carries it. The entry holds the construct as JSON read off its YAML node: aliases followed and
-merge keys merged, a number in its digits with its YAML base resolved, a YAML timestamp in the
-spelling written, a `!!binary` as its source text, and a scalar under a tag of the document's own as
-its text. A node no JSON can hold — a mapping key that is not a string, or repeats, `.nan` or
-`.inf`, a scalar whose text its tag does not admit, invalid UTF-8, an alias that cycles or expands
-past the converter's node budget — reaches the IR in no form. It is reported as an
-`openapi/unpreservable-construct` error at the construct, and the rule that would have kept it
-announces nothing as kept, so no diagnostic claims what the Document does not hold. A vendor
-extension that converts to no JSON is [`vendor-extensions`](#vendor-extensions)' instead.
+that carries it. The entry holds the construct as JSON read off its YAML node as the parser reads
+it: aliases followed, `<<` merge keys merged in the parser's order
+([`merge-keys`](../parser-library.md#merge-keys)), a mapping key as the text it spells, since the
+specification reads every key as a string, and one that is no scalar as the empty string
+([`validation`](#validation) reports it), a number in its digits with its YAML base resolved, past
+float64's range included, a YAML timestamp in the spelling written, a `!!binary` as its source text,
+and a scalar under a tag of the document's own as its text. A field a reader finds is found the same
+way, so one supplied through a merge key or an alias is kept as a written one is. A node no JSON can
+hold — a key a mapping or a mapping merged into it writes twice, `.nan` or `.inf`, a scalar whose
+text its tag does not admit, invalid UTF-8, an alias that cycles or expands past the converter's
+node budget, a merge chain deeper than the reader expands — reaches the IR in no form. It is
+reported as an `openapi/unpreservable-construct` error at the construct, and the rule that would
+have kept it announces nothing as kept, so no diagnostic claims what the Document does not hold. A
+vendor extension that converts to no JSON is [`vendor-extensions`](#vendor-extensions)' instead.
 
+- Cases: `yaml-merge-keys`
 - Codes: `openapi/unpreservable-construct`
 - Tests: `schema.TestAllOf_UnpreservableBranchIsNotAnnounced`,
   `schema.TestCoDeclaredFamily_UnpreservableIsNotAnnounced`,
-  `annotation.TestValidationOnlyAt_AnUnconvertibleKeywordIsReportedNotKept`
-- Status: partly built: a number past float64's range is kept as a JSON string (#783), and a field
-  supplied through a merge key or an alias is found by no reader that keeps it, reaching the IR in
-  no form (#384). Open: whether a scalar its own tag does not admit is refused or kept as its text
-  (#245), and whether an extension mapping with non-string keys is kept with its keys stringified
-  (#617).
+  `annotation.TestValidationOnlyAt_AnUnconvertibleKeywordIsReportedNotKept`,
+  `annotation.TestRawFromNode_PreservesMergeAndOrderingSemantics`,
+  `annotation.TestRawFromNode_NamesTheRepeatedKey`, `annotation.TestScalarRenderers_AgreeOnKind`,
+  `annotation.TestRawPropertyNode_ReadsAKeywordAsTheParserDoes`
+- Status: partly built: whether a scalar its own tag does not admit is refused or kept as its text
+  is open (#245).
 
 ### `unmodeled-dialect-fields`
 
@@ -585,7 +595,8 @@ pointer, with no diagnostic. The sections are `responses`, `parameters`, `exampl
 `components/securitySchemes` are lowered unconditionally. 3.2's `components/mediaTypes`, into which
 no reference is followed, is kept whole as `openapi:components/mediaTypes`, with an info
 `openapi/degraded-construct` at the section. A section is read as the parser reads it, through `<<`
-merge keys, so a merged-in entry is kept under its own name.
+merge keys, so a merged-in entry is kept under its own name, and an entry whose key is no scalar
+under the empty name the parser reads it by ([`validation`](#validation) reports the key).
 
 *Referenced* means a lowering followed a reference to the entry, not that some `$ref` string names
 it. The resolution every non-schema reference passes through records each position in the source its
@@ -610,8 +621,7 @@ that decision lives (§12), which is what keeps a promotion pass from mistaking 
   `openapi.TestUnreferencedComponents_ReadAsTheParserReadsThem`,
   `openapi.TestUnreferencedComponents_SelfReferenceByFileNameReaches`
 - Status: partly built: no reference into `components/mediaTypes` is followed, so the section is
-  kept whole however much of it a document uses (#856), and a section entry whose key is no scalar
-  is dropped without a diagnostic (#947).
+  kept whole however much of it a document uses (#856).
 
 ## 3. Names and values
 
@@ -624,54 +634,66 @@ key, an enum member's value as text, a 3.2 server `name`, and under `grouping=pa
 path segment. A name with no letter or digit (`***`, `>=`) keeps its `Source` and has no
 `Canonical`; an emitter names it by its characters (emitter-design §4.12). A name spelled as the
 empty string is minted `Hint: "empty"` and no `Source` rather than passed through (an `operationId`
-of `""` is read as absent instead,
-[`operation-ids`](#operation-ids)), and a property's wire name stays `""`. A component schema keyed
-`""` earns no named `TypeID`: it hoists anonymously at its own pointer
-(`t/anon/components/schemas/`) with that hint. An entity the document gives no name — an inline
-schema, a union variant, a response ([`response-conditions`](#response-conditions)), a server with
-no `name` (its URL's words, else `server`), the synthesized `default` and `webhooks` groups —
+of `""` is read as absent instead, [`operation-ids`](#operation-ids)), and a property's wire name
+stays `""`. A component schema keyed `""` earns no named `TypeID`: it hoists anonymously at its own
+pointer (`t/anon/components/schemas/`) with that hint. An entity the document gives no name — an
+inline schema, a union variant, a response ([`response-conditions`](#response-conditions)), a server
+with no `name` (its URL's words, else `server`), the synthesized `default` and `webhooks` groups —
 carries a `Hint` alone, in the same word grammar and composed from its position, each half
 neutralized first so an empty parent gives `empty_item`, never `_item`. A request body or header
 that references reach is named for its declaration, never for whichever reference lowered first: a
 component's name, a header's own key, the `operationId` of the operation declaring the body, in this
 document or another and whether or not that operation is lowered, or `request` for a body no
-operation with an `operationId` declares. `Aliases` is never set.
+operation with an `operationId` declares. A schema is named for the nearest object holding it, so
+one a parameter, request body or response holds is named for that object even where the object is
+kept under an extension and read through a `$ref`, and a document a `$ref` reads whole as a schema
+is named for the document (`./Cat.yaml` names its root `cat_yaml`). Every such name is a function of
+the documents and the position alone, read where the position is written, so no lowering order
+changes it: a union variant, or a composition branch holding a `$ref`, is named as the position the
+`$ref` lands on, in whichever document, and keeps its own name where that names nothing. `Aliases`
+is never set.
 
 - Cases: `neutral-naming`, `empty-names`
 - Tests: `ids.TestComponentSchemaNamedEmpty_SeparatesAnEmptyNameFromNoEntry`,
   `schema.TestEnumMemberIDs_NamesThatCanonicalizeToNothingStillGetIDs`,
   `schema.TestInlinePosition_HintIsTheSameInBothOrders`,
   `operation.TestContent_ASharedBodyOrHeaderIsNamedForItsDeclaration`,
-  `schema.TestComponentBody_SubtreeIsNamedByItsDeclaration`
-- Status: partly built: union variants and inline schemas ignore their `title` as a hint (#662); and
-  a union variant naming a position in a path's body takes the pointer's name (#729).
+  `schema.TestComponentBody_SubtreeIsNamedByItsDeclaration`,
+  `schema.TestUnionVariant_UnderPathsIsNamedAsTheNodeItHolds`,
+  `schema.TestUnionVariant_AWholeDocumentIsNamedForIt`, `naming.TestAt_NamesASchemaAfterItsOwner`,
+  `naming.TestAt_NamesABranchAfterItsTarget`, `naming.TestAt_NamesAStructureAReferenceReadsInsideRawYAML`
+- Status: partly built: union variants and inline schemas ignore their `title` as a hint (#662).
 
 ### `values`
 
 A default, `const`, enum member or example lowers to an `ir.Value` read off the YAML node by its
 resolved tag alone, never by the type the schema declares (§6): `null`, `bool`, `string`, `list` and
-`object` (members in source order, keyed by their text, an alias followed), a `!!binary` to `bytes`,
-decoded, and a YAML timestamp to `string` in the spelling written (`2021-1-1` stays `2021-1-1`,
-never RFC 3339). A number is the literal's exact decimal text in `Num`, never a `float64`: a
-magnitude past float64 or int64 keeps every digit, `.5`, `+5` and `09` take their JSON spellings
-(`0.5`, `5`, `9`), `_` separators drop, a YAML integer base resolves (`0644` is `420`, `0x1f` is
-`31`, `0b1010` is `10`), and digits, exponent and trailing zeros otherwise stand as written (`10.0`,
-`1.10e+3`). A plain scalar that YAML resolves to a string only because it is past float64's range is
-still a number when it is a finite decimal literal; a quoted one stays a string. A value no `Value`
-holds — `.inf` or `.nan`, a `!!binary` that is not base64, a tag the compiler does not lower
-(`!acme`), nesting past the reader's depth bound — is not coerced: a default or example is dropped
-with an `openapi/degraded-construct` warning at its position, and a `const` or an enum member is
-[`enum-const`](#enum-const)'s. The number reader is the numeric bounds' as well
-([`constraints`](#constraints)). A value kept verbatim instead is
-[`verbatim-preservation`](#verbatim-preservation)'s.
+`object` (members as the parser reads them, `<<` merge keys merged in its order
+([`merge-keys`](../parser-library.md#merge-keys)), each keyed by its text and a key that is no
+scalar by the empty string, an alias followed), a `!!binary` to `bytes`, decoded, and a YAML
+timestamp to `string` in the spelling written (`2021-1-1` stays `2021-1-1`, never RFC 3339). A
+number is the literal's exact decimal text in `Num`, never a `float64`: a magnitude past float64 or
+int64 keeps every digit, `.5`, `+5` and `09` take their JSON spellings (`0.5`, `5`, `9`), `_`
+separators drop, a YAML integer base resolves (`0644` is `420`, `0x1f` is `31`, `0b1010` is `10`),
+and digits, exponent and trailing zeros otherwise stand as written (`10.0`, `1.10e+3`). A plain
+scalar that YAML resolves to a string only because it is past float64's range is still a number when
+it is a finite decimal literal; a quoted one stays a string. A value no `Value` holds — `.inf` or
+`.nan`, a `!!binary` that is not base64, a scalar whose text its tag does not admit (`!!null abc`,
+`!!timestamp soon`), a tag the compiler does not lower (`!acme`), a key a mapping or a mapping
+merged into it writes twice, a merge chain deeper than the reader expands, nesting past the reader's
+depth bound — is not coerced: a default or example is dropped with an `openapi/degraded-construct`
+warning at its position, and a `const` or an enum member is [`enum-const`](#enum-const)'s. The
+number reader is the numeric bounds' as well ([`constraints`](#constraints)). A value kept verbatim
+instead is [`verbatim-preservation`](#verbatim-preservation)'s.
 
-- Cases: `defaults`, `yaml-timestamp-scalars`, `numeric-precision`
+- Cases: `defaults`, `yaml-timestamp-scalars`, `numeric-precision`, `yaml-merge-keys`
 - Codes: `openapi/degraded-construct`
 - Tests: `value.TestNumericLiteral_YAMLBases`, `value.TestValueFromNode_Timestamp`,
+  `value.TestValueFromNode_ReadsAMappingAsTheParserDoes`,
+  `value.TestValueFromNode_RefusesWhatNoObjectHolds`, `value.TestClassify_ReadsEachSpellingOnce`,
   `annotation.TestSchemaExamplesAt_UnconvertibleValueIsReportedNotDropped`
-- Status: partly built: a `<<` merge key in a mapping value stays a member named `<<`, where a
-  verbatim payload merges it (#395), and an unconvertible default is reported at the schema of the
-  property or parameter that reads it rather than at its own position (#1101).
+- Status: partly built: an unconvertible default is reported at the schema of the property or
+  parameter that reads it rather than at its own position (#1101).
 
 ## 4. Schemas: identity, references and annotations
 
@@ -1848,8 +1870,8 @@ expansion.
 - Cases: `dynamic-ref`
 - Codes: `openapi/dynamic-ref-expanded`, `openapi/degraded-construct`
 - Tests: `schema.TestDynamicRef_IrreducibleIsKeptAndSaysWhy`,
-  `schema.TestDynamicAnchors_CountsWhatAnAliasBringsIn`,
-  `schema.TestDynamicAnchorIndex_ReportsATruncatedWalk`
+  `anchors.TestBuild_CountsWhatAnAliasBringsIn`,
+  `lowering.TestDynamicAnchorSites_ReportsATruncatedWalkOnce`
 - Status: partly built: a merge chain past the view's merge bound hides an `$id`, so a `$dynamicRef`
   can expand across a resource boundary (#401), and the truncation warning names the walk's own
   bounds when the merge bound stopped it (#454). A `$dynamicRef` written in another document is not
@@ -2622,8 +2644,9 @@ rest reach the IR in no form, reported as one `openapi/unknown-key-budget` warni
 Two other outcomes also keep nothing and warn: `openapi/unknown-key-entry-taken`, where
 `openapi:<key>` is already held by a construct written elsewhere on a carrier two objects share, a
 parameter's own key and its schema's keyword, whichever lowered first surviving; and
-`openapi/unknown-key-unreachable`, where the key is merged in through `<<` and the raw mapping holds
-no pair for it.
+`openapi/unknown-key-unreachable`, where the key is merged in through a `<<` chain deeper than the
+compiler's reader expands, so it reads no pair for it. A key merged in within that depth is read,
+kept and reported as a written one is.
 
 - Cases: `path-item-anchored-key`
 - Codes: `openapi/unknown-object-key`, `openapi/unknown-schema-keyword`,
@@ -2633,9 +2656,8 @@ no pair for it.
   `annotation.TestUnknownKeysIn_BudgetBoundsWhatOneObjectContributes`,
   `annotation.TestUndefinedKeywordsIn_KeepsWhatTheCallerNames`
 - Status: partly built: a parameter's key and its schema's keyword of one spelling share an entry
-  (#396), a key merged in through `<<` is reported and kept nowhere (#395), and a schema keyword at a
-  position that lowers to a shared node and carries no property or parameter is kept nowhere and
-  reported by nothing (#1053).
+  (#396), and a schema keyword at a position that lowers to a shared node and carries no property or
+  parameter is kept nowhere and reported by nothing (#1053).
 
 ### `extension-promotion`
 

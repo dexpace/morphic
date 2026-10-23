@@ -279,12 +279,17 @@ overwhelming majority that never write `$dynamicRef`. And the walk is not free:
 
 ```bash
 # what deriving it at entry would cost a document that never asks
-go test ./compilers/openapi -run XXX -bench BenchmarkAnchorWalk -benchtime=2000x
+go test ./compilers/openapi/internal/anchors -run XXX -bench BenchmarkBuild -benchtime=2000x
 ```
 
 It measured about 3.7µs and 75 allocations against a compile's 270µs and 2,767 —
 roughly 1.4% of the time and 2.7% of the allocations, spent on a keyword almost
 nothing uses. So it is a memo, built on the first `$dynamicRef` and not before.
+
+*Later:* the memo moved into `Ctx`, which builds it on the first ask and shares it
+with every copy, as it does the answers `TypePosition` reads (`Ctx.DynamicAnchorSites`,
+GitHub #982). It is still built on the first `$dynamicRef` and not before; what
+changed is that no lowering carries it as a parameter.
 
 That makes it the one counterexample to §4's claim that interning is
 "irreducibly shared and stateful; nothing else is". It is a weaker exception than
@@ -536,6 +541,11 @@ builder of what it owns. It replaced the provisional naming that rebuilt a node 
 before its declaration (#372, #529): the rebuild replaced the node, but not what the reference had
 reported (#750) nor where it met the depth bound (#748).
 
+*Later:* names did move to the table (#981). The drift this section feared needs two readings, and
+the declaration walk now gives no name at all: every lowering asks `lowering.NameAt`, which reads
+the grammar's kinds (`bind.Table.Kinds`) and the document, so the table's is the only reading. The
+home a declaration lowers in is still the declaration walk's.
+
 ## 7. Enforcement
 
 1. **`internal/archtest`'s prefix matching is a live hole and is fixed first.** `hasAllowedPrefix`
@@ -736,7 +746,7 @@ sorts, which `maps.Keys` + `slices.Sorted` already cover.
   answers what the cycle and amplification refusals each used to walk it to ask, over the single
   decode the loader now performs. What is still out of scope is the other half — a pointer → node
   map that would make reference resolution a lookup, a per-node key index that would make
-  `annotation.RawChildNode` one, and the `--explain` substrate both would give. Each of those is
+  `nodeview.Child` one, and the `--explain` substrate both would give. Each of those is
   read during lowering rather than before it, so handing them down means widening the lowering
   context and the signatures beneath it: its own change.
 - **Rebasing the GraphQL and Protobuf drafts.** They are evidence here, not work items.

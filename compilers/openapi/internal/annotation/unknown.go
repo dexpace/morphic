@@ -12,24 +12,24 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/ir"
 )
 
-// unreachableKeyDiag reports a key the census named whose value the raw mapping
-// does not present, so nothing of it reached the IR.
+// unreachableKeyDiag reports a key the census named whose value the mapping,
+// read as the parser reads it (nodeview.Child), does not present, so nothing of
+// it reached the IR.
 //
-// The document does write the key: the parser reads a mapping through its `<<`
-// merge keys, so a key merged in from an anchored mapping is reported here
-// while the mapping this reads holds no pair for it. Resolving that needs the
-// merge-expanded view (internal/nodeview), which no raw-node reader here has
-// (GitHub #395).
+// The document does write the key: the parser reads every `<<` merge however
+// deep, while the compiler reads none past nodeview.MergeDepthLimit, so a key
+// merged in from past that bound is reported here.
 //
 // A warning, not the error unpreservableDiag gives: merging keys is legal input
 // that still lowers, and an error would refuse it under the default --fail-on.
 func unreachableKeyDiag(entry string, at ir.Provenance) ir.Diagnostic {
 	return diag.Newf(ir.SeverityWarning, diag.UnknownKeyUnreachable, at,
-		"%s is written at a key the source mapping does not present directly, most likely "+
-			"merged in through a `<<`; it is represented in the IR in no form at all", entry)
+		"%s is written at a key merged in through `<<` from deeper than the %d levels the compiler "+
+			"reads; it is represented in the IR in no form at all", entry, nodeview.MergeDepthLimit)
 }
 
 // occupiedEntryDiag reports a key whose Unmodeled entry is already held by a
@@ -168,13 +168,12 @@ func UnknownKeysNamed(p *ir.Unmodeled, keys []string, root *yaml.Node,
 //
 // A scalar the parser decodes as a string is returned, unless valid refuses a
 // non-empty one; empty or null is read as unset. Any other value is kept
-// verbatim on p at the census's own entry, with a warning. A key root does not
-// present directly, absent or merged in through `<<`, is not read; the census
-// reports the second.
+// verbatim on p at the census's own entry, with a warning. root is read as the
+// parser reads it, through its `<<` merges (nodeview.Child).
 func TakeString(p *ir.Unmodeled, root *yaml.Node, key string, valid func(string) bool,
 	locate Locator, owner jsontext.Pointer, scope string,
 ) (string, bool, []ir.Diagnostic) {
-	node := RawChildNode(root, key)
+	node := nodeview.Child(root, key)
 	if node == nil {
 		return "", false, nil
 	}
@@ -265,7 +264,7 @@ func keep(p *ir.Unmodeled, root *yaml.Node, key string, locate Locator, owner js
 	if taken, occupied := (*p)[entry]; occupied {
 		return []ir.Diagnostic{occupiedEntryDiag(entry, at, taken.Provenance.Pointer)}
 	}
-	node := RawChildNode(root, key)
+	node := nodeview.Child(root, key)
 	if node == nil {
 		return []ir.Diagnostic{unreachableKeyDiag(entry, at)}
 	}

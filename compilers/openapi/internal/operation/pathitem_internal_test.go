@@ -34,11 +34,10 @@ func TestApplyPathServers_WithoutRootNode(t *testing.T) {
 // TestApplyOperationServers_WithoutRootNode: a declared pair whose source node
 // cannot be read keeps nothing, and announces nothing it did not keep.
 //
-// The input is synthetic, but the branch is not hypothetical — RawChildNode does
-// not expand a merge key, so a real document supplying the pair through one
-// reaches here with GetSummary non-empty and loses it silently (GitHub #384).
-// This pins the current behaviour rather than endorsing it; when #384 makes the
-// lookup view-aware, what changes is the node this receives, not this contract.
+// The input is synthetic, but the branch is not hypothetical: a pair merged in
+// through a `<<` chain deeper than nodeview.MergeDepthLimit is one the model
+// reads and the compiler's raw read does not, so a real document reaches here
+// with GetSummary non-empty.
 func TestApplyPathItemDocs_WithoutRootNode(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})

@@ -23,14 +23,13 @@ import (
 // there would reach these.
 
 // lowerer is test scaffolding, not a compiler type: every lowering is a
-// function of the context, the registry and the memos (#177), and this holds
-// the ones a single-lowering test wants in one place.
+// function of the context and the registry (#177), and this holds what a
+// single-lowering test wants in one place.
 type lowerer struct {
-	ctx     lowering.Ctx
-	out     *ir.Document
-	types   *compile.Types
-	diags   compile.Diags
-	anchors schema.AnchorIndex
+	ctx   lowering.Ctx
+	out   *ir.Document
+	types *compile.Types
+	diags compile.Diags
 }
 
 // lowererOver is the only place the fixture's fields are initialised. Both
@@ -80,12 +79,12 @@ func newRawLowerer(doc *soa.OpenAPI) *lowerer {
 func lowerServiceSpec(t *testing.T, src string) (ir.Service, []ir.Diagnostic) {
 	t.Helper()
 	l, loadDiags := loweredFor(t, src)
-	l.diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.ctx, l.types, &l.anchors))
+	l.diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.ctx, l.types))
 	schemes, authDiags := auth.LowerSecuritySchemes(l.ctx)
 	l.out.Auth = schemes
 	l.diags.AppendAll(authDiags)
 
-	svc, _, svcDiags := LowerService(t.Context(), l.ctx.WithAuth(schemes), l.types, &l.anchors)
+	svc, _, svcDiags := LowerService(t.Context(), l.ctx.WithAuth(schemes), l.types)
 	l.diags.AppendAll(svcDiags)
 	_, finished := l.types.Finish(t.Context())
 	l.diags.AppendAll(finished)

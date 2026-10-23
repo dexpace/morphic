@@ -101,7 +101,7 @@ func lowerMeta(c lowering.Ctx) (docMeta, []ir.Diagnostic) {
 // read in the OpenAPI dialect whatever it names.
 func keepJSONSchemaDialect(c lowering.Ctx, p *ir.Unmodeled) []ir.Diagnostic {
 	at := ids.Ptr("jsonSchemaDialect")
-	node := nodeview.New().ChildByToken(nodeview.DocumentRoot(c.Doc.GetRootNode()), "jsonSchemaDialect")
+	node := nodeview.Child(nodeview.DocumentRoot(c.Doc.GetRootNode()), "jsonSchemaDialect")
 	kept, diags := annotation.PreserveNodeInto(p, annotation.EntryKey("", "jsonSchemaDialect"), node,
 		ir.ReasonOutOfScope, c.ProvenanceAt(at))
 	if !kept {
@@ -119,11 +119,10 @@ func keepJSONSchemaDialect(c lowering.Ctx, p *ir.Unmodeled) []ir.Diagnostic {
 // into it yet (GitHub #856), so the map has no IR home. It is kept at every
 // version, as load reports it below 3.2 (diag.LaterVersionConstruct).
 func keepComponentMediaTypes(c lowering.Ctx, p *ir.Unmodeled) []ir.Diagnostic {
-	view := nodeview.New()
-	components := view.ChildByToken(nodeview.DocumentRoot(c.Doc.GetRootNode()), "components")
+	mediaTypes := nodeview.Child(nodeview.Child(c.Doc.GetRootNode(), "components"), "mediaTypes")
 	at := ids.Ptr("components", "mediaTypes")
 	kept, diags := annotation.PreserveNodeInto(p, annotation.EntryKey("components", "mediaTypes"),
-		view.ChildByToken(nodeview.Deref(components), "mediaTypes"), ir.ReasonNoIRHome, c.ProvenanceAt(at))
+		mediaTypes, ir.ReasonNoIRHome, c.ProvenanceAt(at))
 	if !kept {
 		return diags
 	}

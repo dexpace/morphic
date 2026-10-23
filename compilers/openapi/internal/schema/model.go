@@ -24,16 +24,16 @@ import (
 // Cardinality is read here rather than on lowerComponentSchema's internAlias
 // fallback because an object-shaped schema owns its node before that fallback
 // would run, so the fallback never fires for one (GitHub #129).
-func lowerModel(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer jsontext.Pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
+func lowerModel(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
-	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
+	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
 		cons, consDiags := ConstraintsOf(c, &common.Unmodeled, s, pointer)
 		diags = append(diags, consDiags...)
 		m := &ir.Model{TypeCommon: common, Constraints: cons}
-		diags = append(diags, fillModelProperties(c, ts, anchors, depth, propIndex(c, ts, m), s, pointer)...)
+		diags = append(diags, fillModelProperties(c, ts, depth, propIndex(c, ts, m), s, pointer)...)
 		requireMembers(m, s.GetRequired())
-		diags = append(diags, fillAdditional(c, ts, anchors, depth, m, s, pointer, hint)...)
-		d, discDiags := lowerDiscriminator(c, ts, anchors, s, m, nil, pointer)
+		diags = append(diags, fillAdditional(c, ts, depth, m, s, pointer)...)
+		d, discDiags := lowerDiscriminator(c, ts, s, m, nil, pointer)
 		diags = append(diags, discDiags...)
 		if d != nil {
 			m.Discriminator = d
@@ -87,7 +87,7 @@ func (s settledMerge) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
 // fillModelProperties lowers a model's own properties in source order, each with
 // its full property-level detail (constraints, visibility, defaults, docs, ...).
 // Which are required is requireMembers' to say, once every property is in.
-func fillModelProperties(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, idx *merge.PropIndex, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
+func fillModelProperties(c lowering.Ctx, ts *compile.Types, depth int, idx *merge.PropIndex, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	props := s.GetProperties()
 	if props == nil {
 		return nil
@@ -95,7 +95,7 @@ func fillModelProperties(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex
 	var diags []ir.Diagnostic
 	for name, js := range props.All() {
 		ppointer := pointer + ids.Ptr("properties", name)
-		ref, refDiags := CarriedRef(c, ts, anchors, depth, js, ppointer, name)
+		ref, refDiags := CarriedRef(c, ts, depth, js, ppointer)
 		diags = append(diags, refDiags...)
 		p := ir.Property{
 			ID:         c.IDs().Prop(ppointer),
@@ -104,7 +104,7 @@ func fillModelProperties(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex
 			Type:       ref,
 			Provenance: c.ProvenanceAt(ppointer),
 		}
-		diags = append(diags, FillPropertyDetail(c, ts, anchors, &p, js, ppointer)...)
+		diags = append(diags, FillPropertyDetail(c, ts, &p, js, ppointer)...)
 		idx.MergeProperty(p, redeclarationSource(js))
 	}
 	return diags
@@ -160,7 +160,7 @@ func requireMembers(m *ir.Model, required []string) {
 // beyond the declared ones are allowed. Only an absent keyword writes no
 // catch-all. Neither spelling touches Additional, which this sets only for
 // `false` and `unevaluatedProperties: false`.
-func fillAdditional(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, m *ir.Model, s *oas3.Schema, pointer jsontext.Pointer, hint string) []ir.Diagnostic {
+func fillAdditional(c lowering.Ctx, ts *compile.Types, depth int, m *ir.Model, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	ap := s.GetAdditionalProperties()
 	switch {
@@ -169,11 +169,11 @@ func fillAdditional(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, dep
 	case annotation.IsFalseSchema(ap):
 		m.Additional = ir.AdditionalClosed
 	default:
-		ref, refDiags := Ref(c, ts, anchors, depth, ap, pointer+ids.Ptr("additionalProperties"), compile.SubHint(hint, "value"))
+		ref, refDiags := Ref(c, ts, depth, ap, pointer+ids.Ptr("additionalProperties"))
 		diags = append(diags, refDiags...)
 		m.AdditionalProps = &ir.AdditionalProps{Value: ref}
 	}
-	patterns, patternDiags := patternProps(c, ts, anchors, depth, s, pointer, hint)
+	patterns, patternDiags := patternProps(c, ts, depth, s, pointer)
 	diags = append(diags, patternDiags...)
 	if len(patterns) > 0 {
 		if m.AdditionalProps == nil {
@@ -189,7 +189,7 @@ func fillAdditional(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, dep
 
 // patternProps lowers patternProperties into pattern/value bindings in source
 // order.
-func patternProps(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer jsontext.Pointer, hint string) ([]ir.PatternProps, []ir.Diagnostic) {
+func patternProps(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer jsontext.Pointer) ([]ir.PatternProps, []ir.Diagnostic) {
 	pp := s.GetPatternProperties()
 	if pp == nil || pp.Len() == 0 {
 		return nil, nil
@@ -197,7 +197,7 @@ func patternProps(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth
 	var diags []ir.Diagnostic
 	out := make([]ir.PatternProps, 0, pp.Len())
 	for pattern, js := range pp.All() {
-		ref, refDiags := Ref(c, ts, anchors, depth, js, pointer+ids.Ptr("patternProperties", pattern), compile.SubHint(hint, "pattern"))
+		ref, refDiags := Ref(c, ts, depth, js, pointer+ids.Ptr("patternProperties", pattern))
 		diags = append(diags, refDiags...)
 		out = append(out, ir.PatternProps{Pattern: pattern, Value: ref})
 	}

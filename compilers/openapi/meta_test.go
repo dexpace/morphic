@@ -45,7 +45,7 @@ func TestMeta_UnserializableExtensionStillWarns(t *testing.T) {
 	spec := `openapi: 3.1.0
 info: {title: T, version: "1"}
 paths: {}
-x-bad: {1: intkey}
+x-bad: {n: .nan}
 `
 	doc, diags := parseFull(t, spec)
 	assert.Positive(t, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning),

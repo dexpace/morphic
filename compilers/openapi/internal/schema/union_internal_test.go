@@ -54,7 +54,7 @@ func TestPreserveNullOnlyUnion_MissingNode(t *testing.T) {
 func TestPreserveNullOnlyUnion_NothingToKeep(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
-	id := internNode(l.ctx, l.types, "/components/schemas/S", "", func(cm ir.TypeCommon) ir.TypeDef {
+	id := internNode(l.ctx, l.types, "/components/schemas/S", func(cm ir.TypeCommon) ir.TypeDef {
 		return &ir.Scalar{TypeCommon: cm}
 	})
 	diags := preserveNullOnlyUnion(l.ctx, l.types, id, &oas3.Schema{}, "/components/schemas/S")

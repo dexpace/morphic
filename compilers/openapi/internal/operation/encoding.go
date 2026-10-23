@@ -11,7 +11,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -23,13 +23,13 @@ import (
 // second value rather than writing it, because PartEncoding carries no
 // Unmodeled map of its own; scope is where that belongs on the owning Content
 // (see encodingUnmodeled).
-func encodingConfig(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, enc *soa.Encoding, encPtr jsontext.Pointer, scope string) (ir.PartEncoding, ir.Unmodeled, []ir.Diagnostic) {
+func encodingConfig(c lowering.Ctx, ts *compile.Types, enc *soa.Encoding, encPtr jsontext.Pointer, scope string) (ir.PartEncoding, ir.Unmodeled, []ir.Diagnostic) {
 	pe := ir.PartEncoding{}
 	if enc == nil {
 		return pe, nil, nil
 	}
 	pe.ContentTypes = splitContentTypes(enc.GetContentTypeValue())
-	headers, diags := lowerHeaders(c, ts, anchors, enc.GetHeaders(), encPtr)
+	headers, diags := lowerHeaders(c, ts, enc.GetHeaders(), encPtr)
 	pe.Headers = headers
 	if enc.Style != nil {
 		pe.Style = string(*enc.Style)
@@ -56,7 +56,7 @@ func encodingUnmodeled(c lowering.Ctx, enc *soa.Encoding, encPtr jsontext.Pointe
 	var out ir.Unmodeled
 	at := encPtr + ids.Ptr("allowReserved")
 	kept, diags := annotation.PreserveNodeInto(&out, "openapi:"+scope+"/allowReserved",
-		annotation.RawChildNode(enc.GetRootNode(), "allowReserved"), ir.ReasonNoIRHome, c.ProvenanceAt(at))
+		nodeview.Child(enc.GetRootNode(), "allowReserved"), ir.ReasonNoIRHome, c.ProvenanceAt(at))
 	if kept {
 		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
 			"encoding allowReserved has no ir.PartEncoding home; kept verbatim under Unmodeled"))
@@ -88,7 +88,7 @@ func nestedEncodings(c lowering.Ctx, out *ir.Unmodeled, enc *soa.Encoding, encPt
 	for _, keyword := range nestedEncodingFields {
 		at := encPtr + ids.Ptr(keyword)
 		kept, keptDiags := annotation.PreserveNodeInto(out, annotation.EntryKey(scope, keyword),
-			annotation.RawChildNode(enc.GetRootNode(), keyword), ir.ReasonNoIRHome, c.ProvenanceAt(at))
+			nodeview.Child(enc.GetRootNode(), keyword), ir.ReasonNoIRHome, c.ProvenanceAt(at))
 		diags = append(diags, keptDiags...)
 		if !kept {
 			continue

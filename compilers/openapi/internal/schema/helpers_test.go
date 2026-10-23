@@ -52,15 +52,14 @@ func parseFull(t *testing.T, src string) (*ir.Document, []ir.Diagnostic) {
 }
 
 // lowerer is test scaffolding, not a compiler type. The compiler has no such
-// struct: every lowering is a function of the context, the registry and the
-// memos, and the caller owns the document being built (#177). Tests that drive
-// one lowering in isolation still want those in one place.
+// struct: every lowering is a function of the context and the registry, and
+// the caller owns the document being built (#177). Tests that drive one
+// lowering in isolation still want those in one place.
 type lowerer struct {
-	ctx     lowering.Ctx
-	out     *ir.Document
-	types   *compile.Types
-	diags   compile.Diags
-	anchors schema.AnchorIndex
+	ctx   lowering.Ctx
+	out   *ir.Document
+	types *compile.Types
+	diags compile.Diags
 }
 
 // lowererOver is the only place the fixture's fields are initialised. Both
@@ -92,7 +91,7 @@ func loweredFor(t *testing.T, src string) (*lowerer, []ir.Diagnostic) {
 func lowerSpec(t *testing.T, src string) (*ir.Document, []ir.Diagnostic) {
 	t.Helper()
 	l, diags := loweredFor(t, src)
-	l.diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.ctx, l.types, &l.anchors))
+	l.diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.ctx, l.types))
 	doc := l.document(t)
 	return doc, append(diags, l.diags.List()...)
 }
@@ -107,7 +106,7 @@ func lowerSpec(t *testing.T, src string) (*ir.Document, []ir.Diagnostic) {
 func lowerSpecOnly(t *testing.T, src string) (*ir.Document, []ir.Diagnostic) {
 	t.Helper()
 	l, _ := loweredFor(t, src)
-	l.diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.ctx, l.types, &l.anchors))
+	l.diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.ctx, l.types))
 	doc := l.document(t)
 	return doc, l.diags.List()
 }

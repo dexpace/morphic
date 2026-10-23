@@ -458,12 +458,13 @@ func TestTakeString_DecodesAsTheParserDoes(t *testing.T) {
 	}
 }
 
-// TestTakeString_AppliesValidAndReadsOnlyDirectKeys pins what TakeString decides
-// itself, whatever the parser decodes: a non-empty value valid refuses is kept
-// verbatim as a value that does not decode is, an empty or null one is not put to
-// valid, and a key the mapping does not present directly, absent or merged in
-// through `<<`, is left unread for the census.
-func TestTakeString_AppliesValidAndReadsOnlyDirectKeys(t *testing.T) {
+// TestTakeString_AppliesValidAndReadsAsTheParserDoes pins what TakeString
+// decides itself, whatever the parser decodes: a non-empty value valid refuses
+// is kept verbatim as a value that does not decode is, an empty or null one is
+// not put to valid, a key merged in through `<<` is read as one written there
+// is, and a key the mapping does not present, absent or merged in from past
+// nodeview.MergeDepthLimit, is left unread for the census.
+func TestTakeString_AppliesValidAndReadsAsTheParserDoes(t *testing.T) {
 	t.Parallel()
 	only := func(v string) bool { return v == "ok" }
 	for _, tc := range []struct {
@@ -479,7 +480,8 @@ func TestTakeString_AppliesValidAndReadsOnlyDirectKeys(t *testing.T) {
 		{"an empty string valid would refuse", `k: ""`, only, "", true, ""},
 		{"a null valid would refuse", "k: ~", only, "", true, ""},
 		{"absent", "j: x", nil, "", false, ""},
-		{"merged in", "<<: {k: m}", nil, "", false, ""},
+		{"merged in", "<<: {k: m}", nil, "m", true, ""},
+		{"merged in past the bound", "<<: " + pastMergeBound("{k: m}"), nil, "", false, ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

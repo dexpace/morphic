@@ -31,9 +31,9 @@ import (
 // (ir-design §3.3) when schemaAdmitsNull holds, the predicate every Nullable
 // site shares. A sibling `type: string` forbids that null, so it stays and the
 // set becomes a Union.
-func lowerEnum(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsontext.Pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
+func lowerEnum(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
-	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
+	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
 		// The degenerate list first, then the budget. They cannot both hold — a
 		// member count of zero exceeds no positive budget — so the order decides
 		// nothing, but reading the empty case beside the members it lacks is
@@ -52,7 +52,7 @@ func lowerEnum(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsonte
 		diags = append(diags, enumRepeats(c, s.GetEnum(), pointer)...)
 		members, memberPrim, ok := enumMembers(s.GetEnum(), schemaAdmitsNull(c, s), c.IDs(), pointer)
 		if !ok {
-			def, enumDiags := enumAsUnion(c, ts, s, common, pointer, hint)
+			def, enumDiags := enumAsUnion(c, ts, s, common, pointer)
 			diags = append(diags, enumDiags...)
 			return def
 		}
@@ -136,18 +136,17 @@ func enumMembers(nodes []values.Value, dropNull bool, d ids.Document, pointer js
 
 // enumAsUnion lowers a heterogeneous or non-scalar enum to an exclusive Union of
 // hoisted Literals, emitting one info diagnostic.
-func enumAsUnion(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, common ir.TypeCommon, pointer jsontext.Pointer, hint string) (ir.TypeDef, []ir.Diagnostic) {
+func enumAsUnion(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, common ir.TypeCommon, pointer jsontext.Pointer) (ir.TypeDef, []ir.Diagnostic) {
 	diags := []ir.Diagnostic{c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer,
 		"heterogeneous or non-scalar enum lowered as a union of literals")}
 	nodes := s.GetEnum()
 	variants := make([]ir.Variant, 0, len(nodes))
 	for i, node := range nodes {
-		vh := compile.SubHint(hint, strconv.Itoa(i))
 		lptr := pointer + ids.Ptr("enum", strconv.Itoa(i))
-		litID, litDiags := hoistLiteral(c, ts, node, lptr, vh)
+		litID, litDiags := hoistLiteral(c, ts, node, lptr)
 		diags = append(diags, litDiags...)
 		variants = append(variants, ir.Variant{
-			Name: compile.NamingHint(vh),
+			Name: compile.NamingHint(lowering.NameAt(c, lptr)),
 			Type: ir.TypeRef{Target: litID},
 		})
 	}
@@ -168,7 +167,7 @@ func enumAsUnion(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, common ir.Ty
 //
 // It returns the interned ID, plus the diagnostic an unconvertible node
 // produces — none when the node converts.
-func hoistLiteral(c lowering.Ctx, ts *compile.Types, node values.Value, pointer jsontext.Pointer, hint string,
+func hoistLiteral(c lowering.Ctx, ts *compile.Types, node values.Value, pointer jsontext.Pointer,
 ) (ir.TypeID, []ir.Diagnostic) {
 	// Captured from inside the build rather than reported around it, which keeps
 	// the report tied to the node actually being constructed. Reporting eagerly
@@ -176,7 +175,7 @@ func hoistLiteral(c lowering.Ctx, ts *compile.Types, node values.Value, pointer 
 	// diagnostic, which Diags.Append drops — so nothing observable rests on this;
 	// it is the honest place for it, not a load-bearing one.
 	var diags []ir.Diagnostic
-	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
+	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
 		val, err := value.FromNode(node)
 		if err != nil {
 			diags = append(diags, c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, pointer,

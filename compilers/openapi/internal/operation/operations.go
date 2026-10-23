@@ -12,7 +12,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -25,7 +25,7 @@ import (
 // the two loops between path items and returns the groups filled so far; the
 // compiler's run sees ctx.Err() at the phase boundary after this and refuses,
 // rather than assembling a Document out of them.
-func LowerService(ctx context.Context, c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex) (ir.Service, []ir.TagDef, []ir.Diagnostic) {
+func LowerService(ctx context.Context, c lowering.Ctx, ts *compile.Types) (ir.Service, []ir.TagDef, []ir.Diagnostic) {
 	svc := ir.Service{
 		ID:         ids.Service(c.SrcIndex),
 		Provenance: c.ProvenanceAt(""),
@@ -46,8 +46,8 @@ func LowerService(ctx context.Context, c lowering.Ctx, ts *compile.Types, anchor
 	diags = append(diags, pathsDiags...)
 	groups := newServiceGroups(c.Doc.GetTags())
 	claims := newOperationIDClaims()
-	diags = append(diags, lowerPaths(ctx, c, ts, anchors, claims, groups, &svc)...)
-	diags = append(diags, lowerWebhooks(ctx, c, ts, anchors, claims, groups, &svc)...)
+	diags = append(diags, lowerPaths(ctx, c, ts, claims, groups, &svc)...)
+	diags = append(diags, lowerWebhooks(ctx, c, ts, claims, groups, &svc)...)
 	// After both walks: whether an operationId is unique is a question about
 	// every operation the service mounts, callbacks included.
 	diags = append(diags, claims.report(c)...)
@@ -104,7 +104,7 @@ func (o opContext) keyFields() (uriTemplate, webhookName string) {
 // lowerOperation lowers one source operation into the neutral core plus its HTTP
 // binding. It returns the operation and any callback operations that must be
 // registered alongside it in the same group (ir-design §7.2, §8.1).
-func lowerOperation(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, claims *operationIDClaims, src *soa.Operation, opCtx opContext) (ir.Operation, []ir.Operation, []ir.Diagnostic) {
+func lowerOperation(c lowering.Ctx, ts *compile.Types, claims *operationIDClaims, src *soa.Operation, opCtx opContext) (ir.Operation, []ir.Operation, []ir.Diagnostic) {
 	mount, decl := opCtx.ptrs.mount, opCtx.ptrs.decl
 	// Built through the context so the source index is spelled in one place. Its
 	// heuristic marker is filled in below, once every lowering that can add one
@@ -128,10 +128,10 @@ func lowerOperation(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 	if src.GetDeprecated() {
 		op.Deprecation = &ir.Deprecation{}
 	}
-	params, bindings, paramDiags := lowerParameters(c, ts, anchors, mount, opCtx.params)
+	params, bindings, paramDiags := lowerParameters(c, ts, mount, opCtx.params)
 	diags = append(diags, paramDiags...)
 	op.Params = params
-	diags = append(diags, lowerResponses(c, ts, anchors, &op, src, decl)...)
+	diags = append(diags, lowerResponses(c, ts, &op, src, decl)...)
 	if opCtx.method == "" {
 		diags = append(diags, c.DiagAt(ir.SeverityWarning, diag.InvalidMethodKey, decl,
 			"additionalOperations key names no method; the operation lowers with an empty "+
@@ -145,7 +145,7 @@ func lowerOperation(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 		IsWebhook:     opCtx.isWebhook,
 		ParamBindings: bindings,
 	}
-	diags = append(diags, lowerRequestBody(c, ts, anchors, &op, &hb, src, decl)...)
+	diags = append(diags, lowerRequestBody(c, ts, &op, &hb, src, decl)...)
 	// After both payload lowerings, which are what it reads.
 	streaming, streamDiags := applyStreaming(c, &op, decl)
 	diags = append(diags, streamDiags...)
@@ -154,7 +154,7 @@ func lowerOperation(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 	if opCtx.withCallbacks {
 		var cbExt ir.Unmodeled
 		var cbDiags []ir.Diagnostic
-		hb.Callbacks, extra, cbExt, cbDiags = lowerCallbacks(c, ts, anchors, claims, src, opCtx.ptrs, opCtx.inferred)
+		hb.Callbacks, extra, cbExt, cbDiags = lowerCallbacks(c, ts, claims, src, opCtx.ptrs, opCtx.inferred)
 		hb.Unmodeled = annotation.MergeUnmodeled(hb.Unmodeled, cbExt)
 		diags = append(diags, cbDiags...)
 	}
@@ -207,7 +207,7 @@ func applyOperationServers(c lowering.Ctx, op *ir.Operation, src *soa.Operation,
 		return nil
 	}
 	kept, diags := annotation.PreserveNodeInto(&op.Unmodeled, "openapi:operationServers",
-		annotation.RawChildNode(src.GetRootNode(), "servers"), ir.ReasonNoIRHome, c.ProvenanceAt(declPtr+ids.Ptr("servers")))
+		nodeview.Child(src.GetRootNode(), "servers"), ir.ReasonNoIRHome, c.ProvenanceAt(declPtr+ids.Ptr("servers")))
 	if !kept {
 		return diags
 	}

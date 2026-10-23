@@ -26,7 +26,7 @@ import (
 // returns what was lowered so far; the caller — run — sees ctx.Err() at the
 // phase boundary immediately after and refuses the document there, so a partial
 // registry never becomes a Document.
-func LowerComponentSchemas(ctx context.Context, c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex) []ir.Diagnostic {
+func LowerComponentSchemas(ctx context.Context, c lowering.Ctx, ts *compile.Types) []ir.Diagnostic {
 	comps := c.Doc.Components
 	if comps == nil {
 		return nil
@@ -43,7 +43,7 @@ func LowerComponentSchemas(ctx context.Context, c lowering.Ctx, ts *compile.Type
 		if ctx.Err() != nil {
 			return diags
 		}
-		diags = append(diags, lowerComponentSchema(c, ts, anchors, js, ids.Ptr("components", "schemas", name), name)...)
+		diags = append(diags, lowerComponentSchema(c, ts, js, ids.Ptr("components", "schemas", name))...)
 	}
 	return diags
 }
@@ -53,20 +53,20 @@ func LowerComponentSchemas(ctx context.Context, c lowering.Ctx, ts *compile.Type
 // shared primitive/any or aliases another type. Without this, a component like
 // `MyId: {type: string, format: uuid}` would leave nothing at its component
 // pointer and every $ref to it would dangle (invariants 1 and 2).
-func lowerComponentSchema(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, js *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer, name string) []ir.Diagnostic {
+func lowerComponentSchema(c lowering.Ctx, ts *compile.Types, js *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer) []ir.Diagnostic {
 	s := annotation.At(js)
-	ref, diags := Ref(c, ts, anchors, TopLevelDepth, js, pointer, name)
+	ref, diags := Ref(c, ts, TopLevelDepth, js, pointer)
 	// A body that interned the component's own node at its component ID needs no
 	// alias, and its annotations were attached where it was lowered.
 	if _, owned := ts.Lookup(c.IDs().Coordinate(pointer)); owned {
 		return diags
 	}
-	_, aliasDiags := internAlias(c, ts, s.Node, pointer, name, ref)
+	_, aliasDiags := internAlias(c, ts, s.Node, pointer, ref)
 	diags = append(diags, aliasDiags...)
 	// This alias is the first node the pointer owns, so the annotations
 	// schemaBody had nowhere to put now have a home.
 	if s.Node != nil {
-		diags = append(diags, attachDeclaredAnnotations(c, ts, anchors, s.Node, pointer)...)
+		diags = append(diags, attachDeclaredAnnotations(c, ts, s.Node, pointer)...)
 	}
 	return diags
 }
@@ -94,21 +94,21 @@ const maxSchemaDepth = 256
 // It defaults to annotation.HomeOwnNode deliberately: a position added later
 // inherits the lossless behaviour, and only a caller that can prove it already
 // carries the annotations opts out through CarriedRef.
-func Ref(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, js *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer, hint string) (ir.TypeRef, []ir.Diagnostic) {
-	return schemaRefHomed(c, ts, anchors, depth, js, pointer, hint, annotation.HomeOwnNode)
+func Ref(c lowering.Ctx, ts *compile.Types, depth int, js *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer) (ir.TypeRef, []ir.Diagnostic) {
+	return schemaRefHomed(c, ts, depth, js, pointer, annotation.HomeOwnNode)
 }
 
 // CarriedRef lowers a schema whose annotations the calling position
 // already carries — a model property, a header, a parameter. Those callers
 // copy the declaration onto their own ir.Property/ir.Parameter, so the pointer
 // must not also hoist a node to hold it: one home per declaration.
-func CarriedRef(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, js *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer, hint string) (ir.TypeRef, []ir.Diagnostic) {
-	return schemaRefHomed(c, ts, anchors, depth, js, pointer, hint, annotation.HomeCarrier)
+func CarriedRef(c lowering.Ctx, ts *compile.Types, depth int, js *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer) (ir.TypeRef, []ir.Diagnostic) {
+	return schemaRefHomed(c, ts, depth, js, pointer, annotation.HomeCarrier)
 }
 
 // schemaRefHomed is the shared body of the two entry points above; home only
 // reaches the two places that can hoist an annotation-holding alias.
-func schemaRefHomed(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, js *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer, hint string, home annotation.Home) (ir.TypeRef, []ir.Diagnostic) {
+func schemaRefHomed(c lowering.Ctx, ts *compile.Types, depth int, js *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer, home annotation.Home) (ir.TypeRef, []ir.Diagnostic) {
 	// depth counts the active frames of this function, which is where every
 	// recursive descent re-enters. Incrementing on entry and passing the result
 	// down is the parameter form of a counter that used to live on a shared
@@ -118,9 +118,6 @@ func schemaRefHomed(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, dep
 		return ts.PrimRef(ir.PrimAny), []ir.Diagnostic{c.DiagAt(ir.SeverityError, diag.DegradedConstruct, pointer,
 			"schema nesting exceeds %d; lowered as any", maxSchemaDepth)}
 	}
-	// The hint this lowering names the position by stands for any node a $ref
-	// later hoists here, where the position itself interned none (hoistSubSchema).
-	c.DeclareHint(pointer, hint)
 	if !annotation.Written(js) {
 		// None, or a null, which states nothing: an entry written so — a
 		// property, a branch, a component, items — lowers as the empty schema.
@@ -130,7 +127,7 @@ func schemaRefHomed(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, dep
 	}
 	if js.IsBool() {
 		if b := js.GetBool(); b != nil && !*b {
-			id, diags := falseSchema(c, ts, pointer, hint)
+			id, diags := falseSchema(c, ts, pointer)
 			return ir.TypeRef{Target: id}, diags
 		}
 		return ts.PrimRef(ir.PrimAny), nil
@@ -139,22 +136,22 @@ func schemaRefHomed(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, dep
 	// either reads as a bool), so GetSchema never returns nil here.
 	schema := js.GetSchema()
 	if resolve.IsRefSite(js, schema) {
-		return refSiteRef(c, ts, anchors, js, schema, pointer, hint, home)
+		return refSiteRef(c, ts, js, schema, pointer, home)
 	}
-	return schemaBody(c, ts, anchors, depth, schema, pointer, hint, home)
+	return schemaBody(c, ts, depth, schema, pointer, home)
 }
 
 // falseSchema hoists a boolean `false` schema as a closed empty model (it
 // matches nothing), returning the interned ID and the one info diagnostic that
 // announces it.
-func falseSchema(c lowering.Ctx, ts *compile.Types, pointer jsontext.Pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
+func falseSchema(c lowering.Ctx, ts *compile.Types, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
 	// Captured from inside the build rather than reported around it, which keeps
 	// the report tied to the node actually being constructed. Reporting eagerly
 	// would be indistinguishable today — a second visit produces the identical
 	// diagnostic, which Diags.Append drops — so nothing observable rests on this;
 	// it is the honest place for it, not a load-bearing one.
 	var diags []ir.Diagnostic
-	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
+	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
 		// Kept verbatim beside the approximation, which is what §4.8 asks of
 		// every degraded lowering that loses something, and what the composition
 		// half of this same rule already did. Without it a `false` schema and a
@@ -184,15 +181,15 @@ func falseSchema(c lowering.Ctx, ts *compile.Types, pointer jsontext.Pointer, hi
 // hoisting (hoistSubSchema) arrives through Ref. A rule about the
 // declaration itself is checked here, above the dispatch that picks what it
 // lowers to (missingArrayItems).
-func schemaBody(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, schema *oas3.Schema, pointer jsontext.Pointer, hint string, home annotation.Home) (ir.TypeRef, []ir.Diagnostic) {
+func schemaBody(c lowering.Ctx, ts *compile.Types, depth int, schema *oas3.Schema, pointer jsontext.Pointer, home annotation.Home) (ir.TypeRef, []ir.Diagnostic) {
 	diags := missingArrayItems(c, schema, pointer)
-	target, bodyDiags := lowerSchemaBody(c, ts, anchors, depth, schema, pointer, hint)
+	target, bodyDiags := lowerSchemaBody(c, ts, depth, schema, pointer)
 	diags = append(diags, bodyDiags...)
 	// A body's census ran inside lower(), against the node the walk actually
 	// built, which is the only thing that can answer it. A collapsed union built
 	// none, so it takes a $ref site's census, and its verdict homes an alias.
 	unhomed := collapsedUnhomedKeywords(schema)
-	ref, homeDiags := homeDeclaration(c, ts, anchors, schema, target, pointer, hint, home, len(unhomed) > 0)
+	ref, homeDiags := homeDeclaration(c, ts, schema, target, pointer, home, len(unhomed) > 0)
 	diags = append(diags, homeDiags...)
 	if home != annotation.HomeOwnNode {
 		return ref, diags // the carrier keeps them (PreserveRefSiteKeywords)
@@ -202,8 +199,8 @@ func schemaBody(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 
 // lowerSchemaBody lowers the body itself, handling the $dynamicRef expansion and
 // the oneOf/anyOf dispatch that precede structural lowering.
-func lowerSchemaBody(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, schema *oas3.Schema, pointer jsontext.Pointer, hint string) (ir.TypeRef, []ir.Diagnostic) {
-	target, _, expanded, diags := dynamicExpansion(c, anchors, schema, pointer)
+func lowerSchemaBody(c lowering.Ctx, ts *compile.Types, depth int, schema *oas3.Schema, pointer jsontext.Pointer) (ir.TypeRef, []ir.Diagnostic) {
+	target, _, expanded, diags := dynamicExpansion(c, schema, pointer)
 	if expanded {
 		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DynamicRefExpanded, pointer+ids.Ptr("$dynamicRef"),
 			"$dynamicRef expanded to %q, the one matching $dynamicAnchor in this document", target))
@@ -212,14 +209,14 @@ func lowerSchemaBody(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, de
 	}
 	if len(schema.GetOneOf()) > 0 || len(schema.GetAnyOf()) > 0 {
 		if hasUnionSiblings(schema) {
-			id, unionDiags := lowerCoDeclaredUnion(c, ts, anchors, depth, schema, pointer, hint)
+			id, unionDiags := lowerCoDeclaredUnion(c, ts, depth, schema, pointer)
 			ref, nullDiags := schemaNullRef(c, id, schema, siteAt(pointer))
 			return ref, slices.Concat(diags, unionDiags, nullDiags)
 		}
-		ref, unionDiags := lowerOneOfAnyOf(c, ts, anchors, depth, schema, pointer, hint)
+		ref, unionDiags := lowerOneOfAnyOf(c, ts, depth, schema, pointer)
 		return ref, append(diags, unionDiags...)
 	}
-	id, bodyDiags := lower(c, ts, anchors, depth, schema, pointer, hint)
+	id, bodyDiags := lower(c, ts, depth, schema, pointer)
 	ref, nullDiags := schemaNullRef(c, id, schema, siteAt(pointer))
 	return ref, slices.Concat(diags, bodyDiags, nullDiags)
 }
@@ -234,19 +231,19 @@ func lowerSchemaBody(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, de
 // keyword the elected lowering never reads, such as `type: string` beside an
 // allOf, goes through preserveUnhomedKeywords, which asks the built node
 // whether it has a field for it.
-func lower(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer jsontext.Pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
+func lower(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
 	d := dispatchOf(s)
 	unhomed := func(id ir.TypeID, diags []ir.Diagnostic) (ir.TypeID, []ir.Diagnostic) {
-		owner, ownDiags := preserveUnhomedKeywords(c, ts, s, pointer, hint, id, d)
+		owner, ownDiags := preserveUnhomedKeywords(c, ts, s, pointer, id, d)
 		return owner, append(diags, ownDiags...)
 	}
 	switch d.won {
 	case "const":
-		return unhomed(hoistLiteral(c, ts, s.GetConst(), pointer, hint))
+		return unhomed(hoistLiteral(c, ts, s.GetConst(), pointer))
 	case "enum":
-		return unhomed(lowerEnum(c, ts, s, pointer, hint))
+		return unhomed(lowerEnum(c, ts, s, pointer))
 	case "allOf":
-		return unhomed(lowerAllOf(c, ts, anchors, depth, s, pointer, hint))
+		return unhomed(lowerAllOf(c, ts, depth, s, pointer))
 	}
 	// won is "" — the schema declares no family, so the type set decides.
 	types := effectiveTypes(s)
@@ -259,32 +256,32 @@ func lower(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s
 		// not the Union's, so the applicator check does not apply. A keyword no
 		// declared type's variant holds, such as a discriminator with no object
 		// variant, is dropped (GitHub #852).
-		return lowerUnion(c, ts, anchors, depth, s, pointer, hint, types)
+		return lowerUnion(c, ts, depth, s, pointer, types)
 	case len(types) == 1:
-		return unhomed(lowerTyped(c, ts, anchors, depth, s, pointer, hint, types[0]))
+		return unhomed(lowerTyped(c, ts, depth, s, pointer, types[0]))
 	default:
-		return unhomed(lowerUntyped(c, ts, anchors, depth, s, pointer, hint))
+		return unhomed(lowerUntyped(c, ts, depth, s, pointer))
 	}
 }
 
 // lowerTyped dispatches a single-typed schema to its structural or scalar form.
-func lowerTyped(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer jsontext.Pointer, hint string, st oas3.SchemaType) (ir.TypeID, []ir.Diagnostic) {
+func lowerTyped(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer jsontext.Pointer, st oas3.SchemaType) (ir.TypeID, []ir.Diagnostic) {
 	switch st {
 	case oas3.SchemaTypeObject:
-		return lowerModel(c, ts, anchors, depth, s, pointer, hint)
+		return lowerModel(c, ts, depth, s, pointer)
 	case oas3.SchemaTypeArray:
-		return lowerArray(c, ts, anchors, depth, s, pointer, hint)
+		return lowerArray(c, ts, depth, s, pointer)
 	default:
-		return scalarTypeID(c, ts, anchors, depth, s, st, pointer, hint)
+		return scalarTypeID(c, ts, depth, s, st, pointer)
 	}
 }
 
 // lowerUntyped handles a schema with no declared type and no const, enum or
 // allOf, which lower() elects first: a property set makes it a model; anything
 // else is schemaless.
-func lowerUntyped(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer jsontext.Pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
+func lowerUntyped(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
 	if props := s.GetProperties(); props != nil && props.Len() > 0 {
-		return lowerModel(c, ts, anchors, depth, s, pointer, hint)
+		return lowerModel(c, ts, depth, s, pointer)
 	}
 	return ts.PrimID(ir.PrimAny), nil
 }

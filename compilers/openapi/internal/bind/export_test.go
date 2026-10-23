@@ -10,3 +10,7 @@ func (t *Table) Find(name string) (DocID, bool) {
 	}
 	return 0, false
 }
+
+// MaxPointerTokens is maxPointerTokens, for the external tests that read a
+// pointer to its cap.
+const MaxPointerTokens = maxPointerTokens

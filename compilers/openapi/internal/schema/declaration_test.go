@@ -144,7 +144,7 @@ func TestSchema_UnserializableExtension(t *testing.T) {
 	spec := openapitest.ComponentSpec(`    S:
       type: object
       properties: {a: {type: string}}
-      x-bad: {1: intkey}
+      x-bad: {n: .nan}
 `)
 	doc, diags := lowerSpec(t, spec)
 	require.NotNil(t, doc)

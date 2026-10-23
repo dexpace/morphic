@@ -55,9 +55,10 @@ func InTree(srcIndex int, pointers func(*yaml.Node) (jsontext.Pointer, bool)) Lo
 
 // Pointers returns a node's JSON pointer in root's tree, its pairs keyed as
 // the parser keys them (nodeview.KeyOf), and whether the tree holds the node.
-// A key shares its member's pointer, and an alias's target is placed where it
-// is written. A nil node or root is held by none, nor is a node under a `<<`
-// merge key: the document the merge spells holds that pair at another pointer.
+// A scalar key shares its member's pointer, and an alias's target is placed
+// where it is written. A nil node or root is held by none, nor is a node under
+// a `<<` merge key, whose pair the merge's document holds at another pointer,
+// nor a key that is no scalar, which no pointer reads inside.
 //
 // The tree is indexed on the first node asked about, once, so a load that
 // reports nothing never indexes it.
@@ -137,15 +138,17 @@ func reachChildren(n *yaml.Node, reach func(*yaml.Node, step)) {
 
 // eachChild hands visit each child of a mapping or sequence n, with the token
 // naming it and whether a pointer reaches it there: a pair under a `<<` merge
-// key, or under a key that is no scalar, is n's but has no pointer of its own.
-// A scalar holds nothing, and an alias's target is written elsewhere.
+// key is n's but has no pointer of its own, and a key that is no scalar has
+// none either, though its value is read under the empty key the parser gives
+// it. A scalar holds nothing, and an alias's target is written elsewhere.
 func eachChild(n *yaml.Node, visit func(c *yaml.Node, token string, held bool)) {
 	switch n.Kind {
 	case yaml.MappingNode:
 		for i := 0; i+1 < len(n.Content); i += 2 {
 			key, value := n.Content[i], n.Content[i+1]
 			token, own := nodeview.KeyOf(key)
-			visit(key, token, own)
+			k := nodeview.Deref(key)
+			visit(key, token, own && k != nil && k.Kind == yaml.ScalarNode)
 			visit(value, token, own)
 		}
 	case yaml.SequenceNode:

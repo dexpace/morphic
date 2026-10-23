@@ -13,6 +13,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -88,7 +89,7 @@ func electTypeSpelling(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable],
 func passedOverSpelling(c lowering.Ctx, u *ir.Unmodeled, root *yaml.Node, passed, elected string, at jsontext.Pointer) []ir.Diagnostic {
 	pointer := at + ids.Ptr(passed)
 	kept, diags := annotation.PreserveNodeInto(u, "openapi:"+passed,
-		annotation.RawChildNode(root, passed), ir.ReasonDegradedLowering, c.ProvenanceAt(pointer))
+		nodeview.Child(root, passed), ir.ReasonDegradedLowering, c.ProvenanceAt(pointer))
 	if !kept {
 		return diags
 	}

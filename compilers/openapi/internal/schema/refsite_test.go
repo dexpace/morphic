@@ -193,7 +193,7 @@ components:
 
 	l := lowererOver(lowering.New(0, unlisted.Doc, unlisted.Source, lowering.GroupByTags, lowering.Limits{},
 		lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}).WithLoaded(&unlisted))
-	l.diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.ctx, l.types, &l.anchors))
+	l.diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.ctx, l.types))
 	doc := l.document(t)
 
 	unresolved := func(pointer jsontext.Pointer, message string) ir.Diagnostic {
@@ -310,8 +310,9 @@ func TestSchema_EmptyFragmentRef(t *testing.T) {
 func TestSchema_EmptyStringRefMirrorBranches(t *testing.T) {
 	t.Parallel()
 	// An empty-string $ref has IsReference()==false (the ref value is "") yet a
-	// non-nil oas3 Ref pointer, exercising that mirror path in schema.Ref and the
-	// branchHint fallback.
+	// non-nil oas3 Ref pointer, exercising that mirror path in schema.Ref and a
+	// branch named by its position, since a $ref that suggests no name leaves it
+	// its own.
 	spec := openapitest.ComponentSpec(`    Owner:
       type: object
       properties:
@@ -527,7 +528,8 @@ func TestCrossPathReference_SubtreeIsNamedByItsDeclaration(t *testing.T) {
 // a dependentSchemas entry (each kept verbatim in Unmodeled, ir-design §4.7), is
 // reached only by references. Two references into one such region, one aimed at
 // the outer position and one beneath it, name the inner position alike in
-// either order, because positionHint names it from the pointer alone.
+// either order, because its name is a function of its coordinate
+// (lowering.NameAt).
 func TestUndeclaredRegion_TwoReferencesAgreeInBothOrders(t *testing.T) {
 	t.Parallel()
 	const preamble = "openapi: 3.1.0\ninfo: {title: O, version: \"1.0.0\"}\npaths:\n"
@@ -951,10 +953,9 @@ func TestSchemaRef_ToAPointerEndingInSlashNamesAnEmptyKey(t *testing.T) {
 }
 
 // crossPathSchemaRoot names one shape /paths (or /webhooks) can hold a schema
-// at, for TestCrossPathReference_SubtreeIsNamedByItsDeclaration. positionHint
-// cannot replay the enclosing hint under any of them: it comes from an
-// operationId, a response, a parameter or a webhook, none of which the
-// pointer records.
+// at, for TestCrossPathReference_SubtreeIsNamedByItsDeclaration. The pointer
+// alone names none of them: each is named for an operationId, a response, a
+// parameter or a webhook, which the namer reads from the document.
 type crossPathSchemaRoot struct {
 	name string
 	// block returns /b's (or the webhook's) top-level path-item entry with

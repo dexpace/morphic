@@ -13,7 +13,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -100,7 +100,7 @@ func pathOperations(pi *soa.PathItem) []pathOperation {
 // lowerPaths lowers every path operation in source order into groups, stopping
 // between path items when ctx is done. svc carries what a path item mounting no
 // operation writes, which has no operation of its own to hold it.
-func lowerPaths(ctx context.Context, c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, claims *operationIDClaims, groups *serviceGroups, svc *ir.Service) []ir.Diagnostic {
+func lowerPaths(ctx context.Context, c lowering.Ctx, ts *compile.Types, claims *operationIDClaims, groups *serviceGroups, svc *ir.Service) []ir.Diagnostic {
 	paths := c.Doc.GetPaths()
 	if paths == nil {
 		return nil
@@ -118,7 +118,7 @@ func lowerPaths(ctx context.Context, c lowering.Ctx, ts *compile.Types, anchors 
 			continue
 		}
 		diags = append(diags, found...)
-		diags = append(diags, lowerPathItem(c, ts, anchors, claims, groups, svc, path, layers)...)
+		diags = append(diags, lowerPathItem(c, ts, claims, groups, svc, path, layers)...)
 	}
 	return diags
 }
@@ -127,9 +127,9 @@ func lowerPaths(ctx context.Context, c lowering.Ctx, ts *compile.Types, anchors 
 // into its group, carrying along any callback operations registered under the
 // same group. Each operation keeps its mount pointer (under path) as its
 // identity, and lowers from where its layer declares it (see pathItemLayers).
-func lowerPathItem(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, claims *operationIDClaims, groups *serviceGroups, svc *ir.Service, path string, layers []layer) []ir.Diagnostic {
+func lowerPathItem(c lowering.Ctx, ts *compile.Types, claims *operationIDClaims, groups *serviceGroups, svc *ir.Service, path string, layers []layer) []ir.Diagnostic {
 	route := opContext{key: path, withCallbacks: true, inferred: groupingInferred(c)}
-	mounted, diags := mountPathItem(ts, anchors, claims, layers, ids.Ptr("paths", path), route, &svc.Unmodeled)
+	mounted, diags := mountPathItem(ts, claims, layers, ids.Ptr("paths", path), route, &svc.Unmodeled)
 	for _, m := range mounted {
 		grp := groups.place(groups.groupFor(c, m.src, path))
 		grp.Operations = append(grp.Operations, m.op)
@@ -155,7 +155,7 @@ type mountedOp struct {
 // mount lowering none keeps what its layers declare in residue instead. route
 // holds what the route sets on every operation; each brings its own method,
 // pointers and parameters.
-func mountPathItem(ts *compile.Types, anchors *schema.AnchorIndex, claims *operationIDClaims, layers []layer, mount jsontext.Pointer, route opContext, residue *ir.Unmodeled) ([]mountedOp, []ir.Diagnostic) {
+func mountPathItem(ts *compile.Types, claims *operationIDClaims, layers []layer, mount jsontext.Pointer, route opContext, residue *ir.Unmodeled) ([]mountedOp, []ir.Diagnostic) {
 	ops := mountedOperations(layers)
 	owner, diags := precedence(layers, len(ops) > 0)
 	params := itemParams(layers)
@@ -166,7 +166,7 @@ func mountPathItem(ts *compile.Types, anchors *schema.AnchorIndex, claims *opera
 		opCtx.method = po.method
 		opCtx.ptrs = opPointers{mount: mount + po.seg, decl: l.decl + po.seg}
 		opCtx.params = mergeParameters(params, po.src.GetParameters(), opCtx.ptrs.decl)
-		op, extra, opDiags := lowerOperation(l.in, ts, anchors, claims, po.src, opCtx)
+		op, extra, opDiags := lowerOperation(l.in, ts, claims, po.src, opCtx)
 		diags = append(diags, opDiags...)
 		diags = append(diags, applyLayers(layers, owner, onOperation(&op))...)
 		mounted = append(mounted, mountedOp{src: po.src, op: op, extra: extra})
@@ -266,9 +266,10 @@ func onNearestNode(c lowering.Ctx, u *ir.Unmodeled, mountPtr jsontext.Pointer) c
 // It keeps what applyPathItem keeps on a carrier holding no docs; the summary
 // and description are dropped (GitHub #383).
 //
-// The announcement follows what landed, not what the item wrote: a merge-key
-// construct is read by the model but not by RawChildNode, so a model predicate
-// would claim a preservation that did not happen (GitHub #384).
+// The announcement follows what landed, not what the item wrote: a construct
+// merged in from past nodeview.MergeDepthLimit is read by the model and not by
+// nodeview.Child, so a model predicate would claim a preservation that did not
+// happen.
 func preserveUnmountedPathItem(c lowering.Ctx, into carrier, pi *soa.PathItem, mountPtr, declPtr jsontext.Pointer,
 	cedes func(string) bool,
 ) []ir.Diagnostic {
@@ -309,13 +310,13 @@ func undeclaredPathItemKeys(pi *soa.PathItem) []string {
 	// The unmarshaller skips a key whose value carries a YAML anchor, so `bogus:
 	// &a {...}` is in neither the map nor a field (GitHub #412). Anchors are
 	// cleared before a model is built (GitHub #459, #501, #538), short of an
-	// external document past the hop bound that recovery follows; the raw node
-	// stays the one place such a key would be written.
-	for _, key := range annotation.RawMappingKeys(pi.GetRootNode()) {
-		if pathItemDeclares(pi, key) {
+	// external document past the hop bound that recovery follows; the mapping,
+	// read as the parser reads it, stays the one place such a key is found.
+	for _, p := range nodeview.Pairs(pi.GetRootNode()) {
+		if pathItemDeclares(pi, p.Key) {
 			continue
 		}
-		keys = append(keys, key)
+		keys = append(keys, p.Key)
 	}
 	return keys
 }
@@ -362,8 +363,7 @@ var pathItemDocFields = []struct{ keyword, key string }{
 // pair repeated on every operation.
 //
 // Dropped silently: an unmounted item's pair (carrier.keepsDocs is false;
-// GitHub #383) and a pair supplied through a merge key or alias, which
-// RawChildNode does not read (GitHub #384).
+// GitHub #383).
 func applyPathItemDocs(c lowering.Ctx, into carrier, pi *soa.PathItem, declPtr jsontext.Pointer,
 	cedes func(string) bool,
 ) []ir.Diagnostic {
@@ -377,7 +377,7 @@ func applyPathItemDocs(c lowering.Ctx, into carrier, pi *soa.PathItem, declPtr j
 			continue
 		}
 		wrote, fieldDiags := annotation.PreserveNodeInto(into.unmodeled, f.key,
-			annotation.RawChildNode(pi.GetRootNode(), f.keyword), ir.ReasonNoIRHome,
+			nodeview.Child(pi.GetRootNode(), f.keyword), ir.ReasonNoIRHome,
 			c.ProvenanceAt(declPtr+ids.Ptr(f.keyword)))
 		diags = append(diags, fieldDiags...)
 		kept = kept || wrote
@@ -405,7 +405,7 @@ func applyPathServers(c lowering.Ctx, into carrier, pi *soa.PathItem, declPtr js
 		return nil
 	}
 	kept, diags := annotation.PreserveNodeInto(into.unmodeled, into.serversKey,
-		annotation.RawChildNode(pi.GetRootNode(), "servers"), ir.ReasonNoIRHome, c.ProvenanceAt(declPtr+ids.Ptr("servers")))
+		nodeview.Child(pi.GetRootNode(), "servers"), ir.ReasonNoIRHome, c.ProvenanceAt(declPtr+ids.Ptr("servers")))
 	if !kept {
 		return diags
 	}

@@ -275,7 +275,7 @@ func collapsedUnhomedKeywords(s *oas3.Schema) []string {
 	if hasUnionSiblings(s) {
 		return nil
 	}
-	if _, _, _, collapses := nullUnionCollapse(s, ""); !collapses {
+	if _, _, collapses := nullUnionCollapse(s, ""); !collapses {
 		return nil
 	}
 	return unhomedKeywords(s, nil, nil)
@@ -294,7 +294,7 @@ func collapsedUnhomedKeywords(s *oas3.Schema) []string {
 //
 // A multipart body still mints encoding keys for `properties` the node lacks,
 // so pass.Validate reports ir/encoding-key-unknown-property.
-func preserveUnhomedKeywords(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsontext.Pointer, hint string, id ir.TypeID, d dispatch) (ir.TypeID, []ir.Diagnostic) {
+func preserveUnhomedKeywords(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsontext.Pointer, id ir.TypeID, d dispatch) (ir.TypeID, []ir.Diagnostic) {
 	td, ok, diags := registeredNode(c, ts, id, pointer)
 	if !ok {
 		return id, diags
@@ -312,7 +312,7 @@ func preserveUnhomedKeywords(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, 
 	owner := id
 	if owns != id {
 		var aliasDiags []ir.Diagnostic
-		owner, aliasDiags = internAlias(c, ts, s, pointer, hint, ir.TypeRef{Target: id})
+		owner, aliasDiags = internAlias(c, ts, s, pointer, ir.TypeRef{Target: id})
 		diags = append(diags, aliasDiags...)
 	}
 	diags = append(diags, recordUnhomedKeywords(c, ts, owner, s, unhomed, nodeShape(td.Kind()), pointer)...)
