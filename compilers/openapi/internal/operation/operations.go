@@ -12,6 +12,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
 )
@@ -207,7 +208,7 @@ func applyOperationServers(c lowering.Ctx, op *ir.Operation, src *soa.Operation,
 		return nil
 	}
 	kept, diags := annotation.PreserveNodeInto(&op.Unmodeled, "openapi:operationServers",
-		annotation.RawChildNode(src.GetRootNode(), "servers"), ir.ReasonNoIRHome, c.ProvenanceAt(declPtr+ids.Ptr("servers")))
+		nodeview.Child(src.GetRootNode(), "servers"), ir.ReasonNoIRHome, c.ProvenanceAt(declPtr+ids.Ptr("servers")))
 	if !kept {
 		return diags
 	}

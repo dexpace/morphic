@@ -15,6 +15,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
@@ -197,7 +198,7 @@ func responseSummary(c lowering.Ctx, p *ir.Unmodeled, r *soa.Response, rptr json
 // (GitHub #616).
 func preserveResponseExtras(c lowering.Ctx, p *ir.Unmodeled, r *soa.Response, rptr jsontext.Pointer, taken ...string) []ir.Diagnostic {
 	_, diags := annotation.PreserveNodeInto(p, "openapi:links",
-		annotation.RawChildNode(r.GetRootNode(), "links"), ir.ReasonNoIRHome, c.ProvenanceAt(rptr+ids.Ptr("links")))
+		nodeview.Child(r.GetRootNode(), "links"), ir.ReasonNoIRHome, c.ProvenanceAt(rptr+ids.Ptr("links")))
 	ext, extDiags := annotation.ExtensionsFrom(r.GetExtensions(), c.ProvenanceAt, rptr)
 	*p = annotation.MergeUnmodeled(*p, ext)
 	diags = append(diags, extDiags...)

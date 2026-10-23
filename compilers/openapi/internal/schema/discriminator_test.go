@@ -3,6 +3,7 @@ package schema_test
 import (
 	"encoding/json/jsontext"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 
@@ -1263,22 +1264,32 @@ func TestDiscriminatorBesideUnion_MultiTypedBodyIsSettled(t *testing.T) {
 }
 
 // TestDiscriminatorBesideUnion_MovesOnlyWhatItCopied pins that the move never
-// loses a discriminator it could not keep verbatim: one merged in through a
-// `<<`, which the model reads but the raw readers miss (GitHub #395), stays on
-// the model, and nothing claims a copy that was never made.
+// loses a discriminator it could not keep verbatim. One merged in through `<<`
+// is read as a written one is (GitHub #395), so Pet lowers as it does with the
+// discriminator written in place. One that converts to no JSON, through an
+// extension written `.nan`, is reported as unpreservable and stays on the
+// model, and nothing claims a copy never made.
 func TestDiscriminatorBesideUnion_MovesOnlyWhatItCopied(t *testing.T) {
 	t.Parallel()
-	spec := openapitest.ComponentSpec(cat + dog +
-		"    Shared: &shared\n      discriminator: {propertyName: kind, mapping: {cat: '#/components/schemas/Cat'}}\n" +
-		"    Pet:\n      <<: *shared\n      type: object\n" + petBranches)
-	doc, diags := parseFull(t, spec)
+	const disc = "{propertyName: kind, mapping: {cat: '#/components/schemas/Cat'}}"
+	written, _ := parseFull(t, openapitest.ComponentSpec(cat+dog+petWith(disc)))
+	merged, diags := parseFull(t, openapitest.ComponentSpec(cat+dog+
+		"    Pet:\n      <<: {discriminator: "+disc+"}\n      type: object\n"+petBranches))
 	openapitest.RequireNoErrorDiags(t, diags)
+	assert.Empty(t, cmp.Diff(typeByName(written, "Pet"), typeByName(merged, "Pet")),
+		"a merged discriminator lowers as a written one")
 
+	doc, diags := parseFull(t, openapitest.ComponentSpec(cat+dog+
+		petWith("{propertyName: kind, mapping: {cat: '#/components/schemas/Cat'}, x-weight: .nan}")))
 	pet := petModel(t, doc)
 	require.NotNil(t, pet.Discriminator, "the model read it, so it is not lost")
 	assert.Equal(t, "kind", pet.Discriminator.PropertyName)
 	assert.NotContains(t, pet.Unmodeled, "openapi:discriminator")
-	assert.False(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, movedPointer), "no move is announced")
+	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.UnpreservableConstruct, movedPointer),
+		"the failed copy is reported: %+v", diags)
+	assert.False(t, slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {
+		return strings.Contains(d.Message, "beside the union it was written for")
+	}), "no move is announced")
 }
 
 // TestDiscriminatorBesideUnion_UnreachableBranchesAreNoRoute pins that a

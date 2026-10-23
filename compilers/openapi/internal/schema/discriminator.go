@@ -473,9 +473,10 @@ type besideUnionDiscriminator struct {
 // left alone: it declared none, or it was settled already, by the settlement a
 // reference deferred when it built the model before its declaration did.
 //
-// It moves only what it could copy (GitHub #144). One with no raw node to copy,
-// merged in through a `<<` the raw readers miss (GitHub #395), stays on the
-// model rather than vanish, where pass/validate reports the routes it fails.
+// It moves only what it could copy (GitHub #144). One converting to no JSON,
+// such as one writing an extension `.nan`, is reported as unpreservable and
+// stays on the model rather than vanish, where pass/validate reports its
+// routes.
 //
 // A move leaving a map swaps in its MapT (ir.AsMap), which homes all the model
 // did; a later settlement leaves the map alone.

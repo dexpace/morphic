@@ -77,6 +77,7 @@ func TestDeepSites_NamesWhereEachWayDownPassesTheBound(t *testing.T) {
 		{"an alias carrying it past", "x: &x {b: {c: 1}}\ny: {z: *x}\n", []jsontext.Pointer{"/y/z"}},
 		{"a merge value carrying it past", "m: {<<: {b: {c: 1}}}\n", []jsontext.Pointer{"/m"}},
 		{"a non-scalar key carrying it past", "m: {? {b: {c: 1}} : 1}\n", []jsontext.Pointer{"/m"}},
+		{"the value of a non-scalar key carrying it past", "m: {? [k] : {b: {c: 1}}}\n", []jsontext.Pointer{"/m//b"}},
 		{"nothing past it", "a: {b: 1}\n", nil},
 	}
 	for _, tc := range tests {

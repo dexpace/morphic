@@ -45,8 +45,8 @@ func TestRawMappingKeys_OnlyEnumeratesAMapping(t *testing.T) {
 			useValue(t, "anchor: &a plain\nuse: *a\n"), nil},
 		{"a merge key yields the keys it merges in",
 			useValue(t, "anchor: &a {b: 1, c: 2}\nuse: {<<: *a}\n"), []string{"b", "c"}},
-		{"an explicit key beats the one it merges over",
-			useValue(t, "anchor: &a {b: 1, c: 2}\nuse: {c: 9, <<: *a}\n"), []string{"c", "b"}},
+		{"an explicit key beats the one it merges over, merged keys first",
+			useValue(t, "anchor: &a {b: 1, c: 2}\nuse: {c: 9, <<: *a}\n"), []string{"b", "c"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

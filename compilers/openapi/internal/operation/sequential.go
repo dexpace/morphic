@@ -10,6 +10,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
 )
@@ -57,9 +58,9 @@ func positionalEncoding(c lowering.Ctx, content *ir.Content, media *soa.MediaTyp
 	// suppress the message, and its own conversion failure reports separately.
 	at := mediaPtr + ids.Ptr("prefixEncoding")
 	kept, diags := annotation.PreserveNodeInto(&content.Unmodeled, "openapi:prefixEncoding",
-		annotation.RawChildNode(root, "prefixEncoding"), ir.ReasonNoIRHome, c.ProvenanceAt(at))
+		nodeview.Child(root, "prefixEncoding"), ir.ReasonNoIRHome, c.ProvenanceAt(at))
 	_, itemDiags := annotation.PreserveNodeInto(&content.Unmodeled, "openapi:itemEncoding",
-		annotation.RawChildNode(root, "itemEncoding"), ir.ReasonNoIRHome, c.ProvenanceAt(mediaPtr+ids.Ptr("itemEncoding")))
+		nodeview.Child(root, "itemEncoding"), ir.ReasonNoIRHome, c.ProvenanceAt(mediaPtr+ids.Ptr("itemEncoding")))
 	diags = append(diags, itemDiags...)
 	if !kept {
 		// Reaching here means prefixEncoding is declared — that is the only reason

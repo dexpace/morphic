@@ -127,3 +127,13 @@ func TestInlineProbeBody_WritesEveryKeywordTheProbeAssertsOn(t *testing.T) {
 		assert.Contains(t, openapitest.InlineProbeBody, want)
 	}
 }
+
+// TestNestedMerges_WritesOneMergePerLevel pins the spelling: a body merged in
+// through as many `<<` keys as asked, a level of none being the body itself.
+func TestNestedMerges_WritesOneMergePerLevel(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, "{k: v}", openapitest.NestedMerges(0, "{k: v}"))
+	assert.Equal(t, "{<<: {<<: {k: v}}}", openapitest.NestedMerges(2, "{k: v}"))
+	var n yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte(openapitest.NestedMerges(3, "{k: v}")), &n), "it parses")
+}

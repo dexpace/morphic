@@ -1,6 +1,8 @@
 package openapitest
 
 import (
+	"strings"
+
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/speakeasy-api/openapi/sequencedmap"
@@ -40,6 +42,14 @@ func PathsSpecVer(version, paths string) string {
 	return "openapi: " + version + "\n" +
 		"info: {title: T, version: \"1\"}\n" +
 		"paths:\n" + paths
+}
+
+// NestedMerges writes body, a flow mapping, merged in through levels `<<` keys
+// each naming the next in place: `{<<: {<<: body}}` for two. One level past
+// nodeview.MergeDepthLimit is a mapping the parser reads whole and the
+// compiler's view reads short of body.
+func NestedMerges(levels int, body string) string {
+	return strings.Repeat("{<<: ", levels) + body + strings.Repeat("}", levels)
 }
 
 // EveryKindOfReference is a document holding a resolvable reference of each

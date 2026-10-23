@@ -5,6 +5,7 @@ import (
 	"encoding/json/jsontext"
 	"iter"
 	"maps"
+	"math"
 	"slices"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
@@ -258,8 +259,8 @@ func (v *reached) check(site ir.Provenance, t reachedTarget) []ir.Diagnostic {
 	if d, over := v.charge(site, t.doc, t.node); over {
 		return d
 	}
-	found := v.checker.Check(t.node, v.version, oas.Options{Start: t.kind, Budget: v.limit, Locate: v.locatorFor(t),
-		ReadAt: true, Root: t.home.pointer})
+	opts := oas.Options{Start: t.kind, Budget: v.limit, Locate: v.locatorFor(t), ReadAt: true, Root: t.home.pointer}
+	found := append(v.checker.Check(t.node, v.version, opts), oas.CheckFormat(t.node, v.version, formatOptions(opts))...)
 	var diags []ir.Diagnostic
 	for _, d := range found {
 		if key := identity(d, t.doc); !v.reported[key] {
@@ -330,29 +331,16 @@ func reachedNode(r resolvable) (*yaml.Node, bool) {
 }
 
 // spanned counts the nodes under root as a model built from it holds them,
-// each alias counted as a copy of what it names, and reports whether the count
-// stays within limit, negative meaning none. It stops one node past limit, so
-// refusing an object costs the budget, not the object. No alias leads back up:
-// a document whose anchor names one of its own ancestors was refused.
-//
-// root and every node under it are real: yaml.v3 leaves no nil in Content, and
-// a well-formed alias's target is never nil, or the cycle refusals ahead
-// would have refused the document.
+// each alias standing for a copy of what it names (nodeview.AliasTarget), as
+// scan's alias weigher weighs it, and reports whether the count stays within
+// limit, negative meaning none. It stops one node past limit, so refusing an
+// object costs the budget, not the object. No alias leads back up: a document
+// whose anchor names one of its own ancestors was refused.
 func spanned(root *yaml.Node, limit int) (int, bool) {
-	count := 0
-	stack := []*yaml.Node{root}
-	for len(stack) > 0 {
-		n := stack[len(stack)-1]
-		stack = stack[:len(stack)-1]
-		count++
-		if limit >= 0 && count > limit {
-			return count, false
-		}
-		if n.Kind == yaml.AliasNode {
-			stack = append(stack, n.Alias)
-			continue
-		}
-		stack = append(stack, n.Content...)
+	bound := math.MaxInt
+	if limit >= 0 {
+		bound = limit + 1
 	}
-	return count, true
+	visited := nodeview.Walk{Nodes: bound, Aliases: nodeview.AliasTarget}.Run(root).Visited
+	return visited, limit < 0 || visited <= limit
 }

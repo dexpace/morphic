@@ -11,7 +11,9 @@ import (
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/ynode"
 )
 
 // decodeAndMarshal is the conversion RawFromNode used before GitHub #32: decode
@@ -123,7 +125,12 @@ func TestRawFromNode_RendersEveryScalarTag(t *testing.T) {
 		{"quoted number stays a string", `"123"`, `"123"`},
 		{"empty string", `""`, `""`},
 		{"HTML-special characters are not escaped, matching the IR's minimal-escaping canonical form", `"a<b>&c"`, `"a<b>&c"`},
-		{"out-of-float64-range plain scalar stays a string", "1e400", `"1e400"`},
+		// A plain scalar past float64's range is the number it spells, as value
+		// lowering reads it (GitHub #783); quoted, it is the string it says.
+		{"out-of-float64-range plain scalar is a number", "1e400", "1e400"},
+		{"out-of-float64-range negative is a number", "-1.8e308", "-1.8e308"},
+		{"out-of-float64-range quoted scalar stays a string", `"1e400"`, `"1e400"`},
+		{"merge text as a value is the text", "<<", `"<<"`},
 		// A tag YAML has a type for and JSON does not keeps the source text
 		// (GitHub #242). The resolved form is derivable from the spelling; the
 		// spelling is not derivable from the resolved form.
@@ -156,10 +163,10 @@ func TestRawFromNode_RendersEveryScalarTag(t *testing.T) {
 	}
 }
 
-// TestRawFromNode_PreservesMergeAndOrderingSemantics pins the mapping rules the
-// walk had to reimplement when it stopped delegating to yaml.v3's decoder.
-// Losing any of them would be a silent regression: the construct still converts,
-// just to something else.
+// TestRawFromNode_PreservesMergeAndOrderingSemantics pins the mapping rules a
+// payload is read by, which are the parser's (nodeview.View.MappingPairs).
+// Losing any of them would be a silent regression: the construct still
+// converts, just to something else.
 func TestRawFromNode_PreservesMergeAndOrderingSemantics(t *testing.T) {
 	t.Parallel()
 	tests := []struct{ name, yaml, want string }{
@@ -172,6 +179,16 @@ func TestRawFromNode_PreservesMergeAndOrderingSemantics(t *testing.T) {
 		{"nested merge inside a merged map", "a: &m {<<: {deep: 1}, p: 2}\nb: {<<: *m}", `{"a":{"deep":1,"p":2},"b":{"deep":1,"p":2}}`},
 		{"alias to a scalar", "a: &n 5\nb: *n", `{"a":5,"b":5}`},
 		{"alias as a mapping key", "a: &k mykey\nb: {*k: v}", `{"a":"mykey","b":{"mykey":"v"}}`},
+		{"every merge key merges", "{<<: {p: 1}, <<: {q: 2}}", `{"p":1,"q":2}`},
+		{"a merge naming a scalar merges nothing", "{<<: 1, q: 2}", `{"q":2}`},
+		{"a scalar in a merge list merges nothing", "{<<: [1, {p: 1}]}", `{"p":1}`},
+		// A key is a scalar string under the Format section's Failsafe rule, so
+		// a key YAML types otherwise is the text it spells (GitHub #617).
+		{"a key of another scalar type is its text", "{1: a, true: b, null: c, ~: d}",
+			`{"1":"a","null":"c","true":"b","~":"d"}`},
+		{"an alias key naming an integer is its text", "a: &k 1\nb: {*k: v}", `{"a":1,"b":{"1":"v"}}`},
+		{"a locally tagged key is its text", "{!foo k: v}", `{"k":"v"}`},
+		{"a key that is no scalar is the empty string", "{? [1, 2]\n: v}", `{"":"v"}`},
 		{"alias to a sequence", "a: &s [1, 2]\nb: *s", `{"a":[1,2],"b":[1,2]}`},
 		{"empty mapping", "{}", `{}`},
 		{"empty sequence", "[]", `[]`},
@@ -186,28 +203,31 @@ func TestRawFromNode_PreservesMergeAndOrderingSemantics(t *testing.T) {
 	}
 }
 
-// TestCheckUniqueKeys_NamesTheEarliestKeyWrittenAgain pins which duplicate a
-// mapping is refused for: the key written earliest of those written again, at
-// the line it was first written, whichever repeat comes first in the mapping.
-func TestCheckUniqueKeys_NamesTheEarliestKeyWrittenAgain(t *testing.T) {
+// TestRawFromNode_NamesTheRepeatedKey pins which repeat a mapping is refused
+// for and how it is named: the key whose second copy comes first, among the
+// mapping's own pairs and then each source it merges (nodeview.View.Repeat),
+// at the lines of its first two copies. A key written through an alias is the
+// key it names (GitHub #1072).
+func TestRawFromNode_NamesTheRepeatedKey(t *testing.T) {
 	t.Parallel()
 	tests := []struct{ name, yaml, want string }{
-		{"one key twice", "a: 1\nb: 2\na: 3\n", `mapping key "a" already defined at line 1`},
-		{"a later key repeated first", "x: 1\ny: 1\ny: 2\nx: 2\n", `mapping key "x" already defined at line 1`},
-		{"a later key repeated last", "x: 1\ny: 1\nx: 2\ny: 2\n", `mapping key "x" already defined at line 1`},
-		{"a key three times", "z: 0\nw: 1\nw: 2\nw: 3\n", `mapping key "w" already defined at line 2`},
+		{"one key twice", "a: 1\nb: 2\na: 3\n", `mapping key "a" already defined at line 1, and written again at line 3`},
+		{"the key repeated first", "x: 1\ny: 1\ny: 2\nx: 2\n", `mapping key "y" already defined at line 2, and written again at line 3`},
+		{"a key three times", "z: 0\nw: 1\nw: 2\nw: 3\n", `mapping key "w" already defined at line 2, and written again at line 3`},
+		{"a key repeated through an alias", "&k rate: 1\n*k : 2\n", `mapping key "rate" already defined at line 1, and written again at line 2`},
+		{"a key a merge source repeats", "base: &b {p: 1,\n  p: 2}\nuse: {<<: *b}\n", `mapping key "p" already defined at line 1, and written again at line 2`},
 		{"no key twice", "a: 1\nb: 2\n", ""},
 		{"an alias key and a key spelled as its anchor's name", "a: &k v\n*k : 1\nk: 2\n", ""},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			err := checkUniqueKeys(openapitest.YAMLNode(t, tc.yaml))
+			_, err := RawFromNode(openapitest.YAMLNode(t, tc.yaml))
 			if tc.want == "" {
 				assert.NoError(t, err)
 				return
 			}
-			assert.EqualError(t, err, tc.want)
+			assert.ErrorContains(t, err, tc.want)
 		})
 	}
 }
@@ -218,24 +238,15 @@ func TestCheckUniqueKeys_NamesTheEarliestKeyWrittenAgain(t *testing.T) {
 func TestRawFromNode_RefusesWhatJSONCannotName(t *testing.T) {
 	t.Parallel()
 	tests := []struct{ name, yaml, wantErr string }{
-		{"integer key", "{1: v}", "not a string"},
-		{"null key", "{null: v}", "not a string"},
-		{"bool key", "{true: v}", "not a string"},
-		{"sequence key", "{? [1, 2]\n: v}", "not a string"},
-		{"nested non-string key", "{outer: {1: v}}", "not a string"},
-		{"alias key naming an integer", "a: &k 1\nb: {*k: v}", "not a string"},
-		{"alias key naming a sequence", "a: &k [1]\nb: {*k: v}", "not a string"},
-		{"locally tagged key", "{!foo k: v}", "not a string"},
 		{"duplicate key", "{k: 1, k: 2}", "already defined"},
 		{"duplicate key after a merge", "{<<: {p: 1}, k: 1, k: 2}", "already defined"},
+		{"duplicate key through an alias", "{&k rate: 1, *k : 2}", "already defined"},
+		{"duplicate key in a merge source", "{<<: {p: 1, p: 2}}", "already defined"},
 		{"not a number", ".nan", "numeric literal"},
 		{"positive infinity", ".inf", "numeric literal"},
 		{"negative infinity", "-.inf", "numeric literal"},
-		{"merge from a scalar", "{<<: 1}", "map merge requires"},
-		{"merge from a sequence of scalars", "{<<: [1]}", "map merge requires"},
-		{"merge from an alias to a scalar", "a: &n 1\nb: {<<: *n}", "map merge requires"},
-		{"non-string key inside a merged mapping", "{<<: [{1: v}]}", "not a string"},
 		{"boolean tag on a non-boolean", "!!bool notabool", "bool literal"},
+		{"null tag on text", "!!null abc", "null literal"},
 		// The tag check outlives the decode that used to supply the output: a
 		// scalar that does not satisfy the type it declares is still refused,
 		// so preserving the source spelling widened nothing (GitHub #242).
@@ -314,22 +325,10 @@ func TestRawFromNode_RejectsMalformedNodes(t *testing.T) {
 		{"unresolved alias", &yaml.Node{Kind: yaml.AliasNode, Value: "x"}, "resolves to nothing"},
 		{"childless document", &yaml.Node{Kind: yaml.DocumentNode}, "document node holds 0 children"},
 		{
-			"merge from an unresolved alias",
-			mappingOf(&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!merge", Value: "<<"},
+			"unresolved alias as a value",
+			mappingOf(&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: "k"},
 				&yaml.Node{Kind: yaml.AliasNode, Value: "x"}),
-			"resolves to nothing",
-		},
-		{
-			"unresolved alias as a key",
-			mappingOf(&yaml.Node{Kind: yaml.AliasNode, Value: "x"},
-				&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: "v"}),
-			"resolves to nothing",
-		},
-		{
-			"alias chain longer than a source could mean",
-			mappingOf(aliasChain(maxAliasHops+1),
-				&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: "v"}),
-			"chains past",
+			"nil yaml node",
 		},
 		// yaml.v3 never hands this walk a node whose Value is not valid UTF-8 —
 		// a real parse only produces one from a well-formed source document —
@@ -358,6 +357,26 @@ func TestRawFromNode_RejectsMalformedNodes(t *testing.T) {
 	}
 }
 
+// TestRawFromNode_ReadsKeyShapesNoParseProducesAsTheParserWould pins the
+// shapes a hand-built tree can hold in a key or a merge, which the walk reads
+// as nodeview reads them rather than refusing: a merge naming an alias with no
+// target merges nothing, and a key that is such an alias reads as its own
+// text, as the library reads both.
+func TestRawFromNode_ReadsKeyShapesNoParseProducesAsTheParserWould(t *testing.T) {
+	t.Parallel()
+	merge := mappingOf(&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!merge", Value: "<<"},
+		&yaml.Node{Kind: yaml.AliasNode, Value: "x"})
+	got, err := RawFromNode(merge)
+	require.NoError(t, err)
+	assert.Equal(t, `{}`, string(got))
+
+	key := mappingOf(&yaml.Node{Kind: yaml.AliasNode, Value: "x"},
+		&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: "v"})
+	got, err = RawFromNode(key)
+	require.NoError(t, err)
+	assert.Equal(t, `{"x":"v"}`, string(got))
+}
+
 // TestRawFromNode_WalksThroughADocumentNode covers the entry a caller reaches
 // when it hands over a whole parsed document rather than a node inside one.
 func TestRawFromNode_WalksThroughADocumentNode(t *testing.T) {
@@ -381,7 +400,10 @@ func TestRawFromNode_WalksThroughADocumentNode(t *testing.T) {
 // the row honest, since a divergence that quietly stopped being one would leave
 // the entry asserting nothing, the same hole as excluding the row.
 var rawDivergences = map[string]struct{ old, want string }{
-	"2021-1-1":            {`"2021-01-01T00:00:00Z"`, `"2021-1-1"`},
+	"2021-1-1": {`"2021-01-01T00:00:00Z"`, `"2021-1-1"`},
+	// A plain number past float64's range, which yaml.v3 resolves to a string
+	// and its decode kept as one, is the number it spells (GitHub #783).
+	"1e400":               {`"1e400"`, `1e400`},
 	"2021-01-01 10:20:30": {`"2021-01-01T10:20:30Z"`, `"2021-01-01 10:20:30"`},
 	`!!binary aGVsbG8=`:   {`"hello"`, `"aGVsbG8="`},
 	// The old spelling is the replacement character decodeAndMarshal's v2
@@ -491,56 +513,31 @@ func TestRawDivergences_NamesOnlyCorpusRows(t *testing.T) {
 	}
 }
 
-// aliasChain builds n alias nodes each naming the next, ending on a string. A
-// parser reaches this shape only by anchoring an alias, and never this deep.
-func aliasChain(n int) *yaml.Node {
-	node := &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: "end"}
-	for range n {
-		node = &yaml.Node{Kind: yaml.AliasNode, Value: "a", Alias: node}
-	}
-	return node
-}
-
 // mappingOf builds a one-pair mapping node, for the malformed shapes no parser
 // emits.
 func mappingOf(key, val *yaml.Node) *yaml.Node {
 	return &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map", Content: []*yaml.Node{key, val}}
 }
 
-// TestRawConv_RefusesNodesNoCallerShouldPass covers the preconditions the walk
-// asserts on itself rather than on its input. None is reachable through
-// RawFromNode — it rejects a nil node before walking, every mapping handed to
-// mappingInto has already been proven to be one, and scalar routes only two
-// tags into verbatimTagged — so they are exercised here directly. They stay
-// because dropping one turns a caller's mistake into a silently wrong answer
-// rather than an answer at all.
+// TestRawConv_RefusesNodesNoCallerShouldPass covers the precondition the walk
+// asserts on itself rather than on its input. It is not reachable through
+// RawFromNode, which rejects a nil node before walking, so it is exercised
+// here directly. It stays because dropping it turns a caller's mistake into a
+// silently wrong answer rather than an answer at all.
 func TestRawConv_RefusesNodesNoCallerShouldPass(t *testing.T) {
 	t.Parallel()
 
-	var c rawConv
+	c := rawConv{view: nodeview.New()}
 	got, err := c.node(nil, 0)
 	require.Error(t, err, "a nil node is a caller bug, not an absent construct")
 	assert.Nil(t, got)
 	assert.Contains(t, err.Error(), "nil yaml node")
-
-	err = c.mappingInto(map[string]jsontext.Value{}, openapitest.YAMLNode(t, "[1]"), 0)
-	require.Error(t, err, "filling a mapping from a sequence is a caller bug")
-	assert.Contains(t, err.Error(), "expected a mapping")
-
-	// scalar routes only !!timestamp and !!binary into verbatimTagged, so no
-	// input reaches this arm. It answers rather than falling through to the
-	// base64 check, which is what a third tag added to that case would hit.
-	got, err = c.verbatimTagged(openapitest.YAMLNode(t, "plain"))
-	require.Error(t, err, "a tag scalar does not route here is a caller bug")
-	assert.Nil(t, got)
-	assert.Contains(t, err.Error(), `scalar tag "!!str" is not kept verbatim`)
 }
 
-// TestSpliceNumber_RefusesANonJSONNumber covers the refusal scalar's !!int/
-// !!float arm cannot reach today, the same way TestRawConv_RefusesNodesNoCallerShouldPass
-// covers verbatimTagged's default case: no value.NumericLiteral result can
-// fail spliceNumber's IsValid check, since NewBigVal enforces BigVal's
-// "always JSON-valid" contract itself now. Until GitHub #45 was fixed a binary
+// TestSpliceNumber_RefusesANonJSONNumber covers the refusal scalar's number arm
+// cannot reach today: no number value.Classify reads can fail spliceNumber's
+// IsValid check, since NewBigVal enforces BigVal's "always JSON-valid"
+// contract itself now. Until GitHub #45 was fixed a binary
 // exponent slipped through that contract, and this check was what caught it
 // here. It stays as insurance against a future regression in that contract, so
 // it is exercised directly with a literal NumericLiteral itself would now
@@ -555,27 +552,22 @@ func TestSpliceNumber_RefusesANonJSONNumber(t *testing.T) {
 	assert.Contains(t, err.Error(), "which is not JSON")
 }
 
-// TestRawFromNode_BoundsAMergeChainThatNeverRevisitsANode proves the bound on
-// the one recursion that does not pass through node(): a `<<` whose source is
-// itself nothing but a `<<`. Each level adds depth while adding no value to
-// walk, so only merge's own check stops it.
-//
-// The chain is built rather than parsed because yaml.v3 caps parse nesting at
-// the same figure, so no document could express one this deep inline; aliases
-// are how a real source would reach it.
-func TestRawFromNode_BoundsAMergeChainThatNeverRevisitsANode(t *testing.T) {
+// TestRawFromNode_RefusesAMergeChainPastTheBound pins the bound on the merges
+// a mapping is read through: a `<<` whose source is itself nothing but a `<<`
+// adds depth while adding no value to walk, so only the view's own bound
+// (nodeview.MergeDepthLimit) stops it, and a payload missing the members past
+// it is refused rather than kept short. A chain at the bound is read whole.
+func TestRawFromNode_RefusesAMergeChainPastTheBound(t *testing.T) {
 	t.Parallel()
-	innermost := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
-	chain := innermost
-	for range maxRawDepth + 10 {
-		chain = mappingOf(&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!merge", Value: "<<"}, chain)
-	}
-
-	got, err := RawFromNode(chain)
+	got, err := RawFromNode(ynode.MergeChain(nodeview.MergeDepthLimit + 1))
 
 	require.Error(t, err, "a merge chain past the depth bound is refused")
 	assert.Nil(t, got)
-	assert.Contains(t, err.Error(), "nesting exceeds")
+	assert.Contains(t, err.Error(), "merges through `<<` deeper than")
+
+	got, err = RawFromNode(ynode.MergeChain(nodeview.MergeDepthLimit))
+	require.NoError(t, err)
+	assert.Equal(t, `{"leaf":"v"}`, string(got))
 }
 
 // TestRawFromNode_ResolvesAnUntaggedScalarByItsValue pins the one input for
@@ -617,7 +609,7 @@ func TestRawFromNode_DistinguishesAbsentFromUnconvertible(t *testing.T) {
 	require.Error(t, err, "a value that decodes but does not marshal is a failure")
 	assert.Nil(t, got)
 
-	got, err = RawFromNode(openapitest.YAMLNode(t, "{? [1, 2]\n: v}"))
-	require.Error(t, err, "a mapping with a non-string key does not decode into the JSON model")
+	got, err = RawFromNode(openapitest.YAMLNode(t, "{k: 1, k: 2}"))
+	require.Error(t, err, "a mapping writing a key twice holds no one JSON object")
 	assert.Nil(t, got)
 }

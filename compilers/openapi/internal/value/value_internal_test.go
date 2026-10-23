@@ -8,7 +8,9 @@ import (
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/ynode"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -290,4 +292,54 @@ func TestNumericLiteral_NonNumericTagReadsAsDecimal(t *testing.T) {
 			assert.Equal(t, tc.want, got)
 		})
 	}
+}
+
+// TestValueFromNode_ReadsAMappingAsTheParserDoes pins the members of a mapping
+// value to the pairs the parser reads (nodeview.View.MappingPairs): every `<<`
+// merged in, first, a key written through an alias read as the key it names,
+// and a key that is no scalar as the empty string (GitHub #395, #1089).
+func TestValueFromNode_ReadsAMappingAsTheParserDoes(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name, src string
+		want      []string
+	}{
+		{"a merge comes first", "x: &x {a: 1}\nv: {b: 2, <<: *x}\n", []string{"a", "b"}},
+		{"every merge merges", "x: &x {a: 1}\ny: &y {c: 3}\nv: {<<: *x, b: 2, <<: *y}\n", []string{"a", "c", "b"}},
+		{"an alias key is its scalar", "k: &k rate\nv: {*k : 1, other: 2}\n", []string{"rate", "other"}},
+		{"a key no scalar is empty", "v: {? [x] : 1}\n", []string{""}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := FromNode(nodeview.Child(openapitest.YAMLNode(t, tc.src), "v"))
+			require.NoError(t, err)
+			require.Equal(t, ir.ValueObject, got.Kind)
+			var names []string
+			for _, f := range got.Object {
+				names = append(names, f.Name)
+			}
+			assert.Equal(t, tc.want, names)
+		})
+	}
+}
+
+// TestValueFromNode_RefusesWhatNoObjectHolds pins the two mappings an object
+// cannot hold faithfully: one writing a key twice, plainly, through an alias
+// (GitHub #1072) or in a mapping it merges, and one merging past
+// nodeview.MergeDepthLimit, whose deepest members would be missing.
+func TestValueFromNode_RefusesWhatNoObjectHolds(t *testing.T) {
+	t.Parallel()
+	for name, src := range map[string]string{
+		"a key written twice":        "{a: 1, a: 2}",
+		"a key repeated as an alias": "{&k rate: 1, *k : 2}",
+		"a key a merge writes twice": "{<<: {a: 1, a: 2}}",
+	} {
+		_, err := FromNode(openapitest.YAMLNode(t, src))
+		assert.ErrorContains(t, err, "written more than once", name)
+	}
+	_, err := FromNode(ynode.MergeChain(nodeview.MergeDepthLimit + 1))
+	assert.ErrorIs(t, err, errMergedPastBound)
+	_, err = FromNode(ynode.MergeChain(nodeview.MergeDepthLimit))
+	assert.NoError(t, err, "a chain at the bound is read whole")
 }

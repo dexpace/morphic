@@ -97,8 +97,9 @@ components:
 // shapes a YAML document can present, rather than only the mappings a schema
 // happens to be written as. The walk reads the raw tree because oas3.Schema has
 // no $dynamicAnchor field, so it meets whatever the source wrote — a sequence, a
-// bare scalar, a non-string key — and must index anchors under a sequence while
-// declining the rest without wandering off the tree.
+// bare scalar, a key that is no scalar — and must index anchors under a sequence
+// and under the empty key the parser reads such a key as, while declining the
+// rest without wandering off the tree.
 func TestDynamicAnchors_WalksEveryNodeShape(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
@@ -123,9 +124,9 @@ func TestDynamicAnchors_WalksEveryNodeShape(t *testing.T) {
 			map[string][]jsontext.Pointer{"first": {"/0", "/1"}},
 		},
 		{
-			"a non-string key cannot name a keyword and is skipped",
+			"a key that is no scalar is read as the empty string",
 			openapitest.YAMLNode(t, "? [a, b]\n: {$dynamicAnchor: buried}\n$dynamicAnchor: reached\n"),
-			map[string][]jsontext.Pointer{"reached": {""}},
+			map[string][]jsontext.Pointer{"buried": {"/"}, "reached": {""}},
 		},
 		{
 			"an empty anchor name is not indexed",

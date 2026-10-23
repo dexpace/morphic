@@ -14,6 +14,7 @@ import (
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
@@ -85,14 +86,11 @@ type Options struct {
 // too (GitHub #501), and replaces the resolver's own parse on a second
 // resolution (GitHub #538).
 func releaseAnchors(root *yaml.Node) {
-	stack := []*yaml.Node{root}
-	for len(stack) > 0 {
-		n := stack[len(stack)-1]
-		stack = stack[:len(stack)-1]
+	// An alias is a leaf of the walk: a recursive anchor cannot loop it.
+	nodeview.Walk{Nodes: maxTreeNodes, Visit: func(n *yaml.Node, _ int) nodeview.Step {
 		n.Anchor = ""
-		// Follows Content, never an alias: a recursive anchor cannot loop it.
-		stack = append(stack, n.Content...)
-	}
+		return nodeview.Descend
+	}}.Run(root)
 }
 
 // ErrParse marks a hard failure to read a source document: bytes that are not

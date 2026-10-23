@@ -12,6 +12,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
@@ -115,7 +116,7 @@ func preserveHeaderSerialization(c lowering.Ctx, p *ir.Property, h *soa.Header, 
 	for _, keyword := range []string{"style", "explode"} {
 		at := hdecl + ids.Ptr(keyword)
 		kept, keptDiags := annotation.PreserveNodeInto(&p.Unmodeled, "openapi:"+keyword,
-			annotation.RawChildNode(h.GetRootNode(), keyword), ir.ReasonNoIRHome, c.ProvenanceAt(at))
+			nodeview.Child(h.GetRootNode(), keyword), ir.ReasonNoIRHome, c.ProvenanceAt(at))
 		diags = append(diags, keptDiags...)
 		if !kept {
 			continue

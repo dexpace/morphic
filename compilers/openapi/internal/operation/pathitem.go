@@ -13,6 +13,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
 )
@@ -266,9 +267,10 @@ func onNearestNode(c lowering.Ctx, u *ir.Unmodeled, mountPtr jsontext.Pointer) c
 // It keeps what applyPathItem keeps on a carrier holding no docs; the summary
 // and description are dropped (GitHub #383).
 //
-// The announcement follows what landed, not what the item wrote: a merge-key
-// construct is read by the model but not by RawChildNode, so a model predicate
-// would claim a preservation that did not happen (GitHub #384).
+// The announcement follows what landed, not what the item wrote: a construct
+// merged in from past nodeview.MergeDepthLimit is read by the model and not by
+// nodeview.Child, so a model predicate would claim a preservation that did not
+// happen.
 func preserveUnmountedPathItem(c lowering.Ctx, into carrier, pi *soa.PathItem, mountPtr, declPtr jsontext.Pointer,
 	cedes func(string) bool,
 ) []ir.Diagnostic {
@@ -309,13 +311,13 @@ func undeclaredPathItemKeys(pi *soa.PathItem) []string {
 	// The unmarshaller skips a key whose value carries a YAML anchor, so `bogus:
 	// &a {...}` is in neither the map nor a field (GitHub #412). Anchors are
 	// cleared before a model is built (GitHub #459, #501, #538), short of an
-	// external document past the hop bound that recovery follows; the raw node
-	// stays the one place such a key would be written.
-	for _, key := range annotation.RawMappingKeys(pi.GetRootNode()) {
-		if pathItemDeclares(pi, key) {
+	// external document past the hop bound that recovery follows; the mapping,
+	// read as the parser reads it, stays the one place such a key is found.
+	for _, p := range nodeview.Pairs(pi.GetRootNode()) {
+		if pathItemDeclares(pi, p.Key) {
 			continue
 		}
-		keys = append(keys, key)
+		keys = append(keys, p.Key)
 	}
 	return keys
 }
@@ -362,8 +364,7 @@ var pathItemDocFields = []struct{ keyword, key string }{
 // pair repeated on every operation.
 //
 // Dropped silently: an unmounted item's pair (carrier.keepsDocs is false;
-// GitHub #383) and a pair supplied through a merge key or alias, which
-// RawChildNode does not read (GitHub #384).
+// GitHub #383).
 func applyPathItemDocs(c lowering.Ctx, into carrier, pi *soa.PathItem, declPtr jsontext.Pointer,
 	cedes func(string) bool,
 ) []ir.Diagnostic {
@@ -377,7 +378,7 @@ func applyPathItemDocs(c lowering.Ctx, into carrier, pi *soa.PathItem, declPtr j
 			continue
 		}
 		wrote, fieldDiags := annotation.PreserveNodeInto(into.unmodeled, f.key,
-			annotation.RawChildNode(pi.GetRootNode(), f.keyword), ir.ReasonNoIRHome,
+			nodeview.Child(pi.GetRootNode(), f.keyword), ir.ReasonNoIRHome,
 			c.ProvenanceAt(declPtr+ids.Ptr(f.keyword)))
 		diags = append(diags, fieldDiags...)
 		kept = kept || wrote
@@ -405,7 +406,7 @@ func applyPathServers(c lowering.Ctx, into carrier, pi *soa.PathItem, declPtr js
 		return nil
 	}
 	kept, diags := annotation.PreserveNodeInto(into.unmodeled, into.serversKey,
-		annotation.RawChildNode(pi.GetRootNode(), "servers"), ir.ReasonNoIRHome, c.ProvenanceAt(declPtr+ids.Ptr("servers")))
+		nodeview.Child(pi.GetRootNode(), "servers"), ir.ReasonNoIRHome, c.ProvenanceAt(declPtr+ids.Ptr("servers")))
 	if !kept {
 		return diags
 	}

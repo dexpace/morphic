@@ -8,10 +8,10 @@ import (
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/compile"
-	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/ir"
@@ -47,7 +47,7 @@ func nestedAnchor(depth int) *yaml.Node {
 // mapping it stands for.
 func useValue(t *testing.T, src string) *yaml.Node {
 	t.Helper()
-	node := annotation.RawChildNode(openapitest.YAMLNode(t, src), "use")
+	node := nodeview.WrittenChildren(openapitest.YAMLNode(t, src))["use"]
 	require.NotNil(t, node, `src writes no "use" key`)
 	return node
 }

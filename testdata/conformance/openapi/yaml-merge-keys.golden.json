@@ -1,0 +1,245 @@
+{
+  "idSpaces": {
+    "auth": [
+      "openapi"
+    ],
+    "e": [
+      "anon",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
+  "name": "YAMLMergeKeys",
+  "version": "1",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "YAMLMergeKeys",
+        "canonical": "yaml_merge_keys"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "id": "g/default",
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1merged/get",
+              "name": {
+                "source": "getMerged",
+                "canonical": "get_merged"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "payload": {
+                    "contents": [
+                      {
+                        "mediaType": "application/json",
+                        "type": {
+                          "target": "t/anon/paths/~1merged/get/responses/200/content/application~1json/schema",
+                          "nullable": false
+                        }
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/merged",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "unmodeled": {
+                "openapi:pathItem/mergedBogus": {
+                  "reason": "out_of_scope",
+                  "value": {
+                    "responses": {
+                      "200": {
+                        "description": "MERGED"
+                      }
+                    }
+                  },
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1merged/mergedBogus"
+                  }
+                },
+                "openapi:pathItemDescription": {
+                  "reason": "no_ir_home",
+                  "value": "Shared description",
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1merged/description"
+                  }
+                },
+                "openapi:pathItemSummary": {
+                  "reason": "no_ir_home",
+                  "value": "Shared summary",
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1merged/summary"
+                  }
+                },
+                "openapi:x-big": {
+                  "reason": "vendor_extension",
+                  "value": 1e400,
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1merged/get/x-big"
+                  }
+                },
+                "openapi:x-codes": {
+                  "reason": "vendor_extension",
+                  "value": {
+                    "100": "Continue",
+                    "200": "OK",
+                    "true": "T"
+                  },
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1merged/get/x-codes"
+                  }
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1merged/get"
+              }
+            }
+          ]
+        }
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/paths/~1merged/get/responses/200/content/application~1json/schema": {
+      "kind": "model",
+      "id": "t/anon/paths/~1merged/get/responses/200/content/application~1json/schema",
+      "name": {
+        "hint": "response"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "examples": [
+        {
+          "value": {
+            "kind": "object",
+            "object": [
+              {
+                "name": "a",
+                "value": {
+                  "kind": "number",
+                  "num": "1"
+                }
+              },
+              {
+                "name": "b",
+                "value": {
+                  "kind": "number",
+                  "num": "2"
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1merged/get/responses/200/content/application~1json/schema"
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    }
+  },
+  "servers": [
+    {
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {}
+    }
+  ],
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "path-item documentation kept under Unmodeled; it documents the path rather than this operation, and ir.Docs holds the operation's own summary and description",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1merged/get"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/unknown-object-key",
+      "message": "key \"mergedBogus\" is not defined by the OpenAPI object it is written on and is not an x- extension; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1merged/mergedBogus"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "yaml-merge-keys.yaml",
+      "hash": "c23e5c7c1bb378f36aca91d716f0233b1e4fc982aaca7d24ab775bf8f2f5bd08"
+    }
+  ]
+}

@@ -18,6 +18,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/fragment"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -439,18 +440,16 @@ func anyParsed(doc *soa.OpenAPI, missed []usedDocument, holds func(*yaml.Node) b
 }
 
 // hasAnchor reports whether any node of the tree under root carries an anchor.
-// It follows Content and never an alias, so it visits each node once.
+// It follows Content and never an alias, so it visits each node once. The
+// resolver parsed the tree from bytes the reader admitted (external.prepare),
+// so the walk's bound cuts none.
 func hasAnchor(root *yaml.Node) bool {
-	stack := []*yaml.Node{root}
-	for len(stack) > 0 {
-		n := stack[len(stack)-1]
-		stack = stack[:len(stack)-1]
+	return nodeview.Walk{Nodes: maxTreeNodes, Visit: func(n *yaml.Node, _ int) nodeview.Step {
 		if n.Anchor != "" {
-			return true
+			return nodeview.Stop
 		}
-		stack = append(stack, n.Content...)
-	}
-	return false
+		return nodeview.Descend
+	}}.Run(root).Stopped
 }
 
 // stillUnprepared reports each document the second resolution found

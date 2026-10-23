@@ -99,11 +99,13 @@ func plantNaming(name string, words []string, n *named, c *common, big ir.BigVal
 	field := ir.Naming{Canonical: compile.NamingFor(name).Canonical}                  // want "namechannels: ir.Naming.Canonical is filled by something other than a call into ir or compilers/compile; use compile.NamingFor, compile.NamingHint or ir.CanonicalWords"
 	positional := irx.Naming{name, localWords(name), compile.SubHint(name, "x"), nil} // want "namechannels: ir.Naming.Canonical is filled by something other than a call into ir or compilers/compile; use compile.NamingFor, compile.NamingHint or ir.CanonicalWords"
 	var late ir.Naming
-	late.Canonical = strings.ToLower(name) // want "namechannels: ir.Naming.Canonical is filled by something other than a call into ir or compilers/compile; use compile.NamingFor, compile.NamingHint or ir.CanonicalWords"
-	late.Hint = localWords(name)           // want "namechannels: ir.Naming.Hint is filled by something other than a call into ir or compilers/compile; use compile.NamingFor, compile.NamingHint or ir.CanonicalWords"
-	n.Hint = name                          // want "namechannels: ir.Naming.Hint is filled by something other than a call into ir or compilers/compile; use compile.NamingFor, compile.NamingHint or ir.CanonicalWords"
-	c.Name.Canonical = name                // want "namechannels: ir.Naming.Canonical is filled by something other than a call into ir or compilers/compile; use compile.NamingFor, compile.NamingHint or ir.CanonicalWords"
-	late.Canonical += "_x"                 // want "namechannels: ir.Naming.Canonical is extended in place; fill it whole, from compile.NamingFor, compile.NamingHint or ir.CanonicalWords"
+	late.Canonical = strings.ToLower(name)    // want "namechannels: ir.Naming.Canonical is filled by something other than a call into ir or compilers/compile; use compile.NamingFor, compile.NamingHint or ir.CanonicalWords"
+	late.Hint = localWords(name)              // want "namechannels: ir.Naming.Hint is filled by something other than a call into ir or compilers/compile; use compile.NamingFor, compile.NamingHint or ir.CanonicalWords"
+	n.Hint = name                             // want "namechannels: ir.Naming.Hint is filled by something other than a call into ir or compilers/compile; use compile.NamingFor, compile.NamingHint or ir.CanonicalWords"
+	promoted := named{Hint: localWords(name)} // want "namechannels: ir.Naming.Hint is filled by something other than a call into ir or compilers/compile; use compile.NamingFor, compile.NamingHint or ir.CanonicalWords"
+	promotedAll := named{Source: name, Canonical: ir.CanonicalWords(name), Hint: compile.SubHint(name, "x")}
+	c.Name.Canonical = name // want "namechannels: ir.Naming.Canonical is filled by something other than a call into ir or compilers/compile; use compile.NamingFor, compile.NamingHint or ir.CanonicalWords"
+	late.Canonical += "_x"  // want "namechannels: ir.Naming.Canonical is extended in place; fill it whole, from compile.NamingFor, compile.NamingHint or ir.CanonicalWords"
 	var other string
 	other, late.Hint = twoWords(name) // want "namechannels: ir.Naming.Hint is filled from a call returning several values; fill it alone, from compile.NamingFor, compile.NamingHint or ir.CanonicalWords"
 	for _, late.Hint = range words {  // want "namechannels: ir.Naming.Hint is filled by a range clause; fill it from compile.NamingFor, compile.NamingHint or ir.CanonicalWords"
@@ -123,6 +125,7 @@ func plantNaming(name string, words []string, n *named, c *common, big ir.BigVal
 	kept := ir.Naming{Source: name, Aliases: []string{name}}
 	_, _, _, _, _, _ = byKey, pointers, other, converted, method, parenthesized
 	_, _ = spelled, spelledHint
+	_, _ = promoted, promotedAll
 	return []ir.Naming{declared, hinted, carried, wrapped, field, positional, late, canonical, sub, made, kept,
 		{Canonical: localWords(name)}} // want "namechannels: ir.Naming.Canonical is filled by something other than a call into ir or compilers/compile; use compile.NamingFor, compile.NamingHint or ir.CanonicalWords"
 }

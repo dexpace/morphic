@@ -11,6 +11,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
 )
@@ -56,7 +57,7 @@ func encodingUnmodeled(c lowering.Ctx, enc *soa.Encoding, encPtr jsontext.Pointe
 	var out ir.Unmodeled
 	at := encPtr + ids.Ptr("allowReserved")
 	kept, diags := annotation.PreserveNodeInto(&out, "openapi:"+scope+"/allowReserved",
-		annotation.RawChildNode(enc.GetRootNode(), "allowReserved"), ir.ReasonNoIRHome, c.ProvenanceAt(at))
+		nodeview.Child(enc.GetRootNode(), "allowReserved"), ir.ReasonNoIRHome, c.ProvenanceAt(at))
 	if kept {
 		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
 			"encoding allowReserved has no ir.PartEncoding home; kept verbatim under Unmodeled"))
@@ -88,7 +89,7 @@ func nestedEncodings(c lowering.Ctx, out *ir.Unmodeled, enc *soa.Encoding, encPt
 	for _, keyword := range nestedEncodingFields {
 		at := encPtr + ids.Ptr(keyword)
 		kept, keptDiags := annotation.PreserveNodeInto(out, annotation.EntryKey(scope, keyword),
-			annotation.RawChildNode(enc.GetRootNode(), keyword), ir.ReasonNoIRHome, c.ProvenanceAt(at))
+			nodeview.Child(enc.GetRootNode(), keyword), ir.ReasonNoIRHome, c.ProvenanceAt(at))
 		diags = append(diags, keptDiags...)
 		if !kept {
 			continue

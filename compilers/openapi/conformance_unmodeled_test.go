@@ -1072,3 +1072,46 @@ func indexByParam(bindings []ir.HTTPParamBinding) map[string]ir.HTTPParamBinding
 	}
 	return out
 }
+
+// assertYAMLMergeKeys pins that every reader of the source reads a mapping as
+// the parser does (GitHub #1089): a path item's documentation and a stray key
+// merged in through `<<` are kept and announced as written ones are (GitHub
+// #384, #395), an extension keeps a key YAML types as a number or a boolean as
+// its text (GitHub #617), a plain number past float64's range stays a number
+// (GitHub #783), and an example's members come in the parser's order, the
+// merged ones first. The spec writes no alias, so the order oracle can permute
+// it; alias keys are the readers' own tests'.
+func assertYAMLMergeKeys(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	t.Helper()
+	op, ok := opByName(doc, "getMerged")
+	require.True(t, ok)
+
+	for _, tc := range []struct{ key, value, at string }{
+		{"openapi:pathItemSummary", `"Shared summary"`, "/paths/~1merged/summary"},
+		{"openapi:pathItemDescription", `"Shared description"`, "/paths/~1merged/description"},
+		{"openapi:pathItem/mergedBogus", `{"responses":{"200":{"description":"MERGED"}}}`, "/paths/~1merged/mergedBogus"},
+		{"openapi:x-codes", `{"100":"Continue","200":"OK","true":"T"}`, "/paths/~1merged/get/x-codes"},
+		{"openapi:x-big", `1e400`, "/paths/~1merged/get/x-big"},
+	} {
+		entry := unmodeledEntry(t, op.Unmodeled, tc.key)
+		assert.Equal(t, tc.value, string(entry.Value), tc.key)
+		assert.Equal(t, jsontext.Pointer(tc.at), entry.Provenance.Pointer, tc.key)
+	}
+	assert.Equal(t, []ir.Severity{ir.SeverityWarning},
+		diagsAt(diags, "openapi/unknown-object-key", "/paths/~1merged/mergedBogus"), "the merged stray key is announced")
+	for _, d := range diags {
+		assert.NotContains(t, d.Message, "could not be serialized", "every extension converts")
+		assert.NotEqual(t, "openapi/unknown-key-unreachable", d.Code, "every merged key is reached")
+	}
+
+	body, ok := doc.Types["t/anon/paths/~1merged/get/responses/200/content/application~1json/schema"]
+	require.True(t, ok)
+	examples := body.Common().Examples
+	require.Len(t, examples, 1)
+	require.NotNil(t, examples[0].Value)
+	members := make([]string, 0, len(examples[0].Value.Object))
+	for _, f := range examples[0].Value.Object {
+		members = append(members, f.Name)
+	}
+	assert.Equal(t, []string{"a", "b"}, members, "the merged member first, as the parser reads it")
+}

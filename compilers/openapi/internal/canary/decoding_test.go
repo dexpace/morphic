@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"runtime/debug"
 	"runtime/metrics"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -553,4 +554,50 @@ func nullSchemaIsFalse(t *testing.T) {
 		}
 		assert.Equal(t, wantTag, js.GetCore().GetRootNode().ShortTag(), revisit(t, result{report: name}))
 	}
+}
+
+// mergeKeys pins merge-keys: a mapping's merged pairs come first, an earlier
+// source winning and none overriding the mapping's own key; a source writing a
+// key twice gives its first copy; and a `<<` naming no mapping merges nothing,
+// with no finding.
+func mergeKeys(t *testing.T) {
+	doc, found, err := soa.Unmarshal(t.Context(), strings.NewReader(head+
+		"x-base: &base {k: {type: string}, z: {type: string}}\n"+
+		"x-other: &other {z: {type: integer}, y: {type: string}}\n"+
+		"components:\n  schemas:\n"+
+		"    S: {properties: {a: {type: integer}, <<: [*base, *other], k: {type: boolean}}}\n"+
+		"    T: {properties: {<<: 5, q: {type: string}}}\n"+
+		"    D: {properties: {<<: {d: {type: string}, d: {type: integer}}}}\n"))
+	require.NoError(t, err)
+	assert.Empty(t, found, revisit(t, result{}))
+
+	keys := func(name string) []string {
+		s, ok := doc.Components.Schemas.Get(name)
+		require.True(t, ok, name)
+		return slices.Collect(s.GetSchema().GetProperties().Keys())
+	}
+	assert.Equal(t, []string{"z", "y", "a", "k"}, keys("S"), "merged pairs first: %s", revisit(t, result{}))
+	s, _ := doc.Components.Schemas.Get("S")
+	z, _ := s.GetSchema().GetProperties().Get("z")
+	assert.Equal(t, []oas3.SchemaType{oas3.SchemaTypeString}, z.GetSchema().GetType(),
+		"the earlier source wins: %s", revisit(t, result{}))
+	k, _ := s.GetSchema().GetProperties().Get("k")
+	assert.Equal(t, []oas3.SchemaType{oas3.SchemaTypeBoolean}, k.GetSchema().GetType(),
+		"the mapping's own key wins: %s", revisit(t, result{}))
+	assert.Equal(t, []string{"q"}, keys("T"), "a `<<` naming a scalar merges nothing: %s", revisit(t, result{}))
+	d, _ := doc.Components.Schemas.Get("D")
+	dd, _ := d.GetSchema().GetProperties().Get("d")
+	assert.Equal(t, []oas3.SchemaType{oas3.SchemaTypeString}, dd.GetSchema().GetType(),
+		"a source's repeated key gives its first copy: %s", revisit(t, result{}))
+}
+
+// nonScalarKey pins non-scalar-key: a mapping key that is no scalar is read
+// as the empty string, with no finding.
+func nonScalarKey(t *testing.T) {
+	doc, found, err := soa.Unmarshal(t.Context(), strings.NewReader(head+
+		"components:\n  responses:\n    ? {k: v}\n    : {description: x}\n    Plain: {description: y}\n"))
+	require.NoError(t, err)
+	assert.Empty(t, found, revisit(t, result{}))
+	assert.Equal(t, []string{"", "Plain"}, slices.Collect(doc.Components.Responses.Keys()),
+		"the mapping key reads as the empty string: %s", revisit(t, result{}))
 }

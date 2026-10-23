@@ -9,7 +9,9 @@
 package nodeview
 
 import (
+	"cmp"
 	"encoding/json/jsontext"
+	"slices"
 	"strconv"
 
 	"github.com/speakeasy-api/openapi/yml"
@@ -39,8 +41,8 @@ const maxPointerSegments = 1024
 // reader the bound stops reports it.
 const MergeDepthLimit = 64
 
-// maxCachedPairs bounds the total expanded pairs one View retains, about 50 MB
-// at 2²¹ for the pairs themselves. MergeDepthLimit caps one mapping's expansion
+// maxCachedPairs bounds the total expanded pairs one View retains, 48 MiB at
+// 2²¹ for the pairs themselves. MergeDepthLimit caps one mapping's expansion
 // depth; this caps a document with many merged mappings. Past it the view still
 // answers correctly, only without memoizing.
 //
@@ -67,7 +69,8 @@ func DocumentRoot(n *yaml.Node) *yaml.Node {
 }
 
 // Pair is one effective key/value pair of a mapping node, after alias and
-// merge-key resolution.
+// merge-key resolution: the key as KeyOf names it, and the value with its
+// alias followed.
 type Pair struct {
 	Key string
 	Val *yaml.Node
@@ -118,8 +121,9 @@ func New() *View {
 }
 
 // expansion is one mapping's effective pairs with what the memo needs to serve
-// them again: how deep the expansion reached, and whether it reached
-// everything.
+// them again. pairs reads a key the mapping writes twice at its last copy;
+// merged, the mapping as a `<<` source, at its first, as the library does, and
+// is nil when no key repeats. repeat is the first such key (View.Repeat).
 //
 // height is the longest chain of `<<` merges beneath the node, 0 for a mapping
 // that merges nothing. The depth bound truncates from the entry point down, so
@@ -127,21 +131,49 @@ func New() *View {
 // still fits (GitHub #404).
 type expansion struct {
 	pairs    []Pair
+	merged   []Pair
+	repeat   repeat
 	height   int
 	complete bool
 }
 
-// MappingPairs returns the effective pairs of a mapping node, following
-// speakeasy's precedence: an explicit key beats one from a merge regardless of
-// where the `<<` appears, an earlier merge source beats a later one on a
-// shared key (yml.resolveMergeKeys), and a key repeated explicitly resolves to
-// its last value.
+// repeat is a key a mapping writes more than once, and that mapping; the zero
+// value is none.
+type repeat struct {
+	key string
+	in  *yaml.Node
+}
+
+// asSource returns the pairs e's mapping contributes to one that merges it.
+func (e expansion) asSource() []Pair {
+	if e.merged != nil {
+		return e.merged
+	}
+	return e.pairs
+}
+
+// MappingPairs returns the effective pairs of a mapping node in the order the
+// parser's model holds them (yml.ResolveMergeKeys): first those its `<<` keys
+// merge in, an earlier source winning a shared key and none overriding a key
+// the mapping writes itself, then its own, a key written twice at its last
+// copy.
 //
 // n is dereferenced, so an alias standing in for a whole mapping can be passed
 // directly; a non-mapping node (including nil) yields no pairs. The returned
 // slice is the view's own memo — callers must treat it as read-only.
 func (v *View) MappingPairs(n *yaml.Node) []Pair {
 	return v.expand(Deref(n), 0).pairs
+}
+
+// Repeat returns a key that the mapping n, or a mapping one of its `<<` keys
+// merges in, writes more than once, with the mapping writing it, and whether
+// there is one: n's own first, the one whose second copy comes first, then
+// each source's in the order they merge. MappingPairs settles such a key by
+// the library's rules, so a reader that must hold one copy faithfully, as a
+// value does, asks this to refuse instead. n is dereferenced.
+func (v *View) Repeat(n *yaml.Node) (key string, in *yaml.Node, ok bool) {
+	r := v.expand(Deref(n), 0).repeat
+	return r.key, r.in, r.in != nil
 }
 
 // expand returns n's expansion, incomplete if a merge cycle was broken or
@@ -213,18 +245,17 @@ func (v *View) isEntryPoint(depth int) bool {
 // memoization, so a miss recomputes exactly the same pairs — which makes the
 // budget a memory bound the scan can enforce without touching what it reports.
 func (v *View) memoize(n *yaml.Node, e expansion) {
-	if v.cachedPairs+len(e.pairs) > maxCachedPairs {
+	held := len(e.pairs) + len(e.merged)
+	if v.cachedPairs+held > maxCachedPairs {
 		return
 	}
 	v.pairs[n] = e
-	v.cachedPairs += len(e.pairs)
+	v.cachedPairs += held
 }
 
 // expandContent splits a mapping's raw content into the pairs it declares itself
-// and the pairs its `<<` keys merge in, then applies the two precedence rules
-// that govern them. They point in opposite directions, so they cannot share one
-// pass: a repeated explicit key resolves to its last value, while a merged key
-// yields to an explicit one and to any earlier merge source.
+// and the pairs its `<<` keys merge in, then orders and settles them as
+// yml.ResolveMergeKeys and the decoder do (see flatten).
 //
 // The height it records is one more than the tallest merge source's, so a
 // mapping that merges nothing has height 0.
@@ -238,38 +269,112 @@ func (v *View) expandContent(n *yaml.Node, depth int) expansion {
 		// disagree about which key merges. It is handed the key unresolved, as the
 		// library hands it: an alias standing in for `<<` is an ordinary key. Every
 		// `<<` merges, not only the last as in yaml.v3's decoder.
-		if yml.IsMergeKey(raw) {
+		if IsMergeKey(raw) {
 			got := v.mergeSource(val, depth+1)
 			merged = append(merged, got.pairs...)
 			e.complete = e.complete && got.complete
 			e.height = max(e.height, got.height+1)
+			e.repeat = cmp.Or(e.repeat, got.repeat)
 			continue
 		}
 		key, own := KeyOf(raw)
 		if !own {
-			continue // a non-scalar key cannot name a schema keyword
+			continue // a nil key, which no parse produces
 		}
 		explicit = append(explicit, Pair{Key: key, Val: val})
 	}
 
-	e.pairs = appendUnseen(dedupeLastWins(explicit), merged)
+	e.pairs, e.merged = flatten(explicit, merged)
+	e.repeat = cmp.Or(firstRepeat(n, explicit), e.repeat)
 	return e
 }
 
+// firstRepeat returns the key the mapping n writes twice whose second copy
+// comes first among its own pairs, or none.
+func firstRepeat(n *yaml.Node, own []Pair) repeat {
+	seen := make(map[string]bool, len(own))
+	for _, p := range own {
+		if seen[p.Key] {
+			return repeat{key: p.Key, in: n}
+		}
+		seen[p.Key] = true
+	}
+	return repeat{}
+}
+
+// flatten orders a mapping's pairs as the library does: the merged pairs no
+// pair of the mapping's own overrides, the first source of each key winning,
+// then its own pairs (docs/parser-library.md#merge-keys). It returns them
+// twice, read as the decoder reads the mapping itself, a key written twice at
+// its last copy (docs/parser-library.md#duplicate-key), and read as a merge
+// into another mapping, which keeps the first. The second is nil when no key
+// is written twice.
+func flatten(explicit, merged []Pair) (own, asSource []Pair) {
+	written := make(map[string]int, len(explicit))
+	for _, p := range explicit {
+		written[p.Key]++
+	}
+	base := make([]Pair, 0, len(merged))
+	taken := make(map[string]bool, len(merged))
+	for _, p := range merged {
+		if written[p.Key] > 0 || taken[p.Key] {
+			continue
+		}
+		taken[p.Key] = true
+		base = append(base, p)
+	}
+	own = slices.Concat(base, keepCopy(explicit, written, lastCopy))
+	if len(written) == len(explicit) {
+		return own, nil
+	}
+	return own, slices.Concat(base, keepCopy(explicit, written, firstCopy))
+}
+
+// copyRule says which copy of a key a mapping writes several times is read.
+type copyRule bool
+
+const (
+	firstCopy copyRule = false
+	lastCopy  copyRule = true
+)
+
+// keepCopy returns pairs with each key once, at the copy rule names, in the
+// order those copies are written. written counts each key's copies.
+func keepCopy(pairs []Pair, written map[string]int, rule copyRule) []Pair {
+	seen := make(map[string]int, len(written))
+	out := make([]Pair, 0, len(written))
+	for _, p := range pairs {
+		seen[p.Key]++
+		if rule == firstCopy && seen[p.Key] == 1 || rule == lastCopy && seen[p.Key] == written[p.Key] {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// IsMergeKey reports whether raw, a mapping key node as written, is a `<<`
+// merge key, by the library's own predicate (yml.IsMergeKey). An alias
+// standing in for `<<` is an ordinary key. Every reader of the parser's
+// reading of a mapping asks this or KeyOf, never a test of its own.
+func IsMergeKey(raw *yaml.Node) bool { return yml.IsMergeKey(raw) }
+
 // KeyOf returns the key the parser gives the mapping pair whose raw key node is
 // raw, and whether the pair is one of the mapping's own: a `<<` merge key
-// names none, nor does a key that is no scalar once its alias is followed. The
-// view and every reader of a mapping's raw pairs ask it, so none can disagree
-// with the parser about a pair's key.
+// names none. A key that is no scalar once its alias is followed is read as
+// the empty string, as the parser reads it
+// (docs/parser-library.md#non-scalar-key), and oas.CheckFormat reports it. The
+// view and every reader of a mapping's raw pairs ask KeyOf, so none can
+// disagree with the parser about a pair's key.
 func KeyOf(raw *yaml.Node) (string, bool) {
-	if yml.IsMergeKey(raw) {
+	if raw == nil || IsMergeKey(raw) {
 		return "", false
 	}
-	key := Deref(raw)
-	if key == nil || key.Kind != yaml.ScalarNode {
-		return "", false
+	if key := Deref(raw); key != nil {
+		return key.Value, true
 	}
-	return key.Value, true
+	// An alias naming nothing, which no parse produces, reads as its own text,
+	// as the library reads it.
+	return raw.Value, true
 }
 
 // RepeatedKeys returns the keys a mapping writes more than once, each once, in
@@ -296,73 +401,28 @@ func RepeatedKeys(n *yaml.Node) []string {
 	return out
 }
 
-// dedupeLastWins keeps the last pair for each key, at that last occurrence's
-// position: a mapping that repeats a key is ill-formed, and the parser's model
-// decodes its last occurrence, with only a warning
-// (docs/parser-library.md#duplicate-key).
-func dedupeLastWins(pairs []Pair) []Pair {
-	last := make(map[string]int, len(pairs))
-	for i, p := range pairs {
-		last[p.Key] = i
-	}
-	out := make([]Pair, 0, len(last))
-	for i, p := range pairs {
-		if last[p.Key] == i {
-			out = append(out, p)
-		}
-	}
-	return out
-}
-
-// appendUnseen appends the pairs of add whose key is not already present,
-// keeping the first contributor of each — the rule for merged keys, which yield
-// both to an explicit key and to an earlier merge source.
-func appendUnseen(base, add []Pair) []Pair {
-	if len(add) == 0 {
-		return base
-	}
-	seenKey := make(map[string]bool, len(base)+len(add))
-	for _, p := range base {
-		seenKey[p.Key] = true
-	}
-	out := base
-	for _, p := range add {
-		if seenKey[p.Key] {
-			continue
-		}
-		seenKey[p.Key] = true
-		out = append(out, p)
-	}
-	return out
-}
-
-// mergeSource expands one `<<` value into the pairs it contributes: a mapping is
-// a single merge source, a sequence is several with an earlier element taking
-// precedence over a later one on a shared key.
+// mergeSource expands one `<<` value into the pairs it contributes, in the
+// order flatten settles them: a mapping is a single merge source, and a
+// sequence is several, its mapping elements in order. Anything else merges
+// nothing, as for the library (docs/parser-library.md#merge-keys), and
+// oas.CheckFormat reports it.
 //
 // The height of a sequence is its tallest element's: the elements are
 // alternatives at one level, not links in a chain.
 func (v *View) mergeSource(val *yaml.Node, depth int) expansion {
 	if val == nil || val.Kind != yaml.SequenceNode {
-		return v.expand(val, depth)
+		got := v.expand(val, depth)
+		return expansion{pairs: got.asSource(), repeat: got.repeat, height: got.height, complete: got.complete}
 	}
-	var out []Pair
 	e := expansion{complete: true}
 	for _, item := range val.Content {
 		got := v.expand(Deref(item), depth)
-		out = append(out, got.pairs...)
+		e.pairs = append(e.pairs, got.asSource()...)
 		e.complete = e.complete && got.complete
 		e.height = max(e.height, got.height)
+		e.repeat = cmp.Or(e.repeat, got.repeat)
 	}
-	e.pairs = dedupeFirstWins(out)
 	return e
-}
-
-// dedupeFirstWins keeps only the first pair for each key, preserving order — the
-// rule across the elements of a merge sequence, where an earlier source outranks
-// a later one.
-func dedupeFirstWins(pairs []Pair) []Pair {
-	return appendUnseen(nil, pairs)
 }
 
 // DocumentPath walks pointer, a position in this document, from root as RFC

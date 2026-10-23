@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
@@ -679,11 +680,12 @@ func TestResponses_SummaryIsReadAtEveryVersion(t *testing.T) {
 	}
 }
 
-// TestResponses_SummaryNoReaderTakesIsStillReported pins the two summaries the
-// 3.2 reader does not place in Docs.Summary, which must not vanish because the
+// TestResponses_SummaryNoReaderTakesIsStillReported pins the 3.2 summaries the
+// reader does not place in Docs.Summary, which must not vanish because the
 // census was told the key is the dialect's: one that is not a string is kept
-// verbatim with a warning, and one merged in through `<<` keeps the census's
-// report that it reached the IR in no form.
+// verbatim with a warning, and one merged in from past
+// nodeview.MergeDepthLimit keeps the census's report that it reached the IR in
+// no form. One merged in through `<<` is read as a written one is.
 func TestResponses_SummaryNoReaderTakesIsStillReported(t *testing.T) {
 	t.Parallel()
 	doc, _, diags := lowerServiceSpec(t, openapitest.PathsSpecVer("3.2.0", `  /a:
@@ -694,16 +696,18 @@ func TestResponses_SummaryNoReaderTakesIsStillReported(t *testing.T) {
         "201":
           <<: {summary: Merged}
           description: ok
+        "202": `+openapitest.NestedMerges(nodeview.MergeDepthLimit+1, "{summary: Deep, description: ok}")+`
 `))
 	responses := openapitest.FindOp(t, doc, "a").Responses
-	require.Len(t, responses, 2)
+	require.Len(t, responses, 3)
 	assert.Empty(t, responses[0].Docs.Summary)
 	kept, ok := responses[0].Unmodeled["openapi:summary"]
 	require.True(t, ok, "a summary that is not a string is kept verbatim")
 	assert.JSONEq(t, `["not","a","string"]`, string(kept.Value))
 	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/paths/~1a/get/responses/200/summary"))
-	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.UnknownKeyUnreachable, "/paths/~1a/get/responses/201/summary"),
-		"a merged-in summary is still reported; got %v", diags)
+	assert.Equal(t, "Merged", responses[1].Docs.Summary, "a merged-in summary is read")
+	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.UnknownKeyUnreachable, "/paths/~1a/get/responses/202/summary"),
+		"one past the bound is still reported; got %v", diags)
 }
 
 // TestResponses_SummaryUseSiteBeatsTheDeclaration holds the 3.2 field to the

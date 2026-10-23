@@ -101,7 +101,7 @@ func lowerMeta(c lowering.Ctx) (docMeta, []ir.Diagnostic) {
 // read in the OpenAPI dialect whatever it names.
 func keepJSONSchemaDialect(c lowering.Ctx, p *ir.Unmodeled) []ir.Diagnostic {
 	at := ids.Ptr("jsonSchemaDialect")
-	node := nodeview.New().ChildByToken(nodeview.DocumentRoot(c.Doc.GetRootNode()), "jsonSchemaDialect")
+	node := nodeview.Child(nodeview.DocumentRoot(c.Doc.GetRootNode()), "jsonSchemaDialect")
 	kept, diags := annotation.PreserveNodeInto(p, annotation.EntryKey("", "jsonSchemaDialect"), node,
 		ir.ReasonOutOfScope, c.ProvenanceAt(at))
 	if !kept {

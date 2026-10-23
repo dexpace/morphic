@@ -13,6 +13,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
@@ -317,7 +318,7 @@ func fillParamDetail(c lowering.Ctx, param *ir.Parameter, p *soa.Parameter, pptr
 func preserveAllowEmptyValue(c lowering.Ctx, param *ir.Parameter, p *soa.Parameter, pptr jsontext.Pointer) []ir.Diagnostic {
 	at := pptr + ids.Ptr("allowEmptyValue")
 	kept, diags := annotation.PreserveNodeInto(&param.Unmodeled, "openapi:allowEmptyValue",
-		annotation.RawChildNode(p.GetRootNode(), "allowEmptyValue"), ir.ReasonNoIRHome, c.ProvenanceAt(at))
+		nodeview.Child(p.GetRootNode(), "allowEmptyValue"), ir.ReasonNoIRHome, c.ProvenanceAt(at))
 	if !kept {
 		return diags
 	}

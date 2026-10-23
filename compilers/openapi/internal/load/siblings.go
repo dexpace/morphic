@@ -284,7 +284,7 @@ func (s *Siblings) add(ctx context.Context, site jsontext.Pointer, rp *soa.Refer
 // writtenKeys returns the keys the mapping fields, a use site less its $ref, is
 // written under, read as the parser reads it.
 func writtenKeys(fields *yaml.Node) map[string]bool {
-	pairs := nodeview.New().MappingPairs(fields)
+	pairs := nodeview.Pairs(fields)
 	written := make(map[string]bool, len(pairs))
 	for _, p := range pairs {
 		written[p.Key] = true
@@ -331,10 +331,15 @@ func writesBeside(node *yaml.Node) bool {
 }
 
 // isRefKey reports whether key spells $ref, directly or through an alias, as
-// the library reads a mapping's key.
+// the library reads a mapping's key (nodeview.KeyOf).
+//
+// It and the readers above take the pairs a mapping writes itself, not those
+// a `<<` merges in: the library tells a reference by its own pairs, so a $ref
+// merged in makes no reference, while a `<<` beside an own $ref is a field
+// the decoder of the copy merges (TestWithoutRef_DropsTheRefAsTheLibraryReadsIt).
 func isRefKey(key *yaml.Node) bool {
-	k := nodeview.Deref(key)
-	return k != nil && k.Value == refKey
+	k, own := nodeview.KeyOf(key)
+	return own && k == refKey
 }
 
 // buildSibling builds the fields beside a $ref into a Path Item, as the source's

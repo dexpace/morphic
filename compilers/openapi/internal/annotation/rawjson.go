@@ -5,10 +5,11 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"fmt"
-	"time"
+	"strconv"
 
 	yaml "gopkg.in/yaml.v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/value"
 	"github.com/dexpace/morphic/ir"
 )
@@ -18,16 +19,16 @@ import (
 // cannot be represented yields an error, so no caller announces a preservation
 // that never happened (GitHub #144).
 //
-// Conversion fails on a non-string or repeated mapping key (an aliased repeat
-// aside, GitHub #1072), a `<<` merging no mapping, .nan or .inf, a scalar whose
-// text does not satisfy its tag (a !!null aside, GitHub #245), invalid UTF-8,
-// and an alias that cycles or expands past the node budget. A tag yaml.v3
-// leaves untyped is kept. Numeric literals stay exact (GitHub #32).
+// A mapping holds the members the parser reads (nodeview.View.MappingPairs).
+// Conversion fails on a mapping that writes a key twice (GitHub #1072) or
+// merges past nodeview.MergeDepthLimit, a scalar value.Classify refuses,
+// invalid UTF-8, and an alias that cycles or expands past the node budget.
+// Numeric literals stay exact (GitHub #32).
 func RawFromNode(node *yaml.Node) (ir.RawValue, error) {
 	if node == nil {
 		return nil, nil
 	}
-	var conv rawConv
+	conv := rawConv{view: nodeview.New()}
 	data, err := conv.node(node, 0)
 	if err != nil {
 		return nil, fmt.Errorf("render yaml node as json: %w", err)
@@ -48,33 +49,10 @@ const (
 	maxRawNodes = 1 << 20
 )
 
-// errMergeWantsMap reports a `<<` whose value is neither a mapping nor a
-// sequence of mappings, matching yaml.v3's own refusal to guess.
-var errMergeWantsMap = errors.New("map merge requires map or sequence of maps as the value")
-
-// maxAliasHops bounds an alias chain followed outside the node walk. An anchor
-// may name an alias node, so a key or a merge source can sit a hop or more from
-// the node it means; a chain past this is a cycle, and these two readers resolve
-// without the budget node() would otherwise charge for the hop.
-const maxAliasHops = 100
-
-// resolveAlias follows an alias chain to the node it names.
-func resolveAlias(n *yaml.Node) (*yaml.Node, error) {
-	for hops := 0; n.Kind == yaml.AliasNode; hops++ {
-		if hops >= maxAliasHops {
-			return nil, fmt.Errorf("alias %q chains past %d hops", n.Value, maxAliasHops)
-		}
-		if n.Alias == nil {
-			return nil, fmt.Errorf("alias %q resolves to nothing", n.Value)
-		}
-		n = n.Alias
-	}
-	return n, nil
-}
-
 // rawConv renders one YAML node as canonical JSON. It carries the node budget
-// shared across the whole walk; depth is a parameter because it is a property
-// of the path rather than of the conversion.
+// shared across the whole walk and the view every mapping is read through;
+// depth is a parameter because it is a property of the path rather than of the
+// conversion.
 //
 // A scalar renders to JSON text directly, never through a Go value: decoding a
 // number into `any` rounds it through float64, the bug this file exists to close
@@ -83,6 +61,7 @@ func resolveAlias(n *yaml.Node) (*yaml.Node, error) {
 // the JSON it holds rather than reinterpreting it.
 type rawConv struct {
 	nodes int
+	view  *nodeview.View
 }
 
 // node renders any YAML node as canonical JSON.
@@ -110,7 +89,7 @@ func (c *rawConv) node(n *yaml.Node, depth int) (jsontext.Value, error) {
 		}
 		return c.node(n.Alias, depth+1)
 	case yaml.ScalarNode:
-		return c.scalar(n)
+		return scalar(n)
 	case yaml.SequenceNode:
 		return c.sequence(n, depth)
 	case yaml.MappingNode:
@@ -120,76 +99,36 @@ func (c *rawConv) node(n *yaml.Node, depth int) (jsontext.Value, error) {
 	}
 }
 
-// scalar renders a scalar node by its resolved tag.
-//
-// The tag is read through ShortTag rather than off the node so that an untagged
-// node resolves by its value, the way the Decode this replaced would have. A
-// parser never hands one over — it resolves every scalar it emits, and writes
-// the short form even for a spelled-out `!<tag:yaml.org,2002:int>` — but a
-// caller assembling nodes can, and reading n.Tag would spell such a scalar as a
-// string.
-//
-// A tag yaml.v3 assigns no type to keeps its text rather than being refused,
-// which is also what that Decode did.
-func (c *rawConv) scalar(n *yaml.Node) (jsontext.Value, error) {
-	switch n.ShortTag() {
-	case "!!null":
+// scalar renders a scalar node as value.Classify reads it, the classification
+// an ir.Value is lowered from too, so a scalar kept verbatim and one lowered
+// are never two kinds (GitHub #783). What is kept differs only where JSON has
+// no type for the kind: a timestamp, a !!binary and a scalar under the
+// document's own tag keep the text the source wrote, because the resolved form
+// is derivable from the spelling and the spelling is not derivable from the
+// resolved form (GitHub #242).
+func scalar(n *yaml.Node) (jsontext.Value, error) {
+	s, err := value.Classify(n)
+	if err != nil {
+		return nil, err
+	}
+	switch s.Kind {
+	case value.ScalarNull:
 		return jsontext.Value("null"), nil
-	case "!!bool":
-		var b bool
-		if err := n.Decode(&b); err != nil {
-			return nil, fmt.Errorf("bool literal %q: %w", n.Value, err)
-		}
-		if b {
-			return jsontext.Value("true"), nil
-		}
-		return jsontext.Value("false"), nil
-	case "!!int", "!!float":
-		// The whole point of this file: the literal's exact decimal, never a
-		// float64 rounding of it (GitHub #32). NumericLiteral resolves YAML's
-		// own bases too, so 0o17 still reads 15 rather than 17.
-		num, err := value.NumericLiteral(n)
-		if err != nil {
-			return nil, fmt.Errorf("numeric literal %q: %w", n.Value, err)
-		}
-		return spliceNumber(n.Value, string(num))
-	case "!!str":
-		return jsonString(n.Value)
-	case "!!timestamp", "!!binary":
-		// The two tags YAML gives a type and JSON does not. Both keep the text
-		// the source wrote, because the resolved form is derivable from the
-		// spelling and the spelling is not derivable from the resolved form
-		// (GitHub #242).
-		//
-		// Rendering the resolved form instead lost data both ways: a timestamp
-		// came back RFC 3339, so `2021-1-1` acquired a padding, a time and a
-		// zone the source never wrote, and a !!binary came back as its decoded
-		// bytes, so `/w==` — the byte 0xFF — reached the IR as the U+FFFD v1's
-		// encoding/json substituted for it, indistinguishable from a source
-		// that wrote U+FFFD itself.
-		//
-		// The decode stays, and stays the tag check it has always been: a
-		// scalar that does not satisfy the type it declares is refused exactly
-		// as before, so only the kept spelling moved. Whether such a scalar
-		// should instead survive as text — JSON can name it, and refusing costs
-		// the caller the whole construct — is a question about what this walk
-		// accepts rather than what it preserves, and is open as GitHub #245
-		// rather than settled as a side effect here.
-		return c.verbatimTagged(n)
+	case value.ScalarBool:
+		return jsontext.Value(strconv.FormatBool(s.Bool)), nil
+	case value.ScalarNumber:
+		return spliceNumber(n.Value, string(s.Num))
 	default:
-		// A tag yaml.v3 cannot resolve carries no type it could decode to, so
-		// its scalar comes back as the text it was written with — the behaviour
-		// this walk replaced, and the lossless one: refusing would drop an
-		// `!acme/thing` extension value the source did write.
-		return jsonString(n.Value)
+		// A string, and the kinds JSON names only as the text they were written as.
+		return jsonString(s.Text)
 	}
 }
 
-// spliceNumber renders num, an already-validated NumericLiteral result, as raw
-// JSON, refusing it if it is not a JSON number. scalar is the one caller that
-// splices a numeric literal straight into a document rather than an ir.Value
-// field, so BigVal's contract (its text always renders as a JSON-valid number)
-// is checked here.
+// spliceNumber renders num, an already-validated number value.Classify read,
+// as raw JSON, refusing it if it is not a JSON number. scalar is the one caller
+// that splices a numeric literal straight into a document rather than an
+// ir.Value field, so BigVal's contract (its text always renders as a
+// JSON-valid number) is checked here.
 //
 // NewBigVal enforces that contract itself, so the check is unreachable through
 // scalar and tests call this directly. It stays because dropping it would turn
@@ -200,34 +139,6 @@ func spliceNumber(source, num string) (jsontext.Value, error) {
 		return nil, fmt.Errorf("numeric literal %q renders as %q, which is not JSON", source, num)
 	}
 	return jsontext.Value(num), nil
-}
-
-// verbatimTagged renders a scalar whose tag YAML resolves and JSON cannot name.
-// Each arm only checks the tag, by the decode that used to supply the output,
-// and the one return states the rule they share: what is kept is the source
-// text. The two decode to different Go types and report differently — a
-// timestamp names the offending text, a binary payload deliberately does not.
-func (c *rawConv) verbatimTagged(n *yaml.Node) (jsontext.Value, error) {
-	switch tag := n.ShortTag(); tag {
-	case "!!timestamp":
-		var when time.Time
-		if err := n.Decode(&when); err != nil {
-			return nil, fmt.Errorf("timestamp literal %q: %w", n.Value, err)
-		}
-	case "!!binary":
-		// yaml.v3 base64-decodes a !!binary node into a string (it rejects a
-		// []byte target), so the check decodes to string.
-		var decoded string
-		if err := n.Decode(&decoded); err != nil {
-			return nil, fmt.Errorf("binary literal: %w", err)
-		}
-	default:
-		// Unreachable through scalar, which routes only the two tags above
-		// here. It stays so a third tag added to that arm is answered rather
-		// than silently read as base64.
-		return nil, fmt.Errorf("scalar tag %q is not kept verbatim", tag)
-	}
-	return jsonString(n.Value)
 }
 
 // sequence renders a YAML sequence as a JSON array, in source order.
@@ -246,15 +157,32 @@ func (c *rawConv) sequence(n *yaml.Node, depth int) (jsontext.Value, error) {
 	return append(out, ']'), nil
 }
 
-// mapping renders a YAML mapping as a JSON object, members in sorted key order.
+// mapping renders a YAML mapping as a JSON object holding the members the
+// parser reads, in sorted key order.
 //
 // Sorted rather than source order on purpose: the decode this replaced produced
 // sorted keys, and sorted keys are what the IR's determinism invariant asks of
 // every map it serializes.
+//
+// A key written twice, by the mapping or a mapping it merges, is refused, as
+// yaml.v3 refuses it by default: the member would hold one copy and drop the
+// other. A key written through an alias is the key it names, so it repeats
+// one written plainly (GitHub #1072).
 func (c *rawConv) mapping(n *yaml.Node, depth int) (jsontext.Value, error) {
-	members := map[string]jsontext.Value{}
-	if err := c.mappingInto(members, n, depth); err != nil {
-		return nil, err
+	if key, in, repeated := c.view.Repeat(n); repeated {
+		return nil, repeatedKeyError(in, key)
+	}
+	pairs := c.view.MappingPairs(n)
+	if c.view.Exhausted() {
+		return nil, fmt.Errorf("mapping merges through `<<` deeper than %d levels", nodeview.MergeDepthLimit)
+	}
+	members := make(map[string]jsontext.Value, len(pairs))
+	for _, p := range pairs {
+		enc, err := c.node(p.Val, depth+1)
+		if err != nil {
+			return nil, err
+		}
+		members[p.Key] = enc
 	}
 
 	out, err := json.Marshal(members, json.Deterministic(true))
@@ -264,133 +192,16 @@ func (c *rawConv) mapping(n *yaml.Node, depth int) (jsontext.Value, error) {
 	return out, nil
 }
 
-// mappingInto fills dst from n, leaving keys dst already holds untouched. That
-// one rule is the whole of YAML's merge precedence: a mapping's own keys are
-// written before its `<<` is read, and a sequence of merge sources is read in
-// order, so the nearer declaration always wins.
-func (c *rawConv) mappingInto(dst map[string]jsontext.Value, n *yaml.Node, depth int) error {
-	if n.Kind != yaml.MappingNode {
-		return fmt.Errorf("expected a mapping, got yaml node kind %d", n.Kind)
-	}
-	if err := checkUniqueKeys(n); err != nil {
-		return err
-	}
-
-	var merge *yaml.Node
-	for i := 0; i+1 < len(n.Content); i += 2 {
-		key, val := n.Content[i], n.Content[i+1]
-		if isMergeKey(key) {
-			merge = val
-			continue
-		}
-		name, err := mapKey(key)
-		if err != nil {
-			return err
-		}
-		if _, taken := dst[name]; taken {
-			continue
-		}
-		enc, err := c.node(val, depth+1)
-		if err != nil {
-			return err
-		}
-		dst[name] = enc
-	}
-
-	if merge == nil {
-		return nil
-	}
-	return c.merge(dst, merge, depth)
-}
-
-// merge folds a `<<` value into dst: a mapping, an alias to one, or a sequence
-// of either.
-func (c *rawConv) merge(dst map[string]jsontext.Value, merge *yaml.Node, depth int) error {
-	if depth > maxRawDepth {
-		return fmt.Errorf("nesting exceeds %d", maxRawDepth)
-	}
-	if merge.Kind == yaml.SequenceNode {
-		for _, item := range merge.Content {
-			src, err := mergeSource(item)
-			if err != nil {
-				return err
-			}
-			if err := c.mappingInto(dst, src, depth+1); err != nil {
-				return err
-			}
-		}
-		return nil
-	}
-
-	src, err := mergeSource(merge)
-	if err != nil {
-		return err
-	}
-	return c.mappingInto(dst, src, depth+1)
-}
-
-// mergeSource resolves one merge source to the mapping it names.
-func mergeSource(n *yaml.Node) (*yaml.Node, error) {
-	named, err := resolveAlias(n)
-	if err != nil {
-		return nil, err
-	}
-	if named.Kind != yaml.MappingNode {
-		return nil, errMergeWantsMap
-	}
-	return named, nil
-}
-
-// checkUniqueKeys rejects a mapping that names one key twice, which yaml.v3
-// rejects by default and this compiler has therefore always refused. It names
-// the earliest key written again, and where it is written next, in one pass:
-// comparing every pair of keys cost the square of the mapping's width (GitHub
-// #776).
-func checkUniqueKeys(n *yaml.Node) error {
-	type key struct {
-		kind  yaml.Kind
-		value string
-	}
-	first := make(map[key]int, len(n.Content)/2)
-	earliest, next := -1, -1
-	for j := 0; j < len(n.Content); j += 2 {
-		k := key{kind: n.Content[j].Kind, value: n.Content[j].Value}
-		i, seen := first[k]
-		if !seen {
-			first[k] = j
-			continue
-		}
-		// A key's later repeats share its first index, so its first repeat is kept.
-		if earliest < 0 || i < earliest {
-			earliest, next = i, j
+// repeatedKeyError names key, which the mapping n writes more than once, and
+// the lines of its first two copies.
+func repeatedKeyError(n *yaml.Node, key string) error {
+	var lines []int
+	for i := 0; i+1 < len(n.Content) && len(lines) < 2; i += 2 {
+		if k, own := nodeview.KeyOf(n.Content[i]); own && k == key {
+			lines = append(lines, n.Content[i].Line)
 		}
 	}
-	if earliest < 0 {
-		return nil
-	}
-	return fmt.Errorf("mapping key %q already defined at line %d", n.Content[next].Value, n.Content[earliest].Line)
-}
-
-// mapKey gives a mapping key its JSON name, rejecting every key JSON has no
-// name for. The rule matches yaml.v3's own: a mapping decodes into Go's JSON
-// model only when every key is a string, and a non-string key is what makes the
-// whole construct unrepresentable rather than merely awkward (GitHub #144).
-func mapKey(n *yaml.Node) (string, error) {
-	named, err := resolveAlias(n)
-	if err != nil {
-		return "", err
-	}
-	if named.Kind != yaml.ScalarNode || named.ShortTag() != "!!str" {
-		return "", fmt.Errorf("mapping key %q is not a string", named.Value)
-	}
-	return named.Value, nil
-}
-
-// isMergeKey reports whether a key node is YAML's `<<` merge key, by the same
-// test yaml.v3 applies.
-func isMergeKey(n *yaml.Node) bool {
-	return n.Kind == yaml.ScalarNode && n.Value == "<<" &&
-		(n.Tag == "" || n.Tag == "!" || n.ShortTag() == "!!merge")
+	return fmt.Errorf("mapping key %q already defined at line %d, and written again at line %d", key, lines[0], lines[1])
 }
 
 // jsonString encodes s as a JSON string with RFC 8785's minimal escaping,

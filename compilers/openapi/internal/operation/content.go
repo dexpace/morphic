@@ -16,6 +16,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
 )
@@ -52,7 +53,7 @@ func lowerPayload(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex
 // load reports them below 3.2 (diag.LaterVersionConstruct).
 func keepMediaTypeFields(c lowering.Ctx, u *ir.Unmodeled, media *soa.MediaType, mediaPtr jsontext.Pointer, scope string) []ir.Diagnostic {
 	root := media.GetRootNode()
-	if ref := annotation.RawChildNode(root, "$ref"); ref != nil {
+	if ref := nodeview.Child(root, "$ref"); ref != nil {
 		return keepMediaTypeRef(c, u, root, ref, mediaPtr, scope)
 	}
 	return keepMediaTypeDescription(c, u, root, mediaPtr, scope)
@@ -63,7 +64,7 @@ func keepMediaTypeFields(c lowering.Ctx, u *ir.Unmodeled, media *soa.MediaType, 
 func keepMediaTypeDescription(c lowering.Ctx, u *ir.Unmodeled, root *yaml.Node, mediaPtr jsontext.Pointer, scope string) []ir.Diagnostic {
 	at := mediaPtr + ids.Ptr("description")
 	kept, diags := annotation.PreserveNodeInto(u, annotation.EntryKey(scope, "description"),
-		annotation.RawChildNode(root, "description"), ir.ReasonNoIRHome, c.ProvenanceAt(at))
+		nodeview.Child(root, "description"), ir.ReasonNoIRHome, c.ProvenanceAt(at))
 	if !kept {
 		return diags
 	}
@@ -80,7 +81,7 @@ func keepMediaTypeRef(c lowering.Ctx, u *ir.Unmodeled, root, ref *yaml.Node, med
 	var diags []ir.Diagnostic
 	for _, sibling := range []string{"summary", "description"} {
 		_, siblingDiags := annotation.PreserveNodeInto(u, annotation.EntryKey(scope, sibling),
-			annotation.RawChildNode(root, sibling), ir.ReasonNoIRHome, c.ProvenanceAt(mediaPtr+ids.Ptr(sibling)))
+			nodeview.Child(root, sibling), ir.ReasonNoIRHome, c.ProvenanceAt(mediaPtr+ids.Ptr(sibling)))
 		diags = append(diags, siblingDiags...)
 	}
 	at := mediaPtr + ids.Ptr("$ref")

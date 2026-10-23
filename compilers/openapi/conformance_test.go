@@ -237,6 +237,7 @@ func conformanceCases() []conformanceCase {
 		{"path-item-docs", assertPathItemDocs},
 		{"path-item-operations", assertPathItemOperations},
 		{"path-item-anchored-key", assertPathItemAnchoredKey},
+		{"yaml-merge-keys", assertYAMLMergeKeys},
 		{"path-item-ref-siblings", assertPathItemRefSiblings},
 		{"deprecation", assertDeprecation},
 		{"extension-promotion", assertExtensionPromotion},

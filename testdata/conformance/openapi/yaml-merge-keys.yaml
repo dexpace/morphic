@@ -1,0 +1,22 @@
+openapi: 3.1.0
+info: {title: YAMLMergeKeys, version: "1"}
+# Each construct below reaches the compiler only through a `<<` merge key or a
+# key YAML types as no string, and is read as the parser reads it: merged in,
+# the merged members first, and every key as the text it spells.
+paths:
+  /merged:
+    <<:
+      - {summary: Shared summary, description: Shared description}
+      - {mergedBogus: {responses: {"200": {description: MERGED}}}}
+    get:
+      operationId: getMerged
+      x-codes: {<<: {100: Continue}, 200: OK, true: T}
+      x-big: 1e400
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: object
+                example: {<<: {a: 1}, b: 2}

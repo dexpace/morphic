@@ -736,7 +736,7 @@ sorts, which `maps.Keys` + `slices.Sorted` already cover.
   answers what the cycle and amplification refusals each used to walk it to ask, over the single
   decode the loader now performs. What is still out of scope is the other half — a pointer → node
   map that would make reference resolution a lookup, a per-node key index that would make
-  `annotation.RawChildNode` one, and the `--explain` substrate both would give. Each of those is
+  `nodeview.Child` one, and the `--explain` substrate both would give. Each of those is
   read during lowering rather than before it, so handing them down means widening the lowering
   context and the signatures beneath it: its own change.
 - **Rebasing the GraphQL and Protobuf drafts.** They are evidence here, not work items.

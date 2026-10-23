@@ -2,6 +2,7 @@ package operation_test
 
 import (
 	"encoding/json/jsontext"
+	"slices"
 	"strings"
 	"testing"
 
@@ -10,6 +11,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
@@ -539,27 +541,32 @@ paths:
 // TestPathItem_UnmountedAnnouncementFollowsWhatWasKept pins the announcement to
 // what landed rather than to what the source model reports.
 //
-// A construct supplied through a YAML merge key is read by the model and not by
-// RawChildNode, whose lookup is a plain mapping scan (GitHub #384). A predicate
-// over the model therefore says `servers` were "kept beside it" while nothing was
-// kept at all — a diagnostic asserting a preservation that did not happen, which
-// is worse than the silence it replaced because it tells a reader the value is
-// safe.
+// Servers merged in through `<<` are read as written ones are, kept and
+// announced (GitHub #384). Merged in from past nodeview.MergeDepthLimit, the
+// model reads them and the compiler's raw read does not, so a predicate over
+// the model would say they were "kept beside it" while nothing was kept: a
+// diagnostic asserting a preservation that did not happen.
 func TestPathItem_UnmountedAnnouncementFollowsWhatWasKept(t *testing.T) {
 	t.Parallel()
-	svc, diags := serviceWithGrouping(t, `openapi: 3.1.0
-info: {title: T, version: "1"}
-x-base: &base
-  servers: [{url: 'https://m.example'}]
-paths:
-  /unmounted:
-    <<: *base
-`, lowering.GroupByTags)
+	const servers = "{servers: [{url: 'https://m.example'}]}"
+	for _, tc := range []struct {
+		name, item string
+		kept       bool
+	}{
+		{"merged in", "{<<: " + servers + "}", true},
+		{"merged in past the bound", openapitest.NestedMerges(nodeview.MergeDepthLimit+1, servers), false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			svc, diags := serviceWithGrouping(t, "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\n"+
+				"paths:\n  /unmounted: "+tc.item+"\n", lowering.GroupByTags)
 
-	require.Empty(t, svc.Unmodeled, "the merge key is invisible to the raw-node lookup")
-	for _, d := range diags {
-		assert.NotContains(t, d.Message, "declares no operation this compiler lowers",
-			"nothing landed, so nothing claims it did")
+			assert.Equal(t, tc.kept, len(svc.Unmodeled) == 1, "%v", svc.Unmodeled)
+			announced := slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {
+				return strings.Contains(d.Message, "declares no operation this compiler lowers")
+			})
+			assert.Equal(t, tc.kept, announced, "the announcement follows what landed")
+		})
 	}
 }
 

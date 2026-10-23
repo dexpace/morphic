@@ -10,6 +10,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -181,8 +182,9 @@ func applyFlowAnnotations(c lowering.Ctx, lowered []ir.OAuthFlow, flows *soa.OAu
 // without this they would be lost: the parser models every field on every flow,
 // and the unknown-key census never sees one.
 //
-// It reads the flow's own mapping, as every preservation site does, so a field
-// merged in through a `<<` key is not kept (GitHub #384).
+// It reads the flow's mapping as the parser does, as every preservation site
+// does, so a field merged in through a `<<` key is kept as a written one is
+// (GitHub #384).
 func preserveUndefinedFlowFields(c lowering.Ctx, fl *ir.OAuthFlow, f sourceFlow, fptr jsontext.Pointer) []ir.Diagnostic {
 	defined := flowFieldsDefinedBy(f.keyword)
 	var diags []ir.Diagnostic
@@ -192,7 +194,7 @@ func preserveUndefinedFlowFields(c lowering.Ctx, fl *ir.OAuthFlow, f sourceFlow,
 		}
 		at := fptr + ids.Ptr(field.name)
 		kept, keptDiags := annotation.PreserveNodeInto(&fl.Unmodeled, "openapi:"+field.name,
-			annotation.RawChildNode(f.src.GetRootNode(), field.name), ir.ReasonDegradedLowering, c.ProvenanceAt(at))
+			nodeview.Child(f.src.GetRootNode(), field.name), ir.ReasonDegradedLowering, c.ProvenanceAt(at))
 		diags = append(diags, keptDiags...)
 		if !kept {
 			continue

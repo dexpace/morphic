@@ -429,7 +429,7 @@ func unmergedWhy(residue []string, e allOfBranch) string {
 }
 
 // unmergedBranchKeys returns the keywords the branch declares that the merge does
-// not consume, in source order.
+// not consume, in the order the parser's model holds them.
 //
 // The keys come off the branch's own raw mapping rather than from a list of
 // keywords worth preserving, which is what keeps this from rotting: a keyword a
@@ -483,9 +483,10 @@ func branchExcludesObject(bs *oas3.Schema) bool {
 	return len(types) > 0 && !slices.Contains(types, oas3.SchemaTypeObject)
 }
 
-// rawMappingKeys returns the keys a YAML mapping effectively writes, in source
-// order, or nil when the node is no mapping. It enumerates what
-// annotation.RawChildNode looks up one key at a time.
+// rawMappingKeys returns the keys a YAML mapping effectively writes, a
+// document node unwrapped first, in the order the parser's model holds them,
+// or nil when the node is no mapping. It enumerates what nodeview.Child looks
+// up one key at a time.
 //
 // Effective, not literal: a branch spelled `*anchor` writes the anchored
 // mapping's keys, and `<<: *anchor` the merged-in keys. A residue derived from
@@ -494,34 +495,15 @@ func branchExcludesObject(bs *oas3.Schema) bool {
 // silently. nodeview.View defines how a mapping is read and bounds the
 // expansion (nodeview.MergeDepthLimit).
 func rawMappingKeys(root *yaml.Node) []string {
-	mapping := rawMapping(root)
-	if mapping == nil {
+	pairs := nodeview.Pairs(root)
+	if len(pairs) == 0 {
 		return nil
 	}
-	pairs := nodeview.New().MappingPairs(mapping)
 	keys := make([]string, 0, len(pairs))
 	for _, p := range pairs {
 		keys = append(keys, p.Key)
 	}
 	return keys
-}
-
-// rawMapping returns the mapping node root stands for: a document wrapper is
-// unwrapped and an alias followed to its anchor (bounded by nodeview.Deref). Anything
-// that is not a mapping after that — a scalar, a sequence, nil — yields nil, so
-// a caller needs no kind check of its own.
-func rawMapping(root *yaml.Node) *yaml.Node {
-	if root == nil {
-		return nil
-	}
-	if root.Kind == yaml.DocumentNode && len(root.Content) > 0 {
-		root = root.Content[0]
-	}
-	root = nodeview.Deref(root)
-	if root == nil || root.Kind != yaml.MappingNode {
-		return nil
-	}
-	return root
 }
 
 // selectAllOfBase returns the index into branches of the one that becomes

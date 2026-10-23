@@ -278,48 +278,60 @@ func repairGrafts(root *yaml.Node, budget int) (normalized, safe bool) {
 // every node this compiler's other readings can see.
 func reachableNodes(root *yaml.Node, budget int) (map[*yaml.Node]bool, bool) {
 	reachable := make(map[*yaml.Node]bool)
-	stack := []*yaml.Node{root}
-	for ; len(stack) > 0; budget-- {
-		if budget == 0 {
-			return nil, false
-		}
-		n := stack[len(stack)-1]
-		stack = stack[:len(stack)-1]
-		if n == nil || reachable[n] {
-			continue
+	out := nodeview.Walk{Nodes: budget, Visit: func(n *yaml.Node, _ int) nodeview.Step {
+		if reachable[n] {
+			return nodeview.Prune
 		}
 		reachable[n] = true
-		stack = append(stack, n.Content...)
+		return nodeview.Descend
+	}}.Run(root)
+	if out.Cut {
+		return nil, false
 	}
 	return reachable, true
 }
 
 // substituteGrafts walks the tree and replaces each child that is an alias to a
-// node outside reachable with the content that alias stands for.
+// node outside reachable with the content that alias stands for, reporting
+// whether every one was replaced within budget, which each child read and each
+// node copied spends.
 //
 // A node is replaced in its parent's Content, which is why the walk reads
 // children rather than the node it is at: the tree's own root is a mapping the
-// application never replaces wholesale, so no alias can sit there.
+// application never replaces wholesale, so no alias can sit there. A copy
+// holds no alias and is not walked.
 func substituteGrafts(n *yaml.Node, reachable map[*yaml.Node]bool, budget *int) bool {
+	safe := true
+	copies := map[*yaml.Node]bool{}
+	nodeview.Walk{Nodes: *budget + 1, Visit: func(n *yaml.Node, _ int) nodeview.Step {
+		if copies[n] {
+			return nodeview.Prune
+		}
+		if safe = substituteChildren(n, reachable, budget, copies); !safe {
+			return nodeview.Stop
+		}
+		return nodeview.Descend
+	}}.Run(n)
+	return safe
+}
+
+// substituteChildren replaces each child of n that is a graft (see
+// substituteGrafts), recording each copy made in copies, and reports whether
+// budget held for all of them.
+func substituteChildren(n *yaml.Node, reachable map[*yaml.Node]bool, budget *int, copies map[*yaml.Node]bool) bool {
 	for i, child := range n.Content {
 		if *budget <= 0 {
 			return false
 		}
 		*budget--
-		if child == nil {
+		if child == nil || child.Kind != yaml.AliasNode || child.Alias == nil || reachable[child.Alias] {
 			continue
 		}
-		if child.Kind == yaml.AliasNode && child.Alias != nil && !reachable[child.Alias] {
-			expanded, ok := expandAlias(child.Alias, budget)
-			if !ok {
-				return false
-			}
-			n.Content[i] = expanded
-			continue
-		}
-		if !substituteGrafts(child, reachable, budget) {
+		expanded, ok := expandAlias(child.Alias, budget)
+		if !ok {
 			return false
 		}
+		n.Content[i], copies[expanded] = expanded, true
 	}
 	return true
 }
@@ -374,18 +386,12 @@ func expandAlias(target *yaml.Node, budget *int) (*yaml.Node, bool) {
 // overlay.
 func snapshot(root *yaml.Node, budget int) (map[*yaml.Node]string, bool) {
 	before := make(map[*yaml.Node]string)
-	stack := []*yaml.Node{nodeview.DocumentRoot(root)}
-	for ; len(stack) > 0; budget-- {
-		if budget == 0 {
-			return nil, false
-		}
-		n := stack[len(stack)-1]
-		stack = stack[:len(stack)-1]
-		if n == nil {
-			continue
-		}
+	out := nodeview.Walk{Nodes: budget, Visit: func(n *yaml.Node, _ int) nodeview.Step {
 		before[n] = n.Value
-		stack = append(stack, n.Content...)
+		return nodeview.Descend
+	}}.Run(nodeview.DocumentRoot(root))
+	if out.Cut {
+		return nil, false
 	}
 	return before, true
 }
@@ -433,16 +439,20 @@ func attribute(root *yaml.Node, before map[*yaml.Node]string, budget int) (map[j
 }
 
 // frame is one node of the attribution walk together with the JSON pointer that
-// addresses it and, for a mapping's value, the key it sits under.
+// addresses it and, for a mapping's value, the key it sits under. merged marks
+// a `<<` merge's value, whose members the parser reads as the merging
+// mapping's own, so it and a list of them are addressed at that mapping.
 type frame struct {
 	node    *yaml.Node
 	pointer jsontext.Pointer
 	key     *yaml.Node
+	merged  bool
 }
 
 // children returns the frames beneath f, addressed the way the compiler
-// addresses them: a mapping's values under their escaped keys, a sequence's
-// elements under their positions.
+// addresses them: a mapping's values under their keys as nodeview.KeyOf names
+// them, a sequence's elements under their positions, and a `<<` merge's value
+// at the mapping merging it.
 //
 // Mapping keys are not walked in their own right; each rides on its value's
 // frame, since the library appends a new key and its value together. An alias
@@ -454,18 +464,22 @@ func children(f frame) []frame {
 	case yaml.MappingNode:
 		out := make([]frame, 0, len(f.node.Content)/2)
 		for i := 0; i+1 < len(f.node.Content); i += 2 {
-			key := f.node.Content[i]
-			out = append(out, frame{
-				node:    f.node.Content[i+1],
-				pointer: f.pointer + ids.Ptr(key.Value),
-				key:     key,
-			})
+			key, own := nodeview.KeyOf(f.node.Content[i])
+			at := frame{node: f.node.Content[i+1], pointer: f.pointer + ids.Ptr(key), key: f.node.Content[i]}
+			if !own {
+				at.pointer, at.merged = f.pointer, true
+			}
+			out = append(out, at)
 		}
 		return out
 	case yaml.SequenceNode:
 		out := make([]frame, 0, len(f.node.Content))
 		for i, child := range f.node.Content {
-			out = append(out, frame{node: child, pointer: f.pointer + ids.Ptr(strconv.Itoa(i))})
+			at := frame{node: child, pointer: f.pointer + ids.Ptr(strconv.Itoa(i))}
+			if f.merged {
+				at.pointer, at.merged = f.pointer, true
+			}
+			out = append(out, at)
 		}
 		return out
 	default:

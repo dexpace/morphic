@@ -15,6 +15,7 @@ import (
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
@@ -155,6 +156,13 @@ func TestDialectAt_AttributesTheKeywordRatherThanTheSchema(t *testing.T) {
 // the compiler's loader parses documents with, so the raw nodes the verbatim
 // readers read off are present. A schema built in Go carries none, which
 // TestValidationOnlyAt_NeedsTheRawNode covers separately.
+// pastMergeBound writes body as a flow mapping merged in through a chain of
+// `<<` one level deeper than nodeview.MergeDepthLimit, which the parser reads
+// and the compiler's view does not reach.
+func pastMergeBound(body string) string {
+	return openapitest.NestedMerges(nodeview.MergeDepthLimit+1, body)
+}
+
 func schemaFromYAML(t *testing.T, body string) *oas3.Schema {
 	t.Helper()
 	var js oas3.JSONSchema[oas3.Referenceable]
@@ -209,8 +217,9 @@ func TestRead_NodeTypeWithNoXMLObjectHasNothingToFill(t *testing.T) {
 // TestRead_NodeTypeOnlyADefinedValueIsPlaced pins what reaches XMLHints.NodeType
 // on 3.2: one of the five node types the specification defines. Anything else is
 // kept verbatim under the xml object's scope with a warning, an attribute flag
-// the nodeType contradicts is kept the same way rather than overwritten, and a
-// nodeType merged in through `<<` keeps the census's report.
+// the nodeType contradicts is kept the same way rather than overwritten, a
+// nodeType merged in through `<<` is read as one written there is, and one
+// merged in from past nodeview.MergeDepthLimit keeps the census's report.
 func TestRead_NodeTypeOnlyADefinedValueIsPlaced(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -228,7 +237,8 @@ func TestRead_NodeTypeOnlyADefinedValueIsPlaced(t *testing.T) {
 		{"agrees with attribute", "{attribute: true, nodeType: attribute}", "attribute", "", ""},
 		{"contradicts attribute", "{attribute: true, nodeType: element}", "element",
 			"openapi:xml/attribute", diag.DegradedConstruct},
-		{"merged in", "{<<: {nodeType: cdata}, name: q}", "", "", diag.UnknownKeyUnreachable},
+		{"merged in", "{<<: {nodeType: cdata}, name: q}", "cdata", "", ""},
+		{"merged in past the bound", pastMergeBound("{nodeType: cdata, name: q}"), "", "", diag.UnknownKeyUnreachable},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
