@@ -541,6 +541,11 @@ builder of what it owns. It replaced the provisional naming that rebuilt a node 
 before its declaration (#372, #529): the rebuild replaced the node, but not what the reference had
 reported (#750) nor where it met the depth bound (#748).
 
+*Later:* names did move to the table (#981). The drift this section feared needs two readings, and
+the declaration walk now gives no name at all: every lowering asks `lowering.NameAt`, which reads
+the grammar's kinds (`bind.Table.Kinds`) and the document, so the table's is the only reading. The
+home a declaration lowers in is still the declaration walk's.
+
 ## 7. Enforcement
 
 1. **`internal/archtest`'s prefix matching is a live hole and is fixed first.** `hasAllowedPrefix`

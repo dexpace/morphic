@@ -32,11 +32,13 @@ const (
 	AliasTarget
 )
 
-// Walk is a bounded, iterative walk over a raw YAML tree, through Content and
-// in document order, visiting each node before its children. It is the one
-// such walk: a reader that visits every node of a tree runs one rather than
-// keeping a stack and a bound of its own, so a cut short walk is reported
-// rather than silent wherever one runs.
+// Walk is a bounded, iterative walk over a raw YAML tree as written, through
+// Content and in document order, visiting each node before its children. A
+// reader that visits every node written runs one rather than keeping a stack
+// and a bound of its own, so a cut short walk is reported rather than silent
+// wherever one runs. A walk addressing positions as the parser reads them,
+// where a merged pair's value is no child of the mapping merging it, keeps a
+// frame per position instead.
 type Walk struct {
 	// Nodes bounds how many nodes the walk visits. A walk that would visit
 	// more stops there and reports itself Cut; a bound below one visits none.

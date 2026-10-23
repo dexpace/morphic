@@ -169,8 +169,8 @@ func TestInlinePosition_HintIsTheSameInBothOrders(t *testing.T) {
 			"t/anon/components/schemas/A/prefixItems/0", "a_0", ""},
 		{"tuple rest", "    A: {type: array, prefixItems: [{type: string}], items: " + openapitest.InlineProbeBody + "}\n",
 			"t/anon/components/schemas/A/items", "a_item", ""},
-		// Nested, because the derivation replays the whole chain rather than one
-		// step: the outside $ref used to name this "items", losing both levels.
+		// Nested, because the name is composed along the whole chain rather than
+		// one step: the outside $ref used to name this "items", losing both levels.
 		{"items under items", "    A: {type: array, items: {type: array, items: " + openapitest.InlineProbeBody + "}}\n",
 			"t/anon/components/schemas/A/items/items", "a_item_item", ""},
 		// Rooted at a property rather than at the component, so the enclosing hint
@@ -188,7 +188,7 @@ func TestInlinePosition_HintIsTheSameInBothOrders(t *testing.T) {
 			"t/anon/components/schemas/A/contentSchema/items", "a_content_item",
 			"t/anon/components/schemas/A/contentSchema"},
 		// Aimed at a tuple's rest: a rest named by a role of its own would part
-		// from the /items a pointer walk replays.
+		// from the name its /items pointer gives it.
 		{"items under a tuple rest", "    A: {type: array, prefixItems: [{type: string}], items: {type: array, items: " +
 			openapitest.InlineProbeBody + "}}\n",
 			"t/anon/components/schemas/A/items/items", "a_item_item",
@@ -391,7 +391,7 @@ func TestPureRefPosition_UnderPathsIsNamedByItsDeclaration(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	assert.Equal(t, "response_item", bFirst.Types[id].Common().Name.Hint,
-		"the declaration's hint is recorded and survives even though it interns nothing itself")
+		"the position is named for its owner though its declaration interns nothing")
 	assert.Equal(t, "response_item", aFirst.Types[id].Common().Name.Hint,
 		"and in the other order too")
 }

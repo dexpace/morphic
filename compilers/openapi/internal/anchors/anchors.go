@@ -52,9 +52,10 @@ type frame struct {
 
 // Build indexes the document under root. It reads the raw tree, since the
 // parser's schema model has no field for the keyword
-// (docs/parser-library.md#unmodeled-keywords), a mapping's pairs in the order
-// the parser presents them (nodeview.View.MappingPairs). It is bounded by
-// MaxDepth and MaxNodes, and by the view's merge bound, each reported by
+// (docs/parser-library.md#unmodeled-keywords), position by position as the
+// parser presents each mapping's pairs (nodeview.View.MappingPairs): a walk
+// of Content (nodeview.Walk) would miss what a merge brings in. It is bounded
+// by MaxDepth and MaxNodes, and by the view's merge bound, each reported by
 // Complete.
 func Build(root *yaml.Node) Index {
 	return build(root, MaxDepth, MaxNodes)
