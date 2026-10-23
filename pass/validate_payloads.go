@@ -66,12 +66,13 @@ type payloadSite struct {
 //
 // The carrying fields are named here, since nothing in a Payload's Go type says
 // who owns one, so a new one has to be added by hand: Operation.Request,
-// Response.Payload, ErrorCase.Payload and Message.Payload.
-// TestEncodingCarriers_NameEveryPayloadFieldInTheIR fails the moment a
-// Payload-bearing field in the IR is not walked here. Response.Payload is
-// reached at both its positions, an operation's Responses and its Default, and
-// ErrorCase.Payload at both of its, an operation's Errors and its service's
-// CommonErrors, since a walk of only the first would leave the second unjudged.
+// Response.Payload, ErrorCase.Payload and Message.Payload. A new carrier fails
+// TestEncodingCarriers_NameEveryPayloadFieldInTheIR until encodingCarriers
+// names it, and TestValidate_EncodingKeyAddressesNoProperty until it is walked
+// here. Response.Payload is reached at both its positions, an operation's
+// Responses and its Default, and ErrorCase.Payload at both of its, an
+// operation's Errors and its service's CommonErrors, since a walk of one would
+// leave the other unjudged.
 func forEachPayload(doc *ir.Document, fn func(payloadSite)) {
 	for _, svc := range doc.Services {
 		forEachErrorPayload(svc.CommonErrors, string(svc.ID)+"/commonErrors", fn)

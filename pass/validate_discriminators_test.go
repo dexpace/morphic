@@ -27,9 +27,11 @@ func TestValidate_DiscriminatorMissingVariant(t *testing.T) {
 	assert.Contains(t, codes(diags), "pass/discriminator-missing-variant")
 }
 
-// TestValidate_ModelDiscriminator drives checkModelDiscriminator and every
-// ir.IsSubtype branch: subtype via Base, subtype via Implements, a non-model target,
-// and a model that is neither, plus the clean (valid) mapping path.
+// TestValidate_ModelDiscriminator drives checkModelDiscriminator over the ways
+// a mapping target can stand to the base: a subtype through Base and one
+// through Implements, which are legal, and a non-model target and a model that
+// is neither, which are not. TestValidate_SubtypeThroughAliasChain covers a
+// base reached through an alias.
 func TestValidate_ModelDiscriminator(t *testing.T) {
 	t.Parallel()
 	doc := validDoc()

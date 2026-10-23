@@ -11,9 +11,9 @@ import (
 // checkNilTypes reports registry entries holding a nil type definition.
 //
 // Without it a malformed registry reads as internally consistent: the reference
-// walk tolerates nil entries and the remaining checks match no case for most
-// kinds, so Validate returned no diagnostics at all for a document no emitter
-// can consume — and dereferenced the four kinds it did match.
+// walk tolerates nil entries and the checks that range the registry skip them
+// (liveTypeIDs), so Validate would report nothing for a document no emitter can
+// consume.
 func checkNilTypes(doc *ir.Document) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for _, id := range slices.Sorted(maps.Keys(doc.Types)) {

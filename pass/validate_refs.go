@@ -63,13 +63,12 @@ func checkDanglingRefs(doc *ir.Document, decls []ir.IDDeclaration, declTruncated
 // checkPropIDRefs reports every PropID a document carries that names no property
 // it declares.
 //
-// A property is a position inside its model and addresses no registry, so the
-// registry-driven checkDanglingRefs cannot see PropPath.Segments,
-// ParamPath.Segments, HTTPParamBinding.ParamPath or Discriminator.Property. The
-// claim is membership: the ID names a property declared somewhere. Reflection
-// supplies the sites but not the root each path is walked from, and
-// checkDiscriminators makes the model-scoped claim for the one carrier whose
-// root is written down.
+// A property is a position inside its model and addresses no registry, so
+// checkDanglingRefs cannot see a PropID. The claim is membership: the ID names
+// a property declared somewhere. Reflection supplies the sites but not each
+// path's root, which only a hand-kept list of fields could add;
+// checkDiscriminators makes the model-scoped claim for Discriminator.Property,
+// whose root is the model declaring it.
 //
 // Docs.Description's {t:TypeID} tokens are left unchecked: reaching them needs
 // a token parser, and a false positive in prose is noisier than a missing
