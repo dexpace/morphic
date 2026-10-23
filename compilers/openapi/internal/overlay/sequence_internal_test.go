@@ -3,6 +3,7 @@ package overlay
 import (
 	"bytes"
 	"fmt"
+	"math"
 	"strings"
 	"testing"
 
@@ -377,6 +378,15 @@ func TestCountNodes_SkipsWhatAParseNeverProduces(t *testing.T) {
 	t.Parallel()
 	root := &yaml.Node{Kind: yaml.MappingNode, Content: []*yaml.Node{{Kind: yaml.ScalarNode, Value: "a"}, nil}}
 	assert.Equal(t, int64(2), countNodes(root, maxNodes), "the mapping and its one real child")
+}
+
+// TestCountNodes_TheLargestLimitCountsTheWholeTree pins that a limit of
+// math.MaxInt, past which no node lies, counts every node rather than
+// overflowing the bound one past it.
+func TestCountNodes_TheLargestLimitCountsTheWholeTree(t *testing.T) {
+	t.Parallel()
+	root := &yaml.Node{Kind: yaml.MappingNode, Content: []*yaml.Node{{Kind: yaml.ScalarNode}, {Kind: yaml.ScalarNode}}}
+	assert.Equal(t, int64(3), countNodes(root, math.MaxInt))
 }
 
 // TestActionType_NamesByTheLibrarysPrecedence holds the names the renumbering

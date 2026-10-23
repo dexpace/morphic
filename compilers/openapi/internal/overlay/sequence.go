@@ -3,6 +3,7 @@ package overlay
 import (
 	"errors"
 	"fmt"
+	"math"
 	"slices"
 	"strings"
 
@@ -226,9 +227,9 @@ func actionType(action soaoverlay.Action) string {
 
 // countNodes counts the nodes a Content walk from root reaches, no further than
 // one past limit: a tree past limit is refused at any size, and a refusal
-// already says "at least".
+// already says "at least". A limit of math.MaxInt counts the whole tree.
 func countNodes(root *yaml.Node, limit int) int64 {
-	return int64(nodeview.Walk{Nodes: limit + 1}.Run(nodeview.DocumentRoot(root)).Visited)
+	return int64(nodeview.Walk{Nodes: min(limit, math.MaxInt-1) + 1}.Run(nodeview.DocumentRoot(root)).Visited)
 }
 
 // weigher counts the nodes the library's clone would build from a node: every

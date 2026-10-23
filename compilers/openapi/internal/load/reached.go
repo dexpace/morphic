@@ -335,10 +335,11 @@ func reachedNode(r resolvable) (*yaml.Node, bool) {
 // scan's alias weigher weighs it, and reports whether the count stays within
 // limit, negative meaning none. It stops one node past limit, so refusing an
 // object costs the budget, not the object. No alias leads back up: a document
-// whose anchor names one of its own ancestors was refused.
+// whose anchor names one of its own ancestors was refused. A limit of
+// math.MaxInt has no node past it to stop at.
 func spanned(root *yaml.Node, limit int) (int, bool) {
 	bound := math.MaxInt
-	if limit >= 0 {
+	if limit >= 0 && limit < math.MaxInt {
 		bound = limit + 1
 	}
 	visited := nodeview.Walk{Nodes: bound, Aliases: nodeview.AliasTarget}.Run(root).Visited

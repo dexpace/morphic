@@ -4,6 +4,7 @@ import (
 	"encoding/json/jsontext"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -54,8 +55,8 @@ func loadExternal(t *testing.T, dir, root string, opts Options) (*Document, []ir
 
 // TestSpanned covers spanned's properties: it counts every node under root,
 // an alias counts as the copy of what it names and nothing more, a tree of
-// exactly limit nodes fits, and a limit stops the count one node past it,
-// never at the whole tree.
+// exactly limit nodes fits, a limit stops the count one node past it, never at
+// the whole tree, and math.MaxInt, past which no node lies, counts it all.
 func TestSpanned(t *testing.T) {
 	t.Parallel()
 	wide := &yaml.Node{Kind: yaml.MappingNode}
@@ -71,10 +72,11 @@ func TestSpanned(t *testing.T) {
 		count int
 		fits  bool
 	}{
-		"every node under root":                {wide, -1, 1001, true},
-		"an alias counts as its target's copy": {aliased, -1, 2, true},
-		"a tree of exactly limit nodes fits":   {wide, 1001, 1001, true},
-		"a limit stops the count one past it":  {wide, 6, 7, false},
+		"every node under root":                   {wide, -1, 1001, true},
+		"an alias counts as its target's copy":    {aliased, -1, 2, true},
+		"a tree of exactly limit nodes fits":      {wide, 1001, 1001, true},
+		"a limit stops the count one past it":     {wide, 6, 7, false},
+		"the largest limit counts the whole tree": {wide, math.MaxInt, 1001, true},
 	} {
 		count, fits := spanned(c.root, c.limit)
 		assert.Equal(t, c.count, count, name)
