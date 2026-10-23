@@ -680,8 +680,8 @@ func stolenPositions() []stolenPosition {
 }
 
 // assertResidueKeptAndAnnounced checks one residue keyword's entry and its
-// diagnostic together. compilers/openapi's annotations_test.go has
-// assertResidueKept and assertResidueDiag for the same job in two calls; this
+// diagnostic together. The end-to-end tests' assertResidueKept and
+// assertResidueDiag (compilers/openapi/e2e) do the same job in two calls; this
 // package cannot import them, so the pairing lives here under a name that is
 // not a transposition of either.
 func assertResidueKeptAndAnnounced(t *testing.T, p ir.Unmodeled, diags []ir.Diagnostic, keyword, wantJSON string) {

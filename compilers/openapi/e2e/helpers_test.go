@@ -27,6 +27,8 @@ import (
 // corpus, addressed relative to this test file.
 const goldenPetstore = "../../../testdata/golden/openapi/petstore.yaml"
 
+// amplificationBombFixture is a document whose YAML aliases expand it to many
+// times its own size, which no alias budget admits.
 const amplificationBombFixture = "../../../testdata/openapi/amplification_alias_bomb.yaml"
 
 // parseFull runs the whole public compiler pipeline over src. That reach back
@@ -56,7 +58,7 @@ func compileAnnotationSpec(t *testing.T, name, spec string) (*ir.Document, []ir.
 
 // compileBesideExpectingErrors compiles root, written beside ext, with
 // external references allowed, and returns the diagnostics instead of
-// requiring none: the twin comparisons above need a clean compile, and a
+// requiring none: compileBeside's twin comparisons need a clean compile, and a
 // refused external document needs the diagnostic itself.
 func compileBesideExpectingErrors(t *testing.T, ext, root string) []ir.Diagnostic {
 	t.Helper()
