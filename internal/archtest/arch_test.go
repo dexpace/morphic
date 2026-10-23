@@ -282,6 +282,7 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/ids",
 		module + "/compilers/openapi/internal/lowering",
 		module + "/compilers/openapi/internal/nodeview",
+		"github.com/speakeasy-api/openapi/extensions",
 		"github.com/speakeasy-api/openapi/openapi"},
 	// The canaries that pin docs/parser-library.md. Its one production file is
 	// the package doc: the tests call the library directly, and test files are
