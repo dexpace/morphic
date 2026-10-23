@@ -7,8 +7,9 @@ import (
 )
 
 // TestMain runs this package's tests through leakcheck.Main.
-// TestEngine_ConcurrentRunSharesOneEngine, in concurrency_test.go, fans work
-// out over sync.WaitGroup.Go, which starts a real goroutine per worker.
+// TestEngine_ConcurrentRunSharesOneEngine, in engine_concurrency_test.go,
+// fans work out over sync.WaitGroup.Go, which starts a real goroutine per
+// worker.
 func TestMain(m *testing.M) {
 	leakcheck.Main(m)
 }
