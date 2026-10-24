@@ -1,6 +1,6 @@
-// Package irtest provides test helpers for IR documents: golden snapshots, the
-// namespaces a document's IDs live in, values with every field filled, a
-// document nested to a chosen depth, and the repository root fixtures sit in.
+// Package irtest provides test helpers for IR documents: golden snapshots,
+// fixtures built in one call, filled or nested to a chosen depth, a document's
+// encoding and ID namespaces, diagnostics' codes, and the repository's root.
 //
 // A golden stores a document without its irVersion. The stamp names the shape
 // of the JSON, which a test in package ir pins against that shape, so storing

@@ -14,12 +14,6 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// bigVal returns a pointer to v, which the optional constraint bounds take.
-func bigVal(v string) *ir.BigVal {
-	b := ir.BigVal(v)
-	return &b
-}
-
 // TestFold_AConstraintDisagreementIsReported pins the second of the two
 // conflict routes. Two declarations that agree on type but pin one keyword to
 // different values fold to the first one's bound, so the other, which may be
@@ -30,18 +24,18 @@ func TestFold_AConstraintDisagreementIsReported(t *testing.T) {
 	dst := ir.Property{
 		WireName:    "age",
 		Provenance:  ir.Provenance{Pointer: "/components/schemas/A/properties/age"},
-		Constraints: &ir.Constraints{Min: bigVal("10")},
+		Constraints: &ir.Constraints{Min: new(ir.BigVal("10"))},
 	}
 	src := ir.Property{
 		WireName:    "age",
 		Provenance:  ptrAt("/components/schemas/B/properties/age"),
-		Constraints: &ir.Constraints{Min: bigVal("20")},
+		Constraints: &ir.Constraints{Min: new(ir.BigVal("20"))},
 	}
 
 	dst = foldTwo(g, dst, src, written(`{"minimum":20}`))
 
 	require.Len(t, *recorded, 1)
-	assert.Equal(t, bigVal("10"), dst.Constraints.Min, "the first bound is kept")
+	assert.Equal(t, new(ir.BigVal("10")), dst.Constraints.Min, "the first bound is kept")
 	assert.Equal(t, ir.SeverityWarning, (*recorded)[0].Severity)
 	assert.Equal(t, diag.ConflictingRedecl, (*recorded)[0].Code)
 	assert.Contains(t, (*recorded)[0].Message, "conflicting minimum (10 and 20)")

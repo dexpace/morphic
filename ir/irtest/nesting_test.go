@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/ir/irtest"
 )
 
@@ -28,4 +29,17 @@ func TestNestedOverloadDoc_NestsTheDeclarationAsDeepAsAsked(t *testing.T) {
 	}
 	require.Len(t, g.Operations, 1)
 	assert.Equal(t, target, g.Operations[0].ID)
+}
+
+// TestNestedListValue_WrapsANumberInDepthLists pins the depth: each level is a
+// one-element list, and the number sits at the bottom.
+func TestNestedListValue_WrapsANumberInDepthLists(t *testing.T) {
+	t.Parallel()
+	v := irtest.NestedListValue(3)
+	for range 3 {
+		require.Equal(t, ir.ValueList, v.Kind)
+		require.Len(t, v.List, 1)
+		v = v.List[0]
+	}
+	assert.Equal(t, ir.Value{Kind: ir.ValueNumber, Num: ir.BigVal("0")}, v)
 }

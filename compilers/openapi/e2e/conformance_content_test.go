@@ -201,7 +201,7 @@ func assertPartHeaders(t *testing.T, doc *ir.Document, headers []ir.Property) {
 
 	sum, ok := byWire["X-Part-Checksum"]
 	require.True(t, ok, "$ref'd part header lowered; got %v", byWire)
-	assert.Equal(t, namedID("Digest"), sum.Type.Target, "a $ref'd header takes the referent's schema")
+	assert.Equal(t, componentID("Digest"), sum.Type.Target, "a $ref'd header takes the referent's schema")
 	assert.Equal(t, "sha-256 digest of this part", sum.Docs.Description)
 	for _, h := range headers {
 		assert.Contains(t, doc.Types, h.Type.Target, "part header %q must reference a live node", h.WireName)

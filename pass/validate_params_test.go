@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/ir/irtest"
 	"github.com/dexpace/morphic/pass"
 )
 
@@ -82,7 +83,7 @@ func TestValidate_ParamBinding_SameNameDifferentLocation(t *testing.T) {
 		ir.Parameter{ID: "param/x/get/id/path", Name: ir.Naming{Source: "id"}},
 	)
 	op.Bindings.HTTP[0].ParamBindings[1].Location = ir.HTTPLocationPath
-	assert.NotContains(t, codes(pass.Validate(docWithOperation(op))), "pass/param-binding-mismatch")
+	assert.NotContains(t, irtest.DiagCodes(pass.Validate(docWithOperation(op))), "pass/param-binding-mismatch")
 }
 
 // TestValidate_ParamBinding_OtherOperationsParamIsRejected pins that a binding
@@ -124,7 +125,7 @@ func TestValidate_HostParamBoundMultipleTimesIsLegal(t *testing.T) {
 			},
 		}}},
 	}
-	assert.NotContains(t, codes(pass.Validate(docWithOperation(op))), "pass/param-binding-mismatch")
+	assert.NotContains(t, irtest.DiagCodes(pass.Validate(docWithOperation(op))), "pass/param-binding-mismatch")
 }
 
 // paramRefOp returns an operation declaring one parameter and pointing its
@@ -145,8 +146,8 @@ func TestValidate_ParamReferences_OwnOperationIsClean(t *testing.T) {
 	t.Parallel()
 	op := paramRefOp("op/x/put", "param/x/put/p", "param/x/put/p", "param/x/put/p", "param/x/put/p")
 	diags := pass.Validate(docWithOperations(op))
-	assert.NotContains(t, codes(diags), "pass/param-binding-mismatch")
-	assert.NotContains(t, codes(diags), "ir/dangling-param-ref")
+	assert.NotContains(t, irtest.DiagCodes(diags), "pass/param-binding-mismatch")
+	assert.NotContains(t, irtest.DiagCodes(diags), "ir/dangling-param-ref")
 }
 
 func TestValidate_ParamReferences_OtherOperationsParamIsRejected(t *testing.T) {

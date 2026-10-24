@@ -156,7 +156,7 @@ func under(root, name string) string {
 // path is absolute, and never otherwise: with the working directory named by
 // no one, a mixed pair is outside and a like pair still reads.
 func TestRelativeTo_ReadsTheWorkingDirectoryOnlyForAMixedPair(t *testing.T) {
-	root := resolved(t)
+	root := ResolvedDir(t)
 	t.Chdir(root)
 	abs := filepath.Join(root, "d", "a.yaml")
 
@@ -182,15 +182,6 @@ func TestRelativeTo_ReadsTheWorkingDirectoryOnlyForAMixedPair(t *testing.T) {
 
 	_, ok = relativeTo(filepath.Dir(abs), filepath.Join("d", "a.yaml"))
 	assert.False(t, ok, "an absolute directory against a relative path, no working directory")
-}
-
-// resolved returns a fresh temporary directory with its links resolved, so a
-// path under it spells the directory the working directory reports.
-func resolved(t *testing.T) string {
-	t.Helper()
-	dir, err := filepath.EvalSymlinks(t.TempDir())
-	require.NoError(t, err)
-	return dir
 }
 
 // vanishWorkingDirectory leaves the working directory something the system

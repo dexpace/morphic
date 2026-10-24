@@ -27,23 +27,11 @@ func inferred(target ir.TypeID) ir.TypeRef {
 // prim is the shared primitive of kind k.
 func prim(k ir.PrimKind) ir.TypeID { return ir.PrimTypeID(k) }
 
-// pointersOf returns the pointers diags report code at, sorted.
-func pointersOf(diags []ir.Diagnostic, code string) []jsontext.Pointer {
-	var out []jsontext.Pointer
-	for _, d := range diags {
-		if d.Code == code {
-			out = append(out, d.Provenance.Pointer)
-		}
-	}
-	slices.Sort(out)
-	return out
-}
-
 // holderProps returns the properties of the component schema Holder by wire
 // name.
 func holderProps(t *testing.T, doc *ir.Document) map[string]ir.Property {
 	t.Helper()
-	m, ok := doc.Types[namedID("Holder")].(*ir.Model)
+	m, ok := doc.Types[componentID("Holder")].(*ir.Model)
 	require.True(t, ok, "Holder lowers to a model")
 	return openapitest.PropsByWire(m.Properties)
 }
@@ -54,8 +42,8 @@ func holderProps(t *testing.T, doc *ir.Document) map[string]ir.Property {
 func assertNullableKeyword31(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	props := holderProps(t, doc)
 	assert.Equal(t, inferred(prim(ir.PrimString)), props["inline"].Type)
-	assert.Equal(t, inferred(namedID("Name")), props["viaRef"].Type, "a target's nullable reaches its use")
-	assert.Equal(t, inferred(namedID("Plain")), props["besideRef"].Type, "one beside the $ref widens the usage")
+	assert.Equal(t, inferred(componentID("Name")), props["viaRef"].Type, "a target's nullable reaches its use")
+	assert.Equal(t, inferred(componentID("Plain")), props["besideRef"].Type, "one beside the $ref widens the usage")
 	assert.Equal(t, ir.TypeRef{Target: prim(ir.PrimString), Nullable: true}, props["declared"].Type,
 		"the type array admits null, so the bit is the document's own")
 	assert.Equal(t, ir.TypeRef{Target: prim(ir.PrimString)}, props["notNullable"].Type)
@@ -79,8 +67,8 @@ func assertNullableKeyword31(t *testing.T, doc *ir.Document, diags []ir.Diagnost
 		"/components/schemas/Holder/properties/inline/nullable",
 		"/components/schemas/Holder/properties/shaped/items/nullable",
 		"/components/schemas/Name/nullable",
-	}, pointersOf(diags, diag.InferredNullable))
-	assert.Empty(t, pointersOf(diags, diag.UnknownSchemaKeyword), "the policy reads the keyword, so none is unknown")
+	}, openapitest.PointersOf(diags, diag.InferredNullable))
+	assert.Empty(t, openapitest.PointersOf(diags, diag.UnknownSchemaKeyword), "the policy reads the keyword, so none is unknown")
 }
 
 // assertNullableKeyword30 pins each 3.0 shape the declared reading gives no
@@ -120,15 +108,15 @@ func assertNullableKeyword30(t *testing.T, doc *ir.Document, diags []ir.Diagnost
 // schema's $ref are read as 3.1 reads them and each is reported, and the
 // nullable among them is read by the policy, which says so once more.
 func assertSchemaRefSiblings30(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
-	pet, ok := doc.Types[namedID("Pet")].(*ir.Model)
+	pet, ok := doc.Types[componentID("Pet")].(*ir.Model)
 	require.True(t, ok)
 	owner, ok := propByWire(pet, "owner")
 	require.True(t, ok)
-	assert.Equal(t, inferred(namedID("Person")), owner.Type)
+	assert.Equal(t, inferred(componentID("Person")), owner.Type)
 	assert.Equal(t, "The pet's owner.", owner.Docs.Description, "the use site's description wins")
 	assert.Equal(t, []ir.Lifecycle{ir.LifecycleRead, ir.LifecycleDelete, ir.LifecycleQuery}, owner.Visibility.Only)
 
-	alias := doc.Types[namedID("Owner")]
+	alias := doc.Types[componentID("Owner")]
 	require.NotNil(t, alias)
 	assert.Equal(t, "An owner.", alias.Common().Docs.Description)
 
@@ -138,9 +126,9 @@ func assertSchemaRefSiblings30(t *testing.T, doc *ir.Document, diags []ir.Diagno
 		"/components/schemas/Pet/properties/owner/description",
 		"/components/schemas/Pet/properties/owner/nullable",
 		"/components/schemas/Pet/properties/owner/readOnly",
-	}, pointersOf(diags, diag.LaterVersionConstruct))
+	}, openapitest.PointersOf(diags, diag.LaterVersionConstruct))
 	assert.Equal(t, []jsontext.Pointer{"/components/schemas/Pet/properties/owner/nullable"},
-		pointersOf(diags, diag.InferredNullable))
+		openapitest.PointersOf(diags, diag.InferredNullable))
 }
 
 // TestSchemaRefSiblings_LowerAsIn31 is GitHub #871's rule as a test: the case
@@ -188,22 +176,6 @@ func compileNullable(t *testing.T, src string, off bool) (*ir.Document, []ir.Dia
 	return doc, diags
 }
 
-// holderSpec is a document of the version declaring Holder, whose property p
-// is written as p, beside the schemas in rest.
-func holderSpec(version, p, rest string) string {
-	return "openapi: " + version + `
-info: {title: t, version: "1"}
-paths: {}
-components:
-  schemas:
-    Plain: {type: string}
-    Pet: {type: object, properties: {name: {type: string}}}
-    Holder:
-      type: object
-      properties:
-        p: ` + p + "\n" + rest
-}
-
 // reportedOnceSpec references N, whose nullable 3.1 does not define, from a
 // property, a list's element, a union variant, a parameter and a body, with N
 // declared after the schemas using it or, swapped, before them.
@@ -245,11 +217,11 @@ components:
 // with the uses and move with the order.
 func TestNullableWidening_AKeywordIsReportedOnceAtItself(t *testing.T) {
 	t.Parallel()
-	n := inferred(namedID("N"))
+	n := inferred(componentID("N"))
 	for _, swapped := range []bool{false, true} {
 		doc, diags := compileNullable(t, reportedOnceSpec(swapped), false)
 		assert.Equal(t, []jsontext.Pointer{"/components/schemas/N/nullable"},
-			pointersOf(diags, diag.InferredNullable), "swapped: %v", swapped)
+			openapitest.PointersOf(diags, diag.InferredNullable), "swapped: %v", swapped)
 
 		props := holderProps(t, doc)
 		assert.Equal(t, n, props["a"].Type)
@@ -294,10 +266,10 @@ func TestNullableWidening_DisabledKeepsWhatTheDialectDoesNotDefine(t *testing.T)
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			src := holderSpec(tc.version, "{type: string, nullable: true}",
+			src := openapitest.HolderSpec(tc.version, "{type: string, nullable: true}",
 				"        r: {$ref: '#/components/schemas/Plain', nullable: true}\n"+rest)
 			doc, diags := compileNullable(t, src, tc.off)
-			assert.Equal(t, tc.kept, pointersOf(diags, diag.UnknownSchemaKeyword))
+			assert.Equal(t, tc.kept, openapitest.PointersOf(diags, diag.UnknownSchemaKeyword))
 			props := holderProps(t, doc)
 			for name, prop := range props {
 				entry, ok := prop.Unmodeled["openapi:nullable"]
@@ -309,7 +281,7 @@ func TestNullableWidening_DisabledKeepsWhatTheDialectDoesNotDefine(t *testing.T)
 				assert.Equal(t, ir.ReasonOutOfScope, entry.Reason, name)
 				assert.JSONEq(t, "true", string(entry.Value), name)
 			}
-			_, keptOnN := doc.Types[namedID("N")].Common().Unmodeled["openapi:nullable"]
+			_, keptOnN := doc.Types[componentID("N")].Common().Unmodeled["openapi:nullable"]
 			assert.Equal(t, slices.Contains(tc.kept, "/components/schemas/N/nullable"), keptOnN,
 				"a nullable: false the dialect does not define is kept too")
 		})
@@ -353,16 +325,16 @@ func TestNullableWidening_ACompositionKeepsTheMarker(t *testing.T) {
 	t.Parallel()
 	for _, off := range []bool{false, true} {
 		doc, _ := compileNullable(t, compositionSpec, off)
-		merged, ok := doc.Types[namedID("Merged")].(*ir.Model)
+		merged, ok := doc.Types[componentID("Merged")].(*ir.Model)
 		require.True(t, ok)
 		a, ok := propByWire(merged, "a")
 		require.True(t, ok)
-		narrowed, ok := doc.Types[namedID("Narrowed")].(*ir.Union)
+		narrowed, ok := doc.Types[componentID("Narrowed")].(*ir.Union)
 		require.True(t, ok)
 		require.Len(t, narrowed.Variants, 2)
 		assert.Equal(t, ir.TypeRef{Target: "t/composed/components/schemas/Narrowed/oneOf/0"}, narrowed.Variants[0].Type,
 			"off: %v", off)
-		union, ok := doc.Types[namedID("Distributed")].(*ir.Union)
+		union, ok := doc.Types[componentID("Distributed")].(*ir.Union)
 		require.True(t, ok)
 		require.Len(t, union.Variants, 2)
 		variant := ir.TypeID("t/composed/components/schemas/Distributed/oneOf/0")

@@ -8,17 +8,6 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// firstDiagAt returns the first diagnostic carrying code, so a test can assert
-// on its provenance pointer.
-func firstDiagAt(diags []ir.Diagnostic, code string) (ir.Diagnostic, bool) {
-	for _, d := range diags {
-		if d.Code == code {
-			return d, true
-		}
-	}
-	return ir.Diagnostic{}, false
-}
-
 // messagesAt returns the message of every diagnostic carrying code, in the order
 // they were reported, so a caller can pin which names were reported and not only
 // how many.

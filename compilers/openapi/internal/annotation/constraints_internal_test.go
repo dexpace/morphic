@@ -54,12 +54,6 @@ func schemaFromYAMLUnvalidated(t *testing.T, body string) *oas3.Schema {
 	return s
 }
 
-// bigOf returns a pointer to v as a BigVal, which every numeric bound is.
-func bigOf(v string) *ir.BigVal {
-	b := ir.BigVal(v)
-	return &b
-}
-
 // TestConstraints_ReadsEveryScalarKeyword pins the whole scalar set in one
 // place. A keyword read into the wrong field, or not read at all, is a
 // constraint the source declared and the IR does not carry — and the emptiness
@@ -73,9 +67,9 @@ func TestConstraints_ReadsEveryScalarKeyword(t *testing.T) {
 
 	require.Empty(t, diags)
 	require.NotNil(t, got)
-	assert.Equal(t, bigOf("1"), got.Min)
-	assert.Equal(t, bigOf("9"), got.Max)
-	assert.Equal(t, bigOf("3"), got.MultipleOf)
+	assert.Equal(t, new(ir.BigVal("1")), got.Min)
+	assert.Equal(t, new(ir.BigVal("9")), got.Max)
+	assert.Equal(t, new(ir.BigVal("3")), got.MultipleOf)
 	assert.Equal(t, new(int64(2)), got.MinLength)
 	assert.Equal(t, new(int64(8)), got.MaxLength)
 	assert.Equal(t, "^a", got.Pattern)
@@ -109,8 +103,8 @@ func TestConstraints_KeepsTheExactLiteral(t *testing.T) {
 
 	require.Empty(t, diags)
 	require.NotNil(t, got)
-	assert.Equal(t, bigOf("9007199254740993"), got.Min, "an integer past float64's exact range")
-	assert.Equal(t, bigOf("0.30000000000000004"), got.Max, "and a decimal it cannot represent")
+	assert.Equal(t, new(ir.BigVal("9007199254740993")), got.Min, "an integer past float64's exact range")
+	assert.Equal(t, new(ir.BigVal("0.30000000000000004")), got.Max, "and a decimal it cannot represent")
 }
 
 // TestNumericBounds_AMalformedLiteralIsReportedNotDropped pins the error route.
@@ -149,17 +143,17 @@ func TestApplyExclusive_BothDialects(t *testing.T) {
 		{
 			name: "3.0 boolean turns the bound beside it exclusive", exclusiveBoolean: true,
 			body:        "minimum: 1\nexclusiveMinimum: true\nmaximum: 9\nexclusiveMaximum: true\n",
-			wantExclMin: bigOf("1"), wantExclMax: bigOf("9"),
+			wantExclMin: new(ir.BigVal("1")), wantExclMax: new(ir.BigVal("9")),
 		},
 		{
 			name: "3.0 false leaves the bound inclusive", exclusiveBoolean: true,
 			body:    "minimum: 1\nexclusiveMinimum: false\n",
-			wantMin: bigOf("1"),
+			wantMin: new(ir.BigVal("1")),
 		},
 		{
 			name: "2020-12 numeric carries the bound itself", exclusiveBoolean: false,
 			body:        "exclusiveMinimum: 1\nexclusiveMaximum: 9\n",
-			wantExclMin: bigOf("1"), wantExclMax: bigOf("9"),
+			wantExclMin: new(ir.BigVal("1")), wantExclMax: new(ir.BigVal("9")),
 		},
 	}
 	for _, tc := range tests {
@@ -210,7 +204,7 @@ func TestApplyExclusive_TheWrongFormForTheDialectIsReported(t *testing.T) {
 			assert.Contains(t, diags[0].Message, "exclusiveMinimum")
 			require.NotNil(t, got, "the sibling minimum is still read")
 			assert.Nil(t, got.ExclusiveMin, "the mismatched value sets no bound")
-			assert.Equal(t, bigOf("1"), got.Min, "and it stays inclusive, unmoved")
+			assert.Equal(t, new(ir.BigVal("1")), got.Min, "and it stays inclusive, unmoved")
 		})
 	}
 }
@@ -249,45 +243,45 @@ func TestConstraints_CoDeclaredBoundsBothReachAField(t *testing.T) {
 		{
 			name: "minimum is the tighter of the pair",
 			body: "minimum: 10\nexclusiveMinimum: 0\n",
-			want: ir.Constraints{Min: bigOf("10"), ExclusiveMin: bigOf("0")},
+			want: ir.Constraints{Min: new(ir.BigVal("10")), ExclusiveMin: new(ir.BigVal("0"))},
 		},
 		{
 			name: "exclusiveMinimum is the tighter of the pair",
 			body: "minimum: 0\nexclusiveMinimum: 10\n",
-			want: ir.Constraints{Min: bigOf("0"), ExclusiveMin: bigOf("10")},
+			want: ir.Constraints{Min: new(ir.BigVal("0")), ExclusiveMin: new(ir.BigVal("10"))},
 		},
 		{
 			name: "equal minimums are two keywords, not one",
 			body: "minimum: 5\nexclusiveMinimum: 5\n",
-			want: ir.Constraints{Min: bigOf("5"), ExclusiveMin: bigOf("5")},
+			want: ir.Constraints{Min: new(ir.BigVal("5")), ExclusiveMin: new(ir.BigVal("5"))},
 		},
 		{
 			name: "maximum is the tighter of the pair",
 			body: "maximum: 10\nexclusiveMaximum: 100\n",
-			want: ir.Constraints{Max: bigOf("10"), ExclusiveMax: bigOf("100")},
+			want: ir.Constraints{Max: new(ir.BigVal("10")), ExclusiveMax: new(ir.BigVal("100"))},
 		},
 		{
 			name: "exclusiveMaximum is the tighter of the pair",
 			body: "maximum: 100\nexclusiveMaximum: 10\n",
-			want: ir.Constraints{Max: bigOf("100"), ExclusiveMax: bigOf("10")},
+			want: ir.Constraints{Max: new(ir.BigVal("100")), ExclusiveMax: new(ir.BigVal("10"))},
 		},
 		{
 			name: "both sides co-declared keep all four keywords",
 			body: "minimum: 10\nexclusiveMinimum: 20\nmaximum: 100\nexclusiveMaximum: 999\n",
 			want: ir.Constraints{
-				Min: bigOf("10"), ExclusiveMin: bigOf("20"),
-				Max: bigOf("100"), ExclusiveMax: bigOf("999"),
+				Min: new(ir.BigVal("10")), ExclusiveMin: new(ir.BigVal("20")),
+				Max: new(ir.BigVal("100")), ExclusiveMax: new(ir.BigVal("999")),
 			},
 		},
 		{
 			name: "a pair no float64 tells apart keeps both literals",
 			body: "minimum: 9007199254740993\nexclusiveMinimum: 9007199254740992\n",
-			want: ir.Constraints{Min: bigOf("9007199254740993"), ExclusiveMin: bigOf("9007199254740992")},
+			want: ir.Constraints{Min: new(ir.BigVal("9007199254740993")), ExclusiveMin: new(ir.BigVal("9007199254740992"))},
 		},
 		{
 			name: "one value spelled two ways stays two keywords",
 			body: "minimum: 1e2\nexclusiveMinimum: 100\n",
-			want: ir.Constraints{Min: bigOf("1e2"), ExclusiveMin: bigOf("100")},
+			want: ir.Constraints{Min: new(ir.BigVal("1e2")), ExclusiveMin: new(ir.BigVal("100"))},
 		},
 	}
 	for _, tc := range tests {
@@ -318,8 +312,8 @@ func TestConstraints_ABoundNoFloatHoldsIsCarriedVerbatim(t *testing.T) {
 
 	require.NotNil(t, got)
 	want := ir.Constraints{
-		Min: bigOf("1.0e2000000"), ExclusiveMin: bigOf("5"),
-		Max: bigOf("1e-1000001"), ExclusiveMax: bigOf("5"),
+		Min: new(ir.BigVal("1.0e2000000")), ExclusiveMin: new(ir.BigVal("5")),
+		Max: new(ir.BigVal("1e-1000001")), ExclusiveMax: new(ir.BigVal("5")),
 	}
 	if diff := cmp.Diff(want, *got); diff != "" {
 		t.Errorf("constraints (-want +got):\n%s", diff)
@@ -369,17 +363,17 @@ func TestApplyExclusiveFlag_ThreeZeroModifierMovesTheBound(t *testing.T) {
 		{
 			name: "both sides modified",
 			body: "minimum: 10\nexclusiveMinimum: true\nmaximum: 20\nexclusiveMaximum: true\n",
-			want: ir.Constraints{ExclusiveMin: bigOf("10"), ExclusiveMax: bigOf("20")},
+			want: ir.Constraints{ExclusiveMin: new(ir.BigVal("10")), ExclusiveMax: new(ir.BigVal("20"))},
 		},
 		{
 			name: "only the side that wrote the modifier moves",
 			body: "minimum: 10\nexclusiveMinimum: true\nmaximum: 20\n",
-			want: ir.Constraints{ExclusiveMin: bigOf("10"), Max: bigOf("20")},
+			want: ir.Constraints{ExclusiveMin: new(ir.BigVal("10")), Max: new(ir.BigVal("20"))},
 		},
 		{
 			name: "a false modifier leaves the bound where it is",
 			body: "minimum: 10\nexclusiveMinimum: false\nmaximum: 20\nexclusiveMaximum: false\n",
-			want: ir.Constraints{Min: bigOf("10"), Max: bigOf("20")},
+			want: ir.Constraints{Min: new(ir.BigVal("10")), Max: new(ir.BigVal("20"))},
 		},
 	}
 	for _, tc := range tests {

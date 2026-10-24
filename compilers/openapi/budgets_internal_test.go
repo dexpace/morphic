@@ -93,7 +93,7 @@ func TestCompile_EnumBudgetBindsOnlyPastTheLimit(t *testing.T) {
 				assert.Len(t, enum.Members, tc.members)
 				return
 			}
-			assertHasErrorCode(t, diags, diag.BudgetExceeded)
+			openapitest.AssertHasCode(t, diags, diag.BudgetExceeded, ir.SeverityError)
 			assert.Equal(t, "enum declares 5 members, past the 4-member budget; lowered as any",
 				messageOf(t, diags, diag.BudgetExceeded),
 				"the refusal names what was observed and what the budget was")
@@ -124,7 +124,7 @@ func TestCompile_SourceByteBudgetBindsOnlyPastTheLimit(t *testing.T) {
 				return
 			}
 			assert.Nil(t, doc, "an over-budget source is refused before it is parsed")
-			assertHasErrorCode(t, diags, diag.BudgetExceeded)
+			openapitest.AssertHasCode(t, diags, diag.BudgetExceeded, ir.SeverityError)
 			assert.Equal(t,
 				fmt.Sprintf("source document is %d bytes, past the %d-byte budget", len(src), tc.limit),
 				messageOf(t, diags, diag.BudgetExceeded))
@@ -137,7 +137,7 @@ func TestCompile_SourceNodeBudgetRefusesADocumentPastIt(t *testing.T) {
 	doc, diags := compileBounded(t, enumSpec(3), Limits{MaxSourceNodes: 1})
 
 	assert.Nil(t, doc, "an over-budget node count is refused before the model is built")
-	assertHasErrorCode(t, diags, diag.BudgetExceeded)
+	openapitest.AssertHasCode(t, diags, diag.BudgetExceeded, ir.SeverityError)
 	assert.Contains(t, messageOf(t, diags, diag.BudgetExceeded), "past the 1-node budget")
 }
 
@@ -204,7 +204,7 @@ func TestCompile_AliasBudgetBindsAtItsDefault(t *testing.T) {
 	doc, diags := compileBounded(t, aliasFanOutSpec(20_000), Limits{})
 
 	assert.Nil(t, doc, "an over-budget expansion is refused before the model is built")
-	assertHasErrorCode(t, diags, diag.BudgetExceeded)
+	openapitest.AssertHasCode(t, diags, diag.BudgetExceeded, ir.SeverityError)
 	assert.Contains(t, messageOf(t, diags, diag.BudgetExceeded),
 		fmt.Sprintf("past the %d-node alias budget", DefaultMaxAliasSurplus))
 }
@@ -215,7 +215,7 @@ func TestCompile_AliasBudgetIsTheCallersToSet(t *testing.T) {
 
 	doc, diags := compileBounded(t, src, Limits{MaxAliasSurplus: 1})
 	assert.Nil(t, doc)
-	assertHasErrorCode(t, diags, diag.BudgetExceeded)
+	openapitest.AssertHasCode(t, diags, diag.BudgetExceeded, ir.SeverityError)
 	assert.Contains(t, messageOf(t, diags, diag.BudgetExceeded), "past the 1-node alias budget")
 
 	doc, diags = compileBounded(t, src, Limits{MaxAliasSurplus: -1})
@@ -233,7 +233,7 @@ func TestCompile_AnUnboundedAliasBudgetStillRefusesABomb(t *testing.T) {
 
 	doc, diags := compileBounded(t, string(data), Limits{MaxAliasSurplus: -1})
 	assert.Nil(t, doc)
-	assertHasErrorCode(t, diags, diag.AliasAmplification)
+	openapitest.AssertHasCode(t, diags, diag.AliasAmplification, ir.SeverityError)
 	assert.NotContains(t, messageOf(t, diags, diag.AliasAmplification), "budget",
 		"the refusal must not name a budget, since raising one would not admit the document")
 }

@@ -14,7 +14,7 @@ func assertDeprecation(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	op, ok := opByName(doc, "oldOp")
 	require.True(t, ok)
 	assert.NotNil(t, op.Deprecation)
-	m, ok := doc.Types[namedID("OldModel")].(*ir.Model)
+	m, ok := doc.Types[componentID("OldModel")].(*ir.Model)
 	require.True(t, ok)
 	assert.NotNil(t, m.Deprecation)
 	require.Len(t, m.Properties, 1)
@@ -22,13 +22,13 @@ func assertDeprecation(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 
 	// A parameter is its own carrier: deprecated written on the parameter object
 	// reaches it without any schema being involved.
-	legacy, ok := paramByName(op, "legacy")
+	legacy, ok := openapitest.ParamBySource(op, "legacy")
 	require.True(t, ok)
 	assert.NotNil(t, legacy.Deprecation)
 }
 
 func assertExamples(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
-	m, ok := doc.Types[namedID("S")].(*ir.Model)
+	m, ok := doc.Types[componentID("S")].(*ir.Model)
 	require.True(t, ok)
 
 	// A schema that reduced to a shared primitive keeps its examples on the
@@ -42,7 +42,7 @@ func assertExamples(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.Len(t, doc.Types[inner.Type.Target].Common().Examples, 1)
 
 	// A component's example belongs to the component, not to a use site.
-	c, ok := doc.Types[namedID("C")]
+	c, ok := doc.Types[componentID("C")]
 	require.True(t, ok)
 	require.Len(t, c.Common().Examples, 1)
 	require.NotNil(t, c.Common().Examples[0].Value)
@@ -52,7 +52,7 @@ func assertExamples(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	// type's.
 	op, ok := opByName(doc, "getItem")
 	require.True(t, ok)
-	q, ok := paramByName(op, "q")
+	q, ok := openapitest.ParamBySource(op, "q")
 	require.True(t, ok)
 	require.Len(t, q.Examples, 1)
 	assert.Equal(t, "one", q.Examples[0].Name)
@@ -118,7 +118,7 @@ func assertDocsSummaryDesc(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 
 	// A documented scalar alias is documented too: its docs must not depend on
 	// what its body happens to lower to (GitHub #114).
-	sc, ok := doc.Types[namedID("UserId")].(*ir.Scalar)
+	sc, ok := doc.Types[componentID("UserId")].(*ir.Scalar)
 	require.True(t, ok)
 	assert.Equal(t, "User identifier", sc.Docs.Summary)
 	assert.Equal(t, "Stable identifier for a user.", sc.Docs.Description)
@@ -183,11 +183,11 @@ func assertRefSiteDocs(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	// parameters — the two-mount case: the first writes both siblings, the second
 	// only a description, and the declaration's own description is overridden by
 	// both rather than surviving on either.
-	widgetLimit, ok := paramByName(widgets, "limit")
+	widgetLimit, ok := openapitest.ParamBySource(widgets, "limit")
 	require.True(t, ok)
 	assert.Equal(t, "Page size", widgetLimit.Docs.Summary)
 	assert.Equal(t, "How many widgets to return.", widgetLimit.Docs.Description)
-	gadgetLimit, ok := paramByName(gadgets, "limit")
+	gadgetLimit, ok := openapitest.ParamBySource(gadgets, "limit")
 	require.True(t, ok)
 	assert.Empty(t, gadgetLimit.Docs.Summary, "the second mount writes no summary, so none is invented")
 	assert.Equal(t, "How many gadgets to return.", gadgetLimit.Docs.Description)
@@ -242,7 +242,7 @@ func assertAliasHopDocs(t *testing.T, doc *ir.Document) {
 	t.Helper()
 	sprocket, ok := opByName(doc, "makeSprocket")
 	require.True(t, ok)
-	limit, ok := paramByName(sprocket, "limit")
+	limit, ok := openapitest.ParamBySource(sprocket, "limit")
 	require.True(t, ok)
 	assert.Equal(t, ir.Docs{Summary: "Sprocket page size", Description: "The alias's own description."}, limit.Docs,
 		"the use site's summary over the alias's description over the declaration's")
@@ -268,7 +268,7 @@ func assertExamples32(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	require.True(t, ok)
 
 	// parameters
-	limit, ok := paramByName(op, "limit")
+	limit, ok := openapitest.ParamBySource(op, "limit")
 	require.True(t, ok)
 	require.Len(t, limit.Examples, 1)
 	require.NotNil(t, limit.Examples[0].Value, "a parameter's dataValue reaches Example.Value")

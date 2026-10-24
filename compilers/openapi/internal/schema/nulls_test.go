@@ -3,7 +3,6 @@ package schema_test
 import (
 	"encoding/json/jsontext"
 	"fmt"
-	"slices"
 	"strings"
 	"testing"
 
@@ -39,40 +38,12 @@ func compileNullable(t *testing.T, src string, off bool) (*ir.Document, []ir.Dia
 	return doc, diags
 }
 
-// holderSpec is a document of the version declaring Holder, whose property p
-// is written as p, beside the schemas in rest.
-func holderSpec(version, p, rest string) string {
-	return "openapi: " + version + `
-info: {title: t, version: "1"}
-paths: {}
-components:
-  schemas:
-    Plain: {type: string}
-    Pet: {type: object, properties: {name: {type: string}}}
-    Holder:
-      type: object
-      properties:
-        p: ` + p + "\n" + rest
-}
-
 // holderP is the type of Holder's property p.
 func holderP(t *testing.T, doc *ir.Document) ir.TypeRef {
 	t.Helper()
 	m, ok := typeByName(doc, "Holder").(*ir.Model)
 	require.True(t, ok, "Holder lowers to a model")
 	return openapitest.PropsByWire(m.Properties)["p"].Type
-}
-
-// pointersOf returns the pointers diags report code at, sorted.
-func pointersOf(diags []ir.Diagnostic, code string) []jsontext.Pointer {
-	var out []jsontext.Pointer
-	for _, d := range diags {
-		if d.Code == code {
-			out = append(out, d.Provenance.Pointer)
-		}
-	}
-	slices.Sort(out)
-	return out
 }
 
 // diagMessage returns the message of the first diagnostic of code in diags.
@@ -188,10 +159,10 @@ func TestNullableWidening_EachShapeReadsByItsVersion(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			src := holderSpec(tc.version, tc.p, tc.rest)
+			src := openapitest.HolderSpec(tc.version, tc.p, tc.rest)
 			for _, off := range []bool{false, true} {
 				doc, diags := compileNullable(t, src, off)
-				want, reports := tc.on, pointersOf(diags, diag.InferredNullable)
+				want, reports := tc.on, openapitest.PointersOf(diags, diag.InferredNullable)
 				if off {
 					want = tc.off
 				}
@@ -219,7 +190,7 @@ func TestNullableWidening_EachShapeReadsByItsVersion(t *testing.T) {
 // is a union of literals as it would be with no nullable written at all.
 func TestNullableWidening_AnEnumsNullMemberFollowsTheReadingInForce(t *testing.T) {
 	t.Parallel()
-	src := holderSpec("3.1.0", "{type: string, nullable: true, enum: [a, null]}", "")
+	src := openapitest.HolderSpec("3.1.0", "{type: string, nullable: true, enum: [a, null]}", "")
 	at := ir.TypeID("t/anon/components/schemas/Holder/properties/p")
 
 	on, _ := compileNullable(t, src, false)
@@ -243,7 +214,7 @@ func chainSpec(version, end string, n int) string {
 		fmt.Fprintf(&b, "    A%d: {$ref: '#/components/schemas/%s'}\n", i, prev)
 		prev = fmt.Sprintf("A%d", i)
 	}
-	return holderSpec(version, "{$ref: '#/components/schemas/"+prev+"'}", b.String())
+	return openapitest.HolderSpec(version, "{$ref: '#/components/schemas/"+prev+"'}", b.String())
 }
 
 // TestNullableWidening_ALongChainOfAliasesReadsAsAShortOne pins how a $ref's

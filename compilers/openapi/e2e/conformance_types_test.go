@@ -17,13 +17,13 @@ import (
 )
 
 func assertNamedTypes(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
-	user, ok := doc.Types[namedID("User")].(*ir.Model)
+	user, ok := doc.Types[componentID("User")].(*ir.Model)
 	require.True(t, ok, "named schema User present under its pointer-derived ID")
 	assert.False(t, user.Anonymous)
 	addr, ok := propByWire(user, "address")
 	require.True(t, ok)
-	assert.Equal(t, namedID("Address"), addr.Type.Target)
-	_, ok = doc.Types[namedID("Address")].(*ir.Model)
+	assert.Equal(t, componentID("Address"), addr.Type.Target)
+	_, ok = doc.Types[componentID("Address")].(*ir.Model)
 	assert.True(t, ok, "referenced Address resolves in the registry")
 }
 
@@ -51,7 +51,7 @@ func assertNeutralNaming(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.Equal(t, "widget_id", byParam["widget.id"], "path parameter")
 	assert.Equal(t, "filter_name", byParam["filter[name]"], "bracketed query parameter")
 
-	widget, ok := doc.Types[namedID("com.example.Widget")].(*ir.Model)
+	widget, ok := doc.Types[componentID("com.example.Widget")].(*ir.Model)
 	require.True(t, ok, "namespaced component keeps its pointer-derived ID")
 	assert.Equal(t, "com_example_widget", widget.Name.Canonical, "component name")
 	assert.Equal(t, "com.example.Widget", widget.Name.Source, "the source spelling is kept beside it")
@@ -127,7 +127,7 @@ func assertEmptyNames(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 // collision the IR is answerable for.
 func assertEmptyEnumMember(t *testing.T, doc *ir.Document) {
 	t.Helper()
-	rollout, ok := doc.Types[namedID("Rollout")].(*ir.Enum)
+	rollout, ok := doc.Types[componentID("Rollout")].(*ir.Enum)
 	require.True(t, ok)
 	require.Len(t, rollout.Members, 3, "no member is merged away by the shared word")
 
@@ -148,7 +148,7 @@ func assertEmptyEnumMember(t *testing.T, doc *ir.Document) {
 // hint is derived from the same empty name.
 func assertEmptyNamedProperty(t *testing.T, doc *ir.Document) {
 	t.Helper()
-	widget, ok := doc.Types[namedID("Widget")].(*ir.Model)
+	widget, ok := doc.Types[componentID("Widget")].(*ir.Model)
 	require.True(t, ok)
 	require.Len(t, widget.Properties, 1)
 	prop := widget.Properties[0]
@@ -194,7 +194,7 @@ var composedHints = []struct {
 // so only the $ref form the Host case uses reaches composedVariant.
 func assertEmptyDerivedHints(t *testing.T, doc *ir.Document) {
 	t.Helper()
-	mixed, ok := doc.Types[namedID("Mixed")].(*ir.Model)
+	mixed, ok := doc.Types[componentID("Mixed")].(*ir.Model)
 	require.True(t, ok)
 	require.Len(t, mixed.Properties, 1)
 	union, ok := doc.Types[mixed.Properties[0].Type.Target].(*ir.Union)
@@ -209,7 +209,7 @@ func assertEmptyDerivedHints(t *testing.T, doc *ir.Document) {
 }
 
 func assertInlineTypes(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
-	order, ok := doc.Types[namedID("Order")].(*ir.Model)
+	order, ok := doc.Types[componentID("Order")].(*ir.Model)
 	require.True(t, ok)
 	require.Len(t, order.Properties, 1)
 	shipping := order.Properties[0]
@@ -277,7 +277,7 @@ func inlineHoistPositionRefs(t *testing.T, doc *ir.Document) map[string]ir.TypeI
 	t.Helper()
 	order, ok := opByName(doc, "placeOrder")
 	require.True(t, ok)
-	audit, ok := paramByName(order, "audit")
+	audit, ok := openapitest.ParamBySource(order, "audit")
 	require.True(t, ok, "the operation declares its inline-schema parameter")
 	require.Len(t, order.Responses, 1)
 	require.Len(t, order.Responses[0].Headers, 1, "the response declares its inline-schema header")
@@ -392,7 +392,7 @@ func assertComponentReuse(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 }
 
 func assertReadOnlyWriteOnly(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
-	m, ok := doc.Types[namedID("S")].(*ir.Model)
+	m, ok := doc.Types[componentID("S")].(*ir.Model)
 	require.True(t, ok)
 	r, ok := propByWire(m, "r")
 	require.True(t, ok)
@@ -407,7 +407,7 @@ func assertReadOnlyWriteOnly(t *testing.T, doc *ir.Document, diags []ir.Diagnost
 	require.True(t, ok)
 	assert.Equal(t, r.Visibility, viaRef.Visibility, "the referent's readOnly binds the reference site")
 
-	decl, ok := doc.Types[namedID("DeclaredReadOnly")].(*ir.Scalar)
+	decl, ok := doc.Types[componentID("DeclaredReadOnly")].(*ir.Scalar)
 	require.True(t, ok)
 	entry, ok := decl.Unmodeled["openapi:readOnly"]
 	require.True(t, ok, "the declaration's own readOnly is kept as residue")
@@ -436,11 +436,11 @@ func assertBothFlagsAreVisibleNowhere(t *testing.T, m *ir.Model, diags []ir.Diag
 }
 
 func assertRecursive(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
-	n, ok := doc.Types[namedID("Node")].(*ir.Model)
+	n, ok := doc.Types[componentID("Node")].(*ir.Model)
 	require.True(t, ok)
 	next, ok := propByWire(n, "next")
 	require.True(t, ok)
-	assert.Equal(t, namedID("Node"), next.Type.Target, "self-reference terminates on the interned ID")
+	assert.Equal(t, componentID("Node"), next.Type.Target, "self-reference terminates on the interned ID")
 }
 
 // assertMaps pins ir-design §4.6's line between the two map shapes: an object
@@ -455,25 +455,25 @@ func assertMaps(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 		"AnyMap":     {Value: ir.TypeRef{Target: "t/prim/any"}},
 		"BoundedMap": {Value: ir.TypeRef{Target: "t/prim/string"}, Constraints: &ir.Constraints{MinProps: i64(1), MaxProps: i64(10)}},
 	} {
-		mt, ok := doc.Types[namedID(name)].(*ir.MapT)
-		require.True(t, ok, "%s is a map and nothing else; got %T", name, doc.Types[namedID(name)])
+		mt, ok := doc.Types[componentID(name)].(*ir.MapT)
+		require.True(t, ok, "%s is a map and nothing else; got %T", name, doc.Types[componentID(name)])
 		assert.Nil(t, mt.Key, "%s has string keys", name)
 		assert.Equal(t, want.Value, mt.Value, name)
 		assert.Empty(t, cmp.Diff(want.Constraints, mt.Constraints), name)
 	}
-	pm, ok := doc.Types[namedID("PatternMap")].(*ir.Model)
+	pm, ok := doc.Types[componentID("PatternMap")].(*ir.Model)
 	require.True(t, ok)
 	require.NotNil(t, pm.AdditionalProps)
 	require.Len(t, pm.AdditionalProps.Patterns, 1)
 	assert.Equal(t, "^x-", pm.AdditionalProps.Patterns[0].Pattern)
-	rec, ok := doc.Types[namedID("OpenRecord")].(*ir.Model)
+	rec, ok := doc.Types[componentID("OpenRecord")].(*ir.Model)
 	require.True(t, ok)
 	require.NotNil(t, rec.AdditionalProps, "an explicit true is a catch-all, not an unwritten keyword")
 	assert.Equal(t, ir.TypeRef{Target: "t/prim/any"}, rec.AdditionalProps.Value)
-	cr, ok := doc.Types[namedID("ClosedRecord")].(*ir.Model)
+	cr, ok := doc.Types[componentID("ClosedRecord")].(*ir.Model)
 	require.True(t, ok)
 	assert.Equal(t, ir.AdditionalClosed, cr.Additional)
-	ca, ok := doc.Types[namedID("ClosedAfter")].(*ir.Model)
+	ca, ok := doc.Types[componentID("ClosedAfter")].(*ir.Model)
 	require.True(t, ok)
 	assert.Equal(t, ir.AdditionalClosedAfterComposition, ca.Additional)
 }
@@ -499,8 +499,8 @@ func assertTuples(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 		{"ExactPair", pair, "", &ir.Constraints{MinItems: i64(2)}},
 		{"BoundedClosedPair", pair, "", &ir.Constraints{MinItems: i64(1), MaxItems: i64(2), UniqueItems: true}},
 	} {
-		tup, ok := doc.Types[namedID(tc.name)].(*ir.Tuple)
-		require.True(t, ok, "%s: prefixItems hoists a Tuple; got %T", tc.name, doc.Types[namedID(tc.name)])
+		tup, ok := doc.Types[componentID(tc.name)].(*ir.Tuple)
+		require.True(t, ok, "%s: prefixItems hoists a Tuple; got %T", tc.name, doc.Types[componentID(tc.name)])
 		assert.Equal(t, tc.elems, tup.Elems, tc.name)
 		if tc.rest == "" {
 			assert.Nil(t, tup.Rest, "%s: no element may follow the head", tc.name)
@@ -520,15 +520,15 @@ func assertTuples(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 }
 
 func assertLiteralConst(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
-	l, ok := doc.Types[namedID("Version")].(*ir.Literal)
+	l, ok := doc.Types[componentID("Version")].(*ir.Literal)
 	require.True(t, ok, "const hoists a Literal")
 	assert.Equal(t, ir.ValueString, l.Value.Kind)
 	assert.Equal(t, "v1", l.Value.Str)
 
 	// An unrepresentable const still hoists a node, and a node that admits any
 	// value is the only honest one: a Literal here would have to invent a value.
-	_, ok = doc.Types[namedID("Opaque")].(*ir.Any)
-	assert.True(t, ok, "an unconvertible const hoists the top type; got %T", doc.Types[namedID("Opaque")])
+	_, ok = doc.Types[componentID("Opaque")].(*ir.Any)
+	assert.True(t, ok, "an unconvertible const hoists the top type; got %T", doc.Types[componentID("Opaque")])
 	assert.Equal(t, []ir.Severity{ir.SeverityWarning},
 		diagsAt(diags, "openapi/degraded-construct", "/components/schemas/Opaque"),
 		"degrading a declared value is a warning, not silent")

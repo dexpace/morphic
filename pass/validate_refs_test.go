@@ -354,7 +354,7 @@ func TestValidate_DanglingTypeRef(t *testing.T) {
 	m.Properties[0].Type.Target = "t/nowhere"
 	diags := pass.Validate(doc)
 	require.NotEmpty(t, diags)
-	assert.Contains(t, codes(diags), "ir/dangling-type-ref")
+	assert.Contains(t, irtest.DiagCodes(diags), "ir/dangling-type-ref")
 	assert.Equal(t, ir.SeverityError, diags[0].Severity)
 }
 
@@ -374,7 +374,7 @@ func TestValidate_DanglingRefInMessagePayload(t *testing.T) {
 	}
 	diags := pass.Validate(doc)
 	require.NotEmpty(t, diags)
-	assert.Contains(t, codes(diags), "ir/dangling-type-ref")
+	assert.Contains(t, irtest.DiagCodes(diags), "ir/dangling-type-ref")
 }
 
 // TestValidate_DanglingRefsAcrossContainerKinds gives every reference a
@@ -811,7 +811,7 @@ func TestValidate_DanglingAuthRef(t *testing.T) {
 	}}
 	diags := pass.Validate(doc)
 	require.NotEmpty(t, diags)
-	assert.Contains(t, codes(diags), "ir/dangling-auth-ref")
+	assert.Contains(t, irtest.DiagCodes(diags), "ir/dangling-auth-ref")
 }
 
 // TestValidate_PerOperationAuthOverride covers a per-operation auth override,
@@ -827,7 +827,7 @@ func TestValidate_PerOperationAuthOverride(t *testing.T) {
 	}
 	diags := pass.Validate(docWithOperation(op))
 	require.NotEmpty(t, diags)
-	assert.Contains(t, codes(diags), "ir/dangling-auth-ref")
+	assert.Contains(t, irtest.DiagCodes(diags), "ir/dangling-auth-ref")
 }
 
 // TestCheckDanglingRefs_TruncatedWalkClaimsNoDeclarations holds the one direction

@@ -3,6 +3,9 @@ package irtest
 // CompareGoldenOn is compareGolden, for the external tests.
 var CompareGoldenOn = compareGolden
 
+// EncodedOn is encoded, for the external tests.
+var EncodedOn = encoded
+
 // FillOn is fill, for the external tests.
 var FillOn = fill
 

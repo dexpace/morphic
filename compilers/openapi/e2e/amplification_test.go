@@ -13,6 +13,7 @@ import (
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -38,7 +39,7 @@ func TestCompile_AliasBombDoesNotExhaustMemory(t *testing.T) {
 	case r := <-done:
 		require.NoError(t, r.err, "an alias bomb is a spec problem, not a Go error")
 		assert.Nil(t, r.doc, "the compiler refuses to lower an amplifying document")
-		assertHasErrorCode(t, r.diags, diag.AliasAmplification)
+		openapitest.AssertHasCode(t, r.diags, diag.AliasAmplification, ir.SeverityError)
 	case <-time.After(bound):
 		t.Fatalf("Compile did not return within %v — the bomb likely reached soa.Unmarshal", bound)
 	}

@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/sourceindex"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ynode"
 )
@@ -39,7 +40,7 @@ func TestBuild_EmptyDocumentIndexesNothing(t *testing.T) {
 // having failed.
 func TestBuild_WhitespaceOnlySourceIsOneEmptyNode(t *testing.T) {
 	t.Parallel()
-	idx := sourceindex.Build(sourceindex.Decode(t, "\n\n\n"), sourceindex.MaxIndexedNodes)
+	idx := sourceindex.Build(openapitest.YAMLDocument(t, "\n\n\n"), sourceindex.MaxIndexedNodes)
 
 	require.NotNil(t, idx.Root())
 	assert.Equal(t, yaml.Kind(0), idx.Root().Kind, "yaml.v3 leaves the node untouched")
@@ -150,7 +151,7 @@ func TestAnchorCycle_AliasToAnAncestorIsFound(t *testing.T) {
 // use anchors at all.
 func TestAnchorCycle_LegalReuseIsNotACycle(t *testing.T) {
 	t.Parallel()
-	root := sourceindex.Decode(t, "a: &x {p: 1}\nb: *x\n")
+	root := openapitest.YAMLDocument(t, "a: &x {p: 1}\nb: *x\n")
 
 	assert.Empty(t, sourceindex.Build(root, sourceindex.MaxIndexedNodes).AnchorCycles(), "an alias to a node that is not an ancestor is legal reuse")
 }
@@ -243,7 +244,7 @@ func TestBuild_TracksAncestorsAtItsDepthBound(t *testing.T) {
 // downstream can vary with when or how often the index was built.
 func TestBuild_IsAFunctionOfTheTreeAlone(t *testing.T) {
 	t.Parallel()
-	root := sourceindex.Decode(t, "a: &x {p: 1}\nb: [*x, {c: 2}]\n")
+	root := openapitest.YAMLDocument(t, "a: &x {p: 1}\nb: [*x, {c: 2}]\n")
 
 	first, second := sourceindex.Build(root, sourceindex.MaxIndexedNodes), sourceindex.Build(root, sourceindex.MaxIndexedNodes)
 	assert.Same(t, first.Root(), second.Root())
@@ -260,7 +261,7 @@ func TestBuild_IsAFunctionOfTheTreeAlone(t *testing.T) {
 // node reported is the mapping itself, where the author wrote the tag.
 func TestTaggedMapping_LocalTagIsFound(t *testing.T) {
 	t.Parallel()
-	root := sourceindex.Decode(t, "a:\n  b: !content:\n    c: 1\n")
+	root := openapitest.YAMLDocument(t, "a:\n  b: !content:\n    c: 1\n")
 	want := root.Content[0].Content[1].Content[1]
 	require.Equal(t, "!content:", want.Tag, "the fixture's tag lands where this test reads it")
 
@@ -279,9 +280,9 @@ func TestTaggedMapping_LocalTagIsFound(t *testing.T) {
 func TestTaggedMapping_AnyTagButMapIsOne(t *testing.T) {
 	t.Parallel()
 	for name, root := range map[string]*yaml.Node{
-		"!!str":       sourceindex.Decode(t, "a: !!str {b: 1}\n"),
-		"!!set":       sourceindex.Decode(t, "a: !!set {b: 1}\n"),
-		"at the root": sourceindex.Decode(t, "--- !x\na: 1\n"),
+		"!!str":       openapitest.YAMLDocument(t, "a: !!str {b: 1}\n"),
+		"!!set":       openapitest.YAMLDocument(t, "a: !!set {b: 1}\n"),
+		"at the root": openapitest.YAMLDocument(t, "--- !x\na: 1\n"),
 		"assembled":   ynode.Map(ynode.Scalar("a"), ynode.Scalar("1")),
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -309,7 +310,7 @@ func TestTaggedMapping_OnlyAMappingCounts(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			assert.Empty(t, sourceindex.Build(sourceindex.Decode(t, src), sourceindex.MaxIndexedNodes).TaggedMappings())
+			assert.Empty(t, sourceindex.Build(openapitest.YAMLDocument(t, src), sourceindex.MaxIndexedNodes).TaggedMappings())
 		})
 	}
 }
@@ -319,7 +320,7 @@ func TestTaggedMapping_OnlyAMappingCounts(t *testing.T) {
 // chooses which a refusal names.
 func TestTaggedMappings_EveryOneIsListedInDocumentOrder(t *testing.T) {
 	t.Parallel()
-	root := sourceindex.Decode(t, "a: !x {b: 1}\nc: !y {d: 2}\n")
+	root := openapitest.YAMLDocument(t, "a: !x {b: 1}\nc: !y {d: 2}\n")
 	first, second := root.Content[0].Content[1], root.Content[0].Content[3]
 
 	got := sourceindex.Build(root, sourceindex.MaxIndexedNodes).TaggedMappings()
@@ -333,7 +334,7 @@ func TestTaggedMappings_EveryOneIsListedInDocumentOrder(t *testing.T) {
 // where it is declared, and that is the node reported.
 func TestTaggedMapping_IsFoundThroughAnAnchor(t *testing.T) {
 	t.Parallel()
-	root := sourceindex.Decode(t, "a: &x !t {b: 1}\nc: *x\n")
+	root := openapitest.YAMLDocument(t, "a: &x !t {b: 1}\nc: *x\n")
 	anchored := root.Content[0].Content[1]
 
 	got := sourceindex.Build(root, sourceindex.MaxIndexedNodes).TaggedMappings()
@@ -361,7 +362,7 @@ func TestNesting_CountsTheMappingsAndSequencesOnTheDeepestPath(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tc.want, sourceindex.Build(sourceindex.Decode(t, tc.src), sourceindex.MaxIndexedNodes).Nesting())
+			assert.Equal(t, tc.want, sourceindex.Build(openapitest.YAMLDocument(t, tc.src), sourceindex.MaxIndexedNodes).Nesting())
 		})
 	}
 }
@@ -386,7 +387,7 @@ func TestNesting_AnAliasNestsAsItsTarget(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			idx := sourceindex.Build(sourceindex.Decode(t, tc.src), sourceindex.MaxIndexedNodes)
+			idx := sourceindex.Build(openapitest.YAMLDocument(t, tc.src), sourceindex.MaxIndexedNodes)
 			require.Empty(t, idx.AnchorCycles())
 			assert.Equal(t, tc.want, idx.Nesting())
 		})
@@ -421,7 +422,7 @@ func TestNesting_CountsAMergeValueWhereItIsWritten(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tc.want, sourceindex.Build(sourceindex.Decode(t, tc.src), sourceindex.MaxIndexedNodes).Nesting())
+			assert.Equal(t, tc.want, sourceindex.Build(openapitest.YAMLDocument(t, tc.src), sourceindex.MaxIndexedNodes).Nesting())
 		})
 	}
 }
@@ -432,7 +433,7 @@ func TestNesting_CountsAMergeValueWhereItIsWritten(t *testing.T) {
 // names would fall short of the parser on both.
 func TestNesting_DoesNotReadAnchorNames(t *testing.T) {
 	t.Parallel()
-	root := sourceindex.Decode(t, "a: &x {b: {c: 1}}\nd: {e: *x}\n")
+	root := openapitest.YAMLDocument(t, "a: &x {b: {c: 1}}\nd: {e: *x}\n")
 	named := sourceindex.Build(root, sourceindex.MaxIndexedNodes).Nesting()
 	clearAnchors(root)
 

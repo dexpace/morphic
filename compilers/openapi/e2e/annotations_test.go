@@ -137,7 +137,7 @@ components:
       example: {f: at-declaration}
 `,
 		assert: func(t *testing.T, doc *ir.Document) {
-			td, ok := doc.Types[namedID("S")]
+			td, ok := doc.Types[componentID("S")]
 			require.True(t, ok, "component S must own a node")
 			require.Len(t, td.Common().Examples, 1)
 			ex := td.Common().Examples[0]
@@ -161,7 +161,7 @@ components:
     S: {type: string, example: at-declaration}
 `,
 		assert: func(t *testing.T, doc *ir.Document) {
-			sc, ok := doc.Types[namedID("S")].(*ir.Scalar)
+			sc, ok := doc.Types[componentID("S")].(*ir.Scalar)
 			require.True(t, ok, "a bare scalar component owns a Scalar node")
 			require.Len(t, sc.Examples, 1)
 			require.NotNil(t, sc.Examples[0].Value)
@@ -190,7 +190,7 @@ components:
           example: at-reference
 `,
 		assert: func(t *testing.T, doc *ir.Document) {
-			m, ok := doc.Types[namedID("S")].(*ir.Model)
+			m, ok := doc.Types[componentID("S")].(*ir.Model)
 			require.True(t, ok)
 			p, ok := propByWire(m, "f")
 			require.True(t, ok)
@@ -201,7 +201,7 @@ components:
 			assert.Equal(t, "at-reference", p.Examples[0].Value.Str)
 
 			// ...and must not have leaked onto the referent.
-			target, ok := doc.Types[namedID("Target")]
+			target, ok := doc.Types[componentID("Target")]
 			require.True(t, ok)
 			assert.Empty(t, target.Common().Examples,
 				"a reference-site example must not attach to the referent")
@@ -230,7 +230,7 @@ components:
       minProperties: 1
 `,
 		assert: func(t *testing.T, doc *ir.Document) {
-			m, ok := doc.Types[namedID("S")].(*ir.Model)
+			m, ok := doc.Types[componentID("S")].(*ir.Model)
 			require.True(t, ok, "S owns a Model node")
 			require.NotNil(t, m.Constraints, "an object component's own minProperties lands in Model.Constraints")
 			require.NotNil(t, m.Constraints.MinProps)
@@ -250,7 +250,7 @@ components:
     S: {type: integer, minimum: 5}
 `,
 		assert: func(t *testing.T, doc *ir.Document) {
-			sc, ok := doc.Types[namedID("S")].(*ir.Scalar)
+			sc, ok := doc.Types[componentID("S")].(*ir.Scalar)
 			require.True(t, ok, "a constrained scalar component owns a Scalar node")
 			require.NotNil(t, sc.Constraints)
 			require.NotNil(t, sc.Constraints.Min)
@@ -280,7 +280,7 @@ components:
           minimum: 5
 `,
 		assert: func(t *testing.T, doc *ir.Document) {
-			m, ok := doc.Types[namedID("S")].(*ir.Model)
+			m, ok := doc.Types[componentID("S")].(*ir.Model)
 			require.True(t, ok)
 			p, ok := propByWire(m, "f")
 			require.True(t, ok)
@@ -288,7 +288,7 @@ components:
 			require.NotNil(t, p.Constraints.Min)
 			assert.Equal(t, "5", p.Constraints.Min.String())
 
-			target, ok := doc.Types[namedID("Target")].(*ir.Scalar)
+			target, ok := doc.Types[componentID("Target")].(*ir.Scalar)
 			require.True(t, ok)
 			assert.Nil(t, target.Constraints, "a reference-site bound must not attach to the referent")
 		},
@@ -316,7 +316,7 @@ components:
       description: at-declaration
 `,
 		assert: func(t *testing.T, doc *ir.Document) {
-			td, ok := doc.Types[namedID("S")]
+			td, ok := doc.Types[componentID("S")]
 			require.True(t, ok)
 			assert.Equal(t, "at-declaration", td.Common().Docs.Description)
 		},
@@ -334,7 +334,7 @@ components:
     S: {type: string, description: at-declaration}
 `,
 		assert: func(t *testing.T, doc *ir.Document) {
-			sc, ok := doc.Types[namedID("S")].(*ir.Scalar)
+			sc, ok := doc.Types[componentID("S")].(*ir.Scalar)
 			require.True(t, ok, "a bare scalar component owns a Scalar node")
 			assert.Equal(t, "at-declaration", sc.Docs.Description)
 
@@ -361,14 +361,14 @@ components:
           description: at-reference
 `,
 		assert: func(t *testing.T, doc *ir.Document) {
-			m, ok := doc.Types[namedID("S")].(*ir.Model)
+			m, ok := doc.Types[componentID("S")].(*ir.Model)
 			require.True(t, ok)
 			p, ok := propByWire(m, "f")
 			require.True(t, ok)
 			assert.Equal(t, "at-reference", p.Docs.Description,
 				"a description beside a $ref binds the reference site")
 
-			target, ok := doc.Types[namedID("Target")]
+			target, ok := doc.Types[componentID("Target")]
 			require.True(t, ok)
 			assert.Empty(t, target.Common().Docs.Description,
 				"a reference-site description must not attach to the referent")
@@ -397,7 +397,7 @@ components:
       deprecated: true
 `,
 		assert: func(t *testing.T, doc *ir.Document) {
-			td, ok := doc.Types[namedID("S")]
+			td, ok := doc.Types[componentID("S")]
 			require.True(t, ok)
 			assert.NotNil(t, td.Common().Deprecation)
 		},
@@ -415,7 +415,7 @@ components:
     S: {type: string, deprecated: true}
 `,
 		assert: func(t *testing.T, doc *ir.Document) {
-			sc, ok := doc.Types[namedID("S")].(*ir.Scalar)
+			sc, ok := doc.Types[componentID("S")].(*ir.Scalar)
 			require.True(t, ok, "a bare scalar component owns a Scalar node")
 			assert.NotNil(t, sc.Deprecation)
 
@@ -442,13 +442,13 @@ components:
           deprecated: true
 `,
 		assert: func(t *testing.T, doc *ir.Document) {
-			m, ok := doc.Types[namedID("S")].(*ir.Model)
+			m, ok := doc.Types[componentID("S")].(*ir.Model)
 			require.True(t, ok)
 			p, ok := propByWire(m, "f")
 			require.True(t, ok)
 			assert.NotNil(t, p.Deprecation, "deprecated beside a $ref binds the reference site")
 
-			target, ok := doc.Types[namedID("Target")]
+			target, ok := doc.Types[componentID("Target")]
 			require.True(t, ok)
 			assert.Nil(t, target.Common().Deprecation,
 				"a reference-site deprecation must not attach to the referent")
@@ -477,7 +477,7 @@ components:
       default: {f: x}
 `,
 		assert: func(t *testing.T, doc *ir.Document) {
-			m, ok := doc.Types[namedID("S")].(*ir.Model)
+			m, ok := doc.Types[componentID("S")].(*ir.Model)
 			require.True(t, ok, "S owns a Model node")
 			assert.NotContains(t, marshalToMap(t, m), "default",
 				"a default binds a use of the type, so it gets no field on the type node")
@@ -500,7 +500,7 @@ components:
     S: {type: integer, default: 7}
 `,
 		assert: func(t *testing.T, doc *ir.Document) {
-			sc, ok := doc.Types[namedID("S")].(*ir.Scalar)
+			sc, ok := doc.Types[componentID("S")].(*ir.Scalar)
 			require.True(t, ok, "a bare scalar component owns a Scalar node")
 			assert.NotContains(t, marshalToMap(t, sc), "default",
 				"a default binds a use of the type, so it gets no field on the type node")
@@ -532,14 +532,14 @@ components:
           default: 7
 `,
 		assert: func(t *testing.T, doc *ir.Document) {
-			m, ok := doc.Types[namedID("S")].(*ir.Model)
+			m, ok := doc.Types[componentID("S")].(*ir.Model)
 			require.True(t, ok)
 			p, ok := propByWire(m, "f")
 			require.True(t, ok)
 			require.NotNil(t, p.Default, "a default beside a $ref binds the reference site")
 			assert.Equal(t, "7", p.Default.Num.String())
 
-			target, ok := doc.Types[namedID("Target")].(*ir.Scalar)
+			target, ok := doc.Types[componentID("Target")].(*ir.Scalar)
 			require.True(t, ok)
 			assert.NotContains(t, marshalToMap(t, target), "default",
 				"a reference-site default must not attach to the referent")
@@ -568,7 +568,7 @@ components:
       readOnly: true
 `,
 		assert: func(t *testing.T, doc *ir.Document) {
-			m, ok := doc.Types[namedID("S")].(*ir.Model)
+			m, ok := doc.Types[componentID("S")].(*ir.Model)
 			require.True(t, ok, "S owns a Model node")
 			assert.NotContains(t, marshalToMap(t, m), "visibility",
 				"readOnly binds a use of the type, so it gets no field on the type node")
@@ -591,7 +591,7 @@ components:
     S: {type: string, readOnly: true}
 `,
 		assert: func(t *testing.T, doc *ir.Document) {
-			sc, ok := doc.Types[namedID("S")].(*ir.Scalar)
+			sc, ok := doc.Types[componentID("S")].(*ir.Scalar)
 			require.True(t, ok, "a bare scalar component owns a Scalar node")
 			assert.NotContains(t, marshalToMap(t, sc), "visibility",
 				"readOnly binds a use of the type, so it gets no field on the type node")
@@ -623,7 +623,7 @@ components:
           readOnly: true
 `,
 		assert: func(t *testing.T, doc *ir.Document) {
-			m, ok := doc.Types[namedID("S")].(*ir.Model)
+			m, ok := doc.Types[componentID("S")].(*ir.Model)
 			require.True(t, ok)
 			p, ok := propByWire(m, "f")
 			require.True(t, ok)
@@ -631,7 +631,7 @@ components:
 				[]ir.Lifecycle{ir.LifecycleRead, ir.LifecycleDelete, ir.LifecycleQuery},
 				p.Visibility.Only)
 
-			target, ok := doc.Types[namedID("Target")].(*ir.Scalar)
+			target, ok := doc.Types[componentID("Target")].(*ir.Scalar)
 			require.True(t, ok)
 			assert.NotContains(t, marshalToMap(t, target), "visibility",
 				"a reference-site readOnly must not attach to the referent")
@@ -660,7 +660,7 @@ components:
       x-vendor: at-declaration
 `,
 		assert: func(t *testing.T, doc *ir.Document) {
-			td, ok := doc.Types[namedID("S")]
+			td, ok := doc.Types[componentID("S")]
 			require.True(t, ok)
 			raw, ok := td.Common().Unmodeled["openapi:x-vendor"]
 			require.True(t, ok, "x-vendor must be preserved under the openapi: namespace")
@@ -681,7 +681,7 @@ components:
     S: {type: string, x-vendor: at-declaration}
 `,
 		assert: func(t *testing.T, doc *ir.Document) {
-			sc, ok := doc.Types[namedID("S")].(*ir.Scalar)
+			sc, ok := doc.Types[componentID("S")].(*ir.Scalar)
 			require.True(t, ok, "a bare scalar component owns a Scalar node")
 			raw, ok := sc.Unmodeled["openapi:x-vendor"]
 			require.True(t, ok, "x-vendor must be preserved under the openapi: namespace")
@@ -711,7 +711,7 @@ components:
           x-vendor: at-reference
 `,
 		assert: func(t *testing.T, doc *ir.Document) {
-			m, ok := doc.Types[namedID("S")].(*ir.Model)
+			m, ok := doc.Types[componentID("S")].(*ir.Model)
 			require.True(t, ok)
 			p, ok := propByWire(m, "f")
 			require.True(t, ok)
@@ -720,7 +720,7 @@ components:
 			assert.JSONEq(t, `"at-reference"`, string(raw.Value))
 			assert.Equal(t, ir.ReasonVendorExtension, raw.Reason)
 
-			target, ok := doc.Types[namedID("Target")]
+			target, ok := doc.Types[componentID("Target")]
 			require.True(t, ok)
 			assert.Empty(t, target.Common().Unmodeled,
 				"a reference-site extension must not attach to the referent")
@@ -749,7 +749,7 @@ components:
       xml: {name: Renamed}
 `,
 		assert: func(t *testing.T, doc *ir.Document) {
-			td, ok := doc.Types[namedID("S")]
+			td, ok := doc.Types[componentID("S")]
 			require.True(t, ok)
 			require.NotNil(t, td.Common().XML)
 			assert.Equal(t, "Renamed", td.Common().XML.Name)
@@ -768,7 +768,7 @@ components:
     S: {type: string, xml: {name: Renamed}}
 `,
 		assert: func(t *testing.T, doc *ir.Document) {
-			sc, ok := doc.Types[namedID("S")].(*ir.Scalar)
+			sc, ok := doc.Types[componentID("S")].(*ir.Scalar)
 			require.True(t, ok, "a bare scalar component owns a Scalar node")
 			require.NotNil(t, sc.XML)
 			assert.Equal(t, "Renamed", sc.XML.Name)
@@ -796,14 +796,14 @@ components:
           xml: {name: Renamed}
 `,
 		assert: func(t *testing.T, doc *ir.Document) {
-			m, ok := doc.Types[namedID("S")].(*ir.Model)
+			m, ok := doc.Types[componentID("S")].(*ir.Model)
 			require.True(t, ok)
 			p, ok := propByWire(m, "f")
 			require.True(t, ok)
 			require.NotNil(t, p.XML, "an xml hint beside a $ref binds the reference site")
 			assert.Equal(t, "Renamed", p.XML.Name)
 
-			target, ok := doc.Types[namedID("Target")]
+			target, ok := doc.Types[componentID("Target")]
 			require.True(t, ok)
 			assert.Nil(t, target.Common().XML, "a reference-site xml hint must not attach to the referent")
 		},
@@ -841,7 +841,7 @@ components:
       then: {minLength: 1}
 `,
 		assert: func(t *testing.T, doc *ir.Document) {
-			m, ok := doc.Types[namedID("S")].(*ir.Model)
+			m, ok := doc.Types[componentID("S")].(*ir.Model)
 			require.True(t, ok)
 			raw, ok := m.Unmodeled["openapi:if-then-else"]
 			require.True(t, ok, "if/then must be kept verbatim under Unmodeled")
@@ -869,7 +869,7 @@ components:
       then: {minLength: 1}
 `,
 		assert: func(t *testing.T, doc *ir.Document) {
-			sc, ok := doc.Types[namedID("S")].(*ir.Scalar)
+			sc, ok := doc.Types[componentID("S")].(*ir.Scalar)
 			require.True(t, ok, "a bare scalar component owns a Scalar node")
 			raw, ok := sc.Unmodeled["openapi:if-then-else"]
 			require.True(t, ok, "if/then must be kept verbatim under Unmodeled")
@@ -904,7 +904,7 @@ components:
           then: {minLength: 1}
 `,
 		assert: func(t *testing.T, doc *ir.Document) {
-			m, ok := doc.Types[namedID("S")].(*ir.Model)
+			m, ok := doc.Types[componentID("S")].(*ir.Model)
 			require.True(t, ok)
 			p, ok := propByWire(m, "f")
 			require.True(t, ok)
@@ -913,7 +913,7 @@ components:
 			assert.JSONEq(t, `{"if":{"type":"string"},"then":{"minLength":1}}`, string(raw.Value))
 			assert.Equal(t, ir.ReasonValidationOnly, raw.Reason)
 
-			target, ok := doc.Types[namedID("Target")]
+			target, ok := doc.Types[componentID("Target")]
 			require.True(t, ok)
 			assert.Empty(t, target.Common().Unmodeled,
 				"a reference-site keyword must not attach to the referent")
@@ -994,7 +994,7 @@ func TestValidationOnly_BesideARefAtABodyPosition(t *testing.T) {
 		assert.Equal(t, ir.ReasonValidationOnly, raw.Reason, tc.name)
 	}
 
-	target, found := doc.Types[namedID("Target")]
+	target, found := doc.Types[componentID("Target")]
 	require.True(t, found)
 	assert.Empty(t, target.Common().Unmodeled,
 		"three reference sites, and none of them wrote onto the referent")
@@ -1018,7 +1018,7 @@ func refSiteAlias(t *testing.T, doc *ir.Document, c ir.Content) ir.TypeDef {
 	sc, ok := td.(*ir.Scalar)
 	require.True(t, ok, "a $ref with siblings hoists an alias; got %T", td)
 	require.NotNil(t, sc.Base, "and that alias points at what it referenced")
-	assert.Equal(t, namedID("Target"), sc.Base.Target)
+	assert.Equal(t, componentID("Target"), sc.Base.Target)
 	return td
 }
 
@@ -1122,7 +1122,7 @@ func TestAnnotationRetention_OtherDeclarationShapes(t *testing.T) {
 			t.Parallel()
 			doc, diags := compileAnnotationSpec(t, shape.name, shape.spec())
 			assertNoErrorDiags(t, diags)
-			td, ok := doc.Types[namedID("S")]
+			td, ok := doc.Types[componentID("S")]
 			require.True(t, ok, "component S must own a node")
 			require.Equal(t, shape.kind, td.Kind(), "this shape must reach its own lower() destination")
 			assertDeclaredAnnotationsKept(t, td)

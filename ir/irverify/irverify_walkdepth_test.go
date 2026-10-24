@@ -6,17 +6,8 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/ir/irtest"
 )
-
-// nestedListValue returns a Value that is depth levels of single-element lists
-// wrapping a number — the shape a deeply-nested array default lowers to.
-func nestedListValue(depth int) ir.Value {
-	v := ir.Value{Kind: ir.ValueNumber, Num: ir.BigVal("0")}
-	for range depth {
-		v = ir.Value{Kind: ir.ValueList, List: []ir.Value{v}}
-	}
-	return v
-}
 
 // TestVerify_DeepInBoundsDefaultIsNotTruncated builds a property default nested
 // far deeper than the former 256 reflection cap allowed but within the range a
@@ -24,7 +15,7 @@ func nestedListValue(depth int) ir.Value {
 // reporting ir/walk-truncated. Regression for the value-depth vs walk-depth
 // bound mismatch.
 func TestVerify_DeepInBoundsDefaultIsNotTruncated(t *testing.T) {
-	def := nestedListValue(200)
+	def := irtest.NestedListValue(200)
 	m := &ir.Model{
 		ID:   "t/x/M",
 		Name: ir.Naming{Source: "M", Canonical: "m"},

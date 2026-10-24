@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/ir/irtest"
 	"github.com/dexpace/morphic/pass"
 )
 
@@ -21,7 +22,7 @@ func TestValidate_GroupWalkTruncationIsReported(t *testing.T) {
 	// actually skipped fires at exactly the depth where the last operation still
 	// fits — visible only by testing ir.MaxGroupDepth itself.
 	for _, depth := range []int{1, 127, 128} {
-		within := codes(pass.Validate(nestGroups(depth, oneway)))
+		within := irtest.DiagCodes(pass.Validate(nestGroups(depth, oneway)))
 		assert.Contains(t, within, "pass/oneway-with-responses",
 			"at depth %d the operation is still reached", depth)
 		assert.NotContains(t, within, "ir/walk-truncated",
@@ -29,7 +30,7 @@ func TestValidate_GroupWalkTruncationIsReported(t *testing.T) {
 	}
 
 	for _, depth := range []int{129, 200} {
-		past := codes(pass.Validate(nestGroups(depth, oneway)))
+		past := irtest.DiagCodes(pass.Validate(nestGroups(depth, oneway)))
 		assert.Contains(t, past, "ir/walk-truncated",
 			"at depth %d the walk stopped early and must say so", depth)
 		assert.NotContains(t, past, "pass/oneway-with-responses",
@@ -52,7 +53,7 @@ func TestValidate_ASelfContainingGroupIsReachedOnceAndIsNotATruncation(t *testin
 	doc.Services = []ir.Service{{ID: "s", Groups: groups}}
 
 	diags := pass.Validate(doc)
-	assert.NotContains(t, codes(diags), "ir/walk-truncated", "nothing was skipped")
+	assert.NotContains(t, irtest.DiagCodes(diags), "ir/walk-truncated", "nothing was skipped")
 	assert.Equal(t, 1, countCode(t, diags, "pass/oneway-with-responses"),
 		"the operation is reached once, not once per lap")
 }

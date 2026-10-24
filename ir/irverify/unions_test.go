@@ -103,19 +103,9 @@ func TestVerify_NilTypeBesideAUnionDoesNotPanic(t *testing.T) {
 			var got []irverify.Violation
 			require.NotPanics(t, func() { got = verifyDeclared(doc) })
 			assert.Len(t, unionViolations(t, doc, codeNoVariants), 1, "the empty union is still reported")
-			assert.Contains(t, codes(got), "ir/nil-type", "the nil entry is reported by its own check")
+			assert.Contains(t, violationCodes(got), "ir/nil-type", "the nil entry is reported by its own check")
 		})
 	}
-}
-
-// codes returns the violation codes in vs, for assertions about which checks
-// fired rather than about their order.
-func codes(vs []irverify.Violation) []string {
-	out := make([]string, 0, len(vs))
-	for _, v := range vs {
-		out = append(out, v.Code)
-	}
-	return out
 }
 
 // TestVerify_UnionTagModes holds unions to the tag modes ir-design §4.4 defines:

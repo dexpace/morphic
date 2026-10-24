@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/internal/harness"
 	"github.com/dexpace/morphic/ir"
 )
@@ -52,7 +53,7 @@ paths:
 // carriedProperty returns the single property carrierPropertySpec declares.
 func carriedProperty(t *testing.T, doc *ir.Document) ir.Property {
 	t.Helper()
-	m, ok := doc.Types[namedID("S")].(*ir.Model)
+	m, ok := doc.Types[componentID("S")].(*ir.Model)
 	require.True(t, ok, "component S must lower to a model")
 	p, ok := propByWire(m, "f")
 	require.True(t, ok, "the model must carry property f")
@@ -64,7 +65,7 @@ func carriedParameter(t *testing.T, doc *ir.Document) ir.Parameter {
 	t.Helper()
 	op, ok := opByName(doc, "op")
 	require.True(t, ok, "the operation must lower")
-	p, ok := paramByName(op, "q")
+	p, ok := openapitest.ParamBySource(op, "q")
 	require.True(t, ok, "the operation must carry parameter q")
 	return p
 }

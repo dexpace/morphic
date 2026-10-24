@@ -41,29 +41,29 @@ func TestBigValConflictDetail_ComparesByMagnitude(t *testing.T) {
 		a, b    *ir.BigVal
 		want    string
 	}{
-		{name: "only one side bounds", keyword: "minimum", a: bigVal("10")},
+		{name: "only one side bounds", keyword: "minimum", a: new(ir.BigVal("10"))},
 		{name: "neither side bounds", keyword: "minimum"},
 		{
 			name:    "the same magnitude, spelled differently",
-			keyword: "minimum", a: bigVal("10"), b: bigVal("10.0"),
+			keyword: "minimum", a: new(ir.BigVal("10")), b: new(ir.BigVal("10.0")),
 		},
 		{
-			name: "differing magnitudes", keyword: "minimum", a: bigVal("10"), b: bigVal("20"),
+			name: "differing magnitudes", keyword: "minimum", a: new(ir.BigVal("10")), b: new(ir.BigVal("20")),
 			want: "conflicting minimum (10 and 20)",
 		},
 		{
 			name:    "the exclusive bound reports under its own keyword",
-			keyword: "exclusiveMinimum", a: bigVal("10"), b: bigVal("20"),
+			keyword: "exclusiveMinimum", a: new(ir.BigVal("10")), b: new(ir.BigVal("20")),
 			want: "conflicting exclusiveMinimum (10 and 20)",
 		},
 		{
 			name:    "multipleOf shares the comparison",
-			keyword: "multipleOf", a: bigVal("3"), b: bigVal("5"),
+			keyword: "multipleOf", a: new(ir.BigVal("3")), b: new(ir.BigVal("5")),
 			want: "conflicting multipleOf (3 and 5)",
 		},
 		{
 			name:    "unparseable operands compare exactly",
-			keyword: "minimum", a: bigVal("nan"), b: bigVal("other"),
+			keyword: "minimum", a: new(ir.BigVal("nan")), b: new(ir.BigVal("other")),
 			want: "conflicting minimum (nan and other)",
 		},
 	}

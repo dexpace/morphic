@@ -16,6 +16,7 @@ import (
 	"github.com/dexpace/morphic/internal/decls"
 	"github.com/dexpace/morphic/internal/jsonshape"
 	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/ir/irtest"
 	"github.com/dexpace/morphic/pass"
 )
 
@@ -303,7 +304,7 @@ func TestValidate_EncodingKeyOnAnUndeclaredTypeIsReportedBesideTheDanglingRef(t 
 	c.Type = ir.TypeRef{Target: "t/missing"}
 	c.Encoding = map[ir.PropID]ir.PartEncoding{"p/m/a": {Multi: true}}
 
-	got := codes(pass.Validate(doc))
+	got := irtest.DiagCodes(pass.Validate(doc))
 	assert.Contains(t, got, "ir/dangling-type-ref")
 	assert.Contains(t, got, "ir/encoding-key-unknown-property")
 }

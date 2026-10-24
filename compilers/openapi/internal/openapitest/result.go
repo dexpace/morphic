@@ -35,6 +35,17 @@ func FirstOp(t TB, svc ir.Service) ir.Operation {
 	return svc.Groups[0].Operations[0]
 }
 
+// ParamBySource returns the operation's logical parameter with the given
+// source name.
+func ParamBySource(op ir.Operation, name string) (ir.Parameter, bool) {
+	for _, p := range op.Params {
+		if p.Name.Source == name {
+			return p, true
+		}
+	}
+	return ir.Parameter{}, false
+}
+
 // IndexBy builds a lookup keyed by key(item), the shape behind every
 // hand-rolled "m := map[K]T{}; for _, x := range xs { m[key(x)] = x }" loop
 // these suites used to repeat per test.
@@ -88,6 +99,17 @@ func HasDiag(diags []ir.Diagnostic, code string) bool {
 	return slices.ContainsFunc(diags, func(d ir.Diagnostic) bool { return d.Code == code })
 }
 
+// FirstDiag returns the first diagnostic carrying code, at any severity, so a
+// test can assert on its provenance or its message.
+func FirstDiag(diags []ir.Diagnostic, code string) (ir.Diagnostic, bool) {
+	for _, d := range diags {
+		if d.Code == code {
+			return d, true
+		}
+	}
+	return ir.Diagnostic{}, false
+}
+
 // HasDiagAt reports whether diags contains a diagnostic with the exact code at
 // the exact severity.
 func HasDiagAt(diags []ir.Diagnostic, code string, sev ir.Severity) bool {
@@ -114,6 +136,18 @@ func CountDiagsAt(diags []ir.Diagnostic, code string, sev ir.Severity) int {
 		}
 	}
 	return n
+}
+
+// PointersOf returns the pointers diags report code at, sorted.
+func PointersOf(diags []ir.Diagnostic, code string) []jsontext.Pointer {
+	var out []jsontext.Pointer
+	for _, d := range diags {
+		if d.Code == code {
+			out = append(out, d.Provenance.Pointer)
+		}
+	}
+	slices.Sort(out)
+	return out
 }
 
 // DiagMessageAt returns the message of the single diagnostic matching code,

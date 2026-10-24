@@ -38,7 +38,7 @@ func promotionCarriers(t *testing.T, doc *ir.Document) map[string]promotionCarri
 	require.Len(t, op.Params, 1)
 	param := op.Params[0]
 
-	model, ok := doc.Types[namedID("Old")].(*ir.Model)
+	model, ok := doc.Types[componentID("Old")].(*ir.Model)
 	require.True(t, ok)
 	prop, ok := propByWire(model, "p")
 	require.True(t, ok)
@@ -119,14 +119,14 @@ func assertEnumOpenness(t *testing.T, doc *ir.Document) {
 		{"Fixed", true, ""},
 	}
 	for _, tc := range tests {
-		enum, ok := doc.Types[namedID(tc.schema)].(*ir.Enum)
+		enum, ok := doc.Types[componentID(tc.schema)].(*ir.Enum)
 		require.True(t, ok, "%s lowers to an enum", tc.schema)
 		assert.Equal(t, tc.closed, enum.Closed, "%s openness", tc.schema)
 		assert.Equal(t, tc.inferred, enum.Provenance.Inferred, "%s heuristic marker", tc.schema)
 	}
 
 	for _, schema := range []string{"Size", "Shade"} {
-		enum, ok := doc.Types[namedID(schema)].(*ir.Enum)
+		enum, ok := doc.Types[componentID(schema)].(*ir.Enum)
 		require.True(t, ok)
 		entry, kept := enum.Unmodeled["openapi:x-extensible-enum"]
 		require.True(t, kept, "%s keeps the extension whether or not it was read", schema)
@@ -147,7 +147,7 @@ func assertPromotionDeclined(t *testing.T, doc *ir.Document, diags []ir.Diagnost
 	assert.Contains(t, live.Unmodeled, "openapi:x-deprecated-reason")
 	assert.Empty(t, live.Provenance.Inferred, "nothing was inferred, so nothing is marked")
 
-	model, ok := doc.Types[namedID("Old")].(*ir.Model)
+	model, ok := doc.Types[componentID("Old")].(*ir.Model)
 	require.True(t, ok)
 	numeric, ok := propByWire(model, "n")
 	require.True(t, ok)
@@ -247,7 +247,7 @@ components:
 	op, ok := opByName(doc, "getX")
 	require.True(t, ok)
 	require.NotNil(t, op.Deprecation)
-	enum, ok := doc.Types[namedID("E")].(*ir.Enum)
+	enum, ok := doc.Types[componentID("E")].(*ir.Enum)
 	require.True(t, ok)
 
 	// Read off the defaults rather than listing the pairs, so a mapping this

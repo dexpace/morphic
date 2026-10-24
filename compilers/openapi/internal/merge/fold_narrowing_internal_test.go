@@ -145,7 +145,7 @@ func TestFold_ANarrowingAdoptsTheBroaderDeclarationsDetail(t *testing.T) {
 				WireName:    "x",
 				Type:        primRef(ir.PrimNumber),
 				Default:     &ir.Value{Kind: ir.ValueNumber, Num: "1"},
-				Constraints: &ir.Constraints{Min: bigVal("0")},
+				Constraints: &ir.Constraints{Min: new(ir.BigVal("0"))},
 				Provenance:  ptrAt("/allOf/0/properties/x"),
 			}
 			narrow := ir.Property{WireName: "x", Type: primRef(ir.PrimInteger), Provenance: ptrAt("/allOf/1/properties/x")}
@@ -158,7 +158,7 @@ func TestFold_ANarrowingAdoptsTheBroaderDeclarationsDetail(t *testing.T) {
 
 			assert.Equal(t, primRef(ir.PrimInteger).Target, dst.Type.Target)
 			require.NotNil(t, dst.Constraints)
-			assert.Equal(t, bigVal("0"), dst.Constraints.Min, "the broader declaration's bound lands on the merged field")
+			assert.Equal(t, new(ir.BigVal("0")), dst.Constraints.Min, "the broader declaration's bound lands on the merged field")
 			require.NotNil(t, dst.Default)
 			assert.Equal(t, ir.BigVal("1"), dst.Default.Num, "and so does its default")
 			assert.Empty(t, *recorded)

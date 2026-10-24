@@ -103,7 +103,7 @@ func TestIndex_SelfContainmentIsRecursive(t *testing.T) {
 	for name, edge := range usageEdgeCases() {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			facts := irfacts.New(compDoc(edge.build("x")))
+			facts := irfacts.New(irtest.DocOf(edge.build("x")))
 			assert.True(t, facts.Recursive("x"), "a type holding or including itself by this edge is recursive")
 			assert.Equal(t, []ir.TypeID{"x"}, facts.Component("x"))
 		})
@@ -115,15 +115,15 @@ func TestIndex_ReferencesThatAreNoPartAreNotRecursive(t *testing.T) {
 	self := ir.TypeRef{Target: "x"}
 	selfValue := &ir.Value{Kind: ir.ValueRefKind, Ref: &ir.ValueRef{Type: "x"}}
 	for name, td := range map[string]ir.TypeDef{
-		"model discriminator mapping": compModel("x", func(m *ir.Model) {
+		"model discriminator mapping": irtest.ModelOf("x", func(m *ir.Model) {
 			m.Discriminator = &ir.Discriminator{Mapping: map[string]ir.TypeID{"a": "x"}, Default: "x"}
 		}),
 		"union discriminator mapping": &ir.Union{ID: "x", Discriminator: &ir.Discriminator{Mapping: map[string]ir.TypeID{"a": "x"}}},
-		"property default":            compModel("x", func(m *ir.Model) { m.Properties = []ir.Property{{Default: selfValue}} }),
-		"property wire type": compModel("x", func(m *ir.Model) {
+		"property default":            irtest.ModelOf("x", func(m *ir.Model) { m.Properties = []ir.Property{{Default: selfValue}} }),
+		"property wire type": irtest.ModelOf("x", func(m *ir.Model) {
 			m.Properties = []ir.Property{{Encoding: &ir.Encoding{WireType: &self}}}
 		}),
-		"field argument":       compModel("x", func(m *ir.Model) { m.Properties = []ir.Property{{Args: []ir.Parameter{{Type: self}}}} }),
+		"field argument":       irtest.ModelOf("x", func(m *ir.Model) { m.Properties = []ir.Property{{Args: []ir.Parameter{{Type: self}}}} }),
 		"scalar wire type":     &ir.Scalar{ID: "x", Encoding: &ir.Encoding{WireType: &self}},
 		"list wire type":       &ir.List{ID: "x", Encoding: &ir.Encoding{WireType: &self}},
 		"literal value":        &ir.Literal{ID: "x", Value: *selfValue},
@@ -133,7 +133,7 @@ func TestIndex_ReferencesThatAreNoPartAreNotRecursive(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			facts := irfacts.New(compDoc(td))
+			facts := irfacts.New(irtest.DocOf(td))
 			assert.False(t, facts.Recursive("x"), "the reference names a type without making a value hold one")
 			assert.Equal(t, []ir.TypeID{"x"}, facts.Component("x"))
 		})
@@ -145,14 +145,14 @@ func TestIndex_ReferencesThatAreNoPartAreNotRecursive(t *testing.T) {
 func componentsTree(hold func() ir.Property, extra ...ir.TypeDef) *ir.Document {
 	defs := make([]ir.TypeDef, 0, 3+len(extra))
 	defs = append(defs,
-		compModel("node", func(m *ir.Model) { m.Discriminator = &ir.Discriminator{PropertyName: "kind"} }),
-		compModel("branch", func(m *ir.Model) {
+		irtest.ModelOf("node", func(m *ir.Model) { m.Discriminator = &ir.Discriminator{PropertyName: "kind"} }),
+		irtest.ModelOf("branch", func(m *ir.Model) {
 			m.Base = &ir.TypeRef{Target: "node"}
 			m.Properties = []ir.Property{hold()}
 		}),
-		compModel("leaf", func(m *ir.Model) { m.Base = &ir.TypeRef{Target: "node"} }),
+		irtest.ModelOf("leaf", func(m *ir.Model) { m.Base = &ir.TypeRef{Target: "node"} }),
 	)
-	return compDoc(append(defs, extra...)...)
+	return irtest.DocOf(append(defs, extra...)...)
 }
 
 func TestIndex_RecursionThroughAPolymorphicReference(t *testing.T) {
@@ -160,7 +160,7 @@ func TestIndex_RecursionThroughAPolymorphicReference(t *testing.T) {
 	for name, doc := range map[string]*ir.Document{
 		"held directly":      componentsTree(func() ir.Property { return useProp("node") }),
 		"held in a list":     componentsTree(func() ir.Property { return useProp("children") }, &ir.List{ID: "children", Elem: useRef("node")}),
-		"held through alias": componentsTree(func() ir.Property { return useProp("nodeAlias") }, compScalar("nodeAlias", "node")),
+		"held through alias": componentsTree(func() ir.Property { return useProp("nodeAlias") }, irtest.ScalarOf("nodeAlias", "node")),
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -183,7 +183,7 @@ func TestIndex_RecursionThroughAPolymorphicReference(t *testing.T) {
 
 func TestIndex_ABaseAndItsSubtypesAreNotRecursive(t *testing.T) {
 	t.Parallel()
-	doc := compDoc(usagePets(func(id ir.TypeID, m *ir.Model) {
+	doc := irtest.DocOf(usagePets(func(id ir.TypeID, m *ir.Model) {
 		if id == "pet" {
 			m.Discriminator = &ir.Discriminator{Mapping: map[string]ir.TypeID{"cat": "cat", "dog": "dog"}}
 		}
@@ -197,7 +197,7 @@ func TestIndex_ABaseAndItsSubtypesAreNotRecursive(t *testing.T) {
 
 func TestIndex_MutualContainmentIsOneComponent(t *testing.T) {
 	t.Parallel()
-	doc := compDoc(
+	doc := irtest.DocOf(
 		useHolder("a", "items"),
 		&ir.List{ID: "items", Elem: useRef("b")},
 		useHolder("b", "a", "leaf"),
@@ -214,7 +214,7 @@ func TestIndex_MutualContainmentIsOneComponent(t *testing.T) {
 
 func TestIndex_AnAcyclicDiamondIsNotRecursive(t *testing.T) {
 	t.Parallel()
-	doc := compDoc(useHolder("top", "left", "right"), useHolder("left", "bottom"), useHolder("right", "bottom"), useType("bottom"))
+	doc := irtest.DocOf(useHolder("top", "left", "right"), useHolder("left", "bottom"), useHolder("right", "bottom"), useType("bottom"))
 	facts := irfacts.New(doc)
 	for _, id := range []ir.TypeID{"top", "left", "right", "bottom"} {
 		assert.False(t, facts.Recursive(id), id)
@@ -224,7 +224,7 @@ func TestIndex_AnAcyclicDiamondIsNotRecursive(t *testing.T) {
 
 func TestIndex_ADanglingReferenceIsIgnored(t *testing.T) {
 	t.Parallel()
-	facts := irfacts.New(compDoc(useHolder("a", "ghost")))
+	facts := irfacts.New(irtest.DocOf(useHolder("a", "ghost")))
 	assert.False(t, facts.Recursive("a"))
 	assert.Equal(t, []ir.TypeID{"a"}, facts.Component("a"))
 	assert.False(t, facts.Recursive("ghost"), "the document declares no such type")
@@ -234,7 +234,7 @@ func TestIndex_ADanglingReferenceIsIgnored(t *testing.T) {
 
 func TestIndex_ATypedNilEntryIsATypeHoldingNothing(t *testing.T) {
 	t.Parallel()
-	doc := compDoc(useHolder("a", "nilm"))
+	doc := irtest.DocOf(useHolder("a", "nilm"))
 	doc.Types["nilm"] = (*ir.Model)(nil)
 	facts := irfacts.New(doc)
 	assert.False(t, facts.Recursive("nilm"))
@@ -245,7 +245,7 @@ func TestIndex_ComponentIsSortedAndTheCallersOwn(t *testing.T) {
 	t.Parallel()
 	// The search from "a" closes the ring with "c" ahead of "b", the reverse of
 	// the order the component must be reported in.
-	doc := compDoc(useHolder("a", "c"), useHolder("c", "b"), useHolder("b", "a"))
+	doc := irtest.DocOf(useHolder("a", "c"), useHolder("c", "b"), useHolder("b", "a"))
 	facts := irfacts.New(doc)
 
 	got := facts.Component("b")
@@ -259,13 +259,13 @@ func TestIndex_ComponentIsSortedAndTheCallersOwn(t *testing.T) {
 func factsLongContainment(n int) *ir.Document {
 	defs := make([]ir.TypeDef, 0, n)
 	for i := range n {
-		defs = append(defs, compModel(factsLongID(i), func(m *ir.Model) {
+		defs = append(defs, irtest.ModelOf(factsLongID(i), func(m *ir.Model) {
 			if i+1 < n {
 				m.Properties = []ir.Property{useProp(factsLongID(i + 1))}
 			}
 		}))
 	}
-	return compDoc(defs...)
+	return irtest.DocOf(defs...)
 }
 
 func factsLongID(i int) ir.TypeID { return ir.TypeID(fmt.Sprintf("t%06d", i)) }
@@ -294,7 +294,7 @@ func TestIndex_AVeryLongChainNeedsNoRecursion(t *testing.T) {
 func TestIndex_AVeryDeepHierarchyNeedsNoRecursion(t *testing.T) {
 	t.Parallel()
 	const n = 100_000
-	doc := compDoc(factsChain(n, func(_ int, m *ir.Model) { m.Discriminator = &ir.Discriminator{PropertyName: "k"} })...)
+	doc := irtest.DocOf(factsChain(n, func(_ int, m *ir.Model) { m.Discriminator = &ir.Discriminator{PropertyName: "k"} })...)
 	facts := irfacts.New(doc)
 	assert.True(t, facts.IsSubtype(factsChainID(n), factsChainID(0)))
 	assert.False(t, facts.IsSubtype(factsChainID(0), factsChainID(n)))
@@ -336,7 +336,7 @@ func componentsRandom(rng *rand.Rand) (doc *ir.Document, ids []ir.TypeID, held, 
 		}
 		defs = append(defs, m)
 	}
-	return compDoc(defs...), ids, held, composed
+	return irtest.DocOf(defs...), ids, held, composed
 }
 
 // componentsOracle returns, for each model, the models whose shape its own

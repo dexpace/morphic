@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/ir/irtest"
 	"github.com/dexpace/morphic/pass"
 )
 
@@ -24,7 +25,7 @@ func TestValidate_DiscriminatorMissingVariant(t *testing.T) {
 	}
 	diags := pass.Validate(doc)
 	require.NotEmpty(t, diags)
-	assert.Contains(t, codes(diags), "pass/discriminator-missing-variant")
+	assert.Contains(t, irtest.DiagCodes(diags), "pass/discriminator-missing-variant")
 }
 
 // TestValidate_ModelDiscriminator drives checkModelDiscriminator over the ways
@@ -100,7 +101,7 @@ func TestValidate_SubtypeThroughAliasChain(t *testing.T) {
 
 	diags := pass.Validate(doc)
 	assert.Equal(t, 1, countCode(t, diags, "pass/discriminator-missing-variant"),
-		"only the cyclic alias fails to reach the base: %v", codes(diags))
+		"only the cyclic alias fails to reach the base: %v", irtest.DiagCodes(diags))
 	assert.Contains(t, messageForCode(t, diags, "pass/discriminator-missing-variant"), "t/looped")
 }
 

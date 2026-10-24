@@ -1,6 +1,8 @@
 package openapitest_test
 
 import (
+	"maps"
+	"slices"
 	"strings"
 	"testing"
 
@@ -35,6 +37,23 @@ func TestComponentSpec_WrapsSchemasInAMinimalDocument(t *testing.T) {
 	assert.Contains(t, got, "paths: {}\n")
 	assert.Contains(t, got, "components:\n  schemas:\n    A: {type: string}\n")
 	assert.True(t, strings.HasPrefix(openapitest.ComponentSpecVer("3.0.3", ""), "openapi: 3.0.3\n"))
+}
+
+// TestHolderSpec_DeclaresHolderBesideTheRest pins the parts a caller writes:
+// the version, Holder's property p, and the schemas of rest after Holder.
+func TestHolderSpec_DeclaresHolderBesideTheRest(t *testing.T) {
+	t.Parallel()
+	got := openapitest.HolderSpec("3.0.3", "{type: string, nullable: true}", "    Extra: {type: integer}\n")
+	var doc struct {
+		OpenAPI    string `yaml:"openapi"`
+		Components struct {
+			Schemas map[string]yaml.Node `yaml:"schemas"`
+		} `yaml:"components"`
+	}
+	require.NoError(t, yaml.Unmarshal([]byte(got), &doc), got)
+	assert.Equal(t, "3.0.3", doc.OpenAPI)
+	assert.ElementsMatch(t, []string{"Plain", "Pet", "Holder", "Extra"}, slices.Collect(maps.Keys(doc.Components.Schemas)))
+	assert.Contains(t, got, "      properties:\n        p: {type: string, nullable: true}\n")
 }
 
 // TestPathsSpec_WrapsPathsInAMinimalDocument is the paths counterpart: no
@@ -120,6 +139,22 @@ func TestYAMLNode_ReturnsTheRootValueNode(t *testing.T) {
 	assert.Equal(t, yaml.MappingNode, node.Kind)
 	require.Len(t, node.Content, 2)
 	assert.Equal(t, "a", node.Content[0].Value)
+}
+
+// TestYAMLDocument_ReturnsTheDocumentNode checks the document node is kept, not
+// unwrapped as YAMLNode unwraps it, and that a fixture that does not parse
+// fails the test.
+func TestYAMLDocument_ReturnsTheDocumentNode(t *testing.T) {
+	t.Parallel()
+	doc := openapitest.YAMLDocument(t, "{a: 1}")
+	require.NotNil(t, doc)
+	assert.Equal(t, yaml.DocumentNode, doc.Kind)
+	require.Len(t, doc.Content, 1)
+	assert.Equal(t, yaml.MappingNode, doc.Content[0].Kind)
+
+	rec := &recorder{}
+	openapitest.YAMLDocument(rec, "{a: [")
+	assert.True(t, rec.failed(), "a fixture that does not parse is reported")
 }
 
 // TestScalarNode_BuildsABareScalar covers both builders, StrNode being the

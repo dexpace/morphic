@@ -563,12 +563,12 @@ components:
 	doc, _, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	withSiblings, ok := paramBySource(openapitest.FindOp(t, doc, "a"), "limit")
+	withSiblings, ok := openapitest.ParamBySource(openapitest.FindOp(t, doc, "a"), "limit")
 	require.True(t, ok)
 	assert.Equal(t, "S", withSiblings.Docs.Summary)
 	assert.Equal(t, "D", withSiblings.Docs.Description)
 
-	without, ok := paramBySource(openapitest.FindOp(t, doc, "b"), "limit")
+	without, ok := openapitest.ParamBySource(openapitest.FindOp(t, doc, "b"), "limit")
 	require.True(t, ok)
 	assert.Empty(t, without.Docs.Summary, "no sibling means no summary is invented")
 	assert.Equal(t, "declared", without.Docs.Description,

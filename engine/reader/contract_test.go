@@ -25,7 +25,7 @@ var (
 // for a file, a file URI, a confined read, a URL, a limit and a missing file.
 func TestReaders_AnswerAlikeThroughTheContract(t *testing.T) {
 	t.Parallel()
-	root := resolvedDir(t)
+	root := reader.ResolvedDir(t)
 	inside := writeFile(t, root, "in/a.yaml", "alpha")
 	outside := writeFile(t, root, "outside.yaml", "omega")
 	srv, hits := countingServer(t, serveBody(t, http.StatusOK, "network"))

@@ -10,6 +10,7 @@ import (
 
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/ir/irfacts"
+	"github.com/dexpace/morphic/ir/irtest"
 )
 
 // exposureRandom builds a registry of up to thirty types: models declaring up
@@ -30,11 +31,11 @@ func exposureRandom(rng *rand.Rand, forest bool) (*ir.Document, []ir.TypeID, []i
 	types = append(types, "ghost", "nilm", "")
 	pick := func() ir.TypeID { return types[rng.IntN(len(types))] }
 	props := []ir.PropID{"p/ghost", ""}
-	doc := compDoc()
+	doc := irtest.DocOf()
 	for _, id := range declared {
 		switch r := rng.IntN(10); {
 		case r < 6:
-			m := compModel(id, nil)
+			m := irtest.ModelOf(id, nil)
 			for j := range rng.IntN(3) {
 				prop := ir.PropID(fmt.Sprintf("p/%s/%d", id, j))
 				if !forest {
@@ -46,7 +47,7 @@ func exposureRandom(rng *rand.Rand, forest bool) (*ir.Document, []ir.TypeID, []i
 			exposureSources(rng, m, pick, forest)
 			doc.Types[id] = m
 		case r < 8:
-			doc.Types[id] = compScalar(id, pick())
+			doc.Types[id] = irtest.ScalarOf(id, pick())
 		case r == 8:
 			doc.Types[id] = &ir.Scalar{ID: id}
 		default:
@@ -55,7 +56,7 @@ func exposureRandom(rng *rand.Rand, forest bool) (*ir.Document, []ir.TypeID, []i
 	}
 	doc.Types["nilm"] = (*ir.Model)(nil)
 	if rng.IntN(4) == 0 {
-		doc.Types[""] = compModel("", func(m *ir.Model) { m.Properties = []ir.Property{{ID: "p/empty"}} })
+		doc.Types[""] = irtest.ModelOf("", func(m *ir.Model) { m.Properties = []ir.Property{{ID: "p/empty"}} })
 		props = append(props, "p/empty")
 	}
 	return doc, types, props
@@ -69,9 +70,9 @@ func exposureSources(rng *rand.Rand, m *ir.Model, pick func() ir.TypeID, forest 
 		case 0:
 			m.Base = &ir.TypeRef{Target: pick()}
 		case 1:
-			m.Implements = refs(pick())
+			m.Implements = irtest.RefsTo(pick())
 		case 2:
-			m.Mixins = refs(pick())
+			m.Mixins = irtest.RefsTo(pick())
 		default:
 			// A model of its own properties alone.
 		}
@@ -131,18 +132,18 @@ func TestIndex_ExposesAsTheReferenceWalkDoes(t *testing.T) {
 
 func TestIndex_ExposesWhatCompositionAndAliasesLeadTo(t *testing.T) {
 	t.Parallel()
-	doc := compDoc(
-		compModel("top", func(m *ir.Model) { m.Properties = []ir.Property{{ID: "p/top"}} }),
-		compModel("mixin", func(m *ir.Model) { m.Properties = []ir.Property{{ID: "p/mixin"}} }),
-		compScalar("topAlias", "top"),
-		compModel("mid", func(m *ir.Model) {
+	doc := irtest.DocOf(
+		irtest.ModelOf("top", func(m *ir.Model) { m.Properties = []ir.Property{{ID: "p/top"}} }),
+		irtest.ModelOf("mixin", func(m *ir.Model) { m.Properties = []ir.Property{{ID: "p/mixin"}} }),
+		irtest.ScalarOf("topAlias", "top"),
+		irtest.ModelOf("mid", func(m *ir.Model) {
 			m.Base = &ir.TypeRef{Target: "topAlias"}
-			m.Mixins = refs("mixin")
+			m.Mixins = irtest.RefsTo("mixin")
 			m.Properties = []ir.Property{{ID: "p/mid"}}
 		}),
-		compModel("leaf", func(m *ir.Model) { m.Implements = refs("mid") }),
-		compScalar("leafAlias", "leaf"),
-		compModel("other", func(m *ir.Model) { m.Properties = []ir.Property{{ID: "p/other"}} }),
+		irtest.ModelOf("leaf", func(m *ir.Model) { m.Implements = irtest.RefsTo("mid") }),
+		irtest.ScalarOf("leafAlias", "leaf"),
+		irtest.ModelOf("other", func(m *ir.Model) { m.Properties = []ir.Property{{ID: "p/other"}} }),
 	)
 	facts := irfacts.New(doc)
 	for _, root := range []ir.TypeID{"leaf", "leafAlias"} {
@@ -159,7 +160,7 @@ func TestIndex_ExposesWhatCompositionAndAliasesLeadTo(t *testing.T) {
 func TestIndex_ExposesAChainsPropertiesWithoutWalking(t *testing.T) {
 	t.Parallel()
 	const n = 300
-	doc := compDoc(factsChain(n, func(i int, m *ir.Model) {
+	doc := irtest.DocOf(factsChain(n, func(i int, m *ir.Model) {
 		m.Properties = []ir.Property{{ID: factsPropID(i)}}
 		m.Discriminator = &ir.Discriminator{Property: factsPropID(0)}
 	})...)

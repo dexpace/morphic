@@ -177,7 +177,7 @@ components:
 			assert.NotContains(t, doc.Auth, ids.Auth("ghost"), "the entry interns no scheme")
 			assert.Contains(t, doc.Auth, ids.Auth("key"), "its complete sibling still does")
 
-			d, ok := firstDiagAt(diags, diag.IncompleteSecurityScheme)
+			d, ok := openapitest.FirstDiag(diags, diag.IncompleteSecurityScheme)
 			require.True(t, ok, "the refusal is reported: %+v", diags)
 			assert.Equal(t, ir.SeverityError, d.Severity)
 			assert.Equal(t, jsontext.Pointer("/components/securitySchemes/ghost"), d.Provenance.Pointer,
@@ -357,7 +357,7 @@ components:
 `)
 	assert.Equal(t, []string{diag.DegradedConstruct}, codesAtPointer(diags, "/components/securitySchemes/s/in"),
 		"the kept field is announced exactly once, the one report of a field OpenAPI bars from no type: %+v", diags)
-	d, ok := firstDiagAt(diags, diag.DegradedConstruct)
+	d, ok := openapitest.FirstDiag(diags, diag.DegradedConstruct)
 	require.True(t, ok)
 	assert.Contains(t, d.Message, "in")
 	assert.Contains(t, d.Message, "mutualTLS", "and names the type that gave it no meaning")
@@ -423,7 +423,7 @@ components:
 	require.True(t, ok, "the scheme still lowers; only the one field could not be kept")
 	assert.Empty(t, s.Unmodeled, "nothing was kept, so nothing claims to have been")
 
-	d, ok := firstDiagAt(diags, diag.UnpreservableConstruct)
+	d, ok := openapitest.FirstDiag(diags, diag.UnpreservableConstruct)
 	require.True(t, ok, "the loss is reported: %+v", diags)
 	assert.Equal(t, ir.SeverityError, d.Severity)
 	require.Equal(t, []string{diag.UnpreservableConstruct, "openapi/validation/validation-type-mismatch"},

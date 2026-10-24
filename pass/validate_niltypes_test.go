@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/ir/irtest"
 	"github.com/dexpace/morphic/pass"
 )
 
@@ -63,7 +64,7 @@ func TestValidate_TypedNilMappingTargetDoesNotPanic(t *testing.T) {
 	var diags []ir.Diagnostic
 	require.NotPanics(t, func() { diags = pass.Validate(doc) })
 
-	got := codes(diags)
+	got := irtest.DiagCodes(diags)
 	assert.Contains(t, got, "ir/nil-type")
 	assert.Contains(t, got, "pass/discriminator-missing-variant")
 }
@@ -84,7 +85,7 @@ func TestValidate_TypedNilAliasInSupertypeChainDoesNotPanic(t *testing.T) {
 	var diags []ir.Diagnostic
 	require.NotPanics(t, func() { diags = pass.Validate(doc) })
 
-	got := codes(diags)
+	got := irtest.DiagCodes(diags)
 	assert.Contains(t, got, "ir/nil-type")
 	assert.Contains(t, got, "pass/discriminator-missing-variant")
 }

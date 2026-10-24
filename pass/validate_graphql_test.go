@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/ir/irtest"
 	"github.com/dexpace/morphic/pass"
 )
 
@@ -19,7 +20,7 @@ func TestValidate_ArgsOutsideGraphQL(t *testing.T) {
 	}
 	diags := pass.Validate(doc)
 	require.NotEmpty(t, diags)
-	assert.Contains(t, codes(diags), "pass/args-outside-graphql")
+	assert.Contains(t, irtest.DiagCodes(diags), "pass/args-outside-graphql")
 }
 
 // TestValidate_GraphQLReachableTypesAllowArgs drives graphqlReachableTypes: an
@@ -50,7 +51,7 @@ func TestValidate_GraphQLReachableTypesAllowArgs(t *testing.T) {
 		ID:     "s",
 		Groups: []ir.OperationGroup{{Operations: []ir.Operation{op}}},
 	}}
-	assert.NotContains(t, codes(pass.Validate(doc)), "pass/args-outside-graphql")
+	assert.NotContains(t, irtest.DiagCodes(pass.Validate(doc)), "pass/args-outside-graphql")
 }
 
 // argModel is a model whose one property carries a field argument, so the model
@@ -120,13 +121,13 @@ func TestValidate_GraphQLReachabilityFollowsEveryReference(t *testing.T) {
 			tc.bind(doc, &op)
 			doc.Services = []ir.Service{{ID: "s", Groups: []ir.OperationGroup{{Operations: []ir.Operation{op}}}}}
 
-			assert.NotContains(t, codes(pass.Validate(doc)), "pass/args-outside-graphql")
+			assert.NotContains(t, irtest.DiagCodes(pass.Validate(doc)), "pass/args-outside-graphql")
 
 			// The other half of the proof: the same document with the binding
 			// removed must report, or the case would pass on a reachability walk
 			// that reaches nothing at all.
 			doc.Services[0].Groups[0].Operations[0].Bindings.GraphQL = nil
-			assert.Contains(t, codes(pass.Validate(doc)), "pass/args-outside-graphql")
+			assert.Contains(t, irtest.DiagCodes(pass.Validate(doc)), "pass/args-outside-graphql")
 		})
 	}
 }
@@ -153,11 +154,11 @@ func TestValidate_ArgsCheckFailsOpenWhenWalkTruncated(t *testing.T) {
 		return doc
 	}
 
-	within := codes(pass.Validate(withArgs(nestGroups(127, gqlOp()))))
+	within := irtest.DiagCodes(pass.Validate(withArgs(nestGroups(127, gqlOp()))))
 	assert.NotContains(t, within, "pass/args-outside-graphql",
 		"the binding is visible within the cap, so Args is legal")
 
-	past := codes(pass.Validate(withArgs(nestGroups(200, gqlOp()))))
+	past := irtest.DiagCodes(pass.Validate(withArgs(nestGroups(200, gqlOp()))))
 	assert.NotContains(t, past, "pass/args-outside-graphql",
 		"past the cap the binding went unseen; unreachable-by-truncation is not evidence of illegality")
 	assert.Contains(t, past, "ir/walk-truncated", "and the truncation must be reported instead")

@@ -14,6 +14,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/ir/irtest"
 )
 
 // TestAllOf_NestedLowersAsFlat holds the claim of the flattening itself: a
@@ -496,7 +497,7 @@ func compileView(t *testing.T, m string) (composedView, []string) {
 	t.Helper()
 	doc, diags := parseFull(t, openapitest.ComponentSpec(equivalenceDefs+m))
 	openapitest.RequireNoErrorDiags(t, diags)
-	return viewOf(doc, componentID("M"), 1), diagCodes(diags)
+	return viewOf(doc, componentID("M"), 1), irtest.DiagCodes(diags)
 }
 
 // equivalencePairs are (nested, flat) spellings of one composition M. Each
@@ -651,15 +652,6 @@ const equivalenceDefs = `    A: {type: object, properties: {a: {type: string}}}
     B: {type: object, properties: {b: {type: string}}}
     C: {type: object, properties: {c: {type: integer}}}
 `
-
-// diagCodes lists the codes doc's compilation reported, in order.
-func diagCodes(diags []ir.Diagnostic) []string {
-	out := make([]string, 0, len(diags))
-	for _, d := range diags {
-		out = append(out, d.Code)
-	}
-	return out
-}
 
 // pet is a discriminated base routing to M.
 const pet = `    Pet:

@@ -14,6 +14,7 @@ import (
 
 	"github.com/dexpace/morphic/engine"
 	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/ir/irtest"
 )
 
 // concurrencyCorpus is the capability corpus the compiler's own conformance
@@ -118,10 +119,10 @@ func TestEngine_ConcurrentRunDocumentSharesOneDocument(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, res.Document, "%s lowered no document", spec)
 		shared[i] = roundTrip(t, res.Document)
-		before[i] = marshalled(t, shared[i])
+		before[i] = irtest.Encoded(t, shared[i])
 		alone, err := eng.RunDocument(ctx, roundTrip(t, res.Document), engine.RunOptions{})
 		require.NoError(t, err)
-		want[i] = marshalled(t, alone.Document)
+		want[i] = irtest.Encoded(t, alone.Document)
 	}
 
 	got := make([]workerRun, concurrentWorkers)
@@ -141,7 +142,7 @@ func TestEngine_ConcurrentRunDocumentSharesOneDocument(t *testing.T) {
 		}
 	}
 	for i, spec := range specs {
-		assert.Empty(t, cmp.Diff(before[i], marshalled(t, shared[i])), "the shared %s changed", filepath.Base(spec))
+		assert.Empty(t, cmp.Diff(before[i], irtest.Encoded(t, shared[i])), "the shared %s changed", filepath.Base(spec))
 	}
 }
 
@@ -162,14 +163,6 @@ func runDocuments(ctx context.Context, eng *engine.Engine, docs []*ir.Document, 
 		out[j] = string(raw)
 	}
 	return workerRun{docs: out}
-}
-
-// marshalled returns doc's JSON.
-func marshalled(t *testing.T, doc *ir.Document) string {
-	t.Helper()
-	raw, err := json.Marshal(doc)
-	require.NoError(t, err)
-	return string(raw)
 }
 
 // workerRun is one goroutine's sweep of the corpus: the marshalled document per

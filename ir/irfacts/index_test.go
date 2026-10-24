@@ -14,6 +14,7 @@ import (
 
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/ir/irfacts"
+	"github.com/dexpace/morphic/ir/irtest"
 )
 
 // factsRandomHierarchy builds a registry of up to thirty types: models whose
@@ -36,7 +37,7 @@ func factsRandomHierarchy(rng *rand.Rand, forest bool) (*ir.Document, []ir.TypeI
 	for _, id := range declared {
 		switch r := rng.IntN(10); {
 		case r < 6:
-			defs = append(defs, compModel(id, func(m *ir.Model) {
+			defs = append(defs, irtest.ModelOf(id, func(m *ir.Model) {
 				if rng.IntN(2) == 0 {
 					m.Base = &ir.TypeRef{Target: pick()}
 				}
@@ -46,18 +47,18 @@ func factsRandomHierarchy(rng *rand.Rand, forest bool) (*ir.Document, []ir.TypeI
 					}
 				}
 				if rng.IntN(2) == 0 {
-					m.Mixins = refs(pick())
+					m.Mixins = irtest.RefsTo(pick())
 				}
 			}))
 		case r < 8:
-			defs = append(defs, compScalar(id, pick()))
+			defs = append(defs, irtest.ScalarOf(id, pick()))
 		case r == 8:
-			defs = append(defs, compScalar(id, ""))
+			defs = append(defs, irtest.ScalarOf(id, ""))
 		default:
 			defs = append(defs, &ir.Enum{ID: id})
 		}
 	}
-	doc := compDoc(defs...)
+	doc := irtest.DocOf(defs...)
 	doc.Types["nilm"] = (*ir.Model)(nil)
 	return doc, universe
 }
@@ -139,7 +140,7 @@ func factsRandomAliases(rng *rand.Rand) (*ir.Document, []ir.TypeID) {
 		universe = append(universe, ir.TypeID(fmt.Sprintf("a%02d", i)))
 	}
 	pick := func() ir.TypeID { return universe[rng.IntN(len(universe))] }
-	doc := compDoc()
+	doc := irtest.DocOf()
 	for _, id := range universe[2:] {
 		switch r := rng.IntN(10); {
 		case r < 7:
@@ -149,7 +150,7 @@ func factsRandomAliases(rng *rand.Rand) (*ir.Document, []ir.TypeID) {
 		case r == 8:
 			doc.Types[id] = (*ir.Scalar)(nil)
 		default:
-			doc.Types[id] = compModel(id, nil)
+			doc.Types[id] = irtest.ModelOf(id, nil)
 		}
 	}
 	if rng.IntN(3) == 0 {
@@ -163,7 +164,7 @@ func factsRandomAliases(rng *rand.Rand) (*ir.Document, []ir.TypeID) {
 // when that names no type.
 func aliasRead(doc *ir.Document, id ir.TypeID) ir.TypeID {
 	const probe = "probe/model"
-	doc.Types[probe] = compModel(probe, func(m *ir.Model) { m.Base = &ir.TypeRef{Target: id} })
+	doc.Types[probe] = irtest.ModelOf(probe, func(m *ir.Model) { m.Base = &ir.TypeRef{Target: id} })
 	defer delete(doc.Types, probe)
 	if supers := ir.Supertypes(doc, probe); len(supers) == 1 {
 		return supers[0]
@@ -194,11 +195,11 @@ func TestIndex_AliasIndexAnswersAsTheOneQuestionReadingDoes(t *testing.T) {
 
 func TestIndex_SubtypesIsSortedFreshAndNilWhenEmpty(t *testing.T) {
 	t.Parallel()
-	doc := compDoc(
-		compModel("root", nil),
-		compModel("b", func(m *ir.Model) { m.Base = &ir.TypeRef{Target: "root"} }),
-		compModel("a", func(m *ir.Model) { m.Implements = refs("root") }),
-		compModel("c", func(m *ir.Model) { m.Base = &ir.TypeRef{Target: "a"} }),
+	doc := irtest.DocOf(
+		irtest.ModelOf("root", nil),
+		irtest.ModelOf("b", func(m *ir.Model) { m.Base = &ir.TypeRef{Target: "root"} }),
+		irtest.ModelOf("a", func(m *ir.Model) { m.Implements = irtest.RefsTo("root") }),
+		irtest.ModelOf("c", func(m *ir.Model) { m.Base = &ir.TypeRef{Target: "a"} }),
 	)
 	facts := irfacts.New(doc)
 
@@ -237,7 +238,7 @@ func factsBaseID(k int) ir.TypeID  { return ir.TypeID(fmt.Sprintf("m%06d", k)) }
 func factsChain(n int, mutate func(i int, m *ir.Model)) []ir.TypeDef {
 	defs := make([]ir.TypeDef, 0, n+1)
 	for i := 0; i <= n; i++ {
-		defs = append(defs, compModel(factsChainID(i), func(m *ir.Model) {
+		defs = append(defs, irtest.ModelOf(factsChainID(i), func(m *ir.Model) {
 			if i > 0 {
 				m.Base = &ir.TypeRef{Target: factsChainID(i - 1)}
 			}
@@ -290,9 +291,9 @@ func factsWorkShapes() map[string]factsWorkShape {
 			doc: func(n int) *ir.Document {
 				defs := factsChain(n, nil)
 				for k := range n {
-					defs = append(defs, compModel(factsBaseID(k), nil))
+					defs = append(defs, irtest.ModelOf(factsBaseID(k), nil))
 				}
-				return compDoc(defs...)
+				return irtest.DocOf(defs...)
 			},
 			ask: func(f *irfacts.Index, ids factsIDs, n int) (yes int) {
 				for k := range n {
@@ -302,7 +303,7 @@ func factsWorkShapes() map[string]factsWorkShape {
 			},
 		},
 		"each model of a chain routing to the next": {
-			doc: func(n int) *ir.Document { return compDoc(factsChain(n, nil)...) },
+			doc: func(n int) *ir.Document { return irtest.DocOf(factsChain(n, nil)...) },
 			ask: func(f *irfacts.Index, ids factsIDs, n int) (yes int) {
 				for i := range n {
 					yes += factsCount(f.IsSubtype(ids.chain[i+1], ids.chain[i]))
@@ -311,16 +312,16 @@ func factsWorkShapes() map[string]factsWorkShape {
 			},
 		},
 		"the top of a chain routing to every model below it": {
-			doc: func(n int) *ir.Document { return compDoc(factsChain(n, nil)...) },
+			doc: func(n int) *ir.Document { return irtest.DocOf(factsChain(n, nil)...) },
 			ask: factsAskTopOfChain,
 		},
 		"the same beside an unrelated model naming two supertypes": {
-			doc: func(n int) *ir.Document { return compDoc(append(factsChain(n, nil), factsDiamond("x")...)...) },
+			doc: func(n int) *ir.Document { return irtest.DocOf(append(factsChain(n, nil), factsDiamond("x")...)...) },
 			ask: factsAskTopOfChain,
 		},
 		"the top's tag asked of every model of a chain": {
 			doc: func(n int) *ir.Document {
-				return compDoc(factsChain(n, func(i int, m *ir.Model) {
+				return irtest.DocOf(factsChain(n, func(i int, m *ir.Model) {
 					if i == 0 {
 						m.Properties = []ir.Property{{ID: factsPropID(0)}}
 					}
@@ -335,7 +336,7 @@ func factsWorkShapes() map[string]factsWorkShape {
 		},
 		"every model's property asked of the bottom of a chain": {
 			doc: func(n int) *ir.Document {
-				return compDoc(factsChain(n, func(i int, m *ir.Model) { m.Properties = []ir.Property{{ID: factsPropID(i)}} })...)
+				return irtest.DocOf(factsChain(n, func(i int, m *ir.Model) { m.Properties = []ir.Property{{ID: factsPropID(i)}} })...)
 			},
 			ask: func(f *irfacts.Index, ids factsIDs, n int) (yes int) {
 				for i := range n {
@@ -373,10 +374,10 @@ func factsAskTopOfChain(f *irfacts.Index, ids factsIDs, n int) (yes int) {
 func factsDiamond(prefix ir.TypeID) []ir.TypeDef {
 	top, left, right, bottom := prefix+"/top", prefix+"/left", prefix+"/right", prefix+"/bottom"
 	return []ir.TypeDef{
-		compModel(top, nil),
-		compModel(left, func(m *ir.Model) { m.Base = &ir.TypeRef{Target: top} }),
-		compModel(right, func(m *ir.Model) { m.Base = &ir.TypeRef{Target: top} }),
-		compModel(bottom, func(m *ir.Model) { m.Base = &ir.TypeRef{Target: left}; m.Implements = refs(right) }),
+		irtest.ModelOf(top, nil),
+		irtest.ModelOf(left, func(m *ir.Model) { m.Base = &ir.TypeRef{Target: top} }),
+		irtest.ModelOf(right, func(m *ir.Model) { m.Base = &ir.TypeRef{Target: top} }),
+		irtest.ModelOf(bottom, func(m *ir.Model) { m.Base = &ir.TypeRef{Target: left}; m.Implements = irtest.RefsTo(right) }),
 	}
 }
 
@@ -454,31 +455,31 @@ func TestIndex_SettlesATargetReachedOnlyThroughItsBase(t *testing.T) {
 		pairs [][2]ir.TypeID // target, then a base every path up from it passes
 	}{
 		"a supertype named by Base and Implements": {
-			doc: compDoc(compModel("top", nil), compModel("both", func(m *ir.Model) {
+			doc: irtest.DocOf(irtest.ModelOf("top", nil), irtest.ModelOf("both", func(m *ir.Model) {
 				m.Base = &ir.TypeRef{Target: "top"}
-				m.Implements = refs("top")
+				m.Implements = irtest.RefsTo("top")
 			})),
 			pairs: [][2]ir.TypeID{{"both", "top"}},
 		},
 		"a supertype named directly and through an alias": {
-			doc: compDoc(compModel("top", nil), compScalar("topAlias", "top"), compModel("both", func(m *ir.Model) {
+			doc: irtest.DocOf(irtest.ModelOf("top", nil), irtest.ScalarOf("topAlias", "top"), irtest.ModelOf("both", func(m *ir.Model) {
 				m.Base = &ir.TypeRef{Target: "topAlias"}
-				m.Implements = refs("top")
+				m.Implements = irtest.RefsTo("top")
 			})),
 			pairs: [][2]ir.TypeID{{"both", "top"}},
 		},
 		"a supertype named by two members of one cycle": {
-			doc: compDoc(compModel("top", nil),
-				compModel("a", func(m *ir.Model) { m.Base = &ir.TypeRef{Target: "b"}; m.Implements = refs("top") }),
-				compModel("b", func(m *ir.Model) { m.Base = &ir.TypeRef{Target: "a"}; m.Implements = refs("top") })),
+			doc: irtest.DocOf(irtest.ModelOf("top", nil),
+				irtest.ModelOf("a", func(m *ir.Model) { m.Base = &ir.TypeRef{Target: "b"}; m.Implements = irtest.RefsTo("top") }),
+				irtest.ModelOf("b", func(m *ir.Model) { m.Base = &ir.TypeRef{Target: "a"}; m.Implements = irtest.RefsTo("top") })),
 			pairs: [][2]ir.TypeID{{"a", "top"}, {"b", "top"}},
 		},
 		"a diamond, asked from its top": {
-			doc:   compDoc(factsDiamond("x")...),
+			doc:   irtest.DocOf(factsDiamond("x")...),
 			pairs: [][2]ir.TypeID{{"x/left", "x/top"}, {"x/right", "x/top"}, {"x/bottom", "x/top"}},
 		},
 		"a chain beside an unrelated diamond": {
-			doc:   compDoc(chain...),
+			doc:   irtest.DocOf(chain...),
 			pairs: [][2]ir.TypeID{{factsChainID(1), factsChainID(0)}, {factsChainID(5), factsChainID(0)}, {factsChainID(5), factsChainID(3)}},
 		},
 	} {
@@ -576,19 +577,19 @@ func TestIndex_EveryMethodIsSafeForConcurrentUse(t *testing.T) {
 // which leaves some subtype and exposure question to the walk whichever side is
 // searched first; a cycle; an alias; and a type nothing reaches.
 func factsConcurrentDocument() (*ir.Document, []ir.TypeID) {
-	doc := compDoc(
-		compModel("base", func(m *ir.Model) {
+	doc := irtest.DocOf(
+		irtest.ModelOf("base", func(m *ir.Model) {
 			m.Discriminator = &ir.Discriminator{}
 			m.Properties = []ir.Property{{ID: "p/kind"}}
 		}),
-		compModel("sub", func(m *ir.Model) { m.Base = &ir.TypeRef{Target: "alias"} }),
-		compScalar("alias", "base"),
-		compModel("mid", func(m *ir.Model) { m.Base = &ir.TypeRef{Target: "sub"} }),
-		compModel("side", func(m *ir.Model) { m.Base = &ir.TypeRef{Target: "sub"}; m.Properties = []ir.Property{{ID: "p/side"}} }),
-		compModel("deep", func(m *ir.Model) { m.Base = &ir.TypeRef{Target: "mid"}; m.Implements = refs("side") }),
-		compModel("loopA", func(m *ir.Model) { m.Properties = []ir.Property{{Type: ir.TypeRef{Target: "loopB"}}} }),
-		compModel("loopB", func(m *ir.Model) { m.Properties = []ir.Property{{Type: ir.TypeRef{Target: "loopA"}}} }),
-		compModel("orphan", nil),
+		irtest.ModelOf("sub", func(m *ir.Model) { m.Base = &ir.TypeRef{Target: "alias"} }),
+		irtest.ScalarOf("alias", "base"),
+		irtest.ModelOf("mid", func(m *ir.Model) { m.Base = &ir.TypeRef{Target: "sub"} }),
+		irtest.ModelOf("side", func(m *ir.Model) { m.Base = &ir.TypeRef{Target: "sub"}; m.Properties = []ir.Property{{ID: "p/side"}} }),
+		irtest.ModelOf("deep", func(m *ir.Model) { m.Base = &ir.TypeRef{Target: "mid"}; m.Implements = irtest.RefsTo("side") }),
+		irtest.ModelOf("loopA", func(m *ir.Model) { m.Properties = []ir.Property{{Type: ir.TypeRef{Target: "loopB"}}} }),
+		irtest.ModelOf("loopB", func(m *ir.Model) { m.Properties = []ir.Property{{Type: ir.TypeRef{Target: "loopA"}}} }),
+		irtest.ModelOf("orphan", nil),
 	)
 	doc.Services = []ir.Service{{Groups: []ir.OperationGroup{{Operations: []ir.Operation{{
 		Params:    []ir.Parameter{{Type: ir.TypeRef{Target: "loopA"}}},

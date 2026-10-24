@@ -47,7 +47,7 @@ func TestReadRooted_RefusesALinkSwappedInAfterTheCheck(t *testing.T) {
 // directory cannot be read: the two cannot be put alike, so the file is
 // outside, as relativeTo answers for the same pair.
 func TestResolveWithin_RefusesAMixedPairWithNoWorkingDirectory(t *testing.T) {
-	root := resolved(t)
+	root := ResolvedDir(t)
 	t.Chdir(root)
 	abs := filepath.Join(root, "d", "a.yaml")
 	vanishWorkingDirectory(t)

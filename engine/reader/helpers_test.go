@@ -17,16 +17,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// resolvedDir returns a fresh temporary directory with its links resolved, so
-// a path under it spells the directory the working directory reports where the
-// system's temporary directory is itself a link.
-func resolvedDir(t *testing.T) string {
-	t.Helper()
-	dir, err := filepath.EvalSymlinks(t.TempDir())
-	require.NoError(t, err)
-	return dir
-}
-
 // writeFile writes content to the slash-separated name under dir, making the
 // directories on the way, and returns the file's path.
 func writeFile(t *testing.T, dir, name, content string) string {

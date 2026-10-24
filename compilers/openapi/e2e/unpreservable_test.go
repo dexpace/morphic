@@ -142,7 +142,7 @@ func TestUnpreservable_ReportsTheFailureItself(t *testing.T) {
 		"        - {type: string, maxLength: 3, x-t: " + unpreservableValue + "}\n")
 	_, diags := parseFull(t, spec)
 
-	d, ok := firstDiagWithCode(diags, diag.UnpreservableConstruct)
+	d, ok := openapitest.FirstDiag(diags, diag.UnpreservableConstruct)
 	require.True(t, ok, "the unconvertible construct is reported: %+v", diags)
 	assert.Equal(t, ir.SeverityError, d.Severity,
 		"a construct that reached the IR in no form at all is a losslessness failure, not a degradation")
@@ -157,7 +157,7 @@ func TestUnpreservable_ReportsTheFailureItself(t *testing.T) {
 func TestUnpreservable_AbsentConstructIsSilent(t *testing.T) {
 	t.Parallel()
 	_, diags := parseFull(t, openapitest.ComponentSpec("    T:\n      type: array\n      items: {type: string}\n"))
-	_, ok := firstDiagWithCode(diags, diag.UnpreservableConstruct)
+	_, ok := openapitest.FirstDiag(diags, diag.UnpreservableConstruct)
 	assert.False(t, ok, "an absent construct is not an unpreservable one: %+v", diags)
 }
 
@@ -173,7 +173,7 @@ func TestUnpreservable_CompositeFailsWhole(t *testing.T) {
 		"      else: {required: [b]}\n")
 	doc, diags := parseFull(t, spec)
 
-	_, ok := firstDiagWithCode(diags, diag.UnpreservableConstruct)
+	_, ok := openapitest.FirstDiag(diags, diag.UnpreservableConstruct)
 	require.True(t, ok, "the unconvertible arm is reported: %+v", diags)
 	for key, entry := range typeUnmodeled(t, doc, ids.Document{}.NamedType(ids.Ptr("components", "schemas", "C"))) {
 		assert.NotContains(t, key, "if-then-else",
@@ -202,16 +202,6 @@ func typeUnmodeled(t *testing.T, doc *ir.Document, id ir.TypeID) ir.Unmodeled {
 	td, ok := doc.Types[id]
 	require.True(t, ok, "type %s is interned", id)
 	return td.Common().Unmodeled
-}
-
-// firstDiagWithCode returns the first diagnostic carrying code.
-func firstDiagWithCode(diags []ir.Diagnostic, code string) (ir.Diagnostic, bool) {
-	for _, d := range diags {
-		if d.Code == code {
-			return d, true
-		}
-	}
-	return ir.Diagnostic{}, false
 }
 
 // TestPreserve_AllReasonsReachable pins that every UnmodeledReason an OpenAPI

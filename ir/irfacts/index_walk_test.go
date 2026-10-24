@@ -8,6 +8,7 @@ import (
 
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/ir/irfacts"
+	"github.com/dexpace/morphic/ir/irtest"
 )
 
 // walkChain is a chain of n+1 models, each declaring one property, beside
@@ -15,9 +16,9 @@ import (
 func walkChain(n, extra int) *ir.Document {
 	defs := factsChain(n, func(i int, m *ir.Model) { m.Properties = []ir.Property{{ID: factsPropID(i)}} })
 	for k := range extra {
-		defs = append(defs, compModel(factsBaseID(k), nil))
+		defs = append(defs, irtest.ModelOf(factsBaseID(k), nil))
 	}
-	return compDoc(defs...)
+	return irtest.DocOf(defs...)
 }
 
 func TestIndex_AFewCheapQuestionsAreWalked(t *testing.T) {

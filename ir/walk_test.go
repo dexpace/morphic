@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/ir/irtest"
 )
 
 // walkPaths returns every path ir.WalkValues reaches from root, in walk order,
@@ -21,16 +22,6 @@ func walkPaths(root any) ([]string, bool) {
 		return true
 	})
 	return paths, truncated
-}
-
-// nestedListValue returns a Value that is depth levels of single-element lists
-// wrapping a number — the shape a deeply-nested array default lowers to.
-func nestedListValue(depth int) ir.Value {
-	v := ir.Value{Kind: ir.ValueNumber, Num: ir.BigVal("0")}
-	for range depth {
-		v = ir.Value{Kind: ir.ValueList, List: []ir.Value{v}}
-	}
-	return v
 }
 
 // TestWalkValues_PathsSpellFieldsIndicesAndKeys pins the three path rules two
@@ -94,10 +85,10 @@ func TestWalkValues_DeepValueTreeIsTruncated(t *testing.T) {
 		}}}
 	}
 
-	_, truncated := walkPaths(docWith(nestedListValue(ir.MaxWalkDepth)))
+	_, truncated := walkPaths(docWith(irtest.NestedListValue(ir.MaxWalkDepth)))
 	assert.True(t, truncated, "a tree nested past the cap must report truncation")
 
-	_, truncated = walkPaths(docWith(nestedListValue(200)))
+	_, truncated = walkPaths(docWith(irtest.NestedListValue(200)))
 	assert.False(t, truncated, "a tree a compiler can produce must be walked whole")
 }
 

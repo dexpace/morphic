@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	yaml "gopkg.in/yaml.v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ynode"
 )
 
@@ -25,7 +26,7 @@ func TestMeasure_MeasuresEachNodeOnce(t *testing.T) {
 	for i := 1; i < anchors; i++ {
 		fmt.Fprintf(&b, "a%d: &a%d [*a%d, *a%d]\n", i, i, i-1, i-1)
 	}
-	root := Decode(t, b.String())
+	root := openapitest.YAMLDocument(t, b.String())
 	idx := Build(root, MaxIndexedNodes)
 	m := NewMeasure(MaxIndexedNodes)
 
@@ -69,7 +70,7 @@ func TestMeasure_StopsAtItsLimit(t *testing.T) {
 	assert.False(t, Build(root, MaxIndexedNodes).Truncated())
 	assert.True(t, Build(root, 3).Truncated(), "a bound the tree as written fits and its alias does not")
 
-	whole := Decode(t, "a: &x [1, 1, 1, 1, 1, 1, 1, 1]\nb: *x\n")
+	whole := openapitest.YAMLDocument(t, "a: &x [1, 1, 1, 1, 1, 1, 1, 1]\nb: *x\n")
 	nodes := Build(whole, MaxIndexedNodes).Nodes()
 	assert.False(t, Build(whole, nodes).Truncated(),
 		"a parsed tree at its node bound, its alias measuring half of it, stays within the limit")
@@ -94,7 +95,7 @@ func TestMeasure_NilAndTargetlessAliasNestNothing(t *testing.T) {
 // one that truncates the first measure.
 func TestNewMeasure_SaturatesALimitPastOverflow(t *testing.T) {
 	t.Parallel()
-	root := Decode(t, "a: &x [1]\nb: *x\n")
+	root := openapitest.YAMLDocument(t, "a: &x [1]\nb: *x\n")
 
 	assert.False(t, Build(root, 1<<61).Truncated())
 	assert.Equal(t, int64(math.MaxInt64), NewMeasure(math.MaxInt64).limit)

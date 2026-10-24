@@ -45,25 +45,25 @@ func TestCoDeclaredBound_BothKeywordsReachTheCarriersConstraints(t *testing.T) {
 			name:  "alias node where the minimum is the tighter",
 			unmod: typeByName(doc, "Alias").Common().Unmodeled,
 			bound: typeByName(doc, "Alias").(*ir.Scalar).Constraints,
-			read:  minSide, wantIncl: bigValOf("10"), wantExcl: bigValOf("0"),
+			read:  minSide, wantIncl: new(ir.BigVal("10")), wantExcl: new(ir.BigVal("0")),
 		},
 		{
 			name:  "alias node where the exclusive minimum is the tighter",
 			unmod: typeByName(doc, "Tight").Common().Unmodeled,
 			bound: typeByName(doc, "Tight").(*ir.Scalar).Constraints,
-			read:  minSide, wantIncl: bigValOf("0"), wantExcl: bigValOf("10"),
+			read:  minSide, wantIncl: new(ir.BigVal("0")), wantExcl: new(ir.BigVal("10")),
 		},
 		{
 			name:  "property where the exclusive maximum is the tighter",
 			unmod: propertyOf(t, doc, "Holder", "low").Unmodeled,
 			bound: propertyOf(t, doc, "Holder", "low").Constraints,
-			read:  maxSide, wantIncl: bigValOf("100"), wantExcl: bigValOf("5"),
+			read:  maxSide, wantIncl: new(ir.BigVal("100")), wantExcl: new(ir.BigVal("5")),
 		},
 		{
 			name:  "property where the maximum is the tighter",
 			unmod: propertyOf(t, doc, "Holder", "high").Unmodeled,
 			bound: propertyOf(t, doc, "Holder", "high").Constraints,
-			read:  maxSide, wantIncl: bigValOf("5"), wantExcl: bigValOf("100"),
+			read:  maxSide, wantIncl: new(ir.BigVal("5")), wantExcl: new(ir.BigVal("100")),
 		},
 	}
 	for _, tc := range tests {
@@ -149,12 +149,6 @@ func TestCoDeclaredBound_ASingleKeywordKeepsNothing(t *testing.T) {
 func minSide(c *ir.Constraints) (incl, excl *ir.BigVal) { return c.Min, c.ExclusiveMin }
 
 func maxSide(c *ir.Constraints) (incl, excl *ir.BigVal) { return c.Max, c.ExclusiveMax }
-
-// bigValOf is the *ir.BigVal a bound assertion compares against.
-func bigValOf(v string) *ir.BigVal {
-	b := ir.BigVal(v)
-	return &b
-}
 
 func TestConstraints_ExclusiveBoolean30(t *testing.T) {
 	t.Parallel()

@@ -1,5 +1,6 @@
-// Package irfacts_test holds the tests of the irfacts package. The builders
-// several files share live here.
+// Package irfacts_test holds the tests of the irfacts package. The helpers
+// several files share live here; the type builders they share with package ir's
+// tests are irtest's.
 package irfacts_test
 
 import (
@@ -14,42 +15,6 @@ import (
 	"github.com/dexpace/morphic/internal/decls"
 	"github.com/dexpace/morphic/ir"
 )
-
-// compDoc builds a registry from definitions, keyed by each one's own ID.
-func compDoc(defs ...ir.TypeDef) *ir.Document {
-	types := ir.TypeRegistry{}
-	for _, d := range defs {
-		types[d.Common().ID] = d
-	}
-	return &ir.Document{Types: types}
-}
-
-// compModel builds the model id, shaped by mutate when it is not nil.
-func compModel(id ir.TypeID, mutate func(*ir.Model)) *ir.Model {
-	m := &ir.Model{ID: id}
-	if mutate != nil {
-		mutate(m)
-	}
-	return m
-}
-
-// compScalar builds the scalar id over base, or an opaque one when base is empty.
-func compScalar(id, base ir.TypeID) *ir.Scalar {
-	s := &ir.Scalar{ID: id}
-	if base != "" {
-		s.Base = &ir.TypeRef{Target: base}
-	}
-	return s
-}
-
-// refs builds a reference to each of ids.
-func refs(ids ...ir.TypeID) []ir.TypeRef {
-	out := make([]ir.TypeRef, 0, len(ids))
-	for _, id := range ids {
-		out = append(out, ir.TypeRef{Target: id})
-	}
-	return out
-}
 
 // typeIDReflect is the reflect.Type of ir.TypeID.
 var typeIDReflect = reflect.TypeFor[ir.TypeID]()

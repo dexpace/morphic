@@ -554,7 +554,7 @@ paths:
 		openapitest.RequireNoErrorDiags(t, diags)
 		out := map[string]string{}
 		for _, name := range []string{"a", "b"} {
-			p, ok := paramBySource(openapitest.FindOp(t, doc, name), "limit")
+			p, ok := openapitest.ParamBySource(openapitest.FindOp(t, doc, name), "limit")
 			require.True(t, ok)
 			out[name] = p.Docs.Description
 		}

@@ -178,20 +178,15 @@ func corpusSpecs(t *testing.T) []string {
 	return out
 }
 
-// componentID is the stable TypeID of a components-named schema, or of a
-// sub-schema beneath one ("Holder/properties/inner"). It stays a test-file
-// copy for the reason openapitest's doc comment gives.
-func componentID(name string) ir.TypeID {
-	return ir.TypeID("t/openapi/components/schemas/" + name)
-}
-
 // typeByName returns the named component schema's lowered TypeDef.
 func typeByName(doc *ir.Document, name string) ir.TypeDef {
 	return doc.Types[componentID(name)]
 }
 
-// namedID is the stable TypeID of a components-named schema.
-func namedID(name string) ir.TypeID {
+// componentID is the stable TypeID of a components-named schema, or of a
+// sub-schema beneath one ("Holder/properties/inner"). It stays a test-file
+// copy for the reason openapitest's doc comment gives.
+func componentID(name string) ir.TypeID {
 	return ir.TypeID("t/openapi/components/schemas/" + name)
 }
 
@@ -256,17 +251,6 @@ func operationsNamed(doc *ir.Document, name string) []ir.Operation {
 		}
 	}
 	return ops
-}
-
-// paramByName returns the operation's logical parameter with the given source
-// name.
-func paramByName(op ir.Operation, name string) (ir.Parameter, bool) {
-	for _, p := range op.Params {
-		if p.Name.Source == name {
-			return p, true
-		}
-	}
-	return ir.Parameter{}, false
 }
 
 // propByWire returns the property of m with the given wire name.
@@ -368,13 +352,6 @@ func unmodeledEntry(t *testing.T, p ir.Unmodeled, key string) ir.UnmodeledEntry 
 	entry, ok := p[key]
 	require.True(t, ok, "%s kept verbatim; got %v", key, p)
 	return entry
-}
-
-// assertHasErrorCode requires diags to carry an error-severity diagnostic with
-// the given code.
-func assertHasErrorCode(t *testing.T, diags []ir.Diagnostic, code string) {
-	t.Helper()
-	openapitest.AssertHasCode(t, diags, code, ir.SeverityError)
 }
 
 // assertNoErrorDiags fails when any diagnostic has error severity.
