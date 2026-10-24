@@ -1,4 +1,4 @@
-package value
+package value_test
 
 import (
 	"testing"
@@ -10,6 +10,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/value"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ynode"
 	"github.com/dexpace/morphic/ir"
 )
@@ -29,7 +30,7 @@ func TestValueFromNode_Scalars(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, err := FromNode(openapitest.YAMLNode(t, tc.src))
+			got, err := value.FromNode(openapitest.YAMLNode(t, tc.src))
 			require.NoError(t, err)
 			if diff := cmp.Diff(tc.want, got); diff != "" {
 				t.Errorf("mismatch (-want +got):\n%s", diff)
@@ -67,7 +68,7 @@ func TestNumericLiteral_YAMLBases(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, err := NumericLiteral(openapitest.YAMLNode(t, tc.src))
+			got, err := value.NumericLiteral(openapitest.YAMLNode(t, tc.src))
 			require.NoError(t, err)
 			assert.Equal(t, tc.want, got)
 		})
@@ -92,7 +93,7 @@ func TestNumericLiteral_ExplicitIntBeyondUint64(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, err := NumericLiteral(openapitest.YAMLNode(t, tc.src))
+			got, err := value.NumericLiteral(openapitest.YAMLNode(t, tc.src))
 			require.NoError(t, err)
 			assert.Equal(t, tc.want, got)
 		})
@@ -102,7 +103,7 @@ func TestNumericLiteral_ExplicitIntBeyondUint64(t *testing.T) {
 // TestNumericLiteral_NilNode covers the nil guard.
 func TestNumericLiteral_NilNode(t *testing.T) {
 	t.Parallel()
-	_, err := NumericLiteral(nil)
+	_, err := value.NumericLiteral(nil)
 	require.Error(t, err)
 }
 
@@ -114,7 +115,7 @@ func TestNumericLiteral_UndecodableInt(t *testing.T) {
 	for _, src := range []string{"12abc", "077777777777777777777777", "0x1FFFFFFFFFFFFFFFFFFFF", ""} {
 		t.Run(src, func(t *testing.T) {
 			t.Parallel()
-			_, err := NumericLiteral(openapitest.ScalarNode("!!int", src))
+			_, err := value.NumericLiteral(openapitest.ScalarNode("!!int", src))
 			require.Error(t, err)
 		})
 	}
@@ -122,7 +123,7 @@ func TestNumericLiteral_UndecodableInt(t *testing.T) {
 
 func TestValueFromNode_ObjectPreservesOrder(t *testing.T) {
 	t.Parallel()
-	got, err := FromNode(openapitest.YAMLNode(t, "b: 1\na: 2\n"))
+	got, err := value.FromNode(openapitest.YAMLNode(t, "b: 1\na: 2\n"))
 	require.NoError(t, err)
 	require.Equal(t, ir.ValueObject, got.Kind)
 	require.Len(t, got.Object, 2)
@@ -132,7 +133,7 @@ func TestValueFromNode_ObjectPreservesOrder(t *testing.T) {
 
 func TestValueFromNode_NilYieldsNull(t *testing.T) {
 	t.Parallel()
-	got, err := FromNode(nil)
+	got, err := value.FromNode(nil)
 	require.NoError(t, err)
 	assert.Equal(t, ir.ValueNull, got.Kind)
 }
@@ -141,7 +142,7 @@ func TestValueFromNode_AliasFollowed(t *testing.T) {
 	t.Parallel()
 	target := openapitest.ScalarNode("!!str", "hi")
 	alias := &yaml.Node{Kind: yaml.AliasNode, Alias: target}
-	got, err := FromNode(alias)
+	got, err := value.FromNode(alias)
 	require.NoError(t, err)
 	assert.Equal(t, ir.ValueString, got.Kind)
 	assert.Equal(t, "hi", got.Str)
@@ -152,7 +153,7 @@ func TestValueFromNode_Sequence(t *testing.T) {
 	seq := &yaml.Node{Kind: yaml.SequenceNode, Content: []*yaml.Node{
 		openapitest.ScalarNode("!!int", "1"), openapitest.ScalarNode("!!str", "x"),
 	}}
-	got, err := FromNode(seq)
+	got, err := value.FromNode(seq)
 	require.NoError(t, err)
 	require.Equal(t, ir.ValueList, got.Kind)
 	require.Len(t, got.List, 2)
@@ -162,7 +163,7 @@ func TestValueFromNode_Sequence(t *testing.T) {
 
 func TestValueFromNode_Binary(t *testing.T) {
 	t.Parallel()
-	got, err := FromNode(openapitest.YAMLNode(t, "!!binary aGVsbG8="))
+	got, err := value.FromNode(openapitest.YAMLNode(t, "!!binary aGVsbG8="))
 	require.NoError(t, err)
 	require.Equal(t, ir.ValueBytes, got.Kind)
 	assert.Equal(t, []byte("hello"), got.Bytes)
@@ -179,7 +180,7 @@ func TestValueFromNode_Timestamp(t *testing.T) {
 			t.Parallel()
 			node := openapitest.YAMLNode(t, src)
 			require.Equal(t, "!!timestamp", node.Tag, "precondition: this spelling must resolve to !!timestamp")
-			got, err := FromNode(node)
+			got, err := value.FromNode(node)
 			require.NoError(t, err)
 			assert.Equal(t, ir.ValueString, got.Kind)
 			assert.Equal(t, src, got.Str, "verbatim spelling survives, not a canonicalized or parsed form")
@@ -202,7 +203,7 @@ func TestValueFromNode_ScalarErrors(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			_, err := FromNode(tc.node)
+			_, err := value.FromNode(tc.node)
 			require.Error(t, err)
 		})
 	}
@@ -212,7 +213,7 @@ func TestValueFromNode_OverflowNumberIsNumber(t *testing.T) {
 	t.Parallel()
 	// A float64-overflow literal resolves to a plain !!str node; it must be
 	// captured as the number it is, canonicalized, not as a string.
-	got, err := FromNode(openapitest.ScalarNode("!!str", "1.8e308"))
+	got, err := value.FromNode(openapitest.ScalarNode("!!str", "1.8e308"))
 	require.NoError(t, err)
 	assert.Equal(t, ir.ValueNumber, got.Kind)
 	assert.Equal(t, ir.BigVal("1.8e308"), got.Num)
@@ -223,7 +224,7 @@ func TestValueFromNode_QuotedNumericStaysString(t *testing.T) {
 	// A quoted numeric string is not plain, so it stays a string.
 	node := openapitest.ScalarNode("!!str", "123")
 	node.Style = yaml.DoubleQuotedStyle
-	got, err := FromNode(node)
+	got, err := value.FromNode(node)
 	require.NoError(t, err)
 	assert.Equal(t, ir.ValueString, got.Kind)
 	assert.Equal(t, "123", got.Str)
@@ -231,7 +232,7 @@ func TestValueFromNode_QuotedNumericStaysString(t *testing.T) {
 
 func TestValueFromNode_UnsupportedNodeKind(t *testing.T) {
 	t.Parallel()
-	_, err := FromNode(&yaml.Node{Kind: yaml.Kind(99)})
+	_, err := value.FromNode(&yaml.Node{Kind: yaml.Kind(99)})
 	require.Error(t, err)
 }
 
@@ -240,7 +241,7 @@ func TestValueFromNode_SequenceChildError(t *testing.T) {
 	seq := &yaml.Node{Kind: yaml.SequenceNode, Content: []*yaml.Node{
 		openapitest.ScalarNode("!custom", "x"),
 	}}
-	_, err := FromNode(seq)
+	_, err := value.FromNode(seq)
 	require.Error(t, err)
 }
 
@@ -249,17 +250,17 @@ func TestValueFromNode_MappingValueError(t *testing.T) {
 	m := &yaml.Node{Kind: yaml.MappingNode, Content: []*yaml.Node{
 		openapitest.ScalarNode("!!str", "k"), openapitest.ScalarNode("!custom", "x"),
 	}}
-	_, err := FromNode(m)
+	_, err := value.FromNode(m)
 	require.Error(t, err)
 }
 
 func TestValueFromNode_DepthCapExceeded(t *testing.T) {
 	t.Parallel()
 	n := openapitest.ScalarNode("!!int", "1")
-	for range maxValueDepth + 2 {
+	for range value.MaxValueDepth + 2 {
 		n = &yaml.Node{Kind: yaml.SequenceNode, Content: []*yaml.Node{n}}
 	}
-	_, err := FromNode(n)
+	_, err := value.FromNode(n)
 	require.Error(t, err)
 }
 
@@ -287,7 +288,7 @@ func TestNumericLiteral_NonNumericTagReadsAsDecimal(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, err := NumericLiteral(openapitest.ScalarNode(tc.tag, tc.val))
+			got, err := value.NumericLiteral(openapitest.ScalarNode(tc.tag, tc.val))
 			require.NoError(t, err)
 			assert.Equal(t, tc.want, got)
 		})
@@ -312,7 +313,7 @@ func TestValueFromNode_ReadsAMappingAsTheParserDoes(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, err := FromNode(nodeview.Child(openapitest.YAMLNode(t, tc.src), "v"))
+			got, err := value.FromNode(nodeview.Child(openapitest.YAMLNode(t, tc.src), "v"))
 			require.NoError(t, err)
 			require.Equal(t, ir.ValueObject, got.Kind)
 			var names []string
@@ -335,11 +336,11 @@ func TestValueFromNode_RefusesWhatNoObjectHolds(t *testing.T) {
 		"a key repeated as an alias": "{&k rate: 1, *k : 2}",
 		"a key a merge writes twice": "{<<: {a: 1, a: 2}}",
 	} {
-		_, err := FromNode(openapitest.YAMLNode(t, src))
+		_, err := value.FromNode(openapitest.YAMLNode(t, src))
 		assert.ErrorContains(t, err, "written more than once", name)
 	}
-	_, err := FromNode(ynode.MergeChain(nodeview.MergeDepthLimit + 1))
-	assert.ErrorIs(t, err, errMergedPastBound)
-	_, err = FromNode(ynode.MergeChain(nodeview.MergeDepthLimit))
+	_, err := value.FromNode(ynode.MergeChain(nodeview.MergeDepthLimit + 1))
+	assert.ErrorIs(t, err, value.ErrMergedPastBound)
+	_, err = value.FromNode(ynode.MergeChain(nodeview.MergeDepthLimit))
 	assert.NoError(t, err, "a chain at the bound is read whole")
 }

@@ -1,9 +1,10 @@
-package detect
+package detect_test
 
 import (
 	"strings"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/detect"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -11,7 +12,7 @@ import (
 // hands it, with no byte budget: no case here comes near the default, and
 // TestRecognize_HoldsTheParseToItsByteBudget sets one of its own.
 func recognize(src string) (compilers.Recognition, []ir.Diagnostic, bool) {
-	return Recognize(0, []byte(src), 0)
+	return detect.Recognize(0, []byte(src), 0)
 }
 
 // codesOf reduces diagnostics to their codes, which is the whole of what the

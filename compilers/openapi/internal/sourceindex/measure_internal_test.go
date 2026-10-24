@@ -33,7 +33,7 @@ func TestNesting_CountsTheMappingsAndSequencesOnTheDeepestPath(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tc.want, Build(decode(t, tc.src), MaxIndexedNodes).Nesting())
+			assert.Equal(t, tc.want, Build(Decode(t, tc.src), MaxIndexedNodes).Nesting())
 		})
 	}
 }
@@ -58,7 +58,7 @@ func TestNesting_AnAliasNestsAsItsTarget(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			idx := Build(decode(t, tc.src), MaxIndexedNodes)
+			idx := Build(Decode(t, tc.src), MaxIndexedNodes)
 			require.Empty(t, idx.AnchorCycles())
 			assert.Equal(t, tc.want, idx.Nesting())
 		})
@@ -93,7 +93,7 @@ func TestNesting_CountsAMergeValueWhereItIsWritten(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tc.want, Build(decode(t, tc.src), MaxIndexedNodes).Nesting())
+			assert.Equal(t, tc.want, Build(Decode(t, tc.src), MaxIndexedNodes).Nesting())
 		})
 	}
 }
@@ -104,7 +104,7 @@ func TestNesting_CountsAMergeValueWhereItIsWritten(t *testing.T) {
 // names would fall short of the parser on both.
 func TestNesting_DoesNotReadAnchorNames(t *testing.T) {
 	t.Parallel()
-	root := decode(t, "a: &x {b: {c: 1}}\nd: {e: *x}\n")
+	root := Decode(t, "a: &x {b: {c: 1}}\nd: {e: *x}\n")
 	named := Build(root, MaxIndexedNodes).Nesting()
 	clearAnchors(root)
 
@@ -174,7 +174,7 @@ func TestMeasure_MeasuresEachNodeOnce(t *testing.T) {
 	for i := 1; i < anchors; i++ {
 		fmt.Fprintf(&b, "a%d: &a%d [*a%d, *a%d]\n", i, i, i-1, i-1)
 	}
-	root := decode(t, b.String())
+	root := Decode(t, b.String())
 	idx := Build(root, MaxIndexedNodes)
 	m := NewMeasure(MaxIndexedNodes)
 
@@ -218,7 +218,7 @@ func TestMeasure_StopsAtItsLimit(t *testing.T) {
 	assert.False(t, Build(root, MaxIndexedNodes).Truncated())
 	assert.True(t, Build(root, 3).Truncated(), "a bound the tree as written fits and its alias does not")
 
-	whole := decode(t, "a: &x [1, 1, 1, 1, 1, 1, 1, 1]\nb: *x\n")
+	whole := Decode(t, "a: &x [1, 1, 1, 1, 1, 1, 1, 1]\nb: *x\n")
 	nodes := Build(whole, MaxIndexedNodes).Nodes()
 	assert.False(t, Build(whole, nodes).Truncated(),
 		"a parsed tree at its node bound, its alias measuring half of it, stays within the limit")
@@ -243,7 +243,7 @@ func TestMeasure_NilAndTargetlessAliasNestNothing(t *testing.T) {
 // one that truncates the first measure.
 func TestNewMeasure_SaturatesALimitPastOverflow(t *testing.T) {
 	t.Parallel()
-	root := decode(t, "a: &x [1]\nb: *x\n")
+	root := Decode(t, "a: &x [1]\nb: *x\n")
 
 	assert.False(t, Build(root, 1<<61).Truncated())
 	assert.Equal(t, int64(math.MaxInt64), NewMeasure(math.MaxInt64).limit)

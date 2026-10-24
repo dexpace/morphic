@@ -1,4 +1,4 @@
-package nodeview
+package nodeview_test
 
 import (
 	"strings"
@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ynode"
 )
 
@@ -15,8 +16,8 @@ import (
 // leave marked with a slash.
 type trace []string
 
-func (tr *trace) visit(step Step) func(n *yaml.Node, depth int) Step {
-	return func(n *yaml.Node, depth int) Step {
+func (tr *trace) visit(step nodeview.Step) func(n *yaml.Node, depth int) nodeview.Step {
+	return func(n *yaml.Node, depth int) nodeview.Step {
 		*tr = append(*tr, strings.Repeat(".", depth)+label(n))
 		return step
 	}
@@ -49,10 +50,10 @@ func TestWalk_VisitsInDocumentOrderAndLeavesAfterChildren(t *testing.T) {
 	root := ynode.Map(ynode.Scalar("k"), ynode.Seq(ynode.Scalar("a"), ynode.Scalar("b")))
 	var tr trace
 
-	out := Walk{Nodes: 10, Visit: tr.visit(Descend), Leave: tr.leave}.Run(root)
+	out := nodeview.Walk{Nodes: 10, Visit: tr.visit(nodeview.Descend), Leave: tr.leave}.Run(root)
 
 	assert.Equal(t, trace{"map", ".k", "./k", ".seq", "..a", "../a", "..b", "../b", "./seq", "/map"}, tr)
-	assert.Equal(t, Outcome{Visited: 5}, out)
+	assert.Equal(t, nodeview.Outcome{Visited: 5}, out)
 }
 
 // TestWalk_PruneAndStop pins the two answers that cut a walk short on purpose:
@@ -63,20 +64,20 @@ func TestWalk_PruneAndStop(t *testing.T) {
 	root := ynode.Seq(ynode.Seq(ynode.Scalar("hidden")), ynode.Scalar("after"))
 
 	var pruned trace
-	out := Walk{Nodes: 10, Leave: pruned.leave, Visit: func(n *yaml.Node, depth int) Step {
-		pruned.visit(Descend)(n, depth)
+	out := nodeview.Walk{Nodes: 10, Leave: pruned.leave, Visit: func(n *yaml.Node, depth int) nodeview.Step {
+		pruned.visit(nodeview.Descend)(n, depth)
 		if depth == 1 && n.Kind == yaml.SequenceNode {
-			return Prune
+			return nodeview.Prune
 		}
-		return Descend
+		return nodeview.Descend
 	}}.Run(root)
 	assert.Equal(t, trace{"seq", ".seq", ".after", "./after", "/seq"}, pruned)
-	assert.Equal(t, Outcome{Visited: 3}, out)
+	assert.Equal(t, nodeview.Outcome{Visited: 3}, out)
 
 	var stopped trace
-	out = Walk{Nodes: 10, Visit: stopped.visit(Stop)}.Run(root)
+	out = nodeview.Walk{Nodes: 10, Visit: stopped.visit(nodeview.Stop)}.Run(root)
 	assert.Equal(t, trace{"seq"}, stopped)
-	assert.Equal(t, Outcome{Visited: 1, Stopped: true}, out)
+	assert.Equal(t, nodeview.Outcome{Visited: 1, Stopped: true}, out)
 }
 
 // TestWalk_BoundsAreReportedNotSilent pins the two bounds: a tree of exactly
@@ -87,14 +88,14 @@ func TestWalk_BoundsAreReportedNotSilent(t *testing.T) {
 	t.Parallel()
 	root := ynode.Seq(ynode.Seq(ynode.Scalar("deep")), ynode.Scalar("shallow"))
 
-	assert.Equal(t, Outcome{Visited: 4}, Walk{Nodes: 4}.Run(root))
-	assert.Equal(t, Outcome{Visited: 3, Cut: true}, Walk{Nodes: 3}.Run(root))
-	assert.Equal(t, Outcome{Cut: true}, Walk{Nodes: 0}.Run(root))
+	assert.Equal(t, nodeview.Outcome{Visited: 4}, nodeview.Walk{Nodes: 4}.Run(root))
+	assert.Equal(t, nodeview.Outcome{Visited: 3, Cut: true}, nodeview.Walk{Nodes: 3}.Run(root))
+	assert.Equal(t, nodeview.Outcome{Cut: true}, nodeview.Walk{Nodes: 0}.Run(root))
 
 	var tr trace
-	out := Walk{Nodes: 10, Depth: 1, Visit: tr.visit(Descend)}.Run(root)
+	out := nodeview.Walk{Nodes: 10, Depth: 1, Visit: tr.visit(nodeview.Descend)}.Run(root)
 	assert.Equal(t, trace{"seq", ".seq", ".shallow"}, tr)
-	assert.Equal(t, Outcome{Visited: 3, Cut: true}, out)
+	assert.Equal(t, nodeview.Outcome{Visited: 3, Cut: true}, out)
 }
 
 // TestWalk_AnAliasIsALeafOrItsTarget pins the alias rule: as a leaf, an alias
@@ -107,11 +108,11 @@ func TestWalk_AnAliasIsALeafOrItsTarget(t *testing.T) {
 	root := ynode.Seq(target, ynode.Alias(target), ynode.Alias(nil))
 
 	var leaf trace
-	Walk{Nodes: 10, Visit: leaf.visit(Descend)}.Run(root)
+	nodeview.Walk{Nodes: 10, Visit: leaf.visit(nodeview.Descend)}.Run(root)
 	assert.Equal(t, trace{"seq", ".seq", "..x", ".alias", ".alias"}, leaf)
 
 	var copies trace
-	Walk{Nodes: 10, Aliases: AliasTarget, Visit: copies.visit(Descend)}.Run(root)
+	nodeview.Walk{Nodes: 10, Aliases: nodeview.AliasTarget, Visit: copies.visit(nodeview.Descend)}.Run(root)
 	assert.Equal(t, trace{"seq", ".seq", "..x", ".seq", "..x", ".alias"}, copies)
 }
 
@@ -120,8 +121,8 @@ func TestWalk_AnAliasIsALeafOrItsTarget(t *testing.T) {
 // everywhere, which counts the nodes.
 func TestWalk_SkipsWhatNoParseProduces(t *testing.T) {
 	t.Parallel()
-	assert.Equal(t, Outcome{}, Walk{Nodes: 10}.Run(nil))
-	assert.Equal(t, Outcome{Visited: 2}, Walk{Nodes: 10}.Run(ynode.Map(ynode.Scalar("a"), nil)))
+	assert.Equal(t, nodeview.Outcome{}, nodeview.Walk{Nodes: 10}.Run(nil))
+	assert.Equal(t, nodeview.Outcome{Visited: 2}, nodeview.Walk{Nodes: 10}.Run(ynode.Map(ynode.Scalar("a"), nil)))
 }
 
 // TestWalk_DeepAndWideTreesAreIterative holds the walk to the inputs a reader
@@ -136,16 +137,16 @@ func TestWalk_DeepAndWideTreesAreIterative(t *testing.T) {
 		deep = ynode.Seq(deep)
 	}
 	deepest := 0
-	out := Walk{Nodes: levels + 1, Visit: func(_ *yaml.Node, depth int) Step {
+	out := nodeview.Walk{Nodes: levels + 1, Visit: func(_ *yaml.Node, depth int) nodeview.Step {
 		deepest = max(deepest, depth)
-		return Descend
+		return nodeview.Descend
 	}}.Run(deep)
-	require.Equal(t, Outcome{Visited: levels + 1}, out)
+	require.Equal(t, nodeview.Outcome{Visited: levels + 1}, out)
 	assert.Equal(t, levels, deepest)
 
 	wide := ynode.Map()
 	for range levels {
 		wide.Content = append(wide.Content, ynode.Scalar("k"), ynode.Scalar("v"))
 	}
-	assert.Equal(t, Outcome{Visited: 2*levels + 1}, Walk{Nodes: 2*levels + 1}.Run(wide))
+	assert.Equal(t, nodeview.Outcome{Visited: 2*levels + 1}, nodeview.Walk{Nodes: 2*levels + 1}.Run(wide))
 }

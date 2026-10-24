@@ -1,4 +1,4 @@
-package nodeview
+package nodeview_test
 
 import (
 	"testing"
@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	yaml "gopkg.in/yaml.v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ynode"
 )
 
@@ -18,14 +19,14 @@ func TestChild_ReadsOnlyWhatAMappingHolds(t *testing.T) {
 	value := ynode.Scalar("v")
 	mapping := ynode.Map(ynode.Scalar("k"), ynode.Alias(value))
 
-	assert.Nil(t, Child(nil, "k"), "no node holds nothing")
-	assert.Nil(t, Child(ynode.Scalar("k"), "k"), "a scalar holds nothing")
-	assert.Nil(t, Child(ynode.Seq(ynode.Scalar("k")), "0"), "a sequence holds no key")
-	assert.Same(t, value, Child(&yaml.Node{Kind: yaml.DocumentNode, Content: []*yaml.Node{mapping}}, "k"),
+	assert.Nil(t, nodeview.Child(nil, "k"), "no node holds nothing")
+	assert.Nil(t, nodeview.Child(ynode.Scalar("k"), "k"), "a scalar holds nothing")
+	assert.Nil(t, nodeview.Child(ynode.Seq(ynode.Scalar("k")), "0"), "a sequence holds no key")
+	assert.Same(t, value, nodeview.Child(&yaml.Node{Kind: yaml.DocumentNode, Content: []*yaml.Node{mapping}}, "k"),
 		"a document node is unwrapped")
-	assert.Nil(t, Child(mapping, "absent"))
-	assert.Same(t, value, Child(mapping, "k"), "the value's alias is followed")
-	assert.Same(t, value, Child(ynode.Alias(mapping), "k"), "an alias standing for the mapping is followed")
+	assert.Nil(t, nodeview.Child(mapping, "absent"))
+	assert.Same(t, value, nodeview.Child(mapping, "k"), "the value's alias is followed")
+	assert.Same(t, value, nodeview.Child(ynode.Alias(mapping), "k"), "an alias standing for the mapping is followed")
 }
 
 // TestChild_AnswersAsMappingPairs holds Child to the pair MappingPairs gives
@@ -52,21 +53,21 @@ func TestChild_AnswersAsMappingPairs(t *testing.T) {
 		"own nil over merge": ynode.Map(s("b"), &yaml.Node{Kind: yaml.AliasNode}, ynode.Merge(), ynode.Alias(source)),
 		"own nil value":      ynode.Map(s("b"), nil, ynode.Merge(), ynode.Alias(source)),
 		"a cycle":            cycle,
-		"at the bound":       ynode.MergeChain(MergeDepthLimit),
-		"past the bound":     ynode.MergeChain(MergeDepthLimit + 1),
+		"at the bound":       ynode.MergeChain(nodeview.MergeDepthLimit),
+		"past the bound":     ynode.MergeChain(nodeview.MergeDepthLimit + 1),
 	}
 	for name, n := range cases {
-		pairs := New().MappingPairs(n)
+		pairs := nodeview.New().MappingPairs(n)
 		asked := map[string]*yaml.Node{"absent": nil, "a": nil, "b": nil, "c": nil, "k": nil, "leaf": nil, "in": nil, "own": nil}
 		for _, p := range pairs {
 			asked[p.Key] = p.Val
 		}
 		for key, want := range asked {
-			assert.Same(t, want, Child(n, key), "%s: key %q", name, key)
+			assert.Same(t, want, nodeview.Child(n, key), "%s: key %q", name, key)
 		}
 	}
-	assert.NotNil(t, Child(cases["at the bound"], "leaf"), "a chain at the bound is read whole")
-	assert.Nil(t, Child(cases["past the bound"], "leaf"), "one level past it is not")
+	assert.NotNil(t, nodeview.Child(cases["at the bound"], "leaf"), "a chain at the bound is read whole")
+	assert.Nil(t, nodeview.Child(cases["past the bound"], "leaf"), "one level past it is not")
 }
 
 // TestPairs_IsAFreshViewsReading pins Pairs to MappingPairs read by a view of
@@ -76,11 +77,11 @@ func TestPairs_IsAFreshViewsReading(t *testing.T) {
 	t.Parallel()
 	n := ynode.Map(ynode.Merge(), ynode.Map(ynode.Scalar("a"), ynode.Scalar("1")), ynode.Scalar("b"), ynode.Scalar("2"))
 
-	assert.Equal(t, New().MappingPairs(n), Pairs(n))
-	assert.Equal(t, []string{"a", "b"}, []string{Pairs(n)[0].Key, Pairs(n)[1].Key})
-	assert.Equal(t, Pairs(n), Pairs(&yaml.Node{Kind: yaml.DocumentNode, Content: []*yaml.Node{n}}),
+	assert.Equal(t, nodeview.New().MappingPairs(n), nodeview.Pairs(n))
+	assert.Equal(t, []string{"a", "b"}, []string{nodeview.Pairs(n)[0].Key, nodeview.Pairs(n)[1].Key})
+	assert.Equal(t, nodeview.Pairs(n), nodeview.Pairs(&yaml.Node{Kind: yaml.DocumentNode, Content: []*yaml.Node{n}}),
 		"a document node is unwrapped")
-	assert.Nil(t, Pairs(ynode.Scalar("x")))
+	assert.Nil(t, nodeview.Pairs(ynode.Scalar("x")))
 }
 
 // TestWrittenChildren_ReadsTheTextNotThroughIt pins the reading that answers
@@ -100,22 +101,22 @@ func TestWrittenChildren_ReadsTheTextNotThroughIt(t *testing.T) {
 		ynode.Scalar("k"), last,
 	)
 
-	got := WrittenChildren(n)
+	got := nodeview.WrittenChildren(n)
 
 	assert.Equal(t, map[string]*yaml.Node{"a": alias, "k": last}, got)
-	assert.Nil(t, WrittenChildren(nil))
-	assert.Nil(t, WrittenChildren(ynode.Seq(ynode.Scalar("a"))))
-	assert.Nil(t, WrittenChildren(ynode.Alias(n)), "an alias is not where the mapping is written")
+	assert.Nil(t, nodeview.WrittenChildren(nil))
+	assert.Nil(t, nodeview.WrittenChildren(ynode.Seq(ynode.Scalar("a"))))
+	assert.Nil(t, nodeview.WrittenChildren(ynode.Alias(n)), "an alias is not where the mapping is written")
 }
 
 // TestIsMergeKey_IsTheLibrarysPredicate pins IsMergeKey to the parsed `<<`
 // and to nothing else: the same text untagged, an alias to it, or nil.
 func TestIsMergeKey_IsTheLibrarysPredicate(t *testing.T) {
 	t.Parallel()
-	assert.True(t, IsMergeKey(ynode.Merge()))
-	assert.False(t, IsMergeKey(ynode.Scalar("<<")), "untagged, it is an ordinary key")
-	assert.False(t, IsMergeKey(ynode.Alias(ynode.Merge())), "an alias standing for it is an ordinary key")
-	assert.False(t, IsMergeKey(nil))
+	assert.True(t, nodeview.IsMergeKey(ynode.Merge()))
+	assert.False(t, nodeview.IsMergeKey(ynode.Scalar("<<")), "untagged, it is an ordinary key")
+	assert.False(t, nodeview.IsMergeKey(ynode.Alias(ynode.Merge())), "an alias standing for it is an ordinary key")
+	assert.False(t, nodeview.IsMergeKey(nil))
 }
 
 // TestRepeat_FindsAKeyWrittenTwiceWhereverTheViewReadsIt pins Repeat: a key
@@ -127,19 +128,19 @@ func TestRepeat_FindsAKeyWrittenTwiceWhereverTheViewReadsIt(t *testing.T) {
 	src := "s1: &s1 {p: 1, p: 2}\ns2: &s2 {q: 1, q: 2}\n" +
 		"own: {b: 1, a: 1, b: 2, a: 2}\naliased: {&k k: 1, *k : 2}\n" +
 		"merged: {<<: [*s2, *s1]}\nboth: {<<: *s1, x: 1, x: 2}\nshared: {<<: {a: 1}, a: 2}\n"
-	root := yamlDoc(t, src)
-	v := New()
+	root := nodeview.YAMLDoc(t, src)
+	v := nodeview.New()
 	for _, tc := range []struct {
 		name, key, in string
 	}{
 		{"own", "b", "own"}, {"aliased", "k", "aliased"}, {"merged", "q", "s2"}, {"both", "x", "both"},
 	} {
-		key, in, ok := v.Repeat(Child(root, tc.name))
+		key, in, ok := v.Repeat(nodeview.Child(root, tc.name))
 		assert.True(t, ok, tc.name)
 		assert.Equal(t, tc.key, key, tc.name)
-		assert.Same(t, Child(root, tc.in), in, tc.name)
+		assert.Same(t, nodeview.Child(root, tc.in), in, tc.name)
 	}
-	_, _, ok := v.Repeat(Child(root, "shared"))
+	_, _, ok := v.Repeat(nodeview.Child(root, "shared"))
 	assert.False(t, ok, "a key a merge shares with the mapping is no repeat")
 	_, _, ok = v.Repeat(ynode.Scalar("x"))
 	assert.False(t, ok, "a node that is no mapping repeats nothing")

@@ -1,4 +1,4 @@
-package sourceindex
+package sourceindex_test
 
 import (
 	"testing"
@@ -7,17 +7,9 @@ import (
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/sourceindex"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ynode"
 )
-
-// decode is the one place these tests parse source text, so a fixture written as
-// YAML is indexed over exactly the tree a compile would index.
-func decode(t *testing.T, src string) *yaml.Node {
-	t.Helper()
-	var root yaml.Node
-	require.NoError(t, yaml.Unmarshal([]byte(src), &root))
-	return &root
-}
 
 func TestBuild_EmptyDocumentIndexesNothing(t *testing.T) {
 	t.Parallel()
@@ -27,7 +19,7 @@ func TestBuild_EmptyDocumentIndexesNothing(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			idx := Build(root, MaxIndexedNodes)
+			idx := sourceindex.Build(root, sourceindex.MaxIndexedNodes)
 			assert.Nil(t, idx.Root(), "an empty document has no content node")
 			assert.Equal(t, int64(0), idx.Nodes())
 			assert.False(t, idx.Truncated(), "nothing to index is fully indexed")
@@ -45,7 +37,7 @@ func TestBuild_EmptyDocumentIndexesNothing(t *testing.T) {
 // having failed.
 func TestBuild_WhitespaceOnlySourceIsOneEmptyNode(t *testing.T) {
 	t.Parallel()
-	idx := Build(decode(t, "\n\n\n"), MaxIndexedNodes)
+	idx := sourceindex.Build(sourceindex.Decode(t, "\n\n\n"), sourceindex.MaxIndexedNodes)
 
 	require.NotNil(t, idx.Root())
 	assert.Equal(t, yaml.Kind(0), idx.Root().Kind, "yaml.v3 leaves the node untouched")
@@ -59,9 +51,9 @@ func TestBuild_RootIsTheDocumentsContent(t *testing.T) {
 	content := ynode.Map(ynode.Scalar("a"), ynode.Scalar("1"))
 	doc := &yaml.Node{Kind: yaml.DocumentNode, Content: []*yaml.Node{content}}
 
-	assert.Same(t, content, Build(doc, MaxIndexedNodes).Root(),
+	assert.Same(t, content, sourceindex.Build(doc, sourceindex.MaxIndexedNodes).Root(),
 		"a document node is unwrapped to the node every consumer scans from")
-	assert.Same(t, content, Build(content, MaxIndexedNodes).Root(),
+	assert.Same(t, content, sourceindex.Build(content, sourceindex.MaxIndexedNodes).Root(),
 		"a content node passed directly is already the root")
 }
 
@@ -72,7 +64,7 @@ func TestBuild_CountsEveryNodeOnce(t *testing.T) {
 		ynode.Scalar("a"), ynode.Scalar("1"),
 		ynode.Scalar("b"), ynode.Seq(ynode.Scalar("x"), ynode.Scalar("y")),
 	)
-	assert.Equal(t, int64(7), Build(root, MaxIndexedNodes).Nodes())
+	assert.Equal(t, int64(7), sourceindex.Build(root, sourceindex.MaxIndexedNodes).Nodes())
 }
 
 // TestBuild_AnAliasCountsOnceAndIsNotFollowed pins the count to the document's
@@ -87,7 +79,7 @@ func TestBuild_AnAliasCountsOnceAndIsNotFollowed(t *testing.T) {
 		ynode.Scalar("reuse"), ynode.Alias(base),
 	)
 	// root, "base", base's 3, "reuse", the alias = 7.
-	assert.Equal(t, int64(7), Build(root, MaxIndexedNodes).Nodes(),
+	assert.Equal(t, int64(7), sourceindex.Build(root, sourceindex.MaxIndexedNodes).Nodes(),
 		"the alias contributes one node, not a copy of its target")
 }
 
@@ -96,7 +88,7 @@ func TestBuild_NilChildIsSkipped(t *testing.T) {
 	root := ynode.Map(ynode.Scalar("k"), ynode.Scalar("v"))
 	root.Content = append(root.Content, nil)
 
-	idx := Build(root, MaxIndexedNodes)
+	idx := sourceindex.Build(root, sourceindex.MaxIndexedNodes)
 	assert.Equal(t, int64(3), idx.Nodes(),
 		"the nil child contributes nothing and costs no dereference")
 	assert.False(t, idx.Truncated())
@@ -104,7 +96,7 @@ func TestBuild_NilChildIsSkipped(t *testing.T) {
 
 func TestBuild_NonPositiveBoundIndexesNothing(t *testing.T) {
 	t.Parallel()
-	idx := Build(ynode.Map(ynode.Scalar("a"), ynode.Scalar("1")), 0)
+	idx := sourceindex.Build(ynode.Map(ynode.Scalar("a"), ynode.Scalar("1")), 0)
 	assert.True(t, idx.Truncated(), "a bound that admits no node admits no answer either")
 	assert.Equal(t, int64(0), idx.Nodes())
 	assert.NotNil(t, idx.Root(), "the tree is still named, so a caller can say what it refused")
@@ -117,9 +109,9 @@ func TestBuild_StopsAtItsNodeBound(t *testing.T) {
 	t.Parallel()
 	root := ynode.Map(ynode.Scalar("a"), ynode.Scalar("1"), ynode.Scalar("b"), ynode.Scalar("2")) // 5 nodes
 
-	assert.False(t, Build(root, 5).Truncated(), "a tree exactly at the bound is fully indexed")
+	assert.False(t, sourceindex.Build(root, 5).Truncated(), "a tree exactly at the bound is fully indexed")
 
-	stopped := Build(root, 4)
+	stopped := sourceindex.Build(root, 4)
 	assert.True(t, stopped.Truncated(), "one node past the bound stops the walk")
 	assert.Empty(t, stopped.AnchorCycles(), "a truncated walk reports no finding it did not reach")
 }
@@ -132,10 +124,10 @@ func TestBuild_TruncationDoesNotMisreportAnAnchorCycle(t *testing.T) {
 	root := ynode.Map(ynode.Scalar("a"), ynode.Scalar("1"))
 	root.Content = append(root.Content, ynode.Scalar("b"), ynode.Alias(root))
 
-	full := Build(root, MaxIndexedNodes)
+	full := sourceindex.Build(root, sourceindex.MaxIndexedNodes)
 	require.NotEmpty(t, full.AnchorCycles(), "the fixture really does carry a recursive anchor")
 
-	assert.True(t, Build(root, 2).Truncated(),
+	assert.True(t, sourceindex.Build(root, 2).Truncated(),
 		"the same tree under a bound it crosses reports truncation rather than cleanliness")
 }
 
@@ -146,7 +138,7 @@ func TestAnchorCycle_AliasToAnAncestorIsFound(t *testing.T) {
 	alias := ynode.Alias(root)
 	inner.Content = append(inner.Content, ynode.Scalar("loop"), alias)
 
-	got := Build(root, MaxIndexedNodes).AnchorCycles()
+	got := sourceindex.Build(root, sourceindex.MaxIndexedNodes).AnchorCycles()
 	require.Len(t, got, 1, "an alias naming a node it is nested inside expands without bound")
 	assert.Same(t, alias, got[0], "the reported node is the alias, where the author wrote it")
 }
@@ -156,16 +148,16 @@ func TestAnchorCycle_AliasToAnAncestorIsFound(t *testing.T) {
 // use anchors at all.
 func TestAnchorCycle_LegalReuseIsNotACycle(t *testing.T) {
 	t.Parallel()
-	root := decode(t, "a: &x {p: 1}\nb: *x\n")
+	root := sourceindex.Decode(t, "a: &x {p: 1}\nb: *x\n")
 
-	assert.Empty(t, Build(root, MaxIndexedNodes).AnchorCycles(), "an alias to a node that is not an ancestor is legal reuse")
+	assert.Empty(t, sourceindex.Build(root, sourceindex.MaxIndexedNodes).AnchorCycles(), "an alias to a node that is not an ancestor is legal reuse")
 }
 
 func TestAnchorCycle_AliasWithoutATargetIsNotACycle(t *testing.T) {
 	t.Parallel()
 	root := ynode.Map(ynode.Scalar("k"), &yaml.Node{Kind: yaml.AliasNode})
 
-	idx := Build(root, MaxIndexedNodes)
+	idx := sourceindex.Build(root, sourceindex.MaxIndexedNodes)
 	assert.Empty(t, idx.AnchorCycles(), "an alias that names nothing cannot name an ancestor")
 	assert.Equal(t, int64(3), idx.Nodes(), "it is still one of the document's nodes")
 }
@@ -183,7 +175,7 @@ func TestAnchorCycles_EveryOneIsListedInDocumentOrder(t *testing.T) {
 	first.Content = append(first.Content, ynode.Scalar("loop"), firstAlias)
 	second.Content = append(second.Content, ynode.Scalar("loop"), secondAlias)
 
-	got := Build(root, MaxIndexedNodes).AnchorCycles()
+	got := sourceindex.Build(root, sourceindex.MaxIndexedNodes).AnchorCycles()
 	require.Len(t, got, 2)
 	assert.Same(t, firstAlias, got[0])
 	assert.Same(t, secondAlias, got[1])
@@ -200,7 +192,7 @@ func TestBuild_TracksAncestorsOnlyToItsDepthBound(t *testing.T) {
 	// value two levels below its parent's.
 	root := ynode.Map()
 	deepest := root
-	const links = maxTrackedDepth
+	const links = sourceindex.MaxTrackedDepth
 	for range links {
 		next := ynode.Map()
 		deepest.Content = append(deepest.Content, ynode.Scalar("k"), next)
@@ -208,7 +200,7 @@ func TestBuild_TracksAncestorsOnlyToItsDepthBound(t *testing.T) {
 	}
 	deepest.Content = append(deepest.Content, ynode.Scalar("loop"), ynode.Alias(root))
 
-	idx := Build(root, MaxIndexedNodes)
+	idx := sourceindex.Build(root, sourceindex.MaxIndexedNodes)
 	assert.False(t, idx.Truncated())
 	// root, then two nodes per link (its key and the mapping it names), then the
 	// deepest mapping's own key and alias.
@@ -228,7 +220,7 @@ func TestBuild_TracksAncestorsAtItsDepthBound(t *testing.T) {
 	t.Parallel()
 	root := ynode.Map()
 	deepest := root
-	const links = maxTrackedDepth - 1
+	const links = sourceindex.MaxTrackedDepth - 1
 	for range links {
 		next := ynode.Map()
 		deepest.Content = append(deepest.Content, ynode.Scalar("k"), next)
@@ -237,7 +229,7 @@ func TestBuild_TracksAncestorsAtItsDepthBound(t *testing.T) {
 	// One level shallower than the test above, so these land at the bound itself.
 	deepest.Content = append(deepest.Content, ynode.Scalar("loop"), ynode.Alias(root))
 
-	idx := Build(root, MaxIndexedNodes)
+	idx := sourceindex.Build(root, sourceindex.MaxIndexedNodes)
 	assert.False(t, idx.Truncated())
 	cycles := idx.AnchorCycles()
 	require.Len(t, cycles, 1, "an alias at exactly the tracked depth is still a candidate")
@@ -249,9 +241,9 @@ func TestBuild_TracksAncestorsAtItsDepthBound(t *testing.T) {
 // downstream can vary with when or how often the index was built.
 func TestBuild_IsAFunctionOfTheTreeAlone(t *testing.T) {
 	t.Parallel()
-	root := decode(t, "a: &x {p: 1}\nb: [*x, {c: 2}]\n")
+	root := sourceindex.Decode(t, "a: &x {p: 1}\nb: [*x, {c: 2}]\n")
 
-	first, second := Build(root, MaxIndexedNodes), Build(root, MaxIndexedNodes)
+	first, second := sourceindex.Build(root, sourceindex.MaxIndexedNodes), sourceindex.Build(root, sourceindex.MaxIndexedNodes)
 	assert.Same(t, first.Root(), second.Root())
 	assert.Equal(t, first.Nodes(), second.Nodes())
 	assert.Equal(t, first.Truncated(), second.Truncated())
@@ -266,11 +258,11 @@ func TestBuild_IsAFunctionOfTheTreeAlone(t *testing.T) {
 // node reported is the mapping itself, where the author wrote the tag.
 func TestTaggedMapping_LocalTagIsFound(t *testing.T) {
 	t.Parallel()
-	root := decode(t, "a:\n  b: !content:\n    c: 1\n")
+	root := sourceindex.Decode(t, "a:\n  b: !content:\n    c: 1\n")
 	want := root.Content[0].Content[1].Content[1]
 	require.Equal(t, "!content:", want.Tag, "the fixture's tag lands where this test reads it")
 
-	got := Build(root, MaxIndexedNodes).TaggedMappings()
+	got := sourceindex.Build(root, sourceindex.MaxIndexedNodes).TaggedMappings()
 	require.Len(t, got, 1)
 	assert.Same(t, want, got[0])
 }
@@ -285,14 +277,14 @@ func TestTaggedMapping_LocalTagIsFound(t *testing.T) {
 func TestTaggedMapping_AnyTagButMapIsOne(t *testing.T) {
 	t.Parallel()
 	for name, root := range map[string]*yaml.Node{
-		"!!str":       decode(t, "a: !!str {b: 1}\n"),
-		"!!set":       decode(t, "a: !!set {b: 1}\n"),
-		"at the root": decode(t, "--- !x\na: 1\n"),
+		"!!str":       sourceindex.Decode(t, "a: !!str {b: 1}\n"),
+		"!!set":       sourceindex.Decode(t, "a: !!set {b: 1}\n"),
+		"at the root": sourceindex.Decode(t, "--- !x\na: 1\n"),
 		"assembled":   ynode.Map(ynode.Scalar("a"), ynode.Scalar("1")),
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			assert.NotEmpty(t, Build(root, MaxIndexedNodes).TaggedMappings())
+			assert.NotEmpty(t, sourceindex.Build(root, sourceindex.MaxIndexedNodes).TaggedMappings())
 		})
 	}
 }
@@ -315,7 +307,7 @@ func TestTaggedMapping_OnlyAMappingCounts(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			assert.Empty(t, Build(decode(t, src), MaxIndexedNodes).TaggedMappings())
+			assert.Empty(t, sourceindex.Build(sourceindex.Decode(t, src), sourceindex.MaxIndexedNodes).TaggedMappings())
 		})
 	}
 }
@@ -325,10 +317,10 @@ func TestTaggedMapping_OnlyAMappingCounts(t *testing.T) {
 // chooses which a refusal names.
 func TestTaggedMappings_EveryOneIsListedInDocumentOrder(t *testing.T) {
 	t.Parallel()
-	root := decode(t, "a: !x {b: 1}\nc: !y {d: 2}\n")
+	root := sourceindex.Decode(t, "a: !x {b: 1}\nc: !y {d: 2}\n")
 	first, second := root.Content[0].Content[1], root.Content[0].Content[3]
 
-	got := Build(root, MaxIndexedNodes).TaggedMappings()
+	got := sourceindex.Build(root, sourceindex.MaxIndexedNodes).TaggedMappings()
 	require.Len(t, got, 2)
 	assert.Same(t, first, got[0])
 	assert.Same(t, second, got[1])
@@ -339,10 +331,10 @@ func TestTaggedMappings_EveryOneIsListedInDocumentOrder(t *testing.T) {
 // where it is declared, and that is the node reported.
 func TestTaggedMapping_IsFoundThroughAnAnchor(t *testing.T) {
 	t.Parallel()
-	root := decode(t, "a: &x !t {b: 1}\nc: *x\n")
+	root := sourceindex.Decode(t, "a: &x !t {b: 1}\nc: *x\n")
 	anchored := root.Content[0].Content[1]
 
-	got := Build(root, MaxIndexedNodes).TaggedMappings()
+	got := sourceindex.Build(root, sourceindex.MaxIndexedNodes).TaggedMappings()
 	require.Len(t, got, 1, "the alias is not a second mapping")
 	assert.Same(t, anchored, got[0])
 }

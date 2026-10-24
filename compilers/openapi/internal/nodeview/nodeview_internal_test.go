@@ -421,7 +421,7 @@ func TestMappingPairs_MergeKeySources(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			doc := yamlDoc(t, tc.src)
+			doc := YAMLDoc(t, tc.src)
 			use := New().ChildByToken(doc, "use")
 			require.NotNil(t, use, "the fixture declares a `use` mapping")
 
@@ -462,7 +462,7 @@ func TestMappingPairs_MergeKeySpellings(t *testing.T) {
 			t.Parallel()
 			// m anchors a merge key for the alias case to stand in for.
 			src := fmt.Sprintf("b: &b {k: v}\nm: {&m <<: *b}\nuse:\n  %s : *b\n", tc.key)
-			use := New().ChildByToken(yamlDoc(t, src), "use")
+			use := New().ChildByToken(YAMLDoc(t, src), "use")
 			require.NotNil(t, use, "the fixture declares a `use` mapping")
 
 			got := pairMap(New().MappingPairs(use))
@@ -517,14 +517,6 @@ func TestExpanded_ReportsAMappingWhoseMergesRunPastTheBound(t *testing.T) {
 	assert.True(t, v.Expanded(ynode.Alias(ynode.MergeChain(2))), "read through an alias")
 	assert.True(t, v.Expanded(ynode.Scalar("x")), "a scalar has nothing to expand")
 	assert.True(t, v.Expanded(nil))
-}
-
-// yamlDoc parses src and returns its document root as the view sees it.
-func yamlDoc(t *testing.T, src string) *yaml.Node {
-	t.Helper()
-	var doc yaml.Node
-	require.NoError(t, yaml.Unmarshal([]byte(src), &doc))
-	return DocumentRoot(&doc)
 }
 
 // TestDocumentPath_StopsAtAMissingToken pins a walk a token stops: incomplete,
@@ -758,7 +750,7 @@ func TestKeyIndex_DeclinesWhatThePairsMemoDidNotKeep(t *testing.T) {
 func TestDocumentPath_ReachesTheIndexOnAWideMapping(t *testing.T) {
 	t.Parallel()
 	const width = minIndexedPairs
-	root := componentsDoc(width)
+	root := ComponentsDoc(width)
 	v := New()
 
 	for i := range width {
@@ -893,7 +885,7 @@ func pairRead(t *testing.T, pair string) ([]string, *yaml.Node) {
 	require.NotNil(t, parsed.Components.Responses, "the parser reads the section")
 
 	v := New()
-	section := v.ChildByToken(v.ChildByToken(yamlDoc(t, src), "components"), "responses")
+	section := v.ChildByToken(v.ChildByToken(YAMLDoc(t, src), "components"), "responses")
 	require.NotNil(t, section, "the fixture declares the section")
 	require.Len(t, section.Content, 2, "the section holds the one pair")
 	return slices.Collect(parsed.Components.Responses.Keys()), section.Content[0]

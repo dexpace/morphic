@@ -1,4 +1,4 @@
-package nodeview
+package nodeview_test
 
 import (
 	"fmt"
@@ -11,6 +11,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
+
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 )
 
 // TestMappingPairs_ReadsWhatTheModelReads holds MappingPairs and Child to the
@@ -75,14 +77,14 @@ func assertViewReadsTheModel(t *testing.T, src string) {
 	t.Helper()
 	want := modelPairs(t, src)
 	props := propertiesNode(t, src)
-	pairs := New().MappingPairs(props)
+	pairs := nodeview.New().MappingPairs(props)
 	got := make([]string, 0, len(pairs))
 	for _, p := range pairs {
 		got = append(got, p.Key+"="+titleOf(p.Val))
-		assert.Same(t, p.Val, Child(props, p.Key), "Child(%q) answers as the pairs do\n%s", p.Key, src)
+		assert.Same(t, p.Val, nodeview.Child(props, p.Key), "Child(%q) answers as the pairs do\n%s", p.Key, src)
 	}
 	require.Equal(t, want, got, "the view reads the model's pairs\n%s", src)
-	assert.Nil(t, Child(props, "absent"), "a key nothing writes holds nothing\n%s", src)
+	assert.Nil(t, nodeview.Child(props, "absent"), "a key nothing writes holds nothing\n%s", src)
 }
 
 // propertiesSource is a document whose schema S writes props as its
@@ -114,14 +116,14 @@ func modelPairs(t *testing.T, src string) []string {
 // propertiesNode returns the raw properties mapping of S in src.
 func propertiesNode(t *testing.T, src string) *yaml.Node {
 	t.Helper()
-	path, complete := New().DocumentPath(yamlDoc(t, src), "/components/schemas/S/properties")
+	path, complete := nodeview.New().DocumentPath(nodeview.YAMLDoc(t, src), "/components/schemas/S/properties")
 	require.True(t, complete, src)
 	return path[len(path)-1]
 }
 
 // titleOf is the title a property's schema node writes, as the view reads it.
 func titleOf(schema *yaml.Node) string {
-	if title := Child(schema, "title"); title != nil {
+	if title := nodeview.Child(schema, "title"); title != nil {
 		return title.Value
 	}
 	return ""
