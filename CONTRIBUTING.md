@@ -45,6 +45,28 @@ Read the documents for your layer, and skip the rest until you need them.
   as `ir/nofloat_test.go` is, and in a package of one source file a test file needs no prefix.
   *Fails if missed:* `make coverage`, for a test in another package than its code, since coverage
   counts only a package's own tests. Nothing fails for a test in the wrong file of its package.
+- **A test is external, `package x_test`, unless it cannot be.** It reaches what it must of the
+  package's internals through the package's `export_test.go`, which names each one once, under its
+  exported spelling or, where that is taken, a name that says what it adds, as
+  `irtest.CompareGoldenOn` does. A test that needs an unexported field or method, a generic, or a
+  variable it assigns stays inside the package, in `x_internal_test.go` beside `x_test.go`, and so
+  do the tests of a package that reach so many internals the aliases would be a second API, as
+  `schema`'s and `operation`'s do. A fixture both sides use is declared once, exported, in
+  `export_test.go`, as `schema.Lowerer` is.
+  *Fails if missed:* nothing. A test written inside the package that could be external compiles and
+  runs.
+- **A test is named for what it tests.** A `TestFunc_Scenario` name is a function's or a type's, and
+  the file follows from it as above. A test that pins a construct or a lowering rule may take the
+  construct's name instead, as the `TestPathItemRefSiblings` tests do, and then sits in the file of
+  the construct or of the entry point it runs through. A function that asserts on a test's behalf
+  calls `t.Helper`, except a conformance case's assertion, which is the case's own body and so
+  reports the line that fails.
+  *Fails if missed:* nothing checks a test's name or its `t.Helper`.
+- **A helper several test files share has one home:** its package's `helpers_test.go`, or
+  `helpers_internal_test.go` inside the package; and a helper several packages share is in
+  `compilers/openapi/internal/openapitest` or `ir/irtest`, as `openapitest.SchemaFromYAML` and
+  `irtest.RepoRoot` are, when all of them can import it.
+  *Fails if missed:* nothing. A copy compiles beside the original.
 - **An end-to-end test of the OpenAPI compiler goes in `compilers/openapi/e2e`,** in a file named
   for the construct or the property it checks: a test of what the compiler does as a whole, which no
   one package decides, such as the conformance corpus, the goldens, fuzzing, benchmarks and a
