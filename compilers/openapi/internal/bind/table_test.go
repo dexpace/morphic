@@ -12,17 +12,10 @@ import (
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 )
 
 const head = "openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\n"
-
-// tree decodes src.
-func tree(t *testing.T, src string) *yaml.Node {
-	t.Helper()
-	var n yaml.Node
-	require.NoError(t, yaml.Unmarshal([]byte(src), &n))
-	return &n
-}
 
 // self names the source "spec.yaml".
 var self = bind.Config{Self: "spec.yaml"}
@@ -42,7 +35,7 @@ var resolving = bind.Config{Self: "/spec.yaml", Locate: func(uri, base string) (
 // bound binds src under cfg.
 func bound(t *testing.T, src string, cfg bind.Config) *bind.Table {
 	t.Helper()
-	return bind.Bind(tree(t, src), cfg)
+	return bind.Bind(openapitest.YAMLDocument(t, src), cfg)
 }
 
 // entryAt returns the entry the table holds at the source pointer site.
@@ -506,7 +499,7 @@ func TestBind_RefuseJudgesEachReferenceByItsSpelling(t *testing.T) {
 func TestIsEmpty_HoldsNoNode(t *testing.T) {
 	t.Parallel()
 	for src, want := range map[string]bool{"": true, "\n": true, "# a comment\n": true, "---\n": false, "~\n": false, "{}\n": false} {
-		assert.Equal(t, want, bind.IsEmpty(tree(t, src)), "%q", src)
+		assert.Equal(t, want, bind.IsEmpty(openapitest.YAMLDocument(t, src)), "%q", src)
 	}
 	assert.True(t, bind.IsEmpty(nil), "no tree")
 }

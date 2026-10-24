@@ -151,7 +151,7 @@ func TestUnionCombinators_UnpreservableIsNotAnnounced(t *testing.T) {
 	require.True(t, ok)
 	assert.NotContains(t, u.Unmodeled, "openapi:anyOf", "the conversion failed, so nothing was kept")
 	assert.True(t, openapitest.HasDiag(diags, diag.UnpreservableConstruct), "the failure itself is reported")
-	assert.Empty(t, preservationClaims(diags),
+	assert.Empty(t, openapitest.PreservationClaims(diags),
 		"nothing was written under Unmodeled, so nothing may announce that it was")
 }
 

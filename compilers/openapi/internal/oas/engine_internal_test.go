@@ -7,19 +7,11 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
-
-// parse reads doc into a node.
-func parse(t *testing.T, doc string) *yaml.Node {
-	t.Helper()
-	var n yaml.Node
-	require.NoError(t, yaml.Unmarshal([]byte(doc), &n))
-	return &n
-}
 
 // TestCheck_AnUnknownCodeRuleIsATableError pins that a Code row the engine
 // does not implement is reported, never skipped.
@@ -28,7 +20,7 @@ func TestCheck_AnUnknownCodeRuleIsATableError(t *testing.T) {
 	obj := spec.must(Info)
 	obj.Rules = append(obj.Rules, code(Always(), "no-such-predicate", "", Cite{Minor: V30, Section: "Info Object", Sentence: "x"}))
 	spec.objects[spec.index[Info]] = obj
-	diags := Checker{spec: spec}.Check(parse(t, `{title: t, version: v}`), "3.1.0", Options{Start: Info})
+	diags := Checker{spec: spec}.Check(openapitest.YAMLDocument(t, `{title: t, version: v}`), "3.1.0", Options{Start: Info})
 	require.Len(t, diags, 1)
 	assert.Equal(t, diag.InternalInvariant, diags[0].Code)
 	assert.Contains(t, diags[0].Message, "no-such-predicate")
@@ -51,7 +43,7 @@ func TestCheck_WorkIsBounded(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			diags := NewChecker().Check(parse(t, tc.doc), "3.1.0", Options{Start: Schema, Budget: tc.budget})
+			diags := NewChecker().Check(openapitest.YAMLDocument(t, tc.doc), "3.1.0", Options{Start: Schema, Budget: tc.budget})
 			require.Len(t, diags, 1)
 			assert.Equal(t, diag.BudgetExceeded, diags[0].Code)
 			assert.Equal(t, ir.SeverityError, diags[0].Severity)
@@ -62,7 +54,7 @@ func TestCheck_WorkIsBounded(t *testing.T) {
 // TestCheck_DefaultsFillTheUnsetOptions pins the options a caller may leave out.
 func TestCheck_DefaultsFillTheUnsetOptions(t *testing.T) {
 	c := NewChecker()
-	doc := parse(t, "openapi: 3.1.0\ninfo: {title: t}\n")
+	doc := openapitest.YAMLDocument(t, "openapi: 3.1.0\ninfo: {title: t}\n")
 	got := c.Check(doc, "3.1.0", Options{})
 	require.NotEmpty(t, got, "the document is read from its root")
 	for _, d := range got {
@@ -91,8 +83,8 @@ components:
     A: &a {type: object}
     B: *a
 `
-	assert.Empty(t, NewChecker().Check(parse(t, doc), "3.1.0", Options{}))
-	merged := parse(t, "{<<: {version: v}, title: t, license: {}}")
+	assert.Empty(t, NewChecker().Check(openapitest.YAMLDocument(t, doc), "3.1.0", Options{}))
+	merged := openapitest.YAMLDocument(t, "{<<: {version: v}, title: t, license: {}}")
 	diags := NewChecker().Check(merged, "3.1.0", Options{Start: Info})
 	require.Len(t, diags, 1, "the merged version is read, the license is not named")
 	assert.Equal(t, diag.Validation+"/validation-required-field", diags[0].Code)
@@ -100,7 +92,7 @@ components:
 
 // TestCheck_IsDeterministic pins that one document draws one report.
 func TestCheck_IsDeterministic(t *testing.T) {
-	doc := parse(t, `{title: [a], version: 1, license: {identifier: i, url: u}, contact: {email: x}}`)
+	doc := openapitest.YAMLDocument(t, `{title: [a], version: 1, license: {identifier: i, url: u}, contact: {email: x}}`)
 	first := NewChecker().Check(doc, "3.1.0", Options{Start: Info})
 	again := NewChecker().Check(doc, "3.1.0", Options{Start: Info})
 	assert.NotEmpty(t, first)

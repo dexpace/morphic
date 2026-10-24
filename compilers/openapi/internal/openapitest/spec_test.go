@@ -167,6 +167,33 @@ func TestYAMLDocument_ReturnsTheDocumentNode(t *testing.T) {
 	assert.True(t, rec.failed(), "a fixture that does not parse is reported")
 }
 
+// TestClearAnchors_EmptiesEveryAnchorBeneathTheRoot pins the reach: an anchor
+// nested under another is cleared too, and an alias still names its target.
+func TestClearAnchors_EmptiesEveryAnchorBeneathTheRoot(t *testing.T) {
+	t.Parallel()
+	doc := openapitest.YAMLDocument(t, "a: &x {b: &y 1}\nc: *x\nd: *y\n")
+	anchors := func() []string {
+		var out []string
+		stack := []*yaml.Node{doc}
+		for len(stack) > 0 {
+			n := stack[len(stack)-1]
+			stack = stack[:len(stack)-1]
+			if n.Anchor != "" {
+				out = append(out, n.Anchor)
+			}
+			stack = append(stack, n.Content...)
+		}
+		return out
+	}
+	require.ElementsMatch(t, []string{"x", "y"}, anchors(), "the fixture writes two anchors")
+
+	openapitest.ClearAnchors(doc)
+	assert.Empty(t, anchors())
+	alias := doc.Content[0].Content[3]
+	require.Equal(t, yaml.AliasNode, alias.Kind)
+	assert.Same(t, doc.Content[0].Content[1], alias.Alias)
+}
+
 // TestScalarNode_BuildsABareScalar covers both builders, StrNode being the
 // string-tagged case of ScalarNode.
 func TestScalarNode_BuildsABareScalar(t *testing.T) {

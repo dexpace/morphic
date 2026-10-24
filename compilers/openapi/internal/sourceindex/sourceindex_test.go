@@ -435,24 +435,13 @@ func TestNesting_DoesNotReadAnchorNames(t *testing.T) {
 	t.Parallel()
 	root := openapitest.YAMLDocument(t, "a: &x {b: {c: 1}}\nd: {e: *x}\n")
 	named := sourceindex.Build(root, sourceindex.MaxIndexedNodes).Nesting()
-	clearAnchors(root)
+	openapitest.ClearAnchors(root)
 
 	assert.Equal(t, named, sourceindex.Build(root, sourceindex.MaxIndexedNodes).Nesting(), "the same tree without its anchor names")
 
 	target := ynode.Map(ynode.Scalar("k"), ynode.Map(ynode.Scalar("v"), ynode.Scalar("1")))
 	built := ynode.Map(ynode.Scalar("a"), target, ynode.Scalar("b"), ynode.Map(ynode.Scalar("c"), ynode.Alias(target)))
 	assert.Equal(t, int64(4), sourceindex.Build(built, sourceindex.MaxIndexedNodes).Nesting(), "a hand-built alias to an unnamed node")
-}
-
-// clearAnchors empties the anchor name of every node under n.
-func clearAnchors(n *yaml.Node) {
-	stack := []*yaml.Node{n}
-	for len(stack) > 0 {
-		at := stack[len(stack)-1]
-		stack = stack[:len(stack)-1]
-		at.Anchor = ""
-		stack = append(stack, at.Content...)
-	}
 }
 
 // TestNesting_AnAnchorCycleCountsOneTurn pins that a recursive anchor, which

@@ -72,7 +72,7 @@ func TestUnhomedApplicator_UnpreservableKeywordIsNotAnnounced(t *testing.T) {
 	require.True(t, ok)
 	assert.NotContains(t, m.Unmodeled, "openapi:items", "the conversion failed, so nothing was kept")
 	assert.True(t, openapitest.HasDiag(diags, diag.UnpreservableConstruct), "the failure itself is reported")
-	assert.Empty(t, preservationClaims(diags),
+	assert.Empty(t, openapitest.PreservationClaims(diags),
 		"nothing was written under Unmodeled, so nothing may announce that it was")
 }
 

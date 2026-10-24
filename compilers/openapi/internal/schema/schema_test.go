@@ -361,20 +361,6 @@ func compileVocabIR(t *testing.T, schemas string) string {
 // the announcement tests need.
 const unpreservableValue = ".nan"
 
-// preservationClaims returns the messages announcing that something was kept
-// under Unmodeled. The unpreservable report is excluded by code rather than by
-// wording: it says a construct "could not be kept verbatim under Unmodeled",
-// which contains the phrase and is the opposite of a claim.
-func preservationClaims(diags []ir.Diagnostic) []string {
-	var out []string
-	for _, d := range diags {
-		if strings.Contains(d.Message, "under Unmodeled") && d.Code != diag.UnpreservableConstruct {
-			out = append(out, d.Message)
-		}
-	}
-	return out
-}
-
 // TestCoDeclaredFamily_PassedOverKeywordIsKept covers the families lower()'s
 // first-match dispatch used to drop (GitHub #35).
 //
@@ -473,7 +459,7 @@ func TestCoDeclaredFamily_UnpreservableIsNotAnnounced(t *testing.T) {
 	require.NotNil(t, td)
 	assert.NotContains(t, td.Common().Unmodeled, "openapi:allOf", "the conversion failed")
 	assert.True(t, openapitest.HasDiag(diags, diag.UnpreservableConstruct), "the failure itself is reported")
-	assert.Empty(t, preservationClaims(diags),
+	assert.Empty(t, openapitest.PreservationClaims(diags),
 		"nothing was written under Unmodeled, so nothing may announce that it was")
 }
 

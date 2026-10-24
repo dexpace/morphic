@@ -32,6 +32,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -321,7 +322,7 @@ func libraryFindings(t *testing.T, data []byte, root *yaml.Node) (out []finding,
 			out, err = nil, fmt.Errorf("the library panicked: %v", r)
 		}
 	}()
-	releaseAnchorNames(root)
+	openapitest.ClearAnchors(root)
 	var model soa.OpenAPI
 	model.InitCache()
 	model.GetCore().SetConfig(yml.GetConfigFromDoc(data, root))
@@ -357,18 +358,6 @@ func findingAt(rule string, n *yaml.Node) finding {
 		return finding{class: rule}
 	}
 	return finding{class: rule, line: n.Line, column: n.Column}
-}
-
-// releaseAnchorNames clears the anchor names of the tree, as the load phase
-// does before it hands the tree to the library.
-func releaseAnchorNames(root *yaml.Node) {
-	stack := []*yaml.Node{root}
-	for len(stack) > 0 {
-		n := stack[len(stack)-1]
-		stack = stack[:len(stack)-1]
-		n.Anchor = ""
-		stack = append(stack, n.Content...)
-	}
 }
 
 // onlyOneSide returns a row for each finding of one side that the other lacks,

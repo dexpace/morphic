@@ -2,7 +2,6 @@ package e2e_test
 
 import (
 	"encoding/json/jsontext"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -74,7 +73,7 @@ func TestUnpreservable_AnnouncementNeverOutrunsTheEntry(t *testing.T) {
 
 			assert.True(t, openapitest.HasDiagCodeAt(diags, diag.UnpreservableConstruct, tc.at),
 				"the case must reach the site it is named for: %+v", diags)
-			assert.Empty(t, preservationClaims(diags),
+			assert.Empty(t, openapitest.PreservationClaims(diags),
 				"nothing was written under Unmodeled, so nothing may announce that it was")
 		})
 	}
@@ -126,7 +125,7 @@ func TestUnpreservable_SchemaKeywordSites(t *testing.T) {
 			_, diags := parseFull(t, openapitest.ComponentSpec("    S:\n"+tc.body))
 			assert.True(t, openapitest.HasDiagCodeAt(diags, diag.UnpreservableConstruct, tc.at),
 				"the case must reach the site it is named for: %+v", diags)
-			assert.Empty(t, preservationClaims(diags),
+			assert.Empty(t, openapitest.PreservationClaims(diags),
 				"nothing was written under Unmodeled, so nothing may announce that it was")
 		})
 	}
@@ -179,21 +178,6 @@ func TestUnpreservable_CompositeFailsWhole(t *testing.T) {
 		assert.NotContains(t, key, "if-then-else",
 			"a combination missing an arm is not the verbatim source: %s", entry.Value)
 	}
-}
-
-// preservationClaims returns every diagnostic message asserting that something
-// was kept under Unmodeled. Matching on the claim rather than on a code is
-// deliberate: the claim is what the entry has to back, and it is spread across
-// several codes and phrasings.
-func preservationClaims(diags []ir.Diagnostic) []string {
-	var out []string
-	for _, d := range diags {
-		if strings.Contains(d.Message, "under Unmodeled") &&
-			d.Code != diag.UnpreservableConstruct {
-			out = append(out, d.Message)
-		}
-	}
-	return out
 }
 
 // typeUnmodeled returns the Unmodeled map of one interned type.

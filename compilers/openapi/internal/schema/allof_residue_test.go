@@ -289,6 +289,6 @@ func TestAllOf_UnpreservableBranchIsNotAnnounced(t *testing.T) {
 	require.NotNil(t, td)
 	assert.NotContains(t, td.Common().Unmodeled, "openapi:allOf/0", "the branch did not convert")
 	assert.True(t, openapitest.HasDiag(diags, diag.UnpreservableConstruct))
-	assert.Empty(t, preservationClaims(diags),
+	assert.Empty(t, openapitest.PreservationClaims(diags),
 		"no degradation is announced for a branch that was not kept")
 }

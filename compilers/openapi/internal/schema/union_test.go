@@ -729,7 +729,7 @@ func TestUnionSiblings_UnpreservableIsReportedNotClaimed(t *testing.T) {
 	}
 	assert.Contains(t, at, "/components/schemas/S/oneOf",
 		"the union siblings are reported where they are written: %+v", diags)
-	assert.Empty(t, preservationClaims(diags),
+	assert.Empty(t, openapitest.PreservationClaims(diags),
 		"nothing converted, so nothing may say it was kept")
 }
 

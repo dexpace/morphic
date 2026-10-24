@@ -148,6 +148,18 @@ func YAMLDocument(t TB, src string) *yaml.Node {
 	return &root
 }
 
+// ClearAnchors empties the anchor name of every node under root, as the load
+// phase does before it hands a tree to the parser library.
+func ClearAnchors(root *yaml.Node) {
+	stack := []*yaml.Node{root}
+	for len(stack) > 0 {
+		n := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		n.Anchor = ""
+		stack = append(stack, n.Content...)
+	}
+}
+
 // SchemaFromYAML unmarshals body as a JSONSchema, keeping the reference and
 // boolean forms a bare *oas3.Schema cannot represent.
 func SchemaFromYAML(ctx context.Context, t TB, body string) *oas3.JSONSchema[oas3.Referenceable] {

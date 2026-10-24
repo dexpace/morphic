@@ -3,6 +3,7 @@ package openapitest
 import (
 	"encoding/json/jsontext"
 	"slices"
+	"strings"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -147,6 +148,20 @@ func PointersOf(diags []ir.Diagnostic, code string) []jsontext.Pointer {
 		}
 	}
 	slices.Sort(out)
+	return out
+}
+
+// PreservationClaims returns the messages announcing that something was kept
+// under Unmodeled. The unpreservable report is excluded by code rather than by
+// wording: it says a construct "could not be kept verbatim under Unmodeled",
+// which contains the phrase and is the opposite of a claim.
+func PreservationClaims(diags []ir.Diagnostic) []string {
+	var out []string
+	for _, d := range diags {
+		if strings.Contains(d.Message, "under Unmodeled") && d.Code != diag.UnpreservableConstruct {
+			out = append(out, d.Message)
+		}
+	}
 	return out
 }
 

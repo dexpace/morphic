@@ -215,6 +215,20 @@ func TestPointersOf_SortsThePointersOfOneCode(t *testing.T) {
 	assert.Empty(t, openapitest.PointersOf(diags, "c"))
 }
 
+// TestPreservationClaims_ExcludesTheUnpreservableReport pins both halves: a
+// message claiming a keep is listed whatever its code, and the report that a
+// construct could not be kept is not, though its wording holds the phrase.
+func TestPreservationClaims_ExcludesTheUnpreservableReport(t *testing.T) {
+	t.Parallel()
+	diags := []ir.Diagnostic{
+		{Code: "a", Message: "x kept under Unmodeled"},
+		{Code: diag.UnpreservableConstruct, Message: "y could not be kept verbatim under Unmodeled"},
+		{Code: "b", Message: "z reported"},
+		{Code: "c", Message: "w kept under Unmodeled"},
+	}
+	assert.Equal(t, []string{"x kept under Unmodeled", "w kept under Unmodeled"}, openapitest.PreservationClaims(diags))
+}
+
 // TestDiagMessageAt_ReturnsTheSingleMatchingMessage pins that the message is
 // reachable by code, severity and pointer together.
 func TestDiagMessageAt_ReturnsTheSingleMatchingMessage(t *testing.T) {

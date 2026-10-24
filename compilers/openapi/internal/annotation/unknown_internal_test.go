@@ -14,6 +14,7 @@ import (
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -138,7 +139,7 @@ func TestUnknownKeywordsIn_UnpreservableValueIsReportedNotKept(t *testing.T) {
 func TestUnknownKeysUnder_KeysBeneathTheScopeAndSorted(t *testing.T) {
 	t.Parallel()
 	reported := []string{"zeta", "alpha"}
-	obj := fakeObject{core: &fakeCore{keys: reported}, root: parsedMapping(t, "zeta: 1\nalpha: 2\n")}
+	obj := fakeObject{core: &fakeCore{keys: reported}, root: openapitest.YAMLDocument(t, "zeta: 1\nalpha: 2\n")}
 
 	var got ir.Unmodeled
 	diags := UnknownKeysUnder(&got, obj, sourced(1), "/info/contact", "info/contact")
@@ -162,7 +163,7 @@ func TestUnknownKeysUnder_KeysBeneathTheScopeAndSorted(t *testing.T) {
 // and the diagnostic announcing it.
 func TestUnknownKeysIn_AttributesEachKeyAtItsOwnPointer(t *testing.T) {
 	t.Parallel()
-	obj := fakeObject{core: &fakeCore{keys: []string{"alpha", "zeta"}}, root: parsedMapping(t, "alpha: 1\nzeta: 2\n")}
+	obj := fakeObject{core: &fakeCore{keys: []string{"alpha", "zeta"}}, root: openapitest.YAMLDocument(t, "alpha: 1\nzeta: 2\n")}
 
 	var got ir.Unmodeled
 	diags := UnknownKeysIn(&got, obj, overlaid("/x/zeta"), "/x")
@@ -195,7 +196,7 @@ func TestUnknownKeysIn_BudgetBoundsWhatOneObjectContributes(t *testing.T) {
 		keys = append(keys, key)
 		body.WriteString(key + ": " + strconv.Itoa(i) + "\n")
 	}
-	obj := fakeObject{core: &fakeCore{keys: keys}, root: parsedMapping(t, body.String())}
+	obj := fakeObject{core: &fakeCore{keys: keys}, root: openapitest.YAMLDocument(t, body.String())}
 
 	var got ir.Unmodeled
 	diags := UnknownKeysIn(&got, obj, sourced(0), "/x")
@@ -219,7 +220,7 @@ func TestUnknownKeysIn_BudgetBoundsWhatOneObjectContributes(t *testing.T) {
 // would be the silent loss this census exists to end (GitHub #395).
 func TestUnknownKeysIn_KeyWithNoSourceNodeIsReported(t *testing.T) {
 	t.Parallel()
-	obj := fakeObject{core: &fakeCore{keys: []string{"absent"}}, root: parsedMapping(t, "present: 1\n")}
+	obj := fakeObject{core: &fakeCore{keys: []string{"absent"}}, root: openapitest.YAMLDocument(t, "present: 1\n")}
 
 	var got ir.Unmodeled
 	diags := UnknownKeysIn(&got, obj, sourced(2), "/x")
@@ -240,11 +241,11 @@ func TestUnknownKeysUnder_KeyHoldingASeparatorIsItsOwnEntry(t *testing.T) {
 	t.Parallel()
 	root := fakeObject{
 		core: &fakeCore{keys: []string{"info/contact/slack"}},
-		root: parsedMapping(t, "info/contact/slack: fromRoot\n"),
+		root: openapitest.YAMLDocument(t, "info/contact/slack: fromRoot\n"),
 	}
 	contact := fakeObject{
 		core: &fakeCore{keys: []string{"slack"}},
-		root: parsedMapping(t, "slack: fromContact\n"),
+		root: openapitest.YAMLDocument(t, "slack: fromContact\n"),
 	}
 
 	var got ir.Unmodeled
@@ -269,7 +270,7 @@ func TestUnknownKeysUnder_KeyHoldingASeparatorIsItsOwnEntry(t *testing.T) {
 // (GitHub #396).
 func TestUnknownKeysIn_EntryHeldByAnotherConstructIsReported(t *testing.T) {
 	t.Parallel()
-	obj := fakeObject{core: &fakeCore{keys: []string{"same", "other"}}, root: parsedMapping(t, "same: 1\nother: 2\n")}
+	obj := fakeObject{core: &fakeCore{keys: []string{"same", "other"}}, root: openapitest.YAMLDocument(t, "same: 1\nother: 2\n")}
 	got := ir.Unmodeled{
 		"openapi:same": {Reason: ir.ReasonValidationOnly, Value: ir.RawValue("9"),
 			Provenance: ir.Provenance{Pointer: "/x/same"}},
@@ -322,7 +323,7 @@ func TestUnknownKeysIn_ModelWithNoCensusRecordsNothing(t *testing.T) {
 // not define and this reader grades them exactly as the modelled path does.
 func TestUnknownKeysNamed_DelegatesTheSameGrading(t *testing.T) {
 	t.Parallel()
-	root := parsedMapping(t, "get: {}\nnotAKey: 3\n")
+	root := openapitest.YAMLDocument(t, "get: {}\nnotAKey: 3\n")
 
 	var got ir.Unmodeled
 	diags := UnknownKeysNamed(&got, []string{"notAKey"}, root, sourced(0), "/paths/~1p", "")
@@ -357,14 +358,6 @@ type fakeObjectPtr struct{ fakeObject }
 type fakeCore struct{ keys []string }
 
 func (c *fakeCore) GetUnknownProperties() []string { return c.keys }
-
-// parsedMapping parses body into the mapping node the census reads values from.
-func parsedMapping(t *testing.T, body string) *yaml.Node {
-	t.Helper()
-	var doc yaml.Node
-	require.NoError(t, yaml.Unmarshal([]byte(body), &doc))
-	return &doc
-}
 
 // TestTakeString_UnkeepableValueIsReportedAndRead pins the one value TakeString
 // can neither place nor keep: a mapping that writes one key twice, which no JSON
