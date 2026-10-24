@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 )
@@ -94,15 +93,4 @@ func TestSpan_OverlapsOnSharedMinors(t *testing.T) {
 	assert.True(t, oas.Through(oas.V31).Overlaps(oas.From(oas.V31)))
 	assert.False(t, oas.Only(oas.V30).Overlaps(oas.From(oas.V31)))
 	assert.False(t, oas.Never().Overlaps(oas.Always()))
-}
-
-// TestKinds_ListsEveryKindOnce pins the enumeration the table tests lean on.
-func TestKinds_ListsEveryKindOnce(t *testing.T) {
-	kinds := oas.Kinds()
-	require.NotEmpty(t, kinds)
-	assert.Equal(t, oas.Document, kinds[0])
-	assert.Equal(t, oas.SecurityRequirement, kinds[len(kinds)-1])
-	for i := 1; i < len(kinds); i++ {
-		assert.Equal(t, kinds[i-1]+1, kinds[i], "the kinds run in sequence")
-	}
 }

@@ -6,9 +6,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
-	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
-	"github.com/dexpace/morphic/ir"
 )
 
 func TestLimitsEnumMembersExceeded_TreatsAnUnsetBudgetAsUnbounded(t *testing.T) {
@@ -30,15 +27,4 @@ func TestLimitsEnumMembersExceeded_TreatsAnUnsetBudgetAsUnbounded(t *testing.T) 
 			assert.Equal(t, tc.want, tc.limits.EnumMembersExceeded(tc.members))
 		})
 	}
-}
-
-// TestNew_CarriesTheLimits pins that the budgets reach the walk through the
-// context, beside the other policy the caller chose.
-func TestNew_CarriesTheLimits(t *testing.T) {
-	t.Parallel()
-	limits := lowering.Limits{MaxEnumMembers: 12}
-
-	c := lowering.New(0, openapitest.DocDeclaring(), ir.SourceInfo{}, lowering.GroupByTags, limits, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{})
-
-	assert.Equal(t, limits, c.Limits)
 }

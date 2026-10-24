@@ -636,3 +636,14 @@ func TestDynamicAnchorSites_ReadsACompleteIndexQuietly(t *testing.T) {
 	assert.Empty(t, sites)
 	assert.Empty(t, got)
 }
+
+// TestNew_CarriesTheLimits pins that the budgets reach the walk through the
+// context, beside the other policy the caller chose.
+func TestNew_CarriesTheLimits(t *testing.T) {
+	t.Parallel()
+	limits := lowering.Limits{MaxEnumMembers: 12}
+
+	c := lowering.New(0, openapitest.DocDeclaring(), ir.SourceInfo{}, lowering.GroupByTags, limits, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{})
+
+	assert.Equal(t, limits, c.Limits)
+}

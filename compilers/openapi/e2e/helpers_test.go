@@ -11,6 +11,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
 
@@ -422,4 +423,21 @@ func compileClean(t *testing.T, src string, opts openapi.Options) *ir.Document {
 	require.NotNil(t, doc)
 	assertNoErrorDiags(t, diags)
 	return doc
+}
+
+// assertOnlyErrorDiags fails when a diagnostic has error severity and a code
+// outside want, or when a code of want draws no error.
+func assertOnlyErrorDiags(t *testing.T, diags []ir.Diagnostic, want []string) {
+	t.Helper()
+	drawn := map[string]bool{}
+	for _, d := range diags {
+		if d.Severity != ir.SeverityError {
+			continue
+		}
+		drawn[d.Code] = true
+		assert.Contains(t, want, d.Code, "unexpected error diagnostic: %+v", d)
+	}
+	for _, code := range want {
+		assert.True(t, drawn[code], "the spec is listed as invalid but draws no %s", code)
+	}
 }

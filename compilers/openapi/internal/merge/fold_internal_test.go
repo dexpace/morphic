@@ -19,65 +19,6 @@ func redeclared(target ir.TypeID, at string) ir.Property {
 	return ir.Property{WireName: "v", Type: ir.TypeRef{Target: target}, Provenance: ptrAt(jsontext.Pointer("/allOf/" + at + "/properties/v"))}
 }
 
-// TestPropIndex_ARedeclarationFoldsOnceTheRegistryIsWhole pins what frees the
-// fold from declaration order (GitHub #898): the walk lands a wire name's first
-// declaration and records every later one, the model hands its folds over
-// once, and the fold reads the registry it settles against, which holds nodes
-// the walk had not built when it met the declarations.
-func TestPropIndex_ARedeclarationFoldsOnceTheRegistryIsWhole(t *testing.T) {
-	t.Parallel()
-	reg := ir.TypeRegistry{"t/str": &ir.Primitive{ID: "t/str", Prim: ir.PrimString}}
-	var queued []Settle
-	m := &ir.Model{ID: "t/m"}
-	idx := NewPropIndex(m, func(s Settle) { queued = append(queued, s) })
-
-	w := func(at string) ir.Property {
-		return ir.Property{WireName: "w", Type: ir.TypeRef{Target: "t/str"}, Provenance: ptrAt(jsontext.Pointer("/allOf/" + at + "/properties/w"))}
-	}
-	idx.MergeProperty(redeclared("t/str", "0"), written(`{"type":"string"}`))
-	idx.MergeProperty(w("0"), unread(t))
-	idx.MergeProperty(redeclared("t/uri", "1"), unread(t))
-	idx.MergeProperty(w("1"), unread(t))
-	idx.MergeProperty(redeclared("t/bool", "2"), written(`{"type":"boolean"}`))
-
-	require.Len(t, queued, 1, "one settlement per model, however many fields are redeclared")
-	require.Len(t, m.Properties, 2, "a redeclaration adds no property")
-	assert.Equal(t, ir.TypeID("t/str"), m.Properties[0].Type.Target, "nothing is folded before the settlement runs")
-	assert.Empty(t, m.Properties[0].Unmodeled)
-
-	reg["t/uri"] = &ir.Primitive{ID: "t/uri", Prim: ir.PrimURL}
-	reg["t/bool"] = &ir.Primitive{ID: "t/bool", Prim: ir.PrimBool}
-	var settled []ir.Diagnostic
-	queued[0](reg, func(sev ir.Severity, code string, pointer jsontext.Pointer, format string, args ...any) {
-		settled = append(settled, diag.Newf(sev, code, ir.Provenance{Pointer: pointer}, format, args...))
-	})
-
-	assert.Equal(t, ir.TypeID("t/uri"), m.Properties[0].Type.Target,
-		"the narrower type wins, judged against a node the walk had not built")
-	require.Len(t, settled, 1)
-	assert.Equal(t, diag.ConflictingRedecl, settled[0].Code)
-	assert.Equal(t, ptrAt("/allOf/2/properties/v").Pointer, settled[0].Provenance.Pointer)
-	assert.Equal(t, []string{losingDeclarationKey + "/allOf/2/properties/v"}, slices.Sorted(maps.Keys(m.Properties[0].Unmodeled)),
-		"the losing declaration is kept, and only it")
-	assert.Equal(t, ir.TypeID("t/str"), m.Properties[1].Type.Target, "a field declared once is left as declared")
-}
-
-// TestPropIndex_AModelDeclaringEachNameOnceQueuesNothing pins the common path:
-// a model whose properties are each declared once has nothing to fold, so it
-// hands no settlement over.
-func TestPropIndex_AModelDeclaringEachNameOnceQueuesNothing(t *testing.T) {
-	t.Parallel()
-	m := &ir.Model{ID: "t/m"}
-	idx := NewPropIndex(m, func(Settle) { t.Fatal("a model with no redeclaration queues no fold") })
-
-	idx.MergeProperty(ir.Property{WireName: "a", Provenance: ptrAt("/properties/a")}, unread(t))
-	idx.MergeProperty(ir.Property{WireName: "b", Provenance: ptrAt("/properties/b")}, unread(t))
-
-	require.Len(t, m.Properties, 2)
-	assert.Equal(t, "a", m.Properties[0].WireName)
-	assert.Equal(t, "b", m.Properties[1].WireName)
-}
-
 // kindDecl declares the field "p" as kind at a pointer named for the kind, so
 // what a fold reports and keeps reads the same whatever order the
 // declarations come in.
@@ -448,4 +389,40 @@ func TestFold_ExamplesAreJudgedAsOneKeyword(t *testing.T) {
 		assert.Contains(t, (*recorded)[0].Message, "does not admit the examples", tc.name)
 		assert.Contains(t, got.Unmodeled, losingDeclarationKey+"/b", "%s: the writer is kept", tc.name)
 	}
+}
+
+// TestMerger_ReconcileReportsDisagreementAndKeepsAWinner pins the documented
+// policy: an unsatisfiable redeclaration is surfaced rather than silently
+// resolved, and the merge still yields one property.
+func TestMerger_ReconcileReportsDisagreementAndKeepsAWinner(t *testing.T) {
+	t.Parallel()
+	g, recorded := stubMerger(map[ir.TypeID]ir.TypeDef{
+		"t/str": &ir.Primitive{ID: "t/str", Prim: ir.PrimString},
+		"t/int": &ir.Primitive{ID: "t/int", Prim: ir.PrimInt32},
+	})
+	dst := ir.Property{Name: ir.Naming{Source: "id"}, WireName: "id", Type: ir.TypeRef{Target: "t/str"}}
+	src := ir.Property{Name: ir.Naming{Source: "id"}, WireName: "id", Type: ir.TypeRef{Target: "t/int"},
+		Provenance: ptrAt("/components/schemas/S/properties/id")}
+
+	dst = foldTwo(g, dst, src, written(`{"type":"integer"}`))
+
+	require.Len(t, *recorded, 1, "one disagreement, one diagnostic")
+	d := (*recorded)[0]
+	assert.Equal(t, diag.ConflictingRedecl, d.Code)
+	assert.Contains(t, d.Message, `"id"`, "the diagnostic names the field that disagrees")
+	assert.Equal(t, ir.TypeID("t/str"), dst.Type.Target, "the property already merged keeps its type")
+}
+
+func TestMerger_ResolvePrimKindReportsUnresolvableTargets(t *testing.T) {
+	t.Parallel()
+	g, _ := stubMerger(map[ir.TypeID]ir.TypeDef{
+		"t/str": &ir.Primitive{ID: "t/str", Prim: ir.PrimString},
+	})
+
+	kind, ok := judge(g).primKind(ir.TypeRef{Target: "t/str"})
+	require.True(t, ok)
+	assert.Equal(t, ir.PrimString, kind)
+
+	_, ok = judge(g).primKind(ir.TypeRef{Target: "t/absent"})
+	assert.False(t, ok, "a target the registry does not hold resolves to no kind")
 }

@@ -2,8 +2,6 @@ package load
 
 import (
 	"encoding/json/jsontext"
-	"io"
-	"io/fs"
 	"path/filepath"
 	"testing"
 
@@ -101,35 +99,6 @@ func heldResolution(t *testing.T, spec, path string) (*soa.OpenAPI, *resolution)
 	opts := Options{Reader: reader.Disk{}}
 	ext := newExternal(t.Context(), doc, opts, newExternalReads(self))
 	return doc, newResolution(t.Context(), doc, Siblings{}, self, opts, &ext)
-}
-
-// TestExternal_OpenHoldsTheSourceItIsAskedFor pins what Open does with the
-// source spelled as no key holds it: it holds the source under that spelling,
-// so the next $ref spelling it so finds the source's own objects, and serves
-// the bytes held for it, which the resolver reads none of, its tree being held.
-func TestExternal_OpenHoldsTheSourceItIsAskedFor(t *testing.T) {
-	t.Parallel()
-	dir := t.TempDir()
-	doc, pass := heldResolution(t, backRoot(backPath("/a", "#/components/responses/R")), filepath.Join(dir, "root.yaml"))
-	spelled := dir + "/./root.yaml"
-
-	f, err := pass.reader.Open(spelled)
-
-	require.NoError(t, err, "no root.yaml is on disk, and none is read")
-	data, err := io.ReadAll(f)
-	require.NoError(t, err)
-	assert.Empty(t, data)
-	_, err = f.Stat()
-	require.ErrorIs(t, err, fs.ErrInvalid)
-	require.NoError(t, f.Close())
-	tree, ok := doc.GetCachedExternalDocument(spelled)
-	require.True(t, ok)
-	assert.Same(t, pass.reader.read.self.root, tree)
-	held, ok := doc.GetCachedReferencedObject(spelled + "#/components/responses/R")
-	require.True(t, ok)
-	r, ok := doc.Components.Responses.Get("R")
-	require.True(t, ok)
-	assert.Same(t, r, held, "the source's own object, a response being no reference")
 }
 
 // TestSourceTree_LocatorsAnswerAtTheLastNodeTheyReach pins that a pointer

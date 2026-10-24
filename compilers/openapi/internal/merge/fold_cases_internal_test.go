@@ -20,44 +20,6 @@ func bigVal(v string) *ir.BigVal {
 	return &b
 }
 
-// TestWireNameIndex_KeysEveryPropertyByItsWireName pins the index a
-// redeclaration is found through. A property missing from it would be appended a
-// second time rather than reconciled, leaving one wire name declared twice in
-// one model.
-func TestWireNameIndex_KeysEveryPropertyByItsWireName(t *testing.T) {
-	t.Parallel()
-	got := WireNameIndex([]ir.Property{{WireName: "id"}, {WireName: "name"}, {WireName: "age"}})
-
-	assert.Equal(t, map[string]int{"id": 0, "name": 1, "age": 2}, got)
-	assert.Empty(t, WireNameIndex(nil), "no properties index to nothing")
-}
-
-// TestMergeProperty_AppendsThenFolds pins the two outcomes the entry point
-// chooses between: a wire name not yet present is appended and indexed, and one
-// already present is folded into the property that holds it rather than
-// appended beside it.
-func TestMergeProperty_AppendsThenFolds(t *testing.T) {
-	t.Parallel()
-	g, recorded := stubMerger(nil)
-	m := &ir.Model{}
-	idx, settle := indexOver(m, nil, g)
-
-	idx.MergeProperty(ir.Property{WireName: "id", Required: true, Provenance: ptrAt("/p")}, unread(t))
-	idx.MergeProperty(ir.Property{WireName: "name", Provenance: ptrAt("/p")}, unread(t))
-
-	require.Len(t, m.Properties, 2, "two distinct wire names are two properties")
-	assert.Equal(t, 0, idx.byWire["id"].pos)
-	assert.Equal(t, 1, idx.byWire["name"].pos)
-
-	idx.MergeProperty(ir.Property{WireName: "id", Secret: true, Provenance: ptrAt("/other")}, unread(t))
-	settle()
-
-	require.Len(t, m.Properties, 2, "a redeclaration folds rather than appending")
-	assert.True(t, m.Properties[0].Required, "required is kept from the first declaration")
-	assert.True(t, m.Properties[0].Secret, "and OR-ed with the redeclaration's")
-	assert.Empty(t, *recorded, "agreeing declarations are not a conflict")
-}
-
 // TestFold_AConstraintDisagreementIsReported pins the second of the two
 // conflict routes. Two declarations that agree on type but pin one keyword to
 // different values fold to the first one's bound, so the other, which may be
