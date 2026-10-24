@@ -14,6 +14,13 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
+// MaxDiscriminatorAncestorDepth is maxDiscriminatorAncestorDepth, for the
+// external tests.
+const MaxDiscriminatorAncestorDepth = maxDiscriminatorAncestorDepth
+
+// MaxTypePositionHops is maxTypePositionHops, for the external tests.
+const MaxTypePositionHops = maxTypePositionHops
+
 // Lowerer is test scaffolding, not a compiler type. The compiler has no such
 // struct: every lowering is a function of the context and the registry, and
 // the caller owns the document being built (#177). It is declared here, once,

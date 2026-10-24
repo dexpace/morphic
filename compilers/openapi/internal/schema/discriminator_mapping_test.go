@@ -11,6 +11,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/pass"
 )
@@ -239,16 +240,15 @@ func TestDiscriminatorMapping_ToAPureRefNamesItsTarget(t *testing.T) {
 // chain exactly the cap long is the control: it reads through to the component.
 func TestDiscriminatorMapping_ChainOfPositionsDeeperThanCap(t *testing.T) {
 	t.Parallel()
-	// maxTypePositionHops is unexported; 64 is its committed value, and the two
-	// cases below straddle it.
-	const hopCap = 64
+	// The two cases below straddle the cap.
+	const hopCap = schema.MaxTypePositionHops
 	for _, tc := range []struct {
 		name  string
 		links int
 		want  ir.TypeID
 	}{
 		{"as long as the cap", hopCap, componentID("Dog")},
-		{"beyond the cap", hopCap + 1, "t/anon/components/schemas/Kennel/properties/a64"},
+		{"beyond the cap", hopCap + 1, ir.TypeID(fmt.Sprintf("t/anon/components/schemas/Kennel/properties/a%d", hopCap))},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

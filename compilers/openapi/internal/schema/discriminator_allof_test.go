@@ -350,9 +350,8 @@ func TestAllOf_DiscriminatorValueSelfAncestorInCycle(t *testing.T) {
 // not on the construction.
 func TestAllOf_DiscriminatorValueChainDeeperThanCap(t *testing.T) {
 	t.Parallel()
-	// maxDiscriminatorAncestorDepth is unexported; 256 is its committed value, and
-	// the two cases below straddle it.
-	const ancestorCap = 256
+	// The two cases below straddle the cap.
+	const ancestorCap = schema.MaxDiscriminatorAncestorDepth
 	for _, tc := range []struct {
 		name  string
 		links int
