@@ -35,9 +35,9 @@ func parseFull(t *testing.T, src string) (*ir.Document, []ir.Diagnostic) {
 	return doc, diags
 }
 
-// lowerServiceSpec compiles src and returns the document, its single service,
+// compileService compiles src and returns the document, its single service,
 // and every diagnostic.
-func lowerServiceSpec(t *testing.T, src string) (*ir.Document, ir.Service, []ir.Diagnostic) {
+func compileService(t *testing.T, src string) (*ir.Document, ir.Service, []ir.Diagnostic) {
 	t.Helper()
 	doc, diags := parseFull(t, src)
 	require.Len(t, doc.Services, 1)

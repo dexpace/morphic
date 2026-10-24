@@ -35,20 +35,9 @@ func TestCheckMaps_ReportsAModelThatIsAMap(t *testing.T) {
 			tc.td.Common().ID = "t/x"
 			doc := &ir.Document{Types: ir.TypeRegistry{"t/x": tc.td}}
 
-			assert.Equal(t, tc.want, pathsOf(irverify.Verify(doc), "ir/map-as-model"))
+			assert.Equal(t, tc.want, violationPaths(irverify.Verify(doc), "ir/map-as-model"))
 		})
 	}
-}
-
-// pathsOf returns the Path of each violation in vs carrying code, in order.
-func pathsOf(vs []irverify.Violation, code string) []string {
-	var out []string
-	for _, v := range vs {
-		if v.Code == code {
-			out = append(out, v.Path)
-		}
-	}
-	return out
 }
 
 // TestCheckMapKeys_ReportsAStringKeySpelledOut pins ir/map-key-string: a map
@@ -82,7 +71,7 @@ func TestCheckMapKeys_ReportsAStringKeySpelledOut(t *testing.T) {
 			}
 			doc := &ir.Document{Types: ir.TypeRegistry{"t/x": tc.td}}
 
-			assert.Equal(t, tc.want, pathsOf(irverify.Verify(doc), "ir/map-key-string"))
+			assert.Equal(t, tc.want, violationPaths(irverify.Verify(doc), "ir/map-key-string"))
 		})
 	}
 }

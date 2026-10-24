@@ -93,7 +93,7 @@ var wantReadOnlyVisibility = ir.Visibility{
 func thingIDVisibility(t *testing.T, name, spec string) (ir.Visibility, []ir.Diagnostic) {
 	t.Helper()
 	doc, diags := compileAnnotationSpec(t, name, spec)
-	m, ok := doc.Types[namedID("Thing")].(*ir.Model)
+	m, ok := doc.Types[componentID("Thing")].(*ir.Model)
 	require.True(t, ok, "Thing must own a Model node")
 	p, ok := propByWire(m, "id")
 	require.True(t, ok, "Thing must carry a merged \"id\" property")

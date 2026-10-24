@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/ir"
-	"github.com/dexpace/morphic/ir/irverify"
 )
 
 // TestVerify_MalformedTypeIDIsAViolation plants IDs the grammar could not have
@@ -327,18 +326,6 @@ func declaredIDClassNamed(t *testing.T, name string) declaredIDClass {
 	return declaredIDClass{}
 }
 
-// violationPaths returns the paths of the violations of one code, in report
-// order.
-func violationPaths(vs []irverify.Violation, code string) []string {
-	var out []string
-	for _, v := range vs {
-		if v.Code == code {
-			out = append(out, v.Path)
-		}
-	}
-	return out
-}
-
 // TestVerify_MalformedDeclaredIDIsAViolation holds the classes that have no
 // registry key to the grammar checkIDs holds a type to: an operation, a service,
 // a group or a property whose ID the grammar could not have produced is
@@ -472,14 +459,4 @@ func TestVerify_ParameterIDMayDifferFromItsPointer(t *testing.T) {
 
 	mounted := parameter.doc("param/openapi/paths/~1widgets/get/parameters/id/query", "/components/pathItems/Listing/parameters/0")
 	assert.Empty(t, violationPaths(verifyDeclared(mounted), "ir/id-provenance-disagreement"))
-}
-
-// violationCodes returns the codes of vs, for set-membership assertions that do
-// not depend on violation order or message wording.
-func violationCodes(vs []irverify.Violation) []string {
-	out := make([]string, 0, len(vs))
-	for _, v := range vs {
-		out = append(out, v.Code)
-	}
-	return out
 }

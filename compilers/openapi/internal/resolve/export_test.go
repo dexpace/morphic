@@ -1,6 +1,11 @@
 package resolve
 
-import "encoding/json/jsontext"
+import (
+	"encoding/json/jsontext"
+
+	"github.com/speakeasy-api/openapi/jsonpointer"
+	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
+)
 
 // MaxRefChain exposes the package's hop bound to its external tests.
 //
@@ -19,3 +24,13 @@ func Found[S any](obj *S) any { return found(obj) }
 // At exposes atPointer, the scope reached reads a position of the source's
 // model in, to this package's external tests.
 func At(s Scope, pointer jsontext.Pointer) Scope { return atPointer(s, pointer) }
+
+// WholeModelAt reads the whole pointer in one library call, as the library's
+// resolver reads it: the schema found there, or nil.
+func WholeModelAt(doc any, pointer jsontext.Pointer) *oas3.JSONSchema[oas3.Referenceable] {
+	target, err := jsonpointer.GetTarget(doc, jsonpointer.JSONPointer(pointer), jsonpointer.WithStructTags("key"))
+	if js, ok := target.(*oas3.JSONSchema[oas3.Referenceable]); ok && err == nil && js != nil {
+		return js
+	}
+	return nil
+}

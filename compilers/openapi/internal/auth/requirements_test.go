@@ -123,7 +123,7 @@ paths: {}
 `)
 	assert.Nil(t, svc.Auth, "the only option is broken; the list is not left as [{}] or as []")
 	assert.Empty(t, doc.Auth, "no scheme is declared at all")
-	d, ok := firstDiagAt(diags, diag.UnresolvedRef)
+	d, ok := openapitest.FirstDiag(diags, diag.UnresolvedRef)
 	require.True(t, ok, "an unresolved-ref diagnostic: %+v", diags)
 	assert.Equal(t, jsontext.Pointer("/security/0"), d.Provenance.Pointer,
 		"points at the requirement that named the missing scheme, not a nonexistent components entry")
@@ -156,7 +156,7 @@ components:
 	assert.Equal(t, ids.Auth("key"), svc.Auth[0].Schemes[0].Scheme, "the first option survives in place")
 	assert.Empty(t, svc.Auth[1].Schemes, "the trailing empty option still means no-auth-is-fine")
 	assert.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.UnresolvedRef, ir.SeverityError))
-	d, ok := firstDiagAt(diags, diag.UnresolvedRef)
+	d, ok := openapitest.FirstDiag(diags, diag.UnresolvedRef)
 	require.True(t, ok, "an unresolved-ref diagnostic: %+v", diags)
 	assert.Equal(t, jsontext.Pointer("/security/1"), d.Provenance.Pointer,
 		"the pointer names the broken option's own index, not the list or a constant 0")
@@ -184,7 +184,7 @@ paths:
 	require.NotEmpty(t, svc.Groups[0].Operations, "the operation was lowered")
 	op := svc.Groups[0].Operations[0]
 	assert.Nil(t, op.Auth, "the operation's sole option is broken; it now inherits the service default")
-	d, ok := firstDiagAt(diags, diag.UnresolvedRef)
+	d, ok := openapitest.FirstDiag(diags, diag.UnresolvedRef)
 	require.True(t, ok, "an unresolved-ref diagnostic: %+v", diags)
 	assert.Equal(t, jsontext.Pointer("/paths/~1x/get/security/0"), d.Provenance.Pointer,
 		"points at the operation's own requirement, not a nonexistent components entry")
@@ -453,4 +453,18 @@ func loaderErrors(diags []ir.Diagnostic) []string {
 		}
 	}
 	return out
+}
+
+// TestLowerSecurityRequirements_DropsANilEntrySilently covers the half of the
+// object guard a parsed document cannot reach: a hand-built list holding a nil
+// entry. It is dropped like any other entry that is no object, rather than
+// surviving as the empty option that reads as "no auth is one acceptable
+// choice", and silently: an entry that is no object is the loader's to report,
+// and a nil one is in no document at all.
+func TestLowerSecurityRequirements_DropsANilEntrySilently(t *testing.T) {
+	t.Parallel()
+	got, diags := auth.LowerSecurityRequirements(lowering.Ctx{}, []*soa.SecurityRequirement{nil}, "/security")
+
+	assert.Empty(t, got, "a nil entry is no requirement, so it is dropped")
+	assert.Empty(t, diags)
 }

@@ -82,6 +82,22 @@ func TestFirstOp_ReturnsTheFirstOperationOfTheFirstGroup(t *testing.T) {
 	assert.Equal(t, "getA", openapitest.FirstOp(t, opNamed("getA", "getB")).Name.Source)
 }
 
+// TestParamBySource_FindsTheParameterBySourceName covers the match and the
+// miss, which reports absence rather than a zero parameter that looks found.
+func TestParamBySource_FindsTheParameterBySourceName(t *testing.T) {
+	t.Parallel()
+	op := ir.Operation{Params: []ir.Parameter{
+		{ID: "p/a", Name: ir.Naming{Source: "a"}},
+		{ID: "p/b", Name: ir.Naming{Source: "b"}},
+	}}
+	p, ok := openapitest.ParamBySource(op, "b")
+	require.True(t, ok)
+	assert.Equal(t, ir.ParamID("p/b"), p.ID)
+
+	_, ok = openapitest.ParamBySource(op, "c")
+	assert.False(t, ok)
+}
+
 // TestIndexBy_KeysEveryItem covers the generic lookup and PropsByWire, the one
 // keying it is used for often enough to have a name.
 func TestIndexBy_KeysEveryItem(t *testing.T) {
@@ -147,6 +163,23 @@ func TestHasDiag_MatchesCodeAtAnySeverity(t *testing.T) {
 	assert.False(t, openapitest.HasDiagAt(diags, "a", ir.SeverityError))
 }
 
+// TestFirstDiag_ReturnsTheFirstCarryingTheCode pins the order, since a test
+// asserts on that one diagnostic's provenance, and the miss.
+func TestFirstDiag_ReturnsTheFirstCarryingTheCode(t *testing.T) {
+	t.Parallel()
+	diags := []ir.Diagnostic{
+		diagAt("a", ir.SeverityInfo, "/p"),
+		diagAt("b", ir.SeverityError, "/q"),
+		diagAt("b", ir.SeverityInfo, "/r"),
+	}
+	d, ok := openapitest.FirstDiag(diags, "b")
+	require.True(t, ok)
+	assert.Equal(t, jsontext.Pointer("/q"), d.Provenance.Pointer)
+
+	_, ok = openapitest.FirstDiag(diags, "c")
+	assert.False(t, ok)
+}
+
 // TestHasDiagCodeAt_RequiresTheExactPointer pins that the pointer is part of
 // the match, not decoration.
 func TestHasDiagCodeAt_RequiresTheExactPointer(t *testing.T) {
@@ -167,6 +200,33 @@ func TestCountDiagsAt_CountsExactMatchesOnly(t *testing.T) {
 	}
 	assert.Equal(t, 2, openapitest.CountDiagsAt(diags, "a", ir.SeverityWarning))
 	assert.Equal(t, 0, openapitest.CountDiagsAt(diags, "", ir.SeverityWarning))
+}
+
+// TestPointersOf_SortsThePointersOfOneCode pins that only the code's pointers
+// are listed, and in sorted rather than report order.
+func TestPointersOf_SortsThePointersOfOneCode(t *testing.T) {
+	t.Parallel()
+	diags := []ir.Diagnostic{
+		diagAt("a", ir.SeverityWarning, "/r"),
+		diagAt("b", ir.SeverityWarning, "/q"),
+		diagAt("a", ir.SeverityError, "/p"),
+	}
+	assert.Equal(t, []jsontext.Pointer{"/p", "/r"}, openapitest.PointersOf(diags, "a"))
+	assert.Empty(t, openapitest.PointersOf(diags, "c"))
+}
+
+// TestPreservationClaims_ExcludesTheUnpreservableReport pins both halves: a
+// message claiming a keep is listed whatever its code, and the report that a
+// construct could not be kept is not, though its wording holds the phrase.
+func TestPreservationClaims_ExcludesTheUnpreservableReport(t *testing.T) {
+	t.Parallel()
+	diags := []ir.Diagnostic{
+		{Code: "a", Message: "x kept under Unmodeled"},
+		{Code: diag.UnpreservableConstruct, Message: "y could not be kept verbatim under Unmodeled"},
+		{Code: "b", Message: "z reported"},
+		{Code: "c", Message: "w kept under Unmodeled"},
+	}
+	assert.Equal(t, []string{"x kept under Unmodeled", "w kept under Unmodeled"}, openapitest.PreservationClaims(diags))
 }
 
 // TestDiagMessageAt_ReturnsTheSingleMatchingMessage pins that the message is

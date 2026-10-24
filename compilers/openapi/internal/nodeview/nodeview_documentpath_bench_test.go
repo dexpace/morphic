@@ -1,32 +1,12 @@
-package nodeview
+package nodeview_test
 
 import (
 	"encoding/json/jsontext"
 	"fmt"
 	"testing"
 
-	yaml "gopkg.in/yaml.v3"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 )
-
-// componentsDoc builds `{components: {schemas: {S0..Sn-1: {type: object}}}}`,
-// the shape every internal $ref in an OpenAPI document points into.
-func componentsDoc(n int) *yaml.Node {
-	schemas := &yaml.Node{Kind: yaml.MappingNode}
-	for i := range n {
-		schemas.Content = append(schemas.Content,
-			&yaml.Node{Kind: yaml.ScalarNode, Value: fmt.Sprintf("S%d", i)},
-			&yaml.Node{Kind: yaml.MappingNode, Content: []*yaml.Node{
-				{Kind: yaml.ScalarNode, Value: "type"},
-				{Kind: yaml.ScalarNode, Value: "object"},
-			}})
-	}
-	components := &yaml.Node{Kind: yaml.MappingNode, Content: []*yaml.Node{
-		{Kind: yaml.ScalarNode, Value: "schemas"}, schemas,
-	}}
-	return &yaml.Node{Kind: yaml.MappingNode, Content: []*yaml.Node{
-		{Kind: yaml.ScalarNode, Value: "components"}, components,
-	}}
-}
 
 // BenchmarkDocumentPath_IntoAWideMapping resolves one pointer per component of
 // a components mapping, as the schema bindings do when every schema is
@@ -42,7 +22,7 @@ func componentsDoc(n int) *yaml.Node {
 // scans, and a regression there means the gate has stopped paying for itself.
 func BenchmarkDocumentPath_IntoAWideMapping(b *testing.B) {
 	for _, n := range []int{2, 8, 64, 256, 1024} {
-		root := componentsDoc(n)
+		root := nodeview.ComponentsDoc(n)
 		pointers := make([]jsontext.Pointer, n)
 		for i := range pointers {
 			pointers[i] = jsontext.Pointer(fmt.Sprintf("/components/schemas/S%d", i))
@@ -51,7 +31,7 @@ func BenchmarkDocumentPath_IntoAWideMapping(b *testing.B) {
 		b.Run(fmt.Sprintf("components%d", n), func(b *testing.B) {
 			b.ReportAllocs()
 			for b.Loop() {
-				v := New() // one view per pass: a view never outlives its compile
+				v := nodeview.New() // one view per pass: a view never outlives its compile
 				for _, p := range pointers {
 					if _, complete := v.DocumentPath(root, p); !complete {
 						b.Fatalf("pointer %s must resolve", p)

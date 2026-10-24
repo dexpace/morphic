@@ -9,13 +9,6 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// bigVal returns a pointer to the literal as written, which is how the three
-// bound fields carry one and the only way to write one past ir.NewBigVal.
-func bigVal(literal string) *ir.BigVal {
-	v := ir.BigVal(literal)
-	return &v
-}
-
 // numericValue is a number-kinded ir.Value carrying the literal as written.
 func numericValue(literal string) ir.Value {
 	return ir.Value{Kind: ir.ValueNumber, Num: ir.BigVal(literal)}
@@ -57,12 +50,12 @@ func bigValCarriers(literal string) map[string]*ir.Document {
 	withDefault, withBound := prop, prop
 	def := numericValue(literal)
 	withDefault.Default = &def
-	withBound.Constraints = &ir.Constraints{Max: bigVal(literal)}
+	withBound.Constraints = &ir.Constraints{Max: new(ir.BigVal(literal))}
 
 	return map[string]*ir.Document{
-		"doc.Types[t/x/S].Constraints.Min":               scalar(&ir.Constraints{Min: bigVal(literal)}),
-		"doc.Types[t/x/S].Constraints.Max":               scalar(&ir.Constraints{Max: bigVal(literal)}),
-		"doc.Types[t/x/S].Constraints.MultipleOf":        scalar(&ir.Constraints{MultipleOf: bigVal(literal)}),
+		"doc.Types[t/x/S].Constraints.Min":               scalar(&ir.Constraints{Min: new(ir.BigVal(literal))}),
+		"doc.Types[t/x/S].Constraints.Max":               scalar(&ir.Constraints{Max: new(ir.BigVal(literal))}),
+		"doc.Types[t/x/S].Constraints.MultipleOf":        scalar(&ir.Constraints{MultipleOf: new(ir.BigVal(literal))}),
 		"doc.Types[t/x/L].Value.Num":                     valued(numericValue(literal)),
 		"doc.Types[t/x/M].Properties[0].Default.Num":     property(withDefault),
 		"doc.Types[t/x/M].Properties[0].Constraints.Max": property(withBound),
@@ -153,7 +146,7 @@ func TestVerify_UnusedNumIsNotABound(t *testing.T) {
 		ID:          "t/x/S",
 		Name:        named("s"),
 		Provenance:  prov,
-		Constraints: &ir.Constraints{Min: bigVal("")},
+		Constraints: &ir.Constraints{Min: new(ir.BigVal(""))},
 	}}}
 	got := verifyDeclared(empty)
 	require.Len(t, got, 1)

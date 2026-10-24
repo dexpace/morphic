@@ -1,10 +1,8 @@
 package ir_test
 
 import (
-	"encoding/json/v2"
 	"math/rand/v2"
 	"reflect"
-	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -12,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/ir/irtest"
 )
 
 // walkLimit is how many values a test lets a walk reach before its visitor prunes
@@ -217,7 +216,7 @@ func TestValueCycles_IsDeterministic(t *testing.T) {
 // walk does: a cycle past the depth cap is not found by a walk that stopped.
 func TestValueCycles_ReportsTruncation(t *testing.T) {
 	t.Parallel()
-	_, truncated := ir.ValueCycles(nestedListValue(ir.MaxWalkDepth), "doc")
+	_, truncated := ir.ValueCycles(irtest.NestedListValue(ir.MaxWalkDepth), "doc")
 	assert.True(t, truncated)
 }
 
@@ -370,14 +369,6 @@ func countEdges(td ir.TypeDef, limit int) int {
 	return n
 }
 
-// encoderRefuses reports whether the JSON encoder refuses doc as containing
-// itself. The sentinel is not exported, so the message is what there is to read;
-// the question is the encoder's, not ours, and that is the point of asking it.
-func encoderRefuses(doc *ir.Document) bool {
-	_, err := json.Marshal(doc)
-	return err != nil && strings.Contains(err.Error(), "cycle")
-}
-
 // TestValueCycles_AgreesWithTheEncoder holds the claim the verifier rests on:
 // a document is called cyclic exactly when the encoder refuses it. Graphs are
 // drawn at random and three judges asked about each: a search that never sees a
@@ -402,7 +393,7 @@ func TestValueCycles_AgreesWithTheEncoder(t *testing.T) {
 		cycles, truncated := ir.ValueCycles(doc, ir.DocumentPath)
 		require.False(t, truncated, "%+v", nodes)
 		require.Equal(t, want, len(cycles) > 0, "the walk disagrees with the graph drawn: %+v", nodes)
-		require.Equal(t, want, encoderRefuses(doc), "the encoder disagrees with the graph drawn: %+v", nodes)
+		require.Equal(t, want, irtest.RefusedAsCyclic(doc), "the encoder disagrees with the graph drawn: %+v", nodes)
 		ctors := unfoldedCtors(nodes)
 		require.Equal(t, ctors, countEdges(model, ctors),
 			"TypeEdges does not end where the graph drawn does: %+v", nodes)

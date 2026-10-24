@@ -115,10 +115,10 @@ func assertDefaultResponse(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.Equal(t, []ir.StatusRange{{From: 200, To: 200}}, item.Responses[0].Conditions.StatusCodes)
 	require.NotNil(t, item.Default.Payload)
 	require.Len(t, item.Default.Payload.Contents, 1)
-	assert.Equal(t, namedID("Problem"), item.Default.Payload.Contents[0].Type.Target,
+	assert.Equal(t, componentID("Problem"), item.Default.Payload.Contents[0].Type.Target,
 		"the default keeps its own body, apart from the success one")
 	require.NotNil(t, item.Responses[0].Payload)
-	assert.Equal(t, namedID("Item"), item.Responses[0].Payload.Contents[0].Type.Target)
+	assert.Equal(t, componentID("Item"), item.Responses[0].Payload.Contents[0].Type.Target)
 
 	ping := byOp["ping"]
 	assert.Empty(t, ping.Responses)

@@ -1,15 +1,14 @@
 package irverify_test
 
 import (
-	"encoding/json/v2"
 	"strconv"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/ir/irtest"
 	"github.com/dexpace/morphic/ir/irverify"
 )
 
@@ -47,15 +46,6 @@ func cyclePaths(t *testing.T, doc *ir.Document) []string {
 		require.Equal(t, "ir/cyclic-structure", v.Code, "%s at %s", v.Message, v.Path)
 	}
 	return violationPaths(got, "ir/cyclic-structure")
-}
-
-// refusedAsCyclic reports whether the JSON encoder refuses doc for containing
-// itself. The encoder's sentinel is not exported, so the message is all there is
-// to read; that is acceptable here because the test asks what the encoder
-// thinks, not what Verify does, and must not borrow Verify's own reading.
-func refusedAsCyclic(doc *ir.Document) bool {
-	_, err := json.Marshal(doc)
-	return err != nil && strings.Contains(err.Error(), "cycle")
 }
 
 // cyclicDocs are the self-containing shapes the ir package can hold: one for
@@ -188,7 +178,7 @@ func TestVerify_CyclicStructureIsAViolation(t *testing.T) {
 			t.Parallel()
 			doc := c.doc()
 			assert.Equal(t, c.want, cyclePaths(t, doc))
-			assert.True(t, refusedAsCyclic(doc), "the encoder must refuse what Verify calls a cycle")
+			assert.True(t, irtest.RefusedAsCyclic(doc), "the encoder must refuse what Verify calls a cycle")
 		})
 	}
 }
@@ -260,7 +250,7 @@ func TestVerify_SharedReferenceIsNotACycle(t *testing.T) {
 			t.Parallel()
 			doc := c.doc()
 			assert.Empty(t, cyclePaths(t, doc))
-			assert.False(t, refusedAsCyclic(doc), "the encoder must accept what Verify does not call a cycle")
+			assert.False(t, irtest.RefusedAsCyclic(doc), "the encoder must accept what Verify does not call a cycle")
 		})
 	}
 }
@@ -279,7 +269,7 @@ func TestVerify_RegistryKeysCannotMakeASharedPointerACycle(t *testing.T) {
 	got := verifyDeclared(doc)
 	assert.Empty(t, violationPaths(got, "ir/cyclic-structure"))
 	assert.Contains(t, codesOf(got), "ir/type-id-mismatch", "the key that disagrees is still reported")
-	assert.False(t, refusedAsCyclic(doc))
+	assert.False(t, irtest.RefusedAsCyclic(doc))
 }
 
 // TestVerify_CyclicStructureIsReportedOnceAtEachWayIn pins what a list reachable
@@ -295,7 +285,7 @@ func TestVerify_CyclicStructureIsReportedOnceAtEachWayIn(t *testing.T) {
 		"doc.Types[t/x/M].Examples[0].Value.List[0].List",
 		"doc.Types[t/x/M].Examples[1].Value.List[0].List",
 	}, cyclePaths(t, doc))
-	assert.True(t, refusedAsCyclic(doc))
+	assert.True(t, irtest.RefusedAsCyclic(doc))
 }
 
 // TestVerify_CyclicStructureInADeepDocumentIsStillFound guards the wiring rather

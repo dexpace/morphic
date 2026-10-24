@@ -191,10 +191,10 @@ components:
 	unlisted := *loaded
 	unlisted.Others = load.Others{}
 
-	l := lowererOver(lowering.New(0, unlisted.Doc, unlisted.Source, lowering.GroupByTags, lowering.Limits{},
+	l := schema.LowererOver(lowering.New(0, unlisted.Doc, unlisted.Source, lowering.GroupByTags, lowering.Limits{},
 		lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}).WithLoaded(&unlisted))
-	l.diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.ctx, l.types))
-	doc := l.document(t)
+	l.Diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.Ctx, l.Types))
+	doc := l.Document(t)
 
 	unresolved := func(pointer jsontext.Pointer, message string) ir.Diagnostic {
 		return ir.Diagnostic{Severity: ir.SeverityError, Code: "openapi/unresolved-ref", Message: message,
@@ -207,7 +207,7 @@ components:
 			`discriminator mapping "x" references unresolved schema "./ext.yaml#/components/schemas/Sub"`),
 		unresolved("/components/schemas/Base/discriminator/mapping/x",
 			`discriminator mapping "x" references unresolved schema "./ext.yaml#/components/schemas/Sub"`),
-	}, withCode(l.diags.List(), "openapi/unresolved-ref")))
+	}, withCode(l.Diags.List(), "openapi/unresolved-ref")))
 	sub, ok := doc.Types[ids.Document{}.NamedType("/components/schemas/Sub")].(*ir.Model)
 	require.True(t, ok)
 	assert.Equal(t, "Sub", sub.DiscriminatorValue, "the mapping tags no subtype, which takes its own name")
@@ -224,7 +224,7 @@ func TestLower_UnresolvedRefDiagnostics(t *testing.T) {
       properties:
         ghost: {$ref: '#/components/schemas/Ghost'}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	require.NotNil(t, doc)
 	assert.True(t, openapitest.HasDiag(diags, diag.UnresolvedRef), "unresolved ref diagnostic emitted")
 }
@@ -302,7 +302,7 @@ func TestSchema_EmptyFragmentRef(t *testing.T) {
       properties:
         p: {$ref: '#'}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	require.NotNil(t, doc)
 	assert.True(t, openapitest.HasDiag(diags, diag.UnresolvedRef), "the '#' ref form is unresolved")
 }
@@ -322,7 +322,7 @@ func TestSchema_EmptyStringRefMirrorBranches(t *testing.T) {
         - {$ref: ''}
         - {type: string}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	require.NotNil(t, doc)
 	assert.GreaterOrEqual(t, openapitest.CountDiagsAt(diags, diag.UnresolvedRef, ir.SeverityError), 2, "both empty refs are unresolved")
 	u, ok := typeByName(doc, "U").(*ir.Union)
@@ -348,7 +348,7 @@ func TestSchema_ARefThroughAnEmptyRefLendsNothing(t *testing.T) {
       properties:
         p: {$ref: '#/components/schemas/Empty'}
 `)
-	doc, _ := lowerSpec(t, spec)
+	doc, _ := schema.LowerSpec(t, spec)
 	require.NotNil(t, doc)
 	owner, ok := typeByName(doc, "Owner").(*ir.Model)
 	require.True(t, ok)
@@ -752,7 +752,7 @@ func TestRefSiteKeywords_KeptAtEveryPosition(t *testing.T) {
 		t.Run(tc.keyword, func(t *testing.T) {
 			t.Parallel()
 			site := "{$ref: '#/components/schemas/" + tc.target + "', " + tc.sibling + "}"
-			doc, diags := lowerSpec(t, keywordCensusSpec(
+			doc, diags := schema.LowerSpec(t, keywordCensusSpec(
 				"    Alias: "+site+"\n"+
 					"    Holder: {type: object, properties: {p: "+site+"}}\n"))
 			openapitest.RequireNoErrorDiags(t, diags)
@@ -803,7 +803,7 @@ func TestRefSiteKeywords_UnionKeptAtEveryPosition(t *testing.T) {
 		t.Run(tc.keyword, func(t *testing.T) {
 			t.Parallel()
 			site := "{$ref: '#/components/schemas/BaseObj', " + tc.sibling + "}"
-			doc, diags := lowerSpec(t, keywordCensusSpec(
+			doc, diags := schema.LowerSpec(t, keywordCensusSpec(
 				"    Alias: "+site+"\n"+
 					"    Holder: {type: object, properties: {p: "+site+"}}\n"))
 			openapitest.RequireNoErrorDiags(t, diags)
@@ -841,7 +841,7 @@ func TestRefSiteKeywords_UnionKeptAtEveryPosition(t *testing.T) {
 func TestRefSiteKeywords_SiblingsWithATypedHomeAreUntouched(t *testing.T) {
 	t.Parallel()
 	site := "{$ref: '#/components/schemas/BaseStr', minLength: 3, description: kept}"
-	doc, diags := lowerSpec(t, keywordCensusSpec(
+	doc, diags := schema.LowerSpec(t, keywordCensusSpec(
 		"    Alias: "+site+"\n"+
 			"    Holder: {type: object, properties: {p: "+site+"}}\n"))
 	openapitest.RequireNoErrorDiags(t, diags)
@@ -874,7 +874,7 @@ func TestRefSiteKeywords_SiblingsWithATypedHomeAreUntouched(t *testing.T) {
 // one keyword would be read twice.
 func TestRefSiteKeywords_AllOfBranchKeepsWhatTheAliasCannotHold(t *testing.T) {
 	t.Parallel()
-	doc, diags := lowerSpec(t, keywordCensusSpec(
+	doc, diags := schema.LowerSpec(t, keywordCensusSpec(
 		"    S: {allOf: [{$ref: '#/components/schemas/BaseObj', format: email, required: [a]}]}\n"))
 	openapitest.RequireNoErrorDiags(t, diags)
 
@@ -914,7 +914,7 @@ func TestRefSiteKeywords_AllOfBranchKeepsUnion(t *testing.T) {
 	} {
 		t.Run(tc.keyword, func(t *testing.T) {
 			t.Parallel()
-			doc, diags := lowerSpec(t, keywordCensusSpec(
+			doc, diags := schema.LowerSpec(t, keywordCensusSpec(
 				"    S: {allOf: [{$ref: '#/components/schemas/BaseObj', "+tc.sibling+"}]}\n"))
 			openapitest.RequireNoErrorDiags(t, diags)
 
@@ -944,7 +944,7 @@ func TestSchemaRef_ToAPointerEndingInSlashNamesAnEmptyKey(t *testing.T) {
 	assert.Equal(t, `unresolved $ref "#/x-lib/T/": it names nothing in the document it points into`,
 		openapitest.DiagMessageAt(t, diags, diag.UnresolvedRef, ir.SeverityError, "/components/schemas/A/properties/p"))
 
-	doc, diags := lowerSpec(t, openapitest.ComponentSpec("    A: {type: object, properties: {p: {$ref: '#/x-lib/T/'}}}\n")+
+	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec("    A: {type: object, properties: {p: {$ref: '#/x-lib/T/'}}}\n")+
 		"x-lib:\n  T: {'': {type: integer}, type: object}\n")
 	openapitest.RequireNoErrorDiags(t, diags)
 	empty, ok := doc.Types[ir.TypeID("t/anon/x-lib/T/")].(*ir.Scalar)

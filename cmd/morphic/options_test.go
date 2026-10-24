@@ -89,28 +89,3 @@ func TestPassFlag_SetKeepsNamesAsTyped(t *testing.T) {
 	assert.Empty(t, cmp.Diff(passFlag{"validate", "validate", ""}, got))
 	assert.Equal(t, "validate validate ", got.String())
 }
-
-// TestSpecOptions_DisabledPasses pins that --skip-validate adds validate to
-// whatever --disable-pass named, and that names reach the engine as typed.
-func TestSpecOptions_DisabledPasses(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name string
-		opts specOptions
-		want []string
-	}{
-		{"neither flag", specOptions{}, nil},
-		{"--skip-validate", specOptions{skipValidate: true}, []string{"validate"}},
-		{"--disable-pass validate", specOptions{disable: passFlag{"validate"}}, []string{"validate"}},
-		{"both", specOptions{skipValidate: true, disable: passFlag{"validate"}},
-			[]string{"validate", "validate"}},
-		{"another name with --skip-validate", specOptions{skipValidate: true, disable: passFlag{"Nope"}},
-			[]string{"Nope", "validate"}},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			assert.Empty(t, cmp.Diff(tt.want, tt.opts.disabledPasses()))
-		})
-	}
-}

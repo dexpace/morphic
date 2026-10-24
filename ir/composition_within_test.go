@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/ir/irtest"
 )
 
 // withinRandom builds a registry of up to twenty types: models declaring up to
@@ -27,13 +28,13 @@ func withinRandom(rng *rand.Rand) (*ir.Document, []ir.TypeID, []ir.PropID) {
 	types = append(types, "ghost", "nilm", "")
 	pick := func() ir.TypeID { return types[rng.IntN(len(types))] }
 	props := []ir.PropID{"p/ghost"}
-	doc := compDoc()
+	doc := irtest.DocOf()
 	for _, id := range declared {
 		if rng.IntN(4) == 0 {
-			doc.Types[id] = compScalar(id, pick())
+			doc.Types[id] = irtest.ScalarOf(id, pick())
 			continue
 		}
-		doc.Types[id] = compModel(id, func(m *ir.Model) {
+		doc.Types[id] = irtest.ModelOf(id, func(m *ir.Model) {
 			for range rng.IntN(3) {
 				p := ir.PropID(fmt.Sprintf("p%d", rng.IntN(8)))
 				m.Properties = append(m.Properties, prop(p))
@@ -42,8 +43,8 @@ func withinRandom(rng *rand.Rand) (*ir.Document, []ir.TypeID, []ir.PropID) {
 			if rng.IntN(2) == 0 {
 				m.Base = &ir.TypeRef{Target: pick()}
 			}
-			m.Implements = refs(pickSome(rng, pick)...)
-			m.Mixins = refs(pickSome(rng, pick)...)
+			m.Implements = irtest.RefsTo(pickSome(rng, pick)...)
+			m.Mixins = irtest.RefsTo(pickSome(rng, pick)...)
 		})
 	}
 	doc.Types["nilm"] = (*ir.Model)(nil)
@@ -102,13 +103,13 @@ func TestWithin_AnswersAsTheUnlimitedWalk(t *testing.T) {
 
 func TestIsSubtypeWithin_CountsEachSupertypeAndAliasHop(t *testing.T) {
 	t.Parallel()
-	doc := compDoc(
-		compModel("a", func(m *ir.Model) { m.Base = &ir.TypeRef{Target: "alias1"}; m.Mixins = refs("mixin") }),
-		compScalar("alias1", "alias2"),
-		compScalar("alias2", "b"),
-		compModel("b", func(m *ir.Model) { m.Base = &ir.TypeRef{Target: "c"} }),
-		compModel("c", nil),
-		compModel("mixin", nil),
+	doc := irtest.DocOf(
+		irtest.ModelOf("a", func(m *ir.Model) { m.Base = &ir.TypeRef{Target: "alias1"}; m.Mixins = irtest.RefsTo("mixin") }),
+		irtest.ScalarOf("alias1", "alias2"),
+		irtest.ScalarOf("alias2", "b"),
+		irtest.ModelOf("b", func(m *ir.Model) { m.Base = &ir.TypeRef{Target: "c"} }),
+		irtest.ModelOf("c", nil),
+		irtest.ModelOf("mixin", nil),
 	)
 	for _, tc := range []struct {
 		base  ir.TypeID
@@ -128,13 +129,13 @@ func TestIsSubtypeWithin_CountsEachSupertypeAndAliasHop(t *testing.T) {
 
 func TestExposesWithin_CountsEachSourceAndProperty(t *testing.T) {
 	t.Parallel()
-	doc := compDoc(
-		compModel("m", func(m *ir.Model) {
+	doc := irtest.DocOf(
+		irtest.ModelOf("m", func(m *ir.Model) {
 			m.Properties = []ir.Property{prop("m.a"), prop("m.b"), prop("m.c")}
-			m.Mixins = refs("viaAlias", "ghost")
+			m.Mixins = irtest.RefsTo("viaAlias", "ghost")
 		}),
-		compScalar("viaAlias", "n"),
-		compModel("n", func(m *ir.Model) { m.Properties = []ir.Property{prop("n.p"), prop("n.q")} }),
+		irtest.ScalarOf("viaAlias", "n"),
+		irtest.ModelOf("n", func(m *ir.Model) { m.Properties = []ir.Property{prop("n.p"), prop("n.q")} }),
 	)
 	for _, tc := range []struct {
 		prop    ir.PropID

@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/ir/irtest"
 	"github.com/dexpace/morphic/pass"
 )
 
@@ -19,7 +20,7 @@ func TestValidate_ArgsOutsideGraphQL(t *testing.T) {
 	}
 	diags := pass.Validate(doc)
 	require.NotEmpty(t, diags)
-	assert.Contains(t, codes(diags), "pass/args-outside-graphql")
+	assert.Contains(t, irtest.DiagCodes(diags), "pass/args-outside-graphql")
 }
 
 // TestValidate_GraphQLReachableTypesAllowArgs drives graphqlReachableTypes: an
@@ -50,7 +51,7 @@ func TestValidate_GraphQLReachableTypesAllowArgs(t *testing.T) {
 		ID:     "s",
 		Groups: []ir.OperationGroup{{Operations: []ir.Operation{op}}},
 	}}
-	assert.NotContains(t, codes(pass.Validate(doc)), "pass/args-outside-graphql")
+	assert.NotContains(t, irtest.DiagCodes(pass.Validate(doc)), "pass/args-outside-graphql")
 }
 
 // argModel is a model whose one property carries a field argument, so the model
@@ -120,13 +121,13 @@ func TestValidate_GraphQLReachabilityFollowsEveryReference(t *testing.T) {
 			tc.bind(doc, &op)
 			doc.Services = []ir.Service{{ID: "s", Groups: []ir.OperationGroup{{Operations: []ir.Operation{op}}}}}
 
-			assert.NotContains(t, codes(pass.Validate(doc)), "pass/args-outside-graphql")
+			assert.NotContains(t, irtest.DiagCodes(pass.Validate(doc)), "pass/args-outside-graphql")
 
 			// The other half of the proof: the same document with the binding
 			// removed must report, or the case would pass on a reachability walk
 			// that reaches nothing at all.
 			doc.Services[0].Groups[0].Operations[0].Bindings.GraphQL = nil
-			assert.Contains(t, codes(pass.Validate(doc)), "pass/args-outside-graphql")
+			assert.Contains(t, irtest.DiagCodes(pass.Validate(doc)), "pass/args-outside-graphql")
 		})
 	}
 }
@@ -153,12 +154,49 @@ func TestValidate_ArgsCheckFailsOpenWhenWalkTruncated(t *testing.T) {
 		return doc
 	}
 
-	within := codes(pass.Validate(withArgs(nestGroups(127, gqlOp()))))
+	within := irtest.DiagCodes(pass.Validate(withArgs(nestGroups(127, gqlOp()))))
 	assert.NotContains(t, within, "pass/args-outside-graphql",
 		"the binding is visible within the cap, so Args is legal")
 
-	past := codes(pass.Validate(withArgs(nestGroups(200, gqlOp()))))
+	past := irtest.DiagCodes(pass.Validate(withArgs(nestGroups(200, gqlOp()))))
 	assert.NotContains(t, past, "pass/args-outside-graphql",
 		"past the cap the binding went unseen; unreachable-by-truncation is not evidence of illegality")
 	assert.Contains(t, past, "ir/walk-truncated", "and the truncation must be reported instead")
+}
+
+// TestCollectTypeIDs_DeepValueTreeIsTruncated drives what this pass does with a
+// truncated walk: a value tree nested past the shared cap must not be silently
+// under-checked, so the flag comes back out of the collector and Validate turns
+// it into a diagnostic rather than claiming the document is referentially closed.
+// The bound itself is ir.MaxWalkDepth's to hold; this is the reporting half.
+func TestCollectTypeIDs_DeepValueTreeIsTruncated(t *testing.T) {
+	t.Parallel()
+	v := ir.Value{Kind: ir.ValueNull}
+	for range ir.MaxWalkDepth {
+		v = ir.Value{Kind: ir.ValueList, List: []ir.Value{v}}
+	}
+	m := &ir.Model{ID: "t/m", Examples: []ir.Example{{Value: &v}}}
+	doc := &ir.Document{Types: ir.TypeRegistry{m.ID: m}}
+
+	_, truncated := pass.CollectTypeIDs(doc, "doc")
+	assert.True(t, truncated, "a tree nested past the cap must report truncation")
+
+	diags := danglingRefs(doc)
+	require.NotEmpty(t, diags)
+	assert.Equal(t, "ir/walk-truncated", diags[0].Code)
+	assert.Equal(t, ir.SeverityError, diags[0].Severity)
+}
+
+// TestCollectTypeIDs_UnmodeledBytesYieldNoReference states the result the byte
+// payloads must produce: a preserved JSON blob is opaque data, so bytes that
+// happen to spell a type ID are not a reference.
+func TestCollectTypeIDs_UnmodeledBytesYieldNoReference(t *testing.T) {
+	t.Parallel()
+	doc := &ir.Document{Unmodeled: ir.Unmodeled{"openapi:x-thing": {
+		Reason: ir.ReasonVendorExtension,
+		Value:  ir.RawValue(`"t/ghost/in-bytes"`),
+	}}}
+	sites, truncated := pass.CollectTypeIDs(doc, "doc")
+	assert.False(t, truncated)
+	assert.Empty(t, sites)
 }

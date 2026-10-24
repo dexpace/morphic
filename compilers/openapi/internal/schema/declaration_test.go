@@ -32,7 +32,7 @@ func TestLower_ValidationOnlyKeywords(t *testing.T) {
       unevaluatedProperties: {type: string}
       unevaluatedItems: {type: integer}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	m := typeByName(doc, "V").(*ir.Model)
 	// An entry the source writes as one keyword is located at that keyword; the
@@ -63,7 +63,7 @@ func TestLower_PropertyNamesPreserved(t *testing.T) {
       propertyNames: {type: string, pattern: "^[a-z]+$"}
       additionalProperties: {type: integer}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	mt, ok := typeByName(doc, "Codes").(*ir.MapT)
@@ -86,7 +86,7 @@ func TestModel_ValidationOnlyKeywordPreserved(t *testing.T) {
       properties: {a: {type: string}}
       not: {required: [b]}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	m := doc.Types[componentID("S")].(*ir.Model)
 	raw, ok := m.Unmodeled["openapi:not"]
 	require.True(t, ok, "not-keyword must be preserved verbatim")
@@ -113,7 +113,7 @@ func TestModel_SchemaExtensionPreserved(t *testing.T) {
       x-rate-limit: 100
       properties: {a: {type: string}}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	m := doc.Types[componentID("S")].(*ir.Model)
 	raw, ok := m.Unmodeled["openapi:x-rate-limit"]
@@ -132,7 +132,7 @@ func TestModel_TitleDescriptionDocs(t *testing.T) {
       description: "My Desc"
       properties: {a: {type: string}}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	m := doc.Types[componentID("S")].(*ir.Model)
 	assert.Equal(t, "My Title", m.Docs.Summary)
@@ -146,7 +146,7 @@ func TestSchema_UnserializableExtension(t *testing.T) {
       properties: {a: {type: string}}
       x-bad: {n: .nan}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	require.NotNil(t, doc)
 	assert.True(t, openapitest.HasDiagAt(diags, diag.DegradedConstruct, ir.SeverityWarning), "unserializable extension warns")
 	m := typeByName(doc, "S").(*ir.Model)

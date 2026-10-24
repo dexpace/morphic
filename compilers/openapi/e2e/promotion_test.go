@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
@@ -39,7 +38,7 @@ func promotionCarriers(t *testing.T, doc *ir.Document) map[string]promotionCarri
 	require.Len(t, op.Params, 1)
 	param := op.Params[0]
 
-	model, ok := doc.Types[namedID("Old")].(*ir.Model)
+	model, ok := doc.Types[componentID("Old")].(*ir.Model)
 	require.True(t, ok)
 	prop, ok := propByWire(model, "p")
 	require.True(t, ok)
@@ -120,14 +119,14 @@ func assertEnumOpenness(t *testing.T, doc *ir.Document) {
 		{"Fixed", true, ""},
 	}
 	for _, tc := range tests {
-		enum, ok := doc.Types[namedID(tc.schema)].(*ir.Enum)
+		enum, ok := doc.Types[componentID(tc.schema)].(*ir.Enum)
 		require.True(t, ok, "%s lowers to an enum", tc.schema)
 		assert.Equal(t, tc.closed, enum.Closed, "%s openness", tc.schema)
 		assert.Equal(t, tc.inferred, enum.Provenance.Inferred, "%s heuristic marker", tc.schema)
 	}
 
 	for _, schema := range []string{"Size", "Shade"} {
-		enum, ok := doc.Types[namedID(schema)].(*ir.Enum)
+		enum, ok := doc.Types[componentID(schema)].(*ir.Enum)
 		require.True(t, ok)
 		entry, kept := enum.Unmodeled["openapi:x-extensible-enum"]
 		require.True(t, kept, "%s keeps the extension whether or not it was read", schema)
@@ -141,13 +140,14 @@ func assertEnumOpenness(t *testing.T, doc *ir.Document) {
 // was deprecated annotates nothing, and a value that is not text is a document
 // meaning something else by the key.
 func assertPromotionDeclined(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	t.Helper()
 	live, ok := opByName(doc, "getY")
 	require.True(t, ok)
 	assert.Nil(t, live.Deprecation, "the operation is not deprecated")
 	assert.Contains(t, live.Unmodeled, "openapi:x-deprecated-reason")
 	assert.Empty(t, live.Provenance.Inferred, "nothing was inferred, so nothing is marked")
 
-	model, ok := doc.Types[namedID("Old")].(*ir.Model)
+	model, ok := doc.Types[componentID("Old")].(*ir.Model)
 	require.True(t, ok)
 	numeric, ok := propByWire(model, "n")
 	require.True(t, ok)
@@ -176,24 +176,12 @@ paths:
           description: ok
 `
 
-// compilePromotionSpec compiles src with opts and requires no error diagnostic.
-func compilePromotionSpec(t *testing.T, src string, opts openapi.Options) *ir.Document {
-	t.Helper()
-	doc, diags, err := openapi.New().Compile(t.Context(),
-		[]compilers.Source{{Path: "spec.yaml", Data: []byte(src)}},
-		compilers.Options{FormatOptions: opts})
-	require.NoError(t, err)
-	require.NotNil(t, doc)
-	assertNoErrorDiags(t, diags)
-	return doc
-}
-
 // TestPromotion_DisabledKeepsExtensionsAndNothingElse pins the off switch
 // invariant 6 requires. Disabled means the typed field is not written at all,
 // and the document compiles to exactly what it did before promotion existed.
 func TestPromotion_DisabledKeepsExtensionsAndNothingElse(t *testing.T) {
 	t.Parallel()
-	doc := compilePromotionSpec(t, deprecatedOpSpec,
+	doc := compileClean(t, deprecatedOpSpec,
 		openapi.Options{Promotions: openapi.ExtensionPromotions{Disabled: true}})
 	op, ok := opByName(doc, "getX")
 	require.True(t, ok)
@@ -214,7 +202,7 @@ func TestPromotion_TargetsReplaceTheDefaults(t *testing.T) {
 			"x-gone-in": openapi.TargetDeprecationRemovalVersion,
 		},
 	}}
-	doc := compilePromotionSpec(t, deprecatedOpSpec, own)
+	doc := compileClean(t, deprecatedOpSpec, own)
 	op, ok := opByName(doc, "getX")
 	require.True(t, ok)
 	require.NotNil(t, op.Deprecation)
@@ -255,11 +243,11 @@ components:
       type: string
       enum: [a, b]
 ` + keys
-	doc := compilePromotionSpec(t, spec, openapi.Options{})
+	doc := compileClean(t, spec, openapi.Options{})
 	op, ok := opByName(doc, "getX")
 	require.True(t, ok)
 	require.NotNil(t, op.Deprecation)
-	enum, ok := doc.Types[namedID("E")].(*ir.Enum)
+	enum, ok := doc.Types[componentID("E")].(*ir.Enum)
 	require.True(t, ok)
 
 	// Read off the defaults rather than listing the pairs, so a mapping this
@@ -320,7 +308,7 @@ paths:
         "200":
           description: ok
 `
-	doc := compilePromotionSpec(t, spec, both)
+	doc := compileClean(t, spec, both)
 	op, ok := opByName(doc, "getX")
 	require.True(t, ok)
 	require.NotNil(t, op.Deprecation)

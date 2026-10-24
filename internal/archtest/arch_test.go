@@ -15,6 +15,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/dexpace/morphic/ir/irtest"
 )
 
 const module = "github.com/dexpace/morphic"
@@ -327,6 +329,7 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/fragment",
 		"github.com/speakeasy-api/openapi/jsonpointer",
 		"github.com/speakeasy-api/openapi/jsonschema/oas3",
+		"github.com/speakeasy-api/openapi/marshaller",
 		"github.com/speakeasy-api/openapi/openapi",
 		"github.com/speakeasy-api/openapi/references",
 		"github.com/speakeasy-api/openapi/sequencedmap",
@@ -440,7 +443,7 @@ var exempt = map[string]string{
 // components where these entries name packages.
 func TestImportGraph_LayeringHolds(t *testing.T) {
 	t.Parallel()
-	root := repoRoot(t)
+	root := irtest.RepoRoot(t)
 	for dir, allowed := range rules {
 		t.Run(dir, func(t *testing.T) {
 			t.Parallel()
@@ -577,7 +580,7 @@ func writeImporter(t *testing.T, file, imp string) {
 // the next package added an explicit decision rather than a silent omission.
 func TestImportGraph_EveryPackageIsRuledOrExempt(t *testing.T) {
 	t.Parallel()
-	root := repoRoot(t)
+	root := irtest.RepoRoot(t)
 	pkgs := productionPackages(t, root)
 	require.NotEmpty(t, pkgs, "found no production packages to audit")
 
@@ -771,22 +774,4 @@ func admit(ip string, allowed []string, used []bool) bool {
 func entryAdmits(entry, ip string) bool {
 	root, subtree := strings.CutSuffix(entry, subtreeSuffix)
 	return ip == root || (subtree && strings.HasPrefix(ip, root+"/"))
-}
-
-// repoRoot walks up from the working directory, which go test sets to this
-// package's own, until it finds the module's go.mod, returning that directory.
-// It does not start from this file's path: under -trimpath, runtime.Caller
-// reports the file under its import path, not on disk.
-func repoRoot(t *testing.T) string {
-	t.Helper()
-	dir, err := os.Getwd()
-	require.NoError(t, err)
-	for {
-		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
-			return dir
-		}
-		parent := filepath.Dir(dir)
-		require.NotEqual(t, parent, dir, "reached filesystem root without finding go.mod")
-		dir = parent
-	}
 }

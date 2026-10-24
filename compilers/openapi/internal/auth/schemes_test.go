@@ -2,6 +2,7 @@ package auth_test
 
 import (
 	"encoding/json/jsontext"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -176,7 +177,7 @@ components:
 			assert.NotContains(t, doc.Auth, ids.Auth("ghost"), "the entry interns no scheme")
 			assert.Contains(t, doc.Auth, ids.Auth("key"), "its complete sibling still does")
 
-			d, ok := firstDiagAt(diags, diag.IncompleteSecurityScheme)
+			d, ok := openapitest.FirstDiag(diags, diag.IncompleteSecurityScheme)
 			require.True(t, ok, "the refusal is reported: %+v", diags)
 			assert.Equal(t, ir.SeverityError, d.Severity)
 			assert.Equal(t, jsontext.Pointer("/components/securitySchemes/ghost"), d.Provenance.Pointer,
@@ -356,7 +357,7 @@ components:
 `)
 	assert.Equal(t, []string{diag.DegradedConstruct}, codesAtPointer(diags, "/components/securitySchemes/s/in"),
 		"the kept field is announced exactly once, the one report of a field OpenAPI bars from no type: %+v", diags)
-	d, ok := firstDiagAt(diags, diag.DegradedConstruct)
+	d, ok := openapitest.FirstDiag(diags, diag.DegradedConstruct)
 	require.True(t, ok)
 	assert.Contains(t, d.Message, "in")
 	assert.Contains(t, d.Message, "mutualTLS", "and names the type that gave it no meaning")
@@ -422,7 +423,7 @@ components:
 	require.True(t, ok, "the scheme still lowers; only the one field could not be kept")
 	assert.Empty(t, s.Unmodeled, "nothing was kept, so nothing claims to have been")
 
-	d, ok := firstDiagAt(diags, diag.UnpreservableConstruct)
+	d, ok := openapitest.FirstDiag(diags, diag.UnpreservableConstruct)
 	require.True(t, ok, "the loss is reported: %+v", diags)
 	assert.Equal(t, ir.SeverityError, d.Severity)
 	require.Equal(t, []string{diag.UnpreservableConstruct, "openapi/validation/validation-type-mismatch"},
@@ -482,4 +483,47 @@ components:
 	scheme, ok := doc.Auth[ids.Auth("s")]
 	require.True(t, ok)
 	assert.Empty(t, scheme.Unmodeled, "the unserializable extension is dropped, not stored")
+}
+
+// TestMechanismFieldNames_AccountForEverySourceField holds mechanismFieldNames
+// to the source model it lists, so a field the upstream model gains fails here
+// rather than being dropped from the IR without trace, which is what #294 was.
+//
+// Reading the source struct is what makes the comparison possible: a
+// hand-written list checked against another would agree with itself forever.
+// The wire names are spelled out rather than derived, since they differ by more
+// than leading case: OAuth2MetadataUrl is oauth2MetadataUrl.
+func TestMechanismFieldNames_AccountForEverySourceField(t *testing.T) {
+	t.Parallel()
+	// alwaysRead are the fields lowerSecurityScheme reads whatever the type is,
+	// so no type can leave one unread and none needs preserving.
+	alwaysRead := map[string]bool{
+		"Type": true, "Description": true, "Deprecated": true, "Extensions": true,
+	}
+	// perType are the fields only some types define, keyed by Go field name and
+	// valued by the wire name mechanismFieldNames must list.
+	perType := map[string]string{
+		"Name": "name", "In": "in", "Scheme": "scheme", "BearerFormat": "bearerFormat",
+		"Flows": "flows", "OpenIdConnectUrl": "openIdConnectUrl",
+		"OAuth2MetadataUrl": "oauth2MetadataUrl",
+	}
+
+	var want []string
+	st := reflect.TypeFor[soa.SecurityScheme]()
+	for f := range st.Fields() {
+		if f.Anonymous || !f.IsExported() {
+			continue // the embedded marshaller model is not a document field
+		}
+		wire, perTypeField := perType[f.Name]
+		require.True(t, alwaysRead[f.Name] || perTypeField,
+			"securityScheme field %q is neither read for every type nor listed as a mechanism "+
+				"field, so a document declaring it loses it: add it to one or the other", f.Name)
+		if perTypeField {
+			want = append(want, wire)
+		}
+	}
+
+	slices.Sort(want)
+	assert.Equal(t, want, auth.MechanismFieldNames(),
+		"mechanismFieldNames must list every per-type field, sorted")
 }

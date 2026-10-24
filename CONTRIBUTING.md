@@ -45,6 +45,34 @@ Read the documents for your layer, and skip the rest until you need them.
   as `ir/nofloat_test.go` is, and in a package of one source file a test file needs no prefix.
   *Fails if missed:* `make coverage`, for a test in another package than its code, since coverage
   counts only a package's own tests. Nothing fails for a test in the wrong file of its package.
+- **A test is external, `package x_test`, unless it cannot be.** It reaches what it must of the
+  package's internals through the package's `export_test.go`, which names each one once, under its
+  exported spelling or, where that is taken, a name that says what it adds, as
+  `irtest.CompareGoldenOn` does. A test that needs an unexported field or method, a generic, or a
+  variable it assigns stays inside the package, in `x_internal_test.go`, and so do a package's
+  tests when moving them out would take more than ten aliases, enough to make a second API, as
+  `schema`'s and `operation`'s would. A fixture both sides use is declared once, exported, in
+  `export_test.go`, as `schema.Lowerer` is. A `cmd` program's tests are all inside it, under plain
+  names, since a `main` package cannot be imported.
+  *Fails if missed:* nothing. A test written inside the package that could be external compiles and
+  runs.
+- **A test is named for what it tests.** A `TestFunc_Scenario` name is a function's or a type's, and
+  the file follows from it as above. A test that pins a construct or a lowering rule may take the
+  construct's name instead, as the `TestPathItemRefSiblings` tests do, and then sits in the file of
+  the construct or of the entry point it runs through. A function that asserts on a test's behalf
+  calls `t.Helper`, except one a table runs as a case's body, as the conformance corpus's assertions
+  and the canaries are: it is the case, so its failure reports the line in it that fails.
+  *Fails if missed:* nothing checks a test's name or its `t.Helper`.
+- **A helper is written once.** One that several test files of a package share sits in one of
+  them or, when it is new, in the package's `helpers_test.go`, or `helpers_internal_test.go` inside
+  the package. One that several packages share is in `compilers/openapi/internal/openapitest` or
+  `ir/irtest`, as `openapitest.SchemaFromYAML` and `irtest.RepoRoot` are, when it builds or reads
+  what those packages serve, a spec and its diagnostics or the IR. One that belongs there but
+  cannot live there, as `parseFull`, which compiles through `openapi.New`, is written in each
+  package that needs it, and each copy says why. A helper outside what either serves, such as a
+  file read or a stub compiler, is written where it is needed, and so is one whose body is a single
+  expression, such as `ir.TypeRef{Target: id}`, which holds no behaviour for a copy to drift from.
+  *Fails if missed:* nothing. A copy compiles beside the original.
 - **An end-to-end test of the OpenAPI compiler goes in `compilers/openapi/e2e`,** in a file named
   for the construct or the property it checks: a test of what the compiler does as a whole, which no
   one package decides, such as the conformance corpus, the goldens, fuzzing, benchmarks and a

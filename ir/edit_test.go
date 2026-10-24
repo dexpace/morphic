@@ -1,7 +1,6 @@
 package ir_test
 
 import (
-	"encoding/json/v2"
 	"fmt"
 	"maps"
 	"reflect"
@@ -14,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/ir/irtest"
 )
 
 // editedDoc returns a document of three types: a model whose one property is a
@@ -37,15 +37,6 @@ func editedDoc() *ir.Document {
 			},
 		},
 	}
-}
-
-// encoded returns doc's canonical bytes, which change when anything doc
-// reaches does.
-func encoded(t *testing.T, doc *ir.Document) string {
-	t.Helper()
-	raw, err := json.Marshal(doc)
-	require.NoError(t, err)
-	return string(raw)
 }
 
 // refusals returns the messages of diags, each required to be an EditRefused
@@ -129,7 +120,7 @@ func TestEditor_WritesTheEditedRegistryAndNotTheDocument(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			doc := editedDoc()
-			before, nodes := encoded(t, doc), maps.Clone(doc.Types)
+			before, nodes := irtest.Encoded(t, doc), maps.Clone(doc.Types)
 
 			e := ir.NewEditor(doc)
 			tt.write(e)
@@ -137,7 +128,7 @@ func TestEditor_WritesTheEditedRegistryAndNotTheDocument(t *testing.T) {
 
 			assert.Empty(t, diags)
 			tt.want(t, out.Types)
-			assert.Equal(t, before, encoded(t, doc), "the edited document changed")
+			assert.Equal(t, before, irtest.Encoded(t, doc), "the edited document changed")
 			require.Len(t, doc.Types, len(nodes), "the edited document holds other types")
 			for id, td := range nodes {
 				assert.Same(t, td, doc.Types[id], "the edited document holds another node at %s", id)
@@ -266,8 +257,8 @@ func TestEditor_RefusesWritesOnlyABugMakes(t *testing.T) {
 			got := refusals(t, diags)
 			require.Len(t, got, 1, "one refused write, one refusal: %v", got)
 			assert.Contains(t, got[0], "internal: type edit: "+tt.want)
-			assert.Equal(t, encoded(t, want), encoded(t, out), "the refused write changed the edit")
-			assert.Equal(t, encoded(t, editedDoc()), encoded(t, doc), "the edited document changed")
+			assert.Equal(t, irtest.Encoded(t, want), irtest.Encoded(t, out), "the refused write changed the edit")
+			assert.Equal(t, irtest.Encoded(t, editedDoc()), irtest.Encoded(t, doc), "the edited document changed")
 		})
 	}
 }
@@ -321,8 +312,8 @@ func TestEditor_UpdateRefusesAChangeWritingOrEndingTheEdit(t *testing.T) {
 			assert.Contains(t, got[1], "internal: type edit: "+tt.want)
 			assert.Equal(t, `internal: type edit: update rejected: the change of "t/model" wrote to the edit `+
 				`or ended it; a change alters its node alone`, got[2])
-			assert.Equal(t, encoded(t, want), encoded(t, out), "the change or a call it made changed the edit")
-			assert.Equal(t, encoded(t, editedDoc()), encoded(t, doc), "the edited document changed")
+			assert.Equal(t, irtest.Encoded(t, want), irtest.Encoded(t, out), "the change or a call it made changed the edit")
+			assert.Equal(t, irtest.Encoded(t, editedDoc()), irtest.Encoded(t, doc), "the edited document changed")
 		})
 	}
 }
@@ -465,7 +456,7 @@ func TestEditor_FinishRefusesANodeMovedAfterTheEditTookIt(t *testing.T) {
 			for id, td := range out.Types {
 				assert.Equal(t, id, td.Common().ID, "a node sits at a key its ID does not name")
 			}
-			assert.Equal(t, encoded(t, editedDoc()), encoded(t, doc), "the edited document changed")
+			assert.Equal(t, irtest.Encoded(t, editedDoc()), irtest.Encoded(t, doc), "the edited document changed")
 		})
 	}
 }
@@ -502,7 +493,7 @@ func TestEditor_FinishReportsEachRefusalOnce(t *testing.T) {
 	e := ir.NewEditor(editedDoc())
 	e.RemoveType("t/absent")
 	first, firstDiags := e.Finish()
-	before := encoded(t, first)
+	before := irtest.Encoded(t, first)
 
 	e.RemoveType("t/scalar")
 	e.ReplaceType(&ir.Any{ID: "t/list"})
@@ -520,7 +511,7 @@ func TestEditor_FinishReportsEachRefusalOnce(t *testing.T) {
 	assert.Empty(t, thirdDiags)
 	assert.Same(t, first, second)
 	assert.Same(t, first, third)
-	assert.Equal(t, before, encoded(t, first), "a write after Finish changed its document")
+	assert.Equal(t, before, irtest.Encoded(t, first), "a write after Finish changed its document")
 }
 
 // TestNewEditor_NilDocumentIsRefused pins that an edit of no document still

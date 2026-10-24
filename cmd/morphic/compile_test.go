@@ -89,15 +89,7 @@ func TestRun_SpecProblemsExitOne(t *testing.T) {
 
 func TestRun_DiagnosticsGateExitCode(t *testing.T) {
 	t.Parallel()
-	// A parseable spec that produces at least one warning-or-info diagnostic
-	// but no errors: validation-only keyword.
-	spec := writeFile(t, "warn.yaml", `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths: {}
-components:
-  schemas:
-    S: {type: object, not: {required: [x]}}
-`)
+	spec := writeFile(t, "warn.yaml", warnSpec)
 	var stdout, stderr bytes.Buffer
 	require.Equal(t, 0, run([]string{"compile", spec}, &stdout, &stderr),
 		"info diagnostics must not fail the default gate")
@@ -406,4 +398,29 @@ func TestRun_CompactOutputKeepsDocumentOrder(t *testing.T) {
 	// a reordering, so confirm the emitted key order is not the declared one.
 	assert.Less(t, bytes.Index(compact, []byte("Alpha")), bytes.Index(compact, []byte("Zeta")),
 		"schemas must be emitted in sorted-key order, not declaration order")
+}
+
+// TestSpecOptions_DisabledPasses pins that --skip-validate adds validate to
+// whatever --disable-pass named, and that names reach the engine as typed.
+func TestSpecOptions_DisabledPasses(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		opts specOptions
+		want []string
+	}{
+		{"neither flag", specOptions{}, nil},
+		{"--skip-validate", specOptions{skipValidate: true}, []string{"validate"}},
+		{"--disable-pass validate", specOptions{disable: passFlag{"validate"}}, []string{"validate"}},
+		{"both", specOptions{skipValidate: true, disable: passFlag{"validate"}},
+			[]string{"validate", "validate"}},
+		{"another name with --skip-validate", specOptions{skipValidate: true, disable: passFlag{"Nope"}},
+			[]string{"Nope", "validate"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Empty(t, cmp.Diff(tt.want, tt.opts.disabledPasses()))
+		})
+	}
 }

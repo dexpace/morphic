@@ -146,7 +146,6 @@ func assertPathItemAnchoredKey(t *testing.T, doc *ir.Document, diags []ir.Diagno
 // included — which is why the summary is asserted on the referenced item's
 // operation as well as on the sibling's (GitHub #577).
 func assertPathItemRefSiblings(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
-	t.Helper()
 	sibling, ok := opByName(doc, "putA")
 	require.True(t, ok, "the operation written beside the $ref reaches the IR")
 	assert.Equal(t, ir.OpID("op/openapi/paths/~1a/put"), sibling.ID)

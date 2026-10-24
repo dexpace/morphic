@@ -8,8 +8,8 @@ import (
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	yaml "gopkg.in/yaml.v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/engine/reader"
 )
 
@@ -114,7 +114,7 @@ func TestExternal_DoRefusesANetworkDocumentReachingALocalFile(t *testing.T) {
 // as a reference.
 func TestReachesLocal_PassesALocalDocumentAndANetworkOne(t *testing.T) {
 	t.Parallel()
-	local := mustParse(t, remoteDoc("/etc/passwd"))
+	local := openapitest.YAMLDocument(t, remoteDoc("/etc/passwd"))
 	_, refuse := reachesLocal(local, "/dir/a.yaml")
 	assert.False(t, refuse, "a local document's own $refs are not judged against the network rule")
 
@@ -124,7 +124,7 @@ func TestReachesLocal_PassesALocalDocumentAndANetworkOne(t *testing.T) {
 		"    C: {$id: './v2/', $ref: '#/components/schemas/A'}\n" +
 		"    D: {$id: 'urn:example:d', $ref: './d.yaml#/x'}\n" +
 		"    E: {description: '/etc/passwd', default: 'file:///etc/passwd'}\n"
-	_, refuse = reachesLocal(mustParse(t, onHost), "http://host/dir/a.yaml")
+	_, refuse = reachesLocal(openapitest.YAMLDocument(t, onHost), "http://host/dir/a.yaml")
 	assert.False(t, refuse, "a network document staying on the host reaches no local file")
 }
 
@@ -177,12 +177,4 @@ func TestLoad_ANetworkDocumentReachingALocalFileIsRefusedAndReadsNothing(t *test
 		assert.Contains(t, unresolved[0], "reaches the local file")
 		assert.NotContains(t, unresolved[0], "./local.yaml", "the source's own reference to the file resolves")
 	}
-}
-
-// mustParse parses src as a document tree, failing the test if it will not.
-func mustParse(t *testing.T, src string) *yaml.Node {
-	t.Helper()
-	var root yaml.Node
-	require.NoError(t, yaml.Unmarshal([]byte(src), &root))
-	return &root
 }

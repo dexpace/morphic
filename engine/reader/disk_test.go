@@ -29,7 +29,7 @@ import (
 // directory and link is somewhere a read of it could wrongly reach.
 func diskTree(t *testing.T) string {
 	t.Helper()
-	root := resolvedDir(t)
+	root := reader.ResolvedDir(t)
 	writeFile(t, root, "in/a.yaml", "inside")
 	writeFile(t, root, "in/sub/b.yaml", "nested")
 	writeFile(t, root, "in/with space.yaml", "spaced")
@@ -167,7 +167,7 @@ func TestDisk_ReadDocumentConfinedToTheWorkingDirectory(t *testing.T) {
 // directory. It changes directory, so it runs alone.
 func TestDisk_ReadDocumentConfinedBelowALinkedWorkingDirectory(t *testing.T) {
 	root := diskTree(t)
-	link := filepath.Join(resolvedDir(t), "link")
+	link := filepath.Join(reader.ResolvedDir(t), "link")
 	symlink(t, root, link)
 	t.Chdir(link)
 	expand := expander(link, "")
@@ -312,7 +312,7 @@ func cmpOr(s, fallback string) string {
 func TestDisk_ReadDocumentHoldsTheLimit(t *testing.T) {
 	t.Parallel()
 	const body = "12345"
-	root := resolvedDir(t)
+	root := reader.ResolvedDir(t)
 	file := writeFile(t, root, "doc.yaml", body)
 	srv, _ := countingServer(t, serveBody(t, http.StatusOK, body))
 	locations := map[string]string{"a path": file, "a file URI": fileURI(file), "a URL": srv.URL + "/doc.yaml"}
@@ -353,7 +353,7 @@ func TestDisk_ReadDocumentHoldsTheLimit(t *testing.T) {
 // confined read, which opens the file through a different path.
 func TestDisk_ReadDocumentHoldsTheLimitWithinADirectory(t *testing.T) {
 	t.Parallel()
-	root := resolvedDir(t)
+	root := reader.ResolvedDir(t)
 	file := writeFile(t, root, "doc.yaml", "12345")
 	for limit, wantOver := range map[int]bool{5: false, 4: true, 0: false, -1: false, math.MaxInt: false} {
 		t.Run(fmt.Sprint(limit), func(t *testing.T) {

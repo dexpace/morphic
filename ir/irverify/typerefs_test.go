@@ -87,7 +87,7 @@ func TestVerify_UnionVariantWithNoTargetIsAViolation(t *testing.T) {
 	})
 
 	all := verifyDeclared(doc)
-	assert.NotContains(t, codes(all), "ir/dangling-type-ref", "an empty target is not a dangling one")
+	assert.NotContains(t, violationCodes(all), "ir/dangling-type-ref", "an empty target is not a dangling one")
 
 	got := typeRefViolations(t, doc)
 	require.Len(t, got, 1, "the empty target is reported exactly once")

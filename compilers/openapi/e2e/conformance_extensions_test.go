@@ -11,7 +11,7 @@ import (
 )
 
 func assertExtensionsX(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
-	m, ok := doc.Types[namedID("S")].(*ir.Model)
+	m, ok := doc.Types[componentID("S")].(*ir.Model)
 	require.True(t, ok)
 	raw, ok := m.Unmodeled["openapi:x-rate-limit"]
 	require.True(t, ok, "x-* extensions are namespaced under openapi:")
@@ -140,7 +140,7 @@ func assertInlineAnnotations(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) 
 	assertAnnotatedScalar(t, doc,
 		"t/anon/paths/~1codes/get/responses/200/content/application~1json/schema", 8192)
 
-	bare, ok := doc.Types[namedID("Bare")].(*ir.List)
+	bare, ok := doc.Types[componentID("Bare")].(*ir.List)
 	require.True(t, ok)
 	assert.Equal(t, ir.TypeID("t/prim/string"), bare.Elem.Target,
 		"an element declaring nothing must not grow a node of its own")

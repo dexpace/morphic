@@ -70,7 +70,7 @@ func TestPathKeys_MalformedKeyIsReportedOnce(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.key, func(t *testing.T) {
 			t.Parallel()
-			_, svc, diags := lowerServiceSpec(t, pathKeySpec("3.1.0", tc.key, tc.params...))
+			_, svc, diags := compileService(t, pathKeySpec("3.1.0", tc.key, tc.params...))
 			openapitest.RequireNoErrorDiags(t, diags)
 
 			msg := openapitest.DiagMessageAt(t, diags, diag.InvalidPathKey, ir.SeverityWarning, tc.ptr)
@@ -94,7 +94,7 @@ func TestPathKeys_ValidKeysAreNotReported(t *testing.T) {
 	} {
 		t.Run(key, func(t *testing.T) {
 			t.Parallel()
-			_, svc, diags := lowerServiceSpec(t, pathKeySpec("3.1.0", key, params...))
+			_, svc, diags := compileService(t, pathKeySpec("3.1.0", key, params...))
 			openapitest.RequireNoErrorDiags(t, diags)
 			assert.False(t, openapitest.HasDiag(diags, diag.InvalidPathKey), "%q is a path template; got %+v", key, diags)
 			assert.Equal(t, key, openapitest.FirstOp(t, svc).Bindings.HTTP[0].URITemplate)
@@ -111,7 +111,7 @@ func TestPathKeys_RulesAreNotVersionGated(t *testing.T) {
 	for _, version := range []string{"3.0.3", "3.1.0", "3.2.0"} {
 		t.Run(version, func(t *testing.T) {
 			t.Parallel()
-			_, _, diags := lowerServiceSpec(t, pathKeySpec(version, "/a//{id}/{id}", "id"))
+			_, _, diags := compileService(t, pathKeySpec(version, "/a//{id}/{id}", "id"))
 			openapitest.RequireNoErrorDiags(t, diags)
 			msg := openapitest.DiagMessageAt(t, diags, diag.InvalidPathKey, ir.SeverityWarning,
 				"/paths/~1a~1~1{id}~1{id}")
@@ -140,7 +140,7 @@ func TestPathKeys_FragmentIsLeftToGitHub602(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.key, func(t *testing.T) {
 			t.Parallel()
-			_, svc, diags := lowerServiceSpec(t, pathKeySpec("3.1.0", tc.key))
+			_, svc, diags := compileService(t, pathKeySpec("3.1.0", tc.key))
 			openapitest.RequireNoErrorDiags(t, diags)
 			assert.Equal(t, tc.key, openapitest.FirstOp(t, svc).Bindings.HTTP[0].URITemplate)
 			if tc.msg == "" {
@@ -168,7 +168,7 @@ paths:
     parameters: [{name: x, in: query, schema: {type: string}}]
 components: {pathItems: {}}
 `
-	_, _, diags := lowerServiceSpec(t, spec)
+	_, _, diags := compileService(t, spec)
 	require.True(t, openapitest.HasDiagCodeAt(diags, diag.UnresolvedRef, "/paths/a b"),
 		"the $ref must be the unresolved one this case is about; got %+v", diags)
 	for _, ptr := range []string{"/paths/a b", "/paths/c d", "/paths/e f"} {
@@ -198,7 +198,7 @@ webhooks:
   newPet:
     post: {operationId: newPet, responses: {"200": {description: ok}}}
 `
-	_, svc, diags := lowerServiceSpec(t, spec)
+	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	assert.False(t, openapitest.HasDiag(diags, diag.InvalidPathKey), "got %+v", diags)
 

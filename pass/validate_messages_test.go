@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/ir/irtest"
 	"github.com/dexpace/morphic/pass"
 )
 
@@ -56,7 +57,7 @@ func TestValidate_MessagesCarriedByChannelAreClean(t *testing.T) {
 // the defect on its own.
 func TestValidate_MessageBindingWithoutAResolvableChannel(t *testing.T) {
 	t.Parallel()
-	codes := codes(pass.Validate(messageBindingDoc("chan/ghost",
+	codes := irtest.DiagCodes(pass.Validate(messageBindingDoc("chan/ghost",
 		[]ir.MessageID{"msg/a"}, []ir.MessageID{"msg/b"})))
 
 	assert.Contains(t, codes, "ir/dangling-channel-ref")
@@ -68,7 +69,7 @@ func TestValidate_MessageBindingWithoutAResolvableChannel(t *testing.T) {
 // to.
 func TestValidate_OperationWithoutAMessageBindingIsClean(t *testing.T) {
 	t.Parallel()
-	assert.NotContains(t, codes(pass.Validate(docWithOperation(ir.Operation{ID: "op"}))),
+	assert.NotContains(t, irtest.DiagCodes(pass.Validate(docWithOperation(ir.Operation{ID: "op"}))),
 		"pass/message-not-in-channel")
 }
 

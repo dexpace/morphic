@@ -28,7 +28,7 @@ func TestProperty_UnquotedDateDefaultPreserved(t *testing.T) {
           format: date
           default: 2021-01-01
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	assert.Empty(t, diags, "no diagnostics at all: the date default converts cleanly")
 	m, ok := doc.Types[componentID("S")].(*ir.Model)
 	require.True(t, ok)
@@ -50,7 +50,7 @@ func TestLower_PropertyDetailRichSchema(t *testing.T) {
         withExt: {type: string, x-foo: bar}
         badDefault: {type: number, default: .inf}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	m := typeByName(doc, "D").(*ir.Model)
 	assert.NotEmpty(t, m.Docs.ExternalDocs)
 	byWire := openapitest.PropsByWire(m.Properties)
@@ -80,7 +80,7 @@ func TestLower_RefTargetDescriptionFallback(t *testing.T) {
       type: string
       description: target-desc
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	m := typeByName(doc, "Owner").(*ir.Model)
 	assert.Equal(t, "target-desc", m.Properties[0].Docs.Description)
@@ -93,7 +93,7 @@ func TestModel_DefaultBigLiteral(t *testing.T) {
       properties:
         n: {type: integer, default: 9007199254740993}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	m := doc.Types[componentID("S")].(*ir.Model)
 	require.NotNil(t, m.Properties[0].Default)
@@ -107,7 +107,7 @@ func TestFillPropertyDetail_UnconvertibleExampleDiagnosed(t *testing.T) {
 	// (an example is an annotation, not a structural hole) but never silently —
 	// the conversion error was previously discarded on the floor.
 	spec := openapitest.ComponentSpec("    S:\n      type: object\n      properties:\n        n:\n          type: string\n          example: !foo bar\n")
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	m, ok := doc.Types[componentID("S")].(*ir.Model)
 	require.True(t, ok)
 	assert.Empty(t, m.Properties[0].Examples, "the unconvertible example is skipped, not appended")
@@ -126,7 +126,7 @@ func TestModel_ReadOnlyWriteOnlyVisibility(t *testing.T) {
         r: {type: string, readOnly: true}
         w: {type: string, writeOnly: true}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	m := doc.Types[componentID("S")].(*ir.Model)
 	byName := openapitest.PropsByWire(m.Properties)
@@ -147,7 +147,7 @@ func TestModel_ReadOnlyAndWriteOnlyTogetherAreVisibleNowhere(t *testing.T) {
         both: {type: string, readOnly: true, writeOnly: true}
         r: {type: string, readOnly: true}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	m := doc.Types[componentID("S")].(*ir.Model)
 	byName := openapitest.PropsByWire(m.Properties)
@@ -169,7 +169,7 @@ func TestModel_PasswordFormatSecret(t *testing.T) {
       properties:
         pw: {type: string, format: password}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	m := doc.Types[componentID("S")].(*ir.Model)
 	assert.True(t, m.Properties[0].Secret)
@@ -182,7 +182,7 @@ func TestModel_PropertyDeprecation(t *testing.T) {
       properties:
         old: {type: string, deprecated: true}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	m := doc.Types[componentID("S")].(*ir.Model)
 	assert.NotNil(t, m.Properties[0].Deprecation)
@@ -195,7 +195,7 @@ func TestModel_PropertyXML(t *testing.T) {
       properties:
         p: {type: string, xml: {name: n, attribute: true}}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	m := doc.Types[componentID("S")].(*ir.Model)
 	require.NotNil(t, m.Properties[0].XML)
@@ -213,7 +213,7 @@ func TestModel_RefSiblingDescriptionWins(t *testing.T) {
           $ref: '#/components/schemas/Target'
           description: "sibling desc"
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	m := doc.Types[componentID("S")].(*ir.Model)
 	assert.Equal(t, "sibling desc", m.Properties[0].Docs.Description)
@@ -227,7 +227,7 @@ func TestSchema_RefTargetReadOnlyVisibility(t *testing.T) {
         p: {$ref: '#/components/schemas/RO'}
     RO: {type: string, readOnly: true}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	m := typeByName(doc, "Owner").(*ir.Model)
 	assert.NotEmpty(t, m.Properties[0].Visibility.Only, "readOnly from the ref target applies")
@@ -448,7 +448,7 @@ type carrierDocKeyword struct {
 // sub-schema pointer rather than a named component.
 func TestFillPropertyAnnotations_RefSiblingExampleBindsTheSite(t *testing.T) {
 	t.Parallel()
-	l, _ := loweredFor(t, `openapi: 3.1.0
+	l, _ := schema.LoweredFor(t, `openapi: 3.1.0
 info: {title: t, version: "1"}
 paths: {}
 components:
@@ -461,14 +461,14 @@ components:
           $ref: '#/components/schemas/Target'
           example: at-reference
 `)
-	l.diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.ctx, l.types))
+	l.Diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.Ctx, l.Types))
 
-	target := typeByName(l.document(t), "Target")
+	target := typeByName(l.Document(t), "Target")
 	require.NotNil(t, target)
 	assert.Empty(t, target.Common().Examples,
 		"an example beside a $ref must not attach to the referent")
 
-	holder, ok := typeByName(l.document(t), "Holder").(*ir.Model)
+	holder, ok := typeByName(l.Document(t), "Holder").(*ir.Model)
 	require.True(t, ok, "Holder must own a Model node")
 	f, ok := openapitest.PropsByWire(holder.Properties)["f"]
 	require.True(t, ok, "property f must be present")

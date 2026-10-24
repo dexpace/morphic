@@ -1,10 +1,12 @@
-package detect
+package detect_test
 
 import (
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/dexpace/morphic/compilers/openapi/internal/detect"
 )
 
 // TestDeclaresProbeKey_ScopesTheNameToItsOwnDocument pins the guard that
@@ -68,7 +70,7 @@ func TestDeclaresProbeKey_ScopesTheNameToItsOwnDocument(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tc.want, declaresProbeKey([]byte(tc.src)))
+			assert.Equal(t, tc.want, detect.DeclaresProbeKey([]byte(tc.src)))
 		})
 	}
 }
@@ -83,6 +85,6 @@ func TestDeclaresBlockKey_ReadsABoundedNumberOfLines(t *testing.T) {
 	behind := func(n int) []byte {
 		return []byte(strings.Repeat("openapi: is prose\n", n) + "openapi: 3.1.0\n[\n")
 	}
-	assert.True(t, declaresBlockKey(behind(maxVersionLines-1), "openapi"), "the last line the bound reads")
-	assert.False(t, declaresBlockKey(behind(maxVersionLines), "openapi"), "one line past the bound")
+	assert.True(t, detect.DeclaresBlockKey(behind(detect.MaxVersionLines-1), "openapi"), "the last line the bound reads")
+	assert.False(t, detect.DeclaresBlockKey(behind(detect.MaxVersionLines), "openapi"), "one line past the bound")
 }

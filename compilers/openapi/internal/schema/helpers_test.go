@@ -12,18 +12,13 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers"
-	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/load"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
-	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
@@ -51,70 +46,19 @@ func parseFull(t *testing.T, src string) (*ir.Document, []ir.Diagnostic) {
 	return doc, diags
 }
 
-// lowerer is test scaffolding, not a compiler type. The compiler has no such
-// struct: every lowering is a function of the context and the registry, and
-// the caller owns the document being built (#177). Tests that drive one
-// lowering in isolation still want those in one place.
-type lowerer struct {
-	ctx   lowering.Ctx
-	out   *ir.Document
-	types *compile.Types
-	diags compile.Diags
-}
-
-// lowererOver is the only place the fixture's fields are initialised. Both
-// entry points below build on it, so a field added to lowerer cannot reach one
-// of them and miss the other.
-func lowererOver(ctx lowering.Ctx) *lowerer {
-	types := compile.NewTypes()
-	return &lowerer{
-		ctx:   ctx,
-		out:   &ir.Document{},
-		types: types,
-	}
-}
-
-// loweredFor loads src and returns the fixture over it with nothing lowered yet,
-// plus the load diagnostics, so a test can drive one entry point at a time.
-func loweredFor(t *testing.T, src string) (*lowerer, []ir.Diagnostic) {
-	t.Helper()
-	loadedDoc, diags, err := load.Load(t.Context(), 0, openapitest.SourceOf(src), load.Options{})
-	require.NoError(t, err)
-	require.NotNil(t, loadedDoc, "load returned no document: %+v", diags)
-	return lowererOver(lowering.New(0, loadedDoc.Doc, loadedDoc.Source,
-		lowering.GroupByTags, lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}).
-		WithLoaded(loadedDoc)), diags
-}
-
-// lowerSpec loads src and lowers its component schemas, returning the document
-// under construction and all diagnostics.
-func lowerSpec(t *testing.T, src string) (*ir.Document, []ir.Diagnostic) {
-	t.Helper()
-	l, diags := loweredFor(t, src)
-	l.diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.ctx, l.types))
-	doc := l.document(t)
-	return doc, append(diags, l.diags.List()...)
-}
-
-// lowerSpecOnly is lowerSpec without the load phase's diagnostics mixed in. A
-// $ref the lowering cannot follow is reported both by the load phase, which
-// binds it, and by the lowering itself, at the same pointer
-// (compilers/openapi's withoutRereported drops the second once both reach the
-// compiler). A test that wants to pin what the
-// lowering itself reports — not what a full compile does with the two reports
-// after deduplication — needs the lowering's diagnostics on their own.
+// lowerSpecOnly is schema.LowerSpec without the load phase's diagnostics
+// mixed in. A $ref the lowering cannot follow is reported both by the load
+// phase, which binds it, and by the lowering itself, at the same pointer
+// (compilers/openapi's withoutRereported drops the second once both reach
+// the compiler). A test that wants to pin what the lowering itself reports —
+// not what a full compile does with the two reports after deduplication —
+// needs the lowering's diagnostics on their own.
 func lowerSpecOnly(t *testing.T, src string) (*ir.Document, []ir.Diagnostic) {
 	t.Helper()
-	l, _ := loweredFor(t, src)
-	l.diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.ctx, l.types))
-	doc := l.document(t)
-	return doc, l.diags.List()
-}
-
-// newRawLowerer builds a fixture over a hand-constructed document, bypassing the
-// parser so nil slice/map entries (which the parser panics on) can be exercised.
-func newRawLowerer(doc *soa.OpenAPI) *lowerer {
-	return lowererOver(lowering.New(0, doc, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}))
+	l, _ := schema.LoweredFor(t, src)
+	l.Diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.Ctx, l.Types))
+	doc := l.Document(t)
+	return doc, l.Diags.List()
 }
 
 // componentID is the stable TypeID of a components-named schema, or of a
@@ -141,26 +85,11 @@ func conflictDiags(diags []ir.Diagnostic) []ir.Diagnostic {
 	return out
 }
 
-// document finishes the registry as run does once every lowering has
-// returned, and returns the document under construction holding it. What the
-// settling reports joins the fixture's diagnostics; a refusal is a compiler bug
-// no fixture provokes, so one fails the test.
-func (l *lowerer) document(t *testing.T) *ir.Document {
-	t.Helper()
-	reg, settled := l.types.Finish(t.Context())
-	for _, d := range settled {
-		require.NotEqual(t, compile.RegistryRefused, d.Code, "the registry refused an entry: %s", d.Message)
-	}
-	l.diags.AppendAll(settled)
-	l.out.Types = reg
-	return l.out
-}
-
 // settledSpec is nonBareSpec with the components after the schema composing
 // them, so a redeclaration naming one is judged once the registry is whole.
 func settledSpec(t *testing.T, extra, schemaA, schemaB string) (*ir.Document, []ir.Diagnostic) {
 	t.Helper()
-	return lowerSpec(t, openapitest.ComponentSpec(
+	return schema.LowerSpec(t, openapitest.ComponentSpec(
 		"    T:\n      allOf:\n"+
 			"        - type: object\n          properties: {v: "+schemaA+"}\n"+
 			"        - type: object\n          properties: {v: "+schemaB+"}\n"+extra))
@@ -319,3 +248,32 @@ func marshalForTest(t *testing.T, doc *ir.Document) string {
 	require.NoError(t, err)
 	return string(out)
 }
+
+// allOfConflictSpec builds a component whose two inline allOf branches each
+// declare field v with the given flow-style schemas, for exercising per-keyword
+// redeclaration conflict detection.
+func allOfConflictSpec(schemaA, schemaB string) string {
+	return openapitest.ComponentSpec(
+		"    T:\n" +
+			"      allOf:\n" +
+			"        - type: object\n" +
+			"          properties: {v: " + schemaA + "}\n" +
+			"        - type: object\n" +
+			"          properties: {v: " + schemaB + "}\n")
+}
+
+const (
+	cat = "    Cat: {type: object, properties: {kind: {type: string}, meow: {type: boolean}}}\n"
+	dog = "    Dog: {type: object, properties: {kind: {type: string}, bark: {type: boolean}}}\n"
+
+	// subCat and subDog declare Cat and Dog as allOf subtypes of Pet.
+	subCat   = "    Cat: {allOf: [{$ref: '#/components/schemas/Pet'}, {type: object, properties: {meow: {type: boolean}}}]}\n"
+	subDog   = "    Dog: {allOf: [{$ref: '#/components/schemas/Pet'}, {type: object, properties: {bark: {type: boolean}}}]}\n"
+	subtypes = subCat + subDog
+
+	petBranches = "      oneOf:\n        - $ref: '#/components/schemas/Cat'\n        - $ref: '#/components/schemas/Dog'\n"
+
+	// movedPointer is where the diagnostic for a discriminator kept verbatim
+	// rather than on Pet is reported.
+	movedPointer = "/components/schemas/Pet/discriminator"
+)

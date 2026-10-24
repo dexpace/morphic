@@ -261,17 +261,6 @@ func TestRead_NodeTypeOnlyADefinedValueIsPlaced(t *testing.T) {
 	}
 }
 
-// jsonSchemaFromYAML unmarshals body as a JSONSchema, keeping the reference and
-// boolean forms a bare *oas3.Schema cannot represent.
-func jsonSchemaFromYAML(t *testing.T, body string) *oas3.JSONSchema[oas3.Referenceable] {
-	t.Helper()
-	js := &oas3.JSONSchema[oas3.Referenceable]{}
-	valErrs, err := marshaller.Unmarshal(t.Context(), strings.NewReader(body), js)
-	require.NoError(t, err)
-	require.Empty(t, valErrs, "the fixture parses cleanly")
-	return js
-}
-
 // TestAt_ClassifiesEveryPositionShape pins the classification every annotation
 // read starts from. A declaration misread as a reference would fall back to a
 // referent that does not describe it, and a reference misread as a declaration
@@ -304,7 +293,7 @@ func TestAt_ClassifiesEveryPositionShape(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got := At(jsonSchemaFromYAML(t, tc.body))
+			got := At(openapitest.SchemaFromYAML(t.Context(), t, tc.body))
 			assert.Equal(t, tc.wantKind, got.Kind)
 			assert.Equal(t, tc.wantNode, got.Node != nil, "Node presence")
 			assert.Nil(t, got.Referent, "At fills no Referent")
@@ -326,7 +315,7 @@ func TestAt_ClassifiesEveryPositionShape(t *testing.T) {
 // At builds (see TestAt_ClassifiesEveryPositionShape).
 func TestAt_ReferenceSiteKeepsTheBodyWrittenBesideTheRef(t *testing.T) {
 	t.Parallel()
-	got := At(jsonSchemaFromYAML(t, "{$ref: '#/$defs/Target', description: fromSite}\n"))
+	got := At(openapitest.SchemaFromYAML(t.Context(), t, "{$ref: '#/$defs/Target', description: fromSite}\n"))
 
 	require.Equal(t, Reference, got.Kind)
 	require.NotNil(t, got.Node, "the body written beside the $ref is the site's own")
@@ -340,10 +329,10 @@ func TestAt_ReferenceSiteKeepsTheBodyWrittenBesideTheRef(t *testing.T) {
 func TestSchemaOf_ReturnsOnlyAWrittenBody(t *testing.T) {
 	t.Parallel()
 	assert.Nil(t, SchemaOf(nil), "a nil position writes no body")
-	assert.Nil(t, SchemaOf(jsonSchemaFromYAML(t, "true\n")), "a boolean schema writes no body")
-	assert.Nil(t, SchemaOf(jsonSchemaFromYAML(t, "false\n")), "including the false one")
+	assert.Nil(t, SchemaOf(openapitest.SchemaFromYAML(t.Context(), t, "true\n")), "a boolean schema writes no body")
+	assert.Nil(t, SchemaOf(openapitest.SchemaFromYAML(t.Context(), t, "false\n")), "including the false one")
 
-	s := SchemaOf(jsonSchemaFromYAML(t, "type: string\ntitle: T\n"))
+	s := SchemaOf(openapitest.SchemaFromYAML(t.Context(), t, "type: string\ntitle: T\n"))
 	require.NotNil(t, s)
 	assert.Equal(t, "T", s.GetTitle())
 }
@@ -353,9 +342,9 @@ func TestSchemaOf_ReturnsOnlyAWrittenBody(t *testing.T) {
 // one would turn a permissive position into a forbidding one.
 func TestIsFalseSchema_OnlyTheFalseBoolean(t *testing.T) {
 	t.Parallel()
-	assert.True(t, IsFalseSchema(jsonSchemaFromYAML(t, "false\n")))
-	assert.False(t, IsFalseSchema(jsonSchemaFromYAML(t, "true\n")))
-	assert.False(t, IsFalseSchema(jsonSchemaFromYAML(t, "type: string\n")))
+	assert.True(t, IsFalseSchema(openapitest.SchemaFromYAML(t.Context(), t, "false\n")))
+	assert.False(t, IsFalseSchema(openapitest.SchemaFromYAML(t.Context(), t, "true\n")))
+	assert.False(t, IsFalseSchema(openapitest.SchemaFromYAML(t.Context(), t, "type: string\n")))
 	assert.False(t, IsFalseSchema(nil))
 }
 

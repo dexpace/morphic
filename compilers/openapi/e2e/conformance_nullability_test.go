@@ -11,7 +11,7 @@ import (
 )
 
 func assertNullabilityFourStates(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
-	m, ok := doc.Types[namedID("S")].(*ir.Model)
+	m, ok := doc.Types[componentID("S")].(*ir.Model)
 	require.True(t, ok)
 	require.Len(t, m.Properties, 4)
 	states := openapitest.PropsByWire(m.Properties)
@@ -26,27 +26,27 @@ func assertNullabilityFourStates(t *testing.T, doc *ir.Document, _ []ir.Diagnost
 }
 
 func assertNullable30(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
-	m, ok := doc.Types[namedID("S")].(*ir.Model)
+	m, ok := doc.Types[componentID("S")].(*ir.Model)
 	require.True(t, ok)
 	require.Len(t, m.Properties, 1)
 	assert.True(t, m.Properties[0].Type.Nullable, "3.0 nullable lowers to the same IR bit")
 }
 
 func assertNullable31Ref(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
-	m, ok := doc.Types[namedID("Owner")].(*ir.Model)
+	m, ok := doc.Types[componentID("Owner")].(*ir.Model)
 	require.True(t, ok)
 	require.Len(t, m.Properties, 2)
 	byName := openapitest.PropsByWire(m.Properties)
 
 	assert.True(t, byName["p"].Type.Nullable,
 		"3.1's type-array null spelling normalizes to the same IR bit at a $ref site")
-	assert.Equal(t, namedID("Target"), byName["p"].Type.Target, "the ref resolves to the named component")
+	assert.Equal(t, componentID("Target"), byName["p"].Type.Target, "the ref resolves to the named component")
 
 	assert.True(t, byName["q"].Type.Nullable,
 		"a union's null branch is stripped into the ref's Nullable bit, so the ref must carry it")
-	assert.Equal(t, namedID("UnionTarget"), byName["q"].Type.Target, "the ref resolves to the union component")
+	assert.Equal(t, componentID("UnionTarget"), byName["q"].Type.Target, "the ref resolves to the union component")
 
-	u, ok := doc.Types[namedID("UnionTarget")].(*ir.Union)
+	u, ok := doc.Types[componentID("UnionTarget")].(*ir.Union)
 	require.True(t, ok)
 	assert.Len(t, u.Variants, 2, "the null branch lifts to the ref rather than becoming a variant")
 
@@ -65,7 +65,7 @@ func assertCollapsedBranchHint(t *testing.T, doc *ir.Document) {
 	t.Helper()
 	const branchID = ir.TypeID("t/anon/components/schemas/Collapsed/oneOf/0")
 
-	collapsed, ok := doc.Types[namedID("Collapsed")].(*ir.Scalar)
+	collapsed, ok := doc.Types[componentID("Collapsed")].(*ir.Scalar)
 	require.True(t, ok, "a {X, null} set resolves to its one branch rather than to a union node")
 	require.NotNil(t, collapsed.Base)
 	assert.True(t, collapsed.Base.Nullable, "the null branch lifts onto the reference")
@@ -76,7 +76,7 @@ func assertCollapsedBranchHint(t *testing.T, doc *ir.Document) {
 	assert.Equal(t, "variant_0", branch.Common().Name.Hint,
 		"the branch is named by its position in the composition, which is what a $ref to it derives too")
 
-	ref, ok := doc.Types[namedID("BranchRef")].(*ir.Scalar)
+	ref, ok := doc.Types[componentID("BranchRef")].(*ir.Scalar)
 	require.True(t, ok)
 	require.NotNil(t, ref.Base)
 	assert.Equal(t, branchID, ref.Base.Target, "the outside reference reaches that same node")
@@ -90,7 +90,7 @@ func assertCollapsedBranchHint(t *testing.T, doc *ir.Document) {
 // strip, since the type array already carries the bit and deleting the `null`
 // member moves only the source hash; the member count below does.
 func assertNullableEnum31(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
-	e, ok := doc.Types[namedID("Color")].(*ir.Enum)
+	e, ok := doc.Types[componentID("Color")].(*ir.Enum)
 	require.True(t, ok, "the null member does not cost the declaration its enum-ness")
 	assert.True(t, e.Closed)
 	assert.Equal(t, ir.PrimString, e.ValueType, "null contributes no value type of its own")
@@ -101,48 +101,48 @@ func assertNullableEnum31(t *testing.T, doc *ir.Document, diags []ir.Diagnostic)
 		assert.NotEqual(t, "openapi/degraded-construct", d.Code, "normalizing is not degrading: %+v", d)
 	}
 
-	m, ok := doc.Types[namedID("Holder")].(*ir.Model)
+	m, ok := doc.Types[componentID("Holder")].(*ir.Model)
 	require.True(t, ok)
 	one, ok := propByWire(m, "one")
 	require.True(t, ok)
-	assert.Equal(t, ir.TypeRef{Target: namedID("Color"), Nullable: true}, one.Type,
+	assert.Equal(t, ir.TypeRef{Target: componentID("Color"), Nullable: true}, one.Type,
 		"a property $ref admits the null the members no longer carry")
 
 	many, ok := propByWire(m, "many")
 	require.True(t, ok)
 	list, ok := doc.Types[many.Type.Target].(*ir.List)
 	require.True(t, ok, "the array property hoists a List")
-	assert.Equal(t, ir.TypeRef{Target: namedID("Color"), Nullable: true}, list.Elem,
+	assert.Equal(t, ir.TypeRef{Target: componentID("Color"), Nullable: true}, list.Elem,
 		"and so does a list element, which holds its own reference")
 	assert.False(t, many.Type.Nullable, "the list itself was never declared nullable")
 
 	op, ok := opByName(doc, "pick")
 	require.True(t, ok)
-	p, ok := paramByName(op, "color")
+	p, ok := openapitest.ParamBySource(op, "color")
 	require.True(t, ok)
-	assert.Equal(t, ir.TypeRef{Target: namedID("Color"), Nullable: true}, p.Type,
+	assert.Equal(t, ir.TypeRef{Target: componentID("Color"), Nullable: true}, p.Type,
 		"a parameter reaches the same declaration through the operation walk")
 
 	// The two spellings beside Color. A non-empty enum fixes the value space, so
 	// the members decide null admission whether or not a type keyword is written
 	// beside them — and when one is, the two conjoin rather than the type winning.
-	bare, ok := doc.Types[namedID("BareColor")].(*ir.Enum)
+	bare, ok := doc.Types[componentID("BareColor")].(*ir.Enum)
 	require.True(t, ok, "a bare enum listing null is still an enum of its scalar members")
 	require.Len(t, bare.Members, 2, "the null member is normalized away here too")
 	assert.Equal(t, ir.PrimString, bare.ValueType, "the kept members supply the value type")
 
-	narrowed, ok := doc.Types[namedID("NarrowedColor")].(*ir.Enum)
+	narrowed, ok := doc.Types[componentID("NarrowedColor")].(*ir.Enum)
 	require.True(t, ok)
 	require.Len(t, narrowed.Members, 2, "nothing to strip: the members never listed null")
 
 	bareRef, ok := propByWire(m, "bare")
 	require.True(t, ok)
-	assert.Equal(t, ir.TypeRef{Target: namedID("BareColor"), Nullable: true}, bareRef.Type,
+	assert.Equal(t, ir.TypeRef{Target: componentID("BareColor"), Nullable: true}, bareRef.Type,
 		"the bare spelling admits null at its uses, like the type-array spelling of the same set")
 
 	narrowedRef, ok := propByWire(m, "narrowed")
 	require.True(t, ok)
-	assert.Equal(t, ir.TypeRef{Target: namedID("NarrowedColor"), Nullable: false}, narrowedRef.Type,
+	assert.Equal(t, ir.TypeRef{Target: componentID("NarrowedColor"), Nullable: false}, narrowedRef.Type,
 		"an enum excluding null must not admit it, whatever the type keyword names")
 }
 
@@ -157,7 +157,7 @@ func assertNullableEnum31(t *testing.T, doc *ir.Document, diags []ir.Diagnostic)
 // composition carrying its own would state one fact in two places that can
 // disagree.
 func assertNullabilityConjunction(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
-	m, ok := doc.Types[namedID("Holder")].(*ir.Model)
+	m, ok := doc.Types[componentID("Holder")].(*ir.Model)
 	require.True(t, ok)
 	props := openapitest.PropsByWire(m.Properties)
 	require.Len(t, props, 5)
@@ -172,7 +172,7 @@ func assertNullabilityConjunction(t *testing.T, doc *ir.Document, _ []ir.Diagnos
 		"one conjunct forbidding null decides the conjunction")
 
 	for _, name := range []string{"WrapNullableScalar", "WrapNullableModel", "WrapBoth"} {
-		wrap, isModel := doc.Types[namedID(name)].(*ir.Model)
+		wrap, isModel := doc.Types[componentID(name)].(*ir.Model)
 		require.True(t, isModel, "%s composes as a model", name)
 		if wrap.Base != nil {
 			assert.False(t, wrap.Base.Nullable, "%s.Base names a conjunct, not a usage", name)
@@ -182,9 +182,9 @@ func assertNullabilityConjunction(t *testing.T, doc *ir.Document, _ []ir.Diagnos
 		}
 	}
 
-	plain, ok := doc.Types[namedID("PlainUnion")].(*ir.Union)
+	plain, ok := doc.Types[componentID("PlainUnion")].(*ir.Union)
 	require.True(t, ok)
-	distributed, ok := doc.Types[namedID("DistributedUnion")].(*ir.Union)
+	distributed, ok := doc.Types[componentID("DistributedUnion")].(*ir.Union)
 	require.True(t, ok)
 	require.Len(t, plain.Variants, 2)
 	require.Len(t, distributed.Variants, 2)

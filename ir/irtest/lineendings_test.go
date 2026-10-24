@@ -10,6 +10,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/dexpace/morphic/ir/irtest"
 )
 
 // eolProbes are paths whose line endings the golden comparison depends on: an IR
@@ -33,7 +35,7 @@ var eolProbes = []string{
 // (GitHub #48).
 func TestGitAttributes_PinsLineEndings(t *testing.T) {
 	t.Parallel()
-	root := repoRoot(t)
+	root := irtest.RepoRoot(t)
 	raw, err := os.ReadFile(filepath.Join(root, ".gitattributes"))
 	require.NoError(t, err, ".gitattributes must exist at the repository root")
 
@@ -55,7 +57,7 @@ func TestGitAttributes_PinsLineEndings(t *testing.T) {
 // it is written.
 func TestGitAttributes_ResolveToLF(t *testing.T) {
 	t.Parallel()
-	root := repoRoot(t)
+	root := irtest.RepoRoot(t)
 	for _, rel := range eolProbes {
 		require.FileExists(t, filepath.Join(root, rel))
 	}
@@ -86,7 +88,7 @@ func TestGitAttributes_ResolveToLF(t *testing.T) {
 // runner — the same shape as the pin it accompanies.
 func TestTrackedFiles_HoldNoCarriageReturn(t *testing.T) {
 	t.Parallel()
-	root := repoRoot(t)
+	root := irtest.RepoRoot(t)
 	cmd := exec.Command("git", "ls-files", "-z")
 	cmd.Dir = root
 	out, err := cmd.Output()
@@ -109,22 +111,4 @@ func TestTrackedFiles_HoldNoCarriageReturn(t *testing.T) {
 	assert.Empty(t, offenders,
 		"these tracked files hold CR bytes; run `git add --renormalize .` to bring the checkout "+
 			"back to LF, or mark a file that needs them `-text` in .gitattributes")
-}
-
-// repoRoot walks up from the working directory, which go test sets to this
-// package's own, to the directory holding go.mod. It does not start from this
-// file's path: under -trimpath, runtime.Caller reports the file under its
-// import path, not on disk.
-func repoRoot(t *testing.T) string {
-	t.Helper()
-	dir, err := os.Getwd()
-	require.NoError(t, err)
-	for {
-		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
-			return dir
-		}
-		parent := filepath.Dir(dir)
-		require.NotEqual(t, parent, dir, "reached filesystem root without finding go.mod")
-		dir = parent
-	}
 }

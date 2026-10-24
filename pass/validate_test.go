@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/ir/irtest"
 	"github.com/dexpace/morphic/pass"
 )
 
@@ -53,14 +54,6 @@ func nestGroups(depth int, op ir.Operation) *ir.Document {
 	doc := validDoc()
 	doc.Services = []ir.Service{{ID: "s", Groups: []ir.OperationGroup{g}}}
 	return doc
-}
-
-func codes(diags []ir.Diagnostic) []string {
-	out := make([]string, 0, len(diags))
-	for _, d := range diags {
-		out = append(out, d.Code)
-	}
-	return out
 }
 
 // countCode returns how many of diags carry the given diagnostic code.
@@ -123,7 +116,7 @@ func TestValidator_RunHandsBackItsInputWithValidatesFindings(t *testing.T) {
 		{ID: "p/m/a", WireName: "a", Type: ir.TypeRef{Target: "t/missing"}},
 	}}
 	want := pass.Validate(doc)
-	require.Contains(t, codes(want), "ir/dangling-type-ref")
+	require.Contains(t, irtest.DiagCodes(want), "ir/dangling-type-ref")
 	before, err := json.Marshal(doc)
 	require.NoError(t, err)
 

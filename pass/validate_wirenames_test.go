@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/ir/irtest"
 	"github.com/dexpace/morphic/pass"
 )
 
@@ -19,7 +20,7 @@ func TestValidate_DuplicateWireName(t *testing.T) {
 	})
 	diags := pass.Validate(doc)
 	require.NotEmpty(t, diags)
-	assert.Contains(t, codes(diags), "pass/duplicate-wire-name")
+	assert.Contains(t, irtest.DiagCodes(diags), "pass/duplicate-wire-name")
 }
 
 // TestValidate_EmptyEffectiveWireNameIsSkipped covers effectiveWireName's
@@ -39,7 +40,7 @@ func TestValidate_EmptyEffectiveWireNameIsSkipped(t *testing.T) {
 	}
 	// Two blank-named properties must NOT collide (both skipped), and the
 	// source-named one is unique, so no duplicate-wire-name diagnostic fires.
-	assert.NotContains(t, codes(pass.Validate(doc)), "pass/duplicate-wire-name")
+	assert.NotContains(t, irtest.DiagCodes(pass.Validate(doc)), "pass/duplicate-wire-name")
 }
 
 // aliasProperty returns a string property of model t/m named source and

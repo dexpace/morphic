@@ -12,8 +12,8 @@ components:
     # and RefusedLateDefault models). Each pair is declared in both orders, and
     # each three-branch chain in all three positions of its narrowest member.
     # The orders are separate inputs to one rule: the harness's order oracle
-    # keeps sequence order (internal/harness/order_test.go), so this fixture is
-    # the corpus's only guard on branch order.
+    # keeps sequence order (reverseMappings reverses mappings only), so this
+    # fixture is the corpus's only guard on branch order.
     NumberIntegerBroadFirst:
       allOf:
         - type: object

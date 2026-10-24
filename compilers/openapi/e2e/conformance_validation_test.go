@@ -25,7 +25,6 @@ func assertNoValidationFinding(t *testing.T, diags []ir.Diagnostic) {
 // written: the empty server URL, the parameter the document named "", and each
 // security scheme with an empty name or URL (GitHub #622).
 func assertEmptyRequiredValues(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
-	t.Helper()
 	assertNoValidationFinding(t, diags)
 	require.Len(t, doc.Servers, 2)
 	assert.Empty(t, doc.Servers[0].URLTemplate)
@@ -50,7 +49,6 @@ func assertEmptyRequiredValues(t *testing.T, doc *ir.Document, diags []ir.Diagno
 // none, and a response declaring no description lowers undocumented, inline
 // and as a component alike (GitHub #622).
 func assertRelaxedRequiredFields(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
-	t.Helper()
 	assertNoValidationFinding(t, diags)
 	byName := map[string]ir.Operation{}
 	for _, op := range allOperations(doc) {
@@ -74,7 +72,6 @@ func assertRelaxedRequiredFields(t *testing.T, doc *ir.Document, diags []ir.Diag
 // its description and its x-*, and is warned once at each declaration,
 // whichever operations share it (GitHub #622).
 func assertEmptyRequestContent(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
-	t.Helper()
 	const code = "openapi/empty-request-content"
 	byName := map[string]ir.Operation{}
 	for _, op := range allOperations(doc) {
@@ -110,7 +107,6 @@ func assertEmptyRequestContent(t *testing.T, doc *ir.Document, diags []ir.Diagno
 // written at, and a finding about a scheme reached that way is placed where its
 // field is written, as for the scheme written inline (#879).
 func assertReachedOutsideModel(t *testing.T, _ *ir.Document, diags []ir.Diagnostic) {
-	t.Helper()
 	const later = "openapi/later-version-construct"
 	written := []string{
 		"/x-lib/Pet/xml/nodeType", "/x-lib/Owner/xml/nodeType", "/x-lib/Cat/xml/nodeType", "/x-responses/Listed/summary",

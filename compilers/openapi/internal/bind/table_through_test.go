@@ -11,6 +11,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 )
 
 // throughSpec writes a schema $ref whose pointer passes through the response
@@ -296,7 +297,7 @@ x-params:
   q: {name: q, in: query, schema: {$ref: '#/components/schemas/Int'}}
   r: {name: r, in: query}
 `
-	src := tree(t, spec)
+	src := openapitest.YAMLDocument(t, spec)
 	view := nodeview.New()
 	nodeAt := func(pointer jsontext.Pointer) *yaml.Node {
 		path, ok := view.DocumentPath(nodeview.DocumentRoot(src), pointer)

@@ -10,7 +10,7 @@ import (
 )
 
 func assertDefaults(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
-	m, ok := doc.Types[namedID("S")].(*ir.Model)
+	m, ok := doc.Types[componentID("S")].(*ir.Model)
 	require.True(t, ok)
 	n, ok := propByWire(m, "n")
 	require.True(t, ok)
@@ -25,7 +25,7 @@ func assertDefaults(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.NotNil(t, viaRef.Default, "the referent's default binds the reference site")
 	assert.Equal(t, ir.BigVal("41"), viaRef.Default.Num)
 
-	decl, ok := doc.Types[namedID("DeclaredDefault")].(*ir.Scalar)
+	decl, ok := doc.Types[componentID("DeclaredDefault")].(*ir.Scalar)
 	require.True(t, ok)
 	entry, ok := decl.Unmodeled["openapi:default"]
 	require.True(t, ok, "the declaration's own default is kept as residue")
@@ -86,18 +86,18 @@ func assertYAMLTimestampScalars(t *testing.T, doc *ir.Document, diags []ir.Diagn
 			"the §4.7 carve-out is the only other notice this fixture expects: %+v", d)
 	}
 
-	d, ok := doc.Types[namedID("D")].(*ir.Enum)
+	d, ok := doc.Types[componentID("D")].(*ir.Enum)
 	require.True(t, ok, "D stays a closed Enum of the real dates, not a union of null literals")
 	assert.Equal(t, ir.PrimString, d.ValueType)
 	require.Len(t, d.Members, 2)
 	assert.Equal(t, ir.Value{Kind: ir.ValueString, Str: "2021-01-01"}, d.Members[0].Value)
 	assert.Equal(t, ir.Value{Kind: ir.ValueString, Str: "2022-02-02"}, d.Members[1].Value)
 
-	k, ok := doc.Types[namedID("K")].(*ir.Literal)
+	k, ok := doc.Types[componentID("K")].(*ir.Literal)
 	require.True(t, ok, "K's const hoists a real Literal, not the schemaless top type")
 	assert.Equal(t, ir.Value{Kind: ir.ValueString, Str: "2021-01-01"}, k.Value)
 
-	s, ok := doc.Types[namedID("S")].(*ir.Model)
+	s, ok := doc.Types[componentID("S")].(*ir.Model)
 	require.True(t, ok)
 	require.Len(t, s.Properties, 1)
 	prop := s.Properties[0]
@@ -126,7 +126,7 @@ func assertYAMLTimestampScalars(t *testing.T, doc *ir.Document, diags []ir.Diagn
 // nobody asked for, and the resolved form cannot be read back to the spelling.
 func assertRawPreservedDates(t *testing.T, doc *ir.Document) {
 	t.Helper()
-	r, ok := doc.Types[namedID("R")].(*ir.Model)
+	r, ok := doc.Types[componentID("R")].(*ir.Model)
 	require.True(t, ok)
 	kept := r.Unmodeled
 
@@ -143,7 +143,7 @@ func assertRawPreservedDates(t *testing.T, doc *ir.Document) {
 }
 
 func assertConstraints(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
-	m, ok := doc.Types[namedID("S")].(*ir.Model)
+	m, ok := doc.Types[componentID("S")].(*ir.Model)
 	require.True(t, ok)
 	ratio, ok := propByWire(m, "ratio")
 	require.True(t, ok)
@@ -220,7 +220,7 @@ func assertCoDeclaredBoundKept(t *testing.T, doc *ir.Document, m *ir.Model) {
 	require.True(t, ok)
 	assert.Empty(t, high.Unmodeled, "and neither does the side settled the other way")
 
-	alias, ok := doc.Types[namedID("Bounded")].(*ir.Scalar)
+	alias, ok := doc.Types[componentID("Bounded")].(*ir.Scalar)
 	require.True(t, ok, "a component reducing to a shared primitive owns an alias node")
 	require.NotNil(t, alias.Constraints)
 	require.NotNil(t, alias.Constraints.Min)
@@ -256,7 +256,7 @@ func assertLengthAndCollectionBounds(t *testing.T, doc *ir.Document, m *ir.Model
 }
 
 func assertNumericPrecision(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
-	m, ok := doc.Types[namedID("S")].(*ir.Model)
+	m, ok := doc.Types[componentID("S")].(*ir.Model)
 	require.True(t, ok)
 
 	// Bounds beyond float64 range and a huge integer beyond int64, exact.

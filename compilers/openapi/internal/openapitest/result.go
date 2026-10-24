@@ -3,6 +3,7 @@ package openapitest
 import (
 	"encoding/json/jsontext"
 	"slices"
+	"strings"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -33,6 +34,17 @@ func FirstOp(t TB, svc ir.Service) ir.Operation {
 	require.NotEmpty(t, svc.Groups, "service has no operation groups")
 	require.NotEmpty(t, svc.Groups[0].Operations, "first group has no operations")
 	return svc.Groups[0].Operations[0]
+}
+
+// ParamBySource returns the operation's logical parameter with the given
+// source name.
+func ParamBySource(op ir.Operation, name string) (ir.Parameter, bool) {
+	for _, p := range op.Params {
+		if p.Name.Source == name {
+			return p, true
+		}
+	}
+	return ir.Parameter{}, false
 }
 
 // IndexBy builds a lookup keyed by key(item), the shape behind every
@@ -88,6 +100,17 @@ func HasDiag(diags []ir.Diagnostic, code string) bool {
 	return slices.ContainsFunc(diags, func(d ir.Diagnostic) bool { return d.Code == code })
 }
 
+// FirstDiag returns the first diagnostic carrying code, at any severity, so a
+// test can assert on its provenance or its message.
+func FirstDiag(diags []ir.Diagnostic, code string) (ir.Diagnostic, bool) {
+	for _, d := range diags {
+		if d.Code == code {
+			return d, true
+		}
+	}
+	return ir.Diagnostic{}, false
+}
+
 // HasDiagAt reports whether diags contains a diagnostic with the exact code at
 // the exact severity.
 func HasDiagAt(diags []ir.Diagnostic, code string, sev ir.Severity) bool {
@@ -114,6 +137,32 @@ func CountDiagsAt(diags []ir.Diagnostic, code string, sev ir.Severity) int {
 		}
 	}
 	return n
+}
+
+// PointersOf returns the pointers diags report code at, sorted.
+func PointersOf(diags []ir.Diagnostic, code string) []jsontext.Pointer {
+	var out []jsontext.Pointer
+	for _, d := range diags {
+		if d.Code == code {
+			out = append(out, d.Provenance.Pointer)
+		}
+	}
+	slices.Sort(out)
+	return out
+}
+
+// PreservationClaims returns the messages announcing that something was kept
+// under Unmodeled. The unpreservable report is excluded by code rather than by
+// wording: it says a construct "could not be kept verbatim under Unmodeled",
+// which contains the phrase and is the opposite of a claim.
+func PreservationClaims(diags []ir.Diagnostic) []string {
+	var out []string
+	for _, d := range diags {
+		if strings.Contains(d.Message, "under Unmodeled") && d.Code != diag.UnpreservableConstruct {
+			out = append(out, d.Message)
+		}
+	}
+	return out
 }
 
 // DiagMessageAt returns the message of the single diagnostic matching code,

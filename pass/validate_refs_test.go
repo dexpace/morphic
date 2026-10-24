@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/ir/irtest"
 	"github.com/dexpace/morphic/ir/irverify"
 	"github.com/dexpace/morphic/pass"
 )
@@ -353,7 +354,7 @@ func TestValidate_DanglingTypeRef(t *testing.T) {
 	m.Properties[0].Type.Target = "t/nowhere"
 	diags := pass.Validate(doc)
 	require.NotEmpty(t, diags)
-	assert.Contains(t, codes(diags), "ir/dangling-type-ref")
+	assert.Contains(t, irtest.DiagCodes(diags), "ir/dangling-type-ref")
 	assert.Equal(t, ir.SeverityError, diags[0].Severity)
 }
 
@@ -373,7 +374,7 @@ func TestValidate_DanglingRefInMessagePayload(t *testing.T) {
 	}
 	diags := pass.Validate(doc)
 	require.NotEmpty(t, diags)
-	assert.Contains(t, codes(diags), "ir/dangling-type-ref")
+	assert.Contains(t, irtest.DiagCodes(diags), "ir/dangling-type-ref")
 }
 
 // TestValidate_DanglingRefsAcrossContainerKinds gives every reference a
@@ -810,7 +811,7 @@ func TestValidate_DanglingAuthRef(t *testing.T) {
 	}}
 	diags := pass.Validate(doc)
 	require.NotEmpty(t, diags)
-	assert.Contains(t, codes(diags), "ir/dangling-auth-ref")
+	assert.Contains(t, irtest.DiagCodes(diags), "ir/dangling-auth-ref")
 }
 
 // TestValidate_PerOperationAuthOverride covers a per-operation auth override,
@@ -826,5 +827,44 @@ func TestValidate_PerOperationAuthOverride(t *testing.T) {
 	}
 	diags := pass.Validate(docWithOperation(op))
 	require.NotEmpty(t, diags)
-	assert.Contains(t, codes(diags), "ir/dangling-auth-ref")
+	assert.Contains(t, irtest.DiagCodes(diags), "ir/dangling-auth-ref")
+}
+
+// TestCheckDanglingRefs_TruncatedWalkClaimsNoDeclarations holds the one direction
+// a declaration-derived registry can be wrong in. The operation the shallow
+// reference names is declared, but past the walk cap, so a registry built from
+// what the walk reached answers "not declared" for a node that is — and a false
+// dangling error is worse than the silence it replaced. The registries Document
+// keys maps by are read off the field rather than off the walk and are unaffected.
+func TestCheckDanglingRefs_TruncatedWalkClaimsNoDeclarations(t *testing.T) {
+	t.Parallel()
+	deep, target := irtest.NestedOverloadDoc(ir.MaxWalkDepth)
+	diags := danglingRefs(deep)
+	require.NotEmpty(t, diags)
+	assert.Equal(t, "ir/walk-truncated", diags[0].Code)
+	for _, d := range diags {
+		assert.NotEqual(t, "ir/dangling-op-ref", d.Code,
+			"%s is declared past the cap, not undeclared", target)
+	}
+
+	// The other half: the same shape within the cap resolves, so the case above
+	// is not passing on a walk that collects no reference at all.
+	shallow, _ := irtest.NestedOverloadDoc(0)
+	assert.Empty(t, danglingRefs(shallow))
+}
+
+// TestCheckDanglingRefs_NilTypeDefIsNotFollowed pins report-only behaviour on
+// a malformed registry: a nil entry is skipped rather than dereferenced, so the
+// pass reports what it can instead of panicking.
+func TestCheckDanglingRefs_NilTypeDefIsNotFollowed(t *testing.T) {
+	t.Parallel()
+	doc := &ir.Document{Types: ir.TypeRegistry{"t/nil": nil}}
+	assert.Empty(t, danglingRefs(doc))
+}
+
+// danglingRefs runs checkDanglingRefs over the declarations of doc, as Validate
+// does.
+func danglingRefs(doc *ir.Document) []ir.Diagnostic {
+	decls, truncated := ir.DeclaredIDs(doc)
+	return pass.CheckDanglingRefs(doc, decls, truncated)
 }

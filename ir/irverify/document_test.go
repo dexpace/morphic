@@ -43,7 +43,7 @@ func TestVerify_DocumentWithoutServicesIsAViolation(t *testing.T) {
 
 			got := irverify.Verify(doc)
 			assert.Equal(t, []string{"ir/services-absent"}, codesOf(got))
-			assert.Equal(t, []string{"doc.Services"}, pathsOf(got, "ir/services-absent"))
+			assert.Equal(t, []string{"doc.Services"}, violationPaths(got, "ir/services-absent"))
 		})
 	}
 }
@@ -65,7 +65,7 @@ func TestVerify_DocumentWithoutSourcesIsAViolation(t *testing.T) {
 
 			got := irverify.Verify(doc)
 			assert.Equal(t, []string{"ir/sources-absent"}, codesOf(got))
-			assert.Equal(t, []string{"doc.Sources"}, pathsOf(got, "ir/sources-absent"))
+			assert.Equal(t, []string{"doc.Sources"}, violationPaths(got, "ir/sources-absent"))
 		})
 	}
 }
@@ -100,7 +100,7 @@ func TestVerify_SourceFormatMustBeANameAndAVersion(t *testing.T) {
 				return
 			}
 			assert.Equal(t, []string{"ir/source-format-malformed"}, codesOf(got))
-			assert.Equal(t, []string{"doc.Sources[0].Format"}, pathsOf(got, "ir/source-format-malformed"))
+			assert.Equal(t, []string{"doc.Sources[0].Format"}, violationPaths(got, "ir/source-format-malformed"))
 		})
 	}
 }
@@ -143,7 +143,7 @@ func TestVerify_SourceHashMustBeLowercaseSHA256Hex(t *testing.T) {
 				return
 			}
 			assert.Equal(t, []string{"ir/source-hash-malformed"}, codesOf(got))
-			assert.Equal(t, []string{"doc.Sources[0].Hash"}, pathsOf(got, "ir/source-hash-malformed"))
+			assert.Equal(t, []string{"doc.Sources[0].Hash"}, violationPaths(got, "ir/source-hash-malformed"))
 		})
 	}
 }

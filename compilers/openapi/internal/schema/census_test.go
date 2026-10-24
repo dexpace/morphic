@@ -10,6 +10,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/pass"
 )
@@ -20,7 +21,7 @@ import (
 // kept verbatim and reported rather than silently dropped.
 func TestUnhomedApplicator_KeptOnAListAndAnnounced(t *testing.T) {
 	t.Parallel()
-	doc, diags := lowerSpec(t, openapitest.ComponentSpec(`    Odd:
+	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(`    Odd:
       type: array
       items: {type: string}
       properties: {p: {type: string}}
@@ -41,7 +42,7 @@ func TestUnhomedApplicator_KeptOnAListAndAnnounced(t *testing.T) {
 // read as though the object were an array.
 func TestUnhomedApplicator_ObjectCarriesNoItemKeyword(t *testing.T) {
 	t.Parallel()
-	doc, diags := lowerSpec(t, openapitest.ComponentSpec(`    Odd:
+	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(`    Odd:
       type: object
       properties: {p: {type: string}}
       items: {type: string}
@@ -61,7 +62,7 @@ func TestUnhomedApplicator_ObjectCarriesNoItemKeyword(t *testing.T) {
 // looking in Unmodeled for something that is not there.
 func TestUnhomedApplicator_UnpreservableKeywordIsNotAnnounced(t *testing.T) {
 	t.Parallel()
-	doc, diags := lowerSpec(t, openapitest.ComponentSpec(`    Odd:
+	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(`    Odd:
       type: object
       properties: {p: {type: string}}
       items: {type: string, x-t: `+unpreservableValue+`}
@@ -71,7 +72,7 @@ func TestUnhomedApplicator_UnpreservableKeywordIsNotAnnounced(t *testing.T) {
 	require.True(t, ok)
 	assert.NotContains(t, m.Unmodeled, "openapi:items", "the conversion failed, so nothing was kept")
 	assert.True(t, openapitest.HasDiag(diags, diag.UnpreservableConstruct), "the failure itself is reported")
-	assert.Empty(t, preservationClaims(diags),
+	assert.Empty(t, openapitest.PreservationClaims(diags),
 		"nothing was written under Unmodeled, so nothing may announce that it was")
 }
 
@@ -85,7 +86,7 @@ func TestUnhomedApplicator_UnpreservableKeywordIsNotAnnounced(t *testing.T) {
 // docs/compilers/openapi.md#shape-applicator for this keyword.
 func TestUnhomedApplicator_FormatWithNoTypeIsKept(t *testing.T) {
 	t.Parallel()
-	doc, diags := lowerSpec(t, openapitest.ComponentSpec("    Odd: {format: date-time}\n"))
+	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec("    Odd: {format: date-time}\n"))
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	td := typeByName(doc, "Odd")
@@ -140,7 +141,7 @@ func TestUnhomedKeywords_ElectedLoweringKeepsWhatItCannotRead(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			doc, diags := lowerSpec(t, keywordCensusSpec("    S: "+tc.body+"\n"))
+			doc, diags := schema.LowerSpec(t, keywordCensusSpec("    S: "+tc.body+"\n"))
 			openapitest.RequireNoErrorDiags(t, diags)
 
 			td := typeByName(doc, "S")
@@ -171,7 +172,7 @@ func TestUnhomedKeywords_BoundsThatLandedAreNotAlsoKept(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			doc, diags := lowerSpec(t, keywordCensusSpec("    S: "+tc.body+"\n"))
+			doc, diags := schema.LowerSpec(t, keywordCensusSpec("    S: "+tc.body+"\n"))
 			openapitest.RequireNoErrorDiags(t, diags)
 
 			td := typeByName(doc, "S")
@@ -189,7 +190,7 @@ func TestUnhomedKeywords_BoundsThatLandedAreNotAlsoKept(t *testing.T) {
 // an array reaches nothing however full the field looks.
 func TestUnhomedKeywords_ArrayBoundsKeepWhatCollectionConstraintsDoesNotRead(t *testing.T) {
 	t.Parallel()
-	doc, diags := lowerSpec(t, keywordCensusSpec(
+	doc, diags := schema.LowerSpec(t, keywordCensusSpec(
 		"    S: {type: array, items: {type: string}, minItems: 1, minLength: 3}\n"))
 	openapitest.RequireNoErrorDiags(t, diags)
 

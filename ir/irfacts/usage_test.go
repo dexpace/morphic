@@ -9,11 +9,12 @@ import (
 
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/ir/irfacts"
+	"github.com/dexpace/morphic/ir/irtest"
 )
 
 // useDoc builds a document with one operation and the given types.
 func useDoc(op ir.Operation, defs ...ir.TypeDef) *ir.Document {
-	doc := compDoc(defs...)
+	doc := irtest.DocOf(defs...)
 	doc.Services = []ir.Service{{Groups: []ir.OperationGroup{{Operations: []ir.Operation{op}}}}}
 	return doc
 }
@@ -32,7 +33,7 @@ func useProp(id ir.TypeID) ir.Property { return ir.Property{Type: useRef(id)} }
 
 // useHolder is a model with one property of each of ids.
 func useHolder(id ir.TypeID, ids ...ir.TypeID) *ir.Model {
-	return compModel(id, func(m *ir.Model) {
+	return irtest.ModelOf(id, func(m *ir.Model) {
 		for _, p := range ids {
 			m.Properties = append(m.Properties, useProp(p))
 		}
@@ -73,7 +74,7 @@ type usageRoot struct {
 
 // usageDocWith builds a document declaring defs, and shapes it with mutate.
 func usageDocWith(mutate func(*ir.Document), defs ...ir.TypeDef) *ir.Document {
-	doc := compDoc(defs...)
+	doc := irtest.DocOf(defs...)
 	mutate(doc)
 	return doc
 }
@@ -170,7 +171,7 @@ func usagePayloadCases() map[string]usageRoot {
 		"response": {func(p *ir.Payload) *ir.Document { return useDoc(ir.Operation{Responses: []ir.Response{{Payload: p}}}) }, useOut},
 		"error":    {func(p *ir.Payload) *ir.Document { return useDoc(ir.Operation{Errors: []ir.ErrorCase{{Payload: p}}}) }, useOut | useErr},
 		"common error": {func(p *ir.Payload) *ir.Document {
-			doc := compDoc()
+			doc := irtest.DocOf()
 			doc.Services = []ir.Service{{CommonErrors: []ir.ErrorCase{{Payload: p}}}}
 			return doc
 		}, useOut | useErr},
@@ -246,28 +247,28 @@ func usageEdgeCases() map[string]usageEdge {
 	return map[string]usageEdge{
 		"property": {build: func(root ir.TypeID) ir.TypeDef { return useHolder(root, "x") }},
 		"additional value": {build: func(root ir.TypeID) ir.TypeDef {
-			return compModel(root, func(m *ir.Model) { m.AdditionalProps = &ir.AdditionalProps{Value: useRef("x")} })
+			return irtest.ModelOf(root, func(m *ir.Model) { m.AdditionalProps = &ir.AdditionalProps{Value: useRef("x")} })
 		}},
 		"additional key": {also: []ir.TypeID{"v"}, build: func(root ir.TypeID) ir.TypeDef {
-			return compModel(root, func(m *ir.Model) {
+			return irtest.ModelOf(root, func(m *ir.Model) {
 				m.AdditionalProps = &ir.AdditionalProps{Value: useRef("v"), Key: &ir.TypeRef{Target: "x"}}
 			})
 		}},
 		"additional pattern": {also: []ir.TypeID{"v"}, build: func(root ir.TypeID) ir.TypeDef {
-			return compModel(root, func(m *ir.Model) {
+			return irtest.ModelOf(root, func(m *ir.Model) {
 				m.AdditionalProps = &ir.AdditionalProps{
 					Value: useRef("v"), Patterns: []ir.PatternProps{{Pattern: "^a", Value: useRef("x")}},
 				}
 			})
 		}},
 		"base": {build: func(root ir.TypeID) ir.TypeDef {
-			return compModel(root, func(m *ir.Model) { m.Base = &ir.TypeRef{Target: "x"} })
+			return irtest.ModelOf(root, func(m *ir.Model) { m.Base = &ir.TypeRef{Target: "x"} })
 		}},
 		"mixin": {build: func(root ir.TypeID) ir.TypeDef {
-			return compModel(root, func(m *ir.Model) { m.Mixins = refs("x") })
+			return irtest.ModelOf(root, func(m *ir.Model) { m.Mixins = irtest.RefsTo("x") })
 		}},
 		"implements": {build: func(root ir.TypeID) ir.TypeDef {
-			return compModel(root, func(m *ir.Model) { m.Implements = refs("x") })
+			return irtest.ModelOf(root, func(m *ir.Model) { m.Implements = irtest.RefsTo("x") })
 		}},
 		"union variant": {build: func(root ir.TypeID) ir.TypeDef {
 			return &ir.Union{ID: root, Variants: []ir.Variant{{Type: useRef("x")}}}
@@ -277,13 +278,13 @@ func usageEdgeCases() map[string]usageEdge {
 			return &ir.MapT{ID: root, Key: &ir.TypeRef{Target: "x"}, Value: useRef("v")}
 		}},
 		"map value":     {build: func(root ir.TypeID) ir.TypeDef { return &ir.MapT{ID: root, Value: useRef("x")} }},
-		"tuple element": {build: func(root ir.TypeID) ir.TypeDef { return &ir.Tuple{ID: root, Elems: refs("x")} }},
+		"tuple element": {build: func(root ir.TypeID) ir.TypeDef { return &ir.Tuple{ID: root, Elems: irtest.RefsTo("x")} }},
 		"tuple rest": {build: func(root ir.TypeID) ir.TypeDef {
 			return &ir.Tuple{ID: root, Rest: &ir.TypeRef{Target: "x"}}
 		}},
-		"scalar base": {build: func(root ir.TypeID) ir.TypeDef { return compScalar(root, "x") }},
+		"scalar base": {build: func(root ir.TypeID) ir.TypeDef { return irtest.ScalarOf(root, "x") }},
 		"property encoding schema": {also: []ir.TypeID{"v"}, build: func(root ir.TypeID) ir.TypeDef {
-			return compModel(root, func(m *ir.Model) {
+			return irtest.ModelOf(root, func(m *ir.Model) {
 				m.Properties = []ir.Property{{Type: useRef("v"), Encoding: &ir.Encoding{Schema: &ir.TypeRef{Target: "x"}}}}
 			})
 		}},
@@ -320,7 +321,7 @@ func TestIndex_UsageSpreadsAlongEveryEdge(t *testing.T) {
 // below "cat", and "kitten" composing "cat" through the alias "catAlias".
 func usagePets(mutate func(id ir.TypeID, m *ir.Model)) []ir.TypeDef {
 	model := func(id ir.TypeID, base ir.TypeID) *ir.Model {
-		return compModel(id, func(m *ir.Model) {
+		return irtest.ModelOf(id, func(m *ir.Model) {
 			if base != "" {
 				m.Base = &ir.TypeRef{Target: base}
 			}
@@ -332,7 +333,7 @@ func usagePets(mutate func(id ir.TypeID, m *ir.Model)) []ir.TypeDef {
 	pet := model("pet", "")
 	pet.Discriminator = &ir.Discriminator{PropertyName: "kind"}
 	return []ir.TypeDef{pet, model("cat", "pet"), model("dog", "pet"), model("lion", "cat"),
-		compScalar("catAlias", "cat"), model("kitten", "catAlias")}
+		irtest.ScalarOf("catAlias", "cat"), model("kitten", "catAlias")}
 }
 
 func TestIndex_UsageReachesSubtypesOfAPolymorphicBaseOnlyWhereItIsAValue(t *testing.T) {
@@ -348,27 +349,30 @@ func TestIndex_UsageReachesSubtypesOfAPolymorphicBaseOnlyWhereItIsAValue(t *test
 	assert.Equal(t, map[ir.TypeID]irfacts.UsageFlags{"kitten": useOut, "catAlias": useOut, "cat": useOut, "pet": useOut},
 		respond("kitten", usagePets(nil)...), "composing through an alias reaches no sibling either")
 
-	viaAlias := append(usagePets(nil), compScalar("petAlias", "pet"))
+	viaAlias := append(usagePets(nil), irtest.ScalarOf("petAlias", "pet"))
 	wantViaAlias := map[ir.TypeID]irfacts.UsageFlags{"petAlias": useOut}
 	maps.Copy(wantViaAlias, all)
 	assert.Equal(t, wantViaAlias, respond("petAlias", viaAlias...), "a reference through an alias is a value of the base")
 
 	abstract := []ir.TypeDef{
-		compModel("shape", func(m *ir.Model) { m.Abstract = true }),
-		compModel("circle", func(m *ir.Model) { m.Implements = refs("shape"); m.Properties = []ir.Property{useProp("radius")} }),
+		irtest.ModelOf("shape", func(m *ir.Model) { m.Abstract = true }),
+		irtest.ModelOf("circle", func(m *ir.Model) {
+			m.Implements = irtest.RefsTo("shape")
+			m.Properties = []ir.Property{useProp("radius")}
+		}),
 		useType("radius"),
 	}
 	assert.Equal(t, map[ir.TypeID]irfacts.UsageFlags{"shape": useOut, "circle": useOut, "radius": useOut}, respond("shape", abstract...),
 		"an abstract base reaches what implements it, and that type's own members")
 
-	plain := []ir.TypeDef{compModel("base", nil), compModel("sub", func(m *ir.Model) { m.Base = &ir.TypeRef{Target: "base"} })}
+	plain := []ir.TypeDef{irtest.ModelOf("base", nil), irtest.ModelOf("sub", func(m *ir.Model) { m.Base = &ir.TypeRef{Target: "base"} })}
 	assert.Equal(t, map[ir.TypeID]irfacts.UsageFlags{"base": useOut}, respond("base", plain...), "a plain base names its own shape alone")
 
 	mapped := []ir.TypeDef{
-		compModel("base", func(m *ir.Model) {
+		irtest.ModelOf("base", func(m *ir.Model) {
 			m.Discriminator = &ir.Discriminator{Mapping: map[string]ir.TypeID{"a": "mapped"}, Default: "fallback"}
 		}),
-		compModel("mapped", nil), compModel("fallback", nil),
+		irtest.ModelOf("mapped", nil), irtest.ModelOf("fallback", nil),
 	}
 	assert.Equal(t, map[ir.TypeID]irfacts.UsageFlags{"base": useOut}, respond("base", mapped...),
 		"a discriminator mapping routes to types; only a subtype is one a value of the base may be")
@@ -377,7 +381,7 @@ func TestIndex_UsageReachesSubtypesOfAPolymorphicBaseOnlyWhereItIsAValue(t *test
 func TestIndex_UsageOfAFieldArgumentIsInput(t *testing.T) {
 	t.Parallel()
 	doc := useDoc(ir.Operation{Responses: []ir.Response{{Payload: useBody("application/json", "query")}}},
-		compModel("query", func(m *ir.Model) {
+		irtest.ModelOf("query", func(m *ir.Model) {
 			m.Properties = []ir.Property{{Type: useRef("result"), Args: []ir.Parameter{{Type: useRef("filter")}}}}
 		}),
 		useType("result"), useHolder("filter", "clause"), useType("clause"))
@@ -425,7 +429,7 @@ func TestIndex_UsageSwapsSidesForAnOperationTheAPIStarts(t *testing.T) {
 		}}}}
 		callback := op
 		callback.Bindings.HTTP = []ir.HTTPBinding{{Method: "POST", URITemplate: "{$request.body#/url}"}}
-		doc := compDoc(defs()...)
+		doc := irtest.DocOf(defs()...)
 		doc.Services = []ir.Service{{Groups: []ir.OperationGroup{
 			{Operations: []ir.Operation{callback}},
 			{Groups: []ir.OperationGroup{{Operations: []ir.Operation{parent}}}},
@@ -470,7 +474,7 @@ func TestIndex_UsageMarksMultipartOnTheBodyTypeAndWhatItAliases(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			doc := useDoc(tc.op, useHolder("form", "part"), useType("part"), compScalar("outer", "inner"), compScalar("inner", "form"))
+			doc := useDoc(tc.op, useHolder("form", "part"), useType("part"), irtest.ScalarOf("outer", "inner"), irtest.ScalarOf("inner", "form"))
 			assert.Equal(t, tc.want, usageOf(doc))
 		})
 	}
@@ -480,7 +484,7 @@ func TestIndex_UsageMarksMultipartOnTheBodyTypeAndWhatItAliases(t *testing.T) {
 		doc := useDoc(ir.Operation{Request: &ir.Payload{Contents: []ir.Content{
 			{MediaType: "multipart/form-data", Type: useRef("ghost")},
 			{MediaType: "multipart/form-data", Type: useRef("toGhost")},
-		}}}, compScalar("toGhost", "elsewhere"))
+		}}}, irtest.ScalarOf("toGhost", "elsewhere"))
 		facts := irfacts.New(doc)
 		assert.Equal(t, useIn|useMulp, facts.Usage("toGhost"))
 		assert.Zero(t, facts.Usage("ghost"), "an undeclared body type")
@@ -489,7 +493,7 @@ func TestIndex_UsageMarksMultipartOnTheBodyTypeAndWhatItAliases(t *testing.T) {
 
 	t.Run("an alias cycle ends", func(t *testing.T) {
 		t.Parallel()
-		doc := useDoc(ir.Operation{Request: useBody("multipart/form-data", "a")}, compScalar("a", "b"), compScalar("b", "a"))
+		doc := useDoc(ir.Operation{Request: useBody("multipart/form-data", "a")}, irtest.ScalarOf("a", "b"), irtest.ScalarOf("b", "a"))
 		assert.Equal(t, map[ir.TypeID]irfacts.UsageFlags{"a": useIn | useMulp, "b": useIn | useMulp}, usageOf(doc))
 	})
 }
@@ -526,7 +530,7 @@ func TestIndex_UsageTerminatesOnACycle(t *testing.T) {
 
 func TestIndex_UsageReadsEveryOperationOfEveryService(t *testing.T) {
 	t.Parallel()
-	doc := compDoc(useType("first"), useType("nested"), useType("second"))
+	doc := irtest.DocOf(useType("first"), useType("nested"), useType("second"))
 	doc.Services = []ir.Service{
 		{Groups: []ir.OperationGroup{{
 			Operations: []ir.Operation{{Request: useBody("application/json", "first")}},
@@ -576,7 +580,7 @@ func TestUsage_ADefaultTravelsAsOutputAndNoError(t *testing.T) {
 			Headers:    []ir.Property{useProp("h")},
 		},
 	}
-	defs := func() []ir.TypeDef { return []ir.TypeDef{compModel("t", nil), useType("h")} }
+	defs := func() []ir.TypeDef { return []ir.TypeDef{irtest.ModelOf("t", nil), useType("h")} }
 
 	for name, tc := range map[string]struct {
 		bindings []ir.HTTPBinding

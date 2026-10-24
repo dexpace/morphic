@@ -18,6 +18,8 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/dexpace/morphic/ir/irtest"
 )
 
 // maxDocCommentWords caps the words in one doc comment, as CLAUDE.md's Go code
@@ -42,7 +44,7 @@ type longDoc struct {
 // longDocComments does not excuse.
 func TestDocComments_StayUnderTheCap(t *testing.T) {
 	t.Parallel()
-	docs, err := measureDocComments(repoRoot(t))
+	docs, err := measureDocComments(irtest.RepoRoot(t))
 	require.NoError(t, err)
 	require.NotEmpty(t, docs, "the sweep measured no doc comments, so an empty result proves nothing")
 	for _, v := range docCommentViolations(docs, longDocComments) {

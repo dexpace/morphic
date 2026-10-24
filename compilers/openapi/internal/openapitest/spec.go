@@ -1,10 +1,12 @@
 package openapitest
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
+	"github.com/speakeasy-api/openapi/marshaller"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/speakeasy-api/openapi/sequencedmap"
 	"github.com/stretchr/testify/require"
@@ -30,6 +32,22 @@ func ComponentSpecVer(version, schemas string) string {
 		"info: {title: T, version: \"1\"}\n" +
 		"paths: {}\n" +
 		"components:\n  schemas:\n" + schemas
+}
+
+// HolderSpec is a document of the version declaring Holder, whose property p
+// is written as p, beside the schemas Plain and Pet and those in rest.
+func HolderSpec(version, p, rest string) string {
+	return "openapi: " + version + `
+info: {title: t, version: "1"}
+paths: {}
+components:
+  schemas:
+    Plain: {type: string}
+    Pet: {type: object, properties: {name: {type: string}}}
+    Holder:
+      type: object
+      properties:
+        p: ` + p + "\n" + rest
 }
 
 // PathsSpec wraps a paths block in a minimal 3.1 document with no components.
@@ -119,6 +137,38 @@ func YAMLNode(t TB, src string) *yaml.Node {
 	require.NoError(t, yaml.Unmarshal([]byte(src), &doc))
 	require.Len(t, doc.Content, 1, "expected a single document node")
 	return doc.Content[0]
+}
+
+// YAMLDocument parses src as a document tree and returns its document node, the
+// node a loader indexes and hands on.
+func YAMLDocument(t TB, src string) *yaml.Node {
+	t.Helper()
+	var root yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte(src), &root))
+	return &root
+}
+
+// ClearAnchors empties the anchor name of every node under root, as the load
+// phase does before it hands a tree to the parser library.
+func ClearAnchors(root *yaml.Node) {
+	stack := []*yaml.Node{root}
+	for len(stack) > 0 {
+		n := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		n.Anchor = ""
+		stack = append(stack, n.Content...)
+	}
+}
+
+// SchemaFromYAML unmarshals body as a JSONSchema, keeping the reference and
+// boolean forms a bare *oas3.Schema cannot represent.
+func SchemaFromYAML(ctx context.Context, t TB, body string) *oas3.JSONSchema[oas3.Referenceable] {
+	t.Helper()
+	js := &oas3.JSONSchema[oas3.Referenceable]{}
+	valErrs, err := marshaller.Unmarshal(ctx, strings.NewReader(body), js)
+	require.NoError(t, err)
+	require.Empty(t, valErrs, "the fixture parses cleanly")
+	return js
 }
 
 // StrNode builds a bare string-scalar yaml.Node.

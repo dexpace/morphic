@@ -45,3 +45,25 @@ func TestFill_StopsNestingAStructTypeAtItsBound(t *testing.T) {
 	}
 	assert.Equal(t, 3, depth, "a Value nests three deep along one path, then stays zero")
 }
+
+func TestFill_RefusesAnythingButANonNilPointer(t *testing.T) {
+	t.Parallel()
+	for name, v := range map[string]any{
+		"a value":       ir.Document{},
+		"a nil pointer": (*ir.Document)(nil),
+		"nothing":       nil,
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			rec := &recordingT{}
+			done := make(chan struct{})
+			go func() {
+				defer close(done)
+				irtest.FillOn(rec, v)
+			}()
+			<-done
+			assert.True(t, rec.aborted, "fill must stop rather than fill what it cannot reach")
+			assert.Contains(t, rec.fatalf, "want a non-nil pointer")
+		})
+	}
+}

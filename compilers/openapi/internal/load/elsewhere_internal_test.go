@@ -5,14 +5,8 @@ import (
 	"slices"
 	"testing"
 
-	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
-	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	yaml "gopkg.in/yaml.v3"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -48,62 +42,4 @@ func TestSitePlacer_PlacesASiteInItsDocument(t *testing.T) {
 	assert.Equal(t, ir.Provenance{Source: 7, Pointer: "/x"}, place(refSite{pointer: "/x"}))
 	assert.Equal(t, ir.Provenance{Source: 2, Pointer: "/y"}, place(refSite{doc: "dir/a.yaml", pointer: "/y"}))
 	assert.Equal(t, ir.Provenance{Source: 7}, place(refSite{doc: "gone.yaml", pointer: "/z"}))
-}
-
-// TestPositionOf_PlacesASiteInTheDocumentTheTableRead pins positionOf and
-// siteIn: a source site is the source's position, another document's is found
-// by the key a request reads a URL by (readKey), however the table or the site
-// spells it, and one in a document the table never read is placed nowhere.
-func TestPositionOf_PlacesASiteInTheDocumentTheTableRead(t *testing.T) {
-	t.Parallel()
-	_, root := buildDoc(t, "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\ncomponents:\n  schemas:\n"+
-		"    A: {$ref: 'other.yaml#/T'}\n    B: {$ref: 'http://h/a%20b.yaml#/T'}\n    C: {$ref: 'http://h/c d.yaml#/T'}\n")
-	table := bind.Bind(root, bind.Config{Self: "spec.yaml", Open: func(string) (*yaml.Node, error) {
-		var n yaml.Node
-		return &n, yaml.Unmarshal([]byte("T: {type: string}\n"), &n)
-	}})
-	require.Equal(t, 4, table.Documents(), "the source, other.yaml and the two URLs")
-	other, remote, spaced := bind.DocID(1), bind.DocID(2), bind.DocID(3)
-	require.Equal(t, "other.yaml", table.Document(other).Name)
-	require.Equal(t, "http://h/a%20b.yaml", table.Document(remote).Name)
-	require.Equal(t, "http://h/c d.yaml", table.Document(spaced).Name)
-	self := sourceDocument{path: "spec.yaml"}
-
-	for site, want := range map[refSite]bind.Position{
-		{pointer: "/x"}:                             {Doc: bind.Source, Pointer: "/x"},
-		{doc: "other.yaml", pointer: "/y"}:          {Doc: other, Pointer: "/y"},
-		{doc: "http://h/a b.yaml", pointer: "/z"}:   {Doc: remote, Pointer: "/z"},
-		self.siteIn("spec.yaml", "/w"):              {Doc: bind.Source, Pointer: "/w"},
-		self.siteIn("http://h/a b.yaml", "/v"):      {Doc: remote, Pointer: "/v"},
-		{doc: "http://h/c%20d.yaml", pointer: "/u"}: {Doc: spaced, Pointer: "/u"},
-	} {
-		got, ok := self.positionOf(table, site)
-		require.True(t, ok, "%+v", site)
-		assert.Equal(t, want, got, "%+v", site)
-	}
-	_, ok := self.positionOf(table, refSite{doc: "gone.yaml", pointer: "/x"})
-	assert.False(t, ok, "a document the table never read")
-}
-
-// TestUnplaced_NamesTheDocumentOfASiteOutsideTheSource pins how unplaced
-// spells the reference each schema of an end the table could not place was
-// read under: by its pointer in the source, and by its pointer in its document
-// elsewhere.
-func TestUnplaced_NamesTheDocumentOfASiteOutsideTheSource(t *testing.T) {
-	t.Parallel()
-	inSource := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{})
-	inA := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{})
-	bd := typed.NewBuilder(nil)
-
-	unplaced(t.Context(), bd, referenceEnd{walk: walkOf(&soa.ReferencedParameter{Object: &soa.Parameter{Schema: inSource}})},
-		refSite{pointer: "/paths/~1x/get/parameters/0"})
-	unplaced(t.Context(), bd, referenceEnd{walk: walkOf(&soa.ReferencedParameter{Object: &soa.Parameter{Schema: inA}})},
-		refSite{doc: "a.yaml", pointer: "/components/parameters/P"})
-
-	site, ok := bd.Bindings().Unplaced(inSource)
-	require.True(t, ok)
-	assert.Equal(t, "/paths/~1x/get/parameters/0", site)
-	site, ok = bd.Bindings().Unplaced(inA)
-	require.True(t, ok)
-	assert.Equal(t, "/components/parameters/P in a.yaml", site)
 }

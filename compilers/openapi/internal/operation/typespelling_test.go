@@ -305,7 +305,7 @@ func TestParamContent_MergedFieldIsKept(t *testing.T) {
               schema: {type: integer}
       responses: {"200": {description: ok}}
 `)
-	_, svc, diags := lowerServiceSpec(t, spec)
+	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	op := openapitest.FirstOp(t, svc)
 	require.Len(t, op.Params, 1)
@@ -340,7 +340,7 @@ paths:
               bogus: B
       responses: {"200": {description: ok}}
 `
-	_, svc, diags := lowerServiceSpec(t, spec)
+	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	op := openapitest.FirstOp(t, svc)
 	require.Len(t, op.Params, 1)
@@ -386,7 +386,7 @@ paths:
                   itemSchema: {type: string}
                   x-hdr: hdr
 `
-	_, svc, diags := lowerServiceSpec(t, spec)
+	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	header := openapitest.FirstOp(t, svc).Responses[0].Headers[0]
 
@@ -415,7 +415,7 @@ func TestParamAndHeaderSchema_NeverRecordContentFields(t *testing.T) {
           headers:
             X-Plain: {schema: {type: string}}
 `)
-	_, svc, diags := lowerServiceSpec(t, spec)
+	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	op := openapitest.FirstOp(t, svc)
 	require.Len(t, op.Params, 1)

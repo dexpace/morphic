@@ -294,3 +294,14 @@ func TestTable_AgreesWithTheConstructsLaterMinorsAdded(t *testing.T) {
 	slices.SortFunc(got, order)
 	assert.Empty(t, cmp.Diff(want, got))
 }
+
+// TestKinds_ListsEveryKindOnce pins the enumeration the table tests lean on.
+func TestKinds_ListsEveryKindOnce(t *testing.T) {
+	kinds := oas.Kinds()
+	require.NotEmpty(t, kinds)
+	assert.Equal(t, oas.Document, kinds[0])
+	assert.Equal(t, oas.SecurityRequirement, kinds[len(kinds)-1])
+	for i := 1; i < len(kinds); i++ {
+		assert.Equal(t, kinds[i-1]+1, kinds[i], "the kinds run in sequence")
+	}
+}

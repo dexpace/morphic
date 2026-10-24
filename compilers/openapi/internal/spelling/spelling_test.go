@@ -1,4 +1,4 @@
-package spelling
+package spelling_test
 
 import (
 	"strings"
@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/spelling"
 	"github.com/dexpace/morphic/internal/decls"
 	"github.com/dexpace/morphic/ir"
 )
@@ -46,7 +47,7 @@ func declaredKinds(t *testing.T) []ir.PrimKind {
 }
 
 func spelled(k ir.PrimKind) bool {
-	for _, prim := range formatTable {
+	for _, prim := range spelling.FormatTable {
 		if prim == k {
 			return true
 		}
@@ -63,12 +64,12 @@ func spelled(k ir.PrimKind) bool {
 // node as byte and an unknown format do, or be read elsewhere, as password is.
 func TestFormatTable_EveryRowDistinguishesTheBareType(t *testing.T) {
 	t.Parallel()
-	for key, prim := range formatTable {
+	for key, prim := range spelling.FormatTable {
 		typ, _, paired := strings.Cut(key, "/")
 		if !paired {
 			continue // the bare type's own row, which no format selects
 		}
-		bare, ok := formatTable[typ]
+		bare, ok := spelling.FormatTable[typ]
 		require.True(t, ok, "row %q names a type with no row of its own", key)
 		assert.NotEqual(t, bare, prim,
 			"row %q maps to the same kind (%s) as the bare type %q, so the pairing "+
@@ -84,14 +85,14 @@ func TestFormatTable_EveryRowDistinguishesTheBareType(t *testing.T) {
 // numeric row to the value domain alone.
 func TestFormatTable_EveryRowNarrowsItsBareType(t *testing.T) {
 	t.Parallel()
-	for key, prim := range formatTable {
+	for key, prim := range spelling.FormatTable {
 		typ, _, paired := strings.Cut(key, "/")
 		if !paired {
 			continue
 		}
-		bare, ok := formatTable[typ]
+		bare, ok := spelling.FormatTable[typ]
 		require.True(t, ok, "row %q names a type with no row of its own", key)
-		assert.True(t, narrows(prim, bare),
+		assert.True(t, spelling.Narrows(prim, bare),
 			"row %q lowers to %s, which does not narrow the bare %q kind %s", key, prim, typ, bare)
 		if typ != "string" {
 			assert.True(t, prim.StrictlyWithin(bare),
@@ -126,7 +127,7 @@ func TestRelation_EveryDeclaredKindIsRelatedOrARoot(t *testing.T) {
 	for _, k := range kinds {
 		related := false
 		for _, other := range kinds {
-			related = related || (other != ir.PrimAny && narrows(k, other))
+			related = related || (other != ir.PrimAny && spelling.Narrows(k, other))
 		}
 		_, root := relationRoots[k]
 		assert.Equal(t, !root, related, "%s must narrow a kind or be a listed root, not both", k)
@@ -180,8 +181,8 @@ func TestNarrows_HoldsEveryContainment(t *testing.T) {
 		{ir.PrimInteger, ir.PrimFloat}, {ir.PrimUUID, ir.PrimAny}, {ir.PrimInteger, ir.PrimAny},
 	}
 	for _, p := range holds {
-		assert.True(t, narrows(p[0], p[1]), "%s narrows %s", p[0], p[1])
-		assert.False(t, narrows(p[1], p[0]), "%s does not narrow %s", p[1], p[0])
+		assert.True(t, spelling.Narrows(p[0], p[1]), "%s narrows %s", p[0], p[1])
+		assert.False(t, spelling.Narrows(p[1], p[0]), "%s does not narrow %s", p[1], p[0])
 	}
 
 	unrelated := [][2]ir.PrimKind{
@@ -190,12 +191,12 @@ func TestNarrows_HoldsEveryContainment(t *testing.T) {
 		{ir.PrimBytes, ir.PrimInteger}, {ir.PrimDatetime, ir.PrimString},
 	}
 	for _, p := range unrelated {
-		assert.False(t, narrows(p[0], p[1]), "%s does not narrow %s", p[0], p[1])
-		assert.False(t, narrows(p[1], p[0]), "%s does not narrow %s", p[1], p[0])
+		assert.False(t, spelling.Narrows(p[0], p[1]), "%s does not narrow %s", p[0], p[1])
+		assert.False(t, spelling.Narrows(p[1], p[0]), "%s does not narrow %s", p[1], p[0])
 	}
 
 	for _, k := range declaredKinds(t) {
-		assert.False(t, narrows(k, k), "%s is not strictly narrower than itself", k)
+		assert.False(t, spelling.Narrows(k, k), "%s is not strictly narrower than itself", k)
 	}
 }
 
@@ -214,9 +215,9 @@ func TestNarrows_OmitsRoundingContainments(t *testing.T) {
 		{ir.PrimInteger, ir.PrimFloat32}, {ir.PrimInteger, ir.PrimFloat64},
 	}
 	for _, p := range rounding {
-		assert.False(t, narrows(p[0], p[1]), "%s is not narrower than %s", p[0], p[1])
-		assert.Equal(t, Overlap, Relate(p[0], p[1]), "%s against %s", p[0], p[1])
-		assert.Equal(t, Overlap, Relate(p[1], p[0]), "%s against %s", p[1], p[0])
+		assert.False(t, spelling.Narrows(p[0], p[1]), "%s is not narrower than %s", p[0], p[1])
+		assert.Equal(t, spelling.Overlap, spelling.Relate(p[0], p[1]), "%s against %s", p[0], p[1])
+		assert.Equal(t, spelling.Overlap, spelling.Relate(p[1], p[0]), "%s against %s", p[1], p[0])
 	}
 }
 
@@ -226,25 +227,25 @@ func TestRelate_ClassifiesEveryVerdict(t *testing.T) {
 	tests := []struct {
 		name string
 		a, b ir.PrimKind
-		want Relation
-		back Relation
+		want spelling.Relation
+		back spelling.Relation
 	}{
-		{"same", ir.PrimString, ir.PrimString, Same, Same},
-		{"domain narrowing", ir.PrimInt32, ir.PrimInteger, ANarrower, BNarrower},
-		{"spelling narrowing", ir.PrimUUID, ir.PrimString, ANarrower, BNarrower},
-		{"numeric overlap", ir.PrimInt32, ir.PrimUint32, Overlap, Overlap},
-		{"number kinds overlap", ir.PrimDecimal128, ir.PrimFloat32, Overlap, Overlap},
-		{"bytes against uuid", ir.PrimBytes, ir.PrimUUID, Overlap, Overlap},
-		{"two string formats", ir.PrimUUID, ir.PrimDatetimeOffset, Disjoint, Disjoint},
-		{"string against number", ir.PrimString, ir.PrimInteger, Disjoint, Disjoint},
-		{"bool against string", ir.PrimBool, ir.PrimString, Disjoint, Disjoint},
-		{"datetime against a format", ir.PrimDatetime, ir.PrimDate, Disjoint, Disjoint},
-		{"any is the top", ir.PrimUUID, ir.PrimAny, ANarrower, BNarrower},
-		{"any against itself", ir.PrimAny, ir.PrimAny, Same, Same},
+		{"same", ir.PrimString, ir.PrimString, spelling.Same, spelling.Same},
+		{"domain narrowing", ir.PrimInt32, ir.PrimInteger, spelling.ANarrower, spelling.BNarrower},
+		{"spelling narrowing", ir.PrimUUID, ir.PrimString, spelling.ANarrower, spelling.BNarrower},
+		{"numeric overlap", ir.PrimInt32, ir.PrimUint32, spelling.Overlap, spelling.Overlap},
+		{"number kinds overlap", ir.PrimDecimal128, ir.PrimFloat32, spelling.Overlap, spelling.Overlap},
+		{"bytes against uuid", ir.PrimBytes, ir.PrimUUID, spelling.Overlap, spelling.Overlap},
+		{"two string formats", ir.PrimUUID, ir.PrimDatetimeOffset, spelling.Disjoint, spelling.Disjoint},
+		{"string against number", ir.PrimString, ir.PrimInteger, spelling.Disjoint, spelling.Disjoint},
+		{"bool against string", ir.PrimBool, ir.PrimString, spelling.Disjoint, spelling.Disjoint},
+		{"datetime against a format", ir.PrimDatetime, ir.PrimDate, spelling.Disjoint, spelling.Disjoint},
+		{"any is the top", ir.PrimUUID, ir.PrimAny, spelling.ANarrower, spelling.BNarrower},
+		{"any against itself", ir.PrimAny, ir.PrimAny, spelling.Same, spelling.Same},
 	}
 	for _, tc := range tests {
-		assert.Equal(t, tc.want, Relate(tc.a, tc.b), "%s: %s against %s", tc.name, tc.a, tc.b)
-		assert.Equal(t, tc.back, Relate(tc.b, tc.a), "%s: %s against %s", tc.name, tc.b, tc.a)
+		assert.Equal(t, tc.want, spelling.Relate(tc.a, tc.b), "%s: %s against %s", tc.name, tc.a, tc.b)
+		assert.Equal(t, tc.back, spelling.Relate(tc.b, tc.a), "%s: %s against %s", tc.name, tc.b, tc.a)
 	}
 }
 
@@ -252,11 +253,11 @@ func TestRelate_ClassifiesEveryVerdict(t *testing.T) {
 // row and an unknown one reports it.
 func TestLookup_ReadsTheTable(t *testing.T) {
 	t.Parallel()
-	prim, ok := Lookup("integer/int32")
+	prim, ok := spelling.Lookup("integer/int32")
 	assert.True(t, ok)
 	assert.Equal(t, ir.PrimInt32, prim)
 
-	_, ok = Lookup("string/password")
+	_, ok = spelling.Lookup("string/password")
 	assert.False(t, ok)
 }
 

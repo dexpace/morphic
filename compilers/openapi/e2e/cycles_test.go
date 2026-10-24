@@ -163,7 +163,7 @@ func TestCompile_AliasCycleIsRefused(t *testing.T) {
 				[]compilers.Source{{Path: tc.file + ".yaml", Data: readReproducer(t, tc.file)}}, compilers.Options{})
 			require.NoError(t, err, "a recursive anchor is a spec problem, not a Go error")
 			assert.Nil(t, doc, "the compiler refuses to read a source whose aliases never end")
-			assertHasErrorCode(t, diags, diag.CyclicRef)
+			openapitest.AssertHasCode(t, diags, diag.CyclicRef, ir.SeverityError)
 			assert.Equal(t, []string{tc.at}, cyclicRefSites(diags), "the alias is named once")
 		})
 	}
@@ -385,7 +385,7 @@ components:
 		assert.NotEqual(t, diag.CyclicRef, d.Code,
 			"'#x-s' names a $anchor, which the resolver's pointer walk never enters: %+v", d)
 	}
-	assertHasErrorCode(t, diags, diag.UnresolvedRef)
+	openapitest.AssertHasCode(t, diags, diag.UnresolvedRef, ir.SeverityError)
 	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.UnresolvedRef, "/components/schemas/A"),
 		"the reference is reported unresolved where it is written; got %+v", diags)
 }
@@ -487,7 +487,7 @@ func TestDetectCycles_ComponentOnlyCyclesLeftToResolver(t *testing.T) {
 			_, diags, err := openapi.New().Compile(t.Context(),
 				[]compilers.Source{{Path: tc.name + ".yaml", Data: []byte(tc.data)}}, compilers.Options{})
 			require.NoError(t, err)
-			assertHasErrorCode(t, diags, diag.UnresolvedRef)
+			openapitest.AssertHasCode(t, diags, diag.UnresolvedRef, ir.SeverityError)
 		})
 	}
 }

@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/ir/irtest"
 	"github.com/dexpace/morphic/pass"
 )
 
@@ -15,7 +16,7 @@ func TestValidate_OneWayWithResponses(t *testing.T) {
 	op := ir.Operation{ID: "op", OneWay: true, Responses: []ir.Response{{}}}
 	diags := pass.Validate(docWithOperation(op))
 	require.NotEmpty(t, diags)
-	assert.Contains(t, codes(diags), "pass/oneway-with-responses")
+	assert.Contains(t, irtest.DiagCodes(diags), "pass/oneway-with-responses")
 }
 
 // catchAll is the one condition an operation's Default may hold.

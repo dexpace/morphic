@@ -43,9 +43,9 @@ func assertParamStyles(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	// interns its schema once, at the path item's own pointer (issue #36).
 	clearSearch, ok := opByName(doc, "clearSearch")
 	require.True(t, ok, "the path item's second operation is registered")
-	searchReqID, ok := paramByName(op, "requestId")
+	searchReqID, ok := openapitest.ParamBySource(op, "requestId")
 	require.True(t, ok, "search inherits the path-item-level parameter")
-	clearReqID, ok := paramByName(clearSearch, "requestId")
+	clearReqID, ok := openapitest.ParamBySource(clearSearch, "requestId")
 	require.True(t, ok, "clearSearch inherits the same path-item-level parameter")
 	assert.Equal(t, searchReqID.Type.Target, clearReqID.Type.Target,
 		"both operations resolve the shared path-item parameter to the same interned schema")
@@ -61,7 +61,7 @@ func assertParamStyles(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 // carrier at this position with an Unmodeled map.
 func assertAllowEmptyValueKept(t *testing.T, op ir.Operation) {
 	t.Helper()
-	bare, ok := paramByName(op, "bare")
+	bare, ok := openapitest.ParamBySource(op, "bare")
 	require.True(t, ok, "the allowEmptyValue parameter still lowers")
 	entry, ok := bare.Unmodeled["openapi:allowEmptyValue"]
 	require.True(t, ok, "and its declared flag is kept beside it")
@@ -402,7 +402,7 @@ func assertParamAllowReservedLocations(t *testing.T, doc *ir.Document, diags []i
 func assertParamRefInheritance(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	op, ok := opByName(doc, "listItems")
 	require.True(t, ok)
-	cursor, ok := paramByName(op, "cursor")
+	cursor, ok := openapitest.ParamBySource(op, "cursor")
 	require.True(t, ok)
 	assert.Equal(t, ir.Docs{Summary: "Cursor", Description: "Opaque pagination cursor."}, cursor.Docs)
 	assert.NotNil(t, cursor.Deprecation)
@@ -410,7 +410,7 @@ func assertParamRefInheritance(t *testing.T, doc *ir.Document, _ []ir.Diagnostic
 	assert.Equal(t, "0", cursor.Default.Str)
 	assert.Nil(t, cursor.Constraints, "the referent's bound stays on the referent")
 
-	override, ok := paramByName(op, "override")
+	override, ok := openapitest.ParamBySource(op, "override")
 	require.True(t, ok)
 	assert.Equal(t, "Cursor for this endpoint only.", override.Docs.Description,
 		"a description beside the $ref wins over the referent's")
@@ -423,7 +423,7 @@ func assertParamRefInheritance(t *testing.T, doc *ir.Document, _ []ir.Diagnostic
 	assert.Equal(t, int64(100), *override.Constraints.MaxLength,
 		"and it is the use site's own, not narrowed against the referent's here")
 
-	holder, ok := doc.Types[namedID("Holder")].(*ir.Model)
+	holder, ok := doc.Types[componentID("Holder")].(*ir.Model)
 	require.True(t, ok)
 	prop, ok := propByWire(holder, "cursor")
 	require.True(t, ok)
@@ -438,7 +438,7 @@ func assertParamRefInheritance(t *testing.T, doc *ir.Document, _ []ir.Diagnostic
 	assert.Equal(t, override.Constraints, overrideProp.Constraints,
 		"and a property keeps its own bound exactly as the parameter does")
 
-	decl, ok := doc.Types[namedID("Cursor")].(*ir.Scalar)
+	decl, ok := doc.Types[componentID("Cursor")].(*ir.Scalar)
 	require.True(t, ok)
 	require.NotNil(t, decl.Constraints)
 	require.NotNil(t, decl.Constraints.MaxLength)
@@ -484,7 +484,7 @@ func assertHeaderContentSchema(t *testing.T, doc *ir.Document, diags []ir.Diagno
 
 	byRef, ok := headerByWire(headers, "X-Report-Ref")
 	require.True(t, ok)
-	assert.Equal(t, namedID("ReportID"), byRef.Type.Target,
+	assert.Equal(t, componentID("ReportID"), byRef.Type.Target,
 		"a $ref under content resolves to the named component, not to an anonymous copy")
 
 	assertHeaderStyleAndExplodeKept(t, headers)
@@ -526,7 +526,7 @@ func assertParamContentFields(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 	op, ok := opByName(doc, "search")
 	require.True(t, ok)
 
-	filter, ok := paramByName(op, "filter")
+	filter, ok := openapitest.ParamBySource(op, "filter")
 	require.True(t, ok)
 	require.Len(t, filter.Examples, 1, "the media type's examples reach the parameter")
 	assert.Equal(t, "one", filter.Examples[0].Name)
@@ -537,7 +537,7 @@ func assertParamContentFields(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 	assert.Equal(t, ir.ReasonNoIRHome, filter.Unmodeled[scope+"itemSchema"].Reason,
 		"a parser-modelled field with no ir.Parameter home is kept rather than dropped")
 
-	plain, ok := paramByName(op, "plain")
+	plain, ok := openapitest.ParamBySource(op, "plain")
 	require.True(t, ok)
 	assert.Empty(t, plain.Examples, "the schema spelling elects no media type to take examples from")
 	assert.Empty(t, plain.Unmodeled, "nor any content-scoped entry")

@@ -40,7 +40,7 @@ func TestCompile_ResolverPanicIsADiagnostic(t *testing.T) {
 		compilers.Options{})
 	require.NoError(t, err, "a malformed spec is a spec problem, not a Go error")
 	assert.NotNil(t, doc, "resolution failure does not stop the document being lowered")
-	assertHasErrorCode(t, diags, diag.UnresolvedRef)
+	openapitest.AssertHasCode(t, diags, diag.UnresolvedRef, ir.SeverityError)
 }
 
 // TestCompile_AResolutionFailureIsReportedOnceAtItsRef pins the once-per-site

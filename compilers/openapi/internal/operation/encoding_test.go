@@ -21,7 +21,7 @@ import (
 // on the owning Content keyed by the part they govern.
 func TestEncoding_AllowReservedAndExtensionsKeptOnTheContent(t *testing.T) {
 	t.Parallel()
-	_, svc, diags := lowerServiceSpec(t, openapitest.PathsSpecVer("3.1.0", encodingSpec))
+	_, svc, diags := compileService(t, openapitest.PathsSpecVer("3.1.0", encodingSpec))
 	openapitest.RequireNoErrorDiags(t, diags)
 	op := openapitest.FirstOp(t, svc)
 	require.NotNil(t, op.Request)
@@ -48,7 +48,7 @@ func TestEncoding_AllowReservedAndExtensionsKeptOnTheContent(t *testing.T) {
 // default the accessor would hand back and calling it a source fact.
 func TestEncoding_AbsentAllowReservedRecordsNothing(t *testing.T) {
 	t.Parallel()
-	_, svc, diags := lowerServiceSpec(t, openapitest.PathsSpecVer("3.1.0", `  /form:
+	_, svc, diags := compileService(t, openapitest.PathsSpecVer("3.1.0", `  /form:
     post:
       operationId: postForm
       requestBody:
@@ -79,7 +79,7 @@ func TestEncoding_AbsentAllowReservedRecordsNothing(t *testing.T) {
 // check entirely: moving the read below it left the whole suite green.
 func TestEncoding_OnlyUnhomedFieldsOutliveTheEmptyPartEncoding(t *testing.T) {
 	t.Parallel()
-	_, svc, diags := lowerServiceSpec(t, openapitest.PathsSpecVer("3.1.0", `  /form:
+	_, svc, diags := compileService(t, openapitest.PathsSpecVer("3.1.0", `  /form:
     post:
       operationId: postForm
       requestBody:
@@ -117,7 +117,7 @@ func TestEncoding_OnlyUnhomedFieldsOutliveTheEmptyPartEncoding(t *testing.T) {
 // them.
 func TestEncoding_PartNameWithSlashKeepsItsOwnKey(t *testing.T) {
 	t.Parallel()
-	_, svc, diags := lowerServiceSpec(t, openapitest.PathsSpecVer("3.1.0", `  /form:
+	_, svc, diags := compileService(t, openapitest.PathsSpecVer("3.1.0", `  /form:
     post:
       operationId: postForm
       requestBody:
@@ -152,7 +152,7 @@ func TestEncoding_PartNameWithSlashKeepsItsOwnKey(t *testing.T) {
 // tell them apart.
 func TestEncoding_ItemEncodingKeepsItsOwnUnderItsOwnKey(t *testing.T) {
 	t.Parallel()
-	_, svc, diags := lowerServiceSpec(t, openapitest.PathsSpecVer("3.2.0", `  /stream:
+	_, svc, diags := compileService(t, openapitest.PathsSpecVer("3.2.0", `  /stream:
     get:
       operationId: streamEvents
       responses:
@@ -203,7 +203,7 @@ func TestEncoding_NestedEncodingsAreKeptAtEveryVersion(t *testing.T) {
 	for _, version := range []string{"3.2.0", "3.1.0"} {
 		t.Run(version, func(t *testing.T) {
 			t.Parallel()
-			_, svc, diags := lowerServiceSpec(t, "openapi: "+version+"\ninfo: {title: T, version: \"1\"}\npaths:\n"+body)
+			_, svc, diags := compileService(t, "openapi: "+version+"\ninfo: {title: T, version: \"1\"}\npaths:\n"+body)
 			openapitest.RequireNoErrorDiags(t, diags)
 			content := openapitest.FirstOp(t, svc).Request.Contents[0]
 			kept, ok := content.Unmodeled["openapi:encoding/note/prefixEncoding"]

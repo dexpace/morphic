@@ -160,7 +160,7 @@ func TestDanglingRefs_f07(t *testing.T) {
 	t.Parallel()
 	doc, diags := compileFile(t, danglingDir, "f07-discriminator.yaml", "f07.yaml")
 	assert.False(t, diag.HasError(diags))
-	pet, ok := doc.Types[namedID("Pet")].(*ir.Union)
+	pet, ok := doc.Types[componentID("Pet")].(*ir.Union)
 	require.True(t, ok)
 	require.NotNil(t, pet.Discriminator)
 	target, ok := pet.Discriminator.Mapping["x"]
@@ -193,7 +193,7 @@ func TestDanglingRefs_f30(t *testing.T) {
 func TestDanglingRefs_f10(t *testing.T) {
 	t.Parallel()
 	doc, _ := compileFile(t, danglingDir, "f10-refs.yaml", "f10.yaml")
-	foo, ok := doc.Types[namedID("Foo")].(*ir.Model)
+	foo, ok := doc.Types[componentID("Foo")].(*ir.Model)
 	require.True(t, ok)
 	x, ok := propByWire(foo, "x")
 	require.True(t, ok)

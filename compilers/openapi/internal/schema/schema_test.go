@@ -33,7 +33,7 @@ func TestLower_NamedScalarComponentResolves(t *testing.T) {
       properties:
         id: {$ref: "#/components/schemas/MyId"}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	scalar, ok := doc.Types[componentID("MyId")].(*ir.Scalar)
@@ -58,7 +58,7 @@ func TestLower_RecursiveSchemaTerminates(t *testing.T) {
       properties:
         next: {$ref: "#/components/schemas/Node"}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	node, ok := doc.Types[componentID("Node")].(*ir.Model)
 	require.True(t, ok)
@@ -75,7 +75,7 @@ func TestSchemaRef_BooleanAndUntypedShapes(t *testing.T) {
         untyped: {}
         withprops: {properties: {x: {type: string}}}
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	m := typeByName(doc, "S").(*ir.Model)
 	byWire := openapitest.PropsByWire(m.Properties)
@@ -93,8 +93,8 @@ func TestSchemaRef_BooleanAndUntypedShapes(t *testing.T) {
 
 func TestSchemaRef_EmptyEitherIsAny(t *testing.T) {
 	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
-	ref, diags := schema.Ref(l.ctx, l.types, schema.TopLevelDepth, openapitest.EmptyEitherSchema(), "/p")
+	l := schema.NewRawLowerer(&soa.OpenAPI{})
+	ref, diags := schema.Ref(l.Ctx, l.Types, schema.TopLevelDepth, openapitest.EmptyEitherSchema(), "/p")
 	assert.Equal(t, ir.TypeID("t/prim/any"), ref.Target)
 	assert.Empty(t, diags, "an empty either lowers to any without complaint")
 }
@@ -361,20 +361,6 @@ func compileVocabIR(t *testing.T, schemas string) string {
 // the announcement tests need.
 const unpreservableValue = ".nan"
 
-// preservationClaims returns the messages announcing that something was kept
-// under Unmodeled. The unpreservable report is excluded by code rather than by
-// wording: it says a construct "could not be kept verbatim under Unmodeled",
-// which contains the phrase and is the opposite of a claim.
-func preservationClaims(diags []ir.Diagnostic) []string {
-	var out []string
-	for _, d := range diags {
-		if strings.Contains(d.Message, "under Unmodeled") && d.Code != diag.UnpreservableConstruct {
-			out = append(out, d.Message)
-		}
-	}
-	return out
-}
-
 // TestCoDeclaredFamily_PassedOverKeywordIsKept covers the families lower()'s
 // first-match dispatch used to drop (GitHub #35).
 //
@@ -416,7 +402,7 @@ func TestCoDeclaredFamily_PassedOverKeywordIsKept(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			doc, diags := lowerSpec(t, openapitest.ComponentSpec(
+			doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(
 				"    Base: {type: object, properties: {id: {type: string}}}\n    S:\n"+tc.body))
 			openapitest.RequireNoErrorDiags(t, diags)
 
@@ -441,7 +427,7 @@ func TestCoDeclaredFamily_PassedOverKeywordIsKept(t *testing.T) {
 // together in one report rather than one of them standing in for the rest.
 func TestCoDeclaredFamily_EveryPassedOverKeywordIsKept(t *testing.T) {
 	t.Parallel()
-	doc, diags := lowerSpec(t, openapitest.ComponentSpec(`    Base: {type: object, properties: {id: {type: string}}}
+	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(`    Base: {type: object, properties: {id: {type: string}}}
     S:
       const: a
       enum: [a, b]
@@ -464,7 +450,7 @@ func TestCoDeclaredFamily_EveryPassedOverKeywordIsKept(t *testing.T) {
 // composition survived.
 func TestCoDeclaredFamily_UnpreservableIsNotAnnounced(t *testing.T) {
 	t.Parallel()
-	doc, diags := lowerSpec(t, openapitest.ComponentSpec(`    S:
+	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(`    S:
       allOf: [{type: object, x-t: `+unpreservableValue+`}]
       enum: [a, b]
 `))
@@ -473,7 +459,7 @@ func TestCoDeclaredFamily_UnpreservableIsNotAnnounced(t *testing.T) {
 	require.NotNil(t, td)
 	assert.NotContains(t, td.Common().Unmodeled, "openapi:allOf", "the conversion failed")
 	assert.True(t, openapitest.HasDiag(diags, diag.UnpreservableConstruct), "the failure itself is reported")
-	assert.Empty(t, preservationClaims(diags),
+	assert.Empty(t, openapitest.PreservationClaims(diags),
 		"nothing was written under Unmodeled, so nothing may announce that it was")
 }
 
@@ -800,13 +786,13 @@ func TestNullSchema_AnEntryIsTheEmptySchemaAndAKeywordIsLeftOut(t *testing.T) {
 
 	t.Run("a property redeclared as a null keeps the losing declaration as a null", func(t *testing.T) {
 		t.Parallel()
-		l, _ := loweredFor(t, openapitest.ComponentSpec("    A:\n      allOf:\n"+
+		l, _ := schema.LoweredFor(t, openapitest.ComponentSpec("    A:\n      allOf:\n"+
 			"        - {type: object, properties: {p: {type: string, enum: [a, b]}}}\n"+
 			"        - {type: object, properties: {p: null}}\n"))
-		l.ctx.Limits = lowering.Limits{MaxEnumMembers: 1}
-		diags := schema.LowerComponentSchemas(t.Context(), l.ctx, l.types)
+		l.Ctx.Limits = lowering.Limits{MaxEnumMembers: 1}
+		diags := schema.LowerComponentSchemas(t.Context(), l.Ctx, l.Types)
 
-		m := asKind[*ir.Model](t, typeByName(l.document(t), "A"))
+		m := asKind[*ir.Model](t, typeByName(l.Document(t), "A"))
 		require.Len(t, m.Properties, 1)
 		assert.Equal(t, ir.TypeID("t/anon/components/schemas/A/allOf/0/properties/p"), m.Properties[0].Type.Target,
 			"the first declaration stands")
@@ -836,7 +822,7 @@ func asKind[T ir.TypeDef](t *testing.T, td ir.TypeDef) T {
 // beside the $ref (S: {$ref: Target, minimum: 5}) binds S, not Target.
 func TestLowerComponentSchema_RefSiblingConstraintBindsTheSite(t *testing.T) {
 	t.Parallel()
-	l, _ := loweredFor(t, `openapi: 3.1.0
+	l, _ := schema.LoweredFor(t, `openapi: 3.1.0
 info: {title: t, version: "1"}
 paths: {}
 components:
@@ -846,15 +832,15 @@ components:
       $ref: '#/components/schemas/Target'
       minimum: 5
 `)
-	l.diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.ctx, l.types))
+	l.Diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.Ctx, l.Types))
 
-	sc, ok := typeByName(l.document(t), "S").(*ir.Scalar)
+	sc, ok := typeByName(l.Document(t), "S").(*ir.Scalar)
 	require.True(t, ok, "S aliases Target and must own a Scalar node")
 	require.NotNil(t, sc.Constraints, "a bound beside a $ref binds S, not Target")
 	require.NotNil(t, sc.Constraints.Min)
 	assert.Equal(t, "5", sc.Constraints.Min.String())
 
-	target := typeByName(l.document(t), "Target")
+	target := typeByName(l.Document(t), "Target")
 	require.NotNil(t, target)
 	tsc, ok := target.(*ir.Scalar)
 	require.True(t, ok, "Target aliases a primitive and must own a Scalar node")
@@ -879,7 +865,7 @@ func TestLowerComponentSchemas_PercentEncodedRefResolves(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			doc, diags := lowerSpec(t, openapitest.ComponentSpec(
+			doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(
 				"    "+tc.decl+": {type: string}\n"+
 					"    User: {type: object, properties: {x: {$ref: '#/components/schemas/"+tc.encoded+"'}}}\n"))
 			openapitest.RequireNoErrorDiags(t, diags)
@@ -903,7 +889,7 @@ func TestLowerComponentSchemas_PercentEncodedRefResolves(t *testing.T) {
 // alone lands on one node either way, and only its name would be wrong.
 func TestLowerComponentSchemas_PercentEncodedRefHoistsAtTheDeclaredCoordinate(t *testing.T) {
 	t.Parallel()
-	doc, diags := lowerSpec(t, openapitest.ComponentSpec(
+	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(
 		"    Foo-Bar: {type: object, properties: {inner: {type: object, properties: {n: {type: integer}}}}}\n"+
 			"    User:\n      type: object\n      properties:\n"+
 			"        a: {$ref: '#/components/schemas/Foo-Bar/properties/inner'}\n"+
@@ -934,7 +920,7 @@ func TestLowerComponentSchemas_PercentEncodedRefHoistsAtTheDeclaredCoordinate(t 
 // mappings alongside $ref; nothing exercised that half.
 func TestLowerComponentSchemas_PercentEncodedDiscriminatorMapping(t *testing.T) {
 	t.Parallel()
-	doc, diags := lowerSpec(t, openapitest.ComponentSpec(
+	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(
 		"    Cat-A: {type: object, properties: {kind: {type: string}}}\n"+
 			"    Pet:\n      oneOf: [{$ref: '#/components/schemas/Cat-A'}]\n"+
 			"      discriminator: {propertyName: kind, mapping: {cat: '#/components/schemas/Cat%2DA'}}\n"))

@@ -75,7 +75,7 @@ func TestLower_TupleRest(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			doc, diags := lowerSpec(t, openapitest.ComponentSpec("    Tup:\n"+tc.body))
+			doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec("    Tup:\n"+tc.body))
 			openapitest.RequireNoErrorDiags(t, diags)
 
 			tup, ok := typeByName(doc, "Tup").(*ir.Tuple)
@@ -104,7 +104,7 @@ func TestLower_ListConstraints(t *testing.T) {
       maxItems: 9
       uniqueItems: true
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	l, ok := typeByName(doc, "L").(*ir.List)
 	require.True(t, ok)
@@ -122,7 +122,7 @@ func TestLower_ListWithoutItems(t *testing.T) {
 	for _, version := range []string{"3.0.3", "3.1.0", "3.2.0"} {
 		t.Run(version, func(t *testing.T) {
 			t.Parallel()
-			doc, diags := lowerSpec(t, openapitest.ComponentSpecVer(version, "    L: {type: array}\n"))
+			doc, diags := schema.LowerSpec(t, openapitest.ComponentSpecVer(version, "    L: {type: array}\n"))
 			openapitest.RequireNoErrorDiags(t, diags)
 			l, ok := typeByName(doc, "L").(*ir.List)
 			require.True(t, ok)
@@ -190,8 +190,8 @@ func TestLower_MissingArrayItems(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			l, loadDiags := loweredFor(t, openapitest.ComponentSpecVer(tc.version, tc.schemas))
-			raw := schema.LowerComponentSchemas(t.Context(), l.ctx, l.types)
+			l, loadDiags := schema.LoweredFor(t, openapitest.ComponentSpecVer(tc.version, tc.schemas))
+			raw := schema.LowerComponentSchemas(t.Context(), l.Ctx, l.Types)
 			openapitest.RequireNoErrorDiags(t, raw)
 			var invalid []string
 			for _, d := range loadDiags {
@@ -221,15 +221,15 @@ func TestLower_MissingArrayItemsAtAReferencedPositionWarnsOnce(t *testing.T) {
 	for name, schemas := range map[string]string{"ref first": ref + holder, "declaration first": holder + ref} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			l, _ := loweredFor(t, openapitest.ComponentSpecVer("3.0.3", schemas))
-			raw := schema.LowerComponentSchemas(t.Context(), l.ctx, l.types)
+			l, _ := schema.LoweredFor(t, openapitest.ComponentSpecVer("3.0.3", schemas))
+			raw := schema.LowerComponentSchemas(t.Context(), l.Ctx, l.Types)
 			require.Len(t, missingItemsAt(t, raw), 1, "the declaration lowers the property once")
-			_, finished := l.types.Finish(t.Context())
+			_, finished := l.Types.Finish(t.Context())
 			raw = append(raw, finished...)
 			require.Len(t, missingItemsAt(t, raw), 1, "and the reference's promise lowers it no more")
 
-			l.diags.AppendAll(raw)
-			assert.Equal(t, []string{tags}, missingItemsAt(t, l.diags.List()))
+			l.Diags.AppendAll(raw)
+			assert.Equal(t, []string{tags}, missingItemsAt(t, l.Diags.List()))
 		})
 	}
 }

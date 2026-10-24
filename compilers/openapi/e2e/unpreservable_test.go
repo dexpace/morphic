@@ -2,7 +2,6 @@ package e2e_test
 
 import (
 	"encoding/json/jsontext"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -74,7 +73,7 @@ func TestUnpreservable_AnnouncementNeverOutrunsTheEntry(t *testing.T) {
 
 			assert.True(t, openapitest.HasDiagCodeAt(diags, diag.UnpreservableConstruct, tc.at),
 				"the case must reach the site it is named for: %+v", diags)
-			assert.Empty(t, preservationClaims(diags),
+			assert.Empty(t, openapitest.PreservationClaims(diags),
 				"nothing was written under Unmodeled, so nothing may announce that it was")
 		})
 	}
@@ -126,7 +125,7 @@ func TestUnpreservable_SchemaKeywordSites(t *testing.T) {
 			_, diags := parseFull(t, openapitest.ComponentSpec("    S:\n"+tc.body))
 			assert.True(t, openapitest.HasDiagCodeAt(diags, diag.UnpreservableConstruct, tc.at),
 				"the case must reach the site it is named for: %+v", diags)
-			assert.Empty(t, preservationClaims(diags),
+			assert.Empty(t, openapitest.PreservationClaims(diags),
 				"nothing was written under Unmodeled, so nothing may announce that it was")
 		})
 	}
@@ -142,7 +141,7 @@ func TestUnpreservable_ReportsTheFailureItself(t *testing.T) {
 		"        - {type: string, maxLength: 3, x-t: " + unpreservableValue + "}\n")
 	_, diags := parseFull(t, spec)
 
-	d, ok := firstDiagWithCode(diags, diag.UnpreservableConstruct)
+	d, ok := openapitest.FirstDiag(diags, diag.UnpreservableConstruct)
 	require.True(t, ok, "the unconvertible construct is reported: %+v", diags)
 	assert.Equal(t, ir.SeverityError, d.Severity,
 		"a construct that reached the IR in no form at all is a losslessness failure, not a degradation")
@@ -157,7 +156,7 @@ func TestUnpreservable_ReportsTheFailureItself(t *testing.T) {
 func TestUnpreservable_AbsentConstructIsSilent(t *testing.T) {
 	t.Parallel()
 	_, diags := parseFull(t, openapitest.ComponentSpec("    T:\n      type: array\n      items: {type: string}\n"))
-	_, ok := firstDiagWithCode(diags, diag.UnpreservableConstruct)
+	_, ok := openapitest.FirstDiag(diags, diag.UnpreservableConstruct)
 	assert.False(t, ok, "an absent construct is not an unpreservable one: %+v", diags)
 }
 
@@ -173,27 +172,12 @@ func TestUnpreservable_CompositeFailsWhole(t *testing.T) {
 		"      else: {required: [b]}\n")
 	doc, diags := parseFull(t, spec)
 
-	_, ok := firstDiagWithCode(diags, diag.UnpreservableConstruct)
+	_, ok := openapitest.FirstDiag(diags, diag.UnpreservableConstruct)
 	require.True(t, ok, "the unconvertible arm is reported: %+v", diags)
 	for key, entry := range typeUnmodeled(t, doc, ids.Document{}.NamedType(ids.Ptr("components", "schemas", "C"))) {
 		assert.NotContains(t, key, "if-then-else",
 			"a combination missing an arm is not the verbatim source: %s", entry.Value)
 	}
-}
-
-// preservationClaims returns every diagnostic message asserting that something
-// was kept under Unmodeled. Matching on the claim rather than on a code is
-// deliberate: the claim is what the entry has to back, and it is spread across
-// several codes and phrasings.
-func preservationClaims(diags []ir.Diagnostic) []string {
-	var out []string
-	for _, d := range diags {
-		if strings.Contains(d.Message, "under Unmodeled") &&
-			d.Code != diag.UnpreservableConstruct {
-			out = append(out, d.Message)
-		}
-	}
-	return out
 }
 
 // typeUnmodeled returns the Unmodeled map of one interned type.
@@ -202,16 +186,6 @@ func typeUnmodeled(t *testing.T, doc *ir.Document, id ir.TypeID) ir.Unmodeled {
 	td, ok := doc.Types[id]
 	require.True(t, ok, "type %s is interned", id)
 	return td.Common().Unmodeled
-}
-
-// firstDiagWithCode returns the first diagnostic carrying code.
-func firstDiagWithCode(diags []ir.Diagnostic, code string) (ir.Diagnostic, bool) {
-	for _, d := range diags {
-		if d.Code == code {
-			return d, true
-		}
-	}
-	return ir.Diagnostic{}, false
 }
 
 // TestPreserve_AllReasonsReachable pins that every UnmodeledReason an OpenAPI

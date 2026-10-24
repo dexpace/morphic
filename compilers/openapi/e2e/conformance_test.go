@@ -306,20 +306,3 @@ func invalidCases() map[string][]string {
 		"codeclared-schema-content": {"openapi/validation/validation-mutually-exclusive-fields"},
 	}
 }
-
-// assertOnlyErrorDiags fails when a diagnostic has error severity and a code
-// outside want, or when a code of want draws no error.
-func assertOnlyErrorDiags(t *testing.T, diags []ir.Diagnostic, want []string) {
-	t.Helper()
-	drawn := map[string]bool{}
-	for _, d := range diags {
-		if d.Severity != ir.SeverityError {
-			continue
-		}
-		drawn[d.Code] = true
-		assert.Contains(t, want, d.Code, "unexpected error diagnostic: %+v", d)
-	}
-	for _, code := range want {
-		assert.True(t, drawn[code], "the spec is listed as invalid but draws no %s", code)
-	}
-}

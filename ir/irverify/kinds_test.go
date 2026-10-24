@@ -72,8 +72,8 @@ func TestVerify_NilTypeBesideAPrimitiveDoesNotPanic(t *testing.T) {
 
 			var got []irverify.Violation
 			require.NotPanics(t, func() { got = verifyDeclared(doc) })
-			assert.Contains(t, codes(got), "ir/unknown-prim-kind", "the bad kind is still reported")
-			assert.Contains(t, codes(got), "ir/nil-type", "the nil entry is reported by its own check")
+			assert.Contains(t, violationCodes(got), "ir/unknown-prim-kind", "the bad kind is still reported")
+			assert.Contains(t, violationCodes(got), "ir/nil-type", "the nil entry is reported by its own check")
 		})
 	}
 }

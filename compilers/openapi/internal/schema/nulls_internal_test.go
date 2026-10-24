@@ -26,7 +26,7 @@ func TestRefNullRef_AnUnresolvedRefIsNotNullable(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, valErrs, "the fixture parses cleanly")
 
-	ref, diags := refNullRef(newRawLowerer(&soa.OpenAPI{}).ctx, "t/x", js, siteAt("/x"))
+	ref, diags := refNullRef(NewRawLowerer(&soa.OpenAPI{}).Ctx, "t/x", js, siteAt("/x"))
 	assert.Equal(t, ir.TypeRef{Target: "t/x"}, ref)
 	assert.Empty(t, diags)
 }

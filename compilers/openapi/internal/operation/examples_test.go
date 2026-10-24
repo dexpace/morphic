@@ -46,7 +46,7 @@ func TestContent_UnconvertibleExamplesDiagnosed(t *testing.T) {
               examples:
                 one: {value: !foo baz}
 `)
-	_, svc, diags := lowerServiceSpec(t, spec)
+	_, svc, diags := compileService(t, spec)
 	op := openapitest.FirstOp(t, svc)
 	require.Len(t, op.Responses, 1)
 	c := op.Responses[0].Payload.Contents[0]
@@ -92,7 +92,7 @@ components:
     Good: {value: fine}
     Bad: {value: !foo baz}
 `
-	_, svc, diags := lowerServiceSpec(t, spec)
+	_, svc, diags := compileService(t, spec)
 	op := openapitest.FirstOp(t, svc)
 	c := op.Responses[0].Payload.Contents[0]
 	require.Len(t, c.Examples, 1, "the convertible $ref'd example still lowers")
@@ -162,7 +162,7 @@ components:
   examples:
     Sample: {summary: declared summary, description: declared description, value: {n: x}}
 `
-	_, svc, diags := lowerServiceSpec(t, spec)
+	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	payload := openapitest.FirstOp(t, svc).Responses[0].Payload
 	require.NotNil(t, payload)
@@ -200,7 +200,7 @@ func TestParamContent_OwnAndMediaExamplesAreBothKept(t *testing.T) {
                   schema: {type: integer, examples: [9]}
                   example: 4
 `)
-	_, svc, diags := lowerServiceSpec(t, spec)
+	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	op := openapitest.FirstOp(t, svc)
 	nums := func(examples []ir.Example) []ir.BigVal {
@@ -258,7 +258,7 @@ func TestExamples_EverySpellingReachesTheIR(t *testing.T) {
               examples:
                 e: `+tc.entry+`
 `)
-			_, svc, diags := lowerServiceSpec(t, spec)
+			_, svc, diags := compileService(t, spec)
 			examples := openapitest.FirstOp(t, svc).Responses[0].Payload.Contents[0].Examples
 			require.Len(t, examples, 1, "the entry is kept, not dropped")
 			if tc.value == "" {
@@ -306,7 +306,7 @@ components:
   examples:
     Serial: {serializedValue: '"5"'}
 `
-	_, svc, diags := lowerServiceSpec(t, spec)
+	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	examples := openapitest.FirstOp(t, svc).Responses[0].Payload.Contents[0].Examples
 	require.Len(t, examples, 1)

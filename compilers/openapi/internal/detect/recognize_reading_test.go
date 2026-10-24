@@ -1,4 +1,4 @@
-package detect
+package detect_test
 
 import (
 	"testing"
@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/detect"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 )
@@ -215,8 +216,8 @@ func TestRecognize_ReadsWhatADocumentDeclares(t *testing.T) {
 	for _, tc := range declarations() {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			probe, _, err := sniff([]byte(tc.src))
-			assert.Equal(t, sniffProbe{OpenAPI: tc.want}, probe)
+			probe, _, err := detect.Sniff([]byte(tc.src))
+			assert.Equal(t, detect.SniffProbe{OpenAPI: tc.want}, probe)
 			if tc.reads == parses {
 				require.NoError(t, err, "the row reads as a document that parses")
 			} else {
@@ -225,7 +226,7 @@ func TestRecognize_ReadsWhatADocumentDeclares(t *testing.T) {
 
 			rec, diags, ok := recognize(tc.src)
 			assert.Equal(t, tc.want != "", ok, "a declared version is what recognizes the source")
-			assert.Equal(t, majorMinor(tc.want), rec.Format.Version)
+			assert.Equal(t, detect.MajorMinor(tc.want), rec.Format.Version)
 			var wantCodes []string
 			if tc.reads == reported {
 				wantCodes = []string{diag.UndecodableSource}

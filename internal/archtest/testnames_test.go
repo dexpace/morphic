@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/internal/keydoc"
+	"github.com/dexpace/morphic/ir/irtest"
 )
 
 // testNameSpan is a span of code that is a test's name alone, optionally
@@ -38,7 +39,7 @@ var testNamePlaceholders = map[string]string{
 // without them sends the reader nowhere.
 func TestDocuments_NameOnlyTestsThatExist(t *testing.T) {
 	t.Parallel()
-	root := repoRoot(t)
+	root := irtest.RepoRoot(t)
 	declared, err := declaredTests(root)
 	require.NoError(t, err)
 	require.NotEmpty(t, declared, "found no test, so this proves nothing")

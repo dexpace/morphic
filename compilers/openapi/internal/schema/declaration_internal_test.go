@@ -22,14 +22,14 @@ func TestAttachDeclaredAnnotations_LeavesANodeStillBeingBuiltToItsBuilder(t *tes
 	l, s, at := lowererDeclaringS(t)
 
 	var midBuild []ir.Diagnostic
-	id := internNode(l.ctx, l.types, at, func(cm ir.TypeCommon) ir.TypeDef {
-		require.NotPanics(t, func() { midBuild = attachDeclaredAnnotations(l.ctx, l.types, s, at) })
+	id := internNode(l.Ctx, l.Types, at, func(cm ir.TypeCommon) ir.TypeDef {
+		require.NotPanics(t, func() { midBuild = attachDeclaredAnnotations(l.Ctx, l.Types, s, at) })
 		return &ir.Model{TypeCommon: cm}
 	})
 	assert.Empty(t, midBuild, "a revisit mid-build reports nothing")
 
-	assert.Empty(t, attachDeclaredAnnotations(l.ctx, l.types, s, at))
-	td, ok := l.types.Node(id)
+	assert.Empty(t, attachDeclaredAnnotations(l.Ctx, l.Types, s, at))
+	td, ok := l.Types.Node(id)
 	require.True(t, ok)
 	assert.Equal(t, "kept", td.Common().Docs.Description, "the builder's own pass attaches it")
 }
@@ -42,15 +42,15 @@ func TestRecordDeclarationResidue_LeavesANodeStillBeingBuiltToItsBuilder(t *test
 	l, s, at := lowererDeclaringS(t)
 
 	var midBuild []ir.Diagnostic
-	id := internNode(l.ctx, l.types, at, func(cm ir.TypeCommon) ir.TypeDef {
-		require.NotPanics(t, func() { midBuild = recordDeclarationResidue(l.ctx, l.types, s, at, annotation.HomeOwnNode) })
+	id := internNode(l.Ctx, l.Types, at, func(cm ir.TypeCommon) ir.TypeDef {
+		require.NotPanics(t, func() { midBuild = recordDeclarationResidue(l.Ctx, l.Types, s, at, annotation.HomeOwnNode) })
 		return &ir.Model{TypeCommon: cm}
 	})
 	assert.Empty(t, midBuild, "a revisit mid-build records and reports nothing")
 
-	assert.NotEmpty(t, recordDeclarationResidue(l.ctx, l.types, s, at, annotation.HomeOwnNode),
+	assert.NotEmpty(t, recordDeclarationResidue(l.Ctx, l.Types, s, at, annotation.HomeOwnNode),
 		"the builder's own pass reports what it keeps")
-	td, ok := l.types.Node(id)
+	td, ok := l.Types.Node(id)
 	require.True(t, ok)
 	assert.Contains(t, td.Common().Unmodeled, "openapi:readOnly", "and keeps it")
 }
@@ -58,12 +58,12 @@ func TestRecordDeclarationResidue_LeavesANodeStillBeingBuiltToItsBuilder(t *test
 // lowererDeclaringS returns a lowerer over a component S that declares a
 // description and readOnly, with S's schema and pointer, for driving a reader
 // at S while its node is still being built and again once the build returns.
-func lowererDeclaringS(t *testing.T) (*lowerer, *oas3.Schema, jsontext.Pointer) {
+func lowererDeclaringS(t *testing.T) (*Lowerer, *oas3.Schema, jsontext.Pointer) {
 	t.Helper()
-	l, diags := loweredFor(t, openapitest.ComponentSpec(
+	l, diags := LoweredFor(t, openapitest.ComponentSpec(
 		"    S: {type: object, description: kept, readOnly: true}\n"))
 	openapitest.RequireNoErrorDiags(t, diags)
-	decl, ok := l.ctx.Doc.Components.Schemas.Get("S")
+	decl, ok := l.Ctx.Doc.Components.Schemas.Get("S")
 	require.True(t, ok)
 	return l, decl.GetSchema(), "/components/schemas/S"
 }

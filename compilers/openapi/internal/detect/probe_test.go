@@ -1,4 +1,4 @@
-package detect
+package detect_test
 
 import (
 	"fmt"
@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/detect"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ynode"
@@ -25,33 +26,33 @@ func TestSniff_ReadsALargeDocumentWhole(t *testing.T) {
 	pad := strings.Repeat("p", scanCutover)
 	cases := []struct {
 		name, src  string
-		want       sniffProbe
+		want       detect.SniffProbe
 		unreadable bool
 	}{
 		{"block yaml declaring first",
-			padTo("openapi: 3.1.0\n", filler), sniffProbe{OpenAPI: "3.1.0"}, false},
+			padTo("openapi: 3.1.0\n", filler), detect.SniffProbe{OpenAPI: "3.1.0"}, false},
 		{"block yaml declaring last",
-			padTo("", filler) + "openapi: 3.1.0\n", sniffProbe{OpenAPI: "3.1.0"}, false},
+			padTo("", filler) + "openapi: 3.1.0\n", detect.SniffProbe{OpenAPI: "3.1.0"}, false},
 		{"flow json declaring first",
-			`{"openapi":"3.1.0","x":"` + pad + `"}`, sniffProbe{OpenAPI: "3.1.0"}, false},
+			`{"openapi":"3.1.0","x":"` + pad + `"}`, detect.SniffProbe{OpenAPI: "3.1.0"}, false},
 		{"flow json declaring last",
-			`{"x":"` + pad + `","openapi":"3.1.0"}`, sniffProbe{OpenAPI: "3.1.0"}, false},
+			`{"x":"` + pad + `","openapi":"3.1.0"}`, detect.SniffProbe{OpenAPI: "3.1.0"}, false},
 		{"flow json swagger first",
-			`{"swagger":"2.0","x":"` + pad + `"}`, sniffProbe{Swagger: "2.0"}, false},
+			`{"swagger":"2.0","x":"` + pad + `"}`, detect.SniffProbe{Swagger: "2.0"}, false},
 		{"flow json swagger last",
-			`{"x":"` + pad + `","swagger":"2.0"}`, sniffProbe{Swagger: "2.0"}, false},
+			`{"x":"` + pad + `","swagger":"2.0"}`, detect.SniffProbe{Swagger: "2.0"}, false},
 		// Neither YAML nor JSON: the parse fails and declares nothing.
 		{"protobuf, large",
-			padTo("syntax = \"proto3\";\n", "message M { string a = 1; }\n"), sniffProbe{}, true},
+			padTo("syntax = \"proto3\";\n", "message M { string a = 1; }\n"), detect.SniffProbe{}, true},
 		// The word is there and is not a key: a value is not a declaration.
 		{"the word as a value, large",
-			`{"x":"` + pad + `","note":"openapi"}`, sniffProbe{}, false},
+			`{"x":"` + pad + `","note":"openapi"}`, detect.SniffProbe{}, false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			require.Greater(t, len(tc.src), scanCutover, "the case must be large to test it")
-			probe, parsed, err := sniff([]byte(tc.src))
+			probe, parsed, err := detect.Sniff([]byte(tc.src))
 			assert.Equal(t, tc.want, probe)
 			if tc.unreadable {
 				assert.Error(t, err)
@@ -96,7 +97,7 @@ func TestSniff_ReadsAMergeChainAsFarAsTheViewExpandsIt(t *testing.T) {
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			probe, _, err := sniff(tc.src)
+			probe, _, err := detect.Sniff(tc.src)
 			require.NoError(t, err, "a read cut short is no parse failure")
 			assert.Equal(t, tc.cut, probe.Cut)
 			if tc.cut {
@@ -121,7 +122,7 @@ func TestDecodeYAML_RefusesARootThatIsNoMapping(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			probe, _, err := decodeYAML([]byte(tc.src))
+			probe, _, err := detect.DecodeYAML([]byte(tc.src))
 			assert.Empty(t, probe.OpenAPI)
 			if tc.wantErr == "" {
 				assert.NoError(t, err, "bytes that carry no document decline rather than fail")
@@ -147,8 +148,8 @@ func TestSniff_CostIsNotQuadraticInRepeatedKeys(t *testing.T) {
 	small := []byte(head + strings.Repeat("x: y\n", dupRepeats))
 	large := []byte(head + strings.Repeat("x: y\n", dupRepeats*2))
 
-	smallAllocs := testing.AllocsPerRun(2, func() { _, _, _ = sniff(small) })
-	largeAllocs := testing.AllocsPerRun(2, func() { _, _, _ = sniff(large) })
+	smallAllocs := testing.AllocsPerRun(2, func() { _, _, _ = detect.Sniff(small) })
+	largeAllocs := testing.AllocsPerRun(2, func() { _, _, _ = detect.Sniff(large) })
 
 	require.Positive(t, smallAllocs, "a measurement of nothing bounds nothing")
 	assert.Less(t, largeAllocs, smallAllocs*3,
@@ -176,7 +177,7 @@ func TestDecodeYAML_RefusesAVersionKeyThatIsNoScalar(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			probe, _, err := decodeYAML([]byte(tc.src))
+			probe, _, err := detect.DecodeYAML([]byte(tc.src))
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tc.wantErr, "the complaint names the shape that was read")
 			assert.Empty(t, probe.OpenAPI)
@@ -198,7 +199,7 @@ func TestDecodeYAML_PassesOverWhatNamesNoVersion(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			probe, _, err := decodeYAML([]byte(tc.src))
+			probe, _, err := detect.DecodeYAML([]byte(tc.src))
 			require.NoError(t, err)
 			assert.Equal(t, "3.1.0", probe.OpenAPI)
 		})
@@ -214,7 +215,7 @@ func TestDecodeYAML_PassesOverWhatNamesNoVersion(t *testing.T) {
 func TestProbeVersion_RefusesAnAliasThatResolvedToNothing(t *testing.T) {
 	t.Parallel()
 	root := ynode.Map(ynode.Scalar("openapi"), &yaml.Node{Kind: yaml.AliasNode})
-	_, err := probeFromMapping(root)
+	_, err := detect.ProbeFromMapping(root)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "no value")
 }
@@ -248,12 +249,12 @@ func TestProbeFromMapping_CostIsLinearInMergeBreadth(t *testing.T) {
 	for _, k := range []int{2000, 4000} {
 		var root yaml.Node
 		require.NoError(t, yaml.Unmarshal(breadthMergeDoc(k), &root))
-		content := documentRoot(&root)
+		content := detect.DocumentRoot(&root)
 
-		var probe sniffProbe
+		var probe detect.SniffProbe
 		var err error
 		allocs := testing.AllocsPerRun(1, func() {
-			probe, err = probeFromMapping(content)
+			probe, err = detect.ProbeFromMapping(content)
 		})
 		require.NoError(t, err)
 		require.Equal(t, "3.1.0", probe.OpenAPI,

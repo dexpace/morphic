@@ -45,7 +45,7 @@ func readBounded(t *testing.T, req compilers.DocumentRequest) ([]byte, error) {
 // rather than hang the suite.
 func TestDisk_ReadDocumentRefusesAFIFOWithoutBlocking(t *testing.T) {
 	t.Parallel()
-	dir := resolvedDir(t)
+	dir := reader.ResolvedDir(t)
 	fifo := filepath.Join(dir, "p.yaml")
 	require.NoError(t, syscall.Mkfifo(fifo, 0o600))
 	t.Cleanup(func() {

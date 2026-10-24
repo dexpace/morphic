@@ -23,9 +23,9 @@ import (
 // defect.
 func TestDeclaresResourceIDAbove_WithoutARawTree(t *testing.T) {
 	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
+	l := NewRawLowerer(&soa.OpenAPI{})
 
-	assert.False(t, declaresResourceIDAbove(l.ctx, "/components/schemas/A"),
+	assert.False(t, declaresResourceIDAbove(l.Ctx, "/components/schemas/A"),
 		"a document with no raw tree declares no resource anywhere")
 }
 
@@ -42,7 +42,7 @@ func TestDeclaresResourceIDAbove_WithoutARawTree(t *testing.T) {
 // $id both read false.
 func TestDeclaresResourceIDAbove_EmptySegmentIsATokenNotAnArtifact(t *testing.T) {
 	t.Parallel()
-	l, diags := loweredFor(t, `openapi: 3.1.0
+	l, diags := LoweredFor(t, `openapi: 3.1.0
 info: {title: T, version: "1"}
 paths: {}
 "": {$id: https://example.com/root-member}
@@ -84,7 +84,7 @@ components:
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tc.want, declaresResourceIDAbove(l.ctx, tc.pointer), tc.why)
+			assert.Equal(t, tc.want, declaresResourceIDAbove(l.Ctx, tc.pointer), tc.why)
 		})
 	}
 }
@@ -100,7 +100,7 @@ components:
 // right answer (#202).
 func TestComponentSchemaAt_OnlyATopLevelComponentPointerHasABody(t *testing.T) {
 	t.Parallel()
-	l, diags := loweredFor(t, openapitest.ComponentSpec(
+	l, diags := LoweredFor(t, openapitest.ComponentSpec(
 		"    Outer:\n      type: object\n      title: outer\n"+
 			"      properties: {inner: {type: string, title: inner}}\n"+
 			"    \"\": {type: string, title: empty}\n"))
@@ -122,7 +122,7 @@ func TestComponentSchemaAt_OnlyATopLevelComponentPointerHasABody(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got := componentSchemaAt(l.ctx, tc.pointer)
+			got := componentSchemaAt(l.Ctx, tc.pointer)
 			if tc.wantTitle == "" {
 				assert.Nil(t, got, "only a top-level component schema has a body here")
 				return
@@ -183,15 +183,15 @@ func TestDynamicHop_HopsOnlyWhenExactlyOneAnchorSiteIsNamed(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			l, diags := loweredFor(t, openapitest.ComponentSpec(tc.schemas))
+			l, diags := LoweredFor(t, openapitest.ComponentSpec(tc.schemas))
 			openapitest.RequireNoErrorDiags(t, diags)
 			if tc.anchor != "" {
-				sites, siteDiags := l.ctx.DynamicAnchorSites(tc.anchor)
+				sites, siteDiags := l.Ctx.DynamicAnchorSites(tc.anchor)
 				require.Len(t, sites, tc.wantSites, "the fixture must set up the case it is named for")
 				require.Empty(t, siteDiags)
 			}
 
-			next, hops, hopDiags := dynamicHop(l.ctx, tc.at)
+			next, hops, hopDiags := dynamicHop(l.Ctx, tc.at)
 
 			assert.Equal(t, tc.wantNext != "", hops)
 			assert.Equal(t, tc.wantNext, next)

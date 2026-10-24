@@ -1,6 +1,8 @@
 package openapitest_test
 
 import (
+	"maps"
+	"slices"
 	"strings"
 	"testing"
 
@@ -35,6 +37,23 @@ func TestComponentSpec_WrapsSchemasInAMinimalDocument(t *testing.T) {
 	assert.Contains(t, got, "paths: {}\n")
 	assert.Contains(t, got, "components:\n  schemas:\n    A: {type: string}\n")
 	assert.True(t, strings.HasPrefix(openapitest.ComponentSpecVer("3.0.3", ""), "openapi: 3.0.3\n"))
+}
+
+// TestHolderSpec_DeclaresHolderBesideTheRest pins the parts a caller writes:
+// the version, Holder's property p, and the schemas of rest after Holder.
+func TestHolderSpec_DeclaresHolderBesideTheRest(t *testing.T) {
+	t.Parallel()
+	got := openapitest.HolderSpec("3.0.3", "{type: string, nullable: true}", "    Extra: {type: integer}\n")
+	var doc struct {
+		OpenAPI    string `yaml:"openapi"`
+		Components struct {
+			Schemas map[string]yaml.Node `yaml:"schemas"`
+		} `yaml:"components"`
+	}
+	require.NoError(t, yaml.Unmarshal([]byte(got), &doc), got)
+	assert.Equal(t, "3.0.3", doc.OpenAPI)
+	assert.ElementsMatch(t, []string{"Plain", "Pet", "Holder", "Extra"}, slices.Collect(maps.Keys(doc.Components.Schemas)))
+	assert.Contains(t, got, "      properties:\n        p: {type: string, nullable: true}\n")
 }
 
 // TestPathsSpec_WrapsPathsInAMinimalDocument is the paths counterpart: no
@@ -92,6 +111,34 @@ func TestEmptyEitherSchema_IsASchemaWithNoSchema(t *testing.T) {
 	assert.Nil(t, js.GetSchema())
 }
 
+// TestSchemaFromYAML_KeepsTheReferenceForm checks a schema written as a $ref
+// comes back as a reference, which a bare *oas3.Schema could not hold.
+func TestSchemaFromYAML_KeepsTheReferenceForm(t *testing.T) {
+	t.Parallel()
+	js := openapitest.SchemaFromYAML(t.Context(), t, "{$ref: '#/$defs/T'}")
+	require.NotNil(t, js)
+	assert.True(t, js.IsReference())
+}
+
+// TestSchemaFromYAML_FailsOnAFixtureThatDoesNotParse checks a fixture the
+// library cannot read fails the test rather than handing back an empty schema.
+func TestSchemaFromYAML_FailsOnAFixtureThatDoesNotParse(t *testing.T) {
+	t.Parallel()
+	rec := &recorder{}
+	openapitest.SchemaFromYAML(t.Context(), rec, "{")
+	assert.True(t, rec.failed(), "an unreadable fixture is reported")
+}
+
+// TestSchemaFromYAML_FailsOnAFixtureThatDoesNotValidate pins the second check:
+// a fixture that parses but that the library reports invalid, here a required
+// written as a scalar, fails the test rather than lowering a half-read schema.
+func TestSchemaFromYAML_FailsOnAFixtureThatDoesNotValidate(t *testing.T) {
+	t.Parallel()
+	rec := &recorder{}
+	openapitest.SchemaFromYAML(t.Context(), rec, "required: x")
+	assert.True(t, rec.failed(), "a fixture the library refuses is reported")
+}
+
 // TestYAMLNode_ReturnsTheRootValueNode checks the document node is unwrapped,
 // which is what makes the result comparable to what a parsed schema field
 // exposes.
@@ -102,6 +149,49 @@ func TestYAMLNode_ReturnsTheRootValueNode(t *testing.T) {
 	assert.Equal(t, yaml.MappingNode, node.Kind)
 	require.Len(t, node.Content, 2)
 	assert.Equal(t, "a", node.Content[0].Value)
+}
+
+// TestYAMLDocument_ReturnsTheDocumentNode checks the document node is kept, not
+// unwrapped as YAMLNode unwraps it, and that a fixture that does not parse
+// fails the test.
+func TestYAMLDocument_ReturnsTheDocumentNode(t *testing.T) {
+	t.Parallel()
+	doc := openapitest.YAMLDocument(t, "{a: 1}")
+	require.NotNil(t, doc)
+	assert.Equal(t, yaml.DocumentNode, doc.Kind)
+	require.Len(t, doc.Content, 1)
+	assert.Equal(t, yaml.MappingNode, doc.Content[0].Kind)
+
+	rec := &recorder{}
+	openapitest.YAMLDocument(rec, "{a: [")
+	assert.True(t, rec.failed(), "a fixture that does not parse is reported")
+}
+
+// TestClearAnchors_EmptiesEveryAnchorBeneathTheRoot pins the reach: an anchor
+// nested under another is cleared too, and an alias still names its target.
+func TestClearAnchors_EmptiesEveryAnchorBeneathTheRoot(t *testing.T) {
+	t.Parallel()
+	doc := openapitest.YAMLDocument(t, "a: &x {b: &y 1}\nc: *x\nd: *y\n")
+	anchors := func() []string {
+		var out []string
+		stack := []*yaml.Node{doc}
+		for len(stack) > 0 {
+			n := stack[len(stack)-1]
+			stack = stack[:len(stack)-1]
+			if n.Anchor != "" {
+				out = append(out, n.Anchor)
+			}
+			stack = append(stack, n.Content...)
+		}
+		return out
+	}
+	require.ElementsMatch(t, []string{"x", "y"}, anchors(), "the fixture writes two anchors")
+
+	openapitest.ClearAnchors(doc)
+	assert.Empty(t, anchors())
+	alias := doc.Content[0].Content[3]
+	require.Equal(t, yaml.AliasNode, alias.Kind)
+	assert.Same(t, doc.Content[0].Content[1], alias.Alias)
 }
 
 // TestScalarNode_BuildsABareScalar covers both builders, StrNode being the

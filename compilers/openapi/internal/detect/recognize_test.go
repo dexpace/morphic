@@ -1,4 +1,4 @@
-package detect
+package detect_test
 
 import (
 	"fmt"
@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/detect"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
@@ -27,13 +28,13 @@ func TestRecognize_HoldsTheParseToItsByteBudget(t *testing.T) {
 	refusal, over := load.OverByteBudget(ir.Provenance{Source: 0}, []byte(src), len(src)-1)
 	require.True(t, over, "the refusal the case expects")
 
-	rec, diags, ok := Recognize(0, []byte(src), len(src)-1)
+	rec, diags, ok := detect.Recognize(0, []byte(src), len(src)-1)
 	assert.False(t, ok)
 	assert.Equal(t, compilers.Recognition{}, rec, "a source declined unread carries no parse")
 	assert.Equal(t, []ir.Diagnostic{refusal}, diags, "the refusal Load gives the same source")
 
 	for _, budget := range []int{len(src), 0} {
-		rec, diags, ok := Recognize(0, []byte(src), budget)
+		rec, diags, ok := detect.Recognize(0, []byte(src), budget)
 		require.True(t, ok, "budget %d: %v", budget, diags)
 		assert.Equal(t, compilers.SourceFormat{Name: "openapi", Version: "3.1"}, rec.Format, "budget %d", budget)
 	}
@@ -59,7 +60,7 @@ func TestRecognize_ADeclineNamesTheSourceItWasHanded(t *testing.T) {
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			_, diags, ok := Recognize(srcIndex, tc.src, tc.maxBytes)
+			_, diags, ok := detect.Recognize(srcIndex, tc.src, tc.maxBytes)
 			assert.False(t, ok)
 			require.Len(t, diags, 1)
 			assert.Equal(t, tc.code, diags[0].Code)
@@ -289,11 +290,11 @@ func TestRecognize_ARepeatedVersionKeyAgreesWithTheParser(t *testing.T) {
 			parsed, _, err := soa.Unmarshal(t.Context(), strings.NewReader(src))
 			require.NoError(t, err)
 			require.NotNil(t, parsed)
-			assert.Equal(t, tc.want, majorMinor(parsed.OpenAPI), "the spelling the parser keeps")
+			assert.Equal(t, tc.want, detect.MajorMinor(parsed.OpenAPI), "the spelling the parser keeps")
 
 			got, _, ok := recognize(src)
 			require.True(t, ok)
-			assert.Equal(t, compilers.SourceFormat{Name: "openapi", Version: majorMinor(parsed.OpenAPI)}, got.Format,
+			assert.Equal(t, compilers.SourceFormat{Name: "openapi", Version: detect.MajorMinor(parsed.OpenAPI)}, got.Format,
 				"detection names the version the parser records")
 		})
 	}
@@ -373,7 +374,7 @@ func TestRecognize_AMergeCycleHidesNoKey(t *testing.T) {
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			probe, _, err := sniff([]byte(tc.src))
+			probe, _, err := detect.Sniff([]byte(tc.src))
 			require.NoError(t, err)
 			assert.False(t, probe.Cut, "a cycle reads every mapping on it")
 

@@ -31,7 +31,7 @@ func TestContent_AllMediaTypesKeptInOrder(t *testing.T) {
           application/xml: {schema: {type: object, properties: {n: {type: string}}}}
       responses: {"201": {description: created}}
 `)
-	_, svc, diags := lowerServiceSpec(t, spec)
+	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	op := openapitest.FirstOp(t, svc)
 	require.NotNil(t, op.Request)
@@ -73,7 +73,7 @@ func TestContent_MixedCaseFormContentKeepsEncoding(t *testing.T) {
                 contentType: application/json
       responses: {"200": {description: ok}}
 `)
-			_, svc, diags := lowerServiceSpec(t, spec)
+			_, svc, diags := compileService(t, spec)
 			openapitest.RequireNoErrorDiags(t, diags)
 			content := openapitest.FirstOp(t, svc).Request.Contents[0]
 			assert.Equal(t, tc.mt, content.MediaType, "the declared spelling is what the IR records")
@@ -114,7 +114,7 @@ func TestContent_MixedCaseURLEncodedKeepsPartEncoding(t *testing.T) {
                 tags: {type: array, items: {type: string}}
       responses: {"200": {description: ok}}
 `)
-			_, svc, diags := lowerServiceSpec(t, spec)
+			_, svc, diags := compileService(t, spec)
 			openapitest.RequireNoErrorDiags(t, diags)
 			content := openapitest.FirstOp(t, svc).Request.Contents[0]
 			assert.Equal(t, tc.mt, content.MediaType, "the declared spelling is what the IR records")
@@ -138,7 +138,7 @@ func TestContent_BinaryOctetStreamBody(t *testing.T) {
             schema: {type: string, format: binary}
       responses: {"200": {description: ok}}
 `)
-	_, svc, diags := lowerServiceSpec(t, spec)
+	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	op := openapitest.FirstOp(t, svc)
 	require.NotNil(t, op.Request)
@@ -174,7 +174,7 @@ func TestContent_MixedCaseOctetStreamBodyIsFile(t *testing.T) {
           "` + tc.mt + `": {}
       responses: {"200": {description: ok}}
 `)
-			_, svc, diags := lowerServiceSpec(t, spec)
+			_, svc, diags := compileService(t, spec)
 			openapitest.RequireNoErrorDiags(t, diags)
 			content := openapitest.FirstOp(t, svc).Request.Contents[0]
 			require.NotNil(t, content.File, "an octet-stream body with no schema is a file body")
@@ -202,7 +202,7 @@ components:
   schemas:
     Blob: {type: string, format: binary}
 `)
-	_, svc, diags := lowerServiceSpec(t, spec)
+	_, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	content := openapitest.FirstOp(t, svc).Request.Contents[0]
 	require.NotNil(t, content.File, "binary body behind a $ref lowers to a FileInfo")
@@ -479,7 +479,7 @@ func TestContent_InlineSchemaKeepsItsUseSiteHint(t *testing.T) {
 // lost, and nothing claims it was kept.
 func TestContent_UnkeepableMediaTypeRefIsReported(t *testing.T) {
 	t.Parallel()
-	_, _, diags := lowerServiceSpec(t, openapitest.PathsSpecVer("3.2.0", `  /a:
+	_, _, diags := compileService(t, openapitest.PathsSpecVer("3.2.0", `  /a:
     get:
       operationId: a
       responses:
@@ -505,7 +505,7 @@ func TestContent_MediaTypeRefIsKeptNotFollowed(t *testing.T) {
 	for _, version := range []string{"3.2.0", "3.1.0"} {
 		t.Run(version, func(t *testing.T) {
 			t.Parallel()
-			_, svc, diags := lowerServiceSpec(t, openapitest.PathsSpecVer(version, `  /a:
+			_, svc, diags := compileService(t, openapitest.PathsSpecVer(version, `  /a:
     get:
       operationId: a
       parameters:
@@ -548,7 +548,7 @@ func TestContent_MediaTypeDescriptionIsKept(t *testing.T) {
 	for _, version := range []string{"3.2.0", "3.1.0"} {
 		t.Run(version, func(t *testing.T) {
 			t.Parallel()
-			_, svc, diags := lowerServiceSpec(t, openapitest.PathsSpecVer(version, `  /a:
+			_, svc, diags := compileService(t, openapitest.PathsSpecVer(version, `  /a:
     get:
       operationId: a
       parameters:
