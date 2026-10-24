@@ -102,7 +102,6 @@ func assertResponseExamples(t *testing.T, doc *ir.Document) {
 // witnesses no matrix row: the rows are what an API can express, and the URI a
 // description gives itself is not part of the API it describes.
 func assertSelfURI(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
-	t.Helper()
 	require.Len(t, doc.Sources, 1)
 	assert.Equal(t, "openapi@3.2", doc.Sources[0].Format)
 	assert.Equal(t, "https://example.com/api/openapi.yaml", doc.Sources[0].SelfURI)
@@ -240,6 +239,7 @@ func assertRefSiteDocs(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 // $ref: they override the declaration it names at every position, and a use
 // site's own override them in turn.
 func assertAliasHopDocs(t *testing.T, doc *ir.Document) {
+	t.Helper()
 	sprocket, ok := opByName(doc, "makeSprocket")
 	require.True(t, ok)
 	limit, ok := paramByName(sprocket, "limit")

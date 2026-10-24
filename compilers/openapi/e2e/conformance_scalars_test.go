@@ -187,6 +187,7 @@ func assertSecretFormat(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 // Property.Secret is the home, and the wrappers whose type reaches the
 // Sensitive node instead.
 func assertSecretCarriers(t *testing.T, doc *ir.Document) {
+	t.Helper()
 	login := secretModel(t, doc, "Login")
 	for _, tc := range []struct {
 		wire   string
@@ -235,6 +236,7 @@ func assertSecretCarriers(t *testing.T, doc *ir.Document) {
 // assertSecretNodes covers the positions with no carrier: each owns a node, an
 // alias over the bare type where the shape alone would own none.
 func assertSecretNodes(t *testing.T, doc *ir.Document) {
+	t.Helper()
 	arr, ok := propByWire(secretModel(t, doc, "Login"), "arr")
 	require.True(t, ok)
 	list, ok := doc.Types[arr.Type.Target].(*ir.List)
@@ -275,6 +277,7 @@ func assertSecretNodes(t *testing.T, doc *ir.Document) {
 
 // assertSecretOperation covers the parameters, bodies and headers.
 func assertSecretOperation(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	t.Helper()
 	op, ok := opByName(doc, "login")
 	require.True(t, ok)
 

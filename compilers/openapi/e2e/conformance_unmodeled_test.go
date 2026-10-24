@@ -100,6 +100,7 @@ func assertUnhomedKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic
 // has none of their fields, and each below reached no field, no Unmodeled entry
 // and no diagnostic.
 func assertRefSiteKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	t.Helper()
 	for name, want := range map[string]struct{ keyword, target, raw string }{
 		"RefFormat":               {"format", "RefTargetStr", `"email"`},
 		"RefEnum":                 {"enum", "RefTargetStr", `["a","b"]`},
@@ -191,6 +192,7 @@ func assertUnionBesideRef(t *testing.T, doc *ir.Document, diags []ir.Diagnostic)
 // which is why the two allOf cases differ: a composed Model asserts `object`
 // already and loses nothing, and asserts nothing about `string` at all.
 func assertElectedLoweringKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	t.Helper()
 	scalarType, ok := doc.Types[namedID("AllOfWithScalarType")].(*ir.Model)
 	require.True(t, ok)
 	assert.JSONEq(t, `"string"`,
@@ -425,6 +427,7 @@ func assertAllOfNarrowingRedeclaration(t *testing.T, doc *ir.Document, diags []i
 // over its bare kind in either order. Each is lossless: no diagnostic names a
 // property of these models and nothing is kept.
 func assertNarrowingChainsAndScalars(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	t.Helper()
 	for _, model := range []string{"ChainNarrowestFirst", "ChainNarrowestMiddle", "ChainNarrowestLast"} {
 		p := narrowedProp(t, doc, model)
 		assert.Equal(t, ir.TypeID("t/prim/int32"), p.Type.Target, "%s: the narrowest member wins", model)
@@ -450,6 +453,7 @@ func assertNarrowingChainsAndScalars(t *testing.T, doc *ir.Document, diags []ir.
 // adopted from a non-first branch and refused when the integer arrives. Either
 // way the entry is keyed at the branch that wrote the default, with one info.
 func assertRefusedLateDefault(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	t.Helper()
 	for _, tc := range []struct{ model, branch string }{
 		{"RefusedLateDefaultFirst", "2"}, {"RefusedLateDefaultMiddle", "2"}, {"RefusedLateDefaultLast", "1"},
 	} {
@@ -482,6 +486,7 @@ func diagsUnder(diags []ir.Diagnostic, prefix string) []ir.Diagnostic {
 // refuses lands nowhere on the merged field: the narrow type wins in either
 // order, and the broad branch is kept whole at its own pointer with one info.
 func assertInadmissibleDefault(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	t.Helper()
 	for model, broadBranch := range map[string]string{"InadmissibleDefaultBroadFirst": "0", "InadmissibleDefaultNarrowFirst": "1"} {
 		p := narrowedProp(t, doc, model)
 		ptr := "/components/schemas/" + model + "/allOf/" + broadBranch + "/properties/p"
@@ -544,6 +549,7 @@ func assertAllOfRefBranchSiblings(t *testing.T, doc *ir.Document, diags []ir.Dia
 // as the other two $ref sites: refSiteUnhomedKeywords (allOf) and
 // preserveUnionSiblings (oneOf/anyOf), reused rather than duplicated.
 func assertAllOfRefBranchUnion(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	t.Helper()
 	union, ok := doc.Types[namedID("UnionBranch")].(*ir.Model)
 	require.True(t, ok)
 	require.NotNil(t, union.Base, "the branch still composes as Base")
@@ -1063,7 +1069,6 @@ func indexByParam(bindings []ir.HTTPParamBinding) map[string]ir.HTTPParamBinding
 // come in the parser's order. The spec writes no alias, so the order oracle
 // can permute it; alias keys are the readers' own tests'.
 func assertYAMLMergeKeys(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
-	t.Helper()
 	op, ok := opByName(doc, "getMerged")
 	require.True(t, ok)
 	assertKept(t, op.Unmodeled, []keptEntry{

@@ -140,6 +140,7 @@ func assertEnumOpenness(t *testing.T, doc *ir.Document) {
 // was deprecated annotates nothing, and a value that is not text is a document
 // meaning something else by the key.
 func assertPromotionDeclined(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	t.Helper()
 	live, ok := opByName(doc, "getY")
 	require.True(t, ok)
 	assert.Nil(t, live.Deprecation, "the operation is not deprecated")

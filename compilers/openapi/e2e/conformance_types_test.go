@@ -484,7 +484,6 @@ func assertMaps(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 // pointer and under the same hint. All of it is modeled, so no tuple keeps
 // anything beside itself or reports a degradation.
 func assertTuples(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
-	t.Helper()
 	i64 := func(v int64) *int64 { return &v }
 	pair := []ir.TypeRef{{Target: "t/prim/string"}, {Target: "t/prim/integer"}}
 	restID := ir.TypeID("t/anon/components/schemas/PairWithRest/items")

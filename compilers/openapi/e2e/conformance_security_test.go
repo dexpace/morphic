@@ -82,7 +82,6 @@ func assertSchemeDetail(t *testing.T, doc *ir.Document) {
 // never for a scheme whose metadata URL states its endpoints or that declares a
 // flow. Every entry interns either way (GitHub #646).
 func assertOAuth2NoFlow(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
-	t.Helper()
 	const code = "openapi/oauth2-no-flow"
 	reported := map[string]bool{"emptyFlows": true, "unknownFlowsOnly": true}
 	byPointer := map[jsontext.Pointer]ir.AuthScheme{}
@@ -118,7 +117,6 @@ func assertOAuth2NoFlow(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 // at its own pointer, and that scopes keep the order the document writes them
 // (GitHub #865, #639).
 func assertOAuthFlowFields(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
-	t.Helper()
 	byName := make(map[string]ir.AuthScheme, len(doc.Auth))
 	for _, s := range doc.Auth {
 		byName[s.Name.Source] = s
