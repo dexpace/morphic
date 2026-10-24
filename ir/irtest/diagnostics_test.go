@@ -13,7 +13,7 @@ import (
 // order is the report's, not a sorted one.
 func TestDiagCodes_ListsEachCodeInReportOrder(t *testing.T) {
 	t.Parallel()
-	diags := []ir.Diagnostic{{Code: "b"}, {Code: "a"}, {Code: "b"}}
-	assert.Equal(t, []string{"b", "a", "b"}, irtest.DiagCodes(diags))
+	diags := []ir.Diagnostic{{Code: "c"}, {Code: "a"}, {Code: "b"}, {Code: "a"}}
+	assert.Equal(t, []string{"c", "a", "b", "a"}, irtest.DiagCodes(diags))
 	assert.Empty(t, irtest.DiagCodes(nil))
 }

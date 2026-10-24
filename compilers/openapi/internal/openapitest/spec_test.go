@@ -129,6 +129,16 @@ func TestSchemaFromYAML_FailsOnAFixtureThatDoesNotParse(t *testing.T) {
 	assert.True(t, rec.failed(), "an unreadable fixture is reported")
 }
 
+// TestSchemaFromYAML_FailsOnAFixtureThatDoesNotValidate pins the second check:
+// a fixture that parses but that the library reports invalid, here a required
+// written as a scalar, fails the test rather than lowering a half-read schema.
+func TestSchemaFromYAML_FailsOnAFixtureThatDoesNotValidate(t *testing.T) {
+	t.Parallel()
+	rec := &recorder{}
+	openapitest.SchemaFromYAML(t.Context(), rec, "required: x")
+	assert.True(t, rec.failed(), "a fixture the library refuses is reported")
+}
+
 // TestYAMLNode_ReturnsTheRootValueNode checks the document node is unwrapped,
 // which is what makes the result comparable to what a parsed schema field
 // exposes.

@@ -47,6 +47,7 @@ func TestRootFrom_RefusesAWorkingDirectoryItCannotRead(t *testing.T) {
 	assert.True(t, rec.aborted)
 	assert.Contains(t, rec.fatalf, "reading the working directory: gone")
 	assert.Empty(t, got)
+	assert.GreaterOrEqual(t, rec.helperCalls, 1, "rootFrom marks itself a helper")
 }
 
 // TestRootFrom_RefusesADirectoryOutsideAnyModule pins the second: a walk that
@@ -58,4 +59,5 @@ func TestRootFrom_RefusesADirectoryOutsideAnyModule(t *testing.T) {
 	assert.True(t, rec.aborted)
 	assert.Contains(t, rec.fatalf, "no go.mod in or above the working directory")
 	assert.Empty(t, got)
+	assert.GreaterOrEqual(t, rec.helperCalls, 1, "rootFrom marks itself a helper")
 }

@@ -35,6 +35,7 @@ func TestEncoded_FailsTheTestOnADocumentThatDoesNotEncode(t *testing.T) {
 	<-done
 	assert.True(t, rec.aborted)
 	assert.Contains(t, rec.fatalf, "encode the document")
+	assert.GreaterOrEqual(t, rec.helperCalls, 1, "encoded marks itself a helper")
 }
 
 // TestRefusedAsCyclic_ReadsOnlyTheCycleRefusal pins both halves: a value that
