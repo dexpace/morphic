@@ -159,11 +159,11 @@ func TestParams_QueryStringDeclaredAllowReservedIsKeptAndReported(t *testing.T) 
 			"/paths/~1q/get/parameters/0/allowReserved"))
 }
 
-// TestParams_QueryStringUndeclaredKeywordsAreNotReported is the control for
-// both cases above: a querystring binding that declares neither keyword raises
-// diag.InvalidLocationKeyword at neither pointer, so the diagnostic tracks the
-// keyword's presence in the document rather than firing for every parameter at
-// this location.
+// TestParams_QueryStringUndeclaredKeywordsAreNotReported is the control for the
+// three cases above: a querystring binding that declares none of style, explode
+// and allowReserved raises diag.InvalidLocationKeyword nowhere, so the
+// diagnostic tracks each keyword's presence in the document rather than firing
+// for every parameter at this location.
 func TestParams_QueryStringUndeclaredKeywordsAreNotReported(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.PathsSpecVer("3.2.0", `  /q:
