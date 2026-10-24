@@ -67,10 +67,11 @@ Read the documents for your layer, and skip the rest until you need them.
   them or, when it is new, in the package's `helpers_test.go`, or `helpers_internal_test.go` inside
   the package. One that several packages share is in `compilers/openapi/internal/openapitest` or
   `ir/irtest`, as `openapitest.SchemaFromYAML` and `irtest.RepoRoot` are, when it builds or reads
-  what those packages serve, a spec and its diagnostics or the IR, and every package needing it
-  can import it. A helper neither can hold is written in each package that needs it, and says why,
-  as `parseFull`'s copies do; so is a general one, such as a file write, between packages that
-  share no test-helper package.
+  what those packages serve, a spec and its diagnostics or the IR. One that belongs there but
+  cannot live there, as `parseFull`, which compiles through `openapi.New`, is written in each
+  package that needs it, and each copy says why. A helper outside what either serves, such as a
+  file read or a stub compiler, is written where it is needed, and so is one whose body is a single
+  expression, such as `ir.TypeRef{Target: id}`, which holds no behaviour for a copy to drift from.
   *Fails if missed:* nothing. A copy compiles beside the original.
 - **An end-to-end test of the OpenAPI compiler goes in `compilers/openapi/e2e`,** in a file named
   for the construct or the property it checks: a test of what the compiler does as a whole, which no
