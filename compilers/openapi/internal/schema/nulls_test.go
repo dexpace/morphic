@@ -27,7 +27,8 @@ func inferred(target ir.TypeID) ir.TypeRef {
 func prim(k ir.PrimKind) ir.TypeID { return ir.PrimTypeID(k) }
 
 // compileNullable compiles src, a whole document, with the nullable-widening
-// policy on or off.
+// policy on or off. That reach through openapi is why openapitest cannot hold
+// it — see that package's doc comment.
 func compileNullable(t *testing.T, src string, off bool) (*ir.Document, []ir.Diagnostic) {
 	t.Helper()
 	opts := compilers.Options{FormatOptions: openapi.Options{NullableWidening: openapi.NullableWidening{Disabled: off}}}

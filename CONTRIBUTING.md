@@ -49,23 +49,28 @@ Read the documents for your layer, and skip the rest until you need them.
   package's internals through the package's `export_test.go`, which names each one once, under its
   exported spelling or, where that is taken, a name that says what it adds, as
   `irtest.CompareGoldenOn` does. A test that needs an unexported field or method, a generic, or a
-  variable it assigns stays inside the package, in `x_internal_test.go` beside `x_test.go`, and so
-  do the tests of a package that reach so many internals the aliases would be a second API, as
-  `schema`'s and `operation`'s do. A fixture both sides use is declared once, exported, in
-  `export_test.go`, as `schema.Lowerer` is.
+  variable it assigns stays inside the package, in `x_internal_test.go`, and so do a package's
+  tests when moving them out would take more than ten aliases, enough to make a second API, as
+  `schema`'s and `operation`'s would. A fixture both sides use is declared once, exported, in
+  `export_test.go`, as `schema.Lowerer` is. A `cmd` program's tests are all inside it, under plain
+  names, since a `main` package cannot be imported.
   *Fails if missed:* nothing. A test written inside the package that could be external compiles and
   runs.
 - **A test is named for what it tests.** A `TestFunc_Scenario` name is a function's or a type's, and
   the file follows from it as above. A test that pins a construct or a lowering rule may take the
   construct's name instead, as the `TestPathItemRefSiblings` tests do, and then sits in the file of
   the construct or of the entry point it runs through. A function that asserts on a test's behalf
-  calls `t.Helper`, except a conformance case's assertion, which is the case's own body and so
-  reports the line that fails.
+  calls `t.Helper`, except one a table runs as a case's body, as the conformance corpus's assertions
+  and the canaries are: it is the case, so its failure reports the line in it that fails.
   *Fails if missed:* nothing checks a test's name or its `t.Helper`.
-- **A helper several test files share has one home:** its package's `helpers_test.go`, or
-  `helpers_internal_test.go` inside the package; and a helper several packages share is in
-  `compilers/openapi/internal/openapitest` or `ir/irtest`, as `openapitest.SchemaFromYAML` and
-  `irtest.RepoRoot` are, when all of them can import it.
+- **A helper is written once.** One that several test files of a package share sits in one of
+  them or, when it is new, in the package's `helpers_test.go`, or `helpers_internal_test.go` inside
+  the package. One that several packages share is in `compilers/openapi/internal/openapitest` or
+  `ir/irtest`, as `openapitest.SchemaFromYAML` and `irtest.RepoRoot` are, when it builds or reads
+  what those packages serve, a spec and its diagnostics or the IR, and every package needing it
+  can import it. A helper neither can hold is written in each package that needs it, and says why,
+  as `parseFull`'s copies do; so is a general one, such as a file write, between packages that
+  share no test-helper package.
   *Fails if missed:* nothing. A copy compiles beside the original.
 - **An end-to-end test of the OpenAPI compiler goes in `compilers/openapi/e2e`,** in a file named
   for the construct or the property it checks: a test of what the compiler does as a whole, which no

@@ -165,7 +165,8 @@ func TestSchemaRefSiblings_LowerAsIn31(t *testing.T) {
 }
 
 // compileNullable compiles src, a whole document, with the nullable-widening
-// policy on or off.
+// policy on or off. That reach through openapi is why openapitest cannot hold
+// it — see that package's doc comment.
 func compileNullable(t *testing.T, src string, off bool) (*ir.Document, []ir.Diagnostic) {
 	t.Helper()
 	opts := compilers.Options{FormatOptions: openapi.Options{NullableWidening: openapi.NullableWidening{Disabled: off}}}
