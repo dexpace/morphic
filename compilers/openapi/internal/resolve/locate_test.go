@@ -1,12 +1,10 @@
-package resolve
+package resolve_test
 
 import (
 	"encoding/json/jsontext"
-	"errors"
 	"strings"
 	"testing"
 
-	"github.com/speakeasy-api/openapi/jsonpointer"
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
@@ -14,6 +12,7 @@ import (
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/navigation"
+	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 )
 
 // rawMappingDoc is a document whose pointers leave the model for raw YAML:
@@ -27,16 +26,6 @@ components:
 x-lib:
   a: {b: {type: object}}
 `
-
-// wholeModelAt reads the whole pointer in one library call, as the library's
-// resolver reads it: the schema found there, or nil.
-func wholeModelAt(doc any, pointer jsontext.Pointer) *oas3.JSONSchema[oas3.Referenceable] {
-	target, err := jsonpointer.GetTarget(doc, jsonpointer.JSONPointer(pointer), jsonpointer.WithStructTags("key"))
-	if js, ok := target.(*oas3.JSONSchema[oas3.Referenceable]); ok && err == nil && js != nil {
-		return js
-	}
-	return nil
-}
 
 // TestScope_ReadsNoRawMappingAPointerPasses pins GitHub #778 for the walk
 // reached takes: it scans no mapping where a pointer leaves the model, the
@@ -56,10 +45,10 @@ func TestScope_ReadsNoRawMappingAPointerPasses(t *testing.T) {
 		mapping := builtAt(t, doc, at.mapping)
 		mapping.Content = append([]*yaml.Node{nil, {Kind: yaml.ScalarNode}}, mapping.Content...)
 
-		assert.Panics(t, func() { wholeModelAt(doc, at.pointer) }, "the whole read scans %q", at.mapping)
-		sc := Scope{Doc: doc, Ends: ReferenceEnd}
+		assert.Panics(t, func() { resolve.WholeModelAt(doc, at.pointer) }, "the whole read scans %q", at.mapping)
+		sc := resolve.Scope{Doc: doc, Ends: resolve.ReferenceEnd}
 		assert.NotPanics(t, func() {
-			assert.False(t, atPointer(sc, at.pointer).Foreign)
+			assert.False(t, resolve.At(sc, at.pointer).Foreign)
 		}, "%q", at.pointer)
 	}
 }
@@ -79,25 +68,6 @@ func builtAt(t *testing.T, doc *soa.OpenAPI, pointer jsontext.Pointer) *yaml.Nod
 		require.Failf(t, "no mapping", "%q holds %T", pointer, v)
 		return nil
 	}
-}
-
-// indexedDoc is a document that is no model and that the library reads by
-// index as well as by the mapping it was built from: that mapping's 0 holds j,
-// and its index 0 holds the schema under k.
-type indexedDoc struct {
-	built  *yaml.Node
-	schema *oas3.JSONSchema[oas3.Referenceable]
-}
-
-// GetRootNode returns the mapping the document was built from.
-func (d *indexedDoc) GetRootNode() *yaml.Node { return d.built }
-
-// NavigateWithIndex answers index 0 with a map holding the schema under k.
-func (d *indexedDoc) NavigateWithIndex(i int) (any, error) {
-	if i != 0 {
-		return nil, errors.New("no such index")
-	}
-	return map[string]any{"k": d.schema}, nil
 }
 
 // walkTo returns what the model holds at pointer, a step at a time.

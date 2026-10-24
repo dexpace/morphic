@@ -1,4 +1,4 @@
-package reader
+package reader_test
 
 import (
 	"os"
@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/engine/reader"
 )
 
 // TestReadRooted_RefusesALinkSwappedInAfterTheCheck pins what the os.Root open
@@ -28,7 +29,7 @@ func TestReadRooted_RefusesALinkSwappedInAfterTheCheck(t *testing.T) {
 	path := filepath.Join(in, "a.yaml")
 	require.NoError(t, os.WriteFile(path, []byte("inside"), 0o644))
 
-	dir, rel, err := resolveWithin(in, path)
+	dir, rel, err := reader.ResolveWithin(in, path)
 	require.NoError(t, err, "the check places the file inside")
 	require.NoError(t, os.Remove(path))
 	require.NoError(t, os.Symlink(filepath.Join("..", "secret.yaml"), path))
@@ -36,7 +37,7 @@ func TestReadRooted_RefusesALinkSwappedInAfterTheCheck(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { assert.NoError(t, root.Close()) })
 
-	got, err := readRooted(root, rel, path, 0)
+	got, err := reader.ReadRooted(root, rel, path, 0)
 
 	require.Error(t, err)
 	assert.Nil(t, got, "the link's target is never read")
@@ -47,12 +48,12 @@ func TestReadRooted_RefusesALinkSwappedInAfterTheCheck(t *testing.T) {
 // directory cannot be read: the two cannot be put alike, so the file is
 // outside, as relativeTo answers for the same pair.
 func TestResolveWithin_RefusesAMixedPairWithNoWorkingDirectory(t *testing.T) {
-	root := ResolvedDir(t)
+	root := reader.ResolvedDir(t)
 	t.Chdir(root)
 	abs := filepath.Join(root, "d", "a.yaml")
-	vanishWorkingDirectory(t)
+	reader.VanishWorkingDirectory(t)
 
-	_, _, err := resolveWithin("d", abs)
+	_, _, err := reader.ResolveWithin("d", abs)
 
 	require.ErrorIs(t, err, compilers.ErrOutsideWithin)
 }

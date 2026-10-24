@@ -4,9 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 	"testing/iotest"
@@ -171,7 +169,7 @@ func TestRelativeTo_ReadsTheWorkingDirectoryOnlyForAMixedPair(t *testing.T) {
 	_, ok = relativeTo("d", filepath.Join(root, "e", "a.yaml"))
 	assert.False(t, ok, "an absolute path outside the relative directory")
 
-	vanishWorkingDirectory(t)
+	VanishWorkingDirectory(t)
 
 	rel, ok = relativeTo("d", filepath.Join("d", "a.yaml"))
 	assert.True(t, ok, "two relative paths need no working directory")
@@ -182,29 +180,6 @@ func TestRelativeTo_ReadsTheWorkingDirectoryOnlyForAMixedPair(t *testing.T) {
 
 	_, ok = relativeTo(filepath.Dir(abs), filepath.Join("d", "a.yaml"))
 	assert.False(t, ok, "an absolute directory against a relative path, no working directory")
-}
-
-// vanishWorkingDirectory leaves the working directory something the system
-// cannot name: a path deeper than any buffer getcwd fills, whose parent
-// refuses a read, so the walk up that os.Getwd falls back to fails. Deleting
-// the directory would not do: darwin names a deleted one. It skips where
-// permissions do not bind, or the system names the directory regardless.
-func vanishWorkingDirectory(t *testing.T) {
-	t.Helper()
-	if runtime.GOOS == "windows" || os.Geteuid() == 0 {
-		t.Skip("directory permissions do not deny a read here")
-	}
-	segment := strings.Repeat("a", 200)
-	const levels = 25 // 5000 bytes, past Linux's 4096 and darwin's 1024
-	for range levels {
-		require.NoError(t, os.Mkdir(segment, 0o700))
-		t.Chdir(segment)
-	}
-	require.NoError(t, os.Chmod("..", 0o100))
-	t.Cleanup(func() { assert.NoError(t, os.Chmod("..", 0o700)) })
-	if _, err := os.Getwd(); err == nil {
-		t.Skip("this system names the working directory whatever its parents allow")
-	}
 }
 
 // TestReadLimited_HoldsTheLimit pins the size a document may have: exactly

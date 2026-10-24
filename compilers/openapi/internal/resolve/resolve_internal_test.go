@@ -2,11 +2,13 @@ package resolve
 
 import (
 	"encoding/json/jsontext"
+	"errors"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/speakeasy-api/openapi/jsonpointer"
+	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -150,7 +152,7 @@ func TestScopeReached_StepsPastAnIndexTheLibraryRetries(t *testing.T) {
 	doc := &indexedDoc{built: built.Content[0], schema: js}
 	for _, ends := range []func(any) (End, bool){nil, elsewhere} {
 		sc := Scope{Doc: doc, Ends: ends}
-		assert.Same(t, js, wholeModelAt(doc, "/0/k"), "sanity: the index answers k, which the mapping's 0 does not hold")
+		assert.Same(t, js, WholeModelAt(doc, "/0/k"), "sanity: the index answers k, which the mapping's 0 does not hold")
 		assert.Equal(t, ends != nil, atPointer(sc, "/0/k").Foreign, "the walk noted the document it stepped past")
 	}
 }
@@ -234,3 +236,22 @@ func TestScopeReached_WithoutEndsPassesNothing(t *testing.T) {
 // elsewhere is an Ends that reads every node it is asked about as a reference
 // ending in another document, so any node a walk steps past shows.
 func elsewhere(any) (End, bool) { return End{Document: "elsewhere", Path: "x.yaml"}, true }
+
+// indexedDoc is a document that is no model and that the library reads by
+// index as well as by the mapping it was built from: that mapping's 0 holds j,
+// and its index 0 holds the schema under k.
+type indexedDoc struct {
+	built  *yaml.Node
+	schema *oas3.JSONSchema[oas3.Referenceable]
+}
+
+// GetRootNode returns the mapping the document was built from.
+func (d *indexedDoc) GetRootNode() *yaml.Node { return d.built }
+
+// NavigateWithIndex answers index 0 with a map holding the schema under k.
+func (d *indexedDoc) NavigateWithIndex(i int) (any, error) {
+	if i != 0 {
+		return nil, errors.New("no such index")
+	}
+	return map[string]any{"k": d.schema}, nil
+}
