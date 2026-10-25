@@ -59,19 +59,23 @@ type decimalLiteral struct {
 // error, which reads as the number zero, so a caller must check the error.
 func ParseDecimal(s string) (Decimal, error) {
 	_, d, err := readDecimal(s)
-	return d, err
+	if err != nil {
+		return Decimal{}, fmt.Errorf("decimal: %q: %w", s, err)
+	}
+	return d, nil
 }
 
 // readDecimal splits and reads s, so [NewBigVal] spells the literal from the
-// split that [ParseDecimal] reads the value from.
+// split that [ParseDecimal] reads the value from. Its error is bare, for each
+// of them to name itself in.
 func readDecimal(s string) (decimalLiteral, Decimal, error) {
 	l, ok := scanDecimal(s)
 	if !ok {
-		return decimalLiteral{}, Decimal{}, fmt.Errorf("bigval: %q: %w", s, ErrNotDecimal)
+		return decimalLiteral{}, Decimal{}, ErrNotDecimal
 	}
 	d, err := l.decimal()
 	if err != nil {
-		return decimalLiteral{}, Decimal{}, fmt.Errorf("bigval: %q: %w", s, err)
+		return decimalLiteral{}, Decimal{}, err
 	}
 	return l, d, nil
 }

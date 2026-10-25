@@ -1,6 +1,9 @@
 package ir
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+)
 
 // BigVal is an arbitrary-precision numeric value carried as its decimal string
 // form. The IR never stores float64 (the TypeSpec Numeric lesson); [Decimal] is
@@ -23,7 +26,7 @@ type BigVal string
 func NewBigVal(s string) (BigVal, error) {
 	l, _, err := readDecimal(s)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("bigval: %q: %w", s, err)
 	}
 	return BigVal(jsonSpelling(l)), nil
 }

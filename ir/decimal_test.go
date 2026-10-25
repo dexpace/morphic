@@ -132,6 +132,25 @@ func TestParseDecimal_HoldsTheExponentRange(t *testing.T) {
 	}
 }
 
+// TestParseDecimal_ErrorNamesItsReader pins each refusal's text: the reader, the
+// literal and the reason. ParseDecimal and NewBigVal share one scan, and an error
+// from the first must not claim a BigVal it never built.
+func TestParseDecimal_ErrorNamesItsReader(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		in, decimal, bigVal string
+	}{
+		{"1p4", `decimal: "1p4": not a decimal numeric literal`, `bigval: "1p4": not a decimal numeric literal`},
+		{"1e1000000000000000000", `decimal: "1e1000000000000000000": exponent out of range`,
+			`bigval: "1e1000000000000000000": exponent out of range`},
+	} {
+		_, err := ir.ParseDecimal(tc.in)
+		assert.EqualError(t, err, tc.decimal)
+		_, err = ir.NewBigVal(tc.in)
+		assert.EqualError(t, err, tc.bigVal)
+	}
+}
+
 // TestDecimal_CmpOrdersEveryDecimalSpellingExactly pins the ordering the bound
 // reconciliation rests on. Every row is a pair a rounding comparison gets
 // wrong: values that differ past float64's precision, spellings of one value,
