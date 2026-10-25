@@ -10,8 +10,8 @@ import (
 
 // canonicalValue spells v so that two JSON-equal values spell alike: a number
 // by its value (ir.Decimal.String), an object by its members in name
-// order. ok is false for a kind JSON has no instance of, a number outside the
-// decimal grammar, or nesting past maxJudgeDepth.
+// order. ok is false for a kind JSON has no instance of, a number no Decimal
+// holds, or nesting past maxJudgeDepth.
 func canonicalValue(v ir.Value, depth int) (string, bool) {
 	if depth > maxJudgeDepth {
 		return "", false

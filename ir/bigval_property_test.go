@@ -17,11 +17,11 @@ var bigValAdversarialSeeds = []string{
 	// regardless of base ("1p4" is 1×2⁴ = 16, not the decimal its digits
 	// suggest), so these are the regression this property exists to catch.
 	"1p4", "2.5p-2", "5.p3", "1P4", "5P3", "0p0",
-	// Leading zeros, the other half of #45, fixed by canonicalIntegerPart and
-	// kept so the property covers both classes the issue reported.
+	// Leading zeros, the other half of #45, which jsonSpelling drops, kept so
+	// the property covers both classes the issue reported.
 	"05", "+05", "007", "-012", "00.5", "05e2", "-09", "007e2", "00",
 	// JSON-invalid affixes a valid literal can carry (a leading dot, a trailing
-	// dot, a leading "+"): canonicalDecimal's whole job.
+	// dot, a leading "+"): the rest of jsonSpelling's job.
 	".5", "-.5", "5.", "5.e3", "+5", "0.",
 	// Other bases and separators a decimal grammar must not read as its own.
 	"0x10", "0b101", "0o17", "1_000", "1,5", "1.2.3",

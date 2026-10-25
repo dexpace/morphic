@@ -269,8 +269,8 @@ func enumMemberKey(v ir.Value) (key string, ok bool) {
 	return tag + ":" + payload, true
 }
 
-// numberKey returns n's canonical decimal, or n as spelled outside that grammar.
-// No canonical decimal is outside it, so the two never meet as one key.
+// numberKey returns n's canonical decimal, or n as spelled when no Decimal holds
+// it. Every canonical decimal reads as one, so the two never meet as one key.
 func numberKey(n ir.BigVal) string {
 	if d, err := n.Decimal(); err == nil {
 		return d.String()

@@ -164,7 +164,7 @@ func isASCIIDigit(b byte) bool { return b >= '0' && b <= '9' }
 // exponentValue reads the exponent text scanDecimal vouched for: empty, or an
 // e or E, an optional sign and at least one digit. It saturates at
 // expSaturation before multiplying, so a digit run of any length reads in one
-// pass and its result stays within a few units of that cap.
+// pass and its result never exceeds that cap.
 func exponentValue(exponent string) int64 {
 	if exponent == "" {
 		return 0

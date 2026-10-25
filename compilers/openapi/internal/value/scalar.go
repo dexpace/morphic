@@ -175,10 +175,11 @@ func decodeIntLiteral(node *yaml.Node) (ir.BigVal, error) {
 	return ir.NewBigVal(plain)
 }
 
-// readsInBaseTen asks which base YAML reads an !!int spelling in. Every YAML base
-// prefix (0b, 0o, 0x, and YAML 1.1's bare 0) starts with a zero, so an
-// optionally signed digit run with no leading zero is the base-10 spelling. The
-// decimal grammar cannot answer this: 0644 is a decimal literal, and YAML's 420.
+// readsInBaseTen reports whether YAML reads the !!int spelling s in base 10.
+// Every YAML base prefix (0b, 0o, 0x, and YAML 1.1's bare 0) starts with a
+// zero, so an optionally signed digit run with no leading zero is the base-10
+// spelling. The decimal grammar cannot answer this: 0644 is a decimal literal,
+// and YAML's 420.
 func readsInBaseTen(s string) bool {
 	if s != "" && (s[0] == '+' || s[0] == '-') {
 		s = s[1:]
