@@ -119,14 +119,15 @@ A lowering rule says how one OpenAPI construct reaches the IR: the field it fill
    not.
 3. **Implement it** where the rules near yours are lowered: their Tests fields name the packages
    that hold the code, and `micro-compiler-design.md` says why each package holds what it does.
-   Within the package, the code goes in the file named for the construct it lowers, as `schema`'s
-   `allof.go` is, or, in a package split by responsibility, for the responsibility it serves, as
-   `merge`'s `visibility.go` is. A helper goes with what it serves, not with its caller, and a
-   construct or responsibility no file names gets a file of its own, however small. The parser
-   library's model can read an absent field and an empty one alike, so check what it returns before
-   you branch on it. The root guidance's caps apply: no function over 70 lines or a cognitive
-   complexity of 20, no type under `compilers/` over 20 methods, no doc comment over 100 words, and
-   no lint suppression in the source.
+   Within the package, the code joins the file that lowers its construct, as an allOf rule's code
+   joins `schema`'s `allof.go`, or, in a package split by responsibility, the file of the
+   responsibility it serves, as a visibility rule's joins `merge`'s `visibility.go`. A construct or
+   responsibility no file holds yet starts a file named for it, however small, and a helper goes
+   with what it serves, not with its caller. The
+   parser library's model can read an absent field and an empty one alike, so check what it
+   returns before you branch on it. The root guidance's caps apply: no function over 70 lines or a
+   cognitive complexity of 20, no type under `compilers/` over 20 methods, no doc comment over 100
+   words, and no lint suppression in the source.
    *Fails if missed:* `make lint`, `TestMethodsPerType_StayUnderTheCap`,
    `TestDocComments_StayUnderTheCap`, `TestSuppressions_NoDirectiveStandsInTheSource`. Nothing
    fails for code in the wrong file of its package.
