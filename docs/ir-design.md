@@ -999,14 +999,15 @@ is one RFC 6901 token, `<tag>:<payload>`, where the tag names the kind of value 
 symbol, `n` number, `b` bool, `x` bytes as unpadded URL-safe base64, `z` null — so the string `1`
 and the number `1` are two members. A number's payload is its canonical decimal
 (`ir.Decimal.String`): the leading significant digit, any others after a point, and the power of ten
-that digit carries, so `1500`, `1500.0` and `15e2` are all `1.5e3` and every zero is `0`. Only the key is canonical: the member's
-`Value` is unchanged. A list, object, reference or constructor value has no key, and an enum holding
-one is not an `Enum`. A value held twice keeps every member: the first has the bare key, and each
-repeat appends its occurrence number as one more token (`…/<key>/2`), as a repeated parameter does
-(§3.1), which no key can be, since every key opens with its tag and a colon. The OpenAPI compiler
-reports each repeat in the list as written (`openapi/duplicate-enum-value`), whether the list lowers
-to an `Enum` or degrades to a `Union`. Which repeat holds the bare ID follows source order, so a
-reorder keeps the set of IDs and may move that one.
+that digit carries, so `1500`, `1500.0` and `15e2` are all `1.5e3` and every zero is `0`. Only the
+key is canonical: the member's `Value` is unchanged. A list, object, reference or constructor value
+has no key, and an enum holding one is not an `Enum`. A value held twice keeps every member: the
+first has the bare key, and each repeat appends its occurrence number as one more token
+(`…/<key>/2`), as a repeated parameter does (§3.1), which no key can be, since every key opens with
+its tag and a colon. The OpenAPI compiler reports each repeat in the list as written
+(`openapi/duplicate-enum-value`), whether the list lowers to an `Enum` or degrades to a `Union`.
+Which repeat holds the bare ID follows source order, so a reorder keeps the set of IDs and may move
+that one.
 `pass.Validate` reports an ID repeated within one enum as `pass/duplicate-enum-member-id`.
 
 A **closed** Enum with **no members** is the empty value space — it admits its members and has

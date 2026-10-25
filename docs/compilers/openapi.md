@@ -1800,9 +1800,9 @@ of the node or carrier the position owns (a `Scalar`, a `Property` or a `Paramet
 is read off the raw node, never the parser's `float64`, so its `BigVal` keeps every digit the
 literal wrote ([`values`](#values)), a quoted one as the decimal it spells; one that is no decimal
 literal a `BigVal` holds is dropped with an `openapi/invalid-numeric-literal` error at the schema
-that wrote it. Exclusive bounds follow the declared dialect. In 3.0 the boolean modifies the bound beside it:
-`true` moves that bound to `ExclusiveMin` or `ExclusiveMax` and clears `Min` or `Max`, so a 3.0
-document and its 3.1 translation lower alike, `false` states nothing, and `true` with no bound
+that wrote it. Exclusive bounds follow the declared dialect. In 3.0 the boolean modifies the bound
+beside it: `true` moves that bound to `ExclusiveMin` or `ExclusiveMax` and clears `Min` or `Max`, so
+a 3.0 document and its 3.1 translation lower alike, `false` states nothing, and `true` with no bound
 beside it bounds nothing and is kept verbatim under `openapi:exclusiveMinimum` or
 `openapi:exclusiveMaximum` (`degraded_lowering`) with an `openapi/degraded-construct` warning. In
 3.1 and 3.2 the keyword is a bound of its own, kept beside `Min`/`Max` when both are declared, a
