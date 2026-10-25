@@ -487,6 +487,39 @@
           }
         },
         {
+          "id": "p/openapi/components/schemas/S/properties/vast",
+          "name": {
+            "source": "vast",
+            "canonical": "vast"
+          },
+          "wireName": "vast",
+          "type": {
+            "target": "t/prim/number",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "constraints": {
+            "min": "-1e2000000000",
+            "max": "1e2000000000",
+            "multipleOf": "1e-1000001",
+            "uniqueItems": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/S/properties/vast"
+          }
+        },
+        {
           "id": "p/openapi/components/schemas/S/properties/preserved",
           "name": {
             "source": "preserved",
@@ -603,7 +636,7 @@
     {
       "format": "openapi@3.1",
       "path": "numeric-precision.yaml",
-      "hash": "837bcd7be0a2bb0e52999a13dd7f444a8e16b12ad10b69ffd455f295372073ac"
+      "hash": "da3c656dba3563279ce2a96714ff32d37f000333cff766b043841bc3944765bc"
     }
   ]
 }

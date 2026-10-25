@@ -26,6 +26,7 @@ func TestValueFromNode_Scalars(t *testing.T) {
 		{"string", `"hi"`, ir.Value{Kind: ir.ValueString, Str: "hi"}},
 		{"int precision", "9007199254740993", ir.Value{Kind: ir.ValueNumber, Num: ir.BigVal("9007199254740993")}},
 		{"big decimal", "0.30000000000000004", ir.Value{Kind: ir.ValueNumber, Num: ir.BigVal("0.30000000000000004")}},
+		{"past a binary float's range", "1e2000000000", ir.Value{Kind: ir.ValueNumber, Num: ir.BigVal("1e2000000000")}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

@@ -197,6 +197,7 @@ var integerFields = map[string]string{
 	"Constraints.MaxProps":  "property-count bound",
 	"Position.Line":         "line inside a source file, not a position in any IR slice",
 	"Position.Column":       "column inside a source file, not a position in any IR slice",
+	"Decimal.exp":           "power of ten the leading significant digit carries, not a position",
 }
 
 // TestIntegerFields_AreAllClassified fails when ir declares an integer-typed

@@ -559,6 +559,20 @@ func TestEnumMemberIDs_OneNumberSpelledTwiceIsARepeat(t *testing.T) {
 	assert.Equal(t, 2, openapitest.CountDiagsAt(diags, diag.DuplicateEnumValue, ir.SeverityWarning))
 }
 
+// TestEnumMemberIDs_ANumberPastABinaryFloatIsANumber holds a literal no binary
+// float scales to as the number it is: 1e2000000000 and 10e1999999999 are one
+// value, so they key as numbers, the second a repeat of the first, and not as
+// the strings YAML leaves a literal past float64 as.
+func TestEnumMemberIDs_ANumberPastABinaryFloatIsANumber(t *testing.T) {
+	t.Parallel()
+	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(`    N:
+      type: number
+      enum: [1e2000000000, 10e1999999999]
+`))
+	assert.Equal(t, []string{"n:1e2000000000", "n:1e2000000000/2"}, memberKeys(enumOf(t, doc, componentID("N"))))
+	assert.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.DuplicateEnumValue, ir.SeverityWarning))
+}
+
 func TestEnumMemberIDs_NamesThatCanonicalizeToNothingStillGetIDs(t *testing.T) {
 	t.Parallel()
 	doc, _ := schema.LowerSpec(t, openapitest.ComponentSpec(`    E:

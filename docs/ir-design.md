@@ -997,9 +997,9 @@ render from the same words and are still two members, and reordering a list that
 once renames none. The key
 is one RFC 6901 token, `<tag>:<payload>`, where the tag names the kind of value — `s` string, `y`
 symbol, `n` number, `b` bool, `x` bytes as unpadded URL-safe base64, `z` null — so the string `1`
-and the number `1` are two members. A number's payload is its canonical decimal: the leading
-significant digit, any others after a point, and the power of ten that digit carries, so `1500`,
-`1500.0` and `15e2` are all `1.5e3` and every zero is `0`. Only the key is canonical: the member's
+and the number `1` are two members. A number's payload is its canonical decimal
+(`ir.Decimal.String`): the leading significant digit, any others after a point, and the power of ten
+that digit carries, so `1500`, `1500.0` and `15e2` are all `1.5e3` and every zero is `0`. Only the key is canonical: the member's
 `Value` is unchanged. A list, object, reference or constructor value has no key, and an enum holding
 one is not an `Enum`. A value held twice keeps every member: the first has the bare key, and each
 repeat appends its occurrence number as one more token (`…/<key>/2`), as a repeated parameter does
@@ -1470,7 +1470,13 @@ type CtorValue struct {
 }
 ```
 
-`BigVal` is a decimal-string wrapper: no float64 round-tripping anywhere in the IR.
+`BigVal` is a decimal-string wrapper: no float64 round-tripping anywhere in the IR. Its text is a
+JSON number: `NewBigVal` drops a leading `+`, gives the integer part one digit, drops a trailing
+point, and keeps every significant digit and the exponent as written. Its leading significant digit
+carries a power of ten within ±(10¹⁸ − 1) (`ir.MaxDecimalExp`), and zero is held at any exponent.
+`ir.Decimal` is the one reading of that text (sign, significant digits, that power of ten), never
+the value materialized. Order, equality, integrality and §4.5's canonical decimal
+(`ir.Decimal.String`) all derive from it.
 
 `symbol` is an interned-symbol value distinct from `string` (Erlang atoms: on the native wire
 `ok` ≠ `<<"ok">>`). Emitters without a symbol concept render symbols as strings — explicitly,
@@ -2690,8 +2696,8 @@ the IR and preserve nothing.
 
 ## 16. Open questions (tracked for implementation)
 
-1. **BigVal representation** — decimal string wrapper vs `math/big` types at the boundary;
-   leaning decimal-string in the IR, `math/big` in helpers.
+1. **BigVal representation** — settled: a decimal string in the IR (`BigVal`), read by
+   `ir.Decimal` without materializing it (§6).
 2. **Dedup aliasing mechanics** — alias table on Document vs ID rewriting with a redirect map;
    leaning alias table (IDs immutable, always).
 3. **Content negotiation in the plan layer** — the IR keeps all media types; the default

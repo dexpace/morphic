@@ -47,40 +47,50 @@ func TestNewBigVal_RejectsNonNumeric(t *testing.T) {
 			t.Parallel()
 			_, err := ir.NewBigVal(s)
 			require.Error(t, err)
+			assert.ErrorIs(t, err, ir.ErrNotDecimal)
 		})
 	}
 }
 
-// TestNewBigVal_RejectsAMagnitudeParseFloatWillNotCarry covers the two refusals
-// that outlive the grammar check. Both inputs are well-formed decimals, and
-// math/big reports them differently, so each has a row asserting its own arm:
-// an exponent ParseFloat cannot scan is an error, and one it scans but cannot
-// scale parses and reports IsInf.
-func TestNewBigVal_RejectsAMagnitudeParseFloatWillNotCarry(t *testing.T) {
+// TestNewBigVal_RefusesAnExponentPastTheRange covers the one refusal that
+// outlives the grammar check. Each input is a well-formed decimal whose leading
+// digit carries a power of ten past MaxDecimalExp, whether through its written
+// exponent, its digit count or both, and each is refused with ErrExponentRange
+// rather than as a malformed literal, since nothing about its spelling is wrong.
+func TestNewBigVal_RefusesAnExponentPastTheRange(t *testing.T) {
 	t.Parallel()
-	cases := []struct {
-		name, in, want string
-	}{
-		{
-			name: "an exponent that overflows to infinity",
-			in:   "1e2000000000",
-			want: `bigval: non-finite numeric literal "1e2000000000"`,
-		},
-		{
-			// ParseFloat returns a nil *Float with this error, so the error arm
-			// is also what keeps the IsInf call after it from dereferencing one.
-			name: "an exponent ParseFloat cannot scan",
-			in:   "1e999999999999999999",
-			want: `bigval: parse "1e999999999999999999"`,
-		},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
+	for _, in := range []string{
+		"1e1000000000000000000", "-1e1000000000000000000", "1e-1000000000000000000",
+		"10e999999999999999999", "0.1e-999999999999999999", "1e99999999999999999999999999999",
+		"1e-99999999999999999999999999999", "1e4000000000000000000",
+		"1e18446744073709551616", "1e-18446744073709551617",
+	} {
+		t.Run(in, func(t *testing.T) {
 			t.Parallel()
-			v, err := ir.NewBigVal(tc.in)
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), tc.want)
+			v, err := ir.NewBigVal(in)
+
+			require.ErrorIs(t, err, ir.ErrExponentRange)
 			assert.Empty(t, v, "a refused literal is never stored")
+		})
+	}
+}
+
+// TestNewBigVal_KeepsEveryExponentWithinTheRange pins that the range is the
+// bound's own and not a binary float's. Each literal was refused when an
+// arbitrary-precision float gated NewBigVal, and each is carried verbatim now,
+// down to a zero written at an exponent no integer holds.
+func TestNewBigVal_KeepsEveryExponentWithinTheRange(t *testing.T) {
+	t.Parallel()
+	for _, in := range []string{
+		"1e2000000000", "9e646456992", "1e-2147483650", "1e999999999999999999",
+		"0.01e1000000000000000000", "0e99999999999999999999999",
+	} {
+		t.Run(in, func(t *testing.T) {
+			t.Parallel()
+			v, err := ir.NewBigVal(in)
+
+			require.NoError(t, err)
+			assert.Equal(t, in, v.String())
 		})
 	}
 }

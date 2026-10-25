@@ -1,0 +1,246 @@
+package ir
+
+import (
+	"cmp"
+	"errors"
+	"fmt"
+	"strconv"
+	"strings"
+)
+
+// MaxDecimalExp bounds the power of ten a [Decimal] holds: the leading
+// significant digit of a nonzero value carries one within ±MaxDecimalExp. The
+// bound is on the value, not its spelling, so two spellings of one value are
+// accepted or refused together. At 10¹⁸ − 1 every quantity derived from two
+// exponents and a digit count, such as the gap between two values' lowest
+// digits, stays inside int64.
+const MaxDecimalExp = 999_999_999_999_999_999
+
+// expSaturation caps what exponentValue reads. It is far enough past
+// [MaxDecimalExp] that no digit count brings a saturated exponent back in range.
+const expSaturation = 4_000_000_000_000_000_000
+
+var (
+	// ErrNotDecimal is wrapped by the refusal of text outside the decimal
+	// numeric grammar: "1p4", "0x10", "NaN" and the empty string among it.
+	ErrNotDecimal = errors.New("not a decimal numeric literal")
+	// ErrExponentRange is wrapped by the refusal of a decimal whose leading
+	// digit carries a power of ten past [MaxDecimalExp].
+	ErrExponentRange = errors.New("exponent out of range")
+)
+
+// Decimal is the value a decimal numeric literal denotes, read without
+// materializing it: a sign, the significant digits and the power of ten the
+// leading digit carries, so 1e1000001 reads in constant space where math/big
+// will not build it.
+//
+// Digits hold no leading or trailing zero and are empty exactly for zero, which
+// is never negative. So == is value equality and a Decimal can key a map. The
+// zero value is the number zero. [ParseDecimal] builds one.
+type Decimal struct {
+	neg    bool
+	digits string
+	exp    int64
+}
+
+// decimalLiteral is a numeric literal split as written: its sign, the digit
+// runs either side of the point, and the exponent with its e or E and sign, or
+// "" when it has none. It keeps what [BigVal] spells and [Decimal] normalizes.
+type decimalLiteral struct {
+	neg           bool
+	intPart, frac string
+	exponent      string
+}
+
+// ParseDecimal reads s as a [Decimal]. It refuses text outside the decimal
+// numeric grammar with [ErrNotDecimal], and a nonzero value whose leading digit
+// carries a power of ten outside ±[MaxDecimalExp] with [ErrExponentRange].
+// Zero is accepted at any written exponent. The result is the zero Decimal on
+// error, which reads as the number zero, so a caller must check the error.
+func ParseDecimal(s string) (Decimal, error) {
+	_, d, err := readDecimal(s)
+	return d, err
+}
+
+// readDecimal splits and reads s, so [NewBigVal] spells the literal from the
+// split that [ParseDecimal] reads the value from.
+func readDecimal(s string) (decimalLiteral, Decimal, error) {
+	l, ok := scanDecimal(s)
+	if !ok {
+		return decimalLiteral{}, Decimal{}, fmt.Errorf("bigval: %q: %w", s, ErrNotDecimal)
+	}
+	d, err := l.decimal()
+	if err != nil {
+		return decimalLiteral{}, Decimal{}, fmt.Errorf("bigval: %q: %w", s, err)
+	}
+	return l, d, nil
+}
+
+// scanDecimal splits s by the grammar sign? (digits ("." digits*)? | "." digits)
+// ((e|E) sign? digits)? over ASCII and nothing else, and reports false for any
+// other text. math/big's base-10 parser reads a wider grammar, a p/P binary
+// exponent among it ("1p4" is 16), so none of it decides membership.
+func scanDecimal(s string) (decimalLiteral, bool) {
+	var l decimalLiteral
+	i := 0
+	if i < len(s) && (s[i] == '+' || s[i] == '-') {
+		l.neg = s[i] == '-'
+		i++
+	}
+	end := scanDigits(s, i)
+	l.intPart, i = s[i:end], end
+	if i < len(s) && s[i] == '.' {
+		end = scanDigits(s, i+1)
+		l.frac, i = s[i+1:end], end
+	}
+	if l.intPart == "" && l.frac == "" {
+		return decimalLiteral{}, false // no digit anywhere: "", "+", ".", "Inf"
+	}
+	if i < len(s) && (s[i] == 'e' || s[i] == 'E') {
+		start := i
+		i++
+		if i < len(s) && (s[i] == '+' || s[i] == '-') {
+			i++
+		}
+		end = scanDigits(s, i)
+		if end == i {
+			return decimalLiteral{}, false // an e with no exponent digits
+		}
+		l.exponent, i = s[start:end], end
+	}
+	if i != len(s) {
+		return decimalLiteral{}, false // unconsumed text: "0x10", "1p4", "5 "
+	}
+	return l, true
+}
+
+// scanDigits returns the index past the run of ASCII digits that starts at
+// s[i].
+func scanDigits(s string, i int) int {
+	for i < len(s) && isASCIIDigit(s[i]) {
+		i++
+	}
+	return i
+}
+
+// isASCIIDigit reports whether b is a decimal digit. The grammar is ASCII only,
+// so a byte scan is exact here and needs no rune decoding.
+func isASCIIDigit(b byte) bool { return b >= '0' && b <= '9' }
+
+// exponentValue reads the exponent text scanDecimal vouched for: empty, or an
+// e or E, an optional sign and at least one digit. It saturates at
+// expSaturation before multiplying, so a digit run of any length reads in one
+// pass and its result stays within a few units of that cap.
+func exponentValue(exponent string) int64 {
+	if exponent == "" {
+		return 0
+	}
+	body := exponent[1:] // past the e or E
+	neg := body[0] == '-'
+	if neg || body[0] == '+' {
+		body = body[1:]
+	}
+	var e int64
+	for i := range len(body) {
+		if e >= expSaturation/10 {
+			e = expSaturation
+			break
+		}
+		e = e*10 + int64(body[i]-'0')
+	}
+	if neg {
+		return -e
+	}
+	return e
+}
+
+// decimal reads l as a [Decimal]. Zero is accepted at any written exponent; any
+// other value must carry its leading digit's power of ten within ±[MaxDecimalExp].
+//
+// The sum below stays inside int64: exponentValue is at most 4·10¹⁸ in
+// magnitude and the digit term at most len(s), which is below Go's largest
+// allocation. Saturating an exponent never changes a verdict, since a saturated
+// exponent plus any string's digit count is still past the bound.
+func (l decimalLiteral) decimal() (Decimal, error) {
+	digits := l.intPart + l.frac
+	lead := strings.TrimLeft(digits, "0")
+	if lead == "" {
+		return Decimal{}, nil // zero, at any written exponent
+	}
+	exp := exponentValue(l.exponent) + int64(len(lead)-len(l.frac)-1)
+	if exp > MaxDecimalExp || exp < -MaxDecimalExp {
+		return Decimal{}, ErrExponentRange
+	}
+	return Decimal{neg: l.neg, digits: strings.TrimRight(lead, "0"), exp: exp}, nil
+}
+
+// Sign returns -1, 0 or +1 as d is negative, zero or positive. Having no digits
+// is checked first, so a literal that carries a minus and is zero is not read
+// as negative.
+func (d Decimal) Sign() int {
+	switch {
+	case d.digits == "":
+		return 0
+	case d.neg:
+		return -1
+	default:
+		return 1
+	}
+}
+
+// Cmp returns -1, 0 or +1 as d is less than, equal to or greater than e. It is
+// exact however far apart the magnitudes are: sign first, then the power of ten
+// the leading digit carries, then the digits as strings. That last step is exact
+// because trailing zeros are stripped, so at one exponent a run that is a strict
+// prefix of another is the smaller value.
+func (d Decimal) Cmp(e Decimal) int {
+	if order := cmp.Compare(d.Sign(), e.Sign()); order != 0 {
+		return order
+	}
+	if d.digits == "" {
+		return 0
+	}
+	order := cmp.Compare(d.exp, e.exp)
+	if order == 0 {
+		order = strings.Compare(d.digits, e.digits)
+	}
+	if d.neg {
+		return -order
+	}
+	return order
+}
+
+// IsInt reports whether d has no fractional part. Zero is integral.
+func (d Decimal) IsInt() bool {
+	return d.digits == "" || d.exp >= int64(len(d.digits))-1
+}
+
+// Exponent returns the power of ten the leading significant digit carries, so
+// 1500 is 3 and 0.05 is -2. It is 0 for zero.
+func (d Decimal) Exponent() int64 { return d.exp }
+
+// Digits returns the significant digits: no leading or trailing zero, and ""
+// for zero.
+func (d Decimal) Digits() string { return d.digits }
+
+// String returns the canonical decimal of d: the leading digit, the others
+// after a point, and the power of ten, so 1500, 15e2 and 1.5e3 are all "1.5e3".
+// Every zero is "0". Two literals share a spelling exactly when they are one
+// value.
+func (d Decimal) String() string {
+	if d.digits == "" {
+		return "0"
+	}
+	var b strings.Builder
+	if d.neg {
+		b.WriteByte('-')
+	}
+	b.WriteByte(d.digits[0])
+	if len(d.digits) > 1 {
+		b.WriteByte('.')
+		b.WriteString(d.digits[1:])
+	}
+	b.WriteByte('e')
+	b.WriteString(strconv.FormatInt(d.exp, 10))
+	return b.String()
+}

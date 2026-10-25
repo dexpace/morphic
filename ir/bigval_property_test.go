@@ -29,9 +29,11 @@ var bigValAdversarialSeeds = []string{
 	// specially: a grammar requiring a digit rejects them for a different
 	// reason than #45 but must still reject them.
 	"", "abc", "NaN", "Infinity", "Inf", "+Inf", "-Inf", ".inf",
-	// Magnitudes at the edge of what a *Float can represent, so the downstream
-	// IsInf check stays exercised by this corpus too.
+	// Magnitudes at the edge of the exponent range, on either side of it, and
+	// one that crosses it only through its digit count, so the bound this corpus
+	// reaches is the value's rather than the spelling's.
 	"1e400", "1e2000000000", "1e999999999999999999", "1.8e308",
+	"1e1000000000000000000", "0.01e1000000000000000000",
 	// Malformed exponents and bare punctuation: no digit anywhere, or an
 	// "e"/"E" with nothing on one side of it.
 	"-", "+", ".", "e5", "1e", "1e+", "--5", " 1", "1 ",

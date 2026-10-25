@@ -10,9 +10,9 @@ func schemaKeywords() []Field {
 		switch f.Name {
 		case "minimum", "maximum", "multipleOf", "exclusiveMinimum", "exclusiveMaximum":
 			// The schema lowering reads a bound off the raw node, a quoted number as the
-			// decimal it spells, and reports one that is no finite decimal or is written
-			// in the other dialect's form, so the table leaves the shape to it, bar a
-			// multipleOf written as a number no greater than 0.
+			// decimal it spells, and reports one that is no decimal a BigVal holds or is
+			// written in the other dialect's form, so the table leaves the shape to it,
+			// bar a multipleOf written as a number no greater than 0.
 			fields[i] = f.shapeOwnedBy(ownerSchema)
 		}
 	}

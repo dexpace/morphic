@@ -72,7 +72,7 @@ func TestCheck_ShapesFollowTheField(t *testing.T) {
 
 // TestCheck_NumbersFollowTheirShape pins the numeric shapes, and that the numeric
 // bounds the schema lowering reads off the raw node are left to it: it reports a
-// value that is no finite decimal, a null included, or is in the other
+// value that is no decimal a BigVal holds, a null included, or is in the other
 // dialect's form, and takes a quoted number as the decimal it spells. A number
 // outside a bound's range, a multipleOf no greater than 0, quoted or not, is
 // the table's.

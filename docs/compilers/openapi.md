@@ -194,7 +194,7 @@ A rule another lowering reports is stated in the table and left to it, so a docu
 report: [`operation-ids`](#operation-ids), a repeated parameter ([`parameters`](#parameters)), a
 security requirement naming no scheme and a scheme naming no mechanism
 ([`security-requirements`](#security-requirements)), an array schema without `items` in 3.0
-([`missing-array-items`](#missing-array-items)), a numeric bound that is no finite decimal
+([`missing-array-items`](#missing-array-items)), a numeric bound that is no decimal a `BigVal` holds
 ([`constraints`](#constraints)), and a request body's empty `content`
 ([`request-body`](#request-body)). A construct a later minor added is
 [`later-version-construct`](#later-version-construct)'s, and a keyword written where its location
@@ -680,7 +680,8 @@ int64 keeps every digit, `.5`, `+5` and `09` take their JSON spellings (`0.5`, `
 separators drop, a YAML integer base resolves (`0644` is `420`, `0x1f` is `31`, `0b1010` is `10`),
 and digits, exponent and trailing zeros otherwise stand as written (`10.0`, `1.10e+3`). A plain
 scalar that YAML resolves to a string only because it is past float64's range is still a number when
-it is a finite decimal literal; a quoted one stays a string. A value no `Value` holds — `.inf` or
+it is a decimal literal a `BigVal` holds (its exponent within `ir.MaxDecimalExp`); one past that
+stays the string YAML reads, and a quoted one stays a string. A value no `Value` holds — `.inf` or
 `.nan`, a `!!binary` that is not base64, a scalar whose text its tag does not admit (`!!null abc`,
 `!!timestamp soon`), a tag the compiler does not lower (`!acme`), a key a mapping or a mapping
 merged into it writes twice, a merge chain deeper than the reader expands, nesting past the reader's
@@ -1796,9 +1797,9 @@ of the node or carrier the position owns (a `Scalar`, a `Property` or a `Paramet
 `maxItems` and `uniqueItems` to the `List`'s, and a `Tuple`'s per [`tuples`](#tuples); and
 `minProperties` and `maxProperties` per [`additional-properties`](#additional-properties). A bound
 is read off the raw node, never the parser's `float64`, so its `BigVal` keeps every digit the
-literal wrote ([`values`](#values)), a quoted one as the decimal it spells; one that is no finite
-decimal literal is dropped with an `openapi/invalid-numeric-literal` error at the schema that wrote
-it. Exclusive bounds follow the declared dialect. In 3.0 the boolean modifies the bound beside it:
+literal wrote ([`values`](#values)), a quoted one as the decimal it spells; one that is no decimal
+literal a `BigVal` holds is dropped with an `openapi/invalid-numeric-literal` error at the schema
+that wrote it. Exclusive bounds follow the declared dialect. In 3.0 the boolean modifies the bound beside it:
 `true` moves that bound to `ExclusiveMin` or `ExclusiveMax` and clears `Min` or `Max`, so a 3.0
 document and its 3.1 translation lower alike, `false` states nothing, and `true` with no bound
 beside it bounds nothing and is kept verbatim under `openapi:exclusiveMinimum` or

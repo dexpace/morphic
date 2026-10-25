@@ -86,7 +86,7 @@ func Classify(n *yaml.Node) (Scalar, error) {
 }
 
 // text classifies a scalar YAML resolved to a string. A plain one that spells
-// a finite decimal is a number all the same: yaml.v3 resolves a number past
+// a decimal a BigVal holds is a number all the same: yaml.v3 resolves a number past
 // float64's range to a string, and the source wrote a number (GitHub #16). A
 // quoted one, or one tagged !!str outright, is the string it says.
 //
