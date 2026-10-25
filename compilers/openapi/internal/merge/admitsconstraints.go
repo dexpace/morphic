@@ -3,7 +3,6 @@ package merge
 import (
 	"unicode/utf8"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -37,10 +36,14 @@ func admitsConstraints(c *ir.Constraints, v ir.Value, depth int) bool {
 }
 
 // admitsNumber reports whether n meets c's numeric keywords: each bound, and
-// multipleOf where annotation.IsMultipleOf can say. Precision and scale have no
-// judge here.
+// multipleOf where isMultipleOf can say. A number or a bound that reads as no
+// number admits nothing. Precision and scale have no judge here.
 func admitsNumber(c *ir.Constraints, n ir.BigVal) bool {
 	if c.Precision != nil || c.Scale != nil {
+		return false
+	}
+	d, err := n.Decimal()
+	if err != nil {
 		return false
 	}
 	bounds := []struct {
@@ -56,14 +59,19 @@ func admitsNumber(c *ir.Constraints, n ir.BigVal) bool {
 		if b.bound == nil {
 			continue
 		}
-		if order, ok := annotation.CompareBigVal(n, *b.bound); !ok || !b.holds(order) {
+		bound, err := b.bound.Decimal()
+		if err != nil || !b.holds(d.Cmp(bound)) {
 			return false
 		}
 	}
 	if c.MultipleOf == nil {
 		return true
 	}
-	multiple, ok := annotation.IsMultipleOf(n, *c.MultipleOf)
+	step, err := c.MultipleOf.Decimal()
+	if err != nil {
+		return false
+	}
+	multiple, ok := isMultipleOf(d, step)
 	return ok && multiple
 }
 

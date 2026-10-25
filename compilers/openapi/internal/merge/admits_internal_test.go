@@ -71,6 +71,10 @@ func TestAdmits_JudgesEachKindExactly(t *testing.T) {
 		{"decimal128 lowest exponent", ir.PrimDecimal128, num("1e-6176"), true},
 		{"decimal128 below exponent", ir.PrimDecimal128, num("1e-6177"), false},
 		{"decimal128 string", ir.PrimDecimal128, str("1"), false},
+		{"decimal128 34 digits ending at the lowest exponent", ir.PrimDecimal128,
+			num("1.234567890123456789012345678901234e-6143"), true},
+		{"decimal128 34 digits ending one below it", ir.PrimDecimal128,
+			num("1.234567890123456789012345678901234e-6144"), false},
 		{"float32 last in", ir.PrimFloat32, num("340282356779733661637539395458142568447"), true},
 		{"float32 first out", ir.PrimFloat32, num("340282356779733661637539395458142568448"), false},
 		{"float32 negative last in", ir.PrimFloat32, num("-340282356779733661637539395458142568447"), true},
@@ -207,4 +211,31 @@ func TestAdmits_ReadsAHugeExponentWithoutMaterializingIt(t *testing.T) {
 		assert.False(t, admits(k, num("1e99999999999999999999")), "%s", k)
 	}
 	assert.Less(t, time.Since(start), 5*time.Second)
+}
+
+// TestDecimalOf_DeclinesWhatIsNoReadableNumber pins that a value with no number
+// to read is declined rather than read as zero: a literal outside the grammar, one
+// past the exponent range a BigVal holds, and a value that is no number at all.
+func TestDecimalOf_DeclinesWhatIsNoReadableNumber(t *testing.T) {
+	t.Parallel()
+	for _, v := range []ir.Value{num("1p4"), num("1e1000000000000000000"), str("1")} {
+		_, ok := decimalOf(v)
+
+		assert.False(t, ok, "%v", v)
+	}
+
+	d, ok := decimalOf(num("1e1000001"))
+	assert.True(t, ok)
+	assert.Equal(t, int64(1000001), d.Exponent())
+}
+
+// TestInRange_DeclinesABoundThatReadsAsNoNumber pins the second half of the
+// judge: a range whose end is no number admits nothing, where reading it as zero
+// would admit everything above it.
+func TestInRange_DeclinesABoundThatReadsAsNoNumber(t *testing.T) {
+	t.Parallel()
+	assert.True(t, inRange(num("5"), "0", "10"))
+	assert.False(t, inRange(num("5"), "1p4", "10"), "a low end outside the grammar")
+	assert.False(t, inRange(num("5"), "0", "1p4"), "a high end outside the grammar")
+	assert.False(t, inRange(num("-1"), "-5", "1p4"), "a high end that would read as zero, above this value")
 }

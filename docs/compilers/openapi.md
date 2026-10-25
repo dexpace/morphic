@@ -1165,7 +1165,7 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   `merge.TestTypeJudge_RelateArms`,
   `merge.TestTypeJudge_AdmitsPerNode`,
   `merge.TestAdmitsConstraints_JudgesEachKeyword`,
-  `annotation.TestIsMultipleOf_JudgesExactly`,
+  `merge.TestIsMultipleOf_JudgesExactly`,
   `schema.TestAllOf_AWinnersConstraintsRefuseADefaultInEitherOrder`,
   `merge.TestClassify_ALiteralOverlapsWhatHoldsValues`,
   `schema.TestAllOf_NonBareNarrowingIsOrderInvariant`,

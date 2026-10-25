@@ -11,7 +11,6 @@ import (
 	"github.com/speakeasy-api/openapi/values"
 
 	"github.com/dexpace/morphic/compilers/compile"
-	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
@@ -273,8 +272,8 @@ func enumMemberKey(v ir.Value) (key string, ok bool) {
 // numberKey returns n's canonical decimal, or n as spelled outside that grammar.
 // No canonical decimal is outside it, so the two never meet as one key.
 func numberKey(n ir.BigVal) string {
-	if canonical, ok := annotation.CanonicalDecimal(n); ok {
-		return canonical
+	if d, err := n.Decimal(); err == nil {
+		return d.String()
 	}
 	return string(n)
 }

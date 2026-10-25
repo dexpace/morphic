@@ -5,12 +5,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/ir"
 )
 
 // canonicalValue spells v so that two JSON-equal values spell alike: a number
-// by its value (annotation.CanonicalDecimal), an object by its members in name
+// by its value (ir.Decimal.String), an object by its members in name
 // order. ok is false for a kind JSON has no instance of, a number outside the
 // decimal grammar, or nesting past maxJudgeDepth.
 func canonicalValue(v ir.Value, depth int) (string, bool) {
@@ -25,7 +24,11 @@ func canonicalValue(v ir.Value, depth int) (string, bool) {
 	case ir.ValueString:
 		return strconv.Quote(v.Str), true
 	case ir.ValueNumber:
-		return annotation.CanonicalDecimal(v.Num)
+		d, err := v.Num.Decimal()
+		if err != nil {
+			return "", false
+		}
+		return d.String(), true
 	case ir.ValueList:
 		return canonicalMembers("[", "]", len(v.List), func(i int) (string, bool) {
 			return canonicalValue(v.List[i], depth+1)
