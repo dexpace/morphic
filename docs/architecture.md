@@ -485,10 +485,10 @@ hand-written walker from any other loop.
 ## 4. Diagnostics & provenance
 
 Every IR node carries a `Provenance`: the source file it came from, a JSON pointer into that file
-or, where the construct has no pointer yet, a line and column, and an `Inferred` marker naming the
-heuristic when applicable. A shared primitive, which every source reaches by kind, names no source
-(`NoSource`); so does a pass reporting on the document itself, which locates its finding by an
-IR-space `Node` instead. Every stage returns
+or, where the construct has no pointer yet, a line and column, and an `Inferred` marker listing the
+heuristics that produced it, when any did. A shared primitive, which every source reaches by kind,
+names no source (`NoSource`); so does a pass reporting on the document itself, which locates its
+finding by an IR-space `Node` instead. Every stage returns
 `[]Diagnostic{Severity, Code, Message, Provenance}`. Codes are stable strings
 (`openapi/unresolved-ref`, `ir/dangling-type-ref`, `pass/discriminator-missing-variant`) so CI
 can allowlist. A mature allowlist entry is keyed by (diagnostic code × entity ID), requires a
