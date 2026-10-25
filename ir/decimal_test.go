@@ -1,6 +1,7 @@
 package ir_test
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -130,6 +131,44 @@ func TestParseDecimal_HoldsTheExponentRange(t *testing.T) {
 			assert.Equal(t, ir.Decimal{}, d)
 		})
 	}
+}
+
+// TestParseDecimal_ReadsTheSignAndIntegralityPastTheRange pins what a refusal
+// past the range still says of the value: its sign, and that it is an integer
+// past the top and a fraction past the bottom, including where only the digit
+// count or a saturated exponent carries it there. A caller asking only those,
+// as a spec's validation does, reads every literal the grammar admits.
+func TestParseDecimal_ReadsTheSignAndIntegralityPastTheRange(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		in    string
+		sign  int
+		isInt bool
+	}{
+		{"1e1000000000000000000", 1, true},
+		{"-1e1000000000000000000", -1, true},
+		{"1.5e1000000000000000000", 1, true},
+		{"10e999999999999999999", 1, true},
+		{"-1e99999999999999999999999999999", -1, true},
+		{"1e-1000000000000000000", 1, false},
+		{"-1e-1000000000000000000", -1, false},
+		{"0.1e-999999999999999999", 1, false},
+		{"-1e-99999999999999999999999999999", -1, false},
+	} {
+		t.Run(tc.in, func(t *testing.T) {
+			t.Parallel()
+			_, err := ir.ParseDecimal(tc.in)
+
+			past, ok := errors.AsType[*ir.ExponentRangeError](err)
+			require.True(t, ok, "a refusal past the range is an ExponentRangeError: %v", err)
+			assert.Equal(t, tc.sign, past.Sign())
+			assert.Equal(t, tc.isInt, past.IsInt())
+		})
+	}
+
+	_, err := ir.ParseDecimal("1p4")
+	_, ok := errors.AsType[*ir.ExponentRangeError](err)
+	assert.False(t, ok, "text outside the grammar has no sign to read")
 }
 
 // TestParseDecimal_ErrorNamesItsReader pins each refusal's text: the reader, the

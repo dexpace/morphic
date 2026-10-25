@@ -24,10 +24,40 @@ var (
 	// ErrNotDecimal is wrapped by the refusal of text outside the decimal
 	// numeric grammar: "1p4", "0x10", "NaN" and the empty string among it.
 	ErrNotDecimal = errors.New("not a decimal numeric literal")
-	// ErrExponentRange is wrapped by the refusal of a decimal whose leading
-	// digit carries a power of ten past [MaxDecimalExp].
+	// ErrExponentRange is what an [ExponentRangeError] wraps: the refusal of a
+	// decimal whose leading digit carries a power of ten past [MaxDecimalExp].
 	ErrExponentRange = errors.New("exponent out of range")
 )
+
+// ExponentRangeError is the refusal of a nonzero decimal whose leading digit
+// carries a power of ten past ±[MaxDecimalExp]. It matches [ErrExponentRange]
+// under errors.Is. No [Decimal] holds the value, but its sign and integrality
+// still read, so a caller that asks only those of a literal is not bound by the
+// range.
+type ExponentRangeError struct {
+	neg   bool
+	small bool // the power of ten is below -MaxDecimalExp rather than above +MaxDecimalExp
+}
+
+// Error returns the text of [ErrExponentRange].
+func (e *ExponentRangeError) Error() string { return ErrExponentRange.Error() }
+
+// Unwrap returns [ErrExponentRange].
+func (e *ExponentRangeError) Unwrap() error { return ErrExponentRange }
+
+// Sign returns -1 or +1 as the refused value is negative or positive. It is
+// never 0, since zero is held at any exponent.
+func (e *ExponentRangeError) Sign() int {
+	if e.neg {
+		return -1
+	}
+	return 1
+}
+
+// IsInt reports whether the refused value is an integer. Past the top of the
+// range it is, since only a digit count no string reaches would bring its last
+// digit below the units place. Past the bottom it is a fraction.
+func (e *ExponentRangeError) IsInt() bool { return !e.small }
 
 // Decimal is the value a decimal numeric literal denotes, read without
 // materializing it: a sign, the significant digits and the power of ten the
@@ -54,7 +84,7 @@ type decimalLiteral struct {
 
 // ParseDecimal reads s as a [Decimal]. It refuses text outside the decimal
 // numeric grammar with [ErrNotDecimal], and a nonzero value whose leading digit
-// carries a power of ten outside ±[MaxDecimalExp] with [ErrExponentRange].
+// carries a power of ten outside ±[MaxDecimalExp] with an [ExponentRangeError].
 // Zero is accepted at any written exponent. The result is the zero Decimal on
 // error, which reads as the number zero, so a caller must check the error.
 func ParseDecimal(s string) (Decimal, error) {
@@ -173,7 +203,7 @@ func (l decimalLiteral) decimal() (Decimal, error) {
 	}
 	exp := exponentValue(l.exponent) + int64(len(lead)-len(l.frac)-1)
 	if exp > MaxDecimalExp || exp < -MaxDecimalExp {
-		return Decimal{}, ErrExponentRange
+		return Decimal{}, &ExponentRangeError{neg: l.neg, small: exp < 0}
 	}
 	return Decimal{neg: l.neg, digits: strings.TrimRight(lead, "0"), exp: exp}, nil
 }
