@@ -17,14 +17,13 @@ var (
 // the canonical form ir.NewBigVal produces.
 //
 // ir.BigVal is a defined string type, so ir.BigVal(raw) skips ir.NewBigVal, and
-// with no UnmarshalJSONFrom a decoded document never meets the constructor
-// (GitHub #282). A round trip cannot catch it: a string is carried faithfully.
+// a decoded document never meets the constructor (GitHub #282). A round trip
+// cannot catch it: a string is carried faithfully.
 //
 // The three codes name different repairs: a value the constructor rejects is not
-// a number; one it refuses for its magnitude is a number a BigVal does not hold;
-// one it rewrites is spelled a way JSON does not admit (a leading "+", a
-// redundant zero, a bare dot). The walk reaches the literals, so a new numeric
-// field is covered at once.
+// a number; one it refuses for its magnitude is past what a BigVal holds; one it
+// rewrites is spelled a way JSON does not admit. The walk reaches the literals,
+// so a new numeric field is covered at once.
 func checkBigVals(doc *ir.Document, _ declarations) ([]Violation, bool) {
 	var vs []Violation
 	truncated := ir.WalkValues(doc, ir.DocumentPath, func(v reflect.Value, path string) bool {
