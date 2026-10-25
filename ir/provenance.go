@@ -46,8 +46,9 @@ type Provenance struct {
 	// path through the document's own fields, for what an IR pass reports about
 	// the document it was handed. Spelling is the producer's; nothing parses it.
 	Node string `json:"node,omitempty"`
-	// Inferred is "" for declared facts; otherwise it names the heuristic that
-	// produced this node (e.g. "pagination-name-match").
+	// Inferred is "" for declared facts; otherwise it lists the heuristics that
+	// produced this node, comma-separated in the order they applied
+	// ([JoinInferred]), e.g. "group-path-prefix,extension-promotion".
 	Inferred string `json:"inferred,omitempty"`
 }
 

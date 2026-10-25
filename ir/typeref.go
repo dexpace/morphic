@@ -22,8 +22,8 @@ type TypeRef struct {
 	// OAS 3.1 type: [T, "null"], TypeSpec T | null, GraphQL absence-of-!.
 	Nullable bool `json:"nullable"`
 	// Inferred is empty when the source declares that this usage admits null.
-	// Otherwise it names the heuristic that read null in, as
-	// Provenance.Inferred names one, since a reference has no provenance of its
+	// Otherwise it lists the heuristics that read null in, as
+	// Provenance.Inferred lists them, since a reference has no provenance of its
 	// own (ir-design §3.3). It is set only on a Nullable reference.
 	Inferred string `json:"inferred,omitempty"`
 }

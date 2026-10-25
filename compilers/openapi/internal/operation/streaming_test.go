@@ -265,3 +265,29 @@ func TestStreaming_MarkerListsEveryHeuristicThatApplied(t *testing.T) {
 	op := openapitest.FindOp(t, doc, "getEvents")
 	assert.Equal(t, "group-path-prefix,streaming-media-type", op.Provenance.Inferred)
 }
+
+// TestStreaming_MarkerListKeepsAPromotionBesideBoth extends the pin above to a
+// third heuristic: an operation grouped by path prefix, streaming by media type
+// and carrying a promoted deprecation reason names all three, in the order they
+// applied, and the promotion's marker does not displace the other two.
+func TestStreaming_MarkerListKeepsAPromotionBesideBoth(t *testing.T) {
+	t.Parallel()
+	src := openapitest.PathsSpecVer("3.1.0", `  /events:
+    get:
+      operationId: getEvents
+      deprecated: true
+      x-deprecated-reason: why
+      responses:
+        "200":
+          description: stream
+          content:
+            text/event-stream:
+              schema: {type: object, properties: {msg: {type: string}}}
+`)
+	doc, _ := streamingSpec(t, src, openapi.Options{Grouping: openapi.GroupByPathPrefix})
+	op := openapitest.FindOp(t, doc, "getEvents")
+
+	assert.Equal(t, "group-path-prefix,streaming-media-type,extension-promotion", op.Provenance.Inferred)
+	require.NotNil(t, op.Deprecation)
+	assert.Equal(t, "why", op.Deprecation.Message)
+}

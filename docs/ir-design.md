@@ -591,7 +591,7 @@ An alias can also collide with *another* entity's name, and that is not a rule o
 type TypeRef struct {
     Target   TypeID
     Nullable bool     // this *usage* admits null on the wire
-    Inferred string   // "" = the source declares the null; else the heuristic that read it in
+    Inferred string   // "" = the source declares the null; else the heuristics that read it in (§12)
 }
 ```
 
@@ -2339,7 +2339,9 @@ this from `Unmodeled` and no two derive it differently:
    makes losslessness independent of the policy — a disabled promotion loses nothing.
 3. **The node records that it was inferred**, in its own `Provenance.Inferred`, naming the
    heuristic. `Inferred` holds one string and a node can be reached by more than one heuristic, so
-   the names are listed rather than overwritten, and a name already listed is not repeated.
+   the names are listed rather than overwritten, and a name already listed is not repeated. The
+   list joins the names with commas in the order the heuristics first applied, none empty
+   (`ir.JoinInferred`); `TypeRef.Inferred` (§3.3) lists them the same way.
 4. **A node with no `Provenance` is not promoted into.** A node carrying a `Deprecation` and no
    provenance could not satisfy rule 3, and a heuristic that cannot be audited is worse than an
    empty field. Giving such a node a provenance is a change to this document, and the promotion
@@ -2435,7 +2437,7 @@ type Provenance struct {
     Pointer  jsontext.Pointer // RFC 6901 pointer into that source; "" locates nothing finer than the source
     Position Position         // 1-based line and column into that source, for a finding on a raw node
     Node     string           // IR-space location: a stable ID or a path through the document's own fields
-    Inferred string           // "" = declared; else the heuristic that produced this node ("pagination-name-match")
+    Inferred string           // "" = declared; else the heuristics that produced this node, comma-separated (§12)
 }
 
 type Position struct {

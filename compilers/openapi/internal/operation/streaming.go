@@ -2,7 +2,6 @@ package operation
 
 import (
 	"encoding/json/jsontext"
-	"strings"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
@@ -156,21 +155,4 @@ func streamingMode(request, response bool) ir.StreamingMode {
 func unelectedElementDiag(c lowering.Ctx, pointer jsontext.Pointer, direction string) ir.Diagnostic {
 	return c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer,
 		"the %s streams more than one element type, so it is left unnamed rather than electing one", direction)
-}
-
-// joinInferred names every heuristic that shaped one node, in the order the
-// lowering applied them.
-//
-// Provenance.Inferred holds one string and more than one heuristic can reach a
-// single operation — grouping by path prefix and reading a stream out of a media
-// type are independent choices. Keeping only the first would make the second
-// invisible, which defeats the marker's whole purpose, so they are listed.
-func joinInferred(markers ...string) string {
-	kept := make([]string, 0, len(markers))
-	for _, marker := range markers {
-		if marker != "" {
-			kept = append(kept, marker)
-		}
-	}
-	return strings.Join(kept, ",")
 }
