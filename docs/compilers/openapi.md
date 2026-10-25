@@ -681,24 +681,25 @@ int64 keeps every digit, `.5`, `+5` and `09` take their JSON spellings (`0.5`, `
 separators drop, a YAML integer base resolves (`0644` is `420`, `0x1f` is `31`, `0b1010` is `10`),
 and digits, exponent and trailing zeros otherwise stand as written (`10.0`, `1.10e+3`). A plain
 scalar that YAML resolves to a string only because it is past float64's range is still a number when
-it is a decimal literal a `BigVal` holds (its exponent within `ir.MaxDecimalExp`); one past that
-stays the string YAML reads, and a quoted one stays a string. A value no `Value` holds — `.inf` or
-`.nan`, a `!!binary` that is not base64, a scalar whose text its tag does not admit (`!!null abc`,
-`!!timestamp soon`), a tag the compiler does not lower (`!acme`), a key a mapping or a mapping
-merged into it writes twice, a merge chain deeper than the reader expands, nesting past the reader's
-depth bound — is not coerced: a default or example is dropped with an `openapi/degraded-construct`
-warning at its position, and a `const` or an enum member is [`enum-const`](#enum-const)'s. The
-number reader is the numeric bounds' as well ([`constraints`](#constraints)). A value kept verbatim
-instead is [`verbatim-preservation`](#verbatim-preservation)'s.
+it is a decimal literal a `BigVal` holds (its exponent within `ir.MaxDecimalExp`), and a quoted one
+stays a string. A value no `Value` holds — `.inf` or `.nan`, a `!!binary` that is not base64, a
+scalar whose text its tag does not admit (`!!null abc`, `!!timestamp soon`), a tag the compiler does
+not lower (`!acme`), a key a mapping or a mapping merged into it writes twice, a merge chain deeper
+than the reader expands, nesting past the reader's depth bound — is not coerced: a default or example
+is dropped with an `openapi/degraded-construct` warning at its position, and a `const` or an enum
+member is [`enum-const`](#enum-const)'s. The number reader is the numeric bounds' as well
+([`constraints`](#constraints)). A value kept verbatim instead is
+[`verbatim-preservation`](#verbatim-preservation)'s.
 
 - Cases: `defaults`, `yaml-timestamp-scalars`, `numeric-precision`, `yaml-merge-keys`
 - Codes: `openapi/degraded-construct`
 - Tests: `value.TestNumericLiteral_YAMLBases`, `value.TestValueFromNode_Timestamp`,
-  `value.TestValueFromNode_ReadsAMappingAsTheParserDoes`,
+  `value.TestValueFromNode_Scalars`, `value.TestValueFromNode_ReadsAMappingAsTheParserDoes`,
   `value.TestValueFromNode_RefusesWhatNoObjectHolds`, `value.TestClassify_ReadsEachSpellingOnce`,
   `annotation.TestSchemaExamplesAt_UnconvertibleValueIsReportedNotDropped`
 - Status: partly built: an unconvertible default is reported at the schema of the property or
-  parameter that reads it rather than at its own position (#1101).
+  parameter that reads it rather than at its own position (#1101); and a plain number past
+  `ir.MaxDecimalExp` lowers as the string YAML reads, unreported (#1115).
 
 ## 4. Schemas: identity, references and annotations
 
@@ -1818,7 +1819,8 @@ on an object.
   `openapi/degraded-construct`
 - Tests: `schema.TestConstraints_ExclusiveBoolean30`,
   `schema.TestConstraints_ExclusiveWrongDialectForm`,
-  `schema.TestConstraints_LosslessNumericLiterals`
+  `schema.TestConstraints_LosslessNumericLiterals`,
+  `schema.TestConstraints_ABoundPastTheExponentRangeIsRefused`
 - Status: partly built: a bound beside a `oneOf` or `anyOf` that lowers to a `Union` is dropped in
   silence (#848), and so is one beside a multi-typed schema that no carrier holds
   ([`type-arrays`](#type-arrays), #852); and an integer bound past what a 64-bit integer holds

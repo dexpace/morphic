@@ -87,8 +87,9 @@ func Classify(n *yaml.Node) (Scalar, error) {
 
 // text classifies a scalar YAML resolved to a string. A plain one that spells
 // a decimal a BigVal holds is a number all the same: yaml.v3 resolves a number past
-// float64's range to a string, and the source wrote a number (GitHub #16). A
-// quoted one, or one tagged !!str outright, is the string it says.
+// float64's range to a string, and the source wrote a number (GitHub #16). One
+// past ir.MaxDecimalExp stays a string, unreported (GitHub #1115). A quoted one,
+// or one tagged !!str outright, is the string it says.
 //
 // `<<` written as a value, which yaml.v3 tags !!merge wherever it stands, is
 // the text it spells: only a key merges.
