@@ -156,6 +156,7 @@ func TestNumericLiteral_ExplicitIntBeyondUint64(t *testing.T) {
 		{"positive", "!!int 99999999999999999999999", "99999999999999999999999"},
 		{"negative", "!!int -99999999999999999999999", "-99999999999999999999999"},
 		{"separators", "!!int 99_999_999_999_999_999_999_999", "99999999999999999999999"},
+		{"plus sign", "!!int +99999999999999999999999", "99999999999999999999999"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -179,7 +180,14 @@ func TestNumericLiteral_NilNode(t *testing.T) {
 // base would have to be guessed. Neither may fall back to its source text.
 func TestNumericLiteral_UndecodableInt(t *testing.T) {
 	t.Parallel()
-	for _, src := range []string{"12abc", "077777777777777777777777", "0x1FFFFFFFFFFFFFFFFFFFF", ""} {
+	for _, src := range []string{
+		"12abc", "077777777777777777777777", "0x1FFFFFFFFFFFFFFFFFFFF", "",
+		// Valid decimal literals, and no integer: an !!int spelling must be a
+		// digit run, whatever a decimal grammar would accept.
+		"1e30", "1.5", "+-5",
+		// A base prefix behind a sign.
+		"-0x1FFFFFFFFFFFFFFFFFFFF", "-077777777777777777777777",
+	} {
 		t.Run(src, func(t *testing.T) {
 			t.Parallel()
 			_, err := value.NumericLiteral(openapitest.ScalarNode("!!int", src))

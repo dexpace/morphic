@@ -158,8 +158,7 @@ func NumericLiteral(node *yaml.Node) (ir.BigVal, error) {
 // A magnitude past uint64 reaches an !!int node only when the source tags one
 // explicitly (yaml.v3 resolves an untagged one as !!float), so nothing can
 // decode it and its text is taken at face value. That is safe only for a
-// spelling with no base prefix; every prefix starts with a zero, so a plain
-// decimal run is the test.
+// spelling readsInBaseTen accepts: one with no base prefix.
 func decodeIntLiteral(node *yaml.Node) (ir.BigVal, error) {
 	var signed int64
 	if err := node.Decode(&signed); err == nil {
@@ -170,16 +169,17 @@ func decodeIntLiteral(node *yaml.Node) (ir.BigVal, error) {
 		return ir.NewBigVal(strconv.FormatUint(unsigned, 10))
 	}
 	plain := strings.ReplaceAll(node.Value, "_", "")
-	if !isPlainDecimal(plain) {
+	if !readsInBaseTen(plain) {
 		return "", fmt.Errorf("openapi: integer literal %q resolves to no base-10 value", node.Value)
 	}
 	return ir.NewBigVal(plain)
 }
 
-// isPlainDecimal reports whether s is an optionally signed run of digits with no
-// leading zero — the spellings whose value in base 10 is what they say, with no
-// YAML base prefix to reinterpret.
-func isPlainDecimal(s string) bool {
+// readsInBaseTen asks which base YAML reads an !!int spelling in. Every YAML base
+// prefix (0b, 0o, 0x, and YAML 1.1's bare 0) starts with a zero, so an
+// optionally signed digit run with no leading zero is the base-10 spelling. The
+// decimal grammar cannot answer this: 0644 is a decimal literal, and YAML's 420.
+func readsInBaseTen(s string) bool {
 	if s != "" && (s[0] == '+' || s[0] == '-') {
 		s = s[1:]
 	}
