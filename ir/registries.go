@@ -7,7 +7,7 @@ import (
 )
 
 // idFieldName is the field through which a node declares its own identity. It is
-// spelled once here because [DeclaredIDs] reaches it by name, which the Go
+// spelled once here because [DeclaredIDOf] reaches it by name, which the Go
 // compiler cannot check.
 const idFieldName = "ID"
 
@@ -127,10 +127,9 @@ func idClassRoots() []reflect.Type {
 }
 
 // appendIDClasses records the ID class t declares for itself, if any, and appends
-// the types reachable from t. It reads the same rule declaredID reads off a
-// value: a field named ID, declared by t rather than promoted into it, whose type
-// is a named string. A promoted field belongs to the struct that declares it, and
-// that struct is reached in its own right.
+// the types reachable from t. The class is the one [DeclaredIDOf] reads off a
+// value, through declaredIDField. A promoted field belongs to the struct that
+// declares it, and that struct is reached in its own right.
 func appendIDClasses(dst []reflect.Type, classes map[reflect.Type]bool, t reflect.Type) []reflect.Type {
 	switch t.Kind() {
 	case reflect.Pointer, reflect.Slice, reflect.Array:
@@ -138,10 +137,10 @@ func appendIDClasses(dst []reflect.Type, classes map[reflect.Type]bool, t reflec
 	case reflect.Map:
 		return append(dst, t.Key(), t.Elem())
 	case reflect.Struct:
+		if f, ok := declaredIDField(t); ok {
+			classes[f.Type] = true
+		}
 		for f := range t.Fields() {
-			if f.Name == idFieldName && namedString(f.Type) {
-				classes[f.Type] = true
-			}
 			dst = append(dst, f.Type)
 		}
 		return dst
@@ -176,10 +175,7 @@ type IDDeclaration struct {
 func DeclaredIDs(doc *Document) ([]IDDeclaration, bool) {
 	var decls []IDDeclaration
 	truncated := WalkValues(doc, DocumentPath, func(v reflect.Value, path string) bool {
-		if v.Kind() != reflect.Struct {
-			return true
-		}
-		if id, class, declares := declaredID(v); declares {
+		if class, id, declares := DeclaredIDOf(v); declares && id != "" {
 			decls = append(decls, IDDeclaration{Class: class, ID: id, Path: path})
 		}
 		return true
@@ -187,23 +183,41 @@ func DeclaredIDs(doc *Document) ([]IDDeclaration, bool) {
 	return decls, truncated
 }
 
-// declaredID returns the identity v declares for itself: the value of a field
-// named ID that v's own type declares and that is a named string type.
+// DeclaredIDOf returns the class of ID v declares for itself, that ID, and
+// whether v declares one at all: a field named ID that v's own struct type
+// declares, of a named string type. A field an embedded struct promotes is that
+// struct's declaration, not v's.
+//
+// An empty ID is reported with declares true, so a checker can flag it where
+// [DeclaredIDs] drops it. A value that is no such struct, a pointer, a
+// non-struct and the zero [reflect.Value] included, declares nothing.
+func DeclaredIDOf(v reflect.Value) (class reflect.Type, id string, declares bool) {
+	if !v.IsValid() {
+		return nil, "", false
+	}
+	f, ok := declaredIDField(v.Type())
+	if !ok {
+		return nil, "", false
+	}
+	return f.Type, v.Field(f.Index[0]).String(), true
+}
+
+// declaredIDField returns the field through which struct type t declares its own
+// identity, so the rule is written once for a value and for a type.
 //
 // A promoted field is not its own declaration: len(f.Index) is 1 only for a
 // field the struct declares directly. Every type node embeds [TypeCommon] and
 // so promotes its ID, and counting that too would declare each type ID twice. A
 // field named ID that is not a named string type settles no class of reference.
-func declaredID(v reflect.Value) (id string, class reflect.Type, declares bool) {
-	f, isDeclared := v.Type().FieldByName(idFieldName)
-	if !isDeclared || len(f.Index) != 1 || !namedString(f.Type) {
-		return "", nil, false
+func declaredIDField(t reflect.Type) (reflect.StructField, bool) {
+	if t.Kind() != reflect.Struct {
+		return reflect.StructField{}, false
 	}
-	value := v.Field(f.Index[0]).String()
-	if value == "" {
-		return "", nil, false // an empty ID names nothing to resolve against
+	f, found := t.FieldByName(idFieldName)
+	if !found || len(f.Index) != 1 || !namedString(f.Type) {
+		return reflect.StructField{}, false
 	}
-	return value, f.Type, true
+	return f, true
 }
 
 // DocumentRegistries derives doc's registries from Document's own shape: a field
