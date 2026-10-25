@@ -92,6 +92,15 @@ func TestVerify_NonNumericBigValIsAViolation(t *testing.T) {
 	}
 }
 
+// TestVerify_OutOfRangeBigValIsAViolation drives the third refusal: a literal
+// that is a well-formed decimal whose leading digit carries a power of ten past
+// what a BigVal holds. It is reported under a code of its own, since calling it
+// "not a decimal literal" would be false of text that is one.
+func TestVerify_OutOfRangeBigValIsAViolation(t *testing.T) {
+	t.Parallel()
+	assertBigValCode(t, "1e1000000000000000000", "ir/bigval-out-of-range")
+}
+
 // TestVerify_NonCanonicalBigValIsAViolation drives the half ir.NewBigVal
 // accepts and rewrites. Each of these is a number, and none of them is one JSON
 // admits, so a consumer splicing the text into JSON or into generated source
@@ -116,6 +125,8 @@ func TestVerify_CanonicalBigValIsClean(t *testing.T) {
 	for _, literal := range []string{
 		"1", "-0", "0.5", "1e10", "1E-30", "9007199254740993",
 		"123456789012345678901234567890.123456789",
+		// Past a binary float's range and at the edge of a BigVal's own.
+		"1e2000000000", "1e999999999999999999",
 	} {
 		t.Run(literal, func(t *testing.T) {
 			t.Parallel()
