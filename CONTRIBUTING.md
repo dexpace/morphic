@@ -118,13 +118,19 @@ A lowering rule says how one OpenAPI construct reaches the IR: the field it fill
    `TestLoweringSpec_TextStatesEachCodeAndNoIssue` for one the Codes field names and the text does
    not.
 3. **Implement it** where the rules near yours are lowered: their Tests fields name the packages
-   that hold the code, and `micro-compiler-design.md` says why each package holds what it does. The
+   that hold the code, and `micro-compiler-design.md` says why each package holds what it does.
+   Within the package, the code joins the file that lowers its construct, as an allOf rule's code
+   joins `schema`'s `allof.go`, or, in a package split by responsibility, the file of the
+   responsibility it serves, as a visibility rule's joins `merge`'s `visibility.go`. A construct or
+   responsibility no file holds yet starts a file named for it, however small, and a helper goes
+   with what it serves, not with its caller. The
    parser library's model can read an absent field and an empty one alike, so check what it
    returns before you branch on it. The root guidance's caps apply: no function over 70 lines or a
    cognitive complexity of 20, no type under `compilers/` over 20 methods, no doc comment over 100
    words, and no lint suppression in the source.
    *Fails if missed:* `make lint`, `TestMethodsPerType_StayUnderTheCap`,
-   `TestDocComments_StayUnderTheCap`, `TestSuppressions_NoDirectiveStandsInTheSource`.
+   `TestDocComments_StayUnderTheCap`, `TestSuppressions_NoDirectiveStandsInTheSource`. Nothing
+   fails for code in the wrong file of its package.
 4. **Add a conformance case and a unit test.** Write a minimal spec at
    `testdata/conformance/openapi/<name>.yaml` that exercises the rule, add an entry to
    `conformanceCases()` in `compilers/openapi/e2e/conformance_test.go` naming its assertion, list it
@@ -141,7 +147,7 @@ A lowering rule says how one OpenAPI construct reaches the IR: the field it fill
 
    Coverage is counted per package, and the case runs in `compilers/openapi/e2e`, which holds no
    code of its own, so it covers nothing: the code you wrote also needs a test in its own package,
-   which the rule's Tests field then names.
+   placed as [Where a test goes](#where-a-test-goes) says, which the rule's Tests field then names.
    *Fails if missed:* `TestConformance_TableNamesEveryCorpusSpec` for a spec with no entry,
    `TestConformance/<name>` for a golden that does not match, `TestLoweringSpec_CasesAreTheCorpus`
    for a case no rule names, `TestConformance_EveryRegisteredFormatIsHeldToItsColumn` for a name in
