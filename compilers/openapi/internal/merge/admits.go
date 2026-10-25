@@ -140,7 +140,8 @@ func admitsFloat(v ir.Value, mantissa, maxExp uint) bool {
 	limit := new(big.Int).Lsh(big.NewInt(1), maxExp)
 	limit.Sub(limit, new(big.Int).Lsh(big.NewInt(1), maxExp-mantissa-1))
 	text := limit.String()
-	// A power of two this size always reads; the guards say so rather than assume it.
+	// The limits are plain digit runs and always read. The guards keep a failed read
+	// from passing as the zero Decimal, which would put the limit at zero.
 	up, upErr := ir.ParseDecimal(text)
 	down, downErr := ir.ParseDecimal("-" + text)
 	return ok && upErr == nil && downErr == nil && d.Cmp(up) < 0 && d.Cmp(down) > 0
