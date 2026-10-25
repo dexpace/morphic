@@ -285,8 +285,8 @@ func numberOf(shape Shape, node *yaml.Node) bool {
 	if node.Kind != yaml.ScalarNode || node.Style&stringStyles != 0 {
 		return false
 	}
-	n, ok := parseNumber(node.Value)
-	return ok && inRange(shape, n)
+	sign, integral, ok := parseNumber(node.Value)
+	return ok && inRange(shape, sign, integral)
 }
 
 // outOfRange reports whether the node's text, quoted or not, is a number the
@@ -296,36 +296,39 @@ func outOfRange(shape Shape, node *yaml.Node) bool {
 	if node.Kind != yaml.ScalarNode {
 		return false
 	}
-	n, ok := parseNumber(node.Value)
-	return ok && !inRange(shape, n)
+	sign, integral, ok := parseNumber(node.Value)
+	return ok && !inRange(shape, sign, integral)
 }
 
-// inRange reports whether n falls in the range of the shape: above zero, an
-// integer from zero up, or, for any other shape, anything.
-func inRange(shape Shape, n *big.Rat) bool {
+// inRange reports whether a number of the given sign and integrality falls in the
+// range of the shape: above zero, an integer from zero up, or, for any other
+// shape, anything.
+func inRange(shape Shape, sign int, integral bool) bool {
 	switch shape {
 	case PositiveNumber:
-		return n.Sign() > 0
+		return sign > 0
 	case Natural:
-		return n.IsInt() && n.Sign() >= 0
+		return integral && sign >= 0
 	default:
 		return true
 	}
 }
 
-// parseNumber reads a YAML number exactly: an integer in any base the YAML
-// resolver admits, else a decimal with an optional fraction and exponent, as
-// ir.NewBigVal reads one. Anything else big.Rat reads, a fraction such as 4/2
-// or a binary exponent, is text in YAML and JSON alike, so it is no number.
-func parseNumber(text string) (*big.Rat, bool) {
+// parseNumber reads the sign and integrality of a YAML number without
+// materializing it. The decimal grammar is ir's (ir.ParseDecimal), so 1e1000001
+// reads as the integer it is; a based integer (0x10, 0b1010, 0o17) is YAML's. A
+// literal with a leading zero reads as decimal or as octal to one sign and
+// integrality, so trying the decimal grammar first is safe. A fraction such as
+// 4/2 or a binary exponent is text in YAML and JSON alike, so it is no number.
+func parseNumber(text string) (sign int, integral, ok bool) {
 	plain := strings.ReplaceAll(text, "_", "")
-	if i, ok := new(big.Int).SetString(plain, 0); ok {
-		return new(big.Rat).SetInt(i), true
+	if d, err := ir.ParseDecimal(plain); err == nil {
+		return d.Sign(), d.IsInt(), true
 	}
-	if _, err := ir.NewBigVal(plain); err != nil {
-		return nil, false
+	if i, isBased := new(big.Int).SetString(plain, 0); isBased {
+		return i.Sign(), true, true
 	}
-	return new(big.Rat).SetString(plain)
+	return 0, false, false
 }
 
 // describeShape says what a field's value must be.

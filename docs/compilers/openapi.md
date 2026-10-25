@@ -205,6 +205,7 @@ gives it no effect is [`allow-reserved-locations`](#allow-reserved-locations)' a
 - Tests: `oas.TestCheck_RulesGradeByLevel`,
   `oas.TestCheck_NullIsReadAsAbsentWhereTheFieldIsOptional`, `oas.TestCheck_CountsBoundTheEntries`,
   `oas.TestCheck_ANullReadAsLeftOutIsNoFieldToARule`, `oas.TestCheck_ShapesFollowTheField`,
+  `oas.TestCheck_NumbersFollowTheirShape`,
   `oas.TestCheck_PathTemplatesAnswerToPathParameters`,
   `oas.TestCheck_AServerURLNamesOnlyItsVariables`,
   `oas.TestCheck_EncodingsApplyWhereTheSpecificationSays`,
