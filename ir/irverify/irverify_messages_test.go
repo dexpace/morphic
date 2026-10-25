@@ -62,7 +62,7 @@ func messageCases() []messageCase {
 				Default: &ir.Value{Kind: ir.ValueNumber, Num: "1e1000000000000000000"}}}
 			return typesDoc(m)
 		}, "ir/bigval-out-of-range",
-			`numeric value "1e1000000000000000000" is a JSON number whose leading digit carries a power of ten ` +
+			`numeric value "1e1000000000000000000" is a decimal literal whose leading digit carries a power of ten ` +
 				`past the ±999999999999999999 a BigVal holds`},
 		{"bigval not canonical", func() *ir.Document {
 			m := namedModel("t/x/A")

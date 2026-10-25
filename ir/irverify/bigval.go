@@ -62,7 +62,7 @@ func appendBigVal(vs []Violation, literal, path string) []Violation {
 	if errors.Is(err, ir.ErrExponentRange) {
 		return append(vs, Violation{
 			Code: "ir/bigval-out-of-range",
-			Message: "numeric value " + strconv.Quote(literal) + " is a JSON number whose leading digit " +
+			Message: "numeric value " + strconv.Quote(literal) + " is a decimal literal whose leading digit " +
 				"carries a power of ten past the ±" + strconv.FormatInt(ir.MaxDecimalExp, 10) + " a BigVal holds",
 			Path: path,
 		})
