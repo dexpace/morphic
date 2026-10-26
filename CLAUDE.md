@@ -167,11 +167,11 @@ Three things follow when you add a package: put it in `rules` (or, for tooling u
 alone, in `exempt` with the reason it is out), because `TestImportGraph_EveryPackageIsRuledOrExempt`
 fails otherwise; remember an unkeyed subdirectory is audited under its nearest keyed ancestor's
 allowlist, so nesting is not a way to widen one; and give it its own entry rather than letting it
-inherit a wider one, since an inherited allowlist says nothing about where the package sits, which
-the test requires under `compilers/` and `emitters/`. `TestImportGraph_LayeringHolds` also fails on
-an entry that no production file the rule audits imports, so a change that drops a package's last
-import of something drops the entry with it, and on an entry naming no directory, unless `unbuilt`
-says why it is ruled before its package exists, as `emitters` is.
+inherit a wider one, since an inherited allowlist says nothing about where the package sits, and
+under `compilers/` and `emitters/` the same test requires one. `TestImportGraph_LayeringHolds` also
+fails on an entry that no production file the rule audits imports, so a change that drops a
+package's last import of something drops the entry with it, and on an entry naming no directory,
+unless `unbuilt` says why it is ruled before its package exists, as `emitters` is.
 
 Caps also guard shape rather than the graph. No type under `compilers/` may carry more than 20
 methods (`internal/archtest`), and no function may exceed 70 lines or a cognitive complexity of 20
