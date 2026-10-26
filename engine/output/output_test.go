@@ -91,7 +91,7 @@ func TestWriteDocument_CompactIsTheIndentedFormWithoutWhitespace(t *testing.T) {
 }
 
 // TestWriteDocument_BadDocumentWritesNothing pins that the writer gets a whole
-// document or nothing. Encoded straight to a writer, the document reaches it in
+// document or nothing. Streamed straight to a writer, the document reaches it in
 // part before the encoding fails, as the test checks first, so a WriteDocument
 // that wrote as it encoded would leave that part in w.
 func TestWriteDocument_BadDocumentWritesNothing(t *testing.T) {
@@ -101,7 +101,7 @@ func TestWriteDocument_BadDocumentWritesNothing(t *testing.T) {
 			t.Parallel()
 			var streamed, w bytes.Buffer
 			require.Error(t, output.Encode(t.Context(), &streamed, bigBadDoc(), tt.layout))
-			require.Positive(t, streamed.Len(), "encoded straight to a writer, part of the document must reach it first")
+			require.Positive(t, streamed.Len(), "a streamed encode must write part of the document before it fails")
 
 			err := output.WriteDocument(t.Context(), &w, bigBadDoc(), tt.layout)
 
@@ -310,10 +310,11 @@ func TestEncode_ErrorPaths(t *testing.T) {
 
 // TestEncode_ADestinationThatFillsIsAWriteFailure pins a destination that
 // takes part of the encoding and refuses the rest. Whether the write it refuses
-// is more of the document or the newline encode writes after it, the failure
-// is reported as refusing the bytes, with the destination's error behind it,
-// and not as a document that would not marshal: the first reaches encode
-// through json.MarshalWrite's error, the second does not.
+// is more of the document or the newline encode writes after it, the encoding
+// ends there, and the failure is reported as refusing the bytes, with the
+// destination's error behind it, and not as a document that would not
+// marshal: the first reaches encode through json.MarshalWrite's error, the
+// second does not.
 func TestEncode_ADestinationThatFillsIsAWriteFailure(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -337,10 +338,11 @@ func TestEncode_ADestinationThatFillsIsAWriteFailure(t *testing.T) {
 
 				require.ErrorIs(t, err, errDisk)
 				assert.EqualError(t, err, "write ir document: disk gone")
+				assert.Equal(t, 1, w.refusals, "no write starts once the destination has refused one")
 				got := w.buf.String()
 				assert.True(t, strings.HasPrefix(document, got), "what was written is the document's start")
 				assert.Equal(t, stopAt == len(document), got == document,
-					"the destination holds the whole document only when it took all of it")
+					"the destination holds the whole document only when it refuses nothing before the newline")
 			})
 		}
 	}

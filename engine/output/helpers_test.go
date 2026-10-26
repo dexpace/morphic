@@ -32,17 +32,19 @@ type refusingWriter struct{}
 func (refusingWriter) Write([]byte) (int, error) { return 0, errDisk }
 
 // fillingWriter keeps what it is given until it holds at least stopAt bytes,
-// and refuses every write after that, as a destination that runs out of room
-// does. With stopAt the document's length, the write it refuses is the newline
-// encode writes after the document, however many writes the encoder split the
-// document itself into.
+// and then refuses every write, as a full destination does. refusals counts
+// the writes it refused. With stopAt the document's length, the write it
+// refuses is the newline encode writes after the document, however many writes
+// the encoder split the document itself into.
 type fillingWriter struct {
-	stopAt int
-	buf    bytes.Buffer
+	stopAt   int
+	refusals int
+	buf      bytes.Buffer
 }
 
 func (w *fillingWriter) Write(p []byte) (int, error) {
 	if w.buf.Len() >= w.stopAt {
+		w.refusals++
 		return 0, errDisk
 	}
 	return w.buf.Write(p)
