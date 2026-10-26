@@ -14,14 +14,14 @@ import (
 	"github.com/dexpace/morphic/pass"
 )
 
-// idempotent compiles data with no pass, then runs the sweep's passes in order,
-// each over the document the one before it returned, as a run does, and each
-// twice: the second time over its own output, which it must return unchanged
-// (pass.Pass).
+// idempotent compiles data with no pass, then runs the sweep's passes in order
+// through the engine's RunDocument, each over what the run of the one before
+// it returned, and each twice: the second time over what its first run
+// returned, findings and all, which it must return again (pass.Pass).
 //
-// Each run goes through the engine's RunDocument, which holds the pass to the
-// rest of its contract on both runs. Diagnostics are not compared, since the
-// engine writes them and a rerun may report differently.
+// RunDocument holds the pass to the rest of its contract on both runs.
+// Diagnostics are not compared, since the engine writes them and a rerun may
+// report differently.
 func idempotent(ctx context.Context, spec string, data []byte) (string, bool) {
 	doc, _, err := compile(ctx, spec, data, nil)
 	if err != nil {
@@ -40,10 +40,10 @@ func idempotent(ctx context.Context, spec string, data []byte) (string, bool) {
 	return "", true
 }
 
-// twice runs p over doc, then over what that returned, and returns the first
-// output, or what the second run changed. The first output is encoded before
-// the second run, so a pass writing into the document it is handed cannot hide
-// a change by making it to both.
+// twice runs p over doc, then over what that run returned, and returns the
+// first run's document, or what the second run changed. The first is encoded
+// before the second run, so a pass writing into the document it is handed
+// cannot hide a change by making it to both.
 func twice(ctx context.Context, p pass.Pass, doc *ir.Document) (*ir.Document, string, bool) {
 	e, err := newEngine([]pass.Pass{p})
 	if err != nil {

@@ -230,14 +230,16 @@ index `Document.Sources`, as the IR's own provenance does, so a pass may append 
 never move or drop an entry. A pass that does, or returns no document, fails the run with a Go error
 naming it.
 
-Every pass is idempotent: run again over the document it returned, it returns one that encodes the
-same, `Document.Diagnostics` aside. A normalization that changes its own output on a second run
-leaves the document depending on how many times it went through the list, and `RunDocument` runs
-the list over a document that may have been through it already. What a pass reports may differ the
+Every pass is idempotent: run again over the document a run of it returned, it returns one that
+encodes the same, `Document.Diagnostics` aside. A normalization that changes its own output on a
+second run leaves the document depending on how many times it went through the list, and
+`RunDocument` runs the list over a document that may have been through it already. Such a document
+carries the earlier run's findings, the pass's own among them, so the second run is handed findings
+the first was not and must still return the same document. What a pass reports may differ the
 second time, as a filter that removed an operation finds none left to remove, so the findings are
 left out of the comparison. The harness's idempotence oracle holds each pass of the default list to
-this over every corpus spec: it runs the pass over the document a run hands it, after the passes
-before it, and again over what that returned (§5).
+this over every corpus spec: through `RunDocument`, it runs the pass over what the passes before it
+returned, then again over what that run returned (§5).
 
 A caller turns a pass off by name (`RunOptions.DisablePasses`, `--disable-pass`); a name no pass
 carries is a Go error (`engine.ErrUnknownPass`), not a diagnostic, because it names no defect in the
