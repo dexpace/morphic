@@ -39,8 +39,7 @@ var nameOptional = map[reflect.Type]bool{
 
 // checkNaming asserts every named entity has a name, and that the names it
 // carries are what invariant #4 promises: neutral lower_snake word sequences.
-// Bytes that do not decode are checkUTF8's. It reports whether the bounded walk
-// was cut short.
+// Bytes that do not decode are checkUTF8's.
 //
 // Presence is separate because each content rule is vacuously true of the empty
 // string (GitHub #251).

@@ -22,8 +22,7 @@ var (
 // payload that is not a JSON value fails the whole document's encoding
 // (invariant #7).
 //
-// Verify sorts the result by (Code, Path), so entries need no ordering. The
-// bool reports whether the bounded walk was cut short.
+// Verify sorts the result by (Code, Path), so entries need no ordering.
 func checkRawPayloads(*ir.Document) walkCheck {
 	var vs []Violation
 	return walkCheck{

@@ -58,8 +58,8 @@ type CycleVisitor interface {
 // WalkValues walks root by reflection, bounded and cycle-guarded, showing every
 // value to each visitor, and reports whether the depth cap truncated the walk.
 //
-// The visitors share one traversal, yet each sees exactly the walk it would see
-// alone, its own pruning and where it first meets a shared pointer included.
+// Visitors share one traversal, or one per 64, yet each sees the walk it would
+// see alone, its own pruning and where it first meets a shared pointer included.
 // They are called in the order given; a nil one is skipped.
 //
 // Reflection covers a new IR field at once. Map keys are reached too, since
@@ -78,8 +78,8 @@ func WalkValues(root any, path string, visitors ...Visitor) bool {
 }
 
 // maxSharedVisitors is how many visitors one traversal carries: the width of
-// [visitorSet]. [WalkValues] gives further visitors traversals of their own,
-// which none can tell from a shared one.
+// [visitorSet]. [WalkValues] carries any more in further traversals, as many to
+// each, and each visitor sees the same walk either way.
 const maxSharedVisitors = 64
 
 // visitorSet holds which of a traversal's visitors a value is shown to, one

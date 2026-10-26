@@ -15,25 +15,19 @@ import (
 )
 
 // deepDoc returns a document whose one example value nests past ir.MaxWalkDepth,
-// so every walk over it is cut short. The model carries a well-formed name, so
-// the naming check has something to reach before the value tree runs the walk
-// out of budget.
+// so a walk over it is cut short.
 func deepDoc() *ir.Document {
 	v := ir.Value{Kind: ir.ValueNull}
 	for range ir.MaxWalkDepth {
 		v = ir.Value{Kind: ir.ValueList, List: []ir.Value{v}}
 	}
-	m := &ir.Model{
-		ID:       "t/x/M",
-		Name:     ir.Naming{Source: "M", Canonical: "m"},
-		Examples: []ir.Example{{Value: &v}},
-	}
+	m := &ir.Model{ID: "t/x/M", Examples: []ir.Example{{Value: &v}}}
 	return &ir.Document{Types: ir.TypeRegistry{m.ID: m}}
 }
 
-// TestVerify_ReportsTruncationOnce holds the other half: five walks over one
-// too-deep document are one fact about the document, so Verify states it once
-// rather than once per walk that noticed it.
+// TestVerify_ReportsTruncationOnce holds Verify to stating a cut-short walk once:
+// it is one fact about the document, however many of the checks the walk carries
+// reached past the cap.
 func TestVerify_ReportsTruncationOnce(t *testing.T) {
 	t.Parallel()
 	var truncations int
