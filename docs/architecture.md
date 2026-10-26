@@ -543,7 +543,7 @@ something a caller asks for with `none`, never a default.
 - **Oracle sweep** (`internal/harness`): every corpus spec is run as `morphic compile` runs it, the
   default passes included, and driven through the oracles in order — no panic, no error
   diagnostic, `irverify`'s structural invariants, JSON round-trip, determinism across two
-  compiles, each pass's idempotence over its own output (§2.2), and **order-independence**. The
+  compiles, each pass's idempotence over a run's result (§2.2), and **order-independence**. The
   last one compiles the same source twice with every mapping's entry order reversed and diffs the
   two documents. It is the general form of the two-order check, and it is what catches an
   interning collision: two declarations minting one node at a single pointer produce the same
