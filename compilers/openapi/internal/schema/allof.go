@@ -270,14 +270,14 @@ func compositionRequired(own []string, comp allOfComposition) []string {
 // too (GitHub #406).
 func fillAllOf(c lowering.Ctx, ts *compile.Types, depth int, m *ir.Model, idx *merge.PropIndex, comp allOfComposition) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	baseIdx := selectAllOfBase(c.Bindings(), comp.branches)
+	base, hasBase := selectAllOfBase(c.Bindings(), comp.branches)
 	for i, e := range comp.branches {
 		if !isRefBranch(e.schema) {
 			diags = append(diags, fillModelProperties(c, ts, depth, idx, e.schema.GetSchema(), e.pointer)...)
 			diags = append(diags, preserveUnmergedBranch(c, m, e, comp.branchKey(e.pointer))...)
 			continue
 		}
-		diags = append(diags, fillRefBranch(c, ts, m, e, i == baseIdx)...)
+		diags = append(diags, fillRefBranch(c, ts, m, e, hasBase && i == base)...)
 	}
 	return diags
 }
@@ -501,9 +501,9 @@ func rawMappingKeys(root *yaml.Node) []string {
 }
 
 // selectAllOfBase returns the index into branches of the one that becomes
-// Model.Base, or -1 when none qualifies (multiple non-hierarchy refs stay
+// Model.Base, and false when none qualifies (multiple non-hierarchy refs stay
 // Mixins). refs says where each branch's $ref ends.
-func selectAllOfBase(refs *typed.Bindings, branches []allOfBranch) int {
+func selectAllOfBase(refs *typed.Bindings, branches []allOfBranch) (int, bool) {
 	refIdxs := make([]int, 0, len(branches))
 	for i, e := range branches {
 		if isRefBranch(e.schema) {
@@ -511,14 +511,14 @@ func selectAllOfBase(refs *typed.Bindings, branches []allOfBranch) int {
 		}
 	}
 	if len(refIdxs) == 1 {
-		return refIdxs[0]
+		return refIdxs[0], true
 	}
 	for _, i := range refIdxs {
 		if refTargetHasDiscriminator(refs, branches[i].schema) {
-			return i
+			return i, true
 		}
 	}
-	return -1
+	return 0, false
 }
 
 // refTargetHasDiscriminator reports whether a $ref branch resolves to a schema
