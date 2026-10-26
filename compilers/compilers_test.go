@@ -62,7 +62,7 @@ func detect(t *testing.T, reg *compilers.Registry, src compilers.Source) (compil
 	return det.Compiler, det.Recognition, det.Declined, ok
 }
 
-func TestRegistry_RegisterAndLookup(t *testing.T) {
+func TestRegistry_RegisterServesEveryFormat(t *testing.T) {
 	t.Parallel()
 	reg := compilers.NewRegistry()
 	oa := &stubCompiler{formats: []compilers.SourceFormat{
@@ -71,12 +71,10 @@ func TestRegistry_RegisterAndLookup(t *testing.T) {
 	}, marker: "openapi"}
 	require.NoError(t, reg.Register(oa))
 
-	got, ok := reg.Lookup(compilers.SourceFormat{Name: "openapi", Version: "3.1"})
+	assert.Equal(t, oa.formats, reg.Formats(), "every format the compiler reports, and nothing else")
+	got, _, _, ok := detect(t, reg, compilers.Source{Data: []byte("openapi: 3.1.0")})
 	require.True(t, ok)
 	assert.Same(t, compilers.Compiler(oa), got)
-
-	_, ok = reg.Lookup(compilers.SourceFormat{Name: "smithy", Version: "2.0"})
-	assert.False(t, ok)
 }
 
 func TestRegistry_RejectsDuplicateFormat(t *testing.T) {
@@ -126,13 +124,16 @@ func TestRegistry_RejectsNilCompiler(t *testing.T) {
 func TestRegistry_ZeroValueRegisters(t *testing.T) {
 	t.Parallel()
 	var reg compilers.Registry
-	oa := &stubCompiler{formats: []compilers.SourceFormat{{Name: "openapi", Version: "3.1"}}}
+	oa := &stubCompiler{formats: []compilers.SourceFormat{{Name: "openapi", Version: "3.1"}}, marker: "openapi"}
+	src := compilers.Source{Data: []byte("openapi: 3.1.0")}
 
-	_, ok := reg.Lookup(compilers.SourceFormat{Name: "openapi", Version: "3.1"})
-	require.False(t, ok, "an unregistered format misses before anything is registered")
+	require.Empty(t, reg.Formats(), "nothing is registered yet")
+	_, _, _, ok := detect(t, &reg, src)
+	require.False(t, ok, "no compiler claims a source before one is registered")
 	require.NoError(t, reg.Register(oa))
 
-	got, ok := reg.Lookup(compilers.SourceFormat{Name: "openapi", Version: "3.1"})
+	assert.Equal(t, oa.formats, reg.Formats())
+	got, _, _, ok := detect(t, &reg, src)
 	require.True(t, ok)
 	assert.Same(t, compilers.Compiler(oa), got)
 }

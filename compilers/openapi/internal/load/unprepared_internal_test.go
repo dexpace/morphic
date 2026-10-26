@@ -16,7 +16,6 @@ import (
 
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	soa "github.com/speakeasy-api/openapi/openapi"
-	"github.com/speakeasy-api/openapi/references"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "go.yaml.in/yaml/v3"
@@ -476,19 +475,14 @@ func TestResolutionTrail(t *testing.T) {
 		assert.Empty(t, diags)
 		models := resolvedModels(t, doc)
 
-		for kind, target := range map[string]references.Reference{
-			"pathItem": "#/components/pathItems/PI", "parameter": "#/components/parameters/P",
-			"requestBody": "#/components/requestBodies/RB", "response": "#/components/responses/R",
-			"example": "#/components/examples/EX", "header": "#/components/headers/H2",
-			"link": "#/components/links/L2", "callback": "#/components/callbacks/CB",
-			"securityScheme": "#/components/securitySchemes/Actual",
-		} {
+		for _, kind := range []string{"pathItem", "parameter", "requestBody", "response", "example", "header",
+			"link", "callback", "securityScheme"} {
 			t.Run(kind, func(t *testing.T) {
 				model, ok := models[kind]
 				require.True(t, ok, "fixture produced a resolved %s", kind)
 				got := resolutionTrail(model)
-				assert.Equal(t, trail{docs: []string{"root.yaml"}, target: "root.yaml" + target, endsInSource: true}, got,
-					"an internal reference's one hop is the source document itself, and ends on its target")
+				assert.Equal(t, trail{docs: []string{"root.yaml"}, endsInSource: true}, got,
+					"an internal reference's one hop is the source document itself")
 			})
 		}
 	})
@@ -528,8 +522,7 @@ func TestResolutionTrail(t *testing.T) {
 		} {
 			response, ok := doc.Components.Responses.Get(tc.name)
 			require.True(t, ok)
-			assert.Equal(t, trail{docs: tc.want, target: references.Reference(bPath + "#/components/responses/B")},
-				resolutionTrail(response), "%s: %s", tc.name, tc.why)
+			assert.Equal(t, trail{docs: tc.want}, resolutionTrail(response), "%s: %s", tc.name, tc.why)
 		}
 	})
 

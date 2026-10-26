@@ -143,7 +143,6 @@ func TestTypes_RegistryIsTheLiveMap(t *testing.T) {
 
 	assert.Contains(t, reg, ir.TypeID("t/late"),
 		"the Document shares the registry rather than a snapshot of it")
-	assert.Contains(t, types.String(), "types: 1")
 }
 
 // TestTypes_RefusesEntriesTheRegistryCannotHold covers the boundary this type

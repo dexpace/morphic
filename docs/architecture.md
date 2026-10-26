@@ -470,7 +470,7 @@ morphic/
 │   ├── reader/             #           Reads what a run's references name: disk, network or memory.
 │   ├── report/             #           Renders diagnostics and --explain for a person.
 │   └── output/             #           Writes the IR document to a stream, or to a file atomically.
-├── internal/archtest/      #           Import layering, the recursion pin and the caps (tooling).
+├── internal/archtest/      #           Layering, the recursion pin, reachability and the caps (tooling).
 ├── internal/census/        #           Counts which IR facts a set of documents sets (tooling).
 ├── internal/conformance/   #           Holds each registered format to its matrix column (tooling, tests only).
 ├── internal/decls/         #           Type-checked reads of declarations, for tests (tooling).
@@ -593,7 +593,9 @@ something a caller asks for with `none`, never a default.
   pointer collisions the compiler has had were invisible to a single-order suite.
 - **Architecture test** (`internal/archtest`): import-graph assertions for the layering rules
   above, plus the rules the graph cannot express — which lowerings are mutually recursive (so a
-  set that grows is noticed rather than measured), and the method-per-type cap.
+  set that grows is noticed rather than measured), the method-per-type cap, and that no function is
+  reached by tests alone, bar the test-support packages and the API kept, by name, for a caller to
+  come.
 - **Lint rules** (`.golangci.yml`; `internal/lintrules`, under `make vet`): what a linter can
   hold — which packages may build or write an `ir.TypeRegistry`, derive a name or build an ID, that
   no pipeline stage prints or logs, and that a switch over an IR enum names every member. Each rule

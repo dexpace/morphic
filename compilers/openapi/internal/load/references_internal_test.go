@@ -234,7 +234,6 @@ func TestResolve_AMappingChainReadsADefinitionWhereItIsWritten(t *testing.T) {
 			assert.Equal(t, bind.Position{Pointer: "/components/schemas/Holder/$defs/X"}, m.Chain.End, name)
 		} else {
 			assert.Equal(t, bind.Unresolved, m.Chain.Status, name)
-			assert.Equal(t, bind.Position{Pointer: "/components/schemas/Holder/properties/p"}, m.Chain.Failed, name)
 		}
 	}
 }

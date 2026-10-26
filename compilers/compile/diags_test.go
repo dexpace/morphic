@@ -37,12 +37,12 @@ func TestDiags_DedupesByFullIdentity(t *testing.T) {
 			var d compile.Diags
 			d.Append(base)
 			d.Append(base)
-			require.Equal(t, 1, d.Len(), "an identical repeat collapses")
+			require.Len(t, d.List(), 1, "an identical repeat collapses")
 
 			other := base
 			mutate(&other)
 			d.Append(other)
-			assert.Equal(t, 2, d.Len(), "a diagnostic differing in %s is a distinct finding", name)
+			assert.Len(t, d.List(), 2, "a diagnostic differing in %s is a distinct finding", name)
 		})
 	}
 }
@@ -55,7 +55,7 @@ func TestDiags_AppendAllPreservesFirstSeenOrder(t *testing.T) {
 	var d compile.Diags
 	d.AppendAll([]ir.Diagnostic{mk("a"), mk("b"), mk("a"), mk("c")})
 
-	got := make([]string, 0, d.Len())
+	got := make([]string, 0, len(d.List()))
 	for _, x := range d.List() {
 		got = append(got, x.Code)
 	}
@@ -65,6 +65,5 @@ func TestDiags_AppendAllPreservesFirstSeenOrder(t *testing.T) {
 func TestDiags_ZeroValueIsUsable(t *testing.T) {
 	t.Parallel()
 	var d compile.Diags
-	assert.Zero(t, d.Len())
 	assert.Empty(t, d.List())
 }

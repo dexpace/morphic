@@ -15,3 +15,7 @@ func (t *Types) Settle(ctx context.Context) []ir.Diagnostic { return t.settle(ct
 
 // Fulfil is fulfil, for the tests that drive the promised builds on their own.
 func (t *Types) Fulfil(ctx context.Context) []ir.Diagnostic { return t.fulfil(ctx) }
+
+// Len is how many types t interns, for the tests that count what a step
+// interns without finishing.
+func (t *Types) Len() int { return len(t.reg) }
