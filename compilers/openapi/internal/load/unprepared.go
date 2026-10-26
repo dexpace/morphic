@@ -135,8 +135,8 @@ func (r *externalReads) once(key string, read func() answer) answer {
 		// Set first, so a read that panics, which the walk recovers, leaves a
 		// failure rather than an empty document.
 		rd.answer = answer{err: refused(key, "its read did not finish")}
-		if limit, ok := r.charge(); !ok {
-			rd.answer = answer{err: refused(key, fmt.Sprintf("it is past the %d-document budget", limit.Cap()))}
+		if err := r.charge(key); err != nil {
+			rd.answer = answer{err: err}
 			return
 		}
 		rd.answer = read()
@@ -144,12 +144,15 @@ func (r *externalReads) once(key string, read func() answer) answer {
 	return rd.answer
 }
 
-// charge charges one more document read to the document budget, and reports
-// whether the budget allows it, and the budget's limit.
-func (r *externalReads) charge() (budget.Limit, bool) {
+// charge charges the read of the document under key to the document budget,
+// and returns the document's refusal where the budget has no room for it.
+func (r *externalReads) charge(key string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	return r.documents.Limit(), r.documents.Spend(1)
+	if r.documents.Spend(1) {
+		return nil
+	}
+	return refused(key, fmt.Sprintf("it is past the %d-document budget", r.documents.Limit().Cap()))
 }
 
 // exhausted reports the document budget crossed, once, at the source: which
