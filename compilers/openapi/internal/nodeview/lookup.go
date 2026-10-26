@@ -3,7 +3,7 @@ package nodeview
 import (
 	"slices"
 
-	yaml "gopkg.in/yaml.v3"
+	yaml "go.yaml.in/yaml/v3"
 )
 
 // Pairs is MappingPairs read by a view of its own, for a caller reading one

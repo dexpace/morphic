@@ -6,7 +6,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	yaml "gopkg.in/yaml.v3"
+	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/fragment"
 )

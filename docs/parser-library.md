@@ -76,7 +76,7 @@ components:
     B: {$ref: '#/components/schemas/A'}
 ```
 
-- Verified at: v1.25.5
+- Verified at: v1.26.0
 - Pinned by: `TestLibraryBehaviour/schema-cycle-overflow`
 - Code:
   - `load.bindSchemas` binds every schema `$ref` in the compiler, never through the resolver.
@@ -97,7 +97,7 @@ runs.
 x: {$ref: 'd1.yaml#/x'}
 ```
 
-- Verified at: v1.25.5
+- Verified at: v1.26.0
 - Pinned by: `TestLibraryBehaviour/resolution-unbounded`
 - Code:
   - `load.externalReads.once` charges each document's first read to the document budget, and
@@ -119,7 +119,7 @@ components:
     H: {$defs: {A: {type: string}}, properties: {p: {$ref: '#/$defs/A'}}}
 ```
 
-- Verified at: v1.25.5
+- Verified at: v1.26.0
 - Pinned by: `TestLibraryBehaviour/defs-order`
 - Code:
   - `bind.definitions.definition` finds the definition from the reference's own position.
@@ -142,7 +142,7 @@ x-lib:
   b: {$ref: '#/x-lib/a'}
 ```
 
-- Verified at: v1.25.5
+- Verified at: v1.26.0
 - Pinned by: `TestLibraryBehaviour/mapping-unresolved`
 - Code:
   - `bind.finder.mappingsOf` notes each mapping value that can name a position, to be bound.
@@ -166,7 +166,7 @@ components:
     B: {$ref: '#/components/parameters/A'}
 ```
 
-- Verified at: v1.25.5
+- Verified at: v1.26.0
 - Pinned by: `TestLibraryBehaviour/reference-object-cycle`
 - Code:
   - `load.resolvable` hands the resolver every reference object, cycles included.
@@ -188,7 +188,7 @@ x-params:
   q: {name: q, in: query}
 ```
 
-- Verified at: v1.25.5
+- Verified at: v1.26.0
 - Pinned by: `TestLibraryBehaviour/trailing-empty-token`
 - Code:
   - `bind.docs.through` places a reference object's end at the first position on its pointer's read
@@ -221,7 +221,7 @@ components:
     C: {$ref: '#/components/schemas/B'}
 ```
 
-- Verified at: v1.25.5
+- Verified at: v1.26.0
 - Pinned by: `TestLibraryBehaviour/root-defs`
 - Code:
   - `bind.definitions.definition` reads the pointer from the document's root first, raw YAML
@@ -246,7 +246,7 @@ components:
     A: &s {type: object, properties: {p: *s}}
 ```
 
-- Verified at: v1.25.5
+- Verified at: v1.26.0
 - Pinned by: `TestLibraryBehaviour/alias-cycle`
 - Code:
   - `scan.anchorCycle` refuses a recursive anchor before the document is decoded.
@@ -268,7 +268,7 @@ components:
     L2: &l2 {allOf: [*l1, *l1]}   # ... each level doubling the last
 ```
 
-- Verified at: v1.25.5
+- Verified at: v1.26.0
 - Pinned by: `TestLibraryBehaviour/alias-expansion`
 - Code:
   - `scan.aliasAmplification` refuses a document whose aliases expand past a multiple of its own
@@ -290,7 +290,7 @@ components:
     A: {type: array, items: {type: array, items: {type: string}}}   # ... nested d levels deep
 ```
 
-- Verified at: v1.25.5
+- Verified at: v1.26.0
 - Pinned by: `TestLibraryBehaviour/nesting-cost`
 - Code:
   - `scan.MaxNesting` bounds how deeply a document may nest.
@@ -313,7 +313,7 @@ components:
     S1: {}   # ... one goroutine each, and one for each key inside
 ```
 
-- Verified at: v1.25.5
+- Verified at: v1.26.0
 - Pinned by: `TestLibraryBehaviour/goroutine-per-node`
 - Code:
   - `annotation.census` sorts the unknown keys it records.
@@ -333,7 +333,7 @@ components:
     A: !thing {description: d}
 ```
 
-- Verified at: v1.25.5
+- Verified at: v1.26.0
 - Pinned by: `TestLibraryBehaviour/tagged-mapping-panic`
 - Code:
   - `load.taggedMappingRefusal` refuses every such mapping, wherever it is, before the document is
@@ -356,7 +356,7 @@ components:
 B: {$ref}
 ```
 
-- Verified at: v1.25.5
+- Verified at: v1.26.0
 - Pinned by: `TestLibraryBehaviour/recoverable-panic`
 - Code:
   - `load.recovered` turns a panic in resolution, in a walk, or in building the fields beside a
@@ -378,7 +378,7 @@ paths:
     get: {responses: {'200': {description: ok}}}
 ```
 
-- Verified at: v1.25.5
+- Verified at: v1.26.0
 - Pinned by: `TestLibraryBehaviour/anchored-entry-dropped`
 - Code:
   - `load.releaseAnchors` clears every anchor's name before the source is decoded.
@@ -398,7 +398,7 @@ paths:
     other: {responses: {'200': {description: ok}}}   # an operation named other
 ```
 
-- Verified at: v1.25.5
+- Verified at: v1.26.0
 - Pinned by: `TestLibraryBehaviour/embedded-map-keys`
 - Code:
   - `annotation.UnknownKeysNamed` grades keys the caller found itself, for a path item.
@@ -422,7 +422,7 @@ components:
     A: {type: integer}   # the model's A
 ```
 
-- Verified at: v1.25.5
+- Verified at: v1.26.0
 - Pinned by: `TestLibraryBehaviour/duplicate-key`
 - Code:
   - `nodeview.flatten` reads a mapping's repeated key as the model does.
@@ -448,7 +448,7 @@ components:
       properties: {<<: 5, q: {type: string}}                            # q alone
 ```
 
-- Verified at: v1.25.5
+- Verified at: v1.26.0
 - Pinned by: `TestLibraryBehaviour/merge-keys`
 - Code:
   - `nodeview.flatten` orders and settles a mapping's pairs as the decoder does.
@@ -468,7 +468,7 @@ components:
     : {description: x}   # read as the response keyed ""
 ```
 
-- Verified at: v1.25.5
+- Verified at: v1.26.0
 - Pinned by: `TestLibraryBehaviour/non-scalar-key`
 - Code:
   - `nodeview.KeyOf` reads such a key as the empty string.
@@ -486,7 +486,7 @@ components:
     A: {$dynamicAnchor: n, $comment: c}
 ```
 
-- Verified at: v1.25.5
+- Verified at: v1.26.0
 - Pinned by: `TestLibraryBehaviour/unmodeled-keywords`
 - Code:
   - `anchors.Build` reads every `$dynamicAnchor` from the raw tree.
@@ -508,7 +508,7 @@ components:
     C: null
 ```
 
-- Verified at: v1.25.5
+- Verified at: v1.26.0
 - Pinned by: `TestLibraryBehaviour/null-schema-is-false`
 - Code:
   - `annotation.IsNullLiteral` tells a `null` from `false` by its node.
@@ -530,7 +530,7 @@ actions:
     update: {x-a: &a [*a]}
 ```
 
-- Verified at: v1.25.5
+- Verified at: v1.26.0
 - Pinned by: `TestLibraryBehaviour/overlay-alias-clone`
 - Code:
   - `scan.Aliases` refuses an overlay document whose aliases recurse or expand past its size.

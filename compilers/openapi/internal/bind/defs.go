@@ -5,7 +5,7 @@ import (
 	"slices"
 	"strings"
 
-	yaml "gopkg.in/yaml.v3"
+	yaml "go.yaml.in/yaml/v3"
 )
 
 // defsRoot is the position a schema's definitions sit at, and defsPrefix opens
