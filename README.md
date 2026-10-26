@@ -248,10 +248,12 @@ if res.Failed {
 return output.ReplaceDocument("api.ir.json", res.Document, output.Compact)
 ```
 
-`RunSources` compiles sources already in memory: the first is the spec, every source is a document
-its references or its settings may name by its `Path`, and nothing else is read, so a spec split
-across files compiles without a file written. `RunDocument` runs the passes over a document already
-compiled, such as one decoded from a file. `engine/report` renders diagnostics and `--explain`
+`RunSpec` compiles a spec held in memory, such as an edited buffer, as the file at its path, and
+reads every other document from disk as `Run` does. `RunSources` compiles sources already in
+memory: the first is the spec, every source is a document its references or its settings may name
+by its `Path`, and nothing else is read, so a spec split across files compiles without a file
+written. `RunDocument` runs the passes over a document already compiled, such as one decoded from
+a file. `engine/report` renders diagnostics and `--explain`
 (`report.Explain`) exactly as the CLI prints them, and `engine/output` writes a document as the CLI
 does: to a stream whole or not at all, or to a file replaced atomically.
 

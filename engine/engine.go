@@ -157,8 +157,8 @@ func New(opts ...Option) (*Engine, error) {
 
 // Run executes the pipeline for the spec at specPath: read it, compile it with
 // the compiler that recognizes it, run the passes opts.DisablePasses does not
-// name, in order, and judge the Result at opts.FailOn. Its references are read
-// through reader.Disk, as far as the compiler's options let a read go.
+// name, in order, and judge the Result at opts.FailOn. It reads the file once,
+// and every other document as RunSpec does.
 //
 // A Go error is reserved for I/O, cancellation and programmer errors: an
 // unreadable file, a cancelled ctx, a stage breaking its contract, or an
@@ -174,11 +174,27 @@ func (e *Engine) Run(ctx context.Context, specPath string, opts RunOptions) (*Re
 	if err != nil {
 		return nil, fmt.Errorf("engine: read spec %q: %w", specPath, err)
 	}
-	res, err := e.compile(ctx, compilers.Source{Path: specPath, Data: data}, reader.Disk{}, os.ReadFile, opts, passes)
+	return e.runHeld(ctx, compilers.Source{Path: specPath, Data: data}, opts, passes, failOn)
+}
+
+// RunSpec executes Run's pipeline over a spec held in memory, such as an
+// edited buffer: spec.Data stands for the file at spec.Path for the whole run,
+// which never reads that file. Every other document is read from disk as Run
+// reads it: what the spec's references name through reader.Disk, as far as the
+// compiler's options let a read go, and a file a setting names.
+//
+// An empty spec.Path is a Go error, since the references resolve against it.
+// Source.Parsed is not read, and the bytes must not change while the run reads
+// them. It shares Run's other contracts.
+func (e *Engine) RunSpec(ctx context.Context, spec compilers.Source, opts RunOptions) (*Result, error) {
+	passes, failOn, err := e.prepare(opts)
 	if err != nil {
 		return nil, err
 	}
-	return failOn.judge(res)
+	if spec.Path == "" {
+		return nil, errors.New("engine: the spec has no Path, which its references are read against")
+	}
+	return e.runHeld(ctx, compilers.Source{Path: spec.Path, Data: spec.Data}, opts, passes, failOn)
 }
 
 // RunSources executes Run's pipeline over sources held in memory, and reads
@@ -264,6 +280,40 @@ func (e *Engine) RunDocument(ctx context.Context, doc *ir.Document, opts RunOpti
 	}
 	out.Diagnostics = ir.MergeDiagnostics(slices.Clone(doc.Diagnostics), found)
 	return failOn.judge(&Result{Document: out, Diagnostics: out.Diagnostics, Sources: out.Sources})
+}
+
+// runHeld runs the pipeline over spec, whose bytes it holds, and judges the
+// Result at failOn. A reference or a setting naming spec.Path is served those
+// bytes, so the run reads one spec even where a compiler asks for it again.
+// Every other document is read from disk.
+func (e *Engine) runHeld(ctx context.Context, spec compilers.Source, opts RunOptions, passes []pass.Pass,
+	failOn threshold,
+) (*Result, error) {
+	held := hold(spec)
+	readFile := func(name string) ([]byte, error) {
+		if held != nil {
+			if data, err := held.ReadDocument(ctx, compilers.DocumentRequest{Location: name}); err == nil {
+				return data, nil
+			}
+		}
+		return os.ReadFile(name)
+	}
+	res, err := e.compile(ctx, spec, reader.Layered{Held: held}, readFile, opts, passes)
+	if err != nil {
+		return nil, err
+	}
+	return failOn.judge(res)
+}
+
+// hold returns a Memory serving spec at its path, or nil for a path no request
+// can name, such as a file whose name reads as an opaque URI: no reference can
+// name that spec either, so there is nothing to serve.
+func hold(spec compilers.Source) *reader.Memory {
+	held, err := reader.NewMemory([]compilers.Source{spec})
+	if err != nil {
+		return nil
+	}
+	return held
 }
 
 // prepare checks what every entry point checks before it reads anything, and
@@ -352,13 +402,13 @@ func (e *Engine) compile(ctx context.Context, source compilers.Source, docs comp
 // the engine parses nothing and can say only that nobody claimed it.
 func (e *Engine) undetected(format compilers.SourceFormat, declined []ir.Diagnostic) []ir.Diagnostic {
 	if format.Name != "" {
-		return []ir.Diagnostic{specProblem(codeNoCompilerForFormat,
+		return []ir.Diagnostic{specProblem(CodeNoCompilerForFormat,
 			"no compiler registered for format %s; %s", format, e.served())}
 	}
 	if len(declined) > 0 {
 		return declined
 	}
-	return []ir.Diagnostic{specProblem(codeUnrecognizedFormat,
+	return []ir.Diagnostic{specProblem(CodeUnrecognizedFormat,
 		"unrecognized spec format; %s", e.served())}
 }
 
