@@ -108,6 +108,40 @@ func (tallying) Run(doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
 		ir.Provenance{Source: ir.NoSource})}
 }
 
+// flagging is an idempotent transform that flags the document it is handed,
+// as a pass marking what a later one acts on would.
+type flagging struct{}
+
+func (flagging) Name() string { return "flagging" }
+
+func (flagging) Run(doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
+	own := *doc
+	own.Version = "flagged"
+	return &own, nil
+}
+
+// dropping is an idempotent transform acting on what flagging returns: it
+// renames a flagged document, as a filter dropping what another pass flagged
+// would, and leaves any other as it is. Over a flagged document it does what
+// fault says, when set.
+type dropping struct {
+	fault func(own *ir.Document) *ir.Document
+}
+
+func (dropping) Name() string { return "dropping" }
+
+func (d dropping) Run(doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
+	if doc.Version != "flagged" {
+		return doc, nil
+	}
+	own := *doc
+	own.Name = "dropped"
+	if d.fault != nil {
+		return d.fault(&own), nil
+	}
+	return &own, nil
+}
+
 // counting is a pass that is not a function of its input: it numbers the
 // documents it returns, so two runs over one spec differ.
 type counting struct{ n *atomic.Int32 }
@@ -127,10 +161,12 @@ func unencodable(own *ir.Document) *ir.Document {
 }
 
 // TestCheck_IdempotenceOutcome pins what the oracle asks of a sweep's passes:
-// the default passes, an idempotent transform and one reporting only over its
-// own output are OK; a transform that changes its own output is
-// non-idempotent, named, with what its second run changed, and so is one whose
-// document turns on the findings a run of it wrote.
+// the default passes, an idempotent transform, one reporting only over its own
+// output and transforms in an order that settles are OK; a transform that
+// changes its own output is non-idempotent, named, with what its second run
+// changed, and so is one whose document turns on the findings a run of it
+// wrote, and one acting on what a later transform returns, though each of the
+// two is idempotent alone.
 func TestCheck_IdempotenceOutcome(t *testing.T) {
 	for _, tc := range []struct {
 		name   string
@@ -141,10 +177,13 @@ func TestCheck_IdempotenceOutcome(t *testing.T) {
 		{"the default passes", engine.Passes(), OutcomeOK, nil},
 		{"an idempotent transform", []pass.Pass{lowering{}}, OutcomeOK, nil},
 		{"an idempotent transform reporting only over its own output", []pass.Pass{noting{}}, OutcomeOK, nil},
+		{"transforms in an order that settles", []pass.Pass{flagging{}, dropping{}}, OutcomeOK, nil},
 		{"a transform changing its own output", []pass.Pass{lowering{}, marking{}}, OutcomeNonIdempotent,
 			[]string{`pass "marking" changes its own output`, `"name": "tiny!"`, `"name": "tiny!!"`}},
 		{"a transform turning on the findings it is handed", []pass.Pass{tallying{}}, OutcomeNonIdempotent,
 			[]string{`pass "tallying" changes its own output`, `"version": "0"`, `"version": "1"`}},
+		{"a transform acting on what a later one returns", []pass.Pass{dropping{}, flagging{}}, OutcomeNonIdempotent,
+			[]string{`pass "dropping" changes the run's result (-run +rerun)`, `"name": "Tiny"`, `"name": "dropped"`}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			withPasses(t, tc.passes...)
@@ -186,7 +225,8 @@ func TestCheck_ANondeterministicPassIsNotReadAsNonIdempotent(t *testing.T) {
 // naming the pass and the run that failed: a pass the engine refuses to
 // build, and one the verified run refuses on its first run or over its own
 // output, for returning no document, one that does not encode, or writing
-// into the one it is handed.
+// into the one it is handed. Each stops before the run's result is read, so
+// none is handed one.
 func TestIdempotent_Faults(t *testing.T) {
 	noDocument := func(*ir.Document) *ir.Document { return nil }
 	stampsItsInput := func(own *ir.Document) *ir.Document {
@@ -213,7 +253,7 @@ func TestIdempotent_Faults(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			withPasses(t, tc.passes...)
 
-			detail, ok := idempotent(context.Background(), "spec.yaml", []byte(testspec.Tiny))
+			detail, ok := idempotent(context.Background(), "spec.yaml", []byte(testspec.Tiny), nil)
 
 			assert.False(t, ok)
 			assert.Contains(t, detail, tc.want)
@@ -221,21 +261,35 @@ func TestIdempotent_Faults(t *testing.T) {
 	}
 }
 
+// TestCheck_APassOverTheRunsResultThatFails pins the oracle's runs over what
+// the run of every pass returned: a pass the verified run refuses there,
+// though it kept its contract over its own output, is named with that run.
+func TestCheck_APassOverTheRunsResultThatFails(t *testing.T) {
+	withPasses(t, dropping{fault: func(*ir.Document) *ir.Document { return nil }}, flagging{})
+
+	r := Check(context.Background(), "spec.yaml", []byte(testspec.Tiny))
+
+	assert.Equal(t, OutcomeNonIdempotent, r.Outcome, r.Detail)
+	assert.Contains(t, r.Detail, `pass "dropping" over the run's result: engine: run pass "dropping": returned no document`)
+}
+
 // TestCheck_APassesPanicIsAPanicOutcome pins the first oracle for a pass,
 // whose panic the engine recovers into an error: on its first run, and over
-// its own output, a run only the idempotence oracle makes, each is still the
-// panic outcome and not a finding of the oracle that ran it.
+// its own output or over the run's result, runs only the idempotence oracle
+// makes, each is still the panic outcome and not a finding of the oracle that
+// ran it.
 func TestCheck_APassesPanicIsAPanicOutcome(t *testing.T) {
 	explode := func(*ir.Document) *ir.Document { panic("pass exploded") }
 	for _, tc := range []struct {
-		name string
-		pass faulting
+		name   string
+		passes []pass.Pass
 	}{
-		{"on its first run", faulting{first: explode}},
-		{"over its own output", faulting{rerun: explode}},
+		{"on its first run", []pass.Pass{faulting{first: explode}}},
+		{"over its own output", []pass.Pass{faulting{rerun: explode}}},
+		{"over the run's result", []pass.Pass{dropping{fault: explode}, flagging{}}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			withPasses(t, tc.pass)
+			withPasses(t, tc.passes...)
 
 			r := Check(context.Background(), "spec.yaml", []byte(testspec.Tiny))
 
@@ -245,19 +299,35 @@ func TestCheck_APassesPanicIsAPanicOutcome(t *testing.T) {
 	}
 }
 
-// TestIdempotent_AnEncodingThatFails pins the oracle's own encoding of a run's
-// document, which a verified run has encoded already, so only the seam can
-// fail it: the failure names the pass and the run.
+// TestIdempotent_AnEncodingThatFails pins the oracle's own encoding of the
+// documents it compares, which a verified run has encoded already, so only the
+// seam can fail it: a run's document, named by its pass and run, and the run's
+// result, here the one document named "result".
 func TestIdempotent_AnEncodingThatFails(t *testing.T) {
-	orig := reserializeJSON
-	t.Cleanup(func() { reserializeJSON = orig })
-	reserializeJSON = func(any, ...json.Options) ([]byte, error) { return nil, errors.New("encode boom") }
-	withPasses(t, lowering{})
+	result := &ir.Document{IRVersion: ir.IRVersion, Name: "result", Types: ir.TypeRegistry{}}
+	for _, tc := range []struct {
+		name, failing, want string
+	}{
+		{"a run's document", "tiny", `pass "lowering": encode its output: encode boom`},
+		{"the run's result", "result", "encode the run's result: encode boom"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			orig := reserializeJSON
+			t.Cleanup(func() { reserializeJSON = orig })
+			reserializeJSON = func(v any, opts ...json.Options) ([]byte, error) {
+				if doc, ok := v.(*ir.Document); ok && doc.Name == tc.failing {
+					return nil, errors.New("encode boom")
+				}
+				return json.Marshal(v, opts...)
+			}
+			withPasses(t, lowering{})
 
-	detail, ok := idempotent(context.Background(), "spec.yaml", []byte(testspec.Tiny))
+			detail, ok := idempotent(context.Background(), "spec.yaml", []byte(testspec.Tiny), result)
 
-	assert.False(t, ok)
-	assert.Equal(t, `pass "lowering": encode its output: encode boom`, detail)
+			assert.False(t, ok)
+			assert.Equal(t, tc.want, detail)
+		})
+	}
 }
 
 // TestIdempotent_ACompileWithoutThePassesThatFails pins the oracle's own
@@ -280,7 +350,7 @@ func TestIdempotent_ACompileWithoutThePassesThatFails(t *testing.T) {
 				return tc.doc, nil, tc.err
 			}
 
-			detail, ok := idempotent(context.Background(), "spec.yaml", nil)
+			detail, ok := idempotent(context.Background(), "spec.yaml", nil, nil)
 
 			assert.False(t, ok)
 			assert.Equal(t, tc.want, detail)
@@ -291,16 +361,20 @@ func TestIdempotent_ACompileWithoutThePassesThatFails(t *testing.T) {
 // TestIdempotent_PassesSeeWhatTheOnesBeforeThemReturned pins the oracle's
 // threading: each pass is run over what the run of the one before it
 // returned, findings and all, so a pass that is idempotent only over its
-// predecessor's output is held to that.
+// predecessor's output is held to that. The run's result, read last, carries
+// both too.
 func TestIdempotent_PassesSeeWhatTheOnesBeforeThemReturned(t *testing.T) {
 	var seen []string
 	withPasses(t, lowering{}, reporting{}, recording{seen: &seen})
+	result, _, err := compile(context.Background(), "spec.yaml", []byte(testspec.Tiny), passes())
+	require.NoError(t, err)
+	seen = nil
 
-	detail, ok := idempotent(context.Background(), "spec.yaml", []byte(testspec.Tiny))
+	detail, ok := idempotent(context.Background(), "spec.yaml", []byte(testspec.Tiny), result)
 
 	require.True(t, ok, detail)
-	assert.Equal(t, []string{"tiny with 1 finding", "tiny with 1 finding"}, seen,
-		"both runs see the name lowering wrote and the finding reporting's run wrote")
+	assert.Equal(t, []string{"tiny with 1 finding", "tiny with 1 finding", "tiny with 1 finding"}, seen,
+		"both runs see the name lowering wrote and the finding reporting's run wrote, as the run's result does")
 }
 
 // recording records the name of each document it is handed, and how many

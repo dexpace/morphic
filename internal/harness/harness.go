@@ -104,7 +104,7 @@ func Check(ctx context.Context, spec string, data []byte) (res Result) {
 	}
 	// After deterministic: a pass that is not even same-input-same-output would
 	// read as one that changes its own output.
-	if detail, ok := idempotent(ctx, spec, data); !ok {
+	if detail, ok := idempotent(ctx, spec, data, doc); !ok {
 		return Result{Spec: spec, Outcome: OutcomeNonIdempotent, Detail: detail}
 	}
 	// Last, and after deterministic: this one permutes the input, so a compiler
@@ -197,7 +197,7 @@ func reraise(err error) error {
 
 // reserializeJSON re-encodes a value that has already survived a marshal or a
 // compile: the decoded document in roundTrips, the recompiled document in
-// deterministic, and each run's document in the idempotence oracle, which a
+// deterministic, and each document the idempotence oracle compares, which a
 // verified run has encoded already. It is a package-level seam over
 // json.Marshal, where such a value can never fail to re-marshal; tests replace
 // it to exercise that otherwise-unreachable defensive error path.

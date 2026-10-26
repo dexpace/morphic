@@ -18,7 +18,7 @@ var ErrContract = errors.New("pass broke its contract")
 // document sharing what it left unchanged, and an analysis returns doc. Either
 // keeps the IR version and each Sources entry at its index, though it may
 // append, reports through diagnostics alone, as the engine owns
-// Document.Diagnostics, and is idempotent over a run's result, Diagnostics
+// Document.Diagnostics, and is idempotent over its run's result, Diagnostics
 // aside. A Pass holds no mutable state.
 //
 // A pass breaking one fails the run, wrapping ErrContract. architecture.md §2.2

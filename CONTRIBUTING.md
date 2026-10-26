@@ -210,15 +210,16 @@ rule sees a node of the input changed in place, which `UpdateType`'s copy is the
    the scenario, as `validate_propids_test.go` is. `pass/validate_test.go` has builders (`validDoc`,
    `docWithOperation`) and readers (`codes`, `countCode`) to reuse.
    *Fails if missed:* `make coverage`. Nothing fails for a case in another file's `_test.go`.
-3. **Add it to the default list**, `engine.Passes` in `engine/passes.go`, before `validate`, which
-   stays last. No test restates the list: `TestPasses_ValidateRunsLast` holds `validate` to the end,
-   `engine.New` refuses a name two passes share, and `TestRun_UnknownPassIsMisuse` in `cmd/morphic`
-   reads the names a refusal lists from the list itself. Nothing fails if the pass never joins the
-   list, where it simply never runs. An embedder runs a pass of its own without editing the list,
-   through `engine.WithPasses`.
+3. **Add it to the default list**, `engine.Passes` in `engine/passes.go`, after any pass whose
+   output it acts on and before `validate`, which stays last. No test restates the list:
+   `TestPasses_ValidateRunsLast` holds `validate` to the end, `engine.New` refuses a name two passes
+   share, and `TestRun_UnknownPassIsMisuse` in `cmd/morphic` reads the names a refusal lists from
+   the list itself. Nothing fails if the pass never joins the list, where it simply never runs. An
+   embedder runs a pass of its own without editing the list, through `engine.WithPasses`.
    Once in the list, the pass runs on every corpus spec `TestHarness_InRepoCorpus` sweeps: an error
    it reports there fails the sweep, as it fails `morphic compile`, and the idempotence oracle runs
-   it again over what that run returned, failing a transform whose second run changes the document.
+   it again over what that run returned, failing a transform whose second run changes the document,
+   and over what the whole list returned, failing one placed before a pass whose output it acts on.
    A default pass runs on every CLI test's spec. One that reports on the shared specs in
    `internal/testspec` breaks the `cmd/morphic` tests that expect a clean run, such as
    `TestRun_ValidateExitCodes/clean_spec`, so keep those specs clean of what it reports.

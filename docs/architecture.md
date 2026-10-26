@@ -268,9 +268,16 @@ second run leaves the document depending on how many times it went through the l
 carries the earlier run's findings, the pass's own among them, so the second run is handed findings
 the first was not and must still return the same document. What a pass reports may differ the
 second time, as a filter that removed an operation finds none left to remove, so the findings are
-left out of the comparison. The harness's idempotence oracle holds each pass of the default list to
-this over every corpus spec: through `RunDocument`, it runs the pass over what the passes before it
-returned, then again over what that run returned (§5).
+left out of the comparison.
+
+Idempotent passes do not make an idempotent list, so the order has to as well. What a run returns
+is a document each pass of the list returns as it is, so a second run returns it unchanged,
+whichever of its passes are turned off. A pass placed before one whose output it acts on breaks
+this, though each of the two is idempotent alone: a filter dropping what a later pass flags drops
+more on the second run. It goes after the pass it acts on. The harness's idempotence oracle holds
+the default list to both over every corpus spec: through `RunDocument`, it runs each pass over what
+the passes before it returned, then again over what that run returned, and then each over what the
+run of them all returned (§5).
 
 A caller turns a pass off by name (`RunOptions.DisablePasses`, `--disable-pass`); a name no pass
 carries is a Go error (`engine.ErrUnknownPass`), not a diagnostic, because it names no defect in the
@@ -578,7 +585,7 @@ something a caller asks for with `none`, never a default.
 - **Oracle sweep** (`internal/harness`): every corpus spec is run as `morphic compile --verify` runs
   it, the default passes included, in every run an oracle makes, and driven through the oracles in
   order — no panic, `irverify`'s structural invariants, no error diagnostic, JSON round-trip,
-  determinism across two compiles, each pass's idempotence over a run's result (§2.2), and
+  determinism across two compiles, each pass's idempotence and the pass list's (§2.2), and
   **order-independence**. The last one compiles the same source twice with every mapping's entry
   order reversed and diffs the two documents. It is the general form of the two-order check, and it
   is what catches an interning collision: two declarations minting one node at a single pointer

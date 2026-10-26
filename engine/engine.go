@@ -128,8 +128,8 @@ func WithCompilers(cs ...compilers.Compiler) Option {
 
 // WithPasses runs ps, in order, in place of the default passes. An embedder
 // adding a pass of its own composes the list from Passes, putting a transform
-// before validate so validate judges what the transform returns. The list is
-// copied, and an empty one runs no pass.
+// after any pass whose output it acts on and before validate, as Passes orders
+// its own. The list is copied, and an empty one runs no pass.
 func WithPasses(ps ...pass.Pass) Option {
 	ps = slices.Clone(ps)
 	return func(c *config) { c.passes = ps }
