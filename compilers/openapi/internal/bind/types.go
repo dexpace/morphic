@@ -205,16 +205,12 @@ type Hop struct {
 // position holds no $ref.
 type Chain struct {
 	Status Status
-	// End is the position the chain ends on, and Role what it reads there, when
-	// Resolved; Hops counts the $refs read to reach it.
+	// End is the position the chain ends on, when Resolved; Hops counts the
+	// $refs read to reach it.
 	End  Position
-	Role Role
 	Hops int
-	// Failed is the position whose own $ref failed, when Unresolved.
-	Failed Position
-	// Loop indexes Table.Loops when Cyclic, and Member reports whether the
-	// position itself lies on that loop rather than leading into it.
-	Loop   int
+	// Member reports, when Cyclic, whether the position itself lies on a loop
+	// rather than leading into one.
 	Member bool
 }
 
@@ -245,11 +241,10 @@ type Landing struct {
 	Reached bool
 }
 
-// Mapping is a discriminator's mapping value, read as a $ref written at At,
-// the discriminator's position, and where it lands.
+// Mapping is where a discriminator's mapping value lands, read as a $ref
+// written at At, the discriminator's position.
 type Mapping struct {
 	At    Position
-	Value string
 	Hop   Hop
 	Chain Chain
 }

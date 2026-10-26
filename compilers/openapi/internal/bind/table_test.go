@@ -128,7 +128,6 @@ func TestBind_ReadsEachHop(t *testing.T) {
 			} else {
 				assert.Equal(t, bind.Unresolved, e.Hop.Status)
 				assert.Equal(t, bind.Unresolved, e.Chain.Status)
-				assert.Equal(t, at("/components/schemas/A"), e.Chain.Failed)
 			}
 			assert.Equal(t, tc.role, e.Hop.Role)
 		})
@@ -303,9 +302,9 @@ x-lib:
   S: {$ref: '#/components/schemas/Missing'}
   S: {type: string}
 `, self)
-	assert.Equal(t, bind.Chain{Status: bind.Resolved, End: at("/x-lib/S"), Role: bind.Raw, Hops: 1},
+	assert.Equal(t, bind.Chain{Status: bind.Resolved, End: at("/x-lib/S"), Hops: 1},
 		entryAt(t, table, "/components/schemas/A").Chain, "in raw YAML")
-	assert.Equal(t, bind.Chain{Status: bind.Resolved, End: at("/components/schemas/M"), Role: bind.Schema, Hops: 1}, entryAt(t, table, "/components/schemas/B").Chain, "in the model")
+	assert.Equal(t, bind.Chain{Status: bind.Resolved, End: at("/components/schemas/M"), Hops: 1}, entryAt(t, table, "/components/schemas/B").Chain, "in the model")
 }
 
 // TestBind_ReadsEachRefAsTheSourceWritesIt pins that a $ref is read as Written
@@ -337,8 +336,8 @@ x-lib:
 }
 
 // TestBind_FollowsEachChainToItsEnd pins where a chain ends: at the first
-// position holding no $ref, counting the hops it read, or, where a hop past the
-// first fails, at that hop, which is the one its own $ref reports.
+// position holding no $ref, counting the hops it read, or unresolved, where a
+// hop past the first fails, which its own $ref reports.
 func TestBind_FollowsEachChainToItsEnd(t *testing.T) {
 	t.Parallel()
 	table := bound(t, head+`components:
@@ -351,11 +350,11 @@ x-lib:
   C: {type: string}
 `, self)
 	a := entryAt(t, table, "/components/schemas/A")
-	assert.Equal(t, bind.Chain{Status: bind.Resolved, End: at("/x-lib/C"), Role: bind.Raw, Hops: 2},
+	assert.Equal(t, bind.Chain{Status: bind.Resolved, End: at("/x-lib/C"), Hops: 2},
 		a.Chain)
 	d := entryAt(t, table, "/components/schemas/D")
 	assert.Equal(t, bind.Resolved, d.Hop.Status, "D's own hop lands")
-	assert.Equal(t, bind.Chain{Status: bind.Unresolved, Failed: at("/components/schemas/E")}, d.Chain)
+	assert.Equal(t, bind.Chain{Status: bind.Unresolved}, d.Chain)
 	assert.Equal(t, bind.NoTarget, entryAt(t, table, "/components/schemas/E").Hop.Reason)
 }
 
@@ -397,7 +396,6 @@ func TestBind_ReportsEachLoopOnceAtItsLeastMember(t *testing.T) {
 			e := entryAt(t, table, site)
 			assert.Equal(t, bind.Cyclic, e.Chain.Status, site)
 			assert.Equal(t, member, e.Chain.Member, site)
-			assert.Zero(t, e.Chain.Loop, site)
 		}
 		assert.Equal(t, bind.NoTarget, entryAt(t, table, "/components/schemas/P").Hop.Reason,
 			"a pointer into what P only refers to names nothing")
@@ -563,11 +561,11 @@ func TestBind_ReadsOtherDocuments(t *testing.T) {
 	assert.Equal(t, bind.Raw, whole.Hop.Role)
 	assert.False(t, whole.Hop.Named)
 	back := entryAt(t, table, "/components/schemas/Back")
-	assert.Equal(t, bind.Chain{Status: bind.Resolved, End: at("/components/schemas/Leaf"), Role: bind.Schema, Hops: 2},
+	assert.Equal(t, bind.Chain{Status: bind.Resolved, End: at("/components/schemas/Leaf"), Hops: 2},
 		back.Chain, "a chain back into the source ends there, past a $ref naming another document")
 	there, ok := table.Entry(bind.Position{Doc: back.Hop.Target.Doc, Pointer: "/S"})
 	require.True(t, ok)
-	assert.Equal(t, bind.Chain{Status: bind.Resolved, End: at("/components/schemas/Leaf"), Role: bind.Schema, Hops: 1}, there.Chain, "another document's $ref naming the source")
+	assert.Equal(t, bind.Chain{Status: bind.Resolved, End: at("/components/schemas/Leaf"), Hops: 1}, there.Chain, "another document's $ref naming the source")
 	for value, named := range map[string]bool{"other.yaml#/S": false, "other.yaml#/T": false, "#/components/schemas/Leaf": true} {
 		m, ok := table.Mapping(at("/components/schemas/Pick/discriminator"), value)
 		require.True(t, ok, value)
