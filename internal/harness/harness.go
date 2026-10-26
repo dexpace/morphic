@@ -11,6 +11,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/dexpace/morphic/barrier"
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/engine"
 	"github.com/dexpace/morphic/engine/reader"
@@ -147,7 +148,7 @@ var compile = func(ctx context.Context, spec string, data []byte) (*ir.Document,
 
 	det, ok, err := reg.Detect(ctx, compilers.Source{Path: spec, Data: data}, sweepOptions)
 	if err != nil {
-		return nil, nil, fmt.Errorf("harness: detect: %w", err)
+		return nil, nil, fmt.Errorf("harness: detect: %w", reraise(err))
 	}
 	if !ok {
 		diags, err := unrecognized(det)
@@ -156,9 +157,20 @@ var compile = func(ctx context.Context, spec string, data []byte) (*ir.Document,
 
 	out, err := det.Compile(ctx)
 	if err != nil {
-		return nil, nil, fmt.Errorf("harness: compile: %w", err)
+		return nil, nil, fmt.Errorf("harness: compile: %w", reraise(err))
 	}
 	return out.Document, out.Diagnostics, nil
+}
+
+// reraise returns err, or raises again the panic it records. The registry
+// recovers a compiler's panic into an error, and the first oracle is that none
+// occurs, in the first compile of a source and in each recompile alike, so the
+// panic goes on to Check's recover as it would have without the registry's.
+func reraise(err error) error {
+	if perr, ok := errors.AsType[*barrier.PanicError](err); ok {
+		panic(perr)
+	}
+	return err
 }
 
 // unrecognized answers for a source no registered compiler takes. A compiler

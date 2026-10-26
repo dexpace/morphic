@@ -13,6 +13,8 @@ for a misuse or an I/O error.
 IR pass called validate, not this command: they drop that pass's diagnostics and
 keep the compiler's.
 
+--verify is compile's, and holds the same stages to the same invariants.
+
 --opt is compile's, and takes the same settings: a spec that needs one to
 compile needs it here too, or what is checked is not what would be built.
 
@@ -32,3 +34,4 @@ Flags:
   -h, --help                help for validate
       --opt key=value       set one key=value option on the compiler the spec selects (repeatable)
       --skip-validate       alias for --disable-pass validate
+      --verify              check the IR each stage returns against the IR's invariants, and that no pass changes its input; for developing a stage, and slow

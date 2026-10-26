@@ -13,8 +13,8 @@ import (
 // asserted from the command that declares them so the documented set and the
 // parsed set cannot drift. help is cobra's and is added when a command runs.
 var (
-	compileFlagNames  = []string{"output", "fail-on", "skip-validate", "disable-pass", "explain", "pretty", "opt"}
-	validateFlagNames = []string{"fail-on", "skip-validate", "disable-pass", "opt"}
+	compileFlagNames  = []string{"output", "fail-on", "skip-validate", "disable-pass", "verify", "explain", "pretty", "opt"}
+	validateFlagNames = []string{"fail-on", "skip-validate", "disable-pass", "verify", "opt"}
 )
 
 func flagNames(cmd *cobra.Command) []string {
@@ -60,6 +60,7 @@ func TestCompileCmd_DefinesEveryFlag(t *testing.T) {
 	assert.Equal(t, "o", cmd.Flags().Lookup("output").Shorthand, "-o is --output's short form")
 	assert.Empty(t, cmd.Flags().Lookup("output").DefValue)
 	assert.Equal(t, "false", cmd.Flags().Lookup("skip-validate").DefValue)
+	assert.Equal(t, "false", cmd.Flags().Lookup("verify").DefValue, "a run verifies only when asked")
 }
 
 func TestValidateCmd_DefinesEveryFlag(t *testing.T) {

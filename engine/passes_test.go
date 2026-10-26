@@ -271,6 +271,7 @@ func TestEngine_RunRefusesAPassReturningNoDocument(t *testing.T) {
 	res, err := eng.Run(t.Context(), writeSpec(t, testspec.Tiny), engine.RunOptions{})
 
 	require.ErrorIs(t, err, engine.ErrNoDocument)
+	require.ErrorIs(t, err, pass.ErrContract)
 	assert.Contains(t, err.Error(), `"nil"`)
 	assert.Nil(t, res)
 }
@@ -356,6 +357,7 @@ func TestEngine_RunHoldsPassesToTheSourceTable(t *testing.T) {
 
 			if tt.refused {
 				require.ErrorIs(t, err, engine.ErrSourcesMoved)
+				require.ErrorIs(t, err, pass.ErrContract)
 				assert.Contains(t, err.Error(), `"sources"`)
 				assert.Nil(t, res)
 				return
@@ -395,6 +397,7 @@ func TestEngine_RunHoldsPassDiagnosticsToTheSourceTable(t *testing.T) {
 				return
 			}
 			require.ErrorIs(t, err, engine.ErrSourceOutOfRange)
+			require.ErrorIs(t, err, pass.ErrContract)
 			assert.Contains(t, err.Error(), `"report"`, "the error names the pass")
 			assert.Contains(t, err.Error(), fmt.Sprintf("x/finding at source %d of 1", tc.source),
 				"and the finding, with the index it gave")

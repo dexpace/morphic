@@ -144,6 +144,7 @@ completes commands, flags, and spec files by extension.
 | `--fail-on error\|warning\|info\|none` | both | Exit non-zero when a diagnostic at or above this severity is emitted (default `error`). `none` exits non-zero only when the spec lowered to no document. |
 | `--disable-pass <name>` | both | Turn off the IR pass with this name, such as `validate`. Repeatable; a name no pass carries is refused with exit `2` and a message naming the passes there are. |
 | `--skip-validate` | both | Alias for `--disable-pass validate`. |
+| `--verify` | both | Check the IR the compiler and each pass return against the IR's structural invariants, and that no pass changes the document it was handed. The first stage to break one ends the run with exit `2`, listing what it broke. For developing a compiler or a pass: it costs more than the compile itself. |
 | `--opt <key>=<value>` | both | Set one option on the compiler the spec selects. Repeatable; a repeated key is refused. |
 | `-o`, `--output <file>` | `compile` | Write IR JSON to `<file>` instead of stdout, compact rather than indented. |
 | `--pretty` | `compile` | Indent the JSON `--output` writes; stdout is indented either way. |
@@ -221,7 +222,13 @@ registered compilers which one recognizes it, compiles, and runs the passes in o
 document the one before it returned. `RunOptions.DisablePasses` turns passes off by name
 (`engine.ValidatePass` names the `validate` pass), and a name no pass carries fails the run with
 `engine.ErrUnknownPass`. A compiler breaking its contract, say by returning a document whose source
-table does not describe the spec, fails the run with an error wrapping `compilers.ErrContract`.
+table does not describe the spec, or by panicking, fails the run with an error wrapping
+`compilers.ErrContract`; a pass doing so fails it with one wrapping `pass.ErrContract`. A panic
+arrives as a `*barrier.PanicError` in the chain, which keeps the value and the stack beside the
+one-line message. A stage that ignores `ctx` holds `Run` until it returns, and the run stops at the
+next stage. The structural duties only `irverify` checks are left to the harness, unless
+`RunOptions.Verify` is set: it holds each stage's document to them, and each pass to leaving its
+input alone, and fails the run with an `*engine.VerifyError` listing what broke.
 
 ```go
 eng, err := engine.New()
@@ -255,7 +262,7 @@ compiled, such as one decoded from a file. `engine/report` renders diagnostics a
 (`report.Explain`) exactly as the CLI prints them, and `engine/output` writes a document as the CLI
 does: to a stream whole or not at all, or to a file replaced atomically.
 
-A Go error from `Run` means misuse or I/O. Everything wrong with the spec itself, including a spec
+A Go error from `Run` means misuse, I/O or a stage breaking its contract. Everything wrong with the spec itself, including a spec
 no compiler can lower, is a diagnostic in the result, with a nil `Document` when nothing could be
 lowered. Options go in either as text through `RunOptions.CompilerOptions`, the CLI's `--opt`
 vocabulary, or as a typed value such as an `openapi.Options` through `RunOptions.FormatOptions`;
@@ -272,10 +279,11 @@ entry in that test allows, and nothing from a layer above its own.
 
 | Package | Layer | Imports |
 |---|---|---|
+| `barrier/` | 0: turns a panic in code the caller does not own into an error | stdlib only |
 | `ir/` | 0: IR nodes, IDs, traversal, editing, JSON round-trip | stdlib only |
 | `ir/irfacts/` | 0: what a document implies and does not state (subtypes, exposed properties, usage, recursion), never stored | `ir` only |
 | `ir/irverify/`, `ir/irtest/` | 0: structural-invariant checker; golden-snapshot and fixture helpers | `ir` (`irtest` also `go-cmp`) |
-| `compilers/` | 1: the `Compiler` contract and the format-keyed registry | `ir` only |
+| `compilers/` | 1: the `Compiler` contract and the format-keyed registry | `ir` + `barrier` |
 | `compilers/compile/` | 1: what every compiler shares (type registry, diagnostics, naming and identifier grammars) | `ir` only |
 | `compilers/*` | 1: one compiler per format; a public face over its own `internal/` packages | `ir` + `compilers` + `compilers/compile` + own `internal/*` + format libs |
 | `pass/` | 1: IR → IR passes | `ir` + `ir/irfacts` |

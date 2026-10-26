@@ -426,7 +426,7 @@ func (c splitDiagCompiler) Compile(_ context.Context, sources []compilers.Source
 	// A fresh document and fresh slices per call: Run writes the merged list onto
 	// the document, so shared ones would carry one run's result into the next.
 	return &ir.Document{
-		IRVersion:   "1.0.0",
+		IRVersion:   ir.IRVersion,
 		Types:       ir.TypeRegistry{},
 		Diagnostics: slices.Clone(c.stored),
 		Sources:     sourcesOf("openapi@3.1", sources),
@@ -487,9 +487,10 @@ type danglingCompiler struct{ stubFront }
 
 func (danglingCompiler) Compile(_ context.Context, sources []compilers.Source, _ compilers.Options) (*ir.Document, []ir.Diagnostic, error) {
 	doc := &ir.Document{
-		Name:    "Dangling",
-		Types:   ir.TypeRegistry{},
-		Sources: sourcesOf("openapi@3.1", sources),
+		IRVersion: ir.IRVersion,
+		Name:      "Dangling",
+		Types:     ir.TypeRegistry{},
+		Sources:   sourcesOf("openapi@3.1", sources),
 		Services: []ir.Service{{
 			ID: "s/x",
 			Groups: []ir.OperationGroup{{
@@ -567,7 +568,7 @@ func (*smithyCompiler) SourceTable(sources []compilers.Source, _ compilers.Optio
 
 func (*smithyCompiler) Compile(_ context.Context, sources []compilers.Source, opts compilers.Options) (*ir.Document, []ir.Diagnostic, error) {
 	name, _ := opts.FormatOptions.(string)
-	doc := &ir.Document{Name: name, Types: ir.TypeRegistry{}, Sources: sourcesOf("smithy@2.0", sources)}
+	doc := &ir.Document{IRVersion: ir.IRVersion, Name: name, Types: ir.TypeRegistry{}, Sources: sourcesOf("smithy@2.0", sources)}
 	if len(sources) == 1 {
 		if _, ok := sources[0].Parsed.(smithyParse); ok {
 			doc.Version = "parse-arrived"

@@ -57,6 +57,56 @@ func (nilDocCompiler) Compile(context.Context, []compilers.Source, compilers.Opt
 	}}, nil
 }
 
+// panickingCompiler panics lowering every spec.
+type panickingCompiler struct{ nilDocCompiler }
+
+func (panickingCompiler) Compile(context.Context, []compilers.Source, compilers.Options) (*ir.Document, []ir.Diagnostic, error) {
+	panic("lowering exploded")
+}
+
+// panickingPass panics in Run.
+type panickingPass struct{}
+
+func (panickingPass) Name() string { return "exploder" }
+
+func (panickingPass) Run(*ir.Document) (*ir.Document, []ir.Diagnostic) { panic("pass exploded") }
+
+// TestRun_AStagePanicIsAFailureNotACrash pins what the user sees of a compiler
+// or a pass that panics: exit 2, nothing on stdout, and one line saying which
+// stage broke its contract and where, with neither a stack trace nor the hint a
+// misuse of the command gets.
+func TestRun_AStagePanicIsAFailureNotACrash(t *testing.T) {
+	spec := writeFile(t, "spec.yaml", testspec.Tiny)
+	tests := []struct {
+		name string
+		opts []engine.Option
+		want string
+	}{
+		{"a compiler", []engine.Option{engine.WithCompilers(panickingCompiler{})}, "Compile: panic: lowering exploded"},
+		{"a pass", []engine.Option{engine.WithCompilers(brokenIRCompiler{count: 1}), engine.WithPasses(panickingPass{})},
+			`run pass "exploder": Run: panic: pass exploded`},
+	}
+	for _, tt := range tests {
+		for _, command := range []string{"compile", "validate"} {
+			t.Run(tt.name+"/"+command, func(t *testing.T) {
+				useEngine(t, tt.opts...)
+				var stdout, stderr bytes.Buffer
+
+				code := run([]string{command, spec}, &stdout, &stderr)
+
+				assert.Equal(t, exitFailure, code)
+				assert.Empty(t, stdout.String())
+				lines := strings.Split(strings.TrimRight(stderr.String(), "\n"), "\n")
+				require.Len(t, lines, 1, "one line, no trace: %q", stderr.String())
+				assert.Contains(t, lines[0], "morphic: engine:")
+				assert.Contains(t, lines[0], tt.want)
+				assert.Contains(t, lines[0], "broke its contract")
+				assert.NotContains(t, stderr.String(), "Try ", "a broken stage is not a misuse")
+			})
+		}
+	}
+}
+
 func TestMain_ExitCode(t *testing.T) {
 	origArgs, origExit := os.Args, osExit
 	t.Cleanup(func() { os.Args, osExit = origArgs, origExit })
@@ -233,8 +283,9 @@ type danglingDocCompiler struct{ nilDocCompiler }
 
 func (danglingDocCompiler) Compile(_ context.Context, sources []compilers.Source, _ compilers.Options) (*ir.Document, []ir.Diagnostic, error) {
 	return &ir.Document{
-		Name:  "Dangling",
-		Types: ir.TypeRegistry{},
+		IRVersion: ir.IRVersion,
+		Name:      "Dangling",
+		Types:     ir.TypeRegistry{},
 		// The table the compiler contract holds a document to: its one source,
 		// read as the format detection recognized and hashed from its bytes.
 		Sources: []ir.SourceInfo{{Format: "openapi@3.1", Path: sources[0].Path, Hash: ir.SourceHash(sources[0].Data)}},
