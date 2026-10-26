@@ -14,6 +14,12 @@ combined with --output.
 pass carries is refused (exit 2) with the names that exist. --skip-validate is
 --disable-pass validate under its older name.
 
+--verify holds the document the compiler returns, and each pass's, to the IR's
+structural invariants, and each pass to leaving its input as it found it. The
+first stage to break one ends the run (exit 2) with every invariant it broke.
+It is for developing a compiler or a pass, and costs more than the compile
+itself.
+
 --opt passes a setting to the compiler the spec selects, which names and
 validates its own options; morphic itself knows none of them. The OpenAPI
 compiler's are listed in the README.
@@ -55,3 +61,4 @@ Flags:
   -o, --output string       write IR JSON to this file instead of stdout
       --pretty              indent the IR JSON --output writes; stdout is indented either way
       --skip-validate       alias for --disable-pass validate
+      --verify              check the IR each stage returns against the IR's invariants, and that no pass changes its input; for developing a stage, and slow

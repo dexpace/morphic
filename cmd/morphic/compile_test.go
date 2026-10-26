@@ -428,27 +428,33 @@ func TestSpecOptions_DisabledPasses(t *testing.T) {
 	}
 }
 
-// cancellingCompiler cancels the run it compiles in and lowers to a document
-// anyway, with a finding, as a compile that never looks at its context does.
-// With every pass off the engine checks the context no more, so the run comes
-// back whole.
-type cancellingCompiler struct {
-	nilDocCompiler
-	cancel func()
-}
+// findingCompiler lowers every spec to a bare document with a finding.
+type findingCompiler struct{ nilDocCompiler }
 
-func (c cancellingCompiler) Compile(_ context.Context, sources []compilers.Source, _ compilers.Options) (*ir.Document, []ir.Diagnostic, error) {
-	c.cancel()
+func (findingCompiler) Compile(_ context.Context, sources []compilers.Source, _ compilers.Options) (*ir.Document, []ir.Diagnostic, error) {
 	return &ir.Document{
-		Name:    "Cancelled",
-		Sources: []ir.SourceInfo{{Format: "openapi@3.1", Path: sources[0].Path, Hash: ir.SourceHash(sources[0].Data)}},
+		IRVersion: ir.IRVersion,
+		Name:      "Found",
+		Sources:   []ir.SourceInfo{{Format: "openapi@3.1", Path: sources[0].Path, Hash: ir.SourceHash(sources[0].Data)}},
 	}, []ir.Diagnostic{{Severity: ir.SeverityWarning, Code: "openapi/late-finding", Message: "found"}}, nil
 }
 
+// cancellingPass cancels the run it is part of and hands the document back as
+// it was, as a pass that never looks at a context does. The engine checks the
+// context before each pass and not after the last, so the run comes back whole.
+type cancellingPass struct{ cancel func() }
+
+func (cancellingPass) Name() string { return "cancelling" }
+
+func (p cancellingPass) Run(doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
+	p.cancel()
+	return doc, nil
+}
+
 // TestRunPipeline_ARunCancelledInItsLastStageWritesNothing pins the check
-// after the engine returns: a run cancelled where the engine no longer looks
-// still writes no diagnostic and no document, and fails naming what cancelled
-// it.
+// after the engine returns: a run cancelled in its last pass, where the engine
+// no longer looks, still writes no diagnostic and no document, and fails
+// naming what cancelled it.
 func TestRunPipeline_ARunCancelledInItsLastStageWritesNothing(t *testing.T) {
 	orig := newEngine
 	t.Cleanup(func() { newEngine = orig })
@@ -467,11 +473,12 @@ func TestRunPipeline_ARunCancelledInItsLastStageWritesNothing(t *testing.T) {
 		for _, tt := range tests {
 			ctx, cancel := context.WithCancelCause(t.Context())
 			newEngine = func() (*engine.Engine, error) {
-				return engine.New(engine.WithCompilers(cancellingCompiler{cancel: func() { cancel(tt.cause) }}))
+				return engine.New(engine.WithCompilers(findingCompiler{}),
+					engine.WithPasses(cancellingPass{cancel: func() { cancel(tt.cause) }}))
 			}
 			var stdout, stderr bytes.Buffer
 
-			code := run(ctx, append(slices.Clone(args), "--skip-validate"), &stdout, &stderr)
+			code := run(ctx, slices.Clone(args), &stdout, &stderr)
 
 			assert.Equal(t, tt.wantCode, code, "%v %s", args, tt.name)
 			assert.Equal(t, tt.wantStderr, stderr.String(), "%v %s", args, tt.name)

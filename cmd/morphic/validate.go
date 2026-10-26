@@ -18,6 +18,8 @@ for a misuse, an I/O error or a run a signal stopped.
 IR pass called validate, not this command: they drop that pass's diagnostics and
 keep the compiler's.
 
+--verify is compile's, and holds the same stages to the same invariants.
+
 --opt is compile's, and takes the same settings: a spec that needs one to
 compile needs it here too, or what is checked is not what would be built.
 
