@@ -332,6 +332,9 @@ func TestRawConv_RendersWithinItsNodeBudget(t *testing.T) {
 	_, err = past.node(doc.Content[0], 0)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), fmt.Sprintf("expands past %d nodes", nodes-1))
+
+	whole := newRawConv()
+	assert.Equal(t, budget.AtMost(maxRawNodes), whole.nodes.Limit(), "RawFromNode's conversion spends the whole budget")
 }
 
 // TestRawFromNode_RejectsMalformedNodes covers the node shapes no parser

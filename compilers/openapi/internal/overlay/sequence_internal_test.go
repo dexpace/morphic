@@ -293,6 +293,30 @@ func TestSequence_DoesNotRefuseOnAnOverstatedCharge(t *testing.T) {
 	assert.Equal(t, before, countNodes(t.Context(), root, budget.AtMost(maxNodes)))
 }
 
+// TestSequence_ChargesAnActionToTheBudgetsEdge pins where a charge crosses: an
+// update whose charge brings the tree to exactly the budget is applied, and
+// one node of budget fewer refuses it, before it builds anything. The charge
+// is the payload's weight, three nodes here, though merging into info adds two.
+func TestSequence_ChargesAnActionToTheBudgetsEdge(t *testing.T) {
+	t.Parallel()
+	const head = "overlay: 1.0.0\ninfo: {title: o, version: \"1\"}\nactions:\n"
+	ov := head + "  - target: $.info\n    update: {x-a: 1}\n"
+	var fresh yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte(sequenceSpec), &fresh))
+	const charge = 3
+	before := countNodes(t.Context(), &fresh, budget.AtMost(maxNodes))
+
+	_, diags, ok := budgetedOverlay(t, ov, budget.AtMost(before+charge))
+	assert.True(t, ok, "a charge to the budget is within it: %+v", diags)
+
+	root, diags, ok := budgetedOverlay(t, ov, budget.AtMost(before+charge-1))
+	require.False(t, ok)
+	last := diags[len(diags)-1]
+	assert.Equal(t, diag.BudgetExceeded, last.Code)
+	assert.Contains(t, last.Message, fmt.Sprintf("at least %d nodes, past the %d-node budget", before+charge, before+charge-1))
+	assert.Equal(t, before, countNodes(t.Context(), root, budget.AtMost(maxNodes)), "and nothing was built")
+}
+
 // TestSequence_RefusesNoActionThatBuildsNothing pins that an action adding no
 // node is applied however large the tree it runs on: here a remove, on a tree
 // already past the budget, which it brings back within. Refused, it was

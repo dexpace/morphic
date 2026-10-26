@@ -264,6 +264,17 @@ func TestLoad_AnOverlayIsHeldToTheByteBudget(t *testing.T) {
 	assert.Equal(t, diag.BudgetExceeded, diags[0].Code)
 	assert.Equal(t, 1, diags[0].Provenance.Source, "the overlay is what crossed it")
 	assert.Contains(t, diags[0].Message, "overlay document is")
+
+	opts.MaxSourceBytes = budget.AtMost(len(ov))
+	doc, diags, err = Load(t.Context(), 0, openapitest.SourceOf(minimal31), opts)
+	require.NoError(t, err)
+	assert.NotNil(t, doc, "an overlay of the budget's bytes is within it: %+v", diags)
+
+	opts.MaxSourceBytes = budget.AtMost(len(ov) - 1)
+	_, diags, err = Load(t.Context(), 0, openapitest.SourceOf(minimal31), opts)
+	require.NoError(t, err)
+	require.Len(t, diags, 1, "and one byte fewer of budget refuses it: %+v", diags)
+	assert.Equal(t, fmt.Sprintf("overlay document is past the %d-byte budget", len(ov)-1), diags[0].Message)
 }
 
 // TestLoad_AnOverlayIsHeldToTheAliasBudget pins that the overlay's alias scan

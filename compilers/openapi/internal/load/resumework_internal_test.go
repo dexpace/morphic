@@ -195,6 +195,7 @@ func TestResumeWork_Charge(t *testing.T) {
 	}
 
 	w := newResumeWork()
+	assert.Equal(t, budget.AtMost(maxResumeWork), w.steps.Limit(), "settle resumes within maxResumeWork")
 	assert.True(t, w.charge(tree, "third.yaml#/components/schemas/Base", 2))
 	assert.Equal(t, 1, w.steps.Spent(), "a hop into another document is not charged")
 

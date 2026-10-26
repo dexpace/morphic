@@ -269,6 +269,56 @@ func TestRepairGrafts_TakesShapesAParseNeverProduces(t *testing.T) {
 	assert.True(t, substituteGrafts(t.Context(), withNil, reachable, new(budget.New(budget.AtMost(maxNodes)))), "and skipped again on the way back")
 }
 
+// TestApplyWalks_StopPastTheirBoundNotAtIt pins the edge of each walk around
+// an application: a tree it reads exactly fills the bound and is read whole,
+// and a bound one short of it cuts the walk. The snapshot and the reachable
+// set read every node, attribution every position, keys aside, and the graft
+// repair every child.
+func TestApplyWalks_StopPastTheirBoundNotAtIt(t *testing.T) {
+	t.Parallel()
+	tree := func() *yaml.Node {
+		return ynode.Map(ynode.Scalar("a"), ynode.Map(ynode.Scalar("b"), ynode.Scalar("c")), ynode.Scalar("d"), ynode.Scalar("e"))
+	}
+	const nodes, positions, children = 7, 4, 6 // keys included; keys aside; every node but the root
+	walks := map[string]struct {
+		read func(budget.Limit) bool
+		at   int
+	}{
+		"snapshot": {func(l budget.Limit) bool {
+			_, complete := snapshot(t.Context(), tree(), l)
+			return complete
+		}, nodes},
+		"reachable": {func(l budget.Limit) bool {
+			_, walked := reachableNodes(t.Context(), tree(), l)
+			return walked
+		}, nodes},
+		"attribution": {func(l budget.Limit) bool {
+			root := tree()
+			before, _ := snapshot(t.Context(), root, budget.Unbounded())
+			_, _, ok := attribute(t.Context(), root, before, l)
+			return ok
+		}, positions},
+		"graft repair": {func(l budget.Limit) bool {
+			work := budget.New(l)
+			return substituteGrafts(t.Context(), tree(), map[*yaml.Node]bool{}, &work)
+		}, children},
+	}
+	for name, w := range walks {
+		assert.True(t, w.read(budget.AtMost(w.at)), "%s: a tree of the bound is read whole", name)
+		assert.False(t, w.read(budget.AtMost(w.at-1)), "%s: one short cuts it", name)
+	}
+
+	// A graft spends what it copies too: the tree's two children and the three
+	// nodes the alias names outside it, more than the tree's three nodes.
+	grafted := func() *yaml.Node {
+		return ynode.Map(ynode.Scalar("a"), &yaml.Node{Kind: yaml.AliasNode, Alias: ynode.Map(ynode.Scalar("x"), ynode.Scalar("y"))})
+	}
+	normalized, safe := repairGrafts(t.Context(), grafted(), budget.AtMost(5))
+	assert.True(t, normalized && safe, "the repair fits a budget of what it reads and copies")
+	normalized, safe = repairGrafts(t.Context(), grafted(), budget.AtMost(4))
+	assert.False(t, normalized || safe, "and one short refuses the overlay rather than leave a graft")
+}
+
 // TestSubstituteGrafts_StopsAtItsOwnBudget pins the bound on the walk that
 // finds grafts, as against the one on the expansion that replaces them. A tree
 // wide enough to exhaust the budget before any graft is met stops there rather

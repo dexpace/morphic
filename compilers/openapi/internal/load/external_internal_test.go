@@ -224,19 +224,24 @@ func TestExternal_AdmitJoinsTwoFindings(t *testing.T) {
 }
 
 // TestExternal_AdmitOverTheNodeBudgetIsRefused pins the node budget, which admit
-// holds an external document to once the pre-parse refusals have cleared it.
+// holds an external document to once the pre-parse refusals have cleared it:
+// a document of the budget's nodes is admitted, and one node fewer of budget
+// refuses it.
 func TestExternal_AdmitOverTheNodeBudgetIsRefused(t *testing.T) {
 	t.Parallel()
 	root, err := parseTree(t.Context(), []byte("a: 1\n"))
 	require.NoError(t, err)
 	nodes := nodeCount(t.Context(), root)
-	require.Greater(t, nodes, 3, "sanity: the fixture crosses the budget below")
+	admit := func(limit int) error {
+		return newExternal(t.Context(), &soa.OpenAPI{}, Options{MaxSourceNodes: budget.AtMost(limit)},
+			newExternalReads(sourceDocument{}, budget.Unbounded())).admit(t.Context(), "k", root)
+	}
 
-	err = newExternal(t.Context(), &soa.OpenAPI{}, Options{MaxSourceNodes: budget.AtMost(3)}, newExternalReads(sourceDocument{}, budget.Unbounded())).admit(t.Context(), "k", root)
-
+	require.NoError(t, admit(nodes), "a document of the budget's nodes is within it")
+	err = admit(nodes - 1)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "refused")
-	assert.Contains(t, err.Error(), fmt.Sprintf("%d nodes, past the 3-node budget", nodes))
+	assert.Contains(t, err.Error(), fmt.Sprintf("%d nodes, past the %d-node budget", nodes, nodes-1))
 }
 
 // TestExternal_AdmitHoldsTheAliasBudget pins that an external document is held

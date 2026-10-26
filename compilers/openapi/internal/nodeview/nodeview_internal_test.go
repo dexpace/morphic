@@ -14,7 +14,6 @@ import (
 	"github.com/stretchr/testify/require"
 	yaml "go.yaml.in/yaml/v3"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ynode"
 )
 
@@ -195,9 +194,8 @@ func TestNodeView_TruncationIsPerNode(t *testing.T) {
 		"so does a chain that fits inside the bound")
 }
 
-// holding sets v's memo as holding pairs pairs already.
+// holding charges v's memo pairs pairs, as if it held them already.
 func holding(v *View, pairs int) {
-	v.cached = budget.New(budget.AtMost(maxCachedPairs))
 	v.cached.Spend(pairs)
 }
 
