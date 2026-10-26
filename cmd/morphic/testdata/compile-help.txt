@@ -30,10 +30,12 @@ Exit status is 0 when nothing reaches --fail-on, 1 when something does or the
 spec lowered to no document at all, and 2 for a misuse, an I/O error, a
 compiler or pass that broke its contract, or a run a signal stopped.
 
-SIGINT, SIGTERM or SIGHUP stops the run. A document --output was writing is
-abandoned and its temporary file removed, so the file keeps its previous
-content unless the document was already being moved into place. Another
-signal while the run is stopping changes nothing.
+SIGINT, SIGTERM or SIGHUP stops the run, which then writes no document: a file
+--output names keeps its previous content, its temporary file removed. One
+that comes once the document is being written to stdout or moved into place,
+or once an --explain report has begun, is too late to stop the run, which
+finishes as though it had not come. Another signal while the run is stopping
+changes nothing.
 
 Usage:
   morphic compile <spec-file> [flags]

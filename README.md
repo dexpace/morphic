@@ -191,18 +191,20 @@ written to at all.
 
 SIGINT, SIGTERM or SIGHUP stops a run, which exits `2` whatever it had found, naming the signal on
 stderr; a shell script interrupted with Ctrl-C goes on to its next command unless it checks that
-status, as `set -e` does. What is written by then depends on when the signal came. During the
-compile, nothing is. During the diagnostics, they are finished, as is an `--explain` report, and no
-document follows. During the document, a file `-o` names keeps its previous content, its temporary
-file removed, unless the document was already being moved into place; stdout gets the whole document
-if its write had begun and none of it if not. A signal during that move or that write can come too
-late to stop the run at all, which then exits as though it had not been sent. Another signal while
-the run is stopping changes nothing, so a copy that a shell or a wrapper delivers along with the
-first cannot cut the cleanup short. Stopping can take a few seconds on a large spec; SIGQUIT
-(`Ctrl-\`), which prints every goroutine's stack, or SIGKILL ends morphic sooner, and either can
-leave the temporary file behind: a dot, the destination's name, then digits. A SIGINT or SIGHUP
-morphic was started ignoring stays ignored, as a script's shell starts a background job ignoring
-SIGINT and `nohup` a command ignoring SIGHUP.
+status, as `set -e` does. A stopped run writes no document: a file `-o` names keeps its previous
+content, its temporary file removed, and stdout gets none of it. Stopped during the compile, it
+writes nothing at all; stopped during `compile`'s diagnostics, it finishes them, and no document or
+`--explain` report follows. A signal that comes once the run's last output has begun is too late to
+stop it: once the document is being written to stdout or moved into place over `-o`'s file, once an
+`--explain` report has begun, or, for `validate`, whose diagnostics are all it writes, once the
+compile is over. The run then finishes and exits as though the signal had not been sent, so it
+never reports a stop for a document it wrote. Another signal while the run is stopping changes
+nothing, so a copy that a shell or a wrapper delivers along with the first cannot cut the cleanup
+short, and a signal that comes as morphic exits does not end it by that signal either. Stopping can
+take a few seconds on a large spec; SIGQUIT (`Ctrl-\`), which prints every goroutine's stack, or
+SIGKILL ends morphic sooner, and either can leave the temporary file behind: a dot, the
+destination's name, then digits. A SIGINT or SIGHUP morphic was started ignoring stays ignored, as a
+script's shell starts a background job ignoring SIGINT and `nohup` a command ignoring SIGHUP.
 
 #### Compiler options
 
