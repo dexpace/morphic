@@ -270,14 +270,14 @@ the first was not and must still return the same document. What a pass reports m
 second time, as a filter that removed an operation finds none left to remove, so the findings are
 left out of the comparison.
 
-Idempotent passes do not make an idempotent list, so the order has to as well. What a run returns
-is a document each pass of the list returns as it is, so a second run returns it unchanged,
-whichever of its passes are turned off. A pass placed before one whose output it acts on breaks
-this, though each of the two is idempotent alone: a filter dropping what a later pass flags drops
-more on the second run. It goes after the pass it acts on. The harness's idempotence oracle holds
-the default list to both over every corpus spec: through `RunDocument`, it runs each pass over what
-the passes before it returned, then again over what that run returned, and then each over what the
-run of them all returned (§5).
+Idempotent passes do not by themselves make the list idempotent; their order has to as well. What
+a run returns is a document each of the passes it ran returns as it is, so a second run returns it
+unchanged, whichever of those passes it turns off. A pass placed before one whose output it acts on
+breaks this, though each of the two is idempotent alone: a filter dropping what a later pass flags
+drops more on the second run. It goes after the pass it acts on. The harness's idempotence oracle
+holds the default list to both over every corpus spec: through `RunDocument`, it runs each pass over
+what the passes before it returned, then again over what that run returned, and then each over what
+the run of them all returned (§5). No run that turns passes off is swept on its own.
 
 A caller turns a pass off by name (`RunOptions.DisablePasses`, `--disable-pass`); a name no pass
 carries is a Go error (`engine.ErrUnknownPass`), not a diagnostic, because it names no defect in the
