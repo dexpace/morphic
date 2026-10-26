@@ -298,7 +298,8 @@ below are the ones most likely to bite in this codebase — the full guide gover
   way to recover the lint configuration allows. This applies directly to schema lowering and IR
   traversal — deep/cyclic specs are normal inputs, not edge cases. In the OpenAPI compiler a count
   held to a limit counts through `compilers/openapi/internal/budget`, whose zero `Limit` is
-  unbounded, rather than a counter of its own; a cap compared beside its loop stays a constant.
+  unbounded, rather than a counter of its own; a depth, a hop count or a constant compared beside
+  the one loop it bounds stays beside its check.
 - **Errors are values.** Handle every error (`_ = err` is banned); wrap with `%w` + context,
   one level, `%w` at the end; branch with `errors.Is`/`errors.As`, never string matching;
   sentinel errors `Err…`, error types `…Error` implementing `Unwrap`; error strings lowercase,

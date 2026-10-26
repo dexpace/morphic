@@ -59,9 +59,9 @@ var rules = map[string][]string{
 	// by being an unkeyed subdirectory.
 	"compilers/openapi/internal/diag": {module + "/barrier", module + "/ir"},
 	// The one counting of a compile's work and size against its limits. It
-	// reaches the standard library alone, so every package that bounds what it
-	// does, the lowest of them included, counts through it rather than keeping
-	// a counter of its own.
+	// reaches the standard library alone, so any package that holds a count to
+	// a limit, the lowest of them included, can count through it rather than
+	// keep a counter of its own.
 	"compilers/openapi/internal/budget": {},
 	// Pointer construction and the OpenAPI derivation of an ID from a pointer. It
 	// reaches the framework for the grammar wrapped around a path and nothing
