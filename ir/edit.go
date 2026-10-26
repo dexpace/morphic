@@ -40,7 +40,7 @@ type Editor struct {
 	// finished records that Finish has returned out, which ends the edit.
 	changing, intruded, finished bool
 	// copying holds the map entries an UpdateType copy reads, kept from one
-	// copy to the next, so copying a map costs nothing per entry.
+	// copy to the next, so reading a map to copy it costs nothing per entry.
 	copying entryStack
 }
 

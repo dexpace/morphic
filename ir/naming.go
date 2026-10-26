@@ -76,8 +76,8 @@ func CanonicalWords(name string) string {
 }
 
 // stackRendering is how many bytes CanonicalWords renders a name into on the
-// stack. Names in the largest documents compiled so far stay under half of
-// it, so every one of them renders there.
+// stack. A name renders in at most twice its length, so one of up to half of
+// it fits there; a longer name takes canonicalWordsExactly.
 const stackRendering = 256
 
 // canonicalWordsExactly is CanonicalWords for a name whose canonical form could

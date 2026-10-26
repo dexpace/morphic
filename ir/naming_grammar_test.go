@@ -203,10 +203,10 @@ func TestCanonicalWords_RendersInAtMostTwiceItsLength(t *testing.T) {
 // TestCanonicalWords_AllocatesOnlyItsResult holds the grammar to the cost its
 // doc promises, at every length: a canonical name comes back as it is, any
 // other as one new string, on the stack rendering and past it, and
-// HasCanonicalWords builds nothing. "aB" a hundred times is short enough for
-// the stack and renders too long for it. irverify compares every Naming that carries
-// a source, and compilers derive every name. It is not run in parallel:
-// AllocsPerRun measures the process.
+// HasCanonicalWords builds nothing. "aB" a hundred times fits the stack's
+// buffer but renders too long for it. irverify compares every Naming that
+// carries a source, and compilers derive every name. It is not run in
+// parallel: AllocsPerRun measures the process.
 func TestCanonicalWords_AllocatesOnlyItsResult(t *testing.T) {
 	short, long := strings.Repeat("ab", 64), strings.Repeat("user_name_", 30)+"x"
 	for _, tc := range []struct {

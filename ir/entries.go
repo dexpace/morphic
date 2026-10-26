@@ -8,14 +8,15 @@ import (
 	"strings"
 )
 
-// entryStack holds the entries of the maps a traversal is ranging over, the
+// entryStack holds the entries of the maps a traversal ranges over, the
 // innermost map's last, each map's in rendered-key order. [WalkValues] and the
-// deep copy share it, so the two meet a map's entries in one order.
+// deep copy each range through one, so they meet a map's entries in one order.
 //
-// A key or value is copied into storage kept per map type and reused by the
+// Keys and values are copied into storage kept per map type and reused by the
 // next map of that type, where reflect.MapIter.Key and Value allocate a copy of
-// each, so ranging over a map allocates nothing once its type's storage has
-// grown to fit. The zero entryStack is ready to use.
+// each, so copying a map's entries allocates nothing once that storage fits;
+// only a key that is not a string may cost its label. The zero entryStack is
+// ready to use.
 type entryStack struct {
 	entries []mapEntry
 	stores  map[reflect.Type]*entryStore
@@ -104,8 +105,9 @@ func (f entryFrame) copyEntry(iter *reflect.MapIter, i int) (key, value reflect.
 }
 
 // entryStore holds copies of the keys and values of maps of one type, in slots
-// shared by the maps of that type on an entryStack: slots [0, used) hold theirs,
-// outermost first.
+// shared by the maps of that type on an entryStack: those maps have claimed
+// slots [0, used), outermost first, though what one copied before reserve moved
+// to larger slices stays in the old ones.
 type entryStore struct {
 	// keys and values are slices of the map type's key and element types, each
 	// as long as its capacity.
