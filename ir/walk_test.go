@@ -111,24 +111,37 @@ func TestWalkValues_DeepValueTreeIsTruncated(t *testing.T) {
 }
 
 // TestWalkValuesContext_WalksAsWalkValuesUnderALiveContext pins that the
-// context changes nothing while it is live: the same values, at the same
-// paths, in the same order, the same truncation, and no error.
+// context changes nothing while it is live: the same values in the same order,
+// the same truncation, and no error. A value is told apart by its path where
+// the tree is shallow, and by its kind where the cap truncates it, since a
+// path there is as long as the tree is deep.
 func TestWalkValuesContext_WalksAsWalkValuesUnderALiveContext(t *testing.T) {
 	t.Parallel()
-	for _, depth := range []int{200, ir.MaxWalkDepth} {
-		v := irtest.NestedListValue(depth)
+	for _, tc := range []struct {
+		depth int
+		paths bool
+	}{{200, true}, {ir.MaxWalkDepth, false}} {
+		v := irtest.NestedListValue(tc.depth)
 		doc := &ir.Document{Types: ir.TypeRegistry{"t/m": &ir.Model{ID: "t/m", Examples: []ir.Example{{Value: &v}}}}}
-		want, wantTruncated := walkPaths(doc)
-		var got []string
+		var want, got []string
+		record := func(into *[]string) ir.Visitor {
+			return ir.VisitFunc(func(v reflect.Value, at ir.WalkPath) bool {
+				if tc.paths {
+					*into = append(*into, at.String())
+				} else {
+					*into = append(*into, v.Kind().String())
+				}
+				return true
+			})
+		}
+		wantTruncated := ir.WalkValues(doc, "doc", record(&want))
 
-		truncated, err := ir.WalkValuesContext(t.Context(), doc, "doc", ir.VisitFunc(func(_ reflect.Value, at ir.WalkPath) bool {
-			got = append(got, at.String())
-			return true
-		}))
+		truncated, err := ir.WalkValuesContext(t.Context(), doc, "doc", record(&got))
 
 		require.NoError(t, err)
-		assert.Equal(t, wantTruncated, truncated, "depth %d", depth)
-		assert.Equal(t, want, got, "depth %d", depth)
+		assert.Equal(t, wantTruncated, truncated, "depth %d", tc.depth)
+		assert.Equal(t, tc.depth == ir.MaxWalkDepth, truncated, "depth %d: the cap truncates only the deep tree", tc.depth)
+		assert.Equal(t, want, got, "depth %d", tc.depth)
 	}
 }
 
