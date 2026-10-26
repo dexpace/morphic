@@ -36,6 +36,10 @@ const subtreeSuffix = "/..."
 // external module whose layout is not ours to enumerate, or a compiler's own
 // internal tree.
 var rules = map[string][]string{
+	// What turns a panic in code the caller does not own into an error. It is
+	// below every package that runs a compiler or a pass, so it reaches the
+	// standard library alone.
+	"barrier":     {},
 	"ir":          {},
 	"ir/irfacts":  {module + "/ir"},
 	"ir/irtest":   {module + "/ir", "github.com/google/go-cmp" + subtreeSuffix},
