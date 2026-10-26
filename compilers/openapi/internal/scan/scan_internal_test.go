@@ -283,6 +283,7 @@ func TestRecoverCycleScan_QuotesAPanicOnOneBoundedLine(t *testing.T) {
 	assert.Equal(t, "alias pre-scan aborted ("+diag.OneLine(errors.New(huge))+
 		"); alias-cycle protection is incomplete for this source", got[0].Message)
 	assert.NotContains(t, got[0].Message, "\n")
+	assert.Less(t, len(got[0].Message), len(huge)/4, "the bound cut the value")
 }
 
 func TestRecoverCycleScan_PassesThroughResult(t *testing.T) {

@@ -144,6 +144,7 @@ func TestApplyRecovered_QuotesAPanicOnOneBoundedLine(t *testing.T) {
 	assert.Equal(t, "cannot apply overlay: overlay library panicked ("+diag.OneLine(errors.New(huge))+")",
 		diags[0].Message)
 	assert.NotContains(t, diags[0].Message, "\n")
+	assert.Less(t, len(diags[0].Message), len(huge)/4, "the bound cut the value")
 }
 
 // TestSnapshotAndAttribute_TakeADocumentWithNoRoot pins the walks themselves

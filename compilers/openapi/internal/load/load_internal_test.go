@@ -75,33 +75,36 @@ func TestUnmarshal_RecoversParserPanic(t *testing.T) {
 	assert.Nil(t, doc)
 }
 
-// TestParsed_QuotesAPanicOnOneBoundedLine pins that a fault in the parser's
-// build reaches the ErrParse error as diag.Catch quotes it, whatever it panicked
-// with: the compiler reports the error as a diagnostic, rendered one per line.
-func TestParsed_QuotesAPanicOnOneBoundedLine(t *testing.T) {
+// TestBuildRecovered_QuotesAPanicOnOneBoundedLine pins that a fault in the
+// parser's build reaches the ErrParse error as diag.Catch quotes it, whatever it
+// panicked with: the compiler reports the error as a diagnostic, rendered one
+// per line.
+func TestBuildRecovered_QuotesAPanicOnOneBoundedLine(t *testing.T) {
 	t.Parallel()
 	huge := strings.Repeat("the parser faulted here\n", 1<<10)
 
-	doc, err := parsed(func() (*soa.OpenAPI, error) { panic(huge) })
+	doc, err := buildRecovered(func() (*soa.OpenAPI, error) { panic(huge) })
 
 	require.ErrorIs(t, err, ErrParse)
 	assert.Nil(t, doc)
 	assert.Equal(t, "parser panicked ("+diag.OneLine(errors.New(huge))+"): "+ErrParse.Error(), err.Error())
 	assert.NotContains(t, err.Error(), "\n")
+	assert.Less(t, len(err.Error()), len(huge)/4, "the bound cut the value")
 }
 
-// TestParsed_ReturnsWhatTheBuildReturned pins the barrier as a pass-through for
-// a build that returns: its document, or its error, which is not ErrParse.
-func TestParsed_ReturnsWhatTheBuildReturned(t *testing.T) {
+// TestBuildRecovered_ReturnsWhatTheBuildReturned pins the barrier as a
+// pass-through for a build that returns: its document, or its error, which is
+// not ErrParse.
+func TestBuildRecovered_ReturnsWhatTheBuildReturned(t *testing.T) {
 	t.Parallel()
 	want := &soa.OpenAPI{}
 	refused := errors.New("refused")
 
-	doc, err := parsed(func() (*soa.OpenAPI, error) { return want, nil })
+	doc, err := buildRecovered(func() (*soa.OpenAPI, error) { return want, nil })
 	require.NoError(t, err)
 	assert.Same(t, want, doc)
 
-	doc, err = parsed(func() (*soa.OpenAPI, error) { return nil, refused })
+	doc, err = buildRecovered(func() (*soa.OpenAPI, error) { return nil, refused })
 	require.ErrorIs(t, err, refused)
 	assert.NotErrorIs(t, err, ErrParse, "an error the parser returned is not a fault")
 	assert.Nil(t, doc)

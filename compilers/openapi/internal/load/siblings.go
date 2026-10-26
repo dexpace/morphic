@@ -347,7 +347,7 @@ func isRefKey(key *yaml.Node) bool {
 // item's own fields.
 func buildSibling(ctx context.Context, node *yaml.Node) (*soa.PathItem, error) {
 	var item *soa.PathItem
-	err := guarded("parser", func() error {
+	err := runRecovered("parser", func() error {
 		item = soa.NewPathItem()
 		_, err := marshaller.UnmarshalNode(ctx, "", node, item)
 		return err

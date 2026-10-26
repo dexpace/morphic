@@ -395,12 +395,13 @@ func taggedMappingRefusal(locate scan.Locator, n *yaml.Node) ir.Diagnostic {
 
 // unmarshal builds a speakeasy document from an already-decoded node tree,
 // reproducing soa.Unmarshal with the decode lifted out, so each node keeps its
-// line and column through an overlay. The parser builds it behind parsed.
+// line and column through an overlay. The parser builds it behind
+// buildRecovered.
 func unmarshal(ctx context.Context, data []byte, root *yaml.Node) (*soa.OpenAPI, error) {
 	if len(data) == 0 {
 		return nil, errors.New("empty document")
 	}
-	return parsed(func() (*soa.OpenAPI, error) {
+	return buildRecovered(func() (*soa.OpenAPI, error) {
 		var out soa.OpenAPI
 		out.InitCache()
 		out.GetCore().SetConfig(yml.GetConfigFromDoc(data, root))
@@ -412,16 +413,17 @@ func unmarshal(ctx context.Context, data []byte, root *yaml.Node) (*soa.OpenAPI,
 	})
 }
 
-// parsed runs build, the parser's build of a document, behind diag.Catch. The
-// parser faults on degenerate input such as a whitespace-only document
-// (docs/parser-library.md#recoverable-panic), and a fault is an ErrParse error
-// quoting it, which the compiler reports as a source it cannot read.
+// buildRecovered runs build, the parser's build of a document, behind
+// diag.Catch. The parser faults on degenerate input such as a whitespace-only
+// document (docs/parser-library.md#recoverable-panic), and a fault is an
+// ErrParse error quoting it, which the compiler reports as a source it cannot
+// read.
 //
 // A fault on a goroutine the decoder starts is beyond any barrier, so the one
 // shape known to fault there, a tagged mapping at a reference position
 // (docs/parser-library.md#tagged-mapping-panic), is refused beforehand (see
 // refusals).
-func parsed(build func() (*soa.OpenAPI, error)) (*soa.OpenAPI, error) {
+func buildRecovered(build func() (*soa.OpenAPI, error)) (*soa.OpenAPI, error) {
 	var (
 		doc *soa.OpenAPI
 		err error

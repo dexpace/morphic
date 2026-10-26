@@ -313,14 +313,14 @@ func eachModel[T any](items iter.Seq[soa.WalkItem], what string,
 
 // eachSighting is eachModel handing visit the location of each model as well.
 //
-// The walk and visit run behind guarded, so a panic in either becomes an error
-// naming what was running. It stops the walk at site, the model being visited,
-// or the root when the walk panicked. An error from visit stops it too.
+// The walk and visit run behind runRecovered, so a panic in either becomes an
+// error naming what was running. It stops the walk at site, the model being
+// visited, or the root when the walk panicked. An error from visit stops it too.
 func eachSighting[T any](items iter.Seq[soa.WalkItem], what string,
 	visit func(jsontext.Pointer, soa.Locations, T) error,
 ) (jsontext.Pointer, error) {
 	var site jsontext.Pointer
-	err := guarded(what, func() error {
+	err := runRecovered(what, func() error {
 		for item := range items {
 			if err := item.Match(soa.Matcher{Any: func(model any) error {
 				m, ok := model.(T)
@@ -346,11 +346,11 @@ func eachSighting[T any](items iter.Seq[soa.WalkItem], what string,
 // recovers from.
 const resolverPanics = "reference resolver"
 
-// guarded runs f behind diag.Catch and returns its error, or, when it panicked,
-// an error naming what was running and quoting the panic. The library panics
-// on the caller's goroutine on some shapes its parser accepts, such as a $ref
-// with no value (docs/parser-library.md#recoverable-panic).
-func guarded(what string, f func() error) error {
+// runRecovered runs f behind diag.Catch and returns its error, or, when it
+// panicked, an error naming what was running and quoting the panic. The library
+// panics on the caller's goroutine on some shapes its parser accepts, such as a
+// $ref with no value (docs/parser-library.md#recoverable-panic).
+func runRecovered(what string, f func() error) error {
 	var err error
 	if text, panicked := diag.Catch(func() { err = f() }); panicked {
 		return fmt.Errorf("%s panicked: %s", what, text)

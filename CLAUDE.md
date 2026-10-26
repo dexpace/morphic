@@ -117,8 +117,8 @@ in the docs.
 
 ```
 barrier/     Layer 0 — runs code its caller does not own, turns a panic in it into an error, and
-             quotes what it says on one bounded line. The one package that may call recover
-             (`.golangci.yml`). Imports ONLY the stdlib.
+             quotes what it says on one bounded line. Outside tests, the one package that may
+             call recover (`.golangci.yml`). Imports ONLY the stdlib.
 ir/          Layer 0 — IR nodes, IDs, traversal, editing, JSON round-trip. Imports ONLY the stdlib.
   irfacts/   Layer 0 — what a Document implies and does not state (subtypes, exposed properties,
              usage, recursion), derived on demand and never stored. Imports ir only.
@@ -293,8 +293,9 @@ below are the ones most likely to bite in this codebase — the full guide gover
   compound checks. Never accept garbage silently.
 - **Bounded everything.** Every loop, queue, retry, buffer, and timeout has an explicit limit.
   Recursion is permitted **only** with a provably bounded depth: an explicit counter checked
-  against a named hard cap, recovered at the public boundary. This applies directly to schema
-  lowering and IR traversal — deep/cyclic specs are normal inputs, not edge cases.
+  against a named hard cap, recovered at the public boundary through `barrier.Catch`, the one
+  `recover` the lint configuration allows. This applies directly to schema lowering and IR
+  traversal — deep/cyclic specs are normal inputs, not edge cases.
 - **Errors are values.** Handle every error (`_ = err` is banned); wrap with `%w` + context,
   one level, `%w` at the end; branch with `errors.Is`/`errors.As`, never string matching;
   sentinel errors `Err…`, error types `…Error` implementing `Unwrap`; error strings lowercase,

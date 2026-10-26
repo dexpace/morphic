@@ -447,7 +447,7 @@ func (r *restorer) add(model any) bool {
 // the source shows, and then what everything added reaches, behind the
 // barrier the walks have: the library faults on shapes it did not expect.
 func (r *restorer) finish(ctx context.Context, built []typed.Built) error {
-	return guarded(restoring, func() error {
+	return runRecovered(restoring, func() error {
 		for _, b := range built {
 			if b.Schema != nil {
 				r.addObject(ctx, record{object: b.Schema, walk: walkOf(b.Schema)})

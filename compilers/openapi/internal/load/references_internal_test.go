@@ -649,28 +649,29 @@ func TestEachReference_PanicIsReportedAtTheReference(t *testing.T) {
 	})
 }
 
-// TestGuarded_QuotesAPanicOnOneBoundedLine pins that every walk and build load
-// runs behind guarded reports a panic as diag.Catch quotes it, whatever it
-// panicked with, after the name of what was running.
-func TestGuarded_QuotesAPanicOnOneBoundedLine(t *testing.T) {
+// TestRunRecovered_QuotesAPanicOnOneBoundedLine pins that every walk and build
+// load runs behind runRecovered reports a panic as diag.Catch quotes it,
+// whatever it panicked with, after the name of what was running.
+func TestRunRecovered_QuotesAPanicOnOneBoundedLine(t *testing.T) {
 	t.Parallel()
 	huge := strings.Repeat("the walk faulted here\n", 1<<10)
 
-	err := guarded("validation", func() error { panic(huge) })
+	err := runRecovered("validation", func() error { panic(huge) })
 
 	require.Error(t, err)
 	assert.Equal(t, "validation panicked: "+diag.OneLine(errors.New(huge)), err.Error())
 	assert.NotContains(t, err.Error(), "\n")
+	assert.Less(t, len(err.Error()), len(huge)/4, "the bound cut the value")
 }
 
-// TestGuarded_ReturnsWhatTheWorkReturned pins the barrier as a pass-through for
+// TestRunRecovered_ReturnsWhatTheWorkReturned pins the barrier as a pass-through for
 // work that returns.
-func TestGuarded_ReturnsWhatTheWorkReturned(t *testing.T) {
+func TestRunRecovered_ReturnsWhatTheWorkReturned(t *testing.T) {
 	t.Parallel()
 	refused := errors.New("refused")
 
-	require.NoError(t, guarded("walk", func() error { return nil }))
-	assert.Same(t, refused, guarded("walk", func() error { return refused }))
+	require.NoError(t, runRecovered("walk", func() error { return nil }))
+	assert.Same(t, refused, runRecovered("walk", func() error { return refused }))
 }
 
 // TestFindingPlace covers each answer findingPlace gives a trail: its last

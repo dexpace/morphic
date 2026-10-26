@@ -505,7 +505,7 @@ Dependency rules, enforced by an architecture test as in oagen:
 - `barrier` imports only the standard library, and sits below the packages that run code they do not
   own behind it: `compilers`, which runs a compiler, `engine`, which runs a pass, and the OpenAPI
   compiler's `diag`, behind which that compiler runs its parser, its overlay library and its own
-  alias scan. No other package recovers a panic, which `.golangci.yml` enforces.
+  alias scan. No other package recovers a panic outside its tests, as `.golangci.yml` enforces.
 - `compilers/compile` imports only `ir`: it is below every compiler, not beside them.
 - `compilers/*` and `pass` import `ir` (and their own format libraries), and `pass` also
   `ir/irfacts` — never each other, never `emitters` or `engine`. A compiler also names the

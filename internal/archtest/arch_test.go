@@ -36,9 +36,10 @@ const subtreeSuffix = "/..."
 // external module whose layout is not ours to enumerate, or a compiler's own
 // internal tree.
 var rules = map[string][]string{
-	// What turns a panic in code the caller does not own into an error. It is
-	// below every package that runs a compiler or a pass, so it reaches the
-	// standard library alone.
+	// What runs code the caller does not own, turns a panic in it into an
+	// error, and quotes what that code says. It is below every package that
+	// runs such code, a compiler, a pass or a compiler's own dependency, so it
+	// reaches the standard library alone.
 	"barrier":     {},
 	"ir":          {},
 	"ir/irfacts":  {module + "/ir"},

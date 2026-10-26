@@ -92,9 +92,10 @@ linters:
           pkg: ^log/slog$
         - pattern: ^syslog\.(New|Dial|NewLogger)$
           pkg: ^log/syslog$
-        # A panic is recovered through barrier.Catch alone, in every package. A
-        # hand-written recover quotes what it caught with no bound on its
-        # length or its lines, and misses runtime.Goexit and panic(nil).
+        # Outside tests, a panic is recovered through barrier.Catch alone, in
+        # every package. A hand-written recover quotes what it caught with no
+        # bound on its length or its lines, and under GODEBUG=panicnil=1 takes
+        # a panic(nil) for a return.
         - pattern: ^recover$
           msg: recover a panic through barrier.Catch
     funlen:

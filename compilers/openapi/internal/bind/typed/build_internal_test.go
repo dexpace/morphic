@@ -63,4 +63,5 @@ func TestBuild_QuotesAPanicOnOneBoundedLine(t *testing.T) {
 	require.Error(t, built[0].Err)
 	assert.Equal(t, "the parser panicked: "+diag.OneLine(errors.New(huge)), built[0].Err.Error())
 	assert.NotContains(t, built[0].Err.Error(), "\n")
+	assert.Less(t, len(built[0].Err.Error()), len(huge)/4, "the bound cut the value")
 }
