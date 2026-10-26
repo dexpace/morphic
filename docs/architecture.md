@@ -476,13 +476,12 @@ Dependency rules, enforced by an architecture test as in oagen:
 
 The engine owns every read, every write and every rendering for a person, so a second driver — an
 editor integration, an emitter driver, a test harness — reads, writes and reports exactly as the CLI
-does without importing it. It takes its input four ways: a spec file (`Run`), a spec held in memory
-beside documents on disk (`RunSpec`, for an edited buffer or a harness), sources already in memory
-(`RunSources`, which reads nothing else), and a document already compiled (`RunDocument`, which
-runs the passes alone). `engine/reader` reads what a source's references name, `engine/output`
-writes the document to a stream or replaces a file atomically, and `engine/report` renders
-diagnostics and `--explain`. The CLI parses flags, picks the streams and turns a run into an exit
-code.
+does without importing it. It takes a spec file (`Run`), a spec held in memory beside documents on
+disk (`RunSpec`, for an edited buffer or a harness), sources already in memory (`RunSources`, which
+reads nothing else), or a document already compiled (`RunDocument`, which runs the passes alone).
+`engine/reader` reads what a source's references name, `engine/output` writes the document to a
+stream or replaces a file atomically, and `engine/report` renders diagnostics and `--explain`. The
+CLI parses flags, picks the streams and turns a run into an exit code.
 
 Two caps guard the shape rather than the graph, both in `internal/archtest` and `.golangci.yml`:
 no type under `compilers/` may carry more than 20 methods, and no function may exceed 70 lines or
