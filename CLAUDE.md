@@ -116,12 +116,14 @@ in the docs.
 ## Package layout & layering (enforced by an architecture test)
 
 ```
+barrier/     Layer 0 — runs code its caller does not own and turns a panic in it into an error.
+             Imports ONLY the stdlib.
 ir/          Layer 0 — IR nodes, IDs, traversal, editing, JSON round-trip. Imports ONLY the stdlib.
   irfacts/   Layer 0 — what a Document implies and does not state (subtypes, exposed properties,
              usage, recursion), derived on demand and never stored. Imports ir only.
   irverify/  Layer 0 — structural-invariant checks over a compiled Document. Imports ir only.
   irtest/    Layer 0 — golden-file helper (`-update` rewrites) and fixture helpers. Imports ir + go-cmp.
-compilers/   Layer 1 — the Compiler contract and the format-keyed registry. Imports ir only.
+compilers/   Layer 1 — the Compiler contract and the format-keyed registry. Imports ir and barrier.
   compile/   Layer 1 — what every compiler shares: the type registry with its coordinate map,
              diagnostics, and the naming and identifier grammars. Imports ir only.
   <format>/  Layer 1 — one compiler per format: its public face and nothing else — the

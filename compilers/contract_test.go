@@ -46,7 +46,7 @@ func digest(data []byte) string {
 func keeping() *scripted {
 	return &scripted{
 		formats: []compilers.SourceFormat{alpha},
-		doc: &ir.Document{Sources: []ir.SourceInfo{
+		doc: &ir.Document{IRVersion: ir.IRVersion, Sources: []ir.SourceInfo{
 			{Format: alpha.String(), Path: spec.Path, Hash: digest(spec.Data)},
 		}},
 		table: []ir.SourceInfo{{Path: spec.Path}},
@@ -153,6 +153,21 @@ func TestDetectionCompile_EachBreachIsAContractError(t *testing.T) {
 		"a refusal finding past its table": {
 			func(c *scripted) { c.doc, c.diags = nil, []ir.Diagnostic{at(1, ir.SeverityError)} }, "indexes source 1 of 1",
 		},
+		"a document stamped with no irVersion": {
+			func(c *scripted) { c.doc.IRVersion = "" }, `stamped irVersion "", where this build writes "` + ir.IRVersion + `"`,
+		},
+		"a document stamped with another generation": {
+			func(c *scripted) { c.doc.IRVersion = "0.0.1" }, `stamped irVersion "0.0.1"`,
+		},
+		"a document stamped with a newer generation": {
+			func(c *scripted) { c.doc.IRVersion = "99.0.0" }, `stamped irVersion "99.0.0"`,
+		},
+		"a document stamped with a prerelease of this one": {
+			func(c *scripted) { c.doc.IRVersion += "-rc.1" }, "-rc.1",
+		},
+		"a document stamped with something that is no version": {
+			func(c *scripted) { c.doc.IRVersion = "latest" }, `stamped irVersion "latest"`,
+		},
 		"a document listing no source": {
 			func(c *scripted) { c.doc.Sources = nil }, "lists 0 sources where SourceTable names 1",
 		},
@@ -206,6 +221,26 @@ func TestDetectionCompile_EachBreachIsAContractError(t *testing.T) {
 			assert.Equal(t, compilers.Compiled{}, out, "nothing of a broken compile comes back")
 		})
 	}
+}
+
+// TestDetectionCompile_HandsBackCopiesOfWhatTheCompilerAnsweredWith pins that
+// the slices a compiler answered with are the compiler's to keep: changing
+// them after the compile changes nothing the caller was handed. The Document is
+// the one thing a compile gives up.
+func TestDetectionCompile_HandsBackCopiesOfWhatTheCompilerAnsweredWith(t *testing.T) {
+	t.Parallel()
+	c := keeping()
+	c.doc = nil
+	c.table = []ir.SourceInfo{{Path: spec.Path}}
+	c.diags = []ir.Diagnostic{at(0, ir.SeverityError)}
+
+	out, err := detected(c, nil).Compile(t.Context())
+	require.NoError(t, err)
+	c.table[0].Path = "tampered"
+	c.diags[0].Code = "tampered"
+
+	assert.Equal(t, spec.Path, out.Sources[0].Path)
+	assert.Equal(t, "alpha/finding", out.Diagnostics[0].Code)
 }
 
 func TestDetectionCompile_ACompilerErrorPassesThroughUnwrapped(t *testing.T) {

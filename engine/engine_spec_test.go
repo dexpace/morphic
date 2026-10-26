@@ -59,7 +59,7 @@ func (c rereadCompiler) Compile(ctx context.Context, sources []compilers.Source,
 		return nil, nil, err
 	}
 	setting, _ := opts.FormatOptions.(string)
-	return &ir.Document{Name: string(data), Version: setting, Types: ir.TypeRegistry{},
+	return &ir.Document{IRVersion: ir.IRVersion, Name: string(data), Version: setting, Types: ir.TypeRegistry{},
 		Sources: sourcesOf("openapi@3.1", sources)}, nil, nil
 }
 
@@ -184,7 +184,8 @@ type settingCompiler struct{ rereadCompiler }
 
 func (settingCompiler) Compile(_ context.Context, sources []compilers.Source, opts compilers.Options) (*ir.Document, []ir.Diagnostic, error) {
 	setting, _ := opts.FormatOptions.(string)
-	return &ir.Document{Name: setting, Types: ir.TypeRegistry{}, Sources: sourcesOf("openapi@3.1", sources)}, nil, nil
+	return &ir.Document{IRVersion: ir.IRVersion, Name: setting, Types: ir.TypeRegistry{},
+		Sources: sourcesOf("openapi@3.1", sources)}, nil, nil
 }
 
 // TestEngine_RunSpecServesASettingNamingASpecNoRequestCanName pins that a

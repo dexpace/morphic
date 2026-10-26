@@ -38,6 +38,12 @@ combined with --output.
 pass carries is refused (exit 2) with the names that exist. --skip-validate is
 --disable-pass validate under its older name.
 
+--verify holds the document the compiler returns, and each pass's, to the IR's
+structural invariants, and each pass to leaving its input as it found it. The
+first stage to break one ends the run (exit 2) with every invariant it broke.
+It is for developing a compiler or a pass, and costs more than the compile
+itself.
+
 --opt passes a setting to the compiler the spec selects, which names and
 validates its own options; morphic itself knows none of them. The OpenAPI
 compiler's are listed in the README.
@@ -95,6 +101,7 @@ func newCompileCmd() *cobra.Command {
 type specOptions struct {
 	failOn       failOnFlag
 	skipValidate bool
+	verify       bool
 	disable      passFlag
 	settings     settingFlag
 }
@@ -131,6 +138,8 @@ func bindSpecFlags(fs *pflag.FlagSet, opts *specOptions) {
 		"alias for --disable-pass validate")
 	fs.Var(&opts.disable, "disable-pass",
 		"turn off the IR pass with this name (repeatable)")
+	fs.BoolVar(&opts.verify, "verify", false,
+		"check the IR each stage returns against the IR's invariants, and that no pass changes its input; for developing a stage, and slow")
 	fs.Var(opts.settings, "opt",
 		"set one key=value option on the compiler the spec selects (repeatable)")
 }
@@ -192,6 +201,7 @@ func runPipeline(
 		CompilerOptions: opts.settings,
 		DisablePasses:   opts.disabledPasses(),
 		FailOn:          engine.FailOn(opts.failOn),
+		Verify:          opts.verify,
 	})
 	if err != nil {
 		return nil, 0, failure(err)

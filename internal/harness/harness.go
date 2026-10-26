@@ -11,6 +11,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/dexpace/morphic/barrier"
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/engine"
 	"github.com/dexpace/morphic/ir"
@@ -146,7 +147,7 @@ var compile = func(ctx context.Context, spec string, data []byte, ps []pass.Pass
 	}
 	res, err := e.RunSpec(ctx, compilers.Source{Path: spec, Data: data}, engine.RunOptions{})
 	if err != nil {
-		return nil, nil, fmt.Errorf("harness: %w", err)
+		return nil, nil, fmt.Errorf("harness: %w", reraise(err))
 	}
 	if d, ok := ir.FirstError(res.Diagnostics); ok && undetected(d.Code) {
 		return nil, nil, fmt.Errorf("%s: %w", d.Message, errUnrecognized)
@@ -161,6 +162,18 @@ var compile = func(ctx context.Context, spec string, data []byte, ps []pass.Pass
 // and broken, which is a refusal like any other.
 func undetected(code string) bool {
 	return code == engine.CodeUnrecognizedFormat || code == engine.CodeNoCompilerForFormat
+}
+
+// reraise returns err, or raises again the panic it records. The engine
+// recovers a compiler's or a pass's panic into an error, and the first oracle
+// is that none occurs, in the first compile of a source and in each recompile
+// alike, so the panic goes on to Check's recover as it would have without the
+// engine's.
+func reraise(err error) error {
+	if perr, ok := errors.AsType[*barrier.PanicError](err); ok {
+		panic(perr)
+	}
+	return err
 }
 
 // reserializeJSON re-encodes a value that has already survived a marshal or a

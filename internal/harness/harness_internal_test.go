@@ -223,6 +223,69 @@ func TestCheck_CompilerPanicIsCaptured(t *testing.T) {
 	assert.Contains(t, r.Detail, "compiler exploded")
 }
 
+// panicsInDetect is a compiler whose recognition panics.
+type panicsInDetect struct{ stubCompiler }
+
+func (panicsInDetect) Detect(compilers.Source, compilers.Options) (compilers.Recognition, []ir.Diagnostic, bool) {
+	panic("recognition exploded")
+}
+
+// TestCheck_ARegisteredCompilersPanicIsAPanicOutcome pins the first oracle for a
+// compiler reached through the registry, which recovers a panic into an error:
+// in recognition, in the compile, and in a recompile that only the determinism
+// oracle makes, each is still the panic outcome and not an error one.
+func TestCheck_ARegisteredCompilersPanicIsAPanicOutcome(t *testing.T) {
+	t.Run("in the compile", func(t *testing.T) {
+		withCompilers(t, stubCompiler{lower: func([]compilers.Source) (*ir.Document, []ir.Diagnostic, error) {
+			panic("lowering exploded")
+		}})
+
+		r := Check(context.Background(), "spec", []byte(stubSource))
+
+		assert.Equal(t, OutcomePanic, r.Outcome, r.Detail)
+		assert.Contains(t, r.Detail, "lowering exploded")
+		assert.Contains(t, r.Detail, "(at ", "the panic's site comes with it")
+	})
+	t.Run("in the recompile", func(t *testing.T) {
+		compiles := 0
+		withCompilers(t, stubCompiler{lower: func(sources []compilers.Source) (*ir.Document, []ir.Diagnostic, error) {
+			compiles++
+			if compiles > 1 {
+				panic("recompile exploded")
+			}
+			return stubDocument(sources, false), nil, nil
+		}})
+
+		r := Check(context.Background(), "spec", []byte(stubSource))
+
+		assert.Equal(t, OutcomePanic, r.Outcome, r.Detail)
+		assert.Contains(t, r.Detail, "recompile exploded")
+		assert.Equal(t, 2, compiles, "the first compile passed every oracle before it")
+	})
+	t.Run("in recognition", func(t *testing.T) {
+		withCompilers(t, panicsInDetect{})
+
+		r := Check(context.Background(), "spec", []byte(stubSource))
+
+		assert.Equal(t, OutcomePanic, r.Outcome, r.Detail)
+		assert.Contains(t, r.Detail, "recognition exploded")
+	})
+}
+
+// TestSpecFiles_ARecognitionThatPanicsIsAnError pins that listing a tree does
+// not crash on a compiler that panics while asked about a file: the registry
+// recovers it, and listing reports it as the fault of the compiler it is.
+func TestSpecFiles_ARecognitionThatPanicsIsAnError(t *testing.T) {
+	withCompilers(t, panicsInDetect{})
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "api.stub"), []byte(stubSource), 0o600))
+
+	_, err := SpecFiles(context.Background(), dir)
+
+	require.ErrorIs(t, err, compilers.ErrContract)
+	assert.Contains(t, err.Error(), "recognition exploded")
+}
+
 func TestCheck_ViolationsOutcome(t *testing.T) {
 	orig := compile
 	t.Cleanup(func() { compile = orig })

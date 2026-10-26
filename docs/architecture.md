@@ -141,14 +141,36 @@ caller unwrapped.
 held where its data is. `Registry.Register` refuses a format naming no dialect, and
 `Registry.Detect` a claim naming none and a decline that indexes a source detection was not handed
 or speaks with no error. `Detection.Compile`, which the engine compiles through, refuses a refusal
-that gives no error, a source table that does not open with the one `SourceTable` names, a source
-read as a format other than the one it was recognized as or hashed from other bytes, and a finding
-indexing no source. Entries past that opening name what else the compile read, such as a document a
-reference names, which `SourceTable` reads no input to know of. Each breach is a Go error wrapping
-`compilers.ErrContract`: a compiler bug, never the spec's. What a document holds whatever produced
-it, the schema stamp, the namespaces, a service and a well-formed source table among them, is
-`irverify`'s, and `compile.Types.Finish` hands a compiler its registry with the diagnostics it
-reports, a `compile/registry-refused` error for each entry the registry refused among them.
+that gives no error, a document not stamped with the IR version this build reads, a source table
+that does not open with the one `SourceTable` names, a source read as a format other than the one it
+was recognized as or hashed from other bytes, and a finding indexing no source. Entries past that
+opening name what else the compile read, such as a document a reference names, which `SourceTable`
+reads no input to know of. Each breach is a Go error wrapping `compilers.ErrContract`: a compiler
+bug, never the spec's.
+
+A panic is a breach too. Every call the `compilers` package makes of a compiler (`Formats`,
+`Detect`, configuring it through `DecodeOptions`, `Compile` and `SourceTable`) runs behind
+`barrier.Catch`, and the panic comes back as an error wrapping `compilers.ErrContract` and the
+`*barrier.PanicError`, whose message is one line and whose value and stack stay beside it for a
+caller that wants them. The registry asks `Formats` once, when the compiler registers, and keeps a
+copy, so no later call can panic outside the registration or disagree with it. A barrier recovers
+the calling goroutine only: a fatal error such as stack exhaustion, a panic on a goroutine the
+compiler started, and a call that never returns are not its to catch. A compiler that ignores its
+context holds `Run` until it returns, because the engine cannot stop a call it did not start on a
+goroutine of its own, and abandoning one would leave it reading the caller's bytes after `Run` had
+returned. The next stage boundary then stops the run, or `Run` returns what it finished if none is
+left.
+
+What a document holds whatever produced it, the namespaces, a service and a well-formed source table
+among them, is `irverify`'s, and `compile.Types.Finish` hands a compiler its registry with the
+diagnostics it reports, a `compile/registry-refused` error for each entry the registry refused among
+them. The engine does not run `irverify` by default. It costs more than the compile itself, and the
+harness holds the shipped compiler to it over the whole corpus. `RunOptions.Verify` (`--verify`)
+runs it for a compiler under development, over the compiler's document and over each document a pass
+returns, and over the one `RunDocument` is handed, and fails the run with an `engine.VerifyError`
+carrying every violation, wrapping the contract error of the stage that returned the document. It
+also fingerprints each document, the SHA-256 of its canonical JSON, so a pass that changes the
+document it was handed is caught: the one duty no walk of a single document can check.
 
 **What stays in the OpenAPI compiler.** Three of its pieces read as if any format could use them:
 the YAML view (`internal/nodeview`), version sniffing (`internal/detect`) and document identity
@@ -224,11 +246,20 @@ its findings, whose `Provenance.Node` is spelled against the document it was han
 document. Running it first would give the transforms no guarantee, since a caller can turn it off:
 each pass must cope with a document that fails it whatever the order.
 
-The engine owns `Document.Diagnostics`, writing the compiler's findings and every pass's onto the
-document it returns, so a transform that builds a fresh document cannot lose any. Those findings
-index `Document.Sources`, as the IR's own provenance does, so a pass may append to that table but
-never move or drop an entry. A pass that does, or returns no document, fails the run with a Go error
-naming it.
+The engine owns `Document.Diagnostics`, writing the compiler's findings and every pass's onto a copy
+of the document it returns, so a transform that builds a fresh document cannot lose any, and a
+compiler that hands every run one document is neither changed nor raced. A pass leaves the field
+alone: empty, or as it was given. Those findings index `Document.Sources`, as the IR's own
+provenance does, so a pass may append to that table but never move or drop an entry.
+
+A pass is held to its contract by what the engine can read off its output. It returns a document
+stamped with the IR version this build reads, whose source table keeps every entry it was handed and
+whose `Diagnostics` are the engine's, and findings that index that table. A pass that returns none,
+breaks one of these, or panics in `Run` fails the run with a Go error naming it and wrapping
+`pass.ErrContract`. The engine asks a pass for its name once, in `New`, so a name that panics is a Go
+error there and a name cannot change under a run. Under `RunOptions.Verify` the document a pass
+returns is also held to `irverify`'s invariants, and the one it was handed to being as it was
+(§2.1).
 
 Every pass is idempotent: run again over the document a run of it returned, it returns one that
 encodes the same, `Document.Diagnostics` aside. A normalization that changes its own output on a
@@ -386,6 +417,7 @@ it in its own change.
 
 ```
 morphic/
+├── barrier/                # Layer 0 — turns a panic in code the caller does not own into an error.
 ├── ir/                     # Layer 0 — IR node types, IDs, shared traversals, editing, JSON round-trip.
 │   ├── irfacts/            #           Derived facts of a document, never stored (ir-design §4.9).
 │   ├── irtest/             #           Golden-snapshot and fixture helpers for IR documents.
@@ -463,6 +495,8 @@ git ls-files '*/*.go' | xargs -n1 dirname | sort -u
 Dependency rules, enforced by an architecture test as in oagen:
 
 - `ir` imports only the standard library. It contains no parsing, no generation, no I/O.
+- `barrier` imports only the standard library, and sits below the packages that run code they do not
+  own behind it: `compilers`, which runs a compiler, and `engine`, which runs a pass.
 - `compilers/compile` imports only `ir`: it is below every compiler, not beside them.
 - `compilers/*` and `pass` import `ir` (and their own format libraries), and `pass` also
   `ir/irfacts` — never each other, never `emitters` or `engine`. A compiler also names the

@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+
+	"github.com/dexpace/morphic/engine"
 )
 
 // Exit codes. They are a contract with CI wrappers: 1 says the spec has
@@ -90,8 +92,35 @@ func reportError(w io.Writer, err error) {
 	}
 
 	emitf(w, "morphic: %s\n", strings.TrimRight(err.Error(), "\n"))
+	reportViolations(w, err)
 	if hint := usageHint(err); hint != "" {
 		emitf(w, "%s\n", hint)
+	}
+}
+
+// Bounds on what reportViolations writes. A verified document can break an
+// invariant at every node, and both the path and the message carry the
+// document's own text.
+const (
+	maxViolationLines = 50
+	maxViolationPath  = 200
+	maxViolationText  = 400
+)
+
+// reportViolations writes, a line apiece, the invariants a verified run found
+// broken, when that is what ended it: the error names the first few, and
+// someone developing a stage needs the rest to know what to fix.
+func reportViolations(w io.Writer, err error) {
+	verr, ok := errors.AsType[*engine.VerifyError](err)
+	if !ok {
+		return
+	}
+	shown := min(len(verr.Violations), maxViolationLines)
+	for _, v := range verr.Violations[:shown] {
+		emitf(w, "  %s at %.*q: %.*s\n", v.Code, maxViolationPath, v.Path, maxViolationText, v.Message)
+	}
+	if more := len(verr.Violations) - shown; more > 0 {
+		emitf(w, "  and %d more\n", more)
 	}
 }
 

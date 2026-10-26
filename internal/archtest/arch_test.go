@@ -36,11 +36,15 @@ const subtreeSuffix = "/..."
 // external module whose layout is not ours to enumerate, or a compiler's own
 // internal tree.
 var rules = map[string][]string{
+	// What turns a panic in code the caller does not own into an error. It is
+	// below every package that runs a compiler or a pass, so it reaches the
+	// standard library alone.
+	"barrier":     {},
 	"ir":          {},
 	"ir/irfacts":  {module + "/ir"},
 	"ir/irtest":   {module + "/ir", "github.com/google/go-cmp" + subtreeSuffix},
 	"ir/irverify": {module + "/ir"},
-	"compilers":   {module + "/ir"},
+	"compilers":   {module + "/barrier", module + "/ir"},
 	// What every compiler shares: the type registry, diagnostics and the naming
 	// and ID grammars. It reaches ir alone, so no compiler's vocabulary rides in.
 	"compilers/compile": {module + "/ir"},
@@ -346,8 +350,8 @@ var rules = map[string][]string{
 	// registry and nothing of any source format: what a spec looks like and what
 	// its options are called are answered through the contract, so no parser is
 	// named here. It reads a run's documents through its own reader package.
-	"engine": {module + "/ir", module + "/compilers", module + "/compilers/openapi",
-		module + "/engine/reader", module + "/pass"},
+	"engine": {module + "/barrier", module + "/ir", module + "/ir/irverify", module + "/compilers",
+		module + "/compilers/openapi", module + "/engine/reader", module + "/pass"},
 	// What a run's references and settings name, read from disk, the network or
 	// memory. It reaches the contract whose reader it implements and nothing
 	// else, so a caller compiling directly reads as the engine does without
