@@ -95,21 +95,20 @@ func ReplaceDocument(ctx context.Context, path string, doc *ir.Document, layout 
 	})
 }
 
-// destWriter passes writes through to w until stopped reports an error, and
-// records the error that ended them: w's, or stopped's. It is what keeps a
-// destination that refused the bytes, or a write that was stopped,
-// distinguishable from a document that would not marshal: json.MarshalWrite
-// reports each as one error, and they are different things to tell a user
-// about.
+// destWriter passes writes through to w until ctx is done, and records the
+// error that ended them: w's, or ctx's. It is what keeps a destination that
+// refused the bytes, or a write that was stopped, distinguishable from a
+// document that would not marshal: json.MarshalWrite reports each as one
+// error, and they are different things to tell a user about.
 type destWriter struct {
-	w io.Writer
-	// stopped is the Err method of the context the write runs under.
-	stopped func() error
-	err     error
+	// ctx is the context the encoding runs under, held because Write takes none.
+	ctx context.Context
+	w   io.Writer
+	err error
 }
 
 func (d *destWriter) Write(p []byte) (int, error) {
-	if err := d.stopped(); err != nil {
+	if err := d.ctx.Err(); err != nil {
 		d.err = err
 		return 0, err
 	}
@@ -128,7 +127,7 @@ func (d *destWriter) Write(p []byte) (int, error) {
 // encode option on that same call, not a separate route. MarshalWrite ends no
 // value with a newline, so encode writes one, through the same writer.
 func encode(ctx context.Context, w io.Writer, doc *ir.Document, layout Layout) error {
-	dest := &destWriter{w: w, stopped: ctx.Err}
+	dest := &destWriter{ctx: ctx, w: w}
 
 	var err error
 	if layout == Indented {

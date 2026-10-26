@@ -447,8 +447,8 @@ func (c cancellingCompiler) Compile(_ context.Context, sources []compilers.Sourc
 
 // TestRunPipeline_ARunCancelledInItsLastStageWritesNothing pins the check
 // after the engine returns: a run cancelled where the engine no longer looks
-// still writes no diagnostic and no document. A stop signal ends it by the
-// signal; any other cancellation is a failure.
+// still writes no diagnostic and no document, and fails naming what cancelled
+// it.
 func TestRunPipeline_ARunCancelledInItsLastStageWritesNothing(t *testing.T) {
 	orig := newEngine
 	t.Cleanup(func() { newEngine = orig })
@@ -460,8 +460,8 @@ func TestRunPipeline_ARunCancelledInItsLastStageWritesNothing(t *testing.T) {
 		wantCode   int
 		wantStderr string
 	}{
-		{"by a stop signal", &signalled{sig: os.Interrupt}, 130, "morphic: stopped: interrupt signal received\n"},
-		{"by its caller", nil, exitFailure, "morphic: context canceled\n"},
+		{"by a stop signal", errInterrupted, exitFailure, stoppedByInterrupt},
+		{"by its caller", nil, exitFailure, "morphic: stopped: context canceled\n"},
 	}
 	for _, args := range [][]string{{"compile", spec}, {"compile", spec, "-o", dest}, {"validate", spec}} {
 		for _, tt := range tests {

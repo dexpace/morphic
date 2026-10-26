@@ -31,22 +31,31 @@ const childTimeout = 2 * time.Minute
 // at the first, ten milliseconds apart.
 const laterSignals = 500
 
-// stoppedByInterrupt is what a run SIGINT stopped reports on stderr.
-const stoppedByInterrupt = "morphic: stopped: interrupt signal received\n"
+// stoppedBy returns what a run sig stopped reports on stderr.
+func stoppedBy(sig os.Signal) string {
+	return "morphic: stopped: " + sig.String() + " signal received\n"
+}
 
-// stoppedBy returns a context cancelled as a stop signal cancels the CLI's,
-// with sig as its cause.
-func stoppedBy(t *testing.T, sig os.Signal) context.Context {
+// stoppedByInterrupt is what a run SIGINT stopped reports on stderr.
+var stoppedByInterrupt = stoppedBy(os.Interrupt)
+
+// errInterrupted is the cause signal.NotifyContext gives a context SIGINT
+// cancelled, for a test that runs the CLI in this process and so cannot send
+// one.
+var errInterrupted = errors.New("interrupt signal received")
+
+// interrupted returns a context cancelled as SIGINT cancels the CLI's.
+func interrupted(t *testing.T) context.Context {
 	t.Helper()
 	ctx, cancel := context.WithCancelCause(t.Context())
-	cancel(&signalled{sig: sig})
+	cancel(errInterrupted)
 	return ctx
 }
 
 // TestRun_AStopSignalWritesNothing pins what a run a stop signal cancelled
 // before it compiled leaves: no document anywhere, an -o destination as it
-// was, the signal named on stderr as the one reason, and the status a shell
-// gives a process SIGINT ended. A misuse it met on the way is not reported.
+// was, the signal named on stderr as the one reason, and exit 2. A misuse it
+// met on the way is not reported.
 func TestRun_AStopSignalWritesNothing(t *testing.T) {
 	t.Parallel()
 	spec := writeFile(t, "spec.yaml", testspec.Tiny)
@@ -68,9 +77,9 @@ func TestRun_AStopSignalWritesNothing(t *testing.T) {
 			require.NoError(t, os.WriteFile(dest, []byte("PREVIOUS\n"), 0o644))
 			var stdout, stderr bytes.Buffer
 
-			code := run(stoppedBy(t, os.Interrupt), tt.args(dest), &stdout, &stderr)
+			code := run(interrupted(t), tt.args(dest), &stdout, &stderr)
 
-			assert.Equal(t, 130, code)
+			assert.Equal(t, exitFailure, code)
 			assert.Equal(t, stoppedByInterrupt, stderr.String())
 			assert.Empty(t, stdout.String())
 			assert.Equal(t, "PREVIOUS\n", readFile(t, dest))
@@ -80,8 +89,8 @@ func TestRun_AStopSignalWritesNothing(t *testing.T) {
 }
 
 // TestRun_ACancelledRunIsAFailure pins a run whose context a caller other than
-// a stop signal cancelled: it is not the spec's fault, so it fails with exit 2
-// and the cancellation as its reason, and writes nothing.
+// a stop signal cancelled: it is stopped as a signal stops it, with exit 2 and
+// the cancellation as its reason, and writes nothing.
 func TestRun_ACancelledRunIsAFailure(t *testing.T) {
 	t.Parallel()
 	spec := writeFile(t, "spec.yaml", testspec.Tiny)
@@ -93,7 +102,8 @@ func TestRun_ACancelledRunIsAFailure(t *testing.T) {
 	code := run(ctx, []string{"compile", spec, "-o", dest}, &stdout, &stderr)
 
 	assert.Equal(t, exitFailure, code)
-	assert.Contains(t, stderr.String(), "context canceled")
+	assert.Equal(t, "morphic: stopped: context canceled\n", stderr.String())
+	assert.Empty(t, stdout.String())
 	assert.NoFileExists(t, dest)
 }
 
@@ -105,7 +115,7 @@ type cancelOnWrite struct {
 }
 
 func (w *cancelOnWrite) Write(p []byte) (int, error) {
-	w.cancel(&signalled{sig: os.Interrupt})
+	w.cancel(errInterrupted)
 	return w.buf.Write(p)
 }
 
@@ -132,7 +142,7 @@ func TestRun_AStopSignalDuringTheReportAbandonsTheDocument(t *testing.T) {
 
 			code := run(ctx, args, &stdout, stderr)
 
-			assert.Equal(t, 130, code)
+			assert.Equal(t, exitFailure, code)
 			assert.Contains(t, stderr.buf.String(), "openapi/unresolved-ref", "the report under way is finished")
 			assert.True(t, strings.HasSuffix(stderr.buf.String(), stoppedByInterrupt), "stderr: %s", &stderr.buf)
 			assert.Empty(t, stdout.String())
@@ -200,6 +210,16 @@ func specOf(t *testing.T, n int) string {
 	return writeFile(t, "spec.yaml", b.String())
 }
 
+// exitCodeOf returns the code the child whose Wait returned err exited with,
+// failing the test when it exited 0, did not run, or a signal ended it.
+func exitCodeOf(t *testing.T, err error) int {
+	t.Helper()
+	exit, ok := errors.AsType[*exec.ExitError](err)
+	require.True(t, ok, "the child exited 0 or did not run: %v", err)
+	require.NotEqual(t, -1, exit.ExitCode(), "a signal ended the child: %v", err)
+	return exit.ExitCode()
+}
+
 // signalOf returns the signal that ended the child whose Wait returned err,
 // failing the test when the child exited instead.
 func signalOf(t *testing.T, err error) syscall.Signal {
@@ -243,9 +263,9 @@ func requireWholeDocument(t *testing.T, doc []byte) {
 }
 
 // TestMain_AStopSignalDuringTheOutputWriteKeepsTheDestination is the end-to-end
-// check that a signal stops -o's write: the destination keeps its previous
-// content, the temporary file is gone, the run reports the signal, and the
-// process ends by it.
+// check that each signal morphic catches stops -o's write: the destination
+// keeps its previous content, the temporary file is gone, and the run reports
+// the signal and exits 2 rather than being ended by it.
 //
 // The child is caught in the write by watching for its temporary file and
 // stopping it with SIGSTOP the moment one appears. A write can end before
@@ -253,19 +273,25 @@ func requireWholeDocument(t *testing.T, doc []byte) {
 func TestMain_AStopSignalDuringTheOutputWriteKeepsTheDestination(t *testing.T) {
 	t.Parallel()
 	spec := specOf(t, 500)
-	const attempts = 3
-	for attempt := 1; attempt <= attempts; attempt++ {
-		if interruptWrite(t, spec) {
-			return
-		}
-		t.Logf("attempt %d: the write ended before the child was stopped in it", attempt)
+	for _, sig := range []syscall.Signal{syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP} {
+		t.Run(sig.String(), func(t *testing.T) {
+			t.Parallel()
+			const attempts = 3
+			for attempt := 1; attempt <= attempts; attempt++ {
+				if interruptWrite(t, spec, sig) {
+					return
+				}
+				t.Logf("attempt %d: the write ended before the child was stopped in it", attempt)
+			}
+			require.Fail(t, "every write ended before the child could be stopped in it", "%d attempts", attempts)
+		})
 	}
-	require.Fail(t, "every write ended before the child could be stopped in it", "%d attempts", attempts)
 }
 
-// interruptWrite runs one attempt of the case above, and reports whether the
-// child was caught in its write. Only a caught child's outcome is asserted.
-func interruptWrite(t *testing.T, spec string) bool {
+// interruptWrite runs one attempt of the case above with sig, and reports
+// whether the child was caught in its write. Only a caught child's outcome is
+// asserted.
+func interruptWrite(t *testing.T, spec string, sig syscall.Signal) bool {
 	t.Helper()
 	dir := t.TempDir()
 	dest := filepath.Join(dir, "ir.json")
@@ -283,13 +309,13 @@ func interruptWrite(t *testing.T, spec string) bool {
 		require.NoError(t, cmd.Wait(), "a child the test did not signal: %s", &stderr)
 		return false
 	}
-	require.NoError(t, cmd.Process.Signal(syscall.SIGINT))
+	require.NoError(t, cmd.Process.Signal(sig))
 	err := cmd.Wait()
 
-	assert.Equal(t, syscall.SIGINT, signalOf(t, err), "stderr: %s", &stderr)
+	assert.Equal(t, exitFailure, exitCodeOf(t, err), "stderr: %s", &stderr)
 	assert.Equal(t, "PREVIOUS\n", readFile(t, dest), "the destination keeps its previous content")
 	assert.Equal(t, []string{"ir.json"}, namesIn(t, dir), "the temporary file %s is removed", temp)
-	assert.True(t, strings.HasSuffix(stderr.String(), stoppedByInterrupt), "stderr: %s", &stderr)
+	assert.Equal(t, stoppedBy(sig), stderr.String())
 	return true
 }
 
@@ -327,30 +353,6 @@ func otherThan(names []string, name string) string {
 		}
 	}
 	return ""
-}
-
-// TestMain_AStopSignalEndsTheProcessByItself pins, for each signal morphic
-// catches, that the signal is caught rather than ending the process at once,
-// and that the process still ends by it once the run has stopped. The child is
-// blocked writing to stdout, which a signal does not interrupt, so it finishes
-// the document first: a whole document shows the signal was caught.
-func TestMain_AStopSignalEndsTheProcessByItself(t *testing.T) {
-	t.Parallel()
-	spec := specOf(t, 100)
-	for _, sig := range []syscall.Signal{syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP} {
-		t.Run(sig.String(), func(t *testing.T) {
-			t.Parallel()
-			cmd := morphic(childContext(t), "compile", spec)
-			first, stdout := writingToStdout(t, cmd)
-
-			require.NoError(t, cmd.Process.Signal(sig))
-			rest, err := io.ReadAll(stdout)
-			require.NoError(t, err)
-
-			assert.Equal(t, sig, signalOf(t, cmd.Wait()))
-			requireWholeDocument(t, append(first, rest...))
-		})
-	}
 }
 
 // TestMain_ASecondSignalEndsARunThatHasNotStopped pins the way out of a run

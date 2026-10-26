@@ -10,8 +10,8 @@ import (
 )
 
 // Exit codes. They are a contract with CI wrappers: 1 says the spec has
-// findings, 2 says morphic was invoked wrong or could not do its I/O. A run a
-// stop signal ended has none of its own: morphic ends by the signal.
+// findings, 2 says morphic was invoked wrong, could not do its I/O, or was
+// stopped by a signal.
 const (
 	exitFindings = 1
 	exitFailure  = 2

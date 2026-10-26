@@ -12,7 +12,8 @@ import (
 const asMorphic = "MORPHIC_TEST_AS_CLI"
 
 // TestMain runs main for a child the signal tests start. Otherwise it runs the
-// tests through leakcheck.Main, since watchSignals starts a goroutine.
+// tests through leakcheck.Main, since they and the signal watch start
+// goroutines.
 func TestMain(m *testing.M) {
 	if os.Getenv(asMorphic) != "" {
 		main()

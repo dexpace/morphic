@@ -177,7 +177,7 @@ Both commands share them.
 |---|---|
 | `0` | Clean, or a help request. |
 | `1` | The spec has problems: a diagnostic reached the `--fail-on` threshold, or the spec could not be lowered at all (an undecodable file, an unrecognized or unsupported format, a version no compiler claims). |
-| `2` | The invocation or the filesystem was wrong: a bad flag or argument, a spec that could not be read, an output that could not be written. Nothing in the spec's own contents leads to `2`. |
+| `2` | The invocation or the filesystem was wrong, or the run was stopped: a bad flag or argument, a spec that could not be read, an output that could not be written, a SIGINT, SIGTERM or SIGHUP. Nothing in the spec's own contents leads to `2`. |
 
 One run can earn both `1` and `2`: a spec that reached the threshold, whose `-o` destination then
 refused the write. The verdict on the spec wins, so `1` always means the spec has problems, and the
@@ -185,16 +185,18 @@ write error is printed on stderr either way. `-o` publishes by rename, so a dest
 directory will not take a temp file, such as `/dev/null` or a read-only directory, cannot be
 written to at all.
 
-SIGINT, SIGTERM or SIGHUP stops a run, which then has no exit code of its own: once the run has
-stopped, morphic ends by the same signal, so a shell reports 128 plus its number, and a script
-interrupted with Ctrl-C stops instead of going on to its next command. What is written by then
-depends on when the signal came. During the compile, nothing is. During the diagnostics, they are
-finished, as is an `--explain` report, and no document follows. During the document, a file `-o`
-names keeps its previous content, its temporary file removed, unless the document was already being
-moved into place; stdout gets the whole document if its write had begun and none of it if not. A
-second signal ends morphic at once, which can leave the temporary file behind: a dot, the
-destination's name, then digits. A signal morphic was started ignoring stays ignored, as a script's
-shell starts a background job ignoring SIGINT and `nohup` a command ignoring SIGHUP.
+SIGINT, SIGTERM or SIGHUP stops a run, which exits `2` whatever it had found, naming the signal on
+stderr; a shell script interrupted with Ctrl-C goes on to its next command unless it checks that
+status, as `set -e` does. What is written by then depends on when the signal came. During the
+compile, nothing is. During the diagnostics, they are finished, as is an `--explain` report, and no
+document follows. During the document, a file `-o` names keeps its previous content, its temporary
+file removed, unless the document was already being moved into place; stdout gets the whole
+document if its write had begun and none of it if not. A signal during that move or that write can
+come too late to stop the run at all, which then exits as though it had not been sent. A second
+signal ends morphic at once, which can leave the temporary file behind: a dot, the destination's
+name, then digits. A terminal closing can send SIGHUP twice, so it can leave one too. A SIGINT or
+SIGHUP morphic was started ignoring stays ignored, as a script's shell starts a background job
+ignoring SIGINT and `nohup` a command ignoring SIGHUP.
 
 #### Compiler options
 

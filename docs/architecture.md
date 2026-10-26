@@ -470,7 +470,7 @@ memory (`RunSources`, which reads nothing else), and a document already compiled
 which runs the passes alone). `engine/reader` reads what a source's references name, `engine/output`
 writes the document to a stream or replaces a file atomically, and `engine/report` renders
 diagnostics and `--explain`. The CLI parses flags, picks the streams, cancels the run on SIGINT,
-SIGTERM or SIGHUP, and turns the run into an exit code, or ends by the signal that stopped it.
+SIGTERM or SIGHUP, and turns the run into an exit code.
 
 Two caps guard the shape rather than the graph, both in `internal/archtest` and `.golangci.yml`:
 no type under `compilers/` may carry more than 20 methods, and no function may exceed 70 lines or
