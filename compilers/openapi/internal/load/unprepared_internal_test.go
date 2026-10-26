@@ -21,6 +21,7 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/engine/reader"
@@ -658,7 +659,7 @@ func TestPreparedFor(t *testing.T) {
 
 	t.Run("a file key", func(t *testing.T) {
 		t.Parallel()
-		r := newExternalReads(sourceDocument{})
+		r := newExternalReads(sourceDocument{}, budget.Unbounded())
 		tree := &yaml.Node{Kind: yaml.ScalarNode, Value: "x"}
 		r.recordTree("/tmp/doc.yaml", tree, nil)
 
@@ -670,7 +671,7 @@ func TestPreparedFor(t *testing.T) {
 
 	t.Run("a file key http.NewRequest would respell", func(t *testing.T) {
 		t.Parallel()
-		r := newExternalReads(sourceDocument{})
+		r := newExternalReads(sourceDocument{}, budget.Unbounded())
 		tree := &yaml.Node{Kind: yaml.ScalarNode, Value: "x"}
 		r.recordTree("dir/with space/doc.yaml", tree, nil)
 
@@ -682,7 +683,7 @@ func TestPreparedFor(t *testing.T) {
 
 	t.Run("a URL key found by its request spelling", func(t *testing.T) {
 		t.Parallel()
-		r := newExternalReads(sourceDocument{})
+		r := newExternalReads(sourceDocument{}, budget.Unbounded())
 		tree := &yaml.Node{Kind: yaml.ScalarNode, Value: "x"}
 		// The spelling external.Do actually stores under: the request's own URL.
 		req, err := http.NewRequest(http.MethodGet, "HTTP://host/doc.yaml", nil)
@@ -698,7 +699,7 @@ func TestPreparedFor(t *testing.T) {
 
 	t.Run("a URL key spelled with an empty port", func(t *testing.T) {
 		t.Parallel()
-		r := newExternalReads(sourceDocument{})
+		r := newExternalReads(sourceDocument{}, budget.Unbounded())
 		tree := &yaml.Node{Kind: yaml.ScalarNode, Value: "x"}
 		// http.NewRequest drops the empty port, so external.Do stores it without one.
 		r.recordTree("http://host/doc.yaml", tree, nil)
@@ -711,7 +712,7 @@ func TestPreparedFor(t *testing.T) {
 
 	t.Run("a key http.NewRequest rejects", func(t *testing.T) {
 		t.Parallel()
-		r := newExternalReads(sourceDocument{})
+		r := newExternalReads(sourceDocument{}, budget.Unbounded())
 
 		_, ok := r.preparedFor("http://host/\x00bad")
 
@@ -720,7 +721,7 @@ func TestPreparedFor(t *testing.T) {
 
 	t.Run("a missing key", func(t *testing.T) {
 		t.Parallel()
-		r := newExternalReads(sourceDocument{})
+		r := newExternalReads(sourceDocument{}, budget.Unbounded())
 
 		_, ok := r.preparedFor("/no/such/file.yaml")
 
@@ -763,7 +764,7 @@ func TestUnprepared(t *testing.T) {
 		doc.InitCache()
 		tree := &yaml.Node{Kind: yaml.ScalarNode, Value: "x"}
 		doc.StoreExternalDocumentInCache("k", tree)
-		read := newExternalReads(sourceDocument{}) // nothing of ours is cached under "k"
+		read := newExternalReads(sourceDocument{}, budget.Unbounded()) // nothing of ours is cached under "k"
 
 		got := unprepared(doc, read, []usedDocument{{key: "k"}})
 
@@ -777,7 +778,7 @@ func TestUnprepared(t *testing.T) {
 		doc.InitCache()
 		tree := &yaml.Node{Kind: yaml.ScalarNode, Value: "x"}
 		doc.StoreExternalDocumentInCache("k", tree)
-		read := newExternalReads(sourceDocument{})
+		read := newExternalReads(sourceDocument{}, budget.Unbounded())
 		read.recordTree("k", tree, nil) // the same pointer: ours
 
 		got := unprepared(doc, read, []usedDocument{{key: "k"}})
@@ -790,7 +791,7 @@ func TestUnprepared(t *testing.T) {
 		doc := &soa.OpenAPI{}
 		doc.InitCache()
 		doc.StoreExternalDocumentInCache("k", "not a tree")
-		read := newExternalReads(sourceDocument{})
+		read := newExternalReads(sourceDocument{}, budget.Unbounded())
 
 		got := unprepared(doc, read, []usedDocument{{key: "k"}})
 
@@ -801,7 +802,7 @@ func TestUnprepared(t *testing.T) {
 		t.Parallel()
 		doc := &soa.OpenAPI{}
 		doc.InitCache()
-		read := newExternalReads(sourceDocument{})
+		read := newExternalReads(sourceDocument{}, budget.Unbounded())
 
 		got := unprepared(doc, read, []usedDocument{{key: "missing"}})
 
@@ -841,7 +842,7 @@ func TestChain_EndsOnNothing(t *testing.T) {
 // resolvable of no known kind has none.
 func TestStandIn(t *testing.T) {
 	t.Parallel()
-	read := newExternalReads(sourceDocument{})
+	read := newExternalReads(sourceDocument{}, budget.Unbounded())
 	for _, obj := range []resolvable{
 		&soa.ReferencedPathItem{}, &soa.ReferencedParameter{}, &soa.ReferencedHeader{},
 		&soa.ReferencedRequestBody{}, &soa.ReferencedResponse{}, &soa.ReferencedExample{},

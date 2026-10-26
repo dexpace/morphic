@@ -39,7 +39,7 @@ func readOverlay(ctx context.Context, opts Options) (Options, []ir.Diagnostic, e
 			opts.Overlay.Path)
 	}
 	data, err := opts.Reader.ReadDocument(ctx, compilers.DocumentRequest{
-		Location: opts.Overlay.Path, Limit: opts.MaxSourceBytes,
+		Location: opts.Overlay.Path, Limit: ReadLimit(opts.MaxSourceBytes),
 	})
 	switch {
 	case errors.Is(err, compilers.ErrDocumentTooLarge):
@@ -124,7 +124,7 @@ func overlayRefusals(ctx context.Context, opts Options) []ir.Diagnostic {
 	// source's is (GitHub #75): an overlay is an input document like the source,
 	// read in full by the decode below and again by the library, and it had no
 	// bound on its size at all (GitHub #491).
-	if exceeds(len(opts.Overlay.Data), opts.MaxSourceBytes) {
+	if !opts.MaxSourceBytes.Admits(len(opts.Overlay.Data)) {
 		return []ir.Diagnostic{overlayPastBudget(opts)}
 	}
 	tree, err := parseTree(ctx, opts.Overlay.Data)
@@ -146,5 +146,5 @@ func overlayRefusals(ctx context.Context, opts Options) []ir.Diagnostic {
 	if d, deep := scan.Nesting(ctx, locate, idx); deep {
 		diags = append(diags, d)
 	}
-	return append(diags, scan.Aliases(ctx, locate, idx, int64(opts.MaxAliasSurplus))...)
+	return append(diags, scan.Aliases(ctx, locate, idx, int64(opts.MaxAliasSurplus.Cap()))...)
 }

@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/engine/reader"
 )
@@ -96,7 +97,7 @@ func TestExternal_DoRefusesANetworkDocumentReachingALocalFile(t *testing.T) {
 			require.NoError(t, err)
 			doc := &soa.OpenAPI{}
 
-			_, err = newExternal(t.Context(), doc, Options{Reader: reader.Disk{}}, newExternalReads(sourceDocument{})).Do(req)
+			_, err = newExternal(t.Context(), doc, Options{Reader: reader.Disk{}}, newExternalReads(sourceDocument{}, budget.Unbounded())).Do(req)
 
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), "external document "+key+" refused: it is fetched over the network and "+tc.reason)
@@ -142,7 +143,7 @@ func TestExternal_DoReadsANetworkDocumentStayingOnTheHost(t *testing.T) {
 	require.NoError(t, err)
 	doc := &soa.OpenAPI{}
 
-	resp, err := newExternal(t.Context(), doc, Options{Reader: reader.Disk{}}, newExternalReads(sourceDocument{})).Do(req)
+	resp, err := newExternal(t.Context(), doc, Options{Reader: reader.Disk{}}, newExternalReads(sourceDocument{}, budget.Unbounded())).Do(req)
 
 	require.NoError(t, err)
 	t.Cleanup(func() { assert.NoError(t, resp.Body.Close()) })

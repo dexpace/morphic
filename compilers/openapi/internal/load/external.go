@@ -61,7 +61,7 @@ type external struct {
 // crossed reports each budget the reads through reader crossed, once every
 // read is in: the resolver's and the binding's.
 func crossed(at func(jsontext.Pointer) ir.Provenance, reader *external) []ir.Diagnostic {
-	return append(reader.work.exhausted(at), reader.read.exhausted(at, reader.opts.MaxExternalDocuments)...)
+	return append(reader.work.exhausted(at), reader.read.exhausted(at)...)
 }
 
 // maxOpenedSpellings is the most spellings Open holds every object of the
@@ -323,7 +323,7 @@ func (e external) Open(name string) (fs.File, error) {
 		e.holdOpened(name)
 		return servedFile{Reader: bytes.NewReader(nil)}, nil
 	}
-	a := e.read.once(name, e.opts.MaxExternalDocuments, func() answer { return e.fetch(e.ctx, name, fileNamed(name)) })
+	a := e.read.once(name, func() answer { return e.fetch(e.ctx, name, fileNamed(name)) })
 	if a.err != nil {
 		return nil, unread{a.err}
 	}
@@ -355,7 +355,7 @@ func fileNamed(name string) string {
 // document (GitHub #538).
 func (e external) Do(req *http.Request) (*http.Response, error) {
 	key := req.URL.String()
-	return e.read.once(key, e.opts.MaxExternalDocuments, func() answer {
+	return e.read.once(key, func() answer {
 		return e.fetch(req.Context(), key, key)
 	}).response(req)
 }
@@ -371,7 +371,7 @@ func (e external) fetch(ctx context.Context, key, location string) answer {
 		return answer{err: err}
 	}
 	data, err := e.opts.Reader.ReadDocument(ctx, compilers.DocumentRequest{
-		Location: location, Within: e.opts.Within, Limit: e.opts.MaxSourceBytes,
+		Location: location, Within: e.opts.Within, Limit: ReadLimit(e.opts.MaxSourceBytes),
 	})
 	if err != nil {
 		return answer{err: e.readFailure(key, err)}
@@ -440,7 +440,7 @@ func refusedByName(opts Options, self string) func(uri string) error {
 func (e external) readFailure(key string, err error) error {
 	switch {
 	case errors.Is(err, compilers.ErrDocumentTooLarge):
-		return refused(key, fmt.Sprintf("it is past the %d-byte budget", e.opts.MaxSourceBytes))
+		return refused(key, fmt.Sprintf("it is past the %d-byte budget", e.opts.MaxSourceBytes.Cap()))
 	case errors.Is(err, compilers.ErrOutsideWithin) && overNetwork(key):
 		return refused(key, "it is on the network, which a read reaches only when external references are allowed")
 	case errors.Is(err, compilers.ErrOutsideWithin):
@@ -472,8 +472,8 @@ func directoryNamed(dir string) string {
 // Unparsable or empty bytes are refused as such, the parser's reason kept
 // (bind.UnparsableError, bind.ErrEmptyDocument).
 func (e external) prepare(ctx context.Context, key string, data []byte) ([]byte, error) {
-	if exceeds(len(data), e.opts.MaxSourceBytes) {
-		return nil, refused(key, fmt.Sprintf("it is past the %d-byte budget", e.opts.MaxSourceBytes))
+	if !e.opts.MaxSourceBytes.Admits(len(data)) {
+		return nil, refused(key, fmt.Sprintf("it is past the %d-byte budget", e.opts.MaxSourceBytes.Cap()))
 	}
 
 	root, err := parseTree(ctx, data)
@@ -529,9 +529,9 @@ func (e external) admit(ctx context.Context, key string, root *yaml.Node) error 
 		}
 		return refused(key, strings.Join(reasons, "; "))
 	}
-	if nodes := nodeCount(ctx, root); exceeds(nodes, e.opts.MaxSourceNodes) {
+	if nodes := nodeCount(ctx, root); !e.opts.MaxSourceNodes.Admits(nodes) {
 		return refused(key, fmt.Sprintf("it parses to %d nodes, past the %d-node budget",
-			nodes, e.opts.MaxSourceNodes))
+			nodes, e.opts.MaxSourceNodes.Cap()))
 	}
 	if reason, refuse := reachesLocal(ctx, root, key); refuse {
 		return refused(key, "it is fetched over the network and "+reason+

@@ -4,13 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"slices"
 	"strings"
 
 	soaoverlay "github.com/speakeasy-api/openapi/overlay"
 	yaml "go.yaml.in/yaml/v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/ir"
@@ -40,17 +40,16 @@ const maxWeighDepth = 1 << 14
 // warning numbering, one RFC 9535 note, and one error joining the selectors
 // that matched nothing.
 type sequence struct {
-	doc      *soaoverlay.Overlay
-	root     *yaml.Node
-	lax      bool
-	maxNodes int
+	doc  *soaoverlay.Overlay
+	root *yaml.Node
+	lax  bool
 
-	// size is an upper bound on the tree's node count: exact when taken, then
-	// raised by each action's cost, which is what the action can add and no
-	// less. It is recounted before a refusal, so an action that merges into keys
-	// already there — adding less than it is charged — is never refused on the
-	// charge alone.
-	size int64
+	// size is an upper bound on the tree's node count, against the node
+	// budget: exact when taken, then raised by each action's cost, which is
+	// what the action can add and no less. It is recounted before a refusal,
+	// so an action that merges into keys already there — adding less than it
+	// is charged — is never refused on the charge alone.
+	size budget.Budget
 
 	warnings []string // per-action warnings, renumbered against the whole overlay
 	notes    []string // warnings about the overlay as a whole, each once
@@ -59,13 +58,13 @@ type sequence struct {
 
 // runSequence applies doc to root and reports what the library would have
 // reported for the whole overlay, or refuses the first action that would build
-// past maxNodes. A zero or negative maxNodes applies with no budget.
+// past maxNodes.
 func runSequence(ctx context.Context, doc *soaoverlay.Overlay, root *yaml.Node, at ir.Provenance, lax bool,
-	maxNodes int,
+	maxNodes budget.Limit,
 ) ([]ir.Diagnostic, bool) {
-	s := &sequence{doc: doc, root: root, lax: lax, maxNodes: maxNodes}
+	s := &sequence{doc: doc, root: root, lax: lax, size: budget.New(maxNodes)}
 	if s.budgeted() {
-		s.size = countNodes(ctx, root, s.maxNodes)
+		s.measure(ctx)
 	}
 	for i, action := range doc.Actions {
 		if over, ok := s.charge(ctx, action); !ok {
@@ -89,42 +88,48 @@ func runSequence(ctx context.Context, doc *soaoverlay.Overlay, root *yaml.Node, 
 }
 
 // budgeted reports whether the application has a budget to keep to.
-func (s *sequence) budgeted() bool { return s.maxNodes > 0 }
+func (s *sequence) budgeted() bool {
+	_, bounded := s.size.Limit().Max()
+	return bounded
+}
+
+// measure takes the tree's node count afresh as the running size.
+func (s *sequence) measure(ctx context.Context) {
+	s.size = budget.New(s.size.Limit())
+	s.size.Spend(countNodes(ctx, s.root, s.size.Limit()))
+}
 
 // charge adds what action can build to the running size and reports whether it
 // still fits, and if not, the size it would reach. An action that builds
 // nothing, a remove among them, fits however large the tree: the source may be
 // past the budget until an action shrinks it, and the node budget is read of
 // the tree the overlay leaves.
-func (s *sequence) charge(ctx context.Context, action soaoverlay.Action) (int64, bool) {
+func (s *sequence) charge(ctx context.Context, action soaoverlay.Action) (int, bool) {
 	if !s.budgeted() {
 		return 0, true
 	}
-	limit := int64(s.maxNodes)
-	cost := s.cost(action, limit)
-	if cost == 0 {
+	cost := s.cost(action)
+	if cost == 0 || s.size.Spend(cost) {
 		return 0, true
 	}
-	if s.size+cost > limit {
-		// The running size only ever overstates, so take the real count before
-		// refusing on it.
-		s.size = countNodes(ctx, s.root, s.maxNodes)
-		if s.size+cost > limit {
-			return s.size + cost, false
-		}
+	// The running size only ever overstates, so take the real count before
+	// refusing on it.
+	s.measure(ctx)
+	if s.size.Spend(cost) {
+		return 0, true
 	}
-	s.size += cost
-	return 0, true
+	return s.size.Spent(), false
 }
 
 // cost is the most nodes action can add to the tree: what it copies, times how
-// many nodes its selector matches in the tree as it now stands. The limit caps
-// the arithmetic, since anything past it is refused whatever its size.
+// many nodes its selector matches in the tree as it now stands. It is held at
+// the first count past the node budget, since anything past it is refused
+// whatever its size.
 //
 // A remove adds nothing. A selector that does not parse, or a copy whose source
 // is not exactly one node, costs nothing here: the library refuses those with
 // its own reason when the action runs, and nothing is copied first.
-func (s *sequence) cost(action soaoverlay.Action, limit int64) int64 {
+func (s *sequence) cost(action soaoverlay.Action) int {
 	var payload *yaml.Node
 	switch {
 	case action.Remove:
@@ -140,13 +145,14 @@ func (s *sequence) cost(action soaoverlay.Action, limit int64) int64 {
 	default:
 		return 0
 	}
-	matches := int64(len(s.query(action.Target)))
+	matches := len(s.query(action.Target))
 	if matches == 0 {
 		return 0
 	}
+	limit := s.size.Limit()
 	per := newWeigher(limit).weigh(payload, 0)
-	if per > (limit+1)/matches {
-		return limit + 1 // the product is past the budget; computing it could overflow
+	if per > limit.Past()/matches {
+		return limit.Past() // the product is past the budget; computing it could overflow
 	}
 	return per * matches
 }
@@ -219,10 +225,10 @@ func (s *sequence) finish(at ir.Provenance) ([]ir.Diagnostic, bool) {
 
 // overBudget builds the refusal for the action that would have built past the
 // budget, before it built anything.
-func (s *sequence) overBudget(at ir.Provenance, i int, reached int64) ir.Diagnostic {
+func (s *sequence) overBudget(at ir.Provenance, i int, reached int) ir.Diagnostic {
 	return diag.Newf(ir.SeverityError, diag.BudgetExceeded, at,
 		"overlay action %d of %d would grow the document to at least %d nodes, past the %d-node budget; nothing it would build was built",
-		i+1, len(s.doc.Actions), reached, s.maxNodes)
+		i+1, len(s.doc.Actions), reached, s.size.Limit().Cap())
 }
 
 // actionType names an action the way the library names it in its warnings,
@@ -243,9 +249,9 @@ func actionType(action soaoverlay.Action) string {
 
 // countNodes counts the nodes a Content walk from root reaches, no further than
 // one past limit: a tree past limit is refused at any size, and a refusal
-// already says "at least". A limit of math.MaxInt counts the whole tree.
-func countNodes(ctx context.Context, root *yaml.Node, limit int) int64 {
-	return int64(nodeview.Walk{Nodes: min(limit, math.MaxInt-1) + 1}.Run(ctx, nodeview.DocumentRoot(root)).Visited)
+// already says "at least".
+func countNodes(ctx context.Context, root *yaml.Node, limit budget.Limit) int {
+	return nodeview.Walk{Nodes: limit.Past()}.Run(ctx, nodeview.DocumentRoot(root)).Visited
 }
 
 // weigher counts the nodes the library's clone would build from a node: every
@@ -254,22 +260,24 @@ func countNodes(ctx context.Context, root *yaml.Node, limit int) int64 {
 //
 // Each node is weighed once, so an anchor named from many places costs one walk
 // of it. A node met again on its own path is a cycle, which the clone would
-// follow without end; it weighs the ceiling, putting any budget out of reach.
-// The loader refuses such an overlay first (GitHub #489); this only terminates.
+// follow without end; it weighs the first count past the limit, putting the
+// budget out of reach. The loader refuses such an overlay first (GitHub #489);
+// this only terminates.
 type weigher struct {
-	memo    map[*yaml.Node]int64
-	onPath  map[*yaml.Node]bool
-	ceiling int64
+	memo   map[*yaml.Node]int
+	onPath map[*yaml.Node]bool
+	limit  budget.Limit
 }
 
-// newWeigher returns a weigher whose answers stop at limit+1, the first count
-// past the budget.
-func newWeigher(limit int64) *weigher {
-	return &weigher{memo: map[*yaml.Node]int64{}, onPath: map[*yaml.Node]bool{}, ceiling: limit + 1}
+// newWeigher returns a weigher whose answers stop at the first count past
+// limit.
+func newWeigher(limit budget.Limit) *weigher {
+	return &weigher{memo: map[*yaml.Node]int{}, onPath: map[*yaml.Node]bool{}, limit: limit}
 }
 
-// weigh returns how many nodes cloning n builds, capped at the ceiling.
-func (w *weigher) weigh(n *yaml.Node, depth int) int64 {
+// weigh returns how many nodes cloning n builds, held at the first count past
+// the limit, which no sum of them overflows.
+func (w *weigher) weigh(n *yaml.Node, depth int) int {
 	if n == nil {
 		return 0
 	}
@@ -277,30 +285,23 @@ func (w *weigher) weigh(n *yaml.Node, depth int) int64 {
 		return v
 	}
 	if depth > maxWeighDepth || w.onPath[n] {
-		return w.ceiling
+		return w.limit.Past()
 	}
 	w.onPath[n] = true
 	defer delete(w.onPath, n)
 
-	total := int64(1)
+	total := budget.New(w.limit)
+	total.Spend(1)
 	if n.Kind == yaml.AliasNode {
-		total = w.add(total, w.weigh(n.Alias, depth+1))
+		total.Spend(w.weigh(n.Alias, depth+1))
 	}
 	for _, child := range n.Content {
-		if total >= w.ceiling {
+		if total.Exhausted() {
 			break
 		}
-		total = w.add(total, w.weigh(child, depth+1))
+		total.Spend(w.weigh(child, depth+1))
 	}
-	w.memo[n] = total
-	return total
-}
-
-// add sums two weights without passing the ceiling, so no budget a caller can
-// set makes the arithmetic overflow.
-func (w *weigher) add(a, b int64) int64 {
-	if b >= w.ceiling-a {
-		return w.ceiling
-	}
-	return a + b
+	weight := min(total.Spent(), w.limit.Past())
+	w.memo[n] = weight
+	return weight
 }

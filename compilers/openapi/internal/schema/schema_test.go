@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
@@ -788,7 +789,7 @@ func TestNullSchema_AnEntryIsTheEmptySchemaAndAKeywordIsLeftOut(t *testing.T) {
 		l, _ := schema.LoweredFor(t, openapitest.ComponentSpec("    A:\n      allOf:\n"+
 			"        - {type: object, properties: {p: {type: string, enum: [a, b]}}}\n"+
 			"        - {type: object, properties: {p: null}}\n"))
-		l.Ctx.Limits = lowering.Limits{MaxEnumMembers: 1}
+		l.Ctx.Limits = lowering.Limits{MaxEnumMembers: budget.AtMost(1)}
 		diags := schema.LowerComponentSchemas(t.Context(), l.Ctx, l.Types)
 
 		m := asKind[*ir.Model](t, typeByName(l.Document(t), "A"))

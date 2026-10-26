@@ -133,7 +133,7 @@ func (l *loading) patchOverlay(ctx context.Context) (bool, error) {
 // what the budget bounds, and both are still ahead.
 func (l *loading) measure(ctx context.Context) (bool, error) {
 	nodes := nodeCount(ctx, l.root)
-	if !exceeds(nodes, l.opts.MaxSourceNodes) {
+	if l.opts.MaxSourceNodes.Admits(nodes) {
 		return false, nil
 	}
 	l.early = append(l.early, budgetRefusal(l.srcIndex,

@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
@@ -377,7 +378,7 @@ paths:
 
 	t.Run("what a container holds is charged again", func(t *testing.T) {
 		t.Parallel()
-		diags := compile(t, nestedOtherFixture(), containedFirst, Options{MaxSourceNodes: 150, MaxAliasSurplus: 1})
+		diags := compile(t, nestedOtherFixture(), containedFirst, Options{MaxSourceNodes: budget.AtMost(150), MaxAliasSurplus: budget.AtMost(1)})
 
 		require.Len(t, diags, 2, "the container fits this budget and its parameter, charged again, "+
 			"does not: %+v", diags)
@@ -540,14 +541,14 @@ paths:
 	})
 	bPath := filepath.Join(dir, "b.yaml")
 
-	_, diags := loadExternal(t, dir, root, Options{MaxSourceNodes: 60, MaxAliasSurplus: 1})
+	_, diags := loadExternal(t, dir, root, Options{MaxSourceNodes: budget.AtMost(60), MaxAliasSurplus: budget.AtMost(1)})
 
 	require.Len(t, diags, 1, "%+v", diags)
 	assert.Equal(t, diag.BudgetExceeded, diags[0].Code)
 	assert.Equal(t, jsontext.Pointer("/paths/~1b/get/parameters/0"), diags[0].Provenance.Pointer)
 	assert.Contains(t, diags[0].Message, "reach in "+bPath+" span more than the 61 nodes")
 
-	_, diags = loadExternal(t, dir, root, Options{MaxSourceNodes: 120, MaxAliasSurplus: 1})
+	_, diags = loadExternal(t, dir, root, Options{MaxSourceNodes: budget.AtMost(120), MaxAliasSurplus: budget.AtMost(1)})
 	require.Len(t, diags, 1, "a budget both fit admits both: %+v", diags)
 	assert.Equal(t, diag.Validation+"/validation-allowed-values", diags[0].Code)
 }
@@ -735,7 +736,7 @@ func TestResolve_ReachedValidationIsBudgeted(t *testing.T) {
 
 	t.Run("a tight budget refuses the container after the overlap", func(t *testing.T) {
 		t.Parallel()
-		_, diags := loadExternal(t, dir, nestedRootFixture, Options{MaxSourceNodes: 150, MaxAliasSurplus: 1})
+		_, diags := loadExternal(t, dir, nestedRootFixture, Options{MaxSourceNodes: budget.AtMost(150), MaxAliasSurplus: budget.AtMost(1)})
 
 		require.Len(t, diags, 2, "exactly two: Small's document is already over budget, so neither "+
 			"its finding nor a second budget-exceeded is reported: %+v", diags)
@@ -752,14 +753,14 @@ func TestResolve_ReachedValidationIsBudgeted(t *testing.T) {
 
 		reversed := slices.Clone(nestedRootPaths)
 		slices.Reverse(reversed)
-		_, again := loadExternal(t, dir, nestedRoot(reversed), Options{MaxSourceNodes: 150, MaxAliasSurplus: 1})
+		_, again := loadExternal(t, dir, nestedRoot(reversed), Options{MaxSourceNodes: budget.AtMost(150), MaxAliasSurplus: budget.AtMost(1)})
 		if d := cmp.Diff(diags, again); d != "" {
 			t.Errorf("the budget is crossed at another object when the paths are reversed (-as written +reversed):\n%s", d)
 		}
 	})
 
 	for name, opts := range map[string]Options{
-		"a budget the three fit admits them all": {MaxSourceNodes: 205, MaxAliasSurplus: 1},
+		"a budget the three fit admits them all": {MaxSourceNodes: budget.AtMost(205), MaxAliasSurplus: budget.AtMost(1)},
 		"an unbounded budget admits them all":    {},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -1083,7 +1084,7 @@ func TestResolve_AnObjectTheSourceDeclaresIsNotChargedToTheBudget(t *testing.T) 
 		root, _, err := decodeStream(t.Context(), []byte(spec))
 		require.NoError(t, err)
 		nodes := nodeCount(t.Context(), root)
-		opts := Options{MaxSourceNodes: nodes, MaxAliasSurplus: 1}
+		opts := Options{MaxSourceNodes: budget.AtMost(nodes), MaxAliasSurplus: budget.AtMost(1)}
 		got, diags, err := Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(spec)}, opts)
 		require.NoError(t, err)
 		require.NotNil(t, got, "%+v", diags)

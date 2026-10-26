@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	yaml "go.yaml.in/yaml/v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
@@ -204,7 +205,7 @@ func TestLoad_AnOverlayBuildsWithinTheNodeBudget(t *testing.T) {
 		"  - target: $.info\n    update: {x-bulk: {" + strings.Join(keys, ", ") + "}}\n"
 
 	opts := overlayOf(ov)
-	opts.MaxSourceNodes = 100
+	opts.MaxSourceNodes = budget.AtMost(100)
 	doc, diags, err := Load(t.Context(), 0, openapitest.SourceOf(minimal31), opts)
 
 	require.NoError(t, err)
@@ -213,7 +214,7 @@ func TestLoad_AnOverlayBuildsWithinTheNodeBudget(t *testing.T) {
 	assert.Contains(t, diags[len(diags)-1].Message, "overlay action 1 of 1",
 		"refused by the overlay's own check, before it built the tree")
 
-	opts.MaxSourceNodes = 10000
+	opts.MaxSourceNodes = budget.AtMost(10000)
 	doc, diags, err = Load(t.Context(), 0, openapitest.SourceOf(minimal31), opts)
 	require.NoError(t, err)
 	require.NotNil(t, doc, "the same overlay fits a budget with room for it: %+v", diags)
@@ -229,7 +230,7 @@ func TestLoad_TheNodeBudgetReadsTheTreeTheOverlayLeaves(t *testing.T) {
 	ov := "overlay: 1.0.0\ninfo: {title: o, version: \"1\"}\nactions:\n" +
 		"  - target: $.x-junk\n    remove: true\n"
 
-	bare := Options{MaxSourceNodes: 100}
+	bare := Options{MaxSourceNodes: budget.AtMost(100)}
 	doc, diags, err := Load(t.Context(), 0, openapitest.SourceOf(src), bare)
 	require.NoError(t, err)
 	require.Nil(t, doc, "sanity: the source alone is past the budget")
@@ -254,7 +255,7 @@ func TestLoad_AnOverlayIsHeldToTheByteBudget(t *testing.T) {
 	require.Greater(t, len(ov), len(minimal31)+200, "the overlay is what crosses the budget, not the source")
 
 	opts := overlayOf(ov)
-	opts.MaxSourceBytes = len(minimal31) + 100
+	opts.MaxSourceBytes = budget.AtMost(len(minimal31) + 100)
 	doc, diags, err := Load(t.Context(), 0, openapitest.SourceOf(minimal31), opts)
 
 	require.NoError(t, err)
@@ -276,7 +277,7 @@ func TestLoad_AnOverlayIsHeldToTheAliasBudget(t *testing.T) {
 		"  - target: $.paths\n    update: {x-b: *m}\n"
 
 	opts := overlayOf(doc)
-	opts.MaxAliasSurplus = 1
+	opts.MaxAliasSurplus = budget.AtMost(1)
 	got, diags, err := Load(t.Context(), 0, openapitest.SourceOf(minimal31), opts)
 
 	require.NoError(t, err)
@@ -285,7 +286,7 @@ func TestLoad_AnOverlayIsHeldToTheAliasBudget(t *testing.T) {
 	assert.Equal(t, diag.BudgetExceeded, diags[0].Code)
 	assert.Equal(t, 1, diags[0].Provenance.Source, "the overlay is what crossed it")
 
-	opts.MaxAliasSurplus = 0
+	opts.MaxAliasSurplus = budget.Unbounded()
 	got, diags, err = Load(t.Context(), 0, openapitest.SourceOf(minimal31), opts)
 	require.NoError(t, err)
 	require.NotNil(t, got, "with no budget the same overlay applies: %+v", diags)

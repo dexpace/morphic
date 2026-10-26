@@ -11,6 +11,7 @@ import (
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/auth"
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/document"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
@@ -237,14 +238,15 @@ func optionsFrom(opts compilers.Options) (Options, error) {
 // the directory of src's path unless it is on. It exists so the mapping lives
 // in one place: load.Options is that package's own input, deliberately not this
 // public type, whose shape is a published contract (see Options) and most of
-// which describes lowering the loader cannot see.
+// which describes lowering the loader cannot see. Each budget is read as
+// Limits spells one, its default beside it (budget.FromOption).
 func loadOptions(o Options, reader compilers.DocumentReader, src compilers.Source) load.Options {
 	out := load.Options{
 		Reader:               reader,
-		MaxSourceBytes:       bounded(o.Limits.MaxSourceBytes),
-		MaxSourceNodes:       bounded(o.Limits.MaxSourceNodes),
-		MaxAliasSurplus:      bounded(o.Limits.MaxAliasSurplus),
-		MaxExternalDocuments: bounded(o.Limits.MaxExternalDocuments),
+		MaxSourceBytes:       budget.FromOption(o.Limits.MaxSourceBytes, DefaultMaxSourceBytes),
+		MaxSourceNodes:       budget.FromOption(o.Limits.MaxSourceNodes, DefaultMaxSourceNodes),
+		MaxAliasSurplus:      budget.FromOption(o.Limits.MaxAliasSurplus, DefaultMaxAliasSurplus),
+		MaxExternalDocuments: budget.FromOption(o.Limits.MaxExternalDocuments, DefaultMaxExternalDocuments),
 	}
 	if !o.AllowExternalRefs {
 		out.Within = filepath.Dir(src.Path)
@@ -259,11 +261,10 @@ func loadOptions(o Options, reader compilers.DocumentReader, src compilers.Sourc
 // loweringCtx projects a loaded document and the caller's options onto the
 // lowering context, and is the loadOptions of the phase below: it is the one
 // place the loader's result type meets the lowering, so lowering.New can take
-// the facts it needs rather than the loader's struct. It is also where the
-// public spelling of an unbounded budget is translated, for the reason
-// loadOptions translates the other two — below here, zero means no budget.
+// the facts it needs rather than the loader's struct. It reads the enum budget
+// as loadOptions reads the others.
 func loweringCtx(doc *load.Document, o Options) lowering.Ctx {
-	limits := lowering.Limits{MaxEnumMembers: bounded(o.Limits.MaxEnumMembers)}
+	limits := lowering.Limits{MaxEnumMembers: budget.FromOption(o.Limits.MaxEnumMembers, DefaultMaxEnumMembers)}
 	return lowering.New(rootSrcIndex, doc.Doc, doc.Source, o.Grouping, limits,
 		o.StreamingMedia, o.Promotions, o.NullableWidening, doc.Overlay).WithLoaded(doc)
 }

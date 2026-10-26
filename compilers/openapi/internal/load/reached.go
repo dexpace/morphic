@@ -5,7 +5,6 @@ import (
 	"encoding/json/jsontext"
 	"iter"
 	"maps"
-	"math"
 	"slices"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
@@ -13,6 +12,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
@@ -31,7 +31,9 @@ import (
 type reached struct {
 	checker oas.Checker
 	version string
-	limit   int
+	// limit bounds what checks of one document's objects may span (see charge),
+	// and what each check reads.
+	limit budget.Limit
 	// esc holds the $refs rewritten for the resolver to read, which a message
 	// names as the source writes them (GitHub #911).
 	esc *escapes
@@ -43,10 +45,8 @@ type reached struct {
 	seen map[objectKey]bool
 	// reported holds every finding already reported, the source's own included.
 	reported map[ir.Diagnostic]bool
-	// spent is the node count charged to each document so far.
-	spent map[string]int
-	// over names the documents whose budget has been reported crossed.
-	over map[string]bool
+	// spans holds what each document's checks have been charged so far.
+	spans map[string]*budget.Budget
 }
 
 // reachedTarget is an object the source's references reach: the least pointer
@@ -220,8 +220,7 @@ func newReached(doc *soa.OpenAPI, opts Options, tree sourceTree, judged judgment
 		limit:    limit,
 		seen:     judged.seen,
 		reported: reported,
-		spent:    map[string]int{},
-		over:     map[string]bool{},
+		spans:    map[string]*budget.Budget{},
 	}
 }
 
@@ -297,28 +296,28 @@ func (v *reached) locatorFor(t reachedTarget) oas.Locator {
 // It reports true when the object is not to be checked: doc's budget was
 // crossed before, or this object would cross it, which is reported once, here.
 func (v *reached) charge(ctx context.Context, site ir.Provenance, doc string, node *yaml.Node) ([]ir.Diagnostic, bool) {
-	if v.over[doc] {
+	spans := v.spansOf(doc)
+	if spans.Exhausted() {
 		return nil, true
 	}
-	span, fits := spanned(ctx, node, v.remaining(doc))
-	if !fits {
-		v.over[doc] = true
-		return []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.BudgetExceeded, site,
-			"the objects references reach in %s span more than the %d nodes a document is validated over; "+
-				"its validation stops at this one", doc, v.limit)}, true
+	if spans.Spend(spanned(ctx, node, spans.Remaining())) {
+		return nil, false
 	}
-	v.spent[doc] += span
-	return nil, false
+	return []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.BudgetExceeded, site,
+		"the objects references reach in %s span more than the %d nodes a document is validated over; "+
+			"its validation stops at this one", doc, v.limit.Cap())}, true
 }
 
-// remaining is how many more nodes doc may be charged before its budget is
-// crossed, and so how far a count need go to tell; an unbounded budget leaves
-// the count unbounded too.
-func (v *reached) remaining(doc string) int {
-	if v.limit <= 0 {
-		return -1
+// spansOf returns what doc's checks have been charged, starting its budget
+// the first time one is.
+func (v *reached) spansOf(doc string) *budget.Budget {
+	spans, ok := v.spans[doc]
+	if !ok {
+		fresh := budget.New(v.limit)
+		spans = &fresh
+		v.spans[doc] = spans
 	}
-	return v.limit - v.spent[doc]
+	return spans
 }
 
 // reachedNode returns the node the object a reference names was built from, or
@@ -337,16 +336,9 @@ func reachedNode(r resolvable) (*yaml.Node, bool) {
 
 // spanned counts the nodes under root as a model built from it holds them,
 // each alias standing for a copy of what it names (nodeview.AliasTarget), as
-// scan's alias weigher weighs it, and reports whether the count stays within
-// limit, negative meaning none. It stops one node past limit, so refusing an
+// scan's alias weigher weighs it. It stops one node past within, so refusing an
 // object costs the budget, not the object. No alias leads back up: a document
-// whose anchor names one of its own ancestors was refused. A limit of
-// math.MaxInt has no node past it to stop at.
-func spanned(ctx context.Context, root *yaml.Node, limit int) (int, bool) {
-	bound := math.MaxInt
-	if limit >= 0 && limit < math.MaxInt {
-		bound = limit + 1
-	}
-	visited := nodeview.Walk{Nodes: bound, Aliases: nodeview.AliasTarget}.Run(ctx, root).Visited
-	return visited, limit < 0 || visited <= limit
+// whose anchor names one of its own ancestors was refused.
+func spanned(ctx context.Context, root *yaml.Node, within budget.Limit) int {
+	return nodeview.Walk{Nodes: within.Past(), Aliases: nodeview.AliasTarget}.Run(ctx, root).Visited
 }

@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
@@ -26,24 +27,33 @@ func TestCheck_AnUnknownCodeRuleIsATableError(t *testing.T) {
 	assert.Contains(t, diags[0].Message, "no-such-predicate")
 }
 
-// TestCheck_WorkIsBounded pins that the walk stops at its budget and its depth,
-// and says so once, as an error.
+// TestCheck_WorkIsBounded pins that the walk stops past its budget, not at it,
+// and at its depth whatever the budget, and says so once, as an error. An unset
+// budget is unbounded.
 func TestCheck_WorkIsBounded(t *testing.T) {
 	deep := "{}"
 	for range MaxDepth + 8 {
 		deep = "{properties: {a: " + deep + "}}"
 	}
+	const five = `{properties: {a: {}, b: {}, c: {}, d: {}}}` // five schemas, each an object read
 	tests := []struct {
-		name   string
-		doc    string
-		budget int
+		name  string
+		doc   string
+		limit budget.Limit
+		over  bool
 	}{
-		{"budget", `{properties: {a: {}, b: {}, c: {}, d: {}}}`, 3},
-		{"depth", deep, 0},
+		{"a budget one short of the objects", five, budget.AtMost(4), true},
+		{"a budget of the objects", five, budget.AtMost(5), false},
+		{"no budget", five, budget.Unbounded(), false},
+		{"depth", deep, budget.Unbounded(), true},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			diags := NewChecker().Check(t.Context(), openapitest.YAMLDocument(t, tc.doc), "3.1.0", Options{Start: Schema, Budget: tc.budget})
+			diags := NewChecker().Check(t.Context(), openapitest.YAMLDocument(t, tc.doc), "3.1.0", Options{Start: Schema, Budget: tc.limit})
+			if !tc.over {
+				assert.Empty(t, diags)
+				return
+			}
 			require.Len(t, diags, 1)
 			assert.Equal(t, diag.BudgetExceeded, diags[0].Code)
 			assert.Equal(t, ir.SeverityError, diags[0].Severity)

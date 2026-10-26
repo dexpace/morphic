@@ -17,6 +17,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/compile"
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
@@ -239,69 +240,68 @@ func TestCompile_AnUnboundedAliasBudgetStillRefusesABomb(t *testing.T) {
 		"the refusal must not name a budget, since raising one would not admit the document")
 }
 
-func TestLimitsWithDefaults_FillsEveryUnsetBudgetAndKeepsTheRest(t *testing.T) {
+// TestLoadOptions_ReadsEachBudgetAsLimitsSpellsIt pins the one reading of the
+// public budgets: each field left zero takes its own default, a set one is
+// kept, and a negative one, whatever its value, reaches its phase unbounded.
+func TestLoadOptions_ReadsEachBudgetAsLimitsSpellsIt(t *testing.T) {
 	t.Parallel()
+	src := compilers.Source{Path: "spec.yaml"}
+	resolved := func(l Limits) []budget.Limit {
+		o := Options{Limits: l}.withDefaults()
+		phase := loadOptions(o, nil, src)
+		enum := loweringCtx(&load.Document{}, o).Limits.MaxEnumMembers
+		return []budget.Limit{phase.MaxSourceBytes, phase.MaxSourceNodes, enum, phase.MaxAliasSurplus,
+			phase.MaxExternalDocuments}
+	}
 	tests := []struct {
 		name string
 		in   Limits
-		want Limits
+		want []budget.Limit
 	}{
-		{
-			"the zero value takes every default",
-			Limits{},
-			Limits{DefaultMaxSourceBytes, DefaultMaxSourceNodes, DefaultMaxEnumMembers, DefaultMaxAliasSurplus,
-				DefaultMaxExternalDocuments},
-		},
-		{
-			"a set budget is left alone and the others still default",
-			Limits{MaxEnumMembers: 9, MaxExternalDocuments: 7},
-			Limits{DefaultMaxSourceBytes, DefaultMaxSourceNodes, 9, DefaultMaxAliasSurplus, 7},
-		},
-		{
-			"a negative budget is the caller asking for none",
-			Limits{MaxSourceBytes: -1, MaxSourceNodes: -2, MaxEnumMembers: -3, MaxAliasSurplus: -4, MaxExternalDocuments: -5},
-			Limits{-1, -2, -3, -4, -5},
-		},
+		{"the zero value takes every default", Limits{}, []budget.Limit{
+			budget.AtMost(DefaultMaxSourceBytes), budget.AtMost(DefaultMaxSourceNodes),
+			budget.AtMost(DefaultMaxEnumMembers), budget.AtMost(DefaultMaxAliasSurplus),
+			budget.AtMost(DefaultMaxExternalDocuments)}},
+		{"a set budget is kept", Limits{11, 12, 13, 14, 15}, []budget.Limit{
+			budget.AtMost(11), budget.AtMost(12), budget.AtMost(13), budget.AtMost(14), budget.AtMost(15)}},
+		{"a negative budget is the caller asking for none", Limits{-1, -2, -3, -4, -5}, []budget.Limit{
+			budget.Unbounded(), budget.Unbounded(), budget.Unbounded(), budget.Unbounded(), budget.Unbounded()}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tc.want, tc.in.withDefaults())
+			assert.Equal(t, tc.want, resolved(tc.in))
 		})
 	}
 }
 
-func TestOptionsWithDefaults_ResolvesTheLimits(t *testing.T) {
+// TestOptionsWithDefaults_KeepsTheCallersBudgets pins that the budgets are not
+// resolved twice: withDefaults leaves them as the caller spelt them, for the
+// projection onto each phase to read.
+func TestOptionsWithDefaults_KeepsTheCallersBudgets(t *testing.T) {
 	t.Parallel()
-	got := Options{}.withDefaults()
+	got := Options{Limits: Limits{MaxEnumMembers: -1}}.withDefaults()
 
 	assert.Equal(t, GroupByTags, got.Grouping)
-	assert.Equal(t, Limits{}.withDefaults(), got.Limits, "the compiler resolves budgets once, at entry")
+	assert.Equal(t, Limits{MaxEnumMembers: -1}, got.Limits)
 }
 
-func TestBounded_TranslatesTheCallersSpellingOfUnbounded(t *testing.T) {
+// TestSourceLimit_IsTheLoadersByteBudget pins SourceLimit to the byte budget
+// the load phase is handed, spelled as the compilers contract spells one: zero
+// for none.
+func TestSourceLimit_IsTheLoadersByteBudget(t *testing.T) {
 	t.Parallel()
-	assert.Equal(t, 0, bounded(-1), "negative is the public spelling of unbounded; zero is the internal one")
-	assert.Equal(t, 0, bounded(0))
-	assert.Equal(t, 7, bounded(7))
-}
-
-func TestLoadOptions_CarriesTheResolvedSizeBudgets(t *testing.T) {
-	t.Parallel()
-	got := loadOptions(Options{Limits: Limits{MaxSourceBytes: 11, MaxSourceNodes: -1}}.withDefaults(), nil, compilers.Source{Path: "spec.yaml"})
-
-	assert.Equal(t, 11, got.MaxSourceBytes)
-	assert.Equal(t, 0, got.MaxSourceNodes, "an unbounded budget reaches the loader as no budget")
-	assert.Equal(t, DefaultMaxAliasSurplus, got.MaxAliasSurplus, "an unset budget reaches the loader as its default")
-
-	assert.Equal(t, DefaultMaxExternalDocuments, got.MaxExternalDocuments)
-
-	got = loadOptions(Options{Limits: Limits{MaxAliasSurplus: -1, MaxExternalDocuments: -1}}.withDefaults(), nil, compilers.Source{Path: "spec.yaml"})
-	assert.Equal(t, 0, got.MaxAliasSurplus, "an unbounded alias budget reaches the loader as no budget")
-	assert.Equal(t, 0, got.MaxExternalDocuments, "an unbounded document budget reaches the loader as no budget")
-
-	got = loadOptions(Options{Limits: Limits{MaxExternalDocuments: 3}}.withDefaults(), nil, compilers.Source{Path: "spec.yaml"})
-	assert.Equal(t, 3, got.MaxExternalDocuments)
+	for name, tc := range map[string]struct {
+		in   Limits
+		want int
+	}{
+		"the default":      {Limits{}, DefaultMaxSourceBytes},
+		"a budget it sets": {Limits{MaxSourceBytes: 9}, 9},
+		"no budget":        {Limits{MaxSourceBytes: -1}, 0},
+	} {
+		got := (&Compiler{}).SourceLimit(compilers.Options{FormatOptions: Options{Limits: tc.in}})
+		assert.Equal(t, tc.want, got, name)
+	}
 }
 
 // TestCompile_TheDocumentBudgetIsTheCallersToSet pins the document budget

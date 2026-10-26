@@ -225,38 +225,6 @@ type Limits struct {
 	MaxExternalDocuments int `json:"maxExternalDocuments,omitzero"`
 }
 
-// withDefaults returns a copy of l with each unset budget filled from its
-// default. A negative budget is left alone — it is the caller asking for none.
-func (l Limits) withDefaults() Limits {
-	if l.MaxSourceBytes == 0 {
-		l.MaxSourceBytes = DefaultMaxSourceBytes
-	}
-	if l.MaxSourceNodes == 0 {
-		l.MaxSourceNodes = DefaultMaxSourceNodes
-	}
-	if l.MaxEnumMembers == 0 {
-		l.MaxEnumMembers = DefaultMaxEnumMembers
-	}
-	if l.MaxAliasSurplus == 0 {
-		l.MaxAliasSurplus = DefaultMaxAliasSurplus
-	}
-	if l.MaxExternalDocuments == 0 {
-		l.MaxExternalDocuments = DefaultMaxExternalDocuments
-	}
-	return l
-}
-
-// bounded projects one resolved budget onto the internal form the phases below
-// read, where zero alone means unbounded. It is the single place the public
-// spelling of "no budget" — a negative value — is translated, so no phase has to
-// know two spellings of it.
-func bounded(limit int) int {
-	if limit < 0 {
-		return 0
-	}
-	return limit
-}
-
 // Overlay is one OpenAPI Overlay document and how strictly to apply it.
 //
 // The document arrives as bytes, or is read through compilers.Options.Reader,
@@ -287,11 +255,12 @@ type Overlay struct {
 }
 
 // withDefaults returns a copy of o with unset fields filled from the defaults.
+// The budgets keep the caller's spelling: each is read where it is projected
+// onto the phase that keeps it (see loadOptions), its default beside it.
 func (o Options) withDefaults() Options {
 	if o.Grouping == "" {
 		o.Grouping = GroupByTags
 	}
-	o.Limits = o.Limits.withDefaults()
 	return o
 }
 

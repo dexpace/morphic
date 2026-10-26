@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/ir"
@@ -36,14 +37,6 @@ func TestNodeCount_CountsEveryNodeAndAnswersForNothing(t *testing.T) {
 	assert.Equal(t, 0, nodeCount(t.Context(), nil), "an absent tree counts nothing rather than panicking")
 }
 
-func TestExceeds_TreatsAnUnsetBudgetAsUnbounded(t *testing.T) {
-	t.Parallel()
-	assert.False(t, exceeds(1<<40, 0), "zero is no budget, not a budget of zero")
-	assert.False(t, exceeds(1<<40, -1))
-	assert.False(t, exceeds(4, 4), "the budget is what is allowed, not what is refused")
-	assert.True(t, exceeds(5, 4))
-}
-
 func TestLoad_SourceByteBudgetBindsOnlyPastTheLimit(t *testing.T) {
 	t.Parallel()
 	size := len(minimal31)
@@ -59,7 +52,7 @@ func TestLoad_SourceByteBudgetBindsOnlyPastTheLimit(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			src := compilers.Source{Path: "spec.yaml", Data: []byte(minimal31)}
-			doc, diags, err := Load(t.Context(), 0, src, Options{MaxSourceBytes: tc.limit})
+			doc, diags, err := Load(t.Context(), 0, src, Options{MaxSourceBytes: budget.AtMost(tc.limit)})
 			require.NoError(t, err, "an over-budget document is a spec problem, not a Go error")
 
 			if !tc.refused {
@@ -99,7 +92,7 @@ func TestLoad_SourceNodeBudgetBindsOnlyPastTheLimit(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			src := compilers.Source{Path: "spec.yaml", Data: []byte(minimal31)}
-			doc, diags, err := Load(t.Context(), 0, src, Options{MaxSourceNodes: tc.limit})
+			doc, diags, err := Load(t.Context(), 0, src, Options{MaxSourceNodes: budget.AtMost(tc.limit)})
 			require.NoError(t, err, "an over-budget document is a spec problem, not a Go error")
 
 			if !tc.refused {
@@ -140,7 +133,7 @@ actions:
 	opts := Options{
 		Overlay:         &overlay.Options{Path: "patch.yaml", Data: []byte(patch)},
 		OverlaySrcIndex: 1,
-		MaxSourceNodes:  unpatched,
+		MaxSourceNodes:  budget.AtMost(unpatched),
 	}
 	doc, diags, err := Load(t.Context(), 0,
 		compilers.Source{Path: "spec.yaml", Data: []byte(minimal31)}, opts)

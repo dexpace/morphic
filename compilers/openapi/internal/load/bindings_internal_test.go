@@ -21,6 +21,7 @@ import (
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
@@ -94,16 +95,16 @@ func TestBindingDiags_ReportsAFailedRefOnceWhereItIsWrittenAtEveryBudget(t *test
 		cfg.Limit = limit
 		table := bind.Bind(t.Context(), root, cfg)
 		var failed []ir.Diagnostic
-		budget := false
+		crossed := false
 		for _, d := range bindingDiags(byDocument, table) {
 			switch d.Code {
 			case diag.UnresolvedRef:
 				failed = append(failed, d)
 			case diag.BudgetExceeded:
-				budget = true
+				crossed = true
 			}
 		}
-		assert.Equal(t, table.Exhausted(), budget, "a cut table reports the budget, limit %d", limit)
+		assert.Equal(t, table.Exhausted(), crossed, "a cut table reports the budget, limit %d", limit)
 		if len(failed) == 0 {
 			silent++
 			continue
@@ -203,8 +204,8 @@ func TestBindingDiags_ReportsAChainBackIntoTheSourceWhereItFails(t *testing.T) {
 // prepared for it, so one with none is the compiler's fault, said so.
 func TestExternal_DocumentReportsAReadWithNoTreeAsAFault(t *testing.T) {
 	t.Parallel()
-	ext := newExternal(t.Context(), &soa.OpenAPI{}, Options{Reader: &fakeReader{}}, newExternalReads(sourceDocument{}))
-	ext.read.once("doc.yaml", 0, func() answer { return answer{body: []byte("a: 1\n")} })
+	ext := newExternal(t.Context(), &soa.OpenAPI{}, Options{Reader: &fakeReader{}}, newExternalReads(sourceDocument{}, budget.Unbounded()))
+	ext.read.once("doc.yaml", func() answer { return answer{body: []byte("a: 1\n")} })
 
 	tree, err := ext.document(t.Context(), "doc.yaml")
 

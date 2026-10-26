@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/engine/reader"
@@ -33,7 +34,7 @@ func resumedOver(t *testing.T, dir, root string, limit int) (*resumeWork, []ir.D
 	require.NoError(t, err)
 	self := newSourceDocument(filepath.Join(dir, "root.yaml"), []byte(root), tree, judgment{}, newSourceTree(t.Context(), 0, overlay.Origin{}, tree), nil)
 	opts := Options{Reader: reader.Disk{}}
-	ext := newExternal(t.Context(), doc, opts, newExternalReads(self))
+	ext := newExternal(t.Context(), doc, opts, newExternalReads(self, budget.Unbounded()))
 	ext.work.limit = limit
 	at := pointerAt(0, overlay.Origin{})
 	pass := newResolution(t.Context(), doc, Siblings{}, self, opts, &ext)
@@ -223,7 +224,7 @@ func TestResumable_TheBudgetStopsWhatItWouldResume(t *testing.T) {
 	data := []byte("components:\n  schemas:\n    Base: {type: object}\n")
 	tree, err := parseTree(t.Context(), data)
 	require.NoError(t, err)
-	read := newExternalReads(sourceDocument{})
+	read := newExternalReads(sourceDocument{}, budget.Unbounded())
 	read.recordTree("other.yaml", tree, data)
 	walked := jsonpointer.ErrInvalidPath.Wrap(errors.New("expected index, got key at /components"))
 	hop := func(document any, object any) record {

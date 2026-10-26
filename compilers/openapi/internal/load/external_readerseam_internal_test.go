@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 )
 
 // fakeReader answers every request with the bytes and error it holds, and
@@ -61,7 +62,7 @@ func (f *fakeReader) contexts() []any {
 func externalOver(ctx context.Context, opts Options, r compilers.DocumentReader) (external, *soa.OpenAPI) {
 	doc := &soa.OpenAPI{}
 	opts.Reader = r
-	return newExternal(ctx, doc, opts, newExternalReads(sourceDocument{})), doc
+	return newExternal(ctx, doc, opts, newExternalReads(sourceDocument{}, budget.Unbounded())), doc
 }
 
 // TestExternal_FetchWithNoReaderIsRefusedUnread pins that a compile handed no
@@ -109,8 +110,8 @@ func TestExternal_FetchWithNoReaderIsRefusedUnread(t *testing.T) {
 func TestExternal_ReadFailureMapsTheReadersSentinels(t *testing.T) {
 	t.Parallel()
 	const (
-		budget  = "external document %s refused: it is past the 16-byte budget"
-		outside = `external document %s refused: it lies outside the source's directory "/srv/specs", ` +
+		tooLarge = "external document %s refused: it is past the 16-byte budget"
+		outside  = `external document %s refused: it lies outside the source's directory "/srv/specs", ` +
 			"which a read leaves only when external references are allowed"
 		network = "external document %s refused: it is on the network, " +
 			"which a read reaches only when external references are allowed"
@@ -122,9 +123,9 @@ func TestExternal_ReadFailureMapsTheReadersSentinels(t *testing.T) {
 		err  error
 		want string // "" means err itself, passed through
 	}{
-		{"too large", "k", compilers.ErrDocumentTooLarge, fmt.Sprintf(budget, "k")},
-		{"too large, wrapped", "k", fmt.Errorf("read k: %w of 16 bytes", compilers.ErrDocumentTooLarge), fmt.Sprintf(budget, "k")},
-		{"too large, a URL", url, compilers.ErrDocumentTooLarge, fmt.Sprintf(budget, url)},
+		{"too large", "k", compilers.ErrDocumentTooLarge, fmt.Sprintf(tooLarge, "k")},
+		{"too large, wrapped", "k", fmt.Errorf("read k: %w of 16 bytes", compilers.ErrDocumentTooLarge), fmt.Sprintf(tooLarge, "k")},
+		{"too large, a URL", url, compilers.ErrDocumentTooLarge, fmt.Sprintf(tooLarge, url)},
 		{"a path outside", "k", compilers.ErrOutsideWithin, fmt.Sprintf(outside, "k")},
 		{"a path outside, wrapped", "k", fmt.Errorf("read k: %w %q", compilers.ErrOutsideWithin, "/srv/specs"), fmt.Sprintf(outside, "k")},
 		{"a URL outside", url, compilers.ErrOutsideWithin, fmt.Sprintf(network, url)},
@@ -136,7 +137,7 @@ func TestExternal_ReadFailureMapsTheReadersSentinels(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			opts := Options{Within: "/srv/specs", MaxSourceBytes: 16}
+			opts := Options{Within: "/srv/specs", MaxSourceBytes: budget.AtMost(16)}
 			ext, doc := externalOver(t.Context(), opts, &fakeReader{err: tc.err})
 
 			got := ext.fetch(t.Context(), tc.key, tc.key).err
@@ -163,14 +164,14 @@ func TestExternal_FetchRefusesBytesPastTheBudgetAReaderReturned(t *testing.T) {
 	tests := []struct {
 		name   string
 		size   int
-		limit  int
+		limit  budget.Limit
 		refuse bool
 	}{
-		{"one byte past", 17, 16, true},
-		{"far past", 4096, 16, true},
-		{"exactly the budget", 16, 16, false},
-		{"under the budget", 8, 16, false},
-		{"no budget", 4096, 0, false},
+		{"one byte past", 17, budget.AtMost(16), true},
+		{"far past", 4096, budget.AtMost(16), true},
+		{"exactly the budget", 16, budget.AtMost(16), false},
+		{"under the budget", 8, budget.AtMost(16), false},
+		{"no budget", 4096, budget.Unbounded(), false},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -223,7 +224,7 @@ func TestExternal_ReadsAskTheReaderForTheCompilesBounds(t *testing.T) {
 				t.Parallel()
 				ctx := context.WithValue(t.Context(), ctxKey{}, "the read's context")
 				fake := &fakeReader{err: errors.New("stop")}
-				ext, _ := externalOver(ctx, Options{Within: within, MaxSourceBytes: 123}, fake)
+				ext, _ := externalOver(ctx, Options{Within: within, MaxSourceBytes: budget.AtMost(123)}, fake)
 
 				d.ask(t, ctx, ext)
 
@@ -300,7 +301,7 @@ func TestExternal_AReadRefusesByHowItIsNamed(t *testing.T) {
 			t.Parallel()
 			fake := &fakeReader{data: []byte("X: {}\n")}
 			opts := Options{Within: tc.within, Reader: fake}
-			ext := newExternal(t.Context(), &soa.OpenAPI{}, opts, newExternalReads(sourceDocument{escapes: esc}))
+			ext := newExternal(t.Context(), &soa.OpenAPI{}, opts, newExternalReads(sourceDocument{escapes: esc}, budget.Unbounded()))
 
 			a := ext.fetch(t.Context(), tc.key, tc.key)
 

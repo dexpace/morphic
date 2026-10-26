@@ -7,6 +7,7 @@ import (
 
 	yaml "go.yaml.in/yaml/v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
@@ -42,13 +43,13 @@ func declaredVersion(root *yaml.Node) string {
 // judgeSource holds the source to the table of the version it declares. root
 // is the tree as the source writes it, an applied overlay's patch included, and
 // tree places each finding at the node it is about, naming where it was read
-// when an alias or a merge key mounts that node there. budget bounds what the
+// when an alias or a merge key mounts that node there. within bounds what the
 // check reads (see nodesAdmitted).
-func judgeSource(ctx context.Context, root *yaml.Node, tree sourceTree, budget int) judgment {
+func judgeSource(ctx context.Context, root *yaml.Node, tree sourceTree, within budget.Limit) judgment {
 	j := judgment{seen: map[objectKey]bool{}}
 	version := declaredVersion(root)
 	opts := oas.Options{
-		Budget: budget,
+		Budget: within,
 		Locate: tree.locatorIn(root),
 		Seen: func(kind oas.Kind, node *yaml.Node) {
 			j.seen[objectKey{node: nodeview.Deref(node), kind: kind}] = true
@@ -65,19 +66,16 @@ func judgeSource(ctx context.Context, root *yaml.Node, tree sourceTree, budget i
 // by the work budget a check of its objects spends, so a tree the node budget
 // admitted is read whole.
 func formatOptions(opts oas.Options) oas.Options {
-	opts.Budget, opts.Seen = maxTreeNodes, nil
+	opts.Budget, opts.Seen = budget.AtMost(maxTreeNodes), nil
 	return opts
 }
 
 // nodesAdmitted is how many nodes a document opts admits may hold with its
-// aliases expanded, the node budget plus the alias budget, or 0 when either is
-// unbounded. A check of the table reads no more objects than that, so a
+// aliases expanded: the node budget plus the alias budget, unbounded where
+// either is. A check of the table reads no more objects than that, so a
 // budget of it stops no check of an admitted document.
-func nodesAdmitted(opts Options) int {
-	if opts.MaxSourceNodes > 0 && opts.MaxAliasSurplus > 0 {
-		return opts.MaxSourceNodes + opts.MaxAliasSurplus
-	}
-	return 0
+func nodesAdmitted(opts Options) budget.Limit {
+	return opts.MaxSourceNodes.Plus(opts.MaxAliasSurplus)
 }
 
 // locatorIn returns the Locator for the pointers of the object written at

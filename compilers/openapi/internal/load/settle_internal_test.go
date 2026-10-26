@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 	yaml "go.yaml.in/yaml/v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
 )
@@ -166,7 +167,7 @@ func TestSettle_ARecordIsMendedToWhatTheUncachedReadReports(t *testing.T) {
 	doc := &soa.OpenAPI{}
 	sourceRoot, otherTree := &yaml.Node{Kind: yaml.DocumentNode}, &yaml.Node{Kind: yaml.DocumentNode}
 	sourceBytes, otherBytes := []byte("openapi: 3.1.0\n"), []byte("components: {}\n")
-	read := newExternalReads(sourceDocument{path: "root.yaml", data: sourceBytes, root: sourceRoot})
+	read := newExternalReads(sourceDocument{path: "root.yaml", data: sourceBytes, root: sourceRoot}, budget.Unbounded())
 	read.recordTree("other.yaml", otherTree, otherBytes)
 	read.recordTree("held.yaml", sourceRoot, nil)
 
@@ -208,13 +209,13 @@ func TestTreeFor(t *testing.T) {
 
 	t.Run("by digest", func(t *testing.T) {
 		t.Parallel()
-		r := newExternalReads(sourceDocument{})
+		r := newExternalReads(sourceDocument{}, budget.Unbounded())
 		r.recordTree("a.yaml", a, data)
 		assert.Same(t, a, r.treeFor("https://example.com/by-id.yaml", slices.Clone(data)))
 	})
 	t.Run("by digest, once its document is prepared again", func(t *testing.T) {
 		t.Parallel()
-		r := newExternalReads(sourceDocument{})
+		r := newExternalReads(sourceDocument{}, budget.Unbounded())
 		r.recordTree("a.yaml", a, data)
 		r.recordTree("a.yaml", b, data)
 		r.recordTree("c.yaml", b, data)
@@ -223,7 +224,7 @@ func TestTreeFor(t *testing.T) {
 	})
 	t.Run("by path, when the digest is shared", func(t *testing.T) {
 		t.Parallel()
-		r := newExternalReads(sourceDocument{})
+		r := newExternalReads(sourceDocument{}, budget.Unbounded())
 		r.recordTree("a.yaml", a, data)
 		r.recordTree("b.yaml", b, data)
 		assert.Same(t, a, r.treeFor("a.yaml", slices.Clone(data)))
@@ -232,7 +233,7 @@ func TestTreeFor(t *testing.T) {
 	})
 	t.Run("by the key a respelled URL was prepared under", func(t *testing.T) {
 		t.Parallel()
-		r := newExternalReads(sourceDocument{})
+		r := newExternalReads(sourceDocument{}, budget.Unbounded())
 		r.recordTree("http://host/a.yaml", a, data)
 		r.recordTree("http://host/b.yaml", b, data)
 		assert.Same(t, b, r.treeFor("HTTP://host/b.yaml", slices.Clone(data)),
@@ -240,7 +241,7 @@ func TestTreeFor(t *testing.T) {
 	})
 	t.Run("not by a path whose bytes were others", func(t *testing.T) {
 		t.Parallel()
-		r := newExternalReads(sourceDocument{})
+		r := newExternalReads(sourceDocument{}, budget.Unbounded())
 		r.recordTree("a.yaml", a, data)
 		r.recordTree("b.yaml", b, []byte("other bytes"))
 		assert.Same(t, a, r.treeFor("b.yaml", slices.Clone(data)))
@@ -249,7 +250,7 @@ func TestTreeFor(t *testing.T) {
 	})
 	t.Run("memoized for the same bytes", func(t *testing.T) {
 		t.Parallel()
-		r := newExternalReads(sourceDocument{})
+		r := newExternalReads(sourceDocument{}, budget.Unbounded())
 		r.recordTree("a.yaml", a, data)
 		cached := slices.Clone(data)
 		require.Same(t, a, r.treeFor("a.yaml", cached))
@@ -266,7 +267,7 @@ func TestTreeFor(t *testing.T) {
 	})
 	t.Run("not memoized for none", func(t *testing.T) {
 		t.Parallel()
-		r := newExternalReads(sourceDocument{})
+		r := newExternalReads(sourceDocument{}, budget.Unbounded())
 		r.recordTree("a.yaml", a, nil)
 		r.recordTree("b.yaml", b, nil)
 		assert.Same(t, a, r.treeFor("a.yaml", nil))
@@ -314,7 +315,7 @@ func TestSettle_AFailureMendingCannotTouchIsNotResumed(t *testing.T) {
 		resumed++
 		return nil, errors.New("again")
 	}}
-	reader := newExternal(t.Context(), &soa.OpenAPI{}, Options{}, newExternalReads(sourceDocument{}))
+	reader := newExternal(t.Context(), &soa.OpenAPI{}, Options{}, newExternalReads(sourceDocument{}, budget.Unbounded()))
 	failed := errors.New("failed")
 
 	err := reader.settle(t.Context(), r, references.ResolveOptions{}, failed)
@@ -437,7 +438,7 @@ func TestResumable(t *testing.T) {
 		"    Alias: {$ref: '#/components/responses/Base'}\n    Loop: {$ref: '#/components/responses/Loop'}\n")
 	tree, err := parseTree(t.Context(), data)
 	require.NoError(t, err)
-	read := newExternalReads(sourceDocument{})
+	read := newExternalReads(sourceDocument{}, budget.Unbounded())
 	read.recordTree("other.yaml", tree, data)
 	reader := newExternal(t.Context(), &soa.OpenAPI{}, Options{}, read)
 	walked := jsonpointer.ErrInvalidPath.Wrap(errors.New("expected index, got key at /components"))

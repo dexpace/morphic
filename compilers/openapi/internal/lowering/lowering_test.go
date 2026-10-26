@@ -17,6 +17,7 @@ import (
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/anchors"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
@@ -641,7 +642,7 @@ func TestDynamicAnchorSites_ReadsACompleteIndexQuietly(t *testing.T) {
 // context, beside the other policy the caller chose.
 func TestNew_CarriesTheLimits(t *testing.T) {
 	t.Parallel()
-	limits := lowering.Limits{MaxEnumMembers: 12}
+	limits := lowering.Limits{MaxEnumMembers: budget.AtMost(12)}
 
 	c := lowering.New(0, openapitest.DocDeclaring(), ir.SourceInfo{}, lowering.GroupByTags, limits, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{})
 

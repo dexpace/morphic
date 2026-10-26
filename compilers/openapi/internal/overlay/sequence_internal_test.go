@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	yaml "go.yaml.in/yaml/v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/internal/ctxtest"
 	"github.com/dexpace/morphic/ir"
@@ -130,14 +131,14 @@ func TestSequence_AppliesAnOverlayExactlyAsTheLibraryDoes(t *testing.T) {
 	at := ir.Provenance{Source: 1}
 	for name, ov := range differentialOverlays() {
 		for _, lax := range []bool{false, true} {
-			for _, budget := range []int{0, 1 << 20} {
-				t.Run(fmt.Sprintf("%s/lax=%v/budget=%d", name, lax, budget), func(t *testing.T) {
+			for within, limit := range map[string]budget.Limit{"none": budget.Unbounded(), "unreached": budget.AtMost(1 << 20)} {
+				t.Run(fmt.Sprintf("%s/lax=%v/budget=%s", name, lax, within), func(t *testing.T) {
 					t.Parallel()
 					wantTree, wantDiags, wantOK := applied(t, ov, func(d *soaoverlay.Overlay, r *yaml.Node) ([]ir.Diagnostic, bool) {
 						return wholeOverlay(d, r, at, lax)
 					})
 					gotTree, gotDiags, gotOK := applied(t, ov, func(d *soaoverlay.Overlay, r *yaml.Node) ([]ir.Diagnostic, bool) {
-						return runSequence(t.Context(), d, r, at, lax, budget)
+						return runSequence(t.Context(), d, r, at, lax, limit)
 					})
 
 					assert.Equal(t, wantOK, gotOK, "whether the overlay is usable")
@@ -170,7 +171,7 @@ func TestSequence_TheCorpusExercisesWhatItClaims(t *testing.T) {
 	cases := differentialOverlays()
 	strict := func(name string) ([]ir.Diagnostic, bool) {
 		_, diags, ok := applied(t, cases[name], func(d *soaoverlay.Overlay, r *yaml.Node) ([]ir.Diagnostic, bool) {
-			return runSequence(t.Context(), d, r, at, false, 0)
+			return runSequence(t.Context(), d, r, at, false, budget.Unbounded())
 		})
 		return diags, ok
 	}
@@ -198,13 +199,13 @@ func TestSequence_TheCorpusExercisesWhatItClaims(t *testing.T) {
 }
 
 // budgetedOverlay applies an overlay to sequenceSpec under a node budget.
-func budgetedOverlay(t *testing.T, ov string, maxNodes int) (*yaml.Node, []ir.Diagnostic, bool) {
+func budgetedOverlay(t *testing.T, ov string, limit budget.Limit) (*yaml.Node, []ir.Diagnostic, bool) {
 	t.Helper()
 	var root yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte(sequenceSpec), &root))
 	doc, err := soaoverlay.ParseReader(bytes.NewReader([]byte(ov)))
 	require.NoError(t, err)
-	diags, ok := runSequence(t.Context(), doc, &root, ir.Provenance{Source: 1}, false, maxNodes)
+	diags, ok := runSequence(t.Context(), doc, &root, ir.Provenance{Source: 1}, false, limit)
 	return &root, diags, ok
 }
 
@@ -228,17 +229,17 @@ func TestSequence_RefusesFanOutBeforeBuildingIt(t *testing.T) {
 
 	var fresh yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte(sequenceSpec), &fresh))
-	before := countNodes(t.Context(), &fresh, maxNodes)
+	before := countNodes(t.Context(), &fresh, budget.AtMost(maxNodes))
 
-	root, diags, ok := budgetedOverlay(t, ov, int(before)+300)
+	root, diags, ok := budgetedOverlay(t, ov, budget.AtMost(before+300))
 
 	require.False(t, ok, "three path items times a 200-node update is past a budget with room for 300")
 	last := diags[len(diags)-1]
 	assert.Equal(t, diag.BudgetExceeded, last.Code)
 	assert.Contains(t, last.Message, "action 1 of 1")
-	assert.Equal(t, before, countNodes(t.Context(), root, maxNodes), "and nothing was built: the refusal came first")
+	assert.Equal(t, before, countNodes(t.Context(), root, budget.AtMost(maxNodes)), "and nothing was built: the refusal came first")
 
-	_, diags, ok = budgetedOverlay(t, ov, int(before)+1000)
+	_, diags, ok = budgetedOverlay(t, ov, budget.AtMost(before+1000))
 	assert.True(t, ok, "the same overlay fits a budget with room for it: %+v", diags)
 }
 
@@ -261,7 +262,7 @@ func TestSequence_CountsEachActionOnTheTreeItRunsAgainst(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, path.Query(&fresh), "on the source, the later filter matches nothing")
 
-	_, diags, ok := budgetedOverlay(t, head+flag+later, int(countNodes(t.Context(), &fresh, maxNodes))+300)
+	_, diags, ok := budgetedOverlay(t, head+flag+later, budget.AtMost(countNodes(t.Context(), &fresh, budget.AtMost(maxNodes))+300))
 
 	require.False(t, ok, "on the tree the first action leaves, it matches every path item")
 	last := diags[len(diags)-1]
@@ -284,12 +285,12 @@ func TestSequence_DoesNotRefuseOnAnOverstatedCharge(t *testing.T) {
 
 	var fresh yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte(sequenceSpec), &fresh))
-	before := int(countNodes(t.Context(), &fresh, maxNodes))
+	before := countNodes(t.Context(), &fresh, budget.AtMost(maxNodes))
 
-	root, diags, ok := budgetedOverlay(t, b.String(), before+10)
+	root, diags, ok := budgetedOverlay(t, b.String(), budget.AtMost(before+10))
 
 	assert.True(t, ok, "twenty charges of two nodes each exceed ten, and none of them adds a node: %+v", diags)
-	assert.Equal(t, int64(before), countNodes(t.Context(), root, maxNodes))
+	assert.Equal(t, before, countNodes(t.Context(), root, budget.AtMost(maxNodes)))
 }
 
 // TestSequence_RefusesNoActionThatBuildsNothing pins that an action adding no
@@ -303,13 +304,13 @@ func TestSequence_RefusesNoActionThatBuildsNothing(t *testing.T) {
 
 	var fresh yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte(sequenceSpec), &fresh))
-	before := countNodes(t.Context(), &fresh, maxNodes)
+	before := countNodes(t.Context(), &fresh, budget.AtMost(maxNodes))
 
-	root, diags, ok := budgetedOverlay(t, ov, int(before)-1)
+	root, diags, ok := budgetedOverlay(t, ov, budget.AtMost(before-1))
 
 	require.True(t, ok, "a remove builds nothing, so no budget refuses it: %+v", diags)
 	assert.Empty(t, diags)
-	assert.Less(t, countNodes(t.Context(), root, maxNodes), before-1, "and it was applied")
+	assert.Less(t, countNodes(t.Context(), root, budget.AtMost(maxNodes)), before-1, "and it was applied")
 }
 
 // TestSequence_AppliesNoActionOnceItsContextRefused cancels a sequence at
@@ -332,10 +333,10 @@ func TestSequence_AppliesNoActionOnceItsContextRefused(t *testing.T) {
 		require.NoError(t, yaml.Unmarshal([]byte(sequenceSpec), &root))
 		return &root
 	}
-	budget := int(countNodes(t.Context(), tree(), maxNodes)) + 10
+	limit := budget.AtMost(countNodes(t.Context(), tree(), budget.AtMost(maxNodes)) + 10)
 	at := ir.Provenance{Source: 1}
 	whole := &ctxtest.Countdown{Context: t.Context(), Left: math.MaxInt}
-	_, ok := runSequence(whole, doc, tree(), at, false, budget)
+	_, ok := runSequence(whole, doc, tree(), at, false, limit)
 	require.True(t, ok)
 	require.Greater(t, whole.Calls, 1+len(doc.Actions),
 		"beside the first count and the check after each charge, a recount asks too")
@@ -346,7 +347,7 @@ func TestSequence_AppliesNoActionOnceItsContextRefused(t *testing.T) {
 		ctx := &ctxtest.Countdown{Context: t.Context(), Left: left}
 		ctx.OnRefuse = func() { refusedOn, err = yaml.Marshal(root) }
 
-		diags, ok := runSequence(ctx, doc, root, at, false, budget)
+		diags, ok := runSequence(ctx, doc, root, at, false, limit)
 
 		require.NoError(t, err)
 		require.False(t, ok, "check %d", left+1)
@@ -357,17 +358,15 @@ func TestSequence_AppliesNoActionOnceItsContextRefused(t *testing.T) {
 	}
 }
 
-// TestSequence_AppliesWithoutABudget pins that a zero or negative budget turns
-// the check off rather than refusing everything, matching the rest of the
+// TestSequence_AppliesWithoutABudget pins that an unbounded budget turns the
+// check off rather than refusing everything, matching the rest of the
 // compiler's budgets.
 func TestSequence_AppliesWithoutABudget(t *testing.T) {
 	t.Parallel()
 	const head = "overlay: 1.0.0\ninfo: {title: o, version: \"1\"}\nactions:\n"
 	ov := head + "  - target: $.paths.*\n    update: {x-bulk: " + wideUpdate(100) + "}\n"
-	for _, budget := range []int{0, -1} {
-		_, diags, ok := budgetedOverlay(t, ov, budget)
-		assert.True(t, ok, "budget %d: %+v", budget, diags)
-	}
+	_, diags, ok := budgetedOverlay(t, ov, budget.Unbounded())
+	assert.True(t, ok, "%+v", diags)
 }
 
 // TestWeigher_CountsWhatTheCloneBuilds pins the payload count against the
@@ -384,19 +383,19 @@ func TestWeigher_CountsWhatTheCloneBuilds(t *testing.T) {
 	}
 
 	plain := decode("{a: 1, b: 2}")
-	assert.Equal(t, int64(5), newWeigher(1000).weigh(plain, 0), "a mapping, two keys, two values")
+	assert.Equal(t, 5, newWeigher(budget.AtMost(1000)).weigh(plain, 0), "a mapping, two keys, two values")
 
 	twice := decode("{x: &s {k: v}, y: *s, z: *s}")
 	// The mapping, its three keys, x's value of three nodes, and each alias:
 	// itself plus the three it names, which the clone copies again each time.
-	assert.Equal(t, int64(1+3+3+2*(1+3)), newWeigher(1000).weigh(twice, 0))
+	assert.Equal(t, 1+3+3+2*(1+3), newWeigher(budget.AtMost(1000)).weigh(twice, 0))
 
 	cycle := decode("&a [*a]")
-	assert.Equal(t, int64(11), newWeigher(10).weigh(cycle, 0), "a cycle weighs the ceiling")
+	assert.Equal(t, 11, newWeigher(budget.AtMost(10)).weigh(cycle, 0), "a cycle weighs the ceiling")
 
-	assert.Equal(t, int64(11), newWeigher(10).weigh(decode(wideUpdate(50)), 0),
+	assert.Equal(t, 11, newWeigher(budget.AtMost(10)).weigh(decode(wideUpdate(50)), 0),
 		"and so does anything past it, without counting on")
-	assert.Equal(t, int64(0), newWeigher(10).weigh(nil, 0))
+	assert.Equal(t, 0, newWeigher(budget.AtMost(10)).weigh(nil, 0))
 }
 
 // TestSequence_NeverChargesLessThanItBuilds is the property the budget stands
@@ -424,14 +423,14 @@ func TestSequence_NeverChargesLessThanItBuilds(t *testing.T) {
 			doc, err := soaoverlay.ParseReader(bytes.NewReader([]byte(head + action)))
 			require.NoError(t, err)
 
-			s := &sequence{doc: doc, root: &root, maxNodes: 1 << 20}
-			charged := s.cost(doc.Actions[0], 1<<20)
-			before := countNodes(t.Context(), &root, maxNodes)
+			s := &sequence{doc: doc, root: &root, size: budget.New(budget.AtMost(1 << 20))}
+			charged := s.cost(doc.Actions[0])
+			before := countNodes(t.Context(), &root, budget.AtMost(maxNodes))
 
 			_, diags := Apply(t.Context(), 1, &root, Options{Data: []byte(head + action)})
 			require.False(t, diag.HasError(diags), "%+v", diags)
 
-			built := countNodes(t.Context(), &root, maxNodes) - before
+			built := countNodes(t.Context(), &root, budget.AtMost(maxNodes)) - before
 			assert.GreaterOrEqual(t, charged, built, "charged %d, built %d", charged, built)
 		})
 	}
@@ -443,16 +442,17 @@ func TestSequence_NeverChargesLessThanItBuilds(t *testing.T) {
 func TestCountNodes_SkipsWhatAParseNeverProduces(t *testing.T) {
 	t.Parallel()
 	root := &yaml.Node{Kind: yaml.MappingNode, Content: []*yaml.Node{{Kind: yaml.ScalarNode, Value: "a"}, nil}}
-	assert.Equal(t, int64(2), countNodes(t.Context(), root, maxNodes), "the mapping and its one real child")
+	assert.Equal(t, 2, countNodes(t.Context(), root, budget.AtMost(maxNodes)), "the mapping and its one real child")
 }
 
 // TestCountNodes_TheLargestLimitCountsTheWholeTree pins that a limit of
-// math.MaxInt, past which no node lies, counts every node rather than
-// overflowing the bound one past it.
+// math.MaxInt, past which no node lies, and no limit at all count every node
+// rather than overflowing the bound one past it.
 func TestCountNodes_TheLargestLimitCountsTheWholeTree(t *testing.T) {
 	t.Parallel()
 	root := &yaml.Node{Kind: yaml.MappingNode, Content: []*yaml.Node{{Kind: yaml.ScalarNode}, {Kind: yaml.ScalarNode}}}
-	assert.Equal(t, int64(3), countNodes(t.Context(), root, math.MaxInt))
+	assert.Equal(t, 3, countNodes(t.Context(), root, budget.AtMost(math.MaxInt)))
+	assert.Equal(t, 3, countNodes(t.Context(), root, budget.Unbounded()))
 }
 
 // TestActionType_NamesByTheLibrarysPrecedence holds the names the renumbering
