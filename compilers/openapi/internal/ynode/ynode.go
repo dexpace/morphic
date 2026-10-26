@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"strings"
 
-	yaml "gopkg.in/yaml.v3"
+	yaml "go.yaml.in/yaml/v3"
 )
 
 // Scalar builds an untagged plain scalar holding v.

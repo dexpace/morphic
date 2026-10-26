@@ -403,7 +403,7 @@ type Dependency struct {
 `Type`, `Codec` and `Imports` are written as the target writes them in a file. A Go row is
 `{Type: "decimal.Decimal", Imports: {"decimal": "github.com/shopspring/decimal"}}`, keyed by the
 name `Type` gives the package, so a package whose name is not its path's last element
-(`gopkg.in/yaml.v3` is `yaml`) is bound as surely as one whose name is. A Kotlin row is
+(`go.yaml.in/yaml/v3` is `yaml`) is bound as surely as one whose name is. A Kotlin row is
 `{Type: "BigDecimal", Codec: "BigDecimalSerializer", Imports: {"BigDecimal": "java.math.BigDecimal",
 "BigDecimalSerializer": "com.example.BigDecimalSerializer"}}`. Decoding parses `Type` and `Codec`
 into the target's AST with each imported name bound through `Imports`, so a node holds what it

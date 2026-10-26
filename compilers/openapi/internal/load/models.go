@@ -1,7 +1,7 @@
 package load
 
 import (
-	yaml "gopkg.in/yaml.v3"
+	yaml "go.yaml.in/yaml/v3"
 )
 
 // rootNoder is a walked model's view of the mapping it was built from.
