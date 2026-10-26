@@ -17,7 +17,7 @@ import (
 	"strconv"
 
 	"github.com/speakeasy-api/openapi/yml"
-	yaml "gopkg.in/yaml.v3"
+	yaml "go.yaml.in/yaml/v3"
 )
 
 // maxAliasChain bounds how many alias hops Deref follows. yaml.v3 resolves an

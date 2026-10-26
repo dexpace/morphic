@@ -2,7 +2,7 @@ package navigation
 
 import (
 	"github.com/speakeasy-api/openapi/jsonpointer"
-	yaml "gopkg.in/yaml.v3"
+	yaml "go.yaml.in/yaml/v3"
 )
 
 // Walk reads tokens from node as the library's read of the pointer they spell

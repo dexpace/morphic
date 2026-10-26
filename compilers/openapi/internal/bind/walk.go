@@ -4,7 +4,7 @@ import (
 	"slices"
 	"strconv"
 
-	yaml "gopkg.in/yaml.v3"
+	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 )

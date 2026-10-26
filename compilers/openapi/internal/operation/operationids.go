@@ -6,7 +6,7 @@ import (
 	"slices"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
-	yaml "gopkg.in/yaml.v3"
+	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"

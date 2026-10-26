@@ -11,7 +11,7 @@ import (
 	soa "github.com/speakeasy-api/openapi/openapi"
 	openapicore "github.com/speakeasy-api/openapi/openapi/core"
 	"github.com/stretchr/testify/assert"
-	yaml "gopkg.in/yaml.v3"
+	yaml "go.yaml.in/yaml/v3"
 )
 
 // modelStates names the state each object of the parser's model is read at.
