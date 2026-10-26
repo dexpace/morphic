@@ -657,16 +657,6 @@ func TestWalkImports_AnEmitterReachingAboveIrIsRefused(t *testing.T) {
 	}
 }
 
-// TestImportGraph_OnlyToolingIsExempt holds exempt to the packages outside the
-// pipeline: a compiler, a pass, an emitter, the engine or a command left out of
-// the layering would be audited by nothing, which no reason can make right.
-func TestImportGraph_OnlyToolingIsExempt(t *testing.T) {
-	t.Parallel()
-	for dir := range exempt {
-		assert.True(t, mayBeExempt(dir), "%s is a pipeline package; rule it instead of exempting it", dir)
-	}
-}
-
 // TestMayBeExempt_AdmitsOnlyInternal pins the predicate: a package under
 // internal/, the tooling outside the pipeline, and nothing else.
 func TestMayBeExempt_AdmitsOnlyInternal(t *testing.T) {
@@ -717,8 +707,9 @@ func writeImporter(t *testing.T, file, imp string) {
 
 // TestImportGraph_EveryPackageIsRuledOrExempt requires every directory holding
 // production Go files to be reached by rules — through itself or an ancestor,
-// and under compilers/ through itself (ownEntryRequired) — or named in exempt
-// with its reason.
+// and under compilers/ and emitters/ through itself (ownEntryRequired) — or
+// named in exempt with its reason, which only tooling may be (mayBeExempt): a
+// pipeline package left out would be audited by nothing.
 //
 // A package in neither is audited by nothing, and looks no different from one
 // deliberately left out: the layering gate stays green while that package
@@ -746,6 +737,7 @@ func TestImportGraph_EveryPackageIsRuledOrExempt(t *testing.T) {
 	}
 	for dir := range exempt {
 		assert.Contains(t, pkgs, dir, "exempt names %s, which holds no production Go files", dir)
+		assert.True(t, mayBeExempt(dir), "%s is a pipeline package; rule it instead of exempting it", dir)
 	}
 }
 
