@@ -1,13 +1,16 @@
 package pass_test
 
 import (
+	"context"
 	"encoding/json/v2"
+	"math"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/internal/ctxtest"
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/ir/irtest"
 	"github.com/dexpace/morphic/pass"
@@ -25,6 +28,15 @@ func validDoc() *ir.Document {
 			}},
 		},
 	}
+}
+
+// validated is what pass.Validate reports about doc under the test's context,
+// failing tb unless it finishes.
+func validated(tb testing.TB, doc *ir.Document) []ir.Diagnostic {
+	tb.Helper()
+	diags, err := pass.Validate(tb.Context(), doc)
+	require.NoError(tb, err)
+	return diags
 }
 
 // docWithOperation wraps a single operation in a service/group so the operation
@@ -82,12 +94,12 @@ func messageForCode(t *testing.T, diags []ir.Diagnostic, code string) string {
 
 func TestValidate_CleanDocumentHasNoDiagnostics(t *testing.T) {
 	t.Parallel()
-	assert.Empty(t, pass.Validate(validDoc()))
+	assert.Empty(t, validated(t, validDoc()))
 }
 
 func TestValidate_NilDocumentReturnsNil(t *testing.T) {
 	t.Parallel()
-	assert.Nil(t, pass.Validate(nil))
+	assert.Nil(t, validated(t, nil))
 }
 
 func TestValidate_SharedRouteIsLegal(t *testing.T) {
@@ -102,7 +114,7 @@ func TestValidate_SharedRouteIsLegal(t *testing.T) {
 		ID:     "s",
 		Groups: []ir.OperationGroup{{Operations: []ir.Operation{mk(), mk()}}},
 	}}
-	assert.Empty(t, pass.Validate(doc))
+	assert.Empty(t, validated(t, doc))
 }
 
 // TestValidator_RunHandsBackItsInputWithValidatesFindings pins the adapter: it
@@ -115,12 +127,12 @@ func TestValidator_RunHandsBackItsInputWithValidatesFindings(t *testing.T) {
 	doc.Types["t/m"] = &ir.Model{ID: "t/m", Properties: []ir.Property{
 		{ID: "p/m/a", WireName: "a", Type: ir.TypeRef{Target: "t/missing"}},
 	}}
-	want := pass.Validate(doc)
+	want := validated(t, doc)
 	require.Contains(t, irtest.DiagCodes(want), "ir/dangling-type-ref")
 	before, err := json.Marshal(doc)
 	require.NoError(t, err)
 
-	out, got := pass.Validator{}.Run(doc)
+	out, got := pass.Validator{}.Run(t.Context(), doc)
 
 	assert.Equal(t, "validate", pass.Validator{}.Name(), "the name callers type")
 	assert.Same(t, doc, out, "an analysis returns its input")
@@ -128,4 +140,55 @@ func TestValidator_RunHandsBackItsInputWithValidatesFindings(t *testing.T) {
 	after, err := json.Marshal(doc)
 	require.NoError(t, err)
 	assert.Empty(t, cmp.Diff(string(before), string(after)), "a pass never mutates its input")
+}
+
+// danglingDoc is validDoc with its one property referencing a type nothing
+// declares, so a whole Validate reports it.
+func danglingDoc() *ir.Document {
+	doc := validDoc()
+	doc.Types["t/m"] = &ir.Model{ID: "t/m", Properties: []ir.Property{
+		{ID: "p/m/a", WireName: "a", Type: ir.TypeRef{Target: "t/missing"}},
+	}}
+	return doc
+}
+
+// TestValidate_ACancelAtAnyCheckReportsNothing cancels a Validate at every check
+// of its context a whole one makes, one Validate per check, and requires the
+// same end each time: the context's error, no finding, and no ask after the
+// refusal. A whole Validate asks before it reads the document, between every
+// two families and after the last, so a cancel waits out one family at most and
+// a family cut short is never reported.
+func TestValidate_ACancelAtAnyCheckReportsNothing(t *testing.T) {
+	t.Parallel()
+	doc := danglingDoc()
+	whole := &ctxtest.Countdown{Context: t.Context(), Left: math.MaxInt}
+	diags, err := pass.Validate(whole, doc)
+	require.NoError(t, err)
+	require.NotEmpty(t, diags, "a whole Validate has findings a cut one could leak")
+	require.Equal(t, pass.Families()+2, whole.Calls)
+
+	for left := range whole.Calls {
+		ctx := &ctxtest.Countdown{Context: t.Context(), Left: left}
+
+		diags, err := pass.Validate(ctx, doc)
+
+		require.ErrorIs(t, err, context.Canceled, "cancelled at check %d of %d", left+1, whole.Calls)
+		require.Nil(t, diags, "check %d", left+1)
+		require.Equal(t, left+1, ctx.Calls, "check %d: asked on after the refusal", left+1)
+	}
+}
+
+// TestValidator_RunReportsNothingOnceItsContextIsDone pins the adapter under a
+// done context: it hands back the document it was given, with no finding,
+// since what Validate found before it stopped is not all it would find.
+func TestValidator_RunReportsNothingOnceItsContextIsDone(t *testing.T) {
+	t.Parallel()
+	doc := danglingDoc()
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	out, got := pass.Validator{}.Run(ctx, doc)
+
+	assert.Same(t, doc, out)
+	assert.Nil(t, got)
 }

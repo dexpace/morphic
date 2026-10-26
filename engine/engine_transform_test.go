@@ -1,6 +1,7 @@
 package engine_test
 
 import (
+	"context"
 	"encoding/json/v2"
 	"maps"
 	"slices"
@@ -48,7 +49,7 @@ type pruneUnused struct{}
 
 func (pruneUnused) Name() string { return "prune-unused" }
 
-func (pruneUnused) Run(doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
+func (pruneUnused) Run(_ context.Context, doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
 	facts := irfacts.New(doc)
 	e := ir.NewEditor(doc)
 	for _, id := range slices.Sorted(maps.Keys(doc.Types)) {
@@ -65,7 +66,7 @@ type misusedEdit struct{}
 
 func (misusedEdit) Name() string { return "misused-edit" }
 
-func (misusedEdit) Run(doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
+func (misusedEdit) Run(_ context.Context, doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
 	e := ir.NewEditor(doc)
 	e.RemoveType("t/absent")
 	return e.Finish()

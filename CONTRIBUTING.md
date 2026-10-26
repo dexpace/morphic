@@ -204,8 +204,10 @@ rule sees a node of the input changed in place, which `UpdateType`'s copy is the
    family it belongs to or starts one. `Run` never mutates its input, never panics, returns its input
    when it only analyses, reports through its diagnostics alone, and is idempotent: over the
    document a run of it returned, which carries that run's findings, it returns an equal one,
-   `Document.Diagnostics` aside. `ir.ForEachOperation` walks the operations, and the package's
-   `diag` helper in `pass/diag.go` builds a diagnostic on a node.
+   `Document.Diagnostics` aside. It asks its context as it goes, as `validate` does between its
+   rule families, and stops soon once it is done: the engine then fails the run, reading nothing it
+   returned. `ir.ForEachOperation` walks the operations, and the package's `diag` helper in
+   `pass/diag.go` builds a diagnostic on a node.
    A code names the defect, as `pass/doc.go` says: `pass/<defect>` for a finding the pass owns,
    `ir/<defect>` for a structural one `irverify` reports too. A transform returns what `Finish`
    returns, its own findings appended.
@@ -215,7 +217,8 @@ rule sees a node of the input changed in place, which `UpdateType`'s copy is the
    or another IR version, moves a source or puts findings on the document, and under
    `morphic compile --verify` for one that changes its input or returns a document that breaks
    `irverify`'s invariants. `TestHarness_InRepoCorpus` runs each default pass that way; run yours
-   that way before relying on it. Nothing fails for a rule in another family's file.
+   that way before relying on it. Nothing fails for a rule in another family's file, or for a pass
+   that never asks its context, which a cancel then waits for.
 2. **Test it** beside it in `pass/`, table-driven, against documents built in the test: a file's
    cases in the `_test.go` named after it, and a scenario that several files decide in one named for
    the scenario, as `validate_propids_test.go` is. `pass/validate_test.go` has builders (`validDoc`,

@@ -12,7 +12,6 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
-	"github.com/dexpace/morphic/pass"
 )
 
 func TestAllOf_SoleRefBecomesBase(t *testing.T) {
@@ -244,7 +243,7 @@ func nestedOrders(t *testing.T, first, last string) []*ir.Document {
 	for _, src := range []string{first + last, last + first} {
 		doc, diags := parseFull(t, openapitest.ComponentSpec(src))
 		openapitest.RequireNoErrorDiags(t, diags)
-		assert.Empty(t, pass.Validate(doc), "the document must validate")
+		assert.Empty(t, validated(t, doc), "the document must validate")
 		docs = append(docs, doc)
 	}
 	assert.Empty(t, cmp.Diff(docs[0].Types, docs[1].Types, orderInvariantIR()...),

@@ -584,7 +584,7 @@ type reporting struct{}
 
 func (reporting) Name() string { return "reporting" }
 
-func (reporting) Run(doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
+func (reporting) Run(_ context.Context, doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
 	return doc, []ir.Diagnostic{ir.NewDiagnostic(ir.SeverityError, "stub/reported", "every document",
 		ir.Provenance{Source: ir.NoSource})}
 }

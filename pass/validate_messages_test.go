@@ -7,7 +7,6 @@ import (
 
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/ir/irtest"
-	"github.com/dexpace/morphic/pass"
 )
 
 // messageBindingDoc returns a document whose channel chan/a carries carried and
@@ -30,7 +29,7 @@ func messageBindingDoc(channel ir.ChannelID, carried, used []ir.MessageID) *ir.D
 // publisher for a message the channel contract forbids validated clean.
 func TestValidate_MessageNotCarriedByChannel(t *testing.T) {
 	t.Parallel()
-	diags := pass.Validate(messageBindingDoc("chan/a",
+	diags := validated(t, messageBindingDoc("chan/a",
 		[]ir.MessageID{"msg/a"}, []ir.MessageID{"msg/b"}))
 
 	assert.Equal(t, 0, countCode(t, diags, "ir/dangling-message-ref"),
@@ -46,8 +45,8 @@ func TestValidate_MessagesCarriedByChannelAreClean(t *testing.T) {
 	t.Parallel()
 	carried := []ir.MessageID{"msg/a", "msg/b"}
 
-	assert.Empty(t, pass.Validate(messageBindingDoc("chan/a", carried, []ir.MessageID{"msg/b"})))
-	assert.Empty(t, pass.Validate(messageBindingDoc("chan/a", carried, nil)),
+	assert.Empty(t, validated(t, messageBindingDoc("chan/a", carried, []ir.MessageID{"msg/b"})))
+	assert.Empty(t, validated(t, messageBindingDoc("chan/a", carried, nil)),
 		"a binding naming no message uses nothing the channel forbids")
 }
 
@@ -57,7 +56,7 @@ func TestValidate_MessagesCarriedByChannelAreClean(t *testing.T) {
 // the defect on its own.
 func TestValidate_MessageBindingWithoutAResolvableChannel(t *testing.T) {
 	t.Parallel()
-	codes := irtest.DiagCodes(pass.Validate(messageBindingDoc("chan/ghost",
+	codes := irtest.DiagCodes(validated(t, messageBindingDoc("chan/ghost",
 		[]ir.MessageID{"msg/a"}, []ir.MessageID{"msg/b"})))
 
 	assert.Contains(t, codes, "ir/dangling-channel-ref")
@@ -69,7 +68,7 @@ func TestValidate_MessageBindingWithoutAResolvableChannel(t *testing.T) {
 // to.
 func TestValidate_OperationWithoutAMessageBindingIsClean(t *testing.T) {
 	t.Parallel()
-	assert.NotContains(t, irtest.DiagCodes(pass.Validate(docWithOperation(ir.Operation{ID: "op"}))),
+	assert.NotContains(t, irtest.DiagCodes(validated(t, docWithOperation(ir.Operation{ID: "op"}))),
 		"pass/message-not-in-channel")
 }
 
@@ -89,7 +88,7 @@ func replyBindingDoc(replyChannel *ir.ChannelID, carried, replyUsed []ir.Message
 // channel does not — and every id resolves, so nothing else can catch it.
 func TestValidate_ReplyMessageNotCarriedByChannel(t *testing.T) {
 	t.Parallel()
-	diags := pass.Validate(replyBindingDoc(new(ir.ChannelID("chan/a")),
+	diags := validated(t, replyBindingDoc(new(ir.ChannelID("chan/a")),
 		[]ir.MessageID{"msg/a"}, []ir.MessageID{"msg/b"}))
 
 	assert.Equal(t, 0, countCode(t, diags, "ir/dangling-message-ref"),
@@ -108,8 +107,8 @@ func TestValidate_ReplyMessagesCarriedAreClean(t *testing.T) {
 	t.Parallel()
 	carried := []ir.MessageID{"msg/a", "msg/b"}
 
-	assert.Empty(t, pass.Validate(replyBindingDoc(new(ir.ChannelID("chan/a")), carried, []ir.MessageID{"msg/b"})))
-	assert.Empty(t, pass.Validate(replyBindingDoc(nil, carried, []ir.MessageID{"msg/b"})),
+	assert.Empty(t, validated(t, replyBindingDoc(new(ir.ChannelID("chan/a")), carried, []ir.MessageID{"msg/b"})))
+	assert.Empty(t, validated(t, replyBindingDoc(nil, carried, []ir.MessageID{"msg/b"})),
 		"a reply with a dynamic address declares no channel to be a subset of")
 }
 
@@ -135,10 +134,10 @@ func replyOnItsOwnChannelDoc(replyUsed []ir.MessageID) *ir.Document {
 // reports nothing at all here.
 func TestValidate_ReplyIsHeldToItsOwnChannel(t *testing.T) {
 	t.Parallel()
-	assert.Empty(t, pass.Validate(replyOnItsOwnChannelDoc([]ir.MessageID{"msg/reply"})),
+	assert.Empty(t, validated(t, replyOnItsOwnChannelDoc([]ir.MessageID{"msg/reply"})),
 		"the reply channel carries msg/reply, so the reply names nothing it forbids")
 
-	msg := messageForCode(t, pass.Validate(replyOnItsOwnChannelDoc([]ir.MessageID{"msg/a"})),
+	msg := messageForCode(t, validated(t, replyOnItsOwnChannelDoc([]ir.MessageID{"msg/a"})),
 		"pass/message-not-in-channel")
 	assert.Contains(t, msg, "msg/a")
 	assert.Contains(t, msg, "chan/reply",

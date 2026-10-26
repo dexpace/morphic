@@ -173,7 +173,8 @@ context holds `Run` until it returns, because the engine cannot stop a call it d
 goroutine of its own, and abandoning one would leave it reading the caller's bytes after `Run` had
 returned. When it does return, the run fails with the context's error, and what the compile returned
 is dropped unjudged: a stage that returns once its context is done may have stopped short, and
-nothing tells a whole answer from a cut one. `Registry.Detect` treats a `Detect` the same way.
+nothing tells a whole answer from a cut one. `Registry.Detect` treats a `Detect` the same way, and
+the engine a pass (§2.2).
 
 What a document holds whatever produced it, the namespaces, a service and a well-formed source table
 among them, is `irverify`'s, and `compile.Types.Finish` hands a compiler its registry with the
@@ -213,12 +214,20 @@ and the IR is designed against all eight; §2.5 says how it changes where a comp
 ### 2.2 IR passes (IR → IR)
 
 Small, composable, order-explicit transformations. A pass is a `pass.Pass`: a stable `Name()` and a
-`Run(*ir.Document) (*ir.Document, []ir.Diagnostic)` that never mutates its input. A transform
-returns a new document, which may share whatever it left unchanged; an analysis such as `validate`
-returns its input beside its diagnostics. `Run` has no error result, for the reason an emitter's
-`Generate` has none (emitter-design.md §2): whatever a pass cannot handle in the document is a
-diagnostic, and anything else is a bug in the pass. It takes no context either: a pass works on a
-document already in memory, and the engine checks for cancellation before each one.
+`Run(context.Context, *ir.Document) (*ir.Document, []ir.Diagnostic)` that never mutates its input.
+A transform returns a new document, which may share whatever it left unchanged; an analysis such as
+`validate` returns its input beside its diagnostics. `Run` has no error result, for the reason an
+emitter's `Generate` has none (emitter-design.md §2): whatever a pass cannot handle in the document
+is a diagnostic, and anything else is a bug in the pass.
+
+`Run` takes the run's context, though a pass works on a document already in memory, because that
+work is not small beside the compile's: `validate` alone takes about 2 s on the golden spec, nearly
+all of it walking the whole document (morphic @7a3f437b, spec @d04a1ddd). A pass stops soon once
+the context is done, as `validate` does between its rule families. The engine asks the context
+before each pass, so a cancelled run starts no other, and after each, so a pass returning once it
+is done fails the run with the context's error, unjudged, as a compile does (§2.1): a pass cut
+short may return what its contract forbids. Verification (§2.1) reads no context, and the engine
+asks after it too, so a run cancelled anywhere returns no document.
 
 A transform replaces and removes types through an `ir.Editor` (`ir.NewEditor`), which is to a pass
 what `compile.Types` is to a compiler: its way into the type registry. The edit copies the registry

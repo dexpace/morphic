@@ -244,7 +244,8 @@ returning a document whose source table does not describe the spec, or by panick
 with an error wrapping `compilers.ErrContract`; a pass doing so fails it with one wrapping
 `pass.ErrContract`. A panic arrives as a `*barrier.PanicError` in the chain, which keeps the value
 and the stack beside the one-line message. A stage that ignores `ctx` holds `Run` until it returns,
-and the run stops at the next stage. The structural duties only `irverify` checks are left to the
+and the run then fails with the context's error, whatever the stage returned. The structural duties
+only `irverify` checks are left to the
 harness, unless `RunOptions.Verify` is set: it holds each stage's document to them, and each pass to
 leaving its input alone, and fails the run with an `*engine.VerifyError` listing what broke.
 

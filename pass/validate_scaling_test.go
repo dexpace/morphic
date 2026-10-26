@@ -38,8 +38,8 @@ func chainedDiscriminators(n int) *ir.Document {
 func validateWork(t *testing.T, n int) (allocs, bytes float64, rejected int) {
 	t.Helper()
 	doc := chainedDiscriminators(n)
-	allocs, bytes = validateCost(doc)
-	for _, d := range pass.Validate(doc) {
+	allocs, bytes = validateCost(t, doc)
+	for _, d := range validated(t, doc) {
 		if d.Code == "pass/discriminator-missing-variant" {
 			rejected++
 		}
@@ -118,15 +118,19 @@ func exposureShapes() map[string]func(n int) *ir.Document {
 // testing.AllocsPerRun counts. The fewest, because under the race detector
 // sync.Pool drops a share of what it is handed, so the fmt calls Validate makes
 // allocate a random amount more than they must, and never less.
-func validateCost(doc *ir.Document) (allocs, bytes float64) {
+func validateCost(t *testing.T, doc *ir.Document) (allocs, bytes float64) {
+	t.Helper()
+	ctx := t.Context()
 	defer runtime.GOMAXPROCS(runtime.GOMAXPROCS(1))
-	_ = pass.Validate(doc)
+	_, err := pass.Validate(ctx, doc)
+	require.NoError(t, err)
 	allocs, bytes = math.Inf(1), math.Inf(1)
 	for range 3 {
 		var before, after runtime.MemStats
 		runtime.ReadMemStats(&before)
-		_ = pass.Validate(doc)
+		_, err := pass.Validate(ctx, doc)
 		runtime.ReadMemStats(&after)
+		require.NoError(t, err)
 		allocs = min(allocs, float64(after.Mallocs-before.Mallocs))
 		bytes = min(bytes, float64(after.TotalAlloc-before.TotalAlloc))
 	}
@@ -145,11 +149,11 @@ func TestValidate_ExposedPropertiesCostLinearBytes(t *testing.T) {
 			var bytes [3]float64
 			for k, n := range []int{500, 1000, 2000} {
 				doc := build(n)
-				for _, d := range pass.Validate(doc) {
+				for _, d := range validated(t, doc) {
 					require.NotContains(t, []string{"pass/discriminator-unknown-property", "ir/encoding-key-unknown-property"}, d.Code,
 						"every question must be answered yes, or the sizes compare different work")
 				}
-				_, bytes[k] = validateCost(doc)
+				_, bytes[k] = validateCost(t, doc)
 			}
 			assert.LessOrEqual(t, bytes[2]-bytes[1], 2.5*(bytes[1]-bytes[0]),
 				"bytes at 500, 1000, 2000: %v", bytes)

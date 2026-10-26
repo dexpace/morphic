@@ -7,7 +7,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/ir"
-	"github.com/dexpace/morphic/pass"
 )
 
 // TestValidate_IdempotencyTokenIsPairedWithItsKind pins checkIdempotency over
@@ -34,7 +33,7 @@ func TestValidate_IdempotencyTokenIsPairedWithItsKind(t *testing.T) {
 			t.Parallel()
 			op := ir.Operation{ID: "op/x/put", Params: []ir.Parameter{{ID: token, Name: ir.Naming{Source: "key"}}}, Idempotency: tc.idem}
 			var got []ir.Diagnostic
-			for _, d := range pass.Validate(docWithOperations(op)) {
+			for _, d := range validated(t, docWithOperations(op)) {
 				if d.Code == "pass/idempotency-token-mismatch" {
 					got = append(got, d)
 				}

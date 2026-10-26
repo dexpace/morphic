@@ -202,7 +202,7 @@ func TestValidate_DanglingRefInPreviouslyUnwalkedField(t *testing.T) {
 			t.Parallel()
 			doc := validDoc()
 			tc.plant(doc, tc.target)
-			found := danglingDiags(pass.Validate(doc))
+			found := danglingDiags(validated(t, doc))
 			require.Len(t, found, 1, "exactly the planted target must dangle")
 			assert.Equal(t, ir.SeverityError, found[0].Severity)
 			assert.Contains(t, found[0].Message, string(tc.target))
@@ -246,11 +246,11 @@ func diagJSON(t *testing.T, diags []ir.Diagnostic) string {
 func TestValidate_AliasedPointerIsDeterministic(t *testing.T) {
 	t.Parallel()
 	doc := aliasedDoc()
-	want := diagJSON(t, pass.Validate(doc))
+	want := diagJSON(t, validated(t, doc))
 	require.Contains(t, want, "t/ghost/aliased", "the shared target must dangle, or nothing is being compared")
 
 	for i := range aliasRuns {
-		require.Equal(t, want, diagJSON(t, pass.Validate(doc)), "run %d disagrees with the first", i)
+		require.Equal(t, want, diagJSON(t, validated(t, doc)), "run %d disagrees with the first", i)
 	}
 }
 
@@ -301,9 +301,9 @@ func TestValidate_DiagnosticOrderIsDeterministic(t *testing.T) {
 	for i, tc := range unwalkedRefSites() {
 		tc.plant(doc, ir.TypeID(fmt.Sprintf("t/ghost/%02d", i)))
 	}
-	require.Equal(t, sortedRefPointers, pointers(danglingDiags(pass.Validate(doc))))
+	require.Equal(t, sortedRefPointers, pointers(danglingDiags(validated(t, doc))))
 	for range 8 {
-		assert.Equal(t, sortedRefPointers, pointers(danglingDiags(pass.Validate(doc))))
+		assert.Equal(t, sortedRefPointers, pointers(danglingDiags(validated(t, doc))))
 	}
 }
 
@@ -317,7 +317,7 @@ func TestValidate_ResolvedRefsInEveryFieldAreClean(t *testing.T) {
 	for _, tc := range unwalkedRefSites() {
 		tc.plant(doc, "t/prim/string")
 	}
-	assert.Empty(t, danglingDiags(pass.Validate(doc)))
+	assert.Empty(t, danglingDiags(validated(t, doc)))
 }
 
 // TestValidate_LocatesDanglingRefsWhereIrverifyDoes pins the location half of
@@ -344,7 +344,7 @@ func TestValidate_LocatesDanglingRefsWhereIrverifyDoes(t *testing.T) {
 		}
 	}
 	require.Equal(t, sortedRefPointers, got, "irverify must name the same locations")
-	assert.Equal(t, got, pointers(danglingDiags(pass.Validate(doc))))
+	assert.Equal(t, got, pointers(danglingDiags(validated(t, doc))))
 }
 
 func TestValidate_DanglingTypeRef(t *testing.T) {
@@ -352,7 +352,7 @@ func TestValidate_DanglingTypeRef(t *testing.T) {
 	doc := validDoc()
 	m := doc.Types["t/m"].(*ir.Model)
 	m.Properties[0].Type.Target = "t/nowhere"
-	diags := pass.Validate(doc)
+	diags := validated(t, doc)
 	require.NotEmpty(t, diags)
 	assert.Contains(t, irtest.DiagCodes(diags), "ir/dangling-type-ref")
 	assert.Equal(t, ir.SeverityError, diags[0].Severity)
@@ -372,7 +372,7 @@ func TestValidate_DanglingRefInMessagePayload(t *testing.T) {
 			}},
 		},
 	}
-	diags := pass.Validate(doc)
+	diags := validated(t, doc)
 	require.NotEmpty(t, diags)
 	assert.Contains(t, irtest.DiagCodes(diags), "ir/dangling-type-ref")
 }
@@ -403,7 +403,7 @@ func TestValidate_DanglingRefsAcrossContainerKinds(t *testing.T) {
 		Elems: []ir.TypeRef{{Target: "t/ghost-e0"}},
 		Rest:  &ir.TypeRef{Target: "t/ghost-rest"},
 	}
-	diags := pass.Validate(doc)
+	diags := validated(t, doc)
 	// Each dangling target above yields exactly one dangling-type-ref diagnostic.
 	assert.Equal(t, 8, countCode(t, diags, "ir/dangling-type-ref"))
 }
@@ -423,7 +423,7 @@ func TestValidate_ModelImplementsAndAdditionalPropsWalked(t *testing.T) {
 			{Pattern: "^x", Value: ir.TypeRef{Target: "t/ghost-appat"}},
 		},
 	}
-	diags := pass.Validate(doc)
+	diags := validated(t, doc)
 	assert.Equal(t, 4, countCode(t, diags, "ir/dangling-type-ref"))
 }
 
@@ -456,7 +456,7 @@ func TestValidate_OperationHeadersAndItemWalked(t *testing.T) {
 			}},
 		}},
 	}
-	diags := pass.Validate(docWithOperation(op))
+	diags := validated(t, docWithOperation(op))
 	// item, response header, error payload and error header targets all dangle.
 	assert.Equal(t, 4, countCode(t, diags, "ir/dangling-type-ref"))
 }
@@ -671,7 +671,7 @@ func TestValidate_DanglingTypedIDRef(t *testing.T) {
 			t.Parallel()
 			doc := registryDoc()
 			tc.plant(doc, tc.id)
-			found := withCode(pass.Validate(doc), tc.code)
+			found := withCode(validated(t, doc), tc.code)
 			require.Len(t, found, 1, "exactly the planted reference must dangle")
 			assert.Equal(t, ir.SeverityError, found[0].Severity)
 			assert.Contains(t, found[0].Message, tc.id)
@@ -689,7 +689,7 @@ func TestValidate_ResolvedTypedIDRefsAreClean(t *testing.T) {
 	for _, tc := range idRefSites() {
 		tc.plant(doc, resolving(tc.id))
 	}
-	assert.Empty(t, pass.Validate(doc))
+	assert.Empty(t, validated(t, doc))
 }
 
 // TestValidate_DanglingOpRefWithNoOperationDeclared drives the case the cases
@@ -711,7 +711,7 @@ func TestValidate_DanglingOpRefWithNoOperationDeclared(t *testing.T) {
 		}},
 	}}}
 
-	found := withCode(pass.Validate(doc), "ir/dangling-op-ref")
+	found := withCode(validated(t, doc), "ir/dangling-op-ref")
 	require.Len(t, found, 1)
 	assert.Equal(t, ir.SeverityError, found[0].Severity)
 	assert.Contains(t, found[0].Message, "op/ghost/instance")
@@ -753,9 +753,9 @@ func TestValidate_TypedIDDiagnosticOrderIsDeterministic(t *testing.T) {
 		tc.plant(doc, fmt.Sprintf("%s/%02d", tc.id, i))
 	}
 	require.Len(t, sortedIDRefPointers, len(idRefSites()), "one pinned location per planted site")
-	require.Equal(t, sortedIDRefPointers, pointers(pass.Validate(doc)))
+	require.Equal(t, sortedIDRefPointers, pointers(validated(t, doc)))
 	for range 8 {
-		assert.Equal(t, sortedIDRefPointers, pointers(pass.Validate(doc)))
+		assert.Equal(t, sortedIDRefPointers, pointers(validated(t, doc)))
 	}
 }
 
@@ -790,11 +790,11 @@ func TestValidate_RegistryOwnIDsResolveAndMismatchesDangle(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			require.Empty(t, pass.Validate(registryDoc()), "a consistent registry reports nothing")
+			require.Empty(t, validated(t, registryDoc()), "a consistent registry reports nothing")
 
 			doc := registryDoc()
 			tc.mismatch(doc)
-			found := withCode(pass.Validate(doc), tc.code)
+			found := withCode(validated(t, doc), tc.code)
 			require.Len(t, found, 1, "the orphaned own ID must be the only dangling reference")
 			assert.Equal(t, ir.SeverityError, found[0].Severity)
 			assert.Contains(t, found[0].Message, tc.orphanID)
@@ -809,7 +809,7 @@ func TestValidate_DanglingAuthRef(t *testing.T) {
 		ID:   "s",
 		Auth: []ir.AuthRequirement{{Schemes: []ir.SchemeUse{{Scheme: "auth/nope"}}}},
 	}}
-	diags := pass.Validate(doc)
+	diags := validated(t, doc)
 	require.NotEmpty(t, diags)
 	assert.Contains(t, irtest.DiagCodes(diags), "ir/dangling-auth-ref")
 }
@@ -825,7 +825,7 @@ func TestValidate_PerOperationAuthOverride(t *testing.T) {
 			{Scheme: "auth/nope"}, // dangling override
 		}}},
 	}
-	diags := pass.Validate(docWithOperation(op))
+	diags := validated(t, docWithOperation(op))
 	require.NotEmpty(t, diags)
 	assert.Contains(t, irtest.DiagCodes(diags), "ir/dangling-auth-ref")
 }

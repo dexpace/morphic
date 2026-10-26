@@ -1,6 +1,7 @@
 package engine_test
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 	"slices"
@@ -237,7 +238,7 @@ type reportPass struct{ reported []ir.Diagnostic }
 
 func (reportPass) Name() string { return "report" }
 
-func (p reportPass) Run(doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
+func (p reportPass) Run(_ context.Context, doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
 	return doc, slices.Clone(p.reported)
 }
 

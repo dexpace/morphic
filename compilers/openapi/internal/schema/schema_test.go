@@ -20,7 +20,6 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
-	"github.com/dexpace/morphic/pass"
 )
 
 func TestLower_NamedScalarComponentResolves(t *testing.T) {
@@ -46,7 +45,7 @@ func TestLower_NamedScalarComponentResolves(t *testing.T) {
 	assert.Equal(t, componentID("MyId"), holder.Properties[0].Type.Target)
 
 	// The reference must resolve: the validate pass finds no dangling type ref.
-	for _, d := range pass.Validate(doc) {
+	for _, d := range validated(t, doc) {
 		assert.NotEqual(t, "ir/dangling-type-ref", d.Code, "ref to named scalar dangles: %+v", d)
 	}
 }

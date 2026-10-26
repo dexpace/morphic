@@ -40,8 +40,8 @@ type RunOptions struct {
 	// invariants ir/irverify states, and each pass to leaving the document it was
 	// handed as it found it. The first stage to break one fails the run with a
 	// *VerifyError, or an error wrapping pass.ErrContract. It costs more than the
-	// compile itself, and ctx does not interrupt it, so it is for developing a
-	// stage.
+	// compile itself, and ctx does not interrupt it, though a run cancelled
+	// meanwhile still fails, so it is for developing a stage.
 	Verify bool `json:"verify,omitzero"`
 }
 
@@ -301,8 +301,8 @@ func (e *Engine) RunDocument(ctx context.Context, doc *ir.Document, opts RunOpti
 		return nil, fmt.Errorf("engine: document finding %s indexes source %d of %d",
 			d.Code, d.Provenance.Source, len(doc.Sources))
 	}
-	// Run refuses a cancelled ctx whatever passes are on, and so does this,
-	// though with every pass off no pass would see it.
+	// A cancelled run starts no step, and verifying the input, which reads no
+	// context, is the first.
 	if err := ctx.Err(); err != nil {
 		return nil, fmt.Errorf("engine: stop before the passes: %w", err)
 	}

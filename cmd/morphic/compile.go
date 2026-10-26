@@ -212,11 +212,6 @@ func runPipeline(
 	if err != nil {
 		return nil, 0, failure(err)
 	}
-	// The engine checks ctx only between its stages, so a run cancelled during
-	// its last one comes back whole. Nothing of it is written.
-	if err := ctx.Err(); err != nil {
-		return nil, 0, failure(err)
-	}
 
 	if res.Failed {
 		code = exitFindings

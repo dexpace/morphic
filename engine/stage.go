@@ -39,9 +39,10 @@ var errSourceOutOfRange = errors.New("reported a diagnostic indexing no source")
 
 // runPasses runs the plan's passes in order, each over the document the one before it
 // returned, and returns the last document with every diagnostic they reported.
-// A pass takes no context, so ctx is checked before each one: a cancelled run
-// stops at the next pass rather than running the rest, and a pass that
-// outlasts its context holds the run until it returns.
+// ctx is asked before each pass and after the last, so a run cancelled during
+// a pass or a verification, which reads no context, starts nothing more and
+// returns no document. A pass that outlasts its context holds the run until it
+// returns.
 //
 // sum is the fingerprint of doc when the plan verifies, which each pass's
 // result is then held to.
@@ -51,7 +52,7 @@ func (p plan) runPasses(ctx context.Context, doc *ir.Document, sum fingerprint) 
 		if err := ctx.Err(); err != nil {
 			return nil, nil, fmt.Errorf("engine: stop before pass %q: %w", np.name, err)
 		}
-		next, diags, err := np.run(doc)
+		next, diags, err := np.run(ctx, doc)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -60,19 +61,26 @@ func (p plan) runPasses(ctx context.Context, doc *ir.Document, sum fingerprint) 
 		}
 		doc, found = next, append(found, diags...)
 	}
+	if err := ctx.Err(); err != nil {
+		return nil, nil, fmt.Errorf("engine: stop after the passes: %w", err)
+	}
 	return doc, found, nil
 }
 
 // run calls the pass on doc behind a barrier and holds what it returns to the
 // duties of pass.Pass that the two documents and the findings let the engine
-// check. A breach is an error naming the pass and wrapping pass.ErrContract.
-func (p namedPass) run(doc *ir.Document) (*ir.Document, []ir.Diagnostic, error) {
+// check. A breach is an error naming the pass and wrapping pass.ErrContract,
+// and a return once ctx is done is ctx's error, the output unjudged.
+func (p namedPass) run(ctx context.Context, doc *ir.Document) (*ir.Document, []ir.Diagnostic, error) {
 	var (
 		next  *ir.Document
 		diags []ir.Diagnostic
 	)
-	if err := caught("Run", func() { next, diags = p.pass.Run(doc) }); err != nil {
+	if err := caught("Run", func() { next, diags = p.pass.Run(ctx, doc) }); err != nil {
 		return nil, nil, fmt.Errorf("engine: run pass %q: %w", p.name, err)
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, nil, fmt.Errorf("engine: stop in pass %q: %w", p.name, err)
 	}
 	if err := checkOutput(doc, next, diags); err != nil {
 		return nil, nil, p.breach(err)

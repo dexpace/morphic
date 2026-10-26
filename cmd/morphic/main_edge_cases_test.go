@@ -71,7 +71,9 @@ type panickingPass struct{}
 
 func (panickingPass) Name() string { return "exploder" }
 
-func (panickingPass) Run(*ir.Document) (*ir.Document, []ir.Diagnostic) { panic("pass exploded") }
+func (panickingPass) Run(context.Context, *ir.Document) (*ir.Document, []ir.Diagnostic) {
+	panic("pass exploded")
+}
 
 // TestRun_AStagePanicIsAFailureNotACrash pins what the user sees of a compiler
 // or a pass that panics: exit 2, nothing on stdout, and one line saying which

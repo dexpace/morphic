@@ -97,7 +97,9 @@ type funcPass struct {
 
 func (p funcPass) Name() string { return p.name }
 
-func (p funcPass) Run(doc *ir.Document) (*ir.Document, []ir.Diagnostic) { return p.run(doc) }
+func (p funcPass) Run(_ context.Context, doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
+	return p.run(doc)
+}
 
 // entry is one way into the engine, run over the tiny spec with a compiler, the
 // passes and the options a test gives it.
@@ -263,7 +265,9 @@ type panickingName struct{}
 
 func (panickingName) Name() string { panic("name exploded") }
 
-func (panickingName) Run(doc *ir.Document) (*ir.Document, []ir.Diagnostic) { return doc, nil }
+func (panickingName) Run(_ context.Context, doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
+	return doc, nil
+}
 
 // countedName is a pass that counts how often it is asked for its name.
 type countedName struct{ asked *atomic.Int32 }
@@ -273,7 +277,9 @@ func (p countedName) Name() string {
 	return "counted"
 }
 
-func (p countedName) Run(doc *ir.Document) (*ir.Document, []ir.Diagnostic) { return doc, nil }
+func (p countedName) Run(_ context.Context, doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
+	return doc, nil
+}
 
 // TestNew_AsksAPassForItsNameOnce pins that the name a pass answered to when
 // the engine was built is the one every run uses, however many runs, refusals

@@ -24,7 +24,7 @@ type notePass string
 
 func (p notePass) Name() string { return string(p) }
 
-func (p notePass) Run(doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
+func (p notePass) Run(_ context.Context, doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
 	return doc, []ir.Diagnostic{{Severity: ir.SeverityInfo, Code: "test/" + string(p)}}
 }
 
@@ -34,7 +34,7 @@ type danglePass struct{}
 
 func (danglePass) Name() string { return "dangle" }
 
-func (danglePass) Run(doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
+func (danglePass) Run(_ context.Context, doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
 	next := *doc
 	next.Services = []ir.Service{{
 		ID: "s/x",
@@ -56,7 +56,7 @@ type rebuildPass struct{}
 
 func (rebuildPass) Name() string { return "rebuild" }
 
-func (rebuildPass) Run(doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
+func (rebuildPass) Run(_ context.Context, doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
 	return &ir.Document{IRVersion: doc.IRVersion, Sources: doc.Sources, Types: doc.Types},
 		[]ir.Diagnostic{{Severity: ir.SeverityInfo, Code: "test/rebuild"}}
 }
@@ -69,7 +69,7 @@ type sourcesPass struct {
 
 func (sourcesPass) Name() string { return "sources" }
 
-func (p sourcesPass) Run(doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
+func (p sourcesPass) Run(_ context.Context, doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
 	next := *doc
 	next.Sources = p.edit(slices.Clone(doc.Sources))
 	return &next, nil
@@ -80,15 +80,22 @@ type nilPass struct{}
 
 func (nilPass) Name() string { return "nil" }
 
-func (nilPass) Run(*ir.Document) (*ir.Document, []ir.Diagnostic) { return nil, nil }
+func (nilPass) Run(context.Context, *ir.Document) (*ir.Document, []ir.Diagnostic) { return nil, nil }
 
-// cancelPass is an analysis that cancels the run it is part of.
-type cancelPass struct{ cancel context.CancelFunc }
+// cancelPass is an analysis that cancels the run it is part of. A broken one
+// returns no document as it goes, which would break the contract were it read.
+type cancelPass struct {
+	cancel context.CancelFunc
+	broken bool
+}
 
 func (cancelPass) Name() string { return "cancel" }
 
-func (p cancelPass) Run(doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
+func (p cancelPass) Run(_ context.Context, doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
 	p.cancel()
+	if p.broken {
+		return nil, nil
+	}
 	return doc, nil
 }
 
@@ -100,7 +107,7 @@ type unreachedPass struct {
 
 func (p unreachedPass) Name() string { return p.name }
 
-func (p unreachedPass) Run(doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
+func (p unreachedPass) Run(_ context.Context, doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
 	p.t.Errorf("pass %q ran in a cancelled run", p.name)
 	return doc, nil
 }
@@ -407,8 +414,9 @@ func TestEngine_RunHoldsPassDiagnosticsToTheSourceTable(t *testing.T) {
 }
 
 // TestEngine_RunStopsAtTheStageTheCancelLandsIn pins that a run cancelled
-// during a stage runs no pass after it and fails naming that stage: the compile
-// is held to its context when it returns, and a pass at the next boundary.
+// during a stage, the last included, runs no pass after it and fails naming
+// that stage, each held to its context as it returns. What the stage returned
+// is never judged: a pass cut short may return what its contract forbids.
 func TestEngine_RunStopsAtTheStageTheCancelLandsIn(t *testing.T) {
 	t.Parallel()
 	type setup func(t *testing.T, cancel context.CancelFunc) (compilers.Compiler, []pass.Pass)
@@ -421,8 +429,14 @@ func TestEngine_RunStopsAtTheStageTheCancelLandsIn(t *testing.T) {
 			return cancelCompiler{cancel: cancel}, []pass.Pass{unreachedPass{t, "first"}}
 		}, "engine: compile"},
 		{"during a pass", func(t *testing.T, cancel context.CancelFunc) (compilers.Compiler, []pass.Pass) {
-			return splitDiagCompiler{}, []pass.Pass{cancelPass{cancel}, unreachedPass{t, "after"}}
-		}, `stop before pass "after"`},
+			return splitDiagCompiler{}, []pass.Pass{cancelPass{cancel: cancel}, unreachedPass{t, "after"}}
+		}, `stop in pass "cancel"`},
+		{"during the last pass", func(_ *testing.T, cancel context.CancelFunc) (compilers.Compiler, []pass.Pass) {
+			return splitDiagCompiler{}, []pass.Pass{notePass("first"), cancelPass{cancel: cancel}}
+		}, `stop in pass "cancel"`},
+		{"during a pass returning no document", func(_ *testing.T, cancel context.CancelFunc) (compilers.Compiler, []pass.Pass) {
+			return splitDiagCompiler{}, []pass.Pass{cancelPass{cancel: cancel, broken: true}}
+		}, `stop in pass "cancel"`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -436,8 +450,84 @@ func TestEngine_RunStopsAtTheStageTheCancelLandsIn(t *testing.T) {
 			res, err := eng.Run(ctx, writeSpec(t, testspec.Tiny), engine.RunOptions{})
 
 			require.ErrorIs(t, err, context.Canceled)
+			assert.NotErrorIs(t, err, pass.ErrContract, "what a pass returned once cancelled is not judged")
 			assert.Contains(t, err.Error(), tt.names)
 			assert.Nil(t, res)
+		})
+	}
+}
+
+// ctxKey keys the value TestEngine_HandsEachPassTheRunsContext puts on a run's
+// context.
+type ctxKey struct{}
+
+// contextPass is an analysis recording, in seen, the value its context carries
+// under ctxKey.
+type contextPass struct{ seen *[]any }
+
+func (contextPass) Name() string { return "context" }
+
+func (p contextPass) Run(ctx context.Context, doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
+	*p.seen = append(*p.seen, ctx.Value(ctxKey{}))
+	return doc, nil
+}
+
+// TestEngine_HandsEachPassTheRunsContext pins that a pass runs under the
+// context its run was given, whether the run compiles or starts from a
+// document: a pass handed another would go on past a cancel the run was told
+// of.
+func TestEngine_HandsEachPassTheRunsContext(t *testing.T) {
+	t.Parallel()
+	var seen []any
+	eng := engineOf(t, splitDiagCompiler{}, contextPass{&seen})
+	ctx := context.WithValue(t.Context(), ctxKey{}, "the run's")
+
+	_, err := eng.Run(ctx, writeSpec(t, testspec.Tiny), engine.RunOptions{})
+	require.NoError(t, err)
+	_, err = eng.RunDocument(ctx, danglingDocument(), engine.RunOptions{})
+	require.NoError(t, err)
+
+	assert.Equal(t, []any{"the run's", "the run's"}, seen)
+}
+
+// TestEngine_RunCancelledDuringVerificationFails pins the one step a cancel
+// waits out in a verified run, holding a document to the invariants, which
+// reads no context: ctx is asked after it, before the next pass or after the
+// last, so a run cancelled during one fails as one cancelled in a stage does.
+func TestEngine_RunCancelledDuringVerificationFails(t *testing.T) {
+	t.Parallel()
+	rename := changed(func(d *ir.Document) { d.Name = "Renamed" })
+	tests := []struct {
+		name   string
+		passes func(t *testing.T) []pass.Pass
+		at     int
+		names  string
+	}{
+		{"the compile's, before a pass", func(t *testing.T) []pass.Pass {
+			return []pass.Pass{unreachedPass{t, "first"}}
+		}, 1, `stop before pass "first"`},
+		{"the compile's, with no pass", func(*testing.T) []pass.Pass { return nil }, 1, "stop after the passes"},
+		{"the last pass's", func(*testing.T) []pass.Pass { return []pass.Pass{rename} }, 2, "stop after the passes"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx, cancel := context.WithCancel(t.Context())
+			t.Cleanup(cancel)
+			eng := engineOf(t, openapi.New(), tt.passes(t)...)
+			verified := 0
+			engine.OnVerify(eng, func() {
+				if verified++; verified == tt.at {
+					cancel()
+				}
+			})
+
+			res, err := eng.Run(ctx, writeSpec(t, testspec.Tiny), engine.RunOptions{Verify: true})
+
+			require.ErrorIs(t, err, context.Canceled)
+			assert.Contains(t, err.Error(), tt.names)
+			assert.Nil(t, res)
+			assert.Equal(t, tt.at, verified, "nothing was verified after the cancel")
 		})
 	}
 }

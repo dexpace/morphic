@@ -7,7 +7,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/ir"
-	"github.com/dexpace/morphic/pass"
 )
 
 // serverDoc is validDoc with one declared server, so index 0 addresses it and
@@ -48,7 +47,7 @@ func TestValidate_ServerIndexOutOfRange(t *testing.T) {
 			t.Parallel()
 			doc := serverDoc()
 			tc.plant(doc)
-			found := withCode(pass.Validate(doc), "ir/server-index-out-of-range")
+			found := withCode(validated(t, doc), "ir/server-index-out-of-range")
 			require.Len(t, found, 1, "exactly the planted index must be out of range")
 			assert.Equal(t, ir.SeverityError, found[0].Severity)
 			assert.Equal(t, tc.where, found[0].Provenance.Node)
@@ -67,7 +66,7 @@ func TestValidate_ServerIndexWithNoDeclaredServers(t *testing.T) {
 	require.Empty(t, doc.Servers)
 	service(doc).Servers = []int{0}
 
-	found := withCode(pass.Validate(doc), "ir/server-index-out-of-range")
+	found := withCode(validated(t, doc), "ir/server-index-out-of-range")
 	require.Len(t, found, 1)
 	assert.Contains(t, found[0].Message, "none of the 0 declared servers")
 }
@@ -79,7 +78,7 @@ func TestValidate_ServerIndicesInRangeAreClean(t *testing.T) {
 	doc := serverDoc()
 	service(doc).Servers = []int{0}
 	putChannel(doc, func(c *ir.Channel) { c.Servers = []int{0} })
-	assert.Empty(t, pass.Validate(doc))
+	assert.Empty(t, validated(t, doc))
 }
 
 // TestValidate_ServerIndexDiagnosticsAreDeterministic pins invariant 7 for the
@@ -93,10 +92,10 @@ func TestValidate_ServerIndexDiagnosticsAreDeterministic(t *testing.T) {
 		"chan/a": {ID: "chan/a", Servers: []int{8}},
 		"chan/b": {ID: "chan/b", Servers: []int{9}},
 	}
-	want := pointers(withCode(pass.Validate(doc), "ir/server-index-out-of-range"))
+	want := pointers(withCode(validated(t, doc), "ir/server-index-out-of-range"))
 	require.Equal(t, []string{"chan/a/servers/0", "chan/b/servers/0", "chan/c/servers/0"}, want)
 	for range 8 {
-		assert.Equal(t, want, pointers(withCode(pass.Validate(doc), "ir/server-index-out-of-range")))
+		assert.Equal(t, want, pointers(withCode(validated(t, doc), "ir/server-index-out-of-range")))
 	}
 }
 
@@ -131,7 +130,7 @@ func TestValidate_ResponseIndexOutOfRange(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			found := withCode(pass.Validate(opWithSuccessStatus(tc.status)), "ir/response-index-out-of-range")
+			found := withCode(validated(t, opWithSuccessStatus(tc.status)), "ir/response-index-out-of-range")
 			require.Len(t, found, 1, "exactly the planted index must be out of range")
 			assert.Equal(t, ir.SeverityError, found[0].Severity)
 			assert.Equal(t, tc.where, found[0].Provenance.Node)
@@ -145,7 +144,7 @@ func TestValidate_ResponseIndexOutOfRange(t *testing.T) {
 // declared response reports nothing.
 func TestValidate_ResponseIndexInRangeIsClean(t *testing.T) {
 	t.Parallel()
-	assert.Empty(t, pass.Validate(opWithSuccessStatus(map[int]int{0: 200})))
+	assert.Empty(t, validated(t, opWithSuccessStatus(map[int]int{0: 200})))
 }
 
 // TestValidate_ResponseIndexDiagnosticsAreDeterministic pins invariant 7 for
@@ -154,13 +153,13 @@ func TestValidate_ResponseIndexInRangeIsClean(t *testing.T) {
 func TestValidate_ResponseIndexDiagnosticsAreDeterministic(t *testing.T) {
 	t.Parallel()
 	doc := opWithSuccessStatus(map[int]int{3: 203, 1: 201, 2: 202})
-	want := pointers(withCode(pass.Validate(doc), "ir/response-index-out-of-range"))
+	want := pointers(withCode(validated(t, doc), "ir/response-index-out-of-range"))
 	require.Equal(t, []string{
 		"op/bindings/http/0/successStatus/1",
 		"op/bindings/http/0/successStatus/2",
 		"op/bindings/http/0/successStatus/3",
 	}, want)
 	for range 8 {
-		assert.Equal(t, want, pointers(withCode(pass.Validate(doc), "ir/response-index-out-of-range")))
+		assert.Equal(t, want, pointers(withCode(validated(t, doc), "ir/response-index-out-of-range")))
 	}
 }

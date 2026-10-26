@@ -8,13 +8,12 @@ import (
 
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/ir/irtest"
-	"github.com/dexpace/morphic/pass"
 )
 
 func TestValidate_OneWayWithResponses(t *testing.T) {
 	t.Parallel()
 	op := ir.Operation{ID: "op", OneWay: true, Responses: []ir.Response{{}}}
-	diags := pass.Validate(docWithOperation(op))
+	diags := validated(t, docWithOperation(op))
 	require.NotEmpty(t, diags)
 	assert.Contains(t, irtest.DiagCodes(diags), "pass/oneway-with-responses")
 }
@@ -50,7 +49,7 @@ func TestValidate_AOneWayOperationWithADefaultIsReported(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			found := withCode(pass.Validate(docWithOperation(tc.op)), "pass/oneway-with-responses")
+			found := withCode(validated(t, docWithOperation(tc.op)), "pass/oneway-with-responses")
 			if tc.want == "" {
 				assert.Empty(t, found)
 				return
@@ -89,7 +88,7 @@ func TestValidate_ADefaultAnswersTheCatchAllAlone(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			op := ir.Operation{ID: "op", Default: &ir.Response{Conditions: tc.conditions}}
-			found := withCode(pass.Validate(docWithOperation(op)), "ir/default-response-conditions")
+			found := withCode(validated(t, docWithOperation(op)), "ir/default-response-conditions")
 			if tc.want == "" {
 				assert.Empty(t, found)
 				return
@@ -110,5 +109,5 @@ func TestValidate_AnOperationWithoutADefaultHasNoDefaultConditionsToJudge(t *tes
 	op := ir.Operation{ID: "op", Responses: []ir.Response{{
 		Conditions: ir.ResponseConditions{StatusCodes: []ir.StatusRange{{From: 200, To: 200}}},
 	}}}
-	assert.Empty(t, withCode(pass.Validate(docWithOperation(op)), "ir/default-response-conditions"))
+	assert.Empty(t, withCode(validated(t, docWithOperation(op)), "ir/default-response-conditions"))
 }

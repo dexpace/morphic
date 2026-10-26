@@ -36,12 +36,12 @@ var ErrDiagnosticsChanged = errDiagnosticsChanged
 // handed fails a verified run with.
 var ErrInputChanged = errInputChanged
 
-// CountVerifies makes e count each document a verified run holds to the IR's
-// invariants, in n, whatever irverify says of it.
-func CountVerifies(e *Engine, n *int) {
+// OnVerify makes e call f each time a verified run is about to hold a document
+// to the IR's invariants, whatever irverify then says of it.
+func OnVerify(e *Engine, f func()) {
 	inner := e.verifier
 	e.verifier = func(doc *ir.Document) []irverify.Violation {
-		*n++
+		f()
 		return inner(doc)
 	}
 }

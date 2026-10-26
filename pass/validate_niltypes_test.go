@@ -8,7 +8,6 @@ import (
 
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/ir/irtest"
-	"github.com/dexpace/morphic/pass"
 )
 
 // TestValidate_NilTypeDefIsReportedNotPanicked covers every TypeDef kind, not
@@ -38,7 +37,7 @@ func TestValidate_NilTypeDefIsReportedNotPanicked(t *testing.T) {
 			doc.Types["t/nil"] = td
 
 			var diags []ir.Diagnostic
-			require.NotPanics(t, func() { diags = pass.Validate(doc) })
+			require.NotPanics(t, func() { diags = validated(t, doc) })
 
 			codes := make([]string, 0, len(diags))
 			for _, d := range diags {
@@ -62,7 +61,7 @@ func TestValidate_TypedNilMappingTargetDoesNotPanic(t *testing.T) {
 	}}
 
 	var diags []ir.Diagnostic
-	require.NotPanics(t, func() { diags = pass.Validate(doc) })
+	require.NotPanics(t, func() { diags = validated(t, doc) })
 
 	got := irtest.DiagCodes(diags)
 	assert.Contains(t, got, "ir/nil-type")
@@ -83,7 +82,7 @@ func TestValidate_TypedNilAliasInSupertypeChainDoesNotPanic(t *testing.T) {
 	}}
 
 	var diags []ir.Diagnostic
-	require.NotPanics(t, func() { diags = pass.Validate(doc) })
+	require.NotPanics(t, func() { diags = validated(t, doc) })
 
 	got := irtest.DiagCodes(diags)
 	assert.Contains(t, got, "ir/nil-type")
