@@ -230,6 +230,15 @@ index `Document.Sources`, as the IR's own provenance does, so a pass may append 
 never move or drop an entry. A pass that does, or returns no document, fails the run with a Go error
 naming it.
 
+Every pass is idempotent: run again over the document it returned, it returns one that encodes the
+same, `Document.Diagnostics` aside. A normalization that changes its own output on a second run
+leaves the document depending on how many times it went through the list, and `RunDocument` runs
+the list over a document that may have been through it already. What a pass reports may differ the
+second time, as a filter that removed an operation finds none left to remove, so the findings are
+left out of the comparison. The harness's idempotence oracle holds each pass of the default list to
+this over every corpus spec, running it twice over the document a run hands it, after the passes
+before it (§5).
+
 A caller turns a pass off by name (`RunOptions.DisablePasses`, `--disable-pass`); a name no pass
 carries is a Go error (`engine.ErrUnknownPass`), not a diagnostic, because it names no defect in the
 spec. A pass whose output a consumer relies on is not a caller's to turn off: from the first such
@@ -533,12 +542,12 @@ something a caller asks for with `none`, never a default.
 - **Oracle sweep** (`internal/harness`): every corpus spec is run as `morphic compile` runs it, the
   default passes included, and driven through the oracles in order — no panic, no error
   diagnostic, `irverify`'s structural invariants, JSON round-trip, determinism across two
-  compiles, and **order-independence**. The last one compiles the same source twice with every
-  mapping's entry order reversed and diffs the two documents. It is the general form of the
-  two-order check, and it is what catches an interning collision: two declarations minting one
-  node at a single pointer produce the same document read either way only if neither is the one
-  that got there first. Both pointer collisions the compiler has had were invisible to a
-  single-order suite.
+  compiles, each pass's idempotence over its own output (§2.2), and **order-independence**. The
+  last one compiles the same source twice with every mapping's entry order reversed and diffs the
+  two documents. It is the general form of the two-order check, and it is what catches an
+  interning collision: two declarations minting one node at a single pointer produce the same
+  document read either way only if neither is the one that got there first. Both pointer
+  collisions the compiler has had were invisible to a single-order suite.
 - **Architecture test** (`internal/archtest`): import-graph assertions for the layering rules
   above, plus the rules the graph cannot express — which lowerings are mutually recursive (so a
   set that grows is noticed rather than measured), and the method-per-type cap.

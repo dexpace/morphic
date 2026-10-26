@@ -191,8 +191,9 @@ rule sees a node of the input changed in place, which `UpdateType`'s copy is the
    `Name()`, unique among the engine's passes. A pass whose rules fall into families keeps each
    family in a `<name>_<family>.go` beside that file, as `validate` does, and a new rule joins the
    family it belongs to or starts one. `Run` never mutates its input, returns its input when it only
-   analyses, and reports through its diagnostics alone. `ir.ForEachOperation` walks the
-   operations, and the package's `diag` helper in `pass/diag.go` builds a diagnostic on a node.
+   analyses, reports through its diagnostics alone, and is idempotent: over its own output it
+   returns that output unchanged. `ir.ForEachOperation` walks the operations, and the package's
+   `diag` helper in `pass/diag.go` builds a diagnostic on a node.
    A code names the defect, as `pass/doc.go` says: `pass/<defect>` for a finding the pass owns,
    `ir/<defect>` for a structural one `irverify` reports too. A transform returns what `Finish`
    returns, its own findings appended.
@@ -210,8 +211,9 @@ rule sees a node of the input changed in place, which `UpdateType`'s copy is the
    reads the names a refusal lists from the list itself. Nothing fails if the pass never joins the
    list, where it simply never runs. An embedder runs a pass of its own without editing the list,
    through `engine.WithPasses`.
-   Once in the list, the pass runs on every corpus spec `TestHarness_InRepoCorpus` sweeps, where an
-   error it reports fails the sweep, as it fails `morphic compile`.
+   Once in the list, the pass runs on every corpus spec `TestHarness_InRepoCorpus` sweeps: an error
+   it reports there fails the sweep, as it fails `morphic compile`, and the idempotence oracle runs
+   it twice over the document it returns, failing a transform whose second run changes it.
    A default pass runs on every CLI test's spec. One that reports on the shared specs in
    `internal/testspec` breaks the `cmd/morphic` tests that expect a clean run, such as
    `TestRun_ValidateExitCodes/clean_spec`, so keep those specs clean of what it reports.

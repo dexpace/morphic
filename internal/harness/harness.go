@@ -35,6 +35,7 @@ const (
 	OutcomeViolations       Outcome = "violations"
 	OutcomeRoundtrip        Outcome = "roundtrip-mismatch"
 	OutcomeNondeterministic Outcome = "nondeterministic"
+	OutcomeNonIdempotent    Outcome = "non-idempotent"
 	OutcomeOrderDependent   Outcome = "order-dependent"
 )
 
@@ -90,6 +91,11 @@ func Check(ctx context.Context, spec string, data []byte) (res Result) {
 	if detail, ok := deterministic(ctx, spec, data, doc); !ok {
 		return Result{Spec: spec, Outcome: OutcomeNondeterministic, Detail: detail}
 	}
+	// After deterministic: a pass that is not even same-input-same-output would
+	// read as one that changes its own output.
+	if detail, ok := idempotent(ctx, spec, data); !ok {
+		return Result{Spec: spec, Outcome: OutcomeNonIdempotent, Detail: detail}
+	}
 	// Last, and after deterministic: this one permutes the input, so a compiler
 	// that is not even same-input-same-output should be reported as that rather
 	// than as order-dependence.
@@ -109,8 +115,9 @@ var errUnrecognized = errors.New("unrecognized source")
 var registered = engine.Compilers
 
 // passes is the pass list a sweep runs: the engine's default, so a pass that
-// joins it is swept with no change here. It is a seam, as registered is, for
-// tests that need a pass the default list does not hold.
+// joins it is swept, and held to the idempotence oracle, with no change here.
+// It is a seam, as registered is, for tests that need a pass the default list
+// does not hold.
 var passes = engine.Passes
 
 // newRegistry registers the compilers into a registry of its own, which listing
