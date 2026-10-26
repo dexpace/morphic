@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
+	"github.com/dexpace/morphic/barrier"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -35,8 +37,9 @@ type Compiled struct {
 // Compile compiles d.Source with the compiler d names, under d's options,
 // handing it what recognizing the source parsed, and holds the outcome to the
 // duties Compiler's Compile and SourceTable state that the inputs let a caller
-// check. A breach is an error wrapping ErrContract; an error the compiler
-// returned is passed on as it is, so a cancellation still reads as one.
+// check. A breach, a panic in either method among them, is an error wrapping
+// ErrContract; an error the compiler returned is passed on as it is, so a
+// cancellation still reads as one.
 //
 // A Detection compiles once: the parse it hands over is live, and a compile
 // may write through it (Source.Parsed).
@@ -47,12 +50,27 @@ func (d Detection) Compile(ctx context.Context) (Compiled, error) {
 	src := d.Source
 	src.Parsed = d.Recognition.Parsed
 	sources := []Source{src}
-	doc, diags, err := d.Compiler.Compile(ctx, sources, d.Options)
+
+	var (
+		doc   *ir.Document
+		diags []ir.Diagnostic
+		err   error
+	)
+	if berr := d.call("Compile", func() { doc, diags, err = d.Compiler.Compile(ctx, sources, d.Options) }); berr != nil {
+		return Compiled{}, berr
+	}
 	if err != nil {
 		return Compiled{}, err
 	}
 
-	table := d.Compiler.SourceTable(sources, d.Options)
+	var table []ir.SourceInfo
+	if berr := d.call("SourceTable", func() { table = d.Compiler.SourceTable(sources, d.Options) }); berr != nil {
+		return Compiled{}, berr
+	}
+
+	// The compiler may keep the slices it answered with, so the caller is handed
+	// copies; the Document is the one thing it gives up (Compiler.Compile).
+	table, diags = slices.Clone(table), slices.Clone(diags)
 	out := Compiled{Document: doc, Diagnostics: diags, Sources: table}
 	if doc != nil {
 		out.Sources = doc.Sources
@@ -64,6 +82,15 @@ func (d Detection) Compile(ctx context.Context) (Compiled, error) {
 		out.Diagnostics = ir.MergeDiagnostics(doc.Diagnostics, diags)
 	}
 	return out, nil
+}
+
+// call runs f, a call of d's compiler's method, behind a barrier, and reports a
+// panic in it as that method's breach.
+func (d Detection) call(method string, f func()) error {
+	if perr := barrier.Catch(f); perr != nil {
+		return fmt.Errorf("compilers: compile as %s: %w", d.Recognition.Format, breach(method, perr))
+	}
+	return nil
 }
 
 // check holds out, compiled from d.Source, to the contract. table is what the
@@ -79,6 +106,9 @@ func (d Detection) check(out Compiled, table []ir.SourceInfo) error {
 			return contractf("refused the source with no error diagnostic saying why")
 		}
 		return checkIndexes(out.Diagnostics, len(out.Sources))
+	}
+	if v := out.Document.IRVersion; !ir.CompatibleVersion(v) {
+		return contractf("document is stamped irVersion %q, where this build writes %q", v, ir.IRVersion)
 	}
 	if err := checkSources(out.Sources, table, d.Source, d.Recognition.Format); err != nil {
 		return err
@@ -145,13 +175,8 @@ func (f SourceFormat) valid() bool {
 	return f.Name != "" && f.Version != "" && !strings.Contains(f.Name, "@")
 }
 
-// served renders the formats a compiler reports, for a breach that names it:
-// a Compiler is an interface value, and its formats are what tell one apart.
-func served(c Compiler) string {
-	formats := c.Formats()
-	names := make([]string, 0, len(formats))
-	for _, f := range formats {
-		names = append(names, f.String())
-	}
-	return strings.Join(names, ", ")
+// breach reports a panic in one of a compiler's methods: the method, what the
+// barrier recovered, then ErrContract, so a caller can match either.
+func breach(method string, perr error) error {
+	return fmt.Errorf("%s: %w: %w", method, perr, ErrContract)
 }

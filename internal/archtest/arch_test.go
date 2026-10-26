@@ -44,7 +44,7 @@ var rules = map[string][]string{
 	"ir/irfacts":  {module + "/ir"},
 	"ir/irtest":   {module + "/ir", "github.com/google/go-cmp" + subtreeSuffix},
 	"ir/irverify": {module + "/ir"},
-	"compilers":   {module + "/ir"},
+	"compilers":   {module + "/barrier", module + "/ir"},
 	// What every compiler shares: the type registry, diagnostics and the naming
 	// and ID grammars. It reaches ir alone, so no compiler's vocabulary rides in.
 	"compilers/compile": {module + "/ir"},
