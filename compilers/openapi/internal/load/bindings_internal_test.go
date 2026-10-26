@@ -1,9 +1,11 @@
 package load
 
 import (
+	"context"
 	"encoding/json/jsontext"
 	"errors"
 	"fmt"
+	"iter"
 	"net/http"
 	"path/filepath"
 	"strings"
@@ -32,7 +34,7 @@ import (
 func TestBindingDiags_ReportsTheBudgetOnce(t *testing.T) {
 	t.Parallel()
 	_, root := buildDoc(t, schemaRoot("#/components/schemas/B")+"    B: {type: string}\n")
-	table := bind.Bind(root, bind.Config{Self: "spec.yaml", Limit: 2})
+	table := bind.Bind(t.Context(), root, bind.Config{Self: "spec.yaml", Limit: 2})
 	require.True(t, table.Exhausted(), "sanity: two steps are not enough to bind the document")
 
 	diags := bindingDiags(inSource(pointerAt(0, overlay.Origin{})), table)
@@ -83,13 +85,13 @@ func TestBindingDiags_ReportsAFailedRefOnceWhereItIsWrittenAtEveryBudget(t *test
 	var other yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte("X: {$ref: '#/Y'}\nY: {$ref: '#/Missing'}\nP: {$ref: '#/X'}\n"), &other))
 	cfg := bind.Config{Self: "spec.yaml", Open: func(string) (*yaml.Node, error) { return &other, nil }}
-	full := bind.Bind(root, cfg)
+	full := bind.Bind(t.Context(), root, cfg)
 	want := []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.UnresolvedRef, ir.Provenance{Source: 1, Pointer: "/Y"},
 		`unresolved $ref "#/Missing": it names nothing in the document it points into`)}
 	reported, silent := 0, 0
 	for limit := 1; limit <= full.Steps(); limit++ {
 		cfg.Limit = limit
-		table := bind.Bind(root, cfg)
+		table := bind.Bind(t.Context(), root, cfg)
 		var failed []ir.Diagnostic
 		budget := false
 		for _, d := range bindingDiags(byDocument, table) {
@@ -126,7 +128,7 @@ func TestBindingDiags_NamesALoopsMembersByTheirDocument(t *testing.T) {
 			"Q: {$ref: 'third.yaml#/R'}\n",
 		"third.yaml": "R: {$ref: 'other.yaml#/Q'}\n",
 	}
-	table := bind.Bind(root, bind.Config{Self: "spec.yaml", Open: func(name string) (*yaml.Node, error) {
+	table := bind.Bind(t.Context(), root, bind.Config{Self: "spec.yaml", Open: func(name string) (*yaml.Node, error) {
 		var node yaml.Node
 		return &node, yaml.Unmarshal([]byte(docs[name]), &node)
 	}})
@@ -186,7 +188,7 @@ func TestBindingDiags_ReportsAChainBackIntoTheSourceWhereItFails(t *testing.T) {
 	_, root := buildDoc(t, schemaRoot("other.yaml#/S")+"    B: {$ref: '#/components/schemas/Gone'}\n")
 	var other yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte("S: {$ref: 'spec.yaml#/components/schemas/B'}\n"), &other))
-	table := bind.Bind(root, bind.Config{Self: "spec.yaml",
+	table := bind.Bind(t.Context(), root, bind.Config{Self: "spec.yaml",
 		Open: func(string) (*yaml.Node, error) { return &other, nil }})
 
 	diags := bindingDiags(inSource(pointerAt(0, overlay.Origin{})), table)
@@ -283,7 +285,7 @@ func TestBindingDiags_ReportsTheMergeBound(t *testing.T) {
 	want := []ir.Diagnostic{diag.Newf(ir.SeverityWarning, diag.DegradedConstruct, at(""),
 		"a mapping merges through `<<` deeper than 64 levels, which resolving the schema $refs does not "+
 			"expand; a $ref past that, or one that reads a key past it, is left unresolved")}
-	assert.Empty(t, cmp.Diff(want, bindingDiags(inSource(at), bind.Bind(&root, bind.Config{Self: "spec.yaml"}))))
+	assert.Empty(t, cmp.Diff(want, bindingDiags(inSource(at), bind.Bind(t.Context(), &root, bind.Config{Self: "spec.yaml"}))))
 }
 
 // TestBuildFailures_ReportsALandingNoSchemaWasBuiltFor pins where a landing
@@ -353,7 +355,7 @@ func TestPositionOf_PlacesASiteInTheDocumentTheTableRead(t *testing.T) {
 	t.Parallel()
 	_, root := buildDoc(t, "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\ncomponents:\n  schemas:\n"+
 		"    A: {$ref: 'other.yaml#/T'}\n    B: {$ref: 'http://h/a%20b.yaml#/T'}\n    C: {$ref: 'http://h/c d.yaml#/T'}\n")
-	table := bind.Bind(root, bind.Config{Self: "spec.yaml", Open: func(string) (*yaml.Node, error) {
+	table := bind.Bind(t.Context(), root, bind.Config{Self: "spec.yaml", Open: func(string) (*yaml.Node, error) {
 		var n yaml.Node
 		return &n, yaml.Unmarshal([]byte("T: {type: string}\n"), &n)
 	}})
@@ -455,4 +457,33 @@ func TestBindSchemas_AChainEndsInTheDocumentItEndsIn(t *testing.T) {
 		assert.NotNil(t, held, "%s ends on a schema held for it", name)
 		assert.Same(t, held, bindings.End(js), name)
 	}
+}
+
+// TestIndexEnds_StopsBetweenEndsOnceTheContextIsDone pins indexEnds' context,
+// asked before each end it places and each it records as unplaced: cancelled
+// once the ends are placed, no unplaced end is walked.
+func TestIndexEnds_StopsBetweenEndsOnceTheContextIsDone(t *testing.T) {
+	t.Parallel()
+	root := openapitest.YAMLDocument(t, minimal31)
+	table := bind.Bind(t.Context(), root, bind.Config{Self: "spec.yaml"})
+	walks := 0
+	walk := func(context.Context) iter.Seq[soa.WalkItem] {
+		walks++
+		return func(func(soa.WalkItem) bool) {}
+	}
+	ends := map[refSite]referenceEnd{}
+	for i := range 4 {
+		ends[refSite{doc: "other.yaml", pointer: jsontext.Pointer(fmt.Sprintf("/x%d", i))}] = referenceEnd{
+			object: &soa.ReferencedResponse{}, walk: walk}
+	}
+	self := sourceDocument{path: "spec.yaml"}
+	indexEnds(t.Context(), typed.NewBuilder(table), table, ends, self)
+	require.Equal(t, len(ends), walks, "live, each unplaced end is walked")
+
+	walks = 0
+	// The placing loop asks once for each end, all live, then the next ask refuses.
+	ctx := &openapitest.Countdown{Context: t.Context(), Left: len(ends)}
+	indexEnds(ctx, typed.NewBuilder(table), table, ends, self)
+
+	assert.Zero(t, walks, "no unplaced end is walked once the context refused")
 }

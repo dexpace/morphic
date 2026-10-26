@@ -3,7 +3,25 @@ package load
 import (
 	"context"
 	"io"
+	"iter"
+
+	soa "github.com/speakeasy-api/openapi/openapi"
 )
+
+// walk is the parser library's walk of start, stopped once ctx is done. The
+// library's walk reads no context (docs/parser-library.md#context-unread), so
+// every walk of a model the load phase makes goes through this one, asking ctx
+// before each item. A phase whose walk was cut short is never built on: the
+// next phase is refused before it starts (Options.enter).
+func walk[T any](ctx context.Context, start *T) iter.Seq[soa.WalkItem] {
+	return func(yield func(soa.WalkItem) bool) {
+		for item := range soa.Walk(ctx, start) {
+			if ctx.Err() != nil || !yield(item) {
+				return
+			}
+		}
+	}
+}
 
 // contextReader reads r until ctx is done, then fails with ctx's error, so a
 // parser reading through it stops within one of its reads. yaml.v3 reads a

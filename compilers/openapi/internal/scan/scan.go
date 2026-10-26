@@ -1,6 +1,7 @@
 package scan
 
 import (
+	"context"
 	"encoding/json/jsontext"
 	"slices"
 	"strconv"
@@ -210,12 +211,12 @@ func recoverCycleScan(locate Locator, scan func() []ir.Diagnostic) (diags []ir.D
 // an ancestor is visible only from the root. surplus is the alias budget, zero
 // for none; yaml.v3's own alias guard never fires on a yaml.Node decode
 // (GitHub #479).
-func Aliases(locate Locator, idx sourceindex.Index, surplus int64) []ir.Diagnostic {
+func Aliases(ctx context.Context, locate Locator, idx sourceindex.Index, surplus int64) []ir.Diagnostic {
 	return recoverCycleScan(locate, func() []ir.Diagnostic {
 		if d, ok := anchorCycle(locate, idx); ok {
 			return []ir.Diagnostic{d}
 		}
-		if d, ok := aliasAmplification(locate, idx.Root(), idx.Nodes(), surplus); ok {
+		if d, ok := aliasAmplification(ctx, locate, idx.Root(), idx.Nodes(), surplus); ok {
 			return []ir.Diagnostic{d}
 		}
 		return nil

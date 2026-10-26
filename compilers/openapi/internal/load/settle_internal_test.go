@@ -434,7 +434,7 @@ func TestResumable(t *testing.T) {
 	t.Parallel()
 	data := []byte("components:\n  responses:\n    Base: {description: b}\n" +
 		"    Alias: {$ref: '#/components/responses/Base'}\n    Loop: {$ref: '#/components/responses/Loop'}\n")
-	tree, err := parseTree(data)
+	tree, err := parseTree(t.Context(), data)
 	require.NoError(t, err)
 	read := newExternalReads(sourceDocument{})
 	read.recordTree("other.yaml", tree, data)

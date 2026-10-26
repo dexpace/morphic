@@ -88,7 +88,7 @@ func validateReached(ctx context.Context, at func(jsontext.Pointer) ir.Provenanc
 			targets = append(targets, t)
 		}
 	}
-	return checkReached(at, walkSource(ctx, doc, sibs), targets, checks)
+	return checkReached(ctx, at, walkSource(ctx, doc, sibs), targets, checks)
 }
 
 // builtTargets returns the targets the schemas built for landings make, each
@@ -123,7 +123,7 @@ func builtTargets(built []typed.Built, place func(bind.Position) ir.Provenance, 
 // A panic reading the walk is reported at the model being read, or at the root,
 // and nothing is checked, since the targets read so far need not hold each
 // one's least $ref.
-func checkReached(at func(jsontext.Pointer) ir.Provenance,
+func checkReached(ctx context.Context, at func(jsontext.Pointer) ir.Provenance,
 	items iter.Seq[soa.WalkItem], built []reachedTarget, checks *reached,
 ) []ir.Diagnostic {
 	targets := map[objectKey]reachedTarget{}
@@ -146,7 +146,7 @@ func checkReached(at func(jsontext.Pointer) ir.Provenance,
 		add(t)
 	}
 	checks.dropSeen(targets)
-	return checks.checkAll(at, targets)
+	return checks.checkAll(ctx, at, targets)
 }
 
 // kindOf returns the kind of object a reference object expects to name, or false
@@ -233,18 +233,22 @@ func newReached(doc *soa.OpenAPI, opts Options, tree sourceTree, judged judgment
 // An object inside one checked before it is checked, and charged, again
 // (GitHub #571): a container spans more than its model reads, such as an
 // extension's content.
-func (v *reached) checkAll(at func(jsontext.Pointer) ir.Provenance, targets map[objectKey]reachedTarget,
+func (v *reached) checkAll(ctx context.Context, at func(jsontext.Pointer) ir.Provenance,
+	targets map[objectKey]reachedTarget,
 ) []ir.Diagnostic {
 	order := slices.SortedFunc(maps.Values(targets), func(a, b reachedTarget) int {
 		return compareSites(a.at(), b.at())
 	})
 	diags := make([]ir.Diagnostic, 0, len(order))
 	for _, t := range order {
+		if ctx.Err() != nil {
+			break
+		}
 		place := at
 		if t.place != nil {
 			place = t.place
 		}
-		diags = append(diags, v.check(place(t.site), t)...)
+		diags = append(diags, v.check(ctx, place(t.site), t)...)
 	}
 	return diags
 }
@@ -255,12 +259,13 @@ func (v *reached) checkAll(at func(jsontext.Pointer) ir.Provenance, targets map[
 // again, as the source reports a finding once however many references share
 // its node; one about a node of a document no entry lists goes to site, the
 // $ref that reached it.
-func (v *reached) check(site ir.Provenance, t reachedTarget) []ir.Diagnostic {
-	if d, over := v.charge(site, t.doc, t.node); over {
+func (v *reached) check(ctx context.Context, site ir.Provenance, t reachedTarget) []ir.Diagnostic {
+	if d, over := v.charge(ctx, site, t.doc, t.node); over {
 		return d
 	}
 	opts := oas.Options{Start: t.kind, Budget: v.limit, Locate: v.locatorFor(t), ReadAt: true, Root: t.home.pointer}
-	found := append(v.checker.Check(t.node, v.version, opts), oas.CheckFormat(t.node, v.version, formatOptions(opts))...)
+	found := append(v.checker.Check(ctx, t.node, v.version, opts),
+		oas.CheckFormat(ctx, t.node, v.version, formatOptions(opts))...)
 	var diags []ir.Diagnostic
 	for _, d := range found {
 		if key := identity(d, t.doc); !v.reported[key] {
@@ -291,11 +296,11 @@ func (v *reached) locatorFor(t reachedTarget) oas.Locator {
 //
 // It reports true when the object is not to be checked: doc's budget was
 // crossed before, or this object would cross it, which is reported once, here.
-func (v *reached) charge(site ir.Provenance, doc string, node *yaml.Node) ([]ir.Diagnostic, bool) {
+func (v *reached) charge(ctx context.Context, site ir.Provenance, doc string, node *yaml.Node) ([]ir.Diagnostic, bool) {
 	if v.over[doc] {
 		return nil, true
 	}
-	span, fits := spanned(node, v.remaining(doc))
+	span, fits := spanned(ctx, node, v.remaining(doc))
 	if !fits {
 		v.over[doc] = true
 		return []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.BudgetExceeded, site,
@@ -337,11 +342,11 @@ func reachedNode(r resolvable) (*yaml.Node, bool) {
 // object costs the budget, not the object. No alias leads back up: a document
 // whose anchor names one of its own ancestors was refused. A limit of
 // math.MaxInt has no node past it to stop at.
-func spanned(root *yaml.Node, limit int) (int, bool) {
+func spanned(ctx context.Context, root *yaml.Node, limit int) (int, bool) {
 	bound := math.MaxInt
 	if limit >= 0 && limit < math.MaxInt {
 		bound = limit + 1
 	}
-	visited := nodeview.Walk{Nodes: bound, Aliases: nodeview.AliasTarget}.Run(root).Visited
+	visited := nodeview.Walk{Nodes: bound, Aliases: nodeview.AliasTarget}.Run(ctx, root).Visited
 	return visited, limit < 0 || visited <= limit
 }

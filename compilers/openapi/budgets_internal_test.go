@@ -361,6 +361,29 @@ func TestCompile_ACancelInTheLoweringStopsTheCompile(t *testing.T) {
 	assert.Equal(t, calls, seen, "the check that refused is the compile's last")
 }
 
+// TestCompile_ACancelAtAnyCheckIsTheContexts cancels a compile at every check
+// of its context a whole compile makes, and requires each to end with the
+// context's error and no document: never a refusal, which a parse its context
+// stopped would read as were it taken for a source that will not parse.
+func TestCompile_ACancelAtAnyCheckIsTheContexts(t *testing.T) {
+	t.Parallel()
+	sources := []compilers.Source{{Path: "spec.yaml", Data: []byte(enumSpec(3))}}
+	left, calls := math.MaxInt, 0
+	_, _, err := New().Compile(liveForCalls{Context: t.Context(), left: &left, seen: &calls}, sources,
+		compilers.Options{})
+	require.NoError(t, err)
+
+	for at := range calls {
+		left, seen := at, 0
+
+		doc, _, err := New().Compile(liveForCalls{Context: t.Context(), left: &left, seen: &seen}, sources,
+			compilers.Options{})
+
+		require.ErrorIs(t, err, context.Canceled, "cancelled at check %d of %d", at+1, calls)
+		require.Nil(t, doc, "check %d", at+1)
+	}
+}
+
 // liveForCalls answers Err with nil for its first left calls and
 // context.Canceled from then on, counting every call it answers.
 //

@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 )
 
 // budgetSpec reaches every kind of work a table does: chains, a loop, a
@@ -371,5 +372,73 @@ func TestSpellings(t *testing.T) {
 		"it does not resolve":               {Reason: 200},
 	} {
 		assert.Equal(t, text, hop.Why(), fmt.Sprint(hop.Reason))
+	}
+}
+
+// TestBind_StopsOnceTheContextIsDone pins the binding's context, asked with
+// every step the budget charges: cancelled at any of them, the binding takes
+// no step past the next one it charges, and the table does not report its
+// budget exhausted, since what stopped it is no budget crossed.
+func TestBind_StopsOnceTheContextIsDone(t *testing.T) {
+	t.Parallel()
+	full := bound(t, budgetSpec, budgetConfig(0))
+	require.Greater(t, full.Steps(), 10)
+
+	for _, left := range []int{0, 1, 5, full.Steps() / 2} {
+		t.Run(fmt.Sprintf("refused from ask %d", left+1), func(t *testing.T) {
+			t.Parallel()
+			ctx := &openapitest.Countdown{Context: t.Context(), Left: left}
+
+			table := bind.Bind(ctx, openapitest.YAMLDocument(t, budgetSpec), budgetConfig(0))
+
+			assert.Less(t, table.Steps(), full.Steps(), "the binding stopped short")
+			assert.False(t, table.Exhausted(), "a stop is no budget crossed")
+		})
+	}
+}
+
+// asksAfterRefusal is the most a binding asks its context once it has
+// refused: once for each stage of it running in sequence, each leaving at its
+// first ask. A loop asking on for every site or mapping value left would ask
+// as often as the document has them.
+const asksAfterRefusal = 7
+
+// manyMappings writes a discriminator mapping n values, each to a schema whose
+// $ref the binding follows, so a binding has many sites and mapping values to
+// read.
+func manyMappings(n int) string {
+	var b strings.Builder
+	b.WriteString("openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\ncomponents:\n  schemas:\n" +
+		"    P: {discriminator: {propertyName: k, mapping: {")
+	for i := range n {
+		fmt.Fprintf(&b, "m%d: '#/components/schemas/S%d', ", i, i)
+	}
+	b.WriteString("}}}\n")
+	for i := range n {
+		fmt.Fprintf(&b, "    S%d: {$ref: '#/components/schemas/T%d'}\n    T%d: {type: object}\n", i, i, i)
+	}
+	return b.String()
+}
+
+// TestBind_AsksNoMoreOnceRefused cancels a binding at every ask of its context
+// a whole binding makes, and holds what it asks after the refusal to
+// asksAfterRefusal: no loop over the sites, the pending walks or the mapping
+// values goes on once refused, though a document has more of each than that.
+func TestBind_AsksNoMoreOnceRefused(t *testing.T) {
+	t.Parallel()
+	for name, spec := range map[string]string{"every kind of work": budgetSpec, "many mapping values": manyMappings(20)} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			whole := &openapitest.Countdown{Context: t.Context(), Left: 1 << 30}
+			bind.Bind(whole, openapitest.YAMLDocument(t, spec), budgetConfig(0))
+
+			for left := range whole.Calls {
+				ctx := &openapitest.Countdown{Context: t.Context(), Left: left}
+
+				bind.Bind(ctx, openapitest.YAMLDocument(t, spec), budgetConfig(0))
+
+				require.LessOrEqual(t, ctx.Calls, left+1+asksAfterRefusal, "ask %d: asked on after the refusal", left+1)
+			}
+		})
 	}
 }

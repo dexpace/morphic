@@ -253,7 +253,7 @@ func TestCheck_SeenReportsTheObjectsReadAsTheirKind(t *testing.T) {
 	require.NoError(t, yaml.Unmarshal([]byte(
 		"parameters: {a: {name: n, in: query, schema: {}}, b: {$ref: '#/parameters/a'}}\nschemas: {S: {type: string}}\n"), &n))
 	seen := map[oas.Kind]int{}
-	oas.NewChecker().Check(&n, "3.0.3", oas.Options{Start: oas.Components, Seen: func(k oas.Kind, node *yaml.Node) {
+	oas.NewChecker().Check(t.Context(), &n, "3.0.3", oas.Options{Start: oas.Components, Seen: func(k oas.Kind, node *yaml.Node) {
 		require.NotNil(t, node)
 		seen[k]++
 	}})

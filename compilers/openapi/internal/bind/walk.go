@@ -202,6 +202,9 @@ func (w *finder) walkPending() bool {
 	})
 	walked := false
 	for _, r := range slices.Compact(roots) {
+		if w.work.cancelled() {
+			break
+		}
 		if r.at.Doc == Source && w.docs.stateAt(r.at) == r.state {
 			continue
 		}

@@ -255,7 +255,7 @@ func compareDocument(t *testing.T, d validationDoc) (library, compiler []finding
 	if refused := loadRefusal(t, d); refused != "" {
 		return nil, nil, refused
 	}
-	compiler = tableFindings(root, version)
+	compiler = tableFindings(t, root, version)
 	library, err := libraryFindings(t, d.data, root)
 	if err != nil {
 		return nil, nil, err.Error()
@@ -285,7 +285,8 @@ func loadRefusal(t *testing.T, d validationDoc) string {
 }
 
 // tableFindings checks the tree with the table at the declared version.
-func tableFindings(root *yaml.Node, version string) []finding {
+func tableFindings(t testing.TB, root *yaml.Node, version string) []finding {
+	t.Helper()
 	view := nodeview.New()
 	locate := func(ptr jsontext.Pointer) ir.Provenance {
 		path, _ := view.DocumentPath(nodeview.DocumentRoot(root), ptr)
@@ -295,7 +296,7 @@ func tableFindings(root *yaml.Node, version string) []finding {
 		}
 		return prov
 	}
-	diags := oas.NewChecker().Check(root, version, oas.Options{Locate: locate})
+	diags := oas.NewChecker().Check(t.Context(), root, version, oas.Options{Locate: locate})
 	out := make([]finding, 0, len(diags))
 	for _, d := range diags {
 		out = append(out, finding{class: classOf(d.Code), line: d.Provenance.Position.Line, column: d.Provenance.Position.Column})

@@ -716,7 +716,7 @@ func TestExternal_PrepareRewritesTheTreeItStoresAndRestoreTreesPutsItBack(t *tes
 	doc := &soa.OpenAPI{}
 	ext := newExternal(t.Context(), doc, Options{}, newExternalReads(sourceDocument{escapes: esc}))
 
-	_, err := ext.prepare("k", []byte(body))
+	_, err := ext.prepare(t.Context(), "k", []byte(body))
 
 	require.NoError(t, err)
 	cached, ok := doc.GetCachedExternalDocument("k")
@@ -812,10 +812,10 @@ paths:
         "200": {description: ok}
 `, filepath.Join(dir, "root.yaml"))
 	unclean := dir + "/./root.yaml"
-	tree, err := parseTree([]byte("a: {$ref: '" + unclean + "#/paths/~1a+b/get/responses/200'}\n"))
+	tree, err := parseTree(t.Context(), []byte("a: {$ref: '"+unclean+"#/paths/~1a+b/get/responses/200'}\n"))
 	require.NoError(t, err)
 
-	pass.reader.holdSpellings(tree, filepath.Join(dir, "sub", "doc.yaml"))
+	pass.reader.holdSpellings(t.Context(), tree, filepath.Join(dir, "sub", "doc.yaml"))
 
 	held, ok := doc.GetCachedReferencedObject(unclean + "#/paths/~1a+b/get/responses/200")
 	require.True(t, ok, "held under the pointer that spells the plus")

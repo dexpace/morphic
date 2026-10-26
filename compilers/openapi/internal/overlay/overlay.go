@@ -12,6 +12,7 @@ package overlay
 
 import (
 	"bytes"
+	"context"
 	"encoding/json/jsontext"
 	"strconv"
 
@@ -158,8 +159,8 @@ func (o Origin) At(n *yaml.Node) (ir.Provenance, bool) {
 // caller must refuse to lower: the library applies actions in order and does not
 // undo the ones that landed, so a tree left behind by a failed application is
 // neither the source nor what the overlay asked for.
-func Apply(index int, root *yaml.Node, opts Options) (Origin, []ir.Diagnostic) {
-	return applyWithin(index, root, opts, maxNodes)
+func Apply(ctx context.Context, index int, root *yaml.Node, opts Options) (Origin, []ir.Diagnostic) {
+	return applyWithin(ctx, index, root, opts, maxNodes)
 }
 
 // applyWithin is Apply with the node budget as a parameter.
@@ -169,7 +170,7 @@ func Apply(index int, root *yaml.Node, opts Options) (Origin, []ir.Diagnostic) {
 // bound. It is a parameter so the degradation at the bound is reachable from a
 // test with a small tree, rather than only from a document large enough that no
 // test would build one — an unreachable branch is an unverified claim.
-func applyWithin(index int, root *yaml.Node, opts Options, budget int) (Origin, []ir.Diagnostic) {
+func applyWithin(ctx context.Context, index int, root *yaml.Node, opts Options, budget int) (Origin, []ir.Diagnostic) {
 	at := ir.Provenance{Source: index}
 
 	doc, err := soaoverlay.ParseReader(bytes.NewReader(opts.Data))
@@ -182,12 +183,12 @@ func applyWithin(index int, root *yaml.Node, opts Options, budget int) (Origin, 
 			"invalid overlay: %s", diag.OneLine(err))}
 	}
 
-	before, complete := snapshot(root, budget)
-	diags, applied := applyRecovered(doc, root, at, opts.Lax, opts.MaxNodes)
+	before, complete := snapshot(ctx, root, budget)
+	diags, applied := applyRecovered(ctx, doc, root, at, opts.Lax, opts.MaxNodes)
 	if !applied {
 		return Origin{}, diags
 	}
-	normalized, safe := repairGrafts(root, budget)
+	normalized, safe := repairGrafts(ctx, root, budget)
 	if !safe {
 		return Origin{}, append(diags, diag.Newf(ir.SeverityError, diag.OverlayFailed, at,
 			"overlay applied, but the content it grafted expands past %d nodes when its aliases are resolved", budget))
@@ -198,7 +199,7 @@ func applyWithin(index int, root *yaml.Node, opts Options, budget int) (Origin, 
 	var nodes map[*yaml.Node]jsontext.Pointer
 	ok := false
 	if complete {
-		pointers, nodes, ok = attribute(root, before, budget)
+		pointers, nodes, ok = attribute(ctx, root, before, budget)
 	}
 	if !ok {
 		// Applied without attribution: the source keeps every position, but the
@@ -221,7 +222,9 @@ func applyWithin(index int, root *yaml.Node, opts Options, budget int) (Origin, 
 // recursive anchor exhausts the stack and an alias bomb memory, both fatal
 // (docs/parser-library.md#overlay-alias-clone); the loader refuses those shapes
 // before the overlay is applied (GitHub #489).
-func applyRecovered(doc *soaoverlay.Overlay, root *yaml.Node, at ir.Provenance, lax bool, maxNodes int) (diags []ir.Diagnostic, applied bool) {
+func applyRecovered(ctx context.Context, doc *soaoverlay.Overlay, root *yaml.Node, at ir.Provenance, lax bool,
+	maxNodes int,
+) (diags []ir.Diagnostic, applied bool) {
 	defer func() {
 		if r := recover(); r != nil {
 			diags = []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.OverlayFailed, at,
@@ -229,7 +232,7 @@ func applyRecovered(doc *soaoverlay.Overlay, root *yaml.Node, at ir.Provenance, 
 			applied = false
 		}
 	}()
-	return runSequence(doc, root, at, lax, maxNodes)
+	return runSequence(ctx, doc, root, at, lax, maxNodes)
 }
 
 // failed builds the diagnostic for an overlay the library refused to apply.
@@ -259,16 +262,16 @@ func sourceInfo(doc *soaoverlay.Overlay, opts Options) ir.SourceInfo {
 // normalized reports whether the tree was walked within budget; if not,
 // attribution is given up. safe is false when a graft could not be substituted;
 // a partly repaired tree is worse than refusing, so the caller refuses.
-func repairGrafts(root *yaml.Node, budget int) (normalized, safe bool) {
+func repairGrafts(ctx context.Context, root *yaml.Node, budget int) (normalized, safe bool) {
 	content := nodeview.DocumentRoot(root)
 	if content == nil {
 		return true, true
 	}
-	reachable, walked := reachableNodes(content, budget)
+	reachable, walked := reachableNodes(ctx, content, budget)
 	if !walked {
 		return false, true
 	}
-	if !substituteGrafts(content, reachable, &budget) {
+	if !substituteGrafts(ctx, content, reachable, &budget) {
 		return false, false
 	}
 	return true, true
@@ -276,7 +279,7 @@ func repairGrafts(root *yaml.Node, budget int) (normalized, safe bool) {
 
 // reachableNodes collects every node a Content walk from root reaches, which is
 // every node this compiler's other readings can see.
-func reachableNodes(root *yaml.Node, budget int) (map[*yaml.Node]bool, bool) {
+func reachableNodes(ctx context.Context, root *yaml.Node, budget int) (map[*yaml.Node]bool, bool) {
 	reachable := make(map[*yaml.Node]bool)
 	out := nodeview.Walk{Nodes: budget, Visit: func(n *yaml.Node, _ int) nodeview.Step {
 		if reachable[n] {
@@ -284,7 +287,7 @@ func reachableNodes(root *yaml.Node, budget int) (map[*yaml.Node]bool, bool) {
 		}
 		reachable[n] = true
 		return nodeview.Descend
-	}}.Run(root)
+	}}.Run(ctx, root)
 	if out.Cut {
 		return nil, false
 	}
@@ -300,7 +303,7 @@ func reachableNodes(root *yaml.Node, budget int) (map[*yaml.Node]bool, bool) {
 // children rather than the node it is at: the tree's own root is a mapping the
 // application never replaces wholesale, so no alias can sit there. A copy
 // holds no alias and is not walked.
-func substituteGrafts(n *yaml.Node, reachable map[*yaml.Node]bool, budget *int) bool {
+func substituteGrafts(ctx context.Context, n *yaml.Node, reachable map[*yaml.Node]bool, budget *int) bool {
 	safe := true
 	copies := map[*yaml.Node]bool{}
 	nodeview.Walk{Nodes: *budget + 1, Visit: func(n *yaml.Node, _ int) nodeview.Step {
@@ -311,7 +314,7 @@ func substituteGrafts(n *yaml.Node, reachable map[*yaml.Node]bool, budget *int) 
 			return nodeview.Stop
 		}
 		return nodeview.Descend
-	}}.Run(n)
+	}}.Run(ctx, n)
 	return safe
 }
 
@@ -384,12 +387,12 @@ func expandAlias(target *yaml.Node, budget *int) (*yaml.Node, bool) {
 // root, and this one also descends into mapping keys. A superset is required: a
 // node attribute reaches that this one missed would read as introduced by the
 // overlay.
-func snapshot(root *yaml.Node, budget int) (map[*yaml.Node]string, bool) {
+func snapshot(ctx context.Context, root *yaml.Node, budget int) (map[*yaml.Node]string, bool) {
 	before := make(map[*yaml.Node]string)
 	out := nodeview.Walk{Nodes: budget, Visit: func(n *yaml.Node, _ int) nodeview.Step {
 		before[n] = n.Value
 		return nodeview.Descend
-	}}.Run(nodeview.DocumentRoot(root))
+	}}.Run(ctx, nodeview.DocumentRoot(root))
 	if out.Cut {
 		return nil, false
 	}
@@ -408,7 +411,8 @@ func snapshot(root *yaml.Node, budget int) (map[*yaml.Node]string, bool) {
 // A key the overlay introduced is recorded under its member's pointer too: its
 // line and column are the overlay document's, which a finding on it would read
 // as the source's.
-func attribute(root *yaml.Node, before map[*yaml.Node]string, budget int) (map[jsontext.Pointer]bool, map[*yaml.Node]jsontext.Pointer, bool) {
+func attribute(ctx context.Context, root *yaml.Node, before map[*yaml.Node]string, budget int,
+) (map[jsontext.Pointer]bool, map[*yaml.Node]jsontext.Pointer, bool) {
 	changed := func(n *yaml.Node) bool {
 		prior, known := before[n]
 		return !known || prior != n.Value
@@ -418,7 +422,7 @@ func attribute(root *yaml.Node, before map[*yaml.Node]string, budget int) (map[j
 	nodes := map[*yaml.Node]jsontext.Pointer{}
 	stack := []frame{{node: nodeview.DocumentRoot(root)}}
 	for ; len(stack) > 0; budget-- {
-		if budget == 0 {
+		if budget == 0 || ctx.Err() != nil {
 			return nil, nil, false
 		}
 		f := stack[len(stack)-1]

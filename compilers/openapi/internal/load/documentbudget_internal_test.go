@@ -199,7 +199,7 @@ func resolveCounting(t *testing.T, spec, path string, opts Options) ([]ir.Diagno
 	data := []byte(spec)
 	root, _, err := decodeStream(t.Context(), data)
 	require.NoError(t, err)
-	releaseAnchors(root)
+	releaseAnchors(t.Context(), root)
 	doc, err := unmarshal(t.Context(), data, root)
 	require.NoError(t, err)
 	rebuilds := 0

@@ -397,7 +397,7 @@ func resolveExternal(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, self 
 	pass := resolveWith(ctx, doc, sibs, self, opts, &reader)
 	used := pass.used()
 	first := unprepared(doc, read, used)
-	if !anyAnchored(doc, first) && !anyRewritable(doc, first, self.escapes) {
+	if !anyAnchored(ctx, doc, first) && !anyRewritable(ctx, doc, first, self.escapes) {
 		return doc, sibs, &reader, pass, nil, nil
 	}
 
@@ -417,25 +417,27 @@ func resolveExternal(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, self 
 
 // anyAnchored reports whether any document in missed, as the resolver parsed
 // it, carries an anchor — the one thing the fold's skip reads.
-func anyAnchored(doc *soa.OpenAPI, missed []usedDocument) bool {
-	return anyParsed(doc, missed, hasAnchor)
+func anyAnchored(ctx context.Context, doc *soa.OpenAPI, missed []usedDocument) bool {
+	return anyParsed(ctx, doc, missed, hasAnchor)
 }
 
 // anyRewritable reports whether any document in missed, as the resolver parsed
 // it, holds a $ref esc would respell, which the prepared tree has spelled
 // otherwise: one the resolver reads a '+' of as a space (GitHub #911), or one
 // a read refuses by its spelling.
-func anyRewritable(doc *soa.OpenAPI, missed []usedDocument, esc *escapes) bool {
-	return anyParsed(doc, missed, esc.rewritable)
+func anyRewritable(ctx context.Context, doc *soa.OpenAPI, missed []usedDocument, esc *escapes) bool {
+	return anyParsed(ctx, doc, missed, esc.rewritable)
 }
 
 // anyParsed reports whether the tree the resolver parsed for any document in
 // missed satisfies holds.
-func anyParsed(doc *soa.OpenAPI, missed []usedDocument, holds func(*yaml.Node) bool) bool {
+func anyParsed(ctx context.Context, doc *soa.OpenAPI, missed []usedDocument,
+	holds func(context.Context, *yaml.Node) bool,
+) bool {
 	return slices.ContainsFunc(missed, func(m usedDocument) bool {
 		cached, _ := doc.GetCachedExternalDocument(m.key)
 		tree, ok := cached.(*yaml.Node)
-		return ok && holds(tree)
+		return ok && holds(ctx, tree)
 	})
 }
 
@@ -443,13 +445,13 @@ func anyParsed(doc *soa.OpenAPI, missed []usedDocument, holds func(*yaml.Node) b
 // It follows Content and never an alias, so it visits each node once. The
 // resolver parsed the tree from bytes the reader admitted (external.prepare),
 // so the walk's bound cuts none.
-func hasAnchor(root *yaml.Node) bool {
+func hasAnchor(ctx context.Context, root *yaml.Node) bool {
 	return nodeview.Walk{Nodes: maxTreeNodes, Visit: func(n *yaml.Node, _ int) nodeview.Step {
 		if n.Anchor != "" {
 			return nodeview.Stop
 		}
 		return nodeview.Descend
-	}}.Run(root).Stopped
+	}}.Run(ctx, root).Stopped
 }
 
 // stillUnprepared reports each document the second resolution found
@@ -656,6 +658,6 @@ func replacing[S any](info *references.ResolveResult[S]) func(any) bool {
 // walkOf returns the walk over obj, started at its own kind.
 func walkOf[T any](obj *T) func(context.Context) iter.Seq[soa.WalkItem] {
 	return func(ctx context.Context) iter.Seq[soa.WalkItem] {
-		return soa.Walk(ctx, obj)
+		return walk(ctx, obj)
 	}
 }

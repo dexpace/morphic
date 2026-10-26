@@ -34,6 +34,7 @@ func canaries() map[string]func(t *testing.T) {
 		"null-schema-is-false":   nullSchemaIsFalse,
 		"overlay-alias-clone":    overlayAliasClone,
 		"trailing-empty-token":   trailingEmptyToken,
+		"context-unread":         contextUnread,
 	}
 }
 

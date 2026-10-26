@@ -43,7 +43,7 @@ func bindings(t *testing.T) (*typed.Bindings, *soa.OpenAPI, []typed.Built) {
 	t.Helper()
 	doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(spec))
 	require.NoError(t, err)
-	bd := typed.NewBuilder(bind.Bind(doc.GetRootNode(), bind.Config{Self: "spec.yaml"}))
+	bd := typed.NewBuilder(bind.Bind(t.Context(), doc.GetRootNode(), bind.Config{Self: "spec.yaml"}))
 	for item := range soa.Walk(t.Context(), doc) {
 		at := bind.Position{Pointer: typed.PointerOf(item.Location)}
 		require.NoError(t, item.Match(soa.Matcher{
@@ -225,7 +225,7 @@ func TestBuild_CostsLinearInItsLandings(t *testing.T) {
 		}
 		var root yaml.Node
 		require.NoError(t, yaml.Unmarshal([]byte(b.String()), &root))
-		table := bind.Bind(&root, bind.Config{Self: "spec.yaml"})
+		table := bind.Bind(t.Context(), &root, bind.Config{Self: "spec.yaml"})
 		require.Len(t, table.Landings(), n)
 		return allocated(func() { typed.NewBuilder(table).Build(t.Context()) })
 	}

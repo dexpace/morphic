@@ -30,10 +30,10 @@ func TestNodeCount_CountsEveryNodeAndAnswersForNothing(t *testing.T) {
 			t.Parallel()
 			root, _, err := decodeStream(t.Context(), []byte(tc.src))
 			require.NoError(t, err)
-			assert.Equal(t, tc.want, nodeCount(root))
+			assert.Equal(t, tc.want, nodeCount(t.Context(), root))
 		})
 	}
-	assert.Equal(t, 0, nodeCount(nil), "an absent tree counts nothing rather than panicking")
+	assert.Equal(t, 0, nodeCount(t.Context(), nil), "an absent tree counts nothing rather than panicking")
 }
 
 func TestExceeds_TreatsAnUnsetBudgetAsUnbounded(t *testing.T) {
@@ -84,7 +84,7 @@ func TestLoad_SourceNodeBudgetBindsOnlyPastTheLimit(t *testing.T) {
 	t.Parallel()
 	root, _, err := decodeStream(t.Context(), []byte(minimal31))
 	require.NoError(t, err)
-	nodes := nodeCount(root)
+	nodes := nodeCount(t.Context(), root)
 	require.Positive(t, nodes)
 
 	tests := []struct {
@@ -126,7 +126,7 @@ func TestLoad_SourceNodeBudgetCountsWhatAnOverlayGrafted(t *testing.T) {
 	t.Parallel()
 	root, _, err := decodeStream(t.Context(), []byte(minimal31))
 	require.NoError(t, err)
-	unpatched := nodeCount(root)
+	unpatched := nodeCount(t.Context(), root)
 
 	const patch = `overlay: 1.0.0
 info: {title: add a schema, version: "1"}

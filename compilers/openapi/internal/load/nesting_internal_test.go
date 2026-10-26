@@ -113,10 +113,10 @@ func TestLoad_RefusesANestingAnOverlayGrafted(t *testing.T) {
 // reason the reference fails.
 func TestExternal_AdmitRefusesANestingPastTheBound(t *testing.T) {
 	t.Parallel()
-	root, err := parseTree([]byte("a: " + itemsDeep(scan.MaxNesting) + "\n"))
+	root, err := parseTree(t.Context(), []byte("a: "+itemsDeep(scan.MaxNesting)+"\n"))
 	require.NoError(t, err)
 
-	err = newExternal(t.Context(), &soa.OpenAPI{}, Options{}, newExternalReads(sourceDocument{})).admit("k", root)
+	err = newExternal(t.Context(), &soa.OpenAPI{}, Options{}, newExternalReads(sourceDocument{})).admit(t.Context(), "k", root)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "refused")
@@ -130,7 +130,7 @@ func placedRefusals(t *testing.T, src string) []ir.Diagnostic {
 	t.Helper()
 	var root yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte(src), &root))
-	return refusals(scan.InTree(0, scan.Pointers(&root)), &root, Options{})
+	return refusals(t.Context(), scan.InTree(0, scan.Pointers(&root)), &root, Options{})
 }
 
 // TestRefusals_NamesTheLeastTaggedMapping pins the tagged-mapping refusal's
@@ -158,7 +158,7 @@ func TestRefusals_ReportsEachRefusalAlongsideTheOthers(t *testing.T) {
 	var root yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte(src), &root))
 
-	diags := refusals(scan.InTree(0, scan.Pointers(&root)), &root, Options{MaxAliasSurplus: 1})
+	diags := refusals(t.Context(), scan.InTree(0, scan.Pointers(&root)), &root, Options{MaxAliasSurplus: 1})
 
 	codes := make([]string, 0, len(diags))
 	for _, d := range diags {

@@ -115,7 +115,7 @@ func TestExternal_DoRefusesANetworkDocumentReachingALocalFile(t *testing.T) {
 func TestReachesLocal_PassesALocalDocumentAndANetworkOne(t *testing.T) {
 	t.Parallel()
 	local := openapitest.YAMLDocument(t, remoteDoc("/etc/passwd"))
-	_, refuse := reachesLocal(local, "/dir/a.yaml")
+	_, refuse := reachesLocal(t.Context(), local, "/dir/a.yaml")
 	assert.False(t, refuse, "a local document's own $refs are not judged against the network rule")
 
 	onHost := "components:\n  schemas:\n" +
@@ -124,7 +124,7 @@ func TestReachesLocal_PassesALocalDocumentAndANetworkOne(t *testing.T) {
 		"    C: {$id: './v2/', $ref: '#/components/schemas/A'}\n" +
 		"    D: {$id: 'urn:example:d', $ref: './d.yaml#/x'}\n" +
 		"    E: {description: '/etc/passwd', default: 'file:///etc/passwd'}\n"
-	_, refuse = reachesLocal(openapitest.YAMLDocument(t, onHost), "http://host/dir/a.yaml")
+	_, refuse = reachesLocal(t.Context(), openapitest.YAMLDocument(t, onHost), "http://host/dir/a.yaml")
 	assert.False(t, refuse, "a network document staying on the host reaches no local file")
 }
 

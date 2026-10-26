@@ -31,14 +31,6 @@ type bound struct {
 	others   Others
 }
 
-// besideSource is what the documents read beside the source are listed with
-// (newOthers): the Document.Sources index of the first, and the format each
-// is read as, the source's.
-type besideSource struct {
-	first  int
-	format string
-}
-
 // placer returns where a finding at a position of b's table is placed: at's
 // Provenance for the source's, and for another document's its own
 // Document.Sources entry. One no entry holds, which a document the binder read
@@ -78,7 +70,7 @@ func bindSchemas(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, self sour
 	if reader != nil {
 		cfg.Open = func(name string) (*yaml.Node, error) { return reader.document(ctx, name) }
 	}
-	table := bind.Bind(self.root, cfg)
+	table := bind.Bind(ctx, self.root, cfg)
 	bd := typed.NewBuilder(table)
 	indexWalk(bd, walkSource(ctx, doc, sibs), bind.Position{})
 	indexEnds(ctx, bd, table, ends, self)
@@ -145,6 +137,9 @@ func indexEnds(ctx context.Context, bd *typed.Builder, table *bind.Table, ends m
 	sites := slices.SortedFunc(maps.Keys(ends), compareSites)
 	walked := map[any]bool{}
 	for _, site := range sites {
+		if ctx.Err() != nil {
+			return
+		}
 		e := ends[site]
 		at, placed := self.positionOf(table, site)
 		end, ok := table.Through(at)
@@ -155,6 +150,9 @@ func indexEnds(ctx context.Context, bd *typed.Builder, table *bind.Table, ends m
 		indexWalk(bd, e.walk(ctx), end)
 	}
 	for _, site := range sites {
+		if ctx.Err() != nil {
+			return
+		}
 		if e := ends[site]; !walked[e.object] {
 			walked[e.object] = true
 			unplaced(ctx, bd, e, site)

@@ -1082,7 +1082,7 @@ func TestResolve_AnObjectTheSourceDeclaresIsNotChargedToTheBudget(t *testing.T) 
 		t.Helper()
 		root, _, err := decodeStream(t.Context(), []byte(spec))
 		require.NoError(t, err)
-		nodes := nodeCount(root)
+		nodes := nodeCount(t.Context(), root)
 		opts := Options{MaxSourceNodes: nodes, MaxAliasSurplus: 1}
 		got, diags, err := Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(spec)}, opts)
 		require.NoError(t, err)

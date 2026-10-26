@@ -27,7 +27,7 @@ func TestMeasure_MeasuresEachNodeOnce(t *testing.T) {
 		fmt.Fprintf(&b, "a%d: &a%d [*a%d, *a%d]\n", i, i, i-1, i-1)
 	}
 	root := openapitest.YAMLDocument(t, b.String())
-	idx := Build(root, MaxIndexedNodes)
+	idx := Build(t.Context(), root, MaxIndexedNodes)
 	m := NewMeasure(MaxIndexedNodes)
 
 	assert.Equal(t, int64(anchors+1), m.Of(idx.Root()))
@@ -49,7 +49,7 @@ func TestMeasure_EndsAnAliasCycleNoAncestorHolds(t *testing.T) {
 	b.Content = append(b.Content, ynode.Scalar("k"), ynode.Alias(a))
 	root := ynode.Map(ynode.Scalar("a"), a, ynode.Scalar("b"), b)
 
-	idx := Build(root, MaxIndexedNodes)
+	idx := Build(t.Context(), root, MaxIndexedNodes)
 	assert.Empty(t, idx.AnchorCycles(), "neither alias names its own ancestor")
 	assert.False(t, idx.Truncated())
 	assert.Equal(t, int64(4), idx.Nesting(), "root, a, b through a's alias, and a again, whose alias back is cut")
@@ -67,12 +67,12 @@ func TestMeasure_StopsAtItsLimit(t *testing.T) {
 	}
 	root := ynode.Map(ynode.Scalar("k"), ynode.Alias(outside))
 
-	assert.False(t, Build(root, MaxIndexedNodes).Truncated())
-	assert.True(t, Build(root, 3).Truncated(), "a bound the tree as written fits and its alias does not")
+	assert.False(t, Build(t.Context(), root, MaxIndexedNodes).Truncated())
+	assert.True(t, Build(t.Context(), root, 3).Truncated(), "a bound the tree as written fits and its alias does not")
 
 	whole := openapitest.YAMLDocument(t, "a: &x [1, 1, 1, 1, 1, 1, 1, 1]\nb: *x\n")
-	nodes := Build(whole, MaxIndexedNodes).Nodes()
-	assert.False(t, Build(whole, nodes).Truncated(),
+	nodes := Build(t.Context(), whole, MaxIndexedNodes).Nodes()
+	assert.False(t, Build(t.Context(), whole, nodes).Truncated(),
 		"a parsed tree at its node bound, its alias measuring half of it, stays within the limit")
 
 	m := NewMeasure(1)
@@ -97,7 +97,7 @@ func TestNewMeasure_SaturatesALimitPastOverflow(t *testing.T) {
 	t.Parallel()
 	root := openapitest.YAMLDocument(t, "a: &x [1]\nb: *x\n")
 
-	assert.False(t, Build(root, 1<<61).Truncated())
+	assert.False(t, Build(t.Context(), root, 1<<61).Truncated())
 	assert.Equal(t, int64(math.MaxInt64), NewMeasure(math.MaxInt64).limit)
 	assert.Equal(t, int64(0), NewMeasure(-1).limit, "a negative bound admits nothing")
 }

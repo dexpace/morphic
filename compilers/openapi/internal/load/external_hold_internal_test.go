@@ -354,15 +354,15 @@ func TestHold_EachSpellingADocumentUsesIsHeldAhead(t *testing.T) {
 	path := filepath.Join(dir, "root.yaml")
 	doc, pass := heldResolution(t, backRoot(backPath("/a", "#/components/responses/R")), path)
 	unclean := dir + "/./root.yaml"
-	tree, err := parseTree([]byte(`a: {$ref: '#/components/responses/R'}
+	tree, err := parseTree(t.Context(), []byte(`a: {$ref: '#/components/responses/R'}
 b: {$ref: [root.yaml]}
 c: {$ref: 'other.yaml#/x'}
 d: {$ref: 'https://example.com/root.yaml#/x'}
-e: [{$ref: '` + unclean + `#/components/responses/R'}, {$ref: '` + unclean + `'}, {$ref: '../root.yaml'}]
+e: [{$ref: '`+unclean+`#/components/responses/R'}, {$ref: '`+unclean+`'}, {$ref: '../root.yaml'}]
 `))
 	require.NoError(t, err)
 
-	pass.reader.holdSpellings(tree, filepath.Join(dir, "sub", "doc.yaml"))
+	pass.reader.holdSpellings(t.Context(), tree, filepath.Join(dir, "sub", "doc.yaml"))
 
 	assert.Equal(t, []string{unclean}, pass.reader.read.spelled.keys(),
 		"the spelling no key holds, and none of the source's own keys")
@@ -684,13 +684,13 @@ func TestHold_ASecondResolutionHoldsWhatTheFirstDid(t *testing.T) {
 	path := filepath.Join(dir, "root.yaml")
 	_, pass := heldResolution(t, responsesSource(4), path)
 	scanned := spellingOf(dir, 100)
-	tree, err := parseTree([]byte("x: {$ref: '" + scanned + "#/components/responses/R1'}\n"))
+	tree, err := parseTree(t.Context(), []byte("x: {$ref: '"+scanned+"#/components/responses/R1'}\n"))
 	require.NoError(t, err)
-	pass.reader.holdSpellings(tree, filepath.Join(dir, "sub", "doc.yaml"))
+	pass.reader.holdSpellings(t.Context(), tree, filepath.Join(dir, "sub", "doc.yaml"))
 	schemaOnly := spellingOf(dir, 101)
-	tree, err = parseTree([]byte("y: {$ref: '" + schemaOnly + "#/components/schemas/S'}\n"))
+	tree, err = parseTree(t.Context(), []byte("y: {$ref: '"+schemaOnly+"#/components/schemas/S'}\n"))
 	require.NoError(t, err)
-	pass.reader.holdSpellings(tree, filepath.Join(dir, "sub", "doc.yaml"))
+	pass.reader.holdSpellings(t.Context(), tree, filepath.Join(dir, "sub", "doc.yaml"))
 	for i := range maxOpenedSpellings + 1 {
 		f, err := pass.reader.Open(spellingOf(dir, i))
 		require.NoError(t, err)
@@ -813,10 +813,10 @@ func holdBackRefs(t *testing.T, objects int, refs []backRef) (*soa.OpenAPI, []st
 		spellings[r.spelling] = spellingOf(dir, r.spelling)
 		fmt.Fprintf(&text, "x%d: {$ref: '%s#/components/responses/R%d'}\n", i, spellings[r.spelling], r.response)
 	}
-	tree, err := parseTree([]byte(text.String()))
+	tree, err := parseTree(t.Context(), []byte(text.String()))
 	require.NoError(t, err)
 
-	pass.reader.holdSpellings(tree, filepath.Join(dir, "sub", "doc.yaml"))
+	pass.reader.holdSpellings(t.Context(), tree, filepath.Join(dir, "sub", "doc.yaml"))
 
 	return doc, slices.Collect(maps.Values(spellings))
 }

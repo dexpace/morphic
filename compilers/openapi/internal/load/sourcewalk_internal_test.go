@@ -23,44 +23,57 @@ const soaPath = "github.com/speakeasy-api/openapi/openapi"
 
 // TestSourceWalks_GoThroughWalkSource holds every pass of this package that
 // walks the source document to walkSource, which walks the fields beside each
-// path item $ref with it. A pass calling soa.Walk on the document itself sees
-// none of them, and nothing else says so: the parameter-repeat check landed that
-// way and let a repeat written beside a $ref compile clean. modelSiblings is
-// the one other caller, since it finds the fields walkSource walks.
+// path item $ref with it. A pass walking the document itself sees none of
+// them, and nothing else says so: the parameter-repeat check landed that way
+// and let a repeat written beside a $ref compile clean. modelSiblings is the
+// one other walker, since it finds the fields walkSource walks.
 //
 // It reads the package type-checked, so a call is found however it is spelled.
 func TestSourceWalks_GoThroughWalkSource(t *testing.T) {
 	t.Parallel()
 	pkg, err := typed.Load(".")
 	require.NoError(t, err)
-
-	require.Equal(t, []string{"modelSiblings", "walkSource"}, documentWalkers(t, pkg))
-}
-
-// documentWalkers returns the functions of pkg that call soa.Walk with the
-// OpenAPI document as its start, sorted.
-func documentWalkers(t *testing.T, pkg *typed.Package) []string {
-	t.Helper()
 	lib, ok := pkg.Imported(soaPath)
 	require.True(t, ok, "the package reads the library's model")
-	walk := lib.Scope().Lookup("Walk")
 	document := types.NewPointer(lib.Scope().Lookup("OpenAPI").Type())
-	require.NotNil(t, walk)
+
+	require.Equal(t, []string{"modelSiblings", "walkSource"}, callersOf(t, pkg, pkg.Types.Scope().Lookup("walk"), document))
+}
+
+// TestLibraryWalks_GoThroughWalk holds every walk of a model this package makes
+// to walk, which asks the context before each item: the library's own walk
+// reads none (docs/parser-library.md#context-unread), so a walk around it is
+// one a cancel does not stop.
+func TestLibraryWalks_GoThroughWalk(t *testing.T) {
+	t.Parallel()
+	pkg, err := typed.Load(".")
+	require.NoError(t, err)
+	lib, ok := pkg.Imported(soaPath)
+	require.True(t, ok, "the package reads the library's model")
+
+	require.Equal(t, []string{"walk"}, callersOf(t, pkg, lib.Scope().Lookup("Walk"), nil))
+}
+
+// callersOf returns the functions of pkg that call fn with a start of type
+// start, or with any start for a nil one, sorted.
+func callersOf(t *testing.T, pkg *typed.Package, fn types.Object, start types.Type) []string {
+	t.Helper()
+	require.NotNil(t, fn)
 
 	var walkers []string
 	for _, file := range pkg.Syntax {
-		for _, decl := range file.Decls {
-			fn, isFunc := decl.(*ast.FuncDecl)
-			if !isFunc || fn.Body == nil {
+		for _, d := range file.Decls {
+			decl, isFunc := d.(*ast.FuncDecl)
+			if !isFunc || decl.Body == nil {
 				continue
 			}
-			ast.Inspect(fn.Body, func(n ast.Node) bool {
+			ast.Inspect(decl.Body, func(n ast.Node) bool {
 				call, isCall := n.(*ast.CallExpr)
-				if !isCall || len(call.Args) != 2 || !callsObject(pkg, call.Fun, walk) {
+				if !isCall || len(call.Args) != 2 || !callsObject(pkg, call.Fun, fn) {
 					return true
 				}
-				if types.Identical(pkg.Info.TypeOf(call.Args[1]), document) {
-					walkers = append(walkers, fn.Name.Name)
+				if start == nil || types.Identical(pkg.Info.TypeOf(call.Args[1]), start) {
+					walkers = append(walkers, decl.Name.Name)
 				}
 				return true
 			})
@@ -230,15 +243,22 @@ func TestWalkSource_ReleasesEveryWalkItOpens(t *testing.T) {
 
 // TestWalkSource_WalksADocumentWithoutModelsAsTheLibraryDoes pins walkSource's
 // cost where there is nothing to interleave: every pass of this phase walks
-// the source through it, so it must cost what the library's own walk does.
+// the source through it, so it must cost what the library's own walk does and
+// a constant, the same for a document of any size, for asking the context
+// before each item (walk).
 func TestWalkSource_WalksADocumentWithoutModelsAsTheLibraryDoes(t *testing.T) {
-	doc := modelOf(t, siblingSpec)
 	drain := func(items iter.Seq[soa.WalkItem]) {
 		for range items {
 			continue
 		}
 	}
-	library := testing.AllocsPerRun(10, func() { drain(soa.Walk(t.Context(), doc)) })
-	source := testing.AllocsPerRun(10, func() { drain(walkSource(t.Context(), doc, Siblings{})) })
-	assert.Equal(t, library, source)
+	overheads := make([]float64, 0, 2)
+	for _, spec := range []string{siblingSpec, siblingSpec + "x-pad: [" + strings.Repeat("{a: b}, ", 200) + "]\n"} {
+		doc := modelOf(t, spec)
+		library := testing.AllocsPerRun(10, func() { drain(soa.Walk(t.Context(), doc)) })
+		source := testing.AllocsPerRun(10, func() { drain(walkSource(t.Context(), doc, Siblings{})) })
+		overheads = append(overheads, source-library)
+	}
+	assert.LessOrEqual(t, overheads[0], 4.0, "a few allocations for the walk, none per item")
+	assert.Equal(t, overheads[0], overheads[1], "asking the context costs the same whatever the walk's length")
 }

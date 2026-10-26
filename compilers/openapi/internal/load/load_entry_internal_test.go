@@ -1,6 +1,7 @@
 package load
 
 import (
+	"context"
 	"encoding/json/jsontext"
 	"os"
 	"strings"
@@ -291,8 +292,8 @@ func TestLoad_RejectsAnOverlaySharingTheSourceIndex(t *testing.T) {
 // index, not that the walk stops at a number.
 func TestLoad_ADocumentTooLargeToIndexIsRefused(t *testing.T) {
 	t.Parallel()
-	opts := Options{buildIndex: func(root *yaml.Node) sourceindex.Index {
-		return sourceindex.Build(root, 1)
+	opts := Options{buildIndex: func(ctx context.Context, root *yaml.Node) sourceindex.Index {
+		return sourceindex.Build(ctx, root, 1)
 	}}
 
 	doc, diags, err := Load(t.Context(), 4, openapitest.SourceOf(minimal31), opts)
@@ -322,9 +323,9 @@ func TestLoad_TheSameDocumentLoadsOnceItFitsTheIndex(t *testing.T) {
 // independent of each other and of anything running beside them.
 func countingIndexBuilder(base Options) (Options, *int) {
 	built := 0
-	base.buildIndex = func(root *yaml.Node) sourceindex.Index {
+	base.buildIndex = func(ctx context.Context, root *yaml.Node) sourceindex.Index {
 		built++
-		return defaultIndex(root)
+		return defaultIndex(ctx, root)
 	}
 	return base, &built
 }

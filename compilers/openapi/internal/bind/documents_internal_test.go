@@ -19,7 +19,7 @@ func TestDocs_NodeIsNilWhereTheDocumentHoldsNone(t *testing.T) {
 	t.Parallel()
 	var root yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte("a: {b: 1}\n"), &root))
-	d := newDocs(&root, Config{Self: "spec.yaml"}, &budget{limit: DefaultLimit})
+	d := newDocs(&root, Config{Self: "spec.yaml"}, &budget{ctx: t.Context(), limit: DefaultLimit})
 
 	assert.Nil(t, d.node(Position{Pointer: "/a/c"}))
 	require.NotNil(t, d.node(Position{Pointer: "/a/b"}))
@@ -36,7 +36,7 @@ func TestDocs_ReadCostsItsPointersLength(t *testing.T) {
 		var root yaml.Node
 		src := "a: " + strings.Repeat("{p: ", levels) + "{}" + strings.Repeat("}", levels) + "\n"
 		require.NoError(t, yaml.Unmarshal([]byte(src), &root))
-		return newDocs(&root, Config{Self: "spec.yaml"}, &budget{limit: DefaultLimit}),
+		return newDocs(&root, Config{Self: "spec.yaml"}, &budget{ctx: t.Context(), limit: DefaultLimit}),
 			jsontext.Pointer("/a" + strings.Repeat("/p", levels))
 	}
 	cost := func(levels int) uint64 {
@@ -69,7 +69,7 @@ func TestDocs_ReadsAPointerToItsTokenCap(t *testing.T) {
 	var root yaml.Node
 	src := strings.Repeat("{p: ", levels) + "{}" + strings.Repeat("}", levels) + "\n"
 	require.NoError(t, yaml.Unmarshal([]byte(src), &root))
-	d := newDocs(&root, Config{Self: "spec.yaml"}, &budget{limit: DefaultLimit})
+	d := newDocs(&root, Config{Self: "spec.yaml"}, &budget{ctx: t.Context(), limit: DefaultLimit})
 
 	_, reason := d.read(Source, jsontext.Pointer(strings.Repeat("/p", maxPointerTokens)))
 	assert.Equal(t, NoReason, reason)

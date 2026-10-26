@@ -10,6 +10,7 @@
 package sourceindex
 
 import (
+	"context"
 	"math"
 	"slices"
 
@@ -60,7 +61,7 @@ type Index struct {
 // smaller in a test that drives the truncated path. A non-positive bound indexes
 // nothing and reports Truncated, which is the safe direction: it never claims a
 // count it did not reach.
-func Build(root *yaml.Node, maxNodes int64) Index {
+func Build(ctx context.Context, root *yaml.Node, maxNodes int64) Index {
 	content := nodeview.DocumentRoot(root)
 	if content == nil {
 		return Index{}
@@ -70,7 +71,7 @@ func Build(root *yaml.Node, maxNodes int64) Index {
 	}
 
 	idx := Index{root: content}
-	idx.walk(maxNodes)
+	idx.walk(ctx, maxNodes)
 	return idx
 }
 
@@ -140,9 +141,9 @@ type walker struct {
 // from the root. An alias nests as its target, which the measure takes once.
 // The walk is bounded by maxNodes (nodeview.Walk), and it never stops at a
 // finding, or one answer would hide another.
-func (x *Index) walk(maxNodes int64) {
+func (x *Index) walk(ctx context.Context, maxNodes int64) {
 	w := walker{x: x, ancestors: map[*yaml.Node]bool{}, measure: NewMeasure(maxNodes)}
-	out := nodeview.Walk{Nodes: int(min(maxNodes, math.MaxInt)), Visit: w.visit, Leave: w.leave}.Run(x.root)
+	out := nodeview.Walk{Nodes: int(min(maxNodes, math.MaxInt)), Visit: w.visit, Leave: w.leave}.Run(ctx, x.root)
 	x.nodes = int64(out.Visited)
 	x.truncated = out.Cut || w.measure.Truncated()
 }

@@ -22,7 +22,7 @@ func TestBuild_EmptyDocumentIndexesNothing(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			idx := sourceindex.Build(root, sourceindex.MaxIndexedNodes)
+			idx := sourceindex.Build(t.Context(), root, sourceindex.MaxIndexedNodes)
 			assert.Nil(t, idx.Root(), "an empty document has no content node")
 			assert.Equal(t, int64(0), idx.Nodes())
 			assert.False(t, idx.Truncated(), "nothing to index is fully indexed")
@@ -40,7 +40,7 @@ func TestBuild_EmptyDocumentIndexesNothing(t *testing.T) {
 // having failed.
 func TestBuild_WhitespaceOnlySourceIsOneEmptyNode(t *testing.T) {
 	t.Parallel()
-	idx := sourceindex.Build(openapitest.YAMLDocument(t, "\n\n\n"), sourceindex.MaxIndexedNodes)
+	idx := sourceindex.Build(t.Context(), openapitest.YAMLDocument(t, "\n\n\n"), sourceindex.MaxIndexedNodes)
 
 	require.NotNil(t, idx.Root())
 	assert.Equal(t, yaml.Kind(0), idx.Root().Kind, "yaml.v3 leaves the node untouched")
@@ -54,9 +54,9 @@ func TestBuild_RootIsTheDocumentsContent(t *testing.T) {
 	content := ynode.Map(ynode.Scalar("a"), ynode.Scalar("1"))
 	doc := &yaml.Node{Kind: yaml.DocumentNode, Content: []*yaml.Node{content}}
 
-	assert.Same(t, content, sourceindex.Build(doc, sourceindex.MaxIndexedNodes).Root(),
+	assert.Same(t, content, sourceindex.Build(t.Context(), doc, sourceindex.MaxIndexedNodes).Root(),
 		"a document node is unwrapped to the node every consumer scans from")
-	assert.Same(t, content, sourceindex.Build(content, sourceindex.MaxIndexedNodes).Root(),
+	assert.Same(t, content, sourceindex.Build(t.Context(), content, sourceindex.MaxIndexedNodes).Root(),
 		"a content node passed directly is already the root")
 }
 
@@ -67,7 +67,7 @@ func TestBuild_CountsEveryNodeOnce(t *testing.T) {
 		ynode.Scalar("a"), ynode.Scalar("1"),
 		ynode.Scalar("b"), ynode.Seq(ynode.Scalar("x"), ynode.Scalar("y")),
 	)
-	assert.Equal(t, int64(7), sourceindex.Build(root, sourceindex.MaxIndexedNodes).Nodes())
+	assert.Equal(t, int64(7), sourceindex.Build(t.Context(), root, sourceindex.MaxIndexedNodes).Nodes())
 }
 
 // TestBuild_AnAliasCountsOnceAndIsNotFollowed pins the count to the document's
@@ -82,7 +82,7 @@ func TestBuild_AnAliasCountsOnceAndIsNotFollowed(t *testing.T) {
 		ynode.Scalar("reuse"), ynode.Alias(base),
 	)
 	// root, "base", base's 3, "reuse", the alias = 7.
-	assert.Equal(t, int64(7), sourceindex.Build(root, sourceindex.MaxIndexedNodes).Nodes(),
+	assert.Equal(t, int64(7), sourceindex.Build(t.Context(), root, sourceindex.MaxIndexedNodes).Nodes(),
 		"the alias contributes one node, not a copy of its target")
 }
 
@@ -91,7 +91,7 @@ func TestBuild_NilChildIsSkipped(t *testing.T) {
 	root := ynode.Map(ynode.Scalar("k"), ynode.Scalar("v"))
 	root.Content = append(root.Content, nil)
 
-	idx := sourceindex.Build(root, sourceindex.MaxIndexedNodes)
+	idx := sourceindex.Build(t.Context(), root, sourceindex.MaxIndexedNodes)
 	assert.Equal(t, int64(3), idx.Nodes(),
 		"the nil child contributes nothing and costs no dereference")
 	assert.False(t, idx.Truncated())
@@ -99,7 +99,7 @@ func TestBuild_NilChildIsSkipped(t *testing.T) {
 
 func TestBuild_NonPositiveBoundIndexesNothing(t *testing.T) {
 	t.Parallel()
-	idx := sourceindex.Build(ynode.Map(ynode.Scalar("a"), ynode.Scalar("1")), 0)
+	idx := sourceindex.Build(t.Context(), ynode.Map(ynode.Scalar("a"), ynode.Scalar("1")), 0)
 	assert.True(t, idx.Truncated(), "a bound that admits no node admits no answer either")
 	assert.Equal(t, int64(0), idx.Nodes())
 	assert.NotNil(t, idx.Root(), "the tree is still named, so a caller can say what it refused")
@@ -112,9 +112,9 @@ func TestBuild_StopsAtItsNodeBound(t *testing.T) {
 	t.Parallel()
 	root := ynode.Map(ynode.Scalar("a"), ynode.Scalar("1"), ynode.Scalar("b"), ynode.Scalar("2")) // 5 nodes
 
-	assert.False(t, sourceindex.Build(root, 5).Truncated(), "a tree exactly at the bound is fully indexed")
+	assert.False(t, sourceindex.Build(t.Context(), root, 5).Truncated(), "a tree exactly at the bound is fully indexed")
 
-	stopped := sourceindex.Build(root, 4)
+	stopped := sourceindex.Build(t.Context(), root, 4)
 	assert.True(t, stopped.Truncated(), "one node past the bound stops the walk")
 	assert.Empty(t, stopped.AnchorCycles(), "a truncated walk reports no finding it did not reach")
 }
@@ -127,10 +127,10 @@ func TestBuild_TruncationDoesNotMisreportAnAnchorCycle(t *testing.T) {
 	root := ynode.Map(ynode.Scalar("a"), ynode.Scalar("1"))
 	root.Content = append(root.Content, ynode.Scalar("b"), ynode.Alias(root))
 
-	full := sourceindex.Build(root, sourceindex.MaxIndexedNodes)
+	full := sourceindex.Build(t.Context(), root, sourceindex.MaxIndexedNodes)
 	require.NotEmpty(t, full.AnchorCycles(), "the fixture really does carry a recursive anchor")
 
-	assert.True(t, sourceindex.Build(root, 2).Truncated(),
+	assert.True(t, sourceindex.Build(t.Context(), root, 2).Truncated(),
 		"the same tree under a bound it crosses reports truncation rather than cleanliness")
 }
 
@@ -141,7 +141,7 @@ func TestAnchorCycle_AliasToAnAncestorIsFound(t *testing.T) {
 	alias := ynode.Alias(root)
 	inner.Content = append(inner.Content, ynode.Scalar("loop"), alias)
 
-	got := sourceindex.Build(root, sourceindex.MaxIndexedNodes).AnchorCycles()
+	got := sourceindex.Build(t.Context(), root, sourceindex.MaxIndexedNodes).AnchorCycles()
 	require.Len(t, got, 1, "an alias naming a node it is nested inside expands without bound")
 	assert.Same(t, alias, got[0], "the reported node is the alias, where the author wrote it")
 }
@@ -153,14 +153,14 @@ func TestAnchorCycle_LegalReuseIsNotACycle(t *testing.T) {
 	t.Parallel()
 	root := openapitest.YAMLDocument(t, "a: &x {p: 1}\nb: *x\n")
 
-	assert.Empty(t, sourceindex.Build(root, sourceindex.MaxIndexedNodes).AnchorCycles(), "an alias to a node that is not an ancestor is legal reuse")
+	assert.Empty(t, sourceindex.Build(t.Context(), root, sourceindex.MaxIndexedNodes).AnchorCycles(), "an alias to a node that is not an ancestor is legal reuse")
 }
 
 func TestAnchorCycle_AliasWithoutATargetIsNotACycle(t *testing.T) {
 	t.Parallel()
 	root := ynode.Map(ynode.Scalar("k"), &yaml.Node{Kind: yaml.AliasNode})
 
-	idx := sourceindex.Build(root, sourceindex.MaxIndexedNodes)
+	idx := sourceindex.Build(t.Context(), root, sourceindex.MaxIndexedNodes)
 	assert.Empty(t, idx.AnchorCycles(), "an alias that names nothing cannot name an ancestor")
 	assert.Equal(t, int64(3), idx.Nodes(), "it is still one of the document's nodes")
 }
@@ -178,7 +178,7 @@ func TestAnchorCycles_EveryOneIsListedInDocumentOrder(t *testing.T) {
 	first.Content = append(first.Content, ynode.Scalar("loop"), firstAlias)
 	second.Content = append(second.Content, ynode.Scalar("loop"), secondAlias)
 
-	got := sourceindex.Build(root, sourceindex.MaxIndexedNodes).AnchorCycles()
+	got := sourceindex.Build(t.Context(), root, sourceindex.MaxIndexedNodes).AnchorCycles()
 	require.Len(t, got, 2)
 	assert.Same(t, firstAlias, got[0])
 	assert.Same(t, secondAlias, got[1])
@@ -203,7 +203,7 @@ func TestBuild_TracksAncestorsOnlyToItsDepthBound(t *testing.T) {
 	}
 	deepest.Content = append(deepest.Content, ynode.Scalar("loop"), ynode.Alias(root))
 
-	idx := sourceindex.Build(root, sourceindex.MaxIndexedNodes)
+	idx := sourceindex.Build(t.Context(), root, sourceindex.MaxIndexedNodes)
 	assert.False(t, idx.Truncated())
 	// root, then two nodes per link (its key and the mapping it names), then the
 	// deepest mapping's own key and alias.
@@ -232,7 +232,7 @@ func TestBuild_TracksAncestorsAtItsDepthBound(t *testing.T) {
 	// One level shallower than the test above, so these land at the bound itself.
 	deepest.Content = append(deepest.Content, ynode.Scalar("loop"), ynode.Alias(root))
 
-	idx := sourceindex.Build(root, sourceindex.MaxIndexedNodes)
+	idx := sourceindex.Build(t.Context(), root, sourceindex.MaxIndexedNodes)
 	assert.False(t, idx.Truncated())
 	cycles := idx.AnchorCycles()
 	require.Len(t, cycles, 1, "an alias at exactly the tracked depth is still a candidate")
@@ -246,7 +246,7 @@ func TestBuild_IsAFunctionOfTheTreeAlone(t *testing.T) {
 	t.Parallel()
 	root := openapitest.YAMLDocument(t, "a: &x {p: 1}\nb: [*x, {c: 2}]\n")
 
-	first, second := sourceindex.Build(root, sourceindex.MaxIndexedNodes), sourceindex.Build(root, sourceindex.MaxIndexedNodes)
+	first, second := sourceindex.Build(t.Context(), root, sourceindex.MaxIndexedNodes), sourceindex.Build(t.Context(), root, sourceindex.MaxIndexedNodes)
 	assert.Same(t, first.Root(), second.Root())
 	assert.Equal(t, first.Nodes(), second.Nodes())
 	assert.Equal(t, first.Truncated(), second.Truncated())
@@ -265,7 +265,7 @@ func TestTaggedMapping_LocalTagIsFound(t *testing.T) {
 	want := root.Content[0].Content[1].Content[1]
 	require.Equal(t, "!content:", want.Tag, "the fixture's tag lands where this test reads it")
 
-	got := sourceindex.Build(root, sourceindex.MaxIndexedNodes).TaggedMappings()
+	got := sourceindex.Build(t.Context(), root, sourceindex.MaxIndexedNodes).TaggedMappings()
 	require.Len(t, got, 1)
 	assert.Same(t, want, got[0])
 }
@@ -287,7 +287,7 @@ func TestTaggedMapping_AnyTagButMapIsOne(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			assert.NotEmpty(t, sourceindex.Build(root, sourceindex.MaxIndexedNodes).TaggedMappings())
+			assert.NotEmpty(t, sourceindex.Build(t.Context(), root, sourceindex.MaxIndexedNodes).TaggedMappings())
 		})
 	}
 }
@@ -310,7 +310,7 @@ func TestTaggedMapping_OnlyAMappingCounts(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			assert.Empty(t, sourceindex.Build(openapitest.YAMLDocument(t, src), sourceindex.MaxIndexedNodes).TaggedMappings())
+			assert.Empty(t, sourceindex.Build(t.Context(), openapitest.YAMLDocument(t, src), sourceindex.MaxIndexedNodes).TaggedMappings())
 		})
 	}
 }
@@ -323,7 +323,7 @@ func TestTaggedMappings_EveryOneIsListedInDocumentOrder(t *testing.T) {
 	root := openapitest.YAMLDocument(t, "a: !x {b: 1}\nc: !y {d: 2}\n")
 	first, second := root.Content[0].Content[1], root.Content[0].Content[3]
 
-	got := sourceindex.Build(root, sourceindex.MaxIndexedNodes).TaggedMappings()
+	got := sourceindex.Build(t.Context(), root, sourceindex.MaxIndexedNodes).TaggedMappings()
 	require.Len(t, got, 2)
 	assert.Same(t, first, got[0])
 	assert.Same(t, second, got[1])
@@ -337,7 +337,7 @@ func TestTaggedMapping_IsFoundThroughAnAnchor(t *testing.T) {
 	root := openapitest.YAMLDocument(t, "a: &x !t {b: 1}\nc: *x\n")
 	anchored := root.Content[0].Content[1]
 
-	got := sourceindex.Build(root, sourceindex.MaxIndexedNodes).TaggedMappings()
+	got := sourceindex.Build(t.Context(), root, sourceindex.MaxIndexedNodes).TaggedMappings()
 	require.Len(t, got, 1, "the alias is not a second mapping")
 	assert.Same(t, anchored, got[0])
 }
@@ -362,7 +362,7 @@ func TestNesting_CountsTheMappingsAndSequencesOnTheDeepestPath(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tc.want, sourceindex.Build(openapitest.YAMLDocument(t, tc.src), sourceindex.MaxIndexedNodes).Nesting())
+			assert.Equal(t, tc.want, sourceindex.Build(t.Context(), openapitest.YAMLDocument(t, tc.src), sourceindex.MaxIndexedNodes).Nesting())
 		})
 	}
 }
@@ -387,7 +387,7 @@ func TestNesting_AnAliasNestsAsItsTarget(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			idx := sourceindex.Build(openapitest.YAMLDocument(t, tc.src), sourceindex.MaxIndexedNodes)
+			idx := sourceindex.Build(t.Context(), openapitest.YAMLDocument(t, tc.src), sourceindex.MaxIndexedNodes)
 			require.Empty(t, idx.AnchorCycles())
 			assert.Equal(t, tc.want, idx.Nesting())
 		})
@@ -422,7 +422,7 @@ func TestNesting_CountsAMergeValueWhereItIsWritten(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tc.want, sourceindex.Build(openapitest.YAMLDocument(t, tc.src), sourceindex.MaxIndexedNodes).Nesting())
+			assert.Equal(t, tc.want, sourceindex.Build(t.Context(), openapitest.YAMLDocument(t, tc.src), sourceindex.MaxIndexedNodes).Nesting())
 		})
 	}
 }
@@ -434,14 +434,14 @@ func TestNesting_CountsAMergeValueWhereItIsWritten(t *testing.T) {
 func TestNesting_DoesNotReadAnchorNames(t *testing.T) {
 	t.Parallel()
 	root := openapitest.YAMLDocument(t, "a: &x {b: {c: 1}}\nd: {e: *x}\n")
-	named := sourceindex.Build(root, sourceindex.MaxIndexedNodes).Nesting()
+	named := sourceindex.Build(t.Context(), root, sourceindex.MaxIndexedNodes).Nesting()
 	openapitest.ClearAnchors(root)
 
-	assert.Equal(t, named, sourceindex.Build(root, sourceindex.MaxIndexedNodes).Nesting(), "the same tree without its anchor names")
+	assert.Equal(t, named, sourceindex.Build(t.Context(), root, sourceindex.MaxIndexedNodes).Nesting(), "the same tree without its anchor names")
 
 	target := ynode.Map(ynode.Scalar("k"), ynode.Map(ynode.Scalar("v"), ynode.Scalar("1")))
 	built := ynode.Map(ynode.Scalar("a"), target, ynode.Scalar("b"), ynode.Map(ynode.Scalar("c"), ynode.Alias(target)))
-	assert.Equal(t, int64(4), sourceindex.Build(built, sourceindex.MaxIndexedNodes).Nesting(), "a hand-built alias to an unnamed node")
+	assert.Equal(t, int64(4), sourceindex.Build(t.Context(), built, sourceindex.MaxIndexedNodes).Nesting(), "a hand-built alias to an unnamed node")
 }
 
 // TestNesting_AnAnchorCycleCountsOneTurn pins that a recursive anchor, which
@@ -453,7 +453,7 @@ func TestNesting_AnAnchorCycleCountsOneTurn(t *testing.T) {
 	root := ynode.Map(ynode.Scalar("outer"), inner)
 	inner.Content = append(inner.Content, ynode.Scalar("loop"), ynode.Alias(root))
 
-	idx := sourceindex.Build(root, sourceindex.MaxIndexedNodes)
+	idx := sourceindex.Build(t.Context(), root, sourceindex.MaxIndexedNodes)
 	require.Len(t, idx.AnchorCycles(), 1)
 	assert.Equal(t, int64(4), idx.Nesting(), "root, inner, and one turn back through root and inner")
 }
@@ -473,7 +473,7 @@ func TestNesting_DeepTreeCostsNoStack(t *testing.T) {
 	}
 	root := ynode.Map(ynode.Scalar("deep"), deep, ynode.Scalar("again"), ynode.Alias(deep))
 
-	idx := sourceindex.Build(root, sourceindex.MaxIndexedNodes)
+	idx := sourceindex.Build(t.Context(), root, sourceindex.MaxIndexedNodes)
 	require.False(t, idx.Truncated())
 	assert.Equal(t, int64(depth+1), idx.Nesting())
 	assert.Equal(t, int64(depth), sourceindex.NewMeasure(sourceindex.MaxIndexedNodes).Of(deep))

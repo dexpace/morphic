@@ -2,6 +2,7 @@ package bind
 
 import (
 	"cmp"
+	"context"
 	"encoding/json/jsontext"
 	"errors"
 	"fmt"
@@ -90,19 +91,33 @@ type ReferenceEnd struct {
 	Node    *yaml.Node
 }
 
-// budget is the work a table may spend, and what it has.
+// budget is the work a table may spend, what it has, and the context the
+// binding runs under. Every loop of a binding asks the budget before it does
+// more, so the context is asked there with it, and a cancel stops the binding
+// at its next step, as running out does.
 type budget struct {
+	ctx          context.Context
 	spent, limit int
 }
 
-// spend charges n steps and reports whether the budget still holds.
+// spend charges n steps and reports whether the binding may go on.
 func (w *budget) spend(n int) bool {
 	w.spent += n
-	return w.spent <= w.limit
+	return !w.over()
 }
 
-// over reports whether the budget has run out.
-func (w *budget) over() bool { return w.spent > w.limit }
+// over reports whether the binding must stop: its budget has run out, or its
+// context is done.
+func (w *budget) over() bool { return w.exhausted() || w.cancelled() }
+
+// cancelled reports whether the binding's context is done. A loop over what is
+// left to read asks it, and leaves: past an exhausted budget each item is
+// still recorded, cut, but a cancelled binding is read by no one.
+func (w *budget) cancelled() bool { return w.ctx.Err() != nil }
+
+// exhausted reports whether the budget has run out, which a table reports. A
+// binding its context stopped is not read, so it reports nothing.
+func (w *budget) exhausted() bool { return w.spent > w.limit }
 
 // binder is the state of one table's building.
 type binder struct {
@@ -119,12 +134,13 @@ type binder struct {
 }
 
 // Bind reads every schema reference the source tree src holds, and every
-// position a reference reaches through it, into a table, within the budget.
-func Bind(src *yaml.Node, cfg Config) *Table {
+// position a reference reaches through it, into a table, within the budget. It
+// stops once ctx is done, leaving a table its caller must not read.
+func Bind(ctx context.Context, src *yaml.Node, cfg Config) *Table {
 	if cfg.Limit <= 0 {
 		cfg.Limit = DefaultLimit
 	}
-	work := &budget{limit: cfg.Limit}
+	work := &budget{ctx: ctx, limit: cfg.Limit}
 	d := newDocs(src, cfg, work)
 	b := &binder{cfg: cfg, docs: d, work: work, defs: definitions{docs: d, work: work}, resources: resources{d},
 		find: newFinder(d, work), hops: map[Position]Hop{}, chains: map[Position]Chain{}}
@@ -153,6 +169,9 @@ func (b *binder) settle(t *Table) {
 	b.work.spend(len(sites) + len(keys))
 	slices.SortFunc(sites, b.docs.compare)
 	for _, site := range sites {
+		if b.work.cancelled() {
+			return
+		}
 		c := b.chain(site)
 		t.entries[site] = Entry{Site: site, Hop: b.hops[site], Chain: c}
 	}
@@ -163,6 +182,9 @@ func (b *binder) settle(t *Table) {
 		return cmp.Compare(x.value, y.value)
 	})
 	for _, k := range keys {
+		if b.work.cancelled() {
+			return
+		}
 		t.mappings[k] = b.mapping(k)
 	}
 }
@@ -176,7 +198,7 @@ func (b *binder) table(t *Table) *Table {
 			t.entries[p] = Entry{Site: p, Hop: b.hops[p], Chain: c}
 		}
 	}
-	t.loops, t.steps, t.limit, t.exhausted = b.loops, b.work.spent, b.work.limit, b.work.over()
+	t.loops, t.steps, t.limit, t.exhausted = b.loops, b.work.spent, b.work.limit, b.work.exhausted()
 	t.ends, t.roots = b.find.ends, b.find.roots
 	for _, d := range b.docs.list {
 		t.docs = append(t.docs, Document{Name: d.name, Root: d.root})

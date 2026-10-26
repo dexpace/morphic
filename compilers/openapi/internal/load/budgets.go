@@ -1,6 +1,8 @@
 package load
 
 import (
+	"context"
+
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
@@ -62,6 +64,6 @@ const maxTreeNodes = sourceindex.MaxIndexedNodes + 1
 // the same measure of the document's content, leaving the document node out.
 // The node budget does not read it, since refusals builds that index and keeps
 // none of it.
-func nodeCount(root *yaml.Node) int {
-	return nodeview.Walk{Nodes: maxTreeNodes}.Run(root).Visited
+func nodeCount(ctx context.Context, root *yaml.Node) int {
+	return nodeview.Walk{Nodes: maxTreeNodes}.Run(ctx, root).Visited
 }

@@ -210,7 +210,7 @@ func TestAliases_LegalAliasAndMergeUseIsClean(t *testing.T) {
 // document is the only sourceless index the scan can be handed.
 func TestAliases_EmptyDocumentIsNoCycle(t *testing.T) {
 	t.Parallel()
-	assert.Empty(t, Aliases(InSource(0), sourceindex.Build(nil, sourceindex.MaxIndexedNodes), defaultSurplus))
+	assert.Empty(t, Aliases(t.Context(), InSource(0), sourceindex.Build(t.Context(), nil, sourceindex.MaxIndexedNodes), defaultSurplus))
 	assert.Empty(t, scanBytes(t, nil))
 }
 
@@ -225,7 +225,7 @@ const defaultSurplus = 1 << 18
 // the default alias budget.
 func scanBytes(t *testing.T, data []byte) []ir.Diagnostic {
 	t.Helper()
-	return Aliases(InSource(0), indexOf(t, data), defaultSurplus)
+	return Aliases(t.Context(), InSource(0), indexOf(t, data), defaultSurplus)
 }
 
 // scanPlaced is scanBytes with each diagnostic placed by its pointer too, as
@@ -233,7 +233,7 @@ func scanBytes(t *testing.T, data []byte) []ir.Diagnostic {
 func scanPlaced(t *testing.T, data []byte) []ir.Diagnostic {
 	t.Helper()
 	idx := indexOf(t, data)
-	return Aliases(InTree(0, Pointers(idx.Root())), idx, defaultSurplus)
+	return Aliases(t.Context(), InTree(0, Pointers(idx.Root())), idx, defaultSurplus)
 }
 
 // indexOf decodes source bytes and indexes the tree. A fixture that does not
@@ -243,7 +243,7 @@ func indexOf(t *testing.T, data []byte) sourceindex.Index {
 	t.Helper()
 	var root yaml.Node
 	require.NoError(t, yaml.Unmarshal(data, &root), "the fixture must decode")
-	return sourceindex.Build(&root, sourceindex.MaxIndexedNodes)
+	return sourceindex.Build(t.Context(), &root, sourceindex.MaxIndexedNodes)
 }
 
 // reproducerDir is where the cycle fixtures live. The reader below and the table
@@ -433,7 +433,7 @@ func TestAliases_AnchorsThroughTheLocator(t *testing.T) {
 				return ir.Provenance{Source: 9, Pointer: "/somewhere/the/locator/decided"}
 			}
 
-			got := Aliases(locate, indexOf(t, readReproducer(t, fixture)), defaultSurplus)
+			got := Aliases(t.Context(), locate, indexOf(t, readReproducer(t, fixture)), defaultSurplus)
 			require.Len(t, got, 1)
 			assert.Equal(t, ir.Provenance{Source: 9, Pointer: "/somewhere/the/locator/decided"}, got[0].Provenance)
 			assert.NotNil(t, seen, "the locator was handed the node the refusal is about")
@@ -449,7 +449,9 @@ func TestAliases_AnchorsThroughTheLocator(t *testing.T) {
 // parser's resolver reports a loop of reference objects.
 func TestAliases_RefusesTheYAMLShapesAndNotTheOpenAPIOnes(t *testing.T) {
 	t.Parallel()
-	aliases := func(src string) []ir.Diagnostic { return Aliases(InSource(0), indexOf(t, []byte(src)), defaultSurplus) }
+	aliases := func(src string) []ir.Diagnostic {
+		return Aliases(t.Context(), InSource(0), indexOf(t, []byte(src)), defaultSurplus)
+	}
 
 	anchor := aliases("a: &x [*x]\n")
 	require.Len(t, anchor, 1)
@@ -482,7 +484,7 @@ func TestAliases_DegradesAScanFaultToAWarning(t *testing.T) {
 		return ir.Provenance{Source: 0}
 	}
 
-	got := Aliases(panicking, indexOf(t, []byte("a: &x [*x]\n")), defaultSurplus)
+	got := Aliases(t.Context(), panicking, indexOf(t, []byte("a: &x [*x]\n")), defaultSurplus)
 
 	require.Len(t, got, 1)
 	assert.Equal(t, diag.CycleScanFailed, got[0].Code)

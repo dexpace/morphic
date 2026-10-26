@@ -514,6 +514,31 @@ components:
   - `annotation.IsNullLiteral` tells a `null` from `false` by its node.
   - `annotation.IsFalseSchema` excludes a `null`, so no reader takes one for `false`.
 
+### `context-unread`
+
+Neither the model build nor a walk over a model reads its context. Handed a cancelled one,
+`marshaller.UnmarshalNode` builds the whole model, and `openapi.Walk` and `oas3.Walk` yield every
+item, as they do handed a live one. The model build is one call the compiler cannot stop partway, so
+a cancel landing in it waits for it to return. A walk the compiler stops itself, by asking for no
+further item, as each walk of a model the load phase makes does, and the binding's walk of a schema
+it builds.
+
+```yaml
+openapi: 3.1.0
+info: {title: t, version: '1'}
+paths: {}
+components:
+  schemas:
+    A: {type: object, properties: {p: {type: string}}}
+```
+
+- Verified at: v1.26.0
+- Pinned by: `TestLibraryBehaviour/context-unread`
+- Code:
+  - `load.walk` asks the context before each item of a walk of a model, and every walk the load
+    phase makes goes through it.
+  - `load.unmarshal` builds the model in the one call a cancel waits out.
+
 ## Overlays
 
 ### `overlay-alias-clone`

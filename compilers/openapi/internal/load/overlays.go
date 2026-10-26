@@ -68,7 +68,7 @@ func patch(ctx context.Context, srcIndex int, root *yaml.Node, opts Options) (ov
 	if opts.Overlay == nil {
 		return overlay.Origin{}, nil, nil
 	}
-	origin, diags := applyOverlay(srcIndex, root, opts, overlayRefusals(opts))
+	origin, diags := applyOverlay(ctx, srcIndex, root, opts, overlayRefusals(ctx, opts))
 	return origin, diags, nil
 }
 
@@ -82,7 +82,8 @@ func patch(ctx context.Context, srcIndex int, root *yaml.Node, opts Options) (ov
 // graft what they refuse, such as nesting past the bound. They locate through
 // the attribution the application produced, so a refusal on a grafted node
 // names the overlay, not a position the node lacks.
-func applyOverlay(srcIndex int, root *yaml.Node, opts Options, pre []ir.Diagnostic) (overlay.Origin, []ir.Diagnostic) {
+func applyOverlay(ctx context.Context, srcIndex int, root *yaml.Node, opts Options, pre []ir.Diagnostic,
+) (overlay.Origin, []ir.Diagnostic) {
 	if diag.HasError(pre) {
 		return overlay.Origin{}, pre
 	}
@@ -90,12 +91,12 @@ func applyOverlay(srcIndex int, root *yaml.Node, opts Options, pre []ir.Diagnost
 	// against afterwards, so it can refuse an action before paying for it.
 	ov := *opts.Overlay
 	ov.MaxNodes = opts.MaxSourceNodes
-	origin, diags := overlay.Apply(opts.OverlaySrcIndex, root, ov)
+	origin, diags := overlay.Apply(ctx, opts.OverlaySrcIndex, root, ov)
 	diags = append(pre, diags...)
 	if diag.HasError(diags) {
 		return overlay.Origin{}, diags
 	}
-	return origin, append(diags, refusals(locator(srcIndex, origin, scan.Pointers(root)), root, opts)...)
+	return origin, append(diags, refusals(ctx, locator(srcIndex, origin, scan.Pointers(root)), root, opts)...)
 }
 
 // overlayRefusals holds an overlay to the source's refusals, under the same
@@ -108,7 +109,7 @@ func applyOverlay(srcIndex int, root *yaml.Node, opts Options, pre []ir.Diagnost
 // The whole overlay is decoded, since a scan of each update alone would miss a
 // cycle whose anchor sits outside it. Undecodable bytes are left to the
 // library.
-func overlayRefusals(opts Options) []ir.Diagnostic {
+func overlayRefusals(ctx context.Context, opts Options) []ir.Diagnostic {
 	// The byte budget is checked before anything reads the bytes, as the
 	// source's is (GitHub #75): an overlay is an input document like the source,
 	// read in full by the decode below and again by the library, and it had no
@@ -116,16 +117,16 @@ func overlayRefusals(opts Options) []ir.Diagnostic {
 	if exceeds(len(opts.Overlay.Data), opts.MaxSourceBytes) {
 		return []ir.Diagnostic{overlayPastBudget(opts)}
 	}
-	var tree yaml.Node
-	if err := yaml.Unmarshal(opts.Overlay.Data, &tree); err != nil {
+	tree, err := parseTree(ctx, opts.Overlay.Data)
+	if err != nil {
 		return nil
 	}
 	build := opts.buildIndex
 	if build == nil {
 		build = defaultIndex
 	}
-	locate := scan.InTree(opts.OverlaySrcIndex, scan.Pointers(&tree))
-	idx := build(&tree)
+	locate := scan.InTree(opts.OverlaySrcIndex, scan.Pointers(tree))
+	idx := build(ctx, tree)
 	if idx.Truncated() {
 		return []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.SourceTooLarge, locate(nil),
 			"overlay document exceeds the %d-node bound the pre-parse scan indexes",
@@ -135,5 +136,5 @@ func overlayRefusals(opts Options) []ir.Diagnostic {
 	if d, deep := scan.Nesting(locate, idx); deep {
 		diags = append(diags, d)
 	}
-	return append(diags, scan.Aliases(locate, idx, int64(opts.MaxAliasSurplus))...)
+	return append(diags, scan.Aliases(ctx, locate, idx, int64(opts.MaxAliasSurplus))...)
 }

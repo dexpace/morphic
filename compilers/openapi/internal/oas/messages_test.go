@@ -28,7 +28,7 @@ func TestCheck_AFindingIsMadeOnceWhereItIsPlaced(t *testing.T) {
 			return ir.Provenance{Pointer: root + jsontext.Pointer(anchor.Replace(string(p)))}
 		}
 		for _, readAt := range []bool{false, true} {
-			diags := oas.NewChecker().Check(&n, "3.1.0", oas.Options{Locate: locate, ReadAt: readAt, Root: root})
+			diags := oas.NewChecker().Check(t.Context(), &n, "3.1.0", oas.Options{Locate: locate, ReadAt: readAt, Root: root})
 			require.Len(t, diags, 1, "one node, one finding: %+v", diags)
 			assert.Equal(t, root+"/x-tag/name", diags[0].Provenance.Pointer)
 			want := `Tag Object field "name" must be a string in OpenAPI 3.1 (Tag Object)`
@@ -52,7 +52,7 @@ func TestCheck_ReadAtNamesNoPositionAFindingIsPlacedAt(t *testing.T) {
 		func(p jsontext.Pointer) ir.Provenance { return ir.Provenance{Pointer: "/x-doc" + p} },
 		func(jsontext.Pointer) ir.Provenance { return ir.Provenance{} },
 	} {
-		diags := oas.NewChecker().Check(&n, "3.1.0", oas.Options{Locate: locate, ReadAt: true, Root: "/x-doc"})
+		diags := oas.NewChecker().Check(t.Context(), &n, "3.1.0", oas.Options{Locate: locate, ReadAt: true, Root: "/x-doc"})
 		require.Len(t, diags, 1)
 		assert.NotContains(t, diags[0].Message, "read at")
 		assert.Equal(t, diags[0], oas.AsPlaced(diags[0]))

@@ -35,7 +35,7 @@ var resolving = bind.Config{Self: "/spec.yaml", Locate: func(uri, base string) (
 // bound binds src under cfg.
 func bound(t *testing.T, src string, cfg bind.Config) *bind.Table {
 	t.Helper()
-	return bind.Bind(openapitest.YAMLDocument(t, src), cfg)
+	return bind.Bind(t.Context(), openapitest.YAMLDocument(t, src), cfg)
 }
 
 // entryAt returns the entry the table holds at the source pointer site.

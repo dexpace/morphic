@@ -481,7 +481,7 @@ func TestDetectCycles_ComponentOnlyCyclesLeftToResolver(t *testing.T) {
 	for _, tc := range componentOnlyCycles {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Empty(t, scan.Aliases(scan.InSource(0), scanIndex(t, tc.data), openapi.DefaultMaxAliasSurplus),
+			assert.Empty(t, scan.Aliases(t.Context(), scan.InSource(0), scanIndex(t, tc.data), openapi.DefaultMaxAliasSurplus),
 				"a components-only cycle is the resolver's to report")
 
 			_, diags, err := openapi.New().Compile(t.Context(),
@@ -604,7 +604,7 @@ func scanIndex(t *testing.T, src string) sourceindex.Index {
 	t.Helper()
 	var root yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte(src), &root))
-	return sourceindex.Build(&root, sourceindex.MaxIndexedNodes)
+	return sourceindex.Build(t.Context(), &root, sourceindex.MaxIndexedNodes)
 }
 
 // TestCompile_SchemaEmptyPointerSegmentIsUnresolved pins where reading the

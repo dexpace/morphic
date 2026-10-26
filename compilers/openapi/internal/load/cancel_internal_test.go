@@ -12,27 +12,10 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 )
 
-// countdown answers Err with nil for its first left calls and with
-// context.Canceled from then on, counting every call, so a cancel lands at a
-// chosen check deterministically, where a timer would race the work.
-type countdown struct {
-	context.Context
-	left, calls int
-}
-
-func (c *countdown) Err() error {
-	c.calls++
-	if c.left > 0 {
-		c.left--
-		return nil
-	}
-	return context.Canceled
-}
-
-// liveFor returns a countdown over t's context that answers left checks.
-func liveFor(t *testing.T, left int) *countdown {
+// liveFor returns a context over t's that answers left checks, then refuses.
+func liveFor(t *testing.T, left int) *openapitest.Countdown {
 	t.Helper()
-	return &countdown{Context: t.Context(), left: left}
+	return &openapitest.Countdown{Context: t.Context(), Left: left}
 }
 
 // TestContextReader_FailsOnceTheContextIsDone pins the reader every decode goes
@@ -70,14 +53,14 @@ func TestDecode_StopsWithinAReadOnceTheContextIsDone(t *testing.T) {
 	full := liveFor(t, 1<<30)
 	_, err := Decode(full, data)
 	require.NoError(t, err)
-	require.Greater(t, full.calls, 100, "the whole parse asks many times")
+	require.Greater(t, full.Calls, 100, "the whole parse asks many times")
 
 	ctx := liveFor(t, 3)
 	parsed, err := Decode(ctx, data)
 
 	require.ErrorIs(t, err, context.Canceled)
 	assert.Nil(t, parsed)
-	assert.Equal(t, 5, ctx.calls,
+	assert.Equal(t, 5, ctx.Calls,
 		"the parse stopped at the first read the context refused, the fourth, and its error read the context once more")
 }
 
@@ -94,7 +77,7 @@ func TestDecode_ACancelInTheTailIsTheContexts(t *testing.T) {
 
 	// The last ask is the check after the tail; the one before it is the
 	// tail's last read.
-	ctx := liveFor(t, full.calls-2)
+	ctx := liveFor(t, full.Calls-2)
 	parsed, err = Decode(ctx, data)
 
 	require.ErrorIs(t, err, context.Canceled)
@@ -141,4 +124,26 @@ func TestLoad_StopsOnceTheContextIsDoneAtTheParse(t *testing.T) {
 			assert.Empty(t, diags)
 		})
 	}
+}
+
+// TestParseTree_StopsWithinAReadOnceTheContextIsDone pins the parse of an
+// external document and of an overlay before it is applied: it reads through
+// its context as the source's parse does, and parses bytes holding no document
+// to an empty tree, as yaml.Unmarshal does, rather than failing.
+func TestParseTree_StopsWithinAReadOnceTheContextIsDone(t *testing.T) {
+	t.Parallel()
+	data := []byte(bigSpec())
+	full := liveFor(t, 1<<30)
+	_, err := parseTree(full, data)
+	require.NoError(t, err)
+	require.Greater(t, full.Calls, 100)
+
+	ctx := liveFor(t, 3)
+	_, err = parseTree(ctx, data)
+	require.ErrorIs(t, err, context.Canceled)
+	assert.Equal(t, 5, ctx.Calls, "the parse stopped at the read the context refused")
+
+	empty, err := parseTree(t.Context(), []byte("# nothing\n"))
+	require.NoError(t, err)
+	assert.Zero(t, empty.Kind, "no document is an empty tree")
 }

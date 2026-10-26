@@ -121,7 +121,7 @@ func TestNesting_CountsTheExpandedTree(t *testing.T) {
 	}
 	idx := indexOf(t, []byte(b.String()))
 	require.Equal(t, int64(13), idx.Nesting())
-	require.Less(t, sourceindex.Build(idx.Root(), sourceindex.MaxIndexedNodes).Nodes(), int64(40))
+	require.Less(t, sourceindex.Build(t.Context(), idx.Root(), sourceindex.MaxIndexedNodes).Nodes(), int64(40))
 
 	d, refused := placedNesting(t, b.String(), 10)
 	require.True(t, refused)
