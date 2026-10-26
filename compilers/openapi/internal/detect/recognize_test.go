@@ -1,6 +1,7 @@
 package detect_test
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"testing"
@@ -28,15 +29,41 @@ func TestRecognize_HoldsTheParseToItsByteBudget(t *testing.T) {
 	refusal, over := load.OverByteBudget(ir.Provenance{Source: 0}, []byte(src), len(src)-1)
 	require.True(t, over, "the refusal the case expects")
 
-	rec, diags, ok := detect.Recognize(0, []byte(src), len(src)-1)
+	rec, diags, ok := detect.Recognize(t.Context(), 0, []byte(src), len(src)-1)
 	assert.False(t, ok)
 	assert.Equal(t, compilers.Recognition{}, rec, "a source declined unread carries no parse")
 	assert.Equal(t, []ir.Diagnostic{refusal}, diags, "the refusal Load gives the same source")
 
 	for _, budget := range []int{len(src), 0} {
-		rec, diags, ok := detect.Recognize(0, []byte(src), budget)
+		rec, diags, ok := detect.Recognize(t.Context(), 0, []byte(src), budget)
 		require.True(t, ok, "budget %d: %v", budget, diags)
 		assert.Equal(t, compilers.SourceFormat{Name: "openapi", Version: "3.1"}, rec.Format, "budget %d", budget)
+	}
+}
+
+// TestRecognize_DeclinesSilentlyOnceTheContextIsDone pins a recognition its
+// context stopped: whatever the bytes, a source that would otherwise be claimed
+// or reported as unreadable is declined with nothing said, since the caller
+// reads its context and not an answer that may have been cut short.
+func TestRecognize_DeclinesSilentlyOnceTheContextIsDone(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	for name, src := range map[string]string{
+		"a source it would claim":             "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\n",
+		"a source it would report unreadable": "openapi: 3.1.0\ninfo: [unclosed\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			_, live, claimed := detect.Recognize(t.Context(), 0, []byte(src), 0)
+			require.True(t, claimed || len(live) > 0, "live, the source is claimed or reported")
+
+			rec, diags, ok := detect.Recognize(ctx, 0, []byte(src), 0)
+
+			assert.False(t, ok)
+			assert.Empty(t, diags)
+			assert.Equal(t, compilers.Recognition{}, rec)
+		})
 	}
 }
 
@@ -60,7 +87,7 @@ func TestRecognize_ADeclineNamesTheSourceItWasHanded(t *testing.T) {
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			_, diags, ok := detect.Recognize(srcIndex, tc.src, tc.maxBytes)
+			_, diags, ok := detect.Recognize(t.Context(), srcIndex, tc.src, tc.maxBytes)
 			assert.False(t, ok)
 			require.Len(t, diags, 1)
 			assert.Equal(t, tc.code, diags[0].Code)
@@ -189,7 +216,7 @@ func TestRecognize_Formats(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, diags, ok := recognize(tc.src)
+			got, diags, ok := recognize(t, tc.src)
 			assert.Equal(t, tc.wantOK, ok)
 			assert.Equal(t, tc.want, got.Format)
 			assert.Equal(t, tc.wantCode, codesOf(diags),
@@ -216,7 +243,7 @@ func TestRecognize_KeyOrderDoesNotDecideTheFormat(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			require.Greater(t, len(tc.src), scanCutover, "the case must be large to test it")
-			got, diags, ok := recognize(tc.src)
+			got, diags, ok := recognize(t, tc.src)
 			assert.True(t, ok, "a valid document must not be declined over where it declares its version")
 			assert.Equal(t, compilers.SourceFormat{Name: "openapi", Version: "3.0"}, got.Format)
 			assert.Nil(t, codesOf(diags), "a document this compiler recognizes carries no complaint")
@@ -261,7 +288,7 @@ func TestRecognize_RepeatedKeysDoNotDecideTheFormat(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, diags, ok := recognize(tc.src)
+			got, diags, ok := recognize(t, tc.src)
 			assert.True(t, ok, "a document this compiler can lower must not be declined over a repeated key")
 			assert.Equal(t, compilers.SourceFormat{Name: "openapi", Version: "3.0"}, got.Format)
 			assert.Nil(t, codesOf(diags), "the repeats are the parser's to report, sited, not detection's")
@@ -292,7 +319,7 @@ func TestRecognize_ARepeatedVersionKeyAgreesWithTheParser(t *testing.T) {
 			require.NotNil(t, parsed)
 			assert.Equal(t, tc.want, detect.MajorMinor(parsed.OpenAPI), "the spelling the parser keeps")
 
-			got, _, ok := recognize(src)
+			got, _, ok := recognize(t, src)
 			require.True(t, ok)
 			assert.Equal(t, compilers.SourceFormat{Name: "openapi", Version: detect.MajorMinor(parsed.OpenAPI)}, got.Format,
 				"detection names the version the parser records")
@@ -320,7 +347,7 @@ func TestRecognize_ReadsAVersionKeyThroughAMergeKey(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, _, ok := recognize(tc.src)
+			got, _, ok := recognize(t, tc.src)
 			if tc.want == "" {
 				assert.False(t, ok, "a key spelled << as a plain string merges nothing")
 				return
@@ -344,7 +371,7 @@ func TestRecognize_AReadCutShortIsReported(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			src := openapitest.RootMergeChain(nodeview.MergeDepthLimit+1, leaf, "")
-			_, diags, ok := recognize(string(src))
+			_, diags, ok := recognize(t, string(src))
 
 			assert.False(t, ok)
 			require.Len(t, diags, 1)
@@ -374,11 +401,11 @@ func TestRecognize_AMergeCycleHidesNoKey(t *testing.T) {
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			probe, _, err := detect.Sniff([]byte(tc.src))
+			probe, _, err := detect.Sniff(t.Context(), []byte(tc.src))
 			require.NoError(t, err)
 			assert.False(t, probe.Cut, "a cycle reads every mapping on it")
 
-			rec, diags, ok := recognize(tc.src)
+			rec, diags, ok := recognize(t, tc.src)
 			assert.Equal(t, tc.version != "", ok)
 			assert.Equal(t, tc.version, rec.Format.Version)
 			assert.Empty(t, diags, "a cycle is no budget, and a file declaring nothing earns no complaint")
@@ -406,7 +433,7 @@ func TestRecognize_AVersionKeyOfTheWrongShapeIsNoDeclaration(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			_, diags, ok := recognize(tc.src)
+			_, diags, ok := recognize(t, tc.src)
 			assert.False(t, ok)
 			assert.Equal(t, tc.wantCode, codesOf(diags))
 		})

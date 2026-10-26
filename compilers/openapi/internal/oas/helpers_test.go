@@ -50,7 +50,7 @@ func run(t *testing.T, version string, kind oas.Kind, doc string) []ir.Diagnosti
 	t.Helper()
 	var n yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte(doc), &n))
-	return oas.NewChecker().Check(&n, version, oas.Options{
+	return oas.NewChecker().Check(t.Context(), &n, version, oas.Options{
 		Start:  kind,
 		Locate: func(p jsontext.Pointer) ir.Provenance { return ir.Provenance{Pointer: p} },
 	})

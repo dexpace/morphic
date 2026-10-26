@@ -14,7 +14,6 @@ import (
 
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/ir/irtest"
-	"github.com/dexpace/morphic/pass"
 )
 
 // propPathOperation returns an operation whose HTTP binding walks path through
@@ -37,11 +36,11 @@ func propPathOperation(path []ir.PropID) ir.Operation {
 // rather than in a document-level registry.
 func TestValidate_PropPathSegmentResolves(t *testing.T) {
 	t.Parallel()
-	ok := pass.Validate(docWithOperation(propPathOperation([]ir.PropID{"p/m/a"})))
+	ok := validated(t, docWithOperation(propPathOperation([]ir.PropID{"p/m/a"})))
 	assert.NotContains(t, irtest.DiagCodes(ok), "ir/dangling-prop-ref",
 		"a segment naming a declared property resolves")
 
-	bad := pass.Validate(docWithOperation(propPathOperation([]ir.PropID{"p/m/ghost"})))
+	bad := validated(t, docWithOperation(propPathOperation([]ir.PropID{"p/m/ghost"})))
 	assert.Contains(t, irtest.DiagCodes(bad), "ir/dangling-prop-ref",
 		"a segment naming no property is reported")
 }
@@ -51,7 +50,7 @@ func TestValidate_PropPathSegmentResolves(t *testing.T) {
 // OpID, names no property.
 func TestValidate_APropIDSpelledAsAnotherClassesIDDangles(t *testing.T) {
 	t.Parallel()
-	bad := pass.Validate(docWithOperation(propPathOperation([]ir.PropID{"op/o"})))
+	bad := validated(t, docWithOperation(propPathOperation([]ir.PropID{"op/o"})))
 	assert.Contains(t, irtest.DiagCodes(bad), "ir/dangling-prop-ref")
 }
 
@@ -65,7 +64,7 @@ func TestValidate_DanglingPropIDsAreReportedByLocation(t *testing.T) {
 		segments[i] = ir.PropID(fmt.Sprintf("p/m/ghost%d", i))
 	}
 	var where []string
-	for _, d := range pass.Validate(docWithOperation(propPathOperation(segments))) {
+	for _, d := range validated(t, docWithOperation(propPathOperation(segments))) {
 		if d.Code == "ir/dangling-prop-ref" {
 			where = append(where, d.Provenance.Node)
 		}
@@ -92,7 +91,7 @@ func TestValidate_ParamPathSegmentResolves(t *testing.T) {
 			}},
 		}}},
 	}
-	assert.Contains(t, irtest.DiagCodes(pass.Validate(docWithOperation(op))), "ir/dangling-prop-ref")
+	assert.Contains(t, irtest.DiagCodes(validated(t, docWithOperation(op))), "ir/dangling-prop-ref")
 }
 
 // TestValidate_PropIDMapKeyIsLeftToTheEncodingCheck pins the one exclusion. A
@@ -108,7 +107,7 @@ func TestValidate_PropIDMapKeyIsLeftToTheEncodingCheck(t *testing.T) {
 			multipartContent(map[ir.PropID]ir.PartEncoding{"p/m/ghost": {Multi: true}}),
 		}},
 	})
-	got := irtest.DiagCodes(pass.Validate(doc))
+	got := irtest.DiagCodes(validated(t, doc))
 	assert.Contains(t, got, "ir/encoding-key-unknown-property", "the tighter claim is made")
 	assert.NotContains(t, got, "ir/dangling-prop-ref", "and it is the only one")
 }
@@ -128,10 +127,10 @@ func discriminatedDoc(prop ir.PropID) *ir.Document {
 // emitter reads the tag off an instance of *this* model.
 func TestValidate_DiscriminatorPropertyBelongsToItsModel(t *testing.T) {
 	t.Parallel()
-	assert.NotContains(t, irtest.DiagCodes(pass.Validate(discriminatedDoc("p/m/a"))),
+	assert.NotContains(t, irtest.DiagCodes(validated(t, discriminatedDoc("p/m/a"))),
 		"pass/discriminator-unknown-property", "the model declares the tag property")
 
-	assert.NotContains(t, irtest.DiagCodes(pass.Validate(discriminatedDoc(""))),
+	assert.NotContains(t, irtest.DiagCodes(validated(t, discriminatedDoc(""))),
 		"pass/discriminator-unknown-property",
 		"a union-style discriminator tags no property by identity")
 
@@ -139,7 +138,7 @@ func TestValidate_DiscriminatorPropertyBelongsToItsModel(t *testing.T) {
 	doc.Types["t/other"] = &ir.Model{ID: "t/other", Properties: []ir.Property{
 		{ID: "p/other/a", WireName: "a", Type: ir.TypeRef{Target: "t/prim/string"}},
 	}}
-	got := irtest.DiagCodes(pass.Validate(doc))
+	got := irtest.DiagCodes(validated(t, doc))
 	assert.Contains(t, got, "pass/discriminator-unknown-property",
 		"a property of an unrelated model is not this model's tag")
 	assert.NotContains(t, got, "ir/dangling-prop-ref",
@@ -157,6 +156,6 @@ func TestValidate_DiscriminatorPropertyThroughComposition(t *testing.T) {
 		Base:          &ir.TypeRef{Target: "t/m"},
 		Discriminator: &ir.Discriminator{Property: "p/m/a"},
 	}
-	assert.NotContains(t, irtest.DiagCodes(pass.Validate(doc)), "pass/discriminator-unknown-property",
+	assert.NotContains(t, irtest.DiagCodes(validated(t, doc)), "pass/discriminator-unknown-property",
 		"a tag property reached through Base is one the model exposes")
 }

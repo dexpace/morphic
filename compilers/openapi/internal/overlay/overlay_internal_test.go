@@ -1,12 +1,15 @@
 package overlay
 
 import (
+	"bytes"
+	"context"
 	"encoding/json/jsontext"
 	"errors"
 	"strconv"
 	"strings"
 	"testing"
 
+	soaoverlay "github.com/speakeasy-api/openapi/overlay"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "go.yaml.in/yaml/v3"
@@ -43,7 +46,7 @@ func TestApplyWithin_DegradesToTheSourceAtTheNodeBudget(t *testing.T) {
 	var root yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte(budgetSpec), &root))
 
-	origin, diags := applyWithin(1, &root, Options{Data: []byte(budgetOverlay)}, 2)
+	origin, diags := applyWithin(t.Context(), 1, &root, Options{Data: []byte(budgetOverlay)}, 2)
 
 	assert.True(t, origin.Applied(), "the overlay applied, so it stays an input of the document")
 	assert.Equal(t, "overlay@1.0.0", origin.Source().Format, "and keeps its identity for Document.Sources")
@@ -67,16 +70,16 @@ func TestAttribute_DegradesWhenOnlyTheSecondWalkRunsOut(t *testing.T) {
 	var root yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte("a: 1\n"), &root))
 
-	before, complete := snapshot(&root, maxNodes)
+	before, complete := snapshot(t.Context(), &root, maxNodes)
 	require.True(t, complete)
 
 	key, value := &yaml.Node{Kind: yaml.ScalarNode, Value: "b"}, &yaml.Node{Kind: yaml.ScalarNode, Value: "2"}
 	root.Content[0].Content = append(root.Content[0].Content, key, value)
 
-	_, _, ok := attribute(&root, before, 2)
+	_, _, ok := attribute(t.Context(), &root, before, 2)
 	assert.False(t, ok, "three nodes do not fit a budget of two")
 
-	pointers, nodes, ok := attribute(&root, before, maxNodes)
+	pointers, nodes, ok := attribute(t.Context(), &root, before, maxNodes)
 	require.True(t, ok, "and the same tree fits a real one — the budget is what differed")
 	assert.Equal(t, map[jsontext.Pointer]bool{"/b": true}, pointers,
 		"which is also the answer the exhausted walk withheld")
@@ -93,7 +96,7 @@ func TestSnapshot_RecordsEveryNodeAgainstItsValue(t *testing.T) {
 	var root yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte("a: 1\n"), &root))
 
-	before, complete := snapshot(&root, maxNodes)
+	before, complete := snapshot(t.Context(), &root, maxNodes)
 	require.True(t, complete)
 
 	mapping := root.Content[0]
@@ -119,7 +122,7 @@ func TestApplyWithin_RecoversALibraryPanic(t *testing.T) {
 	root := &yaml.Node{Kind: yaml.DocumentNode}
 	require.Nil(t, nodeview.DocumentRoot(root), "the shape under test: a document with no root")
 
-	origin, diags := applyWithin(1, root, Options{Data: []byte(budgetOverlay), Lax: true}, maxNodes)
+	origin, diags := applyWithin(t.Context(), 1, root, Options{Data: []byte(budgetOverlay), Lax: true}, maxNodes)
 
 	assert.False(t, origin.Applied(), "an overlay that faulted attributes nothing")
 	require.Len(t, diags, 1)
@@ -156,11 +159,11 @@ func TestSnapshotAndAttribute_TakeADocumentWithNoRoot(t *testing.T) {
 	t.Parallel()
 	root := &yaml.Node{Kind: yaml.DocumentNode}
 
-	before, complete := snapshot(root, maxNodes)
+	before, complete := snapshot(t.Context(), root, maxNodes)
 	require.True(t, complete)
 	assert.Empty(t, before, "no node to record")
 
-	pointers, nodes, ok := attribute(root, before, maxNodes)
+	pointers, nodes, ok := attribute(t.Context(), root, before, maxNodes)
 	require.True(t, ok)
 	assert.Empty(t, pointers, "and none to attribute")
 	assert.Empty(t, nodes)
@@ -201,7 +204,7 @@ func TestApplyWithin_RefusesAGraftItCannotExpandWithinBudget(t *testing.T) {
 	const ov = "overlay: 1.0.0\ninfo: {title: o, version: \"1\", x-t: &t {a: 1, b: 2, c: 3, d: 4}}\n" +
 		"actions:\n  - target: $.paths\n    update: {p: *t}\n"
 
-	origin, diags := applyWithin(1, &root, Options{Data: []byte(ov)}, 12)
+	origin, diags := applyWithin(t.Context(), 1, &root, Options{Data: []byte(ov)}, 12)
 
 	assert.False(t, origin.Applied())
 	require.True(t, diag.HasError(diags), "the compile refuses: %+v", diags)
@@ -218,17 +221,17 @@ func TestRepairGrafts_ReportsWalkingAndSubstitutingApart(t *testing.T) {
 	var root yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte("a: {b: 1, c: 2}\n"), &root))
 
-	normalized, safe := repairGrafts(&root, maxNodes)
+	normalized, safe := repairGrafts(t.Context(), &root, maxNodes)
 	assert.True(t, normalized, "a tree with no graft in it is already normal")
 	assert.True(t, safe)
 
-	normalized, safe = repairGrafts(&root, 1)
+	normalized, safe = repairGrafts(t.Context(), &root, 1)
 	assert.False(t, normalized, "a tree it cannot walk is one it cannot say anything about")
 	assert.True(t, safe, "and nothing it could not substitute was found")
 
 	// A document node holding nothing has no content to walk, which is neither
 	// a failure nor a graft.
-	normalized, safe = repairGrafts(&yaml.Node{Kind: yaml.DocumentNode}, maxNodes)
+	normalized, safe = repairGrafts(t.Context(), &yaml.Node{Kind: yaml.DocumentNode}, maxNodes)
 	assert.True(t, normalized)
 	assert.True(t, safe)
 }
@@ -255,14 +258,14 @@ func TestRepairGrafts_TakesShapesAParseNeverProduces(t *testing.T) {
 
 	shared := ynode.Map(ynode.Scalar("k"), ynode.Scalar("v"))
 	twice := ynode.Map(ynode.Scalar("a"), shared, ynode.Scalar("b"), shared)
-	reachable, ok := reachableNodes(twice, maxNodes)
+	reachable, ok := reachableNodes(t.Context(), twice, maxNodes)
 	require.True(t, ok, "one node in two places is walked, not walked forever")
 	assert.True(t, reachable[shared], "and counted once")
 
 	withNil := ynode.Map(ynode.Scalar("a"), nil)
-	reachable, ok = reachableNodes(withNil, maxNodes)
+	reachable, ok = reachableNodes(t.Context(), withNil, maxNodes)
 	require.True(t, ok, "a nil child is skipped, not dereferenced")
-	assert.True(t, substituteGrafts(withNil, reachable, new(maxNodes)), "and skipped again on the way back")
+	assert.True(t, substituteGrafts(t.Context(), withNil, reachable, new(maxNodes)), "and skipped again on the way back")
 }
 
 // TestSubstituteGrafts_StopsAtItsOwnBudget pins the bound on the walk that
@@ -278,11 +281,11 @@ func TestSubstituteGrafts_StopsAtItsOwnBudget(t *testing.T) {
 	}
 
 	budget := 4
-	assert.False(t, substituteGrafts(wide, map[*yaml.Node]bool{}, &budget),
+	assert.False(t, substituteGrafts(t.Context(), wide, map[*yaml.Node]bool{}, &budget),
 		"sixteen children do not fit a budget of four")
 
 	budget = maxNodes
-	assert.True(t, substituteGrafts(wide, map[*yaml.Node]bool{}, &budget),
+	assert.True(t, substituteGrafts(t.Context(), wide, map[*yaml.Node]bool{}, &budget),
 		"and the same tree fits a real one — the budget is what differed")
 }
 
@@ -341,4 +344,30 @@ func TestChildren_AddressesEachNodeAsTheParserReadsIt(t *testing.T) {
 
 	assert.Equal(t, []frame{{node: item, pointer: "/r", merged: true}}, children(got[2]))
 	assert.Equal(t, []frame{{node: item, pointer: "/s/0"}}, children(frame{node: list, pointer: "/s"}))
+}
+
+// TestApply_StopsOnceTheContextIsDone pins the overlay's context, asked
+// before each action, by every walk of the tree and by the attribution:
+// handed a done one, the overlay is not applied, and the attribution of one
+// applied answers nothing.
+func TestApply_StopsOnceTheContextIsDone(t *testing.T) {
+	t.Parallel()
+	cancelled, cancel := context.WithCancel(t.Context())
+	cancel()
+	var root yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte(sequenceSpec), &root))
+	const ov = "overlay: 1.0.0\ninfo: {title: o, version: '1'}\nactions:\n  - target: $.info\n    update: {description: d}\n"
+	doc, err := soaoverlay.ParseReader(bytes.NewReader([]byte(ov)))
+	require.NoError(t, err)
+
+	diags, applied := runSequence(cancelled, doc, &root, ir.Provenance{Source: 1}, false, maxNodes)
+	assert.False(t, applied)
+	assert.Empty(t, diags)
+
+	before, complete := snapshot(t.Context(), &root, maxNodes)
+	require.True(t, complete)
+	_, _, ok := attribute(cancelled, &root, before, maxNodes)
+	assert.False(t, ok)
+	_, _, ok = attribute(t.Context(), &root, before, maxNodes)
+	assert.True(t, ok, "the same tree is attributed under a live context")
 }

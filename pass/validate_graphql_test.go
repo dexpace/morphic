@@ -18,7 +18,7 @@ func TestValidate_ArgsOutsideGraphQL(t *testing.T) {
 	m.Properties[0].Args = []ir.Parameter{
 		{Name: ir.Naming{Source: "first"}, Type: ir.TypeRef{Target: "t/prim/string"}},
 	}
-	diags := pass.Validate(doc)
+	diags := validated(t, doc)
 	require.NotEmpty(t, diags)
 	assert.Contains(t, irtest.DiagCodes(diags), "pass/args-outside-graphql")
 }
@@ -51,7 +51,7 @@ func TestValidate_GraphQLReachableTypesAllowArgs(t *testing.T) {
 		ID:     "s",
 		Groups: []ir.OperationGroup{{Operations: []ir.Operation{op}}},
 	}}
-	assert.NotContains(t, irtest.DiagCodes(pass.Validate(doc)), "pass/args-outside-graphql")
+	assert.NotContains(t, irtest.DiagCodes(validated(t, doc)), "pass/args-outside-graphql")
 }
 
 // argModel is a model whose one property carries a field argument, so the model
@@ -121,13 +121,13 @@ func TestValidate_GraphQLReachabilityFollowsEveryReference(t *testing.T) {
 			tc.bind(doc, &op)
 			doc.Services = []ir.Service{{ID: "s", Groups: []ir.OperationGroup{{Operations: []ir.Operation{op}}}}}
 
-			assert.NotContains(t, irtest.DiagCodes(pass.Validate(doc)), "pass/args-outside-graphql")
+			assert.NotContains(t, irtest.DiagCodes(validated(t, doc)), "pass/args-outside-graphql")
 
 			// The other half of the proof: the same document with the binding
 			// removed must report, or the case would pass on a reachability walk
 			// that reaches nothing at all.
 			doc.Services[0].Groups[0].Operations[0].Bindings.GraphQL = nil
-			assert.Contains(t, irtest.DiagCodes(pass.Validate(doc)), "pass/args-outside-graphql")
+			assert.Contains(t, irtest.DiagCodes(validated(t, doc)), "pass/args-outside-graphql")
 		})
 	}
 }
@@ -154,11 +154,11 @@ func TestValidate_ArgsCheckFailsOpenWhenWalkTruncated(t *testing.T) {
 		return doc
 	}
 
-	within := irtest.DiagCodes(pass.Validate(withArgs(nestGroups(127, gqlOp()))))
+	within := irtest.DiagCodes(validated(t, withArgs(nestGroups(127, gqlOp()))))
 	assert.NotContains(t, within, "pass/args-outside-graphql",
 		"the binding is visible within the cap, so Args is legal")
 
-	past := irtest.DiagCodes(pass.Validate(withArgs(nestGroups(200, gqlOp()))))
+	past := irtest.DiagCodes(validated(t, withArgs(nestGroups(200, gqlOp()))))
 	assert.NotContains(t, past, "pass/args-outside-graphql",
 		"past the cap the binding went unseen; unreachable-by-truncation is not evidence of illegality")
 	assert.Contains(t, past, "ir/walk-truncated", "and the truncation must be reported instead")
@@ -178,7 +178,7 @@ func TestCheckDanglingRefs_DeepValueTreeIsTruncated(t *testing.T) {
 	m := &ir.Model{ID: "t/m", Examples: []ir.Example{{Value: &v}}}
 	doc := &ir.Document{Types: ir.TypeRegistry{m.ID: m}}
 
-	diags := danglingRefs(doc)
+	diags := danglingRefs(t, doc)
 	require.NotEmpty(t, diags)
 	assert.Equal(t, "ir/walk-truncated", diags[0].Code)
 	assert.Equal(t, ir.SeverityError, diags[0].Severity)

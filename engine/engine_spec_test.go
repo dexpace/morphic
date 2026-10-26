@@ -20,10 +20,11 @@ import (
 
 // rereadCompiler reads its spec again, through the reader it is handed, and
 // names its document by what that read returned, so a test sees which bytes a
-// run serves for the spec's own path. Its "read" setting names a file to read
-// as a setting does, whose bytes become the document's Version. before, when
-// set, runs ahead of the read, and decoding ahead of decoding the settings; at,
-// when set, is where the spec is read again, in place of its path.
+// run serves for the spec's own path. Its "read" setting names a file, which
+// the compile reads through the same reader as a setting's file is read, and
+// whose bytes become the document's Version. before, when set, runs ahead of
+// the reads, and decoding ahead of decoding the settings; at, when set, is
+// where the spec is read again, in place of its path.
 type rereadCompiler struct {
 	stubFront
 	before   func(path string)
@@ -35,15 +36,7 @@ func (c rereadCompiler) DecodeOptions(set compilers.OptionSet) (any, error) {
 	if c.decoding != nil {
 		c.decoding()
 	}
-	name, ok := set.Settings["read"]
-	if !ok {
-		return nil, nil
-	}
-	data, err := set.ReadFile(name)
-	if err != nil {
-		return nil, err
-	}
-	return string(data), nil
+	return set.Settings["read"], nil
 }
 
 func (c rereadCompiler) Compile(ctx context.Context, sources []compilers.Source, opts compilers.Options) (*ir.Document, []ir.Diagnostic, error) {
@@ -58,9 +51,24 @@ func (c rereadCompiler) Compile(ctx context.Context, sources []compilers.Source,
 	if err != nil {
 		return nil, nil, err
 	}
-	setting, _ := opts.FormatOptions.(string)
+	setting, err := readSetting(ctx, opts)
+	if err != nil {
+		return nil, nil, err
+	}
 	return &ir.Document{IRVersion: ir.IRVersion, Name: string(data), Version: setting, Types: ir.TypeRegistry{},
 		Sources: sourcesOf("openapi@3.1", sources)}, nil, nil
+}
+
+// readSetting reads the file the "read" setting names, which DecodeOptions
+// handed on as the options, through the compile's reader: "" when none is
+// named.
+func readSetting(ctx context.Context, opts compilers.Options) (string, error) {
+	name, _ := opts.FormatOptions.(string)
+	if name == "" {
+		return "", nil
+	}
+	data, err := opts.Reader.ReadDocument(ctx, compilers.DocumentRequest{Location: name})
+	return string(data), err
 }
 
 // TestEngine_RunSpecCompilesTheHeldBytesBesideFilesOnDisk pins RunSpec's two
@@ -179,53 +187,46 @@ func TestEngine_RunSpecAtAPathNoRequestCanName(t *testing.T) {
 }
 
 // settingCompiler names its document by what its "read" setting read, and
-// reads nothing through the reader, so a spec no request can name compiles.
+// reads nothing else, so a spec no request can name compiles.
 type settingCompiler struct{ rereadCompiler }
 
-func (settingCompiler) Compile(_ context.Context, sources []compilers.Source, opts compilers.Options) (*ir.Document, []ir.Diagnostic, error) {
-	setting, _ := opts.FormatOptions.(string)
+func (settingCompiler) Compile(ctx context.Context, sources []compilers.Source, opts compilers.Options) (*ir.Document, []ir.Diagnostic, error) {
+	setting, err := readSetting(ctx, opts)
+	if err != nil {
+		return nil, nil, err
+	}
 	return &ir.Document{IRVersion: ir.IRVersion, Name: setting, Types: ir.TypeRegistry{},
 		Sources: sourcesOf("openapi@3.1", sources)}, nil, nil
 }
 
-// TestEngine_RunSpecServesASettingNamingASpecNoRequestCanName pins that a
-// spec at a path no reference can name is still the file a setting names by
-// that path: the setting is served the held bytes, though no file is there.
-func TestEngine_RunSpecServesASettingNamingASpecNoRequestCanName(t *testing.T) {
+// TestEngine_RunSpecReadsASettingAsAReferenceIsRead pins that a file a setting
+// names is read as a document a reference names is: by the one reader, so a
+// file URI naming the held spec is served it, and a spec held at a path no
+// request can name is no document a setting naming that path reads either,
+// which is refused as a reference spelling it is.
+func TestEngine_RunSpecReadsASettingAsAReferenceIsRead(t *testing.T) {
 	t.Parallel()
 	eng, err := engine.New(engine.WithCompilers(settingCompiler{}))
-	require.NoError(t, err)
-
-	res, err := eng.RunSpec(t.Context(), compilers.Source{Path: "file:held.yaml", Data: []byte("held")},
-		engine.RunOptions{CompilerOptions: map[string]string{"read": "file:held.yaml"}})
-
-	require.NoError(t, err)
-	require.NotNil(t, res.Document)
-	assert.Equal(t, "held", res.Document.Name)
-}
-
-// TestEngine_RunSpecReadsASettingAsAPath pins that holding the spec leaves a
-// setting naming files as it names every other: by path, as os.ReadFile does.
-// A file URI naming the spec is a path no file has, so the run fails as one
-// naming any missing file does.
-func TestEngine_RunSpecReadsASettingAsAPath(t *testing.T) {
-	t.Parallel()
-	eng, err := engine.New(engine.WithCompilers(rereadCompiler{}))
 	require.NoError(t, err)
 	spec := writeNamed(t, "spec.yaml", "on disk")
 	uri := (&url.URL{Scheme: "file", Path: filepath.ToSlash(spec)}).String()
 
 	res, err := eng.RunSpec(t.Context(), compilers.Source{Path: spec, Data: []byte("held")},
 		engine.RunOptions{CompilerOptions: map[string]string{"read": uri}})
+	require.NoError(t, err)
+	require.NotNil(t, res.Document)
+	assert.Equal(t, "held", res.Document.Name, "a file URI naming the spec names the held spec")
 
-	require.ErrorIs(t, err, fs.ErrNotExist)
+	res, err = eng.RunSpec(t.Context(), compilers.Source{Path: "file:held.yaml", Data: []byte("held")},
+		engine.RunOptions{CompilerOptions: map[string]string{"read": "file:held.yaml"}})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "names no absolute path")
 	assert.Nil(t, res)
 }
 
-// TestEngine_RunSpecCancelledWhileDecodingFailsAsCancelled pins that a
-// setting naming the spec is served the held bytes whatever the run's context
-// says, so a run cancelled meanwhile fails as cancelled, never as the missing
-// file an unsaved buffer has, and reads nothing at the spec's path.
+// TestEngine_RunSpecCancelledWhileDecodingFailsAsCancelled pins that a run
+// cancelled while its settings are decoded fails as cancelled, never as the
+// missing file an unsaved buffer has, and reads nothing at the spec's path.
 func TestEngine_RunSpecCancelledWhileDecodingFailsAsCancelled(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithCancel(t.Context())
@@ -265,11 +266,11 @@ func TestEngine_RunSpecAgreesWithRun(t *testing.T) {
 // caller's Parsed on to detection finds no compiler for the spec.
 type parsedWary struct{ rereadCompiler }
 
-func (parsedWary) Detect(src compilers.Source, opts compilers.Options) (compilers.Recognition, []ir.Diagnostic, bool) {
+func (parsedWary) Detect(ctx context.Context, src compilers.Source, opts compilers.Options) (compilers.Recognition, []ir.Diagnostic, bool) {
 	if src.Parsed != nil {
 		return compilers.Recognition{}, nil, false
 	}
-	return stubFront{}.Detect(src, opts)
+	return stubFront{}.Detect(ctx, src, opts)
 }
 
 // TestEngine_RunSpecIgnoresParsed pins that the spec's Parsed is not read: it

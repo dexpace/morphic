@@ -6,7 +6,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dexpace/morphic/ir"
-	"github.com/dexpace/morphic/pass"
 )
 
 // TestValidate_DuplicateEnumMemberIDIsAnError pins that two members of one enum
@@ -27,7 +26,7 @@ func TestValidate_DuplicateEnumMemberIDIsAnError(t *testing.T) {
 	}}
 
 	var at []string
-	for _, d := range pass.Validate(doc) {
+	for _, d := range validated(t, doc) {
 		if d.Code == "pass/duplicate-enum-member-id" {
 			assert.Equal(t, ir.SeverityError, d.Severity)
 			at = append(at, d.Provenance.Node)
@@ -47,5 +46,5 @@ func TestValidate_DuplicateEnumValuesAreLegal(t *testing.T) {
 			{Name: ir.Naming{Source: "b"}, Value: ir.Value{Kind: ir.ValueString, Str: "x"}},
 		},
 	}
-	assert.Empty(t, pass.Validate(doc))
+	assert.Empty(t, validated(t, doc))
 }

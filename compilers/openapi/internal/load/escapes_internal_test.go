@@ -26,7 +26,7 @@ import (
 // decodeRoot decodes src, which must decode.
 func decodeRoot(t *testing.T, src string) *yaml.Node {
 	t.Helper()
-	parsed, err := Decode([]byte(src))
+	parsed, err := Decode(t.Context(), []byte(src))
 	require.NoError(t, err)
 	return parsed.Root()
 }
@@ -140,7 +140,7 @@ func TestEscapes_RewritesOnlyWhatTheResolverMisreads(t *testing.T) {
 			require.Equal(t, tc.recorded, misread, "the values the resolver misreads in %q", written)
 			esc := newEscapes(nil)
 
-			esc.escape(root)
+			esc.escape(t.Context(), root)
 
 			got := refValues(root)
 			require.Len(t, got, len(written), "escape rewrites values and adds none")
@@ -163,7 +163,7 @@ func TestEscapes_LeavesAnAnchoredValueAlone(t *testing.T) {
 	require.NotEqual(t, [2]int{anchored.Line, anchored.Column}, at[0])
 	esc := newEscapes(nil)
 
-	esc.escape(root)
+	esc.escape(t.Context(), root)
 
 	assert.Equal(t, "#/x+y", anchored.Value, "the scalar the aliases name is not changed")
 	assert.Equal(t, []string{"#/x%2By", "#/x%2By"}, refValues(root), "each alias is a scalar of its own")
@@ -186,7 +186,7 @@ func TestEscapes_KeepsTextAnAliasSharesWithARefAsWritten(t *testing.T) {
 	key := root.Content[0].Content[3].Content[2]
 	esc := newEscapes(nil)
 
-	esc.escape(root)
+	esc.escape(t.Context(), root)
 
 	assert.Equal(t, "#/x%2By", anchored.Value, "the $ref is respelled")
 	for _, n := range []*yaml.Node{text, key} {
@@ -208,7 +208,7 @@ func TestEscapes_RewritesAValueAMergeKeySupplies(t *testing.T) {
 	root := decodeRoot(t, src)
 	esc := newEscapes(nil)
 
-	esc.escape(root)
+	esc.escape(t.Context(), root)
 
 	assert.Equal(t, []string{"#/x%2By"}, refValues(root))
 	assert.Len(t, esc.written, 1, "the merged mapping is the anchored one, so its scalar is rewritten once")
@@ -256,7 +256,7 @@ d: [{$ref: '#/t+u'}]
 `
 	root := decodeRoot(t, src)
 	esc := newEscapes(nil)
-	esc.escape(root)
+	esc.escape(t.Context(), root)
 	require.NotEmpty(t, esc.written)
 	require.NotEqual(t, refValues(decodeRoot(t, src)), refValues(root), "the tree was rewritten")
 
@@ -274,7 +274,7 @@ func TestEscapes_LeavesATreeWithNoCandidateAlone(t *testing.T) {
 	root := decodeRoot(t, src)
 	esc := newEscapes(nil)
 
-	esc.escape(root)
+	esc.escape(t.Context(), root)
 
 	assert.Empty(t, esc.written)
 	assertSameTree(t, decodeRoot(t, src), root)
@@ -286,7 +286,7 @@ func TestEscapes_NilRegistryDoesNothing(t *testing.T) {
 	root := decodeRoot(t, "a: {$ref: '#/a+b'}\n")
 	node := root.Content[0].Content[1].Content[1]
 
-	esc.escape(root)
+	esc.escape(t.Context(), root)
 	esc.restoreTrees()
 	site, err := esc.restore(t.Context(), nil, Siblings{}, nil)
 	_, was := esc.original(node)
@@ -300,7 +300,7 @@ func TestEscapes_NilRegistryDoesNothing(t *testing.T) {
 	assert.Equal(t, trail{stopped: "#/a+b"}, esc.trailOf(chain{stopped: "#/a+b", stoppedAt: built}))
 	text := []ir.Diagnostic{{Message: "unable to resolve reference: #/a%2Bb"}}
 	assert.Equal(t, text, esc.asWritten(slices.Clone(text)))
-	assert.False(t, esc.rewritable(decodeRoot(t, "{$ref: '/r/a.yaml'}")), "a nil registry respells no document part")
+	assert.False(t, esc.rewritable(t.Context(), decodeRoot(t, "{$ref: '/r/a.yaml'}")), "a nil registry respells no document part")
 	assert.Nil(t, esc.refusal(), "and refuses none")
 }
 
@@ -333,9 +333,9 @@ func TestEscapes_RespellsADocumentPartTheReadRefuses(t *testing.T) {
 			src := "{$ref: '" + tc.ref + "'}"
 			esc := newEscapes(refuseAbsolute)
 
-			assert.Equal(t, tc.want != tc.ref, esc.rewritable(decodeRoot(t, src)))
+			assert.Equal(t, tc.want != tc.ref, esc.rewritable(t.Context(), decodeRoot(t, src)))
 			root := decodeRoot(t, src)
-			esc.escape(root)
+			esc.escape(t.Context(), root)
 
 			assert.Equal(t, []string{tc.want}, refValues(root))
 			key, _, _ := strings.Cut(tc.want, "#")
@@ -362,7 +362,7 @@ func TestEscapes_ASourcesOwnRefusedSchemeIsRespelledApart(t *testing.T) {
 	esc := newEscapes(refusedByName(Options{Within: "/r", Reader: &fakeReader{}}, "/r/root.yaml"))
 	root := decodeRoot(t, "[{$ref: '/r/a.yaml#/X'}, {$ref: 'x-morphic-refused:%2Fr%2Fa.yaml#/X'}]")
 
-	esc.escape(root)
+	esc.escape(t.Context(), root)
 
 	got := refValues(root)
 	require.Len(t, got, 2)
@@ -397,7 +397,7 @@ func TestEscapes_RefusalIsTheReadsOwn(t *testing.T) {
 func escapedMessages(t *testing.T, src string, messages ...string) []string {
 	t.Helper()
 	esc := newEscapes(nil)
-	esc.escape(decodeRoot(t, src))
+	esc.escape(t.Context(), decodeRoot(t, src))
 	diags := make([]ir.Diagnostic, 0, len(messages))
 	for _, m := range messages {
 		diags = append(diags, ir.Diagnostic{Message: m})
@@ -483,9 +483,9 @@ type escapedSource struct {
 func escapeSource(t *testing.T, src string) escapedSource {
 	t.Helper()
 	root := decodeRoot(t, src)
-	releaseAnchors(root)
+	releaseAnchors(t.Context(), root)
 	esc := newEscapes(nil)
-	esc.escape(root)
+	esc.escape(t.Context(), root)
 	doc, err := unmarshal(t.Context(), []byte(src), root)
 	require.NoError(t, err)
 	return escapedSource{root: root, doc: doc, esc: esc}
@@ -698,7 +698,7 @@ components:
 `
 	root := decodeRoot(t, src)
 	esc := newEscapes(nil)
-	esc.escape(root)
+	esc.escape(t.Context(), root)
 	require.Equal(t, []string{"#/paths/~1a%2Bb"}, refValues(root))
 	panicking := iter.Seq[soa.WalkItem](func(func(soa.WalkItem) bool) { panic("walk fault") })
 

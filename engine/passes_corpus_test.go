@@ -42,7 +42,7 @@ func TestPasses_KeepTheContractOverTheCorpus(t *testing.T) {
 				before, err := json.Marshal(doc)
 				require.NoError(t, err)
 
-				next, _ := p.Run(doc)
+				next, _ := p.Run(t.Context(), doc)
 
 				require.NotNil(t, next, "pass %q returned no document", p.Name())
 				after, err := json.Marshal(doc)

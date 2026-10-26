@@ -84,7 +84,7 @@ func TestReadOpened_JudgesTheFileOpened(t *testing.T) {
 			f := tc.file(t)
 			f.body = strings.NewReader("never read")
 
-			got, err := reader.ReadOpened("p.yaml", f, 0)
+			got, err := reader.ReadOpened(t.Context(), "p.yaml", f, 0)
 
 			require.Error(t, err)
 			for _, want := range tc.wantIs {
@@ -132,7 +132,7 @@ func TestReadOpened_ReadsAndClosesARegularFile(t *testing.T) {
 			t.Parallel()
 			f := &scriptedFile{info: infoOf(t, 0), body: tc.body, closeErr: tc.closeErr}
 
-			got, err := reader.ReadOpened("p.yaml", f, tc.limit)
+			got, err := reader.ReadOpened(t.Context(), "p.yaml", f, tc.limit)
 
 			assert.Equal(t, 1, f.closes, "closed once, whatever the read did")
 			if len(tc.wantIs) > 0 {
@@ -149,6 +149,23 @@ func TestReadOpened_ReadsAndClosesARegularFile(t *testing.T) {
 	}
 }
 
+// TestReadOpened_RefusesAFileItsSizePutsPastTheLimitUnread pins the check a
+// file's own size answers: one that reports more bytes than the limit allows is
+// refused as too large without a byte read, and closed, so a large file costs a
+// stat rather than a read to the limit.
+func TestReadOpened_RefusesAFileItsSizePutsPastTheLimitUnread(t *testing.T) {
+	t.Parallel()
+	f := &scriptedFile{info: sizedInfo{size: 1 << 30}, body: strings.NewReader("never read")}
+
+	got, err := reader.ReadOpened(t.Context(), "p.yaml", f, 1<<20)
+
+	require.ErrorIs(t, err, compilers.ErrDocumentTooLarge)
+	assert.Contains(t, err.Error(), "p.yaml")
+	assert.Nil(t, got)
+	assert.Zero(t, f.reads, "refused by its size, unread")
+	assert.Equal(t, 1, f.closes)
+}
+
 // TestReadOpened_RefusesAnOpenedDirectory runs the second judgement on a real
 // file, a directory opened for reading: refused unread, and the file is
 // closed, as os.ErrClosed on a second close shows.
@@ -158,7 +175,7 @@ func TestReadOpened_RefusesAnOpenedDirectory(t *testing.T) {
 	f, err := os.Open(dir)
 	require.NoError(t, err)
 
-	got, err := reader.ReadOpened(dir, f, 0)
+	got, err := reader.ReadOpened(t.Context(), dir, f, 0)
 
 	require.ErrorIs(t, err, reader.ErrNotRegular)
 	assert.Contains(t, err.Error(), dir)

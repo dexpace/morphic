@@ -393,6 +393,10 @@ var rules = map[string][]string{
 	// but stdlib-only, which is what lets a package that starts a goroutine in
 	// its tests call it without pulling anything else in.
 	"internal/leakcheck": {},
+	// Test infrastructure too, and stdlib-only for the same reason: the context
+	// decorators a test of cancellation puts a cancel at a chosen check with,
+	// which tests across the module import.
+	"internal/ctxtest": {},
 	// Test infrastructure too: tests that hold a hand-written list to what a
 	// package declares read it type-checked, through go/packages. Two of its
 	// testdata packages are imported by others, which is how a test shows a

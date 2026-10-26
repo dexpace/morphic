@@ -415,7 +415,7 @@ func TestEngine_RunWalksADocumentOnlyWhereItChanged(t *testing.T) {
 			t.Parallel()
 			eng := engineOf(t, openapi.New(), tt.passes...)
 			var walks int
-			engine.CountVerifies(eng, &walks)
+			engine.OnVerify(eng, func() { walks++ })
 
 			_, err := runFromMemory.run(t, eng, engine.RunOptions{Verify: tt.verify})
 

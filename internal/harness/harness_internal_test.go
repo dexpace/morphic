@@ -260,7 +260,7 @@ func TestCheck_ARaisedAgainPanicKeepsItsSite(t *testing.T) {
 // panicsInDetect is a compiler whose recognition panics.
 type panicsInDetect struct{ stubCompiler }
 
-func (panicsInDetect) Detect(compilers.Source, compilers.Options) (compilers.Recognition, []ir.Diagnostic, bool) {
+func (panicsInDetect) Detect(context.Context, compilers.Source, compilers.Options) (compilers.Recognition, []ir.Diagnostic, bool) {
 	panic("recognition exploded")
 }
 
@@ -618,7 +618,7 @@ type reporting struct{}
 
 func (reporting) Name() string { return "reporting" }
 
-func (reporting) Run(doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
+func (reporting) Run(_ context.Context, doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
 	return doc, []ir.Diagnostic{ir.NewDiagnostic(ir.SeverityError, "stub/reported", "every document",
 		ir.Provenance{Source: ir.NoSource})}
 }

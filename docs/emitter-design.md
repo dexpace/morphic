@@ -137,7 +137,7 @@ type Emitter interface {
     Target() TargetKey
     Capabilities() Capabilities          // lets the engine reason without running (§2.3)
     DecodeOptions(raw []byte) (TargetOptions, []ir.Diagnostic, error) // strict, versioned (§2.5)
-    Generate(EmitterInput) EmitterOutput // the whole emitter, as one pure function
+    Generate(context.Context, EmitterInput) EmitterOutput // the whole emitter, as one pure function
 }
 
 type EmitterInput struct {
@@ -184,6 +184,13 @@ type Artifact struct {
 dispatch, caught by the switch-completeness test in the suite (§13) rather than at runtime, or an
 options value of another target's type, reported as an error diagnostic (§2.5). This keeps the
 contract pure and total.
+
+`Generate` takes the run's context, for the reason a pass's `Run` does (architecture.md §2.2):
+emitting an SDK costs time in proportion to the document, and a deadline or a cancel must reach it.
+An emitter asks the context between artifacts and inside its walks, and stops soon once it is done.
+The engine asks it after `Generate` returns, and a run whose context is done by then fails with the
+context's error, whatever `Generate` returned: an emitter cut short may have stopped anywhere, and
+no artifact of it is written.
 
 ### 2.1 The registry
 
@@ -258,9 +265,9 @@ none is stable by omission.
 ### 2.4 Contract rules the type system and tests enforce
 
 - **Purity / determinism.** No I/O, clock, randomness, or stderr inside `Generate`. Same
-  `(Doc, Plan, Policy, Hints, Scope, Options)` ⇒ byte-identical `Artifacts`; `Facts` is a
-  function of `Doc` and adds nothing to the tuple. Maps are walked in sorted-key order, slices in
-  source order (§13 test T-6).
+  `(Doc, Plan, Policy, Hints, Scope, Options)`, under a context that stays live, ⇒ byte-identical
+  `Artifacts`; `Facts` is a function of `Doc` and adds nothing to the tuple. Maps are walked in
+  sorted-key order, slices in source order (§13 test T-6).
 - **Diagnostics are the only input-failure channel.** A construct the emitter cannot lower emits
   `ir.Diagnostic{Severity, Code:"emitters/<target>/…", Message, Provenance}` — never a silent
   fallback, never a panic (§13 test T-7). Codes live in a stable `emitters/<target>/…` namespace.

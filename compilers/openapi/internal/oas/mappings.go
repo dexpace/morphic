@@ -1,6 +1,7 @@
 package oas
 
 import (
+	"context"
 	"encoding/json/jsontext"
 	"slices"
 	"strconv"
@@ -22,7 +23,7 @@ import (
 // It reads the tree as written, values and extensions included, so a node an
 // alias mounts twice draws one finding, placed at its pointer as the parser
 // reads the tree. It reads Locate, Budget, ReadAt and Root of opts.
-func CheckFormat(root *yaml.Node, declared string, opts Options) []ir.Diagnostic {
+func CheckFormat(ctx context.Context, root *yaml.Node, declared string, opts Options) []ir.Diagnostic {
 	minor, ok := ParseMinor(declared)
 	if !ok {
 		return nil
@@ -38,11 +39,14 @@ func CheckFormat(root *yaml.Node, declared string, opts Options) []ir.Diagnostic
 	}
 	// Placing a finding costs a pointer per node, and most documents break
 	// neither rule, so a first walk only looks, and stops at the first break.
-	look := nodeview.Walk{Nodes: budget, Visit: lookForBreak}.Run(nodeview.DocumentRoot(root))
+	look := nodeview.Walk{Nodes: budget, Visit: lookForBreak}.Run(ctx, nodeview.DocumentRoot(root))
 	if !look.Stopped && !look.Cut {
 		return nil
 	}
-	out := nodeview.Walk{Nodes: budget, Visit: f.visit}.Run(nodeview.DocumentRoot(root))
+	out := nodeview.Walk{Nodes: budget, Visit: f.visit}.Run(ctx, nodeview.DocumentRoot(root))
+	if ctx.Err() != nil {
+		return nil
+	}
 	if out.Cut {
 		f.diags = append(f.diags, diag.Newf(ir.SeverityError, diag.BudgetExceeded, f.locate(""),
 			"the OpenAPI %s check of the document's keys stopped at its work budget; what lies past it is unchecked", minor))

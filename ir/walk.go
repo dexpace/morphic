@@ -1,6 +1,7 @@
 package ir
 
 import (
+	"context"
 	"fmt"
 	"math/bits"
 	"reflect"
@@ -67,14 +68,47 @@ type CycleVisitor interface {
 // are skipped. Interface() panics behind an unexported field, so visitors read
 // fields.
 func WalkValues(root any, path string, visitors ...Visitor) bool {
+	return walkValues(nil, root, path, visitors).truncated
+}
+
+// WalkValuesContext is [WalkValues] stopped once ctx is done. It asks ctx before
+// the first value and every askEvery values after, and once refused shows no
+// visitor another value, in any traversal. A walk it stopped has answered in
+// part, so ctx's error comes back beside whether the depth cap truncated it.
+func WalkValuesContext(ctx context.Context, root any, path string, visitors ...Visitor) (bool, error) {
+	out := walkValues(ctx.Err, root, path, visitors)
+	return out.truncated, out.err
+}
+
+// askEvery is how many values a walk shows between two asks of its context: a
+// value costs a visit or two, so asking at each would cost more than the
+// visits, and a stretch this long still ends within microseconds.
+const askEvery = 256
+
+// walkEnd is how a walk ended: whether the depth cap truncated a traversal, and
+// the error of the ask that stopped one, which ends the walk.
+type walkEnd struct {
+	truncated bool
+	err       error
+}
+
+// walkValues walks root for visitors, one traversal per maxSharedVisitors of
+// them, asking ask whether to stop as WalkValuesContext says, or never for a
+// nil ask.
+func walkValues(ask func() error, root any, path string, visitors []Visitor) walkEnd {
 	v := reflect.ValueOf(root)
-	truncated := false
+	var out walkEnd
 	for group := range slices.Chunk(visitors, maxSharedVisitors) {
 		w := newValueWalk(path, group)
+		w.ask = ask
 		w.walk(v, 0, w.all)
-		truncated = truncated || w.truncated
+		out.truncated = out.truncated || w.truncated
+		if w.refusal != nil {
+			out.err = w.refusal
+			return out
+		}
 	}
-	return truncated
+	return out
 }
 
 // maxSharedVisitors is how many visitors one traversal carries: the width of
@@ -179,7 +213,8 @@ type insideRef struct {
 
 // valueWalk is one traversal's state: its visitors, which pointers each has
 // entered, the references and steps the walk is inside right now, the map
-// entries it is ranging over, and whether the depth cap cut it short.
+// entries it is ranging over, and whether the depth cap or its ask cut it
+// short.
 //
 // It is a value being walked rather than a walker being configured, so it is
 // built at the entry point and discarded with it. Nothing here is reentrant,
@@ -194,6 +229,12 @@ type valueWalk struct {
 	steps     []pathStep
 	ranging   []mapEntry
 	truncated bool
+	// ask is what the walk asks whether to stop (WalkValuesContext), or nil for
+	// a walk to the end. shown counts the values shown, which spaces the asks,
+	// and refusal is the answer that stopped it, after which nothing is shown.
+	ask     func() error
+	shown   int
+	refusal error
 }
 
 // newValueWalk builds the state of one traversal from root showing visitors,
@@ -227,7 +268,7 @@ func (w *valueWalk) here() WalkPath {
 // value — is not shown, so no visitor has to guard against calling Type() on
 // one.
 func (w *valueWalk) walk(v reflect.Value, depth int, active visitorSet) {
-	if !v.IsValid() {
+	if !v.IsValid() || w.refused() {
 		return
 	}
 	at := w.here()
@@ -241,6 +282,21 @@ func (w *valueWalk) walk(v reflect.Value, depth int, active visitorSet) {
 	if asking != 0 {
 		w.children(v, depth, asking)
 	}
+}
+
+// refused reports whether the walk has stopped at its ask, asking before the
+// first value it shows and every askEvery values after.
+func (w *valueWalk) refused() bool {
+	if w.ask == nil || w.refusal != nil {
+		return w.refusal != nil
+	}
+	if w.shown%askEvery == 0 {
+		if w.refusal = w.ask(); w.refusal != nil {
+			return true
+		}
+	}
+	w.shown++
+	return false
 }
 
 // step descends into child, reached from its parent by s.

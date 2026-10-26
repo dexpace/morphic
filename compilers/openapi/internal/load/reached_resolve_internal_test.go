@@ -1080,9 +1080,9 @@ func TestResolve_AnObjectTheSourceDeclaresIsNotChargedToTheBudget(t *testing.T) 
 	// a document's validation is held to: that size and the alias surplus.
 	load := func(t *testing.T, spec string) (diags []ir.Diagnostic, limit int) {
 		t.Helper()
-		root, _, err := decodeStream([]byte(spec))
+		root, _, err := decodeStream(t.Context(), []byte(spec))
 		require.NoError(t, err)
-		nodes := nodeCount(root)
+		nodes := nodeCount(t.Context(), root)
 		opts := Options{MaxSourceNodes: nodes, MaxAliasSurplus: 1}
 		got, diags, err := Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(spec)}, opts)
 		require.NoError(t, err)

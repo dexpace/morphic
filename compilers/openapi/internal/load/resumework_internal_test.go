@@ -26,12 +26,12 @@ import (
 // and what the pass reported.
 func resumedOver(t *testing.T, dir, root string, limit int) (*resumeWork, []ir.Diagnostic) {
 	t.Helper()
-	tree, _, err := decodeStream([]byte(root))
+	tree, _, err := decodeStream(t.Context(), []byte(root))
 	require.NoError(t, err)
-	releaseAnchors(tree)
+	releaseAnchors(t.Context(), tree)
 	doc, err := unmarshal(t.Context(), []byte(root), tree)
 	require.NoError(t, err)
-	self := newSourceDocument(filepath.Join(dir, "root.yaml"), []byte(root), tree, judgment{}, newSourceTree(0, overlay.Origin{}, tree), nil)
+	self := newSourceDocument(filepath.Join(dir, "root.yaml"), []byte(root), tree, judgment{}, newSourceTree(t.Context(), 0, overlay.Origin{}, tree), nil)
 	opts := Options{Reader: reader.Disk{}}
 	ext := newExternal(t.Context(), doc, opts, newExternalReads(self))
 	ext.work.limit = limit
@@ -157,7 +157,7 @@ func responseTree(n int) string {
 // so.
 func TestResumeWork_Charge(t *testing.T) {
 	t.Parallel()
-	tree, err := parseTree([]byte(`components:
+	tree, err := parseTree(t.Context(), []byte(`components:
   schemas:
     Base: {type: object}
     Alias: {$ref: '#/components/schemas/Base'}
@@ -221,7 +221,7 @@ func TestResumeWork_Charge(t *testing.T) {
 func TestResumable_TheBudgetStopsWhatItWouldResume(t *testing.T) {
 	t.Parallel()
 	data := []byte("components:\n  schemas:\n    Base: {type: object}\n")
-	tree, err := parseTree(data)
+	tree, err := parseTree(t.Context(), data)
 	require.NoError(t, err)
 	read := newExternalReads(sourceDocument{})
 	read.recordTree("other.yaml", tree, data)

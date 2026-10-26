@@ -55,7 +55,7 @@ func (p *resolution) run(ctx context.Context, doc *soa.OpenAPI) {
 		return nil
 	})
 	p.fail(refSite{pointer: site}, err)
-	for e, ok := p.away.next(); ok; e, ok = p.away.next() {
+	for e, ok := p.away.next(); ok && ctx.Err() == nil; e, ok = p.away.next() {
 		p.fail(e.at, eachReferenceIn(ctx, e, func(site refSite, r resolvable) { p.visit(ctx, site, r, e.opts) }))
 	}
 }

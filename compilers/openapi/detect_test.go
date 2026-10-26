@@ -28,7 +28,7 @@ func TestDetect_DeclinesASourcePastTheCallersByteBudget(t *testing.T) {
 	src := compilers.Source{Path: "api.yaml", Data: []byte(budgetedSpec)}
 	limit := len(budgetedSpec) - 1
 
-	rec, diags, ok := openapi.New().Detect(src, withBytes(limit))
+	rec, diags, ok := openapi.New().Detect(t.Context(), src, withBytes(limit))
 
 	assert.False(t, ok)
 	assert.Equal(t, compilers.Recognition{}, rec)
@@ -60,7 +60,7 @@ func TestDetect_ReadsASourceWithinTheCallersByteBudget(t *testing.T) {
 		{},
 		{FormatOptions: "another compiler's options"},
 	} {
-		rec, diags, ok := openapi.New().Detect(src, opts)
+		rec, diags, ok := openapi.New().Detect(t.Context(), src, opts)
 		require.True(t, ok, "%+v: %+v", opts, diags)
 		assert.Equal(t, want, rec.Format, "%+v", opts)
 	}
@@ -89,7 +89,7 @@ func TestDetect_ReadsTheVersionTheCompileReads(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			src := compilers.Source{Path: "api.yaml", Data: []byte(root + tail)}
-			rec, diags, ok := openapi.New().Detect(src, compilers.Options{})
+			rec, diags, ok := openapi.New().Detect(t.Context(), src, compilers.Options{})
 			require.True(t, ok, "the compile lowers it, so detection claims it: %v", diags)
 
 			doc, compiled, err := openapi.New().Compile(t.Context(), []compilers.Source{src}, compilers.Options{})
@@ -101,13 +101,14 @@ func TestDetect_ReadsTheVersionTheCompileReads(t *testing.T) {
 	}
 }
 
-// TestDetectionBudget_ReadsTheCallersOptions pins the budget detection takes
-// from each kind of options, another compiler's included, which mean this
-// one's default as compilers.Compiler.Detect requires rather than no budget.
-// Detect's own tests exceed only a budget the caller sets: a source past the
-// default costs more than the gate's race run should pay, so another
-// compiler's options read as no budget would pass them all.
-func TestDetectionBudget_ReadsTheCallersOptions(t *testing.T) {
+// TestCompiler_SourceLimitReadsTheCallersOptions pins the limit detection, and
+// a caller reading a source for it, takes from each kind of options, another
+// compiler's included, which mean this one's default as
+// compilers.Compiler.Detect requires rather than no limit. Detect's own tests
+// exceed only a budget the caller sets: a source past the default costs more
+// than the gate's race run should pay, so another compiler's options read as
+// no limit would pass them all.
+func TestCompiler_SourceLimitReadsTheCallersOptions(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name string
@@ -121,7 +122,7 @@ func TestDetectionBudget_ReadsTheCallersOptions(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tc.want, openapi.DetectionBudget(tc.opts))
+			assert.Equal(t, tc.want, openapi.New().SourceLimit(tc.opts))
 		})
 	}
 }

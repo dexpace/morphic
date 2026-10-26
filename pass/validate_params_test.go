@@ -8,7 +8,6 @@ import (
 
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/ir/irtest"
-	"github.com/dexpace/morphic/pass"
 )
 
 // TestValidate_ParamBinding_UndeclaredIDIsReportedOnceAsDangling pins that a
@@ -20,7 +19,7 @@ func TestValidate_ParamBinding_UndeclaredIDIsReportedOnceAsDangling(t *testing.T
 	op := paramBindingOp("op", ir.Parameter{ID: "param/x/op/id/query", Name: ir.Naming{Source: "id"}})
 	op.Bindings.HTTP[0].ParamBindings = append(op.Bindings.HTTP[0].ParamBindings,
 		ir.HTTPParamBinding{Param: "param/x/op/ghost/query", Location: ir.HTTPLocationQuery})
-	diags := pass.Validate(docWithOperation(op))
+	diags := validated(t, docWithOperation(op))
 	assert.Equal(t, 1, countCode(t, diags, "ir/dangling-param-ref"))
 	assert.Zero(t, countCode(t, diags, "pass/param-binding-mismatch"), "the dangling walk owns an ID nothing declares")
 }
@@ -32,7 +31,7 @@ func TestValidate_ParamBinding_EmptyParamIsRejected(t *testing.T) {
 	op := paramBindingOp("op", ir.Parameter{ID: "param/x/op/id/query", Name: ir.Naming{Source: "id"}})
 	op.Bindings.HTTP[0].ParamBindings = append(op.Bindings.HTTP[0].ParamBindings,
 		ir.HTTPParamBinding{Location: ir.HTTPLocationQuery})
-	diags := pass.Validate(docWithOperation(op))
+	diags := validated(t, docWithOperation(op))
 	assert.Equal(t, 1, countCode(t, diags, "pass/param-binding-mismatch"))
 	assert.Zero(t, countCode(t, diags, "ir/dangling-param-ref"))
 }
@@ -51,7 +50,7 @@ func TestValidate_ParamBinding_DoubleBound(t *testing.T) {
 		}}},
 	}
 	var messages []string
-	for _, d := range pass.Validate(docWithOperation(op)) {
+	for _, d := range validated(t, docWithOperation(op)) {
 		if d.Code == "pass/param-binding-mismatch" {
 			messages = append(messages, d.Message)
 		}
@@ -83,7 +82,7 @@ func TestValidate_ParamBinding_SameNameDifferentLocation(t *testing.T) {
 		ir.Parameter{ID: "param/x/get/id/path", Name: ir.Naming{Source: "id"}},
 	)
 	op.Bindings.HTTP[0].ParamBindings[1].Location = ir.HTTPLocationPath
-	assert.NotContains(t, irtest.DiagCodes(pass.Validate(docWithOperation(op))), "pass/param-binding-mismatch")
+	assert.NotContains(t, irtest.DiagCodes(validated(t, docWithOperation(op))), "pass/param-binding-mismatch")
 }
 
 // TestValidate_ParamBinding_OtherOperationsParamIsRejected pins that a binding
@@ -97,7 +96,7 @@ func TestValidate_ParamBinding_OtherOperationsParamIsRejected(t *testing.T) {
 
 	doc := validDoc()
 	doc.Services = []ir.Service{{ID: "s", Groups: []ir.OperationGroup{{Operations: []ir.Operation{get, post}}}}}
-	diags := pass.Validate(doc)
+	diags := validated(t, doc)
 
 	var mismatches []string
 	for _, d := range diags {
@@ -125,7 +124,7 @@ func TestValidate_HostParamBoundMultipleTimesIsLegal(t *testing.T) {
 			},
 		}}},
 	}
-	assert.NotContains(t, irtest.DiagCodes(pass.Validate(docWithOperation(op))), "pass/param-binding-mismatch")
+	assert.NotContains(t, irtest.DiagCodes(validated(t, docWithOperation(op))), "pass/param-binding-mismatch")
 }
 
 // paramRefOp returns an operation declaring one parameter and pointing its
@@ -145,7 +144,7 @@ func paramRefOp(id ir.OpID, own ir.ParamID, cursor, limit, token ir.ParamID) ir.
 func TestValidate_ParamReferences_OwnOperationIsClean(t *testing.T) {
 	t.Parallel()
 	op := paramRefOp("op/x/put", "param/x/put/p", "param/x/put/p", "param/x/put/p", "param/x/put/p")
-	diags := pass.Validate(docWithOperations(op))
+	diags := validated(t, docWithOperations(op))
 	assert.NotContains(t, irtest.DiagCodes(diags), "pass/param-binding-mismatch")
 	assert.NotContains(t, irtest.DiagCodes(diags), "ir/dangling-param-ref")
 }
@@ -155,7 +154,7 @@ func TestValidate_ParamReferences_OtherOperationsParamIsRejected(t *testing.T) {
 	get := paramRefOp("op/x/get", "param/x/get/p", "param/x/get/p", "param/x/get/p", "param/x/get/p")
 	post := paramRefOp("op/x/post", "param/x/post/p", "param/x/get/p", "param/x/get/p", "param/x/get/p")
 
-	diags := pass.Validate(docWithOperations(get, post))
+	diags := validated(t, docWithOperations(get, post))
 
 	var at []string
 	for _, d := range diags {
@@ -171,7 +170,7 @@ func TestValidate_ParamReferences_OtherOperationsParamIsRejected(t *testing.T) {
 func TestValidate_ParamReferences_UndeclaredIDIsReportedOnceAsDangling(t *testing.T) {
 	t.Parallel()
 	op := paramRefOp("op/x/get", "param/x/get/p", "param/x/ghost", "param/x/get/p", "param/x/get/p")
-	diags := pass.Validate(docWithOperations(op))
+	diags := validated(t, docWithOperations(op))
 	assert.Equal(t, 1, countCode(t, diags, "ir/dangling-param-ref"))
 	assert.Zero(t, countCode(t, diags, "pass/param-binding-mismatch"), "the dangling walk owns an ID nothing declares")
 }
@@ -183,7 +182,7 @@ func TestValidate_ParamReferences_EmptyTokenParamWithoutTokenKindIsClean(t *test
 	t.Parallel()
 	op := paramRefOp("op/x/get", "param/x/get/p", "param/x/get/p", "param/x/get/p", "")
 	op.Idempotency = ir.Idempotency{Kind: ir.IdempotencySafe}
-	diags := pass.Validate(docWithOperations(op))
+	diags := validated(t, docWithOperations(op))
 	assert.Zero(t, countCode(t, diags, "pass/param-binding-mismatch"))
 	assert.Zero(t, countCode(t, diags, "ir/dangling-param-ref"))
 }
@@ -195,7 +194,7 @@ func TestValidate_ParamReferences_EmptyPaginationInputIsRejected(t *testing.T) {
 	t.Parallel()
 	op := paramRefOp("op/x/get", "param/x/get/p", "", "param/x/get/p", "param/x/get/p")
 	var at []string
-	for _, d := range pass.Validate(docWithOperations(op)) {
+	for _, d := range validated(t, docWithOperations(op)) {
 		if d.Code == "pass/param-binding-mismatch" {
 			at = append(at, d.Provenance.Node)
 		}
@@ -219,7 +218,7 @@ func TestValidate_ParamReferences_FieldArgumentIsRejected(t *testing.T) {
 	require.True(t, ok)
 	model.Properties[0].Args = []ir.Parameter{{ID: arg, Name: ir.Naming{Source: "limit"}, Type: ir.TypeRef{Target: "t/prim/string"}}}
 
-	diags := pass.Validate(doc)
+	diags := validated(t, doc)
 	var at []string
 	for _, d := range diags {
 		if d.Code == "pass/param-binding-mismatch" {

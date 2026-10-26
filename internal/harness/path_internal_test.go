@@ -82,7 +82,7 @@ func TestSpecFiles_ACompilerTheRegistryRefusesIsAnError(t *testing.T) {
 // registry refuses as a breach of the compiler contract.
 type namelessClaim struct{ stubCompiler }
 
-func (namelessClaim) Detect(compilers.Source, compilers.Options) (compilers.Recognition, []ir.Diagnostic, bool) {
+func (namelessClaim) Detect(context.Context, compilers.Source, compilers.Options) (compilers.Recognition, []ir.Diagnostic, bool) {
 	return compilers.Recognition{}, nil, true
 }
 

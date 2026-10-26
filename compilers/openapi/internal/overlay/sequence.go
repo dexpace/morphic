@@ -1,6 +1,7 @@
 package overlay
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"math"
@@ -59,15 +60,24 @@ type sequence struct {
 // runSequence applies doc to root and reports what the library would have
 // reported for the whole overlay, or refuses the first action that would build
 // past maxNodes. A zero or negative maxNodes applies with no budget.
-func runSequence(doc *soaoverlay.Overlay, root *yaml.Node, at ir.Provenance, lax bool, maxNodes int) ([]ir.Diagnostic, bool) {
+func runSequence(ctx context.Context, doc *soaoverlay.Overlay, root *yaml.Node, at ir.Provenance, lax bool,
+	maxNodes int,
+) ([]ir.Diagnostic, bool) {
 	s := &sequence{doc: doc, root: root, lax: lax, maxNodes: maxNodes}
 	if s.budgeted() {
-		s.size = countNodes(root, s.maxNodes)
+		s.size = countNodes(ctx, root, s.maxNodes)
 	}
 	for i, action := range doc.Actions {
-		if over, ok := s.charge(action); !ok {
+		if over, ok := s.charge(ctx, action); !ok {
 			reported, _ := s.finish(at)
 			return append(reported, s.overBudget(at, i, over)), false
+		}
+		// The library applies the action reading no context, and a charge a
+		// cancel cut short may have counted too few nodes, so the cancel is seen
+		// before the action is applied. The tree is left half applied, which no
+		// caller builds on.
+		if ctx.Err() != nil {
+			return nil, false
 		}
 		if err := s.step(i, action); err != nil {
 			// A hard error ends the library's own loop with nothing else
@@ -83,7 +93,7 @@ func (s *sequence) budgeted() bool { return s.maxNodes > 0 }
 
 // charge adds what action can build to the running size and reports whether it
 // still fits, and if not, the size it would reach.
-func (s *sequence) charge(action soaoverlay.Action) (int64, bool) {
+func (s *sequence) charge(ctx context.Context, action soaoverlay.Action) (int64, bool) {
 	if !s.budgeted() {
 		return 0, true
 	}
@@ -92,7 +102,7 @@ func (s *sequence) charge(action soaoverlay.Action) (int64, bool) {
 	if s.size+cost > limit {
 		// The running size only ever overstates, so take the real count before
 		// refusing on it.
-		s.size = countNodes(s.root, s.maxNodes)
+		s.size = countNodes(ctx, s.root, s.maxNodes)
 		if s.size+cost > limit {
 			return s.size + cost, false
 		}
@@ -228,8 +238,8 @@ func actionType(action soaoverlay.Action) string {
 // countNodes counts the nodes a Content walk from root reaches, no further than
 // one past limit: a tree past limit is refused at any size, and a refusal
 // already says "at least". A limit of math.MaxInt counts the whole tree.
-func countNodes(root *yaml.Node, limit int) int64 {
-	return int64(nodeview.Walk{Nodes: min(limit, math.MaxInt-1) + 1}.Run(nodeview.DocumentRoot(root)).Visited)
+func countNodes(ctx context.Context, root *yaml.Node, limit int) int64 {
+	return int64(nodeview.Walk{Nodes: min(limit, math.MaxInt-1) + 1}.Run(ctx, nodeview.DocumentRoot(root)).Visited)
 }
 
 // weigher counts the nodes the library's clone would build from a node: every

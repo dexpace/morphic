@@ -325,7 +325,7 @@ x-params:
 				return bind.ReferenceEnd{Name: "spec.yaml", Pointer: tc.pointer, Node: tc.node},
 					name == "spec.yaml" && p == "/components/parameters/P"
 			}
-			table := bind.Bind(src, cfg)
+			table := bind.Bind(t.Context(), src, cfg)
 			end, ok := table.Through(at("/components/parameters/P"))
 			s := entryAt(t, table, "/components/schemas/S")
 			if !tc.placed {

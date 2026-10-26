@@ -440,21 +440,20 @@ func (findingCompiler) Compile(_ context.Context, sources []compilers.Source, _ 
 }
 
 // cancellingPass cancels the run it is part of and hands the document back as
-// it was, as a pass that never looks at a context does. The engine checks the
-// context before each pass and not after the last, so the run comes back whole.
+// it was, as a pass that never looks at its context does.
 type cancellingPass struct{ cancel func() }
 
 func (cancellingPass) Name() string { return "cancelling" }
 
-func (p cancellingPass) Run(doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
+func (p cancellingPass) Run(_ context.Context, doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
 	p.cancel()
 	return doc, nil
 }
 
-// TestRunPipeline_ARunCancelledInItsLastStageWritesNothing pins the check
-// after the engine returns: a run cancelled in its last pass, where the engine
-// no longer looks, still writes no diagnostic and no document, and fails
-// naming what cancelled it.
+// TestRunPipeline_ARunCancelledInItsLastStageWritesNothing pins what a run
+// cancelled in its last pass, after the compile found something, leaves: no
+// diagnostic and no document, and a failure naming what cancelled it. The
+// engine refuses the run, so nothing it returned reaches a writer.
 func TestRunPipeline_ARunCancelledInItsLastStageWritesNothing(t *testing.T) {
 	orig := newEngine
 	t.Cleanup(func() { newEngine = orig })

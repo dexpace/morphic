@@ -188,9 +188,14 @@ func (bd *Builder) Unplaced(model any, site string) {
 }
 
 // Walk records js, read at p, and every schema and discriminator below it, at
-// the position each is read at.
+// the position each is read at, until ctx is done: the library's walk reads no
+// context (docs/parser-library.md#context-unread), so Walk asks it before each
+// item.
 func (bd *Builder) Walk(ctx context.Context, js *schemaRef, p bind.Position) {
 	for item := range oas3.Walk(ctx, js) {
+		if ctx.Err() != nil {
+			return
+		}
 		at := bind.Position{Doc: p.Doc, Pointer: p.Pointer + PointerOf(item.Location)}
 		// Match returns only what its matcher does, and this one never fails.
 		_ = item.Match(oas3.SchemaMatcher{
@@ -240,11 +245,16 @@ type Built struct {
 }
 
 // Build builds a schema for each of the table's landings, in order, records
-// it and everything below it, and returns what each build found.
+// it and everything below it, and returns what each build found. It stops
+// between landings once ctx is done, with what it built so far, which its
+// caller must not read.
 func (bd *Builder) Build(ctx context.Context) []Built {
 	landings := bd.b.table.Landings()
 	out := make([]Built, 0, len(landings))
 	for _, l := range landings {
+		if ctx.Err() != nil {
+			break
+		}
 		out = append(out, bd.build(ctx, l))
 	}
 	return out

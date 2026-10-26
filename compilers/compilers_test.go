@@ -30,11 +30,15 @@ type stubCompiler struct {
 	parsed any
 	// saw records the options each Detect call was asked under.
 	saw []compilers.Options
+	// limit is the SourceLimit it reports under any options, and limitsAsked
+	// the options each SourceLimit call was asked under.
+	limit       int
+	limitsAsked []compilers.Options
 }
 
 func (s *stubCompiler) Formats() []compilers.SourceFormat { return s.formats }
 
-func (s *stubCompiler) Detect(src compilers.Source, opts compilers.Options) (compilers.Recognition, []ir.Diagnostic, bool) {
+func (s *stubCompiler) Detect(_ context.Context, src compilers.Source, opts compilers.Options) (compilers.Recognition, []ir.Diagnostic, bool) {
 	s.saw = append(s.saw, opts)
 	if s.marker == "" || !bytes.Contains(src.Data, []byte(s.marker)) {
 		return compilers.Recognition{}, s.declines, false
@@ -46,6 +50,11 @@ func (s *stubCompiler) Detect(src compilers.Source, opts compilers.Options) (com
 }
 
 func (s *stubCompiler) DecodeOptions(compilers.OptionSet) (any, error) { return nil, nil }
+
+func (s *stubCompiler) SourceLimit(opts compilers.Options) int {
+	s.limitsAsked = append(s.limitsAsked, opts)
+	return s.limit
+}
 
 func (s *stubCompiler) SourceTable([]compilers.Source, compilers.Options) []ir.SourceInfo { return nil }
 
@@ -277,7 +286,7 @@ func TestRegistry_DetectDropsDeclinesOnceClaimed(t *testing.T) {
 // breaks it.
 type claimsNothing struct{ stubCompiler }
 
-func (claimsNothing) Detect(compilers.Source, compilers.Options) (compilers.Recognition, []ir.Diagnostic, bool) {
+func (claimsNothing) Detect(context.Context, compilers.Source, compilers.Options) (compilers.Recognition, []ir.Diagnostic, bool) {
 	return compilers.Recognition{}, nil, true
 }
 

@@ -43,9 +43,9 @@ func (b *breaker) Formats() []compilers.SourceFormat {
 	return b.scripted.Formats()
 }
 
-func (b *breaker) Detect(src compilers.Source, opts compilers.Options) (compilers.Recognition, []ir.Diagnostic, bool) {
+func (b *breaker) Detect(ctx context.Context, src compilers.Source, opts compilers.Options) (compilers.Recognition, []ir.Diagnostic, bool) {
 	b.enter("Detect")
-	return b.scripted.Detect(src, opts)
+	return b.scripted.Detect(ctx, src, opts)
 }
 
 func (b *breaker) DecodeOptions(set compilers.OptionSet) (any, error) {
@@ -56,6 +56,11 @@ func (b *breaker) DecodeOptions(set compilers.OptionSet) (any, error) {
 func (b *breaker) Compile(ctx context.Context, sources []compilers.Source, opts compilers.Options) (*ir.Document, []ir.Diagnostic, error) {
 	b.enter("Compile")
 	return b.scripted.Compile(ctx, sources, opts)
+}
+
+func (b *breaker) SourceLimit(opts compilers.Options) int {
+	b.enter("SourceLimit")
+	return b.scripted.SourceLimit(opts)
 }
 
 func (b *breaker) SourceTable(sources []compilers.Source, opts compilers.Options) []ir.SourceInfo {
@@ -106,6 +111,7 @@ func TestRegistry_DetectRefusesACompilerThatPanics(t *testing.T) {
 	}{
 		{"Detect", "Detect", nil, "detect by alpha@1: Detect: panic: boom"},
 		{"configuring through DecodeOptions", "DecodeOptions", configureViaDecodeOptions, "detect by alpha@1: configure: panic: boom"},
+		{"SourceLimit", "SourceLimit", nil, "source limit of alpha@1: SourceLimit: panic: boom"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

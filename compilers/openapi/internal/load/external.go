@@ -6,6 +6,7 @@ import (
 	"encoding/json/jsontext"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"iter"
 	"net/http"
@@ -123,7 +124,7 @@ func (e external) hold(ctx context.Context, sibs Siblings) {
 		base = e.read.self.path
 	}
 	e.holdWalked(walkSource(ctx, e.doc, sibs))
-	e.holdSpellings(e.read.self.root, base)
+	e.holdSpellings(ctx, e.read.self.root, base)
 }
 
 // holdWalked is hold over the walk of e.doc the caller supplies, so a test can
@@ -244,13 +245,13 @@ func (e external) holdObject(key string, o heldObject) {
 // otherwise, a back reference is not found held, and the resolver builds a copy
 // of what it names (see Open). It visits each node of tree once, following an
 // alias only to read a $ref's key and value, as the model does.
-func (e external) holdSpellings(tree *yaml.Node, base string) {
+func (e external) holdSpellings(ctx context.Context, tree *yaml.Node, base string) {
 	nodeview.Walk{Nodes: maxTreeNodes, Visit: func(n *yaml.Node, _ int) nodeview.Step {
 		for _, ref := range writtenAt(n, "$ref") {
 			e.holdSpelling(references.Reference(ref.Value), base)
 		}
 		return nodeview.Descend
-	}}.Run(tree)
+	}}.Run(ctx, tree)
 }
 
 // writtenAt returns the scalar values the mapping n writes under key itself,
@@ -375,7 +376,7 @@ func (e external) fetch(ctx context.Context, key, location string) answer {
 	if err != nil {
 		return answer{err: e.readFailure(key, err)}
 	}
-	data, err = e.prepare(key, data)
+	data, err = e.prepare(ctx, key, data)
 	if err != nil {
 		return answer{err: err}
 	}
@@ -462,40 +463,53 @@ func directoryNamed(dir string) string {
 // prepare stores the tree an external document's bytes parse to under key, once
 // the source's refusals have passed it, its $refs rewritten as the source's are
 // (see escapes), and returns the bytes, which the resolver still reads and
-// caches. It runs once per document a compile reads (see externalReads.once).
+// caches. It runs once per document read (see externalReads.once), and asks
+// its context last, as the resolver reads none
+// (docs/parser-library.md#resolution-unbounded).
 //
 // The byte budget is checked again, though the reader held the read to it:
 // admitting bytes past it would let a reader lift a budget the compile set.
-// Bytes that do not parse, or hold nothing, are refused as such, the parser's
-// reason kept (see bind.UnparsableError, bind.ErrEmptyDocument).
-func (e external) prepare(key string, data []byte) ([]byte, error) {
+// Unparsable or empty bytes are refused as such, the parser's reason kept
+// (bind.UnparsableError, bind.ErrEmptyDocument).
+func (e external) prepare(ctx context.Context, key string, data []byte) ([]byte, error) {
 	if exceeds(len(data), e.opts.MaxSourceBytes) {
 		return nil, refused(key, fmt.Sprintf("it is past the %d-byte budget", e.opts.MaxSourceBytes))
 	}
 
-	root, err := parseTree(data)
+	root, err := parseTree(ctx, data)
 	if err != nil {
-		return nil, &bind.UnparsableError{Err: err}
+		return nil, stopped(ctx, &bind.UnparsableError{Err: err})
 	}
 	if bind.IsEmpty(root) {
 		return nil, bind.ErrEmptyDocument
 	}
-	if err := e.admit(key, root); err != nil {
+	if err := e.admit(ctx, key, root); err != nil {
 		return nil, err
 	}
-	releaseAnchors(root)
-	e.read.self.escapes.escape(root)
+	releaseAnchors(ctx, root)
+	e.read.self.escapes.escape(ctx, root)
 	e.doc.StoreExternalDocumentInCache(key, root)
 	e.read.recordTree(key, root, data)
-	e.holdSpellings(root, key)
+	e.holdSpellings(ctx, root, key)
+	// A screen or walk above that a cancel cut short has admitted nothing.
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	return data, nil
 }
 
-// parseTree parses data as the resolver parses an external document, and
-// returns the parser's error for bytes that do not parse.
-func parseTree(data []byte) (*yaml.Node, error) {
+// parseTree parses data as the resolver parses an external document, its first
+// document, and returns the parser's error for bytes that do not parse, or
+// ctx's once it is done: the parse reads the bytes through ctx
+// (contextReader). Bytes holding no document parse to an empty tree, as
+// yaml.Unmarshal parses them.
+func parseTree(ctx context.Context, data []byte) (*yaml.Node, error) {
 	var root yaml.Node
-	return &root, yaml.Unmarshal(data, &root)
+	err := yaml.NewDecoder(contextReader{ctx: ctx, r: bytes.NewReader(data)}).Decode(&root)
+	if errors.Is(err, io.EOF) {
+		return &root, nil
+	}
+	return &root, stopped(ctx, err)
 }
 
 // admit holds an external document's tree to what Load holds the source's to:
@@ -506,8 +520,8 @@ func parseTree(data []byte) (*yaml.Node, error) {
 // is not read into the compile, so it has no Document.Sources entry a finding
 // could name: the reference that named the document is what fails, with the
 // findings as its reason.
-func (e external) admit(key string, root *yaml.Node) error {
-	findings := refusals(nowhere, root, e.opts)
+func (e external) admit(ctx context.Context, key string, root *yaml.Node) error {
+	findings := refusals(ctx, nowhere, root, e.opts)
 	if len(findings) > 0 {
 		reasons := make([]string, len(findings))
 		for i, d := range findings {
@@ -515,11 +529,11 @@ func (e external) admit(key string, root *yaml.Node) error {
 		}
 		return refused(key, strings.Join(reasons, "; "))
 	}
-	if nodes := nodeCount(root); exceeds(nodes, e.opts.MaxSourceNodes) {
+	if nodes := nodeCount(ctx, root); exceeds(nodes, e.opts.MaxSourceNodes) {
 		return refused(key, fmt.Sprintf("it parses to %d nodes, past the %d-node budget",
 			nodes, e.opts.MaxSourceNodes))
 	}
-	if reason, refuse := reachesLocal(root, key); refuse {
+	if reason, refuse := reachesLocal(ctx, root, key); refuse {
 		return refused(key, "it is fetched over the network and "+reason+
 			", which a remote document must not do")
 	}
@@ -535,7 +549,7 @@ func (e external) admit(key string, root *yaml.Node) error {
 // the disk; refusing it keeps every base off the disk without following the
 // resolver's $id scopes. A urn: $id names no file. The walk reads a value
 // through an alias.
-func reachesLocal(root *yaml.Node, base string) (reason string, refuse bool) {
+func reachesLocal(ctx context.Context, root *yaml.Node, base string) (reason string, refuse bool) {
 	if !overNetwork(base) {
 		return "", false
 	}
@@ -545,7 +559,7 @@ func reachesLocal(root *yaml.Node, base string) (reason string, refuse bool) {
 			return nodeview.Stop
 		}
 		return nodeview.Descend
-	}}.Run(root)
+	}}.Run(ctx, root)
 	return reason, refuse
 }
 

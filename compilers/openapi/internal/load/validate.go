@@ -1,6 +1,7 @@
 package load
 
 import (
+	"context"
 	"encoding/json/jsontext"
 	"fmt"
 
@@ -43,7 +44,7 @@ func declaredVersion(root *yaml.Node) string {
 // tree places each finding at the node it is about, naming where it was read
 // when an alias or a merge key mounts that node there. budget bounds what the
 // check reads (see nodesAdmitted).
-func judgeSource(root *yaml.Node, tree sourceTree, budget int) judgment {
+func judgeSource(ctx context.Context, root *yaml.Node, tree sourceTree, budget int) judgment {
 	j := judgment{seen: map[objectKey]bool{}}
 	version := declaredVersion(root)
 	opts := oas.Options{
@@ -54,7 +55,8 @@ func judgeSource(root *yaml.Node, tree sourceTree, budget int) judgment {
 		},
 		ReadAt: true,
 	}
-	j.diags = append(oas.NewChecker().Check(root, version, opts), oas.CheckFormat(root, version, formatOptions(opts))...)
+	j.diags = append(oas.NewChecker().Check(ctx, root, version, opts),
+		oas.CheckFormat(ctx, root, version, formatOptions(opts))...)
 	return j
 }
 

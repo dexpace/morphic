@@ -55,7 +55,7 @@ func TestRefTypeRef_SaysWhyAnUnboundRefIsUnresolved(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, `unresolved $ref "#/components/schemas/H/properties/p"`, message(t, unheld, a))
 
-	bd := typed.NewBuilder(bind.Bind(unheld.Ctx.Doc.GetRootNode(), bind.Config{Self: "spec.yaml"}))
+	bd := typed.NewBuilder(bind.Bind(t.Context(), unheld.Ctx.Doc.GetRootNode(), bind.Config{Self: "spec.yaml"}))
 	bd.Unplaced(a, "/paths/~1a/get/parameters/0")
 	unplaced := LowererOver(lowering.New(0, unheld.Ctx.Doc, ir.SourceInfo{}, "", lowering.Limits{},
 		lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}).WithLoaded(
@@ -126,7 +126,7 @@ func unheldLowerer(t *testing.T) *Lowerer {
 		"    A: {$ref: '#/components/schemas/H/properties/p'}\n    H: {properties: {p: {type: object}}}\n"
 	doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(spec))
 	require.NoError(t, err)
-	bd := typed.NewBuilder(bind.Bind(doc.GetRootNode(), bind.Config{Self: "spec.yaml"}))
+	bd := typed.NewBuilder(bind.Bind(t.Context(), doc.GetRootNode(), bind.Config{Self: "spec.yaml"}))
 	a, ok := doc.Components.GetSchemas().Get("A")
 	require.True(t, ok)
 	bd.Schema(a, bind.Position{Pointer: "/components/schemas/A"})

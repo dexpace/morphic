@@ -36,8 +36,8 @@ type Options struct {
 	// nowhere. It is read only when Reader is set.
 	Within string
 	// Overlay is the OpenAPI Overlay document to apply to the source before the
-	// model is built, or nil for none. Its bytes are the caller's to read, like
-	// the source's.
+	// model is built, or nil for none. With empty Data, the document its Path
+	// names is read through Reader (readOverlay).
 	Overlay *overlay.Options
 	// OverlaySrcIndex is the index the overlay document takes in Document.Sources.
 	// It is read only when Overlay is set.
@@ -65,7 +65,12 @@ type Options struct {
 	// load builds. Carrying it here rather than in a package-level variable keeps
 	// the bound an input to the stage, so nothing a test does to it is visible to
 	// a concurrent load.
-	buildIndex func(root *yaml.Node) sourceindex.Index
+	buildIndex func(ctx context.Context, root *yaml.Node) sourceindex.Index
+	// entered is told each phase a load enters, before the context is asked, or
+	// is nil. It is unexported because it is this package's test seam: a test
+	// cancels at the start of a phase through it, and lists the phases a load
+	// enters.
+	entered func(phase)
 	// rebuildDoc rebuilds the model for resolveExternal's second pass, or nil for
 	// unmarshal itself. It is unexported because it is this package's test seam:
 	// the rebuild repeats an unmarshal that already succeeded on the same bytes
@@ -85,12 +90,12 @@ type Options struct {
 // refusals, which do read names. A document read through external is released
 // too (GitHub #501), and replaces the resolver's own parse on a second
 // resolution (GitHub #538).
-func releaseAnchors(root *yaml.Node) {
+func releaseAnchors(ctx context.Context, root *yaml.Node) {
 	// An alias is a leaf of the walk: a recursive anchor cannot loop it.
 	nodeview.Walk{Nodes: maxTreeNodes, Visit: func(n *yaml.Node, _ int) nodeview.Step {
 		n.Anchor = ""
 		return nodeview.Descend
-	}}.Run(root)
+	}}.Run(ctx, root)
 }
 
 // ErrParse marks a hard failure to read a source document: bytes that are not
@@ -150,9 +155,13 @@ func Load(ctx context.Context, srcIndex int, src compilers.Source, opts Options)
 		return nil, []ir.Diagnostic{d}, nil
 	}
 
-	parsed, err := parsedFor(src)
+	if err := opts.enter(ctx, phaseParse); err != nil {
+		return nil, nil, err
+	}
+	parsed, err := parsedFor(ctx, src)
 	if err != nil {
-		return nil, nil, fmt.Errorf("openapi: decode source %d: %w: %w", srcIndex, err, ErrParse)
+		// A parse its context stopped is no source that will not parse.
+		return nil, nil, stopped(ctx, fmt.Errorf("openapi: decode source %d: %w: %w", srcIndex, err, ErrParse))
 	}
 	doc, diags, err := build(ctx, srcIndex, src, parsed, opts)
 	if err != nil {
@@ -161,94 +170,37 @@ func Load(ctx context.Context, srcIndex int, src compilers.Source, opts Options)
 	return doc, append(parsed.rest.diagnostics(srcIndex), diags...), nil
 }
 
-// build turns the decoded tree of a source's first document into a Document:
-// the pre-parse refusals, the overlay, the node budget, the rule table's
-// judgment of the tree, the model build, the version check, then reference
-// resolution and the source checks as diagnostics. A nil document with error
-// diagnostics is a refusal to lower.
+// build turns the decoded tree of a source's first document into a Document,
+// phase by phase (steps), each entered only while ctx is live, and none built
+// on once ctx is done. A nil document with error diagnostics is a refusal to
+// lower.
 //
 // It is what Load does after the decode, split from it so that what the decode
 // found past the first document is reported on every return path — a refusal
 // included — without being read as a refusal itself.
 func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Parsed, opts Options) (*Document, []ir.Diagnostic, error) {
-	root := parsed.root
-	early := refusals(scan.InTree(srcIndex, scan.Pointers(root)), root, opts)
-	if diag.HasError(early) {
-		return nil, early, nil // a pre-parse refusal: the parser is never handed a tree it faults on
+	l := &loading{srcIndex: srcIndex, src: src, opts: opts, root: parsed.root}
+	// Every return leaves the tree as the source wrote it.
+	defer l.restoreTrees()
+	for _, s := range steps() {
+		if err := opts.enter(ctx, s.phase); err != nil {
+			return nil, nil, err
+		}
+		refused, err := s.run(l, ctx)
+		if err != nil {
+			return nil, nil, stopped(ctx, err)
+		}
+		// A phase its context cut short leaves what it found partial, a
+		// refusal among it, so none of it is reported or built on.
+		if err := ctx.Err(); err != nil {
+			return nil, nil, err
+		}
+		if refused {
+			return nil, l.early, nil
+		}
 	}
-	// early may still hold a non-fatal scan-incomplete warning; carry it forward.
-
-	origin, patchDiags := patch(srcIndex, root, opts)
-	early = append(early, patchDiags...)
-	if diag.HasError(early) {
-		return nil, early, nil // an overlay that did not apply: refuse to lower a half-patched tree
-	}
-
-	// The node budget is checked after the overlay for the reason patch re-runs
-	// the pre-parse refusals: the tree the model is built from is no longer the
-	// bytes that were measured above, and an overlay action can graft nodes onto
-	// it. Building that model and resolving its references is what the budget
-	// exists to bound, and both are still ahead.
-	if nodes := nodeCount(root); exceeds(nodes, opts.MaxSourceNodes) {
-		return nil, append(early, budgetRefusal(srcIndex,
-			"source document parses to %d nodes, past the %d-node budget",
-			nodes, opts.MaxSourceNodes)), nil
-	}
-
-	// The table judges the tree as the source writes it, before anything below
-	// respells it for the parser.
-	tree := newSourceTree(srcIndex, origin, root)
-	judged := judgeSource(root, tree, nodesAdmitted(opts))
-
-	releaseAnchors(root)
-	esc := newEscapes(refusedByName(opts, src.Path))
-	esc.escape(root)
-	// Every return below leaves the tree as the source wrote it; the models are
-	// put back at the end of resolve.
-	defer esc.restoreTrees()
-	doc, err := unmarshal(ctx, src.Data, root)
-	if err != nil {
-		return nil, nil, fmt.Errorf("openapi: unmarshal source %d: %w", srcIndex, err)
-	}
-
-	minor, ok := SupportedMinor(doc.OpenAPI)
-	if !ok {
-		return nil, append(early, diag.Newf(ir.SeverityError, diag.UnsupportedVersion,
-			ir.Provenance{Source: srcIndex},
-			"unsupported OpenAPI version %q; want 3.0, 3.1, or 3.2", doc.OpenAPI)), nil
-	}
-
-	sibs, sibFaults := modelSiblings(ctx, doc, tree.locate)
-	diags := early
-	diags = append(diags, sibFaults...)
-	diags = append(diags, judged.diags...)
-	self := newSourceDocument(src.Path, src.Data, root, judged, tree, esc)
-	beside := besideSource{first: srcIndex + 1, format: "openapi@" + minor}
-	if origin.Applied() {
-		beside.first = opts.OverlaySrcIndex + 1
-	}
-	doc, sibs, bindings, resolveDiags, err := resolve(ctx, pointerAt(srcIndex, origin), doc, sibs, self, opts,
-		opts.rebuilder(ctx, src.Data, root), beside)
-	if err != nil {
-		return nil, nil, fmt.Errorf("openapi: rebuild source %d: %w", srcIndex, err)
-	}
-	diags = append(diags, resolveDiags...)
-	diags = append(diags, sourceChecks(ctx, pointerAt(srcIndex, origin), doc, sibs, resolveDiags)...)
-
-	return &Document{
-		Doc:      doc,
-		Bindings: bindings.bindings,
-		Holds:    newTreeReads().holds,
-		Source: ir.SourceInfo{
-			Format:  "openapi@" + minor,
-			Path:    src.Path,
-			Hash:    parsed.Hash(),
-			SelfURI: doc.GetSelf(),
-		},
-		Overlay:  origin,
-		Siblings: sibs,
-		Others:   bindings.others,
-	}, esc.asWritten(diags), nil
+	doc, diags := l.document(parsed.Hash())
+	return doc, diags, nil
 }
 
 // rebuilder returns the rebuild of the model of root that resolveExternal's
@@ -272,53 +224,11 @@ func sourceChecks(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, 
 	return append(diags, besideRefs(at, sibs, walkSource(ctx, doc, sibs), resolved)...)
 }
 
-// resolve resolves every reference in doc: each reference object through the
-// parser's resolver (resolveWith), then each schema $ref in the compiler
-// (bindSchemas). It returns the document it resolved, a rebuild of doc when
-// resolveExternal recovered an anchored document the resolver parsed itself.
-//
-// The parser reads the $refs as the trees were rewritten for it (escapes) in
-// the resolution, in the schemas built for the bindings, and in validating
-// what the references reach (validateReached), over the document returned,
-// since a rebuild discards a first resolution's objects. Only then are the
-// models and trees put back as written.
-func resolve(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI, sibs Siblings,
-	self sourceDocument, opts Options, rebuild func() (*soa.OpenAPI, error), beside besideSource,
-) (*soa.OpenAPI, Siblings, bound, []ir.Diagnostic, error) {
-	var reader *external
-	var pass *resolution
-	var missed []usedDocument
-	if opts.Reader != nil {
-		var err error
-		doc, sibs, reader, pass, missed, err = resolveExternal(ctx, doc, sibs, self, opts, rebuild)
-		if err != nil {
-			return nil, Siblings{}, bound{}, nil, err
-		}
-	} else {
-		pass = resolveWith(ctx, doc, sibs, self, opts, nil)
-	}
-	b := bindSchemas(ctx, doc, sibs, self, reader, pass.ends())
-	if reader != nil {
-		b.others = newOthers(reader.read, beside.first, beside.format)
-	}
-	place, placeSite := b.placer(at), sitePlacer(at, b.others)
-	diags := append(pass.diags(placeSite), stillUnprepared(placeSite, missed)...)
-	reached := validateReached(ctx, at, b, doc, sibs, opts, self, pass.elsewhere(placeSite))
-	site, err := self.escapes.restore(ctx, doc, sibs, b.built)
-	diags = append(diags, restoreFault(at, site, err)...)
-	diags = append(diags, bindingDiags(place, b.bindings.Table())...)
-	diags = append(diags, buildFailures(place, b.built)...)
-	if reader != nil {
-		diags = append(diags, crossed(at, reader)...)
-	}
-	return doc, sibs, b, append(diags, reached...), nil
-}
-
 // defaultIndex indexes a decoded tree under the compiler's node bound. It is
 // what Options.buildIndex stands in for when a caller leaves it nil, which
 // everything outside this package's tests does.
-func defaultIndex(root *yaml.Node) sourceindex.Index {
-	return sourceindex.Build(root, sourceindex.MaxIndexedNodes)
+func defaultIndex(ctx context.Context, root *yaml.Node) sourceindex.Index {
+	return sourceindex.Build(ctx, root, sourceindex.MaxIndexedNodes)
 }
 
 // locator answers where a node of the patched tree pointers indexes is, for
@@ -359,13 +269,13 @@ func pointerAt(srcIndex int, origin overlay.Origin) func(jsontext.Pointer) ir.Pr
 // The size refusal is here, not in scan, because a truncated index answers only
 // in part, and an alias-expansion allowance derived from a partial node count
 // would refuse documents on a bound they never crossed.
-func refusals(locate scan.Locator, root *yaml.Node, opts Options) []ir.Diagnostic {
+func refusals(ctx context.Context, locate scan.Locator, root *yaml.Node, opts Options) []ir.Diagnostic {
 	build := opts.buildIndex
 	if build == nil {
 		build = defaultIndex
 	}
 
-	idx := build(root)
+	idx := build(ctx, root)
 	if idx.Truncated() {
 		return []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.SourceTooLarge, locate(nil),
 			"source document exceeds the %d-node bound the pre-parse scan indexes",
@@ -373,12 +283,12 @@ func refusals(locate scan.Locator, root *yaml.Node, opts Options) []ir.Diagnosti
 	}
 
 	var diags []ir.Diagnostic
-	if d, deep := scan.Nesting(locate, idx); deep {
+	if d, deep := scan.Nesting(ctx, locate, idx); deep {
 		diags = append(diags, d)
 	}
-	diags = append(diags, scan.Aliases(locate, idx, int64(opts.MaxAliasSurplus))...)
+	diags = append(diags, scan.Aliases(ctx, locate, idx, int64(opts.MaxAliasSurplus))...)
 	if tagged := idx.TaggedMappings(); len(tagged) > 0 {
-		diags = append(diags, taggedMappingRefusal(locate, scan.Least(root, tagged)))
+		diags = append(diags, taggedMappingRefusal(locate, scan.Least(ctx, root, tagged)))
 	}
 	return diags
 }
@@ -396,7 +306,8 @@ func taggedMappingRefusal(locate scan.Locator, n *yaml.Node) ir.Diagnostic {
 // unmarshal builds a speakeasy document from an already-decoded node tree,
 // reproducing soa.Unmarshal with the decode lifted out, so each node keeps its
 // line and column through an overlay. The parser builds it behind
-// buildRecovered.
+// buildRecovered, in one call a cancel waits for
+// (docs/parser-library.md#context-unread).
 func unmarshal(ctx context.Context, data []byte, root *yaml.Node) (*soa.OpenAPI, error) {
 	if len(data) == 0 {
 		return nil, errors.New("empty document")

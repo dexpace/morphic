@@ -14,7 +14,6 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
-	"github.com/dexpace/morphic/pass"
 )
 
 // TestDiscriminatorBesideUnion_MovesWhenARouteIsNoSubtype pins that a model
@@ -334,7 +333,7 @@ func TestDiscriminatorBesideUnion_UnreachableBranchesAreNoRoute(t *testing.T) {
 			docs := make([]*ir.Document, 0, 2)
 			for _, src := range []string{pet + c.rest, c.rest + pet} {
 				doc, _ := parseFull(t, openapitest.ComponentSpec(src))
-				assert.Empty(t, pass.Validate(doc), "the document must validate")
+				assert.Empty(t, validated(t, doc), "the document must validate")
 				docs = append(docs, doc)
 				if c.stays {
 					assertStayed(t, doc)
@@ -400,7 +399,7 @@ components:
 ` + cat + dog
 	doc, diags := parseFull(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	assert.Empty(t, pass.Validate(doc))
+	assert.Empty(t, validated(t, doc))
 	const at = "/paths/~1pets/post/requestBody/content/application~1json/schema/discriminator"
 	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, at), "%+v", diags)
 }
@@ -442,7 +441,7 @@ func discriminatedOrders(t *testing.T, version, pet, rest string) []*ir.Document
 	for _, src := range []string{pet + rest, rest + pet} {
 		doc, diags := parseFull(t, openapitest.ComponentSpecVer(version, src))
 		openapitest.RequireNoErrorDiags(t, diags)
-		assert.Empty(t, pass.Validate(doc), "the document must validate")
+		assert.Empty(t, validated(t, doc), "the document must validate")
 		docs = append(docs, doc)
 	}
 	assert.Empty(t, cmp.Diff(docs[0].Types, docs[1].Types, orderInvariantIR()...),

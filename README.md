@@ -125,10 +125,13 @@ morphic validate openapi.yaml                   # diagnostics and exit code only
 morphic compile openapi.yaml --explain /components/schemas/Pet
 ```
 
-`compile` lowers one spec into IR JSON and writes diagnostics to stderr. Stdout is indented for
-reading; a file written with `-o`/`--output` is compact, about half the bytes, unless `--pretty`
-asks for the indented form. `validate` runs the same pipeline and drops the document, for a
-check that wants the diagnostics and the exit code and nothing else.
+`compile` lowers one spec into IR JSON and writes diagnostics to stderr. The spec is a regular file,
+read no further than the compiler's byte budget (`max-source-bytes`) allows: a pipe, a FIFO such as
+`<(…)` and a device are refused with exit `2` before they are opened, since a read of one can wait
+for a writer or stream without end. Stdout is indented for reading; a file written with
+`-o`/`--output` is compact, about half the bytes, unless `--pretty` asks for the indented form.
+`validate` runs the same pipeline and drops the document, for a check that wants the diagnostics and
+the exit code and nothing else.
 
 `morphic help` lists the commands, and `morphic help <command>` or `morphic <command> --help`
 prints a command's description, examples and flags. Help always goes to stdout and exits `0`.
@@ -211,10 +214,10 @@ OpenAPI compiler accepts:
 |---|---|---|
 | `grouping` | `tags` (default), `path-prefix` | How operations are grouped into operation groups. |
 | `allow-external-refs` | `true`, `false` (default) | Let `$ref` resolution read documents outside the spec's directory: files anywhere (by path or local `file:` URI) and http(s) URLs. Off, only a relative `$ref` into another document is read, and only a regular file inside the spec's directory tree, symbolic links included; any other, an absolute path or `file:` URI among them, is reported unresolved, whatever another `$ref` names the same file by. |
-| `overlay` | a file path | Apply an [OpenAPI Overlay](https://spec.openapis.org/overlay/latest.html) document to the source before lowering. |
+| `overlay` | a file path | Apply an [OpenAPI Overlay](https://spec.openapis.org/overlay/latest.html) document to the source before lowering. It is read as the spec is: a regular file, within `max-source-bytes`. |
 | `overlay-lax` | `true`, `false` (default) | Do not refuse when an overlay action's selector matches nothing. |
 | `nullable-widening` | `true` (default), `false` | Read `nullable: true` as admitting null wherever a schema writes it, and keywords beside a `$ref` that admit null as a nullable reference, marking each reference only that reading makes nullable as inferred. `false` reads them only as the document's OpenAPI version does. |
-| `max-source-bytes` | an integer | The byte budget for one document. |
+| `max-source-bytes` | an integer | The byte budget for one document: the spec, the overlay, and each document a `$ref` reads. None is read more than a byte past it. |
 | `max-source-nodes` | an integer | The budget on the YAML nodes one document parses to. |
 | `max-enum-members` | an integer | The budget on the members of one enum. |
 | `max-alias-surplus` | an integer | The budget on the nodes YAML aliases may add to a document. |
@@ -232,18 +235,19 @@ morphic compile openapi.yaml --opt grouping=path-prefix --opt overlay=patch.yaml
 The same pipeline is available as a Go package. `engine.New` builds the default engine: every
 built-in compiler and the default IR passes. `engine.WithCompilers` and `engine.WithPasses` replace
 either set, so an embedder can run a pass of its own, composed with `engine.Passes`, the default
-list in order; a pass changes types through an `ir.Editor`. `Run` reads the spec, asks the
-registered compilers which one recognizes it, compiles, and runs the passes in order, each over the
-document the one before it returned. `RunOptions.DisablePasses` turns passes off by name
-(`engine.ValidatePass` names the `validate` pass), and a name no pass carries fails the run with
-`engine.ErrUnknownPass`. A compiler breaking its contract, say by returning a document whose source
-table does not describe the spec, or by panicking, fails the run with an error wrapping
-`compilers.ErrContract`; a pass doing so fails it with one wrapping `pass.ErrContract`. A panic
-arrives as a `*barrier.PanicError` in the chain, which keeps the value and the stack beside the
-one-line message. A stage that ignores `ctx` holds `Run` until it returns, and the run stops at the
-next stage. The structural duties only `irverify` checks are left to the harness, unless
-`RunOptions.Verify` is set: it holds each stage's document to them, and each pass to leaving its
-input alone, and fails the run with an `*engine.VerifyError` listing what broke.
+list in order; a pass changes types through an `ir.Editor`. `Run` reads the spec, no further than a
+compiler would read it, asks the registered compilers which one recognizes it, compiles, and runs
+the passes in order, each over the document the one before it returned. `RunOptions.DisablePasses`
+turns passes off by name (`engine.ValidatePass` names the `validate` pass), and a name no pass
+carries fails the run with `engine.ErrUnknownPass`. A compiler breaking its contract, say by
+returning a document whose source table does not describe the spec, or by panicking, fails the run
+with an error wrapping `compilers.ErrContract`; a pass doing so fails it with one wrapping
+`pass.ErrContract`. A panic arrives as a `*barrier.PanicError` in the chain, which keeps the value
+and the stack beside the one-line message. A stage that ignores `ctx` holds `Run` until it returns,
+and the run then fails with the context's error, whatever the stage returned. The structural duties
+only `irverify` checks are left to the harness, unless `RunOptions.Verify` is set: it holds each
+stage's document to them, and each pass to leaving its input alone, and fails the run with an
+`*engine.VerifyError` listing what broke.
 
 ```go
 eng, err := engine.New()

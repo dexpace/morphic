@@ -23,7 +23,7 @@ func TestBuild_ReportsAFailureAndHoldsNothing(t *testing.T) {
 	var root yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte("openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\n"+
 		"components:\n  schemas:\n    A: {$ref: '#/x-lib/S'}\nx-lib: {S: {}}\n"), &root))
-	bd := NewBuilder(bind.Bind(&root, bind.Config{Self: "spec.yaml"}))
+	bd := NewBuilder(bind.Bind(t.Context(), &root, bind.Config{Self: "spec.yaml"}))
 	bd.decode = func(context.Context, *yaml.Node, *schemaRef) error { return errors.New("planted") }
 
 	built := bd.Build(t.Context())
@@ -37,12 +37,37 @@ func TestBuild_ReportsAFailureAndHoldsNothing(t *testing.T) {
 	require.Error(t, gone.Err)
 	assert.ErrorIs(t, gone.Err, errNothingThere)
 
-	bd = NewBuilder(bind.Bind(&root, bind.Config{Self: "spec.yaml"}))
+	bd = NewBuilder(bind.Bind(t.Context(), &root, bind.Config{Self: "spec.yaml"}))
 	bd.decode = func(context.Context, *yaml.Node, *schemaRef) error { panic("planted") }
 	built = bd.Build(t.Context())
 	require.Len(t, built, 1)
 	require.Error(t, built[0].Err, "a panic in the decoder is a failure to build, not one that escapes")
 	assert.Equal(t, "the parser panicked: planted", built[0].Err.Error())
+}
+
+// TestBuild_StopsOnceTheContextIsDone pins Build's and Walk's context: Build
+// asks before each landing and Walk before each item of a schema's walk, so a
+// done context builds and records nothing, where a live one does both.
+func TestBuild_StopsOnceTheContextIsDone(t *testing.T) {
+	t.Parallel()
+	var root yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte("openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\n"+
+		"components:\n  schemas:\n    A: {$ref: '#/x-lib/S'}\nx-lib: {S: {properties: {p: {}}}}\n"), &root))
+	table := bind.Bind(t.Context(), &root, bind.Config{Self: "spec.yaml"})
+	cancelled, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	assert.Empty(t, NewBuilder(table).Build(cancelled))
+
+	built := NewBuilder(table).Build(t.Context())
+	require.NotEmpty(t, built)
+	js, at := built[0].Schema, built[0].Landing.At
+	require.NotNil(t, js)
+	bd := NewBuilder(table)
+	bd.Walk(cancelled, js, at)
+	assert.Nil(t, bd.Bindings().At(at), "nothing recorded under a done context")
+	bd.Walk(t.Context(), js, at)
+	assert.Same(t, js, bd.Bindings().At(at))
 }
 
 // TestBuild_QuotesAPanicOnOneBoundedLine pins that a panic in the decoder
@@ -54,7 +79,7 @@ func TestBuild_QuotesAPanicOnOneBoundedLine(t *testing.T) {
 	var root yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte("components: {schemas: {A: {$ref: '#/x-lib/S'}}}\nx-lib: {S: {}}\n"), &root))
 	huge := strings.Repeat("the parser faulted here\n", 1<<10)
-	bd := NewBuilder(bind.Bind(&root, bind.Config{Self: "spec.yaml"}))
+	bd := NewBuilder(bind.Bind(t.Context(), &root, bind.Config{Self: "spec.yaml"}))
 	bd.decode = func(context.Context, *yaml.Node, *schemaRef) error { panic(huge) }
 
 	built := bd.Build(t.Context())

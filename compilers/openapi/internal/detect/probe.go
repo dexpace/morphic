@@ -1,6 +1,7 @@
 package detect
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
@@ -34,8 +35,8 @@ type sniffProbe struct {
 // compile lowers, not a second reading beside it that would have to be kept in
 // agreement with it (GitHub #486). The caller's byte budget, which Recognize
 // checks first, bounds it.
-func sniff(data []byte) (sniffProbe, *load.Parsed, error) {
-	probe, parsed, err := decodeYAML(data)
+func sniff(ctx context.Context, data []byte) (sniffProbe, *load.Parsed, error) {
+	probe, parsed, err := decodeYAML(ctx, data)
 	return declaredVersions(probe), parsed, err
 }
 
@@ -63,8 +64,8 @@ func declaredVersions(probe sniffProbe) sniffProbe {
 // abandons the mapping, leaving the probe empty as well as expensive. Reading
 // the keys off the tree is linear and answers the same for repeated keys,
 // which the compile's own parse reports once each, sited.
-func decodeYAML(data []byte) (sniffProbe, *load.Parsed, error) {
-	parsed, err := load.Decode(data)
+func decodeYAML(ctx context.Context, data []byte) (sniffProbe, *load.Parsed, error) {
+	parsed, err := load.Decode(ctx, data)
 	if err != nil {
 		return sniffProbe{}, nil, err
 	}

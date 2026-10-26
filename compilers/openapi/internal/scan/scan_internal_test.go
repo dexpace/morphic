@@ -210,7 +210,7 @@ func TestAliases_LegalAliasAndMergeUseIsClean(t *testing.T) {
 // document is the only sourceless index the scan can be handed.
 func TestAliases_EmptyDocumentIsNoCycle(t *testing.T) {
 	t.Parallel()
-	assert.Empty(t, Aliases(InSource(0), sourceindex.Build(nil, sourceindex.MaxIndexedNodes), defaultSurplus))
+	assert.Empty(t, Aliases(t.Context(), InSource(0), sourceindex.Build(t.Context(), nil, sourceindex.MaxIndexedNodes), defaultSurplus))
 	assert.Empty(t, scanBytes(t, nil))
 }
 
@@ -225,7 +225,7 @@ const defaultSurplus = 1 << 18
 // the default alias budget.
 func scanBytes(t *testing.T, data []byte) []ir.Diagnostic {
 	t.Helper()
-	return Aliases(InSource(0), indexOf(t, data), defaultSurplus)
+	return Aliases(t.Context(), InSource(0), indexOf(t, data), defaultSurplus)
 }
 
 // scanPlaced is scanBytes with each diagnostic placed by its pointer too, as
@@ -233,7 +233,7 @@ func scanBytes(t *testing.T, data []byte) []ir.Diagnostic {
 func scanPlaced(t *testing.T, data []byte) []ir.Diagnostic {
 	t.Helper()
 	idx := indexOf(t, data)
-	return Aliases(InTree(0, Pointers(idx.Root())), idx, defaultSurplus)
+	return Aliases(t.Context(), InTree(0, Pointers(t.Context(), idx.Root())), idx, defaultSurplus)
 }
 
 // indexOf decodes source bytes and indexes the tree. A fixture that does not
@@ -243,7 +243,7 @@ func indexOf(t *testing.T, data []byte) sourceindex.Index {
 	t.Helper()
 	var root yaml.Node
 	require.NoError(t, yaml.Unmarshal(data, &root), "the fixture must decode")
-	return sourceindex.Build(&root, sourceindex.MaxIndexedNodes)
+	return sourceindex.Build(t.Context(), &root, sourceindex.MaxIndexedNodes)
 }
 
 // reproducerDir is where the cycle fixtures live. The reader below and the table
@@ -448,7 +448,7 @@ func TestAliases_AnchorsThroughTheLocator(t *testing.T) {
 				return ir.Provenance{Source: 9, Pointer: "/somewhere/the/locator/decided"}
 			}
 
-			got := Aliases(locate, indexOf(t, readReproducer(t, fixture)), defaultSurplus)
+			got := Aliases(t.Context(), locate, indexOf(t, readReproducer(t, fixture)), defaultSurplus)
 			require.Len(t, got, 1)
 			assert.Equal(t, ir.Provenance{Source: 9, Pointer: "/somewhere/the/locator/decided"}, got[0].Provenance)
 			assert.NotNil(t, seen, "the locator was handed the node the refusal is about")
@@ -464,7 +464,9 @@ func TestAliases_AnchorsThroughTheLocator(t *testing.T) {
 // parser's resolver reports a loop of reference objects.
 func TestAliases_RefusesTheYAMLShapesAndNotTheOpenAPIOnes(t *testing.T) {
 	t.Parallel()
-	aliases := func(src string) []ir.Diagnostic { return Aliases(InSource(0), indexOf(t, []byte(src)), defaultSurplus) }
+	aliases := func(src string) []ir.Diagnostic {
+		return Aliases(t.Context(), InSource(0), indexOf(t, []byte(src)), defaultSurplus)
+	}
 
 	anchor := aliases("a: &x [*x]\n")
 	require.Len(t, anchor, 1)
@@ -497,7 +499,7 @@ func TestAliases_DegradesAScanFaultToAWarning(t *testing.T) {
 		return ir.Provenance{Source: 0}
 	}
 
-	got := Aliases(panicking, indexOf(t, []byte("a: &x [*x]\n")), defaultSurplus)
+	got := Aliases(t.Context(), panicking, indexOf(t, []byte("a: &x [*x]\n")), defaultSurplus)
 
 	require.Len(t, got, 1)
 	assert.Equal(t, diag.CycleScanFailed, got[0].Code)
@@ -687,7 +689,7 @@ func TestInTree_PointsAtEachKindOfNode(t *testing.T) {
 					Position: ir.Position{Line: node.Line, Column: node.Column},
 				}
 
-				got := InTree(3, Pointers(root(doc)))(node)
+				got := InTree(3, Pointers(t.Context(), root(doc)))(node)
 
 				assert.Empty(t, cmp.Diff(want, got))
 				assert.NotZero(t, got.Position, "a parsed node has a position")
@@ -737,7 +739,7 @@ func TestInTree_AnswersWithoutAPointerWhereTheTreeHasNone(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			got := InTree(3, Pointers(tt.root(t)))(tt.node(t))
+			got := InTree(3, Pointers(t.Context(), tt.root(t)))(tt.node(t))
 
 			assert.Empty(t, cmp.Diff(tt.want, got))
 		})
@@ -750,7 +752,7 @@ func TestInTree_AnswersWithoutAPointerWhereTheTreeHasNone(t *testing.T) {
 // short rather than walking on.
 func stepsWithin(t *testing.T, root *yaml.Node, nodes int) map[*yaml.Node]step {
 	t.Helper()
-	steps, complete := stepsIn(root, nodes)
+	steps, complete := stepsIn(t.Context(), root, nodes)
 	require.True(t, complete, "the walk entered more than the tree's %d nodes", nodes)
 	return steps
 }
@@ -832,7 +834,7 @@ func TestStepsIn_StopsAtItsLimit(t *testing.T) {
 	first, second := ynode.Scalar("v1"), ynode.Scalar("v2")
 	root := ynode.Map(ynode.Scalar("a"), first, ynode.Scalar("b"), second)
 
-	steps, complete := stepsIn(root, 3)
+	steps, complete := stepsIn(t.Context(), root, 3)
 	assert.False(t, complete, "five nodes do not fit a limit of three")
 	assert.Len(t, steps, 3)
 	_, indexed := steps[second]
@@ -840,16 +842,16 @@ func TestStepsIn_StopsAtItsLimit(t *testing.T) {
 	got := []jsontext.Pointer{pointerOf(steps, root), pointerOf(steps, second)}
 	assert.Equal(t, []jsontext.Pointer{"", ""}, got)
 
-	steps, complete = stepsIn(root, 5)
+	steps, complete = stepsIn(t.Context(), root, 5)
 	assert.True(t, complete, "five nodes fit a limit of five")
 	assert.Equal(t, jsontext.Pointer("/b"), pointerOf(steps, second))
 
 	empty := &yaml.Node{Kind: yaml.DocumentNode}
-	steps, complete = stepsIn(empty, 1)
+	steps, complete = stepsIn(t.Context(), empty, 1)
 	assert.True(t, complete)
 	assert.Equal(t, map[*yaml.Node]step{empty: {}}, steps)
 	assert.Equal(t, ir.Provenance{Source: 0, Position: ir.Position{Line: 1, Column: 1}},
-		InTree(0, Pointers(empty))(&yaml.Node{Kind: yaml.ScalarNode, Line: 1, Column: 1}),
+		InTree(0, Pointers(t.Context(), empty))(&yaml.Node{Kind: yaml.ScalarNode, Line: 1, Column: 1}),
 		"a node of no tree, asked of an empty document, is located by position alone")
 }
 
@@ -881,7 +883,7 @@ func TestInTree_AllocatesInTheTreesSizeNotItsPointers(t *testing.T) {
 
 	var before, after runtime.MemStats
 	runtime.ReadMemStats(&before)
-	locate := InTree(0, Pointers(root))
+	locate := InTree(0, Pointers(t.Context(), root))
 	got := locate(deep)
 	runtime.ReadMemStats(&after)
 	runtime.KeepAlive(root)
@@ -902,7 +904,7 @@ func TestPointers_SaysWhetherTheTreeHoldsTheNode(t *testing.T) {
 	t.Parallel()
 	value := ynode.Scalar("v")
 	root := ynode.Map(ynode.Scalar("k"), value)
-	pointer := Pointers(root)
+	pointer := Pointers(t.Context(), root)
 
 	type answer struct {
 		pointer jsontext.Pointer
@@ -916,5 +918,5 @@ func TestPointers_SaysWhetherTheTreeHoldsTheNode(t *testing.T) {
 	assert.Equal(t, answer{"", true}, ask(pointer, root), "the root is held, at the whole document")
 	assert.Equal(t, answer{"", false}, ask(pointer, ynode.Scalar("v")), "an equal node of another tree is not")
 	assert.Equal(t, answer{"", false}, ask(pointer, nil))
-	assert.Equal(t, answer{"", false}, ask(Pointers(nil), value))
+	assert.Equal(t, answer{"", false}, ask(Pointers(t.Context(), nil), value))
 }

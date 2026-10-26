@@ -13,7 +13,6 @@ import (
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/ir"
-	"github.com/dexpace/morphic/pass"
 )
 
 // TestValidate_Corpus walks the capability-conformance corpus through the
@@ -41,7 +40,7 @@ func TestValidate_Corpus(t *testing.T) {
 			before, err := json.Marshal(doc)
 			require.NoError(t, err)
 
-			for _, d := range pass.Validate(doc) {
+			for _, d := range validated(t, doc) {
 				assert.NotEqual(t, ir.SeverityError, d.Severity,
 					"%s: unexpected validate error: %+v", filepath.Base(f), d)
 			}

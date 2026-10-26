@@ -59,9 +59,10 @@ type Recognition struct {
 // compiler-specific options value; each compiler documents the concrete type
 // it accepts and treats nil as defaults.
 //
-// Reader reads the documents a source's references name. Nil reads none, so a
-// reference leaving the sources is a spec problem the compiler reports, never
-// a read it makes itself.
+// Reader reads every document a compile reads beyond its sources: one a
+// source's references name, or one its options name, such as an overlay. Nil
+// reads none, so a reference leaving the sources is a spec problem the
+// compiler reports, never a read it makes itself.
 type Options struct {
 	FormatOptions any
 	Reader        DocumentReader
@@ -79,12 +80,6 @@ type OptionSet struct {
 	// Settings maps an option name to its textual value. A nil or empty map asks
 	// for defaults.
 	Settings map[string]string
-	// ReadFile loads a file a setting names, e.g. an overlay document. A
-	// compiler does no file I/O of its own — Source is the whole of its input,
-	// which is what keeps compilation pure and reentrant — so the caller supplies
-	// the reader and the read stays the caller's. A nil ReadFile means no setting
-	// may name a file.
-	ReadFile func(name string) ([]byte, error)
 }
 
 // Compiler lowers source documents into the IR. Implementations must be pure:
@@ -111,16 +106,24 @@ type Compiler interface {
 	// another compiler's type mean this one's defaults; only Compile rejects
 	// them.
 	//
-	// diags is read only when ok is false. Declining another format's bytes is
-	// silent; diags is for this compiler's own source, unreadable or one opts
-	// forbid reading, holds an error saying why, and names src as Source 0, or
-	// no source.
-	Detect(src Source, opts Options) (rec Recognition, diags []ir.Diagnostic, ok bool)
+	// diags is read only when ok is false. Declining another format's bytes
+	// within SourceLimit is silent; for this compiler's own source, unreadable
+	// or one opts forbid reading, diags holds an error saying why, naming src as
+	// Source 0, or no source.
+	Detect(ctx context.Context, src Source, opts Options) (rec Recognition, diags []ir.Diagnostic, ok bool)
 	// DecodeOptions turns textual settings into the value this compiler expects
-	// in Options.FormatOptions. An empty set yields defaults. An unknown key, an
-	// unusable value, or a file that cannot be read is an error — a setting that
-	// is silently ignored leaves the caller believing they configured something.
+	// in Options.FormatOptions. An empty set yields defaults. An unknown key or
+	// an unusable value is an error — a setting that is silently ignored leaves
+	// the caller believing they configured something. It reads nothing: a file a
+	// setting names is Compile's to read, through Options.Reader.
 	DecodeOptions(set OptionSet) (any, error)
+	// SourceLimit is the most bytes a source may hold for this compiler to read
+	// it under opts, zero or less for any size. Detect declines a source past it
+	// unread, with an error saying why, and Compile refuses one. So a caller
+	// reading a source before detection need read no further than one byte past
+	// the largest limit among the compilers it asks: each declines what is past
+	// its own. It reads no input and fails on none.
+	SourceLimit(opts Options) int
 	// Compile lowers sources into a Document, or refuses them with a nil one, no
 	// error and at least one error diagnostic saying why. The Document is the
 	// caller's alone, stamped ir.IRVersion, and its Sources begin with the table
@@ -258,7 +261,7 @@ type Detection struct {
 //
 // It fails on a canceled ctx; on undecodable options for the compiler taking
 // src; and, wrapping ErrContract, on a claim or decline Compiler.Detect does
-// not admit and a Detect or configure that panics.
+// not admit and a Detect, configure or SourceLimit that panics.
 func (r *Registry) Detect(ctx context.Context, src Source, configure Configure) (Detection, bool, error) {
 	if len(src.Data) == 0 {
 		return Detection{Source: src}, false, nil
@@ -272,8 +275,16 @@ func (r *Registry) Detect(ctx context.Context, src Source, configure Configure) 
 		if err := ctx.Err(); err != nil {
 			return Detection{}, false, err
 		}
-		a, err := e.ask(src, configure)
+		a, err := e.ask(ctx, src, configure)
 		if err != nil {
+			return Detection{}, false, err
+		}
+		// A Detect that returned once ctx was done may have stopped short, so
+		// what it said is not judged, as no answer it gave would be whole.
+		if err := ctx.Err(); err != nil {
+			return Detection{}, false, err
+		}
+		if err := e.heldToLimit(a, len(src.Data)); err != nil {
 			return Detection{}, false, err
 		}
 		if !a.ok {
@@ -299,6 +310,67 @@ func (r *Registry) Detect(ctx context.Context, src Source, configure Configure) 
 	return Detection{Source: src, Declined: declined}, false, nil
 }
 
+// SourceLimit is the most bytes of a source any registered compiler reads,
+// each under the options configure gives it (Compiler.SourceLimit), and zero
+// when one reads any size or none is registered: how far a caller need read a
+// source it hands to Detect. A compiler whose options fail to decode is asked
+// under its defaults, as Detect asks it. It fails, wrapping ErrContract, on a
+// configure or SourceLimit that panics.
+func (r *Registry) SourceLimit(configure Configure) (int, error) {
+	if configure == nil {
+		configure = func(Compiler) (Options, error) { return Options{}, nil }
+	}
+	most := 0
+	for _, e := range r.ordered {
+		opts, _, err := e.configured(configure)
+		if err != nil {
+			return 0, err
+		}
+		limit, err := e.sourceLimit(opts)
+		if err != nil {
+			return 0, err
+		}
+		if limit <= 0 {
+			return 0, nil
+		}
+		most = max(most, limit)
+	}
+	return most, nil
+}
+
+// sourceLimit asks e's compiler for its SourceLimit under opts, behind a
+// barrier.
+func (e *registered) sourceLimit(opts Options) (int, error) {
+	var limit int
+	if perr := barrier.Catch(func() { limit = e.c.SourceLimit(opts) }); perr != nil {
+		return 0, fmt.Errorf("compilers: source limit of %s: %w", e.served(), breach("SourceLimit", perr))
+	}
+	return limit, nil
+}
+
+// heldToLimit holds what e said of a source of n bytes, a, to e's SourceLimit
+// under the options a was asked under. Past it, a compiler declines with a
+// reason, so a source a caller read no further than the limits allow is never
+// taken: what it holds may be only the first bytes of one.
+func (e *registered) heldToLimit(a answer, n int) error {
+	limit, err := e.sourceLimit(a.opts)
+	if err != nil {
+		return err
+	}
+	switch {
+	case limit <= 0 || n <= limit:
+		return nil
+	case a.ok:
+		return fmt.Errorf("compilers: detect by %s: claimed a source of %d bytes, past its limit of %d: %w",
+			e.served(), n, limit, ErrContract)
+	case len(a.diags) == 0:
+		return fmt.Errorf("compilers: detect by %s: declined a source of %d bytes, past its limit of %d, "+
+			"saying nothing: %w", e.served(), n, limit, ErrContract)
+	default:
+		return nil
+	}
+}
+
 // answer is what one compiler said of a source, with the options it was asked
 // under and what configuring it said.
 type answer struct {
@@ -312,14 +384,14 @@ type answer struct {
 // ask configures e's compiler and asks it to recognize src, each behind a
 // barrier. A panic in either is a breach, and an error from configuring is not:
 // it is the answer a decoder gives to options that are another compiler's.
-func (e *registered) ask(src Source, configure Configure) (answer, error) {
+func (e *registered) ask(ctx context.Context, src Source, configure Configure) (answer, error) {
 	opts, optsErr, err := e.configured(configure)
 	if err != nil {
 		return answer{}, err
 	}
 
 	a := answer{opts: opts, optsErr: optsErr}
-	if perr := barrier.Catch(func() { a.rec, a.diags, a.ok = e.c.Detect(src, opts) }); perr != nil {
+	if perr := barrier.Catch(func() { a.rec, a.diags, a.ok = e.c.Detect(ctx, src, opts) }); perr != nil {
 		return answer{}, fmt.Errorf("compilers: detect by %s: %w", e.served(), breach("Detect", perr))
 	}
 	return a, nil

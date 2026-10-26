@@ -1,6 +1,7 @@
 package nodeview
 
 import (
+	"context"
 	"slices"
 
 	yaml "go.yaml.in/yaml/v3"
@@ -61,8 +62,8 @@ type Walk struct {
 type Outcome struct {
 	// Visited counts the nodes handed to Visit.
 	Visited int
-	// Cut reports that a bound left nodes unvisited, so whatever the walk
-	// answers is partial.
+	// Cut reports that a bound, or the walk's context, left nodes unvisited,
+	// so whatever the walk answers is partial.
 	Cut bool
 	// Stopped reports that Visit ended the walk.
 	Stopped bool
@@ -76,12 +77,22 @@ type walkFrame struct {
 	leave bool
 }
 
+// AskEvery is how many nodes a walk of a tree visits between two asks of its
+// context: a node costs a few nanoseconds, so asking at each would be most of a
+// walk's work, and a stretch this long still ends within microseconds.
+const AskEvery = 256
+
 // Run walks the tree under root. A nil root, or a nil node in a Content list,
-// which no parse produces, is not visited.
-func (w Walk) Run(root *yaml.Node) Outcome {
+// which no parse produces, is not visited. Once ctx is done the walk stops,
+// within AskEvery nodes, and reports itself Cut.
+func (w Walk) Run(ctx context.Context, root *yaml.Node) Outcome {
 	var out Outcome
 	stack := []walkFrame{{n: root}}
 	for len(stack) > 0 {
+		if out.Visited%AskEvery == 0 && ctx.Err() != nil {
+			out.Cut = true
+			return out
+		}
 		f := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
 		if f.leave {

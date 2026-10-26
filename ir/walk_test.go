@@ -1,6 +1,8 @@
 package ir_test
 
 import (
+	"context"
+	"math"
 	"reflect"
 	"slices"
 	"strings"
@@ -9,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/internal/ctxtest"
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/ir/irtest"
 )
@@ -105,6 +108,116 @@ func TestWalkValues_DeepValueTreeIsTruncated(t *testing.T) {
 
 	_, truncated = walkPaths(docWith(irtest.NestedListValue(200)))
 	assert.False(t, truncated, "a tree a compiler can produce must be walked whole")
+}
+
+// TestWalkValuesContext_WalksAsWalkValuesUnderALiveContext pins that the
+// context changes nothing while it is live: the same values in the same order,
+// the same truncation, and no error. A value is told apart by its path where
+// the tree is shallow, and by its kind where the cap truncates it, since a
+// path there is as long as the tree is deep.
+func TestWalkValuesContext_WalksAsWalkValuesUnderALiveContext(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		depth int
+		paths bool
+	}{{200, true}, {ir.MaxWalkDepth, false}} {
+		v := irtest.NestedListValue(tc.depth)
+		doc := &ir.Document{Types: ir.TypeRegistry{"t/m": &ir.Model{ID: "t/m", Examples: []ir.Example{{Value: &v}}}}}
+		var want, got []string
+		record := func(into *[]string) ir.Visitor {
+			return ir.VisitFunc(func(v reflect.Value, at ir.WalkPath) bool {
+				if tc.paths {
+					*into = append(*into, at.String())
+				} else {
+					*into = append(*into, v.Kind().String())
+				}
+				return true
+			})
+		}
+		wantTruncated := ir.WalkValues(doc, "doc", record(&want))
+
+		truncated, err := ir.WalkValuesContext(t.Context(), doc, "doc", record(&got))
+
+		require.NoError(t, err)
+		assert.Equal(t, wantTruncated, truncated, "depth %d", tc.depth)
+		assert.Equal(t, tc.depth == ir.MaxWalkDepth, truncated, "depth %d: the cap truncates only the deep tree", tc.depth)
+		assert.Equal(t, want, got, "depth %d", tc.depth)
+	}
+}
+
+// shownCounter counts the values a walk shows it.
+type shownCounter struct{ n int }
+
+func (c *shownCounter) Visit(reflect.Value, ir.WalkPath) bool {
+	c.n++
+	return true
+}
+
+// TestWalkValuesContext_StopsOnceItsContextIsDone cancels a walk at every check
+// of its context a whole one makes, and requires each to end with the
+// context's error, the values before the refusal shown and none after, and no
+// ask after it. The walk asks before its first value and every 256 values
+// after, so a cancel waits out 256 values at most.
+func TestWalkValuesContext_StopsOnceItsContextIsDone(t *testing.T) {
+	t.Parallel()
+	root := make([]int, 1000)
+	values := 1 + len(root)
+	whole := &ctxtest.Countdown{Context: t.Context(), Left: math.MaxInt}
+	_, err := ir.WalkValuesContext(whole, root, "doc", &shownCounter{})
+	require.NoError(t, err)
+	require.Equal(t, (values+255)/256, whole.Calls, "an ask before the first value and every 256 after")
+
+	for left := range whole.Calls {
+		var shown shownCounter
+		var atRefusal int
+		ctx := &ctxtest.Countdown{Context: t.Context(), Left: left, OnRefuse: func() { atRefusal = shown.n }}
+
+		truncated, err := ir.WalkValuesContext(ctx, root, "doc", &shown)
+
+		require.ErrorIs(t, err, context.Canceled, "check %d", left+1)
+		assert.False(t, truncated, "check %d", left+1)
+		assert.Equal(t, 256*left, shown.n, "check %d: the values before the refusal are shown", left+1)
+		assert.Equal(t, atRefusal, shown.n, "check %d: no value is shown after the refusal", left+1)
+		assert.Equal(t, left+1, ctx.Calls, "check %d: asked on after the refusal", left+1)
+	}
+}
+
+// TestWalkValuesContext_AStopEndsEveryTraversal pins a walk carrying more
+// visitors than one traversal shares: a refusal in the first traversal starts
+// no other, and one in the second leaves the first whole. The 65th visitor is
+// the second traversal's.
+func TestWalkValuesContext_AStopEndsEveryTraversal(t *testing.T) {
+	t.Parallel()
+	root := make([]int, 1000)
+	values := 1 + len(root)
+	perTraversal := (values + 255) / 256
+	tests := []struct {
+		name                string
+		left                int
+		wantFirst, wantLast int
+	}{
+		{"refused in the first traversal", 0, 0, 0},
+		{"refused in the second", perTraversal, values, 0},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			counters := make([]shownCounter, 65)
+			visitors := make([]ir.Visitor, len(counters))
+			for i := range counters {
+				visitors[i] = &counters[i]
+			}
+
+			ctx := &ctxtest.Countdown{Context: t.Context(), Left: tc.left}
+
+			_, err := ir.WalkValuesContext(ctx, root, "doc", visitors...)
+
+			require.ErrorIs(t, err, context.Canceled)
+			assert.Equal(t, tc.wantFirst, counters[0].n)
+			assert.Equal(t, tc.wantLast, counters[64].n)
+			assert.Equal(t, tc.left+1, ctx.Calls, "no traversal asks after the refusal")
+		})
+	}
 }
 
 // TestWalkValues_SharedPointerIsDescendedIntoOnce holds the cycle guard. Nothing

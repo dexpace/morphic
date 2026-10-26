@@ -22,9 +22,9 @@ import (
 // of paying for the whole Load pipeline.
 func buildDoc(t *testing.T, spec string) (*soa.OpenAPI, *yaml.Node) {
 	t.Helper()
-	parsed, err := parsedFor(compilers.Source{Path: "spec.yaml", Data: []byte(spec)})
+	parsed, err := parsedFor(t.Context(), compilers.Source{Path: "spec.yaml", Data: []byte(spec)})
 	require.NoError(t, err)
-	releaseAnchors(parsed.root)
+	releaseAnchors(t.Context(), parsed.root)
 	doc, err := unmarshal(t.Context(), []byte(spec), parsed.root)
 	require.NoError(t, err)
 	require.NotNil(t, doc)

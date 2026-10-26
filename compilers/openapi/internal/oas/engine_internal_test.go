@@ -20,7 +20,7 @@ func TestCheck_AnUnknownCodeRuleIsATableError(t *testing.T) {
 	obj := spec.must(Info)
 	obj.Rules = append(obj.Rules, code(Always(), "no-such-predicate", "", Cite{Minor: V30, Section: "Info Object", Sentence: "x"}))
 	spec.objects[spec.index[Info]] = obj
-	diags := Checker{spec: spec}.Check(openapitest.YAMLDocument(t, `{title: t, version: v}`), "3.1.0", Options{Start: Info})
+	diags := Checker{spec: spec}.Check(t.Context(), openapitest.YAMLDocument(t, `{title: t, version: v}`), "3.1.0", Options{Start: Info})
 	require.Len(t, diags, 1)
 	assert.Equal(t, diag.InternalInvariant, diags[0].Code)
 	assert.Contains(t, diags[0].Message, "no-such-predicate")
@@ -43,7 +43,7 @@ func TestCheck_WorkIsBounded(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			diags := NewChecker().Check(openapitest.YAMLDocument(t, tc.doc), "3.1.0", Options{Start: Schema, Budget: tc.budget})
+			diags := NewChecker().Check(t.Context(), openapitest.YAMLDocument(t, tc.doc), "3.1.0", Options{Start: Schema, Budget: tc.budget})
 			require.Len(t, diags, 1)
 			assert.Equal(t, diag.BudgetExceeded, diags[0].Code)
 			assert.Equal(t, ir.SeverityError, diags[0].Severity)
@@ -55,18 +55,18 @@ func TestCheck_WorkIsBounded(t *testing.T) {
 func TestCheck_DefaultsFillTheUnsetOptions(t *testing.T) {
 	c := NewChecker()
 	doc := openapitest.YAMLDocument(t, "openapi: 3.1.0\ninfo: {title: t}\n")
-	got := c.Check(doc, "3.1.0", Options{})
+	got := c.Check(t.Context(), doc, "3.1.0", Options{})
 	require.NotEmpty(t, got, "the document is read from its root")
 	for _, d := range got {
 		assert.Equal(t, ir.Provenance{}, d.Provenance, "unset Locate places nothing")
 	}
 	var placed []jsontext.Pointer
-	c.Check(doc, "3.1.0", Options{Locate: func(p jsontext.Pointer) ir.Provenance {
+	c.Check(t.Context(), doc, "3.1.0", Options{Locate: func(p jsontext.Pointer) ir.Provenance {
 		placed = append(placed, p)
 		return ir.Provenance{}
 	}})
 	assert.NotEmpty(t, placed)
-	assert.Empty(t, c.Check(nil, "3.1.0", Options{}), "nothing to read")
+	assert.Empty(t, c.Check(t.Context(), nil, "3.1.0", Options{}), "nothing to read")
 }
 
 // TestCheck_MergedAndAliasedMappingsAreRead pins that objects are read through
@@ -83,9 +83,9 @@ components:
     A: &a {type: object}
     B: *a
 `
-	assert.Empty(t, NewChecker().Check(openapitest.YAMLDocument(t, doc), "3.1.0", Options{}))
+	assert.Empty(t, NewChecker().Check(t.Context(), openapitest.YAMLDocument(t, doc), "3.1.0", Options{}))
 	merged := openapitest.YAMLDocument(t, "{<<: {version: v}, title: t, license: {}}")
-	diags := NewChecker().Check(merged, "3.1.0", Options{Start: Info})
+	diags := NewChecker().Check(t.Context(), merged, "3.1.0", Options{Start: Info})
 	require.Len(t, diags, 1, "the merged version is read, the license is not named")
 	assert.Equal(t, diag.Validation+"/validation-required-field", diags[0].Code)
 }
@@ -93,8 +93,8 @@ components:
 // TestCheck_IsDeterministic pins that one document draws one report.
 func TestCheck_IsDeterministic(t *testing.T) {
 	doc := openapitest.YAMLDocument(t, `{title: [a], version: 1, license: {identifier: i, url: u}, contact: {email: x}}`)
-	first := NewChecker().Check(doc, "3.1.0", Options{Start: Info})
-	again := NewChecker().Check(doc, "3.1.0", Options{Start: Info})
+	first := NewChecker().Check(t.Context(), doc, "3.1.0", Options{Start: Info})
+	again := NewChecker().Check(t.Context(), doc, "3.1.0", Options{Start: Info})
 	assert.NotEmpty(t, first)
 	assert.Empty(t, cmp.Diff(first, again))
 }

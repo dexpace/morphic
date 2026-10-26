@@ -1,6 +1,7 @@
 package oas
 
 import (
+	"context"
 	"encoding/json/jsontext"
 	"strconv"
 	"strings"
@@ -60,12 +61,12 @@ func NewChecker() Checker { return Checker{spec: Table()} }
 // table does not cover is held to nothing. Findings come in a fixed order: one
 // object after another, its fields as the table lists them, then its patterned
 // keys, then its rules.
-func (c Checker) Check(root *yaml.Node, declared string, opts Options) []ir.Diagnostic {
+func (c Checker) Check(ctx context.Context, root *yaml.Node, declared string, opts Options) []ir.Diagnostic {
 	minor, ok := ParseMinor(declared)
 	if !ok {
 		return nil
 	}
-	w := &walker{spec: c.spec, minor: minor, view: nodeview.New(), budget: opts.Budget}
+	w := &walker{ctx: ctx, spec: c.spec, minor: minor, view: nodeview.New(), budget: opts.Budget}
 	w.locate, w.declared, w.seen = opts.Locate, declared, opts.Seen
 	w.readAt, w.rootAt, w.said = opts.ReadAt, opts.Root, map[ir.Diagnostic]bool{}
 	if w.budget <= 0 {
@@ -83,8 +84,12 @@ func (c Checker) Check(root *yaml.Node, declared string, opts Options) []ir.Diag
 	return w.diags
 }
 
-// walker is one check in progress.
+// walker is one check in progress. It holds the context the check runs under
+// for spend, which every read of an object asks first: a check stops reading
+// once its context is done, as it stops at its budget, though silently, since
+// what stopped it is no finding about the document.
 type walker struct {
+	ctx     context.Context
 	spec    Spec
 	minor   Minor
 	view    *nodeview.View
@@ -118,6 +123,10 @@ type frame struct {
 // crossed budget is, and stops reading.
 func (w *walker) spend(depth int, ptr jsontext.Pointer) bool {
 	if w.stopped {
+		return false
+	}
+	if w.ctx.Err() != nil {
+		w.stopped = true
 		return false
 	}
 	w.budget--

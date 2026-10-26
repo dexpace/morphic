@@ -14,7 +14,6 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
-	"github.com/dexpace/morphic/pass"
 )
 
 // TestUnionCombinators_CoDeclaredKeepsTheBoundsWrittenBesideIt pins that
@@ -201,7 +200,7 @@ func TestCollapsedUnion_KeepsItsDiscriminatorAtEveryPosition(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, collapseSpec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	assert.Empty(t, pass.Validate(doc))
+	assert.Empty(t, validated(t, doc))
 	cat := componentID("Cat")
 
 	w, ok := typeByName(doc, "W").(*ir.Scalar)

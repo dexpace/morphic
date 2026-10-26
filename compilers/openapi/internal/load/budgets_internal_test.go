@@ -28,12 +28,12 @@ func TestNodeCount_CountsEveryNodeAndAnswersForNothing(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			root, _, err := decodeStream([]byte(tc.src))
+			root, _, err := decodeStream(t.Context(), []byte(tc.src))
 			require.NoError(t, err)
-			assert.Equal(t, tc.want, nodeCount(root))
+			assert.Equal(t, tc.want, nodeCount(t.Context(), root))
 		})
 	}
-	assert.Equal(t, 0, nodeCount(nil), "an absent tree counts nothing rather than panicking")
+	assert.Equal(t, 0, nodeCount(t.Context(), nil), "an absent tree counts nothing rather than panicking")
 }
 
 func TestExceeds_TreatsAnUnsetBudgetAsUnbounded(t *testing.T) {
@@ -71,8 +71,8 @@ func TestLoad_SourceByteBudgetBindsOnlyPastTheLimit(t *testing.T) {
 			require.Len(t, diags, 1)
 			assert.Equal(t, diag.BudgetExceeded, diags[0].Code)
 			assert.Equal(t, ir.SeverityError, diags[0].Severity)
-			assert.Equal(t, fmt.Sprintf("source document is %d bytes, past the %d-byte budget",
-				size, tc.limit), diags[0].Message)
+			assert.Equal(t, fmt.Sprintf("source document is past the %d-byte budget", tc.limit),
+				diags[0].Message)
 		})
 	}
 }
@@ -82,9 +82,9 @@ func TestLoad_SourceByteBudgetBindsOnlyPastTheLimit(t *testing.T) {
 // public options can ask for a number, never learn one.
 func TestLoad_SourceNodeBudgetBindsOnlyPastTheLimit(t *testing.T) {
 	t.Parallel()
-	root, _, err := decodeStream([]byte(minimal31))
+	root, _, err := decodeStream(t.Context(), []byte(minimal31))
 	require.NoError(t, err)
-	nodes := nodeCount(root)
+	nodes := nodeCount(t.Context(), root)
 	require.Positive(t, nodes)
 
 	tests := []struct {
@@ -124,9 +124,9 @@ func TestLoad_SourceNodeBudgetBindsOnlyPastTheLimit(t *testing.T) {
 // is that tree the budget exists to bound.
 func TestLoad_SourceNodeBudgetCountsWhatAnOverlayGrafted(t *testing.T) {
 	t.Parallel()
-	root, _, err := decodeStream([]byte(minimal31))
+	root, _, err := decodeStream(t.Context(), []byte(minimal31))
 	require.NoError(t, err)
-	unpatched := nodeCount(root)
+	unpatched := nodeCount(t.Context(), root)
 
 	const patch = `overlay: 1.0.0
 info: {title: add a schema, version: "1"}

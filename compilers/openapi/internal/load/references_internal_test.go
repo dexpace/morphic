@@ -749,25 +749,25 @@ func TestResolve_ResolvesWhatTheLibraryResolves(t *testing.T) {
 		data, err := os.ReadFile(path)
 		require.NoError(t, err, path)
 
-		root, _, err := decodeStream(data)
+		root, _, err := decodeStream(t.Context(), data)
 		if err != nil {
 			continue // not YAML at all: out of scope for a resolution drift test
 		}
-		if diag.HasError(refusals(scan.InSource(0), root, Options{})) {
+		if diag.HasError(refusals(t.Context(), scan.InSource(0), root, Options{})) {
 			continue // a pre-parse refusal fixture: never reaches a resolver
 		}
-		releaseAnchors(root)
+		releaseAnchors(t.Context(), root)
 		doc1, err := unmarshal(t.Context(), data, root)
 		if err != nil {
 			continue
 		}
-		if len(bind.Bind(root, bind.Config{Self: path}).Loops()) > 0 || libraryOverflows[filepath.Base(path)] {
+		if len(bind.Bind(t.Context(), root, bind.Config{Self: path}).Loops()) > 0 || libraryOverflows[filepath.Base(path)] {
 			continue // a loop of schema $refs, which the library's walk recurses round forever
 		}
 
-		root2, _, err := decodeStream(data)
+		root2, _, err := decodeStream(t.Context(), data)
 		require.NoError(t, err, path)
-		releaseAnchors(root2)
+		releaseAnchors(t.Context(), root2)
 		doc2, err := unmarshal(t.Context(), data, root2)
 		require.NoError(t, err, path)
 

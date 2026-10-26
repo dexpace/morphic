@@ -20,7 +20,7 @@ func formatFindings(t *testing.T, version, doc string, budget int) []finding {
 	t.Helper()
 	var n yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte(doc), &n))
-	diags := oas.CheckFormat(&n, version, oas.Options{
+	diags := oas.CheckFormat(t.Context(), &n, version, oas.Options{
 		Budget: budget,
 		Locate: func(p jsontext.Pointer) ir.Provenance { return ir.Provenance{Pointer: p} },
 	})
@@ -78,7 +78,7 @@ func TestCheckFormat_SaysWhatItRead(t *testing.T) {
 	t.Parallel()
 	var n yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte("a: {? [k] : 1, <<: 5}\n"), &n))
-	diags := oas.CheckFormat(&n, "3.0.3", oas.Options{})
+	diags := oas.CheckFormat(t.Context(), &n, "3.0.3", oas.Options{})
 	require.Len(t, diags, 2)
 	assert.Equal(t, ir.SeverityError, diags[0].Severity)
 	assert.Equal(t, "a mapping key must be a string in OpenAPI 3.0 (Format), and this one is a list; "+
@@ -105,7 +105,7 @@ func TestCheckFormat_NamesEachKind(t *testing.T) {
 	t.Parallel()
 	merge := &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!merge", Value: "<<"}
 	root := &yaml.Node{Kind: yaml.MappingNode, Content: []*yaml.Node{merge, {Kind: yaml.AliasNode}}}
-	diags := oas.CheckFormat(root, "3.1.0", oas.Options{})
+	diags := oas.CheckFormat(t.Context(), root, "3.1.0", oas.Options{})
 	require.Len(t, diags, 1)
 	assert.Contains(t, diags[0].Message, "names nothing")
 }

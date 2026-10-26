@@ -458,7 +458,9 @@ func assertDiscriminatorDefaultMapping(t *testing.T, doc *ir.Document, diags []i
 // variant holds one the same way. Shape's routes are true allOf subtypes, so
 // the model keeps it, and the document validates clean.
 func assertDiscriminatedUnionBesideModel(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
-	assert.Empty(t, pass.Validate(doc))
+	found, err := pass.Validate(t.Context(), doc)
+	require.NoError(t, err)
+	assert.Empty(t, found)
 
 	for _, name := range []string{"Pet", "Animal"} {
 		m, ok := doc.Types[componentID(name)].(*ir.Model)

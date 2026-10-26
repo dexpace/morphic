@@ -143,7 +143,7 @@ func TestExternal_PrepareRefusesBytesThatDoNotParse(t *testing.T) {
 	doc := &soa.OpenAPI{}
 	read := newExternalReads(sourceDocument{})
 
-	data, err := newExternal(t.Context(), doc, Options{}, read).prepare("k", []byte("a: [\n"))
+	data, err := newExternal(t.Context(), doc, Options{}, read).prepare(t.Context(), "k", []byte("a: [\n"))
 
 	var unparsable *bind.UnparsableError
 	require.ErrorAs(t, err, &unparsable)
@@ -173,7 +173,7 @@ func TestExternal_PrepareRefusesADocumentHoldingNothing(t *testing.T) {
 			doc := &soa.OpenAPI{}
 			read := newExternalReads(sourceDocument{})
 
-			_, err := newExternal(t.Context(), doc, Options{}, read).prepare("k", []byte(tc.body))
+			_, err := newExternal(t.Context(), doc, Options{}, read).prepare(t.Context(), "k", []byte(tc.body))
 
 			_, recorded := read.preparedFor("k")
 			if !tc.empty {
@@ -194,10 +194,10 @@ func TestExternal_PrepareRefusesADocumentHoldingNothing(t *testing.T) {
 // the source is held to, before its name is ever cleared.
 func TestExternal_AdmitRefusesARecursiveAnchor(t *testing.T) {
 	t.Parallel()
-	root, err := parseTree([]byte("p: &a [*a]\n"))
+	root, err := parseTree(t.Context(), []byte("p: &a [*a]\n"))
 	require.NoError(t, err)
 
-	err = newExternal(t.Context(), &soa.OpenAPI{}, Options{}, newExternalReads(sourceDocument{})).admit("k", root)
+	err = newExternal(t.Context(), &soa.OpenAPI{}, Options{}, newExternalReads(sourceDocument{})).admit(t.Context(), "k", root)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "refused")
@@ -211,10 +211,10 @@ func TestExternal_AdmitRefusesARecursiveAnchor(t *testing.T) {
 // to land in.
 func TestExternal_AdmitJoinsTwoFindings(t *testing.T) {
 	t.Parallel()
-	root, err := parseTree([]byte("p: &a [*a]\nq: !x {b: 1}\n"))
+	root, err := parseTree(t.Context(), []byte("p: &a [*a]\nq: !x {b: 1}\n"))
 	require.NoError(t, err)
 
-	err = newExternal(t.Context(), &soa.OpenAPI{}, Options{}, newExternalReads(sourceDocument{})).admit("k", root)
+	err = newExternal(t.Context(), &soa.OpenAPI{}, Options{}, newExternalReads(sourceDocument{})).admit(t.Context(), "k", root)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(),
@@ -226,12 +226,12 @@ func TestExternal_AdmitJoinsTwoFindings(t *testing.T) {
 // holds an external document to once the pre-parse refusals have cleared it.
 func TestExternal_AdmitOverTheNodeBudgetIsRefused(t *testing.T) {
 	t.Parallel()
-	root, err := parseTree([]byte("a: 1\n"))
+	root, err := parseTree(t.Context(), []byte("a: 1\n"))
 	require.NoError(t, err)
-	nodes := nodeCount(root)
+	nodes := nodeCount(t.Context(), root)
 	require.Greater(t, nodes, 3, "sanity: the fixture crosses the budget below")
 
-	err = newExternal(t.Context(), &soa.OpenAPI{}, Options{MaxSourceNodes: 3}, newExternalReads(sourceDocument{})).admit("k", root)
+	err = newExternal(t.Context(), &soa.OpenAPI{}, Options{MaxSourceNodes: 3}, newExternalReads(sourceDocument{})).admit(t.Context(), "k", root)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "refused")
@@ -243,10 +243,10 @@ func TestExternal_AdmitOverTheNodeBudgetIsRefused(t *testing.T) {
 // every document is held to whatever the budget.
 func TestExternal_AdmitHoldsTheAliasBudget(t *testing.T) {
 	t.Parallel()
-	root, err := parseTree([]byte("a: &x {b: 1}\nc: *x\n"))
+	root, err := parseTree(t.Context(), []byte("a: &x {b: 1}\nc: *x\n"))
 	require.NoError(t, err)
 
-	err = newExternal(t.Context(), &soa.OpenAPI{}, Options{MaxAliasSurplus: 1}, newExternalReads(sourceDocument{})).admit("k", root)
+	err = newExternal(t.Context(), &soa.OpenAPI{}, Options{MaxAliasSurplus: 1}, newExternalReads(sourceDocument{})).admit(t.Context(), "k", root)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "refused")
@@ -462,7 +462,7 @@ func TestNewExternal_InitializesTheCacheOnAZeroDocument(t *testing.T) {
 	e := newExternal(t.Context(), doc, Options{}, newExternalReads(sourceDocument{}))
 
 	require.NotPanics(t, func() {
-		_, err := e.prepare("k", []byte("a: 1\n"))
+		_, err := e.prepare(t.Context(), "k", []byte("a: 1\n"))
 		require.NoError(t, err)
 	})
 	_, ok := doc.GetCachedExternalDocument("k")

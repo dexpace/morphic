@@ -42,7 +42,7 @@ func loadPlus(t *testing.T, spec string, opts Options) loadedPlus {
 // loadPlusAt is loadPlus of the source at path.
 func loadPlusAt(t *testing.T, path, spec string, opts Options) loadedPlus {
 	t.Helper()
-	parsed, err := Decode([]byte(spec))
+	parsed, err := Decode(t.Context(), []byte(spec))
 	require.NoError(t, err)
 	src := compilers.Source{Path: path, Data: []byte(spec), Parsed: parsed}
 	doc, diags, err := Load(t.Context(), 0, src, opts)
@@ -565,7 +565,7 @@ x-s: {M+1: {type: string}}
 func TestLoad_ARefusalAfterTheRespellingLeavesTheTreeAsWritten(t *testing.T) {
 	t.Parallel()
 	spec := strings.Replace(plusIssueSpec, "openapi: 3.1.0", "openapi: 3.9.0", 1)
-	parsed, err := Decode([]byte(spec))
+	parsed, err := Decode(t.Context(), []byte(spec))
 	require.NoError(t, err)
 
 	doc, diags, err := Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(spec), Parsed: parsed},
@@ -596,7 +596,7 @@ components:
   responses:
     A: {$ref: 'other.yaml#/components/responses/X'}
 `
-	parsed, err := Decode([]byte(spec))
+	parsed, err := Decode(t.Context(), []byte(spec))
 	require.NoError(t, err)
 
 	_, diags, err := Load(t.Context(), 0, compilers.Source{Path: filepath.Join(dir, "root.yaml"), Data: []byte(spec), Parsed: parsed},
@@ -697,7 +697,7 @@ components:
     A: {$ref: 'other.yaml#/x+y'}
     B: {$ref: 'other.yaml#/x-start'}
 `
-	parsed, err := Decode([]byte(spec))
+	parsed, err := Decode(t.Context(), []byte(spec))
 	require.NoError(t, err)
 
 	got, diags, err := Load(t.Context(), 0, compilers.Source{Path: filepath.Join(dir, "root.yaml"), Data: []byte(spec), Parsed: parsed},
@@ -716,7 +716,7 @@ func TestExternal_PrepareRewritesTheTreeItStoresAndRestoreTreesPutsItBack(t *tes
 	doc := &soa.OpenAPI{}
 	ext := newExternal(t.Context(), doc, Options{}, newExternalReads(sourceDocument{escapes: esc}))
 
-	_, err := ext.prepare("k", []byte(body))
+	_, err := ext.prepare(t.Context(), "k", []byte(body))
 
 	require.NoError(t, err)
 	cached, ok := doc.GetCachedExternalDocument("k")
@@ -812,10 +812,10 @@ paths:
         "200": {description: ok}
 `, filepath.Join(dir, "root.yaml"))
 	unclean := dir + "/./root.yaml"
-	tree, err := parseTree([]byte("a: {$ref: '" + unclean + "#/paths/~1a+b/get/responses/200'}\n"))
+	tree, err := parseTree(t.Context(), []byte("a: {$ref: '"+unclean+"#/paths/~1a+b/get/responses/200'}\n"))
 	require.NoError(t, err)
 
-	pass.reader.holdSpellings(tree, filepath.Join(dir, "sub", "doc.yaml"))
+	pass.reader.holdSpellings(t.Context(), tree, filepath.Join(dir, "sub", "doc.yaml"))
 
 	held, ok := doc.GetCachedReferencedObject(unclean + "#/paths/~1a+b/get/responses/200")
 	require.True(t, ok, "held under the pointer that spells the plus")

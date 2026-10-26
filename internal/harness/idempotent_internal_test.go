@@ -25,7 +25,7 @@ type lowering struct{}
 
 func (lowering) Name() string { return "lowering" }
 
-func (lowering) Run(doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
+func (lowering) Run(_ context.Context, doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
 	own := *doc
 	own.Name = strings.ToLower(own.Name)
 	return &own, nil
@@ -37,7 +37,7 @@ type marking struct{}
 
 func (marking) Name() string { return "marking" }
 
-func (marking) Run(doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
+func (marking) Run(_ context.Context, doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
 	own := *doc
 	own.Name += "!"
 	return &own, nil
@@ -50,7 +50,7 @@ type stamping struct{}
 
 func (stamping) Name() string { return "stamping" }
 
-func (stamping) Run(doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
+func (stamping) Run(_ context.Context, doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
 	doc.Services[0].Version += "!"
 	return doc, nil
 }
@@ -64,7 +64,7 @@ type faulting struct {
 
 func (faulting) Name() string { return "faulting" }
 
-func (f faulting) Run(doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
+func (f faulting) Run(_ context.Context, doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
 	own := *doc
 	fault := f.first
 	if own.Version == "seen" {
@@ -84,7 +84,7 @@ type noting struct{}
 
 func (noting) Name() string { return "noting" }
 
-func (noting) Run(doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
+func (noting) Run(_ context.Context, doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
 	if doc.Version == "seen" {
 		return doc, []ir.Diagnostic{ir.NewDiagnostic(ir.SeverityWarning, "stub/nothing-left", "matched nothing",
 			ir.Provenance{Source: ir.NoSource})}
@@ -101,7 +101,7 @@ type tallying struct{}
 
 func (tallying) Name() string { return "tallying" }
 
-func (tallying) Run(doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
+func (tallying) Run(_ context.Context, doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
 	own := *doc
 	own.Version = strconv.Itoa(len(doc.Diagnostics))
 	return &own, []ir.Diagnostic{ir.NewDiagnostic(ir.SeverityWarning, "stub/tallied", "tallied",
@@ -114,7 +114,7 @@ type flagging struct{}
 
 func (flagging) Name() string { return "flagging" }
 
-func (flagging) Run(doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
+func (flagging) Run(_ context.Context, doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
 	own := *doc
 	own.Version = "flagged"
 	return &own, nil
@@ -130,7 +130,7 @@ type dropping struct {
 
 func (dropping) Name() string { return "dropping" }
 
-func (d dropping) Run(doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
+func (d dropping) Run(_ context.Context, doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
 	if doc.Version != "flagged" {
 		return doc, nil
 	}
@@ -148,7 +148,7 @@ type counting struct{ n *atomic.Int32 }
 
 func (counting) Name() string { return "counting" }
 
-func (c counting) Run(doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
+func (c counting) Run(_ context.Context, doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
 	own := *doc
 	own.Version = strconv.Itoa(int(c.n.Add(1)))
 	return &own, nil
@@ -383,7 +383,7 @@ type recording struct{ seen *[]string }
 
 func (recording) Name() string { return "recording" }
 
-func (r recording) Run(doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
+func (r recording) Run(_ context.Context, doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
 	*r.seen = append(*r.seen, fmt.Sprintf("%s with %d finding", doc.Name, len(doc.Diagnostics)))
 	return doc, nil
 }

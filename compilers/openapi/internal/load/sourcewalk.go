@@ -16,9 +16,9 @@ import (
 // nearly every one, is walked as the library walks it.
 func walkSource(ctx context.Context, doc *soa.OpenAPI, s Siblings) iter.Seq[soa.WalkItem] {
 	if len(s.list) == 0 {
-		return soa.Walk(ctx, doc)
+		return walk(ctx, doc)
 	}
-	return s.interleaved(ctx, soa.Walk(ctx, doc))
+	return s.interleaved(ctx, walk(ctx, doc))
 }
 
 // interleaved yields items and, after each $ref whose fields were modelled where
@@ -77,7 +77,7 @@ func (s Siblings) entry(item soa.WalkItem) (int, bool) {
 func (s Siblings) modelWalk(ctx context.Context, i int) iter.Seq[soa.WalkItem] {
 	start := &soa.ReferencedPathItem{Object: s.list[i].Item}
 	return locatedWalk(func(yield func(soa.WalkItem) bool) {
-		for item := range soa.Walk(ctx, start) {
+		for item := range walk(ctx, start) {
 			if len(item.Location) > 0 && !yield(item) {
 				return
 			}

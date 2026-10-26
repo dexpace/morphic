@@ -1,6 +1,7 @@
 package scan
 
 import (
+	"context"
 	"slices"
 
 	yaml "go.yaml.in/yaml/v3"
@@ -41,7 +42,7 @@ const minExpandedNodes = 1 << 15 // 32768
 //
 // Run it only once recursive anchors are refused, which makes the alias graph
 // a DAG (see Aliases).
-func aliasAmplification(locate Locator, root *yaml.Node, raw, surplus int64) (ir.Diagnostic, bool) {
+func aliasAmplification(ctx context.Context, locate Locator, root *yaml.Node, raw, surplus int64) (ir.Diagnostic, bool) {
 	shape := shapeAllowance(raw)
 	// A surplus the ratio already bounds more tightly can never be the bound
 	// crossed, and leaving it out also keeps raw+surplus from overflowing.
@@ -53,21 +54,21 @@ func aliasAmplification(locate Locator, root *yaml.Node, raw, surplus int64) (ir
 
 	// One walk against whichever bound binds, so a document refused by neither —
 	// every document a compile goes on to lower — costs a single walk.
-	culprits := newAliasWeigher(bound).weigh(root)
+	culprits := newAliasWeigher(bound).weigh(ctx, root)
 	if len(culprits) == 0 {
 		return ir.Diagnostic{}, false
 	}
 	if !budgeted {
-		return aliasAmplificationDiag(locate, Least(root, culprits), shape, raw), true
+		return aliasAmplificationDiag(locate, Least(ctx, root, culprits), shape, raw), true
 	}
 
 	// Past the budget, the document is weighed again against the ratio, so one
 	// past both is named for the shape, which no budget admits. Only a refused
 	// document pays for this walk.
-	if bombs := newAliasWeigher(shape).weigh(root); len(bombs) > 0 {
-		return aliasAmplificationDiag(locate, Least(root, bombs), shape, raw), true
+	if bombs := newAliasWeigher(shape).weigh(ctx, root); len(bombs) > 0 {
+		return aliasAmplificationDiag(locate, Least(ctx, root, bombs), shape, raw), true
 	}
-	return aliasBudgetDiag(locate, Least(root, culprits), surplus, raw), true
+	return aliasBudgetDiag(locate, Least(ctx, root, culprits), surplus, raw), true
 }
 
 // shapeAllowance returns the expanded weight the ratio rule admits for a
@@ -155,14 +156,14 @@ func newAliasWeigher(allowance int64) *aliasWeigher {
 //
 // A node is expanded once at most: a weighed node's frame pops unexpanded, and
 // pushChildren skips one in flight. So the stack holds root's frame and at most
-// one per Content entry or alias.
-func (w *aliasWeigher) weigh(root *yaml.Node) []*yaml.Node {
+// one per Content entry or alias. A done ctx stops it, partway.
+func (w *aliasWeigher) weigh(ctx context.Context, root *yaml.Node) []*yaml.Node {
 	if root == nil {
 		return nil
 	}
 	var innermost []*yaml.Node
 	stack := []*weighFrame{{n: root}}
-	for len(stack) > 0 {
+	for len(stack) > 0 && ctx.Err() == nil {
 		top := stack[len(stack)-1]
 		if _, done := w.weight[top.n]; done {
 			stack = stack[:len(stack)-1]

@@ -34,9 +34,9 @@ import (
 func resolveSpec(t *testing.T, spec, path string) (*soa.OpenAPI, []ir.Diagnostic, error) {
 	t.Helper()
 	data := []byte(spec)
-	root, _, err := decodeStream(data)
+	root, _, err := decodeStream(t.Context(), data)
 	require.NoError(t, err)
-	releaseAnchors(root)
+	releaseAnchors(t.Context(), root)
 	doc, err := unmarshal(t.Context(), data, root)
 	require.NoError(t, err)
 	rebuild := func() (*soa.OpenAPI, error) {
@@ -44,7 +44,7 @@ func resolveSpec(t *testing.T, spec, path string) (*soa.OpenAPI, []ir.Diagnostic
 		return again, err
 	}
 	resolved, _, _, pass, missed, err := resolveExternal(t.Context(), doc, Siblings{},
-		newSourceDocument(path, data, root, judgment{}, newSourceTree(0, overlay.Origin{}, root), nil),
+		newSourceDocument(path, data, root, judgment{}, newSourceTree(t.Context(), 0, overlay.Origin{}, root), nil),
 		Options{Reader: reader.Disk{}}, rebuild)
 	return resolved, passDiags(pointerAt(0, overlay.Origin{}), pass, missed), err
 }
@@ -285,6 +285,34 @@ func TestLoad_ARebuildFailureIsWrappedAsRebuildSource(t *testing.T) {
 	assert.Contains(t, err.Error(), "rebuild source 5")
 }
 
+// TestLoad_APhaseFailingOnceCancelledIsTheContexts pins how build reads a
+// phase that fails once its context is done: as cut short, the context's
+// error, whatever the phase said, since a phase stopped partway can fail for
+// what it did not finish.
+func TestLoad_APhaseFailingOnceCancelledIsTheContexts(t *testing.T) {
+	t.Parallel()
+	srv, _ := countingServer(t, anchoredExternalDoc)
+	url := "HTTP://" + strings.TrimPrefix(srv.URL, "http://") + "/ext.yaml"
+	src := compilers.Source{Path: "root.yaml", Data: []byte(rootReferencing(url))}
+	ctx, cancel := context.WithCancel(t.Context())
+	t.Cleanup(cancel)
+	boom := errors.New("rebuild boom")
+	opts := Options{
+		Reader: reader.Disk{},
+		rebuildDoc: func(context.Context, []byte, *yaml.Node) (*soa.OpenAPI, error) {
+			cancel()
+			return nil, boom
+		},
+	}
+
+	got, diags, err := Load(ctx, 5, src, opts)
+
+	require.ErrorIs(t, err, context.Canceled)
+	assert.NotErrorIs(t, err, boom)
+	assert.Nil(t, got)
+	assert.Nil(t, diags)
+}
+
 // TestStillUnprepared is a unit test of the report itself. No document makes
 // the second pass read one the first did not, as both passes walk alike, so it
 // is driven with fabricated usedDocuments. The tests after it reach it through
@@ -322,9 +350,9 @@ func TestStillUnprepared(t *testing.T) {
 func modelOf(t *testing.T, spec string) *soa.OpenAPI {
 	t.Helper()
 	data := []byte(spec)
-	root, _, err := decodeStream(data)
+	root, _, err := decodeStream(t.Context(), data)
 	require.NoError(t, err)
-	releaseAnchors(root)
+	releaseAnchors(t.Context(), root)
 	doc, err := unmarshal(t.Context(), data, root)
 	require.NoError(t, err)
 	return doc
@@ -707,18 +735,18 @@ func TestHasAnchor(t *testing.T) {
 
 	t.Run("no anchor anywhere", func(t *testing.T) {
 		t.Parallel()
-		root, err := parseTree([]byte("a: {b: [1, 2]}\n"))
+		root, err := parseTree(t.Context(), []byte("a: {b: [1, 2]}\n"))
 		require.NoError(t, err)
 
-		assert.False(t, hasAnchor(root))
+		assert.False(t, hasAnchor(t.Context(), root))
 	})
 
 	t.Run("an anchor deep in the tree", func(t *testing.T) {
 		t.Parallel()
-		root, err := parseTree([]byte("a: {b: [1, &x 2]}\n"))
+		root, err := parseTree(t.Context(), []byte("a: {b: [1, &x 2]}\n"))
 		require.NoError(t, err)
 
-		assert.True(t, hasAnchor(root))
+		assert.True(t, hasAnchor(t.Context(), root))
 	})
 }
 

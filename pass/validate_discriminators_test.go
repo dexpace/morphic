@@ -8,7 +8,6 @@ import (
 
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/ir/irtest"
-	"github.com/dexpace/morphic/pass"
 )
 
 func TestValidate_DiscriminatorMissingVariant(t *testing.T) {
@@ -23,7 +22,7 @@ func TestValidate_DiscriminatorMissingVariant(t *testing.T) {
 			Mapping: map[string]ir.TypeID{"a": "t/prim/string"},
 		},
 	}
-	diags := pass.Validate(doc)
+	diags := validated(t, doc)
 	require.NotEmpty(t, diags)
 	assert.Contains(t, irtest.DiagCodes(diags), "pass/discriminator-missing-variant")
 }
@@ -58,7 +57,7 @@ func TestValidate_ModelDiscriminator(t *testing.T) {
 			"d": "t/unrelated",   // model but not a subtype -> invalid
 		},
 	}
-	diags := pass.Validate(doc)
+	diags := validated(t, doc)
 	assert.Equal(t, 2, countCode(t, diags, "pass/discriminator-missing-variant"))
 }
 
@@ -99,7 +98,7 @@ func TestValidate_SubtypeThroughAliasChain(t *testing.T) {
 		Mapping:      map[string]ir.TypeID{"a": "t/sub", "b": "t/looped"},
 	}
 
-	diags := pass.Validate(doc)
+	diags := validated(t, doc)
 	assert.Equal(t, 1, countCode(t, diags, "pass/discriminator-missing-variant"),
 		"only the cyclic alias fails to reach the base: %v", irtest.DiagCodes(diags))
 	assert.Contains(t, messageForCode(t, diags, "pass/discriminator-missing-variant"), "t/looped")
@@ -138,7 +137,7 @@ func TestValidate_TransitiveSubtypeIsAVariant(t *testing.T) {
 		},
 	}
 
-	assert.Contains(t, messageForCode(t, pass.Validate(doc), "pass/discriminator-missing-variant"),
+	assert.Contains(t, messageForCode(t, validated(t, doc), "pass/discriminator-missing-variant"),
 		"t/m", "only the model composing nothing is refused")
 }
 
@@ -164,7 +163,7 @@ func TestValidate_SubtypeWalkTerminatesOnACompositionCycle(t *testing.T) {
 		ID: "t/loopB", Base: &ir.TypeRef{Target: "t/loopA"},
 	}
 
-	assert.Contains(t, messageForCode(t, pass.Validate(doc), "pass/discriminator-missing-variant"),
+	assert.Contains(t, messageForCode(t, validated(t, doc), "pass/discriminator-missing-variant"),
 		"t/loopA", "a cycle reaches no base, so the mapping is reported")
 }
 
@@ -191,7 +190,7 @@ func discriminatedUnion(target ir.TypeID) *ir.Document {
 // a reference-integrity code to learn about its own defect.
 func TestValidate_DanglingDiscriminatorTargetIsReportedTwice(t *testing.T) {
 	t.Parallel()
-	diags := pass.Validate(discriminatedUnion("t/ghost"))
+	diags := validated(t, discriminatedUnion("t/ghost"))
 
 	assert.Equal(t, 1, countCode(t, diags, "ir/dangling-type-ref"))
 	assert.Contains(t, messageForCode(t, diags, "pass/discriminator-missing-variant"),
@@ -205,7 +204,7 @@ func TestValidate_DanglingDiscriminatorTargetIsReportedTwice(t *testing.T) {
 // discriminator check firing twice.
 func TestValidate_DeclaredNonVariantIsReportedOnce(t *testing.T) {
 	t.Parallel()
-	diags := pass.Validate(discriminatedUnion("t/prim/string"))
+	diags := validated(t, discriminatedUnion("t/prim/string"))
 
 	assert.Equal(t, 0, countCode(t, diags, "ir/dangling-type-ref"))
 	assert.Contains(t, messageForCode(t, diags, "pass/discriminator-missing-variant"),
@@ -270,7 +269,7 @@ func TestValidate_DiscriminatorDefaultIsHeldToVariantMembership(t *testing.T) {
 	for _, tc := range discriminatorArms() {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			diags := pass.Validate(tc.doc("t/prim/string"))
+			diags := validated(t, tc.doc("t/prim/string"))
 
 			assert.Equal(t, 0, countCode(t, diags, "ir/dangling-type-ref"))
 			msg := messageForCode(t, diags, "pass/discriminator-missing-variant")
@@ -290,8 +289,8 @@ func TestValidate_LegalDiscriminatorDefaultIsClean(t *testing.T) {
 	for _, tc := range discriminatorArms() {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Empty(t, pass.Validate(tc.doc(tc.legal)))
-			assert.Empty(t, pass.Validate(tc.doc("")), "no default declared claims nothing")
+			assert.Empty(t, validated(t, tc.doc(tc.legal)))
+			assert.Empty(t, validated(t, tc.doc("")), "no default declared claims nothing")
 		})
 	}
 }
@@ -304,7 +303,7 @@ func TestValidate_DanglingDiscriminatorDefaultIsReportedTwice(t *testing.T) {
 	for _, tc := range discriminatorArms() {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			diags := pass.Validate(tc.doc("t/ghost"))
+			diags := validated(t, tc.doc("t/ghost"))
 
 			assert.Equal(t, 1, countCode(t, diags, "ir/dangling-type-ref"))
 			assert.Contains(t, messageForCode(t, diags, "pass/discriminator-missing-variant"),

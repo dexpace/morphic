@@ -50,8 +50,8 @@ func costAround(t *testing.T, n int, build func(n int) *ir.Document,
 	for j := range spread {
 		size := int(math.Round(float64(n) * math.Exp2(float64(j)/spread)))
 		doc := build(size)
-		holds(t, size, pass.Validate(doc))
-		a, b := validateCost(doc)
+		holds(t, size, validated(t, doc))
+		a, b := validateCost(t, doc)
 		allocs += a / spread
 		bytes += b / spread
 	}
@@ -135,15 +135,19 @@ func exposureShapes() map[string]func(n int) *ir.Document {
 // testing.AllocsPerRun counts. The fewest, because under the race detector
 // sync.Pool drops a share of what it is handed, so the fmt calls Validate makes
 // allocate a random amount more than they must, and never less.
-func validateCost(doc *ir.Document) (allocs, bytes float64) {
+func validateCost(t *testing.T, doc *ir.Document) (allocs, bytes float64) {
+	t.Helper()
+	ctx := t.Context()
 	defer runtime.GOMAXPROCS(runtime.GOMAXPROCS(1))
-	_ = pass.Validate(doc)
+	_, err := pass.Validate(ctx, doc)
+	require.NoError(t, err)
 	allocs, bytes = math.Inf(1), math.Inf(1)
 	for range 3 {
 		var before, after runtime.MemStats
 		runtime.ReadMemStats(&before)
-		_ = pass.Validate(doc)
+		_, err := pass.Validate(ctx, doc)
 		runtime.ReadMemStats(&after)
+		require.NoError(t, err)
 		allocs = min(allocs, float64(after.Mallocs-before.Mallocs))
 		bytes = min(bytes, float64(after.TotalAlloc-before.TotalAlloc))
 	}

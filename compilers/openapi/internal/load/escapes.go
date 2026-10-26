@@ -130,14 +130,14 @@ func (e *escapes) forResolver(v string) string {
 // not changed. One written as a scalar is changed, and an alias naming it
 // elsewhere, which may be text, becomes a scalar holding it as written. Every
 // node keeps its identity, which models and indexes of the tree are keyed by.
-func (e *escapes) escape(root *yaml.Node) {
+func (e *escapes) escape(ctx context.Context, root *yaml.Node) {
 	if e == nil {
 		return
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	respelled := map[*yaml.Node]string{}
-	eachRefValue(root, func(n *yaml.Node) bool {
+	eachRefValue(ctx, root, func(n *yaml.Node) bool {
 		v := nodeview.Deref(n)
 		spelled := e.forResolver(v.Value)
 		if spelled == v.Value {
@@ -162,7 +162,7 @@ func (e *escapes) escape(root *yaml.Node) {
 	if len(respelled) == 0 {
 		return
 	}
-	for _, a := range aliasesOutsideRefs(root) {
+	for _, a := range aliasesOutsideRefs(ctx, root) {
 		if was, ok := respelled[a.Alias]; ok {
 			e.becomeScalar(a, a.Alias, was)
 		}
@@ -180,9 +180,9 @@ func (e *escapes) becomeScalar(n, v *yaml.Node, value string) {
 
 // rewritable reports whether the tree under root holds a $ref value
 // forResolver respells.
-func (e *escapes) rewritable(root *yaml.Node) bool {
+func (e *escapes) rewritable(ctx context.Context, root *yaml.Node) bool {
 	found := false
-	eachRefValue(root, func(n *yaml.Node) bool {
+	eachRefValue(ctx, root, func(n *yaml.Node) bool {
 		v := nodeview.Deref(n)
 		found = e.forResolver(v.Value) != v.Value
 		return !found
@@ -194,7 +194,7 @@ func (e *escapes) rewritable(root *yaml.Node) bool {
 // key in the tree under root that is a scalar or an alias of one, until visit
 // returns false. A value that is no scalar names no reference. The tree is
 // walked by its content, never through an alias, so each mapping is read once.
-func eachRefValue(root *yaml.Node, visit func(*yaml.Node) bool) {
+func eachRefValue(ctx context.Context, root *yaml.Node, visit func(*yaml.Node) bool) {
 	nodeview.Walk{Nodes: maxTreeNodes, Visit: func(n *yaml.Node, _ int) nodeview.Step {
 		for i, c := range n.Content {
 			v := nodeview.Deref(c)
@@ -203,12 +203,12 @@ func eachRefValue(root *yaml.Node, visit func(*yaml.Node) bool) {
 			}
 		}
 		return nodeview.Descend
-	}}.Run(root)
+	}}.Run(ctx, root)
 }
 
 // aliasesOutsideRefs returns every alias in the tree under root that is not
 // the value of a $ref key, walked as eachRefValue walks.
-func aliasesOutsideRefs(root *yaml.Node) []*yaml.Node {
+func aliasesOutsideRefs(ctx context.Context, root *yaml.Node) []*yaml.Node {
 	var out []*yaml.Node
 	nodeview.Walk{Nodes: maxTreeNodes, Visit: func(n *yaml.Node, _ int) nodeview.Step {
 		for i, c := range n.Content {
@@ -217,7 +217,7 @@ func aliasesOutsideRefs(root *yaml.Node) []*yaml.Node {
 			}
 		}
 		return nodeview.Descend
-	}}.Run(root)
+	}}.Run(ctx, root)
 	return out
 }
 

@@ -12,7 +12,6 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
-	"github.com/dexpace/morphic/pass"
 )
 
 // TestUnhomedApplicator_KeptOnAListAndAnnounced pins the arm of the home
@@ -210,7 +209,7 @@ func TestUnplacedDiscriminator_IsKeptAtEveryUnionSite(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, unplacedSpec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	assert.Empty(t, pass.Validate(doc))
+	assert.Empty(t, validated(t, doc))
 
 	for _, name := range []string{"NullOnly", "NullBoth", "EnumU", "ConstU", "ScalarU", "RefSite"} {
 		node := typeByName(doc, name)
@@ -242,7 +241,7 @@ func TestHomelessDiscriminator_IsKeptBesideEveryOtherNode(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, homelessSpec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	assert.Empty(t, pass.Validate(doc))
+	assert.Empty(t, validated(t, doc))
 
 	owners := map[string]ir.Unmodeled{}
 	for _, name := range []string{"Str", "En", "Mixed", "Arr", "Bare", "RefD"} {
@@ -281,7 +280,7 @@ func TestHeldDiscriminator_IsNotKeptTwice(t *testing.T) {
 		"    Multi: {type: [object, string], properties: {kind: {type: string}}, discriminator: {propertyName: kind}}\n")
 	doc, diags := parseFull(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	assert.Empty(t, pass.Validate(doc))
+	assert.Empty(t, validated(t, doc))
 
 	u, ok := typeByName(doc, "U").(*ir.Union)
 	require.True(t, ok)

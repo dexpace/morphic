@@ -108,7 +108,8 @@ func TestRun_CanceledRunExitsTwo(t *testing.T) {
 
 	assert.Equal(t, 2, code)
 	assert.Empty(t, stdout.String())
-	assert.Contains(t, stderr.String(), "morphic-census: engine: detect")
+	assert.Contains(t, stderr.String(), "morphic-census: engine: ", "the engine's own error")
+	assert.Contains(t, stderr.String(), context.Canceled.Error())
 }
 
 func TestRun_OutsideTheModuleExitsTwo(t *testing.T) {

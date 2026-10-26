@@ -17,7 +17,6 @@ import (
 	"github.com/dexpace/morphic/internal/jsonshape"
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/ir/irtest"
-	"github.com/dexpace/morphic/pass"
 )
 
 // multipartContent is a body content typed by validDoc's model, carrying enc.
@@ -76,7 +75,7 @@ func TestValidate_EncodingKeyAddressesNoProperty(t *testing.T) {
 			doc := validDoc()
 			tc.plant(doc, multipartPayload(map[ir.PropID]ir.PartEncoding{"p/m/ghost": {Multi: true}}))
 
-			found := withCode(pass.Validate(doc), "ir/encoding-key-unknown-property")
+			found := withCode(validated(t, doc), "ir/encoding-key-unknown-property")
 			require.Len(t, found, 1, "exactly the planted key must address nothing")
 			assert.Equal(t, ir.SeverityError, found[0].Severity)
 			at := tc.at + "/contents/0/encoding/p/m/ghost"
@@ -103,7 +102,7 @@ func TestValidate_PayloadRequiredOutsideARequest(t *testing.T) {
 			payload.Required = new(false)
 			tc.plant(doc, payload)
 
-			found := withCode(pass.Validate(doc), "ir/payload-required-outside-request")
+			found := withCode(validated(t, doc), "ir/payload-required-outside-request")
 			if tc.request {
 				assert.Empty(t, found, "a request body is the position the field is defined for")
 				return
@@ -127,7 +126,7 @@ func TestValidate_EncodingKeysNamingRealPropertiesAreClean(t *testing.T) {
 	for _, tc := range encodingCarriers() {
 		tc.plant(doc, multipartPayload(map[ir.PropID]ir.PartEncoding{"p/m/a": {Multi: true}}))
 	}
-	assert.Empty(t, pass.Validate(doc))
+	assert.Empty(t, validated(t, doc))
 }
 
 // TestValidate_EncodingKeyThroughServiceCommonErrors covers the second position
@@ -141,7 +140,7 @@ func TestValidate_EncodingKeyThroughServiceCommonErrors(t *testing.T) {
 	payload := multipartPayload(map[ir.PropID]ir.PartEncoding{"p/m/ghost": {Multi: true}})
 	service(doc).CommonErrors = []ir.ErrorCase{{Name: ir.Naming{Source: "throttled"}, Payload: &payload}}
 
-	found := withCode(pass.Validate(doc), "ir/encoding-key-unknown-property")
+	found := withCode(validated(t, doc), "ir/encoding-key-unknown-property")
 	require.Len(t, found, 1, "exactly the planted key must address nothing")
 	assert.Equal(t, "s/commonErrors/0/contents/0/encoding/p/m/ghost",
 		found[0].Provenance.Node,
@@ -175,7 +174,7 @@ func TestValidate_EncodingKeyThroughComposition(t *testing.T) {
 			tc.compose(model(doc))
 			requestContent(doc).Encoding = map[ir.PropID]ir.PartEncoding{"p/parent/x": {Multi: true}}
 
-			assert.Empty(t, withCode(pass.Validate(doc), "ir/encoding-key-unknown-property"))
+			assert.Empty(t, withCode(validated(t, doc), "ir/encoding-key-unknown-property"))
 		})
 	}
 }
@@ -195,7 +194,7 @@ func TestValidate_EncodingKeyThroughCyclicComposition(t *testing.T) {
 	}
 	requestContent(doc).Encoding = map[ir.PropID]ir.PartEncoding{"p/cycle/x": {Multi: true}}
 
-	assert.Empty(t, withCode(pass.Validate(doc), "ir/encoding-key-unknown-property"))
+	assert.Empty(t, withCode(validated(t, doc), "ir/encoding-key-unknown-property"))
 }
 
 // TestValidate_EncodingKeyThroughAlias pins that a body typed by an alias scalar
@@ -227,7 +226,7 @@ func TestValidate_EncodingKeyThroughAlias(t *testing.T) {
 			c.Type = ir.TypeRef{Target: "t/alias/outer"}
 			c.Encoding = map[ir.PropID]ir.PartEncoding{"p/m/a": {Multi: true}}
 
-			assert.Empty(t, withCode(pass.Validate(doc), "ir/encoding-key-unknown-property"),
+			assert.Empty(t, withCode(validated(t, doc), "ir/encoding-key-unknown-property"),
 				"the aliased model declares the part this key names")
 		})
 	}
@@ -257,7 +256,7 @@ func TestValidate_EncodingKeyThroughCyclicAlias(t *testing.T) {
 	c.Type = ir.TypeRef{Target: "t/alias/a"}
 	c.Encoding = map[ir.PropID]ir.PartEncoding{"p/cycle/x": {Multi: true}}
 
-	assert.Empty(t, withCode(pass.Validate(doc), "ir/encoding-key-unknown-property"))
+	assert.Empty(t, withCode(validated(t, doc), "ir/encoding-key-unknown-property"))
 }
 
 // TestValidate_EncodingKeyOnTypeWithoutParts covers the targets that expose no
@@ -286,7 +285,7 @@ func TestValidate_EncodingKeyOnTypeWithoutParts(t *testing.T) {
 			c.Type = ir.TypeRef{Target: tc.target}
 			c.Encoding = map[ir.PropID]ir.PartEncoding{"p/m/a": {Multi: true}}
 
-			found := withCode(pass.Validate(doc), "ir/encoding-key-unknown-property")
+			found := withCode(validated(t, doc), "ir/encoding-key-unknown-property")
 			require.Len(t, found, 1, "a type exposing no property resolves no key")
 			assert.Contains(t, found[0].Message,
 				`addresses no property of the content's type "`+string(tc.target)+`"`)
@@ -304,7 +303,7 @@ func TestValidate_EncodingKeyOnAnUndeclaredTypeIsReportedBesideTheDanglingRef(t 
 	c.Type = ir.TypeRef{Target: "t/missing"}
 	c.Encoding = map[ir.PropID]ir.PartEncoding{"p/m/a": {Multi: true}}
 
-	got := irtest.DiagCodes(pass.Validate(doc))
+	got := irtest.DiagCodes(validated(t, doc))
 	assert.Contains(t, got, "ir/dangling-type-ref")
 	assert.Contains(t, got, "ir/encoding-key-unknown-property")
 }
@@ -360,7 +359,7 @@ func TestValidate_CompiledAliasMultipartBodyIsClean(t *testing.T) {
 			require.NotNil(t, doc)
 
 			require.NotEmpty(t, encodingKeys(t, doc), "the body's binary part mints an encoding key to check")
-			assert.Empty(t, withCode(pass.Validate(doc), "ir/encoding-key-unknown-property"))
+			assert.Empty(t, withCode(validated(t, doc), "ir/encoding-key-unknown-property"))
 		})
 	}
 }
@@ -388,7 +387,7 @@ func TestValidate_EncodingKeyDiagnosticsAreDeterministic(t *testing.T) {
 	requestContent(doc).Encoding = map[ir.PropID]ir.PartEncoding{
 		"p/m/z": {}, "p/m/b": {}, "p/m/q": {}, "p/m/c": {}, "p/m/m": {},
 	}
-	want := pointers(withCode(pass.Validate(doc), "ir/encoding-key-unknown-property"))
+	want := pointers(withCode(validated(t, doc), "ir/encoding-key-unknown-property"))
 	require.Equal(t, []string{
 		"op/request/contents/0/encoding/p/m/b",
 		"op/request/contents/0/encoding/p/m/c",
@@ -397,7 +396,7 @@ func TestValidate_EncodingKeyDiagnosticsAreDeterministic(t *testing.T) {
 		"op/request/contents/0/encoding/p/m/z",
 	}, want)
 	for range 8 {
-		assert.Equal(t, want, pointers(withCode(pass.Validate(doc), "ir/encoding-key-unknown-property")))
+		assert.Equal(t, want, pointers(withCode(validated(t, doc), "ir/encoding-key-unknown-property")))
 	}
 }
 
@@ -508,7 +507,7 @@ func TestValidate_ADefaultPayloadIsJudgedAsAResponsesIs(t *testing.T) {
 		def.Payload = &payload
 		firstOp(doc).Default = def
 
-		found := withCode(pass.Validate(doc), "ir/payload-required-outside-request")
+		found := withCode(validated(t, doc), "ir/payload-required-outside-request")
 		require.Len(t, found, 1)
 		assert.Equal(t, ir.SeverityError, found[0].Severity)
 		assert.Equal(t, "op/default", found[0].Provenance.Node)
@@ -524,7 +523,7 @@ func TestValidate_ADefaultPayloadIsJudgedAsAResponsesIs(t *testing.T) {
 		def.Payload = &payload
 		firstOp(doc).Default = def
 
-		found := withCode(pass.Validate(doc), "ir/encoding-key-unknown-property")
+		found := withCode(validated(t, doc), "ir/encoding-key-unknown-property")
 		require.Len(t, found, 1)
 		assert.Equal(t, ir.SeverityError, found[0].Severity)
 		at := "op/default/contents/0/encoding/p/m/ghost"
@@ -541,6 +540,6 @@ func TestValidate_ADefaultPayloadIsJudgedAsAResponsesIs(t *testing.T) {
 		def.Payload = &payload
 		firstOp(doc).Default = def
 
-		assert.Empty(t, pass.Validate(doc))
+		assert.Empty(t, validated(t, doc))
 	})
 }

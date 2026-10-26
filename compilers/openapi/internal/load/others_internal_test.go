@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json/jsontext"
 	"errors"
+	"math"
 	"path/filepath"
 	"testing"
 
@@ -13,6 +14,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/internal/ctxtest"
 )
 
 // servedReader answers every request with one document declaring X.
@@ -92,7 +94,7 @@ func TestPointersIn_PlacesANodeInWhicheverTreeHoldsIt(t *testing.T) {
 		trees[key] = &tree
 	}
 	trees["/r/a.yaml"] = trees["a.yaml"]
-	held := pointersIn(trees, []string{"./a.yaml", "/r/a.yaml", "a.yaml"})
+	held := pointersIn(t.Context(), trees, []string{"./a.yaml", "/r/a.yaml", "a.yaml"})
 
 	for key, tree := range trees {
 		x := tree.Content[0].Content[3].Alias.Content[1]
@@ -103,6 +105,20 @@ func TestPointersIn_PlacesANodeInWhicheverTreeHoldsIt(t *testing.T) {
 	p, ok := held(&yaml.Node{Kind: yaml.ScalarNode, Value: "1"})
 	assert.False(t, ok)
 	assert.Empty(t, p)
+}
+
+// TestPointersIn_IndexesUnderTheLoadsContext pins that each tree's pointer
+// index is built under the context the load runs under (scan.Pointers).
+func TestPointersIn_IndexesUnderTheLoadsContext(t *testing.T) {
+	t.Parallel()
+	var tree yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte("A: {x: 1}\n"), &tree))
+	ctx := &ctxtest.Countdown{Context: t.Context(), Left: math.MaxInt}
+
+	_, ok := pointersIn(ctx, map[string]*yaml.Node{"a.yaml": &tree}, []string{"a.yaml"})(tree.Content[0])
+
+	assert.True(t, ok)
+	assert.Positive(t, ctx.Calls)
 }
 
 // TestLabelOf_IsTheLocationTheSourcesDirectoryReachesADocumentBy pins the

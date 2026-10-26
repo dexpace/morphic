@@ -32,6 +32,7 @@ type faulty struct {
 	table   func(sources []compilers.Source) []ir.SourceInfo
 	compile func(sources []compilers.Source) (*ir.Document, []ir.Diagnostic, error)
 	formats func() []compilers.SourceFormat
+	limit   func() int
 }
 
 func (c faulty) Formats() []compilers.SourceFormat {
@@ -41,11 +42,11 @@ func (c faulty) Formats() []compilers.SourceFormat {
 	return c.stubFront.Formats()
 }
 
-func (c faulty) Detect(src compilers.Source, opts compilers.Options) (compilers.Recognition, []ir.Diagnostic, bool) {
+func (c faulty) Detect(ctx context.Context, src compilers.Source, opts compilers.Options) (compilers.Recognition, []ir.Diagnostic, bool) {
 	if c.detect != nil {
 		return c.detect()
 	}
-	return c.stubFront.Detect(src, opts)
+	return c.stubFront.Detect(ctx, src, opts)
 }
 
 func (c faulty) DecodeOptions(set compilers.OptionSet) (any, error) {
@@ -53,6 +54,13 @@ func (c faulty) DecodeOptions(set compilers.OptionSet) (any, error) {
 		return c.decode()
 	}
 	return c.stubFront.DecodeOptions(set)
+}
+
+func (c faulty) SourceLimit(opts compilers.Options) int {
+	if c.limit != nil {
+		return c.limit()
+	}
+	return c.stubFront.SourceLimit(opts)
 }
 
 func (c faulty) SourceTable(sources []compilers.Source, opts compilers.Options) []ir.SourceInfo {
@@ -89,7 +97,9 @@ type funcPass struct {
 
 func (p funcPass) Name() string { return p.name }
 
-func (p funcPass) Run(doc *ir.Document) (*ir.Document, []ir.Diagnostic) { return p.run(doc) }
+func (p funcPass) Run(_ context.Context, doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
+	return p.run(doc)
+}
 
 // entry is one way into the engine, run over the tiny spec with a compiler, the
 // passes and the options a test gives it.
@@ -169,6 +179,8 @@ func TestEngine_RunReportsAPanicInACompilerAsAContractError(t *testing.T) {
 			engine.RunOptions{}, "SourceTable: panic: boom"},
 		{"DecodeOptions", faulty{decode: func() (any, error) { boom(); return nil, nil }},
 			engine.RunOptions{CompilerOptions: map[string]string{"setting": "value"}}, "configure: panic: boom"},
+		{"SourceLimit", faulty{limit: func() int { boom(); return 0 }},
+			engine.RunOptions{}, "SourceLimit: panic: boom"},
 	}
 	for _, tt := range tests {
 		for _, via := range compileEntries {
@@ -253,7 +265,9 @@ type panickingName struct{}
 
 func (panickingName) Name() string { panic("name exploded") }
 
-func (panickingName) Run(doc *ir.Document) (*ir.Document, []ir.Diagnostic) { return doc, nil }
+func (panickingName) Run(_ context.Context, doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
+	return doc, nil
+}
 
 // countedName is a pass that counts how often it is asked for its name.
 type countedName struct{ asked *atomic.Int32 }
@@ -263,7 +277,9 @@ func (p countedName) Name() string {
 	return "counted"
 }
 
-func (p countedName) Run(doc *ir.Document) (*ir.Document, []ir.Diagnostic) { return doc, nil }
+func (p countedName) Run(_ context.Context, doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
+	return doc, nil
+}
 
 // TestNew_AsksAPassForItsNameOnce pins that the name a pass answered to when
 // the engine was built is the one every run uses, however many runs, refusals
@@ -478,23 +494,17 @@ func (b blocker) Compile(_ context.Context, sources []compilers.Source, _ compil
 // documents for a stage that does not stop when asked: the engine cannot stop a
 // call it did not start on a goroutine of its own, and abandoning one would
 // leave it reading caller-owned bytes after Run returned. So Run waits, then
-// stops at the next stage boundary, or returns what it finished if none is left.
+// fails with the context's error, the compile's output unjudged: a stage that
+// returns once its context is done may have stopped short, and nothing tells a
+// whole answer from one cut, so with a pass still to run or none.
 func TestEngine_RunWaitsForACompilerThatIgnoresItsContext(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name     string
 		disabled []string
-		check    func(t *testing.T, res *engine.Result, err error)
 	}{
-		{"with a pass still to run", nil, func(t *testing.T, res *engine.Result, err error) {
-			require.ErrorIs(t, err, context.Canceled)
-			assert.Contains(t, err.Error(), `stop before pass "note"`)
-			assert.Nil(t, res)
-		}},
-		{"with every pass off", []string{"note"}, func(t *testing.T, res *engine.Result, err error) {
-			require.NoError(t, err)
-			require.NotNil(t, res.Document, "the finished compile is not thrown away for a context that ended meanwhile")
-		}},
+		{"with a pass still to run", nil},
+		{"with every pass off", []string{"note"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -521,7 +531,9 @@ func TestEngine_RunWaitsForACompilerThatIgnoresItsContext(t *testing.T) {
 				"Run returned while the compiler was still running")
 			close(release)
 			<-done
-			tt.check(t, res, err)
+			require.ErrorIs(t, err, context.Canceled)
+			assert.Contains(t, err.Error(), `engine: compile "spec.yaml"`, "the compile is what the cancel ended")
+			assert.Nil(t, res)
 		})
 	}
 }

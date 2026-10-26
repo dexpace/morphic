@@ -1,6 +1,8 @@
 package scan
 
 import (
+	"context"
+
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
@@ -31,18 +33,18 @@ const MaxNesting = 1024
 // A document holding a recursive anchor is left to the anchor-cycle refusal:
 // it nests without end, and the index's count of one turn round it is no
 // fact to refuse on or to find a site for.
-func Nesting(locate Locator, idx sourceindex.Index) (ir.Diagnostic, bool) {
-	return nestingWithin(locate, idx, MaxNesting)
+func Nesting(ctx context.Context, locate Locator, idx sourceindex.Index) (ir.Diagnostic, bool) {
+	return nestingWithin(ctx, locate, idx, MaxNesting)
 }
 
 // nestingWithin is Nesting under a bound of limit levels, so a test can cross
 // it without a document a thousand levels deep.
-func nestingWithin(locate Locator, idx sourceindex.Index, limit int64) (ir.Diagnostic, bool) {
+func nestingWithin(ctx context.Context, locate Locator, idx sourceindex.Index, limit int64) (ir.Diagnostic, bool) {
 	if idx.Nesting() <= limit || len(idx.AnchorCycles()) > 0 {
 		return ir.Diagnostic{}, false
 	}
 	root := idx.Root()
-	return diag.Newf(ir.SeverityError, diag.SourceTooDeep, locate(Least(root, deepSites(root, limit))),
+	return diag.Newf(ir.SeverityError, diag.SourceTooDeep, locate(Least(ctx, root, deepSites(ctx, root, limit))),
 		"document nests %d levels deep with its aliases expanded, past the %d-level bound", idx.Nesting(), limit), true
 }
 
@@ -60,24 +62,26 @@ type placed struct {
 // key or a non-scalar key does, the deepest position there with a pointer.
 //
 // It descends only into what passes the bound, so a refused document costs
-// one measure of the tree and one walk of part of it.
-func deepSites(root *yaml.Node, limit int64) []*yaml.Node {
+// one measure of the tree, under ctx, and one walk of part of it.
+func deepSites(ctx context.Context, root *yaml.Node, limit int64) []*yaml.Node {
 	top := nodeview.DocumentRoot(root)
 	if sourceindex.Level(top) > limit {
 		return []*yaml.Node{top}
 	}
 	measure := sourceindex.NewMeasure(sourceindex.MaxIndexedNodes)
-	if measure.Of(top) <= limit {
+	if measure.Of(ctx, top) <= limit {
 		return nil
 	}
 	var sites []*yaml.Node
 	stack := []placed{{n: top, level: sourceindex.Level(top)}}
+	// The walk asks ctx through the measure alone: each node it takes was
+	// measured first, and once cancelled the measure answers at once.
 	for len(stack) > 0 {
 		at := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
 		passed := false
 		eachChild(at.n, func(c *yaml.Node, _ string, held bool) {
-			if c == nil || at.level+measure.Of(c) <= limit {
+			if c == nil || at.level+measure.Of(ctx, c) <= limit {
 				return
 			}
 			passed = true

@@ -174,10 +174,10 @@ type siblingBuild func(ctx context.Context, node *yaml.Node) (*soa.PathItem, err
 // is not walked: that is nearly every document, and the walk is a pass over the
 // whole model.
 func modelSiblings(ctx context.Context, doc *soa.OpenAPI, locate scan.Locator) (Siblings, []ir.Diagnostic) {
-	if !anyNode(doc.GetRootNode(), refBeside) {
+	if !anyNode(ctx, doc.GetRootNode(), refBeside) {
 		return Siblings{}, nil
 	}
-	return siblingsFrom(ctx, soa.Walk(ctx, doc), locate, buildSibling)
+	return siblingsFrom(ctx, walk(ctx, doc), locate, buildSibling)
 }
 
 // refBeside reports whether n is a mapping keying $ref beside another key, as
@@ -231,8 +231,9 @@ func siblingsFrom(ctx context.Context, items iter.Seq[soa.WalkItem], locate scan
 		met(site, rp)
 		return nil
 	})
-	// The document's walk, then each model's in turn, until one panics.
-	for i := 0; err == nil && i < len(s.list) && i < sourceindex.MaxIndexedNodes; i++ {
+	// The document's walk, then each model's in turn, until one panics or ctx
+	// is done.
+	for i := 0; err == nil && i < len(s.list) && i < sourceindex.MaxIndexedNodes && ctx.Err() == nil; i++ {
 		_, err = eachModel(s.modelWalk(ctx, i), "sibling search", inModel)
 	}
 	return s, faults

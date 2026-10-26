@@ -8,7 +8,6 @@ import (
 
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/ir/irtest"
-	"github.com/dexpace/morphic/pass"
 )
 
 func TestValidate_DuplicateWireName(t *testing.T) {
@@ -18,7 +17,7 @@ func TestValidate_DuplicateWireName(t *testing.T) {
 	m.Properties = append(m.Properties, ir.Property{
 		ID: "p/m/b", WireName: "a", Type: ir.TypeRef{Target: "t/prim/string"},
 	})
-	diags := pass.Validate(doc)
+	diags := validated(t, doc)
 	require.NotEmpty(t, diags)
 	assert.Contains(t, irtest.DiagCodes(diags), "pass/duplicate-wire-name")
 }
@@ -40,7 +39,7 @@ func TestValidate_EmptyEffectiveWireNameIsSkipped(t *testing.T) {
 	}
 	// Two blank-named properties must NOT collide (both skipped), and the
 	// source-named one is unique, so no duplicate-wire-name diagnostic fires.
-	assert.NotContains(t, irtest.DiagCodes(pass.Validate(doc)), "pass/duplicate-wire-name")
+	assert.NotContains(t, irtest.DiagCodes(validated(t, doc)), "pass/duplicate-wire-name")
 }
 
 // aliasProperty returns a string property of model t/m named source and
@@ -62,9 +61,10 @@ func aliasDoc(props ...ir.Property) *ir.Document {
 
 // ambiguousAliasDiags returns the pass/ambiguous-alias diagnostics Validate
 // reports on doc.
-func ambiguousAliasDiags(doc *ir.Document) []ir.Diagnostic {
+func ambiguousAliasDiags(t *testing.T, doc *ir.Document) []ir.Diagnostic {
+	t.Helper()
 	var out []ir.Diagnostic
-	for _, d := range pass.Validate(doc) {
+	for _, d := range validated(t, doc) {
 		if d.Code == "pass/ambiguous-alias" {
 			out = append(out, d)
 		}
@@ -123,7 +123,7 @@ func TestValidate_AmbiguousAliasIsReported(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got := ambiguousAliasDiags(aliasDoc(tc.props...))
+			got := ambiguousAliasDiags(t, aliasDoc(tc.props...))
 			require.Len(t, got, 1)
 			assert.Equal(t, ir.SeverityError, got[0].Severity)
 			assert.Equal(t, tc.node, got[0].Provenance.Node)
@@ -152,7 +152,7 @@ func TestValidate_UnambiguousAliasIsClean(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			assert.Empty(t, ambiguousAliasDiags(doc))
+			assert.Empty(t, ambiguousAliasDiags(t, doc))
 		})
 	}
 }

@@ -264,10 +264,29 @@ func TestEngine_RunDocumentRefusals(t *testing.T) {
 	}
 }
 
+// TestEngine_RunDocumentUnderACancelledContextVerifiesNothing pins the ask
+// before RunDocument's first step. Holding the input to the invariants reads no
+// context, so a run cancelled before it starts never begins that step, though
+// with no pass after it the run would fail all the same.
+func TestEngine_RunDocumentUnderACancelledContextVerifiesNothing(t *testing.T) {
+	t.Parallel()
+	eng := engineOf(t, collidingCompiler{})
+	verified := 0
+	engine.OnVerify(eng, func() { verified++ })
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	res, err := eng.RunDocument(ctx, danglingDocument(), engine.RunOptions{Verify: true})
+
+	require.ErrorIs(t, err, context.Canceled)
+	assert.Nil(t, res)
+	assert.Zero(t, verified)
+}
+
 // TestEngine_RunDocumentFailsOnAPassBreakingItsContract pins that RunDocument
 // holds the passes to their contract as Run does: one returning no document, or
 // moving an entry of the source table, fails the run naming it, and one that
-// cancels the run stops it before the next pass.
+// cancels the run fails it there, running no pass after it.
 func TestEngine_RunDocumentFailsOnAPassBreakingItsContract(t *testing.T) {
 	t.Parallel()
 	dropSources := sourcesPass{edit: func([]ir.SourceInfo) []ir.SourceInfo { return nil }}

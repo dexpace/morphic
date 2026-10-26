@@ -1,6 +1,7 @@
 package load
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"testing"
@@ -135,11 +136,11 @@ func TestLoad_AnOverlayUsingAnchorsModestlyStillApplies(t *testing.T) {
 func TestLoad_AnOverlayTooLargeToIndexIsRefused(t *testing.T) {
 	t.Parallel()
 	opts := overlayOf("overlay: 1.0.0\ninfo: {title: o, version: \"1\"}\nactions:\n  - target: $.info\n    update: {description: d}\n")
-	opts.buildIndex = func(root *yaml.Node) sourceindex.Index {
+	opts.buildIndex = func(ctx context.Context, root *yaml.Node) sourceindex.Index {
 		if content := root.Content; len(content) == 1 && len(content[0].Content) > 0 && content[0].Content[0].Value == "overlay" {
-			return sourceindex.Build(root, 1)
+			return sourceindex.Build(ctx, root, 1)
 		}
-		return defaultIndex(root)
+		return defaultIndex(ctx, root)
 	}
 
 	got, diags, err := Load(t.Context(), 0, openapitest.SourceOf(minimal31), opts)
@@ -165,7 +166,7 @@ func TestApplyOverlay_CarriesAWarningFromItsRefusals(t *testing.T) {
 		"cycle pre-scan aborted; reference-cycle protection is incomplete for this source")
 	opts := overlayOptions("  - target: $.info\n    update: {description: d}\n")
 
-	origin, diags := applyOverlay(0, &root, opts, []ir.Diagnostic{incomplete})
+	origin, diags := applyOverlay(t.Context(), 0, &root, opts, []ir.Diagnostic{incomplete})
 
 	assert.True(t, origin.Applied(), "a warning is not a refusal; the overlay applies")
 	assert.Contains(t, diags, incomplete, "and the caller is told the protection was incomplete")

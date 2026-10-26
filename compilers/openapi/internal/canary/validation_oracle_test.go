@@ -198,7 +198,7 @@ func validationDocs(t *testing.T) []validationDoc {
 			if err != nil {
 				return err
 			}
-			if _, _, ok := declaredVersion(data); ok {
+			if _, _, ok := declaredVersion(t, data); ok {
 				docs = append(docs, validationDoc{name: repoPath(t, path), data: data})
 			}
 			return nil
@@ -224,8 +224,9 @@ func repoPath(t *testing.T, path string) string {
 
 // declaredVersion returns the OpenAPI version a document declares, and false
 // for data that is no YAML or JSON document declaring an "openapi" 3 string.
-func declaredVersion(data []byte) (string, *yaml.Node, bool) {
-	parsed, err := load.Decode(data)
+func declaredVersion(t testing.TB, data []byte) (string, *yaml.Node, bool) {
+	t.Helper()
+	parsed, err := load.Decode(t.Context(), data)
 	if err != nil {
 		return "", nil, false
 	}
@@ -247,14 +248,14 @@ func declaredVersion(data []byte) (string, *yaml.Node, bool) {
 // a document the library will not build.
 func compareDocument(t *testing.T, d validationDoc) (library, compiler []finding, skipped string) {
 	t.Helper()
-	version, root, _ := declaredVersion(d.data)
+	version, root, _ := declaredVersion(t, d.data)
 	if _, ok := oas.ParseMinor(version); !ok {
 		return nil, nil, fmt.Sprintf("declares %q, a version the table does not cover", version)
 	}
 	if refused := loadRefusal(t, d); refused != "" {
 		return nil, nil, refused
 	}
-	compiler = tableFindings(root, version)
+	compiler = tableFindings(t, root, version)
 	library, err := libraryFindings(t, d.data, root)
 	if err != nil {
 		return nil, nil, err.Error()
@@ -284,7 +285,8 @@ func loadRefusal(t *testing.T, d validationDoc) string {
 }
 
 // tableFindings checks the tree with the table at the declared version.
-func tableFindings(root *yaml.Node, version string) []finding {
+func tableFindings(t testing.TB, root *yaml.Node, version string) []finding {
+	t.Helper()
 	view := nodeview.New()
 	locate := func(ptr jsontext.Pointer) ir.Provenance {
 		path, _ := view.DocumentPath(nodeview.DocumentRoot(root), ptr)
@@ -294,7 +296,7 @@ func tableFindings(root *yaml.Node, version string) []finding {
 		}
 		return prov
 	}
-	diags := oas.NewChecker().Check(root, version, oas.Options{Locate: locate})
+	diags := oas.NewChecker().Check(t.Context(), root, version, oas.Options{Locate: locate})
 	out := make([]finding, 0, len(diags))
 	for _, d := range diags {
 		out = append(out, finding{class: classOf(d.Code), line: d.Provenance.Position.Line, column: d.Provenance.Position.Column})

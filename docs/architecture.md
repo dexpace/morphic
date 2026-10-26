@@ -57,11 +57,13 @@ between stages. The IR itself is specified in [`ir-design.md`](./ir-design.md).
 
 One compiler per source format. Each owns its format: which documents a source's references name,
 reference resolution, format-version normalization, and lowering into IR nodes. Reading those
-documents is not a compiler's. It does no I/O, and reads every document beyond its sources through
-the `compilers.DocumentReader` the engine hands it in `compilers.Options.Reader`. The compiler says
-how far a read may go, as a directory it must stay inside, and the reader enforces it, symbolic
-links included: the OpenAPI compiler keeps every read inside the spec's directory, following
-relative references alone, unless `allow-external-refs` lifts that.
+documents is not a compiler's. It does no I/O, and reads every document beyond its sources, a file
+one of its options names such as an overlay among them, through the `compilers.DocumentReader` the
+engine hands it in `compilers.Options.Reader`, in the compile, under the compile's context and
+budgets: decoding options reads nothing. The compiler says how far a read may go, as a directory it
+must stay inside, and the reader enforces it, symbolic links included: the OpenAPI compiler keeps
+every read inside the spec's directory, following relative references alone, unless
+`allow-external-refs` lifts that.
 
 Contract, abridged from `compilers.Compiler`, whose doc comments state each method's duties:
 
@@ -69,9 +71,11 @@ Contract, abridged from `compilers.Compiler`, whose doc comments state each meth
 type Compiler interface {
     Formats() []SourceFormat // e.g. openapi@3.0, openapi@3.1
     // Detect reports the format src declares and whether this compiler recognizes it.
-    Detect(src Source, opts Options) (Recognition, []ir.Diagnostic, bool)
+    Detect(ctx context.Context, src Source, opts Options) (Recognition, []ir.Diagnostic, bool)
     // DecodeOptions turns textual settings into this compiler's own options value.
     DecodeOptions(set OptionSet) (any, error)
+    // SourceLimit is the most bytes of a source this compiler reads under opts.
+    SourceLimit(opts Options) int
     // Compile lowers sources into a Document, or refuses them with a nil one.
     Compile(ctx context.Context, sources []Source, opts Options) (*ir.Document, []ir.Diagnostic, error)
     // SourceTable names the inputs its arguments name: the table a refusal's diagnostics index.
@@ -132,34 +136,50 @@ byte budget, a parsed-node budget and an alias budget for one source document, a
 one enum, and a budget on how many documents external references read in one compile, each with a
 documented default and each settable — zero takes the default, negative turns the budget off.
 Crossing one is a spec problem like any other, so it is an `openapi/budget-exceeded` diagnostic
-rather than a Go error. Time is bounded by the caller instead of by a constant: the walks that do
-work proportional to the document, and the settling after them, honour the `context.Context` a
-compile is given, so a deadline or a cancellation stops one between items and the error reaches the
-caller unwrapped.
+rather than a Go error. The byte budget also bounds the read: `Compiler.SourceLimit` reports it, the
+registry takes the largest among the compilers it would ask, and the engine reads the spec, a
+regular file and never a FIFO or a device, no further than one byte past it, where every compiler
+declines it unread. A spec past every budget costs the budget and a byte, not its size, and an
+overlay is read the same way. Time is bounded by the caller instead of by a constant: the work a
+compile does in proportion to the document honours the `context.Context` it is given, so a deadline
+or a cancellation stops it between items and the error reaches the caller unwrapped. In the load
+that is the parse of the source's bytes and every walk of its YAML tree and of the model built from
+it, and in the lowering the walks over what it lowers and the settling after them. The lowering's index of
+`$dynamicAnchor` declarations is the exception: built when a `$dynamicRef` is first lowered, it
+walks the tree reading no context. The load also asks before and after each phase, so no phase
+starts once the context is done and none cut short is built on. Within a phase it asks again before
+each call into the parser library, which reads no context, so a screen or walk a cancel cut short is
+never followed by the library's work on what it left;
+`TestLoad_DoesNextToNothingOnceItRefusesACancel` counts that work. In the load, the one step a
+cancel waits out is the model build itself, a single call
+([`parser-library.md`](parser-library.md#context-unread)).
 
 **The contract is checked, not trusted.** Each duty `compilers.Compiler`'s doc comments state is
 held where its data is. `Registry.Register` refuses a format naming no dialect, and
-`Registry.Detect` a claim naming none and a decline that indexes a source detection was not handed
-or speaks with no error. `Detection.Compile`, which the engine compiles through, refuses a refusal
-that gives no error, a document not stamped with the IR version this build reads, a source table
-that does not open with the one `SourceTable` names, a source read as a format other than the one it
-was recognized as or hashed from other bytes, and a finding indexing no source. Entries past that
-opening name what else the compile read, such as a document a reference names, which `SourceTable`
-reads no input to know of. Each breach is a Go error wrapping `compilers.ErrContract`: a compiler
-bug, never the spec's.
+`Registry.Detect` a claim naming none, a decline that indexes a source detection was not handed or
+speaks with no error, and a claim of a source past the claimant's `SourceLimit` or a silent decline
+of one: a source read no further than the limits allow may be only the first bytes of one.
+`Detection.Compile`, which the engine compiles through, refuses a refusal that gives no error, a
+document not stamped with the IR version this build reads, a source table that does not open with
+the one `SourceTable` names, a source read as a format other than the one it was recognized as or
+hashed from other bytes, and a finding indexing no source. Entries past that opening name what else
+the compile read, such as a document a reference names, which `SourceTable` reads no input to know
+of. Each breach is a Go error wrapping `compilers.ErrContract`: a compiler bug, never the spec's.
 
 A panic is a breach too. Every call the `compilers` package makes of a compiler (`Formats`,
-`Detect`, configuring it through `DecodeOptions`, `Compile` and `SourceTable`) runs behind
-`barrier.Catch`, and the panic comes back as an error wrapping `compilers.ErrContract` and the
-`*barrier.PanicError`, whose message is one line and whose value and stack stay beside it for a
+`Detect`, configuring it through `DecodeOptions`, `SourceLimit`, `Compile` and `SourceTable`) runs
+behind `barrier.Catch`, and the panic comes back as an error wrapping `compilers.ErrContract` and
+the `*barrier.PanicError`, whose message is one line and whose value and stack stay beside it for a
 caller that wants them. The registry asks `Formats` once, when the compiler registers, and keeps a
 copy, so no later call can panic outside the registration or disagree with it. A barrier recovers
 the calling goroutine only: a fatal error such as stack exhaustion, a panic on a goroutine the
 compiler started, and a call that never returns are not its to catch. A compiler that ignores its
 context holds `Run` until it returns, because the engine cannot stop a call it did not start on a
 goroutine of its own, and abandoning one would leave it reading the caller's bytes after `Run` had
-returned. The next stage boundary then stops the run, or `Run` returns what it finished if none is
-left.
+returned. When it does return, the run fails with the context's error, and what the compile returned
+is dropped unjudged: a stage that returns once its context is done may have stopped short, and
+nothing tells a whole answer from a cut one. `Registry.Detect` treats a `Detect` the same way, and
+the engine a pass (§2.2).
 
 What a document holds whatever produced it, the namespaces, a service and a well-formed source table
 among them, is `irverify`'s, and `compile.Types.Finish` hands a compiler its registry with the
@@ -199,12 +219,20 @@ and the IR is designed against all eight; §2.5 says how it changes where a comp
 ### 2.2 IR passes (IR → IR)
 
 Small, composable, order-explicit transformations. A pass is a `pass.Pass`: a stable `Name()` and a
-`Run(*ir.Document) (*ir.Document, []ir.Diagnostic)` that never mutates its input. A transform
-returns a new document, which may share whatever it left unchanged; an analysis such as `validate`
-returns its input beside its diagnostics. `Run` has no error result, for the reason an emitter's
-`Generate` has none (emitter-design.md §2): whatever a pass cannot handle in the document is a
-diagnostic, and anything else is a bug in the pass. It takes no context either: a pass works on a
-document already in memory, and the engine checks for cancellation before each one.
+`Run(context.Context, *ir.Document) (*ir.Document, []ir.Diagnostic)` that never mutates its input.
+A transform returns a new document, which may share whatever it left unchanged; an analysis such as
+`validate` returns its input beside its diagnostics. `Run` has no error result, for the reason an
+emitter's `Generate` has none (emitter-design.md §2): whatever a pass cannot handle in the document
+is a diagnostic, and anything else is a bug in the pass.
+
+`Run` takes the run's context, though a pass works on a document already in memory, because that
+work grows with the document: `validate` alone walks the whole of it, under half a second on the
+golden spec (morphic @e5557ddd, spec @d04a1ddd), and the document has no bound. A pass stops soon
+once the context is done, as `validate` does in its walk (`ir.WalkValuesContext`) and between its
+rule families. The engine asks the context before each pass, so a cancelled run starts no other, and
+after each, so a pass returning once it is done fails the run with the context's error, unjudged, as
+a compile does (§2.1): a pass cut short may return what its contract forbids. Verification (§2.1)
+reads no context, and the engine asks after it too, so a run cancelled anywhere returns no document.
 
 A transform replaces and removes types through an `ir.Editor` (`ir.NewEditor`), which is to a pass
 what `compile.Types` is to a compiler: its way into the type registry. The edit copies the registry
@@ -327,13 +355,14 @@ Designed, not yet built:
   emitter input keyed by IR ID, so one IR document drives different compat baselines per
   language.
 
-  The first of those is `openapi.Options.Overlay`: pre-read bytes, applied to the parsed node
-  tree before the model is built, so untouched nodes keep the line and column the parser read
-  them at rather than a position in a re-serialised file nobody has. The overlay becomes a
-  second `Document.Sources` entry, and every position it introduced or rewrote names that entry
-  as its `Provenance.Source`. Strict application is the default: an action whose JSONPath
-  matches nothing is reported and the compile refuses, because an overlay that silently does
-  nothing ships an SDK missing the fix it was written to make.
+  The first of those is `openapi.Options.Overlay`: bytes the caller hands over, or the document its
+  path names, which the compile reads through the caller's reader as it reads any document beyond
+  the source, applied to the parsed node tree before the model is built, so untouched nodes keep the
+  line and column the parser read them at rather than a position in a re-serialised file nobody has.
+  The overlay becomes a second `Document.Sources` entry, and every position it introduced or rewrote
+  names that entry as its `Provenance.Source`. Strict application is the default: an action whose
+  JSONPath matches nothing is reported and the compile refuses, because an overlay that silently
+  does nothing ships an SDK missing the fix it was written to make.
 
 Passes operate on the IR only; they know nothing about source formats or target languages.
 

@@ -22,6 +22,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/pass"
 )
 
 // This package's tests come in two halves, and the split is not stylistic.
@@ -31,6 +32,15 @@ import (
 // nothing importable from here would let them. Coverage lands on the schema
 // package either way: the package under test is the instrumented one, whichever
 // side of the boundary the caller sits on.
+
+// validated is what pass.Validate reports about doc under the test's context,
+// failing t unless it finishes.
+func validated(t *testing.T, doc *ir.Document) []ir.Diagnostic {
+	t.Helper()
+	diags, err := pass.Validate(t.Context(), doc)
+	require.NoError(t, err)
+	return diags
+}
 
 // parseFull runs the whole public compiler pipeline over src. It reaches back
 // through openapi deliberately: a schema position under a parameter or a request

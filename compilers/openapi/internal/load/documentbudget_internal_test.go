@@ -197,9 +197,9 @@ func TestLoad_TheDocumentBudgetRefusesAFileChainToo(t *testing.T) {
 func resolveCounting(t *testing.T, spec, path string, opts Options) ([]ir.Diagnostic, int) {
 	t.Helper()
 	data := []byte(spec)
-	root, _, err := decodeStream(data)
+	root, _, err := decodeStream(t.Context(), data)
 	require.NoError(t, err)
-	releaseAnchors(root)
+	releaseAnchors(t.Context(), root)
 	doc, err := unmarshal(t.Context(), data, root)
 	require.NoError(t, err)
 	rebuilds := 0
@@ -211,7 +211,7 @@ func resolveCounting(t *testing.T, spec, path string, opts Options) ([]ir.Diagno
 	opts.Reader = reader.Disk{}
 	at := pointerAt(0, overlay.Origin{})
 	_, _, ext, pass, missed, err := resolveExternal(t.Context(), doc, Siblings{},
-		newSourceDocument(path, data, root, judgment{}, newSourceTree(0, overlay.Origin{}, root), nil), opts, rebuild)
+		newSourceDocument(path, data, root, judgment{}, newSourceTree(t.Context(), 0, overlay.Origin{}, root), nil), opts, rebuild)
 	require.NoError(t, err)
 	return append(passDiags(at, pass, missed), crossed(at, ext)...), rebuilds
 }

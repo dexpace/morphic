@@ -1,6 +1,7 @@
 package load
 
 import (
+	"context"
 	"encoding/json/jsontext"
 	"path/filepath"
 
@@ -40,9 +41,10 @@ type sourceTree struct {
 }
 
 // newSourceTree returns the places of the nodes of root, the patched tree,
-// under the overlay attribution origin, indexing root once for both.
-func newSourceTree(srcIndex int, origin overlay.Origin, root *yaml.Node) sourceTree {
-	pointers := scan.Pointers(root)
+// under the overlay attribution origin, indexing root once for both, under ctx
+// (scan.Pointers).
+func newSourceTree(ctx context.Context, srcIndex int, origin overlay.Origin, root *yaml.Node) sourceTree {
+	pointers := scan.Pointers(ctx, root)
 	return sourceTree{locate: locator(srcIndex, origin, pointers), pointers: pointers}
 }
 

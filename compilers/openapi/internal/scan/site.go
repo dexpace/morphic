@@ -1,6 +1,7 @@
 package scan
 
 import (
+	"context"
 	"encoding/json/jsontext"
 
 	yaml "go.yaml.in/yaml/v3"
@@ -16,16 +17,16 @@ import (
 // ranks after every node with one. Of nodes sharing a pointer, as a repeated
 // key's values can, or having none, the first given wins; nil for no nodes.
 //
-// It indexes the tree once and climbs from each node, so it costs the tree's
-// size however deep the nodes sit.
-func Least(root *yaml.Node, nodes []*yaml.Node) *yaml.Node {
+// Indexing the tree once, under ctx, and climbing from each node, it costs the
+// tree's size however deep the nodes sit.
+func Least(ctx context.Context, root *yaml.Node, nodes []*yaml.Node) *yaml.Node {
 	if len(nodes) <= 1 {
 		if len(nodes) == 0 {
 			return nil
 		}
 		return nodes[0]
 	}
-	steps, _ := stepsIn(root, sourceindex.MaxIndexedNodes)
+	steps, _ := stepsIn(ctx, root, sourceindex.MaxIndexedNodes)
 	top := nodeview.DocumentRoot(root)
 	want := map[*yaml.Node]int{} // each held node, and where nodes first gives it
 	for i, n := range nodes {

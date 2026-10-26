@@ -37,7 +37,7 @@ func TestReadRooted_RefusesALinkSwappedInAfterTheCheck(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { assert.NoError(t, root.Close()) })
 
-	got, err := reader.ReadRooted(root, rel, path, 0)
+	got, err := reader.ReadRooted(t.Context(), root, rel, path, 0)
 
 	require.Error(t, err)
 	assert.Nil(t, got, "the link's target is never read")

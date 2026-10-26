@@ -35,11 +35,13 @@ func (nilDocCompiler) Formats() []compilers.SourceFormat {
 	return []compilers.SourceFormat{{Name: "openapi", Version: "3.1"}}
 }
 
-func (nilDocCompiler) Detect(compilers.Source, compilers.Options) (compilers.Recognition, []ir.Diagnostic, bool) {
+func (nilDocCompiler) Detect(context.Context, compilers.Source, compilers.Options) (compilers.Recognition, []ir.Diagnostic, bool) {
 	return compilers.Recognition{Format: compilers.SourceFormat{Name: "openapi", Version: "3.1"}}, nil, true
 }
 
 func (nilDocCompiler) DecodeOptions(compilers.OptionSet) (any, error) { return nil, nil }
+
+func (nilDocCompiler) SourceLimit(compilers.Options) int { return 0 }
 
 func (nilDocCompiler) SourceTable(sources []compilers.Source, _ compilers.Options) []ir.SourceInfo {
 	table := make([]ir.SourceInfo, 0, len(sources))
@@ -69,7 +71,9 @@ type panickingPass struct{}
 
 func (panickingPass) Name() string { return "exploder" }
 
-func (panickingPass) Run(*ir.Document) (*ir.Document, []ir.Diagnostic) { panic("pass exploded") }
+func (panickingPass) Run(context.Context, *ir.Document) (*ir.Document, []ir.Diagnostic) {
+	panic("pass exploded")
+}
 
 // TestRun_AStagePanicIsAFailureNotACrash pins what the user sees of a compiler
 // or a pass that panics: exit 2, nothing on stdout, and one line saying which

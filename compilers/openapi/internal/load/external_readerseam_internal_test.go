@@ -280,7 +280,7 @@ func TestExternal_AReadRefusesByHowItIsNamed(t *testing.T) {
 	t.Parallel()
 	const allowed = ", which a read follows only when external references are allowed"
 	esc := newEscapes(refusedByName(Options{Within: "/r", Reader: &fakeReader{}}, "/r/root.yaml"))
-	esc.escape(decodeRoot(t, "[{$ref: '/r/a b.yaml#/X'}, {$ref: 'foo:b.yaml#/X'}]"))
+	esc.escape(t.Context(), decodeRoot(t, "[{$ref: '/r/a b.yaml#/X'}, {$ref: 'foo:b.yaml#/X'}]"))
 	const scheme = `external document foo:b.yaml refused: it is named by a URL with the scheme "foo", ` +
 		"and only http, https and file URLs are read"
 	for _, tc := range []struct{ name, key, within, want string }{

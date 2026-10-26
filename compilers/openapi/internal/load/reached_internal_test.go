@@ -1,6 +1,7 @@
 package load
 
 import (
+	"context"
 	"encoding/json/jsontext"
 	"errors"
 	"fmt"
@@ -73,7 +74,7 @@ func TestSpanned(t *testing.T) {
 		"a limit stops the count one past it":     {wide, 6, 7, false},
 		"the largest limit counts the whole tree": {wide, math.MaxInt, 1001, true},
 	} {
-		count, fits := spanned(c.root, c.limit)
+		count, fits := spanned(t.Context(), c.root, c.limit)
 		assert.Equal(t, c.count, count, name)
 		assert.Equal(t, c.fits, fits, name)
 	}
@@ -97,18 +98,18 @@ func TestReached_ChargeHoldsADocumentToWhatItHasLeft(t *testing.T) {
 	}
 
 	v := charged()
-	d, over := v.charge(ir.Provenance{}, "doc", object(7))
+	d, over := v.charge(t.Context(), ir.Provenance{}, "doc", object(7))
 	assert.True(t, over)
 	require.Len(t, d, 1)
 	assert.Equal(t, diag.BudgetExceeded, d[0].Code)
 
 	v = charged()
-	d, over = v.charge(ir.Provenance{}, "doc", object(6))
+	d, over = v.charge(t.Context(), ir.Provenance{}, "doc", object(6))
 	assert.False(t, over)
 	assert.Empty(t, d)
 	assert.Equal(t, 10, v.spent["doc"])
 
-	d, over = v.charge(ir.Provenance{}, "doc", object(1))
+	d, over = v.charge(t.Context(), ir.Provenance{}, "doc", object(1))
 	assert.True(t, over)
 	require.Len(t, d, 1)
 	assert.Equal(t, diag.BudgetExceeded, d[0].Code)
@@ -307,7 +308,7 @@ func TestCheckReached_APanicReadingTheWalkIsReported(t *testing.T) {
 		}
 	}
 
-	diags := checkReached(pointerAt(0, overlay.Origin{}), items, nil,
+	diags := checkReached(t.Context(), pointerAt(0, overlay.Origin{}), items, nil,
 		newReached(doc, Options{}, sourceTree{}, judgment{}))
 
 	require.Len(t, diags, 1, "%+v", diags)
@@ -356,4 +357,28 @@ func TestLoad_ExternalRefResolutionErrors(t *testing.T) {
 	other, ok := ld.Others.At(1)
 	require.True(t, ok)
 	assert.Equal(t, "resolve_target_invalid.yaml", other.Label, "the document the $ref names")
+}
+
+// TestReached_CheckAllStopsOnceTheContextIsDone pins the context the checks of
+// reached objects ask before each target: handed a done one, no target is
+// charged or checked, where a live one charges and checks each.
+func TestReached_CheckAllStopsOnceTheContextIsDone(t *testing.T) {
+	t.Parallel()
+	doc := parseSpec(t, minimal31)
+	var node yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte("{name: p}"), &node))
+	targets := map[objectKey]reachedTarget{
+		{node: node.Content[0], kind: oas.Parameter}: {site: "/x", kind: oas.Parameter, node: node.Content[0], doc: "other.yaml"},
+	}
+	at := pointerAt(0, overlay.Origin{})
+	cancelled, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	stopped := newReached(doc, Options{}, sourceTree{}, judgment{})
+	assert.Empty(t, stopped.checkAll(cancelled, at, targets))
+	assert.Empty(t, stopped.spent, "no target was charged")
+
+	live := newReached(doc, Options{}, sourceTree{}, judgment{})
+	assert.NotEmpty(t, live.checkAll(t.Context(), at, targets), "a parameter with no `in` is found wanting")
+	assert.NotEmpty(t, live.spent)
 }

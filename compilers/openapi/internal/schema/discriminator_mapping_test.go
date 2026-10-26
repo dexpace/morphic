@@ -13,7 +13,6 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
-	"github.com/dexpace/morphic/pass"
 )
 
 // TestDiscriminatorMapping_InlineTargetResolvesInEitherOrder pins that a
@@ -226,7 +225,7 @@ func TestDiscriminatorMapping_ToAPureRefNamesItsTarget(t *testing.T) {
 			assert.Empty(t, cmp.Diff(first, last, orderInvariantIR()...))
 			for _, doc := range []*ir.Document{first, last} {
 				assert.Equal(t, c.want, discriminatorOf(t, doc, componentID("Pet")).Mapping)
-				assert.Empty(t, pass.Validate(doc), "every target is a variant")
+				assert.Empty(t, validated(t, doc), "every target is a variant")
 			}
 		})
 	}
@@ -467,7 +466,7 @@ func TestDiscriminatorMapping_NamesTheVariantNamingThePosition(t *testing.T) {
 					got = pet.Discriminator.Default
 				}
 				assert.Equal(t, pet.Variants[0].Type.Target, got, "the mapping names what the variant names")
-				assert.Empty(t, pass.Validate(doc), "every target is a variant")
+				assert.Empty(t, validated(t, doc), "every target is a variant")
 			}
 			assert.Empty(t, cmp.Diff(first.Types, last.Types),
 				"declaring the union before or after what its variant names must not change the registry")

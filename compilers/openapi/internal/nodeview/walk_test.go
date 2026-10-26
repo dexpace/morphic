@@ -1,6 +1,7 @@
 package nodeview_test
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -50,7 +51,7 @@ func TestWalk_VisitsInDocumentOrderAndLeavesAfterChildren(t *testing.T) {
 	root := ynode.Map(ynode.Scalar("k"), ynode.Seq(ynode.Scalar("a"), ynode.Scalar("b")))
 	var tr trace
 
-	out := nodeview.Walk{Nodes: 10, Visit: tr.visit(nodeview.Descend), Leave: tr.leave}.Run(root)
+	out := nodeview.Walk{Nodes: 10, Visit: tr.visit(nodeview.Descend), Leave: tr.leave}.Run(t.Context(), root)
 
 	assert.Equal(t, trace{"map", ".k", "./k", ".seq", "..a", "../a", "..b", "../b", "./seq", "/map"}, tr)
 	assert.Equal(t, nodeview.Outcome{Visited: 5}, out)
@@ -70,12 +71,12 @@ func TestWalk_PruneAndStop(t *testing.T) {
 			return nodeview.Prune
 		}
 		return nodeview.Descend
-	}}.Run(root)
+	}}.Run(t.Context(), root)
 	assert.Equal(t, trace{"seq", ".seq", ".after", "./after", "/seq"}, pruned)
 	assert.Equal(t, nodeview.Outcome{Visited: 3}, out)
 
 	var stopped trace
-	out = nodeview.Walk{Nodes: 10, Visit: stopped.visit(nodeview.Stop)}.Run(root)
+	out = nodeview.Walk{Nodes: 10, Visit: stopped.visit(nodeview.Stop)}.Run(t.Context(), root)
 	assert.Equal(t, trace{"seq"}, stopped)
 	assert.Equal(t, nodeview.Outcome{Visited: 1, Stopped: true}, out)
 }
@@ -88,12 +89,12 @@ func TestWalk_BoundsAreReportedNotSilent(t *testing.T) {
 	t.Parallel()
 	root := ynode.Seq(ynode.Seq(ynode.Scalar("deep")), ynode.Scalar("shallow"))
 
-	assert.Equal(t, nodeview.Outcome{Visited: 4}, nodeview.Walk{Nodes: 4}.Run(root))
-	assert.Equal(t, nodeview.Outcome{Visited: 3, Cut: true}, nodeview.Walk{Nodes: 3}.Run(root))
-	assert.Equal(t, nodeview.Outcome{Cut: true}, nodeview.Walk{Nodes: 0}.Run(root))
+	assert.Equal(t, nodeview.Outcome{Visited: 4}, nodeview.Walk{Nodes: 4}.Run(t.Context(), root))
+	assert.Equal(t, nodeview.Outcome{Visited: 3, Cut: true}, nodeview.Walk{Nodes: 3}.Run(t.Context(), root))
+	assert.Equal(t, nodeview.Outcome{Cut: true}, nodeview.Walk{Nodes: 0}.Run(t.Context(), root))
 
 	var tr trace
-	out := nodeview.Walk{Nodes: 10, Depth: 1, Visit: tr.visit(nodeview.Descend)}.Run(root)
+	out := nodeview.Walk{Nodes: 10, Depth: 1, Visit: tr.visit(nodeview.Descend)}.Run(t.Context(), root)
 	assert.Equal(t, trace{"seq", ".seq", ".shallow"}, tr)
 	assert.Equal(t, nodeview.Outcome{Visited: 3, Cut: true}, out)
 }
@@ -108,11 +109,11 @@ func TestWalk_AnAliasIsALeafOrItsTarget(t *testing.T) {
 	root := ynode.Seq(target, ynode.Alias(target), ynode.Alias(nil))
 
 	var leaf trace
-	nodeview.Walk{Nodes: 10, Visit: leaf.visit(nodeview.Descend)}.Run(root)
+	nodeview.Walk{Nodes: 10, Visit: leaf.visit(nodeview.Descend)}.Run(t.Context(), root)
 	assert.Equal(t, trace{"seq", ".seq", "..x", ".alias", ".alias"}, leaf)
 
 	var copies trace
-	nodeview.Walk{Nodes: 10, Aliases: nodeview.AliasTarget, Visit: copies.visit(nodeview.Descend)}.Run(root)
+	nodeview.Walk{Nodes: 10, Aliases: nodeview.AliasTarget, Visit: copies.visit(nodeview.Descend)}.Run(t.Context(), root)
 	assert.Equal(t, trace{"seq", ".seq", "..x", ".seq", "..x", ".alias"}, copies)
 }
 
@@ -121,8 +122,8 @@ func TestWalk_AnAliasIsALeafOrItsTarget(t *testing.T) {
 // everywhere, which counts the nodes.
 func TestWalk_SkipsWhatNoParseProduces(t *testing.T) {
 	t.Parallel()
-	assert.Equal(t, nodeview.Outcome{}, nodeview.Walk{Nodes: 10}.Run(nil))
-	assert.Equal(t, nodeview.Outcome{Visited: 2}, nodeview.Walk{Nodes: 10}.Run(ynode.Map(ynode.Scalar("a"), nil)))
+	assert.Equal(t, nodeview.Outcome{}, nodeview.Walk{Nodes: 10}.Run(t.Context(), nil))
+	assert.Equal(t, nodeview.Outcome{Visited: 2}, nodeview.Walk{Nodes: 10}.Run(t.Context(), ynode.Map(ynode.Scalar("a"), nil)))
 }
 
 // TestWalk_DeepAndWideTreesAreIterative holds the walk to the inputs a reader
@@ -140,7 +141,7 @@ func TestWalk_DeepAndWideTreesAreIterative(t *testing.T) {
 	out := nodeview.Walk{Nodes: levels + 1, Visit: func(_ *yaml.Node, depth int) nodeview.Step {
 		deepest = max(deepest, depth)
 		return nodeview.Descend
-	}}.Run(deep)
+	}}.Run(t.Context(), deep)
 	require.Equal(t, nodeview.Outcome{Visited: levels + 1}, out)
 	assert.Equal(t, levels, deepest)
 
@@ -148,5 +149,33 @@ func TestWalk_DeepAndWideTreesAreIterative(t *testing.T) {
 	for range levels {
 		wide.Content = append(wide.Content, ynode.Scalar("k"), ynode.Scalar("v"))
 	}
-	assert.Equal(t, nodeview.Outcome{Visited: 2*levels + 1}, nodeview.Walk{Nodes: 2*levels + 1}.Run(wide))
+	assert.Equal(t, nodeview.Outcome{Visited: 2*levels + 1}, nodeview.Walk{Nodes: 2*levels + 1}.Run(t.Context(), wide))
+}
+
+// TestWalk_StopsOnceItsContextIsDone pins a walk's context: asked before the
+// first node and then once every AskEvery nodes, so a cancel ends a walk
+// within that many, which reports itself Cut, as running out of its bound
+// does. A walk handed a done context visits nothing.
+func TestWalk_StopsOnceItsContextIsDone(t *testing.T) {
+	t.Parallel()
+	items := make([]*yaml.Node, 4*nodeview.AskEvery)
+	for i := range items {
+		items[i] = ynode.Scalar("x")
+	}
+	root := ynode.Seq(items...)
+	cancelled, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	assert.Equal(t, nodeview.Outcome{Cut: true}, nodeview.Walk{Nodes: len(items) + 1}.Run(cancelled, root))
+
+	ctx, stop := context.WithCancel(t.Context())
+	t.Cleanup(stop)
+	out := nodeview.Walk{Nodes: len(items) + 1, Visit: func(n *yaml.Node, _ int) nodeview.Step {
+		if n.Kind == yaml.ScalarNode {
+			stop()
+		}
+		return nodeview.Descend
+	}}.Run(ctx, root)
+	assert.Equal(t, nodeview.Outcome{Visited: nodeview.AskEvery, Cut: true}, out,
+		"cancelled at the second node, the walk stopped at the next ask")
 }

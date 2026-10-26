@@ -62,7 +62,7 @@ func treeOf(t *testing.T) *yaml.Node {
 // returning the attribution and the diagnostics it reported along the way.
 func applyTo(t *testing.T, ov string, lax bool) (overlay.Origin, []ir.Diagnostic) {
 	t.Helper()
-	origin, diags := overlay.Apply(overlayIndex, treeOf(t),
+	origin, diags := overlay.Apply(t.Context(), overlayIndex, treeOf(t),
 		overlay.Options{Path: "o.yaml", Data: []byte(ov), Lax: lax})
 	require.False(t, diag.HasError(diags), "overlay did not apply: %+v", diags)
 	require.True(t, origin.Applied())
@@ -163,7 +163,7 @@ func TestApply_RemovalLeavesTheRestAttributedToTheSource(t *testing.T) {
 // fix the overlay was written to make.
 func TestApply_StrictReportsAnActionThatMatchesNothing(t *testing.T) {
 	t.Parallel()
-	origin, diags := overlay.Apply(overlayIndex, treeOf(t), overlay.Options{
+	origin, diags := overlay.Apply(t.Context(), overlayIndex, treeOf(t), overlay.Options{
 		Data: []byte(header + "  - target: $.paths['/nope']\n    update: {description: x}\n"),
 	})
 
@@ -255,7 +255,7 @@ func TestApply_RejectsAnOverlayItCannotRead(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			origin, diags := overlay.Apply(overlayIndex, treeOf(t), overlay.Options{Data: []byte(data)})
+			origin, diags := overlay.Apply(t.Context(), overlayIndex, treeOf(t), overlay.Options{Data: []byte(data)})
 
 			assert.False(t, origin.Applied())
 			require.True(t, diag.HasError(diags), "%q must be refused: %+v", data, diags)
@@ -279,7 +279,7 @@ func TestApply_RejectsAnOverlayItCannotRead(t *testing.T) {
 func TestApply_ReportsASelectorItCannotParse(t *testing.T) {
 	t.Parallel()
 	for _, lax := range []bool{false, true} {
-		origin, diags := overlay.Apply(overlayIndex, treeOf(t),
+		origin, diags := overlay.Apply(t.Context(), overlayIndex, treeOf(t),
 			overlay.Options{Data: []byte(header + "  - target: \"$[\"\n    update: {a: b}\n"), Lax: lax})
 
 		assert.False(t, origin.Applied(), "lax=%v", lax)
@@ -331,7 +331,7 @@ func TestOrigin_ZeroValueAttributesNothing(t *testing.T) {
 func applyKeeping(t *testing.T, ov string) (overlay.Origin, *yaml.Node) {
 	t.Helper()
 	root := treeOf(t)
-	origin, diags := overlay.Apply(overlayIndex, root,
+	origin, diags := overlay.Apply(t.Context(), overlayIndex, root,
 		overlay.Options{Path: "o.yaml", Data: []byte(ov), Lax: false})
 	require.False(t, diag.HasError(diags), "overlay did not apply: %+v", diags)
 	require.True(t, origin.Applied())
@@ -492,7 +492,7 @@ func TestApply_GraftsNothingThatOnlyAnAliasCanReach(t *testing.T) {
 			var root yaml.Node
 			require.NoError(t, yaml.Unmarshal([]byte(tc.spec), &root))
 
-			_, diags := overlay.Apply(overlayIndex, &root,
+			_, diags := overlay.Apply(t.Context(), overlayIndex, &root,
 				overlay.Options{Path: "o.yaml", Data: []byte(tc.ov)})
 			require.False(t, diag.HasError(diags), "the overlay applies: %+v", diags)
 
@@ -517,7 +517,7 @@ func TestApply_LeavesTheSourcesOwnAliasesAlone(t *testing.T) {
 	_, use := member(t, &root, "x-use")
 	require.Equal(t, yaml.AliasNode, use.Kind, "the fixture's alias lands where this test reads it")
 
-	_, diags := overlay.Apply(overlayIndex, &root,
+	_, diags := overlay.Apply(t.Context(), overlayIndex, &root,
 		overlay.Options{Path: "o.yaml", Data: []byte(header + "  - target: $.info\n    update: {description: d}\n")})
 	require.False(t, diag.HasError(diags), "%+v", diags)
 
@@ -542,7 +542,7 @@ func TestApply_ResolvesAnAliasInsideWhatItGrafts(t *testing.T) {
 	const ov = "overlay: 1.0.0\ninfo: {title: O, version: \"1\", x-in: &in {deep: 1}, x-out: &out {a: *in}}\n" +
 		"actions:\n  - target: $.paths\n    update: {p: *out}\n"
 
-	_, diags := overlay.Apply(overlayIndex, &root, overlay.Options{Path: "o.yaml", Data: []byte(ov)})
+	_, diags := overlay.Apply(t.Context(), overlayIndex, &root, overlay.Options{Path: "o.yaml", Data: []byte(ov)})
 	require.False(t, diag.HasError(diags), "the overlay applies: %+v", diags)
 
 	detached := detachedAliases(&root)
@@ -564,7 +564,7 @@ func TestApply_AGraftedCopyCarriesNoAnchor(t *testing.T) {
 	const ov = "overlay: 1.0.0\ninfo: {title: O, version: \"1\", x-t: &t {a: 1}}\n" +
 		"actions:\n  - target: $.paths\n    update: {p: *t}\n"
 
-	_, diags := overlay.Apply(overlayIndex, &root, overlay.Options{Path: "o.yaml", Data: []byte(ov)})
+	_, diags := overlay.Apply(t.Context(), overlayIndex, &root, overlay.Options{Path: "o.yaml", Data: []byte(ov)})
 	require.False(t, diag.HasError(diags), "%+v", diags)
 
 	_, grafted := member(t, &root, "paths", "p")

@@ -22,6 +22,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/engine/reader"
+	"github.com/dexpace/morphic/internal/ctxtest"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -126,7 +127,7 @@ func TestCompile_SourceByteBudgetBindsOnlyPastTheLimit(t *testing.T) {
 			assert.Nil(t, doc, "an over-budget source is refused before it is parsed")
 			openapitest.AssertHasCode(t, diags, diag.BudgetExceeded, ir.SeverityError)
 			assert.Equal(t,
-				fmt.Sprintf("source document is %d bytes, past the %d-byte budget", len(src), tc.limit),
+				fmt.Sprintf("source document is past the %d-byte budget", tc.limit),
 				messageOf(t, diags, diag.BudgetExceeded))
 		})
 	}
@@ -339,26 +340,44 @@ func TestCompile_CanceledContextStopsTheCompile(t *testing.T) {
 	assert.Nil(t, doc, "a compile cut short assembles no document")
 }
 
-// liveForCalls answers Err with nil for its first left calls and
-// context.Canceled from then on, counting every call it answers.
-//
-// Counting puts the cancellation at a chosen call deterministically, where a
-// timer would race the walk. seen says which call stopped the compile: every
-// boundary returns the same nil document and context.Canceled, so one that
-// never fires is covered for by the next and the outcome cannot tell them apart.
-type liveForCalls struct {
-	context.Context
-	left *int
-	seen *int
+// TestCompile_ACancelInTheLoweringStopsTheCompile pins a cancel that lands after
+// the load has finished: the compile's last check, in the lowering, ends it
+// with the context's error and no document, and that check is the last one
+// the compile makes, so nothing after it runs on.
+func TestCompile_ACancelInTheLoweringStopsTheCompile(t *testing.T) {
+	t.Parallel()
+	sources := []compilers.Source{{Path: "spec.yaml", Data: []byte(enumSpec(2))}}
+	whole := &ctxtest.Countdown{Context: t.Context(), Left: math.MaxInt}
+	doc, _, err := New().Compile(whole, sources, compilers.Options{})
+	require.NoError(t, err)
+	require.NotNil(t, doc)
+
+	ctx := &ctxtest.Countdown{Context: t.Context(), Left: whole.Calls - 1}
+	doc, _, err = New().Compile(ctx, sources, compilers.Options{})
+
+	require.ErrorIs(t, err, context.Canceled)
+	assert.Nil(t, doc, "a compile cut short assembles no document")
+	assert.Equal(t, whole.Calls, ctx.Calls, "the check that refused is the compile's last")
 }
 
-func (c liveForCalls) Err() error {
-	*c.seen++
-	if *c.left > 0 {
-		*c.left--
-		return nil
+// TestCompile_ACancelAtAnyCheckIsTheContexts cancels a compile at every check
+// of its context a whole compile makes, and requires each to end with the
+// context's error and no document: never a refusal, which a parse its context
+// stopped would read as were it taken for a source that will not parse.
+func TestCompile_ACancelAtAnyCheckIsTheContexts(t *testing.T) {
+	t.Parallel()
+	sources := []compilers.Source{{Path: "spec.yaml", Data: []byte(enumSpec(3))}}
+	whole := &ctxtest.Countdown{Context: t.Context(), Left: math.MaxInt}
+	_, _, err := New().Compile(whole, sources, compilers.Options{})
+	require.NoError(t, err)
+
+	for at := range whole.Calls {
+		doc, _, err := New().Compile(&ctxtest.Countdown{Context: t.Context(), Left: at}, sources,
+			compilers.Options{})
+
+		require.ErrorIs(t, err, context.Canceled, "cancelled at check %d of %d", at+1, whole.Calls)
+		require.Nil(t, doc, "check %d", at+1)
 	}
-	return context.Canceled
 }
 
 // TestRun_RefusesAtEveryPhaseBoundaryOnCancellation pins each boundary run
@@ -376,16 +395,15 @@ func TestRun_RefusesAtEveryPhaseBoundaryOnCancellation(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			left, seen := tc.live, 0
+			ctx := &ctxtest.Countdown{Context: t.Context(), Left: tc.live}
 
-			doc, diags, err := run(liveForCalls{Context: t.Context(), left: &left, seen: &seen},
-				lowering.Ctx{Doc: &soa.OpenAPI{}}, compile.NewTypes())
+			doc, diags, err := run(ctx, lowering.Ctx{Doc: &soa.OpenAPI{}}, compile.NewTypes())
 
 			require.ErrorIs(t, err, context.Canceled)
 			assert.Nil(t, doc, "a partial registry is never assembled into a Document")
 			assert.Empty(t, diags)
-			assert.Zero(t, left, "the boundary under test is the one that saw the cancellation")
-			assert.Equal(t, tc.live+1, seen,
+			assert.Zero(t, ctx.Left, "the boundary under test is the one that saw the cancellation")
+			assert.Equal(t, tc.live+1, ctx.Calls,
 				"and it stopped there: a boundary reached after it would have asked again")
 		})
 	}
@@ -413,10 +431,9 @@ components:
 		source := compilers.Source{Path: "spec.yaml", Data: []byte(src)}
 		loaded, _, err := load.Load(t.Context(), 0, source, loadOptions(Options{}.withDefaults(), nil, source))
 		require.NoError(t, err)
-		left, seen := live, 0
-		_, diags, err := run(liveForCalls{Context: t.Context(), left: &left, seen: &seen},
-			loweringCtx(loaded, Options{}.withDefaults()), compile.NewTypes())
-		return seen, diags, err
+		ctx := &ctxtest.Countdown{Context: t.Context(), Left: live}
+		_, diags, err := run(ctx, loweringCtx(loaded, Options{}.withDefaults()), compile.NewTypes())
+		return ctx.Calls, diags, err
 	}
 	moved := func(diags []ir.Diagnostic) bool {
 		return openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/Pet/discriminator")
