@@ -21,14 +21,14 @@ type IDReference struct {
 }
 
 // IDReferences gathers, as a [Visitor], the typed-ID references a walk reaches
-// and what they resolve against, so both of Morphic's checkers report one
-// dangling reference alike. A value's Go type is what makes it a reference: a
-// [ChannelID] references Document.Channels wherever it sits, a node's own ID
-// included, so no field is listed and none can be forgotten.
+// and what they resolve against, so both checkers report a dangling reference
+// alike. A value's Go type is what makes it a reference: a [ChannelID]
+// references Document.Channels wherever it sits, a node's own ID included, so
+// no field is listed and none can be forgotten.
 //
 // Integer indices have nothing to key on, and a [PropID] names a position inside
-// a model, so neither is kept; each is resolved by hand where checked. One
-// serves a single walk of one document, and is not safe for concurrent use.
+// a model, so neither is kept; each is resolved by hand where checked. Only
+// [NewIDReferences] builds a usable one, for one walk on one goroutine.
 type IDReferences struct {
 	// labels names the registry each class of reference resolves in, and so
 	// holds every class a reference can be of.
@@ -202,9 +202,9 @@ func keyedRegistries() []keyedRegistry {
 }
 
 // registryKeys returns the IDs the registry at Document field index keys in
-// doc, as a set: one pass over the map, after which each lookup costs nothing,
-// where reflect.Value.MapIndex allocates the key it is given and the entry it
-// copies out. A nil doc keys nothing.
+// doc, as a set: one pass over the map, after which a lookup allocates
+// nothing, where reflect.Value.MapIndex allocates the key it is given and the
+// entry it copies out. A nil doc keys nothing.
 func registryKeys(doc *Document, index int) map[string]bool {
 	if doc == nil {
 		return nil
