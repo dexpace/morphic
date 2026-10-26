@@ -339,6 +339,28 @@ func TestCompile_CanceledContextStopsTheCompile(t *testing.T) {
 	assert.Nil(t, doc, "a compile cut short assembles no document")
 }
 
+// TestCompile_ACancelInTheLoweringStopsTheCompile pins a cancel that lands after
+// the load has finished: the compile's last check, in the lowering, ends it
+// with the context's error and no document, and that check is the last one
+// the compile makes, so nothing after it runs on.
+func TestCompile_ACancelInTheLoweringStopsTheCompile(t *testing.T) {
+	t.Parallel()
+	sources := []compilers.Source{{Path: "spec.yaml", Data: []byte(enumSpec(2))}}
+	left, calls := math.MaxInt, 0
+	doc, _, err := New().Compile(liveForCalls{Context: t.Context(), left: &left, seen: &calls}, sources,
+		compilers.Options{})
+	require.NoError(t, err)
+	require.NotNil(t, doc)
+
+	left, seen := calls-1, 0
+	doc, _, err = New().Compile(liveForCalls{Context: t.Context(), left: &left, seen: &seen}, sources,
+		compilers.Options{})
+
+	require.ErrorIs(t, err, context.Canceled)
+	assert.Nil(t, doc, "a compile cut short assembles no document")
+	assert.Equal(t, calls, seen, "the check that refused is the compile's last")
+}
+
 // liveForCalls answers Err with nil for its first left calls and
 // context.Canceled from then on, counting every call it answers.
 //

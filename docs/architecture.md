@@ -71,7 +71,7 @@ Contract, abridged from `compilers.Compiler`, whose doc comments state each meth
 type Compiler interface {
     Formats() []SourceFormat // e.g. openapi@3.0, openapi@3.1
     // Detect reports the format src declares and whether this compiler recognizes it.
-    Detect(src Source, opts Options) (Recognition, []ir.Diagnostic, bool)
+    Detect(ctx context.Context, src Source, opts Options) (Recognition, []ir.Diagnostic, bool)
     // DecodeOptions turns textual settings into this compiler's own options value.
     DecodeOptions(set OptionSet) (any, error)
     // SourceLimit is the most bytes of a source this compiler reads under opts.
@@ -167,8 +167,9 @@ the calling goroutine only: a fatal error such as stack exhaustion, a panic on a
 compiler started, and a call that never returns are not its to catch. A compiler that ignores its
 context holds `Run` until it returns, because the engine cannot stop a call it did not start on a
 goroutine of its own, and abandoning one would leave it reading the caller's bytes after `Run` had
-returned. The next stage boundary then stops the run, or `Run` returns what it finished if none is
-left.
+returned. When it does return, the run fails with the context's error, and what the compile returned
+is dropped unjudged: a stage that returns once its context is done may have stopped short, and
+nothing tells a whole answer from a cut one. `Registry.Detect` treats a `Detect` the same way.
 
 What a document holds whatever produced it, the namespaces, a service and a well-formed source table
 among them, is `irverify`'s, and `compile.Types.Finish` hands a compiler its registry with the

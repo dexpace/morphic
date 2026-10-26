@@ -38,8 +38,9 @@ type Compiled struct {
 // handing it what recognizing the source parsed, and holds the outcome to the
 // duties Compiler's Compile and SourceTable state that the inputs let a caller
 // check. A breach, a panic in either method among them, is an error wrapping
-// ErrContract; an error the compiler returned is passed on as it is, so a
-// cancellation still reads as one.
+// ErrContract; an error the compiler returned is passed on as it is. One
+// returning once ctx is done fails with ctx's error, unjudged, as it may have
+// stopped short.
 //
 // A Detection compiles once: the parse it hands over is live, and a compile
 // may write through it (Source.Parsed).
@@ -58,6 +59,9 @@ func (d Detection) Compile(ctx context.Context) (Compiled, error) {
 	)
 	if berr := d.call("Compile", func() { doc, diags, err = d.Compiler.Compile(ctx, sources, d.Options) }); berr != nil {
 		return Compiled{}, berr
+	}
+	if cerr := ctx.Err(); cerr != nil {
+		return Compiled{}, cerr
 	}
 	if err != nil {
 		return Compiled{}, err

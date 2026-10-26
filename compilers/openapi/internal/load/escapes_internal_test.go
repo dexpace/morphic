@@ -26,7 +26,7 @@ import (
 // decodeRoot decodes src, which must decode.
 func decodeRoot(t *testing.T, src string) *yaml.Node {
 	t.Helper()
-	parsed, err := Decode([]byte(src))
+	parsed, err := Decode(t.Context(), []byte(src))
 	require.NoError(t, err)
 	return parsed.Root()
 }

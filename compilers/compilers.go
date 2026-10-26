@@ -110,7 +110,7 @@ type Compiler interface {
 	// silent; diags is for this compiler's own source, unreadable or one opts
 	// forbid reading, holds an error saying why, and names src as Source 0, or
 	// no source.
-	Detect(src Source, opts Options) (rec Recognition, diags []ir.Diagnostic, ok bool)
+	Detect(ctx context.Context, src Source, opts Options) (rec Recognition, diags []ir.Diagnostic, ok bool)
 	// DecodeOptions turns textual settings into the value this compiler expects
 	// in Options.FormatOptions. An empty set yields defaults. An unknown key or
 	// an unusable value is an error — a setting that is silently ignored leaves
@@ -274,8 +274,13 @@ func (r *Registry) Detect(ctx context.Context, src Source, configure Configure) 
 		if err := ctx.Err(); err != nil {
 			return Detection{}, false, err
 		}
-		a, err := e.ask(src, configure)
+		a, err := e.ask(ctx, src, configure)
 		if err != nil {
+			return Detection{}, false, err
+		}
+		// A Detect that returned once ctx was done may have stopped short, so
+		// what it said is not judged, as no answer it gave would be whole.
+		if err := ctx.Err(); err != nil {
 			return Detection{}, false, err
 		}
 		if err := e.heldToLimit(a, len(src.Data)); err != nil {
@@ -378,14 +383,14 @@ type answer struct {
 // ask configures e's compiler and asks it to recognize src, each behind a
 // barrier. A panic in either is a breach, and an error from configuring is not:
 // it is the answer a decoder gives to options that are another compiler's.
-func (e *registered) ask(src Source, configure Configure) (answer, error) {
+func (e *registered) ask(ctx context.Context, src Source, configure Configure) (answer, error) {
 	opts, optsErr, err := e.configured(configure)
 	if err != nil {
 		return answer{}, err
 	}
 
 	a := answer{opts: opts, optsErr: optsErr}
-	if perr := barrier.Catch(func() { a.rec, a.diags, a.ok = e.c.Detect(src, opts) }); perr != nil {
+	if perr := barrier.Catch(func() { a.rec, a.diags, a.ok = e.c.Detect(ctx, src, opts) }); perr != nil {
 		return answer{}, fmt.Errorf("compilers: detect by %s: %w", e.served(), breach("Detect", perr))
 	}
 	return a, nil

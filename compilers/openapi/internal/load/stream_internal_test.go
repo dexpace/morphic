@@ -219,7 +219,7 @@ func TestDecode_TakesTheFirstDocumentHoldingContent(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			root, rest, err := decodeStream([]byte(lead + minimal31))
+			root, rest, err := decodeStream(t.Context(), []byte(lead+minimal31))
 			require.NoError(t, err)
 			require.True(t, holdsContent(root), "the document taken is the one with content")
 			assert.Equal(t, yaml.MappingNode, root.Content[0].Kind)
@@ -236,14 +236,14 @@ func TestDecode_TakesTheFirstDocumentHoldingContent(t *testing.T) {
 // all and reaches a different refusal.
 func TestDecode_AStreamOfEmptyDocumentsIsItsFirst(t *testing.T) {
 	t.Parallel()
-	root, rest, err := decodeStream([]byte("---\n---\n"))
+	root, rest, err := decodeStream(t.Context(), []byte("---\n---\n"))
 	require.NoError(t, err)
 	require.Equal(t, yaml.DocumentNode, root.Kind)
 	assert.False(t, holdsContent(root))
 	assert.Equal(t, 2, root.Content[0].Line, "the first of them, where the old decode stopped")
 	assert.Equal(t, tail{}, rest, "the empties after it drop nothing")
 
-	empty, _, err := decodeStream([]byte(" "))
+	empty, _, err := decodeStream(t.Context(), []byte(" "))
 	require.NoError(t, err)
 	assert.Equal(t, yaml.Kind(0), empty.Kind, "no document at all is still the node of no kind")
 }
@@ -259,7 +259,7 @@ func TestDecode_AStreamOfEmptyDocumentsIsItsFirst(t *testing.T) {
 // compiler above converts into a diagnostic.
 func TestLoad_AnErrorBeforeContentIsAParseError(t *testing.T) {
 	t.Parallel()
-	_, rest, err := decodeStream([]byte("---\n...\n" + minimal31))
+	_, rest, err := decodeStream(t.Context(), []byte("---\n...\n"+minimal31))
 	require.Error(t, err, "the reader reports the parser's own error")
 	assert.NotErrorIs(t, err, ErrParse, "unwrapped, for detection to quote")
 	assert.Equal(t, tail{}, rest)
@@ -277,14 +277,14 @@ func TestLoad_AnErrorBeforeContentIsAParseError(t *testing.T) {
 func TestDecode_IsWhatTheCompileTakes(t *testing.T) {
 	t.Parallel()
 	src := []byte("--- null\n---\n" + minimal31)
-	fromDecode, _, err := decodeStream(src)
+	fromDecode, _, err := decodeStream(t.Context(), src)
 	require.NoError(t, err)
-	fromDetect, err := Decode(src)
+	fromDetect, err := Decode(t.Context(), src)
 	require.NoError(t, err)
 	assert.Equal(t, fromDecode.Content[0].Line, fromDetect.Root().Content[0].Line)
 	assert.Equal(t, yaml.MappingNode, fromDetect.Root().Content[0].Kind)
 
-	_, err = Decode([]byte("\tnot: yaml\n"))
+	_, err = Decode(t.Context(), []byte("\tnot: yaml\n"))
 	require.Error(t, err)
 	assert.NotErrorIs(t, err, ErrParse, "the parser's own error, unwrapped, for detection to quote")
 }
@@ -320,7 +320,7 @@ func TestLoad_LeadingEmptyDocumentsAreSkipped(t *testing.T) {
 func TestLoad_ReusesTheParseDetectionLeftBehind(t *testing.T) {
 	t.Parallel()
 	data := []byte(minimal31)
-	parsed, err := Decode(data)
+	parsed, err := Decode(t.Context(), data)
 	require.NoError(t, err)
 	titleOf(t, parsed).Value = "FromTheTree"
 	require.NotContains(t, string(data), "FromTheTree", "the planted title is nowhere in the bytes")
@@ -372,7 +372,7 @@ func titleOf(t *testing.T, p *Parsed) *yaml.Node {
 func TestLoad_IgnoresAParseItCannotUse(t *testing.T) {
 	t.Parallel()
 	data := []byte(minimal31)
-	other, err := Decode([]byte("openapi: 3.1.0\ninfo: {title: Other, version: \"1\"}\npaths: {}\n"))
+	other, err := Decode(t.Context(), []byte("openapi: 3.1.0\ninfo: {title: Other, version: \"1\"}\npaths: {}\n"))
 	require.NoError(t, err)
 
 	for name, parsed := range map[string]any{
@@ -406,7 +406,7 @@ func TestLoad_IgnoresAParseItCannotUse(t *testing.T) {
 func TestLoad_AParseIsCheckedAgainstTheBytesBesideIt(t *testing.T) {
 	t.Parallel()
 	data := []byte(minimal31)
-	parsed, err := Decode(data)
+	parsed, err := Decode(t.Context(), data)
 	require.NoError(t, err)
 
 	// The same backing array, refilled — the pooled-buffer shape.
@@ -437,7 +437,7 @@ func TestLoad_AParseOfEqualBytesIsTheSameParse(t *testing.T) {
 	t.Parallel()
 	data := []byte(minimal31)
 	equal := slices.Clone(data)
-	parsed, err := Decode(equal)
+	parsed, err := Decode(t.Context(), equal)
 	require.NoError(t, err)
 	titleOf(t, parsed).Value = "FromAnEqualButOtherBuffer"
 
@@ -461,7 +461,7 @@ func TestLoad_AParseOfEqualBytesIsTheSameParse(t *testing.T) {
 func TestLoad_AReusedParseCarriesTheStreamTail(t *testing.T) {
 	t.Parallel()
 	data := []byte(minimal31 + "---\nopenapi: 3.1.0\ninfo: {title: N, version: \"1\"}\npaths: {}\n")
-	parsed, err := Decode(data)
+	parsed, err := Decode(t.Context(), data)
 	require.NoError(t, err)
 
 	fresh, freshDiags, err := Load(t.Context(), 0, compilers.Source{Path: "s.yaml", Data: data}, Options{})

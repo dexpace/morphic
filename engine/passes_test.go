@@ -406,23 +406,23 @@ func TestEngine_RunHoldsPassDiagnosticsToTheSourceTable(t *testing.T) {
 	}
 }
 
-// TestEngine_RunStopsBeforeTheNextPassOnceCancelled pins that ctx is checked
-// before every pass, the first included: a run cancelled during the compile or
-// during a pass runs no further pass and names the one it stopped before.
-func TestEngine_RunStopsBeforeTheNextPassOnceCancelled(t *testing.T) {
+// TestEngine_RunStopsAtTheStageTheCancelLandsIn pins that a run cancelled
+// during a stage runs no pass after it and fails naming that stage: the compile
+// is held to its context when it returns, and a pass at the next boundary.
+func TestEngine_RunStopsAtTheStageTheCancelLandsIn(t *testing.T) {
 	t.Parallel()
 	type setup func(t *testing.T, cancel context.CancelFunc) (compilers.Compiler, []pass.Pass)
 	tests := []struct {
 		name  string
 		setup setup
-		next  string
+		names string
 	}{
 		{"during the compile", func(t *testing.T, cancel context.CancelFunc) (compilers.Compiler, []pass.Pass) {
 			return cancelCompiler{cancel: cancel}, []pass.Pass{unreachedPass{t, "first"}}
-		}, "first"},
+		}, "engine: compile"},
 		{"during a pass", func(t *testing.T, cancel context.CancelFunc) (compilers.Compiler, []pass.Pass) {
 			return splitDiagCompiler{}, []pass.Pass{cancelPass{cancel}, unreachedPass{t, "after"}}
-		}, "after"},
+		}, `stop before pass "after"`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -436,7 +436,7 @@ func TestEngine_RunStopsBeforeTheNextPassOnceCancelled(t *testing.T) {
 			res, err := eng.Run(ctx, writeSpec(t, testspec.Tiny), engine.RunOptions{})
 
 			require.ErrorIs(t, err, context.Canceled)
-			assert.Contains(t, err.Error(), fmt.Sprintf("stop before pass %q", tt.next))
+			assert.Contains(t, err.Error(), tt.names)
 			assert.Nil(t, res)
 		})
 	}

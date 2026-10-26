@@ -41,11 +41,11 @@ func (c faulty) Formats() []compilers.SourceFormat {
 	return c.stubFront.Formats()
 }
 
-func (c faulty) Detect(src compilers.Source, opts compilers.Options) (compilers.Recognition, []ir.Diagnostic, bool) {
+func (c faulty) Detect(ctx context.Context, src compilers.Source, opts compilers.Options) (compilers.Recognition, []ir.Diagnostic, bool) {
 	if c.detect != nil {
 		return c.detect()
 	}
-	return c.stubFront.Detect(src, opts)
+	return c.stubFront.Detect(ctx, src, opts)
 }
 
 func (c faulty) DecodeOptions(set compilers.OptionSet) (any, error) {
@@ -482,23 +482,17 @@ func (b blocker) Compile(_ context.Context, sources []compilers.Source, _ compil
 // documents for a stage that does not stop when asked: the engine cannot stop a
 // call it did not start on a goroutine of its own, and abandoning one would
 // leave it reading caller-owned bytes after Run returned. So Run waits, then
-// stops at the next stage boundary, or returns what it finished if none is left.
+// fails with the context's error, the compile's output unjudged: a stage that
+// returns once its context is done may have stopped short, and nothing tells a
+// whole answer from one cut, so with a pass still to run or none.
 func TestEngine_RunWaitsForACompilerThatIgnoresItsContext(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name     string
 		disabled []string
-		check    func(t *testing.T, res *engine.Result, err error)
 	}{
-		{"with a pass still to run", nil, func(t *testing.T, res *engine.Result, err error) {
-			require.ErrorIs(t, err, context.Canceled)
-			assert.Contains(t, err.Error(), `stop before pass "note"`)
-			assert.Nil(t, res)
-		}},
-		{"with every pass off", []string{"note"}, func(t *testing.T, res *engine.Result, err error) {
-			require.NoError(t, err)
-			require.NotNil(t, res.Document, "the finished compile is not thrown away for a context that ended meanwhile")
-		}},
+		{"with a pass still to run", nil},
+		{"with every pass off", []string{"note"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -525,7 +519,9 @@ func TestEngine_RunWaitsForACompilerThatIgnoresItsContext(t *testing.T) {
 				"Run returned while the compiler was still running")
 			close(release)
 			<-done
-			tt.check(t, res, err)
+			require.ErrorIs(t, err, context.Canceled)
+			assert.Contains(t, err.Error(), `engine: compile "spec.yaml"`, "the compile is what the cancel ended")
+			assert.Nil(t, res)
 		})
 	}
 }

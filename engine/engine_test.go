@@ -293,7 +293,7 @@ func (stubFront) Formats() []compilers.SourceFormat {
 	return []compilers.SourceFormat{{Name: "openapi", Version: "3.1"}}
 }
 
-func (stubFront) Detect(compilers.Source, compilers.Options) (compilers.Recognition, []ir.Diagnostic, bool) {
+func (stubFront) Detect(context.Context, compilers.Source, compilers.Options) (compilers.Recognition, []ir.Diagnostic, bool) {
 	return compilers.Recognition{Format: compilers.SourceFormat{Name: "openapi", Version: "3.1"}}, nil, true
 }
 
@@ -545,7 +545,7 @@ func (*smithyCompiler) Formats() []compilers.SourceFormat {
 	return []compilers.SourceFormat{{Name: "smithy", Version: "2.0"}}
 }
 
-func (*smithyCompiler) Detect(src compilers.Source, _ compilers.Options) (compilers.Recognition, []ir.Diagnostic, bool) {
+func (*smithyCompiler) Detect(_ context.Context, src compilers.Source, _ compilers.Options) (compilers.Recognition, []ir.Diagnostic, bool) {
 	if !strings.HasPrefix(string(src.Data), "$version:") {
 		return compilers.Recognition{}, nil, false
 	}

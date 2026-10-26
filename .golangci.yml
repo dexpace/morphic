@@ -199,13 +199,20 @@ linters:
           - forbidigo
           - forcetypeassert
           - reassign
-      # liveForCalls is a context.Context: it embeds the one it wraps to answer Err
-      # on a schedule, which is how a context decorator is written, not a context
-      # held for later.
-      - path: compilers/openapi/budgets_internal_test\.go
+      # liveForCalls and countdown are each a context.Context: each embeds the one
+      # it wraps to answer Err on a schedule, which is how a context decorator is
+      # written, not a context held for later.
+      - path: compilers/openapi/(budgets_internal_test|internal/load/cancel_internal_test)\.go
         linters:
           - containedctx
         source: ^\s*context\.Context$
+      # contextReader is the io.Reader a YAML parse reads its bytes through,
+      # and Read takes no context, so the context the parse runs under is held
+      # for the reads that one decode makes.
+      - path: compilers/openapi/internal/load/cancel\.go
+        linters:
+          - containedctx
+        source: ^\s*ctx\s+context\.Context$
       # external is the file system the parser's resolver reads documents
       # through, and fs.FS's Open takes no context, so the context the
       # resolution runs under is held for the reads Open makes through the

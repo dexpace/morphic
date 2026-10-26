@@ -725,7 +725,7 @@ func TestResolve_ResolvesWhatTheLibraryResolves(t *testing.T) {
 		data, err := os.ReadFile(path)
 		require.NoError(t, err, path)
 
-		root, _, err := decodeStream(data)
+		root, _, err := decodeStream(t.Context(), data)
 		if err != nil {
 			continue // not YAML at all: out of scope for a resolution drift test
 		}
@@ -741,7 +741,7 @@ func TestResolve_ResolvesWhatTheLibraryResolves(t *testing.T) {
 			continue // a loop of schema $refs, which the library's walk recurses round forever
 		}
 
-		root2, _, err := decodeStream(data)
+		root2, _, err := decodeStream(t.Context(), data)
 		require.NoError(t, err, path)
 		releaseAnchors(root2)
 		doc2, err := unmarshal(t.Context(), data, root2)

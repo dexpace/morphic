@@ -224,7 +224,7 @@ func TestCheck_CompilerPanicIsCaptured(t *testing.T) {
 // panicsInDetect is a compiler whose recognition panics.
 type panicsInDetect struct{ stubCompiler }
 
-func (panicsInDetect) Detect(compilers.Source, compilers.Options) (compilers.Recognition, []ir.Diagnostic, bool) {
+func (panicsInDetect) Detect(context.Context, compilers.Source, compilers.Options) (compilers.Recognition, []ir.Diagnostic, bool) {
 	panic("recognition exploded")
 }
 

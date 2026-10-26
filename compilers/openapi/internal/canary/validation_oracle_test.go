@@ -198,7 +198,7 @@ func validationDocs(t *testing.T) []validationDoc {
 			if err != nil {
 				return err
 			}
-			if _, _, ok := declaredVersion(data); ok {
+			if _, _, ok := declaredVersion(t, data); ok {
 				docs = append(docs, validationDoc{name: repoPath(t, path), data: data})
 			}
 			return nil
@@ -224,8 +224,9 @@ func repoPath(t *testing.T, path string) string {
 
 // declaredVersion returns the OpenAPI version a document declares, and false
 // for data that is no YAML or JSON document declaring an "openapi" 3 string.
-func declaredVersion(data []byte) (string, *yaml.Node, bool) {
-	parsed, err := load.Decode(data)
+func declaredVersion(t testing.TB, data []byte) (string, *yaml.Node, bool) {
+	t.Helper()
+	parsed, err := load.Decode(t.Context(), data)
 	if err != nil {
 		return "", nil, false
 	}
@@ -247,7 +248,7 @@ func declaredVersion(data []byte) (string, *yaml.Node, bool) {
 // a document the library will not build.
 func compareDocument(t *testing.T, d validationDoc) (library, compiler []finding, skipped string) {
 	t.Helper()
-	version, root, _ := declaredVersion(d.data)
+	version, root, _ := declaredVersion(t, d.data)
 	if _, ok := oas.ParseMinor(version); !ok {
 		return nil, nil, fmt.Sprintf("declares %q, a version the table does not cover", version)
 	}

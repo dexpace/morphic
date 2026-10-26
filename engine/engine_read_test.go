@@ -30,7 +30,7 @@ func (c limitedCompiler) Formats() []compilers.SourceFormat {
 
 func (c limitedCompiler) SourceLimit(compilers.Options) int { return c.limit }
 
-func (c limitedCompiler) Detect(src compilers.Source, _ compilers.Options) (compilers.Recognition, []ir.Diagnostic, bool) {
+func (c limitedCompiler) Detect(_ context.Context, src compilers.Source, _ compilers.Options) (compilers.Recognition, []ir.Diagnostic, bool) {
 	*c.handed = append(*c.handed, len(src.Data))
 	if c.limit > 0 && len(src.Data) > c.limit {
 		return compilers.Recognition{}, []ir.Diagnostic{{Severity: ir.SeverityError, Code: "x/too-large",

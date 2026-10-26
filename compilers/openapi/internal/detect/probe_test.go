@@ -52,7 +52,7 @@ func TestSniff_ReadsALargeDocumentWhole(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			require.Greater(t, len(tc.src), scanCutover, "the case must be large to test it")
-			probe, parsed, err := detect.Sniff([]byte(tc.src))
+			probe, parsed, err := detect.Sniff(t.Context(), []byte(tc.src))
 			assert.Equal(t, tc.want, probe)
 			if tc.unreadable {
 				assert.Error(t, err)
@@ -97,7 +97,7 @@ func TestSniff_ReadsAMergeChainAsFarAsTheViewExpandsIt(t *testing.T) {
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			probe, _, err := detect.Sniff(tc.src)
+			probe, _, err := detect.Sniff(t.Context(), tc.src)
 			require.NoError(t, err, "a read cut short is no parse failure")
 			assert.Equal(t, tc.cut, probe.Cut)
 			if tc.cut {
@@ -122,7 +122,7 @@ func TestDecodeYAML_RefusesARootThatIsNoMapping(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			probe, _, err := detect.DecodeYAML([]byte(tc.src))
+			probe, _, err := detect.DecodeYAML(t.Context(), []byte(tc.src))
 			assert.Empty(t, probe.OpenAPI)
 			if tc.wantErr == "" {
 				assert.NoError(t, err, "bytes that carry no document decline rather than fail")
@@ -148,8 +148,8 @@ func TestSniff_CostIsNotQuadraticInRepeatedKeys(t *testing.T) {
 	small := []byte(head + strings.Repeat("x: y\n", dupRepeats))
 	large := []byte(head + strings.Repeat("x: y\n", dupRepeats*2))
 
-	smallAllocs := testing.AllocsPerRun(2, func() { _, _, _ = detect.Sniff(small) })
-	largeAllocs := testing.AllocsPerRun(2, func() { _, _, _ = detect.Sniff(large) })
+	smallAllocs := testing.AllocsPerRun(2, func() { _, _, _ = detect.Sniff(t.Context(), small) })
+	largeAllocs := testing.AllocsPerRun(2, func() { _, _, _ = detect.Sniff(t.Context(), large) })
 
 	require.Positive(t, smallAllocs, "a measurement of nothing bounds nothing")
 	assert.Less(t, largeAllocs, smallAllocs*3,
@@ -177,7 +177,7 @@ func TestDecodeYAML_RefusesAVersionKeyThatIsNoScalar(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			probe, _, err := detect.DecodeYAML([]byte(tc.src))
+			probe, _, err := detect.DecodeYAML(t.Context(), []byte(tc.src))
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tc.wantErr, "the complaint names the shape that was read")
 			assert.Empty(t, probe.OpenAPI)
@@ -199,7 +199,7 @@ func TestDecodeYAML_PassesOverWhatNamesNoVersion(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			probe, _, err := detect.DecodeYAML([]byte(tc.src))
+			probe, _, err := detect.DecodeYAML(t.Context(), []byte(tc.src))
 			require.NoError(t, err)
 			assert.Equal(t, "3.1.0", probe.OpenAPI)
 		})

@@ -2,6 +2,7 @@ package load
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -17,20 +18,25 @@ import (
 // decodeStream parses source bytes into the node tree of the document the
 // compile lowers, the first with content, and reads what follows so extra
 // documents are reported, not dropped. The error is the parser's own, which
-// detection quotes and Load wraps as ErrParse.
+// detection quotes and Load wraps as ErrParse, or ctx's (contextReader).
 //
 // It is split from unmarshal so an overlay can patch the tree in between;
 // re-parsing after serialising would renumber every line. It bounds no alias
 // expansion, because a node tree holds an alias as one node, and scan's weigher
 // refuses a billion-laughs document. It needs no recover: yaml.v3 turns its own
 // faults into errors.
-func decodeStream(data []byte) (*yaml.Node, tail, error) {
-	dec := yaml.NewDecoder(bytes.NewReader(data))
+func decodeStream(ctx context.Context, data []byte) (*yaml.Node, tail, error) {
+	dec := yaml.NewDecoder(contextReader{ctx: ctx, r: bytes.NewReader(data)})
 	root, err := firstWithContent(dec)
 	if err != nil {
+		return nil, tail{}, stopped(ctx, err)
+	}
+	rest := readTail(dec)
+	// A tail cut short reads as one that did not parse, which it is not.
+	if err := ctx.Err(); err != nil {
 		return nil, tail{}, err
 	}
-	return root, readTail(dec), nil
+	return root, rest, nil
 }
 
 // Parsed is a source's decoded form, produced once and used twice: detection
@@ -59,8 +65,8 @@ func (p *Parsed) Root() *yaml.Node { return p.root }
 // the same document the compile will (GitHub #481) and to leave the parse
 // behind for it (Parsed). The error is the parser's own, unwrapped, since
 // detection quotes it; the compile wraps it as ErrParse.
-func Decode(data []byte) (*Parsed, error) {
-	root, rest, err := decodeStream(data)
+func Decode(ctx context.Context, data []byte) (*Parsed, error) {
+	root, rest, err := decodeStream(ctx, data)
 	if err != nil {
 		return nil, err
 	}
@@ -77,14 +83,14 @@ func Decode(data []byte) (*Parsed, error) {
 // SourceInfo.Hash from the bytes it does, breaking the identity that snapshots,
 // IR diffing and caching key on (architecture.md §1). The digest costs nothing
 // extra: SourceInfo.Hash records it anyway.
-func parsedFor(src compilers.Source) (*Parsed, error) {
+func parsedFor(ctx context.Context, src compilers.Source) (*Parsed, error) {
 	// A nil *Parsed stored in the interface is not a nil interface, so the
 	// assertion succeeds and hands back nothing to read; ir.IsNilTypeDef and
 	// compilers' own nil-compiler screen exist for the same two spellings.
 	if p, ok := src.Parsed.(*Parsed); ok && p != nil && p.hash == ir.SourceHash(src.Data) {
 		return p, nil
 	}
-	return Decode(src.Data)
+	return Decode(ctx, src.Data)
 }
 
 // Hash is the lowercase hex SHA-256 of the bytes this parse was built from, for

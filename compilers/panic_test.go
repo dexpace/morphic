@@ -43,9 +43,9 @@ func (b *breaker) Formats() []compilers.SourceFormat {
 	return b.scripted.Formats()
 }
 
-func (b *breaker) Detect(src compilers.Source, opts compilers.Options) (compilers.Recognition, []ir.Diagnostic, bool) {
+func (b *breaker) Detect(ctx context.Context, src compilers.Source, opts compilers.Options) (compilers.Recognition, []ir.Diagnostic, bool) {
 	b.enter("Detect")
-	return b.scripted.Detect(src, opts)
+	return b.scripted.Detect(ctx, src, opts)
 }
 
 func (b *breaker) DecodeOptions(set compilers.OptionSet) (any, error) {

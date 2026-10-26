@@ -197,7 +197,7 @@ func TestLoad_TheDocumentBudgetRefusesAFileChainToo(t *testing.T) {
 func resolveCounting(t *testing.T, spec, path string, opts Options) ([]ir.Diagnostic, int) {
 	t.Helper()
 	data := []byte(spec)
-	root, _, err := decodeStream(data)
+	root, _, err := decodeStream(t.Context(), data)
 	require.NoError(t, err)
 	releaseAnchors(root)
 	doc, err := unmarshal(t.Context(), data, root)

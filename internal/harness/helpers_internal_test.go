@@ -37,7 +37,7 @@ func (stubCompiler) Formats() []compilers.SourceFormat {
 	return []compilers.SourceFormat{stubFormat}
 }
 
-func (stubCompiler) Detect(src compilers.Source, _ compilers.Options) (compilers.Recognition, []ir.Diagnostic, bool) {
+func (stubCompiler) Detect(_ context.Context, src compilers.Source, _ compilers.Options) (compilers.Recognition, []ir.Diagnostic, bool) {
 	if !bytes.Contains(src.Data, []byte("stub:")) {
 		return compilers.Recognition{}, nil, false
 	}

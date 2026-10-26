@@ -1,6 +1,8 @@
 package openapi
 
 import (
+	"context"
+
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/detect"
 	"github.com/dexpace/morphic/ir"
@@ -17,10 +19,10 @@ import (
 // deeper than detection reads, its own keys leaving the version open. Any
 // other decline is silent unless src declares a version under a discriminating
 // key and is unreadable.
-func (c *Compiler) Detect(src compilers.Source, opts compilers.Options) (compilers.Recognition, []ir.Diagnostic, bool) {
+func (c *Compiler) Detect(ctx context.Context, src compilers.Source, opts compilers.Options) (compilers.Recognition, []ir.Diagnostic, bool) {
 	// Source 0 is src: the one source detection is handed is the whole of the
 	// table a declined diagnostic can index (compilers.Compiler.Detect).
-	return detect.Recognize(rootSrcIndex, src.Data, c.SourceLimit(opts))
+	return detect.Recognize(ctx, rootSrcIndex, src.Data, c.SourceLimit(opts))
 }
 
 // SourceLimit implements compilers.Compiler: the byte budget,

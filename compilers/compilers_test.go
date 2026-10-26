@@ -38,7 +38,7 @@ type stubCompiler struct {
 
 func (s *stubCompiler) Formats() []compilers.SourceFormat { return s.formats }
 
-func (s *stubCompiler) Detect(src compilers.Source, opts compilers.Options) (compilers.Recognition, []ir.Diagnostic, bool) {
+func (s *stubCompiler) Detect(_ context.Context, src compilers.Source, opts compilers.Options) (compilers.Recognition, []ir.Diagnostic, bool) {
 	s.saw = append(s.saw, opts)
 	if s.marker == "" || !bytes.Contains(src.Data, []byte(s.marker)) {
 		return compilers.Recognition{}, s.declines, false
@@ -285,7 +285,7 @@ func TestRegistry_DetectDropsDeclinesOnceClaimed(t *testing.T) {
 // breaks it.
 type claimsNothing struct{ stubCompiler }
 
-func (claimsNothing) Detect(compilers.Source, compilers.Options) (compilers.Recognition, []ir.Diagnostic, bool) {
+func (claimsNothing) Detect(context.Context, compilers.Source, compilers.Options) (compilers.Recognition, []ir.Diagnostic, bool) {
 	return compilers.Recognition{}, nil, true
 }
 

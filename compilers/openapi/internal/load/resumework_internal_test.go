@@ -26,7 +26,7 @@ import (
 // and what the pass reported.
 func resumedOver(t *testing.T, dir, root string, limit int) (*resumeWork, []ir.Diagnostic) {
 	t.Helper()
-	tree, _, err := decodeStream([]byte(root))
+	tree, _, err := decodeStream(t.Context(), []byte(root))
 	require.NoError(t, err)
 	releaseAnchors(tree)
 	doc, err := unmarshal(t.Context(), []byte(root), tree)

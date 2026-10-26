@@ -150,7 +150,10 @@ func Load(ctx context.Context, srcIndex int, src compilers.Source, opts Options)
 		return nil, []ir.Diagnostic{d}, nil
 	}
 
-	parsed, err := parsedFor(src)
+	parsed, err := parsedFor(ctx, src)
+	if cerr := ctx.Err(); cerr != nil {
+		return nil, nil, cerr
+	}
 	if err != nil {
 		return nil, nil, fmt.Errorf("openapi: decode source %d: %w: %w", srcIndex, err, ErrParse)
 	}

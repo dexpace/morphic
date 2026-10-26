@@ -216,7 +216,7 @@ func TestRecognize_ReadsWhatADocumentDeclares(t *testing.T) {
 	for _, tc := range declarations() {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			probe, _, err := detect.Sniff([]byte(tc.src))
+			probe, _, err := detect.Sniff(t.Context(), []byte(tc.src))
 			assert.Equal(t, detect.SniffProbe{OpenAPI: tc.want}, probe)
 			if tc.reads == parses {
 				require.NoError(t, err, "the row reads as a document that parses")
@@ -224,7 +224,7 @@ func TestRecognize_ReadsWhatADocumentDeclares(t *testing.T) {
 				require.Error(t, err, "the row reads as a document that does not parse")
 			}
 
-			rec, diags, ok := recognize(tc.src)
+			rec, diags, ok := recognize(t, tc.src)
 			assert.Equal(t, tc.want != "", ok, "a declared version is what recognizes the source")
 			assert.Equal(t, detect.MajorMinor(tc.want), rec.Format.Version)
 			var wantCodes []string
@@ -249,7 +249,7 @@ func TestRecognize_BothKeysNameOneFormat(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			got, _, ok := recognize(src)
+			got, _, ok := recognize(t, src)
 			assert.True(t, ok)
 			assert.Equal(t, want, got.Format)
 		})
@@ -272,7 +272,7 @@ func TestRecognize_AValueThatIsNoVersionIsNoDeclaration(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, diags, ok := recognize(tc.src)
+			got, diags, ok := recognize(t, tc.src)
 			assert.False(t, ok, "prose beside the word is not a declaration of this format")
 			assert.Equal(t, compilers.SourceFormat{}, got.Format)
 			assert.Nil(t, codesOf(diags), "another format's file earns no complaint from this one")
@@ -297,7 +297,7 @@ func TestRecognize_AVersionThatIsNotServedIsStillADeclaration(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, diags, ok := recognize(tc.src)
+			got, diags, ok := recognize(t, tc.src)
 			assert.True(t, ok, "one word beside the key declares the format, whether or not it is served")
 			assert.Equal(t, compilers.SourceFormat{Name: "openapi", Version: tc.want}, got.Format)
 			assert.Nil(t, codesOf(diags), "which version is wrong is load's to say")
@@ -319,7 +319,7 @@ func TestRecognize_ABrokenDocumentIsReportedAtAnySize(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			got, diags, ok := recognize(src)
+			got, diags, ok := recognize(t, src)
 			assert.False(t, ok)
 			assert.Equal(t, compilers.SourceFormat{}, got.Format)
 			assert.Equal(t, []string{diag.UndecodableSource}, codesOf(diags))
@@ -342,7 +342,7 @@ func TestRecognize_AnEmptyFirstDocumentIsNotTheDocument(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			src := lead + "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\n"
-			got, diags, ok := recognize(src)
+			got, diags, ok := recognize(t, src)
 			assert.True(t, ok, "the document behind the empty one is what the source declares")
 			assert.Equal(t, want, got.Format)
 			assert.Nil(t, codesOf(diags))
@@ -364,7 +364,7 @@ func TestRecognize_AByteOrderMarkIsNotAFormat(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			got, diags, ok := recognize(bom + body)
+			got, diags, ok := recognize(t, bom+body)
 			assert.True(t, ok, "a byte-order mark is not part of what a document declares")
 			assert.Equal(t, want, got.Format)
 			assert.Nil(t, codesOf(diags))
@@ -376,7 +376,7 @@ func TestRecognize_AByteOrderMarkIsNotAFormat(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			_, diags, ok := recognize(bom + body)
+			_, diags, ok := recognize(t, bom+body)
 			assert.False(t, ok)
 			assert.Equal(t, []string{diag.UndecodableSource}, codesOf(diags), "the mark hides no key")
 		})
@@ -396,7 +396,7 @@ func TestRecognize_CarriesTheParseItRead(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			rec, _, ok := recognize(src)
+			rec, _, ok := recognize(t, src)
 			require.True(t, ok)
 			_, isParse := rec.Parsed.(*load.Parsed)
 			assert.True(t, isParse, "the parse that read the keys is the one the compile lowers")
@@ -410,7 +410,7 @@ func TestRecognize_CarriesTheParseItRead(t *testing.T) {
 func TestRecognize_AKeyTaggedMergeThatIsNoScalarMergesNothing(t *testing.T) {
 	t.Parallel()
 	src := "? !!merge [z]\n: {openapi: 3.1.0}\ninfo: {title: t, version: '1'}\npaths: {}\n"
-	_, diags, ok := recognize(src)
+	_, diags, ok := recognize(t, src)
 	assert.False(t, ok)
 	assert.Empty(t, diags, "a source that declares nothing is declined in silence")
 }

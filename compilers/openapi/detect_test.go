@@ -28,7 +28,7 @@ func TestDetect_DeclinesASourcePastTheCallersByteBudget(t *testing.T) {
 	src := compilers.Source{Path: "api.yaml", Data: []byte(budgetedSpec)}
 	limit := len(budgetedSpec) - 1
 
-	rec, diags, ok := openapi.New().Detect(src, withBytes(limit))
+	rec, diags, ok := openapi.New().Detect(t.Context(), src, withBytes(limit))
 
 	assert.False(t, ok)
 	assert.Equal(t, compilers.Recognition{}, rec)
@@ -60,7 +60,7 @@ func TestDetect_ReadsASourceWithinTheCallersByteBudget(t *testing.T) {
 		{},
 		{FormatOptions: "another compiler's options"},
 	} {
-		rec, diags, ok := openapi.New().Detect(src, opts)
+		rec, diags, ok := openapi.New().Detect(t.Context(), src, opts)
 		require.True(t, ok, "%+v: %+v", opts, diags)
 		assert.Equal(t, want, rec.Format, "%+v", opts)
 	}
@@ -89,7 +89,7 @@ func TestDetect_ReadsTheVersionTheCompileReads(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			src := compilers.Source{Path: "api.yaml", Data: []byte(root + tail)}
-			rec, diags, ok := openapi.New().Detect(src, compilers.Options{})
+			rec, diags, ok := openapi.New().Detect(t.Context(), src, compilers.Options{})
 			require.True(t, ok, "the compile lowers it, so detection claims it: %v", diags)
 
 			doc, compiled, err := openapi.New().Compile(t.Context(), []compilers.Source{src}, compilers.Options{})
