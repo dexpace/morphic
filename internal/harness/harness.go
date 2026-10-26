@@ -134,8 +134,10 @@ var passes = engine.Passes
 // runOptions is what every engine run a sweep makes runs under: verified, so
 // each document a compiler or a pass returns, in every run an oracle makes, is
 // held to irverify's invariants, and each pass to leaving the document it is
-// handed as it was. The walk costs each run about as much as its compile; the
-// sweep pays it for the reach.
+// handed as it was. The walk costs a run more than its compile does; the sweep
+// pays it for the reach. A verify error on the first compile is
+// OutcomeViolations; on a later run, the oracle making it reports it, with the
+// engine's account in its detail.
 func runOptions() engine.RunOptions { return engine.RunOptions{Verify: true} }
 
 // newEngine builds the engine a sweep runs: the registered compilers, and ps
