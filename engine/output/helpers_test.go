@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -31,12 +30,17 @@ type refusingWriter struct{}
 
 func (refusingWriter) Write([]byte) (int, error) { return 0, errDisk }
 
-// newlineRefusingWriter keeps what it is given but refuses a write of the
-// trailing newline alone, to fail that write apart from the document's.
-type newlineRefusingWriter struct{ buf bytes.Buffer }
+// newlineRefusingWriter keeps what it is given until it holds n bytes, and
+// refuses every write after that. With n the document's length, the write it
+// refuses is the newline encode writes after the document, however many writes
+// the encoder split the document itself into.
+type newlineRefusingWriter struct {
+	n   int
+	buf bytes.Buffer
+}
 
 func (w *newlineRefusingWriter) Write(p []byte) (int, error) {
-	if string(p) == "\n" {
+	if w.buf.Len() >= w.n {
 		return 0, errDisk
 	}
 	return w.buf.Write(p)
@@ -51,12 +55,13 @@ func badDoc() *ir.Document {
 	}
 }
 
-// bigBadDoc is badDoc with a description past the encoder's internal buffer,
-// so an encoder writing straight to its destination would already have
-// flushed part of the document by the time it reaches the malformed value.
+// bigBadDoc is manyTypesDoc holding badDoc's malformed value, which the
+// encoder reaches only after the types. The types take the encoder many
+// writes, so an encoder writing straight to its destination has written part
+// of the document by the time it fails.
 func bigBadDoc() *ir.Document {
-	doc := badDoc()
-	doc.Docs.Description = strings.Repeat("x", 64<<10)
+	doc := manyTypesDoc()
+	doc.Unmodeled = badDoc().Unmodeled
 	return doc
 }
 
@@ -88,12 +93,6 @@ func manyTypesDoc() *ir.Document {
 		types[id] = &ir.Model{ID: id}
 	}
 	return &ir.Document{IRVersion: ir.IRVersion, Name: "Many", Version: "1", Types: types}
-}
-
-// bareDoc returns a stamped document small enough for the encoder to write in
-// one flush.
-func bareDoc() *ir.Document {
-	return &ir.Document{IRVersion: ir.IRVersion, Name: "Bare"}
 }
 
 // written returns what WriteDocument writes for doc in layout.
