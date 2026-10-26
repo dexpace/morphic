@@ -30,8 +30,8 @@ const elidedMarker = "… (elided)"
 // as text a one-line message can quote: each line's white space collapsed to
 // single spaces, and the lines joined with "; ", or with a space after one
 // that ends in ":", ";", ",", ".", "!" or "?". It is well-formed UTF-8, never
-// empty, cut on a rune boundary at 4 KiB and then marked, and keeps other
-// control characters for the renderer to escape.
+// empty, cut on a rune boundary and marked past 4 KiB, and keeps other control
+// characters for the renderer to escape.
 //
 // An error, a Stringer, a string, a number and a bool render as they say; any
 // other value, and one whose text panics, is named by its type.
