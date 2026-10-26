@@ -49,7 +49,7 @@ func TestRun_VersionNamesTheBuildAndTheIRSchema(t *testing.T) {
 			t.Parallel()
 			var stdout, stderr bytes.Buffer
 
-			require.Equal(t, 0, run([]string{spelling}, &stdout, &stderr), "stderr: %s", stderr.String())
+			require.Equal(t, 0, run(t.Context(), []string{spelling}, &stdout, &stderr), "stderr: %s", stderr.String())
 
 			require.True(t, strings.HasSuffix(stdout.String(), "\n"),
 				"output that ends mid-line leaves the shell prompt on it, got %q", stdout.String())

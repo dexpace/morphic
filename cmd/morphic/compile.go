@@ -46,7 +46,12 @@ A -- argument ends flag parsing: every argument after it is an operand, even one
 that begins with a dash, which is how a spec file named like a flag is passed.
 
 Exit status is 0 when nothing reaches --fail-on, 1 when something does or the
-spec lowered to no document at all, and 2 for a misuse or an I/O error.`
+spec lowered to no document at all, and 2 for a misuse or an I/O error.
+
+SIGINT, SIGTERM or SIGHUP stops the run and ends morphic by that same signal.
+A document --output was writing is abandoned and its temporary file removed,
+so the file keeps its previous content unless the document was already being
+moved into place. A second signal ends morphic at once.`
 
 // compileExample is compile's examples, indented as cobra's help indents a
 // section.
@@ -172,12 +177,12 @@ func specArgs(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// runPipeline runs the engine over specPath and renders every diagnostic the
-// run produced to stderr.
+// runPipeline runs the engine over specPath under ctx and renders every
+// diagnostic the run produced to stderr.
 //
 // A non-nil err ends the run with its exit code: 2 when the run could not
-// happen, the engine not built or failed, and a refused diagnostics write as
-// writeFailureExit says, so no document follows findings nobody saw.
+// happen, the engine not built, failed or cancelled, and a refused diagnostics
+// write as writeFailureExit says, so no document follows findings nobody saw.
 // Otherwise code is the exit code the engine's verdict calls for, and res
 // holds the document, or is nil when the spec lowered to none.
 func runPipeline(
@@ -196,6 +201,11 @@ func runPipeline(
 	if err != nil {
 		return nil, 0, failure(err)
 	}
+	// The engine checks ctx only between its stages, so a run cancelled during
+	// its last one comes back whole. Nothing of it is written.
+	if err := ctx.Err(); err != nil {
+		return nil, 0, failure(err)
+	}
 
 	if res.Failed {
 		code = exitFindings
@@ -212,7 +222,8 @@ func runPipeline(
 // compileSpec runs the pipeline over specPath, writes the IR document and its
 // diagnostics, and returns the error that ends the run with its exit code.
 func compileSpec(cmd *cobra.Command, specPath string, opts compileOptions) error {
-	res, code, err := runPipeline(cmd.Context(), specPath, opts.specOptions, cmd.ErrOrStderr())
+	ctx := cmd.Context()
+	res, code, err := runPipeline(ctx, specPath, opts.specOptions, cmd.ErrOrStderr())
 	if err != nil {
 		return err
 	}
@@ -227,7 +238,7 @@ func compileSpec(cmd *cobra.Command, specPath string, opts compileOptions) error
 		}
 		return exitWith(code)
 	}
-	if err := writeCompiled(opts, cmd.OutOrStdout(), res.Document); err != nil {
+	if err := writeCompiled(ctx, opts, cmd.OutOrStdout(), res.Document); err != nil {
 		return &exitError{code: writeFailureExit(code), err: err}
 	}
 	return exitWith(code)
@@ -249,15 +260,15 @@ func writeFailureExit(code int) int {
 }
 
 // writeCompiled writes doc's IR JSON to opts.outPath, or to stdout when it is
-// empty. Stdout is indented because a person is reading it; a file is compact
-// unless --pretty asks for the indented form.
-func writeCompiled(opts compileOptions, stdout io.Writer, doc *ir.Document) error {
+// empty, until ctx is done. Stdout is indented because a person is reading it;
+// a file is compact unless --pretty asks for the indented form.
+func writeCompiled(ctx context.Context, opts compileOptions, stdout io.Writer, doc *ir.Document) error {
 	if opts.outPath == "" {
-		return output.WriteDocument(stdout, doc, output.Indented)
+		return output.WriteDocument(ctx, stdout, doc, output.Indented)
 	}
 	layout := output.Compact
 	if opts.pretty {
 		layout = output.Indented
 	}
-	return output.ReplaceDocument(opts.outPath, doc, layout)
+	return output.ReplaceDocument(ctx, opts.outPath, doc, layout)
 }

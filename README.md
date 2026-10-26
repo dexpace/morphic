@@ -185,6 +185,16 @@ write error is printed on stderr either way. `-o` publishes by rename, so a dest
 directory will not take a temp file, such as `/dev/null` or a read-only directory, cannot be
 written to at all.
 
+SIGINT, SIGTERM or SIGHUP stops a run, which then has no exit code of its own: once the run has
+stopped, morphic ends by the same signal, so a shell reports 128 plus its number and a script
+running morphic stops with it. A run stopped while compiling writes nothing. A document `-o` was
+writing is abandoned and its temporary file removed, so the destination keeps its previous content
+unless the document was already being moved into place; one already going to stdout is written
+whole, as a stream gets all of a document or none of it. A second signal ends morphic at once,
+which can leave the temporary file behind: a dot, the destination's name, then digits. A signal
+morphic was started ignoring stays ignored, as a shell starts a background job ignoring SIGINT and
+`nohup` a command ignoring SIGHUP.
+
 #### Compiler options
 
 `--opt` names an option in the vocabulary of whichever compiler recognizes the spec. Morphic itself
@@ -245,7 +255,7 @@ if res.Failed {
 }
 
 // Canonical, deterministic bytes, replacing the file atomically as `-o` does.
-return output.ReplaceDocument("api.ir.json", res.Document, output.Compact)
+return output.ReplaceDocument(ctx, "api.ir.json", res.Document, output.Compact)
 ```
 
 `RunSources` compiles sources already in memory: the first is the spec, every source is a document
@@ -253,7 +263,8 @@ its references or its settings may name by its `Path`, and nothing else is read,
 across files compiles without a file written. `RunDocument` runs the passes over a document already
 compiled, such as one decoded from a file. `engine/report` renders diagnostics and `--explain`
 (`report.Explain`) exactly as the CLI prints them, and `engine/output` writes a document as the CLI
-does: to a stream whole or not at all, or to a file replaced atomically.
+does: to a stream whole or not at all, or to a file replaced atomically. Both take the run's
+context, and a write it cancels leaves no partial document behind.
 
 A Go error from `Run` means misuse or I/O. Everything wrong with the spec itself, including a spec
 no compiler can lower, is a diagnostic in the result, with a nil `Document` when nothing could be

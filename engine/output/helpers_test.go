@@ -3,6 +3,7 @@ package output_test
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -78,11 +79,28 @@ func orderedDoc() *ir.Document {
 	}
 }
 
+// manyTypesDoc returns a stamped document of enough types that the encoder
+// writes it in more than one flush.
+func manyTypesDoc() *ir.Document {
+	types := ir.TypeRegistry{}
+	for i := range 2000 {
+		id := ir.TypeID(fmt.Sprintf("t/Type%04d", i))
+		types[id] = &ir.Model{ID: id}
+	}
+	return &ir.Document{IRVersion: ir.IRVersion, Name: "Many", Version: "1", Types: types}
+}
+
+// bareDoc returns a stamped document small enough for the encoder to write in
+// one flush.
+func bareDoc() *ir.Document {
+	return &ir.Document{IRVersion: ir.IRVersion, Name: "Bare"}
+}
+
 // written returns what WriteDocument writes for doc in layout.
 func written(t *testing.T, doc *ir.Document, layout output.Layout) []byte {
 	t.Helper()
 	var buf bytes.Buffer
-	require.NoError(t, output.WriteDocument(&buf, doc, layout))
+	require.NoError(t, output.WriteDocument(t.Context(), &buf, doc, layout))
 	return buf.Bytes()
 }
 
