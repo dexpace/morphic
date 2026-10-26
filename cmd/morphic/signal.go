@@ -8,9 +8,10 @@ import (
 	"syscall"
 )
 
-// stopSignals returns the signals that end a Go program by default, which
-// morphic catches to stop a run cleanly instead: SIGINT from a terminal,
-// SIGTERM from a supervisor or a timeout, and SIGHUP from a terminal closing.
+// stopSignals returns the signals os/signal says make a Go program exit, as
+// against those that make it exit with a stack dump. morphic catches them to
+// stop a run cleanly instead: SIGINT from a terminal, SIGTERM from a
+// supervisor or a timeout, and SIGHUP from a terminal closing.
 func stopSignals() []os.Signal {
 	return []os.Signal{os.Interrupt, syscall.SIGTERM, syscall.SIGHUP}
 }

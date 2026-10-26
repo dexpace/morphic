@@ -43,7 +43,8 @@ func exitWith(code int) error {
 	return &exitError{code: code}
 }
 
-// failure wraps err as an I/O or internal failure: exit 2, message reported.
+// failure wraps err as what ended a run for a reason outside the spec, such as
+// I/O, a broken stage or a stop: exit 2, message reported.
 func failure(err error) error {
 	return &exitError{code: exitFailure, err: err}
 }

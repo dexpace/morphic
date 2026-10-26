@@ -191,14 +191,15 @@ stderr; a shell script interrupted with Ctrl-C goes on to its next command unles
 status, as `set -e` does. What is written by then depends on when the signal came. During the
 compile, nothing is. During the diagnostics, they are finished, as is an `--explain` report, and no
 document follows. During the document, a file `-o` names keeps its previous content, its temporary
-file removed, unless the document was already being moved into place; stdout gets the whole
-document if its write had begun and none of it if not. A signal during that move or that write can
-come too late to stop the run at all, which then exits as though it had not been sent. Another
-signal while the run is stopping changes nothing, so a copy that a shell or a wrapper delivers along
-with the first cannot cut the cleanup short. Stopping can take a few seconds on a large spec, and
-only SIGKILL ends morphic sooner, which can leave the temporary file behind: a dot, the
-destination's name, then digits. A SIGINT or SIGHUP morphic was started ignoring stays ignored, as
-a script's shell starts a background job ignoring SIGINT and `nohup` a command ignoring SIGHUP.
+file removed, unless the document was already being moved into place; stdout gets the whole document
+if its write had begun and none of it if not. A signal during that move or that write can come too
+late to stop the run at all, which then exits as though it had not been sent. Another signal while
+the run is stopping changes nothing, so a copy that a shell or a wrapper delivers along with the
+first cannot cut the cleanup short. Stopping can take a few seconds on a large spec; SIGQUIT
+(`Ctrl-\`), which prints every goroutine's stack, or SIGKILL ends morphic sooner, and either can
+leave the temporary file behind: a dot, the destination's name, then digits. A SIGINT or SIGHUP
+morphic was started ignoring stays ignored, as a script's shell starts a background job ignoring
+SIGINT and `nohup` a command ignoring SIGHUP.
 
 #### Compiler options
 
