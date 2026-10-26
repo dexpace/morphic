@@ -55,21 +55,26 @@ func (stamping) Run(doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
 	return doc, nil
 }
 
-// rerunFault is a transform that behaves on its first run and, run again over
-// its own output, does what fault says.
-type rerunFault struct {
-	fault func(own *ir.Document) *ir.Document
+// faulting is a transform that marks the document it returns, and does what
+// first says on its first run, and rerun says over a document it marked. A
+// nil fault behaves.
+type faulting struct {
+	first, rerun func(own *ir.Document) *ir.Document
 }
 
-func (rerunFault) Name() string { return "rerun-fault" }
+func (faulting) Name() string { return "faulting" }
 
-func (r rerunFault) Run(doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
+func (f faulting) Run(doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
 	own := *doc
+	fault := f.first
 	if own.Version == "seen" {
-		return r.fault(&own), nil
+		fault = f.rerun
 	}
 	own.Version = "seen"
-	return &own, nil
+	if fault == nil {
+		return &own, nil
+	}
+	return fault(&own), nil
 }
 
 // noting is an idempotent transform that reports only over its own output, as
@@ -180,14 +185,14 @@ func TestIdempotent_Faults(t *testing.T) {
 		want   string
 	}{
 		{"a nil pass", []pass.Pass{nil}, "harness: engine: pass 0 is nil"},
-		{"no document on the first run", []pass.Pass{nilRun{}},
-			`pass "nil-run": engine: run pass "nil-run": returned no document`},
-		{"no document over its own output", []pass.Pass{rerunFault{fault: noDocument}},
-			`pass "rerun-fault" over its own output: engine: run pass "rerun-fault": returned no document`},
-		{"an output that does not encode", []pass.Pass{unencodablePass{}},
-			`pass "unencodable": encode its output`},
-		{"a rerun output that does not encode", []pass.Pass{rerunFault{fault: unencodable}},
-			`pass "rerun-fault" over its own output: encode`},
+		{"no document on the first run", []pass.Pass{faulting{first: noDocument}},
+			`pass "faulting": engine: run pass "faulting": returned no document`},
+		{"no document over its own output", []pass.Pass{faulting{rerun: noDocument}},
+			`pass "faulting" over its own output: engine: run pass "faulting": returned no document`},
+		{"an output that does not encode", []pass.Pass{faulting{first: unencodable}},
+			`pass "faulting": encode its output`},
+		{"a rerun output that does not encode", []pass.Pass{faulting{rerun: unencodable}},
+			`pass "faulting" over its own output: encode its output`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			withPasses(t, tc.passes...)
@@ -198,23 +203,6 @@ func TestIdempotent_Faults(t *testing.T) {
 			assert.Contains(t, detail, tc.want)
 		})
 	}
-}
-
-// nilRun returns no document.
-type nilRun struct{}
-
-func (nilRun) Name() string { return "nil-run" }
-
-func (nilRun) Run(*ir.Document) (*ir.Document, []ir.Diagnostic) { return nil, nil }
-
-// unencodablePass returns a document the encoder refuses on its first run.
-type unencodablePass struct{}
-
-func (unencodablePass) Name() string { return "unencodable" }
-
-func (unencodablePass) Run(doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
-	own := *doc
-	return unencodable(&own), nil
 }
 
 // TestIdempotent_ACompileWithoutThePassesThatFails pins the oracle's own
