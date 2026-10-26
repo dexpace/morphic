@@ -300,6 +300,41 @@ func TestCheck_ViolationsOutcome(t *testing.T) {
 	assert.Equal(t, OutcomeViolations, r.Outcome)
 }
 
+// TestCheck_ViolationsComeBeforeTheSpecsErrors pins the order of the two: a
+// document the run returns is held to the invariants whatever the spec's own
+// findings, so one breaking them is the violation even beside an error, and
+// only a refusal, an error and no document, is the spec's error alone. No
+// document and no error is a violation, as the contract forbids it.
+func TestCheck_ViolationsComeBeforeTheSpecsErrors(t *testing.T) {
+	refused := []ir.Diagnostic{ir.NewDiagnostic(ir.SeverityError, "stub/refused", "the spec is wrong",
+		ir.Provenance{Source: ir.NoSource})}
+	misKeyed := &ir.Document{Types: ir.TypeRegistry{ir.TypeID("t/x/Key"): &ir.Any{ID: "t/x/Other"}}}
+	for _, tc := range []struct {
+		name   string
+		doc    *ir.Document
+		diags  []ir.Diagnostic
+		want   Outcome
+		detail string
+	}{
+		{"a broken document beside an error", misKeyed, refused, OutcomeViolations, "t/x/Key"},
+		{"a refusal", nil, refused, OutcomeErrorDiag, "stub/refused"},
+		{"no document and no error", nil, nil, OutcomeViolations, "ir/nil-document"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			orig := compile
+			t.Cleanup(func() { compile = orig })
+			compile = func(context.Context, string, []byte, []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
+				return tc.doc, tc.diags, nil
+			}
+
+			r := Check(context.Background(), "spec", []byte("x"))
+
+			assert.Equal(t, tc.want, r.Outcome, r.Detail)
+			assert.Contains(t, r.Detail, tc.detail)
+		})
+	}
+}
+
 // TestCheck_AStageBreakingAnInvariantIsAViolation pins that the sweep's run is
 // verified: a compiler or a pass returning a document that breaks the IR's
 // invariants is refused by the engine at that stage, and Check reports it as

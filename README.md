@@ -340,8 +340,8 @@ Run a single test with `go test ./ir -run TestName`. Beyond that:
   witnesses, unless `matrix.md` lists the row as uncovered with a reason.
 - **Oracle harness.** `go run ./cmd/morphic-harness <file|dir>` runs specs as
   `morphic compile --verify` does, passes included, through the bug-catching oracles, stopping at
-  the first that fires for each: no panic, no error diagnostic, the `ir/irverify` structural
-  invariants, JSON round-trip, determinism, pass idempotence, and order-invariance. It exits `1` if
+  the first that fires for each: no panic, the `ir/irverify` structural invariants, no error
+  diagnostic, JSON round-trip, determinism, pass idempotence, and order-invariance. It exits `1` if
   any spec fails. `testdata/` holds negative fixtures that fail on purpose, so sweep it with
   `go test ./internal/harness`, which knows which ones are expected to.
 - **IR census.** `go run ./cmd/morphic-census <file|dir>...` compiles the specs and lists every

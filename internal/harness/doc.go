@@ -1,7 +1,7 @@
 // Package harness runs specs through the engine as `morphic compile --verify`
 // does, the default passes included, and applies the bug-catching oracles (no
-// panic/error, irverify invariants, JSON round-trip, determinism, pass
-// idempotence, order-invariance), returning a structured Result per spec. A
+// panic, irverify invariants, no error diagnostic, JSON round-trip,
+// determinism, pass idempotence, order-invariance), returning a structured Result per spec. A
 // compiler registered in engine.Compilers, or a pass in engine.Passes, is swept
 // with no change here. It also defines the annotation-retention vocabulary
 // (Annotation, SiteKind, Cell) and the Cells/MissingCells helpers a per-format

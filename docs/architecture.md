@@ -576,7 +576,7 @@ something a caller asks for with `none`, never a default.
   document.
 - **Oracle sweep** (`internal/harness`): every corpus spec is run as `morphic compile --verify` runs
   it, the default passes included, in every run an oracle makes, and driven through the oracles in
-  order — no panic, no error diagnostic, `irverify`'s structural invariants, JSON round-trip,
+  order — no panic, `irverify`'s structural invariants, no error diagnostic, JSON round-trip,
   determinism across two compiles, each pass's idempotence over a run's result (§2.2), and
   **order-independence**. The last one compiles the same source twice with every mapping's entry
   order reversed and diffs the two documents. It is the general form of the two-order check, and it

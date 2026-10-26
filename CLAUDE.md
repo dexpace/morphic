@@ -218,8 +218,8 @@ These all exist already — extend them rather than building a parallel mechanis
   repository's keyed documents, and a test a Markdown document names must exist
   (`internal/archtest`).
 - **Oracles**: `internal/harness` runs a spec through the engine as `morphic compile --verify` does,
-  its passes included and every stage's document verified, and drives it through no-panic → no error
-  diagnostic → `irverify` invariants → JSON round-trip → determinism → pass idempotence →
+  its passes included and every stage's document verified, and drives it through no-panic →
+  `irverify` invariants → no error diagnostic → JSON round-trip → determinism → pass idempotence →
   order-invariance, stopping at the first one that fires. `harness.Check` is the list — read it
   there rather than trusting this sentence; `go run ./cmd/morphic-harness <file|dir>` runs them over
   one spec or a whole tree. `irverify` is the structural-invariant checker (stable IDs, no dangling
@@ -269,9 +269,10 @@ assertion shapes:
     to guard an order-dependent fix, declare them in the order that was wrong, and confirm the
     revert reddens it rather than assuming the case covers what its name says.
 - **A negative fixture must be reachable.** `harness.Check` returns at the *first* error diagnostic,
-  before `irverify` ever runs, so a fixture that trips one never reaches the invariant checks it was
-  written to exercise. Verify the fixture lands where you think it does, not merely that the check
-  exists.
+  before the round trip, determinism, idempotence and order oracles run, so a fixture that trips one
+  never reaches the oracle it was written to exercise. `irverify` runs before it, over every
+  document a run returns. Verify the fixture lands where you think it does, not merely that the
+  check exists.
 
 ## Go code style — the dexpace styleguide is binding
 

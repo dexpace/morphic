@@ -31,8 +31,8 @@ const (
 	OutcomePanic            Outcome = "panic"
 	OutcomeError            Outcome = "error"
 	OutcomeUnrecognized     Outcome = "unrecognized"
-	OutcomeErrorDiag        Outcome = "error-diagnostic"
 	OutcomeViolations       Outcome = "violations"
+	OutcomeErrorDiag        Outcome = "error-diagnostic"
 	OutcomeRoundtrip        Outcome = "roundtrip-mismatch"
 	OutcomeNondeterministic Outcome = "nondeterministic"
 	OutcomeNonIdempotent    Outcome = "non-idempotent"
@@ -82,11 +82,17 @@ func Check(ctx context.Context, spec string, data []byte) (res Result) {
 	if err != nil {
 		return Result{Spec: spec, Outcome: OutcomeError, Detail: err.Error()}
 	}
-	if d, ok := ir.FirstError(diags); ok {
-		return Result{Spec: spec, Outcome: OutcomeErrorDiag, Detail: d.Code + ": " + d.Message}
+	// Before the spec's own errors: a document breaking the invariants is a
+	// compiler's or a pass's bug whatever the spec says, and the run returns it.
+	// Only a refusal, an error and no document, has nothing to hold.
+	first, failed := ir.FirstError(diags)
+	if doc != nil || !failed {
+		if vs := irverify.Verify(doc); len(vs) > 0 {
+			return Result{Spec: spec, Outcome: OutcomeViolations, Detail: fmt.Sprintf("%+v", vs)}
+		}
 	}
-	if vs := irverify.Verify(doc); len(vs) > 0 {
-		return Result{Spec: spec, Outcome: OutcomeViolations, Detail: fmt.Sprintf("%+v", vs)}
+	if failed {
+		return Result{Spec: spec, Outcome: OutcomeErrorDiag, Detail: first.Code + ": " + first.Message}
 	}
 	if detail, ok := roundTrip(doc); !ok {
 		return Result{Spec: spec, Outcome: OutcomeRoundtrip, Detail: detail}
