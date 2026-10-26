@@ -2,6 +2,7 @@ package load
 
 import (
 	"encoding/json/jsontext"
+	"math"
 	"path/filepath"
 	"testing"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/engine/reader"
+	"github.com/dexpace/morphic/internal/ctxtest"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -95,10 +97,25 @@ func heldResolution(t *testing.T, spec, path string) (*soa.OpenAPI, *resolution)
 	releaseAnchors(t.Context(), root)
 	doc, err := unmarshal(t.Context(), data, root)
 	require.NoError(t, err)
-	self := newSourceDocument(path, data, root, judgment{}, newSourceTree(0, overlay.Origin{}, root), nil)
+	self := newSourceDocument(path, data, root, judgment{}, newSourceTree(t.Context(), 0, overlay.Origin{}, root), nil)
 	opts := Options{Reader: reader.Disk{}}
 	ext := newExternal(t.Context(), doc, opts, newExternalReads(self))
 	return doc, newResolution(t.Context(), doc, Siblings{}, self, opts, &ext)
+}
+
+// TestSourceTree_IndexesUnderTheLoadsContext pins that the tree's pointer
+// index is built under the context the load runs under, once a node is first
+// asked about (scan.Pointers).
+func TestSourceTree_IndexesUnderTheLoadsContext(t *testing.T) {
+	t.Parallel()
+	root := decodeRoot(t, "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\n")
+	ctx := &ctxtest.Countdown{Context: t.Context(), Left: math.MaxInt}
+
+	tree := newSourceTree(ctx, 0, overlay.Origin{}, root)
+	require.Zero(t, ctx.Calls, "nothing is indexed before a node is asked about")
+
+	assert.True(t, tree.has(root.Content[0]))
+	assert.Positive(t, ctx.Calls)
 }
 
 // TestSourceTree_LocatorsAnswerAtTheLastNodeTheyReach pins that a pointer
@@ -107,7 +124,7 @@ func heldResolution(t *testing.T, spec, path string) (*soa.OpenAPI, *resolution)
 func TestSourceTree_LocatorsAnswerAtTheLastNodeTheyReach(t *testing.T) {
 	t.Parallel()
 	root := decodeRoot(t, "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\n")
-	tree := newSourceTree(0, overlay.Origin{}, root)
+	tree := newSourceTree(t.Context(), 0, overlay.Origin{}, root)
 
 	for _, locate := range []oas.Locator{tree.locatorIn(root), tree.reachedLocator(root)} {
 		got := locate("/info/nowhere/at/all")

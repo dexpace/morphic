@@ -565,7 +565,9 @@ type anchorMemo struct {
 // a warning when the index walk stopped at a bound. It is built on first use
 // rather than at entry because that warning would report on documents that
 // never write $dynamicRef (GitHub #172). A context holding no document finds
-// none.
+// none. Building the index reads no context.Context, which the schema lowering
+// asking for it does not hold, so a cancel waits for the walk
+// (docs/architecture.md §2.1).
 func (c Ctx) DynamicAnchorSites(name string) ([]jsontext.Pointer, []ir.Diagnostic) {
 	if c.Doc == nil {
 		return nil, nil

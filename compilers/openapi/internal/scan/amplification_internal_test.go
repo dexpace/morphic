@@ -593,7 +593,7 @@ func TestAliasAmplification_NamesTheLeastSiteUnderABudget(t *testing.T) {
 			t.Run(tc.name+"/"+order, func(t *testing.T) {
 				t.Parallel()
 				root := indexOf(t, data).Root()
-				d, refused := aliasAmplification(t.Context(), InTree(0, Pointers(root)), root, rawNodes(t, root), 100)
+				d, refused := aliasAmplification(t.Context(), InTree(0, Pointers(t.Context(), root)), root, rawNodes(t, root), 100)
 				require.True(t, refused)
 				assert.Equal(t, tc.code, d.Code)
 				assert.Equal(t, tc.want, d.Provenance.Pointer)

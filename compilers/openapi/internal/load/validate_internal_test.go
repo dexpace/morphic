@@ -61,7 +61,7 @@ components:
       <<: {minLength: -1}
 `
 	root := decodeRoot(t, src)
-	tree := newSourceTree(4, overlay.Origin{}, root)
+	tree := newSourceTree(t.Context(), 4, overlay.Origin{}, root)
 
 	got := judgeSource(t.Context(), root, tree, 0)
 
@@ -98,7 +98,7 @@ components:
 	top := nodeAt(t, root, "components", "parameters")
 	p := nodeAt(t, top, "P")
 
-	got := judgeSource(t.Context(), root, newSourceTree(0, overlay.Origin{}, root), 0)
+	got := judgeSource(t.Context(), root, newSourceTree(t.Context(), 0, overlay.Origin{}, root), 0)
 
 	assert.Empty(t, got.diags)
 	assert.True(t, got.seen[objectKey{node: p, kind: oas.Parameter}], "the parameter, once however it is reached")
@@ -223,7 +223,7 @@ func TestJudgeSource_ReadsEveryObjectTheCompilerAdmits(t *testing.T) {
 
 	var root yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte("openapi: 3.1.0\ninfo: {title: t, version: v}\npaths: {/a: {}, /b: {}}\n"), &root))
-	got := judgeSource(t.Context(), &root, newSourceTree(0, overlay.Origin{}, &root), 2)
+	got := judgeSource(t.Context(), &root, newSourceTree(t.Context(), 0, overlay.Origin{}, &root), 2)
 	require.Len(t, got.diags, 1, "%+v", got.diags)
 	assert.Equal(t, diag.BudgetExceeded, got.diags[0].Code)
 	assert.Equal(t, ir.SeverityError, got.diags[0].Severity)

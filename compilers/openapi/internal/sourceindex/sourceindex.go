@@ -143,23 +143,24 @@ type walker struct {
 // finding, or one answer would hide another.
 func (x *Index) walk(ctx context.Context, maxNodes int64) {
 	w := walker{x: x, ancestors: map[*yaml.Node]bool{}, measure: NewMeasure(maxNodes)}
-	out := nodeview.Walk{Nodes: int(min(maxNodes, math.MaxInt)), Visit: w.visit, Leave: w.leave}.Run(ctx, x.root)
+	visit := func(n *yaml.Node, depth int) nodeview.Step { return w.visit(ctx, n, depth) }
+	out := nodeview.Walk{Nodes: int(min(maxNodes, math.MaxInt)), Visit: visit, Leave: w.leave}.Run(ctx, x.root)
 	x.nodes = int64(out.Visited)
 	x.truncated = out.Cut || w.measure.Truncated()
 }
 
 // visit records what n answers, at depth below the root. An alias is a leaf:
 // yaml.v3 gives it empty Content, and its target is not its child, so it is
-// finished here as the nesting of what it names. Any other node is opened, for
-// leave to close once its children are measured.
-func (w *walker) visit(n *yaml.Node, depth int) nodeview.Step {
+// finished here as the nesting of what it names, measured under ctx. Any other
+// node is opened, for leave to close once its children are measured.
+func (w *walker) visit(ctx context.Context, n *yaml.Node, depth int) nodeview.Step {
 	w.x.recordTag(n)
 	tracked := depth <= maxTrackedDepth
 	if n.Kind == yaml.AliasNode {
 		if tracked {
 			w.x.recordAlias(n, w.ancestors)
 		}
-		w.finish(w.measure.Of(n))
+		w.finish(w.measure.Of(ctx, n))
 		return nodeview.Prune
 	}
 	if tracked {

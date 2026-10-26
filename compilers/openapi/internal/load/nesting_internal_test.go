@@ -130,7 +130,7 @@ func placedRefusals(t *testing.T, src string) []ir.Diagnostic {
 	t.Helper()
 	var root yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte(src), &root))
-	return refusals(t.Context(), scan.InTree(0, scan.Pointers(&root)), &root, Options{})
+	return refusals(t.Context(), scan.InTree(0, scan.Pointers(t.Context(), &root)), &root, Options{})
 }
 
 // TestRefusals_NamesTheLeastTaggedMapping pins the tagged-mapping refusal's
@@ -158,7 +158,7 @@ func TestRefusals_ReportsEachRefusalAlongsideTheOthers(t *testing.T) {
 	var root yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte(src), &root))
 
-	diags := refusals(t.Context(), scan.InTree(0, scan.Pointers(&root)), &root, Options{MaxAliasSurplus: 1})
+	diags := refusals(t.Context(), scan.InTree(0, scan.Pointers(t.Context(), &root)), &root, Options{MaxAliasSurplus: 1})
 
 	codes := make([]string, 0, len(diags))
 	for _, d := range diags {

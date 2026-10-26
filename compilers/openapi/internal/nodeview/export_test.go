@@ -35,6 +35,3 @@ func YAMLDoc(t *testing.T, src string) *yaml.Node {
 	require.NoError(t, yaml.Unmarshal([]byte(src), &doc))
 	return DocumentRoot(&doc)
 }
-
-// AskEvery is askEvery, for the external tests.
-const AskEvery = askEvery

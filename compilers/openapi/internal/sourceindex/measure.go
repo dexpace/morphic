@@ -1,9 +1,12 @@
 package sourceindex
 
 import (
+	"context"
 	"math"
 
 	yaml "go.yaml.in/yaml/v3"
+
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 )
 
 // Measure takes how deeply a subtree nests: the mappings and sequences its
@@ -47,19 +50,20 @@ type measureFrame struct {
 }
 
 // Of is the nesting of the subtree under n, and 0 for nil. Past the measure's
-// limit it stops, answers in part and reports Truncated.
+// limit, or once ctx is done, it stops, answers in part and reports Truncated.
+// It asks ctx every nodeview.AskEvery steps, counted across calls.
 //
 // The walk is iterative, so a deep tree costs no stack. A node is pushed only
 // while neither measured nor in flight, so each is expanded once whatever
 // shares it, and an alias cycle ends the walk rather than looping it: one
 // below the anchor-cycle check's tracked depth, or in a tree built by hand.
-func (m *Measure) Of(n *yaml.Node) int64 {
+func (m *Measure) Of(ctx context.Context, n *yaml.Node) int64 {
 	if n == nil {
 		return 0
 	}
 	stack := []*measureFrame{{n: n}}
 	for len(stack) > 0 {
-		if m.steps >= m.limit {
+		if m.steps >= m.limit || m.steps%nodeview.AskEvery == 0 && ctx.Err() != nil {
 			m.truncated = true
 			break
 		}
@@ -82,8 +86,8 @@ func (m *Measure) Of(n *yaml.Node) int64 {
 	return m.memo[n]
 }
 
-// Truncated reports whether a call to Of stopped at the measure's limit, so
-// that some answer it gave is partial.
+// Truncated reports whether a call to Of stopped at the measure's limit or its
+// context, so that some answer it gave is partial.
 func (m *Measure) Truncated() bool { return m.truncated }
 
 // push adds what n nests over to the stack: an alias's target, or its

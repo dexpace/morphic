@@ -111,7 +111,7 @@ func (l *loading) at(p jsontext.Pointer) ir.Provenance {
 // it faults on. A non-fatal finding, the scan's report that it could not
 // finish, is carried forward.
 func (l *loading) preParse(ctx context.Context) (bool, error) {
-	l.early = refusals(ctx, scan.InTree(l.srcIndex, scan.Pointers(l.root)), l.root, l.opts)
+	l.early = refusals(ctx, scan.InTree(l.srcIndex, scan.Pointers(ctx, l.root)), l.root, l.opts)
 	return diag.HasError(l.early), nil
 }
 
@@ -144,7 +144,7 @@ func (l *loading) measure(ctx context.Context) (bool, error) {
 // judge holds the tree to the rule table as the source writes it, before
 // anything after it respells the tree for the parser.
 func (l *loading) judge(ctx context.Context) (bool, error) {
-	l.tree = newSourceTree(l.srcIndex, l.origin, l.root)
+	l.tree = newSourceTree(ctx, l.srcIndex, l.origin, l.root)
 	l.judged = judgeSource(ctx, l.root, l.tree, nodesAdmitted(l.opts))
 	return false, nil
 }
@@ -214,7 +214,7 @@ func (l *loading) bindRefs(ctx context.Context) (bool, error) {
 		if l.origin.Applied() {
 			first = l.opts.OverlaySrcIndex + 1
 		}
-		l.bound.others = newOthers(l.reader.read, first, "openapi@"+l.minor)
+		l.bound.others = newOthers(ctx, l.reader.read, first, "openapi@"+l.minor)
 	}
 	l.placeSite = sitePlacer(l.at, l.bound.others)
 	l.resolved = append(l.pass.diags(l.placeSite), stillUnprepared(l.placeSite, l.missed)...)

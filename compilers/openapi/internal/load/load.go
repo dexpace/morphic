@@ -283,12 +283,12 @@ func refusals(ctx context.Context, locate scan.Locator, root *yaml.Node, opts Op
 	}
 
 	var diags []ir.Diagnostic
-	if d, deep := scan.Nesting(locate, idx); deep {
+	if d, deep := scan.Nesting(ctx, locate, idx); deep {
 		diags = append(diags, d)
 	}
 	diags = append(diags, scan.Aliases(ctx, locate, idx, int64(opts.MaxAliasSurplus))...)
 	if tagged := idx.TaggedMappings(); len(tagged) > 0 {
-		diags = append(diags, taggedMappingRefusal(locate, scan.Least(root, tagged)))
+		diags = append(diags, taggedMappingRefusal(locate, scan.Least(ctx, root, tagged)))
 	}
 	return diags
 }

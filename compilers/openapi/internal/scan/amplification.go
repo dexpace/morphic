@@ -59,16 +59,16 @@ func aliasAmplification(ctx context.Context, locate Locator, root *yaml.Node, ra
 		return ir.Diagnostic{}, false
 	}
 	if !budgeted {
-		return aliasAmplificationDiag(locate, Least(root, culprits), shape, raw), true
+		return aliasAmplificationDiag(locate, Least(ctx, root, culprits), shape, raw), true
 	}
 
 	// Past the budget, the document is weighed again against the ratio, so one
 	// past both is named for the shape, which no budget admits. Only a refused
 	// document pays for this walk.
 	if bombs := newAliasWeigher(shape).weigh(ctx, root); len(bombs) > 0 {
-		return aliasAmplificationDiag(locate, Least(root, bombs), shape, raw), true
+		return aliasAmplificationDiag(locate, Least(ctx, root, bombs), shape, raw), true
 	}
-	return aliasBudgetDiag(locate, Least(root, culprits), surplus, raw), true
+	return aliasBudgetDiag(locate, Least(ctx, root, culprits), surplus, raw), true
 }
 
 // shapeAllowance returns the expanded weight the ratio rule admits for a

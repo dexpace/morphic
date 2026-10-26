@@ -9,8 +9,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	yaml "go.yaml.in/yaml/v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ynode"
+	"github.com/dexpace/morphic/internal/ctxtest"
 )
 
 // TestMeasure_MeasuresEachNodeOnce counts the measure's steps rather than
@@ -30,12 +32,12 @@ func TestMeasure_MeasuresEachNodeOnce(t *testing.T) {
 	idx := Build(t.Context(), root, MaxIndexedNodes)
 	m := NewMeasure(MaxIndexedNodes)
 
-	assert.Equal(t, int64(anchors+1), m.Of(idx.Root()))
+	assert.Equal(t, int64(anchors+1), m.Of(t.Context(), idx.Root()))
 	assert.LessOrEqual(t, m.steps, 4*idx.Nodes(), "a step per frame, a frame per edge")
 	assert.Equal(t, 2*int64(len(m.memo))+anchors-1, m.steps,
 		"two steps a node, and one each to pop the lists the root pushed before an alias measured them")
 	steps := m.steps
-	assert.Equal(t, int64(anchors+1), m.Of(idx.Root()))
+	assert.Equal(t, int64(anchors+1), m.Of(t.Context(), idx.Root()))
 	assert.Equal(t, steps+1, m.steps, "a node measured once is not measured again")
 }
 
@@ -76,7 +78,7 @@ func TestMeasure_StopsAtItsLimit(t *testing.T) {
 		"a parsed tree at its node bound, its alias measuring half of it, stays within the limit")
 
 	m := NewMeasure(1)
-	m.Of(outside)
+	m.Of(t.Context(), outside)
 	assert.True(t, m.Truncated())
 }
 
@@ -85,9 +87,9 @@ func TestMeasure_StopsAtItsLimit(t *testing.T) {
 func TestMeasure_NilAndTargetlessAliasNestNothing(t *testing.T) {
 	t.Parallel()
 	m := NewMeasure(MaxIndexedNodes)
-	assert.Equal(t, int64(0), m.Of(nil))
-	assert.Equal(t, int64(0), m.Of(&yaml.Node{Kind: yaml.AliasNode}))
-	assert.Equal(t, int64(1), m.Of(ynode.Seq(nil)), "a nil child adds nothing to its sequence")
+	assert.Equal(t, int64(0), m.Of(t.Context(), nil))
+	assert.Equal(t, int64(0), m.Of(t.Context(), &yaml.Node{Kind: yaml.AliasNode}))
+	assert.Equal(t, int64(1), m.Of(t.Context(), ynode.Seq(nil)), "a nil child adds nothing to its sequence")
 }
 
 // TestNewMeasure_SaturatesALimitPastOverflow pins the node bound so large that
@@ -100,4 +102,32 @@ func TestNewMeasure_SaturatesALimitPastOverflow(t *testing.T) {
 	assert.False(t, Build(t.Context(), root, 1<<61).Truncated())
 	assert.Equal(t, int64(math.MaxInt64), NewMeasure(math.MaxInt64).limit)
 	assert.Equal(t, int64(0), NewMeasure(-1).limit, "a negative bound admits nothing")
+}
+
+// TestMeasure_StopsOnceTheContextIsDone pins the measure's asks: before its
+// first step and every nodeview.AskEvery steps after, counted across calls.
+// Once refused it answers in part and reports Truncated, and a later call
+// asks once and answers at once.
+func TestMeasure_StopsOnceTheContextIsDone(t *testing.T) {
+	t.Parallel()
+	const depth = 2 * nodeview.AskEvery
+	deep := ynode.Seq()
+	for range depth - 1 {
+		deep = ynode.Seq(deep)
+	}
+
+	live := &ctxtest.Countdown{Context: t.Context(), Left: math.MaxInt}
+	m := NewMeasure(MaxIndexedNodes)
+	assert.Equal(t, int64(depth), m.Of(live, deep))
+	assert.False(t, m.Truncated())
+	assert.GreaterOrEqual(t, live.Calls, 2*depth/nodeview.AskEvery, "an ask every AskEvery of two steps a node")
+
+	cut := &ctxtest.Countdown{Context: t.Context(), Left: 1}
+	m = NewMeasure(MaxIndexedNodes)
+	assert.Less(t, m.Of(cut, deep), int64(depth))
+	assert.True(t, m.Truncated())
+	asked, steps := cut.Calls, m.steps
+	m.Of(cut, deep)
+	assert.Equal(t, asked+1, cut.Calls, "a later call asks once")
+	assert.Equal(t, steps, m.steps, "and takes no step")
 }

@@ -55,24 +55,24 @@ func InTree(srcIndex int, pointers func(*yaml.Node) (jsontext.Pointer, bool)) Lo
 }
 
 // Pointers returns a node's JSON pointer in root's tree, its pairs keyed as
-// the parser keys them (nodeview.KeyOf), and whether the tree holds the node.
-// A scalar key shares its member's pointer, and an alias's target is placed
+// the parser keys them (nodeview.KeyOf), and whether the tree holds it. A
+// scalar key shares its member's pointer, and an alias's target is placed
 // where it is written. A nil node or root is held by none, nor is a node under
-// a `<<` merge key, whose pair the merge's document holds at another pointer,
-// nor a key that is no scalar, which no pointer reads inside.
+// a `<<` merge key, whose pair the merge's document holds elsewhere, nor a key
+// that is no scalar, which no pointer reads inside.
 //
-// The tree is indexed on the first node asked about, once, so a load that
-// reports nothing never indexes it.
-func Pointers(root *yaml.Node) func(*yaml.Node) (jsontext.Pointer, bool) {
+// The tree is indexed under ctx on the first node asked about, once, so a load
+// that reports nothing never indexes it.
+func Pointers(ctx context.Context, root *yaml.Node) func(*yaml.Node) (jsontext.Pointer, bool) {
 	var steps map[*yaml.Node]step
 	return func(n *yaml.Node) (jsontext.Pointer, bool) {
 		if n == nil || root == nil {
 			return "", false
 		}
 		if steps == nil {
-			// Never cut short for a tree the loader reads: each passed a
-			// sourceindex walk under the same bound first.
-			steps, _ = stepsIn(root, sourceindex.MaxIndexedNodes)
+			// Never cut short by the bound for a tree the loader reads: each
+			// passed a sourceindex walk under the same bound first.
+			steps, _ = stepsIn(ctx, root, sourceindex.MaxIndexedNodes)
 		}
 		if _, held := steps[n]; !held {
 			return "", false
@@ -90,15 +90,15 @@ type step struct {
 }
 
 // stepsIn indexes every node of root's tree, its keys included, by the step
-// that first reaches it, and reports whether limit nodes held them all. An
-// alias is a leaf: what it names is indexed where it is written. A node
-// indexed already is not entered again, so a node placed twice ends the walk
-// too; one past limit has no pointer.
+// that first reaches it, and reports whether limit nodes held them all and ctx
+// let it finish. An alias is a leaf: what it names is indexed where it is
+// written. A node indexed already is not entered again, so a node placed twice
+// ends the walk too; one past limit has no pointer.
 //
 // A pointer is not stored per node: that is the sum of every node's depth,
 // which a long key over a wide subtree, or a deep one, makes quadratic in the
 // document's size.
-func stepsIn(root *yaml.Node, limit int) (map[*yaml.Node]step, bool) {
+func stepsIn(ctx context.Context, root *yaml.Node, limit int) (map[*yaml.Node]step, bool) {
 	out := map[*yaml.Node]step{root: {}}
 	top := nodeview.DocumentRoot(root)
 	if top == nil {
@@ -119,7 +119,10 @@ func stepsIn(root *yaml.Node, limit int) (map[*yaml.Node]step, bool) {
 		out[n] = s
 		stack = append(stack, n)
 	}
-	for len(stack) > 0 {
+	for popped := 0; len(stack) > 0; popped++ {
+		if popped%nodeview.AskEvery == 0 && ctx.Err() != nil {
+			return out, false
+		}
 		n := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
 		reachChildren(n, reach)
@@ -211,7 +214,7 @@ func scanRecovered(locate Locator, scan func() []ir.Diagnostic) []ir.Diagnostic 
 // (GitHub #479).
 func Aliases(ctx context.Context, locate Locator, idx sourceindex.Index, surplus int64) []ir.Diagnostic {
 	return scanRecovered(locate, func() []ir.Diagnostic {
-		if d, ok := anchorCycle(locate, idx); ok {
+		if d, ok := anchorCycle(ctx, locate, idx); ok {
 			return []ir.Diagnostic{d}
 		}
 		if d, ok := aliasAmplification(ctx, locate, idx.Root(), idx.Nodes(), surplus); ok {
@@ -227,12 +230,12 @@ func Aliases(ctx context.Context, locate Locator, idx sourceindex.Index, surplus
 // document's aliases: a recursive anchor makes the expanded weight infinite,
 // and having refused those is what makes the alias graph a DAG and the weigh
 // walk provably terminating.
-func anchorCycle(locate Locator, idx sourceindex.Index) (ir.Diagnostic, bool) {
+func anchorCycle(ctx context.Context, locate Locator, idx sourceindex.Index) (ir.Diagnostic, bool) {
 	cycles := idx.AnchorCycles()
 	if len(cycles) == 0 {
 		return ir.Diagnostic{}, false
 	}
-	alias := Least(idx.Root(), cycles)
+	alias := Least(ctx, idx.Root(), cycles)
 	return cyclicDiag(locate, alias,
 		"recursive YAML anchor %q references an ancestor node", anchorName(alias)), true
 }

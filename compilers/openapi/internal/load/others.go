@@ -1,6 +1,7 @@
 package load
 
 import (
+	"context"
 	"encoding/json/jsontext"
 	"maps"
 	"net/url"
@@ -90,7 +91,7 @@ func (o Others) index(name string) (int, bool) {
 // read, so the order no declaration order changes; two names one label
 // reaches, a file spelled two ways, are one document, as RFC 3986 reads a
 // path. format is the source's, which a referenced document is read as part of.
-func newOthers(read *externalReads, first int, format string) Others {
+func newOthers(ctx context.Context, read *externalReads, first int, format string) Others {
 	read.mu.Lock()
 	defer read.mu.Unlock()
 	byLabel := map[string][]string{}
@@ -110,7 +111,7 @@ func newOthers(read *externalReads, first int, format string) Others {
 		o.list = append(o.list, Other{Index: first + i, Label: label, Info: ir.SourceInfo{
 			Format: format, Path: sourcePathOf(keys[0]), Hash: ir.SourceHash(data),
 		}})
-		o.pointers = append(o.pointers, pointersIn(read.trees, keys))
+		o.pointers = append(o.pointers, pointersIn(ctx, read.trees, keys))
 		for _, key := range keys {
 			o.byName[key] = i
 		}
@@ -119,15 +120,16 @@ func newOthers(read *externalReads, first int, format string) Others {
 }
 
 // pointersIn returns scan.Pointers over the trees read prepared under keys, all
-// one document's: a file spelled two ways is prepared under each spelling, and
-// a node of any of them is placed where the tree holding it writes it.
-func pointersIn(trees map[string]*yaml.Node, keys []string) func(*yaml.Node) (jsontext.Pointer, bool) {
+// one document's, each indexed under ctx: a file spelled two ways is prepared
+// under each spelling, and a node of any of them is placed where the tree
+// holding it writes it.
+func pointersIn(ctx context.Context, trees map[string]*yaml.Node, keys []string) func(*yaml.Node) (jsontext.Pointer, bool) {
 	var finds []func(*yaml.Node) (jsontext.Pointer, bool)
 	var indexed []*yaml.Node
 	for _, key := range keys {
 		if tree := trees[key]; !slices.Contains(indexed, tree) {
 			indexed = append(indexed, tree)
-			finds = append(finds, scan.Pointers(tree))
+			finds = append(finds, scan.Pointers(ctx, tree))
 		}
 	}
 	return func(n *yaml.Node) (jsontext.Pointer, bool) {

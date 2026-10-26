@@ -103,7 +103,7 @@ func applyOverlay(ctx context.Context, srcIndex int, root *yaml.Node, opts Optio
 	if diag.HasError(diags) {
 		return overlay.Origin{}, diags
 	}
-	return origin, append(diags, refusals(ctx, locator(srcIndex, origin, scan.Pointers(root)), root, opts)...)
+	return origin, append(diags, refusals(ctx, locator(srcIndex, origin, scan.Pointers(ctx, root)), root, opts)...)
 }
 
 // overlayRefusals holds an overlay to the source's refusals, under the same
@@ -132,7 +132,7 @@ func overlayRefusals(ctx context.Context, opts Options) []ir.Diagnostic {
 	if build == nil {
 		build = defaultIndex
 	}
-	locate := scan.InTree(opts.OverlaySrcIndex, scan.Pointers(tree))
+	locate := scan.InTree(opts.OverlaySrcIndex, scan.Pointers(ctx, tree))
 	idx := build(ctx, tree)
 	if idx.Truncated() {
 		return []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.SourceTooLarge, locate(nil),
@@ -140,7 +140,7 @@ func overlayRefusals(ctx context.Context, opts Options) []ir.Diagnostic {
 			sourceindex.MaxIndexedNodes)}
 	}
 	var diags []ir.Diagnostic
-	if d, deep := scan.Nesting(locate, idx); deep {
+	if d, deep := scan.Nesting(ctx, locate, idx); deep {
 		diags = append(diags, d)
 	}
 	return append(diags, scan.Aliases(ctx, locate, idx, int64(opts.MaxAliasSurplus))...)

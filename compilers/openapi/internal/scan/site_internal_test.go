@@ -60,9 +60,9 @@ func TestLeast_OrdersByThePointersBytes(t *testing.T) {
 			nodes := nodesAt(t, root, tc.among)
 			want := nodesAt(t, root, []jsontext.Pointer{tc.want})[0]
 
-			assert.Same(t, want, Least(root, nodes))
+			assert.Same(t, want, Least(t.Context(), root, nodes))
 			slices.Reverse(nodes)
-			assert.Same(t, want, Least(root, nodes), "whatever order the nodes are given in")
+			assert.Same(t, want, Least(t.Context(), root, nodes), "whatever order the nodes are given in")
 		})
 	}
 }
@@ -116,13 +116,13 @@ func TestLeast_AgreesWithSortingEveryPointer(t *testing.T) {
 		r.Shuffle(len(all), func(i, j int) { all[i], all[j] = all[j], all[i] })
 		candidates := all[:r.IntN(len(all))+1]
 
-		pointers := Pointers(root)
+		pointers := Pointers(t.Context(), root)
 		want := slices.MinFunc(candidates, func(a, b *yaml.Node) int {
 			pa, _ := pointers(a)
 			pb, _ := pointers(b)
 			return strings.Compare(string(pa), string(pb))
 		})
-		got := Least(root, candidates)
+		got := Least(t.Context(), root, candidates)
 		gotPointer, _ := pointers(got)
 		wantPointer, _ := pointers(want)
 		require.Equal(t, wantPointer, gotPointer, "candidates of\n%s", src)
@@ -142,10 +142,10 @@ func TestLeast_RanksANodeNoPointerReachesLast(t *testing.T) {
 	merged, complexKey, complexValue := pairs[1].Content[1], pairs[2], pairs[3]
 	require.Equal(t, yaml.SequenceNode, complexKey.Kind, "the second pair's key is no scalar")
 
-	assert.Same(t, z, Least(root, []*yaml.Node{merged, z, complexKey}))
-	assert.Same(t, merged, Least(root, []*yaml.Node{merged, complexKey}))
-	assert.Same(t, complexKey, Least(root, []*yaml.Node{complexKey, merged}))
-	assert.Same(t, complexValue, Least(root, []*yaml.Node{z, complexValue}),
+	assert.Same(t, z, Least(t.Context(), root, []*yaml.Node{merged, z, complexKey}))
+	assert.Same(t, merged, Least(t.Context(), root, []*yaml.Node{merged, complexKey}))
+	assert.Same(t, complexKey, Least(t.Context(), root, []*yaml.Node{complexKey, merged}))
+	assert.Same(t, complexValue, Least(t.Context(), root, []*yaml.Node{z, complexValue}),
 		"the value is held at /m/, which sorts before /z")
 }
 
@@ -161,11 +161,11 @@ func TestLeast_EdgeCases(t *testing.T) {
 	inner := top.Content[1].Content[1]
 	stranger := ynode.Map()
 
-	assert.Nil(t, Least(&doc, nil))
-	assert.Same(t, stranger, Least(&doc, []*yaml.Node{stranger}))
-	assert.Same(t, top, Least(&doc, []*yaml.Node{inner, top}))
-	assert.Same(t, inner, Least(&doc, []*yaml.Node{&doc, inner}), "the document node ranks with the unplaced")
-	assert.Same(t, stranger, Least(&doc, []*yaml.Node{stranger, &doc}), "and the first of those is taken")
+	assert.Nil(t, Least(t.Context(), &doc, nil))
+	assert.Same(t, stranger, Least(t.Context(), &doc, []*yaml.Node{stranger}))
+	assert.Same(t, top, Least(t.Context(), &doc, []*yaml.Node{inner, top}))
+	assert.Same(t, inner, Least(t.Context(), &doc, []*yaml.Node{&doc, inner}), "the document node ranks with the unplaced")
+	assert.Same(t, stranger, Least(t.Context(), &doc, []*yaml.Node{stranger, &doc}), "and the first of those is taken")
 }
 
 // TestPathsTo_ClimbsEachNodeOnce pins Least's cost: many candidates at the
@@ -190,7 +190,7 @@ func TestPathsTo_ClimbsEachNodeOnce(t *testing.T) {
 	for i := 1; i < len(bottom.Content); i += 2 {
 		candidates = append(candidates, bottom.Content[i])
 	}
-	steps, _ := stepsIn(root, len(candidates)*4+depth*4)
+	steps, _ := stepsIn(t.Context(), root, len(candidates)*4+depth*4)
 	want := map[*yaml.Node]int{}
 	for i, c := range candidates {
 		want[c] = i
@@ -203,7 +203,7 @@ func TestPathsTo_ClimbsEachNodeOnce(t *testing.T) {
 		recorded += len(below)
 	}
 	assert.Equal(t, depth+width+1, recorded, "the spine below the top, and each candidate")
-	assert.Same(t, candidates[0], Least(root, candidates), "c0 is the least")
+	assert.Same(t, candidates[0], Least(t.Context(), root, candidates), "c0 is the least")
 }
 
 // TestLeast_FollowsEveryValueOfARepeatedKey pins the one place two siblings
@@ -217,23 +217,23 @@ func TestLeast_FollowsEveryValueOfARepeatedKey(t *testing.T) {
 		root := indexOf(t, []byte(src)).Root()
 		pairs := root.Content[1].Content
 		first, second := pairs[1].Content[1], pairs[3].Content[1]
-		pointers := Pointers(root)
+		pointers := Pointers(t.Context(), root)
 
-		got, _ := pointers(Least(root, []*yaml.Node{first, second}))
+		got, _ := pointers(Least(t.Context(), root, []*yaml.Node{first, second}))
 		assert.Equal(t, jsontext.Pointer("/x/a/b"), got, "in %q", src)
 	}
 
 	root := indexOf(t, []byte("x: {a: {}, a: {}}\n")).Root()
 	first, second := root.Content[1].Content[1], root.Content[1].Content[3]
-	assert.Same(t, second, Least(root, []*yaml.Node{second, first}), "one pointer: the first given")
-	assert.Same(t, first, Least(root, []*yaml.Node{first, second}))
+	assert.Same(t, second, Least(t.Context(), root, []*yaml.Node{second, first}), "one pointer: the first given")
+	assert.Same(t, first, Least(t.Context(), root, []*yaml.Node{first, second}))
 
 	// z under the first a is given first, so that a is reached first, and the
 	// two k sharing /x/a/k meet in that order rather than the order given.
 	root = indexOf(t, []byte("x: {a: {k: {}, z: {}}, a: {k: {}}}\n")).Root()
 	a1, a2 := root.Content[1].Content[1], root.Content[1].Content[3]
 	k1, z1, k2 := a1.Content[1], a1.Content[3], a2.Content[1]
-	assert.Same(t, k2, Least(root, []*yaml.Node{z1, k2, k1}), "one pointer: the first given of those sharing it")
+	assert.Same(t, k2, Least(t.Context(), root, []*yaml.Node{z1, k2, k1}), "one pointer: the first given of those sharing it")
 }
 
 // bothOrders is two documents declaring members, one as given and one

@@ -142,14 +142,17 @@ regular file and never a FIFO or a device, no further than one byte past it, whe
 declines it unread. A spec past every budget costs the budget and a byte, not its size, and an
 overlay is read the same way. Time is bounded by the caller instead of by a constant: the work a
 compile does in proportion to the document honours the `context.Context` it is given, so a deadline
-or a cancellation stops it between items and the error reaches the caller unwrapped. That is every
-walk of the source's bytes, of its YAML tree and of the model built from it, in each phase of the
-load and of the lowering, and the settling after them; the load also asks before and after each
-phase, so no phase starts once the context is done and none cut short is built on. Within a phase it
-asks again before each call into the parser library, which reads no context, so a screen or walk a
-cancel cut short is never followed by the library's work on what it left;
-`TestLoad_DoesNextToNothingOnceItRefusesACancel` counts that work. The one step a cancel waits out
-is the model build itself, a single call ([`parser-library.md`](parser-library.md#context-unread)).
+or a cancellation stops it between items and the error reaches the caller unwrapped. In the load
+that is every walk of the source's bytes, of its YAML tree and of the model built from it, and in
+the lowering the walks over what it lowers and the settling after them. The lowering's index of
+`$dynamicAnchor` declarations is the exception: built when a `$dynamicRef` is first lowered, it
+walks the tree reading no context. The load also asks before and after each phase, so no phase
+starts once the context is done and none cut short is built on. Within a phase it asks again before
+each call into the parser library, which reads no context, so a screen or walk a cancel cut short is
+never followed by the library's work on what it left;
+`TestLoad_DoesNextToNothingOnceItRefusesACancel` counts that work. In the load, the one step a
+cancel waits out is the model build itself, a single call
+([`parser-library.md`](parser-library.md#context-unread)).
 
 **The contract is checked, not trusted.** Each duty `compilers.Compiler`'s doc comments state is
 held where its data is. `Registry.Register` refuses a format naming no dialect, and

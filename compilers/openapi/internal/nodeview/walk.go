@@ -77,19 +77,20 @@ type walkFrame struct {
 	leave bool
 }
 
-// askEvery is how many nodes a walk visits between two asks of its context: a
-// node costs a few nanoseconds, so asking at each would be most of a walk's
-// work, and a stretch this long still ends within microseconds.
-const askEvery = 256
+// AskEvery is how many nodes a walk of a tree visits between two asks of its
+// context: a node costs a few nanoseconds, so asking at each would be most of a
+// walk's work, and a stretch this long still ends within microseconds. The walks
+// that do not go through Walk ask at the same pace.
+const AskEvery = 256
 
 // Run walks the tree under root. A nil root, or a nil node in a Content list,
 // which no parse produces, is not visited. Once ctx is done the walk stops,
-// within askEvery nodes, and reports itself Cut.
+// within AskEvery nodes, and reports itself Cut.
 func (w Walk) Run(ctx context.Context, root *yaml.Node) Outcome {
 	var out Outcome
 	stack := []walkFrame{{n: root}}
 	for len(stack) > 0 {
-		if out.Visited%askEvery == 0 && ctx.Err() != nil {
+		if out.Visited%AskEvery == 0 && ctx.Err() != nil {
 			out.Cut = true
 			return out
 		}

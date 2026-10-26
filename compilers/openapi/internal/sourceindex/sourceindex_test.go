@@ -2,6 +2,7 @@ package sourceindex_test
 
 import (
 	"fmt"
+	"math"
 	"strings"
 	"testing"
 
@@ -9,9 +10,11 @@ import (
 	"github.com/stretchr/testify/require"
 	yaml "go.yaml.in/yaml/v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/sourceindex"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ynode"
+	"github.com/dexpace/morphic/internal/ctxtest"
 )
 
 func TestBuild_EmptyDocumentIndexesNothing(t *testing.T) {
@@ -476,5 +479,28 @@ func TestNesting_DeepTreeCostsNoStack(t *testing.T) {
 	idx := sourceindex.Build(t.Context(), root, sourceindex.MaxIndexedNodes)
 	require.False(t, idx.Truncated())
 	assert.Equal(t, int64(depth+1), idx.Nesting())
-	assert.Equal(t, int64(depth), sourceindex.NewMeasure(sourceindex.MaxIndexedNodes).Of(deep))
+	assert.Equal(t, int64(depth), sourceindex.NewMeasure(sourceindex.MaxIndexedNodes).Of(t.Context(), deep))
+}
+
+// TestBuild_MeasuresAnAliasTargetUnderItsContext pins that the index measures
+// what an alias names under the context it was built with. The walk takes the
+// alias as a leaf and measures its target within that one visit, so the
+// measure's asks are all that pace it: they come on top of the walk's own.
+func TestBuild_MeasuresAnAliasTargetUnderItsContext(t *testing.T) {
+	t.Parallel()
+	items := make([]*yaml.Node, 4*nodeview.AskEvery)
+	for i := range items {
+		items[i] = ynode.Scalar("v")
+	}
+	target := ynode.Seq(items...)
+	asks := func(root *yaml.Node) int {
+		ctx := &ctxtest.Countdown{Context: t.Context(), Left: math.MaxInt}
+		require.False(t, sourceindex.Build(ctx, root, sourceindex.MaxIndexedNodes).Truncated())
+		return ctx.Calls
+	}
+
+	walked := asks(ynode.Map(ynode.Scalar("a"), target))
+	measured := asks(ynode.Map(ynode.Scalar("a"), target, ynode.Scalar("b"), ynode.Alias(target)))
+
+	assert.GreaterOrEqual(t, measured-walked, len(items)/nodeview.AskEvery)
 }
