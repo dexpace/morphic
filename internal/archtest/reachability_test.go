@@ -81,9 +81,9 @@ var testSupport = map[string]string{
 // of apiRoots. What the packages testSupport names declare is spared. Both lists
 // are held the other way too: an apiRoots entry a binary reaches fails, and so
 // does a testSupport entry sparing nothing. Reachability is rapid type analysis
-// over the whole program, which follows calls through interfaces to the types
-// the program converts to them, so it counts every exported method of such a
-// type as reached: reflection could call it.
+// over the whole program: it follows calls through interfaces to the types the
+// program converts to them, and counts every exported method of such a type as
+// reached, since reflection could call it.
 func TestReachability_OnlyTestsReachNoFunction(t *testing.T) {
 	t.Parallel()
 	p := moduleProgram(t)
