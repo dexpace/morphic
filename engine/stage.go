@@ -42,14 +42,20 @@ var errSourceOutOfRange = errors.New("reported a diagnostic indexing no source")
 // A pass takes no context, so ctx is checked before each one: a cancelled run
 // stops at the next pass rather than running the rest, and a pass that
 // outlasts its context holds the run until it returns.
-func runPasses(ctx context.Context, doc *ir.Document, passes []namedPass) (*ir.Document, []ir.Diagnostic, error) {
+//
+// sum is the fingerprint of doc when the plan verifies, which each pass's
+// result is then held to.
+func runPasses(ctx context.Context, doc *ir.Document, sum fingerprint, p plan) (*ir.Document, []ir.Diagnostic, error) {
 	var found []ir.Diagnostic
-	for _, p := range passes {
+	for _, np := range p.passes {
 		if err := ctx.Err(); err != nil {
-			return nil, nil, fmt.Errorf("engine: stop before pass %q: %w", p.name, err)
+			return nil, nil, fmt.Errorf("engine: stop before pass %q: %w", np.name, err)
 		}
-		next, diags, err := p.run(doc)
+		next, diags, err := np.run(doc)
 		if err != nil {
+			return nil, nil, err
+		}
+		if sum, err = p.afterPass(np, sum, doc, next); err != nil {
 			return nil, nil, err
 		}
 		doc, found = next, append(found, diags...)

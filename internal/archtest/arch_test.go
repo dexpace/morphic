@@ -344,8 +344,8 @@ var rules = map[string][]string{
 	// registry and nothing of any source format: what a spec looks like and what
 	// its options are called are answered through the contract, so no parser is
 	// named here. It reads a run's documents through its own reader package.
-	"engine": {module + "/barrier", module + "/ir", module + "/compilers", module + "/compilers/openapi",
-		module + "/engine/reader", module + "/pass"},
+	"engine": {module + "/barrier", module + "/ir", module + "/ir/irverify", module + "/compilers",
+		module + "/compilers/openapi", module + "/engine/reader", module + "/pass"},
 	// What a run's references and settings name, read from disk, the network or
 	// memory. It reaches the contract whose reader it implements and nothing
 	// else, so a caller compiling directly reads as the engine does without

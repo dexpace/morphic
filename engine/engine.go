@@ -12,6 +12,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/ir/irverify"
 	"github.com/dexpace/morphic/pass"
 )
 
@@ -36,6 +37,12 @@ type RunOptions struct {
 	// and Result.Failed is the verdict. A value naming no threshold fails the
 	// run with ErrUnknownFailOn before the spec is read.
 	FailOn FailOn `json:"failOn,omitempty"`
+	// Verify holds the document the compiler returns, and each pass's, to the
+	// invariants ir/irverify states, and each pass to leaving the document it was
+	// handed as it found it. The first stage to break one fails the run with a
+	// *VerifyError, or an error wrapping pass.ErrContract. It costs about as
+	// much as compiling again, so it is for developing a stage.
+	Verify bool `json:"verify,omitzero"`
 }
 
 // errOptionChannels reports both option channels set at once. Which one wins
@@ -86,6 +93,9 @@ type Result struct {
 type Engine struct {
 	registry *compilers.Registry
 	passes   []namedPass
+	// verifier is what a verified run holds each document to, fixed when the
+	// engine is built.
+	verifier verifier
 }
 
 // Compilers returns the built-in compilers, fresh values in registration order:
@@ -125,8 +135,8 @@ func WithPasses(ps ...pass.Pass) Option {
 // New builds an Engine registering every built-in compiler (Compilers) and
 // running the default passes (Passes), unless opts say otherwise. A nil option,
 // a compiler the registry refuses, and a pass list a run could not address by
-// name (a nil pass, an unnamed one, two sharing a name) are each a Go error
-// naming the position, rather than a panic.
+// name (a nil pass, an unnamed one, one whose Name panics, two sharing a name)
+// are each a Go error naming the position, rather than a panic.
 //
 // An empty compiler set is refused too. A built engine cannot gain a compiler,
 // so one with none could compile nothing and would report every source as
@@ -153,7 +163,7 @@ func New(opts ...Option) (*Engine, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Engine{registry: reg, passes: passes}, nil
+	return &Engine{registry: reg, passes: passes, verifier: irverify.Verify}, nil
 }
 
 // Run executes the pipeline for the spec at specPath: read it, compile it with
@@ -215,15 +225,15 @@ func (e *Engine) RunSources(ctx context.Context, sources []compilers.Source, opt
 }
 
 // RunDocument runs the passes not named in opts.DisablePasses over doc, a
-// document already compiled, such as one decoded from a file, and judges the
-// Result at opts.FailOn. No compiler runs, so opts may name no compiler option
-// and Result.Format is the zero format; Result.Diagnostics holds doc's own
-// findings and the passes'.
+// document already compiled, such as a decoded file, and judges the Result at
+// opts.FailOn. No compiler runs, so opts may name no compiler option and
+// Result.Format is zero. Result.Diagnostics starts from doc's own findings.
 //
 // doc is not modified. The Result's document may share any field of doc but
-// Diagnostics, so neither may change while the other is read. A nil doc, one
-// whose IRVersion this build cannot read, one holding a finding indexing none
-// of its Sources, and compiler options are Go errors.
+// Diagnostics, so neither may change while the other is read. Go errors: a nil
+// doc, one whose IRVersion this build cannot read, one holding a finding
+// indexing none of its Sources, one breaking the IR's invariants under
+// opts.Verify, and compiler options.
 func (e *Engine) RunDocument(ctx context.Context, doc *ir.Document, opts RunOptions) (*Result, error) {
 	p, err := e.prepare(opts)
 	if err != nil {
@@ -255,7 +265,11 @@ func (e *Engine) RunDocument(ctx context.Context, doc *ir.Document, opts RunOpti
 	if err := ctx.Err(); err != nil {
 		return nil, fmt.Errorf("engine: stop before the passes: %w", err)
 	}
-	out, found, err := runPasses(ctx, doc, p.passes)
+	sum, err := p.hold("input document", nil, doc)
+	if err != nil {
+		return nil, err
+	}
+	out, found, err := runPasses(ctx, doc, sum, p)
 	if err != nil {
 		return nil, err
 	}
@@ -267,10 +281,14 @@ func (e *Engine) RunDocument(ctx context.Context, doc *ir.Document, opts RunOpti
 }
 
 // plan is what a run needs once its options are checked: the passes it runs,
-// in order, and the threshold it is judged at.
+// in order, the threshold it is judged at, and the verifier it holds each stage
+// to, if any.
 type plan struct {
 	passes []namedPass
 	failOn threshold
+	// verify is the verifier a verified run holds each document to, nil for a
+	// run that does not verify.
+	verify verifier
 }
 
 // prepare checks what every entry point checks before it reads anything, and
@@ -298,7 +316,11 @@ func (e *Engine) prepare(opts RunOptions) (plan, error) {
 	if err != nil {
 		return plan{}, err
 	}
-	return plan{passes: passes, failOn: failOn}, nil
+	p := plan{passes: passes, failOn: failOn}
+	if opts.Verify {
+		p.verify = e.verifier
+	}
+	return p, nil
 }
 
 // compile runs the pipeline over source: detect, compile, then passes. docs
@@ -335,6 +357,11 @@ func (e *Engine) compile(ctx context.Context, source compilers.Source, docs comp
 	if doc == nil {
 		return &Result{Diagnostics: compiled, Format: format, Sources: out.Sources}, nil
 	}
+	// A verified run holds the document to the invariants before any pass reads it.
+	sum, err := p.hold(fmt.Sprintf("compile %q", source.Path), compilers.ErrContract, doc)
+	if err != nil {
+		return nil, err
+	}
 	// Both channels end up carrying the whole list: the Result is what a caller
 	// gates on, and the document is what gets persisted (golden snapshots, IR
 	// diff, caches, emitters). The compiler's findings, both of its channels
@@ -342,7 +369,7 @@ func (e *Engine) compile(ctx context.Context, source compilers.Source, docs comp
 	// passes' contract leaves Document.Diagnostics to the engine: a transform
 	// that builds a fresh document cannot lose what the compiler stored on the
 	// old one.
-	doc, found, err := runPasses(ctx, doc, p.passes)
+	doc, found, err := runPasses(ctx, doc, sum, p)
 	if err != nil {
 		return nil, err
 	}
