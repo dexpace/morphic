@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/ir/irtest"
 )
 
 // idClassNames names idTypes' identity classes by their Go type name, so the
@@ -198,4 +199,25 @@ func TestIDFieldsOf_UnlistedPositionDefaultsToRequired(t *testing.T) {
 	require.Len(t, fields, 1, "an ID-typed field must be classified even with no idPositions entry")
 	assert.Equal(t, idRequired, fields[0].rule,
 		"a position idPositions does not list must default to idRequired, the map's zero value")
+}
+
+// TestCheckEmptyRefs_VisitingCostsNoAllocation holds the check's cost for a
+// map of references none of which is empty at nothing once it has met the
+// map's type: it reads values into what it keeps, where reflect.MapIter.Value
+// allocates a copy of each. It is not run in parallel: AllocsPerRun measures
+// the process.
+func TestCheckEmptyRefs_VisitingCostsNoAllocation(t *testing.T) {
+	doc := &ir.Document{Types: ir.TypeRegistry{
+		"t/pet": &ir.Model{ID: "t/pet", Discriminator: &ir.Discriminator{
+			PropertyName: "kind",
+			Mapping:      map[string]ir.TypeID{"cat": "t/cat", "dog": "t/dog", "fox": "t/fox"},
+		}},
+		"t/zoo": &ir.Model{ID: "t/zoo", Discriminator: &ir.Discriminator{
+			PropertyName: "kind",
+			Mapping:      map[string]ir.TypeID{"pet": "t/pet"},
+		}},
+	}}
+	check := checkEmptyRefs(doc)
+	assert.Empty(t, irtest.AllocatingVisits(doc, check))
+	assert.Empty(t, check.report(declarations{}), "no reference is empty")
 }

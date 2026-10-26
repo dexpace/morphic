@@ -130,6 +130,7 @@ type idField struct {
 // spelling.
 func checkEmptyRefs(*ir.Document) walkCheck {
 	var vs []Violation
+	var reader entryReader
 	fields := map[reflect.Type][]idField{}
 	return walkCheck{
 		visit: func(v reflect.Value, at ir.WalkPath) bool {
@@ -142,7 +143,7 @@ func checkEmptyRefs(*ir.Document) walkCheck {
 				fields[v.Type()] = byType
 			}
 			for _, f := range byType {
-				vs = appendEmptyRefs(vs, v, f, at)
+				vs = appendEmptyRefs(vs, &reader, v, f, at)
 			}
 			return true
 		},
@@ -184,8 +185,8 @@ func idShapeOf(t reflect.Type) (idShape, reflect.Type, bool) {
 }
 
 // appendEmptyRefs reports each empty ID the field f of owner holds; at is where
-// owner sits.
-func appendEmptyRefs(vs []Violation, owner reflect.Value, f idField, at ir.WalkPath) []Violation {
+// owner sits, and r reads a map's entries.
+func appendEmptyRefs(vs []Violation, r *entryReader, owner reflect.Value, f idField, at ir.WalkPath) []Violation {
 	v := owner.Field(f.index)
 	switch f.shape {
 	case idScalar:
@@ -207,9 +208,10 @@ func appendEmptyRefs(vs []Violation, owner reflect.Value, f idField, at ir.WalkP
 			vs = append(vs, emptyRef(f, fieldPath(at, f)+"[]"+ir.MapKeySuffix))
 		}
 	case idMapValue:
+		held := r.reading(v)
 		for iter := v.MapRange(); iter.Next(); {
-			if iter.Value().String() == "" {
-				vs = append(vs, emptyRef(f, fmt.Sprintf("%s[%v]", fieldPath(at, f), iter.Key())))
+			if key, id := held.read(iter); id.String() == "" {
+				vs = append(vs, emptyRef(f, fmt.Sprintf("%s[%v]", fieldPath(at, f), key)))
 			}
 		}
 	}

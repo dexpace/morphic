@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/ir/irtest"
 )
 
 // docWithServers builds a document declaring one server, so index 0 addresses it
@@ -288,4 +289,26 @@ func mentionsInteger(t *testing.T, typ types.Type, depth int) bool {
 func isByte(typ types.Type) bool {
 	basic, isBasic := typ.Underlying().(*types.Basic)
 	return isBasic && basic.Kind() == types.Uint8
+}
+
+// TestCheckIndices_VisitingCostsNoAllocation holds the check's cost for an
+// operation whose response indices are in range at nothing once it has met a
+// SuccessStatus map: it reads keys into what it keeps, where
+// reflect.MapIter.Key allocates a copy of each. It is not run in parallel:
+// AllocsPerRun measures the process.
+func TestCheckIndices_VisitingCostsNoAllocation(t *testing.T) {
+	doc := &ir.Document{Services: []ir.Service{{
+		ID: "s/x",
+		Groups: []ir.OperationGroup{{Operations: []ir.Operation{{
+			ID:        "op/x",
+			Responses: []ir.Response{{}, {}, {}},
+			Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{
+				{Method: "GET", SuccessStatus: map[int]int{0: 200, 1: 201, 2: 202}},
+				{Method: "PUT", SuccessStatus: map[int]int{2: 204}},
+			}},
+		}}}},
+	}}}
+	check := checkIndices(doc)
+	assert.Empty(t, irtest.AllocatingVisits(doc, check))
+	assert.Empty(t, check.report(declarations{}), "every index addresses a declared response")
 }
