@@ -2,6 +2,7 @@ package output_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json/jsontext"
 	"errors"
 	"fmt"
@@ -100,7 +101,7 @@ func TestWriteDocument_BadDocumentWritesNothing(t *testing.T) {
 			t.Parallel()
 			var w bytes.Buffer
 
-			err := output.WriteDocument(&w, bigBadDoc(), tt.layout)
+			err := output.WriteDocument(t.Context(), &w, bigBadDoc(), tt.layout)
 
 			require.Error(t, err)
 			assert.ErrorContains(t, err, "marshal ir document")
@@ -118,7 +119,7 @@ func TestWriteDocument_RefusingWriter(t *testing.T) {
 	for _, tt := range layouts {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := output.WriteDocument(refusingWriter{}, orderedDoc(), tt.layout)
+			err := output.WriteDocument(t.Context(), refusingWriter{}, orderedDoc(), tt.layout)
 
 			require.ErrorIs(t, err, errDisk)
 			assert.EqualError(t, err, "write ir document: disk gone")
@@ -127,19 +128,30 @@ func TestWriteDocument_RefusingWriter(t *testing.T) {
 }
 
 // badCalls are the calls both functions refuse before encoding anything: no
-// document, and a layout the package does not define. Writing an unknown layout
-// as Compact would hide the caller's mistake.
+// context, no document, and a layout the package does not define. Writing an
+// unknown layout as Compact would hide the caller's mistake.
 var badCalls = []struct {
-	name   string
-	doc    *ir.Document
-	layout output.Layout
-	want   string
+	name      string
+	noContext bool
+	doc       *ir.Document
+	layout    output.Layout
+	want      string
 }{
-	{"no document, compact", nil, output.Compact, "output: no document to write"},
-	{"no document, indented", nil, output.Indented, "output: no document to write"},
-	{"the layout after the last", orderedDoc(), output.Layout(2), "output: unknown layout 2"},
-	{"a layout far past the last", orderedDoc(), output.Layout(7), "output: unknown layout 7"},
-	{"a negative layout", orderedDoc(), output.Layout(-1), "output: unknown layout -1"},
+	{"no context", true, orderedDoc(), output.Compact, "output: no context to write under"},
+	{"no document, compact", false, nil, output.Compact, "output: no document to write"},
+	{"no document, indented", false, nil, output.Indented, "output: no document to write"},
+	{"the layout after the last", false, orderedDoc(), output.Layout(2), "output: unknown layout 2"},
+	{"a layout far past the last", false, orderedDoc(), output.Layout(7), "output: unknown layout 7"},
+	{"a negative layout", false, orderedDoc(), output.Layout(-1), "output: unknown layout -1"},
+}
+
+// contextFor returns the context a bad call is made under: t's, or nil when
+// the call is refused for having none.
+func contextFor(t *testing.T, noContext bool) context.Context {
+	if noContext {
+		return nil
+	}
+	return t.Context()
 }
 
 // TestWriteDocument_RefusesAnUnusableCall pins that a refused call writes
@@ -153,7 +165,7 @@ func TestWriteDocument_RefusesAnUnusableCall(t *testing.T) {
 			t.Parallel()
 			var w bytes.Buffer
 
-			err := output.WriteDocument(&w, tt.doc, tt.layout)
+			err := output.WriteDocument(contextFor(t, tt.noContext), &w, tt.doc, tt.layout)
 
 			assert.EqualError(t, err, tt.want)
 			assert.Empty(t, w.String())
@@ -183,7 +195,7 @@ func TestReplaceDocument_WritesTheLayoutItIsAsked(t *testing.T) {
 			require.NoError(t, os.WriteFile(dest, []byte("stale\n"), 0o644))
 			doc := orderedDoc()
 
-			require.NoError(t, output.ReplaceDocument(dest, doc, tt.layout))
+			require.NoError(t, output.ReplaceDocument(t.Context(), dest, doc, tt.layout))
 
 			assert.Empty(t, cmp.Diff(string(written(t, doc, tt.same)), contentOf(t, dest)))
 			assert.Equal(t, []string{"ir.json"}, entriesIn(t, filepath.Dir(dest)),
@@ -205,7 +217,7 @@ func TestReplaceDocument_BadDocumentLeavesDestinationUntouched(t *testing.T) {
 			dest := filepath.Join(t.TempDir(), "ir.json")
 			require.NoError(t, os.WriteFile(dest, []byte(existing), 0o644))
 
-			err := output.ReplaceDocument(dest, bigBadDoc(), tt.layout)
+			err := output.ReplaceDocument(t.Context(), dest, bigBadDoc(), tt.layout)
 
 			require.Error(t, err)
 			assert.ErrorContains(t, err, fmt.Sprintf("replace output %q: marshal ir document", dest))
@@ -229,8 +241,9 @@ func TestReplaceDocument_RefusesAnUnusableCall(t *testing.T) {
 			dest := filepath.Join(dir, "ir.json")
 			require.NoError(t, os.WriteFile(dest, []byte("PREVIOUS\n"), 0o644))
 
-			existingErr := output.ReplaceDocument(dest, tt.doc, tt.layout)
-			missingErr := output.ReplaceDocument(filepath.Join(dir, "missing.json"), tt.doc, tt.layout)
+			ctx := contextFor(t, tt.noContext)
+			existingErr := output.ReplaceDocument(ctx, dest, tt.doc, tt.layout)
+			missingErr := output.ReplaceDocument(ctx, filepath.Join(dir, "missing.json"), tt.doc, tt.layout)
 
 			assert.EqualError(t, existingErr, tt.want)
 			assert.EqualError(t, missingErr, tt.want)
@@ -247,7 +260,7 @@ func TestReplaceDocument_MissingParentDirectory(t *testing.T) {
 	t.Parallel()
 	dest := filepath.Join(t.TempDir(), "missing-dir", "ir.json")
 
-	err := output.ReplaceDocument(dest, orderedDoc(), output.Compact)
+	err := output.ReplaceDocument(t.Context(), dest, orderedDoc(), output.Compact)
 
 	require.ErrorIs(t, err, os.ErrNotExist)
 	assert.ErrorContains(t, err, fmt.Sprintf("create output %q", dest))
@@ -281,7 +294,7 @@ func TestEncode_ErrorPaths(t *testing.T) {
 			t.Run(tt.name+", "+l.name, func(t *testing.T) {
 				t.Parallel()
 
-				err := output.Encode(tt.w(), tt.doc(), l.layout)
+				err := output.Encode(t.Context(), tt.w(), tt.doc(), l.layout)
 
 				require.Error(t, err)
 				assert.ErrorContains(t, err, tt.want)
@@ -300,7 +313,7 @@ func TestEncode_ErrorPaths(t *testing.T) {
 func TestWriteDocument_RefusesNoWriter(t *testing.T) {
 	t.Parallel()
 
-	err := output.WriteDocument(nil, orderedDoc(), output.Compact)
+	err := output.WriteDocument(t.Context(), nil, orderedDoc(), output.Compact)
 
 	assert.EqualError(t, err, "output: no writer to write to")
 }
@@ -312,8 +325,101 @@ func TestReplaceDocument_RefusesAnEmptyPath(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)
 
-	err := output.ReplaceDocument("", orderedDoc(), output.Compact)
+	err := output.ReplaceDocument(t.Context(), "", orderedDoc(), output.Compact)
 
 	assert.EqualError(t, err, "replace output: no path to replace")
 	assert.Empty(t, entriesIn(t, dir))
+}
+
+// TestWriteDocument_ADoneContextWritesNothing pins that a write whose context
+// has ended leaves the writer untouched, and says why.
+func TestWriteDocument_ADoneContextWritesNothing(t *testing.T) {
+	t.Parallel()
+	for _, tt := range layouts {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx, cancel := context.WithCancel(t.Context())
+			cancel()
+			var w bytes.Buffer
+
+			err := output.WriteDocument(ctx, &w, manyTypesDoc(), tt.layout)
+
+			require.ErrorIs(t, err, context.Canceled)
+			assert.EqualError(t, err, "write ir document: context canceled")
+			assert.Empty(t, w.String())
+		})
+	}
+}
+
+// TestReplaceDocument_ADoneContextLeavesTheDestination pins that a replace
+// whose context has ended touches no file: an existing destination keeps its
+// bytes, a missing one is not created, and no temporary file is left. It is
+// refused before a temporary file is tried, so a directory that is not there
+// goes unnoticed.
+func TestReplaceDocument_ADoneContextLeavesTheDestination(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	dir := t.TempDir()
+	dest := filepath.Join(dir, "ir.json")
+	require.NoError(t, os.WriteFile(dest, []byte("PREVIOUS\n"), 0o644))
+
+	for _, path := range []string{dest, filepath.Join(dir, "missing.json"), filepath.Join(dir, "no-dir", "ir.json")} {
+		err := output.ReplaceDocument(ctx, path, manyTypesDoc(), output.Compact)
+
+		assert.EqualError(t, err, fmt.Sprintf("replace output %q: context canceled", path))
+	}
+	assert.Equal(t, "PREVIOUS\n", contentOf(t, dest))
+	assert.Equal(t, []string{"ir.json"}, entriesIn(t, dir))
+}
+
+// cancellingWriter keeps what it is given and ends its context on the first
+// write, as a stop arriving while the encoder writes does.
+type cancellingWriter struct {
+	cancel context.CancelFunc
+	writes int
+	buf    bytes.Buffer
+}
+
+func (w *cancellingWriter) Write(p []byte) (int, error) {
+	w.cancel()
+	w.writes++
+	return w.buf.Write(p)
+}
+
+// TestEncode_StopsAtTheWriteAfterTheContextEnds pins how far an encoding goes
+// once its context ends: the write under way finishes and no other starts,
+// whether the next would have been more of the document or its newline. The
+// many types take several of the encoder's writes; the bare document takes one.
+func TestEncode_StopsAtTheWriteAfterTheContextEnds(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		doc  func() *ir.Document
+		// whole is whether the first write holds the whole document.
+		whole bool
+	}{
+		{"the next write is more of the document", manyTypesDoc, false},
+		{"the next write is the newline", bareDoc, true},
+	}
+	for _, tt := range tests {
+		for _, l := range layouts {
+			t.Run(tt.name+", "+l.name, func(t *testing.T) {
+				t.Parallel()
+				ctx, cancel := context.WithCancel(t.Context())
+				defer cancel()
+				w := &cancellingWriter{cancel: cancel}
+				document := strings.TrimSuffix(string(written(t, tt.doc(), l.layout)), "\n")
+
+				err := output.Encode(ctx, w, tt.doc(), l.layout)
+
+				require.ErrorIs(t, err, context.Canceled)
+				assert.EqualError(t, err, "write ir document: context canceled")
+				assert.Equal(t, 1, w.writes, "no write starts once the context has ended")
+				got := w.buf.String()
+				assert.True(t, strings.HasPrefix(document, got), "what was written is the document's start")
+				assert.Equal(t, tt.whole, got == document, "the document is whole only when one write held it")
+			})
+		}
+	}
 }

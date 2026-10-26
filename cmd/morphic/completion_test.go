@@ -19,7 +19,7 @@ func complete(t *testing.T, args ...string) (suggestions []string, directive cob
 	t.Helper()
 
 	var stdout, stderr bytes.Buffer
-	require.Equal(t, 0, run(append([]string{"__complete"}, args...), &stdout, &stderr),
+	require.Equal(t, 0, run(t.Context(), append([]string{"__complete"}, args...), &stdout, &stderr),
 		"stderr: %s", stderr.String())
 
 	lines := strings.Split(strings.TrimSuffix(stdout.String(), "\n"), "\n")

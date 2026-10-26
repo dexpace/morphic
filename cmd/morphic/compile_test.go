@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -16,6 +17,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/engine"
 	"github.com/dexpace/morphic/internal/testspec"
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/ir/irtest"
@@ -34,7 +37,7 @@ func TestRun_ParseWritesIRToFile(t *testing.T) {
 	out := filepath.Join(t.TempDir(), "ir.json")
 	var stdout, stderr bytes.Buffer
 
-	code := run([]string{"compile", spec, "-o", out}, &stdout, &stderr)
+	code := run(t.Context(), []string{"compile", spec, "-o", out}, &stdout, &stderr)
 
 	require.Equal(t, 0, code, "stderr: %s", stderr.String())
 	raw, err := os.ReadFile(out)
@@ -70,7 +73,7 @@ func TestRun_SpecProblemsExitOne(t *testing.T) {
 			spec := writeFile(t, "spec.yaml", tt.contents)
 			var stdout, stderr bytes.Buffer
 
-			code := run([]string{"compile", spec}, &stdout, &stderr)
+			code := run(t.Context(), []string{"compile", spec}, &stdout, &stderr)
 
 			assert.Equal(t, 1, code, "stderr: %s", stderr.String())
 			assert.Contains(t, stderr.String(), tt.code+" "+spec+": ",
@@ -81,7 +84,7 @@ func TestRun_SpecProblemsExitOne(t *testing.T) {
 
 			stdout.Reset()
 			stderr.Reset()
-			assert.Equal(t, 1, run([]string{"compile", spec, "--fail-on", "none"}, &stdout, &stderr),
+			assert.Equal(t, 1, run(t.Context(), []string{"compile", spec, "--fail-on", "none"}, &stdout, &stderr),
 				"--fail-on none still fails a spec that lowered to no document")
 		})
 	}
@@ -91,7 +94,7 @@ func TestRun_DiagnosticsGateExitCode(t *testing.T) {
 	t.Parallel()
 	spec := writeFile(t, "warn.yaml", warnSpec)
 	var stdout, stderr bytes.Buffer
-	require.Equal(t, 0, run([]string{"compile", spec}, &stdout, &stderr),
+	require.Equal(t, 0, run(t.Context(), []string{"compile", spec}, &stdout, &stderr),
 		"info diagnostics must not fail the default gate")
 	assert.Contains(t, stderr.String(), "openapi/validation-only-keyword")
 }
@@ -132,7 +135,7 @@ func TestRun_UsageErrors(t *testing.T) {
 			t.Parallel()
 			var stdout, stderr bytes.Buffer
 
-			assert.Equal(t, 2, run(tt.args, &stdout, &stderr))
+			assert.Equal(t, 2, run(t.Context(), tt.args, &stdout, &stderr))
 			assert.Empty(t, stdout.String(), "usage errors must never write to stdout")
 			assert.Contains(t, stderr.String(), tt.reason)
 			assert.Contains(t, stderr.String(), `Try "`+tt.help+` --help" for usage.`,
@@ -153,7 +156,7 @@ func TestRun_ExplainWithOutputWritesNothing(t *testing.T) {
 	out := filepath.Join(t.TempDir(), "ir.json")
 	var stdout, stderr bytes.Buffer
 
-	code := run([]string{"compile", spec, "--explain", "", "--output", out}, &stdout, &stderr)
+	code := run(t.Context(), []string{"compile", spec, "--explain", "", "--output", out}, &stdout, &stderr)
 
 	assert.Equal(t, 2, code)
 	assert.Empty(t, stdout.String())
@@ -162,7 +165,7 @@ func TestRun_ExplainWithOutputWritesNothing(t *testing.T) {
 	// An empty --output is the default, not a destination, so it does not conflict.
 	stdout.Reset()
 	stderr.Reset()
-	code = run([]string{"compile", spec, "--explain", "", "--output", ""}, &stdout, &stderr)
+	code = run(t.Context(), []string{"compile", spec, "--explain", "", "--output", ""}, &stdout, &stderr)
 	assert.Equal(t, 0, code, "stderr: %s", stderr.String())
 }
 
@@ -196,7 +199,7 @@ func TestRun_CompilerOptionReachesTheCompiler(t *testing.T) {
 func groupNameOf(t *testing.T, spec string, args ...string) string {
 	t.Helper()
 	var stdout, stderr bytes.Buffer
-	code := run(append([]string{"compile", spec}, args...), &stdout, &stderr)
+	code := run(t.Context(), append([]string{"compile", spec}, args...), &stdout, &stderr)
 	require.Equal(t, 0, code, "stderr: %s", stderr.String())
 
 	var doc ir.Document
@@ -224,7 +227,7 @@ actions:
 `), 0o644))
 
 	var stdout, stderr bytes.Buffer
-	code := run([]string{"compile", spec, "--opt", "overlay=" + overlay}, &stdout, &stderr)
+	code := run(t.Context(), []string{"compile", spec, "--opt", "overlay=" + overlay}, &stdout, &stderr)
 	require.Equal(t, 0, code, "stderr: %s", stderr.String())
 
 	var doc ir.Document
@@ -241,14 +244,14 @@ func TestRun_BudgetOptionReachesTheCompiler(t *testing.T) {
 	spec := writeFile(t, "spec.yaml", testspec.Tiny)
 
 	var stdout, stderr bytes.Buffer
-	code := run([]string{"validate", spec, "--opt", "max-source-bytes=8"}, &stdout, &stderr)
+	code := run(t.Context(), []string{"validate", spec, "--opt", "max-source-bytes=8"}, &stdout, &stderr)
 	assert.Equal(t, 1, code)
 	assert.Contains(t, stderr.String(), "openapi/budget-exceeded")
 	assert.Contains(t, stderr.String(), "past the 8-byte budget")
 
 	stdout.Reset()
 	stderr.Reset()
-	code = run([]string{"validate", spec, "--opt", "max-source-bytes=-1"}, &stdout, &stderr)
+	code = run(t.Context(), []string{"validate", spec, "--opt", "max-source-bytes=-1"}, &stdout, &stderr)
 	assert.Equal(t, 0, code, "stderr: %s", stderr.String())
 }
 
@@ -271,7 +274,7 @@ func TestRun_BadCompilerOptionIsRefused(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			var stdout, stderr bytes.Buffer
-			code := run([]string{"compile", spec, "--opt", tc.arg}, &stdout, &stderr)
+			code := run(t.Context(), []string{"compile", spec, "--opt", tc.arg}, &stdout, &stderr)
 			assert.Equal(t, 2, code)
 			assert.Contains(t, stderr.String(), tc.wantErr)
 			assert.Empty(t, stdout.String(), "a refused option must write no document")
@@ -305,7 +308,7 @@ func compileToFile(t *testing.T, spec string, flags ...string) []byte {
 	args := append([]string{"compile", spec, "-o", out}, flags...)
 	var stdout, stderr bytes.Buffer
 
-	require.Equal(t, 0, run(args, &stdout, &stderr), "stderr: %s", stderr.String())
+	require.Equal(t, 0, run(t.Context(), args, &stdout, &stderr), "stderr: %s", stderr.String())
 
 	raw, err := os.ReadFile(out)
 	require.NoError(t, err)
@@ -339,7 +342,7 @@ func TestRun_PrettyRestoresIndentedFile(t *testing.T) {
 	raw := compileToFile(t, spec, "--pretty")
 
 	var stdout, stderr bytes.Buffer
-	require.Equal(t, 0, run([]string{"compile", spec}, &stdout, &stderr), "stderr: %s", stderr.String())
+	require.Equal(t, 0, run(t.Context(), []string{"compile", spec}, &stdout, &stderr), "stderr: %s", stderr.String())
 	assert.Empty(t, cmp.Diff(stdout.String(), string(raw)),
 		"--pretty must write the bytes stdout gets")
 }
@@ -355,7 +358,7 @@ func TestRun_StdoutIsTheGoldenEncoding(t *testing.T) {
 	spec := writeFile(t, "spec.yaml", unsortedSpec)
 
 	var stdout, stderr bytes.Buffer
-	require.Equal(t, 0, run([]string{"compile", spec}, &stdout, &stderr), "stderr: %s", stderr.String())
+	require.Equal(t, 0, run(t.Context(), []string{"compile", spec}, &stdout, &stderr), "stderr: %s", stderr.String())
 
 	res, _, err := runPipeline(context.Background(), spec, specOptions{}, io.Discard)
 	require.NoError(t, err)
@@ -422,5 +425,65 @@ func TestSpecOptions_DisabledPasses(t *testing.T) {
 			t.Parallel()
 			assert.Empty(t, cmp.Diff(tt.want, tt.opts.disabledPasses()))
 		})
+	}
+}
+
+// findingCompiler lowers every spec to a bare document with a finding.
+type findingCompiler struct{ nilDocCompiler }
+
+func (findingCompiler) Compile(_ context.Context, sources []compilers.Source, _ compilers.Options) (*ir.Document, []ir.Diagnostic, error) {
+	return &ir.Document{
+		IRVersion: ir.IRVersion,
+		Name:      "Found",
+		Sources:   []ir.SourceInfo{{Format: "openapi@3.1", Path: sources[0].Path, Hash: ir.SourceHash(sources[0].Data)}},
+	}, []ir.Diagnostic{{Severity: ir.SeverityWarning, Code: "openapi/late-finding", Message: "found"}}, nil
+}
+
+// cancellingPass cancels the run it is part of and hands the document back as
+// it was, as a pass that never looks at a context does. The engine checks the
+// context before each pass and not after the last, so the run comes back whole.
+type cancellingPass struct{ cancel func() }
+
+func (cancellingPass) Name() string { return "cancelling" }
+
+func (p cancellingPass) Run(doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
+	p.cancel()
+	return doc, nil
+}
+
+// TestRunPipeline_ARunCancelledInItsLastStageWritesNothing pins the check
+// after the engine returns: a run cancelled in its last pass, where the engine
+// no longer looks, still writes no diagnostic and no document, and fails
+// naming what cancelled it.
+func TestRunPipeline_ARunCancelledInItsLastStageWritesNothing(t *testing.T) {
+	orig := newEngine
+	t.Cleanup(func() { newEngine = orig })
+	spec := writeFile(t, "spec.yaml", testspec.Tiny)
+	dest := filepath.Join(t.TempDir(), "ir.json")
+	tests := []struct {
+		name       string
+		cause      error
+		wantCode   int
+		wantStderr string
+	}{
+		{"by a stop signal", errInterrupted, exitFailure, stoppedByInterrupt},
+		{"by its caller", nil, exitFailure, "morphic: stopped: context canceled\n"},
+	}
+	for _, args := range [][]string{{"compile", spec}, {"compile", spec, "-o", dest}, {"validate", spec}} {
+		for _, tt := range tests {
+			ctx, cancel := context.WithCancelCause(t.Context())
+			newEngine = func() (*engine.Engine, error) {
+				return engine.New(engine.WithCompilers(findingCompiler{}),
+					engine.WithPasses(cancellingPass{cancel: func() { cancel(tt.cause) }}))
+			}
+			var stdout, stderr bytes.Buffer
+
+			code := run(ctx, slices.Clone(args), &stdout, &stderr)
+
+			assert.Equal(t, tt.wantCode, code, "%v %s", args, tt.name)
+			assert.Equal(t, tt.wantStderr, stderr.String(), "%v %s", args, tt.name)
+			assert.Empty(t, stdout.String(), "%v %s", args, tt.name)
+			assert.NoFileExists(t, dest, "%v %s", args, tt.name)
+		}
 	}
 }

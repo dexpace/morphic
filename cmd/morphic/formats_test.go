@@ -23,7 +23,7 @@ func TestHelp_NamesEveryFormatTheEngineCompiles(t *testing.T) {
 
 	for _, command := range []string{"compile", "validate"} {
 		var stdout, stderr bytes.Buffer
-		require.Equal(t, 0, run([]string{command, "--help"}, &stdout, &stderr))
+		require.Equal(t, 0, run(t.Context(), []string{command, "--help"}, &stdout, &stderr))
 		for _, f := range formats {
 			assert.Contains(t, stdout.String(), f.String(), "%s help names %s", command, f)
 		}

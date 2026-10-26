@@ -28,7 +28,7 @@ func TestRun_ExplainReportsTheNodeAtACoordinate(t *testing.T) {
 	spec := writeFile(t, "spec.yaml", explainSpec)
 	var stdout, stderr bytes.Buffer
 
-	code := run([]string{"compile", spec, "--explain", "/components/schemas/S"}, &stdout, &stderr)
+	code := run(t.Context(), []string{"compile", spec, "--explain", "/components/schemas/S"}, &stdout, &stderr)
 
 	require.Equal(t, 0, code, "stderr: %s", stderr.String())
 	out := stdout.String()
@@ -49,7 +49,7 @@ func TestRun_ExplainListsALoaderFindingAtItsDeclaration(t *testing.T) {
 		"components:\n  securitySchemes:\n    s: {type: oauth2}\n")
 	var stdout, stderr bytes.Buffer
 
-	code := run([]string{"compile", spec, "--explain", "/components/securitySchemes/s"}, &stdout, &stderr)
+	code := run(t.Context(), []string{"compile", spec, "--explain", "/components/securitySchemes/s"}, &stdout, &stderr)
 
 	require.Equal(t, 1, code, "an error diagnostic fails the run, explained or not: %s", stderr.String())
 	out := stdout.String()
@@ -67,7 +67,7 @@ func TestRun_ExplainTakesTheWholeDocumentAsTheEmptyPointer(t *testing.T) {
 	spec := writeFile(t, "spec.yaml", explainSpec)
 	var stdout, stderr bytes.Buffer
 
-	code := run([]string{"compile", spec, "--explain", ""}, &stdout, &stderr)
+	code := run(t.Context(), []string{"compile", spec, "--explain", ""}, &stdout, &stderr)
 
 	require.Equal(t, 0, code, "stderr: %s", stderr.String())
 	out := stdout.String()
@@ -86,8 +86,8 @@ func TestRun_ExplainNamesNoPrimitiveAtTheWholeDocument(t *testing.T) {
 	spec := writeFile(t, "spec.yaml", explainSpec)
 	var document, explained, stderr bytes.Buffer
 
-	require.Equal(t, 0, run([]string{"compile", spec}, &document, &stderr), "stderr: %s", stderr.String())
-	require.Equal(t, 0, run([]string{"compile", spec, "--explain", ""}, &explained, &stderr),
+	require.Equal(t, 0, run(t.Context(), []string{"compile", spec}, &document, &stderr), "stderr: %s", stderr.String())
+	require.Equal(t, 0, run(t.Context(), []string{"compile", spec, "--explain", ""}, &explained, &stderr),
 		"stderr: %s", stderr.String())
 
 	require.Contains(t, document.String(), `"t/prim/string"`, `property "a" interns the shared string primitive`)
@@ -117,7 +117,7 @@ func TestRun_ExplainWriteFailureIsReported(t *testing.T) {
 			spec := writeFile(t, "spec.yaml", tt.spec)
 			var stderr bytes.Buffer
 
-			code := run([]string{"compile", spec, "--explain", ""}, failWriter{err: errors.New("pipe closed")}, &stderr)
+			code := run(t.Context(), []string{"compile", spec, "--explain", ""}, failWriter{err: errors.New("pipe closed")}, &stderr)
 
 			assert.Equal(t, tt.want, code, "stderr: %s", stderr.String())
 			assert.Contains(t, stderr.String(), "morphic: write explanation: pipe closed")
@@ -160,7 +160,7 @@ func TestRun_ExplainReadsTheSpecsOwnCoordinates(t *testing.T) {
 			require.NoError(t, os.WriteFile(filepath.Join(filepath.Dir(spec), "common.yaml"), []byte(splitCommon), 0o644))
 			var stdout, stderr bytes.Buffer
 
-			code := run([]string{"compile", spec, "--explain", "/components/schemas/Pet"}, &stdout, &stderr)
+			code := run(t.Context(), []string{"compile", spec, "--explain", "/components/schemas/Pet"}, &stdout, &stderr)
 
 			require.Equal(t, 0, code, "stderr: %s", stderr.String())
 			require.Contains(t, stderr.String(), "common.yaml#/components/schemas/Pet",

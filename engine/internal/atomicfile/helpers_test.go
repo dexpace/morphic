@@ -65,16 +65,23 @@ func entriesIn(t *testing.T, dir string) []string {
 	return names
 }
 
+// otherEntries lists the names in dest's directory other than dest's own.
+func otherEntries(t *testing.T, dest string) []string {
+	t.Helper()
+	var others []string
+	for _, name := range entriesIn(t, filepath.Dir(dest)) {
+		if name != filepath.Base(dest) {
+			others = append(others, name)
+		}
+	}
+	return others
+}
+
 // tempOf returns the path of the one temporary file beside dest while a
 // replace of dest runs: the entry of dest's directory that is not dest.
 func tempOf(t *testing.T, dest string) string {
 	t.Helper()
-	var found []string
-	for _, name := range entriesIn(t, filepath.Dir(dest)) {
-		if name != filepath.Base(dest) {
-			found = append(found, name)
-		}
-	}
+	found := otherEntries(t, dest)
 	require.Len(t, found, 1, "one temporary file beside the destination")
 	return filepath.Join(filepath.Dir(dest), found[0])
 }

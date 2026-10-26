@@ -48,7 +48,7 @@ func TestRun_SingleDashLongFlagsAreRefused(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var stdout, stderr bytes.Buffer
 
-			assert.Equal(t, 2, run(tt.args, &stdout, &stderr))
+			assert.Equal(t, 2, run(t.Context(), tt.args, &stdout, &stderr))
 			assert.Empty(t, stdout.String())
 			assert.Contains(t, stderr.String(), "long flags take two dashes: "+tt.reason)
 			assert.Contains(t, stderr.String(), `Try "`+tt.help+` --help" for usage.`)
@@ -93,7 +93,7 @@ func TestRun_SingleDashArgumentsThatAreNotFlags(t *testing.T) {
 			t.Parallel()
 			var stdout, stderr bytes.Buffer
 
-			assert.Equal(t, 2, run(tt.args, &stdout, &stderr))
+			assert.Equal(t, 2, run(t.Context(), tt.args, &stdout, &stderr))
 			assert.Contains(t, stderr.String(), tt.reason)
 			assert.NotContains(t, stderr.String(), "two dashes")
 		})
@@ -109,7 +109,7 @@ func TestRun_AJoinedValueIsReadOnce(t *testing.T) {
 	spec := writeFile(t, "spec.yaml", testspec.Tiny)
 	var stdout, stderr bytes.Buffer
 
-	require.Equal(t, 0, run([]string{"compile", spec, "--opt=grouping=path-prefix"}, &stdout, &stderr),
+	require.Equal(t, 0, run(t.Context(), []string{"compile", spec, "--opt=grouping=path-prefix"}, &stdout, &stderr),
 		"stderr: %s", stderr.String())
 	assert.NotEmpty(t, stdout.String())
 }

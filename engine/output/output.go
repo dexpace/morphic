@@ -1,11 +1,14 @@
 // Package output writes what a pipeline run produced: the IR document, to a
 // stream or to a file it replaces atomically. It is the engine's writer, so a
 // driver publishes a document exactly as the CLI does without encoding or
-// replacing anything itself.
+// replacing anything itself. A write whose context ends before the document is
+// encoded writes none of it: a stream gets nothing, and a file keeps its
+// previous content.
 package output
 
 import (
 	"bytes"
+	"context"
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"errors"
@@ -34,9 +37,16 @@ var errNoDocument = errors.New("output: no document to write")
 // errNoWriter reports a WriteDocument call handed no writer.
 var errNoWriter = errors.New("output: no writer to write to")
 
-// check refuses a call with no document or a layout this package does not
-// define; an unknown layout written as either would hide the caller's mistake.
-func check(doc *ir.Document, layout Layout) error {
+// errNoContext reports a call handed no context to write under.
+var errNoContext = errors.New("output: no context to write under")
+
+// check refuses a call with no context, no document or a layout this package
+// does not define; an unknown layout written as either would hide the caller's
+// mistake.
+func check(ctx context.Context, doc *ir.Document, layout Layout) error {
+	if ctx == nil {
+		return errNoContext
+	}
 	if doc == nil {
 		return errNoDocument
 	}
@@ -48,17 +58,18 @@ func check(doc *ir.Document, layout Layout) error {
 
 // WriteDocument writes doc's IR JSON to w, laid out as layout and ending in a
 // newline. The document is encoded whole before any byte reaches w, so w
-// receives all of it or none: a document that will not marshal writes nothing.
-// A nil w is refused.
-func WriteDocument(w io.Writer, doc *ir.Document, layout Layout) error {
+// receives all of it or none: a document that will not marshal writes nothing,
+// and neither does a ctx done before the encoding ends, which stops it at its
+// next flush. A nil w or ctx is refused.
+func WriteDocument(ctx context.Context, w io.Writer, doc *ir.Document, layout Layout) error {
 	if w == nil {
 		return errNoWriter
 	}
-	if err := check(doc, layout); err != nil {
+	if err := check(ctx, doc, layout); err != nil {
 		return err
 	}
 	var buf bytes.Buffer
-	if err := encode(&buf, doc, layout); err != nil {
+	if err := encode(ctx, &buf, doc, layout); err != nil {
 		return err
 	}
 	if _, err := w.Write(buf.Bytes()); err != nil {
@@ -68,33 +79,40 @@ func WriteDocument(w io.Writer, doc *ir.Document, layout Layout) error {
 }
 
 // ReplaceDocument replaces the file at path with doc's IR JSON, laid out as
-// layout and ending in a newline, encoded into a temporary file beside path
-// and renamed over it: path holds the whole previous content or the whole
-// document, and a document that will not marshal leaves it be.
+// layout and ending in a newline, through a temporary file renamed over it:
+// path holds the whole previous content or the whole document, and a document
+// that will not marshal, or a ctx that ends first, leaves it be.
 //
 // Publishing by rename needs path's directory to take a new entry, so
 // /dev/null and a read-only directory fail. A symlink or FIFO at path is
 // replaced, other hard links keep the old content, a name near the
 // filesystem's limit can fail, and the directory is not synced.
-func ReplaceDocument(path string, doc *ir.Document, layout Layout) error {
-	if err := check(doc, layout); err != nil {
+func ReplaceDocument(ctx context.Context, path string, doc *ir.Document, layout Layout) error {
+	if err := check(ctx, doc, layout); err != nil {
 		return err
 	}
-	return atomicfile.Replace(path, func(w io.Writer) error {
-		return encode(w, doc, layout)
+	return atomicfile.Replace(ctx, path, func(w io.Writer) error {
+		return encode(ctx, w, doc, layout)
 	})
 }
 
-// destWriter passes writes through to w and records the error w returned. It is
-// what keeps a destination that refused the bytes distinguishable from a
-// document that would not marshal: json.MarshalWrite reports both as one error,
-// and they are different things to tell a user about.
+// destWriter passes writes through to w until ctx is done, and records the
+// error that ended them: w's, or ctx's. It is what keeps a destination that
+// refused the bytes, or a write that was stopped, distinguishable from a
+// document that would not marshal: json.MarshalWrite reports each as one
+// error, and they are different things to tell a user about.
 type destWriter struct {
+	// ctx is the context the encoding runs under, held because Write takes none.
+	ctx context.Context
 	w   io.Writer
 	err error
 }
 
 func (d *destWriter) Write(p []byte) (int, error) {
+	if err := d.ctx.Err(); err != nil {
+		d.err = err
+		return 0, err
+	}
 	n, err := d.w.Write(p)
 	if err != nil {
 		d.err = err
@@ -102,14 +120,15 @@ func (d *destWriter) Write(p []byte) (int, error) {
 	return n, err
 }
 
-// encode streams doc's IR JSON to w, ending in a newline.
+// encode streams doc's IR JSON to w, ending in a newline, and stops at the
+// first write after ctx is done.
 //
 // Both layouts go through json.MarshalWrite, which writes the encoded bytes
 // straight to w rather than building them in a slice first; indenting is an
 // encode option on that same call, not a separate route. MarshalWrite ends no
-// value with a newline, so encode writes one.
-func encode(w io.Writer, doc *ir.Document, layout Layout) error {
-	dest := &destWriter{w: w}
+// value with a newline, so encode writes one, through the same writer.
+func encode(ctx context.Context, w io.Writer, doc *ir.Document, layout Layout) error {
+	dest := &destWriter{ctx: ctx, w: w}
 
 	var err error
 	if layout == Indented {
@@ -123,7 +142,7 @@ func encode(w io.Writer, doc *ir.Document, layout Layout) error {
 		}
 		return fmt.Errorf("marshal ir document: %w", err)
 	}
-	if _, err := w.Write([]byte("\n")); err != nil {
+	if _, err := dest.Write([]byte("\n")); err != nil {
 		return fmt.Errorf("write ir document: %w", err)
 	}
 	return nil
