@@ -167,11 +167,8 @@ func TestValidate_WalksOnlyThroughTheSharedWalk(t *testing.T) {
 	require.NoError(t, err)
 	irAsSeen, reaches := p.Imported(reflect.TypeFor[ir.Document]().PkgPath())
 	require.True(t, reaches, "the pass must import ir")
-	for traversal, want := range map[string][]string{
-		"WalkValues": {"Validate", "appendTypeIDs"},
-	} {
-		obj := irAsSeen.Scope().Lookup(traversal)
-		require.NotNil(t, obj, "the ir package must declare %s", traversal)
-		assert.Equal(t, want, p.FuncsUsing(obj), "the functions that walk through ir.%s", traversal)
-	}
+	walkValues := irAsSeen.Scope().Lookup("WalkValues")
+	require.NotNil(t, walkValues, "the ir package must declare WalkValues")
+	assert.Equal(t, []string{"Validate", "appendTypeIDs"}, p.FuncsUsing(walkValues),
+		"the functions that walk through ir.WalkValues")
 }
