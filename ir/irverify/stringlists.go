@@ -91,24 +91,26 @@ type heldList struct {
 // Field lists are read once per struct type, and paths match the walk's
 // spelling. An entry that does not decode is never blank, since its bytes read
 // as U+FFFD, and it is no repeat either: checkUTF8 alone reports it.
-func checkStringLists(doc *ir.Document, _ declarations) ([]Violation, bool) {
+func checkStringLists(*ir.Document) walkCheck {
 	var vs []Violation
 	fields := map[reflect.Type][]heldList{}
-	truncated := ir.WalkValues(doc, ir.DocumentPath, func(v reflect.Value, path string) bool {
-		if v.Kind() != reflect.Struct {
+	return walkCheck{
+		visit: func(v reflect.Value, at ir.WalkPath) bool {
+			if v.Kind() != reflect.Struct {
+				return true
+			}
+			byType, seen := fields[v.Type()]
+			if !seen {
+				byType = heldListsOf(v.Type())
+				fields[v.Type()] = byType
+			}
+			for _, f := range byType {
+				vs = appendListViolations(vs, v.Field(f.index), at, f)
+			}
 			return true
-		}
-		byType, seen := fields[v.Type()]
-		if !seen {
-			byType = heldListsOf(v.Type())
-			fields[v.Type()] = byType
-		}
-		for _, f := range byType {
-			vs = appendListViolations(vs, v.Field(f.index), path+"."+f.name, f.rule)
-		}
-		return true
-	})
-	return vs, truncated
+		},
+		report: reporting(&vs),
+	}
 }
 
 // heldListsOf returns t's []string fields that a rule here holds, an unlisted
@@ -127,28 +129,34 @@ func heldListsOf(t reflect.Type) []heldList {
 	return out
 }
 
-// appendListViolations reports each entry of one held list that breaks its
-// rule, at the entry itself.
-func appendListViolations(vs []Violation, list reflect.Value, at string, rule listRule) []Violation {
+// appendListViolations reports each entry of the held list f that breaks its
+// rule, at the entry itself; owner is where the struct holding it sits.
+func appendListViolations(vs []Violation, list reflect.Value, owner ir.WalkPath, f heldList) []Violation {
 	first := map[string]int{}
 	for i := range list.Len() {
-		entry, where := list.Index(i).String(), at+"["+strconv.Itoa(i)+"]"
+		entry := list.Index(i).String()
 		switch earlier, repeated := first[entry]; {
 		case isBlankName(entry):
-			vs = append(vs, blankEntry(rule, where))
+			vs = append(vs, blankEntry(f.rule, entryPath(owner, f, i)))
 		case !utf8.ValidString(entry):
 			// checkUTF8 reports it.
-		case rule == listSet && repeated:
+		case f.rule == listSet && repeated:
 			vs = append(vs, Violation{
 				Code:    "ir/set-entry-duplicate",
 				Message: "set entry " + strconv.Quote(entry) + " is listed here and at index " + strconv.Itoa(earlier),
-				Path:    where,
+				Path:    entryPath(owner, f, i),
 			})
 		default:
 			first[entry] = i
 		}
 	}
 	return vs
+}
+
+// entryPath spells entry i of the held list f of the struct at owner, as the walk
+// spells the entry itself.
+func entryPath(owner ir.WalkPath, f heldList, i int) string {
+	return owner.String() + "." + f.name + "[" + strconv.Itoa(i) + "]"
 }
 
 // blankEntry is the violation a blank entry of a held list draws.

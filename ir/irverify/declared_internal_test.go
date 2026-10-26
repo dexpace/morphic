@@ -11,10 +11,9 @@ import (
 )
 
 // declaredIDViolations runs the empty-identity check and drops the truncation
-// flag, which the cases below assert nothing about;
-// TestWalkChecks_EachReportsTruncation holds that half.
+// flag, which the cases below assert nothing about.
 func declaredIDViolations(doc *ir.Document) []Violation {
-	vs, _ := checkDeclaredIDs(doc, declarations{})
+	vs, _ := runCheck(checkDeclaredIDs, doc)
 	return vs
 }
 

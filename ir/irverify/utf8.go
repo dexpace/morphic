@@ -19,19 +19,21 @@ import (
 // The walk reaches every string, so a new IR field is held at once. Byte
 // sequences it skips are safe or held elsewhere: Value.Bytes encodes as base64,
 // and checkRawPayloads checks Unmodeled and RawConfig payloads.
-func checkUTF8(doc *ir.Document, _ declarations) ([]Violation, bool) {
+func checkUTF8(*ir.Document) walkCheck {
 	var vs []Violation
-	truncated := ir.WalkValues(doc, ir.DocumentPath, func(v reflect.Value, path string) bool {
-		if v.Kind() == reflect.String && !utf8.ValidString(v.String()) {
-			// The message quotes nothing: the bytes would be repeated into the
-			// report.
-			vs = append(vs, Violation{
-				Code:    "ir/invalid-utf8",
-				Message: "string is not valid UTF-8, so the document cannot be encoded",
-				Path:    path,
-			})
-		}
-		return true
-	})
-	return vs, truncated
+	return walkCheck{
+		visit: func(v reflect.Value, at ir.WalkPath) bool {
+			if v.Kind() == reflect.String && !utf8.ValidString(v.String()) {
+				// The message quotes nothing: the bytes would be repeated into the
+				// report.
+				vs = append(vs, Violation{
+					Code:    "ir/invalid-utf8",
+					Message: "string is not valid UTF-8, so the document cannot be encoded",
+					Path:    at.String(),
+				})
+			}
+			return true
+		},
+		report: reporting(&vs),
+	}
 }

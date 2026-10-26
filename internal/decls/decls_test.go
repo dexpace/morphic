@@ -340,3 +340,21 @@ func TestLoadAlone_Refusals(t *testing.T) {
 	assert.Nil(t, p)
 	assert.Contains(t, err.Error(), "bogus", "the go command's own complaint is kept")
 }
+
+// TestFuncsUsing_NamesTheFunctionsThatNameAnObject holds the reader to the
+// functions and methods whose bodies name an object, and to the importer's copy
+// of it: a function naming the object only through a variable that holds it is
+// not listed, nor is the package-level declaration naming it outside any
+// function.
+func TestFuncsUsing_NamesTheFunctionsThatNameAnObject(t *testing.T) {
+	t.Parallel()
+	p, err := decls.Load(goodDir + "/uses")
+	require.NoError(t, err)
+	seen, reaches := p.Imported(goodPath + "fixture")
+	require.True(t, reaches)
+	red := seen.Scope().Lookup("Red")
+	require.NotNil(t, red)
+
+	assert.Equal(t, []string{"Choose", "Pick", "Pick"}, p.FuncsUsing(red), "sorted, the function and the method of one name both")
+	assert.Empty(t, p.FuncsUsing(seen.Scope().Lookup("Hello")), "nothing in uses calls Hello")
+}

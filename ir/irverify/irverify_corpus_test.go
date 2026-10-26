@@ -25,7 +25,7 @@ import (
 // the compiler declining a spec it cannot lower, which is how every one of the
 // corpus specs that yields nothing here does it. Both leave the oracle with no
 // document, which is not the same as a document that passes.
-func compile(t *testing.T, name string, data []byte) *ir.Document {
+func compile(t testing.TB, name string, data []byte) *ir.Document {
 	t.Helper()
 	doc, _, err := openapi.New().Compile(t.Context(),
 		[]compilers.Source{{Path: name, Data: data}}, compilers.Options{})
@@ -37,7 +37,7 @@ func compile(t *testing.T, name string, data []byte) *ir.Document {
 
 // corpusSpecs lists every committed spec under testdata, as harness.SpecFiles
 // lists a directory.
-func corpusSpecs(t *testing.T) []string {
+func corpusSpecs(t testing.TB) []string {
 	t.Helper()
 	out, err := harness.SpecFiles(t.Context(), "../../testdata")
 	require.NoError(t, err)

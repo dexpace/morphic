@@ -31,25 +31,37 @@ func (Validator) Run(doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
 // engine.Run and RunSources satisfy this by validating a document no other run
 // can reach; RunDocument leaves it to its caller.
 func Validate(doc *ir.Document) []ir.Diagnostic {
+	return validate(doc, ir.WalkValues)
+}
+
+// walkFunc is how validate walks the document: ir.WalkValues, unless a test is
+// counting the walks.
+type walkFunc func(root any, path string, visitors ...ir.Visitor) bool
+
+// validate is Validate walking the document with walk.
+func validate(doc *ir.Document, walk walkFunc) []ir.Diagnostic {
 	if doc == nil {
 		return nil
 	}
-	// Read once: the dangling walk resolves against these, and checkParams
-	// leaves to it exactly what it reports.
-	decls, declTruncated := ir.DeclaredIDs(doc)
+	// One walk reads what three checks need: the declared identities, the
+	// references that may dangle, and the PropIDs. checkParams leaves to the
+	// dangling check exactly what it reports.
+	var decls ir.IDDeclarations
+	refs, props := newRefSites(doc), &propIDSites{}
+	truncated := walk(doc, ir.DocumentPath, &decls, refs, props)
 	// One index for the run: a discriminator's routes and tag, and a part's
 	// encoding key, are walked while that is cheap and answered from the document
 	// indexed once after that (#850).
 	facts := irfacts.New(doc)
 	diags := make([]ir.Diagnostic, 0, 8)
 	diags = append(diags, checkNilTypes(doc)...)
-	diags = append(diags, checkDanglingRefs(doc, decls, declTruncated)...)
+	diags = append(diags, checkDanglingRefs(refs, decls, truncated)...)
 	diags = append(diags, checkGroupWalkTruncated(doc)...)
 	diags = append(diags, checkServerIndices(doc)...)
 	diags = append(diags, checkResponseIndices(doc)...)
 	diags = append(diags, checkEncodingKeys(doc, facts)...)
 	diags = append(diags, checkPayloadRequired(doc)...)
-	diags = append(diags, checkPropIDRefs(doc)...)
+	diags = append(diags, checkPropIDRefs(props, decls)...)
 	diags = append(diags, checkDiscriminators(doc, facts)...)
 	diags = append(diags, checkDuplicateWireNames(doc)...)
 	diags = append(diags, checkAmbiguousAliases(doc)...)

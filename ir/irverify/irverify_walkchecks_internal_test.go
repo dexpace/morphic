@@ -31,22 +31,6 @@ func deepDoc() *ir.Document {
 	return &ir.Document{Types: ir.TypeRegistry{m.ID: m}}
 }
 
-// TestWalkChecks_EachReportsTruncation drives the flag every walking check owes
-// its caller. checkNaming used to discard it (GitHub #55), which was benign only
-// because the unpruned reference walk reaches at least as far as every pruning
-// one and so trips the cap first — a coincidence, not a guarantee, and one that
-// hid every name past the cap the day a pruning walk went deeper.
-func TestWalkChecks_EachReportsTruncation(t *testing.T) {
-	t.Parallel()
-	doc := deepDoc()
-	decls := readDeclarations(doc)
-	for _, check := range walkChecks() {
-		_, truncated := check(doc, decls)
-		assert.True(t, truncated,
-			"%s walked a document nested past the cap without reporting it", checkName(check))
-	}
-}
-
 // TestVerify_ReportsTruncationOnce holds the other half: five walks over one
 // too-deep document are one fact about the document, so Verify states it once
 // rather than once per walk that noticed it.
@@ -63,47 +47,95 @@ func TestVerify_ReportsTruncationOnce(t *testing.T) {
 	assert.Equal(t, 1, truncations)
 }
 
-// TestWalkChecks_NoWalkDropsItsTruncationFlag guards walkChecks against drift
-// with two claims that leave a walk nowhere to drop the flag. A function that
-// calls ir.WalkValues must return a bool, so the flag cannot die at the walk
-// site; and a function shaped like a walking check must be in walkChecks, so no
-// path wires it into Verify without folding its flag into a report.
-//
-// The populations overlap without coinciding (checkReferentialIntegrity walks
-// through collectRefs, a walker that is no check), so each claim is asked of
-// the functions it applies to rather than of one list.
-func TestWalkChecks_NoWalkDropsItsTruncationFlag(t *testing.T) {
+// runCheck runs the one walking check newCheck over doc as Verify runs every
+// check: in one walk that reads the declarations too. It returns what the check
+// reports and whether the walk was cut short.
+func runCheck(newCheck func(*ir.Document) walkCheck, doc *ir.Document) ([]Violation, bool) {
+	return walkWith(doc, ir.WalkValues, []func(*ir.Document) walkCheck{newCheck})
+}
+
+// TestVerify_WalksTheDocumentOnce counts the walks Verify makes, through the walk
+// verify is handed: one, carrying the declarations and every walking check. It
+// is what holds the walking checks to sharing one traversal, which no result can
+// show, since running each in a walk of its own reports the same. The counted
+// run must also report what Verify does, so the count is of the real run.
+func TestVerify_WalksTheDocumentOnce(t *testing.T) {
+	t.Parallel()
+	doc := deepDoc()
+	var walks, visitors int
+	got := verify(doc, func(root any, path string, vs ...ir.Visitor) bool {
+		walks++
+		visitors = len(vs)
+		return ir.WalkValues(root, path, vs...)
+	})
+
+	assert.Equal(t, 1, walks, "every walking check must share one walk of the document")
+	assert.Equal(t, 1+len(walkChecks()), visitors, "the walk carries the declarations and every walking check")
+	assert.Equal(t, Verify(doc), got, "the counted run reports what Verify does")
+}
+
+// TestWalkWith_ReportsInTheOrderGiven pins the order walkWith concatenates the
+// reports in, which Verify's sort leaves visible only where two checks place one
+// code at one path.
+func TestWalkWith_ReportsInTheOrderGiven(t *testing.T) {
+	t.Parallel()
+	reportingOnly := func(code string) func(*ir.Document) walkCheck {
+		return func(*ir.Document) walkCheck {
+			return walkCheck{report: func(declarations) []Violation { return []Violation{{Code: code}} }}
+		}
+	}
+	got, truncated := walkWith(&ir.Document{}, ir.WalkValues,
+		[]func(*ir.Document) walkCheck{reportingOnly("second"), reportingOnly("first")})
+	assert.False(t, truncated)
+	assert.Equal(t, []Violation{{Code: "second"}, {Code: "first"}}, got)
+}
+
+// TestVerify_WalksOnlyThroughTheSharedWalk holds the other half, which counting
+// cannot see: a check that walked the document itself would not go through the
+// walk verify is handed. Of the traversals ir offers, irverify's production
+// code may name only ir.WalkValues, and only in Verify, which hands it on.
+func TestVerify_WalksOnlyThroughTheSharedWalk(t *testing.T) {
+	t.Parallel()
+	p := verifyDecls(t)
+	irAsSeen, reaches := p.Imported(irPath)
+	require.True(t, reaches, "this package must import ir")
+	for traversal, want := range map[string][]string{
+		"WalkValues":       {"Verify"},
+		"DeclaredIDs":      nil,
+		"ForEachOperation": nil,
+		"TypeEdges":        nil,
+	} {
+		obj := irAsSeen.Scope().Lookup(traversal)
+		require.NotNil(t, obj, "the ir package must declare %s", traversal)
+		assert.Equal(t, want, p.FuncsUsing(obj), "the functions that walk the document through ir.%s", traversal)
+	}
+}
+
+// TestWalkChecks_ListsEveryWalkingCheck holds walkChecks to every function shaped
+// like a walking check, so none is written and left out of the walk, where it
+// would check nothing.
+func TestWalkChecks_ListsEveryWalkingCheck(t *testing.T) {
 	t.Parallel()
 	listed := map[string]bool{}
 	for _, check := range walkChecks() {
 		listed[checkName(check)] = true
 	}
-
-	violation, err := verifyDecls(t).Named("Violation")
+	shape, err := verifyDecls(t).Named("walkCheck")
 	require.NoError(t, err)
-	violations := types.NewSlice(violation)
-	fns := packageFuncs(t)
-	require.NotEmpty(t, fns, "the package must declare functions")
-	var walkers int
-	for _, fn := range fns {
-		if fn.callsWalkValues {
-			walkers++
-			assert.True(t, endsInBool(fn.sig),
-				"%s calls ir.WalkValues but returns no truncation flag", fn.name)
+	var shaped int
+	for _, fn := range packageFuncs(t) {
+		if !isCheckShaped(fn.sig, shape) {
+			continue
 		}
-		if isCheckShaped(fn.sig, violations) {
-			assert.True(t, listed[fn.name],
-				"%s is shaped like a walking check but is not in walkChecks, "+
-					"so nothing folds its truncation flag into a report", fn.name)
-		}
+		shaped++
+		assert.True(t, listed[fn.name], "%s is shaped like a walking check but is not in walkChecks", fn.name)
 	}
-	assert.Positive(t, walkers,
-		"nothing reaches the document through ir.WalkValues, so the claim above proves nothing")
+	assert.Len(t, listed, shaped, "walkChecks lists each check once, and only functions shaped like one")
 }
 
 // checkName is a walkChecks entry's function name, without its package path.
 // A name with no dot is returned whole.
-func checkName(check func(*ir.Document, declarations) ([]Violation, bool)) string {
+func checkName(check func(*ir.Document) walkCheck) string {
 	full := runtime.FuncForPC(reflect.ValueOf(check).Pointer()).Name()
 	if _, after, ok := strings.CutLast(full, "."); ok {
 		return after
@@ -112,11 +144,10 @@ func checkName(check func(*ir.Document, declarations) ([]Violation, bool)) strin
 }
 
 // packageFunc is one function this package's production sources declare: its
-// name, its signature, and whether its body reaches ir.WalkValues.
+// name and its signature.
 type packageFunc struct {
-	name            string
-	sig             *types.Signature
-	callsWalkValues bool
+	name string
+	sig  *types.Signature
 }
 
 // packageFuncs returns every function declared in this package's production
@@ -124,10 +155,6 @@ type packageFunc struct {
 func packageFuncs(t *testing.T) []packageFunc {
 	t.Helper()
 	p := verifyDecls(t)
-	irAsSeen, reaches := p.Imported(irPath)
-	require.True(t, reaches, "this package must import ir")
-	walkValues := irAsSeen.Scope().Lookup("WalkValues")
-	require.NotNil(t, walkValues, "the ir package must declare WalkValues")
 	var out []packageFunc
 	for _, f := range p.Syntax {
 		for _, decl := range f.Decls {
@@ -139,39 +166,21 @@ func packageFuncs(t *testing.T) []packageFunc {
 			require.True(t, isFuncObj, "%s declares no function object", fn.Name.Name)
 			sig, isSig := obj.Type().(*types.Signature)
 			require.True(t, isSig, "%s has no signature", fn.Name.Name)
-			out = append(out, packageFunc{
-				name:            fn.Name.Name,
-				sig:             sig,
-				callsWalkValues: refersTo(p.Info, fn, walkValues),
-			})
+			out = append(out, packageFunc{name: fn.Name.Name, sig: sig})
 		}
 	}
+	require.NotEmpty(t, out, "the package must declare functions")
 	return out
 }
 
-// endsInBool reports whether sig's last result, named or not, has type bool.
-func endsInBool(sig *types.Signature) bool {
-	results := sig.Results()
-	return results.Len() > 0 && types.Identical(results.At(results.Len()-1).Type(), types.Typ[types.Bool])
-}
-
-// isCheckShaped reports whether sig returns (violations, bool): the shape of a
-// check that walks the document and owes its caller a truncation flag.
-func isCheckShaped(sig *types.Signature, violations types.Type) bool {
-	results := sig.Results()
-	return results.Len() == 2 && endsInBool(sig) &&
-		types.Identical(results.At(0).Type(), violations)
-}
-
-// refersTo reports whether fn's body names target, resolved through info so an
-// import renamed or dotted still counts. target is compared as an object, so it
-// must be the one info's package sees, as Imported reaches it.
-func refersTo(info *types.Info, fn *ast.FuncDecl, target types.Object) bool {
-	for node := range ast.Preorder(fn) {
-		ident, isIdent := node.(*ast.Ident)
-		if isIdent && info.Uses[ident] == target {
-			return true
-		}
+// isCheckShaped reports whether sig is a walking check's: it takes the document
+// and returns a walkCheck.
+func isCheckShaped(sig *types.Signature, shape types.Type) bool {
+	params, results := sig.Params(), sig.Results()
+	if sig.Recv() != nil || params.Len() != 1 || results.Len() != 1 {
+		return false
 	}
-	return false
+	doc, isPtr := params.At(0).Type().(*types.Pointer)
+	return isPtr && types.TypeString(doc.Elem(), nil) == irPath+".Document" &&
+		types.Identical(results.At(0).Type(), shape)
 }

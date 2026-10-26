@@ -32,19 +32,30 @@ func chainedDiscriminators(n int) *ir.Document {
 	return &ir.Document{IRVersion: ir.IRVersion, Name: "t", Version: "1", Types: types}
 }
 
-// validateWork returns how many allocations and bytes one Validate of the
-// chained document of size n makes, and how many routes it reported as not
-// subtypes.
-func validateWork(t *testing.T, n int) (allocs, bytes float64, rejected int) {
+// spread is how many sizes costAround averages over across one doubling.
+const spread = 8
+
+// costAround returns the allocations and bytes one Validate of build's document
+// makes, averaged over spread sizes spread evenly across the doubling from n,
+// after holding each document to holds.
+//
+// Maps double and slices grow by about a quarter as they fill, so the bytes one
+// size allocates step up wherever a table or a backing array happens to grow.
+// Averaged across a whole doubling the steps cancel, rather than one falling
+// between two of the sizes a test compares and reading as superlinear growth.
+func costAround(t *testing.T, n int, build func(n int) *ir.Document,
+	holds func(t *testing.T, size int, diags []ir.Diagnostic),
+) (allocs, bytes float64) {
 	t.Helper()
-	doc := chainedDiscriminators(n)
-	allocs, bytes = validateCost(doc)
-	for _, d := range pass.Validate(doc) {
-		if d.Code == "pass/discriminator-missing-variant" {
-			rejected++
-		}
+	for j := range spread {
+		size := int(math.Round(float64(n) * math.Exp2(float64(j)/spread)))
+		doc := build(size)
+		holds(t, size, pass.Validate(doc))
+		a, b := validateCost(doc)
+		allocs += a / spread
+		bytes += b / spread
 	}
-	return allocs, bytes, rejected
+	return allocs, bytes
 }
 
 // TestValidate_DiscriminatorRoutesCostLinearWork holds the work of validating
@@ -56,15 +67,21 @@ func validateWork(t *testing.T, n int) (allocs, bytes float64, rejected int) {
 // parallel, since both counts are process-wide.
 func TestValidate_DiscriminatorRoutesCostLinearWork(t *testing.T) {
 	var allocs, bytes [3]float64
-	for k, n := range []int{500, 1000, 2000} {
-		var rejected int
-		allocs[k], bytes[k], rejected = validateWork(t, n)
-		require.Equal(t, n, rejected, "every base's route must reach the subtype question, or the count compares nothing")
+	for k, n := range []int{250, 500, 1000} {
+		allocs[k], bytes[k] = costAround(t, n, chainedDiscriminators, func(t *testing.T, size int, diags []ir.Diagnostic) {
+			var rejected int
+			for _, d := range diags {
+				if d.Code == "pass/discriminator-missing-variant" {
+					rejected++
+				}
+			}
+			require.Equal(t, size, rejected, "every base's route must reach the subtype question, or the count compares nothing")
+		})
 	}
 	assert.LessOrEqual(t, allocs[2]-allocs[1], 2.5*(allocs[1]-allocs[0]),
-		"allocations at 500, 1000, 2000: %v", allocs)
+		"allocations around 250, 500, 1000: %v", allocs)
 	assert.LessOrEqual(t, bytes[2]-bytes[1], 2.5*(bytes[1]-bytes[0]),
-		"bytes at 500, 1000, 2000: %v", bytes)
+		"bytes around 250, 500, 1000: %v", bytes)
 }
 
 // chainedProperties is n+1 models chained by Base, the top declaring property
@@ -143,16 +160,16 @@ func TestValidate_ExposedPropertiesCostLinearBytes(t *testing.T) {
 	for name, build := range exposureShapes() {
 		t.Run(name, func(t *testing.T) {
 			var bytes [3]float64
-			for k, n := range []int{500, 1000, 2000} {
-				doc := build(n)
-				for _, d := range pass.Validate(doc) {
-					require.NotContains(t, []string{"pass/discriminator-unknown-property", "ir/encoding-key-unknown-property"}, d.Code,
-						"every question must be answered yes, or the sizes compare different work")
-				}
-				_, bytes[k] = validateCost(doc)
+			for k, n := range []int{250, 500, 1000} {
+				_, bytes[k] = costAround(t, n, build, func(t *testing.T, _ int, diags []ir.Diagnostic) {
+					for _, d := range diags {
+						require.NotContains(t, []string{"pass/discriminator-unknown-property", "ir/encoding-key-unknown-property"}, d.Code,
+							"every question must be answered yes, or the sizes compare different work")
+					}
+				})
 			}
 			assert.LessOrEqual(t, bytes[2]-bytes[1], 2.5*(bytes[1]-bytes[0]),
-				"bytes at 500, 1000, 2000: %v", bytes)
+				"bytes around 250, 500, 1000: %v", bytes)
 		})
 	}
 }

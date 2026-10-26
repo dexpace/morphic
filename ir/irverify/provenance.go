@@ -20,26 +20,28 @@ var provenanceType = reflect.TypeFor[ir.Provenance]()
 // It is document-wide rather than scoped to one carrier: the defect reads the
 // same on a type, a diagnostic or an Unmodeled entry, and one walk reaches all
 // of them.
-func checkProvenance(doc *ir.Document, _ declarations) ([]Violation, bool) {
+func checkProvenance(doc *ir.Document) walkCheck {
 	var vs []Violation
 	declared := len(doc.Sources)
-	truncated := ir.WalkValues(doc, ir.DocumentPath, func(v reflect.Value, path string) bool {
-		if v.Kind() != reflect.Struct || v.Type() != provenanceType {
-			return true
-		}
-		src := int(v.FieldByName("Source").Int())
-		if sourceOutOfRange(src, declared) {
-			vs = append(vs, Violation{
-				Code: "ir/provenance-source-out-of-range",
-				Message: "provenance source " + strconv.Itoa(src) + " does not address one of " +
-					strconv.Itoa(declared) + " declared sources",
-				Path: path,
-			})
-		}
-		vs = appendLocatorViolations(vs, v, src, path)
-		return false // Provenance holds no references and no nested Provenance
-	})
-	return vs, truncated
+	return walkCheck{
+		visit: func(v reflect.Value, at ir.WalkPath) bool {
+			if v.Kind() != reflect.Struct || v.Type() != provenanceType {
+				return true
+			}
+			src := int(v.FieldByName("Source").Int())
+			if sourceOutOfRange(src, declared) {
+				vs = append(vs, Violation{
+					Code: "ir/provenance-source-out-of-range",
+					Message: "provenance source " + strconv.Itoa(src) + " does not address one of " +
+						strconv.Itoa(declared) + " declared sources",
+					Path: at.String(),
+				})
+			}
+			vs = appendLocatorViolations(vs, v, src, at)
+			return false // Provenance holds no nested Provenance
+		},
+		report: reporting(&vs),
+	}
 }
 
 // appendLocatorViolations reports the locators prov cannot hold: a pointer that
@@ -51,7 +53,7 @@ func checkProvenance(doc *ir.Document, _ declarations) ([]Violation, bool) {
 // methods would misread. IsValid refuses ill-formed UTF-8 too, but those bytes
 // are checkUTF8's to report, under the one code every string answers to, so the
 // grammar is read with them replaced rather than reported a second time.
-func appendLocatorViolations(vs []Violation, prov reflect.Value, src int, path string) []Violation {
+func appendLocatorViolations(vs []Violation, prov reflect.Value, src int, at ir.WalkPath) []Violation {
 	pointer := prov.FieldByName("Pointer").String()
 	position := prov.FieldByName("Position")
 	line := position.FieldByName("Line").Int()
@@ -62,7 +64,7 @@ func appendLocatorViolations(vs []Violation, prov reflect.Value, src int, path s
 		vs = append(vs, Violation{
 			Code:    "ir/provenance-pointer-malformed",
 			Message: "provenance pointer " + strconv.Quote(pointer) + " is not an RFC 6901 JSON Pointer",
-			Path:    path,
+			Path:    at.String(),
 		})
 	}
 	if positioned && (line < 1 || column < 0) {
@@ -70,14 +72,14 @@ func appendLocatorViolations(vs []Violation, prov reflect.Value, src int, path s
 			Code: "ir/provenance-position-malformed",
 			Message: "provenance position " + strconv.FormatInt(line, 10) + ":" +
 				strconv.FormatInt(column, 10) + " is not a 1-based line with a column of 0 or more",
-			Path: path,
+			Path: at.String(),
 		})
 	}
 	if src == ir.NoSource && (pointer != "" || positioned) {
 		vs = append(vs, Violation{
 			Code:    "ir/provenance-locator-without-source",
 			Message: "provenance locates a construct inside a source but names none",
-			Path:    path,
+			Path:    at.String(),
 		})
 	}
 	return vs

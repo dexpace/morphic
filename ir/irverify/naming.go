@@ -50,31 +50,41 @@ var nameOptional = map[reflect.Type]bool{
 // canonical-only: a hint has no source spelling to recompute from.
 //
 // Naming.Aliases has rules of its own: see appendAliasViolations.
-func checkNaming(doc *ir.Document, _ declarations) ([]Violation, bool) {
+func checkNaming(*ir.Document) walkCheck {
 	var vs []Violation
 	optional := map[string]bool{}
-	truncated := ir.WalkValues(doc, ir.DocumentPath, func(v reflect.Value, path string) bool {
-		if v.Kind() != reflect.Struct {
-			return true
-		}
-		if nameOptional[v.Type()] {
-			// The walk visits a struct before its fields, so this is recorded
-			// before the Naming it exempts is reached.
-			optional[path+nameField] = true
-			return true
-		}
-		if v.Type() != namingType {
-			return true
-		}
-		source, canon, hint, aliases := namingChannels(v)
-		if !optional[path] {
-			vs = appendAbsentViolation(vs, source, canon, hint, path)
-		}
-		vs = appendNamingViolations(vs, source, canon, hint, path)
-		vs = appendAliasViolations(vs, source, aliases, path)
-		return false // Naming holds no references or nested Naming to descend into
-	})
-	return vs, truncated
+	var buf []byte // a Naming's path, rendered to look it up in optional
+	return walkCheck{
+		visit: func(v reflect.Value, at ir.WalkPath) bool {
+			if v.Kind() != reflect.Struct {
+				return true
+			}
+			if nameOptional[v.Type()] {
+				// The walk visits a struct before its fields, so this is recorded
+				// before the Naming it exempts is reached.
+				optional[at.String()+nameField] = true
+				return true
+			}
+			if v.Type() != namingType {
+				return true
+			}
+			buf = at.AppendTo(buf[:0])
+			vs = appendNamingChecks(vs, v, at, optional[string(buf)])
+			return false // a Naming holds no Naming nested in it
+		},
+		report: reporting(&vs),
+	}
+}
+
+// appendNamingChecks reports what is wrong with the one Naming naming, at at;
+// optional says whether the node it names carries no name of its own.
+func appendNamingChecks(vs []Violation, naming reflect.Value, at ir.WalkPath, optional bool) []Violation {
+	source, canon, hint, aliases := namingChannels(naming)
+	if !optional {
+		vs = appendAbsentViolation(vs, source, canon, hint, at)
+	}
+	vs = appendNamingViolations(vs, source, canon, hint, at)
+	return appendAliasViolations(vs, source, aliases, at)
 }
 
 // namingChannels reads every name channel off one Naming. It reads fields
@@ -108,7 +118,7 @@ func namingChannels(naming reflect.Value) (source, canon, hint string, aliases [
 //
 // Collisions with other entities' names are no rule of the list (ir-design
 // §3.2).
-func appendAliasViolations(vs []Violation, source string, aliases []string, path string) []Violation {
+func appendAliasViolations(vs []Violation, source string, aliases []string, at ir.WalkPath) []Violation {
 	seen := make(map[string]int, len(aliases))
 	for i, alias := range aliases {
 		switch first, repeated := seen[alias]; {
@@ -118,7 +128,7 @@ func appendAliasViolations(vs []Violation, source string, aliases []string, path
 			vs = append(vs, Violation{
 				Code:    "ir/naming-alias-blank",
 				Message: "alias is blank, so it matches no name",
-				Path:    aliasPath(path, i),
+				Path:    aliasPath(at, i),
 			})
 		case !utf8.ValidString(alias):
 			// checkUTF8 reports it.
@@ -126,13 +136,13 @@ func appendAliasViolations(vs []Violation, source string, aliases []string, path
 			vs = append(vs, Violation{
 				Code:    "ir/naming-alias-duplicate",
 				Message: "alias " + strconv.Quote(alias) + " is listed here and at index " + strconv.Itoa(first),
-				Path:    aliasPath(path, i),
+				Path:    aliasPath(at, i),
 			})
 		case alias == source:
 			vs = append(vs, Violation{
 				Code:    "ir/naming-alias-redundant",
 				Message: "alias " + strconv.Quote(alias) + " is the entity's own source name, so it matches nothing more",
-				Path:    aliasPath(path, i),
+				Path:    aliasPath(at, i),
 			})
 		default:
 			seen[alias] = i
@@ -141,12 +151,12 @@ func appendAliasViolations(vs []Violation, source string, aliases []string, path
 	return vs
 }
 
-// aliasPath spells one alias entry the way ir.WalkValues would have reached it.
-// checkNaming prunes at ir.Naming, so the walk never renders these itself —
+// aliasPath spells one alias entry the way ir.WalkValues reaches it.
+// checkNaming prunes at ir.Naming, so the walk shows it no alias path —
 // TestVerify_AliasPathIsSpelledAsTheWalkWould is what holds the two spellings
 // together.
-func aliasPath(path string, i int) string {
-	return path + ".Aliases[" + strconv.Itoa(i) + "]"
+func aliasPath(at ir.WalkPath, i int) string {
+	return at.String() + ".Aliases[" + strconv.Itoa(i) + "]"
 }
 
 // appendAbsentViolation reports an entity that no channel names.
@@ -155,24 +165,24 @@ func aliasPath(path string, i int) string {
 // Source with its words beside it, a generated one in Hint, and the checks below
 // hold whichever is there. This asks only that one of them is, because nothing
 // downstream can render an identifier from three empty strings.
-func appendAbsentViolation(vs []Violation, source, canon, hint, path string) []Violation {
+func appendAbsentViolation(vs []Violation, source, canon, hint string, at ir.WalkPath) []Violation {
 	if source != "" || canon != "" || hint != "" {
 		return vs
 	}
 	return append(vs, Violation{
 		Code:    "ir/naming-absent",
 		Message: "named entity carries no name at all; set a source name, canonical words or a hint",
-		Path:    path,
+		Path:    at.String(),
 	})
 }
 
 // appendNamingViolations reports the ways one Naming can break neutrality: the
 // grammar rule over the canonical, and the content rules over each channel that
 // carries a name for an emitter to render.
-func appendNamingViolations(vs []Violation, source, canon, hint, path string) []Violation {
-	vs = appendGrammarViolation(vs, source, canon, path)
-	vs = appendContentViolations(vs, "canonical name", canon, path)
-	return appendContentViolations(vs, "name hint", hint, path)
+func appendNamingViolations(vs []Violation, source, canon, hint string, at ir.WalkPath) []Violation {
+	vs = appendGrammarViolation(vs, source, canon, at)
+	vs = appendContentViolations(vs, "canonical name", canon, at)
+	return appendContentViolations(vs, "name hint", hint, at)
 }
 
 // appendContentViolations reports the ways the name in one channel can break
@@ -184,19 +194,19 @@ func appendNamingViolations(vs []Violation, source, canon, hint, path string) []
 // "userID" is segmented but cased, "com.example.user" is lowercase but
 // unsegmented, "foo2bar" is both lowercase and made of word characters yet runs
 // two words together — and each names a different repair.
-func appendContentViolations(vs []Violation, channel, name, path string) []Violation {
+func appendContentViolations(vs []Violation, channel, name string, at ir.WalkPath) []Violation {
 	if isCased(name) {
 		vs = append(vs, Violation{
 			Code:    "ir/naming-cased",
 			Message: channel + " " + strconv.Quote(name) + " carries casing; store neutral words",
-			Path:    path,
+			Path:    at.String(),
 		})
 	}
 	if !isWordSequence(name) {
 		vs = append(vs, Violation{
 			Code:    "ir/naming-not-words",
 			Message: channel + " " + strconv.Quote(name) + " is not a word sequence; split it on every non-word character",
-			Path:    path,
+			Path:    at.String(),
 		})
 	}
 	if !isSegmented(name) {
@@ -204,7 +214,7 @@ func appendContentViolations(vs []Violation, channel, name, path string) []Viola
 			Code: "ir/naming-unsegmented",
 			Message: channel + " " + strconv.Quote(name) +
 				" runs a letter and a digit together in one word; the grammar splits that boundary",
-			Path: path,
+			Path: at.String(),
 		})
 	}
 	return vs
@@ -221,7 +231,7 @@ func appendContentViolations(vs []Violation, channel, name, path string) []Viola
 // Asked only of a Naming that carries a Source. The content rules are not
 // subsumed: they hold a Canonical carried without one, and name the specific
 // way a value is wrong.
-func appendGrammarViolation(vs []Violation, source, canon, path string) []Violation {
+func appendGrammarViolation(vs []Violation, source, canon string, at ir.WalkPath) []Violation {
 	if source == "" {
 		return vs
 	}
@@ -233,7 +243,7 @@ func appendGrammarViolation(vs []Violation, source, canon, path string) []Violat
 		Code: "ir/naming-not-derived",
 		Message: "canonical name " + strconv.Quote(canon) + " is not what the grammar derives from source " +
 			strconv.Quote(source) + " (" + strconv.Quote(want) + "); emitters cannot tell which grammar produced it",
-		Path: path,
+		Path: at.String(),
 	})
 }
 

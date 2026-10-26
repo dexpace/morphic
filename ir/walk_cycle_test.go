@@ -23,11 +23,37 @@ const walkLimit = 200
 // walkLimit of them.
 func walkBounded(root any) []string {
 	var paths []string
-	ir.WalkValues(root, "doc", func(_ reflect.Value, path string) bool {
-		paths = append(paths, path)
+	ir.WalkValues(root, "doc", ir.VisitFunc(func(_ reflect.Value, at ir.WalkPath) bool {
+		paths = append(paths, at.String())
 		return len(paths) < walkLimit
-	})
+	}))
 	return paths
+}
+
+// valueCycle is one cycle a walk told its visitor of: where the walk met the
+// reference again, where it had entered it, and the reference's Go type.
+type valueCycle struct {
+	Path, Entered, Type string
+}
+
+// cycleRecorder is an ir.CycleVisitor that is shown everything and records each
+// cycle its walk meets, in walk order.
+type cycleRecorder struct {
+	cycles []valueCycle
+}
+
+func (*cycleRecorder) Visit(reflect.Value, ir.WalkPath) bool { return true }
+
+func (r *cycleRecorder) Cycle(at, entered ir.WalkPath, ref reflect.Type) {
+	r.cycles = append(r.cycles, valueCycle{Path: at.String(), Entered: entered.String(), Type: ref.String()})
+}
+
+// valueCycles walks root from "doc" with a cycleRecorder and returns the cycles
+// it recorded, with whether the depth cap truncated the walk.
+func valueCycles(root any) ([]valueCycle, bool) {
+	var r cycleRecorder
+	truncated := ir.WalkValues(root, "doc", &r)
+	return r.cycles, truncated
 }
 
 // kidTree is a struct whose slice of itself can hold the slice that holds it.
@@ -134,11 +160,11 @@ func TestWalkValues_AnArrayOfReferencesIsWalkedElementByElement(t *testing.T) {
 	assert.Contains(t, paths, "doc.Trees[0].Kids[0]")
 }
 
-// TestValueCycles_ReportsWhereAReferenceWasMetAgainAndEntered holds the report to
-// the three facts a caller acts on, for each kind of reference: where the walk
-// was when it met the reference again, where it had gone inside it, and what it
-// is.
-func TestValueCycles_ReportsWhereAReferenceWasMetAgainAndEntered(t *testing.T) {
+// TestCycleVisitor_IsToldWhereAReferenceWasMetAgainAndEntered holds what a
+// visitor is told to the three facts a caller acts on, for each kind of
+// reference: where the walk was when it met the reference again, where it had
+// gone inside it, and what it is.
+func TestCycleVisitor_IsToldWhereAReferenceWasMetAgainAndEntered(t *testing.T) {
 	t.Parallel()
 	loop := &ptrNode{}
 	loop.Next = loop
@@ -150,26 +176,26 @@ func TestValueCycles_ReportsWhereAReferenceWasMetAgainAndEntered(t *testing.T) {
 	for _, tt := range []struct {
 		name string
 		root any
-		want []ir.ValueCycle
+		want []valueCycle
 	}{
-		{"a pointer", loop, []ir.ValueCycle{{Path: "doc.Next", Entered: "doc", Type: "*ir_test.ptrNode"}}},
-		{"a slice", kidTree{Kids: kids}, []ir.ValueCycle{{Path: "doc.Kids[0].Kids", Entered: "doc.Kids", Type: "[]ir_test.kidTree"}}},
-		{"a map", m, []ir.ValueCycle{{Path: "doc[a]", Entered: "doc", Type: "ir_test.kidMap"}}},
+		{"a pointer", loop, []valueCycle{{Path: "doc.Next", Entered: "doc", Type: "*ir_test.ptrNode"}}},
+		{"a slice", kidTree{Kids: kids}, []valueCycle{{Path: "doc.Kids[0].Kids", Entered: "doc.Kids", Type: "[]ir_test.kidTree"}}},
+		{"a map", m, []valueCycle{{Path: "doc[a]", Entered: "doc", Type: "ir_test.kidMap"}}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got, truncated := ir.ValueCycles(tt.root, "doc")
+			got, truncated := valueCycles(tt.root)
 			assert.False(t, truncated)
 			assert.Empty(t, cmp.Diff(tt.want, got))
 		})
 	}
 }
 
-// TestValueCycles_FindsNothingInAnAcyclicGraph is the other side: references
+// TestCycleVisitor_IsToldNothingOfAnAcyclicGraph is the other side: references
 // shared between places, none holding another, are not cycles however often the
 // walk meets them, and nor is one reference of a type inside another of the same
 // type.
-func TestValueCycles_FindsNothingInAnAcyclicGraph(t *testing.T) {
+func TestCycleVisitor_IsToldNothingOfAnAcyclicGraph(t *testing.T) {
 	t.Parallel()
 	leaf := &ptrNode{}
 	shared := []kidTree{{}}
@@ -186,15 +212,16 @@ func TestValueCycles_FindsNothingInAnAcyclicGraph(t *testing.T) {
 		Nested: kidMap{"a": kidMap{"x": nil}},
 	}
 
-	got, truncated := ir.ValueCycles(root, "doc")
+	got, truncated := valueCycles(root)
 	assert.False(t, truncated)
 	assert.Empty(t, got)
 }
 
-// TestValueCycles_IsDeterministic holds the order of what it returns: two cycles
-// under different map entries, found again and again, come back in one order, so
-// a violation list built from them does not depend on Go's map iteration.
-func TestValueCycles_IsDeterministic(t *testing.T) {
+// TestCycleVisitor_IsToldInADeterministicOrder holds the order cycles are told
+// in: two cycles under different map entries, found again and again, come in
+// one order, so a violation list built from them does not depend on Go's map
+// iteration.
+func TestCycleVisitor_IsToldInADeterministicOrder(t *testing.T) {
 	t.Parallel()
 	mkLoop := func() *ptrNode {
 		n := &ptrNode{}
@@ -203,20 +230,21 @@ func TestValueCycles_IsDeterministic(t *testing.T) {
 	}
 	root := map[string]*ptrNode{"a": mkLoop(), "b": mkLoop(), "c": mkLoop()}
 
-	first, _ := ir.ValueCycles(root, "doc")
+	first, _ := valueCycles(root)
 	require.Len(t, first, 3)
 	for range 20 {
-		again, _ := ir.ValueCycles(root, "doc")
+		again, _ := valueCycles(root)
 		require.Empty(t, cmp.Diff(first, again))
 	}
 	assert.Equal(t, "doc[a].Next", first[0].Path)
 }
 
-// TestValueCycles_ReportsTruncation holds the flag it owes its caller, as every
-// walk does: a cycle past the depth cap is not found by a walk that stopped.
-func TestValueCycles_ReportsTruncation(t *testing.T) {
+// TestCycleVisitor_WalkReportsTruncation holds the flag a walk owes its caller
+// when it tells cycles too: a cycle past the depth cap is not found by a walk
+// that stopped.
+func TestCycleVisitor_WalkReportsTruncation(t *testing.T) {
 	t.Parallel()
-	_, truncated := ir.ValueCycles(irtest.NestedListValue(ir.MaxWalkDepth), "doc")
+	_, truncated := valueCycles(irtest.NestedListValue(ir.MaxWalkDepth))
 	assert.True(t, truncated)
 }
 
@@ -369,14 +397,14 @@ func countEdges(td ir.TypeDef, limit int) int {
 	return n
 }
 
-// TestValueCycles_AgreesWithTheEncoder holds the claim the verifier rests on:
+// TestCycleVisitor_AgreesWithTheEncoder holds the claim the verifier rests on:
 // a document is called cyclic exactly when the encoder refuses it. Graphs are
 // drawn at random and three judges asked about each: a search that never sees a
 // Go value, the walk, and the encoder. A walk that called a shared value a
 // cycle, or missed a cycle through a constructor, a list, an object or a mix,
 // would split from the other two on one of them. TypeEdges is held to the same
 // graphs by the constructors it meets. The seed is fixed, so a failure can be drawn again.
-func TestValueCycles_AgreesWithTheEncoder(t *testing.T) {
+func TestCycleVisitor_AgreesWithTheEncoder(t *testing.T) {
 	t.Parallel()
 	r := rand.New(rand.NewPCG(573, 736))
 	var cyclic, acyclic int
@@ -390,7 +418,7 @@ func TestValueCycles_AgreesWithTheEncoder(t *testing.T) {
 		doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{model.ID: model}}
 
 		want := hasCycle(nodes)
-		cycles, truncated := ir.ValueCycles(doc, ir.DocumentPath)
+		cycles, truncated := valueCycles(doc)
 		require.False(t, truncated, "%+v", nodes)
 		require.Equal(t, want, len(cycles) > 0, "the walk disagrees with the graph drawn: %+v", nodes)
 		require.Equal(t, want, irtest.RefusedAsCyclic(doc), "the encoder disagrees with the graph drawn: %+v", nodes)

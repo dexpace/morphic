@@ -43,11 +43,29 @@ type declaredAt struct {
 // declaration's PropID (GitHub #107). Different properties on one PropID are
 // the defect (#280). The fingerprint is source name, wire name and TypeRef
 // target; a wider one flags every reused component.
-func checkDuplicateIDs(doc *ir.Document, decls declarations) ([]Violation, bool) {
-	fingerprints, truncated := propertyFingerprints(doc)
-	first := make(map[identity]declaredAt, len(decls.ids))
+func checkDuplicateIDs(*ir.Document) walkCheck {
+	// Keyed by path, which is how the declarations locate the same node.
+	fingerprints := map[string]string{}
+	return walkCheck{
+		visit: func(v reflect.Value, at ir.WalkPath) bool {
+			if v.Kind() == reflect.Struct && v.Type() == propertyType {
+				fingerprints[at.String()] = fingerprintOf(v)
+			}
+			return true
+		},
+		report: func(decls declarations) []Violation {
+			return duplicateIDs(decls.ids, fingerprints)
+		},
+	}
+}
+
+// duplicateIDs reports each declaration in decls of an identity declared before
+// it, unless both are one property, by the fingerprints of the properties
+// declaring them.
+func duplicateIDs(decls []ir.IDDeclaration, fingerprints map[string]string) []Violation {
+	first := make(map[identity]declaredAt, len(decls))
 	var vs []Violation
-	for _, d := range decls.ids {
+	for _, d := range decls {
 		key := identity{class: d.Class, id: d.ID}
 		at, taken := first[key]
 		if !taken {
@@ -63,22 +81,7 @@ func checkDuplicateIDs(doc *ir.Document, decls declarations) ([]Violation, bool)
 			Path:    d.Path,
 		})
 	}
-	return vs, decls.truncated || truncated
-}
-
-// propertyFingerprints returns every property the document holds, fingerprinted,
-// keyed by the path that declares it — the same path ir.DeclaredIDs reports for
-// the same node, since both walks spell a node's location the one way.
-func propertyFingerprints(doc *ir.Document) (map[string]string, bool) {
-	fingerprints := map[string]string{}
-	truncated := ir.WalkValues(doc, ir.DocumentPath, func(v reflect.Value, path string) bool {
-		if v.Kind() != reflect.Struct || v.Type() != propertyType {
-			return true
-		}
-		fingerprints[path] = fingerprintOf(v)
-		return true
-	})
-	return fingerprints, truncated
+	return vs
 }
 
 // fingerprintOf renders what separates one property from another (see

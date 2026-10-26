@@ -41,8 +41,7 @@ pass carries is refused (exit 2) with the names that exist. --skip-validate is
 --verify holds the document the compiler returns, and each pass's, to the IR's
 structural invariants, and each pass to leaving its input as it found it. The
 first stage to break one ends the run (exit 2) with every invariant it broke.
-It is for developing a compiler or a pass, and costs more than the compile
-itself.
+It is for developing a compiler or a pass, and slows the run.
 
 --opt passes a setting to the compiler the spec selects, which names and
 validates its own options; morphic itself knows none of them. The OpenAPI

@@ -168,19 +168,28 @@ type IDDeclaration struct {
 // moment it exists. It answers what [DocumentRegistries] cannot: which IDs a
 // class declares when Document holds no map for it, and whether one ID is
 // declared twice, which a map key cannot express.
+func DeclaredIDs(doc *Document) ([]IDDeclaration, bool) {
+	var decls IDDeclarations
+	truncated := WalkValues(doc, DocumentPath, &decls)
+	return decls, truncated
+}
+
+// IDDeclarations collects, as a [Visitor], the identities the values its walk
+// reaches declare, in walk order. It is what [DeclaredIDs] walks a document
+// with, for a caller that reads them in a walk it shares with visitors of its
+// own.
 //
 // An empty ID is skipped, since nothing can reference one and several nodes
 // carrying one are not duplicates. Reporting it is irverify.checkRegistryKeys's
 // job for a map-keyed class and irverify.checkDeclaredIDs's for the rest.
-func DeclaredIDs(doc *Document) ([]IDDeclaration, bool) {
-	var decls []IDDeclaration
-	truncated := WalkValues(doc, DocumentPath, func(v reflect.Value, path string) bool {
-		if class, id, declares := DeclaredIDOf(v); declares && id != "" {
-			decls = append(decls, IDDeclaration{Class: class, ID: id, Path: path})
-		}
-		return true
-	})
-	return decls, truncated
+type IDDeclarations []IDDeclaration
+
+// Visit records the identity v declares, if any, and asks for v's children.
+func (d *IDDeclarations) Visit(v reflect.Value, at WalkPath) bool {
+	if class, id, declares := DeclaredIDOf(v); declares && id != "" {
+		*d = append(*d, IDDeclaration{Class: class, ID: id, Path: at.String()})
+	}
+	return true
 }
 
 // DeclaredIDOf returns the class of ID v declares for itself, that ID, and

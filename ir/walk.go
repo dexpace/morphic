@@ -2,8 +2,10 @@ package ir
 
 import (
 	"fmt"
+	"math/bits"
 	"reflect"
 	"slices"
+	"strconv"
 	"strings"
 )
 
@@ -27,50 +29,136 @@ const MapKeySuffix = ".key"
 // deduped by a caller running both if the defect reads as one location.
 const DocumentPath = "doc"
 
-// WalkValues walks root by reflection, bounded and cycle-guarded, calling the
-// non-nil visit on each value with its path; false skips that value's children.
-// It reports whether the depth cap truncated the walk.
+// Visitor is shown each value a [WalkValues] traversal reaches.
+type Visitor interface {
+	// Visit is called on v, reached by the path at, and reports whether this
+	// visitor is to be shown what v holds; false prunes v's children for it
+	// alone.
+	Visit(v reflect.Value, at WalkPath) bool
+}
+
+// VisitFunc adapts a function to a [Visitor]. A nil one prunes at the root.
+type VisitFunc func(v reflect.Value, at WalkPath) bool
+
+// Visit calls f.
+func (f VisitFunc) Visit(v reflect.Value, at WalkPath) bool {
+	return f != nil && f(v, at)
+}
+
+// CycleVisitor is a [Visitor] that is also told where its walk meets a pointer,
+// slice or map it is already inside: a value that contains itself, which has no
+// finite encoding.
+type CycleVisitor interface {
+	Visitor
+	// Cycle is called at at, where the walk meets again a reference of type ref
+	// it entered at entered, an ancestor of at. The walk does not enter it again.
+	Cycle(at, entered WalkPath, ref reflect.Type)
+}
+
+// WalkValues walks root by reflection, bounded and cycle-guarded, showing every
+// value to each visitor, and reports whether the depth cap truncated the walk.
+//
+// The visitors share one traversal, yet each sees exactly the walk it would see
+// alone, its own pruning and where it first meets a shared pointer included.
+// They are called in the order given; a nil one is skipped.
 //
 // Reflection covers a new IR field at once. Map keys are reached too, since
 // some are references; entries come in rendered-key order, and byte elements
-// are skipped.
-//
-// Paths start at path, join fields with "." and bracket indices and keys;
-// embedded fields add no segment. A pointer reachable twice is entered once, at
-// the first path reached. Interface() panics behind an unexported field, so a
-// visitor reads fields instead.
-func WalkValues(root any, path string, visit func(v reflect.Value, path string) bool) bool {
-	w := valueWalk{seen: map[refKey]struct{}{}, visit: visit}
-	w.walk(reflect.ValueOf(root), path, 0)
-	return w.truncated
-}
-
-// ValueCycle is a place a walk met a pointer, slice or map it was already
-// inside, so that the value contains itself and has no finite encoding.
-type ValueCycle struct {
-	// Path is where the walk met the reference the second time.
-	Path string
-	// Entered is where the walk first entered it: an ancestor of Path.
-	Entered string
-	// Type is the reference's Go type, such as *ir.CtorValue or []ir.Value.
-	Type string
-}
-
-// ValueCycles walks root as [WalkValues] does and returns every [ValueCycle] it
-// meets, in walk order, with whether the depth cap truncated the walk.
-//
-// Neither walk enters a pointer, slice or map from inside itself. A reference
-// two places share without either holding the other is not a cycle: it encodes
-// twice without trouble, and a slice or map so shared is walked from each place,
-// so a cycle inside it is reported once per way in.
-func ValueCycles(root any, path string) (cycles []ValueCycle, truncated bool) {
-	w := valueWalk{
-		seen:  map[refKey]struct{}{},
-		visit: func(reflect.Value, string) bool { return true },
-		cycle: func(c ValueCycle) { cycles = append(cycles, c) },
+// are skipped. Interface() panics behind an unexported field, so visitors read
+// fields.
+func WalkValues(root any, path string, visitors ...Visitor) bool {
+	v := reflect.ValueOf(root)
+	truncated := false
+	for group := range slices.Chunk(visitors, maxSharedVisitors) {
+		w := newValueWalk(path, group)
+		w.walk(v, 0, w.all)
+		truncated = truncated || w.truncated
 	}
-	w.walk(reflect.ValueOf(root), path, 0)
-	return cycles, w.truncated
+	return truncated
+}
+
+// maxSharedVisitors is how many visitors one traversal carries: the width of
+// [visitorSet]. [WalkValues] gives further visitors traversals of their own,
+// which none can tell from a shared one.
+const maxSharedVisitors = 64
+
+// visitorSet holds which of a traversal's visitors a value is shown to, one
+// bit each by position.
+type visitorSet uint64
+
+// WalkPath is the path by which a walk reached the value it is visiting. Paths
+// start at the walk's root path, join fields with "." and bracket indices and
+// keys; embedded fields add no segment.
+//
+// A WalkPath reads the walk's own state, and nothing renders it until String or
+// AppendTo is called, so a visit that never reads its path pays nothing for it.
+// It is valid only until the call it was passed to returns; a visitor that keeps
+// a path keeps its String. The zero WalkPath is empty.
+type WalkPath struct {
+	walk *valueWalk
+	// depth is how many of the walk's steps lead to the value.
+	depth int
+}
+
+// String renders the path.
+func (p WalkPath) String() string {
+	// Rendered on the stack, so the string is the one allocation. Paths through
+	// the largest documents compiled so far stay under 400 bytes, and a longer
+	// one costs only a second allocation.
+	var buf [512]byte
+	return string(p.AppendTo(buf[:0]))
+}
+
+// AppendTo appends the rendered path to b and returns the extended buffer, so a
+// caller can look a path up without allocating one.
+func (p WalkPath) AppendTo(b []byte) []byte {
+	if p.walk == nil {
+		return b
+	}
+	b = append(b, p.walk.root...)
+	for _, s := range p.walk.steps[:p.depth] {
+		b = s.appendTo(b)
+	}
+	return b
+}
+
+// stepKind is how a value is reached from its parent.
+type stepKind uint8
+
+const (
+	stepField    stepKind = iota // a struct field
+	stepElement                  // a slice or array element
+	stepMapKey                   // a map entry's key
+	stepMapValue                 // a map entry's value
+)
+
+// pathStep is one step of a walk's path, held as what it was taken through
+// rather than as text, so taking it costs no string: a struct field by its
+// owner and index, an element by its index, an entry by its rendered key.
+type pathStep struct {
+	kind  stepKind
+	owner reflect.Type
+	index int
+	label string
+}
+
+// appendTo renders the step onto b. A field read through an embedded struct is
+// promoted by Go and inlined by JSON, so the embedded field itself renders
+// nothing: "….TypeCommon.Examples[0]" would name a step neither encoding has.
+func (s pathStep) appendTo(b []byte) []byte {
+	switch s.kind {
+	case stepField:
+		if f := s.owner.Field(s.index); !f.Anonymous {
+			b = append(append(b, '.'), f.Name...)
+		}
+	case stepElement:
+		b = append(strconv.AppendInt(append(b, '['), int64(s.index), 10), ']')
+	case stepMapKey:
+		b = append(append(append(append(b, '['), s.label...), ']'), MapKeySuffix...)
+	case stepMapValue:
+		b = append(append(append(b, '['), s.label...), ']')
+	}
+	return b
 }
 
 // refKey identifies a reference the way the JSON encoder does, so that what a
@@ -83,101 +171,151 @@ type refKey struct {
 	n   int // a slice's length; zero for a pointer or a map
 }
 
-// insideRef is a reference the walk is inside, and the path it entered it at.
+// insideRef is a reference the walk is inside, and how many steps led to it.
 type insideRef struct {
-	key     refKey
-	entered string
+	key   refKey
+	depth int
 }
 
-// valueWalk is one walk's state: the pointers already entered, the references
-// the walk is inside right now, the visitor, the cycle callback if the caller
-// wants cycles, and whether the depth cap cut the walk short.
+// valueWalk is one traversal's state: its visitors, which pointers each has
+// entered, the references and steps the walk is inside right now, the map
+// entries it is ranging over, and whether the depth cap cut it short.
 //
 // It is a value being walked rather than a walker being configured, so it is
 // built at the entry point and discarded with it. Nothing here is reentrant and
 // nothing outside this file holds one.
 type valueWalk struct {
-	seen      map[refKey]struct{}
+	root      string
+	visitors  []Visitor
+	cycles    []CycleVisitor
+	all       visitorSet
+	seen      map[refKey]visitorSet
 	inside    []insideRef
-	visit     func(v reflect.Value, path string) bool
-	cycle     func(ValueCycle)
+	steps     []pathStep
+	ranging   []mapEntry
 	truncated bool
 }
 
-// walk visits v and then descends into whatever it holds, stopping wherever the
-// visitor says it has seen enough. The invalid zero Value — a nil root, a nil
-// interface's dynamic value — is not visited, so no visitor has to guard against
-// calling Type() on one.
-func (w *valueWalk) walk(v reflect.Value, path string, depth int) {
-	if !v.IsValid() || !w.visit(v, path) {
+// newValueWalk builds the state of one traversal from root showing visitors,
+// of which there are at most maxSharedVisitors. The step stack is sized up front
+// so that a walk deeper than a struct or two costs no allocation per level.
+func newValueWalk(root string, visitors []Visitor) *valueWalk {
+	w := &valueWalk{
+		root:     root,
+		visitors: visitors,
+		cycles:   make([]CycleVisitor, len(visitors)),
+		seen:     map[refKey]visitorSet{},
+		steps:    make([]pathStep, 0, 32),
+	}
+	for i, v := range visitors {
+		if v == nil {
+			continue
+		}
+		w.all |= 1 << i
+		w.cycles[i], _ = v.(CycleVisitor)
+	}
+	return w
+}
+
+// here is the path to the value the walk is at.
+func (w *valueWalk) here() WalkPath {
+	return WalkPath{walk: w, depth: len(w.steps)}
+}
+
+// walk shows v to the visitors in active and descends into what it holds for
+// those that ask. The invalid zero Value — a nil root, a nil interface's dynamic
+// value — is not shown, so no visitor has to guard against calling Type() on
+// one.
+func (w *valueWalk) walk(v reflect.Value, depth int, active visitorSet) {
+	if !v.IsValid() {
 		return
 	}
-	w.children(v, path, depth)
+	at := w.here()
+	var asking visitorSet
+	for set := active; set != 0; set &= set - 1 {
+		i := bits.TrailingZeros64(uint64(set))
+		if w.visitors[i].Visit(v, at) {
+			asking |= 1 << i
+		}
+	}
+	if asking != 0 {
+		w.children(v, depth, asking)
+	}
+}
+
+// step descends into child, reached from its parent by s.
+func (w *valueWalk) step(s pathStep, child reflect.Value, depth int, active visitorSet) {
+	w.steps = append(w.steps, s)
+	w.descend(child, depth, active)
+	w.steps = w.steps[:len(w.steps)-1]
 }
 
 // descend continues into a child unless that would pass the depth cap, which it
 // records rather than reports: the caller decides whether a truncated walk is a
 // finding, and it is the only one that knows what was being checked.
-func (w *valueWalk) descend(child reflect.Value, path string, depth int) {
+func (w *valueWalk) descend(child reflect.Value, depth int, active visitorSet) {
 	if depth > MaxWalkDepth {
 		w.truncated = true
 		return
 	}
-	w.walk(child, path, depth)
+	w.walk(child, depth, active)
 }
 
 // children descends into every child of v. It is where the walk's shape lives —
 // what counts as a child of a pointer, an interface, a struct, a sequence and a
-// map, and which path each child is addressed by. Numbers, bools, strings,
-// funcs and channels have none.
-func (w *valueWalk) children(v reflect.Value, path string, depth int) {
+// map, and which step reaches each child. Numbers, bools, strings, funcs and
+// channels have none.
+func (w *valueWalk) children(v reflect.Value, depth int, active visitorSet) {
 	switch v.Kind() {
 	case reflect.Pointer:
-		w.pointer(v, path, depth)
+		w.pointer(v, depth, active)
 	case reflect.Interface:
 		if !v.IsNil() {
-			w.descend(v.Elem(), path, depth+1)
+			w.descend(v.Elem(), depth+1, active)
 		}
 	case reflect.Struct:
 		// Indexed: ranging over v.Fields() puts the loop body on the heap for
 		// every struct the walk enters.
 		t := v.Type()
 		for i := range v.NumField() {
-			w.descend(v.Field(i), fieldPath(path, t.Field(i)), depth+1)
+			w.step(pathStep{kind: stepField, owner: t, index: i}, v.Field(i), depth+1, active)
 		}
 	case reflect.Slice, reflect.Array:
-		w.sequence(v, path, depth)
+		w.sequence(v, depth, active)
 	case reflect.Map:
-		w.mapping(v, path, depth)
+		w.mapping(v, depth, active)
 	}
 }
 
-// pointer descends through a non-nil pointer once, so a value reached through
-// a shared pointer is visited once rather than once per reference to it. One
-// met again while the walk is still inside it closes a cycle, which
-// closesCycle reports.
+// pointer descends through a non-nil pointer once per visitor, so a value
+// reached through a shared pointer is shown to each visitor once, at the first
+// path that visitor reaches it by. One met again while the walk is still inside
+// it closes a cycle, which closesCycle reports.
 //
-// Which of an aliased pointer's referrers wins that single visit is decided by
-// traversal order, so the walk's order has to be fixed rather than incidental;
-// orderedEntries is where that is arranged.
-func (w *valueWalk) pointer(v reflect.Value, path string, depth int) {
+// Which visitors have entered a pointer is recorded per pointer, so one
+// visitor's pruning never decides where another meets a shared value. Which
+// referrer wins is decided by traversal order, so the walk's order has to be
+// fixed rather than incidental; appendOrderedEntries is where that is arranged.
+func (w *valueWalk) pointer(v reflect.Value, depth int, active visitorSet) {
 	if v.IsNil() {
 		return
 	}
 	key := refKey{typ: v.Type(), ptr: v.Pointer()}
-	if _, met := w.seen[key]; met {
-		w.closesCycle(key, path)
+	entered := w.seen[key]
+	fresh := active &^ entered
+	if fresh == 0 {
+		w.closesCycle(key, active)
 		return
 	}
-	w.seen[key] = struct{}{}
-	w.enter(key, path)
-	w.descend(v.Elem(), path, depth+1)
+	w.seen[key] = entered | fresh
+	w.enter(key)
+	w.descend(v.Elem(), depth+1, fresh)
 	w.leave()
 }
 
-// enter records that the walk is inside key, entered at path.
-func (w *valueWalk) enter(key refKey, path string) {
-	w.inside = append(w.inside, insideRef{key: key, entered: path})
+// enter records that the walk is inside key, entered at the path it is at.
+func (w *valueWalk) enter(key refKey) {
+	w.inside = append(w.inside, insideRef{key: key, depth: len(w.steps)})
 }
 
 // leave records that the walk has left the reference it entered last.
@@ -186,16 +324,22 @@ func (w *valueWalk) leave() {
 }
 
 // closesCycle reports whether the walk is already inside key, which makes
-// meeting it at path a cycle, and reports the cycle to the caller if it asked for
-// them. The scan is as long as the references enclosing path — a handful in a
+// meeting it here a cycle, and tells the visitors in active that ask for cycles.
+// The scan is as long as the references enclosing the walk — a handful in a
 // compiled document and at most [MaxWalkDepth] in any.
-func (w *valueWalk) closesCycle(key refKey, path string) bool {
+//
+// Every visitor in active entered key where the walk did, since the walk went on
+// into key only for those that had not entered it before.
+func (w *valueWalk) closesCycle(key refKey, active visitorSet) bool {
 	for _, ref := range w.inside {
 		if ref.key != key {
 			continue
 		}
-		if w.cycle != nil {
-			w.cycle(ValueCycle{Path: path, Entered: ref.entered, Type: key.typ.String()})
+		at, entered := w.here(), WalkPath{walk: w, depth: ref.depth}
+		for set := active; set != 0; set &= set - 1 {
+			if c := w.cycles[bits.TrailingZeros64(uint64(set))]; c != nil {
+				c.Cycle(at, entered, key.typ)
+			}
 		}
 		return true
 	}
@@ -205,65 +349,63 @@ func (w *valueWalk) closesCycle(key refKey, path string) bool {
 // sequence descends into slice and array elements, skipping byte sequences.
 // Unmodeled and RawConfig payloads are jsontext.Value, the largest values a
 // document holds, and a uint8 element is nothing a visitor looks for, so
-// descending costs a reflect.Value and a formatted path per byte: 88ms against
-// 22µs for one 256 KB payload. The result is the same either way, so only a
-// test counting what the walk reaches can notice the skip going missing.
+// descending costs a reflect.Value and a visit per byte: 88ms against 22µs for
+// one 256 KB payload. The result is the same either way, so only a test
+// counting what the walk reaches can notice the skip going missing.
 //
 // A slice is a reference; an array is a value, with no address of its own.
-func (w *valueWalk) sequence(v reflect.Value, path string, depth int) {
+func (w *valueWalk) sequence(v reflect.Value, depth int, active visitorSet) {
 	if v.Type().Elem().Kind() == reflect.Uint8 || v.Len() == 0 {
 		return
 	}
 	if v.Kind() != reflect.Slice {
-		w.elements(v, path, depth)
+		w.elements(v, depth, active)
 		return
 	}
 	key := refKey{typ: v.Type(), ptr: v.Pointer(), n: v.Len()}
-	if w.closesCycle(key, path) {
+	if w.closesCycle(key, active) {
 		return
 	}
-	w.enter(key, path)
-	w.elements(v, path, depth)
+	w.enter(key)
+	w.elements(v, depth, active)
 	w.leave()
 }
 
 // elements descends into each element of a slice or array.
-func (w *valueWalk) elements(v reflect.Value, path string, depth int) {
+func (w *valueWalk) elements(v reflect.Value, depth int, active visitorSet) {
 	for i := range v.Len() {
-		w.descend(v.Index(i), fmt.Sprintf("%s[%d]", path, i), depth+1)
+		w.step(pathStep{kind: stepElement, index: i}, v.Index(i), depth+1, active)
 	}
 }
 
 // mapping descends into a map's keys and values. A map is a reference.
-func (w *valueWalk) mapping(v reflect.Value, path string, depth int) {
+func (w *valueWalk) mapping(v reflect.Value, depth int, active visitorSet) {
 	if v.Len() == 0 {
 		return
 	}
 	key := refKey{typ: v.Type(), ptr: v.Pointer()}
-	if w.closesCycle(key, path) {
+	if w.closesCycle(key, active) {
 		return
 	}
-	w.enter(key, path)
-	w.entries(v, path, depth)
+	w.enter(key)
+	w.entries(v, depth, active)
 	w.leave()
 }
 
 // entries descends into each key and value of a map, in rendered-key order.
-func (w *valueWalk) entries(v reflect.Value, path string, depth int) {
-	for _, e := range orderedEntries(v) {
-		w.descend(e.key, fmt.Sprintf("%s[%s]%s", path, e.label, MapKeySuffix), depth+1)
-		w.descend(e.value, fmt.Sprintf("%s[%s]", path, e.label), depth+1)
+// The entries sit on one stack the walk reuses: a map nested inside an entry
+// stacks its own above them and takes them off again, so ranging over a map
+// allocates nothing once the stack has grown to the walk's widest.
+func (w *valueWalk) entries(v reflect.Value, depth int, active visitorSet) {
+	base := len(w.ranging)
+	w.ranging = appendOrderedEntries(w.ranging, v)
+	for i := base; i < len(w.ranging); i++ {
+		// Indexed afresh: a nested map can move the stack while stacking its own.
+		e := w.ranging[i]
+		w.step(pathStep{kind: stepMapKey, label: e.label}, e.key, depth+1, active)
+		w.step(pathStep{kind: stepMapValue, label: e.label}, e.value, depth+1, active)
 	}
-}
-
-// fieldPath extends path with f's name, except for an embedded field, which
-// contributes no segment: JSON inlines it and Go promotes its fields, so
-// "….TypeCommon.Examples[0]" would name a step neither encoding has.
-func fieldPath(path string, f reflect.StructField) string {
-	if f.Anonymous {
-		return path
-	}
-	return path + "." + f.Name
+	w.ranging = w.ranging[:base]
 }
 
 // mapEntry is one map entry paired with its rendered key, which both spells the
@@ -274,20 +416,58 @@ type mapEntry struct {
 	value reflect.Value
 }
 
-// orderedEntries returns v's entries ordered by rendered key rather than Go's
-// randomized map order. A pointer reachable from two entries is descended into
-// at whichever the walk reaches first, so a random order would change the
-// result set, not just its order, and no later sort repairs that (invariant 7).
-// The rendering is the one the path uses, which keeps the two in step, and it
-// is a total order for every key type the IR declares: named string types,
-// plain strings and ints all render distinct keys distinctly.
-func orderedEntries(v reflect.Value) []mapEntry {
-	entries := make([]mapEntry, 0, v.Len())
+// appendOrderedEntries appends v's entries to dst ordered by rendered key rather
+// than Go's randomized map order. A pointer reachable from two entries is
+// descended into at whichever the walk reaches first, so a random order would
+// change the result set, not just its order, and no later sort repairs that
+// (invariant 7). The rendering is the one the path uses, which keeps the two in
+// step, and it is a total order for every key type the IR declares: named
+// string types, plain strings and ints all render distinct keys distinctly.
+func appendOrderedEntries(dst []mapEntry, v reflect.Value) []mapEntry {
+	base := len(dst)
+	plain := rendersPlainly(v.Type().Key())
 	// MapRange rather than v.Seq2(), which puts the loop body on the heap.
 	for iter := v.MapRange(); iter.Next(); {
 		k := iter.Key()
-		entries = append(entries, mapEntry{label: fmt.Sprintf("%v", k), key: k, value: iter.Value()})
+		dst = append(dst, mapEntry{label: keyLabel(k, plain), key: k, value: iter.Value()})
 	}
-	slices.SortFunc(entries, func(a, b mapEntry) int { return strings.Compare(a.label, b.label) })
-	return entries
+	slices.SortFunc(dst[base:], func(a, b mapEntry) int { return strings.Compare(a.label, b.label) })
+	return dst
+}
+
+// The interfaces through which fmt lets a type spell itself under %v.
+var (
+	formatterType = reflect.TypeFor[fmt.Formatter]()
+	stringerType  = reflect.TypeFor[fmt.Stringer]()
+	errorType     = reflect.TypeFor[error]()
+)
+
+// rendersPlainly reports whether fmt's %v spells a key of type t as its plain
+// string or decimal integer: a string or integer kind with none of the methods
+// through which fmt lets a type spell itself.
+func rendersPlainly(t reflect.Type) bool {
+	switch t.Kind() {
+	case reflect.String, reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
+		return !t.Implements(formatterType) && !t.Implements(stringerType) && !t.Implements(errorType)
+	default:
+		return false
+	}
+}
+
+// keyLabel renders a map key as fmt's %v does, which is how a path spells it,
+// without fmt's two allocations for a key that renders plainly: a string key is
+// its own label.
+func keyLabel(k reflect.Value, plain bool) string {
+	if !plain {
+		return fmt.Sprintf("%v", k)
+	}
+	switch k.Kind() {
+	case reflect.String:
+		return k.String()
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return strconv.FormatInt(k.Int(), 10)
+	default:
+		return strconv.FormatUint(k.Uint(), 10)
+	}
 }
