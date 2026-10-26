@@ -106,10 +106,10 @@ type Compiler interface {
 	// another compiler's type mean this one's defaults; only Compile rejects
 	// them.
 	//
-	// diags is read only when ok is false. Declining another format's bytes is
-	// silent; diags is for this compiler's own source, unreadable or one opts
-	// forbid reading, holds an error saying why, and names src as Source 0, or
-	// no source.
+	// diags is read only when ok is false. Declining another format's bytes
+	// within SourceLimit is silent; for this compiler's own source, unreadable
+	// or one opts forbid reading, diags holds an error saying why, naming src as
+	// Source 0, or no source.
 	Detect(ctx context.Context, src Source, opts Options) (rec Recognition, diags []ir.Diagnostic, ok bool)
 	// DecodeOptions turns textual settings into the value this compiler expects
 	// in Options.FormatOptions. An empty set yields defaults. An unknown key or

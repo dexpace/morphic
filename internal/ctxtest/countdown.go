@@ -8,8 +8,8 @@ import (
 // Countdown is a context whose Err answers nil for its first Left calls and
 // context.Canceled from then on, counting every call in Calls. It puts a
 // cancel at a chosen check of the context, deterministically, where a timer
-// would race the work. It embeds the context it decorates for the rest, and is
-// used by pointer.
+// would race the work. It embeds the context it decorates for the rest, Done
+// among it, so only work that asks Err sees the cancel. It is used by pointer.
 type Countdown struct {
 	context.Context
 	// OnRefuse, when set, is called once, as Err first answers
