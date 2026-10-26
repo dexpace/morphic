@@ -442,8 +442,8 @@ belongs *inside* that compiler (§2.1, milestone 2). A sibling `compilers/swagge
 `compilers/openapi` is the one import the rules below forbid outright.
 
 This tree is prose. `internal/archtest`'s `rules` map is the source of truth, and it is what fails
-when the two disagree — every production package must appear there or in `exempt`. To read the
-layout off the tree rather than off this page:
+when the two disagree — every production package must appear there or in `exempt`, which takes
+tooling under `internal/` alone. To read the layout off the tree rather than off this page:
 
 ```bash
 git ls-files '*/*.go' | xargs -n1 dirname | sort -u
@@ -461,6 +461,8 @@ Dependency rules, enforced by an architecture test as in oagen:
   compiler's. That is what keeps the ordering among them real: `diag` reaches nothing but `ir`,
   and no lowering package may reach the compiler that calls it.
 - `emitters/*` imports `ir`, `ir/irfacts` and the contract package `emitters` — never a compiler.
+  The rule is in place before the first emitter package: `emitters` is ruled now, and each package
+  beneath it carries an entry of its own, as a compiler's packages do.
 - `engine` imports everything below it; `cmd` imports `engine`.
 
 The engine owns every read, every write and every rendering for a person, so a second driver — an

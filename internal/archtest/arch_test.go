@@ -336,6 +336,12 @@ var rules = map[string][]string{
 		"github.com/stretchr/testify/assert",
 		"github.com/stretchr/testify/require", "gopkg.in/yaml.v3"},
 	"pass": {module + "/ir", module + "/ir/irfacts"},
+	// The emitter contract, Layer 2, ruled before any package of it exists
+	// (unbuilt), so the first emitter is audited from its first import. It
+	// reaches ir and nothing else yet: never a compiler, the engine or another
+	// emitter (emitter-design.md §7). Each package beneath it carries its own
+	// entry (ownEntryRequired), and none goes in exempt (mayBeExempt).
+	"emitters": {module + "/ir"},
 	// The orchestration. It reaches the compiler package to compose the default
 	// registry and nothing of any source format: what a spec looks like and what
 	// its options are called are answered through the contract, so no parser is
@@ -420,7 +426,8 @@ var rules = map[string][]string{
 }
 
 // exempt names the production packages deliberately outside the layering rules,
-// each with the reason it is out.
+// each with the reason it is out. Only tooling under internal/ may be
+// (mayBeExempt): a pipeline package left out would be audited by nothing.
 //
 // Being unkeyed in rules is not by itself a decision — an omission looks
 // identical to one — so TestImportGraph_EveryPackageIsRuledOrExempt requires
@@ -429,6 +436,16 @@ var rules = map[string][]string{
 var exempt = map[string]string{
 	"internal/harness": "test/tooling infrastructure that drives specs through the oracles, " +
 		"so it legitimately imports the Layer-3 engine for the compilers it registers",
+}
+
+// unbuilt names the rules entries whose directory does not exist yet, each
+// with the reason it is ruled already. A rule for a missing directory audits
+// nothing, and so does a misspelt one, so TestImportGraph_LayeringHolds skips
+// only these, and TestUnbuilt_NamesOnlyMissingRuledDirectories fails on one
+// whose package has landed until it is dropped here.
+var unbuilt = map[string]string{
+	"emitters": "the emitter contract, ruled before its first package so that package is audited from " +
+		"its first import (GitHub #973)",
 }
 
 // TestImportGraph_LayeringHolds parses every non-test Go file under each ruled
@@ -448,8 +465,11 @@ func TestImportGraph_LayeringHolds(t *testing.T) {
 		t.Run(dir, func(t *testing.T) {
 			t.Parallel()
 			base := filepath.Join(root, dir)
-			if _, err := os.Stat(base); errors.Is(err, fs.ErrNotExist) {
-				t.Skipf("directory %s does not exist yet", dir)
+			_, statErr := os.Stat(base)
+			skip, err := unbuiltSkip(dir, statErr)
+			require.NoError(t, err)
+			if skip {
+				t.Skipf("directory %s does not exist yet: %s", dir, unbuilt[dir])
 			}
 			violations, unused, err := walkImports(dir, base, allowed)
 			require.NoError(t, err)
@@ -459,6 +479,54 @@ func TestImportGraph_LayeringHolds(t *testing.T) {
 			for _, entry := range unused {
 				t.Errorf("%s allows %q, which no production file it audits imports; drop the entry", dir, entry)
 			}
+		})
+	}
+}
+
+// unbuiltSkip decides a ruled directory whose stat returned statErr: skipped
+// when it is missing and unbuilt names it, audited when it exists, and
+// refused otherwise, since a misspelt entry would audit nothing.
+func unbuiltSkip(dir string, statErr error) (bool, error) {
+	if statErr == nil {
+		return false, nil
+	}
+	if _, planned := unbuilt[dir]; planned && errors.Is(statErr, fs.ErrNotExist) {
+		return true, nil
+	}
+	return false, fmt.Errorf("rules names %s, which cannot be audited; fix the entry, "+
+		"or name a package not yet built in unbuilt: %w", dir, statErr)
+}
+
+// TestUnbuiltSkip_SkipsOnlyAMissingDirectoryUnbuiltNames pins the decision:
+// a missing directory unbuilt names is skipped, an existing one audited, and
+// any other missing or unreadable directory refused rather than skipped.
+func TestUnbuiltSkip_SkipsOnlyAMissingDirectoryUnbuiltNames(t *testing.T) {
+	t.Parallel()
+	denied := &fs.PathError{Op: "stat", Path: "emitters", Err: fs.ErrPermission}
+	for _, tc := range []struct {
+		name, dir string
+		statErr   error
+		skip      bool
+		wantIs    error
+	}{
+		{"a planned directory, missing", "emitters", fs.ErrNotExist, true, nil},
+		{"a planned directory, present", "emitters", nil, false, nil},
+		{"a ruled directory, present", "engine", nil, false, nil},
+		{"a misspelt directory", "engnie", fs.ErrNotExist, false, fs.ErrNotExist},
+		{"a planned directory that cannot be read", "emitters", denied, false, fs.ErrPermission},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			skip, err := unbuiltSkip(tc.dir, tc.statErr)
+
+			assert.Equal(t, tc.skip, skip)
+			if tc.wantIs == nil {
+				assert.NoError(t, err)
+				return
+			}
+			require.ErrorIs(t, err, tc.wantIs)
+			assert.Contains(t, err.Error(), "rules names "+tc.dir)
 		})
 	}
 }
@@ -542,21 +610,99 @@ func TestWalkImports_AnUnusedAllowanceIsReported(t *testing.T) {
 	assert.Equal(t, []string{"example.com/unused"}, unused)
 }
 
-// TestOwnEntryRequired_HoldsEveryPackageUnderCompilers pins the subtree the
-// stricter rule covers: each package under compilers/, at any depth, and
-// nothing outside it, where nearest-ancestor inheritance is deliberate.
-func TestOwnEntryRequired_HoldsEveryPackageUnderCompilers(t *testing.T) {
+// TestOwnEntryRequired_HoldsEveryPackageUnderCompilersAndEmitters pins the
+// subtrees the stricter rule covers: each package under compilers/ or
+// emitters/, at any depth, and nothing outside them, where nearest-ancestor
+// inheritance is deliberate.
+func TestOwnEntryRequired_HoldsEveryPackageUnderCompilersAndEmitters(t *testing.T) {
 	t.Parallel()
 	for dir, want := range map[string]bool{
 		"compilers":                       true,
 		"compilers/newformat":             true,
 		"compilers/openapi/internal/zz":   true,
 		"compilers/openapi/internal/a/b":  true,
+		"emitters":                        true,
+		"emitters/golang":                 true,
+		"emitters/golang/goast":           true,
 		"compilersx":                      false,
+		"emittersx":                       false,
+		"engine":                          false,
 		"internal/harness":                false,
 		"internal/lintrules/testdata/mod": false,
 	} {
 		assert.Equal(t, want, ownEntryRequired(dir), dir)
+	}
+}
+
+// TestWalkImports_AnEmitterReachingAboveIrIsRefused plants the package the
+// first emitter starts as, under the live emitters entry: a target with no
+// entry of its own importing a compiler, the compiler contract and the engine,
+// each refused and the missing entry named, and ir, which every emitter
+// reaches, admitted (invariant 1).
+func TestWalkImports_AnEmitterReachingAboveIrIsRefused(t *testing.T) {
+	t.Parallel()
+	base := t.TempDir()
+	refused := []string{module + "/compilers/openapi", module + "/compilers", module + "/engine"}
+	for i, imp := range append([]string{module + "/ir"}, refused...) {
+		writeImporter(t, filepath.Join(base, "golang", fmt.Sprintf("f%d.go", i)), imp)
+	}
+
+	violations, unused, err := walkImports("emitters", base, rules["emitters"])
+	require.NoError(t, err)
+	assert.Empty(t, unused, "the planted ir import uses the entry")
+	require.Len(t, violations, len(refused), "%v", violations)
+	for i, imp := range refused {
+		assert.Contains(t, violations[i], `"`+imp+`"`)
+		assert.Contains(t, violations[i], "emitters/golang has no rules entry of its own")
+	}
+}
+
+// TestImportGraph_OnlyToolingIsExempt holds exempt to the packages outside the
+// pipeline: a compiler, a pass, an emitter, the engine or a command left out of
+// the layering would be audited by nothing, which no reason can make right.
+func TestImportGraph_OnlyToolingIsExempt(t *testing.T) {
+	t.Parallel()
+	for dir := range exempt {
+		assert.True(t, mayBeExempt(dir), "%s is a pipeline package; rule it instead of exempting it", dir)
+	}
+}
+
+// TestMayBeExempt_AdmitsOnlyInternal pins the predicate: a package under
+// internal/, the tooling outside the pipeline, and nothing else.
+func TestMayBeExempt_AdmitsOnlyInternal(t *testing.T) {
+	t.Parallel()
+	for dir, want := range map[string]bool{
+		"internal/harness":  true,
+		"internal/a/b":      true,
+		"internal":          false,
+		"internalx/harness": false,
+		"emitters/golang":   false,
+		"compilers/openapi": false,
+		"engine":            false,
+		"cmd/morphic":       false,
+		"pass":              false,
+	} {
+		assert.Equal(t, want, mayBeExempt(dir), dir)
+	}
+}
+
+// mayBeExempt reports whether dir may be named in exempt: a package under
+// internal/, test and tooling infrastructure the pipeline never imports.
+func mayBeExempt(dir string) bool {
+	return strings.HasPrefix(dir, "internal/")
+}
+
+// TestUnbuilt_NamesOnlyMissingRuledDirectories holds unbuilt to what it is
+// for: each entry names a rules entry whose directory does not exist yet. One
+// whose package has landed is audited, so its entry would only hide a later
+// removal.
+func TestUnbuilt_NamesOnlyMissingRuledDirectories(t *testing.T) {
+	t.Parallel()
+	root := irtest.RepoRoot(t)
+	for dir := range unbuilt {
+		assert.Contains(t, rules, dir, "unbuilt names %s, which has no rules entry", dir)
+		_, err := os.Stat(filepath.Join(root, dir))
+		assert.ErrorIs(t, err, fs.ErrNotExist, "%s exists now; drop it from unbuilt", dir)
 	}
 }
 
@@ -594,8 +740,8 @@ func TestImportGraph_EveryPackageIsRuledOrExempt(t *testing.T) {
 				"add it to rules, or name it in exempt with the reason it is out", dir)
 		_, own := rules[dir]
 		assert.False(t, ownEntryRequired(dir) && !own,
-			"%s has no rules entry of its own: a package under compilers/ needs one, since an inherited "+
-				"allowlist says nothing about where it sits (CONTRIBUTING.md, Add a compiler, step 2)", dir)
+			"%s has no rules entry of its own: a package under compilers/ or emitters/ needs one, since an "+
+				"inherited allowlist says nothing about where it sits (CONTRIBUTING.md, Add a compiler, step 2)", dir)
 	}
 	for dir := range exempt {
 		assert.Contains(t, pkgs, dir, "exempt names %s, which holds no production Go files", dir)
@@ -603,13 +749,18 @@ func TestImportGraph_EveryPackageIsRuledOrExempt(t *testing.T) {
 }
 
 // ownEntryRequired reports whether dir must carry a rules entry of its own
-// rather than inherit an ancestor's. Under compilers/ an inherited allowlist is
-// never the intended one: a new compiler would inherit the contract package's,
-// which forbids the two packages every compiler imports, and a compiler's
-// internal package its compiler's, which admits every sibling the ordering
-// among them exists to keep out.
+// rather than inherit an ancestor's. Under compilers/ and emitters/ an
+// inherited allowlist is never the intended one: a new compiler or target
+// would inherit its contract package's, which forbids the shared packages each
+// imports, and a package inside one its parent's, which admits every sibling
+// the ordering among them exists to keep out.
 func ownEntryRequired(dir string) bool {
-	return dir == "compilers" || strings.HasPrefix(dir, "compilers/")
+	for _, layer := range []string{"compilers", "emitters"} {
+		if dir == layer || strings.HasPrefix(dir, layer+"/") {
+			return true
+		}
+	}
+	return false
 }
 
 // coveredByRule reports whether dir or one of its ancestors carries an import
