@@ -33,7 +33,8 @@ compiler or pass that broke its contract, or a run a signal stopped.
 SIGINT, SIGTERM or SIGHUP stops the run, which then writes no document: a file
 --output names keeps its previous content, its temporary file removed. One
 that comes once the document is being written to stdout or moved into place,
-or once an --explain report has begun, is too late to stop the run, which
+once an --explain report has begun, or, for a spec that lowered to no
+document, once the compile is over, is too late to stop the run, which
 finishes as though it had not come. Another signal while the run is stopping
 changes nothing.
 

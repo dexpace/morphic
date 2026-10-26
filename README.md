@@ -181,7 +181,7 @@ Both commands share them.
 |---|---|
 | `0` | Clean, or a help request. |
 | `1` | The spec has problems: a diagnostic reached the `--fail-on` threshold, or the spec could not be lowered at all (an undecodable file, an unrecognized or unsupported format, a version no compiler claims). |
-| `2` | The invocation or the filesystem was wrong, the run was stopped, or something inside morphic failed: a bad flag or argument, a spec that could not be read, an output that could not be written, a SIGINT, SIGTERM or SIGHUP, or a compiler or pass that broke its contract, which `--verify` also holds to the IR's invariants. Nothing in the spec's own contents leads to `2`. |
+| `2` | The invocation or the filesystem was wrong, the run was stopped, or something inside morphic failed: a bad flag or argument, a spec that could not be read, an output that could not be written, a SIGINT, SIGTERM or SIGHUP that stopped the run, or a compiler or pass that broke its contract, which `--verify` also holds to the IR's invariants. Nothing in the spec's own contents leads to `2`. |
 
 One run can earn both `1` and `2`: a spec that reached the threshold, whose `-o` destination then
 refused the write. The verdict on the spec wins, so `1` always means the spec has problems, and the
@@ -196,15 +196,16 @@ content, its temporary file removed, and stdout gets none of it. Stopped during 
 writes nothing at all; stopped during `compile`'s diagnostics, it finishes them, and no document or
 `--explain` report follows. A signal that comes once the run's last output has begun is too late to
 stop it: once the document is being written to stdout or moved into place over `-o`'s file, once an
-`--explain` report has begun, or, for `validate`, whose diagnostics are all it writes, once the
-compile is over. The run then finishes and exits as though the signal had not been sent, so it
-never reports a stop for a document it wrote. Another signal while the run is stopping changes
-nothing, so a copy that a shell or a wrapper delivers along with the first cannot cut the cleanup
-short, and a signal that comes as morphic exits does not end it by that signal either. Stopping can
-take a few seconds on a large spec; SIGQUIT (`Ctrl-\`), which prints every goroutine's stack, or
-SIGKILL ends morphic sooner, and either can leave the temporary file behind: a dot, the
-destination's name, then digits. A SIGINT or SIGHUP morphic was started ignoring stays ignored, as a
-script's shell starts a background job ignoring SIGINT and `nohup` a command ignoring SIGHUP.
+`--explain` report has begun, or once the compile is over for a run that writes nothing after its
+diagnostics, `validate` or `compile` of a spec that lowered to no document. The run then finishes
+and exits as though the signal had not been sent, so it never reports a stop for a document it
+wrote. Another signal while the run is stopping changes nothing, so a copy that a shell or a wrapper
+delivers along with the first cannot cut the cleanup short, and a signal that comes as morphic
+exits does not end it by that signal either. Stopping can take a few seconds on a large spec;
+SIGQUIT (`Ctrl-\`), which prints every goroutine's stack, or SIGKILL ends morphic sooner, and
+either can leave the temporary file behind: a dot, the destination's name, then digits. A SIGINT or
+SIGHUP morphic was started ignoring stays ignored, as a script's shell starts a background job
+ignoring SIGINT and `nohup` a command ignoring SIGHUP.
 
 #### Compiler options
 

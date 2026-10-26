@@ -215,12 +215,14 @@ func TestRun_AStopSignalDuringTheReportAbandonsTheOutputAfterIt(t *testing.T) {
 // TestRun_AStopSignalOnceTheLastOutputHasBegunComesTooLate pins a signal that
 // arrives once the run is writing its last output, after the last step that
 // looks at the context: the run finishes, and ends exactly as a run no signal
-// reached does. That output is validate's report, or compile's document on
-// stdout or its --explain report.
+// reached does. That output is validate's report, compile's report of a spec
+// that lowered to no document, or compile's document on stdout or its
+// --explain report.
 func TestRun_AStopSignalOnceTheLastOutputHasBegunComesTooLate(t *testing.T) {
 	t.Parallel()
 	tiny := writeFile(t, "spec.yaml", testspec.Tiny)
 	findings := writeFile(t, "spec.yaml", unresolvedRefSpec)
+	unlowered := writeFile(t, "spec.yaml", "swagger: \"2.0\"\ninfo: {title: Old, version: \"1\"}\npaths: {}\n")
 	tests := []struct {
 		name     string
 		args     []string
@@ -228,6 +230,7 @@ func TestRun_AStopSignalOnceTheLastOutputHasBegunComesTooLate(t *testing.T) {
 		wantCode int
 	}{
 		{"validate's report", []string{"validate", findings}, false, exitFindings},
+		{"the report of a spec lowering to no document", []string{"compile", unlowered}, false, exitFindings},
 		{"the document to stdout", []string{"compile", tiny}, true, 0},
 		{"an --explain report", []string{"compile", findings, "--explain", ""}, true, exitFindings},
 	}
