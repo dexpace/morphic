@@ -8,23 +8,37 @@ import (
 	"unicode/utf8"
 )
 
-// maxText bounds the text of a panic value in a message. The value belongs to
-// code that obeys no limit, and a message is read on one line.
+// maxText bounds the text of a value in a message. The value belongs to code
+// that obeys no limit, and a message is read on one line. It is generous
+// because the errors worth quoting are lists, such as a validator's sentence
+// per finding, and a list cut to its first entry says less than a reader needs.
 const maxText = 4 << 10
 
-// scanLimit bounds how much of a panic value's text oneLine reads, so the work
-// is bounded by what is kept and not by what the value wrote.
+// scanLimit bounds how much of a value's text render reads, so the work is
+// bounded by what is kept and not by what the value wrote.
 const scanLimit = 4 * maxText
 
-// noText stands in for a panic value whose text is empty or only white space,
-// so the message still says that something panicked.
+// noText stands in for a value whose text is empty or only white space, so a
+// message quoting it still says something.
 const noText = "(no text)"
 
-// elidedMarker ends a message the bound cut. It carries no count: a count would
-// make the message depend on the whole text again.
+// elidedMarker ends a text the bound cut. It carries no count: a count would
+// make the text depend on the whole value again.
 const elidedMarker = "… (elided)"
 
-// describe renders the panic value r without trusting it to render itself.
+// Line renders v, what code the caller does not own returned or panicked with,
+// as text a one-line message can quote. Its lines are joined with "; ", or
+// with a space after one ending in a colon. The result is well-formed UTF-8 of
+// at most 4 KiB, cut on a rune boundary and marked when cut. Control characters
+// other than line breaks are kept for the renderer to escape.
+//
+// An error, a Stringer, a string, a number and a bool render as they say; any
+// other value, and one whose text panics, is named by its type.
+func Line(v any) string {
+	return render(describe(v), asIs)
+}
+
+// describe renders the value r without trusting it to render itself.
 // An error and a Stringer say what they say, a string is itself, and a number
 // or a bool prints as it is. Anything else is named by its type alone: fmt
 // follows a map or a slice into itself without end, and a stack overflow is
@@ -64,14 +78,13 @@ func isScalar(k reflect.Kind) bool {
 	}
 }
 
-// oneLine makes text fit a message: well-formed UTF-8, on one line, free of
-// control characters a terminal would act on, and at most maxText bytes, cut on
-// a rune boundary and marked when it was cut.
-func oneLine(text string) string {
+// render makes text fit a message: well-formed UTF-8, its lines joined, each
+// rune mapped through glyph, and at most maxText bytes, cut on a rune boundary
+// and marked when it was cut.
+func render(text string, glyph func(rune) rune) string {
 	text, readCut := clip(text, scanLimit)
 	text = strings.ToValidUTF8(text, string(utf8.RuneError))
-	text = strings.Join(strings.Fields(text), " ")
-	text = strings.Map(visible, text)
+	text = strings.Map(glyph, joinLines(text))
 	text, keptCut := clip(text, maxText)
 
 	switch {
@@ -84,8 +97,49 @@ func oneLine(text string) string {
 	}
 }
 
-// visible maps a control character, which Fields has left only where it is not
-// white space, to U+FFFD, and keeps every other rune.
+// joinLines puts text on one line: the white space within each line collapsed
+// to single spaces, blank lines dropped, and the rest joined with "; ", or with
+// a space after a line ending in a colon. It stops once past maxText, so the
+// work is bounded by what clip keeps.
+func joinLines(text string) string {
+	var out strings.Builder
+	for line := range strings.FieldsFuncSeq(text, isLineBreak) {
+		sep := "; "
+		switch {
+		case out.Len() == 0:
+			sep = ""
+		case strings.HasSuffix(out.String(), ":"):
+			sep = " "
+		}
+		for word := range strings.FieldsSeq(line) {
+			if out.Len() > maxText {
+				return out.String()
+			}
+			out.WriteString(sep)
+			out.WriteString(word)
+			sep = " "
+		}
+	}
+	return out.String()
+}
+
+// isLineBreak reports whether r ends a line, as Unicode's mandatory breaks do:
+// line feed, carriage return, the vertical tab and form feed, next line, and
+// the line and paragraph separators.
+func isLineBreak(r rune) bool {
+	switch r {
+	case '\n', '\r', '\v', '\f', '\u0085', '\u2028', '\u2029':
+		return true
+	default:
+		return false
+	}
+}
+
+// asIs keeps r, for a text whose renderer escapes what it must.
+func asIs(r rune) rune { return r }
+
+// visible maps a control character, which joinLines has left only where it is
+// neither white space nor a line break, to U+FFFD, and keeps every other rune.
 func visible(r rune) rune {
 	if unicode.IsControl(r) {
 		return utf8.RuneError

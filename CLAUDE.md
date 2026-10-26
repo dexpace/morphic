@@ -116,8 +116,9 @@ in the docs.
 ## Package layout & layering (enforced by an architecture test)
 
 ```
-barrier/     Layer 0 — runs code its caller does not own and turns a panic in it into an error.
-             Imports ONLY the stdlib.
+barrier/     Layer 0 — runs code its caller does not own, turns a panic in it into an error, and
+             quotes what it says on one bounded line. The one package that may call recover
+             (`.golangci.yml`). Imports ONLY the stdlib.
 ir/          Layer 0 — IR nodes, IDs, traversal, editing, JSON round-trip. Imports ONLY the stdlib.
   irfacts/   Layer 0 — what a Document implies and does not state (subtypes, exposed properties,
              usage, recursion), derived on demand and never stored. Imports ir only.
@@ -132,7 +133,7 @@ compilers/   Layer 1 — the Compiler contract and the format-keyed registry. Im
              other, never emitters/engine.
     internal/  Layer 1 — that compiler's own packages, each with its own allowlist rather than
              the compiler's. The ordering among them is real and enforced, from diag (reaches
-             only ir) up to operation, document and detect. None may reach the compiler above it.
+             only ir and barrier) up to operation, document and detect. None may reach the compiler above it.
     e2e/     Test files only, so outside the layering: that compiler's end-to-end tests, the
              conformance corpus and goldens among them, compiled through its public face.
 pass/        Layer 1 — IR → IR passes. Imports ir and ir/irfacts.

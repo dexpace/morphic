@@ -26,6 +26,7 @@ var errNoFunction = errors.New("barrier: no function to call")
 // whole beside it, for the caller that wants them.
 type PanicError struct {
 	value any
+	text  string
 	msg   string
 	stack []byte
 }
@@ -56,18 +57,26 @@ func Catch(f func()) (err error) {
 	return nil
 }
 
-// newPanicError describes the panic value r. It runs in the deferred call that
-// recovered r, so the stack it reads is the panic's own.
+// newPanicError describes the panic value r, reading its text once. It runs in
+// the deferred call that recovered r, so the stack it reads is the panic's own.
 func newPanicError(r any) *PanicError {
-	msg := "panic: " + oneLine(describe(r))
+	text := describe(r)
+	msg := "panic: " + render(text, visible)
 	if site := siteOf(); site != "" {
 		msg += " (at " + site + ")"
 	}
-	return &PanicError{value: r, msg: msg, stack: stackOf()}
+	return &PanicError{value: r, text: render(text, asIs), msg: msg, stack: stackOf()}
 }
 
 // Error returns the panic as one line: its value, then where it was raised.
+// Control characters are replaced with U+FFFD, since an error's text is
+// printed as it is.
 func (e *PanicError) Error() string { return e.msg }
+
+// Text returns the panic value's text as Line renders it, for a caller that
+// words a message of its own around it: the text Error carries, with control
+// characters kept for the message's renderer to escape.
+func (e *PanicError) Text() string { return e.text }
 
 // Unwrap returns the panic value when it is an error, so errors.Is and
 // errors.As see through the panic to what was raised.

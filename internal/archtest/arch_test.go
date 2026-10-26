@@ -52,9 +52,11 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal" + subtreeSuffix},
 	// The diagnostic vocabulary sits at the bottom of the compiler's own import
 	// graph: every package that reports anything reaches it, so it must reach
-	// nothing but ir. Its own entry says that, rather than letting it inherit the
-	// compiler's much wider allowlist by being an unkeyed subdirectory.
-	"compilers/openapi/internal/diag": {module + "/ir"},
+	// nothing of the compiler's. It reaches ir, and barrier, through which the
+	// compiler runs a dependency and quotes what it says. Its own entry says
+	// that, rather than letting it inherit the compiler's much wider allowlist
+	// by being an unkeyed subdirectory.
+	"compilers/openapi/internal/diag": {module + "/barrier", module + "/ir"},
 	// Pointer construction and the OpenAPI derivation of an ID from a pointer. It
 	// reaches the framework for the grammar wrapped around a path and nothing
 	// else: what is OpenAPI's here is the path, and a package that could reach
@@ -109,8 +111,10 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/nodeview", "go.yaml.in/yaml/v3"},
 	// The typed side of a bind table: each schema of the parsed model known by
 	// the position it was read at, located through the library's walk, and one
-	// the library's decoder builds from raw YAML where the model holds none.
+	// the library's decoder builds from raw YAML where the model holds none,
+	// behind the compiler's barrier in diag.
 	"compilers/openapi/internal/bind/typed": {module + "/compilers/openapi/internal/bind",
+		module + "/compilers/openapi/internal/diag",
 		module + "/compilers/openapi/internal/nodeview",
 		"github.com/speakeasy-api/openapi/jsonschema/oas3", "github.com/speakeasy-api/openapi/marshaller",
 		"github.com/speakeasy-api/openapi/walk", "go.yaml.in/yaml/v3"},

@@ -339,7 +339,7 @@ components:
   - `load.taggedMappingRefusal` refuses every such mapping, wherever it is, before the document is
     decoded.
   - `sourceindex.Index.TaggedMappings` finds them.
-  - `load.unmarshal` recovers a panic on its own goroutine only.
+  - `load.parsed` recovers a panic on its own goroutine only.
 
 ### `recoverable-panic`
 
@@ -359,9 +359,9 @@ B: {$ref}
 - Verified at: v1.26.0
 - Pinned by: `TestLibraryBehaviour/recoverable-panic`
 - Code:
-  - `load.recovered` turns a panic in resolution, in a walk, or in building the fields beside a
+  - `load.guarded` turns a panic in resolution, in a walk, or in building the fields beside a
     path item's `$ref` into an error naming what was running.
-  - `load.unmarshal` turns a panic in decoding into an `ErrParse` error.
+  - `load.parsed` turns a panic in decoding into an `ErrParse` error.
   - `bind/typed.Builder.decodeRecovered` turns a panic in decoding raw YAML as a schema into a
     failure to build it.
 

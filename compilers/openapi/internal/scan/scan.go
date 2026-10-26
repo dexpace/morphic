@@ -182,20 +182,18 @@ func pointerOf(steps map[*yaml.Node]step, n *yaml.Node) jsontext.Pointer {
 	return p
 }
 
-// recoverCycleScan runs scan and, on any panic from its walks, degrades to a
-// diag.CycleScanFailed warning instead of propagating — a bug in the detector
-// must not crash the compiler on a degenerate spec (GitHub #12). The compile
-// still proceeds to the parser; only the pre-parse guarantee is flagged
-// incomplete for this source.
-func recoverCycleScan(locate Locator, scan func() []ir.Diagnostic) (diags []ir.Diagnostic) {
-	defer func() {
-		if r := recover(); r != nil {
-			diags = []ir.Diagnostic{diag.Newf(ir.SeverityWarning, diag.CycleScanFailed,
-				locate(nil),
-				"alias pre-scan aborted (%v); alias-cycle protection is incomplete for this source", r)}
-		}
-	}()
-	return scan()
+// recoverCycleScan runs scan behind diag.Catch and, on any panic from its
+// walks, degrades to a diag.CycleScanFailed warning quoting it instead of
+// propagating — a bug in the detector must not crash the compiler on a
+// degenerate spec (GitHub #12). The compile still proceeds to the parser; only
+// the pre-parse guarantee is flagged incomplete for this source.
+func recoverCycleScan(locate Locator, scan func() []ir.Diagnostic) []ir.Diagnostic {
+	var diags []ir.Diagnostic
+	if text, panicked := diag.Catch(func() { diags = scan() }); panicked {
+		return []ir.Diagnostic{diag.Newf(ir.SeverityWarning, diag.CycleScanFailed, locate(nil),
+			"alias pre-scan aborted (%s); alias-cycle protection is incomplete for this source", text)}
+	}
+	return diags
 }
 
 // Aliases refuses, before parsing, a YAML document whose aliases expand

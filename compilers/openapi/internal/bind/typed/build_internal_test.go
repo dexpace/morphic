@@ -3,6 +3,7 @@ package typed
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -10,6 +11,7 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 )
 
 // TestBuild_ReportsAFailureAndHoldsNothing pins the ways building a landing
@@ -41,4 +43,24 @@ func TestBuild_ReportsAFailureAndHoldsNothing(t *testing.T) {
 	require.Len(t, built, 1)
 	require.Error(t, built[0].Err, "a panic in the decoder is a failure to build, not one that escapes")
 	assert.Equal(t, "the parser panicked: planted", built[0].Err.Error())
+}
+
+// TestBuild_QuotesAPanicOnOneBoundedLine pins that a panic in the decoder
+// reaches the error as diag.Catch quotes it, whatever it panicked with: its
+// lines joined and its length bounded, since the load phase reports the error
+// as a diagnostic, which is rendered one per line.
+func TestBuild_QuotesAPanicOnOneBoundedLine(t *testing.T) {
+	t.Parallel()
+	var root yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte("components: {schemas: {A: {$ref: '#/x-lib/S'}}}\nx-lib: {S: {}}\n"), &root))
+	huge := strings.Repeat("the parser faulted here\n", 1<<10)
+	bd := NewBuilder(bind.Bind(&root, bind.Config{Self: "spec.yaml"}))
+	bd.decode = func(context.Context, *yaml.Node, *schemaRef) error { panic(huge) }
+
+	built := bd.Build(t.Context())
+
+	require.Len(t, built, 1)
+	require.Error(t, built[0].Err)
+	assert.Equal(t, "the parser panicked: "+diag.OneLine(errors.New(huge)), built[0].Err.Error())
+	assert.NotContains(t, built[0].Err.Error(), "\n")
 }

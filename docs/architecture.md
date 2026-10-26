@@ -503,15 +503,17 @@ Dependency rules, enforced by an architecture test as in oagen:
 
 - `ir` imports only the standard library. It contains no parsing, no generation, no I/O.
 - `barrier` imports only the standard library, and sits below the packages that run code they do not
-  own behind it: `compilers`, which runs a compiler, and `engine`, which runs a pass.
+  own behind it: `compilers`, which runs a compiler, `engine`, which runs a pass, and the OpenAPI
+  compiler's `diag`, behind which that compiler runs its parser, its overlay library and its own
+  alias scan. No other package recovers a panic, which `.golangci.yml` enforces.
 - `compilers/compile` imports only `ir`: it is below every compiler, not beside them.
 - `compilers/*` and `pass` import `ir` (and their own format libraries), and `pass` also
   `ir/irfacts` — never each other, never `emitters` or `engine`. A compiler also names the
   contract package and `compilers/compile`; each is allowed in its own right, so no sibling
   compiler rides in beside them.
 - A compiler's own `internal/` packages each carry their own allowlist rather than inheriting the
-  compiler's. That is what keeps the ordering among them real: `diag` reaches nothing but `ir`,
-  and no lowering package may reach the compiler that calls it.
+  compiler's. That is what keeps the ordering among them real: `diag` reaches only `ir` and
+  `barrier`, and no lowering package may reach the compiler that calls it.
 - `emitters/*` imports `ir`, `ir/irfacts` and the contract package `emitters` — never a compiler.
   The rule is in place before the first emitter package: `emitters` is ruled now, and each package
   beneath it carries an entry of its own, as a compiler's packages do.

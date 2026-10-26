@@ -446,15 +446,16 @@ func (r *restorer) add(model any) bool {
 // finish adds the schemas built for the bindings' landings, which no walk of
 // the source shows, and then what everything added reaches, behind the
 // barrier the walks have: the library faults on shapes it did not expect.
-func (r *restorer) finish(ctx context.Context, built []typed.Built) (err error) {
-	defer recovered(&err, restoring)
-	for _, b := range built {
-		if b.Schema != nil {
-			r.addObject(ctx, record{object: b.Schema, walk: walkOf(b.Schema)})
+func (r *restorer) finish(ctx context.Context, built []typed.Built) error {
+	return guarded(restoring, func() error {
+		for _, b := range built {
+			if b.Schema != nil {
+				r.addObject(ctx, record{object: b.Schema, walk: walkOf(b.Schema)})
+			}
 		}
-	}
-	r.drain(ctx)
-	return nil
+		r.drain(ctx)
+		return nil
+	})
 }
 
 // drain adds the object of each queued hop and what it holds, until the queue

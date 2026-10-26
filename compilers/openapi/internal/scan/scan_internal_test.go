@@ -271,6 +271,20 @@ func TestRecoverCycleScan_PanicYieldsWarning(t *testing.T) {
 		got[0].Message, "the warning says what is left unprotected")
 }
 
+// TestRecoverCycleScan_QuotesAPanicOnOneBoundedLine pins that the warning
+// quotes a fault as diag.Catch does, whatever the scan panicked with.
+func TestRecoverCycleScan_QuotesAPanicOnOneBoundedLine(t *testing.T) {
+	t.Parallel()
+	huge := strings.Repeat("the detector faulted here\n", 1<<10)
+
+	got := recoverCycleScan(InSource(0), func() []ir.Diagnostic { panic(huge) })
+
+	require.Len(t, got, 1)
+	assert.Equal(t, "alias pre-scan aborted ("+diag.OneLine(errors.New(huge))+
+		"); alias-cycle protection is incomplete for this source", got[0].Message)
+	assert.NotContains(t, got[0].Message, "\n")
+}
+
 func TestRecoverCycleScan_PassesThroughResult(t *testing.T) {
 	t.Parallel()
 	want := []ir.Diagnostic{{Code: diag.CyclicRef, Severity: ir.SeverityError}}
@@ -471,8 +485,8 @@ func TestAliases_RefusesTheYAMLShapesAndNotTheOpenAPIOnes(t *testing.T) {
 //
 // The locator faults only when asked about a node, which is what the walk asks
 // it; asked about no node, as the barrier's own report does, it answers. A
-// locator that faulted on both would fault inside the recovery too, and that
-// tests a locator this compiler does not have rather than the barrier it does.
+// locator that faulted on both would fault in that report too, and that tests
+// a locator this compiler does not have rather than the barrier it does.
 func TestAliases_DegradesAScanFaultToAWarning(t *testing.T) {
 	t.Parallel()
 	panicking := func(n *yaml.Node) ir.Provenance {

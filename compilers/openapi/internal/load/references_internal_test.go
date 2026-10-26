@@ -649,6 +649,30 @@ func TestEachReference_PanicIsReportedAtTheReference(t *testing.T) {
 	})
 }
 
+// TestGuarded_QuotesAPanicOnOneBoundedLine pins that every walk and build load
+// runs behind guarded reports a panic as diag.Catch quotes it, whatever it
+// panicked with, after the name of what was running.
+func TestGuarded_QuotesAPanicOnOneBoundedLine(t *testing.T) {
+	t.Parallel()
+	huge := strings.Repeat("the walk faulted here\n", 1<<10)
+
+	err := guarded("validation", func() error { panic(huge) })
+
+	require.Error(t, err)
+	assert.Equal(t, "validation panicked: "+diag.OneLine(errors.New(huge)), err.Error())
+	assert.NotContains(t, err.Error(), "\n")
+}
+
+// TestGuarded_ReturnsWhatTheWorkReturned pins the barrier as a pass-through for
+// work that returns.
+func TestGuarded_ReturnsWhatTheWorkReturned(t *testing.T) {
+	t.Parallel()
+	refused := errors.New("refused")
+
+	require.NoError(t, guarded("walk", func() error { return nil }))
+	assert.Same(t, refused, guarded("walk", func() error { return refused }))
+}
+
 // TestFindingPlace covers each answer findingPlace gives a trail: its last
 // document, the one named by the reference it stopped at, quoted with the
 // document that reference is written in when that is not the source, and none

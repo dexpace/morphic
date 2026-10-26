@@ -92,6 +92,11 @@ linters:
           pkg: ^log/slog$
         - pattern: ^syslog\.(New|Dial|NewLogger)$
           pkg: ^log/syslog$
+        # A panic is recovered through barrier.Catch alone, in every package. A
+        # hand-written recover quotes what it caught with no bound on its
+        # length or its lines, and misses runtime.Goexit and panic(nil).
+        - pattern: ^recover$
+          msg: recover a panic through barrier.Catch
     funlen:
       # The styleguide's hard cap. Statements are not capped as well: a function
       # is long because of what it does, and two limits on the same axis only
@@ -183,13 +188,21 @@ linters:
         linters:
           - usetesting
         text: os\.MkdirTemp
-      # forbidigo's rules are invariant 5's, which binds the pipeline's stages:
-      # ir, compilers, pass, emitters and engine, beside the plants that hold
-      # the rules. emitters is held before it has a package, so no plant can
-      # show it reaches there.
-      - path-except: ^(ir|compilers|pass|emitters|engine|internal/lintrules/testdata)/
+      # forbidigo's output rules are invariant 5's, which binds the pipeline's
+      # stages: ir, compilers, pass, emitters and engine, beside the plants that
+      # hold the rules, whose tooling package stands for one outside it. emitters
+      # is held before it has a package, so no plant can show it reaches there.
+      # Those rules carry no msg, which forbidigo reports as "forbidden by
+      # pattern", so the recover rule, which carries one, holds everywhere.
+      - path-except: ^((ir|compilers|pass|emitters|engine)/|internal/lintrules/testdata/planted/[^/]+$)
         linters:
           - forbidigo
+        text: forbidden by pattern
+      # barrier is the one package that recovers a panic.
+      - path: ^barrier/
+        linters:
+          - forbidigo
+        text: use of `recover`
       # A test may print, and a forced type assertion in one fails the test by
       # panicking, which is what an assertion is for there. The comma-ok rule
       # keeps a panic from escaping a package to its callers. A test may also
