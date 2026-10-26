@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/engine/reader"
 )
 
 // CheckPath applies Check to each spec file SpecFiles lists at path, in the
@@ -134,6 +135,32 @@ func isRegular(p string, d fs.DirEntry) (bool, error) {
 // document and not a source.
 func isSnapshot(name string) bool {
 	return strings.Contains(name, ".golden.")
+}
+
+// newRegistry registers the compilers into the registry SpecFiles asks whether
+// a file is a spec. Each call builds a fresh one, so no listing shares a
+// registry with another. An empty set is refused: every file would then read
+// as no spec, and a sweep of the tree would pass having checked nothing.
+func newRegistry() (*compilers.Registry, error) {
+	cs := registered()
+	if len(cs) == 0 {
+		return nil, errors.New("harness: no compilers registered")
+	}
+
+	reg := compilers.NewRegistry()
+	for i, c := range cs {
+		if err := reg.Register(c); err != nil {
+			return nil, fmt.Errorf("harness: register compiler %d: %w", i, err)
+		}
+	}
+	return reg, nil
+}
+
+// sweepOptions is what SpecFiles asks every compiler whether it takes a file
+// under: the options a run of the engine detects a spec with when the caller
+// names none, its defaults, reading what a source's references name from disk.
+func sweepOptions(compilers.Compiler) (compilers.Options, error) {
+	return compilers.Options{Reader: reader.Disk{}}, nil
 }
 
 // readSpecFile reads a file listing asks the compilers about. It is a seam over

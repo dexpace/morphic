@@ -13,7 +13,6 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/engine"
-	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/ir/irverify"
 	"github.com/dexpace/morphic/pass"
@@ -119,32 +118,6 @@ var registered = engine.Compilers
 // It is a seam, as registered is, for tests that need a pass the default list
 // does not hold.
 var passes = engine.Passes
-
-// newRegistry registers the compilers into a registry of its own, which listing
-// asks whether a file is a spec. Each call builds a fresh one, so no sweep
-// shares a registry with another. An empty set is refused: every source would
-// then read as unrecognized, blaming the spec for a misconfigured harness.
-func newRegistry() (*compilers.Registry, error) {
-	cs := registered()
-	if len(cs) == 0 {
-		return nil, errors.New("harness: no compilers registered")
-	}
-
-	reg := compilers.NewRegistry()
-	for i, c := range cs {
-		if err := reg.Register(c); err != nil {
-			return nil, fmt.Errorf("harness: register compiler %d: %w", i, err)
-		}
-	}
-	return reg, nil
-}
-
-// sweepOptions is what listing asks every compiler whether it takes a file
-// under: the options a run of the engine detects a spec with when the caller
-// names none, its defaults, reading what a source's references name from disk.
-func sweepOptions(compilers.Compiler) (compilers.Options, error) {
-	return compilers.Options{Reader: reader.Disk{}}, nil
-}
 
 // newEngine builds the engine a sweep runs: the registered compilers, and ps
 // as its passes, in order.
