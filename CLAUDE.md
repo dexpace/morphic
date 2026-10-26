@@ -229,8 +229,8 @@ These all exist already — extend them rather than building a parallel mechanis
 - **Architecture test**: `internal/archtest`, per the layering section above. It also holds each
   production package's uses of the parser library's reference-resolution API, which it derives
   from the library's sources, to `resolutionBaseline`. The baseline only shrinks: removing a use
-  means lowering it (#558). And it holds every function a package declares, bar the test support
-  `testSupport` names, to a caller outside its tests: a binary's `main`, by a whole-program
+  means lowering it (#558). And it holds every function a package declares, bar the test-support
+  packages `testSupport` names, to a caller outside its tests: a binary's `main`, by a whole-program
   reachability analysis, or an `apiRoots` entry naming the caller the module does not have yet.
 - **Lint rules and their plants**: a rule an off-the-shelf linter expresses lives in
   `.golangci.yml`; one about which package may build or spell a part of the IR is a go/analysis
