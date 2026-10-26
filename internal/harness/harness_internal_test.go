@@ -126,8 +126,8 @@ func TestRoundTrips_DupKeyDocRefusedAtMarshal(t *testing.T) {
 func TestRoundTrips_MismatchIsReported(t *testing.T) {
 	orig := reserializeJSON
 	t.Cleanup(func() { reserializeJSON = orig })
-	reserializeJSON = func(v any) ([]byte, error) {
-		b, err := json.Marshal(v)
+	reserializeJSON = func(v any, opts ...json.Options) ([]byte, error) {
+		b, err := json.Marshal(v, opts...)
 		if err != nil {
 			return nil, err
 		}
@@ -142,7 +142,7 @@ func TestRoundTrips_MismatchIsReported(t *testing.T) {
 func TestRoundTrips_ReserializeError(t *testing.T) {
 	orig := reserializeJSON
 	t.Cleanup(func() { reserializeJSON = orig })
-	reserializeJSON = func(any) ([]byte, error) { return nil, errors.New("reencode boom") }
+	reserializeJSON = func(any, ...json.Options) ([]byte, error) { return nil, errors.New("reencode boom") }
 
 	detail, ok := roundTrips(soundDoc())
 	assert.False(t, ok)
@@ -173,7 +173,7 @@ func TestDeterministic_MarshalSecondError(t *testing.T) {
 	compile = func(context.Context, string, []byte, []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
 		return soundDoc(), nil, nil
 	}
-	reserializeJSON = func(any) ([]byte, error) { return nil, errors.New("reencode boom") }
+	reserializeJSON = func(any, ...json.Options) ([]byte, error) { return nil, errors.New("reencode boom") }
 
 	detail, ok := deterministic(context.Background(), "s", []byte("x"), soundDoc())
 	assert.False(t, ok)
@@ -298,6 +298,41 @@ func TestCheck_ViolationsOutcome(t *testing.T) {
 
 	r := Check(context.Background(), "spec", []byte("x"))
 	assert.Equal(t, OutcomeViolations, r.Outcome)
+}
+
+// TestCheck_AStageBreakingAnInvariantIsAViolation pins that the sweep's run is
+// verified: a compiler or a pass returning a document that breaks the IR's
+// invariants is refused by the engine at that stage, and Check reports it as
+// the violations it is, naming the stage, rather than as an error.
+func TestCheck_AStageBreakingAnInvariantIsAViolation(t *testing.T) {
+	misKeyed := func(own *ir.Document) *ir.Document {
+		own.Types = ir.TypeRegistry{ir.TypeID("t/x/Key"): &ir.Any{ID: "t/x/Other"}}
+		return own
+	}
+	for _, tc := range []struct {
+		name, spec, data, stage string
+		compiler                compilers.Compiler
+		passes                  []pass.Pass
+	}{
+		{"a compiler", "spec", stubSource, `compile "spec": `,
+			stubCompiler{lower: func(sources []compilers.Source) (*ir.Document, []ir.Diagnostic, error) {
+				return misKeyed(stubDocument(sources, false)), nil, nil
+			}}, nil},
+		{"a pass", "spec.yaml", testspec.Tiny, `pass "faulting": `, nil, []pass.Pass{faulting{first: misKeyed}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.compiler != nil {
+				withCompilers(t, tc.compiler)
+			}
+			withPasses(t, tc.passes...)
+
+			r := Check(context.Background(), tc.spec, []byte(tc.data))
+
+			assert.Equal(t, OutcomeViolations, r.Outcome, r.Detail)
+			assert.True(t, strings.HasPrefix(r.Detail, tc.stage), r.Detail)
+			assert.Contains(t, r.Detail, "t/x/Key")
+		})
+	}
 }
 
 // TestCheck_RoundtripOutcome pins that Check maps a failed round trip to

@@ -2,6 +2,7 @@ package harness
 
 import (
 	"context"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"strconv"
@@ -42,10 +43,9 @@ func (marking) Run(doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
 	return &own, nil
 }
 
-// stamping is a transform that is not idempotent and breaks its contract the
-// same way on every run: it appends a mark to the service of the document it
-// is handed, which every copy of that document shares, and returns that
-// document. Its two outputs then hold one service.
+// stamping is a transform that breaks its contract on every run: it appends a
+// mark to the service of the document it is handed, which every copy of that
+// document shares, and returns that document.
 type stamping struct{}
 
 func (stamping) Name() string { return "stamping" }
@@ -130,8 +130,7 @@ func unencodable(own *ir.Document) *ir.Document {
 // the default passes, an idempotent transform and one reporting only over its
 // own output are OK; a transform that changes its own output is
 // non-idempotent, named, with what its second run changed, and so is one whose
-// two outputs share what it writes into, and one whose document turns on the
-// findings a run of it wrote.
+// document turns on the findings a run of it wrote.
 func TestCheck_IdempotenceOutcome(t *testing.T) {
 	for _, tc := range []struct {
 		name   string
@@ -144,8 +143,6 @@ func TestCheck_IdempotenceOutcome(t *testing.T) {
 		{"an idempotent transform reporting only over its own output", []pass.Pass{noting{}}, OutcomeOK, nil},
 		{"a transform changing its own output", []pass.Pass{lowering{}, marking{}}, OutcomeNonIdempotent,
 			[]string{`pass "marking" changes its own output`, `"name": "tiny!"`, `"name": "tiny!!"`}},
-		{"a transform writing into its input", []pass.Pass{stamping{}}, OutcomeNonIdempotent,
-			[]string{`pass "stamping" changes its own output`, `"version": "!"`, `"version": "!!"`}},
 		{"a transform turning on the findings it is handed", []pass.Pass{tallying{}}, OutcomeNonIdempotent,
 			[]string{`pass "tallying" changes its own output`, `"version": "0"`, `"version": "1"`}},
 	} {
@@ -162,6 +159,18 @@ func TestCheck_IdempotenceOutcome(t *testing.T) {
 	}
 }
 
+// TestCheck_APassWritingIntoItsInputIsAContractError pins that the sweep's
+// verified run refuses a pass that writes into the document it is handed, on
+// its first run, before any oracle compares what it returned.
+func TestCheck_APassWritingIntoItsInputIsAContractError(t *testing.T) {
+	withPasses(t, stamping{})
+
+	r := Check(context.Background(), "spec.yaml", []byte(testspec.Tiny))
+
+	assert.Equal(t, OutcomeError, r.Outcome, r.Detail)
+	assert.Contains(t, r.Detail, `run pass "stamping": changed the document it was handed`)
+}
+
 // TestCheck_ANondeterministicPassIsNotReadAsNonIdempotent pins the oracle's
 // place after determinism: a pass that numbers its outputs also changes its
 // own output, and is reported as what it is first.
@@ -175,10 +184,15 @@ func TestCheck_ANondeterministicPassIsNotReadAsNonIdempotent(t *testing.T) {
 
 // TestIdempotent_Faults pins each way the oracle stops short of a comparison,
 // naming the pass and the run that failed: a pass the engine refuses to
-// build, one breaking its contract on its first run or over its own output,
-// and an output that does not encode.
+// build, and one the verified run refuses on its first run or over its own
+// output, for returning no document, one that does not encode, or writing
+// into the one it is handed.
 func TestIdempotent_Faults(t *testing.T) {
 	noDocument := func(*ir.Document) *ir.Document { return nil }
+	stampsItsInput := func(own *ir.Document) *ir.Document {
+		own.Services[0].Version += "!" // the copy shares the input's services
+		return own
+	}
 	for _, tc := range []struct {
 		name   string
 		passes []pass.Pass
@@ -190,9 +204,11 @@ func TestIdempotent_Faults(t *testing.T) {
 		{"no document over its own output", []pass.Pass{faulting{rerun: noDocument}},
 			`pass "faulting" over its own output: engine: run pass "faulting": returned no document`},
 		{"an output that does not encode", []pass.Pass{faulting{first: unencodable}},
-			`pass "faulting": encode its output`},
+			`pass "faulting": engine: verify pass "faulting": the document breaks 2 invariants: ir/invalid-raw-value at "doc.Unmodeled[openapi:x]"; engine/unencodable at "doc"`},
 		{"a rerun output that does not encode", []pass.Pass{faulting{rerun: unencodable}},
-			`pass "faulting" over its own output: encode its output`},
+			`pass "faulting" over its own output: engine: verify pass "faulting": the document breaks 2 invariants: ir/invalid-raw-value at "doc.Unmodeled[openapi:x]"; engine/unencodable at "doc"`},
+		{"a rerun writing into the document it is handed", []pass.Pass{faulting{rerun: stampsItsInput}},
+			`pass "faulting" over its own output: engine: run pass "faulting": changed the document it was handed`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			withPasses(t, tc.passes...)
@@ -227,6 +243,21 @@ func TestCheck_APassesPanicIsAPanicOutcome(t *testing.T) {
 			assert.Contains(t, r.Detail, "pass exploded")
 		})
 	}
+}
+
+// TestIdempotent_AnEncodingThatFails pins the oracle's own encoding of a run's
+// document, which a verified run has encoded already, so only the seam can
+// fail it: the failure names the pass and the run.
+func TestIdempotent_AnEncodingThatFails(t *testing.T) {
+	orig := reserializeJSON
+	t.Cleanup(func() { reserializeJSON = orig })
+	reserializeJSON = func(any, ...json.Options) ([]byte, error) { return nil, errors.New("encode boom") }
+	withPasses(t, lowering{})
+
+	detail, ok := idempotent(context.Background(), "spec.yaml", []byte(testspec.Tiny))
+
+	assert.False(t, ok)
+	assert.Equal(t, `pass "lowering": encode its output: encode boom`, detail)
 }
 
 // TestIdempotent_ACompileWithoutThePassesThatFails pins the oracle's own

@@ -1,5 +1,5 @@
-// Package harness runs specs through the engine as `morphic compile` does, the
-// default passes included, and applies the bug-catching oracles (no
+// Package harness runs specs through the engine as `morphic compile --verify`
+// does, the default passes included, and applies the bug-catching oracles (no
 // panic/error, irverify invariants, JSON round-trip, determinism, pass
 // idempotence, order-invariance), returning a structured Result per spec. A
 // compiler registered in engine.Compilers, or a pass in engine.Passes, is swept

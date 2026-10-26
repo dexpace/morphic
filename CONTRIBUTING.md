@@ -203,8 +203,8 @@ rule sees a node of the input changed in place, which `UpdateType`'s copy is the
    A run fails with an error wrapping `pass.ErrContract` for a pass that panics, returns no document
    or another IR version, moves a source or puts findings on the document, and under
    `morphic compile --verify` for one that changes its input or returns a document that breaks
-   `irverify`'s invariants; run your pass that way before relying on it. Nothing fails for a rule in
-   another family's file.
+   `irverify`'s invariants. `TestHarness_InRepoCorpus` runs each default pass that way; run yours
+   that way before relying on it. Nothing fails for a rule in another family's file.
 2. **Test it** beside it in `pass/`, table-driven, against documents built in the test: a file's
    cases in the `_test.go` named after it, and a scenario that several files decide in one named for
    the scenario, as `validate_propids_test.go` is. `pass/validate_test.go` has builders (`validDoc`,

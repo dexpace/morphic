@@ -50,8 +50,8 @@ type Result struct {
 	Detail string
 }
 
-// Check runs data through the engine as `morphic compile` runs a spec, its
-// passes included, under recover() and applies every oracle in order,
+// Check runs data through the engine as `morphic compile --verify` runs a
+// spec, its passes included, under recover() and applies every oracle in order,
 // returning the first failure or OutcomeOK. A panic anywhere in the run or the
 // oracles is captured as OutcomePanic rather than escaping to the caller. A
 // caller mistake (nil ctx, empty spec identifier) is reported as OutcomeError
@@ -75,6 +75,9 @@ func Check(ctx context.Context, spec string, data []byte) (res Result) {
 	doc, diags, err := compile(ctx, spec, data, passes())
 	if errors.Is(err, errUnrecognized) {
 		return Result{Spec: spec, Outcome: OutcomeUnrecognized, Detail: err.Error()}
+	}
+	if verr, ok := errors.AsType[*engine.VerifyError](err); ok {
+		return Result{Spec: spec, Outcome: OutcomeViolations, Detail: fmt.Sprintf("%s: %+v", verr.Stage, verr.Violations)}
 	}
 	if err != nil {
 		return Result{Spec: spec, Outcome: OutcomeError, Detail: err.Error()}
@@ -120,6 +123,13 @@ var registered = engine.Compilers
 // does not hold.
 var passes = engine.Passes
 
+// runOptions is what every engine run a sweep makes runs under: verified, so
+// each document a compiler or a pass returns, in every run an oracle makes, is
+// held to irverify's invariants, and each pass to leaving the document it is
+// handed as it was. The walk costs each run about as much as its compile; the
+// sweep pays it for the reach.
+func runOptions() engine.RunOptions { return engine.RunOptions{Verify: true} }
+
 // newEngine builds the engine a sweep runs: the registered compilers, and ps
 // as its passes, in order.
 func newEngine(ps []pass.Pass) (*engine.Engine, error) {
@@ -130,22 +140,22 @@ func newEngine(ps []pass.Pass) (*engine.Engine, error) {
 	return e, nil
 }
 
-// compile runs one in-memory source through the engine as `morphic compile`
-// runs a spec, with ps as the passes: data is held as the file at spec, and
-// what its references name is read from disk beside it. It returns the
-// document and every finding of the run, the compiler's and the passes', or
+// compile runs one in-memory source through the engine as `morphic compile
+// --verify` runs a spec, with ps as the passes: data is held as the file at
+// spec, and what its references name is read from disk beside it. It returns
+// the document and every finding of the run, the compiler's and the passes', or
 // errUnrecognized for a source no registered compiler takes.
 //
 // It is a package-level seam: production always runs the engine, while tests
 // replace it to drive the oracle-failure paths a correct compiler never
-// produces — a panic, a document with structural violations, a
-// non-round-tripping document, or a nondeterministic recompile.
+// produces: a panic, structural violations, a non-round-tripping document, or
+// a nondeterministic recompile.
 var compile = func(ctx context.Context, spec string, data []byte, ps []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
 	e, err := newEngine(ps)
 	if err != nil {
 		return nil, nil, err
 	}
-	res, err := e.RunSpec(ctx, compilers.Source{Path: spec, Data: data}, engine.RunOptions{})
+	res, err := e.RunSpec(ctx, compilers.Source{Path: spec, Data: data}, runOptions())
 	if err != nil {
 		return nil, nil, fmt.Errorf("harness: %w", reraise(err))
 	}
@@ -176,11 +186,12 @@ func reraise(err error) error {
 }
 
 // reserializeJSON re-encodes a value that has already survived a marshal or a
-// compile: the decoded document in roundTrips and the recompiled document in
-// deterministic. It is a package-level seam over json.Marshal that defaults to
-// json.Marshal in production, where such a value can never fail to re-marshal;
-// tests replace it to exercise that otherwise-unreachable defensive error path.
-var reserializeJSON = func(v any) ([]byte, error) { return json.Marshal(v) }
+// compile: the decoded document in roundTrips, the recompiled document in
+// deterministic, and each run's document in the idempotence oracle, which a
+// verified run has encoded already. It is a package-level seam over
+// json.Marshal, where such a value can never fail to re-marshal; tests replace
+// it to exercise that otherwise-unreachable defensive error path.
+var reserializeJSON = json.Marshal
 
 // roundTrip is the round-trip oracle Check applies: a package-level seam over
 // roundTrips for the same reason compile is one. A test swaps it to drive

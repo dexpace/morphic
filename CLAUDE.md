@@ -217,14 +217,15 @@ These all exist already — extend them rather than building a parallel mechanis
   format's conformance `matrix.md` are read through `internal/keydoc`, the one reader of the
   repository's keyed documents, and a test a Markdown document names must exist
   (`internal/archtest`).
-- **Oracles**: `internal/harness` runs a spec through the engine as `morphic compile` does, its
-  passes included, and drives it through no-panic → no error diagnostic → `irverify` invariants
-  → JSON round-trip → determinism → pass idempotence → order-invariance, stopping at the first
-  one that fires. `harness.Check` is the list — read it there rather than trusting this sentence;
-  `go run ./cmd/morphic-harness <file|dir>` runs them over one spec or a whole tree. `irverify` is
-  the structural-invariant checker (stable IDs, no dangling refs, neutral naming, routable
-  `Unmodeled`, in-range provenance); its findings are `Violation` values — *our* bugs —
-  deliberately a channel separate from `ir.Diagnostic`, which reports problems in the source spec.
+- **Oracles**: `internal/harness` runs a spec through the engine as `morphic compile --verify` does,
+  its passes included and every stage's document verified, and drives it through no-panic → no error
+  diagnostic → `irverify` invariants → JSON round-trip → determinism → pass idempotence →
+  order-invariance, stopping at the first one that fires. `harness.Check` is the list — read it
+  there rather than trusting this sentence; `go run ./cmd/morphic-harness <file|dir>` runs them over
+  one spec or a whole tree. `irverify` is the structural-invariant checker (stable IDs, no dangling
+  refs, neutral naming, routable `Unmodeled`, in-range provenance); its findings are `Violation`
+  values — *our* bugs — deliberately a channel separate from `ir.Diagnostic`, which reports problems
+  in the source spec.
 - **Architecture test**: `internal/archtest`, per the layering section above. It also holds each
   production package's uses of the parser library's reference-resolution API, which it derives
   from the library's sources, to `resolutionBaseline`. The baseline only shrinks: removing a use

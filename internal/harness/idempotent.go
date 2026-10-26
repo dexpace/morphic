@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json/jsontext"
-	"encoding/json/v2"
 	"fmt"
 
 	"github.com/google/go-cmp/cmp"
@@ -41,9 +40,9 @@ func idempotent(ctx context.Context, spec string, data []byte) (string, bool) {
 }
 
 // twice runs p over doc, then over what that run returned, and returns the
-// first run's document, or what the second run changed. Each run is encoded
-// before the next begins, so a pass writing into the document it is handed
-// cannot hide a change by making it to both.
+// first run's document, or what the second run changed. A verified run refuses
+// a pass that writes into the document it is handed, so the first run's
+// document is as it was returned when the second has run.
 func twice(ctx context.Context, p pass.Pass, doc *ir.Document) (*ir.Document, string, bool) {
 	e, err := newEngine([]pass.Pass{p})
 	if err != nil {
@@ -69,13 +68,13 @@ func twice(ctx context.Context, p pass.Pass, doc *ir.Document) (*ir.Document, st
 // line, and without Document.Diagnostics, which the engine writes and a rerun
 // may report differently.
 func runEncoded(ctx context.Context, e *engine.Engine, doc *ir.Document) (*ir.Document, []byte, error) {
-	res, err := e.RunDocument(ctx, doc, engine.RunOptions{})
+	res, err := e.RunDocument(ctx, doc, runOptions())
 	if err != nil {
 		return nil, nil, reraise(err)
 	}
 	own := *res.Document
 	own.Diagnostics = nil
-	encoded, err := json.Marshal(&own, jsontext.WithIndent("  "))
+	encoded, err := reserializeJSON(&own, jsontext.WithIndent("  "))
 	if err != nil {
 		return nil, nil, fmt.Errorf("encode its output: %w", err)
 	}
