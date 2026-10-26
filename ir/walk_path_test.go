@@ -3,6 +3,7 @@ package ir_test
 import (
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -77,7 +78,7 @@ func TestWalkPath_ZeroValueIsEmpty(t *testing.T) {
 // buffer to rendering whole: one past it only costs an allocation more.
 func TestWalkPath_LongPathsRenderWhole(t *testing.T) {
 	t.Parallel()
-	long := string(make([]byte, 600))
+	long := strings.Repeat("k", 600)
 	var got string
 	ir.WalkValues(map[string]int{long: 1}, "doc", ir.VisitFunc(func(v reflect.Value, at ir.WalkPath) bool {
 		if v.Kind() == reflect.Int {

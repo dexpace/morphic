@@ -1,7 +1,7 @@
 package ir_test
 
 import (
-	"hash/fnv"
+	"hash/crc32"
 	"math/rand/v2"
 	"reflect"
 	"strconv"
@@ -44,9 +44,7 @@ func (r *recorder) Cycle(at, entered ir.WalkPath, ref reflect.Type) {
 // parts of one document.
 func pruneOneIn(n uint32, salt string) func(string) bool {
 	return func(path string) bool {
-		h := fnv.New32a()
-		_, _ = h.Write([]byte(salt + path))
-		return h.Sum32()%n == 0
+		return crc32.ChecksumIEEE([]byte(salt+path))%n == 0
 	}
 }
 
