@@ -44,18 +44,18 @@ func TestCheck_EmptySpecIsErrorNotPanic(t *testing.T) {
 }
 
 // TestCheck_SourceNoRegisteredCompilerTakesIsUnrecognized pins the outcome of a
-// source that reaches no compiler, and what its Detail says. A Swagger 2.0
-// document is recognized by the OpenAPI compiler and served by none, so the
-// harness names the format; text nobody recognizes, an empty source included,
-// can only say so.
+// source that reaches no compiler, and what its Detail says, which is what the
+// engine reports. A Swagger 2.0 document is recognized by the OpenAPI compiler
+// and served by none, so the format is named; text nobody recognizes, an empty
+// source included, can only say so.
 func TestCheck_SourceNoRegisteredCompilerTakesIsUnrecognized(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name, data, want string
 	}{
-		{"a format recognized and not served", swagger2, "no registered compiler serves swagger@2.0"},
-		{"text nothing recognizes", "just some words\n", "no registered compiler recognizes the source"},
-		{"an empty source", "", "no registered compiler recognizes the source"},
+		{"a format recognized and not served", swagger2, "no compiler registered for format swagger@2.0"},
+		{"text nothing recognizes", "just some words\n", "unrecognized spec format"},
+		{"an empty source", "", "unrecognized spec format"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -82,6 +82,43 @@ func TestCheck_SpecOfACompilerThatDeclinesItIsAnErrorDiagnostic(t *testing.T) {
 			assert.Equal(t, harness.OutcomeErrorDiag, r.Outcome, r.Detail)
 		})
 	}
+}
+
+// missingVariant maps a discriminator tag to a schema that is not a variant of
+// its base. The compiler lowers it without complaint; the validate pass refuses
+// it, so `morphic compile` fails on it.
+const missingVariant = `openapi: 3.1.0
+info: {title: Pets, version: "1"}
+paths: {}
+components:
+  schemas:
+    Pet:
+      oneOf:
+        - $ref: '#/components/schemas/Cat'
+      discriminator:
+        propertyName: kind
+        mapping:
+          dog: '#/components/schemas/Dog'
+    Cat:
+      type: object
+      required: [kind]
+      properties: {kind: {type: string}}
+    Dog:
+      type: object
+      required: [kind]
+      properties: {kind: {type: string}}
+`
+
+// TestCheck_AFindingOnlyAPassReportsIsAnErrorDiagnostic pins that a sweep runs
+// the passes `morphic compile` runs: an error the compiler does not report and
+// the validate pass does fails the spec, as it fails the command.
+func TestCheck_AFindingOnlyAPassReportsIsAnErrorDiagnostic(t *testing.T) {
+	t.Parallel()
+
+	r := harness.Check(context.Background(), "spec.yaml", []byte(missingVariant))
+
+	assert.Equal(t, harness.OutcomeErrorDiag, r.Outcome, r.Detail)
+	assert.True(t, strings.HasPrefix(r.Detail, "pass/discriminator-missing-variant: "), r.Detail)
 }
 
 func TestReport_IsStableAndSorted(t *testing.T) {

@@ -52,7 +52,7 @@ var runOverACleanDocument = entry{"RunDocument", func(t *testing.T, eng *engine.
 }}
 
 // verifiedEntries are the ways a verified run can start with a pass to hold.
-var verifiedEntries = []entry{runFromAFile, runFromMemory, runOverACleanDocument}
+var verifiedEntries = []entry{runFromAFile, runFromABuffer, runFromMemory, runOverACleanDocument}
 
 // violationCodes returns the codes of vs, in order.
 func violationCodes(vs []irverify.Violation) []string {

@@ -188,11 +188,11 @@ func TestEngine_RunWithoutADocumentFails(t *testing.T) {
 	}
 }
 
-// TestEngine_EveryEntryPointJudgesItsRun pins that RunSources and RunDocument
-// judge their Result as Run does: a run whose findings hold an error fails at
-// the default threshold and passes at FailOnNone. RunSources compiles a spec
-// with a reference to a document no source holds; RunDocument runs validate
-// over a dangling reference.
+// TestEngine_EveryEntryPointJudgesItsRun pins that RunSpec, RunSources and
+// RunDocument judge their Result as Run does: a run whose findings hold an
+// error fails at the default threshold and passes at FailOnNone. RunSpec and
+// RunSources compile a spec with a reference to a document nothing holds;
+// RunDocument runs validate over a dangling reference.
 func TestEngine_EveryEntryPointJudgesItsRun(t *testing.T) {
 	t.Parallel()
 	eng, err := engine.New()
@@ -202,6 +202,16 @@ func TestEngine_EveryEntryPointJudgesItsRun(t *testing.T) {
 		want   bool
 	}{{"", true}, {engine.FailOnNone, false}} {
 		opts := engine.RunOptions{FailOn: tc.failOn}
+		t.Run(fmt.Sprintf("fail-on=%q/RunSpec", tc.failOn), func(t *testing.T) {
+			t.Parallel()
+			spec := compilers.Source{Path: filepath.Join(t.TempDir(), "root.yaml"), Data: []byte(splitRoot)}
+			res, err := eng.RunSpec(t.Context(), spec, opts)
+
+			require.NoError(t, err)
+			require.NotNil(t, res.Document)
+			require.NotEmpty(t, unresolved(res.Diagnostics), "the row must hold an error, or it proves nothing")
+			assert.Equal(t, tc.want, res.Failed)
+		})
 		t.Run(fmt.Sprintf("fail-on=%q/RunSources", tc.failOn), func(t *testing.T) {
 			t.Parallel()
 			res, err := eng.RunSources(t.Context(), []compilers.Source{{Path: "root.yaml", Data: []byte(splitRoot)}}, opts)

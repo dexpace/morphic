@@ -165,13 +165,15 @@ Read them off the tree:
 git ls-files '*/*.go' | xargs -n1 dirname | sort -u
 ```
 
-Three things follow when you add a package: put it in `rules` (or in `exempt` with the reason it
-is out), because `TestImportGraph_EveryPackageIsRuledOrExempt` fails otherwise; remember an
-unkeyed subdirectory is audited under its nearest keyed ancestor's allowlist, so nesting is not a
-way to widen one; and give it its own entry rather than letting it inherit a wider one, since an
-inherited allowlist says nothing about where the package sits. `TestImportGraph_LayeringHolds` also
+Three things follow when you add a package: put it in `rules` (or, for tooling under `internal/`
+alone, in `exempt` with the reason it is out), because `TestImportGraph_EveryPackageIsRuledOrExempt`
+fails otherwise; remember an unkeyed subdirectory is audited under its nearest keyed ancestor's
+allowlist, so nesting is not a way to widen one; and give it its own entry rather than letting it
+inherit a wider one, since an inherited allowlist says nothing about where the package sits, and
+under `compilers/` and `emitters/` the same test requires one. `TestImportGraph_LayeringHolds` also
 fails on an entry that no production file the rule audits imports, so a change that drops a
-package's last import of something drops the entry with it.
+package's last import of something drops the entry with it, and on an entry naming no directory,
+unless `unbuilt` says why it is ruled before its package exists, as `emitters` is.
 
 Caps also guard shape rather than the graph. No type under `compilers/` may carry more than 20
 methods (`internal/archtest`), and no function may exceed 70 lines or a cognitive complexity of 20
@@ -215,13 +217,15 @@ These all exist already — extend them rather than building a parallel mechanis
   format's conformance `matrix.md` are read through `internal/keydoc`, the one reader of the
   repository's keyed documents, and a test a Markdown document names must exist
   (`internal/archtest`).
-- **Oracles**: `internal/harness` drives a spec through no-panic → no error diagnostic →
-  `irverify` invariants → JSON round-trip → determinism → order-invariance, stopping at the first
-  one that fires. `harness.Check` is the list — read it there rather than trusting this sentence;
-  `go run ./cmd/morphic-harness <file|dir>` runs them over one spec or a whole tree. `irverify` is
-  the structural-invariant checker (stable IDs, no dangling refs, neutral naming, routable
-  `Unmodeled`, in-range provenance); its findings are `Violation` values — *our* bugs —
-  deliberately a channel separate from `ir.Diagnostic`, which reports problems in the source spec.
+- **Oracles**: `internal/harness` runs a spec through the engine as `morphic compile --verify` does,
+  its passes included and every stage's document verified, and drives it through no-panic →
+  `irverify` invariants → no error diagnostic → JSON round-trip → determinism → pass idempotence →
+  order-invariance, stopping at the first one that fires. `harness.Check` is the list — read it
+  there rather than trusting this sentence; `go run ./cmd/morphic-harness <file|dir>` runs them over
+  one spec or a whole tree. `irverify` is the structural-invariant checker (stable IDs, no dangling
+  refs, neutral naming, routable `Unmodeled`, in-range provenance); its findings are `Violation`
+  values — *our* bugs — deliberately a channel separate from `ir.Diagnostic`, which reports problems
+  in the source spec.
 - **Architecture test**: `internal/archtest`, per the layering section above. It also holds each
   production package's uses of the parser library's reference-resolution API, which it derives
   from the library's sources, to `resolutionBaseline`. The baseline only shrinks: removing a use
@@ -265,9 +269,10 @@ assertion shapes:
     to guard an order-dependent fix, declare them in the order that was wrong, and confirm the
     revert reddens it rather than assuming the case covers what its name says.
 - **A negative fixture must be reachable.** `harness.Check` returns at the *first* error diagnostic,
-  before `irverify` ever runs, so a fixture that trips one never reaches the invariant checks it was
-  written to exercise. Verify the fixture lands where you think it does, not merely that the check
-  exists.
+  before the round trip, determinism, idempotence and order oracles run, so a fixture that trips one
+  never reaches the oracle it was written to exercise. `irverify` runs before it, over every
+  document a run returns. Verify the fixture lands where you think it does, not merely that the
+  check exists.
 
 ## Go code style — the dexpace styleguide is binding
 

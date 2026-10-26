@@ -191,8 +191,10 @@ rule sees a node of the input changed in place, which `UpdateType`'s copy is the
    `Name()`, unique among the engine's passes. A pass whose rules fall into families keeps each
    family in a `<name>_<family>.go` beside that file, as `validate` does, and a new rule joins the
    family it belongs to or starts one. `Run` never mutates its input, never panics, returns its input
-   when it only analyses, and reports through its diagnostics alone. `ir.ForEachOperation` walks the
-   operations, and the package's `diag` helper in `pass/diag.go` builds a diagnostic on a node.
+   when it only analyses, reports through its diagnostics alone, and is idempotent: over the
+   document a run of it returned, which carries that run's findings, it returns an equal one,
+   `Document.Diagnostics` aside. `ir.ForEachOperation` walks the operations, and the package's
+   `diag` helper in `pass/diag.go` builds a diagnostic on a node.
    A code names the defect, as `pass/doc.go` says: `pass/<defect>` for a finding the pass owns,
    `ir/<defect>` for a structural one `irverify` reports too. A transform returns what `Finish`
    returns, its own findings appended.
@@ -201,19 +203,23 @@ rule sees a node of the input changed in place, which `UpdateType`'s copy is the
    A run fails with an error wrapping `pass.ErrContract` for a pass that panics, returns no document
    or another IR version, moves a source or puts findings on the document, and under
    `morphic compile --verify` for one that changes its input or returns a document that breaks
-   `irverify`'s invariants; run your pass that way before relying on it. Nothing fails for a rule in
-   another family's file.
+   `irverify`'s invariants. `TestHarness_InRepoCorpus` runs each default pass that way; run yours
+   that way before relying on it. Nothing fails for a rule in another family's file.
 2. **Test it** beside it in `pass/`, table-driven, against documents built in the test: a file's
    cases in the `_test.go` named after it, and a scenario that several files decide in one named for
    the scenario, as `validate_propids_test.go` is. `pass/validate_test.go` has builders (`validDoc`,
    `docWithOperation`) and readers (`codes`, `countCode`) to reuse.
    *Fails if missed:* `make coverage`. Nothing fails for a case in another file's `_test.go`.
-3. **Add it to the default list**, `engine.Passes` in `engine/passes.go`, before `validate`, which
-   stays last. No test restates the list: `TestPasses_ValidateRunsLast` holds `validate` to the end,
-   `engine.New` refuses a name two passes share, and `TestRun_UnknownPassIsMisuse` in `cmd/morphic`
-   reads the names a refusal lists from the list itself. Nothing fails if the pass never joins the
-   list, where it simply never runs. An embedder runs a pass of its own without editing the list,
-   through `engine.WithPasses`.
+3. **Add it to the default list**, `engine.Passes` in `engine/passes.go`, after any pass whose
+   output it acts on and before `validate`, which stays last. No test restates the list:
+   `TestPasses_ValidateRunsLast` holds `validate` to the end, `engine.New` refuses a name two passes
+   share, and `TestRun_UnknownPassIsMisuse` in `cmd/morphic` reads the names a refusal lists from
+   the list itself. Nothing fails if the pass never joins the list, where it simply never runs. An
+   embedder runs a pass of its own without editing the list, through `engine.WithPasses`.
+   Once in the list, the pass runs on every corpus spec `TestHarness_InRepoCorpus` sweeps: an error
+   it reports there fails the sweep, as it fails `morphic compile`, and the idempotence oracle runs
+   it again over what that run returned, failing a transform whose second run changes the document,
+   and over what the whole list returned, failing one placed before a pass whose output it acts on.
    A default pass runs on every CLI test's spec. One that reports on the shared specs in
    `internal/testspec` breaks the `cmd/morphic` tests that expect a clean run, such as
    `TestRun_ValidateExitCodes/clean_spec`, so keep those specs clean of what it reports.

@@ -22,7 +22,9 @@ var ErrUnknownPass = errors.New("unknown pass")
 // of the caller's own: the list New runs, and the one an embedder composes its
 // own from (WithPasses). No other code holds that order. An analysis that
 // judges the document, validate among them, goes after every transform, so it
-// checks what the run returns; architecture.md §2.2 gives the reasons.
+// checks what the run returns, and a pass acting on what another returns goes
+// after that one, so a second run changes nothing; architecture.md §2.2 gives
+// the reasons.
 func Passes() []pass.Pass {
 	return []pass.Pass{pass.Validator{}}
 }

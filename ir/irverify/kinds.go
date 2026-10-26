@@ -45,9 +45,8 @@ func checkPrimKinds(doc *ir.Document) []Violation {
 // constant set.
 //
 // This is the class-level guard for a defect one compiler already refuses at
-// the source (GitHub #294, #296). A spec that trips that refusal never reaches
-// Verify through internal/harness, which stops at the first error diagnostic,
-// so this covers a compiler that mints the shape from a clean spec.
+// the source (GitHub #294, #296): the refusal reports a spec spelling the
+// shape, and this covers a compiler that mints it from a clean spec.
 func checkAuthKinds(doc *ir.Document) []Violation {
 	var vs []Violation
 	for id, scheme := range doc.Auth {

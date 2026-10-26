@@ -1683,10 +1683,14 @@ that branches on the platform reads that value, never the target key. They are t
 than one with an option because their artifacts, surfaces and toolchains differ: a JVM SDK exposes
 `java.time` and `BigDecimal`, which Multiplatform common code does not have (§8.8).
 
-**Architecture test.** The import-graph assertion (written alongside the first emitter packages, not
-after) asserts: `emitters/golang` and `emitters/kotlin` may each import `emitters`, `emitters/plan`,
-`emitters/policy`, `emitters/naming`, `emitters/typemap`, `emitters/refine`, `emitters/manifest`,
-`emitters/verify`, `ir` and `ir/irfacts`; neither may import `compilers/*`, `engine`, or the other.
+**Architecture test.** The import-graph rule is in place before the first emitter package:
+`internal/archtest` rules `emitters`, and names it in `unbuilt` until the package exists, so the
+first package is audited from its first import. Each package under `emitters/` carries an entry of
+its own, as a compiler's packages do, and none may be exempt, which only tooling under `internal/`
+is. The entries the first packages add assert: `emitters/golang` and `emitters/kotlin` may each
+import `emitters`, `emitters/plan`, `emitters/policy`, `emitters/naming`, `emitters/typemap`,
+`emitters/refine`, `emitters/manifest`, `emitters/verify`, `ir` and `ir/irfacts`; neither may import
+`compilers/*`, `engine`, or the other.
 **Switch-completeness tests** live beside `goast` and `ktast` (over each one's `NodeKind`) and
 beside every refiner (over every `ir.TypeKind`): adding an IR kind fails the test of every dispatch
 that must handle it (the `assertNever` obligation).

@@ -3,6 +3,7 @@ package engine_test
 import (
 	"context"
 	"errors"
+	"path/filepath"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -97,12 +98,17 @@ type entry struct {
 	run  func(t *testing.T, eng *engine.Engine, opts engine.RunOptions) (*engine.Result, error)
 }
 
-// entries are the three ways a run can start. RunDocument compiles nothing, so
-// a case about a compiler runs through the first two.
+// entries are the ways a run can start. RunDocument compiles nothing, so a
+// case about a compiler runs through the others.
 var (
 	runFromAFile = entry{"Run", func(t *testing.T, eng *engine.Engine, opts engine.RunOptions) (*engine.Result, error) {
 		t.Helper()
 		return eng.Run(t.Context(), writeSpec(t, testspec.Tiny), opts)
+	}}
+	runFromABuffer = entry{"RunSpec", func(t *testing.T, eng *engine.Engine, opts engine.RunOptions) (*engine.Result, error) {
+		t.Helper()
+		spec := compilers.Source{Path: filepath.Join(t.TempDir(), "spec.yaml"), Data: []byte(testspec.Tiny)}
+		return eng.RunSpec(t.Context(), spec, opts)
 	}}
 	runFromMemory = entry{"RunSources", func(t *testing.T, eng *engine.Engine, opts engine.RunOptions) (*engine.Result, error) {
 		t.Helper()
@@ -113,8 +119,8 @@ var (
 		doc := keptDocument([]compilers.Source{{Path: "spec.yaml", Data: []byte(testspec.Tiny)}})
 		return eng.RunDocument(t.Context(), doc, opts)
 	}}
-	compileEntries = []entry{runFromAFile, runFromMemory}
-	passEntries    = []entry{runFromAFile, runFromMemory, runOverADocument}
+	compileEntries = []entry{runFromAFile, runFromABuffer, runFromMemory}
+	passEntries    = []entry{runFromAFile, runFromABuffer, runFromMemory, runOverADocument}
 )
 
 // engineOf builds an engine over comp and passes, failing the test if it cannot.
