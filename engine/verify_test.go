@@ -88,16 +88,14 @@ func requireVerifyError(t *testing.T, err, sentinel error, stage string, codes .
 // brokenDocuments are the ways a compiler returns a document that keeps the
 // duties the engine always holds it to and breaks the invariants irverify
 // states, each by the one edit that breaks it.
-//
-// silent is whether the validate pass has nothing to say of the break, which it
-// has not for a duplicate ID or a cased name. A mismatched key it remarks on
-// only as a consequence, a reference to the node's own ID that resolves to
-// nothing.
 var brokenDocuments = []struct {
 	name    string
 	breakIt func(*ir.Document)
 	codes   []string
-	silent  bool
+	// silent is whether the validate pass says nothing of the break. It says
+	// nothing of a duplicate ID or a cased name, and remarks on a mismatched key
+	// only as a consequence: a reference to the node's own ID resolves to nothing.
+	silent bool
 }{
 	{"a duplicate operation ID", func(d *ir.Document) {
 		group := &d.Services[0].Groups[0]
@@ -234,10 +232,10 @@ func TestEngine_RunAcceptsAPassWhoseOutputIsSound(t *testing.T) {
 	}
 }
 
-// TestEngine_RunLeavesAPassChangingItsInputToVerify records the outcome for the
+// TestEngine_RunLeavesAPassChangingItsInputToVerify holds a verified run to the
 // duty no walk of one document can check: a pass that edits the document it was
-// handed goes unremarked, and a run asked to verify fails, naming the pass,
-// whether the pass returns that document or a copy.
+// handed fails the run, naming the pass, whether it returns that document or a
+// copy. The next test pins that nothing else notices.
 func TestEngine_RunLeavesAPassChangingItsInputToVerify(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
