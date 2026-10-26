@@ -80,8 +80,9 @@ Read the documents for your layer, and skip the rest until you need them.
   a program driving it from Go, is named with that caller in `internal/archtest`'s `apiRoots`, and
   a package whose production files exist for tests, such as `openapitest`, in its `testSupport`.
   *Fails if missed:* `TestReachability_OnlyTestsReachNoFunction`, which also fails on an `apiRoots`
-  entry a binary reaches. Nothing fails for a field or a constant only tests read, or for an
-  exported method of a type the program converts to an interface, which reflection could call.
+  entry a binary reaches and on a `testSupport` entry that spares no function. Nothing fails for a
+  field or a constant only tests read, or for an exported method of a type the program converts to
+  an interface, which reflection could call.
 - **An end-to-end test of the OpenAPI compiler goes in `compilers/openapi/e2e`,** in a file named
   for the construct or the property it checks: a test of what the compiler does as a whole, which no
   one package decides, such as the conformance corpus, the goldens, fuzzing, benchmarks and a

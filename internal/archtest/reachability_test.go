@@ -59,57 +59,60 @@ var apiRoots = map[string]string{
 	"ir/irfacts.Index.Component":                        factAPI,
 }
 
-// testSupport names the packages the reachability check skips, each with the
-// reason: their production files exist for tests, so only tests reaching them
-// is what they are for. An entry ending in subtreeSuffix names a subtree.
+// testSupport names each package whose production files exist for tests, with
+// what they serve, so the reachability check spares what only tests reach in
+// it. An entry sparing nothing fails, so the list cannot outlive its reasons.
 var testSupport = map[string]string{
-	"internal" + subtreeSuffix: "test and tooling infrastructure outside the pipeline (CLAUDE.md), " +
-		"whose binaries reach only part of it",
 	"ir/irtest":                              "the golden and fixture helpers the IR's tests share",
 	"compilers/openapi/internal/openapitest": "the scaffolding the compiler's test packages share",
 	"compilers/openapi/internal/ynode":       "the YAML node builders the compiler's internal tests share",
+	"internal/decls": "the type-checked reads of declarations the tests pinning hand-written lists " +
+		"share; the census binary reads one load of it",
+	"internal/harness": "the annotation-retention vocabulary each format's retention test shares; " +
+		"the rest drives the harness binary",
+	"internal/jsonshape": "the IR's JSON shape, which IRVersion's pin test describes and the census counts",
+	"internal/keydoc":    "the one reader of the keyed documents, for the tests holding each to the code",
+	"internal/leakcheck": "the goroutine leak check each test binary's TestMain runs",
 }
 
 // TestReachability_OnlyTestsReachNoFunction holds every function the module's
 // packages declare to a caller outside its tests: a binary's main, or an entry
-// of apiRoots. Each entry is held the other way too, failing once a binary
-// reaches it. Reachability is rapid type analysis over the whole program, which
-// follows calls through interfaces to the types the program converts to them,
-// so it counts every exported method of such a type as reached: reflection
-// could call it.
+// of apiRoots. What the packages testSupport names declare is spared. Both lists
+// are held the other way too: an apiRoots entry a binary reaches fails, and so
+// does a testSupport entry sparing nothing. Reachability is rapid type analysis
+// over the whole program, which follows calls through interfaces to the types
+// the program converts to them, so it counts every exported method of such a
+// type as reached: reflection could call it.
 func TestReachability_OnlyTestsReachNoFunction(t *testing.T) {
 	t.Parallel()
-	p, loaded := moduleProgram(t)
+	p := moduleProgram(t)
 	require.NotEmpty(t, p.mains, "found no binary, so nothing is reached")
 	require.NotEmpty(t, p.funcs, "found no function, so this proves nothing")
-	for _, problem := range unreached(p, apiRoots) {
+	for _, problem := range unreached(p, apiRoots, testSupport) {
 		t.Error(problem)
-	}
-	for _, entry := range slices.Sorted(maps.Keys(testSupport)) {
-		assert.True(t, slices.ContainsFunc(loaded, func(rel string) bool { return supports(entry, rel) }),
-			"testSupport names %s, which matches no package", entry)
 	}
 }
 
-// program is what the reachability check reads: every function the packages
-// it holds declare, with a body, and the functions each binary starts from.
+// program is what the reachability check reads: every function the module's
+// packages declare with a body, and the functions each binary starts from.
 type program struct {
 	fset  *token.FileSet
 	funcs []sourceFunc
 	mains []*ssa.Function
 }
 
-// sourceFunc is one declared function: its name as apiRoots keys it, the
-// package's path below the module and then nodeName's key, and its SSA form.
+// sourceFunc is one declared function: the path of its package below the
+// module, its name as apiRoots keys it, that path and then nodeName's key, and
+// its SSA form.
 type sourceFunc struct {
+	pkg  string
 	name string
 	fn   *ssa.Function
 }
 
 // moduleProgram builds the SSA form of every package of the module, without
-// its tests, and returns what the check reads of it, with the paths below the
-// module of every package it loaded, testSupport's included.
-func moduleProgram(t *testing.T) (program, []string) {
+// its tests, and returns what the check reads of it.
+func moduleProgram(t *testing.T) program {
 	t.Helper()
 	cfg := &packages.Config{Mode: packages.LoadAllSyntax, Dir: irtest.RepoRoot(t)}
 	loaded, err := packages.Load(cfg, "./...")
@@ -122,31 +125,11 @@ func moduleProgram(t *testing.T) (program, []string) {
 	for _, m := range ssautil.MainPackages(pkgs) {
 		p.mains = append(p.mains, m.Func("init"), m.Func("main"))
 	}
-	rels := make([]string, 0, len(loaded))
 	for _, pkg := range loaded {
 		rel := strings.TrimPrefix(pkg.PkgPath, module+"/")
-		rels = append(rels, rel)
-		if !supported(rel) {
-			p.funcs = append(p.funcs, declaredFuncs(prog, rel, pkg.Syntax, pkg.TypesInfo)...)
-		}
+		p.funcs = append(p.funcs, declaredFuncs(prog, rel, pkg.Syntax, pkg.TypesInfo)...)
 	}
-	return p, rels
-}
-
-// supported reports whether an entry of testSupport names the package at rel.
-func supported(rel string) bool {
-	for entry := range testSupport {
-		if supports(entry, rel) {
-			return true
-		}
-	}
-	return false
-}
-
-// supports reports whether the testSupport entry names the package at rel.
-func supports(entry, rel string) bool {
-	root, subtree := strings.CutSuffix(entry, subtreeSuffix)
-	return rel == root || subtree && strings.HasPrefix(rel, root+"/")
+	return p
 }
 
 // declaredFuncs returns the functions files declare with a body, named under
@@ -159,7 +142,7 @@ func declaredFuncs(prog *ssa.Program, rel string, files []*ast.File, info *types
 		if !isFunc || marker(fd, obj) {
 			continue
 		}
-		out = append(out, sourceFunc{name: rel + "." + nodeName(obj), fn: prog.FuncValue(obj)})
+		out = append(out, sourceFunc{pkg: rel, name: rel + "." + nodeName(obj), fn: prog.FuncValue(obj)})
 	}
 	return out
 }
@@ -188,9 +171,10 @@ func marker(fd *ast.FuncDecl, fn *types.Func) bool {
 }
 
 // unreached returns what the check finds in p: each function neither a binary
-// nor an entry of roots reaches, each entry a binary reaches, and each entry
-// naming no function of p.
-func unreached(p program, roots map[string]string) []string {
+// nor an entry of roots reaches, outside the packages spared names; each entry
+// of roots a binary reaches, or naming no function of p; and each entry of
+// spared that spares no function.
+func unreached(p program, roots, spared map[string]string) []string {
 	byName := make(map[string]*ssa.Function, len(p.funcs))
 	for _, f := range p.funcs {
 		byName[f.name] = f.fn
@@ -206,14 +190,24 @@ func unreached(p program, roots map[string]string) []string {
 		starts = append(starts, fn)
 	}
 	fromMains, fromAll := reachedFrom(p.fset, p.mains), reachedFrom(p.fset, starts)
+	sparing := map[string]bool{}
 	for _, f := range p.funcs {
 		at := p.fset.Position(f.fn.Pos())
 		_, isRoot := roots[f.name]
+		_, isSpared := spared[f.pkg]
 		switch {
 		case isRoot && fromMains[at]:
 			problems = append(problems, reachedRoot(f.name))
-		case !fromAll[at]:
+		case fromAll[at]:
+		case isSpared:
+			sparing[f.pkg] = true
+		default:
 			problems = append(problems, onlyTests(f.name))
+		}
+	}
+	for _, pkg := range slices.Sorted(maps.Keys(spared)) {
+		if !sparing[pkg] {
+			problems = append(problems, sparesNothing(pkg))
 		}
 	}
 	return problems
@@ -231,8 +225,8 @@ func reachedFrom(fset *token.FileSet, roots []*ssa.Function) map[token.Position]
 	return out
 }
 
-// onlyTests, reachedRoot and unknownRoot spell the three problems unreached
-// reports.
+// onlyTests, reachedRoot, unknownRoot and sparesNothing spell the problems
+// unreached reports.
 func onlyTests(name string) string {
 	return name + ": only tests reach it; delete it, move it into its tests, or name its caller in apiRoots"
 }
@@ -242,6 +236,10 @@ func reachedRoot(name string) string {
 }
 
 func unknownRoot(name string) string { return name + ": apiRoots names no function" }
+
+func sparesNothing(pkg string) string {
+	return pkg + ": no function only tests reach is declared there, so its testSupport entry goes"
+}
 
 // plantedProgram builds src, a main package importing nothing, as the check
 // reads a program.
@@ -259,57 +257,67 @@ func plantedProgram(t *testing.T, src string) program {
 }
 
 // TestReachability_ReportsWhatNoRootReaches plants programs whose functions a
-// main reaches, or does not, in each way the check reads, and roots that hold
-// or go stale.
+// main reaches, or does not, in each way the check reads, roots that hold or go
+// stale, and testSupport entries that spare a function or go.
 func TestReachability_ReportsWhatNoRootReaches(t *testing.T) {
 	t.Parallel()
+	spared := map[string]string{"planted": "planted"}
 	tests := []struct {
-		name  string
-		src   string
-		roots map[string]string
-		want  []string
+		name   string
+		src    string
+		roots  map[string]string
+		spared map[string]string
+		want   []string
 	}{
 		{"a function main calls is reached and one it does not is not", `package main
 func main() { used() }
 func used() {}
-func unused() {}`, nil, []string{onlyTests("planted.unused")}},
+func unused() {}`, nil, nil, []string{onlyTests("planted.unused")}},
 		{"a call through an interface reaches the method a converted type declares", `package main
 type I interface{ m() int }
 type T struct{}
 func (T) m() int { return 0 }
 func (T) n() int { return 1 }
-func main() { var i I = T{}; _ = i.m() }`, nil, []string{onlyTests("planted.T.n")}},
+func main() { var i I = T{}; _ = i.m() }`, nil, nil, []string{onlyTests("planted.T.n")}},
 		{"an exported method of a converted type is reached, as reflection could call it", `package main
 type T struct{}
 func (T) M() {}
-func main() { var v any = T{}; _ = v }`, nil, nil},
+func main() { var v any = T{}; _ = v }`, nil, nil, nil},
 		{"a root reaches what it calls", `package main
 func main() {}
 func root() { callee() }
-func callee() {}`, map[string]string{"planted.root": "planted"}, nil},
+func callee() {}`, map[string]string{"planted.root": "planted"}, nil, nil},
 		{"a root main reaches is stale", `package main
 func main() { root() }
-func root() {}`, map[string]string{"planted.root": "planted"}, []string{reachedRoot("planted.root")}},
+func root() {}`, map[string]string{"planted.root": "planted"}, nil, []string{reachedRoot("planted.root")}},
 		{"a root naming nothing is refused", `package main
-func main() {}`, map[string]string{"planted.gone": "planted"}, []string{unknownRoot("planted.gone")}},
+func main() {}`, map[string]string{"planted.gone": "planted"}, nil, []string{unknownRoot("planted.gone")}},
 		{"a marker method is left out", `package main
 type S interface{ sealed() }
 type T struct{}
 func (T) sealed() {}
-func main() {}`, nil, nil},
+func main() {}`, nil, nil, nil},
 		{"an empty method no interface names is held as any other", `package main
 type T struct{}
 func (T) spare() {}
-func main() {}`, nil, []string{onlyTests("planted.T.spare")}},
+func main() {}`, nil, nil, []string{onlyTests("planted.T.spare")}},
 		{"a generic function counts once any instance is reached", `package main
 func id[T any](v T) T { return v }
 func spare[T any](v T) T { return v }
-func main() { _ = id(1) }`, nil, []string{onlyTests("planted.spare")}},
+func main() { _ = id(1) }`, nil, nil, []string{onlyTests("planted.spare")}},
+		{"a package testSupport names is spared what only tests reach", `package main
+func main() {}
+func spare() {}`, nil, spared, nil},
+		{"a testSupport entry sparing nothing goes", `package main
+func main() { used() }
+func used() {}`, nil, spared, []string{sparesNothing("planted")}},
+		{"a testSupport entry naming no package goes", `package main
+func main() {}`, nil, map[string]string{"gone": "gone"}, []string{sparesNothing("gone")}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tc.want, unreached(plantedProgram(t, tc.src), tc.roots))
+			assert.Equal(t, tc.want, unreached(plantedProgram(t, tc.src), tc.roots, tc.spared))
 		})
 	}
 }
