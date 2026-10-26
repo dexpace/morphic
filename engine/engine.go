@@ -180,14 +180,15 @@ func (e *Engine) Run(ctx context.Context, specPath string, opts RunOptions) (*Re
 }
 
 // RunSpec executes Run's pipeline over a spec held in memory, such as an
-// edited buffer: spec.Data stands for the file at spec.Path for the whole run,
-// which never reads that file. Every other document is read from disk as Run
-// reads it: what the spec's references name through reader.Disk, as far as the
-// compiler's options let a read go, and a file a setting names.
+// edited buffer: a reference or a setting naming spec.Path, lexically as
+// reader.Memory names a document, is served spec.Data, never the file. Every
+// other document, another spelling of that file among them, is read from disk:
+// what a reference names through reader.Disk, as far as the compiler's options
+// let a read go, and what a setting names directly.
 //
-// An empty spec.Path is a Go error, since the references resolve against it.
-// Source.Parsed is not read, and the bytes must not change while the run reads
-// them. It shares Run's other contracts.
+// An empty spec.Path, which the references resolve against, is a Go error.
+// Source.Parsed is not read, and the bytes must not change during the run. It
+// shares Run's other contracts.
 func (e *Engine) RunSpec(ctx context.Context, spec compilers.Source, opts RunOptions) (*Result, error) {
 	passes, failOn, err := e.prepare(opts)
 	if err != nil {

@@ -22,11 +22,13 @@ import (
 // names its document by what that read returned, so a test sees which bytes a
 // run serves for the spec's own path. Its "read" setting names a file to read
 // as a setting does, whose bytes become the document's Version. before, when
-// set, runs ahead of the read, and decoding ahead of decoding the settings.
+// set, runs ahead of the read, and decoding ahead of decoding the settings; at,
+// when set, is where the spec is read again, in place of its path.
 type rereadCompiler struct {
 	stubFront
 	before   func(path string)
 	decoding func()
+	at       string
 }
 
 func (c rereadCompiler) DecodeOptions(set compilers.OptionSet) (any, error) {
@@ -48,7 +50,11 @@ func (c rereadCompiler) Compile(ctx context.Context, sources []compilers.Source,
 	if c.before != nil {
 		c.before(sources[0].Path)
 	}
-	data, err := opts.Reader.ReadDocument(ctx, compilers.DocumentRequest{Location: sources[0].Path})
+	location := sources[0].Path
+	if c.at != "" {
+		location = c.at
+	}
+	data, err := opts.Reader.ReadDocument(ctx, compilers.DocumentRequest{Location: location})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -106,6 +112,30 @@ func TestEngine_RunSpecServesTheHeldSpecWhereverItsPathIsRead(t *testing.T) {
 			assert.Equal(t, tc.want, res.Document.Version, "the setting's read")
 		})
 	}
+}
+
+// TestEngine_RunSpecNamesTheHeldSpecLexically pins that the held bytes stand
+// for spec.Path as it is spelt, as reader.Memory names a document: another
+// spelling of the same file, here the path a symbolic link leads to, names
+// another document, which is read from disk.
+func TestEngine_RunSpecNamesTheHeldSpecLexically(t *testing.T) {
+	t.Parallel()
+	spec := writeNamed(t, "spec.yaml", "on disk")
+	link := filepath.Join(t.TempDir(), "link")
+	require.NoError(t, os.Symlink(filepath.Dir(spec), link))
+	// Every link resolved, the temporary directory's own among them, so the
+	// read names the file as no other spelling does.
+	resolved, err := filepath.EvalSymlinks(spec)
+	require.NoError(t, err)
+	eng, err := engine.New(engine.WithCompilers(rereadCompiler{at: resolved}))
+	require.NoError(t, err)
+
+	res, err := eng.RunSpec(t.Context(),
+		compilers.Source{Path: filepath.Join(link, "spec.yaml"), Data: []byte("held")}, engine.RunOptions{})
+
+	require.NoError(t, err)
+	require.NotNil(t, res.Document)
+	assert.Equal(t, "on disk", res.Document.Name)
 }
 
 // TestEngine_RunReadsTheSpecOnce pins that Run holds the bytes it read: a

@@ -30,8 +30,9 @@ func (r *recordingReader) ReadDocument(_ context.Context, req compilers.Document
 
 // TestLayered_ReadsWhatHeldHoldsAndTheRestFromDisk pins the default Under: a
 // document Held holds is served from memory though a file of other content
-// sits at its path, however a request spells it, while one it does not hold is
-// read from disk, and one neither holds is missing as Disk reports it.
+// sits at its path, named as Memory names it, with or without dot segments or
+// as a file URI, while one it does not hold is read from disk, and one neither
+// holds is missing as Disk reports it.
 func TestLayered_ReadsWhatHeldHoldsAndTheRestFromDisk(t *testing.T) {
 	t.Parallel()
 	root := reader.ResolvedDir(t)
