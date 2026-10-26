@@ -1,7 +1,11 @@
 package ir_test
 
 import (
+	"slices"
+	"strings"
 	"testing"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/stretchr/testify/assert"
 
@@ -96,5 +100,135 @@ func TestCanonicalWords_IsIdempotent(t *testing.T) {
 			once := ir.CanonicalWords(tc.in)
 			assert.Equal(t, once, ir.CanonicalWords(once), "re-canonicalizing %q", once)
 		})
+	}
+}
+
+// hasCanonicalCases pins HasCanonicalWords where a comparison can go wrong:
+// spellings one edit from a canonical form, mismatched inside a word that a
+// separator, a case boundary or a letter/digit boundary ends, at a separator,
+// and past the last word. The rows that hold pin that it reads no further than
+// the grammar renders.
+var hasCanonicalCases = []struct {
+	rule  string
+	name  string
+	words string
+	want  bool
+}{
+	{"a canonical name is its own words", "user_id", "user_id", true},
+	{"a camel-case name is its words", "userID", "user_id", true},
+	{"a name with no word rune has no words", "***", "", true},
+	{"a name with no word rune has not one", "***", "x", false},
+	{"the empty name has no words", "", "", true},
+	{"a rune lowercasing lengthens compares lowercased", "Ⱥb", "ⱥb", true},
+	{"a rune lowercasing lengthens is not its own lowercase", "Ⱥb", "Ⱥb", false},
+	{"a wrong rune in a word a separator ends", "list-users", "lisx_users", false},
+	{"a wrong rune in a word a case boundary ends", "firstName", "firsx_name", false},
+	{"a wrong rune in a word a digit boundary ends", "v2Beta", "x_2_beta", false},
+	{"a wrong rune after a separator", "firstName", "first_nane", false},
+	{"a missing separator", "firstName", "firstname", false},
+	{"a separator where the grammar has none", "username", "user_name", false},
+	{"a doubled separator", "first_name", "first__name", false},
+	{"a separator spelled otherwise", "first_name", "first-name", false},
+	{"a cased word", "userID", "user_ID", false},
+	{"a missing last word", "userID", "user", false},
+	{"a missing last rune", "userID", "user_i", false},
+	{"a trailing separator", "user", "user_", false},
+	{"a leading separator", "user", "_user", false},
+	{"an extra word", "user", "user_id", false},
+	{"an undecodable byte for a rune", "user", "use\xff", false},
+	{"an undecodable byte past the end", "user", "user\xff", false},
+	{"a replacement character for a rune", "user", "use�", false},
+}
+
+func TestHasCanonicalWords_ComparesAsTheGrammarRenders(t *testing.T) {
+	t.Parallel()
+	for _, tc := range hasCanonicalCases {
+		t.Run(tc.rule, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, ir.HasCanonicalWords(tc.name, tc.words), "%q against %q", tc.name, tc.words)
+			assert.Equal(t, tc.want, ir.CanonicalWords(tc.name) == tc.words, "the row disagrees with the grammar")
+		})
+	}
+}
+
+// TestHasCanonicalWords_Conformance holds the comparison to every conformance
+// row: it accepts the row's canonical form and refuses each spelling one edit
+// from it.
+func TestHasCanonicalWords_Conformance(t *testing.T) {
+	t.Parallel()
+	for _, tc := range canonicalCases {
+		t.Run(tc.rule, func(t *testing.T) {
+			t.Parallel()
+			assert.True(t, ir.HasCanonicalWords(tc.in, tc.want), "input %q", tc.in)
+			for _, miss := range nearMisses(tc.want) {
+				assert.False(t, ir.HasCanonicalWords(tc.in, miss), "input %q against %q", tc.in, miss)
+			}
+		})
+	}
+}
+
+// nearMisses returns spellings one edit from the canonical form words, none of
+// them words itself.
+func nearMisses(words string) []string {
+	misses := []string{words + "_", "_" + words, words + "a", words + "\xff", strings.ToUpper(words)}
+	if words != "" {
+		misses = append(misses, words[:len(words)-1], "a"+words[1:])
+	}
+	if strings.Contains(words, "_") {
+		misses = append(misses,
+			strings.Replace(words, "_", "", 1),
+			strings.Replace(words, "_", "__", 1),
+			strings.Replace(words, "_", "-", 1))
+	}
+	return slices.DeleteFunc(misses, func(miss string) bool { return miss == words })
+}
+
+// TestCanonicalWords_RendersInAtMostTwiceItsLength holds, for every rune, the
+// bound CanonicalWords sizes its stack rendering by: a rune renders lowercased,
+// after at most one separator, in at most twice the bytes it is written in. A
+// Unicode version giving some rune a longer lowercase would spill the rendering
+// of a name CanonicalWords takes to fit onto the heap.
+func TestCanonicalWords_RendersInAtMostTwiceItsLength(t *testing.T) {
+	t.Parallel()
+	for r := range rune(unicode.MaxRune + 1) {
+		if !utf8.ValidRune(r) {
+			continue
+		}
+		if rendered := 1 + utf8.RuneLen(unicode.ToLower(r)); rendered > 2*utf8.RuneLen(r) {
+			t.Errorf("%U renders in %d bytes, past twice its own %d", r, rendered, utf8.RuneLen(r))
+		}
+	}
+}
+
+// TestCanonicalWords_AllocatesOnlyItsResult holds the grammar to the cost its
+// doc promises, at every length: a canonical name comes back as it is, any
+// other as one new string, on the stack rendering and past it, and
+// HasCanonicalWords builds nothing. "aB" a hundred times is short enough for
+// the stack and renders too long for it. irverify compares every Naming that carries
+// a source, and compilers derive every name. It is not run in parallel:
+// AllocsPerRun measures the process.
+func TestCanonicalWords_AllocatesOnlyItsResult(t *testing.T) {
+	short, long := strings.Repeat("ab", 64), strings.Repeat("user_name_", 30)+"x"
+	for _, tc := range []struct {
+		name   string
+		allocs float64
+	}{
+		{"user_name", 0},
+		{"userName", 1},
+		{"***", 0},
+		{short, 0},
+		{short + "C", 1},
+		{strings.Repeat("aB", 100), 1},
+		{long, 0},
+		{strings.ToUpper(long), 1},
+		{strings.Repeat("*", 200), 0},
+	} {
+		words := ir.CanonicalWords(tc.name)
+		var got string
+		assert.Equal(t, tc.allocs, testing.AllocsPerRun(10, func() { got = ir.CanonicalWords(tc.name) }),
+			"CanonicalWords(%q)", tc.name)
+		assert.Equal(t, words, got)
+		assert.Zero(t, testing.AllocsPerRun(10, func() { _ = ir.HasCanonicalWords(tc.name, words) }),
+			"HasCanonicalWords(%q)", tc.name)
 	}
 }

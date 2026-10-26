@@ -65,6 +65,43 @@ func FuzzCanonicalWords_Properties(f *testing.F) {
 		assertIdempotent(t, name, got)
 		assertWordSequenceShape(t, name, got)
 		assertWordRunesPreserved(t, name, got)
+		assertWithinTwiceTheLength(t, name, got)
+	})
+}
+
+// assertWithinTwiceTheLength pins the bound CanonicalWords sizes its stack
+// rendering by, over whole names rather than the single runes
+// TestCanonicalWords_RendersInAtMostTwiceItsLength reads.
+func assertWithinTwiceTheLength(t *testing.T, name, got string) {
+	t.Helper()
+	if len(got) > 2*len(name) {
+		t.Fatalf("renders past twice its length\n  input: %q (%d bytes)\n  got:   %q (%d bytes)", name, len(name), got, len(got))
+	}
+}
+
+// FuzzHasCanonicalWords_AgreesWithCanonicalWords holds the comparison to the
+// rendering for any name against any words: the two read one segmentation, so
+// they answer alike. The seeds supply what a search seldom finds, words one
+// edit from a canonical form.
+func FuzzHasCanonicalWords_AgreesWithCanonicalWords(f *testing.F) {
+	for _, tc := range canonicalCases {
+		for _, words := range append(nearMisses(tc.want), tc.want) {
+			f.Add(tc.in, words)
+		}
+	}
+	for _, tc := range hasCanonicalCases {
+		f.Add(tc.name, tc.words)
+	}
+	for _, seed := range adversarialRunes {
+		f.Add(seed, ir.CanonicalWords(seed))
+	}
+
+	f.Fuzz(func(t *testing.T, name, words string) {
+		want := ir.CanonicalWords(name)
+		if got := ir.HasCanonicalWords(name, words); got != (want == words) {
+			t.Fatalf("HasCanonicalWords disagrees with CanonicalWords\n  name:  %q\n  words: %q\n  got:   %v\n  canonical: %q",
+				name, words, got, want)
+		}
 	})
 }
 

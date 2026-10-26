@@ -233,13 +233,10 @@ func appendContentViolations(vs []Violation, channel, name string, at ir.WalkPat
 // subsumed: they hold a Canonical carried without one, and name the specific
 // way a value is wrong.
 func appendGrammarViolation(vs []Violation, source, canon string, at ir.WalkPath) []Violation {
-	if source == "" {
+	if source == "" || ir.HasCanonicalWords(source, canon) {
 		return vs
 	}
 	want := ir.CanonicalWords(source)
-	if canon == want {
-		return vs
-	}
 	return append(vs, Violation{
 		Code: "ir/naming-not-derived",
 		Message: "canonical name " + strconv.Quote(canon) + " is not what the grammar derives from source " +
