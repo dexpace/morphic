@@ -5,6 +5,7 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"fmt"
+	"maps"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -87,27 +88,34 @@ func requireVerifyError(t *testing.T, err, sentinel error, stage string, codes .
 // brokenDocuments are the ways a compiler returns a document that keeps the
 // duties the engine always holds it to and breaks the invariants irverify
 // states, each by the one edit that breaks it.
+//
+// silent is whether the validate pass has nothing to say of the break, which it
+// has not for a duplicate ID or a cased name. A mismatched key it remarks on
+// only as a consequence, a reference to the node's own ID that resolves to
+// nothing.
 var brokenDocuments = []struct {
 	name    string
 	breakIt func(*ir.Document)
 	codes   []string
+	silent  bool
 }{
 	{"a duplicate operation ID", func(d *ir.Document) {
 		group := &d.Services[0].Groups[0]
 		group.Operations = append(slices.Clone(group.Operations), group.Operations[0])
-	}, []string{"ir/duplicate-op-id"}},
+	}, []string{"ir/duplicate-op-id"}, true},
 	{"a registry key unequal to its node's ID", func(d *ir.Document) {
 		d.Types = ir.TypeRegistry{"t/openapi/a": &ir.Scalar{ID: "t/openapi/b"}}
-	}, []string{"ir/type-id-mismatch"}},
+	}, []string{"ir/type-id-mismatch"}, false},
 	{"a cased canonical name", func(d *ir.Document) {
 		d.Services[0].Name.Canonical = "Ping"
-	}, []string{"ir/naming-cased"}},
+	}, []string{"ir/naming-cased"}, true},
 }
 
 // TestEngine_RunLeavesStructuralBreachesToVerify records the outcome the
 // compilers.Compiler docs state for the duties only irverify holds a document
-// to: a run returns such a document unremarked, and a run asked to verify
-// fails with the violations, naming the compile.
+// to: a run returns such a document with no contract error, and where the
+// validate pass has nothing to say, with no finding at all; a run asked to
+// verify fails with the violations, naming the compile.
 func TestEngine_RunLeavesStructuralBreachesToVerify(t *testing.T) {
 	t.Parallel()
 	for _, tt := range brokenDocuments {
@@ -117,8 +125,11 @@ func TestEngine_RunLeavesStructuralBreachesToVerify(t *testing.T) {
 				eng := engineOf(t, tamperer{Compiler: openapi.New(), tamper: tt.breakIt}, pass.Validator{})
 
 				res, err := via.run(t, eng, engine.RunOptions{})
-				require.NoError(t, err, "nothing is asked to look")
+				require.NoError(t, err, "no verification is asked for")
 				require.NotNil(t, res.Document)
+				if tt.silent {
+					assert.Empty(t, res.Diagnostics, "and validate has nothing to say of it")
+				}
 
 				// With every pass off, so the verdict is the verifier's alone.
 				res, err = via.run(t, eng, engine.RunOptions{Verify: true, DisablePasses: []string{engine.ValidatePass}})
@@ -413,5 +424,100 @@ func TestEngine_RunWalksADocumentOnlyWhereItChanged(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, walks)
 		})
+	}
+}
+
+// petSpec declares a schema, so the document it compiles to holds a type that a
+// test can break.
+const petSpec = `openapi: 3.1.0
+info: {title: Pets, version: "1"}
+paths:
+  /pets:
+    get:
+      operationId: listPets
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Pet"}
+components:
+  schemas:
+    Pet:
+      type: object
+      properties:
+        name: {type: string}
+`
+
+// runPets runs the pets spec from memory through eng.
+func runPets(t *testing.T, eng *engine.Engine, opts engine.RunOptions) (*engine.Result, error) {
+	t.Helper()
+	return eng.RunSources(t.Context(), []compilers.Source{{Path: "pets.yaml", Data: []byte(petSpec)}}, opts)
+}
+
+// firstType returns the type of d with the lowest ID, so a test breaks the same
+// one on every run.
+func firstType(d *ir.Document) ir.TypeDef {
+	return d.Types[slices.Sorted(maps.Keys(d.Types))[0]]
+}
+
+// TestEngine_RunVerifiesADocumentThatHoldsItself pins what a verified run does
+// with a document no encoder can finish: it comes back as violations, the walk's
+// and the encoder's, and does not recurse until the stack is gone, which no
+// barrier recovers. It holds only while the encoder refuses a cycle.
+func TestEngine_RunVerifiesADocumentThatHoldsItself(t *testing.T) {
+	t.Parallel()
+	list := make([]ir.Value, 1)
+	list[0] = ir.Value{Kind: ir.ValueList, List: list}
+	example := ir.Value{Kind: ir.ValueList, List: list}
+	eng := engineOf(t, tamperer{Compiler: openapi.New(), tamper: func(d *ir.Document) {
+		firstType(d).Common().Examples = []ir.Example{{Value: &example}}
+	}})
+
+	res, err := runPets(t, eng, engine.RunOptions{Verify: true})
+
+	requireVerifyError(t, err, compilers.ErrContract, "compile", "ir/cyclic-structure", "engine/unencodable")
+	assert.Nil(t, res)
+}
+
+// TestEngine_RunVerifiesADocumentNestedPastTheWalkBound is the same for a
+// document that is not cyclic and is too deep to walk: the verifier says it did
+// not look at all of it, and the run stops there.
+func TestEngine_RunVerifiesADocumentNestedPastTheWalkBound(t *testing.T) {
+	t.Parallel()
+	example := ir.Value{Kind: ir.ValueString}
+	for range 2 * ir.MaxWalkDepth {
+		example = ir.Value{Kind: ir.ValueList, List: []ir.Value{example}}
+	}
+	eng := engineOf(t, tamperer{Compiler: openapi.New(), tamper: func(d *ir.Document) {
+		firstType(d).Common().Examples = []ir.Example{{Value: &example}}
+	}})
+
+	res, err := runPets(t, eng, engine.RunOptions{Verify: true})
+
+	requireVerifyError(t, err, compilers.ErrContract, "compile", "ir/walk-truncated")
+	assert.Nil(t, res)
+}
+
+// TestEngine_RunAcceptsAnEditorTransformWhenVerifying is the control for the
+// transforms above: the way the engine documents a pass to change types, an
+// ir.Editor, returns a changed document and leaves its input as it found it.
+func TestEngine_RunAcceptsAnEditorTransformWhenVerifying(t *testing.T) {
+	t.Parallel()
+	edits := funcPass{"edits", func(doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
+		editor := ir.NewEditor(doc)
+		for id := range doc.Types {
+			editor.UpdateType(id, func(td ir.TypeDef) { td.Common().Docs.Summary = "edited" })
+		}
+		return editor.Finish()
+	}}
+	eng := engineOf(t, openapi.New(), edits, pass.Validator{})
+
+	res, err := runPets(t, eng, engine.RunOptions{Verify: true})
+
+	require.NoError(t, err)
+	require.NotEmpty(t, res.Document.Types)
+	for id, td := range res.Document.Types {
+		assert.Equal(t, "edited", td.Common().Docs.Summary, "type %s", id)
 	}
 }
