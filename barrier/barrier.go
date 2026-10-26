@@ -22,8 +22,8 @@ const maxFrames = 32
 var errNoFunction = errors.New("barrier: no function to call")
 
 // PanicError is the error a recovered panic becomes. Its message is one line of
-// bounded length whatever the panic value was; the value and the stack stay
-// whole beside it, for the caller that wants them.
+// bounded length whatever the panic value was; the value whole, its text, and
+// the stack cut at 64 KiB stay beside it, for the caller that wants them.
 type PanicError struct {
 	value any
 	text  string

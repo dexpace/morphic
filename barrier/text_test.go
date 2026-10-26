@@ -78,7 +78,7 @@ func TestLine_KeepsControlCharactersAnErrorReplaces(t *testing.T) {
 
 	assert.Equal(t, text, barrier.Line(text), "a message's renderer escapes what Line keeps")
 	assert.Equal(t, text, perr.Text(), "Text is Line's")
-	assert.Contains(t, perr.Error(), "red �[31mred� bell� del� c1� end",
+	assert.Contains(t, perr.Error(), "red \uFFFD[31mred\uFFFD bell\uFFFD del\uFFFD c1\uFFFD end",
 		"an error's text is printed as it is, so Error replaces them")
 }
 
@@ -181,15 +181,14 @@ func TestLine_IsBoundedInWorkNotOnlyOutput(t *testing.T) {
 		{"one line", "x", 2 * barrier.ScanLimit},
 	}
 	for _, tt := range tests {
-		name := tt.name
 		small := strings.Repeat(tt.unit, tt.smallReadsTo/len(tt.unit))
 		large := strings.Repeat(tt.unit, 1024*barrier.ScanLimit/len(tt.unit))
 
-		assert.Equal(t, barrier.Line(small), barrier.Line(large), "%s: the answer", name)
+		assert.Equal(t, barrier.Line(small), barrier.Line(large), "%s: the answer", tt.name)
 		assert.Equal(t,
 			testing.AllocsPerRun(4, func() { _ = barrier.Line(small) }),
 			testing.AllocsPerRun(4, func() { _ = barrier.Line(large) }),
-			"%s: the work", name)
+			"%s: the work", tt.name)
 	}
 }
 

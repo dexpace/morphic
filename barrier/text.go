@@ -27,10 +27,11 @@ const noText = "(no text)"
 const elidedMarker = "… (elided)"
 
 // Line renders v, what code the caller does not own returned or panicked with,
-// as text a one-line message can quote. Its lines are joined with "; ", or
-// with a space after one ending in a colon. The result is well-formed UTF-8 of
-// at most 4 KiB, cut on a rune boundary and marked when cut. Control characters
-// other than line breaks are kept for the renderer to escape.
+// as text a one-line message can quote: each line's white space collapsed to
+// single spaces, and the lines joined with "; ", or with a space after one
+// ending in a colon. It is well-formed UTF-8 of at most 4 KiB, cut on a rune
+// boundary and marked. Control characters other than line breaks are kept for
+// the renderer to escape.
 //
 // An error, a Stringer, a string, a number and a bool render as they say; any
 // other value, and one whose text panics, is named by its type.
