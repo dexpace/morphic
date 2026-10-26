@@ -65,6 +65,5 @@ compiler claims, to compile, as a format it names, or as its own and broken,
 excluding *.golden.* snapshots and dot-directories.
 Every spec is swept through the Morphic oracles (no panic, IR invariants, no
 error diagnostic, JSON round-trip, determinism, pass idempotence,
-order-invariance). Exit status is 0
-when every spec passes, 1 when any spec fails an oracle, 2 on a usage or
-filesystem error.`
+order-invariance). Exit status is 0 when every spec passes, 1 when any spec
+fails an oracle, 2 on a usage or filesystem error.`
