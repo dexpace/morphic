@@ -389,6 +389,26 @@ func TestIndex_UsageOfAFieldArgumentIsInput(t *testing.T) {
 		"the client writes a field's arguments to select it, whatever it reads back")
 }
 
+// TestIndex_UsageIgnoresAReferenceToNoType pins that a reference to a type the
+// document does not declare spreads no usage: not from an operation's payload,
+// a usage root, nor from a field's argument. "a" sorts first, so a lookup that
+// answered an undeclared type with some vertex of its own would reach it.
+func TestIndex_UsageIgnoresAReferenceToNoType(t *testing.T) {
+	t.Parallel()
+	doc := useDoc(ir.Operation{Responses: []ir.Response{{Payload: useBody("application/json", "ghost")}}},
+		useType("a"))
+	assert.Empty(t, usageOf(doc), "a payload naming no type uses none")
+
+	doc = useDoc(ir.Operation{Responses: []ir.Response{{Payload: useBody("application/json", "query")}}},
+		useType("a"),
+		irtest.ModelOf("query", func(m *ir.Model) {
+			m.Properties = []ir.Property{{Type: useRef("result"), Args: []ir.Parameter{{Type: useRef("phantom")}}}}
+		}),
+		useType("result"))
+	assert.Equal(t, map[ir.TypeID]irfacts.UsageFlags{"query": useOut, "result": useOut}, usageOf(doc),
+		"an argument naming no type uses none")
+}
+
 func TestIndex_UsageSwapsSidesForAnOperationTheAPIStarts(t *testing.T) {
 	t.Parallel()
 	op := ir.Operation{

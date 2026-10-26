@@ -61,44 +61,60 @@ func polymorphic(types ir.TypeRegistry, id ir.TypeID) bool {
 func (g *typeGraph) addType(i int, p *typeParts, children []ir.TypeID) {
 	shape, whole := 2*i, 2*i+1
 	for _, id := range p.held {
-		g.link(shape, g.reference(id))
+		g.linkReference(shape, id)
 	}
 	for _, id := range p.composed {
-		g.link(shape, g.vertex(id, false))
+		g.linkTo(shape, id, false)
 	}
-	g.link(shape, g.vertex(p.alias, false))
-	g.link(whole, g.vertex(p.alias, true))
+	g.linkTo(shape, p.alias, false)
+	g.linkTo(whole, p.alias, true)
 	g.link(whole, shape)
 	for _, id := range children {
-		g.link(whole, g.vertex(id, true))
+		g.linkTo(whole, id, true)
 	}
 	for _, id := range p.args {
-		if v := g.reference(id); v >= 0 {
+		if v, ok := g.reference(id); ok {
 			g.args[shape] = append(g.args[shape], v)
 		}
 	}
 }
 
+// linkTo adds an edge from one vertex to the shape of the type id, or its
+// range when whole is set, and none where the registry declares no such type.
+func (g *typeGraph) linkTo(from int, id ir.TypeID, whole bool) {
+	if to, ok := g.vertex(id, whole); ok {
+		g.link(from, to)
+	}
+}
+
+// linkReference adds an edge from one vertex to the vertex a reference to id
+// reaches, and none where the registry declares no such type.
+func (g *typeGraph) linkReference(from int, id ir.TypeID) {
+	if to, ok := g.reference(id); ok {
+		g.link(from, to)
+	}
+}
+
 // vertex returns the shape of the declared type id, or its range when whole is
-// set, and -1 when the registry declares no such type.
-func (g *typeGraph) vertex(id ir.TypeID, whole bool) int {
+// set, and false when the registry declares no such type.
+func (g *typeGraph) vertex(id ir.TypeID, whole bool) (int, bool) {
 	i, declared := g.index[id]
 	switch {
 	case !declared || id == "":
-		return -1
+		return 0, false
 	case whole:
-		return 2*i + 1
+		return 2*i + 1, true
 	default:
-		return 2 * i
+		return 2 * i, true
 	}
 }
 
 // reference returns the vertex a reference to id reaches: its range when it is
-// polymorphic, its shape otherwise, and -1 when id is not declared.
-func (g *typeGraph) reference(id ir.TypeID) int {
+// polymorphic, its shape otherwise, and false when id is not declared.
+func (g *typeGraph) reference(id ir.TypeID) (int, bool) {
 	i, declared := g.index[id]
 	if !declared {
-		return -1
+		return 0, false
 	}
 	return g.vertex(id, g.poly[i])
 }
@@ -108,11 +124,8 @@ func (g *typeGraph) typeOf(v int) ir.TypeID {
 	return g.ids[v/2]
 }
 
-// link adds an edge from one vertex to another, unless to is -1.
+// link adds an edge from one vertex to another.
 func (g *typeGraph) link(from, to int) {
-	if to < 0 {
-		return
-	}
 	if from == to {
 		g.loops[from] = true
 	}

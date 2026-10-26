@@ -60,7 +60,7 @@ func newUsage(doc *ir.Document, g *typeGraph) map[ir.TypeID]UsageFlags {
 	roots.document(doc)
 	var pending []usageStep
 	for id, flags := range roots {
-		if v := g.reference(id); v >= 0 && flags&spreadingUsage != 0 {
+		if v, ok := g.reference(id); ok && flags&spreadingUsage != 0 {
 			pending = append(pending, usageStep{vertex: v, flags: flags & spreadingUsage})
 		}
 	}
