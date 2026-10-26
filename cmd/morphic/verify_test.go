@@ -39,13 +39,13 @@ func (c brokenIRCompiler) Compile(_ context.Context, sources []compilers.Source,
 	}, nil, nil
 }
 
-// useEngine makes the commands compile with an engine over comp for the rest of
-// the test.
-func useEngine(t *testing.T, comp compilers.Compiler) {
+// useEngine makes the commands compile with an engine built from opts for the
+// rest of the test.
+func useEngine(t *testing.T, opts ...engine.Option) {
 	t.Helper()
 	orig := newEngine
 	t.Cleanup(func() { newEngine = orig })
-	newEngine = func() (*engine.Engine, error) { return engine.New(engine.WithCompilers(comp)) }
+	newEngine = func() (*engine.Engine, error) { return engine.New(opts...) }
 }
 
 // TestRun_VerifyEndsARunWhoseStageBreaksTheIR runs both commands over a
@@ -54,7 +54,7 @@ func useEngine(t *testing.T, comp compilers.Compiler) {
 // for any stage that broke its contract. Without --verify the same document goes
 // through, which is what the flag is for.
 func TestRun_VerifyEndsARunWhoseStageBreaksTheIR(t *testing.T) {
-	useEngine(t, brokenIRCompiler{count: 4})
+	useEngine(t, engine.WithCompilers(brokenIRCompiler{count: 4}))
 	spec := writeFile(t, "spec.yaml", testspec.Tiny)
 
 	for _, command := range []string{"compile", "validate"} {
@@ -84,7 +84,7 @@ func TestRun_VerifyEndsARunWhoseStageBreaksTheIR(t *testing.T) {
 }
 
 func TestRun_VerifyListsAtMostFiftyViolations(t *testing.T) {
-	useEngine(t, brokenIRCompiler{count: 120})
+	useEngine(t, engine.WithCompilers(brokenIRCompiler{count: 120}))
 	spec := writeFile(t, "spec.yaml", testspec.Tiny)
 	var stdout, stderr bytes.Buffer
 
