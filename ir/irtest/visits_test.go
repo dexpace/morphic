@@ -59,3 +59,27 @@ func TestAllocatingVisits_PrunesForAllWhatOnePrunes(t *testing.T) {
 		assert.False(t, strings.HasPrefix(at, "doc.Services["), "%s lies under a pruned value", at)
 	}
 }
+
+// TestAllocatingVisits_CountsTheFewestAVisitAllocates holds the measurement to
+// what a visit must allocate, not what it happens to: a visit allocating on
+// every third call, as one reaching a pool a race build drops from does at
+// random, is not reported, though an average of its calls allocates. Every
+// third, so the calls that allocate fall alike on a measurement's warm-up and
+// on what it measures. It is not run in parallel: AllocsPerRun measures the
+// process.
+func TestAllocatingVisits_CountsTheFewestAVisitAllocates(t *testing.T) {
+	doc := &ir.Document{Name: "api"}
+	calls := 0
+	var kept [][]byte
+	sometimes := ir.VisitFunc(func(reflect.Value, ir.WalkPath) bool {
+		if calls++; calls%3 == 0 {
+			kept = append(kept[:0], make([]byte, 64), make([]byte, 64), make([]byte, 64), make([]byte, 64))
+		}
+		return true
+	})
+
+	assert.Empty(t, irtest.AllocatingVisits(doc, sometimes))
+	assert.Positive(t, testing.AllocsPerRun(10, func() { sometimes(reflect.Value{}, ir.WalkPath{}) }),
+		"averaged, the visit allocates, or the case tests nothing")
+	assert.NotEmpty(t, kept)
+}
