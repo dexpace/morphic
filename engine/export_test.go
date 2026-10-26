@@ -20,3 +20,11 @@ var ErrUnknownSeverity = errUnknownSeverity
 // Severities exposes the ranked severity list, which the external tests hold
 // to what package ir declares.
 func Severities() []ir.Severity { return severities() }
+
+// ErrVersionChanged exposes the error a pass returning a document stamped with
+// another IR version fails a run with.
+var ErrVersionChanged = errVersionChanged
+
+// ErrDiagnosticsChanged exposes the error a pass that puts findings on
+// Document.Diagnostics fails a run with.
+var ErrDiagnosticsChanged = errDiagnosticsChanged
