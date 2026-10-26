@@ -12,7 +12,8 @@ document away.
 
 The diagnostics and the exit code are compile's: 0 when nothing reaches
 --fail-on, 1 when something does or the spec lowered to no document at all, 2
-for a misuse, an I/O error or a run a signal stopped.
+for a misuse, an I/O error, a compiler or pass that broke its contract, or a
+run a signal stopped.
 
 --skip-validate and --disable-pass validate are interchangeable. Both name the
 IR pass called validate, not this command: they drop that pass's diagnostics and

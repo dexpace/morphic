@@ -12,8 +12,8 @@ import (
 )
 
 // Exit codes. They are a contract with CI wrappers: 1 says the spec has
-// findings, 2 says morphic was invoked wrong, could not do its I/O, or was
-// stopped by a signal.
+// findings, 2 says morphic was invoked wrong, could not do its I/O, ran a
+// compiler or pass that broke its contract, or was stopped by a signal.
 const (
 	exitFindings = 1
 	exitFailure  = 2

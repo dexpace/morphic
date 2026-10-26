@@ -178,7 +178,7 @@ Both commands share them.
 |---|---|
 | `0` | Clean, or a help request. |
 | `1` | The spec has problems: a diagnostic reached the `--fail-on` threshold, or the spec could not be lowered at all (an undecodable file, an unrecognized or unsupported format, a version no compiler claims). |
-| `2` | The invocation or the filesystem was wrong, or the run was stopped: a bad flag or argument, a spec that could not be read, an output that could not be written, a SIGINT, SIGTERM or SIGHUP. Nothing in the spec's own contents leads to `2`. |
+| `2` | The invocation or the filesystem was wrong, the run was stopped, or something inside morphic failed: a bad flag or argument, a spec that could not be read, an output that could not be written, a SIGINT, SIGTERM or SIGHUP, or a compiler or pass that broke its contract, which `--verify` also holds to the IR's invariants. Nothing in the spec's own contents leads to `2`. |
 
 One run can earn both `1` and `2`: a spec that reached the threshold, whose `-o` destination then
 refused the write. The verdict on the spec wins, so `1` always means the spec has problems, and the
