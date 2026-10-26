@@ -84,27 +84,32 @@ Document. A tagged scalar is not refused here; what it lowers to is [`values`](#
 ### `source-budgets`
 
 `Options.Limits` bounds how large a source the compiler lowers, each budget taking its default when
-unset and none when negative. A source past `MaxSourceBytes` is refused before it is parsed, and one
-whose YAML parses to more than `MaxSourceNodes` nodes, or whose aliases add more than
-`MaxAliasSurplus` nodes to it, before its model is built: each as an `openapi/budget-exceeded`
-error, compiling to no Document. Past `MaxExternalDocuments`, a document an external reference names
-is not read, each reference into it is unresolved ([`references`](#references)), and the compile
-reports `openapi/budget-exceeded` once. The rule table ([`validation`](#validation)) reads no more
-objects than the node and alias budgets admit together, and nests no deeper than the scan's depth
-bound, so it stops on no document they admit; with either budget unbounded it stops past 4,194,304
-objects, as an `openapi/budget-exceeded` error at the object it stopped on. Three bounds hold
-whatever the caller sets, since past them no answer the pre-parse scan gives is whole: a document
-nested past the scan's depth bound, its aliases expanded, is refused as an `openapi/source-too-deep`
-error at the least pointer where its nesting passes the bound; one with more nodes than the scan
-indexes, as an `openapi/source-too-large` error; and one whose aliases expand it past a fixed
-multiple of its own size, with a floor for a small document, as an `openapi/alias-amplification`
-error at the least pointer of the smallest structures past the ratio. An overlay is held to the same
-refusals before it is applied, and so is a document an external reference names, which fails the
-reference instead. The member budget of an enum is [`enum-const`](#enum-const)'s.
+unset and none when negative. A source past `MaxSourceBytes` is refused before it is parsed, as one
+past the budget rather than one of a size: `MaxSourceBytes` is the compiler's `SourceLimit`, so a
+caller may hand detection only its first bytes, one past the budget. A source whose YAML parses to
+more than `MaxSourceNodes` nodes, or whose aliases add more than `MaxAliasSurplus` nodes to it, is
+refused before its model is built. Each is an `openapi/budget-exceeded` error, compiling to no
+Document. Past `MaxExternalDocuments`, a document an external reference names is not read, each
+reference into it is unresolved ([`references`](#references)), and the compile reports
+`openapi/budget-exceeded` once. The rule table ([`validation`](#validation)) reads no more objects
+than the node and alias budgets admit together, and nests no deeper than the scan's depth bound, so
+it stops on no document they admit; with either budget unbounded it stops past 4,194,304 objects, as
+an `openapi/budget-exceeded` error at the object it stopped on. Three bounds hold whatever the
+caller sets, since past them no answer the pre-parse scan gives is whole: a document nested past the
+scan's depth bound, its aliases expanded, is refused as an `openapi/source-too-deep` error at the
+least pointer where its nesting passes the bound; one with more nodes than the scan indexes, as an
+`openapi/source-too-large` error; and one whose aliases expand it past a fixed multiple of its own
+size, with a floor for a small document, as an `openapi/alias-amplification` error at the least
+pointer of the smallest structures past the ratio. An overlay is held to the same refusals before it
+is applied, and so is a document an external reference names, which fails the reference instead;
+each is read no further than the byte budget. The member budget of an enum is
+[`enum-const`](#enum-const)'s.
 
 - Codes: `openapi/budget-exceeded`, `openapi/source-too-deep`, `openapi/source-too-large`,
   `openapi/alias-amplification`
 - Tests: `openapi.TestCompile_SourceByteBudgetBindsOnlyPastTheLimit`,
+  `openapi.TestCompiler_SourceLimitReadsTheCallersOptions`,
+  `load.TestLoad_ANamedOverlayPastTheBudgetIsRefused`,
   `openapi.TestCompile_AnUnboundedAliasBudgetStillRefusesABomb`,
   `load.TestLoad_RefusesANestingPastTheBoundBeforeBuildingTheModel`,
   `load.TestLoad_ADocumentTooLargeToIndexIsRefused`,
@@ -117,17 +122,21 @@ reference instead. The member budget of an enum is [`enum-const`](#enum-const)'s
 ### `overlays`
 
 An OpenAPI Overlay document handed in as `Options.Overlay` is applied to the source's parsed tree
-before its model is built: the pre-parse refusals and the node budgets hold the patched tree as they
-hold the source, and validation and every lowering read it. The overlay becomes a second entry in
-`Document.Sources`, and every position it introduced or rewrote names that entry as its
-`Provenance.Source`, while a position it left alone keeps the source's line and column. An overlay
-that does not parse, or is not a valid Overlay — no version, no actions, an action naming no target
-— is refused as an `openapi/invalid-overlay` error and nothing is applied. One the parser cannot
-apply as written, or whose grafted content expands past the walk's node budget, is refused as an
-`openapi/overlay-failed` error. Either way the source compiles to no Document rather than lowering a
-tree the caller believes was patched. Application is strict unless `Overlay.Lax` is set: each action
-that changed nothing, or relies on JSONPath behaviour the overlay did not opt into, is reported as
-an `openapi/overlay-action` warning naming the action, and the compile proceeds; an action whose
+before its model is built. Its bytes are the caller's, or, when it hands none, read in the compile
+from the local file `Overlay.Path` names, through the caller's reader and unconfined, since the
+caller named it and not the spec. One the reader cannot read is a Go error, as an unreadable spec
+is, and so is a path naming an http(s) URL, since no setting takes a compile onto the network. Once
+applied, the pre-parse refusals and the node budgets hold the patched tree as they hold the source,
+and validation and every lowering read it. The overlay becomes a second entry in `Document.Sources`,
+and every position it introduced or rewrote names that entry as its `Provenance.Source`, while a
+position it left alone keeps the source's line and column. An overlay that does not parse, or is not
+a valid Overlay — no version, no actions, an action naming no target — is refused as an
+`openapi/invalid-overlay` error and nothing is applied. One the parser cannot apply as written, or
+whose grafted content expands past the walk's node budget, is refused as an `openapi/overlay-failed`
+error. Either way the source compiles to no Document rather than lowering a tree the caller believes
+was patched. Application is strict unless `Overlay.Lax` is set: each action that changed nothing, or
+relies on JSONPath behaviour the overlay did not opt into, is reported as an
+`openapi/overlay-action` warning naming the action, and the compile proceeds; an action whose
 selector matches nothing is reported the same way and refuses the overlay as
 `openapi/overlay-failed`. Lax application reports none of these, and refuses only an overlay it
 cannot apply. Where the walk that attributes positions to the overlay runs out of its node budget,
@@ -137,6 +146,8 @@ the overlay is applied and every position names the source, as with no overlay, 
 - Codes: `openapi/invalid-overlay`, `openapi/overlay-failed`, `openapi/overlay-action`,
   `openapi/overlay-origin-incomplete`
 - Tests: `overlay.TestApply_RejectsAnOverlayItCannotRead`,
+  `load.TestLoad_ReadsANamedOverlayThroughTheReader`,
+  `load.TestLoad_ANamedOverlayThatCannotBeReadIsAGoError`,
   `e2e.TestCompile_StrictRefusesAnActionThatMatchesNothing`,
   `overlay.TestApply_StrictReportsAnActionThatChangesNothingWithoutRefusing`,
   `overlay.TestApplyWithin_DegradesToTheSourceAtTheNodeBudget`,

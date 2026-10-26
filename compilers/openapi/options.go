@@ -189,8 +189,9 @@ const (
 // walks them: no caller could legitimately want more.
 type Limits struct {
 	// MaxSourceBytes bounds one source document's size in bytes, checked before
-	// it is parsed. It binds the same way on a document an external reference
-	// names, checked before that document is parsed in its turn.
+	// it is parsed; it is the compiler's SourceLimit, so a caller reads a source
+	// no further than it allows. It binds the same way on an overlay and on a
+	// document an external reference names, each read no further.
 	MaxSourceBytes int `json:"maxSourceBytes,omitzero"`
 	// MaxSourceNodes bounds the YAML nodes one source document parses to,
 	// checked before the typed model is built from it. A document an external
@@ -256,22 +257,24 @@ func bounded(limit int) int {
 	return limit
 }
 
-// Overlay is one pre-read OpenAPI Overlay document and how strictly to apply it.
+// Overlay is one OpenAPI Overlay document and how strictly to apply it.
 //
-// The document arrives as bytes, like the spec, because a compiler performs no
-// file I/O. A programmatic caller sets this through
-// engine.RunOptions.FormatOptions; a caller with only text names the file with
-// the "overlay" setting and the reader in compilers.OptionSet loads it.
+// The document arrives as bytes, or is read through compilers.Options.Reader,
+// as every document beyond the source is, within the source's byte budget. A
+// programmatic caller sets this through engine.RunOptions.FormatOptions; a
+// caller with only text names the file with the "overlay" setting.
 //
 // An applied overlay becomes a second entry in Document.Sources, and every
 // position it introduced or rewrote names that entry as its Provenance.Source.
 // Positions it left alone keep the source's line and column, since the overlay
 // applies to the parsed tree, not to re-serialised bytes.
 type Overlay struct {
-	// Path names the overlay document. It is recorded as the overlay's
-	// SourceInfo path and never opened.
+	// Path names the overlay document, and is recorded as its SourceInfo path.
+	// With empty Data, it is the local file Compile reads through
+	// compilers.Options.Reader; an http(s) URL is refused.
 	Path string `json:"path,omitempty"`
-	// Data is the overlay document's bytes.
+	// Data is the overlay document's bytes, or empty to read the one Path
+	// names: no overlay document is empty.
 	Data []byte `json:"data,omitempty"`
 	// Lax turns off strict application.
 	//
@@ -327,7 +330,8 @@ func optionNames() []string {
 
 // DecodeOptions implements compilers.Compiler: it turns textual settings into
 // an Options value. Settings are read in sorted order so that a set with two
-// bad values always reports the same one.
+// bad values always reports the same one. An overlay is named, not read: the
+// compile reads it.
 func (*Compiler) DecodeOptions(set compilers.OptionSet) (any, error) {
 	var decode optionDecode
 	for _, key := range slices.Sorted(maps.Keys(set.Settings)) {
@@ -335,7 +339,7 @@ func (*Compiler) DecodeOptions(set compilers.OptionSet) (any, error) {
 			return nil, err
 		}
 	}
-	opts, err := decode.finish(set.ReadFile)
+	opts, err := decode.finish()
 	if err != nil {
 		return nil, err
 	}
@@ -387,9 +391,9 @@ func (d *optionDecode) set(key, value string) error {
 		key, strings.Join(optionNames(), ", "))
 }
 
-// finish assembles the decoded Options, loading the overlay document a setting
-// named through the caller's reader.
-func (d *optionDecode) finish(readFile func(name string) ([]byte, error)) (Options, error) {
+// finish assembles the decoded Options, naming the overlay document a setting
+// named, for the compile to read.
+func (d *optionDecode) finish() (Options, error) {
 	if d.overlayPath == "" {
 		if d.laxSet {
 			return Options{}, fmt.Errorf("openapi: option %q applies only with %q",
@@ -397,15 +401,7 @@ func (d *optionDecode) finish(readFile func(name string) ([]byte, error)) (Optio
 		}
 		return d.opts, nil
 	}
-	if readFile == nil {
-		return Options{}, fmt.Errorf("openapi: option %q names a file and the caller supplied no reader",
-			optOverlay)
-	}
-	data, err := readFile(d.overlayPath)
-	if err != nil {
-		return Options{}, fmt.Errorf("openapi: option %q: %w", optOverlay, err)
-	}
-	d.opts.Overlay = &Overlay{Path: d.overlayPath, Data: data, Lax: d.lax}
+	d.opts.Overlay = &Overlay{Path: d.overlayPath, Lax: d.lax}
 	return d.opts, nil
 }
 

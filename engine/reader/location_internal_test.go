@@ -291,7 +291,7 @@ func TestReadUpTo_SizesTheBufferFromWhatTheDocumentReports(t *testing.T) {
 		{name: "a reported size past the bound", n: 100, size: 3000, wantLen: 100, wantCap: 100},
 		{name: "a reported size within the bound", n: 5000, size: 3000, wantLen: 3000, wantCap: 3000 + minRead},
 		{name: "no size, a bound under one buffer", n: 100, wantLen: 100, wantCap: 100},
-		{name: "a size past the largest first buffer", n: 0, size: 1 << 40, wantLen: 3000,
+		{name: "a size past the largest first buffer", n: 0, size: 2 * maxInitial, wantLen: 3000,
 			wantCap: maxInitial + minRead},
 	}
 	for _, tc := range tests {
@@ -307,19 +307,27 @@ func TestReadUpTo_SizesTheBufferFromWhatTheDocumentReports(t *testing.T) {
 	}
 }
 
-// TestReadUpTo_GrowsNoFurtherThanTheBound pins growth: a document reporting no
-// size is read into a buffer grown as it fills, and the read takes exactly the
-// bytes the bound allows, however much the reader has left.
+// TestReadUpTo_GrowsNoFurtherThanTheBound pins growth: a buffer grown as it
+// fills, whether the document reported no size or one it then outgrew, as a
+// file growing while it is read does, is never asked to grow past the bound,
+// and the read takes exactly the bytes the bound allows, however much the
+// reader has left.
 func TestReadUpTo_GrowsNoFurtherThanTheBound(t *testing.T) {
 	t.Parallel()
-	const n = 3*minRead + 7
-	r := &serveThenFail{max: 10 * n}
+	const n = 10<<20 + 7
+	for _, size := range []int64{0, 8 << 20} {
+		t.Run(fmt.Sprintf("reporting %d bytes", size), func(t *testing.T) {
+			t.Parallel()
+			r := &serveThenFail{max: 2 * n}
 
-	got, err := readUpTo(t.Context(), "doc", r, n, 0)
+			got, err := readUpTo(t.Context(), "doc", r, n, size)
 
-	require.NoError(t, err)
-	assert.Len(t, got, n)
-	assert.Equal(t, n, r.served, "nothing past the bound is read")
+			require.NoError(t, err)
+			assert.Len(t, got, n)
+			assert.Equal(t, n, r.served, "nothing past the bound is read")
+			assert.LessOrEqual(t, cap(got), n, "the buffer grew to the bound, not past it")
+		})
+	}
 }
 
 // TestReadUpTo_AsksTheContextBetweenChunks pins how often a read asks ctx: a

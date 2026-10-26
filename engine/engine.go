@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"slices"
 	"strings"
 
@@ -167,10 +166,11 @@ func New(opts ...Option) (*Engine, error) {
 	return &Engine{registry: reg, passes: passes, verifier: irverify.Verify}, nil
 }
 
-// Run executes the pipeline for the spec at specPath: read it, compile it with
-// the compiler that recognizes it, run the passes opts.DisablePasses does not
-// name, and judge the Result at opts.FailOn. References are read through
-// reader.Disk, as far as the compiler's options allow.
+// Run executes the pipeline for the spec at specPath, a regular file: read it
+// no further than a compiler would (compilers.Registry.SourceLimit), compile
+// it with the compiler that recognizes it, run the passes opts.DisablePasses
+// does not name, and judge the Result at opts.FailOn. reader.Disk reads the
+// rest.
 //
 // A Go error is reserved for I/O, cancellation and programmer errors: an
 // unreadable file, a cancelled ctx, a refused option (ErrUnknownPass,
@@ -182,11 +182,16 @@ func (e *Engine) Run(ctx context.Context, specPath string, opts RunOptions) (*Re
 	if err != nil {
 		return nil, err
 	}
-	data, err := os.ReadFile(specPath)
+	configure := configurer(opts, reader.Disk{})
+	limit, err := e.registry.SourceLimit(configure)
+	if err != nil {
+		return nil, fmt.Errorf("engine: detect %q: %w", specPath, err)
+	}
+	data, err := reader.ReadSource(ctx, specPath, limit)
 	if err != nil {
 		return nil, fmt.Errorf("engine: read spec %q: %w", specPath, err)
 	}
-	res, err := e.compile(ctx, compilers.Source{Path: specPath, Data: data}, reader.Disk{}, os.ReadFile, opts, p)
+	res, err := e.compile(ctx, compilers.Source{Path: specPath, Data: data}, configure, p)
 	if err != nil {
 		return nil, err
 	}
@@ -214,11 +219,8 @@ func (e *Engine) RunSources(ctx context.Context, sources []compilers.Source, opt
 	if err != nil {
 		return nil, fmt.Errorf("engine: %w", err)
 	}
-	readFile := func(name string) ([]byte, error) {
-		return docs.ReadDocument(ctx, compilers.DocumentRequest{Location: name})
-	}
 	spec := compilers.Source{Path: sources[0].Path, Data: sources[0].Data}
-	res, err := e.compile(ctx, spec, docs, readFile, opts, p)
+	res, err := e.compile(ctx, spec, configurer(opts, docs), p)
 	if err != nil {
 		return nil, err
 	}
@@ -324,19 +326,12 @@ func (e *Engine) prepare(opts RunOptions) (plan, error) {
 	return p, nil
 }
 
-// compile runs the pipeline over source: detect, compile, then passes. docs
-// reads what source's references name, and readFile what its settings name.
-// The Result it returns is not yet judged.
-func (e *Engine) compile(ctx context.Context, source compilers.Source, docs compilers.DocumentReader,
-	readFile func(string) ([]byte, error), opts RunOptions, p plan,
+// compile runs the pipeline over source: detect, compile, then passes, each
+// compiler configured by configure. The Result it returns is not yet judged.
+func (e *Engine) compile(ctx context.Context, source compilers.Source, configure compilers.Configure,
+	p plan,
 ) (*Result, error) {
-	// Each compiler is asked under the options it would compile with, because
-	// recognizing a source is a read of it that the caller's budgets bound as
-	// much as the compile's reads.
-	det, ok, err := e.registry.Detect(ctx, source, func(c compilers.Compiler) (compilers.Options, error) {
-		formatOpts, err := formatOptions(c, opts, readFile)
-		return compilers.Options{FormatOptions: formatOpts, Reader: docs}, err
-	})
+	det, ok, err := e.registry.Detect(ctx, source, configure)
 	if err != nil {
 		return nil, fmt.Errorf("engine: detect %q: %w", source.Path, err)
 	}
@@ -422,18 +417,25 @@ func (e *Engine) served() string {
 	return "this build compiles " + strings.Join(names, ", ")
 }
 
+// configurer returns what configures each compiler for a run under opts: the
+// options it would compile with, and docs, which reads every document the
+// compile reads beyond the spec. Each compiler is asked under them, because
+// recognizing a source is a read of it that the caller's budgets bound as much
+// as the compile's reads.
+func configurer(opts RunOptions, docs compilers.DocumentReader) compilers.Configure {
+	return func(c compilers.Compiler) (compilers.Options, error) {
+		formatOpts, err := formatOptions(c, opts)
+		return compilers.Options{FormatOptions: formatOpts, Reader: docs}, err
+	}
+}
+
 // formatOptions resolves the options c would compile with, decoding the
-// textual channel through c itself. readFile is what makes a path-valued
-// setting work: the engine reads the spec, so loading a file a setting names
-// keeps the I/O on this side of the contract and the compiler pure.
-func formatOptions(c compilers.Compiler, opts RunOptions, readFile func(string) ([]byte, error)) (any, error) {
+// textual channel through c itself.
+func formatOptions(c compilers.Compiler, opts RunOptions) (any, error) {
 	if len(opts.CompilerOptions) == 0 {
 		return opts.FormatOptions, nil
 	}
-	decoded, err := c.DecodeOptions(compilers.OptionSet{
-		Settings: opts.CompilerOptions,
-		ReadFile: readFile,
-	})
+	decoded, err := c.DecodeOptions(compilers.OptionSet{Settings: opts.CompilerOptions})
 	if err != nil {
 		return nil, fmt.Errorf("decode: %w", err)
 	}

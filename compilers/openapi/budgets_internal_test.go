@@ -126,7 +126,7 @@ func TestCompile_SourceByteBudgetBindsOnlyPastTheLimit(t *testing.T) {
 			assert.Nil(t, doc, "an over-budget source is refused before it is parsed")
 			openapitest.AssertHasCode(t, diags, diag.BudgetExceeded, ir.SeverityError)
 			assert.Equal(t,
-				fmt.Sprintf("source document is %d bytes, past the %d-byte budget", len(src), tc.limit),
+				fmt.Sprintf("source document is past the %d-byte budget", tc.limit),
 				messageOf(t, diags, diag.BudgetExceeded))
 		})
 	}

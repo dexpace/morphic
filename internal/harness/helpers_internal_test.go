@@ -46,6 +46,8 @@ func (stubCompiler) Detect(src compilers.Source, _ compilers.Options) (compilers
 
 func (stubCompiler) DecodeOptions(compilers.OptionSet) (any, error) { return nil, nil }
 
+func (stubCompiler) SourceLimit(compilers.Options) int { return 0 }
+
 func (stubCompiler) SourceTable(sources []compilers.Source, _ compilers.Options) []ir.SourceInfo {
 	return []ir.SourceInfo{{Path: sources[0].Path}}
 }

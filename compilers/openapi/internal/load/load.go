@@ -36,8 +36,8 @@ type Options struct {
 	// nowhere. It is read only when Reader is set.
 	Within string
 	// Overlay is the OpenAPI Overlay document to apply to the source before the
-	// model is built, or nil for none. Its bytes are the caller's to read, like
-	// the source's.
+	// model is built, or nil for none. With empty Data, the document its Path
+	// names is read through Reader (readOverlay).
 	Overlay *overlay.Options
 	// OverlaySrcIndex is the index the overlay document takes in Document.Sources.
 	// It is read only when Overlay is set.
@@ -178,7 +178,10 @@ func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Pars
 	}
 	// early may still hold a non-fatal scan-incomplete warning; carry it forward.
 
-	origin, patchDiags := patch(srcIndex, root, opts)
+	origin, patchDiags, err := patch(ctx, srcIndex, root, opts)
+	if err != nil {
+		return nil, nil, err
+	}
 	early = append(early, patchDiags...)
 	if diag.HasError(early) {
 		return nil, early, nil // an overlay that did not apply: refuse to lower a half-patched tree

@@ -2,8 +2,6 @@ package openapi_test
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"reflect"
 	"testing"
 
@@ -36,17 +34,10 @@ func TestCompile_ExplicitOptions(t *testing.T) {
 
 // TestDecodeOptions_TextReachesEveryField is the other half of #69's answer: a
 // caller holding only text — the CLI, which imports no compiler — can set every
-// option a Go caller can, including the overlay, whose value is a file the
-// caller's own reader loads.
+// option a Go caller can, including the overlay, whose value names a file the
+// compile reads through the caller's reader. Decoding reads nothing.
 func TestDecodeOptions_TextReachesEveryField(t *testing.T) {
 	t.Parallel()
-	const overlayDoc = "overlay: 1.0.0\ninfo: {title: O, version: \"1\"}\nactions: []\n"
-	read := func(name string) ([]byte, error) {
-		if name != "patch.yaml" {
-			return nil, fmt.Errorf("no such file %q", name)
-		}
-		return []byte(overlayDoc), nil
-	}
 
 	got, err := openapi.New().DecodeOptions(compilers.OptionSet{
 		Settings: map[string]string{
@@ -61,7 +52,6 @@ func TestDecodeOptions_TextReachesEveryField(t *testing.T) {
 			"max-alias-surplus":      "+13",
 			"max-external-documents": "14",
 		},
-		ReadFile: read,
 	})
 	require.NoError(t, err)
 
@@ -71,7 +61,7 @@ func TestDecodeOptions_TextReachesEveryField(t *testing.T) {
 	assert.True(t, opts.AllowExternalRefs)
 	require.NotNil(t, opts.Overlay)
 	assert.Equal(t, "patch.yaml", opts.Overlay.Path)
-	assert.Equal(t, overlayDoc, string(opts.Overlay.Data))
+	assert.Nil(t, opts.Overlay.Data, "named for the compile to read, not read")
 	assert.True(t, opts.Overlay.Lax)
 	assert.True(t, opts.NullableWidening.Disabled, "nullable-widening=false turns the policy off")
 	assert.Equal(t, openapi.Limits{MaxSourceBytes: 11, MaxSourceNodes: -1, MaxAliasSurplus: 13, MaxExternalDocuments: 14},
@@ -109,53 +99,44 @@ func TestDecodeOptions_EmptySetIsDefaults(t *testing.T) {
 
 func TestDecodeOptions_Refusals(t *testing.T) {
 	t.Parallel()
-	readsNothing := func(string) ([]byte, error) { return nil, errors.New("no such file") }
 	tests := []struct {
 		name     string
 		settings map[string]string
-		readFile func(string) ([]byte, error)
 		wantErr  string
 	}{
-		{"unknown name", map[string]string{"gruoping": "tags"}, nil,
+		{"unknown name", map[string]string{"gruoping": "tags"},
 			`unknown option "gruoping" (known: allow-external-refs, grouping, max-alias-surplus, ` +
 				`max-enum-members, max-external-documents, max-source-bytes, max-source-nodes, nullable-widening, overlay, ` +
 				`overlay-lax)`},
-		{"non-integer budget", map[string]string{"max-source-bytes": "64MiB"}, nil,
+		{"non-integer budget", map[string]string{"max-source-bytes": "64MiB"},
 			`"max-source-bytes": want an integer (0 for the default, negative for none), got "64MiB"`},
-		{"budget past an int", map[string]string{"max-source-nodes": "99999999999999999999"}, nil,
+		{"budget past an int", map[string]string{"max-source-nodes": "99999999999999999999"},
 			`"max-source-nodes": want an integer`},
-		{"empty budget", map[string]string{"max-external-documents": ""}, nil,
+		{"empty budget", map[string]string{"max-external-documents": ""},
 			`"max-external-documents": want an integer`},
-		{"unknown grouping", map[string]string{"grouping": "alphabetical"}, nil,
+		{"unknown grouping", map[string]string{"grouping": "alphabetical"},
 			`want "tags" or "path-prefix", got "alphabetical"`},
-		{"non-boolean policy", map[string]string{"nullable-widening": "maybe"}, nil,
+		{"non-boolean policy", map[string]string{"nullable-widening": "maybe"},
 			`option "nullable-widening": want a boolean, got "maybe"`},
-		{"non-boolean", map[string]string{"allow-external-refs": "yes please"}, nil,
+		{"non-boolean", map[string]string{"allow-external-refs": "yes please"},
 			`want a boolean, got "yes please"`},
 		{"non-boolean laxness", map[string]string{"overlay": "p.yaml", "overlay-lax": "sort of"},
-			readsNothing, `want a boolean, got "sort of"`},
-		{"laxness with no overlay", map[string]string{"overlay-lax": "true"}, nil,
+			`want a boolean, got "sort of"`},
+		{"laxness with no overlay", map[string]string{"overlay-lax": "true"},
 			`"overlay-lax" applies only with "overlay"`},
 		// An empty path is a value that cannot be honoured, not a way to ask for
 		// no overlay. Read as the latter it applies none while the caller believes
 		// one was applied — and, with laxness set, blames overlay-lax for an
 		// overlay the caller did name.
-		{"empty overlay path", map[string]string{"overlay": ""}, readsNothing,
+		{"empty overlay path", map[string]string{"overlay": ""},
 			`"overlay": want a file path, got an empty value`},
 		{"empty overlay path with laxness", map[string]string{"overlay": "", "overlay-lax": "true"},
-			readsNothing, `"overlay": want a file path, got an empty value`},
-		{"no reader for a file", map[string]string{"overlay": "p.yaml"}, nil,
-			"names a file and the caller supplied no reader"},
-		{"unreadable file", map[string]string{"overlay": "p.yaml"}, readsNothing,
-			"no such file"},
+			`"overlay": want a file path, got an empty value`},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, err := openapi.New().DecodeOptions(compilers.OptionSet{
-				Settings: tc.settings,
-				ReadFile: tc.readFile,
-			})
+			got, err := openapi.New().DecodeOptions(compilers.OptionSet{Settings: tc.settings})
 			require.Error(t, err, "a setting that cannot be honoured must not be ignored")
 			assert.Contains(t, err.Error(), tc.wantErr)
 			assert.Nil(t, got)
@@ -168,16 +149,13 @@ func TestDecodeOptions_Refusals(t *testing.T) {
 // applied as they arrived, the laxness would depend on which name sorted first.
 func TestDecodeOptions_OverlayLaxnessIsOrderIndependent(t *testing.T) {
 	t.Parallel()
-	read := func(string) ([]byte, error) { return []byte("overlay: 1.0.0\n"), nil }
 
 	strict, err := openapi.New().DecodeOptions(compilers.OptionSet{
 		Settings: map[string]string{"overlay": "p.yaml", "overlay-lax": "false"},
-		ReadFile: read,
 	})
 	require.NoError(t, err)
 	lax, err := openapi.New().DecodeOptions(compilers.OptionSet{
 		Settings: map[string]string{"overlay-lax": "true", "overlay": "p.yaml"},
-		ReadFile: read,
 	})
 	require.NoError(t, err)
 

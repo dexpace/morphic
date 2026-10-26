@@ -1,8 +1,13 @@
 package load
 
 import (
+	"context"
+	"errors"
+	"fmt"
+
 	yaml "go.yaml.in/yaml/v3"
 
+	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
@@ -10,15 +15,61 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// patch applies the caller's overlay to the decoded tree, or does nothing when
-// there is none. The overlay document is refused first if it is too large, too
-// deep, or aliased past what the library can follow (overlayRefusals);
-// applyOverlay does the rest.
-func patch(srcIndex int, root *yaml.Node, opts Options) (overlay.Origin, []ir.Diagnostic) {
-	if opts.Overlay == nil {
-		return overlay.Origin{}, nil
+// readOverlay returns opts with its overlay's bytes in hand: those the caller
+// handed over, or those of the local file its path names, read through
+// opts.Reader and held to the byte budget as the source is. One past the
+// budget is refused with the diagnostic an overlay handed in bytes gets
+// (overlayRefusals). One that cannot be read is the caller's I/O failure, a Go
+// error, as an unreadable spec is, and so is a path naming a document on the
+// network: a caller naming the overlay names a file, and no setting may take a
+// compile onto the network unasked.
+func readOverlay(ctx context.Context, opts Options) (Options, []ir.Diagnostic, error) {
+	if opts.Overlay == nil || len(opts.Overlay.Data) > 0 {
+		return opts, nil, nil
 	}
-	return applyOverlay(srcIndex, root, opts, overlayRefusals(opts))
+	if overNetwork(opts.Overlay.Path) {
+		return opts, nil, fmt.Errorf("openapi: overlay %s names a URL; an overlay is read from a local file",
+			opts.Overlay.Path)
+	}
+	if opts.Reader == nil {
+		return opts, nil, fmt.Errorf("openapi: overlay %s holds no bytes, and no reader was supplied to read it",
+			opts.Overlay.Path)
+	}
+	data, err := opts.Reader.ReadDocument(ctx, compilers.DocumentRequest{
+		Location: opts.Overlay.Path, Limit: opts.MaxSourceBytes,
+	})
+	switch {
+	case errors.Is(err, compilers.ErrDocumentTooLarge):
+		return opts, []ir.Diagnostic{overlayPastBudget(opts)}, nil
+	case err != nil:
+		return opts, nil, fmt.Errorf("openapi: read overlay %s: %w", opts.Overlay.Path, err)
+	}
+	read := *opts.Overlay
+	read.Data = data
+	opts.Overlay = &read
+	return opts, nil, nil
+}
+
+// overlayPastBudget refuses opts's overlay for holding more than the byte
+// budget allows.
+func overlayPastBudget(opts Options) ir.Diagnostic {
+	return pastByteBudget(ir.Provenance{Source: opts.OverlaySrcIndex}, "overlay", opts.MaxSourceBytes)
+}
+
+// patch reads the caller's overlay (readOverlay) and applies it to the decoded
+// tree, or does nothing when there is none. The overlay document is refused
+// first if it is too large, too deep, or aliased past what the library can
+// follow (overlayRefusals); applyOverlay does the rest.
+func patch(ctx context.Context, srcIndex int, root *yaml.Node, opts Options) (overlay.Origin, []ir.Diagnostic, error) {
+	opts, read, err := readOverlay(ctx, opts)
+	if err != nil || len(read) > 0 {
+		return overlay.Origin{}, read, err
+	}
+	if opts.Overlay == nil {
+		return overlay.Origin{}, nil, nil
+	}
+	origin, diags := applyOverlay(srcIndex, root, opts, overlayRefusals(opts))
+	return origin, diags, nil
 }
 
 // applyOverlay applies the overlay given what its pre-apply refusals found,
@@ -63,9 +114,7 @@ func overlayRefusals(opts Options) []ir.Diagnostic {
 	// read in full by the decode below and again by the library, and it had no
 	// bound on its size at all (GitHub #491).
 	if exceeds(len(opts.Overlay.Data), opts.MaxSourceBytes) {
-		return []ir.Diagnostic{budgetRefusal(opts.OverlaySrcIndex,
-			"overlay document is %d bytes, past the %d-byte budget",
-			len(opts.Overlay.Data), opts.MaxSourceBytes)}
+		return []ir.Diagnostic{overlayPastBudget(opts)}
 	}
 	var tree yaml.Node
 	if err := yaml.Unmarshal(opts.Overlay.Data, &tree); err != nil {

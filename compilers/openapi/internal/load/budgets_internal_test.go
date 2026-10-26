@@ -71,8 +71,8 @@ func TestLoad_SourceByteBudgetBindsOnlyPastTheLimit(t *testing.T) {
 			require.Len(t, diags, 1)
 			assert.Equal(t, diag.BudgetExceeded, diags[0].Code)
 			assert.Equal(t, ir.SeverityError, diags[0].Severity)
-			assert.Equal(t, fmt.Sprintf("source document is %d bytes, past the %d-byte budget",
-				size, tc.limit), diags[0].Message)
+			assert.Equal(t, fmt.Sprintf("source document is past the %d-byte budget", tc.limit),
+				diags[0].Message)
 		})
 	}
 }

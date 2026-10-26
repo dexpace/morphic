@@ -299,6 +299,8 @@ func (stubFront) Detect(compilers.Source, compilers.Options) (compilers.Recognit
 
 func (stubFront) DecodeOptions(compilers.OptionSet) (any, error) { return nil, nil }
 
+func (stubFront) SourceLimit(compilers.Options) int { return 0 }
+
 func (stubFront) SourceTable(sources []compilers.Source, _ compilers.Options) []ir.SourceInfo {
 	return tableOf(sources)
 }
@@ -533,7 +535,11 @@ func TestEngine_ValidateRuns(t *testing.T) {
 // smithyCompiler is a compiler for a format the engine has never heard of. It
 // recognizes its own input and names its own options, which is the whole of what
 // registering a format takes.
-type smithyCompiler struct{ options compilers.OptionSet }
+type smithyCompiler struct {
+	options compilers.OptionSet
+	// reader is the reader its last Compile was handed.
+	reader compilers.DocumentReader
+}
 
 func (*smithyCompiler) Formats() []compilers.SourceFormat {
 	return []compilers.SourceFormat{{Name: "smithy", Version: "2.0"}}
@@ -562,11 +568,14 @@ func (s *smithyCompiler) DecodeOptions(set compilers.OptionSet) (any, error) {
 	return set.Settings["shape"], nil
 }
 
+func (*smithyCompiler) SourceLimit(compilers.Options) int { return 0 }
+
 func (*smithyCompiler) SourceTable(sources []compilers.Source, _ compilers.Options) []ir.SourceInfo {
 	return tableOf(sources)
 }
 
-func (*smithyCompiler) Compile(_ context.Context, sources []compilers.Source, opts compilers.Options) (*ir.Document, []ir.Diagnostic, error) {
+func (s *smithyCompiler) Compile(_ context.Context, sources []compilers.Source, opts compilers.Options) (*ir.Document, []ir.Diagnostic, error) {
+	s.reader = opts.Reader
 	name, _ := opts.FormatOptions.(string)
 	doc := &ir.Document{IRVersion: ir.IRVersion, Name: name, Types: ir.TypeRegistry{}, Sources: sourcesOf("smithy@2.0", sources)}
 	if len(sources) == 1 {
@@ -614,25 +623,27 @@ func TestEngine_RunNewFormatNeedsNoEngineEdit(t *testing.T) {
 	assert.Equal(t, "Widget", res.Document.Name, "the setting reached the compiler that decoded it")
 }
 
-// TestEngine_RunCompilerOptionsAreLoadedByTheEngine pins the file half of the
-// textual channel: a compiler does no file I/O, so a setting that names one is
-// read through the reader the engine supplies.
-func TestEngine_RunCompilerOptionsAreLoadedByTheEngine(t *testing.T) {
+// TestEngine_RunHandsTheCompileAReaderForWhatASettingNames pins the file half
+// of the textual channel: a compiler does no I/O of its own, so a file a
+// setting names is read in the compile through the reader the engine supplies,
+// the one every document beyond the spec is read through.
+func TestEngine_RunHandsTheCompileAReaderForWhatASettingNames(t *testing.T) {
 	t.Parallel()
 	comp := &smithyCompiler{}
 	eng, err := engine.New(engine.WithCompilers(comp))
 	require.NoError(t, err)
 	spec := writeNamed(t, "model.smithy", "$version: \"2\"\n")
+	named := writeNamed(t, "shapes.txt", "Widget\n")
 
 	_, err = eng.Run(t.Context(), spec, engine.RunOptions{
-		CompilerOptions: map[string]string{"shape": "Widget"},
+		CompilerOptions: map[string]string{"shape": named},
 	})
 	require.NoError(t, err)
-	require.NotNil(t, comp.options.ReadFile, "a compiler must be handed a reader it can use")
+	require.NotNil(t, comp.reader, "a compiler must be handed a reader it can use")
 
-	got, err := comp.options.ReadFile(spec)
+	got, err := comp.reader.ReadDocument(t.Context(), compilers.DocumentRequest{Location: comp.options.Settings["shape"]})
 	require.NoError(t, err)
-	assert.Contains(t, string(got), "$version")
+	assert.Equal(t, "Widget\n", string(got))
 }
 
 // TestEngine_RunRefusesTwoOptionChannelsWhateverTheSource pins that the

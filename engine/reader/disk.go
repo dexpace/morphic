@@ -27,9 +27,10 @@ type Disk struct {
 	Client *http.Client
 }
 
-// errNotRegular reports a file that is not a regular file: a directory, a
-// device, a FIFO or a socket.
-var errNotRegular = errors.New("not a regular file")
+// ErrNotRegular reports a file that is not a regular file: a directory, a
+// device, a FIFO or a socket. Opening a FIFO waits for a writer, and a device
+// can stream without end, so neither is read as a document.
+var ErrNotRegular = errors.New("not a regular file")
 
 // ReadDocument implements compilers.DocumentReader.
 func (d Disk) ReadDocument(ctx context.Context, req compilers.DocumentRequest) ([]byte, error) {
@@ -131,7 +132,7 @@ func linksResolved(p string) (string, bool) {
 // rather than against rel and the call os.Root made.
 func readRooted(ctx context.Context, root *os.Root, rel, path string, limit int) ([]byte, error) {
 	if info, err := root.Stat(rel); err == nil && !info.Mode().IsRegular() {
-		return nil, fmt.Errorf("%s: %w", path, errNotRegular)
+		return nil, fmt.Errorf("%s: %w", path, ErrNotRegular)
 	}
 	f, err := root.Open(rel)
 	if pe, ok := errors.AsType[*fs.PathError](err); ok {
@@ -180,7 +181,7 @@ func readFile(ctx context.Context, fsys files, path string, limit int) ([]byte, 
 // whose error names what is wrong with it.
 func openRegular(fsys files, path string) (fs.File, error) {
 	if info, err := fsys.Stat(path); err == nil && !info.Mode().IsRegular() {
-		return nil, fmt.Errorf("%s: %w", path, errNotRegular)
+		return nil, fmt.Errorf("%s: %w", path, ErrNotRegular)
 	}
 	return fsys.Open(path) // a *fs.PathError, naming the file
 }
@@ -215,7 +216,7 @@ func judgeOpened(path string, f fs.File) (fs.FileInfo, error) {
 		return nil, err
 	}
 	if !info.Mode().IsRegular() {
-		return nil, fmt.Errorf("%s: %w", path, errNotRegular)
+		return nil, fmt.Errorf("%s: %w", path, ErrNotRegular)
 	}
 	return info, nil
 }

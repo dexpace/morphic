@@ -57,11 +57,13 @@ between stages. The IR itself is specified in [`ir-design.md`](./ir-design.md).
 
 One compiler per source format. Each owns its format: which documents a source's references name,
 reference resolution, format-version normalization, and lowering into IR nodes. Reading those
-documents is not a compiler's. It does no I/O, and reads every document beyond its sources through
-the `compilers.DocumentReader` the engine hands it in `compilers.Options.Reader`. The compiler says
-how far a read may go, as a directory it must stay inside, and the reader enforces it, symbolic
-links included: the OpenAPI compiler keeps every read inside the spec's directory, following
-relative references alone, unless `allow-external-refs` lifts that.
+documents is not a compiler's. It does no I/O, and reads every document beyond its sources, a file
+one of its options names such as an overlay among them, through the `compilers.DocumentReader` the
+engine hands it in `compilers.Options.Reader`, in the compile, under the compile's context and
+budgets: decoding options reads nothing. The compiler says how far a read may go, as a directory it
+must stay inside, and the reader enforces it, symbolic links included: the OpenAPI compiler keeps
+every read inside the spec's directory, following relative references alone, unless
+`allow-external-refs` lifts that.
 
 Contract, abridged from `compilers.Compiler`, whose doc comments state each method's duties:
 
@@ -72,6 +74,8 @@ type Compiler interface {
     Detect(src Source, opts Options) (Recognition, []ir.Diagnostic, bool)
     // DecodeOptions turns textual settings into this compiler's own options value.
     DecodeOptions(set OptionSet) (any, error)
+    // SourceLimit is the most bytes of a source this compiler reads under opts.
+    SourceLimit(opts Options) int
     // Compile lowers sources into a Document, or refuses them with a nil one.
     Compile(ctx context.Context, sources []Source, opts Options) (*ir.Document, []ir.Diagnostic, error)
     // SourceTable names the inputs its arguments name: the table a refusal's diagnostics index.
@@ -132,26 +136,31 @@ byte budget, a parsed-node budget and an alias budget for one source document, a
 one enum, and a budget on how many documents external references read in one compile, each with a
 documented default and each settable — zero takes the default, negative turns the budget off.
 Crossing one is a spec problem like any other, so it is an `openapi/budget-exceeded` diagnostic
-rather than a Go error. Time is bounded by the caller instead of by a constant: the walks that do
-work proportional to the document, and the settling after them, honour the `context.Context` a
+rather than a Go error. The byte budget also bounds the read: `Compiler.SourceLimit` reports it, the
+registry takes the largest among the compilers it would ask, and the engine reads the spec, a
+regular file and never a FIFO or a device, no further than one byte past it, where every compiler
+declines it unread. A spec past every budget costs the budget and a byte, not its size, and an
+overlay is read the same way. Time is bounded by the caller instead of by a constant: the walks that
+do work proportional to the document, and the settling after them, honour the `context.Context` a
 compile is given, so a deadline or a cancellation stops one between items and the error reaches the
 caller unwrapped.
 
 **The contract is checked, not trusted.** Each duty `compilers.Compiler`'s doc comments state is
 held where its data is. `Registry.Register` refuses a format naming no dialect, and
-`Registry.Detect` a claim naming none and a decline that indexes a source detection was not handed
-or speaks with no error. `Detection.Compile`, which the engine compiles through, refuses a refusal
-that gives no error, a document not stamped with the IR version this build reads, a source table
-that does not open with the one `SourceTable` names, a source read as a format other than the one it
-was recognized as or hashed from other bytes, and a finding indexing no source. Entries past that
-opening name what else the compile read, such as a document a reference names, which `SourceTable`
-reads no input to know of. Each breach is a Go error wrapping `compilers.ErrContract`: a compiler
-bug, never the spec's.
+`Registry.Detect` a claim naming none, a decline that indexes a source detection was not handed or
+speaks with no error, and a claim of a source past the claimant's `SourceLimit` or a silent decline
+of one: a source read no further than the limits allow may be only the first bytes of one.
+`Detection.Compile`, which the engine compiles through, refuses a refusal that gives no error, a
+document not stamped with the IR version this build reads, a source table that does not open with
+the one `SourceTable` names, a source read as a format other than the one it was recognized as or
+hashed from other bytes, and a finding indexing no source. Entries past that opening name what else
+the compile read, such as a document a reference names, which `SourceTable` reads no input to know
+of. Each breach is a Go error wrapping `compilers.ErrContract`: a compiler bug, never the spec's.
 
 A panic is a breach too. Every call the `compilers` package makes of a compiler (`Formats`,
-`Detect`, configuring it through `DecodeOptions`, `Compile` and `SourceTable`) runs behind
-`barrier.Catch`, and the panic comes back as an error wrapping `compilers.ErrContract` and the
-`*barrier.PanicError`, whose message is one line and whose value and stack stay beside it for a
+`Detect`, configuring it through `DecodeOptions`, `SourceLimit`, `Compile` and `SourceTable`) runs
+behind `barrier.Catch`, and the panic comes back as an error wrapping `compilers.ErrContract` and
+the `*barrier.PanicError`, whose message is one line and whose value and stack stay beside it for a
 caller that wants them. The registry asks `Formats` once, when the compiler registers, and keeps a
 copy, so no later call can panic outside the registration or disagree with it. A barrier recovers
 the calling goroutine only: a fatal error such as stack exhaustion, a panic on a goroutine the
@@ -309,13 +318,14 @@ Designed, not yet built:
   emitter input keyed by IR ID, so one IR document drives different compat baselines per
   language.
 
-  The first of those is `openapi.Options.Overlay`: pre-read bytes, applied to the parsed node
-  tree before the model is built, so untouched nodes keep the line and column the parser read
-  them at rather than a position in a re-serialised file nobody has. The overlay becomes a
-  second `Document.Sources` entry, and every position it introduced or rewrote names that entry
-  as its `Provenance.Source`. Strict application is the default: an action whose JSONPath
-  matches nothing is reported and the compile refuses, because an overlay that silently does
-  nothing ships an SDK missing the fix it was written to make.
+  The first of those is `openapi.Options.Overlay`: bytes the caller hands over, or the document its
+  path names, which the compile reads through the caller's reader as it reads any document beyond
+  the source, applied to the parsed node tree before the model is built, so untouched nodes keep the
+  line and column the parser read them at rather than a position in a re-serialised file nobody has.
+  The overlay becomes a second `Document.Sources` entry, and every position it introduced or rewrote
+  names that entry as its `Provenance.Source`. Strict application is the default: an action whose
+  JSONPath matches nothing is reported and the compile refuses, because an overlay that silently
+  does nothing ships an SDK missing the fix it was written to make.
 
 Passes operate on the IR only; they know nothing about source formats or target languages.
 

@@ -41,6 +41,8 @@ func (nilDocCompiler) Detect(compilers.Source, compilers.Options) (compilers.Rec
 
 func (nilDocCompiler) DecodeOptions(compilers.OptionSet) (any, error) { return nil, nil }
 
+func (nilDocCompiler) SourceLimit(compilers.Options) int { return 0 }
+
 func (nilDocCompiler) SourceTable(sources []compilers.Source, _ compilers.Options) []ir.SourceInfo {
 	table := make([]ir.SourceInfo, 0, len(sources))
 	for _, src := range sources {

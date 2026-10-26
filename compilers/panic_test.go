@@ -58,6 +58,11 @@ func (b *breaker) Compile(ctx context.Context, sources []compilers.Source, opts 
 	return b.scripted.Compile(ctx, sources, opts)
 }
 
+func (b *breaker) SourceLimit(opts compilers.Options) int {
+	b.enter("SourceLimit")
+	return b.scripted.SourceLimit(opts)
+}
+
 func (b *breaker) SourceTable(sources []compilers.Source, opts compilers.Options) []ir.SourceInfo {
 	b.enter("SourceTable")
 	return b.scripted.SourceTable(sources, opts)
@@ -108,6 +113,7 @@ func TestRegistry_DetectRefusesACompilerThatPanics(t *testing.T) {
 	}{
 		{"Detect", "Detect", nil, "detect by alpha@1: Detect: panic: boom"},
 		{"configuring through DecodeOptions", "DecodeOptions", configureViaDecodeOptions, "detect by alpha@1: configure: panic: boom"},
+		{"SourceLimit", "SourceLimit", nil, "source limit of alpha@1: SourceLimit: panic: boom"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

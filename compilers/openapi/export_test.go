@@ -1,8 +1,5 @@
 package openapi
 
-// DetectionBudget is detectionBudget, for the external tests.
-var DetectionBudget = detectionBudget
-
 // LimitOptions is limitOptions, for the external tests.
 var LimitOptions = limitOptions
 

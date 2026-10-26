@@ -101,13 +101,14 @@ func TestDetect_ReadsTheVersionTheCompileReads(t *testing.T) {
 	}
 }
 
-// TestDetectionBudget_ReadsTheCallersOptions pins the budget detection takes
-// from each kind of options, another compiler's included, which mean this
-// one's default as compilers.Compiler.Detect requires rather than no budget.
-// Detect's own tests exceed only a budget the caller sets: a source past the
-// default costs more than the gate's race run should pay, so another
-// compiler's options read as no budget would pass them all.
-func TestDetectionBudget_ReadsTheCallersOptions(t *testing.T) {
+// TestCompiler_SourceLimitReadsTheCallersOptions pins the limit detection, and
+// a caller reading a source for it, takes from each kind of options, another
+// compiler's included, which mean this one's default as
+// compilers.Compiler.Detect requires rather than no limit. Detect's own tests
+// exceed only a budget the caller sets: a source past the default costs more
+// than the gate's race run should pay, so another compiler's options read as
+// no limit would pass them all.
+func TestCompiler_SourceLimitReadsTheCallersOptions(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name string
@@ -121,7 +122,7 @@ func TestDetectionBudget_ReadsTheCallersOptions(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tc.want, openapi.DetectionBudget(tc.opts))
+			assert.Equal(t, tc.want, openapi.New().SourceLimit(tc.opts))
 		})
 	}
 }

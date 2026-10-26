@@ -229,8 +229,8 @@ rule sees a node of the input changed in place, which `UpdateType`'s copy is the
 A compiler lowers one source format into an IR document ([`architecture.md`](docs/architecture.md)
 §2.1). `compilers.Compiler`'s doc comments are its contract; read them before writing any of it.
 
-1. **Create the package** `compilers/<format>`, with a `doc.go`, a `Compiler` implementing all five
-   methods of `compilers.Compiler`, and the `Options` type its `FormatOptions` holds. Before writing
+1. **Create the package** `compilers/<format>`, with a `doc.go`, a `Compiler` implementing every
+   method of `compilers.Compiler`, and the `Options` type its `FormatOptions` holds. Before writing
    a YAML reader, a version sniff or a test of document identity of its own, read what
    [`architecture.md`](docs/architecture.md) §2.1 says stays in the OpenAPI compiler, and why.
    *Fails if missed:* `make lint` for a package with no package comment, and the build, once step 4

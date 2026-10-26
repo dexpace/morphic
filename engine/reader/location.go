@@ -8,7 +8,6 @@ import (
 	"math"
 	"net/url"
 	"path/filepath"
-	"slices"
 	"strings"
 
 	"github.com/dexpace/morphic/compilers"
@@ -182,8 +181,9 @@ func initialCap(n int, size int64) int {
 }
 
 // grown returns data with room to read into: as it is while it has any, or
-// grown by as much again as it holds, at least minRead, and never past n bytes
-// in all when n is above zero.
+// copied into a buffer as much again as large, at least minRead larger, and
+// never past n bytes when n is above zero. It allocates exactly that, where
+// append's growth would round past n.
 func grown(data []byte, n int) []byte {
 	if len(data) < cap(data) {
 		return data
@@ -192,7 +192,9 @@ func grown(data []byte, n int) []byte {
 	if n > 0 {
 		more = min(more, n-len(data))
 	}
-	return slices.Grow(data, more)
+	next := make([]byte, len(data), len(data)+more)
+	copy(next, data)
+	return next
 }
 
 // tooLarge returns the error a document name larger than limit fails with.

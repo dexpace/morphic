@@ -31,6 +31,7 @@ type faulty struct {
 	table   func(sources []compilers.Source) []ir.SourceInfo
 	compile func(sources []compilers.Source) (*ir.Document, []ir.Diagnostic, error)
 	formats func() []compilers.SourceFormat
+	limit   func() int
 }
 
 func (c faulty) Formats() []compilers.SourceFormat {
@@ -52,6 +53,13 @@ func (c faulty) DecodeOptions(set compilers.OptionSet) (any, error) {
 		return c.decode()
 	}
 	return c.stubFront.DecodeOptions(set)
+}
+
+func (c faulty) SourceLimit(opts compilers.Options) int {
+	if c.limit != nil {
+		return c.limit()
+	}
+	return c.stubFront.SourceLimit(opts)
 }
 
 func (c faulty) SourceTable(sources []compilers.Source, opts compilers.Options) []ir.SourceInfo {
@@ -163,6 +171,8 @@ func TestEngine_RunReportsAPanicInACompilerAsAContractError(t *testing.T) {
 			engine.RunOptions{}, "SourceTable: panic: boom"},
 		{"DecodeOptions", faulty{decode: func() (any, error) { boom(); return nil, nil }},
 			engine.RunOptions{CompilerOptions: map[string]string{"setting": "value"}}, "configure: panic: boom"},
+		{"SourceLimit", faulty{limit: func() int { boom(); return 0 }},
+			engine.RunOptions{}, "SourceLimit: panic: boom"},
 	}
 	for _, tt := range tests {
 		for _, via := range compileEntries {
