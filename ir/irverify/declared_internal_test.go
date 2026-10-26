@@ -75,7 +75,7 @@ func TestCheckDeclaredIDs_ReachesEveryIDDeclaringNode(t *testing.T) {
 	filled := idBearingDoc(true)
 	var found ir.IDDeclarations
 	require.False(t, ir.WalkValues(filled, ir.DocumentPath, &found))
-	decls := found.All()
+	decls := found.List()
 	require.NotEmpty(t, decls)
 
 	keyed := ir.KeyedClasses()

@@ -44,9 +44,9 @@ func (d *IDDeclarations) Visit(v reflect.Value, at WalkPath) bool {
 	return true
 }
 
-// All returns the declarations collected so far, in walk order. The slice is
-// d's own, as bytes.Buffer.Bytes's is, and valid until the next Visit.
-func (d *IDDeclarations) All() []IDDeclaration {
+// List returns the declarations collected so far, in walk order. The slice is
+// d's own rather than a copy, so changing it changes what d holds.
+func (d *IDDeclarations) List() []IDDeclaration {
 	return d.list
 }
 

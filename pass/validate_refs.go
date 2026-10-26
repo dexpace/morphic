@@ -98,7 +98,7 @@ type propIDSites struct {
 	sites []ir.IDReference
 }
 
-// Visit keeps v if it is a PropID reference.
+// Visit keeps v if it is a PropID reference that may not resolve.
 func (p *propIDSites) Visit(v reflect.Value, at ir.WalkPath) bool {
 	if v.Kind() != reflect.String || v.Type() != propIDType || v.String() == "" {
 		return true

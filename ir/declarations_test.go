@@ -265,5 +265,5 @@ func TestIDDeclarations_VisitingCostsNoAllocation(t *testing.T) {
 		require.True(t, decls.Visit(v, ir.WalkPath{}))
 		assert.Zero(t, testing.AllocsPerRun(10, func() { _ = decls.Visit(v, ir.WalkPath{}) }), v.Type().Name())
 	}
-	assert.Empty(t, decls.All(), "none of these declares an identity of its own")
+	assert.Empty(t, decls.List(), "none of these declares an identity of its own")
 }

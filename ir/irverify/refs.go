@@ -10,14 +10,14 @@ import (
 // included, resolves in its registry, reporting each unresolved one as dangling.
 // Most keys are an entry's own ID, but Service.Renames's are references.
 //
-// ir.IDReferences decides what is a reference and what it resolves against, as
-// it does for pass.Validate, so the two report one defect alike. A class with no
-// map on Document, such as ir.OpID, resolves against the identities the walk
-// reads (GitHub #50), unless the walk truncated: a partial walk would report a
-// reference to an unreached operation as dangling.
+// ir.IDReferences, which pass.Validate resolves through too, decides what is a
+// reference and what it resolves against. A class with no map on Document, such
+// as ir.OpID, resolves against the identities the walk reads (GitHub #50),
+// unless the walk truncated.
 //
-// ir.PropID stays out: pass.Validate's checkPropIDRefs holds it to a declared
-// property.
+// ir.PropID is checkPropIDRefs's, in pass. An empty ID is no reference; whether
+// a position may hold one is checkTypeRefs's question for ir.TypeRef and
+// checkEmptyRefs's for the bare ID positions (GitHub #473).
 func checkReferentialIntegrity(doc *ir.Document) walkCheck {
 	refs := ir.NewIDReferences(doc)
 	return walkCheck{

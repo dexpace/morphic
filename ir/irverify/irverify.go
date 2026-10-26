@@ -164,7 +164,7 @@ func walkWith(doc *ir.Document, walk walkFunc, checks []func(*ir.Document) walkC
 		visitors = append(visitors, built[i])
 	}
 	decls := declarations{truncated: walk(doc, ir.DocumentPath, visitors...)}
-	decls.ids = ids.All()
+	decls.ids = ids.List()
 
 	reports := make([][]Violation, len(built))
 	for i, c := range built {
