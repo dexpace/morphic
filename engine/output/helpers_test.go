@@ -2,6 +2,7 @@ package output_test
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -30,20 +31,59 @@ type refusingWriter struct{}
 
 func (refusingWriter) Write([]byte) (int, error) { return 0, errDisk }
 
-// newlineRefusingWriter keeps what it is given until it holds n bytes, and
-// refuses every write after that. With n the document's length, the write it
-// refuses is the newline encode writes after the document, however many writes
-// the encoder split the document itself into.
-type newlineRefusingWriter struct {
-	n   int
-	buf bytes.Buffer
+// fillingWriter keeps what it is given until it holds at least stopAt bytes,
+// and refuses every write after that, as a destination that runs out of room
+// does. With stopAt the document's length, the write it refuses is the newline
+// encode writes after the document, however many writes the encoder split the
+// document itself into.
+type fillingWriter struct {
+	stopAt int
+	buf    bytes.Buffer
 }
 
-func (w *newlineRefusingWriter) Write(p []byte) (int, error) {
-	if w.buf.Len() >= w.n {
+func (w *fillingWriter) Write(p []byte) (int, error) {
+	if w.buf.Len() >= w.stopAt {
 		return 0, errDisk
 	}
 	return w.buf.Write(p)
+}
+
+// cancellingWriter keeps what it is given and ends its context once it holds
+// at least stopAt bytes, as a stop arriving while the encoder writes does.
+// late counts the writes it is handed once the context has ended.
+type cancellingWriter struct {
+	cancel context.CancelFunc
+	stopAt int
+	late   int
+	buf    bytes.Buffer
+}
+
+// newCancellingWriter returns a context and the cancellingWriter that ends it
+// once it holds at least stopAt bytes, the context ending at once when stopAt
+// is 0.
+func newCancellingWriter(t *testing.T, stopAt int) (context.Context, *cancellingWriter) {
+	t.Helper()
+	ctx, cancel := context.WithCancel(t.Context())
+	t.Cleanup(cancel)
+	w := &cancellingWriter{cancel: cancel, stopAt: stopAt}
+	if w.due() {
+		cancel()
+	}
+	return ctx, w
+}
+
+// due reports whether the writer holds the stopAt bytes that end its context.
+func (w *cancellingWriter) due() bool { return w.buf.Len() >= w.stopAt }
+
+func (w *cancellingWriter) Write(p []byte) (int, error) {
+	if w.due() {
+		w.late++
+	}
+	n, err := w.buf.Write(p)
+	if w.due() {
+		w.cancel()
+	}
+	return n, err
 }
 
 // badDoc returns a document that cannot be marshalled: its Unmodeled holds a
@@ -85,7 +125,8 @@ func orderedDoc() *ir.Document {
 }
 
 // manyTypesDoc returns a stamped document of enough types that the encoder
-// writes it in more than one flush.
+// writes it in many writes: encoded, it is far larger than any buffer the
+// encoder keeps between calls, so no first write holds it whole.
 func manyTypesDoc() *ir.Document {
 	types := ir.TypeRegistry{}
 	for i := range 2000 {
