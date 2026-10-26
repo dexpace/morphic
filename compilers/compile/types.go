@@ -264,11 +264,3 @@ func (t *Types) PrimRef(k ir.PrimKind) ir.TypeRef {
 
 // PrimID interns the primitive of kind k and returns its ID.
 func (t *Types) PrimID(k ir.PrimKind) ir.TypeID { return t.PrimRef(k).Target }
-
-// Len reports how many types are interned.
-func (t *Types) Len() int { return len(t.reg) }
-
-// String renders the registry size, for use in error and debug output.
-func (t *Types) String() string {
-	return fmt.Sprintf("compile.Types{types: %d, coordinates: %d}", len(t.reg), len(t.byPointer))
-}

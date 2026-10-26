@@ -105,17 +105,9 @@ func TestDiscriminatorDefault_EmptyIsNoOp(t *testing.T) {
 	assert.Empty(t, diags)
 }
 
-// TestResolveMappingTarget_Branches pins each answer resolveMappingTarget can
-// give. A declared name or component resolves through mappingTargetID. An
-// external reference, an undeclared component and a position the document
-// does not declare are refused, and intern nothing. A declared position, a
-// bare scalar property included, resolves to the ID its pointer derives, as
-// mappingTargetID names it (TestMappingTargetID_NamesAPositionByItsPointer),
-// and its node is promised: its model carries it, so it interns no node of its
-// own until every declaration has lowered.
-func TestResolveMappingTarget_Branches(t *testing.T) {
-	t.Parallel()
-	l, _ := LoweredFor(t, openapitest.ComponentSpec(`    Cat: {type: string}
+// mappingTargetSpec declares a discriminator whose mapping names each kind of
+// target resolveMappingTarget answers for.
+const mappingTargetSpec = `    Cat: {type: string}
     Pet:
       type: object
       properties: {kind: {type: string}}
@@ -127,7 +119,18 @@ func TestResolveMappingTarget_Branches(t *testing.T) {
           g: '#/components/schemas/Ghost'
           m: '#/components/schemas/Pet/properties/missing'
           k: '#/components/schemas/Pet/properties/kind'
-`))
+`
+
+// TestResolveMappingTarget_Branches pins each answer resolveMappingTarget can
+// give for a target it resolves. A declared name or component resolves through
+// mappingTargetID. A declared position, a bare scalar property included,
+// resolves to the ID its pointer derives, as mappingTargetID names it
+// (TestMappingTargetID_NamesAPositionByItsPointer), and its node is promised:
+// its model carries it, so it interns no node of its own until every
+// declaration has lowered.
+func TestResolveMappingTarget_Branches(t *testing.T) {
+	t.Parallel()
+	l, _ := LoweredFor(t, openapitest.ComponentSpec(mappingTargetSpec))
 	d := petDiscriminator(t, l)
 	resolveTarget := func(target string) (ir.TypeID, bool) {
 		return resolveMappingTarget(l.Ctx, l.Types, d, target, nil)
@@ -139,17 +142,6 @@ func TestResolveMappingTarget_Branches(t *testing.T) {
 		assert.True(t, ok, "%s names a declared component", target)
 		assert.Equal(t, cat, id)
 	}
-
-	before := l.Types.Len()
-	for target, why := range map[string]string{
-		"other.yaml#/A":                               "an external reference never resolves",
-		"#/components/schemas/Ghost":                  "an undeclared component is refused, not hoisted as an inline position",
-		"#/components/schemas/Pet/properties/missing": "a position the document does not declare does not resolve",
-	} {
-		_, ok := resolveTarget(target)
-		assert.False(t, ok, why)
-	}
-	assert.Equal(t, before, l.Types.Len(), "a refused target interns nothing")
 
 	const scalarTarget = "#/components/schemas/Pet/properties/kind"
 	kind := ids.Document{}.ForPointer("/components/schemas/Pet/properties/kind")
@@ -166,6 +158,28 @@ func TestResolveMappingTarget_Branches(t *testing.T) {
 	assert.Empty(t, finished)
 	_, interned = l.Types.Node(id)
 	assert.True(t, interned, "the hoisted alias is registered in the type registry")
+}
+
+// TestResolveMappingTarget_RefusesWhatTheDocumentDoesNotDeclare pins the
+// targets resolveMappingTarget refuses: an external reference, an undeclared
+// component and a position the document does not declare. Nothing else is
+// lowered, so the registry Finish hands over holds whatever a refusal interned
+// or promised, and it must be empty.
+func TestResolveMappingTarget_RefusesWhatTheDocumentDoesNotDeclare(t *testing.T) {
+	t.Parallel()
+	l, _ := LoweredFor(t, openapitest.ComponentSpec(mappingTargetSpec))
+	d := petDiscriminator(t, l)
+	for target, why := range map[string]string{
+		"other.yaml#/A":                               "an external reference never resolves",
+		"#/components/schemas/Ghost":                  "an undeclared component is refused, not hoisted as an inline position",
+		"#/components/schemas/Pet/properties/missing": "a position the document does not declare does not resolve",
+	} {
+		_, ok := resolveMappingTarget(l.Ctx, l.Types, d, target, nil)
+		assert.False(t, ok, why)
+	}
+	reg, finished := l.Types.Finish(t.Context())
+	assert.Empty(t, finished)
+	assert.Empty(t, reg, "a refused target interns and promises nothing")
 }
 
 // TestMappingTargetID_NamesAPositionByItsPointer pins the answer for a mapping

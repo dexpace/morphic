@@ -2,7 +2,6 @@ package fragment
 
 import (
 	"encoding/json/jsontext"
-	"fmt"
 	"net/url"
 	"strings"
 
@@ -43,21 +42,4 @@ func ForResolver(ref string) string {
 		out += "#" + tail
 	}
 	return out
-}
-
-// Of spells pointer as a fragment Pointer and the resolver both read back as
-// exactly pointer: every byte outside a plain set is percent-encoded, '+' and
-// '%' and '#' and whitespace included.
-func Of(pointer jsontext.Pointer) string {
-	const plain = "/~$-_.!*'(),;:@&=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-	out := make([]byte, 0, len(pointer))
-	for i := range len(pointer) {
-		b := pointer[i]
-		if strings.IndexByte(plain, b) >= 0 {
-			out = append(out, b)
-			continue
-		}
-		out = append(out, fmt.Sprintf("%%%02X", b)...)
-	}
-	return string(out)
 }
