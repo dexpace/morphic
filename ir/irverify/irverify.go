@@ -67,13 +67,13 @@ func verify(doc *ir.Document, walk walkFunc) []Violation {
 // declarations is the identities a document's nodes declare, plus whether the
 // walk that read them was cut short.
 //
-// The walk every check shares reads them, and three checks need them once it is
-// over: checkReferentialIntegrity to resolve the classes Document keys no map
-// by, checkDuplicateIDs to hold each to being declared once, and checkIDSpaces
-// to place each in a declared namespace.
+// The walk every check shares reads them, and two checks need them once it is
+// over: checkDuplicateIDs to hold each to being declared once, and
+// checkIDSpaces to place each in a declared namespace. checkReferentialIntegrity
+// reads only the truncation, since ir.IDReferences reads the identities a
+// reference resolves against itself.
 //
-// The zero value says the document declares none, so every OpID, ServiceID and
-// GroupID reference reports as dangling.
+// The zero value says the document declares none and the walk ran to its end.
 type declarations struct {
 	ids       []ir.IDDeclaration
 	truncated bool
@@ -164,7 +164,7 @@ func walkWith(doc *ir.Document, walk walkFunc, checks []func(*ir.Document) walkC
 		visitors = append(visitors, built[i])
 	}
 	decls := declarations{truncated: walk(doc, ir.DocumentPath, visitors...)}
-	decls.ids = ids
+	decls.ids = ids.All()
 
 	reports := make([][]Violation, len(built))
 	for i, c := range built {

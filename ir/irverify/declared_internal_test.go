@@ -1,6 +1,7 @@
 package irverify
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -62,7 +63,7 @@ func pick[T ~string](present bool, want T) T {
 
 // TestCheckDeclaredIDs_ReachesEveryIDDeclaringNode is the guard on this check's
 // reach. ir.IDDeclarations answers only for the non-empty identities, so the
-// check reads the value graph itself, through ir.DeclaredIDOf, and a change to
+// check reads the value graph itself, through an ir.IDReader, and a change to
 // what that recognizes has to move both sides together or this test fails.
 //
 // The two are compared on the same fixture read two ways: every declaration
@@ -72,14 +73,15 @@ func pick[T ~string](present bool, want T) T {
 func TestCheckDeclaredIDs_ReachesEveryIDDeclaringNode(t *testing.T) {
 	t.Parallel()
 	filled := idBearingDoc(true)
-	var decls ir.IDDeclarations
-	require.False(t, ir.WalkValues(filled, ir.DocumentPath, &decls))
+	var found ir.IDDeclarations
+	require.False(t, ir.WalkValues(filled, ir.DocumentPath, &found))
+	decls := found.All()
 	require.NotEmpty(t, decls)
 
-	keyed := ir.DocumentRegistries(filled)
+	keyed := ir.KeyedClasses()
 	var want []string
 	for _, d := range decls {
-		if _, hasRegistry := keyed[d.Class]; hasRegistry {
+		if keyed[d.Class] {
 			continue
 		}
 		want = append(want, "ir/empty-"+ir.RefNoun(d.Class)+"-id "+d.Path)
@@ -183,4 +185,21 @@ func TestVerify_ReportsEmptyDeclaredIDs(t *testing.T) {
 	}
 	assert.Contains(t, codes, "ir/empty-service-id")
 	assert.Contains(t, codes, "ir/empty-group-id")
+}
+
+// TestCheckDeclaredIDs_VisitingCostsNoAllocation holds the check's per-value
+// cost at nothing for a value it has nothing to report on, of a type met before:
+// it reads each struct type's rule once, through one ir.IDReader, rather than
+// for every value. It is not run in parallel: AllocsPerRun measures the process.
+func TestCheckDeclaredIDs_VisitingCostsNoAllocation(t *testing.T) {
+	check := checkDeclaredIDs(&ir.Document{})
+	for _, v := range []reflect.Value{
+		reflect.ValueOf(ir.Naming{Source: "n", Canonical: "n"}),
+		reflect.ValueOf(ir.Model{ID: "t/x/M"}),
+		reflect.ValueOf(ir.TypeCommon{ID: "t/x/M"}),
+	} {
+		require.True(t, check.visit(v, ir.WalkPath{}))
+		assert.Zero(t, testing.AllocsPerRun(10, func() { _ = check.visit(v, ir.WalkPath{}) }), v.Type().Name())
+	}
+	assert.Empty(t, check.report(declarations{}), "none of these is a defect")
 }

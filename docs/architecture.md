@@ -541,7 +541,8 @@ hand-written walker from any other loop. The reflection walk shows each value to
 visitors in one traversal, each seeing what it would walking alone, and builds a path only for a
 visitor that reads it. `irverify` reads a document in one such walk shared by all its walking
 checks, and `pass.Validate` in one shared by its three reflection checks, which their tests hold
-them to.
+them to. Both resolve typed-ID references through one `ir.IDReferences` visitor, so a reference one
+of them reports as dangling the other reports too.
 
 ## 4. Diagnostics & provenance
 

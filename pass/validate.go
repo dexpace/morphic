@@ -52,18 +52,18 @@ func validate(doc *ir.Document, walk walkFunc) []ir.Diagnostic {
 	facts := irfacts.New(doc)
 	diags := make([]ir.Diagnostic, 0, 8)
 	diags = append(diags, checkNilTypes(doc)...)
-	diags = append(diags, checkDanglingRefs(read.refs, read.decls, read.truncated)...)
+	diags = append(diags, checkDanglingRefs(read.refs, read.truncated)...)
 	diags = append(diags, checkGroupWalkTruncated(doc)...)
 	diags = append(diags, checkServerIndices(doc)...)
 	diags = append(diags, checkResponseIndices(doc)...)
 	diags = append(diags, checkEncodingKeys(doc, facts)...)
 	diags = append(diags, checkPayloadRequired(doc)...)
-	diags = append(diags, checkPropIDRefs(read.props, read.decls)...)
+	diags = append(diags, checkPropIDRefs(read.props, read.refs)...)
 	diags = append(diags, checkDiscriminators(doc, facts)...)
 	diags = append(diags, checkDuplicateWireNames(doc)...)
 	diags = append(diags, checkAmbiguousAliases(doc)...)
 	diags = append(diags, checkDuplicateMemberIDs(doc)...)
-	diags = append(diags, checkParams(doc, read.decls)...)
+	diags = append(diags, checkParams(doc, read.refs)...)
 	diags = append(diags, checkIdempotency(doc)...)
 	diags = append(diags, checkMessageBindings(doc)...)
 	diags = append(diags, checkOneWay(doc)...)
@@ -73,18 +73,18 @@ func validate(doc *ir.Document, walk walkFunc) []ir.Diagnostic {
 }
 
 // walked is what one walk of a document reads for the checks that need it: the
-// identities it declares, the references that may dangle, its PropIDs, and
-// whether the walk was cut short.
+// references that may dangle with the identities they resolve against, its
+// PropIDs, and whether the walk was cut short.
 type walked struct {
-	decls     ir.IDDeclarations
-	refs      *refSites
+	refs      *ir.IDReferences
 	props     *propIDSites
 	truncated bool
 }
 
 // walkDocument reads doc in one walk, taken with walk.
 func walkDocument(doc *ir.Document, walk walkFunc) walked {
-	w := walked{refs: newRefSites(doc), props: &propIDSites{}}
-	w.truncated = walk(doc, ir.DocumentPath, &w.decls, w.refs, w.props)
+	refs := ir.NewIDReferences(doc)
+	w := walked{refs: refs, props: &propIDSites{refs: refs}}
+	w.truncated = walk(doc, ir.DocumentPath, w.refs, w.props)
 	return w
 }

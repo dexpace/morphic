@@ -6,18 +6,18 @@ import "github.com/dexpace/morphic/ir"
 // runs it, for the external tests.
 func DanglingRefs(doc *ir.Document) []ir.Diagnostic {
 	w := walkDocument(doc, ir.WalkValues)
-	return checkDanglingRefs(w.refs, w.decls, w.truncated)
+	return checkDanglingRefs(w.refs, w.truncated)
 }
 
-// KeptRefs returns where the references one walk of doc keeps for
-// checkDanglingRefs to settle sit, in walk order, for the external tests.
-func KeptRefs(doc *ir.Document) []string {
-	sites := walkDocument(doc, ir.WalkValues).refs.sites
-	where := make([]string, len(sites))
-	for i, s := range sites {
-		where[i] = s.where
+// KeptPropIDs returns where the PropID references one walk of doc keeps for
+// checkPropIDRefs to settle sit, in walk order, for the external tests.
+func KeptPropIDs(doc *ir.Document) []string {
+	sites := walkDocument(doc, ir.WalkValues).props.sites
+	paths := make([]string, 0, len(sites))
+	for _, s := range sites {
+		paths = append(paths, s.Path)
 	}
-	return where
+	return paths
 }
 
 // AppendTypeIDs is appendTypeIDs, for the external tests.

@@ -527,9 +527,9 @@ func authRefSites() []idRefSite {
 // opRefSites are the fields referencing an operation the document declares.
 //
 // An operation is declared inside the Service→OperationGroup tree rather than in
-// an ID-keyed map on Document, so ir.DocumentRegistries derives no registry for
-// the class and every one of these resolved against nothing at all until
-// ir.Registries.WithDeclarations supplied one (GitHub #50).
+// an ID-keyed map on Document, so no map-keyed registry exists for the class and
+// every one of these resolved against nothing at all until the operations the
+// document declares supplied one (GitHub #50).
 func opRefSites() []idRefSite {
 	return []idRefSite{
 		{"overload of", "ir/dangling-op-ref", ".OverloadOf",
@@ -661,9 +661,10 @@ func withCode(diags []ir.Diagnostic, code string) []ir.Diagnostic {
 //
 // Two rounds of silence are pinned here. Before checkDanglingRefs, only the auth
 // case produced a diagnostic at all — Validate resolved no ChannelID or MessageID
-// anywhere. Before ir.Registries.WithDeclarations, the operation and service
-// cases resolved against nothing either, because neither class has a map on
-// Document for a registry to be derived from (GitHub #50).
+// anywhere. Before references resolved against the identities the document
+// declares, the operation and service cases resolved against nothing either,
+// because neither class has a map on Document for a registry to be derived from
+// (GitHub #50).
 func TestValidate_DanglingTypedIDRef(t *testing.T) {
 	t.Parallel()
 	for _, tc := range idRefSites() {
@@ -862,25 +863,31 @@ func TestCheckDanglingRefs_NilTypeDefIsNotFollowed(t *testing.T) {
 	assert.Empty(t, danglingRefs(doc))
 }
 
-// TestRefSites_KeepOnlyWhatTheWalkCannotSettle holds the walk to settling a
-// reference into a registry Document keys as it reaches it: one that resolves is
-// not kept, so its path is never rendered. A reference to a declared class is
-// kept whether or not it resolves, since its registry is complete only when the
-// walk is over.
-func TestRefSites_KeepOnlyWhatTheWalkCannotSettle(t *testing.T) {
+// TestPropIDSites_KeepOnlyWhatIsNotYetDeclared holds the PropID walk to
+// settling what it can as it goes. A model's discriminator follows its
+// properties, so naming one is settled on the spot and its path never rendered;
+// a pagination path sits in a service, which the walk reaches before any type,
+// so it is kept until every property is read, and then only the ghost dangles.
+func TestPropIDSites_KeepOnlyWhatIsNotYetDeclared(t *testing.T) {
 	t.Parallel()
-	assert.Empty(t, pass.KeptRefs(validDoc()), "the model's own ID and its target both resolve in types")
+	doc := docWithOperation(ir.Operation{ID: "op/o", Pagination: &ir.Pagination{
+		Items: &ir.PropPath{Segments: []ir.PropID{"p/m/a", "p/ghost"}},
+	}})
+	model, ok := doc.Types["t/m"].(*ir.Model)
+	require.True(t, ok)
+	model.Discriminator = &ir.Discriminator{Property: "p/m/a"}
 
-	doc := docWithOperation(ir.Operation{ID: "op/o", OverloadOf: new(ir.OpID("op/o"))})
-	doc.Types["t/m"] = &ir.Model{ID: "t/m", Properties: []ir.Property{
-		{ID: "p/m/a", WireName: "a", Type: ir.TypeRef{Target: "t/missing"}},
-	}}
 	assert.Equal(t, []string{
-		"doc.Services[0].ID",
-		"doc.Services[0].Groups[0].Operations[0].ID",
-		"doc.Services[0].Groups[0].Operations[0].OverloadOf",
-		"doc.Types[t/m].Properties[0].Type.Target",
-	}, pass.KeptRefs(doc))
+		"doc.Services[0].Groups[0].Operations[0].Pagination.Items.Segments[0]",
+		"doc.Services[0].Groups[0].Operations[0].Pagination.Items.Segments[1]",
+	}, pass.KeptPropIDs(doc))
+	var dangling []string
+	for _, d := range pass.Validate(doc) {
+		if d.Code == "ir/dangling-prop-ref" {
+			dangling = append(dangling, d.Provenance.Node)
+		}
+	}
+	assert.Equal(t, []string{"doc.Services[0].Groups[0].Operations[0].Pagination.Items.Segments[1]"}, dangling)
 }
 
 // danglingRefs runs checkDanglingRefs over what one walk of doc gathers, as
