@@ -214,10 +214,10 @@ var identityClasses = map[string]string{
 	"ChannelID":    "identity: Document.Channels keys it; resolved and held as TypeID is",
 	"MessageID":    "identity: Document.Messages keys it; resolved and held as TypeID is",
 	"AuthID":       "identity: Document.Auth keys it; resolved and held as TypeID is",
-	"OpID":         "identity, no map: ir.Registries.WithDeclarations resolves references against the operations the document declares, checkDuplicateIDs holds them unique",
+	"OpID":         "identity, no map: ir.IDReferences resolves references against the operations the document declares, checkDuplicateIDs holds them unique",
 	"ServiceID":    "identity, no map: resolved and held as OpID is, against the services the document declares",
 	"GroupID":      "identity, no map: resolved and held as OpID is, against the groups the document declares, nested ones included",
-	"ParamID":      "identity, operation-scoped: pass.Validate resolves references through ir.Registries.WithDeclarations, and checkDuplicateIDs holds every parameter to one ID with no fingerprint exemption, since a path-item parameter is one parameter per operation it is copied into",
+	"ParamID":      "identity, operation-scoped: ir.IDReferences resolves references against the parameters the document declares, and checkDuplicateIDs holds every parameter to one ID with no fingerprint exemption, since a path-item parameter is one parameter per operation it is copied into",
 	"EnumMemberID": "identity, enum-scoped: checkDuplicateIDs holds every member to one ID with no fingerprint exemption, checkMemberIDs holds it under its enum's path and pass.Validate rejects a repeat within one enum (checkDuplicateMemberIDs)",
 	"PropID":       "identity, model-scoped: pass.Validate resolves references (checkPropIDRefs, checkEncodingKeys); checkDuplicateIDs holds no two *different* properties to one ID, the copies a component makes of one property being exempt by fingerprint",
 

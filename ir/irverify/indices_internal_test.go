@@ -170,7 +170,7 @@ func TestIndexCarrierFields_MatchTheIRShape(t *testing.T) {
 // classified.
 //
 // It stays hand-written because nothing can derive it: an ID-keyed registry is
-// recognizable from Document's own shape (ir.DocumentRegistries), while an
+// recognizable from Document's own shape (ir.KeyedClasses), while an
 // index is an int like any other.
 var integerFields = map[string]string{
 	"Service.Servers":           "index into Document.Servers; bounds-checked by checkIndices",
@@ -197,6 +197,10 @@ var integerFields = map[string]string{
 	"pathStep.index":  "the field or element a step took, set by the walk as it took it, not IR data",
 	"valueWalk.all":   "the set of a walk's visitors, one bit each, not a position",
 	"valueWalk.seen":  "for each pointer, the set of visitors that entered it, not a position",
+
+	// The ir package's reading of its own types, which is not IR data either.
+	"idField.index":       "the field through which a struct type declares its identity, read off the type",
+	"keyedRegistry.index": "the Document field that keys a registry map, read off Document's type",
 
 	"Property.WireID":       "protobuf field number / thrift id, not a position",
 	"Variant.WireID":        "protobuf oneof field number or ordinal, not a position",

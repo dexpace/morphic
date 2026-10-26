@@ -489,5 +489,5 @@ func populatedProperty() ir.Property {
 func declaredIDs(doc *ir.Document) ([]ir.IDDeclaration, bool) {
 	var found ir.IDDeclarations
 	truncated := ir.WalkValues(doc, ir.DocumentPath, &found)
-	return found, truncated
+	return found.List(), truncated
 }
