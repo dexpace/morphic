@@ -164,8 +164,8 @@ left.
 What a document holds whatever produced it, the namespaces, a service and a well-formed source table
 among them, is `irverify`'s, and `compile.Types.Finish` hands a compiler its registry with the
 diagnostics it reports, a `compile/registry-refused` error for each entry the registry refused among
-them. The engine does not run `irverify` by default: it slows a run, and the harness holds the
-shipped compiler to it over the whole corpus. `RunOptions.Verify` (`--verify`)
+them. The engine does not run `irverify` by default: it slows a run, and the harness runs every
+compile of the whole corpus verified. `RunOptions.Verify` (`--verify`)
 runs it for a compiler under development, over the compiler's document and over each document a pass
 returns, and over the one `RunDocument` is handed, and fails the run with an `engine.VerifyError`
 carrying every violation, wrapping the contract error of the stage that returned the document. It
@@ -260,6 +260,24 @@ breaks one of these, or panics in `Run` fails the run with a Go error naming it 
 error there and a name cannot change under a run. Under `RunOptions.Verify` the document a pass
 returns is also held to `irverify`'s invariants, and the one it was handed to being as it was
 (§2.1).
+
+Every pass is idempotent: run again over the document a run of it returned, it returns one that
+encodes the same, `Document.Diagnostics` aside. A normalization that changes its own output on a
+second run leaves the document depending on how many times it went through the list, and
+`RunDocument` runs the list over a document that may have been through it already. Such a document
+carries the earlier run's findings, the pass's own among them, so the second run is handed findings
+the first was not and must still return the same document. What a pass reports may differ the
+second time, as a filter that removed an operation finds none left to remove, so the findings are
+left out of the comparison.
+
+Idempotent passes do not by themselves make the list idempotent; their order has to as well. What
+a run returns is a document each of the passes it ran returns as it is, so a second run returns it
+unchanged, whichever of those passes it turns off. A pass placed before one whose output it acts on
+breaks this, though each of the two is idempotent alone: a filter dropping what a later pass flags
+drops more on the second run. It goes after the pass it acts on. The harness's idempotence oracle
+holds the default list to both over every corpus spec: through `RunDocument`, it runs each pass over
+what the passes before it returned, then again over what that run returned, and then each over what
+the run of them all returned (§5). No run that turns passes off is swept on its own.
 
 A caller turns a pass off by name (`RunOptions.DisablePasses`, `--disable-pass`); a name no pass
 carries is a Go error (`engine.ErrUnknownPass`), not a diagnostic, because it names no defect in the
@@ -452,7 +470,7 @@ morphic/
 │   ├── reader/             #           Reads what a run's references name: disk, network or memory.
 │   ├── report/             #           Renders diagnostics and --explain for a person.
 │   └── output/             #           Writes the IR document to a stream, or to a file atomically.
-├── internal/archtest/      #           Import layering, the recursion pin and the caps (tooling).
+├── internal/archtest/      #           Layering, the recursion pin, reachability and the caps (tooling).
 ├── internal/census/        #           Counts which IR facts a set of documents sets (tooling).
 ├── internal/conformance/   #           Holds each registered format to its matrix column (tooling, tests only).
 ├── internal/decls/         #           Type-checked reads of declarations, for tests (tooling).
@@ -474,8 +492,8 @@ belongs *inside* that compiler (§2.1, milestone 2). A sibling `compilers/swagge
 `compilers/openapi` is the one import the rules below forbid outright.
 
 This tree is prose. `internal/archtest`'s `rules` map is the source of truth, and it is what fails
-when the two disagree — every production package must appear there or in `exempt`. To read the
-layout off the tree rather than off this page:
+when the two disagree — every production package must appear there or in `exempt`, which takes
+tooling under `internal/` alone. To read the layout off the tree rather than off this page:
 
 ```bash
 git ls-files '*/*.go' | xargs -n1 dirname | sort -u
@@ -495,16 +513,19 @@ Dependency rules, enforced by an architecture test as in oagen:
   compiler's. That is what keeps the ordering among them real: `diag` reaches nothing but `ir`,
   and no lowering package may reach the compiler that calls it.
 - `emitters/*` imports `ir`, `ir/irfacts` and the contract package `emitters` — never a compiler.
+  The rule is in place before the first emitter package: `emitters` is ruled now, and each package
+  beneath it carries an entry of its own, as a compiler's packages do.
 - `engine` imports everything below it; `cmd` imports `engine`.
 
 The engine owns every read, every write and every rendering for a person, so a second driver — an
 editor integration, an emitter driver, a test harness — reads, writes and reports exactly as the CLI
-does without importing it. It takes its input three ways: a spec file (`Run`), sources already in
-memory (`RunSources`, which reads nothing else), and a document already compiled (`RunDocument`,
-which runs the passes alone). `engine/reader` reads what a source's references name, `engine/output`
-writes the document to a stream or replaces a file atomically, and `engine/report` renders
-diagnostics and `--explain`. The CLI parses flags, picks the streams, cancels the run on SIGINT,
-SIGTERM or SIGHUP, and turns the run into an exit code.
+does without importing it. It takes a spec file (`Run`), a spec held in memory beside documents on
+disk (`RunSpec`, for an edited buffer or a harness), sources already in memory (`RunSources`, which
+reads nothing else), or a document already compiled (`RunDocument`, which runs the passes alone).
+`engine/reader` reads what a source's references name, `engine/output` writes the document to a
+stream or replaces a file atomically, and `engine/report` renders diagnostics and `--explain`. The
+CLI parses flags, picks the streams, cancels the run on SIGINT, SIGTERM or SIGHUP, and turns the
+run into an exit code.
 
 Two caps guard the shape rather than the graph, both in `internal/archtest` and `.golangci.yml`:
 no type under `compilers/` may carry more than 20 methods, and no function may exceed 70 lines or
@@ -564,17 +585,20 @@ something a caller asks for with `none`, never a default.
   and tell you whether it does.
 - **Round-trip property**: `parse → serialize → deserialize → deep-equal` for every corpus
   document.
-- **Oracle sweep** (`internal/harness`): every corpus spec is driven through the oracles in order
-  — no panic, no error diagnostic, `irverify`'s structural invariants, JSON round-trip,
-  determinism across two compiles, and **order-independence**. The last one compiles the same
-  source twice with every mapping's entry order reversed and diffs the two documents. It is the
-  general form of the two-order check, and it is what catches an interning collision: two
-  declarations minting one node at a single pointer produce the same document read either way
-  only if neither is the one that got there first. Both pointer collisions the compiler has had
-  were invisible to a single-order suite.
+- **Oracle sweep** (`internal/harness`): every corpus spec is run as `morphic compile --verify` runs
+  it, the default passes included, in every run an oracle makes, and driven through the oracles in
+  order — no panic, `irverify`'s structural invariants, no error diagnostic, JSON round-trip,
+  determinism across two compiles, each pass's idempotence and the pass list's (§2.2), and
+  **order-independence**. The last one compiles the same source twice with every mapping's entry
+  order reversed and diffs the two documents. It is the general form of the two-order check, and it
+  is what catches an interning collision: two declarations minting one node at a single pointer
+  produce the same document read either way only if neither is the one that got there first. Both
+  pointer collisions the compiler has had were invisible to a single-order suite.
 - **Architecture test** (`internal/archtest`): import-graph assertions for the layering rules
   above, plus the rules the graph cannot express — which lowerings are mutually recursive (so a
-  set that grows is noticed rather than measured), and the method-per-type cap.
+  set that grows is noticed rather than measured), the method-per-type cap, and that no function is
+  reached by tests alone, bar the test-support packages and the API kept, by name, for a caller to
+  come.
 - **Lint rules** (`.golangci.yml`; `internal/lintrules`, under `make vet`): what a linter can
   hold — which packages may build or write an `ir.TypeRegistry`, derive a name or build an ID, that
   no pipeline stage prints or logs, and that a switch over an IR enum names every member. Each rule

@@ -126,9 +126,8 @@ func quote(s string) string { return `"` + s + `"` }
 
 // operationAt is one operation of a path item, where it is written.
 type operationAt struct {
-	method string
-	node   *yaml.Node
-	ptr    jsontext.Pointer
+	node *yaml.Node
+	ptr  jsontext.Pointer
 }
 
 // operationsOf lists the operations a path item writes, its own methods and the
@@ -137,12 +136,12 @@ func operationsOf(r ruler, item map[string]*yaml.Node, ptr jsontext.Pointer) []o
 	var out []operationAt
 	for _, m := range standardMethods() {
 		if op, ok := item[m]; ok {
-			out = append(out, operationAt{method: m, node: op, ptr: ptr.AppendToken(m)})
+			out = append(out, operationAt{node: op, ptr: ptr.AppendToken(m)})
 		}
 	}
 	extra := ptr.AppendToken("additionalOperations")
 	for _, p := range r.w.view.MappingPairs(item["additionalOperations"]) {
-		out = append(out, operationAt{method: p.Key, node: p.Val, ptr: extra.AppendToken(p.Key)})
+		out = append(out, operationAt{node: p.Val, ptr: extra.AppendToken(p.Key)})
 	}
 	return out
 }

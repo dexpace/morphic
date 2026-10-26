@@ -16,6 +16,7 @@ import (
 var (
 	_ compilers.DocumentReader = reader.Disk{}
 	_ compilers.DocumentReader = (*reader.Memory)(nil)
+	_ compilers.DocumentReader = reader.Layered{}
 )
 
 // TestReaders_AnswerAlikeThroughTheContract pins what Memory promises, that

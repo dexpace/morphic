@@ -89,16 +89,16 @@ func declaredBy(decls []ir.IDDeclaration) map[string][]ir.IDDeclaration {
 	return out
 }
 
-// TestDeclaredIDs_ReachesEveryIDBearingNodeOnce pins the derivation the OpID,
+// TestIDDeclarations_ReachesEveryIDBearingNodeOnce pins the derivation the OpID,
 // ServiceID and GroupID registries are built from: every node carrying an ID of its own
 // contributes exactly one declaration, at the path it sits at.
 //
 // The "once" half is the load-bearing one. Every type node embeds TypeCommon and
 // promotes its ID, so a walk counting promoted fields would report a sound
 // document as one where every type ID is declared twice.
-func TestDeclaredIDs_ReachesEveryIDBearingNodeOnce(t *testing.T) {
+func TestIDDeclarations_ReachesEveryIDBearingNodeOnce(t *testing.T) {
 	t.Parallel()
-	decls, truncated := ir.DeclaredIDs(declaringDoc())
+	decls, truncated := declaredIDs(declaringDoc())
 	require.False(t, truncated, "a shallow document must not exhaust the walk")
 
 	byClass := declaredBy(decls)
@@ -121,27 +121,27 @@ func TestDeclaredIDs_ReachesEveryIDBearingNodeOnce(t *testing.T) {
 	assert.Len(t, byClass, len(want), "these are every ID class a node declares")
 }
 
-// TestDeclaredIDs_SkipsEmptyAndAbsentIDs holds the two ways a struct declares no
+// TestIDDeclarations_SkipsEmptyAndAbsentIDs holds the two ways a struct declares no
 // identity: it carries no ID field at all, or it carries an empty one. An empty
 // ID names nothing a reference could resolve to, and treating several of them as
 // one another's duplicates would name the wrong defect.
-func TestDeclaredIDs_SkipsEmptyAndAbsentIDs(t *testing.T) {
+func TestIDDeclarations_SkipsEmptyAndAbsentIDs(t *testing.T) {
 	t.Parallel()
 	doc := &ir.Document{
 		Name:     "no ID field anywhere on Document itself",
 		Services: []ir.Service{{Groups: []ir.OperationGroup{{Operations: []ir.Operation{{}}}}}},
 	}
-	decls, truncated := ir.DeclaredIDs(doc)
+	decls, truncated := declaredIDs(doc)
 	assert.False(t, truncated)
 	assert.Empty(t, decls)
 }
 
-// TestDeclaredIDs_NilDocumentDeclaresNothing keeps the derivation report-only:
+// TestIDDeclarations_NilDocumentDeclaresNothing keeps the derivation report-only:
 // a nil document yields no declaration rather than panicking on the way to
 // saying so, as DocumentRegistries does.
-func TestDeclaredIDs_NilDocumentDeclaresNothing(t *testing.T) {
+func TestIDDeclarations_NilDocumentDeclaresNothing(t *testing.T) {
 	t.Parallel()
-	decls, truncated := ir.DeclaredIDs(nil)
+	decls, truncated := declaredIDs(nil)
 	assert.Empty(t, decls)
 	assert.False(t, truncated)
 }
@@ -218,7 +218,7 @@ func TestDeclaredIDOf_ClassifiesEachShape(t *testing.T) {
 func TestWithDeclarations_ResolvesOnlyTheClassesNoMapCovers(t *testing.T) {
 	t.Parallel()
 	doc := declaringDoc()
-	decls, _ := ir.DeclaredIDs(doc)
+	decls, _ := declaredIDs(doc)
 	regs := ir.DocumentRegistries(doc).WithDeclarations(decls)
 
 	for _, tc := range []struct {
@@ -255,7 +255,7 @@ func TestWithDeclarations_ResolvesAClassNothingDeclares(t *testing.T) {
 		ID:     "s/x",
 		Groups: []ir.OperationGroup{{Resource: &ir.ResourceInfo{InstanceOps: []ir.OpID{"op/x/Ghost"}}}},
 	}}}
-	decls, _ := ir.DeclaredIDs(doc)
+	decls, _ := declaredIDs(doc)
 	regs := ir.DocumentRegistries(doc).WithDeclarations(decls)
 
 	ops, resolved := regs[reflect.TypeFor[ir.OpID]()]
@@ -270,7 +270,7 @@ func TestWithDeclarations_ResolvesAClassNothingDeclares(t *testing.T) {
 func TestWithDeclarations_LeavesTheReceiverAlone(t *testing.T) {
 	t.Parallel()
 	doc := declaringDoc()
-	decls, _ := ir.DeclaredIDs(doc)
+	decls, _ := declaredIDs(doc)
 	regs := ir.DocumentRegistries(doc)
 	before := len(regs)
 
@@ -286,7 +286,7 @@ func TestWithDeclarations_LeavesTheReceiverAlone(t *testing.T) {
 func TestWithDeclarations_LeavesAnEarlierResultAlone(t *testing.T) {
 	t.Parallel()
 	doc := declaringDoc()
-	decls, _ := ir.DeclaredIDs(doc)
+	decls, _ := declaredIDs(doc)
 	first := ir.DocumentRegistries(doc).WithDeclarations(decls)
 
 	second := first.WithDeclarations([]ir.IDDeclaration{
@@ -307,7 +307,7 @@ func TestWithDeclarations_SecondDeclarationJoinsTheSameRegistry(t *testing.T) {
 	doc.Services[0].Groups[0].Operations = append(doc.Services[0].Groups[0].Operations,
 		ir.Operation{ID: "op/y"})
 
-	decls, _ := ir.DeclaredIDs(doc)
+	decls, _ := declaredIDs(doc)
 	ops := ir.DocumentRegistries(doc).WithDeclarations(decls)[reflect.TypeFor[ir.OpID]()]
 	assert.True(t, ops.Has("op/x"))
 	assert.True(t, ops.Has("op/y"))

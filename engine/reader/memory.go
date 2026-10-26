@@ -58,6 +58,21 @@ func memoryKey(path string) (string, error) {
 	return loc.path, nil
 }
 
+// holds reports whether location names a document m holds, as a request
+// naming it finds one, before any confinement or limit is judged. A nil Memory
+// holds none.
+func (m *Memory) holds(location string) bool {
+	if m == nil {
+		return false
+	}
+	key, err := memoryKey(location)
+	if err != nil {
+		return false
+	}
+	_, ok := m.docs[key]
+	return ok
+}
+
 // ReadDocument implements compilers.DocumentReader. A document no source holds
 // fails as a file that does not exist does, with fs.ErrNotExist.
 func (m *Memory) ReadDocument(ctx context.Context, req compilers.DocumentRequest) ([]byte, error) {

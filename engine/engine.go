@@ -1,10 +1,12 @@
 package engine
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 
@@ -125,8 +127,8 @@ func WithCompilers(cs ...compilers.Compiler) Option {
 
 // WithPasses runs ps, in order, in place of the default passes. An embedder
 // adding a pass of its own composes the list from Passes, putting a transform
-// before validate so validate judges what the transform returns. The list is
-// copied, and an empty one runs no pass.
+// after any pass whose output it acts on and before validate, as Passes orders
+// its own. The list is copied, and an empty one runs no pass.
 func WithPasses(ps ...pass.Pass) Option {
 	ps = slices.Clone(ps)
 	return func(c *config) { c.passes = ps }
@@ -168,8 +170,8 @@ func New(opts ...Option) (*Engine, error) {
 
 // Run executes the pipeline for the spec at specPath: read it, compile it with
 // the compiler that recognizes it, run the passes opts.DisablePasses does not
-// name, and judge the Result at opts.FailOn. References are read through
-// reader.Disk, as far as the compiler's options allow.
+// name, and judge the Result at opts.FailOn. It reads the file once, and every
+// other document as RunSpec does.
 //
 // A Go error is reserved for I/O, cancellation and programmer errors: an
 // unreadable file, a cancelled ctx, a refused option (ErrUnknownPass,
@@ -185,11 +187,61 @@ func (e *Engine) Run(ctx context.Context, specPath string, opts RunOptions) (*Re
 	if err != nil {
 		return nil, fmt.Errorf("engine: read spec %q: %w", specPath, err)
 	}
-	res, err := e.compile(ctx, compilers.Source{Path: specPath, Data: data}, reader.Disk{}, os.ReadFile, opts, p)
+	return e.runHeld(ctx, compilers.Source{Path: specPath, Data: data}, opts, p)
+}
+
+// RunSpec executes Run's pipeline over a spec held in memory, such as an
+// edited buffer. A reference naming spec.Path, lexically as reader.Memory
+// names a document, and a setting naming it as os.ReadFile names a file are
+// served spec.Data. Every other document, another spelling of that file among
+// them, is read from disk, a reference's through reader.Disk as far as the
+// compiler's options let it go.
+//
+// An empty spec.Path, which the references resolve against, is a Go error.
+// Source.Parsed is not read, and the bytes must not change during the run. It
+// shares Run's other contracts.
+func (e *Engine) RunSpec(ctx context.Context, spec compilers.Source, opts RunOptions) (*Result, error) {
+	p, err := e.prepare(opts)
+	if err != nil {
+		return nil, err
+	}
+	if spec.Path == "" {
+		return nil, errors.New("engine: the spec has no Path, which its references are read against")
+	}
+	return e.runHeld(ctx, compilers.Source{Path: spec.Path, Data: spec.Data}, opts, p)
+}
+
+// runHeld runs the pipeline over spec, whose bytes it holds, and judges the
+// Result at p's threshold. A reference or a setting naming spec.Path is served
+// those bytes, each named as its own reader names a document, so the run reads
+// one spec even where a compiler asks for it again. Every other document is
+// read from disk.
+func (e *Engine) runHeld(ctx context.Context, spec compilers.Source, opts RunOptions, p plan) (*Result, error) {
+	// A setting names a file as os.ReadFile does, with no URI and no context,
+	// so whether it names the spec is a comparison of paths, not a read that
+	// could fail for another reason and send the read to disk.
+	readFile := func(name string) ([]byte, error) {
+		if filepath.Clean(name) == filepath.Clean(spec.Path) {
+			return bytes.Clone(spec.Data), nil
+		}
+		return os.ReadFile(name)
+	}
+	res, err := e.compile(ctx, spec, reader.Layered{Held: specMemory(spec)}, readFile, opts, p)
 	if err != nil {
 		return nil, err
 	}
 	return p.failOn.judge(res)
+}
+
+// specMemory returns a Memory serving spec at its path to the references, or
+// nil for a path no document request can name, such as a file whose name reads
+// as an opaque URI: no reference can name that spec either.
+func specMemory(spec compilers.Source) *reader.Memory {
+	held, err := reader.NewMemory([]compilers.Source{spec})
+	if err != nil {
+		return nil
+	}
+	return held
 }
 
 // RunSources executes Run's pipeline over sources held in memory, and reads
@@ -389,13 +441,13 @@ func (e *Engine) compile(ctx context.Context, source compilers.Source, docs comp
 // the engine parses nothing and can say only that nobody claimed it.
 func (e *Engine) undetected(format compilers.SourceFormat, declined []ir.Diagnostic) []ir.Diagnostic {
 	if format.Name != "" {
-		return []ir.Diagnostic{specProblem(codeNoCompilerForFormat,
+		return []ir.Diagnostic{specProblem(CodeNoCompilerForFormat,
 			"no compiler registered for format %s; %s", format, e.served())}
 	}
 	if len(declined) > 0 {
 		return declined
 	}
-	return []ir.Diagnostic{specProblem(codeUnrecognizedFormat,
+	return []ir.Diagnostic{specProblem(CodeUnrecognizedFormat,
 		"unrecognized spec format; %s", e.served())}
 }
 

@@ -1,7 +1,7 @@
 // Command morphic-harness sweeps API specs through Morphic's bug-catching
-// oracles (no panic/error, IR invariants, JSON round-trip, determinism,
-// order-invariance) and writes a combined report to stdout. It is tooling built
-// on internal/harness, not part of the compile pipeline.
+// oracles, which harness.Check lists in order, each spec run as
+// `morphic compile --verify` runs it, and writes a combined report to stdout.
+// It is tooling built on internal/harness, not part of the compile pipeline.
 //
 // Each argument is a spec file or directory, walked recursively for the files a
 // registered compiler claims (harness.SpecFiles), skipping dot-directories and

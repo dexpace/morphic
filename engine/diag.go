@@ -18,13 +18,14 @@ import (
 // source could not be read belongs to the compiler that recognized it
 // (openapi/undecodable-source).
 const (
-	// codeUnrecognizedFormat: no compiler claimed the source, and none of them
-	// had anything to say about why.
-	codeUnrecognizedFormat = "engine/unrecognized-format"
-	// codeNoCompilerForFormat: a compiler read the source and named a format, but
-	// none is registered for it. An OpenAPI version outside the supported range
-	// lands here, as does Swagger 2.0, which is recognized and not yet lowered.
-	codeNoCompilerForFormat = "engine/no-compiler-for-format"
+	// CodeUnrecognizedFormat reports a source no compiler claimed, none of them
+	// having anything to say about why.
+	CodeUnrecognizedFormat = "engine/unrecognized-format"
+	// CodeNoCompilerForFormat reports a source a compiler read and named the
+	// format of, which no registered compiler serves. An OpenAPI version outside
+	// the supported range lands here, as does Swagger 2.0, which is recognized
+	// and not yet lowered.
+	CodeNoCompilerForFormat = "engine/no-compiler-for-format"
 )
 
 // specProblem builds an error-severity diagnostic about a source as a whole.

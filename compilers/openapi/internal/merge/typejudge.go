@@ -33,9 +33,6 @@ const (
 	relBNarrower
 )
 
-// dropped reports whether the fold loses the second declaration's type.
-func (r relation) dropped() bool { return r <= relOverlap }
-
 // flipped is the relation seen from the other side.
 func (r relation) flipped() relation {
 	if r == relANarrower {

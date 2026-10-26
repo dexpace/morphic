@@ -58,7 +58,8 @@ func assertChainsEnd(t *testing.T, doc *soa.OpenAPI, msgAndArgs ...any) {
 		checked++
 		trail := resolutionTrail(response)
 		assert.Empty(t, trail.stopped, "%s's chain stops at no reference: %v", name, msgAndArgs)
-		assert.NotEmpty(t, trail.target, "%s's chain ends on an object: %v", name, msgAndArgs)
+		assert.False(t, trail.cut, "%s's chain is read to its end: %v", name, msgAndArgs)
+		assert.NotEmpty(t, trail.docs, "%s's chain ends on an object: %v", name, msgAndArgs)
 	}
 	assert.Positive(t, checked, "the source holds a reference response: %v", msgAndArgs)
 }
@@ -442,7 +443,7 @@ func TestResumable(t *testing.T) {
 	walked := jsonpointer.ErrInvalidPath.Wrap(errors.New("expected index, got key at /components"))
 	cycle := errors.New("circular reference detected: other.yaml#/A -> other.yaml#/A")
 	hop := func(document any) record {
-		return record{path: "other.yaml", target: "other.yaml#/components/responses/Alias", document: &document}
+		return record{path: "other.yaml", document: &document}
 	}
 	bytesHop := chain{records: []record{hop(slices.Clone(data))}, stopped: "#/components/responses/Loop"}
 	cut := chain{records: []record{hop(slices.Clone(data))}, stopped: "#/components/responses/Base", cut: true}

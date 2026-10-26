@@ -101,7 +101,6 @@ func TestVerify_WalksOnlyThroughTheSharedWalk(t *testing.T) {
 	require.True(t, reaches, "this package must import ir")
 	for traversal, want := range map[string][]string{
 		"WalkValues":       {"Verify"},
-		"DeclaredIDs":      nil,
 		"ForEachOperation": nil,
 		"TypeEdges":        nil,
 	} {

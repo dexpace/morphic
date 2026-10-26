@@ -161,23 +161,11 @@ type IDDeclaration struct {
 	Path string
 }
 
-// DeclaredIDs returns every identity the nodes of doc declare, in walk order,
-// and reports whether the bounded walk was cut short.
-//
-// Reading declarations off the value graph covers a new ID-bearing node the
-// moment it exists. It answers what [DocumentRegistries] cannot: which IDs a
-// class declares when Document holds no map for it, and whether one ID is
-// declared twice, which a map key cannot express.
-func DeclaredIDs(doc *Document) ([]IDDeclaration, bool) {
-	var decls IDDeclarations
-	truncated := WalkValues(doc, DocumentPath, &decls)
-	return decls, truncated
-}
-
 // IDDeclarations collects, as a [Visitor], the identities the values its walk
-// reaches declare, in walk order. It is what [DeclaredIDs] walks a document
-// with, for a caller that reads them in a walk it shares with visitors of its
-// own.
+// reaches declare, in walk order. Reading them off the value graph covers a new
+// ID-bearing node the moment it exists, and answers what [DocumentRegistries]
+// cannot: which IDs a class declares when Document holds no map for it, and
+// whether one ID is declared twice.
 //
 // An empty ID is skipped, since nothing can reference one and several nodes
 // carrying one are not duplicates. Reporting it is irverify.checkRegistryKeys's
@@ -198,7 +186,7 @@ func (d *IDDeclarations) Visit(v reflect.Value, at WalkPath) bool {
 // struct's declaration, not v's.
 //
 // An empty ID is reported with declares true, so a checker can flag it where
-// [DeclaredIDs] drops it. A value that is no such struct, a pointer, a
+// [IDDeclarations] drops it. A value that is no such struct, a pointer, a
 // non-struct and the zero [reflect.Value] included, declares nothing.
 func DeclaredIDOf(v reflect.Value) (class reflect.Type, id string, declares bool) {
 	if !v.IsValid() {

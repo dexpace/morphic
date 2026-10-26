@@ -38,17 +38,7 @@ const (
 	OAuthFlows
 	OAuthFlow
 	SecurityRequirement
-	kindEnd
 )
-
-// Kinds lists every object kind in declaration order.
-func Kinds() []Kind {
-	out := make([]Kind, 0, kindEnd-1)
-	for k := Document; k < kindEnd; k++ {
-		out = append(out, k)
-	}
-	return out
-}
 
 // Shape is the form a field's value takes in the source.
 type Shape uint8
@@ -295,9 +285,6 @@ type Spec struct {
 	objects []Object
 	index   map[Kind]int
 }
-
-// Objects returns the table's objects in declaration order.
-func (s Spec) Objects() []Object { return append([]Object(nil), s.objects...) }
 
 // Object returns the object of kind k.
 func (s Spec) Object(k Kind) (Object, bool) {

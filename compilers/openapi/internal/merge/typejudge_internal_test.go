@@ -220,16 +220,11 @@ func TestTypeJudge_AdmitsPerNode(t *testing.T) {
 		"a list nested past the cap is refused")
 }
 
-func TestRelation_DroppedAndFlipped(t *testing.T) {
+func TestRelation_Flipped(t *testing.T) {
 	t.Parallel()
-	for _, r := range []relation{relUnrelated, relDisjoint, relOverlap} {
-		assert.True(t, r.dropped())
+	for _, r := range []relation{relUnrelated, relDisjoint, relOverlap, relSame} {
 		assert.Equal(t, r, r.flipped())
 	}
-	for _, r := range []relation{relSame, relANarrower, relBNarrower} {
-		assert.False(t, r.dropped())
-	}
-	assert.Equal(t, relSame, relSame.flipped())
 	assert.Equal(t, relBNarrower, relANarrower.flipped())
 	assert.Equal(t, relANarrower, relBNarrower.flipped())
 }

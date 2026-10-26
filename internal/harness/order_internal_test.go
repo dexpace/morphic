@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json/jsontext"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -19,6 +20,7 @@ import (
 
 	"github.com/dexpace/morphic/internal/decls"
 	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/pass"
 )
 
 // TestReverseMappings_Permutes covers the rewrite's shapes: what it reverses,
@@ -146,13 +148,14 @@ func TestOrderInvariant_UnpermutableSourcePasses(t *testing.T) {
 	}
 }
 
-// TestOrderInvariant_CompileFailureIsReported covers the permuted recompile's
-// error paths, which a correct compiler never produces on a source whose
-// baseline already compiled.
+// TestOrderInvariant_CompileFailureIsReported covers the error paths of the
+// two compiles the oracle makes, which a correct compiler never produces on a
+// source that already compiled.
 //
-// The seam answers for the baseline and fails only for the permutation. Failing
-// both would exercise nothing: a baseline that will not compile means the
-// re-encoding is not the source, which the oracle skips rather than reports.
+// The seam answers for the baseline and fails only for the permutation, and
+// then fails the baseline alone with a Go error, which is never the spec's
+// and so is reported too, where a declined baseline is skipped (the test
+// below).
 func TestOrderInvariant_CompileFailureIsReported(t *testing.T) {
 	const src = "a: 1\nb: 2\n"
 	orig := compile
@@ -162,7 +165,7 @@ func TestOrderInvariant_CompileFailureIsReported(t *testing.T) {
 	require.True(t, ok)
 
 	onlyPermutedFails := func(fail func() (*ir.Document, []ir.Diagnostic, error)) {
-		compile = func(_ context.Context, _ string, data []byte) (*ir.Document, []ir.Diagnostic, error) {
+		compile = func(_ context.Context, _ string, data []byte, _ []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
 			if bytes.Equal(data, baseline) {
 				return &ir.Document{}, nil, nil
 			}
@@ -183,23 +186,30 @@ func TestOrderInvariant_CompileFailureIsReported(t *testing.T) {
 	detail, ok = orderInvariant(context.Background(), "spec", []byte(src))
 	assert.False(t, ok)
 	assert.Contains(t, detail, "no document")
+
+	compile = func(_ context.Context, _ string, data []byte, _ []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
+		if bytes.Equal(data, baseline) {
+			return nil, nil, errors.New("baseline boom")
+		}
+		return &ir.Document{}, nil, nil
+	}
+	detail, ok = orderInvariant(context.Background(), "spec", []byte(src))
+	assert.False(t, ok)
+	assert.Equal(t, "compile re-encoded: baseline boom", detail)
 }
 
 // TestOrderInvariant_UncompilableBaselineIsNotAFinding pins the skip the test
-// above depends on: when the re-encoded source yields no document, the oracle has
-// no faithful baseline to ask its question of, so it declines rather than
-// reporting the permutation.
-//
-// Both ways of yielding none are driven, because they are separate branches and
-// a compiler reaches them for different reasons — an I/O or programmer fault
-// against a source it declines to lower at all.
+// above depends on: when the re-encoded source reads as no spec, or one the
+// compiler declines, the oracle has no faithful baseline to ask its question
+// of, so it declines rather than reporting the permutation. Both are driven,
+// being separate branches.
 func TestOrderInvariant_UncompilableBaselineIsNotAFinding(t *testing.T) {
 	tests := []struct {
 		name string
 		fail func() (*ir.Document, []ir.Diagnostic, error)
 	}{
-		{"the baseline errors", func() (*ir.Document, []ir.Diagnostic, error) {
-			return nil, nil, errors.New("boom")
+		{"the baseline is unrecognized", func() (*ir.Document, []ir.Diagnostic, error) {
+			return nil, nil, fmt.Errorf("no compiler takes it: %w", errUnrecognized)
 		}},
 		{"the baseline compiles to no document", func() (*ir.Document, []ir.Diagnostic, error) {
 			return nil, nil, nil
@@ -209,7 +219,7 @@ func TestOrderInvariant_UncompilableBaselineIsNotAFinding(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			orig := compile
 			t.Cleanup(func() { compile = orig })
-			compile = func(context.Context, string, []byte) (*ir.Document, []ir.Diagnostic, error) {
+			compile = func(context.Context, string, []byte, []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
 				return tc.fail()
 			}
 			detail, ok := orderInvariant(context.Background(), "spec", []byte("a: 1\nb: 2\n"))
@@ -481,7 +491,7 @@ func TestOrderInvariant_ReachesTheCorpus(t *testing.T) {
 		if !ok {
 			continue
 		}
-		if doc, _, compileErr := compile(t.Context(), e.Name(), baseline); compileErr == nil && doc != nil {
+		if doc, _, compileErr := compile(t.Context(), e.Name(), baseline, passes()); compileErr == nil && doc != nil {
 			baselined++
 		}
 		rewritten, ok := reverseMappings(data)
@@ -570,7 +580,7 @@ func TestOrderInvariant_LineAndColumnCaseMovesItsFinding(t *testing.T) {
 	t.Parallel()
 	positionIn := func(src []byte) ir.Position {
 		t.Helper()
-		_, diags, err := compile(t.Context(), "positioned.yaml", src)
+		_, diags, err := compile(t.Context(), "positioned.yaml", src, passes())
 		require.NoError(t, err)
 		require.Len(t, diags, 1, "the fixture must draw exactly one finding")
 		return diags[0].Provenance.Position
@@ -629,7 +639,7 @@ func TestCheck_OrderDependentOutcome(t *testing.T) {
 	t.Cleanup(func() { compile = orig })
 
 	const src = "a: 1\nb: 2\n"
-	compile = func(_ context.Context, _ string, data []byte) (*ir.Document, []ir.Diagnostic, error) {
+	compile = func(_ context.Context, _ string, data []byte, _ []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
 		id := ir.TypeID("t/x/AsWritten")
 		if string(data) != src {
 			id = "t/x/Reversed"
