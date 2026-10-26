@@ -309,6 +309,27 @@ func TestEncode_ErrorPaths(t *testing.T) {
 	}
 }
 
+// TestEncode_ARefusedNewlineIsAWriteFailure pins the newline encode writes
+// after the document: a destination that takes the whole document and refuses
+// only that newline is reported as refusing the bytes, with its own error
+// behind it, and not as a document that would not marshal.
+func TestEncode_ARefusedNewlineIsAWriteFailure(t *testing.T) {
+	t.Parallel()
+	for _, tt := range layouts {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			document := strings.TrimSuffix(string(written(t, orderedDoc(), tt.layout)), "\n")
+			w := &newlineRefusingWriter{n: len(document)}
+
+			err := output.Encode(t.Context(), w, orderedDoc(), tt.layout)
+
+			require.ErrorIs(t, err, errDisk)
+			assert.EqualError(t, err, "write ir document: disk gone")
+			assert.Empty(t, cmp.Diff(document, w.buf.String()), "the destination holds the whole document")
+		})
+	}
+}
+
 // TestWriteDocument_RefusesNoWriter pins that a call handed no writer is an
 // error, rather than a panic inside the write the encoding ends in.
 func TestWriteDocument_RefusesNoWriter(t *testing.T) {
@@ -374,52 +395,32 @@ func TestReplaceDocument_ADoneContextLeavesTheDestination(t *testing.T) {
 	assert.Equal(t, []string{"ir.json"}, entriesIn(t, dir))
 }
 
-// TestEncode_ARefusedNewlineIsAWriteFailure pins the newline encode writes
-// after the document: a destination that takes the whole document and refuses
-// only that newline is reported as refusing the bytes, with its own error
-// behind it, and not as a document that would not marshal.
-func TestEncode_ARefusedNewlineIsAWriteFailure(t *testing.T) {
-	t.Parallel()
-	for _, tt := range layouts {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			document := strings.TrimSuffix(string(written(t, orderedDoc(), tt.layout)), "\n")
-			w := &newlineRefusingWriter{n: len(document)}
-
-			err := output.Encode(t.Context(), w, orderedDoc(), tt.layout)
-
-			require.ErrorIs(t, err, errDisk)
-			assert.EqualError(t, err, "write ir document: disk gone")
-			assert.Empty(t, cmp.Diff(document, w.buf.String()), "the destination holds the whole document")
-		})
-	}
-}
-
 // cancellingWriter keeps what it is given and ends its context once it holds
-// at least at bytes, as a stop arriving while the encoder writes does. late
-// counts the writes it is handed once the context has ended.
+// at least stopAt bytes, as a stop arriving while the encoder writes does.
+// late counts the writes it is handed once the context has ended.
 type cancellingWriter struct {
 	cancel context.CancelFunc
-	at     int
+	stopAt int
 	late   int
 	buf    bytes.Buffer
 }
 
-// newCancellingWriter returns a cancellingWriter and the context it ends,
-// which has ended already when at is 0.
-func newCancellingWriter(t *testing.T, at int) (context.Context, *cancellingWriter) {
+// newCancellingWriter returns a context and the cancellingWriter that ends it
+// once it holds at least stopAt bytes, the context ending at once when stopAt
+// is 0.
+func newCancellingWriter(t *testing.T, stopAt int) (context.Context, *cancellingWriter) {
 	t.Helper()
 	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
-	w := &cancellingWriter{cancel: cancel, at: at}
+	w := &cancellingWriter{cancel: cancel, stopAt: stopAt}
 	if w.due() {
 		cancel()
 	}
 	return ctx, w
 }
 
-// due reports whether the writer holds the at bytes that end its context.
-func (w *cancellingWriter) due() bool { return w.buf.Len() >= w.at }
+// due reports whether the writer holds the stopAt bytes that end its context.
+func (w *cancellingWriter) due() bool { return w.buf.Len() >= w.stopAt }
 
 func (w *cancellingWriter) Write(p []byte) (int, error) {
 	if w.due() {
@@ -443,9 +444,9 @@ func TestEncode_StopsAtTheWriteAfterTheContextEnds(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name string
-		// at is how many bytes of a document n bytes long the destination
+		// stopAt is how many bytes of a document n bytes long the destination
 		// must hold for the context to end.
-		at func(n int) int
+		stopAt func(n int) int
 		// whole is whether the destination then holds the whole document.
 		whole bool
 	}{
@@ -458,7 +459,7 @@ func TestEncode_StopsAtTheWriteAfterTheContextEnds(t *testing.T) {
 			t.Run(tt.name+", "+l.name, func(t *testing.T) {
 				t.Parallel()
 				document := strings.TrimSuffix(string(written(t, manyTypesDoc(), l.layout)), "\n")
-				ctx, w := newCancellingWriter(t, tt.at(len(document)))
+				ctx, w := newCancellingWriter(t, tt.stopAt(len(document)))
 
 				err := output.Encode(ctx, w, manyTypesDoc(), l.layout)
 
