@@ -212,6 +212,39 @@ func (e *Engine) RunSpec(ctx context.Context, spec compilers.Source, opts RunOpt
 	return e.runHeld(ctx, compilers.Source{Path: spec.Path, Data: spec.Data}, opts, p)
 }
 
+// runHeld runs the pipeline over spec, whose bytes it holds, and judges the
+// Result at p's threshold. A reference or a setting naming spec.Path is served
+// those bytes, each named as its own reader names a document, so the run reads
+// one spec even where a compiler asks for it again. Every other document is
+// read from disk.
+func (e *Engine) runHeld(ctx context.Context, spec compilers.Source, opts RunOptions, p plan) (*Result, error) {
+	// A setting names a file as os.ReadFile does, with no URI and no context,
+	// so whether it names the spec is a comparison of paths, not a read that
+	// could fail for another reason and send the read to disk.
+	readFile := func(name string) ([]byte, error) {
+		if filepath.Clean(name) == filepath.Clean(spec.Path) {
+			return bytes.Clone(spec.Data), nil
+		}
+		return os.ReadFile(name)
+	}
+	res, err := e.compile(ctx, spec, reader.Layered{Held: specMemory(spec)}, readFile, opts, p)
+	if err != nil {
+		return nil, err
+	}
+	return p.failOn.judge(res)
+}
+
+// specMemory returns a Memory serving spec at its path to the references, or
+// nil for a path no document request can name, such as a file whose name reads
+// as an opaque URI: no reference can name that spec either.
+func specMemory(spec compilers.Source) *reader.Memory {
+	held, err := reader.NewMemory([]compilers.Source{spec})
+	if err != nil {
+		return nil
+	}
+	return held
+}
+
 // RunSources executes Run's pipeline over sources held in memory, and reads
 // nothing else. The first source is the spec; every source is a document the
 // spec's references, or a file a setting such as an overlay names, may name by
@@ -309,39 +342,6 @@ type plan struct {
 	// verify is the verifier a verified run holds each document to, nil for a
 	// run that does not verify.
 	verify verifier
-}
-
-// runHeld runs the pipeline over spec, whose bytes it holds, and judges the
-// Result at p's threshold. A reference or a setting naming spec.Path is served
-// those bytes, each named as its own reader names a document, so the run reads
-// one spec even where a compiler asks for it again. Every other document is
-// read from disk.
-func (e *Engine) runHeld(ctx context.Context, spec compilers.Source, opts RunOptions, p plan) (*Result, error) {
-	// A setting names a file as os.ReadFile does, with no URI and no context,
-	// so whether it names the spec is a comparison of paths, not a read that
-	// could fail for another reason and send the read to disk.
-	readFile := func(name string) ([]byte, error) {
-		if filepath.Clean(name) == filepath.Clean(spec.Path) {
-			return bytes.Clone(spec.Data), nil
-		}
-		return os.ReadFile(name)
-	}
-	res, err := e.compile(ctx, spec, reader.Layered{Held: specMemory(spec)}, readFile, opts, p)
-	if err != nil {
-		return nil, err
-	}
-	return p.failOn.judge(res)
-}
-
-// specMemory returns a Memory serving spec at its path to the references, or
-// nil for a path no document request can name, such as a file whose name reads
-// as an opaque URI: no reference can name that spec either.
-func specMemory(spec compilers.Source) *reader.Memory {
-	held, err := reader.NewMemory([]compilers.Source{spec})
-	if err != nil {
-		return nil
-	}
-	return held
 }
 
 // prepare checks what every entry point checks before it reads anything, and
