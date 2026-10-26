@@ -77,9 +77,8 @@ type refSite struct {
 }
 
 // refSites gathers, as an ir.Visitor, the references a walk reaches that may
-// not resolve. The traversal is ir.WalkValues, shared with ir/irverify so that
-// one document has one walk: the same bound, cycle guard, order and path
-// spelling.
+// not resolve. The traversal is ir.WalkValues, the one ir/irverify takes too,
+// so both read a document with one bound, cycle guard, order and path spelling.
 //
 // A reference into a registry Document keys by its class resolves or not as the
 // walk reaches it, so only one that does not is kept, path and all. A declared

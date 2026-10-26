@@ -228,8 +228,8 @@ func TestWalkValues_ArrayElementsAreReached(t *testing.T) {
 	assert.Contains(t, paths, "doc.IDs[1]")
 }
 
-// A chain of structs, each embedding the next and an empty map. Embedded fields
-// add no path segment, so walking the chain builds no string at all.
+// A chain of structs, each embedding the next and an empty map, for a walk whose
+// visitor reads no path.
 type (
 	walkEmptyMap map[string]int
 	walkLevel4   struct{ walkEmptyMap }
@@ -251,8 +251,8 @@ type (
 // and per map at nothing, since pass.Validate walks a whole document on every
 // compile. Ranging over reflect.Value.Fields or Seq2 instead of indexing puts
 // the loop body on the heap each time, which on Petstore adds more than half
-// again to Validate's allocations. The chain builds no path string, so any
-// growth with depth is the walk's own. It is not run in parallel: AllocsPerRun
+// again to Validate's allocations. The visitor reads no path, so any growth
+// with depth is the walk's own. It is not run in parallel: AllocsPerRun
 // measures the process.
 func TestWalkValues_StructsAndMapsCostNoAllocation(t *testing.T) {
 	var shallow, deep any = walkLevel4{walkEmptyMap: walkEmptyMap{}}, walkLevel1{

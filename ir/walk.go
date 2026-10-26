@@ -182,8 +182,8 @@ type insideRef struct {
 // entries it is ranging over, and whether the depth cap cut it short.
 //
 // It is a value being walked rather than a walker being configured, so it is
-// built at the entry point and discarded with it. Nothing here is reentrant and
-// nothing outside this file holds one.
+// built at the entry point and discarded with it. Nothing here is reentrant,
+// and outside this file only a WalkPath holds one, for the call it is handed to.
 type valueWalk struct {
 	root      string
 	visitors  []Visitor
