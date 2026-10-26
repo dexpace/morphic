@@ -30,13 +30,24 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
+// TestBindSchemas_HoldsTheTableToMaxSteps pins the binder's bound where the
+// load phase sets it: left unset, as the zero budget.Limit is, the table's work
+// would be unbounded, and only a document built to multiply it would show.
+func TestBindSchemas_HoldsTheTableToMaxSteps(t *testing.T) {
+	t.Parallel()
+	doc, diags, err := Load(t.Context(), 0, openapitest.SourceOf(minimal31), Options{})
+	require.NoError(t, err)
+	require.NotNil(t, doc, "%+v", diags)
+	assert.Equal(t, budget.AtMost(bind.MaxSteps), doc.Bindings.Table().Limit())
+}
+
 // TestBindingDiags_ReportsTheBudgetOnce pins that a table whose work ran out is
 // reported once, at the document, with the bound it crossed, and that a $ref it
 // left unread is not reported unresolved: it was not found wanting.
 func TestBindingDiags_ReportsTheBudgetOnce(t *testing.T) {
 	t.Parallel()
 	_, root := buildDoc(t, schemaRoot("#/components/schemas/B")+"    B: {type: string}\n")
-	table := bind.Bind(t.Context(), root, bind.Config{Self: "spec.yaml", Limit: 2})
+	table := bind.Bind(t.Context(), root, bind.Config{Self: "spec.yaml", Limit: budget.AtMost(2)})
 	require.True(t, table.Exhausted(), "sanity: two steps are not enough to bind the document")
 
 	diags := bindingDiags(inSource(pointerAt(0, overlay.Origin{})), table)
@@ -92,7 +103,7 @@ func TestBindingDiags_ReportsAFailedRefOnceWhereItIsWrittenAtEveryBudget(t *test
 		`unresolved $ref "#/Missing": it names nothing in the document it points into`)}
 	reported, silent := 0, 0
 	for limit := 1; limit <= full.Steps(); limit++ {
-		cfg.Limit = limit
+		cfg.Limit = budget.AtMost(limit)
 		table := bind.Bind(t.Context(), root, cfg)
 		var failed []ir.Diagnostic
 		crossed := false

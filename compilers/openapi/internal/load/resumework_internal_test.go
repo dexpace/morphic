@@ -3,7 +3,6 @@ package load
 import (
 	"errors"
 	"fmt"
-	"math"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -35,7 +34,7 @@ func resumedOver(t *testing.T, dir, root string, limit int) (*resumeWork, []ir.D
 	self := newSourceDocument(filepath.Join(dir, "root.yaml"), []byte(root), tree, judgment{}, newSourceTree(t.Context(), 0, overlay.Origin{}, tree), nil)
 	opts := Options{Reader: reader.Disk{}}
 	ext := newExternal(t.Context(), doc, opts, newExternalReads(self, budget.Unbounded()))
-	ext.work.limit = limit
+	ext.work.steps = budget.New(budget.AtMost(limit))
 	at := pointerAt(0, overlay.Origin{})
 	pass := newResolution(t.Context(), doc, Siblings{}, self, opts, &ext)
 	pass.run(t.Context(), doc)
@@ -59,10 +58,10 @@ func TestSettle_TheResumedWorkIsBounded(t *testing.T) {
 		responseRef("MidB", "#/x-lib/N/a/b"))
 	unbounded, diags := resumedOver(t, dir, root, maxResumeWork)
 	require.Empty(t, diags)
-	require.Positive(t, unbounded.spent)
+	require.Positive(t, unbounded.steps.Spent())
 
 	resumedAt := map[int]bool{}
-	for limit := range unbounded.spent {
+	for limit := range unbounded.steps.Spent() {
 		_, diags := resumedOver(t, dir, root, limit)
 		budgets, left := 0, map[string]bool{}
 		for _, d := range diags {
@@ -124,7 +123,7 @@ func TestSettle_AResumedReadIsChargedTheKeysItScans(t *testing.T) {
 		}
 		work, diags := resumedOver(t, t.TempDir(), root, maxResumeWork)
 		require.Empty(t, diags, "%s %d", layout, n)
-		return work.spent
+		return work.steps.Spent()
 	}
 	const n = 64
 	assert.Greater(t, spent(2*n, "wide"), 3*spent(n, "wide"), "one mapping holding them all")
@@ -170,7 +169,7 @@ func TestResumeWork_Charge(t *testing.T) {
 `))
 	require.NoError(t, err)
 	cost := func(name string) int {
-		steps, _ := newTreeReads().cost(tree, "/components/schemas/"+name, math.MaxInt)
+		steps, _ := newTreeReads().cost(tree, "/components/schemas/"+name, budget.Unbounded())
 		return steps
 	}
 	const indexed = 1 + 1 + 7 // the root's pairs, components', schemas'
@@ -192,25 +191,25 @@ func TestResumeWork_Charge(t *testing.T) {
 		for _, hop := range c.hops {
 			want += 1 + c.reads*cost(hop)
 		}
-		assert.Equal(t, want, w.spent, "%s read %d times", c.ref, c.reads)
+		assert.Equal(t, want, w.steps.Spent(), "%s read %d times", c.ref, c.reads)
 	}
 
 	w := newResumeWork()
 	assert.True(t, w.charge(tree, "third.yaml#/components/schemas/Base", 2))
-	assert.Equal(t, 1, w.spent, "a hop into another document is not charged")
+	assert.Equal(t, 1, w.steps.Spent(), "a hop into another document is not charged")
 
 	full := newResumeWork()
 	full.charge(tree, "#/components/schemas/Two", 2)
-	for limit := range full.spent {
+	for limit := range full.steps.Spent() {
 		w := newResumeWork()
-		w.limit = limit
+		w.steps = budget.New(budget.AtMost(limit))
 		assert.False(t, w.charge(tree, "#/components/schemas/Two", 2), "limit %d", limit)
-		assert.Greater(t, w.spent, limit)
-		assert.False(t, w.spend(0), "a budget crossed stays crossed")
+		assert.Greater(t, w.steps.Spent(), limit)
+		assert.False(t, w.steps.Spend(0), "a budget crossed stays crossed")
 	}
 
 	w = newResumeWork()
-	w.limit = 1
+	w.steps = budget.New(budget.AtMost(1))
 	assert.False(t, w.charge(tree, "#/components/schemas/Two", 2))
 	assert.Empty(t, w.reads.keys, "a read past what is left of the budget stops before it indexes anything")
 }
@@ -232,7 +231,7 @@ func TestResumable_TheBudgetStopsWhatItWouldResume(t *testing.T) {
 	}
 	stand, ok := read.standIn(&soa.ReferencedParameter{})
 	require.True(t, ok)
-	base, _ := newTreeReads().cost(tree, "/components/schemas/Base", math.MaxInt)
+	base, _ := newTreeReads().cost(tree, "/components/schemas/Base", budget.Unbounded())
 	const indexed = 3 // the pairs of the root, components and schemas
 	stalls := []struct {
 		name  string
@@ -248,19 +247,21 @@ func TestResumable_TheBudgetStopsWhatItWouldResume(t *testing.T) {
 		resume, refused := ext.resumable(c.c, walked)
 		require.True(t, resume, "%s: resumed within the budget", c.name)
 		require.NoError(t, refused)
-		assert.Equal(t, c.spent, ext.work.spent, c.name)
+		assert.Equal(t, c.spent, ext.work.steps.Spent(), c.name)
 
-		ext.work.limit = ext.work.spent
+		spent := ext.work.steps.Spent()
+		ext.work.steps = budget.New(budget.AtMost(spent))
+		ext.work.steps.Spend(spent)
 		resume, refused = ext.resumable(c.c, walked)
 		assert.False(t, resume, c.name)
 		require.Error(t, refused, c.name)
 		assert.Equal(t, fmt.Sprintf("resolving it further takes more than the %d steps budgeted "+
-			"for chains through referenced documents", ext.work.limit), refused.Error())
+			"for chains through referenced documents", spent), refused.Error())
 	}
 
 	ext := newExternal(t.Context(), &soa.OpenAPI{}, Options{}, read)
-	ext.work.limit = 0
-	ext.work.spend(1)
+	ext.work.steps = budget.New(budget.AtMost(0))
+	ext.work.steps.Spend(1)
 	resume, refused := ext.resumable(stalls[0].c, errors.New("circular reference detected"))
 	assert.False(t, resume)
 	assert.NoError(t, refused, "a failure settle would not resume keeps its own error")

@@ -99,9 +99,11 @@ var rules = map[string][]string{
 	// The one reading of the raw source: mappings read the way the parser reads
 	// them, through aliases and `<<` merge keys, and the one bounded walk of a
 	// tree. It reaches the library's yml package for the merge-key predicate the
-	// unmarshaller itself uses, and is below every package that reads raw YAML,
-	// which reads through it rather than by a reading of its own.
-	"compilers/openapi/internal/nodeview": {"github.com/speakeasy-api/openapi/yml", "go.yaml.in/yaml/v3"},
+	// unmarshaller itself uses, and budget for what its memo may hold, and is
+	// below every package that reads raw YAML, which reads through it rather
+	// than by a reading of its own.
+	"compilers/openapi/internal/nodeview": {module + "/compilers/openapi/internal/budget",
+		"github.com/speakeasy-api/openapi/yml", "go.yaml.in/yaml/v3"},
 	// How the library's walk reads a pointer through the parsed model, a token at
 	// a time, and where it leaves the model for raw YAML. It reaches the library's
 	// navigation and the root node a model was built from, and nothing of the
@@ -111,10 +113,12 @@ var rules = map[string][]string{
 		"github.com/speakeasy-api/openapi/marshaller", "go.yaml.in/yaml/v3"},
 	// Every schema $ref of the source resolved into a table over the decoded
 	// trees, never through the library's resolver (GitHub #558). It reads a tree
-	// through nodeview and a fragment through fragment, and nothing of the
-	// library's model or of the compiler: what the library resolved of a
-	// reference object reaches it as data, through its Config.
-	"compilers/openapi/internal/bind": {module + "/compilers/openapi/internal/fragment",
+	// through nodeview and a fragment through fragment, counts its work through
+	// budget, and reaches nothing of the library's model or of the compiler:
+	// what the library resolved of a reference object reaches it as data,
+	// through its Config.
+	"compilers/openapi/internal/bind": {module + "/compilers/openapi/internal/budget",
+		module + "/compilers/openapi/internal/fragment",
 		module + "/compilers/openapi/internal/nodeview", "go.yaml.in/yaml/v3"},
 	// The typed side of a bind table: each schema of the parsed model known by
 	// the position it was read at, located through the library's walk, and one
@@ -137,8 +141,10 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/nodeview", "go.yaml.in/yaml/v3"},
 	// The $dynamicAnchor declarations of a source tree, which a $dynamicRef
 	// expands against. It reads the tree through nodeview, as the parser reads
-	// it, spells pointers through ids, and reaches nothing that lowers.
-	"compilers/openapi/internal/anchors": {module + "/compilers/openapi/internal/ids",
+	// it, spells pointers through ids, counts the nodes it reads through budget,
+	// and reaches nothing that lowers.
+	"compilers/openapi/internal/anchors": {module + "/compilers/openapi/internal/budget",
+		module + "/compilers/openapi/internal/ids",
 		module + "/compilers/openapi/internal/nodeview", "go.yaml.in/yaml/v3"},
 	// One walk over the decoded source tree, answering what the pre-lowering
 	// refusals would otherwise each walk it to ask. It reaches nodeview for the
@@ -160,8 +166,10 @@ var rules = map[string][]string{
 	// opinion about lowering — so it sits below the schema lowering that asks it
 	// questions and above nothing that asks it any. It reaches the library's yml
 	// package for the tags its decoder accepts as a string, so a field read off
-	// a raw node decodes as the parser decodes the fields it models.
+	// a raw node decodes as the parser decodes the fields it models, and budget
+	// for the nodes a kept construct may render.
 	"compilers/openapi/internal/annotation": {module + "/ir",
+		module + "/compilers/openapi/internal/budget",
 		module + "/compilers/openapi/internal/diag",
 		module + "/compilers/openapi/internal/ids",
 		module + "/compilers/openapi/internal/nodeview",
@@ -295,6 +303,7 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/annotation",
 		module + "/compilers/openapi/internal/bind",
 		module + "/compilers/openapi/internal/bind/typed",
+		module + "/compilers/openapi/internal/budget",
 		module + "/compilers/openapi/internal/diag",
 		module + "/compilers/openapi/internal/ids",
 		module + "/compilers/openapi/internal/lowering",

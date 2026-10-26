@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 	yaml "go.yaml.in/yaml/v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ynode"
@@ -312,6 +313,27 @@ func TestRawFromNode_IsBoundedOnAliasAmplification(t *testing.T) {
 	assert.Contains(t, err.Error(), "expands past")
 }
 
+// TestRawConv_RendersWithinItsNodeBudget pins the node budget's edge: a node
+// of as many nodes as the budget renders, and one more is refused, naming the
+// budget. A member read through an alias counts the copy it renders, as the
+// view reads it, and a key, rendered as the member's name, counts nothing.
+func TestRawConv_RendersWithinItsNodeBudget(t *testing.T) {
+	t.Parallel()
+	var doc yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte("a: &x [1]\nb: *x\n"), &doc))
+	const nodes = 1 + 2 + 2 // the mapping; a's list and its item; the copy of both b renders
+
+	within := rawConv{nodes: budget.New(budget.AtMost(nodes)), view: nodeview.New()}
+	got, err := within.node(doc.Content[0], 0)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"a": [1], "b": [1]}`, string(got))
+
+	past := rawConv{nodes: budget.New(budget.AtMost(nodes - 1)), view: nodeview.New()}
+	_, err = past.node(doc.Content[0], 0)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), fmt.Sprintf("expands past %d nodes", nodes-1))
+}
+
 // TestRawFromNode_RejectsMalformedNodes covers the node shapes no parser
 // produces but a caller could hand-build, so the walk answers rather than
 // panicking on them.
@@ -528,7 +550,7 @@ func mappingOf(key, val *yaml.Node) *yaml.Node {
 func TestRawConv_RefusesNodesNoCallerShouldPass(t *testing.T) {
 	t.Parallel()
 
-	c := rawConv{view: nodeview.New()}
+	c := newRawConv()
 	got, err := c.node(nil, 0)
 	require.Error(t, err, "a nil node is a caller bug, not an absent construct")
 	assert.Nil(t, got)

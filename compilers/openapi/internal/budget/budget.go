@@ -5,8 +5,8 @@ package budget
 type Budget struct {
 	limit Limit
 	spent int
-	// cut marks a budget exhausted whatever its count: by a charge no caller
-	// can make.
+	// cut marks a budget exhausted whatever its count: by Exhaust, or by a
+	// charge no caller can make.
 	cut bool
 }
 
@@ -26,8 +26,15 @@ func (b *Budget) Spend(n int) bool {
 	return !b.Exhausted()
 }
 
-// Exhausted reports whether the budget is past its limit, or was charged what
-// no count is.
+// Exhaust spends all that is left and one more, so nothing fits, an
+// unbounded budget included: for a count that has found it would never end.
+func (b *Budget) Exhaust() {
+	b.cut = true
+	b.spent = max(b.spent, b.limit.Past())
+}
+
+// Exhausted reports whether the budget is past its limit, was exhausted, or
+// was charged what no count is.
 func (b *Budget) Exhausted() bool { return b.cut || !b.limit.Admits(b.spent) }
 
 // Spent returns what has been charged, held at math.MaxInt.

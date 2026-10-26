@@ -419,7 +419,7 @@ func TestSettle_ACycleIsReportedNotResumed(t *testing.T) {
 				root := strings.Replace(rootOfResponses(entries...), "x-lib:\n", "x-lib:\n  Cyc: {$ref: '#/components/responses/Out'}\n", 1)
 				work, diags := resumedOver(t, dir, root, maxResumeWork)
 				got[i] = diagLines(diags)
-				assert.Equal(t, c.resumed[i], work.spent > 0, "order %d: a stall is resumed, a cycle is not", i)
+				assert.Equal(t, c.resumed[i], work.steps.Spent() > 0, "order %d: a stall is resumed, a cycle is not", i)
 				assertReports(t, diags, slices.Clone(c.want[i]), "order %d", i)
 			}
 			if c.same {

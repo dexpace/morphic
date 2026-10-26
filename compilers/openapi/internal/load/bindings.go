@@ -16,6 +16,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
@@ -62,7 +63,7 @@ func bindSchemas(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, self sour
 	ends map[refSite]referenceEnd,
 ) bound {
 	cfg := bind.Config{Self: self.path, Locate: self.locate, Beside: sibs.Beside, Written: self.escapes.original,
-		Refuse: self.escapes.refusal(),
+		Refuse: self.escapes.refusal(), Limit: budget.AtMost(bind.MaxSteps),
 		Through: func(name string, p jsontext.Pointer) (bind.ReferenceEnd, bool) {
 			e, ok := ends[self.siteIn(name, p)]
 			return bind.ReferenceEnd{Name: e.name, Pointer: e.pointer, Node: e.node}, ok
@@ -219,7 +220,7 @@ func bindingDiags(place func(bind.Position) ir.Provenance, table *bind.Table) []
 	if table.Exhausted() {
 		diags = append(diags, diag.Newf(ir.SeverityError, diag.BudgetExceeded, at,
 			"resolving the schema $refs takes more than %d steps; the $refs past them are left unresolved",
-			table.Limit()))
+			table.Limit().Cap()))
 	}
 	if table.Truncated() {
 		diags = append(diags, diag.Newf(ir.SeverityWarning, diag.DegradedConstruct, at,

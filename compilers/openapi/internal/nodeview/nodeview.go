@@ -18,6 +18,8 @@ import (
 
 	"github.com/speakeasy-api/openapi/yml"
 	yaml "go.yaml.in/yaml/v3"
+
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 )
 
 // maxAliasChain bounds how many alias hops Deref follows. yaml.v3 resolves an
@@ -90,11 +92,12 @@ type Pair struct {
 // View.serves). MergeDepthLimit and maxCachedPairs bound it. keyIndex adds key
 // maps for pointer walks.
 type View struct {
-	pairs       map[*yaml.Node]expansion
-	keys        map[*yaml.Node]map[string]*yaml.Node
-	cachedPairs int
-	inFlight    map[*yaml.Node]bool
-	exhausted   bool
+	pairs map[*yaml.Node]expansion
+	keys  map[*yaml.Node]map[string]*yaml.Node
+	// cached is the pairs the memo holds, against maxCachedPairs.
+	cached    budget.Budget
+	inFlight  map[*yaml.Node]bool
+	exhausted bool
 }
 
 // Exhausted reports whether the view stopped short of a full expansion at its
@@ -118,6 +121,7 @@ func New() *View {
 	// it on the first mapping wide enough to earn one.
 	return &View{
 		pairs:    map[*yaml.Node]expansion{},
+		cached:   budget.New(budget.AtMost(maxCachedPairs)),
 		inFlight: map[*yaml.Node]bool{},
 	}
 }
@@ -256,20 +260,22 @@ func (v *View) isEntryPoint(depth int) bool {
 	return depth == 0 && len(v.inFlight) == 0
 }
 
-// memoize retains a complete expansion while the view's pair budget allows.
-// Declining to cache costs a recomputation and nothing else — the cache is pure
-// memoization, so a miss recomputes exactly the same pairs — which makes the
-// budget a memory bound the scan can enforce without touching what it reports.
+// memoize retains a complete expansion while the view's pair budget has room
+// for it. Declining to cache costs a recomputation and nothing else — the cache
+// is pure memoization, so a miss recomputes exactly the same pairs — which
+// makes the budget a memory bound the scan can enforce without touching what
+// it reports. An expansion declined spends nothing, so a smaller one may still
+// fit after it.
 func (v *View) memoize(n *yaml.Node, e expansion) {
 	held := len(e.pairs)
 	if e.repeated != nil {
 		held += len(e.repeated.merged)
 	}
-	if v.cachedPairs+held > maxCachedPairs {
+	if !v.cached.Remaining().Admits(held) {
 		return
 	}
 	v.pairs[n] = e
-	v.cachedPairs += held
+	v.cached.Spend(held)
 }
 
 // expandContent splits a mapping's raw content into the pairs it declares itself

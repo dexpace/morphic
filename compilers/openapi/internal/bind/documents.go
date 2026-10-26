@@ -42,14 +42,14 @@ type docs struct {
 	list   []*document
 	byName map[string]DocID
 	failed map[string]error
-	work   *budget
+	work   *work
 }
 
 // newDocs returns the documents of a table over the source tree root.
-func newDocs(root *yaml.Node, cfg Config, work *budget) *docs {
+func newDocs(root *yaml.Node, cfg Config, w *work) *docs {
 	src := &document{name: cfg.Self, root: nodeview.DocumentRoot(root), view: nodeview.New(), grammar: true}
 	return &docs{cfg: cfg, list: []*document{src}, byName: map[string]DocID{cfg.Self: Source},
-		failed: map[string]error{}, work: work}
+		failed: map[string]error{}, work: w}
 }
 
 // locate is the name of the document uri names, written in the document

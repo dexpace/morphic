@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 	yaml "go.yaml.in/yaml/v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ynode"
 )
 
@@ -194,6 +195,12 @@ func TestNodeView_TruncationIsPerNode(t *testing.T) {
 		"so does a chain that fits inside the bound")
 }
 
+// holding sets v's memo as holding pairs pairs already.
+func holding(v *View, pairs int) {
+	v.cached = budget.New(budget.AtMost(maxCachedPairs))
+	v.cached.Spend(pairs)
+}
+
 func TestNodeView_MemoizeRespectsPairBudget(t *testing.T) {
 	t.Parallel()
 	pairs := []Pair{{Key: "a", Val: ynode.Scalar("1")}, {Key: "b", Val: ynode.Scalar("2")}}
@@ -205,17 +212,22 @@ func TestNodeView_MemoizeRespectsPairBudget(t *testing.T) {
 		n := ynode.Map()
 		v.memoize(n, e)
 		assert.Contains(t, v.pairs, n)
-		assert.Equal(t, len(pairs), v.cachedPairs)
+		assert.Equal(t, len(pairs), v.cached.Spent())
 	})
 
 	t.Run("past budget: dropped, count unchanged", func(t *testing.T) {
 		t.Parallel()
 		v := New()
-		v.cachedPairs = maxCachedPairs - 1
+		holding(v, maxCachedPairs-1)
 		n := ynode.Map()
 		v.memoize(n, e)
 		assert.NotContains(t, v.pairs, n, "an entry that would overrun the budget is not kept")
-		assert.Equal(t, maxCachedPairs-1, v.cachedPairs, "and does not count against it")
+		assert.Equal(t, maxCachedPairs-1, v.cached.Spent(), "and does not count against it")
+
+		one := ynode.Map()
+		v.memoize(one, expansion{pairs: pairs[:1], complete: true})
+		assert.Contains(t, v.pairs, one, "so an entry that fits what is left is kept after it")
+		assert.Equal(t, maxCachedPairs, v.cached.Spent())
 	})
 
 	t.Run("a dropped entry still reads correctly", func(t *testing.T) {
@@ -223,7 +235,7 @@ func TestNodeView_MemoizeRespectsPairBudget(t *testing.T) {
 		base := ynode.Map(ynode.Scalar("a"), ynode.Scalar("1"))
 		n := ynode.Map(ynode.Merge(), ynode.Alias(base), ynode.Scalar("b"), ynode.Scalar("2"))
 		v := New()
-		v.cachedPairs = maxCachedPairs
+		holding(v, maxCachedPairs)
 		want := map[string]string{"a": "1", "b": "2"}
 		assert.Equal(t, want, pairMap(v.MappingPairs(n)), "an uncached read is a full read")
 		assert.Equal(t, want, pairMap(v.MappingPairs(n)), "and repeats identically")
@@ -682,14 +694,14 @@ func TestKeyIndex_IsBoundedByThePairsMemoRatherThanCharged(t *testing.T) {
 
 	pairs := v.MappingPairs(n)
 	require.Len(t, pairs, minIndexedPairs)
-	require.Equal(t, minIndexedPairs, v.cachedPairs, "the expansion is charged")
+	require.Equal(t, minIndexedPairs, v.cached.Spent(), "the expansion is charged")
 
 	require.Same(t, n.Content[1], v.ChildByToken(n, "k0"))
 	require.Nil(t, v.keys[n], "one read records the mapping without indexing it")
 	require.Same(t, n.Content[3], v.ChildByToken(n, "k1"), "a second read is what builds one")
 
 	require.NotNil(t, v.keys[n], "and indexed")
-	assert.Equal(t, minIndexedPairs, v.cachedPairs, "the index charges the pair budget nothing")
+	assert.Equal(t, minIndexedPairs, v.cached.Spent(), "the index charges the pair budget nothing")
 	assert.Len(t, v.keys[n], len(pairs), "one entry per pair, so the memo bounds it")
 }
 
@@ -708,7 +720,7 @@ func TestKeyIndex_DeclinesWhatThePairsMemoDidNotKeep(t *testing.T) {
 		t.Parallel()
 		n := wideMap()
 		v := New()
-		v.cachedPairs = maxCachedPairs
+		holding(v, maxCachedPairs)
 		require.NotContains(t, v.pairs, n, "the pairs were declined")
 
 		assert.Same(t, n.Content[1], v.ChildByToken(n, "k0"), "the scan still answers")
@@ -812,13 +824,13 @@ func TestNodeView_SharedViewAnswersAsAFreshOne(t *testing.T) {
 		t.Parallel()
 		v := New()
 		_ = v.MappingPairs(inner)
-		retained := v.cachedPairs
+		retained := v.cached.Spent()
 
 		// Two links above inner: inner is reached at depth 2, and its own chain
 		// fits under the bound from there, so the memo answers the read.
 		assert.Equal(t, map[string]string{"leaf": "v"}, pairMap(v.MappingPairs(linksAbove(inner, 2))))
 		assert.False(t, v.Exhausted())
-		assert.Equal(t, retained+2, v.cachedPairs,
+		assert.Equal(t, retained+2, v.cached.Spent(),
 			"only the two new mappings were memoized; nothing beneath inner was recomputed")
 	})
 
@@ -843,13 +855,13 @@ func TestNodeView_SharedViewAnswersAsAFreshOne(t *testing.T) {
 
 			shared := New()
 			_ = shared.MappingPairs(inner)
-			retained := shared.cachedPairs
+			retained := shared.cached.Spent()
 			assert.Equal(t, tc.want, pairMap(shared.MappingPairs(above)), "links=%d: after inner", tc.links)
 			assert.Equal(t, fresh.Exhausted(), shared.Exhausted(), "links=%d: exhausted", tc.links)
 			if len(tc.want) == 0 {
 				continue
 			}
-			assert.Equal(t, retained+tc.links, shared.cachedPairs,
+			assert.Equal(t, retained+tc.links, shared.cached.Spent(),
 				"links=%d: the memo answered for inner; only the links above it are new", tc.links)
 		}
 	})

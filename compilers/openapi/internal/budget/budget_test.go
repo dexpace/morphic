@@ -182,6 +182,29 @@ func TestBudget_ANegativeChargeExhausts(t *testing.T) {
 	}
 }
 
+// TestBudget_ExhaustLeavesNothing pins Exhaust: past the limit by one, an
+// unbounded budget stopped too, and nothing spent taken back.
+func TestBudget_ExhaustLeavesNothing(t *testing.T) {
+	t.Parallel()
+	b := budget.New(budget.AtMost(5))
+	b.Spend(2)
+	b.Exhaust()
+	assert.True(t, b.Exhausted())
+	assert.Equal(t, 6, b.Spent(), "one past the limit")
+	assert.False(t, b.Spend(0))
+
+	over := budget.New(budget.AtMost(5))
+	over.Spend(9)
+	over.Exhaust()
+	assert.Equal(t, 9, over.Spent(), "what was spent stays spent")
+
+	var free budget.Budget
+	free.Exhaust()
+	assert.True(t, free.Exhausted(), "an unbounded budget can be stopped")
+	assert.Equal(t, math.MaxInt, free.Spent())
+	assert.False(t, free.Spend(1))
+}
+
 // TestBudget_ACopyCountsOnItsOwn pins a Budget as a value: a charge on a copy
 // leaves the original as it was.
 func TestBudget_ACopyCountsOnItsOwn(t *testing.T) {

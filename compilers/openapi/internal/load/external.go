@@ -22,6 +22,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/fragment"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
@@ -84,8 +85,9 @@ type heldSource struct {
 	bySite map[jsontext.Pointer]heldObject
 	itself string
 	keys   map[string]bool
-	// opened counts the spellings Open held every object under.
-	opened int
+	// opened counts the spellings Open held every object under, against
+	// maxOpenedSpellings.
+	opened budget.Budget
 }
 
 // heldObject is an object the source's model holds, and the pointer naming it.
@@ -101,7 +103,8 @@ type heldObject struct {
 func newExternal(ctx context.Context, doc *soa.OpenAPI, opts Options, read *externalReads) external {
 	doc.InitCache()
 	return external{doc: doc, opts: opts, read: read,
-		held: &heldSource{bySite: map[jsontext.Pointer]heldObject{}, keys: map[string]bool{}}, work: newResumeWork(),
+		held: &heldSource{bySite: map[jsontext.Pointer]heldObject{}, keys: map[string]bool{},
+			opened: budget.New(budget.AtMost(maxOpenedSpellings))}, work: newResumeWork(),
 		ctx: ctx}
 }
 
@@ -199,13 +202,12 @@ func (e external) holdOpened(name string) {
 	if _, held := e.held.keys[name]; held {
 		return
 	}
-	whole := e.held.opened < maxOpenedSpellings
+	whole := e.held.opened.Spend(1)
 	e.holdDocument(name, whole)
 	e.read.spelled.note(name, "")
 	if !whole {
 		return
 	}
-	e.held.opened++
 	for site, o := range e.held.bySite {
 		if e.read.spelled.note(name, site) {
 			e.holdObject(name, o)

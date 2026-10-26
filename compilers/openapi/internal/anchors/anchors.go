@@ -12,6 +12,7 @@ import (
 
 	yaml "go.yaml.in/yaml/v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 )
@@ -66,7 +67,8 @@ func build(root *yaml.Node, maxDepth, maxNodes int) Index {
 	view := nodeview.New()
 	x := Index{byName: map[string][]jsontext.Pointer{}, complete: true}
 	stack := []frame{{node: root}}
-	for budget := maxNodes; len(stack) > 0; {
+	nodes := budget.New(budget.AtMost(maxNodes))
+	for len(stack) > 0 {
 		f := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
 		if f.anchor {
@@ -77,11 +79,10 @@ func build(root *yaml.Node, maxDepth, maxNodes int) Index {
 		if n == nil {
 			continue
 		}
-		if f.depth > maxDepth || budget == 0 {
+		if f.depth > maxDepth || !nodes.Spend(1) {
 			x.complete = false
 			continue
 		}
-		budget--
 		stack = append(stack, children(view, n, f)...)
 	}
 	x.complete = x.complete && !view.Exhausted()

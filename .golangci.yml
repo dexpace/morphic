@@ -220,7 +220,7 @@ linters:
         linters:
           - containedctx
         source: ^\s*context\.Context$
-      # budget is what every loop of a binding asks before it does more, and
+      # work is what every loop of a binding asks before it does more, and
       # walker what every read of an object an oas check makes asks first, so
       # the context the binding or the check runs under is asked there, at the
       # one place each counts its work, rather than threaded through every
