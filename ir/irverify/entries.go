@@ -8,7 +8,7 @@ import "reflect"
 // map allocates nothing once its type has been met. The zero entryReader is
 // ready to use.
 //
-// A caller ranges with MapRange and reads each entry through what reading
+// A caller ranges with MapRange and reads each entry through what heldFor
 // returns: no closure stands between them, so nothing escapes however the
 // build inlines.
 type entryReader struct {
@@ -24,9 +24,9 @@ type heldEntry struct {
 	apart      bool
 }
 
-// reading returns where r copies the entries of map m, making the key and value
+// heldFor returns where r copies the entries of map m, making the key and value
 // it keeps for m's type the first time that type is met.
-func (r *entryReader) reading(m reflect.Value) heldEntry {
+func (r *entryReader) heldFor(m reflect.Value) heldEntry {
 	if !m.CanInterface() {
 		return heldEntry{apart: true}
 	}

@@ -208,7 +208,7 @@ func appendEmptyRefs(vs []Violation, r *entryReader, owner reflect.Value, f idFi
 			vs = append(vs, emptyRef(f, fieldPath(at, f)+"[]"+ir.MapKeySuffix))
 		}
 	case idMapValue:
-		held := r.reading(v)
+		held := r.heldFor(v)
 		for iter := v.MapRange(); iter.Next(); {
 			if key, id := held.read(iter); id.String() == "" {
 				vs = append(vs, emptyRef(f, fmt.Sprintf("%s[%v]", fieldPath(at, f), key)))

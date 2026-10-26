@@ -51,7 +51,7 @@ func checkRawPayloads(*ir.Document) walkCheck {
 func appendEntries(vs []Violation, r *entryReader, m reflect.Value, at ir.WalkPath,
 	check func(key string, entry reflect.Value, at ir.WalkPath) []Violation,
 ) []Violation {
-	held := r.reading(m)
+	held := r.heldFor(m)
 	for iter := m.MapRange(); iter.Next(); {
 		key, entry := held.read(iter)
 		vs = append(vs, check(key.String(), entry, at)...)

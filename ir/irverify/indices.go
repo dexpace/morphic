@@ -76,7 +76,7 @@ func appendResponseIndexViolations(vs []Violation, r *entryReader, op reflect.Va
 	bindings := op.FieldByName("Bindings").FieldByName("HTTP")
 	for i := range bindings.Len() {
 		status := bindings.Index(i).FieldByName("SuccessStatus")
-		held := r.reading(status)
+		held := r.heldFor(status)
 		for iter := status.MapRange(); iter.Next(); {
 			key, _ := held.read(iter)
 			if index := int(key.Int()); index < 0 || index >= declared {

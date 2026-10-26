@@ -12,8 +12,8 @@ type EntryReader = entryReader
 // HeldEntry is heldEntry, for this package's external tests.
 type HeldEntry = heldEntry
 
-// Reading is reading, for this package's external tests.
-func (r *entryReader) Reading(m reflect.Value) HeldEntry { return r.reading(m) }
+// HeldFor is heldFor, for this package's external tests.
+func (r *entryReader) HeldFor(m reflect.Value) HeldEntry { return r.heldFor(m) }
 
 // Read is read, for this package's external tests.
 func (h heldEntry) Read(iter *reflect.MapIter) (key, value reflect.Value) { return h.read(iter) }

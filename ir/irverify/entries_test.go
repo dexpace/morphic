@@ -14,7 +14,7 @@ import (
 // check does.
 func readEntries(r *irverify.EntryReader, m reflect.Value) map[string]int64 {
 	read := map[string]int64{}
-	held := r.Reading(m)
+	held := r.HeldFor(m)
 	for iter := m.MapRange(); iter.Next(); {
 		key, value := held.Read(iter)
 		read[key.String()] = value.Int()
@@ -55,7 +55,7 @@ func TestEntryReader_ReadingAllocatesNothing(t *testing.T) {
 	var r irverify.EntryReader
 	for _, m := range []reflect.Value{reflect.ValueOf(few), reflect.ValueOf(many)} {
 		assert.Zero(t, testing.AllocsPerRun(10, func() {
-			held := r.Reading(m)
+			held := r.HeldFor(m)
 			for iter := m.MapRange(); iter.Next(); {
 				key, value := held.Read(iter)
 				_, _ = key.String(), value.Int()
