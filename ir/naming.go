@@ -1,8 +1,10 @@
 package ir
 
 import (
+	"iter"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 )
 
 // Naming carries the identity of a named entity as words, never as a cased
@@ -47,35 +49,132 @@ type Naming struct {
 // CanonicalWords renders name as the neutral lower_snake word sequence
 // ir.Naming.Canonical promises: it splits on every non-word rune and on
 // camel-case and letter/digit boundaries, lowercases, and joins with "_"
-// (ir-design §3.2). Acronym and casing policy are the emitter's.
+// (ir-design §3.2). Acronym and casing policy are the emitter's. A name with no
+// word rune ("***") canonicalizes to "", and a canonical name is returned as it
+// is, allocating nothing.
 //
 // The grammar lives here, not in the compiler framework, because Canonical is
 // ABI. A Document from outside this repository's compilers is held by irverify
 // alone, and as a Layer 0 package it can recompute a canonical from the source
-// beside it because the grammar is here (GitHub #163). A name with no word rune
-// ("***") canonicalizes to the empty string; Naming.Source keeps the spelling.
+// beside it because the grammar is here (GitHub #163).
 func CanonicalWords(name string) string {
-	var words []string
-	var cur []rune
-	flush := func() {
-		if len(cur) > 0 {
-			words = append(words, strings.ToLower(string(cur)))
-			cur = cur[:0]
+	if len(name) > stackRendering/2 {
+		return canonicalWordsExactly(name)
+	}
+	// Rendered on the stack, so the string is the one allocation.
+	var buf [stackRendering]byte
+	words := buf[:0]
+	for r := range canonicalRunes(name) {
+		words = utf8.AppendRune(words, r)
+	}
+	if string(words) == name {
+		return name
+	}
+	return string(words)
+}
+
+// stackRendering is how many bytes CanonicalWords renders a name into on the
+// stack. A name renders in at most twice its length, as
+// TestCanonicalWords_RendersInAtMostTwiceItsLength holds of every rune, so one
+// of up to half of it fits there; a longer name takes canonicalWordsExactly.
+const stackRendering = 256
+
+// canonicalWordsExactly is CanonicalWords for a name whose canonical form could
+// outgrow the stack. It reads name three times, to see whether it is canonical
+// already, to size the result and to write it, so the result is still the one
+// allocation.
+func canonicalWordsExactly(name string) string {
+	if HasCanonicalWords(name, name) {
+		return name
+	}
+	size := 0
+	for r := range canonicalRunes(name) {
+		size += utf8.RuneLen(r)
+	}
+	var b strings.Builder
+	b.Grow(size)
+	for r := range canonicalRunes(name) {
+		b.WriteRune(r)
+	}
+	return b.String()
+}
+
+// HasCanonicalWords reports whether words is CanonicalWords(name). It compares
+// as it reads name, building no canonical form, so it allocates nothing:
+// irverify asks it of every Naming that carries a source.
+func HasCanonicalWords(name, words string) bool {
+	rest := words
+	for r := range canonicalRunes(name) {
+		// An empty or undecodable rest reads as RuneError, which no canonical
+		// rune is: it is no letter, digit or mark, nor any one's lowercase.
+		got, size := utf8.DecodeRuneInString(rest)
+		if got != r {
+			return false
+		}
+		rest = rest[size:]
+	}
+	return rest == ""
+}
+
+// canonicalRunes yields the runes of CanonicalWords(name) in order: each word
+// rune lowercased, and "_" between two words. Lowercasing rune by rune is what
+// strings.ToLower does to a valid string, and a word holds only runes that
+// decoded. It is the one rendering of the grammar's words, which
+// CanonicalWords and HasCanonicalWords both read.
+func canonicalRunes(name string) iter.Seq[rune] {
+	return func(yield func(rune) bool) {
+		first := true
+		for word := range sourceWords(name) {
+			if !first && !yield('_') {
+				return
+			}
+			first = false
+			for _, r := range word {
+				if !yield(unicode.ToLower(r)) {
+					return
+				}
+			}
 		}
 	}
-	runes := []rune(name)
-	for i, r := range runes {
-		if !isWordRune(r) {
-			flush()
-			continue
+}
+
+// sourceWords yields the words the grammar reads in name, each as name spells
+// it: a run of word runes ended by a non-word rune, by a camel-case or
+// letter/digit boundary, or by the end of name. A word is a substring of name,
+// so reading one allocates nothing.
+//
+// It is the grammar's one reading of a name, which canonicalRunes renders for
+// CanonicalWords and HasCanonicalWords alike, so the two cannot segment a name
+// differently.
+func sourceWords(name string) iter.Seq[string] {
+	return func(yield func(string) bool) {
+		start, inWord := 0, false
+		var prev rune
+		for i := 0; i < len(name); {
+			// A byte that does not decode reads as RuneError, which is no word
+			// rune, so it separates.
+			r, size := utf8.DecodeRuneInString(name[i:])
+			switch {
+			case !isWordRune(r):
+				if inWord && !yield(name[start:i]) {
+					return
+				}
+				inWord = false
+			case !inWord:
+				start, inWord = i, true
+			case wordBoundary(prev, r, name[i+size:]):
+				if !yield(name[start:i]) {
+					return
+				}
+				start = i
+			}
+			prev = r
+			i += size
 		}
-		if len(cur) > 0 && wordBoundary(cur[len(cur)-1], r, runes, i) {
-			flush()
+		if inWord {
+			yield(name[start:])
 		}
-		cur = append(cur, r)
 	}
-	flush()
-	return strings.Join(words, "_")
 }
 
 // isWordRune reports whether r belongs to a word rather than separating two.
@@ -89,13 +188,13 @@ func isWordRune(r rune) bool {
 	return unicode.IsLetter(r) || unicode.IsDigit(r) || unicode.IsMark(r)
 }
 
-// wordBoundary reports whether a new word starts at runes[i] given the previous
-// accumulated rune prev.
-func wordBoundary(prev, r rune, runes []rune, i int) bool {
+// wordBoundary reports whether a new word starts at word rune r, which follows
+// word rune prev and comes before rest, the remainder of the name.
+func wordBoundary(prev, r rune, rest string) bool {
 	switch {
 	case carriesCase(r) && (unicode.IsLower(prev) || unicode.IsDigit(prev)):
 		return true // lower/digit -> Upper: "userID" -> user|ID
-	case acronymTail(prev, r, runes, i):
+	case acronymTail(prev, r, rest):
 		return true // acronym tail: "HTTPServer" -> HTTP|Server
 	case unicode.IsLetter(prev) && unicode.IsDigit(r), unicode.IsDigit(prev) && unicode.IsLetter(r):
 		return true // letter<->digit: "APIKey2" -> ...Key|2
@@ -104,9 +203,8 @@ func wordBoundary(prev, r rune, runes []rune, i int) bool {
 	}
 }
 
-// acronymTail reports whether runes[i] ends a run of capitals and opens the
-// next word, the S of "HTTPServer": two capitals followed by a lowercase
-// letter.
+// acronymTail reports whether r ends a run of capitals and opens the next word,
+// the S of "HTTPServer": two capitals followed by a lowercase letter.
 //
 // At least one capital must be one lowercasing changes, or the rule splits its
 // own output: a boundary between runes lowercasing leaves alone survives into
@@ -115,14 +213,15 @@ func wordBoundary(prev, r rune, runes []rune, i int) bool {
 // until lowercasing supplies one — so the source runes cannot settle it.
 // Requiring case of both would lose ℤ_server and http_ℤerver; canonicalCases
 // pins both.
-func acronymTail(prev, r rune, runes []rune, i int) bool {
+func acronymTail(prev, r rune, rest string) bool {
 	if !isCapital(prev) || !isCapital(r) {
 		return false
 	}
 	if !carriesCase(prev) && !carriesCase(r) {
 		return false // neither is lowercased, so the split would reappear
 	}
-	return i+1 < len(runes) && unicode.IsLower(runes[i+1])
+	next, _ := utf8.DecodeRuneInString(rest) // RuneError, no lowercase letter, at the end
+	return unicode.IsLower(next)
 }
 
 // carriesCase reports whether lowercasing changes r, as irverify.isCased asks

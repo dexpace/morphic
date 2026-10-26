@@ -2,8 +2,21 @@ package irverify
 
 import (
 	"maps"
+	"reflect"
 	"testing"
 )
+
+// EntryReader is entryReader, for this package's external tests.
+type EntryReader = entryReader
+
+// HeldEntry is heldEntry, for this package's external tests.
+type HeldEntry = heldEntry
+
+// HeldFor is heldFor, for this package's external tests.
+func (r *entryReader) HeldFor(m reflect.Value) HeldEntry { return r.heldFor(m) }
+
+// Read is read, for this package's external tests.
+func (h heldEntry) Read(iter *reflect.MapIter) (key, value reflect.Value) { return h.read(iter) }
 
 // ValueCarriers exposes valueCarriers to this package's external tests.
 //
