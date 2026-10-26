@@ -192,11 +192,11 @@ func (e *Engine) Run(ctx context.Context, specPath string, opts RunOptions) (*Re
 }
 
 // RunSpec executes Run's pipeline over a spec held in memory, such as an
-// edited buffer: a reference or a setting naming spec.Path, lexically as
-// reader.Memory names a document, is served spec.Data, never the file. Every
-// other document, another spelling of that file among them, is read from disk:
-// what a reference names through reader.Disk, as far as the compiler's options
-// let a read go, and what a setting names directly.
+// edited buffer. A reference naming spec.Path, lexically as reader.Memory
+// names a document, and a setting naming it as os.ReadFile names a file are
+// served spec.Data. Every other document, another spelling of that file among
+// them, is read from disk, a reference's through reader.Disk as far as the
+// compiler's options let it go.
 //
 // An empty spec.Path, which the references resolve against, is a Go error.
 // Source.Parsed is not read, and the bytes must not change during the run. It
