@@ -52,7 +52,6 @@ var nameOptional = map[reflect.Type]bool{
 func checkNaming(*ir.Document) walkCheck {
 	var vs []Violation
 	optional := map[string]bool{}
-	var buf []byte // a Naming's path, rendered to look it up in optional
 	return walkCheck{
 		visit: func(v reflect.Value, at ir.WalkPath) bool {
 			if v.Kind() != reflect.Struct {
@@ -67,21 +66,19 @@ func checkNaming(*ir.Document) walkCheck {
 			if v.Type() != namingType {
 				return true
 			}
-			buf = at.AppendTo(buf[:0])
-			vs = appendNamingChecks(vs, v, at, optional[string(buf)])
+			vs = appendNamingChecks(vs, v, at, optional)
 			return false // a Naming holds no Naming nested in it
 		},
 		report: reporting(&vs),
 	}
 }
 
-// appendNamingChecks reports what is wrong with the one Naming naming, at at;
-// optional says whether the node it names carries no name of its own.
-func appendNamingChecks(vs []Violation, naming reflect.Value, at ir.WalkPath, optional bool) []Violation {
+// appendNamingChecks reports what is wrong with the one Naming naming, at at.
+// optional holds the paths of the Namings whose nodes carry no name of their
+// own.
+func appendNamingChecks(vs []Violation, naming reflect.Value, at ir.WalkPath, optional map[string]bool) []Violation {
 	source, canon, hint, aliases := namingChannels(naming)
-	if !optional {
-		vs = appendAbsentViolation(vs, source, canon, hint, at)
-	}
+	vs = appendAbsentViolation(vs, source, canon, hint, at, optional)
 	vs = appendNamingViolations(vs, source, canon, hint, at)
 	return appendAliasViolations(vs, source, aliases, at)
 }
@@ -164,8 +161,13 @@ func aliasPath(at ir.WalkPath, i int) string {
 // Source with its words beside it, a generated one in Hint, and the checks below
 // hold whichever is there. This asks only that one of them is, because nothing
 // downstream can render an identifier from three empty strings.
-func appendAbsentViolation(vs []Violation, source, canon, hint string, at ir.WalkPath) []Violation {
-	if source != "" || canon != "" || hint != "" {
+//
+// optional is read last, since reading it renders the path, so only a Naming
+// that names nothing pays for one.
+func appendAbsentViolation(vs []Violation, source, canon, hint string, at ir.WalkPath,
+	optional map[string]bool,
+) []Violation {
+	if source != "" || canon != "" || hint != "" || optional[at.String()] {
 		return vs
 	}
 	return append(vs, Violation{
