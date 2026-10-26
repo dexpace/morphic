@@ -415,7 +415,7 @@ func TestWeigher_CountsWhatTheCloneBuilds(t *testing.T) {
 	assert.Equal(t, 1+3+3+2*(1+3), newWeigher(budget.AtMost(1000)).weigh(twice, 0))
 
 	cycle := decode("&a [*a]")
-	assert.Equal(t, 11, newWeigher(budget.AtMost(10)).weigh(cycle, 0), "a cycle weighs the ceiling")
+	assert.Equal(t, 11, newWeigher(budget.AtMost(10)).weigh(cycle, 0), "a cycle weighs the first count past the limit")
 
 	assert.Equal(t, 11, newWeigher(budget.AtMost(10)).weigh(decode(wideUpdate(50)), 0),
 		"and so does anything past it, without counting on")

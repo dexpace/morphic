@@ -493,7 +493,7 @@ func TestAliasWeigher_SaturatesWithoutOverflow(t *testing.T) {
 	culprits := w.weigh(t.Context(), root)
 	require.Len(t, culprits, 1, "a 40-level doubling fan-out crosses any modest allowance, in one innermost place")
 	culprit := culprits[0]
-	assert.Equal(t, w.allowance.Past(), w.weight[culprit], "an exceeding weight always lands exactly on the ceiling")
+	assert.Equal(t, w.allowance.Past(), w.weight[culprit], "an exceeding weight always lands exactly on the first count past the allowance")
 	assert.Positive(t, w.weight[culprit], "the saturated value must not have wrapped negative")
 }
 
