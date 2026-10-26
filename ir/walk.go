@@ -85,9 +85,9 @@ func WalkValuesContext(ctx context.Context, root any, path string, visitors ...V
 // visits, and a stretch this long still ends within microseconds.
 const askEvery = 256
 
-// walked is how a walk ended: whether the depth cap truncated a traversal, and
+// walkEnd is how a walk ended: whether the depth cap truncated a traversal, and
 // the error of the ask that stopped one, which ends the walk.
-type walked struct {
+type walkEnd struct {
 	truncated bool
 	err       error
 }
@@ -95,9 +95,9 @@ type walked struct {
 // walkValues walks root for visitors, one traversal per maxSharedVisitors of
 // them, asking ask whether to stop as WalkValuesContext says, or never for a
 // nil ask.
-func walkValues(ask func() error, root any, path string, visitors []Visitor) walked {
+func walkValues(ask func() error, root any, path string, visitors []Visitor) walkEnd {
 	v := reflect.ValueOf(root)
-	var out walked
+	var out walkEnd
 	for group := range slices.Chunk(visitors, maxSharedVisitors) {
 		w := newValueWalk(path, group)
 		w.ask = ask
