@@ -517,6 +517,33 @@ func TestWalkValues_MapEntriesAreTheWalksCopies(t *testing.T) {
 	assert.Equal(t, []int{2}, m["a"].Items, "a slice in the entry leads to the document's own elements")
 }
 
+// TestWalkValues_InterfaceInAMapEntryLeadsToTheDocumentsOwn pins the line
+// Visitor.Visit draws for an interface, the way Document.Types holds its nodes:
+// the walk reuses its copy of the entry, while what the interface holds is the
+// document's own, so a visitor can keep the value the walk shows it past the
+// map. Holding nothing settable, it is told apart only by outliving the reuse.
+func TestWalkValues_InterfaceInAMapEntryLeadsToTheDocumentsOwn(t *testing.T) {
+	t.Parallel()
+	root := []map[string]any{{"a": walkEntry{Name: "first"}}, {"a": walkEntry{Name: "second"}}}
+	var copies, held []reflect.Value
+	ir.WalkValues(root, "doc", ir.VisitFunc(func(v reflect.Value, _ ir.WalkPath) bool {
+		switch v.Kind() {
+		case reflect.Interface:
+			copies = append(copies, v)
+		case reflect.Struct:
+			held = append(held, v)
+		default:
+			// The slice, the maps and the strings carry nothing this case reads.
+		}
+		return true
+	}))
+	require.Len(t, copies, 2)
+	require.Equal(t, "second", copies[0].Elem().Field(0).String(),
+		"the second map must reuse the walk's copy of the first one's entry, or the case tests nothing")
+	require.Len(t, held, 2)
+	assert.Equal(t, "first", held[0].Field(0).String(), "what the first entry's interface holds is the document's own")
+}
+
 // TestWalkValues_MapBehindAnUnexportedFieldIsReached holds the walk to a map it
 // reaches through an unexported field, whose entries it cannot copy into the
 // storage it keeps, since reflect refuses to read such a map that way. It
