@@ -22,6 +22,9 @@ var FilePathOf = filePathOf
 // ReadOpened is readOpened, for the external tests.
 var ReadOpened = readOpened
 
+// ReadSourceFrom is ReadSource over a file system a test scripts.
+var ReadSourceFrom = readSource
+
 // ReadRooted is readRooted, for the external tests.
 var ReadRooted = readRooted
 

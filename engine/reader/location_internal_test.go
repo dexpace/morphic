@@ -1,6 +1,7 @@
 package reader
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"math"
@@ -207,7 +208,7 @@ func TestReadLimited_HoldsTheLimit(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := readLimited("doc", strings.NewReader(body), tc.limit)
+			got, err := readLimited(t.Context(), "doc", strings.NewReader(body), tc.limit, 0)
 
 			if tc.over {
 				require.ErrorIs(t, err, compilers.ErrDocumentTooLarge)
@@ -250,7 +251,7 @@ func TestReadLimited_StopsReadingAtTheLimit(t *testing.T) {
 	t.Parallel()
 	const limit = 5
 
-	_, err := readLimited("doc", &serveThenFail{max: 10 * limit}, limit)
+	_, err := readLimited(t.Context(), "doc", &serveThenFail{max: 10 * limit}, limit, 0)
 
 	assert.ErrorIs(t, err, compilers.ErrDocumentTooLarge,
 		"the reader was never driven far enough to reach its own failure")
@@ -263,10 +264,91 @@ func TestReadLimited_ReportsAReadFailure(t *testing.T) {
 	t.Parallel()
 	boom := errors.New("boom")
 
-	got, err := readLimited("doc", iotest.ErrReader(boom), 10)
+	got, err := readLimited(t.Context(), "doc", iotest.ErrReader(boom), 10, 0)
 
 	require.ErrorIs(t, err, boom)
 	assert.NotErrorIs(t, err, compilers.ErrDocumentTooLarge)
 	assert.Contains(t, err.Error(), "doc")
 	assert.Nil(t, got)
+}
+
+// TestReadUpTo_SizesTheBufferFromWhatTheDocumentReports pins the buffer a read
+// starts with: room for a document of the size it reports and the end after
+// it, so the read never grows it, and never more than the bytes the read may
+// take or maxInitial, so neither a size past the limit nor a sparse file's
+// allocates what no byte read backs.
+func TestReadUpTo_SizesTheBufferFromWhatTheDocumentReports(t *testing.T) {
+	t.Parallel()
+	body := strings.Repeat("x", 3000)
+	tests := []struct {
+		name    string
+		n       int
+		size    int64
+		wantLen int
+		wantCap int
+	}{
+		{name: "a reported size, unbounded", n: 0, size: 3000, wantLen: 3000, wantCap: 3000 + minRead},
+		{name: "a reported size past the bound", n: 100, size: 3000, wantLen: 100, wantCap: 100},
+		{name: "a reported size within the bound", n: 5000, size: 3000, wantLen: 3000, wantCap: 3000 + minRead},
+		{name: "no size, a bound under one buffer", n: 100, wantLen: 100, wantCap: 100},
+		{name: "a size past the largest first buffer", n: 0, size: 1 << 40, wantLen: 3000,
+			wantCap: maxInitial + minRead},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := readUpTo(t.Context(), "doc", strings.NewReader(body), tc.n, tc.size)
+
+			require.NoError(t, err)
+			assert.Len(t, got, tc.wantLen)
+			assert.Equal(t, tc.wantCap, cap(got))
+		})
+	}
+}
+
+// TestReadUpTo_GrowsNoFurtherThanTheBound pins growth: a document reporting no
+// size is read into a buffer grown as it fills, and the read takes exactly the
+// bytes the bound allows, however much the reader has left.
+func TestReadUpTo_GrowsNoFurtherThanTheBound(t *testing.T) {
+	t.Parallel()
+	const n = 3*minRead + 7
+	r := &serveThenFail{max: 10 * n}
+
+	got, err := readUpTo(t.Context(), "doc", r, n, 0)
+
+	require.NoError(t, err)
+	assert.Len(t, got, n)
+	assert.Equal(t, n, r.served, "nothing past the bound is read")
+}
+
+// TestReadUpTo_AsksTheContextBetweenChunks pins how often a read asks ctx: a
+// reader serving without end is read a chunk at a time, so a cancel landing
+// during the first read ends the read with the context's error before a
+// second.
+func TestReadUpTo_AsksTheContextBetweenChunks(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithCancel(t.Context())
+	r := &cancelOnRead{cancel: cancel}
+
+	got, err := readUpTo(ctx, "doc", r, 0, 1<<40)
+
+	require.ErrorIs(t, err, context.Canceled)
+	assert.Nil(t, got)
+	assert.Equal(t, 1, r.reads, "the read stopped at the first ask after the cancel")
+	assert.Equal(t, readChunk, r.asked, "and that one read asked for no more than a chunk")
+}
+
+// cancelOnRead serves every byte it is asked for, cancelling its context on the
+// first read and recording how many bytes that read asked for.
+type cancelOnRead struct {
+	cancel       context.CancelFunc
+	reads, asked int
+}
+
+func (r *cancelOnRead) Read(p []byte) (int, error) {
+	r.cancel()
+	r.reads++
+	r.asked = len(p)
+	return len(p), nil
 }

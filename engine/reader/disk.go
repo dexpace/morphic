@@ -20,7 +20,8 @@ import (
 // one that leads outside, and opens the file they lead to through an os.Root
 // at the directory, so a link swapped in after the check cannot lead outside
 // either. Only a regular file is read, judged before it is opened, since
-// opening a FIFO waits for a writer and no context interrupts that wait.
+// opening a FIFO waits for a writer and no context interrupts that wait. One
+// sized past the limit is refused unread.
 type Disk struct {
 	// Client fetches http(s) URLs. Nil uses http.DefaultClient.
 	Client *http.Client
@@ -43,9 +44,9 @@ func (d Disk) ReadDocument(ctx context.Context, req compilers.DocumentRequest) (
 	case loc.url != "":
 		return d.fetch(ctx, loc.url, req.Limit)
 	case req.Within != "":
-		return readWithin(req.Within, loc.path, req.Limit)
+		return readWithin(ctx, req.Within, loc.path, req.Limit)
 	default:
-		return readFile(loc.path, req.Limit)
+		return readFile(ctx, osFiles{}, loc.path, req.Limit)
 	}
 }
 
@@ -67,7 +68,9 @@ func (d Disk) fetch(ctx context.Context, u string, limit int) ([]byte, error) {
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 		return nil, errors.Join(fmt.Errorf("GET %s: %s", u, resp.Status), resp.Body.Close())
 	}
-	data, err := readLimited(u, resp.Body, limit)
+	// The response's length is the server's word, so it sizes nothing: a
+	// hostile one could ask for any allocation.
+	data, err := readLimited(ctx, u, resp.Body, limit, 0)
 	if err = errors.Join(err, resp.Body.Close()); err != nil {
 		return nil, err
 	}
@@ -76,7 +79,7 @@ func (d Disk) fetch(ctx context.Context, u string, limit int) ([]byte, error) {
 
 // readWithin reads the file at path, which must lie inside within, through an
 // os.Root opened where resolveWithin places it.
-func readWithin(within, path string, limit int) ([]byte, error) {
+func readWithin(ctx context.Context, within, path string, limit int) ([]byte, error) {
 	dir, rel, err := resolveWithin(within, path)
 	if err != nil {
 		return nil, err
@@ -85,7 +88,7 @@ func readWithin(within, path string, limit int) ([]byte, error) {
 	if err != nil {
 		return nil, err // a *fs.PathError, naming the directory
 	}
-	data, err := readRooted(root, rel, path, limit)
+	data, err := readRooted(ctx, root, rel, path, limit)
 	if err = errors.Join(err, root.Close()); err != nil {
 		return nil, err
 	}
@@ -126,7 +129,7 @@ func linksResolved(p string) (string, bool) {
 // readRooted reads the file at rel inside root, which path names outside it. A
 // failed open is reported against path, as an unconfined read reports it,
 // rather than against rel and the call os.Root made.
-func readRooted(root *os.Root, rel, path string, limit int) ([]byte, error) {
+func readRooted(ctx context.Context, root *os.Root, rel, path string, limit int) ([]byte, error) {
 	if info, err := root.Stat(rel); err == nil && !info.Mode().IsRegular() {
 		return nil, fmt.Errorf("%s: %w", path, errNotRegular)
 	}
@@ -137,38 +140,82 @@ func readRooted(root *os.Root, rel, path string, limit int) ([]byte, error) {
 	if err != nil {
 		return nil, err // a *fs.PathError, naming the file
 	}
-	return readOpened(path, f, limit)
+	return readOpened(ctx, path, f, limit)
 }
 
-// readFile reads the file at path, wherever it lies. A path Stat cannot read
-// is left to os.Open, whose error names what is wrong with it.
-func readFile(path string, limit int) ([]byte, error) {
-	if info, err := os.Stat(path); err == nil && !info.Mode().IsRegular() {
+// files is the file system a path is read from: the operating system's, or a
+// test's, which presents a FIFO or a device on any platform.
+type files interface {
+	Stat(name string) (fs.FileInfo, error)
+	Open(name string) (fs.File, error)
+}
+
+// osFiles is the operating system's file system.
+type osFiles struct{}
+
+// Stat implements files.
+func (osFiles) Stat(name string) (fs.FileInfo, error) { return os.Stat(name) }
+
+// Open implements files. A failed open hands back no file, never a nil
+// *os.File in the interface, which a caller would read as one.
+func (osFiles) Open(name string) (fs.File, error) {
+	f, err := os.Open(name)
+	if err != nil {
+		return nil, err
+	}
+	return f, nil
+}
+
+// readFile reads the file at path, wherever it lies, from fsys.
+func readFile(ctx context.Context, fsys files, path string, limit int) ([]byte, error) {
+	f, err := openRegular(fsys, path)
+	if err != nil {
+		return nil, err
+	}
+	return readOpened(ctx, path, f, limit)
+}
+
+// openRegular opens the file at path in fsys, refusing one that is not a
+// regular file before opening it. A path Stat cannot read is left to the open,
+// whose error names what is wrong with it.
+func openRegular(fsys files, path string) (fs.File, error) {
+	if info, err := fsys.Stat(path); err == nil && !info.Mode().IsRegular() {
 		return nil, fmt.Errorf("%s: %w", path, errNotRegular)
 	}
-	f, err := os.Open(path)
-	if err != nil {
-		return nil, err // a *fs.PathError, naming the file
-	}
-	return readOpened(path, f, limit)
+	return fsys.Open(path) // a *fs.PathError, naming the file
 }
 
-// readOpened reads f, opened as the file at path, and closes it. It judges f
-// again, since the path can name another file by the time it is opened. A FIFO
-// swapped in before the open still blocks it: only a process racing the
-// compile can do that, never a spec, and the non-blocking open that would not
-// wait is missing on the wasm ports.
-func readOpened(path string, f fs.File, limit int) ([]byte, error) {
-	info, err := f.Stat()
-	if err == nil && !info.Mode().IsRegular() {
-		err = fmt.Errorf("%s: %w", path, errNotRegular)
+// readOpened reads f, opened as the file at path, and closes it. A file whose
+// size is past limit is refused unread. Past it, a file growing as it is read
+// is refused one byte past the limit.
+func readOpened(ctx context.Context, path string, f fs.File, limit int) ([]byte, error) {
+	info, err := judgeOpened(path, f)
+	if err == nil && limit > 0 && info.Size() > int64(limit) {
+		err = tooLarge(path, limit)
 	}
 	if err != nil {
 		return nil, errors.Join(err, f.Close())
 	}
-	data, err := readLimited(path, f, limit)
+	data, err := readLimited(ctx, path, f, limit, info.Size())
 	if err = errors.Join(err, f.Close()); err != nil {
 		return nil, err
 	}
 	return data, nil
+}
+
+// judgeOpened returns what f, opened as the file at path, is, refusing a file
+// that is not regular. It judges again what openRegular judged, since the path
+// can name another file by the time it is opened. A FIFO swapped in before the
+// open still blocks it: only a process racing the compile can do that, never a
+// spec, and the non-blocking open that would not wait is missing on the wasm
+// ports.
+func judgeOpened(path string, f fs.File) (fs.FileInfo, error) {
+	info, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+	if !info.Mode().IsRegular() {
+		return nil, fmt.Errorf("%s: %w", path, errNotRegular)
+	}
+	return info, nil
 }
