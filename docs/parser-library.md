@@ -103,6 +103,8 @@ x: {$ref: 'd1.yaml#/x'}
   - `load.externalReads.once` charges each document's first read to the document budget, and
     refuses a read past it.
   - `openapi.Limits.MaxExternalDocuments` is that budget.
+  - `load.external.prepare` asks the context before handing the resolver a document it read, so a
+    screen of it a cancel cut short admits nothing.
 
 ### `defs-order`
 
@@ -537,7 +539,9 @@ components:
 - Code:
   - `load.walk` asks the context before each item of a walk of a model, and every walk the load
     phase makes goes through it.
-  - `load.unmarshal` builds the model in the one call a cancel waits out.
+  - `load.unmarshal` builds the model in the one call a cancel waits out, and the model phase asks
+    the context just before it, so a cancel that cut short the walks preparing the tree is not
+    waited out on a tree half prepared.
 
 ## Overlays
 

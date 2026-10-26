@@ -463,12 +463,14 @@ func directoryNamed(dir string) string {
 // prepare stores the tree an external document's bytes parse to under key, once
 // the source's refusals have passed it, its $refs rewritten as the source's are
 // (see escapes), and returns the bytes, which the resolver still reads and
-// caches. It runs once per document a compile reads (see externalReads.once).
+// caches. It runs once per document read (see externalReads.once), and asks
+// its context last, as the resolver reads none
+// (docs/parser-library.md#resolution-unbounded).
 //
 // The byte budget is checked again, though the reader held the read to it:
 // admitting bytes past it would let a reader lift a budget the compile set.
-// Bytes that do not parse, or hold nothing, are refused as such, the parser's
-// reason kept (see bind.UnparsableError, bind.ErrEmptyDocument).
+// Unparsable or empty bytes are refused as such, the parser's reason kept
+// (bind.UnparsableError, bind.ErrEmptyDocument).
 func (e external) prepare(ctx context.Context, key string, data []byte) ([]byte, error) {
 	if exceeds(len(data), e.opts.MaxSourceBytes) {
 		return nil, refused(key, fmt.Sprintf("it is past the %d-byte budget", e.opts.MaxSourceBytes))
@@ -489,6 +491,10 @@ func (e external) prepare(ctx context.Context, key string, data []byte) ([]byte,
 	e.doc.StoreExternalDocumentInCache(key, root)
 	e.read.recordTree(key, root, data)
 	e.holdSpellings(ctx, root, key)
+	// A screen or walk above that a cancel cut short has admitted nothing.
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	return data, nil
 }
 

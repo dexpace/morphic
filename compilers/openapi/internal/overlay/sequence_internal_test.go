@@ -13,6 +13,7 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/internal/ctxtest"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -289,6 +290,51 @@ func TestSequence_DoesNotRefuseOnAnOverstatedCharge(t *testing.T) {
 
 	assert.True(t, ok, "twenty charges of two nodes each exceed ten, and none of them adds a node: %+v", diags)
 	assert.Equal(t, int64(before), countNodes(t.Context(), root, maxNodes))
+}
+
+// TestSequence_AppliesNoActionOnceItsContextRefused cancels a sequence at
+// every check of its context a whole one makes, the recounts its overstated
+// charges take among them, and requires the tree it leaves to be the tree as
+// it stood at the refusal: no action is applied once a check has refused,
+// since a charge a cancel cut short may have counted too few nodes. Each
+// action writes a title of its own, so one applied late shows.
+func TestSequence_AppliesNoActionOnceItsContextRefused(t *testing.T) {
+	t.Parallel()
+	var b strings.Builder
+	b.WriteString("overlay: 1.0.0\ninfo: {title: o, version: \"1\"}\nactions:\n")
+	for i := range 20 {
+		fmt.Fprintf(&b, "  - target: $.info\n    update: {title: T%d}\n", i)
+	}
+	doc, err := soaoverlay.ParseReader(bytes.NewReader([]byte(b.String())))
+	require.NoError(t, err)
+	tree := func() *yaml.Node {
+		var root yaml.Node
+		require.NoError(t, yaml.Unmarshal([]byte(sequenceSpec), &root))
+		return &root
+	}
+	budget := int(countNodes(t.Context(), tree(), maxNodes)) + 10
+	at := ir.Provenance{Source: 1}
+	whole := &ctxtest.Countdown{Context: t.Context(), Left: math.MaxInt}
+	_, ok := runSequence(whole, doc, tree(), at, false, budget)
+	require.True(t, ok)
+	require.Greater(t, whole.Calls, 1+len(doc.Actions),
+		"beside the first count and the check after each charge, a recount asks too")
+
+	for left := range whole.Calls {
+		root := tree()
+		var refusedOn []byte
+		ctx := &ctxtest.Countdown{Context: t.Context(), Left: left}
+		ctx.OnRefuse = func() { refusedOn, err = yaml.Marshal(root) }
+
+		diags, ok := runSequence(ctx, doc, root, at, false, budget)
+
+		require.NoError(t, err)
+		require.False(t, ok, "check %d", left+1)
+		require.Empty(t, diags, "check %d", left+1)
+		after, err := yaml.Marshal(root)
+		require.NoError(t, err)
+		require.Equal(t, string(refusedOn), string(after), "check %d: an action was applied after the refusal", left+1)
+	}
 }
 
 // TestSequence_AppliesWithoutABudget pins that a zero or negative budget turns

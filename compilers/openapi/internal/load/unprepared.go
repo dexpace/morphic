@@ -397,6 +397,9 @@ func resolveExternal(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, self 
 	pass := resolveWith(ctx, doc, sibs, self, opts, &reader)
 	used := pass.used()
 	first := unprepared(doc, read, used)
+	// A rebuild reads no context. Each walk deciding on one finds what it looks
+	// for only by visiting it, so a walk a cancel cut short answers no, and no
+	// rebuild starts once the context has refused.
 	if !anyAnchored(ctx, doc, first) && !anyRewritable(ctx, doc, first, self.escapes) {
 		return doc, sibs, &reader, pass, nil, nil
 	}

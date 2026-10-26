@@ -5,6 +5,7 @@ import (
 	"encoding/json/jsontext"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -21,6 +22,7 @@ import (
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/engine/reader"
+	"github.com/dexpace/morphic/internal/ctxtest"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -310,6 +312,35 @@ func TestResolveExternal_ARebuildErrorIsReturned(t *testing.T) {
 	assert.Nil(t, diags)
 	assert.ErrorIs(t, err, sentinel)
 	assert.Equal(t, int32(1), requests.Load(), "the first pass still reads the document once before rebuild fails")
+}
+
+// TestResolveExternal_StartsNoRebuildOnceACheckRefused cancels a resolution
+// that rebuilds, at every check of its context a whole one makes, and
+// requires that no rebuild starts once a check has refused: a rebuild and the
+// resolution after it read no context, and the walks deciding on one, cut
+// short, find nothing to rebuild for.
+func TestResolveExternal_StartsNoRebuildOnceACheckRefused(t *testing.T) {
+	t.Parallel()
+	srv, _ := countingServer(t, anchoredExternalDoc)
+	spec := rootReferencing(respelled(srv.URL, "HTTP") + "/ext.yaml")
+	resolve := func(ctx *ctxtest.Countdown) (rebuilt, late bool) {
+		_, _, _, _, _, err := resolveExternal(ctx, modelOf(t, spec), Siblings{},
+			sourceDocument{path: "root.yaml"}, Options{Reader: reader.Disk{}}, func() (*soa.OpenAPI, error) {
+				rebuilt, late = true, ctx.Refused()
+				return modelOf(t, spec), nil
+			})
+		require.NoError(t, err)
+		return rebuilt, late
+	}
+	whole := &ctxtest.Countdown{Context: t.Context(), Left: math.MaxInt}
+	rebuilt, _ := resolve(whole)
+	require.True(t, rebuilt, "a respelled reference to an anchored document rebuilds")
+
+	for left := range whole.Calls {
+		_, late := resolve(&ctxtest.Countdown{Context: t.Context(), Left: left})
+
+		require.False(t, late, "check %d of %d: a rebuild started after the refusal", left+1, whole.Calls)
+	}
 }
 
 // otherDocWithAnchoredGetAndFinding is a document reached only through an

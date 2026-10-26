@@ -12,9 +12,14 @@ import (
 // used by pointer.
 type Countdown struct {
 	context.Context
+	// OnRefuse, when set, is called once, as Err first answers
+	// context.Canceled, so a test can note what the work had done by then. It
+	// runs under the context's lock, so it must not ask the context.
+	OnRefuse func()
 
 	mu          sync.Mutex
 	Left, Calls int
+	refused     bool
 }
 
 // Err implements context.Context.
@@ -26,5 +31,17 @@ func (c *Countdown) Err() error {
 		c.Left--
 		return nil
 	}
+	if !c.refused && c.OnRefuse != nil {
+		c.OnRefuse()
+	}
+	c.refused = true
 	return context.Canceled
+}
+
+// Refused reports whether Err has answered context.Canceled yet. It is safe
+// to call while the work is still asking.
+func (c *Countdown) Refused() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.refused
 }

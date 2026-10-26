@@ -3,6 +3,7 @@ package load
 import (
 	"context"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -16,6 +17,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/engine/reader"
+	"github.com/dexpace/morphic/internal/ctxtest"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -151,28 +153,104 @@ func widePaths(n int) string {
 	return b.String()
 }
 
-// splitSpec writes a source split across files in dir: n path items mounted
-// by $ref from another document, each with a field beside its $ref, and each
-// answering with a response in a third, so the load models fields beside
-// $refs and resolves references written in other documents. It returns the
-// source.
-func splitSpec(t *testing.T, dir string, n int) compilers.Source {
-	t.Helper()
+// splitSources is a source split across documents in dir: n path items
+// mounted by $ref from another document, each with a field beside its $ref and
+// params query parameters, and each answering with a response in a third, so
+// the load models fields beside $refs and resolves references written in
+// other documents. The source comes first.
+func splitSources(dir string, n, params int) []compilers.Source {
 	var root, items, responses strings.Builder
 	root.WriteString("openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n")
 	for i := range n {
 		fmt.Fprintf(&root, "  /p%d:\n    $ref: 'items.yaml#/P%d'\n    summary: beside the $ref\n", i, i)
-		fmt.Fprintf(&items, "P%d:\n  get:\n    responses:\n      '200': {$ref: 'responses.yaml#/R%d'}\n", i, i)
+		fmt.Fprintf(&items, "P%d:\n  get:\n", i)
+		if params > 0 {
+			items.WriteString("    parameters:\n")
+		}
+		for p := range params {
+			fmt.Fprintf(&items, "      - {name: q%d, in: query, schema: {type: string}}\n", p)
+		}
+		fmt.Fprintf(&items, "    responses:\n      '200': {$ref: 'responses.yaml#/R%d'}\n", i)
 		fmt.Fprintf(&responses, "R%d: {description: ok}\n", i)
 	}
-	write := func(name, content string) string {
-		path := filepath.Join(dir, name)
-		require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
-		return path
+	return []compilers.Source{
+		{Path: filepath.Join(dir, "root.yaml"), Data: []byte(root.String())},
+		{Path: filepath.Join(dir, "items.yaml"), Data: []byte(items.String())},
+		{Path: filepath.Join(dir, "responses.yaml"), Data: []byte(responses.String())},
 	}
-	write("items.yaml", items.String())
-	write("responses.yaml", responses.String())
-	return compilers.Source{Path: write("root.yaml", root.String()), Data: []byte(root.String())}
+}
+
+// splitSpec writes splitSources to dir and returns the source.
+func splitSpec(t *testing.T, dir string, n, params int) compilers.Source {
+	t.Helper()
+	sources := splitSources(dir, n, params)
+	for _, src := range sources {
+		require.NoError(t, os.WriteFile(src.Path, src.Data, 0o600))
+	}
+	return sources[0]
+}
+
+// manyActionsOverlay is an overlay of n actions, each setting a member of
+// width keys on the info object, so parsing and applying it are work in
+// proportion to n×width.
+func manyActionsOverlay(n, width int) string {
+	var b strings.Builder
+	b.WriteString("overlay: 1.0.0\ninfo: {title: o, version: \"1\"}\nactions:\n")
+	for i := range n {
+		fmt.Fprintf(&b, "  - target: $.info\n    update:\n      x-a%d:\n", i)
+		for k := range width {
+			fmt.Fprintf(&b, "        k%d: v\n", k)
+		}
+	}
+	return b.String()
+}
+
+// TestLoad_DoesNextToNothingOnceItRefusesACancel cancels a load at every check
+// of its context a whole load makes and counts, never timing, the allocations
+// it makes after the first refusal, held to a fiftieth of a whole load's. A
+// step handing a tree to the parser library, which reads no context, asks
+// first, so a cancel that cut short the screens and walks before it never
+// starts the library on what they left. The sources make that work large: a
+// wide source with an overlay of many actions, and large documents split
+// across files.
+//
+// It runs alone, since the allocation counts are the process's.
+func TestLoad_DoesNextToNothingOnceItRefusesACancel(t *testing.T) {
+	split := splitSources("/split", 2, 16)
+	held, err := reader.NewMemory(split)
+	require.NoError(t, err)
+	patch := &overlay.Options{Path: "patch.yaml", Data: []byte(manyActionsOverlay(4, 16))}
+	for name, load := range map[string]func(ctx context.Context) error{
+		"a wide source and a large overlay": func(ctx context.Context) error {
+			_, _, err := Load(ctx, 0, openapitest.SourceOf(widePhasedSpec(2)),
+				Options{Overlay: patch, OverlaySrcIndex: 1})
+			return err
+		},
+		"large documents split across files": func(ctx context.Context) error {
+			_, _, err := Load(ctx, 0, split[0], Options{Reader: held})
+			return err
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			whole := &ctxtest.Countdown{Context: t.Context(), Left: math.MaxInt}
+			start := mallocs()
+			require.NoError(t, load(whole))
+			wholeAllocs := mallocs() - start
+
+			for left := range whole.Calls {
+				var refusedAt uint64
+				ctx := &ctxtest.Countdown{Context: t.Context(), Left: left, OnRefuse: func() { refusedAt = mallocs() }}
+
+				err := load(ctx)
+				after := mallocs() - refusedAt
+
+				require.ErrorIs(t, err, context.Canceled, "check %d", left+1)
+				require.LessOrEqual(t, after, wholeAllocs/50,
+					"check %d of %d: %d allocations after the refusal, of %d for a whole load",
+					left+1, whole.Calls, after, wholeAllocs)
+			}
+		})
+	}
 }
 
 // asksAfterRefusal is the most a load asks its context once it has refused:
@@ -197,7 +275,7 @@ func TestLoad_ACancelAtAnyCheckEndsTheLoadCleanly(t *testing.T) {
 		},
 		"split across documents": func(ctx context.Context) (*Document, []ir.Diagnostic, error) {
 			dir := t.TempDir()
-			return Load(ctx, 0, splitSpec(t, dir, 12), Options{Reader: reader.Disk{}, Within: dir})
+			return Load(ctx, 0, splitSpec(t, dir, 12, 0), Options{Reader: reader.Disk{}, Within: dir})
 		},
 	} {
 		t.Run(name, func(t *testing.T) {

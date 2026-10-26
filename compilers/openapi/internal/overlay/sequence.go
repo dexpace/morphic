@@ -68,13 +68,16 @@ func runSequence(ctx context.Context, doc *soaoverlay.Overlay, root *yaml.Node, 
 		s.size = countNodes(ctx, root, s.maxNodes)
 	}
 	for i, action := range doc.Actions {
-		// A done ctx leaves the tree half applied, which no caller builds on.
-		if ctx.Err() != nil {
-			return nil, false
-		}
 		if over, ok := s.charge(ctx, action); !ok {
 			reported, _ := s.finish(at)
 			return append(reported, s.overBudget(at, i, over)), false
+		}
+		// The library applies the action reading no context, and a charge a
+		// cancel cut short may have counted too few nodes, so the cancel is seen
+		// before the action is applied. The tree is left half applied, which no
+		// caller builds on.
+		if ctx.Err() != nil {
+			return nil, false
 		}
 		if err := s.step(i, action); err != nil {
 			// A hard error ends the library's own loop with nothing else

@@ -68,7 +68,14 @@ func patch(ctx context.Context, srcIndex int, root *yaml.Node, opts Options) (ov
 	if opts.Overlay == nil {
 		return overlay.Origin{}, nil, nil
 	}
-	origin, diags := applyOverlay(ctx, srcIndex, root, opts, overlayRefusals(ctx, opts))
+	pre := overlayRefusals(ctx, opts)
+	// The library parses the overlay reading no context, and refusals a cancel
+	// cut short have screened none of it, so the cancel is seen before it is
+	// handed over.
+	if err := ctx.Err(); err != nil {
+		return overlay.Origin{}, nil, err
+	}
+	origin, diags := applyOverlay(ctx, srcIndex, root, opts, pre)
 	return origin, diags, nil
 }
 

@@ -157,6 +157,12 @@ func (l *loading) buildModel(ctx context.Context) (bool, error) {
 	releaseAnchors(ctx, l.root)
 	l.esc = newEscapes(refusedByName(l.opts, l.src.Path))
 	l.esc.escape(ctx, l.root)
+	// The model build reads no context, so a cancel that cut the walks above
+	// short is seen before it starts, and never waited out on a tree half
+	// prepared for it.
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
 	doc, err := unmarshal(ctx, l.src.Data, l.root)
 	if err != nil {
 		return false, fmt.Errorf("openapi: unmarshal source %d: %w", l.srcIndex, err)

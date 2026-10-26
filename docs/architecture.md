@@ -145,9 +145,11 @@ compile does in proportion to the document honours the `context.Context` it is g
 or a cancellation stops it between items and the error reaches the caller unwrapped. That is every
 walk of the source's bytes, of its YAML tree and of the model built from it, in each phase of the
 load and of the lowering, and the settling after them; the load also asks before and after each
-phase, so no phase starts once the context is done and none cut short is built on. The one step a
-cancel waits out is the parser library's model build, a single call that reads no context
-([`parser-library.md`](parser-library.md#context-unread)).
+phase, so no phase starts once the context is done and none cut short is built on. Within a phase it
+asks again before each call into the parser library, which reads no context, so a screen or walk a
+cancel cut short is never followed by the library's work on what it left;
+`TestLoad_DoesNextToNothingOnceItRefusesACancel` counts that work. The one step a cancel waits out
+is the model build itself, a single call ([`parser-library.md`](parser-library.md#context-unread)).
 
 **The contract is checked, not trusted.** Each duty `compilers.Compiler`'s doc comments state is
 held where its data is. `Registry.Register` refuses a format naming no dialect, and
