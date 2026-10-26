@@ -4,7 +4,6 @@ import (
 	"context"
 	"io/fs"
 	"path/filepath"
-	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -15,15 +14,12 @@ import (
 )
 
 // recordingReader answers every request with "under" and records it, standing
-// for the reader beneath a Layered.
+// for the reader beneath a Layered. Each test reads through its own, in turn.
 type recordingReader struct {
-	mu   sync.Mutex
 	reqs []compilers.DocumentRequest
 }
 
 func (r *recordingReader) ReadDocument(_ context.Context, req compilers.DocumentRequest) ([]byte, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
 	r.reqs = append(r.reqs, req)
 	return []byte("under"), nil
 }
