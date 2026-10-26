@@ -1182,10 +1182,10 @@ alike are two entries to disambiguate, and reordering members of distinct values
 **The source spelling, for letter case only.** `Case` receives each canonical word beside the
 spelling the source gave it. ir-design §3.2 derives `Canonical` from `Source` by one grammar, which
 lives in `ir` (`ir.CanonicalWords`), and `irverify` holds every `Naming` that has a `Source` to it
-(`ir/naming-not-derived`). `naming.Words` takes the spellings from that same grammar: `ir` reads a
-name into its words as written once, and `CanonicalWords` is their lowercased join, so `ir` gains a
-sibling of it that returns those words, they align one to one, and no emitter carries a second copy
-of the grammar.
+(`ir/naming-not-derived`). `naming.Words` takes the spellings from that same grammar. `ir` reads a
+name into its words as written in one place, and `CanonicalWords` is their lowercased join; `ir`
+gains a sibling of `CanonicalWords` that returns those words, so each spelling aligns with its
+canonical word and no emitter carries a second copy of the grammar.
 A name with no `Source` — one built from a hint — has no spellings, and neither has a `Naming` the
 grammar does not derive, which `Words` leaves unspelled rather than guess. A policy may read a
 spelling to recover the letter case of a word whose boundaries the canonical form already fixes:
