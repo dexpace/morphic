@@ -1,19 +1,17 @@
 // Package diag holds the OpenAPI compiler's diagnostic vocabulary: the stable
-// codes it reports under, and the single constructor that builds a diagnostic
-// from them.
+// codes it reports under, the single constructor that builds a diagnostic from
+// them, and how one quotes a dependency's error or panic.
 //
 // It sits at the bottom of the compiler's import graph because every package
-// that reports anything reaches it and it reaches nothing but ir. The codes are
-// format-specific strings and stay here rather than promoting to
-// compilers/compile — that rule wants evidence from all three compilers, and the
-// GraphQL and Protobuf drafts have not been compared. Whether Newf itself later
-// promotes is left open for the same reason.
+// that reports anything reaches it, and it reaches only ir and barrier. The
+// codes are format-specific strings and stay here rather than promoting to
+// compilers/compile — that rule wants evidence from all three compilers, and
+// the GraphQL and Protobuf drafts have not been compared. Whether Newf itself
+// later promotes is left open for the same reason.
 package diag
 
 import (
 	"fmt"
-	"strings"
-	"unicode/utf8"
 
 	"github.com/dexpace/morphic/ir"
 )
@@ -460,69 +458,4 @@ func Newf(sev ir.Severity, code string, prov ir.Provenance, format string, args 
 // advisory warnings it must carry forward rather than abort on.
 func HasError(diags []ir.Diagnostic) bool {
 	return ir.HasError(diags)
-}
-
-// MaxQuotedErrorBytes bounds what a foreign error contributes to a diagnostic
-// message. A library error obeys no size limit: yaml.v3 reports a duplicated
-// mapping key once per prior occurrence, so a 32 KB source repeating one key
-// 6,553 times raises a 1.2 GB error.
-//
-// The cap is generous because the errors worth quoting are lists, such as the
-// overlay validator's one sentence per finding, and a list cut to its first
-// entry says less than the reader came for.
-const MaxQuotedErrorBytes = 4 << 10
-
-// elidedMarker ends a message the cap cut. It carries no count: a marker whose
-// text depends on how much was dropped makes the message depend on the whole
-// error again, which is the dependency the cap exists to remove.
-const elidedMarker = "… (elided)"
-
-// OneLine collapses err's text onto one line and cuts it at
-// MaxQuotedErrorBytes, for a diagnostic that carries an error raised by
-// something else.
-//
-// A diagnostic is rendered one per line, so an embedded newline splits one
-// report into several, each after the first lacking severity, code and
-// location. yaml.v3 and the overlay validator both write multi-line errors.
-//
-// Parts are joined with "; ", except after a part ending in a colon, whose next
-// line is that header's content. The scan stops at the cap, so the work is
-// bounded by what is kept, not by what the library wrote.
-func OneLine(err error) string {
-	var out strings.Builder
-	for rest := err.Error(); rest != "" && out.Len() < MaxQuotedErrorBytes; {
-		var line string
-		line, rest, _ = strings.Cut(rest, "\n")
-
-		part := strings.Join(strings.Fields(line), " ")
-		if part == "" {
-			continue
-		}
-		if out.Len() > 0 {
-			if strings.HasSuffix(out.String(), ":") {
-				out.WriteString(" ")
-			} else {
-				out.WriteString("; ")
-			}
-		}
-		out.WriteString(part)
-	}
-	return cutToCap(out.String())
-}
-
-// cutToCap returns msg bounded by MaxQuotedErrorBytes, marked when it cut.
-//
-// The cut lands on a rune boundary. The bytes are a foreign library's and may be
-// multi-byte, and half a rune in a diagnostic is ill-formed text put in front of
-// a reader — the one thing a report must not do, and the reason irverify's
-// checkUTF8 quotes none of the invalid UTF-8 it finds back.
-func cutToCap(msg string) string {
-	if len(msg) <= MaxQuotedErrorBytes {
-		return msg
-	}
-	cut := MaxQuotedErrorBytes
-	for cut > 0 && !utf8.RuneStart(msg[cut]) {
-		cut--
-	}
-	return msg[:cut] + elidedMarker
 }

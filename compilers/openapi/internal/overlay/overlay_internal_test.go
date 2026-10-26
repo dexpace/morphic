@@ -2,7 +2,9 @@ package overlay
 
 import (
 	"encoding/json/jsontext"
+	"errors"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -123,6 +125,26 @@ func TestApplyWithin_RecoversALibraryPanic(t *testing.T) {
 	require.Len(t, diags, 1)
 	assert.Equal(t, diag.OverlayFailed, diags[0].Code)
 	assert.Contains(t, diags[0].Message, "panicked", "the fault is named, not swallowed")
+}
+
+// TestApplyRecovered_QuotesAPanicOnOneBoundedLine pins that a fault in the
+// application reaches the refusal as diag.Catch quotes it, whatever the
+// library panicked with, and that nothing the application left is reported.
+func TestApplyRecovered_QuotesAPanicOnOneBoundedLine(t *testing.T) {
+	t.Parallel()
+	at := ir.Provenance{Source: 1}
+	huge := strings.Repeat("the selector faulted here\n", 1<<10)
+
+	diags, applied := applyRecovered(at, func() ([]ir.Diagnostic, bool) { panic(huge) })
+
+	assert.False(t, applied)
+	require.Len(t, diags, 1)
+	assert.Equal(t, diag.OverlayFailed, diags[0].Code)
+	assert.Equal(t, at, diags[0].Provenance)
+	assert.Equal(t, "cannot apply overlay: overlay library panicked ("+diag.OneLine(errors.New(huge))+")",
+		diags[0].Message)
+	assert.NotContains(t, diags[0].Message, "\n")
+	assert.Less(t, len(diags[0].Message), len(huge)/4, "the bound cut the value")
 }
 
 // TestSnapshotAndAttribute_TakeADocumentWithNoRoot pins the walks themselves

@@ -204,13 +204,14 @@ func TestPanicError_UnwrapReachesWhatWasRaised(t *testing.T) {
 
 func TestCatch_MessageIsOneLine(t *testing.T) {
 	t.Parallel()
-	// Line breaks of every kind Unicode knows, a tab, and runs of white space.
-	text := "first\nsecond\r\nthird\tfourth\vfifth\fsixth\u0085seventh eighth ninth   tenth"
+	// Each line break Unicode makes mandatory ends a line, and the white space
+	// within a line is a run of spaces and a tab.
+	text := "first\nsecond\r\nthird\tfourth\vfifth\fsixth\u0085seventh\u2028eighth\u2029ninth   tenth"
 
 	perr := caught(t, func() { panic(text) })
 
 	assert.Equal(t,
-		"panic: first second third fourth fifth sixth seventh eighth ninth tenth (at "+siteOf(perr)+")",
+		"panic: first; second; third fourth; fifth; sixth; seventh; eighth; ninth tenth (at "+siteOf(perr)+")",
 		perr.Error())
 }
 

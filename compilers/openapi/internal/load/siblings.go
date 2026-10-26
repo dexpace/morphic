@@ -345,9 +345,12 @@ func isRefKey(key *yaml.Node) bool {
 // buildSibling builds the fields beside a $ref into a Path Item, as the source's
 // own path items are built. Nothing is validated: the table judges them as the
 // item's own fields.
-func buildSibling(ctx context.Context, node *yaml.Node) (item *soa.PathItem, err error) {
-	defer recovered(&err, "parser")
-	item = soa.NewPathItem()
-	_, err = marshaller.UnmarshalNode(ctx, "", node, item)
+func buildSibling(ctx context.Context, node *yaml.Node) (*soa.PathItem, error) {
+	var item *soa.PathItem
+	err := runRecovered("parser", func() error {
+		item = soa.NewPathItem()
+		_, err := marshaller.UnmarshalNode(ctx, "", node, item)
+		return err
+	})
 	return item, err
 }

@@ -18,8 +18,8 @@ import (
 // TestLoad_ATaggedMappingIsRefusedBeforeParsing pins the refusal on the fixture
 // the harness sweeps. A mapping carrying a tag other than !!map at a request
 // body faults the parser on a goroutine of its own, past the reach of
-// unmarshal's recover, so the document has to be refused before the parser is
-// handed the tree — as a spec problem naming the mapping, not a crash
+// buildRecovered's barrier, so the document has to be refused before the parser
+// is handed the tree — as a spec problem naming the mapping, not a crash
 // (GitHub #474).
 func TestLoad_ATaggedMappingIsRefusedBeforeParsing(t *testing.T) {
 	t.Parallel()

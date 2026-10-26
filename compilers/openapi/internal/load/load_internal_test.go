@@ -1,6 +1,7 @@
 package load
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -71,6 +72,41 @@ func TestUnmarshal_RecoversParserPanic(t *testing.T) {
 	doc, err := unmarshal(t.Context(), []byte(" "), root)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrParse)
+	assert.Nil(t, doc)
+}
+
+// TestBuildRecovered_QuotesAPanicOnOneBoundedLine pins that a fault in the
+// parser's build reaches the ErrParse error as diag.Catch quotes it, whatever it
+// panicked with: the compiler reports the error as a diagnostic, rendered one
+// per line.
+func TestBuildRecovered_QuotesAPanicOnOneBoundedLine(t *testing.T) {
+	t.Parallel()
+	huge := strings.Repeat("the parser faulted here\n", 1<<10)
+
+	doc, err := buildRecovered(func() (*soa.OpenAPI, error) { panic(huge) })
+
+	require.ErrorIs(t, err, ErrParse)
+	assert.Nil(t, doc)
+	assert.Equal(t, "parser panicked ("+diag.OneLine(errors.New(huge))+"): "+ErrParse.Error(), err.Error())
+	assert.NotContains(t, err.Error(), "\n")
+	assert.Less(t, len(err.Error()), len(huge)/4, "the bound cut the value")
+}
+
+// TestBuildRecovered_ReturnsWhatTheBuildReturned pins the barrier as a
+// pass-through for a build that returns: its document, or its error, which is
+// not ErrParse.
+func TestBuildRecovered_ReturnsWhatTheBuildReturned(t *testing.T) {
+	t.Parallel()
+	want := &soa.OpenAPI{}
+	refused := errors.New("refused")
+
+	doc, err := buildRecovered(func() (*soa.OpenAPI, error) { return want, nil })
+	require.NoError(t, err)
+	assert.Same(t, want, doc)
+
+	doc, err = buildRecovered(func() (*soa.OpenAPI, error) { return nil, refused })
+	require.ErrorIs(t, err, refused)
+	assert.NotErrorIs(t, err, ErrParse, "an error the parser returned is not a fault")
 	assert.Nil(t, doc)
 }
 

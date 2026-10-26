@@ -258,9 +258,9 @@ func readReproducer(t *testing.T, file string) []byte {
 	return data
 }
 
-func TestRecoverCycleScan_PanicYieldsWarning(t *testing.T) {
+func TestScanRecovered_PanicYieldsWarning(t *testing.T) {
 	t.Parallel()
-	got := recoverCycleScan(InSource(3), func() []ir.Diagnostic {
+	got := scanRecovered(InSource(3), func() []ir.Diagnostic {
 		panic("detector bug")
 	})
 	require.Len(t, got, 1, "a panicking scan degrades to one diagnostic")
@@ -271,10 +271,25 @@ func TestRecoverCycleScan_PanicYieldsWarning(t *testing.T) {
 		got[0].Message, "the warning says what is left unprotected")
 }
 
-func TestRecoverCycleScan_PassesThroughResult(t *testing.T) {
+// TestScanRecovered_QuotesAPanicOnOneBoundedLine pins that the warning
+// quotes a fault as diag.Catch does, whatever the scan panicked with.
+func TestScanRecovered_QuotesAPanicOnOneBoundedLine(t *testing.T) {
+	t.Parallel()
+	huge := strings.Repeat("the detector faulted here\n", 1<<10)
+
+	got := scanRecovered(InSource(0), func() []ir.Diagnostic { panic(huge) })
+
+	require.Len(t, got, 1)
+	assert.Equal(t, "alias pre-scan aborted ("+diag.OneLine(errors.New(huge))+
+		"); alias-cycle protection is incomplete for this source", got[0].Message)
+	assert.NotContains(t, got[0].Message, "\n")
+	assert.Less(t, len(got[0].Message), len(huge)/4, "the bound cut the value")
+}
+
+func TestScanRecovered_PassesThroughResult(t *testing.T) {
 	t.Parallel()
 	want := []ir.Diagnostic{{Code: diag.CyclicRef, Severity: ir.SeverityError}}
-	got := recoverCycleScan(InSource(0), func() []ir.Diagnostic {
+	got := scanRecovered(InSource(0), func() []ir.Diagnostic {
 		return want
 	})
 	assert.Equal(t, want, got)
@@ -466,13 +481,13 @@ func TestAliases_RefusesTheYAMLShapesAndNotTheOpenAPIOnes(t *testing.T) {
 }
 
 // TestAliases_DegradesAScanFaultToAWarning pins that Aliases runs under
-// recoverCycleScan: a fault in the walk is reported as an incomplete scan,
+// scanRecovered: a fault in the walk is reported as an incomplete scan,
 // never raised through a caller that has not yet refused anything.
 //
 // The locator faults only when asked about a node, which is what the walk asks
 // it; asked about no node, as the barrier's own report does, it answers. A
-// locator that faulted on both would fault inside the recovery too, and that
-// tests a locator this compiler does not have rather than the barrier it does.
+// locator that faulted on both would fault in that report too, and that tests
+// a locator this compiler does not have rather than the barrier it does.
 func TestAliases_DegradesAScanFaultToAWarning(t *testing.T) {
 	t.Parallel()
 	panicking := func(n *yaml.Node) ir.Provenance {

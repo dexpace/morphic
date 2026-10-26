@@ -1,18 +1,18 @@
 package barrier
 
-// MaxText exposes the bound on the text of a panic value in a message.
+// MaxText exposes the bound on the text of a value in a message.
 const MaxText = maxText
 
-// ScanLimit exposes how much of a panic value's text is read.
+// ScanLimit exposes how much of a value's text is read.
 const ScanLimit = scanLimit
 
 // MaxStack exposes the bound on the stack a PanicError keeps.
 const MaxStack = maxStack
 
-// NoText exposes the text a panic value with none is given.
+// NoText exposes the text a value with none is given.
 const NoText = noText
 
-// ElidedMarker exposes the marker that ends a message the bound cut.
+// ElidedMarker exposes the marker that ends a text the bound cut.
 const ElidedMarker = elidedMarker
 
 // PanicWithNoCallerFrame returns what Catch reports for a panic raised on a
