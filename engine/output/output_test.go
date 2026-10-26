@@ -91,15 +91,17 @@ func TestWriteDocument_CompactIsTheIndentedFormWithoutWhitespace(t *testing.T) {
 }
 
 // TestWriteDocument_BadDocumentWritesNothing pins that the writer gets a whole
-// document or nothing. The description runs past the encoder's internal buffer,
-// so an encoder writing straight to w would already have flushed part of the
-// document there by the time it reaches the malformed value.
+// document or nothing. Streamed straight to a writer, the document reaches it in
+// part before the encoding fails, as the test checks first, so a WriteDocument
+// that wrote as it encoded would leave that part in w.
 func TestWriteDocument_BadDocumentWritesNothing(t *testing.T) {
 	t.Parallel()
 	for _, tt := range layouts {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			var w bytes.Buffer
+			var streamed, w bytes.Buffer
+			require.Error(t, output.Encode(t.Context(), &streamed, bigBadDoc(), tt.layout))
+			require.Positive(t, streamed.Len(), "a streamed encode must write part of the document before it fails")
 
 			err := output.WriteDocument(t.Context(), &w, bigBadDoc(), tt.layout)
 
@@ -266,10 +268,10 @@ func TestReplaceDocument_MissingParentDirectory(t *testing.T) {
 	assert.ErrorContains(t, err, fmt.Sprintf("create output %q", dest))
 }
 
-// TestEncode_ErrorPaths pins that both layouts tell the failures apart: a
-// document that will not marshal, a destination that refuses the bytes, and one
-// that refuses only the trailing newline. json.MarshalWrite reports the first
-// two as one error, so without the writer that records what the destination
+// TestEncode_ErrorPaths pins that both layouts tell a document that will not
+// marshal from a destination that refuses the bytes, one refusing them before
+// the encoder reaches a malformed value included. json.MarshalWrite reports
+// both as one error, so without the writer that records what the destination
 // said, a disk failure would be reported as a marshal failure.
 func TestEncode_ErrorPaths(t *testing.T) {
 	t.Parallel()
@@ -286,8 +288,6 @@ func TestEncode_ErrorPaths(t *testing.T) {
 			"write ir document: disk gone", errDisk},
 		{"refusing destination before a bad document", func() io.Writer { return refusingWriter{} }, bigBadDoc,
 			"write ir document: disk gone", errDisk},
-		{"newline refused", func() io.Writer { return &newlineRefusingWriter{} }, orderedDoc,
-			"write ir document: disk gone", errDisk},
 	}
 	for _, tt := range tests {
 		for _, l := range layouts {
@@ -303,6 +303,46 @@ func TestEncode_ErrorPaths(t *testing.T) {
 					return
 				}
 				assert.NotContains(t, err.Error(), "write ir document")
+			})
+		}
+	}
+}
+
+// TestEncode_ADestinationThatFillsIsAWriteFailure pins a destination that
+// takes part of the encoding and refuses the rest. Whether the write it refuses
+// is more of the document or the newline encode writes after it, the encoding
+// ends there, and the failure is reported as refusing the bytes, with the
+// destination's error behind it, and not as a document that would not
+// marshal: the first reaches encode through json.MarshalWrite's error, the
+// second does not.
+func TestEncode_ADestinationThatFillsIsAWriteFailure(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		// stopAt is how many bytes of a document n bytes long the destination
+		// must hold before it refuses a write.
+		stopAt func(n int) int
+	}{
+		{"the refused write is more of the document", func(int) int { return 1 }},
+		{"the refused write is the newline", func(n int) int { return n }},
+	}
+	for _, tt := range tests {
+		for _, l := range layouts {
+			t.Run(tt.name+", "+l.name, func(t *testing.T) {
+				t.Parallel()
+				document := strings.TrimSuffix(string(written(t, manyTypesDoc(), l.layout)), "\n")
+				stopAt := tt.stopAt(len(document))
+				w := &fillingWriter{stopAt: stopAt}
+
+				err := output.Encode(t.Context(), w, manyTypesDoc(), l.layout)
+
+				require.ErrorIs(t, err, errDisk)
+				assert.EqualError(t, err, "write ir document: disk gone")
+				assert.Equal(t, 1, w.refusals, "no write starts once the destination has refused one")
+				got := w.buf.String()
+				assert.True(t, strings.HasPrefix(document, got), "what was written is the document's start")
+				assert.Equal(t, stopAt == len(document), got == document,
+					"the destination holds the whole document only when it refuses nothing before the newline")
 			})
 		}
 	}
@@ -373,52 +413,42 @@ func TestReplaceDocument_ADoneContextLeavesTheDestination(t *testing.T) {
 	assert.Equal(t, []string{"ir.json"}, entriesIn(t, dir))
 }
 
-// cancellingWriter keeps what it is given and ends its context on the first
-// write, as a stop arriving while the encoder writes does.
-type cancellingWriter struct {
-	cancel context.CancelFunc
-	writes int
-	buf    bytes.Buffer
-}
-
-func (w *cancellingWriter) Write(p []byte) (int, error) {
-	w.cancel()
-	w.writes++
-	return w.buf.Write(p)
-}
-
 // TestEncode_StopsAtTheWriteAfterTheContextEnds pins how far an encoding goes
-// once its context ends: the write under way finishes and no other starts,
-// whether the next would have been more of the document or its newline. The
-// many types take several of the encoder's writes; the bare document takes one.
+// once its context ends: any write under way finishes and no other starts,
+// whether the next would have been the first, more of the document or its
+// newline. A stop is placed by how much of the document the destination holds,
+// not by which write brought it there: how many writes a document takes is the
+// encoder's to decide, and one fresh from its pool splits a document
+// differently from one it has used.
 func TestEncode_StopsAtTheWriteAfterTheContextEnds(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name string
-		doc  func() *ir.Document
-		// whole is whether the first write holds the whole document.
-		whole bool
+		// stopAt is how many bytes of a document n bytes long the destination
+		// must hold for the context to end.
+		stopAt func(n int) int
 	}{
-		{"the next write is more of the document", manyTypesDoc, false},
-		{"the next write is the newline", bareDoc, true},
+		{"the next write is the first", func(int) int { return 0 }},
+		{"the next write is more of the document", func(int) int { return 1 }},
+		{"the next write is the newline", func(n int) int { return n }},
 	}
 	for _, tt := range tests {
 		for _, l := range layouts {
 			t.Run(tt.name+", "+l.name, func(t *testing.T) {
 				t.Parallel()
-				ctx, cancel := context.WithCancel(t.Context())
-				defer cancel()
-				w := &cancellingWriter{cancel: cancel}
-				document := strings.TrimSuffix(string(written(t, tt.doc(), l.layout)), "\n")
+				document := strings.TrimSuffix(string(written(t, manyTypesDoc(), l.layout)), "\n")
+				stopAt := tt.stopAt(len(document))
+				ctx, w := newCancellingWriter(t, stopAt)
 
-				err := output.Encode(ctx, w, tt.doc(), l.layout)
+				err := output.Encode(ctx, w, manyTypesDoc(), l.layout)
 
 				require.ErrorIs(t, err, context.Canceled)
 				assert.EqualError(t, err, "write ir document: context canceled")
-				assert.Equal(t, 1, w.writes, "no write starts once the context has ended")
+				assert.Zero(t, w.late, "no write starts once the context has ended")
 				got := w.buf.String()
 				assert.True(t, strings.HasPrefix(document, got), "what was written is the document's start")
-				assert.Equal(t, tt.whole, got == document, "the document is whole only when one write held it")
+				assert.Equal(t, stopAt == len(document), got == document,
+					"the destination holds the whole document only when the stop waits for all of it")
 			})
 		}
 	}
