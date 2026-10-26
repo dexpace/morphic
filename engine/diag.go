@@ -12,7 +12,7 @@ import (
 //
 // Each reports a problem with the source the caller named, which the pipeline
 // can reject before any compiler runs. A Go error out of Run means the file
-// could not be read or a compiler broke its contract.
+// could not be read or a compiler or pass broke its contract.
 //
 // Detection reports under no engine code: the engine parses nothing, so why a
 // source could not be read belongs to the compiler that recognized it
