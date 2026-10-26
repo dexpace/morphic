@@ -44,11 +44,13 @@ type sequence struct {
 	root *yaml.Node
 	lax  bool
 
-	// size is an upper bound on the tree's node count, against the node
-	// budget: exact when taken, then raised by each action's cost, which is
-	// what the action can add and no less. It is recounted before a refusal,
-	// so an action that merges into keys already there — adding less than it
-	// is charged — is never refused on the charge alone.
+	// size counts the tree's nodes against the node budget: a count that
+	// stops one node past the budget, then raised by each action's cost,
+	// which is what the action can add and no less. Within the budget it is
+	// an upper bound on the tree; past it, it says only that the tree may be
+	// past too. So it is recounted before a refusal, and an action that merges
+	// into keys already there, adding less than it is charged, or that follows
+	// a remove is never refused on the charge alone.
 	size budget.Budget
 
 	warnings []string // per-action warnings, renumbered against the whole overlay

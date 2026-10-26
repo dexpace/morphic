@@ -320,7 +320,8 @@ func TestSequence_ChargesAnActionToTheBudgetsEdge(t *testing.T) {
 // TestSequence_RefusesNoActionThatBuildsNothing pins that an action adding no
 // node is applied however large the tree it runs on: here a remove, on a tree
 // already past the budget, which it brings back within. Refused, it was
-// reported as growing the document.
+// reported as growing the document. An action that builds after it is
+// charged against the tree it left, which is counted afresh.
 func TestSequence_RefusesNoActionThatBuildsNothing(t *testing.T) {
 	t.Parallel()
 	const head = "overlay: 1.0.0\ninfo: {title: o, version: \"1\"}\nactions:\n"
@@ -335,6 +336,9 @@ func TestSequence_RefusesNoActionThatBuildsNothing(t *testing.T) {
 	require.True(t, ok, "a remove builds nothing, so no budget refuses it: %+v", diags)
 	assert.Empty(t, diags)
 	assert.Less(t, countNodes(t.Context(), root, budget.AtMost(maxNodes)), before-1, "and it was applied")
+
+	_, diags, ok = budgetedOverlay(t, ov+"  - target: $.info\n    update: {x-a: 1}\n", budget.AtMost(before-1))
+	assert.True(t, ok, "an action after it is charged against the tree it left: %+v", diags)
 }
 
 // TestSequence_AppliesNoActionOnceItsContextRefused cancels a sequence at
