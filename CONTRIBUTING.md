@@ -73,6 +73,15 @@ Read the documents for your layer, and skip the rest until you need them.
   file read or a stub compiler, is written where it is needed, and so is one whose body is a single
   expression, such as `ir.TypeRef{Target: id}`, which holds no behaviour for a copy to drift from.
   *Fails if missed:* nothing. A copy compiles beside the original.
+- **Code only tests call is test code.** A production function no binary reaches, itself or
+  through what calls it, is deleted or moved into the tests it serves: into the test file that
+  calls it, or into the package's `export_test.go` when an external test does, as `compile`'s
+  `Types.Len` is. One kept for a caller the module does not have yet, such as the engine's API for
+  a program driving it from Go, is named with that caller in `internal/archtest`'s `apiRoots`, and
+  a package whose production files exist for tests, such as `openapitest`, in its `testSupport`.
+  *Fails if missed:* `TestReachability_OnlyTestsReachNoFunction`, which also fails on an `apiRoots`
+  entry a binary reaches. Nothing fails for a field or a constant only tests read, or for an
+  exported method of a type the program converts to an interface, which reflection could call.
 - **An end-to-end test of the OpenAPI compiler goes in `compilers/openapi/e2e`,** in a file named
   for the construct or the property it checks: a test of what the compiler does as a whole, which no
   one package decides, such as the conformance corpus, the goldens, fuzzing, benchmarks and a
