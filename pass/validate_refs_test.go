@@ -868,8 +868,8 @@ func TestCheckDanglingRefs_NilTypeDefIsNotFollowed(t *testing.T) {
 // properties, so naming one is settled on the spot and its path never rendered;
 // a pagination path sits in a service, which the walk reaches before any type,
 // so it is kept until every property is read, and then only the ghost dangles.
+// It is not run in parallel: AllocsPerRun measures the process.
 func TestPropIDSites_KeepOnlyWhatIsNotYetDeclared(t *testing.T) {
-	t.Parallel()
 	doc := docWithOperation(ir.Operation{ID: "op/o", Pagination: &ir.Pagination{
 		Items: &ir.PropPath{Segments: []ir.PropID{"p/m/a", "p/ghost"}},
 	}})
@@ -877,10 +877,13 @@ func TestPropIDSites_KeepOnlyWhatIsNotYetDeclared(t *testing.T) {
 	require.True(t, ok)
 	model.Discriminator = &ir.Discriminator{Property: "p/m/a"}
 
-	assert.Equal(t, []string{
+	kept := []string{
 		"doc.Services[0].Groups[0].Operations[0].Pagination.Items.Segments[0]",
 		"doc.Services[0].Groups[0].Operations[0].Pagination.Items.Segments[1]",
-	}, pass.KeptPropIDs(doc))
+	}
+	assert.Equal(t, kept, pass.KeptPropIDs(doc))
+	assert.Equal(t, kept, irtest.AllocatingVisits(doc, pass.WalkVisitors(doc)...),
+		"a path is rendered only for what is kept")
 	var dangling []string
 	for _, d := range pass.Validate(doc) {
 		if d.Code == "ir/dangling-prop-ref" {

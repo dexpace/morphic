@@ -18,6 +18,9 @@ func CountingIDReader(reads *int) *IDReader {
 	}}
 }
 
+// IDClasses is idClasses, for the external tests.
+var IDClasses = idClasses
+
 // DeclaredIDField returns where struct type t declares its identity, the field's
 // index and class, read by the rule an IDReader remembers per type.
 func DeclaredIDField(t reflect.Type) (int, reflect.Type) {

@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/ir/irtest"
 )
 
 // declaringDoc declares one node of every class that carries its own ID, so a
@@ -96,9 +97,9 @@ func TestIDDeclarations_NilDocumentDeclaresNothing(t *testing.T) {
 	assert.False(t, truncated)
 }
 
-// The shapes IDReader.DeclaredIDOf has to tell apart. The IR holds only the first: every
-// promoted ID is a TypeID, and no node declares a plain-string ID, so a walk
-// over a Document cannot separate the clauses of the predicate.
+// The shapes IDReader.DeclaredIDOf has to tell apart. The IR holds only the
+// first two, an ID a struct declares and one it promotes, so a walk over a
+// Document cannot exercise the other clauses of the predicate.
 type (
 	idDeclarer    struct{ ID ir.OpID }
 	idPromoter    struct{ idDeclarer }
@@ -251,19 +252,19 @@ func TestDeclaredIDField_CostsNoAllocation(t *testing.T) {
 	}
 }
 
-// TestIDDeclarations_VisitingCostsNoAllocation holds a walk's per-value cost
-// for its declarations at nothing beyond the record a declaration adds: a value
-// declaring nothing, of a type met before, allocates nothing. It is not run in
-// parallel: AllocsPerRun measures the process.
-func TestIDDeclarations_VisitingCostsNoAllocation(t *testing.T) {
-	var decls ir.IDDeclarations
-	for _, v := range []reflect.Value{
-		reflect.ValueOf(ir.Naming{Source: "n", Canonical: "n"}),
-		reflect.ValueOf(ir.Model{ID: "t/x/M"}),
-		reflect.ValueOf(ir.OpID("op/x")),
-	} {
-		require.True(t, decls.Visit(v, ir.WalkPath{}))
-		assert.Zero(t, testing.AllocsPerRun(10, func() { _ = decls.Visit(v, ir.WalkPath{}) }), v.Type().Name())
+// TestIDDeclarations_AllocatesOnlyForADeclaration holds a walk's per-value cost
+// for its declarations to the record a declaration adds: a value declaring
+// nothing, of a type met before, allocates nothing. Each is handed the walk's
+// own path, so rendering one for a value declaring nothing would count. It is
+// not run in parallel: AllocsPerRun measures the process.
+func TestIDDeclarations_AllocatesOnlyForADeclaration(t *testing.T) {
+	doc := declaringDoc()
+	decls, _ := declaredIDs(doc)
+	want := make([]string, 0, len(decls))
+	for _, d := range decls {
+		want = append(want, d.Path)
 	}
-	assert.Empty(t, decls.List(), "none of these declares an identity of its own")
+
+	var visitor ir.IDDeclarations
+	assert.Equal(t, want, irtest.AllocatingVisits(doc, &visitor))
 }

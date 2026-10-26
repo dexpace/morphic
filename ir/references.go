@@ -33,7 +33,8 @@ type IDReferences struct {
 	// labels names the registry each class of reference resolves in, and so
 	// holds every class a reference can be of.
 	labels map[reflect.Type]string
-	// keyed holds the IDs each registry a Document map keys declares, by class.
+	// keyed holds, for each class a Document map is keyed by, the keys that map
+	// holds.
 	keyed map[reflect.Type]map[string]bool
 	// declared holds the IDs the walk's nodes declare for every other class,
 	// read through ids.
@@ -162,9 +163,9 @@ func (r *IDReferences) Label(class reflect.Type) string {
 }
 
 // KeyedClasses returns the classes of ID a Document field keys a registry map
-// by: [TypeID] for Types, [ChannelID] for Channels. It reads Document's type
-// rather than a document, so it answers alike for every one, and covers a
-// registry added to Document the moment it exists.
+// by, such as [TypeID] for Types and [ChannelID] for Channels. It reads
+// Document's type rather than a document, so it answers alike for every one,
+// and covers a registry added to Document the moment it exists.
 func KeyedClasses() map[reflect.Type]bool {
 	regs := keyedRegistries()
 	classes := make(map[reflect.Type]bool, len(regs))

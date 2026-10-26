@@ -24,8 +24,8 @@ type IDDeclaration struct {
 // IDDeclarations collects, as a [Visitor], the identities the values its walk
 // reaches declare, in walk order and each with its path, for a check reporting
 // where one is declared, such as twice. Reading them off the value graph covers
-// a new ID-bearing node the moment it exists. [IDReferences] reads the same
-// identities to resolve references, rendering no path.
+// a new ID-bearing node the moment it exists. [IDReferences] reads those it
+// resolves references against, rendering no path.
 //
 // An empty ID is skipped, since nothing can reference one and several nodes
 // carrying one are not duplicates. Reporting it is irverify.checkRegistryKeys's
@@ -123,19 +123,14 @@ func (f idField) of(v reflect.Value) string {
 // Only t's own fields are read. A promoted ID is not t's declaration: every type
 // node embeds [TypeCommon] and so promotes its ID, and counting that too would
 // declare each type ID twice. Reading them by index also allocates nothing,
-// where reflect.Type.FieldByName, missing a field of the name, searches every
-// embedded struct and allocates for each. A field named ID that is not a named
-// string type settles no class of reference.
+// where reflect.Type.FieldByName, finding none of the name among them, searches
+// the embedded structs breadth-first, which allocates. A field named ID that is
+// not a named string type settles no class of reference.
 func declaredIDField(t reflect.Type) idField {
 	for i := range t.NumField() {
-		f := t.Field(i)
-		if f.Name != idFieldName {
-			continue
+		if f := t.Field(i); f.Name == idFieldName && namedString(f.Type) {
+			return idField{index: i, class: f.Type}
 		}
-		if !namedString(f.Type) {
-			return idField{} // Go allows one field of a name, so no later one is
-		}
-		return idField{index: i, class: f.Type}
 	}
 	return idField{}
 }

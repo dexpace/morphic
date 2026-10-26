@@ -2,6 +2,7 @@ package ir_test
 
 import (
 	"reflect"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -73,11 +74,12 @@ func TestKeyedClasses_DerivedFromDocumentShape(t *testing.T) {
 // class of ID resolves in. A class Document keys a map by resolves in that map;
 // every other class resolves against what the walk declares, whether or not the
 // document declares any; and PropID, a position inside its model, has no
-// registry at all. Every ID type ir declares is listed.
+// registry at all. Every class a node of the IR declares is listed, which the
+// IR's type graph holds the table to.
 func TestNewIDReferences_LabelsTheRegistryOfEveryClass(t *testing.T) {
 	t.Parallel()
 	refs := ir.NewIDReferences(&ir.Document{})
-	for class, label := range map[reflect.Type]string{
+	want := map[reflect.Type]string{
 		reflect.TypeFor[ir.TypeID]():       "types",
 		reflect.TypeFor[ir.ChannelID]():    "channels",
 		reflect.TypeFor[ir.MessageID]():    "messages",
@@ -88,8 +90,12 @@ func TestNewIDReferences_LabelsTheRegistryOfEveryClass(t *testing.T) {
 		reflect.TypeFor[ir.ParamID]():      "param declarations",
 		reflect.TypeFor[ir.EnumMemberID](): "enummember declarations",
 		reflect.TypeFor[ir.PropID]():       "",
-	} {
+	}
+	for class, label := range want {
 		assert.Equal(t, label, refs.Label(class), class.Name())
+	}
+	for class := range ir.IDClasses() {
+		assert.Contains(t, want, class, "a node declares %s", class.Name())
 	}
 }
 
@@ -337,32 +343,38 @@ func TestNewIDReferences_NilDocumentKeysNothing(t *testing.T) {
 
 // TestIDReferences_SettlingCostsNoAllocation holds the walk's per-value cost at
 // nothing for what it settles as it goes: a reference resolving in a map-keyed
-// registry, a struct declaring no identity, one declaring an identity already
-// recorded, and a reference to that identity. Reading a registry through reflect allocated twice per
-// resolving lookup, and a golden-spec IR holds hundreds of thousands. It is not
-// run in parallel: AllocsPerRun measures the process.
+// registry, a struct declaring no identity or one already recorded, and a
+// reference to a declared identity, a node's own included. Each is handed the
+// walk's own path, so rendering one for a reference not kept would count.
+// Reading a registry through reflect allocated twice per resolving lookup, and a
+// golden-spec IR holds hundreds of thousands. It is not run in parallel:
+// AllocsPerRun measures the process.
 func TestIDReferences_SettlingCostsNoAllocation(t *testing.T) {
 	doc := declaringDoc()
+	group := &doc.Services[0].Groups[0]
+	group.Operations = append(group.Operations, ir.Operation{ID: "op/y", OverloadOf: new(ir.OpID("op/x"))})
 	refs := ir.NewIDReferences(doc)
-	resolving, declared := ir.TypeID("t/x/M"), ir.OpID("op/x")
-	model, ok := doc.Types["t/x/M"].(*ir.Model)
-	require.True(t, ok)
 
-	// In order: the reference is settled only once the operation is declared.
-	for _, tc := range []struct {
-		name string
-		v    reflect.Value
-	}{
-		{"a resolving type reference", reflect.ValueOf(&resolving).Elem()},
-		{"a type node", reflect.ValueOf(model).Elem()},
-		{"an operation declared again", reflect.ValueOf(doc.Services[0].Groups[0].Operations[0])},
-		{"a reference to it", reflect.ValueOf(&declared).Elem()},
-	} {
-		require.True(t, refs.Visit(tc.v, ir.WalkPath{}), tc.name)
-		assert.Zero(t, testing.AllocsPerRun(10, func() { _ = refs.Visit(tc.v, ir.WalkPath{}) }), tc.name)
-	}
+	assert.Empty(t, irtest.AllocatingVisits(doc, refs), "every value of a sound document settles")
 	assert.Empty(t, refs.Kept(), "nothing visited may dangle")
-	assert.True(t, refs.Declares(reflect.TypeFor[ir.OpID](), "op/x"))
+	assert.True(t, refs.Declares(reflect.TypeFor[ir.OpID](), "op/y"), "the walk reached the last operation")
+}
+
+// TestNewIDReferences_ReadsKeysWithoutAllocatingEach holds reading a registry's
+// keys to one reused value: what building one allocates does not grow by one
+// per key, as copying each key out of the map would. It is not run in parallel:
+// AllocsPerRun measures the process.
+func TestNewIDReferences_ReadsKeysWithoutAllocatingEach(t *testing.T) {
+	allocs := func(types int) float64 {
+		doc := &ir.Document{Types: ir.TypeRegistry{}}
+		for i := range types {
+			id := ir.TypeID("t/x/M" + strconv.Itoa(i))
+			doc.Types[id] = &ir.Any{ID: id}
+		}
+		return testing.AllocsPerRun(5, func() { _ = ir.NewIDReferences(doc) })
+	}
+	const types = 1024
+	assert.Less(t, allocs(types)-allocs(0), float64(types)/16, "reading %d keys allocates per key", types)
 }
 
 // TestRefNoun_NamesTheReferenceClass pins the singular both checkers spell a

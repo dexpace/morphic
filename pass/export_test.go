@@ -20,6 +20,17 @@ func KeptPropIDs(doc *ir.Document) []string {
 	return paths
 }
 
+// WalkVisitors returns the visitors Validate's one walk of doc carries, in
+// order, for the external tests to walk doc with themselves.
+func WalkVisitors(doc *ir.Document) []ir.Visitor {
+	var visitors []ir.Visitor
+	walkDocument(doc, func(_ any, _ string, vs ...ir.Visitor) bool {
+		visitors = vs
+		return false
+	})
+	return visitors
+}
+
 // AppendTypeIDs is appendTypeIDs, for the external tests.
 var AppendTypeIDs = appendTypeIDs
 

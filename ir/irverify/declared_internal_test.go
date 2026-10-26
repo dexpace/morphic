@@ -1,7 +1,6 @@
 package irverify
 
 import (
-	"reflect"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -9,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/ir/irtest"
 )
 
 // declaredIDViolations runs the empty-identity check and drops the truncation
@@ -190,16 +190,12 @@ func TestVerify_ReportsEmptyDeclaredIDs(t *testing.T) {
 // TestCheckDeclaredIDs_VisitingCostsNoAllocation holds the check's per-value
 // cost at nothing for a value it has nothing to report on, of a type met before:
 // it reads each struct type's rule once, through one ir.IDReader, rather than
-// for every value. It is not run in parallel: AllocsPerRun measures the process.
+// for every value. Each value is handed the walk's own path, so rendering one
+// for a value not reported would count. It is not run in parallel: AllocsPerRun
+// measures the process.
 func TestCheckDeclaredIDs_VisitingCostsNoAllocation(t *testing.T) {
-	check := checkDeclaredIDs(&ir.Document{})
-	for _, v := range []reflect.Value{
-		reflect.ValueOf(ir.Naming{Source: "n", Canonical: "n"}),
-		reflect.ValueOf(ir.Model{ID: "t/x/M"}),
-		reflect.ValueOf(ir.TypeCommon{ID: "t/x/M"}),
-	} {
-		require.True(t, check.visit(v, ir.WalkPath{}))
-		assert.Zero(t, testing.AllocsPerRun(10, func() { _ = check.visit(v, ir.WalkPath{}) }), v.Type().Name())
-	}
-	assert.Empty(t, check.report(declarations{}), "none of these is a defect")
+	doc := idBearingDoc(true)
+	check := checkDeclaredIDs(doc)
+	assert.Empty(t, irtest.AllocatingVisits(doc, check))
+	assert.Empty(t, check.report(declarations{}), "no identity the document declares is a defect")
 }
