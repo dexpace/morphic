@@ -125,19 +125,19 @@ An OpenAPI Overlay document handed in as `Options.Overlay` is applied to the sou
 before its model is built. Its bytes are the caller's, or, when it hands none, read in the compile
 from the local file `Overlay.Path` names, through the caller's reader and unconfined, since the
 caller named it and not the spec. One the reader cannot read is a Go error, as an unreadable spec
-is, and so is a path naming an http(s) URL, since no setting takes a compile onto the network. Once
-applied, the pre-parse refusals and the node budgets hold the patched tree as they hold the source,
-and validation and every lowering read it. The overlay becomes a second entry in `Document.Sources`,
-and every position it introduced or rewrote names that entry as its `Provenance.Source`, while a
-position it left alone keeps the source's line and column. An overlay that does not parse, or is not
-a valid Overlay — no version, no actions, an action naming no target — is refused as an
-`openapi/invalid-overlay` error and nothing is applied. One the parser cannot apply as written, or
-whose grafted content expands past the walk's node budget, is refused as an `openapi/overlay-failed`
-error. Either way the source compiles to no Document rather than lowering a tree the caller believes
-was patched. Application is strict unless `Overlay.Lax` is set: each action that changed nothing, or
-relies on JSONPath behaviour the overlay did not opt into, is reported as an
-`openapi/overlay-action` warning naming the action, and the compile proceeds; an action whose
-selector matches nothing is reported the same way and refuses the overlay as
+is, and so are an overlay naming no file and one naming an http(s) URL, since no setting takes a
+compile onto the network. Once applied, the pre-parse refusals and the node budgets hold the patched
+tree as they hold the source, and validation and every lowering read it. The overlay becomes a
+second entry in `Document.Sources`, and every position it introduced or rewrote names that entry as
+its `Provenance.Source`, while a position it left alone keeps the source's line and column. An
+overlay that does not parse, or is not a valid Overlay — no version, no actions, an action naming no
+target — is refused as an `openapi/invalid-overlay` error and nothing is applied. One the parser
+cannot apply as written, or whose grafted content expands past the walk's node budget, is refused as
+an `openapi/overlay-failed` error. Either way the source compiles to no Document rather than
+lowering a tree the caller believes was patched. Application is strict unless `Overlay.Lax` is set:
+each action that changed nothing, or relies on JSONPath behaviour the overlay did not opt into, is
+reported as an `openapi/overlay-action` warning naming the action, and the compile proceeds; an
+action whose selector matches nothing is reported the same way and refuses the overlay as
 `openapi/overlay-failed`. Lax application reports none of these, and refuses only an overlay it
 cannot apply. Where the walk that attributes positions to the overlay runs out of its node budget,
 the overlay is applied and every position names the source, as with no overlay, reported as an

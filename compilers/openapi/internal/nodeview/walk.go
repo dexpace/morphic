@@ -79,8 +79,7 @@ type walkFrame struct {
 
 // AskEvery is how many nodes a walk of a tree visits between two asks of its
 // context: a node costs a few nanoseconds, so asking at each would be most of a
-// walk's work, and a stretch this long still ends within microseconds. The walks
-// that do not go through Walk ask at the same pace.
+// walk's work, and a stretch this long still ends within microseconds.
 const AskEvery = 256
 
 // Run walks the tree under root. A nil root, or a nil node in a Content list,

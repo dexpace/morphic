@@ -271,7 +271,7 @@ func bounded(limit int) int {
 type Overlay struct {
 	// Path names the overlay document, and is recorded as its SourceInfo path.
 	// With empty Data, it is the local file Compile reads through
-	// compilers.Options.Reader; an http(s) URL is refused.
+	// compilers.Options.Reader; an empty path or an http(s) URL is refused.
 	Path string `json:"path,omitempty"`
 	// Data is the overlay document's bytes, or empty to read the one Path
 	// names: no overlay document is empty.

@@ -60,7 +60,7 @@ type Index struct {
 // maxNodes is the caller's bound on the walk — MaxIndexedNodes in the compiler,
 // smaller in a test that drives the truncated path. A non-positive bound indexes
 // nothing and reports Truncated, which is the safe direction: it never claims a
-// count it did not reach.
+// count it did not reach. So does a walk ctx stopped.
 func Build(ctx context.Context, root *yaml.Node, maxNodes int64) Index {
 	content := nodeview.DocumentRoot(root)
 	if content == nil {
@@ -117,9 +117,9 @@ const MapTag = "!!map"
 // parser (what a tagged scalar keeps is GitHub #245).
 func (x Index) TaggedMappings() []*yaml.Node { return slices.Clone(x.taggedMappings) }
 
-// Truncated reports whether the walk stopped at its node bound. Every other
-// answer is then a partial one and must not be read as a fact about the
-// document.
+// Truncated reports whether the walk stopped at its node bound or its context.
+// Every other answer is then a partial one and must not be read as a fact about
+// the document.
 func (x Index) Truncated() bool { return x.truncated }
 
 // walker is one walk's working state: the ancestors of the node being visited,
