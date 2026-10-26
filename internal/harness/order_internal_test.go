@@ -19,6 +19,7 @@ import (
 
 	"github.com/dexpace/morphic/internal/decls"
 	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/pass"
 )
 
 // TestReverseMappings_Permutes covers the rewrite's shapes: what it reverses,
@@ -162,7 +163,7 @@ func TestOrderInvariant_CompileFailureIsReported(t *testing.T) {
 	require.True(t, ok)
 
 	onlyPermutedFails := func(fail func() (*ir.Document, []ir.Diagnostic, error)) {
-		compile = func(_ context.Context, _ string, data []byte) (*ir.Document, []ir.Diagnostic, error) {
+		compile = func(_ context.Context, _ string, data []byte, _ []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
 			if bytes.Equal(data, baseline) {
 				return &ir.Document{}, nil, nil
 			}
@@ -209,7 +210,7 @@ func TestOrderInvariant_UncompilableBaselineIsNotAFinding(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			orig := compile
 			t.Cleanup(func() { compile = orig })
-			compile = func(context.Context, string, []byte) (*ir.Document, []ir.Diagnostic, error) {
+			compile = func(context.Context, string, []byte, []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
 				return tc.fail()
 			}
 			detail, ok := orderInvariant(context.Background(), "spec", []byte("a: 1\nb: 2\n"))
@@ -481,7 +482,7 @@ func TestOrderInvariant_ReachesTheCorpus(t *testing.T) {
 		if !ok {
 			continue
 		}
-		if doc, _, compileErr := compile(t.Context(), e.Name(), baseline); compileErr == nil && doc != nil {
+		if doc, _, compileErr := compile(t.Context(), e.Name(), baseline, passes()); compileErr == nil && doc != nil {
 			baselined++
 		}
 		rewritten, ok := reverseMappings(data)
@@ -570,7 +571,7 @@ func TestOrderInvariant_LineAndColumnCaseMovesItsFinding(t *testing.T) {
 	t.Parallel()
 	positionIn := func(src []byte) ir.Position {
 		t.Helper()
-		_, diags, err := compile(t.Context(), "positioned.yaml", src)
+		_, diags, err := compile(t.Context(), "positioned.yaml", src, passes())
 		require.NoError(t, err)
 		require.Len(t, diags, 1, "the fixture must draw exactly one finding")
 		return diags[0].Provenance.Position
@@ -629,7 +630,7 @@ func TestCheck_OrderDependentOutcome(t *testing.T) {
 	t.Cleanup(func() { compile = orig })
 
 	const src = "a: 1\nb: 2\n"
-	compile = func(_ context.Context, _ string, data []byte) (*ir.Document, []ir.Diagnostic, error) {
+	compile = func(_ context.Context, _ string, data []byte, _ []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
 		id := ir.TypeID("t/x/AsWritten")
 		if string(data) != src {
 			id = "t/x/Reversed"

@@ -530,14 +530,15 @@ something a caller asks for with `none`, never a default.
   and tell you whether it does.
 - **Round-trip property**: `parse → serialize → deserialize → deep-equal` for every corpus
   document.
-- **Oracle sweep** (`internal/harness`): every corpus spec is driven through the oracles in order
-  — no panic, no error diagnostic, `irverify`'s structural invariants, JSON round-trip,
-  determinism across two compiles, and **order-independence**. The last one compiles the same
-  source twice with every mapping's entry order reversed and diffs the two documents. It is the
-  general form of the two-order check, and it is what catches an interning collision: two
-  declarations minting one node at a single pointer produce the same document read either way
-  only if neither is the one that got there first. Both pointer collisions the compiler has had
-  were invisible to a single-order suite.
+- **Oracle sweep** (`internal/harness`): every corpus spec is run as `morphic compile` runs it, the
+  default passes included, and driven through the oracles in order — no panic, no error
+  diagnostic, `irverify`'s structural invariants, JSON round-trip, determinism across two
+  compiles, and **order-independence**. The last one compiles the same source twice with every
+  mapping's entry order reversed and diffs the two documents. It is the general form of the
+  two-order check, and it is what catches an interning collision: two declarations minting one
+  node at a single pointer produce the same document read either way only if neither is the one
+  that got there first. Both pointer collisions the compiler has had were invisible to a
+  single-order suite.
 - **Architecture test** (`internal/archtest`): import-graph assertions for the layering rules
   above, plus the rules the graph cannot express — which lowerings are mutually recursive (so a
   set that grows is noticed rather than measured), and the method-per-type cap.

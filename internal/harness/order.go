@@ -44,14 +44,14 @@ func orderInvariant(ctx context.Context, spec string, data []byte) (string, bool
 	if bytes.Equal(reversed, baseline) {
 		return "", true // nothing to permute; the oracle has no question to ask
 	}
-	doc, _, err := compile(ctx, spec, baseline)
+	doc, _, err := compile(ctx, spec, baseline, passes())
 	if err != nil {
 		return "", true // the re-encoding does not compile, so there is no baseline
 	}
 	if doc == nil {
 		return "", true // nor does a source the compiler declines outright
 	}
-	other, otherDiags, err := compile(ctx, spec, reversed)
+	other, otherDiags, err := compile(ctx, spec, reversed, passes())
 	if err != nil {
 		return "recompile permuted: " + err.Error(), false
 	}

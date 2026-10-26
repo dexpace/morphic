@@ -13,12 +13,12 @@ import (
 	"github.com/dexpace/morphic/internal/harness"
 )
 
-// knownInvalid lists the fixtures under testdata/ that a correct compiler
-// reports an error diagnostic on under this sweep's default options, so the
+// knownInvalid lists the fixtures under testdata/ that a correct compiler or
+// pass reports an error diagnostic on under this sweep's default options, so the
 // "must be OK" sweep excludes them. Each was read to confirm the error is
-// intended behavior, not a compiler bug; its reason sits beside the entry.
-// TestHarness_InRepoCorpus fails a listed fixture that is missing or compiles
-// clean.
+// intended behavior, not a bug; its reason sits beside the entry.
+// TestHarness_InRepoCorpus fails a listed fixture that is missing or has any
+// other outcome, a clean compile or a panic among them.
 func knownInvalid() map[string]bool {
 	return map[string]bool{
 		// A response with no description and a header whose required is the
@@ -133,11 +133,19 @@ func knownInvalid() map[string]bool {
 		// specification bars ("but not both"); the case pins how such a document
 		// lowers.
 		filepath.FromSlash("../../testdata/conformance/openapi/codeclared-schema-content.yaml"): true,
-		// The other dangling reproducers (f07, f08, f10, f11, f13, f28, f31)
-		// intern their targets and compile clean, so they are absent. f08 and
-		// f13 map a tag to a sub-schema that is not a subtype; it resolves as
-		// a $ref to it would (#530), and pass.Validate, which this sweep does
-		// not run, reports it as pass/discriminator-missing-variant.
+		// Discriminator mappings naming a schema that is not a variant of the
+		// base: a sub-schema (f08, f13), a component named "" (f31), and a
+		// $defs entry mapped from a base with no composition (defs_at_root,
+		// defs_mapping_unreferenced_target). Each pins where a mapping resolves,
+		// not polymorphism: the compiler lowers the target as a $ref to it would
+		// (#530), and the validate pass reports pass/discriminator-missing-variant.
+		filepath.FromSlash("../../testdata/dangling/openapi/f08-discriminator.yaml"):            true,
+		filepath.FromSlash("../../testdata/dangling/openapi/f13-refs.yaml"):                     true,
+		filepath.FromSlash("../../testdata/dangling/openapi/f31-discriminator-empty-name.yaml"): true,
+		filepath.FromSlash("../../testdata/openapi/defs_at_root.yaml"):                          true,
+		filepath.FromSlash("../../testdata/openapi/defs_mapping_unreferenced_target.yaml"):      true,
+		// The other dangling reproducers (f07, f10, f11, f28) intern their
+		// targets and compile clean, so they are absent.
 	}
 }
 
@@ -202,8 +210,9 @@ func TestHarness_InRepoCorpus(t *testing.T) {
 	for _, r := range swept {
 		if invalid[r.Spec] {
 			seenInvalid[r.Spec] = true
-			assert.NotEqual(t, harness.OutcomeOK, r.Outcome,
-				"fixture %s is listed as known-invalid but compiled clean; update knownInvalid", r.Spec)
+			assert.Equal(t, harness.OutcomeErrorDiag, r.Outcome,
+				"fixture %s is listed as known-invalid, failing with an error diagnostic; update knownInvalid: %s",
+				r.Spec, r.Detail)
 			continue
 		}
 		results = append(results, r)

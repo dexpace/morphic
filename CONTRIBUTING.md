@@ -210,6 +210,8 @@ rule sees a node of the input changed in place, which `UpdateType`'s copy is the
    reads the names a refusal lists from the list itself. Nothing fails if the pass never joins the
    list, where it simply never runs. An embedder runs a pass of its own without editing the list,
    through `engine.WithPasses`.
+   Once in the list, the pass runs on every corpus spec `TestHarness_InRepoCorpus` sweeps, where an
+   error it reports fails the sweep, as it fails `morphic compile`.
    A default pass runs on every CLI test's spec. One that reports on the shared specs in
    `internal/testspec` breaks the `cmd/morphic` tests that expect a clean run, such as
    `TestRun_ValidateExitCodes/clean_spec`, so keep those specs clean of what it reports.

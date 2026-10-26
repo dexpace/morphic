@@ -13,8 +13,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/internal/testspec"
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/ir/irverify"
+	"github.com/dexpace/morphic/pass"
 )
 
 // badExtDoc returns a document that cannot be marshalled: its Unmodeled holds
@@ -156,7 +158,7 @@ func TestDeterministic_MarshalFirstError(t *testing.T) {
 func TestDeterministic_RecompileError(t *testing.T) {
 	orig := compile
 	t.Cleanup(func() { compile = orig })
-	compile = func(context.Context, string, []byte) (*ir.Document, []ir.Diagnostic, error) {
+	compile = func(context.Context, string, []byte, []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
 		return nil, nil, errors.New("recompile boom")
 	}
 
@@ -168,7 +170,7 @@ func TestDeterministic_RecompileError(t *testing.T) {
 func TestDeterministic_MarshalSecondError(t *testing.T) {
 	origC, origR := compile, reserializeJSON
 	t.Cleanup(func() { compile, reserializeJSON = origC, origR })
-	compile = func(context.Context, string, []byte) (*ir.Document, []ir.Diagnostic, error) {
+	compile = func(context.Context, string, []byte, []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
 		return soundDoc(), nil, nil
 	}
 	reserializeJSON = func(any) ([]byte, error) { return nil, errors.New("reencode boom") }
@@ -181,7 +183,7 @@ func TestDeterministic_MarshalSecondError(t *testing.T) {
 func TestDeterministic_MismatchIsReported(t *testing.T) {
 	orig := compile
 	t.Cleanup(func() { compile = orig })
-	compile = func(context.Context, string, []byte) (*ir.Document, []ir.Diagnostic, error) {
+	compile = func(context.Context, string, []byte, []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
 		// Recompiling yields a document different from the one passed in.
 		return &ir.Document{Name: "Different"}, nil, nil
 	}
@@ -200,7 +202,7 @@ func TestDeterministic_MismatchIsReported(t *testing.T) {
 func TestCheck_CompilerErrorIsAnErrorOutcome(t *testing.T) {
 	orig := compile
 	t.Cleanup(func() { compile = orig })
-	compile = func(context.Context, string, []byte) (*ir.Document, []ir.Diagnostic, error) {
+	compile = func(context.Context, string, []byte, []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
 		return nil, nil, errors.New("compile boom")
 	}
 
@@ -212,7 +214,7 @@ func TestCheck_CompilerErrorIsAnErrorOutcome(t *testing.T) {
 func TestCheck_CompilerPanicIsCaptured(t *testing.T) {
 	orig := compile
 	t.Cleanup(func() { compile = orig })
-	compile = func(context.Context, string, []byte) (*ir.Document, []ir.Diagnostic, error) {
+	compile = func(context.Context, string, []byte, []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
 		panic("compiler exploded")
 	}
 
@@ -224,7 +226,7 @@ func TestCheck_CompilerPanicIsCaptured(t *testing.T) {
 func TestCheck_ViolationsOutcome(t *testing.T) {
 	orig := compile
 	t.Cleanup(func() { compile = orig })
-	compile = func(context.Context, string, []byte) (*ir.Document, []ir.Diagnostic, error) {
+	compile = func(context.Context, string, []byte, []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
 		// A registry key that disagrees with the node ID is a structural violation.
 		return &ir.Document{Types: ir.TypeRegistry{
 			ir.TypeID("t/x/Key"): &ir.Any{ID: "t/x/Other"},
@@ -242,7 +244,7 @@ func TestCheck_ViolationsOutcome(t *testing.T) {
 func TestCheck_RoundtripOutcome(t *testing.T) {
 	origCompile, origRoundTrip := compile, roundTrip
 	t.Cleanup(func() { compile, roundTrip = origCompile, origRoundTrip })
-	compile = func(context.Context, string, []byte) (*ir.Document, []ir.Diagnostic, error) {
+	compile = func(context.Context, string, []byte, []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
 		return soundDoc(), nil, nil
 	}
 	roundTrip = func(*ir.Document) (string, bool) { return "forced round-trip failure", false }
@@ -260,7 +262,7 @@ func TestCheck_RoundtripOutcome(t *testing.T) {
 func TestCheck_InvalidRawValueIsAViolationNotARoundTrip(t *testing.T) {
 	orig := compile
 	t.Cleanup(func() { compile = orig })
-	compile = func(context.Context, string, []byte) (*ir.Document, []ir.Diagnostic, error) {
+	compile = func(context.Context, string, []byte, []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
 		return badExtDoc(), nil, nil
 	}
 
@@ -277,7 +279,7 @@ func TestCheck_InvalidRawValueIsAViolationNotARoundTrip(t *testing.T) {
 func TestCheck_InvalidUTF8IsAViolationNotARoundTrip(t *testing.T) {
 	orig := compile
 	t.Cleanup(func() { compile = orig })
-	compile = func(context.Context, string, []byte) (*ir.Document, []ir.Diagnostic, error) {
+	compile = func(context.Context, string, []byte, []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
 		return dupKeyDoc(), nil, nil
 	}
 
@@ -302,7 +304,7 @@ func TestCheck_InvalidUTF8IsAViolationNotARoundTrip(t *testing.T) {
 func TestCheck_CyclicStructureIsAViolationNotARoundTrip(t *testing.T) {
 	orig := compile
 	t.Cleanup(func() { compile = orig })
-	compile = func(context.Context, string, []byte) (*ir.Document, []ir.Diagnostic, error) {
+	compile = func(context.Context, string, []byte, []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
 		return cyclicDoc(), nil, nil
 	}
 
@@ -320,7 +322,7 @@ func TestCheck_NondeterministicOutcome(t *testing.T) {
 	orig := compile
 	t.Cleanup(func() { compile = orig })
 	var n int
-	compile = func(context.Context, string, []byte) (*ir.Document, []ir.Diagnostic, error) {
+	compile = func(context.Context, string, []byte, []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
 		n++
 		if n == 1 {
 			return soundDoc(), nil, nil
@@ -402,9 +404,9 @@ func TestCheck_CompileFaultsAreErrorOutcomes(t *testing.T) {
 	}{
 		{"a compiler that fails", false, []compilers.Compiler{stubCompiler{lower: fail}}, "lowering boom"},
 		{"a refusal that says nothing", false, []compilers.Compiler{stubCompiler{lower: refuse}}, compilers.ErrContract.Error()},
-		{"a nil compiler", false, []compilers.Compiler{nil}, "harness: register compiler 1"},
+		{"a nil compiler", false, []compilers.Compiler{nil}, "register compiler 1"},
 		{"a format registered twice", false, []compilers.Compiler{openapiLike{}}, "already registered"},
-		{"a canceled context", true, nil, "harness: detect"},
+		{"a canceled context", true, nil, "engine: detect"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			withCompilers(t, tc.extra...)
@@ -442,4 +444,26 @@ func TestCheck_AFindingOnTheDocumentAloneIsRead(t *testing.T) {
 
 	assert.Equal(t, OutcomeErrorDiag, r.Outcome, r.Detail)
 	assert.Contains(t, r.Detail, "stub/broken")
+}
+
+// reporting is an analysis that reports one error on every document.
+type reporting struct{}
+
+func (reporting) Name() string { return "reporting" }
+
+func (reporting) Run(doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
+	return doc, []ir.Diagnostic{ir.NewDiagnostic(ir.SeverityError, "stub/reported", "every document",
+		ir.Provenance{Source: ir.NoSource})}
+}
+
+// TestCheck_RunsTheSweepsPasses pins that every compile of a sweep runs its
+// pass list, not the compiler alone: an error only a pass reports is the
+// spec's first finding.
+func TestCheck_RunsTheSweepsPasses(t *testing.T) {
+	withPasses(t, reporting{})
+
+	r := Check(context.Background(), "spec.yaml", []byte(testspec.Tiny))
+
+	assert.Equal(t, OutcomeErrorDiag, r.Outcome, r.Detail)
+	assert.Equal(t, "stub/reported: every document", r.Detail)
 }
