@@ -129,8 +129,10 @@ func TestRun_ACancelledRunIsAFailure(t *testing.T) {
 	assert.NoFileExists(t, dest)
 }
 
-// capturingCompiler lowers as findingCompiler does, and keeps the Err of the
-// context it was handed, to ask later whether that context has ended.
+// capturingCompiler lowers as findingCompiler does, without the finding, so a
+// run writing to this process's own stderr writes nothing there. It keeps the
+// Err of the context it was handed, to ask later whether that context has
+// ended.
 type capturingCompiler struct {
 	findingCompiler
 	ranErr *func() error
@@ -138,7 +140,8 @@ type capturingCompiler struct {
 
 func (c capturingCompiler) Compile(ctx context.Context, sources []compilers.Source, opts compilers.Options) (*ir.Document, []ir.Diagnostic, error) {
 	*c.ranErr = ctx.Err
-	return c.findingCompiler.Compile(ctx, sources, opts)
+	doc, _, err := c.findingCompiler.Compile(ctx, sources, opts)
+	return doc, nil, err
 }
 
 // TestMain_KeepsTheSignalWatchUntilItHasExited pins main's watch over the
