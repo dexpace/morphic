@@ -180,12 +180,13 @@ func TestVerify_ListEntryIsSpelledAsTheWalkWould(t *testing.T) {
 			doc := heldListDoc()
 			list.set(doc, entries)
 			walked := map[string]string{} // entry → the path the walk renders for it
-			ir.WalkValues(doc, ir.DocumentPath, func(v reflect.Value, path string) bool {
+			ir.WalkValues(doc, ir.DocumentPath, ir.VisitFunc(func(v reflect.Value, at ir.WalkPath) bool {
+				path := at.String()
 				if v.Kind() == reflect.String {
 					walked[v.String()] = path
 				}
 				return true
-			})
+			}))
 
 			list.set(doc, make([]string, size))
 			got := verifyDeclared(doc)

@@ -50,28 +50,30 @@ var valuePayloads = map[ir.ValueKind]payloadRule{
 //
 // The walk reaches values rather than the fields that carry them, so a new
 // carrier is held at once.
-func checkValues(doc *ir.Document, _ declarations) ([]Violation, bool) {
+func checkValues(*ir.Document) walkCheck {
 	var vs []Violation
-	truncated := ir.WalkValues(doc, ir.DocumentPath, func(v reflect.Value, path string) bool {
-		if v.Type() == valueType {
-			vs = appendValueViolations(vs, v, path)
-		}
-		return true
-	})
-	return vs, truncated
+	return walkCheck{
+		visit: func(v reflect.Value, at ir.WalkPath) bool {
+			if v.Type() == valueType {
+				vs = appendValueViolations(vs, v, at)
+			}
+			return true
+		},
+		report: reporting(&vs),
+	}
 }
 
 // appendValueViolations reports one value's defects. An undeclared kind selects
 // nothing, so its payloads are not judged: every one would be reported as stray
 // when the repair is the kind.
-func appendValueViolations(vs []Violation, v reflect.Value, path string) []Violation {
+func appendValueViolations(vs []Violation, v reflect.Value, at ir.WalkPath) []Violation {
 	kind := v.FieldByName("Kind").String()
 	rule, declared := valuePayloads[ir.ValueKind(kind)]
 	if !declared {
 		return append(vs, Violation{
 			Code:    "ir/unknown-value-kind",
 			Message: "value carries undeclared kind " + strconv.Quote(kind),
-			Path:    path + ".Kind",
+			Path:    at.String() + ".Kind",
 		})
 	}
 	t := v.Type()
@@ -86,13 +88,13 @@ func appendValueViolations(vs []Violation, v reflect.Value, path string) []Viola
 			vs = append(vs, Violation{
 				Code:    "ir/value-stray-payload",
 				Message: "value of kind " + strconv.Quote(kind) + " populates " + name + ", a payload its kind does not select",
-				Path:    path + "." + name,
+				Path:    at.String() + "." + name,
 			})
 		case name == rule.field && !set && !rule.zeroIsValue:
 			vs = append(vs, Violation{
 				Code:    "ir/value-missing-payload",
 				Message: "value of kind " + strconv.Quote(kind) + " leaves " + name + " empty, which is no value of that kind",
-				Path:    path + "." + name,
+				Path:    at.String() + "." + name,
 			})
 		}
 	}

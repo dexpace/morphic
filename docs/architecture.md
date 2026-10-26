@@ -164,13 +164,13 @@ left.
 What a document holds whatever produced it, the namespaces, a service and a well-formed source table
 among them, is `irverify`'s, and `compile.Types.Finish` hands a compiler its registry with the
 diagnostics it reports, a `compile/registry-refused` error for each entry the registry refused among
-them. The engine does not run `irverify` by default. It costs more than the compile itself, and the
-harness runs every compile of the whole corpus verified. `RunOptions.Verify` (`--verify`)
-runs it for a compiler under development, over the compiler's document and over each document a pass
-returns, and over the one `RunDocument` is handed, and fails the run with an `engine.VerifyError`
-carrying every violation, wrapping the contract error of the stage that returned the document. It
-also fingerprints each document, the SHA-256 of its canonical JSON, so a pass that changes the
-document it was handed is caught: the one duty no walk of a single document can check.
+them. The engine does not run `irverify` by default: it slows a run, and the harness runs every
+compile of the whole corpus verified. `RunOptions.Verify` (`--verify`) runs it for a compiler under
+development, over the compiler's document and over each document a pass returns, and over the one
+`RunDocument` is handed, and fails the run with an `engine.VerifyError` carrying every violation,
+wrapping the contract error of the stage that returned the document. It also fingerprints each
+document, the SHA-256 of its canonical JSON, so a pass that changes the document it was handed is
+caught: the one duty no walk of a single document can check.
 
 **What stays in the OpenAPI compiler.** Three of its pieces read as if any format could use them:
 the YAML view (`internal/nodeview`), version sniffing (`internal/detect`) and document identity
@@ -537,7 +537,11 @@ a cognitive complexity of 20. The method cap exists because the god object that
 `ir` also owns the traversals the layers above it share: the reflection walk, and the typed walks
 over operations, type edges and composition. A pass or emitter calls them rather than writing its
 own. That is a convention review holds, not a rule a test checks, since no test can tell a
-hand-written walker from any other loop.
+hand-written walker from any other loop. The reflection walk shows each value to any number of
+visitors in one traversal, each seeing what it would walking alone, and builds a path only for a
+visitor that reads it. `irverify` reads a document in one such walk shared by all its walking
+checks, and `pass.Validate` in one shared by its three reflection checks, which their tests hold
+them to.
 
 ## 4. Diagnostics & provenance
 

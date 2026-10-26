@@ -11,10 +11,9 @@ import (
 )
 
 // duplicateViolations runs the duplicate check and drops the truncation flag,
-// which the cases below assert nothing about; TestWalkChecks_EachReportsTruncation
-// holds that half.
+// which the cases below assert nothing about.
 func duplicateViolations(doc *ir.Document) []Violation {
-	vs, _ := checkDuplicateIDs(doc, readDeclarations(doc))
+	vs, _ := runCheck(checkDuplicateIDs, doc)
 	return vs
 }
 

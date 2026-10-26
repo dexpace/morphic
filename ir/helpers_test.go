@@ -483,3 +483,11 @@ func populatedProperty() ir.Property {
 		Provenance:   populatedProvenance(),
 	}
 }
+
+// declaredIDs walks doc with an ir.IDDeclarations and returns what it
+// collected, with whether the walk was cut short.
+func declaredIDs(doc *ir.Document) ([]ir.IDDeclaration, bool) {
+	var found ir.IDDeclarations
+	truncated := ir.WalkValues(doc, ir.DocumentPath, &found)
+	return found, truncated
+}

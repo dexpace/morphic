@@ -40,6 +40,21 @@ func TestVerify_MalformedTypeIDIsAViolation(t *testing.T) {
 	}
 }
 
+// TestVerify_RegistryIDDefectIsPlacedOnItsEntry pins where checkIDs places a
+// defect of a type's or a scheme's ID: on the registry entry, as the registry
+// checks spell it.
+func TestVerify_RegistryIDDefectIsPlacedOnItsEntry(t *testing.T) {
+	t.Parallel()
+	m := &ir.Model{ID: "t//path", Name: ir.Naming{Source: "M", Canonical: "m"}}
+	scheme := ir.AuthScheme{ID: "a//path", Name: ir.Naming{Source: "S", Canonical: "s"}, Kind: ir.AuthKindHTTPBearer}
+	doc := &ir.Document{
+		IRVersion: ir.IRVersion,
+		Types:     ir.TypeRegistry{m.ID: m},
+		Auth:      map[ir.AuthID]ir.AuthScheme{scheme.ID: scheme},
+	}
+	assert.Equal(t, []string{"auth[a//path]", "types[t//path]"}, violationPaths(verifyDeclared(doc), "ir/id-malformed"))
+}
+
 // TestVerify_IDDisagreeingWithItsPointerIsAViolation is the half that catches
 // GitHub #141's actual instance. "t/anonaddr" lost the separator between its
 // space and its path, so by shape it reads as a legitimate ID in a space named

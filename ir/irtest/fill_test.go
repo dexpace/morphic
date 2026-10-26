@@ -17,7 +17,8 @@ func TestFill_GivesEveryTypeIDOneOfItsOwn(t *testing.T) {
 	irtest.Fill(t, doc)
 
 	seen := map[string]string{}
-	ir.WalkValues(doc, "doc", func(v reflect.Value, path string) bool {
+	ir.WalkValues(doc, "doc", ir.VisitFunc(func(v reflect.Value, at ir.WalkPath) bool {
+		path := at.String()
 		if v.Kind() == reflect.String && v.Type() == reflect.TypeFor[ir.TypeID]() {
 			require.NotEmpty(t, v.String(), "%s was left empty", path)
 			if first, met := seen[v.String()]; met {
@@ -26,7 +27,7 @@ func TestFill_GivesEveryTypeIDOneOfItsOwn(t *testing.T) {
 			seen[v.String()] = path
 		}
 		return true
-	})
+	}))
 	assert.NotEmpty(t, seen)
 	assert.Len(t, doc.Services, 1, "a slice gets one element")
 	assert.Len(t, doc.Messages, 1, "a map keyed by a string gets one entry")

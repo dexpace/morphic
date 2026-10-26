@@ -20,37 +20,39 @@ var httpBindingType = reflect.TypeFor[ir.HTTPBinding]()
 //
 // The walk reaches bindings rather than the fields that carry them, so a new
 // carrier is held at once.
-func checkWebhookRoutes(doc *ir.Document, _ declarations) ([]Violation, bool) {
+func checkWebhookRoutes(*ir.Document) walkCheck {
 	var vs []Violation
-	truncated := ir.WalkValues(doc, ir.DocumentPath, func(v reflect.Value, path string) bool {
-		if v.Type() != httpBindingType {
+	return walkCheck{
+		visit: func(v reflect.Value, at ir.WalkPath) bool {
+			if v.Type() != httpBindingType {
+				return true
+			}
+			if b, ok := reflect.TypeAssert[ir.HTTPBinding](v); ok {
+				vs = appendStrayRoute(vs, b, at)
+			}
 			return true
-		}
-		if b, ok := reflect.TypeAssert[ir.HTTPBinding](v); ok {
-			vs = appendStrayRoute(vs, b, path)
-		}
-		return true
-	})
-	return vs, truncated
+		},
+		report: reporting(&vs),
+	}
 }
 
 // appendStrayRoute reports the route field b fills that its IsWebhook does not
 // select. The two cases exclude each other, so a binding draws one at most.
-func appendStrayRoute(vs []Violation, b ir.HTTPBinding, path string) []Violation {
+func appendStrayRoute(vs []Violation, b ir.HTTPBinding, at ir.WalkPath) []Violation {
 	switch {
 	case b.IsWebhook && b.URITemplate != "":
 		return append(vs, Violation{
 			Code: "ir/webhook-route",
 			Message: "webhook binding carries URI template " + strconv.Quote(b.URITemplate) +
 				"; a webhook names its event in WebhookName and has no template",
-			Path: path + ".URITemplate",
+			Path: at.String() + ".URITemplate",
 		})
 	case !b.IsWebhook && b.WebhookName != "":
 		return append(vs, Violation{
 			Code: "ir/webhook-route",
 			Message: "binding that is not a webhook carries webhook name " + strconv.Quote(b.WebhookName) +
 				"; only a webhook binding names an event",
-			Path: path + ".WebhookName",
+			Path: at.String() + ".WebhookName",
 		})
 	}
 	return vs

@@ -34,7 +34,7 @@ func TestRecordedPointer_ReadsTheProvenanceBesideTheID(t *testing.T) {
 func TestAppendDeclaredIDViolations_ClassWithoutAPrefixIsLeftAlone(t *testing.T) {
 	t.Parallel()
 	node := reflect.ValueOf(ir.Channel{ID: "c/x/C"})
-	assert.Empty(t, appendDeclaredIDViolations(nil, node, reflect.TypeFor[ir.ChannelID](), "c/x/C", "doc.Channels[c/x/C]"))
+	assert.Empty(t, appendDeclaredIDViolations(nil, node, reflect.TypeFor[ir.ChannelID](), "c/x/C", ir.WalkPath{}))
 }
 
 // TestKindPrefixes_NameEveryIDKindOnce holds the class table to the kind list.

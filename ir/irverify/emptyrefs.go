@@ -119,33 +119,35 @@ type idField struct {
 
 // checkEmptyRefs asserts no reference is empty where its position requires one.
 //
-// collectRefs skips an empty ID because it is no reference, which leaves a
-// position that requires one reported by nothing (GitHub #473). The answer
-// cannot be keyed by type: Discriminator.Default is a TypeID whose empty value
-// means "none". So it is per position, recorded in idPositions, and a position
-// not documented as admitting an empty value must name something.
+// checkReferentialIntegrity skips an empty ID because it is no reference, which
+// leaves a position that requires one reported by nothing (GitHub #473). The
+// answer cannot be keyed by type: Discriminator.Default is a TypeID whose empty
+// value means "none". So it is per position, recorded in idPositions, and a
+// position not documented as admitting an empty value must name something.
 //
 // Reflection finds positions of every shape (field, pointer, slice element, map
 // key, map value) in each struct type the walk reaches. Paths match the walk's
 // spelling.
-func checkEmptyRefs(doc *ir.Document, _ declarations) ([]Violation, bool) {
+func checkEmptyRefs(*ir.Document) walkCheck {
 	var vs []Violation
 	fields := map[reflect.Type][]idField{}
-	truncated := ir.WalkValues(doc, ir.DocumentPath, func(v reflect.Value, path string) bool {
-		if v.Kind() != reflect.Struct {
+	return walkCheck{
+		visit: func(v reflect.Value, at ir.WalkPath) bool {
+			if v.Kind() != reflect.Struct {
+				return true
+			}
+			byType, seen := fields[v.Type()]
+			if !seen {
+				byType = idFieldsOf(v.Type())
+				fields[v.Type()] = byType
+			}
+			for _, f := range byType {
+				vs = appendEmptyRefs(vs, v, f, at)
+			}
 			return true
-		}
-		byType, seen := fields[v.Type()]
-		if !seen {
-			byType = idFieldsOf(v.Type())
-			fields[v.Type()] = byType
-		}
-		for _, f := range byType {
-			vs = appendEmptyRefs(vs, v, f, path)
-		}
-		return true
-	})
-	return vs, truncated
+		},
+		report: reporting(&vs),
+	}
 }
 
 // idFieldsOf returns t's ID-typed fields that some rule here holds.
@@ -181,37 +183,42 @@ func idShapeOf(t reflect.Type) (idShape, reflect.Type, bool) {
 	}
 }
 
-// appendEmptyRefs reports each empty ID one field of owner holds.
-func appendEmptyRefs(vs []Violation, owner reflect.Value, f idField, path string) []Violation {
-	at := path + "." + f.name
+// appendEmptyRefs reports each empty ID the field f of owner holds; at is where
+// owner sits.
+func appendEmptyRefs(vs []Violation, owner reflect.Value, f idField, at ir.WalkPath) []Violation {
 	v := owner.Field(f.index)
 	switch f.shape {
 	case idScalar:
 		if v.String() == "" && !emptyAllowed(owner, f.rule) {
-			vs = append(vs, emptyRef(f, at))
+			vs = append(vs, emptyRef(f, fieldPath(at, f)))
 		}
 	case idPointer:
 		if !v.IsNil() && v.Elem().String() == "" {
-			vs = append(vs, emptyRef(f, at))
+			vs = append(vs, emptyRef(f, fieldPath(at, f)))
 		}
 	case idSlice:
 		for i := range v.Len() {
 			if v.Index(i).String() == "" {
-				vs = append(vs, emptyRef(f, fmt.Sprintf("%s[%d]", at, i)))
+				vs = append(vs, emptyRef(f, fmt.Sprintf("%s[%d]", fieldPath(at, f), i)))
 			}
 		}
 	case idMapKey:
 		if v.MapIndex(reflect.Zero(v.Type().Key())).IsValid() {
-			vs = append(vs, emptyRef(f, at+"[]"+ir.MapKeySuffix))
+			vs = append(vs, emptyRef(f, fieldPath(at, f)+"[]"+ir.MapKeySuffix))
 		}
 	case idMapValue:
 		for iter := v.MapRange(); iter.Next(); {
 			if iter.Value().String() == "" {
-				vs = append(vs, emptyRef(f, fmt.Sprintf("%s[%v]", at, iter.Key())))
+				vs = append(vs, emptyRef(f, fmt.Sprintf("%s[%v]", fieldPath(at, f), iter.Key())))
 			}
 		}
 	}
 	return vs
+}
+
+// fieldPath spells the field f of the struct at at, as the walk spells it.
+func fieldPath(at ir.WalkPath, f idField) string {
+	return at.String() + "." + f.name
 }
 
 // emptyAllowed reports whether an empty scalar at a position under rule is the

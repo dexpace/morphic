@@ -1,6 +1,7 @@
 package irverify
 
 import (
+	"reflect"
 	"strconv"
 
 	"github.com/dexpace/morphic/ir"
@@ -13,16 +14,18 @@ import (
 //
 // No compiler builds one, since a document refers to its nodes by ID; a
 // hand-built document can, through a value or a group slice that holds itself.
-func checkCycles(doc *ir.Document, _ declarations) ([]Violation, bool) {
-	cycles, truncated := ir.ValueCycles(doc, ir.DocumentPath)
-	vs := make([]Violation, 0, len(cycles))
-	for _, c := range cycles {
-		vs = append(vs, Violation{
-			Code: "ir/cyclic-structure",
-			Message: "document reaches the " + c.Type + " it is already inside (entered at " +
-				strconv.Quote(c.Entered) + "), so it cannot be encoded",
-			Path: c.Path,
-		})
+func checkCycles(*ir.Document) walkCheck {
+	var vs []Violation
+	return walkCheck{
+		visit: func(reflect.Value, ir.WalkPath) bool { return true },
+		cycle: func(at, entered ir.WalkPath, ref reflect.Type) {
+			vs = append(vs, Violation{
+				Code: "ir/cyclic-structure",
+				Message: "document reaches the " + ref.String() + " it is already inside (entered at " +
+					strconv.Quote(entered.String()) + "), so it cannot be encoded",
+				Path: at.String(),
+			})
+		},
+		report: reporting(&vs),
 	}
-	return vs, truncated
 }

@@ -535,7 +535,8 @@ func TestNewEditor_NilDocumentIsRefused(t *testing.T) {
 // reaches, each with the path it was first reached at.
 func references(v any) map[uintptr]string {
 	refs := map[uintptr]string{}
-	ir.WalkValues(v, "node", func(rv reflect.Value, path string) bool {
+	ir.WalkValues(v, "node", ir.VisitFunc(func(rv reflect.Value, at ir.WalkPath) bool {
+		path := at.String()
 		switch rv.Kind() {
 		case reflect.Pointer, reflect.Map:
 			if !rv.IsNil() {
@@ -548,7 +549,7 @@ func references(v any) map[uintptr]string {
 		default:
 		}
 		return true
-	})
+	}))
 	return refs
 }
 
@@ -702,7 +703,7 @@ func TestEditor_UpdateRefusesANodeTooDeepToCopy(t *testing.T) {
 			e.UpdateType("t/deep", func(td ir.TypeDef) { td.Common().Access = "internal" })
 			out, diags := e.Finish()
 
-			walkCut := ir.WalkValues(node, "node", func(reflect.Value, string) bool { return true })
+			walkCut := ir.WalkValues(node, "node", ir.VisitFunc(func(reflect.Value, ir.WalkPath) bool { return true }))
 			require.Equal(t, tc.refused, walkCut, "the fixture is not on the cap the walk keeps")
 			if !tc.refused {
 				assert.Empty(t, diags)
