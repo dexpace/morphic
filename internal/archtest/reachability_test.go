@@ -1,6 +1,7 @@
 package archtest_test
 
 import (
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -102,47 +103,118 @@ type program struct {
 }
 
 // sourceFunc is one declared function: the path of its package below the
-// module, its name as apiRoots keys it, that path and then nodeName's key, and
-// its SSA form.
+// module, its name as apiRoots keys it (that path, a dot and nodeName's key),
+// and its SSA form.
 type sourceFunc struct {
 	pkg  string
 	name string
 	fn   *ssa.Function
 }
 
-// moduleProgram builds the SSA form of every package of the module, without
-// its tests, and returns what the check reads of it.
+// moduleProgram builds the SSA form of every package of the module and of
+// what it imports, without tests, and returns what the check reads of it.
 func moduleProgram(t *testing.T) program {
 	t.Helper()
-	cfg := &packages.Config{Mode: packages.LoadAllSyntax, Dir: irtest.RepoRoot(t)}
-	loaded, err := packages.Load(cfg, "./...")
+	cfg := &packages.Config{
+		Mode: packages.NeedName | packages.NeedCompiledGoFiles | packages.NeedImports | packages.NeedDeps |
+			packages.NeedModule | packages.NeedTypesSizes,
+		Dir: irtest.RepoRoot(t),
+	}
+	roots, err := packages.Load(cfg, "./...")
 	require.NoError(t, err)
-	require.Zero(t, packages.PrintErrors(loaded), "the module does not type-check")
-	prog, pkgs := ssautil.AllPackages(loaded, ssa.InstantiateGenerics)
+	require.Zero(t, packages.PrintErrors(roots), "the module does not load")
+
+	prog := ssa.NewProgram(token.NewFileSet(), ssa.InstantiateGenerics)
+	built := map[*packages.Package]builtPackage{}
+	packages.Visit(roots, nil, func(pkg *packages.Package) { built[pkg] = buildPackage(t, prog, pkg, built) })
 	prog.Build()
 
 	p := program{fset: prog.Fset}
-	for _, m := range ssautil.MainPackages(pkgs) {
-		p.mains = append(p.mains, m.Func("init"), m.Func("main"))
+	rootPkgs := make([]*ssa.Package, 0, len(roots))
+	for _, root := range roots {
+		b := built[root]
+		rootPkgs = append(rootPkgs, b.ssa)
+		rel := strings.TrimPrefix(root.PkgPath, module+"/")
+		p.funcs = append(p.funcs, declaredFuncs(t, prog, rel, b.files, b.info)...)
 	}
-	for _, pkg := range loaded {
-		rel := strings.TrimPrefix(pkg.PkgPath, module+"/")
-		p.funcs = append(p.funcs, declaredFuncs(prog, rel, pkg.Syntax, pkg.TypesInfo)...)
+	for _, m := range ssautil.MainPackages(rootPkgs) {
+		p.mains = append(p.mains, m.Func("init"), m.Func("main"))
 	}
 	return p
 }
 
+// builtPackage is one package as buildPackage leaves it: its syntax, what the
+// type checker recorded of it, and its SSA form, still to be built.
+type builtPackage struct {
+	files []*ast.File
+	info  *types.Info
+	ssa   *ssa.Package
+}
+
+// buildPackage parses and type-checks pkg against the packages it imports,
+// which built already holds, at the language version its module declares, as
+// the go command does, and adds it to prog. Packages are checked one at a time,
+// not by go/packages: it checks independent packages at once, and two go/types
+// checkers sharing an import can race (#855).
+func buildPackage(t *testing.T, prog *ssa.Program, pkg *packages.Package,
+	built map[*packages.Package]builtPackage,
+) builtPackage {
+	t.Helper()
+	if pkg.PkgPath == "unsafe" {
+		return builtPackage{ssa: prog.CreatePackage(types.Unsafe, nil, nil, true)}
+	}
+	files := make([]*ast.File, 0, len(pkg.CompiledGoFiles))
+	for _, name := range pkg.CompiledGoFiles {
+		f, err := parser.ParseFile(prog.Fset, name, nil, parser.SkipObjectResolution)
+		require.NoError(t, err)
+		files = append(files, f)
+	}
+	info := &types.Info{
+		Types:        map[ast.Expr]types.TypeAndValue{},
+		Defs:         map[*ast.Ident]types.Object{},
+		Uses:         map[*ast.Ident]types.Object{},
+		Implicits:    map[ast.Node]types.Object{},
+		Instances:    map[*ast.Ident]types.Instance{},
+		Scopes:       map[ast.Node]*types.Scope{},
+		Selections:   map[*ast.SelectorExpr]*types.Selection{},
+		FileVersions: map[*ast.File]string{},
+	}
+	conf := types.Config{Sizes: pkg.TypesSizes, Importer: importerFunc(func(path string) (*types.Package, error) {
+		imported, ok := built[pkg.Imports[path]]
+		if !ok {
+			return nil, fmt.Errorf("%s is not built before %s, which imports it", path, pkg.PkgPath)
+		}
+		return imported.ssa.Pkg, nil
+	})}
+	if pkg.Module != nil && pkg.Module.GoVersion != "" {
+		conf.GoVersion = "go" + pkg.Module.GoVersion
+	}
+	checked, err := conf.Check(pkg.PkgPath, prog.Fset, files, info)
+	require.NoError(t, err, "type-check %s", pkg.PkgPath)
+	return builtPackage{files: files, info: info, ssa: prog.CreatePackage(checked, files, info, true)}
+}
+
+// importerFunc is a types.Importer written as a function.
+type importerFunc func(path string) (*types.Package, error)
+
+// Import returns the package path names.
+func (f importerFunc) Import(path string) (*types.Package, error) { return f(path) }
+
 // declaredFuncs returns the functions files declare with a body, named under
 // rel. A sealed sum's marker method is left out: it is never called, and its
 // interface, which a type assertion reads, is what it is for.
-func declaredFuncs(prog *ssa.Program, rel string, files []*ast.File, info *types.Info) []sourceFunc {
+func declaredFuncs(t *testing.T, prog *ssa.Program, rel string, files []*ast.File, info *types.Info) []sourceFunc {
+	t.Helper()
 	var out []sourceFunc
 	for _, fd := range funcDecls(files) {
 		obj, isFunc := info.Defs[fd.Name].(*types.Func)
-		if !isFunc || marker(fd, obj) {
+		require.True(t, isFunc, "%s.%s is not a function to the type checker", rel, fd.Name.Name)
+		if marker(fd, obj) {
 			continue
 		}
-		out = append(out, sourceFunc{pkg: rel, name: rel + "." + nodeName(obj), fn: prog.FuncValue(obj)})
+		fn := prog.FuncValue(obj)
+		require.NotNil(t, fn, "%s.%s has no SSA form", rel, fd.Name.Name)
+		out = append(out, sourceFunc{pkg: rel, name: rel + "." + nodeName(obj), fn: fn})
 	}
 	return out
 }
@@ -235,7 +307,9 @@ func reachedRoot(name string) string {
 	return name + ": a binary reaches it, so its apiRoots entry goes"
 }
 
-func unknownRoot(name string) string { return name + ": apiRoots names no function" }
+func unknownRoot(name string) string {
+	return name + ": the module declares no such function, so its apiRoots entry goes"
+}
 
 func sparesNothing(pkg string) string {
 	return pkg + ": no function only tests reach is declared there, so its testSupport entry goes"
@@ -252,7 +326,7 @@ func plantedProgram(t *testing.T, src string) program {
 	pkg, info, err := ssautil.BuildPackage(&types.Config{}, fset, types.NewPackage("planted", "main"), files,
 		ssa.InstantiateGenerics)
 	require.NoError(t, err)
-	return program{fset: fset, funcs: declaredFuncs(pkg.Prog, "planted", files, info),
+	return program{fset: fset, funcs: declaredFuncs(t, pkg.Prog, "planted", files, info),
 		mains: []*ssa.Function{pkg.Func("init"), pkg.Func("main")}}
 }
 

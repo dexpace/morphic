@@ -571,8 +571,9 @@ something a caller asks for with `none`, never a default.
   were invisible to a single-order suite.
 - **Architecture test** (`internal/archtest`): import-graph assertions for the layering rules
   above, plus the rules the graph cannot express — which lowerings are mutually recursive (so a
-  set that grows is noticed rather than measured), the method-per-type cap, and that no function
-  outside the test-support packages is reached by tests alone.
+  set that grows is noticed rather than measured), the method-per-type cap, and that no function is
+  reached by tests alone, bar the test-support packages and the API kept, by name, for a caller to
+  come.
 - **Lint rules** (`.golangci.yml`; `internal/lintrules`, under `make vet`): what a linter can
   hold — which packages may build or write an `ir.TypeRegistry`, derive a name or build an ID, that
   no pipeline stage prints or logs, and that a switch over an IR enum names every member. Each rule
