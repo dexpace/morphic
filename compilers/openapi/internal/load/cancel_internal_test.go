@@ -10,12 +10,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/internal/ctxtest"
 )
 
 // liveFor returns a context over t's that answers left checks, then refuses.
-func liveFor(t *testing.T, left int) *openapitest.Countdown {
+func liveFor(t *testing.T, left int) *ctxtest.Countdown {
 	t.Helper()
-	return &openapitest.Countdown{Context: t.Context(), Left: left}
+	return &ctxtest.Countdown{Context: t.Context(), Left: left}
 }
 
 // TestContextReader_FailsOnceTheContextIsDone pins the reader every decode goes

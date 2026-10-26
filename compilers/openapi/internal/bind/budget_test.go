@@ -12,6 +12,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/internal/ctxtest"
 )
 
 // budgetSpec reaches every kind of work a table does: chains, a loop, a
@@ -387,7 +388,7 @@ func TestBind_StopsOnceTheContextIsDone(t *testing.T) {
 	for _, left := range []int{0, 1, 5, full.Steps() / 2} {
 		t.Run(fmt.Sprintf("refused from ask %d", left+1), func(t *testing.T) {
 			t.Parallel()
-			ctx := &openapitest.Countdown{Context: t.Context(), Left: left}
+			ctx := &ctxtest.Countdown{Context: t.Context(), Left: left}
 
 			table := bind.Bind(ctx, openapitest.YAMLDocument(t, budgetSpec), budgetConfig(0))
 
@@ -429,11 +430,11 @@ func TestBind_AsksNoMoreOnceRefused(t *testing.T) {
 	for name, spec := range map[string]string{"every kind of work": budgetSpec, "many mapping values": manyMappings(20)} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			whole := &openapitest.Countdown{Context: t.Context(), Left: 1 << 30}
+			whole := &ctxtest.Countdown{Context: t.Context(), Left: 1 << 30}
 			bind.Bind(whole, openapitest.YAMLDocument(t, spec), budgetConfig(0))
 
 			for left := range whole.Calls {
-				ctx := &openapitest.Countdown{Context: t.Context(), Left: left}
+				ctx := &ctxtest.Countdown{Context: t.Context(), Left: left}
 
 				bind.Bind(ctx, openapitest.YAMLDocument(t, spec), budgetConfig(0))
 

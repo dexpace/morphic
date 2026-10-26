@@ -25,6 +25,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/engine/reader"
+	"github.com/dexpace/morphic/internal/ctxtest"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -482,7 +483,7 @@ func TestIndexEnds_StopsBetweenEndsOnceTheContextIsDone(t *testing.T) {
 
 	walks = 0
 	// The placing loop asks once for each end, all live, then the next ask refuses.
-	ctx := &openapitest.Countdown{Context: t.Context(), Left: len(ends)}
+	ctx := &ctxtest.Countdown{Context: t.Context(), Left: len(ends)}
 	indexEnds(ctx, typed.NewBuilder(table), table, ends, self)
 
 	assert.Zero(t, walks, "no unplaced end is walked once the context refused")

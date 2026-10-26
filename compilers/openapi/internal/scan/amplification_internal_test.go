@@ -15,9 +15,9 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
-	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/sourceindex"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ynode"
+	"github.com/dexpace/morphic/internal/ctxtest"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -640,7 +640,7 @@ func TestWeigh_StopsOnceTheContextIsDone(t *testing.T) {
 	assert.Zero(t, stopped.computations)
 
 	partway := newAliasWeigher(allowance)
-	partway.weigh(&openapitest.Countdown{Context: t.Context(), Left: 100}, root)
+	partway.weigh(&ctxtest.Countdown{Context: t.Context(), Left: 100}, root)
 	assert.Positive(t, partway.computations)
 	assert.LessOrEqual(t, partway.computations, int64(100))
 	assert.Less(t, partway.computations, live.computations)

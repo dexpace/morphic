@@ -65,6 +65,7 @@ var testSupport = map[string]string{
 	"ir/irtest":                              "the golden and fixture helpers the IR's tests share",
 	"compilers/openapi/internal/openapitest": "the scaffolding the compiler's test packages share",
 	"compilers/openapi/internal/ynode":       "the YAML node builders the compiler's internal tests share",
+	"internal/ctxtest":                       "the context decorators the tests of cancellation share",
 	"internal/decls": "the type-checked reads of declarations the tests pinning hand-written lists " +
 		"share; the census binary reads one load of it",
 	"internal/harness": "the annotation-retention vocabulary each format's retention test shares, " +

@@ -13,7 +13,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
-	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/internal/ctxtest"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -48,7 +48,7 @@ func TestCheck_StopsSilentlyOnceTheContextIsDone(t *testing.T) {
 	live, readLive := check(t.Context())
 	require.Len(t, live, 2*n, "live, every parameter is read and found wanting")
 
-	ctx := &openapitest.Countdown{Context: t.Context(), Left: 10}
+	ctx := &ctxtest.Countdown{Context: t.Context(), Left: 10}
 	stopped, read := check(ctx)
 
 	assert.Less(t, read, readLive)
@@ -69,14 +69,14 @@ func TestCheckFormat_StopsSilentlyOnceTheContextIsDone(t *testing.T) {
 	format := func(ctx context.Context) []ir.Diagnostic {
 		return oas.CheckFormat(ctx, &root, "3.1.0", oas.Options{})
 	}
-	whole := &openapitest.Countdown{Context: t.Context(), Left: 1 << 30}
+	whole := &ctxtest.Countdown{Context: t.Context(), Left: 1 << 30}
 	require.NotEmpty(t, format(whole), "live, the key that is no string is found")
 
 	for left := range whole.Calls {
 		t.Run(fmt.Sprintf("refused from ask %d", left+1), func(t *testing.T) {
 			t.Parallel()
 
-			got := format(&openapitest.Countdown{Context: t.Context(), Left: left})
+			got := format(&ctxtest.Countdown{Context: t.Context(), Left: left})
 
 			assert.Empty(t, got)
 		})
