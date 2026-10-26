@@ -92,8 +92,8 @@ refused before its model is built. Each is an `openapi/budget-exceeded` error, c
 Document. Past `MaxExternalDocuments`, a document an external reference names is not read, each
 reference into it is unresolved ([`references`](#references)), and the compile reports
 `openapi/budget-exceeded` once. The rule table ([`validation`](#validation)) reads no more objects
-than the node and alias budgets admit together, and nests no deeper than the scan's depth bound, so
-it stops on no document they admit; with either budget unbounded it stops past 4,194,304 objects, as
+than the node and alias budgets admit together, without bound where either has none, and nests no
+deeper than the scan's depth bound, so it stops on no document they admit; a check it does stop is
 an `openapi/budget-exceeded` error at the object it stopped on. Three bounds hold whatever the
 caller sets, since past them no answer the pre-parse scan gives is whole: a document nested past the
 scan's depth bound, its aliases expanded, is refused as an `openapi/source-too-deep` error at the
@@ -114,7 +114,7 @@ each is read no further than the byte budget. The member budget of an enum is
   `load.TestLoad_RefusesANestingPastTheBoundBeforeBuildingTheModel`,
   `load.TestLoad_ADocumentTooLargeToIndexIsRefused`,
   `openapi.TestCompile_TheDocumentBudgetIsTheCallersToSet`,
-  `load.TestJudgeSource_ReadsEveryObjectTheCompilerAdmits`
+  `load.TestJudgeSource_ReadsEveryObjectTheCompilerAdmits`, `oas.TestCheck_WorkIsBounded`
 - Status: partly built: an external object reached after its contents is charged against the
   document budget twice (#571), and long keys nested a few hundred levels deep cost gigabytes within
   every bound (#931).
@@ -127,31 +127,37 @@ from the local file `Overlay.Path` names, through the caller's reader and unconf
 caller named it and not the spec. One the reader cannot read is a Go error, as an unreadable spec
 is, and so are an overlay naming no file and one naming an http(s) URL, since no setting takes a
 compile onto the network. Once applied, the pre-parse refusals and the node budgets hold the patched
-tree as they hold the source, and validation and every lowering read it. The overlay becomes a
-second entry in `Document.Sources`, and every position it introduced or rewrote names that entry as
-its `Provenance.Source`, while a position it left alone keeps the source's line and column. An
-overlay that does not parse, or is not a valid Overlay — no version, no actions, an action naming no
-target — is refused as an `openapi/invalid-overlay` error and nothing is applied. One the parser
-cannot apply as written, or whose grafted content expands past the walk's node budget, is refused as
-an `openapi/overlay-failed` error. Either way the source compiles to no Document rather than
-lowering a tree the caller believes was patched. Application is strict unless `Overlay.Lax` is set:
-each action that changed nothing, or relies on JSONPath behaviour the overlay did not opt into, is
-reported as an `openapi/overlay-action` warning naming the action, and the compile proceeds; an
-action whose selector matches nothing is reported the same way and refuses the overlay as
-`openapi/overlay-failed`. Lax application reports none of these, and refuses only an overlay it
-cannot apply. Where the walk that attributes positions to the overlay runs out of its node budget,
-the overlay is applied and every position names the source, as with no overlay, reported as an
-`openapi/overlay-origin-incomplete` warning.
+tree as they hold the source, and validation and every lowering read it. Each action is charged the
+nodes it can build before it runs: one whose charge would carry the tree, counted afresh, past
+`MaxSourceNodes` is refused as an `openapi/budget-exceeded` error with nothing it would build built,
+so it is refused while the tree is past the budget whatever a later action removes. An action that
+builds nothing, such as a remove, is applied however large the tree, since the budget holds the tree
+the overlay leaves. The overlay becomes a second entry in `Document.Sources`, and every position it
+introduced or rewrote names that entry as its `Provenance.Source`, while a position it left alone
+keeps the source's line and column. An overlay that does not parse, or is not a valid Overlay — no
+version, no actions, an action naming no target — is refused as an `openapi/invalid-overlay` error
+and nothing is applied. One the parser cannot apply as written, or whose grafted content expands
+past the walk's node budget, is refused as an `openapi/overlay-failed` error. Either way the source
+compiles to no Document rather than lowering a tree the caller believes was patched. Application is
+strict unless `Overlay.Lax` is set: each action that changed nothing, or relies on JSONPath
+behaviour the overlay did not opt into, is reported as an `openapi/overlay-action` warning naming
+the action, and the compile proceeds; an action whose selector matches nothing is reported the same
+way and refuses the overlay as `openapi/overlay-failed`. Lax application reports none of these, and
+refuses only an overlay it cannot apply. Where the walk that attributes positions to the overlay
+runs out of its node budget, the overlay is applied and every position names the source, as with no
+overlay, reported as an `openapi/overlay-origin-incomplete` warning.
 
 - Codes: `openapi/invalid-overlay`, `openapi/overlay-failed`, `openapi/overlay-action`,
-  `openapi/overlay-origin-incomplete`
+  `openapi/overlay-origin-incomplete`, `openapi/budget-exceeded`
 - Tests: `overlay.TestApply_RejectsAnOverlayItCannotRead`,
   `load.TestLoad_ReadsANamedOverlayThroughTheReader`,
   `load.TestLoad_ANamedOverlayThatCannotBeReadIsAGoError`,
   `e2e.TestCompile_StrictRefusesAnActionThatMatchesNothing`,
   `overlay.TestApply_StrictReportsAnActionThatChangesNothingWithoutRefusing`,
   `overlay.TestApplyWithin_DegradesToTheSourceAtTheNodeBudget`,
-  `e2e.TestCompile_OverlayIsRecordedAsASource`
+  `e2e.TestCompile_OverlayIsRecordedAsASource`, `load.TestLoad_AnOverlayBuildsWithinTheNodeBudget`,
+  `overlay.TestSequence_ChargesAnActionToTheBudgetsEdge`,
+  `load.TestLoad_TheNodeBudgetReadsTheTreeTheOverlayLeaves`
 - Status: partly built: an Overlay 1.0.0 document's RFC 9535 filter selector fails to apply (#651).
   Open: whether lax application should report an action that matches nothing (#652), how an update
   merges a nested array (#653), and whether an overlay that replaces a value the source declares is

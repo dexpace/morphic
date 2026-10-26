@@ -103,7 +103,9 @@ func (s *sequence) measure(ctx context.Context) {
 // still fits, and if not, the size it would reach. An action that builds
 // nothing, a remove among them, fits however large the tree: the source may be
 // past the budget until an action shrinks it, and the node budget is read of
-// the tree the overlay leaves.
+// the tree the overlay leaves. One that builds is charged against the tree as
+// it stands, so it is refused while the tree is past the budget, whatever a
+// later action would remove.
 func (s *sequence) charge(ctx context.Context, action soaoverlay.Action) (int, bool) {
 	if !s.budgeted() {
 		return 0, true
