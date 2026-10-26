@@ -116,8 +116,9 @@ in the docs.
 ## Package layout & layering (enforced by an architecture test)
 
 ```
-barrier/     Layer 0 — runs code its caller does not own and turns a panic in it into an error.
-             Imports ONLY the stdlib.
+barrier/     Layer 0 — runs code its caller does not own, turns a panic in it into an error, and
+             quotes what that code says on one bounded line. Outside tests, the one package
+             that may call recover (`.golangci.yml`). Imports ONLY the stdlib.
 ir/          Layer 0 — IR nodes, IDs, traversal, editing, JSON round-trip. Imports ONLY the stdlib.
   irfacts/   Layer 0 — what a Document implies and does not state (subtypes, exposed properties,
              usage, recursion), derived on demand and never stored. Imports ir only.
@@ -132,7 +133,8 @@ compilers/   Layer 1 — the Compiler contract and the format-keyed registry. Im
              other, never emitters/engine.
     internal/  Layer 1 — that compiler's own packages, each with its own allowlist rather than
              the compiler's. The ordering among them is real and enforced, from diag (reaches
-             only ir) up to operation, document and detect. None may reach the compiler above it.
+             only ir and barrier) up to operation, document and detect. None may reach the
+             compiler above it.
     e2e/     Test files only, so outside the layering: that compiler's end-to-end tests, the
              conformance corpus and goldens among them, compiled through its public face.
 pass/        Layer 1 — IR → IR passes. Imports ir and ir/irfacts.
@@ -292,8 +294,9 @@ below are the ones most likely to bite in this codebase — the full guide gover
   compound checks. Never accept garbage silently.
 - **Bounded everything.** Every loop, queue, retry, buffer, and timeout has an explicit limit.
   Recursion is permitted **only** with a provably bounded depth: an explicit counter checked
-  against a named hard cap, recovered at the public boundary. This applies directly to schema
-  lowering and IR traversal — deep/cyclic specs are normal inputs, not edge cases.
+  against a named hard cap, recovered at the public boundary through `barrier.Catch`, the one
+  way to recover the lint configuration allows. This applies directly to schema lowering and IR
+  traversal — deep/cyclic specs are normal inputs, not edge cases.
 - **Errors are values.** Handle every error (`_ = err` is banned); wrap with `%w` + context,
   one level, `%w` at the end; branch with `errors.Is`/`errors.As`, never string matching;
   sentinel errors `Err…`, error types `…Error` implementing `Unwrap`; error strings lowercase,

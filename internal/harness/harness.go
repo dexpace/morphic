@@ -51,20 +51,13 @@ type Result struct {
 }
 
 // Check runs data through the engine as `morphic compile --verify` runs a
-// spec, its passes included, under recover() and applies every oracle in order,
-// returning the first failure or OutcomeOK. A panic anywhere in the run or the
-// oracles is captured as OutcomePanic rather than escaping to the caller. A
-// caller mistake (nil ctx, empty spec identifier) is reported as OutcomeError
-// with a harness-prefixed Detail, so it is never misattributed to the spec as a
-// compiler panic.
-func Check(ctx context.Context, spec string, data []byte) (res Result) {
-	res = Result{Spec: spec, Outcome: OutcomeOK}
-	defer func() {
-		if r := recover(); r != nil {
-			res = Result{Spec: spec, Outcome: OutcomePanic, Detail: fmt.Sprint(r)}
-		}
-	}()
-
+// spec, its passes included, behind barrier.Catch and applies every oracle in
+// order, returning the first failure or OutcomeOK. A panic anywhere in the run
+// or the oracles is captured as OutcomePanic rather than escaping to the
+// caller. A caller mistake (nil ctx, empty spec identifier) is reported as
+// OutcomeError with a harness-prefixed Detail, so it is never misattributed to
+// the spec as a compiler panic.
+func Check(ctx context.Context, spec string, data []byte) Result {
 	if ctx == nil {
 		return Result{Spec: spec, Outcome: OutcomeError, Detail: "harness: nil context"}
 	}
@@ -72,6 +65,26 @@ func Check(ctx context.Context, spec string, data []byte) (res Result) {
 		return Result{Spec: spec, Outcome: OutcomeError, Detail: "harness: empty spec identifier"}
 	}
 
+	var res Result
+	if err := barrier.Catch(func() { res = check(ctx, spec, data) }); err != nil {
+		return Result{Spec: spec, Outcome: OutcomePanic, Detail: panicDetail(err)}
+	}
+	return res
+}
+
+// panicDetail is what err, a panic Check's barrier caught, says. A compiler's
+// or a pass's panic that reraise raised again says what it said where it was
+// first raised, rather than naming reraise as its site.
+func panicDetail(err error) string {
+	if raised, ok := errors.AsType[*barrier.PanicError](errors.Unwrap(err)); ok {
+		return raised.Error()
+	}
+	return err.Error()
+}
+
+// check runs data through the oracles in order and returns the first that
+// fires, or OutcomeOK.
+func check(ctx context.Context, spec string, data []byte) Result {
 	doc, diags, err := compile(ctx, spec, data, passes())
 	if errors.Is(err, errUnrecognized) {
 		return Result{Spec: spec, Outcome: OutcomeUnrecognized, Detail: err.Error()}
@@ -113,7 +126,7 @@ func Check(ctx context.Context, spec string, data []byte) (res Result) {
 	if detail, ok := orderInvariant(ctx, spec, data); !ok {
 		return Result{Spec: spec, Outcome: OutcomeOrderDependent, Detail: detail}
 	}
-	return res
+	return Result{Spec: spec, Outcome: OutcomeOK}
 }
 
 // errUnrecognized marks a source no registered compiler takes. Check reports it
@@ -187,7 +200,7 @@ func undetected(code string) bool {
 // reraise returns err, or raises again the panic it records. The engine
 // recovers a compiler's or a pass's panic into an error, and the first oracle
 // is that none occurs, in every run an oracle makes of a source, so the panic
-// goes on to Check's recover as it would have without the engine's.
+// goes on to Check's barrier as it would have without the engine's.
 func reraise(err error) error {
 	if perr, ok := errors.AsType[*barrier.PanicError](err); ok {
 		panic(perr)

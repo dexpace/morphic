@@ -136,12 +136,15 @@ A lowering rule says how one OpenAPI construct reaches the IR: the field it fill
    responsibility no file holds yet starts a file named for it, however small, and a helper goes
    with what it serves, not with its caller. The
    parser library's model can read an absent field and an empty one alike, so check what it
-   returns before you branch on it. The root guidance's caps apply: no function over 70 lines or a
-   cognitive complexity of 20, no type under `compilers/` over 20 methods, no doc comment over 100
-   words, and no lint suppression in the source.
-   *Fails if missed:* `make lint`, `TestMethodsPerType_StayUnderTheCap`,
-   `TestDocComments_StayUnderTheCap`, `TestSuppressions_NoDirectiveStandsInTheSource`. Nothing
-   fails for code in the wrong file of its package.
+   returns before you branch on it. A call of the library that panics on input it accepts runs
+   behind `diag.Catch`, whose text the diagnostic quotes, as `load`'s barriers do: no package but
+   `barrier` may call `recover` outside its tests. The root guidance's caps apply: no function
+   over 70 lines or a cognitive complexity of 20, no type under `compilers/` over 20 methods, no
+   doc comment over 100 words, and no lint suppression in the source.
+   *Fails if missed:* `make lint`, a hand-written `recover` among its findings,
+   `TestMethodsPerType_StayUnderTheCap`, `TestDocComments_StayUnderTheCap`,
+   `TestSuppressions_NoDirectiveStandsInTheSource`. Nothing fails for code in the wrong file of its
+   package.
 4. **Add a conformance case and a unit test.** Write a minimal spec at
    `testdata/conformance/openapi/<name>.yaml` that exercises the rule, add an entry to
    `conformanceCases()` in `compilers/openapi/e2e/conformance_test.go` naming its assertion, list it
@@ -258,8 +261,9 @@ A compiler lowers one source format into an IR document ([`architecture.md`](doc
 2. **Rule its imports.** Add `compilers/<format>` to the `rules` map in
    `internal/archtest/arch_test.go`, allowing what it imports and nothing more: `ir`, `compilers`
    and `compilers/compile` by exact path, its own internal tree once it has one, and its format
-   libraries. Give each package under its `internal/` an entry of its own. Run `gofmt -w` on the
-   file afterwards: a longer key realigns its neighbours.
+   libraries, with `barrier` for a package that runs one of them behind `barrier.Catch`, the one
+   way to recover a panic outside a test. Give each package under its `internal/` an entry of its
+   own. Run `gofmt -w` on the file afterwards: a longer key realigns its neighbours.
    *Fails if missed:* `TestImportGraph_EveryPackageIsRuledOrExempt`, which requires every package
    under `compilers/` to carry an entry of its own and names the one that does not, and
    `TestImportGraph_LayeringHolds` for an import an entry does not allow, whose message says when

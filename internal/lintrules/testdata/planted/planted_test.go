@@ -10,9 +10,10 @@ import (
 
 var _ = json.Valid
 
-// plantTestExemptions asserts by force, prints and swaps a process global,
-// which a test file may do.
+// plantTestExemptions asserts by force, prints, swaps a process global and
+// recovers a panic by hand, which a test file may do.
 func plantTestExemptions() {
+	defer func() { _ = recover() }()
 	var v any = 1
 	_ = v.(int)
 	println("test output")

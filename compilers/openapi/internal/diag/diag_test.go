@@ -2,7 +2,6 @@ package diag_test
 
 import (
 	"encoding/json/v2"
-	"errors"
 	"go/constant"
 	"go/types"
 	"slices"
@@ -184,8 +183,8 @@ func TestCodes_MatchTheDeclaredSet(t *testing.T) {
 
 // declaredCodes returns, sorted, the value of every exported string constant
 // the package declares. The kind is read off the type checker, not the name, so
-// MaxQuotedErrorBytes is not one and a new code is one whatever it is called or
-// however its value is written.
+// an exported constant of another kind is not one and a new code is one
+// whatever it is called or however its value is written.
 func declaredCodes(t *testing.T) []string {
 	t.Helper()
 	p, err := decls.Load("github.com/dexpace/morphic/compilers/openapi/internal/diag")
@@ -200,83 +199,4 @@ func declaredCodes(t *testing.T) []string {
 	require.NotEmpty(t, out, "found no declared codes")
 	slices.Sort(out)
 	return out
-}
-
-// TestOneLine_CollapsesWhatALibraryWrote pins both join rules and the reason for
-// each: a flat list of findings reads as a list, while a header that ends in a
-// colon owns the line after it and must not be cut from it by a semicolon.
-func TestOneLine_CollapsesWhatALibraryWrote(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name, in, want string
-	}{
-		{"already one line", "plain failure", "plain failure"},
-		{"flat list", "first problem\nsecond problem", "first problem; second problem"},
-		{"header and items", "yaml: unmarshal errors:\n  line 1: bad\n  line 2: worse",
-			"yaml: unmarshal errors: line 1: bad; line 2: worse"},
-		{"blank lines dropped", "one\n\n\ntwo", "one; two"},
-		{"indentation normalized", "one\n\t  two   three", "one; two three"},
-		{"trailing newline", "only\n", "only"},
-		{"empty", "", ""},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			got := diag.OneLine(errors.New(tc.in))
-			assert.Equal(t, tc.want, got)
-			assert.NotContains(t, got, "\n", "the whole point is that nothing survives as a newline")
-		})
-	}
-}
-
-// TestOneLine_BoundsWhatALibraryWrote pins the cap. A diagnostic message is
-// something a person reads and something a log stores, and neither survives an
-// unbounded one: yaml.v3 reports a duplicated mapping key once per prior
-// occurrence, so a 32 KB source with one key repeated 6,553 times produces a
-// 1.2 GB error string, which this used to copy whole into a message the CLI
-// then printed.
-func TestOneLine_BoundsWhatALibraryWrote(t *testing.T) {
-	t.Parallel()
-	huge := errors.New(strings.Repeat("a line of complaint\n", 1<<16))
-	got := diag.OneLine(huge)
-
-	assert.Less(t, len(got), diag.MaxQuotedErrorBytes+64,
-		"a foreign error may be any size; what it contributes to a message may not")
-	assert.True(t, strings.HasPrefix(got, "a line of complaint; a line of complaint"),
-		"the cut keeps the head, which is the part that says what went wrong")
-	assert.Contains(t, got, "elided", "a cut message says it was cut")
-}
-
-// TestOneLine_CutsOnARuneBoundary holds the cut to well-formed output. The bytes
-// being quoted are a foreign library's and may be multi-byte; cutting one in
-// half would put ill-formed UTF-8 into a diagnostic, which is the one thing a
-// report must never do to a reader.
-func TestOneLine_CutsOnARuneBoundary(t *testing.T) {
-	t.Parallel()
-	for pad := range 8 {
-		got := diag.OneLine(errors.New(strings.Repeat("x", pad) + strings.Repeat("é", diag.MaxQuotedErrorBytes)))
-		assert.True(t, utf8.ValidString(got), "pad %d: a cut message is still text", pad)
-	}
-}
-
-// TestOneLine_IsBoundedInWorkNotOnlyOutput holds the cap to being a bound on
-// work. Collapsing the whole error and trimming the result still walks all of
-// it, which is the half that costs time: the 1.2 GB case spent 7.4 s building
-// parts it threw away.
-//
-// Allocation count is the probe, since the per-line work is what allocates: a
-// scan that stops at the cap allocates the same for two errors that both exceed
-// it. It is not run in parallel: AllocsPerRun measures the process.
-func TestOneLine_IsBoundedInWorkNotOnlyOutput(t *testing.T) {
-	small := errors.New(strings.Repeat("line\n", 1<<10))
-	large := errors.New(strings.Repeat("line\n", 1<<20))
-	require.Greater(t, len(small.Error()), diag.MaxQuotedErrorBytes,
-		"both inputs must exceed the cap, or the comparison is between two uncapped runs")
-
-	assert.Equal(t, diag.OneLine(small), diag.OneLine(large),
-		"past the cap the answer no longer depends on how much more there was")
-	assert.Equal(t,
-		testing.AllocsPerRun(2, func() { _ = diag.OneLine(small) }),
-		testing.AllocsPerRun(2, func() { _ = diag.OneLine(large) }),
-		"past the cap the work no longer depends on how much more there was")
 }

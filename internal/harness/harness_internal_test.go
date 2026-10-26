@@ -223,6 +223,40 @@ func TestCheck_CompilerPanicIsCaptured(t *testing.T) {
 	assert.Contains(t, r.Detail, "compiler exploded")
 }
 
+// TestCheck_APanicsDetailIsOneBoundedLine pins that a panic of any size and
+// shape is reported on one line, as barrier.Catch renders it, so a sweep's
+// report keeps one line per spec.
+func TestCheck_APanicsDetailIsOneBoundedLine(t *testing.T) {
+	orig := compile
+	t.Cleanup(func() { compile = orig })
+	huge := strings.Repeat("the oracle exploded here\n", 1<<10)
+	compile = func(context.Context, string, []byte, []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
+		panic(huge)
+	}
+
+	r := Check(context.Background(), "spec", []byte("x"))
+
+	assert.Equal(t, OutcomePanic, r.Outcome)
+	assert.True(t, strings.HasPrefix(r.Detail, "panic: the oracle exploded here; the oracle exploded here"), r.Detail)
+	assert.NotContains(t, r.Detail, "\n")
+	assert.Less(t, len(r.Detail), len(huge)/4, "the bound cut the value")
+}
+
+// TestCheck_ARaisedAgainPanicKeepsItsSite pins panicDetail: a compiler's panic
+// the registry recovered and reraise raised again is reported as it was first
+// raised, not as a panic of reraise's quoting it.
+func TestCheck_ARaisedAgainPanicKeepsItsSite(t *testing.T) {
+	withCompilers(t, stubCompiler{lower: func([]compilers.Source) (*ir.Document, []ir.Diagnostic, error) {
+		panic("lowering exploded")
+	}})
+
+	r := Check(context.Background(), "spec", []byte(stubSource))
+
+	assert.Equal(t, OutcomePanic, r.Outcome, r.Detail)
+	assert.True(t, strings.HasPrefix(r.Detail, "panic: lowering exploded (at "), r.Detail)
+	assert.NotContains(t, r.Detail, "reraise", "the site is where the compiler panicked")
+}
+
 // panicsInDetect is a compiler whose recognition panics.
 type panicsInDetect struct{ stubCompiler }
 

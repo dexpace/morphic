@@ -184,7 +184,9 @@ func applyWithin(ctx context.Context, index int, root *yaml.Node, opts Options, 
 	}
 
 	before, complete := snapshot(ctx, root, budget)
-	diags, applied := applyRecovered(ctx, doc, root, at, opts.Lax, opts.MaxNodes)
+	diags, applied := applyRecovered(at, func() ([]ir.Diagnostic, bool) {
+		return runSequence(ctx, doc, root, at, opts.Lax, opts.MaxNodes)
+	})
 	if !applied {
 		return Origin{}, diags
 	}
@@ -211,28 +213,27 @@ func applyWithin(ctx context.Context, index int, root *yaml.Node, opts Options, 
 	return Origin{index: index, source: sourceInfo(doc, opts), applied: true, pointers: pointers, nodes: nodes}, diags
 }
 
-// applyRecovered runs the application under a barrier, converting a panic from
-// the library into a refusal so the no-panics-escape invariant holds. The
-// library faults on node shapes it accepts elsewhere, such as a document node
-// holding no root, and what reaches its selector is not this package's to
-// bound. The recover resets the named returns so a half-applied tree is never
+// applyRecovered runs apply, the overlay's application, behind diag.Catch and
+// turns a panic in it into a refusal quoting what the library panicked with, so
+// the no-panics-escape invariant holds. The library faults on node shapes it
+// accepts elsewhere, such as a document node holding no root, and what reaches
+// its selector is not this package's to bound. A half-applied tree is never
 // reported as applied.
 //
-// A recover reaches panics only. The library's clone follows aliases, so a
-// recursive anchor exhausts the stack and an alias bomb memory, both fatal
+// The library's clone follows aliases, so a recursive anchor exhausts the stack
+// and an alias bomb memory, both fatal and beyond any barrier
 // (docs/parser-library.md#overlay-alias-clone); the loader refuses those shapes
 // before the overlay is applied (GitHub #489).
-func applyRecovered(ctx context.Context, doc *soaoverlay.Overlay, root *yaml.Node, at ir.Provenance, lax bool,
-	maxNodes int,
-) (diags []ir.Diagnostic, applied bool) {
-	defer func() {
-		if r := recover(); r != nil {
-			diags = []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.OverlayFailed, at,
-				"cannot apply overlay: overlay library panicked (%v)", r)}
-			applied = false
-		}
-	}()
-	return runSequence(ctx, doc, root, at, lax, maxNodes)
+func applyRecovered(at ir.Provenance, apply func() ([]ir.Diagnostic, bool)) ([]ir.Diagnostic, bool) {
+	var (
+		diags   []ir.Diagnostic
+		applied bool
+	)
+	if text, panicked := diag.Catch(func() { diags, applied = apply() }); panicked {
+		return []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.OverlayFailed, at,
+			"cannot apply overlay: overlay library panicked (%s)", text)}, false
+	}
+	return diags, applied
 }
 
 // failed builds the diagnostic for an overlay the library refused to apply.

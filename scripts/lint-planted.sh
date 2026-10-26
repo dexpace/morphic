@@ -5,9 +5,9 @@
 # golangci-lint with the repository's configuration and the linters in $linters
 # only, over the module and the packages under
 # internal/lintrules/testdata/planted, where each line ending in
-# `// want "<message> (<linter>)"` holds something a rule exists to refuse. It
-# fails unless the plants draw exactly the marked findings and the module draws
-# none.
+# `// want "<message> (<linter>)"` holds something a rule exists to refuse, a
+# quote in the message written \". It fails unless the plants draw exactly the
+# marked findings and the module draws none.
 #
 # The module alone cannot prove a rule: one that recognizes nothing leaves it as
 # clean as one that works. The plants also pin what must draw nothing, such as
@@ -51,9 +51,12 @@ work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 
 # The findings marked in the plants, as "<file>:<line>: <message>"; `// want "`
-# is nine bytes.
-want="$(find "$testdata/planted" -name '*.go' -exec awk 'match($0, /\/\/ want "[^"]*"$/) {
-	print FILENAME ":" FNR ": " substr($0, RSTART + 9, RLENGTH - 10)
+# is nine bytes. Only \" is read as an escape: a pattern quoted in a message
+# keeps its other backslashes.
+want="$(find "$testdata/planted" -name '*.go' -exec awk 'match($0, /\/\/ want "([^"\\]|\\.)*"$/) {
+	text = substr($0, RSTART + 9, RLENGTH - 10)
+	gsub(/\\"/, "\"", text)
+	print FILENAME ":" FNR ": " text
 }' {} + | sort)"
 if [[ -z "$want" ]]; then
 	echo "lint-planted: no // want markers under $testdata/planted, so a clean run proves nothing" >&2

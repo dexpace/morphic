@@ -18,6 +18,7 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 )
 
@@ -148,17 +149,16 @@ func decodeSchema(ctx context.Context, n *yaml.Node, js *schemaRef) error {
 	return err
 }
 
-// decodeRecovered is bd.decode with a panic on the caller's goroutine turned
-// into an error: the decoder reads YAML no one checked was a schema, and the
-// parser panics on some shapes it accepts
+// decodeRecovered runs bd.decode behind diag.Catch and turns a panic in it into
+// an error quoting what the parser panicked with: the decoder reads YAML no one
+// checked was a schema, and the parser panics on some shapes it accepts
 // (docs/parser-library.md#recoverable-panic).
-func (bd *Builder) decodeRecovered(ctx context.Context, n *yaml.Node, js *schemaRef) (err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			err = fmt.Errorf("the parser panicked: %v", r)
-		}
-	}()
-	return bd.decode(ctx, n, js)
+func (bd *Builder) decodeRecovered(ctx context.Context, n *yaml.Node, js *schemaRef) error {
+	var err error
+	if text, panicked := diag.Catch(func() { err = bd.decode(ctx, n, js) }); panicked {
+		return fmt.Errorf("the parser panicked: %s", text)
+	}
+	return err
 }
 
 // Schema records that js was read at p. The first schema recorded at a
