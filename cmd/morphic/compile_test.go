@@ -450,15 +450,56 @@ func (p cancellingPass) Run(_ context.Context, doc *ir.Document) (*ir.Document, 
 	return doc, nil
 }
 
+// cancellingDetect cancels the run and then declines the spec in silence, as a
+// detection the cancellation cut short does.
+type cancellingDetect struct {
+	nilDocCompiler
+	cancel func()
+}
+
+func (c cancellingDetect) Detect(context.Context, compilers.Source, compilers.Options) (compilers.Recognition, []ir.Diagnostic, bool) {
+	c.cancel()
+	return compilers.Recognition{}, nil, false
+}
+
+// cancellingCompile cancels the run and then refuses the spec with a finding,
+// as a compile the cancellation cut short can.
+type cancellingCompile struct {
+	nilDocCompiler
+	cancel func()
+}
+
+func (c cancellingCompile) Compile(ctx context.Context, sources []compilers.Source, opts compilers.Options) (*ir.Document, []ir.Diagnostic, error) {
+	c.cancel()
+	return c.nilDocCompiler.Compile(ctx, sources, opts)
+}
+
 // TestRunPipeline_ARunCancelledInItsLastStageWritesNothing pins what a run
-// cancelled in its last pass, after the compile found something, leaves: no
-// diagnostic and no document, and a failure naming what cancelled it. The
-// engine refuses the run, so nothing it returned reaches a writer.
+// cancelled in its last stage leaves, whatever that stage made of it: a
+// detection that declined, a compile that refused, or a pass that handed back
+// what the compile found. No diagnostic and no document are written, and the
+// run fails naming what cancelled it. The engine fails a run whose stage
+// returned once its context had ended, and the CLI reports a stop only for a
+// run that failed.
 func TestRunPipeline_ARunCancelledInItsLastStageWritesNothing(t *testing.T) {
 	orig := newEngine
 	t.Cleanup(func() { newEngine = orig })
 	spec := writeFile(t, "spec.yaml", testspec.Tiny)
 	dest := filepath.Join(t.TempDir(), "ir.json")
+	stages := []struct {
+		name    string
+		options func(cancel func()) []engine.Option
+	}{
+		{"detection", func(cancel func()) []engine.Option {
+			return []engine.Option{engine.WithCompilers(cancellingDetect{cancel: cancel})}
+		}},
+		{"the compile", func(cancel func()) []engine.Option {
+			return []engine.Option{engine.WithCompilers(cancellingCompile{cancel: cancel})}
+		}},
+		{"the last pass", func(cancel func()) []engine.Option {
+			return []engine.Option{engine.WithCompilers(findingCompiler{}), engine.WithPasses(cancellingPass{cancel: cancel})}
+		}},
+	}
 	tests := []struct {
 		name       string
 		cause      error
@@ -468,21 +509,22 @@ func TestRunPipeline_ARunCancelledInItsLastStageWritesNothing(t *testing.T) {
 		{"by a stop signal", errInterrupted, exitFailure, stoppedByInterrupt},
 		{"by its caller", nil, exitFailure, "morphic: stopped: context canceled\n"},
 	}
-	for _, args := range [][]string{{"compile", spec}, {"compile", spec, "-o", dest}, {"validate", spec}} {
-		for _, tt := range tests {
-			ctx, cancel := context.WithCancelCause(t.Context())
-			newEngine = func() (*engine.Engine, error) {
-				return engine.New(engine.WithCompilers(findingCompiler{}),
-					engine.WithPasses(cancellingPass{cancel: func() { cancel(tt.cause) }}))
+	for _, stage := range stages {
+		for _, args := range [][]string{{"compile", spec}, {"compile", spec, "-o", dest}, {"validate", spec}} {
+			for _, tt := range tests {
+				ctx, cancel := context.WithCancelCause(t.Context())
+				newEngine = func() (*engine.Engine, error) {
+					return engine.New(stage.options(func() { cancel(tt.cause) })...)
+				}
+				var stdout, stderr bytes.Buffer
+
+				code := run(ctx, slices.Clone(args), &stdout, &stderr)
+
+				assert.Equal(t, tt.wantCode, code, "%s: %v %s", stage.name, args, tt.name)
+				assert.Equal(t, tt.wantStderr, stderr.String(), "%s: %v %s", stage.name, args, tt.name)
+				assert.Empty(t, stdout.String(), "%s: %v %s", stage.name, args, tt.name)
+				assert.NoFileExists(t, dest, "%s: %v %s", stage.name, args, tt.name)
 			}
-			var stdout, stderr bytes.Buffer
-
-			code := run(ctx, slices.Clone(args), &stdout, &stderr)
-
-			assert.Equal(t, tt.wantCode, code, "%v %s", args, tt.name)
-			assert.Equal(t, tt.wantStderr, stderr.String(), "%v %s", args, tt.name)
-			assert.Empty(t, stdout.String(), "%v %s", args, tt.name)
-			assert.NoFileExists(t, dest, "%v %s", args, tt.name)
 		}
 	}
 }
