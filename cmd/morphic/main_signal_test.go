@@ -27,9 +27,9 @@ import (
 // hanging the suite.
 const childTimeout = 2 * time.Minute
 
-// laterSignals bounds how many signals a test sends a child that did not stop
-// at the first, ten milliseconds apart.
-const laterSignals = 500
+// laterSignals is how many signals a test sends, ten milliseconds apart, after
+// the one that stopped a run.
+const laterSignals = 50
 
 // stoppedBy returns what a run sig stopped reports on stderr.
 func stoppedBy(sig os.Signal) string {
@@ -220,37 +220,26 @@ func exitCodeOf(t *testing.T, err error) int {
 	return exit.ExitCode()
 }
 
-// signalOf returns the signal that ended the child whose Wait returned err,
-// failing the test when the child exited instead.
-func signalOf(t *testing.T, err error) syscall.Signal {
-	t.Helper()
-	exit, ok := errors.AsType[*exec.ExitError](err)
-	require.True(t, ok, "the child exited cleanly or did not run: %v", err)
-	status, ok := exit.Sys().(syscall.WaitStatus)
-	require.True(t, ok, "no wait status: %T", exit.Sys())
-	require.True(t, status.Signaled(), "the child exited with %d rather than being ended by a signal", status.ExitStatus())
-	return status.Signal()
-}
-
 // writingToStdout starts cmd, a run of the CLI that writes a document to
 // stdout, with stdout a pipe this test reads, and returns once the child has
 // written the document's first byte: the run is past every step before the
 // write, and a document larger than the pipe holds keeps it in the write until
-// the pipe is read. It returns that byte and the pipe.
-func writingToStdout(t *testing.T, cmd *exec.Cmd) (first []byte, stdout *os.File) {
+// the pipe is read. It returns that byte, the pipe, and what the child writes
+// to stderr, whole once cmd.Wait returns.
+func writingToStdout(t *testing.T, cmd *exec.Cmd) (first []byte, stdout *os.File, stderr *bytes.Buffer) {
 	t.Helper()
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 	t.Cleanup(func() { assert.NoError(t, r.Close()) })
-	var stderr bytes.Buffer
-	cmd.Stdout, cmd.Stderr = w, &stderr
+	stderr = &bytes.Buffer{}
+	cmd.Stdout, cmd.Stderr = w, stderr
 	require.NoError(t, cmd.Start())
 	require.NoError(t, w.Close())
 
 	first = make([]byte, 1)
 	_, err = io.ReadFull(r, first)
-	require.NoError(t, err, "the child wrote no document: %s", &stderr)
-	return first, r
+	require.NoError(t, err, "the child wrote no document: %s", stderr)
+	return first, r, stderr
 }
 
 // requireWholeDocument fails the test unless doc is a whole IR document as
@@ -355,41 +344,35 @@ func otherThan(names []string, name string) string {
 	return ""
 }
 
-// TestMain_ASecondSignalEndsARunThatHasNotStopped pins the way out of a run
-// that does not stop: the first signal is caught, and releases the signals,
-// so a later one ends the process at once. The child is blocked writing to
-// stdout, which nothing here reads, so it never stops on its own.
-func TestMain_ASecondSignalEndsARunThatHasNotStopped(t *testing.T) {
+// TestMain_LaterSignalsDoNotEndARunThatIsStopping pins that the first signal
+// releases none: later ones, of every kind morphic catches, are caught too, as
+// a copy a shell or a wrapper sends would be, so none cuts the stopping run
+// short. The child is blocked writing to stdout until the test reads it, then
+// finishes and exits 2 naming the first signal.
+func TestMain_LaterSignalsDoNotEndARunThatIsStopping(t *testing.T) {
 	t.Parallel()
 	cmd := morphic(childContext(t), "compile", specOf(t, 100))
-	writingToStdout(t, cmd)
+	first, stdout, stderr := writingToStdout(t, cmd)
 	waited := make(chan error, 1)
 	go func() { waited <- cmd.Wait() }()
 
 	require.NoError(t, cmd.Process.Signal(syscall.SIGINT))
-	select {
-	case err := <-waited:
-		require.FailNow(t, "the first signal ended the process", "%v", err)
-	case <-time.After(settle):
-	}
-	// The first signal is released as soon as it is caught; sending until one
-	// lands keeps the test from depending on how soon that is. A child the last
-	// one ended may already be gone, which the wait below then reports.
-	var err error
-	for range laterSignals {
-		if sent := cmd.Process.Signal(syscall.SIGINT); sent != nil {
-			require.ErrorIs(t, sent, os.ErrProcessDone)
-		}
+	caught := []syscall.Signal{syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP}
+	for i := range laterSignals {
+		sig := caught[i%len(caught)]
+		require.NoError(t, cmd.Process.Signal(sig), "later signal %d", i+1)
 		select {
-		case err = <-waited:
+		case err := <-waited:
+			require.FailNow(t, "a later signal ended the run", "signal %d, %s: %v", i+1, sig, err)
 		case <-time.After(10 * time.Millisecond):
-			continue
 		}
-		break
 	}
+	rest, err := io.ReadAll(stdout)
+	require.NoError(t, err)
 
-	require.Error(t, err, "no later signal ended the process")
-	assert.Equal(t, syscall.SIGINT, signalOf(t, err))
+	assert.Equal(t, exitFailure, exitCodeOf(t, <-waited), "stderr: %s", stderr)
+	assert.Equal(t, stoppedByInterrupt, stderr.String())
+	requireWholeDocument(t, append(first, rest...))
 }
 
 // TestMain_ASignalTheShellIgnoredStaysIgnored pins that morphic catches no
@@ -402,13 +385,13 @@ func TestMain_ASignalTheShellIgnoredStaysIgnored(t *testing.T) {
 	cmd := exec.CommandContext(ctx, "/bin/sh", "-c", `trap '' INT HUP; exec "$0" "$@"`,
 		os.Args[0], "compile", specOf(t, 100))
 	cmd.Env = append(os.Environ(), asMorphic+"=1")
-	first, stdout := writingToStdout(t, cmd)
+	first, stdout, stderr := writingToStdout(t, cmd)
 
 	require.NoError(t, cmd.Process.Signal(syscall.SIGINT))
 	require.NoError(t, cmd.Process.Signal(syscall.SIGHUP))
 	rest, err := io.ReadAll(stdout)
 	require.NoError(t, err)
 
-	require.NoError(t, cmd.Wait(), "the ignored signals stopped the run")
+	require.NoError(t, cmd.Wait(), "the ignored signals stopped the run: %s", stderr)
 	requireWholeDocument(t, append(first, rest...))
 }

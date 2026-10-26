@@ -21,7 +21,8 @@ keep the compiler's.
 --opt is compile's, and takes the same settings: a spec that needs one to
 compile needs it here too, or what is checked is not what would be built.
 
-SIGINT, SIGTERM or SIGHUP stops the run, and a second ends morphic at once.`
+SIGINT, SIGTERM or SIGHUP stops the run; another while it is stopping changes
+nothing.`
 
 // validateExample is validate's examples — see compileExample.
 const validateExample = `  # diagnostics and exit code only

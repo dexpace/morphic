@@ -51,8 +51,8 @@ a signal stopped.
 
 SIGINT, SIGTERM or SIGHUP stops the run. A document --output was writing is
 abandoned and its temporary file removed, so the file keeps its previous
-content unless the document was already being moved into place. A second
-signal ends morphic at once.`
+content unless the document was already being moved into place. Another
+signal while the run is stopping changes nothing.`
 
 // compileExample is compile's examples, indented as cobra's help indents a
 // section.

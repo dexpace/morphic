@@ -26,17 +26,14 @@ func catchable(sigs []os.Signal) []os.Signal {
 }
 
 // watchSignals returns a context the first of sigs to arrive cancels, as
-// signal.NotifyContext does, and the stop function that ends the watch. The
-// first signal also releases them all, so a second takes its default action
-// and ends the process at once: a run that does not stop can still be stopped.
-// A terminal closing can send SIGHUP twice, so its second can end the process
-// before the run has cleaned up. Given no sigs it watches none, where
-// NotifyContext would relay every signal.
+// signal.NotifyContext does, and the stop function that ends the watch. Later
+// signals are caught too until stop, so none can end the process before the
+// run has cleaned up: a shell can send SIGHUP twice as its terminal closes, and
+// a wrapper can pass on a Ctrl-C its child has had already. Given no sigs it
+// watches none, where NotifyContext would relay every signal.
 func watchSignals(parent context.Context, sigs []os.Signal) (context.Context, context.CancelFunc) {
 	if len(sigs) == 0 {
 		return context.WithCancel(parent)
 	}
-	ctx, stop := signal.NotifyContext(parent, sigs...)
-	context.AfterFunc(ctx, stop)
-	return ctx, stop
+	return signal.NotifyContext(parent, sigs...)
 }
