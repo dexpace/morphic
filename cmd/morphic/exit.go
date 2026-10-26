@@ -12,7 +12,8 @@ import (
 )
 
 // Exit codes. They are a contract with CI wrappers: 1 says the spec has
-// findings, 2 says morphic was invoked wrong or could not do its I/O.
+// findings, 2 says morphic was invoked wrong, could not do its I/O, ran a
+// compiler or pass that broke its contract, or was stopped by a signal.
 const (
 	exitFindings = 1
 	exitFailure  = 2
@@ -42,7 +43,8 @@ func exitWith(code int) error {
 	return &exitError{code: code}
 }
 
-// failure wraps err as an I/O or internal failure: exit 2, message reported.
+// failure wraps err as what ended a run for a reason outside the spec, such as
+// I/O, a broken stage or a stop: exit 2, message reported.
 func failure(err error) error {
 	return &exitError{code: exitFailure, err: err}
 }

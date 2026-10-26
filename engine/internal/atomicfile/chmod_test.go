@@ -35,7 +35,7 @@ func TestReplace_AChmodFailureLeavesNothingBehind(t *testing.T) {
 	dest := filepath.Join(dir, "ir.json")
 	require.NoError(t, os.WriteFile(dest, []byte("old\n"), 0o600))
 
-	err := atomicfile.ReplaceWithChmod(dest, fill, failing)
+	err := atomicfile.ReplaceWithChmod(t.Context(), dest, fill, failing)
 
 	require.ErrorIs(t, err, refused)
 	assert.ErrorContains(t, err, fmt.Sprintf("chmod output %q", dest))
@@ -48,5 +48,5 @@ func TestReplace_AChmodFailureLeavesNothingBehind(t *testing.T) {
 	assert.Equal(t, "old\n", string(raw))
 
 	fresh := filepath.Join(t.TempDir(), "ir.json")
-	require.NoError(t, atomicfile.ReplaceWithChmod(fresh, fill, failing), "a new destination is not chmod-ed")
+	require.NoError(t, atomicfile.ReplaceWithChmod(t.Context(), fresh, fill, failing), "a new destination is not chmod-ed")
 }

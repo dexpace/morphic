@@ -61,7 +61,7 @@ func TestRun_VerifyEndsARunWhoseStageBreaksTheIR(t *testing.T) {
 		t.Run(command, func(t *testing.T) {
 			var stdout, stderr bytes.Buffer
 
-			code := run([]string{command, spec, "--verify"}, &stdout, &stderr)
+			code := run(t.Context(), []string{command, spec, "--verify"}, &stdout, &stderr)
 
 			assert.Equal(t, exitFailure, code)
 			assert.Empty(t, stdout.String(), "no IR is written for a run that failed")
@@ -77,7 +77,7 @@ func TestRun_VerifyEndsARunWhoseStageBreaksTheIR(t *testing.T) {
 		var stdout, stderr bytes.Buffer
 
 		// The validate pass is off, so nothing else looks at what the compiler built.
-		code := run([]string{"validate", spec, "--skip-validate"}, &stdout, &stderr)
+		code := run(t.Context(), []string{"validate", spec, "--skip-validate"}, &stdout, &stderr)
 
 		assert.Equal(t, 0, code, "stderr: %s", stderr.String())
 	})
@@ -88,7 +88,7 @@ func TestRun_VerifyListsAtMostFiftyViolations(t *testing.T) {
 	spec := writeFile(t, "spec.yaml", testspec.Tiny)
 	var stdout, stderr bytes.Buffer
 
-	code := run([]string{"validate", spec, "--verify"}, &stdout, &stderr)
+	code := run(t.Context(), []string{"validate", spec, "--verify"}, &stdout, &stderr)
 
 	assert.Equal(t, exitFailure, code)
 	counted := regexp.MustCompile(`the document breaks (\d+) invariants`).FindStringSubmatch(stderr.String())
@@ -108,8 +108,8 @@ func TestRun_VerifyAcceptsWhatTheShippedCompilerLowers(t *testing.T) {
 	spec := writeFile(t, "spec.yaml", testspec.Tiny)
 	var plain, verified, stderr bytes.Buffer
 
-	require.Equal(t, 0, run([]string{"compile", spec}, &plain, &stderr), stderr.String())
-	code := run([]string{"compile", spec, "--verify"}, &verified, &stderr)
+	require.Equal(t, 0, run(t.Context(), []string{"compile", spec}, &plain, &stderr), stderr.String())
+	code := run(t.Context(), []string{"compile", spec, "--verify"}, &verified, &stderr)
 
 	assert.Equal(t, 0, code, "stderr: %s", stderr.String())
 	assert.Equal(t, plain.String(), verified.String())

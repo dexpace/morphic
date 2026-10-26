@@ -49,7 +49,7 @@ func TestRun_HelpForms(t *testing.T) {
 			t.Parallel()
 			var stdout, stderr bytes.Buffer
 
-			assert.Equal(t, 0, run(tt.args, &stdout, &stderr))
+			assert.Equal(t, 0, run(t.Context(), tt.args, &stdout, &stderr))
 			assert.Contains(t, stdout.String(), "Usage:")
 			assert.Empty(t, stderr.String(), "help must never write to stderr")
 		})
@@ -72,7 +72,7 @@ func TestRun_EveryCommandAnswersItsHelpFlag(t *testing.T) {
 				t.Parallel()
 				var stdout, stderr bytes.Buffer
 
-				code := run([]string{c.Name(), spelling}, &stdout, &stderr)
+				code := run(t.Context(), []string{c.Name(), spelling}, &stdout, &stderr)
 
 				assert.Equal(t, 0, code, "stderr: %s", stderr.String())
 				assert.Contains(t, stdout.String(), c.Use)
@@ -82,17 +82,17 @@ func TestRun_EveryCommandAnswersItsHelpFlag(t *testing.T) {
 	}
 }
 
-// TestRun_NilArgsAreNoArguments pins that run(nil) is a run with no arguments
-// and not a run of the process's own. cobra falls back to os.Args[1:] for a nil
-// slice, which a test binary cannot show on its own: pflag skips its -test.*
-// flags. Not run in parallel, as it replaces os.Args.
+// TestRun_NilArgsAreNoArguments pins that run given nil args is a run with no
+// arguments and not a run of the process's own. cobra falls back to os.Args[1:]
+// for a nil slice, which a test binary cannot show on its own: pflag skips its
+// -test.* flags. Not run in parallel, as it replaces os.Args.
 func TestRun_NilArgsAreNoArguments(t *testing.T) {
 	prev := os.Args
 	t.Cleanup(func() { os.Args = prev })
 	os.Args = []string{"morphic", "bogus"}
 	var stdout, stderr bytes.Buffer
 
-	code := run(nil, &stdout, &stderr)
+	code := run(t.Context(), nil, &stdout, &stderr)
 
 	assert.Equal(t, 0, code, "stderr: %s", stderr.String())
 	assert.Contains(t, stdout.String(), "Usage:")
@@ -109,7 +109,7 @@ func TestRun_HelpFlagAsFlagValue(t *testing.T) {
 	spec := writeFile(t, "spec.yaml", testspec.Tiny)
 	var stdout, stderr bytes.Buffer
 
-	code := run([]string{"compile", "-o", "--help", spec}, &stdout, &stderr)
+	code := run(t.Context(), []string{"compile", "-o", "--help", spec}, &stdout, &stderr)
 
 	require.Equal(t, 0, code, "stderr: %s", stderr.String())
 	assert.NotContains(t, stdout.String(), "Usage:",
@@ -147,7 +147,7 @@ func TestRun_HelpFlagDoesNotMaskAMistypedCommand(t *testing.T) {
 			t.Parallel()
 			var stdout, stderr bytes.Buffer
 
-			assert.Equal(t, 2, run(tt.args, &stdout, &stderr))
+			assert.Equal(t, 2, run(t.Context(), tt.args, &stdout, &stderr))
 			assert.Empty(t, stdout.String())
 			assert.Contains(t, stderr.String(), tt.reason)
 		})
@@ -177,7 +177,7 @@ func TestRun_OperandsAfterTerminatorAreRefused(t *testing.T) {
 			t.Parallel()
 			var stdout, stderr bytes.Buffer
 
-			assert.Equal(t, 2, run(tt.args, &stdout, &stderr))
+			assert.Equal(t, 2, run(t.Context(), tt.args, &stdout, &stderr))
 			assert.Empty(t, stdout.String(), "nothing may be written for a refused invocation")
 			assert.Contains(t, stderr.String(), `unexpected argument "`+tt.word+`" after "--"`)
 			assert.Contains(t, stderr.String(), `Try "morphic --help" for usage.`)
@@ -186,7 +186,7 @@ func TestRun_OperandsAfterTerminatorAreRefused(t *testing.T) {
 
 	// A "--" with nothing after it has nothing to refuse: it is a bare morphic.
 	var stdout, stderr bytes.Buffer
-	assert.Equal(t, 0, run([]string{"--"}, &stdout, &stderr), "stderr: %s", stderr.String())
+	assert.Equal(t, 0, run(t.Context(), []string{"--"}, &stdout, &stderr), "stderr: %s", stderr.String())
 	assert.Contains(t, stdout.String(), "Usage:")
 }
 
@@ -207,7 +207,7 @@ func TestRun_HelpFormsAgree(t *testing.T) {
 			var want string
 			for i, args := range forms {
 				var stdout, stderr bytes.Buffer
-				require.Equal(t, 0, run(args, &stdout, &stderr), "stderr: %s", stderr.String())
+				require.Equal(t, 0, run(t.Context(), args, &stdout, &stderr), "stderr: %s", stderr.String())
 				if i == 0 {
 					want = stdout.String()
 					require.NotEmpty(t, want)
@@ -234,7 +234,7 @@ func TestRun_CommandHelpListsEveryFlag(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			var stdout, stderr bytes.Buffer
-			require.Equal(t, 0, run([]string{"help", tt.name}, &stdout, &stderr))
+			require.Equal(t, 0, run(t.Context(), []string{"help", tt.name}, &stdout, &stderr))
 
 			// Read the flag names back out of the help text rather than asking
 			// whether it contains each name: a short name like "o" is a substring
@@ -282,7 +282,7 @@ func TestRootHelp_ListsEveryCommand(t *testing.T) {
 	t.Parallel()
 
 	var stdout, stderr bytes.Buffer
-	require.Equal(t, 0, run(nil, &stdout, &stderr))
+	require.Equal(t, 0, run(t.Context(), nil, &stdout, &stderr))
 
 	got := strings.ToLower(stdout.String())
 	cmds := newRootCmd().Commands()
@@ -379,7 +379,7 @@ func TestHelp_MatchesGolden(t *testing.T) {
 	for _, tt := range helpGoldenCases() {
 		t.Run(tt.name, func(t *testing.T) {
 			var stdout, stderr bytes.Buffer
-			require.Equal(t, tt.wantCode, run(tt.args, &stdout, &stderr))
+			require.Equal(t, tt.wantCode, run(t.Context(), tt.args, &stdout, &stderr))
 
 			got, quiet := stdout.String(), stderr.String()
 			if tt.wantStderr {

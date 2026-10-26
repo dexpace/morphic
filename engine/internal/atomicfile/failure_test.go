@@ -1,6 +1,7 @@
 package atomicfile_test
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"io/fs"
@@ -40,7 +41,7 @@ func TestReplace_FillErrorLeavesDestinationUntouched(t *testing.T) {
 			dest := newDest(t)
 			seed(t, dest, "PREVIOUS\n", 0o640)
 
-			err := atomicfile.Replace(dest, tt.fill)
+			err := atomicfile.Replace(t.Context(), dest, tt.fill)
 
 			require.ErrorIs(t, err, errFill)
 			assert.EqualError(t, err, fmt.Sprintf("replace output %q: fill refused", dest),
@@ -63,7 +64,7 @@ func TestReplace_RenameErrorLeavesNothingBehind(t *testing.T) {
 	require.NoError(t, os.Mkdir(dest, 0o755))
 	seed(t, filepath.Join(dest, "inside"), "kept\n", 0o644)
 
-	err := atomicfile.Replace(dest, writing("new\n"))
+	err := atomicfile.Replace(t.Context(), dest, writing("new\n"))
 
 	require.Error(t, err)
 	assert.ErrorContains(t, err, fmt.Sprintf("replace output %q: ", dest))
@@ -76,28 +77,36 @@ func TestReplace_RenameErrorLeavesNothingBehind(t *testing.T) {
 // reports a failed cleanup beside its own error, rather than dropping either.
 // The fill takes the temporary file away, so removing it fails with
 // ErrNotExist, and the caller sees both that and the cause: the fill's own
-// error, or the rename's when the fill succeeds but leaves nothing to rename.
+// error, the context's when the fill ends it, or the rename's when the fill
+// succeeds but leaves nothing to rename.
 func TestReplace_CleanupFailureIsReportedWithTheCause(t *testing.T) {
 	t.Parallel()
-	for name, fails := range map[string]bool{"fill fails": true, "rename fails": false} {
-		t.Run(name, func(t *testing.T) {
+	tests := []struct {
+		name      string
+		end       func(cancel context.CancelFunc) error
+		wantCause error
+	}{
+		{"fill fails", func(context.CancelFunc) error { return errFill }, errFill},
+		{"context ends", func(cancel context.CancelFunc) error { cancel(); return nil }, context.Canceled},
+		{"rename fails", func(context.CancelFunc) error { return nil }, nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
 			dest := newDest(t)
 			seed(t, dest, "old\n", 0o644)
 			fill := func(io.Writer) error {
 				require.NoError(t, os.Remove(tempOf(t, dest)))
-				if fails {
-					return errFill
-				}
-				return nil
+				return tt.end(cancel)
 			}
 
-			err := atomicfile.Replace(dest, fill)
+			err := atomicfile.Replace(ctx, dest, fill)
 
-			if fails {
-				require.ErrorIs(t, err, errFill)
-			} else {
-				assert.ErrorContains(t, err, fmt.Sprintf("replace output %q: ", dest))
+			assert.ErrorContains(t, err, fmt.Sprintf("replace output %q: ", dest))
+			if tt.wantCause != nil {
+				assert.ErrorIs(t, err, tt.wantCause)
 			}
 			assert.ErrorIs(t, err, fs.ErrNotExist, "the failed cleanup is reported with the cause")
 			assert.Equal(t, "old\n", contentOf(t, dest))
@@ -105,20 +114,24 @@ func TestReplace_CleanupFailureIsReportedWithTheCause(t *testing.T) {
 	}
 }
 
-// TestReplace_RefusesNoPathOrNoFill pins the arguments refused before anything
+// TestReplace_RefusesAnUnusableCall pins the arguments refused before anything
 // is created: an empty path, which would put the temporary file in the working
-// directory and run the whole fill before the rename failed, and a nil fill,
-// which would panic with that file left behind.
-func TestReplace_RefusesNoPathOrNoFill(t *testing.T) {
+// directory and run the whole fill before the rename failed, a nil fill, which
+// would panic with that file left behind, and a nil ctx, which would panic
+// before it.
+func TestReplace_RefusesAnUnusableCall(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	filled := false
 	fill := func(io.Writer) error { filled = true; return nil }
+	var noContext context.Context // nil, to reach the guard
 
-	assert.EqualError(t, atomicfile.Replace("", fill), "replace output: no path to replace")
-	assert.False(t, filled, "the fill does not run for an empty path")
+	assert.EqualError(t, atomicfile.Replace(t.Context(), "", fill), "replace output: no path to replace")
 	dest := filepath.Join(dir, "ir.json")
-	assert.EqualError(t, atomicfile.Replace(dest, nil),
+	assert.EqualError(t, atomicfile.Replace(t.Context(), dest, nil),
 		fmt.Sprintf("replace output %q: nothing to fill it with", dest))
-	assert.Empty(t, entriesIn(t, dir), "nothing is created for either")
+	assert.EqualError(t, atomicfile.Replace(noContext, dest, fill),
+		fmt.Sprintf("replace output %q: no context to replace it under", dest))
+	assert.False(t, filled, "the fill does not run for a refused call")
+	assert.Empty(t, entriesIn(t, dir), "nothing is created for any")
 }

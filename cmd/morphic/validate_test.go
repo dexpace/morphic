@@ -70,7 +70,7 @@ func TestRun_ValidateExitCodes(t *testing.T) {
 			spec := writeFile(t, "spec.yaml", tt.spec)
 			var stdout, stderr bytes.Buffer
 
-			code := run(append([]string{"validate", spec}, tt.args...), &stdout, &stderr)
+			code := run(t.Context(), append([]string{"validate", spec}, tt.args...), &stdout, &stderr)
 
 			assert.Equal(t, tt.wantCode, code, "stderr: %s", stderr.String())
 			assert.Empty(t, stdout.String(), "validate must write nothing to stdout")
@@ -113,11 +113,11 @@ func TestRun_ValidateAgreesWithCompile(t *testing.T) {
 			out := filepath.Join(t.TempDir(), "ir.json")
 
 			var compileOut, compileErr bytes.Buffer
-			compileCode := run(append([]string{"compile", spec, "-o", out}, tt.args...),
+			compileCode := run(t.Context(), append([]string{"compile", spec, "-o", out}, tt.args...),
 				&compileOut, &compileErr)
 
 			var validateOut, validateErr bytes.Buffer
-			validateCode := run(append([]string{"validate", spec}, tt.args...),
+			validateCode := run(t.Context(), append([]string{"validate", spec}, tt.args...),
 				&validateOut, &validateErr)
 
 			assert.Equal(t, compileCode, validateCode, "exit codes must agree")
@@ -142,7 +142,7 @@ func TestRun_ValidateWritesNoFile(t *testing.T) {
 	require.NoError(t, os.WriteFile(spec, []byte(testspec.Tiny), 0o644))
 	var stdout, stderr bytes.Buffer
 
-	require.Equal(t, 0, run([]string{"validate", spec}, &stdout, &stderr),
+	require.Equal(t, 0, run(t.Context(), []string{"validate", spec}, &stdout, &stderr),
 		"stderr: %s", stderr.String())
 
 	entries, err := os.ReadDir(dir)
@@ -178,7 +178,7 @@ func TestRun_ValidateUsageErrors(t *testing.T) {
 			t.Parallel()
 			var stdout, stderr bytes.Buffer
 
-			assert.Equal(t, 2, run(tt.args, &stdout, &stderr))
+			assert.Equal(t, 2, run(t.Context(), tt.args, &stdout, &stderr))
 			assert.Empty(t, stdout.String(), "usage errors must never write to stdout")
 			assert.Contains(t, stderr.String(), tt.reason)
 			assert.Contains(t, stderr.String(), `Try "morphic validate --help" for usage.`,
@@ -213,7 +213,7 @@ func TestRun_ValidateEngineFailures(t *testing.T) {
 			}
 			var stdout, stderr bytes.Buffer
 
-			assert.Equal(t, tt.wantCode, run([]string{"validate", path}, &stdout, &stderr))
+			assert.Equal(t, tt.wantCode, run(t.Context(), []string{"validate", path}, &stdout, &stderr))
 			assert.Empty(t, stdout.String(), "validate must write nothing to stdout")
 			assert.Contains(t, stderr.String(), tt.wantErr)
 		})
@@ -231,7 +231,7 @@ func TestRun_ValidateNilDocumentReturnsOne(t *testing.T) {
 	spec := writeFile(t, "spec.yaml", testspec.Tiny)
 	var stdout, stderr bytes.Buffer
 
-	assert.Equal(t, 1, run([]string{"validate", spec}, &stdout, &stderr))
+	assert.Equal(t, 1, run(t.Context(), []string{"validate", spec}, &stdout, &stderr))
 	assert.Empty(t, stdout.String(), "validate must write nothing to stdout")
 	assert.Contains(t, stderr.String(), "openapi/unsupported-version")
 }
@@ -252,12 +252,12 @@ func TestValidate_CompilerOptionReachesThePipeline(t *testing.T) {
 		"actions:\n  - target: $.nonexistent\n    update: {x: y}\n")
 
 	var cleanOut, cleanErr bytes.Buffer
-	require.Equal(t, 0, run([]string{"validate", spec}, &cleanOut, &cleanErr),
+	require.Equal(t, 0, run(t.Context(), []string{"validate", spec}, &cleanOut, &cleanErr),
 		"the spec must validate clean on its own, or the assertion below proves nothing: %s",
 		cleanErr.String())
 
 	var stdout, stderr bytes.Buffer
-	code := run([]string{"validate", spec, "--opt", "overlay=" + overlay}, &stdout, &stderr)
+	code := run(t.Context(), []string{"validate", spec, "--opt", "overlay=" + overlay}, &stdout, &stderr)
 
 	assert.Equal(t, 1, code, "stderr: %s", stderr.String())
 	assert.Contains(t, stderr.String(), "openapi/overlay-failed",
@@ -279,7 +279,7 @@ func TestRun_ValidateReportsAStreamDropAsAPositionNotAFragment(t *testing.T) {
 		"second: doc\n")
 	var stdout, stderr bytes.Buffer
 
-	code := run([]string{"validate", spec}, &stdout, &stderr)
+	code := run(t.Context(), []string{"validate", spec}, &stdout, &stderr)
 
 	assert.Equal(t, 1, code, "stderr: %s", stderr.String())
 	assert.Contains(t, stderr.String(), "twodocs.yaml:5:1:",
@@ -309,7 +309,7 @@ x-a: &a [*a]
 	want := fmt.Sprintf("%s:4:%d (#/x-a/0):", spec, col)
 
 	var stdout, stderr bytes.Buffer
-	code := run([]string{"validate", spec}, &stdout, &stderr)
+	code := run(t.Context(), []string{"validate", spec}, &stdout, &stderr)
 
 	assert.Equal(t, 1, code, "stderr: %s", stderr.String())
 	assert.Contains(t, stderr.String(), want)
@@ -334,7 +334,7 @@ func TestRun_ValidateReportsAnOverlayRefusalWithTheOverlaysFile(t *testing.T) {
 	want := fmt.Sprintf("%s:5:%d (#/actions/0/update/p/0):", overlay, col)
 
 	var stdout, stderr bytes.Buffer
-	code := run([]string{"validate", spec, "--opt", "overlay=" + overlay}, &stdout, &stderr)
+	code := run(t.Context(), []string{"validate", spec, "--opt", "overlay=" + overlay}, &stdout, &stderr)
 
 	assert.Equal(t, 1, code, "stderr: %s", stderr.String())
 	assert.Contains(t, stderr.String(), want, "the overlay's own file, not the spec's")
@@ -354,7 +354,7 @@ func TestRun_UnknownPassIsMisuse(t *testing.T) {
 
 	for _, cmd := range []string{"compile", "validate"} {
 		var stdout, stderr bytes.Buffer
-		code := run([]string{cmd, spec, "--disable-pass", "no-such-pass"}, &stdout, &stderr)
+		code := run(t.Context(), []string{cmd, spec, "--disable-pass", "no-such-pass"}, &stdout, &stderr)
 
 		assert.Equal(t, exitFailure, code, cmd)
 		assert.Contains(t, stderr.String(), `"no-such-pass" (known: `+strings.Join(known, ", ")+`)`, cmd)

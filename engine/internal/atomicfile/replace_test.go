@@ -23,7 +23,7 @@ func TestReplace_ReplacesAtomically(t *testing.T) {
 	dest := newDest(t)
 	seed(t, dest, "stale\n", 0o640)
 
-	require.NoError(t, atomicfile.Replace(dest, writing("fresh\n")))
+	require.NoError(t, atomicfile.Replace(t.Context(), dest, writing("fresh\n")))
 
 	assert.Equal(t, "fresh\n", contentOf(t, dest))
 	assert.Equal(t, fs.FileMode(0o640), modeOf(t, dest),
@@ -58,7 +58,7 @@ func TestReplace_NewFileTakesTheUmaskNarrowedMode(t *testing.T) {
 		return writing("new\n")(w)
 	}
 
-	require.NoError(t, atomicfile.Replace(dest, fill))
+	require.NoError(t, atomicfile.Replace(t.Context(), dest, fill))
 
 	assert.Equal(t, "new\n", contentOf(t, dest))
 	assert.Equal(t, processCreationMode(t), filling)
@@ -84,7 +84,7 @@ func TestReplace_ContentIsNeverWiderThanTheDestination(t *testing.T) {
 				return writing("new\n")(w)
 			}
 
-			require.NoError(t, atomicfile.Replace(dest, fill))
+			require.NoError(t, atomicfile.Replace(t.Context(), dest, fill))
 
 			assert.Equal(t, mode, filling, "holding the destination's mode exactly while it is filled")
 			assert.Equal(t, mode, modeOf(t, dest))
@@ -105,7 +105,7 @@ func TestReplace_TempFileIsCreatedBesideTheDestination(t *testing.T) {
 		return writing("fresh\n")(w)
 	}
 
-	require.NoError(t, atomicfile.Replace(dest, fill))
+	require.NoError(t, atomicfile.Replace(t.Context(), dest, fill))
 
 	assert.Equal(t, filepath.Dir(dest), filepath.Dir(temp))
 	assert.Regexp(t, `^\.ir\.json[0-9]+$`, filepath.Base(temp))
@@ -122,7 +122,7 @@ func TestReplace_ReplacedSymlinkTakesItsTargetsMode(t *testing.T) {
 	seed(t, target, "PREVIOUS\n", 0o600)
 	require.NoError(t, os.Symlink(target, link))
 
-	require.NoError(t, atomicfile.Replace(link, writing("fresh\n")))
+	require.NoError(t, atomicfile.Replace(t.Context(), link, writing("fresh\n")))
 
 	info, err := os.Lstat(link)
 	require.NoError(t, err)
@@ -139,7 +139,7 @@ func TestReplace_StatError(t *testing.T) {
 	seed(t, notDir, "x", 0o644)
 	dest := filepath.Join(notDir, "ir.json")
 
-	err := atomicfile.Replace(dest, writing("fresh\n"))
+	err := atomicfile.Replace(t.Context(), dest, writing("fresh\n"))
 
 	require.Error(t, err)
 	assert.ErrorContains(t, err, fmt.Sprintf("stat output %q", dest))
@@ -167,7 +167,7 @@ func TestReplace_ReadOnlyDirFails(t *testing.T) {
 	// Restore write permission so t.TempDir's own cleanup can remove the tree.
 	t.Cleanup(func() { assert.NoError(t, os.Chmod(dir, 0o755)) })
 
-	err := atomicfile.Replace(dest, writing("fresh\n"))
+	err := atomicfile.Replace(t.Context(), dest, writing("fresh\n"))
 
 	require.ErrorIs(t, err, fs.ErrPermission)
 	assert.ErrorContains(t, err, "create output")
@@ -185,7 +185,7 @@ func TestReplace_SymlinkIsReplaced(t *testing.T) {
 	seed(t, target, "PREVIOUS\n", 0o644)
 	require.NoError(t, os.Symlink(target, link))
 
-	require.NoError(t, atomicfile.Replace(link, writing("fresh\n")))
+	require.NoError(t, atomicfile.Replace(t.Context(), link, writing("fresh\n")))
 
 	info, err := os.Lstat(link)
 	require.NoError(t, err)
@@ -204,7 +204,7 @@ func TestReplace_HardLinkIsBroken(t *testing.T) {
 	seed(t, dest, "PREVIOUS\n", 0o644)
 	require.NoError(t, os.Link(dest, other))
 
-	require.NoError(t, atomicfile.Replace(dest, writing("fresh\n")))
+	require.NoError(t, atomicfile.Replace(t.Context(), dest, writing("fresh\n")))
 
 	assert.Equal(t, "fresh\n", contentOf(t, dest))
 	assert.Equal(t, "PREVIOUS\n", contentOf(t, other), "the other link keeps the old inode's content")
@@ -235,7 +235,7 @@ func TestReplace_NearLimitNameFails(t *testing.T) {
 			dest := filepath.Join(t.TempDir(), strings.Repeat("a", tt.baseLen))
 			seed(t, dest, "PREVIOUS\n", 0o644) // precondition: this name is writable in place
 
-			err := atomicfile.Replace(dest, writing("fresh\n"))
+			err := atomicfile.Replace(t.Context(), dest, writing("fresh\n"))
 
 			if !tt.wantErr {
 				require.NoError(t, err)

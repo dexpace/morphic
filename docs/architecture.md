@@ -503,8 +503,8 @@ does without importing it. It takes its input three ways: a spec file (`Run`), s
 memory (`RunSources`, which reads nothing else), and a document already compiled (`RunDocument`,
 which runs the passes alone). `engine/reader` reads what a source's references name, `engine/output`
 writes the document to a stream or replaces a file atomically, and `engine/report` renders
-diagnostics and `--explain`. The CLI parses flags, picks the streams and turns a run into an exit
-code.
+diagnostics and `--explain`. The CLI parses flags, picks the streams, cancels the run on SIGINT,
+SIGTERM or SIGHUP, and turns the run into an exit code.
 
 Two caps guard the shape rather than the graph, both in `internal/archtest` and `.golangci.yml`:
 no type under `compilers/` may carry more than 20 methods, and no function may exceed 70 lines or

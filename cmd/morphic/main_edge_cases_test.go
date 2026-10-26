@@ -92,7 +92,7 @@ func TestRun_AStagePanicIsAFailureNotACrash(t *testing.T) {
 				useEngine(t, tt.opts...)
 				var stdout, stderr bytes.Buffer
 
-				code := run([]string{command, spec}, &stdout, &stderr)
+				code := run(t.Context(), []string{command, spec}, &stdout, &stderr)
 
 				assert.Equal(t, exitFailure, code)
 				assert.Empty(t, stdout.String())
@@ -128,7 +128,7 @@ func TestRun_CompileEngineConstructFails(t *testing.T) {
 	spec := writeFile(t, "spec.yaml", testspec.Tiny)
 	var stdout, stderr bytes.Buffer
 
-	code := run([]string{"compile", spec}, &stdout, &stderr)
+	code := run(t.Context(), []string{"compile", spec}, &stdout, &stderr)
 
 	assert.Equal(t, 2, code)
 	assert.Contains(t, stderr.String(), "morphic: boom")
@@ -144,7 +144,7 @@ func TestRun_CompileNilDocumentReturnsOne(t *testing.T) {
 	spec := writeFile(t, "spec.yaml", testspec.Tiny)
 	var stdout, stderr bytes.Buffer
 
-	code := run([]string{"compile", spec}, &stdout, &stderr)
+	code := run(t.Context(), []string{"compile", spec}, &stdout, &stderr)
 
 	assert.Equal(t, 1, code)
 	assert.Empty(t, stdout.String(), "no IR JSON should be written for a nil document")
@@ -157,7 +157,7 @@ func TestRun_CompileSkipValidateToStdout(t *testing.T) {
 	spec := writeFile(t, "spec.yaml", testspec.Tiny)
 	var stdout, stderr bytes.Buffer
 
-	code := run([]string{"compile", spec, "--skip-validate"}, &stdout, &stderr)
+	code := run(t.Context(), []string{"compile", spec, "--skip-validate"}, &stdout, &stderr)
 
 	require.Equal(t, 0, code, "stderr: %s", stderr.String())
 	var doc ir.Document
@@ -169,7 +169,7 @@ func TestRun_CompileMissingSpecFile(t *testing.T) {
 	t.Parallel()
 	var stdout, stderr bytes.Buffer
 
-	code := run([]string{"compile", filepath.Join(t.TempDir(), "nope.yaml")}, &stdout, &stderr)
+	code := run(t.Context(), []string{"compile", filepath.Join(t.TempDir(), "nope.yaml")}, &stdout, &stderr)
 
 	assert.Equal(t, 2, code)
 	assert.Contains(t, stderr.String(), "morphic:")
@@ -182,7 +182,7 @@ func TestRun_CompileOutputCreateError(t *testing.T) {
 	badOut := filepath.Join(t.TempDir(), "missing-dir", "ir.json")
 	var stdout, stderr bytes.Buffer
 
-	code := run([]string{"compile", spec, "-o", badOut}, &stdout, &stderr)
+	code := run(t.Context(), []string{"compile", spec, "-o", badOut}, &stdout, &stderr)
 
 	assert.Equal(t, 2, code)
 	assert.Contains(t, stderr.String(), "create output")
@@ -260,7 +260,7 @@ func TestRun_CompileWriteFailureDoesNotMaskDiagnostics(t *testing.T) {
 			spec := writeFile(t, "spec.yaml", tt.spec)
 			var stdout, stderr bytes.Buffer
 
-			code := run([]string{"compile", spec, "-o", tt.dest(t)}, &stdout, &stderr)
+			code := run(t.Context(), []string{"compile", spec, "-o", tt.dest(t)}, &stdout, &stderr)
 
 			assert.Equal(t, tt.wantCode, code, "stderr: %s", stderr.String())
 			assert.Contains(t, stderr.String(), "create output",
@@ -330,7 +330,7 @@ func TestRun_PassFlagsSilenceTheValidatePass(t *testing.T) {
 			var stdout, stderr bytes.Buffer
 			args := slices.Concat(command, tt.flags)
 
-			code := run(args, &stdout, &stderr)
+			code := run(t.Context(), args, &stdout, &stderr)
 
 			assert.Equal(t, tt.want, code, "%v: stderr %q", args, stderr.String())
 			assert.Equal(t, tt.want == exitFindings, strings.Contains(stderr.String(), "ir/dangling-type-ref"),
@@ -379,7 +379,7 @@ func TestRun_DiagnosticsWriteFailureEndsTheRun(t *testing.T) {
 				var stdout bytes.Buffer
 				stderr := &firstWriteFails{}
 
-				code := run([]string{command, spec}, &stdout, stderr)
+				code := run(t.Context(), []string{command, spec}, &stdout, stderr)
 
 				assert.Equal(t, tt.want, code, "stderr: %s", stderr.text.String())
 				if tt.want == 0 {
