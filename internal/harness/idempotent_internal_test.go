@@ -3,6 +3,7 @@ package harness
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -88,6 +89,20 @@ func (noting) Run(doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
 	return &own, nil
 }
 
+// tallying is a transform whose document turns on the findings it is handed:
+// it stamps how many there are, and reports one. Over the document a run of it
+// returned, which carries that finding, it stamps another count.
+type tallying struct{}
+
+func (tallying) Name() string { return "tallying" }
+
+func (tallying) Run(doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
+	own := *doc
+	own.Version = strconv.Itoa(len(doc.Diagnostics))
+	return &own, []ir.Diagnostic{ir.NewDiagnostic(ir.SeverityWarning, "stub/tallied", "tallied",
+		ir.Provenance{Source: ir.NoSource})}
+}
+
 // counting is a pass that is not a function of its input: it numbers the
 // documents it returns, so two runs over one spec differ.
 type counting struct{ n *atomic.Int32 }
@@ -110,7 +125,8 @@ func unencodable(own *ir.Document) *ir.Document {
 // the default passes, an idempotent transform and one reporting only over its
 // own output are OK; a transform that changes its own output is
 // non-idempotent, named, with what its second run changed, and so is one whose
-// two outputs share what it writes into.
+// two outputs share what it writes into, and one whose document turns on the
+// findings a run of it wrote.
 func TestCheck_IdempotenceOutcome(t *testing.T) {
 	for _, tc := range []struct {
 		name   string
@@ -125,6 +141,8 @@ func TestCheck_IdempotenceOutcome(t *testing.T) {
 			[]string{`pass "marking" changes its own output`, `"name": "tiny!"`, `"name": "tiny!!"`}},
 		{"a transform writing into its input", []pass.Pass{stamping{}}, OutcomeNonIdempotent,
 			[]string{`pass "stamping" changes its own output`, `"version": "!"`, `"version": "!!"`}},
+		{"a transform turning on the findings it is handed", []pass.Pass{tallying{}}, OutcomeNonIdempotent,
+			[]string{`pass "tallying" changes its own output`, `"version": "0"`, `"version": "1"`}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			withPasses(t, tc.passes...)
@@ -228,25 +246,27 @@ func TestIdempotent_ACompileWithoutThePassesThatFails(t *testing.T) {
 }
 
 // TestIdempotent_PassesSeeWhatTheOnesBeforeThemReturned pins the oracle's
-// threading: each pass is run over the document the one before it returned,
-// as a run hands it, so a pass that is idempotent only over its
+// threading: each pass is run over what the run of the one before it
+// returned, findings and all, so a pass that is idempotent only over its
 // predecessor's output is held to that.
 func TestIdempotent_PassesSeeWhatTheOnesBeforeThemReturned(t *testing.T) {
 	var seen []string
-	withPasses(t, lowering{}, recording{seen: &seen})
+	withPasses(t, lowering{}, reporting{}, recording{seen: &seen})
 
 	detail, ok := idempotent(context.Background(), "spec.yaml", []byte(testspec.Tiny))
 
 	require.True(t, ok, detail)
-	assert.Equal(t, []string{"tiny", "tiny"}, seen, "both runs see the lowered name")
+	assert.Equal(t, []string{"tiny with 1 finding", "tiny with 1 finding"}, seen,
+		"both runs see the name lowering wrote and the finding reporting's run wrote")
 }
 
-// recording records the name of each document it is handed.
+// recording records the name of each document it is handed, and how many
+// findings that document carries.
 type recording struct{ seen *[]string }
 
 func (recording) Name() string { return "recording" }
 
 func (r recording) Run(doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
-	*r.seen = append(*r.seen, doc.Name)
+	*r.seen = append(*r.seen, fmt.Sprintf("%s with %d finding", doc.Name, len(doc.Diagnostics)))
 	return doc, nil
 }
