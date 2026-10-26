@@ -54,10 +54,13 @@ Exit status is 0 when nothing reaches --fail-on, 1 when something does or the
 spec lowered to no document at all, and 2 for a misuse, an I/O error, a
 compiler or pass that broke its contract, or a run a signal stopped.
 
-SIGINT, SIGTERM or SIGHUP stops the run. A document --output was writing is
-abandoned and its temporary file removed, so the file keeps its previous
-content unless the document was already being moved into place. Another
-signal while the run is stopping changes nothing.`
+SIGINT, SIGTERM or SIGHUP stops the run, which then writes no document: a file
+--output names keeps its previous content, its temporary file removed. One
+that comes once the document is being written to stdout or moved into place,
+once an --explain report has begun, or, for a spec that lowered to no
+document, once the compile is over, is too late to stop the run, which
+finishes as though it had not come. Another signal while the run is stopping
+changes nothing.`
 
 // compileExample is compile's examples, indented as cobra's help indents a
 // section.
@@ -238,6 +241,12 @@ func compileSpec(cmd *cobra.Command, specPath string, opts compileOptions) error
 
 	if opts.explain.set {
 		e := report.Explain(res.Document, res.Diagnostics, res.Sources, opts.explain.pointer)
+		// The writers check ctx before the document's first byte, and this is
+		// the same check for the report: a stop that came while the
+		// diagnostics were being written, or since, leaves none of it written.
+		if err := ctx.Err(); err != nil {
+			return failure(err)
+		}
 		if err := report.WriteExplanation(cmd.OutOrStdout(), e); err != nil {
 			return &exitError{code: writeFailureExit(code), err: fmt.Errorf("write explanation: %w", err)}
 		}

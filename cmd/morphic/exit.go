@@ -72,6 +72,17 @@ func misuse(cmd *cobra.Command, msg string) error {
 	return asMisuse(cmd, errors.New(msg))
 }
 
+// finished reports whether err, what a command returned, says the run reached
+// its end: no error, or an exitError carrying only the verdict its diagnostics
+// already reported.
+func finished(err error) bool {
+	if err == nil {
+		return true
+	}
+	ee, ok := errors.AsType[*exitError](err)
+	return ok && ee.err == nil
+}
+
 // exitCode maps what Execute returned to the process exit code. Anything that
 // is not an exitError — cobra's own refusals of the arguments — is misuse.
 func exitCode(err error) int {
@@ -88,8 +99,7 @@ func exitCode(err error) int {
 // read: the reason, then for a misuse the help page to read. A run that ended
 // well, or with findings the diagnostics already reported, writes nothing.
 func reportError(w io.Writer, err error) {
-	var ee *exitError
-	if err == nil || errors.As(err, &ee) && ee.err == nil {
+	if finished(err) {
 		return
 	}
 

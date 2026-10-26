@@ -12,17 +12,19 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// cancellingDetect is a compiler whose Detect cancels the run and answers what
-// no detection may: a claim naming no format, which the registry would refuse
-// as a breach were it judged.
+// cancellingDetect is a compiler whose Detect cancels the run and then answers
+// in a way that would mislead were it judged: a claim naming no format, which
+// the registry would refuse as a breach, or, when declines is set, a silent
+// decline, which would report a source no compiler takes.
 type cancellingDetect struct {
 	stubCompiler
-	cancel context.CancelFunc
+	cancel   context.CancelFunc
+	declines bool
 }
 
 func (c *cancellingDetect) Detect(context.Context, compilers.Source, compilers.Options) (compilers.Recognition, []ir.Diagnostic, bool) {
 	c.cancel()
-	return compilers.Recognition{}, nil, true
+	return compilers.Recognition{}, nil, !c.declines
 }
 
 // TestRegistry_DetectDoesNotJudgeAnAnswerGivenOnceCancelled pins that a
@@ -43,6 +45,24 @@ func TestRegistry_DetectDoesNotJudgeAnAnswerGivenOnceCancelled(t *testing.T) {
 	assert.False(t, ok)
 	assert.Equal(t, compilers.Detection{}, det)
 	assert.Empty(t, later.saw, "no compiler after it is asked")
+}
+
+// TestRegistry_DetectDoesNotJudgeADeclineGivenOnceCancelled pins the same for
+// a decline by the last compiler asked, which leaves no later turn to find the
+// context done: the detection fails with the context's error, rather than
+// reporting a source no compiler takes. A Detect the cancellation cut short
+// declines in silence, as OpenAPI's does.
+func TestRegistry_DetectDoesNotJudgeADeclineGivenOnceCancelled(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithCancel(t.Context())
+	t.Cleanup(cancel)
+	last := &cancellingDetect{formats: []compilers.SourceFormat{alpha}, cancel: cancel, declines: true}
+
+	det, ok, err := registryOf(t, last).Detect(ctx, compilers.Source{Data: []byte("alpha")}, nil)
+
+	require.ErrorIs(t, err, context.Canceled)
+	assert.False(t, ok)
+	assert.Equal(t, compilers.Detection{}, det, "no decline is reported")
 }
 
 // cancellingCompile is a compiler whose Compile cancels the run and returns
