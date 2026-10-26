@@ -166,9 +166,8 @@ func undetected(code string) bool {
 
 // reraise returns err, or raises again the panic it records. The engine
 // recovers a compiler's or a pass's panic into an error, and the first oracle
-// is that none occurs, in the first compile of a source and in each recompile
-// alike, so the panic goes on to Check's recover as it would have without the
-// engine's.
+// is that none occurs, in every run an oracle makes of a source, so the panic
+// goes on to Check's recover as it would have without the engine's.
 func reraise(err error) error {
 	if perr, ok := errors.AsType[*barrier.PanicError](err); ok {
 		panic(perr)

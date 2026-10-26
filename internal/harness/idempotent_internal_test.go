@@ -205,6 +205,30 @@ func TestIdempotent_Faults(t *testing.T) {
 	}
 }
 
+// TestCheck_APassesPanicIsAPanicOutcome pins the first oracle for a pass,
+// whose panic the engine recovers into an error: on its first run, and over
+// its own output, a run only the idempotence oracle makes, each is still the
+// panic outcome and not a finding of the oracle that ran it.
+func TestCheck_APassesPanicIsAPanicOutcome(t *testing.T) {
+	explode := func(*ir.Document) *ir.Document { panic("pass exploded") }
+	for _, tc := range []struct {
+		name string
+		pass faulting
+	}{
+		{"on its first run", faulting{first: explode}},
+		{"over its own output", faulting{rerun: explode}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			withPasses(t, tc.pass)
+
+			r := Check(context.Background(), "spec.yaml", []byte(testspec.Tiny))
+
+			assert.Equal(t, OutcomePanic, r.Outcome, r.Detail)
+			assert.Contains(t, r.Detail, "pass exploded")
+		})
+	}
+}
+
 // TestIdempotent_ACompileWithoutThePassesThatFails pins the oracle's own
 // compile, which runs no pass: a fault or no document there is reported, not
 // taken for a pass's.

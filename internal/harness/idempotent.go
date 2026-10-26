@@ -71,7 +71,7 @@ func twice(ctx context.Context, p pass.Pass, doc *ir.Document) (*ir.Document, st
 func runEncoded(ctx context.Context, e *engine.Engine, doc *ir.Document) (*ir.Document, []byte, error) {
 	res, err := e.RunDocument(ctx, doc, engine.RunOptions{})
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, reraise(err)
 	}
 	own := *res.Document
 	own.Diagnostics = nil
