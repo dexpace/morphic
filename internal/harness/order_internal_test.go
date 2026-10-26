@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json/jsontext"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -147,13 +148,14 @@ func TestOrderInvariant_UnpermutableSourcePasses(t *testing.T) {
 	}
 }
 
-// TestOrderInvariant_CompileFailureIsReported covers the permuted recompile's
-// error paths, which a correct compiler never produces on a source whose
-// baseline already compiled.
+// TestOrderInvariant_CompileFailureIsReported covers the error paths of the
+// two compiles the oracle makes, which a correct compiler never produces on a
+// source that already compiled.
 //
-// The seam answers for the baseline and fails only for the permutation. Failing
-// both would exercise nothing: a baseline that will not compile means the
-// re-encoding is not the source, which the oracle skips rather than reports.
+// The seam answers for the baseline and fails only for the permutation, and
+// then fails the baseline alone with a Go error, which is never the spec's
+// and so is reported too, where a declined baseline is skipped (the test
+// below).
 func TestOrderInvariant_CompileFailureIsReported(t *testing.T) {
 	const src = "a: 1\nb: 2\n"
 	orig := compile
@@ -184,23 +186,30 @@ func TestOrderInvariant_CompileFailureIsReported(t *testing.T) {
 	detail, ok = orderInvariant(context.Background(), "spec", []byte(src))
 	assert.False(t, ok)
 	assert.Contains(t, detail, "no document")
+
+	compile = func(_ context.Context, _ string, data []byte, _ []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
+		if bytes.Equal(data, baseline) {
+			return nil, nil, errors.New("baseline boom")
+		}
+		return &ir.Document{}, nil, nil
+	}
+	detail, ok = orderInvariant(context.Background(), "spec", []byte(src))
+	assert.False(t, ok)
+	assert.Equal(t, "compile re-encoded: baseline boom", detail)
 }
 
 // TestOrderInvariant_UncompilableBaselineIsNotAFinding pins the skip the test
-// above depends on: when the re-encoded source yields no document, the oracle has
-// no faithful baseline to ask its question of, so it declines rather than
-// reporting the permutation.
-//
-// Both ways of yielding none are driven, because they are separate branches and
-// a compiler reaches them for different reasons — an I/O or programmer fault
-// against a source it declines to lower at all.
+// above depends on: when the re-encoded source reads as no spec, or one the
+// compiler declines, the oracle has no faithful baseline to ask its question
+// of, so it declines rather than reporting the permutation. Both are driven,
+// being separate branches.
 func TestOrderInvariant_UncompilableBaselineIsNotAFinding(t *testing.T) {
 	tests := []struct {
 		name string
 		fail func() (*ir.Document, []ir.Diagnostic, error)
 	}{
-		{"the baseline errors", func() (*ir.Document, []ir.Diagnostic, error) {
-			return nil, nil, errors.New("boom")
+		{"the baseline is unrecognized", func() (*ir.Document, []ir.Diagnostic, error) {
+			return nil, nil, fmt.Errorf("no compiler takes it: %w", errUnrecognized)
 		}},
 		{"the baseline compiles to no document", func() (*ir.Document, []ir.Diagnostic, error) {
 			return nil, nil, nil
