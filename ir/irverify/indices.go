@@ -28,6 +28,7 @@ var (
 func checkIndices(doc *ir.Document) walkCheck {
 	declared := len(doc.Servers)
 	var vs []Violation
+	var reader entryReader
 	return walkCheck{
 		visit: func(v reflect.Value, at ir.WalkPath) bool {
 			if v.Kind() != reflect.Struct {
@@ -37,7 +38,7 @@ func checkIndices(doc *ir.Document) walkCheck {
 			case serviceType, channelType:
 				vs = appendServerIndexViolations(vs, v.FieldByName("Servers"), declared, at)
 			case operationType:
-				vs = appendResponseIndexViolations(vs, v, at)
+				vs = appendResponseIndexViolations(vs, &reader, v, at)
 			default:
 				// Every other struct carries no index reference of its own.
 			}
@@ -66,34 +67,34 @@ func appendServerIndexViolations(vs []Violation, servers reflect.Value, declared
 }
 
 // appendResponseIndexViolations appends to vs a violation per SuccessStatus key
-// on one operation's HTTP bindings that addresses no response it declares.
-func appendResponseIndexViolations(vs []Violation, op reflect.Value, at ir.WalkPath) []Violation {
+// on one operation's HTTP bindings that addresses no response it declares; r
+// reads each SuccessStatus map. Keys need no sorting first: every violation
+// carries its own key in Path, and Verify orders the whole result by (Code,
+// Path) before returning it.
+func appendResponseIndexViolations(vs []Violation, r *entryReader, op reflect.Value, at ir.WalkPath) []Violation {
 	declared := op.FieldByName("Responses").Len()
 	bindings := op.FieldByName("Bindings").FieldByName("HTTP")
 	for i := range bindings.Len() {
 		status := bindings.Index(i).FieldByName("SuccessStatus")
-		vs = appendSuccessStatusViolations(vs, status, declared, at, i)
+		held := r.heldFor(status)
+		for iter := status.MapRange(); iter.Next(); {
+			key, _ := held.read(iter)
+			if index := int(key.Int()); index < 0 || index >= declared {
+				vs = append(vs, responseIndexViolation(index, declared, at, i))
+			}
+		}
 	}
 	return vs
 }
 
-// appendSuccessStatusViolations appends to vs a violation per key of one
-// SuccessStatus map that addresses none of the declared responses. Keys need no
-// sorting first: every violation carries its own key in Path, and Verify orders
-// the whole result by (Code, Path) before returning it.
-func appendSuccessStatusViolations(vs []Violation, status reflect.Value, declared int, op ir.WalkPath, binding int) []Violation {
-	iter := status.MapRange()
-	for iter.Next() {
-		index := int(iter.Key().Int())
-		if index >= 0 && index < declared {
-			continue
-		}
-		vs = append(vs, Violation{
-			Code: "ir/response-index-out-of-range",
-			Message: "response index " + strconv.Itoa(index) + " addresses none of the " +
-				strconv.Itoa(declared) + " declared responses",
-			Path: op.String() + ".Bindings.HTTP[" + strconv.Itoa(binding) + "].SuccessStatus[" + strconv.Itoa(index) + "]",
-		})
+// responseIndexViolation reports the SuccessStatus key index, on the binding-th
+// HTTP binding of the operation at op, as addressing none of its declared
+// responses.
+func responseIndexViolation(index, declared int, op ir.WalkPath, binding int) Violation {
+	return Violation{
+		Code: "ir/response-index-out-of-range",
+		Message: "response index " + strconv.Itoa(index) + " addresses none of the " +
+			strconv.Itoa(declared) + " declared responses",
+		Path: op.String() + ".Bindings.HTTP[" + strconv.Itoa(binding) + "].SuccessStatus[" + strconv.Itoa(index) + "]",
 	}
-	return vs
 }

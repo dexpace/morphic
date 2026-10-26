@@ -25,6 +25,7 @@ var (
 // Verify sorts the result by (Code, Path), so entries need no ordering.
 func checkRawPayloads(*ir.Document) walkCheck {
 	var vs []Violation
+	var reader entryReader
 	return walkCheck{
 		visit: func(v reflect.Value, at ir.WalkPath) bool {
 			if v.Kind() != reflect.Map {
@@ -32,9 +33,9 @@ func checkRawPayloads(*ir.Document) walkCheck {
 			}
 			switch v.Type() {
 			case unmodeledType:
-				vs = appendEntries(vs, v, at, unmodeledEntry)
+				vs = appendEntries(vs, &reader, v, at, unmodeledEntry)
 			case rawConfigType:
-				vs = appendEntries(vs, v, at, rawConfigEntry)
+				vs = appendEntries(vs, &reader, v, at, rawConfigEntry)
 			default:
 				return true // any other map may still hold one of these below it
 			}
@@ -45,14 +46,15 @@ func checkRawPayloads(*ir.Document) walkCheck {
 }
 
 // appendEntries appends check's verdict on every entry of the payload map m, at
-// at, to vs. Both callers key on a plain string, so the key spells the entry's
-// path.
-func appendEntries(vs []Violation, m reflect.Value, at ir.WalkPath,
+// at, to vs, reading the entries through r. Both callers key on a plain string,
+// so the key spells the entry's path.
+func appendEntries(vs []Violation, r *entryReader, m reflect.Value, at ir.WalkPath,
 	check func(key string, entry reflect.Value, at ir.WalkPath) []Violation,
 ) []Violation {
-	iter := m.MapRange()
-	for iter.Next() {
-		vs = append(vs, check(iter.Key().String(), iter.Value(), at)...)
+	held := r.heldFor(m)
+	for iter := m.MapRange(); iter.Next(); {
+		key, entry := held.read(iter)
+		vs = append(vs, check(key.String(), entry, at)...)
 	}
 	return vs
 }
