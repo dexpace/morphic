@@ -439,7 +439,7 @@ var rules = map[string][]string{
 // to neither fails, which is what stops both lists rotting.
 var exempt = map[string]string{
 	"internal/harness": "test/tooling infrastructure that drives specs through the oracles, " +
-		"so it legitimately imports the Layer-3 engine for the compilers it registers",
+		"so it legitimately imports the Layer-3 engine, whose runs it judges",
 }
 
 // unbuilt names the rules entries whose directory does not exist yet, each
