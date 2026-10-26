@@ -83,9 +83,9 @@ func TestCloneTypeDef_CopyingANodeWithNoMapAllocatesOnlyTheCopy(t *testing.T) {
 }
 
 // TestCloneTypeDef_LeavesTheEntryStackAsItFoundIt holds a copy to releasing
-// what it read maps into, nested maps included: an edit keeps one stack for
-// every copy it makes, so entries a copy left behind would pile up for the
-// whole edit, changing no result.
+// what it read maps into, a property's map as well as the node's own: an edit
+// keeps one stack for every copy it makes, so entries a copy left behind would
+// pile up for the whole edit, changing no result.
 func TestCloneTypeDef_LeavesTheEntryStackAsItFoundIt(t *testing.T) {
 	t.Parallel()
 	var ranging entryStack
